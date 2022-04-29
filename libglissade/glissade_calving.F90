@@ -37,6 +37,7 @@ module glissade_calving
 
   use glimmer_paramets, only: eps08, thk0
   use glimmer_physcon, only: rhoi, rhoo, grav, scyr
+  use glide_diagnostics, only: point_diag
 
   implicit none
 
@@ -106,11 +107,11 @@ contains
 
        ! calving_mask was read from the input file; do not need to compute a mask here
 
-       if (verbose_calving .and. main_task) print*, 'Calving_mask was read from the input file'
+       if (main_task) write(6,*) 'Calving_mask was read from the input file'
 
     elseif (calving_front_x > 0.0d0 .or. calving_front_y > 0.0d0) then
 
-       if (main_task) print*, 'Computing calving_mask based on calving_front_x/y'
+       if (main_task) write(6,*) 'Computing calving_mask based on calving_front_x/y'
 
        ! initialize
        calving_mask(:,:) = 0   ! no calving by default
@@ -165,7 +166,7 @@ contains
     else  ! compute the calving mask based on the initial ice extent
  
        if (main_task) then
-          print*, 'Computing calving_mask based on initial ice extent'
+          write(6,*) 'Computing calving_mask based on initial ice extent'
        endif
 
        ! initialize
@@ -203,7 +204,7 @@ contains
                 else
                    calving_mask(i,j) = 0
                    call parallel_globalindex(i, j, iglobal, jglobal, parallel)
-                   print*, 'ocean cell with uobs, vobs > 0: iglobal, jglobal, thck, uobs, vobs', &
+                   write(6,*) 'ocean cell with uobs, vobs > 0: iglobal, jglobal, thck, uobs, vobs', &
                         iglobal, jglobal, thck(i,j), usfc_obs(i,j), vsfc_obs(i,j)
                 endif
              else
@@ -296,9 +297,8 @@ contains
        ! Set thck_calving_threshold to a uniform value
        thck_calving_threshold(:,:) = calving_minthck
 
-       if (verbose_calving .and. this_rank == rtest) then
-          print*, ' '
-          print*, 'Set thck_calving_threshold to calving_minthck (m):', calving_minthck
+       if (verbose_calving .and. main_task) then
+          write(6,*) 'Set thck_calving_threshold to calving_minthck (m):', calving_minthck
        endif
 
     else
@@ -330,54 +330,20 @@ contains
                                         calving_front_mask,                &
                                         thck_calving_front)
 
-       if (verbose_calving .and. this_rank == rtest) then
-          print*, ' '
-          print*, 'Calving front masks:'
-          print*, ' '
-          print*, 'thck (m), itest, jtest, rank =', itest, jtest, rtest
-          do j = jtest+3, jtest-3, -1
-             write(6,'(i6)',advance='no') j
-             do i = itest-3, itest+3
-                write(6,'(f10.3)',advance='no') thck(i,j)
-             enddo
-             write(6,*) ' '
-          enddo
-          print*, ' '
-          print*, 'floating_mask, itest, jtest, rank =', itest, jtest, rtest
-          do j = jtest+3, jtest-3, -1
-             write(6,'(i6)',advance='no') j
-             do i = itest-3, itest+3
-                write(6,'(i10)',advance='no') floating_mask(i,j)
-             enddo
-             write(6,*) ' '
-          enddo
-          print*, ' '
-          print*, 'calving_front_mask, itest, jtest, rank =', itest, jtest, rtest
-          do j = jtest+3, jtest-3, -1
-             write(6,'(i6)',advance='no') j
-             do i = itest-3, itest+3
-                write(6,'(i10)',advance='no') calving_front_mask(i,j)
-             enddo
-             write(6,*) ' '
-          enddo
-          print*, ' '
-          print*, 'thck_calving_front (m), itest, jtest, rank =', itest, jtest, rtest
-          do j = jtest+3, jtest-3, -1
-             write(6,'(i6)',advance='no') j
-             do i = itest-3, itest+3
-                write(6,'(f10.3)',advance='no') thck_calving_front(i,j)
-             enddo
-             write(6,*) ' '
-          enddo
+       if (verbose_calving) then
+          call point_diag(thck, 'Set thck_calving_threshold, thck, (m)', itest, jtest, rtest, 7, 7)
+          call point_diag(floating_mask, 'floating_mask', itest, jtest, rtest, 7, 7)
+          call point_diag(calving_front_mask, 'calving_front_mask', itest, jtest, rtest, 7, 7)
+          call point_diag(thck_calving_front, 'thck_calving_front (m)', itest, jtest, rtest, 7, 7)
        endif
 
        if (which_ho_calving_front == HO_CALVING_FRONT_SUBGRID) then
 
           ! Extrapolate and smooth thck_calving_front, starting with CF cells where it was just computed
 
-          if (verbose_calving .and. this_rank == rtest) then
-             print*, ' '
-             print*, 'Set thck_calving_threshold by extrapolating thck_calving_front to marine-connected cells'
+          if (verbose_calving .and. main_task) then
+             write(6,*) ' '
+             write(6,*) 'Set thck_calving_threshold by extrapolating thck_calving_front to marine-connected cells'
           endif
 
           ! Limit thck_calving_front to lie within a prescribed range.
@@ -386,18 +352,9 @@ contains
              thck_calving_front = min(thck_calving_front, calving_threshold_max)
           endwhere
 
-          if (verbose_calving .and. this_rank == rtest) then
-             print*, ' '
-             print*, 'After corrections:'
-             print*, ' '
-             print*, 'thck_calving_front (m), itest, jtest, rank =', itest, jtest, rtest
-             do j = jtest+3, jtest-3, -1
-                write(6,'(i6)',advance='no') j
-                do i = itest-3, itest+3
-                   write(6,'(f10.3)',advance='no') thck_calving_front(i,j)
-                enddo
-                write(6,*) ' '
-             enddo
+          if (verbose_calving) then
+             call point_diag(thck_calving_front, 'After corrections, thck_calving_front (m)', &
+                  itest, jtest, rtest, 7, 7)
           endif
 
           ! Extrapolate the CF thickness from cells with calving_front_mask = 1
@@ -416,18 +373,11 @@ contains
 
           call parallel_halo(thck_calving_threshold, parallel)
 
-          if (verbose_calving .and. this_rank == rtest) then
-             print*, ' '
-             print*, 'Extrapolated thck_calving_front to interior marine-based cells'
-             print*, ' '
-             print*, 'thck_calving_threshold (m), itest, jtest, rank =', itest, jtest, rtest
-             do j = jtest+3, jtest-3, -1
-                write(6,'(i6)',advance='no') j
-                do i = itest-3, itest+3
-                   write(6,'(f10.3)',advance='no') thck_calving_threshold(i,j)
-                enddo
-                write(6,*) ' '
-             enddo
+          if (verbose_calving) then
+             if (this_rank == rtest) then
+                write(6,*) 'Extrapolated thck_calving_front to interior marine-based cells'
+             endif
+             call point_diag(thck_calving_threshold, 'thck_calving_threshold (m)', itest, jtest, rtest, 7, 7)
           endif
 
        elseif (which_ho_calving_front == HO_CALVING_FRONT_NO_SUBGRID) then
@@ -442,18 +392,11 @@ contains
              thck_calving_threshold = 0.0d0
           endwhere
 
-          if (verbose_calving .and. this_rank == rtest) then
-             print*, ' '
-             print*, 'Set thck_calving_threshold = thck in marine-connected cells'
-             print*, ' '
-             print*, 'thck_calving_threshold (m), itest, jtest, rank =', itest, jtest, rtest
-             do j = jtest+3, jtest-3, -1
-                write(6,'(i6)',advance='no') j
-                do i = itest-3, itest+3
-                   write(6,'(f10.3)',advance='no') thck_calving_threshold(i,j)
-                enddo
-                write(6,*) ' '
-             enddo
+          if (verbose_calving) then
+             if (this_rank == rtest) then
+                write(6,*) 'Set thck_calving_threshold = thck in marine-connected cells'
+             endif
+             call point_diag(thck_calving_threshold, 'thck_calving_threshold (m)', itest, jtest, rtest, 7, 7)
           endif
 
        endif   ! which_ho_calving_front
@@ -585,15 +528,14 @@ contains
     nz = size(sigma)
 
     if (which_calving == CALVING_NONE) then   ! do nothing
-       if (verbose_calving .and. main_task) print*, 'No calving'
+       if (verbose_calving .and. main_task) write(6,*) 'No calving'
        return
     endif
 
-    !WHL - debug
     if (verbose_calving .and. main_task) then
-       print*, ' '
-       print*, 'In glissade_calve_ice, which_calving =', which_calving
-       print*, 'calving_domain =', calving_domain
+       write(6,*) ' '
+       write(6,*) 'In glissade_calve_ice, which_calving =', which_calving
+       write(6,*) 'calving_domain =', calving_domain
     endif
 
     ! Set the thickness fraction to be removed in each calving cell
@@ -640,12 +582,12 @@ contains
             eus,                thklim,                &  ! m
             calving%tau_eigen1, calving%tau_eigen2,    &  ! Pa
             calving%eps_eigen1, calving%eps_eigen2,    &  ! 1/s
-            calving%damage_constant1,                  &
-            calving%damage_constant2,                  &
-            calving%damage_threshold,                  &
+            calving%damage_constant1,                  &  ! 1/s
+            calving%damage_constant2,                  &  ! 1/s
+            calving%damage_threshold,                  &  !
             calving%minthck,                           &  ! m
-            calving%damage,                            &
-            calving%lateral_rate,                      &
+            calving%damage,                            &  !
+            calving%lateral_rate,                      &  ! m/s
             calving%calving_thck)                         ! m
 
     elseif (which_calving == EIGENCALVING) then
@@ -686,45 +628,13 @@ contains
             calving_front_mask,             &
             thck_calving_front)
 
-       !WHL - Debug
-       if (verbose_calving .and. this_rank == rtest) then
-          print*, ' '
-          print*, 'floating_mask, itest, jtest, rank =', itest, jtest, rtest
-          do j = jtest+3, jtest-3, -1
-             write(6,'(i6)',advance='no') j
-             do i = itest-3, itest+3
-                write(6,'(i10)',advance='no') floating_mask(i,j)
-             enddo
-             write(6,*) ' '
-          enddo
-          print*, ' '
-          print*, 'calving_front_mask, itest, jtest, rank =', itest, jtest, rtest
-          do j = jtest+3, jtest-3, -1
-             write(6,'(i6)',advance='no') j
-             do i = itest-3, itest+3
-                write(6,'(i10)',advance='no') calving_front_mask(i,j)
-             enddo
-             write(6,*) ' '
-          enddo
-          print*, ' '
-          print*, 'thck_calving_front (m), itest, jtest, rank =', itest, jtest, rtest
-          do j = jtest+3, jtest-3, -1
-             write(6,'(i6)',advance='no') j
-             do i = itest-3, itest+3
-                write(6,'(f10.3)',advance='no') thck_calving_front(i,j)
-             enddo
-             write(6,*) ' '
-          enddo
-          print*, ' '
-          print*, 'Before calving, thck (m), itest, jtest, rank =', itest, jtest, rtest
-          do j = jtest+3, jtest-3, -1
-             write(6,'(i6)',advance='no') j
-             do i = itest-3, itest+3
-                write(6,'(f10.3)',advance='no') thck(i,j)
-             enddo
-             write(6,*) ' '
-          enddo
-       endif   ! verbose_calving
+       if (verbose_calving) then
+          call point_diag(floating_mask, 'floating_mask', itest, jtest, rtest, 7, 7)
+          call point_diag(calving_front_mask, 'calving_front_mask', itest, jtest, rtest, 7, 7)
+          call point_diag(floating_mask, 'floating_mask', itest, jtest, rtest, 7, 7)
+          call point_diag(thck_calving_front, 'thck_calving_front', itest, jtest, rtest, 7, 7)
+          call point_diag(thck, 'Before calving, thck (m)', itest, jtest, rtest, 7, 7)
+       endif
 
        ! For each floating cell, compute an effective stress based on eigenvalues of the stress tensor.
        ! Ignore negative eigenvalues corresponding to compressive stresses.
@@ -789,11 +699,11 @@ contains
                 dthck = thinning_rate * dt  ! m
 
                 if (verbose_calving .and. i==itest .and. j==jtest .and. this_rank==rtest) then
-                   print*, ' '
-                   print*, 'Calving: r, i, j =', rtest, itest, jtest
-                   print*, 'dx (m), dt (yr) =', sqrt(dx*dy), dt/scyr
-                   print*, 'lateral calving rate (m/yr) =', calving%lateral_rate(i,j)*scyr
-                   print*, 'dthck (m) =', dthck
+                   write(6,*) ' '
+                   write(6,*) 'Calving: r, i, j =', rtest, itest, jtest
+                   write(6,*) 'dx (m), dt (yr) =', sqrt(dx*dy), dt/scyr
+                   write(6,*) 'lateral calving rate (m/yr) =', calving%lateral_rate(i,j)*scyr
+                   write(6,*) 'dthck (m) =', dthck
                 endif
 
                 ! Compute the new ice thickness
@@ -809,36 +719,11 @@ contains
           enddo   ! i
        enddo   ! j
 
-       if (verbose_calving .and. this_rank == rtest) then
-          print*, ' '
-          print*, 'Finished eigencalving, task =', this_rank
-          print*, ' '
-          print*, 'lateral calving rate (m/yr), itest, jtest, rank =', itest, jtest, rtest
-          do j = jtest+3, jtest-3, -1
-             write(6,'(i6)',advance='no') j
-             do i = itest-3, itest+3
-                write(6,'(f10.3)',advance='no') calving%lateral_rate(i,j) * scyr
-             enddo
-             write(6,*) ' '
-          enddo
-          print*, ' '
-          print*, 'calving_thck (m), itest, jtest, rank =', itest, jtest, rtest
-          do j = jtest+3, jtest-3, -1
-             write(6,'(i6)',advance='no') j
-             do i = itest-3, itest+3
-                write(6,'(f10.3)',advance='no') calving%calving_thck(i,j)
-             enddo
-             write(6,*) ' '
-          enddo
-          print*, ' '
-          print*, 'new thck (m), itest, jtest, rank =', itest, jtest, rtest
-          do j = jtest+3, jtest-3, -1
-             write(6,'(i6)',advance='no') j
-             do i = itest-3, itest+3
-                write(6,'(f10.3)',advance='no') thck(i,j)
-             enddo
-             write(6,*) ' '
-          enddo
+       if (verbose_calving) then
+          call point_diag(calving%lateral_rate*scyr, 'Finished eigencalving, lateral calving_rate', &
+               itest, jtest, rtest, 7, 7)
+          call point_diag(calving%calving_thck, 'calving_thck (m)', itest, jtest, rtest, 7, 7)
+          call point_diag(thck, 'new thck (m)', itest, jtest, rtest, 7, 7)
        endif
 
     endif  ! eigencalving
@@ -881,45 +766,16 @@ contains
                                calving_front_mask,                &
                                thck_calving_front)
 
-       if (verbose_calving .and. this_rank == rtest) then
-          print*, ' '
-          print*, 'Thickness-based calving:'
-          print*, ' '
-          print*, 'calving_front_mask, itest, jtest, rank =', itest, jtest, rtest
-          do j = jtest+3, jtest-3, -1
-             write(6,'(i6)',advance='no') j
-             do i = itest-3, itest+3
-                write(6,'(i10)',advance='no') calving_front_mask(i,j)
-             enddo
+       if (verbose_calving) then
+          if (this_rank == rtest) then
              write(6,*) ' '
-          enddo
-          print*, ' '
-          print*, 'thck_calving_front (m), itest, jtest, rank =', itest, jtest, rtest
-          do j = jtest+3, jtest-3, -1
-             write(6,'(i6)',advance='no') j
-             do i = itest-3, itest+3
-                write(6,'(f10.3)',advance='no') thck_calving_front(i,j)
-             enddo
-             write(6,*) ' '
-          enddo
-          print*, ' '
-          print*, 'thck_calving_threshold (m), itest, jtest, rank =', itest, jtest, rtest
-          do j = jtest+3, jtest-3, -1
-             write(6,'(i6)',advance='no') j
-             do i = itest-3, itest+3
-                write(6,'(f10.3)',advance='no') calving%thck_calving_threshold(i,j)
-             enddo
-             write(6,*) ' '
-          enddo
-          print*, ' '
-          print*, 'thck (m), itest, jtest, rank =', itest, jtest, rtest
-          do j = jtest+3, jtest-3, -1
-             write(6,'(i6)',advance='no') j
-             do i = itest-3, itest+3
-                write(6,'(f10.3)',advance='no') thck(i,j)
-             enddo
-             write(6,*) ' '
-          enddo
+             write(6,*) 'Thickness-based calving:'
+          endif
+          call point_diag(calving_front_mask, 'calving_front_mask', itest, jtest, rtest, 7, 7)
+          call point_diag(thck_calving_front, 'thck_calving_front (m)', itest, jtest, rtest, 7, 7)
+          call point_diag(calving%thck_calving_threshold, 'thck_calving_threshold (m)', &
+               itest, jtest, rtest, 7, 7)
+          call point_diag(thck, 'thck (m)', itest, jtest, rtest, 7, 7)
        endif
 
        ! Apply thinning in calving-front cells whose effective thickness (H_e = thck_calving_front) is less than
@@ -949,7 +805,7 @@ contains
                   thck_calving_front(i,j) > 0.0d0 .and. thck_calving_front(i,j) <= calving%thck_calving_threshold(i,j)) then
                 
 !!                if (verbose_calving .and. thck(i,j) > 0.0d0) &
-!!                     print*, 'Calve thin floating ice: task, i, j, thck =', this_rank, i, j, thck(i,j)
+!!                     write(6,*) 'Calve thin floating ice: task, i, j, thck =', this_rank, i, j, thck(i,j)
 
                 ! calving%timescale has units of s
                 thinning_rate = (calving%thck_calving_threshold(i,j) - thck_calving_front(i,j)) / calving%timescale
@@ -957,13 +813,13 @@ contains
 
                 !WHL - debug
                 if (verbose_calving .and. i==itest .and. j==jtest .and. this_rank==rtest) then
-                   print*, ' '
-                   print*, 'Thinning: r, i, j =', rtest, itest, jtest
-                   print*, 'thck:', thck(i,j)
-                   print*, 'thck_calving_front (m) =', thck_calving_front(i,j)
-                   print*, 'thck_calving_threshold (m) =', calving%thck_calving_threshold(i,j)
-                   print*, 'thinning rate (m/yr) =', thinning_rate * scyr
-                   print*, 'dthck (m) =', dthck
+                   write(6,*) ' '
+                   write(6,*) 'Thinning: r, i, j =', rtest, itest, jtest
+                   write(6,*) 'thck:', thck(i,j)
+                   write(6,*) 'thck_calving_front (m) =', thck_calving_front(i,j)
+                   write(6,*) 'thck_calving_threshold (m) =', calving%thck_calving_threshold(i,j)
+                   write(6,*) 'thinning rate (m/yr) =', thinning_rate * scyr
+                   write(6,*) 'dthck (m) =', dthck
                 endif
 
                 if (dthck > thck(i,j)) then
@@ -1064,7 +920,7 @@ contains
              do i = 2, nx-1
 
                 if (verbose_calving .and. i==itest .and. j==jtest .and. this_rank==rtest) then
-                   print*, 'task, i, j, ice_mask, floating_mask:',  &
+                   write(6,*) 'task, i, j, ice_mask, floating_mask:',  &
                         this_rank, i, j, ice_mask(i,j), floating_mask(i,j)
                 endif
 
@@ -1080,17 +936,8 @@ contains
           ! halo update (since the loop above misses some halo cells)
           call parallel_halo(calving_domain_mask, parallel)
 
-          if (verbose_calving .and. this_rank==rtest) then
-             print*, ' '
-             print*, 'calving_domain_mask, itest, jtest, rank =', itest, jtest, rtest
-             do j = jtest+3, jtest-3, -1
-                write(6,'(i6)',advance='no') j
-                do i = itest-3, itest+3
-                   write(6,'(L10)',advance='no') calving_domain_mask(i,j)
-                enddo
-                write(6,*) ' '
-             enddo
-             print*, ' '
+          if (verbose_calving) then
+             call point_diag(calving_domain_mask, 'calving_domain_mask', itest, jtest, rtest, 7, 7)
           endif
 
        elseif (calving_domain == CALVING_DOMAIN_EVERYWHERE) then  ! calving domain includes all cells
@@ -1105,7 +952,7 @@ contains
              if (calving_law_mask(i,j) .and. calving_domain_mask(i,j)) then
 
                 if (verbose_calving .and. this_rank==rtest .and. thck(i,j) > 0.0d0) then
-!!                   print*, 'Calve ice: task, i, j, calving_thck =', this_rank, i, j, float_fraction_calve * thck(i,j)
+!!                   write(6,*) 'Calve ice: task, i, j, calving_thck =', this_rank, i, j, float_fraction_calve * thck(i,j)
                 endif
 
                 calving%calving_thck(i,j) = calving%calving_thck(i,j) + float_fraction_calve * thck(i,j)
@@ -1116,26 +963,9 @@ contains
 
     endif   ! which_calving
 
-    if (verbose_calving .and. this_rank==rtest) then
-       print*, ' '
-       print*, 'calving_thck, itest, jtest, rank =', itest, jtest, rtest
-       do j = jtest+3, jtest-3, -1
-          write(6,'(i6)',advance='no') j
-          do i = itest-3, itest+3
-             write(6,'(f10.3)',advance='no') calving%calving_thck(i,j)
-          enddo
-          write(6,*) ' '
-       enddo
-       print*, ' '
-       print*, 'After calving, new thck:'
-       do j = jtest+3, jtest-3, -1
-          write(6,'(i6)',advance='no') j
-          do i = itest-3, itest+3
-             write(6,'(f10.3)',advance='no') thck(i,j)
-          enddo
-          write(6,*) ' '
-       enddo
-       print*, ' '
+    if (verbose_calving) then
+       call point_diag(calving%calving_thck, 'calving_thck (m)', itest, jtest, rtest, 7, 7)
+       call point_diag(thck, 'After calving, new thck (m)', itest, jtest, rtest, 7, 7)
     endif
 
   end subroutine glissade_calve_ice
@@ -1163,82 +993,81 @@ contains
     use glissade_grid_operators, only: glissade_unstagger
 
     integer, intent(in) :: &
-         nx, ny, nz,  &
-         itest, jtest, rtest
+         nx, ny, nz,             & ! grid dimensions
+         itest, jtest, rtest       ! coordinates of diagnostic point
 
     real(dp), intent(in) :: &
-         dx, dy,      &     ! grid cell dimenions (m)
-         dt                 ! time step (s)
+         dx, dy,                 & ! grid cell size (m)
+         dt                        ! time step (s)
 
     real(dp), dimension(nz), intent(in) ::&
-         sigma
+         sigma                     ! vertical sigma coordinate
 
     type(parallel_type), intent(in) :: &
-         parallel           ! info for parallel communication
+         parallel                  ! info for parallel communication
 
     integer, intent(in) :: &
-         which_ho_calving_front
+         which_ho_calving_front    ! = 1 for subgrid calving-front scheme, else = 0
 
     real(dp), dimension(nx-1,ny-1), intent(in) :: &
-         velnorm_mean       ! mean ice speed at vertices (m/s)
+         velnorm_mean              ! mean ice speed at vertices (m/s)
 
     real(dp), dimension(nx,ny), intent(in) :: &
-         topg,                      &
-         tau_eigen1,  tau_eigen2,   &
-         eps_eigen1,  eps_eigen2
+         topg,                   & ! bed topography (m)
+         tau_eigen1, tau_eigen2, & ! eigenvalues of the horizontal stress tensor (Pa)
+         eps_eigen1, eps_eigen2    ! eigenvalues of the horizontal strain rate tensor (1/s)
 
     real(dp), intent(in) ::  &
-         eus,             &  ! eustatic sea level (m)
-         thklim              ! minimum thickness for dynamically active grounded ice (m)
+         eus,                    & ! eustatic sea level (m)
+         thklim                    ! minimum thickness for dynamically active grounded ice (m)
+
 
     real(dp), intent(in) :: &
-         damage_constant1,  &
-         damage_constant2,  &
-         damage_threshold,  &
-         calving_minthck          ! min effective thickness for CF cells
+         damage_constant1,       & ! rate of change of damage (1/s) proportional to tau1
+         damage_constant2,       & ! rate of change of damage (1/s) proportional to tau2
+         damage_threshold,       & ! calving begins for damage > damage_threshold
+         calving_minthck           ! min effective thickness (m) for CF cells
 
     real(dp), dimension(nz-1,nx,ny), intent(inout) :: &
-         damage
+         damage                    ! 3D damage tracer, 0 > damage < 1
 
     real(dp), dimension(nx,ny), intent(out) :: &
-         lateral_rate
+         lateral_rate              ! lateral rate of calving (m/s)
 
     real(dp), dimension(nx,ny), intent(inout) :: &
-         thck,  &
-         calving_thck
+         thck,                   & ! ice thickness (m)
+         calving_thck              ! thickness lost due to calving (m)
 
     ! local variables
 
     integer :: i, j, k
 
-    integer, dimension(nx,ny) :: &
-         ice_mask,                &
-         floating_mask,           &
-         ocean_mask,              &
-         land_mask,               &
-         calving_front_mask,      &
+    integer, dimension(nx,ny)  ::  &
+         ice_mask,               & ! = 1 where ice is present (thck > thklim), else = 0
+         floating_mask,          & ! = 1 where ice is present (thck > thklim) and floating, else = 0
+         ocean_mask,             & ! = 1 where topg is below sea level and ice is absent, else = 0
+         land_mask,              & ! = 1 where topg is at or above sea level, else = 0
+         calving_front_mask,     & ! = 1 where ice is floating and borders at least one ocean cell, else = 0
          calving_front_mask_old
 
-    ! Note: full_mask and partial_cf_mask are not used in this subroutine,
-    !       but are outputs of glissade_effective_calving_thck
     integer, dimension(nx,ny) :: &
-         full_mask,           &
-         partial_cf_mask
+         partial_cf_mask,        & ! = 1 for partially filled CF cells (thck < thck_effective), else = 0
+         full_mask                 ! = 1 for ice-filled cells that are not partial_cf cells, else = 0
 
     real(dp), dimension(nx,ny) :: &
-         speed,                & ! 2D ice speed averaged to cell centers (m/s)
-         damage_column,        & ! 2D vertically integrated scalar damage parameter
-         thck_calving_front,   & ! effective ice thickness at the calving front (m)
-         thck_effective,       & ! effective thickness for calving (m)
-         dt_calving,           & ! time remaining for calving (s)
-         dt_calving_old          ! old value of dt_calving
+         speed,                  & ! 2D ice speed averaged to cell centers (m/s)
+         damage_column,          & ! 2D vertically integrated scalar damage parameter
+         thck_calving_front,     & ! effective ice thickness at the calving front (m)
+         thck_effective,         & ! effective thickness for calving (m)
+         dt_calving,             & ! time remaining for calving (s)
+         dt_calving_old            ! old value of dt_calving
 
     real(dp) :: &
-         stress_scale,         & ! stress scale in prognostic damage equation (Pa)
-         d_damage_dt,          & ! rate of change of damage scalar (1/s)
-         damage_frac,        & ! fraction of maximum thinning rate, based on damage
-         thinning_rate,      & ! vertical thinning rate (m/s)
-         dthck                 ! thickness change (m)
+         stress_scale,           & ! stress scale in prognostic damage equation (Pa)
+         d_damage_dt,            & ! rate of change of damage scalar (1/s)
+         damage_frac,            & ! fraction of maximum thinning rate, based on damage
+         thinning_rate,          & ! vertical thinning rate (m/s)
+         dthck                     ! thickness change (m)
 
     logical, parameter :: &
          damage_scale_stress_by_thickness = .true.   ! if true, stress_scale is proportional to H
@@ -1253,7 +1082,7 @@ contains
     integer :: count
 
     ! Replaced lateral_rate_max with the local ice speed
-!!    real(dp), parameter :: lateral_rate_max = 1000.d0/scyr   ! m/yr, converted to m/s
+!!    real(dp), parameter :: lateral_rate_max = 2000.d0/scyr   ! m/yr, converted to m/s
 
     !TODO - Not sure these updates are needed here
     call parallel_halo(tau_eigen1, parallel)
@@ -1300,63 +1129,14 @@ contains
        enddo
     enddo
 
-    if (verbose_calving .and. this_rank == rtest) then
-       print*, ' '
-       print*, 'speed(m/yr), itest, jtest, rank =', itest, jtest, rtest
-       do j = jtest+3, jtest-3, -1
-          write(6,'(i6)',advance='no') j
-          do i = itest-3, itest+3
-             write(6,'(f10.2)',advance='no') speed(i,j) * scyr
-          enddo
-          write(6,*) ' '
-       enddo
-       print*, ' '
-       print*, 'eps1 (1/yr), itest, jtest, rank =', itest, jtest, rtest
-       do j = jtest+3, jtest-3, -1
-          write(6,'(i6)',advance='no') j
-          do i = itest-3, itest+3
-             write(6,'(f10.6)',advance='no') eps_eigen1(i,j) * scyr
-          enddo
-          write(6,*) ' '
-       enddo
-       print*, ' '
-       print*, 'eps2 (1/yr), itest, jtest, rank =', itest, jtest, rtest
-       do j = jtest+3, jtest-3, -1
-          write(6,'(i6)',advance='no') j
-          do i = itest-3, itest+3
-             write(6,'(f10.6)',advance='no') eps_eigen2(i,j) * scyr
-          enddo
-          write(6,*) ' '
-       enddo
-       print*, ' '
-       print*, 'tau1 (Pa), itest, jtest, rank =', itest, jtest, rtest
-       do j = jtest+3, jtest-3, -1
-          write(6,'(i6)',advance='no') j
-          do i = itest-3, itest+3
-             write(6,'(f10.2)',advance='no') tau_eigen1(i,j)
-          enddo
-          write(6,*) ' '
-       enddo
-       print*, ' '
-       print*, 'tau2 (Pa), itest, jtest, rank =', itest, jtest, rtest
-       do j = jtest+3, jtest-3, -1
-          write(6,'(i6)',advance='no') j
-          do i = itest-3, itest+3
-             write(6,'(f10.2)',advance='no') tau_eigen2(i,j)
-          enddo
-          write(6,*) ' '
-       enddo
-       print*, ' '
-       print*, 'Damage-based calving, task =', this_rank
-       print*, ' '
-       print*, 'initial damage, itest, jtest, rank =', itest, jtest, rtest
-       do j = jtest+3, jtest-3, -1
-          write(6,'(i6)',advance='no') j
-          do i = itest-3, itest+3
-             write(6,'(f10.6)',advance='no') damage_column(i,j)
-          enddo
-          write(6,*) ' '
-       enddo
+    if (verbose_calving) then
+       call point_diag(speed*scyr, 'Damage-based calving, speed (m/yr)', &
+            itest, jtest, rtest, 7, 7, '(f10.2)')
+       call point_diag(eps_eigen1*scyr, 'eps1 (1/yr)',    itest, jtest, rtest, 7, 7, '(f10.6)')
+       call point_diag(eps_eigen2*scyr, 'eps2 (1/yr)',    itest, jtest, rtest, 7, 7, '(f10.6)')
+       call point_diag(tau_eigen1,      'tau1 (Pa)',      itest, jtest, rtest, 7, 7, '(f10.2)')
+       call point_diag(tau_eigen2,      'tau2 (Pa)',      itest, jtest, rtest, 7, 7, '(f10.2)')
+       call point_diag(damage_column,   'initial damage', itest, jtest, rtest, 7, 7, '(f10.6)')
     endif
 
     ! Prognose changes in damage.
@@ -1415,42 +1195,8 @@ contains
        enddo
     enddo
 
-    if (verbose_calving .and. this_rank==rtest) then
-       print*, ' '
-       print*, 'damage increment, itest, jtest, rank =', itest, jtest, rtest
-       do j = jtest+3, jtest-3, -1
-          write(6,'(i6)',advance='no') j
-          do i = itest-3, itest+3
-             if (thck(i,j) > 0.0d0) then
-                if (stress_based_damage) then
-                   if (damage_scale_stress_by_thickness) then
-                      stress_scale = rhoi*grav * max(thck(i,j), stress_scale_thck)
-                   else
-                      stress_scale = rhoi*grav * stress_scale_thck
-                   endif
-                   write(6,'(f10.6)',advance='no') (dt / stress_scale) *  &
-                        (damage_constant1 * max(tau_eigen1(i,j), 0.0d0) +  &
-                         damage_constant2 * max(tau_eigen2(i,j), 0.0d0))
-                else  ! strain-based damage
-                   write(6,'(f10.6)',advance='no') dt *  &
-                        (damage_constant1*scyr * max(eps_eigen1(i,j), 0.0d0) +  &
-                         damage_constant2*scyr * max(eps_eigen2(i,j), 0.0d0))
-                endif
-             else   ! ice-free
-                write(6,'(f10.6)',advance='no') 0.0d0
-             endif
-          enddo
-          write(6,*) ' '
-       enddo
-       print*, ' '
-       print*, 'new damage, itest, jtest, rank =', itest, jtest, rtest
-       do j = jtest+3, jtest-3, -1
-          write(6,'(i6)',advance='no') j
-          do i = itest-3, itest+3
-             write(6,'(f10.6)',advance='no') damage_column(i,j)
-          enddo
-          write(6,*) ' '
-       enddo
+    if (verbose_calving) then
+       call point_diag(damage_column, 'new damage', itest, jtest, rtest, 7, 7, '(f10.6)')
     endif
 
     ! Main damage-calving loops
@@ -1477,7 +1223,7 @@ contains
 
        count = count + 1
        if (verbose_calving .and. this_rank == rtest) then
-          print*, 'Iterate calving, count =', count
+          write(6,*) 'Iterate calving, count =', count
        endif
 
        iterate_calving = .false.
@@ -1501,7 +1247,7 @@ contains
                   .and. dt_calving(i,j) > 0.0d0) then
 
                 if (verbose_calving .and. this_rank == rtest .and. count > 1) then
-                   print*, 'Next round of calving: count, i, j, dt_calving (yr):', &
+                   write(6,*) 'Next round of calving: count, i, j, dt_calving (yr):', &
                         count, i, j, dt_calving(i,j)/scyr
                 endif
 
@@ -1530,7 +1276,7 @@ contains
                    dt_calving(i,j) = dt_calving(i,j) * (1.0d0 - thck(i,j)/dthck)
                    iterate_calving = .true.
                    if (verbose_calving .and. this_rank == rtest) then
-                      print*, 'Calving time remaining (yr):', i, j, dt_calving(i,j)/scyr
+                      write(6,*) 'Calving time remaining (yr):', i, j, dt_calving(i,j)/scyr
                    endif
                    calving_thck(i,j) = calving_thck(i,j) + thck(i,j)
                    thck(i,j) = 0.0d0
@@ -1552,6 +1298,10 @@ contains
 
        call parallel_halo(thck, parallel)
        call parallel_halo(calving_thck, parallel)
+
+       if (verbose_calving) then
+          call point_diag(lateral_rate*scyr, 'lateral rate (m/yr)', itest, jtest, rtest, 7, 7)
+       endif
 
        if (iterate_calving) then
 
@@ -1598,7 +1348,7 @@ contains
                    iterate_calving = .true.
                    !WHL - debug
                    if (dt_calving(i,j) > 0.0d0) then
-                      print*, 'rank, i, j, new dt_calving (yr):', this_rank, i, j, dt_calving(i,j)/scyr
+                      write(6,*) 'rank, i, j, new dt_calving (yr):', this_rank, i, j, dt_calving(i,j)/scyr
                    endif
                 endif
              enddo
@@ -1606,23 +1356,15 @@ contains
 
        endif   ! iterate_calving
 
-       if (verbose_calving .and. this_rank == rtest) then
-          print*, ' '
-          print*, 'End of iteration, thck:'
-          do j = jtest+3, jtest-3, -1
-             write(6,'(i6)',advance='no') j
-             do i = itest-3, itest+3
-                write(6,'(f10.3)',advance='no') thck(i,j)
-             enddo
-             write(6,*) ' '
-          enddo
+       if (verbose_calving) then
+          call point_diag(thck, 'Done iterating, thck', itest, jtest, rtest, 7, 7)
        endif
 
     enddo   ! do while iterate_calving = T
 
     if (verbose_calving .and. this_rank == rtest) then
-       print*, ' '
-       print*, 'Done in damage-based calving'
+       write(6,*) ' '
+       write(6,*) 'Done in damage-based calving'
     endif
 
   end subroutine damage_based_calving
@@ -1654,22 +1396,30 @@ contains
     ! Partial cells are CF cells with H < H_eff; other ice-covered cells are full.
 
     ! input/output arguments
-    integer, intent(in) ::  &
-         nx, ny
-    integer, intent(in) ::  &
-         itest, jtest, rtest
-    integer, dimension(nx,ny), intent(in) ::  &
-         ice_mask, calving_front_mask
+
+    integer, intent(in) :: &
+         nx, ny,                   & ! horizontal grid dimensions
+         itest, jtest, rtest         ! coordinates of diagnostic point
+
+    integer, dimension(nx,ny), intent(in)  ::  &
+         ice_mask,                 & ! = 1 where ice is present (thck > thklim), else = 0
+         calving_front_mask          ! = 1 where ice is floating and borders at least one ocean cell, else = 0
+
     real(dp), dimension(nx,ny), intent(in) :: &
-         thck
+         thck                        ! ice thickness (m)
+
     real(dp), dimension(nx,ny), intent(out) :: &
-         thck_effective
-    integer, dimension(nx,ny), intent(out) ::  &
-         partial_cf_mask, full_mask
+         thck_effective              ! effective ice thickness (m) for calving
+
+    integer, dimension(nx,ny), intent(out) :: &
+         partial_cf_mask,          & ! = 1 for partially filled CF cells (thck < thck_effective), else = 0
+         full_mask                   ! = 1 for ice-filled cells that are not partial_cf cells, else = 0
+
     real(dp), intent(in), optional :: &
-         calving_minthck        ! if present, require thck_effective >= calving_minthck
+         calving_minthck             ! if present, require thck_effective >= calving_minthck
 
     ! local variables
+
     integer :: i, j
     logical, parameter :: verbose_thck_effective = .false.
 
@@ -1684,10 +1434,22 @@ contains
     do j = 2, ny-1
        do i = 2, nx-1
           if (ice_mask(i,j) == 1) then
-             thck_effective(i,j) = (thck(i,j)**nexp + thck(i-1,j)**nexp + thck(i+1,j)**nexp  &
-                                                    + thck(i,j-1)**nexp + thck(i,j+1)**nexp) / 5.0d0
-             thck_effective(i,j) = thck_effective(i,j)**(1.d0/nexp)
+             thck_effective(i,j) = &
+                  ( (thck(i,j)**nexp + thck(i-1,j)**nexp + thck(i+1,j)**nexp  &
+                                     + thck(i,j-1)**nexp + thck(i,j+1)**nexp) / 5.0d0 ) **(1.d0/nexp)
+          endif   ! ice_mask
+       enddo
+    enddo
 
+    if (verbose_thck_effective) then
+       call point_diag(thck, 'Compute effective thickness, thck (m)', itest, jtest, rtest, 7, 15)
+       call point_diag(thck_effective, 'thck_effective (before limiting)', &
+            itest, jtest, rtest, 7, 15)
+    endif
+
+    do j = 2, ny-1
+       do i = 2, nx-1
+          if (ice_mask(i,j) == 1) then
              if (calving_front_mask(i,j) == 1) then
                 if (thck_effective(i,j) > thck(i,j)) then
                    partial_cf_mask(i,j) = 1
@@ -1698,8 +1460,7 @@ contains
              else
                 thck_effective(i,j) = thck(i,j)
                 full_mask(i,j) = 1
-             endif
-
+             endif   ! calving_front_mask
           endif   ! ice_mask
        enddo   ! i
     enddo   ! j
@@ -1711,63 +1472,13 @@ contains
        endwhere
     endif
 
-    !WHL - debug
-    if (verbose_thck_effective .and. this_rank == rtest) then
-       i = itest
-       j = jtest
-       print*, ' '
-       print*, 'Compute effective thickness'
-       print*, ' '
-       print*, 'thck:'
-       do j = jtest+3, jtest-3, -1
-          do i = itest-3, itest+3
-             write(6,'(f10.3)',advance='no') thck(i,j)
-          enddo
-          write(6,*) ' '
-       enddo
-       print*, ' '
-       print*, 'thck_effective (before limiting):'
-       do j = jtest+3, jtest-3, -1
-          do i = itest-3, itest+3
-             write(6,'(f10.3)',advance='no') &
-                  ( (thck(i,j)**nexp + thck(i-1,j)**nexp + thck(i+1,j)**nexp  &
-                                     + thck(i,j-1)**nexp + thck(i,j+1)**nexp) / 5.0d0 ) **(1.0d0/nexp)
-          enddo
-          write(6,*) ' '
-       enddo
-       print*, ' '
-       print*, 'thck_effective (after limiting):'
-       do j = jtest+3, jtest-3, -1
-          do i = itest-3, itest+3
-             write(6,'(f10.3)',advance='no') thck_effective(i,j)
-          enddo
-          write(6,*) ' '
-       enddo
-       print*, ' '
-       print*, 'calving_front_mask:'
-       do j = jtest+3, jtest-3, -1
-          do i = itest-3, itest+3
-             write(6,'(i10)',advance='no') calving_front_mask(i,j)
-          enddo
-          write(6,*) ' '
-       enddo
-       print*, ' '
-       print*, 'full_mask:'
-       do j = jtest+3, jtest-3, -1
-          do i = itest-3, itest+3
-             write(6,'(i10)',advance='no') full_mask(i,j)
-          enddo
-          write(6,*) ' '
-       enddo
-       print*, ' '
-       print*, 'partial_cf_mask:'
-       do j = jtest+3, jtest-3, -1
-          do i = itest-3, itest+3
-             write(6,'(i10)',advance='no') partial_cf_mask(i,j)
-          enddo
-          write(6,*) ' '
-       enddo
-    endif   ! verbose
+    if (verbose_thck_effective) then
+       call point_diag(thck_effective, 'thck_effective (after limiting)', &
+            itest, jtest, rtest, 7, 7)
+       call point_diag(calving_front_mask, 'calving_front_mask', itest, jtest, rtest, 7, 7)
+       call point_diag(full_mask, 'full_mask', itest, jtest, rtest, 7, 7)
+       call point_diag(partial_cf_mask, 'partial_cf_mask', itest, jtest, rtest, 7, 7)
+    endif
 
   end subroutine glissade_effective_calving_thck
 
@@ -1850,30 +1561,13 @@ contains
 
        if (main_task) then
           call write_log ('cull_calving_front: Removing ice from calving_front cells')
-          print*, 'cull_calving_front: Removing ice from calving_front cells'
+          write(6,*) 'cull_calving_front: Removing ice from calving_front cells'
        endif
 
-       if (verbose_calving .and. this_rank == rtest) then
-          print*, ' '
-          print*, 'calving_front_mask for culling, itest, jtest, rank =', itest, jtest, rtest
-          do j = jtest+3, jtest-3, -1
-             write(6,'(i6)',advance='no') j
-             do i = itest-3, itest+3
-                write(6,'(i10)',advance='no') calving_front_mask(i,j)
-             enddo
-             write(6,*) ' '
-          enddo
-          print*, ' '
-          print*, 'cull_calving_front: Before removing CF cells, n =', n
-          print*, ' '
-          print*, 'thck:'
-          do j = jtest+3, jtest-3, -1
-             write(6,'(i6)',advance='no') j
-             do i = itest-3, itest+3
-                write(6,'(f10.3)',advance='no') thck(i,j)
-             enddo
-             write(6,*) ' '
-          enddo
+       if (verbose_calving) then
+          call point_diag(calving_front_mask, 'calving_front_mask for culling', &
+               itest, jtest, rtest, 7, 7)
+          call point_diag(thck, 'thck (before CF culling)', itest, jtest, rtest, 7, 7)
        endif
 
        do j = 1, ny
@@ -1885,18 +1579,8 @@ contains
           enddo
        enddo
 
-       if (verbose_calving .and. this_rank == rtest) then
-          print*, ' '
-          print*, 'cull_calving_front: After removing CF cells, n =', n
-          print*, ' '
-          print*, 'thck:'
-          do j = jtest+3, jtest-3, -1
-             write(6,'(i6)',advance='no') j
-             do i = itest-3, itest+3
-                write(6,'(f10.3)',advance='no') thck(i,j)
-             enddo
-             write(6,*) ' '
-          enddo
+       if (verbose_calving) then
+          call point_diag(thck, 'thck (after CF culling)', itest, jtest, rtest, 7, 7)
        endif
 
     enddo  ! ncull_calving_front
@@ -1971,36 +1655,10 @@ contains
     real(dp), parameter :: &   ! threshold for counting cells as grounded
          f_ground_threshold = 0.10d0
 
-    if (verbose_calving .and. this_rank == rtest) then
-       print*, ' '
-       print*, 'In glissade_remove_icebergs'
-       print*, ' '
-       print*, 'thck, itest, jtest, rank =', itest, jtest, rtest
-       do j = jtest+3, jtest-3, -1
-          write(6,'(i6)',advance='no') j
-          do i = itest-3, itest+3
-             write(6,'(f10.3)',advance='no') thck(i,j)
-          enddo
-          write(6,*) ' '
-       enddo
-       print*, ' '
-       print*, 'active_ice_mask:'
-       do j = jtest+3, jtest-3, -1
-          write(6,'(i6)',advance='no') j
-          do i = itest-3, itest+3
-             write(6,'(i10)',advance='no') active_ice_mask(i,j)
-          enddo
-          write(6,*) ' '
-       enddo
-       print*, ' '
-       print*, 'f_ground_cell:'
-       do j = jtest+3, jtest-3, -1
-          write(6,'(i6)',advance='no') j
-          do i = itest-3, itest+3
-             write(6,'(f10.3)',advance='no') f_ground_cell(i,j)
-          enddo
-          write(6,*) ' '
-       enddo
+    if (verbose_calving) then
+       call point_diag(thck, 'Remove icebergs, thck (m)', itest, jtest, rtest, 7, 7)
+       call point_diag(active_ice_mask, 'active_ice_mask', itest, jtest, rtest, 7, 7)
+       call point_diag(f_ground_cell, 'f_ground_cell', itest, jtest, rtest, 7, 7)
     endif
     
     ! Initialize iceberg removal
@@ -2115,11 +1773,11 @@ contains
 
        if (global_count == global_count_save) then
           if (verbose_calving .and. main_task) &
-               print*, 'Fill converged: iter, global_count =', iter, global_count
+               write(6,*) 'Fill converged: iter, global_count =', iter, global_count
           exit
        else
           if (verbose_calving .and. main_task) &
-               print*, 'Convergence check: iter, global_count =', iter, global_count
+               write(6,*) 'Convergence check: iter, global_count =', iter, global_count
           global_count_save = global_count
        endif
 
@@ -2154,18 +1812,8 @@ contains
        enddo
     enddo
 
-    if (verbose_calving .and. this_rank == rtest) then
-       print*, ' '
-       print*, 'Done in glissade_remove_icebergs'
-       print*, ' '
-       print*, 'thck, itest, jtest, rank =', itest, jtest, rtest
-       do j = jtest+3, jtest-3, -1
-          write(6,'(i6)',advance='no') j
-          do i = itest-3, itest+3
-             write(6,'(f10.3)',advance='no') thck(i,j)
-          enddo
-          write(6,*) ' '
-       enddo
+    if (verbose_calving) then
+       call point_diag(thck, 'After iceberg removal, thck', itest, jtest, rtest, 7, 7)
     endif
 
   end subroutine glissade_remove_icebergs
@@ -2217,18 +1865,8 @@ contains
     real(dp), parameter :: &   ! threshold (m) for counting floating ice as thin
          isthmus_thck_threshold = 10.0d0
 
-    if (verbose_calving .and. this_rank == rtest) then
-       print*, ' '
-       print*, 'In glissade_remove_isthmuses'
-       print*, ' '
-       print*, 'Thickness before isthmus removal:'
-       do j = jtest+3, jtest-3, -1
-          write(6,'(i6)',advance='no') j
-          do i = itest-3, itest+3
-             write(6,'(f10.3)',advance='no') thck(i,j)
-          enddo
-          write(6,*) ' '
-       enddo
+    if (verbose_calving) then
+       call point_diag(thck, 'Remove isthmuses, thck', itest, jtest, rtest, 7, 7)
     endif
 
     ocean_plus_thin_ice_mask = ocean_mask
@@ -2248,16 +1886,8 @@ contains
        enddo
     enddo
 
-    if (verbose_calving .and. this_rank==rtest) then
-       print*, ' '
-       print*, 'Thickness after isthmus removal'
-       do j = jtest+3, jtest-3, -1
-          write(6,'(i6)',advance='no') j
-          do i = itest-3, itest+3
-             write(6,'(f10.3)',advance='no') thck(i,j)
-          enddo
-          write(6,*) ' '
-       enddo
+    if (verbose_calving) then
+       call point_diag(thck, 'After isthmus removal, thck', itest, jtest, rtest, 7, 7)
     endif
 
   end subroutine glissade_remove_isthmuses
@@ -2312,12 +1942,12 @@ contains
                                !     ocean or inactive calving_front cell, else = 0
 
     real(dp), dimension(nx,ny) ::  &
+         thckmax_cliff,      & ! max stable ice thickness in marine_cliff cells
          thck_calving_front    ! effective ice thickness at the calving front
 
     real(dp) :: &
          thinning_rate,        & ! vertical thinning rate (m/s)
          dthck,                & ! thickness change (m)
-         thckmax_cliff,        & ! max stable ice thickness in marine_cliff cells
          factor
 
     ! Update masks, including the marine_cliff mask.
@@ -2351,32 +1981,12 @@ contains
 
     call parallel_halo(marine_cliff_mask, parallel)
 
-    if (verbose_calving .and. this_rank==rtest) then
-       print*, ' '
-       print*, 'In glissade_limit_cliffs'
-       print*, ' '
-       print*, 'marine_cliff_mask, itest, jtest, rank =', itest, jtest, rtest
-       do j = jtest+3, jtest-3, -1
-          write(6,'(i6)',advance='no') j
-          do i = itest-3, itest+3
-             write(6,'(i10)',advance='no') marine_cliff_mask(i,j)
-          enddo
-          write(6,*) ' '
-       enddo
-       print*, ' '
-       print*, 'thckmax_cliff, itest, jtest, rank =', itest, jtest, rtest
-       do j = jtest+3, jtest-3, -1
-          write(6,'(i6)',advance='no') j
-          do i = itest-3, itest+3
-             factor = taumax_cliff / (rhoi*grav)   ! units are Pa for taumax, m for factor
-             thckmax_cliff = factor + sqrt(factor**2 + (rhoo/rhoi)*(topg(i,j))**2)  ! m
-             write(6,'(f10.3)',advance='no') thckmax_cliff
-          enddo
-          write(6,*) ' '
-       enddo
-       print*, ' '
+    if (verbose_calving) then
+       call point_diag(marine_cliff_mask, 'Cliff limiting, marine_cliff_mask', itest, jtest, rtest, 7, 7)
+       call point_diag(thck, 'thck (m) before limiting', itest, jtest, rtest, 7, 7)
     endif
 
+    thckmax_cliff(:,:) = 0.0d0
     do j = 2, ny-1
        do i = 1, nx-1
           if (marine_cliff_mask(i,j) == 1) then
@@ -2384,31 +1994,18 @@ contains
              ! Compute the max stable ice thickness in the cliff cell.
              ! This is eq. 2.10 in Bassis & Walker (2012)
              factor = taumax_cliff / (rhoi*grav)   ! units are Pa for taumax, m for factor
-             thckmax_cliff = factor + sqrt(factor**2 + (rhoo/rhoi)*(topg(i,j))**2)  ! m
-
-             !WHL - debug
-             if (verbose_calving .and. i==itest .and. j==jtest .and. this_rank==rtest) then
-                print*, ' '
-                print*, 'Cliff thinning: r, i, j =', rtest, itest, jtest
-                print*, 'thck, thckmax_cliff (m) =', thck(i,j), thckmax_cliff
-             endif
+             thckmax_cliff(i,j) = factor + sqrt(factor**2 + (rhoo/rhoi)*(topg(i,j))**2)  ! m
 
              ! If thicker than the max stable thickness, then remove some ice and add it to the calving field
              ! Note: By default, cliff_timescale = 0, which means thck is reset to thckmax_cliff each timestep.
              !       Might want to try other values when looking at marine ice cliff instability.
-             if (thck(i,j) > thckmax_cliff) then
+             if (thck(i,j) > thckmax_cliff(i,j)) then
 
                 if (cliff_timescale > 0.0d0) then
-                   thinning_rate = (thck(i,j) - thckmax_cliff) / cliff_timescale
-                   dthck = min(thck(i,j) - thckmax_cliff, thinning_rate*dt)
+                   thinning_rate = (thck(i,j) - thckmax_cliff(i,j)) / cliff_timescale
+                   dthck = min(thck(i,j) - thckmax_cliff(i,j), thinning_rate*dt)
                 else
-                   dthck = thck(i,j) - thckmax_cliff
-                endif
-
-                !WHL - debug
-                if (verbose_calving .and. i==itest .and. j==jtest .and. this_rank==rtest) then
-                   print*, 'thinning rate (m/yr) =', thinning_rate * scyr
-                   print*, 'dthck (m) =', dthck
+                   dthck = thck(i,j) - thckmax_cliff(i,j)
                 endif
 
                 thck(i,j) = thck(i,j) - dthck
@@ -2419,6 +2016,11 @@ contains
           endif  ! marine_cliff cell
        enddo   ! i
     enddo   ! j
+
+    if (verbose_calving) then
+       call point_diag(thck, 'thck (m) after limiting', itest, jtest, rtest, 7, 7)
+       call point_diag(calving_thck, 'calving_thck (m)', itest, jtest, rtest, 7, 7)
+    endif
 
   end subroutine glissade_limit_cliffs
 
