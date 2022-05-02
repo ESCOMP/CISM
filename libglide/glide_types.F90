@@ -1472,10 +1472,9 @@ module glide_types
      real(dp) :: minthck = 0.d0                  !> minimum thickness (m) of floating ice at marine edge before it calves;
                                                  !> if used, must be set to a nonzero value in the config file
                                                  !> (whichcalving = CALVING_THCK_THRESHOLD, EIGENCALVING, CALVING_DAMAGE)
-     real(dp) :: eigencalving_constant = 0.01d0  !> eigencalving constant, lateral calving rate (m/yr) per unit stress (Pa)
-                                                 !> (whichcalving = EIGENCALVING)
-     real(dp) :: eigen2_weight = 1.0d0           !> weight given to tau_eigen2 relative to tau_eigen1 in tau_eff (unitless)
-     real(dp) :: damage_threshold = 0.75d0       !> threshold at which ice column is sufficiently damaged to calve
+     real(dp) :: eigenconstant1 = 0.0d0          !> constant that multiplies tau_eigen1 to determine the calving rate (m/yr)
+     real(dp) :: eigenconstant2 = 0.0d0          !> constant that multiplies tau_eigen2 to determine the calving rate (m/yr)
+     real(dp) :: damage_threshold = 0.0d0        !> threshold at which ice column is sufficiently damaged to calve
                                                  !> 0 = no damage, 1 = total damage (whichcalving = CALVING_DAMAGE)
      real(dp) :: damage_constant1 = 0.0d0        !> damage constant that multiplies tau_eigen1 (yr^-1)
      real(dp) :: damage_constant2 = 0.0d0        !> damage constant that multiplies tau_eigen2 (yr^-1)
