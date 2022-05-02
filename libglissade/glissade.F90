@@ -957,8 +957,7 @@ contains
     endif   ! force_retreat
 
     !TODO - Move to an init_calving subroutine
-    if ( (model%options%whichcalving == CALVING_THCK_THRESHOLD  .or.  &
-          model%options%whichcalving == EIGENCALVING  .or. model%options%whichcalving == CALVING_DAMAGE) ) then
+    if (model%options%whichcalving == CALVING_THCK_THRESHOLD) then
 
        ! Check whether thck_calving_threshold was already read in.  If not, then compute it.
        ! Note: Do not use the restart_false logic, since it may be convenient to compute this field on restart.
@@ -2256,7 +2255,8 @@ contains
        !       Consolidate these two subroutines?
 !!       if (model%options%which_ho_calving_front == HO_CALVING_FRONT_SUBGRID) then
        if (model%options%which_ho_calving_front == HO_CALVING_FRONT_SUBGRID .or. &
-           model%options%whichcalving == CALVING_DAMAGE) then
+           model%options%whichcalving == CALVING_DAMAGE .or.  &
+           model%options%whichcalving == EIGENCALVING) then
 
           call glissade_calving_front_mask(ewn,                    nsn,              &
                                            model%options%which_ho_calving_front,     &
@@ -2526,7 +2526,9 @@ contains
 
        endif   ! calving_damage
 
-       if (model%options%whichcalving == CALVING_DAMAGE .and. .not.model%options%apply_calving_mask) then
+       if ((model%options%whichcalving == CALVING_DAMAGE .or. &
+            model%options%whichcalving == EIGENCALVING) &
+            .and. .not.model%options%apply_calving_mask) then
 
           ! compute a mask of protected cells
           ! Protect cells where ice was present before advection, and protect land cells
@@ -3484,6 +3486,7 @@ contains
 
 !!    elseif (model%options%which_ho_calving_front == HO_CALVING_FRONT_SUBGRID) then
     elseif (model%options%which_ho_calving_front == HO_CALVING_FRONT_SUBGRID .or. &
+            model%options%whichcalving == EIGENCALVING .or. &
             model%options%whichcalving == CALVING_DAMAGE) then
 
        ! If using a subgrid calving_front scheme (but apply_calving_mask = F),
@@ -4724,28 +4727,6 @@ contains
     call parallel_halo(model%calving%tau_eigen1, parallel)
     call parallel_halo(model%calving%tau_eigen2, parallel)
 
-
-    if (this_rank == rtest .and. verbose_calving .and. model%options%whichcalving == EIGENCALVING) then
-       print*, ' '
-       print*, 'tau eigen1 (Pa), i, j, rtest =:', itest, jtest, rtest
-       do j = jtest+3, jtest-3, -1
-          write(6,'(i8)',advance='no') j
-          do i = itest-3, itest+3
-             write(6,'(e11.3)',advance='no') model%calving%tau_eigen1(i,j)
-          enddo
-          print*, ' '
-       enddo
-       print*, ' '
-       print*, 'tau eigen2 (Pa), i, j, rtest =:', itest, jtest, rtest
-       do j = jtest+3, jtest-3, -1
-          write(6,'(i8)',advance='no') j
-          do i = itest-3, itest+3
-             write(6,'(e11.3)',advance='no') model%calving%tau_eigen2(i,j)
-          enddo
-          print*, ' '
-       enddo
-    endif
-
     ! Compute the 3D strain rate tensor (s^{-1})
     ! Note: The stress tensor tau is derived by taking strain rates at quadrature points in the velocity solve.
     !       The strain rate tensor is then diagnosed from the stress tensor.
@@ -4851,61 +4832,13 @@ contains
     call parallel_halo(model%calving%eps_eigen1, parallel)
     call parallel_halo(model%calving%eps_eigen2, parallel)
 
-    if (this_rank == rtest .and. verbose_calving .and. model%options%whichcalving == EIGENCALVING) then
-       print*, ' '
-       print*, 'eps1 (1/yr), itest, jtest, rank =', itest, jtest, rtest
-       do j = jtest+3, jtest-3, -1
-          write(6,'(i6)',advance='no') j
-          do i = itest-3, itest+3
-             write(6,'(f10.5)',advance='no') model%calving%eps_eigen1(i,j) * scyr
-          enddo
-          write(6,*) ' '
-       enddo
-       print*, ' '
-       print*, 'eps2 (1/yr), itest, jtest, rank =', itest, jtest, rtest
-       do j = jtest+3, jtest-3, -1
-          write(6,'(i6)',advance='no') j
-          do i = itest-3, itest+3
-             write(6,'(f10.5)',advance='no') model%calving%eps_eigen2(i,j) * scyr
-          enddo
-          write(6,*) ' '
-       enddo
-       print*, ' '
-       print*, 'product eps1*eps2 (1/yr^2) * 1.e6, itest, jtest, rank =', itest, jtest, rtest
-       do j = jtest+3, jtest-3, -1
-          write(6,'(i6)',advance='no') j
-          do i = itest-3, itest+3
-             write(6,'(f10.2)',advance='no') &
-                  max(model%calving%eps_eigen1(i,j), 0.0d0) * &
-                  max(model%calving%eps_eigen2(i,j), 0.0d0)*scyr**2 * 1.d6
-          enddo
-          write(6,*) ' '
-       enddo
-       print*, ' '
-       print*, 'divu(yr^-1):'
-       do j = jtest+3, jtest-3, -1
-          write(6,'(i8)',advance='no') j
-          do i = itest-3, itest+3
-             write(6,'(f10.5)',advance='no') model%velocity%divu(i,j) * scyr
-          enddo
-          print*, ' '
-       enddo
-       print*, ' '
-       print*, 'shear (yr^-1):'
-       do j = jtest+3, jtest-3, -1
-          do i = itest-3, itest+3
-             write(6,'(f10.5)',advance='no') model%velocity%shear(i,j) * scyr
-          enddo
-          print*, ' '
-       enddo
-    endif  ! this_rank = rtest
-
-    ! For damage-based calving, replace tau and eps in partial_cf cells with values in adjacent full cells.
+    ! For eigencalving and damage-based calving, replace tau and eps in partial_cf cells with values in adjacent full cells.
     ! The partial cells have thin ice that moves slowly, often resulting in tau2 < 0 and eps2 < 0,
     !  although the nearby full cells have tau2 > 0 and eps2 > 0.
     !TODO - Do this for eigencalving also if we replace the subgrid CF scheme for eigencalving.
 
-    if (model%options%whichcalving == CALVING_DAMAGE) then
+    if (model%options%whichcalving == EIGENCALVING .or. &
+        model%options%whichcalving == CALVING_DAMAGE) then
 
        ! Near the calving front, distinguish full cells from partial cells
        call glissade_effective_calving_thck(&
@@ -4943,7 +4876,7 @@ contains
           enddo
        enddo
 
-    endif   ! damage-based calving
+    endif   ! eigencalving or damage-based calving
 
     ! Compute various vertical means.
     ! TODO - Write a utility subroutine for vertical averaging
@@ -4975,7 +4908,6 @@ contains
     ! A robust fix, not done yet, would be to write the restart velocities
     !  onto a new grid with dimension (nx+1,ny+1).
     ! TODO: Implement restart velocities on an extended (nx+1,ny+1) grid?
-
     
     model%velocity%uvel_extend(:,:,:) = 0.d0
     model%velocity%vvel_extend(:,:,:) = 0.d0
