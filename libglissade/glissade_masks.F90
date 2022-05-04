@@ -279,6 +279,8 @@
 
 !****************************************************************************
 
+  !TODO - Remove thck_calving_front and active_ice_mask
+
   subroutine glissade_calving_front_mask(&
        nx,                     ny,                   &
        which_ho_calving_front,                       &
@@ -288,12 +290,18 @@
        ice_mask,               floating_mask,        &
        ocean_mask,             land_mask,            &
        calving_front_mask,     thck_calving_front,   &
-       active_ice_mask,        marine_interior_mask, &
-       effective_areafrac,     marine_cliff_mask)
+       active_ice_mask,                              &
+       effective_areafrac,                           &
+       calving_minthck,                              &
+       dx,                     dy,                   &
+       thck_effective,                               &
+       partial_cf_mask,        full_mask)
 
     ! Compute a calving_front mask, effective calving_front thickness, and related fields.
-    ! Note: With the subgrid calving front scheme, cells that lie on the calving front and have
-    !       thck < thck_calving_front are inactive. Otherwise, all cells with ice_mask = 1 are active.
+    ! If using the subgrid calving front scheme, then compute the surface elevation gradient
+    ! between each CF cell and its thickest upstream neighbor.
+    ! If this gradient is less than a prescribed value, the CF cell is considered to be full.
+    ! Otherwise, it is marked as a partial CF cell.
 
     integer, intent(in) ::   &
          nx,  ny,              &  ! number of grid cells in each direction
@@ -320,18 +328,32 @@
     integer, dimension(nx,ny), intent(out) ::  &
          calving_front_mask       ! = 1 if ice is floating and borders at least one ocean cell, else = 0
 
+    !TODO - Remove thck_calving_front
     real(dp), dimension(nx,ny), intent(out) :: &
          thck_calving_front       ! effective ice thickness at the calving front
 
+    !TODO - Remove active_ice_mask (if all CF cells are active)
     integer, dimension(nx,ny), intent(out), optional ::  &
-         active_ice_mask,       & ! = 1 if dynamically active, else = 0
-         marine_interior_mask,  & ! = 1 if ice is marine-based and borders no ocean cells, else = 0
-         marine_cliff_mask        ! = 1 if ice is grounded and marine-based and borders at least one ocean
-                                  !     or inactive calving_front cell, else = 0
+         active_ice_mask          ! = 1 if dynamically active, else = 0
 
     real(dp), dimension(nx,ny), intent(out), optional :: &
          effective_areafrac       ! effective ice-covered fraction, in range [0,1]
                                   ! 0 < f < 1 for partial calving-front cells
+
+    real(dp), intent(in), optional :: &
+         calving_minthck          ! if present, require thck_effective >= calving_minthck
+
+    real(dp), intent(in), optional :: &
+         dx, dy                   ! grid cell size (m)
+
+    real(dp), dimension(nx,ny), intent(out), optional :: &
+         thck_effective           ! effective ice thickness (m) for calving
+                                  ! Generally, H_eff > H at the CF, with H_eff = H elsewhere
+
+    integer, dimension(nx,ny), intent(out), optional :: &
+         partial_cf_mask,       & ! = 1 for partially filled CF cells (thck < thck_effective), else = 0
+         full_mask                ! = 1 for ice-filled cells that are not partial_cf cells, else = 0
+
 
     !----------------------------------------------------------------
     ! Local arguments
@@ -339,14 +361,25 @@
 
     integer :: i, j, ii, jj
 
+    !TODO - Remove interior_marine_mask; needed only to compute thck_calving_front
     integer, dimension(nx,ny) :: &
-         interior_marine_mask   ! same as marine_interior mask; used internally
+         interior_marine_mask   ! mask to identify interior marine-based cells
 
     real(dp), dimension(nx,ny) :: &
          thck_flotation         ! flotation thickness
 
     integer :: sum_cell         ! temporary sums
     real(dp) :: sum_thck
+
+    !WHL - variables to compute new calving quantities
+    real(dp), dimension(nx,ny) :: &
+         max_neighbor_thck,        & ! max thickness (m) of the four edge neighbors
+         dthck_dx                    ! dH/dx between adjacent cells near the CF
+
+    !TODO - Make dthck_dx_crit a config parameter?
+    real(dp), parameter :: &
+         dthck_dx_crit = 0.002d0     ! |dH/dx| exceeding dthck_dx_crit at the CF defines partial cells
+
 
     ! Compute a calving front mask and effective calving front thickness.
     ! Optionally, compute some related fields.
@@ -413,14 +446,6 @@
           thck_flotation = -(rhoo/rhoi) * (topg - eus)
           thck_calving_front = min(thck_calving_front, thck_flotation)
        endwhere
-
-       ! Optionally, copy interior_marine_mask to marine_interior_mask for output.
-       ! The reason to have two copies of the same mask is to allow thck_calving_front to be computed,
-       !   whether or not marine_interior_mask is present.
-
-       if (present(marine_interior_mask)) then
-          marine_interior_mask = interior_marine_mask
-       endif
 
        ! Optionally, use the ratio thck/thck_calving_front to compute effective_areafrac.
        ! TODO - Think about whether we should have effective_areafrac = 1 for ice-free land.
@@ -506,11 +531,6 @@
        call parallel_halo(thck_calving_front, parallel)
        call parallel_halo(interior_marine_mask, parallel)
 
-       ! Optionally, copy interior_marine_mask to marine_interior_mask for output.
-       if (present(marine_interior_mask)) then
-          marine_interior_mask = interior_marine_mask
-       endif
-
        if (present(effective_areafrac)) then
           where (ice_mask == 1 .or. land_mask == 1)
              effective_areafrac = 1.0d0
@@ -522,6 +542,83 @@
        if (present(active_ice_mask)) then
           active_ice_mask(:,:) = ice_mask(:,:)
        endif
+
+!!    endif  ! which_ho_calving_front
+
+
+       !WHL - new code
+       !TODO - Move this code into the computations that are done when the subgrid CF is turned on.
+     if (present(thck_effective)) then
+       full_mask(:,:) = 0
+       partial_cf_mask(:,:) = 0
+       thck_effective(:,:) = 0.0d0
+       dthck_dx(:,:) = 0.0d0
+
+       do j = 2, ny-1
+          do i = 2, nx-1
+             if (ice_mask(i,j) == 1) then
+                if (calving_front_mask(i,j) == 1) then
+
+                   ! Find the greatest thickness of the edge-adjacent floating cells, and
+                   !  compute the thickness gradient between the cell and its thickest neighbor.
+                   ! The gradient is defined to be positive when the neighbor cell is thicker
+                   !  than the local cell.
+                   max_neighbor_thck = max(floating_mask(i-1,j)*thck(i-1,j), floating_mask(i+1,j)*thck(i+1,j), &
+                                           floating_mask(i,j-1)*thck(i,j-1), floating_mask(i,j+1)*thck(i,j+1))
+                   dthck_dx(i,j) = (max_neighbor_thck(i,j) - thck(i,j)) / sqrt(dx*dy)
+                   ! If the gradient exceeds a critical value, this is a partial CF cell,
+                   ! else it is a full cell.  Set thck_effective based on the critical gradient.
+                   if (dthck_dx(i,j) > dthck_dx_crit) then
+                      partial_cf_mask(i,j) = 1
+                      thck_effective(i,j) = max_neighbor_thck(i,j) - dthck_dx_crit*sqrt(dx*dy)
+                   else
+                      full_mask(i,j) = 1
+                      thck_effective(i,j) = thck(i,j)
+                   endif
+                else   ! not a CF cell
+                   full_mask(i,j) = 1
+                   thck_effective(i,j) = thck(i,j)
+                endif   ! calving_front_mask
+
+             endif   ! ice_mask
+          enddo   ! i
+       enddo   ! j
+
+       ! Optionally, require thck_effective >= calving_minthck
+       if (present(calving_minthck)) then
+          where (ice_mask == 1)
+          !TODO - Uncomment the following line
+ !!       where (partial_cf_mask == 1)
+             thck_effective = max(thck_effective, calving_minthck)
+          endwhere
+       endif
+
+     endif  ! present(thck_effective)
+
+       !TODO - Uncomment the following
+       ! Limit thck_effective at the CF so as not to exceed the flotation thickness
+!       where (partial_cf_mask == 1)
+!          thck_flotation = -(rhoo/rhoi) * (topg - eus)
+!          thck_effective = min(thck_effective, thck_flotation)
+!       endwhere
+
+       ! Optionally, use the ratio thck/thck_calving_front to compute effective_areafrac.
+       ! TODO - Think about whether we should have effective_areafrac = 1 for ice-free land.
+
+!       if (present(effective_areafrac)) then
+!          do j = 2, ny-1
+!             do i = 2, nx-1
+!                if (partial_cf_mask(i,j) == 1) then
+!                   effective_areafrac(i,j) = thck(i,j) / thck_effective(i,j)
+!                   effective_areafrac(i,j) = min(effective_areafrac(i,j), 1.0d0)  !TODO - redundant?
+!                elseif (ocean_mask(i,j) == 1) then
+!                   effective_areafrac(i,j) = 0.0d0
+!                else  ! non-CF ice-covered cells and/or land cells
+!                   effective_areafrac(i,j) = 1.0d0
+!                endif
+!             enddo
+!          enddo
+!       endif   ! present(effective_areafrac)
 
     endif  ! which_ho_calving_front
 
