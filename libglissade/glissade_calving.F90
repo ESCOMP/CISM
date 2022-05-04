@@ -43,8 +43,7 @@ module glissade_calving
 
   private
   public :: glissade_calving_mask_init, glissade_thck_calving_threshold_init, &
-            glissade_calve_ice, glissade_effective_calving_thck,  &
-            glissade_remove_icebergs, glissade_remove_isthmuses, &
+            glissade_calve_ice, glissade_remove_icebergs, glissade_remove_isthmuses, &
             glissade_cull_calving_front, glissade_limit_cliffs
   public :: verbose_calving
 
@@ -969,7 +968,12 @@ contains
          ice_mask,      floating_mask,      &
          ocean_mask,    land_mask,          &
          calving_front_mask,                &
-         thck_calving_front)
+         thck_calving_front,                &
+         calving_minthck = calving_minthck, &
+         dx = dx,       dy = dy,            &
+         thck_effective = thck_effective,   &
+         partial_cf_mask = partial_cf_mask, &
+         full_mask = full_mask)
 
     if (verbose_calving) then
        call point_diag(thck, 'Eigencalving, thck (m)', itest, jtest, rtest, 7, 7, '(f10.3)')
@@ -1009,15 +1013,13 @@ contains
        ! For CF cells, thck_effective is a weighted average of the thickness in a cell and its thickest neighbor.
        ! We require thck_effective >= calving%minthck, as well as thck_effective >= thck.
 
-       call glissade_effective_calving_thck(&
-            nx,              ny,                  &
-            dx,              dy,                  &
-            itest,   jtest,  rtest,               &
-            ice_mask,        floating_mask,       &
-            calving_front_mask,                   &
-            thck,            thck_effective,      &
-            partial_cf_mask, full_mask,           &
-            calving_minthck)
+       if (verbose_calving) then
+          call point_diag(thck_effective, 'Compute thck_effective (m)', itest, jtest, rtest, 7, 7)
+          call point_diag(thck, 'thck (m)', itest, jtest, rtest, 7, 7)
+          call point_diag(partial_cf_mask, 'partial_cf_mask', itest, jtest, rtest, 7, 7)
+          call point_diag(full_mask, 'full_mask', itest, jtest, rtest, 7, 7)
+          call point_diag(calving_front_mask, 'calving_front_mask', itest, jtest, rtest, 7, 7)
+       endif
 
        do j = nhalo+1, ny-nhalo
           do i = nhalo+1, nx-nhalo
@@ -1114,6 +1116,7 @@ contains
 
           ! Recompute the CF mask
           ! This could result in new CF cells that were previously in the interior.
+          ! Note: thck_effective keeps the value computed above.
 
           calving_front_mask_old = calving_front_mask
 
@@ -1127,6 +1130,7 @@ contains
                ocean_mask = ocean_mask,       &
                land_mask = land_mask)
 
+          !TODO - Call without thck_effective argument
           call glissade_calving_front_mask(&
                nx,            ny,                 &
                which_ho_calving_front,            &
@@ -1303,6 +1307,7 @@ contains
 
     ! Compute masks needed for calving
     ! Need a calving_front_mask; calving/thinning is applied only to cells at the calving front.
+    ! For each CF cell, also compute an effective ice thickness for calving.
 
     call glissade_get_masks(&
          nx,            ny,             &
@@ -1323,7 +1328,12 @@ contains
          ice_mask,      floating_mask,      &
          ocean_mask,    land_mask,          &
          calving_front_mask,                &
-         thck_calving_front)
+         thck_calving_front,                &
+         calving_minthck = calving_minthck, &
+         dx = dx,       dy = dy,            &
+         thck_effective = thck_effective,   &
+         partial_cf_mask = partial_cf_mask, &
+         full_mask = full_mask)
 
     ! Compute the ice speed at cell centers, averaged from neighboring vertices.
     ! Include in the average only vertices with nonzero speeds (i.e., ice present)
@@ -1443,20 +1453,13 @@ contains
        iterate_calving = .false.
        thck_old = thck   ! save current value of thck
 
-       ! For each cell, compute an effective ice thickness for calving.
-       ! Away from the calving front, we have thck_effective = thck.
-       ! For CF cells, thck_effective is a weighted average of the thickness in a cell and its thickest neighbor.
-       ! We require thck_effective >= calving%minthck, as well as thck_effective >= thck.
-
-       call glissade_effective_calving_thck(&
-            nx,              ny,                  &
-            dx,              dy,                  &
-            itest,   jtest,  rtest,               &
-            ice_mask,        floating_mask,       &
-            calving_front_mask,                   &
-            thck,            thck_effective,      &
-            partial_cf_mask, full_mask,           &
-            calving_minthck)
+       if (verbose_calving) then
+          call point_diag(thck_effective, 'Compute thck_effective (m)', itest, jtest, rtest, 7, 7)
+          call point_diag(thck, 'thck (m)', itest, jtest, rtest, 7, 7)
+          call point_diag(partial_cf_mask, 'partial_cf_mask', itest, jtest, rtest, 7, 7)
+          call point_diag(full_mask, 'full_mask', itest, jtest, rtest, 7, 7)
+          call point_diag(calving_front_mask, 'calving_front_mask', itest, jtest, rtest, 7, 7)
+       endif
 
        do j = nhalo+1, ny-nhalo
           do i = nhalo+1, nx-nhalo
@@ -1552,6 +1555,7 @@ contains
 
           ! Recompute the CF mask
           ! This could result in new CF cells that were previously in the interior.
+          ! Note: thck_effective keeps the value computed above.
 
           calving_front_mask_old = calving_front_mask
 
@@ -1565,6 +1569,7 @@ contains
                ocean_mask = ocean_mask,       &
                land_mask = land_mask)
 
+          !TODO - Call without thck_calving_front argument
           call glissade_calving_front_mask(&
                nx,            ny,                 &
                which_ho_calving_front,            &
@@ -1614,123 +1619,6 @@ contains
     endif
 
   end subroutine damage_based_calving
-
-!---------------------------------------------------------------------------
-
-  subroutine glissade_effective_calving_thck(&
-       nx,              ny,                  &
-       dx,              dy,                  &
-       itest,   jtest,  rtest,               &
-       ice_mask,        floating_mask,       &
-       calving_front_mask,                   &
-       thck,            thck_effective,      &
-       partial_cf_mask, full_mask,           &
-       calving_minthck)
-
-    !TODO - Add to calving_mask subroutine?
-
-    ! For each cell, compute an effective ice thickness for calving:
-    ! Away from the calving front, we have thck_effective = thck.
-    ! For CF cells, thck_effective is based on the max thickness in adjacent cells.
-    ! If the surface elevation gradient between a cell and its thickest neighbor
-    !  is less than a prescribed value, the CF cell is considered to be full.
-    ! Otherwise, it is marked as a partial CF cell.
-    ! Optionally, we can require thck_effective >= calving_minthck in CF cells.
-
-    ! input/output arguments
-
-    integer, intent(in) :: &
-         nx, ny,                   & ! horizontal grid dimensions
-         itest, jtest, rtest         ! coordinates of diagnostic point
-
-    real(dp), intent(in) :: &
-         dx, dy                      ! grid cell size (m)
-
-    integer, dimension(nx,ny), intent(in)  ::  &
-         ice_mask,                 & ! = 1 where ice is present (thck > thklim), else = 0
-         floating_mask,            & ! = 1 where ice is present and floating, else = 0
-         calving_front_mask          ! = 1 where ice is floating and borders at least one ocean cell, else = 0
-
-    real(dp), dimension(nx,ny), intent(in) :: &
-         thck                        ! ice thickness (m)
-
-    real(dp), dimension(nx,ny), intent(out) :: &
-         thck_effective              ! effective ice thickness (m) for calving
-
-    integer, dimension(nx,ny), intent(out) :: &
-         partial_cf_mask,          & ! = 1 for partially filled CF cells (thck < thck_effective), else = 0
-         full_mask                   ! = 1 for ice-filled cells that are not partial_cf cells, else = 0
-
-    real(dp), intent(in), optional :: &
-         calving_minthck             ! if present, require thck_effective >= calving_minthck
-
-    ! local variables
-
-    integer :: i, j
-
-    real(dp), dimension(nx,ny) :: &
-         max_neighbor_thck,        & ! max thickness (m) of the four edge neighbors
-         dthck_dx                    ! dH/dx between adjacent cells near the CF
-
-!!    logical, parameter :: verbose_thck_effective = .false.
-    logical, parameter :: verbose_thck_effective = .true.
-
-    !TODO - Make dthck_dx_crit a config parameter?
-    real(dp), parameter :: &
-         dthck_dx_crit = 0.002d0     ! |dH/dx| exceeding dthck_dx_crit at the CF defines partial cells
-
-    full_mask(:,:) = 0
-    partial_cf_mask(:,:) = 0
-    thck_effective(:,:) = 0.0d0
-    dthck_dx(:,:) = 0.0d0
-
-    do j = 2, ny-1
-       do i = 2, nx-1
-          if (ice_mask(i,j) == 1) then
-             if (calving_front_mask(i,j) == 1) then
-
-                ! Find the greatest thickness of the edge-adjacent floating cells, and
-                !  compute the thickness gradient between the cell and its thickest neighbor.
-                ! The gradient is defined to be positive when the neighbor cell is thicker
-                !  than the local cell.
-                max_neighbor_thck = max(floating_mask(i-1,j)*thck(i-1,j), floating_mask(i+1,j)*thck(i+1,j), &
-                                        floating_mask(i,j-1)*thck(i,j-1), floating_mask(i,j+1)*thck(i,j+1))
-                dthck_dx(i,j) = (max_neighbor_thck(i,j) - thck(i,j)) / sqrt(dx*dy)
-                ! If the gradient exceeds a critical value, this is a partial CF cell,
-                ! else it is a full cell.  Set thck_effective based on the critical gradient.
-                if (dthck_dx(i,j) > dthck_dx_crit) then
-                   partial_cf_mask(i,j) = 1
-                   thck_effective(i,j) = max_neighbor_thck(i,j) - dthck_dx_crit*sqrt(dx*dy)
-                else
-                   full_mask(i,j) = 1
-                   thck_effective(i,j) = thck(i,j)
-                endif
-             else   ! not a CF cell
-                full_mask(i,j) = 1
-                thck_effective(i,j) = thck(i,j)
-             endif   ! calving_front_mask
-
-          endif   ! ice_mask
-       enddo   ! i
-    enddo   ! j
-
-    ! Optionally, require thck_effective >= calving_minthck
-    if (present(calving_minthck)) then
-       where (ice_mask == 1)
-          thck_effective = max(thck_effective, calving_minthck)
-       endwhere
-    endif
-
-    if (verbose_thck_effective) then
-       call point_diag(thck_effective, 'Compute thck_effective (m)', itest, jtest, rtest, 7, 7)
-       call point_diag(thck, 'thck (m)', itest, jtest, rtest, 7, 7)
-       call point_diag(dthck_dx, 'dthck_dx (m/m)', itest, jtest, rtest, 7, 7, '(f10.6)')
-       call point_diag(partial_cf_mask, 'partial_cf_mask', itest, jtest, rtest, 7, 7)
-       call point_diag(full_mask, 'full_mask', itest, jtest, rtest, 7, 7)
-       call point_diag(calving_front_mask, 'calving_front_mask', itest, jtest, rtest, 7, 7)
-    endif
-
-  end subroutine glissade_effective_calving_thck
 
 !---------------------------------------------------------------------------
 

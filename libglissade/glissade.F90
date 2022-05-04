@@ -2115,7 +2115,7 @@ contains
                               glissade_calving_front_mask
     use glissade_inversion, only: verbose_inversion
     use glissade_bmlt_float, only: verbose_bmlt_float
-    use glissade_calving, only: verbose_calving, glissade_effective_calving_thck
+    use glissade_calving, only: verbose_calving
     use glissade_grid_operators, only: glissade_vertical_interpolate
     use glissade_glacier, only: verbose_glacier, glissade_glacier_smb, &
                                 glissade_glacier_advance_retreat
@@ -2258,6 +2258,8 @@ contains
            model%options%whichcalving == CALVING_DAMAGE .or.  &
            model%options%whichcalving == EIGENCALVING) then
 
+          ! Near the calving front, distinguish full cells from partial cells
+
           call glissade_calving_front_mask(ewn,                    nsn,              &
                                            model%options%which_ho_calving_front,     &
                                            parallel,                                 &
@@ -2267,20 +2269,12 @@ contains
                                            ice_mask,               floating_mask,    &
                                            ocean_mask,             land_mask,        &
                                            calving_front_mask,     thck_calving_front, &
-                                           active_ice_mask = active_ice_mask)
-
-          ! Near the calving front, distinguish full cells from partial cells
-          call glissade_effective_calving_thck(&
-               ewn,             nsn,                 &
-               model%numerics%dew * len0,            &  ! m
-               model%numerics%dns * len0,            &  ! m
-               itest,  jtest,   rtest,               &
-               ice_mask,        floating_mask,       &
-               calving_front_mask,                   &
-               model%geometry%thck*thk0,             &   ! m
-               thck_effective,                       &   ! m
-               partial_cf_mask, full_mask)
-
+                                           active_ice_mask = active_ice_mask,        &
+                                           thck_effective = thck_effective,   &
+                                           dx = model%numerics%dew*len0,      &
+                                           dy = model%numerics%dns*len0,      &
+                                           partial_cf_mask = partial_cf_mask, &
+                                           full_mask = full_mask)
        endif
 
        ! For the enthalpy option, derive enthalpy from temperature and waterfrac.
@@ -3980,6 +3974,7 @@ contains
     use glimmer_paramets, only: eps08, tim0, len0, vel0, thk0, vis0, tau0, evs0
     use glimmer_physcon, only: rhow, rhoi, scyr
     use glimmer_scales, only: scale_acab
+    use glide_diagnostics, only: point_diag
     use glide_thck, only: glide_calclsrf
     use glissade_velo, only: glissade_velo_driver
     use glide_velo, only: wvelintg
@@ -3990,7 +3985,7 @@ contains
                               glissade_interior_dissipation_first_order, &
                               glissade_flow_factor,  &
                               glissade_pressure_melting_point
-    use glissade_calving, only: verbose_calving, glissade_effective_calving_thck
+    use glissade_calving, only: verbose_calving
     use felix_dycore_interface, only: felix_velo_driver
     use glissade_basal_traction, only: calc_effective_pressure
     use glissade_inversion, only: glissade_inversion_basal_friction,  &
@@ -4011,8 +4006,7 @@ contains
          floating_mask,      & ! = 1 where ice is present and floating, else = 0
          ocean_mask,         & ! = 1 where topg is below sea level and ice is absent
          land_mask,          & ! = 1 where topg is at or above sea level
-         calving_front_mask, & ! = 1 where ice is floating and borders an ocean cell, else = 0
-         marine_interior_mask  ! = 1 if ice is marine-based and borders no ocean cells, else = 0
+         calving_front_mask    ! = 1 where ice is floating and borders an ocean cell, else = 0
 
     real(dp), dimension(model%general%ewn, model%general%nsn) ::  &
          thck_calving_front, & ! effective thickness of ice at the calving front
@@ -4167,12 +4161,17 @@ contains
     call glissade_calving_front_mask(ewn,                 nsn,     &
                                      model%options%which_ho_calving_front,       &
                                      parallel,                                   &
-                                     model%geometry%thck, model%geometry%topg,   &
-                                     model%climate%eus,                          &
+                                     model%geometry%thck*thk0,                   &
+                                     model%geometry%topg*thk0,                   &
+                                     model%climate%eus*thk0,                     &
                                      ice_mask,            floating_mask,         &
                                      ocean_mask,          land_mask,             &
                                      calving_front_mask,  thck_calving_front,    &
-                                     marine_interior_mask = marine_interior_mask)
+                                     thck_effective = thck_effective,   &
+                                     dx = model%numerics%dew*len0,      &
+                                     dy = model%numerics%dns*len0,      &
+                                     partial_cf_mask = partial_cf_mask, &
+                                     full_mask = full_mask)
 
     ! ------------------------------------------------------------------------
     ! Compute the fraction of grounded ice in each cell and at each vertex.
@@ -4692,40 +4691,7 @@ contains
           enddo   ! i
        enddo   ! j
 
-       ! Extrapolate tau eigenvalues to inactive CF cells where the stress tensor is not computed.
-
-       do j = 2, nsn-1
-          do i = 2, ewn-1
-             if (calving_front_mask(i,j) == 1 .and. &
-                  model%calving%tau_eigen1(i,j) == 0.0d0 .and. model%calving%tau_eigen2(i,j) == 0.0d0) then
-
-                sum_cell = 0
-                sum1 = 0.0d0
-                sum2 = 0.0d0
-
-                ! Set the eigenvalues to the mean values in marine interior neighbors
-                do jj = j-1, j+1
-                   do ii = i-1, i+1
-                      if (marine_interior_mask(ii,jj) == 1) then
-                         sum_cell = sum_cell + 1
-                         sum1 = sum1 + model%calving%tau_eigen1(ii,jj)
-                         sum2 = sum2 + model%calving%tau_eigen2(ii,jj)
-                      endif
-                   enddo
-                enddo
-                if (sum_cell > 0) then
-                   model%calving%tau_eigen1(i,j) = sum1/sum_cell
-                   model%calving%tau_eigen2(i,j) = sum2/sum_cell
-                endif
-
-             endif  ! inactive CF cell
-          enddo
-       enddo
-
     endif   ! restart
-
-    call parallel_halo(model%calving%tau_eigen1, parallel)
-    call parallel_halo(model%calving%tau_eigen2, parallel)
 
     ! Compute the 3D strain rate tensor (s^{-1})
     ! Note: The stress tensor tau is derived by taking strain rates at quadrature points in the velocity solve.
@@ -4799,58 +4765,13 @@ contains
        enddo   ! i
     enddo   ! j
 
-    ! Extrapolate eigenvalues to inactive CF cells where the strain rate is not computed.
-
-    do j = 2, nsn-1
-       do i = 2, ewn-1
-          if (calving_front_mask(i,j) == 1 .and. &
-              model%calving%eps_eigen1(i,j) == 0.0d0 .and. model%calving%eps_eigen2(i,j) == 0.0d0) then
-
-             sum_cell = 0
-             sum1 = 0.0d0
-             sum2 = 0.0d0
-
-             ! Set the eigenvalues to the mean values in marine interior neighbors
-             do jj = j-1, j+1
-                do ii = i-1, i+1
-                   if (marine_interior_mask(ii,jj) == 1) then
-                      sum_cell = sum_cell + 1
-                      sum1 = sum1 + model%calving%eps_eigen1(ii,jj)
-                      sum2 = sum2 + model%calving%eps_eigen2(ii,jj)
-                   endif
-                enddo
-             enddo
-             if (sum_cell > 0) then
-                model%calving%eps_eigen1(i,j) = sum1/sum_cell
-                model%calving%eps_eigen2(i,j) = sum2/sum_cell
-             endif
-
-          endif  ! inactive CF cell
-       enddo
-    enddo
-
-    call parallel_halo(model%calving%eps_eigen1, parallel)
-    call parallel_halo(model%calving%eps_eigen2, parallel)
-
     ! For eigencalving and damage-based calving, replace tau and eps in partial_cf cells with values in adjacent full cells.
     ! The partial cells have thin ice that moves slowly, often resulting in tau2 < 0 and eps2 < 0,
     !  although the nearby full cells have tau2 > 0 and eps2 > 0.
-    !TODO - Do this for eigencalving also if we replace the subgrid CF scheme for eigencalving.
 
+    !TODO - subgrid CF logic instead?
     if (model%options%whichcalving == EIGENCALVING .or. &
         model%options%whichcalving == CALVING_DAMAGE) then
-
-       ! Near the calving front, distinguish full cells from partial cells
-       call glissade_effective_calving_thck(&
-            ewn,             nsn,                 &
-            model%numerics%dew * len0,            &  ! m
-            model%numerics%dns * len0,            &  ! m
-            itest,  jtest,   rtest,               &
-            ice_mask,        floating_mask,       &
-            calving_front_mask,                   &
-            model%geometry%thck*thk0,             &   ! m
-            thck_effective,                       &   ! m
-            partial_cf_mask, full_mask)
 
        tau1 = model%calving%tau_eigen1
        tau2 = model%calving%tau_eigen2
@@ -4877,6 +4798,11 @@ contains
        enddo
 
     endif   ! eigencalving or damage-based calving
+
+    call parallel_halo(model%calving%tau_eigen1, parallel)
+    call parallel_halo(model%calving%tau_eigen2, parallel)
+    call parallel_halo(model%calving%eps_eigen1, parallel)
+    call parallel_halo(model%calving%eps_eigen2, parallel)
 
     ! Compute various vertical means.
     ! TODO - Write a utility subroutine for vertical averaging
