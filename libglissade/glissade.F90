@@ -113,8 +113,8 @@ contains
     use glimmer_coordinates, only: coordsystem_new
     use glissade_grid_operators, only: glissade_stagger, glissade_laplacian_smoother
     use glissade_velo_higher, only: glissade_velo_higher_init
-    use glide_diagnostics, only: glide_init_diag
-    use glissade_calving, only: glissade_calving_mask_init, glissade_thck_calving_threshold_init
+    use glide_diagnostics, only: glide_init_diag, point_diag
+    use glissade_calving, only: glissade_calving_mask_init
     use glissade_inversion, only: glissade_init_inversion, verbose_inversion
     use glissade_basal_traction, only: glissade_init_effective_pressure
     use glissade_bmlt_float, only: glissade_bmlt_float_thermal_forcing_init, verbose_bmlt_float
@@ -979,45 +979,6 @@ contains
        endif
 
     endif   ! force_retreat
-
-    !TODO - Move to an init_calving subroutine
-    if (model%options%whichcalving == CALVING_THCK_THRESHOLD) then
-
-       ! Check whether thck_calving_threshold was already read in.  If not, then compute it.
-       ! Note: Do not use the restart_false logic, since it may be convenient to compute this field on restart.
-
-       local_maxval = maxval(model%calving%thck_calving_threshold)
-       global_maxval = parallel_reduce_max(local_maxval)
-
-       write(message,*) 'thck_calving_threshold, global_maxval =', global_maxval
-       call write_log(trim(message))
-
-       if (global_maxval < eps11) then
-          write(message,*) 'Set thck_calving_threshold at startup'
-          call write_log(trim(message))
-
-          ! Given the initial calving front thickness, initialize thck_calving_threshold.
-          ! If calving_minthck > 0 in the config file, set thck_calving_threshold = calving_minthck everywhere.
-          ! Otherwise, set thck_calving_threshold to the initial calving_front thickness, and extrapolate upstream and downstream.
-          ! During the run, any ice in the calving domain with thck < thck_calving_threshold will be removed.
-          ! On restart, thck_calving_threshold will be read from the restart file.
-          ! Note: This is done after initial calving, which may include iceberg removal or calving-front culling.
-          !       Since thck_calving_threshold = 0 initially, no ice is thinner than the threshold during the
-          !        initial call above to glissade_calve_ice.  The threshold takes effect during the first timestep.
-
-          call glissade_thck_calving_threshold_init(&
-               model%general%ewn,         model%general%nsn,            &
-               parallel,                                                &
-               itest,   jtest,    rtest,                                &
-               model%options%which_ho_calving_front,                    &
-               model%geometry%thck*thk0,  model%geometry%topg*thk0,     &
-               model%climate%eus*thk0,    model%numerics%thklim*thk0,   &
-               model%geometry%marine_connection_mask,                   &
-               model%calving%minthck,                                   &
-               model%calving%thck_calving_threshold)
-       endif
-
-    endif  ! thickness-based calving
 
     if ((model%options%whichcalving == CALVING_GRID_MASK .or. model%options%apply_calving_mask)  &
          .and. model%options%is_restart == RESTART_FALSE) then
@@ -2127,6 +2088,7 @@ contains
     use glimmer_paramets, only: eps11, eps08, tim0, thk0, vel0, len0
     use glimmer_physcon, only: rhow, rhoi, scyr
     use glimmer_scales, only: scale_acab
+    use glide_diagnostics, only: glide_init_diag, point_diag
     use glissade_therm, only: glissade_temp2enth, glissade_enth2temp
     use glissade_transport, only: glissade_mass_balance_driver, &
                                   glissade_transport_driver, &
@@ -2275,12 +2237,12 @@ contains
                                active_ice_mask = active_ice_mask)
 
        ! If using a subgrid calving-front scheme, then recompute active_ice_mask.
-       !TODO - Introduce a new subgrid option?
-       !       Consolidate these two subroutines?
+       !TODO - Introduce a new subgrid option
 !!       if (model%options%which_ho_calving_front == HO_CALVING_FRONT_SUBGRID) then
        if (model%options%which_ho_calving_front == HO_CALVING_FRONT_SUBGRID .or. &
-           model%options%whichcalving == CALVING_DAMAGE .or.  &
-           model%options%whichcalving == EIGENCALVING) then
+           model%options%whichcalving == CALVING_THCK_THRESHOLD .or.  &
+           model%options%whichcalving == EIGENCALVING .or.   &
+           model%options%whichcalving == CALVING_DAMAGE) then
 
           ! Near the calving front, distinguish full cells from partial cells
 
@@ -2316,16 +2278,9 @@ contains
           enddo
        endif    ! TEMP_ENTHALPY
 
-       if (verbose_calving .and. this_rank == rtest) then
-          print*, ' '
-          print*, 'Before tracer transport, damage layer 1:'
-          do j = jtest+3, jtest-3, -1
-             write(6,'(i6)',advance='no') j
-             do i = itest-3, itest+3
-                write(6,'(f10.5)',advance='no') model%calving%damage(1,i,j)
-             enddo
-             write(6,*) ' '
-          enddo
+       if (verbose_calving .and. model%options%whichcalving == CALVING_DAMAGE) then
+          call point_diag(model%calving%damage(1,:,:), 'Before tracer transport, damage layer 1:', &
+               itest, jtest, rtest, 7, 7, '(f10.5)')
        endif
 
        ! copy tracers (temp/enthalpy, etc.) into model%geometry%tracers
@@ -2542,10 +2497,13 @@ contains
              enddo
           endif
 
-       endif   ! calving_damage
+       endif
 
-       if ((model%options%whichcalving == CALVING_DAMAGE .or. &
-            model%options%whichcalving == EIGENCALVING) &
+       !TODO - Replace with subgrid CF logic
+       !       Remove the code block above.
+       if ( (model%options%whichcalving == CALVING_THCK_THRESHOLD .or. &
+             model%options%whichcalving == EIGENCALVING .or.           &
+             model%options%whichcalving == CALVING_DAMAGE)             &
             .and. .not.model%options%apply_calving_mask) then
 
           ! compute a mask of protected cells
@@ -3042,16 +3000,9 @@ contains
        ! copy tracers (temp/enthalpy, etc.) from model%geometry%tracers back to standard arrays
        call glissade_transport_finish_tracers(model)
 
-       if (verbose_calving .and. this_rank == rtest) then
-          print*, ' '
-          print*, 'After tracer transport, damage layer 1:'
-          do j = jtest+3, jtest-3, -1
-             write(6,'(i6)',advance='no') j
-             do i = itest-3, itest+3
-                write(6,'(f10.5)',advance='no') model%calving%damage(1,i,j)
-             enddo
-             write(6,*) ' '
-          enddo
+       if (verbose_calving .and. model%options%whichcalving == CALVING_DAMAGE) then
+          call point_diag(model%calving%damage(1,:,:), 'After tracer transport, damage layer 1:', &
+               itest, jtest, rtest, 7, 7, '(f10.5)')
        endif
 
        ! convert applied mass balance from m/s back to scaled model units
@@ -3504,6 +3455,7 @@ contains
 
 !!    elseif (model%options%which_ho_calving_front == HO_CALVING_FRONT_SUBGRID) then
     elseif (model%options%which_ho_calving_front == HO_CALVING_FRONT_SUBGRID .or. &
+            model%options%whichcalving == CALVING_THCK_THRESHOLD .or. &
             model%options%whichcalving == EIGENCALVING .or. &
             model%options%whichcalving == CALVING_DAMAGE) then
 
@@ -3998,7 +3950,6 @@ contains
     use glimmer_paramets, only: eps08, tim0, len0, vel0, thk0, vis0, tau0, evs0
     use glimmer_physcon, only: rhow, rhoi, scyr
     use glimmer_scales, only: scale_acab
-    use glide_diagnostics, only: point_diag
     use glide_thck, only: glide_calclsrf
     use glissade_velo, only: glissade_velo_driver
     use glide_velo, only: wvelintg

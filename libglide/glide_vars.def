@@ -523,13 +523,6 @@ data:          data%calving%calving_mask
 load:          1
 type:          int
 
-[thck_calving_threshold]
-dimensions:    time, y1, x1
-units:         meter
-long_name:     thickness threshold for calving ice
-data:          data%calving%thck_calving_threshold
-load:          1
-
 [calving_lateral]
 dimensions:    time, y1, x1
 units:         meter/year
