@@ -785,7 +785,6 @@ contains
     !
     ! This method sets the gradient to zero at edges where
     ! (1) An ice-covered cell (grounded or floating) lies above ice-free ocean.
-    !     Note: Inactive calving-front cells are treated as ice-free ocean.
     ! (2) An ice-covered land cell lies below an ice-free land cell (i.e., a nunatak).
     !
     ! This method aims to give a reasonable gradient at both land-terminating and marine-terminating margins.
@@ -869,7 +868,7 @@ contains
   subroutine glissade_surface_elevation_gradient(nx,           ny,        &
                                                  dx,           dy,        &
                                                  itest, jtest, rtest,     &
-                                                 active_ice_mask,         &
+                                                 ice_mask,                &
                                                  land_mask,               &
                                                  usrf,         thck,      &
                                                  topg,         eus,       &
@@ -901,7 +900,6 @@ contains
     !
     ! This method sets the gradient to zero at edges where
     ! (1) An ice-covered cell (grounded or floating) lies above ice-free ocean.
-    !     Note: Inactive calving-front cells are treated as ice-free ocean.
     ! (2) An ice-covered land cell lies below an ice-free land cell (i.e., a nunatak).
 
     ! The aim is to give a reasonable gradient at both land-terminating and marine-terminating margins.
@@ -942,7 +940,7 @@ contains
          itest, jtest, rtest      ! coordinates of diagnostic point
 
     integer, dimension(nx,ny), intent(in) ::        &
-         active_ice_mask,       & ! = 1 where active ice is present, else = 0
+         ice_mask,              & ! = 1 where ice is present, else = 0
          land_mask                ! = 1 for land cells, else = 0
 
     real(dp), dimension(nx,ny), intent(in) ::       &
@@ -952,7 +950,7 @@ contains
 
     real(dp), intent(in) ::       &
          eus,                   & ! eustatic sea level
-         thklim,                & ! minimum thickness for active ice
+         thklim,                & ! minimum thickness for dynamically active ice
          thck_gradient_ramp
 
     real(dp), dimension(nx-1,ny-1), intent(out) ::    &
@@ -1011,10 +1009,10 @@ contains
 
     elseif (ho_gradient_margin == HO_GRADIENT_MARGIN_MARINE) then
 
-       ! Compute ds_dx and ds_dy only on edges with active ice in each adjacent cell
+       ! Compute ds_dx and ds_dy only on edges with ice in each adjacent cell
        do j = 1, ny
           do i = 1, nx-1
-             if (active_ice_mask(i,j) == 1 .and. active_ice_mask(i+1,j) == 1) then
+             if (ice_mask(i,j) == 1 .and. ice_mask(i+1,j) == 1) then
                 ds_dx_edge(i,j) = (usrf(i+1,j) - usrf(i,j)) / dx
              endif
           enddo
@@ -1022,7 +1020,7 @@ contains
 
        do j = 1, ny-1
           do i = 1, nx
-             if (active_ice_mask(i,j) == 1 .and. active_ice_mask(i,j+1) == 1) then
+             if (ice_mask(i,j) == 1 .and. ice_mask(i,j+1) == 1) then
                 ds_dy_edge(i,j) = (usrf(i,j+1) - usrf(i,j)) / dy
              endif
           enddo
@@ -1055,14 +1053,14 @@ contains
                 edge_factor = 1.0d0
              endif
 
-             if (active_ice_mask(iu,j) == 1 .and. active_ice_mask(il,j) == 1) then  ! both cells have active ice
+             if (ice_mask(iu,j) == 1 .and. ice_mask(il,j) == 1) then  ! both cells have ice
 
                 ! compute the gradient
                 ds_dx_edge(i,j) = edge_factor * sign_factor * (usrf(iu,j) - usrf(il,j)) / dx
 
-             elseif (active_ice_mask(iu,j) == 1 .and. land_mask(il,j) == 1) then
+             elseif (ice_mask(iu,j) == 1 .and. land_mask(il,j) == 1) then
 
-                ! upper cell has active ice, and ice-free lower cell is land; compute the gradient
+                ! upper cell has ice, and ice-free lower cell is land; compute the gradient
                 ds_dx_edge(i,j) = edge_factor * sign_factor * (usrf(iu,j) - usrf(il,j)) / dx
 
              endif  ! both cells have ice
@@ -1095,14 +1093,14 @@ contains
                 edge_factor = 1.0d0
              endif
 
-             if (active_ice_mask(i,ju)==1 .and. active_ice_mask(i,jl)==1) then  ! both cells have ice
+             if (ice_mask(i,ju)==1 .and. ice_mask(i,jl)==1) then  ! both cells have ice
 
                 ! compute the gradient
                 ds_dy_edge(i,j) = edge_factor * sign_factor * (usrf(i,ju) - usrf(i,jl)) / dy
 
-             elseif (active_ice_mask(i,ju) == 1 .and. land_mask(i,jl) == 1) then
+             elseif (ice_mask(i,ju) == 1 .and. land_mask(i,jl) == 1) then
 
-                ! upper cell has active ice, and ice-free lower cell is land; compute the gradient
+                ! upper cell has ice, and ice-free lower cell is land; compute the gradient
                 ds_dy_edge(i,j) = edge_factor * sign_factor * (usrf(i,ju) - usrf(i,jl)) / dy
 
              endif  ! both cells have ice
