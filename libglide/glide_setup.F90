@@ -2429,44 +2429,49 @@ contains
     endif
 
     ! thickness- and eigenvalue-based calving options
-    !TODO - Require that these use the new subgrid CF scheme
-    !TODO - Deprecate the old subgrid option.
-!          if (model%options%which_ho_calving_front == HO_CALVING_FRONT_NO_SUBGRID) then
-!             write(message,*) &
-!                  'Calving option ', model%options%whichcalving, ' requires a subgrid calving front'
-!             call write_log(message, GM_FATAL)
-!          endif
 
-    if (model%options%whichcalving == CALVING_THCK_THRESHOLD) then
-       if (model%calving%minthck > 0.0d0) then
-          write(message,*) 'calving minthck (m) : ', model%calving%minthck
-          call write_log(message)
-       elseif (model%options%whichcalving == CALVING_THCK_THRESHOLD) then
-          write(message,*) 'Error, this calving option needs calving_minthck > 0'
+    if (model%options%whichcalving == CALVING_THCK_THRESHOLD .or.  &
+        model%options%whichcalving == EIGENCALVING           .or.  &
+        model%options%whichcalving == CALVING_DAMAGE) then
+
+       if (model%options%which_ho_calving_front == HO_CALVING_FRONT_NO_SUBGRID) then
+          write(message,*) &
+               'Calving option ', model%options%whichcalving, ' requires a subgrid calving front'
           call write_log(message, GM_FATAL)
        endif
-       if (model%calving%timescale > 0.0d0) then
-          write(message,*) 'calving timescale (yr) : ', model%calving%timescale
+
+       if (model%options%whichcalving == CALVING_THCK_THRESHOLD) then
+          if (model%calving%minthck > 0.0d0) then
+             write(message,*) 'calving minthck (m) : ', model%calving%minthck
+             call write_log(message)
+          else
+             write(message,*) 'Error, this calving option needs calving_minthck > 0'
+             call write_log(message, GM_FATAL)
+          endif
+          if (model%calving%timescale > 0.0d0) then
+             write(message,*) 'calving timescale (yr) : ', model%calving%timescale
+             call write_log(message)
+          else
+             write(message,*) 'Error, this calving option needs calving_timescale > 0'
+             call write_log(message, GM_FATAL)
+          endif
+       elseif (model%options%whichcalving == EIGENCALVING) then
+          write(message,*) 'eigenconstant1 (m/yr)                : ', model%calving%eigenconstant1
           call write_log(message)
-       elseif (model%options%whichcalving == CALVING_THCK_THRESHOLD) then
-          write(message,*) 'Error, this calving option needs calving_timescale > 0'
-          call write_log(message, GM_FATAL)
+          write(message,*) 'eigenconstant2 (m/yr)                : ', model%calving%eigenconstant2
+          call write_log(message)
+       elseif (model%options%whichcalving == CALVING_DAMAGE) then
+          write(message,*) 'damage constant1 (1/yr)              : ', model%calving%damage_constant1
+          call write_log(message)
+          write(message,*) 'damage constant2 (1/yr)              : ', model%calving%damage_constant2
+          call write_log(message)
+          write(message,*) 'damage threshold                     : ', model%calving%damage_threshold
+          call write_log(message)
+          write(message,*) 'damage-flwa feedback                 : ', model%options%damage_flwa_feedback
+          call write_log(message)
        endif
-    elseif (model%options%whichcalving == EIGENCALVING) then
-       write(message,*) 'eigenconstant1 (m/yr)                : ', model%calving%eigenconstant1
-       call write_log(message)
-       write(message,*) 'eigenconstant2 (m/yr)                : ', model%calving%eigenconstant2
-       call write_log(message)
-    elseif (model%options%whichcalving == CALVING_DAMAGE) then
-       write(message,*) 'damage constant1 (1/yr)              : ', model%calving%damage_constant1
-       call write_log(message)
-       write(message,*) 'damage constant2 (1/yr)              : ', model%calving%damage_constant2
-       call write_log(message)
-       write(message,*) 'damage threshold                     : ', model%calving%damage_threshold
-       call write_log(message)
-       write(message,*) 'damage-flwa feedback                 : ', model%options%damage_flwa_feedback
-       call write_log(message)
-    endif
+
+    endif   ! calving options: thck_threshold, eigencalving, damage
 
     !TODO - Is this true with the new SUBGRID option?
     if (model%options%which_ho_calving_front == HO_CALVING_FRONT_SUBGRID) then
