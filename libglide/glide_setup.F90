@@ -2352,6 +2352,7 @@ contains
        call write_log(message)
     endif
 
+    !TODO - Is this true with the new SUBGRID option?
     if (model%options%which_ho_calving_front == HO_CALVING_FRONT_SUBGRID) then
        if (.not.model%options%remove_icebergs) then
           model%options%remove_icebergs = .true.
