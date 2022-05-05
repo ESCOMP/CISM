@@ -305,7 +305,6 @@ contains
     integer :: ii, jj
 
     real(dp), dimension(nx,ny) ::  &
-         thck_calving_front,     & ! effective ice thickness at the calving front
          tau1, tau2,             & ! tau_eigen1 and tau_eigen2 (Pa), modified for calving
          eps1, eps2                ! eps_eigen1 and eps_eigen2 (1/s), modified for calving
 
@@ -650,7 +649,6 @@ contains
          full_mask                 ! = 1 for ice-filled cells that are not partial_cf cells, else = 0
 
     real(dp), dimension(nx,ny) :: &
-         thck_calving_front,     & ! effective ice thickness at the calving front (m)
          thck_effective,         & ! effective thickness for calving (m)
          thck_old,               & ! old value of thck (m)
          dt_calving,             & ! time remaining for calving (s)
@@ -675,7 +673,6 @@ contains
          ocean_mask = ocean_mask,       &
          land_mask = land_mask)
 
-    !TODO - Remove thck_calving_front
     call glissade_calving_front_mask(&
          nx,            ny,                 &
          which_ho_calving_front,            &
@@ -685,7 +682,6 @@ contains
          ice_mask,      floating_mask,      &
          ocean_mask,    land_mask,          &
          calving_front_mask,                &
-         thck_calving_front,                &
          dx = dx,       dy = dy,            &
          thck_effective = thck_effective,   &
          partial_cf_mask = partial_cf_mask, &
@@ -809,8 +805,7 @@ contains
                eus,                               &
                ice_mask,      floating_mask,      &
                ocean_mask,    land_mask,          &
-               calving_front_mask,                &
-               thck_calving_front)
+               calving_front_mask)
 
           ! Save the old dt_calving values and compute new values
           ! Loop through cells; if a new CF cell has ice-free neighbors with dt_calving > 0,
@@ -921,7 +916,6 @@ contains
          full_mask                 ! = 1 for ice-filled cells that are not partial_cf cells, else = 0
 
     real(dp), dimension(nx,ny) :: &
-         thck_calving_front,     & ! effective ice thickness at the calving front (m)
          thck_effective,         & ! effective thickness for calving (m)
          thck_old,               & ! old value of thck (m)
          dt_calving,             & ! time remaining for calving (s)
@@ -968,7 +962,6 @@ contains
          ice_mask,      floating_mask,      &
          ocean_mask,    land_mask,          &
          calving_front_mask,                &
-         thck_calving_front,                &
          calving_minthck = calving_minthck, &
          dx = dx,       dy = dy,            &
          thck_effective = thck_effective,   &
@@ -1135,8 +1128,7 @@ contains
                eus,                               &
                ice_mask,      floating_mask,      &
                ocean_mask,    land_mask,          &
-               calving_front_mask,                &
-               thck_calving_front)
+               calving_front_mask)
 
           ! Save the old dt_calving values and compute new values
           ! Loop through cells; if a new CF cell has ice-free neighbors with dt_calving > 0,
@@ -1258,7 +1250,6 @@ contains
     real(dp), dimension(nx,ny) :: &
          speed,                  & ! 2D ice speed averaged to cell centers (m/s)
          damage_column,          & ! 2D vertically integrated scalar damage parameter
-         thck_calving_front,     & ! effective ice thickness at the calving front (m)
          thck_effective,         & ! effective thickness for calving (m)
          thck_old,               & ! old value of thck (m)
          dt_calving,             & ! time remaining for calving (s)
@@ -1314,7 +1305,6 @@ contains
          ice_mask,      floating_mask,      &
          ocean_mask,    land_mask,          &
          calving_front_mask,                &
-         thck_calving_front,                &
          calving_minthck = calving_minthck, &
          dx = dx,       dy = dy,            &
          thck_effective = thck_effective,   &
@@ -1556,7 +1546,6 @@ contains
                ocean_mask = ocean_mask,       &
                land_mask = land_mask)
 
-          !TODO - Call without thck_calving_front argument
           call glissade_calving_front_mask(&
                nx,            ny,                 &
                which_ho_calving_front,            &
@@ -1565,8 +1554,7 @@ contains
                eus,                               &
                ice_mask,      floating_mask,      &
                ocean_mask,    land_mask,          &
-               calving_front_mask,                &
-               thck_calving_front)
+               calving_front_mask)
 
           ! Save the old dt_calving values and compute new values
           ! Loop through cells; if a new CF cell has ice-free neighbors with dt_calving > 0,
@@ -1645,9 +1633,6 @@ contains
          land_mask,          & ! = 1 where topg is at or above sea level, else = 0
          calving_front_mask    ! = 1 where ice is floating and borders the ocean, else = 0
 
-    real(dp),  dimension(nx,ny) ::  &
-         thck_calving_front    ! effective ice thickness at the calving front
-
     do n = 1, ncull_calving_front
 
        ! calculate masks
@@ -1671,8 +1656,7 @@ contains
                                         eus,                               &
                                         ice_mask,      floating_mask,      &
                                         ocean_mask,    land_mask,          &
-                                        calving_front_mask,                &
-                                        thck_calving_front)
+                                        calving_front_mask)
 
        if (main_task) then
           call write_log ('cull_calving_front: Removing ice from calving_front cells')
@@ -1712,17 +1696,16 @@ contains
        f_ground_cell,               &
        ice_mask,                    &
        land_mask,                   &
-       active_ice_mask,             &
        calving_thck)
 
     ! Remove any icebergs. 
         
     ! The algorithm is as follows:
-    ! (1) Mark all cells with ice (either active or inactive) with the initial color.
+    ! (1) Mark all cells with ice  with the initial color.
     !     Mark other cells with the boundary color.
-    ! (2) Seed the fill by giving active grounded cells the fill color.
+    ! (2) Seed the fill by giving grounded ice cells the fill color.
     ! (3) Recursively fill all cells that are connected to filled cells by a path
-    !     that passes through active cells only.
+    !     that passes through ice-covered cells only.
     ! (4) Repeat the recursion as necessary to spread the fill to adjacent processors.
     ! (5) Once the fill is done, any floating cells that still have the initial color
     !     are considered to be icebergs and are removed.
@@ -1731,11 +1714,9 @@ contains
     ! (1) Grounded cells must have f_ground_cell > f_ground_threshold to seed the fill.
     ! (2) The recursive fill applies to edge neighbors, not corner neighbors.
     !     The path back to grounded ice must go through edges, not corners.
-    ! (3) Inactive cells can be filled (if adjacent to active cells), but
-    !     do not further spread the fill.
-    ! (4) Should have thklim > 0.  With a limit of 0.0, very thin floating cells
+    ! (3) Should have thklim > 0.  With a limit of 0.0, very thin floating cells
     !     can be wrongly counted as active, and icebergs can be missed.
-    ! (5) Land-based cells that still have the initial color are not marked as icebergs.
+    ! (4) Land-based cells that still have the initial color are not marked as icebergs.
 
     use glissade_masks, only: glissade_fill_with_buffer, initial_color, fill_color, boundary_color
 
@@ -1747,7 +1728,6 @@ contains
     real(dp), dimension(nx,ny), intent(in)    :: f_ground_cell   !> grounded fraction in each grid cell
     integer,  dimension(nx,ny), intent(in)    :: ice_mask        !> = 1 where ice is present (thck > thklim), else = 0
     integer,  dimension(nx,ny), intent(in)    :: land_mask       !> = 1 where topg - eus >= 0, else = 0
-    integer,  dimension(nx,ny), intent(in)    :: active_ice_mask !> = 1 for dynamically active cells
     real(dp), dimension(nx,ny), intent(inout) :: calving_thck    !> thickness lost due to calving in each grid cell;
                                                                  !> on output, includes ice in icebergs
     ! local variables
@@ -1763,21 +1743,19 @@ contains
     integer,  dimension(nx,ny) ::  &
          color                 ! integer 'color' for identifying icebergs
 
-    real(dp),  dimension(nx,ny) ::  &
-         thck_calving_front    ! effective ice thickness at the calving front
-
     !TODO - Make this a config parameter?
     real(dp), parameter :: &   ! threshold for counting cells as grounded
          f_ground_threshold = 0.10d0
 
     if (verbose_calving) then
        call point_diag(thck, 'Remove icebergs, thck (m)', itest, jtest, rtest, 7, 7)
-       call point_diag(active_ice_mask, 'active_ice_mask', itest, jtest, rtest, 7, 7)
+       call point_diag(ice_mask, 'ice_mask', itest, jtest, rtest, 7, 7)
        call point_diag(f_ground_cell, 'f_ground_cell', itest, jtest, rtest, 7, 7)
     endif
     
     ! Initialize iceberg removal
-    ! Note: Any cell with ice, active or inactive, receives the initial color.
+    ! Note: Any cell with ice receives the initial color.
+    !       TODO - The comments below no longer apply?
     !       Inactive cells can later receive the fill color (if adjacent to active cells)
     !        but cannot further spread the fill color.
     !       This protects inactive calving-front cells from removal, as desired.
@@ -1792,8 +1770,8 @@ contains
        enddo
     enddo
 
-    ! Loop through cells, identifying active cells with grounded ice.
-    ! Fill each grounded cell and then recursively fill active neighbor cells, whether grounded or not.
+    ! Loop through cells, identifying cells with grounded ice.
+    ! Fill each grounded cell and then recursively fill neighbor cells, whether grounded or not.
     ! We may have to do this several times to incorporate connections between neighboring processors.
 
     max_iter = max(parallel%ewtasks, parallel%nstasks)
@@ -1806,19 +1784,20 @@ contains
           do j = 1, ny
              do i = 1, nx
 
-                ! Active cells that are firmly grounded can seed the fill.
+                ! Cells that are firmly grounded can seed the fill.
                 ! It is somewhat arbitrary how to define "firmly grounded", but here we require
                 !  that f_ground_cell exceeds a threshold value defined above.
                 ! Note: If running without a GLP, then f_ground_cell is binary, either 0 or 1.
 
-                if (active_ice_mask(i,j) == 1 .and. f_ground_cell(i,j) > f_ground_threshold) then  ! grounded ice
+                if (ice_mask(i,j) == 1 .and. f_ground_cell(i,j) > f_ground_threshold) then  ! grounded ice
 
                    if (color(i,j) /= boundary_color .and. color(i,j) /= fill_color) then
 
                       ! assign the fill color to this cell, and recursively fill neighbor cells
+                      !TODO - Use glissade_fill instead of glissade_fill_with_buffer?  (Here and below)
                       call glissade_fill_with_buffer(nx,    ny,    &
                                                      i,     j,     &
-                                                     color, active_ice_mask)
+                                                     color, ice_mask)
 
                    endif
 
@@ -1829,48 +1808,46 @@ contains
        else  ! count > 1
 
           ! Check for halo cells that were just filled on neighbor processors
-          ! Note: In order for a halo cell to seed the fill on this processor, it must not only have the fill color,
-          !       but also must be an active cell.
-
+          ! TODO - Is the 'ice_mask = 1' logic redundant? (Here and below?)  Use glissade_fill without buffer?
           call parallel_halo(color, parallel)
 
           ! west halo layer
           i = nhalo
           do j = 1, ny
-             if (color(i,j) == fill_color .and. active_ice_mask(i,j) == 1) then
+             if (color(i,j) == fill_color .and. ice_mask(i,j) == 1) then
                 call glissade_fill_with_buffer(nx,    ny,    &
                                                i+1,   j,     &
-                                               color, active_ice_mask)
+                                               color, ice_mask)
              endif
           enddo
 
           ! east halo layers
           i = nx - nhalo + 1
           do j = 1, ny
-             if (color(i,j) == fill_color .and. active_ice_mask(i,j) == 1) then
+             if (color(i,j) == fill_color .and. ice_mask(i,j) == 1) then
                 call glissade_fill_with_buffer(nx,    ny,    &
                                                i-1,   j,     &
-                                               color, active_ice_mask)
+                                               color, ice_mask)
              endif
           enddo
 
           ! south halo layer
           j = nhalo
           do i = nhalo+1, nx-nhalo  ! already checked halo corners above
-             if (color(i,j) == fill_color .and. active_ice_mask(i,j) == 1) then
+             if (color(i,j) == fill_color .and. ice_mask(i,j) == 1) then
                 call glissade_fill_with_buffer(nx,    ny,    &
                                                i,     j+1,   &
-                                               color, active_ice_mask)
+                                               color, ice_mask)
              endif
           enddo
 
           ! north halo layer
           j = ny-nhalo+1
           do i = nhalo+1, nx-nhalo  ! already checked halo corners above
-             if (color(i,j) == fill_color .and. active_ice_mask(i,j) == 1) then
+             if (color(i,j) == fill_color .and. ice_mask(i,j) == 1) then
                 call glissade_fill_with_buffer(nx,    ny,    &
                                                i,     j-1,   &
-                                               color, active_ice_mask)
+                                               color, ice_mask)
              endif
           enddo
 
@@ -1898,24 +1875,26 @@ contains
 
     enddo  ! count
 
+    !TODO - Remove the exception?
     ! Icebergs are cells that still have the initial color and are not on land.
     ! Remove ice in these cells, adding it to the calving field.
     ! Note: There is an exception for cells that are
     !       (1) adjacent to at least one ice-covered cell (sharing an edge), and
-    !       (2) connected diagonally to an active cell with the fill color.
+!!    !       (2) connected diagonally to an active cell with the fill color.
+    !       (2) connected diagonally to an ice-covered cell with the fill color.
     !       Such cells are considered part of the inactive calving front and are
     !        allowed to continue filling instead of calving.
 
     do j = 2, ny-1
        do i = 2, nx-1
           if (color(i,j) == initial_color .and. land_mask(i,j) == 0) then
-             if (  ( color(i-1,j+1)==fill_color .and. active_ice_mask(i-1,j+1)==1 .and. &
+             if (  ( color(i-1,j+1)==fill_color .and. ice_mask(i-1,j+1)==1 .and. &
                        (ice_mask(i-1,j)==1 .or. ice_mask(i,j+1)==1) ) &
-              .or. ( color(i+1,j+1)==fill_color .and. active_ice_mask(i+1,j+1)==1 .and. &
+              .or. ( color(i+1,j+1)==fill_color .and. ice_mask(i+1,j+1)==1 .and. &
                        (ice_mask(i+1,j)==1 .or. ice_mask(i,j+1)==1) ) &
-              .or. ( color(i-1,j-1)==fill_color .and. active_ice_mask(i-1,j-1)==1 .and. &
+              .or. ( color(i-1,j-1)==fill_color .and. ice_mask(i-1,j-1)==1 .and. &
                        (ice_mask(i-1,j)==1 .or. ice_mask(i,j-1)==1) ) &
-              .or. ( color(i+1,j-1)==fill_color .and. active_ice_mask(i+1,j-1)==1 .and. &
+              .or. ( color(i+1,j-1)==fill_color .and. ice_mask(i+1,j-1)==1 .and. &
                        (ice_mask(i+1,j)==1 .or. ice_mask(i,j-1)==1) ) ) then
                 ! do nothing; this cell is part of the inactive calving front
              else  ! not part of the inactive calving front; calve as an iceberg
@@ -2021,7 +2000,7 @@ contains
        calving_thck)
 
     ! Impose a thickness limit on marine ice cliffs.
-    ! These are defined as grounded marine-based cells adjacent to inactive calving_front cells or ice-free ocean.
+    ! These are defined as grounded marine-based cells adjacent to ice-free ocean.
     ! Ice removed from cliffs is added to the calving flux.
 
     use glissade_masks
@@ -2051,14 +2030,10 @@ contains
          floating_mask,      & ! = 1 where ice is present (thck > thklim) and floating, else = 0
          ocean_mask,         & ! = 1 where topg is below sea level and ice is absent, else = 0
          land_mask,          & ! = 1 where topg is at or above sea level, else = 0
-         calving_front_mask, & ! = 1 where ice is floating and borders the ocean, else = 0
-         active_ice_mask,    & ! = 1 for dynamically active cells
-         marine_cliff_mask     ! = 1 where ice is grounded and marine-based and borders at least one
-                               !     ocean or inactive calving_front cell, else = 0
+         marine_cliff_mask     ! = 1 where ice is grounded and marine-based and borders at least one ocean cell
 
     real(dp), dimension(nx,ny) ::  &
-         thckmax_cliff,      & ! max stable ice thickness in marine_cliff cells
-         thck_calving_front    ! effective ice thickness at the calving front
+         thckmax_cliff         ! max stable ice thickness in marine_cliff cells
 
     real(dp) :: &
          thinning_rate,        & ! vertical thinning rate (m/s)
@@ -2066,33 +2041,22 @@ contains
          factor
 
     ! Update masks, including the marine_cliff mask.
-    ! Note: We do not use calving_front_mask or thck_calving_front directly.
-    !       But to identify marine cliffs, we use active_ice_mask, which depends on whether there is a subgrid calving front.
 
-    call glissade_get_masks(nx,            ny,             &
-                            parallel,                      &
-                            thck,          topg,           &
-                            eus,           thklim,         &
-                            ice_mask,                      &
-                            floating_mask = floating_mask, &
-                            ocean_mask = ocean_mask,       &
-                            land_mask = land_mask)
+    call glissade_get_masks(&
+         nx,            ny,             &
+         parallel,                      &
+         thck,          topg,           &
+         eus,           thklim,         &
+         ice_mask,                      &
+         floating_mask = floating_mask, &
+         ocean_mask = ocean_mask,       &
+         land_mask = land_mask)
 
-    call glissade_calving_front_mask(nx,            ny,                 &
-                                     which_ho_calving_front,            &
-                                     parallel,                          &
-                                     thck,          topg,               &
-                                     eus,                               &
-                                     ice_mask,      floating_mask,      &
-                                     ocean_mask,    land_mask,          &
-                                     calving_front_mask,                &
-                                     thck_calving_front,                &
-                                     active_ice_mask = active_ice_mask)
-
-    call glissade_marine_cliff_mask(nx,            ny,                &
-                                    ice_mask,      floating_mask,     &
-                                    land_mask,     active_ice_mask,   &
-                                    marine_cliff_mask)
+    call glissade_marine_cliff_mask(&
+         nx,            ny,                &
+         ice_mask,      floating_mask,     &
+         land_mask,     ocean_mask,        &
+         marine_cliff_mask)
 
     call parallel_halo(marine_cliff_mask, parallel)
 
