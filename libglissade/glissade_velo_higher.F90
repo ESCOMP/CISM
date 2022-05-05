@@ -64,7 +64,7 @@
     use glimmer_sparse_type
     use glimmer_sparse
     use glissade_grid_operators
-    use glissade_masks, only: glissade_get_masks, glissade_calving_front_mask
+    use glissade_masks, only: glissade_get_masks
 
     use glide_types
 
@@ -723,6 +723,8 @@
 
     real(dp), dimension(:,:), pointer ::  &
        thck,                 &  ! ice thickness (m)
+                                ! Note: When using the subgrid CF scheme, thck => model%calving%thck_effective
+                                !       Otherwise, thck => model%geometry%thck
        usrf,                 &  ! upper surface elevation (m)
        topg,                 &  ! elevation of topography (m)
        bpmp,                 &  ! pressure melting point temperature (C)
@@ -830,7 +832,6 @@
        floating_mask,       & ! = 1 for cells where ice is present (thck > thklim) and floating
        ocean_mask,          & ! = 1 for cells where topography is below sea level and ice is absent
        land_mask,           & ! = 1 for cells where topography is above sea level
-       calving_front_mask,  & ! = 1 for floating cells that border at least one ocean cell
        ice_plus_land_mask     ! = 1 for active ice cells plus ice-free land cells
 
     real(dp), dimension(nx-1,ny-1) :: &
@@ -1080,12 +1081,24 @@
      staggered_jhi = parallel%staggered_jhi
 
      !TODO - Remove (:), (:,:) and (:,:,:) from pointer targets?
+
+     !Note: If running with the subgrid CF scheme, thck points to calving%thck_effective
+     !       instead of geometry%thck.  For partial_cf cells, thck_effective > thck.
+     !      The goal is to compute velocities appropriate for a subgrid calving front,
+     !       instead of a full cell with unrealistically thin ice.
+     !      The switch is complicated is geometry%thck has CISM scaled model units and
+     !       calving%thck_effective has units of m.
+     if (whichcalving_front == HO_CALVING_FRONT_SUBGRID) then
+        thck  => model%geometry%thck(:,:)
+!!        thck  => model%calving%thck_effective(:,:)
+     else
+        thck  => model%geometry%thck(:,:)
+     endif
+     usrf     => model%geometry%usrf(:,:)
+     topg     => model%geometry%topg(:,:)
      sigma    => model%numerics%sigma(:)
      stagsigma=> model%numerics%stagsigma(:)
      stagwbndsigma=> model%numerics%stagwbndsigma(:)
-     thck     => model%geometry%thck(:,:)
-     usrf     => model%geometry%usrf(:,:)
-     topg     => model%geometry%topg(:,:)
      stagmask => model%geometry%stagmask(:,:)
      f_ground => model%geometry%f_ground(:,:)
      f_ground_cell => model%geometry%f_ground_cell(:,:)
@@ -1168,6 +1181,7 @@
 
 !pw call t_startf('glissade_velo_higher_scale_input')
     call glissade_velo_higher_scale_input(dx,      dy,            &
+                                          whichcalving_front,     &
                                           thck,    usrf,          &
                                           topg,    eus,           &
                                           thklim,                 &
@@ -1572,9 +1586,6 @@
     ! (2) floating mask = 1 in cells where ice is present (thck > thklim) and floating
     ! (3) ocean mask = = 1 in cells where topography is below sea level and ice is absent
     ! (4) land mask = 1 in cells where topography is at or above sea level
-    ! (6) calving_front_mask = 1 for floating cells that border at least one cell with ocean_mask = 1.
-    !     With subgrid calving front scheme option 1, the veolcity solver replaces
-    !      the thickness in CF cells with an effective thickness.
     !------------------------------------------------------------------------------
 
     !TODO: Modify glissade_get_masks so that 'parallel' is not needed
@@ -1586,23 +1597,6 @@
                             floating_mask = floating_mask,      &
                             ocean_mask = ocean_mask,            &
                             land_mask = land_mask)
-
-    ! Compute the calving_front_mask and effective thickness.
-    ! The effective thickness is applied if running with the subgrid CF scheme.
-    !
-    ! Note (bug fix, 15 April 2022):
-    ! Previously, we were computing the CF mask only when using the subgrid CF scheme.
-    ! This could give erroneous lateral pressures in subroutine load_vector_lateral_bc.
-
-    !TODO - Compute thck_effective instead, and use in the dynamics
-    call glissade_calving_front_mask(nx,                 ny,                 &
-                                     whichcalving_front,                     &
-                                     parallel,                               &
-                                     thck,               topg,               &
-                                     eus,                                    &
-                                     ice_mask,           floating_mask,      &
-                                     ocean_mask,         land_mask,          &
-                                     calving_front_mask)
 
     ! Compute a mask which is the union of ice cells and land-based cells (including ice-free land).
     where (ice_mask == 1 .or. land_mask == 1)
@@ -2236,7 +2230,6 @@
 
     !------------------------------------------------------------------------------
     ! Lateral pressure at vertical ice edge.
-    ! Inactive cells with calving_front_mask = 1 are treated as if they were ice-free ocean.
     !------------------------------------------------------------------------------
 
     ! The following is a kluge for computing lateral load at marine cliff edges.
@@ -2273,7 +2266,6 @@
                                 itest,   jtest,   rtest,           &
                                 whichassemble_lateral,             &
                                 land_mask,        ocean_mask,      &
-                                calving_front_mask,                &
                                 active_cell,                       &
                                 xVertex,          yVertex,         &
                                 usrf,             thck,            &
@@ -2581,16 +2573,6 @@
                 write(6,'(i6)',advance='no') j
                 do i = itest-3, itest+3
                    write(6,'(f10.3)',advance='no') topg(i,j)
-                enddo
-                write(6,*) ' '
-             enddo
-
-             print*, ' '
-             print*, 'calving_front_mask, itest, jtest, rank =', itest, jtest, rtest
-             do j = jtest+3, jtest-3, -1
-                write(6,'(i6)',advance='no') j
-                do i = itest-3, itest+3
-                   write(6,'(i10)',advance='no') calving_front_mask(i,j)
                 enddo
                 write(6,*) ' '
              enddo
@@ -3296,8 +3278,9 @@
              uvel(:,:,:) = 0.d0
              vvel(:,:,:) = 0.d0
 
-             call t_startf('glissade_velo_higher_scale_outp')
-             call glissade_velo_higher_scale_output(thck,    usrf,          &
+             call t_startf('glissade_velo_higher_scale_output')
+             call glissade_velo_higher_scale_output(whichcalving_front,     &
+                                                    thck,    usrf,          &
                                                     topg,                   &
                                                     flwa,    efvs,          &
                                                     beta_internal,          &
@@ -3310,7 +3293,7 @@
                                                     tau_xz,  tau_yz,        &
                                                     tau_xx,  tau_yy,        &
                                                     tau_xy,  tau_eff)
-             call t_stopf('glissade_velo_higher_scale_outp')
+             call t_stopf('glissade_velo_higher_scale_output')
           
              if (main_task) print*, 'No nonzeros in matrix; exit glissade_velo_higher_solve'
              return
@@ -4345,7 +4328,8 @@
     !------------------------------------------------------------------------------
 
 !pw call t_startf('glissade_velo_higher_scale_output')
-    call glissade_velo_higher_scale_output(thck,    usrf,          &
+    call glissade_velo_higher_scale_output(whichcalving_front,     &
+                                           thck,    usrf,          &
                                            topg,                   &
                                            flwa,    efvs,          &
                                            beta_internal,          &
@@ -4366,6 +4350,7 @@
 !****************************************************************************
 
   subroutine glissade_velo_higher_scale_input(dx,      dy,            &
+                                              whichcalving_front,     &
                                               thck,    usrf,          &
                                               topg,    eus,           &
                                               thklim,                 &
@@ -4382,6 +4367,9 @@
 
     real(dp), intent(inout) ::   &
        dx, dy                  ! grid cell length and width 
+
+    integer, intent(in) :: &
+         whichcalving_front    ! = 1 for subgrid CF, else = 0
 
     real(dp), dimension(:,:), intent(inout) ::   &
        thck,                &  ! ice thickness
@@ -4409,7 +4397,13 @@
     dy = dy * len0
 
     ! ice geometry: rescale from dimensionless to m
+
+    ! Note: The following is a kluge. It is needed because thck can point to either
+    !       geometry%thck or calving%thck_effective, which have different units.
+    !       To be removed when scaling goes away.
+!!    if (whichcalving_front = HO_CALVING_FRONT_NO_SUBGRID) thck = thck * thk0
     thck = thck * thk0
+
     usrf = usrf * thk0
     topg = topg * thk0
     eus  = eus  * thk0
@@ -4436,7 +4430,8 @@
 
 !****************************************************************************
 
-  subroutine glissade_velo_higher_scale_output(thck,    usrf,           &
+  subroutine glissade_velo_higher_scale_output(whichcalving_front,     &
+                                               thck,    usrf,           &
                                                topg,                    &
                                                flwa,    efvs,           &                                       
                                                beta_internal,           &
@@ -4454,6 +4449,9 @@
     ! Convert output variables to appropriate CISM units
     ! (generally dimensionless)
     !--------------------------------------------------------
+
+    integer, intent(in) :: &
+         whichcalving_front    ! = 1 for subgrid CF, else = 0
 
     real(dp), dimension(:,:), intent(inout) ::  &
        thck,                 &  ! ice thickness
@@ -4483,7 +4481,13 @@
        tau_eff                  ! effective stress (Pa)
 
     ! Convert geometry variables from m to dimensionless units
+
+    ! Note: The following is a kluge. It is needed because thck can point to either
+    !       geometry%thck or calving%thck_effective, which have different units.
+    !       To be removed when scaling goes away.
     thck = thck / thk0
+!!    if (whichcalving_front = HO_CALVING_FRONT_NO_SUBGRID) thck = thck / thk0
+
     usrf = usrf / thk0
     topg = topg / thk0
 
@@ -4926,7 +4930,6 @@
                                     whichassemble_lateral,             &
                                     land_mask,                         &
                                     ocean_mask,                        &
-                                    calving_front_mask,                &
                                     active_cell,                       &
                                     xVertex,          yVertex,         &
                                     usrf,             thck,            &
@@ -4953,8 +4956,7 @@
 
     integer, dimension(nx,ny), intent(in) ::  &
        land_mask,                  & ! = 1 if topg >= eus
-       ocean_mask,                 & ! = 1 if topography is below sea level and ice is absent
-       calving_front_mask            ! = 1 if ice is floating and borders the ocean
+       ocean_mask                    ! = 1 if topography is below sea level and ice is absent
 
     real(dp), dimension(nx-1,ny-1), intent(in) ::   &
        xVertex, yVertex     ! x and y coordinates of vertices
@@ -4980,7 +4982,6 @@
     ! Loop over cells that contain locally owned vertices
 
     ! Note: Lateral shelf BCs are applied to active cells (either floating or grounded) that border the ocean.
-    !       Inactive calving_front cells are treated as if they were ocean cells.
 
     do j = nhalo+1, ny-nhalo+1
     do i = nhalo+1, nx-nhalo+1
@@ -4989,16 +4990,13 @@
           print*, 'rank, i, j =', this_rank, i, j
           print*, 'ocean_mask (i-1:i,j)  =', ocean_mask(i-1:i, j)
           print*, 'ocean_mask (i-1:i,j-1)=', ocean_mask(i-1:i, j-1)
-          print*, 'calving_front_mask (i-1:i,j)  =', calving_front_mask(i-1:i, j)
-          print*, 'calving_front_mask (i-1:i,j-1)=', calving_front_mask(i-1:i, j-1)
        endif
 
        ! Compute the spreading term for all active cells that share an edge with an ice-free ocean cell.
 
        if (active_cell(i,j)) then
 
-          if ( ocean_mask(i-1,j) == 1 .or.  &
-              (calving_front_mask(i-1,j) == 1 .and. .not.active_cell(i-1,j)) ) then ! compute lateral BC for west face
+          if ( ocean_mask(i-1,j) == 1) then
 
              call lateral_shelf_bc(nx,              ny,              &
                                    nz,              sigma,           &
@@ -5012,8 +5010,7 @@
                                    loadu,           loadv)
           endif
 
-          if ( ocean_mask(i+1,j) == 1 .or.  &
-              (calving_front_mask(i+1,j) == 1 .and. .not.active_cell(i+1,j)) ) then ! compute lateral BC for east face
+          if ( ocean_mask(i+1,j) == 1) then
 
              call lateral_shelf_bc(nx,              ny,              &
                                    nz,              sigma,           &
@@ -5027,8 +5024,7 @@
                                    loadu,           loadv)
           endif
 
-          if ( ocean_mask(i,j-1) == 1 .or.  &
-              (calving_front_mask(i,j-1) == 1 .and. .not.active_cell(i,j-1)) ) then ! compute lateral BC for south face
+          if ( ocean_mask(i,j-1) == 1) then
 
              call lateral_shelf_bc(nx,              ny,              &
                                    nz,              sigma,           &
@@ -5042,8 +5038,7 @@
                                    loadu,           loadv)
           endif
 
-          if ( ocean_mask(i,j+1) == 1 .or.  &
-              (calving_front_mask(i,j+1) == 1 .and. .not.active_cell(i,j+1)) ) then ! compute lateral BC for north face
+          if ( ocean_mask(i,j+1) == 1) then
 
              call lateral_shelf_bc(nx,              ny,              &
                                    nz,              sigma,           &

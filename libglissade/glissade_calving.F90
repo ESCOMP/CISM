@@ -272,17 +272,15 @@ contains
                                                                      !> used with CALVING_FLOAT_FRACTION
 !    real(dp), intent(in)                     :: timescale           !> timescale (s) for calving; calving_thck = thck * max(dt/timescale, 1)
                                                                      !> if timescale = 0, then calving_thck = thck
-!    real(dp), intent(in)                     :: thck_calving_threshold  !> calve ice in the calving domain if thck < thck_calving_threshold (m);
-                                                                         !> used with CALVING_THCK_THRESHOLD, EIGENCALVING, CALVING_DAMAGE
-!    real(dp), intent(in)                     :: eigencalving_constant   !> eigencalving constant; m/s (lateral calving rate) per Pa (tensile stress)
-!    real(dp), intent(in)                     :: eigen2_weight       !> weight given to tau_eigen2 relative to tau_eigen1 in tau_eff (unitless)
+!    real(dp), dimension(:,:), intent(inout)  :: thck_effective      !> effective thickness for calving (m)
+!    real(dp), dimension(:,:), intent(inout)  :: lateral_rate        !> lateral calving rate (m/s) at calving front
 !    real(dp), dimension(:,:), intent(in)     :: tau_eigen1          !> first eigenvalue of 2D horizontal stress tensor (Pa)
 !    real(dp), dimension(:,:), intent(in)     :: tau_eigen2          !> second eigenvalue of 2D horizontal stress tensor (Pa)
-!    real(dp), dimension(:,:), intent(inout)  :: tau_eff             !> effective stress (Pa) for calving; derived from tau_eigen1/2
+!    real(dp), dimension(:,:), intent(in)     :: eps_eigen1          !> first eigenvalue of 2D horizontal strain-rate tensor (1/s)
+!    real(dp), dimension(:,:), intent(in)     :: eps_eigen2          !> second eigenvalue of 2D horizontal strain-rate tensor (1/s)
 !    real(dp), dimension(:,:,:), intent(inout):: damage              !> 3D scalar damage parameter
 !    real(dp), intent(in)                     :: damage_threshold    !> threshold value where ice is sufficiently damaged to calve
 !    real(dp), intent(in)                     :: damage_constant     !> rate of change of damage (1/s) per unit stress (Pa)
-!    real(dp), dimension(:,:), intent(inout)  :: lateral_rate        !> lateral calving rate (m/s) at calving front,used with EIGENCALVING
 !    integer,  dimension(:,:), intent(in)     :: calving_mask        !> integer mask: calve ice where calving_mask = 1
 !    real(dp), dimension(:,:), intent(out)    :: calving_thck        !> thickness lost due to calving in each grid cell (m)
 
@@ -331,9 +329,6 @@ contains
                                  ! = 1.0 for which_calving = CALVING_FLOAT_ZERO
          thinning_rate,        & ! vertical thinning rate (m/s)
          dthck                   ! thickness change (m)
-
-    real(dp), dimension(nx,ny) :: &
-         thck_effective          ! effective thickness (m) for calving, weighted toward upstream thickness
 
     integer, dimension(nx,ny) :: &
          partial_cf_mask,      & ! = 1 for partially filled CF cells (thck < thck_effective), else = 0
@@ -390,6 +385,7 @@ contains
             which_ho_calving_front,                    &
             thck,               topg,                  &  ! m
             eus,                thklim,                &  ! m
+            calving%thck_effective,                    &  ! m
             calving%minthck,                           &  ! m
             calving%timescale,                         &  ! s
             calving%calving_thck)                         ! m
@@ -415,6 +411,7 @@ contains
             calving%eps_eigen1, calving%eps_eigen2,    &  ! 1/s
             calving%eigenconstant1,                    &
             calving%eigenconstant2,                    &
+            calving%thck_effective,                    &  ! m
             calving%minthck,                           &  ! m
             calving%lateral_rate,                      &  ! m/s
             calving%calving_thck)                         ! m
@@ -436,6 +433,7 @@ contains
             calving%damage_constant1,                  &  ! 1/s
             calving%damage_constant2,                  &  ! 1/s
             calving%damage_threshold,                  &  !
+            calving%thck_effective,                    &  ! m
             calving%minthck,                           &  ! m
             calving%damage,                            &  !
             calving%lateral_rate,                      &  ! m/s
@@ -588,6 +586,7 @@ contains
        which_ho_calving_front,             &
        thck,               topg,           &  ! m
        eus,                thklim,         &  ! m
+       thck_effective,                     &  ! m
        calving_minthck,                    &  ! m
        calving_timescale,                  &  ! s
        calving_thck)                          ! m
@@ -630,6 +629,7 @@ contains
 
     real(dp), dimension(nx,ny), intent(inout) :: &
          thck,                   & ! ice thickness (m)
+         thck_effective,         & ! effective thickness for calving (m)
          calving_thck              ! thickness lost due to calving (m)
 
     ! local variables
@@ -649,7 +649,6 @@ contains
          full_mask                 ! = 1 for ice-filled cells that are not partial_cf cells, else = 0
 
     real(dp), dimension(nx,ny) :: &
-         thck_effective,         & ! effective thickness for calving (m)
          thck_old,               & ! old value of thck (m)
          dt_calving,             & ! time remaining for calving (s)
          dt_calving_old            ! old value of dt_calving
@@ -683,7 +682,7 @@ contains
          ocean_mask,    land_mask,          &
          calving_front_mask,                &
          dx = dx,       dy = dy,            &
-         thck_effective = thck_effective,   &
+         thck_effective = thck_effective, &
          partial_cf_mask = partial_cf_mask, &
          full_mask = full_mask)
 
@@ -796,7 +795,6 @@ contains
                ocean_mask = ocean_mask,       &
                land_mask = land_mask)
 
-          !TODO - Call without thck_effective argument
           call glissade_calving_front_mask(&
                nx,            ny,                 &
                which_ho_calving_front,            &
@@ -850,6 +848,7 @@ contains
        eps_eigen1,    eps_eigen2,         &
        eigenconstant1,                    &
        eigenconstant2,                    &
+       thck_effective,                    &
        calving_minthck,                   &
        lateral_rate,                      &
        calving_thck)
@@ -897,6 +896,7 @@ contains
 
     real(dp), dimension(nx,ny), intent(inout) :: &
          thck,                   & ! ice thickness (m)
+         thck_effective,         & ! effective thickness for calving (m)
          calving_thck              ! thickness lost due to calving (m)
 
     ! local variables
@@ -916,7 +916,6 @@ contains
          full_mask                 ! = 1 for ice-filled cells that are not partial_cf cells, else = 0
 
     real(dp), dimension(nx,ny) :: &
-         thck_effective,         & ! effective thickness for calving (m)
          thck_old,               & ! old value of thck (m)
          dt_calving,             & ! time remaining for calving (s)
          dt_calving_old            ! old value of dt_calving
@@ -1119,7 +1118,6 @@ contains
                ocean_mask = ocean_mask,       &
                land_mask = land_mask)
 
-          !TODO - Call without thck_effective argument
           call glissade_calving_front_mask(&
                nx,            ny,                 &
                which_ho_calving_front,            &
@@ -1173,7 +1171,8 @@ contains
        tau_eigen1,         tau_eigen2,            &
        eps_eigen1,         eps_eigen2,            &
        damage_constant1,   damage_constant2,      &
-       damage_threshold,   calving_minthck,       &
+       damage_threshold,                          &
+       thck_effective,     calving_minthck,       &
        damage,                                    &
        lateral_rate,       calving_thck)
 
@@ -1226,6 +1225,7 @@ contains
 
     real(dp), dimension(nx,ny), intent(inout) :: &
          thck,                   & ! ice thickness (m)
+         thck_effective,         & ! effective thickness for calving (m)
          calving_thck              ! thickness lost due to calving (m)
 
     ! local variables
@@ -1250,7 +1250,6 @@ contains
     real(dp), dimension(nx,ny) :: &
          speed,                  & ! 2D ice speed averaged to cell centers (m/s)
          damage_column,          & ! 2D vertically integrated scalar damage parameter
-         thck_effective,         & ! effective thickness for calving (m)
          thck_old,               & ! old value of thck (m)
          dt_calving,             & ! time remaining for calving (s)
          dt_calving_old            ! old value of dt_calving
@@ -1357,8 +1356,8 @@ contains
              if (stress_based_damage) then
 
                 ! Two cases:
-                ! (1) d_damage_dt is proportional to tau_eff/H
-                ! (2) d_damage_dt is proportional to tau_eff
+                ! (1) d_damage_dt is proportional to the weighted stress eigenvalues
+                ! (2) d_damage_dt is proportional to the weighted stress eigenvalues, divided by H
                 ! This damage_constant has units of s^{-1}
 
                 if (damage_scale_stress_by_thickness) then
@@ -1993,7 +1992,6 @@ contains
        parallel,                        &
        itest,  jtest,  rtest,           &
        dt,                              &
-       which_ho_calving_front,          &
        taumax_cliff,   cliff_timescale, &
        thck,           topg,            &
        eus,            thklim,          &
@@ -2009,8 +2007,6 @@ contains
     type(parallel_type), intent(in) :: parallel         !> info for parallel communication
     integer, intent(in)  :: itest, jtest, rtest         !> coordinates of diagnostic point
     real(dp), intent(in) :: dt                          !> model timestep (s)
-
-    integer, intent(in)     :: which_ho_calving_front   !> = 1 for subgrid calving-front scheme, else = 0
     real(dp), intent(in)    :: taumax_cliff             !> yield stress (Pa) for marine-based ice cliffs
     real(dp), intent(in)    :: cliff_timescale          !> timescale (s) for limiting marine cliff thickness
     real(dp), dimension(nx,ny), intent(inout) :: thck   !> ice thickness (m)
