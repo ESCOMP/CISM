@@ -2135,7 +2135,6 @@ contains
 
     real(dp), dimension(model%general%ewn, model%general%nsn) ::  &
        thck_flotation,       & ! thickness at which ice is exactly floating
-       thck_effective,       & ! effective thickness (m) for calving
        effective_areafrac      ! effective fractional area of ice at the calving front
 
     real(dp) :: previous_time       ! time (yr) at the start of this time step
@@ -2231,12 +2230,7 @@ contains
                                ocean_mask = ocean_mask,            &
                                land_mask = land_mask)
 
-       !TODO - Introduce a new subgrid option
-!!       if (model%options%which_ho_calving_front == HO_CALVING_FRONT_SUBGRID) then
-       if (model%options%which_ho_calving_front == HO_CALVING_FRONT_SUBGRID .or. &
-           model%options%whichcalving == CALVING_THCK_THRESHOLD .or.  &
-           model%options%whichcalving == EIGENCALVING .or.   &
-           model%options%whichcalving == CALVING_DAMAGE) then
+       if (model%options%which_ho_calving_front == HO_CALVING_FRONT_SUBGRID) then
 
           ! Near the calving front, distinguish full cells from partial cells
 
@@ -2249,10 +2243,10 @@ contains
                                            ice_mask,               floating_mask,    &
                                            ocean_mask,             land_mask,        &
                                            calving_front_mask,                       &
-                                           thck_effective = thck_effective,   &
-                                           dx = model%numerics%dew*len0,      &
-                                           dy = model%numerics%dns*len0,      &
-                                           partial_cf_mask = partial_cf_mask, &
+                                           dx = model%numerics%dew*len0,             &
+                                           dy = model%numerics%dns*len0,             &
+                                           thck_effective = model%calving%thck_effective, &
+                                           partial_cf_mask = partial_cf_mask,        &
                                            full_mask = full_mask)
        endif
 
@@ -2850,13 +2844,14 @@ contains
                                         ice_mask,               floating_mask,      &
                                         ocean_mask,             land_mask,          &
                                         calving_front_mask,                         &
-!!                                        effective_areafrac = effective_areafrac,  &
-                                        thck_effective = thck_effective,      &
-                                        dx = model%numerics%dew*len0,      &
-                                        dy = model%numerics%dns*len0,      &
-                                        partial_cf_mask = partial_cf_mask, &
+                                        dx = model%numerics%dew*len0,               &
+                                        dy = model%numerics%dns*len0,               &
+                                        thck_effective = model%calving%thck_effective, &
+                                        partial_cf_mask = partial_cf_mask,          &
                                         full_mask = full_mask)
+!!                                        effective_areafrac = effective_areafrac,  &
 
+       !TODO - Remove this code; use effective_areafrac from subroutine
        !WHL - debug
        where (ice_mask == 1)
           effective_areafrac = 1.0d0
@@ -2865,7 +2860,7 @@ contains
        endwhere
 
        call point_diag(calving_front_mask, 'calving_front_mask', itest, jtest, rtest, 7, 7)
-       call point_diag(thck_effective,     'thck_effective (m)', itest, jtest, rtest, 7, 7)
+       call point_diag(model%calving%thck_effective, 'thck_effective (m)', itest, jtest, rtest, 7, 7)
        call point_diag(effective_areafrac, 'effective_areafrac', itest, jtest, rtest, 15, 15, '(f10.6)')
 
 
@@ -3392,11 +3387,7 @@ contains
 
       endif  ! relaxed calving
 
-!!    elseif (model%options%which_ho_calving_front == HO_CALVING_FRONT_SUBGRID) then
-    elseif (model%options%which_ho_calving_front == HO_CALVING_FRONT_SUBGRID .or. &
-            model%options%whichcalving == CALVING_THCK_THRESHOLD .or. &
-            model%options%whichcalving == EIGENCALVING .or. &
-            model%options%whichcalving == CALVING_DAMAGE) then
+    elseif (model%options%which_ho_calving_front == HO_CALVING_FRONT_SUBGRID) then
 
        ! If using a subgrid calving_front scheme (but apply_calving_mask = F),
        !  remove thin ice that was transported beyond the CF to ice-free cells without active neighbors.
@@ -3685,7 +3676,6 @@ contains
                                   parallel,                      &
                                   itest,  jtest,  rtest,         &
                                   model%numerics%dt*tim0,        &     ! s
-                                  model%options%which_ho_calving_front, &
                                   model%calving%taumax_cliff,    &     ! Pa
                                   model%calving%cliff_timescale, &     ! s
                                   thck_unscaled,              &        ! m
@@ -4033,6 +4023,9 @@ contains
                             ocean_mask = ocean_mask,                    &
                             land_mask = land_mask)
 
+    ! Note: If running with the subgrid CF scheme, then the velocity solver
+    !        uses model%calving%thck_effective in place of model%geometry%thck.
+    !       In partial_cf cells, thck_effective > thck.
     call glissade_calving_front_mask(ewn,                 nsn,     &
                                      model%options%which_ho_calving_front,       &
                                      parallel,                                   &
@@ -4042,10 +4035,10 @@ contains
                                      ice_mask,            floating_mask,         &
                                      ocean_mask,          land_mask,             &
                                      calving_front_mask,                         &
-                                     thck_effective = thck_effective,   &
-                                     dx = model%numerics%dew*len0,      &
-                                     dy = model%numerics%dns*len0,      &
-                                     partial_cf_mask = partial_cf_mask, &
+                                     dx = model%numerics%dew*len0,               &
+                                     dy = model%numerics%dns*len0,               &
+                                     thck_effective = model%calving%thck_effective,  &
+                                     partial_cf_mask = partial_cf_mask,          &
                                      full_mask = full_mask)
 
     ! ------------------------------------------------------------------------

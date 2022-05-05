@@ -1327,12 +1327,6 @@ long_name:  second eigenvalue of horizontal stress tensor
 data:       data%calving%tau_eigen2
 load:       1
 
-[tau_eff_calving]
-dimensions: time, y1, x1
-units:      Pa
-long_name:  effective stress for calving
-data:       data%calving%tau_eff
-
 [wvel]
 dimensions:    time, level, y1, x1
 units:         meter/year
