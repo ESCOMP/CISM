@@ -2291,13 +2291,12 @@ contains
        ocean_mask,           & ! = 1 if topg is below sea level and thck = 0, else = 0
        land_mask,            & ! = 1 if topg is at or above sea level, else = 0
        calving_front_mask,   & ! = 1 where ice is floating and borders an ocean cell, else = 0
-       active_ice_mask,      & ! = 1 for cells that are dynamically active, else = 0
        protected_mask,       & ! = 1 for cells that are protected from later calving (HO_CALVING_FRONT_SUBGRID)
        extended_ice_sheet_mask ! extension of ice_sheet_mask to include neighbor cells
 
     real(dp), dimension(model%general%ewn, model%general%nsn) ::  &
        thck_flotation,       & ! thickness at which ice is exactly floating
-       thck_calving_front,   & ! effective thickness of ice at the calving front
+       thck_effective,       & ! effective thickness (m) for calving
        effective_areafrac      ! effective fractional area of ice at the calving front
 
     real(dp) :: previous_time       ! time (yr) at the start of this time step
@@ -2320,13 +2319,10 @@ contains
 
     type(parallel_type) :: parallel   ! info for parallel communication
 
-    ! used for damage-based calving
+    ! used for subgrid calving front
     integer, dimension(model%general%ewn, model%general%nsn) :: &
          partial_cf_mask,         & ! = 1 for partially filled CF cells (thck < thck_effective), else = 0
          full_mask                  ! = 1 for ice-filled cells that are not partial_cf cells, else = 0
-
-    real(dp), dimension(model%general%ewn, model%general%nsn) :: &
-         thck_effective             ! effective ice thickness (m) for calving, weighted toward upstream thickness
 
     !WHL - debug
     real(dp) :: local_maxval, global_maxval
@@ -2395,10 +2391,8 @@ contains
                                ice_mask,                           &
                                floating_mask = floating_mask,      &
                                ocean_mask = ocean_mask,            &
-                               land_mask = land_mask,              &
-                               active_ice_mask = active_ice_mask)
+                               land_mask = land_mask)
 
-       ! If using a subgrid calving-front scheme, then recompute active_ice_mask.
        !TODO - Introduce a new subgrid option
 !!       if (model%options%which_ho_calving_front == HO_CALVING_FRONT_SUBGRID) then
        if (model%options%which_ho_calving_front == HO_CALVING_FRONT_SUBGRID .or. &
@@ -2416,8 +2410,7 @@ contains
                                            model%climate%eus*thk0,                   &   ! m
                                            ice_mask,               floating_mask,    &
                                            ocean_mask,             land_mask,        &
-                                           calving_front_mask,     thck_calving_front, &
-                                           active_ice_mask = active_ice_mask,        &
+                                           calving_front_mask,                       &
                                            thck_effective = thck_effective,   &
                                            dx = model%numerics%dew*len0,      &
                                            dy = model%numerics%dns*len0,      &
@@ -2592,83 +2585,14 @@ contains
           enddo
        endif
 
-       ! If using a subgrid calving_front scheme (but not using a no-advance calving mask),
-       !  then identify thin ice that was transported beyond the CF to ice-free cells without active neighbors.
-       ! In this case, model%calving%calving_mask is computed here and applied later, in glissade_calving_solve.
-       !
-       ! Note: We are trying to avoid spurious CF advance in the following situation:
-       !  -------------
-       !  |     |     |
-       !  |  1  |  2  |
-       !  -------------
-       !  |     |     |
-       !  |  3  |  4  |
-       !  -------------
-       !
-       ! Suppose cell 1 is an active, floating interior cell; cells 2 and 3 are inactive CF cells that are filling;
-       !  and cell 4 is ice-free ocean.
-       ! If the transport scheme delivers ice to cell 4, then cell 4 can become an inactive CF cell,
-       !  making cell 3 an active interior cell, even though it is much thinner than other interior cells.
-       ! To prevent this, ice is removed from cells that do not meet at least one of the following criteria
-       !  before transport:
-       ! (1) ice is present (ice_mask = 1)
-       ! (2) land-based
-       ! (3) shares at least one edge with an active cell
-
-       !TODO - Remove the redundant CALVING_GRID_MASK option
-       if (model%options%which_ho_calving_front == HO_CALVING_FRONT_SUBGRID .and.   &
-           (model%options%whichcalving /= CALVING_GRID_MASK .and. .not.model%options%apply_calving_mask)) then
-
-          ! compute a mask of protected cells
-          ! Protect cells where ice was present before advection, and protect land cells
-
-          protected_mask(:,:) = 0
-          where (ice_mask == 1 .or. land_mask == 1)
-             protected_mask = 1
-          endwhere
-
-          do j = 2, nsn-1
-             do i = 2, ewn-1
-                if (active_ice_mask(i-1,j) == 1 .or. active_ice_mask(i+1,j) == 1 .or. &
-                    active_ice_mask(i,j-1) == 1 .or. active_ice_mask(i,j+1) == 1) then
-                   protected_mask(i,j) = 1
-                endif
-             enddo
-          enddo
-
-          ! Identify cells where thin ice should be removed.
-          ! The mask is applied later, in glissade_calving_solve.
-          where (protected_mask == 0 .and. thck_unscaled > 0.0d0)
-             model%calving%calving_mask = 1
-          elsewhere
-             model%calving%calving_mask = 0
-          endwhere
-
-          call parallel_halo(model%calving%calving_mask, parallel)
-
-          if (verbose_calving .and. this_rank == rtest) then
-             i = itest
-             j = jtest
-             print*, ' '
-             print*, 'After transport, temporary calving_mask:'
-             do j = jtest+3, jtest-3, -1
-                do i = itest-3, itest+3
-                   write(6,'(i10)',advance='no') model%calving%calving_mask(i,j)
-                enddo
-                write(6,*) ' '
-             enddo
-          endif
-
-       endif
-
-       !TODO - Replace with subgrid CF logic
-       !       Remove the code block above.
+       !TODO - Replace with subgrid CF logic.
+       !       Think about whether iceberg removal could accomplish the same thing.
        if ( (model%options%whichcalving == CALVING_THCK_THRESHOLD .or. &
              model%options%whichcalving == EIGENCALVING .or.           &
              model%options%whichcalving == CALVING_DAMAGE)             &
             .and. .not.model%options%apply_calving_mask) then
 
-          ! compute a mask of protected cells
+          ! Compute a mask of protected cells.
           ! Protect cells where ice was present before advection, and protect land cells
 
           protected_mask(:,:) = 0
@@ -3102,7 +3026,7 @@ contains
        ! Get masks used for the mass balance calculation.
        ! Pass thklim = 0 to identify cells with thck > 0 (not thck > thklim).
        ! Use ocean_mask to identify ocean cells where positive acab should not be applied.
-       ! Use thck_calving_front to compute a fractional area for calving_front cells.
+       ! Use thck_effective to compute a fractional area for calving_front cells.
        ! TODO - Is it correct to use the old value of f_ground_cell from the start of the time step?
        !        Note that this value is used to identify CF cells where the mass balance is corrected.
        ! ------------------------------------------------------------------------
@@ -3127,8 +3051,26 @@ contains
                                         model%climate%eus*thk0,                     &   ! m
                                         ice_mask,               floating_mask,      &
                                         ocean_mask,             land_mask,          &
-                                        calving_front_mask,     thck_calving_front, &
-                                        effective_areafrac = effective_areafrac)
+                                        calving_front_mask,                         &
+!!                                        effective_areafrac = effective_areafrac,  &
+                                        thck_effective = thck_effective,      &
+                                        dx = model%numerics%dew*len0,      &
+                                        dy = model%numerics%dns*len0,      &
+                                        partial_cf_mask = partial_cf_mask, &
+                                        full_mask = full_mask)
+
+       !WHL - debug
+       where (ice_mask == 1)
+          effective_areafrac = 1.0d0
+       elsewhere
+          effective_areafrac = 0.0d0
+       endwhere
+
+       call point_diag(calving_front_mask, 'calving_front_mask', itest, jtest, rtest, 7, 7)
+       call point_diag(thck_effective,     'thck_effective (m)', itest, jtest, rtest, 7, 7)
+       call point_diag(effective_areafrac, 'effective_areafrac', itest, jtest, rtest, 15, 15, '(f10.6)')
+
+
 
        ! TODO: Zero out acab_unscaled and bmlt_unscaled in cells that are ice-free ocean after transport?
        !       Then it would not be necessary to pass ocean_mask to glissade_mass_balance_driver.
@@ -3303,8 +3245,7 @@ contains
     use glimmer_physcon, only: scyr
     use glissade_calving, only: glissade_calve_ice, glissade_cull_calving_front, &
          glissade_remove_icebergs, glissade_remove_isthmuses, glissade_limit_cliffs, verbose_calving
-    use glissade_masks, only: glissade_get_masks, glissade_calving_front_mask,  &
-         glissade_ocean_connection_mask
+    use glissade_masks, only: glissade_get_masks, glissade_ocean_connection_mask
     use glissade_grounding_line, only: glissade_grounded_fraction
     implicit none
 
@@ -3315,15 +3256,13 @@ contains
     ! --- Local variables ---
 
     real(dp), dimension(model%general%ewn, model%general%nsn) :: &
-         thck_unscaled,           & ! model%geometry%thck converted to m
-         thck_calving_front         ! effective ice thickness at calving front (m)
+         thck_unscaled              ! model%geometry%thck converted to m
 
     integer, dimension(model%general%ewn, model%general%nsn) :: &
          ice_mask,                & ! = 1 if ice is present
          floating_mask,           & ! = 1 if ice is present and floating
          land_mask,               & ! = 1 if topg - eus >= 0
          ocean_mask,              & ! = 1 if ice is absent and topg - eus < 0
-         active_ice_mask,         & ! = 1 if ice is present and dynamically active
          calving_front_mask         ! = 1 for calving-front cells
 
     integer, dimension(model%general%ewn, model%general%nsn) :: &
@@ -3903,45 +3842,7 @@ contains
                                thck_unscaled,          model%geometry%topg*thk0,      &
                                model%climate%eus*thk0, model%numerics%thklim*thk0,    &
                                ice_mask,               floating_mask = floating_mask, &
-                               land_mask = land_mask,  ocean_mask = ocean_mask,       &
-                               active_ice_mask = active_ice_mask)
-
-       ! If using a subgrid CF scheme, then recompute the active ice mask
-       if (model%options%which_ho_calving_front == HO_CALVING_FRONT_SUBGRID) then
-
-          call glissade_calving_front_mask(nx,                     ny,                 &
-                                           model%options%which_ho_calving_front,       &
-                                           parallel,                                   &
-                                           thck_unscaled,                              &
-                                           model%geometry%topg*thk0,                   &
-                                           model%climate%eus*thk0,                     &
-                                           ice_mask,               floating_mask,      &
-                                           ocean_mask,             land_mask,          &
-                                           calving_front_mask,     thck_calving_front, &
-                                           active_ice_mask = active_ice_mask)
-
-          if (verbose_calving .and. this_rank == rtest) then
-             print*, ' '
-             print*, 'Before remove_icebergs, calving_front_mask, itest, jtest, rank =', itest, jtest, rtest
-             do j = jtest+3, jtest-3, -1
-                write(6,'(i6)',advance='no') j
-                do i = itest-3, itest+3
-                   write(6,'(i10)',advance='no') calving_front_mask(i,j)
-                enddo
-                write(6,*) ' '
-             enddo
-             print*, ' '
-             print*, 'thck_calving_front:'
-             do j = jtest+3, jtest-3, -1
-                write(6,'(i6)',advance='no') j
-                do i = itest-3, itest+3
-                   write(6,'(f10.3)',advance='no') thck_calving_front(i,j)
-                enddo
-                write(6,*) ' '
-             enddo
-          endif
-
-       endif   ! subgrid calving front
+                               land_mask = land_mask,  ocean_mask = ocean_mask)
 
        ! Compute the grounded ice fraction in each grid cell
 
@@ -3974,7 +3875,6 @@ contains
                                      model%geometry%f_ground_cell,         &
                                      ice_mask,                             &
                                      land_mask,                            &
-                                     active_ice_mask,                      &
                                      model%calving%calving_thck)              ! m
     endif
     
@@ -4198,8 +4098,7 @@ contains
 
     real(dp), dimension(model%general%ewn, model%general%nsn) ::  &
          flow_enhancement_factor_float,  & ! flow enhancement factor for floating ice
-         thck_calving_front, & ! effective thickness of ice at the calving front
-         thck_effective,     & ! like thck_calving_front but for damage scheme
+         thck_effective,     & ! effective thickness (m) for calving
          tau1, tau2,         & ! same as model%calving%tau_eigen1 and tau_eigen2
          eps1, eps2            ! same as model%calving%tau_eigen1 and tau_eigen2
 
@@ -4355,7 +4254,7 @@ contains
                                      model%climate%eus*thk0,                     &
                                      ice_mask,            floating_mask,         &
                                      ocean_mask,          land_mask,             &
-                                     calving_front_mask,  thck_calving_front,    &
+                                     calving_front_mask,                         &
                                      thck_effective = thck_effective,   &
                                      dx = model%numerics%dew*len0,      &
                                      dy = model%numerics%dns*len0,      &

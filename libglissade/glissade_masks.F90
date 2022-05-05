@@ -73,8 +73,7 @@
                                 floating_mask,            &
                                 ocean_mask,               &
                                 land_mask,                &
-                                grounding_line_mask,      &
-                                active_ice_mask)
+                                grounding_line_mask)
 
     !TODO: Modify glissade_get_masks so that 'parallel' is not needed
     !----------------------------------------------------------------
@@ -94,9 +93,6 @@
     ! (3) ocean_mask = 1 if the topography is below sea level (topg < eus) and thk <= thklim, else = 0
     ! (4) land_mask = 1 if the topography is at or above sea level (topg >= eus), else = 0
     ! (5) grounding_line_mask = 1 if a cell is adjacent to the grounding line, else = 0
-    ! (6) active_ice_mask = 1 for dynamically active cells, else = 0
-    !     With the subgrid calving front scheme, cells that lie on the calving front and have
-    !     thck < thck_calving_front are inactive. Otherwise, all cells with ice_mask = 1 are active.
     !
     ! where thck = ice thickness
     !       thklim = threshold thickness for ice to be dynamically active
@@ -142,8 +138,7 @@
          floating_mask,       & ! = 1 if thck > thklim and ice is floating, else = 0
          ocean_mask,          & ! = 1 if topg is below sea level and thk <= thklim, else = 0
          land_mask,           & ! = 1 if topg is at or above sea level, else = 0
-         grounding_line_mask, & ! = 1 if a cell is adjacent to the grounding line, else = 0
-         active_ice_mask        ! = 1 if dynamically active, else = 0
+         grounding_line_mask    ! = 1 if a cell is adjacent to the grounding line, else = 0
 
     !----------------------------------------------------------------
     ! Local arguments
@@ -193,11 +188,6 @@
              endif
           endif
 
-          ! Note: active_ice_mask will be overwritten if the subgrid calving front scheme is used
-          if (present(active_ice_mask)) then
-             active_ice_mask(i,j) = ice_mask(i,j)
-          endif
-
        enddo  ! i
     enddo  ! j
 
@@ -209,7 +199,6 @@
 
     call parallel_halo(ice_mask, parallel)
     if (present(floating_mask)) call parallel_halo(floating_mask, parallel)
-    if (present(active_ice_mask)) call parallel_halo(active_ice_mask, parallel)
 
     ! Identify grounded cells; this mask is used in some calculations below
     if (present(floating_mask)) then
@@ -279,8 +268,6 @@
 
 !****************************************************************************
 
-  !TODO - Remove thck_calving_front and active_ice_mask
-
   subroutine glissade_calving_front_mask(&
        nx,                     ny,                   &
        which_ho_calving_front,                       &
@@ -289,8 +276,7 @@
        eus,                                          &
        ice_mask,               floating_mask,        &
        ocean_mask,             land_mask,            &
-       calving_front_mask,     thck_calving_front,   &
-       active_ice_mask,                              &
+       calving_front_mask,                           &
        effective_areafrac,                           &
        calving_minthck,                              &
        dx,                     dy,                   &
@@ -328,14 +314,6 @@
     integer, dimension(nx,ny), intent(out) ::  &
          calving_front_mask       ! = 1 if ice is floating and borders at least one ocean cell, else = 0
 
-    !TODO - Remove thck_calving_front
-    real(dp), dimension(nx,ny), intent(out) :: &
-         thck_calving_front       ! effective ice thickness at the calving front
-
-    !TODO - Remove active_ice_mask (if all CF cells are active)
-    integer, dimension(nx,ny), intent(out), optional ::  &
-         active_ice_mask          ! = 1 if dynamically active, else = 0
-
     real(dp), dimension(nx,ny), intent(out), optional :: &
          effective_areafrac       ! effective ice-covered fraction, in range [0,1]
                                   ! 0 < f < 1 for partial calving-front cells
@@ -361,17 +339,9 @@
 
     integer :: i, j, ii, jj
 
-    !TODO - Remove interior_marine_mask; needed only to compute thck_calving_front
-    integer, dimension(nx,ny) :: &
-         interior_marine_mask   ! mask to identify interior marine-based cells
-
     real(dp), dimension(nx,ny) :: &
          thck_flotation         ! flotation thickness
 
-    integer :: sum_cell         ! temporary sums
-    real(dp) :: sum_thck
-
-    !WHL - variables to compute new calving quantities
     real(dp), dimension(nx,ny) :: &
          max_neighbor_thck,        & ! max thickness (m) of the four edge neighbors
          dthck_dx                    ! dH/dx between adjacent cells near the CF
@@ -381,155 +351,32 @@
          dthck_dx_crit = 0.002d0     ! |dH/dx| exceeding dthck_dx_crit at the CF defines partial cells
 
 
-    ! Compute a calving front mask and effective calving front thickness.
-    ! Optionally, compute some related fields.
+    ! Compute a calving front mask, effective calving front thickness, and related fields.
+    ! CF cells are defined as floating cells that border ice-free ocean.
+
+    calving_front_mask(:,:) = 0
+
+    ! Identify calving front cells (floating cells that border ice-free ocean)
+    ! and marine-based interior cells (marine-based cells not at the calving front).
+    do j = 2, ny-1
+       do i = 2, nx-1
+          if (floating_mask(i,j) == 1) then
+             if (ocean_mask(i-1,j) == 1 .or. ocean_mask(i+1,j) == 1 .or. &
+                 ocean_mask(i,j-1) == 1 .or. ocean_mask(i,j+1) == 1) then
+                calving_front_mask(i,j) = 1
+             endif
+          endif
+       enddo
+    enddo
+
+    call parallel_halo(calving_front_mask, parallel)
+
 
     if (which_ho_calving_front == HO_CALVING_FRONT_SUBGRID) then
 
-       calving_front_mask(:,:) = 0
-       interior_marine_mask(:,:) = 0
-
-       ! Identify calving front cells (floating cells that border ice-free ocean)
-       ! and marine-based interior cells (marine-based cells not at the calving front).
-       do j = 2, ny-1
-          do i = 2, nx-1
-             if (floating_mask(i,j) == 1) then
-                if (ocean_mask(i-1,j) == 1 .or. ocean_mask(i+1,j) == 1 .or. &
-                    ocean_mask(i,j-1) == 1 .or. ocean_mask(i,j+1) == 1) then
-                   calving_front_mask(i,j) = 1
-                else
-                   interior_marine_mask(i,j) = 1
-                endif
-             elseif (ice_mask(i,j) == 1 .and. floating_mask(i,j) == 0 .and. topg(i,j) < eus) then  ! grounded marine-based ice
-                interior_marine_mask(i,j) = 1
-             endif
-          enddo
-       enddo
-
-       call parallel_halo(calving_front_mask, parallel)
-       call parallel_halo(interior_marine_mask, parallel)
-
-       ! Compute thck_calving_front, an effective thickness for calving-front cells.
-       ! It is set to the mean thickness in adjacent marine interior cells.
-       ! Note: For CF cells without any marine interior neighbors, we return thck_calving_front = 0.
-       ! TODO: Make sure this doesn't lead to numerical problems.
-
-       thck_calving_front(:,:) = 0.0d0
-
-       do j = 2, ny-1
-          do i = 2, nx-1
-             if (calving_front_mask(i,j) == 1) then
-
-                sum_cell = 0
-                sum_thck = 0.0d0
-
-                do jj = j-1, j+1
-                   do ii = i-1, i+1
-                      if (interior_marine_mask(ii,jj) == 1) then
-                         sum_cell = sum_cell + 1
-                         sum_thck = sum_thck + thck(ii,jj)
-                      endif
-                   enddo
-                enddo
-                if (sum_cell > 0) then
-                   thck_calving_front(i,j) = sum_thck/sum_cell
-                endif
-
-             endif
-          enddo
-       enddo
-
-       call parallel_halo(thck_calving_front, parallel)
-
-       ! Limit thck_calving_front so as not to exceed the flotation thickness
-       where (thck_calving_front > 0.0d0)
-          thck_flotation = -(rhoo/rhoi) * (topg - eus)
-          thck_calving_front = min(thck_calving_front, thck_flotation)
-       endwhere
-
-       ! Optionally, use the ratio thck/thck_calving_front to compute effective_areafrac.
-       ! TODO - Think about whether we should have effective_areafrac = 1 for ice-free land.
-
-       if (present(effective_areafrac)) then
-
-          do j = 1, ny
-             do i = 1, nx
-                if (calving_front_mask(i,j) == 1 .and. thck_calving_front(i,j) > 0.0d0) then
-                   effective_areafrac(i,j) = thck(i,j) / thck_calving_front(i,j)
-                   effective_areafrac(i,j) = min(effective_areafrac(i,j), 1.0d0)
-                elseif (ocean_mask(i,j) == 1) then
-                   effective_areafrac(i,j) = 0.0d0
-                else  ! non-CF ice-covered cells and/or land cells
-                   effective_areafrac(i,j) = 1.0d0
-                endif
-             enddo
-          enddo
-
-       endif   ! present(effective_areafrac)
-
-       ! Optionally, update the active_ice_mask so that CF cells with thck < thck_calving_front are inactive,
-       ! but those with thck >= thck_calving_front are active.
-
-       if (present(active_ice_mask)) then
-
-          ! initialize
-          active_ice_mask(:,:) = 0
-
-          ! Mark ice-filled cells as active.
-          ! Calving-front cells, however, are inactive, unless they have thck >= thck_calving front.
-
-          do j = 2, ny-1
-             do i = 2, nx-1
-                if (ice_mask(i,j) == 1) then
-                   if (calving_front_mask(i,j) == 0) then
-                      active_ice_mask(i,j) = 1
-                   elseif (calving_front_mask(i,j) == 1) then
-                      !WHL - If two adjacent cells are being restored to the same thickness, there is a
-                      !       chance of flickering here, with the CF cell alternately being restored to
-                      !       slightly greater or slightly less than the thickness of its interior neighbor.
-                      !      For this reason, let the cell be active if thck is very close to thck_calving front,
-                      !       but slightly less.
-                      if (thck_calving_front(i,j) > 0.0d0 .and. &
-                          thck(i,j) >= 0.999d0*thck_calving_front(i,j)) then
-                         active_ice_mask(i,j) = 1
-                      endif
-                   endif   ! calving_front_mask
-                endif  ! ice_mask
-             enddo
-          enddo
-
-          call parallel_halo(active_ice_mask, parallel)
-
-       endif   ! present(active_ice_mask)
+       !TODO - Move new subgrid CF code here
 
     else   ! no subgrid calving front scheme
-
-       calving_front_mask(:,:) = 0
-       interior_marine_mask(:,:) = 0
-       thck_calving_front(:,:) = 0.0d0
-
-       ! Identify calving front cells (floating cells that border ice-free ocean)
-       ! and marine-based interior cells (marine-based cells not at the calving front).
-
-       do j = 2, ny-1
-          do i = 2, nx-1
-             if (floating_mask(i,j) == 1) then
-                if (ocean_mask(i-1,j) == 1 .or. ocean_mask(i+1,j) == 1 .or. &
-                    ocean_mask(i,j-1) == 1 .or. ocean_mask(i,j+1) == 1) then
-                   calving_front_mask(i,j) = 1
-                   thck_calving_front(i,j) = thck(i,j)
-                else
-                   interior_marine_mask(i,j) = 1
-                endif
-             elseif (ice_mask(i,j) == 1 .and. floating_mask(i,j) == 0 .and. topg(i,j) < eus) then  ! grounded marine-based ice
-                interior_marine_mask(i,j) = 1
-             endif
-          enddo
-       enddo
-
-       call parallel_halo(calving_front_mask, parallel)
-       call parallel_halo(thck_calving_front, parallel)
-       call parallel_halo(interior_marine_mask, parallel)
 
        if (present(effective_areafrac)) then
           where (ice_mask == 1 .or. land_mask == 1)
@@ -538,13 +385,6 @@
              effective_areafrac = 0.0d0
           endwhere
        endif
-
-       if (present(active_ice_mask)) then
-          active_ice_mask(:,:) = ice_mask(:,:)
-       endif
-
-!!    endif  ! which_ho_calving_front
-
 
        !WHL - new code
        !TODO - Move this code into the computations that are done when the subgrid CF is turned on.
@@ -602,7 +442,7 @@
 !          thck_effective = min(thck_effective, thck_flotation)
 !       endwhere
 
-       ! Optionally, use the ratio thck/thck_calving_front to compute effective_areafrac.
+       ! Optionally, use the ratio thck/thck_effective to compute effective_areafrac.
        ! TODO - Think about whether we should have effective_areafrac = 1 for ice-free land.
 
 !       if (present(effective_areafrac)) then
@@ -629,12 +469,11 @@
   subroutine glissade_marine_cliff_mask(&
        nx,                     ny,                   &
        ice_mask,               floating_mask,        &
-       land_mask,              active_ice_mask,      &
+       land_mask,              ocean_mask,           &
        marine_cliff_mask)
 
     ! Compute a mask to identify marine cliff cells.
-    ! These are defined as cells with grounded marine ice, adjacent to ice-free ocean cells
-    !  and/or inactive calving front cells.
+    ! These are defined as cells with grounded marine ice, adjacent to ice-free ocean cells.
 
     integer, intent(in) ::   &
          nx,  ny                  ! number of grid cells in each direction
@@ -643,11 +482,10 @@
          ice_mask,              & ! = 1 if thck > thklim, else = 0
          floating_mask,         & ! = 1 if thck > thklim and ice is floating, else = 0
          land_mask,             & ! = 1 if topg is at or above sea level, else = 0
-         active_ice_mask          ! = 1 if dynamically active, else = 0
+         ocean_mask               ! = 1 if topg is below sea level and thk <= thklim, else = 0
 
-    integer, dimension(nx,ny), intent(out), optional ::  &
-         marine_cliff_mask        ! = 1 if ice is grounded and marine-based and borders at least one ocean
-                                  !     or inactive calving_front cell, else = 0
+    integer, dimension(nx,ny), intent(out) ::  &
+         marine_cliff_mask        ! = 1 if ice is grounded, marine-based and borders at least one ocean cell
 
     !----------------------------------------------------------------
     ! Local arguments
@@ -661,18 +499,15 @@
     do j = 2, ny-1
        do i = 2, nx-1
           if (ice_mask(i,j) == 1 .and. land_mask(i,j) == 0 .and. floating_mask(i,j) == 0) then ! grounded marine-based ice
-             if ( (land_mask(i-1,j) == 0 .and. active_ice_mask(i-1,j) == 0) .or. &  ! adjacent to inactive CF or ocean
-                  (land_mask(i+1,j) == 0 .and. active_ice_mask(i+1,j) == 0) .or. &
-                  (land_mask(i,j-1) == 0 .and. active_ice_mask(i,j-1) == 0) .or. &
-                  (land_mask(i,j+1) == 0 .and. active_ice_mask(i,j+1) == 0) ) then
+             if (ocean_mask(i-1,j) == 1 .or. ocean_mask(i+1,j) == 1 .or. &
+                 ocean_mask(i,j-1) == 1 .or. ocean_mask(i,j+1) == 1) then
                 marine_cliff_mask(i,j) = 1
-             endif   ! marine cliff cell
+             endif   ! adjacent to ocean
           endif  ! grounded marine-based ice
        enddo  ! i
     enddo   ! j
 
-    !Note: Halo update moved to higher level
-!    call parallel_halo(marine_cliff_mask)
+    ! Note: parallel halo update at the higher level
 
   end subroutine glissade_marine_cliff_mask
 
@@ -1622,10 +1457,10 @@
 
     ! Given a cell (i,j), determine whether it should be given the fill color
     !  and recursively fill neighbor cells.
-    ! This subroutine differs from the subroutine above in that cell (i,j) is filled and
+    ! This subroutine differs from the subroutine below in that cell (i,j) is filled and
     !  the subroutine is called recursively only if fill_mask = 1.
-    ! In the subroutine above, cell (i,j) can be filled when active_ice_mask = 0,
-    !  but the subroutine is called recursively only if active_ice_mask = 1.
+    ! In the subroutine below, cell (i,j) can be filled when fill_mask = 0,
+    !  but the subroutine is called recursively only if fill_mask = 1.
 
     integer, intent(in) :: nx, ny                       !> domain size
     integer, intent(in) :: i, j                         !> horizontal indices of current cell
@@ -1679,9 +1514,8 @@
     !       but also cells with fill_mask = 0, provided the cell does not already have
     !       the fill color or boundary color.  But only cells with fill_mask = 1 result
     !       in additional filling.
-    !       This logic is used, for example, with iceberg removal, where fill_mask = active_ice_mask.
-    !       In this case we fill not only active cells, but also a buffer layer of inactive cells.
-    !       Thus, both active cells and inactive buffer cells are filled and are spared from removal.
+    !       This logic is used if we want to fill not only active cells, but also
+    !        a buffer layer of inactive cells.
 
     integer, intent(in) :: nx, ny                       !> domain size
     integer, intent(in) :: i, j                         !> horizontal indices of current cell
@@ -1698,7 +1532,6 @@
        color(i,j) = fill_color
 
        ! If fill_mask = 1, then fill this cell but do not call the subroutine recursively
-
        if (fill_mask(i,j) == 0) return   ! skip the recursion
 
        ! recursively call this subroutine for each neighbor to see if it should be filled

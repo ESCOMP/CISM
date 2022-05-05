@@ -832,11 +832,7 @@
        ocean_mask,          & ! = 1 for cells where topography is below sea level and ice is absent
        land_mask,           & ! = 1 for cells where topography is above sea level
        calving_front_mask,  & ! = 1 for floating cells that border at least one ocean cell
-       active_ice_mask,     & ! = 1 for active cells (ice_mask = 1, excluding inactive calving_front cells)
        ice_plus_land_mask     ! = 1 for active ice cells plus ice-free land cells
-
-    real(dp), dimension(nx,ny) ::     &
-       thck_calving_front     ! effective thickness of ice at the calving front
 
     real(dp), dimension(nx-1,ny-1) :: &
        stagbedtemp,         & ! bed temperature averaged to vertices (deg C)
@@ -1577,15 +1573,9 @@
     ! (2) floating mask = 1 in cells where ice is present (thck > thklim) and floating
     ! (3) ocean mask = = 1 in cells where topography is below sea level and ice is absent
     ! (4) land mask = 1 in cells where topography is at or above sea level
-    ! (5) active_ice_mask = 1 for dynamically active cells, else = 0
-    ! (6) calving_front_mask = 1 for floating cells that border at least one cell with ocean_mask = 1, else = 0.
-    !     With subgrid calving front scheme option 1, cells on the calving front are inactive
-    !      unless thck > thck_calving_front.
-    !
-    ! Note: There is a subtle difference between the active_ice_mask and active_cell array,
-    !       aside from the fortran type (integer v. logical).
-    !       The condition for active_cell = .true. is (1) active_ice_mask = 1, and 
-    !       (2) the cell borders a locally owned vertex (so outer halo cells are excluded).
+    ! (6) calving_front_mask = 1 for floating cells that border at least one cell with ocean_mask = 1.
+    !     With subgrid calving front scheme option 1, the veolcity solver replaces
+    !      the thickness in CF cells with an effective thickness.
     !------------------------------------------------------------------------------
 
     !TODO: Modify glissade_get_masks so that 'parallel' is not needed
@@ -1596,18 +1586,16 @@
                             ice_mask,                           &
                             floating_mask = floating_mask,      &
                             ocean_mask = ocean_mask,            &
-                            land_mask = land_mask,              &
-                            active_ice_mask = active_ice_mask)
+                            land_mask = land_mask)
 
-    ! Compute calving_front_mask and, if necessary, recompute active_ice_mask.
-    ! If using a subgrid calving-front scheme, most CF cells are inactive, with
-    !  thck_calving_front given by the thickness of one or more interior neighbors.
-    ! Without this scheme, cells at the CF are active, with thck_calving_front = thck.
+    ! Compute the calving_front_mask and effective thickness.
+    ! The effective thickness is applied if running with the subgrid CF scheme.
     !
     ! Note (bug fix, 15 April 2022):
     ! Previously, we were computing the CF mask only when using the subgrid CF scheme.
     ! This could give erroneous lateral pressures in subroutine load_vector_lateral_bc.
 
+    !TODO - Compute thck_effective instead, and use in the dynamics
     call glissade_calving_front_mask(nx,                 ny,                 &
                                      whichcalving_front,                     &
                                      parallel,                               &
@@ -1615,8 +1603,7 @@
                                      eus,                                    &
                                      ice_mask,           floating_mask,      &
                                      ocean_mask,         land_mask,          &
-                                     calving_front_mask, thck_calving_front, &
-                                     active_ice_mask = active_ice_mask)
+                                     calving_front_mask)
 
     ! Compute a mask which is the union of ice cells and land-based cells (including ice-free land).
     where (ice_mask == 1 .or. land_mask == 1)
@@ -1628,7 +1615,7 @@
     !------------------------------------------------------------------------------
     ! Compute the ice thickness and upper surface elevation on the staggered grid.
     ! (requires that thck and usrf are up to date in all cells that border locally owned vertices).
-    ! All cells (including ice-free and inactive CF cells) are included in the interpolation.
+    ! All cells, including ice-free cells, are included in the interpolation.
     !------------------------------------------------------------------------------
 
     call glissade_stagger(nx,           ny,         &
@@ -1699,7 +1686,7 @@
     call glissade_surface_elevation_gradient(nx,           ny,          &
                                              dx,           dy,          &
                                              itest, jtest, rtest,       &
-                                             active_ice_mask,           &
+                                             ice_mask,                  &
                                              land_mask,                 &
                                              usrf,         thck,        &
                                              topg,         eus,         &
@@ -1824,7 +1811,7 @@
     endif  ! verbose_gridop
 
     !------------------------------------------------------------------------------
-    ! Identify the active cells (i.e., cells with active_ice_mask = 1, and bordering
+    ! Identify the active cells (i.e., cells with ice_mask = 1, and bordering
     !  a locally owned vertex) and active vertices (all vertices of active cells).
     ! Compute the vertices of each element.
     ! Count the number of owned active nodes on this processor, and assign a 
@@ -1837,7 +1824,7 @@
                              parallel,                             &
                              dx,             dy,                   &
                              itest,  jtest,  rtest,                &
-                             active_ice_mask,                      &
+                             ice_mask,                      &
                              xVertex,        yVertex,              &
                              active_cell,    active_vertex,        &
                              nNodesSolve,    nVerticesSolve,       &
@@ -2189,8 +2176,7 @@
                              sigma,            stagwbndsigma,   &
                              dx,               dy,              &
                              itest,   jtest,   rtest,           &
-                             active_cell,                       &
-                             active_vertex,                     &
+                             active_cell,      active_vertex,   &
                              xVertex,          yVertex,         &
                              stagusrf,         stagthck,        &
                              dusrf_dx,         dusrf_dy,        &
@@ -2606,16 +2592,6 @@
                 write(6,'(i6)',advance='no') j
                 do i = itest-3, itest+3
                    write(6,'(i10)',advance='no') calving_front_mask(i,j)
-                enddo
-                write(6,*) ' '
-             enddo
-
-             print*, ' '
-             print*, 'active_ice_mask, itest, jtest, rank =', itest, jtest, rtest
-             do j = jtest+3, jtest-3, -1
-                write(6,'(i6)',advance='no') j
-                do i = itest-3, itest+3
-                   write(6,'(i10)',advance='no') active_ice_mask(i,j)
                 enddo
                 write(6,*) ' '
              enddo
@@ -4233,8 +4209,7 @@
     call compute_basal_friction_heatflx(nx,            ny,            &
                                         nhalo,                        &
                                         itest, jtest,  rtest,         &
-                                        active_cell,                  &
-                                        active_vertex,                &
+                                        active_cell,   active_vertex, &
                                         xVertex,       yVertex,       &
                                         uvel(nz,:,:),  vvel(nz,:,:),  &
                                         beta_internal, whichassemble_bfric,  &
@@ -4555,7 +4530,7 @@
                                  parallel,                             &
                                  dx,             dy,                   &
                                  itest,  jtest,  rtest,                &
-                                 active_ice_mask,                      &
+                                 ice_mask,                             &
                                  xVertex,        yVertex,              &
                                  active_cell,    active_vertex,        &
                                  nNodesSolve,    nVerticesSolve,       &
@@ -4593,7 +4568,7 @@
        itest, jtest, rtest    ! coordinates of diagnostic point
 
     integer, dimension(nx,ny), intent(in) ::  &
-       active_ice_mask        ! = 1 for cells with active ice, else = 0
+       ice_mask        ! = 1 for cells with active ice, else = 0
 
     real(dp), dimension(nx-1,ny-1), intent(out) :: &
        xVertex, yVertex       ! x and y coordinates of each vertex
@@ -4653,13 +4628,13 @@
     enddo
 
     ! Identify the active cells.
-    ! Include all cells that border locally owned vertices and contain active ice.
+    ! Include all cells that border locally owned vertices and contain ice.
 
     active_cell(:,:) = .false.
 
     do j = nhalo+1, ny-nhalo+1  ! include east and north layer of halo cells
     do i = nhalo+1, nx-nhalo+1
-       if (active_ice_mask(i,j) == 1) then
+       if (ice_mask(i,j) == 1) then
           active_cell(i,j) = .true.
        endif
     enddo
@@ -4726,8 +4701,7 @@
                                  sigma,            stagwbndsigma,   & 
                                  dx,               dy,              &
                                  itest,  jtest,    rtest,           &
-                                 active_cell,                       &
-                                 active_vertex,                     &
+                                 active_cell,      active_vertex,   &
                                  xVertex,          yVertex,         &
                                  stagusrf,         stagthck,        &
                                  dusrf_dx,         dusrf_dy,        &
@@ -7192,8 +7166,7 @@
   subroutine compute_basal_friction_heatflx(nx,            ny,            &
                                             nhalo,                        &
                                             itest, jtest,  rtest,         &
-                                            active_cell,                  &
-                                            active_vertex,                &
+                                            active_cell,   active_vertex, &
                                             xVertex,       yVertex,       &
                                             uvel,          vvel,          &
                                             beta,          whichassemble_bfric,  &
