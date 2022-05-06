@@ -214,8 +214,8 @@ def read(filename,experiment):
         print('inputfile=',filename)
         data = list()
         for line in inputfile:
-            # This if statement was necessary with the update to python3 to avoid the code
-            # to crash because it would read empty lines in the text files. 
+            # This if statement is necessary with the update to python3 to avoid a code
+            # crash because it would read empty lines in the text files.
             if line == "\n":
                continue
             else:
@@ -398,7 +398,8 @@ def main():
 
                     # Figure out u,v since all experiments needs at least one of them (avoids duplicate code in each case below
                     #   Want to use last time level.  Most experiments should only have a single time level, but F may have many in the file.
-                    #   Apparently some older versions of netCDF4 give an error when using the -1 dimension if the size is 1, hence this bit of seemingly unnecessary logic...
+                    #   Apparently some older versions of netCDF4 give an error when using the -1 dimension if the size is 1,
+                    #   hence this bit of seemingly unnecessary logic...
                     if netCDFfile.variables['uvel_extend'][:].shape[0] == 1:
                         t = 0
                     else:
@@ -505,25 +506,25 @@ def main():
                         tick.label1.set_fontsize('xx-small')
                 axes.set_title('%d km' % size, size='medium')
 
-                # Get the Glimmer output data
-                glimmerData = read(out_file.replace('.out.nc','.txt'),experiment)
+                # Get the CISM output data
+                cismData = read(out_file.replace('.out.nc','.txt'),experiment)
 
-                # The Glimmer data is on a staggered grid;
+                # The CISM data is on a staggered grid;
                 # Interpolate to obtain the value at x=0 and x=1
                 # using periodic boundary conditions
-                #v = (glimmerData[0][1] + glimmerData[-1][1])/2
-                #glimmerData = [(0.0,v)]+glimmerData+[(1.0,v)]
+                #v = (cismData[0][1] + cismData[-1][1])/2
+                #cismData = [(0.0,v)]+ cismData+[(1.0,v)]
 
-                # Plot the Glimmer data
-                axes.plot([row[0] for row in glimmerData],
-                          [row[1] for row in glimmerData],color='black')
+                # Plot the CISM data
+                axes.plot([row[0] for row in cismData],
+                          [row[1] for row in cismData],color='black')
 
                 # Get the data from other models for comparison
                 firstOrder = 0
                 fullStokes = 1
                 count = [0,0]
-                sumV  = [[0.0 for v in glimmerData],[0.0 for v in glimmerData]]
-                sumV2 = [[0.0 for v in glimmerData],[0.0 for v in glimmerData]]
+                sumV  = [[0.0 for v in cismData],[0.0 for v in cismData]]
+                sumV2 = [[0.0 for v in cismData],[0.0 for v in cismData]]
                 for (path,directories,filenames) in os.walk('ismip_all'):
                     for filename in filenames:
                         modelName = filename[0:4]
@@ -551,8 +552,8 @@ def main():
 
                         #axes.plot([row[0] for row in data], [row[1] for row in data] )   ## OPTIONAL: print out every individual model in its native x-coordinates.
 
-                        # Interpolate onto the x values from the Glimmer model run
-                        for (i,target) in enumerate([row[0] for row in glimmerData]):
+                        # Interpolate onto the x values from the CISM model run
+                        for (i,target) in enumerate([row[0] for row in cismData]):
                             below = -99999.0
                             above =  99999.0
                             for (j,x) in enumerate([row[0] for row in data]):
@@ -592,13 +593,13 @@ def main():
                             continue
                         mean = list()
                         standardDeviation = list()
-                        for i in range(len(glimmerData)):
+                        for i in range(len(cismData)):
                             mean.append(sumV[index][i]/count[index])
                             standardDeviation.append(sqrt(sumV2[index][i]/count[index]-mean[-1]**2))
 
                         # Plot the mean using a dotted line
                         color = (index,0,1-index) # blue for first order (index=0); red for full Stokes (index=1)
-                        x = [row[0] for row in glimmerData]
+                        x = [row[0] for row in cismData]
                         axes.plot(x,mean,':',color=color)
 
                         # Plot a filled polygon showing the mean plus and minus one standard deviation
@@ -609,20 +610,20 @@ def main():
                         axes.fill(x,y,facecolor=color,edgecolor=color,alpha=0.25)
 
                         if index == firstOrder:
-                            # Calculate some statistics comparing the Glimmer data with the other models
-                            pcterror = [100.0*abs(glimmer-others)/others for (glimmer,others) in zip([row[1] for row in glimmerData],mean)]
-                            abserror = [abs(glimmer-others)        for (glimmer,others) in zip([row[1] for row in glimmerData],mean)]
+                            # Calculate some statistics comparing the CISM data with the other models
+                            pcterror = [100.0*abs(cism-others)/others for (cism,others) in zip([row[1] for row in cismData],mean)]
+                            abserror = [abs(cism-others)        for (cism,others) in zip([row[1] for row in cismData],mean)]
                             maximum = max(pcterror)
-                            position = glimmerData[pcterror.index(maximum)][0]
+                            position = cismData[pcterror.index(maximum)][0]
                             total   = sum([e for e in pcterror])
                             compare = sum([(s/m) for (s,m) in zip(standardDeviation,mean)])
-                            n = len(glimmerData)
+                            n = len(cismData)
                             #print '\t'.join([str(size)+' km',str(total/n),str(compare/n),str(position)])
                             print( 'Size='+str(size)+' km' )
                             print( '  Mean percent error along flowline of CISM relative to mean of first-order models='+str(total/float(n))+'%')
                             print( '  Mean COD (stdev/mean) along flowline of mean of first-order models (excluding CISM)='+str(compare/float(n)*100.0)+'%')
                             print( '  Max. CISM percent error='+str(maximum)+'% at x-position '+str(position))
-                            print( '  Max. CISM absolute error='+str(max(abserror))+' m/yr at x-position '+str(glimmerData[abserror.index(max(abserror))][0]))
+                            print( '  Max. CISM absolute error='+str(max(abserror))+' m/yr at x-position '+str(cismData[abserror.index(max(abserror))][0]))
 
             except:
                 print( "Error in analyzing/plotting experiment ",experiment," at size ",size," km")
@@ -682,18 +683,18 @@ def main():
             # Plot CISM output
             axes2.plot(xprime, zprime, color='black')
 
-            # create glimmerData so we can re-use the code from above
-            glimmerData = list()
+            # create cismData so we can re-use the code from above
+            cismData = list()
             for i in range(len(xprime)):
-                glimmerData.append(tuple([xprime[i], zprime[i]]))
+                cismData.append(tuple([xprime[i], zprime[i]]))
 
             # Now plot the other models - yucky code copied from above
             # Get the data from other models for comparison
             firstOrder = 0
             fullStokes = 1
             count = [0,0]
-            sumV  = [[0.0 for v in glimmerData],[0.0 for v in glimmerData]]
-            sumV2 = [[0.0 for v in glimmerData],[0.0 for v in glimmerData]]
+            sumV  = [[0.0 for v in cismData],[0.0 for v in cismData]]
+            sumV2 = [[0.0 for v in cismData],[0.0 for v in cismData]]
             for (path,directories,filenames) in os.walk('ismip_all'):
                 for filename in filenames:
                     modelName = filename[0:4]
@@ -721,8 +722,8 @@ def main():
 
                     #axes2.plot([row[0] for row in data], [row[1] for row in data] )   ## OPTIONAL: print out every individual model in its native x-coordinates.
 
-                    # Interpolate onto the x values from the Glimmer model run
-                    for (i,target) in enumerate([row[0] for row in glimmerData]):
+                    # Interpolate onto the x values from the cism model run
+                    for (i,target) in enumerate([row[0] for row in cismData]):
                         below = -99999.0
                         above =  99999.0
                         for (j,x) in enumerate([row[0] for row in data]):
@@ -760,13 +761,13 @@ def main():
                                 continue
                             mean = list()
                             standardDeviation = list()
-                            for i in range(len(glimmerData)):
+                            for i in range(len(cismData)):
                                 mean.append(sumV[index][i]/count[index])
                                 standardDeviation.append(sqrt(sumV2[index][i]/count[index]-mean[-1]**2))
 
                             # Plot the mean using a dotted line
                             color = (index,0,1-index) # blue for first order (index=0); red for full Stokes (index=1)
-                            x = [row[0] for row in glimmerData]
+                            x = [row[0] for row in cismData]
                             axes2.plot(x,mean,':',color=color)
 
                             # Plot a filled polygon showing the mean plus and minus one standard deviation
