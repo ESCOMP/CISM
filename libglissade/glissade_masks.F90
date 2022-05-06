@@ -278,6 +278,7 @@
        ocean_mask,             land_mask,            &
        calving_front_mask,                           &
        calving_minthck,                              &
+       dthck_dx_cf,                                  &
        dx,                     dy,                   &
        thck_effective,                               &
        partial_cf_mask,        full_mask,            &
@@ -315,9 +316,8 @@
          calving_front_mask       ! = 1 if ice is floating and borders at least one ocean cell, else = 0
 
     real(dp), intent(in), optional :: &
-         calving_minthck          ! if present, require thck_effective >= calving_minthck
-
-    real(dp), intent(in), optional :: &
+         calving_minthck,       & ! if present, require thck_effective >= calving_minthck
+         dthck_dx_cf,           & ! assumed max value of |dH/dx| at the CF for full cells
          dx, dy                   ! grid cell size (m)
 
     real(dp), dimension(nx,ny), intent(out), optional :: &
@@ -345,11 +345,6 @@
 
     character(len=100) :: message
 
-    !TODO - Make dthck_dx_crit a config parameter?
-    real(dp), parameter :: &
-         dthck_dx_crit = 0.002d0     ! |dH/dx| exceeding dthck_dx_crit at the CF defines partial cells
-
-
     ! Compute a calving front mask, effective calving front thickness, and related fields.
     ! CF cells are defined as floating cells that border ice-free ocean.
 
@@ -375,13 +370,13 @@
 
        if (present(thck_effective)) then
 
-          ! Note: thck_effective, full_mask, partial_cf_mask, dx and dy should all be passed together.
+          ! Note: thck_effective, full_mask, partial_cf_mask, dx, dy, and dthck_dx_cf should all be passed together.
           !       The following fatal error message does not account for all permutations of missing arguments,
           !        but will prevent bad calculations of thck_effective.
           if (.not.present(full_mask) .or. .not.present(partial_cf_mask) .or. &
-              .not.present(dx) .or. .not.present(dy)) then
+              .not.present(dx) .or. .not.present(dy) .or. .not.present(dthck_dx_cf)) then
              write(message,*) &
-                  'Need to pass full_mask, partial_cf_mask, dx and dy to compute thck_effective'
+                  'Must pass full_mask, partial_cf_mask, dx, dy and dthck_dx_cf to compute thck_effective'
              call write_log(message, GM_FATAL)
           endif
 
@@ -404,9 +399,9 @@
                       dthck_dx(i,j) = (max_neighbor_thck(i,j) - thck(i,j)) / sqrt(dx*dy)
                       ! If the gradient exceeds a critical value, this is a partial CF cell,
                       ! else it is a full cell.  Set thck_effective based on the critical gradient.
-                      if (dthck_dx(i,j) > dthck_dx_crit) then
+                      if (dthck_dx(i,j) > dthck_dx_cf) then
                          partial_cf_mask(i,j) = 1
-                         thck_effective(i,j) = max_neighbor_thck(i,j) - dthck_dx_crit*sqrt(dx*dy)
+                         thck_effective(i,j) = max_neighbor_thck(i,j) - dthck_dx_cf*sqrt(dx*dy)
                       else
                          full_mask(i,j) = 1
                          thck_effective(i,j) = thck(i,j)
