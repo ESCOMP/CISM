@@ -965,7 +965,7 @@ contains
          'compute isostasy with model     ' /)
 
     !TODO - Change 'marine_margin' to 'calving'?  Would have to modify many config files
-    character(len=*), dimension(0:9), parameter :: marine_margin = (/ &
+    character(len=*), dimension(0:8), parameter :: marine_margin = (/ &
          'no calving law                  ', &
          'remove all floating ice         ', &
          'remove fraction of floating ice ', &
@@ -974,8 +974,7 @@ contains
          'calving based on grid location  ', &
          'ice thickness threshold         ', &
          'eigencalving scheme             ', & 
-         'damage-based calving scheme     ', & 
-         'Huybrechts grounding-line scheme' /) 
+         'damage-based calving scheme     ' /)
 
     character(len=*), dimension(0:1), parameter :: init_calving = (/ &
          'no calving at initialization    ', &
@@ -2057,8 +2056,9 @@ contains
     ! calving parameters
     call GetValue(section,'marine_limit',       model%calving%marine_limit)
     call GetValue(section,'calving_fraction',   model%calving%calving_fraction)
-    call GetValue(section,'calving_minthck',    model%calving%minthck)
     call GetValue(section,'calving_timescale',  model%calving%timescale)
+    call GetValue(section,'calving_minthck',    model%calving%minthck)
+    call GetValue(section,'dthck_dx_cf',        model%calving%dthck_dx_cf)
     call GetValue(section,'eigenconstant1',     model%calving%eigenconstant1)
     call GetValue(section,'eigenconstant2',     model%calving%eigenconstant2)
     call GetValue(section,'damage_threshold',   model%calving%damage_threshold)
@@ -2263,6 +2263,8 @@ contains
        call write_log(message)
     endif
 
+    ! calving options
+
     if (model%options%whichcalving == CALVING_FLOAT_FRACTION) then
        write(message,*) 'ice fraction lost in calving  : ', model%calving%calving_fraction
        call write_log(message)
@@ -2273,8 +2275,6 @@ contains
        write(message,*) 'marine depth limit (m)        : ', model%calving%marine_limit
        call write_log(message)
     endif
-
-    ! thickness- and eigenvalue-based calving options
 
     if (model%options%whichcalving == CALVING_THCK_THRESHOLD .or.  &
         model%options%whichcalving == EIGENCALVING           .or.  &
@@ -2302,25 +2302,27 @@ contains
              call write_log(message, GM_FATAL)
           endif
        elseif (model%options%whichcalving == EIGENCALVING) then
-          write(message,*) 'eigenconstant1 (m/yr)                : ', model%calving%eigenconstant1
+          write(message,*) 'eigenconstant1 (m/yr)         : ', model%calving%eigenconstant1
           call write_log(message)
-          write(message,*) 'eigenconstant2 (m/yr)                : ', model%calving%eigenconstant2
+          write(message,*) 'eigenconstant2 (m/yr)         : ', model%calving%eigenconstant2
           call write_log(message)
        elseif (model%options%whichcalving == CALVING_DAMAGE) then
-          write(message,*) 'damage constant1 (1/yr)              : ', model%calving%damage_constant1
+          write(message,*) 'damage constant1 (1/yr)       : ', model%calving%damage_constant1
           call write_log(message)
-          write(message,*) 'damage constant2 (1/yr)              : ', model%calving%damage_constant2
+          write(message,*) 'damage constant2 (1/yr)       : ', model%calving%damage_constant2
           call write_log(message)
-          write(message,*) 'damage threshold                     : ', model%calving%damage_threshold
+          write(message,*) 'damage threshold              : ', model%calving%damage_threshold
           call write_log(message)
-          write(message,*) 'damage-flwa feedback                 : ', model%options%damage_flwa_feedback
+          write(message,*) 'damage-flwa feedback          : ', model%options%damage_flwa_feedback
           call write_log(message)
        endif
 
     endif   ! calving options: thck_threshold, eigencalving, damage
 
-    !TODO - Is this true with the new SUBGRID option?
     if (model%options%which_ho_calving_front == HO_CALVING_FRONT_SUBGRID) then
+       write(message,*) 'subgrid dthck_dx_cf           : ', model%calving%dthck_dx_cf
+       call write_log(message)
+       !TODO - Is the following needed with the new SUBGRID option?
        if (.not.model%options%remove_icebergs) then
           model%options%remove_icebergs = .true.
           write(message,*) 'Setting remove_icebergs = T for stability when using subgrid calving_front scheme'
