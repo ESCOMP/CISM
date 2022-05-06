@@ -56,7 +56,7 @@ that is actually used to perform the model run.  If you wish to adjust any model
 settings, you should adjust them in this file.  Most users will not have any
 reason to modify settings.
 
- 2. __Run Glimmer/CISM by invoking the `runISMIP_HOM.py` script:__
+ 2. __Run CISM by invoking the `runISMIP_HOM.py` script:__
 
 ```sh
 ./runISMIP_HOM.py
