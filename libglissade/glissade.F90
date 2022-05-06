@@ -4966,9 +4966,7 @@ contains
     ! The partial cells have thin ice that moves slowly, often resulting in tau2 < 0 and eps2 < 0,
     !  although the nearby full cells have tau2 > 0 and eps2 > 0.
 
-    !TODO - subgrid CF logic instead?
-    if (model%options%whichcalving == EIGENCALVING .or. &
-        model%options%whichcalving == CALVING_DAMAGE) then
+    if (model%options%which_ho_calving_front == HO_CALVING_FRONT_SUBGRID) then
 
        tau1 = model%calving%tau_eigen1
        tau2 = model%calving%tau_eigen2
@@ -4994,7 +4992,7 @@ contains
           enddo
        enddo
 
-    endif   ! eigencalving or damage-based calving
+    endif   ! subgrid CF
 
     call parallel_halo(model%calving%tau_eigen1, parallel)
     call parallel_halo(model%calving%tau_eigen2, parallel)
