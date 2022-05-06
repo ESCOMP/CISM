@@ -1086,11 +1086,8 @@
      !       instead of geometry%thck.  For partial_cf cells, thck_effective > thck.
      !      The goal is to compute velocities appropriate for a subgrid calving front,
      !       instead of a full cell with unrealistically thin ice.
-     !      The switch is complicated is geometry%thck has CISM scaled model units and
-     !       calving%thck_effective has units of m.
-     if (whichcalving_front == HO_CALVING_FRONT_SUBGRID) then
-        thck  => model%geometry%thck(:,:)
-!!        thck  => model%calving%thck_effective(:,:)
+     if (model%options%which_ho_calving_front == HO_CALVING_FRONT_SUBGRID) then
+        thck  => model%calving%thck_effective(:,:)
      else
         thck  => model%geometry%thck(:,:)
      endif
@@ -4401,8 +4398,8 @@
     ! Note: The following is a kluge. It is needed because thck can point to either
     !       geometry%thck or calving%thck_effective, which have different units.
     !       To be removed when scaling goes away.
-!!    if (whichcalving_front = HO_CALVING_FRONT_NO_SUBGRID) thck = thck * thk0
-    thck = thck * thk0
+    if (whichcalving_front == HO_CALVING_FRONT_NO_SUBGRID) thck = thck * thk0
+!!    thck = thck * thk0
 
     usrf = usrf * thk0
     topg = topg * thk0
@@ -4485,8 +4482,8 @@
     ! Note: The following is a kluge. It is needed because thck can point to either
     !       geometry%thck or calving%thck_effective, which have different units.
     !       To be removed when scaling goes away.
-    thck = thck / thk0
-!!    if (whichcalving_front = HO_CALVING_FRONT_NO_SUBGRID) thck = thck / thk0
+    if (whichcalving_front == HO_CALVING_FRONT_NO_SUBGRID) thck = thck / thk0
+!!    thck = thck / thk0
 
     usrf = usrf / thk0
     topg = topg / thk0
