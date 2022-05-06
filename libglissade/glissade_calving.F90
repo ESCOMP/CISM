@@ -44,7 +44,9 @@ module glissade_calving
   private
   public :: glissade_calving_mask_init, glissade_calve_ice, &
             glissade_remove_icebergs, glissade_remove_isthmuses, &
-            glissade_cull_calving_front, glissade_limit_cliffs
+            glissade_cull_calving_front, glissade_limit_cliffs,  &
+            glissade_stress_tensor_eigenvalues, glissade_strain_rate_tensor_eigenvalues, &
+            glissade_extrapolate_to_calving_front
   public :: verbose_calving
 
 !!  logical, parameter :: verbose_calving = .false.
@@ -176,12 +178,13 @@ contains
        allocate(ocean_mask(nx,ny))
 
        !TODO: Modify glissade_get_masks so that 'parallel' is not needed
-       call glissade_get_masks(nx,            ny,             &
-                               parallel,                      &
-                               thck,          topg,           &
-                               eus,           thklim,         &
-                               ice_mask,                      &
-                               ocean_mask = ocean_mask)
+       call glissade_get_masks(&
+            nx,            ny,             &
+            parallel,                      &
+            thck,          topg,           &
+            eus,           thklim,         &
+            ice_mask,                      &
+            ocean_mask = ocean_mask)
 
        ! Set the calving mask to include all ice-free ocean cells.
        ! Make an exception for cells where usfc_obs or vsfc_obs > 0.
@@ -274,6 +277,8 @@ contains
                                                                      !> used with CALVING_FLOAT_FRACTION
 !    real(dp), intent(in)                     :: timescale           !> timescale (s) for calving; calving_thck = thck * max(dt/timescale, 1)
                                                                      !> if timescale = 0, then calving_thck = thck
+!    real(dp), intent(in)                     :: minthck             !> min thickness for ice at the calving front (m)
+!    real(dp), intent(in)                     :: dthck_dx_cf         !> assumed max thickness gradient (m/m) at the subgrid CF
 !    real(dp), dimension(:,:), intent(inout)  :: thck_effective      !> effective thickness for calving (m)
 !    real(dp), dimension(:,:), intent(inout)  :: lateral_rate        !> lateral calving rate (m/s) at calving front
 !    real(dp), dimension(:,:), intent(in)     :: tau_eigen1          !> first eigenvalue of 2D horizontal stress tensor (Pa)
@@ -389,6 +394,7 @@ contains
             eus,                thklim,                &  ! m
             calving%thck_effective,                    &  ! m
             calving%minthck,                           &  ! m
+            calving%dthck_dx_cf,                       &  ! m
             calving%timescale,                         &  ! s
             calving%calving_thck)                         ! m
 
@@ -415,6 +421,7 @@ contains
             calving%eigenconstant2,                    &
             calving%thck_effective,                    &  ! m
             calving%minthck,                           &  ! m
+            calving%dthck_dx_cf,                       &  ! m
             calving%lateral_rate,                      &  ! m/s
             calving%calving_thck)                         ! m
 
@@ -437,6 +444,7 @@ contains
             calving%damage_threshold,                  &  !
             calving%thck_effective,                    &  ! m
             calving%minthck,                           &  ! m
+            calving%dthck_dx_cf,                       &  ! m
             calving%damage,                            &  !
             calving%lateral_rate,                      &  ! m/s
             calving%calving_thck)                         ! m
@@ -448,13 +456,14 @@ contains
        ! Use thickness limit of 0.0 instead of thklim so as to remove ice from any cell
        !  that meets the calving criteria, not just dynamically active ice.
 
-       call glissade_get_masks(nx,            ny,             &
-                               parallel,                      &
-                               thck,          topg,           &
-                               eus,           0.0d0,          &   ! thklim = 0.0
-                               ice_mask,                      &
-                               floating_mask = floating_mask, &
-                               ocean_mask = ocean_mask)
+       call glissade_get_masks(&
+            nx,            ny,             &
+            parallel,                      &
+            thck,          topg,           &
+            eus,           0.0d0,          &   ! thklim = 0.0
+            ice_mask,                      &
+            floating_mask = floating_mask, &
+            ocean_mask = ocean_mask)
 
        ! set the calving-law mask
        ! Note: Cells that meet the calving-law criteria will be calved provided they also lie in the calving domain,
@@ -497,22 +506,6 @@ contains
           elsewhere
              calving_law_mask = .false.
           endwhere
-
-       case(CALVING_HUYBRECHTS)    ! Huybrechts grounding line scheme for Greenland initialization
-
-          if (eus > -80.d0) then
-             where (relx <= 2.d0*eus)
-                calving_law_mask = .true.
-             elsewhere
-                calving_law_mask = .false.
-             end where
-          elseif (eus <= -80.d0) then
-             where (relx <= (2.d0*eus - 0.25d0*(eus + 80.d0)**2.d0))
-                calving_law_mask = .true.
-             elsewhere
-                calving_law_mask = .false.
-             end where
-          end if
 
        end select
 
@@ -590,6 +583,7 @@ contains
        eus,                thklim,         &  ! m
        thck_effective,                     &  ! m
        calving_minthck,                    &  ! m
+       dthck_dx_cf,                        &  ! m/m
        calving_timescale,                  &  ! s
        calving_thck)                          ! m
 
@@ -626,7 +620,8 @@ contains
          thklim                    ! minimum thickness for dynamically active grounded ice (m)
 
     real(dp), intent(in) :: &
-         calving_minthck,        & ! thickness threshold (m) for CF cells
+         calving_minthck,        & ! min effective thickness (m) for CF cells
+         dthck_dx_cf,            & ! assumed max thickness gradient (m/m) at the subgrid CF
          calving_timescale         ! timescale (s) for calving
 
     real(dp), dimension(nx,ny), intent(inout) :: &
@@ -683,6 +678,7 @@ contains
          ice_mask,      floating_mask,      &
          ocean_mask,    land_mask,          &
          calving_front_mask,                &
+         dthck_dx_cf = dthck_dx_cf,         &
          dx = dx,       dy = dy,            &
          thck_effective = thck_effective, &
          partial_cf_mask = partial_cf_mask, &
@@ -852,6 +848,7 @@ contains
        eigenconstant2,                    &
        thck_effective,                    &
        calving_minthck,                   &
+       dthck_dx_cf,                       &
        lateral_rate,                      &
        calving_thck)
 
@@ -891,7 +888,8 @@ contains
     real(dp), intent(in) :: &
          eigenconstant1,         & ! lateral calving rate proportional to tau1 (m/s)
          eigenconstant2,         & ! lateral calving rate proportional to tau1 (m/s)
-         calving_minthck           ! min effective thickness (m) for CF cells
+         calving_minthck,        & ! min effective thickness (m) for CF cells
+         dthck_dx_cf               ! assumed max thickness gradient (m/m) at the subgrid CF
 
     real(dp), dimension(nx,ny), intent(out) :: &
          lateral_rate              ! lateral rate of calving (m/s)
@@ -964,6 +962,7 @@ contains
          ocean_mask,    land_mask,          &
          calving_front_mask,                &
          calving_minthck = calving_minthck, &
+         dthck_dx_cf = dthck_dx_cf,         &
          dx = dx,       dy = dy,            &
          thck_effective = thck_effective,   &
          partial_cf_mask = partial_cf_mask, &
@@ -1174,7 +1173,8 @@ contains
        eps_eigen1,         eps_eigen2,            &
        damage_constant1,   damage_constant2,      &
        damage_threshold,                          &
-       thck_effective,     calving_minthck,       &
+       thck_effective,                            &
+       calving_minthck,    dthck_dx_cf,           &
        damage,                                    &
        lateral_rate,       calving_thck)
 
@@ -1217,7 +1217,8 @@ contains
          damage_constant1,       & ! rate of change of damage (1/s) proportional to tau1
          damage_constant2,       & ! rate of change of damage (1/s) proportional to tau2
          damage_threshold,       & ! calving begins for damage > damage_threshold
-         calving_minthck           ! min effective thickness (m) for CF cells
+         calving_minthck,        & ! min effective thickness (m) for CF cells
+         dthck_dx_cf               ! assumed max thickness gradient (m/m) at the subgrid CF
 
     real(dp), dimension(nz-1,nx,ny), intent(inout) :: &
          damage                    ! 3D damage tracer, 0 > damage < 1
@@ -1307,6 +1308,7 @@ contains
          ocean_mask,    land_mask,          &
          calving_front_mask,                &
          calving_minthck = calving_minthck, &
+         dthck_dx_cf = dthck_dx_cf,         &
          dx = dx,       dy = dy,            &
          thck_effective = thck_effective,   &
          partial_cf_mask = partial_cf_mask, &
@@ -1641,23 +1643,25 @@ contains
        !       Then the algorithm can fail to identify floating regions that should be removed
        !       (since they are separated from any active cells).
 
-       call glissade_get_masks(nx,            ny,             &
-                               parallel,                      &
-                               thck,          topg,           &
-                               eus,           thklim,         &
-                               ice_mask,                      &
-                               floating_mask = floating_mask, &
-                               ocean_mask = ocean_mask,       &
-                               land_mask = land_mask)
+       call glissade_get_masks(&
+            nx,            ny,             &
+            parallel,                      &
+            thck,          topg,           &
+            eus,           thklim,         &
+            ice_mask,                      &
+            floating_mask = floating_mask, &
+            ocean_mask = ocean_mask,       &
+            land_mask = land_mask)
 
-       call glissade_calving_front_mask(nx,            ny,                 &
-                                        which_ho_calving_front,            &
-                                        parallel,                          &
-                                        thck,          topg,               &
-                                        eus,                               &
-                                        ice_mask,      floating_mask,      &
-                                        ocean_mask,    land_mask,          &
-                                        calving_front_mask)
+       call glissade_calving_front_mask(&
+            nx,            ny,                 &
+            which_ho_calving_front,            &
+            parallel,                          &
+            thck,          topg,               &
+            eus,                               &
+            ice_mask,      floating_mask,      &
+            ocean_mask,    land_mask,          &
+            calving_front_mask)
 
        if (main_task) then
           call write_log ('cull_calving_front: Removing ice from calving_front cells')
@@ -1796,9 +1800,10 @@ contains
 
                       ! assign the fill color to this cell, and recursively fill neighbor cells
                       !TODO - Use glissade_fill instead of glissade_fill_with_buffer?  (Here and below)
-                      call glissade_fill_with_buffer(nx,    ny,    &
-                                                     i,     j,     &
-                                                     color, ice_mask)
+                      call glissade_fill_with_buffer(&
+                           nx,    ny,    &
+                           i,     j,     &
+                           color, ice_mask)
 
                    endif
 
@@ -1816,9 +1821,10 @@ contains
           i = nhalo
           do j = 1, ny
              if (color(i,j) == fill_color .and. ice_mask(i,j) == 1) then
-                call glissade_fill_with_buffer(nx,    ny,    &
-                                               i+1,   j,     &
-                                               color, ice_mask)
+                call glissade_fill_with_buffer(&
+                     nx,    ny,    &
+                     i+1,   j,     &
+                     color, ice_mask)
              endif
           enddo
 
@@ -1826,9 +1832,10 @@ contains
           i = nx - nhalo + 1
           do j = 1, ny
              if (color(i,j) == fill_color .and. ice_mask(i,j) == 1) then
-                call glissade_fill_with_buffer(nx,    ny,    &
-                                               i-1,   j,     &
-                                               color, ice_mask)
+                call glissade_fill_with_buffer(&
+                     nx,    ny,    &
+                     i-1,   j,     &
+                     color, ice_mask)
              endif
           enddo
 
@@ -1836,9 +1843,10 @@ contains
           j = nhalo
           do i = nhalo+1, nx-nhalo  ! already checked halo corners above
              if (color(i,j) == fill_color .and. ice_mask(i,j) == 1) then
-                call glissade_fill_with_buffer(nx,    ny,    &
-                                               i,     j+1,   &
-                                               color, ice_mask)
+                call glissade_fill_with_buffer(&
+                     nx,    ny,    &
+                     i,     j+1,   &
+                     color, ice_mask)
              endif
           enddo
 
@@ -1846,9 +1854,10 @@ contains
           j = ny-nhalo+1
           do i = nhalo+1, nx-nhalo  ! already checked halo corners above
              if (color(i,j) == fill_color .and. ice_mask(i,j) == 1) then
-                call glissade_fill_with_buffer(nx,    ny,    &
-                                               i,     j-1,   &
-                                               color, ice_mask)
+                call glissade_fill_with_buffer(&
+                     nx,    ny,    &
+                     i,     j-1,   &
+                     color, ice_mask)
              endif
           enddo
 
@@ -2100,6 +2109,251 @@ contains
     endif
 
   end subroutine glissade_limit_cliffs
+
+!---------------------------------------------------------------------------
+
+  subroutine glissade_stress_tensor_eigenvalues(&
+       nx,    ny,   nz,   &
+       sigma,             &
+       tau,               &
+       tau_eigen1,        &
+       tau_eigen2)
+
+    ! Compute the eigenvalues of the 2D horizontal stress tensor.
+    ! These are used for eigencalving and damage-based calving.
+
+    use glimmer_paramets, only: tau0
+
+    ! input/output arguments
+
+    integer, intent(in) :: &
+         nx, ny, nz                ! grid dimensions
+
+    real(dp), dimension(nz), intent(in) :: &
+         sigma                     ! vertical sigma coordinate
+
+    type(glide_tensor), intent(in) :: &
+         tau                       ! 3D stress tensor (Pa)
+
+    real(dp), dimension(nx,ny), intent(out) :: &
+         tau_eigen1, tau_eigen2    ! eigenvalues of 2D horizontal stress tensor (Pa)
+
+    ! local variables
+
+    integer :: i, j, k
+    real(dp) :: a, b, c, dsigma, root, lambda1, lambda2
+    real(dp) :: tau_xx, tau_yy, tau_xy   ! vertically averaged stress tensor components
+
+    tau_eigen1 = 0.0d0
+    tau_eigen2 = 0.0d0
+
+    do j = 1, ny
+       do i = 1, nx
+
+          ! compute vertically averaged stress components
+          tau_xx = 0.0d0
+          tau_yy = 0.0d0
+          tau_xy = 0.0d0
+
+          do k = 1, nz-1
+             dsigma = sigma(k+1) - sigma(k)
+             tau_xx = tau_xx + tau0 * tau%xx(k,i,j) * dsigma
+             tau_yy = tau_yy + tau0 * tau%yy(k,i,j) * dsigma
+             tau_xy = tau_xy + tau0 * tau%xy(k,i,j) * dsigma
+          enddo
+
+          ! compute the eigenvalues of the vertically integrated stress tensor
+          a = 1.0d0
+          b = -(tau_xx + tau_yy)
+          c = tau_xx*tau_yy - tau_xy*tau_xy
+          if (b*b - 4.0d0*a*c > 0.0d0) then   ! two real eigenvalues
+             root = sqrt(b*b - 4.0d0*a*c)
+             lambda1 = (-b + root) / (2.0d0*a)
+             lambda2 = (-b - root) / (2.0d0*a)
+             if (lambda1 > lambda2) then
+                tau_eigen1(i,j) = lambda1
+                tau_eigen2(i,j) = lambda2
+             else
+                tau_eigen1(i,j) = lambda2
+                tau_eigen2(i,j) = lambda1
+             endif
+          endif  ! b^2 - 4ac > 0
+
+       enddo   ! i
+    enddo   ! j
+
+  end subroutine glissade_stress_tensor_eigenvalues
+
+!---------------------------------------------------------------------------
+
+  subroutine glissade_strain_rate_tensor_eigenvalues(&
+       nx,    ny,   nz,          &
+       sigma,                    &
+       strain_rate,              &
+       eps_eigen1,  eps_eigen2,  &
+       tau,         efvs,  &
+       divu,        shear)
+
+    ! Compute the eigenvalues of the 2D horizontal strain rate tensor.
+    ! These can be used for eigencalving and damage-based calving, or for diagnostics.
+    ! There are two ways to call the subroutine:
+    ! (1) Pass in the strain rate tensor and compute the eigenvalues directly.
+    ! (2) Pass in the stress tensor as an optional argument, compute the strain rate tensor
+    !     from the stress tensor and effective viscosity, and then compute the eigenvalues.
+
+    use glimmer_paramets, only: evs0, tau0
+
+    ! input/output arguments
+
+    integer, intent(in) :: &
+         nx, ny, nz                ! grid dimensions
+
+    real(dp), dimension(nz), intent(in) :: &
+         sigma                     ! vertical sigma coordinate
+
+    type(glide_tensor), intent(inout) :: &
+         strain_rate               ! 3D strain rate tensor
+                                   ! intent(out) if computed from tau and efvs
+
+    real(dp), dimension(nx,ny), intent(out) :: &
+         eps_eigen1, eps_eigen2    ! eigenvalues of 2D horizontal stress tensor (1/s)
+
+    type(glide_tensor), intent(in), optional :: &
+         tau                       ! 3D stress tensor (Pa)
+
+    real(dp), dimension(nz-1,nx,ny), intent(in), optional :: &
+         efvs                      ! effective viscosity (Pa s)
+
+    real(dp), dimension(nx,ny), intent(out), optional :: &
+         divu,                   & ! divergence of horizontal flow (1/s)
+         shear                     ! shear-related invariant of horizontal flow (1/s)
+                                   ! not strictly shear since it includes a tensile term
+    ! local variables
+
+    integer :: i, j, k
+    real(dp) :: a, b, c, dsigma, root, lambda1, lambda2
+    real(dp) :: eps_xx, eps_yy, eps_xy   ! vertically averaged strain rate tensor components
+
+    ! Optionally, compute the strain rate tensor from the stress tensor and effective viscosity
+
+    if (present(tau) .and. present(efvs)) then
+
+       where (efvs > 0.0d0)
+          strain_rate%scalar = tau0 * tau%scalar / (2.d0 * evs0 * efvs)
+          strain_rate%xz = tau0 * tau%xz / (2.d0 * evs0 * efvs)
+          strain_rate%yz = tau0 * tau%yz / (2.d0 * evs0 * efvs)
+          strain_rate%xx = tau0 * tau%xx / (2.d0 * evs0 * efvs)
+          strain_rate%yy = tau0 * tau%yy / (2.d0 * evs0 * efvs)
+          strain_rate%xy = tau0 * tau%xy / (2.d0 * evs0 * efvs)
+       elsewhere
+          strain_rate%scalar = 0.0d0
+          strain_rate%xz = 0.0d0
+          strain_rate%yz = 0.0d0
+          strain_rate%xx = 0.0d0
+          strain_rate%yy = 0.0d0
+          strain_rate%xy = 0.0d0
+       endwhere
+    endif
+
+    ! Compute the eigenvalues of the 2D horizontal strain rate tensor
+
+    eps_eigen1 = 0.0d0
+    eps_eigen2 = 0.0d0
+
+    do j = 1, ny
+       do i = 1, nx
+
+          ! compute vertically averaged strain rate components
+          eps_xx = 0.0d0
+          eps_yy = 0.0d0
+          eps_xy = 0.0d0
+
+          do k = 1, nz-1
+             dsigma = sigma(k+1) - sigma(k)
+             eps_xx = eps_xx + strain_rate%xx(k,i,j) * dsigma
+             eps_yy = eps_yy + strain_rate%yy(k,i,j) * dsigma
+             eps_xy = eps_xy + strain_rate%xy(k,i,j) * dsigma
+          enddo
+
+          ! compute the eigenvalues of the vertically integrated strain rate tensor
+          a = 1.0d0
+          b = -(eps_xx + eps_yy)
+          c = eps_xx*eps_yy - eps_xy*eps_xy
+          if (b*b - 4.0d0*a*c > 0.0d0) then   ! two real eigenvalues
+             root = sqrt(b*b - 4.0d0*a*c)
+             lambda1 = (-b + root) / (2.0d0*a)
+             lambda2 = (-b - root) / (2.0d0*a)
+             if (lambda1 > lambda2) then
+                eps_eigen1(i,j) = lambda1
+                eps_eigen2(i,j) = lambda2
+             else
+                eps_eigen1(i,j) = lambda2
+                eps_eigen2(i,j) = lambda1
+             endif
+          endif  ! b^2 - 4ac > 0
+
+          ! Optionally, compute two other invariants of the horizontal flow:
+          !    divu = eps_xx + eps_yy
+          !    shear = sqrt{[(eps_xx - eps_yy)/2]^2 + eps_xy^2}
+          ! These are related to the eigenvalues as:
+          !    eps1 = divu + shear
+          !    eps2 = divu - shear
+          if (present(divu)) divu(i,j)  = (eps_xx + eps_yy)/2.0d0
+          if (present(shear)) &
+               shear(i,j) = sqrt(((eps_xx - eps_yy)/2.0d0)**2 + eps_xy**2)
+
+       enddo   ! i
+    enddo   ! j
+
+  end subroutine glissade_strain_rate_tensor_eigenvalues
+
+!---------------------------------------------------------------------------
+
+  subroutine glissade_extrapolate_to_calving_front(&
+       nx,              ny,            &
+       partial_cf_mask, full_mask,     &
+       field1,          field2)
+
+    ! Extrapolate values from full cells to partial calving-front cells.
+    ! This can be useful for dynamic fields whose values may be unrealistic
+    !  in partly filled CF cells.
+
+    ! input/output arguments
+
+    integer, intent(in) :: &
+         nx, ny                ! horizontal grid dimensions
+
+    integer, dimension(nx,ny), intent(in) :: &
+         partial_cf_mask,    & ! = 1 for partial ice-covered calving-front cells, else = 0
+         full_mask             ! = 1 for full ice-covered cells, else = 0
+
+    real(dp), dimension(nx,ny), intent(out) :: &
+         field1                ! field with values to be extrapolated to partial CF cells
+
+    real(dp), dimension(nx,ny), intent(out), optional :: &
+         field2                ! second field with values to be extrapolated to partial CF cells
+
+    ! local variables
+
+    integer :: i, j
+
+    ! To each partial CF cell, assign the maximum value from a full edge-adjacent cell
+    do j = 2, ny-1
+       do i = 2, nx-1
+          if (partial_cf_mask(i,j) == 1) then
+             field1(i,j) = &
+                  max(field1(i-1,j)*full_mask(i-1,j), field1(i+1,j)*full_mask(i+1,j), &
+                      field1(i,j-1)*full_mask(i,j-1), field1(i,j+1)*full_mask(i,j+1))
+             if (present(field2)) then
+                field2(i,j) = &
+                     max(field2(i-1,j)*full_mask(i-1,j), field2(i+1,j)*full_mask(i+1,j), &
+                         field2(i,j-1)*full_mask(i,j-1), field2(i,j+1)*full_mask(i,j+1))
+             endif
+          endif
+       enddo
+    enddo
+
+  end subroutine glissade_extrapolate_to_calving_front
 
 !---------------------------------------------------------------------------
 
