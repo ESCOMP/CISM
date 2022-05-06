@@ -1115,6 +1115,11 @@ contains
     ! also used to reset thickness for the no-evolution option
     model%geometry%thck_old(:,:) = model%geometry%thck(:,:)
 
+    ! Initialize the calving thickness.
+    ! This should be done before the transport solve, which (if using the subgrid CF scheme)
+    ! can remove unprotected ice that counts toward the calving flux.
+    model%calving%calving_thck = 0.0d0
+
     ! ------------------------------------------------------------------------
     ! Calculate isostatic adjustment
     ! ------------------------------------------------------------------------
@@ -2232,7 +2237,7 @@ contains
 
        if (model%options%which_ho_calving_front == HO_CALVING_FRONT_SUBGRID) then
 
-          ! Near the calving front, distinguish full cells from partial cells
+          ! Near the calving front, distinguish full cells from partial cells.
 
           call glissade_calving_front_mask(ewn,                    nsn,              &
                                            model%options%which_ho_calving_front,     &
@@ -2248,6 +2253,7 @@ contains
                                            thck_effective = model%calving%thck_effective, &
                                            partial_cf_mask = partial_cf_mask,        &
                                            full_mask = full_mask)
+
        endif
 
        ! For the enthalpy option, derive enthalpy from temperature and waterfrac.
@@ -2417,14 +2423,15 @@ contains
           enddo
        endif
 
-       !TODO - Replace with subgrid CF logic.
-       !       Think about whether iceberg removal could accomplish the same thing.
-       if ( (model%options%whichcalving == CALVING_THCK_THRESHOLD .or. &
-             model%options%whichcalving == EIGENCALVING .or.           &
-             model%options%whichcalving == CALVING_DAMAGE)             &
-            .and. .not.model%options%apply_calving_mask) then
+       ! If using a subgrid CF scheme, then remove any ice that has been transported
+       !  beyond the partial calving-front cells.
+       ! This is done to prevent the CF from advancing unrealistically before
+       !  the partial CF cells have filled with ice.
+       ! TODO: Think about whether iceberg removal could accomplish the same thing.
 
-          ! Compute a mask of protected cells.
+       if (model%options%which_ho_calving_front == HO_CALVING_FRONT_SUBGRID) then
+
+          ! Compute a mask of protected cells
           ! Protect cells where ice was present before advection, and protect land cells
 
           protected_mask(:,:) = 0
@@ -2432,8 +2439,7 @@ contains
              protected_mask = 1
           endwhere
 
-          ! Near the calving front, protect cells that are adjacent to full cells
-          ! (either partial CF or ice-free ocean)
+          ! Protect partial CF and ice-free ocean cells that are adjacent to full cells
           do j = 2, nsn-1
              do i = 2, ewn-1
                 if (full_mask(i-1,j) == 1 .or. full_mask(i+1,j) == 1 .or. &
@@ -2443,25 +2449,33 @@ contains
              enddo
           enddo
 
-          ! Identify cells where thin ice should be removed.
-          ! The mask is applied later, in glissade_calving_solve.
-          !TODO - Could removal be done later based on the protected mask only?
+          call parallel_halo(protected_mask, parallel)
+
+          ! Remove ice from unprotected cells, and add to the calving flux
+
           where (protected_mask == 0 .and. thck_unscaled > 0.0d0)
-             model%calving%calving_mask = 1
-          elsewhere
-             model%calving%calving_mask = 0
+             model%calving%calving_thck = model%calving%calving_thck + thck_unscaled/thk0
+             thck_unscaled = 0.0d0
           endwhere
 
-          call parallel_halo(model%calving%calving_mask, parallel)
-
-          if (verbose_calving .and. this_rank == rtest) then
-             i = itest
-             j = jtest
+          if (verbose_calving .and. this_rank==rtest) then
              print*, ' '
-             print*, 'After transport, temporary calving_mask:'
+             print*, 'Removed unprotected ice'
+             print*, ' '
+             print*, 'calving_thck (m), itest, jtest, rank =', itest, jtest, rtest
              do j = jtest+3, jtest-3, -1
+                write(6,'(i6)',advance='no') j
                 do i = itest-3, itest+3
-                   write(6,'(i10)',advance='no') model%calving%calving_mask(i,j)
+                   write(6,'(f10.3)',advance='no') model%calving%calving_thck(i,j)*thk0
+                enddo
+                write(6,*) ' '
+             enddo
+             print*, ' '
+             print*, 'New thck (m):'
+             do j = jtest+3, jtest-3, -1
+                write(6,'(i6)',advance='no') j
+                do i = itest-3, itest+3
+                   write(6,'(f10.3)',advance='no') thck_unscaled(i,j)
                 enddo
                 write(6,*) ' '
              enddo
@@ -2848,22 +2862,12 @@ contains
                                         dy = model%numerics%dns*len0,               &
                                         thck_effective = model%calving%thck_effective, &
                                         partial_cf_mask = partial_cf_mask,          &
-                                        full_mask = full_mask)
-!!                                        effective_areafrac = effective_areafrac,  &
-
-       !TODO - Remove this code; use effective_areafrac from subroutine
-       !WHL - debug
-       where (ice_mask == 1)
-          effective_areafrac = 1.0d0
-       elsewhere
-          effective_areafrac = 0.0d0
-       endwhere
+                                        full_mask = full_mask,                      &
+                                        effective_areafrac = effective_areafrac)
 
        call point_diag(calving_front_mask, 'calving_front_mask', itest, jtest, rtest, 7, 7)
        call point_diag(model%calving%thck_effective, 'thck_effective (m)', itest, jtest, rtest, 7, 7)
-       call point_diag(effective_areafrac, 'effective_areafrac', itest, jtest, rtest, 15, 15, '(f10.6)')
-
-
+       call point_diag(effective_areafrac, 'effective_areafrac', itest, jtest, rtest, 7, 7, '(f10.6)')
 
        ! TODO: Zero out acab_unscaled and bmlt_unscaled in cells that are ice-free ocean after transport?
        !       Then it would not be necessary to pass ocean_mask to glissade_mass_balance_driver.
@@ -3130,9 +3134,9 @@ contains
 
     parallel = model%parallel
 
-    ! Initialize
-
-    model%calving%calving_thck = 0.0d0
+    ! Note: We set model%calving%calving_thck = 0 at the start of the time step.
+    !       Thus, calving_thck can be nonzero at the start of the calving solve,
+    !       if incremented during the transport solve (when using a subgrid CF).
 
     ! Thin or remove ice where retreat is forced.
     ! Note: This option is similar to apply_calving_mask.  It is different in that ice_fraction_retreat_mask
@@ -3386,42 +3390,6 @@ contains
           endif
 
       endif  ! relaxed calving
-
-    elseif (model%options%which_ho_calving_front == HO_CALVING_FRONT_SUBGRID) then
-
-       ! If using a subgrid calving_front scheme (but apply_calving_mask = F),
-       !  remove thin ice that was transported beyond the CF to ice-free cells without active neighbors.
-       ! In that case, a temporary version of model%calving%calving_mask is computed after transport and applied here.
-       !TODO - Add a timescale
-
-       where (model%calving%calving_mask == 1)
-          model%calving%calving_thck = model%calving%calving_thck + thck_unscaled
-          thck_unscaled = 0.0d0
-          !TODO - Reset temperature and other tracers in cells where the ice calved?
-       endwhere
-
-       if (verbose_calving .and. this_rank==rtest) then
-          print*, ' '
-          print*, 'Removed unprotected ice'
-          print*, ' '
-          print*, 'calving_thck (m), itest, jtest, rank =', itest, jtest, rtest
-          do j = jtest+3, jtest-3, -1
-             write(6,'(i6)',advance='no') j
-             do i = itest-3, itest+3
-                write(6,'(f10.3)',advance='no') model%calving%calving_thck(i,j)
-             enddo
-             write(6,*) ' '
-          enddo
-          print*, ' '
-          print*, 'New thck (m):'
-          do j = jtest+3, jtest-3, -1
-             write(6,'(i6)',advance='no') j
-             do i = itest-3, itest+3
-                write(6,'(f10.3)',advance='no') thck_unscaled(i,j)
-             enddo
-             write(6,*) ' '
-          enddo
-       endif
 
     endif   ! apply_calving_mask
 
