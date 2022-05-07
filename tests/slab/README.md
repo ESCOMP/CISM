@@ -1,6 +1,9 @@
 Slab test case
 ==============
 
+Note: For setting up the experiments in an NCAR computing environment,
+follow the steps in the README.NCAR_HPC file in the tests directory.
+
 This directory contains python scripts for running an experiment involving a
 uniform, infinite ice sheet ("slab") on an inclined plane.
 
@@ -9,9 +12,10 @@ The test case is described in sections 5.1-5.2 of:
     more efficient computational solution. The Cryosphere, 6, 21-34,
     doi:10.5194/tc-6-21-2012.
 
-Some results from this test case are described in Sect. 3.4 of:
-    Robinson, A., D. Goldberg, and W. H. Lipscomb, A comparison of the performance
-    of depth-integrated ice-dynamics solvers. Submitted to The Cryosphere, Aug. 2021.
+Some CISM results from this test case are described in Sect. 3.4 of:
+    Robinson, A., D. Goldberg, and W. H. Lipscomb, 2022, A comparison of the
+    stability and performance of depth-integrated ice-dynamics solvers.
+    The Cryosphere, 16, 689-709, doi:10.5194/tc-16-689-2022.
 
 The test case consists of an ice slab of uniform thickness moving down an
 inclined plane by a combination of sliding and shearing.
@@ -20,7 +24,7 @@ The solutions for n = 1 are derived in Dukowicz (2012), and solutions for n > 1
 are derived in an unpublished manuscript by Dukowicz (2013).
 
 The original scripts, runSlab.py and plotSlab.py, were written by Matt Hoffman
-with support for Glen's n = 1.  They came with warnings that the test is not supported.
+with support for n = 1.  They came with warnings that the test is not supported.
 The test is now supported, and the scripts include some new features:
 
 * The user may specify any n >= 1 (not necessarily an integer).
@@ -54,7 +58,7 @@ Notes on effective viscosity:
      effective strain rate; the Dukowicz value is twice as large. Later, it might be helpful
      to make the Dukowicz convention consistent with CISM.
 
-The plotting script, plotSlab.py, is run by typing 'python plotSlab.py'.  It creates two plots.
+Run the plotting script, plotSlab.py, by typing 'python plotSlab.py'.  Two plots should appear.
 The first plot shows the vertical velocity profile in nondimensional units and in units of m/yr.
 There is excellent agreement between higher-order CISM solutions and the analytic solution
 for small values of the slope angle theta.  For steep slopes, the answers diverge as expected.
@@ -84,4 +88,3 @@ This test takes several minutes to complete on a Macbook Pro with 4 cores.
 To see the full set of commmand line options, type 'python stabilitySlab.py -h'.
 
 For questions, please contact William Lipscomb (lipscomb@ucar.edu) or Gunter Leguy (gunterl@ucar.edu).
-

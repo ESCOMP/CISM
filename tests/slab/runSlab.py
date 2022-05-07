@@ -12,14 +12,18 @@ Run an experiment with an ice "slab".
 #    more efficient computational solution. The Cryosphere, 6, 21-34,
 #    https://doi.org/10.5194/tc-6-21-2012.
 # Reconfigured by Joseph H Kennedy at ORNL on April 27, 2015 to work with the regression testing.
+#
 # Revised by William Lipscomb in 2021 to support more options.
+# CISM results are described in this paper:
+#    Robinson, A., D. Goldberg, and W. H. Lipscomb, 2022, A comparison of the
+#    stability and performance of depth-integrated ice-dynamics solvers.
+#    The Cryosphere, 16, 689-709, doi:10.5194/tc-16-689-2022.
 
 import os
 import sys
 import errno
 import subprocess
-import configparser 
-
+import configparser
 import numpy as np
 import netCDF
 
@@ -172,7 +176,7 @@ def main():
         file_name = config_parser.get('CF input', 'name')
         root, ext = os.path.splitext(file_name)
 
-    except ConfigParser.Error as error:
+    except configparser.Error as error:
         print("Error parsing " + args.config )
         print("   "), 
         print(error)
@@ -358,8 +362,8 @@ def main():
     nc_file.createVariable('time','f',('time',))[:] = [0]
     nc_file.createVariable('x1','f',('x1',))[:] = x
     nc_file.createVariable('y1','f',('y1',))[:] = y
-    nc_file.createVariable('x0','f',('x0',))[:] = dx/2 + x[:-1] # staggered grid
-    nc_file.createVariable('y0','f',('y0',))[:] = dy/2 + y[:-1]
+    nc_file.createVariable('x0','f',('x0',))[:] = dx//2 + x[:-1] # staggered grid
+    nc_file.createVariable('y0','f',('y0',))[:] = dy//2 + y[:-1]
 
     # Calculate values for the required variables.
     thk  = np.zeros([1,ny,nx],dtype='float32')
@@ -406,7 +410,7 @@ def main():
 ##            dthk = dh * sin((float(i) - 0.5)*pi)
 
             thk[0,:,i] = thk[0,:,i] + dthk
-            print(i, dthk, thk[0,ny/2,i])
+            print(i, dthk, thk[0,ny//2,i])
             thk_in = thk   # for comparing later to final thk
 
 
