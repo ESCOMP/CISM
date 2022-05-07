@@ -20,9 +20,9 @@ except ImportError:
       import pycdf
       netCDF_module = 'pycdf'
     except ImportError:
-      print 'Unable to import any of the following python modules:'
-      print '  Scientific.IO.NetCDF \n  netcdf4 \n  pycdf'
-      print 'One of them must be installed.'
+      print ('Unable to import any of the following python modules:')
+      print ('  Scientific.IO.NetCDF \n  netcdf4 \n  pycdf')
+      print ('One of them must be installed.')
       raise ImportError('No netCDF module found')
 
     def NCtype(value):
