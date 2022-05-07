@@ -31,7 +31,7 @@ from math import tan, pi, sin, cos, atan
 # Get hard-coded parameters from the run script.
 from runSlab import rhoi, grav
 
-import ConfigParser
+import configparser
 
 import argparse
 parser = argparse.ArgumentParser(description=__doc__,
@@ -168,13 +168,13 @@ def main():
     # Get gn and default_flwa from the config file
 
     try:
-        config_parser = ConfigParser.SafeConfigParser()
+        config_parser = configparser.ConfigParser()
         config_parser.read( configpath )
 
         gn = float(config_parser.get('parameters','n_glen'))
         flwa = float(config_parser.get('parameters', 'default_flwa'))
 
-    except ConfigParser.Error as error:
+    except configparser.Error as error:
         print("Error parsing " + args.config )
         print("   "),
         print(error)
