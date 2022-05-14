@@ -31,6 +31,7 @@
 #include "config.inc"
 
 #include <stdio.h>
+#include <ctype.h>
 #include <errno.h>
 #include <time.h>
 #include <sys/times.h>

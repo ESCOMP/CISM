@@ -52,9 +52,9 @@ cmake \
   -D CISM_COUPLED:BOOL=OFF \
 \
   -D CISM_TRILINOS_DIR=$CISM_TRILINOS_DIR \
-  -D CISM_NETCDF_DIR=/opt/local \
-  -D CISM_MPI_BASE_DIR=/opt/local \
-  -D CISM_MPI_INC_DIR=/opt/local/lib \
+  -D CISM_NETCDF_DIR=/usr/local \
+  -D CISM_MPI_BASE_DIR=/usr/local \
+  -D CISM_MPI_INC_DIR=/usr/local/lib \
   -D CISM_EXTRA_LIBS="-lblas" \
 \
   -D CMAKE_INSTALL_PREFIX:PATH=$PWD/install \

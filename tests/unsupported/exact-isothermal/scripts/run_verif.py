@@ -4,7 +4,8 @@
 #
 # Create test configuration and run test
 
-import time, sys, optparse, os.path, os,fcntl
+import time, sys, os.path, os,fcntl
+from argparse import ArgumentParser
 
 # test setups
 EXCLUDE = ['name']
@@ -113,24 +114,24 @@ def create_config(experiment, solver, gridsize, timestep, tname):
 if __name__ == '__main__':
 
     # setup options
-    parser = optparse.OptionParser(usage = "usage: %prog [options] template_file")
-    parser.add_option('--experiment',default='B',metavar='TEST',type='choice',choices=TEST_CONFIGURATION.keys(),help='select test scenario (default: B)')
-    parser.add_option('--solver',default='lin',metavar='SOLVER',type='choice',choices=SOLVERS.keys(),help='select solver (default: lin)')
-    parser.add_option('--gridsize',default=20,metavar='DELTAX',type='int',help='grid spacing in km (default: 20)')
-    parser.add_option('--timestep',default=10.,metavar='DELTAT',type='float',help='time step in a (default: 10)')
-    parser.add_option('-f','--file',metavar='SPEC',help='an alternative way of setting up the model. The SPEC string takes the following format: test_EXP_SOLVER_Xkm_Ta where EXP is the experiment (see -e), SOLVER the solver (see -s), X the gridspacing in km (see -g) and T the time step in years (see -t)')
-    group = optparse.OptionGroup(parser,"Options used for running the model.")
-    group.add_option('--only-configure',action="store_true",default=False,help="only produce model configuration file.")
-    group.add_option("-m", "--model", help="name of model binary to be launched", metavar="BINARY")
-    group.add_option("-r", "--results", help="name of file where timing info is stored (default: results)", metavar="RESULTS", default="results")
-    group.add_option("-s", "--submit-sge",action="store_true",default=False,help="submit job to Sun Grid Engine")
-    group.add_option("-o", "--submit-options",default="",help="set additional options for cluster submission")
+    parser = ArgumentParser(usage = "usage: %prog [options] template_file")
+    parser.add_argument('--experiment',default='B',metavar='TEST',type='choice',choices=TEST_CONFIGURATION.keys(),help='select test scenario (default: B)')
+    parser.add_argument('--solver',default='lin',metavar='SOLVER',type='choice',choices=SOLVERS.keys(),help='select solver (default: lin)')
+    parser.add_argument('--gridsize',default=20,metavar='DELTAX',type='int',help='grid spacing in km (default: 20)')
+    parser.add_argument('--timestep',default=10.,metavar='DELTAT',type='float',help='time step in a (default: 10)')
+    parser.add_argument('-f','--file',metavar='SPEC',help='an alternative way of setting up the model. The SPEC string takes the following format: test_EXP_SOLVER_Xkm_Ta where EXP is the experiment (see -e), SOLVER the solver (see -s), X the gridspacing in km (see -g) and T the time step in years (see -t)')
+    group = parser.add_argument_group(parser,"Options used for running the model.")
+    group.add_argument('--only-configure',action="store_true",default=False,help="only produce model configuration file.")
+    group.add_argument("-m", "--model", help="name of model binary to be launched", metavar="BINARY")
+    group.add_argument("-r", "--results", help="name of file where timing info is stored (default: results)", metavar="RESULTS", default="results")
+    group.add_argument("-s", "--submit-sge",action="store_true",default=False,help="submit job to Sun Grid Engine")
+    group.add_argument("-o", "--submit-options",default="",help="set additional options for cluster submission")
     parser.add_option_group(group)
     
-    (options, args) = parser.parse_args()
+    options = parser.parse_args()
 
-    if len(args)!=1:
-        parser.error("no template file name given")
+#    if len(args)!=1:
+#        parser.error("no template file name given")
 
     # create configuration file
     if options.file == None:
@@ -151,7 +152,7 @@ if __name__ == '__main__':
         configname = create_config(exp,solver,dx,dt,args[0])
 
     if options.only_configure:
-        print 'Create configuration file %s.config'%base_name
+        print( 'Create configuration file %s.config'%base_name)
         sys.exit(0)
 
     prefix = os.path.abspath(os.path.dirname(sys.argv[0]))
@@ -182,6 +183,6 @@ if __name__ == '__main__':
 #            sys.stderr.write("glide model %s was terminated by signal %d\n"%(model,-retcode))
 #    except OSError, e:
 #        sys.stderr.write("Execution failed: %s\n"%e)
-    print os.popen(prog,'r').read()
+    print( os.popen(prog,'r').read())
 
 
