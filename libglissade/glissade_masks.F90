@@ -365,7 +365,6 @@
 
     call parallel_halo(calving_front_mask, parallel)
 
-
     if (which_ho_calving_front == HO_CALVING_FRONT_SUBGRID) then
 
        if (present(thck_effective)) then
@@ -427,6 +426,8 @@
                 thck_effective = max(thck_effective, calving_minthck)
              endwhere
           endif
+
+          call parallel_halo(thck_effective, parallel)
 
        endif   ! present(thck_effective)
 
