@@ -277,7 +277,6 @@
        ice_mask,               floating_mask,        &
        ocean_mask,             land_mask,            &
        calving_front_mask,                           &
-       calving_minthck,                              &
        dthck_dx_cf,                                  &
        dx,                     dy,                   &
        thck_effective,                               &
@@ -316,7 +315,6 @@
          calving_front_mask       ! = 1 if ice is floating and borders at least one ocean cell, else = 0
 
     real(dp), intent(in), optional :: &
-         calving_minthck,       & ! if present, require thck_effective >= calving_minthck
          dthck_dx_cf,           & ! assumed max value of |dH/dx| at the CF for full cells
          dx, dy                   ! grid cell size (m)
 
@@ -339,31 +337,38 @@
     real(dp), dimension(nx,ny) :: &
          thck_flotation         ! flotation thickness
 
-    real(dp), dimension(nx,ny) :: &
+    real(dp) :: &
          max_neighbor_thck,        & ! max thickness (m) of the four edge neighbors
          dthck_dx                    ! dH/dx between adjacent cells near the CF
+
+    integer, dimension(nx,ny) :: &
+         floating_interior_mask      ! = 1 for floating cells not at the CF
 
     character(len=100) :: message
 
     ! Compute a calving front mask, effective calving front thickness, and related fields.
     ! CF cells are defined as floating cells that border ice-free ocean.
 
-    calving_front_mask(:,:) = 0
+    calving_front_mask = 0
+    floating_interior_mask = 0
 
     ! Identify calving front cells (floating cells that border ice-free ocean)
-    ! and marine-based interior cells (marine-based cells not at the calving front).
+    ! and floating interior cells (floating cells not at the calving front).
     do j = 2, ny-1
        do i = 2, nx-1
           if (floating_mask(i,j) == 1) then
              if (ocean_mask(i-1,j) == 1 .or. ocean_mask(i+1,j) == 1 .or. &
                  ocean_mask(i,j-1) == 1 .or. ocean_mask(i,j+1) == 1) then
                 calving_front_mask(i,j) = 1
+             else
+                floating_interior_mask(i,j) = 1
              endif
           endif
        enddo
     enddo
 
     call parallel_halo(calving_front_mask, parallel)
+    call parallel_halo(floating_interior_mask, parallel)
 
     if (which_ho_calving_front == HO_CALVING_FRONT_SUBGRID) then
 
@@ -379,37 +384,53 @@
              call write_log(message, GM_FATAL)
           endif
 
+          ! Initialize thck_effective and masks
+          thck_effective = thck
           full_mask = 0
           partial_cf_mask = 0
-          thck_effective = 0.0d0
-          dthck_dx = 0.0d0
+
+          ! Identify full cells and partial_cf cells.
+          ! All ice-covered cells not at the CF are full cells.
+          ! For CF cells, compute the max thickness of floating interior neighbors.
+          ! * If the thickness of the CF cell is close to that of the floating interior cell
+          !   (based on the thickness gradient), mark the CF cell as a full cell.
+          ! * Otherwise, mark the CF cell as a partial CF cell.
 
           do j = 2, ny-1
              do i = 2, nx-1
                 if (ice_mask(i,j) == 1) then
                    if (calving_front_mask(i,j) == 1) then
 
-                      ! Find the greatest thickness of the edge-adjacent floating cells, and
-                      !  compute the thickness gradient between the cell and its thickest neighbor.
+                      ! Find the greatest thickness of the edge-adjacent floating interior neighbors,
+                      !  and compute the thickness gradient between the cell and this neighbor.
                       ! The gradient is defined to be positive when the neighbor cell is thicker
                       !  than the local cell.
-                      max_neighbor_thck = max(floating_mask(i-1,j)*thck(i-1,j), floating_mask(i+1,j)*thck(i+1,j), &
-                                              floating_mask(i,j-1)*thck(i,j-1), floating_mask(i,j+1)*thck(i,j+1))
-                      dthck_dx(i,j) = (max_neighbor_thck(i,j) - thck(i,j)) / sqrt(dx*dy)
-                      ! If the gradient exceeds a critical value, this is a partial CF cell,
-                      ! else it is a full cell.  Set thck_effective based on the critical gradient.
-                      if (dthck_dx(i,j) > dthck_dx_cf) then
+                      max_neighbor_thck = max(&
+                           floating_interior_mask(i-1,j)*thck(i-1,j), &
+                           floating_interior_mask(i+1,j)*thck(i+1,j), &
+                           floating_interior_mask(i,j-1)*thck(i,j-1), &
+                           floating_interior_mask(i,j+1)*thck(i,j+1))
+                      if (max_neighbor_thck > 0.0d0) then
+                         dthck_dx = (max_neighbor_thck - thck(i,j)) / sqrt(dx*dy)
+                         ! If the gradient exceeds a critical value, this is a partial CF cell;
+                         !  set thck_effective based on the critical gradient.
+                         ! If the gradient is small, this is a full cell, with thck_effective = thck.
+                         if (dthck_dx > dthck_dx_cf) then
+                            partial_cf_mask(i,j) = 1
+                            thck_effective(i,j) = max_neighbor_thck - dthck_dx_cf*sqrt(dx*dy)
+                         else
+                            partial_cf_mask(i,j) = 0
+                            full_mask(i,j) = 1
+                         endif   ! dthck_dx > dthck_dx_cf
+                      else   ! no floating interior neighbors; mark as a partial CF cell
                          partial_cf_mask(i,j) = 1
-                         thck_effective(i,j) = max_neighbor_thck(i,j) - dthck_dx_cf*sqrt(dx*dy)
-                      else
-                         full_mask(i,j) = 1
-                         thck_effective(i,j) = thck(i,j)
-                      endif
-                   else   ! not a CF cell
-                      full_mask(i,j) = 1
-                      thck_effective(i,j) = thck(i,j)
-                   endif   ! calving_front_mask
+                      endif   ! max_neighbor_thck > 0
 
+                   else   ! not a CF cell
+
+                      full_mask(i,j) = 1
+
+                   endif   ! calving_front_mask
                 endif   ! ice_mask
              enddo   ! i
           enddo   ! j
@@ -420,14 +441,9 @@
              thck_effective = min(thck_effective, thck_flotation)
           endwhere
 
-          ! Optionally, require thck_effective >= calving_minthck
-          if (present(calving_minthck)) then
-             where (partial_cf_mask == 1)
-                thck_effective = max(thck_effective, calving_minthck)
-             endwhere
-          endif
-
           call parallel_halo(thck_effective, parallel)
+          call parallel_halo(full_mask, parallel)
+          call parallel_halo(partial_cf_mask, parallel)
 
        endif   ! present(thck_effective)
 
@@ -435,8 +451,8 @@
 
        if (present(effective_areafrac)) then
           if (present(thck_effective)) then
-             do j = 2, ny-1
-                do i = 2, nx-1
+             do j = 1, ny
+                do i = 1, nx
                    if (calving_front_mask(i,j) == 1) then
                       effective_areafrac(i,j) = thck(i,j) / thck_effective(i,j)
                       effective_areafrac(i,j) = min(effective_areafrac(i,j), 1.0d0)
