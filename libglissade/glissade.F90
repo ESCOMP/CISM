@@ -61,10 +61,10 @@ module glissade
   use glide_lithot
   use glimmer_config
   use glissade_test, only: &
-       glissade_test_halo, glissade_test_transport, glissade_test_comm_row_col
+       glissade_test_halo, glissade_test_transport
   use glide_thck, only: glide_calclsrf  ! TODO - Make this a glissade subroutine, or inline
   use profile, only: t_startf, t_stopf
-  use cism_parallel, only: this_rank, main_task, comm, nhalo
+  use cism_parallel, only: this_rank, main_task, comm, nhalo, parallel_test_comm_row_col
 
   implicit none
 
@@ -287,7 +287,7 @@ contains
        call parallel_create_comm_col(comm, model%parallel)
 
        if (test_comm_row_col) then
-          call glissade_test_comm_row_col(model)
+          call parallel_test_comm_row_col(model%parallel)
        endif
 
     endif  ! HO_PRECOND_TRIDIAG_GLOBAL
