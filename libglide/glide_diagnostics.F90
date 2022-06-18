@@ -1526,7 +1526,7 @@ contains
           write(6,*) ' '
        enddo
 
-    endif  ! this_rank = rtest
+    endif  ! this_rank = rpt
 
   end subroutine point_diag_real8_2d
 
