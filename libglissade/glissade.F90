@@ -2383,40 +2383,73 @@ contains
 
        call t_startf('glissade_transport_driver')
 
-       ! ------------------------------------------------------------------------
-       ! Compute some masks prior to horizontal transport.
-       ! ------------------------------------------------------------------------
+       if (verbose_inversion .or. verbose_glissade .or. verbose_calving) then
+          call point_diag(model%geometry%thck*thk0, 'Before glissade_transport_driver, thck (m)', &
+               itest, jtest, rtest, 7, 7, '(f12.6)')
+       endif
 
-       call glissade_get_masks(ewn,              nsn,              &
-                               parallel,                           &
-                               model%geometry%thck*thk0,           &   ! m
-                               model%geometry%topg*thk0,           &   ! m
-                               model%climate%eus*thk0,             &   ! m
-                               0.0d0,                              &   ! thklim = 0
-                               ice_mask,                           &
-                               floating_mask = floating_mask,      &
-                               ocean_mask = ocean_mask,            &
-                               land_mask = land_mask)
+       ! ------------------------------------------------------------------------
+       ! Optionally, compute some masks before horizontal transport.
+       ! ------------------------------------------------------------------------
 
        if (model%options%which_ho_calving_front == HO_CALVING_FRONT_SUBGRID) then
 
+          call glissade_get_masks(&
+               ewn,              nsn,              &
+               parallel,                           &
+               model%geometry%thck*thk0,           &   ! m
+               model%geometry%topg*thk0,           &   ! m
+               model%climate%eus*thk0,             &   ! m
+               model%numerics%thklim*thk0,         &   ! m
+               ice_mask,                           &
+               floating_mask = floating_mask,      &
+               ocean_mask = ocean_mask,            &
+               land_mask = land_mask)
+
           ! Near the calving front, distinguish full cells from partial cells.
 
-          call glissade_calving_front_mask(ewn,                    nsn,              &
-                                           model%options%which_ho_calving_front,     &
-                                           parallel,                                 &
-                                           model%geometry%thck*thk0,                 &   ! m
-                                           model%geometry%topg*thk0,                 &   ! m
-                                           model%climate%eus*thk0,                   &   ! m
-                                           ice_mask,               floating_mask,    &
-                                           ocean_mask,             land_mask,        &
-                                           calving_front_mask,                       &
-                                           dthck_dx_cf = model%calving%dthck_dx_cf,  &
-                                           dx = model%numerics%dew*len0,             &
-                                           dy = model%numerics%dns*len0,             &
-                                           thck_effective = model%calving%thck_effective, &
-                                           partial_cf_mask = partial_cf_mask,        &
-                                           full_mask = full_mask)
+          call glissade_calving_front_mask(&
+               ewn,                    nsn,              &
+               model%options%which_ho_calving_front,     &
+               parallel,                                 &
+               model%geometry%thck*thk0,                 &   ! m
+               model%geometry%topg*thk0,                 &   ! m
+               model%climate%eus*thk0,                   &   ! m
+               ice_mask,               floating_mask,    &
+               ocean_mask,             land_mask,        &
+               calving_front_mask,                       &
+               dthck_dx_cf = model%calving%dthck_dx_cf,  &
+               dx = model%numerics%dew*len0,             &
+               dy = model%numerics%dns*len0,             &
+               thck_effective = model%calving%thck_effective, &
+               partial_cf_mask = partial_cf_mask,        &
+               full_mask = full_mask)
+
+          ! Compute a mask of protected cells, starting with full cells and land cells
+
+          protected_mask = 0
+          where (full_mask == 1 .or. land_mask == 1)
+             protected_mask = 1
+          endwhere
+
+          ! Protect partial CF and ice-free ocean cells that are adjacent to full cells
+          do j = 2, nsn-1
+             do i = 2, ewn-1
+                if (full_mask(i-1,j) == 1 .or. full_mask(i+1,j) == 1 .or. &
+                    full_mask(i,j-1) == 1 .or. full_mask(i,j+1) == 1) then
+                   protected_mask(i,j) = 1
+                endif
+             enddo
+          enddo
+
+          call parallel_halo(protected_mask, parallel)
+
+          if (verbose_calving) then
+             call point_diag(calving_front_mask, 'calving_front_mask', itest, jtest, rtest, 7, 7)
+             call point_diag(partial_cf_mask, 'partial_cf_mask', itest, jtest, rtest, 7, 7)
+             call point_diag(full_mask, 'full_mask', itest, jtest, rtest, 7, 7)
+             call point_diag(protected_mask, 'protected_mask', itest, jtest, rtest, 7, 7)
+          endif
 
        endif
 
@@ -2586,26 +2619,6 @@ contains
        ! TODO: Think about whether iceberg removal could accomplish the same thing.
 
        if (model%options%which_ho_calving_front == HO_CALVING_FRONT_SUBGRID) then
-
-          ! Compute a mask of protected cells
-          ! Protect cells where ice was present before advection, and protect land cells
-
-          protected_mask(:,:) = 0
-          where (ice_mask == 1 .or. land_mask == 1)
-             protected_mask = 1
-          endwhere
-
-          ! Protect partial CF and ice-free ocean cells that are adjacent to full cells
-          do j = 2, nsn-1
-             do i = 2, ewn-1
-                if (full_mask(i-1,j) == 1 .or. full_mask(i+1,j) == 1 .or. &
-                    full_mask(i,j-1) == 1 .or. full_mask(i,j+1) == 1) then
-                   protected_mask(i,j) = 1
-                endif
-             enddo
-          enddo
-
-          call parallel_halo(protected_mask, parallel)
 
           ! Remove ice from unprotected cells, and add to the calving flux
 

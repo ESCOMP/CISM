@@ -33,7 +33,8 @@ module glissade_calving
   use glimmer_global, only: dp
   use glimmer_log
   use cism_parallel, only: this_rank, main_task, nhalo, &
-       parallel_halo, parallel_globalindex, parallel_reduce_sum, parallel_reduce_max
+       parallel_halo, parallel_globalindex, &
+       parallel_reduce_sum, parallel_reduce_max, parallel_reduce_log_or
 
   use glimmer_paramets, only: eps08, thk0
   use glimmer_physcon, only: rhoi, rhoo, grav, scyr
@@ -404,7 +405,7 @@ contains
        ! For both damage-based calving and eigencalving, the calving rate depends on eigenvalues of the 2D stress tensor.
        ! The main difference is that for eigencalving, the calving rate is based on current stresses
        !  at the calving front, whereas for damage-based calving, the calving rate is based on cumulative damage,
-       !  which accumulates in floating cells due to stresses and then is advected downstream.
+       !  which is generated in floating cells due to stresses and then is advected downstream.
 
        call eigen_calving(&
             nx,                 ny,                    &
@@ -420,10 +421,31 @@ contains
             calving%eigenconstant1,                    &
             calving%eigenconstant2,                    &
             calving%thck_effective,                    &  ! m
-            calving%minthck,                           &  ! m
+!!            calving%minthck,                           &  ! m
             calving%dthck_dx_cf,                       &  ! m
             calving%lateral_rate,                      &  ! m/s
             calving%calving_thck)                         ! m
+
+       ! Call thickness-based calving to remove thin floating ice
+
+       if (calving%minthck > 0.0d0) then
+
+          call thickness_based_calving(&
+               nx,                 ny,                    &
+               dx,                 dy,                    &
+               dt,                                        &
+               itest,   jtest,     rtest,                 &
+               parallel,                                  &
+               which_ho_calving_front,                    &
+               thck,               topg,                  &  ! m
+               eus,                thklim,                &  ! m
+               calving%thck_effective,                    &  ! m
+               calving%minthck,                           &  ! m
+               calving%dthck_dx_cf,                       &  ! m
+               calving%timescale,                         &  ! s
+               calving%calving_thck)                         ! m
+
+       endif
 
     elseif (which_calving == CALVING_DAMAGE) then
 
@@ -443,11 +465,32 @@ contains
             calving%damage_constant2,                  &  ! 1/s
             calving%damage_threshold,                  &  !
             calving%thck_effective,                    &  ! m
-            calving%minthck,                           &  ! m
+!!            calving%minthck,                           &  ! m
             calving%dthck_dx_cf,                       &  ! m
             calving%damage,                            &  !
             calving%lateral_rate,                      &  ! m/s
             calving%calving_thck)                         ! m
+
+       ! Call thickness-based calving to remove thin floating ice
+
+       if (calving%minthck > 0.0d0) then
+
+          call thickness_based_calving(&
+               nx,                 ny,                    &
+               dx,                 dy,                    &
+               dt,                                        &
+               itest,   jtest,     rtest,                 &
+               parallel,                                  &
+               which_ho_calving_front,                    &
+               thck,               topg,                  &  ! m
+               eus,                thklim,                &  ! m
+               calving%thck_effective,                    &  ! m
+               calving%minthck,                           &  ! m
+               calving%dthck_dx_cf,                       &  ! m
+               calving%timescale,                         &  ! s
+               calving%calving_thck)                         ! m
+
+       endif
 
     else   ! other calving options
            !TODO - Put these in a separate subroutine
@@ -680,14 +723,25 @@ contains
          calving_front_mask,                &
          dthck_dx_cf = dthck_dx_cf,         &
          dx = dx,       dy = dy,            &
-         thck_effective = thck_effective, &
+         thck_effective = thck_effective,   &
          partial_cf_mask = partial_cf_mask, &
          full_mask = full_mask)
 
     if (verbose_calving) then
-       call point_diag(partial_cf_mask, 'Thickness-based calving, partial_cf_mask', itest, jtest, rtest, 7, 7)
+       call point_diag(calving_front_mask, 'Thickness-based calving, calving_front_mask', itest, jtest, rtest, 7, 7)
        call point_diag(thck, 'thck (m)', itest, jtest, rtest, 7, 7)
        call point_diag(thck_effective, 'thck_effective (m)', itest, jtest, rtest, 7, 7)
+    endif
+
+    ! Supplement the calving_front mask to include ocean cells with very thin ice (0 < thck > thklim).
+    ! Thickness-based calving in these dynamicall inactive cells reduces thickness oscillations around thklim.
+
+    where (ocean_mask == 1 .and. thck_effective > 0.0d0)
+       calving_front_mask = 1
+    endwhere
+
+    if (verbose_calving) then
+       call point_diag(calving_front_mask, 'Adjusted calving_front_mask', itest, jtest, rtest, 7, 7)
     endif
 
     ! Setup for iteration.
@@ -728,24 +782,28 @@ contains
        !    dH/dt = min(H/H_eff, 1) * dH_eff/dt
        !
        ! Thus, any ice with H_eff < Hc_min is removed on a time scale of tau_c.
+       !
 
        do j = 2, ny-1
           do i = 2, nx-1
              if (calving_front_mask(i,j) == 1 .and. thck_effective(i,j) < calving_minthck) then
 
-                thinning_rate = (calving_minthck - thck_effective(i,j)) / calving_timescale
-                dthck = thinning_rate * dt_calving(i,j)
-
-                !WHL - debug
-                if (verbose_calving .and. i==itest .and. j==jtest .and. this_rank==rtest) then
-                   write(6,*) ' '
-                   write(6,*) 'Thinning: r, i, j =', rtest, itest, jtest
-                   write(6,*) 'thck:', thck(i,j)
-                   write(6,*) 'thck_effective (m) =', thck_effective(i,j)
-                   write(6,*) 'calving_minthck (m) =', calving_minthck
-                   write(6,*) 'thinning rate (m/yr) =', thinning_rate * scyr
-                   write(6,*) 'dthck (m) =', dthck
+                if (calving_timescale > 0.0d0) then
+                   thinning_rate = (calving_minthck - thck_effective(i,j)) / calving_timescale
+                   dthck = thinning_rate * dt_calving(i,j)
+                else
+                   dthck = thck(i,j)
                 endif
+
+!                if (verbose_calving .and. i==itest .and. j==jtest .and. this_rank==rtest) then
+!                   write(6,*) ' '
+!                   write(6,*) 'Thinning: r, i, j =', rtest, itest, jtest
+!                   write(6,*) 'thck:', thck(i,j)
+!                   write(6,*) 'thck_effective (m) =', thck_effective(i,j)
+!                   write(6,*) 'calving_minthck (m) =', calving_minthck
+!                   write(6,*) 'thinning rate (m/yr) =', thinning_rate * scyr
+!                   write(6,*) 'dthck (m) =', dthck
+!                endif
 
                 if (dthck > thck(i,j)) then
                    ! calve the full column and compute the time remaining for more calving
@@ -775,6 +833,10 @@ contains
        call parallel_halo(thck, parallel)
        call parallel_halo(calving_thck, parallel)
 
+       ! Check whether any processors have iterate_calving = T.
+       ! If so, then continue.  If not, then exit.
+       iterate_calving = parallel_reduce_log_or(iterate_calving)
+
        if (iterate_calving) then
 
           ! Recompute the CF mask
@@ -803,6 +865,10 @@ contains
                ocean_mask,    land_mask,          &
                calving_front_mask)
 
+          where (ocean_mask == 1 .and. thck_effective > 0.0d0)
+             calving_front_mask = 1
+          endwhere
+
           ! Save the old dt_calving values and compute new values
           ! Loop through cells; if a new CF cell has ice-free neighbors with dt_calving > 0,
           !  then use this time to calve.  If it has multiple such neighbors, then use the largest value.
@@ -810,15 +876,12 @@ contains
           dt_calving_old = dt_calving
           dt_calving = 0.0d0
 
-          iterate_calving = .false.  ! reset to false, in case there are no calving-ready neighbors
           do j = 2, ny-1
              do i = 2, nx-1
                 if (calving_front_mask_old(i,j) == 0 .and. calving_front_mask(i,j) == 1) then
                    dt_calving(i,j) = max(dt_calving_old(i-1,j), dt_calving_old(i+1,j), &
                                          dt_calving_old(i,j-1), dt_calving_old(i,j+1))
-                   iterate_calving = .true.
-                   !WHL - debug
-                   if (dt_calving(i,j) > 0.0d0) then
+                   if (verbose_calving .and. this_rank == rtest .and. dt_calving(i,j) > 0.0d0) then
                       write(6,*) 'rank, i, j, new dt_calving (yr):', this_rank, i, j, dt_calving(i,j)/scyr
                    endif
                 endif
@@ -847,7 +910,6 @@ contains
        eigenconstant1,                    &
        eigenconstant2,                    &
        thck_effective,                    &
-       calving_minthck,                   &
        dthck_dx_cf,                       &
        lateral_rate,                      &
        calving_thck)
@@ -888,7 +950,6 @@ contains
     real(dp), intent(in) :: &
          eigenconstant1,         & ! lateral calving rate proportional to tau1 (m/s)
          eigenconstant2,         & ! lateral calving rate proportional to tau1 (m/s)
-         calving_minthck,        & ! min effective thickness (m) for CF cells
          dthck_dx_cf               ! assumed max thickness gradient (m/m) at the subgrid CF
 
     real(dp), dimension(nx,ny), intent(out) :: &
@@ -961,7 +1022,6 @@ contains
          ice_mask,      floating_mask,      &
          ocean_mask,    land_mask,          &
          calving_front_mask,                &
-         calving_minthck = calving_minthck, &
          dthck_dx_cf = dthck_dx_cf,         &
          dx = dx,       dy = dy,            &
          thck_effective = thck_effective,   &
@@ -1021,31 +1081,14 @@ contains
 
                 ! Compute a rate factor to account for the length of the calving front.
                 ! A typical CF cell will have ice-free ocean on just one edge.
-                !  Cells with 2 or 3 ocean neighbors have a longer CF and will calve more quickly.
-                ! Also, if a partial_CF cell (H = H1) shares an edge with a thinner partial_CF cell (H = H2 < H1),
-                !  we include a term proportional to (1 - H2/H1).
-                ! This can be viewed as a subgrid parameterization of calving front length.
-                ! It helps to even out the ice thickness along the CF, inhibiting the formation
-                !  of notches and protusions.
+                ! Cells with 2 or 3 ocean neighbors have a longer CF and will calve more quickly.
 
                 ocean_neighbor_count = &
                      ocean_mask(i-1,j) + ocean_mask(i+1,j) + ocean_mask(i,j-1) + ocean_mask(i,j+1)
-                lateral_rate_factor = real(ocean_neighbor_count, dp)
 
-                ! loop over edge neighbors, accounting for partial CF cells
-                do jj = j-1, j+1
-                   do ii = i-1, i+1
-                      if (ii == i .neqv. jj == j) then   ! edge neighbor (neqv = exclusive or)
-                         if (partial_cf_mask(ii,jj) == 1 .and. thck_old(i,j) > thck_old(ii,jj)) then
-                            lateral_rate_factor = &
-                                 lateral_rate_factor + (1.d0 - thck_old(ii,jj)/thck_old(i,j))
-                         endif
-                      endif   ! edge neighbor
-                   enddo   ! ii
-                enddo   ! jj
+                lateral_rate_factor = ocean_neighbor_count
 
-                !WHL - debug
-                if (verbose_calving .and. this_rank == rtest .and. abs(i-itest) <= 1 .and. abs(j-jtest) <= 1) then
+                if (verbose_calving .and. this_rank == rtest .and. abs(i-itest) <= 3 .and. abs(j-jtest) <= 3) then
                    print*, 'r, i, j, lateral_rate_factor:', rtest, i, j, lateral_rate_factor
                 endif
 
@@ -1101,11 +1144,15 @@ contains
           call point_diag(lateral_rate*scyr, 'lateral rate (m/yr)', itest, jtest, rtest, 7, 7)
        endif
 
+       ! Check whether any processors have iterate_calving = T.
+       ! If so, then continue.  If not, then exit.
+       iterate_calving = parallel_reduce_log_or(iterate_calving)
+
        if (iterate_calving) then
 
           ! Recompute the CF mask
           ! This could result in new CF cells that were previously in the interior.
-          ! Note: thck_effective keeps the value computed above.
+          ! Note: thck_effective keeps the values computed above.
 
           calving_front_mask_old = calving_front_mask
 
@@ -1136,15 +1183,13 @@ contains
           dt_calving_old = dt_calving
           dt_calving = 0.0d0
 
-          iterate_calving = .false.  ! reset to false, in case there are no calving-ready neighbors
           do j = 2, ny-1
              do i = 2, nx-1
                 if (calving_front_mask_old(i,j) == 0 .and. calving_front_mask(i,j) == 1) then
                    dt_calving(i,j) = max(dt_calving_old(i-1,j), dt_calving_old(i+1,j), &
                                          dt_calving_old(i,j-1), dt_calving_old(i,j+1))
                    iterate_calving = .true.
-                   !WHL - debug
-                   if (dt_calving(i,j) > 0.0d0) then
+                   if (verbose_calving .and. this_rank == rtest .and. dt_calving(i,j) > 0.0d0) then
                       write(6,*) 'rank, i, j, new dt_calving (yr):', this_rank, i, j, dt_calving(i,j)/scyr
                    endif
                 endif
@@ -1174,7 +1219,7 @@ contains
        damage_constant1,   damage_constant2,      &
        damage_threshold,                          &
        thck_effective,                            &
-       calving_minthck,    dthck_dx_cf,           &
+       dthck_dx_cf,                               &
        damage,                                    &
        lateral_rate,       calving_thck)
 
@@ -1217,7 +1262,6 @@ contains
          damage_constant1,       & ! rate of change of damage (1/s) proportional to tau1
          damage_constant2,       & ! rate of change of damage (1/s) proportional to tau2
          damage_threshold,       & ! calving begins for damage > damage_threshold
-         calving_minthck,        & ! min effective thickness (m) for CF cells
          dthck_dx_cf               ! assumed max thickness gradient (m/m) at the subgrid CF
 
     real(dp), dimension(nz-1,nx,ny), intent(inout) :: &
@@ -1251,6 +1295,7 @@ contains
          vmask                     ! = 1 for vertices with ice speed (i.e., vertices of active cells)
 
     real(dp), dimension(nx,ny) :: &
+         effective_areafrac,     & ! effective fractional area in partial cells
          speed,                  & ! 2D ice speed averaged to cell centers (m/s)
          damage_column,          & ! 2D vertically integrated scalar damage parameter
          thck_old,               & ! old value of thck (m)
@@ -1281,8 +1326,8 @@ contains
     ! Not sure these parallel updates are needed here
     call parallel_halo(tau_eigen1, parallel)
     call parallel_halo(tau_eigen2, parallel)
-    call parallel_halo(eps_eigen1, parallel)
-    call parallel_halo(eps_eigen2, parallel)
+!    call parallel_halo(eps_eigen1, parallel)
+!    call parallel_halo(eps_eigen2, parallel)
 
     ! Compute masks needed for calving
     ! Need a calving_front_mask; calving/thinning is applied only to cells at the calving front.
@@ -1307,12 +1352,12 @@ contains
          ice_mask,      floating_mask,      &
          ocean_mask,    land_mask,          &
          calving_front_mask,                &
-         calving_minthck = calving_minthck, &
          dthck_dx_cf = dthck_dx_cf,         &
          dx = dx,       dy = dy,            &
          thck_effective = thck_effective,   &
          partial_cf_mask = partial_cf_mask, &
-         full_mask = full_mask)
+         full_mask = full_mask,             &
+         effective_areafrac = effective_areafrac)
 
     ! Compute the ice speed at cell centers, averaged from neighboring vertices.
     ! Include in the average only vertices with nonzero speeds (i.e., ice present)
@@ -1447,8 +1492,8 @@ contains
                   .and. dt_calving(i,j) > 0.0d0) then
 
                 if (verbose_calving .and. this_rank == rtest .and. count > 1) then
-                   write(6,*) 'Next round of calving: count, i, j, dt_calving (yr):', &
-                        count, i, j, dt_calving(i,j)/scyr
+                   write(6,*) 'Next round of calving: count, rank, i, j, dt_calving (yr):', &
+                        count, this_rank, i, j, dt_calving(i,j)/scyr
                 endif
 
                 ! Compute a damage fraction, increasing linearly from 0 (at a damage threshold) to 1.
@@ -1456,28 +1501,12 @@ contains
 
                 ! Compute a rate factor to account for the length of the calving front.
                 ! A typical CF cell will have ice-free ocean on just one edge.
-                !  Cells with 2 or 3 ocean neighbors have a longer CF and will calve more quickly.
-                ! Also, if a partial_CF cell (H = H1) shares an edge with a thinner partial_CF cell (H = H2 < H1),
-                !  we include a term proportional to (1 - H2/H1).
-                ! This can be viewed as a subgrid parameterization of calving front length.
-                ! It helps to even out the ice thickness along the CF, inhibiting the formation
-                !  of notches and protusions.
+                ! Cells with 2 or 3 ocean neighbors have a longer CF and will calve more quickly.
 
                 ocean_neighbor_count = &
                      ocean_mask(i-1,j) + ocean_mask(i+1,j) + ocean_mask(i,j-1) + ocean_mask(i,j+1)
-                lateral_rate_factor = real(ocean_neighbor_count, dp)
 
-                ! loop over edge neighbors, accounting for partial CF cells
-                do jj = j-1, j+1
-                   do ii = i-1, i+1
-                      if (ii == i .neqv. jj == j) then   ! edge neighbor (neqv = exclusive or)
-                         if (partial_cf_mask(ii,jj) == 1 .and. thck_old(i,j) > thck_old(ii,jj)) then
-                            lateral_rate_factor = &
-                                 lateral_rate_factor + (1.d0 - thck_old(ii,jj)/thck_old(i,j))
-                         endif
-                      endif   ! edge neighbor
-                   enddo   ! ii
-                enddo   ! jj
+                lateral_rate_factor = ocean_neighbor_count
 
                 if (verbose_calving .and. this_rank == rtest .and. abs(i-itest) <= 3 .and. abs(j-jtest) <= 3) then
                    print*, 'r, i, j, lateral_rate_factor:', rtest, i, j, lateral_rate_factor
@@ -1531,11 +1560,15 @@ contains
           call point_diag(lateral_rate*scyr, 'lateral rate (m/yr)', itest, jtest, rtest, 7, 7)
        endif
 
+       ! Check whether any processors have iterate_calving = T.
+       ! If so, then continue.  If not, then exit.
+       iterate_calving = parallel_reduce_log_or(iterate_calving)
+
        if (iterate_calving) then
 
           ! Recompute the CF mask
           ! This could result in new CF cells that were previously in the interior.
-          ! Note: thck_effective keeps the value computed above.
+          ! Note: thck_effective keeps the values computed above.
 
           calving_front_mask_old = calving_front_mask
 
@@ -1557,7 +1590,13 @@ contains
                eus,                               &
                ice_mask,      floating_mask,      &
                ocean_mask,    land_mask,          &
-               calving_front_mask)
+               calving_front_mask,                &
+               dthck_dx_cf = dthck_dx_cf,         &
+               dx = dx,       dy = dy,            &
+               thck_effective = thck_effective,   &
+               partial_cf_mask = partial_cf_mask, &
+               full_mask = full_mask,             &
+               effective_areafrac = effective_areafrac)
 
           ! Save the old dt_calving values and compute new values
           ! Loop through cells; if a new CF cell has ice-free neighbors with dt_calving > 0,
@@ -1566,16 +1605,13 @@ contains
           dt_calving_old = dt_calving
           dt_calving = 0.0d0
 
-          iterate_calving = .false.  ! reset to false, in case there are no calving-ready neighbors
           do j = 2, ny-1
              do i = 2, nx-1
                 if (calving_front_mask_old(i,j) == 0 .and. calving_front_mask(i,j) == 1  &
                      .and. damage_column(i,j) > damage_threshold) then   ! new CF cell that can calve
                    dt_calving(i,j) = max(dt_calving_old(i-1,j), dt_calving_old(i+1,j), &
                                          dt_calving_old(i,j-1), dt_calving_old(i,j+1))
-                   iterate_calving = .true.
-                   !WHL - debug
-                   if (dt_calving(i,j) > 0.0d0) then
+                   if (verbose_calving .and. this_rank == rtest .and. dt_calving(i,j) > 0.0d0) then
                       write(6,*) 'rank, i, j, new dt_calving (yr):', this_rank, i, j, dt_calving(i,j)/scyr
                    endif
                 endif

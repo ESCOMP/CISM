@@ -2440,19 +2440,18 @@ contains
           call write_log(message, GM_FATAL)
        endif
 
+       ! Note: Eigencalving and damage-based calving are followed by thickness-based calving,
+       !        provided calving%minthck > 0.
+       !       For thickness-based calving, calving%minthck > 0 is mandatory.
+
+       write(message,*) 'calving minthck (m) : ', model%calving%minthck
+       call write_log(message)
+       write(message,*) 'calving timescale (yr) : ', model%calving%timescale
+       call write_log(message)
+
        if (model%options%whichcalving == CALVING_THCK_THRESHOLD) then
-          if (model%calving%minthck > 0.0d0) then
-             write(message,*) 'calving minthck (m) : ', model%calving%minthck
-             call write_log(message)
-          else
+          if (model%calving%minthck <= 0.0d0) then
              write(message,*) 'Error, this calving option needs calving_minthck > 0'
-             call write_log(message, GM_FATAL)
-          endif
-          if (model%calving%timescale > 0.0d0) then
-             write(message,*) 'calving timescale (yr) : ', model%calving%timescale
-             call write_log(message)
-          else
-             write(message,*) 'Error, this calving option needs calving_timescale > 0'
              call write_log(message, GM_FATAL)
           endif
        elseif (model%options%whichcalving == EIGENCALVING) then
