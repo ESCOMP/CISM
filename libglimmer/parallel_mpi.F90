@@ -7956,6 +7956,44 @@ contains
 
 !=======================================================================
 
+  ! functions for parallel reduction of logical variables
+  ! * parallel_reduce_log_or returns 'true' iff x = 'true' on at least one processor
+  ! * parallel_reduce_log_and returns 'true' iff x = 'true' on all processors
+
+  function parallel_reduce_log_or(x)
+
+    use mpi_mod
+    implicit none
+    logical :: x
+
+    integer :: ierror
+    logical :: recvbuf,sendbuf, parallel_reduce_log_or
+
+    ! begin
+    sendbuf = x
+    call mpi_allreduce(sendbuf,recvbuf,1,mpi_logical,mpi_lor,comm,ierror)
+    parallel_reduce_log_or = recvbuf
+
+  end function parallel_reduce_log_or
+
+  function parallel_reduce_log_and(x)
+
+    use mpi_mod
+    implicit none
+    logical :: x
+
+    integer :: ierror
+    logical :: recvbuf,sendbuf, parallel_reduce_log_and
+
+    ! begin
+    sendbuf = x
+    call mpi_allreduce(sendbuf,recvbuf,1,mpi_logical,mpi_land,comm,ierror)
+    parallel_reduce_log_and = recvbuf
+
+  end function parallel_reduce_log_and
+
+!=======================================================================
+
   ! functions belonging to the parallel_reduce_sum interface
 
   function parallel_reduce_sum_integer(x)

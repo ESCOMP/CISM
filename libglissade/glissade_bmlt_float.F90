@@ -2641,7 +2641,7 @@ module glissade_bmlt_float
        call parallel_halo(valid_mask, parallel)
 
        if (verbose_basin_number .and. main_task) then
-          print*, iter, 'Basin number count =', global_count
+!!          print*, iter, 'Basin number count =', global_count
        endif
 
        if (global_count == global_count_save) then
