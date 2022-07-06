@@ -732,7 +732,12 @@ contains
     !  the fractional reduction of effective pressure due to basal water flux
     !  or an ocean connection.
     ! Note: f_effecpress_bwat and f_effecpress_ocean_p should not be reset if restarting.
-    !       This subroutine is called only when *not* restarting
+    !       This subroutine is called only when *not* restarting.
+    !       There is some additional logic here to make sure f_effecpress fields are not reset
+    !        if they are read from the input file in a run that is *not* a restart.
+
+    use glimmer_paramets, only: eps11
+    use cism_parallel, only: parallel_reduce_max
 
     ! Input/output arguments
 
@@ -742,11 +747,45 @@ contains
     type(glide_basal_physics), intent(inout) :: &
          basal_physics       ! basal physics object
 
+    ! local variables
+    real(dp) :: &
+         local_maxval, global_maxval
+
+    character(len=100) :: message
+
     if (which_effecpress == HO_EFFECPRESS_BWATFLX) then
-       basal_physics%f_effecpress_bwat(:,:) = 1.0d0
+       ! Check to see if f_effecpress_bwat has been read from the input file.
+       local_maxval = maxval(basal_physics%f_effecpress_bwat)
+       global_maxval = parallel_reduce_max(local_maxval)
+       if (global_maxval >= eps11) then
+          ! Do nothing; keep the values read from the input or restart file
+          write(message,*) 'f_effecpress_bwat was read from the input/restart file'
+          call write_log(trim(message))
+       else
+          ! initialize to 1.0
+          ! This means that effecpress will initially not be reduced based on bwat.
+          write(message,*) 'Setting f_effecpress_bwat = 1.0 everywhere'
+          call write_log(trim(message))
+          basal_physics%f_effecpress_bwat(:,:) = 1.0d0
+       endif
     endif
 
-    basal_physics%f_effecpress_ocean_p(:,:) = 1.0d0
+    if (basal_physics%ocean_p_timescale > 0.0d0) then
+       ! Check to see if f_effecpress_ocean_p has been read from the input file.
+       local_maxval = maxval(basal_physics%f_effecpress_ocean_p)
+       global_maxval = parallel_reduce_max(local_maxval)
+       if (global_maxval >= eps11) then
+          ! Do nothing; keep the values read from the input or restart file
+          write(message,*) 'f_effecpress_ocean_p was read from the input/restart file'
+          call write_log(trim(message))
+       else
+          ! initialize to 1.0
+          ! This means that effecpress will initially not be reduced based on p.
+          write(message,*) 'Setting f_effecpress_ocean_p = 1.0 everywhere'
+          call write_log(trim(message))
+          basal_physics%f_effecpress_ocean_p(:,:) = 1.0d0
+       endif
+    endif
 
   end subroutine glissade_init_effective_pressure
 
