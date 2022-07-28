@@ -277,6 +277,10 @@ module glide_types
   integer, parameter :: HO_BMLT_BASIN_EXTERNAL = 2
   integer, parameter :: HO_BMLT_BASIN_ISMIP6 = 3
 
+  integer, parameter :: HO_DELTAT_OCN_NONE = 0
+  integer, parameter :: HO_DELTAT_OCN_INVERSION = 1
+  integer, parameter :: HO_DELTAT_OCN_EXTERNAL = 2
+
   integer, parameter :: HO_FLOW_FACTOR_BASIN_CONST = 0
   integer, parameter :: HO_FLOW_FACTOR_BASIN_INVERSION = 1
   integer, parameter :: HO_FLOW_FACTOR_BASIN_EXTERNAL = 2
@@ -829,10 +833,18 @@ module glide_types
     integer :: which_ho_bmlt_basin = 0
     !> Flag for basin-based temperature corrections
     !> \begin{description}
-    !> \item[0] deltaT_basin = 0
-    !> \item[1] invert for deltaT_basin
-    !> \item[2] read deltaT_basin from external file
-    !> \item[3] prescribe deltaT_basin using ISMIP6 values
+    !> \item[0] deltaT_ocn = 0 in each basin
+    !> \item[1] invert for deltaT_ocn in each basin
+    !> \item[2] read deltaT_ocn from external file in each basin
+    !> \item[3] prescribe deltaT_ocn in each basin using ISMIP6 values
+    !> \end{description}
+
+    integer :: which_ho_deltaT_ocn = 0
+    !> Flag for local ocean temperature corrections
+    !> \begin{description}
+    !> \item[0] deltaT_ocn = 0
+    !> \item[1] invert for deltaT_ocn
+    !> \item[2] read deltaT_ocn from external file
     !> \end{description}
 
     integer :: which_ho_flow_factor_basin = 0
@@ -1596,7 +1608,7 @@ module glide_types
           babc_velo_scale = 0.0d0                !> velocity inversion scale (m/yr)
                                                  !> typical value for inversion = 200 m/yr
 
-     ! fields and parameters for deltaT_basin and flow_factor_basin_inversion
+     ! fields and parameters for deltaT_basin, deltaT_ocn, and flow_factor_basin_inversion
      ! Note: This target is defined on the 2D (i,j) grid, even though it is uniform within a basin
      real(dp), dimension(:,:), pointer ::  &
           floating_thck_target => null()         !> Observational target for floating ice thickness
@@ -1604,10 +1616,12 @@ module glide_types
      real(dp) ::  &
           dbmlt_dtemp_scale = 10.0d0,              & !> scale for rate of change of bmlt w/temperature, m/yr/degC
           bmlt_basin_timescale = 100.0d0,          & !> timescale (yr) for adjusting deltaT_basin
+          deltaT_ocn_thck_scale = 100.0d0,         & !> thickness scale (m) for adjusting deltaT_ocn
+          deltaT_ocn_timescale = 100.0d0,          & !> timescale (yr) for adjusting deltaT_ocn
+          deltaT_ocn_temp_scale = 2.0d0,           & !> temperature scale (degC) for adjusting deltaT_ocn
           basin_flotation_threshold = 200.d0,      & !> threshold (m) for counting ice as lightly floating/grounded
           flow_factor_basin_thck_scale = 100.d0,   & !> thickness scale (m) for adjusting flow_factor_basin
           flow_factor_basin_timescale = 500.d0       !> timescale (yr) for adjusting flow_factor_basin
-
 
      ! parameters for adjusting the ice mass target in a given basin for deltaT_basin inversion
      ! Note: This option could in principle be applied to multiple basins, but currently is supported for one basin only.
@@ -1721,7 +1735,7 @@ module glide_types
           basin_number => null()                    !> basin number for each grid cell
 
      real(dp), dimension(:,:), pointer :: &
-          deltaT_basin => null()                    !> deltaT in each basin (deg C)
+          deltaT_ocn => null()                      !> deltaT_ocn in each local grid cell (deg C)
 
      real(dp) :: &
           thermal_forcing_anomaly = 0.0d0,  &       !> thermal forcing anomaly (deg C), applied everywhere
@@ -2340,7 +2354,7 @@ contains
 
     !> In \texttt{model\%ocean_data}:
     !> \begin{itemize}
-    !> \item \texttt{deltaT_basin(ewn,nsn)}
+    !> \item \texttt{deltaT_ocn(ewn,nsn)}
     !> \item \texttt{flow_factor_basin(ewn,nsn)}
     !> \item \texttt{basin_number(ewn,nsn)}
     !> \item \texttt{thermal_forcing(nzocn,ewn,nsn)}
@@ -2373,6 +2387,7 @@ contains
     !> \item \texttt{vsfc_obs(ewn,nsn))}
     !> \item \texttt{velo_sfc_obs(ewn-1,nsn-1))}
     !> \item \texttt{velo_sfc(ewn-1,nsn-1))}
+!!    !> \item \texttt{dvelo_sfc_dt(ewn-1,nsn-1))}
     !> \end{itemize}
 
     !> In \texttt{model\%climate}:
@@ -2744,7 +2759,7 @@ contains
              if (model%ocean_data%nbasin < 1) then
                 call write_log ('Must set nbasin >= 1 for the ISMIP6 thermal forcing options', GM_FATAL)
              endif
-             call coordsystem_allocate(model%general%ice_grid, model%ocean_data%deltaT_basin)
+             call coordsystem_allocate(model%general%ice_grid, model%ocean_data%deltaT_ocn)
           endif
        endif
     endif  ! Glissade
@@ -3011,7 +3026,6 @@ contains
         deallocate(model%velocity%velo_sfc_obs)
     if (associated(model%velocity%velo_sfc)) &
         deallocate(model%velocity%velo_sfc)
-
     if (associated(model%velocity%wgrd)) &
         deallocate(model%velocity%wgrd)
     if (associated(model%velocity%ubas)) &
@@ -3150,8 +3164,8 @@ contains
     ! ocean data arrays
     if (associated(model%ocean_data%basin_number)) &
         deallocate(model%ocean_data%basin_number)
-    if (associated(model%ocean_data%deltaT_basin)) &
-        deallocate(model%ocean_data%deltaT_basin)
+    if (associated(model%ocean_data%deltaT_ocn)) &
+        deallocate(model%ocean_data%deltaT_ocn)
     if (associated(model%ocean_data%thermal_forcing)) &
         deallocate(model%ocean_data%thermal_forcing)
     if (associated(model%ocean_data%thermal_forcing_lsrf)) &

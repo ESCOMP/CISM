@@ -39,7 +39,8 @@ module glissade_inversion
 
   private
   public :: verbose_inversion, glissade_init_inversion, glissade_inversion_basal_friction, &
-            glissade_inversion_bmlt_basin, glissade_inversion_flow_factor_basin
+            glissade_inversion_bmlt_basin, glissade_inversion_deltaT_ocn, &
+            glissade_inversion_flow_factor_basin, usrf_to_thck
 
   !-----------------------------------------------------------------------------
   ! Subroutines to invert for basal fields (including basal friction beneath
@@ -122,7 +123,8 @@ contains
     !----------------------------------------------------------------------
 
     if (model%options%which_ho_powerlaw_c == HO_POWERLAW_C_INVERSION .or.  &
-        model%options%which_ho_coulomb_c  == HO_COULOMB_C_INVERSION) then
+        model%options%which_ho_coulomb_c  == HO_COULOMB_C_INVERSION  .or.  &
+        model%options%which_ho_deltaT_ocn == HO_DELTAT_OCN_INVERSION) then
 
        ! We are inverting for usrf_obs, so check whether it has been read in already.
        ! If not, set it to the initial usrf field.
@@ -137,10 +139,11 @@ contains
        endif
 
        ! Given usrf_obs and topg, compute thck_obs.
-       call usrf_to_thck(model%geometry%usrf_obs,  &
-                         model%geometry%topg,      &
-                         model%climate%eus,        &
-                         thck_obs)
+       call usrf_to_thck(&
+            model%geometry%usrf_obs,  &
+            model%geometry%topg,      &
+            model%climate%eus,        &
+            thck_obs)
 
        ! Optionally, adjust the initial thickness and then reset usrf_obs.
 
@@ -182,12 +185,12 @@ contains
           ! Where thck_obs < inversion_thck_threshold, set it to zero.
           ! One reason to do this is to avoid restoring ice to small values at the calving front.
           ! Probably not necessary if doing basin-scale inversion for floating ice instead of inversion in each grid cell.
-          !WHL - debug
           do j = nhalo+1, nsn-nhalo
              do i = nhalo+1, ewn-nhalo
                 if (verbose_inversion .and. thck_obs(i,j) > 0.0d0 .and. &
                      thck_obs(i,j) < model%inversion%thck_threshold) then
-                   print*, 'thck_obs < threshold, rank, i, j, thck:', this_rank, i, j, thck_obs(i,j)*thk0
+                   !WHL - debug
+!!                  print*, 'thck_obs < threshold, rank, i, j, thck:', this_rank, i, j, thck_obs(i,j)*thk0
                 endif
              enddo
           enddo
@@ -304,7 +307,7 @@ contains
     endif   ! Cp or Cc inversion
 
     !----------------------------------------------------------------------
-    ! computations specific to inversion of deltaT_basin or flow_factor_basin
+    ! computations specific to basin-scale inversion
     !----------------------------------------------------------------------
 
     if (model%options%which_ho_bmlt_basin == HO_BMLT_BASIN_INVERSION .or. &
@@ -419,7 +422,6 @@ contains
          stag_thck_obs,        & ! thck_obs on staggered grid
          velo_sfc                ! surface ice speed
 
-    !WHL - debug
     real(dp), dimension(model%general%ewn-1,model%general%nsn-1) ::   &
          stag_topg,            &
          stag_thck_flotation
@@ -431,6 +433,7 @@ contains
     real(dp), dimension(model%general%ewn,model%general%nsn) :: thck_unscaled
 
     logical :: &
+!!         f_ground_weight = .false.   ! if true, then weigh ice thickness by f_ground_cell for staggered interpolation
          f_ground_weight = .true.   ! if true, then weigh ice thickness by f_ground_cell for staggered interpolation
                                     ! Found that unweighted staggering can lead to low-frequency thickness oscillations
                                     !  in Antarctic runs, because of large dH/dt in floating cells
@@ -470,10 +473,11 @@ contains
 
        ! Given the surface elevation target, compute the thickness target.
        ! (This can change in time if the bed topography is dynamic.)
-       call usrf_to_thck(model%geometry%usrf_obs,  &
-                         model%geometry%topg,      &
-                         model%climate%eus,        &
-                         thck_obs)
+       call usrf_to_thck(&
+            model%geometry%usrf_obs,  &
+            model%geometry%topg,      &
+            model%climate%eus,        &
+            thck_obs)
 
        ! Interpolate the thickness fields to the staggered grid
 
@@ -596,7 +600,15 @@ contains
                 enddo
                 print*, ' '
              enddo
-
+             print*, ' '
+             print*, 'thck - thck_obs:'
+             do j = jtest+3, jtest-3, -1
+                do i = itest-3, itest+3
+                   write(6,'(f10.3)',advance='no') &
+                        (model%geometry%thck(i,j) - thck_obs(i,j))*thk0
+                enddo
+                print*, ' '
+             enddo
           endif   ! verbose_inversion
 
           ! Compute flotation thickness, given by H = (rhoo/rhoi)*|b|
@@ -764,9 +776,16 @@ contains
 
     real(dp), dimension(nx-1, ny-1) :: &
          term1_thck, term2_thck, term3_thck, & ! tendency terms based on thickness target
-         term1_velo                            ! tendency term based on surface speed target
+         term1_velo                            ! tendency terms based on surface speed target
 
+    real(dp) :: thck_target, velo_target  ! local targets for ice thickness (m) and surface speed (m/yr)
     integer :: i, j
+
+    logical, parameter :: &
+!         fixed_thck_scale = .false.,  &   ! if true, use babc_thck_scale in inversion formula; else use local thickness
+!         fixed_velo_scale = .false.       ! if true, use babc_velo_scale in inversion formula; else use local velocity
+         fixed_thck_scale = .true.,  &   ! if true, use babc_thck_scale in inversion formula; else use local thickness
+         fixed_velo_scale = .true.       ! if true, use babc_velo_scale in inversion formula; else use local velocity
 
     ! Initialize
     dfriction_c(:,:) = 0.0d0
@@ -857,10 +876,19 @@ contains
              !       Setting either or both to positive values in the config file will activate the inversion.
 
              ! Compute tendency terms based on the thickness target
-
-             if (babc_thck_scale > 0.0d0) then
-                term1_thck(i,j) = -stag_dthck(i,j) / (babc_thck_scale * babc_timescale)
-                term2_thck(i,j) = -stag_dthck_dt(i,j) * 2.0d0 / babc_thck_scale
+             ! Note: If scaling based on local obs, then give the thickness term a minimum value of babc_thck_scale,
+             !       to prevent fast adjustment.
+             if (fixed_thck_scale) then
+                if (babc_thck_scale > 0.0d0) then
+                   term1_thck(i,j) = -stag_dthck(i,j) / (babc_thck_scale * babc_timescale)
+                   term2_thck(i,j) = -stag_dthck_dt(i,j) * 2.0d0 / babc_thck_scale
+                endif
+             else  ! thck_scale based on local obs
+                if (babc_thck_scale > 0.0d0) then
+                   thck_target = max(stag_thck_obs(i,j), babc_thck_scale)
+                   term1_thck(i,j) = -stag_dthck(i,j) / (thck_target * babc_timescale)
+                   term2_thck(i,j) = -stag_dthck_dt(i,j) * 2.0d0 / thck_target
+                endif
              endif
 
              ! Third tendency term added for coulomb_c inversion.
@@ -885,13 +913,23 @@ contains
                         + p_ocean / (stag_thck(i,j) - stag_thck_flotation(i,j)) )
                 endif
              endif
+             !WHL - debug - leave out this term for now
+             term3_thck(i,j) = 0.0d0
 
              ! Compute tendency terms based on the surface speed target
              ! Note: I tried adding a term2_velo in analogy to term2_thck (Dec. 2021),
              !       but it triggers oscillations in friction_c without improving accuracy.
 
-             if (babc_velo_scale > 0.0d0) then
-                term1_velo(i,j) = dvelo_sfc(i,j) / (babc_velo_scale * babc_timescale)
+             if (fixed_velo_scale) then
+                if (babc_velo_scale > 0.0d0) then
+                   term1_velo(i,j) = dvelo_sfc(i,j) / (babc_velo_scale * babc_timescale)
+                endif
+             else   ! velo_scale based on local obs
+                if (babc_velo_scale > 0.0d0) then
+                   velo_target = max(velo_sfc_obs(i,j), babc_velo_scale)
+                   term1_velo(i,j) = dvelo_sfc(i,j) / (velo_target * babc_timescale)
+!!                   term1_velo(i,j) = 0.3d0 * term1_velo(i,j)  ! to reduce the size of the velo term
+                endif
              endif
 
              if (verbose_inversion .and. this_rank == rtest .and. i == itest .and. j == jtest) then
@@ -900,7 +938,15 @@ contains
                 print*, 'dt*term1_thck =', dt*term1_thck(i,j)
                 print*, 'dt*term2_thck =', dt*term2_thck(i,j)
                 if (present(p_ocean)) print*, 'dt*term3_thck =', dt*term3_thck(i,j)
-                if (babc_velo_scale > 0.0d0) print*, 'dt*term1_velo =', dt*term3_thck(i,j)
+                print*, 'fixed_velo_scale =', fixed_velo_scale
+                if (fixed_velo_scale) then
+                   print*, 'babc_velo_scale =', babc_velo_scale
+                endif
+                if (fixed_velo_scale) then
+                   if (babc_velo_scale > 0.0d0) print*, 'dt*term1_velo =', dt*term1_velo(i,j)
+                else
+                   if (velo_sfc_obs(i,j) > 0.0d0) print*, 'dt*term1_velo =', dt*term1_velo(i,j)
+                endif
              endif
 
              dfriction_c(i,j) = friction_c(i,j) * &
@@ -931,8 +977,8 @@ contains
                 print*, 'velo_sfc, velo_sfc_obs, dvelo_sfc:', velo_sfc(i,j), velo_sfc_obs(i,j), dvelo_sfc(i,j)
                 print*, 'dthck term, dthck_dt term, sum =', &
                      term1_thck(i,j)*dt, term2_thck(i,j)*dt, (term1_thck(i,j) + term2_thck(i,j))*dt
+                print*, 'dvelo term =', term1_velo(i,j)*dt
                 if (present(p_ocean)) print*, 'dN/dH term:', term3_thck(i,j)*dt
-                if (babc_velo_scale > 0.0d0) print*, 'dvelo term =', term1_velo(i,j)*dt
                 print*, 'dfriction_c, new friction_c =', dfriction_c(i,j), friction_c(i,j)
              endif
 
@@ -962,17 +1008,17 @@ contains
                                            basin_number_mass_correction,&
                                            dbmlt_dtemp_scale,           &
                                            bmlt_basin_timescale,        &
-                                           deltaT_basin)
+                                           deltaT_ocn)
 
     ! For the case that bmlt_float is computed based on thermal_forcing,
-    !  adjust deltaT_basin, which can be thought of as a bias corrrection
+    !  adjust deltaT_ocn, which can be thought of as a bias corrrection
     !  or tuning parameter for the thermal forcing parameterization.
     ! In each basin, we compute the mean thickness of floating or lightly grounded ice
     !  and compare to a target thickness (usually based on observations).
-    ! Where there is too much marine-grounded ice, we increase deltaT_basin,
-    !  and where there is too little, we decrease deltaT_basin.
+    ! Where there is too much marine-grounded ice, we increase deltaT_ocn,
+    !  and where there is too little, we decrease deltaT_ocn.
     ! Note: Other possible targets include the total floating area or grounded area.
-    !       One reason not to use the total floating area is that the deltaT_basin
+    !       One reason not to use the total floating area is that the deltaT_ocn
     !        correction can become entangled with the calving scheme.
     !       One reason not to use the total grounded area is that the relative change
     !        in grounded area associated with GL advance or retreat will be very small
@@ -1009,10 +1055,10 @@ contains
 
     real(dp), intent(in) :: &
          dbmlt_dtemp_scale,    & ! scale for rate of change of bmlt w/temperature, (m/s)/degC
-         bmlt_basin_timescale    ! timescale for adjusting deltaT_basin (s)
+         bmlt_basin_timescale    ! timescale for adjusting deltaT_ocn (s)
 
     real(dp), dimension(nx,ny), intent(inout) ::  &
-         deltaT_basin            ! deltaT correction to thermal forcing in each basin (deg C)
+         deltaT_ocn              ! deltaT correction to thermal forcing in each basin (deg C)
 
     ! local variables
 
@@ -1020,24 +1066,24 @@ contains
          floating_thck_target_basin,      &   ! floating mean thickness target in each basin (m^3)
          floating_thck_basin,             &   ! current mean ice thickness in each basin (m)
          floating_dthck_dt_basin,         &   ! rate of change of basin mean ice thickness (m/s)
-         dTbasin_dt,                      &   ! rate of change of deltaT_basin (degC/s)
-         basin_max, basin_min,            &   ! min and max of deltaT_basin in each basin
-                                              ! (all cells in the basin should have the same value of deltaT_basin)
-         deltaT_basin_nb                      ! same as deltaT_basin, but with dimension nbasin
+         dTbasin_dt,                      &   ! rate of change of deltaT_ocn in each basin (degC/s)
+         basin_max, basin_min,            &   ! min and max of deltaT_ocn in each basin
+                                              ! (all cells in the basin should have the same value of deltaT_ocn)
+         deltaT_basin                         ! basin-level averages of deltaT_ocn (degC)
 
     integer :: i, j
     integer :: nb      ! basin number
     real(dp) :: term1, term2
 
-    ! Note: In some basins, the floating ice volume may be too small no matter how much we lower deltaT_basin,
+    ! Note: In some basins, the floating ice volume may be too small no matter how much we lower deltaT_ocn,
     !        since the basal melt rate drops to zero and can go no lower.
-    !       To prevent large negative values, the deltaT_basin correction is capped at a moderate negative value.
+    !       To prevent large negative values, the deltaT_ocn correction is capped at a moderate negative value.
     !       A positive cap might not be needed but is included to be on the safe side.
 
-    ! TODO: Make these config parameters
+    ! TODO: Make these config parameters?
     real(dp), parameter :: &
-         deltaT_basin_maxval = 2.0d0,      & ! max allowed magnitude of deltaT_basin (deg C)
-         dTbasin_dt_maxval = 1.0d0/scyr      ! max allowed magnitude of d(deltaT_basin)/dt (deg/yr converted to deg/s)
+         deltaT_basin_maxval = 2.0d0,       & ! max allowed magnitude of deltaT_ocn in each basin (deg C)
+         dTbasin_dt_maxval = 1.0d0/scyr       ! max allowed magnitude of d(deltaT_basin)/dt (deg/yr converted to deg/s)
 
     ! For each basin, compute the current and target mean ice thickness for the target region.
     ! Also compute the current rate of mean thickness change.
@@ -1054,9 +1100,8 @@ contains
          floating_thck_basin,                 &
          floating_dthck_dt_basin)
 
-    ! Determine the rate of change of deltaT_basin for each basin.
+    ! Determine the rate of change of deltaT_ocn for each basin.
     ! Warm the basin where the ice is too thick, and cool where the ice is too thin.
-    ! Note: deltaT_basin is a 2D field, but its value is uniform in each basin.
 
     do nb = 1, nbasin
        term1 = (1.0d0/dbmlt_dtemp_scale) * &
@@ -1073,24 +1118,25 @@ contains
        dTbasin_dt = -dTbasin_dt_maxval
     endwhere
 
-    ! Increment deltaT_basin
+    ! Increment deltaT_ocn in each basin
+    ! Note: deltaT_ocn is a 2D field, but here its value is uniform in each basin.
     do j = 1, ny
        do i = 1, nx
           nb = basin_number(i,j)
           if (nb >= 1 .and. nb <= nbasin) then
-             deltaT_basin(i,j) = deltaT_basin(i,j) + dTbasin_dt(nb) * dt
+             deltaT_ocn(i,j) = deltaT_ocn(i,j) + dTbasin_dt(nb) * dt
           endif
        enddo
     enddo
 
-    ! Limit deltaT_basin to a prescribed range
-    where (deltaT_basin > deltaT_basin_maxval)
-       deltaT_basin =  deltaT_basin_maxval
-    elsewhere (deltaT_basin < -deltaT_basin_maxval)
-       deltaT_basin = -deltaT_basin_maxval
+    ! Limit deltaT_ocn to a prescribed range
+    where (deltaT_ocn > deltaT_basin_maxval)
+       deltaT_ocn =  deltaT_basin_maxval
+    elsewhere (deltaT_ocn < -deltaT_basin_maxval)
+       deltaT_ocn = -deltaT_basin_maxval
     endwhere
 
-    ! deltaT_basin diagnostics for each basin
+    ! deltaT_ocn diagnostics for each basin
 
     if (verbose_inversion) then
 
@@ -1105,8 +1151,8 @@ contains
           do i = 1, nx
              nb = basin_number(i,j)
              if (nb >= 1 .and. nb <= nbasin) then
-                basin_min(nb) = min(basin_min(nb), deltaT_basin(i,j))
-                basin_max(nb) = max(basin_max(nb), deltaT_basin(i,j))
+                basin_min(nb) = min(basin_min(nb), deltaT_ocn(i,j))
+                basin_max(nb) = max(basin_max(nb), deltaT_ocn(i,j))
              endif
           enddo
        enddo
@@ -1116,11 +1162,11 @@ contains
           basin_max(nb) = parallel_reduce_max(basin_max(nb))
        enddo
 
-       deltaT_basin_nb = 0.0d0
+       deltaT_basin = 0.0d0
        where (basin_min < 0.0d0)
-          deltaT_basin_nb = basin_min
+          deltaT_basin = basin_min
        elsewhere (basin_max > 0.0d0)
-          deltaT_basin_nb = basin_max
+          deltaT_basin = basin_max
        endwhere
 
        if (main_task) then
@@ -1130,13 +1176,236 @@ contains
              write(6,'(i6,4f12.6)') nb, &
                   dt/dbmlt_dtemp_scale * (floating_thck_basin(nb) - floating_thck_target_basin(nb)) / (bmlt_basin_timescale**2), &
                   dt/dbmlt_dtemp_scale * 2.0d0 * floating_dthck_dt_basin(nb) / bmlt_basin_timescale, &
-                  dt*dTbasin_dt(nb), deltaT_basin_nb(nb)
+                  dt*dTbasin_dt(nb), deltaT_basin(nb)
           enddo
        endif
 
     endif   ! verbose_inversion
 
   end subroutine glissade_inversion_bmlt_basin
+
+!***********************************************************************
+
+  subroutine glissade_inversion_deltaT_ocn(&
+       dt,                       &
+       nx,            ny,        &
+       itest, jtest,  rtest,     &
+       deltaT_ocn_timescale,     &
+       deltaT_ocn_thck_scale,    &
+       deltaT_ocn_temp_scale,    &
+       f_ground_cell,            &
+       thck_in,                  &
+       thck_obs_in,              &
+       dthck_dt_in,              &
+       deltaT_ocn)
+
+    ! Compute a spatially varying field of temperature correction factors at cell centers.
+    ! Adjustments are made in floating grid cells based on a thickness target:
+    !    Where thck > thck_obs, deltaT_ocn is increased to increase basal melting.
+    !    Where thck < thck_obs, deltaT_ocn is reduced to reduce basal melting.
+    ! Note: deltaT_ocn is constrained to lie within a prescribed range, [deltaT_ocn_min, deltaT_ocn_max].
+
+    use glissade_grid_operators, only: glissade_laplacian_smoother
+
+    real(dp), intent(in) ::  dt  ! time step (s)
+
+    integer, intent(in) :: &
+         nx, ny                  ! grid dimensions
+
+    integer, intent(in) :: &
+         itest, jtest, rtest     ! coordinates of diagnostic point
+
+    real(dp), intent(in) :: &
+         deltaT_ocn_timescale, & ! inversion timescale (s); must be > 0
+         deltaT_ocn_thck_scale,& ! inversion thickness scale (m); must be > 0
+         deltaT_ocn_temp_scale   ! inversion temperature scale (degC)
+
+    real(dp), dimension(nx,ny), intent(in) ::  &
+         f_ground_cell,        & ! grounded fraction at cell centers, 0 to 1
+         thck_in,              & ! ice thickness (m)
+         thck_obs_in,          & ! observed ice thickness (m)
+         dthck_dt_in             ! rate of change of ice thickness (m/s)
+
+    real(dp), dimension(nx,ny), intent(inout) ::  &
+         deltaT_ocn              ! temperature correction factor (degC)
+
+    ! local variables
+
+    real(dp), dimension(nx,ny) ::  &
+         thck,                 & ! ice thickness (m), optionally smoothed
+         thck_obs,             & ! observed ice thickness (m), optionally smoothed
+         dthck_dt,             & ! rate of change of ice thickness (m/s), optionally smoothed
+         dthck                   ! thck - thck_obs
+
+    !TODO - Allow the base value to be any initial field.
+    !       For now, relax to zero.
+    real(dp), dimension(nx, ny) :: &
+         term1_thck,           & ! tendency term based on thickness target
+         term_relax,           & ! term that relaxes deltaT_ocn toward base value
+         deltaT_ocn_relax        ! deltaT_ocn baseline field to which we relax
+
+    real(dp) :: &
+         thck_target      ! local target for ice thickness (m)
+
+    integer :: i, j
+
+    logical, parameter :: &
+!         fixed_thck_scale = .false.,  &   ! if true, use deltaT_ocn_thck_scale in inversion formula; else use local thickness
+         fixed_thck_scale = .true.         ! if true, use deltaT_ocn_thck_scale in inversion formula; else use local thickness
+
+    real(dp), parameter :: &
+         deltaT_ocn_maxval =  5.0d0        ! max allowed magnitude of deltaT_ocn (degC)
+
+    logical, parameter :: &
+         smooth_thck = .true.    ! if true, apply laplacian smoothing to input thickness fields
+
+    if (smooth_thck) then    ! smooth thickness fields to reduce noise in deltaT_ocn
+
+       call glissade_laplacian_smoother(&
+            nx,          ny,              &
+            thck_in,     thck,            &
+            npoints_stencil = 9)
+
+       call glissade_laplacian_smoother(&
+            nx,          ny,              &
+            thck_obs_in, thck_obs,        &
+            npoints_stencil = 9)
+
+       call glissade_laplacian_smoother(&
+            nx,          ny,              &
+            dthck_dt_in, dthck_dt,        &
+            npoints_stencil = 9)
+
+    else
+
+       thck = thck_in
+       thck_obs = thck_obs_in
+       dthck_dt = dthck_dt_in
+
+    endif
+
+    ! Compute difference between current and target thickness
+    ! Note: Where the target cell is ice-free, dthck will be > 0, to encourage thinning.
+
+    dthck(:,:) = thck(:,:) - thck_obs(:,:)
+
+    ! Initialize the tendency terms
+    !TODO - Set deltaT_ocn_relax at initialization (not necessarily = 0) and write to restart
+    deltaT_ocn_relax = 0.0d0
+    term_relax = 0.0d0
+    term1_thck = 0.0d0
+
+    ! Loop over vertices where f_ground_cell < 1
+    ! Note: f_ground_cell should be computed before transport, so that if a cell is at least
+    !       partly floating before transport and fully grounded afterward, deltaT_ocn is computed.
+
+    do j = 1, ny
+       do i = 1, nx
+
+          if (f_ground_cell(i,j) < 1.0d0) then  ! ice is at least partly floating
+
+             ! Compute the rate of change of deltaT_ocn based on dthck.
+             ! For a thickness target, the tendency term is given by
+             !     dTc/dt = -T0 * (1/tau) * [(H - H_obs)/H0]
+             ! where Tc = deltaT_ocn, tau = deltaT_ocn_timescale, H0 = deltaT_ocn_thck_scale,
+             ! and T0 = deltaT_ocn_temp_scale
+             ! temp_scale should be comparable to the max deltaT_ocn we will accept when
+             !  there is a large H error, dthck/thck_obs ~ 1
+
+             if (fixed_thck_scale) then
+                if (deltaT_ocn_thck_scale > 0.0d0) then
+                   term1_thck(i,j) = deltaT_ocn_temp_scale * dthck(i,j) / (deltaT_ocn_thck_scale * deltaT_ocn_timescale)
+                endif
+             else  ! thck_scale based on local obs
+                if (deltaT_ocn_thck_scale > 0.0d0) then
+                   thck_target = max(thck_obs(i,j), deltaT_ocn_thck_scale)
+                   term1_thck(i,j) = deltaT_ocn_temp_scale * dthck(i,j) / (thck_target * deltaT_ocn_timescale)
+                endif
+             endif
+
+             ! Compute a relaxation term.  This term nudges deltaT_ocn toward a base value (zero by default)
+             ! with a time scale of deltaT_ocn_timescale.
+
+             term_relax(i,j) = (deltaT_ocn_relax(i,j) - deltaT_ocn(i,j)) / deltaT_ocn_timescale
+
+             ! Update deltatT_ocn
+             deltaT_ocn(i,j) = deltaT_ocn(i,j) + (term1_thck(i,j) + term_relax(i,j)) * dt
+
+             !WHL - debug
+             if (verbose_inversion .and. this_rank == rtest .and. i==itest .and. j==jtest) then
+                print*, ' '
+                print*, 'Invert for deltaT_ocn: rank, i, j =', rtest, itest, jtest
+                print*, 'thck scale (m), temp scale (degC), timescale (yr):', &
+                     deltaT_ocn_thck_scale, deltaT_ocn_temp_scale, deltaT_ocn_timescale/scyr
+                print*, 'thck (m), thck_obs, dthck, dthck_dt (m/yr):', &
+                     thck(i,j), thck_obs(i,j), dthck(i,j), dthck_dt(i,j)*scyr
+                print*, 'dthck term =', term1_thck(i,j)*dt
+                print*, 'dT_ocn_relax, term_relax (degC) =', deltaT_ocn_relax(i,j), term_relax(i,j)*dt
+                print*, 'Tendency sum:', (term1_thck(i,j) + term_relax(i,j)) * dt
+                print*, 'new deltaT_ocn =', deltaT_ocn(i,j)
+             endif
+
+             ! Limit to a physically reasonable range
+             deltaT_ocn(i,j) = min(deltaT_ocn(i,j),  deltaT_ocn_maxval)
+             deltaT_ocn(i,j) = max(deltaT_ocn(i,j), -deltaT_ocn_maxval)
+
+          else   ! f_ground_cell < 1
+
+             ! do nothing; keep the old value
+
+          endif  ! f_ground_cell = 1
+
+       enddo  ! i
+    enddo  ! j
+
+    ! optional diagnostics
+    if (verbose_inversion .and. this_rank == rtest) then
+       i = itest
+       j = jtest
+       print*, ' '
+       print*, 'deltaT_ocn inversion, smooth_thck =', smooth_thck
+       print*, ' '
+       print*, 'f_ground_cell'
+       do j = jtest+3, jtest-3, -1
+          do i = itest-3, itest+3
+             write(6,'(f10.3)',advance='no') f_ground_cell(i,j)
+          enddo
+          print*, ' '
+       enddo
+       print*, 'thck (m):'
+       do j = jtest+3, jtest-3, -1
+          do i = itest-3, itest+3
+             write(6,'(f10.3)',advance='no') thck(i,j)
+          enddo
+          print*, ' '
+       enddo
+       print*, ' '
+       print*, 'dthck (m):'
+       do j = jtest+3, jtest-3, -1
+          do i = itest-3, itest+3
+             write(6,'(f10.3)',advance='no') dthck(i,j)
+          enddo
+          print*, ' '
+       enddo
+       print*, ' '
+       print*, 'dthck_dt (m/yr):'
+       do j = jtest+3, jtest-3, -1
+          do i = itest-3, itest+3
+             write(6,'(f10.3)',advance='no') dthck_dt(i,j)*scyr
+          enddo
+          print*, ' '
+       enddo
+       print*, ' '
+       print*, 'New deltaT_ocn (deg):'
+       do j = jtest+3, jtest-3, -1
+          do i = itest-3, itest+3
+             write(6,'(f10.5)',advance='no') deltaT_ocn(i,j)
+          enddo
+          print*, ' '
+       enddo
+    endif
+
+  end subroutine glissade_inversion_deltaT_ocn
 
 !***********************************************************************
 

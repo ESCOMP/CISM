@@ -374,11 +374,11 @@ data:          data%ocean_data%basin_number
 load:          1
 type:          int
 
-[deltaT_basin]
+[deltaT_ocn]
 dimensions:    time, y1, x1
 units:         degrees K
-long_name:     deltaT_basin
-data:          data%ocean_data%deltaT_basin
+long_name:     deltaT_ocn
+data:          data%ocean_data%deltaT_ocn
 load:          1
 
 [thermal_forcing]
