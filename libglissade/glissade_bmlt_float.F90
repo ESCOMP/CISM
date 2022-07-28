@@ -545,7 +545,7 @@ module glissade_bmlt_float
 
        ! Set deltaT_basin in a similar way based on this_rank
        ! Will have more melting with larger rank
-       ocean_data%deltaT_basin(:,:) = 0.50d0 * this_rank
+       ocean_data%deltaT_ocn(:,:) = 0.50d0 * this_rank
 
        ! Use Xylar's median value (m/yr) for gamma0
        ocean_data%gamma0 = 15000.d0
@@ -566,8 +566,8 @@ module glissade_bmlt_float
            model%options%bmlt_float_thermal_forcing_param == BMLT_FLOAT_TF_ISMIP6_NONLOCAL .or. &
            model%options%bmlt_float_thermal_forcing_param == BMLT_FLOAT_TF_ISMIP6_NONLOCAL_SLOPE) then
 
-          ! Initialize deltaT_basin, if needed for the ISMIP6 option
-          ! For other options, deltaT_basin(:,:) = 0 initially or has already been read in
+          ! Initialize deltaT_ocn based on deltaT_basin_ismip6, if needed for the ISMIP6 option
+          ! For other options, deltaT_ocn(:,:) = 0 initially or has already been read in
 
           if (model%options%which_ho_bmlt_basin == HO_BMLT_BASIN_ISMIP6) then
 
@@ -624,7 +624,7 @@ module glissade_bmlt_float
                 do i = 1, ewn
                    nb = ocean_data%basin_number(i,j)
                    if (nb >= 1) then
-                      ocean_data%deltaT_basin(i,j) = deltaT_basin_ismip6(nb)
+                      ocean_data%deltaT_ocn(i,j) = deltaT_basin_ismip6(nb)
                    endif
                 enddo
              enddo
@@ -657,11 +657,11 @@ module glissade_bmlt_float
                 write(6,*) ' '
              enddo
              print*, ' '
-             print*, 'deltaT_basin'
+             print*, 'deltaT_ocn'
              do j = jtest+3, jtest-3, -1
                 write(6,'(i6)',advance='no') j
                 do i = itest-3, itest+3
-                   write(6,'(f10.4)',advance='no') ocean_data%deltaT_basin(i,j)
+                   write(6,'(f10.4)',advance='no') ocean_data%deltaT_ocn(i,j)
                 enddo
                 write(6,*) ' '
              enddo
@@ -681,7 +681,7 @@ module glissade_bmlt_float
           ! Fill halos (might not be needed)
           ! TODO: Remove these halo updates?
           call parallel_halo(ocean_data%basin_number, parallel)
-          call parallel_halo(ocean_data%deltaT_basin, parallel)
+          call parallel_halo(ocean_data%deltaT_ocn, parallel)
           call parallel_halo(ocean_data%thermal_forcing, parallel)
 
           ! Make sure every cell is assigned a basin number >= 1.
@@ -781,7 +781,7 @@ module glissade_bmlt_float
                             !> nbasin = number of ocean basins
                             !> basin_number = integer assigned to each basin
                             !> gamma0 = basal melt rate coefficient for ISMIP6 melt parameterization
-                            !> deltaT_basin = temperature corrections per basin for ISMIP6 melt parameterization
+                            !> deltaT_ocn = ocean temperature corrections for ISMIP6 melt parameterization
 
     real(dp), dimension(:,:), intent(out) :: &
          bmlt_float         !> basal melt rate for floating ice (m/s)
@@ -817,7 +817,7 @@ module glissade_bmlt_float
     ! Note: Ocean basins are indexed from 1 to nbasin (previously indexed from 0 to nbasin-1)
     real(dp), dimension(ocean_data%nbasin) :: &
          thermal_forcing_basin,        &  ! basin average thermal forcing (K) at current time
-         deltaT_basin_avg                 ! basin average value of deltaT_basin
+         deltaT_basin_avg                 ! basin average value of deltaT_ocn
 
     real(dp) :: &
          tf_anomaly                       ! local version of tf_anomaly_in
@@ -1067,6 +1067,8 @@ module glissade_bmlt_float
 
     if (verbose_bmlt_float .and. this_rank==rtest) then
        print*, ' '
+       print*, 'basin number =', ocean_data%basin_number(itest,jtest)
+       print*, ' '
        print*, 'lsrf (m)'
        do j = jtest+3, jtest-3, -1
           write(6,'(i6)',advance='no') j
@@ -1088,20 +1090,21 @@ module glissade_bmlt_float
            bmlt_float_thermal_forcing_param == BMLT_FLOAT_TF_ISMIP6_NONLOCAL .or.  &
            bmlt_float_thermal_forcing_param == BMLT_FLOAT_TF_ISMIP6_NONLOCAL_SLOPE) then
           print*, ' '
-          print*, 'deltaT_basin (deg C)'
+          print*, 'deltaT_ocn (deg C)'
           do j = jtest+3, jtest-3, -1
              write(6,'(i6)',advance='no') j
              do i = itest-3, itest+3
-                write(6,'(f10.3)',advance='no') ocean_data%deltaT_basin(i,j)
+                write(6,'(f10.3)',advance='no') ocean_data%deltaT_ocn(i,j)
              enddo
              write(6,*) ' '
           enddo
           print*, ' '
-          print*, 'basin number'
+          print*, 'corrected TF (deg C)'
           do j = jtest+3, jtest-3, -1
              write(6,'(i6)',advance='no') j
              do i = itest-3, itest+3
-                write(6,'(i10)',advance='no') ocean_data%basin_number(i,j)
+                write(6,'(f10.3)',advance='no') &
+                     ocean_data%thermal_forcing_lsrf(i,j) + ocean_data%deltaT_ocn(i,j)
              enddo
              write(6,*) ' '
           enddo
@@ -1172,7 +1175,7 @@ module glissade_bmlt_float
             thermal_forcing_basin,           &
             itest, jtest, rtest)
 
-       ! For diagnostics, compute the average value of deltaT_basin each basin.
+       ! For diagnostics, compute the average value of deltaT_ocn in each basin.
        ! Note: Each cell in the basin should have this average value.
 
        call glissade_basin_average(&
@@ -1180,7 +1183,7 @@ module glissade_bmlt_float
             ocean_data%nbasin,               &
             ocean_data%basin_number,         &
             thermal_forcing_mask * f_float,  &
-            ocean_data%deltaT_basin,         &
+            ocean_data%deltaT_ocn,           &
             deltaT_basin_avg)
 
        if (verbose_bmlt_float .and. this_rank==rtest) then
@@ -1190,7 +1193,7 @@ module glissade_bmlt_float
              print*, nb, thermal_forcing_basin(nb)
           enddo
           print*, ' '
-          print*, 'deltaT_basin:'
+          print*, 'deltaT_basin_avg:'
           do nb = 1, ocean_data%nbasin
              print*, nb, deltaT_basin_avg(nb)
           enddo
@@ -1240,9 +1243,10 @@ module glissade_bmlt_float
             ocean_data%nbasin,                &
             ocean_data%basin_number,          &
             ocean_data%gamma0,                &
-            ocean_data%deltaT_basin,          &
             ocean_data%thermal_forcing_lsrf,  &
+            ocean_data%deltaT_ocn,            &
             thermal_forcing_basin,            &
+            deltaT_basin_avg,                 &
             thermal_forcing_mask,             &
             bmlt_float)
 
@@ -1874,9 +1878,10 @@ module glissade_bmlt_float
        nbasin,                    &
        basin_number,              &
        gamma0,                    &
-       deltaT_basin,              &
        thermal_forcing_lsrf,      &
+       deltaT_ocn,                &
        thermal_forcing_basin,     &
+       deltaT_basin_avg,          &
        thermal_forcing_mask,      &
        bmlt_float)
 
@@ -1905,11 +1910,12 @@ module glissade_bmlt_float
          gamma0                   !> basal melt rate coefficient (m/yr)
 
     real(dp), dimension(nx,ny), intent(in) :: &
-         deltaT_basin,          & !> thermal forcing correction factor for each basin (deg C)
-         thermal_forcing_lsrf     !> thermal forcing (K) at lower ice surface
+         thermal_forcing_lsrf,  & !> thermal forcing (K) at lower ice surface
+         deltaT_ocn               !> thermal forcing correction factor (deg C)
 
     real(dp), dimension(nbasin), intent(in) :: &
-         thermal_forcing_basin    !> thermal forcing averaged over each basin (K)
+         thermal_forcing_basin, & !> thermal forcing averaged over each basin (K)
+         deltaT_basin_avg         !> thermal forcing correction factor for each basin (deg C)
 
     integer, dimension(nx,ny), intent(in) :: &
          thermal_forcing_mask     !> = 1 where TF-driven bmlt_float can be > 0
@@ -1947,7 +1953,7 @@ module glissade_bmlt_float
        do j = 1, ny
           do i = 1, nx
              if (thermal_forcing_mask(i,j) == 1) then
-                eff_thermal_forcing = max(0.0d0, thermal_forcing_lsrf(i,j) + deltaT_basin(i,j))
+                eff_thermal_forcing = max(0.0d0, thermal_forcing_lsrf(i,j) + deltaT_ocn(i,j))
                 bmlt_float(i,j) = coeff * gamma0 * eff_thermal_forcing**2
              endif
           enddo
@@ -1962,22 +1968,23 @@ module glissade_bmlt_float
           do i = 1, nx
              nb = basin_number(i,j)
              if (thermal_forcing_mask(i,j) == 1) then
-                ! Note: Can have bmlt_float < 0 where thermal_forcing_lsrf + deltaT_basin < 0
-                eff_thermal_forcing = thermal_forcing_lsrf(i,j) + deltaT_basin(i,j)
-                eff_thermal_forcing_basin = max(0.0d0, thermal_forcing_basin(nb) + deltaT_basin(i,j))
+                ! Note: Can have bmlt_float < 0 where thermal_forcing_lsrf + deltaT_ocn < 0
+                eff_thermal_forcing = thermal_forcing_lsrf(i,j) + deltaT_ocn(i,j)
+                eff_thermal_forcing_basin = max(0.0d0, thermal_forcing_basin(nb) + deltaT_basin_avg(nb))
                 bmlt_float(i,j) = coeff * gamma0 * eff_thermal_forcing * eff_thermal_forcing_basin
 
                 !WHL - debug
-!                if (verbose_bmlt_float .and. this_rank == rtest .and. i==itest .and. j==jtest) then
-!                   print*, ' '
-!                   print*, 'In ismip6_bmlt_float, r, i, j, nb =', rtest, itest, jtest, nb
-!                   print*, 'gamma0, coeff =', gamma0, coeff
-!                   print*, 'thermal_forcing_lsrf =', thermal_forcing_lsrf(i,j)
-!                   print*, 'thermal_forcing_basin =', thermal_forcing_basin(nb)
-!                   print*, 'deltaT_basin =', deltaT_basin(i,j)
-!                   print*, 'eff_TF, eff_TF_basin =', eff_thermal_forcing, eff_thermal_forcing_basin
-!                   print*, 'bmlt_float =', bmlt_float(i,j)
-!                endif
+                if (verbose_bmlt_float .and. this_rank == rtest .and. i==itest .and. j==jtest) then
+                   print*, ' '
+                   print*, 'In ismip6_bmlt_float, r, i, j, nb =', rtest, itest, jtest, nb
+                   print*, 'gamma0, coeff =', gamma0, coeff
+                   print*, 'thermal_forcing_lsrf =', thermal_forcing_lsrf(i,j)
+                   print*, 'deltaT_ocn =', deltaT_ocn(i,j)
+                   print*, 'thermal_forcing_basin =', thermal_forcing_basin(nb)
+                   print*, 'deltaT_basin_avg =', deltaT_basin_avg(nb)
+                   print*, 'eff_TF, eff_TF_basin =', eff_thermal_forcing, eff_thermal_forcing_basin
+                   print*, 'bmlt_float =', bmlt_float(i,j)
+                endif
 
              endif
           enddo
