@@ -864,7 +864,9 @@ contains
 
     if (model%options%which_ho_powerlaw_c == HO_POWERLAW_C_INVERSION .or.  &
         model%options%which_ho_coulomb_c  == HO_COULOMB_C_INVERSION  .or.  &
-        model%options%which_ho_bmlt_basin == HO_BMLT_BASIN_INVERSION) then
+        model%options%which_ho_deltaT_ocn == HO_DELTAT_OCN_INVERSION .or.  &
+        model%options%which_ho_bmlt_basin == HO_BMLT_BASIN_INVERSION .or.  &
+        model%options%which_ho_flow_factor_basin == HO_FLOW_FACTOR_BASIN_INVERSION) then
 
        call glissade_init_inversion(model)
 
@@ -3162,7 +3164,7 @@ contains
 
           call parallel_halo(model%calving%calving_mask, parallel)
 
-       endif   ! expand_calving_mask
+       endif   ! init_calving and expand_calving_mask
 
        if (verbose_calving .and. this_rank==rtest) then
           print*, ' '
@@ -3738,7 +3740,7 @@ contains
     use glissade_velo, only: glissade_velo_driver
     use glide_velo, only: wvelintg
     use glissade_masks, only: glissade_get_masks, glissade_ice_sheet_mask, glissade_calving_front_mask
-    use glissade_grid_operators, only: glissade_stagger, glissade_gradient
+    use glissade_grid_operators, only: glissade_stagger, glissade_gradient, glissade_laplacian_smoother
     use glissade_grounding_line, only: glissade_grounded_fraction, glissade_grounding_line_flux, verbose_glp
     use glissade_therm, only: glissade_interior_dissipation_sia,  &
                               glissade_interior_dissipation_first_order, &
@@ -3748,7 +3750,8 @@ contains
     use felix_dycore_interface, only: felix_velo_driver
     use glissade_basal_traction, only: calc_effective_pressure
     use glissade_inversion, only: verbose_inversion, glissade_inversion_basal_friction,  &
-         glissade_inversion_bmlt_basin, glissade_inversion_flow_factor_basin
+         glissade_inversion_bmlt_basin, glissade_inversion_deltaT_ocn, &
+         glissade_inversion_flow_factor_basin, usrf_to_thck
 
     implicit none
 
@@ -3768,7 +3771,8 @@ contains
          marine_interior_mask  ! = 1 if ice is marine-based and borders no ocean cells, else = 0
 
     real(dp), dimension(model%general%ewn, model%general%nsn) ::  &
-         thck_calving_front          ! effective thickness of ice at the calving front
+         thck_obs,           & ! observed thickness target (m)
+         thck_calving_front    ! effective thickness of ice at the calving front
 
     real(dp), dimension(model%general%ewn, model%general%nsn) ::  &
          flow_enhancement_factor_float    ! flow enhancement factor for floating ice
@@ -4021,7 +4025,7 @@ contains
     endif   ! which_ho_powerlaw_c/coulomb_c
 
 
-    ! If inverting for deltaT_basin, then update it here
+    ! If inverting for deltaT_ocn at the basin level, then update it here
 
     if ( model%options%which_ho_bmlt_basin == HO_BMLT_BASIN_INVERSION) then
 
@@ -4045,12 +4049,47 @@ contains
                                              model%inversion%basin_number_mass_correction, &
                                              model%inversion%dbmlt_dtemp_scale,         &  ! (m/s)/degC
                                              model%inversion%bmlt_basin_timescale,      &  ! s
-                                             model%ocean_data%deltaT_basin)
+                                             model%ocean_data%deltaT_ocn)
 
        endif  ! first call after a restart
 
     endif   ! which_ho_bmlt_basin
 
+    ! If inverting for deltaT_ocn based on observed ice thickness, then update it here.
+
+    if ( model%options%which_ho_deltaT_ocn == HO_DELTAT_OCN_INVERSION) then
+
+       if ( (model%options%is_restart == RESTART_TRUE) .and. &
+            (model%numerics%time == model%numerics%tstart) ) then
+          ! first call after a restart; do not update deltaT_ocn
+
+       else
+
+          ! Given the surface elevation target, compute the thickness target.
+          ! This can change in time if the bed topography is dynamic.
+
+          call usrf_to_thck(&
+               model%geometry%usrf_obs,  &
+               model%geometry%topg,      &
+               model%climate%eus,        &
+               thck_obs)
+
+          call glissade_inversion_deltaT_ocn(&
+               model%numerics%dt * tim0,              &  ! s
+               ewn,           nsn,                    &
+               itest, jtest,  rtest,                  &
+               model%inversion%deltaT_ocn_timescale,  &  ! s
+               model%inversion%deltaT_ocn_thck_scale, &  ! m
+               model%inversion%deltaT_ocn_temp_scale, &  ! degC
+               model%geometry%f_ground_cell,          &
+               model%geometry%thck * thk0,            &  ! m
+               thck_obs * thk0,                       &  ! m
+               model%geometry%dthck_dt,               &  ! m/s
+               model%ocean_data%deltaT_ocn)              ! degC
+
+       endif  ! first call after a restart
+
+    endif   ! which_ho_deltaT_ocn
 
     ! If inverting for flow_factor_basin, then update it here
 
@@ -4081,7 +4120,7 @@ contains
 
        endif  ! first call after a restart
 
-    endif   ! which_ho_bmlt_basin
+    endif   ! which_ho_flow_factor_basin
 
     ! ------------------------------------------------------------------------ 
     ! Calculate Glen's A
