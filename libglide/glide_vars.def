@@ -394,11 +394,11 @@ units:         degrees K
 long_name:     thermal_forcing at lower ice surface
 data:          data%ocean_data%thermal_forcing_lsrf(:,:)
 
-[flow_factor_basin]
+[flow_enhancement_factor]
 dimensions:    time, y1, x1
 units:         1
-long_name:     flow_factor_basin
-data:          data%temper%flow_factor_basin
+long_name:     flow enhancement factor
+data:          data%temper%flow_enhancement_factor
 load:          1
 
 #WHL - Fields for a future MISOMIP option
