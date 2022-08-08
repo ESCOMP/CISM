@@ -866,7 +866,7 @@ contains
         model%options%which_ho_coulomb_c  == HO_COULOMB_C_INVERSION  .or.  &
         model%options%which_ho_deltaT_ocn == HO_DELTAT_OCN_INVERSION .or.  &
         model%options%which_ho_bmlt_basin == HO_BMLT_BASIN_INVERSION .or.  &
-        model%options%which_ho_flow_factor_basin == HO_FLOW_FACTOR_BASIN_INVERSION) then
+        model%options%which_ho_flow_enhancement_factor == HO_FLOW_ENHANCEMENT_FACTOR_INVERSION) then
 
        call glissade_init_inversion(model)
 
@@ -3751,7 +3751,8 @@ contains
     use glissade_basal_traction, only: calc_effective_pressure
     use glissade_inversion, only: verbose_inversion, glissade_inversion_basal_friction,  &
          glissade_inversion_bmlt_basin, glissade_inversion_deltaT_ocn, &
-         glissade_inversion_flow_factor_basin, usrf_to_thck
+         glissade_inversion_flow_enhancement_factor, &
+         usrf_to_thck
 
     implicit none
 
@@ -3770,12 +3771,14 @@ contains
          calving_front_mask, & ! = 1 where ice is floating and borders an ocean cell, else = 0
          marine_interior_mask  ! = 1 if ice is marine-based and borders no ocean cells, else = 0
 
+    ! Note: f_flotation_obs and f_ground_obs are used only as dummy output arguments
+    !       for the subroutine that computes f_ground_cell_obs.
     real(dp), dimension(model%general%ewn, model%general%nsn) ::  &
          thck_obs,           & ! observed thickness target (m)
+         f_ground_cell_obs,  & ! f_ground_cell as a function of thck_obs (instead of current thck)
+         f_ground_obs,       & ! f_ground as a function of thck_obs (instead of current thck)
+         f_flotation_obs,    & ! f_flotation_obs as a function of thck_obs (instead of current thck)
          thck_calving_front    ! effective thickness of ice at the calving front
-
-    real(dp), dimension(model%general%ewn, model%general%nsn) ::  &
-         flow_enhancement_factor_float    ! flow enhancement factor for floating ice
 
     real(dp) :: &
          dsigma,                   & ! layer thickness in sigma coordinates
@@ -3995,6 +3998,8 @@ contains
        print*, ' '
     endif  ! this_rank = rtest
 
+    !TODO - Put the following runtime inversion code in a separate subroutine in glissade_inversion.
+
     ! Compute the thickness tendency dH/dt from one step to the next (m/s)
     ! This tendency is used for coulomb_c and powerlaw_c inversion.
 
@@ -4078,8 +4083,8 @@ contains
                model%numerics%dt * tim0,              &  ! s
                ewn,           nsn,                    &
                itest, jtest,  rtest,                  &
-               model%inversion%deltaT_ocn_timescale,  &  ! s
                model%inversion%deltaT_ocn_thck_scale, &  ! m
+               model%inversion%deltaT_ocn_timescale,  &  ! s
                model%inversion%deltaT_ocn_temp_scale, &  ! degC
                model%geometry%f_ground_cell,          &
                model%geometry%thck * thk0,            &  ! m
@@ -4091,9 +4096,9 @@ contains
 
     endif   ! which_ho_deltaT_ocn
 
-    ! If inverting for flow_factor_basin, then update it here
+    ! If inverting for flow_enhancement_factor, then update it here
 
-    if ( model%options%which_ho_flow_factor_basin == HO_FLOW_FACTOR_BASIN_INVERSION) then
+    if ( model%options%which_ho_flow_enhancement_factor == HO_FLOW_ENHANCEMENT_FACTOR_INVERSION) then
 
        if ( (model%options%is_restart == RESTART_TRUE) .and. &
             (model%numerics%time == model%numerics%tstart) ) then
@@ -4101,26 +4106,58 @@ contains
 
        else
 
-          call glissade_inversion_flow_factor_basin(&
-               model%numerics%dt * tim0,                     &
-               ewn, nsn,                                     &
-               model%numerics%dew * len0,                    &  ! m
-               model%numerics%dns * len0,                    &  ! m
-               itest, jtest, rtest,                          &
-               model%ocean_data%nbasin,                      &
-               model%ocean_data%basin_number,                &
-               model%geometry%thck*thk0,                     &  ! m
-               model%geometry%dthck_dt,                      &  ! m/s
-               model%inversion%floating_thck_target*thk0,    &  ! m
-               model%inversion%basin_mass_correction,        &
-               model%inversion%basin_number_mass_correction, &
-               model%inversion%flow_factor_basin_thck_scale, &  ! m
-               model%inversion%flow_factor_basin_timescale,  &  ! s
-               model%temper%flow_factor_basin)
+          ! Given the surface elevation target, compute the thickness target.
+          ! This can change in time if the bed topography is dynamic.
+
+          call usrf_to_thck(&
+               model%geometry%usrf_obs,  &
+               model%geometry%topg,      &
+               model%climate%eus,        &
+               thck_obs)
+
+          ! Compute f_ground_cell based on thck_obs instead of thck.
+          ! This is done so that the relaxation target is based on whether the target ice
+          !  (not the current ice) is grounded or floating.
+          ! Note: f_flotation_obs and f_ground_obs are not used, but they
+          !       are required output arguments for the subroutine.
+
+          call glissade_grounded_fraction(&
+               ewn,          nsn,             &
+               parallel,                      &
+               itest, jtest, rtest,           &  ! diagnostic only
+               thck_obs*thk0,                 &
+               model%geometry%topg*thk0,      &
+               model%climate%eus*thk0,        &
+               ice_mask,                      &
+               floating_mask,                 &
+               land_mask,                     &
+               model%options%which_ho_ground, &
+               model%options%which_ho_flotation_function, &
+               model%options%which_ho_fground_no_glp,     &
+               f_flotation_obs,               &
+               f_ground_obs,                  &
+               f_ground_cell_obs)
+
+          call glissade_inversion_flow_enhancement_factor(&
+               model%numerics%dt * tim0,                         &
+               ewn, nsn,                                         &
+               itest, jtest, rtest,                              &
+               model%geometry%thck * thk0,                       &  ! m
+               model%geometry%dthck_dt,                          &  ! m/s
+               thck_obs * thk0,                                  &
+               ice_mask,                                         &
+               model%geometry%f_ground_cell,                     &
+               f_ground_cell_obs,                                &
+               model%paramets%flow_enhancement_factor_ground,    &
+               model%paramets%flow_enhancement_factor_float,     &
+               model%inversion%flow_enhancement_thck_scale,      &  ! m
+               model%inversion%flow_enhancement_timescale,       &  ! s
+               model%inversion%flow_enhancement_relax_factor,    &
+               model%temper%flow_enhancement_factor)
 
        endif  ! first call after a restart
 
-    endif   ! which_ho_flow_factor_basin
+    endif   ! which_ho_flow_enhancement_factor
 
     ! ------------------------------------------------------------------------ 
     ! Calculate Glen's A
@@ -4130,19 +4167,11 @@ contains
     !      here for whether to calculate it on initial time (as is done in Glide).
     ! (2) We are passing in only vertical elements (1:upn-1) of the temp array,
     !       so that it has the same vertical dimensions as flwa.
-    ! (3) The flow enhancement factor for grounded ice is 1 by default.
-    ! (4) The flow enhancement factor for floating ice is uniform by default,
-    !     but optionally can be basin-specific.
-    ! (5) The waterfrac field is ignored unless whichtemp = TEMP_ENTHALPY.
-    ! (6) Inputs and outputs of glissade_flow_factor should have SI units.
+    ! (3) The flow enhancement factor can either be set to a constant (one value
+    !     for grounded ice, another for floating ice) or specified as a 2D field.
+    ! (4) The waterfrac field is ignored unless whichtemp = TEMP_ENTHALPY.
+    ! (5) Inputs and outputs of subroutine glissade_flow_factor should have SI units.
     ! ------------------------------------------------------------------------
-
-    ! Set the flow enhancement factor for floating ice
-    if (model%options%which_ho_flow_factor_basin == HO_FLOW_FACTOR_BASIN_CONST) then
-       flow_enhancement_factor_float(:,:) = model%paramets%flow_enhancement_factor_float
-    else
-       flow_enhancement_factor_float(:,:) = model%temper%flow_factor_basin(:,:)
-    endif
 
     call glissade_flow_factor(model%options%whichflwa,            &
                               model%options%whichtemp,            &
@@ -4151,40 +4180,14 @@ contains
                               model%temper%temp(1:upn-1,:,:),     &
                               model%temper%flwa,                  &  ! Pa^{-n} s^{-1}
                               model%paramets%default_flwa / scyr, &  ! scale to Pa^{-n} s^{-1}
-                              model%paramets%flow_enhancement_factor,  &
-                              flow_enhancement_factor_float,      &
+                              model%options%which_ho_flow_enhancement_factor, &
+                              model%temper%flow_enhancement_factor,           &
+                              model%paramets%flow_enhancement_factor_ground,  &
+                              model%paramets%flow_enhancement_factor_float,   &
                               model%options%which_ho_ground,      &
                               floating_mask,                      &
                               model%geometry%f_ground_cell,       &
                               model%temper%waterfrac)
-
-    !WHL - debug
-    if (this_rank==rtest) then
-       i = itest
-       j = jtest
-       print*, 'itest, jtest =', i, j
-       print*, 'flow_enhancement_factor_float:'
-       do i = itest-3, itest+3
-          write(6,'(i12)',advance='no') i
-       enddo
-       print*, ' '
-       do j = jtest+3, jtest-3, -1
-          write(6,'(i8)',advance='no') j
-          do i = itest-3, itest+3
-             write(6,'(f12.3)',advance='no') flow_enhancement_factor_float(i,j)
-          enddo
-          print*, ' '
-       enddo
-       print*, ' '
-       print*, 'flwa(1)'
-       do j = jtest+3, jtest-3, -1
-          write(6,'(i8)',advance='no') j
-          do i = itest-3, itest+3
-             write(6,'(e12.3)',advance='no') model%temper%flwa(1,i,j)
-          enddo
-          print*, ' '
-       enddo
-    endif
 
     !TODO - flwa halo update not needed?
     ! Halo update for flwa

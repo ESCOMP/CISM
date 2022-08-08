@@ -1964,13 +1964,18 @@ module glissade_bmlt_float
 
        ! nonlocal parameterization
        ! melt rate is a quadratic function of local thermal forcing and basin-average thermal forcing
+       ! Note: eff_thermal_forcing_basin is a function of thermal_forcing_basin(nb).
+       !       Thus, it depends on the input thermal forcing field and the current ice geometry,
+       !        but not on the local correction, deltaT_ocn.
+       !       Only the local forcing term, eff_thermal_forcing, depends on deltaT_ocn.
+
        do j = 1, ny
           do i = 1, nx
              nb = basin_number(i,j)
              if (thermal_forcing_mask(i,j) == 1) then
                 ! Note: Can have bmlt_float < 0 where thermal_forcing_lsrf + deltaT_ocn < 0
                 eff_thermal_forcing = thermal_forcing_lsrf(i,j) + deltaT_ocn(i,j)
-                eff_thermal_forcing_basin = max(0.0d0, thermal_forcing_basin(nb) + deltaT_basin_avg(nb))
+                eff_thermal_forcing_basin = max(0.0d0, thermal_forcing_basin(nb))
                 bmlt_float(i,j) = coeff * gamma0 * eff_thermal_forcing * eff_thermal_forcing_basin
 
                 !WHL - debug
@@ -1983,7 +1988,6 @@ module glissade_bmlt_float
                    print*, 'thermal_forcing_basin =', thermal_forcing_basin(nb)
                    print*, 'deltaT_basin_avg =', deltaT_basin_avg(nb)
                    print*, 'eff_TF, eff_TF_basin =', eff_thermal_forcing, eff_thermal_forcing_basin
-                   print*, 'bmlt_float =', bmlt_float(i,j)
                 endif
 
              endif

@@ -272,18 +272,22 @@ module glide_types
   integer, parameter :: HO_COULOMB_C_EXTERNAL = 2
   integer, parameter :: HO_COULOMB_C_ELEVATION = 3
 
-  integer, parameter :: HO_BMLT_BASIN_NONE = 0
-  integer, parameter :: HO_BMLT_BASIN_INVERSION = 1
-  integer, parameter :: HO_BMLT_BASIN_EXTERNAL = 2
-  integer, parameter :: HO_BMLT_BASIN_ISMIP6 = 3
+  integer, parameter :: HO_COULOMB_C_RELAX_NONE = 0
+  integer, parameter :: HO_COULOMB_C_RELAX_CONSTANT = 1
+  integer, parameter :: HO_COULOMB_C_RELAX_ELEVATION = 2
 
   integer, parameter :: HO_DELTAT_OCN_NONE = 0
   integer, parameter :: HO_DELTAT_OCN_INVERSION = 1
   integer, parameter :: HO_DELTAT_OCN_EXTERNAL = 2
 
-  integer, parameter :: HO_FLOW_FACTOR_BASIN_CONST = 0
-  integer, parameter :: HO_FLOW_FACTOR_BASIN_INVERSION = 1
-  integer, parameter :: HO_FLOW_FACTOR_BASIN_EXTERNAL = 2
+  integer, parameter :: HO_FLOW_ENHANCEMENT_FACTOR_CONSTANT = 0
+  integer, parameter :: HO_FLOW_ENHANCEMENT_FACTOR_INVERSION = 1
+  integer, parameter :: HO_FLOW_ENHANCEMENT_FACTOR_EXTERNAL = 2
+
+  integer, parameter :: HO_BMLT_BASIN_NONE = 0
+  integer, parameter :: HO_BMLT_BASIN_INVERSION = 1
+  integer, parameter :: HO_BMLT_BASIN_EXTERNAL = 2
+  integer, parameter :: HO_BMLT_BASIN_ISMIP6 = 3
 
   integer, parameter :: HO_BWAT_NONE = 0
   integer, parameter :: HO_BWAT_CONSTANT = 1
@@ -830,13 +834,12 @@ module glide_types
     !> \item[3] coulomb_c = function of bed elevation
     !> \end{description}
 
-    integer :: which_ho_bmlt_basin = 0
-    !> Flag for basin-based temperature corrections
+    integer :: which_ho_coulomb_c_relax = 0
+    !> Flag for basal coulomb_c options
     !> \begin{description}
-    !> \item[0] deltaT_ocn = 0 in each basin
-    !> \item[1] invert for deltaT_ocn in each basin
-    !> \item[2] read deltaT_ocn from external file in each basin
-    !> \item[3] prescribe deltaT_ocn in each basin using ISMIP6 values
+    !> \item[0] No coulomb_c_relaxation target
+    !> \item[1] coulomb_c_relax = spatially uniform constant
+    !> \item[2] coulomb_c_relax = function of bed elevation
     !> \end{description}
 
     integer :: which_ho_deltaT_ocn = 0
@@ -847,12 +850,21 @@ module glide_types
     !> \item[2] read deltaT_ocn from external file
     !> \end{description}
 
-    integer :: which_ho_flow_factor_basin = 0
-    !> Flag for basin-based flow factors for floating ice
+    integer :: which_ho_flow_enhancement_factor = 0
+    !> Flag for flow enhancement factor E
     !> \begin{description}
-    !> \item[0] flow_factor_float = constant
-    !> \item[1] invert for flow_factor_basin
-    !> \item[2] read flow_factor_basin from external file
+    !> \item[0] flow enhancement factor E = constant (typically lower for floating ice)
+    !> \item[1] invert for flow_enhancement factor E
+    !> \item[2] read flow_enhancement factor E from external file
+
+    integer :: which_ho_bmlt_basin = 0
+    !> Flag for basin-based temperature corrections
+    !> \begin{description}
+    !> \item[0] deltaT_ocn = 0 in each basin
+    !> \item[1] invert for deltaT_ocn in each basin
+    !> \item[2] read deltaT_ocn from external file in each basin
+    !> \item[3] prescribe deltaT_ocn in each basin using ISMIP6 values
+    !> \end{description}
 
     integer :: which_ho_bwat = 0
     !> Basal water depth:
@@ -1565,7 +1577,7 @@ module glide_types
     real(dp),dimension(:,:),  pointer :: lcondflx => null()  !> conductive heat flux (W/m^2) at lower sfc (positive down)
     real(dp),dimension(:,:),  pointer :: dissipcol => null() !> total heat dissipation rate (W/m^2) in column (>= 0)
 
-    real(dp),dimension(:,:),  pointer :: flow_factor_basin => null()  !> flow enhancement factor; uniform within each basin (unitless)
+    real(dp),dimension(:,:),  pointer :: flow_enhancement_factor => null()  !> flow enhancement factor E (unitless)
 
     real(dp) :: pmp_offset = 5.0d0        ! offset of initial Tbed from pressure melting point temperature (deg C)
     real(dp) :: pmp_threshold = 1.0d-3    ! bed is assumed thawed where Tbed >= pmptemp - pmp_threshold (deg C)
@@ -1593,7 +1605,7 @@ module glide_types
                                              !> set to thck_flotation +/- thck_flotation_buffer (m)
 
      ! fields and parameters for powerlaw_c and coulomb_c inversion
-     ! Note: Moved powerlaw_c and coulomb_c to basal_physics type
+     ! Note: powerlaw_c and coulomb_c are in the basal_physics type
 
      ! parameters for adjusting powerlaw_c or coulomb_c during inversion
      ! Note: inversion%babc_timescale is later rescaled to SI units (s).
@@ -1603,25 +1615,36 @@ module glide_types
      ! Setting both scales > 0 gives two inversion targets.
      real(dp) ::  &
           babc_timescale  = 500.d0,            & !> inversion timescale (yr); must be > 0
-          babc_thck_scale = 0.0d0,             & !> thickness inversion scale (m)
-                                                 !> typical value for inversion = 100 m (used for ISMIP6)
+          babc_thck_scale = 100.d0,            & !> thickness inversion scale (m)
+          babc_relax_factor = 0.05d0,          & !> controls strength of relaxation to default values (unitless)
           babc_velo_scale = 0.0d0                !> velocity inversion scale (m/yr)
                                                  !> typical value for inversion = 200 m/yr
 
-     ! fields and parameters for deltaT_basin, deltaT_ocn, and flow_factor_basin_inversion
-     ! Note: This target is defined on the 2D (i,j) grid, even though it is uniform within a basin
-     real(dp), dimension(:,:), pointer ::  &
-          floating_thck_target => null()         !> Observational target for floating ice thickness
+     ! parameters for local deltaT_ocn inversion
+     ! Note: deltaT_ocn is in the ocean_data type
 
      real(dp) ::  &
-          dbmlt_dtemp_scale = 10.0d0,              & !> scale for rate of change of bmlt w/temperature, m/yr/degC
-          bmlt_basin_timescale = 100.0d0,          & !> timescale (yr) for adjusting deltaT_basin
-          deltaT_ocn_thck_scale = 100.0d0,         & !> thickness scale (m) for adjusting deltaT_ocn
-          deltaT_ocn_timescale = 100.0d0,          & !> timescale (yr) for adjusting deltaT_ocn
-          deltaT_ocn_temp_scale = 2.0d0,           & !> temperature scale (degC) for adjusting deltaT_ocn
-          basin_flotation_threshold = 200.d0,      & !> threshold (m) for counting ice as lightly floating/grounded
-          flow_factor_basin_thck_scale = 100.d0,   & !> thickness scale (m) for adjusting flow_factor_basin
-          flow_factor_basin_timescale = 500.d0       !> timescale (yr) for adjusting flow_factor_basin
+          deltaT_ocn_thck_scale = 100.0d0,     & !> thickness scale (m) for adjusting deltaT_ocn
+          deltaT_ocn_timescale = 100.0d0,      & !> timescale (yr) for adjusting deltaT_ocn
+          deltaT_ocn_temp_scale = 2.0d0          !> temperature scale (degC) for adjusting deltaT_ocn
+
+     ! fields and parameters for basin-scale deltaT_ocn inversion
+
+     real(dp), dimension(:,:), pointer ::  &
+          floating_thck_target => null()         !> Observational target for floating ice thickness
+                                                 !> Note: Defined on the 2D (i,j) grid, but uniform within a basin
+
+     real(dp) ::  &
+          dbmlt_dtemp_scale = 10.0d0,          & !> scale for rate of change of bmlt w/temperature, m/yr/degC
+          bmlt_basin_timescale = 100.0d0,      & !> timescale (yr) for adjusting deltaT_basin
+          basin_flotation_threshold = 200.d0     !> threshold (m) for counting ice as lightly floating/grounded
+
+     ! parameters for flow_enhancement_factor inversion
+
+     real(dp) ::  &
+          flow_enhancement_thck_scale = 100.d0, & !> thickness scale (m) for adjusting flow_enhancement_factor
+          flow_enhancement_timescale = 500.d0,  & !> timescale (yr) for adjusting flow_enhancement_factor
+          flow_enhancement_relax_factor = 0.5d0   !> controls strength of relaxation to default values (unitless)
 
      ! parameters for adjusting the ice mass target in a given basin for deltaT_basin inversion
      ! Note: This option could in principle be applied to multiple basins, but currently is supported for one basin only.
@@ -1884,8 +1907,10 @@ module glide_types
 
      ! Note: powerlaw_c has units of Pa (m/yr)^(-1/powerlaw_m); default value assumes powerlaw_m = 3
      real(dp), dimension(:,:), pointer :: &
-          powerlaw_c => null(), &                !> powerlaw_c on staggered grid, Pa (m/yr)^(-1/3)
-          coulomb_c => null()                    !> coulomb_c on staggered grid, unitless in range [0,1]
+          powerlaw_c => null(), &                !> powerlaw_c on staggered grid, Pa (m/yr)^(-1/m)
+          powerlaw_c_relax => null(), &          !> powerlaw_c relaxation target
+          coulomb_c => null(),  &                !> coulomb_c on staggered grid, unitless in range [0,1]
+          coulomb_c_relax => null()              !> coulomb_c relaxation target
 
      ! parameters for power law, taub_b = C * u_b^(1/m); used for HO_BABC_COULOMB_POWERLAW_TSAI/SCHOOF
      ! The default values are from Asay-Davis et al. (2016).
@@ -1900,14 +1925,17 @@ module glide_types
      real(dp) :: powerlaw_c_min = 1.0d2          !> min value of powerlaw_c, Pa (m/yr)^(-1/3)
 
      ! parameters for Coulomb friction law
-     !TODO - Change default coulomb_c_const to 1.0?
-     ! Note: coulomb_c_max = 1.0 to cap effecpress at overburden
-     ! Note: The appropriate value of coulomb_c_min can depend on how much N is reduced below overburden.
+     !TODO - Change default coulomb_c_const?
+     ! Notes: coulomb_c_max = 1.0 to cap effecpress at overburden
+     !        The appropriate value of coulomb_c_min can depend on how much N is reduced below overburden.
+     !        With an elevation-based relaxation target, coulomb_c_bedmax/bedmin determine the transition elevations.
      real(dp) :: coulomb_c_const = 0.42d0        !> basal stress constant; unitless in range [0,1]
      real(dp) :: coulomb_c_max = 1.0d0           !> max value of coulomb_c, unitless
      real(dp) :: coulomb_c_min = 1.0d-3          !> min value of coulomb_c, unitless
      real(dp) :: coulomb_c_bedmax =  700.d0      !> bed elevation (m) above which coulomb_c = coulomb_c_max
      real(dp) :: coulomb_c_bedmin = -300.d0      !> bed elevation (m) below which coulomb_c = coulomb_c_min
+     real(dp) :: coulomb_c_relax_max = 0.40d0    !> upper relaxation target for coulomb_c, at high elevation
+     real(dp) :: coulomb_c_relax_min = 0.10d0    !> lower relaxation target for coulomb_c, at low elevation
 
      ! parameters for older form of Coulomb friction sliding law (default values from Pimentel et al. 2010)
      ! Pimentel et al. have coulomb_c = 0.84*m_max, where m_max = coulomb_bump_max_slope
@@ -2171,12 +2199,11 @@ module glide_types
     real(dp) :: btrac_slope = 0.0d0    ! Pa^{-1} (gets scaled during init)
     real(dp) :: btrac_max = 0.d0       ! m yr^{-1} Pa^{-1} (gets scaled during init)
     real(dp) :: geot   = -5.0d-2       ! W m^{-2}, positive down
-    real(dp) :: flow_enhancement_factor = 1.0d0   ! flow enhancement parameter for the Arrhenius relationship;
-                                                  ! typically > 1 for SIA models to speed up the ice
-                                                  ! (Note the change relative to prev. versions of code - used to be 3.0)
+    real(dp) :: flow_enhancement_factor_ground = 1.0d0   ! flow enhancement parameter for the Arrhenius relationship;
+                                                         ! grounded ice only; typically > 1 for SIA models to speed up the ice
     real(dp) :: flow_enhancement_factor_float = 1.0d0 ! flow enhancement parameter for floating ice
                                                       ! Default is 1.0, but for marine simulations a smaller value
-                                                      !  may be needed to match observed shelf speeds
+                                                      !  is often needed to match observed shelf speeds
     real(dp) :: slip_ratio = 1.0d0     ! Slip ratio, used only in higher order code when the slip ratio beta computation is requested
     real(dp) :: hydtim = 1000.0d0      ! years, converted to s^{-1} and scaled
                                        ! 0 if no drainage
@@ -2355,7 +2382,6 @@ contains
     !> In \texttt{model\%ocean_data}:
     !> \begin{itemize}
     !> \item \texttt{deltaT_ocn(ewn,nsn)}
-    !> \item \texttt{flow_factor_basin(ewn,nsn)}
     !> \item \texttt{basin_number(ewn,nsn)}
     !> \item \texttt{thermal_forcing(nzocn,ewn,nsn)}
     !> \item \texttt{thermal_forcing_lsrf(ewn,nsn)}
@@ -2364,7 +2390,9 @@ contains
     !> In \texttt{model\%basal_physics}:
     !> \begin{itemize}
     !> \item \texttt{powerlaw_c(ewn-1,nsn-1)}
+    !> \item \texttt{powerlaw_c_relax(ewn-1,nsn-1)}
     !> \item \texttt{coulomb_c(ewn-1,nsn-1)}
+    !> \item \texttt{coulomb_c_relax(ewn-1,nsn-1)}
     !> \end{itemize}
 
     !> In \texttt{model\%plume}:
@@ -2543,6 +2571,7 @@ contains
     call coordsystem_allocate(model%general%ice_grid,  model%temper%btemp_float)
     call coordsystem_allocate(model%general%velo_grid, model%temper%stagbtemp)
     call coordsystem_allocate(model%general%ice_grid,  model%temper%ucondflx)
+    call coordsystem_allocate(model%general%ice_grid,  model%temper%flow_enhancement_factor)
 
     call coordsystem_allocate(model%general%ice_grid,  model%basal_hydro%bwat)
     call coordsystem_allocate(model%general%velo_grid, model%basal_hydro%stagbwat)
@@ -2766,17 +2795,13 @@ contains
 
     ! inversion and basal physics arrays (Glissade only)
     call coordsystem_allocate(model%general%velo_grid,model%basal_physics%powerlaw_c)
+    call coordsystem_allocate(model%general%velo_grid,model%basal_physics%powerlaw_c_relax)
     call coordsystem_allocate(model%general%velo_grid,model%basal_physics%coulomb_c)
-    call coordsystem_allocate(model%general%ice_grid, model%temper%flow_factor_basin)
+    call coordsystem_allocate(model%general%velo_grid,model%basal_physics%coulomb_c_relax)
 
     if (model%options%which_ho_bmlt_basin /= HO_BMLT_BASIN_NONE) then
        if (model%ocean_data%nbasin < 1) then
           call write_log ('Must set nbasin >= 1 for the bmlt_basin options', GM_FATAL)
-       endif
-       call coordsystem_allocate(model%general%ice_grid, model%inversion%floating_thck_target)
-    elseif (model%options%which_ho_flow_factor_basin /= HO_FLOW_FACTOR_BASIN_CONST) then
-       if (model%ocean_data%nbasin < 1) then
-          call write_log ('Must set nbasin >= 1 for the flow_factor_basin options', GM_FATAL)
        endif
        call coordsystem_allocate(model%general%ice_grid, model%inversion%floating_thck_target)
     endif
@@ -2973,6 +2998,8 @@ contains
         deallocate(model%temper%flwa)
     if (associated(model%temper%dissip)) &
         deallocate(model%temper%dissip)
+    if (associated(model%temper%flow_enhancement_factor)) &
+        deallocate(model%temper%flow_enhancement_factor)
 
     ! velocity arrays
 
@@ -3174,12 +3201,14 @@ contains
     ! inversion arrays
     if (associated(model%basal_physics%powerlaw_c)) &
         deallocate(model%basal_physics%powerlaw_c)
+    if (associated(model%basal_physics%powerlaw_c_relax)) &
+        deallocate(model%basal_physics%powerlaw_c_relax)
     if (associated(model%basal_physics%coulomb_c)) &
         deallocate(model%basal_physics%coulomb_c)
+    if (associated(model%basal_physics%coulomb_c_relax)) &
+        deallocate(model%basal_physics%coulomb_c_relax)
     if (associated(model%inversion%floating_thck_target)) &
         deallocate(model%inversion%floating_thck_target)
-    if (associated(model%temper%flow_factor_basin)) &
-        deallocate(model%temper%flow_factor_basin)
 
     ! MISOMIP arrays
     if (associated(model%plume%T_ambient)) &

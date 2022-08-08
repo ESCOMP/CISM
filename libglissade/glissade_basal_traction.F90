@@ -56,7 +56,8 @@
   implicit none
 
   private
-  public :: calcbeta, calc_effective_pressure, glissade_init_effective_pressure
+  public :: calcbeta, calc_effective_pressure, glissade_init_effective_pressure, &
+       set_coulomb_c_elevation
 
 !***********************************************************************
 
@@ -205,7 +206,10 @@ contains
      ! set coulomb_c based on bed elevation
      call set_coulomb_c_elevation(ewn,        nsn,   &
                                   topg,       eus,   &
-                                  basal_physics,     &
+                                  basal_physics%coulomb_c_min,     &
+                                  basal_physics%coulomb_c_max,     &
+                                  basal_physics%coulomb_c_bedmin,  &
+                                  basal_physics%coulomb_c_bedmax,  &
                                   basal_physics%coulomb_c)
 
   else  ! HO_COULOMB_C_INVERSION, HO_COULOMB_C_EXTERNAL
@@ -1217,9 +1221,10 @@ contains
 
 !***********************************************************************
 
-  subroutine set_coulomb_c_elevation(ewn,        nsn,   &
-                                     topg,       eus,   &
-                                     basal_physics,     &
+  subroutine set_coulomb_c_elevation(ewn,              nsn,             &
+                                     topg,             eus,             &
+                                     coulomb_c_min,    coulomb_c_max,   &
+                                     bedmin,           bedmax,          &
                                      coulomb_c)
 
     ! Compute coulomb_c as a function of bed elevation.
@@ -1231,25 +1236,21 @@ contains
          ewn, nsn            ! grid dimensions
 
     real(dp), dimension(ewn,nsn), intent(in)      :: topg            ! bed topography (m)
-    real(dp), intent(in)                          :: eus             ! eustatic sea level (m) relative to z = 0
-    type(glide_basal_physics), intent(in)         :: basal_physics   ! basal physics object
+
+    real(dp), intent(in) ::  &
+         eus,                   & ! eustatic sea level (m) relative to z = 0
+         coulomb_c_min,         & ! min and max values of coulomb_c (unitless);
+         coulomb_c_max,         & !  analogous to tan(phimin) and tan(phimax)
+         bedmin,                & ! bed elevations (m) below which coulomb_c = coulomb_c_min
+         bedmax                   !  and above which coulomb_c = coulomb_c_max
+
     real(dp), dimension(ewn-1,nsn-1), intent(out) :: coulomb_c       ! 2D field of coulomb_c
 
     real(dp), dimension(ewn-1,nsn-1) :: &
          stagtopg                             ! topg (m) on the staggered grid
 
-    real(dp) :: coulomb_c_min, coulomb_c_max  ! min and max values of coulomb_c (unitless);
-                                              ! analogous to tan(phimin) and tan(phimax)
-    real(dp) :: bedmin, bedmax                ! bed elevations (m) below which coulomb_c = coulomb_c_min
-                                              !  and above which coulomb_c = coulomb_c_max
-
     real(dp) :: bed                           ! bed elevation (m)
     integer :: ew, ns
-
-    coulomb_c_min = basal_physics%coulomb_c_min
-    coulomb_c_max = basal_physics%coulomb_c_max
-    bedmin = basal_physics%coulomb_c_bedmin
-    bedmax = basal_physics%coulomb_c_bedmax
 
     ! Interpolate topg to the staggered grid
     ! stagger_margin_in = 0: Interpolate using values in all cells, including ice-free cells

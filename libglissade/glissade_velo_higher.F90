@@ -5706,7 +5706,9 @@
     ! The matrix A can be based on the shallow-shelf approximation or 
     !  the depth-integrated L1L2 approximation (Schoof and Hindmarsh, 2010).
     !----------------------------------------------------------------
- 
+
+    use glissade_grid_operators, only: glissade_vertical_average
+
     !----------------------------------------------------------------
     ! Input-output arguments
     !----------------------------------------------------------------

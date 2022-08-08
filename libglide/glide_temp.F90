@@ -301,7 +301,7 @@ contains
                            model%temper%flwa,           &
                            model%temper%temp(:,1:model%general%ewn,1:model%general%nsn), &
                            model%geometry%thck,         &
-                           model%paramets%flow_enhancement_factor,  &
+                           model%paramets%flow_enhancement_factor_ground,  &
                            model%paramets%default_flwa, &
                            model%options%whichflwa) 
     else
@@ -694,7 +694,7 @@ contains
                         model%temper%flwa,           &
                         model%temper%temp(:,1:model%general%ewn,1:model%general%nsn), &
                         model%geometry%thck,         &
-                        model%paramets%flow_enhancement_factor,  &
+                        model%paramets%flow_enhancement_factor_ground,  &
                         model%paramets%default_flwa, &
                         model%options%whichflwa) 
 
