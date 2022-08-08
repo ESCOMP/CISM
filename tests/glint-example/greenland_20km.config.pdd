@@ -43,7 +43,7 @@ log_level = 6
 ice_limit = 100.            # meters
 marine_limit = -200.        # meters 
 geothermal = -5.e-2         # W/m2, positive down
-flow_factor = 3.            # dimensionless
+flow_factor_ground = 3.     # dimensionless
 hydro_time = 1000.          # yr
 basal_tract_const = 1.e-3   # (m/yr)/Pa
 
