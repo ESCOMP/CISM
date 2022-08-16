@@ -3695,9 +3695,7 @@ contains
        !      These could be computed based on cism_glacier_id_init and usrf_obs.
        call glide_add_to_restart_variable_list('glacier_volume_target')
        call glide_add_to_restart_variable_list('glacier_area_target')
-       ! mu_star is needed only if relaxing toward the desired value;
-       !  not needed if computed based on SMB = 0 over the target area
-!!       call glide_add_to_restart_variable_list('glacier_mu_star')
+       call glide_add_to_restart_variable_list('glacier_mu_star')
     endif
 
     ! TODO bmlt was set as a restart variable, but I'm not sure when or if it is needed.
