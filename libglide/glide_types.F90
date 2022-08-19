@@ -589,6 +589,8 @@ module glide_types
     logical :: enable_acab_anomaly = .false.
     !> if true, then apply a prescribed anomaly to smb/acab
 
+    !WHL - Modify to support options 0 (no anomaly), 1 (constant) and 2 (external)
+    !      Then apply option 1.
     logical :: enable_artm_anomaly = .false.
     !> if true, then apply a prescribed anomaly to artm
 
