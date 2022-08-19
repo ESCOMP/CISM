@@ -422,18 +422,29 @@ contains
           model%geometry%usrf_obs(:,:) = model%geometry%usrf(:,:)
        endif
 
+       !WHL - debug - check for cells with thck > 0 and ng = 0
+       do j = nhalo+1, nsn-1
+          do i = nhalo+1, ewn-1
+             if (glacier%cism_glacier_id_init(i,j) == 0 .and. &
+                  model%geometry%thck(i,j)*thk0 > 1.0d0) then
+                call parallel_globalindex(i, j, iglobal, jglobal, parallel)
+                print*, 'Warning, ng = 0 but H > 0: Init rank, i, j, ig, jg, thck:', &
+                     this_rank, i, j, iglobal, jglobal, model%geometry%thck(i,j) * thk0
+             endif
+          enddo
+       enddo
+
     else  ! restart
 
        ! In this case, most required glacier info has already been read from the restart file.
+       ! Here, do some error checks and diagnostics.
+
        ! From the restart file, nglacier is found as the length of dimension 'glacierid'.
        ! The 1D glacier arrays are then allocated with dimension(nglacier) in subroutine glide_allocarr.
        ! The following glacier arrays should be present in the restart file:
-       !     rgi_glacier_id, cism_glacier_id, cism_glacier_id_init, cism_to_rgi_glacier_id
-       ! Also, the 2D powerlaw_c should be present.
-       ! If inverting for powerlaw_c, then usrf_obs is read from the restart file.
-       ! Note: mu_star is not needed in the restart file, unless its value is being relaxed
-       !       as in subroutine glacier_invert_mu_star_alternate
-       ! These remaining parameters are set here: glacierid, ngdiag
+       !     rgi_glacier_id, cism_glacier_id, cism_glacier_id_init, cism_to_rgi_glacier_id,
+       !     glacier_mu_star, powerlaw_c.
+       ! If inverting for powerlaw_c, then usrf_obs is also read from the restart file.
 
        nglacier = glacier%nglacier
 
@@ -512,18 +523,6 @@ contains
        glacier%ngdiag = glacier%cism_glacier_id(itest,jtest)
     endif
     call broadcast(glacier%ngdiag, rtest)
-
-    !WHL - debug - check for cells with thck > 0 and ng = 0
-    do j = nhalo+1, nsn-1
-       do i = nhalo+1, ewn-1
-          if (glacier%cism_glacier_id_init(i,j) == 0 .and. &
-               model%geometry%thck(i,j)*thk0 > 1.0d0) then
-             call parallel_globalindex(i, j, iglobal, jglobal, parallel)
-             print*, 'Warning, ng = 0 but H > 0: Init rank, i, j, ig, jg, thck:', &
-                  this_rank, i, j, iglobal, jglobal, model%geometry%thck(i,j) * thk0
-          endif
-       enddo
-    enddo
 
     ! Write some values for the diagnostic glacier
     if (verbose_glacier .and. this_rank == rtest) then
@@ -890,211 +889,219 @@ contains
     thck = model%geometry%thck * thk0           ! model units to m
     dthck_dt = model%geometry%dthck_dt * scyr   ! m/s to m/yr
 
-    ! Accumulate the 2D fields used for mu_star inversion: snow and Tpos
+    ! Optionally, save the old area and volume of each glacier
+    if (alternate_mu_star) area_old = glacier%area
 
-    if (time_since_last_avg == 0.0d0) then ! start of new averaging period
+    ! Compute the current area and volume of each glacier.
+    ! These are not needed for inversion, but are computed as diagnostics.
+    ! Note: This requires global sums. For now, do the computation independently on each task.
 
-       ! Reset the accumulated fields to zero
-       call reset_glacier_fields(&
-            ewn,           nsn,    &
-            glacier%snow_accum,    &
-            glacier%Tpos_accum,    &
-            glacier%dthck_dt_accum)
+    call glacier_area_volume(&
+         ewn,           nsn,              &
+         nglacier,                        &
+         glacier%cism_glacier_id,         &
+         dew*dns,                         &  ! m^2
+         model%geometry%thck * thk0,      &  ! m
+         glacier%area,                    &  ! m^2
+         glacier%volume)                     ! m^3
 
-    endif
-
-    Tpos(:,:) = max(model%climate%artm(:,:) - glacier%t_mlt, 0.0d0)
-
-    call accumulate_glacier_fields(&
-         ewn,                    nsn,                       &
-         dt,                     time_since_last_avg,       &
-         model%climate%snow,     glacier%snow_accum,        &  ! mm/yr w.e.
-         Tpos,                   glacier%Tpos_accum,        &  ! deg C
-         dthck_dt,               glacier%dthck_dt_accum)       ! m/yr ice
+    if (alternate_mu_star) &
+         darea_dt(:) = (glacier%area(:) - area_old(:))  / real(inversion_time_interval,dp)
 
     if (verbose_glacier .and. this_rank == rtest) then
        print*, ' '
-       print*, 'In glissade_glacier_inversion, diag cell (r, i, j) =', rtest, itest, jtest
-       i = itest; j = jtest
-       print*, 'r, i, j, time, time_since_last_avg, snow, Tpos:', &
-            this_rank, i, j, model%numerics%time, time_since_last_avg, &
-            glacier%snow_accum(i,j), glacier%Tpos_accum(i,j)
+       print*, 'Update area (km^2) and volume (km^3) for glacier:', ngdiag
+       print*, 'Current area and volume:', &
+            glacier%area(ngdiag)/1.0d6, glacier%volume(ngdiag)/1.0d9
+       print*, '   Target area and volume:', &
+            glacier%area_target(ngdiag)/1.0d6, glacier%volume_target(ngdiag)/1.0d9
+       print*, ' '
+       print*, 'All glaciers: ng, A, A_target, Aerr, V, V_target, Verr:'
+       do ng = 1, nglacier
+          write(6,'(i6,3f12.4,3f14.6)') ng, glacier%area(ng)/1.0d6, glacier%area_target(ng)/1.0d6, &
+               (glacier%area(ng) - glacier%area_target(ng))/1.0d6, &
+               glacier%volume(ng)/1.0d9, glacier%volume_target(ng)/1.0d9, &
+               (glacier%volume(ng) - glacier%volume_target(ng))/1.0d9
+       enddo
     endif
 
-    ! Check whether it is time to do the inversion.
-    ! Note: model%numerics%time has units of yr.
+    ! Invert for mu_star and/or powerlaw_c
 
-    if (abs(time_since_last_avg - real(inversion_time_interval,dp)) < eps08) then
+    if (glacier%set_mu_star == GLACIER_MU_STAR_INVERSION .or.  &
+        glacier%set_powerlaw_c == GLACIER_POWERLAW_C_INVERSION) then
 
-       if (verbose_glacier .and. this_rank == rtest) then
-          print*, 'calculate_glacier_averages, time_since_last_avg =', time_since_last_avg
+       ! Accumulate the 2D fields used for mu_star inversion: snow and Tpos
+       ! Also accumulate dthck_dt, used for powerlaw_c inversion
+
+       if (time_since_last_avg == 0.0d0) then ! start of new averaging period
+
+          ! Reset the accumulated fields to zero
+          call reset_glacier_fields(&
+               ewn,           nsn,    &
+               glacier%snow_accum,    &
+               glacier%Tpos_accum,    &
+               glacier%dthck_dt_accum)
+
        endif
 
-       ! compute annual average of glacier fields
+       Tpos(:,:) = max(model%climate%artm(:,:) - glacier%t_mlt, 0.0d0)
 
-       call calculate_glacier_averages(&
-            ewn,                    nsn,   &
-            time_since_last_avg,           &  ! yr
-            glacier%snow_accum,            &  ! mm/yr w.e.
-            glacier%Tpos_accum,            &  ! deg C
-            glacier%dthck_dt_accum)           ! m/yr ice
+       call accumulate_glacier_fields(&
+            ewn,                    nsn,                       &
+            dt,                     time_since_last_avg,       &
+            model%climate%snow,     glacier%snow_accum,        &  ! mm/yr w.e.
+            Tpos,                   glacier%Tpos_accum,        &  ! deg C
+            dthck_dt,               glacier%dthck_dt_accum)       ! m/yr ice
 
        if (verbose_glacier .and. this_rank == rtest) then
+          print*, ' '
+          print*, 'In glissade_glacier_inversion, diag cell (r, i, j) =', rtest, itest, jtest
           i = itest; j = jtest
-          print*, ' '
-          print*, 'Annual glacier averages, r, i, j:', rtest, itest, jtest
-          print*, '   snow (mm/yr w.e.)=', glacier%snow_accum(i,j)
-          print*, '   Tpos (deg C)    =', glacier%Tpos_accum(i,j)
-          print*, '   dthck_dt (m/yr) =', glacier%dthck_dt_accum(i,j)
+          print*, 'r, i, j, time, time_since_last_avg, snow, Tpos:', &
+               this_rank, i, j, model%numerics%time, time_since_last_avg, &
+               glacier%snow_accum(i,j), glacier%Tpos_accum(i,j)
        endif
 
-       ! Optionally, save the old area and volume of each glacier
-       if (alternate_mu_star) area_old = glacier%area
+       ! Check whether it is time to do the inversion.
+       ! Note: model%numerics%time has units of yr.
 
-       ! Compute the current area and volume of each glacier.
-       ! These are not needed for inversion, but are computed as diagnostics.
-       ! Note: This requires global sums. For now, do the computation independently on each task.
-
-       call glacier_area_volume(&
-            ewn,           nsn,              &
-            nglacier,                        &
-            glacier%cism_glacier_id,         &
-            dew*dns,                         &  ! m^2
-            model%geometry%thck * thk0,      &  ! m
-            glacier%area,                    &  ! m^2
-            glacier%volume)                     ! m^3
-
-       if (alternate_mu_star) &
-            darea_dt(:) = (glacier%area(:) - area_old(:))  / real(inversion_time_interval,dp)
-
-       if (verbose_glacier .and. this_rank == rtest) then
-          print*, ' '
-          print*, 'Update area (km^2) and volume (km^3) for glacier:', ngdiag
-          print*, 'Current area and volume:', &
-               glacier%area(ngdiag)/1.0d6, glacier%volume(ngdiag)/1.0d9
-          print*, '   Target area and volume:', &
-               glacier%area_target(ngdiag)/1.0d6, glacier%volume_target(ngdiag)/1.0d9
-          print*, ' '
-          print*, 'All glaciers: ng, A, A_target, Aerr, V, V_target, Verr:'
-          do ng = 1, nglacier
-             write(6,'(i6,3f12.4,3f14.6)') ng, glacier%area(ng)/1.0d6, glacier%area_target(ng)/1.0d6, &
-                  (glacier%area(ng) - glacier%area_target(ng))/1.0d6, &
-                  glacier%volume(ng)/1.0d9, glacier%volume_target(ng)/1.0d9, &
-                  (glacier%volume(ng) - glacier%volume_target(ng))/1.0d9
-          enddo
-       endif
-
-       ! Invert for mu_star
-
-       if (glacier%set_mu_star == GLACIER_MU_STAR_INVERSION) then
-
-          if (alternate_mu_star) then   ! alternate scheme based on (A - A_target) and dA/dt
-
-             call glacier_invert_mu_star_alternate(&
-                  ewn,                 nsn,                   &
-                  nglacier,            ngdiag,                &
-                  mu_star_min,         mu_star_max,           &
-                  glacier%area,        glacier%area_target,   &
-                  darea_dt,            glacier%mu_star)
-
-          else   ! standard scheme based on setting SMB = 0 over the target area
-
-             call glacier_invert_mu_star(&
-                  ewn,                     nsn,                          &
-                  nglacier,                ngdiag,                       &
-                  glacier%snow_accum,      glacier%Tpos_accum,           &
-                  glacier%cism_glacier_id, glacier%cism_glacier_id_init, &
-                  glacier%mu_star,         glacier%mu_star_2d)
-
-          endif
-
-          !WHL - debug - compute the SMB over the original and current glacier area
-          smb_init_area(:) = 0.0d0
-          smb_current_area(:) = 0.0d0
-
-          do j = nhalo+1, nsn-nhalo
-             do i = nhalo+1, ewn-nhalo
-
-                ! increment SMB over initial glacier area
-                ng = glacier%cism_glacier_id_init(i,j)
-                if (ng > 0) then
-                   smb_annmean = glacier%snow_accum(i,j) - glacier%mu_star(ng) * glacier%Tpos_accum(i,j)
-                   smb_init_area(ng) = smb_init_area(ng) + smb_annmean
-                endif
-
-                ! increment SMB over current glacier area
-                ng = glacier%cism_glacier_id(i,j)
-                if (ng > 0) then
-                   smb_annmean = glacier%snow_accum(i,j) - glacier%mu_star(ng) * glacier%Tpos_accum(i,j)
-                   smb_current_area(ng) = smb_current_area(ng) + smb_annmean
-                endif
-
-             enddo
-          enddo
-
-          ! global sums
-          smb_init_area = parallel_reduce_sum(smb_init_area)
-          smb_current_area = parallel_reduce_sum(smb_current_area)
-
-          ! take area average
-          where (glacier%area_target > 0.0d0) &
-               smb_init_area(:) = smb_init_area(:) / glacier%area_target(:)
-
-          where (glacier%area > 0.0d0) &
-               smb_current_area(:) = smb_current_area(:) / glacier%area(:)
+       if (abs(time_since_last_avg - real(inversion_time_interval,dp)) < eps08) then
 
           if (verbose_glacier .and. this_rank == rtest) then
-             print*, ' '
-             print*, 'All glaciers: smb_init_area, smb_current_area, mu_star:'
-             do ng = 1, nglacier
-                write(6,'(i6,3f12.4)') ng, smb_init_area(ng), smb_current_area(ng), &
-                     glacier%mu_star(ng)
-             enddo
+             print*, 'calculate_glacier_averages, time_since_last_avg =', time_since_last_avg
           endif
 
-       endif   ! invert for mu_star
+          ! compute annual average of glacier fields
 
-       ! Given the current and target glacier volumes, invert for powerlaw_c
-
-       if (glacier%set_powerlaw_c == GLACIER_POWERLAW_C_INVERSION) then
-
-          ! Given the surface elevation target, compute the thickness target.
-          ! (This can change in time if the bed topography is dynamic.)
-          call glissade_usrf_to_thck(&
-               model%geometry%usrf_obs * thk0,  &
-               model%geometry%topg * thk0,      &
-               model%climate%eus * thk0,        &
-               thck_obs)
-
-          ! Interpolate thck_obs to the staggered grid
-          call glissade_stagger(ewn,         nsn,              &
-                                thck_obs,    stag_thck_obs)
-
-          ! Interpolate thck to the staggered grid
-          call glissade_stagger(ewn,         nsn,              &
-                                thck,        stag_thck)
-
-          ! Interpolate dthck_dt to the staggered grid
-          call glissade_stagger(ewn,                    nsn,           &
-                                glacier%dthck_dt_accum, stag_dthck_dt)
+          call calculate_glacier_averages(&
+               ewn,                    nsn,   &
+               time_since_last_avg,           &  ! yr
+               glacier%snow_accum,            &  ! mm/yr w.e.
+               glacier%Tpos_accum,            &  ! deg C
+               glacier%dthck_dt_accum)           ! m/yr ice
 
           if (verbose_glacier .and. this_rank == rtest) then
+             i = itest; j = jtest
              print*, ' '
-             print*, 'call glacier_invert_powerlaw_c, time (yr) =', model%numerics%time
+             print*, 'Annual glacier averages, r, i, j:', rtest, itest, jtest
+             print*, '   snow (mm/yr w.e.)=', glacier%snow_accum(i,j)
+             print*, '   Tpos (deg C)    =', glacier%Tpos_accum(i,j)
+             print*, '   dthck_dt (m/yr) =', glacier%dthck_dt_accum(i,j)
           endif
 
-          call glacier_invert_powerlaw_c(&
-               ewn,              nsn,                 &
-               itest,   jtest,   rtest,               &
-               model%basal_physics%powerlaw_c_min,    &
-               model%basal_physics%powerlaw_c_max,    &
-               stag_thck,        stag_thck_obs,       &
-               stag_dthck_dt,                         &
-               model%basal_physics%powerlaw_c)
+          ! Invert for mu_star
 
-       endif   ! powerlaw_c_inversion
+          if (glacier%set_mu_star == GLACIER_MU_STAR_INVERSION) then
 
-    endif   ! time to do inversion
+             if (alternate_mu_star) then   ! alternate scheme based on (A - A_target) and dA/dt
+
+                call glacier_invert_mu_star_alternate(&
+                     ewn,                 nsn,                   &
+                     nglacier,            ngdiag,                &
+                     mu_star_min,         mu_star_max,           &
+                     glacier%area,        glacier%area_target,   &
+                     darea_dt,            glacier%mu_star)
+
+             else   ! standard scheme based on setting SMB = 0 over the target area
+
+                call glacier_invert_mu_star(&
+                     ewn,                     nsn,                          &
+                     nglacier,                ngdiag,                       &
+                     glacier%snow_accum,      glacier%Tpos_accum,           &
+                     glacier%cism_glacier_id, glacier%cism_glacier_id_init, &
+                     glacier%mu_star,         glacier%mu_star_2d)
+
+             endif
+
+             !WHL - debug - compute the SMB over the original and current glacier area
+             smb_init_area(:) = 0.0d0
+             smb_current_area(:) = 0.0d0
+
+             do j = nhalo+1, nsn-nhalo
+                do i = nhalo+1, ewn-nhalo
+
+                   ! increment SMB over initial glacier area
+                   ng = glacier%cism_glacier_id_init(i,j)
+                   if (ng > 0) then
+                      smb_annmean = glacier%snow_accum(i,j) - glacier%mu_star(ng) * glacier%Tpos_accum(i,j)
+                      smb_init_area(ng) = smb_init_area(ng) + smb_annmean
+                   endif
+
+                   ! increment SMB over current glacier area
+                   ng = glacier%cism_glacier_id(i,j)
+                   if (ng > 0) then
+                      smb_annmean = glacier%snow_accum(i,j) - glacier%mu_star(ng) * glacier%Tpos_accum(i,j)
+                      smb_current_area(ng) = smb_current_area(ng) + smb_annmean
+                   endif
+
+                enddo
+             enddo
+
+             ! global sums
+             smb_init_area = parallel_reduce_sum(smb_init_area)
+             smb_current_area = parallel_reduce_sum(smb_current_area)
+
+             ! take area average
+             where (glacier%area_target > 0.0d0) &
+                  smb_init_area(:) = smb_init_area(:) / glacier%area_target(:)
+
+             where (glacier%area > 0.0d0) &
+                  smb_current_area(:) = smb_current_area(:) / glacier%area(:)
+
+             if (verbose_glacier .and. this_rank == rtest) then
+                print*, ' '
+                print*, 'All glaciers: smb_init_area, smb_current_area, mu_star:'
+                do ng = 1, nglacier
+                   write(6,'(i6,3f12.4)') ng, smb_init_area(ng), smb_current_area(ng), &
+                        glacier%mu_star(ng)
+                enddo
+             endif
+
+          endif   ! invert for mu_star
+
+          ! Given the current and target glacier volumes, invert for powerlaw_c
+
+          if (glacier%set_powerlaw_c == GLACIER_POWERLAW_C_INVERSION) then
+
+             ! Given the surface elevation target, compute the thickness target.
+             ! (This can change in time if the bed topography is dynamic.)
+             call glissade_usrf_to_thck(&
+                  model%geometry%usrf_obs * thk0,  &
+                  model%geometry%topg * thk0,      &
+                  model%climate%eus * thk0,        &
+                  thck_obs)
+
+             ! Interpolate thck_obs to the staggered grid
+             call glissade_stagger(ewn,         nsn,              &
+                                   thck_obs,    stag_thck_obs)
+
+             ! Interpolate thck to the staggered grid
+             call glissade_stagger(ewn,         nsn,              &
+                                   thck,        stag_thck)
+
+             ! Interpolate dthck_dt to the staggered grid
+             call glissade_stagger(ewn,                    nsn,           &
+                                   glacier%dthck_dt_accum, stag_dthck_dt)
+
+             if (verbose_glacier .and. this_rank == rtest) then
+                print*, ' '
+                print*, 'call glacier_invert_powerlaw_c, time (yr) =', model%numerics%time
+             endif
+
+             call glacier_invert_powerlaw_c(&
+                  ewn,              nsn,                 &
+                  itest,   jtest,   rtest,               &
+                  model%basal_physics%powerlaw_c_min,    &
+                  model%basal_physics%powerlaw_c_max,    &
+                  stag_thck,        stag_thck_obs,       &
+                  stag_dthck_dt,                         &
+                  model%basal_physics%powerlaw_c)
+
+          endif   ! powerlaw_c_inversion
+
+       endif   ! time to do inversion
+
+    endif   ! invert for mu_star or powerlaw_c
 
   end subroutine glissade_glacier_inversion
 
