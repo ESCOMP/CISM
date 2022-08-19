@@ -4493,23 +4493,19 @@ contains
     endif   ! which_ho_flow_enhancement_factor
 
 
-    ! If glaciers are enabled, invert for mu_star and powerlaw_c based on area and volume targets
+    ! If glaciers are enabled, invert for mu_star and powerlaw_c.
+    ! Note: If reading mu_star and powerlaw_c from external files, the subroutine is called
+    !       for diagnostics only.
 
-    if (model%options%enable_glaciers .and. &
-         (model%glacier%set_mu_star == GLACIER_MU_STAR_INVERSION .or.  &
-          model%glacier%set_powerlaw_c == GLACIER_POWERLAW_C_INVERSION)) then
+    if (model%options%enable_glaciers) then
 
        if (model%numerics%time == model%numerics%tstart) then
-
-           ! first call at start-up or after a restart; do not invert
-
+           ! first call at start-up or after a restart; do nothing
        else
-
           call glissade_glacier_inversion(model, model%glacier)
-
        endif   ! time = tstart
 
-    endif   ! enable_glaciers with inversion
+    endif   ! enable_glaciers
 
     ! ------------------------------------------------------------------------ 
     ! Calculate Glen's A
