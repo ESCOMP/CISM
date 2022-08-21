@@ -1473,6 +1473,7 @@ module glide_types
                                                     !> The initMIP value is 40 yr.
      real(dp) :: overwrite_acab_value = 0.0d0       !> acab value to apply in grid cells where overwrite_acab_mask = 1
      real(dp) :: overwrite_acab_minthck = 0.0d0     !> overwrite acab where thck <= overwrite_acab_minthck
+     real(dp) :: artm_anomaly_const = 0.0d0         !> spatially uniform value of artm_anomaly (degC)
      real(dp) :: artm_anomaly_timescale = 0.0d0     !> number of years over which the artm anomaly is phased in linearly
                                                     !> If set to zero, then the anomaly is applied immediately.
      real(dp) :: t_lapse = 0.0d0                    !> air temp lapse rate (deg/m); positive for T decreasing with height
@@ -2937,7 +2938,7 @@ contains
        call coordsystem_allocate(model%general%ice_grid, model%glacier%Tpos_accum)
        call coordsystem_allocate(model%general%ice_grid, model%glacier%mu_star_2d)
        call coordsystem_allocate(model%general%ice_grid, model%climate%snow)  ! used for SMB
-       !TODO - Delete these is they are allocated with XY_LAPSE logic
+       !TODO - Delete these if they are allocated with XY_LAPSE logic
        if (.not.associated(model%climate%usrf_ref)) &
             call coordsystem_allocate(model%general%ice_grid, model%climate%usrf_ref)
        if (.not.associated(model%climate%artm_ref)) &
