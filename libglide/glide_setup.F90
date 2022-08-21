@@ -2303,6 +2303,7 @@ contains
     call GetValue(section,'bmlt_anomaly_timescale', model%basal_melt%bmlt_anomaly_timescale)
 
     ! parameters for artm anomaly option
+    call GetValue(section,'artm_anomaly_const', model%climate%artm_anomaly_const)
     call GetValue(section,'artm_anomaly_timescale', model%climate%artm_anomaly_timescale)
 
     ! basal melting parameters
@@ -2873,9 +2874,15 @@ contains
     endif
 
     ! parameters for artm anomaly option
-    if (model%climate%artm_anomaly_timescale > 0.0d0) then
-       write(message,*) 'artm_anomaly_timescale (yr): ', model%climate%artm_anomaly_timescale
-       call write_log(message)
+    if (model%options%enable_artm_anomaly) then
+       if (model%climate%artm_anomaly_const /= 0.0d0) then
+          write(message,*) 'artm_anomaly_const (degC): ', model%climate%artm_anomaly_const
+          call write_log(message)
+       endif
+       if (model%climate%artm_anomaly_timescale > 0.0d0) then
+          write(message,*) 'artm_anomaly_timescale (yr): ', model%climate%artm_anomaly_timescale
+          call write_log(message)
+       endif
     endif
 
     ! lapse rate
