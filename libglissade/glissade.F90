@@ -647,6 +647,28 @@ contains
     model%climate%artm_corrected(:,:) = model%climate%artm(:,:)
 
     if (model%options%enable_artm_anomaly) then
+
+       ! Check whether artm_anomaly was read from an external file.
+       ! If so, then use this field as the anomaly.
+       ! If not, then set artm_anomaly = artm_anomaly_constant everywhere.
+       ! Note: The artm_anomaly field does not change during the run,
+       !       but it is possible to ramp in the anomaly using artm_anomaly_timescale.
+       ! TODO - Write a short utility function to compute global_maxval of any field.
+
+       local_maxval = maxval(abs(model%climate%artm_anomaly))
+       global_maxval = parallel_reduce_max(local_maxval)
+       if (global_maxval < eps11) then
+          model%climate%artm_anomaly = model%climate%artm_anomaly_const
+          write(message,*) &
+               'Setting artm_anomaly = constant value (degC):', model%climate%artm_anomaly_const
+          call write_log(trim(message))
+       else
+          print*, 'global_maxval(artm_anomaly) =', global_maxval  !WHL - debug
+          if (model%options%is_restart == RESTART_FALSE) then
+             call write_log('Setting artm_anomaly from external file')
+          endif
+       endif
+
        call glissade_add_2d_anomaly(model%climate%artm_corrected,          &   ! degC
                                     model%climate%artm_anomaly,            &   ! degC
                                     model%climate%artm_anomaly_timescale,  &   ! yr
@@ -1928,37 +1950,6 @@ contains
 
     call t_startf('glissade_thermal_solve')
 
-    ! Optionally, add an anomaly to the surface air temperature
-    ! Typically, artm_corrected = artm, but sometimes (e.g., for ISMIP6 forcing experiments),
-    !  it includes a time-dependent anomaly.
-    ! Note that artm itself does not change in time.
-
-    ! initialize
-    model%climate%artm_corrected(:,:) = model%climate%artm(:,:)
-
-    if (model%options%enable_artm_anomaly) then
-
-       ! Note: When being ramped up, the anomaly is not incremented until after the final time step of the year.
-       !       This is the reason for passing the previous time to the subroutine.
-       previous_time = model%numerics%time - model%numerics%dt * tim0/scyr
-
-       call glissade_add_2d_anomaly(model%climate%artm_corrected,          &   ! degC
-                                    model%climate%artm_anomaly,            &   ! degC
-                                    model%climate%artm_anomaly_timescale,  &   ! yr
-                                    previous_time)                             ! yr
-
-       if (verbose_glissade .and. this_rank==rtest) then
-          i = itest
-          j = jtest
-          print*, 'i, j, previous_time, artm, artm anomaly, corrected artm (deg C):', &
-               i, j, previous_time, model%climate%artm(i,j), model%climate%artm_anomaly(i,j), &
-               model%climate%artm_corrected(i,j)
-       endif
-
-    endif
-
-    if (main_task .and. verbose_glissade) print*, 'Call glissade_therm_driver'
-
     ! Downscale artm to the current surface elevation if needed.
     ! Depending on the value of artm_input_function, artm might be dependent on the upper surface elevation.
     ! The options are:
@@ -2009,6 +2000,37 @@ contains
     endif   ! artm_input_function
 
     call parallel_halo(model%climate%artm, parallel)
+
+    ! Optionally, add an anomaly to the surface air temperature
+    ! Typically, artm_corrected = artm, but sometimes (e.g., for ISMIP6 forcing experiments),
+    !  it includes a time-dependent anomaly.
+    ! Note that artm itself does not change in time, unless it is elevation-dependent..
+
+    ! initialize
+    model%climate%artm_corrected(:,:) = model%climate%artm(:,:)
+
+    if (model%options%enable_artm_anomaly) then
+
+       ! Note: When being ramped up, the anomaly is not incremented until after the final time step of the year.
+       !       This is the reason for passing the previous time to the subroutine.
+       previous_time = model%numerics%time - model%numerics%dt * tim0/scyr
+
+       call glissade_add_2d_anomaly(model%climate%artm_corrected,          &   ! degC
+                                    model%climate%artm_anomaly,            &   ! degC
+                                    model%climate%artm_anomaly_timescale,  &   ! yr
+                                    previous_time)                             ! yr
+
+       if (verbose_glissade .and. this_rank==rtest) then
+          i = itest
+          j = jtest
+          print*, 'i, j, previous_time, artm, artm anomaly, corrected artm (deg C):', &
+               i, j, previous_time, model%climate%artm(i,j), model%climate%artm_anomaly(i,j), &
+               model%climate%artm_corrected(i,j)
+       endif
+
+    endif
+
+    if (main_task .and. verbose_glissade) print*, 'Call glissade_therm_driver'
 
     ! Note: glissade_therm_driver uses SI units
     !       Output arguments are temp, waterfrac, bpmp and bmlt_ground
@@ -2810,7 +2832,7 @@ contains
                model%glacier%cism_glacier_id,          &
                model%glacier%t_mlt,                    &  ! deg C
                model%climate%snow,                     &  ! mm/yr w.e.
-               model%climate%artm,                     &  ! deg C
+               model%climate%artm_corrected,           &  ! deg C
                model%glacier%mu_star,                  &  ! mm/yr w.e./deg
                model%climate%smb)                         ! mm/yr w.e.
 
