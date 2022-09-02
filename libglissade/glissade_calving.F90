@@ -185,32 +185,29 @@ contains
 
        ! Set the calving mask to include all ice-free ocean cells.
        ! Any ice entering these cells during the run will calve.
-       ! Make an exception for cells with observed nonzero velocity (and hence ice present
-       !  at the time of velocity observations) at vertices.
-       ! As of Dec. 2021, this is the case for parts of the Thwaites shelf region.
-       !  We want to allow the shelf to expand into regions where ice was present
-       !   and flowing recently, even if no longer present in the thickness data set.
-       !WHL - The original logic set calving_mask = 0 (no calving) in ice-free ocean cells
-       !       if (u,v) > 0 at any adjacent vertices.
-       !       That logic effectively creates a 1-cell buffer around the observed CF.
-       !      The new logic sets CF = 0 in ice-free ocean cells only if u^2 + v^2 > 0
-       !       at all four adjacent vertices.
+
+       ! Note: We tested an exception for cells with observed nonzero velocity
+       ! (and hence ice present at the time of velocity observations) at vertices.
+       ! The goal was to better represent the Thwaites shelf region, but the spin-up
+       !  did not improve.
+       ! Leaving the commented-out code in case we want to add something similar later.
 
        do j = 2, ny-1
           do i = 2, nx-1
              if (ocean_mask(i,j) == 1) then
-                if (usfc_obs(i-1,j)**2   + vsfc_obs(i-1,j)**2   > 0.0d0 .and. &
-                    usfc_obs(i,j)**2     + vsfc_obs(i,j)**2     > 0.0d0 .and. &
-                    usfc_obs(i-1,j-1)**2 + vsfc_obs(i-1,j-1)**2 > 0.0d0 .and. &
-                    usfc_obs(i,j-1)**2   + vsfc_obs(i,j-1)**2   > 0.0d0) then
-                   calving_mask(i,j) = 0
-                   call parallel_globalindex(i, j, iglobal, jglobal, parallel)
-                   if (verbose_calving) then   ! debug
-                      print*, 'ocean cell with uobs, vobs > 0: ig, jg =', iglobal, jglobal
-                   endif
-                else
-                   calving_mask(i,j) = 1   ! calve ice in this cell
-                endif
+!                if (usfc_obs(i-1,j)**2   + vsfc_obs(i-1,j)**2   > 0.0d0 .and. &
+!                    usfc_obs(i,j)**2     + vsfc_obs(i,j)**2     > 0.0d0 .and. &
+!                    usfc_obs(i-1,j-1)**2 + vsfc_obs(i-1,j-1)**2 > 0.0d0 .and. &
+!                    usfc_obs(i,j-1)**2   + vsfc_obs(i,j-1)**2   > 0.0d0) then
+!                   calving_mask(i,j) = 0
+!                   call parallel_globalindex(i, j, iglobal, jglobal, parallel)
+!                   if (verbose_calving) then   ! debug
+!                      print*, 'ocean cell with uobs, vobs > 0: ig, jg =', iglobal, jglobal
+!                   endif
+!                else
+!                   calving_mask(i,j) = 1   ! calve ice in this cell
+!                endif
+                calving_mask(i,j) = 1   ! calve ice in this cell
              else
                 calving_mask(i,j) = 0
              endif
