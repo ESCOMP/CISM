@@ -240,7 +240,7 @@ contains
     if (present(baseline_year)) then
        sub_baseline_year = baseline_year
     else
-       sub_baseline_year = 1
+       sub_baseline_year = 0
     end if
 
     ! create new netCDF file
