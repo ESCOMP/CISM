@@ -41,6 +41,7 @@ module glissade_inversion
   public :: verbose_inversion, glissade_init_inversion, glissade_inversion_basal_friction, &
             glissade_inversion_bmlt_basin, glissade_inversion_deltaT_ocn, &
             glissade_inversion_flow_enhancement_factor, usrf_to_thck
+  public :: deltaT_ocn_maxval
 
   !-----------------------------------------------------------------------------
   ! Subroutines to invert for basal fields (including basal friction beneath
@@ -50,6 +51,9 @@ module glissade_inversion
 
 !!    logical, parameter :: verbose_inversion = .false.
     logical, parameter :: verbose_inversion = .true.
+
+    real(dp), parameter :: &
+         deltaT_ocn_maxval = 5.0d0      ! max allowed magnitude of deltaT_ocn (degC)
 
 !***********************************************************************
 
@@ -127,7 +131,7 @@ contains
         model%options%which_ho_coulomb_c  == HO_COULOMB_C_INVERSION  .or.  &
         model%options%which_ho_deltaT_ocn == HO_DELTAT_OCN_INVERSION) then
 
-       ! We are inverting for usrf_obs, so check whether it has been read in already.
+       ! We are likely trying to match usrf_obs, so check whether it has been read in already.
        ! If not, set it to the initial usrf field.
 
        var_maxval = maxval(model%geometry%usrf_obs)
@@ -145,8 +149,6 @@ contains
             model%geometry%topg,      &
             model%climate%eus,        &
             thck_obs)
-
-       ! Optionally, adjust the initial thickness and then reset usrf_obs.
 
        if (model%options%is_restart == RESTART_FALSE) then
 
@@ -232,7 +234,7 @@ contains
           endif
        endif
 
-    endif  ! inversion for Cp or Cc
+    endif  ! inversion for Cp, Cc or deltaT_ocn
 
     ! Set masks that are used below
     ! Modify glissade_get_masks so that 'parallel' is not needed
@@ -1289,10 +1291,11 @@ contains
        thck_in,                  &
        thck_obs_in,              &
        dthck_dt_in,              &
+       deltaT_ocn_relax,         &
        deltaT_ocn)
 
-    ! Compute a spatially varying field of temperature correction factors at cell centers.
-    ! Adjustments are made in floating grid cells based on a thickness target:
+    ! Compute spatially varying temperature correction factors at cell centers.
+    ! Adjustments are made in floating grid cells, typically based on a thickness target:
     !    Where thck > thck_obs, deltaT_ocn is increased to increase basal melting.
     !    Where thck < thck_obs, deltaT_ocn is reduced to reduce basal melting.
     ! Note: deltaT_ocn is constrained to lie within a prescribed range, [deltaT_ocn_min, deltaT_ocn_max].
@@ -1316,7 +1319,8 @@ contains
          f_ground_cell,        & ! grounded fraction at cell centers, 0 to 1
          thck_in,              & ! ice thickness (m)
          thck_obs_in,          & ! observed ice thickness (m)
-         dthck_dt_in             ! rate of change of ice thickness (m/s)
+         dthck_dt_in,          & ! rate of change of ice thickness (m/s)
+         deltaT_ocn_relax        ! deltaT_ocn field toward which we relax
 
     real(dp), dimension(nx,ny), intent(inout) ::  &
          deltaT_ocn              ! temperature correction factor (degC)
@@ -1327,26 +1331,32 @@ contains
          thck,                 & ! ice thickness (m), optionally smoothed
          thck_obs,             & ! observed ice thickness (m), optionally smoothed
          dthck_dt,             & ! rate of change of ice thickness (m/s), optionally smoothed
-         dthck,                & ! thck - thck_obs
-         deltaT_ocn_relax        ! deltaT_ocn baseline field to which we relax
+         dthck                   ! thck - thck_obs
 
     real(dp) ::  &
          term_thck,            & ! tendency term based on thickness target
          term_dHdt,            & ! tendency term based on dH/dt
-         term_relax              ! term that relaxes deltaT_ocn toward base value
-
-    real(dp) :: &
-         thck_target      ! local target for ice thickness (m)
+         term_relax,           & ! term that relaxes deltaT_ocn toward base value
+         term_sum                ! sum of the terms above
 
     integer :: i, j
-
-    real(dp), parameter :: &
-         deltaT_ocn_maxval = 10.0d0        ! max allowed magnitude of deltaT_ocn (degC)
 
     logical, parameter :: &
          smooth_thck = .false.    ! if true, apply laplacian smoothing to input thickness fields
 
-    if (smooth_thck) then    ! smooth thickness fields to reduce noise in deltaT_ocn
+    ! Check for positive scales
+
+    if (deltaT_ocn_thck_scale <= 0.0d0) then
+       call write_log('Error, deltaT_ocn_thck_scale must be > 0', GM_FATAL)
+    endif
+
+    if (deltaT_ocn_timescale <= 0.0d0) then
+       call write_log('Error, deltaT_ocn timescale must be > 0', GM_FATAL)
+    endif
+
+    ! Optional smoothing of input fields to reduce noise in deltaT_ocn
+
+    if (smooth_thck) then
 
        call glissade_laplacian_smoother(&
             nx,          ny,              &
@@ -1371,12 +1381,9 @@ contains
 
     endif
 
-    ! Compute difference between current and target thickness
+    ! Compute difference between current and target value
     ! Note: For ice-covered cells with ice-free targets, dthck will be > 0 to encourage thinning.
     dthck(:,:) = thck(:,:) - thck_obs(:,:)
-
-    !TODO - Set deltaT_ocn_relax at initialization (not necessarily = 0) and write to restart?
-    deltaT_ocn_relax = 0.0d0
 
     ! Loop over cells where f_ground_cell < 1
     ! Note: f_ground_cell should be computed before transport, so that if a cell is at least
@@ -1398,31 +1405,25 @@ contains
              !  it controls the size of the dH and dH/dt terms compared to the relaxation term.
              !  Increasing T0 makes the relaxation relatively weaker.
 
-             if (deltaT_ocn_thck_scale > 0.0d0) then
-                term_thck = deltaT_ocn_temp_scale * dthck(i,j) / (deltaT_ocn_thck_scale * deltaT_ocn_timescale)
-                term_dHdt = deltaT_ocn_temp_scale * dthck_dt(i,j) * 2.0d0 / deltaT_ocn_thck_scale
-             endif
-
-             ! Compute a relaxation term.  This term nudges deltaT_ocn toward a base value (zero by default)
-             !  with a time scale of deltaT_ocn_timescale.
+             term_thck = deltaT_ocn_temp_scale * dthck(i,j) / (deltaT_ocn_thck_scale * deltaT_ocn_timescale)
+             term_dHdt = deltaT_ocn_temp_scale * dthck_dt(i,j) * 2.0d0 / deltaT_ocn_thck_scale
              term_relax = (deltaT_ocn_relax(i,j) - deltaT_ocn(i,j)) / deltaT_ocn_timescale
+             term_sum = term_thck + term_dHdt + term_relax
 
-             ! Update deltatT_ocn
-             deltaT_ocn(i,j) = deltaT_ocn(i,j) + (term_thck + term_dHdt + term_relax) * dt
-
-             !WHL - debug
              if (verbose_inversion .and. this_rank == rtest .and. i==itest .and. j==jtest) then
                 print*, ' '
                 print*, 'Increment deltaT_ocn: rank, i, j =', rtest, itest, jtest
                 print*, 'thck scale (m), temp scale (degC), timescale (yr):', &
                      deltaT_ocn_thck_scale, deltaT_ocn_temp_scale, deltaT_ocn_timescale/scyr
-                print*, 'thck (m), thck_obs, dthck, dthck_dt (m/yr):', &
+                print*, 'thck, thck_obs, err thck (m), dthck_dt (m/yr):', &
                      thck(i,j), thck_obs(i,j), dthck(i,j), dthck_dt(i,j)*scyr
-                print*, 'dH term, dH/dt term =', term_thck*dt, term_dHdt*dt
-                print*, 'dT_ocn_relax (degC), term_relax =', deltaT_ocn_relax(i,j), term_relax*dt
-                print*, 'Tendency sum:', (term_thck + term_dHdt + term_relax) * dt
-                print*, 'new deltaT_ocn =', deltaT_ocn(i,j)
+                print*, 'term_thck, term_dHdt, term_relax:', term_thck, term_dHdt, term_relax
+                print*, 'old dT_ocn, dT_ocn_relax (degC) =', deltaT_ocn(i,j), deltaT_ocn_relax(i,j)
+                print*, 'term_sum*dt, new dT_ocn:', term_sum*dt, deltaT_ocn(i,j) + term_sum*dt
              endif
+
+             ! Update deltatT_ocn
+             deltaT_ocn(i,j) = deltaT_ocn(i,j) + term_sum*dt
 
              ! Limit to a physically reasonable range
              deltaT_ocn(i,j) = min(deltaT_ocn(i,j),  deltaT_ocn_maxval)
@@ -1453,6 +1454,7 @@ contains
           enddo
           print*, ' '
        enddo
+       print*, ' '
        print*, 'thck (m):'
        do j = jtest+3, jtest-3, -1
           do i = itest-3, itest+3
@@ -1461,7 +1463,7 @@ contains
           print*, ' '
        enddo
        print*, ' '
-       print*, 'dthck (m):'
+       print*, 'err thck (m):'
        do j = jtest+3, jtest-3, -1
           do i = itest-3, itest+3
              write(6,'(f10.3)',advance='no') dthck(i,j)
@@ -1469,7 +1471,7 @@ contains
           print*, ' '
        enddo
        print*, ' '
-       print*, 'dthck_dt (m/yr):'
+       print*, 'dthck/dt (m/yr):'
        do j = jtest+3, jtest-3, -1
           do i = itest-3, itest+3
              write(6,'(f10.3)',advance='no') dthck_dt(i,j)*scyr
@@ -1484,7 +1486,8 @@ contains
           enddo
           print*, ' '
        enddo
-    endif
+
+    endif  ! verbose_inversion
 
   end subroutine glissade_inversion_deltaT_ocn
 
@@ -1563,9 +1566,6 @@ contains
          term_thck,            & ! tendency term based on thickness target
          term_dHdt,            & ! tendency term based on dH/dt
          term_relax              ! term that relaxes E toward a default value
-
-    real(dp) :: &
-         thck_target             ! local target for ice thickness (m)
 
     ! Note: Max and min values are somewhat arbitrary.
     ! TODO: Make these config parameters?

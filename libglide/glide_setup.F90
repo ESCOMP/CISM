@@ -214,7 +214,7 @@ contains
     model%basal_melt%bmlt_float_depth_frzmax = model%basal_melt%bmlt_float_depth_frzmax / scyr
     model%basal_melt%bmlt_float_depth_meltmin = model%basal_melt%bmlt_float_depth_meltmin / scyr
 
-    ! scale basal inversion parameters
+    ! scale inversion parameters
     model%inversion%babc_timescale = model%inversion%babc_timescale * scyr    ! convert yr to s
     model%inversion%bmlt_basin_timescale = model%inversion%bmlt_basin_timescale * scyr   ! yr to s
     model%inversion%deltaT_ocn_timescale = model%inversion%deltaT_ocn_timescale * scyr   ! yr to s
@@ -761,8 +761,8 @@ contains
     !Note: Previously, the terms 'hotstart' and 'restart' were both supported in the config file.
     !      Going forward, only 'restart' is supported.
     call GetValue(section,'restart',model%options%is_restart)
-
     call GetValue(section,'restart_extend_velo',model%options%restart_extend_velo)
+    call GetValue(section,'forcewrite_restart',model%options%forcewrite_restart)
 
     ! These are not currently supported
     !call GetValue(section,'basal_proc',model%options%which_bproc)
@@ -1072,12 +1072,13 @@ contains
          'uniform deltaT_ocn in each basin                ', &
          'invert for deltaT_ocn in each basin             ', &
          'read deltaT_ocn in each basin from external file', &
-         'prescribe deltaT_ocn in each basin from ISMIP6  '/)
+         'prescribe deltaT_ocn in each basin from ISMIP6  ' /)
 
-    character(len=*), dimension(0:2), parameter :: ho_deltaT_ocn = (/ &
-         'deltaT_ocn = 0                        ', &
-         'invert for deltaT_ocn                 ', &
-         'read deltaT_ocn from external file    ' /)
+    character(len=*), dimension(0:3), parameter :: ho_deltaT_ocn = (/ &
+         'deltaT_ocn = 0                         ', &
+         'invert for deltaT_ocn based on thck    ', &
+         'read deltaT_ocn from external file     ', &
+         'invert for deltaT_ocn based on dthck_dt' /)
 
     character(len=*), dimension(0:2), parameter :: ho_flow_enhancement_factor = (/ &
          'uniform flow enhancement factors               ', &
@@ -1648,6 +1649,10 @@ contains
        endif
     end if
 
+    if (model%options%forcewrite_restart) then
+       call write_log('Will write to output files on restart')
+    endif
+
 !!     This option is not currently supported
 !!    if (model%options%which_bproc < 0 .or. model%options%which_bproc >= size(which_bproc)) then
 !!       call write_log('Error, basal_proc out of range',GM_FATAL)
@@ -1804,6 +1809,14 @@ contains
                   BMLT_FLOAT_THERMAL_FORCING
              call write_log(message)
              call write_log('User setting will be ignored')
+          endif
+          if (model%options%which_ho_deltaT_ocn == HO_DELTAT_OCN_DTHCK_DT) then
+             if (model%options%bmlt_float_thermal_forcing_param /= BMLT_FLOAT_TF_ISMIP6_LOCAL .and. &
+                 model%options%bmlt_float_thermal_forcing_param /= BMLT_FLOAT_TF_ISMIP6_NONLOCAL .and. &
+                 model%options%bmlt_float_thermal_forcing_param /= BMLT_FLOAT_TF_ISMIP6_NONLOCAL_SLOPE) then
+                write(message,*) 'deltaT_ocn dthck_dt option supported only for ISMIP6 bmlt_float schemes'
+                call write_log(message, GM_FATAL)
+             endif
           endif
        endif
 
@@ -3340,6 +3353,7 @@ contains
 
     ! If using an ISMIP6 basin-based melt parameterization, and/or inverting for
     !  basin-scale quantities, we need a 2D field of basin numbers.
+    ! Not strictly needed for the ISMIP6_LOCAL option, but included for diagnostics
     if (options%bmlt_float_thermal_forcing_param == BMLT_FLOAT_TF_ISMIP6_LOCAL .or.  &
         options%bmlt_float_thermal_forcing_param == BMLT_FLOAT_TF_ISMIP6_NONLOCAL .or. &
         options%bmlt_float_thermal_forcing_param == BMLT_FLOAT_TF_ISMIP6_NONLOCAL_SLOPE .or. &
@@ -3577,6 +3591,13 @@ contains
        call glide_add_to_restart_variable_list('velo_sfc_obs', model_id)
     endif
 
+    ! fields needed for inversion options that try to match local dthck_dt
+    ! Note: This is strictly needed only for option HO_DELTAT_OCN_DTHCK_DT,
+    !       but can be a useful diagnostic field for the other options.
+    if (options%which_ho_deltaT_ocn /= HO_DELTAT_OCN_NONE) then
+       call glide_add_to_restart_variable_list('dthck_dt_obs')
+    endif
+
     ! effective pressure options
     ! f_effecpress_bwat represents the reduction of overburden pressure from bwatflx
     if (options%which_ho_effecpress == HO_EFFECPRESS_BWATFLX) then
@@ -3651,9 +3672,10 @@ contains
 ! Optionally, the user can pass in a different fill value and replacement value.
 
   subroutine check_fill_values_real8_2d(&
-       field,                           &
-       fill_value_in, replacement_value_in, &
-       replacement_mask)
+       field,                     &
+       fill_value_in,             &
+       replacement_value_in,      &
+       scale_factor_in)
 
     use glimmer_paramets, only: netcdf_fill_value
 
@@ -3662,10 +3684,13 @@ contains
     real(dp), dimension(:,:), intent(inout) :: field
     real(dp), intent(in), optional :: fill_value_in
     real(dp), intent(in), optional :: replacement_value_in
-    integer, dimension(:,:), intent(out), optional :: replacement_mask
+
+    ! A scale factor should be passed in, for instance, if the netCDF data have units
+    ! of 1/yr, but there is a scale factor of scyr converting the data to units of 1/s.
+    real(dp), intent(in), optional :: scale_factor_in
 
     ! local variables
-    real(dp) :: fill_value, replacement_value
+    real(dp) :: fill_value, replacement_value, scale_factor
 
     if (present(fill_value_in)) then
        fill_value = fill_value_in
@@ -3679,16 +3704,14 @@ contains
        replacement_value = 0.0d0
     endif
 
-    if (present(replacement_mask)) then
-       where (abs(field) > 0.99d0 * fill_value)
-          replacement_mask = 1
-       elsewhere
-          replacement_mask = 0
-       endwhere
+    if (present(scale_factor_in)) then
+       scale_factor = scale_factor_in
+    else
+       scale_factor = 1.0d0
     endif
 
     ! Overwrite any values whose magnitude is similar to or greater than fill_value.
-    where (abs(field) > 0.99d0 * fill_value)
+    where (abs(field)*scale_factor > 0.99d0 * fill_value)
        field = replacement_value
     endwhere
 
@@ -3697,9 +3720,10 @@ contains
 !--------------------------------------------------------------------------------
 
   subroutine check_fill_values_real8_3d(&
-       field,                           &
-       fill_value_in, replacement_value_in, &
-       replacement_mask)
+       field,                   &
+       fill_value_in,           &
+       replacement_value_in,    &
+       scale_factor_in)
 
     use glimmer_paramets, only: netcdf_fill_value
 
@@ -3708,10 +3732,13 @@ contains
     real(dp), dimension(:,:,:), intent(inout) :: field
     real(dp), intent(in), optional :: fill_value_in
     real(dp), intent(in), optional :: replacement_value_in
-    integer, dimension(:,:,:), intent(out), optional :: replacement_mask
+
+    ! A scale factor should be passed in, for instance, if the netCDF data have units
+    ! of 1/yr, but there is a scale factor of scyr converting the data to units of 1/s.
+    real(dp), intent(in), optional :: scale_factor_in
 
     ! local variables
-    real(dp) :: fill_value, replacement_value
+    real(dp) :: fill_value, replacement_value, scale_factor
 
     if (present(fill_value_in)) then
        fill_value = fill_value_in
@@ -3725,16 +3752,14 @@ contains
        replacement_value = 0.0d0
     endif
 
-    if (present(replacement_mask)) then
-       where (abs(field) > 0.99d0 * fill_value)
-          replacement_mask = 1
-       elsewhere
-          replacement_mask = 0
-       endwhere
+    if (present(scale_factor_in)) then
+       scale_factor = scale_factor_in
+    else
+       scale_factor = 1.0d0
     endif
 
     ! Overwrite any values whose magnitude is similar to or greater than fill_value.
-    where (abs(field) > 0.99d0 * fill_value)
+    where (abs(field)*scale_factor > 0.99d0 * fill_value)
        field = replacement_value
     endwhere
 
