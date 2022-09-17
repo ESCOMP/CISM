@@ -376,6 +376,10 @@ contains
        call check_fill_values(model%ocean_data%thermal_forcing)
     endif
 
+    if (model%options%which_ho_deltaT_ocn == HO_DELTAT_OCN_DTHCK_DT) then
+       call check_fill_values(model%geometry%dthck_dt_obs)
+    endif
+
     ! Allocate mask arrays in case they are needed below
     allocate(ice_mask(model%general%ewn, model%general%nsn))
     allocate(floating_mask(model%general%ewn, model%general%nsn))
@@ -871,6 +875,17 @@ contains
        call glissade_init_inversion(model)
 
     endif  ! inversion for Cp, Cc or bmlt
+
+    ! If using dthck_dt_obs, make sure it was read in
+
+    if (model%options%which_ho_deltat_ocn == HO_DELTAT_OCN_DTHCK_DT) then
+       local_maxval = maxval(abs(model%geometry%dthck_dt_obs))
+       global_maxval = parallel_reduce_max(local_maxval)
+       if (global_maxval == 0.0d0) then   ! dthck_dt_obs was not read in; abort
+          call write_log ('Error: Trying to match dthck_dt, but dthck_dt_obs = 0', GM_FATAL)
+          call write_log(message)
+       endif
+    endif
 
     ! If using a mask to force ice retreat, then set the reference thickness (if not already read in).
 
@@ -3749,6 +3764,7 @@ contains
     use glissade_calving, only: verbose_calving
     use felix_dycore_interface, only: felix_velo_driver
     use glissade_basal_traction, only: calc_effective_pressure
+    use glissade_bmlt_float, only: glissade_bmlt_float_thermal_forcing
     use glissade_inversion, only: verbose_inversion, glissade_inversion_basal_friction,  &
          glissade_inversion_bmlt_basin, glissade_inversion_deltaT_ocn, &
          glissade_inversion_flow_enhancement_factor, &
@@ -4002,7 +4018,6 @@ contains
 
     ! Compute the thickness tendency dH/dt from one step to the next (m/s)
     ! This tendency is used for coulomb_c and powerlaw_c inversion.
-
     if ( (model%options%is_restart == RESTART_TRUE) .and. &
          (model%numerics%time == model%numerics%tstart) ) then
        ! first call after a restart; do not compute dthck_dt
@@ -4079,6 +4094,8 @@ contains
                model%climate%eus,        &
                thck_obs)
 
+          ! Given the thickness target, invert for deltaT_ocn
+
           call glissade_inversion_deltaT_ocn(&
                model%numerics%dt * tim0,              &  ! s
                ewn,           nsn,                    &
@@ -4090,9 +4107,43 @@ contains
                model%geometry%thck * thk0,            &  ! m
                thck_obs * thk0,                       &  ! m
                model%geometry%dthck_dt,               &  ! m/s
+               model%ocean_data%deltaT_ocn_relax,     &  ! degC
                model%ocean_data%deltaT_ocn)              ! degC
 
        endif  ! first call after a restart
+
+    endif   ! which_ho_deltaT_ocn
+
+    ! If setting deltaT_ocn based on observed dthck_dt, then so so here.
+
+    if (model%options%which_ho_deltat_ocn == HO_DELTAT_OCN_DTHCK_DT) then
+
+       ! Set deltaT_ocn based on dthck_dt_obs.
+       ! This is done within the subroutine used to compute bmlt_float from thermal forcing.
+       ! But instead of computing bmlt_float from TF, we find the value of deltaT_ocn
+       !  that will increase TF as needed to match negative values of dthck_dt_obs.
+       ! Note: This subroutine would usually be called during the initial diagnostic solve
+       !       of the restart following a spin-up, without taking any prognostic timesteps.
+
+       call glissade_bmlt_float_thermal_forcing(&
+            model%options%bmlt_float_thermal_forcing_param, &
+            model%options%ocean_data_extrapolate,     &
+            parallel,                                 &
+            ewn,       nsn,                           &
+            model%numerics%dew*len0,                  &   ! m
+            model%numerics%dns*len0,                  &   ! m
+            itest,     jtest,   rtest,                &
+            ice_mask,                                 &
+            ocean_mask,                               &
+            model%geometry%marine_connection_mask,    &
+            model%geometry%f_ground_cell,             &
+            model%geometry%thck*thk0,                 &   ! m
+            model%geometry%lsrf*thk0,                 &   ! m
+            model%geometry%topg*thk0,                 &   ! m
+            model%ocean_data,                         &
+            model%basal_melt%bmlt_float,              &
+            which_ho_deltaT_ocn = model%options%which_ho_deltaT_ocn,  &
+            dthck_dt_obs = model%geometry%dthck_dt_obs)   ! m/yr
 
     endif   ! which_ho_deltaT_ocn
 
@@ -4158,6 +4209,7 @@ contains
        endif  ! first call after a restart
 
     endif   ! which_ho_flow_enhancement_factor
+
 
     ! ------------------------------------------------------------------------ 
     ! Calculate Glen's A
@@ -4818,6 +4870,20 @@ contains
     ! Note: This is not necessary (and can destroy exact restart) if the SMB was already input in units of mm/yr
     if (model%options%smb_input /= SMB_INPUT_MMYR_WE) then
        model%climate%smb(:,:) = (model%climate%acab(:,:) * scale_acab) * (1000.d0 * rhoi/rhow)
+    endif
+
+    ! Corrections for basal melt at the calving front; convert basal melt to calving in CF cells.
+    ! Computed melt rates can be large in CF cells when applying a calving mask and adjusting deltaT_ocn
+    !  based on a thickness target.  In this case, it is better to think of the melt as part of the calving.
+    ! Note: Both calving_thck and bmlt_applied have dimensionless model units;
+    !       calving_thck = calving thickness per timestep, while bmlt_applied = melt per unit time
+
+    if (model%options%whichcalving == CALVING_GRID_MASK .or. model%options%apply_calving_mask) then
+       where (calving_front_mask == 1)
+          model%calving%calving_thck = model%calving%calving_thck + &
+               model%basal_melt%bmlt_applied * model%numerics%dt
+          model%basal_melt%bmlt_applied = 0.0d0
+       endwhere
     endif
 
     ! surface, basal and calving mass fluxes (kg/m^2/s)

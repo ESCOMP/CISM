@@ -279,6 +279,7 @@ module glide_types
   integer, parameter :: HO_DELTAT_OCN_NONE = 0
   integer, parameter :: HO_DELTAT_OCN_INVERSION = 1
   integer, parameter :: HO_DELTAT_OCN_EXTERNAL = 2
+  integer, parameter :: HO_DELTAT_OCN_DTHCK_DT = 3
 
   integer, parameter :: HO_FLOW_ENHANCEMENT_FACTOR_CONSTANT = 0
   integer, parameter :: HO_FLOW_ENHANCEMENT_FACTOR_INVERSION = 1
@@ -740,6 +741,9 @@ module glide_types
     !>          (required if restart velocities are nonzero on global boundaries)
     !> \end{description}
 
+    logical :: forcewrite_restart = .false.
+    !> flag that indicates whether to force writing of output on restart
+
     ! This is a Glimmer serial option
     ! The parallel code enforces periodic EW and NS boundary conditions by default
     logical :: periodic_ew = .false.
@@ -821,16 +825,16 @@ module glide_types
     !> Flag for basal powerlaw_c options
     !> \begin{description}
     !> \item[0] powerlaw_c = spatially uniform constant
-    !> \item[1] powerlaw_c = 2D field found by inversion
-    !> \item[2] powerlaw_c = 2D field read from external file
+    !> \item[1] powerlaw_c = invert for 2D coulomb_c
+    !> \item[2] powerlaw_c = read 2D coulomb_c from external file
     !> \end{description}
 
     integer :: which_ho_coulomb_c = 0
     !> Flag for basal coulomb_c options
     !> \begin{description}
     !> \item[0] coulomb_c = spatially uniform constant
-    !> \item[1] coulomb_c = 2D field found by inversion
-    !> \item[2] coulomb_c = 2D field read from external file
+    !> \item[1] coulomb_c = invert for 2D coulomb_c
+    !> \item[2] coulomb_c = read 2D coulomb_c from external file
     !> \item[3] coulomb_c = function of bed elevation
     !> \end{description}
 
@@ -846,8 +850,9 @@ module glide_types
     !> Flag for local ocean temperature corrections
     !> \begin{description}
     !> \item[0] deltaT_ocn = 0
-    !> \item[1] invert for deltaT_ocn
+    !> \item[1] invert for deltaT_ocn to match thickness target
     !> \item[2] read deltaT_ocn from external file
+    !> \item[3] set deltaT_ocn to match dH/dt target
     !> \end{description}
 
     integer :: which_ho_flow_enhancement_factor = 0
@@ -1154,10 +1159,10 @@ module glide_types
 
     real(dp),dimension(:,:,:),pointer :: ice_age => null()
     !> The age of a given ice layer, divided by \texttt{tim0}.
-    !> Used to be called 'age', but changed to 'ice_age' for easier grepping
 
     real(dp),dimension(:,:),pointer :: thck_old => null()        !> old ice thickness, divided by \texttt{thk0}
     real(dp),dimension(:,:),pointer :: dthck_dt => null()        !> ice thickness tendency (m/s)
+    real(dp),dimension(:,:),pointer :: dthck_dt_obs => null()    !> observed rate of change of ice thickness (m/s)
 
     real(dp),dimension(:,:),pointer :: cell_area => null()
     !> The cell area of the grid, divided by \texttt{len0*len0}.
@@ -1651,10 +1656,10 @@ module glide_types
      !       In practice, this basin is likely to be the Amundsen Sea Embayment (IMBIE/ISMIP6 basin #9).
 
      real(dp) :: &
-          basin_mass_correction = 0.0d0        !> optional mass correction (Gt) for a selected basin
+          basin_mass_correction = 0.0d0           !> optional mass correction (Gt) for a selected basin
 
      integer ::  &
-          basin_number_mass_correction = 0     !> integer ID for the basin receiving the correction
+          basin_number_mass_correction = 0        !> integer ID for the basin receiving the correction
 
   end type glide_inversion
 
@@ -1758,7 +1763,8 @@ module glide_types
           basin_number => null()                    !> basin number for each grid cell
 
      real(dp), dimension(:,:), pointer :: &
-          deltaT_ocn => null()                      !> deltaT_ocn in each local grid cell (deg C)
+          deltaT_ocn => null(),   &                 !> deltaT_ocn in each grid cell (deg C)
+          deltaT_ocn_relax => null()                !> deltaT_ocn toward which we relax (deg C)
 
      real(dp) :: &
           thermal_forcing_anomaly = 0.0d0,  &       !> thermal forcing anomaly (deg C), applied everywhere
@@ -2443,6 +2449,9 @@ contains
     !> \item \texttt{topg(ewn,nsn))}
     !> \item \texttt{topg_stdev(ewn,nsn))}
     !> \item \texttt{usrf_obs(ewn,nsn))}
+    !> \item \texttt{thck_old(ewn,nsn))}
+    !> \item \texttt{dthck_dt(ewn,nsn))}
+    !> \item \texttt{dthck_dt_obs(ewn,nsn))}
     !> \item \texttt{mask(ewn,nsn))}
     !> \item \texttt{age(upn-1,ewn,nsn))}
     !> \item \texttt{tracers(ewn,nsn,ntracers,upn-1)}
@@ -2677,6 +2686,8 @@ contains
     call coordsystem_allocate(model%general%ice_grid, model%geometry%topg)
     call coordsystem_allocate(model%general%ice_grid, model%geometry%topg_stdev)
     call coordsystem_allocate(model%general%ice_grid, model%geometry%usrf_obs)
+    call coordsystem_allocate(model%general%ice_grid, model%geometry%dthck_dt)
+    call coordsystem_allocate(model%general%ice_grid, model%geometry%dthck_dt_obs)
     call coordsystem_allocate(model%general%ice_grid, model%geometry%thkmask)
     call coordsystem_allocate(model%general%velo_grid, model%geometry%stagmask)
     call coordsystem_allocate(model%general%ice_grid, model%geometry%cell_area)
@@ -2724,7 +2735,6 @@ contains
     else   ! glissade dycore
        call coordsystem_allocate(model%general%ice_grid, upn-1, model%geometry%ice_age)
        call coordsystem_allocate(model%general%ice_grid,  model%geometry%thck_old)
-       call coordsystem_allocate(model%general%ice_grid,  model%geometry%dthck_dt)
        call coordsystem_allocate(model%general%velo_grid, model%velocity%velo_sfc_obs)
        call coordsystem_allocate(model%general%velo_grid, model%velocity%velo_sfc)
        call coordsystem_allocate(model%general%ice_grid,  model%geometry%f_flotation)
@@ -2789,6 +2799,7 @@ contains
                 call write_log ('Must set nbasin >= 1 for the ISMIP6 thermal forcing options', GM_FATAL)
              endif
              call coordsystem_allocate(model%general%ice_grid, model%ocean_data%deltaT_ocn)
+             call coordsystem_allocate(model%general%ice_grid, model%ocean_data%deltaT_ocn_relax)
           endif
        endif
     endif  ! Glissade
@@ -3193,6 +3204,8 @@ contains
         deallocate(model%ocean_data%basin_number)
     if (associated(model%ocean_data%deltaT_ocn)) &
         deallocate(model%ocean_data%deltaT_ocn)
+    if (associated(model%ocean_data%deltaT_ocn_relax)) &
+        deallocate(model%ocean_data%deltaT_ocn_relax)
     if (associated(model%ocean_data%thermal_forcing)) &
         deallocate(model%ocean_data%thermal_forcing)
     if (associated(model%ocean_data%thermal_forcing_lsrf)) &
@@ -3230,6 +3243,10 @@ contains
         deallocate(model%geometry%topg_stdev)
     if (associated(model%geometry%usrf_obs)) &
         deallocate(model%geometry%usrf_obs)
+    if (associated(model%geometry%dthck_dt)) &
+        deallocate(model%geometry%dthck_dt)
+    if (associated(model%geometry%dthck_dt_obs)) &
+        deallocate(model%geometry%dthck_dt_obs)
     if (associated(model%geometry%thkmask)) &
         deallocate(model%geometry%thkmask)
     if (associated(model%geometry%stagmask)) &
@@ -3315,8 +3332,6 @@ contains
         deallocate(model%geometry%ice_age)
     if (associated(model%geometry%thck_old)) &
         deallocate(model%geometry%thck_old)
-    if (associated(model%geometry%dthck_dt)) &
-        deallocate(model%geometry%dthck_dt)
     if (associated(model%geometry%tracers)) &
         deallocate(model%geometry%tracers)
     if (associated(model%geometry%f_flotation)) &

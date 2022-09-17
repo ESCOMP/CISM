@@ -488,6 +488,20 @@ data:          data%geometry%usrf_obs
 factor:        thk0
 load:          1
 
+[dthck_dt_obs]
+dimensions:    time, y1, x1
+units:         meter/year
+long_name:     observed rate of ice thickness change
+data:          data%geometry%dthck_dt_obs
+load:          1
+
+[dthck_dt]
+dimensions:    time, y1, x1
+units:         meter/year
+long_name:     rate of ice thickness change
+data:          data%geometry%dthck_dt
+factor:        scyr
+
 [floating_thck_target]
 dimensions:    time, y1, x1
 units:         meter

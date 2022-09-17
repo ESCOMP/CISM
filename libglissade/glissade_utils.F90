@@ -859,8 +859,7 @@ contains
        nbasin,       basin_number,  &
        rmask,                       &
        field_2d,                    &
-       field_basin_avg,             &
-       itest, jtest, rtest)
+       field_basin_avg)
 
     ! For a given 2D input field, compute the average over a basin.
     ! The average is taken over grid cells with mask = 1.
@@ -885,9 +884,6 @@ contains
 
     real(dp), dimension(nbasin), intent(out) :: &
          field_basin_avg           !> basin-average output field
-
-    integer, intent(in), optional :: &
-         itest, jtest, rtest       !> coordinates of diagnostic point
 
     ! local variables
 
