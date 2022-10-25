@@ -1440,6 +1440,12 @@ contains
        enddo  ! i
     enddo  ! j
 
+    ! Note: Suppose deltaT_ocn is negative enough that thermal_forcing_lsrf + deltaT_ocn < 0.
+    !       Then the system becomes unresponsive, since deltaT_ocn may need to increase
+    !        substantially to give a nonzero corrected thermal forcing.
+    !       To prevent this from happening, additional limiting is applied in subroutine
+    !        ismip6_bmlt_float in module glissade_bmlt_float.
+
     ! optional diagnostics
     if (verbose_inversion .and. this_rank == rtest) then
        i = itest

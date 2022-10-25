@@ -600,6 +600,9 @@ module glide_types
     !> \item[3] Overwrite acab where input mask = 1
     !> \end{description}
 
+    logical :: enable_acab_dthck_dt_correction = .false.
+    !> if true, then add (-dthck_dt_obs) to acab for floating ice
+
     integer :: gthf = 0
 
     !> geothermal heat flux:
