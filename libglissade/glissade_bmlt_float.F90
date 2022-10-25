@@ -1996,8 +1996,10 @@ module glissade_bmlt_float
 
     real(dp), dimension(nx,ny), intent(in) :: &
          thermal_forcing_lsrf,  & !> thermal forcing (K) at lower ice surface
-         deltaT_ocn,            & !> thermal forcing correction factor (deg C)
          theta_slope              !> sub-shelf slope angle (radians)
+
+    real(dp), dimension(nx,ny), intent(inout) :: &
+         deltaT_ocn               !> thermal forcing correction factor (deg C)
 
     real(dp), dimension(nbasin), intent(in) :: &
          thermal_forcing_basin    !> thermal forcing averaged over each basin (deg C)
@@ -2023,6 +2025,15 @@ module glissade_bmlt_float
 
     coeff = gamma0 * ( (rhosw_ismip6*cpw_ismip6)/(rhoi_ismip6*Lf_ismip6) )**2
 
+    ! Limit deltaT_ocn such that thermal_forcing_lsrf + deltaT_ocn >= 0
+    ! This prevents grid cells from reaching an unresponsive state in which an increase
+    !  in deltaT_ocn does not generate any melt, since eff_thermal_forcing remains < 0.
+
+    where (thermal_forcing_mask == 1 .and. &
+           thermal_forcing_lsrf + deltaT_ocn < 0.0d0)
+       deltaT_ocn = -thermal_forcing_lsrf
+    endwhere
+
     if (bmlt_float_thermal_forcing_param == BMLT_FLOAT_TF_ISMIP6_LOCAL) then
 
        ! local parameterization
@@ -2031,6 +2042,13 @@ module glissade_bmlt_float
        do j = 1, ny
           do i = 1, nx
              if (thermal_forcing_mask(i,j) == 1) then
+
+                !WHL - debug
+!                if (thermal_forcing_lsrf(i,j) + deltaT_ocn(i,j) < 0.0d0) then
+!                   print*, 'Negative eff_thermal forcing: task, i, j, nb, TF, dT:', &
+!                        this_rank, i, j, basin_number(i,j), thermal_forcing_lsrf(i,j), deltaT_ocn(i,j)
+!                endif
+
                 eff_thermal_forcing = max(0.0d0, thermal_forcing_lsrf(i,j) + deltaT_ocn(i,j))
                 bmlt_float(i,j) = coeff * eff_thermal_forcing**2
              endif
