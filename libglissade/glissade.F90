@@ -2750,6 +2750,60 @@ contains
        ! Convert acab_corrected to a temporary array in SI units (m/s)
        acab_unscaled(:,:) = model%climate%acab_corrected(:,:) * thk0/tim0
 
+       ! Optionally, correct acab by adding (-dthck_dt_obs) where dthck_dt_obs < 0 and ice is floating.
+       ! During inversions for deltaT_ocn, this will generally force a positive ocean melt rate
+       !  where the ice is thinning, preventing large negative values of deltaT_ocn during spin-up.
+       ! When the correction is removed, the ice should melt and thin in agreement with observations.
+
+       if (model%options%enable_acab_dthck_dt_correction) then
+
+          if (verbose_smb .and. this_rank == rtest) then
+             write(6,*) ' '
+             write(6,*) 'uncorrected acab (m/yr)'
+             do j = jtest+3, jtest-3, -1
+                write(6,'(i6)',advance='no') j
+                do i = itest-3, itest+3
+                   write(6,'(f10.3)',advance='no') acab_unscaled(i,j) * scyr
+                enddo
+                write(6,*) ' '
+             enddo
+          endif
+
+          where (model%geometry%f_ground_cell < 1.0d0 .and. model%geometry%dthck_dt_obs < 0.0d0)
+             ! ice is floating and thinning in obs; apply a positive correction to acab
+             ! Note: dthck_dt_obs has units of m/yr; convert to m/s
+             acab_unscaled = acab_unscaled &
+                  - (1.0d0 - model%geometry%f_ground_cell) * (model%geometry%dthck_dt_obs/scyr)
+          endwhere
+
+          if (verbose_smb .and. this_rank == rtest) then
+
+             write(6,*) ' '
+             write(6,*) 'dthck_dt_obs correction (m/yr)'
+             do j = jtest+3, jtest-3, -1
+                write(6,'(i6)',advance='no') j
+                do i = itest-3, itest+3
+                   write(6,'(f10.3)',advance='no') &
+                        -model%geometry%dthck_dt_obs(i,j) * (1.0d0 - model%geometry%f_ground_cell(i,j))
+                enddo
+                write(6,*) ' '
+             enddo
+
+             write(6,*) ' '
+             write(6,*) 'new acab (m/yr)'
+             do j = jtest+3, jtest-3, -1
+                write(6,'(i6)',advance='no') j
+                do i = itest-3, itest+3
+                   write(6,'(f10.3)',advance='no') acab_unscaled(i,j) * scyr
+                enddo
+                write(6,*) ' '
+             enddo
+
+          endif
+
+       endif   ! enable_acab_dthck_dt_correction
+
+
        ! Convert bmlt to SI units (m/s)
        ! Note: bmlt is the sum of bmlt_ground (computed in glissade_thermal_solve) and bmlt_float
        !       (computed in glissade_bmlt_float_solve).

@@ -735,6 +735,7 @@ contains
     call GetValue(section,'enable_acab_anomaly',model%options%enable_acab_anomaly)
     call GetValue(section,'enable_artm_anomaly',model%options%enable_artm_anomaly)
     call GetValue(section,'overwrite_acab',model%options%overwrite_acab)
+    call GetValue(section,'enable_acab_dthck_dt_correction',model%options%enable_acab_dthck_dt_correction)
     call GetValue(section,'gthf',model%options%gthf)
     call GetValue(section,'isostasy',model%options%isostasy)
     call GetValue(section,'marine_margin',model%options%whichcalving)
@@ -1620,6 +1621,10 @@ contains
     write(message,*) 'overwrite_acab          : ',model%options%overwrite_acab,overwrite_acab(model%options%overwrite_acab)
     call write_log(message)
 
+    if (model%options%enable_acab_dthck_dt_correction) then
+       call write_log('acab correction based on dthck_dt_obs is enabled')
+    endif
+
     if (model%options%gthf < 0 .or. model%options%gthf >= size(gthf)) then
        call write_log('Error, geothermal flux option out of range',GM_FATAL)
     end if
@@ -1814,7 +1819,7 @@ contains
              if (model%options%bmlt_float_thermal_forcing_param /= BMLT_FLOAT_TF_ISMIP6_LOCAL .and. &
                  model%options%bmlt_float_thermal_forcing_param /= BMLT_FLOAT_TF_ISMIP6_NONLOCAL .and. &
                  model%options%bmlt_float_thermal_forcing_param /= BMLT_FLOAT_TF_ISMIP6_NONLOCAL_SLOPE) then
-                write(message,*) 'deltaT_ocn dthck_dt option supported only for ISMIP6 bmlt_float schemes'
+                write(message,*) 'deltaT_ocn dthck_dt options supported only for ISMIP6 bmlt_float schemes'
                 call write_log(message, GM_FATAL)
              endif
           endif
@@ -3308,6 +3313,8 @@ contains
     end select  ! artm_input_function
 
     ! Add anomaly forcing variables
+    ! Note: If enable_acab_dthck_dt_corection = T, then dthck_dt_obs is needed for restart.
+    !       Should be in restart file based on which_ho_deltaT_ocn /= 0
 
     if (options%enable_acab_anomaly) then
        select case (options%smb_input)
@@ -3590,8 +3597,7 @@ contains
     endif
 
     ! fields needed for inversion options that try to match local dthck_dt
-    ! Note: This is strictly needed only for option HO_DELTAT_OCN_DTHCK_DT,
-    !       but can be a useful diagnostic field for the other options.
+    ! Note: This is not strictly needed for all options, but still is a useful diagnostic.
     if (options%which_ho_deltaT_ocn /= HO_DELTAT_OCN_NONE) then
        call glide_add_to_restart_variable_list('dthck_dt_obs')
     endif
