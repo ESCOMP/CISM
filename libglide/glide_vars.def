@@ -495,6 +495,13 @@ long_name:     observed rate of ice thickness change
 data:          data%geometry%dthck_dt_obs
 load:          1
 
+[dthck_dt_obs_basin]
+dimensions:    time, y1, x1
+units:         meter/year
+long_name:     observed rate of ice thickness change, basin average
+data:          data%geometry%dthck_dt_obs_basin
+load:          1
+
 [dthck_dt]
 dimensions:    time, y1, x1
 units:         meter/year

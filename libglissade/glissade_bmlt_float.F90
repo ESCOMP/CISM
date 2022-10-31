@@ -722,6 +722,7 @@ module glissade_bmlt_float
   subroutine glissade_bmlt_float_thermal_forcing(&
        bmlt_float_thermal_forcing_param, &
        ocean_data_extrapolate,    &
+       deltaT_ocn_extrapolate,    &
        parallel,                  &
        nx,        ny,             &
        dew,       dns,            &
@@ -751,6 +752,9 @@ module glissade_bmlt_float
          bmlt_float_thermal_forcing_param, & !> melting parameterization used to derive melt rate from thermal forcing;
                                              !> current options are quadratic and ISMIP6 local, nonlocal and nonlocal_slope
          ocean_data_extrapolate              !> = 1 if TF is to be extrapolated to sub-shelf cavities, else = 0
+
+    logical, intent(in) :: &
+         deltaT_ocn_extrapolate              !> T if deltaT_ocn is to be extrapolated to non-floating cells, else = F
 
     type(parallel_type), intent(in) :: &
          parallel                            !> info for parallel communication
@@ -805,7 +809,7 @@ module glissade_bmlt_float
          which_ho_deltaT_ocn    !> option to compute deltaT_ocn; relevant here if = HO_DELTAT_OCN_DTHCK_DT
 
     real(dp), dimension(nx,ny), intent(in), optional :: &
-         dthck_dt_obs       !> observed dthck_dt (m/yr), used as a target for deltaT_ocn
+         dthck_dt_obs           !> observed dthck_dt (m/yr), used as a target for deltaT_ocn
 
     ! local variables
 
@@ -848,7 +852,6 @@ module glissade_bmlt_float
          thermal_forcing_max = 20.d0,  &  ! max allowed value of thermal forcing (K)
          thermal_forcing_min = -5.d0      ! min allowed value of thermal forcing (K)
 
-    !TODO - Make H0_float a config parameter?
     real(dp), parameter ::  &
          H0_float = 50.d0                 ! thickness scale (m) for floating ice; used to reduce weights when H < H0_float
 
@@ -1216,6 +1219,39 @@ module glissade_bmlt_float
           enddo
        endif
 
+       ! Optionally, set deltaT_ocn = deltaT_basin_avg in cells where thermal_forcing_mask = 0.
+       ! Note: During the inversion, the value of deltaT_ocn in non-floating cells does not matter much;
+       !        this simply becomes the initial value if/when the cell becomes afloat.
+       !       During a forward run with GL retreat, however, it matters a lot.  The basin-average values
+       !        written to non-floating cells during the inversion are applied to any cells
+       !        that become afloat during GL retreat.
+       ! Note: This should be done during the inversion only.
+       !       During the forward run, deltaT_ocn_extrapolate = F.  This is set automatically if the user forgets.
+
+       if (deltaT_ocn_extrapolate) then
+
+          do j = 1, ny
+             do i = 1, nx
+                nb = ocean_data%basin_number(i,j)
+                if (thermal_forcing_mask(i,j) == 0) then
+                   ocean_data%deltaT_ocn(i,j) = deltaT_basin_avg(nb)
+                endif
+             enddo
+          enddo
+
+          if (verbose_bmlt_float .and. this_rank==rtest) then
+             print*, ' '
+             print*, 'deltaT_ocn (degC) after extrapolation:'
+             do j = jtest+3, jtest-3, -1
+                do i = itest-3, itest+3
+                   write(6,'(f10.3)',advance='no') ocean_data%deltaT_ocn(i,j)
+                enddo
+                write(6,*) ' '
+             enddo
+          endif
+
+       endif   ! deltaT_ocn_extrapolate
+
        ! Compute the angle between the lower ice shelf surface and the horizontal.
        ! This option can be used to concentrate basal melting near the grounding line,
        !  where slopes are typically larger, and to reduce melting near the calving front
@@ -1250,6 +1286,7 @@ module glissade_bmlt_float
     ! Typically, this would be called only once, during the first diagnostic solve
     ! following a spin-up.
     ! The following call of ismip6_bmlt_float checks that the computation works.
+    ! TODO: Delete this option?
     !-----------------------------------------------
 
     if (present(which_ho_deltaT_ocn)) then
@@ -1321,7 +1358,7 @@ module glissade_bmlt_float
 
        endif  ! which_ho_deltaT_ocn
 
-    endif  ! present(which_ho_deltaT_ocn
+    endif  ! present(which_ho_deltaT_ocn)
 
     !-----------------------------------------------
     ! Compute the basal melt rate for each grid cell.

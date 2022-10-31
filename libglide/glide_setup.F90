@@ -792,6 +792,7 @@ contains
     call GetValue(section, 'which_ho_coulomb_c_relax',    model%options%which_ho_coulomb_c_relax)
     call GetValue(section, 'which_ho_bmlt_basin',         model%options%which_ho_bmlt_basin)
     call GetValue(section, 'which_ho_deltaT_ocn',         model%options%which_ho_deltaT_ocn)
+    call GetValue(section, 'deltaT_ocn_extrapolate',      model%options%deltaT_ocn_extrapolate)
     call GetValue(section, 'which_ho_flow_enhancement_factor', model%options%which_ho_flow_enhancement_factor)
     call GetValue(section, 'which_ho_bwat',               model%options%which_ho_bwat)
     call GetValue(section, 'ho_flux_routing_scheme',      model%options%ho_flux_routing_scheme)
@@ -1806,15 +1807,32 @@ contains
        end if
 
        if (model%options%which_ho_deltaT_ocn /= HO_DELTAT_OCN_NONE) then
+
           write(message,*) 'ho_deltaT_ocn           : ',model%options%which_ho_deltaT_ocn,  &
                             ho_deltaT_ocn(model%options%which_ho_deltaT_ocn)
           call write_log(message)
+
           if (model%options%whichbmlt_float /= BMLT_FLOAT_THERMAL_FORCING) then
              write(message,*) 'deltaT_ocn options are supported only for bmlt_float = ', &
                   BMLT_FLOAT_THERMAL_FORCING
              call write_log(message)
              call write_log('User setting will be ignored')
           endif
+
+          if (model%options%deltaT_ocn_extrapolate) then
+             if (model%options%which_ho_deltaT_ocn == HO_DELTAT_OCN_INVERSION) then
+                call write_log('deltaT_ocn will be extrapolated to non-floating cells during inversion')
+             else
+                model%options%deltaT_ocn_extrapolate = .false.
+                write(message,*) 'Setting deltaT_ocn_extrapolate = F for which_ho_deltaT_ocn =', &
+                     model%options%which_ho_deltaT_ocn
+                call write_log(message)
+                write(message,*) 'deltaT_ocn_extrapolate = T is appropriate for which_ho_deltaT_ocn =', &
+                    HO_DELTAT_OCN_INVERSION
+                call write_log(message)
+             endif
+          endif
+
           if (model%options%which_ho_deltaT_ocn == HO_DELTAT_OCN_DTHCK_DT) then
              if (model%options%bmlt_float_thermal_forcing_param /= BMLT_FLOAT_TF_ISMIP6_LOCAL .and. &
                  model%options%bmlt_float_thermal_forcing_param /= BMLT_FLOAT_TF_ISMIP6_NONLOCAL .and. &
@@ -3314,7 +3332,7 @@ contains
     end select  ! artm_input_function
 
     ! Add anomaly forcing variables
-    ! Note: If enable_acab_dthck_dt_corection = T, then dthck_dt_obs is needed for restart.
+    ! Note: If enable_acab_dthck_dt_correction = T, then dthck_dt_obs is needed for restart.
     !       Should be in restart file based on which_ho_deltaT_ocn /= 0
 
     if (options%enable_acab_anomaly) then
@@ -3602,6 +3620,7 @@ contains
     ! Note: This is not strictly needed for all options, but still is a useful diagnostic.
     if (options%which_ho_deltaT_ocn /= HO_DELTAT_OCN_NONE) then
        call glide_add_to_restart_variable_list('dthck_dt_obs')
+       call glide_add_to_restart_variable_list('dthck_dt_obs_basin')
     endif
 
     ! effective pressure options
