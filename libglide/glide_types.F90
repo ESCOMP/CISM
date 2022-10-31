@@ -276,6 +276,7 @@ module glide_types
   integer, parameter :: HO_COULOMB_C_RELAX_CONSTANT = 1
   integer, parameter :: HO_COULOMB_C_RELAX_ELEVATION = 2
 
+  !TODO - Remove option 3?
   integer, parameter :: HO_DELTAT_OCN_NONE = 0
   integer, parameter :: HO_DELTAT_OCN_INVERSION = 1
   integer, parameter :: HO_DELTAT_OCN_EXTERNAL = 2
@@ -858,6 +859,9 @@ module glide_types
     !> \item[3] set deltaT_ocn to match dH/dt target
     !> \end{description}
 
+    logical :: deltaT_ocn_extrapolate = .false.
+    !> if true, extrapolate the basin-average deltaT_ocn to cells not floating
+
     integer :: which_ho_flow_enhancement_factor = 0
     !> Flag for flow enhancement factor E
     !> \begin{description}
@@ -1163,9 +1167,10 @@ module glide_types
     real(dp),dimension(:,:,:),pointer :: ice_age => null()
     !> The age of a given ice layer, divided by \texttt{tim0}.
 
-    real(dp),dimension(:,:),pointer :: thck_old => null()        !> old ice thickness, divided by \texttt{thk0}
-    real(dp),dimension(:,:),pointer :: dthck_dt => null()        !> ice thickness tendency (m/s)
-    real(dp),dimension(:,:),pointer :: dthck_dt_obs => null()    !> observed rate of change of ice thickness (m/s)
+    real(dp),dimension(:,:),pointer :: thck_old => null()           !> old ice thickness, divided by \texttt{thk0}
+    real(dp),dimension(:,:),pointer :: dthck_dt => null()           !> ice thickness tendency (m/s)
+    real(dp),dimension(:,:),pointer :: dthck_dt_obs => null()       !> observed rate of change of ice thickness (m/s)
+    real(dp),dimension(:,:),pointer :: dthck_dt_obs_basin => null() !> basin_average of dthck_dt_obs (m/s)
 
     real(dp),dimension(:,:),pointer :: cell_area => null()
     !> The cell area of the grid, divided by \texttt{len0*len0}.
@@ -2455,6 +2460,7 @@ contains
     !> \item \texttt{thck_old(ewn,nsn))}
     !> \item \texttt{dthck_dt(ewn,nsn))}
     !> \item \texttt{dthck_dt_obs(ewn,nsn))}
+    !> \item \texttt{dthck_dt_obs_basin(ewn,nsn))}
     !> \item \texttt{mask(ewn,nsn))}
     !> \item \texttt{age(upn-1,ewn,nsn))}
     !> \item \texttt{tracers(ewn,nsn,ntracers,upn-1)}
@@ -2691,6 +2697,7 @@ contains
     call coordsystem_allocate(model%general%ice_grid, model%geometry%usrf_obs)
     call coordsystem_allocate(model%general%ice_grid, model%geometry%dthck_dt)
     call coordsystem_allocate(model%general%ice_grid, model%geometry%dthck_dt_obs)
+    call coordsystem_allocate(model%general%ice_grid, model%geometry%dthck_dt_obs_basin)
     call coordsystem_allocate(model%general%ice_grid, model%geometry%thkmask)
     call coordsystem_allocate(model%general%velo_grid, model%geometry%stagmask)
     call coordsystem_allocate(model%general%ice_grid, model%geometry%cell_area)
@@ -3250,6 +3257,8 @@ contains
         deallocate(model%geometry%dthck_dt)
     if (associated(model%geometry%dthck_dt_obs)) &
         deallocate(model%geometry%dthck_dt_obs)
+    if (associated(model%geometry%dthck_dt_obs_basin)) &
+        deallocate(model%geometry%dthck_dt_obs_basin)
     if (associated(model%geometry%thkmask)) &
         deallocate(model%geometry%thkmask)
     if (associated(model%geometry%stagmask)) &

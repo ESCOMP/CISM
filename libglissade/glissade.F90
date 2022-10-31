@@ -119,7 +119,7 @@ contains
     use glissade_grounding_line, only: glissade_grounded_fraction
     use glissade_utils, only: glissade_adjust_thickness, glissade_smooth_usrf, &
          glissade_smooth_topography, glissade_adjust_topography
-    use glissade_utils, only: glissade_stdev
+    use glissade_utils, only: glissade_stdev, glissade_basin_average
     use felix_dycore_interface, only: felix_velo_init
 
     implicit none
@@ -133,7 +133,7 @@ contains
     character(len=100) :: message
 
     real(dp) :: local_maxval, global_maxval   ! max values of a given variable; = 0 if not yet read in
-    integer :: i, j, k
+    integer :: i, j, k, nb
     logical :: l_evolve_ice  ! local version of evolve_ice
 
     integer, dimension(:,:), allocatable :: &
@@ -162,6 +162,8 @@ contains
 
     type(glimmer_nc_input), pointer :: infile
     type(parallel_type) :: parallel   ! info for parallel communication
+
+    real(dp), dimension(:), allocatable :: dthck_dt_basin  ! basin average of dthck_dt_obs
 
     !WHL - added for optional topg_stdev calculations
     logical, parameter :: compute_topg_stdev = .false.
@@ -376,7 +378,8 @@ contains
        call check_fill_values(model%ocean_data%thermal_forcing)
     endif
 
-    if (model%options%which_ho_deltaT_ocn == HO_DELTAT_OCN_DTHCK_DT) then
+    if (model%options%which_ho_deltaT_ocn == HO_DELTAT_OCN_DTHCK_DT .or.  &
+        model%options%enable_acab_dthck_dt_correction) then
        call check_fill_values(model%geometry%dthck_dt_obs)
     endif
 
@@ -878,7 +881,8 @@ contains
 
     ! If using dthck_dt_obs, make sure it was read in
 
-    if (model%options%which_ho_deltat_ocn == HO_DELTAT_OCN_DTHCK_DT) then
+    if (model%options%which_ho_deltat_ocn == HO_DELTAT_OCN_DTHCK_DT .or. &
+        model%options%enable_acab_dthck_dt_correction) then
        local_maxval = maxval(abs(model%geometry%dthck_dt_obs))
        global_maxval = parallel_reduce_max(local_maxval)
        if (global_maxval == 0.0d0) then   ! dthck_dt_obs was not read in; abort
@@ -1055,7 +1059,49 @@ contains
 
        call glissade_bmlt_float_thermal_forcing_init(model, model%ocean_data)
 
-    endif
+       ! Optionally, compute the basin average of dthck_dt_obs, the observed rate of thickening/thinning.
+       ! When inverting for deltaT_ocn, we can correct acab by applying (-dthck_dt_obs_basin).
+       ! This induces an ocean melt rate that will drive thinning when the correction is removed.
+       ! On restart, dthck_dt_obs_basin is read from the restart file.
+       !TODO: Is dthck_dt_obs needed in the restart file after dthck_dt_obs_basin is computed?
+
+       if (model%options%enable_acab_dthck_dt_correction .and. &
+           model%options%is_restart == RESTART_FALSE) then
+
+          allocate(dthck_dt_basin(model%ocean_data%nbasin))
+
+          call glissade_basin_average(&
+               model%general%ewn, model%general%nsn,   &
+               model%ocean_data%nbasin,                &
+               model%ocean_data%basin_number,          &
+               floating_mask * 1.0d0,                  &   ! real mask
+               model%geometry%dthck_dt_obs,            &
+               dthck_dt_basin)
+
+          if (main_task) then
+             write(6,*) ' '
+             write(6,*) 'nb, dthck_dt_basin'
+             do nb = 1, model%ocean_data%nbasin
+                print*, nb, dthck_dt_basin(nb)
+             enddo
+          endif
+
+          ! Make sure the basin average <= 0
+          dthck_dt_basin(:) = min(dthck_dt_basin(:), 0.0d0)
+
+          ! Assign the basin average to a 2D array
+          do j = 1, model%general%nsn
+             do i = 1, model%general%ewn
+                nb = model%ocean_data%basin_number(i,j)
+                model%geometry%dthck_dt_obs_basin(i,j) = dthck_dt_basin(nb)
+             enddo
+          enddo
+
+          deallocate(dthck_dt_basin)
+
+       endif   ! enable_acab_dthck_dt_correction
+
+    endif   ! whichbmlt_float
 
     ! clean up
     deallocate(ice_mask)
@@ -1497,6 +1543,7 @@ contains
        call glissade_bmlt_float_thermal_forcing(&
             model%options%bmlt_float_thermal_forcing_param, &
             model%options%ocean_data_extrapolate,  &
+            model%options%deltaT_ocn_extrapolate,  &
             parallel,                              &
             ewn,                nsn,               &
             dew*len0,           dns*len0,          & ! m
@@ -2744,10 +2791,16 @@ contains
        ! Convert acab_corrected to a temporary array in SI units (m/s)
        acab_unscaled(:,:) = model%climate%acab_corrected(:,:) * thk0/tim0
 
-       ! Optionally, correct acab by adding (-dthck_dt_obs) where dthck_dt_obs < 0 and ice is floating.
+       ! Optionally, correct acab by adding (-dthck_dt_obs_basin) where ice is floating.
        ! During inversions for deltaT_ocn, this will generally force a positive ocean melt rate
        !  where the ice is thinning, preventing large negative values of deltaT_ocn during spin-up.
        ! When the correction is removed, the ice should melt and thin in agreement with observations.
+       ! Algorithm:
+       ! (1) For each basin, compute the average of dthck_dt_obs over floating ice.
+       !     Include all floating cells in the average.
+       ! (2) For all cells in each basin, set dthck_dt_obs_basin to this average.
+       !     Limit so that dthck_dt_obs_basin <= 0.
+       ! (3) At runtime, add (-dthck_dt_obs_basin) to acab for each floating cell.
 
        if (model%options%enable_acab_dthck_dt_correction) then
 
@@ -2763,22 +2816,20 @@ contains
              enddo
           endif
 
-          where (model%geometry%f_ground_cell < 1.0d0 .and. model%geometry%dthck_dt_obs < 0.0d0)
-             ! ice is floating and thinning in obs; apply a positive correction to acab
-             ! Note: dthck_dt_obs has units of m/yr; convert to m/s
+          where (model%geometry%f_ground_cell < 1.0d0 .and. model%geometry%dthck_dt_obs_basin < 0.0d0)
+             ! floating ice is thinning in obs; apply a positive correction to acab
+             ! Note: dthck_dt_obs_basin has units of m/yr; convert to m/s
              acab_unscaled = acab_unscaled &
-                  - (1.0d0 - model%geometry%f_ground_cell) * (model%geometry%dthck_dt_obs/scyr)
+                  - (1.0d0 - model%geometry%f_ground_cell) * (model%geometry%dthck_dt_obs_basin/scyr)
           endwhere
 
           if (verbose_smb .and. this_rank == rtest) then
-
              write(6,*) ' '
              write(6,*) 'dthck_dt_obs correction (m/yr)'
              do j = jtest+3, jtest-3, -1
                 write(6,'(i6)',advance='no') j
                 do i = itest-3, itest+3
-                   write(6,'(f10.3)',advance='no') &
-                        -model%geometry%dthck_dt_obs(i,j) * (1.0d0 - model%geometry%f_ground_cell(i,j))
+                   write(6,'(f10.3)',advance='no') -model%geometry%dthck_dt_obs_basin(i,j)
                 enddo
                 write(6,*) ' '
              enddo
@@ -2796,7 +2847,6 @@ contains
           endif
 
        endif   ! enable_acab_dthck_dt_correction
-
 
        ! Convert bmlt to SI units (m/s)
        ! Note: bmlt is the sum of bmlt_ground (computed in glissade_thermal_solve) and bmlt_float
@@ -4169,6 +4219,7 @@ contains
     endif   ! which_ho_deltaT_ocn
 
     ! If setting deltaT_ocn based on observed dthck_dt, then so so here.
+    ! TODO - Deprecate this option?
 
     if (model%options%which_ho_deltat_ocn == HO_DELTAT_OCN_DTHCK_DT) then
 
@@ -4182,6 +4233,7 @@ contains
        call glissade_bmlt_float_thermal_forcing(&
             model%options%bmlt_float_thermal_forcing_param, &
             model%options%ocean_data_extrapolate,     &
+            model%options%deltaT_ocn_extrapolate,  &
             parallel,                                 &
             ewn,       nsn,                           &
             model%numerics%dew*len0,                  &   ! m
