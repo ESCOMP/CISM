@@ -3144,13 +3144,17 @@ contains
     !       is a real number in the range [0,1], allowing thinning instead of complete removal.
     !       Do not thin or remove ice if this is the initial calving call; force retreat only during runtime.
     ! There are two forced retreat options:
-    ! Option 1: Thin or remove ice wherever ice_fraction_retreat_mask > 0.
-    ! Option 2: Remove floating ice (but not grounded ice) where ice_fraction_retreat_mask > 0.
+    ! Option 1: Thin or remove ice wherever ice_fraction_retreat_mask > 0 (or a small threshold)
+    ! Option 2: Remove floating ice and weakly grounded ice where ice_fraction_retreat_mask > 0 (or a small threshold).
     !
-    ! Option 1 is done now, before calling glissade_calve_ice, so that ice thinned by the retreat mask
+    ! Option 1 is done before calling glissade_calve_ice, so that ice thinned by the retreat mask
     !        can undergo further thinning or removal by the calving scheme.
     ! Option 2 is done after the main calving solve, after thin ice at the calving front has been removed
     !  by other mechanisms.
+    ! An earlier version of option 2 removed only floating cells, but this can create
+    !  isolated, weakly grounded cells that are prone to instability.
+    ! In the current version, weakly grounded cells (i.e., cells with f_ground < f_ground_threshold)
+    !  are alse removed.
 
     if (model%options%force_retreat == FORCE_RETREAT_ALL_ICE .and. .not.init_calving) then
        if (this_rank == rtest) then
@@ -3454,7 +3458,7 @@ contains
        ! This is done after the main calving routine, to avoid complications
        !  involving thin ice near the calving front that calves after transport.
        ! The logic works as follows:
-       ! * Idenfity cells with ice_fraction_retreat_mask exceeding some threshold.
+       ! * Identify cells with ice_fraction_retreat_mask exceeding some threshold.
        ! * Remove any such cells if they are adjacent to ocean cells, or are connected
        !   to the ocean through other identified cells.
        ! * Do not remove cells without a connection to the ocean.
@@ -3468,11 +3472,33 @@ contains
                                model%climate%eus*thk0, model%numerics%thklim*thk0, &
                                ice_mask,                                           &
                                floating_mask = floating_mask,                      &
-                               ocean_mask = ocean_mask)
+                               ocean_mask = ocean_mask,                            &
+                               land_mask = land_mask)
 
-       ! Identify floating cells with ice_fraction_retreat_mask exceeding a prescribed threshold.
+       ! Compute f_ground_cell for forced retreat
 
-       where (floating_mask == 1 .and. model%geometry%ice_fraction_retreat_mask > retreat_mask_threshold)
+       call glissade_grounded_fraction(nx,          ny,               &
+                                       parallel,                      &
+                                       itest, jtest, rtest,           &  ! diagnostic only
+                                       thck_unscaled,                 &
+                                       model%geometry%topg*thk0,      &
+                                       model%climate%eus*thk0,        &
+                                       ice_mask,                      &
+                                       floating_mask,                 &
+                                       land_mask,                     &
+                                       model%options%which_ho_ground, &
+                                       model%options%which_ho_flotation_function, &
+                                       model%options%which_ho_fground_no_glp,     &
+                                       model%geometry%f_flotation,    &
+                                       model%geometry%f_ground,       &
+                                       model%geometry%f_ground_cell,  &
+                                       model%geometry%topg_stdev*thk0)
+
+       ! Identify floating or weakly grounded cells with ice_fraction_retreat_mask exceeding a prescribed threshold.
+       ! Note: f_ground_threshold is also used to identify weakly grounded cells in the algorithms
+       !       to remove icebergs and isthmuses.  It would be possible to create a separate parameter for forced retreat.
+       where (model%geometry%f_ground_cell < model%calving%f_ground_threshold .and. &
+              model%geometry%ice_fraction_retreat_mask > retreat_mask_threshold)
           retreat_mask = 1
        elsewhere
           retreat_mask = 0
@@ -3496,7 +3522,7 @@ contains
           do j = jtest+3, jtest-3, -1
              write(6,'(i6)',advance='no') j
              do i = itest-3, itest+3
-                write(6,'(f7.1)',advance='no') thck_unscaled(i,j)
+                write(6,'(f10.4)',advance='no') thck_unscaled(i,j)
              enddo
              write(6,*) ' '
           enddo
@@ -3505,7 +3531,7 @@ contains
           do j = jtest+3, jtest-3, -1
              write(6,'(i6)',advance='no') j
              do i = itest-3, itest+3
-                write(6,'(i7)',advance='no') floating_mask(i,j)
+                write(6,'(i10)',advance='no') floating_mask(i,j)
              enddo
              write(6,*) ' '
           enddo
@@ -3514,7 +3540,7 @@ contains
           do j = jtest+3, jtest-3, -1
              write(6,'(i6)',advance='no') j
              do i = itest-7, itest+3
-                write(6,'(i7)',advance='no') ocean_mask(i,j)
+                write(6,'(i10)',advance='no') ocean_mask(i,j)
              enddo
              write(6,*) ' '
           enddo
@@ -3523,7 +3549,7 @@ contains
           do j = jtest+3, jtest-3, -1
              write(6,'(i6)',advance='no') j
              do i = itest-3, itest+3
-                write(6,'(f7.2)',advance='no') model%geometry%ice_fraction_retreat_mask(i,j)
+                write(6,'(f10.2)',advance='no') model%geometry%ice_fraction_retreat_mask(i,j)
              enddo
              write(6,*) ' '
           enddo
@@ -3532,7 +3558,7 @@ contains
           do j = jtest+3, jtest-3, -1
              write(6,'(i6)',advance='no') j
              do i = itest-3, itest+3
-                write(6,'(i7)',advance='no') ocean_connection_mask(i,j)
+                write(6,'(i10)',advance='no') ocean_connection_mask(i,j)
              enddo
              write(6,*) ' '
           enddo
@@ -3589,6 +3615,7 @@ contains
        call glissade_remove_isthmuses(&
             nx,           ny,              &
             itest, jtest, rtest,           &
+            model%calving%f_ground_threshold, &
             thck_unscaled,                 &
             model%geometry%f_ground_cell,  &
             floating_mask,                 &
@@ -3679,6 +3706,7 @@ contains
        call glissade_remove_icebergs(nx,           ny,                     &
                                      parallel,                             &
                                      itest, jtest, rtest,                  &
+                                     model%calving%f_ground_threshold,     &
                                      thck_unscaled,                        &  ! m
                                      model%geometry%f_ground_cell,         &
                                      ice_mask,                             &
