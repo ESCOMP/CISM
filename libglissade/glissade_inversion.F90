@@ -40,7 +40,7 @@ module glissade_inversion
   private
   public :: verbose_inversion, glissade_init_inversion, glissade_inversion_basal_friction, &
             glissade_inversion_bmlt_basin, glissade_inversion_deltaT_ocn, &
-            glissade_inversion_flow_enhancement_factor, usrf_to_thck
+            glissade_inversion_flow_enhancement_factor
   public :: deltaT_ocn_maxval
 
   !-----------------------------------------------------------------------------

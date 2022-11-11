@@ -4060,8 +4060,8 @@ contains
     use glissade_bmlt_float, only: glissade_bmlt_float_thermal_forcing
     use glissade_inversion, only: verbose_inversion, glissade_inversion_basal_friction,  &
          glissade_inversion_bmlt_basin, glissade_inversion_deltaT_ocn, &
-         glissade_inversion_flow_enhancement_factor, &
-         usrf_to_thck
+         glissade_inversion_flow_enhancement_factor
+    use glissade_utils, only: glissade_usrf_to_thck
     use glissade_glacier, only: glissade_glacier_inversion
 
     implicit none
@@ -4390,7 +4390,7 @@ contains
           ! Given the surface elevation target, compute the thickness target.
           ! This can change in time if the bed topography is dynamic.
 
-          call usrf_to_thck(&
+          call glissade_usrf_to_thck(&
                model%geometry%usrf_obs,  &
                model%geometry%topg,      &
                model%climate%eus,        &
@@ -4464,7 +4464,7 @@ contains
           ! Given the surface elevation target, compute the thickness target.
           ! This can change in time if the bed topography is dynamic.
 
-          call usrf_to_thck(&
+          call glissade_usrf_to_thck(&
                model%geometry%usrf_obs,  &
                model%geometry%topg,      &
                model%climate%eus,        &
