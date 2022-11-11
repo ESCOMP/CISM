@@ -1096,6 +1096,9 @@ module glide_types
 
     integer :: force_retreat = 0
     !> Flag that indicates whether retreat is forced using ice_fraction_retreat_mask
+    !> item[0] do not force retreat
+    !> item[1] force retreat of all ice identified by a retreat mask
+    !> item[2] force retreat of floating or weakly grounded ice identified by a retreat mask
 
     integer :: which_ho_ice_age = 1
     !> Flag that indicates whether to compute a 3d ice age tracer
@@ -1502,6 +1505,8 @@ module glide_types
      real(dp) :: calving_front_x = 0.0d0         !> for CALVING_GRID_MASK option, calve ice wherever abs(x) > calving_front_x (m)
      real(dp) :: calving_front_y = 0.0d0         !> for CALVING_GRID_MASK option, calve ice wherever abs(y) > calving_front_y (m)
                                                  !> NOTE: This option is applied only if calving_front_x or calving_front_y > 0
+     real(dp) :: f_ground_threshold = 0.10d0     !> Threshold fraction for grounded cells in iceberg removal algorithm
+                                                 !> Also used for isthmus removal
 
   end type glide_calving
 

@@ -1389,17 +1389,21 @@ contains
 
        if (model%options%remove_icebergs) then
           call write_log(' Icebergs will be removed')
+          write(message,*) ' f_ground_threshold =', model%calving%f_ground_threshold
+          call write_log(message)
        else
           call write_log(' Icebergs will not be removed')
        endif
 
        if (model%options%remove_isthmuses) then
+          call write_log(' Isthmuses will be removed')
+          write(message,*) ' f_ground_threshold =', model%calving%f_ground_threshold
+          call write_log(message)
           if (.not.model%options%remove_icebergs) then
              model%options%remove_icebergs = .true.
              write(message,*) ' Setting remove_icebergs = T for stability when remove_isthmuses = T'
              call write_log(message)
           endif
-          call write_log(' Isthmuses will be removed')
        endif
        
        if (model%options%expand_calving_mask) then
@@ -1412,7 +1416,6 @@ contains
 
        if (model%options%limit_marine_cliffs) then
           call write_log(' The thickness of marine ice cliffs will be limited')
-          call write_log(message)
        else
           call write_log(' The thickness of marine ice cliffs will not be limited')
        endif
@@ -2188,6 +2191,7 @@ contains
     call GetValue(section,'calving_front_x',    model%calving%calving_front_x)
     call GetValue(section,'calving_front_y',    model%calving%calving_front_y)
     call GetValue(section,'damage_threshold',   model%calving%damage_threshold)
+    call GetValue(section,'f_ground_threshold', model%calving%f_ground_threshold)
 
     ! NOTE: bpar is used only for BTRC_TANH_BWAT
     !       btrac_max and btrac_slope are used (with btrac_const) for BTRC_LINEAR_BMLT
