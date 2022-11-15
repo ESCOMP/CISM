@@ -1883,6 +1883,7 @@ module glide_types
           dthck_dt_accum => null(),         & !> accumulated dthck_dt (m/yr)
           snow_accum => null(),             & !> accumulated snowfall (mm/yr w.e.)
           Tpos_accum => null(),             & !> accumulated max(artm - Tmlt,0) (deg C)
+          smb_obs => null(),                & !> observed glacier mass balance, e.g. from Hugonnet et al. (2021), mm/yr w.e.
           mu_star_2d => null()                !> glacier mu_star mapped to a 2D grid
 
      integer, dimension(:,:), pointer :: &
@@ -2936,6 +2937,7 @@ contains
        call coordsystem_allocate(model%general%ice_grid, model%glacier%dthck_dt_accum)
        call coordsystem_allocate(model%general%ice_grid, model%glacier%snow_accum)
        call coordsystem_allocate(model%general%ice_grid, model%glacier%Tpos_accum)
+       call coordsystem_allocate(model%general%ice_grid, model%glacier%smb_obs)
        call coordsystem_allocate(model%general%ice_grid, model%glacier%mu_star_2d)
        call coordsystem_allocate(model%general%ice_grid, model%climate%snow)  ! used for SMB
        !TODO - Delete these if they are allocated with XY_LAPSE logic
@@ -3387,6 +3389,8 @@ contains
         deallocate(model%glacier%snow_accum)
     if (associated(model%glacier%Tpos_accum)) &
         deallocate(model%glacier%Tpos_accum)
+    if (associated(model%glacier%smb_obs)) &
+        deallocate(model%glacier%smb_obs)
     if (associated(model%glacier%mu_star_2d)) &
         deallocate(model%glacier%mu_star_2d)
     if (associated(model%glacier%area)) &
