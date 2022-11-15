@@ -67,9 +67,6 @@ module glissade_glacier
     integer, parameter :: &
          inversion_time_interval = 1             ! interval (yr) between inversion calls; must be an integer
 
-    !WHL - debug
-    logical, parameter :: alternate_mu_star = .false.
-
 contains
 
 !****************************************************      
@@ -396,7 +393,6 @@ contains
        glacier%area_target(:) = glacier%area(:)
        glacier%volume_target(:) = glacier%volume(:)
        glacier%mu_star(:) = mu_star_const
-
        ! Check for area_target = 0 and volume_target = 0.
        ! In practice, volume_target = 0 might not be problematic;
        !  we would just lower powerlaw_c to obtain a thin glacier.
@@ -443,8 +439,9 @@ contains
        ! The 1D glacier arrays are then allocated with dimension(nglacier) in subroutine glide_allocarr.
        ! The following glacier arrays should be present in the restart file:
        !     rgi_glacier_id, cism_glacier_id, cism_glacier_id_init, cism_to_rgi_glacier_id,
-       !     glacier_mu_star, powerlaw_c.
-       ! If inverting for powerlaw_c, then usrf_obs is also read from the restart file.
+       !     glacier_mu_star, powerlaw_c
+       ! If inverting for powerlaw_c, then usrf_obs is read from the restart file.
+       ! If inverting for mu_star, then glacier_smb_obs is read from the restart file.
 
        nglacier = glacier%nglacier
 
@@ -498,6 +495,12 @@ contains
 
     endif   ! not a restart
 
+    !WHL - debug
+    ! For testing, initialize glacier%smb_obs to something simple.
+!!    glacier%smb_obs(:,:) = 0.d0   ! mm/yr w.e.
+!!    glacier%smb_obs(:,:) = -100.d0   ! mm/yr w.e.
+!!    glacier%smb_obs(:,:) = 100.d0   ! mm/yr w.e.
+
     ! The remaining code applies to both start-up and restart runs
 
     ! Allocate and fill the glacierid dimension array
@@ -533,6 +536,7 @@ contains
        print*, 'area target (km^2) =', glacier%area_target(ng) / 1.0d6
        print*, 'volume target (km^3) =', glacier%volume_target(ng) / 1.0d9
        print*, 'powerlaw_c (Pa (m/yr)^(-1/3)) =', model%basal_physics%powerlaw_c(i,j)
+       print*, 'smb_obs (mm/yr w.e.) =', glacier%smb_obs(i,j)
        print*, 'Done in glissade_glacier_init'
     endif
 
@@ -548,7 +552,7 @@ contains
        t_mlt,                          &
        snow,             artm,         &
        mu_star,                        &
-       glacier_smb)
+       smb)
 
     ! Compute the SMB in each grid cell using an empirical relationship
     !  based on Maussion et al. (2019):
@@ -585,7 +589,7 @@ contains
                                         ! defined as positive for T decreasing with height
 
     real(dp), dimension(ewn,nsn), intent(out) :: &
-         glacier_smb                    ! SMB in each gridcell (mm w.e./yr)
+         smb                            ! SMB in each gridcell (mm/yr w.e.)
 
     ! local variables
 
@@ -600,7 +604,7 @@ contains
     endif
 
     ! initialize
-    glacier_smb(:,:) = 0.0d0
+    smb(:,:) = 0.0d0
 
     ! compute SMB
 
@@ -609,7 +613,7 @@ contains
           ng = cism_glacier_id(i,j)
 
           if (ng > 0) then
-             glacier_smb(i,j) = snow(i,j) - mu_star(ng) * max(artm(i,j) - t_mlt, 0.0d0)
+             smb(i,j) = snow(i,j) - mu_star(ng) * max(artm(i,j) - t_mlt, 0.0d0)
           endif
 
           if (verbose_glacier .and. this_rank == rtest .and. i == itest .and. j == jtest) then
@@ -617,7 +621,7 @@ contains
              print*, 'Glacier SMB calculation: rank i, j, mu_star =', &
                   this_rank, i, j, mu_star(ng)
              print*, '   snow (mm/yr w.e.), artm (C), SMB (mm/yr w.e.) =', &
-                  snow(i,j), artm(i,j), glacier_smb(i,j)
+                  snow(i,j), artm(i,j), smb(i,j)
           endif
 
        enddo
@@ -648,7 +652,7 @@ contains
     !   It no longer contributes to glacier area or volume.
     !   Here, minthck is a threshold for counting ice as part of a glacier.
     !   By default, minthck = model%numerics%thklim, typically 1 m.
-    !   (Actually minthck is slightly less than thklim, to make sure these cells
+    !   (Actually, minthck is slightly less than thklim, to make sure these cells
     !   are not dynamically active.)
     ! * When a cell has H > minthck and cism_glacier_id = 0, we give it a nonzero ID:
     !   either (1) cism_glacier_id_init, if the initial ID > 0,
@@ -699,7 +703,6 @@ contains
     integer :: iglobal, jglobal
     integer :: ng
 
-
     if (verbose_glacier .and. this_rank == rtest) then
        print*, ' '
        print*, 'In glissade_glacier_advance_retreat'
@@ -723,7 +726,7 @@ contains
        enddo
     enddo
 
-    ! Check for retreat: cells with cism_glacier_id = 0 but H > H_min
+    ! Check for advance: cells with cism_glacier_id = 0 but H > H_min
 
     ! Save a copy of the old cism_glacier_id.
     ! This is to prevent the algorithm from depending on the loop direction.
@@ -864,6 +867,7 @@ contains
     ! real(dp), dimension(:) :: area_target       ! glacier area target (m^2)
     ! real(dp), dimension(:) :: volume_target     ! glacier volume target (m^3)
     ! real(dp), dimension(:) :: mu_star           ! SMB parameter for each glacier (mm/yr w.e./deg K)
+    ! real(dp), dimension(:) :: smb_obs           ! observed SMB for each glacier (mm/yr w.e.)
     ! integer, dimension(:,:) :: cism_glacier_id  ! CISM glacier ID for each grid cell
     ! integer, dimension(:,:) :: cism_glacier_id_init  ! initial value of CISM glacier ID
     ! real(dp), dimension(:,:) :: snow_accum      ! snow accumulated and averaged over 1 year
@@ -889,9 +893,6 @@ contains
     thck = model%geometry%thck * thk0           ! model units to m
     dthck_dt = model%geometry%dthck_dt * scyr   ! m/s to m/yr
 
-    ! Optionally, save the old area and volume of each glacier
-    if (alternate_mu_star) area_old = glacier%area
-
     ! Compute the current area and volume of each glacier.
     ! These are not needed for inversion, but are computed as diagnostics.
     ! Note: This requires global sums. For now, do the computation independently on each task.
@@ -904,9 +905,6 @@ contains
          model%geometry%thck * thk0,      &  ! m
          glacier%area,                    &  ! m^2
          glacier%volume)                     ! m^3
-
-    if (alternate_mu_star) &
-         darea_dt(:) = (glacier%area(:) - area_old(:))  / real(inversion_time_interval,dp)
 
     if (verbose_glacier .and. this_rank == rtest) then
        print*, ' '
@@ -993,25 +991,15 @@ contains
 
           if (glacier%set_mu_star == GLACIER_MU_STAR_INVERSION) then
 
-             if (alternate_mu_star) then   ! alternate scheme based on (A - A_target) and dA/dt
+             ! standard scheme based on setting SMB = 0 over the target area
 
-                call glacier_invert_mu_star_alternate(&
-                     ewn,                 nsn,                   &
-                     nglacier,            ngdiag,                &
-                     mu_star_min,         mu_star_max,           &
-                     glacier%area,        glacier%area_target,   &
-                     darea_dt,            glacier%mu_star)
-
-             else   ! standard scheme based on setting SMB = 0 over the target area
-
-                call glacier_invert_mu_star(&
-                     ewn,                     nsn,                          &
-                     nglacier,                ngdiag,                       &
-                     glacier%snow_accum,      glacier%Tpos_accum,           &
-                     glacier%cism_glacier_id, glacier%cism_glacier_id_init, &
-                     glacier%mu_star,         glacier%mu_star_2d)
-
-             endif
+             call glacier_invert_mu_star(&
+                  ewn,                     nsn,                          &
+                  nglacier,                ngdiag,                       &
+                  glacier%smb_obs,                                       &
+                  glacier%snow_accum,      glacier%Tpos_accum,           &
+                  glacier%cism_glacier_id, glacier%cism_glacier_id_init, &
+                  glacier%mu_star,         glacier%mu_star_2d)
 
              !WHL - debug - compute the SMB over the original and current glacier area
              smb_init_area(:) = 0.0d0
@@ -1110,6 +1098,7 @@ contains
   subroutine glacier_invert_mu_star(&
        ewn,              nsn,                   &
        nglacier,         ngdiag,                &
+       smb_obs,                                 &
        snow_accum,       Tpos_accum,            &
        cism_glacier_id,  cism_glacier_id_init,  &
        mu_star,          mu_star_2d)
@@ -1127,6 +1116,7 @@ contains
          ngdiag                         ! CISM ID of diagnostic glacier
 
     real(dp), dimension(ewn,nsn), intent(in) :: &
+         smb_obs,                     & ! observed SMB for each gridcell (mm/yr w.e.)
          snow_accum,                  & ! time-avg snowfall for each cell (mm/yr w.e.)
          Tpos_accum                     ! time-avg of max(artm - T_mlt) for each cell (deg)
 
@@ -1134,8 +1124,6 @@ contains
          cism_glacier_id,             & ! CISM integer ID for each grid cell
          cism_glacier_id_init           ! cism_glacier_id at the start of the run
 
-    ! Note: Here, mu_star_glacier(nglacier) is the value shared by all cells in a given glacier
-    ! The calling subroutine will need to map these values onto each grid cell.
     real(dp), dimension(nglacier), intent(inout) :: &
          mu_star                        ! glacier-specific SMB tuning parameter (mm/yr w.e./deg)
 
@@ -1147,39 +1135,35 @@ contains
 
     real(dp), dimension(nglacier) :: &
          glacier_snow, glacier_Tpos,  & ! global sums for each glacier
-         mu_star_new                    ! new target value of mu_star, toward which we relax
+         glacier_smb
 
     character(len=100) :: message
 
     ! Inversion for mu_star is more direct than inversion for powerlaw_c.
     ! Instead of solving a damped harmonic oscillator equation for mu_star,
-    !  we compute mu_star for each glacier such that SMB = 0 over the initial extent.
+    !  we compute mu_star for each glacier such that SMB = smb_obs over the initial extent.
     !
     ! The SMB for glacier ng is given by
     !      sum_ij(smb) = sum_ij(snow) - mu_star(ng) * sum_ij(Tpos),
     ! where Tpos = max(artm - T_mlt, 0),
     ! and sum_ij notes a sum over all cells (i,j) in the glacier.
     !
-    ! Setting SMB = 0 and rearranging, we get
-    !      mu_star(ng) = sum_ij(snow) / sum_ij(Tpos)
+    ! Rearranging, we get
+    !      mu_star(ng) = (sum_ij(snow) - sum_ij(smb) / sum_ij(Tpos)
     !
     ! Thus, given the annual average of snow and Tpos for each grid cell in a glacier,
-    ! we can find mu_star such that SMB = 0.
+    ! we can find mu_star such that SMB = smb_obs.
     !
     ! We take sums are taken over the target area of each glacier, using cism_glacier_id_init.
-    ! If a glacier is too large, the net SMB will be < 0 and the glacier should shrink.
-    ! Similarly, if the glacier is too small, the net SMB > 0 and the glacier should grow.
-    !
-    ! Optionally, by setting glacier_mu_star_timescale > inversion_time_interval,
-    ! we can relax toward the computed mu_star instead of going there immediately.
+    ! If a glacier is too large, the modeled SMB will be < 0 and the glacier should shrink.
+    ! Similarly, if the glacier is too small, the modeled SMB > 0 and the glacier should grow.
     !
     ! Notes:
     !
     ! (1) This approach works only for land-based glaciers.
     !     TODO: Modify for marine-terminating glaciers.
-    ! (2) If spinning up with climatological SMB, then mu_star will have nearly the same value
-    !     throughout the inversion.  This means that when the glacier advances or retreats,
-    !     mu_star will not change to compensate.
+    ! (2) Assuming climatological forcing with smb_obs prescribed, mu_star will have nearly the same value
+    !     throughout the inversion.  It changes slightly as surface elevation changes, modifying the downscaled Tpos.
 
     if (verbose_glacier .and. main_task) then
        print*, ' '
@@ -1188,14 +1172,19 @@ contains
 
     glacier_snow(:) = 0.0d0
     glacier_Tpos(:) = 0.0d0
+    glacier_smb(:)  = 0.0d0
 
     ! Compute local sums over the initial extent of each glacier
+    ! Note: For computing sums, smb_obs can be treated as uniform over the glacier,
+    !       although in reality it varies spatially.
+
     do j = nhalo+1, nsn-nhalo
        do i = nhalo+1, ewn-nhalo
           ng = cism_glacier_id_init(i,j)
           if (ng > 0) then
              glacier_snow(ng) = glacier_snow(ng) + snow_accum(i,j)
              glacier_Tpos(ng) = glacier_Tpos(ng) + Tpos_accum(i,j)
+             glacier_smb(ng)  = glacier_smb(ng)  + smb_obs(i,j)
           endif
        enddo
     enddo
@@ -1203,6 +1192,7 @@ contains
     ! Compute global sums
     glacier_snow = parallel_reduce_sum(glacier_snow)
     glacier_Tpos = parallel_reduce_sum(glacier_Tpos)
+    glacier_smb  = parallel_reduce_sum(glacier_smb)
 
     ! For each glacier, compute the new mu_star
 
@@ -1210,8 +1200,8 @@ contains
 
        if (glacier_Tpos(ng) > 0.0d0) then  ! ablation is nonzero
 
-          ! Compute the value of mu_star that will give SMB = 0 over the target area
-          mu_star(ng) = glacier_snow(ng) / glacier_Tpos(ng)
+          ! Compute the value of mu_star that will give the desired SMB over the target area
+          mu_star(ng) = (glacier_snow(ng) - glacier_smb(ng)) / glacier_Tpos(ng)
 
           ! Limit to a physically reasonable range
           mu_star(ng) = min(mu_star(ng), mu_star_max)
@@ -1219,8 +1209,9 @@ contains
 
           if (verbose_glacier .and. main_task .and. ng == ngdiag) then
              print*, ' '
-             print*, 'ng, sum_snow, sum_Tpos:', ng, glacier_snow(ng), glacier_Tpos(ng)
-             print*, 'Old and new mu_star:', mu_star(ng), mu_star_new(ng)
+             print*, 'ng, sum_snow, sum_Tpos, sum_smb:', &
+                  ng, glacier_snow(ng), glacier_Tpos(ng), glacier_smb(ng)
+             print*, 'New mu_star:', mu_star(ng)
           endif
 
        else   ! glacier_Tpos = 0; no ablation
@@ -1236,6 +1227,7 @@ contains
     enddo   ! ng
 
     ! Map mu_star to the 2D grid
+    !TODO - Add a subroutine that will do this?
 
     mu_star_2d(:,:) = 0.0d0
     ! Loop over local cells
@@ -1249,124 +1241,6 @@ contains
     enddo   ! j
 
   end subroutine glacier_invert_mu_star
-
-!****************************************************
-
-  subroutine glacier_invert_mu_star_alternate(&
-       ewn,              nsn,               &
-       nglacier,         ngdiag,            &
-       mu_star_min,      mu_star_max,       &
-       area,             area_target,       &
-       darea_dt,         mu_star)
-
-    use glimmer_physcon, only: scyr
-
-    ! Given the current glacier areas and area targets,
-    ! invert for the parameter mu_star in the SMB equation.
-    ! Note: This method is an alternative to glacier_invert_mu_star above.
-    !       In HMA runs to date, it does not work well.
-    !       When there are ice-free cells in high-elevation regions with SMB > 0,
-    !        glaciers tend to expand into those regions, increasing their area.
-    !       This subroutine will then increase mu_star to reduce the area,
-    !        but the area removed is often in glacier tongues in ablation areas,
-    !        where we want to retain some ice.
-    !       Keeping the subroutine for now, in case we think of a way to keep
-    !        glacier tongues from disappearing.
-
-    ! input/output arguments
-
-    integer, intent(in) ::  &
-         ewn, nsn,                    & ! number of cells in each horizontal direction
-         nglacier,                    & ! total number of glaciers in the domain
-         ngdiag                         ! ID of diagnostic glacier
-
-    real(dp), intent(in) :: &
-         mu_star_min, mu_star_max       ! min and max allowed values of mu_star (mm/yr w.e./deg)
-
-    real(dp), dimension(nglacier), intent(in) :: &
-         area,                        & ! current glacier area (m^2)
-         area_target  ,               & ! area target (m^2)
-         darea_dt                       ! rate of change of area (m^2/yr)
-
-    real(dp), dimension(nglacier), intent(inout) :: &
-         mu_star                        ! glacier-specific ablation parameter (mm/yr w.e./deg)
-
-    ! local variables
-
-    integer :: ng
-
-    real(dp) :: &
-         area_scale,                  & ! area scale (m^2) for the inversion equations
-         err_area,                    & ! relative area error, (A - A_target)/A_target
-         term1, term2,                & ! terms in prognostic equation for mu_star
-         dmu_star                       ! change in mu_star
-
-    character(len=100) :: message
-
-    ! The inversion works as follows:
-    ! The change in mu_star is proportional to the current mu_star and to the relative error,
-    !  err_area = (A - A_target)/A_target.
-    ! If err_area > 0, we increase mu_star to make the glacier melt faster and retreat.
-    ! If err_area < 0, we reduce mu_star to make the glacier melt slower and advance.
-    ! This is done with a characteristic timescale tau.
-    ! We also include a term proportional to dA/dt so that ideally, mu_star smoothly approaches
-    !  the value needed to attain a steady-state A, without oscillating about the desired value.
-    ! See the comments in module glissade_inversion, subroutine invert_basal_friction.
-    ! Here is the prognostic equation:
-    ! dmu/dt = mu * (1/tau) * [(A - A_target)/A_target + (2*tau/A_target) * dA/dt]
-
-    if (verbose_glacier .and. main_task) then
-       print*, ' '
-       print*, 'In glacier_invert_mu_star'
-    endif
-
-    do ng = 1, nglacier
-
-       if (area_target(ng) > 0.0d0) then  ! this should be the case for all glaciers
-
-          area_scale = max(glacier_area_scale, area_target(ng))
-          err_area = (area(ng) - area_target(ng)) / area_scale
-          term1 = err_area / glacier_mu_star_timescale
-          term2 = 2.0d0 * darea_dt(ng) / area_scale
-          dmu_star = mu_star(ng) * (term1 + term2) * inversion_time_interval
-
-          ! Limit to prevent a large relative change in one step
-          if (abs(dmu_star) > 0.5d0 * mu_star(ng)) then
-             if (dmu_star > 0.0d0) then
-                dmu_star =  0.5d0 * mu_star(ng)
-             else
-                dmu_star = -0.5d0 * mu_star(ng)
-             endif
-          endif
-
-          ! Update mu_star
-          mu_star(ng) = mu_star(ng) + dmu_star
-
-          ! Limit to a physically reasonable range
-          mu_star(ng) = min(mu_star(ng), mu_star_max)
-          mu_star(ng) = max(mu_star(ng), mu_star_min)
-
-          if (verbose_glacier .and. main_task .and. ng == ngdiag) then
-             print*, ' '
-             print*, 'Invert for mu_star: ngdiag =', ngdiag
-             print*, 'A, A_target (km^2)', area(ng)/1.0d6, area_target(ng)/1.0d6
-             print*, 'dA_dt (km^2/yr), relative err_area:', darea_dt(ng)/1.0d6, err_area
-             print*, 'dt (yr), term1*dt, term2*dt:', inversion_time_interval, &
-                  term1*inversion_time_interval, term2*inversion_time_interval
-             print*, 'dmu_star, new mu_star:', dmu_star, mu_star(ng)
-          endif
-
-       else   ! area_target = 0
-
-          !TODO: Remove these glaciers from the inversion?
-          ! For now, set mu_star to the max value to maximize melting
-          mu_star(ng) = mu_star_max
-
-       endif
-
-    enddo   ! ng
-
-  end subroutine glacier_invert_mu_star_alternate
 
 !****************************************************
 
@@ -1411,6 +1285,8 @@ contains
          dpowerlaw_c,             & ! change in powerlaw_c
          thck_scale,              & ! thickness scale (m) for the inversion equations
          term1, term2               ! terms in prognostic equation for powerlaw_c
+
+    !TODO - Add term X (the relax term) as in newer versions of CISM
 
     ! The inversion works as follows:
     ! The change in C_p is proportional to the current value of C_p and to the relative error,

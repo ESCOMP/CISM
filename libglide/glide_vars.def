@@ -1653,6 +1653,13 @@ units:         degree_Celsius
 long_name:     annual accumulated positive degrees
 data:          data%glacier%Tpos_accum
 
+[glacier_smb_obs]
+dimensions:    time, y1, x1
+units:         mm w.e./yr
+long_name:     observed glacier SMB
+data:          data%glacier%smb_obs
+load:          1
+
 [glacier_mu_star_2d]
 dimensions:    time, y1, x1
 units:         mm w.e./yr/deg
@@ -1691,4 +1698,3 @@ units:         mm w.e./yr/deg
 long_name:     glacier SMB coefficient
 data:          data%glacier%mu_star
 load:          1
-
