@@ -607,7 +607,7 @@
          ice_cap_mask           !> = 1 for ice cap cells, separately from the main ice sheet
 
     real(dp), parameter :: &
-         minthck_ice_sheet = 2000.d0  !> thickness threshold (m) for initializing ice sheet cells
+         minthck_ice_sheet = 100.d0  !> thickness threshold (m) for initializing ice sheet cells
 
     ! local variables
 
