@@ -3691,9 +3691,10 @@ contains
        call glide_add_to_restart_variable_list('cism_glacier_id')
        call glide_add_to_restart_variable_list('cism_glacier_id_init')
        call glide_add_to_restart_variable_list('cism_to_rgi_glacier_id')
-       ! Save some arrays used to find SMB and basal friction parameters
-       call glide_add_to_restart_variable_list('glacier_smb_obs')
        call glide_add_to_restart_variable_list('glacier_mu_star')
+       if (model%glacier%set_powerlaw_c == GLACIER_MU_STAR_INVERSION) then
+          call glide_add_to_restart_variable_list('glacier_smb_obs')
+       endif
        if (model%glacier%set_powerlaw_c == GLACIER_POWERLAW_C_INVERSION) then
           call glide_add_to_restart_variable_list('usrf_obs')
           call glide_add_to_restart_variable_list('powerlaw_c')
