@@ -51,21 +51,21 @@ module glissade_glacier
     end type glacier_info
 
     ! Glacier parameters used in this module
-    ! Any of these could be added to the glacier derived type and set in the config file.
-    ! Note: The constant, max and min values for powerlaw_c are in the basal_physics type.
+    !TODO - Add these to the glacier derived type and make them config parameters?
 
     real(dp), parameter ::  &
-         mu_star_const = 500.d0,                & ! uniform initial value for mu_star (mm/yr w.e/deg C)
-         mu_star_min = 2.0d1,                   & ! min value of tunable mu_star (mm/yr w.e/deg C)
-         mu_star_max = 2.0d4,                   & ! max value of tunable mu_star (mm/yr w.e/deg C)
-         glacier_mu_star_timescale = 10.d0,     & ! inversion timescale for mu_star (yr)
-         glacier_powerlaw_c_timescale = 100.d0, & ! inversion timescale for powerlaw_c (yr)
-         glacier_area_scale = 1.d6,             & ! inversion area scale for mu_star (m^2)
-         glacier_thck_scale = 100.d0              ! inversion thickness scale for powerlaw_c (m)
+         mu_star_const = 500.d0,                  & ! uniform initial value for mu_star (mm/yr w.e/deg C)
+         mu_star_min = 2.0d1,                     & ! min value of tunable mu_star (mm/yr w.e/deg C)
+         mu_star_max = 2.0d4                        ! max value of tunable mu_star (mm/yr w.e/deg C)
+
+    real(dp), parameter ::  &
+         glacier_powerlaw_c_timescale = 100.d0,   & ! inversion timescale for powerlaw_c (yr)
+         glacier_powerlaw_c_thck_scale = 100.d0,  & ! inversion thickness scale for powerlaw_c (m)
+         glacier_powerlaw_c_relax_factor = 0.05d0   !  controls strength of relaxation to default values (unitless)
 
     !TODO - Make this an input argument?
     integer, parameter :: &
-         inversion_time_interval = 1             ! interval (yr) between inversion calls; must be an integer
+         inversion_time_interval = 1                ! interval (yr) between inversion calls; must be an integer
 
     !WHL - Debug
     integer, parameter :: ngtot = 5
@@ -421,7 +421,7 @@ contains
 
        !WHL - debug
        ! For testing, initialize model%climate%smb_obs to something simple.
-       model%climate%smb_obs(:,:) = 0.d0   ! mm/yr w.e.
+!!       model%climate%smb_obs(:,:) = 0.d0   ! mm/yr w.e.
 !!       model%climate%smb_obs(:,:) = -100.d0   ! mm/yr w.e.
 !!       model%climate%smb_obs(:,:) = 100.d0   ! mm/yr w.e.
 
@@ -556,6 +556,11 @@ contains
     !  but could receive a glacier ID and become active with thickening.
 
     glacier%minthck = model%numerics%thklim*thk0 - eps08
+
+    ! Set the relaxation value for powerlaw_c
+    if (glacier%set_powerlaw_c == GLACIER_POWERLAW_C_INVERSION) then
+       model%basal_physics%powerlaw_c_relax(:,:) = model%basal_physics%powerlaw_c_const
+    endif
 
     ! If not inverting for powerlaw_c, then set delta_artm = 0.
     ! (Need delta_artm = 0 if switching from inversion to no-inversion on restart)
@@ -1223,6 +1228,7 @@ contains
                   model%basal_physics%powerlaw_c_max,    &
                   stag_thck,        stag_thck_obs,       &
                   stag_dthck_dt,                         &
+                  model%basal_physics%powerlaw_c_relax,  &
                   model%basal_physics%powerlaw_c)
 
           endif   ! powerlaw_c_inversion
@@ -1455,14 +1461,15 @@ contains
        itest,   jtest,   rtest,               &
        powerlaw_c_min,   powerlaw_c_max,      &
        stag_thck,        stag_thck_obs,       &
-       stag_dthck_dt,    powerlaw_c)
+       stag_dthck_dt,                         &
+       powerlaw_c_relax, powerlaw_c)
 
     ! Given the current ice thickness, rate of thickness change, and target thickness,
     ! invert for the parameter powerlaw_c in the relationship for basal sliding.
     ! Note: This subroutine is similar to subroutine invert_basal_friction
     !       in the glissade_inversion_module.  It is separate so that we can experiment
     !       with glacier inversion parameters without changing the standard ice sheet inversion.
-    !TODO - Add the relax term
+    !       The glacier inversion parameters are currently declared at the top of this module.
 
     ! input/output arguments
 
@@ -1476,7 +1483,10 @@ contains
     real(dp), dimension(ewn-1,nsn-1), intent(in) :: &
          stag_thck,                   & ! ice thickness at vertices (m)
          stag_thck_obs,               & ! observed ice thickness at vertices (m)
-         stag_dthck_dt                  ! rate of change of ice thickness at vertices (m/yr
+         stag_dthck_dt                  ! rate of change of ice thickness at vertices (m/yr)
+
+    real(dp), dimension(ewn-1,nsn-1), intent(in) :: &
+         powerlaw_c_relax               ! powerlaw_c field to which we relax
 
     real(dp), dimension(ewn-1,nsn-1), intent(inout) :: &
          powerlaw_c                     ! basal friction field to be adjusted (Pa (m/yr)^(-1/3))
@@ -1486,14 +1496,12 @@ contains
     integer :: i, j
 
     real(dp), dimension(ewn-1,nsn-1) :: &
-         stag_dthck                 ! stag_thck - stag_thck_obs (m)
+         stag_dthck                     ! stag_thck - stag_thck_obs (m)
 
     real(dp) :: &
-         dpowerlaw_c,             & ! change in powerlaw_c
-         thck_scale,              & ! thickness scale (m) for the inversion equations
-         term1, term2               ! terms in prognostic equation for powerlaw_c
-
-    !TODO - Add term X (the relax term) as in newer versions of CISM
+         dpowerlaw_c,                 & ! change in powerlaw_c
+         term_thck, term_dHdt,        & ! tendency terms for powerlaw_c based on thickness target
+         term_relax                     ! tendency terms based on relaxation to default value
 
     ! The inversion works as follows:
     ! The change in C_p is proportional to the current value of C_p and to the relative error,
@@ -1503,64 +1511,87 @@ contains
     ! This is done with a characteristic timescale tau.
     ! We also include a term proportional to dH/dt so that ideally, C_p smoothly approaches
     !  the value needed to attain a steady-state H, without oscillating about the desired value.
+    ! In addition, we include a relaxation term proportional to the ratio of C_p to a default value.
     ! See the comments in module glissade_inversion, subroutine invert_basal_friction.
+    !
     ! Here is the prognostic equation:
-    ! dC/dt = -C * (1/tau) * [(H - H_obs)/H_scale + (2*tau/H_scale) * dH/dt]
+    ! dC/dt = -C * [(H - H_obs)/(H0*tau) + dH/dt * 2/H0 - r * ln(C/C_r) / tau],
+    !   where tau = glacier_powerlaw_c_timescale, H0 = glacier_powerlaw_c_thck_scale,
+    !         r = glacier_powerlaw_c_relax_factor, and C_r = powerlaw_c_relax.
 
     if (verbose_glacier .and. main_task) then
        print*, ' '
        print*, 'In glacier_invert_powerlaw_c'
     endif
 
-    stag_dthck(:,:) = stag_thck(:,:) - stag_thck_obs(:,:)
+    if (glacier_powerlaw_c_thck_scale > 0.0d0 .and. glacier_powerlaw_c_timescale > 0.0d0) then
 
-    ! Loop over vertices
-    do j = 1, nsn-1
-       do i = 1, ewn-1
+       stag_dthck(:,:) = stag_thck(:,:) - stag_thck_obs(:,:)
 
-          if (stag_thck(i,j) > 0.0d0) then
+       ! Loop over vertices
 
-             ! Note: glacier_powerlaw_c_thck_scale serves as a floor to avoid large values and divzeros
-             thck_scale = max(glacier_thck_scale, stag_thck_obs(i,j))
+       do j = 1, nsn-1
+          do i = 1, ewn-1
 
-             term1 = -stag_dthck(i,j) / (thck_scale * glacier_powerlaw_c_timescale)
-             term2 = -stag_dthck_dt(i,j) * 2.0d0 / thck_scale
-             dpowerlaw_c = powerlaw_c(i,j) * (term1 + term2) * inversion_time_interval
+             if (stag_thck(i,j) > 0.0d0) then
 
-             ! Limit to prevent a large relative change in one step
-             if (abs(dpowerlaw_c) > 0.05d0 * powerlaw_c(i,j)) then
-                if (dpowerlaw_c > 0.0d0) then
-                   dpowerlaw_c =  0.05d0 * powerlaw_c(i,j)
-                else
-                   dpowerlaw_c = -0.05d0 * powerlaw_c(i,j)
+                term_thck = -stag_dthck(i,j) / (glacier_powerlaw_c_thck_scale * glacier_powerlaw_c_timescale)
+                term_dHdt = -stag_dthck_dt(i,j) * 2.0d0 / glacier_powerlaw_c_thck_scale
+
+                ! Add a term to relax C = powerlaw_c toward a target value, C_r = powerlaw_c_relax
+                ! The log term below ensures the following:
+                ! * When C /= C_r, it will relax toward C_r.
+                ! * When C = C_r, there is no further relaxation.
+                ! * In steady state (dC/dt = 0, dH/dt = 0), we have dthck/thck_scale = -k * ln(C/C_r),
+                !    or C = C_r * exp(-dthck/(k*thck_scale)), where k is a prescribed constant
+
+                term_relax = -glacier_powerlaw_c_relax_factor * log(powerlaw_c(i,j)/powerlaw_c_relax(i,j)) &
+                     / glacier_powerlaw_c_timescale
+
+                dpowerlaw_c = powerlaw_c(i,j) * (term_thck + term_dHdt + term_relax) * inversion_time_interval
+
+                ! Limit to prevent a large relative change in one step
+                if (abs(dpowerlaw_c) > 0.05d0 * powerlaw_c(i,j)) then
+                   if (dpowerlaw_c > 0.0d0) then
+                      dpowerlaw_c =  0.05d0 * powerlaw_c(i,j)
+                   else
+                      dpowerlaw_c = -0.05d0 * powerlaw_c(i,j)
+                   endif
                 endif
+
+                ! Update powerlaw_c
+                powerlaw_c(i,j) = powerlaw_c(i,j) + dpowerlaw_c
+
+                ! Limit to a physically reasonable range
+                powerlaw_c(i,j) = min(powerlaw_c(i,j), powerlaw_c_max)
+                powerlaw_c(i,j) = max(powerlaw_c(i,j), powerlaw_c_min)
+
+                if (verbose_glacier .and. this_rank == rtest .and. i == itest .and. j == jtest) then
+                   print*, ' '
+                   print*, 'Invert for powerlaw_c: rank, i, j =', this_rank, i, j
+                   print*, 'H, H_obs (m)', stag_thck(i,j), stag_thck_obs(i,j)
+                   print*, 'dH_dt (m/yr):', stag_dthck_dt(i,j)
+                   print*, 'dt (yr), term_thck*dt, term_dHdt*dt:', inversion_time_interval, &
+                        term_thck*inversion_time_interval, term_dHdt*inversion_time_interval
+                   print*, 'relax term:', term_relax*inversion_time_interval
+                   print*, 'dpowerlaw_c, new powerlaw_c:', dpowerlaw_c, powerlaw_c(i,j)
+                endif
+
+             else   ! stag_thck = 0
+
+                ! do nothing; keep the current value
+
              endif
 
-             ! Update powerlaw_c
-             powerlaw_c(i,j) = powerlaw_c(i,j) + dpowerlaw_c
+          enddo   ! i
+       enddo   ! j
 
-             ! Limit to a physically reasonable range
-             powerlaw_c(i,j) = min(powerlaw_c(i,j), powerlaw_c_max)
-             powerlaw_c(i,j) = max(powerlaw_c(i,j), powerlaw_c_min)
+    else   ! thck_scale or timescale = 0
 
-             if (verbose_glacier .and. this_rank == rtest .and. i == itest .and. j == jtest) then
-                print*, ' '
-                print*, 'Invert for powerlaw_c: rank, i, j =', this_rank, i, j
-                print*, 'H, H_obs (m)', stag_thck(i,j), stag_thck_obs(i,j)
-                print*, 'dH_dt (m/yr):', stag_dthck_dt(i,j)
-                print*, 'dt (yr), term1*dt, term2*dt:', inversion_time_interval, &
-                     term1*inversion_time_interval, term2*inversion_time_interval
-                print*, 'dpowerlaw_c, new powerlaw_c:', dpowerlaw_c, powerlaw_c(i,j)
-             endif
+       call write_log &
+            ('Must have thck_scale and timescale > 0 for glacier powerlaw_c inversion', GM_FATAL)
 
-          else   ! stag_thck = 0
-
-             ! do nothing; keep the current value
-
-          endif
-
-       enddo   ! i
-    enddo   ! j
+    endif
 
     if (verbose_glacier .and. this_rank == rtest) then
        i = itest; j = jtest
