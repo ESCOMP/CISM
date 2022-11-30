@@ -978,7 +978,7 @@ contains
              ! For a thickness target H_obs, the rate is given by
              !     dC/dt = -C * [(H - H_obs)/(H0*tau) + dH/dt * 2/H0 - r * ln(C/C_r) / tau]
              ! where tau = babc_timescale, H0 = babc_thck_scale, r = babc_relax_factor, and
-             !  C_r is a relaxation target..
+             !  C_r is a relaxation target.
              ! Apart from the relaxation term, this equation is similar to that of a damped harmonic oscillator:
              !     m * d2x/dt2 = -k*x - c*dx/dt
              ! where m is the mass, k is a spring constant, and c is a damping term.
