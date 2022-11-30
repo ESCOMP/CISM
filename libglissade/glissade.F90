@@ -2278,7 +2278,7 @@ contains
 
     integer :: ntracers             ! number of tracers to be transported
 
-    integer :: i, j, k
+    integer :: i, j, k, ng
     integer :: ewn, nsn, upn, nlev_smb
     integer :: itest, jtest, rtest
 
@@ -2821,9 +2821,12 @@ contains
        if (model%options%enable_glaciers) then
 
           ! Halo updates for snow and artm
-          ! (Not sure the artm update is needed; there is one above)
+          ! Note: artm_corrected is the input artm, possible corrected to include an anomaly term.
+          !       delta_artm is a glacier-specific correction whose purpose is to give SMB ~ 0.
+          !        This term is zero by default, but is nonzero during spin-up when inverting for powerlaw_c.
+
           call parallel_halo(model%climate%snow, parallel)
-          call parallel_halo(model%climate%artm, parallel)
+          call parallel_halo(model%climate%artm_corrected, parallel)
 
           call glissade_glacier_smb(&
                ewn,      nsn,                          &
@@ -2833,8 +2836,10 @@ contains
                model%glacier%t_mlt,                    &  ! deg C
                model%climate%snow,                     &  ! mm/yr w.e.
                model%climate%artm_corrected,           &  ! deg C
+               model%glacier%delta_artm,               &  ! deg C
                model%glacier%mu_star,                  &  ! mm/yr w.e./deg
-               model%climate%smb)                         ! mm/yr w.e.
+               model%climate%smb,                      &  ! mm/yr w.e.
+               model%glacier%smb)                         ! mm/yr w.e.
 
           ! Convert SMB (mm/yr w.e.) to acab (CISM model units)
           model%climate%acab(:,:) = (model%climate%smb(:,:) * (rhow/rhoi)/1000.d0) / scale_acab
@@ -2843,9 +2848,12 @@ contains
           if (verbose_glacier .and. this_rank == rtest) then
              i = itest
              j = jtest
+             ng = model%glacier%ngdiag
              print*, ' '
              print*, 'Computed glacier SMB, rank, i, j =', this_rank, i, j
-             print*, '   acab (m/yr ice) =', model%climate%acab(i,j)*thk0*scyr/tim0
+             print*, '   delta_artm =', model%glacier%delta_artm(ng)
+             print*, '   smb (mm/yr w.e.) =', model%climate%smb(i,j)
+             print*, '   acab (m/yr ice)  =', model%climate%acab(i,j)*thk0*scyr/tim0
           endif
 
        endif   ! enable_glaciers
