@@ -2004,7 +2004,7 @@ contains
     ! Optionally, add an anomaly to the surface air temperature
     ! Typically, artm_corrected = artm, but sometimes (e.g., for ISMIP6 forcing experiments),
     !  it includes a time-dependent anomaly.
-    ! Note that artm itself does not change in time, unless it is elevation-dependent..
+    ! Note that artm itself does not change in time, unless it is elevation-dependent.
 
     ! initialize
     model%climate%artm_corrected(:,:) = model%climate%artm(:,:)
@@ -2820,12 +2820,19 @@ contains
 
        if (model%options%enable_glaciers) then
 
+          !TODO - Pass artm instead of artm_corrected?  I.e., disable the anomaly for glaciers?
           ! Halo updates for snow and artm
           ! Note: artm_corrected is the input artm, possible corrected to include an anomaly term.
           !       delta_artm is a glacier-specific correction whose purpose is to give SMB ~ 0.
           !        This term is zero by default, but is nonzero during spin-up when inverting for powerlaw_c.
+          ! Note: snow_calc is the snow calculation option:  Either use the snowfall rate directly,
+          !       or compute the snowfall rate from the precip rate and downscaled artm.
 
-          call parallel_halo(model%climate%snow, parallel)
+          if (model%glacier%snow_calc == GLACIER_SNOW_CALC_SNOW) then
+             call parallel_halo(model%climate%snow, parallel)
+          elseif (model%glacier%snow_calc == GLACIER_SNOW_CALC_PRECIP_ARTM) then
+             call parallel_halo(model%climate%precip, parallel)
+          endif
           call parallel_halo(model%climate%artm_corrected, parallel)
 
           call glissade_glacier_smb(&
@@ -2834,7 +2841,11 @@ contains
                model%glacier%nglacier,                 &
                model%glacier%cism_glacier_id,          &
                model%glacier%t_mlt,                    &  ! deg C
+               model%glacier%snow_threshold_min,       &  ! deg C
+               model%glacier%snow_threshold_max,       &  ! deg C
+               model%glacier%snow_calc,                &
                model%climate%snow,                     &  ! mm/yr w.e.
+               model%climate%precip,                   &  ! mm/yr w.e.
                model%climate%artm_corrected,           &  ! deg C
                model%glacier%delta_artm,               &  ! deg C
                model%glacier%mu_star,                  &  ! mm/yr w.e./deg
