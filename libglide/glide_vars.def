@@ -772,7 +772,14 @@ units:         mm/year water equivalent
 long_name:     snowfall rate
 data:          data%climate%snow
 factor:        1.0
-standard_name: land_ice_surface_snowfall_rate
+load:          1
+
+[precip]
+dimensions:    time, y1, x1
+units:         mm/year water equivalent
+long_name:     precipitation rate
+data:          data%climate%precip
+factor:        1.0
 load:          1
 
 [acab]
@@ -1680,6 +1687,13 @@ dimensions:    time, glacierid
 units:         mm w.e./yr/deg
 long_name:     glacier SMB coefficient
 data:          data%glacier%mu_star
+load:          1
+
+[glacier_delta_artm]
+dimensions:    time, glacierid
+units:         degree_Celsius
+long_name:     glacier artm adjustment
+data:          data%glacier%delta_artm
 load:          1
 
 [glacier_smb_obs]

@@ -3159,9 +3159,12 @@ contains
     type(ConfigSection), pointer :: section
     type(glide_global_type)  :: model
 
-    call GetValue(section,'set_mu_star',    model%glacier%set_mu_star)
-    call GetValue(section,'set_powerlaw_c', model%glacier%set_powerlaw_c)
-    call GetValue(section,'t_mlt',          model%glacier%t_mlt)
+    call GetValue(section,'set_mu_star',        model%glacier%set_mu_star)
+    call GetValue(section,'set_powerlaw_c',     model%glacier%set_powerlaw_c)
+    call GetValue(section,'snow_calc',          model%glacier%snow_calc)
+    call GetValue(section,'t_mlt',              model%glacier%t_mlt)
+    call GetValue(section,'snow_threshold_min', model%glacier%snow_threshold_min)
+    call GetValue(section,'snow_threshold_max', model%glacier%snow_threshold_max)
 
   end subroutine handle_glaciers
 
@@ -3188,6 +3191,10 @@ contains
          'glacier-specific Cp found by inversion', &
          'glacier-specific Cp read from file    ' /)
 
+    character(len=*), dimension(0:1), parameter :: glacier_snow_calc = (/ &
+         'read in snowfall rate directly            ', &
+         'compute snowfall rate from precip and artm' /)
+
     if (model%options%enable_glaciers) then
 
        call write_log(' ')
@@ -3200,7 +3207,7 @@ contains
             glacier_set_mu_star(model%glacier%set_mu_star)
        call write_log(message)
        if (model%glacier%set_mu_star < 0 .or. &
-            model%glacier%set_mu_star >= size(glacier_set_mu_star)) then
+           model%glacier%set_mu_star >= size(glacier_set_mu_star)) then
           call write_log('Error, glacier_set_mu_star option out of range', GM_FATAL)
        end if
 
@@ -3208,9 +3215,24 @@ contains
             glacier_set_powerlaw_c(model%glacier%set_powerlaw_c)
        call write_log(message)
        if (model%glacier%set_powerlaw_c < 0 .or. &
-            model%glacier%set_powerlaw_c >= size(glacier_set_powerlaw_c)) then
+           model%glacier%set_powerlaw_c >= size(glacier_set_powerlaw_c)) then
           call write_log('Error, glacier_set_powerlaw_c option out of range', GM_FATAL)
        end if
+
+       write(message,*) 'snow_calc                 : ', model%glacier%snow_calc, &
+            glacier_snow_calc(model%glacier%snow_calc)
+       call write_log(message)
+       if (model%glacier%snow_calc < 0 .or. &
+           model%glacier%snow_calc >= size(glacier_snow_calc)) then
+          call write_log('Error, glacier_snow_calc option out of range', GM_FATAL)
+       end if
+
+       if (model%glacier%snow_calc == GLACIER_SNOW_CALC_PRECIP_ARTM) then
+          write(message,*) 'snow_threshold_min (deg C): ', model%glacier%snow_threshold_min
+          call write_log(message)
+          write(message,*) 'snow_threshold_max (deg C): ', model%glacier%snow_threshold_max
+          call write_log(message)
+       endif
 
        write(message,*) 'glacier T_mlt (deg C)     :  ', model%glacier%t_mlt
        call write_log(message)
@@ -3696,8 +3718,9 @@ contains
           call glide_add_to_restart_variable_list('glacier_smb_obs')
        endif
        if (model%glacier%set_powerlaw_c == GLACIER_POWERLAW_C_INVERSION) then
-          call glide_add_to_restart_variable_list('usrf_obs')
           call glide_add_to_restart_variable_list('powerlaw_c')
+          call glide_add_to_restart_variable_list('usrf_obs')
+          call glide_add_to_restart_variable_list('glacier_delta_artm')
        elseif (model%glacier%set_powerlaw_c == GLACIER_POWERLAW_C_EXTERNAL) then
           call glide_add_to_restart_variable_list('powerlaw_c')
        endif
