@@ -391,6 +391,9 @@ module glide_types
   integer, parameter :: GLACIER_POWERLAW_C_INVERSION = 1
   integer, parameter :: GLACIER_POWERLAW_C_EXTERNAL = 2
 
+  integer, parameter :: GLACIER_SNOW_CALC_SNOW = 0
+  integer, parameter :: GLACIER_SNOW_CALC_PRECIP_ARTM = 1
+
   !++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 
   type glide_general
@@ -1444,7 +1447,8 @@ module glide_types
                                                                   !> 'smb' could have any source (models, obs, etc.), but smb_obs
                                                                   !>  is always from observations and may be an inversion target
      real(dp),dimension(:,:),pointer :: snow            => null() !> snowfall rate (mm/yr w.e.)
-
+     real(dp),dimension(:,:),pointer :: precip          => null() !> precipitation rate (mm/yr w.e.)
+                                                                  !> for glaciers, snow can be derived from precip + downscaled artm
      real(dp),dimension(:,:),pointer :: artm            => null() !> Annual mean air temperature (degC)
      real(dp),dimension(:,:),pointer :: artm_anomaly    => null() !> Annual mean air temperature anomaly (degC)
      real(dp),dimension(:,:),pointer :: artm_corrected  => null() !> Annual mean air temperature with anomaly corrections (degC)
@@ -1827,18 +1831,24 @@ module glide_types
 
      ! inversion options
 
-     integer :: set_mu_star
+     integer :: set_mu_star = 0
      !> \begin{description}
      !> \item[0] apply spatially uniform mu_star
      !> \item[1] invert for glacier-specific mu_star
      !> \item[2] read glacier-specific mu_star from external file
      !> \end{description}
 
-     integer :: set_powerlaw_c
+     integer :: set_powerlaw_c = 0
      !> \begin{description}
      !> \item[0] apply spatially uniform powerlaw_c
      !> \item[1] invert for glacier-specific powerlaw_c
      !> \item[2] read glacier-specific powerlaw_c from external file
+     !> \end{description}
+
+     integer :: snow_calc = 1
+     !> \begin{description}
+     !> \item[0] read the snowfall rate directly
+     !> \item[1] compute the snowfall rate from precip and downscaled artm
      !> \end{description}
 
      ! parameters
@@ -1847,18 +1857,24 @@ module glide_types
      !       Other glacier parameters are declared at the top of module glissade_glacier.
      !       These could be added to the derived type.
 
+     real(dp) :: t_mlt = -5.0d0         !> air temperature (deg C) at which ablation occurs
+                                        !> Maussion et al. suggest -1 C, but a lower value is more appropriate
+                                        !> when applying monthly mean artm in mid-latitude regions like HMA.
 
-     real(dp) :: t_mlt = -2.0d0     !> air temperature (deg C) at which ablation occurs
-                                    !> Maussion et al. suggest -1 C; a lower value extends the ablation zone
-     real(dp) :: minthck            !> min ice thickness (m) to be counted as part of a glacier;
-                                    !> currently set based on model%numerics%thklim
+     ! Note: These thresholds assume that artm is a monthly mean, not an instantaneous value
+     real(dp) :: &
+          snow_threshold_min = -5.0d0, &!> air temperature (deg C) below which all precip falls as snow
+          snow_threshold_max =  5.0d0   !> air temperature (deg C) above which all precip falls as rain
+
+     real(dp) :: minthck                !> min ice thickness (m) to be counted as part of a glacier;
+                                        !> currently set based on model%numerics%thklim
 
      ! 1D arrays with size nglacier
 
      integer, dimension(:), pointer :: &
           glacierid => null()                 !> glacier ID dimension variable, used for I/O
 
-     ! These will be allocated with size nglacier, once nglacier is known
+     ! The following will be allocated with size nglacier, once nglacier is known.
      ! Note: mu_star and powerlaw_c have the suffix 'glc' to avoid confusion with the 2D fields
      !       glacier%mu_star and basal_physics%powerlaw_c
 
@@ -1889,7 +1905,8 @@ module glide_types
           dthck_dt_2d => null(),            & !> accumulated dthck_dt (m/yr)
           snow_2d => null(),                & !> accumulated snowfall (mm/yr w.e.)
           Tpos_2d => null(),                & !> accumulated max(artm - Tmlt,0) (deg C)
-          Tpos_dartm_2d => null()             !> accumulated max(artm + delta_artm - Tmlt,0) (deg C); corrected Tpos
+          snow_dartm_2d => null(),          & !> accumulated snowfall (mm/yr w.e.), adjustedd for dartm
+          Tpos_dartm_2d => null()             !> accumulated max(artm + delta_artm - Tmlt,0) (deg C)
 
      integer, dimension(:,:), pointer :: &
           imask => null()                     !> 2D mask; indicates whether glaciers are present in the input file
@@ -2943,9 +2960,11 @@ contains
        call coordsystem_allocate(model%general%ice_grid, model%glacier%dthck_dt_2d)
        call coordsystem_allocate(model%general%ice_grid, model%glacier%snow_2d)
        call coordsystem_allocate(model%general%ice_grid, model%glacier%Tpos_2d)
+       call coordsystem_allocate(model%general%ice_grid, model%glacier%snow_dartm_2d)
        call coordsystem_allocate(model%general%ice_grid, model%glacier%Tpos_dartm_2d)
        call coordsystem_allocate(model%general%ice_grid, model%climate%smb_obs)
-       call coordsystem_allocate(model%general%ice_grid, model%climate%snow)  ! used for SMB
+       call coordsystem_allocate(model%general%ice_grid, model%climate%snow)
+       call coordsystem_allocate(model%general%ice_grid, model%climate%precip)
        !TODO - Delete these if they are allocated with XY_LAPSE logic
        if (.not.associated(model%climate%usrf_ref)) &
             call coordsystem_allocate(model%general%ice_grid, model%climate%usrf_ref)
@@ -3398,6 +3417,8 @@ contains
         deallocate(model%glacier%snow_2d)
     if (associated(model%glacier%Tpos_2d)) &
         deallocate(model%glacier%Tpos_2d)
+    if (associated(model%glacier%snow_dartm_2d)) &
+        deallocate(model%glacier%snow_dartm_2d)
     if (associated(model%glacier%Tpos_dartm_2d)) &
         deallocate(model%glacier%Tpos_dartm_2d)
     if (associated(model%glacier%smb_obs)) &
@@ -3579,6 +3600,10 @@ contains
         deallocate(model%climate%smb_obs)
     if (associated(model%climate%smb_anomaly)) &
         deallocate(model%climate%smb_anomaly)
+    if (associated(model%climate%snow)) &
+        deallocate(model%climate%snow)
+    if (associated(model%climate%precip)) &
+        deallocate(model%climate%precip)
     if (associated(model%climate%artm)) &
         deallocate(model%climate%artm)
     if (associated(model%climate%artm_anomaly)) &

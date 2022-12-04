@@ -178,9 +178,9 @@ contains
        if (associated(glacier%volume)) deallocate(glacier%volume)
        if (associated(glacier%area_target)) deallocate(glacier%area_target)
        if (associated(glacier%volume_target)) deallocate(glacier%volume_target)
-       if (associated(glacier%mu_star)) deallocate(glacier%mu_star)
        if (associated(glacier%smb)) deallocate(glacier%smb)
        if (associated(glacier%smb_obs)) deallocate(glacier%smb_obs)
+       if (associated(glacier%mu_star)) deallocate(glacier%mu_star)
        if (associated(glacier%delta_artm)) deallocate(glacier%delta_artm)
 
        ! Set the RGI ID to 0 in cells without ice.
@@ -374,16 +374,16 @@ contains
             allocate(glacier%cism_to_rgi_glacier_id(nglacier))
        call broadcast(glacier%cism_to_rgi_glacier_id)
 
-       ! Allocate glacier arrays with dimension(nglacier)
-
+       ! Allocate glacier arrays with dimension(nglacier).
+       ! Note: We should avoid accessing these arrays for grid cells with cism_glacier_id = 0.
        allocate(glacier%glacierid(nglacier))
        allocate(glacier%area(nglacier))
        allocate(glacier%area_target(nglacier))
        allocate(glacier%volume(nglacier))
        allocate(glacier%volume_target(nglacier))
-       allocate(glacier%mu_star(nglacier))
        allocate(glacier%smb(nglacier))
        allocate(glacier%smb_obs(nglacier))
+       allocate(glacier%mu_star(nglacier))
        allocate(glacier%delta_artm(nglacier))
 
        ! Compute the initial area and volume of each glacier.
@@ -402,6 +402,8 @@ contains
        glacier%area_target(:) = glacier%area(:)
        glacier%volume_target(:) = glacier%volume(:)
        glacier%mu_star(:) = mu_star_const
+       glacier%delta_artm(:) = 0.0d0
+
        ! Check for area_target = 0 and volume_target = 0.
        ! In practice, volume_target = 0 might not be problematic;
        !  we would just lower powerlaw_c to obtain a thin glacier.
@@ -463,8 +465,8 @@ contains
        !WHL - debug - check for cells with thck > 0 and ng = 0
        do j = nhalo+1, nsn-nhalo
           do i = nhalo+1, ewn-nhalo
-             if (glacier%cism_glacier_id_init(i,j) == 0 .and. &
-                  model%geometry%thck(i,j)*thk0 > 1.0d0) then
+             ng = glacier%cism_glacier_id_init(i,j)
+             if (ng == 0 .and. model%geometry%thck(i,j)*thk0 > 1.0d0) then
                 call parallel_globalindex(i, j, iglobal, jglobal, parallel)
                 print*, 'Warning, ng = 0 but H > 0: Init rank, i, j, ig, jg, thck:', &
                      this_rank, i, j, iglobal, jglobal, model%geometry%thck(i,j) * thk0
@@ -571,6 +573,11 @@ contains
     ! Set the index of the diagnostic glacier, using the CISM glacier ID for the diagnostic point
     if (this_rank == rtest) then
        glacier%ngdiag = glacier%cism_glacier_id(itest,jtest)
+       if (glacier%ngdiag == 0) then
+          write(message,*) &
+               'The diagnostic cell has cism_glacier_id = 0; may want to choose a different cell'
+          call write_log(message, GM_WARNING)
+       endif
     endif
     call broadcast(glacier%ngdiag, rtest)
 
@@ -580,30 +587,31 @@ contains
        ng = glacier%ngdiag
        print*, ' '
        print*, 'Glacier ID for diagnostic cell: r, i, j, ng =', rtest, itest, jtest, ng
-       print*, 'area target (km^2) =', glacier%area_target(ng) / 1.0d6
-       print*, 'volume target (km^3) =', glacier%volume_target(ng) / 1.0d9
-       print*, 'powerlaw_c (Pa (m/yr)^(-1/3)) =', model%basal_physics%powerlaw_c(i,j)
-       print*, 'smb_obs (mm/yr w.e.) =', glacier%smb_obs(ng)
-       print*, 'Done in glissade_glacier_init'
+       if (ng > 0) then
+          print*, 'area target (km^2) =', glacier%area_target(ng) / 1.0d6
+          print*, 'volume target (km^3) =', glacier%volume_target(ng) / 1.0d9
+          print*, 'powerlaw_c (Pa (m/yr)^(-1/3)) =', model%basal_physics%powerlaw_c(i,j)
+          print*, 'smb_obs (mm/yr w.e.) =', glacier%smb_obs(ng)
+          print*, 'Done in glissade_glacier_init'
+       endif
     endif
 
   end subroutine glissade_glacier_init
 
 !****************************************************
 
-  !TODO - Pass in precip
-  !       Determine whether it's snow based on artm
-
   subroutine glissade_glacier_smb(&
-       ewn,      nsn,                  &
-       itest,    jtest,  rtest,        &
-       nglacier,                       &
-       cism_glacier_id,                &
-       t_mlt,                          &
-       snow,             artm,         &
-       delta_artm,       mu_star,      &
-       smb,                            &
-       glacier_smb)
+       ewn,      nsn,                          &
+       itest,    jtest,    rtest,              &
+       nglacier,                               &
+       cism_glacier_id,                        &
+       t_mlt,                                  &
+       snow_threshold_min, snow_threshold_max, &
+       snow_calc,                              &
+       snow,               precip,             &
+       artm,               delta_artm,         &
+       mu_star,                                &
+       smb,                glacier_smb)
 
     ! Compute the SMB in each grid cell using an empirical relationship
     !  based on Maussion et al. (2019):
@@ -628,10 +636,21 @@ contains
          cism_glacier_id                ! integer glacier ID in the range (1, nglacier)
 
     real(dp), intent(in) :: &
-         t_mlt                          ! min temperature (deg C) at which ablation occurs
+         t_mlt,                       & ! min temperature (deg C) at which ablation occurs
+         snow_threshold_min,          & ! air temperature (deg C) below which all precip falls as snow
+         snow_threshold_max             ! air temperature (deg C) above which all precip falls as rain
+
+    integer, intent(in) :: &
+         snow_calc                      ! snow calculation method
+                                        ! 0 = use the input snowfall rate directly
+                                        ! 1 = compute snowfall rate from precip and artm
 
     real(dp), dimension(ewn,nsn), intent(in) :: &
-         snow,                        & ! monthly mean snowfall rate (mm w.e./yr)
+         snow                           ! monthly mean snowfall rate (mm w.e./yr)
+                                        ! used only for snow_calc option 0
+
+    real(dp), dimension(ewn,nsn), intent(in) :: &
+         precip,                      & ! monthly mean precipitation rate (mm w.e./yr)
          artm                           ! artm adjusted for elevation using t_lapse (deg C)
 
     real(dp), dimension(nglacier), intent(in) :: &
@@ -644,43 +663,68 @@ contains
          smb                            ! SMB in each gridcell (mm/yr w.e.)
 
     real(dp), dimension(nglacier), intent(out) :: &
-         glacier_smb                    ! average SMB for each glacier (mm/yr w.e.)
+         glacier_smb                  ! average SMB for each glacier (mm/yr w.e.)
 
     ! local variables
 
     integer :: i, j, ng
 
-    if (verbose_glacier .and. this_rank == rtest) then
-       print*, ' '
-       print*, 'In glissade_glacier_smb'
-       print*, 'minval, maxval(snow) =', minval(snow), maxval(snow)
-       print*, 'minval, maxval(artm) =', minval(artm), maxval(artm)
-       print*, 't_mlt (deg C) =', t_mlt
+    real(dp), dimension(ewn,nsn) :: &
+         delta_artm_2d,            &  ! 2D version of delta_artm (deg C)
+         snow_smb                     ! snowfall rate (mm w.e./yr) used in the SMB calculation
+                                      ! computed from precip and artm for snow_calc option 1
+
+    ! compute snowfall
+
+    if (snow_calc == GLACIER_SNOW_CALC_SNOW) then
+
+       snow_smb = snow
+
+    elseif (snow_calc == GLACIER_SNOW_CALC_PRECIP_ARTM) then
+
+       ! Given delta_artm for each glacier, scatter values to the 2D CISM grid
+
+       call glacier_1d_to_2d(&
+            ewn,       nsn,        &
+            nglacier,              &
+            cism_glacier_id,       &
+            delta_artm,            &
+            delta_artm_2d)
+
+       ! Given the precip and adjusted artm, compute snow
+
+       call glacier_calc_snow(&
+            ewn,       nsn,        &
+            snow_threshold_min,    &
+            snow_threshold_max,    &
+            precip,                &
+            artm + delta_artm_2d,  &
+            snow_smb)
+
     endif
 
-    ! initialize
-    smb(:,:) = 0.0d0
-
     ! compute SMB in each glacier grid cell
+
+    smb(:,:) = 0.0d0
 
     do j = 1, nsn
        do i = 1, ewn
           ng = cism_glacier_id(i,j)
-
           if (ng > 0) then
-             smb(i,j) = snow(i,j) - mu_star(ng) * max(artm(i,j) + delta_artm(ng) - t_mlt, 0.0d0)
+             smb(i,j) = snow_smb(i,j) - mu_star(ng) * max(artm(i,j) + delta_artm(ng) - t_mlt, 0.0d0)
           endif
 
           if (verbose_glacier .and. this_rank == rtest .and. i == itest .and. j == jtest) then
              print*, ' '
              print*, 'Glacier SMB calculation: rank i, j, mu_star =', &
                   this_rank, i, j, mu_star(ng)
-             print*, '   snow (mm/yr w.e.), artm (C), delta_artm, T - Tmlt, SMB (mm/yr w.e.) =', &
-                  snow(i,j), artm(i,j), delta_artm(ng), max(artm(i,j) + delta_artm(ng) - t_mlt, 0.0d0), smb(i,j)
+             print*, '   precip, snow (mm/yr w.e.), artm (C), delta_artm, T - Tmlt, SMB (mm/yr w.e.) =', &
+                  precip(i,j), snow_smb(i,j), artm(i,j), delta_artm(ng), &
+                  max(artm(i,j) + delta_artm(ng) - t_mlt, 0.0d0), smb(i,j)
           endif
 
-       enddo
-    enddo
+       enddo   ! i
+    enddo   ! j
 
     ! Compute glacier average values
 
@@ -901,8 +945,11 @@ contains
          thck,                    & ! ice thickness (m)
          thck_obs,                & ! observed ice thickness (m)
          dthck_dt,                & ! rate of change of thickness (m/yr)
+         tsrf,                    & ! local array for surface air temperature (deg C)
          Tpos,                    & ! max(artm - T_mlt, 0.0)
          Tpos_dartm,              & ! max(artm + delta_artm - T_mlt, 0.0)
+         snow,                    & ! snowfall rate (mm w.e./yr) based on artm
+         snow_dartm,              & ! snowfall rate (mm w.e./yr) based on artm + dartm
          delta_artm_2d,           & ! 2D version of glacier%artm_delta
          mu_star_2d,              & ! 2D version of glacier%mu_star
          smb_annmean                ! annual mean SMB for each glacier cell (mm/yr w.e.)
@@ -936,8 +983,9 @@ contains
     ! real(dp), dimension(:) :: smb_obs           ! observed SMB for each glacier (mm/yr w.e.)
     ! integer, dimension(:,:) :: cism_glacier_id       ! CISM glacier ID for each grid cell
     ! integer, dimension(:,:) :: cism_glacier_id_init  ! initial value of CISM glacier ID
-    ! real(dp), dimension(:,:) :: dthck_dt_2d          ! snow accumulated and averaged over 1 year
+    ! real(dp), dimension(:,:) :: dthck_dt_2d          ! dthck_dt accumulated and averaged over 1 year
     ! real(dp), dimension(:,:) :: snow_2d              ! snow accumulated and averaged over 1 year
+    ! real(dp), dimension(:,:) :: snow_dartm_2d        ! snow adjusted for delta_artm, accumulated and averaged over 1 year
     ! real(dp), dimension(:,:) :: Tpos_2d              ! max(artm-T_mlt,0) accumulated and averaged over 1 year
     ! real(dp), dimension(:,:) :: Tpos_dartm_2d        ! max(artm+delta_artm-T_mlt,0) accumulated and averaged over 1 year
 
@@ -1001,8 +1049,8 @@ contains
     if (glacier%set_mu_star == GLACIER_MU_STAR_INVERSION .or.  &
         glacier%set_powerlaw_c == GLACIER_POWERLAW_C_INVERSION) then
 
-       ! Accumulate the 2D fields used for mu_star inversion: snow and Tpos
-       ! Also accumulate dthck_dt and Tpos_dartm, which are used for powerlaw_c inversion
+       ! Accumulate the 2D fields used for mu_star inversion: snow and Tpos.
+       ! Also accumulate dthck_dt, snow_dartm, and Tpos_dartm, which are used for powerlaw_c inversion.
 
        if (time_since_last_avg == 0.0d0) then ! start of new averaging period
 
@@ -1011,11 +1059,13 @@ contains
                ewn,           nsn,     &
                glacier%snow_2d,        &
                glacier%Tpos_2d,        &
+               glacier%snow_dartm_2d,  &
                glacier%Tpos_dartm_2d,  &
                glacier%dthck_dt_2d)
        endif
 
-       Tpos(:,:) = max(model%climate%artm(:,:) - glacier%t_mlt, 0.0d0)
+       ! Note: artm_corrected is different from artm if a temperature anomaly is applied
+       Tpos(:,:) = max(model%climate%artm_corrected(:,:) - glacier%t_mlt, 0.0d0)
 
        ! Given delta_artm for each glacier, scatter values to the 2D CISM grid
 
@@ -1026,25 +1076,58 @@ contains
             glacier%delta_artm,   &
             delta_artm_2d)
 
-       Tpos_dartm(:,:) = max(model%climate%artm(:,:) + delta_artm_2d(:,:) - glacier%t_mlt, 0.0d0)
+       Tpos_dartm(:,:) = &
+            max(model%climate%artm_corrected(:,:) + delta_artm_2d(:,:) - glacier%t_mlt, 0.0d0)
 
-       ! Accumulate Tpos_2d, Tpos_dartm_2d, and dthck_dt_2d over this timestep
+       ! Compute the snowfall rate, with and without the dartm correction
+       ! Note: Depending on glacier%snow_calc, we either use the snowfall rate directly,
+       !       or compute snowfall based on the input precip and artm
+
+       if (glacier%snow_calc == GLACIER_SNOW_CALC_SNOW) then
+
+          snow(:,:) = model%climate%snow(:,:)
+          snow_dartm(:,:) = model%climate%snow(:,:)
+
+       elseif (glacier%snow_calc == GLACIER_SNOW_CALC_PRECIP_ARTM) then
+
+          call glacier_calc_snow(&
+               ewn,       nsn,                   &
+               glacier%snow_threshold_min,       &
+               glacier%snow_threshold_max,       &
+               model%climate%precip,             &
+               model%climate%artm_corrected,     &
+               snow)
+
+          call glacier_calc_snow(&
+               ewn,       nsn,                   &
+               glacier%snow_threshold_min,       &
+               glacier%snow_threshold_max,       &
+               model%climate%precip,             &
+               model%climate%artm_corrected + delta_artm_2d(:,:),  &
+               snow_dartm)
+
+       endif
+
+       ! Accumulate snow_2d, snow_dartm_2d, Tpos_2d, Tpos_dartm_2d, and dthck_dt_2d over this timestep
 
        call accumulate_glacier_fields(&
             ewn,                    nsn,                    &
             dt,                     time_since_last_avg,    &
-            model%climate%snow,     glacier%snow_2d,        &  ! mm/yr w.e.
+            snow,                   glacier%snow_2d,        &  ! mm/yr w.e.
             Tpos,                   glacier%Tpos_2d,        &  ! deg C
+            snow_dartm,             glacier%snow_dartm_2d,  &  ! mm/yr w.e.
             Tpos_dartm,             glacier%Tpos_dartm_2d,  &  ! deg C
             dthck_dt,               glacier%dthck_dt_2d)       ! m/yr ice
 
        if (verbose_glacier .and. this_rank == rtest) then
           print*, ' '
           print*, 'In glissade_glacier_inversion, diag cell (r, i, j) =', rtest, itest, jtest
+          print*, 'snow thresholds:', glacier%snow_threshold_min, glacier%snow_threshold_max
           i = itest; j = jtest
-          print*, 'r, i, j, time, time_since_last_avg, snow, Tpos, Tpos_dartm:', &
-               this_rank, i, j, model%numerics%time, time_since_last_avg, &
-               glacier%snow_2d(i,j), glacier%Tpos_2d(i,j), glacier%Tpos_dartm_2d(i,j)
+          print*, 'r, i, j, time, artm, precip, snow, snow_dartm, Tpos, Tpos_dartm:', &
+               this_rank, i, j, model%numerics%time, &
+               model%climate%artm_corrected(i,j), model%climate%precip(i,j), &
+               snow(i,j), snow_dartm(i,j), Tpos(i,j), Tpos_dartm(i,j)
        endif
 
        ! Check whether it is time to do the inversion.
@@ -1064,6 +1147,7 @@ contains
                time_since_last_avg,           &  ! yr
                glacier%snow_2d,               &  ! mm/yr w.e.
                glacier%Tpos_2d,               &  ! deg C
+               glacier%snow_dartm_2d,         &  ! mm/yr w.e.
                glacier%Tpos_dartm_2d,         &  ! deg C
                glacier%dthck_dt_2d)              ! m/yr ice
 
@@ -1071,7 +1155,8 @@ contains
              i = itest; j = jtest
              print*, ' '
              print*, 'Annual averages, r, i, j:', rtest, itest, jtest
-             print*, '   snow (mm/yr w.e.)  =', glacier%snow_2d(i,j)
+             print*, '   snow (mm/yr)       =', glacier%snow_2d(i,j)
+             print*, '   snow_dartm (mm/yr) =', glacier%snow_dartm_2d(i,j)
              print*, '   Tpos (deg C)       =', glacier%Tpos_2d(i,j)
              print*, '   Tpos_dartm (deg C) =', glacier%Tpos_dartm_2d(i,j)
              print*, '   dthck_dt (m/yr)    =', glacier%dthck_dt_2d(i,j)
@@ -1115,7 +1200,7 @@ contains
 
              ! Repeat using the delta_artm correction
 
-             smb_annmean(:,:) = glacier%snow_2d(:,:) - mu_star_2d(:,:) * glacier%Tpos_dartm_2d(:,:)
+             smb_annmean(:,:) = glacier%snow_dartm_2d(:,:) - mu_star_2d(:,:) * glacier%Tpos_dartm_2d(:,:)
 
              call glacier_2d_to_1d(&
                   ewn,             nsn,                          &
@@ -1129,7 +1214,7 @@ contains
                   nglacier,        glacier%cism_glacier_id,  &
                   glacier%mu_star, mu_star_2d)
 
-             smb_annmean(:,:) = glacier%snow_2d(:,:) - mu_star_2d(:,:) * glacier%Tpos_dartm_2d(:,:)
+             smb_annmean(:,:) = glacier%snow_dartm_2d(:,:) - mu_star_2d(:,:) * glacier%Tpos_dartm_2d(:,:)
 
              call glacier_2d_to_1d(&
                   ewn,             nsn,                     &
@@ -1140,13 +1225,15 @@ contains
              if (verbose_glacier .and. this_rank == rtest) then
                 print*, ' '
                 ng = ngdiag
-                print*, 'ngdiag, smb_init_area (mm/yr w.e.), smb_init_area_dartm, smb_current_area_dartm, mu_star:'
-                write(6,'(i6,f20.14, 3f12.4)') ng, smb_init_area(ng), smb_init_area_dartm(ng), &
-                     smb_current_area_dartm(ng), glacier%mu_star(ng)
+                if (ng > 0) then
+                   print*, 'ngdiag, smb_init_area (mm/yr w.e.), smb_init_area_dartm, smb_current_area_dartm, mu_star:'
+                   write(6,'(i6,4f12.4)') ng, smb_init_area(ng), smb_init_area_dartm(ng), &
+                        smb_current_area_dartm(ng), glacier%mu_star(ng)
+                endif
                 print*, ' '
                 print*, ngtot, 'glaciers: smb_init_area (mm/yr w.e.), smb_init_area_dartm, smb_current_area, mu_star:'
                 do ng = 1, ngtot
-                   write(6,'(i6,f20.14, 3f12.4)') ng, smb_init_area(ng), smb_init_area_dartm(ng), &
+                   write(6,'(i6,4f12.4)') ng, smb_init_area(ng), smb_init_area_dartm(ng), &
                         smb_current_area_dartm(ng), glacier%mu_star(ng)
                 enddo
              endif
@@ -1164,8 +1251,8 @@ contains
              ! Here, we update delta_artm for each glacier such that SMB is close to zero.
              ! May not have SMB exactly zero because of the max term in the SMB formula.
              !
-             ! If snow_2d - mu_star * Tpos_dartm_2d > 0, delta_artm will become more negative
-             ! If snow_2d - mu_star * Tpos_dartm_2d < 0, delta_artm will become more positive
+             ! If snow_dartm_2d - mu_star * Tpos_dartm_2d > 0, delta_artm will become more negative
+             ! If snow_dartm_2d - mu_star * Tpos_dartm_2d < 0, delta_artm will become more positive
              !
              ! Note: The value of delta_artm computed here is not used directly for powerlaw_c inversion.
              !       Rather, it is passed into subroutine glissade_glacier_smb to minimize the change
@@ -1183,7 +1270,7 @@ contains
                   ewn,              nsn,         &
                   nglacier,         ngdiag,      &
                   glacier%cism_glacier_id_init,  &
-                  glacier%snow_2d,               &
+                  glacier%snow_dartm_2d,         &
                   glacier%Tpos_dartm_2d,         &
                   glacier%mu_star,               &
                   glacier%delta_artm)
@@ -1364,7 +1451,7 @@ contains
        ewn,              nsn,                &
        nglacier,         ngdiag,             &
        cism_glacier_id_init,                 &
-       snow_2d,          Tpos_dartm_2d,      &
+       snow_dartm_2d,    Tpos_dartm_2d,      &
        mu_star,          delta_artm)
 
     ! Given mu_star for each glacier, compute a temperature correction delta_artm
@@ -1380,8 +1467,8 @@ contains
          ngdiag                         ! CISM ID of diagnostic glacier
 
     real(dp), dimension(ewn,nsn), intent(in) :: &
-         snow_2d,                  & ! time-avg snowfall for each cell (mm/yr w.e.)
-         Tpos_dartm_2d               ! time-avg of max(artm + delta_artm - T_mlt, 0) for each cell (deg)
+         snow_dartm_2d,               & ! time-avg snowfall for each cell (mm/yr w.e.), including dartm adjustment
+         Tpos_dartm_2d                  ! time-avg of max(artm + delta_artm - T_mlt, 0) for each cell (deg)
 
     integer, dimension(ewn,nsn), intent(in) :: &
          cism_glacier_id_init           ! cism_glacier_id at the start of the run
@@ -1396,12 +1483,13 @@ contains
     integer :: i, j, ng
 
     real(dp), dimension(nglacier) :: &
-         glacier_snow, glacier_Tpos_dartm   ! average snow and Tpos for each glacier
+         glacier_snow_dartm,          & ! average snow_dartm for each glacier
+         glacier_Tpos_dartm             ! average Tpos_dartm for each glacier
 
     real(dp) :: artm_correction
 
     ! The SMB for glacier ng is given by
-    !      sum_ij(smb) = sum_ij(snow) - mu_star(ng) * sum_ij(Tpos_dartm),
+    !      sum_ij(smb) = sum_ij(snow_dartm) - mu_star(ng) * sum_ij(Tpos_dartm),
     ! where Tpos_dartm = max(artm + delta_artm  - T_mlt, 0),
     ! and sum_ij notes a sum over all cells (i,j) in the glacier.
     !
@@ -1410,17 +1498,17 @@ contains
     !
     ! Rearranging, we get
     !
-    !      artm_correction = (sum_ij(snow) - mu_star*sum_ij(Tpos_dartm)) / mu_star
+    !      artm_correction = (sum_ij(snow_dartm) - mu_star*sum_ij(Tpos_dartm)) / mu_star
     !
 
-    ! Compute the average of snow_2d and Tpos_dartm_2d over each glacier
+    ! Compute the average of snow_dartm_2d and Tpos_dartm_2d over each glacier
 
     call glacier_2d_to_1d(&
          ewn,              nsn,         &
          nglacier,                      &
          cism_glacier_id_init,          &
-         snow_2d,                       &
-         glacier_snow)
+         snow_dartm_2d,                 &
+         glacier_snow_dartm)
 
     call glacier_2d_to_1d(&
          ewn,              nsn,         &
@@ -1437,15 +1525,15 @@ contains
     !        over several timesteps.
 
     do ng = 1, nglacier
-       artm_correction = (glacier_snow(ng) - mu_star(ng) * glacier_Tpos_dartm(ng))   &
+       artm_correction = (glacier_snow_dartm(ng) - mu_star(ng) * glacier_Tpos_dartm(ng))   &
                       / mu_star(ng)
        delta_artm(ng) = delta_artm(ng) + artm_correction
 
        if (verbose_glacier .and. main_task .and. ng == ngdiag) then
           print*, ' '
           print*, 'glacier_adjust_artm, ng =', ng
-          print*, 'glacier-average snow, Tpos_dartm, mu_star:', &
-               glacier_snow(ng), glacier_Tpos_dartm(ng), mu_star(ng)
+          print*, 'glacier-average snow_dartm, Tpos_dartm, mu_star:', &
+               glacier_snow_dartm(ng), glacier_Tpos_dartm(ng), mu_star(ng)
           print*, 'artm correction =', artm_correction
           print*, 'New delta_artm  =', delta_artm(ng)
        endif
@@ -1633,6 +1721,46 @@ contains
 
 !****************************************************
 
+  subroutine glacier_calc_snow(&
+       ewn,       nsn,       &
+       snow_threshold_min,   &
+       snow_threshold_max,   &
+       precip,               &
+       artm,                 &
+       snow)
+
+    ! Given the precip rate and surface air temperature, compute the snowfall rate.
+    ! Assume that the ratio snow/precip is given by a linear ramp between two thresholds.
+
+    ! input/output arguments
+
+    integer, intent(in) ::  &
+         ewn, nsn                  ! number of cells in each horizontal direction
+
+    real(dp), intent(in) :: &
+         snow_threshold_min,     & ! air temperature (deg C) below which all precip falls as snow
+         snow_threshold_max        ! air temperature (deg C) above which all precip falls as rain
+
+    real(dp), dimension(ewn,nsn), intent(in) :: &
+         precip,                 & ! precipitation rate (mm/yr w.e.)
+         artm                      ! surface air temperature (deg C)
+
+    real(dp), dimension(ewn,nsn), intent(out) :: &
+         snow                      ! snowfall rate (mm/yr w.e.)
+
+    where(artm >= snow_threshold_max)
+       snow = 0.0d0
+    elsewhere (artm < snow_threshold_min)
+       snow = precip
+    elsewhere
+       snow = precip * (snow_threshold_max - artm) &
+            / (snow_threshold_max - snow_threshold_min)
+    endwhere
+
+  end subroutine glacier_calc_snow
+
+!****************************************************
+
   subroutine glacier_2d_to_1d(&
        ewn,           nsn,              &
        nglacier,      cism_glacier_id,  &
@@ -1781,7 +1909,7 @@ contains
     do j = nhalo+1, nsn-nhalo
        do i = nhalo+1, ewn-nhalo
           ng = cism_glacier_id(i,j)
-          if (ng >= 1) then
+          if (ng > 0) then
              local_area(ng) = local_area(ng) + cell_area
              local_volume(ng) = local_volume(ng) + cell_area * thck(i,j)
           endif
@@ -1817,6 +1945,7 @@ contains
        dt,             time_since_last_avg, &
        snow,           snow_2d,             &
        Tpos,           Tpos_2d,             &
+       snow_dartm,     snow_dartm_2d,       &
        Tpos_dartm,     Tpos_dartm_2d,       &
        dthck_dt,       dthck_dt_2d)
 
@@ -1833,19 +1962,22 @@ contains
     real(dp), dimension(ewn, nsn), intent(in) ::  &
          snow,                     & ! snowfall rate (mm/yr w.e.)
          Tpos,                     & ! max(artm - T_mlt, 0) (deg C)
+         snow_dartm,               & ! snowfall rate (mm/yr w.e.) with dartm adjustment
          Tpos_dartm,               & ! max(artm + delta_artm - T_mlt, 0) (deg C)
          dthck_dt                    ! rate of change of ice thickness (m/yr)
 
     real(dp), dimension(ewn, nsn), intent(inout) ::  &
          snow_2d,                  & ! accumulated snow (mm/yr w.e.)
          Tpos_2d,                  & ! accumulated Tpos (deg C)
-         Tpos_dartm_2d,            & ! accumulated Tpos (deg C)
+         snow_dartm_2d,            & ! accumulated snow_dartm (mm/yr w.e.)
+         Tpos_dartm_2d,            & ! accumulated Tpos_dartm (deg C)
          dthck_dt_2d                 ! rate of change of ice thickness (m/yr)
 
     time_since_last_avg = time_since_last_avg + dt
 
     snow_2d = snow_2d + snow * dt
     Tpos_2d = Tpos_2d + Tpos * dt
+    snow_dartm_2d = snow_dartm_2d + snow_dartm * dt
     Tpos_dartm_2d = Tpos_dartm_2d + Tpos_dartm * dt
     dthck_dt_2d = dthck_dt_2d + dthck_dt * dt
 
@@ -1858,6 +1990,7 @@ contains
        time_since_last_avg,      &
        snow_2d,                  &
        Tpos_2d,                  &
+       snow_dartm_2d,            &
        Tpos_dartm_2d,            &
        dthck_dt_2d)
 
@@ -1872,11 +2005,13 @@ contains
     real(dp), dimension(ewn, nsn), intent(inout) ::  &
          snow_2d,                  & ! snow (mm/yr w.e.)
          Tpos_2d,                  & ! max(artm - T_mlt, 0) (deg C)
+         snow_dartm_2d,            & ! snow (mm/yr w.e.) with dartm adjustment
          Tpos_dartm_2d,            & ! max(artm + delta_artm - T_mlt, 0) (deg C)
          dthck_dt_2d                 ! rate of change of ice thickness (m/yr)
 
     snow_2d = snow_2d / time_since_last_avg
     Tpos_2d = Tpos_2d / time_since_last_avg
+    snow_dartm_2d = snow_dartm_2d / time_since_last_avg
     Tpos_dartm_2d = Tpos_dartm_2d / time_since_last_avg
     dthck_dt_2d = dthck_dt_2d / time_since_last_avg
 
@@ -1890,6 +2025,7 @@ contains
        ewn,        nsn,        &
        snow_2d,                &
        Tpos_2d,                &
+       snow_dartm_2d,          &
        Tpos_dartm_2d,          &
        dthck_dt_2d)
 
@@ -1901,12 +2037,14 @@ contains
     real(dp), dimension(ewn,nsn), intent(inout) ::  &
          snow_2d,               & ! snow (mm/yr w.e.)
          Tpos_2d,               & ! max(artm - T_mlt, 0) (deg C)
+         snow_dartm_2d,         & ! snow (mm/yr w.e.) with dartm adjustment
          Tpos_dartm_2d,         & ! max(artm + delta_artm - T_mlt, 0) (deg C)
          dthck_dt_2d              ! rate of change of ice thickness (m/yr)
 
     ! Reset the accumulated fields to zero
     snow_2d = 0.0d0
     Tpos_2d = 0.0d0
+    snow_dartm_2d = 0.0d0
     Tpos_dartm_2d = 0.0d0
     dthck_dt_2d = 0.0d0
 
