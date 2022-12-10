@@ -364,6 +364,7 @@ contains
     call GetValue(section,'time_offset',handle_forcing%time_offset)
     call GetValue(section,'nyear_cycle',handle_forcing%nyear_cycle)
     call GetValue(section,'time_start_cycle',handle_forcing%time_start_cycle)
+    call GetValue(section,'read_once', handle_forcing%read_once) ! WHL - if true, then read in all time slices just once, at initialization
 
     handle_forcing%current_time = handle_forcing%get_time_slice
 
@@ -381,6 +382,9 @@ contains
           call write_log(message)
           write(message,*) '   nyear_cycle:', handle_forcing%nyear_cycle
           call write_log(message)
+       endif
+       if (handle_forcing%read_once) then
+          call write_log('All time slices will be read just once, at initialization')
        endif
     end if
 

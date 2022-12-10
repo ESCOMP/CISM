@@ -773,6 +773,7 @@ long_name:     snowfall rate
 data:          data%climate%snow
 factor:        1.0
 load:          1
+read_once:     1
 
 [precip]
 dimensions:    time, y1, x1
@@ -781,6 +782,7 @@ long_name:     precipitation rate
 data:          data%climate%precip
 factor:        1.0
 load:          1
+read_once:     1
 
 [acab]
 dimensions:    time, y1, x1
@@ -851,6 +853,7 @@ long_name:     surface temperature at reference elevation
 data:          data%climate%artm_ref
 standard_name: land_ice_surface_temperature_reference
 load:          1
+read_once:     1
 
 [artm_gradz]
 dimensions:    time, y1, x1
