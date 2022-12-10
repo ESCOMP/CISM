@@ -135,7 +135,11 @@ subroutine cism_init_dycore(model)
   call eismint_surftemp(model%eismint_climate,model,time)
 
   ! read forcing time slice if needed - this will overwrite values from IC file if there is a conflict.
+  ! Note: The first 'model' is passed to the argument 'data', which is filled by calling glide_read.
   call glide_read_forcing(model, model)
+
+  ! Optionally, read all the time slices at once from selected forcing files.
+  call glide_read_forcing_once(model, model)
 
   call spinup_lithot(model)
 
@@ -281,16 +285,16 @@ subroutine cism_run_dycore(model)
     do while(time + time_eps < model%numerics%tend)
 
       !!! SFP moved block of code for applying time dependent forcing read in from netCDF here,
-      !!! as opposed to at the end of the time step (commented it out in it's original location for now)
+      !!! as opposed to at the end of the time step (commented it out in its original location for now)
       !!! This is a short-term fix. See additional discussion as part of issue #19 (in cism-piscees github repo).
 
       ! Forcing from a 'forcing' data file - will read time slice if needed
-      ! Note: Forcing is read from the appropriate time slice after every dynamic time step.
-      !       This is not strictly necessary if there are multiple time steps per forcing time slice.
-      !       We would need additional logic if we wanted to read a new time slice only when needed
-      !        to replace the current data.  TODO: Add this logic?
       call t_startf('read_forcing')
       call glide_read_forcing(model, model)
+
+      ! If any forcing data have been read once into Fortran arrays at initialization,
+      !  simply copy the data based on the current forcing time.
+      call glide_retrieve_forcing(model, model)
       call t_stopf('read_forcing')
 
       ! Increment time step
