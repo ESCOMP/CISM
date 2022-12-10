@@ -34,6 +34,7 @@ dimensions = {}
 module = {}
 
 AVERAGE_SUFFIX = 'tavg'
+READ_ONCE_SUFFIX = 'read_once'
 
 def dimid(name):
     return '%s_dimid'%name
@@ -97,6 +98,17 @@ class Variables(dict):
                     vardef['average'] = False
             else:
                 vardef['average'] = False
+
+            #WHL - added option to read some forcing fields only once, at initialization
+            if 'read_once' in vardef:
+                if vardef['read_once'].lower() in ['1','true','t']:
+                    vardef['read_once'] = True
+                    self.__have_read_once = True
+                else:
+                    vardef['read_once'] = False
+            else:
+                vardef['read_once'] = False
+
             # handle dims
             for d in vardef['dimensions'].split(','):
                 d=d.strip()
@@ -123,7 +135,6 @@ class Variables(dict):
                 vardef_avg['avg_factor'] = 'tavgf'
                 # and add to dictionary
                 self.__setitem__('%s_%s'%(v,AVERAGE_SUFFIX),vardef_avg)
-                
 
     def keys(self):
         """Reorder standard keys alphabetically."""
@@ -236,6 +247,10 @@ class PrintNC_template(PrintVars):
         self.handletoken['!GENVAR_ACCESSORS!'] = self.print_var_accessor
         self.handletoken['!GENVAR_CALCAVG!'] = self.print_var_avg_accu
         self.handletoken['!GENVAR_RESETAVG!'] = self.print_var_avg_reset
+        #WHL - Added for read_once forcing capability
+        self.handletoken['!GENVAR_READ_ONCE_ALLOCATE!'] = self.print_var_read_once_allocate
+        self.handletoken['!GENVAR_READ_ONCE_FILL!'] = self.print_var_read_once_fill
+        self.handletoken['!GENVAR_READ_ONCE_RETRIEVE!'] = self.print_var_read_once_retrieve
 
     def write(self,vars):
         """Merge ncdf.F90.in with definitions."""
@@ -678,6 +693,32 @@ class PrintNC_template(PrintVars):
             self.stream.write("    if (status .eq. nf90_noerr) then\n")
             self.stream.write("       %s = 0.\n"%avgdata)
             self.stream.write("    end if\n\n")
+
+    #WHL - Added print_var defs for read_once capability
+    def print_var_read_once_allocate(self,var):
+        """Allocate read_once arrays"""
+
+        if var['read_once']:
+            read_once_data = '%s_%s'%(var['data'],READ_ONCE_SUFFIX)
+            self.stream.write("          if (.not.associated(%s)) then\n"%read_once_data)
+            self.stream.write("             nx = size(%s,1)\n"%var['data'])
+            self.stream.write("             ny = size(%s,2)\n"%var['data'])
+            self.stream.write("             allocate(%s(nx,ny,nt))\n"%read_once_data)
+            self.stream.write("          end if\n\n")
+
+    def print_var_read_once_fill(self,var):
+        """Fill read_once arrays"""
+
+        if var['read_once']:
+            read_once_data = '%s_%s'%(var['data'],READ_ONCE_SUFFIX)
+            self.stream.write("             %s(:,:,t) = %s(:,:)\n"%(read_once_data,var['data']))
+
+    def print_var_read_once_retrieve(self,var):
+        """Retrieve data from read_once arrays"""
+
+        if var['read_once']:
+            read_once_data = '%s_%s'%(var['data'],READ_ONCE_SUFFIX)
+            self.stream.write("             %s(:,:) = %s(:,:,t)\n"%(var['data'],read_once_data))
 
 def usage():
     """Short help message."""
