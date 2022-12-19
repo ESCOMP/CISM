@@ -1991,8 +1991,8 @@ contains
        if (verbose_glacier .and. this_rank == rtest) then
           i = itest; j = jtest
           print*, ' '
-          print*, 'rank, i, j, usrf, usrf_ref, dz:', this_rank, i, j, &
-               model%geometry%usrf(i,j)*thk0, model%climate%usrf_ref(i,j), &
+          print*, 'rank, i, j, usrf_ref, usrf, dz:', this_rank, i, j, &
+               model%climate%usrf_ref(i,j), model%geometry%usrf(i,j)*thk0, &
                model%geometry%usrf(i,j)*thk0 - model%climate%usrf_ref(i,j)
           print*, '   artm_ref, artm:', model%climate%artm_ref(i,j), model%climate%artm(i,j)
        endif
