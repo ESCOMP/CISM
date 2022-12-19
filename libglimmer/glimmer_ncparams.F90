@@ -364,7 +364,12 @@ contains
     call GetValue(section,'time_offset',handle_forcing%time_offset)
     call GetValue(section,'nyear_cycle',handle_forcing%nyear_cycle)
     call GetValue(section,'time_start_cycle',handle_forcing%time_start_cycle)
-    call GetValue(section,'read_once', handle_forcing%read_once) ! WHL - if true, then read in all time slices just once, at initialization
+
+    ! if shuffle_file is present, then read an ASCII file with a shuffled list of forcing years
+    call GetValue(section,'shuffle_file', handle_forcing%shuffle_file)
+
+    ! if read_once = true, then read in all time slices just once, at initialization
+    call GetValue(section,'read_once', handle_forcing%read_once)
 
     handle_forcing%current_time = handle_forcing%get_time_slice
 
@@ -381,6 +386,10 @@ contains
           write(message,*) '   time_start_cycle:', handle_forcing%time_start_cycle
           call write_log(message)
           write(message,*) '   nyear_cycle:', handle_forcing%nyear_cycle
+          call write_log(message)
+       endif
+       if (trim(handle_forcing%shuffle_file) /= '') then
+          write(message,*) '   shuffle_file: ', trim(handle_forcing%shuffle_file)
           call write_log(message)
        endif
        if (handle_forcing%read_once) then

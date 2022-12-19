@@ -208,6 +208,9 @@ module glimmer_ncdf
      integer                        :: nyear_cycle = 0            !> Cycle repeatedly through nyear_cycle years of forcing data
                                                                   !> No cycling unless nyear_cycle > 0
 
+     ! if shuffle_file is present, then read an ASCII file with a shuffled list of forcing years
+     character(len=fname_length)    :: shuffle_file = ''
+
      ! The following parameter can be set to .true. to read all forcing time slices at initialization.
      ! This increases the required storage, but can reduce computational time if applying the same N years
      ! of forcing repeatedly, either cycled or shuffled.
