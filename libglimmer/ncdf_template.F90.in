@@ -590,6 +590,11 @@ contains
     real(dp) :: current_forcing_time   ! current time with reference to the forcing file
     real(dp) :: eps                    ! a tolerance to use for stepwise constant forcing
     logical :: retrieve_new_slice      ! if true, then retrieve data for this forcing time slice
+    integer :: forcing_year            ! year of data from the forcing file
+    integer :: this_year               ! current simulation year relative to tstart; starts at 0
+    integer :: year1, year2            ! years read from the shuffle file
+    real(dp) :: decimal_year           ! decimal part of the current year
+
     logical, parameter :: verbose_read_forcing = .false.
 
     ! Make eps a fraction of the time step
@@ -622,11 +627,43 @@ contains
 
           if (main_task .and. verbose_read_forcing) then
              print*, 'In NAME_retrieve_forcing, model time + eps =', model%numerics%time + eps
-             print*, 'Filename =', trim(ic%nc%filename)
+             print*, 'Filename = ', trim(ic%nc%filename)
              print*, 'Forcing file nt, time_offset =', ic%nt, ic%time_offset
              print*, 'time_start_cycle, nyear_cycle:', ic%time_start_cycle, ic%nyear_cycle
              print*, 'current forcing time =', current_forcing_time
           endif
+
+           ! Optionally, associate the current forcing time with a different date in the forcing file.
+           ! This is done by reading a file that associates each simulation year (relative to tstart)
+           !  with a year that is read from a 'shuffle file'. The shuffle file typically consists of
+           !  consecutive integers (in column 1), followed by years chosen at random from all the years
+           !  in the forcing file (in column 2).
+
+           if (trim(ic%shuffle_file) /= '') then  ! shuffle_file exists
+              open(unit=11, file=trim(ic%shuffle_file), status='old')
+              this_year = int(current_forcing_time - model%numerics%tstart)
+              if (main_task .and. verbose_read_forcing) then
+                 print*, 'shuffle_file = ', trim(ic%shuffle_file)
+                 print*, 'tstart, this_year =', model%numerics%tstart, this_year
+              endif
+              forcing_year = 0
+              do while (forcing_year == 0)
+                 read(11,'(i6,i8)') year1, year2
+                 if (this_year == year1) then
+                    forcing_year = year2
+                    exit
+                 endif
+              enddo
+              close(11)
+              decimal_year = current_forcing_time - floor(current_forcing_time)
+              current_forcing_time = real(forcing_year,dp) + decimal_year
+              if (main_task) then
+                 print*, 'forcing_year, decimal =', forcing_year, decimal_year
+                 print*, 'shuffled forcing_time =', current_forcing_time
+              endif
+           else
+              if (main_task .and. verbose_read_forcing) print*, 'no shuffle_file'
+           endif  ! shuffle_file exists
 
           ! Find the time index associated with the previous model time step
           t_prev = 0
