@@ -3165,6 +3165,8 @@ contains
     call GetValue(section,'t_mlt',              model%glacier%t_mlt)
     call GetValue(section,'snow_threshold_min', model%glacier%snow_threshold_min)
     call GetValue(section,'snow_threshold_max', model%glacier%snow_threshold_max)
+    call GetValue(section,'diagnostic_minthck', model%glacier%diagnostic_minthck)
+    call GetValue(section,'snow_reduction_factor', model%glacier%snow_reduction_factor)
 
   end subroutine handle_glaciers
 
@@ -3227,6 +3229,15 @@ contains
           call write_log('Error, glacier_snow_calc option out of range', GM_FATAL)
        end if
 
+       if (model%glacier%set_powerlaw_c == GLACIER_POWERLAW_C_INVERSION) then
+          write(message,*) 'powerlaw_c_timescale      :  ', model%inversion%babc_timescale
+          call write_log(message)
+          write(message,*) 'powerlaw_c_thck_scale     :  ', model%inversion%babc_thck_scale
+          call write_log(message)
+          write(message,*) 'powerlaw_c_relax_factor   :  ', model%inversion%babc_relax_factor
+          call write_log(message)
+       endif
+
        if (model%glacier%snow_calc == GLACIER_SNOW_CALC_PRECIP_ARTM) then
           write(message,*) 'snow_threshold_min (deg C): ', model%glacier%snow_threshold_min
           call write_log(message)
@@ -3235,6 +3246,10 @@ contains
        endif
 
        write(message,*) 'glacier T_mlt (deg C)     :  ', model%glacier%t_mlt
+       call write_log(message)
+       write(message,*) 'glc snow reduction factor :  ', model%glacier%snow_reduction_factor
+       call write_log(message)
+       write(message,*) 'glc diagnostic minthck (m):  ', model%glacier%diagnostic_minthck
        call write_log(message)
 
     endif   ! enable_glaciers
@@ -3724,10 +3739,10 @@ contains
        elseif (model%glacier%set_powerlaw_c == GLACIER_POWERLAW_C_EXTERNAL) then
           call glide_add_to_restart_variable_list('powerlaw_c')
        endif
-       !TODO: Are area_target and volume_target needed?
+       !TODO: Are area_init and volume_init needed?
        !      These could be computed based on cism_glacier_id_init and usrf_obs.
-       call glide_add_to_restart_variable_list('glacier_volume_target')
-       call glide_add_to_restart_variable_list('glacier_area_target')
+       call glide_add_to_restart_variable_list('glacier_volume_init')
+       call glide_add_to_restart_variable_list('glacier_area_init')
     endif
 
     ! TODO bmlt was set as a restart variable, but I'm not sure when or if it is needed.

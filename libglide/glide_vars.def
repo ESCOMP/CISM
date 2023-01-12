@@ -1671,18 +1671,18 @@ units:         m3
 long_name:     glacier volume
 data:          data%glacier%volume
 
-[glacier_area_target]
+[glacier_area_init]
 dimensions:    time, glacierid
 units:         m2
-long_name:     glacier area target
-data:          data%glacier%area_target
+long_name:     initial glacier area
+data:          data%glacier%area_init
 load:          1
 
-[glacier_volume_target]
+[glacier_volume_init]
 dimensions:    time, glacierid
 units:         m3
-long_name:     glacier volume target
-data:          data%glacier%volume_target
+long_name:     initial glacier volume
+data:          data%glacier%volume_init
 load:          1
 
 [glacier_mu_star]
