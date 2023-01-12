@@ -31,8 +31,8 @@ module glissade_inversion
   use glimmer_log
   use glide_types
   use glide_thck, only: glide_calclsrf
-  use cism_parallel, only: this_rank, main_task, nhalo, &
-       parallel_type, parallel_halo, staggered_parallel_halo, &
+  use cism_parallel, only: this_rank, main_task, nhalo, parallel_type, &
+       parallel_halo, staggered_parallel_halo, staggered_parallel_halo_extrapolate, &
        parallel_reduce_min, parallel_reduce_max
 
   implicit none
@@ -258,8 +258,9 @@ contains
        ! initialize powerlaw_c, if not already read in
        var_maxval = maxval(model%basal_physics%powerlaw_c)
        var_maxval = parallel_reduce_max(var_maxval)
-       if (var_maxval > 0.0d0) then
-          ! do nothing; powerlaw_c has been read in already (e.g., when restarting)
+       if (var_maxval > 0.0d0) then  ! powerlaw_c has been read in already (e.g., when restarting)
+          ! halo update with extrapolation to the global boundary
+          call staggered_parallel_halo_extrapolate(model%basal_physics%powerlaw_c, parallel)
        else
           ! initialize to a uniform value (which can be set in the config file)
           model%basal_physics%powerlaw_c(:,:) = model%basal_physics%powerlaw_c_const
@@ -281,8 +282,9 @@ contains
        ! initialize coulomb_c, if not already read in
        var_maxval = maxval(model%basal_physics%coulomb_c)
        var_maxval = parallel_reduce_max(var_maxval)
-       if (var_maxval > 0.0d0) then
-          ! do nothing; coulomb_c has been read in already (e.g., when restarting)
+       if (var_maxval > 0.0d0) then  ! coulomb_c has been read in already (e.g., when restarting)
+          ! halo update with extrapolation to the global boundary
+          call staggered_parallel_halo_extrapolate(model%basal_physics%coulomb_c, parallel)
        else
 
           if (model%options%which_ho_coulomb_c_relax == HO_COULOMB_C_RELAX_NONE .or.  &
@@ -592,6 +594,9 @@ contains
 
        if (invert_powerlaw_c) then
 
+          !TODO - Add an option to set based on elevation, like coulomb_c?
+          model%basal_physics%powerlaw_c_relax = model%basal_physics%powerlaw_c_const
+
           if (verbose_inversion .and. this_rank == rtest) then
              i = itest
              j = jtest
@@ -604,9 +609,6 @@ contains
                 print*, ' '
              enddo
           endif   ! verbose_inversion
-
-          !TODO - Add an option to set based on elevation, like coulomb_c?
-          model%basal_physics%powerlaw_c_relax = model%basal_physics%powerlaw_c_const
 
           call invert_basal_friction(model%numerics%dt*tim0,                   &  ! s
                                      ewn,               nsn,                   &
@@ -1043,7 +1045,11 @@ contains
              ! * When C = C_r, there is no further relaxation.
              ! * In steady state (dC/dt = 0, dH/dt = 0), we have dthck/thck_scale = -k * ln(C/C_r),
              !    or C = C_r * exp(-dthck/(k*thck_scale)), where k is a prescribed constant.
-             term_relax = -babc_relax_factor * log(friction_c(i,j)/friction_c_relax(i,j)) / babc_timescale
+             if (friction_c(i,j) > 0.0d0 .and. friction_c_relax(i,j) > 0.0d0) then
+                term_relax = -babc_relax_factor * log(friction_c(i,j)/friction_c_relax(i,j)) / babc_timescale
+             else
+                term_relax = 0.0d0
+             endif
 
              dfriction_c(i,j) = friction_c(i,j) * dt &
                   * (term_thck + term_dHdt + term_thck2 + term_velo + term_relax)
@@ -1079,12 +1085,14 @@ contains
                 print*, 'dfriction_c, new friction_c =', dfriction_c(i,j), friction_c(i,j)
              endif
 
-          else   ! no ice present; relax friction_c to the default value
+          else   ! f_ground = 0; relax friction_c to the default value
 
-             term_relax = -babc_relax_factor * log(friction_c(i,j)/friction_c_relax(i,j)) / babc_timescale
-             friction_c(i,j) = friction_c(i,j) * (1.0d0 + term_relax*dt)
+             if (friction_c(i,j) > 0.0d0 .and. friction_c_relax(i,j) > 0.0d0) then
+                term_relax = -babc_relax_factor * log(friction_c(i,j)/friction_c_relax(i,j)) / babc_timescale
+                friction_c(i,j) = friction_c(i,j) * (1.0d0 + term_relax*dt)
+             endif
 
-          endif  ! ice_mask = 1
+          endif  ! f_ground > 0
 
        enddo  ! i
     enddo  ! j

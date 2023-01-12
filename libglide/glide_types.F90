@@ -844,8 +844,8 @@ module glide_types
     !> Flag for basal powerlaw_c options
     !> \begin{description}
     !> \item[0] powerlaw_c = spatially uniform constant
-    !> \item[1] powerlaw_c = invert for 2D coulomb_c
-    !> \item[2] powerlaw_c = read 2D coulomb_c from external file
+    !> \item[1] powerlaw_c = invert for 2D powerlaw_c
+    !> \item[2] powerlaw_c = read 2D powerlaw_c from external file
     !> \end{description}
 
     integer :: which_ho_coulomb_c = 0

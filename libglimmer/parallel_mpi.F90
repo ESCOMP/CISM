@@ -9350,7 +9350,6 @@ contains
     endif
 
     ! Extrapolate the staggered field into halo cells along the global boundary.
-    ! Currently this is used only for kinbcmask.
     ! Note: The extrapolation region includes locally owned cells along
     !       the north and east boundaries of the global domain.
 
@@ -9361,7 +9360,8 @@ contains
     !  just the owned cells in those columns.  This avoids having the halos have
     !  potentially wrong information (i.e., a few cells in the corner don't get extrapolated into)
 
-! Useful for debugging small domains (the YYYY is just a tag for grepping the output, particularly if you prepend the processor number, e.g. "0YYYY")
+! Useful for debugging small domains (the YYYY is just a tag for grepping the output, 
+! particularly if you prepend the processor number, e.g. "0YYYY")
 !  do j = 1, size(a,2)
 !     write(6, "(i3, 'YYYY BEFORE row ', i3, 1000e9.2)")  this_rank, j, a(:,j)
 !  enddo
