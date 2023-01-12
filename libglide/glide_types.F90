@@ -1862,6 +1862,8 @@ module glide_types
      ! parameters
      ! Note: glacier%tmlt can be set by the user in the config file.
      !       glacier%minthck is currently set at initialization based on model%numerics%thklim.
+     !       glacier%diagnostic_minthck is used only for diagnostic area and volume sums;
+     !        it does not enter the inversion or dynamics.
      !       Other glacier parameters are declared at the top of module glissade_glacier.
      !       These could be added to the derived type.
 
@@ -1869,12 +1871,18 @@ module glide_types
                                         !> Maussion et al. suggest -1 C, but a lower value is more appropriate
                                         !> when applying monthly mean artm in mid-latitude regions like HMA.
 
+     real(dp) :: snow_reduction_factor = 0.5d0  !> factor between 0 and 1, multiplying input snowfall;
+                                                !> applied only outside the initial glacier mask
+
      ! Note: These thresholds assume that artm is a monthly mean, not an instantaneous value
      real(dp) :: &
           snow_threshold_min = -5.0d0, &!> air temperature (deg C) below which all precip falls as snow
           snow_threshold_max =  5.0d0   !> air temperature (deg C) above which all precip falls as rain
 
-     real(dp) :: minthck                !> min ice thickness (m) to be counted as part of a glacier;
+     real(dp) :: diagnostic_minthck = 10.0d0  !> min ice thickness to be included in glacier area and volume diagnostics
+
+     real(dp) :: &
+          minthck                       !> min ice thickness (m) to be counted as part of a glacier;
                                         !> currently set based on model%numerics%thklim
 
      ! 1D arrays with size nglacier
@@ -1892,8 +1900,8 @@ module glide_types
      real(dp), dimension(:), pointer :: &
           area => null(),                   & !> glacier area (m^2)
           volume => null(),                 & !> glacier volume (m^3)
-          area_target => null(),            & !> glacier area target (m^2) based on observations
-          volume_target => null(),          & !> glacier volume target (m^3) based on observations
+          area_init => null(),              & !> initial glacier area (m^2) based on observations
+          volume_init => null(),            & !> initial glacier volume (m^3) based on observations
           mu_star => null(),                & !> tunable parameter relating SMB to monthly mean artm (mm/yr w.e./deg)
                                               !> defined as positive for ablation
           smb => null(),                    & !> modeled glacier-average mass balance (mm/yr w.e.)
@@ -1907,7 +1915,7 @@ module glide_types
                                               !> first 2 digits give the RGI region;
                                               !> the rest give the number within the region
           cism_glacier_id => null(),        & !> CISM-specific glacier ID, numbered consecutively from 1 to nglacier
-          cism_glacier_id_init => null()      !> cism_glacier_id at start of run
+          cism_glacier_id_init => null()      !> cism_glacier_id at initialization, based on rgi_glacier_id
 
      real(dp), dimension(:,:), pointer :: &
           dthck_dt_2d => null(),            & !> accumulated dthck_dt (m/yr)
@@ -2987,8 +2995,8 @@ contains
        allocate(model%glacier%cism_to_rgi_glacier_id(model%glacier%nglacier))
        allocate(model%glacier%area(model%glacier%nglacier))
        allocate(model%glacier%volume(model%glacier%nglacier))
-       allocate(model%glacier%area_target(model%glacier%nglacier))
-       allocate(model%glacier%volume_target(model%glacier%nglacier))
+       allocate(model%glacier%area_init(model%glacier%nglacier))
+       allocate(model%glacier%volume_init(model%glacier%nglacier))
        allocate(model%glacier%mu_star(model%glacier%nglacier))
        allocate(model%glacier%smb(model%glacier%nglacier))
        allocate(model%glacier%smb_obs(model%glacier%nglacier))
@@ -3435,10 +3443,10 @@ contains
         deallocate(model%glacier%area)
     if (associated(model%glacier%volume)) &
         deallocate(model%glacier%volume)
-    if (associated(model%glacier%area_target)) &
-        deallocate(model%glacier%area_target)
-    if (associated(model%glacier%volume_target)) &
-        deallocate(model%glacier%volume_target)
+    if (associated(model%glacier%area_init)) &
+        deallocate(model%glacier%area_init)
+    if (associated(model%glacier%volume_init)) &
+        deallocate(model%glacier%volume_init)
     if (associated(model%glacier%mu_star)) &
         deallocate(model%glacier%mu_star)
     if (associated(model%glacier%smb)) &

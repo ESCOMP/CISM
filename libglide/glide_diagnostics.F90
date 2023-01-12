@@ -234,8 +234,8 @@ contains
          lithtemp_diag                       ! lithosphere column diagnostics
 
     real(dp) :: &
-         tot_glc_area, tot_glc_area_target, &   ! total glacier area and target (km^2)
-         tot_glc_volume, tot_glc_volume_target  ! total glacier volume and target (km^3)
+         tot_glc_area_init, tot_glc_area, &   ! total glacier area, initial and current (km^2)
+         tot_glc_volume_init, tot_glc_volume  ! total glacier volume, initial and current (km^3)
 
     integer :: &
          i, j, k, ng,                       &
@@ -1087,15 +1087,15 @@ contains
 
        ! Compute some global glacier sums
        tot_glc_area = 0.0d0
-       tot_glc_area_target = 0.0d0
+       tot_glc_area_init = 0.0d0
        tot_glc_volume = 0.0d0
-       tot_glc_volume_target = 0.0d0
+       tot_glc_volume_init = 0.0d0
 
        do ng = 1, model%glacier%nglacier
           tot_glc_area = tot_glc_area + model%glacier%area(ng)
-          tot_glc_area_target = tot_glc_area_target + model%glacier%area_target(ng)
+          tot_glc_area_init = tot_glc_area_init + model%glacier%area_init(ng)
           tot_glc_volume = tot_glc_volume + model%glacier%volume(ng)
-          tot_glc_volume_target = tot_glc_volume_target + model%glacier%volume_target(ng)
+          tot_glc_volume_init = tot_glc_volume_init + model%glacier%volume_init(ng)
        enddo
 
        ! Write some total glacier diagnostics
@@ -1113,16 +1113,16 @@ contains
             tot_glc_area / 1.0d6
        call write_log(trim(message), type = GM_DIAGNOSTIC)
 
-       write(message,'(a35,f14.6)') 'Total glacier area target (km^2)   ', &
-            tot_glc_area_target / 1.0d6
+       write(message,'(a35,f14.6)') 'Total glacier area_init (km^2)     ', &
+            tot_glc_area_init / 1.0d6
        call write_log(trim(message), type = GM_DIAGNOSTIC)
 
        write(message,'(a35,f14.6)') 'Total glacier volume (km^3)        ', &
             tot_glc_volume / 1.0d9
        call write_log(trim(message), type = GM_DIAGNOSTIC)
 
-       write(message,'(a35,f14.6)') 'Total glacier volume target (km^3) ', &
-            tot_glc_volume_target / 1.0d9
+       write(message,'(a35,f14.6)') 'Total glacier volume_init (km^3)   ', &
+            tot_glc_volume_init / 1.0d9
        call write_log(trim(message), type = GM_DIAGNOSTIC)
 
        call write_log(' ')
@@ -1142,16 +1142,16 @@ contains
             model%glacier%area(ng) / 1.0d6
        call write_log(trim(message), type = GM_DIAGNOSTIC)
 
-       write(message,'(a35,f14.6)') 'Glacier area target (km^2)         ', &
-            model%glacier%area_target(ng) / 1.0d6
+       write(message,'(a35,f14.6)') 'Glacier area init(km^2)            ', &
+            model%glacier%area_init(ng) / 1.0d6
        call write_log(trim(message), type = GM_DIAGNOSTIC)
 
        write(message,'(a35,f14.6)') 'Glacier volume (km^3)              ', &
             model%glacier%volume(ng) / 1.0d9
        call write_log(trim(message), type = GM_DIAGNOSTIC)
 
-       write(message,'(a35,f14.6)') 'Glacier volume target (km^3)       ', &
-            model%glacier%volume_target(ng) / 1.0d9
+       write(message,'(a35,f14.6)') 'Glacier volume init (km^3)         ', &
+            model%glacier%volume_init(ng) / 1.0d9
        call write_log(trim(message), type = GM_DIAGNOSTIC)
 
        write(message,'(a35,f14.6)') 'mu_star (mm/yr w.e./deg C)         ', &

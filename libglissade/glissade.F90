@@ -2288,7 +2288,8 @@ contains
     real(dp) :: local_maxval, global_maxval
     character(len=100) :: message
 
-    logical, parameter :: verbose_smb = .false.
+!!    logical, parameter :: verbose_smb = .false.
+    logical, parameter :: verbose_smb = .true.
 
     rtest = -999
     itest = 1
@@ -2839,10 +2840,12 @@ contains
                ewn,      nsn,                          &
                itest,    jtest,    rtest,              &
                model%glacier%nglacier,                 &
+               model%glacier%cism_glacier_id_init,     &
                model%glacier%cism_glacier_id,          &
                model%glacier%t_mlt,                    &  ! deg C
                model%glacier%snow_threshold_min,       &  ! deg C
                model%glacier%snow_threshold_max,       &  ! deg C
+               model%glacier%snow_reduction_factor,    &
                model%glacier%snow_calc,                &
                model%climate%snow,                     &  ! mm/yr w.e.
                model%climate%precip,                   &  ! mm/yr w.e.
@@ -2861,12 +2864,25 @@ contains
              j = jtest
              ng = model%glacier%ngdiag
              print*, ' '
-             print*, 'Computed glacier SMB, rank, i, j =', this_rank, i, j
-             print*, '   delta_artm =', model%glacier%delta_artm(ng)
-             print*, '   smb (mm/yr w.e.) =', model%climate%smb(i,j)
-             print*, '   acab (m/yr ice)  =', model%climate%acab(i,j)*thk0*scyr/tim0
-          endif
+             print*, 'Computed glacier SMB, rank, i, j, ng =', this_rank, i, j, ng
+             print*, '   Local smb (mm/yr w.e.) =', model%climate%smb(i,j)
+             print*, '   Local acab (m/yr ice)  =', model%climate%acab(i,j)*thk0*scyr/tim0
+             if (ng > 0) then
+                print*, '   delta_artm =', model%glacier%delta_artm(ng)
+                print*, '   Glacier-specific smb (mm/yr w.e.) =', model%glacier%smb(ng)
+             endif
 
+             !WHL - debug
+             write(6,*) ' '
+             write(6,*) 'acab (m/yr ice)'
+             do j = jtest+3, jtest-3, -1
+                write(6,'(i6)',advance='no') j
+                do i = itest-3, itest+3
+                   write(6,'(f10.3)',advance='no') model%climate%acab(i,j)*thk0*scyr/tim0
+                enddo
+                write(6,*) ' '
+             enddo
+          endif
        endif   ! enable_glaciers
 
        ! Compute a corrected acab field that includes any prescribed anomalies.

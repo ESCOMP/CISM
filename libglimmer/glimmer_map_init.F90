@@ -472,7 +472,7 @@ contains
     ! Compute area scale factors for each grid cell.
     ! These scale factors describe the distortion of areas in a stereographic projection.
     !
-    ! This code is adapted a Matlab script provided by Heiko Goelzer, based on this reference:
+    ! This code is adapted from a Matlab script provided by Heiko Goelzer, based on this reference:
     ! J. P. Snyder (1987): Map Projections--A Working Manual, US Geological Survey Professional Paper 1395.
     !
     ! Note: This subroutine should not be called until the input file has been read in,
