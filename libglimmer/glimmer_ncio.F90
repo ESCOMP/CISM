@@ -729,7 +729,7 @@ contains
     !       infile%current_time = current time index
 
     ! Parse the filename to see if it is a restart file (standalone or CESM)
-    pos = index(infile%nc%filename,'.restart.') ! CISM naming convention for restart files
+    pos = index(infile%nc%filename,'restart') ! CISM naming convention for restart files
     pos_cesm = index(infile%nc%filename,'.r.')  ! CESM naming convention for restart files
 
     ! If a standalone file, then set current_time to the latest time slice
