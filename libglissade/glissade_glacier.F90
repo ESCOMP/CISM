@@ -462,8 +462,20 @@ contains
           enddo
        enddo
 
-       ! Given the 2D smb_obs field, compute the 1D glacier-average field.
-       ! On restart, this will be read from the restart file.
+       if (glacier%match_smb_obs) then
+          ! Make sure a nonzero smb_obs field was read in
+          max_glcval = maxval(abs(model%climate%smb_obs))
+          max_glcval = parallel_reduce_max(max_glcval)
+          if (max_glcval == 0.0d0) then
+             call write_log ('Error, no nonzero values for smb_obs', GM_FATAL)
+          endif
+       else
+          ! If a nonzero smb_obs field was read in, then set to zero
+          model%climate%smb_obs = 0.0d0
+       endif
+
+       ! Use the 2D smb_obs field to compute the 1D glacier-average field.
+       ! On restart, this 1D field will be read from the restart file.
 
        call glacier_2d_to_1d(&
             ewn,                   nsn,                           &
@@ -481,7 +493,7 @@ contains
        !     rgi_glacier_id, cism_glacier_id, cism_glacier_id_init, cism_to_rgi_glacier_id,
        !     glacier_mu_star, and powerlaw_c.
        ! If inverting for powerlaw_c, then usrf_obs is read from the restart file.
-       ! If inverting for mu_star, then smb_obs is read from the restart file.
+       ! If computing mu_star to match smb_obs, then glacier%smb_obs is read from the restart file.
 
        nglacier = glacier%nglacier
 
@@ -519,6 +531,17 @@ contains
           if (max_glcval <= 0.0d0) then
              call write_log ('Error, no positive values for usrf_obs', GM_FATAL)
           endif
+       endif
+
+       if (glacier%match_smb_obs) then
+          max_glcval = maxval(abs(glacier%smb_obs))
+          max_glcval = parallel_reduce_max(max_glcval)
+          if (max_glcval == 0.d0) then
+             call write_log ('Error, no nonzero values for smb_obs', GM_FATAL)
+          endif
+       else
+          ! If a nonzero smb_obs field was read in, then set to zero
+          glacier%smb_obs = 0.0d0
        endif
 
        ! Compute the initial area and volume of each glacier.
@@ -940,10 +963,6 @@ contains
     integer, dimension(model%general%ewn, model%general%nsn) ::  &
          ice_mask                   ! = 1 where ice is present (thck > thklim), else = 0
 
-
-    integer, dimension(model%general%ewn, model%general%nsn) ::  &
-         glacier_mask               ! = 1 where glacier ice is present (thck > thklim), else = 0
-
     real(dp), dimension(model%general%ewn, model%general%nsn) ::  &
          thck,                    & ! ice thickness (m)
          thck_obs,                & ! observed ice thickness (m)
@@ -997,9 +1016,7 @@ contains
          area_acc_init, area_abl_init, f_accum_init, &
          area_acc_new,  area_abl_new,  f_accum_new
     real(dp) :: area_sum
-    integer :: mask_sum
-    real(dp) :: sum_smb_annmean
-    real(dp), parameter :: diagnostic_volume_threshold = 1.0d9  ! operational volume threshold for big glaciers (m^3)
+    real(dp), parameter :: diagnostic_volume_threshold = 1.0d9  ! volume threshold for big glaciers (m^3)
 
     ! Set some local variables
 
@@ -1203,7 +1220,7 @@ contains
 
              ! Compute the SMB for each grid cell, given the appropriate mu_star
 
-             where (glacier%cism_glacier_id > 0)
+             where (glacier%cism_glacier_id_init > 0)
                 smb_annmean = glacier%snow_2d - mu_star_2d * glacier%Tpos_2d
              elsewhere
                 smb_annmean = 0.0d0
@@ -1242,15 +1259,9 @@ contains
 
              where (glacier%cism_glacier_id > 0)
                 smb_annmean = glacier%snow_dartm_2d - mu_star_2d * glacier%Tpos_dartm_2d
-                glacier_mask = 1
              elsewhere
                 smb_annmean = 0.0d0
-                glacier_mask = 0
              endwhere
-
-             ! Compute global sum of smb_annmean
-             mask_sum = parallel_global_sum(glacier_mask, parallel)
-             sum_smb_annmean = parallel_global_sum(smb_annmean, parallel)/mask_sum
 
              call glacier_2d_to_1d(&
                   ewn,             nsn,                     &
@@ -1386,11 +1397,19 @@ contains
 
              ! When inverting for powerlaw_c, we want the glacier footprint to match the observed footprint
              !  as closely as possible.
-             ! This is done by adjusting the surface temperature (artm) such that the modeled SMB is close to zero
-             !  over the original glacier footprint.
-             ! Here, we update delta_artm for each glacier such that SMB is close to zero.
-             ! May not have SMB exactly zero because of the max term in the SMB formula.
+             ! This is done by computing mu_star and/or delta_artm such that the total SMB
+             !  over the observed footprint is close to zero.
+             ! There are two ways to do this:
+             ! (1) match_smb_obs = F
+             !     Assume that the input temperature and snowfall correspond to an equilibrium climate.
+             !     Compute mu_star for each glacier such that total SMB = 0.
+             ! (2) match_smb_obs = T
+             !     Read smb_obs (e.g., from Hugonnet dataset) from the input file.
+             !     Compute mu_star for each glacier such that total SMB = smb_obs.
+             !     Compute an adjustment, delta_artm, for each glacier such that SMB = 0 with the adjustment.
              !
+             ! For match_smb_obs = T, delta_artm is adjusted here.
+             ! Generally will not have SMB exactly zero because of the max term in the SMB formula.
              ! If snow_dartm_2d - mu_star * Tpos_dartm_2d > 0, delta_artm will become more negative
              ! If snow_dartm_2d - mu_star * Tpos_dartm_2d < 0, delta_artm will become more positive
              !
@@ -1399,14 +1418,18 @@ contains
              !       Rather, it is passed into subroutine glissade_glacier_smb to minimize the change
              !        in the glacier footprint during the spin-up.
 
-             call glacier_adjust_artm(&
-                  ewn,              nsn,         &
-                  nglacier,         ngdiag,      &
-                  glacier%cism_glacier_id_init,  &
-                  glacier%snow_dartm_2d,         &
-                  glacier%Tpos_dartm_2d,         &
-                  glacier%mu_star,               &
-                  glacier%delta_artm)
+             if (glacier%match_smb_obs) then
+                call glacier_adjust_artm(&
+                     ewn,              nsn,         &
+                     nglacier,         ngdiag,      &
+                     glacier%cism_glacier_id_init,  &
+                     glacier%snow_dartm_2d,         &
+                     glacier%Tpos_dartm_2d,         &
+                     glacier%mu_star,               &
+                     glacier%delta_artm)
+             else
+                glacier%delta_artm = 0.0d0
+             endif
 
              ! Given the surface elevation target, compute the thickness target.
              ! (This can change in time if the bed topography is dynamic.)
