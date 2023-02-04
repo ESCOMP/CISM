@@ -3161,6 +3161,7 @@ contains
 
     call GetValue(section,'set_mu_star',        model%glacier%set_mu_star)
     call GetValue(section,'set_powerlaw_c',     model%glacier%set_powerlaw_c)
+    call GetValue(section,'match_smb_obs',      model%glacier%match_smb_obs)
     call GetValue(section,'snow_calc',          model%glacier%snow_calc)
     call GetValue(section,'t_mlt',              model%glacier%t_mlt)
     call GetValue(section,'snow_threshold_min', model%glacier%snow_threshold_min)
@@ -3213,6 +3214,16 @@ contains
           call write_log('Error, glacier_set_mu_star option out of range', GM_FATAL)
        end if
 
+       if (model%glacier%set_mu_star == GLACIER_MU_STAR_INVERSION) then
+          if (model%glacier%match_smb_obs) then
+             write(message,*) 'mu_star will be adjusted to match SMB observations'
+             call write_log(message)
+          else
+             write(message,*) 'mu_star will be adjusted to give SMB = 0'
+             call write_log(message)
+          endif
+       endif
+
        write(message,*) 'set_powerlaw_c            : ', model%glacier%set_powerlaw_c, &
             glacier_set_powerlaw_c(model%glacier%set_powerlaw_c)
        call write_log(message)
@@ -3220,6 +3231,13 @@ contains
            model%glacier%set_powerlaw_c >= size(glacier_set_powerlaw_c)) then
           call write_log('Error, glacier_set_powerlaw_c option out of range', GM_FATAL)
        end if
+
+       if (model%glacier%set_powerlaw_c == GLACIER_POWERLAW_C_INVERSION) then
+          if (model%glacier%match_smb_obs) then
+             write(message,*) 'delta_artm will be adjusted to give SMB = 0'
+             call write_log(message)
+          endif
+       endif
 
        write(message,*) 'snow_calc                 : ', model%glacier%snow_calc, &
             glacier_snow_calc(model%glacier%snow_calc)

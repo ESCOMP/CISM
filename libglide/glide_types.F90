@@ -1853,6 +1853,10 @@ module glide_types
      !> \item[2] read glacier-specific powerlaw_c from external file
      !> \end{description}
 
+     logical :: match_smb_obs = .false.
+     !> If true, then compute mu_star so that smb = smb_obs for each glacier
+     !> This implies a temperature adjustment (delta_artm /= 0) during spin-up and inversion
+
      integer :: snow_calc = 1
      !> \begin{description}
      !> \item[0] read the snowfall rate directly
