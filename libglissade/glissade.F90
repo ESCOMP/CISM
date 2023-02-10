@@ -936,13 +936,11 @@ contains
     ! Note: This can set powerlaw_c and coulomb_c to nonzero values when they are never used,
     !       but is simpler than checking all possible basal friction options.
 
-    if (model%options%is_restart == RESTART_FALSE) then
-       if (model%options%which_ho_powerlaw_c == HO_POWERLAW_C_CONSTANT) then
-          model%basal_physics%powerlaw_c = model%basal_physics%powerlaw_c_const
-       endif
-       if (model%options%which_ho_coulomb_c == HO_COULOMB_C_CONSTANT) then
-          model%basal_physics%coulomb_c = model%basal_physics%coulomb_c_const
-       endif
+    if (model%options%which_ho_powerlaw_c == HO_POWERLAW_C_CONSTANT) then
+       model%basal_physics%powerlaw_c = model%basal_physics%powerlaw_c_const
+    endif
+    if (model%options%which_ho_coulomb_c == HO_COULOMB_C_CONSTANT) then
+       model%basal_physics%coulomb_c = model%basal_physics%coulomb_c_const
     endif
 
     ! Optionally, do initial calculations for inversion
