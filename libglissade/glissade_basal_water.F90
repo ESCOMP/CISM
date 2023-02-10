@@ -27,7 +27,7 @@
 module glissade_basal_water
 
    use glimmer_global, only: dp
-   use glimmer_paramets, only: eps11, eps08
+   use glimmer_paramets, only: eps11, eps10, eps08
    use glimmer_physcon, only: rhoi, rhow, grav, scyr
    use glimmer_log
    use glide_types
@@ -38,7 +38,8 @@ module glissade_basal_water
    private
    public :: glissade_basal_water_init, glissade_calcbwat, glissade_bwat_flux_routing
 
-   logical, parameter :: verbose_bwat = .false.
+!   logical, parameter :: verbose_bwat = .false.
+   logical, parameter :: verbose_bwat = .true.
 
    integer, parameter :: pdiag = 3  ! range for diagnostic prints
 
@@ -357,27 +358,23 @@ contains
        print*, 'thck (m):'
        write(6,'(a3)',advance='no') '   '
        do i = itest-p, itest+p
-          write(6,'(i10)',advance='no') i
+          write(6,'(i12)',advance='no') i
        enddo
        write(6,*) ' '
        do j = jtest+p, jtest-p, -1
           write(6,'(i6)',advance='no') j
           do i = itest-p, itest+p
-             write(6,'(f10.3)',advance='no') thck(i,j)
+             write(6,'(f12.5)',advance='no') thck(i,j)
           enddo
           write(6,*) ' '
        enddo
        print*, ' '
        print*, 'topg (m):'
-       write(6,'(a3)',advance='no') '   '
-       do i = itest-p, itest+p
-          write(6,'(i10)',advance='no') i
-       enddo
        write(6,*) ' '
        do j = jtest+p, jtest-p, -1
           write(6,'(i6)',advance='no') j
           do i = itest-p, itest+p
-             write(6,'(f10.3)',advance='no') topg(i,j)
+             write(6,'(f12.5)',advance='no') topg(i,j)
           enddo
           write(6,*) ' '
        enddo
@@ -387,7 +384,7 @@ contains
 !       do j = jtest+p, jtest-p, -1
 !          write(6,'(i6)',advance='no') j
 !          do i = itest-p, itest+p
-!             write(6,'(f10.3)',advance='no') effecpress(i,j)
+!             write(6,'(f12.5)',advance='no') effecpress(i,j)
 !          enddo
 !          write(6,*) ' '
 !       enddo
@@ -397,7 +394,7 @@ contains
        do j = jtest+p, jtest-p, -1
           write(6,'(i6)',advance='no') j
           do i = itest-p, itest+p
-             write(6,'(f10.3)',advance='no') bmlt(i,j) * scyr
+             write(6,'(f12.5)',advance='no') bmlt(i,j) * scyr
           enddo
           write(6,*) ' '
        enddo
@@ -407,7 +404,7 @@ contains
        do j = jtest+p, jtest-p, -1
           write(6,'(i6)',advance='no') j
           do i = itest-p, itest+p
-             write(6,'(i10)',advance='no') bwat_mask(i,j)
+             write(6,'(i12)',advance='no') bwat_mask(i,j)
           enddo
           write(6,*) ' '
        enddo
@@ -417,7 +414,7 @@ contains
        do j = jtest+p, jtest-p, -1
           write(6,'(i6)',advance='no') j
           do i = itest-p, itest+p
-             write(6,'(f10.3)',advance='no') head(i,j)
+             write(6,'(f12.5)',advance='no') head(i,j)
           enddo
           write(6,*) ' '
        enddo
@@ -468,14 +465,11 @@ contains
     if (verbose_bwat .and. this_rank == rtest) then
        print*, ' '
        write(6,*) 'Final bwatflx (m/yr):'
-       do i = itest-p, itest+p
-          write(6,'(i10)',advance='no') i
-       enddo
        write(6,*) ' '
        do j = jtest+p, jtest-p, -1
           write(6,'(i6)',advance='no') j
           do i = itest-p, itest+p
-             write(6,'(f10.5)',advance='no') bwatflx(i,j)
+             write(6,'(f12.5)',advance='no') bwatflx(i,j)
           enddo
           write(6,*) ' '
        enddo
@@ -485,7 +479,7 @@ contains
        do j = jtest+p, jtest-p, -1
           write(6,'(i6)',advance='no') j
           do i = itest-p, itest+p
-             write(6,'(f10.5)',advance='no') bwat(i,j) * 1000.d0
+             write(6,'(f12.5)',advance='no') bwat(i,j) * 1000.d0
           enddo
           write(6,*) ' '
        enddo
@@ -670,6 +664,7 @@ contains
     !WHL - debug
     real(dp) :: bmlt_max, bmlt_max_global
     integer :: imax, jmax, rmax, iglobal, jglobal
+
     ! Allocate the sorted_ij array
 
     nlocal = parallel%own_ewn * parallel%own_nsn
@@ -684,7 +679,7 @@ contains
        do i = nhalo, nx-nhalo+1
           if (j == nhalo .or. j == ny-nhalo+1 .or. i == nhalo .or. i == nx-nhalo+1) then
              halo_mask(i,j) = 1
-          elseif (j > nhalo .or. j <= ny-nhalo .or. i > nhalo .or. i <= nx-nhalo+1) then
+          elseif (j > nhalo .and. j <= ny-nhalo .and. i > nhalo .and. i <= nx-nhalo) then
              local_mask(i,j) = 1
           endif
        enddo
@@ -715,13 +710,13 @@ contains
        print*, 'After fill: head (m):'
        write(6,'(a3)',advance='no') '   '
        do i = itest-p, itest+p
-          write(6,'(i10)',advance='no') i
+          write(6,'(i12)',advance='no') i
        enddo
        write(6,*) ' '
        do j = jtest+p, jtest-p, -1
           write(6,'(i6)',advance='no') j
           do i = itest-p, itest+p
-             write(6,'(f10.3)',advance='no') head(i,j)
+             write(6,'(f12.5)',advance='no') head(i,j)
           enddo
           write(6,*) ' '
        enddo
@@ -731,7 +726,7 @@ contains
        do j = jtest+p, jtest-p, -1
           write(6,'(i6)',advance='no') j
           do i = itest-p, itest+p
-             write(6,'(f10.3)',advance='no') lakes(i,j)
+             write(6,'(f12.5)',advance='no') lakes(i,j)
           enddo
           write(6,*) ' '
        enddo
@@ -744,16 +739,6 @@ contains
          nx,    ny,    nlocal,  &
          itest, jtest, rtest,   &
          head,  sorted_ij)
-
-    if (verbose_bwat .and. this_rank == rtest) then
-       print*, ' '
-       print*, 'sorted, from the top:'
-       do k = nlocal, nlocal-10, -1
-          i = sorted_ij(k,1)
-          j = sorted_ij(k,2)
-          print*, k, i, j, head(i,j)
-       enddo
-    endif
 
     call get_flux_fraction(&
          nx,    ny,    nlocal,  &
@@ -862,9 +847,16 @@ contains
        bwatflx = 0.0d0
 
        if (verbose_bwat .and. this_rank == rtest .and. count <= 2) then
-          i = itest
-          j = jtest
-          print*, 'i, j, bwatflx_accum:', i, j, bwatflx_accum(i,j)
+          print*, ' '
+          print*, 'Current bwatflx_accum, rank, i, j =', this_rank, itest, jtest
+          write(6,*) ' '
+          do j = jtest+p, jtest-p, -1
+             write(6,'(i6)',advance='no') j
+             do i = itest-p, itest+p
+                write(6,'(e12.3)',advance='no') bwatflx_accum(i,j)
+             enddo
+             write(6,*) ' '
+          enddo
        endif
 
        ! If bwatflx_halo = 0 everywhere, then we are done.
@@ -877,10 +869,10 @@ contains
           do i = 1, nx
              sum_bwatflx_halo(i,j) = sum(bwatflx_halo(:,:,i,j))
 !             if (verbose_bwat .and. sum_bwatflx_halo(i,j) > eps11 .and. count > 50) then
-!               print*, 'Nonzero bwatflx_halo, count, rank, i, j, sum_bwatflx_halo:', &
+!                print*, 'Nonzero bwatflx_halo, count, rank, i, j, sum_bwatflx_halo:', &
 !                     count, this_rank, i, j, sum_bwatflx_halo(i,j)
-!               call parallel_globalindex(i, j, iglobal, jglobal, parallel)
-!               print*, '     iglobal, jglobal:', iglobal, jglobal
+!                call parallel_globalindex(i, j, iglobal, jglobal, parallel)
+!                print*, '     iglobal, jglobal:', iglobal, jglobal
 !             endif
           enddo
        enddo
@@ -895,7 +887,7 @@ contains
           do j = jtest+p, jtest-p, -1
              write(6,'(i6)',advance='no') j
              do i = itest-p, itest+p
-                write(6,'(e10.3)',advance='no') sum_bwatflx_halo(i,j)
+                write(6,'(e12.3)',advance='no') sum_bwatflx_halo(i,j)
              enddo
              write(6,*) ' '
           enddo
@@ -974,14 +966,15 @@ contains
     total_flux_out = parallel_global_sum(bwatflx*margin_mask, parallel)
 
     if (verbose_bwat .and. this_rank == rtest) then
+       print*, ' '
        print*, 'Total output basal melt flux (m^3/s):', total_flux_out
        print*, 'Difference between input and output =', total_flux_in - total_flux_out
     endif
 
-    ! Not sure if a threshold of eps11 is large enough.  Increase if needed.
+    ! Found that an error threshold of eps11 is not quite large enough for Antarctic 8km runs.
     if (total_flux_in > 0.0d0) then
        err = abs(total_flux_in - total_flux_out)
-       if (err > eps11) then
+       if (err > eps10) then
 !          write(message,*) 'Hydrology error: total water not conserved, error =', err
 !          call write_log(message, GM_FATAL)
           write(message,*) 'WARNING: Hydrology error: total water not conserved, error =', err
@@ -1094,13 +1087,13 @@ contains
        print*, 'grad_head:'
        write(6,'(a3)',advance='no') '   '
        do i = itest-p, itest+p
-          write(6,'(i10)',advance='no') i
+          write(6,'(i12)',advance='no') i
        enddo
        write(6,*) ' '
        do j = jtest+p, jtest-p, -1
           write(6,'(i6)',advance='no') j
           do i = itest-p, itest+p
-             write(6,'(f10.5)',advance='no') grad_head(i,j)
+             write(6,'(f12.5)',advance='no') grad_head(i,j)
           enddo
           write(6,*) ' '
        enddo
@@ -1163,6 +1156,7 @@ contains
     ! The basic idea is:
     ! Let phi = the current best guess for phi_out.
     ! Initially, set phi = phi_in on the boundary, and set phi = a large number elsewhere.
+    ! (The boundary consists of cells with phi_mask = 0, adjacent to cells with phi_mask = 1.)
     ! Loop through the domain.  For each cell c, with value phi(c) not yet fixed as a known value,
     !  compute phi_min8(n), the current minimum of phi in the 8 neighbor cells.
     ! If phi_in(c) > phi_min8(n) + eps, then set phi(c) = phi_in(c) and mark that cell as having a known value,
@@ -1170,7 +1164,6 @@ contains
     ! If phi_in(c) < phi_min8(n) + eps, but phi(c) > phi_min8(c) + eps, set phi(c) = phi_min8(n) + eps.
     !  Do not mark the cell as having a known value, because it might be lowered further.
     ! Continue until no further lowering of phi is possible.  At that point, phi = phi_out.
-    ! Note: Setting eps = 0 would result in flat surfaces that would need to be fixed later.
 
     use cism_parallel, only: parallel_reduce_sum
     use cism_parallel, only: parallel_globalindex
@@ -1245,13 +1238,14 @@ contains
     endwhere
 
     ! Set phi = phi_in for boundary cells.
-    ! A boundary cell is a cell with phi_mask = 1, adjacent to one or more cells with phi_mask = 0.
+    ! A boundary cell is a cell with phi_mask = 0, adjacent to one or more cells with phi_mask = 1.
+
     do j = 2, ny-1
        do i = 2, nx-1
-          if (phi_mask(i,j) == 1) then
-             if (phi_mask(i-1,j+1)==0 .or. phi_mask(i,j+1)==0 .or. phi_mask(i+1,j+1)==0 .or. &
-                 phi_mask(i-1,j)  ==0               .or.           phi_mask(i+1,j)  ==0 .or. &
-                 phi_mask(i-1,j-1)==0 .or. phi_mask(i,j-1)==0 .or. phi_mask(i+1,j-1)==0) then
+          if (phi_mask(i,j) == 0) then
+             if (phi_mask(i-1,j+1)==1 .or. phi_mask(i,j+1)==1 .or. phi_mask(i+1,j+1)==1 .or. &
+                 phi_mask(i-1,j)  ==1               .or.           phi_mask(i+1,j)  ==1 .or. &
+                 phi_mask(i-1,j-1)==1 .or. phi_mask(i,j-1)==1 .or. phi_mask(i+1,j-1)==1) then
                 phi(i,j) = phi_in(i,j)
                 known(i,j) = .true.
              endif
@@ -1259,7 +1253,7 @@ contains
        enddo
     enddo
 
-    ! The resulting mask applies to locally owned cells and one layer of halo cells.
+    ! The resulting field phi applies to locally owned cells and one layer of halo cells.
     ! A halo update brings it up to date in all halo cells.
 
     call parallel_halo(phi, parallel)
@@ -1417,12 +1411,15 @@ contains
     enddo  ! finished
 
     if (verbose_bwat .and. this_rank == rtest) then
+       print*, ' '
        print*, 'Filled depressions, count =', count
     endif
 
   end subroutine fill_depressions
 
 !==============================================================
+
+  !TODO - Delete the fix_flats subroutine; replaced by fill_depressions
 
   subroutine fix_flats(&
        nx,    ny,            &
@@ -1505,13 +1502,13 @@ contains
        print*, 'input phi:'
        write(6,'(a3)',advance='no') '   '
        do i = itest-p, itest+p
-          write(6,'(i10)',advance='no') i
+          write(6,'(i12)',advance='no') i
        enddo
        write(6,*) ' '
        do j = jtest+p, jtest-p, -1
           write(6,'(i6)',advance='no') j
           do i = itest-p, itest+p
-             write(6,'(f10.3)',advance='no') phi(i,j)
+             write(6,'(f12.5)',advance='no') phi(i,j)
           enddo
           write(6,*) ' '
        enddo
@@ -1520,7 +1517,7 @@ contains
        do j = jtest+p, jtest-p, -1
           write(6,'(i6)',advance='no') j
           do i = itest-p, itest+p
-             write(6,'(i10)',advance='no') phi_mask(i,j)
+             write(6,'(i12)',advance='no') phi_mask(i,j)
           enddo
           write(6,*) ' '
        enddo
@@ -2169,15 +2166,6 @@ contains
 
           sum_slope = sum(slope)
 
-          if (verbose_bwat .and. this_rank == rtest .and. i == itest .and. j == jtest) then
-             print*, ' '
-             print*, 'slope: task, i, j =', rtest, i, j
-             print*, slope(:,1)
-             print*, slope(:,0)
-             print*, slope(:,-1)
-             print*, 'sum(slope) =', sum(slope)
-          endif
-
           ! Distribute the downslope flux according to the flux-routing scheme:
           !  to the lowest-elevation neighbor (D8), the two lowest-elevation neighbors (Dinf), or
           !  all lower-elevation neighbors (FD8).
@@ -2265,24 +2253,6 @@ contains
              if (verbose_bwat .and. this_rank == rtest .and. i == itest .and. j == jtest) then
                 print*, 'i1, j1, slope1:', i1, j1, slope1
                 print*, 'i2, j2, slope2:', i2, j2, slope2
-                print*, 'sum_slope:', sum_slope
-                print*, 'slope(:, 1):', slope(:, 1)
-                print*, 'slope(:, 0):', slope(:, 0)
-                print*, 'slope(:,-1):', slope(:,-1)
-                print*, 'flux_fraction(:, 1,i,j):', flux_fraction(:, 1,i,j)
-                print*, 'flux_fraction(:, 0,i,j):', flux_fraction(:, 0,i,j)
-                print*, 'flux_fraction(:,-1,i,j):', flux_fraction(:,-1,i,j)
-             endif
-
-             !WHL - bug check - make sure fractions add to 1
-             sum_frac = 0.0d0
-             do jj = -1,1
-                do ii = -1,1
-                   sum_frac = sum_frac + flux_fraction(ii,jj,i,j)
-                enddo
-             enddo
-             if (abs(sum_frac - 1.0d0) > eps11) then
-!!                print*, 'sum_frac error: r, i, j, sum:', this_rank, i, j, sum_frac
              endif
 
           elseif (flux_routing_scheme == HO_FLUX_ROUTING_FD8) then
@@ -2300,18 +2270,29 @@ contains
                 enddo
              endif  ! sum(slope) > 0
 
-             if (verbose_bwat .and. this_rank == rtest .and. i == itest .and. j == jtest) then
-                print*, 'i1, j1, slope1:', i1, j1, slope1
-                print*, 'i2, j2, slope2:', i2, j2, slope2
-                print*, 'sum_slope:', sum_slope
-                print*, 'slope(:, 1):', slope(:, 1)
-                print*, 'slope(:, 0):', slope(:, 0)
-                print*, 'slope(:,-1):', slope(:,-1)
-                print*, 'flux_fraction(:, 1,i,j):', flux_fraction(:, 1,i,j)
-                print*, 'flux_fraction(:, 0,i,j):', flux_fraction(:, 0,i,j)
-                print*, 'flux_fraction(:,-1,i,j):', flux_fraction(:,-1,i,j)
-             endif
           endif   ! flux_routing_scheme: D8, Dinf, FD8
+
+          if (verbose_bwat .and. this_rank == rtest .and. i == itest .and. j == jtest) then
+             print*, 'sum_slope:', sum_slope
+             print*, 'slope(:, 1):', slope(:, 1)
+             print*, 'slope(:, 0):', slope(:, 0)
+             print*, 'slope(:,-1):', slope(:,-1)
+             print*, 'flux_fraction(:, 1,i,j):', flux_fraction(:, 1,i,j)
+             print*, 'flux_fraction(:, 0,i,j):', flux_fraction(:, 0,i,j)
+             print*, 'flux_fraction(:,-1,i,j):', flux_fraction(:,-1,i,j)
+          endif
+
+          ! bug check - make sure fractions add to 1
+          sum_frac = 0.0d0
+          do jj = -1,1
+             do ii = -1,1
+                sum_frac = sum_frac + flux_fraction(ii,jj,i,j)
+             enddo
+          enddo
+          if (abs(sum_frac - 1.0d0) > eps11) then
+             ! Do a fatal abort?
+             print*, 'ERROR: sum_frac /= 1: r, i, j, sum:', this_rank, i, j, sum_frac
+          endif
 
        endif  ! bwat_mask = 1
 

@@ -854,6 +854,7 @@ contains
     real(dp) :: &
          bpmp_factor,     &  ! factor between 0 and 1, used in linear ramp based on bpmp
          relative_bwat,   &  ! ratio bwat/bwat_threshold, limited to range [0,1]
+         relative_bwatflx,&  ! ratio bwatflx/bwatflx_threshold, limited to range [0,1]
          df_dt               ! rate of change of f_effecpress_bwat
 
     real(dp), dimension(ewn,nsn) ::  &
@@ -870,7 +871,6 @@ contains
     integer :: i, j
 
     logical, parameter :: verbose_effecpress = .false.
-!!    logical, parameter :: verbose_effecpress = .true.
 
     ! Initialize the effective pressure N to the overburden pressure, rhoi*g*H
 
@@ -965,20 +965,33 @@ contains
              do i = 1, ewn
                 if (bwatflx(i,j) > 0.0d0) then
 
-                   df_dt = ( 1.0d0 - basal_physics%f_effecpress_bwat(i,j) * &
-                        (bwatflx(i,j)/basal_physics%effecpress_bwatflx_threshold) ) / &
-                        basal_physics%effecpress_timescale
-                   basal_physics%f_effecpress_bwat(i,j) = basal_physics%f_effecpress_bwat(i,j) + df_dt * dt
+                   if (basal_physics%effecpress_timescale > 0.0d0) then
 
-                   ! Limit to be in the range [effecpress_delta, 1.0)
-                   basal_physics%f_effecpress_bwat(i,j) = min(basal_physics%f_effecpress_bwat(i,j), 1.0d0)
-                   basal_physics%f_effecpress_bwat(i,j) = &
-                        max(basal_physics%f_effecpress_bwat(i,j), basal_physics%effecpress_delta)
+                      df_dt = ( 1.0d0 - basal_physics%f_effecpress_bwat(i,j) * &
+                           (bwatflx(i,j)/basal_physics%effecpress_bwatflx_threshold) ) / &
+                           basal_physics%effecpress_timescale
+                      basal_physics%f_effecpress_bwat(i,j) = basal_physics%f_effecpress_bwat(i,j) + df_dt * dt
 
-                   ! Compute the effective pressure relative to overburden
-                   basal_physics%effecpress(i,j) = basal_physics%f_effecpress_bwat(i,j) * overburden(i,j)
+                      ! Limit to be in the range [effecpress_delta, 1.0)
+                      basal_physics%f_effecpress_bwat(i,j) = min(basal_physics%f_effecpress_bwat(i,j), 1.0d0)
+                      basal_physics%f_effecpress_bwat(i,j) = &
+                           max(basal_physics%f_effecpress_bwat(i,j), basal_physics%effecpress_delta)
 
-                end if
+                      ! Compute the effective pressure relative to overburden
+                      basal_physics%effecpress(i,j) = basal_physics%f_effecpress_bwat(i,j) * overburden(i,j)
+
+                   else  ! timescale = 0; treatment similar to bwat above
+
+                      relative_bwatflx = &
+                           max(0.0d0, min(bwatflx(i,j)/basal_physics%effecpress_bwatflx_threshold, 1.0d0))
+
+                      basal_physics%effecpress(i,j) = basal_physics%effecpress(i,j) * &
+                           (basal_physics%effecpress_delta + &
+                           (1.0d0 - relative_bwatflx) * (1.0d0 - basal_physics%effecpress_delta))
+
+                   endif    ! timescale > 0
+
+                end if   ! bwatflx > 0
              enddo
           enddo
 
