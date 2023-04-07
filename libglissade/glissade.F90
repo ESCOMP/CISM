@@ -1997,6 +1997,22 @@ contains
           print*, '   artm_ref, artm:', model%climate%artm_ref(i,j), model%climate%artm(i,j)
        endif
 
+       ! optionally, do the same for an auxiliary field, artm_aux
+       ! Currently used only for 2-parameter glacier inversion
+
+       if (associated(model%climate%artm_aux)) then  ! artm_ref_aux and usrf_ref_aux should also be associated
+          model%climate%artm_aux(:,:) = model%climate%artm_ref_aux(:,:) - &
+               (model%geometry%usrf(:,:)*thk0 - model%climate%usrf_ref_aux(:,:)) * model%climate%t_lapse
+          if (verbose_glacier .and. this_rank == rtest) then
+             i = itest; j = jtest
+             print*, ' '
+             print*, 'rank, i, j, usrf_ref_aux, usrf, dz:', this_rank, i, j, &
+                  model%climate%usrf_ref_aux(i,j), model%geometry%usrf(i,j)*thk0, &
+                  model%geometry%usrf(i,j)*thk0 - model%climate%usrf_ref_aux(i,j)
+             print*, '   artm_ref_aux, artm_aux:', model%climate%artm_ref_aux(i,j), model%climate%artm_aux(i,j)
+          endif
+       endif
+
     endif   ! artm_input_function
 
     call parallel_halo(model%climate%artm, parallel)
@@ -2824,8 +2840,6 @@ contains
           !TODO - Pass artm instead of artm_corrected?  I.e., disable the anomaly for glaciers?
           ! Halo updates for snow and artm
           ! Note: artm_corrected is the input artm, possible corrected to include an anomaly term.
-          !       delta_artm is a glacier-specific correction whose purpose is to give SMB ~ 0.
-          !        This term is zero by default, but is nonzero during spin-up when inverting for powerlaw_c.
           ! Note: snow_calc is the snow calculation option:  Either use the snowfall rate directly,
           !       or compute the snowfall rate from the precip rate and downscaled artm.
 
@@ -2850,8 +2864,8 @@ contains
                model%climate%snow,                     &  ! mm/yr w.e.
                model%climate%precip,                   &  ! mm/yr w.e.
                model%climate%artm_corrected,           &  ! deg C
-               model%glacier%delta_artm,               &  ! deg C
                model%glacier%mu_star,                  &  ! mm/yr w.e./deg
+               model%glacier%snow_factor,              &  ! unitless
                model%climate%smb,                      &  ! mm/yr w.e.
                model%glacier%smb)                         ! mm/yr w.e.
 
@@ -2868,8 +2882,8 @@ contains
              print*, '   Local smb (mm/yr w.e.) =', model%climate%smb(i,j)
              print*, '   Local acab (m/yr ice)  =', model%climate%acab(i,j)*thk0*scyr/tim0
              if (ng > 0) then
-                print*, '   delta_artm =', model%glacier%delta_artm(ng)
-                print*, '   Glacier-specific smb (mm/yr w.e.) =', model%glacier%smb(ng)
+                print*, '   Glacier-specific smb (mm/yr w.e.), snow_factor =', &
+                     model%glacier%smb(ng), model%glacier%snow_factor(ng)
              endif
 
              !WHL - debug

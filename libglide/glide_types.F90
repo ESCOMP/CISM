@@ -387,6 +387,10 @@ module glide_types
   integer, parameter :: GLACIER_MU_STAR_INVERSION = 1
   integer, parameter :: GLACIER_MU_STAR_EXTERNAL = 2
 
+  integer, parameter :: GLACIER_SNOW_FACTOR_CONSTANT = 0
+  integer, parameter :: GLACIER_SNOW_FACTOR_INVERSION = 1
+  integer, parameter :: GLACIER_SNOW_FACTOR_EXTERNAL = 2
+
   integer, parameter :: GLACIER_POWERLAW_C_CONSTANT = 0
   integer, parameter :: GLACIER_POWERLAW_C_INVERSION = 1
   integer, parameter :: GLACIER_POWERLAW_C_EXTERNAL = 2
@@ -1443,9 +1447,6 @@ module glide_types
      real(dp),dimension(:,:),pointer :: smb             => null() !> Surface mass balance (mm/yr water equivalent)
                                                                   !> Note: acab (m/y ice) is used internally by dycore, 
                                                                   !>       but can use smb (mm/yr w.e.) for I/O
-     real(dp),dimension(:,:),pointer :: smb_obs         => null() !> Observed surface mass balance (mm/yr water equivalent)
-                                                                  !> 'smb' could have any source (models, obs, etc.), but smb_obs
-                                                                  !>  is always from observations and may be an inversion target
      real(dp),dimension(:,:),pointer :: snow            => null() !> snowfall rate (mm/yr w.e.)
      real(dp),dimension(:,:),pointer :: precip          => null() !> precipitation rate (mm/yr w.e.)
                                                                   !> for glaciers, snow can be derived from precip + downscaled artm
@@ -1453,6 +1454,9 @@ module glide_types
      real(dp),dimension(:,:),pointer :: artm_anomaly    => null() !> Annual mean air temperature anomaly (degC)
      real(dp),dimension(:,:),pointer :: artm_corrected  => null() !> Annual mean air temperature with anomaly corrections (degC)
      integer, dimension(:,:),pointer :: overwrite_acab_mask => null() !> mask for cells where acab is overwritten
+     real(dp),dimension(:,:),pointer :: smb_obs         => null() !> Observed surface mass balance (mm/yr water equivalent)
+                                                                  !> 'smb' could have any source (models, obs, etc.), but smb_obs
+                                                                  !>  is always from observations and may be an inversion target
 
      ! Next several fields used for SMB_INPUT_FUNCTION_GRADZ, ARTM_INPUT_FUNCTION_GRADZ, ARTM_INPUT_FUNCTION_LAPSE
      ! Note: If both smb and artm are input in this format, they share the array usrf_ref.
@@ -1464,6 +1468,14 @@ module glide_types
      real(dp),dimension(:,:),pointer :: artm_ref => null()        !> artm at reference elevation (deg C)
      real(dp),dimension(:,:),pointer :: artm_gradz => null()      !> vertical gradient of artm (deg C per m), positive up
      real(dp),dimension(:,:),pointer :: usrf_ref => null()        !> reference upper surface elevation before lapse rate correction (m)
+
+     ! Next several fields are auxiliary fields, in case we need to read two independent versions of artm, snow, etc.
+     ! Currently used for 2-parameter glacier inversion
+     real(dp),dimension(:,:),pointer :: snow_aux        => null() !> auxiliary snow field, used for glacier inversion (mm/yr w.e.)
+     real(dp),dimension(:,:),pointer :: precip_aux      => null() !> auxiliary precip field, used for glacier inversion (mm/yr w.e.)
+     real(dp),dimension(:,:),pointer :: artm_aux        => null() !> auxiliary artm field, used for glacier inversion (degC)
+     real(dp),dimension(:,:),pointer :: artm_ref_aux    => null() !> auxiliary artm_ref field, used for glacier inversion (degC)
+     real(dp),dimension(:,:),pointer :: usrf_ref_aux    => null() !> auxiliary usrf_ref field, used for glacier inversion (m)
 
      ! Next several fields used for SMB_INPUT_FUNCTION_XYZ, ARTM_INPUT_FUNCTION_XYZ
      ! Note: If both smb and artm are input in this format, they share the array smb_levels(nlev_smb).
@@ -1846,16 +1858,19 @@ module glide_types
      !> \item[2] read glacier-specific mu_star from external file
      !> \end{description}
 
+     integer :: set_snow_factor = 0
+     !> \begin{description}
+     !> \item[0] apply spatially uniform snow_factor
+     !> \item[1] invert for glacier-specific snow_factor
+     !> \item[2] read glacier-specific snow_factor from external file
+     !> \end{description}
+
      integer :: set_powerlaw_c = 0
      !> \begin{description}
      !> \item[0] apply spatially uniform powerlaw_c
      !> \item[1] invert for glacier-specific powerlaw_c
      !> \item[2] read glacier-specific powerlaw_c from external file
      !> \end{description}
-
-     logical :: match_smb_obs = .false.
-     !> If true, then compute mu_star so that smb = smb_obs for each glacier
-     !> This implies a temperature adjustment (delta_artm /= 0) during spin-up and inversion
 
      integer :: snow_calc = 1
      !> \begin{description}
@@ -1906,11 +1921,11 @@ module glide_types
           volume => null(),                 & !> glacier volume (m^3)
           area_init => null(),              & !> initial glacier area (m^2) based on observations
           volume_init => null(),            & !> initial glacier volume (m^3) based on observations
-          mu_star => null(),                & !> tunable parameter relating SMB to monthly mean artm (mm/yr w.e./deg)
+          mu_star => null(),                & !> glacier-specific parameter relating SMB to monthly mean artm (mm/yr w.e./deg),
                                               !> defined as positive for ablation
+          snow_factor => null(),            & !> glacier_specific multiplicative snow factor (unitless)
           smb => null(),                    & !> modeled glacier-average mass balance (mm/yr w.e.)
-          smb_obs => null(),                & !> observed glacier-average mass balance (mm/yr w.e.), e.g. from Hugonnet et al. (2021)
-          delta_artm => null()                !> temperature correction (deg), nudging toward SMB = 0
+          smb_obs => null()                   !> observed glacier-average mass balance (mm/yr w.e.), e.g. from Hugonnet et al. (2021)
 
      ! 2D arrays
 
@@ -1925,8 +1940,8 @@ module glide_types
           dthck_dt_2d => null(),            & !> accumulated dthck_dt (m/yr)
           snow_2d => null(),                & !> accumulated snowfall (mm/yr w.e.)
           Tpos_2d => null(),                & !> accumulated max(artm - Tmlt,0) (deg C)
-          snow_dartm_2d => null(),          & !> accumulated snowfall (mm/yr w.e.), adjustedd for dartm
-          Tpos_dartm_2d => null()             !> accumulated max(artm + delta_artm - Tmlt,0) (deg C)
+          snow_aux_2d => null(),            & !> accumulated snowfall (mm/yr w.e.), auxiliary field
+          Tpos_aux_2d => null()               !> accumulated max(artm - Tmlt,0) (deg C), auxiliary field
 
      integer, dimension(:,:), pointer :: &
           imask => null()                     !> 2D mask; indicates whether glaciers are present in the input file
@@ -2972,24 +2987,33 @@ contains
     endif  ! Glissade
 
     ! glacier options (Glissade only)
-    ! Note: model%climate%smb_obs is currently used only for glacier SMB inversion
     if (model%options%enable_glaciers) then
        call coordsystem_allocate(model%general%ice_grid, model%glacier%rgi_glacier_id)
        call coordsystem_allocate(model%general%ice_grid, model%glacier%cism_glacier_id)
        call coordsystem_allocate(model%general%ice_grid, model%glacier%cism_glacier_id_init)
        call coordsystem_allocate(model%general%ice_grid, model%glacier%dthck_dt_2d)
-       call coordsystem_allocate(model%general%ice_grid, model%glacier%snow_2d)
-       call coordsystem_allocate(model%general%ice_grid, model%glacier%Tpos_2d)
-       call coordsystem_allocate(model%general%ice_grid, model%glacier%snow_dartm_2d)
-       call coordsystem_allocate(model%general%ice_grid, model%glacier%Tpos_dartm_2d)
-       call coordsystem_allocate(model%general%ice_grid, model%climate%smb_obs)
        call coordsystem_allocate(model%general%ice_grid, model%climate%snow)
        call coordsystem_allocate(model%general%ice_grid, model%climate%precip)
-       !TODO - Delete these if they are allocated with XY_LAPSE logic
+       call coordsystem_allocate(model%general%ice_grid, model%climate%smb_obs)
+       call coordsystem_allocate(model%general%ice_grid, model%glacier%snow_2d)
+       call coordsystem_allocate(model%general%ice_grid, model%glacier%Tpos_2d)
+
+       !TODO - Allocate these fields based on the XY_LAPSE option?
+       !       Then wouldnn't have to check for previous allocation.
        if (.not.associated(model%climate%usrf_ref)) &
             call coordsystem_allocate(model%general%ice_grid, model%climate%usrf_ref)
        if (.not.associated(model%climate%artm_ref)) &
             call coordsystem_allocate(model%general%ice_grid, model%climate%artm_ref)
+
+       ! Note: The auxiliary fields are currently used only for glacier SMB inversion
+       call coordsystem_allocate(model%general%ice_grid, model%climate%snow_aux)
+       call coordsystem_allocate(model%general%ice_grid, model%climate%precip_aux)
+       call coordsystem_allocate(model%general%ice_grid, model%climate%artm_aux)
+       call coordsystem_allocate(model%general%ice_grid, model%climate%artm_ref_aux)
+       call coordsystem_allocate(model%general%ice_grid, model%climate%usrf_ref_aux)
+       call coordsystem_allocate(model%general%ice_grid, model%glacier%snow_aux_2d)
+       call coordsystem_allocate(model%general%ice_grid, model%glacier%Tpos_aux_2d)
+
        ! Allocate arrays with dimension(nglacier)
        ! Note: nglacier = 1 by default, but can be changed in subroutine glissade_glacier_init
        !        after reading the input file.  If so, these arrays will be reallocated.
@@ -3002,9 +3026,9 @@ contains
        allocate(model%glacier%area_init(model%glacier%nglacier))
        allocate(model%glacier%volume_init(model%glacier%nglacier))
        allocate(model%glacier%mu_star(model%glacier%nglacier))
+       allocate(model%glacier%snow_factor(model%glacier%nglacier))
        allocate(model%glacier%smb(model%glacier%nglacier))
        allocate(model%glacier%smb_obs(model%glacier%nglacier))
-       allocate(model%glacier%delta_artm(model%glacier%nglacier))
     endif
 
     ! inversion and basal physics arrays (Glissade only)
@@ -3437,10 +3461,10 @@ contains
         deallocate(model%glacier%snow_2d)
     if (associated(model%glacier%Tpos_2d)) &
         deallocate(model%glacier%Tpos_2d)
-    if (associated(model%glacier%snow_dartm_2d)) &
-        deallocate(model%glacier%snow_dartm_2d)
-    if (associated(model%glacier%Tpos_dartm_2d)) &
-        deallocate(model%glacier%Tpos_dartm_2d)
+    if (associated(model%glacier%snow_aux_2d)) &
+        deallocate(model%glacier%snow_aux_2d)
+    if (associated(model%glacier%Tpos_aux_2d)) &
+        deallocate(model%glacier%Tpos_aux_2d)
     if (associated(model%glacier%smb_obs)) &
         deallocate(model%glacier%smb_obs)
     if (associated(model%glacier%area)) &
@@ -3453,10 +3477,10 @@ contains
         deallocate(model%glacier%volume_init)
     if (associated(model%glacier%mu_star)) &
         deallocate(model%glacier%mu_star)
+    if (associated(model%glacier%snow_factor)) &
+        deallocate(model%glacier%snow_factor)
     if (associated(model%glacier%smb)) &
         deallocate(model%glacier%smb)
-    if (associated(model%glacier%delta_artm)) &
-        deallocate(model%glacier%delta_artm)
 
     ! inversion arrays
     if (associated(model%basal_physics%powerlaw_c)) &
@@ -3616,8 +3640,6 @@ contains
         deallocate(model%climate%acab_applied_tavg)
     if (associated(model%climate%smb)) &
         deallocate(model%climate%smb)
-    if (associated(model%climate%smb_obs)) &
-        deallocate(model%climate%smb_obs)
     if (associated(model%climate%smb_anomaly)) &
         deallocate(model%climate%smb_anomaly)
     if (associated(model%climate%snow)) &
@@ -3652,6 +3674,18 @@ contains
         deallocate(model%climate%smb_3d)
     if (associated(model%climate%artm_3d)) &
         deallocate(model%climate%artm_3d)
+    if (associated(model%climate%smb_obs)) &
+        deallocate(model%climate%smb_obs)
+    if (associated(model%climate%snow_aux)) &
+        deallocate(model%climate%snow_aux)
+    if (associated(model%climate%precip_aux)) &
+        deallocate(model%climate%precip_aux)
+    if (associated(model%climate%artm_aux)) &
+        deallocate(model%climate%artm_aux)
+    if (associated(model%climate%artm_ref_aux)) &
+        deallocate(model%climate%artm_ref_aux)
+    if (associated(model%climate%usrf_ref_aux)) &
+        deallocate(model%climate%usrf_ref_aux)
 
     ! calving arrays
     if (associated(model%calving%calving_thck)) &
