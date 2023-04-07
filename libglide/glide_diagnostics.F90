@@ -1158,6 +1158,10 @@ contains
             model%glacier%mu_star(ng)
        call write_log(trim(message), type = GM_DIAGNOSTIC)
 
+       write(message,'(a35,f14.6)') 'snow_factor                        ', &
+            model%glacier%snow_factor(ng)
+       call write_log(trim(message), type = GM_DIAGNOSTIC)
+
        call write_log(' ')
 
     endif  ! enable_glaciers and main_task

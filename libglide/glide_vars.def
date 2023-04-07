@@ -758,14 +758,6 @@ factor:        1.0
 standard_name: land_ice_surface_specific_mass_balance
 load:          1
 
-[smb_obs]
-dimensions:    time, y1, x1
-units:         mm/year water equivalent
-long_name:     observed surface mass balance
-data:          data%climate%smb_obs
-factor:        1.0
-load:          1
-
 [snow]
 dimensions:    time, y1, x1
 units:         mm/year water equivalent
@@ -938,6 +930,49 @@ long_name:     cells where acab is overwritten
 data:          data%climate%overwrite_acab_mask
 standard_name: land_ice_overwrite_acab_mask
 type:          int
+load:          1
+
+[smb_obs]
+dimensions:    time, y1, x1
+units:         mm/year water equivalent
+long_name:     observed surface mass balance
+data:          data%climate%smb_obs
+factor:        1.0
+load:          1
+
+[snow_aux]
+dimensions:    time, y1, x1
+units:         mm/year water equivalent
+long_name:     auxiliary snowfall rate
+data:          data%climate%snow_aux
+load:          1
+
+[precip_aux]
+dimensions:    time, y1, x1
+units:         mm/year water equivalent
+long_name:     auxiliary precipitation rate
+data:          data%climate%precip_aux
+load:          1
+
+[artm_aux]
+dimensions:    time, y1, x1
+units:         deg Celsius
+long_name:     auxiliary surface temperature
+data:          data%climate%artm_aux
+load:          1
+
+[artm_ref_aux]
+dimensions:    time, y1, x1
+units:         deg Celsius
+long_name:     auxiliary surface temperature at reference elevation
+data:          data%climate%artm_ref_aux
+load:          1
+
+[usrf_ref_aux]
+dimensions:    time, y1, x1
+units:         m
+long_name:     auxiliary reference upper surface elevation for input forcing
+data:          data%climate%usrf_ref_aux
 load:          1
 
 #WHL: Note sign convention: positive downward
@@ -1692,11 +1727,11 @@ long_name:     glacier SMB coefficient
 data:          data%glacier%mu_star
 load:          1
 
-[glacier_delta_artm]
+[glacier_snow_factor]
 dimensions:    time, glacierid
-units:         degree_Celsius
-long_name:     glacier artm adjustment
-data:          data%glacier%delta_artm
+units:         1
+long_name:     glacier snow factor
+data:          data%glacier%snow_factor
 load:          1
 
 [glacier_smb_obs]
