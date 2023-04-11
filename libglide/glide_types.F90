@@ -1497,13 +1497,16 @@ module glide_types
                                                     !> If set to zero, then the anomaly is applied immediately.
      real(dp) :: t_lapse = 0.0d0                    !> air temp lapse rate (deg/m); positive for T decreasing with height
 
-     ! Next several fields are used for the 'read_once' forcing option.
+     ! The next several fields are used for the 'read_once' forcing option.
      ! E.g., if we want to read in all time slices of precip at once, we would set 'read_once' = .true. in the config file.
      ! All time slices are then stored in the precip_read_once array, where the third dimension is the number of time slices.
      ! Data are copied from precip_read_once to the regular 2D precip array as the model time changes.
      real(dp), dimension(:,:,:),pointer :: precip_read_once   => null()  !> precip field, read_once version
      real(dp), dimension(:,:,:),pointer :: artm_ref_read_once => null()  !> artm_ref field, read_once version
      real(dp), dimension(:,:,:),pointer :: snow_read_once => null()      !> snow field, read_once version
+     real(dp), dimension(:,:,:),pointer :: precip_aux_read_once   => null()  !> auxiliary precip field, read_once version
+     real(dp), dimension(:,:,:),pointer :: artm_ref_aux_read_once => null()  !> auxiliary artm_ref field, read_once version
+     real(dp), dimension(:,:,:),pointer :: snow_aux_read_once => null()      !> auxiliary snow field, read_once version
 
   end type glide_climate
 

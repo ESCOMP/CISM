@@ -946,6 +946,7 @@ units:         mm/year water equivalent
 long_name:     auxiliary snowfall rate
 data:          data%climate%snow_aux
 load:          1
+read_once:     1
 
 [precip_aux]
 dimensions:    time, y1, x1
@@ -953,6 +954,7 @@ units:         mm/year water equivalent
 long_name:     auxiliary precipitation rate
 data:          data%climate%precip_aux
 load:          1
+read_once:     1
 
 [artm_aux]
 dimensions:    time, y1, x1
@@ -967,6 +969,7 @@ units:         deg Celsius
 long_name:     auxiliary surface temperature at reference elevation
 data:          data%climate%artm_ref_aux
 load:          1
+read_once:     1
 
 [usrf_ref_aux]
 dimensions:    time, y1, x1

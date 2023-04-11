@@ -784,6 +784,11 @@ contains
        end if
     end if
 
+    ! For read_once files, suppress the call to glide_io_read by setting just_processed = false
+    if (infile%read_once) then
+       NCI%just_processed = .FALSE.
+    endif
+
   contains
 
     real(dp) function sub_time(model, time)
