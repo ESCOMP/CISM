@@ -249,7 +249,7 @@ class PrintNC_template(PrintVars):
         self.handletoken['!GENVAR_RESETAVG!'] = self.print_var_avg_reset
         #WHL - Added for read_once forcing capability
         self.handletoken['!GENVAR_READ_ONCE_ALLOCATE!'] = self.print_var_read_once_allocate
-        self.handletoken['!GENVAR_READ_ONCE_FILL!'] = self.print_var_read_once_fill
+        self.handletoken['!GENVAR_READ_ONCE_COPY!'] = self.print_var_read_once_copy
         self.handletoken['!GENVAR_READ_ONCE_RETRIEVE!'] = self.print_var_read_once_retrieve
 
     def write(self,vars):
@@ -712,21 +712,30 @@ class PrintNC_template(PrintVars):
             self.stream.write("             nx = size(%s,1)\n"%var['data'])
             self.stream.write("             ny = size(%s,2)\n"%var['data'])
             self.stream.write("             allocate(%s(nx,ny,nt))\n"%read_once_data)
+            self.stream.write("             %s = 0.0d0\n"%read_once_data)
             self.stream.write("          end if\n\n")
 
-    def print_var_read_once_fill(self,var):
-        """Fill read_once arrays"""
+    def print_var_read_once_copy(self,var):
+        """Copy data to read_once arrays"""
 
         if var['read_once']:
             read_once_data = '%s_%s'%(var['data'],READ_ONCE_SUFFIX)
-            self.stream.write("             %s(:,:,t) = %s(:,:)\n"%(read_once_data,var['data']))
+            self.stream.write("             global_sum = parallel_reduce_sum(sum(%s))\n"%var['data'])
+            self.stream.write("             if (global_sum /= 0.0d0) then\n")
+            self.stream.write("                %s(:,:,t) = %s(:,:)\n"%(read_once_data,var['data']))
+            self.stream.write("                %s = 0.0d0\n"%var['data'])
+            self.stream.write("                if (t==1) ic%%nc%%vars = trim(ic%%nc%%vars)//' %s '\n"%var['name'])
+            self.stream.write("             endif\n\n")
 
     def print_var_read_once_retrieve(self,var):
         """Retrieve data from read_once arrays"""
 
         if var['read_once']:
             read_once_data = '%s_%s'%(var['data'],READ_ONCE_SUFFIX)
-            self.stream.write("             %s(:,:) = %s(:,:,t)\n"%(var['data'],read_once_data))
+            self.stream.write("             if (index(ic%%nc%%vars,' %s ') /= 0) then\n"%var['name'])
+            self.stream.write("                %s(:,:) = %s(:,:,t)\n"%(var['data'],read_once_data))
+            self.stream.write("                if (main_task .and. verbose_read_forcing) print*, 'Retrieve %s'\n"%var['name'])
+            self.stream.write("             endif\n\n")
 
 def usage():
     """Short help message."""
