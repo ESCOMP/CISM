@@ -1882,19 +1882,13 @@ module glide_types
      !> \end{description}
 
      ! parameters
-     ! Note: glacier%tmlt can be set by the user in the config file.
-     !       glacier%minthck is currently set at initialization based on model%numerics%thklim.
+     ! Note: glacier%minthck is currently set at initialization based on model%numerics%thklim.
      !       glacier%diagnostic_minthck is used only for diagnostic area and volume sums;
      !        it does not enter the inversion or dynamics.
      !       Other glacier parameters are declared at the top of module glissade_glacier.
      !       These could be added to the derived type.
 
-     real(dp) :: t_mlt = -5.0d0         !> air temperature (deg C) at which ablation occurs
-                                        !> Maussion et al. suggest -1 C, but a lower value is more appropriate
-                                        !> when applying monthly mean artm in mid-latitude regions like HMA.
-
-     real(dp) :: snow_reduction_factor = 0.5d0  !> factor between 0 and 1, multiplying input snowfall;
-                                                !> applied only outside the initial glacier mask
+     real(dp) :: tmlt_const = -4.d0     !> spatially uniform temperature threshold for melting (deg C)
 
      ! Note: These thresholds assume that artm is a monthly mean, not an instantaneous value
      real(dp) :: &
@@ -1919,6 +1913,8 @@ module glide_types
      integer, dimension(:), pointer :: &
           cism_to_rgi_glacier_id => null()    !> maps CISM glacier IDs (1:nglacier) to input RGI glacier IDs
 
+     !TODO - Allow tmlt to vary for glaciers where mu_star is capped.
+
      real(dp), dimension(:), pointer :: &
           area => null(),                   & !> glacier area (m^2)
           volume => null(),                 & !> glacier volume (m^3)
@@ -1926,7 +1922,8 @@ module glide_types
           volume_init => null(),            & !> initial glacier volume (m^3) based on observations
           mu_star => null(),                & !> glacier-specific parameter relating SMB to monthly mean artm (mm/yr w.e./deg),
                                               !> defined as positive for ablation
-          snow_factor => null(),            & !> glacier_specific multiplicative snow factor (unitless)
+          snow_factor => null(),            & !> glacier-specific multiplicative snow factor (unitless)
+          tmlt => null(),                   & !> glacier-specific temperature threshold for melting (deg C)
           smb => null(),                    & !> modeled glacier-average mass balance (mm/yr w.e.)
           smb_obs => null()                   !> observed glacier-average mass balance (mm/yr w.e.), e.g. from Hugonnet et al. (2021)
 
@@ -1936,15 +1933,21 @@ module glide_types
           rgi_glacier_id => null(),         & !> unique glacier ID  based on the Randolph Glacier Inventory
                                               !> first 2 digits give the RGI region;
                                               !> the rest give the number within the region
-          cism_glacier_id => null(),        & !> CISM-specific glacier ID, numbered consecutively from 1 to nglacier
-          cism_glacier_id_init => null()      !> cism_glacier_id at initialization, based on rgi_glacier_id
+          cism_glacier_id => null(),        & !> CISM-specific glacier ID, numbered from 1 to nglacier
+          cism_glacier_id_init => null(),   & !> cism_glacier_id at initialization, based on rgi_glacier_id
+          smb_glacier_id => null(),         & !> integer glacier ID for applying SMB at runtime
+          smb_glacier_id_init => null()       !> integer glacier ID for applying SMB;
+                                              !> based on cism_glacier_id_init and used for inversion
 
+     !TODO - Change '2d' to 'annmean'?
+     !       Do all of these need to be part of the derived type? Maybe just for diagnostic I/O.
+     !       Add smb_annmean?
      real(dp), dimension(:,:), pointer :: &
           dthck_dt_2d => null(),            & !> accumulated dthck_dt (m/yr)
           snow_2d => null(),                & !> accumulated snowfall (mm/yr w.e.)
-          Tpos_2d => null(),                & !> accumulated max(artm - Tmlt,0) (deg C)
+          Tpos_2d => null(),                & !> accumulated max(artm - tmlt,0) (deg C)
           snow_aux_2d => null(),            & !> accumulated snowfall (mm/yr w.e.), auxiliary field
-          Tpos_aux_2d => null()               !> accumulated max(artm - Tmlt,0) (deg C), auxiliary field
+          Tpos_aux_2d => null()               !> accumulated max(artm - tmlt,0) (deg C), auxiliary field
 
      integer, dimension(:,:), pointer :: &
           imask => null()                     !> 2D mask; indicates whether glaciers are present in the input file
@@ -2994,6 +2997,8 @@ contains
        call coordsystem_allocate(model%general%ice_grid, model%glacier%rgi_glacier_id)
        call coordsystem_allocate(model%general%ice_grid, model%glacier%cism_glacier_id)
        call coordsystem_allocate(model%general%ice_grid, model%glacier%cism_glacier_id_init)
+       call coordsystem_allocate(model%general%ice_grid, model%glacier%smb_glacier_id)
+       call coordsystem_allocate(model%general%ice_grid, model%glacier%smb_glacier_id_init)
        call coordsystem_allocate(model%general%ice_grid, model%glacier%dthck_dt_2d)
        call coordsystem_allocate(model%general%ice_grid, model%climate%snow)
        call coordsystem_allocate(model%general%ice_grid, model%climate%precip)
@@ -3030,6 +3035,7 @@ contains
        allocate(model%glacier%volume_init(model%glacier%nglacier))
        allocate(model%glacier%mu_star(model%glacier%nglacier))
        allocate(model%glacier%snow_factor(model%glacier%nglacier))
+       allocate(model%glacier%tmlt(model%glacier%nglacier))
        allocate(model%glacier%smb(model%glacier%nglacier))
        allocate(model%glacier%smb_obs(model%glacier%nglacier))
     endif
@@ -3456,6 +3462,10 @@ contains
         deallocate(model%glacier%cism_glacier_id)
     if (associated(model%glacier%cism_glacier_id_init)) &
         deallocate(model%glacier%cism_glacier_id_init)
+    if (associated(model%glacier%smb_glacier_id)) &
+        deallocate(model%glacier%smb_glacier_id)
+    if (associated(model%glacier%smb_glacier_id_init)) &
+        deallocate(model%glacier%smb_glacier_id_init)
     if (associated(model%glacier%cism_to_rgi_glacier_id)) &
         deallocate(model%glacier%cism_to_rgi_glacier_id)
     if (associated(model%glacier%dthck_dt_2d)) &
@@ -3482,6 +3492,8 @@ contains
         deallocate(model%glacier%mu_star)
     if (associated(model%glacier%snow_factor)) &
         deallocate(model%glacier%snow_factor)
+    if (associated(model%glacier%tmlt)) &
+        deallocate(model%glacier%tmlt)
     if (associated(model%glacier%smb)) &
         deallocate(model%glacier%smb)
 

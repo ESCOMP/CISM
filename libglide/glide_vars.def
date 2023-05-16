@@ -1690,6 +1690,20 @@ long_name:     initial CISM-specific glacier ID
 data:          data%glacier%cism_glacier_id_init
 load:          1
 
+[smb_glacier_id]
+dimensions:    time, y1, x1
+units:         1
+long_name:     glacier ID for applying SMB
+data:          data%glacier%smb_glacier_id
+load:          1
+
+[smb_glacier_id_init]
+dimensions:    time, y1, x1
+units:         1
+long_name:     initial glacier ID for applying SMB
+data:          data%glacier%smb_glacier_id_init
+load:          1
+
 [cism_to_rgi_glacier_id]
 dimensions:    time, glacierid
 units:         1
