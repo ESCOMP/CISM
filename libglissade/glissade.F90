@@ -2244,8 +2244,7 @@ contains
     use glissade_bmlt_float, only: verbose_bmlt_float
     use glissade_calving, only: verbose_calving
     use glissade_grid_operators, only: glissade_vertical_interpolate
-    use glissade_glacier, only: verbose_glacier, glissade_glacier_smb, &
-                                glissade_glacier_advance_retreat
+    use glissade_glacier, only: verbose_glacier, glissade_glacier_smb
     use glide_stop, only: glide_finalise
 
     implicit none
@@ -2854,20 +2853,17 @@ contains
                ewn,      nsn,                          &
                itest,    jtest,    rtest,              &
                model%glacier%nglacier,                 &
-               model%glacier%cism_glacier_id_init,     &
-               model%glacier%cism_glacier_id,          &
-               model%glacier%t_mlt,                    &  ! deg C
+               model%glacier%smb_glacier_id,           &
+               model%glacier%snow_calc,                &
                model%glacier%snow_threshold_min,       &  ! deg C
                model%glacier%snow_threshold_max,       &  ! deg C
-               model%glacier%snow_reduction_factor,    &
-               model%glacier%snow_calc,                &
                model%climate%snow,                     &  ! mm/yr w.e.
                model%climate%precip,                   &  ! mm/yr w.e.
                model%climate%artm_corrected,           &  ! deg C
+               model%glacier%tmlt,                     &  ! deg C
                model%glacier%mu_star,                  &  ! mm/yr w.e./deg
                model%glacier%snow_factor,              &  ! unitless
-               model%climate%smb,                      &  ! mm/yr w.e.
-               model%glacier%smb)                         ! mm/yr w.e.
+               model%climate%smb)                         ! mm/yr w.e.
 
           ! Convert SMB (mm/yr w.e.) to acab (CISM model units)
           model%climate%acab(:,:) = (model%climate%smb(:,:) * (rhow/rhoi)/1000.d0) / scale_acab
@@ -3118,34 +3114,6 @@ contains
                                          model%geometry%tracers_usrf(:,:,:),                   &
                                          model%geometry%tracers_lsrf(:,:,:),                   &
                                          model%options%which_ho_vertical_remap)
-
-       !-------------------------------------------------------------------------
-       ! If running with glaciers, then adjust glacier indices based on advance and retreat.
-       ! Call once per year.
-       ! Note: This subroutine limits the ice thickness in grid cells that do not yet have
-       !       a nonzero cism_glacier_id.  The acab_applied field is adjusted accordingly,
-       !       which means that acab_applied will be more negative during timesteps
-       !       when this subroutine is called.
-       ! TODO: To make acab_applied more uniform on subannual time scales, create a new flux
-       !       (e.g., correction_flux) for artificial thickness changes, distinct from SMB, BMB and calving.
-       !-------------------------------------------------------------------------
-
-       if (model%options%enable_glaciers .and. &
-          mod(model%numerics%tstep_count, model%numerics%nsteps_per_year) == 0) then
-
-          call glissade_glacier_advance_retreat(&
-               ewn,             nsn,                &
-               itest,   jtest,  rtest,              &
-               model%geometry%usrf*thk0,            &  ! m
-               thck_unscaled,                       &  ! m
-               model%climate%acab_applied,          &  ! m/s
-               model%numerics%dt * tim0,            &  ! s
-               model%glacier%minthck,               &  ! m
-               model%glacier%cism_glacier_id_init,  &
-               model%glacier%cism_glacier_id,       &
-               parallel)
-
-       endif   ! enable_glaciers
 
        !-------------------------------------------------------------------------
        ! Cleanup
@@ -4117,7 +4085,7 @@ contains
          glissade_inversion_bmlt_basin, glissade_inversion_deltaT_ocn, &
          glissade_inversion_flow_enhancement_factor
     use glissade_utils, only: glissade_usrf_to_thck
-    use glissade_glacier, only: glissade_glacier_inversion
+    use glissade_glacier, only: glissade_glacier_update
 
     implicit none
 
@@ -4383,7 +4351,7 @@ contains
     ! Note: This subroutine used to be called earlier, but now is called here
     !       in order to have f_ground_cell up to date.
     ! If running with glaciers, inversion for powerlaw_c is done elsewhere,
-    !  in subroutine glissade_glacier_inversion.
+    !  in subroutine glissade_glacier_update.
     !TODO: Call when the inversion options are set, not the external options.
     !      Currently, the only thing done for the external options is to remove
     !       zero values.
@@ -4570,16 +4538,18 @@ contains
     endif   ! which_ho_flow_enhancement_factor
 
 
-    ! If glaciers are enabled, invert for mu_star and powerlaw_c.
-    ! Note: If reading mu_star and powerlaw_c from external files, the subroutine is called
-    !       for diagnostics only.
+    ! If glaciers are enabled, then do various updates:
+    ! (1) If inverting for mu_star, snow_factor, or powerlaw_c, then
+    !     (a) Accumulate the fields needed for the inversion.
+    !     (b) Once a year, average the fields and do the inversion.
+    ! (2) Once a year, update the glacier masks as glaciers advance and retreat.
 
     if (model%options%enable_glaciers) then
 
        if (model%numerics%time == model%numerics%tstart) then
            ! first call at start-up or after a restart; do nothing
        else
-          call glissade_glacier_inversion(model, model%glacier)
+          call glissade_glacier_update(model, model%glacier)
        endif   ! time = tstart
 
     endif   ! enable_glaciers
