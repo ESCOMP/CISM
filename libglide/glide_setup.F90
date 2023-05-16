@@ -2627,6 +2627,10 @@ contains
     elseif (model%options%which_ho_babc == HO_BABC_POWERLAW) then
        write(message,*) 'Cp for power law, Pa (m/yr)^(-1/3)           : ', model%basal_physics%powerlaw_c_const
        call write_log(message)
+       write(message,*) 'Max Cp for power law, Pa (m/yr)^(-1/3)       : ', model%basal_physics%powerlaw_c_max
+       call write_log(message)
+       write(message,*) 'Min Cp for power law, Pa (m/yr)^(-1/3)       : ', model%basal_physics%powerlaw_c_min
+       call write_log(message)
        write(message,*) 'm exponent for power law                     : ', model%basal_physics%powerlaw_m
        call write_log(message)
     elseif (model%options%which_ho_babc == HO_BABC_COULOMB_FRICTION) then
@@ -2643,6 +2647,10 @@ contains
        call write_log(message)
        write(message,*) 'Cp for Schoof power law, Pa (m/yr)^(-1/3)    : ', model%basal_physics%powerlaw_c_const
        call write_log(message)
+       write(message,*) 'Max Cp for power law, Pa (m/yr)^(-1/3)       : ', model%basal_physics%powerlaw_c_max
+       call write_log(message)
+       write(message,*) 'Min Cp for power law, Pa (m/yr)^(-1/3)       : ', model%basal_physics%powerlaw_c_min
+       call write_log(message)
        write(message,*) 'm exponent for Schoof power law              : ', model%basal_physics%powerlaw_m
        call write_log(message)
     elseif (model%options%which_ho_babc == HO_BABC_COULOMB_POWERLAW_TSAI) then
@@ -2651,6 +2659,10 @@ contains
        write(message,*) 'Cc for Tsai Coulomb law                      : ', model%basal_physics%coulomb_c_const
        call write_log(message)
        write(message,*) 'Cp for Tsai power law, Pa (m/yr)^(-1/3)      : ', model%basal_physics%powerlaw_c_const
+       call write_log(message)
+       write(message,*) 'Max Cp for power law, Pa (m/yr)^(-1/3)       : ', model%basal_physics%powerlaw_c_max
+       call write_log(message)
+       write(message,*) 'Min Cp for power law, Pa (m/yr)^(-1/3)       : ', model%basal_physics%powerlaw_c_min
        call write_log(message)
        write(message,*) 'm exponent for Tsai power law                : ', model%basal_physics%powerlaw_m
        call write_log(message)
@@ -3163,11 +3175,10 @@ contains
     call GetValue(section,'set_snow_factor',    model%glacier%set_snow_factor)
     call GetValue(section,'set_powerlaw_c',     model%glacier%set_powerlaw_c)
     call GetValue(section,'snow_calc',          model%glacier%snow_calc)
-    call GetValue(section,'t_mlt',              model%glacier%t_mlt)
+    call GetValue(section,'tmlt_const',         model%glacier%tmlt_const)
     call GetValue(section,'snow_threshold_min', model%glacier%snow_threshold_min)
     call GetValue(section,'snow_threshold_max', model%glacier%snow_threshold_max)
     call GetValue(section,'diagnostic_minthck', model%glacier%diagnostic_minthck)
-    call GetValue(section,'snow_reduction_factor', model%glacier%snow_reduction_factor)
 
   end subroutine handle_glaciers
 
@@ -3268,9 +3279,7 @@ contains
           call write_log(message)
        endif
 
-       write(message,*) 'glacier T_mlt (deg C)     :  ', model%glacier%t_mlt
-       call write_log(message)
-       write(message,*) 'glc snow reduction factor :  ', model%glacier%snow_reduction_factor
+       write(message,*) 'glc tmlt_const (deg C)    :  ', model%glacier%tmlt_const
        call write_log(message)
        write(message,*) 'glc diagnostic minthck (m):  ', model%glacier%diagnostic_minthck
        call write_log(message)
@@ -3750,10 +3759,13 @@ contains
        call glide_add_to_restart_variable_list('rgi_glacier_id')
        call glide_add_to_restart_variable_list('cism_glacier_id')
        call glide_add_to_restart_variable_list('cism_glacier_id_init')
+       call glide_add_to_restart_variable_list('smb_glacier_id')
+       call glide_add_to_restart_variable_list('smb_glacier_id_init')
        call glide_add_to_restart_variable_list('cism_to_rgi_glacier_id')
        ! some fields needed for glacier inversion
        call glide_add_to_restart_variable_list('glacier_mu_star')
        call glide_add_to_restart_variable_list('glacier_snow_factor')
+       call glide_add_to_restart_variable_list('glacier_tmlt')
        call glide_add_to_restart_variable_list('glacier_smb_obs')
        !TODO - would not need to write glacier_smb_obs if in a forcing file?
        if (model%glacier%set_powerlaw_c == GLACIER_POWERLAW_C_INVERSION) then
