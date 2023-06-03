@@ -3172,7 +3172,7 @@ contains
     type(glide_global_type)  :: model
 
     call GetValue(section,'set_mu_star',        model%glacier%set_mu_star)
-    call GetValue(section,'set_snow_factor',    model%glacier%set_snow_factor)
+    call GetValue(section,'set_alpha_snow',     model%glacier%set_alpha_snow)
     call GetValue(section,'set_powerlaw_c',     model%glacier%set_powerlaw_c)
     call GetValue(section,'snow_calc',          model%glacier%snow_calc)
     call GetValue(section,'tmlt',               model%glacier%tmlt)
@@ -3200,10 +3200,10 @@ contains
          'glacier-specific mu_star found by inversion', &
          'glacier-specific mu_star read from file    ' /)
 
-    character(len=*), dimension(0:2), parameter :: glacier_set_snow_factor = (/ &
-         'spatially uniform glacier parameter snow_factor', &
-         'glacier-specific snow_factor found by inversion', &
-         'glacier-specific snow_factor read from file    ' /)
+    character(len=*), dimension(0:2), parameter :: glacier_set_alpha_snow = (/ &
+         'spatially uniform glacier parameter alpha_snow', &
+         'glacier-specific alpha_snow found by inversion', &
+         'glacier-specific alpha_snow read from file    ' /)
 
     character(len=*), dimension(0:2), parameter :: glacier_set_powerlaw_c = (/ &
          'spatially uniform glacier parameter Cp', &
@@ -3230,12 +3230,12 @@ contains
           call write_log('Error, glacier_set_mu_star option out of range', GM_FATAL)
        end if
 
-       write(message,*) 'set_snow_factor           : ', model%glacier%set_snow_factor, &
-            glacier_set_snow_factor(model%glacier%set_snow_factor)
+       write(message,*) 'set_alpha_snow           : ', model%glacier%set_alpha_snow, &
+            glacier_set_alpha_snow(model%glacier%set_alpha_snow)
        call write_log(message)
-       if (model%glacier%set_snow_factor < 0 .or. &
-           model%glacier%set_snow_factor >= size(glacier_set_snow_factor)) then
-          call write_log('Error, glacier_set_snow_factor option out of range', GM_FATAL)
+       if (model%glacier%set_alpha_snow < 0 .or. &
+           model%glacier%set_alpha_snow >= size(glacier_set_alpha_snow)) then
+          call write_log('Error, glacier_set_alpha_snow option out of range', GM_FATAL)
        end if
 
        write(message,*) 'set_powerlaw_c            : ', model%glacier%set_powerlaw_c, &
@@ -3265,8 +3265,8 @@ contains
 
        ! Check for combinations not allowed
        if (model%glacier%set_mu_star /= GLACIER_MU_STAR_INVERSION) then
-          if (model%glacier%set_snow_factor == GLACIER_SNOW_FACTOR_INVERSION) then
-             call write_log('Error, must invert for mu_star if inverting for snow_factor', GM_FATAL)
+          if (model%glacier%set_alpha_snow == GLACIER_alpha_SNOW_INVERSION) then
+             call write_log('Error, must invert for mu_star if inverting for alpha_snow', GM_FATAL)
           elseif (model%glacier%set_powerlaw_c == GLACIER_POWERLAW_C_INVERSION) then
              call write_log('Error, must invert for mu_star if inverting for powerlaw_c', GM_FATAL)
           endif
@@ -3764,8 +3764,8 @@ contains
        call glide_add_to_restart_variable_list('cism_to_rgi_glacier_id')
        ! some fields needed for glacier inversion
        call glide_add_to_restart_variable_list('glacier_mu_star')
-       call glide_add_to_restart_variable_list('glacier_snow_factor')
-       call glide_add_to_restart_variable_list('glacier_artm_aux_corr')
+       call glide_add_to_restart_variable_list('glacier_alpha_snow')
+       call glide_add_to_restart_variable_list('glacier_beta_artm_aux')
        call glide_add_to_restart_variable_list('glacier_smb_obs')
        !TODO - would not need to write glacier_smb_obs if in a forcing file?
        if (model%glacier%set_powerlaw_c == GLACIER_POWERLAW_C_INVERSION) then

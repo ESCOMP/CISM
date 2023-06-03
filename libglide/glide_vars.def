@@ -1744,18 +1744,18 @@ long_name:     glacier SMB coefficient
 data:          data%glacier%mu_star
 load:          1
 
-[glacier_snow_factor]
+[glacier_alpha_snow]
 dimensions:    time, glacierid
 units:         1
 long_name:     glacier snow factor
-data:          data%glacier%snow_factor
+data:          data%glacier%alpha_snow
 load:          1
 
-[glacier_artm_aux_corr]
+[glacier_beta_artm_aux]
 dimensions:    time, glacierid
 units:         1
 long_name:     glacier surface temperature correction
-data:          data%glacier%artm_aux_corr
+data:          data%glacier%beta_artm_aux
 load:          1
 
 [glacier_smb_obs]
