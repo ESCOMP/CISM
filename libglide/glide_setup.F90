@@ -3171,14 +3171,22 @@ contains
     type(ConfigSection), pointer :: section
     type(glide_global_type)  :: model
 
-    call GetValue(section,'set_mu_star',        model%glacier%set_mu_star)
-    call GetValue(section,'set_alpha_snow',     model%glacier%set_alpha_snow)
-    call GetValue(section,'set_powerlaw_c',     model%glacier%set_powerlaw_c)
-    call GetValue(section,'snow_calc',          model%glacier%snow_calc)
-    call GetValue(section,'tmlt',               model%glacier%tmlt)
-    call GetValue(section,'snow_threshold_min', model%glacier%snow_threshold_min)
-    call GetValue(section,'snow_threshold_max', model%glacier%snow_threshold_max)
-    call GetValue(section,'diagnostic_minthck', model%glacier%diagnostic_minthck)
+    call GetValue(section,'set_mu_star',             model%glacier%set_mu_star)
+    call GetValue(section,'set_alpha_snow',          model%glacier%set_alpha_snow)
+    call GetValue(section,'set_powerlaw_c',          model%glacier%set_powerlaw_c)
+    call GetValue(section,'snow_calc',               model%glacier%snow_calc)
+    call GetValue(section,'tmlt',                    model%glacier%tmlt)
+    call GetValue(section,'mu_star_const',           model%glacier%mu_star_const)
+    call GetValue(section,'mu_star_min',             model%glacier%mu_star_min)
+    call GetValue(section,'mu_star_max',             model%glacier%mu_star_max)
+    call GetValue(section,'alpha_snow_const',        model%glacier%alpha_snow_const)
+    call GetValue(section,'alpha_snow_min',          model%glacier%alpha_snow_min)
+    call GetValue(section,'alpha_snow_max',          model%glacier%alpha_snow_max)
+    call GetValue(section,'beta_artm_aux_max',       model%glacier%beta_artm_aux_max)
+    call GetValue(section,'beta_artm_aux_increment', model%glacier%beta_artm_aux_increment)
+    call GetValue(section,'snow_threshold_min',      model%glacier%snow_threshold_min)
+    call GetValue(section,'snow_threshold_max',      model%glacier%snow_threshold_max)
+    call GetValue(section,'diagnostic_minthck',      model%glacier%diagnostic_minthck)
 
   end subroutine handle_glaciers
 
@@ -3230,7 +3238,7 @@ contains
           call write_log('Error, glacier_set_mu_star option out of range', GM_FATAL)
        end if
 
-       write(message,*) 'set_alpha_snow           : ', model%glacier%set_alpha_snow, &
+       write(message,*) 'set_alpha_snow            : ', model%glacier%set_alpha_snow, &
             glacier_set_alpha_snow(model%glacier%set_alpha_snow)
        call write_log(message)
        if (model%glacier%set_alpha_snow < 0 .or. &
@@ -3273,15 +3281,31 @@ contains
        endif
 
        if (model%glacier%snow_calc == GLACIER_SNOW_CALC_PRECIP_ARTM) then
-          write(message,*) 'snow_threshold_min (deg C): ', model%glacier%snow_threshold_min
+          write(message,*) 'snow_threshold_min (deg C)  : ', model%glacier%snow_threshold_min
           call write_log(message)
-          write(message,*) 'snow_threshold_max (deg C): ', model%glacier%snow_threshold_max
+          write(message,*) 'snow_threshold_max (deg C)   : ', model%glacier%snow_threshold_max
           call write_log(message)
        endif
 
-       write(message,*) 'glc tmlt (deg C)          :  ', model%glacier%tmlt
+       write(message,*) 'glc diagnostic minthck (m)    :  ', model%glacier%diagnostic_minthck
        call write_log(message)
-       write(message,*) 'glc diagnostic minthck (m):  ', model%glacier%diagnostic_minthck
+       write(message,*) 'glc tmlt (deg C)              :  ', model%glacier%tmlt
+       call write_log(message)
+       write(message,*) 'mu_star_const (mm/yr/degC)    :  ', model%glacier%mu_star_const
+       call write_log(message)
+       write(message,*) 'mu_star_min (mm/yr/degC)      :  ', model%glacier%mu_star_min
+       call write_log(message)
+       write(message,*) 'mu_star_max (mm/yr/degC)      :  ', model%glacier%mu_star_max
+       call write_log(message)
+       write(message,*) 'alpha_snow_const              :  ', model%glacier%alpha_snow_const
+       call write_log(message)
+       write(message,*) 'alpha_snow_min                :  ', model%glacier%alpha_snow_min
+       call write_log(message)
+       write(message,*) 'alpha_snow_max                :  ', model%glacier%alpha_snow_max
+       call write_log(message)
+       write(message,*) 'beta_artm_aux_max (degC)      :  ', model%glacier%beta_artm_aux_max
+       call write_log(message)
+       write(message,*) 'beta_artm_aux_increment (degC):  ', model%glacier%beta_artm_aux_increment
        call write_log(message)
 
     endif   ! enable_glaciers

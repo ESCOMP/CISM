@@ -1888,18 +1888,33 @@ module glide_types
      !       Other glacier parameters are declared at the top of module glissade_glacier.
      !       These could be added to the derived type.
 
-     real(dp) :: tmlt = -4.d0                 !> spatially uniform temperature threshold for melting (deg C)
-
-     ! Note: These thresholds assume that artm is a monthly mean, not an instantaneous value
-     real(dp) :: &
-          snow_threshold_min = -5.0d0, &!> air temperature (deg C) below which all precip falls as snow
-          snow_threshold_max =  5.0d0   !> air temperature (deg C) above which all precip falls as rain
-
      real(dp) :: diagnostic_minthck = 10.0d0  !> min ice thickness to be included in glacier area and volume diagnostics
 
      real(dp) :: &
-          minthck                       !> min ice thickness (m) to be counted as part of a glacier;
-                                        !> currently set based on model%numerics%thklim
+          minthck                             !> min ice thickness (m) to be counted as part of a glacier;
+                                              !> currently set based on model%numerics%thklim
+
+     real(dp) :: &
+          tmlt = -4.d0                        !> spatially uniform temperature threshold for melting (deg C)
+
+     real(dp) :: &
+          mu_star_const = 1000.d0,          & ! uniform initial value for mu_star (mm/yr w.e/deg C)
+          mu_star_min = 200.d0,             & ! min value of mu_star (mm/yr w.e/deg C)
+          mu_star_max = 5000.d0               ! max value of mu_star (mm/yr w.e/deg C)
+
+     real(dp) :: &
+          alpha_snow_const = 1.d0,          & ! uniform initial value of alpha_snow (unitless)
+          alpha_snow_min = 0.5d0,           & ! min value of alpha_snow
+          alpha_snow_max = 3.0d0              ! max value of alpha_snow
+
+     real(dp) ::  &
+          beta_artm_aux_max = 3.0,          & ! max magnitude of beta_artm_aux (deg C)
+          beta_artm_aux_increment = 0.05d0    ! fixed increment in beta_artm_aux (deg C)
+
+     ! Note: These thresholds assume that artm is a monthly mean, not an instantaneous value
+     real(dp) :: &
+          snow_threshold_min = -5.0d0,      & !> air temperature (deg C) below which all precip falls as snow
+          snow_threshold_max =  5.0d0         !> air temperature (deg C) above which all precip falls as rain
 
      ! 1D arrays with size nglacier
 
