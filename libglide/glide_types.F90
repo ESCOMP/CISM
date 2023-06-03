@@ -1888,7 +1888,7 @@ module glide_types
      !       Other glacier parameters are declared at the top of module glissade_glacier.
      !       These could be added to the derived type.
 
-     real(dp) :: tmlt_const = -4.d0     !> spatially uniform temperature threshold for melting (deg C)
+     real(dp) :: tmlt = -4.d0                 !> spatially uniform temperature threshold for melting (deg C)
 
      ! Note: These thresholds assume that artm is a monthly mean, not an instantaneous value
      real(dp) :: &
@@ -1913,8 +1913,6 @@ module glide_types
      integer, dimension(:), pointer :: &
           cism_to_rgi_glacier_id => null()    !> maps CISM glacier IDs (1:nglacier) to input RGI glacier IDs
 
-     !TODO - Allow tmlt to vary for glaciers where mu_star is capped.
-
      real(dp), dimension(:), pointer :: &
           area => null(),                   & !> glacier area (m^2)
           volume => null(),                 & !> glacier volume (m^3)
@@ -1923,7 +1921,7 @@ module glide_types
           mu_star => null(),                & !> glacier-specific parameter relating SMB to monthly mean artm (mm/yr w.e./deg),
                                               !> defined as positive for ablation
           snow_factor => null(),            & !> glacier-specific multiplicative snow factor (unitless)
-          tmlt => null(),                   & !> glacier-specific temperature threshold for melting (deg C)
+          artm_aux_corr => null(),          & !> bias correction to auxiliary surface temperature (deg C)
           smb => null(),                    & !> modeled glacier-average mass balance (mm/yr w.e.)
           smb_obs => null()                   !> observed glacier-average mass balance (mm/yr w.e.), e.g. from Hugonnet et al. (2021)
 
@@ -3035,7 +3033,7 @@ contains
        allocate(model%glacier%volume_init(model%glacier%nglacier))
        allocate(model%glacier%mu_star(model%glacier%nglacier))
        allocate(model%glacier%snow_factor(model%glacier%nglacier))
-       allocate(model%glacier%tmlt(model%glacier%nglacier))
+       allocate(model%glacier%artm_aux_corr(model%glacier%nglacier))
        allocate(model%glacier%smb(model%glacier%nglacier))
        allocate(model%glacier%smb_obs(model%glacier%nglacier))
     endif
@@ -3492,8 +3490,8 @@ contains
         deallocate(model%glacier%mu_star)
     if (associated(model%glacier%snow_factor)) &
         deallocate(model%glacier%snow_factor)
-    if (associated(model%glacier%tmlt)) &
-        deallocate(model%glacier%tmlt)
+    if (associated(model%glacier%artm_aux_corr)) &
+        deallocate(model%glacier%artm_aux_corr)
     if (associated(model%glacier%smb)) &
         deallocate(model%glacier%smb)
 
