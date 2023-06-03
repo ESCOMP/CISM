@@ -2862,7 +2862,7 @@ contains
                model%climate%artm_corrected,           &  ! deg C
                model%glacier%tmlt,                     &  ! deg C
                model%glacier%mu_star,                  &  ! mm/yr w.e./deg
-               model%glacier%snow_factor,              &  ! unitless
+               model%glacier%alpha_snow,               &  ! unitless
                model%climate%smb)                         ! mm/yr w.e.
 
           ! Convert SMB (mm/yr w.e.) to acab (CISM model units)
@@ -2878,8 +2878,8 @@ contains
              print*, '   Local smb (mm/yr w.e.) =', model%climate%smb(i,j)
              print*, '   Local acab (m/yr ice)  =', model%climate%acab(i,j)*thk0*scyr/tim0
              if (ng > 0) then
-                print*, '   Glacier-specific smb (mm/yr w.e.), snow_factor =', &
-                     model%glacier%smb(ng), model%glacier%snow_factor(ng)
+                print*, '   Glacier-specific smb (mm/yr w.e.), alpha_snow =', &
+                     model%glacier%smb(ng), model%glacier%alpha_snow(ng)
              endif
 
              !WHL - debug
@@ -4539,7 +4539,7 @@ contains
 
 
     ! If glaciers are enabled, then do various updates:
-    ! (1) If inverting for mu_star, snow_factor, or powerlaw_c, then
+    ! (1) If inverting for mu_star, alpha_snow, or powerlaw_c, then
     !     (a) Accumulate the fields needed for the inversion.
     !     (b) Once a year, average the fields and do the inversion.
     ! (2) Once a year, update the glacier masks as glaciers advance and retreat.
