@@ -51,21 +51,6 @@ module glissade_glacier
     end type glacier_info
 
     ! Glacier parameters used in this module
-    !TODO - Add these to the glacier derived type and make them config parameters?
-
-    real(dp), parameter ::  &
-         mu_star_const = 1000.d0,                 & ! uniform initial value for mu_star (mm/yr w.e/deg C)
-         mu_star_min = 200.d0,                    & ! min value of tunable mu_star (mm/yr w.e/deg C)
-         mu_star_max = 5000.d0                     ! max value of tunable mu_star (mm/yr w.e/deg C)
-
-    real(dp), parameter ::  &
-         alpha_snow_const = 1.d0,                 & ! uniform initial value of alpha_snow
-         alpha_snow_min = 0.5d0,                  & ! min value of alpha_snow
-         alpha_snow_max = 3.0d0                     ! max value of alpha_snow
-
-    real(dp), parameter ::  &
-         beta_artm_aux_max = 3.0,                 & ! max magnitude of beta_artm_aux (deg C)
-         beta_artm_aux_increment = 0.05d0           ! fixed increment in beta_artm_aux (deg C)
 
     !TODO - Make this an input argument?
     integer, parameter :: &
@@ -405,10 +390,10 @@ contains
             glacier%volume)                    ! m^3
 
        ! Initialize other glacier arrays
-       glacier%area_init(:) = glacier%area(:)
+       glacier%area_init(:)   = glacier%area(:)
        glacier%volume_init(:) = glacier%volume(:)
-       glacier%mu_star(:) = mu_star_const
-       glacier%alpha_snow(:) = 1.0d0
+       glacier%mu_star(:)     = glacier%mu_star_const
+       glacier%alpha_snow(:)  = glacier%alpha_snow_const
        glacier%beta_artm_aux(:) = 0.0d0
 
        ! Initially, allow nonzero SMB only in glacier-covered cells.
@@ -1013,14 +998,20 @@ contains
                 ! Note: glacier%smb_obs, glacier%mu_star, and glacier%alpha_snow are 1D, per-glacier fields.
 
                 call glacier_invert_mu_star_alpha_snow(&
-                     ewn,                  nsn,                  &
-                     itest,     jtest,     rtest,                &
-                     nglacier,             ngdiag,               &
-                     glacier%smb_glacier_id_init,                &
-                     glacier%smb_obs,                            &
-                     glacier%snow_2d,      glacier%Tpos_2d,      &
-                     glacier%snow_aux_2d,  glacier%Tpos_aux_2d,  &
-                     glacier%mu_star,      glacier%alpha_snow,  &
+                     ewn,                    nsn,                   &
+                     itest,     jtest,       rtest,                 &
+                     nglacier,               ngdiag,                &
+                     glacier%smb_glacier_id_init,                   &
+                     glacier%smb_obs,                               &
+                     glacier%snow_2d,        glacier%Tpos_2d,       &
+                     glacier%snow_aux_2d,    glacier%Tpos_aux_2d,   &
+                     glacier%mu_star_const,                         &
+                     glacier%mu_star_min,    glacier%mu_star_max,   &
+                     glacier%alpha_snow_const,                      &
+                     glacier%alpha_snow_min, glacier%alpha_snow_max,&
+                     glacier%beta_artm_aux_max,                     &
+                     glacier%beta_artm_aux_increment,               &
+                     glacier%mu_star,        glacier%alpha_snow,    &
                      glacier%beta_artm_aux)
 
              else  ! not inverting for alpha_snow
@@ -1030,12 +1021,13 @@ contains
                 ! Use the default value of alpha_snow (typically = 1.0).
 
                 call glacier_invert_mu_star(&
-                     ewn,                  nsn,              &
-                     itest,     jtest,     rtest,            &
-                     nglacier,             ngdiag,           &
-                     glacier%smb_glacier_id_init,            &
-                     glacier%smb_obs,                        &
-                     glacier%snow_2d,      glacier%Tpos_2d,  &
+                     ewn,                  nsn,                 &
+                     itest,     jtest,     rtest,               &
+                     nglacier,             ngdiag,              &
+                     glacier%smb_glacier_id_init,               &
+                     glacier%smb_obs,                           &
+                     glacier%snow_2d,      glacier%Tpos_2d,     &
+                     glacier%mu_star_min,  glacier%mu_star_max, &
                      glacier%mu_star)
 
              endif  ! set_alpha_snow
@@ -1045,7 +1037,7 @@ contains
                 print*, ' '
                 print*, 'Capped min mu_star: ng, mu_star, alpha_snow, beta_artm_aux, smb_obs, Ainit (km2)'
                 do ng = 1, nglacier
-                   if (glacier%mu_star(ng) <= mu_star_min) then
+                   if (glacier%mu_star(ng) <= glacier%mu_star_min) then
                       print*, ng, glacier%mu_star(ng), glacier%alpha_snow(ng), glacier%beta_artm_aux(ng), &
                            glacier%smb_obs(ng), glacier%area_init(ng)/1.0d6
                    endif
@@ -1053,7 +1045,7 @@ contains
                 print*, ' '
                 print*, 'Capped max mu_star: ng, mu_star, alpha_snow, beta_artm_aux, smb_obs, Ainit (km2)'
                 do ng = 1, nglacier
-                   if (glacier%mu_star(ng) >= mu_star_max) then
+                   if (glacier%mu_star(ng) >= glacier%mu_star_max) then
                       print*, ng, glacier%mu_star(ng), glacier%alpha_snow(ng), glacier%beta_artm_aux(ng), &
                            glacier%smb_obs(ng), glacier%area_init(ng)/1.0d6
                    endif
@@ -1468,6 +1460,7 @@ contains
        smb_glacier_id_init,             &
        glacier_smb_obs,                 &
        snow_2d,          Tpos_2d,       &
+       mu_star_min,      mu_star_max,   &
        mu_star)
 
     ! Given an observational SMB target, invert for the parameter mu_star in the glacier SMB formula.
@@ -1490,6 +1483,9 @@ contains
     real(dp), dimension(ewn,nsn), intent(in) :: &
          snow_2d,                     & ! time-avg snowfall for each cell (mm/yr w.e.)
          Tpos_2d                        ! time-avg of max(artm - tmlt, 0) for each cell (deg)
+
+    real(dp), intent(in) :: &
+         mu_star_min, mu_star_max       ! min and max allowed values of mu_star
 
     real(dp), dimension(nglacier), intent(inout) :: &
          mu_star                        ! glacier-specific SMB tuning parameter (mm/yr w.e./deg)
@@ -1578,14 +1574,20 @@ contains
 !****************************************************
 
   subroutine glacier_invert_mu_star_alpha_snow(&
-       ewn,              nsn,           &
-       itest,   jtest,   rtest,         &
-       nglacier,         ngdiag,        &
-       smb_glacier_id_init,             &
-       glacier_smb_obs,                 &
-       snow_2d,          Tpos_2d,       &
-       snow_aux_2d,      Tpos_aux_2d,   &
-       mu_star,          alpha_snow,    &
+       ewn,              nsn,            &
+       itest,   jtest,   rtest,          &
+       nglacier,         ngdiag,         &
+       smb_glacier_id_init,              &
+       glacier_smb_obs,                  &
+       snow_2d,          Tpos_2d,        &
+       snow_aux_2d,      Tpos_aux_2d,    &
+       mu_star_const,                    &
+       mu_star_min,      mu_star_max,    &
+       alpha_snow_const,                 &
+       alpha_snow_min,   alpha_snow_max, &
+       beta_artm_aux_max,                &
+       beta_artm_aux_increment,          &
+       mu_star,          alpha_snow,     &
        beta_artm_aux)
 
     ! Given an observational SMB target, invert for the parameters mu_star and alpha_snow.
@@ -1612,6 +1614,14 @@ contains
          Tpos_2d,                     & ! time-avg of max(artm - tmlt, 0) for each cell (deg)
          snow_aux_2d,                 & ! time-avg snowfall for each cell (mm/yr w.e.), auxiliary field
          Tpos_aux_2d                    ! time-avg of max(artm - tmlt, 0) for each cell (deg), auxiliary field
+
+    real(dp), intent(in) :: &
+         mu_star_const,                  & ! default constant value of mu_star
+         mu_star_min, mu_star_max,       & ! min and max allowed values of mu_star
+         alpha_snow_const,               & ! default constant value of alpha_snow
+         alpha_snow_min, alpha_snow_max, & ! min and max allowed values of mu_star
+         beta_artm_aux_max,              & ! max allowed magnitude of beta_artm_aux
+         beta_artm_aux_increment           ! increment of beta_artm_aux in each iteration
 
     real(dp), dimension(nglacier), intent(inout) :: &
          mu_star,                     & ! glacier-specific SMB tuning parameter (mm/yr w.e./deg)
