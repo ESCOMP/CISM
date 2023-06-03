@@ -387,9 +387,9 @@ module glide_types
   integer, parameter :: GLACIER_MU_STAR_INVERSION = 1
   integer, parameter :: GLACIER_MU_STAR_EXTERNAL = 2
 
-  integer, parameter :: GLACIER_SNOW_FACTOR_CONSTANT = 0
-  integer, parameter :: GLACIER_SNOW_FACTOR_INVERSION = 1
-  integer, parameter :: GLACIER_SNOW_FACTOR_EXTERNAL = 2
+  integer, parameter :: GLACIER_ALPHA_SNOW_CONSTANT = 0
+  integer, parameter :: GLACIER_ALPHA_SNOW_INVERSION = 1
+  integer, parameter :: GLACIER_ALPHA_SNOW_EXTERNAL = 2
 
   integer, parameter :: GLACIER_POWERLAW_C_CONSTANT = 0
   integer, parameter :: GLACIER_POWERLAW_C_INVERSION = 1
@@ -1861,11 +1861,11 @@ module glide_types
      !> \item[2] read glacier-specific mu_star from external file
      !> \end{description}
 
-     integer :: set_snow_factor = 0
+     integer :: set_alpha_snow = 0
      !> \begin{description}
-     !> \item[0] apply spatially uniform snow_factor
-     !> \item[1] invert for glacier-specific snow_factor
-     !> \item[2] read glacier-specific snow_factor from external file
+     !> \item[0] apply spatially uniform alpha_snow
+     !> \item[1] invert for glacier-specific alpha_snow
+     !> \item[2] read glacier-specific alpha_snow from external file
      !> \end{description}
 
      integer :: set_powerlaw_c = 0
@@ -1920,8 +1920,8 @@ module glide_types
           volume_init => null(),            & !> initial glacier volume (m^3) based on observations
           mu_star => null(),                & !> glacier-specific parameter relating SMB to monthly mean artm (mm/yr w.e./deg),
                                               !> defined as positive for ablation
-          snow_factor => null(),            & !> glacier-specific multiplicative snow factor (unitless)
-          artm_aux_corr => null(),          & !> bias correction to auxiliary surface temperature (deg C)
+          alpha_snow => null(),             & !> glacier-specific multiplicative snow factor (unitless)
+          beta_artm_aux => null(),          & !> bias correction to auxiliary surface temperature (deg C)
           smb => null(),                    & !> modeled glacier-average mass balance (mm/yr w.e.)
           smb_obs => null()                   !> observed glacier-average mass balance (mm/yr w.e.), e.g. from Hugonnet et al. (2021)
 
@@ -3032,8 +3032,8 @@ contains
        allocate(model%glacier%area_init(model%glacier%nglacier))
        allocate(model%glacier%volume_init(model%glacier%nglacier))
        allocate(model%glacier%mu_star(model%glacier%nglacier))
-       allocate(model%glacier%snow_factor(model%glacier%nglacier))
-       allocate(model%glacier%artm_aux_corr(model%glacier%nglacier))
+       allocate(model%glacier%alpha_snow(model%glacier%nglacier))
+       allocate(model%glacier%beta_artm_aux(model%glacier%nglacier))
        allocate(model%glacier%smb(model%glacier%nglacier))
        allocate(model%glacier%smb_obs(model%glacier%nglacier))
     endif
@@ -3488,10 +3488,10 @@ contains
         deallocate(model%glacier%volume_init)
     if (associated(model%glacier%mu_star)) &
         deallocate(model%glacier%mu_star)
-    if (associated(model%glacier%snow_factor)) &
-        deallocate(model%glacier%snow_factor)
-    if (associated(model%glacier%artm_aux_corr)) &
-        deallocate(model%glacier%artm_aux_corr)
+    if (associated(model%glacier%alpha_snow)) &
+        deallocate(model%glacier%alpha_snow)
+    if (associated(model%glacier%beta_artm_aux)) &
+        deallocate(model%glacier%beta_artm_aux)
     if (associated(model%glacier%smb)) &
         deallocate(model%glacier%smb)
 
