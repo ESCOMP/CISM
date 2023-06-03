@@ -2297,8 +2297,8 @@ contains
     real(dp) :: local_maxval, global_maxval
     character(len=100) :: message
 
-!!    logical, parameter :: verbose_smb = .false.
-    logical, parameter :: verbose_smb = .true.
+    logical, parameter :: verbose_smb = .false.
+!!    logical, parameter :: verbose_smb = .true.
 
     rtest = -999
     itest = 1

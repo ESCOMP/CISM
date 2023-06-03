@@ -1751,6 +1751,13 @@ long_name:     glacier snow factor
 data:          data%glacier%snow_factor
 load:          1
 
+[glacier_artm_aux_corr]
+dimensions:    time, glacierid
+units:         1
+long_name:     glacier surface temperature correction
+data:          data%glacier%artm_aux_corr
+load:          1
+
 [glacier_smb_obs]
 dimensions:    time, glacierid
 units:         mm w.e./yr

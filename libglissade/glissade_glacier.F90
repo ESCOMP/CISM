@@ -54,9 +54,18 @@ module glissade_glacier
     !TODO - Add these to the glacier derived type and make them config parameters?
 
     real(dp), parameter ::  &
-         mu_star_const = 500.d0,                  & ! uniform initial value for mu_star (mm/yr w.e/deg C)
-         mu_star_min = 20.d0,                     & ! min value of tunable mu_star (mm/yr w.e/deg C)
-         mu_star_max = 20000.d0                     ! max value of tunable mu_star (mm/yr w.e/deg C)
+         mu_star_const = 1000.d0,                 & ! uniform initial value for mu_star (mm/yr w.e/deg C)
+         mu_star_min = 200.d0,                    & ! min value of tunable mu_star (mm/yr w.e/deg C)
+         mu_star_max = 5000.d0                     ! max value of tunable mu_star (mm/yr w.e/deg C)
+
+    real(dp), parameter ::  &
+         snow_factor_const = 1.d0,                & ! uniform initial value of snow_factor
+         snow_factor_min = 0.5d0,                 & ! min value of snow_factor
+         snow_factor_max = 3.0d0                    ! max value of snow_factor
+
+    real(dp), parameter ::  &
+         artm_aux_corr_max = 3.0,                 & ! max magnitude of artm_aux_corr (deg C)
+         dartm_aux = 0.05d0                         ! fixed increment in artm_aux_corr (deg C)
 
     !TODO - Make this an input argument?
     integer, parameter :: &
@@ -174,7 +183,7 @@ contains
        if (associated(glacier%smb_obs)) deallocate(glacier%smb_obs)
        if (associated(glacier%mu_star)) deallocate(glacier%mu_star)
        if (associated(glacier%snow_factor)) deallocate(glacier%snow_factor)
-       if (associated(glacier%tmlt)) deallocate(glacier%tmlt)
+       if (associated(glacier%artm_aux_corr)) deallocate(glacier%artm_aux_corr)
 
        ! Set the RGI ID to 0 in cells without ice.
        ! Typically, any ice-free cell should already have an RGI ID of 0,
@@ -380,7 +389,7 @@ contains
        allocate(glacier%smb_obs(nglacier))
        allocate(glacier%mu_star(nglacier))
        allocate(glacier%snow_factor(nglacier))
-       allocate(glacier%tmlt(nglacier))
+       allocate(glacier%artm_aux_corr(nglacier))
 
        ! Compute the initial area and volume of each glacier.
        ! Only ice thicker than diagnostic_minthck is included in area and volume sums.
@@ -400,6 +409,7 @@ contains
        glacier%volume_init(:) = glacier%volume(:)
        glacier%mu_star(:) = mu_star_const
        glacier%snow_factor(:) = 1.0d0
+       glacier%artm_aux_corr(:) = 0.0d0
 
        ! Initially, allow nonzero SMB only in glacier-covered cells.
        ! These masks are updated at runtime.
@@ -584,8 +594,6 @@ contains
     ! Thus, any ice that is not part of a glacier is dynamically inactive,
     !  but could receive a glacier ID and become active with thickening.
 
-    !TODO - Remove this if tmlt is spatially dependent; would need to read from restart.
-    glacier%tmlt(:) = glacier%tmlt_const
     glacier%minthck = model%numerics%thklim*thk0 - eps08
 
     ! Set the relaxation value for powerlaw_c
@@ -676,8 +684,10 @@ contains
          precip,                      & ! monthly mean precipitation rate (mm w.e./yr)
          artm                           ! artm adjusted for elevation using t_lapse (deg C)
 
+    real(dp), intent(in) :: &
+         tmlt                           ! glacier-specific temperature threshold for melting (deg C)
+
     real(dp), dimension(nglacier), intent(in) :: &
-         tmlt,                        & ! glacier-specific temperature threshold for melting (deg C)
          mu_star,                     & ! glacier-specific SMB tuning parameter (mm w.e./yr/deg)
          snow_factor                    ! glacier-specific multiplicative snow factor
 
@@ -722,15 +732,15 @@ contains
        do i = 1, ewn
           ng = smb_glacier_id(i,j)
           if (ng > 0) then
-             smb(i,j) = snow_factor(ng) * snow_smb(i,j) - mu_star(ng) * max(artm(i,j) - tmlt(ng), 0.0d0)
+             smb(i,j) = snow_factor(ng) * snow_smb(i,j) - mu_star(ng) * max(artm(i,j)-tmlt, 0.0d0)
           endif
 
           if (verbose_glacier .and. this_rank == rtest .and. i == itest .and. j == jtest) then
              print*, ' '
-             print*, 'Glacier SMB calculation: rank i, j, mu_star, snow_factor, tmlt =', &
-                  this_rank, i, j, mu_star(ng), snow_factor(ng), tmlt(ng)
+             print*, 'Glacier SMB calculation: rank i, j, mu_star, snow_factor=', &
+                  this_rank, i, j, mu_star(ng), snow_factor(ng)
              print*, '   precip, snow (mm/yr w.e.), artm (C), T - Tmlt, SMB (mm/yr w.e.) =', &
-                  precip(i,j), snow_smb(i,j), artm(i,j), max(artm(i,j)-tmlt(ng), 0.0d0), smb(i,j)
+                  precip(i,j), snow_smb(i,j), artm(i,j), max(artm(i,j)-tmlt, 0.0d0), smb(i,j)
           endif
        enddo   ! i
     enddo   ! j
@@ -812,6 +822,7 @@ contains
     ! real(dp), dimension(:) :: volume_init       ! initial glacier volume (m^3)
     ! real(dp), dimension(:) :: mu_star           ! SMB parameter for each glacier (mm/yr w.e./deg K)
     ! real(dp), dimension(:) :: snow_factor       ! snow factor for each glacier (unitless)
+    ! real(dp), dimension(:) :: artm_aux_corr     ! correction to artm_aux for each glacier (deg C)
     ! real(dp), dimension(:) :: smb_obs           ! observed SMB for each glacier (mm/yr w.e.)
     ! integer, dimension(:,:) :: cism_glacier_id       ! CISM glacier ID for each grid cell
     ! integer, dimension(:,:) :: cism_glacier_id_init  ! initial value of CISM glacier ID
@@ -856,7 +867,7 @@ contains
     thck = model%geometry%thck * thk0           ! model units to m
     dthck_dt = model%geometry%dthck_dt * scyr   ! m/s to m/yr
 
-    ! Invert for mu_star, snow_factor, and/or powerlaw_c
+    ! Invert for mu_star, snow_factor, artm_aux_corr, and/or powerlaw_c.
     ! Note: Tpos is based on the input air temperature, artm.
 
     if (glacier%set_mu_star == GLACIER_MU_STAR_INVERSION .or.  &
@@ -878,19 +889,17 @@ contains
        endif
 
        ! Note: artm_corrected is different from artm if a temperature anomaly is applied
-       !TODO: Apply correction to artm_aux?
-       ! Note: We define Tpos and Tpos_aux in unglaciated cells based on tmlt_const,
-       !       anticipating that some of these cells could become glaciated before the
-       !       next inversion.
+       ! Note: We define Tpos and Tpos_aux in all cells with smb_glacier_id_init > 0,
+       !       since these are the cells used in the inversion.
+
        do j = nhalo+1, nsn-nhalo
           do i = nhalo+1, ewn-nhalo
-             ng = glacier%cism_glacier_id(i,j)
+             ng = glacier%smb_glacier_id_init(i,j)
+             Tpos(i,j) = max(model%climate%artm_corrected(i,j) - glacier%tmlt, 0.0d0)
              if (ng > 0) then
-                Tpos(i,j) = max(model%climate%artm_corrected(i,j) - glacier%tmlt(ng), 0.0d0)
-                Tpos_aux(i,j) = max(model%climate%artm_aux(i,j) - glacier%tmlt(ng), 0.0d0)
+                Tpos_aux(i,j) = max(model%climate%artm_aux(i,j) + glacier%artm_aux_corr(ng) - glacier%tmlt, 0.0d0)
              else
-                Tpos(i,j) = max(model%climate%artm_corrected(i,j) - glacier%tmlt_const, 0.0d0)
-                Tpos_aux(i,j) = max(model%climate%artm_aux(i,j) - glacier%tmlt_const, 0.0d0)
+                Tpos_aux(i,j) = max(model%climate%artm_aux(i,j) - glacier%tmlt, 0.0d0)
              endif
           enddo
        enddo
@@ -898,7 +907,9 @@ contains
        ! Compute the snowfall rate.
        ! Note: Depending on glacier%snow_calc, we either use the snowfall rate directly,
        !       or compute snowfall based on the input precip and artm
-       !TODO - Make computations optional for the auxiliary fields
+       ! Note: The second call could be modified by adding the correction term (artm_aux_corr) to artm_aux.
+       !       I left it out because the correction temperature, while useful for inversion,
+       !       might not be more realistic than the uncorrected temperature.
 
        if (glacier%snow_calc == GLACIER_SNOW_CALC_SNOW) then
 
@@ -1009,7 +1020,8 @@ contains
                      glacier%smb_obs,                            &
                      glacier%snow_2d,      glacier%Tpos_2d,      &
                      glacier%snow_aux_2d,  glacier%Tpos_aux_2d,  &
-                     glacier%mu_star,      glacier%snow_factor)
+                     glacier%mu_star,      glacier%snow_factor,  &
+                     glacier%artm_aux_corr)
 
              else  ! not inverting for snow_factor
 
@@ -1031,15 +1043,22 @@ contains
              ! List glaciers with mu_star values that have been limited to stay in range.
              if (verbose_glacier .and. this_rank == rtest) then
                 print*, ' '
-                print*, 'Glaciers with capped mu_star, ng, mu_star, Ainit (km2), Vinit (km3):'
+                print*, 'Capped min mu_star: ng, mu_star, snow_factor, artm_aux_corr, smb_obs, Ainit (km2)'
                 do ng = 1, nglacier
-                   if (glacier%mu_star(ng) <= mu_star_min .or. glacier%mu_star(ng) >= mu_star_max) then
-                      print*, ng, glacier%mu_star(ng), glacier%area_init(ng)/1.0d6, glacier%volume_init(ng)/1.0d9
+                   if (glacier%mu_star(ng) <= mu_star_min) then
+                      print*, ng, glacier%mu_star(ng), glacier%snow_factor(ng), glacier%artm_aux_corr(ng), &
+                           glacier%smb_obs(ng), glacier%area_init(ng)/1.0d6
+                   endif
+                enddo
+                print*, ' '
+                print*, 'Capped max mu_star: ng, mu_star, snow_factor, artm_aux_corr, smb_obs, Ainit (km2)'
+                do ng = 1, nglacier
+                   if (glacier%mu_star(ng) >= mu_star_max) then
+                      print*, ng, glacier%mu_star(ng), glacier%snow_factor(ng), glacier%artm_aux_corr(ng), &
+                           glacier%smb_obs(ng), glacier%area_init(ng)/1.0d6
                    endif
                 enddo
              endif
-
-             !TODO - Add a subroutine that adjusts Tmlt where mu_star is capped.
 
              ! Given these values of mu_star and snow_factor, compute the average SMB for each glacier,
              !  based on its initial area and its current area (for diagnostic purposes only).
@@ -1224,17 +1243,19 @@ contains
                 print*, ' '
                 ng = ngdiag
                 if (ng > 0) then
-                   print*, 'ngdiag, smb_init_area (mm/yr w.e.), smb_new_area, mu_star, snow_factor:'
-                   write(6,'(i6,4f12.4)') ng, smb_init_area(ng), smb_new_area(ng), glacier%mu_star(ng), glacier%snow_factor(ng)
+                   print*, 'ngdiag, smb_init_area (mm/yr w.e.), smb_new_area, mu_star, snow_factor, artm_aux_corr:'
+                   write(6,'(i6,5f12.4)') ng, smb_init_area(ng), smb_new_area(ng), glacier%mu_star(ng), &
+                        glacier%snow_factor(ng), glacier%artm_aux_corr(ng)
                 endif
                 print*, ' '
                 print*, 'Selected big glaciers:'
-                print*, 'ng,      Ainit,      A,      Vinit,      V,  smb_iniA, smb_newA, mu_star,  snow_factor:'
+                print*, 'ng,      Ainit,      A,      Vinit,      V,  smb_iniA, smb_newA, mu_star,  snow_factor, artm_aux_corr:'
                 do ng = 1, nglacier
                    if (glacier%volume_init(ng) > diagnostic_volume_threshold .or. ng == ngdiag) then  ! big glacier
                       write(6,'(i6,9f10.3)') ng, glacier%area_init(ng)/1.e6, glacier%area(ng)/1.e6, &
                            glacier%volume_init(ng)/1.0d9, glacier%volume(ng)/1.0d9, &
-                           smb_init_area(ng), smb_new_area(ng), glacier%mu_star(ng), glacier%snow_factor(ng)
+                           smb_init_area(ng), smb_new_area(ng), &
+                           glacier%mu_star(ng), glacier%snow_factor(ng), glacier%artm_aux_corr(ng)
                    endif
                 enddo
                 print*, ' '
@@ -1260,8 +1281,6 @@ contains
              endif   ! verbose_glacier
 
           endif   ! invert for mu_star
-
-          !TODO - Adjust Tmlt for glaciers where mu_star is capped.
 
           if (glacier%set_powerlaw_c == GLACIER_POWERLAW_C_INVERSION) then
 
@@ -1566,7 +1585,8 @@ contains
        glacier_smb_obs,                 &
        snow_2d,          Tpos_2d,       &
        snow_aux_2d,      Tpos_aux_2d,   &
-       mu_star,          snow_factor)
+       mu_star,          snow_factor,   &
+       artm_aux_corr)
 
     ! Given an observational SMB target, invert for the parameters mu_star and snow_factor.
     ! Two conditions must be satisfied:
@@ -1595,12 +1615,13 @@ contains
 
     real(dp), dimension(nglacier), intent(inout) :: &
          mu_star,                     & ! glacier-specific SMB tuning parameter (mm/yr w.e./deg)
-         snow_factor                    ! glacier-specific snow factor (unitless)
+         snow_factor,                 & ! glacier-specific snow factor (unitless)
+         artm_aux_corr                  ! correction to artm_aux (deg C)
 
     ! local variables
     integer :: i, j, ng
 
-    real(dp) :: denom
+    real(dp) :: denom, smb_baseline, smb_aux, smb_aux_diff
 
     real(dp), dimension(nglacier) :: &
          glacier_snow, glacier_Tpos,        & ! glacier-average snowfall and Tpos
@@ -1624,18 +1645,21 @@ contains
     ! (1)            0  = snow_factor * snow - mu_star * Tpos.
     !
     ! For glaciers observed to be out of balance, this becomes
-    ! (2)       smb_obs = snow_factor * snow_aux - mu_star * Tpos_aux).
+    ! (2)       smb_obs = snow_factor * snow_aux - mu_star * Tpos_aux.
     !
     ! Rearranging and solving, we get
-    !              mu_star = smb_obs / [(snow_aux/snow) * Tpos - Tpos_aux]
-    !          snow_factor = mu_star * Tpos/snow
+    !              mu_star = (-smb_obs * snow) / D,
+    !          snow_factor = (-smb_obs * Tpos) / D,
+    !              where D = snow*Tpos_aux - snow_aux*Tpos
+    !
+    ! Ideally, both mu_star and snow_factor fall within physically realistic ranges.
+    ! If not, there is some additional logic to adjust artm_aux_corr such that the computed mu_star
+    !  moves toward a realistic range.
     !
     ! Notes:
-    !
     ! (1) This approach works only for land-based glaciers.
     !     TODO: Modify for marine-terminating glaciers.
-    ! (2) Assuming climatological forcing with smb_obs prescribed, mu_star and snow_factor have nearly the same value
-    !     throughout the inversion.  They change slightly as surface elevation changes, modifying Tpos.
+    ! (2) There is some added logic below to handle cases when mu_star lies outside a prescribed range.
 
     if (verbose_glacier .and. this_rank == rtest) then
        print*, ' '
@@ -1670,61 +1694,150 @@ contains
 
        if (glacier_snow(ng) > 0.0d0) then
 
-          denom = (glacier_snow_aux(ng)/glacier_snow(ng))*glacier_Tpos(ng) - glacier_Tpos_aux(ng)
+          ! compute mu_star and snow_factor based on eqs. (1) and (2) above
+
+          denom = glacier_snow(ng)*glacier_Tpos_aux(ng) - glacier_snow_aux(ng)*glacier_Tpos(ng)
 
           if (denom /= 0.0d0) then
-
-             ! Compute mu_star
-             mu_star(ng) = glacier_smb_obs(ng) / denom
-
-             ! Check for mu_start out of range
-             if (verbose_glacier .and. this_rank == rtest) then
-                if (mu_star(ng) < mu_star_min) then
-!                   print*, 'Small mu_star: ng, mu_star =', ng, mu_star(ng)
-!                   print*, '   snow, Tpos, snow_aux, Tpos_aux, denom, smb_obs:', &
-!                        glacier_snow(ng), glacier_Tpos(ng), glacier_snow_aux(ng), glacier_Tpos_aux(ng), &
-!                        denom, glacier_smb_obs(ng)
-                elseif (mu_star(ng) > mu_star_max) then
-!                   print*, 'Big mu_star: ng, mu_star =', ng, mu_star(ng)
-!                   print*, '   snow, Tpos, snow_aux, Tpos_aux, denom, smb_obs:', &
-!                        glacier_snow(ng), glacier_Tpos(ng), glacier_snow_aux(ng), glacier_Tpos_aux(ng), &
-!                        denom, glacier_smb_obs(ng)
-                endif
+             mu_star(ng)     = -glacier_smb_obs(ng)*glacier_snow(ng) / denom
+             snow_factor(ng) = -glacier_smb_obs(ng)*glacier_Tpos(ng) / denom
+          else  ! denom = 0; usually this means Tpos = Tpos_aux = 0; there is no ablation.
+             ! If smb_obs < 0, the fix is to raise Tpos_aux.
+             !   Setting mu_star = mu_star_max will trigger this change below.
+             ! If smb_obs > 0, raising Tpos_aux is not a good fix because it will
+             !   result in D > 0 while B > 0, hence mu_star < 0.
+             !   Lowering Tpos_aux makes no difference, since ablation is already zero.
+             !   We simply choose default values for mu_star and snow_factor.
+             if (glacier_smb_obs(ng) < 0.0d0) then
+                mu_star(ng) = mu_star_max
+                snow_factor(ng) = snow_factor_const
+             else
+                mu_star(ng) = mu_star_const
+                snow_factor(ng) = snow_factor_const
              endif
-
-             ! Limit to a physically reasonable range
-             mu_star(ng) = min(mu_star(ng), mu_star_max)
-             mu_star(ng) = max(mu_star(ng), mu_star_min)
-
-             if (verbose_glacier .and. this_rank == rtest .and. ng == ngdiag) then
-                print*, ' '
-                print*, 'ng, glacier-average snow, Tpos, smb_obs:', &
-                     ng, glacier_snow(ng), glacier_Tpos(ng), glacier_smb_obs(ng)
-                print*, 'New mu_star:', mu_star(ng)
-             endif
-
-          else  ! denom = 0.
-
-             mu_star(ng) = mu_star_max
-
           endif
 
-          ! Compute snow_factor.
-          ! Note: If mu_star was limited above to keep it within the prescribed range,
-          !       then we will satisfy condition (1) above, but not (2).
+          !WHL - debug
+          if (verbose_glacier .and. this_rank == rtest .and. ng == ngdiag) then
+             print*, 'initial mu_star, snow_factor =', mu_star(ng), snow_factor(ng)
+          endif
 
-          snow_factor(ng) = mu_star(ng) * glacier_Tpos(ng) / glacier_snow(ng)
+          ! Deal with various problem cases, including
+          ! (1) mu_star > mu_star_max
+          !     This can happen when either
+          !     (a) B < 0 and large in magnitude, while D > 0 and small in magnitude.
+          !     (b) B > 0 and large in magnitude, while D < 0 and small in magnitude.
+          !     Assuming that B is realistic and Tpos_aux is biased, the respective fixes are
+          !     (a) Raise artm_aux_corr, warming the auxiliary climate so that D is larger in magnitude.
+          !     (b) Lower artm_aux_corr, cooling the auxiliary climate so that D is larger in magnitude.
+          ! (2) 0 < mu_star < mu_star_min
+          !     This can happen when either
+          !     (a) B < 0 and small in magnitude, while D > 0 and large in magnitude (S*Tpos_aux >> S_aux*Tpos).
+          !     (b) B > 0 and small in magnitude, while D < 0 and large in magnitude (S*Tpos_aux << S_aux*Tpos).
+          !     Assuming that B is realistic and Tpos_aux is biased, the respective fixes are
+          !     (a) Lower artm_aux_corr, cooling the auxiliary climate so that D is smaller in magnitude.
+          !     (b) Raise artm_aux_corr, warming the auxiliary climate so that D is smaller in magnitude.
+          ! (3) mu_star < 0
+          !     This can happen when either
+          !     (a) B < 0 and D < 0 (the observed SMB is negative, while the climate has cooled: S*Tpos_aux < S_aux*Tpos)
+          !     (b) B > 0 and D > 0 (the observed SMB is positive, while the climate has warmed: S*Tpos_aux > S_aux*Tpos)
+          !     Assuming that B is realistic and Tpos_aux is biased, the respective fixes are
+          !     (a) Raise artm_aux_corr, warming the auxiliary climate so that D flips sign and becomes > 0.
+          !     (b) Lower artm_aux_corr, cooling the auxiliary climate so that D flips sign and becomes < 0.
+          !     When D flips sign, we typically transition to case (1) above.
+          ! The goal is that after a number of increments, mu_star will fall in the range
+          !  (mu_star_min, mu_star_max). At that point, artm_aux_corr is no longer changed.
+          ! Notes:
+          ! (1) artm_aux_corr is incremented by a fixed amount, dartm_aux. A smaller increment gives more precision
+          !     in where mu_star ends up.
+          ! (2) artm_aux_corr is not lowered further once Tpos_aux = 0, since it would make no difference.
+          ! (3) There is no special logic to handle the case B = snow_factor = mu_star = 0.
+          !     In that case, both snow_factor and mu_star will be set to their min values.
 
-       else   ! denom = 0
+          if (mu_star(ng) >= mu_star_max) then
+             if (glacier_smb_obs(ng) < 0.0d0) then
+                artm_aux_corr(ng) = artm_aux_corr(ng) + dartm_aux
+                if (verbose_glacier .and. this_rank == rtest) &
+                     print*, 'mu_star > mu_max, case 1a, ng, smb_obs =', ng, glacier_smb_obs(ng)
+             elseif (glacier_smb_obs(ng) > 0.0d0) then
+                if (glacier_Tpos_aux(ng) > 0.0d0) &
+                     artm_aux_corr(ng) = artm_aux_corr(ng) - dartm_aux
+                if (verbose_glacier .and. this_rank == rtest) &
+                     print*, 'mu_star > mu_max, case 1b, ng, smb_obs =', ng, glacier_smb_obs(ng)
+             endif
+          elseif (mu_star(ng) > 0.0d0 .and. mu_star(ng) <= mu_star_min) then
+             if (glacier_smb_obs(ng) < 0.0d0) then
+                if (glacier_Tpos_aux(ng) > 0.0d0) &
+                     artm_aux_corr(ng) = artm_aux_corr(ng) - dartm_aux
+                if (verbose_glacier .and. this_rank == rtest) &
+                     print*, 'mu_star < mu_min, case 2a, ng, smb_obs =', ng, glacier_smb_obs(ng)
+             elseif (glacier_smb_obs(ng) > 0.0d0) then
+                artm_aux_corr(ng) = artm_aux_corr(ng) + dartm_aux
+                if (verbose_glacier .and. this_rank == rtest) &
+                     print*, 'mu_star < mu_min, case 2b, ng, smb_obs =', ng, glacier_smb_obs(ng)
+             endif
+          elseif (mu_star(ng) < 0.0d0) then
+             if (glacier_smb_obs(ng) < 0.0d0) then
+                artm_aux_corr(ng) = artm_aux_corr(ng) + dartm_aux
+                if (verbose_glacier .and. this_rank == rtest) &
+                     print*, 'mu_star < 0     , case 3a, ng, smb_obs =', ng, glacier_smb_obs(ng)
+             elseif (glacier_smb_obs(ng) > 0.0d0) then
+                if (glacier_Tpos_aux(ng) > 0.0d0) &
+                     artm_aux_corr(ng) = artm_aux_corr(ng) - dartm_aux
+                if (verbose_glacier .and. this_rank == rtest) &
+                     print*, 'mu_star < 0     , case 3b, ng, smb_obs =', ng, glacier_smb_obs(ng)
+             endif
+          endif   ! mu_star >= mu_star_max
+
+          ! Limit all variables to physically reasonable ranges.
+
+          mu_star(ng) = min(mu_star(ng), mu_star_max)
+          mu_star(ng) = max(mu_star(ng), mu_star_min)
+
+          snow_factor(ng) = min(snow_factor(ng), snow_factor_max)
+          snow_factor(ng) = max(snow_factor(ng), snow_factor_min)
+
+          if (artm_aux_corr(ng) > 0.0d0) then
+             artm_aux_corr(ng) = min(artm_aux_corr(ng),  artm_aux_corr_max)
+          elseif (artm_aux_corr(ng) < 0.0d0) then
+             artm_aux_corr(ng) = max(artm_aux_corr(ng), -artm_aux_corr_max)
+          endif
+
+          ! Diagnostic: Check the mass balance for the baseline climate.
+          ! This will be zero if neither mu_star nor snow_factor has been limited.
+          ! Do the same for the auxiliary climate, for which the mass balance should match smb_obs.
+          ! In the case of limiting, these conditions usually are not satisfied.
+
+          smb_baseline = snow_factor(ng)*glacier_snow(ng) - mu_star(ng)*glacier_Tpos(ng)
+          smb_aux = snow_factor(ng)*glacier_snow_aux(ng) - mu_star(ng)*glacier_Tpos_aux(ng)
+          smb_aux_diff = smb_aux - glacier_smb_obs(ng)
+
+       else   ! glacier_snow = 0
 
           if (verbose_glacier .and. this_rank == rtest) then
-             print*, 'Warning: no ablation for glacier', ng
+             print*, 'Warning: snow = 0 for glacier', ng
+             !TODO - Throw a fatal error?
           endif
 
-          ! In this case, we usually have Tpos = Tpos_aux = 0, which forces snow_factor = 0
           mu_star(ng) = mu_star_const
-          snow_factor(ng) = mu_star(ng) * glacier_Tpos(ng) / glacier_snow(ng)
+          snow_factor(ng) = snow_factor_const
+          smb_baseline = snow_factor(ng)*glacier_snow(ng) - mu_star(ng)*glacier_Tpos(ng)
+          smb_aux = snow_factor(ng)*glacier_snow_aux(ng) - mu_star(ng)*glacier_Tpos_aux(ng)
+          smb_aux_diff = smb_aux - glacier_smb_obs(ng)
 
+       endif   ! glacier_snow > 0
+
+       if (verbose_glacier .and. this_rank == rtest .and. ng == ngdiag) then
+          print*, ' '
+          print*, 'Balance solution, ng =', ng
+          print*, '   New mu_star, snow_factor, artm_aux_corr:', &
+               mu_star(ng), snow_factor(ng), artm_aux_corr(ng)
+          print*, '   baseline snow,   Tpos,     smb:', &
+               glacier_snow(ng), glacier_Tpos(ng), smb_baseline
+          print*, '   recent snow_aux, Tpos_aux, smb:', &
+               glacier_snow_aux(ng), glacier_Tpos_aux(ng), smb_aux
+          print*, '   smb_aux_diff, smb_obs target   :', &
+               smb_aux_diff, glacier_smb_obs(ng)
        endif
 
     enddo   ! ng
@@ -1879,7 +1992,6 @@ contains
     endif
 
     if (verbose_glacier .and. this_rank == rtest) then
-       i = itest; j = jtest
        print*, ' '
        print*, 'stag_thck (m):'
        do j = jtest+3, jtest-3, -1

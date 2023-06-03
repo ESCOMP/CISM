@@ -3175,7 +3175,7 @@ contains
     call GetValue(section,'set_snow_factor',    model%glacier%set_snow_factor)
     call GetValue(section,'set_powerlaw_c',     model%glacier%set_powerlaw_c)
     call GetValue(section,'snow_calc',          model%glacier%snow_calc)
-    call GetValue(section,'tmlt_const',         model%glacier%tmlt_const)
+    call GetValue(section,'tmlt',               model%glacier%tmlt)
     call GetValue(section,'snow_threshold_min', model%glacier%snow_threshold_min)
     call GetValue(section,'snow_threshold_max', model%glacier%snow_threshold_max)
     call GetValue(section,'diagnostic_minthck', model%glacier%diagnostic_minthck)
@@ -3279,7 +3279,7 @@ contains
           call write_log(message)
        endif
 
-       write(message,*) 'glc tmlt_const (deg C)    :  ', model%glacier%tmlt_const
+       write(message,*) 'glc tmlt (deg C)          :  ', model%glacier%tmlt
        call write_log(message)
        write(message,*) 'glc diagnostic minthck (m):  ', model%glacier%diagnostic_minthck
        call write_log(message)
@@ -3765,7 +3765,7 @@ contains
        ! some fields needed for glacier inversion
        call glide_add_to_restart_variable_list('glacier_mu_star')
        call glide_add_to_restart_variable_list('glacier_snow_factor')
-       call glide_add_to_restart_variable_list('glacier_tmlt')
+       call glide_add_to_restart_variable_list('glacier_artm_aux_corr')
        call glide_add_to_restart_variable_list('glacier_smb_obs')
        !TODO - would not need to write glacier_smb_obs if in a forcing file?
        if (model%glacier%set_powerlaw_c == GLACIER_POWERLAW_C_INVERSION) then
