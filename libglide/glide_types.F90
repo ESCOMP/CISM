@@ -1875,11 +1875,15 @@ module glide_types
      !> \item[2] read glacier-specific powerlaw_c from external file
      !> \end{description}
 
+     ! other options
      integer :: snow_calc = 1
      !> \begin{description}
      !> \item[0] read the snowfall rate directly
      !> \item[1] compute the snowfall rate from precip and downscaled artm
      !> \end{description}
+
+     logical :: scale_area = .false.
+     !> if true, than scale glacier area based on latitude
 
      ! parameters
      ! Note: glacier%minthck is currently set at initialization based on model%numerics%thklim.
@@ -1956,6 +1960,7 @@ module glide_types
      !       Do all of these need to be part of the derived type? Maybe just for diagnostic I/O.
      !       Add smb_annmean?
      real(dp), dimension(:,:), pointer :: &
+          area_factor => null(),            & !> area scaling factor based on latitude
           dthck_dt_2d => null(),            & !> accumulated dthck_dt (m/yr)
           snow_2d => null(),                & !> accumulated snowfall (mm/yr w.e.)
           Tpos_2d => null(),                & !> accumulated max(artm - tmlt,0) (deg C)
@@ -3012,6 +3017,7 @@ contains
        call coordsystem_allocate(model%general%ice_grid, model%glacier%cism_glacier_id_init)
        call coordsystem_allocate(model%general%ice_grid, model%glacier%smb_glacier_id)
        call coordsystem_allocate(model%general%ice_grid, model%glacier%smb_glacier_id_init)
+       call coordsystem_allocate(model%general%ice_grid, model%glacier%area_factor)
        call coordsystem_allocate(model%general%ice_grid, model%glacier%dthck_dt_2d)
        call coordsystem_allocate(model%general%ice_grid, model%climate%snow)
        call coordsystem_allocate(model%general%ice_grid, model%climate%precip)
@@ -3481,6 +3487,8 @@ contains
         deallocate(model%glacier%smb_glacier_id_init)
     if (associated(model%glacier%cism_to_rgi_glacier_id)) &
         deallocate(model%glacier%cism_to_rgi_glacier_id)
+    if (associated(model%glacier%area_factor)) &
+        deallocate(model%glacier%area_factor)
     if (associated(model%glacier%dthck_dt_2d)) &
         deallocate(model%glacier%dthck_dt_2d)
     if (associated(model%glacier%snow_2d)) &

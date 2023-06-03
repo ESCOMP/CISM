@@ -3175,6 +3175,7 @@ contains
     call GetValue(section,'set_alpha_snow',          model%glacier%set_alpha_snow)
     call GetValue(section,'set_powerlaw_c',          model%glacier%set_powerlaw_c)
     call GetValue(section,'snow_calc',               model%glacier%snow_calc)
+    call GetValue(section,'scale_area',              model%glacier%scale_area)
     call GetValue(section,'tmlt',                    model%glacier%tmlt)
     call GetValue(section,'mu_star_const',           model%glacier%mu_star_const)
     call GetValue(section,'mu_star_min',             model%glacier%mu_star_min)
@@ -3201,7 +3202,7 @@ contains
     type(glide_global_type)  :: model
     character(len=100) :: message
 
-    ! glacier inversion options
+    ! glacier options
 
     character(len=*), dimension(0:2), parameter :: glacier_set_mu_star = (/ &
          'spatially uniform glacier parameter mu_star', &
@@ -3261,6 +3262,10 @@ contains
            model%glacier%snow_calc >= size(glacier_snow_calc)) then
           call write_log('Error, glacier_snow_calc option out of range', GM_FATAL)
        end if
+
+       if (model%glacier%scale_area) then
+          call write_log ('Glacier area will be scaled based on latitude')
+       endif
 
        if (model%glacier%set_powerlaw_c == GLACIER_POWERLAW_C_INVERSION) then
           write(message,*) 'powerlaw_c_timescale      :  ', model%inversion%babc_timescale
@@ -3789,17 +3794,20 @@ contains
        call glide_add_to_restart_variable_list('glacier_alpha_snow')
        call glide_add_to_restart_variable_list('glacier_beta_artm_aux')
        call glide_add_to_restart_variable_list('glacier_smb_obs')
-       !TODO - would not need to write glacier_smb_obs if in a forcing file?
        if (model%glacier%set_powerlaw_c == GLACIER_POWERLAW_C_INVERSION) then
           call glide_add_to_restart_variable_list('powerlaw_c')
           call glide_add_to_restart_variable_list('usrf_obs')
        elseif (model%glacier%set_powerlaw_c == GLACIER_POWERLAW_C_EXTERNAL) then
           call glide_add_to_restart_variable_list('powerlaw_c')
        endif
-       !TODO: Are area_init and volume_init needed?
+       !TODO: Are area_init and volume_init needed in the restart file?
        !      These could be computed based on cism_glacier_id_init and usrf_obs.
        call glide_add_to_restart_variable_list('glacier_volume_init')
        call glide_add_to_restart_variable_list('glacier_area_init')
+       ! area scale factor
+       if (model%glacier%scale_area) then
+          call glide_add_to_restart_variable_list('glacier_area_factor')
+       endif
     endif
 
     ! TODO bmlt was set as a restart variable, but I'm not sure when or if it is needed.
