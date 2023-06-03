@@ -1711,6 +1711,13 @@ long_name:     RGI glacier ID corresponding to CISM ID
 data:          data%glacier%cism_to_rgi_glacier_id
 load:          1
 
+[glacier_area_factor]
+dimensions:    time, y1, x1
+units:         1
+long_name:     glacier area scale factor
+data:          data%glacier%area_factor
+load:          1
+
 [glacier_area]
 dimensions:    time, glacierid
 units:         m2
