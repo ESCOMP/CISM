@@ -30,7 +30,7 @@ module glissade_glacier
 
     use glimmer_global 
     use glimmer_paramets, only: thk0, len0, tim0, eps08
-    use glimmer_physcon, only: scyr
+    use glimmer_physcon, only: scyr, pi
     use glide_types
     use glimmer_log
     use cism_parallel, only: main_task, this_rank, nhalo
@@ -93,6 +93,7 @@ contains
     integer :: iglobal, jglobal
     integer :: min_id, max_id
     real(dp) :: max_glcval
+    real(dp) :: theta_rad             ! latitude in radians
 
     character(len=100) :: message
 
@@ -376,6 +377,24 @@ contains
        allocate(glacier%alpha_snow(nglacier))
        allocate(glacier%beta_artm_aux(nglacier))
 
+       ! Compute area scale factors
+       if (glacier%scale_area) then
+          do j = nhalo+1, nsn-nhalo
+             do i = nhalo+1, ewn-nhalo
+                theta_rad = model%general%lat(i,j) * pi/180.d0
+                glacier%area_factor(i,j) = cos(theta_rad)**2
+             enddo
+          enddo
+          call parallel_halo(glacier%area_factor, parallel)
+          if (verbose_glacier .and. this_rank == rtest) then
+             i = itest; j = jtest
+             print*, 'Scale glacier area: i, j, area_factor =', i, j, glacier%area_factor(i,j)
+             print*, '   lat, theta, cos(theta) =', model%general%lat(i,j), theta_rad, cos(theta_rad)
+          endif
+       else
+          glacier%area_factor(:,:) = 1.0d0
+       endif
+
        ! Compute the initial area and volume of each glacier.
        ! Only ice thicker than diagnostic_minthck is included in area and volume sums.
 
@@ -386,6 +405,7 @@ contains
             dew*dns,                        &
             model%geometry%thck*thk0,       &  ! m
             glacier%diagnostic_minthck,     &  ! m
+            glacier%area_factor,            &
             glacier%area,                   &  ! m^2
             glacier%volume)                    ! m^3
 
@@ -546,7 +566,7 @@ contains
        endif
 
        ! Compute the initial area and volume of each glacier.
-       ! This is not strictly necessary for exact restart, but is included as a diagnostic.
+       ! This is not necessary for exact restart, but is included as a diagnostic.
        ! Only ice thicker than diagnostic_minthck is included in area and volume sums.
 
        call glacier_area_volume(&
@@ -556,6 +576,7 @@ contains
             dew*dns,                        &
             model%geometry%thck*thk0,       &  ! m
             glacier%diagnostic_minthck,     &  ! m
+            glacier%area_factor,            &
             glacier%area,                   &  ! m^2
             glacier%volume)                    ! m^3
 
@@ -1431,6 +1452,7 @@ contains
             dew*dns,                         &  ! m^2
             thck,                            &  ! m
             glacier%diagnostic_minthck,      &  ! m
+            glacier%area_factor,             &
             glacier%area,                    &  ! m^2
             glacier%volume)                     ! m^3
 
@@ -2927,6 +2949,7 @@ contains
        nglacier,      cism_glacier_id,   &
        cell_area,     thck,              &
        diagnostic_minthck,               &
+       area_factor,                      &
        area,          volume)
 
     use cism_parallel, only: parallel_reduce_sum
@@ -2941,10 +2964,11 @@ contains
          cism_glacier_id                ! integer glacier ID in the range (1, nglacier)
 
     real(dp), intent(in) :: &
-         cell_area                      ! grid cell area (m^2), assumed equal for all cells
+         cell_area                      ! grid cell area (m^2), dew*dns, assumed equal for all cells
 
     real(dp), dimension(ewn,nsn), intent(in) ::  &
-         thck                           ! ice thickness (m)
+         thck,                        & ! ice thickness (m)
+         area_factor                    ! scale factor multiplying the nominal cell area, based on latitude
 
     real(dp), intent(in) :: &
          diagnostic_minthck             ! minimum thickness (m) to be included in area and volume sums
@@ -2976,8 +3000,8 @@ contains
           ng = cism_glacier_id(i,j)
           if (ng > 0) then
              if (thck(i,j) >= diagnostic_minthck) then
-                local_area(ng) = local_area(ng) + cell_area
-                local_volume(ng) = local_volume(ng) + cell_area * thck(i,j)
+                local_area(ng) = local_area(ng) + cell_area*area_factor(i,j)
+                local_volume(ng) = local_volume(ng) + cell_area*area_factor(i,j) * thck(i,j)
              endif
           endif
        enddo
@@ -2988,7 +3012,7 @@ contains
 
     if (verbose_glacier .and. main_task) then
        print*, ' '
-       print*, 'Compute glacier area and volume; cell_area (m^3) =', cell_area
+       print*, 'Compute glacier area and volume'
        print*, 'Max area (km^2)   =', maxval(area) * 1.0d-6    ! m^2 to km^2
        print*, 'Max volume (km^3) =', maxval(volume) * 1.0d-9  ! m^3 to km^3
        print*, ' '
@@ -3017,6 +3041,8 @@ contains
     ! and the retreated region (ice was present at init, but not now).
     ! Note: For this subroutine, the area is based on the cism_glacier_id masks,
     !       so it includes cells with thck < diagnostic_min_thck.
+    ! Note: In this subroutine the cell area is not corrected using an area scale factor.
+    !       We assume all cells have equal area, cell_area = dew*dns.
 
     ! input/output arguments
 
@@ -3127,6 +3153,10 @@ contains
        smb_annmean,            &
        aar_init,               &
        aar)
+
+    ! Compute the accumulation area ratio (AAR) for each glacier.
+    ! Note: In this subroutine the cell area is not corrected using an area scale factor.
+    !       We assume all cells have equal area, cell_area = dew*dns.
 
     use cism_parallel, only: parallel_reduce_sum
 
