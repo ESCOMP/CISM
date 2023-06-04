@@ -526,7 +526,7 @@ contains
     integer :: nx, ny, nt                ! dimension sizes
     real(dp) :: eps                      ! a tolerance to use for stepwise constant forcing
     real(dp) :: global_sum               ! global sum of an input field
-    logical, parameter :: verbose_read_forcing = .false.
+    logical, parameter :: verbose_read_forcing = .true.
 
     ! Make eps a fraction of the time step.
     eps = model%numerics%tinc * 1.0d-3
