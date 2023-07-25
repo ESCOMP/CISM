@@ -1916,9 +1916,14 @@ module glide_types
           beta_artm_aux_increment = 0.05d0    ! fixed increment in beta_artm_aux (deg C)
 
      ! Note: These thresholds assume that artm is a monthly mean, not an instantaneous value
+     !       Huss and Hock (2015) have thresholds of 0.5 and 2.5 C
      real(dp) :: &
-          snow_threshold_min = -5.0d0,      & !> air temperature (deg C) below which all precip falls as snow
-          snow_threshold_max =  5.0d0         !> air temperature (deg C) above which all precip falls as rain
+          snow_threshold_min = 0.0d0,      & !> air temperature (deg C) below which all precip falls as snow
+          snow_threshold_max = 2.0d0         !> air temperature (deg C) above which all precip falls as rain
+
+     real(dp) :: &
+          precip_lapse = 0.0d0               !> fractional change in precip per m elevation above usrf_ref;
+                                             !> Huss & Hock (2015) have 1.0e-4 to 2.5e-4
 
      ! 1D arrays with size nglacier
 

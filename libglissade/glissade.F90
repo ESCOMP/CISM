@@ -2238,7 +2238,7 @@ contains
     use glissade_bmlt_float, only: verbose_bmlt_float
     use glissade_calving, only: verbose_calving
     use glissade_grid_operators, only: glissade_vertical_interpolate
-    use glissade_glacier, only: verbose_glacier, glissade_glacier_smb
+    use glissade_glacier, only: verbose_glacier
     use glide_stop, only: glide_finalise
 
     implicit none
@@ -2830,63 +2830,16 @@ contains
 
        if (model%options%enable_glaciers) then
 
-          !TODO - Pass artm instead of artm_corrected?  I.e., disable the anomaly for glaciers?
-          ! Halo updates for snow and artm
-          ! Note: artm_corrected is the input artm, possible corrected to include an anomaly term.
-          ! Note: snow_calc is the snow calculation option:  Either use the snowfall rate directly,
-          !       or compute the snowfall rate from the precip rate and downscaled artm.
-
-          if (model%glacier%snow_calc == GLACIER_SNOW_CALC_SNOW) then
-             call parallel_halo(model%climate%snow, parallel)
-          elseif (model%glacier%snow_calc == GLACIER_SNOW_CALC_PRECIP_ARTM) then
-             call parallel_halo(model%climate%precip, parallel)
-          endif
-          call parallel_halo(model%climate%artm_corrected, parallel)
-
-          call glissade_glacier_smb(&
-               ewn,      nsn,                          &
-               itest,    jtest,    rtest,              &
-               model%glacier%nglacier,                 &
-               model%glacier%smb_glacier_id,           &
-               model%glacier%snow_calc,                &
-               model%glacier%snow_threshold_min,       &  ! deg C
-               model%glacier%snow_threshold_max,       &  ! deg C
-               model%climate%snow,                     &  ! mm/yr w.e.
-               model%climate%precip,                   &  ! mm/yr w.e.
-               model%climate%artm_corrected,           &  ! deg C
-               model%glacier%tmlt,                     &  ! deg C
-               model%glacier%mu_star,                  &  ! mm/yr w.e./deg
-               model%glacier%alpha_snow,               &  ! unitless
-               model%climate%smb)                         ! mm/yr w.e.
+          !Note: In an earlier code version, glacier SMB was computed here during each dynamic timestep.
+          !      In the current version, temperature and snowfall are accumulated during each call to
+          !       glissade_glacier_update. The annual mean SMB is computed at the end of the year
+          !       and applied uniformly during the following year.
+          !      Thus, the only thing to do here is to convert SMB to acab.
 
           ! Convert SMB (mm/yr w.e.) to acab (CISM model units)
           model%climate%acab(:,:) = (model%climate%smb(:,:) * (rhow/rhoi)/1000.d0) / scale_acab
           call parallel_halo(model%climate%acab, parallel)
 
-          if (verbose_glacier .and. this_rank == rtest) then
-             i = itest
-             j = jtest
-             ng = model%glacier%ngdiag
-             print*, ' '
-             print*, 'Computed glacier SMB, rank, i, j, ng =', this_rank, i, j, ng
-             print*, '   Local smb (mm/yr w.e.) =', model%climate%smb(i,j)
-             print*, '   Local acab (m/yr ice)  =', model%climate%acab(i,j)*thk0*scyr/tim0
-             if (ng > 0) then
-                print*, '   Glacier-specific smb (mm/yr w.e.), alpha_snow =', &
-                     model%glacier%smb(ng), model%glacier%alpha_snow(ng)
-             endif
-
-             !WHL - debug
-             write(6,*) ' '
-             write(6,*) 'acab (m/yr ice)'
-             do j = jtest+3, jtest-3, -1
-                write(6,'(i6)',advance='no') j
-                do i = itest-3, itest+3
-                   write(6,'(f10.3)',advance='no') model%climate%acab(i,j)*thk0*scyr/tim0
-                enddo
-                write(6,*) ' '
-             enddo
-          endif
        endif   ! enable_glaciers
 
        ! Compute a corrected acab field that includes any prescribed anomalies.
