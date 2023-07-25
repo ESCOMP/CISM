@@ -3187,6 +3187,7 @@ contains
     call GetValue(section,'beta_artm_aux_increment', model%glacier%beta_artm_aux_increment)
     call GetValue(section,'snow_threshold_min',      model%glacier%snow_threshold_min)
     call GetValue(section,'snow_threshold_max',      model%glacier%snow_threshold_max)
+    call GetValue(section,'precip_lapse',            model%glacier%precip_lapse)
     call GetValue(section,'diagnostic_minthck',      model%glacier%diagnostic_minthck)
 
   end subroutine handle_glaciers
@@ -3286,9 +3287,11 @@ contains
        endif
 
        if (model%glacier%snow_calc == GLACIER_SNOW_CALC_PRECIP_ARTM) then
-          write(message,*) 'snow_threshold_min (deg C)  : ', model%glacier%snow_threshold_min
+          write(message,*) 'snow_threshold_min (deg C)    : ', model%glacier%snow_threshold_min
           call write_log(message)
-          write(message,*) 'snow_threshold_max (deg C)   : ', model%glacier%snow_threshold_max
+          write(message,*) 'snow_threshold_max (deg C)    : ', model%glacier%snow_threshold_max
+          call write_log(message)
+          write(message,*) 'precip_lapse (fraction/m)     : ', model%glacier%precip_lapse
           call write_log(message)
        endif
 
@@ -3800,6 +3803,9 @@ contains
        elseif (model%glacier%set_powerlaw_c == GLACIER_POWERLAW_C_EXTERNAL) then
           call glide_add_to_restart_variable_list('powerlaw_c')
        endif
+       ! SMB is computed at the end of each year to apply during the next year
+       ! Alternatively, could save Tpos and snow everywhere
+       call glide_add_to_restart_variable_list('smb')
        !TODO: Are area_init and volume_init needed in the restart file?
        !      These could be computed based on cism_glacier_id_init and usrf_obs.
        call glide_add_to_restart_variable_list('glacier_volume_init')
