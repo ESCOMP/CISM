@@ -49,8 +49,8 @@ module glissade_inversion
   ! a target ice thickness field.
   !-----------------------------------------------------------------------------
 
-    logical, parameter :: verbose_inversion = .false.
-!!    logical, parameter :: verbose_inversion = .true.
+!!    logical, parameter :: verbose_inversion = .false.
+    logical, parameter :: verbose_inversion = .true.
 
 !    real(dp), parameter :: &
 !         deltaT_ocn_maxval = 5.0d0      ! max allowed magnitude of deltaT_ocn (degC)
@@ -129,6 +129,7 @@ contains
 
     if (model%options%which_ho_powerlaw_c == HO_POWERLAW_C_INVERSION .or.  &
         model%options%which_ho_coulomb_c  == HO_COULOMB_C_INVERSION  .or.  &
+        model%options%which_ho_flow_enhancement_factor == HO_FLOW_ENHANCEMENT_FACTOR_INVERSION .or. &
         model%options%which_ho_deltaT_ocn == HO_DELTAT_OCN_INVERSION) then
 
        ! We are likely trying to match usrf_obs, so check whether it has been read in already.
@@ -359,15 +360,21 @@ contains
        if (var_maxval > 0.0d0) then
           ! do nothing; flow_enhancement_factor has been read in already (e.g., when restarting)
        else
-
+          
           ! initialize to the default values for grounded and floating ice
           ! For ice-free ocean, flow_enhancement_factor = 0 for now, but will change if ice-covered
 
-          where (floating_mask == 1)
-             model%temper%flow_enhancement_factor = model%paramets%flow_enhancement_factor_float
-          elsewhere (ice_mask == 1 .or. land_mask == 1)  ! grounded ice or land
-             model%temper%flow_enhancement_factor = model%paramets%flow_enhancement_factor_ground
-          endwhere
+
+          ! backtrace for Tim. I changed this below to a simple hardcoded entry
+          ! I had similar problems with coulomb c once
+         ! print*, 'koekje'
+          model%temper%flow_enhancement_factor(:,:)=model%paramets%flow_enhancement_factor_ground 
+          
+          !where (floating_mask == 1)
+          !   model%temper%flow_enhancement_factor = model%paramets%flow_enhancement_factor_float
+         ! elsewhere (ice_mask == 1 .or. land_mask == 1)  ! grounded ice or land
+         !    model%temper%flow_enhancement_factor = model%paramets%flow_enhancement_factor_ground
+         ! endwhere
 
        endif   ! var_maxval > 0
 
@@ -1533,7 +1540,16 @@ contains
        flow_enhancement_thck_scale,        &
        flow_enhancement_timescale,         &
        flow_enhancement_relax_factor,      &
-       flow_enhancement_factor)
+       flow_enhancement_factor,            &
+       flow_enhancement_velo_scale,        &
+       velo_sfc_unstag,                           &
+       velo_sfc_obs_unstag,                &
+       flow_enhancement_factor_minvalue,   &
+       flow_enhancement_factor_maxvalue,   &
+       term_thk_array,                     &
+       term_dhdt_array,                    &
+       term_velo_array,                    &
+       term_relax_array)
 
     ! Compute a spatially varying field of flow enhancement factors at cell centers.
     ! This is an empirical factor, often denoted as E, that multiplies the
@@ -1545,6 +1561,12 @@ contains
     !    Where thck > thck_obs, E is increased to speed up and thin the ice.
     !    Where thck < thck_obs, E is decreased to slow and thicken the ice.
     ! E is constrained to lie within a prescribed range.
+ 
+
+    !Tim vd Akker: I added an option to invert based on a velocity target as well
+    !This is for example done in Ua, and might compensate the velocity error
+    !when inverting only for friction and a thickness target
+
 
     use glissade_grid_operators, only: glissade_laplacian_smoother
 
@@ -1561,7 +1583,10 @@ contains
          thck_obs_in,          & ! observed ice thickness (m)
          dthck_dt_in,          & ! rate of change of ice thickness (m/s)
          f_ground_cell,        & ! grounded fraction at cell centers, based on current thck
-         f_ground_cell_obs       ! grounded fraction at cell centers, based on thck_obs
+         f_ground_cell_obs,    &  ! grounded fraction at cell centers, based on thck_obs
+         velo_sfc_unstag,      & 
+         velo_sfc_obs_unstag
+
 
     integer, dimension(nx,ny), intent(in) ::  &
          ice_mask                ! = 1 where ice is present
@@ -1571,11 +1596,18 @@ contains
          flow_enhancement_factor_float,       & ! default flow_enhancement_factor for floating ice
          flow_enhancement_thck_scale,         & ! thickness scale for adjusting flow_enhancement_factor (s)
          flow_enhancement_timescale,          & ! timescale for adjusting flow_enhancement_factor (s)
-         flow_enhancement_relax_factor          ! controls strength of relaxation (unitless)
+         flow_enhancement_relax_factor,       & ! controls strength of relaxation (unitless)
+         flow_enhancement_velo_scale,         & ! controls strength of the velocity terms 
+         flow_enhancement_factor_minvalue,    & ! minimum values now used as config parameter
+         flow_enhancement_factor_maxvalue       
+        
 
     real(dp), dimension(nx,ny), intent(inout) ::  &
-         flow_enhancement_factor          ! flow enhancement factor (unitless)
-
+         flow_enhancement_factor, &          ! flow enhancement factor (unitless)
+         term_thk_array,       &
+         term_dhdt_array,      &
+         term_velo_array,      &
+         term_relax_array
     ! local variables
 
     integer :: i, j
@@ -1585,18 +1617,20 @@ contains
          thck_obs,             & ! observed ice thickness (m), optionally smoothed
          dthck_dt,             & ! rate of change of ice thickness (m/s), optionally smoothed
          dthck,                & ! thck - thck_obs
-         relax_target            ! value toward which E is relaxed
-
+         relax_target,         &  ! value toward which E is relaxed
+         velo,                 &  ! modelled velocity
+         velo_obs,             &  ! observed velocity
+         dvelo                    ! velocity difference
     real(dp) ::  &
          term_thck,            & ! tendency term based on thickness target
          term_dHdt,            & ! tendency term based on dH/dt
-         term_relax              ! term that relaxes E toward a default value
+         term_relax,           & ! term that relaxes E toward a default value
+         term_velo               ! term that depends on the velocity mismatch
 
+        
     ! Note: Max and min values are somewhat arbitrary.
     ! TODO: Make these config parameters?
-    real(dp), parameter :: &
-         flow_enhancement_factor_maxval = 100.0d0,  & ! max allowed value of flow_enhancement_factor (unitless)
-         flow_enhancement_factor_minval = 0.010d0     ! min allowed value of flow_enhancement_factor (unitless)
+    !TvdA: I made those config parameters
 
     logical, parameter :: &
          smooth_thck = .false.    ! if true, apply laplacian smoothing to input thickness fields
@@ -1618,12 +1652,27 @@ contains
             dthck_dt_in, dthck_dt,        &
             npoints_stencil = 9)
 
+
+       call glissade_laplacian_smoother(&
+            nx,          ny,              &
+            velo_sfc_unstag, velo,        &
+            npoints_stencil = 9)
+
+
+
+       call glissade_laplacian_smoother(&
+            nx,          ny,              &
+            velo_sfc_obs_unstag, velo_obs,        &
+            npoints_stencil = 9)
+
     else
 
        thck = thck_in
        thck_obs = thck_obs_in
        dthck_dt = dthck_dt_in
-
+       velo = velo_sfc_unstag
+       velo_obs = velo_sfc_obs_unstag
+     
     endif
 
     ! Make sure E has a nonzero value in all ice-covered cells.
@@ -1642,10 +1691,14 @@ contains
     ! Note: For ice-covered cells with ice-free targets, dthck will be > 0 to encourage thinning.
     dthck(:,:) = thck(:,:) - thck_obs(:,:)
 
+    ! Compute the velocity difference in the same way
+    dvelo(:,:) = velo(:,:) - velo_obs(:,:) 
+
     ! Initialize the relaxation target
     ! This is the value we would want if there were no thickness error.
     relax_target(:,:) = f_ground_cell_obs  * flow_enhancement_factor_ground  &
              + (1.0d0 - f_ground_cell_obs) * flow_enhancement_factor_float
+
 
     ! Loop over cells where ice is present.
     do j = 1, ny
@@ -1664,45 +1717,65 @@ contains
                 term_dHdt = dthck_dt(i,j) * 2.0d0 / flow_enhancement_thck_scale
              endif
 
+             if (flow_enhancement_velo_scale > 0.0d0) then
+                term_velo = dvelo(i,j) / (flow_enhancement_velo_scale * flow_enhancement_timescale)
+             endif
+
              ! Compute a relaxation term.  This term nudges flow_enhancement_factor toward a base value
              ! with a time scale of flow_enhancement_factor_timescale.
-
-             term_relax = -flow_enhancement_relax_factor * log(flow_enhancement_factor(i,j)/relax_target(i,j)) &
-                  / flow_enhancement_timescale
-
+             if (flow_enhancement_factor(i,j) > 0.d0 .and. relax_target(i,j)> 0.0d0) then
+                  term_relax = -flow_enhancement_relax_factor * log(flow_enhancement_factor(i,j)/relax_target(i,j)) &
+                      / flow_enhancement_timescale
+             else
+                  term_relax = 0.d0
+             endif
+             
+             ! Update arrays for troubleshooting
+             term_thk_array(i,j)=term_thck
+             term_dhdt_array(i,j)=term_dHdt
+             term_velo_array(i,j)=term_velo
+             term_relax_array(i,j)=term_relax
+             
              ! Update flow_enhancement_factor
              flow_enhancement_factor(i,j) = flow_enhancement_factor(i,j) &
-                  * (1.0d0 + (term_thck + term_dHdt + term_relax)*dt)
+                  * (1.0d0 + (term_thck - term_velo + term_dHdt + term_relax)*dt)
 
              !WHL - debug
              if (verbose_inversion .and. this_rank == rtest .and. i==itest .and. j==jtest) then
                 print*, ' '
                 print*, 'Increment flow_enhancement_factor: rank, i, j =', rtest, itest, jtest
-                print*, 'thck scale (m), timescale (yr):', &
-                     flow_enhancement_thck_scale, flow_enhancement_timescale/scyr
+                print*, 'thck scale (m), timescale (yr),velo scale (m/yr):', &
+                     flow_enhancement_thck_scale, flow_enhancement_timescale/scyr,flow_enhancement_velo_scale
                 print*, 'thck (m), thck_obs, dthck, dthck_dt (m/yr):', &
                      thck(i,j), thck_obs(i,j), dthck(i,j), dthck_dt(i,j)*scyr
                 print*, 'dH term, dH/dt term =', term_thck*dt, term_dHdt*dt
+                print*, 'velocity term, dH/dt term=', term_velo*dt, term_dHdt*dt
                 print*, 'relax_target, term_relax =', relax_target(i,j), term_relax*dt
                 print*, 'Tendency sum:', (term_thck + term_dHdt + term_relax) * dt
                 print*, 'new flow_enhancement_factor =', flow_enhancement_factor(i,j)
              endif
 
              ! Limit to a physically reasonable range
-             flow_enhancement_factor(i,j) = min(flow_enhancement_factor(i,j), flow_enhancement_factor_maxval)
-             flow_enhancement_factor(i,j) = max(flow_enhancement_factor(i,j), flow_enhancement_factor_minval)
+             flow_enhancement_factor(i,j) = min(flow_enhancement_factor(i,j), flow_enhancement_factor_maxvalue)
+             flow_enhancement_factor(i,j) = max(flow_enhancement_factor(i,j), flow_enhancement_factor_minvalue)
 
           else   ! floating neither in current state nor in observations
 
              ! relax toward the default value for grounded ice
-             term_relax = -flow_enhancement_relax_factor * log(flow_enhancement_factor(i,j)/relax_target(i,j)) &
-                  / flow_enhancement_timescale
-             flow_enhancement_factor(i,j) = flow_enhancement_factor(i,j) * (1.0d0 + term_relax*dt)
 
-          endif  ! f_ground_cell or f_ground_cell_obs < 1
+             if (flow_enhancement_factor(i,j) > 0.d0 .and. relax_target(i,j)> 0.0d0) then
+                  term_relax = -flow_enhancement_relax_factor * log(flow_enhancement_factor(i,j)/relax_target(i,j)) &
+                      / flow_enhancement_timescale
+             else
+                  term_relax = 0.d0
+             endif
+              
+             term_relax_array(i,j) = term_relax 
+          endif  ! 
 
        enddo  ! i
     enddo  ! j
+
 
     ! optional diagnostics
     if (verbose_inversion .and. this_rank == rtest) then
@@ -1742,6 +1815,15 @@ contains
           enddo
           print*, ' '
        enddo
+
+       print*, 'dvelo (m):'
+       do j = jtest+3, jtest-3, -1
+          do i = itest-3, itest+3
+             write(6,'(f10.3)',advance='no') dvelo(i,j)
+          enddo
+          print*, ' '
+       enddo
+
        print*, ' '
        print*, 'dthck_dt (m/yr):'
        do j = jtest+3, jtest-3, -1

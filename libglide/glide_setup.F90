@@ -2180,6 +2180,10 @@ contains
     call GetValue(section,'geothermal',         model%paramets%geot)
     call GetValue(section,'flow_factor_ground', model%paramets%flow_enhancement_factor_ground)
     call GetValue(section,'flow_factor_float',  model%paramets%flow_enhancement_factor_float)
+
+    call GetValue(section,'flow_enhancement_factor_velo_scale',  model%inversion%flow_enhancement_factor_velo_scale)
+    call GetValue(section,'flow_enhancement_factor_minvalue',  model%inversion%flow_enhancement_factor_minvalue)
+    call GetValue(section,'flow_enhancement_factor_maxvalue',  model%inversion%flow_enhancement_factor_maxvalue)
     !TODO - Change default_flwa to flwa_constant?  Would have to change config files.
     call GetValue(section,'default_flwa',       model%paramets%default_flwa)
     call GetValue(section,'efvs_constant',      model%paramets%efvs_constant)
@@ -3646,6 +3650,7 @@ contains
     ! Note: If usrf_obs is supplied, thck_obs will be computed at initialization
     if (options%which_ho_powerlaw_c == HO_POWERLAW_C_INVERSION .or. &
         options%which_ho_coulomb_c  == HO_COULOMB_C_INVERSION  .or. &
+        options%which_ho_flow_enhancement_factor == HO_FLOW_ENHANCEMENT_FACTOR_INVERSION .or. & 
         options%which_ho_deltaT_ocn == HO_DELTAT_OCN_INVERSION) then
        call glide_add_to_restart_variable_list('usrf_obs')
        !WHL - velo_sfc_obs is not strictly needed unless inverting for surface velo,

@@ -321,9 +321,7 @@ subroutine cism_run_dycore(model)
 
         case (DYCORE_GLAM, DYCORE_GLISSADE, DYCORE_ALBANYFELIX)
           ! glam/glissade dycore
-
           call glissade_tstep(model,time)
-
         case (DYCORE_BISICLES)
           ! print *,'Using External Dycore'
           ! The time variable gets incremented within this call:
@@ -341,7 +339,7 @@ subroutine cism_run_dycore(model)
       call t_stopf('tstep')
       !endif
 
-!      print*, 'Current time, tstep_count =', model%numerics%time, model%numerics%tstep_count
+      print*, 'Current time, tstep_count =', model%numerics%time, model%numerics%tstep_count
 
       ! write ice sheet diagnostics to log file at desired interval (model%numerics%dt_diag)
 

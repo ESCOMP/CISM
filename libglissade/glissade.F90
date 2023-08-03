@@ -379,11 +379,7 @@ contains
        call check_fill_values(model%ocean_data%thermal_forcing)
     endif
 
-<<<<<<< HEAD
-    if (model%options%which_ho_deltaT_ocn == HO_DELTAT_OCN_DTHCK_DT .or. &
-=======
     if (model%options%which_ho_deltaT_ocn == HO_DELTAT_OCN_DTHCK_DT .or.  &
->>>>>>> ec7628ee76d29f8d15a7caec884f85197f039a9f
         model%options%enable_acab_dthck_dt_correction) then
        call check_fill_values(model%geometry%dthck_dt_obs)
     endif
@@ -2903,15 +2899,9 @@ contains
              enddo
           endif
 
-<<<<<<< HEAD
           where (model%geometry%f_ground_cell < 1.0d0 .and. model%geometry%dthck_dt_obs < model%inversion%floating_dhdt_limit)
              ! ice is floating and thinning in obs; apply a positive correction to acab
              ! Note: dthck_dt_obs has units of m/yr; convert to m/s
-=======
-          where (model%geometry%f_ground_cell < 1.0d0 .and. model%geometry%dthck_dt_obs_basin < 0.0d0)
-             ! floating ice is thinning in obs; apply a positive correction to acab
-             ! Note: dthck_dt_obs_basin has units of m/yr; convert to m/s
->>>>>>> ec7628ee76d29f8d15a7caec884f85197f039a9f
              acab_unscaled = acab_unscaled &
                   - (1.0d0 - model%geometry%f_ground_cell) * (model%geometry%dthck_dt_obs_basin/scyr)
           endwhere
@@ -2941,7 +2931,6 @@ contains
 
        endif   ! enable_acab_dthck_dt_correction
 
-<<<<<<< HEAD
 
 
        if (model%options%enable_acab_dthck_dt_grounded_correction) then
@@ -2993,8 +2982,6 @@ contains
 
        endif   ! enable_acab_dthck_dt_correction
 
-=======
->>>>>>> ec7628ee76d29f8d15a7caec884f85197f039a9f
        ! Convert bmlt to SI units (m/s)
        ! Note: bmlt is the sum of bmlt_ground (computed in glissade_thermal_solve) and bmlt_float
        !       (computed in glissade_bmlt_float_solve).
@@ -4034,7 +4021,7 @@ contains
     use glissade_velo, only: glissade_velo_driver
     use glide_velo, only: wvelintg
     use glissade_masks, only: glissade_get_masks, glissade_ice_sheet_mask, glissade_calving_front_mask
-    use glissade_grid_operators, only: glissade_stagger, glissade_gradient, glissade_laplacian_smoother
+    use glissade_grid_operators, only: glissade_unstagger, glissade_stagger, glissade_gradient, glissade_laplacian_smoother
     use glissade_grounding_line, only: glissade_grounded_fraction, glissade_grounding_line_flux, verbose_glp
     use glissade_therm, only: glissade_interior_dissipation_sia,  &
                               glissade_interior_dissipation_first_order, &
@@ -4073,7 +4060,8 @@ contains
          f_ground_cell_obs,  & ! f_ground_cell as a function of thck_obs (instead of current thck)
          f_ground_obs,       & ! f_ground as a function of thck_obs (instead of current thck)
          f_flotation_obs,    & ! f_flotation_obs as a function of thck_obs (instead of current thck)
-         thck_calving_front    ! effective thickness of ice at the calving front
+         thck_calving_front  ! effective thickness of ice at the calving front
+    !velocity arrays needed as targets for the flow factor inversion
 
     real(dp) :: &
          dsigma,                   & ! layer thickness in sigma coordinates
@@ -4155,6 +4143,22 @@ contains
     call glissade_stagger(ewn,                 nsn,  &
                           model%geometry%thck, model%geomderv%stagthck)
 
+  
+
+    if ( model%options%which_ho_flow_enhancement_factor == HO_FLOW_ENHANCEMENT_FACTOR_INVERSION) then
+        model%velocity%velo_sfc_fei(:,:) = sqrt(model%velocity%uvel(1,:,:)**2+model%velocity%vvel(1,:,:)**2)
+
+
+         call glissade_unstagger(ewn,                 nsn,  &
+                         model%velocity%velo_sfc_fei,model%velocity%velo_sfc_unstag)
+
+
+          call glissade_unstagger(ewn,                 nsn,  &
+                          model%velocity%velo_sfc_obs,model%velocity%velo_sfc_obs_unstag) 
+
+    endif
+
+  
     call glissade_gradient(ewn,                     nsn,       &
                            model%numerics%dew,      model%numerics%dns,      &
                            model%geometry%usrf,                              &
@@ -4471,6 +4475,11 @@ contains
                f_ground_obs,                  &
                f_ground_cell_obs)
 
+          call parallel_halo(thck_obs,parallel)
+          call parallel_halo(model%geometry%thck,parallel)
+          call parallel_halo(model%velocity%velo_sfc_unstag,parallel)
+          call parallel_halo(model%velocity%velo_sfc_obs_unstag,parallel)
+
           call glissade_inversion_flow_enhancement_factor(&
                model%numerics%dt * tim0,                         &
                ewn, nsn,                                         &
@@ -4486,8 +4495,19 @@ contains
                model%inversion%flow_enhancement_thck_scale,      &  ! m
                model%inversion%flow_enhancement_timescale,       &  ! s
                model%inversion%flow_enhancement_relax_factor,    &
-               model%temper%flow_enhancement_factor)
+               model%temper%flow_enhancement_factor,             &
+               model%inversion%flow_enhancement_factor_velo_scale, &
+               model%velocity%velo_sfc_unstag*vel0*scyr,                        &
+               model%velocity%velo_sfc_obs_unstag*vel0*scyr,                    &
+               model%inversion%flow_enhancement_factor_minvalue, &
+               model%inversion%flow_enhancement_factor_maxvalue, &
+               model%inversion%term_thk_array,                   &
+               model%inversion%term_dhdt_array,                  &
+               model%inversion%term_velo_array,                  &
+               model%inversion%term_relax_array) 
 
+
+           !clean up
        endif  ! first call after a restart
 
     endif   ! which_ho_flow_enhancement_factor

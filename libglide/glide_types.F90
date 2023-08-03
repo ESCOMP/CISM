@@ -1401,7 +1401,10 @@ module glide_types
     real(dp),dimension(:,:)  ,pointer :: vsfc_obs => null()     !> observed surface $y$-velocity
     real(dp),dimension(:,:)  ,pointer :: velo_sfc_obs => null() !> observed surface speed = sqrt(usfc_obc^2 + vsfc_obs^2)
     real(dp),dimension(:,:)  ,pointer :: velo_sfc => null()     !> surface speed
-
+    real(dp),dimension(:,:)  ,pointer :: velo_sfc_fei => null() !> surface speed modelled, but only used for the flow enhancement inversion. TvdA added this because of possible NetCDF conflicts
+   
+    real(dp),dimension(:,:)  ,pointer :: velo_sfc_obs_unstag => null()     !> surface speed
+    real(dp),dimension(:,:)  ,pointer :: velo_sfc_unstag => null()     !> surface speed
     ! Note: uvel_extend and vvel_extend can be used for input and output of uvel, vvel on a staggered grid 
     !       that is the same size as the unstaggered grid. This is required for exact restart if velocities
     !       are nonzero along the north and east boundaries of the global domain.
@@ -1720,6 +1723,13 @@ module glide_types
           floating_thck_target => null()         !> Observational target for floating ice thickness
                                                  !> Note: Defined on the 2D (i,j) grid, but uniform within a basin
 
+     ! arrays to store the different terms of the flow enhancement factor inversion
+     real(dp), dimension(:,:), pointer :: &
+          term_thk_array =>  null(), &
+          term_dhdt_array => null(), &
+          term_velo_array => null(), &
+          term_relax_array => null() 
+
      real(dp) ::  &
           dbmlt_dtemp_scale = 10.0d0,          & !> scale for rate of change of bmlt w/temperature, m/yr/degC
           bmlt_basin_timescale = 100.0d0,      & !> timescale (yr) for adjusting deltaT_basin
@@ -1730,7 +1740,10 @@ module glide_types
      real(dp) ::  &
           flow_enhancement_thck_scale = 100.d0, & !> thickness scale (m) for adjusting flow_enhancement_factor
           flow_enhancement_timescale = 500.d0,  & !> timescale (yr) for adjusting flow_enhancement_factor
-          flow_enhancement_relax_factor = 0.5d0   !> controls strength of relaxation to default values (unitless)
+          flow_enhancement_relax_factor = 0.5d0, &  !> controls strength of relaxation to default values (unitless)
+          flow_enhancement_factor_velo_scale = 0.d0, & !> when its larger than 0, flow enhancement factor 
+          flow_enhancement_factor_minvalue = 0.01d0, & !> unitless, arbitrary
+          flow_enhancement_factor_maxvalue = 100.d0    !> same
 
      ! parameters for adjusting the ice mass target in a given basin for deltaT_basin inversion
      ! Note: This option could in principle be applied to multiple basins, but currently is supported for one basin only.
@@ -2843,7 +2856,11 @@ contains
        call coordsystem_allocate(model%general%ice_grid, upn-1, model%geometry%ice_age)
        call coordsystem_allocate(model%general%ice_grid,  model%geometry%thck_old)
        call coordsystem_allocate(model%general%velo_grid, model%velocity%velo_sfc_obs)
+
+       call coordsystem_allocate(model%general%ice_grid, model%velocity%velo_sfc_obs_unstag)
+       call coordsystem_allocate(model%general%ice_grid, model%velocity%velo_sfc_unstag)
        call coordsystem_allocate(model%general%velo_grid, model%velocity%velo_sfc)
+       call coordsystem_allocate(model%general%velo_grid, model%velocity%velo_sfc_fei)
        call coordsystem_allocate(model%general%ice_grid,  model%geometry%f_flotation)
        call coordsystem_allocate(model%general%velo_grid, model%geometry%f_ground)
        call coordsystem_allocate(model%general%ice_grid,  model%geometry%f_ground_cell)
@@ -2920,6 +2937,13 @@ contains
     call coordsystem_allocate(model%general%velo_grid,model%basal_physics%coulomb_c)
     call coordsystem_allocate(model%general%velo_grid,model%basal_physics%coulomb_c_relax)
 
+
+   ! the arrays for troubleshooting the flow enhancement factor inversion
+    call coordsystem_allocate(model%general%ice_grid,model%inversion%term_thk_array)
+    call coordsystem_allocate(model%general%ice_grid,model%inversion%term_dhdt_array)
+    call coordsystem_allocate(model%general%ice_grid,model%inversion%term_velo_array)
+    call coordsystem_allocate(model%general%ice_grid,model%inversion%term_relax_array)
+ 
     if (model%options%which_ho_bmlt_basin /= HO_BMLT_BASIN_NONE) then
        if (model%ocean_data%nbasin < 1) then
           call write_log ('Must set nbasin >= 1 for the bmlt_basin options', GM_FATAL)
@@ -3176,6 +3200,15 @@ contains
         deallocate(model%velocity%velo_sfc_obs)
     if (associated(model%velocity%velo_sfc)) &
         deallocate(model%velocity%velo_sfc)
+
+    if (associated(model%velocity%velo_sfc_fei)) &
+        deallocate(model%velocity%velo_sfc_fei)
+    if (associated(model%velocity%velo_sfc_unstag)) &
+        deallocate(model%velocity%velo_sfc_unstag)
+
+
+    if (associated(model%velocity%velo_sfc_obs_unstag)) &
+        deallocate(model%velocity%velo_sfc_obs_unstag)
     if (associated(model%velocity%wgrd)) &
         deallocate(model%velocity%wgrd)
     if (associated(model%velocity%ubas)) &
@@ -3212,6 +3245,17 @@ contains
         deallocate(model%velocity%vmask_no_penetration)
     if (associated(model%velocity%divu)) &
         deallocate(model%velocity%divu)
+   
+    if (associated(model%inversion%term_thk_array))&
+        deallocate(model%inversion%term_thk_array)
+    if (associated(model%inversion%term_dhdt_array))&
+        deallocate(model%inversion%term_dhdt_array)
+    if (associated(model%inversion%term_velo_array))&
+        deallocate(model%inversion%term_velo_array)
+    if (associated(model%inversion%term_relax_array))&
+        deallocate(model%inversion%term_relax_array)
+
+
 
     ! higher-order stress arrays
 
@@ -3369,14 +3413,11 @@ contains
         deallocate(model%geometry%dthck_dt)
     if (associated(model%geometry%dthck_dt_obs)) &
         deallocate(model%geometry%dthck_dt_obs)
-<<<<<<< HEAD
     if (associated(model%inversion%ff_invert_mask)) &
         deallocate(model%inversion%ff_invert_mask)
 
-=======
     if (associated(model%geometry%dthck_dt_obs_basin)) &
         deallocate(model%geometry%dthck_dt_obs_basin)
->>>>>>> ec7628ee76d29f8d15a7caec884f85197f039a9f
     if (associated(model%geometry%thkmask)) &
         deallocate(model%geometry%thkmask)
     if (associated(model%geometry%stagmask)) &
