@@ -1,10 +1,14 @@
 ISMIP-HOM Experiments
 =====================
 
+Note: For setting up the experiments on an NCAR computing environment, follow the steps in the README.NCAR_HPC file in the tests directory.
+
 Ice Sheet Model Intercomparison Project for Higher-Order Models (ISMIP-HOM)
 prescribes a set of experiments meant to test the implementation of higher-order
 physics.  For more information, see
 <http://homepages.ulb.ac.be/~fpattyn/ismip/>.
+If the previous link does not work, try
+<http://homepages.vub.ac.be/~fpattyn/ismip/>
 
 The python scripts provided here (`runISMIP_HOM.py` and `plotISMIP_HOM.py`,
 referred to in the following as the ISMIP-HOM scripts) were created to run the
@@ -27,6 +31,8 @@ For comparison you need to download the ISMIP-HOM results from
 <http://homepages.ulb.ac.be/~fpattyn/ismip/tc-2-95-2008-supplement.zip> and
 unzip to a directory named `ismip_all`. (Make `ismip_all` a subdirectory of the
 directory containing the ISMIP-HOM scripts.)
+If the previous link does not work, try
+<http://homepages.vub.ac.be/~fpattyn/ismip/welcome.html/tc-2-95-2008-supplement.zip>
 
 You will need to either copy your executable into this directory, have the 
 executable in your path, or create a symbolic link to your executable, using:
