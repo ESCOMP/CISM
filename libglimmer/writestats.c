@@ -40,7 +40,7 @@
 #include <unistd.h>
 #include <string.h>
 #include <fcntl.h>
-
+#include <ctype.h>
 
 
 #define CFG_LEN 35
