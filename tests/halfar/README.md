@@ -2,6 +2,8 @@
 Halfar Test Case
 ================
 
+Note: For setting up the experiments on an NCAR computing environment, follow the steps in the README.NCAR_HPC file in the tests directory.
+
 This directory contains Python scripts for running an experiment involving an
 ice sheet with a "dome" shape on a flat base.  The time evolution of this dome
 shape using the shallow-ice approximation has an analytic solution.  For
@@ -78,10 +80,10 @@ Higher order
 
 As mentioned above, the analytic solution is only valid for the shallow-ice
 approximation.  However, if desired the test may be run with the first-order
-Glissade dycore.  To do so, use the `halfar.HO.config` file:
+Glissade dycore.  To do so, use the `halfar-HO.config` file:
 
 ```sh
-./runHalfar.py -c halfar.HO.config
+./runHalfar.py -c halfar-HO.config
 ```
 
 In this case, the model output should not be expected to match the analytic

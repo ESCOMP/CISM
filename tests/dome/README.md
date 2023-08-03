@@ -1,6 +1,8 @@
 Dome test case 
 ==============
 
+Note: For setting up the experiments on an NCAR computing environment, follow the steps in the README.NCAR_HPC file in the tests directory.
+
 This directory contains a python script for running an experiment involving an
 ice sheet with an parabolic "dome" shape on a flat base.  
 

@@ -13,7 +13,7 @@ import os, sys
 import numpy as np
 from netCDF4 import Dataset
 import matplotlib.pyplot as plt
-from optparse import OptionParser
+from argparse import ArgumentParser
 
 
 ###############################
@@ -108,19 +108,15 @@ AstatusRetreatPoly = ['retreat','retreat','retreat',
 
 
 # Parse options.
-parser = OptionParser()
+parser = ArgumentParser() 
 
-parser.add_option('-x', '--expt',dest='experiment',type='string', default='all',   help='MISMIP experiment(s) to run', metavar="EXPT")
-parser.add_option('-f', '--file',dest='filename',  type='string',                  help='CISM output file from MISMIP3d run', metavar="FILE")
-parser.add_option('-s', '--stat',dest='StatChoice',type='string',default='advance',help='MISMIP experiment set to run', metavar="EXPT")
-parser.add_option('--bed', dest='bedtopo', type='string', default ='linear',help='bed topography, linear or poly', metavar='BEDTOPO')
+parser.add_argument('-x', '--expt',dest='experiment',type=str, default='all',   help='MISMIP experiment(s) to run', metavar="EXPT")
+parser.add_argument('-f', '--file',dest='filename',  type=str,                  help='CISM output file from MISMIP3d run', metavar="FILE")
+parser.add_argument('-s', '--stat',dest='StatChoice',type=str,default='advance',help='MISMIP experiment set to run', metavar="EXPT")
+parser.add_argument('--bed', dest='bedtopo', type=str, default ='linear',help='bed topography, linear or poly', metavar='BEDTOPO')
 
 
-for option in parser.option_list:
-    if option.default != ("NO", "DEFAULT"):
-        option.help += (" " if option.help else "") + "[default: %default]"
-
-options, args = parser.parse_args()
+options = parser.parse_args()
 
 if options.bedtopo == 'linear':
     As             = AsLinear

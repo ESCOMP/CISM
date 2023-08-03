@@ -36,11 +36,11 @@ export GLAD_VARS_PATH=$CISM_SOURCE_DIR/libglad/glad_vars.def
 export GLAD_MBAL_PATH=$CISM_SOURCE_DIR/libglad/glad_mbal_vars.def
 
 # Call python script with source file arguments
-python -V
-python $CISM_SOURCE_DIR/utils/build/generate_ncvars.py $GLINT_VARS_PATH $NCDF_TEMPL_PATH
-python $CISM_SOURCE_DIR/utils/build/generate_ncvars.py $GLINT_MBAL_PATH $NCDF_TEMPL_PATH
-python $CISM_SOURCE_DIR/utils/build/generate_ncvars.py $GLAD_VARS_PATH $NCDF_TEMPL_PATH
-python $CISM_SOURCE_DIR/utils/build/generate_ncvars.py $GLAD_MBAL_PATH $NCDF_TEMPL_PATH
+python3 -V
+python3 $CISM_SOURCE_DIR/utils/build/generate_ncvars.py $GLINT_VARS_PATH $NCDF_TEMPL_PATH
+python3 $CISM_SOURCE_DIR/utils/build/generate_ncvars.py $GLINT_MBAL_PATH $NCDF_TEMPL_PATH
+python3 $CISM_SOURCE_DIR/utils/build/generate_ncvars.py $GLAD_VARS_PATH $NCDF_TEMPL_PATH
+python3 $CISM_SOURCE_DIR/utils/build/generate_ncvars.py $GLAD_MBAL_PATH $NCDF_TEMPL_PATH
 
 popd
 
