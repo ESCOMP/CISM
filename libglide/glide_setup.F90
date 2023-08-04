@@ -3177,6 +3177,7 @@ contains
     call GetValue(section,'snow_calc',               model%glacier%snow_calc)
     call GetValue(section,'scale_area',              model%glacier%scale_area)
     call GetValue(section,'tmlt',                    model%glacier%tmlt)
+    call GetValue(section,'dt_aux',                  model%glacier%dt_aux)
     call GetValue(section,'mu_star_const',           model%glacier%mu_star_const)
     call GetValue(section,'mu_star_min',             model%glacier%mu_star_min)
     call GetValue(section,'mu_star_max',             model%glacier%mu_star_max)
@@ -3268,6 +3269,12 @@ contains
           call write_log ('Glacier area will be scaled based on latitude')
        endif
 
+       if (model%glacier%set_mu_star == GLACIER_MU_STAR_INVERSION .and. &
+           model%glacier%set_alpha_snow == GLACIER_ALPHA_SNOW_INVERSION) then
+          write(message,*) 'glc dt_aux (deg C)            :  ', model%glacier%dt_aux
+          call write_log(message)
+       endif
+
        if (model%glacier%set_powerlaw_c == GLACIER_POWERLAW_C_INVERSION) then
           write(message,*) 'powerlaw_c_timescale      :  ', model%inversion%babc_timescale
           call write_log(message)
@@ -3279,7 +3286,7 @@ contains
 
        ! Check for combinations not allowed
        if (model%glacier%set_mu_star /= GLACIER_MU_STAR_INVERSION) then
-          if (model%glacier%set_alpha_snow == GLACIER_alpha_SNOW_INVERSION) then
+          if (model%glacier%set_alpha_snow == GLACIER_ALPHA_SNOW_INVERSION) then
              call write_log('Error, must invert for mu_star if inverting for alpha_snow', GM_FATAL)
           elseif (model%glacier%set_powerlaw_c == GLACIER_POWERLAW_C_INVERSION) then
              call write_log('Error, must invert for mu_star if inverting for powerlaw_c', GM_FATAL)
@@ -3792,20 +3799,20 @@ contains
        call glide_add_to_restart_variable_list('smb_glacier_id')
        call glide_add_to_restart_variable_list('smb_glacier_id_init')
        call glide_add_to_restart_variable_list('cism_to_rgi_glacier_id')
-       ! some fields needed for glacier inversion
+       ! SMB is computed at the end of each year to apply during the next year
+       call glide_add_to_restart_variable_list('smb')
        call glide_add_to_restart_variable_list('glacier_mu_star')
        call glide_add_to_restart_variable_list('glacier_alpha_snow')
        call glide_add_to_restart_variable_list('glacier_beta_artm_aux')
+       ! smb_obs and smb_aux are used for glacier inversion
        call glide_add_to_restart_variable_list('glacier_smb_obs')
+       call glide_add_to_restart_variable_list('smb_aux')
        if (model%glacier%set_powerlaw_c == GLACIER_POWERLAW_C_INVERSION) then
           call glide_add_to_restart_variable_list('powerlaw_c')
           call glide_add_to_restart_variable_list('usrf_obs')
        elseif (model%glacier%set_powerlaw_c == GLACIER_POWERLAW_C_EXTERNAL) then
           call glide_add_to_restart_variable_list('powerlaw_c')
        endif
-       ! SMB is computed at the end of each year to apply during the next year
-       ! Alternatively, could save Tpos and snow everywhere
-       call glide_add_to_restart_variable_list('smb')
        !TODO: Are area_init and volume_init needed in the restart file?
        !      These could be computed based on cism_glacier_id_init and usrf_obs.
        call glide_add_to_restart_variable_list('glacier_volume_init')
