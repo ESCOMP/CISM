@@ -1476,6 +1476,7 @@ module glide_types
      real(dp),dimension(:,:),pointer :: artm_aux        => null() !> auxiliary artm field, used for glacier inversion (degC)
      real(dp),dimension(:,:),pointer :: artm_ref_aux    => null() !> auxiliary artm_ref field, used for glacier inversion (degC)
      real(dp),dimension(:,:),pointer :: usrf_ref_aux    => null() !> auxiliary usrf_ref field, used for glacier inversion (m)
+     real(dp),dimension(:,:),pointer :: smb_aux         => null() !> auxiliary SMB field, used for glacier inversion (mm/yr w.e.)
 
      ! Next several fields used for SMB_INPUT_FUNCTION_XYZ, ARTM_INPUT_FUNCTION_XYZ
      ! Note: If both smb and artm are input in this format, they share the array smb_levels(nlev_smb).
@@ -1500,7 +1501,7 @@ module glide_types
      ! The next several fields are used for the 'read_once' forcing option.
      ! E.g., if we want to read in all time slices of precip at once, we would set 'read_once' = .true. in the config file.
      ! All time slices are then stored in the precip_read_once array, where the third dimension is the number of time slices.
-     ! Data are copied from precip_read_once to the regular 2D precip array as the model time changes.
+     ! Data are copied from precip_read_once to the regular 2D precip array as the model runs forward in time.
      real(dp), dimension(:,:,:),pointer :: precip_read_once   => null()  !> precip field, read_once version
      real(dp), dimension(:,:,:),pointer :: artm_ref_read_once => null()  !> artm_ref field, read_once version
      real(dp), dimension(:,:,:),pointer :: snow_read_once => null()      !> snow field, read_once version
@@ -1899,7 +1900,8 @@ module glide_types
                                               !> currently set based on model%numerics%thklim
 
      real(dp) :: &
-          tmlt = -4.d0                        !> spatially uniform temperature threshold for melting (deg C)
+          tmlt = -4.d0,                     & !> spatially uniform temperature threshold for melting (deg C)
+          dt_aux = 30.d0                      ! elapsed years between baseline and auxiliary climate
 
      real(dp) :: &
           mu_star_const = 1000.d0,          & ! uniform initial value for mu_star (mm/yr w.e/deg C)
@@ -1918,12 +1920,12 @@ module glide_types
      ! Note: These thresholds assume that artm is a monthly mean, not an instantaneous value
      !       Huss and Hock (2015) have thresholds of 0.5 and 2.5 C
      real(dp) :: &
-          snow_threshold_min = 0.0d0,      & !> air temperature (deg C) below which all precip falls as snow
-          snow_threshold_max = 2.0d0         !> air temperature (deg C) above which all precip falls as rain
+          snow_threshold_min = 0.0d0,       & !> air temperature (deg C) below which all precip falls as snow
+          snow_threshold_max = 2.0d0          !> air temperature (deg C) above which all precip falls as rain
 
      real(dp) :: &
-          precip_lapse = 0.0d0               !> fractional change in precip per m elevation above usrf_ref;
-                                             !> Huss & Hock (2015) have 1.0e-4 to 2.5e-4
+          precip_lapse = 0.0d0                !> fractional change in precip per m elevation above usrf_ref;
+                                              !> Huss & Hock (2015) have 1.0e-4 to 2.5e-4
 
      ! 1D arrays with size nglacier
 
@@ -3043,6 +3045,7 @@ contains
        call coordsystem_allocate(model%general%ice_grid, model%climate%artm_aux)
        call coordsystem_allocate(model%general%ice_grid, model%climate%artm_ref_aux)
        call coordsystem_allocate(model%general%ice_grid, model%climate%usrf_ref_aux)
+       call coordsystem_allocate(model%general%ice_grid, model%climate%smb_aux)
        call coordsystem_allocate(model%general%ice_grid, model%glacier%snow_aux_2d)
        call coordsystem_allocate(model%general%ice_grid, model%glacier%Tpos_aux_2d)
 
@@ -3727,6 +3730,8 @@ contains
         deallocate(model%climate%artm_ref_aux)
     if (associated(model%climate%usrf_ref_aux)) &
         deallocate(model%climate%usrf_ref_aux)
+    if (associated(model%climate%smb_aux)) &
+        deallocate(model%climate%smb_aux)
 
     ! calving arrays
     if (associated(model%calving%calving_thck)) &

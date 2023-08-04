@@ -978,6 +978,14 @@ long_name:     auxiliary reference upper surface elevation for input forcing
 data:          data%climate%usrf_ref_aux
 load:          1
 
+[smb_aux]
+dimensions:    time, y1, x1
+units:         mm/year water equivalent
+long_name:     auxiliary surface mass balance
+data:          data%climate%smb_aux
+factor:        1.0
+load:          1
+
 #WHL: Note sign convention: positive downward
 [bheatflx]
 dimensions:    time, y1, x1
