@@ -3177,15 +3177,14 @@ contains
     call GetValue(section,'snow_calc',               model%glacier%snow_calc)
     call GetValue(section,'scale_area',              model%glacier%scale_area)
     call GetValue(section,'tmlt',                    model%glacier%tmlt)
-    call GetValue(section,'dt_aux',                  model%glacier%dt_aux)
     call GetValue(section,'mu_star_const',           model%glacier%mu_star_const)
     call GetValue(section,'mu_star_min',             model%glacier%mu_star_min)
     call GetValue(section,'mu_star_max',             model%glacier%mu_star_max)
     call GetValue(section,'alpha_snow_const',        model%glacier%alpha_snow_const)
     call GetValue(section,'alpha_snow_min',          model%glacier%alpha_snow_min)
     call GetValue(section,'alpha_snow_max',          model%glacier%alpha_snow_max)
-    call GetValue(section,'beta_artm_aux_max',       model%glacier%beta_artm_aux_max)
-    call GetValue(section,'beta_artm_aux_increment', model%glacier%beta_artm_aux_increment)
+    call GetValue(section,'beta_artm_max',           model%glacier%beta_artm_max)
+    call GetValue(section,'beta_artm_increment',     model%glacier%beta_artm_increment)
     call GetValue(section,'snow_threshold_min',      model%glacier%snow_threshold_min)
     call GetValue(section,'snow_threshold_max',      model%glacier%snow_threshold_max)
     call GetValue(section,'precip_lapse',            model%glacier%precip_lapse)
@@ -3271,7 +3270,7 @@ contains
 
        if (model%glacier%set_mu_star == GLACIER_MU_STAR_INVERSION .and. &
            model%glacier%set_alpha_snow == GLACIER_ALPHA_SNOW_INVERSION) then
-          write(message,*) 'glc dt_aux (deg C)            :  ', model%glacier%dt_aux
+!!          write(message,*) 'glc baseline date         :  ', model%glacier%baseline_date
           call write_log(message)
        endif
 
@@ -3318,9 +3317,9 @@ contains
        call write_log(message)
        write(message,*) 'alpha_snow_max                :  ', model%glacier%alpha_snow_max
        call write_log(message)
-       write(message,*) 'beta_artm_aux_max (degC)      :  ', model%glacier%beta_artm_aux_max
+       write(message,*) 'beta_artm_max (degC)          :  ', model%glacier%beta_artm_max
        call write_log(message)
-       write(message,*) 'beta_artm_aux_increment (degC):  ', model%glacier%beta_artm_aux_increment
+       write(message,*) 'beta_artm_increment (degC)    :  ', model%glacier%beta_artm_increment
        call write_log(message)
 
     endif   ! enable_glaciers
@@ -3795,23 +3794,28 @@ contains
 
     if (model%options%enable_glaciers) then
        ! some fields related to glacier indexing
+       !TODO - Do we need all the SMB masks?
        call glide_add_to_restart_variable_list('rgi_glacier_id')
        call glide_add_to_restart_variable_list('cism_glacier_id')
        call glide_add_to_restart_variable_list('cism_glacier_id_init')
+       call glide_add_to_restart_variable_list('cism_glacier_id_baseline')
        call glide_add_to_restart_variable_list('smb_glacier_id')
        call glide_add_to_restart_variable_list('smb_glacier_id_init')
+       call glide_add_to_restart_variable_list('smb_glacier_id_baseline')
        call glide_add_to_restart_variable_list('cism_to_rgi_glacier_id')
        ! SMB is computed at the end of each year to apply during the next year
        call glide_add_to_restart_variable_list('smb')
+       call glide_add_to_restart_variable_list('smb_rgi')
+       call glide_add_to_restart_variable_list('smb_aux')
+       ! mu_star, alpha_snow, and beta_artm are inversion parameters
        call glide_add_to_restart_variable_list('glacier_mu_star')
        call glide_add_to_restart_variable_list('glacier_alpha_snow')
-       call glide_add_to_restart_variable_list('glacier_beta_artm_aux')
-       ! smb_obs and smb_aux are used for glacier inversion
+       call glide_add_to_restart_variable_list('glacier_beta_artm')
+       ! smb_obs is used for glacier inversion
        call glide_add_to_restart_variable_list('glacier_smb_obs')
-       call glide_add_to_restart_variable_list('smb_aux')
        if (model%glacier%set_powerlaw_c == GLACIER_POWERLAW_C_INVERSION) then
           call glide_add_to_restart_variable_list('powerlaw_c')
-          call glide_add_to_restart_variable_list('usrf_obs')
+          call glide_add_to_restart_variable_list('usrf_target_rgi')
        elseif (model%glacier%set_powerlaw_c == GLACIER_POWERLAW_C_EXTERNAL) then
           call glide_add_to_restart_variable_list('powerlaw_c')
        endif
