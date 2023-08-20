@@ -1990,11 +1990,11 @@ contains
             (model%geometry%usrf(:,:)*thk0 - model%climate%usrf_ref(:,:)) * model%climate%t_lapse
        if (verbose_glacier .and. this_rank == rtest) then
           i = itest; j = jtest
-          print*, ' '
-          print*, 'rank, i, j, usrf_ref, usrf, dz:', this_rank, i, j, &
-               model%climate%usrf_ref(i,j), model%geometry%usrf(i,j)*thk0, &
-               model%geometry%usrf(i,j)*thk0 - model%climate%usrf_ref(i,j)
-          print*, '   artm_ref, artm:', model%climate%artm_ref(i,j), model%climate%artm(i,j)
+!          print*, ' '
+!          print*, 'rank, i, j, usrf_ref, usrf, dz:', this_rank, i, j, &
+!               model%climate%usrf_ref(i,j), model%geometry%usrf(i,j)*thk0, &
+!               model%geometry%usrf(i,j)*thk0 - model%climate%usrf_ref(i,j)
+!          print*, '   artm_ref, artm:', model%climate%artm_ref(i,j), model%climate%artm(i,j)
        endif
 
        ! optionally, do the same for an auxiliary field, artm_aux
@@ -2005,11 +2005,12 @@ contains
                (model%geometry%usrf(:,:)*thk0 - model%climate%usrf_ref_aux(:,:)) * model%climate%t_lapse
           if (verbose_glacier .and. this_rank == rtest) then
              i = itest; j = jtest
-             print*, ' '
-             print*, 'rank, i, j, usrf_ref_aux, usrf, dz:', this_rank, i, j, &
-                  model%climate%usrf_ref_aux(i,j), model%geometry%usrf(i,j)*thk0, &
-                  model%geometry%usrf(i,j)*thk0 - model%climate%usrf_ref_aux(i,j)
-             print*, '   artm_ref_aux, artm_aux:', model%climate%artm_ref_aux(i,j), model%climate%artm_aux(i,j)
+!             print*, ' '
+!             print*, 'rank, i, j, usrf_ref_aux, usrf, dz:', this_rank, i, j, &
+!                  model%climate%usrf_ref_aux(i,j), model%geometry%usrf(i,j)*thk0, &
+!                  model%geometry%usrf(i,j)*thk0 - model%climate%usrf_ref_aux(i,j)
+!             print*, '   artm_ref_aux, artm_aux:', model%climate%artm_ref_aux(i,j), &
+!                  model%climate%artm_aux(i,j)
           endif
        endif
 
