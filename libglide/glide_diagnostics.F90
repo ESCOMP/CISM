@@ -1162,8 +1162,8 @@ contains
             model%glacier%alpha_snow(ng)
        call write_log(trim(message), type = GM_DIAGNOSTIC)
 
-       write(message,'(a35,f14.6)') 'beta_artm_aux (deg C)              ', &
-            model%glacier%beta_artm_aux(ng)
+       write(message,'(a35,f14.6)') 'beta_artm (deg C)                  ', &
+            model%glacier%beta_artm(ng)
        call write_log(trim(message), type = GM_DIAGNOSTIC)
 
        call write_log(' ')

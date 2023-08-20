@@ -986,6 +986,20 @@ data:          data%climate%smb_aux
 factor:        1.0
 load:          1
 
+[smb_rgi]
+dimensions:    time, y1, x1
+units:         m
+long_name:     surface mass balance at RGI date
+data:          data%glacier%smb_rgi
+load:          1
+
+[usrf_target_rgi]
+dimensions:    time, y1, x1
+units:         m
+long_name:     thickness target for RGI date
+data:          data%glacier%usrf_target_rgi
+load:          1
+
 #WHL: Note sign convention: positive downward
 [bheatflx]
 dimensions:    time, y1, x1
@@ -1766,11 +1780,11 @@ long_name:     glacier snow factor
 data:          data%glacier%alpha_snow
 load:          1
 
-[glacier_beta_artm_aux]
+[glacier_beta_artm]
 dimensions:    time, glacierid
 units:         1
-long_name:     glacier surface temperature correction
-data:          data%glacier%beta_artm_aux
+long_name:     glacier temperature correction
+data:          data%glacier%beta_artm
 load:          1
 
 [glacier_smb_obs]

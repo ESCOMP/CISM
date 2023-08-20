@@ -1471,12 +1471,13 @@ module glide_types
 
      ! Next several fields are auxiliary fields, in case we need to read two independent versions of artm, snow, etc.
      ! Currently used for 2-parameter glacier inversion
-     real(dp),dimension(:,:),pointer :: snow_aux        => null() !> auxiliary snow field, used for glacier inversion (mm/yr w.e.)
-     real(dp),dimension(:,:),pointer :: precip_aux      => null() !> auxiliary precip field, used for glacier inversion (mm/yr w.e.)
-     real(dp),dimension(:,:),pointer :: artm_aux        => null() !> auxiliary artm field, used for glacier inversion (degC)
-     real(dp),dimension(:,:),pointer :: artm_ref_aux    => null() !> auxiliary artm_ref field, used for glacier inversion (degC)
-     real(dp),dimension(:,:),pointer :: usrf_ref_aux    => null() !> auxiliary usrf_ref field, used for glacier inversion (m)
-     real(dp),dimension(:,:),pointer :: smb_aux         => null() !> auxiliary SMB field, used for glacier inversion (mm/yr w.e.)
+     real(dp), dimension(:,:), pointer :: &
+          snow_aux => null(),               & !> auxiliary snow field, used for glacier inversion (mm/yr w.e.)
+          precip_aux => null(),             & !> auxiliary precip field, used for glacier inversion (mm/yr w.e.)
+          artm_aux => null(),               & !> auxiliary artm field, used for glacier inversion (degC)
+          artm_ref_aux => null(),           & !> auxiliary artm_ref field, used for glacier inversion (degC)
+          usrf_ref_aux => null(),           & !> auxiliary usrf_ref field, used for glacier inversion (m)
+          smb_aux => null()                   !> auxiliary SMB field, used for glacier inversion (mm/yr w.e.)
 
      ! Next several fields used for SMB_INPUT_FUNCTION_XYZ, ARTM_INPUT_FUNCTION_XYZ
      ! Note: If both smb and artm are input in this format, they share the array smb_levels(nlev_smb).
@@ -1485,6 +1486,20 @@ module glide_types
      real(dp),dimension(:)    ,pointer :: smb_levels    => null() !> Reference vertical levels for SMB (m)
      integer :: nlev_smb = 1                                      !> number of vertical levels at which SMB is provided
      real(dp),dimension(:,:,:),pointer :: artm_3d       => null() !> artm at multiple vertical levels (m/yr ice)
+
+     ! The next several fields are used for the 'read_once' forcing option.
+     ! E.g., if we want to read in all time slices of precip at once, we would set 'read_once' = .true. in the config file.
+     ! All time slices are then stored in the precip_read_once array, where the third dimension is the number of time slices.
+     ! Data are copied from precip_read_once to the regular 2D precip array as the model runs forward in time.
+     real(dp), dimension(:,:,:), pointer :: &
+          snow_read_once => null(),         & !> snow field, read_once version
+          precip_read_once => null(),       & !> precip field, read_once version
+          artm_ref_read_once => null()        !> artm_ref field, read_once version
+
+     real(dp), dimension(:,:,:), pointer :: &
+          snow_aux_read_once => null(),     & !> auxiliary snow field, read_once version
+          precip_aux_read_once => null(),   & !> auxiliary precip field, read_once version
+          artm_ref_aux_read_once => null()    !> auxiliary artm_ref field, read_once version
 
      real(dp) :: eus = 0.d0                         !> eustatic sea level
      real(dp) :: acab_factor = 1.0d0                !> adjustment factor for external acab field (unitless)
@@ -1497,17 +1512,6 @@ module glide_types
      real(dp) :: artm_anomaly_timescale = 0.0d0     !> number of years over which the artm anomaly is phased in linearly
                                                     !> If set to zero, then the anomaly is applied immediately.
      real(dp) :: t_lapse = 0.0d0                    !> air temp lapse rate (deg/m); positive for T decreasing with height
-
-     ! The next several fields are used for the 'read_once' forcing option.
-     ! E.g., if we want to read in all time slices of precip at once, we would set 'read_once' = .true. in the config file.
-     ! All time slices are then stored in the precip_read_once array, where the third dimension is the number of time slices.
-     ! Data are copied from precip_read_once to the regular 2D precip array as the model runs forward in time.
-     real(dp), dimension(:,:,:),pointer :: precip_read_once   => null()  !> precip field, read_once version
-     real(dp), dimension(:,:,:),pointer :: artm_ref_read_once => null()  !> artm_ref field, read_once version
-     real(dp), dimension(:,:,:),pointer :: snow_read_once => null()      !> snow field, read_once version
-     real(dp), dimension(:,:,:),pointer :: precip_aux_read_once   => null()  !> auxiliary precip field, read_once version
-     real(dp), dimension(:,:,:),pointer :: artm_ref_aux_read_once => null()  !> auxiliary artm_ref field, read_once version
-     real(dp), dimension(:,:,:),pointer :: snow_aux_read_once => null()      !> auxiliary snow field, read_once version
 
   end type glide_climate
 
@@ -1900,22 +1904,21 @@ module glide_types
                                               !> currently set based on model%numerics%thklim
 
      real(dp) :: &
-          tmlt = -4.d0,                     & !> spatially uniform temperature threshold for melting (deg C)
-          dt_aux = 30.d0                      ! elapsed years between baseline and auxiliary climate
+          tmlt = -1.d0                        !> spatially uniform temperature threshold for melting (deg C)
 
      real(dp) :: &
           mu_star_const = 1000.d0,          & ! uniform initial value for mu_star (mm/yr w.e/deg C)
-          mu_star_min = 200.d0,             & ! min value of mu_star (mm/yr w.e/deg C)
-          mu_star_max = 5000.d0               ! max value of mu_star (mm/yr w.e/deg C)
+          mu_star_min = 300.d0,             & ! min value of mu_star (mm/yr w.e/deg C)
+          mu_star_max = 3000.d0               ! max value of mu_star (mm/yr w.e/deg C)
 
      real(dp) :: &
           alpha_snow_const = 1.d0,          & ! uniform initial value of alpha_snow (unitless)
-          alpha_snow_min = 0.5d0,           & ! min value of alpha_snow
+          alpha_snow_min = 0.3d0,           & ! min value of alpha_snow
           alpha_snow_max = 3.0d0              ! max value of alpha_snow
 
      real(dp) ::  &
-          beta_artm_aux_max = 3.0,          & ! max magnitude of beta_artm_aux (deg C)
-          beta_artm_aux_increment = 0.05d0    ! fixed increment in beta_artm_aux (deg C)
+          beta_artm_max = 3.0,              & ! max magnitude of beta_artm (deg C)
+          beta_artm_increment = 0.05d0        ! fixed increment in beta_artm (deg C)
 
      ! Note: These thresholds assume that artm is a monthly mean, not an instantaneous value
      !       Huss and Hock (2015) have thresholds of 0.5 and 2.5 C
@@ -1926,6 +1929,8 @@ module glide_types
      real(dp) :: &
           precip_lapse = 0.0d0                !> fractional change in precip per m elevation above usrf_ref;
                                               !> Huss & Hock (2015) have 1.0e-4 to 2.5e-4
+
+     !TODO - Add baseline_date, rgi_date, recent_date
 
      ! 1D arrays with size nglacier
 
@@ -1947,7 +1952,7 @@ module glide_types
           mu_star => null(),                & !> glacier-specific parameter relating SMB to monthly mean artm (mm/yr w.e./deg),
                                               !> defined as positive for ablation
           alpha_snow => null(),             & !> glacier-specific multiplicative snow factor (unitless)
-          beta_artm_aux => null(),          & !> bias correction to auxiliary surface temperature (deg C)
+          beta_artm => null(),              & !> bias correction to artm (deg C); beta > 0 => increase artm
           smb => null(),                    & !> modeled glacier-average mass balance (mm/yr w.e.)
           smb_obs => null()                   !> observed glacier-average mass balance (mm/yr w.e.), e.g. from Hugonnet et al. (2021)
 
@@ -1963,16 +1968,24 @@ module glide_types
           smb_glacier_id_init => null()       !> integer glacier ID for applying SMB;
                                               !> based on cism_glacier_id_init and used for inversion
 
-     !TODO - Change '2d' to 'annmean'?
-     !       Do all of these need to be part of the derived type? Maybe just for diagnostic I/O.
-     !       Add smb_annmean?
+     !TODO - Change '2d' to 'annmean'? Add smb_annmean?
      real(dp), dimension(:,:), pointer :: &
           area_factor => null(),            & !> area scaling factor based on latitude
           dthck_dt_2d => null(),            & !> accumulated dthck_dt (m/yr)
           snow_2d => null(),                & !> accumulated snowfall (mm/yr w.e.)
           Tpos_2d => null(),                & !> accumulated max(artm - tmlt,0) (deg C)
           snow_aux_2d => null(),            & !> accumulated snowfall (mm/yr w.e.), auxiliary field
-          Tpos_aux_2d => null()               !> accumulated max(artm - tmlt,0) (deg C), auxiliary field
+          Tpos_aux_2d => null(),            & !> accumulated max(artm - tmlt,0) (deg C), auxiliary field
+          snow_rgi_2d => null(),            & !> accumulated snowfall (mm/yr w.e.), RGI date
+          Tpos_rgi_2d => null()               !> accumulated max(artm - tmlt,0) (deg C), RGI date
+
+     real(dp), dimension(:,:), pointer :: &
+          usrf_target_baseline,             & !> target ice thickness (m) for the baseline date
+          usrf_target_rgi,                  & !> target ice thickness (m) for the RGI date;
+                                              !>  usually, usrf_target_rgi < usrf_target_baseline
+          smb_rgi => null(),                & !> RGI-date SMB field, used for glacier inversion (mm/yr w.e.)
+          delta_usrf_rgi => null(),         & !> change in usrf between baseline and RGI climate
+          delta_usrf_aux => null()            !> change in usrf between baseline and auxiliary climate
 
      integer, dimension(:,:), pointer :: &
           imask => null()                     !> 2D mask; indicates whether glaciers are present in the input file
@@ -3039,15 +3052,25 @@ contains
        if (.not.associated(model%climate%artm_ref)) &
             call coordsystem_allocate(model%general%ice_grid, model%climate%artm_ref)
 
-       ! Note: The auxiliary fields are currently used only for glacier SMB inversion
+       ! Note: The auxiliary and RGI fields are used for glacier inversion
+
+       call coordsystem_allocate(model%general%ice_grid, model%glacier%usrf_target_baseline)
+       call coordsystem_allocate(model%general%ice_grid, model%glacier%usrf_target_rgi)
+
        call coordsystem_allocate(model%general%ice_grid, model%climate%snow_aux)
        call coordsystem_allocate(model%general%ice_grid, model%climate%precip_aux)
        call coordsystem_allocate(model%general%ice_grid, model%climate%artm_aux)
        call coordsystem_allocate(model%general%ice_grid, model%climate%artm_ref_aux)
        call coordsystem_allocate(model%general%ice_grid, model%climate%usrf_ref_aux)
        call coordsystem_allocate(model%general%ice_grid, model%climate%smb_aux)
+
+       call coordsystem_allocate(model%general%ice_grid, model%glacier%delta_usrf_aux)
        call coordsystem_allocate(model%general%ice_grid, model%glacier%snow_aux_2d)
        call coordsystem_allocate(model%general%ice_grid, model%glacier%Tpos_aux_2d)
+       call coordsystem_allocate(model%general%ice_grid, model%glacier%smb_rgi)
+       call coordsystem_allocate(model%general%ice_grid, model%glacier%delta_usrf_rgi)
+       call coordsystem_allocate(model%general%ice_grid, model%glacier%snow_rgi_2d)
+       call coordsystem_allocate(model%general%ice_grid, model%glacier%Tpos_rgi_2d)
 
        ! Allocate arrays with dimension(nglacier)
        ! Note: nglacier = 1 by default, but can be changed in subroutine glissade_glacier_init
@@ -3062,7 +3085,7 @@ contains
        allocate(model%glacier%volume_init(model%glacier%nglacier))
        allocate(model%glacier%mu_star(model%glacier%nglacier))
        allocate(model%glacier%alpha_snow(model%glacier%nglacier))
-       allocate(model%glacier%beta_artm_aux(model%glacier%nglacier))
+       allocate(model%glacier%beta_artm(model%glacier%nglacier))
        allocate(model%glacier%smb(model%glacier%nglacier))
        allocate(model%glacier%smb_obs(model%glacier%nglacier))
     endif
@@ -3507,6 +3530,10 @@ contains
         deallocate(model%glacier%snow_aux_2d)
     if (associated(model%glacier%Tpos_aux_2d)) &
         deallocate(model%glacier%Tpos_aux_2d)
+    if (associated(model%glacier%snow_rgi_2d)) &
+        deallocate(model%glacier%snow_rgi_2d)
+    if (associated(model%glacier%Tpos_rgi_2d)) &
+        deallocate(model%glacier%Tpos_rgi_2d)
     if (associated(model%glacier%smb_obs)) &
         deallocate(model%glacier%smb_obs)
     if (associated(model%glacier%area)) &
@@ -3521,10 +3548,20 @@ contains
         deallocate(model%glacier%mu_star)
     if (associated(model%glacier%alpha_snow)) &
         deallocate(model%glacier%alpha_snow)
-    if (associated(model%glacier%beta_artm_aux)) &
-        deallocate(model%glacier%beta_artm_aux)
+    if (associated(model%glacier%beta_artm)) &
+        deallocate(model%glacier%beta_artm)
     if (associated(model%glacier%smb)) &
         deallocate(model%glacier%smb)
+    if (associated(model%glacier%usrf_target_baseline)) &
+        deallocate(model%glacier%usrf_target_baseline)
+    if (associated(model%glacier%usrf_target_rgi)) &
+        deallocate(model%glacier%usrf_target_rgi)
+    if (associated(model%glacier%delta_usrf_aux)) &
+        deallocate(model%glacier%delta_usrf_aux)
+    if (associated(model%glacier%smb_rgi)) &
+        deallocate(model%glacier%smb_rgi)
+    if (associated(model%glacier%delta_usrf_rgi)) &
+        deallocate(model%glacier%delta_usrf_rgi)
 
     ! inversion arrays
     if (associated(model%basal_physics%powerlaw_c)) &
