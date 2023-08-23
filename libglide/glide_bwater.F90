@@ -195,8 +195,8 @@ contains
     end select
 
     ! now also calculate basal water in velocity (staggered) coord system
-    call stagvarb(model%temper%bwat, &
-                  model%temper%stagbwat ,&
+    call stagvarb(model%basal_hydro%bwat, &
+                  model%basal_hydro%stagbwat ,&
                   model%general%ewn, &
                   model%general%nsn)
 
@@ -429,7 +429,7 @@ contains
   !> Compute the pressure wphi at the base of the ice sheet according to
   !> ice overburden plus bed height minus effective pressure.
   !>
-  !> whpi/(rhow*g) = topg + bwat * rhoi / rhow * thick - N / (rhow * g)
+  !> wphi/(rhow*g) = topg + bwat * rhoi / rhow * thick - N / (rhow * g)
 
     use glimmer_physcon, only : rhoi,rhow,grav
     implicit none

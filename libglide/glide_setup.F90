@@ -160,7 +160,7 @@ contains
   subroutine glide_scale_params(model)
     !> scale parameters
     use glide_types
-    use glimmer_physcon,  only: scyr, gn
+    use glimmer_physcon,  only: scyr
     use glimmer_paramets, only: thk0, tim0, len0, vel0, vis0, acc0, tau0
 
     implicit none
@@ -745,6 +745,7 @@ contains
     call GetValue(section,'cull_calving_front', model%options%cull_calving_front)
     call GetValue(section,'adjust_input_thickness', model%options%adjust_input_thickness)
     call GetValue(section,'smooth_input_topography', model%options%smooth_input_topography)
+    call GetValue(section,'smooth_input_usrf', model%options%smooth_input_usrf)
     call GetValue(section,'adjust_input_topography', model%options%adjust_input_topography)
     call GetValue(section,'read_lat_lon',model%options%read_lat_lon)
     call GetValue(section,'dm_dt_diag',model%options%dm_dt_diag)
@@ -786,6 +787,7 @@ contains
     call GetValue(section, 'which_ho_bmlt_inversion',     model%options%which_ho_bmlt_inversion)
     call GetValue(section, 'which_ho_bmlt_basin_inversion', model%options%which_ho_bmlt_basin_inversion)
     call GetValue(section, 'which_ho_bwat',               model%options%which_ho_bwat)
+    call GetValue(section, 'ho_flux_routing_scheme',      model%options%ho_flux_routing_scheme)
     call GetValue(section, 'which_ho_effecpress',         model%options%which_ho_effecpress)
     call GetValue(section, 'which_ho_resid',              model%options%which_ho_resid)
     call GetValue(section, 'which_ho_nonlinear',          model%options%which_ho_nonlinear)
@@ -883,11 +885,10 @@ contains
          'advective-diffusive balance ',&
          'temp from external file     ' /)
 
-    character(len=*), dimension(0:3), parameter :: flow_law = (/ &
-         'const 1e-16 Pa^-n a^-1      ', &
+    character(len=*), dimension(0:2), parameter :: flow_law = (/ &
+         'uniform factor flwa         ', &
          'Paterson and Budd (T = -5 C)', &
-         'Paterson and Budd           ', &
-         'read flwa/flwastag from file' /)
+         'Paterson and Budd           ' /)
 
     !TODO - Rename slip_coeff to which_btrc?
     character(len=*), dimension(0:5), parameter :: slip_coeff = (/ &
@@ -959,10 +960,11 @@ contains
          'artm and d(artm)/dz input as function of (x,y)', &
          'artm input as function of (x,y,z)             ' /)
 
-    character(len=*), dimension(0:2), parameter :: overwrite_acab = (/ &
+    character(len=*), dimension(0:3), parameter :: overwrite_acab = (/ &
          'do not overwrite acab anywhere            ', &
          'overwrite acab where input acab = 0       ', &
-         'overwrite acab where input thck <= minthck' /)
+         'overwrite acab where input thck <= minthck', &
+         'overwrite acab based on input mask        ' /)
 
     ! NOTE: Set gthf = 1 in the config file to read the geothermal heat flux from an input file.
     !       Otherwise it will be overwritten, even if the 'bheatflx' field is present.
@@ -1063,17 +1065,24 @@ contains
          'invert for basin-based basal melting parameters            ', &
          'apply basin basal melting parameters from earlier inversion' /)
 
-    character(len=*), dimension(0:2), parameter :: ho_whichbwat = (/ &
+    character(len=*), dimension(0:3), parameter :: ho_whichbwat = (/ &
          'zero basal water depth                          ', &
          'constant basal water depth                      ', &
-         'basal water depth computed from local till model' /)
+         'basal water depth computed from local till model', &
+         'steady-state water routing with flux calculation' /)
 
-    character(len=*), dimension(0:4), parameter :: ho_whicheffecpress = (/ &
+    character(len=*), dimension(0:2), parameter :: ho_flux_routing_scheme = (/ &
+         'D8; route flux to lowest-elevation neighbor      ', &
+         'Dinf; route flux to two lower-elevation neighbors', &
+         'FD8; route flux to all lower-elevation neighbors ' /)
+
+    character(len=*), dimension(0:5), parameter :: ho_whicheffecpress = (/ &
          'full overburden pressure                             ', &
          'reduced effecpress near pressure melting point       ', &
          'reduced effecpress where there is melting at the bed ', &
          'reduced effecpress where bed is connected to ocean   ', &
-         'reduced effecpress with increasing basal water       '/)
+         'reduced effecpress with increasing basal water (B/vP)', &
+         'reduced effecpress with increasing basal water (ramp)'/)
 
     character(len=*), dimension(0:1), parameter :: which_ho_nonlinear = (/ &
          'use standard Picard iteration          ', &
@@ -1234,7 +1243,7 @@ contains
     end if
 
     if (tasks > 1 .and. model%options%whichbwat==BWATER_FLUX) then
-       call write_log('Error, flux-based basal water option not supported for more than one processor', GM_FATAL)
+       call write_log('Error, flux-based basal water option not yet supported for more than one processor', GM_FATAL)
     endif
 
     ! Forbidden options associated with Glissade dycore
@@ -1404,6 +1413,11 @@ contains
 
        if (model%options%adjust_input_thickness) then
           write(message,*) ' Input ice thickness will be adjusted based on surface and bed topography'
+          call write_log(message)
+       endif
+
+       if (model%options%smooth_input_usrf) then
+          write(message,*) ' Input usrf will be smoothed'
           call write_log(message)
        endif
 
@@ -1766,6 +1780,16 @@ contains
           call write_log('Error, HO basal water input out of range', GM_FATAL)
        end if
 
+       if (model%options%which_ho_bwat == HO_BWAT_FLUX_ROUTING) then
+          write(message,*) 'ho_flux_routing_scheme  : ',model%options%ho_flux_routing_scheme,  &
+               ho_flux_routing_scheme(model%options%ho_flux_routing_scheme)
+          call write_log(message)
+          if (model%options%ho_flux_routing_scheme < 0.or. &
+              model%options%ho_flux_routing_scheme >= size(ho_flux_routing_scheme)) then
+             call write_log('Error, HO flux routing scheme out of range', GM_FATAL)
+          end if
+       end if
+
        write(message,*) 'ho_whicheffecpress      : ',model%options%which_ho_effecpress,  &
                          ho_whicheffecpress(model%options%which_ho_effecpress)
        call write_log(message)
@@ -1996,7 +2020,7 @@ contains
     use glimmer_config
     use glide_types
     use glimmer_log
-    use glimmer_physcon, only: rhoi, rhoo, grav, shci, lhci, trpt
+    use glimmer_physcon, only: rhoi, rhoo, grav, shci, lhci, trpt, n_glen
 
     implicit none
     type(ConfigSection), pointer :: section
@@ -2021,6 +2045,7 @@ contains
     call GetValue(section,'lhci', lhci)
     call GetValue(section,'trpt', trpt)
 #endif
+    call GetValue(section,'n_glen', n_glen)
 
     loglevel = GM_levels-GM_ERROR
     call GetValue(section,'log_level',loglevel)
@@ -2033,9 +2058,9 @@ contains
     call GetValue(section,'pmp_offset',         model%temper%pmp_offset)
     call GetValue(section,'pmp_threshold',      model%temper%pmp_threshold)
     call GetValue(section,'geothermal',         model%paramets%geot)
-    !TODO - Change default_flwa to flwa_constant?  Would have to change config files.
     call GetValue(section,'flow_factor',        model%paramets%flow_enhancement_factor)
     call GetValue(section,'flow_factor_float',  model%paramets%flow_enhancement_factor_float)
+    !TODO - Change default_flwa to flwa_constant?  Would have to change config files.
     call GetValue(section,'default_flwa',       model%paramets%default_flwa)
     call GetValue(section,'efvs_constant',      model%paramets%efvs_constant)
     call GetValue(section,'effstrain_min',      model%paramets%effstrain_min)
@@ -2103,9 +2128,9 @@ contains
     call GetValue(section, 'effecpress_bmlt_threshold', model%basal_physics%effecpress_bmlt_threshold)
 
     ! basal water parameters
-    call GetValue(section, 'const_bwat', model%basal_physics%const_bwat)
-    call GetValue(section, 'bwat_till_max', model%basal_physics%bwat_till_max)
-    call GetValue(section, 'c_drainage', model%basal_physics%c_drainage)
+    call GetValue(section, 'const_bwat', model%basal_hydro%const_bwat)
+    call GetValue(section, 'bwat_till_max', model%basal_hydro%bwat_till_max)
+    call GetValue(section, 'c_drainage', model%basal_hydro%c_drainage)
 
     ! pseudo-plastic parameters
     !TODO - Put pseudo-plastic and other basal sliding parameters in a separate section
@@ -2206,7 +2231,7 @@ contains
 
   subroutine print_parameters(model)
 
-    use glimmer_physcon, only: rhoi, rhoo, lhci, shci, trpt, grav
+    use glimmer_physcon, only: rhoi, rhoo, lhci, shci, trpt, grav, n_glen
     use glide_types
     use glimmer_log
     implicit none
@@ -2369,6 +2394,9 @@ contains
     call write_log(message)
 
     write(message,*) 'triple point of water (K)     : ', trpt
+    call write_log(message)
+
+    write(message,*) 'Glen flow law exponent        : ', n_glen
     call write_log(message)
 
     write(message,*) 'geothermal flux  (W/m^2)      : ', model%paramets%geot
@@ -2627,12 +2655,12 @@ contains
     endif
 
     if (model%options%which_ho_bwat == HO_BWAT_CONSTANT) then
-       write(message,*) 'constant basal water depth (m): ', model%basal_physics%const_bwat
+       write(message,*) 'constant basal water depth (m): ', model%basal_hydro%const_bwat
        call write_log(message)
     elseif (model%options%which_ho_bwat == HO_BWAT_LOCAL_TILL) then
-       write(message,*) 'maximum till water depth (m)  : ', model%basal_physics%bwat_till_max
+       write(message,*) 'maximum till water depth (m)  : ', model%basal_hydro%bwat_till_max
        call write_log(message)
-       write(message,*) 'till drainage rate (m/yr)     : ', model%basal_physics%c_drainage
+       write(message,*) 'till drainage rate (m/yr)     : ', model%basal_hydro%c_drainage
        call write_log(message)
     endif
 
@@ -3325,7 +3353,7 @@ contains
         ! other Glissade options
 
         ! If overwriting acab in certain grid cells, than overwrite_acab_mask needs to be in the restart file.
-        ! This mask is set at model initialization based on the input acab or ice thickness.
+        ! This mask is read in at model initialization, or is set based on the input acab or ice thickness.
         if (options%overwrite_acab /= 0) then
            call glide_add_to_restart_variable_list('overwrite_acab_mask', model_id)
         endif
