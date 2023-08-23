@@ -843,7 +843,7 @@ dimensions:    time, y1, x1
 units:         deg Celsius
 long_name:     surface temperature at reference elevation
 data:          data%climate%artm_ref
-standard_name: land_ice_surface_temperature_reference
+standard_name: land_ice_reference_surface_temperature
 load:          1
 read_once:     1
 
@@ -870,6 +870,33 @@ long_name:     reference upper surface elevation for input forcing
 data:          data%climate%usrf_ref
 standard_name: land_ice_reference_surface_elevation
 load:          1
+
+[artm_ref_anomaly]
+dimensions:    time, y1, x1
+units:         deg Celsius
+long_name:     reference surface temperature anomaly
+data:          data%climate%artm_ref_anomaly
+standard_name: land_ice_reference_surface_temperature_anomaly
+load:          1
+read_once:     1
+
+[snow_anomaly]
+dimensions:    time, y1, x1
+units:         mm/year water equivalent
+long_name:     anomaly snowfall rate
+data:          data%climate%snow_anomaly
+factor:        1.0
+load:          1
+read_once:     1
+
+[precip_anomaly]
+dimensions:    time, y1, x1
+units:         mm/year water equivalent
+long_name:     anomaly precipitation rate
+data:          data%climate%precip_anomaly
+factor:        1.0
+load:          1
+read_once:     1
 
 [smb_3d]
 dimensions:    time, nlev_smb, y1, x1
@@ -940,52 +967,6 @@ data:          data%climate%smb_obs
 factor:        1.0
 load:          1
 
-[snow_aux]
-dimensions:    time, y1, x1
-units:         mm/year water equivalent
-long_name:     auxiliary snowfall rate
-data:          data%climate%snow_aux
-load:          1
-read_once:     1
-
-[precip_aux]
-dimensions:    time, y1, x1
-units:         mm/year water equivalent
-long_name:     auxiliary precipitation rate
-data:          data%climate%precip_aux
-load:          1
-read_once:     1
-
-[artm_aux]
-dimensions:    time, y1, x1
-units:         deg Celsius
-long_name:     auxiliary surface temperature
-data:          data%climate%artm_aux
-load:          1
-
-[artm_ref_aux]
-dimensions:    time, y1, x1
-units:         deg Celsius
-long_name:     auxiliary surface temperature at reference elevation
-data:          data%climate%artm_ref_aux
-load:          1
-read_once:     1
-
-[usrf_ref_aux]
-dimensions:    time, y1, x1
-units:         m
-long_name:     auxiliary reference upper surface elevation for input forcing
-data:          data%climate%usrf_ref_aux
-load:          1
-
-[smb_aux]
-dimensions:    time, y1, x1
-units:         mm/year water equivalent
-long_name:     auxiliary surface mass balance
-data:          data%climate%smb_aux
-factor:        1.0
-load:          1
-
 [smb_rgi]
 dimensions:    time, y1, x1
 units:         m
@@ -998,6 +979,14 @@ dimensions:    time, y1, x1
 units:         m
 long_name:     thickness target for RGI date
 data:          data%glacier%usrf_target_rgi
+load:          1
+
+[smb_recent]
+dimensions:    time, y1, x1
+units:         mm/year water equivalent
+long_name:     surface mass balance, recent date
+data:          data%glacier%smb_recent
+factor:        1.0
 load:          1
 
 #WHL: Note sign convention: positive downward
