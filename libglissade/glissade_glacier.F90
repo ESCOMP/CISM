@@ -688,18 +688,21 @@ contains
          tsrf,                    & ! local array for surface air temperature (deg C)
          Tpos,                    & ! max(artm - tmlt, 0.0)
          snow,                    & ! snowfall rate (mm w.e./yr)
-         Tpos_aux,                & ! max(artm - tmlt, 0.0), auxiliary field
-         snow_aux,                & ! snowfall rate (mm w.e./yr), auxiliary field
+         artm_ref_recent,         & ! artm at reference elevation, recent (smb_obs) date
+         artm_recent,             & ! artm, recent (smb_obs) date
+         snow_recent,             & ! snowfall rate (mm w.e./yr), recent date
+         precip_recent,           & ! precip rate, recent date
+         Tpos_recent,             & ! max(artm - tmlt, 0.0), recent date
          artm_rgi,                & ! artm, RGI date
+         snow_rgi,                & ! snowfall rate, RGI date
          precip_rgi,              & ! precip rate, RGI date
          Tpos_rgi,                & ! max(artm - tmlt, 0.0), RGI date
-         snow_rgi,                & ! snowfall rate, RGI date
          mu_star_2d,              & ! 2D version of glacier%mu_star
          alpha_snow_2d,           & ! 2D version of glacier%alpha_snow
          smb_annmean_init,        & ! annual mean SMB for each glacier cell over init area (mm/yr w.e.)
          smb_annmean,             & ! annual mean SMB for each glacier cell over current area (mm/yr w.e.)
          delta_smb_rgi,           & ! SMB anomaly between the baseline date and the RGI date (mm/yr w.e.)
-         delta_smb_aux              ! SMB anomaly between the baseline date and the auxiliary date (mm/yr w.e.)
+         delta_smb_recent           ! SMB anomaly between the baseline date and the recent date (mm/yr w.e.)
 
     real(dp), dimension(model%general%ewn-1, model%general%nsn-1) ::  &
          stag_thck,                   & ! ice thickness at vertices (m)
@@ -734,13 +737,13 @@ contains
     ! integer, dimension(:,:) :: cism_glacier_id_init  ! initial value of CISM glacier ID
     ! integer, dimension(:,:) :: smb_glacier_id        ! CISM glacier ID that determines where SMB is applied
     ! integer, dimension(:,:) :: smb_glacier_id_init   ! like smb_glacier_id, but based on cism_glacier_id_init
-    ! real(dp), dimension(:,:) :: snow_2d              ! snow accumulated and averaged over 1 year
-    ! real(dp), dimension(:,:) :: Tpos_2d              ! max(artm - tmlt,0) accumulated and averaged over 1 year
-    ! real(dp), dimension(:,:) :: snow_aux_2d          ! snow accumulated and averaged over 1 year, auxiliary field
-    ! real(dp), dimension(:,:) :: Tpos_aux_2d          ! max(artm - tmlt,0) accumulated and averaged over 1 year, auxiliary field
-    ! real(dp), dimension(:,:) :: snow_rgi_2d          ! snow accumulated and averaged over 1 year, RGI date
-    ! real(dp), dimension(:,:) :: Tpos_rgi_2d          ! max(artm - tmlt,0) accumulated and averaged over 1 year, RGI date
-    ! real(dp), dimension(:,:) :: dthck_dt_2d          ! dthck_dt accumulated and averaged over 1 year
+    ! real(dp), dimension(:,:) :: snow_annmean         ! snow accumulated and averaged over 1 year
+    ! real(dp), dimension(:,:) :: Tpos_annmean         ! max(artm - tmlt,0) accumulated and averaged over 1 year
+    ! real(dp), dimension(:,:) :: snow_recent_annmean  ! snow accumulated and averaged over 1 year, recent date
+    ! real(dp), dimension(:,:) :: Tpos_recent_annmean  ! max(artm - tmlt,0) accumulated and averaged over 1 year, recent date
+    ! real(dp), dimension(:,:) :: snow_rgi_annmean     ! snow accumulated and averaged over 1 year, RGI date
+    ! real(dp), dimension(:,:) :: Tpos_rgi_annmean     ! max(artm - tmlt,0) accumulated and averaged over 1 year, RGI date
+    ! real(dp), dimension(:,:) :: dthck_dt_annmean     ! dthck_dt accumulated and averaged over 1 year
 
     ! SMB and accumulation area diagnostics
     real(dp), dimension(:), allocatable :: &
@@ -753,17 +756,10 @@ contains
          area_advance, area_retreat        ! areas of glacier advance and retreat relative to initial mask (m^2)
 
     real(dp) :: area_sum
-    real(dp) :: usrf_aux    ! estimated surface elevation in auxiliary climate
-    real(dp) :: usrf_rgi    ! estimated surface elevation in RGI climate
-    real(dp), parameter :: diagnostic_volume_threshold = 1.0d9  ! volume threshold for big glaciers (m^3)
-
-    !TODO - Make these config parameters
-    real(dp), parameter :: &
-         baseline_date = 1984.d0,   & ! date of baseline climate, when glaciers are assumed to be in balance
-         rgi_date = 2003.d0,        & ! RGI reference date, when we have observed glacier outlines and thickness targets
-         smbobs_date = 2010.d0        ! date of recent climate data, when we have smb_obs for glaciers out of balance
-
+    real(dp) :: usrf_recent    ! estimated surface elevation in recent climate
+    real(dp) :: usrf_rgi       ! estimated surface elevation in RGI climate
     real(dp) :: rgi_date_frac
+    real(dp), parameter :: diagnostic_volume_threshold = 1.0d9  ! volume threshold for big glaciers (m^3)
 
     ! Set some local variables
 
@@ -795,18 +791,18 @@ contains
     if (time_since_last_avg == 0.0d0) then ! start of new averaging period
 
        ! Reset the accumulated fields to zero
-       !TODO - 'if' logic around the aux and rgi fields
+       !TODO - 'if' logic around the rgi and recent fields
 
-       glacier%snow_2d = 0.0d0
-       glacier%Tpos_2d = 0.0d0
-       glacier%snow_aux_2d = 0.0d0
-       glacier%Tpos_aux_2d = 0.0d0
-       glacier%snow_rgi_2d = 0.0d0
-       glacier%Tpos_rgi_2d = 0.0d0
-       glacier%dthck_dt_2d = 0.0d0
+       glacier%snow_annmean = 0.0d0
+       glacier%Tpos_annmean = 0.0d0
+       glacier%snow_recent_annmean = 0.0d0
+       glacier%Tpos_recent_annmean = 0.0d0
+       glacier%snow_rgi_annmean = 0.0d0
+       glacier%Tpos_rgi_annmean = 0.0d0
+       glacier%dthck_dt_annmean = 0.0d0
 
-       ! Compute the SMB anomaly for the RGI and auxiliary climates relative to the baseline climate.
-       ! This is done once a year; smb, smb_rgi, and smb_aux are updated at the end of the previous year.
+       ! Compute the SMB anomaly for the RGI and recent climates relative to the baseline climate.
+       ! This is done once a year; smb, smb_rgi, and smb_recent are updated at the end of the previous year.
 
        where (glacier%smb_glacier_id_init > 0 .and. model%climate%smb /= 0.0d0 .and. glacier%smb_rgi /= 0.0d0)
           delta_smb_rgi = glacier%smb_rgi - model%climate%smb
@@ -814,16 +810,16 @@ contains
           delta_smb_rgi = 0.0d0
        endwhere
        glacier%delta_usrf_rgi(:,:) = &
-            delta_smb_rgi(:,:)*(rhow/rhoi)/1000.d0 * (rgi_date - baseline_date)/2.d0
+            delta_smb_rgi(:,:)*(rhow/rhoi)/1000.d0 * (glacier%rgi_date - glacier%baseline_date)/2.d0
 
        where (glacier%smb_glacier_id_init > 0 .and. model%climate%smb /= 0.0d0 &
-            .and. model%climate%smb_aux /= 0.0d0)
-          delta_smb_aux = model%climate%smb_aux - model%climate%smb
+            .and. glacier%smb_recent /= 0.0d0)
+          delta_smb_recent = glacier%smb_recent - model%climate%smb
        elsewhere
-          delta_smb_aux = 0.0d0
+          delta_smb_recent = 0.0d0
        endwhere
-       glacier%delta_usrf_aux(:,:) = &
-            delta_smb_aux(:,:)*(rhow/rhoi)/1000.d0 * (smbobs_date - baseline_date)/2.0d0  ! m ice
+       glacier%delta_usrf_recent(:,:) = &
+            delta_smb_recent(:,:)*(rhow/rhoi)/1000.d0 * (glacier%recent_date - glacier%baseline_date)/2.0d0  ! m ice
 
        ! Adjust the baseline target. The baseline target should exceed the RGI target by abs(delta_usrf_rgi),
        !  assuming the ice thins between the baseline and RGI dates.
@@ -844,8 +840,8 @@ contains
                glacier%delta_usrf_rgi(i,j), delta_smb_rgi(i,j)
           print*,    'usrf_target_rgi, new usrf_target_baseline =', &
                glacier%usrf_target_rgi(i,j), glacier%usrf_target_baseline(i,j)
-          print*, 'Aux usrf correction, delta_smb:', &
-               glacier%delta_usrf_aux(i,j), delta_smb_aux(i,j)
+          print*, 'Recent usrf correction, delta_smb:', &
+               glacier%delta_usrf_recent(i,j), delta_smb_recent(i,j)
        endif
 
     endif   ! time_since_last_avg = 0
@@ -861,7 +857,7 @@ contains
     elseif (glacier%snow_calc == GLACIER_SNOW_CALC_PRECIP_ARTM) then
        call parallel_halo(model%climate%precip, parallel)
     endif
-    call parallel_halo(model%climate%artm_corrected, parallel)
+    call parallel_halo(model%climate%artm_ref, parallel)
 
     ! Compute artm and Tpos for the baseline climate at the current surface elevation, usrf
 
@@ -880,47 +876,50 @@ contains
        enddo
     enddo
 
-    ! Compute artm and Tpos for the auxiliary climate at the extrapolated surface elevation, usrf_aux.
-    ! We estimate usrf_aux = usrf + (dSMB/2)*dt,
-    !    where dSMB = smb_aux - smb is the difference in SMB between the baseline and auxiliary climate,
+    ! If inverting for mu and/or alpha, then compute artm_ref, snow, and precip at the recent date.
+
+    artm_ref_recent(:,:) = model%climate%artm_ref(:,:) + model%climate%artm_ref_anomaly(:,:)
+    snow_recent(:,:)     = model%climate%snow(:,:)     + model%climate%snow_anomaly(:,:)
+    precip_recent(:,:)   = model%climate%precip(:,:)   + model%climate%precip_anomaly(:,:)
+
+    ! Compute artm and Tpos for the recent climate at the extrapolated surface elevation, usrf_recent.
+    ! We estimate usrf_recent = usrf + (dSMB/2)*dt,
+    !    where dSMB = smb_recent - smb is the difference in SMB between the baseline and recent climate,
     !          (so dSMB/2 is the average SMB anomaly over that period), and dt is the number of years elapsed.
     ! In other words, assume that the entire SMB anomaly is used to melt ice, without the
     !  flow having time to adjust.
 
-    ! Note: The fields with the 'aux' suffix are used only for inversion
+    ! Note: The fields with the 'recent' suffix are used only for inversion
     !       and are needed only for cells that are initially glacier-covered.
     !       If inversion is turned off, these fields will equal 0.
     !       TODO: Add 'if inversion' logic so that only Tpos and snow are always computed?
 
     do j = nhalo+1, nsn-nhalo
        do i = nhalo+1, ewn-nhalo
-          usrf_aux = model%geometry%usrf(i,j)*thk0 + glacier%delta_usrf_aux(i,j)
+          usrf_recent = model%geometry%usrf(i,j)*thk0 + glacier%delta_usrf_recent(i,j)
           ng = glacier%smb_glacier_id_init(i,j)
           if (ng > 0) then
-             model%climate%artm_aux(i,j) = model%climate%artm_ref_aux(i,j)  &
-                  - (usrf_aux - model%climate%usrf_ref(i,j))*model%climate%t_lapse  &
+             artm_recent(i,j) = artm_ref_recent(i,j)  &
+                  - (usrf_recent - model%climate%usrf_ref(i,j))*model%climate%t_lapse  &
                   + glacier%beta_artm(ng)
           else
-             model%climate%artm_aux(i,j) = model%climate%artm_ref_aux(i,j)  &
-                  - (usrf_aux - model%climate%usrf_ref(i,j))*model%climate%t_lapse
+             artm_recent(i,j) = artm_ref_recent(i,j)  &
+                  - (usrf_recent - model%climate%usrf_ref(i,j))*model%climate%t_lapse
           endif
-          Tpos_aux(i,j) = max(model%climate%artm_aux(i,j) - glacier%tmlt, 0.0d0)
+          Tpos_recent(i,j) = max(artm_recent(i,j) - glacier%tmlt, 0.0d0)
        enddo
     enddo
 
     ! Estimate artm, Tpos, and snow or precip for the RGI climate by interpolation.
 
-    rgi_date_frac = (rgi_date - baseline_date) / (smbobs_date - baseline_date)
+    rgi_date_frac = (glacier%rgi_date - glacier%baseline_date) / &
+                    (glacier%recent_date - glacier%baseline_date)
 
     artm_rgi(:,:) = &
          (1.d0 - rgi_date_frac) * model%climate%artm(:,:)  &
-              +  rgi_date_frac  * model%climate%artm_aux(:,:)
+              +  rgi_date_frac  * artm_recent(:,:)
 
     Tpos_rgi(:,:) = max(artm_rgi(:,:) - glacier%tmlt, 0.0d0)
-
-    if (glacier%snow_calc == GLACIER_SNOW_CALC_SNOW) then
-    elseif (glacier%snow_calc == GLACIER_SNOW_CALC_PRECIP_ARTM) then
-    endif
 
     ! Compute the snowfall rate for each climate.
     ! Note: Depending on glacier%snow_calc, we either use the snowfall rate directly,
@@ -929,11 +928,10 @@ contains
     if (glacier%snow_calc == GLACIER_SNOW_CALC_SNOW) then
 
        snow(:,:) = model%climate%snow(:,:)
-       snow_aux(:,:) = model%climate%snow_aux(:,:)
 
        snow_rgi(:,:) = &
             (1.d0 - rgi_date_frac) * snow(:,:)  &
-                 +  rgi_date_frac  * snow_aux(:,:)
+                 +  rgi_date_frac  * snow_recent(:,:)
 
     elseif (glacier%snow_calc == GLACIER_SNOW_CALC_PRECIP_ARTM) then
 
@@ -949,13 +947,13 @@ contains
             ewn,       nsn,                   &
             glacier%snow_threshold_min,       &
             glacier%snow_threshold_max,       &
-            model%climate%precip_aux,         &
-            model%climate%artm_aux,           &
-            snow_aux)
+            precip_recent,                    &
+            artm_recent,                      &
+            snow_recent)
 
        precip_rgi(:,:) = &
             (1.d0 - rgi_date_frac) * model%climate%precip(:,:)  &
-                 +  rgi_date_frac  * model%climate%precip_aux(:,:)
+                 +  rgi_date_frac  * precip_recent(:,:)
 
        call glacier_calc_snow(&
             ewn,       nsn,                   &
@@ -977,24 +975,24 @@ contains
        print*, 'Baseline artm_ref, artm, Tpos, snow, smb:', &
             model%climate%artm_ref(i,j), model%climate%artm(i,j), &
             Tpos(i,j), snow(i,j), model%climate%smb(i,j)
-       print*, 'RGI artm, Tpos, snow:', &
+       print*, '     RGI artm, Tpos, snow:', &
             artm_rgi(i,j), Tpos_rgi(i,j), snow_rgi(i,j)
-       print*, 'Aux artm, Tpos, snow:', &
-            model%climate%artm_aux(i,j), Tpos_aux(i,j), snow_aux(i,j)
+       print*, '  Recent artm, Tpos, snow:', &
+            artm_recent(i,j), Tpos_recent(i,j), snow_recent(i,j)
        print*, ' '
     endif   ! verbose
 
-    ! Accumulate snow_2d, Tpos_2d, and dthck_dt_2d over this timestep
+    ! Accumulate snow_annmean, Tpos_annmean, and dthck_dt_annmean over this timestep
 
     time_since_last_avg = time_since_last_avg + dt
 
-    glacier%snow_2d = glacier%snow_2d + snow * dt
-    glacier%Tpos_2d = glacier%Tpos_2d + Tpos * dt
-    glacier%snow_rgi_2d = glacier%snow_rgi_2d + snow_rgi * dt
-    glacier%Tpos_rgi_2d = glacier%Tpos_rgi_2d + Tpos_rgi * dt
-    glacier%snow_aux_2d = glacier%snow_aux_2d + snow_aux * dt
-    glacier%Tpos_aux_2d = glacier%Tpos_aux_2d + Tpos_aux * dt
-    glacier%dthck_dt_2d = glacier%dthck_dt_2d + dthck_dt * dt
+    glacier%snow_annmean = glacier%snow_annmean + snow * dt
+    glacier%Tpos_annmean = glacier%Tpos_annmean + Tpos * dt
+    glacier%snow_rgi_annmean = glacier%snow_rgi_annmean + snow_rgi * dt
+    glacier%Tpos_rgi_annmean = glacier%Tpos_rgi_annmean + Tpos_rgi * dt
+    glacier%snow_recent_annmean = glacier%snow_recent_annmean + snow_recent * dt
+    glacier%Tpos_recent_annmean = glacier%Tpos_recent_annmean + Tpos_recent * dt
+    glacier%dthck_dt_annmean = glacier%dthck_dt_annmean + dthck_dt * dt
 
     if (verbose_glacier .and. this_rank == rtest) then
        print*, ' '
@@ -1002,10 +1000,10 @@ contains
        i = itest; j = jtest
        print*, '   r, i, j, time, artm, snow, Tpos:', &
             this_rank, i, j, model%numerics%time, &
-            model%climate%artm_corrected(i,j), snow(i,j), Tpos(i,j)
-       print*, '   r, i, j, time, artm_aux, snow_aux, Tpos_aux:', &
-            this_rank, i, j, model%numerics%time, &
-            model%climate%artm_aux(i,j), snow_aux(i,j), Tpos_aux(i,j)
+            model%climate%artm(i,j), snow(i,j), Tpos(i,j)
+       print*, '   r, i, j, date, artm_rec, snow_rec, Tpos_rec:', &
+            this_rank, i, j, glacier%recent_date, &
+            artm_recent(i,j), snow_recent(i,j), Tpos_recent(i,j)
     endif
 
     ! Check whether it is time to do the inversion and update other glacier fields.
@@ -1014,19 +1012,16 @@ contains
 
     if (abs(time_since_last_avg - real(glacier_update_interval,dp)) < eps08) then
 
-       if (verbose_glacier .and. this_rank == rtest) then
-          print*, 'calculate_glacier_2d_to_1ds, time_since_last_avg =', time_since_last_avg
-       endif
 
        ! Compute the average of glacier fields over the accumulation period
 
-       glacier%snow_2d = glacier%snow_2d / time_since_last_avg
-       glacier%Tpos_2d = glacier%Tpos_2d / time_since_last_avg
-       glacier%snow_rgi_2d = glacier%snow_rgi_2d / time_since_last_avg
-       glacier%Tpos_rgi_2d = glacier%Tpos_rgi_2d / time_since_last_avg
-       glacier%snow_aux_2d = glacier%snow_aux_2d / time_since_last_avg
-       glacier%Tpos_aux_2d = glacier%Tpos_aux_2d / time_since_last_avg
-       glacier%dthck_dt_2d = glacier%dthck_dt_2d / time_since_last_avg
+       glacier%snow_annmean = glacier%snow_annmean / time_since_last_avg
+       glacier%Tpos_annmean = glacier%Tpos_annmean / time_since_last_avg
+       glacier%snow_rgi_annmean = glacier%snow_rgi_annmean / time_since_last_avg
+       glacier%Tpos_rgi_annmean = glacier%Tpos_rgi_annmean / time_since_last_avg
+       glacier%snow_recent_annmean = glacier%snow_recent_annmean / time_since_last_avg
+       glacier%Tpos_recent_annmean = glacier%Tpos_recent_annmean / time_since_last_avg
+       glacier%dthck_dt_annmean = glacier%dthck_dt_annmean / time_since_last_avg
 
        time_since_last_avg = 0.0d0
 
@@ -1034,24 +1029,24 @@ contains
           i = itest; j = jtest
           print*, ' '
           print*, 'Annual averages, r, i, j:', rtest, itest, jtest
-          print*, '   snow (mm/yr)       =', glacier%snow_2d(i,j)
-          print*, '   Tpos (deg C)       =', glacier%Tpos_2d(i,j)
-          print*, '   snow_rgi (mm/yr)   =', glacier%snow_rgi_2d(i,j)
-          print*, '   Tpos_rgi (deg C)   =', glacier%Tpos_rgi_2d(i,j)
-          print*, '   snow_aux (mm/yr)   =', glacier%snow_aux_2d(i,j)
-          print*, '   Tpos_aux (deg C)   =', glacier%Tpos_aux_2d(i,j)
-          print*, '   dthck_dt (m/yr)    =', glacier%dthck_dt_2d(i,j)
+          print*, '   snow (mm/yr)       =', glacier%snow_annmean(i,j)
+          print*, '   Tpos (deg C)       =', glacier%Tpos_annmean(i,j)
+          print*, '   snow_rgi (mm/yr)   =', glacier%snow_rgi_annmean(i,j)
+          print*, '   Tpos_rgi (deg C)   =', glacier%Tpos_rgi_annmean(i,j)
+          print*, '   snow_recent (mm/yr)   =', glacier%snow_recent_annmean(i,j)
+          print*, '   Tpos_recent (deg C)   =', glacier%Tpos_recent_annmean(i,j)
+          print*, '   dthck_dt (m/yr)    =', glacier%dthck_dt_annmean(i,j)
        endif
 
        ! Invert for mu_star
        ! This can be done in either of two ways:
        ! (1) set_mu_star = 1, set_alpha_snow = 0 (1-parameter inversion)
        !     In this case, mu_star is chosen such that SMB ~ 0 over the initial glacier footprint, given
-       !     the input temperature and snow/precip fields (without the 'aux' suffix).
+       !     the input temperature and snow/precip fields (without the 'recent' suffix).
        ! (2) set_mu_star = 1, set_alpha_snow = 1 (2-parameter inversion)
        !     In this case, mu_star and alpha_snow are chosen jointly such that
        !     (a) SMB = 0 over the initial footprint given the baseline temperature and snow/precip, and
-       !     (b) SMB = smb_obs given the auxiliary temperature and snow/precip.
+       !     (b) SMB = smb_obs given the recent temperature and snow/precip.
        ! The code aborts at startup if set to invert for alpha_snow without inverting for mu_star.
 
        if (glacier%set_mu_star == GLACIER_MU_STAR_INVERSION) then
@@ -1063,22 +1058,22 @@ contains
              ! Note: glacier%smb_obs, glacier%mu_star, and glacier%alpha_snow are 1D glacier-specific fields.
 
              call glacier_invert_mu_star_alpha_snow(&
-                  ewn,                    nsn,                   &
-                  itest,     jtest,       rtest,                 &
-                  nglacier,               ngdiag,                &
-                  glacier%smb_glacier_id_init,                   &
-                  glacier%smb_obs,                               &
-                  glacier%cism_to_rgi_glacier_id,                &  ! diagnostic only
-                  glacier%area_init,      glacier%volume_init,   &  ! diagnostic only
-                  glacier%snow_2d,        glacier%Tpos_2d,       &
-                  glacier%snow_aux_2d,    glacier%Tpos_aux_2d,   &
-                  glacier%mu_star_const,                         &
-                  glacier%mu_star_min,    glacier%mu_star_max,   &
-                  glacier%alpha_snow_const,                      &
-                  glacier%alpha_snow_min, glacier%alpha_snow_max,&
-                  glacier%beta_artm_max,                         &
-                  glacier%beta_artm_increment,                   &
-                  glacier%mu_star,        glacier%alpha_snow,    &
+                  ewn,                         nsn,                   &
+                  itest,       jtest,          rtest,                 &
+                  nglacier,                    ngdiag,                &
+                  glacier%smb_glacier_id_init,                        &
+                  glacier%smb_obs,                                    &
+                  glacier%cism_to_rgi_glacier_id,                     &  ! diagnostic only
+                  glacier%area_init,           glacier%volume_init,   &  ! diagnostic only
+                  glacier%snow_annmean,        glacier%Tpos_annmean,       &
+                  glacier%snow_recent_annmean, glacier%Tpos_recent_annmean,&
+                  glacier%mu_star_const,                              &
+                  glacier%mu_star_min,         glacier%mu_star_max,   &
+                  glacier%alpha_snow_const,                           &
+                  glacier%alpha_snow_min,      glacier%alpha_snow_max,&
+                  glacier%beta_artm_max,                              &
+                  glacier%beta_artm_increment,                        &
+                  glacier%mu_star,             glacier%alpha_snow,    &
                   glacier%beta_artm)
 
           else  ! not inverting for alpha_snow
@@ -1088,13 +1083,13 @@ contains
              ! Use the default value of alpha_snow (typically = 1.0).
 
              call glacier_invert_mu_star(&
-                  ewn,                  nsn,                 &
-                  itest,     jtest,     rtest,               &
-                  nglacier,             ngdiag,              &
-                  glacier%smb_glacier_id_init,               &
-                  glacier%smb_obs,                           &
-                  glacier%snow_2d,      glacier%Tpos_2d,     &
-                  glacier%mu_star_min,  glacier%mu_star_max, &
+                  ewn,                  nsn,                   &
+                  itest,     jtest,     rtest,                 &
+                  nglacier,             ngdiag,                &
+                  glacier%smb_glacier_id_init,                 &
+                  glacier%smb_obs,                             &
+                  glacier%snow_annmean, glacier%Tpos_annmean,  &
+                  glacier%mu_star_min,  glacier%mu_star_max,   &
                   glacier%mu_star)
 
           endif  ! set_alpha_snow
@@ -1122,7 +1117,7 @@ contains
        ! Compute the SMB for each grid cell over the initial glacier area
 
        where (glacier%smb_glacier_id_init > 0)
-          smb_annmean_init = alpha_snow_2d * glacier%snow_2d - mu_star_2d * glacier%Tpos_2d
+          smb_annmean_init = alpha_snow_2d * glacier%snow_annmean - mu_star_2d * glacier%Tpos_annmean
        elsewhere
           smb_annmean_init = 0.0d0
        endwhere
@@ -1152,7 +1147,7 @@ contains
        ! Compute the SMB for each grid cell based on the current glacier area
 
        where (glacier%smb_glacier_id > 0)
-          smb_annmean = alpha_snow_2d * glacier%snow_2d - mu_star_2d * glacier%Tpos_2d
+          smb_annmean = alpha_snow_2d * glacier%snow_annmean - mu_star_2d * glacier%Tpos_annmean
        elsewhere
           smb_annmean = 0.0d0
        endwhere
@@ -1283,7 +1278,7 @@ contains
           print*, ' '
           ng = ngdiag
           if (ng > 0) then
-             print*, 'ngdiag, smb_init_area (mm/yr w.e.), smb_new_area, mu_star, alpha_snow, beta_artm, beta_aux:'
+             print*, 'ngdiag, smb_init_area (mm/yr w.e.), smb_new_area, mu_star, alpha_snow, beta_artm:'
              write(6,'(i6,5f12.4)') ng, smb_init_area(ng), smb_new_area(ng), glacier%mu_star(ng), &
                   glacier%alpha_snow(ng), glacier%beta_artm(ng)
           endif
@@ -1350,8 +1345,8 @@ contains
 
           ! Interpolate dthck_dt to the staggered grid
           call glissade_stagger(&
-               ewn,                 nsn,           &
-               glacier%dthck_dt_2d, stag_dthck_dt)
+               ewn,                      nsn,           &
+               glacier%dthck_dt_annmean, stag_dthck_dt)
 
           if (verbose_glacier .and. this_rank == rtest) then
              print*, ' '
@@ -1389,8 +1384,8 @@ contains
             glacier%minthck,                &  ! m
             thck,                           &  ! m
             smb_annmean,                    &  ! mm/yr w.e.
-            glacier%snow_2d,                &  ! mm/yr w.e.
-            glacier%Tpos_2d,                &  ! deg C
+            glacier%snow_annmean,           &  ! mm/yr w.e.
+            glacier%Tpos_annmean,           &  ! deg C
             glacier%mu_star,                &  ! mm/yr/deg
             glacier%alpha_snow,             &  ! unitless
             glacier%cism_glacier_id_init,   &
@@ -1418,7 +1413,7 @@ contains
        !       (1) cgii > 0 and cgi > 0
        !       (2) cgii > 0, cgi = 0, and SMB > 0
        !       (3) cgii = 0, cgi > 0, and SMB < 0
-       !       Given snow_2d, Tpos_2d, alpha, and mu, we can compute a potential SMB for each cell.
+       !       Given snow, Tpos, alpha, and mu, we can compute a potential SMB for each cell.
        !           Let SMB = alpha_snow * snow - mu_star * tpos, using ng corresponding to cgi, cgii, or both
        !           where alpha_snow and mu_star are per glacier, and snow and tpos are annual averages
        !       Use the potential SMB to determine smb_glacier_id in advanced and retreated cells.
@@ -1427,8 +1422,8 @@ contains
             ewn,           nsn,             &
             itest, jtest,  rtest,           &
             glacier%nglacier,               &
-            glacier%snow_2d,                &  ! mm/yr w.e.
-            glacier%Tpos_2d,                &  ! deg C
+            glacier%snow_annmean,           &  ! mm/yr w.e.
+            glacier%Tpos_annmean,           &  ! deg C
             glacier%mu_star,                &  ! mm/yr/deg
             glacier%alpha_snow,             &  ! unitless
             glacier%cism_glacier_id_init,   &
@@ -1455,7 +1450,8 @@ contains
              ng = glacier%smb_glacier_id(i,j)
              if (ng > 0) then
                 model%climate%smb(i,j) = &
-                     glacier%alpha_snow(ng)*glacier%snow_2d(i,j) - glacier%mu_star(ng)*glacier%Tpos_2d(i,j)
+                     glacier%alpha_snow(ng)*glacier%snow_annmean(i,j) &
+                   - glacier%mu_star(ng)*glacier%Tpos_annmean(i,j)
              else
                 model%climate%smb(i,j) = 0.0d0
              endif
@@ -1467,8 +1463,8 @@ contains
              ng = glacier%smb_glacier_id(i,j)
              if (ng > 0) then
                 glacier%smb_rgi(i,j) = &
-                     glacier%alpha_snow(ng)*glacier%snow_rgi_2d(i,j) &
-                     - glacier%mu_star(ng)*glacier%Tpos_rgi_2d(i,j)
+                     glacier%alpha_snow(ng)*glacier%snow_rgi_annmean(i,j) &
+                     - glacier%mu_star(ng)*glacier%Tpos_rgi_annmean(i,j)
              else
                 glacier%smb_rgi(i,j) = 0.0d0
              endif
@@ -1479,18 +1475,18 @@ contains
           do i = 1, ewn
              ng = glacier%smb_glacier_id(i,j)
              if (ng > 0) then
-                model%climate%smb_aux(i,j) = &
-                     glacier%alpha_snow(ng)*glacier%snow_aux_2d(i,j) &
-                     - glacier%mu_star(ng)*glacier%Tpos_aux_2d(i,j)
+                glacier%smb_recent(i,j) = &
+                     glacier%alpha_snow(ng)*glacier%snow_recent_annmean(i,j) &
+                     - glacier%mu_star(ng)*glacier%Tpos_recent_annmean(i,j)
              else
-                model%climate%smb_aux(i,j) = 0.0d0
+                glacier%smb_recent(i,j) = 0.0d0
              endif
           enddo
        enddo
 
        call parallel_halo(model%climate%smb, parallel)
-       call parallel_halo(model%climate%smb_aux, parallel)
        call parallel_halo(glacier%smb_rgi, parallel)
+       call parallel_halo(glacier%smb_recent, parallel)
 
        if (verbose_glacier .and. this_rank == rtest) then
           print*, ' '
@@ -1534,10 +1530,10 @@ contains
              print*, ' '
           enddo
           print*, ' '
-          print*, 'smb_aux:'
+          print*, 'smb_recent:'
           do j = jtest+3, jtest-3, -1
              do i = itest-3, itest+3
-                write(6,'(f11.3)',advance='no') model%climate%smb_aux(i,j)
+                write(6,'(f11.3)',advance='no') glacier%smb_recent(i,j)
              enddo
              print*, ' '
           enddo
@@ -1581,7 +1577,7 @@ contains
        nglacier,         ngdiag,        &
        smb_glacier_id_init,             &
        glacier_smb_obs,                 &
-       snow_2d,          Tpos_2d,       &
+       snow,             Tpos,          &
        mu_star_min,      mu_star_max,   &
        mu_star)
 
@@ -1603,8 +1599,8 @@ contains
          glacier_smb_obs                ! observed glacier-average SMB (mm/yr w.e.)
 
     real(dp), dimension(ewn,nsn), intent(in) :: &
-         snow_2d,                     & ! time-avg snowfall for each cell (mm/yr w.e.)
-         Tpos_2d                        ! time-avg of max(artm - tmlt, 0) for each cell (deg)
+         snow,                        & ! time-avg snowfall for each cell (mm/yr w.e.)
+         Tpos                           ! time-avg of max(artm - tmlt, 0) for each cell (deg)
 
     real(dp), intent(in) :: &
          mu_star_min, mu_star_max       ! min and max allowed values of mu_star
@@ -1652,12 +1648,12 @@ contains
     call glacier_2d_to_1d(&
          ewn,           nsn,                   &
          nglacier,      smb_glacier_id_init,   &
-         snow_2d,       glacier_snow)
+         snow,          glacier_snow)
 
     call glacier_2d_to_1d(&
          ewn,           nsn,                   &
          nglacier,      smb_glacier_id_init,   &
-         Tpos_2d,       glacier_Tpos)
+         Tpos,          glacier_Tpos)
 
     ! For each glacier, compute the new mu_star
 
@@ -1703,8 +1699,8 @@ contains
        glacier_smb_obs,                  &
        cism_to_rgi_glacier_id,           &       ! diagnostic only
        glacier_area_init,glacier_volume_init, &  ! diagnostic only
-       snow_2d,          Tpos_2d,        &
-       snow_aux_2d,      Tpos_aux_2d,    &
+       snow,             Tpos,           &
+       snow_recent,      Tpos_recent,    &
        mu_star_const,                    &
        mu_star_min,      mu_star_max,    &
        alpha_snow_const,                 &
@@ -1716,8 +1712,8 @@ contains
 
     ! Given an observational SMB target, invert for the parameters mu_star and alpha_snow.
     ! Two conditions must be satisfied:
-    ! SMB = 0 given input snow_2d and Tpos_2d, for a period with glaciers in balance.
-    ! SMB = smb_obs given input snow_aux_2d and Tpos_aux_2d, for a period with glaciers out of balance.
+    ! SMB = 0 given input snow and Tpos, for a period with glaciers in balance.
+    ! SMB = smb_obs given input snow_recent and Tpos_recent, for a period with glaciers out of balance.
 
     ! input/output arguments
 
@@ -1741,10 +1737,10 @@ contains
          glacier_volume_init            ! initial glacier volume (m^2); diagnostic only
 
     real(dp), dimension(ewn,nsn), intent(in) :: &
-         snow_2d,                     & ! time-avg snowfall for each cell (mm/yr w.e.)
-         Tpos_2d,                     & ! time-avg of max(artm - tmlt, 0) for each cell (deg)
-         snow_aux_2d,                 & ! time-avg snowfall for each cell (mm/yr w.e.), auxiliary field
-         Tpos_aux_2d                    ! time-avg of max(artm - tmlt, 0) for each cell (deg), auxiliary field
+         snow,                        & ! time-avg snowfall for each cell (mm/yr w.e.)
+         Tpos,                        & ! time-avg of max(artm - tmlt, 0) for each cell (deg)
+         snow_recent,                 & ! time-avg snowfall for each cell (mm/yr w.e.), recent date
+         Tpos_recent                    ! time-avg of max(artm - tmlt, 0) for each cell (deg), recent date
 
     real(dp), intent(in) :: &
          mu_star_const,                  & ! default constant value of mu_star
@@ -1762,11 +1758,11 @@ contains
     ! local variables
     integer :: i, j, ng
 
-    real(dp) :: smb_baseline, smb_aux, smb_aux_diff
+    real(dp) :: smb_baseline, smb_recent, smb_recent_diff
 
     real(dp), dimension(nglacier) :: &
-         glacier_snow, glacier_Tpos,          & ! glacier-average snowfall and Tpos
-         glacier_snow_aux, glacier_Tpos_aux,  & ! glacier-average snowfall_aux and Tpos_aux
+         glacier_snow, glacier_Tpos,                & ! glacier-average snowfall and Tpos
+         glacier_snow_recent, glacier_Tpos_recent,  & ! glacier-average snowfall_recent and Tpos_recent
          denom
 
     character(len=100) :: message
@@ -1781,7 +1777,7 @@ contains
 
     ! Compute mu_star and alpha_snow for each glacier such that
     ! (1) snow and Tpos combine to give SMB = 0
-    ! (2) snow_aux and Tpos_aux combine to give SMB = smb_obs
+    ! (2) snow_recent and Tpos_recent combine to give SMB = smb_obs
     ! In both cases, the SMB is computed over the initial glacier extent.
     ! Here, the initial extent includes an ablation zone of glacier-free cells adjacent
     !  to glacier-covered cells.
@@ -1795,12 +1791,12 @@ contains
     ! (1)            0  = alpha_snow * snow - mu_star * Tpos.
     !
     ! For glaciers observed to be out of balance, this becomes
-    ! (2)       smb_obs = alpha_snow * snow_aux - mu_star * Tpos_aux.
+    ! (2)       smb_obs = alpha_snow * snow_recent - mu_star * Tpos_recent.
     !
     ! Rearranging and solving, we get
     !              mu_star = (-smb_obs * snow) / D,
     !           alpha_snow = (-smb_obs * Tpos) / D,
-    !              where D = snow*Tpos_aux - snow_aux*Tpos
+    !              where D = snow*Tpos_recent - snow_recent*Tpos
     !
     ! Ideally, both mu_star and alpha_snow fall within physically realistic ranges.
     ! If not, there is some additional logic to adjust beta_artm such that the computed mu_star
@@ -1818,24 +1814,24 @@ contains
     ! Compute average snowfall, Tpos, and SMB over the initial extent of each glacier
 
     call glacier_2d_to_1d(&
-         ewn,           nsn,                   &
-         nglacier,      smb_glacier_id_init,   &
-         snow_2d,       glacier_snow)
+         ewn,            nsn,                   &
+         nglacier,       smb_glacier_id_init,   &
+         snow,           glacier_snow)
 
     call glacier_2d_to_1d(&
-         ewn,           nsn,                   &
-         nglacier,      smb_glacier_id_init,   &
-         Tpos_2d,       glacier_Tpos)
+         ewn,            nsn,                   &
+         nglacier,       smb_glacier_id_init,   &
+         Tpos,           glacier_Tpos)
 
     call glacier_2d_to_1d(&
-         ewn,           nsn,                   &
-         nglacier,      smb_glacier_id_init,   &
-         snow_aux_2d,   glacier_snow_aux)
+         ewn,            nsn,                   &
+         nglacier,       smb_glacier_id_init,   &
+         snow_recent,    glacier_snow_recent)
 
     call glacier_2d_to_1d(&
-         ewn,           nsn,                   &
-         nglacier,      smb_glacier_id_init,   &
-         Tpos_aux_2d,   glacier_Tpos_aux)
+         ewn,            nsn,                   &
+         nglacier,       smb_glacier_id_init,   &
+         Tpos_recent,    glacier_Tpos_recent)
 
     ! For each glacier, compute the new mu_star and alpha_snow
 
@@ -1853,13 +1849,13 @@ contains
 
        else   ! glacier_snow > 0
 
-          ! compute D = snow*Tpos_aux - snow_aux*Tpos
-          denom(ng) = glacier_snow(ng)*glacier_Tpos_aux(ng) - glacier_snow_aux(ng)*glacier_Tpos(ng)
+          ! compute D = snow*Tpos_recent - snow_recent*Tpos
+          denom(ng) = glacier_snow(ng)*glacier_Tpos_recent(ng) - glacier_snow_recent(ng)*glacier_Tpos(ng)
 
           if (glacier_Tpos(ng) < Tpos_min) then
 
              ! There is little or no ablation anywhere on the glacier in the baseline climate.
-             ! Compensate by raising artm (along with artm_aux) until there is some ablation.
+             ! Compensate by raising artm (along with artm_recent) until there is some ablation.
              ! Prescribe mu and alpha for now.
 
              beta_artm(ng) = beta_artm(ng) + beta_artm_increment
@@ -1893,8 +1889,8 @@ contains
 
                    ! Note the discrepancy
 !                   if (verbose_glacier .and. this_rank == rtest) then
-!                      write(6,'(a46,i6,6f10.3)') 'Out of range, ng, Tp, Tp_aux, D, B, alpha, mu:', &
-!                           ng, glacier_Tpos(ng), glacier_Tpos_aux(ng), denom(ng), &
+!                      write(6,'(a46,i6,6f10.3)') 'Out of range, ng, Tp, Tp_recent, D, B, alpha, mu:', &
+!                           ng, glacier_Tpos(ng), glacier_Tpos_recent(ng), denom(ng), &
 !                           glacier_smb_obs(ng), alpha_snow(ng), mu_star(ng)
 !                   endif
 
@@ -1934,10 +1930,10 @@ contains
                mu_star(ng), alpha_snow(ng), beta_artm(ng)
           print*, '   baseline snow,   Tpos,     smb:', &
                glacier_snow(ng), glacier_Tpos(ng), smb_baseline
-          print*, '   recent snow_aux, Tpos_aux, smb:', &
-               glacier_snow_aux(ng), glacier_Tpos_aux(ng), smb_aux
-          print*, '   smb_aux_diff, smb_obs target   :', &
-               smb_aux_diff, glacier_smb_obs(ng)
+          print*, '   recent snow,   Tpos,     smb:', &
+               glacier_snow_recent(ng), glacier_Tpos_recent(ng), smb_recent
+          print*, '   smb_recent_diff, smb_obs target   :', &
+               smb_recent_diff, glacier_smb_obs(ng)
           print*, ' '
        endif
 
@@ -1970,7 +1966,7 @@ contains
 
     enddo   ! ng
 
-    ! Check the mass balance for the baseline and auxiliary climates.
+    ! Check the mass balance for the baseline and recent climates.
     ! The goal is that all glaciers satisfy (1), and most satisfy (2).
 
     count_violate_1 = 0
@@ -1983,8 +1979,8 @@ contains
     do ng = 1, nglacier
 
        smb_baseline = alpha_snow(ng)*glacier_snow(ng) - mu_star(ng)*glacier_Tpos(ng)
-       smb_aux =  alpha_snow(ng)*glacier_snow_aux(ng) - mu_star(ng)*glacier_Tpos_aux(ng)
-       smb_aux_diff = smb_aux - glacier_smb_obs(ng)
+       smb_recent =  alpha_snow(ng)*glacier_snow_recent(ng) - mu_star(ng)*glacier_Tpos_recent(ng)
+       smb_recent_diff = smb_recent - glacier_smb_obs(ng)
 
        if (glacier_Tpos(ng) > 0.0d0) then
           mu_eq1 = alpha_snow(ng) * glacier_snow(ng) / glacier_Tpos(ng)
@@ -2002,8 +1998,8 @@ contains
              area_violate_1 = area_violate_1 + glacier_area_init(ng)
              volume_violate_1 = volume_violate_1 + glacier_volume_init(ng)
           endif
-          if (abs(smb_aux_diff) > eps08) then
-!!             print*, '   Violation of Eq. 2: ng, smb_aux_diff =', ng, smb_aux_diff
+          if (abs(smb_recent_diff) > eps08) then
+!!             print*, '   Violation of Eq. 2: ng, smb_recent_diff =', ng, smb_recent_diff
              count_violate_2 = count_violate_2 + 1
              area_violate_2 = area_violate_2 + glacier_area_init(ng)
              volume_violate_2 = volume_violate_2 + glacier_volume_init(ng)
@@ -2024,15 +2020,15 @@ contains
 !!    if (verbose_glacier .and. this_rank == rtest) then
     if (verbose_glacier .and. 0 == 1) then
        print*, ' '
-       print*, 'Glaciers with smb_obs inconsistent with dT = (S/S_aux)*T_aux - T'
-       print*, '   ID    RGI_ID    A_init    V_init     snow   snow_aux      Tpos   Tpos_aux      dT    smb_obs'
+       print*, 'Glaciers with smb_obs inconsistent with dT = (S/S_recent)*T_recent - T'
+       print*, '   ID    RGI_ID    A_init    V_init     snow   snow_recent   Tpos   Tpos_recent   dT    smb_obs'
        do ng = 1, nglacier
-          deltaT = denom(ng) / glacier_snow_aux(ng)
+          deltaT = denom(ng) / glacier_snow_recent(ng)
           if (glacier_smb_obs(ng) * deltaT > 0.0d0) then
              write(6,'(i6, i10, 8f10.3)') ng, cism_to_rgi_glacier_id(ng), &
                   glacier_area_init(ng)/1.0d6, glacier_volume_init(ng)/1.0d9, &
-                  glacier_snow(ng), glacier_snow_aux(ng), &
-                  glacier_Tpos(ng), glacier_Tpos_aux(ng), deltaT, glacier_smb_obs(ng)
+                  glacier_snow(ng), glacier_snow_recent(ng), &
+                  glacier_Tpos(ng), glacier_Tpos_recent(ng), deltaT, glacier_smb_obs(ng)
           endif
        enddo
     endif

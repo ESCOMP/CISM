@@ -669,10 +669,6 @@ contains
           endif
        endif
 
-       call glissade_add_2d_anomaly(model%climate%artm_corrected,          &   ! degC
-                                    model%climate%artm_anomaly,            &   ! degC
-                                    model%climate%artm_anomaly_timescale,  &   ! yr
-                                    model%numerics%time)                       ! yr
     endif
 
     ! Initialize the temperature profile in each column
@@ -1995,23 +1991,6 @@ contains
 !               model%climate%usrf_ref(i,j), model%geometry%usrf(i,j)*thk0, &
 !               model%geometry%usrf(i,j)*thk0 - model%climate%usrf_ref(i,j)
 !          print*, '   artm_ref, artm:', model%climate%artm_ref(i,j), model%climate%artm(i,j)
-       endif
-
-       ! optionally, do the same for an auxiliary field, artm_aux
-       ! Currently used only for 2-parameter glacier inversion
-
-       if (associated(model%climate%artm_aux)) then  ! artm_ref_aux and usrf_ref_aux should also be associated
-          model%climate%artm_aux(:,:) = model%climate%artm_ref_aux(:,:) - &
-               (model%geometry%usrf(:,:)*thk0 - model%climate%usrf_ref_aux(:,:)) * model%climate%t_lapse
-          if (verbose_glacier .and. this_rank == rtest) then
-             i = itest; j = jtest
-!             print*, ' '
-!             print*, 'rank, i, j, usrf_ref_aux, usrf, dz:', this_rank, i, j, &
-!                  model%climate%usrf_ref_aux(i,j), model%geometry%usrf(i,j)*thk0, &
-!                  model%geometry%usrf(i,j)*thk0 - model%climate%usrf_ref_aux(i,j)
-!             print*, '   artm_ref_aux, artm_aux:', model%climate%artm_ref_aux(i,j), &
-!                  model%climate%artm_aux(i,j)
-          endif
        endif
 
     endif   ! artm_input_function
