@@ -439,7 +439,15 @@ contains
 
 !       if (main_task .and. verbose_read_forcing) print *, 'possible forcing times', ic%times
 
-       if (.not.ic%read_once) then
+       if (ic%read_once) then  ! read once at initialization; do not re-read at runtime
+
+          ic%nc%just_processed = .true.  ! prevent the file from being read
+          if (main_task .and. verbose_read_forcing) then
+             print*, ' '
+             print*, 'In NAME_read_forcing; will not re-read the read_once file ', trim(ic%nc%filename)
+          endif
+
+       else  ! not a read_once file
 
           ic%nc%just_processed = .true. ! until we find an acceptable time, set this to true which will prevent the file from being read.
 
@@ -494,7 +502,7 @@ contains
 
           end do  ! if we get to end of loop without exiting, then this file will not be read at this time
 
-       endif  ! not a read_once file
+       endif  ! read_once file
 
        ! move on to the next forcing file
        ic=>ic%next
@@ -511,7 +519,9 @@ contains
   subroutine NAME_read_forcing_once(data, model)
 
     ! Read data from forcing files with read_once = .true.
-    ! Read all time slices in a single call and write to arrays with a time index
+    ! Read all time slices in a single call and write to arrays with a time index.
+
+    use glimmer_global, only: msg_length
     use glimmer_log
     use glide_types
     use cism_parallel, only: main_task, parallel_reduce_sum
@@ -526,6 +536,7 @@ contains
     integer :: nx, ny, nt                ! dimension sizes
     real(dp) :: eps                      ! a tolerance to use for stepwise constant forcing
     real(dp) :: global_sum               ! global sum of an input field
+    character(len=msg_length) :: message
     logical, parameter :: verbose_read_forcing = .true.
 
     ! Make eps a fraction of the time step.
@@ -543,6 +554,9 @@ contains
              print*, 'Filename =', trim(ic%nc%filename)
              print*, 'Number of slices =', ic%nt
           endif
+
+          write(message,*) 'Reading', ic%nt, 'slices of file ', trim(ic%nc%filename), ' just once at initialization'
+          call write_log(message)
 
           nt = ic%nt
           ic%nc%vars = ''
@@ -590,6 +604,7 @@ contains
     ! Retrieve a single time slice of forcing from arrays that contain all the forcing.
     ! Called repeatedly at runtime, after calling the read_forcing_once subroutine at initialization.
 
+    use glimmer_global, only: msg_length
     use glimmer_log
     use glide_types
     use cism_parallel, only: main_task
@@ -608,6 +623,7 @@ contains
     integer :: this_year               ! current simulation year relative to tstart; starts at 0
     integer :: year1, year2            ! years read from the shuffle file
     real(dp) :: decimal_year           ! decimal part of the current year
+    character(len=msg_length) :: message
     logical, parameter :: verbose_read_forcing = .false.
 
     ! Make eps a fraction of the time step
@@ -646,37 +662,37 @@ contains
              print*, 'variable list:', trim(ic%nc%vars)
           endif
 
-           ! Optionally, associate the current forcing time with a different date in the forcing file.
-           ! This is done by reading a file that associates each simulation year (relative to tstart)
-           !  with a year that is read from a 'shuffle file'. The shuffle file typically consists of
-           !  consecutive integers (in column 1), followed by years chosen at random from all the years
-           !  in the forcing file (in column 2).
+          ! Optionally, associate the current forcing time with a different date in the forcing file.
+          ! This is done by reading a file that associates each simulation year (relative to tstart)
+          !  with a year that is read from a 'shuffle file'. The shuffle file typically consists of
+          !  consecutive integers (in column 1), followed by years chosen at random from all the years
+          !  in the forcing file (in column 2).
 
-           if (trim(ic%shuffle_file) /= '') then  ! shuffle_file exists
-              open(unit=11, file=trim(ic%shuffle_file), status='old')
-              this_year = int(current_forcing_time - model%numerics%tstart)
-              if (main_task .and. verbose_read_forcing) then
-                 print*, 'shuffle_file = ', trim(ic%shuffle_file)
-                 print*, 'tstart, this_year =', model%numerics%tstart, this_year
-              endif
-              forcing_year = 0
-              do while (forcing_year == 0)
-                 read(11,'(i6,i8)') year1, year2
-                 if (this_year == year1) then
-                    forcing_year = year2
-                    exit
-                 endif
-              enddo
-              close(11)
-              decimal_year = current_forcing_time - floor(current_forcing_time)
-              current_forcing_time = real(forcing_year,dp) + decimal_year
-              if (main_task .and. verbose_read_forcing) then
-                 print*, 'forcing_year, decimal =', forcing_year, decimal_year
-                 print*, 'shuffled forcing_time =', current_forcing_time
-              endif
-           else
-              if (main_task .and. verbose_read_forcing) print*, 'no shuffle_file'
-           endif  ! shuffle_file exists
+          if (trim(ic%shuffle_file) /= '') then  ! shuffle_file exists
+             open(unit=11, file=trim(ic%shuffle_file), status='old')
+             this_year = int(current_forcing_time - model%numerics%tstart)
+             if (main_task .and. verbose_read_forcing) then
+                print*, 'shuffle_file = ', trim(ic%shuffle_file)
+                print*, 'tstart, this_year =', model%numerics%tstart, this_year
+             endif
+             forcing_year = 0
+             do while (forcing_year == 0)
+                read(11,'(i6,i8)') year1, year2
+                if (this_year == year1) then
+                   forcing_year = year2
+                   exit
+                endif
+             enddo
+             close(11)
+             decimal_year = current_forcing_time - floor(current_forcing_time)
+             current_forcing_time = real(forcing_year,dp) + decimal_year
+             if (main_task .and. verbose_read_forcing) then
+                print*, 'forcing_year, decimal =', forcing_year, decimal_year
+                print*, 'shuffled forcing_time =', current_forcing_time
+             endif
+          else
+             if (main_task .and. verbose_read_forcing) print*, 'no shuffle_file'
+          endif  ! shuffle_file exists
 
           ! Find the time index associated with the previous model time step
           t_prev = 0
@@ -701,6 +717,9 @@ contains
                    ic%current_time = t
                    retrieve_new_slice = .true.
                    if (main_task .and. verbose_read_forcing) print*, 'Retrieve new forcing slice'
+                   write(message,*) &
+                        'Retrieve slice', t, 'at forcing time', ic%times(t), 'from file ', trim(ic%nc%filename)
+                   call write_log(message)
                 endif ! t > t_prev
 
                 exit  ! once we find the time, exit the loop
