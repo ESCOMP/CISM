@@ -234,8 +234,11 @@ contains
          lithtemp_diag                       ! lithosphere column diagnostics
 
     real(dp) :: &
-         tot_glc_area_init, tot_glc_area, &   ! total glacier area, initial and current (km^2)
-         tot_glc_volume_init, tot_glc_volume  ! total glacier volume, initial and current (km^3)
+         tot_glc_area_init, tot_glc_area, &  ! total glacier area, initial and current (km^2)
+         tot_glc_volume_init, tot_glc_volume ! total glacier volume, initial and current (km^3)
+
+    integer :: &
+         count_area, count_volume            ! number of glaciers with nonzero area and volume
 
     integer :: &
          i, j, k, ng,                       &
@@ -1090,12 +1093,20 @@ contains
        tot_glc_area_init = 0.0d0
        tot_glc_volume = 0.0d0
        tot_glc_volume_init = 0.0d0
+       count_area = 0
+       count_volume = 0
 
        do ng = 1, model%glacier%nglacier
           tot_glc_area = tot_glc_area + model%glacier%area(ng)
           tot_glc_area_init = tot_glc_area_init + model%glacier%area_init(ng)
           tot_glc_volume = tot_glc_volume + model%glacier%volume(ng)
           tot_glc_volume_init = tot_glc_volume_init + model%glacier%volume_init(ng)
+          if (model%glacier%area(ng) > eps) then
+             count_area = count_area + 1
+          endif
+          if (model%glacier%volume(ng) > eps) then
+             count_volume = count_volume + 1
+          endif
        enddo
 
        ! Write some total glacier diagnostics
@@ -1107,6 +1118,14 @@ contains
 
        write(message,'(a35,i14)')   'Number of glaciers                 ', &
             model%glacier%nglacier
+       call write_log(trim(message), type = GM_DIAGNOSTIC)
+
+       write(message,'(a35,i14)')   'Glaciers with nonzero area         ', &
+            count_area
+       call write_log(trim(message), type = GM_DIAGNOSTIC)
+
+       write(message,'(a35,i14)')   'Glaciers with nonzero volume       ', &
+            count_volume
        call write_log(trim(message), type = GM_DIAGNOSTIC)
 
        write(message,'(a35,f14.6)') 'Total glacier area (km^2)          ', &
