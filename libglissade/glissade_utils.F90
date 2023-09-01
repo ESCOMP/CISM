@@ -42,7 +42,8 @@ module glissade_utils
        glissade_smooth_topography, glissade_adjust_topography, &
        glissade_basin_sum, glissade_basin_average, &
        glissade_usrf_to_thck, glissade_thck_to_usrf, &
-       glissade_stdev, verbose_stdev
+       glissade_stdev, verbose_stdev, &
+       glissade_edge_fluxes
 
   logical, parameter :: verbose_stdev = .true.
 
@@ -1101,6 +1102,72 @@ contains
     endwhere
 
   end subroutine glissade_thck_to_usrf
+
+!***********************************************************************
+
+  subroutine glissade_edge_fluxes(&
+        nx,        ny,        &
+        dew,       dns,       &
+        itest,     jtest,  rtest, &
+        thck,                 &
+        uvel,      vvel,      &
+        flux_e,    flux_n)
+
+    use cism_parallel, only: nhalo
+
+    ! Compute ice volume fluxes across each cell edge
+
+    ! input/output arguments
+
+    integer, intent(in) :: &
+         nx, ny,                & ! number of cells in x and y direction on input grid (global)
+         itest, jtest, rtest
+
+    real(dp), intent(in) :: &
+         dew, dns                 ! cell edge lengths in EW and NS directions (m)
+
+    real(dp), dimension(nx,ny), intent(in) :: &
+         thck                     ! ice thickness (m) at cell centers
+
+    real(dp), dimension(nx-1,ny-1), intent(in) :: &
+         uvel, vvel               ! vertical mean velocity (m/s) at cell corners
+
+    real(dp), dimension(nx,ny), intent(out) :: &
+         flux_e, flux_n           ! ice volume fluxes (m^3/yr) at cell edges
+
+    ! local variables
+
+    integer :: i, j
+    real(dp) :: thck_edge, u_edge, v_edge
+    logical, parameter :: verbose_edge_fluxes = .false.
+
+    ! loop over locally owned edges
+    do j = nhalo+1, ny-nhalo
+       do i = nhalo+1, nx-nhalo
+
+          ! east edge volume flux
+          thck_edge = 0.5d0 * (thck(i,j) + thck(i+1,j))
+          u_edge = 0.5d0 * (uvel(i,j-1) + uvel(i,j))
+          flux_e(i,j) = thck_edge * u_edge * dns  ! m^3/yr
+
+          ! north edge volume flux
+          thck_edge = 0.5d0 * (thck(i,j) + thck(i,j+1))
+          v_edge = 0.5d0 * (vvel(i-1,j) + vvel(i,j))
+          flux_n(i,j) = thck_edge * v_edge * dew  ! m^3/yr
+
+          if (verbose_edge_fluxes .and. this_rank == rtest .and. i==itest .and. j==jtest) then
+             print*, 'East  flux: rank, i, j, H, u, flx =', &
+                  rtest, itest, jtest, thck_edge, u_edge, flux_e(i,j)
+             print*, 'North flux: rank, i, j, H, v, flx =', &
+                  rtest, itest, jtest, thck_edge, v_edge, flux_n(i,j)
+          endif
+
+       enddo
+    enddo
+
+  end subroutine glissade_edge_fluxes
+
+!****************************************************************************
 
 !TODO - Other utility subroutines to add here?
 !       E.g., tridiag; calclsrf; subroutines to zero out tracers
