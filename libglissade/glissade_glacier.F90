@@ -29,7 +29,7 @@ module glissade_glacier
     ! Subroutines for glacier tuning and tracking
 
     use glimmer_global 
-    use glimmer_paramets, only: thk0, len0, tim0, eps08
+    use glimmer_paramets, only: thk0, len0, tim0, vel0, eps08
     use glimmer_physcon, only: scyr, pi, rhow, rhoi
     use glide_types
     use glimmer_log
@@ -75,7 +75,7 @@ contains
 
     use cism_parallel, only: distributed_gather_var, distributed_scatter_var, &
          parallel_reduce_sum, parallel_reduce_max, parallel_reduce_min, &
-         broadcast, parallel_halo, parallel_globalindex
+         broadcast, parallel_halo, staggered_parallel_halo, parallel_globalindex
 
     type(glide_global_type),intent(inout) :: model
 
@@ -90,6 +90,7 @@ contains
 
     integer :: i, j, nc, ng, count
     integer :: iglobal, jglobal
+    integer :: ng_west, ng_east, ng_south, ng_north
     integer :: min_id, max_id
     real(dp) :: max_glcval
     real(dp) :: theta_rad             ! latitude in radians
@@ -629,6 +630,53 @@ contains
     endif
     call broadcast(glacier%ngdiag, rtest)
 
+    ! Define a mask whose value is 1 at vertices along the boundary between two glaciers.
+    ! At runtime, Cp is set to a large value at masked vertices to reduce flow between glaciers.
+    glacier%boundary_mask(:,:) = 0
+
+    ! Loop over locally owned cells
+    do j = nhalo, nsn-nhalo
+       do i = nhalo, ewn-nhalo
+          ng = glacier%cism_glacier_id_init(i,j)
+          if (ng > 0) then
+             ng_west  = glacier%cism_glacier_id_init(i-1,j)
+             ng_east  = glacier%cism_glacier_id_init(i+1,j)
+             ng_south = glacier%cism_glacier_id_init(i,j-1)
+             ng_north = glacier%cism_glacier_id_init(i,j+1)
+             if (ng_west > 0 .and. ng_west /= ng) then
+                glacier%boundary_mask(i-1,j-1) = 1
+                glacier%boundary_mask(i-1,j)   = 1
+             endif
+             if (ng_east > 0 .and. ng_east /= ng) then
+                glacier%boundary_mask(i,j-1) = 1
+                glacier%boundary_mask(i,j)   = 1
+             endif
+             if (ng_south > 0 .and. ng_south /= ng) then
+                glacier%boundary_mask(i-1,j-1) = 1
+                glacier%boundary_mask(i,j-1)   = 1
+             endif
+             if (ng_north > 0 .and. ng_north /= ng) then
+                glacier%boundary_mask(i-1,j) = 1
+                glacier%boundary_mask(i,j)   = 1
+             endif
+          endif
+       enddo
+    enddo
+
+    call staggered_parallel_halo(glacier%boundary_mask, parallel)
+
+    if (verbose_glacier .and. this_rank == rtest) then
+       print*, ' '
+       print*, 'Create glacier boundary_mask:'
+       do j = jtest+3, jtest-3, -1
+          do i = itest-3, itest+3
+             write(6,'(i10)',advance='no') &
+                  glacier%boundary_mask(i,j)
+          enddo
+          print*, ' '
+       enddo
+    endif
+
     ! Write some values for the diagnostic glacier
     if (verbose_glacier .and. this_rank == rtest) then
        i = itest; j = jtest
@@ -652,7 +700,7 @@ contains
   subroutine glissade_glacier_update(model, glacier)
 
     use glissade_grid_operators, only: glissade_stagger
-    use glissade_utils, only: glissade_usrf_to_thck
+    use glissade_utils, only: glissade_usrf_to_thck, glissade_edge_fluxes
     use cism_parallel, only: parallel_reduce_sum, parallel_global_sum, parallel_halo
 
     ! Do glacier inversion (if applicable), update glacier masks, and compute glacier diagnostics.
@@ -703,6 +751,9 @@ contains
          smb_annmean,             & ! annual mean SMB for each glacier cell over current area (mm/yr w.e.)
          delta_smb_rgi,           & ! SMB anomaly between the baseline date and the RGI date (mm/yr w.e.)
          delta_smb_recent           ! SMB anomaly between the baseline date and the recent date (mm/yr w.e.)
+
+    real(dp), dimension(model%general%ewn, model%general%nsn) ::  &
+         flux_e, flux_n             ! ice volume fluxes across east and north cell edges (m^3/yr)
 
     real(dp), dimension(model%general%ewn-1, model%general%nsn-1) ::  &
          stag_thck,                   & ! ice thickness at vertices (m)
@@ -1366,28 +1417,43 @@ contains
                model%basal_physics%powerlaw_c_relax,    &
                model%basal_physics%powerlaw_c)
 
+          ! Set Cp to a large value at glacier boundaries, to minimize flow from one glacier to another.
+          ! Flow between glaciers is often the result of failing to resolve the surface topography
+          ! (e.g., a narrow ridge between two glaciers). A large Cp then substitutes for a physical barrier.
+          where (glacier%boundary_mask == 1)
+             model%basal_physics%powerlaw_c = model%basal_physics%powerlaw_c_max
+          endwhere
+
        endif   ! powerlaw_c_inversion
 
        !-------------------------------------------------------------------------
        ! Update glacier IDs based on advance and retreat since the last update.
        !-------------------------------------------------------------------------
 
+       ! compute volume fluxes acress each cell edge (input to glacier_advance_retreat)
+       call glissade_edge_fluxes(&
+            ewn,             nsn,             &
+            dew,             dns,             &
+            itest,  jtest,   rtest,           &
+            model%geometry%thck*thk0,         &
+            model%velocity%uvel_2d*vel0,      &
+            model%velocity%vvel_2d*vel0,      &
+            flux_e,          flux_n)
+
+       call parallel_halo(flux_e, parallel)
+       call parallel_halo(flux_n, parallel)
+
        ! Assign nonzero IDs in grid cells where ice has reached the minimum glacier thickness.
        ! Remove IDs in grid cells where ice is now thinnier than the minimum thickness.
        ! Adjust IDs to prevent spurious advance due to SMB differences in adjacent glaciers.
 
-       !TODO - Check the logic again.
        call glacier_advance_retreat(&
             ewn,             nsn,           &
             itest,   jtest,  rtest,         &
             nglacier,                       &
             glacier%minthck,                &  ! m
             thck,                           &  ! m
-            smb_annmean,                    &  ! mm/yr w.e.
-            glacier%snow_annmean,           &  ! mm/yr w.e.
-            glacier%Tpos_annmean,           &  ! deg C
-            glacier%mu_star,                &  ! mm/yr/deg
-            glacier%alpha_snow,             &  ! unitless
+            flux_e,          flux_n,        &  ! m^3/yr
             glacier%cism_glacier_id_init,   &
             glacier%cism_glacier_id,        &
             parallel)
@@ -2267,11 +2333,7 @@ contains
        nglacier,                         &
        glacier_minthck,                  &
        thck,                             &
-       smb_annmean,                      &
-       snow,                             &
-       Tpos,                             &
-       mu_star,                          &
-       alpha_snow,                       &
+       flux_e,          flux_n,          &
        cism_glacier_id_init,             &
        cism_glacier_id,                  &
        parallel)
@@ -2291,8 +2353,8 @@ contains
     !   are not dynamically active.)
     ! - When a cell has H > minthck and cism_glacier_id = 0, we give it a nonzero ID:
     !   either (1) cism_glacier_id_init, if the initial ID > 0,
-    !   or (2) the ID of an adjacent glaciated neighbor (the one where the cell would
-    !   have the most negative SMB, if there is more than one).
+    !   or (2) the ID of an adjacent glaciated neighbor (the one which supplied the
+    !   largest edge flux, if there is more than one).
     !   Preference is given to (1), to preserve the original glacier outlines
     !   as much as possible.
 
@@ -2310,13 +2372,7 @@ contains
 
     real(dp), dimension(ewn,nsn), intent(in) ::  &
          thck,                        & ! ice thickness (m)
-         smb_annmean,                 & ! annual mean SMB (mm/yr w.e.)
-         snow,                        & ! annual mean snowfall (mm/yr w.e.)
-         Tpos                           ! annual mean Tpos = min(T - Tmlt, 0)
-
-    real(dp), dimension(nglacier), intent(in) :: &
-         mu_star,                     & ! glacier-specific SMB tuning parameter (mm/yr w.e./deg)
-         alpha_snow                     ! glacier-specific snow factor (unitless)
+         flux_e, flux_n                 ! ice volume fluxes across east and north cell edges (m^3/yr)
 
     integer, dimension(ewn,nsn), intent(in) :: &
          cism_glacier_id_init           ! cism_glacier_id at the start of the run
@@ -2332,15 +2388,12 @@ contains
          cism_glacier_id_old            ! old value of cism_glacier_id
 
     real(dp) :: &
-         smb_min,                    &  ! min SMB possible for this cell
-         smb_neighbor                   ! SMB that a cell would have in a neighbor glacier
-                                        ! (due to different alpha_snow and mu_star)
-
-    character(len=100) :: message
+         flux_in,                     & ! incoming flux across an edge
+         flux_max                       ! largest of the flux_in values
 
     integer :: i, j, ii, jj, ip, jp
     integer :: iglobal, jglobal
-    integer :: ng, ng_init, ng_neighbor, ng_min
+    integer :: ng, ng_init, ng_neighbor, ng_max
     logical :: found_neighbor
 
     if (verbose_glacier .and. this_rank == rtest) then
@@ -2348,17 +2401,7 @@ contains
        print*, 'In glacier_advance_retreat'
     endif
 
-    ! Check for retreat: cells with cism_glacier_id > 0 but H > glacier_minthck
-
-!    do j = nhalo+1, nsn-nhalo
-!       do i = nhalo+1, ewn-nhalo
-!          ng = cism_glacier_id_init(i,j)
-!          if (ng == 3651) then
-!             call parallel_globalindex(i, j, iglobal, jglobal, parallel)
-!             print*, 'Glacier 3651: ig, jg =', iglobal, jglobal
-!          endif
-!       enddo
-!    enddo
+    ! Check for retreat: cells with cism_glacier_id > 0 but H < glacier_minthck
 
     ! Loop over local cells
     do j = nhalo+1, nsn-nhalo
@@ -2381,9 +2424,6 @@ contains
     ! This prevents the algorithm from depending on the loop direction.
     cism_glacier_id_old(:,:) = cism_glacier_id(:,:)
 
-
-    ! Put the cell in the glacier that gives it the lowest SMB, given its own snow and Tpos.
-
     ! Loop over local cells
     do j = nhalo+1, nsn-nhalo
        do i = nhalo+1, ewn-nhalo
@@ -2401,8 +2441,8 @@ contains
                 endif
              else  ! assign the ID of an adjacent ice-covered cell, if possible
 
-                smb_min = 1.0d11   ! arbitrary big number
-                ng_min = 0
+                flux_max = 0.0d0
+                ng_max = 0
                 found_neighbor = .false.
 
                 if (verbose_glacier .and. this_rank == rtest) then
@@ -2413,35 +2453,39 @@ contains
 
                 do jj = -1, 1
                    do ii = -1, 1
-                      if (ii /= 0 .or. jj /= 0) then  ! one of 8 neighbors
+                      if ((abs(ii)==1 .and. jj==0) .or. (abs(jj)==1 .and. ii==0)) then  ! edge neighbor
                          ip = i + ii
                          jp = j + jj
                          ng_neighbor = cism_glacier_id_old(ip,jp)
                          !TODO - Do we need the thickness criterion?
                          if (ng_neighbor > 0 .and. thck(ip,jp) > glacier_minthck) then
                             found_neighbor = .true.
-                            ! Compute the SMB this cell would have if in the neighbor glacier
-                            smb_neighbor = alpha_snow(ng_neighbor) * snow(i,j) &
-                                            - mu_star(ng_neighbor) * Tpos(i,j)
-                            if (smb_neighbor < smb_min) then
-                               smb_min = smb_neighbor
-                               ng_min = ng_neighbor
+                            ! Compute the flux into this cell from the neighbor cell
+                            if (ii == 1) then  ! east neighbor
+                               flux_in = -flux_e(i,j)
+                            elseif (ii == -1) then  ! west neighbor
+                               flux_in =  flux_e(i-1,j)
+                            elseif (jj ==  1) then  ! north neighbor
+                               flux_in = -flux_n(i,j)
+                            elseif (jj == -1) then  ! south neighbor
+                               flux_in =  flux_n(i,j-1)
+                            endif
+                            if (flux_in > flux_max) then
+                               flux_max = flux_in
+                               ng_max = ng_neighbor
                             endif
                          endif   ! neighbor cell is a glacier cell
                       endif   ! neighbor cell
                    enddo   ! ii
                 enddo   ! jj
                 if (found_neighbor) then
-                   cism_glacier_id(i,j) = ng_min
+                   cism_glacier_id(i,j) = ng_max  ! glacier supplying the largest edge flux
                    if (verbose_glacier .and. this_rank == rtest) then
                       call parallel_globalindex(i, j, iglobal, jglobal, parallel)
-                      print*, 'Set ID = neighbor ID, ig, jg, new ID, thck, smb =', &
-                           iglobal, jglobal, cism_glacier_id(i,j), thck(i,j), smb_min
+                      print*, 'Set ID = neighbor ID, ig, jg, new ID, thck, flux_in =', &
+                           iglobal, jglobal, cism_glacier_id(i,j), thck(i,j), flux_max
                    endif
                 else
-                   !Note: This can happen if an advanced cell has a more positive SMB than its neighbor,
-                   !      and the neighbor melts. We want to remove this cell from the glacier.
-                   ! For now, remove ice from this cell.
                    call parallel_globalindex(i, j, iglobal, jglobal, parallel)
                    print*, 'WARNING, did not find neighbor, ig, jg =', iglobal, jglobal
                 endif   ! found_neighbor
@@ -2453,20 +2497,23 @@ contains
 
     call parallel_halo(cism_glacier_id, parallel)
 
-    ! Check glacier IDs at the margin, outside the initial footprint.
+    ! Put the cell in an adjacent glacier.
+    ! If there are two edge-adjacent cells belonging to different glaciers, the priority is a
+
+
+    ! Check glacier IDs for advanced cells, outside the initial footprint.
     ! Switch IDs that are potentially problematic.
-    !
-    ! The code below protects against glacier 'pirating'.
-    ! This can happen when two adjacent glaciers have both advanced: one with a large ablation rate
-    !  and the other with a lower ablation rate. The SMBs favor advance of the slow-melting glacier
-    !  at the expense of the fast-melting glacier. The fast-melting glacier can feed ice
-    !  into the slow-melting glacier, leading to spurious advance of the slow-melting glacier.
+
+    ! This code protects against glacier 'pirating'.
+    ! Pirating can occur when an advanced cell is adjacent to two adjacent glaciers, call them A and B.
+    ! Suppose the cell is fed primarily by glacier A, but has the same ID as glacier B.
+    ! Then glacier B is pirating ice from glacier A and can advance spuriously.
     ! The fix here is to loop through cells where the ice has advanced (cism_glacier_id_init = 0,
     !  cism_glacier_id > 0). For each cell, check whether it has a neighbor in a different glacier.
-    !  If so, compute the SMB it would have in that glacier, given a different value of alpha_snow
-    !  and mu_star. If this SMB is negative and lower than the current value, make the switch.
-    ! TODO - Check for unrealistic glacier expansion.
-    ! Note: This should happen early in the spin-up, not as the run approaches steady state.
+    !  If so, compute the input flux from each adjacent cell. Make sure that the cell's ID
+    !   corresponds to the glacier that is delivering the most ice.
+    ! Note: The code is similar to the code above, and is provided in case the flow shifts during the run.
+    !       This might be rare.
 
     ! Save a copy of the current cism_glacier_id.
     cism_glacier_id_old = cism_glacier_id
@@ -2477,46 +2524,43 @@ contains
           ng_init = cism_glacier_id_init(i,j)
           ng = cism_glacier_id_old(i,j)
           if (ng_init == 0 .and. ng > 0) then ! advanced cell
-             smb_min = min(smb_annmean(i,j), 0.0d0)
-             ng_min = 0
+             flux_max = 0
+             ng_max = 0
 
-             ! Look for edge neighbors in different glaciers
+             ! Compute the input flux from each glaciated neighbor cell
              do jj = -1, 1
                 do ii = -1, 1
                    if ((abs(ii)==1 .and. jj==0) .or. (abs(jj)==1 .and. ii==0)) then  ! edge neighbor
                       ip = i + ii
                       jp = j + jj
                       ng_neighbor = cism_glacier_id_old(ip,jp)
-
-                      if (ng_neighbor > 0 .and. ng_neighbor /= ng) then  ! different glacier
-
-                         if (verbose_glacier .and. this_rank == rtest) then
-                            call parallel_globalindex(i, j, iglobal, jglobal, parallel)
-                            print*, 'Check neighbor SMB for cell', iglobal, jglobal
-                            print*, '   Local ng, neighbor ng =', ng, ng_neighbor
+                      if (ng_neighbor > 0) then
+                         ! Compute the flux into this cell from the neighbor cell
+                         if (ii == 1) then        ! east neighbor
+                            flux_in = max(0.0d0, -flux_e(i,j))
+                         elseif (ii == -1) then   ! west neighbor
+                            flux_in = max(0.0d0,  flux_e(i-1,j))
+                         elseif (jj ==  1) then   ! north neighbor
+                            flux_in = max(0.0d0, -flux_n(i,j))
+                         elseif (jj == -1) then   ! south neighbor
+                            flux_in = max(0.0d0,  flux_n(i,j-1))
+                         endif
+                         if (flux_in > flux_max) then
+                            flux_max = flux_in
+                            ng_max = ng_neighbor
                          endif
 
-                         ! compute the SMB of cell (i,j) if moved to the neighbor glacier
-                         smb_neighbor = alpha_snow(ng_neighbor) * snow(i,j) &
-                                         - mu_star(ng_neighbor) * Tpos(i,j)
-                         if (verbose_glacier .and. this_rank == rtest) then
-                            print*, '   Local SMB, SMB if in neighbor glacier =', smb_annmean(i,j), smb_neighbor
-                         endif
-                         if (smb_neighbor < smb_min) then
-                            smb_min = smb_neighbor
-                            ng_min = ng_neighbor
-                         endif
-                      endif
-                   endif   ! neighbor cell
+                      endif  ! neighbor is glaciated
+                   endif   ! edge neighbor
                 enddo   ! ii
              enddo   ! jj
 
-             if (ng_min > 0) then
-                ! Move this cell to the adjacent glacier, where it will melt faster
-                cism_glacier_id(i,j) = ng_min
+             if (ng_max > 0 .and. ng_max /= ng) then
+                ! Move this cell to the adjacent glacier, which is the greater source of incoming ice
+                cism_glacier_id(i,j) = ng_max
                 if (verbose_glacier .and. this_rank == rtest) then
                    call parallel_globalindex(i, j, iglobal, jglobal, parallel)
-                   print*, '   Transfer to fast-melting glacier, old and new IDs =', &
+                   print*, '   Transfer to adjacent glacier, old and new IDs =', &
                         cism_glacier_id_old(i,j), cism_glacier_id(i,j)
                 endif
              endif
@@ -2857,6 +2901,7 @@ contains
              do i = 1, ewn
 
                 ! Fill active glacier cells that are part of the initial glacier.
+                !TODO - Include empty or inactive cells that are part of the initial glacier?
 
                 if (cism_glacier_mask_init(i,j) == 1 .and. cism_glacier_mask(i,j) == 1) then
 

@@ -1983,6 +1983,9 @@ module glide_types
           delta_usrf_recent => null()         !> change in usrf between baseline and recent climate
 
      integer, dimension(:,:), pointer :: &
+          boundary_mask => null()             !> mask that marks boundary between two glaciers; located at vertices
+
+     integer, dimension(:,:), pointer :: &
           imask => null()                     !> 2D mask; indicates whether glaciers are present in the input file
                                               !> TODO - Remove this field?  Easily derived from initial thickness > 0.
 
@@ -3040,6 +3043,7 @@ contains
        call coordsystem_allocate(model%general%ice_grid, model%climate%precip_anomaly)
        call coordsystem_allocate(model%general%ice_grid, model%climate%smb_obs)
        call coordsystem_allocate(model%general%ice_grid, model%glacier%dthck_dt_annmean)
+       call coordsystem_allocate(model%general%velo_grid, model%glacier%boundary_mask)
 
        !TODO - Allocate these fields based on the XY_LAPSE option?
        !       Then wouldn't have to check for previous allocation.
@@ -3554,6 +3558,8 @@ contains
         deallocate(model%glacier%smb_recent)
     if (associated(model%glacier%delta_usrf_recent)) &
         deallocate(model%glacier%delta_usrf_recent)
+    if (associated(model%glacier%boundary_mask)) &
+        deallocate(model%glacier%boundary_mask)
 
     ! inversion arrays
     if (associated(model%basal_physics%powerlaw_c)) &
