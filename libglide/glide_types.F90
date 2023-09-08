@@ -606,10 +606,14 @@ module glide_types
     logical :: enable_acab_anomaly = .false.
     !> if true, then apply a prescribed anomaly to smb/acab
 
-    !WHL - Modify to support options 0 (no anomaly), 1 (constant) and 2 (external)
-    !      Then apply option 1.
     logical :: enable_artm_anomaly = .false.
     !> if true, then apply a prescribed anomaly to artm
+
+    logical :: enable_snow_anomaly = .false.
+    !> if true, then apply a prescribed anomaly to snow
+
+    logical :: enable_precip_anomaly = .false.
+    !> if true, then apply a prescribed anomaly to precip
 
     integer :: overwrite_acab = 0
     !> overwrite acab (m/yr ice) in selected regions:
@@ -1447,12 +1451,16 @@ module glide_types
      real(dp),dimension(:,:),pointer :: smb             => null() !> Surface mass balance (mm/yr water equivalent)
                                                                   !> Note: acab (m/y ice) is used internally by dycore, 
                                                                   !>       but can use smb (mm/yr w.e.) for I/O
-     real(dp),dimension(:,:),pointer :: snow            => null() !> snowfall rate (mm/yr w.e.)
-     real(dp),dimension(:,:),pointer :: precip          => null() !> precipitation rate (mm/yr w.e.)
-                                                                  !> for glaciers, snow can be derived from precip + downscaled artm
      real(dp),dimension(:,:),pointer :: artm            => null() !> Annual mean air temperature (degC)
      real(dp),dimension(:,:),pointer :: artm_anomaly    => null() !> Annual mean air temperature anomaly (degC)
      real(dp),dimension(:,:),pointer :: artm_corrected  => null() !> Annual mean air temperature with anomaly corrections (degC)
+     real(dp),dimension(:,:),pointer :: snow            => null() !> snowfall rate (mm/yr w.e.)
+     real(dp),dimension(:,:),pointer :: snow_anomaly    => null() !> snowfall anomaly (mm/yr w.e.)
+     real(dp),dimension(:,:),pointer :: snow_corrected  => null() !> snowfall with anomaly corrections (mm/yr w.e.)
+     real(dp),dimension(:,:),pointer :: precip          => null() !> precipitation rate (mm/yr w.e.)
+                                                                  !> for glaciers, snow can be derived from precip + downscaled artm
+     real(dp),dimension(:,:),pointer :: precip_anomaly  => null() !> precip anomaly (mm/yr w.e.)
+     real(dp),dimension(:,:),pointer :: precip_corrected=> null() !> precip with anomaly corrections (mm/yr w.e.)
      integer, dimension(:,:),pointer :: overwrite_acab_mask => null() !> mask for cells where acab is overwritten
      real(dp),dimension(:,:),pointer :: smb_obs         => null() !> Observed surface mass balance (mm/yr water equivalent)
                                                                   !> 'smb' could have any source (models, obs, etc.), but smb_obs
@@ -1469,12 +1477,6 @@ module glide_types
      real(dp),dimension(:,:),pointer :: artm_gradz => null()      !> vertical gradient of artm (deg C per m), positive up
      real(dp),dimension(:,:),pointer :: usrf_ref => null()        !> reference upper surface elevation before lapse rate correction (m)
 
-     ! Next several fields are anomaly fields that can be added to baseline fields of artm_ref, snow, and precip
-     real(dp), dimension(:,:), pointer :: &
-          artm_ref_anomaly => null(),       & !> anomaly artm_ref field (degC)
-          snow_anomaly => null(),           & !> anomaly snow field (mm/yr w.e.)
-          precip_anomaly => null()            !> anomaly precip field (mm/yr w.e.)
-
      ! Next several fields used for SMB_INPUT_FUNCTION_XYZ, ARTM_INPUT_FUNCTION_XYZ
      ! Note: If both smb and artm are input in this format, they share the array smb_levels(nlev_smb).
      real(dp),dimension(:,:,:),pointer :: acab_3d       => null() !> SMB at multiple vertical levels (m/yr ice)
@@ -1488,25 +1490,28 @@ module glide_types
      ! All time slices are then stored in the precip_read_once array, where the third dimension is the number of time slices.
      ! Data are copied from precip_read_once to the regular 2D precip array as the model runs forward in time.
      real(dp), dimension(:,:,:), pointer :: &
-          snow_read_once => null(),         & !> snow field, read_once version
-          precip_read_once => null(),       & !> precip field, read_once version
-          artm_ref_read_once => null()        !> artm_ref field, read_once version
+          artm_ref_read_once => null(),           & !> artm_ref field, read_once version
+          snow_read_once => null(),               & !> snow field, read_once version
+          precip_read_once => null()                !> precip field, read_once version
 
      real(dp), dimension(:,:,:), pointer :: &
-          snow_anomaly_read_once => null(),     & !> anomaly snow field, read_once version
-          precip_anomaly_read_once => null(),   & !> anomaly precip field, read_once version
-          artm_ref_anomaly_read_once => null()    !> anomaly artm_ref field, read_once version
+          artm_anomaly_read_once => null(),       & !> anomaly artm_ref field, read_once version
+          snow_anomaly_read_once => null(),       & !> anomaly snow field, read_once version
+          precip_anomaly_read_once => null()        !> anomaly precip field, read_once version
 
      real(dp) :: eus = 0.d0                         !> eustatic sea level
      real(dp) :: acab_factor = 1.0d0                !> adjustment factor for external acab field (unitless)
+     real(dp) :: acab_anomaly_tstart = 0.0d0        !> time to start applying the anomaly (yr)
      real(dp) :: acab_anomaly_timescale = 0.0d0     !> number of years over which the acab/smb anomaly is phased in linearly
                                                     !> If set to zero, then the anomaly is applied immediately.
                                                     !> The initMIP value is 40 yr.
      real(dp) :: overwrite_acab_value = 0.0d0       !> acab value to apply in grid cells where overwrite_acab_mask = 1
      real(dp) :: overwrite_acab_minthck = 0.0d0     !> overwrite acab where thck <= overwrite_acab_minthck
      real(dp) :: artm_anomaly_const = 0.0d0         !> spatially uniform value of artm_anomaly (degC)
+     real(dp) :: artm_anomaly_tstart = 0.0d0        !> time to start applying the anomaly (yr)
      real(dp) :: artm_anomaly_timescale = 0.0d0     !> number of years over which the artm anomaly is phased in linearly
                                                     !> If set to zero, then the anomaly is applied immediately.
+                                                    !> Snow and precip anomalies are assumed to have the same timescale
      real(dp) :: t_lapse = 0.0d0                    !> air temp lapse rate (deg/m); positive for T decreasing with height
 
   end type glide_climate
@@ -1791,6 +1796,7 @@ module glide_types
      real(dp) :: bmlt_float_depth_zmeltmin = 0.d0     !> depth (m) above which bmlt_float = meltmin
 
      ! initMIP-Antarctica parameters
+     real(dp) :: bmlt_anomaly_tstart = 0.0d0        !> time to start applying the anomaly (yr)
      real(dp) :: bmlt_anomaly_timescale = 0.0d0     !> number of years over which the bmlt_float anomaly is phased in linearly
                                                     !> If set to zero, then the anomaly is applied immediately.
 
@@ -3036,21 +3042,8 @@ contains
        call coordsystem_allocate(model%general%ice_grid, model%glacier%smb_glacier_id)
        call coordsystem_allocate(model%general%ice_grid, model%glacier%smb_glacier_id_init)
        call coordsystem_allocate(model%general%ice_grid, model%glacier%area_factor)
-       call coordsystem_allocate(model%general%ice_grid, model%climate%snow)
-       call coordsystem_allocate(model%general%ice_grid, model%climate%precip)
-       call coordsystem_allocate(model%general%ice_grid, model%climate%artm_ref_anomaly)
-       call coordsystem_allocate(model%general%ice_grid, model%climate%snow_anomaly)
-       call coordsystem_allocate(model%general%ice_grid, model%climate%precip_anomaly)
-       call coordsystem_allocate(model%general%ice_grid, model%climate%smb_obs)
        call coordsystem_allocate(model%general%ice_grid, model%glacier%dthck_dt_annmean)
        call coordsystem_allocate(model%general%velo_grid, model%glacier%boundary_mask)
-
-       !TODO - Allocate these fields based on the XY_LAPSE option?
-       !       Then wouldn't have to check for previous allocation.
-       if (.not.associated(model%climate%usrf_ref)) &
-            call coordsystem_allocate(model%general%ice_grid, model%climate%usrf_ref)
-       if (.not.associated(model%climate%artm_ref)) &
-            call coordsystem_allocate(model%general%ice_grid, model%climate%artm_ref)
 
        ! Note: The recent and RGI fields are used for glacier inversion
        call coordsystem_allocate(model%general%ice_grid, model%glacier%usrf_target_baseline)
@@ -3107,8 +3100,15 @@ contains
     call coordsystem_allocate(model%general%ice_grid, model%climate%artm)
     call coordsystem_allocate(model%general%ice_grid, model%climate%artm_anomaly)
     call coordsystem_allocate(model%general%ice_grid, model%climate%artm_corrected)
+    call coordsystem_allocate(model%general%ice_grid, model%climate%snow)
+    call coordsystem_allocate(model%general%ice_grid, model%climate%snow_anomaly)
+    call coordsystem_allocate(model%general%ice_grid, model%climate%snow_corrected)
+    call coordsystem_allocate(model%general%ice_grid, model%climate%precip)
+    call coordsystem_allocate(model%general%ice_grid, model%climate%precip_anomaly)
+    call coordsystem_allocate(model%general%ice_grid, model%climate%precip_corrected)
     call coordsystem_allocate(model%general%ice_grid, model%climate%smb)
     call coordsystem_allocate(model%general%ice_grid, model%climate%smb_anomaly)
+    call coordsystem_allocate(model%general%ice_grid, model%climate%smb_obs)
     call coordsystem_allocate(model%general%ice_grid, model%climate%overwrite_acab_mask)
 
     if (model%options%smb_input_function == SMB_INPUT_FUNCTION_XY_GRADZ) then
@@ -3721,16 +3721,24 @@ contains
         deallocate(model%climate%smb)
     if (associated(model%climate%smb_anomaly)) &
         deallocate(model%climate%smb_anomaly)
-    if (associated(model%climate%snow)) &
-        deallocate(model%climate%snow)
-    if (associated(model%climate%precip)) &
-        deallocate(model%climate%precip)
     if (associated(model%climate%artm)) &
         deallocate(model%climate%artm)
     if (associated(model%climate%artm_anomaly)) &
         deallocate(model%climate%artm_anomaly)
     if (associated(model%climate%artm_corrected)) &
         deallocate(model%climate%artm_corrected)
+    if (associated(model%climate%snow)) &
+        deallocate(model%climate%snow)
+    if (associated(model%climate%snow_anomaly)) &
+        deallocate(model%climate%snow_anomaly)
+    if (associated(model%climate%snow_corrected)) &
+        deallocate(model%climate%snow_corrected)
+    if (associated(model%climate%precip)) &
+        deallocate(model%climate%precip)
+    if (associated(model%climate%precip_anomaly)) &
+        deallocate(model%climate%precip_anomaly)
+    if (associated(model%climate%precip_corrected)) &
+        deallocate(model%climate%precip_corrected)
     if (associated(model%climate%overwrite_acab_mask)) &
         deallocate(model%climate%overwrite_acab_mask)
     if (associated(model%climate%acab_ref)) &
@@ -3755,12 +3763,6 @@ contains
         deallocate(model%climate%artm_3d)
     if (associated(model%climate%smb_obs)) &
         deallocate(model%climate%smb_obs)
-    if (associated(model%climate%artm_ref_anomaly)) &
-        deallocate(model%climate%artm_ref_anomaly)
-    if (associated(model%climate%snow_anomaly)) &
-        deallocate(model%climate%snow_anomaly)
-    if (associated(model%climate%precip_anomaly)) &
-        deallocate(model%climate%precip_anomaly)
 
     ! calving arrays
     if (associated(model%calving%calving_thck)) &

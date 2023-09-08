@@ -1789,6 +1789,7 @@
 
   subroutine glissade_add_2d_anomaly(var2d,                    &
                                      var2d_anomaly,            &
+                                     anomaly_tstart,           &
                                      anomaly_timescale,        &
                                      time)
 
@@ -1802,6 +1803,7 @@
          var2d_anomaly       !> anomalous field to be added to the var2d input value
 
     real(dp), intent(in) ::  &
+         anomaly_tstart,   & !> time to begin applying the anomaly (yr)
          anomaly_timescale   !> number of years over which the anomaly is phased in linearly
 
     real(dp), intent(in) :: &
@@ -1816,30 +1818,27 @@
     nsn = size(var2d,2)
 
     ! Given the model time, compute the fraction of the anomaly to be applied now.
-    ! Note: The anomaly is applied in annual step functions starting at the end of the first year.
-    !       Add a small value to the time to avoid rounding errors when time is close to an integer value.
+    ! Add a small value to the time to avoid rounding errors when time is close to an integer value.
 
-    ! GL 06-26-19: note: Do we need the restriction of annual anomaly application?
-    ! WHL: The anomaly can now be applied as a smooth linear ramp (instead of yearly step changes)
-    !      by uncommenting one line below, when computing anomaly_fraction..
-
-    if (time + eps08 > anomaly_timescale .or. anomaly_timescale == 0.0d0) then
+    if (time + eps08 > anomaly_tstart + anomaly_timescale .or. anomaly_timescale == 0.0d0) then
 
        ! apply the full anomaly
        anomaly_fraction = 1.0d0
 
-    else
+    elseif (time + eps08 > anomaly_tstart) then
 
-       ! truncate the number of years and divide by the timescale
-       anomaly_fraction = floor((time + eps08), dp) / anomaly_timescale
+       ! apply an increasing fraction of the anomaly
+       anomaly_fraction = (time - anomaly_tstart) / anomaly_timescale
 
        ! Note: For initMIP, the anomaly is applied in annual step functions
        !        starting at the end of the first year.
        !       Comment out the line above and uncomment the following line
-       !        to apply a linear ramp throughout the anomaly run.
-!!       anomaly_fraction = real(time,dp) / anomaly_timescale
-!!       print*, 'time, anomaly_timescale, fraction:', time, anomaly_timescale, anomaly_fraction
+       !        to increase the anomaly once a year.
+!       anomaly_fraction = floor(time + eps08 - anomaly_tstart, dp) / anomaly_timescale
 
+    else
+       ! no anomaly to apply
+       anomaly_fraction = 0.0d0
     endif
 
     ! apply the anomaly
@@ -1855,6 +1854,7 @@
 
   subroutine glissade_add_3d_anomaly(var3d,                 &
                                      var3d_anomaly,         &
+                                     anomaly_tstart,        &
                                      anomaly_timescale,     &
                                      time)
 
@@ -1868,6 +1868,7 @@
          var3d_anomaly       !> anomaly to be added to the input value
 
     real(dp), intent(in) ::  &
+         anomaly_tstart,   & !> time to begin applying the anomaly (yr)
          anomaly_timescale   !> number of years over which the anomaly is phased in linearly
 
     real(dp), intent(in) :: &
@@ -1882,26 +1883,27 @@
     nsn = size(var3d,3)
 
     ! Given the model time, compute the fraction of the anomaly to be applied now.
-    ! Note: The anomaly is applied in annual step functions starting at the end of the first year.
-    !       Add a small value to the time to avoid rounding errors when time is close to an integer value.
+    ! Add a small value to the time to avoid rounding errors when time is close to an integer value.
 
-    if (time + eps08 > anomaly_timescale .or. anomaly_timescale == 0.0d0) then
+    if (time + eps08 > anomaly_tstart + anomaly_timescale .or. anomaly_timescale == 0.0d0) then
 
        ! apply the full anomaly
        anomaly_fraction = 1.0d0
 
-    else
+    elseif (time + eps08 > anomaly_tstart) then
 
-       ! truncate the number of years and divide by the timescale
-       anomaly_fraction = floor((time + eps08), dp) / anomaly_timescale
+       ! apply an increasing fraction of the anomaly
+       anomaly_fraction = (time - anomaly_tstart) / anomaly_timescale
 
        ! Note: For initMIP, the anomaly is applied in annual step functions
        !        starting at the end of the first year.
        !       Comment out the line above and uncomment the following line
-       !        to apply a linear ramp throughout the anomaly run.
-!!       anomaly_fraction = real(time,dp) / anomaly_timescale
-!!       print*, 'time, anomaly_timescale, fraction:', time, anomaly_timescale, anomaly_fraction
-
+       !        to increase the anomaly once a year.
+!       anomaly_fraction = floor(time + eps08 - anomaly_tstart, dp) / anomaly_timescale
+!
+    else
+       ! no anomaly to apply
+       anomaly_fraction = 0.0d0
     endif
 
     ! apply the anomaly

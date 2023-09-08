@@ -647,12 +647,11 @@ contains
     model%climate%artm_corrected(:,:) = model%climate%artm(:,:)
 
     if (model%options%enable_artm_anomaly) then
-
        ! Check whether artm_anomaly was read from an external file.
        ! If so, then use this field as the anomaly.
        ! If not, then set artm_anomaly = artm_anomaly_constant everywhere.
        ! Note: The artm_anomaly field does not change during the run,
-       !       but it is possible to ramp in the anomaly using artm_anomaly_timescale.
+       !       but it is possible to ramp up the anomaly using artm_anomaly_timescale.
        ! TODO - Write a short utility function to compute global_maxval of any field.
 
        local_maxval = maxval(abs(model%climate%artm_anomaly))
@@ -663,13 +662,12 @@ contains
                'Setting artm_anomaly = constant value (degC):', model%climate%artm_anomaly_const
           call write_log(trim(message))
        else
-          print*, 'global_maxval(artm_anomaly) =', global_maxval  !WHL - debug
           if (model%options%is_restart == RESTART_FALSE) then
              call write_log('Setting artm_anomaly from external file')
           endif
        endif
-
     endif
+    !TODO - Repeat for snow and precip anomalies
 
     ! Initialize the temperature profile in each column
     call glissade_init_therm(model%options%temp_init,    model%options%is_restart,  &
@@ -1685,6 +1683,7 @@ contains
        ! Add the bmlt_float anomaly where ice is present and floating
        call glissade_add_2d_anomaly(model%basal_melt%bmlt_float,              &   ! scaled model units
                                     model%basal_melt%bmlt_float_anomaly,      &   ! scaled model units
+                                    model%basal_melt%bmlt_anomaly_tstart,     &   ! yr
                                     model%basal_melt%bmlt_anomaly_timescale,  &   ! yr
                                     previous_time)                                ! yr
 
@@ -2002,7 +2001,6 @@ contains
     !  it includes a time-dependent anomaly.
     ! Note that artm itself does not change in time, unless it is elevation-dependent.
 
-    ! initialize
     model%climate%artm_corrected(:,:) = model%climate%artm(:,:)
 
     if (model%options%enable_artm_anomaly) then
@@ -2013,18 +2011,60 @@ contains
 
        call glissade_add_2d_anomaly(model%climate%artm_corrected,          &   ! degC
                                     model%climate%artm_anomaly,            &   ! degC
+                                    model%climate%artm_anomaly_tstart,     &   ! yr
                                     model%climate%artm_anomaly_timescale,  &   ! yr
                                     previous_time)                             ! yr
+    endif
 
-       if (verbose_glissade .and. this_rank==rtest) then
+    ! Similar calculations for snow and precip anomalies
+    ! Note: These variables are currently used only to compute glacier SMB.
+    !       There are assumed to have the same timescale as artm_anomaly.
+    ! TODO: Define a single anomaly timescale for all anomaly forcing?
+
+    model%climate%snow_corrected(:,:) = model%climate%snow(:,:)
+
+    if (model%options%enable_snow_anomaly) then
+
+       previous_time = model%numerics%time - model%numerics%dt * tim0/scyr
+
+       call glissade_add_2d_anomaly(model%climate%snow_corrected,          &   ! mm/yr w.e.
+                                    model%climate%snow_anomaly,            &   ! mm/yr w.e.
+                                    model%climate%artm_anomaly_tstart,     &   ! yr
+                                    model%climate%artm_anomaly_timescale,  &   ! yr
+                                    previous_time)                             ! yr
+    endif
+
+    model%climate%precip_corrected(:,:) = model%climate%precip(:,:)
+
+    if (model%options%enable_precip_anomaly) then
+
+       previous_time = model%numerics%time - model%numerics%dt * tim0/scyr
+
+       call glissade_add_2d_anomaly(model%climate%precip_corrected,        &   ! mm/yr w.e.
+                                    model%climate%precip_anomaly,          &   ! mm/yr w.e.
+                                    model%climate%artm_anomaly_tstart,     &   ! yr
+                                    model%climate%artm_anomaly_timescale,  &   ! yr
+                                    previous_time)                             ! yr
+    endif
+
+    if (verbose_glissade .and. this_rank==rtest) then
+       if (model%options%enable_artm_anomaly) then
           i = itest
           j = jtest
-          print*, 'i, j, previous_time, artm, artm anomaly, corrected artm (deg C):', &
-               i, j, previous_time, model%climate%artm(i,j), model%climate%artm_anomaly(i,j), &
-               model%climate%artm_corrected(i,j)
-       endif
-
-    endif
+          print*, 'rank, i, j, previous_time, current time, anomaly timescale (yr):', &
+               this_rank, i, j, previous_time, model%numerics%time, model%climate%artm_anomaly_timescale
+          print*, '   artm, artm anomaly, corrected artm (deg C):', model%climate%artm(i,j), &
+               model%climate%artm_anomaly(i,j), model%climate%artm_corrected(i,j)
+          if (model%options%enable_snow_anomaly) then
+             print*, '   snow, snow anomaly, corrected snow (mm/yr):', model%climate%snow(i,j), &
+                  model%climate%snow_anomaly(i,j), model%climate%snow_corrected(i,j)
+          endif
+          if (model%options%enable_precip_anomaly) then
+             print*, '   prcp, prcp anomaly, corrected prcp (mm/yr):', model%climate%precip(i,j), &
+                  model%climate%precip_anomaly(i,j), model%climate%precip_corrected(i,j)
+          endif
+       endif   ! enable_artm_anomaly
+    endif   ! verbose
 
     if (main_task .and. verbose_glissade) print*, 'Call glissade_therm_driver'
 
@@ -2857,6 +2897,7 @@ contains
 
           call glissade_add_2d_anomaly(model%climate%acab_corrected,          &   ! scaled model units
                                        model%climate%acab_anomaly,            &   ! scaled model units
+                                       model%climate%acab_anomaly_tstart,     &   ! yr
                                        model%climate%acab_anomaly_timescale,  &   ! yr
                                        previous_time)                             ! yr
 
