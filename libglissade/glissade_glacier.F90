@@ -745,9 +745,10 @@ contains
          thck_target,             & ! target ice thickness for the baseline state (m)
          dthck_dt,                & ! rate of change of thickness (m/yr)
          tsrf,                    & ! local array for surface air temperature (deg C)
+         artm,                    & ! artm, baseline or current date
+         snow,                    & ! snowfall, baseline or current date
+         precip,                  & ! precip, baseline or current date
          Tpos,                    & ! max(artm - tmlt, 0.0)
-         snow,                    & ! snowfall rate (mm w.e./yr)
-         artm_ref_recent,         & ! artm at reference elevation, recent (smb_obs) date
          artm_recent,             & ! artm, recent (smb_obs) date
          snow_recent,             & ! snowfall rate (mm w.e./yr), recent date
          precip_recent,           & ! precip rate, recent date
@@ -916,53 +917,65 @@ contains
     endif   ! time_since_last_avg = 0
 
     ! Halo updates for snow and artm
-    ! Note: artm_corrected is the input artm, possibly corrected to include an anomaly term.
+    ! Note: artm_corrected, snow_corrected, and precip_corrected are the input fields.
+    !       The 'corrected' suffix means that anomaly forcing, if enabled, has been included.
+    !       Assuming artm_input_function = xy_lapse, a lapse rate correction has already been applied.
     ! Note: snow_calc is the snow calculation option: Either use the snowfall rate directly,
     !       or compute the snowfall rate from the precip rate and downscaled artm.
     !TODO - Not sure these are needed. Maybe can save halo updates for the annual-averaged snow and Tpos
 
+    call parallel_halo(model%climate%artm_corrected, parallel)
     if (glacier%snow_calc == GLACIER_SNOW_CALC_SNOW) then
-       call parallel_halo(model%climate%snow, parallel)
+       call parallel_halo(model%climate%snow_corrected, parallel)
     elseif (glacier%snow_calc == GLACIER_SNOW_CALC_PRECIP_ARTM) then
-       call parallel_halo(model%climate%precip, parallel)
+       call parallel_halo(model%climate%precip_corrected, parallel)
     endif
-    call parallel_halo(model%climate%artm_ref, parallel)
 
-    ! Compute artm and Tpos at the current surface elevation, usrf
-    ! Note: If inverting for mu_star, then artm and Tpos apply to the baseline climate.
-    !       For forward runs, artm and Tpos apply to the current climate.
+    ! Initialize the glacier fields: artm, snow, and precip.
+    ! If inverting for mu_star, then artm, snow, and precip apply to the baseline climate.
+    ! For forward runs, artm and Tpos apply to the current climate.
+    !
+    ! The 'corrected' suffix means that anomaly forcing, if enabled, has already been included.
+    ! When inverting for mu_star, the anomaly fields are used to form the 'recent' forcing fields below,
+    !  but are not part of the baseline climate fields.
+    !  We have enable_acab_anomaly = enable_snow_anomaly = enable_snow_anomaly = F,
+    !  and thus the anomaly fields are ignored in glissade.F90.
+    ! To include anomaly forcing in forward runs, we set enable_acab_anomaly = enable_snow_anomaly
+    !  = enable_snow_anomaly = T. Then the anomaly fields are added to the baseline fields in glissade.F90
+    !  to form the current fields.
+
+    artm(:,:)   = model%climate%artm_corrected(:,:)
+    snow(:,:)   = model%climate%snow_corrected(:,:)
+    precip(:,:) = model%climate%precip_corrected(:,:)
+
+    ! Add the beta temperature correction term for glaciers with nonzero beta_artm.
 
     do j = nhalo+1, nsn-nhalo
        do i = nhalo+1, ewn-nhalo
           ng = glacier%smb_glacier_id_init(i,j)
           if (ng > 0) then
-             model%climate%artm(i,j) = model%climate%artm_ref(i,j)  &
-                  - (model%geometry%usrf(i,j)*thk0 - model%climate%usrf_ref(i,j))*model%climate%t_lapse &
-                  + glacier%beta_artm(ng)
-          else
-             model%climate%artm(i,j) = model%climate%artm_ref(i,j)  &
-                  - (model%geometry%usrf(i,j)*thk0 - model%climate%usrf_ref(i,j))*model%climate%t_lapse
+             artm(i,j) = artm(i,j) + glacier%beta_artm(ng)
           endif
-          Tpos(i,j) = max(model%climate%artm(i,j) - glacier%tmlt, 0.0d0)
+          Tpos(i,j) = max(artm(i,j) - glacier%tmlt, 0.0d0)
        enddo
     enddo
 
-    ! Compute the snowfall rate.
-    ! Depending on glacier%snow_calc, we either use the snowfall rate directly,
-    !   or based on the input precip and artm.
+    ! Compute the snowfall rate
 
     if (glacier%snow_calc == GLACIER_SNOW_CALC_SNOW) then
 
-       snow(:,:) = model%climate%snow(:,:)
+       ! do nothing; use the input snowfall rate directly
 
     elseif (glacier%snow_calc == GLACIER_SNOW_CALC_PRECIP_ARTM) then
+
+       ! compute snowfall based on precip and artm
 
        call glacier_calc_snow(&
             ewn,       nsn,                   &
             glacier%snow_threshold_min,       &
             glacier%snow_threshold_max,       &
-            model%climate%precip,             &
-            model%climate%artm,               &
+            precip,                           &
+            artm,                             &
             snow)
 
     endif   ! snow_calc
@@ -970,57 +983,47 @@ contains
     if (verbose_glacier .and. this_rank == rtest) then
        i = itest; j = jtest
        print*, ' '
-       print*, 'In glissade_glacier_inversion, diag cell (r, i, j) =', rtest, itest, jtest
+       print*, 'In glissade_glacier_update, diag cell (r, i, j) =', rtest, itest, jtest
        print*, ' '
        print*, '   usrf_ref, usrf, diff, artm_ref:', &
             model%climate%usrf_ref(i,j), model%geometry%usrf(i,j)*thk0, &
             model%geometry%usrf(i,j)*thk0 - model%climate%usrf_ref(i,j), &
             model%climate%artm_ref(i,j)
-       print*, '       artm, Tpos, snow:', model%climate%artm(i,j), Tpos(i,j), snow(i,j)
+       print*, '       artm, Tpos, snow:', artm(i,j), Tpos(i,j), snow(i,j)
     endif   ! verbose
 
     ! If inverting for mu and/or alpha, then compute artm_ref, snow, and precip at the recent and RGI dates.
+    ! Note: When inverting for mu_star and alpha, we have enable_artm_anomaly = enable_snow_anomaly =
+    !       enable_precip_anomaly = F. The anomalies are used here for inversion, but are not applied
+    !       in the main glissade module.
 
     if (glacier%set_mu_star == GLACIER_MU_STAR_INVERSION) then
 
-       artm_ref_recent(:,:) = model%climate%artm_ref(:,:) + model%climate%artm_ref_anomaly(:,:)
-       snow_recent(:,:)     = model%climate%snow(:,:)     + model%climate%snow_anomaly(:,:)
-       precip_recent(:,:)   = model%climate%precip(:,:)   + model%climate%precip_anomaly(:,:)
+       artm_recent(:,:)   = artm(:,:)   + model%climate%artm_anomaly(:,:)
+       snow_recent(:,:)   = snow(:,:)   + model%climate%snow_anomaly(:,:)
+       precip_recent(:,:) = precip(:,:) + model%climate%precip_anomaly(:,:)
 
-       ! Compute artm and Tpos for the recent climate at the extrapolated surface elevation, usrf_recent.
+       ! Compute artm and Tpos for the recent climate at the extrapolated surface elevation.
        ! We estimate usrf_recent = usrf + (dSMB/2)*dt,
        !    where dSMB = smb_recent - smb is the difference in SMB between the baseline and recent climate,
        !          (so dSMB/2 is the average SMB anomaly over that period), and dt is the number of years elapsed.
        ! In other words, assume that the entire SMB anomaly is used to melt ice, without the
        !  flow having time to adjust.
 
-       ! Note: The fields with the 'recent' suffix are used only for inversion
-       !       and are needed only for cells that are initially glacier-covered.
-       !       If inversion is turned off, these fields will equal 0.
-
        do j = nhalo+1, nsn-nhalo
           do i = nhalo+1, ewn-nhalo
-             usrf_recent = model%geometry%usrf(i,j)*thk0 + glacier%delta_usrf_recent(i,j)
-             ng = glacier%smb_glacier_id_init(i,j)
-             if (ng > 0) then
-                artm_recent(i,j) = artm_ref_recent(i,j)  &
-                     - (usrf_recent - model%climate%usrf_ref(i,j))*model%climate%t_lapse  &
-                     + glacier%beta_artm(ng)
-             else
-                artm_recent(i,j) = artm_ref_recent(i,j)  &
-                     - (usrf_recent - model%climate%usrf_ref(i,j))*model%climate%t_lapse
-             endif
+             artm_recent(i,j) = artm_recent(i,j) - glacier%delta_usrf_recent(i,j)*model%climate%t_lapse
              Tpos_recent(i,j) = max(artm_recent(i,j) - glacier%tmlt, 0.0d0)
           enddo
        enddo
 
        ! Estimate artm, Tpos, and snow or precip for the RGI climate by interpolation.
 
-       rgi_date_frac = (glacier%rgi_date - glacier%baseline_date) / &
+       rgi_date_frac = (glacier%rgi_date    - glacier%baseline_date) / &
                        (glacier%recent_date - glacier%baseline_date)
 
        artm_rgi(:,:) = &
-            (1.d0 - rgi_date_frac) * model%climate%artm(:,:)  &
+            (1.d0 - rgi_date_frac) * artm(:,:)  &
                  +  rgi_date_frac  * artm_recent(:,:)
 
        Tpos_rgi(:,:) = max(artm_rgi(:,:) - glacier%tmlt, 0.0d0)
@@ -1029,9 +1032,8 @@ contains
 
        if (glacier%snow_calc == GLACIER_SNOW_CALC_SNOW) then
 
-          snow_rgi(:,:) = &
-               (1.d0 - rgi_date_frac) * snow(:,:)  &
-                    +  rgi_date_frac  * snow_recent(:,:)
+          snow_rgi(:,:) = (1.d0 - rgi_date_frac) * snow(:,:)  &
+                               +  rgi_date_frac  * snow_recent(:,:)
 
        elseif (glacier%snow_calc == GLACIER_SNOW_CALC_PRECIP_ARTM) then
 
@@ -1043,9 +1045,8 @@ contains
                artm_recent,                      &
                snow_recent)
 
-          precip_rgi(:,:) = &
-               (1.d0 - rgi_date_frac) * model%climate%precip(:,:)  &
-                    +  rgi_date_frac  * precip_recent(:,:)
+          precip_rgi(:,:) = (1.d0 - rgi_date_frac) * precip(:,:)  &
+                                  + rgi_date_frac  * precip_recent(:,:)
 
           call glacier_calc_snow(&
                ewn,       nsn,                   &
@@ -1059,11 +1060,9 @@ contains
 
        if (verbose_glacier .and. this_rank == rtest) then
           i = itest; j = jtest
-          print*, '   RGI artm, Tpos, snow:', &
-               artm_rgi(i,j), Tpos_rgi(i,j), snow_rgi(i,j)
-          print*, 'Recent artm, Tpos, snow:', &
-               artm_recent(i,j), Tpos_recent(i,j), snow_recent(i,j)
-       endif   ! verbose
+          print*, '   RGI artm, Tpos, snow:', artm_rgi(i,j), Tpos_rgi(i,j), snow_rgi(i,j)
+          print*, 'Recent artm, Tpos, snow:', artm_recent(i,j), Tpos_recent(i,j), snow_recent(i,j)
+       endif
 
     endif   ! set_mu_star
 

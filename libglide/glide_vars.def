@@ -855,14 +855,6 @@ data:          data%climate%artm_gradz
 standard_name: land_ice_surface_temperature_vertical_gradient
 load:          1
 
-[artm_anomaly]
-dimensions:    time, y1, x1
-units:         deg Celsius
-long_name:     surface temperature anomaly
-data:          data%climate%artm_anomaly
-standard_name: land_ice_surface_temperature_anomaly
-load:          1
-
 [usrf_ref]
 dimensions:    time, y1, x1
 units:         m
@@ -871,12 +863,12 @@ data:          data%climate%usrf_ref
 standard_name: land_ice_reference_surface_elevation
 load:          1
 
-[artm_ref_anomaly]
+[artm_anomaly]
 dimensions:    time, y1, x1
 units:         deg Celsius
-long_name:     reference surface temperature anomaly
-data:          data%climate%artm_ref_anomaly
-standard_name: land_ice_reference_surface_temperature_anomaly
+long_name:     surface temperature anomaly
+data:          data%climate%artm_anomaly
+standard_name: land_ice_surface_temperature_anomaly
 load:          1
 read_once:     1
 
