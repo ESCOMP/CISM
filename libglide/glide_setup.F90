@@ -735,6 +735,8 @@ contains
     call GetValue(section,'nlev_smb',model%climate%nlev_smb)
     call GetValue(section,'enable_acab_anomaly',model%options%enable_acab_anomaly)
     call GetValue(section,'enable_artm_anomaly',model%options%enable_artm_anomaly)
+    call GetValue(section,'enable_snow_anomaly',model%options%enable_snow_anomaly)
+    call GetValue(section,'enable_precip_anomaly',model%options%enable_precip_anomaly)
     call GetValue(section,'overwrite_acab',model%options%overwrite_acab)
     call GetValue(section,'enable_acab_dthck_dt_correction',model%options%enable_acab_dthck_dt_correction)
     call GetValue(section,'gthf',model%options%gthf)
@@ -1610,6 +1612,14 @@ contains
        call write_log('artm anomaly forcing is enabled')
     endif
 
+    if (model%options%enable_snow_anomaly) then
+       call write_log('snow anomaly forcing is enabled')
+    endif
+
+    if (model%options%enable_precip_anomaly) then
+       call write_log('precip anomaly forcing is enabled')
+    endif
+
     if (model%options%overwrite_acab < 0 .or. model%options%overwrite_acab >= size(overwrite_acab)) then
        call write_log('Error, overwrite_acab option out of range',GM_FATAL)
     end if
@@ -1977,7 +1987,7 @@ contains
              call write_log('Error, basal-friction assembly option out of range for glissade dycore', GM_FATAL)
           end if
 
-          write(message,*) 'ho_whichassemble_lateral  : ',model%options%which_ho_assemble_lateral,  &
+          write(message,*) 'ho_whichassemble_lateral: ',model%options%which_ho_assemble_lateral,  &
                             ho_whichassemble_lateral(model%options%which_ho_assemble_lateral)
           call write_log(message)
           if (model%options%which_ho_assemble_lateral < 0 .or. &
@@ -2297,17 +2307,18 @@ contains
     call GetValue(section,'periodic_offset_ns',model%numerics%periodic_offset_ns)
 
     ! parameters for acab/artm anomaly and overwrite options
+    call GetValue(section,'acab_anomaly_tstart',    model%climate%acab_anomaly_tstart)
     call GetValue(section,'acab_anomaly_timescale', model%climate%acab_anomaly_timescale)
-    call GetValue(section,'overwrite_acab_value', model%climate%overwrite_acab_value)
+    call GetValue(section,'overwrite_acab_value',   model%climate%overwrite_acab_value)
     call GetValue(section,'overwrite_acab_minthck', model%climate%overwrite_acab_minthck)
-    call GetValue(section,'bmlt_anomaly_timescale', model%basal_melt%bmlt_anomaly_timescale)
-
-    ! parameters for artm anomaly option
-    call GetValue(section,'artm_anomaly_const', model%climate%artm_anomaly_const)
+    call GetValue(section,'artm_anomaly_const',     model%climate%artm_anomaly_const)
+    call GetValue(section,'artm_anomaly_tstart',    model%climate%artm_anomaly_tstart)
     call GetValue(section,'artm_anomaly_timescale', model%climate%artm_anomaly_timescale)
 
     ! basal melting parameters
-    call GetValue(section,'bmlt_cavity_h0', model%basal_melt%bmlt_cavity_h0)
+    call GetValue(section,'bmlt_cavity_h0',         model%basal_melt%bmlt_cavity_h0)
+    call GetValue(section,'bmlt_anomaly_tstart',    model%basal_melt%bmlt_anomaly_tstart)
+    call GetValue(section,'bmlt_anomaly_timescale', model%basal_melt%bmlt_anomaly_timescale)
 
     ! MISMIP+ basal melting parameters
     call GetValue(section,'bmlt_float_omega', model%basal_melt%bmlt_float_omega)
@@ -2872,7 +2883,9 @@ contains
 
     ! initMIP parameters
     if (model%climate%acab_anomaly_timescale > 0.0d0) then
-       write(message,*) 'acab_anomaly_timescale (yr): ', model%climate%acab_anomaly_timescale
+       write(message,*) 'acab_anomaly start time (yr): ', model%climate%acab_anomaly_tstart
+       call write_log(message)
+       write(message,*) 'acab_anomaly_timescale (yr) : ', model%climate%acab_anomaly_timescale
        call write_log(message)
     endif
 
@@ -2892,6 +2905,8 @@ contains
           call write_log(message)
        endif
        if (model%climate%artm_anomaly_timescale > 0.0d0) then
+          write(message,*) 'artm_anomaly start time (yr): ', model%climate%artm_anomaly_tstart
+          call write_log(message)
           write(message,*) 'artm_anomaly_timescale (yr): ', model%climate%artm_anomaly_timescale
           call write_log(message)
        endif
@@ -2904,6 +2919,8 @@ contains
     endif
 
     if (model%basal_melt%bmlt_anomaly_timescale > 0.0d0) then
+       write(message,*) 'bmlt_anomaly start time (yr): ', model%basal_melt%bmlt_anomaly_tstart
+       call write_log(message)
        write(message,*) 'bmlt_anomaly_timescale (yr): ', model%basal_melt%bmlt_anomaly_timescale
        call write_log(message)
     endif
@@ -3460,6 +3477,7 @@ contains
     ! Add anomaly forcing variables
     ! Note: If enable_acab_dthck_dt_correction = T, then dthck_dt_obs is needed for restart.
     !       Should be in restart file based on which_ho_deltaT_ocn /= 0
+    !TODO - Remove these? Anomaly forcing is typically in a forcing file, not the main input file.
 
     if (options%enable_acab_anomaly) then
        select case (options%smb_input)
