@@ -523,7 +523,6 @@ contains
 
     use glimmer_global, only: msg_length
     use glimmer_log
-    use glide_types
     use cism_parallel, only: main_task, parallel_reduce_sum
 
     implicit none
@@ -606,9 +605,7 @@ contains
 
     use glimmer_global, only: msg_length
     use glimmer_log
-    use glide_types
     use cism_parallel, only: main_task
-
     implicit none
     type(DATATYPE) :: data
     type(glide_global_type), intent(inout) :: model
