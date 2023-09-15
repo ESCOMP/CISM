@@ -41,6 +41,9 @@ module NAME_io
 
   use DATAMOD
   use glimmer_ncdf
+  use glimmer_paramets
+  use glimmer_physcon
+  use glimmer_scales
 
   implicit none
 
@@ -66,8 +69,6 @@ contains
   !*****************************************************************************
   subroutine NAME_io_createall(model,data,outfiles)
     ! open all netCDF files for output
-    use DATAMOD
-    use glide_types
     use glimmer_ncio
     implicit none
     type(glide_global_type) :: model
@@ -91,8 +92,6 @@ contains
 
   subroutine NAME_io_writeall(data,model,atend,outfiles,time)
     ! if necessary write to netCDF files
-    use DATAMOD
-    use glide_types
     use glimmer_ncio
     implicit none
     type(DATATYPE) :: data
@@ -139,14 +138,9 @@ contains
 
     use cism_parallel, only: parallel_type, &
          parallel_def_dim, parallel_inq_dimid, parallel_def_var, parallel_inq_varid, parallel_put_att
-    use glide_types
-    use DATAMOD
     use glimmer_ncio
     use glimmer_map_types
     use glimmer_log
-    use glimmer_paramets
-    use glimmer_physcon
-    use glimmer_scales
     implicit none
     type(glimmer_nc_output), pointer :: outfile
     type(glide_global_type) :: model
@@ -231,10 +225,6 @@ contains
   subroutine NAME_io_write(outfile,data)
 
     use cism_parallel, only: parallel_type, parallel_inq_varid, distributed_put_var, parallel_put_var
-    use DATAMOD
-    use glimmer_paramets
-    use glimmer_physcon
-    use glimmer_scales
     implicit none
     type(glimmer_nc_output), pointer :: outfile
     ! structure containg output netCDF descriptor
@@ -369,8 +359,6 @@ contains
   !*****************************************************************************  
   subroutine NAME_io_readall(data, model, filetype)
     ! read from netCDF file
-    use DATAMOD
-    use glide_types
     use glimmer_ncio
     implicit none
     type(DATATYPE) :: data
@@ -407,7 +395,6 @@ contains
 
     ! Read data from forcing files
     use glimmer_log
-    use glide_types
     use cism_parallel, only: main_task
 
     implicit none
@@ -514,7 +501,6 @@ contains
 
     use glimmer_global, only: msg_length
     use glimmer_log
-    use glide_types
     use cism_parallel, only: main_task, parallel_reduce_sum
 
     implicit none
@@ -597,9 +583,7 @@ contains
 
     use glimmer_global, only: msg_length
     use glimmer_log
-    use glide_types
     use cism_parallel, only: main_task
-
     implicit none
     type(DATATYPE) :: data
     type(glide_global_type), intent(inout) :: model
@@ -742,9 +726,6 @@ contains
     use cism_parallel, only: parallel_type, &
          parallel_inq_varid, parallel_get_att, distributed_get_var, parallel_get_var
     use glimmer_log
-    use DATAMOD
-    use glimmer_paramets
-    use glimmer_scales
     implicit none
     type(glimmer_nc_input), pointer :: infile
     ! structure containg output netCDF descriptor
@@ -769,8 +750,6 @@ contains
     ! check if dimension sizes in file match dims of model
     use cism_parallel, only: parallel_type, parallel_inq_dimid, parallel_inquire_dimension
     use glimmer_log
-    use glide_types
-    use DATAMOD
     implicit none
     type(glimmer_nc_input), pointer :: infile
     ! structure containg output netCDF descriptor
@@ -797,8 +776,6 @@ contains
     ! TODO: Write code to check for doubly listed tavg variables and throw a fatal error.
 
     use cism_parallel, only: parallel_inq_varid
-    use glide_types
-    use DATAMOD
     implicit none
     type(glimmer_nc_output), pointer :: outfile
     ! structure containg output netCDF descriptor
@@ -819,7 +796,6 @@ contains
   subroutine NAME_avg_reset(outfile,data)
 
     use cism_parallel, only: parallel_inq_varid
-    use DATAMOD
     implicit none
     type(glimmer_nc_output), pointer :: outfile
     ! structure containg output netCDF descriptor
