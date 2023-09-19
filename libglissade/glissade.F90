@@ -423,11 +423,6 @@ contains
        call check_fill_values(model%ocean_data%thermal_forcing)
     endif
 
-    if (model%options%which_ho_deltaT_ocn == HO_DELTAT_OCN_DTHCK_DT .or.  &
-        model%options%enable_acab_dthck_dt_correction) then
-       call check_fill_values(model%geometry%dthck_dt_obs)
-    endif
-
     ! Allocate mask arrays in case they are needed below
     allocate(ice_mask(model%general%ewn, model%general%nsn))
     allocate(floating_mask(model%general%ewn, model%general%nsn))
@@ -500,6 +495,17 @@ contains
     if (model%options%adjust_input_topography .and. model%options%is_restart == NO_RESTART) then
        call glissade_adjust_topography(model)
     endif
+
+    !check if there is an f_effecpress_field read in from the input file
+    if (model%options%is_restart == RESTART_TRUE) then
+        if (model%basal_physics%p_ocean_penetration > 0.0d0) then
+            ! ocean penetration is turned on. Is there a file available?
+            if ( SUM(model%basal_physics%f_effecpress_ocean_p) < 1) then !safely assume that there is no file read in
+               model%basal_physics%f_effecpress_ocean_p(:,:) = 1.0d0
+            endif
+        endif
+    endif
+
 
     ! Optionally, compute the standard deviation of the topography.
     ! Ideally, this would be done when preparing the input file.
@@ -1250,9 +1256,28 @@ contains
     deallocate(land_mask)
     deallocate(ocean_mask)
 
+    !if needed loop over the basins to find which basins need a multiplier
+    if (model%options%which_ho_bmlt_basin_correction == HO_BMLT_BASIN_CORRECTION) then
+       print*, 'zakje'
+       print*, model%basal_melt%basin_correctionfactor
+       print*, model%basal_melt%maxnbasin_correction
+       print*, model%basal_melt%minnbasin_correction
+       do j = 1,model%general%ewn 
+          do i = 1, model%general%nsn
+             if (model%basal_melt%minnbasin_correction < model%ocean_data%basin_number(i,j) &
+                .and. model%ocean_data%basin_number(i,j) < model%basal_melt%maxnbasin_correction) then
+                model%basal_melt%basin_multiplier_array(i,j)=model%basal_melt%basin_correctionfactor
+             else
+                model%basal_melt%basin_multiplier_array(i,j)=1.0d0
+             endif
+          enddo
+       enddo
+    endif
+
     if (main_task) print*, 'Done in glissade_initialise'
 
   end subroutine glissade_initialise
+ 
   
 !=======================================================================
 
@@ -1260,22 +1285,29 @@ contains
 
     ! Perform time-step of an ice model instance with the Glissade dycore
 
-    use cism_parallel, only:  parallel_type, not_parallel
-
     use glimmer_paramets, only: tim0, len0, thk0
     use glimmer_physcon, only: scyr
     use glide_mask, only: glide_set_mask, calc_iareaf_iareag
+
+    use glissade_masks, only: glissade_marine_connection_mask
+
+    use cism_parallel, only: parallel_type, not_parallel
 
     implicit none
 
     type(glide_global_type), intent(inout) :: model   ! model instance
     real(dp), intent(in) :: time         ! current time in years
 
+
+
     ! --- Local variables ---
 
     integer :: i, j
     integer :: itest, jtest, rtest
 
+    type(parallel_type) :: parallel   ! info for parallel communication
+
+    parallel = model%parallel
     ! ========================
 
     ! Set debug diagnostics
@@ -1417,8 +1449,7 @@ contains
     model%basal_melt%bmlt(:,:) = model%basal_melt%bmlt_ground(:,:) + model%basal_melt%bmlt_float(:,:)
    !!add the option here to include an updated marine connection field that does not go thourgh marine grounded ice
     if (model%options%which_ho_marine_mask == HO_MARINE_MASK_ISOLATED) then
-   !TvdA_speed_search: see if this one is actually called
-       print*, 'TvdA: we are calling glissade_marine_connection, possibly slow'    
+       
        call glissade_marine_connection_mask(&
             model%general%ewn,          model%general%nsn,          &
             parallel,                                               &
@@ -1431,12 +1462,22 @@ contains
             model%geometry%f_ground_cell,                           &
             model%basal_melt%bmlt_fground_threshold)
 
-
          model%basal_melt%bmlt(:,:) = model%basal_melt%bmlt_ground(:,:) + &
          model%geometry%marine_connection_mask_isolated(:,:)*model%basal_melt%bmlt_float(:,:)*model%basal_melt%bmlt_float_factor_internal
 
     endif
 
+
+         model%basal_melt%bmlt(:,:) = model%basal_melt%bmlt_ground(:,:) + &
+         model%geometry%marine_connection_mask_isolated(:,:)*model%basal_melt%bmlt_float(:,:)*model%basal_melt%bmlt_float_factor_internal
+
+
+    else if (model%options%which_ho_bmlt_basin_correction == HO_BMLT_BASIN_CORRECTION) then
+          
+         model%basal_melt%bmlt(:,:) = model%basal_melt%bmlt_ground(:,:) + model%basal_melt%bmlt_float(:,:)*model%basal_melt%basin_multiplier_array(:,:)
+    else
+         model%basal_melt%bmlt(:,:) = model%basal_melt%bmlt_ground(:,:) + model%basal_melt%bmlt_float(:,:)*model%basal_melt%bmlt_float_factor_internal
+    endif
     if (verbose_glissade .and. this_rank == rtest) then
        i = itest
        j = jtest
@@ -1840,7 +1881,6 @@ contains
        if (model%basal_melt%bmlt_float_factor /= 1.0d0) then
           model%basal_melt%bmlt_float(:,:) = model%basal_melt%bmlt_float(:,:) * model%basal_melt%bmlt_float_factor
        endif
-       endif !external
 
        elseif (model%options%which_ho_ground_bmlt == HO_GROUND_BMLT_ZERO_GROUNDED) then
 
@@ -2312,7 +2352,12 @@ contains
             floating_mask,                                    &
             bmlt_ground_unscaled,                             &  ! m/s
             model%basal_hydro%bwatflx,                        &  ! m^3/s
-            model%basal_hydro%head)                              ! m
+            model%basal_hydro%head,                           &  !m
+            model%basal_hydro%bwat_diag,                      &
+            model%options%which_ho_laminar_flow,              &
+            model%basal_hydro%c_flux_array,                   &
+            model%options%which_ho_bwat_effecpressintern,     &
+            model%basal_physics%effecpress)                         ! m
 
     else  ! simpler basal water options
 
@@ -2449,7 +2494,6 @@ contains
     character(len=100) :: message
 
     logical, parameter :: verbose_smb = .false.
-!!    logical, parameter :: verbose_smb = .true.
 
     rtest = -999
     itest = 1
@@ -3089,9 +3133,9 @@ contains
              enddo
           endif
 
-          where (model%geometry%f_ground_cell < 1.0d0 .and. model%geometry%dthck_dt_obs_basin < 0.0d0)
-             ! floating ice is thinning in obs; apply a positive correction to acab
-             ! Note: dthck_dt_obs_basin has units of m/yr; convert to m/s
+          where (model%geometry%f_ground_cell < 1.0d0 .and. model%geometry%dthck_dt_obs < model%inversion%floating_dhdt_limit)
+             ! ice is floating and thinning in obs; apply a positive correction to acab
+             ! Note: dthck_dt_obs has units of m/yr; convert to m/s
              acab_unscaled = acab_unscaled &
                   - (1.0d0 - model%geometry%f_ground_cell) * (model%geometry%dthck_dt_obs/scyr)
           endwhere
@@ -3103,6 +3147,57 @@ contains
                 write(6,'(i6)',advance='no') j
                 do i = itest-3, itest+3
                    write(6,'(f10.3)',advance='no') -model%geometry%dthck_dt_obs(i,j)
+                enddo
+                write(6,*) ' '
+             enddo
+
+             write(6,*) ' '
+             write(6,*) 'new acab (m/yr)'
+             do j = jtest+3, jtest-3, -1
+                write(6,'(i6)',advance='no') j
+                do i = itest-3, itest+3
+                   write(6,'(f10.3)',advance='no') acab_unscaled(i,j) * scyr
+                enddo
+                write(6,*) ' '
+             enddo
+
+          endif
+
+       endif   ! enable_acab_dthck_dt_correction
+
+
+
+       if (model%options%enable_acab_dthck_dt_grounded_correction) then
+
+          if (verbose_smb .and. this_rank == rtest) then
+             write(6,*) ' '
+             write(6,*) 'uncorrected acab (m/yr)'
+             do j = jtest+3, jtest-3, -1
+                write(6,'(i6)',advance='no') j
+                do i = itest-3, itest+3
+                   write(6,'(f10.3)',advance='no') acab_unscaled(i,j) * scyr
+                enddo
+                write(6,*) ' '
+             enddo
+          endif
+
+          where (model%geometry%f_ground_cell == 1.0d0)
+             ! ice is grounded, add the -dthck_dt. Note that we can add thickening as well, since usually the friction can account
+             ! for both thinning and thickening, unlike the basal melt float
+             ! Note: dthck_dt_obs has units of m/yr; convert to m/s
+             acab_unscaled = acab_unscaled &
+                  -  (model%geometry%dthck_dt_obs/scyr)
+          endwhere
+
+          if (verbose_smb .and. this_rank == rtest) then
+
+             write(6,*) ' '
+             write(6,*) 'dthck_dt_obs correction (m/yr)'
+             do j = jtest+3, jtest-3, -1
+                write(6,'(i6)',advance='no') j
+                do i = itest-3, itest+3
+                   write(6,'(f10.3)',advance='no') &
+                        -model%geometry%dthck_dt_obs(i,j) * (1.0d0 - model%geometry%f_ground_cell(i,j))
                 enddo
                 write(6,*) ' '
              enddo
@@ -4417,7 +4512,8 @@ contains
                thck_obs * thk0,                       &  ! m
                model%geometry%dthck_dt,               &  ! m/s
                model%ocean_data%deltaT_ocn_relax,     &  ! degC
-               model%ocean_data%deltaT_ocn)              ! degC
+               model%ocean_data%deltaT_ocn,           &  ! degC
+               model%inversion%deltaT_ocn_maxval)
 
           !we are done inverting for deltaT ocn, this should be the appropriate place to limit deltaT ocn to the 
           !-thermal forcing of the lower surface. This is now double with the call in the subroutine ismip6 
@@ -4613,6 +4709,10 @@ contains
                               model%temper%waterfrac,             &
                               model%calving%damage,               &
                               model%options%damage_flwa_feedback)
+                              model%options%which_ho_damage,      &
+                              model%inversion%ff_multiplier,      &
+                              model%inversion%ff_invert_mask,     &
+                              model%temper%waterfrac)
 
     !TODO - flwa halo update not needed?
     ! Halo update for flwa
@@ -4755,6 +4855,7 @@ contains
 					    itest, jtest,  rtest)
       else !use bwatfluxrouting, and therefore if required, the bwat from the flux routing subroutine
 !          print*, 'TvdA speed tracer: we are calling the effective pressure subroutine with slow basal hydro'
+
 	       call calc_effective_pressure(model%options%which_ho_effecpress, &
 					    model%options%which_ho_effecpress_select, &
                                             parallel,                          &

@@ -2397,9 +2397,10 @@ module glissade_therm
                                   which_ho_ground,                  &
                                   floating_mask,                    &
                                   f_ground_cell,                    &
-                                  waterfrac,                           &
-                                  damage,                              &
-                                  damage_flwa_feedback)
+                                  which_ho_damage,                  &
+                                  ff_multiplier,                    &
+                                  ff_invert_mask,                   &
+                                  waterfrac)
 
     ! Calculate Glen's $A$ over the 3D domain, using one of three possible methods.
     !
@@ -2460,6 +2461,11 @@ module glissade_therm
     real(dp),dimension(:,:,:), intent(in), optional :: waterfrac    !> internal water content fraction, 0 to 1
     real(dp),dimension(:,:,:), intent(in), optional :: damage      !> damage tracer, 0 to 1
     logical, intent(in), optional :: damage_flwa_feedback     !> if true, let flwa increase with damage
+
+    !> stuff for the damage lines
+    integer,                   intent(in)    :: which_ho_damage
+    real(dp),                  intent(in)    :: ff_multiplier
+    real(dp), dimension(:,:),  intent(in)    :: ff_invert_mask
 
     !> \begin{description}
     !> \item[0] Set to prescribed constant value.
