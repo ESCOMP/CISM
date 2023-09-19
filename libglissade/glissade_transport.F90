@@ -2204,8 +2204,8 @@
              do i = 1, nx
                 if (trcr(i,j,nt,k) /= trcr(i,j,nt,k)) then
                    call parallel_globalindex(i, j, iglobal, jglobal, parallel)
-                   write(message,*) 'ERROR: Vertical remap, iglobal, jglobal, k, hlyr, trcr:', &
-                        iglobal, jglobal, k, hlyr(i,j,k), trcr(i,j,nt,k)
+                   write(message,*) 'ERROR: Vertical remap, iglobal, jglobal, k, hlyr, trcr, trctr_usrf, trcr_lsrf:', &
+                        iglobal, jglobal, k, hlyr(i,j,k),trcr(i,j,nt,k), trcr_usrf(i,j,k), trcr_lsrf(i,j,k)
                    call write_log(trim(message), GM_FATAL) 
                 endif
              enddo

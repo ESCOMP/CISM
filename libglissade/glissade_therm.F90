@@ -2389,6 +2389,9 @@ module glissade_therm
                                   which_ho_ground,                  &
                                   floating_mask,                    &
                                   f_ground_cell,                    &
+                                  which_ho_damage,                  &
+                                  ff_multiplier,                    &
+                                  ff_invert_mask,                   &
                                   waterfrac)
 
     ! Calculate Glen's $A$ over the 3D domain, using one of three possible methods.
@@ -2449,6 +2452,11 @@ module glissade_therm
     real(dp),dimension(:,:),   intent(in)    :: f_ground_cell       !> grounded ice fraction in cell, 0 to 1
     real(dp),dimension(:,:,:), intent(in), optional :: waterfrac    !> internal water content fraction, 0 to 1
 
+    !> stuff for the damage lines
+    integer,                   intent(in)    :: which_ho_damage
+    real(dp),                  intent(in)    :: ff_multiplier
+    real(dp), dimension(:,:),  intent(in)    :: ff_invert_mask
+
     !> \begin{description}
     !> \item[0] Set to prescribed constant value.
     !> \item[1] {\em Paterson and Budd} relationship, with temperature set to -5$^{\circ}$C.
@@ -2506,6 +2514,17 @@ module glissade_therm
        ! do nothing; use the input value of flow_enhancement_factor
 
     endif
+
+    if (which_ho_damage == HO_DAMAGELINES) then 
+       do ns = 1, nsn
+          do ew = 1,ewn
+             if (ff_invert_mask(ew,ns)> 0.0d0) then
+                flow_enhancement_factor(ew,ns) = ff_multiplier
+             endif
+          enddo
+       enddo
+    endif
+
 
     ! Check that the temperature array has the desired vertical dimension
 

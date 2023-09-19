@@ -41,7 +41,7 @@ module glissade_inversion
   public :: verbose_inversion, glissade_init_inversion, glissade_inversion_basal_friction, &
             glissade_inversion_bmlt_basin, glissade_inversion_deltaT_ocn, &
             glissade_inversion_flow_enhancement_factor, usrf_to_thck
-  public :: deltaT_ocn_maxval
+!  public :: deltaT_ocn_maxval
 
   !-----------------------------------------------------------------------------
   ! Subroutines to invert for basal fields (including basal friction beneath
@@ -49,11 +49,11 @@ module glissade_inversion
   ! a target ice thickness field.
   !-----------------------------------------------------------------------------
 
-!!    logical, parameter :: verbose_inversion = .false.
-    logical, parameter :: verbose_inversion = .true.
+    logical, parameter :: verbose_inversion = .false.
+!!    logical, parameter :: verbose_inversion = .true.
 
-    real(dp), parameter :: &
-         deltaT_ocn_maxval = 5.0d0      ! max allowed magnitude of deltaT_ocn (degC)
+!    real(dp), parameter :: &
+!         deltaT_ocn_maxval = 5.0d0      ! max allowed magnitude of deltaT_ocn (degC)
 
 !***********************************************************************
 
@@ -282,10 +282,9 @@ contains
        if (var_maxval > 0.0d0) then
           ! do nothing; coulomb_c has been read in already (e.g., when restarting)
        else
-
+          !! if there is no coulomb c read in, 
           if (model%options%which_ho_coulomb_c_relax == HO_COULOMB_C_RELAX_NONE .or.  &
               model%options%which_ho_coulomb_c_relax == HO_COULOMB_C_RELAX_CONSTANT) then
-
              ! Set a low initial value for cells that are floating or ice-free ocean
              ! Set a higher value for cells that are grounded ice and/or land-covered
 
@@ -296,10 +295,16 @@ contains
              endwhere
 
              ! Interpolate to the staggered grid
-             call glissade_stagger(&
-                  ewn,         nsn,       &
-                  coulomb_c_icegrid,      &
-                  model%basal_physics%coulomb_c)
+!             call glissade_stagger(&
+!                  ewn,         nsn,       &
+!                  coulomb_c_icegrid,      &
+!                  model%basal_physics%coulomb_c, &
+!                  ice_mask, stagger_margin_in=1)
+
+
+!! TIM: the staggering didn't work, so I am hardcoding here that the intial condition is just uniformely the constant value
+             model%basal_physics%coulomb_c(:,:) = model%basal_physics%coulomb_c_const
+!!WTH, does not work, print some random cc's to test
 
               if (model%options%which_ho_coulomb_c_relax == HO_COULOMB_C_RELAX_CONSTANT) then
                  ! Set coulomb_c_relax = coulomb_c
@@ -1039,8 +1044,12 @@ contains
              ! * When C = C_r, there is no further relaxation.
              ! * In steady state (dC/dt = 0, dH/dt = 0), we have dthck/thck_scale = -k * ln(C/C_r),
              !    or C = C_r * exp(-dthck/(k*thck_scale)), where k is a prescribed constant.
-             term_relax = -babc_relax_factor * log(friction_c(i,j)/friction_c_relax(i,j)) / babc_timescale
-
+             if (friction_c_relax(i,j) > 0.0d0) then
+                     term_relax = -babc_relax_factor * log(friction_c(i,j)/friction_c_relax(i,j)) / babc_timescale
+             else 
+                     term_relax = 0.0d0
+             endif
+             
              dfriction_c(i,j) = friction_c(i,j) * dt &
                   * (term_thck + term_dHdt + term_thck2 + term_velo + term_relax)
 
@@ -1076,9 +1085,14 @@ contains
              endif
 
           else   ! no ice present; relax friction_c to the default value
-
-             term_relax = -babc_relax_factor * log(friction_c(i,j)/friction_c_relax(i,j)) / babc_timescale
-             friction_c(i,j) = friction_c(i,j) * (1.0d0 + term_relax*dt)
+             if (friction_c_relax(i,j) > 0.0d0) then
+                   term_relax = -babc_relax_factor * log(friction_c(i,j)/friction_c_relax(i,j)) / babc_timescale
+                   friction_c(i,j) = friction_c(i,j) * (1.0d0 + term_relax*dt)
+             else
+                   
+                   term_relax = -babc_relax_factor * log(friction_c(i,j)/friction_c_min) / babc_timescale
+                   friction_c(i,j) = friction_c(i,j) * (1.0d0 + term_relax*dt)
+             endif
 
           endif  ! ice_mask = 1
 
@@ -1120,6 +1134,7 @@ contains
     !        growth of ice on beds above sea level to influence the correction.
 
     real(dp), intent(in) ::  dt  ! time step (s)
+
 
     integer, intent(in) :: &
          nx, ny                  ! grid dimensions
@@ -1292,7 +1307,8 @@ contains
        thck_obs_in,              &
        dthck_dt_in,              &
        deltaT_ocn_relax,         &
-       deltaT_ocn)
+       deltaT_ocn,               &
+       deltaT_ocn_maxval)
 
     ! Compute spatially varying temperature correction factors at cell centers.
     ! Adjustments are made in floating grid cells, typically based on a thickness target:
@@ -1339,6 +1355,8 @@ contains
          term_relax,           & ! term that relaxes deltaT_ocn toward base value
          term_sum                ! sum of the terms above
 
+    real(dp) , intent(in) :: deltaT_ocn_maxval !maximum value as a config parameter
+
     integer :: i, j
 
     logical, parameter :: &
@@ -1353,6 +1371,7 @@ contains
     if (deltaT_ocn_timescale <= 0.0d0) then
        call write_log('Error, deltaT_ocn timescale must be > 0', GM_FATAL)
     endif
+   
 
     ! Optional smoothing of input fields to reduce noise in deltaT_ocn
 
@@ -1576,8 +1595,8 @@ contains
     ! Note: Max and min values are somewhat arbitrary.
     ! TODO: Make these config parameters?
     real(dp), parameter :: &
-         flow_enhancement_factor_maxval = 10.0d0,  & ! max allowed value of flow_enhancement_factor (unitless)
-         flow_enhancement_factor_minval = 0.10d0     ! min allowed value of flow_enhancement_factor (unitless)
+         flow_enhancement_factor_maxval = 100.0d0,  & ! max allowed value of flow_enhancement_factor (unitless)
+         flow_enhancement_factor_minval = 0.010d0     ! min allowed value of flow_enhancement_factor (unitless)
 
     logical, parameter :: &
          smooth_thck = .false.    ! if true, apply laplacian smoothing to input thickness fields

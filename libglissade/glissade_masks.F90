@@ -956,7 +956,10 @@
                                              itest, jtest, rtest,          &
                                              thck,         topg,           &
                                              eus,          thklim,         &
-                                             marine_connection_mask)
+                                             marine_connection_mask,       &
+                                             which_ho_marine_mask,         &
+                                             f_ground_cell,                &
+                                             bmlt_fground_threshold)
 
     ! Identify cells that have a marine path to the ocean.
     ! The path can include grounded marine-based ice.
@@ -983,14 +986,25 @@
     integer, dimension(nx,ny), intent(out) ::  &
          marine_connection_mask    !> = 1 for ocean cells and cells connected to the ocean through marine-based ice
 
-    ! local variables
+    integer, intent(in), optional :: &
+         which_ho_marine_mask
+
+    real(dp), dimension(nx,ny),  intent(in), optional :: &
+         f_ground_cell           !>extended grid ground function 
+   
+    real(dp), intent(in), optional :: &
+         bmlt_fground_threshold  !> with an fgroundcell above this value, cells are considered to block ocean melting
+   ! local variables 
 
     integer, dimension(nx,ny) ::  &
          ocean_mask,          &  !> = 1 where topg - eus is below sea level and ice is absent, else = 0
          ocean_mask_temp,     &  !> temporary version of ocean_mask
          marine_mask,         &  !> marine-based cells; topg - eus < 0
-         color                   ! integer 'color' mask to mark filled cells
+         color                  ! integer 'color' mask to mark filled cells
+         
 
+    real(dp), dimension(nx,ny) :: & 
+         topg_local              !>array to hold the topography used here, possibly adjusted where the f_ground_cell=1
     integer :: i, j, iter
 
     integer :: &
@@ -1003,11 +1017,31 @@
     real(dp), parameter :: &
          ocean_topg_threshold = -500.d0   !> ocean threshold elevation (m) to seed the fill; negative below sea level
 
-    logical, parameter :: verbose_marine_connection = .false.
+    logical, parameter :: verbose_marine_connection = .true.
 
     ! Compute ocean_mask, which is used to seed the fill.
     ! If ocean_topg_threshold was passed in, then ocean_mask includes only cells
     !  with topg - eus < ocean_topg_threshold.
+    ! TIM: debug, this next loop I added but I suspect this is what is causing a vertical remap problem. I'll remove it
+
+!    if (present(which_ho_marine_mask)) then
+!      if (which_ho_marine_mask == HO_MARINE_MASK_ISOLATED) then
+!        do j=1, ny
+!           do i=1, nx
+!              if (f_ground_cell(i,j)>bmlt_fground_threshold) then
+!                 topg_local(i,j)=1999.0d0 !dummy variable above sl
+!              else
+!                 topg_local(i,j)=topg(i,j)
+!              endif
+!           enddo
+!          enddo
+!       else
+!          topg_local(:,:) = topg(:,:)
+!       endif !which_ho_marine_mask
+!    else
+!       topg_local(:,:) = topg(:,:)
+!    endif !if present
+
 
     where (thck <= thklim .and. topg - eus < ocean_topg_threshold)
        ocean_mask = 1

@@ -736,6 +736,7 @@ contains
     call GetValue(section,'enable_artm_anomaly',model%options%enable_artm_anomaly)
     call GetValue(section,'overwrite_acab',model%options%overwrite_acab)
     call GetValue(section,'enable_acab_dthck_dt_correction',model%options%enable_acab_dthck_dt_correction)
+    call GetValue(section, 'enable_acab_dthck_dt_grounded_correction',model%options%enable_acab_dthck_dt_grounded_correction)
     call GetValue(section,'gthf',model%options%gthf)
     call GetValue(section,'isostasy',model%options%isostasy)
     call GetValue(section,'marine_margin',model%options%whichcalving)
@@ -821,7 +822,13 @@ contains
     call GetValue(section, 'linear_solve_ncheck',         model%options%linear_solve_ncheck)
     call GetValue(section, 'linear_maxiters',             model%options%linear_maxiters)
     call GetValue(section, 'linear_tolerance',            model%options%linear_tolerance)
-
+    call GetValue(section, 'which_ho_damage',             model%options%which_ho_damage)
+    call GetValue(section, 'which_ho_effecpress_select',  model%options%which_ho_effecpress_select)
+    call GetValue(section, 'which_ho_bwat_effecpressintern' , model%options%which_ho_bwat_effecpressintern)
+    call GetValue(section, 'which_ho_laminar_flow',       model%options%which_ho_laminar_flow)   
+    call GetValue(section,'which_ho_marine_mask',         model%options%which_ho_marine_mask)
+    call GetValue(section, 'which_ho_bmlt_basin_correction', model%options%which_ho_bmlt_basin_correction)
+  
   end subroutine handle_ho_options
 
 !--------------------------------------------------------------------------------
@@ -1097,12 +1104,13 @@ contains
          'Dinf; route flux to two lower-elevation neighbors', &
          'FD8; route flux to all lower-elevation neighbors ' /)
 
-    character(len=*), dimension(0:4), parameter :: ho_whicheffecpress = (/ &
+    character(len=*), dimension(0:5), parameter :: ho_whicheffecpress = (/ &
          'full overburden pressure                             ', &
          'reduced effecpress near pressure melting point       ', &
          'reduced effecpress where bwat > 0 (ramp)             ', &
          'reduced effecpress where bwatflx > 0                 ', &
-         'reduced effecpress where bwat > 0 (B/vP)             '/)
+         'reduced effecpress where bwat > 0 (B/vP)             ', &
+         'reduced effecpress where bwat>0 (differential)       '/)
 
     character(len=*), dimension(0:1), parameter :: which_ho_nonlinear = (/ &
          'use standard Picard iteration          ', &
@@ -1625,6 +1633,11 @@ contains
        call write_log('acab correction based on dthck_dt_obs is enabled')
     endif
 
+
+    if (model%options%enable_acab_dthck_dt_grounded_correction) then
+       call write_log('acab correction based on dthck_dt_obs for grounded ice is enabled')
+    endif
+
     if (model%options%gthf < 0 .or. model%options%gthf >= size(gthf)) then
        call write_log('Error, geothermal flux option out of range',GM_FATAL)
     end if
@@ -1752,9 +1765,11 @@ contains
        ! Inversion options
 
        ! Note: Inversion for Cp is currently supported for the Schoof sliding law, Tsai law, and basic power law
+       !Tim: I added the option to also use the inversion for the effectivepressure powerlaw
        if (model%options%which_ho_powerlaw_c == HO_POWERLAW_C_INVERSION) then
           if (model%options%which_ho_babc == HO_BABC_COULOMB_POWERLAW_SCHOOF .or.  &
               model%options%which_ho_babc == HO_BABC_COULOMB_POWERLAW_TSAI .or.  &
+              model%options%which_ho_babc == HO_BABC_POWERLAW_EFFECPRESS .or. &
               model%options%which_ho_babc == HO_BABC_POWERLAW) then
              ! inversion for Cp is supported
           else
@@ -2155,6 +2170,11 @@ contains
     call GetValue(section,'acab_factor',        model%climate%acab_factor)
     call GetValue(section,'bmlt_float_factor',  model%basal_melt%bmlt_float_factor)
 
+   ! parameters related to the basal melting adjustment per basin
+    call GetValue(section, 'maxnbasin_correction', model%basal_melt%maxnbasin_correction)
+    call GetValue(section, 'minnbasin_correction', model%basal_melt%minnbasin_correction)
+    call GetValue(section, 'basin_correctionfactor', model%basal_melt%basin_correctionfactor) 
+
     ! calving parameters
     call GetValue(section,'marine_limit',       model%calving%marine_limit)
     call GetValue(section,'calving_fraction',   model%calving%calving_fraction)
@@ -2221,6 +2241,9 @@ contains
     call GetValue(section, 'effecpress_bwat_threshold', model%basal_physics%effecpress_bwat_threshold)
     call GetValue(section, 'effecpress_bwatflx_threshold', model%basal_physics%effecpress_bwatflx_threshold)
     call GetValue(section, 'effecpress_timescale', model%basal_physics%effecpress_timescale)
+    call GetValue(section, 'Pw_fraction', model%basal_physics%Pw_fraction)
+    call GetValue(section, 'bwatflx_timescale',model%basal_physics%bwatflx_timescale)
+    call GetValue(section, 'bwat_timescale' , model%basal_physics%bwat_timescale)
 
     ! basal water parameters
     call GetValue(section, 'const_bwat', model%basal_hydro%const_bwat)
@@ -2262,11 +2285,15 @@ contains
     call GetValue(section, 'inversion_babc_relax_factor', model%inversion%babc_relax_factor)
     call GetValue(section, 'inversion_babc_velo_scale', model%inversion%babc_velo_scale)
 
+    !dhdt parameters
+    call GetValue(section, 'dhdt_multi_factor', model%inversion%dhdt_multi_factor)
+    call GetValue(section, 'floating_dhdt_limit', model%inversion%floating_dhdt_limit)
     call GetValue(section, 'inversion_dbmlt_dtemp_scale', model%inversion%dbmlt_dtemp_scale)
     call GetValue(section, 'inversion_bmlt_basin_timescale', model%inversion%bmlt_basin_timescale)
     call GetValue(section, 'inversion_basin_flotation_threshold', &
          model%inversion%basin_flotation_threshold)
 
+    call GetValue(section, 'deltaT_ocn_maxval', model%inversion%deltaT_ocn_maxval)
     call GetValue(section, 'inversion_deltaT_ocn_timescale', model%inversion%deltaT_ocn_timescale)
     call GetValue(section, 'inversion_deltaT_ocn_thck_scale', model%inversion%deltaT_ocn_thck_scale)
     call GetValue(section, 'inversion_deltaT_ocn_temp_scale', model%inversion%deltaT_ocn_temp_scale)
@@ -2283,6 +2310,9 @@ contains
     call GetValue(section, 'inversion_basin_number_mass_correction', &
          model%inversion%basin_number_mass_correction)
 
+    !for the damage tests (Tim)
+    call GetValue(section, 'ff_multiplier', model%inversion%ff_multiplier)
+
     ! ISMIP-HOM parameters
     call GetValue(section,'periodic_offset_ew',model%numerics%periodic_offset_ew)
     call GetValue(section,'periodic_offset_ns',model%numerics%periodic_offset_ns)
@@ -2295,7 +2325,7 @@ contains
 
     ! parameters for artm anomaly option
     call GetValue(section,'artm_anomaly_timescale', model%climate%artm_anomaly_timescale)
-
+    call GetValue(section, 'bmlt_float_factor_internal', model%basal_melt%bmlt_float_factor_internal)
     ! basal melting parameters
     call GetValue(section,'bmlt_cavity_h0', model%basal_melt%bmlt_cavity_h0)
 
@@ -2314,6 +2344,7 @@ contains
     call GetValue(section,'bmlt_float_depth_zfrzmax', model%basal_melt%bmlt_float_depth_zfrzmax)
     call GetValue(section,'bmlt_float_depth_meltmin', model%basal_melt%bmlt_float_depth_meltmin)
     call GetValue(section,'bmlt_float_depth_zmeltmin', model%basal_melt%bmlt_float_depth_zmeltmin)
+    call GetValue(section,'bmlt_fground_threshold', model%basal_melt%bmlt_fground_threshold)
 
     ! MISOMIP plume parameters
     !TODO - Put MISMIP+ and MISOMIP parameters in their own section
@@ -3482,6 +3513,10 @@ contains
            ! restart needs to know bwat value
            call glide_add_to_restart_variable_list('bwat')
         end select
+        if (model%options%which_ho_bwat == HO_BWAT_FLUX_ROUTING) then
+           call glide_add_to_restart_variable_list('bwat_diag')
+        endif
+       
 
         ! grounding-line option for Glissade
         if (options%which_ho_flotation_function == HO_FLOTATION_FUNCTION_LINEAR_STDEV) then
@@ -3602,10 +3637,21 @@ contains
        call glide_add_to_restart_variable_list('dthck_dt_obs')
     endif
 
+    if (options%which_ho_damage /= HO_NO_DAMAGELINES) then  
+       call glide_add_to_restart_variable_list('ff_invert_mask')
+    endif
+
     ! effective pressure options
     ! f_effecpress_bwat represents the reduction of overburden pressure from bwatflx
     if (options%which_ho_effecpress == HO_EFFECPRESS_BWATFLX) then
        call glide_add_to_restart_variable_list('f_effecpress_bwat')
+       call glide_add_to_restart_variable_list('f_effecpress_bwatflx')
+    endif
+
+    if (options%which_ho_effecpress == HO_EFFECPRESS_BWAT .or. &
+        options%which_ho_effecpress == HO_EFFECPRESS_BWAT_DIFF) then
+        call glide_add_to_restart_variable_list('f_effecpress_bwat')
+        call glide_add_to_restart_variable_list('f_effecpress_bwat_target')
     endif
 
     ! f_effecpress_ocean_p represents the reduction of overburden pressure when ocean_p > 0

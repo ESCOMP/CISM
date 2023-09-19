@@ -495,12 +495,23 @@ long_name:     observed rate of ice thickness change
 data:          data%geometry%dthck_dt_obs
 load:          1
 
+[ff_invert_mask]
+dimensions:    time, y1, x1
+units:         -
+long_name:      mask where to increase the flow factor to simulate damage
+data:          data%inversion%ff_invert_mask
+load:          1          
+
+
 [dthck_dt]
 dimensions:    time, y1, x1
 units:         meter/year
 long_name:     rate of ice thickness change
 data:          data%geometry%dthck_dt
 factor:        scyr
+load:          1
+
+
 
 [floating_thck_target]
 dimensions:    time, y1, x1
@@ -715,6 +726,22 @@ units:         1
 long_name:     mask for marine_connected cells
 data:          data%geometry%marine_connection_mask
 type:          int
+
+[marine_connection_mask_isolated]
+dimensions:    time, y1, x1
+units:         1
+long_name:     mask for marine_connected cells but blocked by grounded cells
+data:          data%geometry%marine_connection_mask_isolated
+type:          int
+load:          1
+
+[basin_multiplier_array]
+dimensions:    time, y1, x1
+units:         1
+long_name:     multiplier on a basin scale for the basal melting
+data:          data%basal_melt%basin_multiplier_array
+load:          1
+
 
 [ice_sheet_mask]
 dimensions:    time, y1, x1
@@ -953,11 +980,27 @@ data:          data%basal_hydro%bwat
 factor:        thk0
 load:          1
 
+[bwat_diag]
+dimensions:    time, y1, x1
+units:         meter
+long_name:     basal water depth, that does not influence the temperature, so it can work with bwatflx routing
+data:          data%basal_hydro%bwat_diag
+factor:        thk0
+load:          1
+
+
 [bwatflx]
 dimensions:    time, y1, x1
 units:         meter/year
 long_name:     basal water flux
 data:          data%basal_hydro%bwatflx
+
+[c_flux_array]
+dimensions:    time, y1, x1
+units:         -
+long_name:     spatially variant flux to depth constant to allow turbulent flow
+data:          data%basal_hydro%c_flux_array
+
 
 [head]
 dimensions:    time, y1, x1
@@ -978,6 +1021,21 @@ units:         1
 long_name:     effective pressure factor from bwatflx
 data:          data%basal_physics%f_effecpress_bwat
 load:          1
+
+[f_effecpress_bwatflx]
+dimensions:    time, y1,x1
+units:         1
+long_name:     effective pressure factor from the bwatflx
+data:          data%basal_physics%f_effecpress_bwatflx
+load:          1
+
+[f_effecpress_bwat_target]
+dimensions:    time, y1, x1
+units:         1
+long_name:     Relaxation target of effective pressure ratio
+data:          data%basal_physics%f_effecpress_bwat_target
+load:          1
+
 
 [f_effecpress_ocean_p]
 dimensions:    time, y1, x1

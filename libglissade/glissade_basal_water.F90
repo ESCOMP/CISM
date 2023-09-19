@@ -38,8 +38,8 @@ module glissade_basal_water
    private
    public :: glissade_basal_water_init, glissade_calcbwat, glissade_bwat_flux_routing
 
-   logical, parameter :: verbose_bwat = .false.
-
+   logical, parameter :: verbose_bwat = .true.
+!!   logical, parameter :: verbose_bwat = .false. 
    integer, parameter :: pdiag = 3  ! range for diagnostic prints
 
 contains
@@ -172,7 +172,12 @@ contains
        thklim,                       &
        bwat_mask,     floating_mask, &
        bmlt,                         &
-       bwatflx,       head)
+       bwatflx,       head,          &
+       bwat_diag,                    &
+       which_ho_laminar_flow,        &
+       c_flux_array,                 &
+       effecpress_option,            &
+       effecpress_real)
 
     ! This subroutine is a recoding of Jesse Johnson's steady-state water routing scheme in Glide.
     ! It has been parallelized for Glissade.
@@ -200,7 +205,9 @@ contains
          parallel                   ! info for parallel communication
 
     integer, intent(in) ::  &
-         flux_routing_scheme        ! flux routing scheme: D8, Dinf or FD8; see subroutine route_basal_water
+         flux_routing_scheme,     & ! flux routing scheme: D8, Dinf or FD8; see subroutine route_basal_water
+         effecpress_option,       &  ! select what effective pressure to use here
+         which_ho_laminar_flow     !to select if turbulent is accepted
 
     real(dp), dimension(nx,ny), intent(in) ::  &
          thck,                    & ! ice thickness (m)
@@ -220,8 +227,13 @@ contains
 
     real(dp), dimension(nx,ny), intent(out) ::  &
          bwatflx,                 & ! basal water flux (m/yr)
-         head                       ! hydraulic head (m)
-
+         head,                    & ! hydraulic head (m)
+         bwat_diag,               & ! to store bwat on a place that does not mess with the thermal module
+         c_flux_array               ! for a spatially varying flux
+         
+    real(dp), dimension(nx,ny), intent(in), optional :: &
+         effecpress_real            ! effective pressure calculated by calc_effecpressure in basal_traction
+ 
     ! Local variables
 
     integer :: i, j, p
@@ -230,7 +242,7 @@ contains
          bwat,                    & ! diagnosed basal water depth (m), not used outside this module
          effecpress,              & ! effective pressure
          lakes                      ! difference between filled head and original head (m)
-
+ 
     ! parameters related to effective pressure
     real(dp), parameter :: &
          c_effective_pressure = 0.0d0    ! parameter in N = c/bwat; not currently used
@@ -272,7 +284,7 @@ contains
     integer :: nx_test, ny_test
     real(dp), dimension(:,:), allocatable :: phi_test
     integer,  dimension(:,:), allocatable :: mask_test
-
+    real(dp) :: reynolds_spatial=0.d0
     !WHL - debug
     !Note: This test works in serial, but does not work with parallel updates.
     !      To use it again, would need to comment out parallel calls in fix_flats.
@@ -336,9 +348,19 @@ contains
 !         bwat,                 &
 !         c_effective_pressure, &
 !         effecpress)
-
-    effecpress(:,:) = 0.0d0
-
+    if (effecpress_option == HO_EFFECPRESS_BWAT_INTERN_ZERO) then
+         effecpress(:,:) = effecpress_real(:,:)
+!         print*, 'We gebruiken neppe N '
+!TVDA: this does not work yet, I hardcoded it to be the real effective pressure everywhere, because I do not under
+!stand why it does not want to make effecpress_option 1, it always uses the above loop         
+    else if (effecpress_option == HO_EFFECPRESS_BWAT_INTERN_REAL) then
+         effecpress(:,:) = effecpress_real(:,:)
+!         print*, 'We gebruiken echte N'
+    else  
+         !!just set it to zero
+         effecpress(:,:) = 0.0d0
+!         print*, 'We gebruiken geen N'
+    endif
     ! Compute the hydraulic head
 
     call compute_head(&
@@ -439,7 +461,7 @@ contains
          lakes)
 
     call parallel_halo(bwatflx, parallel)
-
+ 
     ! Convert the water flux to a basal water depth
     ! Note: bwat is not passed out of this subroutine, for the following reason:
     ! In the thermal solve, the basal temperature is held at Tpmp wherever bwat > 0.
@@ -449,6 +471,22 @@ contains
     ! If passed to the thermal solver, this bwat can drive a sudden large increase in basal temperature.
     ! For this reason, the effective pressure is reduced based on bwatflx instead of bwat.
     ! If desired, we could pass out a diagnostic bwat field that would not affect basal temperature.
+
+    !Calculate, if needed, the c_flux_array if turbulent flows are allowed
+    if (which_ho_laminar_flow == HO_FLUX_ROUTING_TURBULENT) then
+        do j = 1 ,ny
+           do i= 1, nx
+              !bwatflx is in m^3/s and needs to be in m^2/s. I am doubting to just use dx, or to consider the height. Intuitively, I would use dx, since we have no horizontal flux
+              reynolds_spatial =( bwatflx(i,j)/dx)/visc_water
+              c_flux_array(i,j) = 1/((12*visc_water)*(1+omega_hydro*reynolds_spatial)) 
+              if (i==300 .and. j==300) then
+                 print*, 'pinguin'
+                 print*, c_flux_array(i,j)
+              endif
+                
+          enddo
+        enddo
+    endif !turbulent or laminar
 
     call flux_to_depth(&
          nx,       ny,           &
@@ -460,10 +498,14 @@ contains
          p_flux_to_depth,        &
          q_flux_to_depth,        &
          bwat_mask,              &
+         which_ho_laminar_flow,  &
+         c_flux_array,           &
          bwat)
 
     ! Convert bwatflx units to m/yr for output
     bwatflx(:,:) = bwatflx(:,:) * scyr/(dx*dy)
+    ! Make bwat into bwat_diag, that can be used seperately from the thermal module
+    bwat_diag(:,:) = bwat(:,:)
 
     if (verbose_bwat .and. this_rank == rtest) then
        print*, ' '
@@ -486,6 +528,17 @@ contains
           write(6,'(i6)',advance='no') j
           do i = itest-p, itest+p
              write(6,'(f10.5)',advance='no') bwat(i,j) * 1000.d0
+          enddo
+          write(6,*) ' '
+       enddo
+
+       print*, ' '
+       print*, 'Diagnosed bwat_diag (mm):'
+       write(6,*) ' '
+       do j = jtest+p, jtest-p, -1
+          write(6,'(i6)',advance='no') j
+          do i = itest-p, itest+p
+             write(6,'(f10.5)',advance='no') bwat_diag(i,j) * 1000.d0
           enddo
           write(6,*) ' '
        enddo
@@ -568,7 +621,7 @@ contains
     where (thck > thklim .and. floating_mask /= 1)
        head = topg + (rhoi/rhow)*thck - effecpress/(rhow*grav)
     elsewhere
-       head = max(topg, 0.0d0)
+       head = max(topg,-topg*(rhoo/rhow-1))
     endwhere
 
   end subroutine compute_head
@@ -1006,6 +1059,8 @@ contains
          p_flux_to_depth,        &
          q_flux_to_depth,        &
          bwat_mask,              &
+         which_ho_laminar_flow,  &
+         c_flux_array,           &
          bwat)
 
     !  Assuming that the flow is steady state, this function simply solves
@@ -1021,14 +1076,16 @@ contains
 
     integer, intent(in) ::  &
          nx, ny,               & ! number of grid cells in each direction
-         itest, jtest, rtest     ! coordinates of diagnostic point
+         itest, jtest, rtest,  & ! coordinates of diagnostic point
+         which_ho_laminar_flow
 
     real(dp), intent(in) ::  &
          dx, dy                   ! grid spacing in each direction
 
     real(dp), dimension(nx,ny), intent(in) :: &
          bwatflx,               & ! basal water flux (m^3/s)
-         head                     ! hydraulic head (m)
+         head,                  &  ! hydraulic head (m)
+         c_flux_array
 
     real(dp), intent(in) ::  &
          c_flux_to_depth,       & ! constant of proportionality
@@ -1106,6 +1163,26 @@ contains
        enddo
     endif
 
+
+
+    p = pdiag
+    if (verbose_bwat .and. this_rank == rtest) then
+       print*, ' '
+       print*, 'bwatflx:'
+       write(6,'(a3)',advance='no') '   '
+       do i = itest-p, itest+p
+          write(6,'(i10)',advance='no') i
+       enddo
+       write(6,*) ' '
+       do j = jtest+p, jtest-p, -1
+          write(6,'(i6)',advance='no') j
+          do i = itest-p, itest+p
+             write(6,'(f10.5)',advance='no') bwatflx(i,j)
+          enddo
+          write(6,*) ' '
+       enddo
+    endif
+
     p_exponent = 1.d0 / (p_flux_to_depth + 1.d0)
 
     ! Note: In Sommers et al. (2018), Eq. 5, the basal water flux q (m^2/s) is
@@ -1129,13 +1206,63 @@ contains
     !
     ! Note: Assuming dx = dy
     ! TODO: Modify for the case dx /= dy?
+    if (which_ho_laminar_flow == HO_FLUX_ROUTING_LAMINAR) then
+       where (grad_head /= 0.d0 .and. bwat_mask == 1)
+            bwat = ( bwatflx / (c_flux_to_depth * grav * dy * grad_head**q_flux_to_depth) ) ** p_exponent
+       elsewhere
+            bwat = 0.d0
+       endwhere
+    endif
 
-    where (grad_head /= 0.d0 .and. bwat_mask == 1)
-       bwat = ( bwatflx / (c_flux_to_depth * grav * dy * grad_head**q_flux_to_depth) ) ** p_exponent
-    elsewhere
-       bwat = 0.d0
-    endwhere
+    if (which_ho_laminar_flow == HO_FLUX_ROUTING_TURBULENT) then
+      do i =1,nx
+        do j=1,ny
+           if (grad_head(i,j)/= 0.d0 .and. bwat_mask(i,j) ==1) then
+              bwat(i,j) = ( bwatflx(i,j) /(c_flux_array(i,j) * grav *dy * grad_head(i,j)**q_flux_to_depth) )** p_exponent
+           else
+              bwat(i,j) = 0.d0
+           endif
+        enddo
+      enddo
 
+    p = pdiag
+    if (verbose_bwat .and. this_rank == rtest) then
+       print*, 'pinguin, uniform c:'
+       print*, c_flux_to_depth
+       print*, ' '
+       print*, 'c_flux_array:'
+       write(6,'(a3)',advance='no') '   '
+       do i = itest-p, itest+p
+          write(6,'(i10)',advance='no') i
+       enddo
+       write(6,*) ' '
+       do j = jtest+p, jtest-p, -1
+          write(6,'(i6)',advance='no') j
+          do i = itest-p, itest+p
+             write(6,'(f10.0)',advance='no') c_flux_array(i,j)
+          enddo
+          write(6,*) ' '
+       enddo
+    endif
+    endif
+
+    p = pdiag
+    if (verbose_bwat .and. this_rank == rtest) then
+       print*, ' '
+       print*, 'bwat:'
+       write(6,'(a3)',advance='no') '   '
+       do i = itest-p, itest+p
+          write(6,'(i10)',advance='no') i
+       enddo
+       write(6,*) ' '
+       do j = jtest+p, jtest-p, -1
+          write(6,'(i6)',advance='no') j
+          do i = itest-p, itest+p
+             write(6,'(f10.5)',advance='no') bwat(i,j)
+          enddo
+          write(6,*) ' '
+       enddo
+    endif
   end subroutine flux_to_depth
 
 !==============================================================

@@ -2127,7 +2127,7 @@ module glissade_bmlt_float
     ! The adjustment is made for all cells that can have melting driven by thermal forcing (thermal_forcing_mask = 1).
     ! This includes cells that are currently grounded, but might be floating in a forward run.
 
-    use glissade_inversion, only : deltaT_ocn_maxval
+!    use glissade_inversion, only : deltaT_ocn_maxval
 
     integer, intent(in) :: &
          bmlt_float_thermal_forcing_param  !> kind of melting parameterization, local or nonlocal
@@ -2299,7 +2299,8 @@ module glissade_bmlt_float
     deltaT_ocn_new = deltaT_ocn_init + dTocn
 
     ! Cap at max allowed value
-    deltaT_ocn_new = min(deltaT_ocn_new, deltaT_ocn_maxval)
+    !Tim: I made it 5 here, did not want to fiddle to much with this, I did not use this anyway
+    deltaT_ocn_new = min(deltaT_ocn_new, 5.0d0)
 
     ! For diagnostics, compute the new melt rate
 
