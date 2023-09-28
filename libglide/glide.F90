@@ -219,6 +219,11 @@ contains
     ! read first time slice
     call glide_io_readall(model,model)
 
+    ! Compute grid cell areas
+    ! Note: cell_area is used for diagnostics only. It is set to dew*dns by default but can be corrected below.
+    !       For the purposes of CISM dynamics, all grid cells are rectangles of dimension dew*dns.
+    model%geometry%cell_area = model%numerics%dew*model%numerics%dns
+
     ! Compute area scale factors for stereographic map projection.
     ! This should be done after reading the input file, in case the input file contains mapping info.
     ! Note: Not yet enabled for other map projections.
@@ -231,6 +236,14 @@ contains
                                       model%general%nsn,       &
                                       model%numerics%dew*len0, &
                                       model%numerics%dns*len0)
+
+       ! Given the stereographic area correction factors, correct the diagnostic grid cell areas.
+       ! Note: area_factor is actually a length correction factor k; must divide by k^2 to adjust areas.
+       ! TODO: Change the name of area_factor
+       where (model%projection%stere%area_factor > 0.0d0)
+          model%geometry%cell_area = &
+               model%geometry%cell_area / model%projection%stere%area_factor**2
+       endwhere
 
     endif
 
@@ -292,9 +305,6 @@ contains
 !    print*, ' '
 !    print*, 'Created Glide variables'
 !    print*, 'max, min bheatflx (W/m2)=', maxval(model%temper%bheatflx), minval(model%temper%bheatflx)
-
-    ! Compute the cell areas of the grid
-    model%geometry%cell_area = model%numerics%dew*model%numerics%dns
 
     ! If a 2D bheatflx field is present in the input file, it will have been written 
     !  to model%temper%bheatflx.  For the case model%options%gthf = 0, we want to use

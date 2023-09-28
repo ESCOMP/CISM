@@ -475,6 +475,10 @@ contains
     ! This code is adapted from a Matlab script provided by Heiko Goelzer, based on this reference:
     ! J. P. Snyder (1987): Map Projections--A Working Manual, US Geological Survey Professional Paper 1395.
     !
+    ! Note: What's called area_factor here should probably be called scale_factor.
+    !       It corresponds to the factor 'k' in Snyder, which is a length distortion factor.
+    !       To adjust areas in CISM, one needs to divide by k^2.
+    !
     ! Note: This subroutine should not be called until the input file has been read in,
     !       and we have the relevant grid info (ewn, nsn, dx, dy).
 
@@ -597,7 +601,6 @@ contains
        call write_log ('Set area scale factor = 1 for polar stereographic projection')
 
     endif  ! compute_area_factor
-
 
   end subroutine glimmap_stere_area_factor
 
