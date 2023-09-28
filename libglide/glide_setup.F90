@@ -3193,6 +3193,7 @@ contains
     call GetValue(section,'set_powerlaw_c',          model%glacier%set_powerlaw_c)
     call GetValue(section,'snow_calc',               model%glacier%snow_calc)
     call GetValue(section,'scale_area',              model%glacier%scale_area)
+    call GetValue(section,'length_scale_factor',     model%glacier%length_scale_factor)
     call GetValue(section,'tmlt',                    model%glacier%tmlt)
     call GetValue(section,'mu_star_const',           model%glacier%mu_star_const)
     call GetValue(section,'mu_star_min',             model%glacier%mu_star_min)
@@ -3285,6 +3286,18 @@ contains
 
        if (model%glacier%scale_area) then
           call write_log ('Glacier area will be scaled based on latitude')
+       endif
+
+       if (model%glacier%length_scale_factor /= 1.0d0) then
+          if (model%glacier%scale_area) then
+             write(message,*) 'dew and dns will be scaled by a factor of ', &
+                  model%glacier%length_scale_factor
+             call write_log(message)
+          else
+             model%glacier%length_scale_factor = 1.0d0
+             write(message,*) 'length_scale_factor will be ignored since glacier%scale_area = F'
+             write(message,*) 'Setting length_scale_factor = 1.0'
+          endif
        endif
 
        if (model%glacier%set_mu_star == GLACIER_MU_STAR_INVERSION .and. &
@@ -3845,10 +3858,6 @@ contains
        !      These could be computed based on cism_glacier_id_init and usrf_obs.
        call glide_add_to_restart_variable_list('glacier_volume_init')
        call glide_add_to_restart_variable_list('glacier_area_init')
-       ! area scale factor
-       if (model%glacier%scale_area) then
-          call glide_add_to_restart_variable_list('glacier_area_factor')
-       endif
     endif
 
     ! TODO bmlt was set as a restart variable, but I'm not sure when or if it is needed.

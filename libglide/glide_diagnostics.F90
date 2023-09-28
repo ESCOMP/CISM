@@ -256,9 +256,10 @@ contains
  
     character(len=100) :: message
     
-    real(dp), dimension(:,:), allocatable :: &
-         cell_area     ! grid cell areas (scaled model units)
-                       ! optionally, divide by scale factor^2 to account for grid distortion
+    ! Note: cell_area is copied here from model%geometry%cell_area
+    ! cell_area = dew*dns by default; optionally scaled to account for grid distortion
+    real(dp), dimension(model%general%ewn,model%general%nsn) :: &
+         cell_area     ! grid cell areas (scaled model units); diagnostic only
 
     real(dp), parameter ::   &
        eps = 1.0d-11,         & ! small number
@@ -271,25 +272,16 @@ contains
     nsn = model%general%nsn
     upn = model%general%upn
 
-    allocate(cell_area(ewn,nsn))
-    cell_area(:,:) = model%numerics%dew * model%numerics%dns
-
-    ! Note: If projection%stere%compute_area_factor = .true., then area factors will differ from 1.
-    !       Then the total ice area and volume computed below will be corrected for area distortions,
+    ! Set cell_area = model%geometry%cell_area
+    ! Note: By default, cell_area = dew*dns
+    !       For diagnostics, however, we may want to correct for grid distortions,
     !        giving a better estimate of the true ice area and volume.
-    !       However, applying scale factors will give a mass conservation error (total dmass_dt > 0)
+    !       In this case, model%geometry%cell_area is corrected at initialization.
+    !       It is used only for diagnostics. In the dynamics, each cell is a rectangle of area dew*dns.
+    !       Using the corrected value here will give a conservation error (total dmass_dt > 0)
     !        in the diagnostics, because horizontal transport does not account for area factors.
-    !        Transport conserves mass only under the assumption of rectangular grid cells.
-
-    if (associated(model%projection%stere)) then   ! divide cell area by area_factor^2
-       do j = 1, nsn
-          do i = 1, ewn
-             if (model%projection%stere%area_factor(i,j) > 0.0d0) then
-                cell_area(i,j) = cell_area(i,j) / model%projection%stere%area_factor(i,j)**2
-             endif
-          enddo
-       enddo
-    endif
+    !        Horizontal transport conserves mass only under the assumption of rectangular grid cells.
+    cell_area = model%geometry%cell_area
 
     nlith = model%lithot%nlayer
 

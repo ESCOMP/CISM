@@ -119,6 +119,18 @@ contains
 !    integer ::  nlist
 !    real(sp) :: random
 
+    ! Optional grid cell dimension correction
+    ! Note: The following is an awkward way of dealing with the fact that for some of our glacier grids,
+    !        the nominal grid dimensions in the input file are different from the true dimensions.
+    !       For instance, we can have a 200-m input grid for glaciers at 45 N (e.g., in the Alps).
+    !       The nominal cell size, 200 m, corresponds to the cell size on a projected grid.
+    !       At 45 N the length correction factor is cos(45) = sqrt(2)/2, giving an actual cell length of ~140 m.
+    !       The correction is as follows:
+    !       (1) Set an average length correction factor, glacier%length_factor, in the config file.
+    !           Multiply dew and dns by this factor so the dynamics will see the (approximately) correct length.
+    !       (2) Compute a corrected cell_area(i,j) based on the latitude: cell_area -> cell_area * cos^2(lat),
+    !           where cos^2(lat) is roughly equal to length_factor^2, but not exactly since lat depends on (i,j).
+
     ! Set some local variables
     parallel = model%parallel
 
@@ -147,6 +159,39 @@ contains
           write(6,*) ' '
        enddo
     endif
+
+    if (glacier%scale_area) then
+
+       ! Optionally, rescale the grid cell dimensions dew and dns
+       ! This is answer-changing throughout the code.
+       if (glacier%length_scale_factor /= 1.0d0) then
+          model%numerics%dew = model%numerics%dew * glacier%length_scale_factor
+          model%numerics%dns = model%numerics%dns * glacier%length_scale_factor
+          dew = model%numerics%dew
+          dns = model%numerics%dns
+       endif
+
+       ! Rescale the grid cell areas (diagnostic only; not used for dynamic calculations).
+       ! Originally computed as the (unscaled) product dew*dns; scale here by cos^2(lat).
+       ! Note: These use the actual cell latitudes, as opposed to acos(length_scale_factor)
+       do j = 1, nsn
+          do i = 1, ewn
+             theta_rad = model%general%lat(i,j) * pi/180.d0
+             model%geometry%cell_area(i,j) = model%geometry%cell_area(i,j) * cos(theta_rad)**2
+          enddo
+       enddo
+       call parallel_halo(model%geometry%cell_area, parallel)
+
+       if (verbose_glacier .and. this_rank == rtest) then
+          i = itest; j = jtest
+          theta_rad = model%general%lat(i,j) * pi/180.d0
+          print*, 'Scale dew and dns: factor, new dew, dns =', &
+               glacier%length_scale_factor, dew*len0, dns*len0
+          print*, 'Scale cell area: i, j, lat, cos(lat), cell_area =', &
+               i, j, model%general%lat(i,j), cos(theta_rad), model%geometry%cell_area(i,j)*len0**2
+       endif
+
+    endif   ! scale_area
 
     if (model%options%is_restart == RESTART_FALSE) then
 
@@ -377,37 +422,18 @@ contains
        allocate(glacier%alpha_snow(nglacier))
        allocate(glacier%beta_artm(nglacier))
 
-       ! Compute area scale factors
-       if (glacier%scale_area) then
-          do j = nhalo+1, nsn-nhalo
-             do i = nhalo+1, ewn-nhalo
-                theta_rad = model%general%lat(i,j) * pi/180.d0
-                glacier%area_factor(i,j) = cos(theta_rad)**2
-             enddo
-          enddo
-          call parallel_halo(glacier%area_factor, parallel)
-          if (verbose_glacier .and. this_rank == rtest) then
-             i = itest; j = jtest
-             print*, 'Scale glacier area: i, j, area_factor =', i, j, glacier%area_factor(i,j)
-             print*, '   lat, theta, cos(theta) =', model%general%lat(i,j), theta_rad, cos(theta_rad)
-          endif
-       else
-          glacier%area_factor(:,:) = 1.0d0
-       endif
-
        ! Compute the initial area and volume of each glacier.
        ! Only ice thicker than diagnostic_minthck is included in area and volume sums.
 
        call glacier_area_volume(&
-            ewn,           nsn,             &
-            nglacier,                       &
-            glacier%cism_glacier_id,        &
-            dew*dns,                        &
-            model%geometry%thck*thk0,       &  ! m
-            glacier%diagnostic_minthck,     &  ! m
-            glacier%area_factor,            &
-            glacier%area,                   &  ! m^2
-            glacier%volume)                    ! m^3
+            ewn,           nsn,               &
+            nglacier,                         &
+            glacier%cism_glacier_id,          &
+            model%geometry%cell_area*len0**2, &  ! m^2
+            model%geometry%thck*thk0,         &  ! m
+            glacier%diagnostic_minthck,       &  ! m
+            glacier%area,                     &  ! m^2
+            glacier%volume)                      ! m^3
 
        ! Initialize other glacier arrays
        glacier%smb(:)         = 0.0d0
@@ -582,15 +608,14 @@ contains
        ! Only ice thicker than diagnostic_minthck is included in area and volume sums.
 
        call glacier_area_volume(&
-            ewn,           nsn,             &
-            nglacier,                       &
-            glacier%cism_glacier_id,        &
-            dew*dns,                        &
-            model%geometry%thck*thk0,       &  ! m
-            glacier%diagnostic_minthck,     &  ! m
-            glacier%area_factor,            &
-            glacier%area,                   &  ! m^2
-            glacier%volume)                    ! m^3
+            ewn,           nsn,               &
+            nglacier,                         &
+            glacier%cism_glacier_id,          &
+            model%geometry%cell_area*len0**2, &  ! m^2
+            model%geometry%thck*thk0,         &  ! m
+            glacier%diagnostic_minthck,       &  ! m
+            glacier%area,                     &  ! m^2
+            glacier%volume)                      ! m^3
 
     endif   ! not a restart
 
@@ -1246,6 +1271,7 @@ contains
             smb_annmean,  smb_current_area)
 
        ! advance/retreat diagnostics
+       ! Note: This subroutine assumes cell_area = dew*dns for all cells
        call glacier_area_advance_retreat(&
             ewn,           nsn,           &
             nglacier,                     &
@@ -1515,17 +1541,15 @@ contains
        endif   ! verbose
 
        ! Update the glacier area and volume (diagnostic only)
-
        call glacier_area_volume(&
-            ewn,           nsn,              &
-            nglacier,                        &
-            glacier%cism_glacier_id,         &
-            dew*dns,                         &  ! m^2
-            thck,                            &  ! m
-            glacier%diagnostic_minthck,      &  ! m
-            glacier%area_factor,             &
-            glacier%area,                    &  ! m^2
-            glacier%volume)                     ! m^3
+            ewn,           nsn,               &
+            nglacier,                         &
+            glacier%cism_glacier_id,          &
+            model%geometry%cell_area*len0**2, &  ! m^2
+            thck,                             &  ! m
+            glacier%diagnostic_minthck,       &  ! m
+            glacier%area,                     &  ! m^2
+            glacier%volume)                      ! m^3
 
        if (verbose_glacier .and. this_rank == rtest) then
           print*, ' '
@@ -3031,7 +3055,6 @@ contains
        nglacier,      cism_glacier_id,   &
        cell_area,     thck,              &
        diagnostic_minthck,               &
-       area_factor,                      &
        area,          volume)
 
     use cism_parallel, only: parallel_reduce_sum
@@ -3045,12 +3068,10 @@ contains
     integer, dimension(ewn,nsn), intent(in) ::  &
          cism_glacier_id                ! integer glacier ID in the range (1, nglacier)
 
-    real(dp), intent(in) :: &
-         cell_area                      ! grid cell area (m^2), dew*dns, assumed equal for all cells
-
     real(dp), dimension(ewn,nsn), intent(in) ::  &
-         thck,                        & ! ice thickness (m)
-         area_factor                    ! scale factor multiplying the nominal cell area, based on latitude
+         cell_area,                   & ! grid cell area (m^2)
+                                        ! Note: can be latitude-dependent and differ from dew*dns
+         thck                           ! ice thickness (m)
 
     real(dp), intent(in) :: &
          diagnostic_minthck             ! minimum thickness (m) to be included in area and volume sums
@@ -3082,8 +3103,8 @@ contains
           ng = cism_glacier_id(i,j)
           if (ng > 0) then
              if (thck(i,j) >= diagnostic_minthck) then
-                local_area(ng) = local_area(ng) + cell_area*area_factor(i,j)
-                local_volume(ng) = local_volume(ng) + cell_area*area_factor(i,j) * thck(i,j)
+                local_area(ng) = local_area(ng) + cell_area(i,j)
+                local_volume(ng) = local_volume(ng) + cell_area(i,j) * thck(i,j)
              endif
           endif
        enddo
@@ -3123,8 +3144,6 @@ contains
     ! and the retreated region (ice was present at init, but not now).
     ! Note: For this subroutine, the area is based on the cism_glacier_id masks,
     !       so it includes cells with thck < diagnostic_min_thck.
-    ! Note: In this subroutine the cell area is not corrected using an area scale factor.
-    !       We assume all cells have equal area, cell_area = dew*dns.
 
     ! input/output arguments
 
@@ -3136,8 +3155,8 @@ contains
          cism_glacier_id_init,        & ! integer glacier ID in the range (1, nglacier), initial value
          cism_glacier_id                ! integer glacier ID in the range (1, nglacier), current value
 
-    real(dp), intent(in) :: &
-         cell_area                      ! grid cell area (m^2), assumed equal for all cells
+    real(dp), intent(in) ::  &
+         cell_area                      ! grid cell area = dew*dns (m^2); same for all cells
 
     real(dp), dimension(nglacier), intent(out) ::  &
          area_initial,                & ! initial glacier area
@@ -3211,7 +3230,6 @@ contains
     enddo
     area_retreat = parallel_reduce_sum(local_area)
 
-
     ! bug check
     do ng = 1, nglacier
        if (area_initial(ng) + area_advance(ng) - area_retreat(ng) /= area_current(ng)) then
@@ -3225,6 +3243,7 @@ contains
   end subroutine glacier_area_advance_retreat
 
 !****************************************************
+  !TODO - Delete this subroutine? It is not currently used.
 
   subroutine glacier_accumulation_area_ratio(&
        ewn,           nsn,     &
@@ -3238,7 +3257,6 @@ contains
 
     ! Compute the accumulation area ratio (AAR) for each glacier.
     ! Note: In this subroutine the cell area is not corrected using an area scale factor.
-    !       We assume all cells have equal area, cell_area = dew*dns.
 
     use cism_parallel, only: parallel_reduce_sum
 
