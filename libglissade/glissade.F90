@@ -401,6 +401,11 @@ contains
     allocate(land_mask(model%general%ewn, model%general%nsn))
     allocate(ocean_mask(model%general%ewn, model%general%nsn))
 
+    ! Compute grid cell areas
+    ! Note: cell_area is used for diagnostics only. It is set to dew*dns by default but can be corrected below.
+    !       For the purposes of CISM dynamics, all grid cells are rectangles of dimension dew*dns.
+    model%geometry%cell_area(:,:) = model%numerics%dew*model%numerics%dns
+
     ! Optionally, compute area scale factors for stereographic map projection.
     ! This should be done after reading the input file, in case the input file contains mapping info.
     ! Note: Not yet enabled for other map projections.
@@ -421,6 +426,15 @@ contains
                                       model%numerics%dew*len0, &
                                       model%numerics%dns*len0, &
                                       parallel)
+
+       ! Given the stereographic area correction factors, correct the diagnostic grid cell areas.
+       ! Note: area_factor is actually a length correction factor k; must divide by k^2 to adjust areas.
+       ! TODO: Change the name of area_factor
+       where (model%projection%stere%area_factor > 0.0d0)
+          model%geometry%cell_area = &
+               model%geometry%cell_area / model%projection%stere%area_factor**2
+       endwhere
+
     endif
 
     ! Write projection info to log
@@ -543,9 +557,6 @@ contains
 
     endif  ! geothermal heat flux
 
-    ! Compute the cell areas of the grid
-    model%geometry%cell_area = model%numerics%dew*model%numerics%dns
-
     ! If running with glaciers, then process the input glacier data
     ! On start-up, this subroutine counts the glaciers.  It should be called before glide_io_createall,
     !  which needs to know nglacier to set up glacier output files with the right dimensions.
@@ -554,7 +565,6 @@ contains
 
     if (model%options%enable_glaciers) then
 
-       !WHL - debug
        ! Glaciers are run with a no-ice BC to allow removal of inactive regions.
        ! This can be problematic when running in a sub-region that has glaciers along the global boundary.
        ! A halo update here for 'thck' will remove ice from cells along the global boundary.
@@ -568,6 +578,13 @@ contains
        ! calculate the lower and upper ice surface
        call glide_calclsrf(model%geometry%thck, model%geometry%topg, model%climate%eus, model%geometry%lsrf)
        model%geometry%usrf = max(0.d0, model%geometry%thck + model%geometry%lsrf)
+
+       ! Initialize glaciers
+       ! Note: This subroutine can return modified values of model%numerics%dew, model%numerics%dns,
+       !        and model%geometry%cell_area.
+       !       This is a fix to deal with the fact that actual grid cell dimensions can be different
+       !        from the nominal dimensions on a projected grid.
+       !       See comments near the top of glissade_glacier_init.
 
        call glissade_glacier_init(model, model%glacier)
 

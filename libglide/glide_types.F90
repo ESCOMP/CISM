@@ -1899,6 +1899,9 @@ module glide_types
      !       Other glacier parameters are declared at the top of module glissade_glacier.
      !       These could be added to the derived type.
 
+     real(dp) :: length_scale_factor = 1.0d0  !> factor used to scale dew and dns;
+                                              !> typically equal to the cosine of an average latitude
+
      real(dp) :: diagnostic_minthck = 10.0d0  !> min ice thickness to be included in glacier area and volume diagnostics
 
      real(dp) :: &
