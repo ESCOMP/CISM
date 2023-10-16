@@ -345,6 +345,7 @@ module cism_parallel
      module procedure parallel_reduce_max_integer
      module procedure parallel_reduce_max_real4
      module procedure parallel_reduce_max_real8
+     module procedure parallel_reduce_max_real8_1d
   end interface
 
   ! This reduce interface determines the global max value and the processor on which it occurs
@@ -358,6 +359,7 @@ module cism_parallel
      module procedure parallel_reduce_min_integer
      module procedure parallel_reduce_min_real4
      module procedure parallel_reduce_min_real8
+     module procedure parallel_reduce_min_real8_1d
   end interface
 
   ! This reduce interface determines the global min value and the processor on which it occurs
@@ -8095,6 +8097,22 @@ contains
 
   end function parallel_reduce_max_real8
 
+  function parallel_reduce_max_real8_1d(x)
+
+    use mpi_mod
+    implicit none
+    real(dp), dimension(:) :: x
+
+    integer :: ierror
+    real(dp), dimension(size(x)) :: recvbuf,sendbuf, parallel_reduce_max_real8_1d
+
+    ! begin
+    sendbuf = x
+    call mpi_allreduce(sendbuf,recvbuf,size(x),mpi_real8,mpi_max,comm,ierror)
+    parallel_reduce_max_real8_1d = recvbuf
+
+  end function parallel_reduce_max_real8_1d
+
 !=======================================================================
 
   ! functions belonging to the parallel_reduce_maxloc interface
@@ -8215,6 +8233,23 @@ contains
     parallel_reduce_min_real8 = recvbuf
 
   end function parallel_reduce_min_real8
+
+
+  function parallel_reduce_min_real8_1d(x)
+
+    use mpi_mod
+    implicit none
+    real(dp), dimension(:) :: x
+
+    integer :: ierror
+    real(dp), dimension(size(x)) :: recvbuf,sendbuf, parallel_reduce_min_real8_1d
+
+    ! begin
+    sendbuf = x
+    call mpi_allreduce(sendbuf,recvbuf,size(x),mpi_real8,mpi_min,comm,ierror)
+    parallel_reduce_min_real8_1d = recvbuf
+
+  end function parallel_reduce_min_real8_1d
 
 !=======================================================================
 

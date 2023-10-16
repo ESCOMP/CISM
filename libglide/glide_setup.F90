@@ -1372,7 +1372,12 @@ contains
     end if
     write(message,*) 'calving_domain          : ', model%options%calving_domain, domain_calving(model%options%calving_domain)
     call write_log(message)
-    
+
+    if (model%options%read_lat_lon) then
+       write(message,*) ' Lat and lon fields will be read from input files and written to restart'
+       call write_log(message)
+    endif
+
     ! dycore-dependent options; most of these are supported for Glissade only
 
     if (model%options%whichdycore == DYCORE_GLISSADE) then
@@ -1443,11 +1448,6 @@ contains
 
        if (model%options%adjust_input_topography) then
           write(message,*) ' Input topography in a selected region will be adjusted'
-          call write_log(message)
-       endif
-
-       if (model%options%read_lat_lon) then
-          write(message,*) ' Lat and lon fields will be read from input files and written to restart'
           call write_log(message)
        endif
 
@@ -3846,14 +3846,11 @@ contains
        call glide_add_to_restart_variable_list('glacier_mu_star')
        call glide_add_to_restart_variable_list('glacier_alpha_snow')
        call glide_add_to_restart_variable_list('glacier_beta_artm')
-       ! smb_obs is used for glacier inversion
+       ! smb_obs and usrf_obs are used to invert for mu_star
        call glide_add_to_restart_variable_list('glacier_smb_obs')
-       if (model%glacier%set_powerlaw_c == GLACIER_POWERLAW_C_INVERSION) then
-          call glide_add_to_restart_variable_list('powerlaw_c')
-          call glide_add_to_restart_variable_list('usrf_target_rgi')
-       elseif (model%glacier%set_powerlaw_c == GLACIER_POWERLAW_C_EXTERNAL) then
-          call glide_add_to_restart_variable_list('powerlaw_c')
-       endif
+       call glide_add_to_restart_variable_list('usrf_obs')
+       ! powerlaw_c is used for power law sliding
+       call glide_add_to_restart_variable_list('powerlaw_c')
        !TODO: Are area_init and volume_init needed in the restart file?
        !      These could be computed based on cism_glacier_id_init and usrf_obs.
        call glide_add_to_restart_variable_list('glacier_volume_init')
