@@ -712,6 +712,7 @@ module glide_types
     logical :: adjust_input_topography = .false.
     !> if true, then adjust the input topography in a selected region at initialization
 
+    !TODO - Change default to true? Would then specify as false for idealized runs
     logical :: read_lat_lon = .false.
     !> if true, then read lat and lon fields from the input file and write to restarts
 
@@ -1953,6 +1954,10 @@ module glide_types
           volume => null(),                 & !> glacier volume (m^3)
           area_init => null(),              & !> initial glacier area (m^2) based on observations
           volume_init => null(),            & !> initial glacier volume (m^3) based on observations
+          area_init_extent => null(),       & !> glacier area (m^2) over the initial ice extent;
+                                              !> excludes area where the glacier has advanced
+          volume_init_extent => null(),     & !> glacier volume (m^3) over the initial ice extent;
+                                              !> excludes volume where the glacier has advanced
           mu_star => null(),                & !> glacier-specific parameter relating SMB to monthly mean artm (mm/yr w.e./deg),
                                               !> defined as positive for ablation
           alpha_snow => null(),             & !> glacier-specific multiplicative snow factor (unitless)
@@ -1980,12 +1985,12 @@ module glide_types
           snow_rgi_annmean => null(),       & !> annual mean snowfall (mm/yr w.e.), RGI date
           Tpos_rgi_annmean => null(),       & !> annual mean max(artm - tmlt,0) (deg C), RGI date
           snow_recent_annmean => null(),    & !> annual mean snowfall (mm/yr w.e.), recent date
-          Tpos_recent_annmean => null()       !> annual mean max(artm - tmlt,0) (deg C), recent date
+          Tpos_recent_annmean => null(),    & !> annual mean max(artm - tmlt,0) (deg C), recent date
+          smb_applied_annmean => null()       !> annual mean applied SMB (mm/yr w.e.), = 0 when cell is ice-free
 
      real(dp), dimension(:,:), pointer :: &
           usrf_target_baseline,             & !> target ice thickness (m) for the baseline date
-          usrf_target_rgi,                  & !> target ice thickness (m) for the RGI date;
-                                              !>  usually, usrf_target_rgi < usrf_target_baseline
+                                              !> Note: geometry%usrf_obs is the target for the RGI date
           smb_rgi => null(),                & !> RGI-date SMB field, used for glacier inversion (mm/yr w.e.)
           delta_usrf_rgi => null(),         & !> change in usrf between baseline and RGI climate
           smb_recent => null(),             & !> recent SMB field, including anomaly forcing (mm/yr w.e.)
@@ -3050,7 +3055,6 @@ contains
 
        ! Note: The recent and RGI fields are used for glacier inversion
        call coordsystem_allocate(model%general%ice_grid, model%glacier%usrf_target_baseline)
-       call coordsystem_allocate(model%general%ice_grid, model%glacier%usrf_target_rgi)
        call coordsystem_allocate(model%general%ice_grid, model%glacier%smb_rgi)
        call coordsystem_allocate(model%general%ice_grid, model%glacier%delta_usrf_rgi)
        call coordsystem_allocate(model%general%ice_grid, model%glacier%smb_recent)
@@ -3061,6 +3065,7 @@ contains
        call coordsystem_allocate(model%general%ice_grid, model%glacier%Tpos_rgi_annmean)
        call coordsystem_allocate(model%general%ice_grid, model%glacier%snow_recent_annmean)
        call coordsystem_allocate(model%general%ice_grid, model%glacier%Tpos_recent_annmean)
+       call coordsystem_allocate(model%general%ice_grid, model%glacier%smb_applied_annmean)
 
        ! Allocate arrays with dimension(nglacier)
        ! Note: nglacier = 1 by default, but can be changed in subroutine glissade_glacier_init
@@ -3073,6 +3078,8 @@ contains
        allocate(model%glacier%volume(model%glacier%nglacier))
        allocate(model%glacier%area_init(model%glacier%nglacier))
        allocate(model%glacier%volume_init(model%glacier%nglacier))
+       allocate(model%glacier%area_init_extent(model%glacier%nglacier))
+       allocate(model%glacier%volume_init_extent(model%glacier%nglacier))
        allocate(model%glacier%mu_star(model%glacier%nglacier))
        allocate(model%glacier%alpha_snow(model%glacier%nglacier))
        allocate(model%glacier%beta_artm(model%glacier%nglacier))
@@ -3531,6 +3538,8 @@ contains
         deallocate(model%glacier%snow_recent_annmean)
     if (associated(model%glacier%Tpos_recent_annmean)) &
         deallocate(model%glacier%Tpos_recent_annmean)
+    if (associated(model%glacier%smb_applied_annmean)) &
+        deallocate(model%glacier%smb_applied_annmean)
     if (associated(model%glacier%smb_obs)) &
         deallocate(model%glacier%smb_obs)
     if (associated(model%glacier%area)) &
@@ -3541,6 +3550,10 @@ contains
         deallocate(model%glacier%area_init)
     if (associated(model%glacier%volume_init)) &
         deallocate(model%glacier%volume_init)
+    if (associated(model%glacier%area_init_extent)) &
+        deallocate(model%glacier%area_init_extent)
+    if (associated(model%glacier%volume_init_extent)) &
+        deallocate(model%glacier%volume_init_extent)
     if (associated(model%glacier%mu_star)) &
         deallocate(model%glacier%mu_star)
     if (associated(model%glacier%alpha_snow)) &
@@ -3551,8 +3564,6 @@ contains
         deallocate(model%glacier%smb)
     if (associated(model%glacier%usrf_target_baseline)) &
         deallocate(model%glacier%usrf_target_baseline)
-    if (associated(model%glacier%usrf_target_rgi)) &
-        deallocate(model%glacier%usrf_target_rgi)
     if (associated(model%glacier%smb_rgi)) &
         deallocate(model%glacier%smb_rgi)
     if (associated(model%glacier%delta_usrf_rgi)) &

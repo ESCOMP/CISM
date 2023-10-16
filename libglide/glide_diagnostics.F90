@@ -234,8 +234,10 @@ contains
          lithtemp_diag                       ! lithosphere column diagnostics
 
     real(dp) :: &
-         tot_glc_area_init, tot_glc_area, &  ! total glacier area, initial and current (km^2)
-         tot_glc_volume_init, tot_glc_volume ! total glacier volume, initial and current (km^3)
+         tot_glc_area_init, tot_glc_area,     & ! total glacier area, initial and current (km^2)
+         tot_glc_volume_init, tot_glc_volume, & ! total glacier volume, initial and current (km^3)
+         tot_glc_area_init_extent,            & ! glacier area summed over the initial extent (km^2)
+         tot_glc_volume_init_extent             ! glacier volume summed over the initial extent (km^2)
 
     integer :: &
          count_area, count_volume            ! number of glaciers with nonzero area and volume
@@ -1082,17 +1084,23 @@ contains
 
        ! Compute some global glacier sums
        tot_glc_area = 0.0d0
-       tot_glc_area_init = 0.0d0
        tot_glc_volume = 0.0d0
+       tot_glc_area_init = 0.0d0
        tot_glc_volume_init = 0.0d0
+       tot_glc_area_init_extent = 0.0d0
+       tot_glc_volume_init_extent = 0.0d0
        count_area = 0
        count_volume = 0
 
        do ng = 1, model%glacier%nglacier
           tot_glc_area = tot_glc_area + model%glacier%area(ng)
-          tot_glc_area_init = tot_glc_area_init + model%glacier%area_init(ng)
           tot_glc_volume = tot_glc_volume + model%glacier%volume(ng)
+          tot_glc_area_init = tot_glc_area_init + model%glacier%area_init(ng)
           tot_glc_volume_init = tot_glc_volume_init + model%glacier%volume_init(ng)
+          tot_glc_area_init_extent = tot_glc_area_init_extent &
+               + model%glacier%area_init_extent(ng)
+          tot_glc_volume_init_extent = tot_glc_volume_init_extent &
+               + model%glacier%volume_init_extent(ng)
           if (model%glacier%area(ng) > eps) then
              count_area = count_area + 1
           endif
@@ -1120,20 +1128,28 @@ contains
             count_volume
        call write_log(trim(message), type = GM_DIAGNOSTIC)
 
+       write(message,'(a35,f14.6)') 'Total glacier area_init (km^2)     ', &
+            tot_glc_area_init / 1.0d6
+       call write_log(trim(message), type = GM_DIAGNOSTIC)
+
        write(message,'(a35,f14.6)') 'Total glacier area (km^2)          ', &
             tot_glc_area / 1.0d6
        call write_log(trim(message), type = GM_DIAGNOSTIC)
 
-       write(message,'(a35,f14.6)') 'Total glacier area_init (km^2)     ', &
-            tot_glc_area_init / 1.0d6
+       write(message,'(a35,f14.6)') 'Total area_init_extent (km^2)      ', &
+            tot_glc_area_init_extent / 1.0d6
+       call write_log(trim(message), type = GM_DIAGNOSTIC)
+
+       write(message,'(a35,f14.6)') 'Total glacier volume_init (km^3)   ', &
+            tot_glc_volume_init / 1.0d9
        call write_log(trim(message), type = GM_DIAGNOSTIC)
 
        write(message,'(a35,f14.6)') 'Total glacier volume (km^3)        ', &
             tot_glc_volume / 1.0d9
        call write_log(trim(message), type = GM_DIAGNOSTIC)
 
-       write(message,'(a35,f14.6)') 'Total glacier volume_init (km^3)   ', &
-            tot_glc_volume_init / 1.0d9
+       write(message,'(a35,f14.6)') 'Total volume_init_extent (km^3)    ', &
+            tot_glc_volume_init_extent / 1.0d9
        call write_log(trim(message), type = GM_DIAGNOSTIC)
 
        call write_log(' ')
@@ -1142,27 +1158,35 @@ contains
 
        ng = model%glacier%ngdiag
 
-       write(message,'(a35,i14)') 'Diagnostic glacier index (RGI) ', &
+       write(message,'(a35,i14)') 'Diagnostic glacier index (RGI)     ', &
             model%glacier%cism_to_rgi_glacier_id(ng)
        call write_log(trim(message), type = GM_DIAGNOSTIC)
 
-       write(message,'(a35,i14)') 'Diagnostic glacier index (CISM)', ng
+       write(message,'(a35,i14)') 'Diagnostic glacier index (CISM)    ', ng
+       call write_log(trim(message), type = GM_DIAGNOSTIC)
+
+       write(message,'(a35,f14.6)') 'Glacier area_init(km^2)            ', &
+            model%glacier%area_init(ng) / 1.0d6
        call write_log(trim(message), type = GM_DIAGNOSTIC)
 
        write(message,'(a35,f14.6)') 'Glacier area (km^2)                ', &
             model%glacier%area(ng) / 1.0d6
        call write_log(trim(message), type = GM_DIAGNOSTIC)
 
-       write(message,'(a35,f14.6)') 'Glacier area init(km^2)            ', &
-            model%glacier%area_init(ng) / 1.0d6
+       write(message,'(a35,f14.6)') 'Glacier area_init_extent (km^2)    ', &
+            model%glacier%area_init_extent(ng) / 1.0d6
        call write_log(trim(message), type = GM_DIAGNOSTIC)
 
        write(message,'(a35,f14.6)') 'Glacier volume (km^3)              ', &
             model%glacier%volume(ng) / 1.0d9
        call write_log(trim(message), type = GM_DIAGNOSTIC)
 
-       write(message,'(a35,f14.6)') 'Glacier volume init (km^3)         ', &
+       write(message,'(a35,f14.6)') 'Glacier volume_init (km^3)         ', &
             model%glacier%volume_init(ng) / 1.0d9
+       call write_log(trim(message), type = GM_DIAGNOSTIC)
+
+       write(message,'(a35,f14.6)') 'Glacier volume_init_extent (km^3)  ', &
+            model%glacier%volume_init_extent(ng) / 1.0d9
        call write_log(trim(message), type = GM_DIAGNOSTIC)
 
        write(message,'(a35,f14.6)') 'mu_star (mm/yr w.e./deg C)         ', &

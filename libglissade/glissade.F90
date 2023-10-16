@@ -368,6 +368,8 @@ contains
        if (global_maxval < eps11) then
           call write_log('Failed to read longitude (lon) field from input file', GM_FATAL)
        endif
+       call parallel_halo(model%general%lat, parallel)
+       call parallel_halo(model%general%lon, parallel)
     endif
 
     ! Some input fields may have a netCDF fill value, typically a very large positive number.

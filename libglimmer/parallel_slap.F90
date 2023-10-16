@@ -312,6 +312,7 @@ module cism_parallel
      module procedure parallel_reduce_max_integer
      module procedure parallel_reduce_max_real4
      module procedure parallel_reduce_max_real8
+     module procedure parallel_reduce_max_real8_1d
   end interface
 
   ! This reduce interface determines the global min value and the processor on which it occurs
@@ -325,6 +326,7 @@ module cism_parallel
      module procedure parallel_reduce_min_integer
      module procedure parallel_reduce_min_real4
      module procedure parallel_reduce_min_real8
+     module procedure parallel_reduce_min_real8_1d
   end interface
 
   ! This reduce interface determines the global min value and the processor on which it occurs
@@ -3770,6 +3772,19 @@ contains
 
   end function parallel_reduce_max_real8
 
+
+  function parallel_reduce_max_real8_1d(x)
+
+    ! Max x across all of the nodes.
+    ! In parallel_slap mode just return x.
+    implicit none
+    real(dp), dimension(:) :: x
+    real(dp), dimension(size(x)) :: parallel_reduce_max_real8_1d
+
+    parallel_reduce_max_real8_1d = x
+
+  end function parallel_reduce_max_real8_1d
+
 !=======================================================================
 
   ! subroutines belonging to the parallel_reduce_maxloc interface
@@ -3856,6 +3871,19 @@ contains
     parallel_reduce_min_real8 = x
 
   end function parallel_reduce_min_real8
+
+  
+  function parallel_reduce_min_real8_1d(x)
+
+    ! Min x across all of the nodes.
+    ! In parallel_slap mode just return x.
+    implicit none
+    real(dp), dimension(:) :: x
+    real(dp), dimension(size(x)) :: parallel_reduce_min_real8_1d
+
+    parallel_reduce_min_real8_1d = x
+
+  end function parallel_reduce_min_real8_1d
 
 !=======================================================================
 

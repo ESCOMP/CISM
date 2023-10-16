@@ -966,13 +966,6 @@ long_name:     surface mass balance at RGI date
 data:          data%glacier%smb_rgi
 load:          1
 
-[usrf_target_rgi]
-dimensions:    time, y1, x1
-units:         m
-long_name:     thickness target for RGI date
-data:          data%glacier%usrf_target_rgi
-load:          1
-
 [smb_recent]
 dimensions:    time, y1, x1
 units:         mm/year water equivalent
