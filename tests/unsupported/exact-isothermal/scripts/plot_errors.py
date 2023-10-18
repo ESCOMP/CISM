@@ -7,7 +7,8 @@
 
 import numpy, Scientific.IO.NetCDF
 import pylab
-from optparse import OptionParser
+from argparse import ArgumentParser
+
 
 def parse_title(title):
     """Parse title string."""
@@ -27,9 +28,9 @@ if __name__ == '__main__':
 
 plot model errors as function of grid spacing"""
 
-    parser = OptionParser(usage=usage)
-    parser.add_option("-o","--output",metavar="FILE",help="write image to file. image type is determined by file suffix")
-    (options, args) = parser.parse_args()
+    parser = ArgumentParser(usage=usage)
+    parser.add_argument("-o","--output",metavar="FILE",help="write image to file. image type is determined by file suffix")
+    options = parser.parse_args()
 
     if len(args)<1:
         parser.error('Expecting at least one file')
