@@ -25,19 +25,18 @@ rhoi = 918.  # kg/m^3
 model = '_cism'
 
 # Parse options
-from optparse import OptionParser
-parser = OptionParser()
+from argparse import ArgumentParser
+
+parser = ArgumentParser()
+
 
 #TODO - Loop over all experiments here
 
-parser.add_option("-x", "--expt", dest="experiment", type='string', default='all', help="Name of MISMIP+ experiment(s)", metavar="EXPT")
-parser.add_option("-f", "--file", dest="filename", type='string', help="CISM output file from MISMIP+ run, e.g. mismip+Ice0.out.nc", metavar="FILE")
+parser.add_argument("-x", "--expt", dest="experiment", type=str, default='all', help="Name of MISMIP+ experiment(s)", metavar="EXPT")
+parser.add_argument("-f", "--file", dest="filename", type=str, help="CISM output file from MISMIP+ run, e.g. mismip+Ice0.out.nc", metavar="FILE")
 
-for option in parser.option_list:
-    if option.default != ("NO", "DEFAULT"):
-        option.help += (" " if option.help else "") + "[default: %default]"
 
-options, args = parser.parse_args()
+options = parser.parse_args()
 
 if options.experiment:
     if options.experiment == 'all':
@@ -56,7 +55,7 @@ def glplot(ncfile, times, colora, label):
     """
     ncid = Dataset(ncfile, 'r')
     ltime = ncid.variables["time"][:]
-    print 'ltime:', ltime[:]
+    print( 'ltime:', ltime[:])
     lxmax = 0.0
     lxmin = 800.0
     for i in range(0, len(times)):
@@ -80,8 +79,8 @@ for expt in experiments:
     else:
         file = 'mismip+' + expt + '.out.nc'
 
-    print 'Creating a MISMIP+ grounding-line file for experiment', expt
-    print 'Attempting to read CISM file', file
+    print( 'Creating a MISMIP+ grounding-line file for experiment', expt)
+    print( 'Attempting to read CISM file', file)
 
     # Open the CISM output file, get needed dimensions
     # Note: (x0,y0) are dimensions of the staggered (velocity) grid
@@ -102,7 +101,7 @@ for expt in experiments:
    # Initialize some variables and arrays
    # Read in some fields needed to compute MISMIP+ diagnostics
 
-    print 'Reading in CISM variables...'
+    print( 'Reading in CISM variables...')
 
     try:
         # These array names are somewhat arbitrary.  Sometime I have used CISM names;
@@ -135,7 +134,7 @@ for expt in experiments:
     except:
         sys.exit('Error: The output file is missing needed fields.')
 
-    print 'Shape of 2D fields:', f_ground.shape
+    print( 'Shape of 2D fields:', f_ground.shape)
 
     # Create the GL output file
     #WHL: Change to [expt]_cism.nc
@@ -143,7 +142,7 @@ for expt in experiments:
     #outfilename = 'mismip+_example.cism.nc'
     outfilename = expt + model + '.nc'
     ncfile = Dataset(outfilename, 'w')
-    print 'Created output file', outfilename
+    print( 'Created output file', outfilename)
 
     # Set dimensions
     glptdim = ncfile.createDimension('nPointGL', size = None)
@@ -167,11 +166,11 @@ for expt in experiments:
     vMeanGL = ncfile.createVariable('vMeanGL', 'f4', ('nPointGL', 'nTime'))
 
     # Loop over time slices and fill variables
-    print 'Adding grounding-line variables to output file...'
+    print( 'Adding grounding-line variables to output file...')
 
     for iTime in range(nTime):
 
-        print '   Time slice:', iTime
+        print( '   Time slice:', iTime)
 
         # Add the scalar data for this time slice
         time[iTime] = t[iTime]
@@ -222,7 +221,7 @@ for expt in experiments:
     plt.savefig(plotfilename)
     plt.clf()
 
-    print 'Created test plot', plotfilename, '\n'
+    print( 'Created test plot', plotfilename, '\n')
 
     # Change to the parent directory
     os.chdir('..')

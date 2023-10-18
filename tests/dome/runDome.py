@@ -220,9 +220,9 @@ def main():
 
     # Calculate the thickness of the (ellipsoidal) dome of ice
     for i in range(nx):
-      x = float(i-nx/2)/nx
+      x = float(i-nx//2)/nx
       for j in range(ny):
-        y = float(j-ny/2)/ny
+        y = float(j-ny//2)/ny
         r_squared = x*x+y*y
         if r_squared < 0.125:
           thk[0,j,i] = 2000.0 * sqrt(0.125 - r_squared)
@@ -314,7 +314,7 @@ def main():
     command_list =  prep_commands(args, config_name) 
     commands_all = ["# DOME"+mod+" test"]
     commands_all.extend(command_list)
-   
+
     result_mv = "mv results "+root+mod+".results 2>/dev/null"
     timing_mv = "for file in cism_timing*; do mv $file "+root+mod+".$file 2>/dev/null; done"
     commands_all.append(result_mv)
@@ -325,13 +325,17 @@ def main():
         if not args.quiet: 
             print("\nRunning CISM dome test")
             print(  "======================\n")
+        process = subprocess.check_call('module list', shell=True, stderr=subprocess.STDOUT)
 
-        process = subprocess.check_call(str.join("; ",command_list), shell=True)
-   
+
+        process = subprocess.check_call(str.join("; ",command_list), shell=True, stderr=subprocess.STDOUT)
+  
+ 
         try:
             subprocess.check_call("cd "+args.output_dir+"; "+result_mv, shell=True)
         except subprocess.CalledProcessError:
             pass 
+
 
         try:
             subprocess.check_call("cd "+args.output_dir+"; "+timing_mv, shell=True)
