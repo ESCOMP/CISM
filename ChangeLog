@@ -1,6 +1,11 @@
 CISM Changelog
 
-Changes in CISM tag cism_main_2.01.002
+Changes in CISM tag cism_main_2.01.011
+======================================
+
+Changes to update old SLAP code and make it slightly nicer for modern compilers. Plus add in one missing use statement and update the dome python scripts to python3.
+
+Changes in CISM tag cism_main_2.01.003
 ======================================
 ESCOMP/cism/main 792e43f and 410b384
 

@@ -29,7 +29,7 @@ c                 handling package', sand82-0800, sandia laboratories,
 c                 1982.
 c***routines called  (none)
 c***end prologue  xerabt
-      dimension messg(nmessg)
+      character*(*) messg
 c***first executable statement  xerabt
       stop 1
       end
@@ -300,7 +300,7 @@ c        message
             if (lkntrl.le.0) go to 40
 c              error number
                write (iunit,30) lerr
-   30          format (15h error number =,i10)
+   30          format ('15h error number =',i10)
    40       continue
    50    continue
 c        trace-back
@@ -380,8 +380,8 @@ c        print to each unit
             if (iunit.eq.0) iunit = i1mach(4)
 c           print table header
             write (iunit,10)
-   10       format (32h0          error message summary/
-     1      51h message start             nerr     level     count)
+   10       format ('32h0          error message summary'/
+     1      '51h message start            , nerr,   level,   count')
 c           print body of table
             do 20 i=1,10
                if (kount(i).eq.0) go to 30
@@ -391,7 +391,7 @@ c           print body of table
    30       continue
 c           print number of other errors
             if (kountx.ne.0) write (iunit,40) kountx
-   40       format (41h0other errors not individually tabulated=,i10)
+   40       format ('41h0other errors not individually tabulated=',i10)
             write (iunit,50)
    50       format (1x)
    60    continue
@@ -811,8 +811,8 @@ c***first executable statement  xsetun
       junk = j4save(5,1,.true.)
       return
       end
-      FUNCTION RAND(R)
-C***BEGIN PROLOGUE  RAND
+      FUNCTION SLRAND(R)
+C***BEGIN PROLOGUE  SLRAND
 C***DATE WRITTEN   770401   (YYMMDD)
 C***REVISION DATE  861211   (YYMMDD)
 C***CATEGORY NO.  L6A21
@@ -823,7 +823,7 @@ C***PURPOSE  Generates a uniformly distributed random number.
 C***DESCRIPTION
 C
 C      This pseudo-random number generator is portable among a wide
-C variety of computers.  RAND(R) undoubtedly is not as good as many
+C variety of computers.  SLRAND(R) undoubtedly is not as good as many
 C readily available installation dependent versions, and so this
 C routine is not recommended for widespread usage.  Its redeeming
 C feature is that the exact same random numbers (to within final round-
@@ -887,18 +887,18 @@ C        If R .LT. 0., the last generated number will be returned for
 C          possible use in a restart procedure.
 C        If R .GT. 0., the sequence of random numbers will start with
 C          the seed R mod 1.  This seed is also returned as the value of
-C          RAND provided the arithmetic is done exactly.
+C          SLRAND provided the arithmetic is done exactly.
 C
 C             Output Value --
-C RAND   a pseudo-random number between 0. and 1.
+C SLRAND   a pseudo-random number between 0. and 1.
 C***REFERENCES  (NONE)
 C***ROUTINES CALLED  (NONE)
-C***END PROLOGUE  RAND
+C***END PROLOGUE  SLRAND
       SAVE IA1, IA0, IA1MA0, IC, IX1, IX0
       DATA IA1, IA0, IA1MA0 /1536, 1029, 507/
       DATA IC /1731/
       DATA IX1, IX0 /0, 0/
-C***FIRST EXECUTABLE STATEMENT  RAND
+C***FIRST EXECUTABLE STATEMENT  SLRAND
       IF (R.LT.0.) GO TO 10
       IF (R.GT.0.) GO TO 20
 C
@@ -912,8 +912,8 @@ C
       IY1 = IY1 + (IY0-IX0)/2048
       IX1 = MOD (IY1, 2048)
 C
- 10   RAND = IX1*2048 + IX0
-      RAND = RAND / 4194304.
+ 10   SLRAND = IX1*2048 + IX0
+      SLRAND = SLRAND / 4194304.
       RETURN
 C
  20   IX1 = AMOD(R,1.)*4194304. + 0.5

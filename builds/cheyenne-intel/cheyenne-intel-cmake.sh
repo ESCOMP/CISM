@@ -16,7 +16,7 @@ else
 fi
 
 echo CISM: "${cism_top}"
-
+source /etc/profile.d/modules.sh
 
 module purge
 module load ncarenv/1.2
