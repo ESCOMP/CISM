@@ -227,8 +227,10 @@ subroutine cism_init_dycore(model)
 
 
   ! --- Output the initial state -------------
+  ! Note: For a standard restart, the initial state is not output, because this state
+  !       should already have been written to the output file when the previous run ended.
 
-  if (model%options%is_restart == RESTART_FALSE .or. model%options%forcewrite_restart) then
+  if (model%options%is_restart == NO_RESTART .or. model%options%is_restart == HYBRID_RESTART) then
      call t_startf('initial_io_writeall')
      call glide_io_writeall(model, model, time=time)          ! MJH The optional time argument needs to be supplied 
                                                               !     since we have not yet set model%numerics%time

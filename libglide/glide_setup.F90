@@ -766,7 +766,6 @@ contains
     !      Going forward, only 'restart' is supported.
     call GetValue(section,'restart',model%options%is_restart)
     call GetValue(section,'restart_extend_velo',model%options%restart_extend_velo)
-    call GetValue(section,'forcewrite_restart',model%options%forcewrite_restart)
 
   end subroutine handle_options
 
@@ -1653,16 +1652,17 @@ contains
        call write_log('  Slightly cheated with how temperature is implemented.',GM_WARNING)
     end if
 
-    if (model%options%is_restart == RESTART_TRUE) then
+    if (model%options%is_restart == STANDARD_RESTART) then
        call write_log('Restarting model from a previous run')
        if (model%options%restart_extend_velo == RESTART_EXTEND_VELO_TRUE) then
           call write_log('Using extended velocity fields for restart')
        endif
+    elseif (model%options%is_restart == HYBRID_RESTART) then
+       call write_log('Hybrid restart from a previous run')
+       if (model%options%restart_extend_velo == RESTART_EXTEND_VELO_TRUE) then
+          call write_log('Using extended velocity fields for restart')
+       endif
     end if
-
-    if (model%options%forcewrite_restart) then
-       call write_log('Will write to output files on restart')
-    endif
 
     !HO options
 

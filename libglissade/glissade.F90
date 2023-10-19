@@ -308,7 +308,8 @@ contains
     ! An exception is dimension glacierid, whose length (nglacier) is computed internally by CISM.
     ! On restart, we can get the length from the restart file.
 
-    if (model%options%enable_glaciers .and. model%options%is_restart == RESTART_TRUE) then
+    if (model%options%enable_glaciers .and. &
+         model%options%is_restart == STANDARD_RESTART .or. model%options%is_restart == HYBRID_RESTART) then
        infile => model%funits%in_first   ! assume glacierid is a dimension in the restart file
        call glimmer_nc_get_dimlength(infile, 'glacierid', model%glacier%nglacier)
     endif
@@ -447,7 +448,7 @@ contains
     !  (usrf - thck > topg), but the ice is above flotation thickness.
     ! In these grid cells, we set thck = usrf - topg, preserving the input usrf and removing the lakes.
 
-    if (model%options%adjust_input_thickness .and. model%options%is_restart == RESTART_FALSE) then
+    if (model%options%adjust_input_thickness .and. model%options%is_restart == NO_RESTART) then
        call glissade_adjust_thickness(model)
     endif
 
@@ -455,19 +456,19 @@ contains
     ! This subroutine does not change the topg, but returns thck consistent with the new usrf.
     ! If the initial usrf is rough, then multiple smoothing passes may be needed to stabilize the flow.
 
-    if (model%options%smooth_input_usrf .and. model%options%is_restart == RESTART_FALSE) then
+    if (model%options%smooth_input_usrf .and. model%options%is_restart == NO_RESTART) then
        call glissade_smooth_usrf(model, nsmooth = 5)
     endif   ! smooth_input_usrf
 
     ! Optionally, smooth the input topography with a Laplacian smoother.
 
-    if (model%options%smooth_input_topography .and. model%options%is_restart == RESTART_FALSE) then
+    if (model%options%smooth_input_topography .and. model%options%is_restart == NO_RESTART) then
        call glissade_smooth_topography(model)
     endif   ! smooth_input_topography
 
     ! Optionally, adjust the input topography in a specified region
 
-    if (model%options%adjust_input_topography .and. model%options%is_restart == RESTART_FALSE) then
+    if (model%options%adjust_input_topography .and. model%options%is_restart == NO_RESTART) then
        call glissade_adjust_topography(model)
     endif
 
@@ -681,7 +682,7 @@ contains
                'Setting artm_anomaly = constant value (degC):', model%climate%artm_anomaly_const
           call write_log(trim(message))
        else
-          if (model%options%is_restart == RESTART_FALSE) then
+          if (model%options%is_restart == NO_RESTART) then
              call write_log('Setting artm_anomaly from external file')
           endif
        endif
@@ -840,7 +841,7 @@ contains
     ! Note: This option is designed for standalone runs, and should be used only with caution for coupled runs.
     !       On restart, overwrite_acab_mask is read from the restart file.
 
-    if (model%climate%overwrite_acab_value /= 0 .and. model%options%is_restart == RESTART_FALSE) then
+    if (model%climate%overwrite_acab_value /= 0 .and. model%options%is_restart == NO_RESTART) then
 
        call glissade_overwrite_acab_mask(model%options%overwrite_acab,          &
                                          model%climate%acab,                    &
@@ -915,7 +916,7 @@ contains
     ! Note: Do initial calving only for a cold start with evolving ice, not for a restart
     if (l_evolve_ice .and. &
          model%options%calving_init == CALVING_INIT_ON .and. &
-         model%options%is_restart == RESTART_FALSE) then
+         model%options%is_restart == NO_RESTART) then
 
        ! ------------------------------------------------------------------------
        ! Note: The initial calving solve is treated differently from the runtime calving solve.
@@ -940,7 +941,7 @@ contains
 
     ! Initialize the effective pressure calculation
 
-    if (model%options%is_restart == RESTART_FALSE) then
+    if (model%options%is_restart == NO_RESTART) then
        call glissade_init_effective_pressure(model%options%which_ho_effecpress,  &
                                              model%basal_physics)
     endif
@@ -949,7 +950,7 @@ contains
     ! Note: This can set powerlaw_c and coulomb_c to nonzero values when they are never used,
     !       but is simpler than checking all possible basal friction options.
 
-    if (model%options%is_restart == RESTART_FALSE) then
+    if (model%options%is_restart == NO_RESTART) then
        if (model%options%which_ho_powerlaw_c == HO_POWERLAW_C_CONSTANT) then
           model%basal_physics%powerlaw_c = model%basal_physics%powerlaw_c_const
        endif
@@ -1077,7 +1078,7 @@ contains
     endif  ! thickness-based calving
 
     if ((model%options%whichcalving == CALVING_GRID_MASK .or. model%options%apply_calving_mask)  &
-         .and. model%options%is_restart == RESTART_FALSE) then
+         .and. model%options%is_restart == NO_RESTART) then
 
        ! Initialize the no-advance calving_mask
        ! Note: This is done after initial calving, which may include iceberg removal or calving-front culling.
@@ -1160,7 +1161,7 @@ contains
        !TODO: Is dthck_dt_obs needed in the restart file after dthck_dt_obs_basin is computed?
 
        if (model%options%enable_acab_dthck_dt_correction .and. &
-           model%options%is_restart == RESTART_FALSE) then
+           model%options%is_restart == NO_RESTART) then
 
           allocate(dthck_dt_basin(model%ocean_data%nbasin))
 
@@ -4332,8 +4333,8 @@ contains
 
     ! Compute the thickness tendency dH/dt from one step to the next (m/s)
     ! This tendency is used for coulomb_c and powerlaw_c inversion.
-    if ( (model%options%is_restart == RESTART_TRUE) .and. &
-         (model%numerics%time == model%numerics%tstart) ) then
+    if ( (model%options%is_restart == STANDARD_RESTART .or. model%options%is_restart == HYBRID_RESTART) &
+         .and. (model%numerics%time == model%numerics%tstart) ) then
        ! first call after a restart; do not compute dthck_dt
     else
        model%geometry%dthck_dt(:,:) = (model%geometry%thck(:,:) - model%geometry%thck_old(:,:)) * thk0 &
@@ -4354,8 +4355,8 @@ contains
          model%options%which_ho_coulomb_c  == HO_COULOMB_C_INVERSION  .or. &
          model%options%which_ho_coulomb_c  == HO_COULOMB_C_EXTERNAL ) then
 
-       if ( (model%options%is_restart == RESTART_TRUE) .and. &
-            (model%numerics%time == model%numerics%tstart) ) then
+       if ( (model%options%is_restart == STANDARD_RESTART .or. model%options%is_restart == HYBRID_RESTART) &
+            .and. (model%numerics%time == model%numerics%tstart) ) then
           ! first call after a restart; do not update powerlaw_c or coulomb_c
        else
           call glissade_inversion_basal_friction(model)
@@ -4367,8 +4368,9 @@ contains
 
     if ( model%options%which_ho_bmlt_basin == HO_BMLT_BASIN_INVERSION) then
 
-       if ( (model%options%is_restart == RESTART_TRUE) .and. &
-            (model%numerics%time == model%numerics%tstart) ) then
+       if ( (model%options%is_restart == STANDARD_RESTART .or. model%options%is_restart == HYBRID_RESTART) &
+            .and. (model%numerics%time == model%numerics%tstart) ) then
+
           ! first call after a restart; do not update basin-scale melting parameters
 
        else
@@ -4397,8 +4399,9 @@ contains
 
     if ( model%options%which_ho_deltaT_ocn == HO_DELTAT_OCN_INVERSION) then
 
-       if ( (model%options%is_restart == RESTART_TRUE) .and. &
-            (model%numerics%time == model%numerics%tstart) ) then
+       if ( (model%options%is_restart == STANDARD_RESTART .or. model%options%is_restart == HYBRID_RESTART) &
+            .and. (model%numerics%time == model%numerics%tstart) ) then
+
           ! first call after a restart; do not update deltaT_ocn
 
        else
@@ -4471,8 +4474,9 @@ contains
 
     if ( model%options%which_ho_flow_enhancement_factor == HO_FLOW_ENHANCEMENT_FACTOR_INVERSION) then
 
-       if ( (model%options%is_restart == RESTART_TRUE) .and. &
-            (model%numerics%time == model%numerics%tstart) ) then
+       if ( (model%options%is_restart == STANDARD_RESTART .or. model%options%is_restart == HYBRID_RESTART) &
+            .and. (model%numerics%time == model%numerics%tstart) ) then
+
           ! first call after a restart; do not update basin-scale parameters
 
        else
@@ -4670,8 +4674,8 @@ contains
     ! Do not solve velocity for initial time on a restart because that breaks an exact restart.
     ! Note: model%numerics%tstart is the time of restart, not necessarily the value of tstart in the config file.
 
-    if ( (model%options%is_restart == RESTART_TRUE) .and. &
-         (model%numerics%time == model%numerics%tstart) ) then
+    if ( (model%options%is_restart == STANDARD_RESTART .or. model%options%is_restart == HYBRID_RESTART) &
+         .and. (model%numerics%time == model%numerics%tstart) ) then
   
        ! Do not solve for velocity, because this would break exact restart
 
@@ -4875,8 +4879,8 @@ contains
     ! These are used for some calving schemes.
     !TODO - Put these calculations in a utility subroutine
 
-    if ( (model%options%is_restart == RESTART_TRUE) .and. &
-         (model%numerics%time == model%numerics%tstart) ) then
+    if ( (model%options%is_restart == STANDARD_RESTART .or. model%options%is_restart == HYBRID_RESTART) &
+         .and. (model%numerics%time == model%numerics%tstart) ) then
 
        ! do nothing, since the tau eigenvalues are read from the restart file
 
