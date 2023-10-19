@@ -181,7 +181,7 @@ module glissade_therm
     ! Method (3) may be optimal for reducing spinup time in the interior of large ice sheets.
     ! Option (4) requires that temperature is present in the input file.
 
-    if (is_restart == RESTART_TRUE) then
+    if (is_restart == STANDARD_RESTART .or. is_restart == HYBRID_RESTART) then
 
        ! Temperature has already been initialized from a restart file.
        ! (Temperature is always a restart variable.)

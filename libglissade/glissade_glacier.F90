@@ -193,7 +193,7 @@ contains
 
     endif   ! scale_area
 
-    if (model%options%is_restart == RESTART_FALSE) then
+    if (model%options%is_restart == NO_RESTART) then
 
        ! not a restart; initialize everything from the input file
 
@@ -553,7 +553,7 @@ contains
             nglacier,              glacier%cism_glacier_id_init,  &
             model%climate%smb_obs, glacier%smb_obs)
 
-    else  ! restart
+    else  ! restart (either standard or hybrid)
 
        ! In this case, most required glacier info has already been read from the restart file.
        ! Here, do some error checks and diagnostics.

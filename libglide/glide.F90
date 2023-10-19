@@ -463,7 +463,8 @@ contains
        l_evolve_ice = .true.
     end if
 
-    if (model%options%is_restart == RESTART_TRUE) then
+    if (model%options%is_restart == STANDARD_RESTART .or. &
+        model%options%is_restart == HYBRID_RESTART) then
        ! On a restart, just assign the basal velocity from uvel/vvel (which are restart variables)
        ! to ubas/vbas which are used by the temperature solver to calculate basal heating.
        ! During time stepping ubas/vbas are calculated by slipvelo during thickness evolution or below on a cold start.

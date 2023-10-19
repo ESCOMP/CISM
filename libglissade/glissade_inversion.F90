@@ -151,7 +151,7 @@ contains
             model%climate%eus,        &
             thck_obs)
 
-       if (model%options%is_restart == RESTART_FALSE) then
+       if (model%options%is_restart == NO_RESTART) then
 
           ! At the start of the run, adjust thck_obs so that the observational target is not too close to thck_flotation.
           ! The reason for this is that if we restore H to values very close to thck_flotation,
@@ -221,7 +221,7 @@ contains
        call parallel_halo(thck_obs, parallel)
 
        ! Set the surface speed target, velo_sfc_obs
-       if (model%options%is_restart == RESTART_FALSE) then
+       if (model%options%is_restart == NO_RESTART) then
           model%velocity%velo_sfc_obs(:,:) = &
                sqrt(model%velocity%usfc_obs(:,:)**2 + model%velocity%vsfc_obs(:,:)**2)
        endif
@@ -376,7 +376,7 @@ contains
 
     if (model%options%which_ho_bmlt_basin == HO_BMLT_BASIN_INVERSION) then
 
-       if (model%options%is_restart == RESTART_FALSE) then
+       if (model%options%is_restart == NO_RESTART) then
 
           ! Set floating_thck_target for floating ice and lightly grounded ice.
           ! Here, "lightly grounded" means that the magnitude of f_flotation = (-topg - eus) - (rhoi/rhoo)*thck

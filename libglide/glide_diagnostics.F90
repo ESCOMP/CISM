@@ -1165,7 +1165,7 @@ contains
        write(message,'(a35,i14)') 'Diagnostic glacier index (CISM)    ', ng
        call write_log(trim(message), type = GM_DIAGNOSTIC)
 
-       write(message,'(a35,f14.6)') 'Glacier area_init(km^2)            ', &
+       write(message,'(a35,f14.6)') 'Glacier area_init (km^2)           ', &
             model%glacier%area_init(ng) / 1.0d6
        call write_log(trim(message), type = GM_DIAGNOSTIC)
 
