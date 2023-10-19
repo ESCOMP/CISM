@@ -214,8 +214,9 @@ module glide_types
   integer, parameter :: SIGMA_COMPUTE_EVEN = 3
   integer, parameter :: SIGMA_COMPUTE_PATTYN = 4
 
-  integer, parameter :: RESTART_FALSE = 0
-  integer, parameter :: RESTART_TRUE = 1
+  integer, parameter :: NO_RESTART = 0
+  integer, parameter :: STANDARD_RESTART = 1
+  integer, parameter :: HYBRID_RESTART = 2
 
   integer, parameter :: RESTART_EXTEND_VELO_FALSE = 0
   integer, parameter :: RESTART_EXTEND_VELO_TRUE = 1
@@ -753,12 +754,12 @@ module glide_types
     !> \item[4] compute Pattyn sigma coordinates
     !> \end{description}
 
-    !TODO - Make is_restart a logical variable?
     integer :: is_restart = 0
     !> if the run is a restart of a previous run
     !> \begin{description}
     !> \item[0] normal start-up (take init fields from .nc input file OR if absent, use default options)
     !> \item[1] restart model from previous run (do not calc. temp, rate factor, or vel)
+    !> \item[2] hybrid restart; use restart from previous run as the input file, and reset the time
     !> \end{description}
 
     integer :: restart_extend_velo = 0
@@ -768,9 +769,6 @@ module glide_types
     !> \item[1] write uvel_extend and vvel_extend to restart file on extended staggered mesh
     !>          (required if restart velocities are nonzero on global boundaries)
     !> \end{description}
-
-    logical :: forcewrite_restart = .false.
-    !> flag that indicates whether to force writing of output on restart
 
     ! This is a Glimmer serial option
     ! The parallel code enforces periodic EW and NS boundary conditions by default

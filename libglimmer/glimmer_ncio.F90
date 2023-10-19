@@ -84,7 +84,7 @@ contains
 
           call glimmer_nc_openappend(oc,model)
 
-       elseif (model%options%is_restart == RESTART_TRUE) then   ! reopen the file if it exists
+       elseif (model%options%is_restart == STANDARD_RESTART) then   ! reopen the file if it exists
 
           status = parallel_open(process_path(oc%nc%filename),NF90_WRITE,oc%nc%id)
 
@@ -100,6 +100,7 @@ contains
           endif
 
        else  ! assume the file does not exist; create it
+             ! Note: For hybrid restarts, the file is created at initialization
 
           call glimmer_nc_createfile(oc, model)
 
@@ -714,7 +715,7 @@ contains
 
     implicit none
 
-    type(glimmer_nc_input), pointer :: infile  !> structure containg output netCDF descriptor
+    type(glimmer_nc_input), pointer :: infile  !> structure containing output netCDF descriptor
     type(glide_global_type) :: model    !> the model instance
     real(dp),optional :: time           !> Optional alternative time
 
@@ -749,21 +750,36 @@ contains
 
           if (pos /= 0 .or. pos_cesm /= 0) then   ! get the start time based on the current time slice
 
-             restart_time = infile%times(infile%current_time)      ! years
-             model%numerics%tstart = restart_time
-             model%numerics%time = restart_time
+             if (model%options%is_restart == STANDARD_RESTART) then
 
-             if (infile%tstep_counts_read) then
-                model%numerics%tstep_count = infile%tstep_counts(infile%current_time)
-             else
-                ! BACKWARDS_COMPATIBILITY(wjs, 2017-05-17) Older files may not have
-                ! 'tstep_count', so compute it ourselves here. We don't want to use this
-                ! formulation in general because it is prone to roundoff errors.
-                model%numerics%tstep_count = nint(model%numerics%time/model%numerics%tinc)
-             end if
+                restart_time = infile%times(infile%current_time)      ! years
+                model%numerics%tstart = restart_time
+                model%numerics%time = restart_time
 
-             write(message,*) 'Restart: New tstart, tstep_count =', model%numerics%tstart, model%numerics%tstep_count
-             call write_log(message)
+                if (infile%tstep_counts_read) then
+                   model%numerics%tstep_count = infile%tstep_counts(infile%current_time)
+                else
+                   ! BACKWARDS_COMPATIBILITY(wjs, 2017-05-17) Older files may not have
+                   ! 'tstep_count', so compute it ourselves here. We don't want to use this
+                   ! formulation in general because it is prone to roundoff errors.
+                   model%numerics%tstep_count = nint(model%numerics%time/model%numerics%tinc)
+                end if
+
+                write(message,*) 'Standard restart: New tstart, tstep_count =', &
+                     model%numerics%tstart, model%numerics%tstep_count
+                call write_log(message)
+
+             elseif (model%options%is_restart == HYBRID_RESTART) then
+
+                ! Use tstart from the config file, not the time from the restart file
+                model%numerics%time = model%numerics%tstart  ! years
+                model%numerics%tstep_count = 0
+
+                write(message,*) 'Hybrid restart: New tstart, tstep_count =', &
+                     model%numerics%tstart, model%numerics%tstep_count
+                call write_log(message)
+
+             endif   ! is_restart
 
           endif  ! pos/=0 or pos_cesm/=0
 
