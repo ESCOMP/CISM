@@ -2516,7 +2516,7 @@ contains
           !        a suite of automated stability tests, e.g. with the stabilitySlab.py script.
           if (advective_cfl > 1.0d0) then
              if (main_task) print*, 'advective CFL violation; call glide_finalise and exit cleanly'
-             call glide_finalise(model, crash=.true.)
+             call glide_finalise(model)
              stop
           else
              nsubcyc = model%numerics%subcyc
