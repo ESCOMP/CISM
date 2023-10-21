@@ -45,28 +45,29 @@ contains
 
   !Note: Currently, glide_finalise_all is never called. (glide_finalise is called from cism_driver)
 
-  subroutine glide_finalise_all(crash_arg)
+  subroutine glide_finalise_all(forcewrite_arg)
+
     !> Finalises all models in the model registry
-    logical, optional :: crash_arg
+    logical, optional :: forcewrite_arg
     
-    logical :: crash
+    logical :: forcewrite
     integer :: i
 
-    if (present(crash_arg)) then
-        crash = crash_arg
+    if (present(forcewrite_arg)) then
+        forcewrite = forcewrite_arg
     else
-        crash = .false.
+        forcewrite = .false.
     end if
 
     do i = 1, get_num_models()
         if (associated(registered_models(i)%p)) then
-            call glide_finalise(registered_models(i)%p, crash)
+            call glide_finalise(registered_models(i)%p, forcewrite_arg=forcewrite)
         end if
     end do 
   end subroutine
 
 
-  subroutine glide_finalise(model,crash)
+  subroutine glide_finalise(model,forcewrite_arg)
 
     !> finalise model instance
 
@@ -76,16 +77,25 @@ contains
     use glide_io
     use profile
     implicit none
-    type(glide_global_type) :: model        !> model instance
-    logical, optional :: crash              !> set to true if the model died unexpectedly
+    type(glide_global_type) :: model                 !> model instance
+    logical, optional, intent(in) :: forcewrite_arg  !> if true, then force a write to output files
     character(len=100) :: message
 
-    ! force last write if crashed
-    if (present(crash)) then
-       if (crash) then
-          call glide_io_writeall(model,model,.true.)
+    logical :: forcewrite = .false.         !> if true, then force a write to output files
+
+    ! force write to output files if specified by the optional input argument
+    if (present(forcewrite_arg)) then
+       if (forcewrite_arg) then
+          forcewrite = .true.
        end if
     end if
+
+    ! force write to output files if set by a model option
+    if (model%options%forcewrite_final) then
+       forcewrite = .true.
+    endif
+
+    call glide_io_writeall(model, model, forcewrite)
 
     call closeall_in(model)
     call closeall_out(model)

@@ -754,6 +754,10 @@ module glide_types
     !> \item[4] compute Pattyn sigma coordinates
     !> \end{description}
 
+    logical :: forcewrite_final = .false.
+    !> if true, then force a write to output and restart files when the model finishes
+
+    !TODO - Change 'is_restart' to 'restart'
     integer :: is_restart = 0
     !> if the run is a restart of a previous run
     !> \begin{description}

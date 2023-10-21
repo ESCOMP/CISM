@@ -761,9 +761,7 @@ contains
     call GetValue(section,'periodic_ew',model%options%periodic_ew)
     call GetValue(section,'sigma',model%options%which_sigma)
     call GetValue(section,'ioparams',model%funits%ncfile)
-
-    !Note: Previously, the terms 'hotstart' and 'restart' were both supported in the config file.
-    !      Going forward, only 'restart' is supported.
+    call GetValue(section,'forcewrite_final', model%options%forcewrite_final)
     call GetValue(section,'restart',model%options%is_restart)
     call GetValue(section,'restart_extend_velo',model%options%restart_extend_velo)
 
@@ -1651,6 +1649,10 @@ contains
        call write_log('Periodic EW lateral boundary condition')
        call write_log('  Slightly cheated with how temperature is implemented.',GM_WARNING)
     end if
+
+    if (model%options%forcewrite_final) then
+       call write_log('Force write to output files when the run completes')
+    endif
 
     if (model%options%is_restart == STANDARD_RESTART) then
        call write_log('Restarting model from a previous run')
