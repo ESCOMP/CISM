@@ -1,9 +1,9 @@
 CISM Changelog
 
-Changes in CISM tag cism_main_2.01.011
+Changes in CISM tag cism_main_2.01.013
 ======================================
 
-Changes to update old SLAP code and make it slightly nicer for modern compilers. Plus add in one missing use statement and update the dome python scripts to python3.
+Updates to support building and running on Derecho. Removing redundant use statements that slowed the Intel build. Changes to Python tests to make them python3 compatible and bit for bit. Changes to update old SLAP code and make it slightly nicer for modern compilers.
 
 Changes in CISM tag cism_main_2.01.003
 ======================================
