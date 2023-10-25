@@ -325,6 +325,7 @@ def main():
         if not args.quiet: 
             print("\nRunning CISM dome test")
             print(  "======================\n")
+        process = subprocess.check_call('source /etc/profile.d/modules.sh', shell=True, stderr=subprocess.STDOUT)
         process = subprocess.check_call('module list', shell=True, stderr=subprocess.STDOUT)
 
 
