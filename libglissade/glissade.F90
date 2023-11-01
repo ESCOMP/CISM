@@ -1083,10 +1083,6 @@ contains
 
     !if needed loop over the basins to find which basins need a multiplier
     if (model%options%which_ho_bmlt_basin_correction == HO_BMLT_BASIN_CORRECTION) then
-       print*, 'zakje'
-       print*, model%basal_melt%basin_correctionfactor
-       print*, model%basal_melt%maxnbasin_correction
-       print*, model%basal_melt%minnbasin_correction
        do j = 1,model%general%ewn 
           do i = 1, model%general%nsn
              if (model%basal_melt%minnbasin_correction < model%ocean_data%basin_number(i,j) &
@@ -1269,7 +1265,7 @@ contains
 
 
     else if (model%options%which_ho_bmlt_basin_correction == HO_BMLT_BASIN_CORRECTION) then
-          
+         print*, 'Zakje' 
          model%basal_melt%bmlt(:,:) = model%basal_melt%bmlt_ground(:,:) + model%basal_melt%bmlt_float(:,:)*model%basal_melt%basin_multiplier_array(:,:)
     else
          model%basal_melt%bmlt(:,:) = model%basal_melt%bmlt_ground(:,:) + model%basal_melt%bmlt_float(:,:)*model%basal_melt%bmlt_float_factor_internal

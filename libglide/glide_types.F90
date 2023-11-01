@@ -3288,7 +3288,7 @@ contains
 
     if (associated(model%basal_melt%bmlt)) &
         deallocate(model%basal_melt%bmlt)
-    if(associated(model%basal_melt%basin_multiplier_array))&
+    if (associated(model%basal_melt%basin_multiplier_array))&
         deallocate(model%basal_melt%basin_multiplier_array)
     if (associated(model%basal_melt%bmlt_applied)) &
         deallocate(model%basal_melt%bmlt_applied)
