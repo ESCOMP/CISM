@@ -1,0 +1,713 @@
+The system is: Linux - 4.12.14-95.51-default - x86_64
+Compiling the Fortran compiler identification source file "CMakeFortranCompilerId.F" succeeded.
+Compiler: /glade/u/apps/ch/opt/ncarcompilers/0.5.0/gnu/8.3.0/mpi/mpif90 
+Build flags: -fconvert=big-endian;-ffree-line-length-none;-ffixed-line-length-none;-ffree-form;-O
+Id flags: -v 
+
+The output was:
+0
+Driving: gfortran -fconvert=big-endian -ffree-line-length-none -ffixed-line-length-none -ffree-form -O -v CMakeFortranCompilerId.F -I/glade/u/apps/ch/opt/gnu/8.3.0/include -I/glade/u/apps/ch/opt/netcdf/4.7.1/gnu/8.3.0/include -I/glade/u/apps/ch/opt/openblas/0.3.6/gnu/8.3.0/include -I/glade/u/apps/ch/opt/python/2.7.13/gnu/6.2.0/include -Wl,-Bstatic -lnetcdff -lnetcdf -lhdf5hl_fortran -lhdf5_hl -lhdf5_fortran -lhdf5 -lsz -lz -Wl,-Bdynamic -l gfortran -lm -ldl -lopenblas -lpython2.7 -lsec -lrt -ldl -Wl,--disable-new-dtags -L/glade/u/apps/ch/opt/gnu/8.3.0/lib64 -L/glade/u/apps/ch/opt/gnu/8.3.0/lib/gcc/x86_64-pc-linux-gnu/8.3.0 -L/glade/u/apps/ch/opt/netcdf/4.7.1/gnu/8.3.0/lib -L/glade/u/apps/ch/opt/openblas/0.3.6/gnu/8.3.0/lib -L/opt/pbs/lib -L/glade/u/apps/ch/opt/python/2.7.13/gnu/6.2.0/lib -L/glade/u/apps/ch/opt/openmpi/3.1.4/gnu/8.3.0/lib -Wl,-rpath,/glade/u/apps/ch/opt/gnu/8.3.0/lib64 -Wl,-rpath,/glade/u/apps/ch/opt/gnu/8.3.0/lib/gcc/x86_64-pc-linux-gnu/8.3.0 -Wl,-rpath,/glade/u/apps/ch/opt/netcdf/4.7.1/gnu/8.3.0/lib -Wl,-rpath,/glade/u/apps/ch/opt/openblas/0.3.6/gnu/8.3.0/lib -Wl,-rpath,/opt/pbs/lib -Wl,-rpath,/glade/u/apps/ch/opt/python/2.7.13/gnu/6.2.0/lib -Wl,-rpath,/glade/u/apps/ch/opt/openmpi/3.1.4/gnu/8.3.0/lib -I/glade/u/apps/ch/opt/openmpi/3.1.4/gnu/8.3.0/include -pthread -I/glade/u/apps/ch/opt/openmpi/3.1.4/gnu/8.3.0/lib -Wl,-rpath -Wl,/glade/u/apps/ch/opt/openmpi/3.1.4/gnu/8.3.0/lib -L/glade/u/apps/ch/opt/openmpi/3.1.4/gnu/8.3.0/lib -lmpi_usempif08 -lmpi_usempi_ignore_tkr -lmpi_mpifh -lmpi -l gfortran -l m -shared-libgcc
+Using built-in specs.
+COLLECT_GCC=gfortran
+COLLECT_LTO_WRAPPER=/glade/u/apps/ch/opt/gnu/8.3.0/libexec/gcc/x86_64-pc-linux-gnu/8.3.0/lto-wrapper
+Target: x86_64-pc-linux-gnu
+Configured with: ../configure --prefix=/glade/u/apps/ch/opt/gnu/8.3.0/ --enable-languages=c,c++,fortran,lto --enable-threads --disable-multilib
+Thread model: posix
+gcc version 8.3.0 (GCC) 
+COLLECT_GCC_OPTIONS='-fconvert=big-endian' '-ffree-line-length-none' '-ffixed-line-length-none' '-ffree-form' '-O' '-v' '-I' '/glade/u/apps/ch/opt/gnu/8.3.0/include' '-I' '/glade/u/apps/ch/opt/netcdf/4.7.1/gnu/8.3.0/include' '-I' '/glade/u/apps/ch/opt/openblas/0.3.6/gnu/8.3.0/include' '-I' '/glade/u/apps/ch/opt/python/2.7.13/gnu/6.2.0/include' '-L/glade/u/apps/ch/opt/gnu/8.3.0/lib64' '-L/glade/u/apps/ch/opt/gnu/8.3.0/lib/gcc/x86_64-pc-linux-gnu/8.3.0' '-L/glade/u/apps/ch/opt/netcdf/4.7.1/gnu/8.3.0/lib' '-L/glade/u/apps/ch/opt/openblas/0.3.6/gnu/8.3.0/lib' '-L/opt/pbs/lib' '-L/glade/u/apps/ch/opt/python/2.7.13/gnu/6.2.0/lib' '-L/glade/u/apps/ch/opt/openmpi/3.1.4/gnu/8.3.0/lib' '-I' '/glade/u/apps/ch/opt/openmpi/3.1.4/gnu/8.3.0/include' '-pthread' '-I' '/glade/u/apps/ch/opt/openmpi/3.1.4/gnu/8.3.0/lib' '-L/glade/u/apps/ch/opt/openmpi/3.1.4/gnu/8.3.0/lib' '-shared-libgcc' '-mtune=generic' '-march=x86-64'
+ /glade/u/apps/ch/opt/gnu/8.3.0/libexec/gcc/x86_64-pc-linux-gnu/8.3.0/f951 CMakeFortranCompilerId.F -cpp=/glade/scratch/tvda/cc93GqNr.f90 -quiet -v -I /glade/u/apps/ch/opt/gnu/8.3.0/include -I /glade/u/apps/ch/opt/netcdf/4.7.1/gnu/8.3.0/include -I /glade/u/apps/ch/opt/openblas/0.3.6/gnu/8.3.0/include -I /glade/u/apps/ch/opt/python/2.7.13/gnu/6.2.0/include -I /glade/u/apps/ch/opt/openmpi/3.1.4/gnu/8.3.0/include -I /glade/u/apps/ch/opt/openmpi/3.1.4/gnu/8.3.0/lib -D_REENTRANT CMakeFortranCompilerId.F -quiet -dumpbase CMakeFortranCompilerId.F -mtune=generic -march=x86-64 -auxbase CMakeFortranCompilerId -O -version -fconvert=big-endian -ffree-line-length-none -ffixed-line-length-none -ffree-form -fintrinsic-modules-path /glade/u/apps/ch/opt/gnu/8.3.0/lib/gcc/x86_64-pc-linux-gnu/8.3.0/finclude -o /glade/scratch/tvda/ccQgHmFB.s
+GNU Fortran (GCC) version 8.3.0 (x86_64-pc-linux-gnu)
+	compiled by GNU C version 8.3.0, GMP version 6.1.0, MPFR version 3.1.4, MPC version 1.0.3, isl version isl-0.18-GMP
+
+GGC heuristics: --param ggc-min-expand=100 --param ggc-min-heapsize=131072
+ignoring nonexistent directory "/glade/u/apps/ch/opt/gnu/8.3.0/lib/gcc/x86_64-pc-linux-gnu/8.3.0/../../../../x86_64-pc-linux-gnu/include"
+ignoring duplicate directory "/glade/u/apps/ch/opt/gnu/8.3.0/include"
+  as it is a non-system directory that duplicates a system directory
+ignoring duplicate directory "/glade/u/apps/ch/opt/openmpi/3.1.4/gnu/8.3.0/include"
+#include "..." search starts here:
+#include <...> search starts here:
+ /glade/u/apps/ch/opt/netcdf/4.7.1/gnu/8.3.0/include
+ /glade/u/apps/ch/opt/openblas/0.3.6/gnu/8.3.0/include
+ /glade/u/apps/ch/opt/python/2.7.13/gnu/6.2.0/include
+ /glade/u/apps/ch/opt/openmpi/3.1.4/gnu/8.3.0/include
+ /glade/u/apps/ch/opt/openmpi/3.1.4/gnu/8.3.0/lib
+ /glade/u/apps/ch/opt/gnu/8.3.0/lib/gcc/x86_64-pc-linux-gnu/8.3.0/finclude
+ /glade/u/apps/ch/opt/gnu/8.3.0/lib/gcc/x86_64-pc-linux-gnu/8.3.0/include
+ /usr/local/include
+ /glade/u/apps/ch/opt/gnu/8.3.0/include
+ /glade/u/apps/ch/opt/gnu/8.3.0/lib/gcc/x86_64-pc-linux-gnu/8.3.0/include-fixed
+ /usr/include
+End of search list.
+GNU Fortran2008 (GCC) version 8.3.0 (x86_64-pc-linux-gnu)
+	compiled by GNU C version 8.3.0, GMP version 6.1.0, MPFR version 3.1.4, MPC version 1.0.3, isl version isl-0.18-GMP
+
+GGC heuristics: --param ggc-min-expand=100 --param ggc-min-heapsize=131072
+COLLECT_GCC_OPTIONS='-fconvert=big-endian' '-ffree-line-length-none' '-ffixed-line-length-none' '-ffree-form' '-O' '-v' '-I' '/glade/u/apps/ch/opt/gnu/8.3.0/include' '-I' '/glade/u/apps/ch/opt/netcdf/4.7.1/gnu/8.3.0/include' '-I' '/glade/u/apps/ch/opt/openblas/0.3.6/gnu/8.3.0/include' '-I' '/glade/u/apps/ch/opt/python/2.7.13/gnu/6.2.0/include' '-L/glade/u/apps/ch/opt/gnu/8.3.0/lib64' '-L/glade/u/apps/ch/opt/gnu/8.3.0/lib/gcc/x86_64-pc-linux-gnu/8.3.0' '-L/glade/u/apps/ch/opt/netcdf/4.7.1/gnu/8.3.0/lib' '-L/glade/u/apps/ch/opt/openblas/0.3.6/gnu/8.3.0/lib' '-L/opt/pbs/lib' '-L/glade/u/apps/ch/opt/python/2.7.13/gnu/6.2.0/lib' '-L/glade/u/apps/ch/opt/openmpi/3.1.4/gnu/8.3.0/lib' '-I' '/glade/u/apps/ch/opt/openmpi/3.1.4/gnu/8.3.0/include' '-pthread' '-I' '/glade/u/apps/ch/opt/openmpi/3.1.4/gnu/8.3.0/lib' '-L/glade/u/apps/ch/opt/openmpi/3.1.4/gnu/8.3.0/lib' '-shared-libgcc' '-mtune=generic' '-march=x86-64'
+ as -v -I /glade/u/apps/ch/opt/gnu/8.3.0/include -I /glade/u/apps/ch/opt/netcdf/4.7.1/gnu/8.3.0/include -I /glade/u/apps/ch/opt/openblas/0.3.6/gnu/8.3.0/include -I /glade/u/apps/ch/opt/python/2.7.13/gnu/6.2.0/include -I /glade/u/apps/ch/opt/openmpi/3.1.4/gnu/8.3.0/include -I /glade/u/apps/ch/opt/openmpi/3.1.4/gnu/8.3.0/lib --64 -o /glade/scratch/tvda/ccDAOjOL.o /glade/scratch/tvda/ccQgHmFB.s
+GNU assembler version 2.32.0 (x86_64-suse-linux) using BFD version (GNU Binutils; SUSE Linux Enterprise 12) 2.32.0.20190909-9.36
+Reading specs from /glade/u/apps/ch/opt/gnu/8.3.0/lib/gcc/x86_64-pc-linux-gnu/8.3.0/../../../../lib64/libgfortran.spec
+rename spec lib to liborig
+COLLECT_GCC_OPTIONS='-fconvert=big-endian' '-ffree-line-length-none' '-ffixed-line-length-none' '-ffree-form' '-O' '-v' '-I' '/glade/u/apps/ch/opt/gnu/8.3.0/include' '-I' '/glade/u/apps/ch/opt/netcdf/4.7.1/gnu/8.3.0/include' '-I' '/glade/u/apps/ch/opt/openblas/0.3.6/gnu/8.3.0/include' '-I' '/glade/u/apps/ch/opt/python/2.7.13/gnu/6.2.0/include' '-L/glade/u/apps/ch/opt/gnu/8.3.0/lib64' '-L/glade/u/apps/ch/opt/gnu/8.3.0/lib/gcc/x86_64-pc-linux-gnu/8.3.0' '-L/glade/u/apps/ch/opt/netcdf/4.7.1/gnu/8.3.0/lib' '-L/glade/u/apps/ch/opt/openblas/0.3.6/gnu/8.3.0/lib' '-L/opt/pbs/lib' '-L/glade/u/apps/ch/opt/python/2.7.13/gnu/6.2.0/lib' '-L/glade/u/apps/ch/opt/openmpi/3.1.4/gnu/8.3.0/lib' '-I' '/glade/u/apps/ch/opt/openmpi/3.1.4/gnu/8.3.0/include' '-pthread' '-I' '/glade/u/apps/ch/opt/openmpi/3.1.4/gnu/8.3.0/lib' '-L/glade/u/apps/ch/opt/openmpi/3.1.4/gnu/8.3.0/lib' '-shared-libgcc' '-mtune=generic' '-march=x86-64'
+COMPILER_PATH=/glade/u/apps/ch/opt/gnu/8.3.0/libexec/gcc/x86_64-pc-linux-gnu/8.3.0/:/glade/u/apps/ch/opt/gnu/8.3.0/libexec/gcc/x86_64-pc-linux-gnu/8.3.0/:/glade/u/apps/ch/opt/gnu/8.3.0/libexec/gcc/x86_64-pc-linux-gnu/:/glade/u/apps/ch/opt/gnu/8.3.0/lib/gcc/x86_64-pc-linux-gnu/8.3.0/:/glade/u/apps/ch/opt/gnu/8.3.0/lib/gcc/x86_64-pc-linux-gnu/
+LIBRARY_PATH=/glade/u/apps/ch/opt/gnu/8.3.0/lib/gcc/x86_64-pc-linux-gnu/8.3.0/:/glade/u/apps/ch/opt/gnu/8.3.0/lib/gcc/x86_64-pc-linux-gnu/8.3.0/../../../../lib64/:/lib/../lib64/:/usr/lib/../lib64/:/glade/u/apps/ch/opt/openmpi/3.1.4/gnu/8.3.0/lib/:/glade/u/apps/ch/opt/gnu/8.3.0/lib/gcc/x86_64-pc-linux-gnu/8.3.0/../../../:/lib/:/usr/lib/
+COLLECT_GCC_OPTIONS='-fconvert=big-endian' '-ffree-line-length-none' '-ffixed-line-length-none' '-ffree-form' '-O' '-v' '-I' '/glade/u/apps/ch/opt/gnu/8.3.0/include' '-I' '/glade/u/apps/ch/opt/netcdf/4.7.1/gnu/8.3.0/include' '-I' '/glade/u/apps/ch/opt/openblas/0.3.6/gnu/8.3.0/include' '-I' '/glade/u/apps/ch/opt/python/2.7.13/gnu/6.2.0/include' '-L/glade/u/apps/ch/opt/gnu/8.3.0/lib64' '-L/glade/u/apps/ch/opt/gnu/8.3.0/lib/gcc/x86_64-pc-linux-gnu/8.3.0' '-L/glade/u/apps/ch/opt/netcdf/4.7.1/gnu/8.3.0/lib' '-L/glade/u/apps/ch/opt/openblas/0.3.6/gnu/8.3.0/lib' '-L/opt/pbs/lib' '-L/glade/u/apps/ch/opt/python/2.7.13/gnu/6.2.0/lib' '-L/glade/u/apps/ch/opt/openmpi/3.1.4/gnu/8.3.0/lib' '-I' '/glade/u/apps/ch/opt/openmpi/3.1.4/gnu/8.3.0/include' '-pthread' '-I' '/glade/u/apps/ch/opt/openmpi/3.1.4/gnu/8.3.0/lib' '-L/glade/u/apps/ch/opt/openmpi/3.1.4/gnu/8.3.0/lib' '-shared-libgcc' '-mtune=generic' '-march=x86-64'
+ /glade/u/apps/ch/opt/gnu/8.3.0/libexec/gcc/x86_64-pc-linux-gnu/8.3.0/collect2 -plugin /glade/u/apps/ch/opt/gnu/8.3.0/libexec/gcc/x86_64-pc-linux-gnu/8.3.0/liblto_plugin.so -plugin-opt=/glade/u/apps/ch/opt/gnu/8.3.0/libexec/gcc/x86_64-pc-linux-gnu/8.3.0/lto-wrapper -plugin-opt=-fresolution=/glade/scratch/tvda/cclr606V.res -plugin-opt=-pass-through=-lgcc_s -plugin-opt=-pass-through=-lgcc -plugin-opt=-pass-through=-lquadmath -plugin-opt=-pass-through=-lm -plugin-opt=-pass-through=-lgcc_s -plugin-opt=-pass-through=-lgcc -plugin-opt=-pass-through=-lpthread -plugin-opt=-pass-through=-lc -plugin-opt=-pass-through=-lgcc_s -plugin-opt=-pass-through=-lgcc --eh-frame-hdr -m elf_x86_64 -dynamic-linker /lib64/ld-linux-x86-64.so.2 /usr/lib/../lib64/crt1.o /usr/lib/../lib64/crti.o /glade/u/apps/ch/opt/gnu/8.3.0/lib/gcc/x86_64-pc-linux-gnu/8.3.0/crtbegin.o -L/glade/u/apps/ch/opt/gnu/8.3.0/lib64 -L/glade/u/apps/ch/opt/gnu/8.3.0/lib/gcc/x86_64-pc-linux-gnu/8.3.0 -L/glade/u/apps/ch/opt/netcdf/4.7.1/gnu/8.3.0/lib -L/glade/u/apps/ch/opt/openblas/0.3.6/gnu/8.3.0/lib -L/opt/pbs/lib -L/glade/u/apps/ch/opt/python/2.7.13/gnu/6.2.0/lib -L/glade/u/apps/ch/opt/openmpi/3.1.4/gnu/8.3.0/lib -L/glade/u/apps/ch/opt/openmpi/3.1.4/gnu/8.3.0/lib -L/glade/u/apps/ch/opt/gnu/8.3.0/lib/gcc/x86_64-pc-linux-gnu/8.3.0 -L/glade/u/apps/ch/opt/gnu/8.3.0/lib/gcc/x86_64-pc-linux-gnu/8.3.0/../../../../lib64 -L/lib/../lib64 -L/usr/lib/../lib64 -L/glade/u/apps/ch/opt/openmpi/3.1.4/gnu/8.3.0/lib -L/glade/u/apps/ch/opt/gnu/8.3.0/lib/gcc/x86_64-pc-linux-gnu/8.3.0/../../.. /glade/scratch/tvda/ccDAOjOL.o -Bstatic -lnetcdff -lnetcdf -lhdf5hl_fortran -lhdf5_hl -lhdf5_fortran -lhdf5 -lsz -lz -Bdynamic -lgfortran -lm -ldl -lopenblas -lpython2.7 -lsec -lrt -ldl --disable-new-dtags -rpath /glade/u/apps/ch/opt/gnu/8.3.0/lib64 -rpath /glade/u/apps/ch/opt/gnu/8.3.0/lib/gcc/x86_64-pc-linux-gnu/8.3.0 -rpath /glade/u/apps/ch/opt/netcdf/4.7.1/gnu/8.3.0/lib -rpath /glade/u/apps/ch/opt/openblas/0.3.6/gnu/8.3.0/lib -rpath /opt/pbs/lib -rpath /glade/u/apps/ch/opt/python/2.7.13/gnu/6.2.0/lib -rpath /glade/u/apps/ch/opt/openmpi/3.1.4/gnu/8.3.0/lib -rpath /glade/u/apps/ch/opt/openmpi/3.1.4/gnu/8.3.0/lib -lmpi_usempif08 -lmpi_usempi_ignore_tkr -lmpi_mpifh -lmpi -lgfortran -lm -lgcc_s -lgcc -lquadmath -lm -lgcc_s -lgcc -lpthread -lc -lgcc_s -lgcc /glade/u/apps/ch/opt/gnu/8.3.0/lib/gcc/x86_64-pc-linux-gnu/8.3.0/crtend.o /usr/lib/../lib64/crtn.o
+COLLECT_GCC_OPTIONS='-fconvert=big-endian' '-ffree-line-length-none' '-ffixed-line-length-none' '-ffree-form' '-O' '-v' '-I' '/glade/u/apps/ch/opt/gnu/8.3.0/include' '-I' '/glade/u/apps/ch/opt/netcdf/4.7.1/gnu/8.3.0/include' '-I' '/glade/u/apps/ch/opt/openblas/0.3.6/gnu/8.3.0/include' '-I' '/glade/u/apps/ch/opt/python/2.7.13/gnu/6.2.0/include' '-L/glade/u/apps/ch/opt/gnu/8.3.0/lib64' '-L/glade/u/apps/ch/opt/gnu/8.3.0/lib/gcc/x86_64-pc-linux-gnu/8.3.0' '-L/glade/u/apps/ch/opt/netcdf/4.7.1/gnu/8.3.0/lib' '-L/glade/u/apps/ch/opt/openblas/0.3.6/gnu/8.3.0/lib' '-L/opt/pbs/lib' '-L/glade/u/apps/ch/opt/python/2.7.13/gnu/6.2.0/lib' '-L/glade/u/apps/ch/opt/openmpi/3.1.4/gnu/8.3.0/lib' '-I' '/glade/u/apps/ch/opt/openmpi/3.1.4/gnu/8.3.0/include' '-pthread' '-I' '/glade/u/apps/ch/opt/openmpi/3.1.4/gnu/8.3.0/lib' '-L/glade/u/apps/ch/opt/openmpi/3.1.4/gnu/8.3.0/lib' '-shared-libgcc' '-mtune=generic' '-march=x86-64'
+
+
+Compilation of the Fortran compiler identification source "CMakeFortranCompilerId.F" produced "a.out"
+
+The Fortran compiler identification is GNU, found in "/glade/u/home/tvda/CISM/builds/cheyenne-intel-bill/CMakeFiles/3.14.4/CompilerIdFortran/a.out"
+
+Determining if the Fortran compiler works passed with the following output:
+Change Dir: /glade/u/home/tvda/CISM/builds/cheyenne-intel-bill/CMakeFiles/CMakeTmp
+
+Run Build Command(s):/usr/bin/gmake cmTC_4a6c1/fast 
+/usr/bin/gmake -f CMakeFiles/cmTC_4a6c1.dir/build.make CMakeFiles/cmTC_4a6c1.dir/build
+gmake[1]: Entering directory '/glade/u/home/tvda/CISM/builds/cheyenne-intel-bill/CMakeFiles/CMakeTmp'
+Building Fortran object CMakeFiles/cmTC_4a6c1.dir/testFortranCompiler.f.o
+/glade/u/apps/ch/opt/ncarcompilers/0.5.0/gnu/8.3.0/mpi/mpif90   -fconvert=big-endian -ffree-line-length-none -ffixed-line-length-none -ffree-form -O    -c /glade/u/home/tvda/CISM/builds/cheyenne-intel-bill/CMakeFiles/CMakeTmp/testFortranCompiler.f -o CMakeFiles/cmTC_4a6c1.dir/testFortranCompiler.f.o
+Linking Fortran executable cmTC_4a6c1
+/glade/u/apps/ch/opt/cmake/3.14.4/bin/cmake -E cmake_link_script CMakeFiles/cmTC_4a6c1.dir/link.txt --verbose=1
+/glade/u/apps/ch/opt/ncarcompilers/0.5.0/gnu/8.3.0/mpi/mpif90    -fconvert=big-endian -ffree-line-length-none -ffixed-line-length-none -ffree-form -O  CMakeFiles/cmTC_4a6c1.dir/testFortranCompiler.f.o  -o cmTC_4a6c1 
+gmake[1]: Leaving directory '/glade/u/home/tvda/CISM/builds/cheyenne-intel-bill/CMakeFiles/CMakeTmp'
+
+
+Detecting Fortran compiler ABI info compiled with the following output:
+Change Dir: /glade/u/home/tvda/CISM/builds/cheyenne-intel-bill/CMakeFiles/CMakeTmp
+
+Run Build Command(s):/usr/bin/gmake cmTC_88185/fast 
+/usr/bin/gmake -f CMakeFiles/cmTC_88185.dir/build.make CMakeFiles/cmTC_88185.dir/build
+gmake[1]: Entering directory '/glade/u/home/tvda/CISM/builds/cheyenne-intel-bill/CMakeFiles/CMakeTmp'
+Building Fortran object CMakeFiles/cmTC_88185.dir/CMakeFortranCompilerABI.F.o
+/glade/u/apps/ch/opt/ncarcompilers/0.5.0/gnu/8.3.0/mpi/mpif90   -fconvert=big-endian -ffree-line-length-none -ffixed-line-length-none -ffree-form -O    -v -c /glade/u/apps/ch/opt/cmake/3.14.4/share/cmake-3.14/Modules/CMakeFortranCompilerABI.F -o CMakeFiles/cmTC_88185.dir/CMakeFortranCompilerABI.F.o
+Driving: gfortran -fconvert=big-endian -ffree-line-length-none -ffixed-line-length-none -ffree-form -O -v -c /glade/u/apps/ch/opt/cmake/3.14.4/share/cmake-3.14/Modules/CMakeFortranCompilerABI.F -o CMakeFiles/cmTC_88185.dir/CMakeFortranCompilerABI.F.o -I/glade/u/apps/ch/opt/gnu/8.3.0/include -I/glade/u/apps/ch/opt/netcdf/4.7.1/gnu/8.3.0/include -I/glade/u/apps/ch/opt/openblas/0.3.6/gnu/8.3.0/include -I/glade/u/apps/ch/opt/python/2.7.13/gnu/6.2.0/include -Wl,-Bstatic -lnetcdff -lnetcdf -lhdf5hl_fortran -lhdf5_hl -lhdf5_fortran -lhdf5 -lsz -lz -Wl,-Bdynamic -l gfortran -lm -ldl -lopenblas -lpython2.7 -lsec -lrt -ldl -Wl,--disable-new-dtags -L/glade/u/apps/ch/opt/gnu/8.3.0/lib64 -L/glade/u/apps/ch/opt/gnu/8.3.0/lib/gcc/x86_64-pc-linux-gnu/8.3.0 -L/glade/u/apps/ch/opt/netcdf/4.7.1/gnu/8.3.0/lib -L/glade/u/apps/ch/opt/openblas/0.3.6/gnu/8.3.0/lib -L/opt/pbs/lib -L/glade/u/apps/ch/opt/python/2.7.13/gnu/6.2.0/lib -L/glade/u/apps/ch/opt/openmpi/3.1.4/gnu/8.3.0/lib -Wl,-rpath,/glade/u/apps/ch/opt/gnu/8.3.0/lib64 -Wl,-rpath,/glade/u/apps/ch/opt/gnu/8.3.0/lib/gcc/x86_64-pc-linux-gnu/8.3.0 -Wl,-rpath,/glade/u/apps/ch/opt/netcdf/4.7.1/gnu/8.3.0/lib -Wl,-rpath,/glade/u/apps/ch/opt/openblas/0.3.6/gnu/8.3.0/lib -Wl,-rpath,/opt/pbs/lib -Wl,-rpath,/glade/u/apps/ch/opt/python/2.7.13/gnu/6.2.0/lib -Wl,-rpath,/glade/u/apps/ch/opt/openmpi/3.1.4/gnu/8.3.0/lib -I/glade/u/apps/ch/opt/openmpi/3.1.4/gnu/8.3.0/include -pthread -I/glade/u/apps/ch/opt/openmpi/3.1.4/gnu/8.3.0/lib
+Using built-in specs.
+COLLECT_GCC=gfortran
+Target: x86_64-pc-linux-gnu
+Configured with: ../configure --prefix=/glade/u/apps/ch/opt/gnu/8.3.0/ --enable-languages=c,c++,fortran,lto --enable-threads --disable-multilib
+Thread model: posix
+gcc version 8.3.0 (GCC) 
+COLLECT_GCC_OPTIONS='-fconvert=big-endian' '-ffree-line-length-none' '-ffixed-line-length-none' '-ffree-form' '-O' '-v' '-c' '-o' 'CMakeFiles/cmTC_88185.dir/CMakeFortranCompilerABI.F.o' '-I' '/glade/u/apps/ch/opt/gnu/8.3.0/include' '-I' '/glade/u/apps/ch/opt/netcdf/4.7.1/gnu/8.3.0/include' '-I' '/glade/u/apps/ch/opt/openblas/0.3.6/gnu/8.3.0/include' '-I' '/glade/u/apps/ch/opt/python/2.7.13/gnu/6.2.0/include' '-L/glade/u/apps/ch/opt/gnu/8.3.0/lib64' '-L/glade/u/apps/ch/opt/gnu/8.3.0/lib/gcc/x86_64-pc-linux-gnu/8.3.0' '-L/glade/u/apps/ch/opt/netcdf/4.7.1/gnu/8.3.0/lib' '-L/glade/u/apps/ch/opt/openblas/0.3.6/gnu/8.3.0/lib' '-L/opt/pbs/lib' '-L/glade/u/apps/ch/opt/python/2.7.13/gnu/6.2.0/lib' '-L/glade/u/apps/ch/opt/openmpi/3.1.4/gnu/8.3.0/lib' '-I' '/glade/u/apps/ch/opt/openmpi/3.1.4/gnu/8.3.0/include' '-pthread' '-I' '/glade/u/apps/ch/opt/openmpi/3.1.4/gnu/8.3.0/lib' '-mtune=generic' '-march=x86-64'
+ /glade/u/apps/ch/opt/gnu/8.3.0/libexec/gcc/x86_64-pc-linux-gnu/8.3.0/f951 /glade/u/apps/ch/opt/cmake/3.14.4/share/cmake-3.14/Modules/CMakeFortranCompilerABI.F -cpp=/glade/scratch/tvda/cc7tr4aA.f90 -quiet -v -I /glade/u/apps/ch/opt/gnu/8.3.0/include -I /glade/u/apps/ch/opt/netcdf/4.7.1/gnu/8.3.0/include -I /glade/u/apps/ch/opt/openblas/0.3.6/gnu/8.3.0/include -I /glade/u/apps/ch/opt/python/2.7.13/gnu/6.2.0/include -I /glade/u/apps/ch/opt/openmpi/3.1.4/gnu/8.3.0/include -I /glade/u/apps/ch/opt/openmpi/3.1.4/gnu/8.3.0/lib -D_REENTRANT /glade/u/apps/ch/opt/cmake/3.14.4/share/cmake-3.14/Modules/CMakeFortranCompilerABI.F -quiet -dumpbase CMakeFortranCompilerABI.F -mtune=generic -march=x86-64 -auxbase-strip CMakeFiles/cmTC_88185.dir/CMakeFortranCompilerABI.F.o -O -version -fconvert=big-endian -ffree-line-length-none -ffixed-line-length-none -ffree-form -fintrinsic-modules-path /glade/u/apps/ch/opt/gnu/8.3.0/lib/gcc/x86_64-pc-linux-gnu/8.3.0/finclude -o /glade/scratch/tvda/ccibsj8O.s
+GNU Fortran (GCC) version 8.3.0 (x86_64-pc-linux-gnu)
+	compiled by GNU C version 8.3.0, GMP version 6.1.0, MPFR version 3.1.4, MPC version 1.0.3, isl version isl-0.18-GMP
+
+GGC heuristics: --param ggc-min-expand=100 --param ggc-min-heapsize=131072
+ignoring nonexistent directory "/glade/u/apps/ch/opt/gnu/8.3.0/lib/gcc/x86_64-pc-linux-gnu/8.3.0/../../../../x86_64-pc-linux-gnu/include"
+ignoring duplicate directory "/glade/u/apps/ch/opt/gnu/8.3.0/include"
+  as it is a non-system directory that duplicates a system directory
+ignoring duplicate directory "/glade/u/apps/ch/opt/openmpi/3.1.4/gnu/8.3.0/include"
+#include "..." search starts here:
+#include <...> search starts here:
+ /glade/u/apps/ch/opt/netcdf/4.7.1/gnu/8.3.0/include
+ /glade/u/apps/ch/opt/openblas/0.3.6/gnu/8.3.0/include
+ /glade/u/apps/ch/opt/python/2.7.13/gnu/6.2.0/include
+ /glade/u/apps/ch/opt/openmpi/3.1.4/gnu/8.3.0/include
+ /glade/u/apps/ch/opt/openmpi/3.1.4/gnu/8.3.0/lib
+ /glade/u/apps/ch/opt/gnu/8.3.0/lib/gcc/x86_64-pc-linux-gnu/8.3.0/finclude
+ /glade/u/apps/ch/opt/gnu/8.3.0/lib/gcc/x86_64-pc-linux-gnu/8.3.0/include
+ /usr/local/include
+ /glade/u/apps/ch/opt/gnu/8.3.0/include
+ /glade/u/apps/ch/opt/gnu/8.3.0/lib/gcc/x86_64-pc-linux-gnu/8.3.0/include-fixed
+ /usr/include
+End of search list.
+GNU Fortran2008 (GCC) version 8.3.0 (x86_64-pc-linux-gnu)
+	compiled by GNU C version 8.3.0, GMP version 6.1.0, MPFR version 3.1.4, MPC version 1.0.3, isl version isl-0.18-GMP
+
+GGC heuristics: --param ggc-min-expand=100 --param ggc-min-heapsize=131072
+COLLECT_GCC_OPTIONS='-fconvert=big-endian' '-ffree-line-length-none' '-ffixed-line-length-none' '-ffree-form' '-O' '-v' '-c' '-o' 'CMakeFiles/cmTC_88185.dir/CMakeFortranCompilerABI.F.o' '-I' '/glade/u/apps/ch/opt/gnu/8.3.0/include' '-I' '/glade/u/apps/ch/opt/netcdf/4.7.1/gnu/8.3.0/include' '-I' '/glade/u/apps/ch/opt/openblas/0.3.6/gnu/8.3.0/include' '-I' '/glade/u/apps/ch/opt/python/2.7.13/gnu/6.2.0/include' '-L/glade/u/apps/ch/opt/gnu/8.3.0/lib64' '-L/glade/u/apps/ch/opt/gnu/8.3.0/lib/gcc/x86_64-pc-linux-gnu/8.3.0' '-L/glade/u/apps/ch/opt/netcdf/4.7.1/gnu/8.3.0/lib' '-L/glade/u/apps/ch/opt/openblas/0.3.6/gnu/8.3.0/lib' '-L/opt/pbs/lib' '-L/glade/u/apps/ch/opt/python/2.7.13/gnu/6.2.0/lib' '-L/glade/u/apps/ch/opt/openmpi/3.1.4/gnu/8.3.0/lib' '-I' '/glade/u/apps/ch/opt/openmpi/3.1.4/gnu/8.3.0/include' '-pthread' '-I' '/glade/u/apps/ch/opt/openmpi/3.1.4/gnu/8.3.0/lib' '-mtune=generic' '-march=x86-64'
+ as -v -I /glade/u/apps/ch/opt/gnu/8.3.0/include -I /glade/u/apps/ch/opt/netcdf/4.7.1/gnu/8.3.0/include -I /glade/u/apps/ch/opt/openblas/0.3.6/gnu/8.3.0/include -I /glade/u/apps/ch/opt/python/2.7.13/gnu/6.2.0/include -I /glade/u/apps/ch/opt/openmpi/3.1.4/gnu/8.3.0/include -I /glade/u/apps/ch/opt/openmpi/3.1.4/gnu/8.3.0/lib --64 -o CMakeFiles/cmTC_88185.dir/CMakeFortranCompilerABI.F.o /glade/scratch/tvda/ccibsj8O.s
+GNU assembler version 2.32.0 (x86_64-suse-linux) using BFD version (GNU Binutils; SUSE Linux Enterprise 12) 2.32.0.20190909-9.36
+COMPILER_PATH=/glade/u/apps/ch/opt/gnu/8.3.0/libexec/gcc/x86_64-pc-linux-gnu/8.3.0/:/glade/u/apps/ch/opt/gnu/8.3.0/libexec/gcc/x86_64-pc-linux-gnu/8.3.0/:/glade/u/apps/ch/opt/gnu/8.3.0/libexec/gcc/x86_64-pc-linux-gnu/:/glade/u/apps/ch/opt/gnu/8.3.0/lib/gcc/x86_64-pc-linux-gnu/8.3.0/:/glade/u/apps/ch/opt/gnu/8.3.0/lib/gcc/x86_64-pc-linux-gnu/
+LIBRARY_PATH=/glade/u/apps/ch/opt/gnu/8.3.0/lib/gcc/x86_64-pc-linux-gnu/8.3.0/:/glade/u/apps/ch/opt/gnu/8.3.0/lib/gcc/x86_64-pc-linux-gnu/8.3.0/../../../../lib64/:/lib/../lib64/:/usr/lib/../lib64/:/glade/u/apps/ch/opt/openmpi/3.1.4/gnu/8.3.0/lib/:/glade/u/apps/ch/opt/gnu/8.3.0/lib/gcc/x86_64-pc-linux-gnu/8.3.0/../../../:/lib/:/usr/lib/
+COLLECT_GCC_OPTIONS='-fconvert=big-endian' '-ffree-line-length-none' '-ffixed-line-length-none' '-ffree-form' '-O' '-v' '-c' '-o' 'CMakeFiles/cmTC_88185.dir/CMakeFortranCompilerABI.F.o' '-I' '/glade/u/apps/ch/opt/gnu/8.3.0/include' '-I' '/glade/u/apps/ch/opt/netcdf/4.7.1/gnu/8.3.0/include' '-I' '/glade/u/apps/ch/opt/openblas/0.3.6/gnu/8.3.0/include' '-I' '/glade/u/apps/ch/opt/python/2.7.13/gnu/6.2.0/include' '-L/glade/u/apps/ch/opt/gnu/8.3.0/lib64' '-L/glade/u/apps/ch/opt/gnu/8.3.0/lib/gcc/x86_64-pc-linux-gnu/8.3.0' '-L/glade/u/apps/ch/opt/netcdf/4.7.1/gnu/8.3.0/lib' '-L/glade/u/apps/ch/opt/openblas/0.3.6/gnu/8.3.0/lib' '-L/opt/pbs/lib' '-L/glade/u/apps/ch/opt/python/2.7.13/gnu/6.2.0/lib' '-L/glade/u/apps/ch/opt/openmpi/3.1.4/gnu/8.3.0/lib' '-I' '/glade/u/apps/ch/opt/openmpi/3.1.4/gnu/8.3.0/include' '-pthread' '-I' '/glade/u/apps/ch/opt/openmpi/3.1.4/gnu/8.3.0/lib' '-mtune=generic' '-march=x86-64'
+Linking Fortran executable cmTC_88185
+/glade/u/apps/ch/opt/cmake/3.14.4/bin/cmake -E cmake_link_script CMakeFiles/cmTC_88185.dir/link.txt --verbose=1
+/glade/u/apps/ch/opt/ncarcompilers/0.5.0/gnu/8.3.0/mpi/mpif90   -v -fconvert=big-endian -ffree-line-length-none -ffixed-line-length-none -ffree-form -O  CMakeFiles/cmTC_88185.dir/CMakeFortranCompilerABI.F.o  -o cmTC_88185 
+Driving: gfortran -v -fconvert=big-endian -ffree-line-length-none -ffixed-line-length-none -ffree-form -O CMakeFiles/cmTC_88185.dir/CMakeFortranCompilerABI.F.o -o cmTC_88185 -I/glade/u/apps/ch/opt/gnu/8.3.0/include -I/glade/u/apps/ch/opt/netcdf/4.7.1/gnu/8.3.0/include -I/glade/u/apps/ch/opt/openblas/0.3.6/gnu/8.3.0/include -I/glade/u/apps/ch/opt/python/2.7.13/gnu/6.2.0/include -Wl,-Bstatic -lnetcdff -lnetcdf -lhdf5hl_fortran -lhdf5_hl -lhdf5_fortran -lhdf5 -lsz -lz -Wl,-Bdynamic -l gfortran -lm -ldl -lopenblas -lpython2.7 -lsec -lrt -ldl -Wl,--disable-new-dtags -L/glade/u/apps/ch/opt/gnu/8.3.0/lib64 -L/glade/u/apps/ch/opt/gnu/8.3.0/lib/gcc/x86_64-pc-linux-gnu/8.3.0 -L/glade/u/apps/ch/opt/netcdf/4.7.1/gnu/8.3.0/lib -L/glade/u/apps/ch/opt/openblas/0.3.6/gnu/8.3.0/lib -L/opt/pbs/lib -L/glade/u/apps/ch/opt/python/2.7.13/gnu/6.2.0/lib -L/glade/u/apps/ch/opt/openmpi/3.1.4/gnu/8.3.0/lib -Wl,-rpath,/glade/u/apps/ch/opt/gnu/8.3.0/lib64 -Wl,-rpath,/glade/u/apps/ch/opt/gnu/8.3.0/lib/gcc/x86_64-pc-linux-gnu/8.3.0 -Wl,-rpath,/glade/u/apps/ch/opt/netcdf/4.7.1/gnu/8.3.0/lib -Wl,-rpath,/glade/u/apps/ch/opt/openblas/0.3.6/gnu/8.3.0/lib -Wl,-rpath,/opt/pbs/lib -Wl,-rpath,/glade/u/apps/ch/opt/python/2.7.13/gnu/6.2.0/lib -Wl,-rpath,/glade/u/apps/ch/opt/openmpi/3.1.4/gnu/8.3.0/lib -I/glade/u/apps/ch/opt/openmpi/3.1.4/gnu/8.3.0/include -pthread -I/glade/u/apps/ch/opt/openmpi/3.1.4/gnu/8.3.0/lib -Wl,-rpath -Wl,/glade/u/apps/ch/opt/openmpi/3.1.4/gnu/8.3.0/lib -L/glade/u/apps/ch/opt/openmpi/3.1.4/gnu/8.3.0/lib -lmpi_usempif08 -lmpi_usempi_ignore_tkr -lmpi_mpifh -lmpi -l gfortran -l m -shared-libgcc
+Using built-in specs.
+COLLECT_GCC=gfortran
+COLLECT_LTO_WRAPPER=/glade/u/apps/ch/opt/gnu/8.3.0/libexec/gcc/x86_64-pc-linux-gnu/8.3.0/lto-wrapper
+Target: x86_64-pc-linux-gnu
+Configured with: ../configure --prefix=/glade/u/apps/ch/opt/gnu/8.3.0/ --enable-languages=c,c++,fortran,lto --enable-threads --disable-multilib
+Thread model: posix
+gcc version 8.3.0 (GCC) 
+Reading specs from /glade/u/apps/ch/opt/gnu/8.3.0/lib/gcc/x86_64-pc-linux-gnu/8.3.0/../../../../lib64/libgfortran.spec
+rename spec lib to liborig
+COLLECT_GCC_OPTIONS='-v' '-fconvert=big-endian' '-ffree-line-length-none' '-ffixed-line-length-none' '-ffree-form' '-O' '-o' 'cmTC_88185' '-I' '/glade/u/apps/ch/opt/gnu/8.3.0/include' '-I' '/glade/u/apps/ch/opt/netcdf/4.7.1/gnu/8.3.0/include' '-I' '/glade/u/apps/ch/opt/openblas/0.3.6/gnu/8.3.0/include' '-I' '/glade/u/apps/ch/opt/python/2.7.13/gnu/6.2.0/include' '-L/glade/u/apps/ch/opt/gnu/8.3.0/lib64' '-L/glade/u/apps/ch/opt/gnu/8.3.0/lib/gcc/x86_64-pc-linux-gnu/8.3.0' '-L/glade/u/apps/ch/opt/netcdf/4.7.1/gnu/8.3.0/lib' '-L/glade/u/apps/ch/opt/openblas/0.3.6/gnu/8.3.0/lib' '-L/opt/pbs/lib' '-L/glade/u/apps/ch/opt/python/2.7.13/gnu/6.2.0/lib' '-L/glade/u/apps/ch/opt/openmpi/3.1.4/gnu/8.3.0/lib' '-I' '/glade/u/apps/ch/opt/openmpi/3.1.4/gnu/8.3.0/include' '-pthread' '-I' '/glade/u/apps/ch/opt/openmpi/3.1.4/gnu/8.3.0/lib' '-L/glade/u/apps/ch/opt/openmpi/3.1.4/gnu/8.3.0/lib' '-shared-libgcc' '-mtune=generic' '-march=x86-64'
+COMPILER_PATH=/glade/u/apps/ch/opt/gnu/8.3.0/libexec/gcc/x86_64-pc-linux-gnu/8.3.0/:/glade/u/apps/ch/opt/gnu/8.3.0/libexec/gcc/x86_64-pc-linux-gnu/8.3.0/:/glade/u/apps/ch/opt/gnu/8.3.0/libexec/gcc/x86_64-pc-linux-gnu/:/glade/u/apps/ch/opt/gnu/8.3.0/lib/gcc/x86_64-pc-linux-gnu/8.3.0/:/glade/u/apps/ch/opt/gnu/8.3.0/lib/gcc/x86_64-pc-linux-gnu/
+LIBRARY_PATH=/glade/u/apps/ch/opt/gnu/8.3.0/lib/gcc/x86_64-pc-linux-gnu/8.3.0/:/glade/u/apps/ch/opt/gnu/8.3.0/lib/gcc/x86_64-pc-linux-gnu/8.3.0/../../../../lib64/:/lib/../lib64/:/usr/lib/../lib64/:/glade/u/apps/ch/opt/openmpi/3.1.4/gnu/8.3.0/lib/:/glade/u/apps/ch/opt/gnu/8.3.0/lib/gcc/x86_64-pc-linux-gnu/8.3.0/../../../:/lib/:/usr/lib/
+COLLECT_GCC_OPTIONS='-v' '-fconvert=big-endian' '-ffree-line-length-none' '-ffixed-line-length-none' '-ffree-form' '-O' '-o' 'cmTC_88185' '-I' '/glade/u/apps/ch/opt/gnu/8.3.0/include' '-I' '/glade/u/apps/ch/opt/netcdf/4.7.1/gnu/8.3.0/include' '-I' '/glade/u/apps/ch/opt/openblas/0.3.6/gnu/8.3.0/include' '-I' '/glade/u/apps/ch/opt/python/2.7.13/gnu/6.2.0/include' '-L/glade/u/apps/ch/opt/gnu/8.3.0/lib64' '-L/glade/u/apps/ch/opt/gnu/8.3.0/lib/gcc/x86_64-pc-linux-gnu/8.3.0' '-L/glade/u/apps/ch/opt/netcdf/4.7.1/gnu/8.3.0/lib' '-L/glade/u/apps/ch/opt/openblas/0.3.6/gnu/8.3.0/lib' '-L/opt/pbs/lib' '-L/glade/u/apps/ch/opt/python/2.7.13/gnu/6.2.0/lib' '-L/glade/u/apps/ch/opt/openmpi/3.1.4/gnu/8.3.0/lib' '-I' '/glade/u/apps/ch/opt/openmpi/3.1.4/gnu/8.3.0/include' '-pthread' '-I' '/glade/u/apps/ch/opt/openmpi/3.1.4/gnu/8.3.0/lib' '-L/glade/u/apps/ch/opt/openmpi/3.1.4/gnu/8.3.0/lib' '-shared-libgcc' '-mtune=generic' '-march=x86-64'
+ /glade/u/apps/ch/opt/gnu/8.3.0/libexec/gcc/x86_64-pc-linux-gnu/8.3.0/collect2 -plugin /glade/u/apps/ch/opt/gnu/8.3.0/libexec/gcc/x86_64-pc-linux-gnu/8.3.0/liblto_plugin.so -plugin-opt=/glade/u/apps/ch/opt/gnu/8.3.0/libexec/gcc/x86_64-pc-linux-gnu/8.3.0/lto-wrapper -plugin-opt=-fresolution=/glade/scratch/tvda/ccLOX74P.res -plugin-opt=-pass-through=-lgcc_s -plugin-opt=-pass-through=-lgcc -plugin-opt=-pass-through=-lquadmath -plugin-opt=-pass-through=-lm -plugin-opt=-pass-through=-lgcc_s -plugin-opt=-pass-through=-lgcc -plugin-opt=-pass-through=-lpthread -plugin-opt=-pass-through=-lc -plugin-opt=-pass-through=-lgcc_s -plugin-opt=-pass-through=-lgcc --eh-frame-hdr -m elf_x86_64 -dynamic-linker /lib64/ld-linux-x86-64.so.2 -o cmTC_88185 /usr/lib/../lib64/crt1.o /usr/lib/../lib64/crti.o /glade/u/apps/ch/opt/gnu/8.3.0/lib/gcc/x86_64-pc-linux-gnu/8.3.0/crtbegin.o -L/glade/u/apps/ch/opt/gnu/8.3.0/lib64 -L/glade/u/apps/ch/opt/gnu/8.3.0/lib/gcc/x86_64-pc-linux-gnu/8.3.0 -L/glade/u/apps/ch/opt/netcdf/4.7.1/gnu/8.3.0/lib -L/glade/u/apps/ch/opt/openblas/0.3.6/gnu/8.3.0/lib -L/opt/pbs/lib -L/glade/u/apps/ch/opt/python/2.7.13/gnu/6.2.0/lib -L/glade/u/apps/ch/opt/openmpi/3.1.4/gnu/8.3.0/lib -L/glade/u/apps/ch/opt/openmpi/3.1.4/gnu/8.3.0/lib -L/glade/u/apps/ch/opt/gnu/8.3.0/lib/gcc/x86_64-pc-linux-gnu/8.3.0 -L/glade/u/apps/ch/opt/gnu/8.3.0/lib/gcc/x86_64-pc-linux-gnu/8.3.0/../../../../lib64 -L/lib/../lib64 -L/usr/lib/../lib64 -L/glade/u/apps/ch/opt/openmpi/3.1.4/gnu/8.3.0/lib -L/glade/u/apps/ch/opt/gnu/8.3.0/lib/gcc/x86_64-pc-linux-gnu/8.3.0/../../.. CMakeFiles/cmTC_88185.dir/CMakeFortranCompilerABI.F.o -Bstatic -lnetcdff -lnetcdf -lhdf5hl_fortran -lhdf5_hl -lhdf5_fortran -lhdf5 -lsz -lz -Bdynamic -lgfortran -lm -ldl -lopenblas -lpython2.7 -lsec -lrt -ldl --disable-new-dtags -rpath /glade/u/apps/ch/opt/gnu/8.3.0/lib64 -rpath /glade/u/apps/ch/opt/gnu/8.3.0/lib/gcc/x86_64-pc-linux-gnu/8.3.0 -rpath /glade/u/apps/ch/opt/netcdf/4.7.1/gnu/8.3.0/lib -rpath /glade/u/apps/ch/opt/openblas/0.3.6/gnu/8.3.0/lib -rpath /opt/pbs/lib -rpath /glade/u/apps/ch/opt/python/2.7.13/gnu/6.2.0/lib -rpath /glade/u/apps/ch/opt/openmpi/3.1.4/gnu/8.3.0/lib -rpath /glade/u/apps/ch/opt/openmpi/3.1.4/gnu/8.3.0/lib -lmpi_usempif08 -lmpi_usempi_ignore_tkr -lmpi_mpifh -lmpi -lgfortran -lm -lgcc_s -lgcc -lquadmath -lm -lgcc_s -lgcc -lpthread -lc -lgcc_s -lgcc /glade/u/apps/ch/opt/gnu/8.3.0/lib/gcc/x86_64-pc-linux-gnu/8.3.0/crtend.o /usr/lib/../lib64/crtn.o
+COLLECT_GCC_OPTIONS='-v' '-fconvert=big-endian' '-ffree-line-length-none' '-ffixed-line-length-none' '-ffree-form' '-O' '-o' 'cmTC_88185' '-I' '/glade/u/apps/ch/opt/gnu/8.3.0/include' '-I' '/glade/u/apps/ch/opt/netcdf/4.7.1/gnu/8.3.0/include' '-I' '/glade/u/apps/ch/opt/openblas/0.3.6/gnu/8.3.0/include' '-I' '/glade/u/apps/ch/opt/python/2.7.13/gnu/6.2.0/include' '-L/glade/u/apps/ch/opt/gnu/8.3.0/lib64' '-L/glade/u/apps/ch/opt/gnu/8.3.0/lib/gcc/x86_64-pc-linux-gnu/8.3.0' '-L/glade/u/apps/ch/opt/netcdf/4.7.1/gnu/8.3.0/lib' '-L/glade/u/apps/ch/opt/openblas/0.3.6/gnu/8.3.0/lib' '-L/opt/pbs/lib' '-L/glade/u/apps/ch/opt/python/2.7.13/gnu/6.2.0/lib' '-L/glade/u/apps/ch/opt/openmpi/3.1.4/gnu/8.3.0/lib' '-I' '/glade/u/apps/ch/opt/openmpi/3.1.4/gnu/8.3.0/include' '-pthread' '-I' '/glade/u/apps/ch/opt/openmpi/3.1.4/gnu/8.3.0/lib' '-L/glade/u/apps/ch/opt/openmpi/3.1.4/gnu/8.3.0/lib' '-shared-libgcc' '-mtune=generic' '-march=x86-64'
+gmake[1]: Leaving directory '/glade/u/home/tvda/CISM/builds/cheyenne-intel-bill/CMakeFiles/CMakeTmp'
+
+
+Parsed Fortran implicit include dir info from above output: rv=done
+  found start of include info
+  found start of implicit include info
+    add: [/glade/u/apps/ch/opt/netcdf/4.7.1/gnu/8.3.0/include]
+    add: [/glade/u/apps/ch/opt/openblas/0.3.6/gnu/8.3.0/include]
+    add: [/glade/u/apps/ch/opt/python/2.7.13/gnu/6.2.0/include]
+    add: [/glade/u/apps/ch/opt/openmpi/3.1.4/gnu/8.3.0/include]
+    add: [/glade/u/apps/ch/opt/openmpi/3.1.4/gnu/8.3.0/lib]
+    add: [/glade/u/apps/ch/opt/gnu/8.3.0/lib/gcc/x86_64-pc-linux-gnu/8.3.0/finclude]
+    add: [/glade/u/apps/ch/opt/gnu/8.3.0/lib/gcc/x86_64-pc-linux-gnu/8.3.0/include]
+    add: [/usr/local/include]
+    add: [/glade/u/apps/ch/opt/gnu/8.3.0/include]
+    add: [/glade/u/apps/ch/opt/gnu/8.3.0/lib/gcc/x86_64-pc-linux-gnu/8.3.0/include-fixed]
+    add: [/usr/include]
+  end of search list found
+  collapse include dir [/glade/u/apps/ch/opt/netcdf/4.7.1/gnu/8.3.0/include] ==> [/glade/u/apps/ch/opt/netcdf/4.7.1/gnu/8.3.0/include]
+  collapse include dir [/glade/u/apps/ch/opt/openblas/0.3.6/gnu/8.3.0/include] ==> [/glade/u/apps/ch/opt/openblas/0.3.6/gnu/8.3.0/include]
+  collapse include dir [/glade/u/apps/ch/opt/python/2.7.13/gnu/6.2.0/include] ==> [/glade/u/apps/ch/opt/python/2.7.13/gnu/6.2.0/include]
+  collapse include dir [/glade/u/apps/ch/opt/openmpi/3.1.4/gnu/8.3.0/include] ==> [/glade/u/apps/ch/opt/openmpi/3.1.4/gnu/8.3.0/include]
+  collapse include dir [/glade/u/apps/ch/opt/openmpi/3.1.4/gnu/8.3.0/lib] ==> [/glade/u/apps/ch/opt/openmpi/3.1.4/gnu/8.3.0/lib]
+  collapse include dir [/glade/u/apps/ch/opt/gnu/8.3.0/lib/gcc/x86_64-pc-linux-gnu/8.3.0/finclude] ==> [/glade/u/apps/ch/opt/gnu/8.3.0/lib/gcc/x86_64-pc-linux-gnu/8.3.0/finclude]
+  collapse include dir [/glade/u/apps/ch/opt/gnu/8.3.0/lib/gcc/x86_64-pc-linux-gnu/8.3.0/include] ==> [/glade/u/apps/ch/opt/gnu/8.3.0/lib/gcc/x86_64-pc-linux-gnu/8.3.0/include]
+  collapse include dir [/usr/local/include] ==> [/usr/local/include]
+  collapse include dir [/glade/u/apps/ch/opt/gnu/8.3.0/include] ==> [/glade/u/apps/ch/opt/gnu/8.3.0/include]
+  collapse include dir [/glade/u/apps/ch/opt/gnu/8.3.0/lib/gcc/x86_64-pc-linux-gnu/8.3.0/include-fixed] ==> [/glade/u/apps/ch/opt/gnu/8.3.0/lib/gcc/x86_64-pc-linux-gnu/8.3.0/include-fixed]
+  collapse include dir [/usr/include] ==> [/usr/include]
+  implicit include dirs: [/glade/u/apps/ch/opt/netcdf/4.7.1/gnu/8.3.0/include;/glade/u/apps/ch/opt/openblas/0.3.6/gnu/8.3.0/include;/glade/u/apps/ch/opt/python/2.7.13/gnu/6.2.0/include;/glade/u/apps/ch/opt/openmpi/3.1.4/gnu/8.3.0/include;/glade/u/apps/ch/opt/openmpi/3.1.4/gnu/8.3.0/lib;/glade/u/apps/ch/opt/gnu/8.3.0/lib/gcc/x86_64-pc-linux-gnu/8.3.0/finclude;/glade/u/apps/ch/opt/gnu/8.3.0/lib/gcc/x86_64-pc-linux-gnu/8.3.0/include;/usr/local/include;/glade/u/apps/ch/opt/gnu/8.3.0/include;/glade/u/apps/ch/opt/gnu/8.3.0/lib/gcc/x86_64-pc-linux-gnu/8.3.0/include-fixed;/usr/include]
+
+
+Parsed Fortran implicit link information from above output:
+  link line regex: [^( *|.*[/\])(ld|CMAKE_LINK_STARTFILE-NOTFOUND|([^/\]+-)?ld|collect2)[^/\]*( |$)]
+  ignore line: [Change Dir: /glade/u/home/tvda/CISM/builds/cheyenne-intel-bill/CMakeFiles/CMakeTmp]
+  ignore line: []
+  ignore line: [Run Build Command(s):/usr/bin/gmake cmTC_88185/fast ]
+  ignore line: [/usr/bin/gmake -f CMakeFiles/cmTC_88185.dir/build.make CMakeFiles/cmTC_88185.dir/build]
+  ignore line: [gmake[1]: Entering directory '/glade/u/home/tvda/CISM/builds/cheyenne-intel-bill/CMakeFiles/CMakeTmp']
+  ignore line: [Building Fortran object CMakeFiles/cmTC_88185.dir/CMakeFortranCompilerABI.F.o]
+  ignore line: [/glade/u/apps/ch/opt/ncarcompilers/0.5.0/gnu/8.3.0/mpi/mpif90   -fconvert=big-endian -ffree-line-length-none -ffixed-line-length-none -ffree-form -O    -v -c /glade/u/apps/ch/opt/cmake/3.14.4/share/cmake-3.14/Modules/CMakeFortranCompilerABI.F -o CMakeFiles/cmTC_88185.dir/CMakeFortranCompilerABI.F.o]
+  ignore line: [Driving: gfortran -fconvert=big-endian -ffree-line-length-none -ffixed-line-length-none -ffree-form -O -v -c /glade/u/apps/ch/opt/cmake/3.14.4/share/cmake-3.14/Modules/CMakeFortranCompilerABI.F -o CMakeFiles/cmTC_88185.dir/CMakeFortranCompilerABI.F.o -I/glade/u/apps/ch/opt/gnu/8.3.0/include -I/glade/u/apps/ch/opt/netcdf/4.7.1/gnu/8.3.0/include -I/glade/u/apps/ch/opt/openblas/0.3.6/gnu/8.3.0/include -I/glade/u/apps/ch/opt/python/2.7.13/gnu/6.2.0/include -Wl,-Bstatic -lnetcdff -lnetcdf -lhdf5hl_fortran -lhdf5_hl -lhdf5_fortran -lhdf5 -lsz -lz -Wl,-Bdynamic -l gfortran -lm -ldl -lopenblas -lpython2.7 -lsec -lrt -ldl -Wl,--disable-new-dtags -L/glade/u/apps/ch/opt/gnu/8.3.0/lib64 -L/glade/u/apps/ch/opt/gnu/8.3.0/lib/gcc/x86_64-pc-linux-gnu/8.3.0 -L/glade/u/apps/ch/opt/netcdf/4.7.1/gnu/8.3.0/lib -L/glade/u/apps/ch/opt/openblas/0.3.6/gnu/8.3.0/lib -L/opt/pbs/lib -L/glade/u/apps/ch/opt/python/2.7.13/gnu/6.2.0/lib -L/glade/u/apps/ch/opt/openmpi/3.1.4/gnu/8.3.0/lib -Wl,-rpath,/glade/u/apps/ch/opt/gnu/8.3.0/lib64 -Wl,-rpath,/glade/u/apps/ch/opt/gnu/8.3.0/lib/gcc/x86_64-pc-linux-gnu/8.3.0 -Wl,-rpath,/glade/u/apps/ch/opt/netcdf/4.7.1/gnu/8.3.0/lib -Wl,-rpath,/glade/u/apps/ch/opt/openblas/0.3.6/gnu/8.3.0/lib -Wl,-rpath,/opt/pbs/lib -Wl,-rpath,/glade/u/apps/ch/opt/python/2.7.13/gnu/6.2.0/lib -Wl,-rpath,/glade/u/apps/ch/opt/openmpi/3.1.4/gnu/8.3.0/lib -I/glade/u/apps/ch/opt/openmpi/3.1.4/gnu/8.3.0/include -pthread -I/glade/u/apps/ch/opt/openmpi/3.1.4/gnu/8.3.0/lib]
+  ignore line: [Using built-in specs.]
+  ignore line: [COLLECT_GCC=gfortran]
+  ignore line: [Target: x86_64-pc-linux-gnu]
+  ignore line: [Configured with: ../configure --prefix=/glade/u/apps/ch/opt/gnu/8.3.0/ --enable-languages=c,c++,fortran,lto --enable-threads --disable-multilib]
+  ignore line: [Thread model: posix]
+  ignore line: [gcc version 8.3.0 (GCC) ]
+  ignore line: [COLLECT_GCC_OPTIONS='-fconvert=big-endian' '-ffree-line-length-none' '-ffixed-line-length-none' '-ffree-form' '-O' '-v' '-c' '-o' 'CMakeFiles/cmTC_88185.dir/CMakeFortranCompilerABI.F.o' '-I' '/glade/u/apps/ch/opt/gnu/8.3.0/include' '-I' '/glade/u/apps/ch/opt/netcdf/4.7.1/gnu/8.3.0/include' '-I' '/glade/u/apps/ch/opt/openblas/0.3.6/gnu/8.3.0/include' '-I' '/glade/u/apps/ch/opt/python/2.7.13/gnu/6.2.0/include' '-L/glade/u/apps/ch/opt/gnu/8.3.0/lib64' '-L/glade/u/apps/ch/opt/gnu/8.3.0/lib/gcc/x86_64-pc-linux-gnu/8.3.0' '-L/glade/u/apps/ch/opt/netcdf/4.7.1/gnu/8.3.0/lib' '-L/glade/u/apps/ch/opt/openblas/0.3.6/gnu/8.3.0/lib' '-L/opt/pbs/lib' '-L/glade/u/apps/ch/opt/python/2.7.13/gnu/6.2.0/lib' '-L/glade/u/apps/ch/opt/openmpi/3.1.4/gnu/8.3.0/lib' '-I' '/glade/u/apps/ch/opt/openmpi/3.1.4/gnu/8.3.0/include' '-pthread' '-I' '/glade/u/apps/ch/opt/openmpi/3.1.4/gnu/8.3.0/lib' '-mtune=generic' '-march=x86-64']
+  ignore line: [ /glade/u/apps/ch/opt/gnu/8.3.0/libexec/gcc/x86_64-pc-linux-gnu/8.3.0/f951 /glade/u/apps/ch/opt/cmake/3.14.4/share/cmake-3.14/Modules/CMakeFortranCompilerABI.F -cpp=/glade/scratch/tvda/cc7tr4aA.f90 -quiet -v -I /glade/u/apps/ch/opt/gnu/8.3.0/include -I /glade/u/apps/ch/opt/netcdf/4.7.1/gnu/8.3.0/include -I /glade/u/apps/ch/opt/openblas/0.3.6/gnu/8.3.0/include -I /glade/u/apps/ch/opt/python/2.7.13/gnu/6.2.0/include -I /glade/u/apps/ch/opt/openmpi/3.1.4/gnu/8.3.0/include -I /glade/u/apps/ch/opt/openmpi/3.1.4/gnu/8.3.0/lib -D_REENTRANT /glade/u/apps/ch/opt/cmake/3.14.4/share/cmake-3.14/Modules/CMakeFortranCompilerABI.F -quiet -dumpbase CMakeFortranCompilerABI.F -mtune=generic -march=x86-64 -auxbase-strip CMakeFiles/cmTC_88185.dir/CMakeFortranCompilerABI.F.o -O -version -fconvert=big-endian -ffree-line-length-none -ffixed-line-length-none -ffree-form -fintrinsic-modules-path /glade/u/apps/ch/opt/gnu/8.3.0/lib/gcc/x86_64-pc-linux-gnu/8.3.0/finclude -o /glade/scratch/tvda/ccibsj8O.s]
+  ignore line: [GNU Fortran (GCC) version 8.3.0 (x86_64-pc-linux-gnu)]
+  ignore line: [	compiled by GNU C version 8.3.0, GMP version 6.1.0, MPFR version 3.1.4, MPC version 1.0.3, isl version isl-0.18-GMP]
+  ignore line: []
+  ignore line: [GGC heuristics: --param ggc-min-expand=100 --param ggc-min-heapsize=131072]
+  ignore line: [ignoring nonexistent directory "/glade/u/apps/ch/opt/gnu/8.3.0/lib/gcc/x86_64-pc-linux-gnu/8.3.0/../../../../x86_64-pc-linux-gnu/include"]
+  ignore line: [ignoring duplicate directory "/glade/u/apps/ch/opt/gnu/8.3.0/include"]
+  ignore line: [  as it is a non-system directory that duplicates a system directory]
+  ignore line: [ignoring duplicate directory "/glade/u/apps/ch/opt/openmpi/3.1.4/gnu/8.3.0/include"]
+  ignore line: [#include "..." search starts here:]
+  ignore line: [#include <...> search starts here:]
+  ignore line: [ /glade/u/apps/ch/opt/netcdf/4.7.1/gnu/8.3.0/include]
+  ignore line: [ /glade/u/apps/ch/opt/openblas/0.3.6/gnu/8.3.0/include]
+  ignore line: [ /glade/u/apps/ch/opt/python/2.7.13/gnu/6.2.0/include]
+  ignore line: [ /glade/u/apps/ch/opt/openmpi/3.1.4/gnu/8.3.0/include]
+  ignore line: [ /glade/u/apps/ch/opt/openmpi/3.1.4/gnu/8.3.0/lib]
+  ignore line: [ /glade/u/apps/ch/opt/gnu/8.3.0/lib/gcc/x86_64-pc-linux-gnu/8.3.0/finclude]
+  ignore line: [ /glade/u/apps/ch/opt/gnu/8.3.0/lib/gcc/x86_64-pc-linux-gnu/8.3.0/include]
+  ignore line: [ /usr/local/include]
+  ignore line: [ /glade/u/apps/ch/opt/gnu/8.3.0/include]
+  ignore line: [ /glade/u/apps/ch/opt/gnu/8.3.0/lib/gcc/x86_64-pc-linux-gnu/8.3.0/include-fixed]
+  ignore line: [ /usr/include]
+  ignore line: [End of search list.]
+  ignore line: [GNU Fortran2008 (GCC) version 8.3.0 (x86_64-pc-linux-gnu)]
+  ignore line: [	compiled by GNU C version 8.3.0, GMP version 6.1.0, MPFR version 3.1.4, MPC version 1.0.3, isl version isl-0.18-GMP]
+  ignore line: []
+  ignore line: [GGC heuristics: --param ggc-min-expand=100 --param ggc-min-heapsize=131072]
+  ignore line: [COLLECT_GCC_OPTIONS='-fconvert=big-endian' '-ffree-line-length-none' '-ffixed-line-length-none' '-ffree-form' '-O' '-v' '-c' '-o' 'CMakeFiles/cmTC_88185.dir/CMakeFortranCompilerABI.F.o' '-I' '/glade/u/apps/ch/opt/gnu/8.3.0/include' '-I' '/glade/u/apps/ch/opt/netcdf/4.7.1/gnu/8.3.0/include' '-I' '/glade/u/apps/ch/opt/openblas/0.3.6/gnu/8.3.0/include' '-I' '/glade/u/apps/ch/opt/python/2.7.13/gnu/6.2.0/include' '-L/glade/u/apps/ch/opt/gnu/8.3.0/lib64' '-L/glade/u/apps/ch/opt/gnu/8.3.0/lib/gcc/x86_64-pc-linux-gnu/8.3.0' '-L/glade/u/apps/ch/opt/netcdf/4.7.1/gnu/8.3.0/lib' '-L/glade/u/apps/ch/opt/openblas/0.3.6/gnu/8.3.0/lib' '-L/opt/pbs/lib' '-L/glade/u/apps/ch/opt/python/2.7.13/gnu/6.2.0/lib' '-L/glade/u/apps/ch/opt/openmpi/3.1.4/gnu/8.3.0/lib' '-I' '/glade/u/apps/ch/opt/openmpi/3.1.4/gnu/8.3.0/include' '-pthread' '-I' '/glade/u/apps/ch/opt/openmpi/3.1.4/gnu/8.3.0/lib' '-mtune=generic' '-march=x86-64']
+  ignore line: [ as -v -I /glade/u/apps/ch/opt/gnu/8.3.0/include -I /glade/u/apps/ch/opt/netcdf/4.7.1/gnu/8.3.0/include -I /glade/u/apps/ch/opt/openblas/0.3.6/gnu/8.3.0/include -I /glade/u/apps/ch/opt/python/2.7.13/gnu/6.2.0/include -I /glade/u/apps/ch/opt/openmpi/3.1.4/gnu/8.3.0/include -I /glade/u/apps/ch/opt/openmpi/3.1.4/gnu/8.3.0/lib --64 -o CMakeFiles/cmTC_88185.dir/CMakeFortranCompilerABI.F.o /glade/scratch/tvda/ccibsj8O.s]
+  ignore line: [GNU assembler version 2.32.0 (x86_64-suse-linux) using BFD version (GNU Binutils]
+  ignore line: [ SUSE Linux Enterprise 12) 2.32.0.20190909-9.36]
+  ignore line: [COMPILER_PATH=/glade/u/apps/ch/opt/gnu/8.3.0/libexec/gcc/x86_64-pc-linux-gnu/8.3.0/:/glade/u/apps/ch/opt/gnu/8.3.0/libexec/gcc/x86_64-pc-linux-gnu/8.3.0/:/glade/u/apps/ch/opt/gnu/8.3.0/libexec/gcc/x86_64-pc-linux-gnu/:/glade/u/apps/ch/opt/gnu/8.3.0/lib/gcc/x86_64-pc-linux-gnu/8.3.0/:/glade/u/apps/ch/opt/gnu/8.3.0/lib/gcc/x86_64-pc-linux-gnu/]
+  ignore line: [LIBRARY_PATH=/glade/u/apps/ch/opt/gnu/8.3.0/lib/gcc/x86_64-pc-linux-gnu/8.3.0/:/glade/u/apps/ch/opt/gnu/8.3.0/lib/gcc/x86_64-pc-linux-gnu/8.3.0/../../../../lib64/:/lib/../lib64/:/usr/lib/../lib64/:/glade/u/apps/ch/opt/openmpi/3.1.4/gnu/8.3.0/lib/:/glade/u/apps/ch/opt/gnu/8.3.0/lib/gcc/x86_64-pc-linux-gnu/8.3.0/../../../:/lib/:/usr/lib/]
+  ignore line: [COLLECT_GCC_OPTIONS='-fconvert=big-endian' '-ffree-line-length-none' '-ffixed-line-length-none' '-ffree-form' '-O' '-v' '-c' '-o' 'CMakeFiles/cmTC_88185.dir/CMakeFortranCompilerABI.F.o' '-I' '/glade/u/apps/ch/opt/gnu/8.3.0/include' '-I' '/glade/u/apps/ch/opt/netcdf/4.7.1/gnu/8.3.0/include' '-I' '/glade/u/apps/ch/opt/openblas/0.3.6/gnu/8.3.0/include' '-I' '/glade/u/apps/ch/opt/python/2.7.13/gnu/6.2.0/include' '-L/glade/u/apps/ch/opt/gnu/8.3.0/lib64' '-L/glade/u/apps/ch/opt/gnu/8.3.0/lib/gcc/x86_64-pc-linux-gnu/8.3.0' '-L/glade/u/apps/ch/opt/netcdf/4.7.1/gnu/8.3.0/lib' '-L/glade/u/apps/ch/opt/openblas/0.3.6/gnu/8.3.0/lib' '-L/opt/pbs/lib' '-L/glade/u/apps/ch/opt/python/2.7.13/gnu/6.2.0/lib' '-L/glade/u/apps/ch/opt/openmpi/3.1.4/gnu/8.3.0/lib' '-I' '/glade/u/apps/ch/opt/openmpi/3.1.4/gnu/8.3.0/include' '-pthread' '-I' '/glade/u/apps/ch/opt/openmpi/3.1.4/gnu/8.3.0/lib' '-mtune=generic' '-march=x86-64']
+  ignore line: [Linking Fortran executable cmTC_88185]
+  ignore line: [/glade/u/apps/ch/opt/cmake/3.14.4/bin/cmake -E cmake_link_script CMakeFiles/cmTC_88185.dir/link.txt --verbose=1]
+  ignore line: [/glade/u/apps/ch/opt/ncarcompilers/0.5.0/gnu/8.3.0/mpi/mpif90   -v -fconvert=big-endian -ffree-line-length-none -ffixed-line-length-none -ffree-form -O  CMakeFiles/cmTC_88185.dir/CMakeFortranCompilerABI.F.o  -o cmTC_88185 ]
+  ignore line: [Driving: gfortran -v -fconvert=big-endian -ffree-line-length-none -ffixed-line-length-none -ffree-form -O CMakeFiles/cmTC_88185.dir/CMakeFortranCompilerABI.F.o -o cmTC_88185 -I/glade/u/apps/ch/opt/gnu/8.3.0/include -I/glade/u/apps/ch/opt/netcdf/4.7.1/gnu/8.3.0/include -I/glade/u/apps/ch/opt/openblas/0.3.6/gnu/8.3.0/include -I/glade/u/apps/ch/opt/python/2.7.13/gnu/6.2.0/include -Wl,-Bstatic -lnetcdff -lnetcdf -lhdf5hl_fortran -lhdf5_hl -lhdf5_fortran -lhdf5 -lsz -lz -Wl,-Bdynamic -l gfortran -lm -ldl -lopenblas -lpython2.7 -lsec -lrt -ldl -Wl,--disable-new-dtags -L/glade/u/apps/ch/opt/gnu/8.3.0/lib64 -L/glade/u/apps/ch/opt/gnu/8.3.0/lib/gcc/x86_64-pc-linux-gnu/8.3.0 -L/glade/u/apps/ch/opt/netcdf/4.7.1/gnu/8.3.0/lib -L/glade/u/apps/ch/opt/openblas/0.3.6/gnu/8.3.0/lib -L/opt/pbs/lib -L/glade/u/apps/ch/opt/python/2.7.13/gnu/6.2.0/lib -L/glade/u/apps/ch/opt/openmpi/3.1.4/gnu/8.3.0/lib -Wl,-rpath,/glade/u/apps/ch/opt/gnu/8.3.0/lib64 -Wl,-rpath,/glade/u/apps/ch/opt/gnu/8.3.0/lib/gcc/x86_64-pc-linux-gnu/8.3.0 -Wl,-rpath,/glade/u/apps/ch/opt/netcdf/4.7.1/gnu/8.3.0/lib -Wl,-rpath,/glade/u/apps/ch/opt/openblas/0.3.6/gnu/8.3.0/lib -Wl,-rpath,/opt/pbs/lib -Wl,-rpath,/glade/u/apps/ch/opt/python/2.7.13/gnu/6.2.0/lib -Wl,-rpath,/glade/u/apps/ch/opt/openmpi/3.1.4/gnu/8.3.0/lib -I/glade/u/apps/ch/opt/openmpi/3.1.4/gnu/8.3.0/include -pthread -I/glade/u/apps/ch/opt/openmpi/3.1.4/gnu/8.3.0/lib -Wl,-rpath -Wl,/glade/u/apps/ch/opt/openmpi/3.1.4/gnu/8.3.0/lib -L/glade/u/apps/ch/opt/openmpi/3.1.4/gnu/8.3.0/lib -lmpi_usempif08 -lmpi_usempi_ignore_tkr -lmpi_mpifh -lmpi -l gfortran -l m -shared-libgcc]
+  ignore line: [Using built-in specs.]
+  ignore line: [COLLECT_GCC=gfortran]
+  ignore line: [COLLECT_LTO_WRAPPER=/glade/u/apps/ch/opt/gnu/8.3.0/libexec/gcc/x86_64-pc-linux-gnu/8.3.0/lto-wrapper]
+  ignore line: [Target: x86_64-pc-linux-gnu]
+  ignore line: [Configured with: ../configure --prefix=/glade/u/apps/ch/opt/gnu/8.3.0/ --enable-languages=c,c++,fortran,lto --enable-threads --disable-multilib]
+  ignore line: [Thread model: posix]
+  ignore line: [gcc version 8.3.0 (GCC) ]
+  ignore line: [Reading specs from /glade/u/apps/ch/opt/gnu/8.3.0/lib/gcc/x86_64-pc-linux-gnu/8.3.0/../../../../lib64/libgfortran.spec]
+  ignore line: [rename spec lib to liborig]
+  ignore line: [COLLECT_GCC_OPTIONS='-v' '-fconvert=big-endian' '-ffree-line-length-none' '-ffixed-line-length-none' '-ffree-form' '-O' '-o' 'cmTC_88185' '-I' '/glade/u/apps/ch/opt/gnu/8.3.0/include' '-I' '/glade/u/apps/ch/opt/netcdf/4.7.1/gnu/8.3.0/include' '-I' '/glade/u/apps/ch/opt/openblas/0.3.6/gnu/8.3.0/include' '-I' '/glade/u/apps/ch/opt/python/2.7.13/gnu/6.2.0/include' '-L/glade/u/apps/ch/opt/gnu/8.3.0/lib64' '-L/glade/u/apps/ch/opt/gnu/8.3.0/lib/gcc/x86_64-pc-linux-gnu/8.3.0' '-L/glade/u/apps/ch/opt/netcdf/4.7.1/gnu/8.3.0/lib' '-L/glade/u/apps/ch/opt/openblas/0.3.6/gnu/8.3.0/lib' '-L/opt/pbs/lib' '-L/glade/u/apps/ch/opt/python/2.7.13/gnu/6.2.0/lib' '-L/glade/u/apps/ch/opt/openmpi/3.1.4/gnu/8.3.0/lib' '-I' '/glade/u/apps/ch/opt/openmpi/3.1.4/gnu/8.3.0/include' '-pthread' '-I' '/glade/u/apps/ch/opt/openmpi/3.1.4/gnu/8.3.0/lib' '-L/glade/u/apps/ch/opt/openmpi/3.1.4/gnu/8.3.0/lib' '-shared-libgcc' '-mtune=generic' '-march=x86-64']
+  ignore line: [COMPILER_PATH=/glade/u/apps/ch/opt/gnu/8.3.0/libexec/gcc/x86_64-pc-linux-gnu/8.3.0/:/glade/u/apps/ch/opt/gnu/8.3.0/libexec/gcc/x86_64-pc-linux-gnu/8.3.0/:/glade/u/apps/ch/opt/gnu/8.3.0/libexec/gcc/x86_64-pc-linux-gnu/:/glade/u/apps/ch/opt/gnu/8.3.0/lib/gcc/x86_64-pc-linux-gnu/8.3.0/:/glade/u/apps/ch/opt/gnu/8.3.0/lib/gcc/x86_64-pc-linux-gnu/]
+  ignore line: [LIBRARY_PATH=/glade/u/apps/ch/opt/gnu/8.3.0/lib/gcc/x86_64-pc-linux-gnu/8.3.0/:/glade/u/apps/ch/opt/gnu/8.3.0/lib/gcc/x86_64-pc-linux-gnu/8.3.0/../../../../lib64/:/lib/../lib64/:/usr/lib/../lib64/:/glade/u/apps/ch/opt/openmpi/3.1.4/gnu/8.3.0/lib/:/glade/u/apps/ch/opt/gnu/8.3.0/lib/gcc/x86_64-pc-linux-gnu/8.3.0/../../../:/lib/:/usr/lib/]
+  ignore line: [COLLECT_GCC_OPTIONS='-v' '-fconvert=big-endian' '-ffree-line-length-none' '-ffixed-line-length-none' '-ffree-form' '-O' '-o' 'cmTC_88185' '-I' '/glade/u/apps/ch/opt/gnu/8.3.0/include' '-I' '/glade/u/apps/ch/opt/netcdf/4.7.1/gnu/8.3.0/include' '-I' '/glade/u/apps/ch/opt/openblas/0.3.6/gnu/8.3.0/include' '-I' '/glade/u/apps/ch/opt/python/2.7.13/gnu/6.2.0/include' '-L/glade/u/apps/ch/opt/gnu/8.3.0/lib64' '-L/glade/u/apps/ch/opt/gnu/8.3.0/lib/gcc/x86_64-pc-linux-gnu/8.3.0' '-L/glade/u/apps/ch/opt/netcdf/4.7.1/gnu/8.3.0/lib' '-L/glade/u/apps/ch/opt/openblas/0.3.6/gnu/8.3.0/lib' '-L/opt/pbs/lib' '-L/glade/u/apps/ch/opt/python/2.7.13/gnu/6.2.0/lib' '-L/glade/u/apps/ch/opt/openmpi/3.1.4/gnu/8.3.0/lib' '-I' '/glade/u/apps/ch/opt/openmpi/3.1.4/gnu/8.3.0/include' '-pthread' '-I' '/glade/u/apps/ch/opt/openmpi/3.1.4/gnu/8.3.0/lib' '-L/glade/u/apps/ch/opt/openmpi/3.1.4/gnu/8.3.0/lib' '-shared-libgcc' '-mtune=generic' '-march=x86-64']
+  link line: [ /glade/u/apps/ch/opt/gnu/8.3.0/libexec/gcc/x86_64-pc-linux-gnu/8.3.0/collect2 -plugin /glade/u/apps/ch/opt/gnu/8.3.0/libexec/gcc/x86_64-pc-linux-gnu/8.3.0/liblto_plugin.so -plugin-opt=/glade/u/apps/ch/opt/gnu/8.3.0/libexec/gcc/x86_64-pc-linux-gnu/8.3.0/lto-wrapper -plugin-opt=-fresolution=/glade/scratch/tvda/ccLOX74P.res -plugin-opt=-pass-through=-lgcc_s -plugin-opt=-pass-through=-lgcc -plugin-opt=-pass-through=-lquadmath -plugin-opt=-pass-through=-lm -plugin-opt=-pass-through=-lgcc_s -plugin-opt=-pass-through=-lgcc -plugin-opt=-pass-through=-lpthread -plugin-opt=-pass-through=-lc -plugin-opt=-pass-through=-lgcc_s -plugin-opt=-pass-through=-lgcc --eh-frame-hdr -m elf_x86_64 -dynamic-linker /lib64/ld-linux-x86-64.so.2 -o cmTC_88185 /usr/lib/../lib64/crt1.o /usr/lib/../lib64/crti.o /glade/u/apps/ch/opt/gnu/8.3.0/lib/gcc/x86_64-pc-linux-gnu/8.3.0/crtbegin.o -L/glade/u/apps/ch/opt/gnu/8.3.0/lib64 -L/glade/u/apps/ch/opt/gnu/8.3.0/lib/gcc/x86_64-pc-linux-gnu/8.3.0 -L/glade/u/apps/ch/opt/netcdf/4.7.1/gnu/8.3.0/lib -L/glade/u/apps/ch/opt/openblas/0.3.6/gnu/8.3.0/lib -L/opt/pbs/lib -L/glade/u/apps/ch/opt/python/2.7.13/gnu/6.2.0/lib -L/glade/u/apps/ch/opt/openmpi/3.1.4/gnu/8.3.0/lib -L/glade/u/apps/ch/opt/openmpi/3.1.4/gnu/8.3.0/lib -L/glade/u/apps/ch/opt/gnu/8.3.0/lib/gcc/x86_64-pc-linux-gnu/8.3.0 -L/glade/u/apps/ch/opt/gnu/8.3.0/lib/gcc/x86_64-pc-linux-gnu/8.3.0/../../../../lib64 -L/lib/../lib64 -L/usr/lib/../lib64 -L/glade/u/apps/ch/opt/openmpi/3.1.4/gnu/8.3.0/lib -L/glade/u/apps/ch/opt/gnu/8.3.0/lib/gcc/x86_64-pc-linux-gnu/8.3.0/../../.. CMakeFiles/cmTC_88185.dir/CMakeFortranCompilerABI.F.o -Bstatic -lnetcdff -lnetcdf -lhdf5hl_fortran -lhdf5_hl -lhdf5_fortran -lhdf5 -lsz -lz -Bdynamic -lgfortran -lm -ldl -lopenblas -lpython2.7 -lsec -lrt -ldl --disable-new-dtags -rpath /glade/u/apps/ch/opt/gnu/8.3.0/lib64 -rpath /glade/u/apps/ch/opt/gnu/8.3.0/lib/gcc/x86_64-pc-linux-gnu/8.3.0 -rpath /glade/u/apps/ch/opt/netcdf/4.7.1/gnu/8.3.0/lib -rpath /glade/u/apps/ch/opt/openblas/0.3.6/gnu/8.3.0/lib -rpath /opt/pbs/lib -rpath /glade/u/apps/ch/opt/python/2.7.13/gnu/6.2.0/lib -rpath /glade/u/apps/ch/opt/openmpi/3.1.4/gnu/8.3.0/lib -rpath /glade/u/apps/ch/opt/openmpi/3.1.4/gnu/8.3.0/lib -lmpi_usempif08 -lmpi_usempi_ignore_tkr -lmpi_mpifh -lmpi -lgfortran -lm -lgcc_s -lgcc -lquadmath -lm -lgcc_s -lgcc -lpthread -lc -lgcc_s -lgcc /glade/u/apps/ch/opt/gnu/8.3.0/lib/gcc/x86_64-pc-linux-gnu/8.3.0/crtend.o /usr/lib/../lib64/crtn.o]
+    arg [/glade/u/apps/ch/opt/gnu/8.3.0/libexec/gcc/x86_64-pc-linux-gnu/8.3.0/collect2] ==> ignore
+    arg [-plugin] ==> ignore
+    arg [/glade/u/apps/ch/opt/gnu/8.3.0/libexec/gcc/x86_64-pc-linux-gnu/8.3.0/liblto_plugin.so] ==> ignore
+    arg [-plugin-opt=/glade/u/apps/ch/opt/gnu/8.3.0/libexec/gcc/x86_64-pc-linux-gnu/8.3.0/lto-wrapper] ==> ignore
+    arg [-plugin-opt=-fresolution=/glade/scratch/tvda/ccLOX74P.res] ==> ignore
+    arg [-plugin-opt=-pass-through=-lgcc_s] ==> ignore
+    arg [-plugin-opt=-pass-through=-lgcc] ==> ignore
+    arg [-plugin-opt=-pass-through=-lquadmath] ==> ignore
+    arg [-plugin-opt=-pass-through=-lm] ==> ignore
+    arg [-plugin-opt=-pass-through=-lgcc_s] ==> ignore
+    arg [-plugin-opt=-pass-through=-lgcc] ==> ignore
+    arg [-plugin-opt=-pass-through=-lpthread] ==> ignore
+    arg [-plugin-opt=-pass-through=-lc] ==> ignore
+    arg [-plugin-opt=-pass-through=-lgcc_s] ==> ignore
+    arg [-plugin-opt=-pass-through=-lgcc] ==> ignore
+    arg [--eh-frame-hdr] ==> ignore
+    arg [-m] ==> ignore
+    arg [elf_x86_64] ==> ignore
+    arg [-dynamic-linker] ==> ignore
+    arg [/lib64/ld-linux-x86-64.so.2] ==> ignore
+    arg [-o] ==> ignore
+    arg [cmTC_88185] ==> ignore
+    arg [/usr/lib/../lib64/crt1.o] ==> ignore
+    arg [/usr/lib/../lib64/crti.o] ==> ignore
+    arg [/glade/u/apps/ch/opt/gnu/8.3.0/lib/gcc/x86_64-pc-linux-gnu/8.3.0/crtbegin.o] ==> ignore
+    arg [-L/glade/u/apps/ch/opt/gnu/8.3.0/lib64] ==> dir [/glade/u/apps/ch/opt/gnu/8.3.0/lib64]
+    arg [-L/glade/u/apps/ch/opt/gnu/8.3.0/lib/gcc/x86_64-pc-linux-gnu/8.3.0] ==> dir [/glade/u/apps/ch/opt/gnu/8.3.0/lib/gcc/x86_64-pc-linux-gnu/8.3.0]
+    arg [-L/glade/u/apps/ch/opt/netcdf/4.7.1/gnu/8.3.0/lib] ==> dir [/glade/u/apps/ch/opt/netcdf/4.7.1/gnu/8.3.0/lib]
+    arg [-L/glade/u/apps/ch/opt/openblas/0.3.6/gnu/8.3.0/lib] ==> dir [/glade/u/apps/ch/opt/openblas/0.3.6/gnu/8.3.0/lib]
+    arg [-L/opt/pbs/lib] ==> dir [/opt/pbs/lib]
+    arg [-L/glade/u/apps/ch/opt/python/2.7.13/gnu/6.2.0/lib] ==> dir [/glade/u/apps/ch/opt/python/2.7.13/gnu/6.2.0/lib]
+    arg [-L/glade/u/apps/ch/opt/openmpi/3.1.4/gnu/8.3.0/lib] ==> dir [/glade/u/apps/ch/opt/openmpi/3.1.4/gnu/8.3.0/lib]
+    arg [-L/glade/u/apps/ch/opt/openmpi/3.1.4/gnu/8.3.0/lib] ==> dir [/glade/u/apps/ch/opt/openmpi/3.1.4/gnu/8.3.0/lib]
+    arg [-L/glade/u/apps/ch/opt/gnu/8.3.0/lib/gcc/x86_64-pc-linux-gnu/8.3.0] ==> dir [/glade/u/apps/ch/opt/gnu/8.3.0/lib/gcc/x86_64-pc-linux-gnu/8.3.0]
+    arg [-L/glade/u/apps/ch/opt/gnu/8.3.0/lib/gcc/x86_64-pc-linux-gnu/8.3.0/../../../../lib64] ==> dir [/glade/u/apps/ch/opt/gnu/8.3.0/lib/gcc/x86_64-pc-linux-gnu/8.3.0/../../../../lib64]
+    arg [-L/lib/../lib64] ==> dir [/lib/../lib64]
+    arg [-L/usr/lib/../lib64] ==> dir [/usr/lib/../lib64]
+    arg [-L/glade/u/apps/ch/opt/openmpi/3.1.4/gnu/8.3.0/lib] ==> dir [/glade/u/apps/ch/opt/openmpi/3.1.4/gnu/8.3.0/lib]
+    arg [-L/glade/u/apps/ch/opt/gnu/8.3.0/lib/gcc/x86_64-pc-linux-gnu/8.3.0/../../..] ==> dir [/glade/u/apps/ch/opt/gnu/8.3.0/lib/gcc/x86_64-pc-linux-gnu/8.3.0/../../..]
+    arg [CMakeFiles/cmTC_88185.dir/CMakeFortranCompilerABI.F.o] ==> ignore
+    arg [-Bstatic] ==> ignore
+    arg [-lnetcdff] ==> lib [netcdff]
+    arg [-lnetcdf] ==> lib [netcdf]
+    arg [-lhdf5hl_fortran] ==> lib [hdf5hl_fortran]
+    arg [-lhdf5_hl] ==> lib [hdf5_hl]
+    arg [-lhdf5_fortran] ==> lib [hdf5_fortran]
+    arg [-lhdf5] ==> lib [hdf5]
+    arg [-lsz] ==> lib [sz]
+    arg [-lz] ==> lib [z]
+    arg [-Bdynamic] ==> ignore
+    arg [-lgfortran] ==> lib [gfortran]
+    arg [-lm] ==> lib [m]
+    arg [-ldl] ==> lib [dl]
+    arg [-lopenblas] ==> lib [openblas]
+    arg [-lpython2.7] ==> lib [python2.7]
+    arg [-lsec] ==> lib [sec]
+    arg [-lrt] ==> lib [rt]
+    arg [-ldl] ==> lib [dl]
+    arg [--disable-new-dtags] ==> ignore
+    arg [-rpath] ==> ignore
+    arg [/glade/u/apps/ch/opt/gnu/8.3.0/lib64] ==> ignore
+    arg [-rpath] ==> ignore
+    arg [/glade/u/apps/ch/opt/gnu/8.3.0/lib/gcc/x86_64-pc-linux-gnu/8.3.0] ==> ignore
+    arg [-rpath] ==> ignore
+    arg [/glade/u/apps/ch/opt/netcdf/4.7.1/gnu/8.3.0/lib] ==> ignore
+    arg [-rpath] ==> ignore
+    arg [/glade/u/apps/ch/opt/openblas/0.3.6/gnu/8.3.0/lib] ==> ignore
+    arg [-rpath] ==> ignore
+    arg [/opt/pbs/lib] ==> ignore
+    arg [-rpath] ==> ignore
+    arg [/glade/u/apps/ch/opt/python/2.7.13/gnu/6.2.0/lib] ==> ignore
+    arg [-rpath] ==> ignore
+    arg [/glade/u/apps/ch/opt/openmpi/3.1.4/gnu/8.3.0/lib] ==> ignore
+    arg [-rpath] ==> ignore
+    arg [/glade/u/apps/ch/opt/openmpi/3.1.4/gnu/8.3.0/lib] ==> ignore
+    arg [-lmpi_usempif08] ==> lib [mpi_usempif08]
+    arg [-lmpi_usempi_ignore_tkr] ==> lib [mpi_usempi_ignore_tkr]
+    arg [-lmpi_mpifh] ==> lib [mpi_mpifh]
+    arg [-lmpi] ==> lib [mpi]
+    arg [-lgfortran] ==> lib [gfortran]
+    arg [-lm] ==> lib [m]
+    arg [-lgcc_s] ==> lib [gcc_s]
+    arg [-lgcc] ==> lib [gcc]
+    arg [-lquadmath] ==> lib [quadmath]
+    arg [-lm] ==> lib [m]
+    arg [-lgcc_s] ==> lib [gcc_s]
+    arg [-lgcc] ==> lib [gcc]
+    arg [-lpthread] ==> lib [pthread]
+    arg [-lc] ==> lib [c]
+    arg [-lgcc_s] ==> lib [gcc_s]
+    arg [-lgcc] ==> lib [gcc]
+    arg [/glade/u/apps/ch/opt/gnu/8.3.0/lib/gcc/x86_64-pc-linux-gnu/8.3.0/crtend.o] ==> ignore
+    arg [/usr/lib/../lib64/crtn.o] ==> ignore
+  collapse library dir [/glade/u/apps/ch/opt/gnu/8.3.0/lib64] ==> [/glade/u/apps/ch/opt/gnu/8.3.0/lib64]
+  collapse library dir [/glade/u/apps/ch/opt/gnu/8.3.0/lib/gcc/x86_64-pc-linux-gnu/8.3.0] ==> [/glade/u/apps/ch/opt/gnu/8.3.0/lib/gcc/x86_64-pc-linux-gnu/8.3.0]
+  collapse library dir [/glade/u/apps/ch/opt/netcdf/4.7.1/gnu/8.3.0/lib] ==> [/glade/u/apps/ch/opt/netcdf/4.7.1/gnu/8.3.0/lib]
+  collapse library dir [/glade/u/apps/ch/opt/openblas/0.3.6/gnu/8.3.0/lib] ==> [/glade/u/apps/ch/opt/openblas/0.3.6/gnu/8.3.0/lib]
+  collapse library dir [/opt/pbs/lib] ==> [/opt/pbs/lib]
+  collapse library dir [/glade/u/apps/ch/opt/python/2.7.13/gnu/6.2.0/lib] ==> [/glade/u/apps/ch/opt/python/2.7.13/gnu/6.2.0/lib]
+  collapse library dir [/glade/u/apps/ch/opt/openmpi/3.1.4/gnu/8.3.0/lib] ==> [/glade/u/apps/ch/opt/openmpi/3.1.4/gnu/8.3.0/lib]
+  collapse library dir [/glade/u/apps/ch/opt/openmpi/3.1.4/gnu/8.3.0/lib] ==> [/glade/u/apps/ch/opt/openmpi/3.1.4/gnu/8.3.0/lib]
+  collapse library dir [/glade/u/apps/ch/opt/gnu/8.3.0/lib/gcc/x86_64-pc-linux-gnu/8.3.0] ==> [/glade/u/apps/ch/opt/gnu/8.3.0/lib/gcc/x86_64-pc-linux-gnu/8.3.0]
+  collapse library dir [/glade/u/apps/ch/opt/gnu/8.3.0/lib/gcc/x86_64-pc-linux-gnu/8.3.0/../../../../lib64] ==> [/glade/u/apps/ch/opt/gnu/8.3.0/lib64]
+  collapse library dir [/lib/../lib64] ==> [/lib64]
+  collapse library dir [/usr/lib/../lib64] ==> [/usr/lib64]
+  collapse library dir [/glade/u/apps/ch/opt/openmpi/3.1.4/gnu/8.3.0/lib] ==> [/glade/u/apps/ch/opt/openmpi/3.1.4/gnu/8.3.0/lib]
+  collapse library dir [/glade/u/apps/ch/opt/gnu/8.3.0/lib/gcc/x86_64-pc-linux-gnu/8.3.0/../../..] ==> [/glade/u/apps/ch/opt/gnu/8.3.0/lib]
+  implicit libs: [netcdff;netcdf;hdf5hl_fortran;hdf5_hl;hdf5_fortran;hdf5;sz;z;gfortran;m;dl;openblas;python2.7;sec;rt;dl;mpi_usempif08;mpi_usempi_ignore_tkr;mpi_mpifh;mpi;gfortran;m;gcc_s;gcc;quadmath;m;gcc_s;gcc;pthread;c;gcc_s;gcc]
+  implicit dirs: [/glade/u/apps/ch/opt/gnu/8.3.0/lib64;/glade/u/apps/ch/opt/gnu/8.3.0/lib/gcc/x86_64-pc-linux-gnu/8.3.0;/glade/u/apps/ch/opt/netcdf/4.7.1/gnu/8.3.0/lib;/glade/u/apps/ch/opt/openblas/0.3.6/gnu/8.3.0/lib;/opt/pbs/lib;/glade/u/apps/ch/opt/python/2.7.13/gnu/6.2.0/lib;/glade/u/apps/ch/opt/openmpi/3.1.4/gnu/8.3.0/lib;/lib64;/usr/lib64;/glade/u/apps/ch/opt/gnu/8.3.0/lib]
+  implicit fwks: []
+
+
+Determining if the Fortran compiler supports Fortran 90 passed with the following output:
+Change Dir: /glade/u/home/tvda/CISM/builds/cheyenne-intel-bill/CMakeFiles/CMakeTmp
+
+Run Build Command(s):/usr/bin/gmake cmTC_7ca25/fast 
+/usr/bin/gmake -f CMakeFiles/cmTC_7ca25.dir/build.make CMakeFiles/cmTC_7ca25.dir/build
+gmake[1]: Entering directory '/glade/u/home/tvda/CISM/builds/cheyenne-intel-bill/CMakeFiles/CMakeTmp'
+Building Fortran object CMakeFiles/cmTC_7ca25.dir/testFortranCompilerF90.f90.o
+/glade/u/apps/ch/opt/ncarcompilers/0.5.0/gnu/8.3.0/mpi/mpif90   -fconvert=big-endian -ffree-line-length-none -ffixed-line-length-none -ffree-form -O    -c /glade/u/home/tvda/CISM/builds/cheyenne-intel-bill/CMakeFiles/CMakeTmp/testFortranCompilerF90.f90 -o CMakeFiles/cmTC_7ca25.dir/testFortranCompilerF90.f90.o
+Linking Fortran executable cmTC_7ca25
+/glade/u/apps/ch/opt/cmake/3.14.4/bin/cmake -E cmake_link_script CMakeFiles/cmTC_7ca25.dir/link.txt --verbose=1
+/glade/u/apps/ch/opt/ncarcompilers/0.5.0/gnu/8.3.0/mpi/mpif90    -fconvert=big-endian -ffree-line-length-none -ffixed-line-length-none -ffree-form -O  CMakeFiles/cmTC_7ca25.dir/testFortranCompilerF90.f90.o  -o cmTC_7ca25 
+gmake[1]: Leaving directory '/glade/u/home/tvda/CISM/builds/cheyenne-intel-bill/CMakeFiles/CMakeTmp'
+
+
+Compiling the C compiler identification source file "CMakeCCompilerId.c" succeeded.
+Compiler: /glade/u/apps/ch/opt/ncarcompilers/0.5.0/gnu/8.3.0/mpi/mpicc 
+Build flags: -std=gnu99;-O
+Id flags:  
+
+The output was:
+0
+
+
+Compilation of the C compiler identification source "CMakeCCompilerId.c" produced "a.out"
+
+The C compiler identification is GNU, found in "/glade/u/home/tvda/CISM/builds/cheyenne-intel-bill/CMakeFiles/3.14.4/CompilerIdC/a.out"
+
+Determining if the C compiler works passed with the following output:
+Change Dir: /glade/u/home/tvda/CISM/builds/cheyenne-intel-bill/CMakeFiles/CMakeTmp
+
+Run Build Command(s):/usr/bin/gmake cmTC_ae598/fast 
+/usr/bin/gmake -f CMakeFiles/cmTC_ae598.dir/build.make CMakeFiles/cmTC_ae598.dir/build
+gmake[1]: Entering directory '/glade/u/home/tvda/CISM/builds/cheyenne-intel-bill/CMakeFiles/CMakeTmp'
+Building C object CMakeFiles/cmTC_ae598.dir/testCCompiler.c.o
+/glade/u/apps/ch/opt/ncarcompilers/0.5.0/gnu/8.3.0/mpi/mpicc   -std=gnu99 -O    -o CMakeFiles/cmTC_ae598.dir/testCCompiler.c.o   -c /glade/u/home/tvda/CISM/builds/cheyenne-intel-bill/CMakeFiles/CMakeTmp/testCCompiler.c
+Linking C executable cmTC_ae598
+/glade/u/apps/ch/opt/cmake/3.14.4/bin/cmake -E cmake_link_script CMakeFiles/cmTC_ae598.dir/link.txt --verbose=1
+/glade/u/apps/ch/opt/ncarcompilers/0.5.0/gnu/8.3.0/mpi/mpicc -std=gnu99 -O     -rdynamic CMakeFiles/cmTC_ae598.dir/testCCompiler.c.o  -o cmTC_ae598 
+gmake[1]: Leaving directory '/glade/u/home/tvda/CISM/builds/cheyenne-intel-bill/CMakeFiles/CMakeTmp'
+
+
+Detecting C compiler ABI info compiled with the following output:
+Change Dir: /glade/u/home/tvda/CISM/builds/cheyenne-intel-bill/CMakeFiles/CMakeTmp
+
+Run Build Command(s):/usr/bin/gmake cmTC_d84a2/fast 
+/usr/bin/gmake -f CMakeFiles/cmTC_d84a2.dir/build.make CMakeFiles/cmTC_d84a2.dir/build
+gmake[1]: Entering directory '/glade/u/home/tvda/CISM/builds/cheyenne-intel-bill/CMakeFiles/CMakeTmp'
+Building C object CMakeFiles/cmTC_d84a2.dir/CMakeCCompilerABI.c.o
+/glade/u/apps/ch/opt/ncarcompilers/0.5.0/gnu/8.3.0/mpi/mpicc   -std=gnu99 -O    -v -o CMakeFiles/cmTC_d84a2.dir/CMakeCCompilerABI.c.o   -c /glade/u/apps/ch/opt/cmake/3.14.4/share/cmake-3.14/Modules/CMakeCCompilerABI.c
+Using built-in specs.
+COLLECT_GCC=gcc
+Target: x86_64-pc-linux-gnu
+Configured with: ../configure --prefix=/glade/u/apps/ch/opt/gnu/8.3.0/ --enable-languages=c,c++,fortran,lto --enable-threads --disable-multilib
+Thread model: posix
+gcc version 8.3.0 (GCC) 
+COLLECT_GCC_OPTIONS='-std=gnu99' '-O' '-v' '-o' 'CMakeFiles/cmTC_d84a2.dir/CMakeCCompilerABI.c.o' '-c' '-I' '/glade/u/apps/ch/opt/gnu/8.3.0/include' '-I' '/glade/u/apps/ch/opt/netcdf/4.7.1/gnu/8.3.0/include' '-I' '/glade/u/apps/ch/opt/openblas/0.3.6/gnu/8.3.0/include' '-I' '/glade/u/apps/ch/opt/python/2.7.13/gnu/6.2.0/include' '-L/glade/u/apps/ch/opt/gnu/8.3.0/lib64' '-L/glade/u/apps/ch/opt/gnu/8.3.0/lib/gcc/x86_64-pc-linux-gnu/8.3.0' '-L/glade/u/apps/ch/opt/netcdf/4.7.1/gnu/8.3.0/lib' '-L/glade/u/apps/ch/opt/openblas/0.3.6/gnu/8.3.0/lib' '-L/opt/pbs/lib' '-L/glade/u/apps/ch/opt/python/2.7.13/gnu/6.2.0/lib' '-L/glade/u/apps/ch/opt/openmpi/3.1.4/gnu/8.3.0/lib' '-I' '/glade/u/apps/ch/opt/openmpi/3.1.4/gnu/8.3.0/include' '-pthread' '-mtune=generic' '-march=x86-64'
+ /glade/u/apps/ch/opt/gnu/8.3.0/libexec/gcc/x86_64-pc-linux-gnu/8.3.0/cc1 -quiet -v -I /glade/u/apps/ch/opt/gnu/8.3.0/include -I /glade/u/apps/ch/opt/netcdf/4.7.1/gnu/8.3.0/include -I /glade/u/apps/ch/opt/openblas/0.3.6/gnu/8.3.0/include -I /glade/u/apps/ch/opt/python/2.7.13/gnu/6.2.0/include -I /glade/u/apps/ch/opt/openmpi/3.1.4/gnu/8.3.0/include -D_REENTRANT /glade/u/apps/ch/opt/cmake/3.14.4/share/cmake-3.14/Modules/CMakeCCompilerABI.c -quiet -dumpbase CMakeCCompilerABI.c -mtune=generic -march=x86-64 -auxbase-strip CMakeFiles/cmTC_d84a2.dir/CMakeCCompilerABI.c.o -O -std=gnu99 -version -o /glade/scratch/tvda/cc8QDETx.s
+GNU C99 (GCC) version 8.3.0 (x86_64-pc-linux-gnu)
+	compiled by GNU C version 8.3.0, GMP version 6.1.0, MPFR version 3.1.4, MPC version 1.0.3, isl version isl-0.18-GMP
+
+GGC heuristics: --param ggc-min-expand=100 --param ggc-min-heapsize=131072
+ignoring nonexistent directory "/glade/u/apps/ch/opt/gnu/8.3.0/lib/gcc/x86_64-pc-linux-gnu/8.3.0/../../../../x86_64-pc-linux-gnu/include"
+ignoring duplicate directory "/glade/u/apps/ch/opt/gnu/8.3.0/include"
+  as it is a non-system directory that duplicates a system directory
+ignoring duplicate directory "/glade/u/apps/ch/opt/openmpi/3.1.4/gnu/8.3.0/include"
+#include "..." search starts here:
+#include <...> search starts here:
+ /glade/u/apps/ch/opt/netcdf/4.7.1/gnu/8.3.0/include
+ /glade/u/apps/ch/opt/openblas/0.3.6/gnu/8.3.0/include
+ /glade/u/apps/ch/opt/python/2.7.13/gnu/6.2.0/include
+ /glade/u/apps/ch/opt/openmpi/3.1.4/gnu/8.3.0/include
+ /glade/u/apps/ch/opt/gnu/8.3.0/lib/gcc/x86_64-pc-linux-gnu/8.3.0/include
+ /usr/local/include
+ /glade/u/apps/ch/opt/gnu/8.3.0/include
+ /glade/u/apps/ch/opt/gnu/8.3.0/lib/gcc/x86_64-pc-linux-gnu/8.3.0/include-fixed
+ /usr/include
+End of search list.
+GNU C99 (GCC) version 8.3.0 (x86_64-pc-linux-gnu)
+	compiled by GNU C version 8.3.0, GMP version 6.1.0, MPFR version 3.1.4, MPC version 1.0.3, isl version isl-0.18-GMP
+
+GGC heuristics: --param ggc-min-expand=100 --param ggc-min-heapsize=131072
+Compiler executable checksum: 39656aa20c97db3b885918b90c7b3d2c
+COLLECT_GCC_OPTIONS='-std=gnu99' '-O' '-v' '-o' 'CMakeFiles/cmTC_d84a2.dir/CMakeCCompilerABI.c.o' '-c' '-I' '/glade/u/apps/ch/opt/gnu/8.3.0/include' '-I' '/glade/u/apps/ch/opt/netcdf/4.7.1/gnu/8.3.0/include' '-I' '/glade/u/apps/ch/opt/openblas/0.3.6/gnu/8.3.0/include' '-I' '/glade/u/apps/ch/opt/python/2.7.13/gnu/6.2.0/include' '-L/glade/u/apps/ch/opt/gnu/8.3.0/lib64' '-L/glade/u/apps/ch/opt/gnu/8.3.0/lib/gcc/x86_64-pc-linux-gnu/8.3.0' '-L/glade/u/apps/ch/opt/netcdf/4.7.1/gnu/8.3.0/lib' '-L/glade/u/apps/ch/opt/openblas/0.3.6/gnu/8.3.0/lib' '-L/opt/pbs/lib' '-L/glade/u/apps/ch/opt/python/2.7.13/gnu/6.2.0/lib' '-L/glade/u/apps/ch/opt/openmpi/3.1.4/gnu/8.3.0/lib' '-I' '/glade/u/apps/ch/opt/openmpi/3.1.4/gnu/8.3.0/include' '-pthread' '-mtune=generic' '-march=x86-64'
+ as -v -I /glade/u/apps/ch/opt/gnu/8.3.0/include -I /glade/u/apps/ch/opt/netcdf/4.7.1/gnu/8.3.0/include -I /glade/u/apps/ch/opt/openblas/0.3.6/gnu/8.3.0/include -I /glade/u/apps/ch/opt/python/2.7.13/gnu/6.2.0/include -I /glade/u/apps/ch/opt/openmpi/3.1.4/gnu/8.3.0/include --64 -o CMakeFiles/cmTC_d84a2.dir/CMakeCCompilerABI.c.o /glade/scratch/tvda/cc8QDETx.s
+GNU assembler version 2.32.0 (x86_64-suse-linux) using BFD version (GNU Binutils; SUSE Linux Enterprise 12) 2.32.0.20190909-9.36
+COMPILER_PATH=/glade/u/apps/ch/opt/gnu/8.3.0/libexec/gcc/x86_64-pc-linux-gnu/8.3.0/:/glade/u/apps/ch/opt/gnu/8.3.0/libexec/gcc/x86_64-pc-linux-gnu/8.3.0/:/glade/u/apps/ch/opt/gnu/8.3.0/libexec/gcc/x86_64-pc-linux-gnu/:/glade/u/apps/ch/opt/gnu/8.3.0/lib/gcc/x86_64-pc-linux-gnu/8.3.0/:/glade/u/apps/ch/opt/gnu/8.3.0/lib/gcc/x86_64-pc-linux-gnu/
+LIBRARY_PATH=/glade/u/apps/ch/opt/gnu/8.3.0/lib/gcc/x86_64-pc-linux-gnu/8.3.0/:/glade/u/apps/ch/opt/gnu/8.3.0/lib/gcc/x86_64-pc-linux-gnu/8.3.0/../../../../lib64/:/lib/../lib64/:/usr/lib/../lib64/:/glade/u/apps/ch/opt/openmpi/3.1.4/gnu/8.3.0/lib/:/glade/u/apps/ch/opt/gnu/8.3.0/lib/gcc/x86_64-pc-linux-gnu/8.3.0/../../../:/lib/:/usr/lib/
+COLLECT_GCC_OPTIONS='-std=gnu99' '-O' '-v' '-o' 'CMakeFiles/cmTC_d84a2.dir/CMakeCCompilerABI.c.o' '-c' '-I' '/glade/u/apps/ch/opt/gnu/8.3.0/include' '-I' '/glade/u/apps/ch/opt/netcdf/4.7.1/gnu/8.3.0/include' '-I' '/glade/u/apps/ch/opt/openblas/0.3.6/gnu/8.3.0/include' '-I' '/glade/u/apps/ch/opt/python/2.7.13/gnu/6.2.0/include' '-L/glade/u/apps/ch/opt/gnu/8.3.0/lib64' '-L/glade/u/apps/ch/opt/gnu/8.3.0/lib/gcc/x86_64-pc-linux-gnu/8.3.0' '-L/glade/u/apps/ch/opt/netcdf/4.7.1/gnu/8.3.0/lib' '-L/glade/u/apps/ch/opt/openblas/0.3.6/gnu/8.3.0/lib' '-L/opt/pbs/lib' '-L/glade/u/apps/ch/opt/python/2.7.13/gnu/6.2.0/lib' '-L/glade/u/apps/ch/opt/openmpi/3.1.4/gnu/8.3.0/lib' '-I' '/glade/u/apps/ch/opt/openmpi/3.1.4/gnu/8.3.0/include' '-pthread' '-mtune=generic' '-march=x86-64'
+Linking C executable cmTC_d84a2
+/glade/u/apps/ch/opt/cmake/3.14.4/bin/cmake -E cmake_link_script CMakeFiles/cmTC_d84a2.dir/link.txt --verbose=1
+/glade/u/apps/ch/opt/ncarcompilers/0.5.0/gnu/8.3.0/mpi/mpicc -std=gnu99 -O    -v -rdynamic CMakeFiles/cmTC_d84a2.dir/CMakeCCompilerABI.c.o  -o cmTC_d84a2 
+Using built-in specs.
+COLLECT_GCC=gcc
+COLLECT_LTO_WRAPPER=/glade/u/apps/ch/opt/gnu/8.3.0/libexec/gcc/x86_64-pc-linux-gnu/8.3.0/lto-wrapper
+Target: x86_64-pc-linux-gnu
+Configured with: ../configure --prefix=/glade/u/apps/ch/opt/gnu/8.3.0/ --enable-languages=c,c++,fortran,lto --enable-threads --disable-multilib
+Thread model: posix
+gcc version 8.3.0 (GCC) 
+COMPILER_PATH=/glade/u/apps/ch/opt/gnu/8.3.0/libexec/gcc/x86_64-pc-linux-gnu/8.3.0/:/glade/u/apps/ch/opt/gnu/8.3.0/libexec/gcc/x86_64-pc-linux-gnu/8.3.0/:/glade/u/apps/ch/opt/gnu/8.3.0/libexec/gcc/x86_64-pc-linux-gnu/:/glade/u/apps/ch/opt/gnu/8.3.0/lib/gcc/x86_64-pc-linux-gnu/8.3.0/:/glade/u/apps/ch/opt/gnu/8.3.0/lib/gcc/x86_64-pc-linux-gnu/
+LIBRARY_PATH=/glade/u/apps/ch/opt/gnu/8.3.0/lib/gcc/x86_64-pc-linux-gnu/8.3.0/:/glade/u/apps/ch/opt/gnu/8.3.0/lib/gcc/x86_64-pc-linux-gnu/8.3.0/../../../../lib64/:/lib/../lib64/:/usr/lib/../lib64/:/glade/u/apps/ch/opt/openmpi/3.1.4/gnu/8.3.0/lib/:/glade/u/apps/ch/opt/gnu/8.3.0/lib/gcc/x86_64-pc-linux-gnu/8.3.0/../../../:/lib/:/usr/lib/
+COLLECT_GCC_OPTIONS='-std=gnu99' '-O' '-v' '-rdynamic' '-o' 'cmTC_d84a2' '-I' '/glade/u/apps/ch/opt/gnu/8.3.0/include' '-I' '/glade/u/apps/ch/opt/netcdf/4.7.1/gnu/8.3.0/include' '-I' '/glade/u/apps/ch/opt/openblas/0.3.6/gnu/8.3.0/include' '-I' '/glade/u/apps/ch/opt/python/2.7.13/gnu/6.2.0/include' '-L/glade/u/apps/ch/opt/gnu/8.3.0/lib64' '-L/glade/u/apps/ch/opt/gnu/8.3.0/lib/gcc/x86_64-pc-linux-gnu/8.3.0' '-L/glade/u/apps/ch/opt/netcdf/4.7.1/gnu/8.3.0/lib' '-L/glade/u/apps/ch/opt/openblas/0.3.6/gnu/8.3.0/lib' '-L/opt/pbs/lib' '-L/glade/u/apps/ch/opt/python/2.7.13/gnu/6.2.0/lib' '-L/glade/u/apps/ch/opt/openmpi/3.1.4/gnu/8.3.0/lib' '-I' '/glade/u/apps/ch/opt/openmpi/3.1.4/gnu/8.3.0/include' '-pthread' '-L/glade/u/apps/ch/opt/openmpi/3.1.4/gnu/8.3.0/lib' '-mtune=generic' '-march=x86-64'
+ /glade/u/apps/ch/opt/gnu/8.3.0/libexec/gcc/x86_64-pc-linux-gnu/8.3.0/collect2 -plugin /glade/u/apps/ch/opt/gnu/8.3.0/libexec/gcc/x86_64-pc-linux-gnu/8.3.0/liblto_plugin.so -plugin-opt=/glade/u/apps/ch/opt/gnu/8.3.0/libexec/gcc/x86_64-pc-linux-gnu/8.3.0/lto-wrapper -plugin-opt=-fresolution=/glade/scratch/tvda/cc5gjFZP.res -plugin-opt=-pass-through=-lgcc -plugin-opt=-pass-through=-lgcc_s -plugin-opt=-pass-through=-lpthread -plugin-opt=-pass-through=-lc -plugin-opt=-pass-through=-lgcc -plugin-opt=-pass-through=-lgcc_s --eh-frame-hdr -m elf_x86_64 -export-dynamic -dynamic-linker /lib64/ld-linux-x86-64.so.2 -o cmTC_d84a2 /usr/lib/../lib64/crt1.o /usr/lib/../lib64/crti.o /glade/u/apps/ch/opt/gnu/8.3.0/lib/gcc/x86_64-pc-linux-gnu/8.3.0/crtbegin.o -L/glade/u/apps/ch/opt/gnu/8.3.0/lib64 -L/glade/u/apps/ch/opt/gnu/8.3.0/lib/gcc/x86_64-pc-linux-gnu/8.3.0 -L/glade/u/apps/ch/opt/netcdf/4.7.1/gnu/8.3.0/lib -L/glade/u/apps/ch/opt/openblas/0.3.6/gnu/8.3.0/lib -L/opt/pbs/lib -L/glade/u/apps/ch/opt/python/2.7.13/gnu/6.2.0/lib -L/glade/u/apps/ch/opt/openmpi/3.1.4/gnu/8.3.0/lib -L/glade/u/apps/ch/opt/openmpi/3.1.4/gnu/8.3.0/lib -L/glade/u/apps/ch/opt/gnu/8.3.0/lib/gcc/x86_64-pc-linux-gnu/8.3.0 -L/glade/u/apps/ch/opt/gnu/8.3.0/lib/gcc/x86_64-pc-linux-gnu/8.3.0/../../../../lib64 -L/lib/../lib64 -L/usr/lib/../lib64 -L/glade/u/apps/ch/opt/openmpi/3.1.4/gnu/8.3.0/lib -L/glade/u/apps/ch/opt/gnu/8.3.0/lib/gcc/x86_64-pc-linux-gnu/8.3.0/../../.. CMakeFiles/cmTC_d84a2.dir/CMakeCCompilerABI.c.o -Bstatic -lnetcdff -lnetcdf -lhdf5hl_fortran -lhdf5_hl -lhdf5_fortran -lhdf5 -lsz -lz -Bdynamic -lm -ldl -lopenblas -lpython2.7 -lsec -lrt -ldl --disable-new-dtags -rpath /glade/u/apps/ch/opt/gnu/8.3.0/lib64 -rpath /glade/u/apps/ch/opt/gnu/8.3.0/lib/gcc/x86_64-pc-linux-gnu/8.3.0 -rpath /glade/u/apps/ch/opt/netcdf/4.7.1/gnu/8.3.0/lib -rpath /glade/u/apps/ch/opt/openblas/0.3.6/gnu/8.3.0/lib -rpath /opt/pbs/lib -rpath /glade/u/apps/ch/opt/python/2.7.13/gnu/6.2.0/lib -rpath /glade/u/apps/ch/opt/openmpi/3.1.4/gnu/8.3.0/lib -rpath /glade/u/apps/ch/opt/openmpi/3.1.4/gnu/8.3.0/lib -lmpi -lgcc --as-needed -lgcc_s --no-as-needed -lpthread -lc -lgcc --as-needed -lgcc_s --no-as-needed /glade/u/apps/ch/opt/gnu/8.3.0/lib/gcc/x86_64-pc-linux-gnu/8.3.0/crtend.o /usr/lib/../lib64/crtn.o
+COLLECT_GCC_OPTIONS='-std=gnu99' '-O' '-v' '-rdynamic' '-o' 'cmTC_d84a2' '-I' '/glade/u/apps/ch/opt/gnu/8.3.0/include' '-I' '/glade/u/apps/ch/opt/netcdf/4.7.1/gnu/8.3.0/include' '-I' '/glade/u/apps/ch/opt/openblas/0.3.6/gnu/8.3.0/include' '-I' '/glade/u/apps/ch/opt/python/2.7.13/gnu/6.2.0/include' '-L/glade/u/apps/ch/opt/gnu/8.3.0/lib64' '-L/glade/u/apps/ch/opt/gnu/8.3.0/lib/gcc/x86_64-pc-linux-gnu/8.3.0' '-L/glade/u/apps/ch/opt/netcdf/4.7.1/gnu/8.3.0/lib' '-L/glade/u/apps/ch/opt/openblas/0.3.6/gnu/8.3.0/lib' '-L/opt/pbs/lib' '-L/glade/u/apps/ch/opt/python/2.7.13/gnu/6.2.0/lib' '-L/glade/u/apps/ch/opt/openmpi/3.1.4/gnu/8.3.0/lib' '-I' '/glade/u/apps/ch/opt/openmpi/3.1.4/gnu/8.3.0/include' '-pthread' '-L/glade/u/apps/ch/opt/openmpi/3.1.4/gnu/8.3.0/lib' '-mtune=generic' '-march=x86-64'
+gmake[1]: Leaving directory '/glade/u/home/tvda/CISM/builds/cheyenne-intel-bill/CMakeFiles/CMakeTmp'
+
+
+Parsed C implicit include dir info from above output: rv=done
+  found start of include info
+  found start of implicit include info
+    add: [/glade/u/apps/ch/opt/netcdf/4.7.1/gnu/8.3.0/include]
+    add: [/glade/u/apps/ch/opt/openblas/0.3.6/gnu/8.3.0/include]
+    add: [/glade/u/apps/ch/opt/python/2.7.13/gnu/6.2.0/include]
+    add: [/glade/u/apps/ch/opt/openmpi/3.1.4/gnu/8.3.0/include]
+    add: [/glade/u/apps/ch/opt/gnu/8.3.0/lib/gcc/x86_64-pc-linux-gnu/8.3.0/include]
+    add: [/usr/local/include]
+    add: [/glade/u/apps/ch/opt/gnu/8.3.0/include]
+    add: [/glade/u/apps/ch/opt/gnu/8.3.0/lib/gcc/x86_64-pc-linux-gnu/8.3.0/include-fixed]
+    add: [/usr/include]
+  end of search list found
+  collapse include dir [/glade/u/apps/ch/opt/netcdf/4.7.1/gnu/8.3.0/include] ==> [/glade/u/apps/ch/opt/netcdf/4.7.1/gnu/8.3.0/include]
+  collapse include dir [/glade/u/apps/ch/opt/openblas/0.3.6/gnu/8.3.0/include] ==> [/glade/u/apps/ch/opt/openblas/0.3.6/gnu/8.3.0/include]
+  collapse include dir [/glade/u/apps/ch/opt/python/2.7.13/gnu/6.2.0/include] ==> [/glade/u/apps/ch/opt/python/2.7.13/gnu/6.2.0/include]
+  collapse include dir [/glade/u/apps/ch/opt/openmpi/3.1.4/gnu/8.3.0/include] ==> [/glade/u/apps/ch/opt/openmpi/3.1.4/gnu/8.3.0/include]
+  collapse include dir [/glade/u/apps/ch/opt/gnu/8.3.0/lib/gcc/x86_64-pc-linux-gnu/8.3.0/include] ==> [/glade/u/apps/ch/opt/gnu/8.3.0/lib/gcc/x86_64-pc-linux-gnu/8.3.0/include]
+  collapse include dir [/usr/local/include] ==> [/usr/local/include]
+  collapse include dir [/glade/u/apps/ch/opt/gnu/8.3.0/include] ==> [/glade/u/apps/ch/opt/gnu/8.3.0/include]
+  collapse include dir [/glade/u/apps/ch/opt/gnu/8.3.0/lib/gcc/x86_64-pc-linux-gnu/8.3.0/include-fixed] ==> [/glade/u/apps/ch/opt/gnu/8.3.0/lib/gcc/x86_64-pc-linux-gnu/8.3.0/include-fixed]
+  collapse include dir [/usr/include] ==> [/usr/include]
+  implicit include dirs: [/glade/u/apps/ch/opt/netcdf/4.7.1/gnu/8.3.0/include;/glade/u/apps/ch/opt/openblas/0.3.6/gnu/8.3.0/include;/glade/u/apps/ch/opt/python/2.7.13/gnu/6.2.0/include;/glade/u/apps/ch/opt/openmpi/3.1.4/gnu/8.3.0/include;/glade/u/apps/ch/opt/gnu/8.3.0/lib/gcc/x86_64-pc-linux-gnu/8.3.0/include;/usr/local/include;/glade/u/apps/ch/opt/gnu/8.3.0/include;/glade/u/apps/ch/opt/gnu/8.3.0/lib/gcc/x86_64-pc-linux-gnu/8.3.0/include-fixed;/usr/include]
+
+
+Parsed C implicit link information from above output:
+  link line regex: [^( *|.*[/\])(ld|CMAKE_LINK_STARTFILE-NOTFOUND|([^/\]+-)?ld|collect2)[^/\]*( |$)]
+  ignore line: [Change Dir: /glade/u/home/tvda/CISM/builds/cheyenne-intel-bill/CMakeFiles/CMakeTmp]
+  ignore line: []
+  ignore line: [Run Build Command(s):/usr/bin/gmake cmTC_d84a2/fast ]
+  ignore line: [/usr/bin/gmake -f CMakeFiles/cmTC_d84a2.dir/build.make CMakeFiles/cmTC_d84a2.dir/build]
+  ignore line: [gmake[1]: Entering directory '/glade/u/home/tvda/CISM/builds/cheyenne-intel-bill/CMakeFiles/CMakeTmp']
+  ignore line: [Building C object CMakeFiles/cmTC_d84a2.dir/CMakeCCompilerABI.c.o]
+  ignore line: [/glade/u/apps/ch/opt/ncarcompilers/0.5.0/gnu/8.3.0/mpi/mpicc   -std=gnu99 -O    -v -o CMakeFiles/cmTC_d84a2.dir/CMakeCCompilerABI.c.o   -c /glade/u/apps/ch/opt/cmake/3.14.4/share/cmake-3.14/Modules/CMakeCCompilerABI.c]
+  ignore line: [Using built-in specs.]
+  ignore line: [COLLECT_GCC=gcc]
+  ignore line: [Target: x86_64-pc-linux-gnu]
+  ignore line: [Configured with: ../configure --prefix=/glade/u/apps/ch/opt/gnu/8.3.0/ --enable-languages=c,c++,fortran,lto --enable-threads --disable-multilib]
+  ignore line: [Thread model: posix]
+  ignore line: [gcc version 8.3.0 (GCC) ]
+  ignore line: [COLLECT_GCC_OPTIONS='-std=gnu99' '-O' '-v' '-o' 'CMakeFiles/cmTC_d84a2.dir/CMakeCCompilerABI.c.o' '-c' '-I' '/glade/u/apps/ch/opt/gnu/8.3.0/include' '-I' '/glade/u/apps/ch/opt/netcdf/4.7.1/gnu/8.3.0/include' '-I' '/glade/u/apps/ch/opt/openblas/0.3.6/gnu/8.3.0/include' '-I' '/glade/u/apps/ch/opt/python/2.7.13/gnu/6.2.0/include' '-L/glade/u/apps/ch/opt/gnu/8.3.0/lib64' '-L/glade/u/apps/ch/opt/gnu/8.3.0/lib/gcc/x86_64-pc-linux-gnu/8.3.0' '-L/glade/u/apps/ch/opt/netcdf/4.7.1/gnu/8.3.0/lib' '-L/glade/u/apps/ch/opt/openblas/0.3.6/gnu/8.3.0/lib' '-L/opt/pbs/lib' '-L/glade/u/apps/ch/opt/python/2.7.13/gnu/6.2.0/lib' '-L/glade/u/apps/ch/opt/openmpi/3.1.4/gnu/8.3.0/lib' '-I' '/glade/u/apps/ch/opt/openmpi/3.1.4/gnu/8.3.0/include' '-pthread' '-mtune=generic' '-march=x86-64']
+  ignore line: [ /glade/u/apps/ch/opt/gnu/8.3.0/libexec/gcc/x86_64-pc-linux-gnu/8.3.0/cc1 -quiet -v -I /glade/u/apps/ch/opt/gnu/8.3.0/include -I /glade/u/apps/ch/opt/netcdf/4.7.1/gnu/8.3.0/include -I /glade/u/apps/ch/opt/openblas/0.3.6/gnu/8.3.0/include -I /glade/u/apps/ch/opt/python/2.7.13/gnu/6.2.0/include -I /glade/u/apps/ch/opt/openmpi/3.1.4/gnu/8.3.0/include -D_REENTRANT /glade/u/apps/ch/opt/cmake/3.14.4/share/cmake-3.14/Modules/CMakeCCompilerABI.c -quiet -dumpbase CMakeCCompilerABI.c -mtune=generic -march=x86-64 -auxbase-strip CMakeFiles/cmTC_d84a2.dir/CMakeCCompilerABI.c.o -O -std=gnu99 -version -o /glade/scratch/tvda/cc8QDETx.s]
+  ignore line: [GNU C99 (GCC) version 8.3.0 (x86_64-pc-linux-gnu)]
+  ignore line: [	compiled by GNU C version 8.3.0, GMP version 6.1.0, MPFR version 3.1.4, MPC version 1.0.3, isl version isl-0.18-GMP]
+  ignore line: []
+  ignore line: [GGC heuristics: --param ggc-min-expand=100 --param ggc-min-heapsize=131072]
+  ignore line: [ignoring nonexistent directory "/glade/u/apps/ch/opt/gnu/8.3.0/lib/gcc/x86_64-pc-linux-gnu/8.3.0/../../../../x86_64-pc-linux-gnu/include"]
+  ignore line: [ignoring duplicate directory "/glade/u/apps/ch/opt/gnu/8.3.0/include"]
+  ignore line: [  as it is a non-system directory that duplicates a system directory]
+  ignore line: [ignoring duplicate directory "/glade/u/apps/ch/opt/openmpi/3.1.4/gnu/8.3.0/include"]
+  ignore line: [#include "..." search starts here:]
+  ignore line: [#include <...> search starts here:]
+  ignore line: [ /glade/u/apps/ch/opt/netcdf/4.7.1/gnu/8.3.0/include]
+  ignore line: [ /glade/u/apps/ch/opt/openblas/0.3.6/gnu/8.3.0/include]
+  ignore line: [ /glade/u/apps/ch/opt/python/2.7.13/gnu/6.2.0/include]
+  ignore line: [ /glade/u/apps/ch/opt/openmpi/3.1.4/gnu/8.3.0/include]
+  ignore line: [ /glade/u/apps/ch/opt/gnu/8.3.0/lib/gcc/x86_64-pc-linux-gnu/8.3.0/include]
+  ignore line: [ /usr/local/include]
+  ignore line: [ /glade/u/apps/ch/opt/gnu/8.3.0/include]
+  ignore line: [ /glade/u/apps/ch/opt/gnu/8.3.0/lib/gcc/x86_64-pc-linux-gnu/8.3.0/include-fixed]
+  ignore line: [ /usr/include]
+  ignore line: [End of search list.]
+  ignore line: [GNU C99 (GCC) version 8.3.0 (x86_64-pc-linux-gnu)]
+  ignore line: [	compiled by GNU C version 8.3.0, GMP version 6.1.0, MPFR version 3.1.4, MPC version 1.0.3, isl version isl-0.18-GMP]
+  ignore line: []
+  ignore line: [GGC heuristics: --param ggc-min-expand=100 --param ggc-min-heapsize=131072]
+  ignore line: [Compiler executable checksum: 39656aa20c97db3b885918b90c7b3d2c]
+  ignore line: [COLLECT_GCC_OPTIONS='-std=gnu99' '-O' '-v' '-o' 'CMakeFiles/cmTC_d84a2.dir/CMakeCCompilerABI.c.o' '-c' '-I' '/glade/u/apps/ch/opt/gnu/8.3.0/include' '-I' '/glade/u/apps/ch/opt/netcdf/4.7.1/gnu/8.3.0/include' '-I' '/glade/u/apps/ch/opt/openblas/0.3.6/gnu/8.3.0/include' '-I' '/glade/u/apps/ch/opt/python/2.7.13/gnu/6.2.0/include' '-L/glade/u/apps/ch/opt/gnu/8.3.0/lib64' '-L/glade/u/apps/ch/opt/gnu/8.3.0/lib/gcc/x86_64-pc-linux-gnu/8.3.0' '-L/glade/u/apps/ch/opt/netcdf/4.7.1/gnu/8.3.0/lib' '-L/glade/u/apps/ch/opt/openblas/0.3.6/gnu/8.3.0/lib' '-L/opt/pbs/lib' '-L/glade/u/apps/ch/opt/python/2.7.13/gnu/6.2.0/lib' '-L/glade/u/apps/ch/opt/openmpi/3.1.4/gnu/8.3.0/lib' '-I' '/glade/u/apps/ch/opt/openmpi/3.1.4/gnu/8.3.0/include' '-pthread' '-mtune=generic' '-march=x86-64']
+  ignore line: [ as -v -I /glade/u/apps/ch/opt/gnu/8.3.0/include -I /glade/u/apps/ch/opt/netcdf/4.7.1/gnu/8.3.0/include -I /glade/u/apps/ch/opt/openblas/0.3.6/gnu/8.3.0/include -I /glade/u/apps/ch/opt/python/2.7.13/gnu/6.2.0/include -I /glade/u/apps/ch/opt/openmpi/3.1.4/gnu/8.3.0/include --64 -o CMakeFiles/cmTC_d84a2.dir/CMakeCCompilerABI.c.o /glade/scratch/tvda/cc8QDETx.s]
+  ignore line: [GNU assembler version 2.32.0 (x86_64-suse-linux) using BFD version (GNU Binutils]
+  ignore line: [ SUSE Linux Enterprise 12) 2.32.0.20190909-9.36]
+  ignore line: [COMPILER_PATH=/glade/u/apps/ch/opt/gnu/8.3.0/libexec/gcc/x86_64-pc-linux-gnu/8.3.0/:/glade/u/apps/ch/opt/gnu/8.3.0/libexec/gcc/x86_64-pc-linux-gnu/8.3.0/:/glade/u/apps/ch/opt/gnu/8.3.0/libexec/gcc/x86_64-pc-linux-gnu/:/glade/u/apps/ch/opt/gnu/8.3.0/lib/gcc/x86_64-pc-linux-gnu/8.3.0/:/glade/u/apps/ch/opt/gnu/8.3.0/lib/gcc/x86_64-pc-linux-gnu/]
+  ignore line: [LIBRARY_PATH=/glade/u/apps/ch/opt/gnu/8.3.0/lib/gcc/x86_64-pc-linux-gnu/8.3.0/:/glade/u/apps/ch/opt/gnu/8.3.0/lib/gcc/x86_64-pc-linux-gnu/8.3.0/../../../../lib64/:/lib/../lib64/:/usr/lib/../lib64/:/glade/u/apps/ch/opt/openmpi/3.1.4/gnu/8.3.0/lib/:/glade/u/apps/ch/opt/gnu/8.3.0/lib/gcc/x86_64-pc-linux-gnu/8.3.0/../../../:/lib/:/usr/lib/]
+  ignore line: [COLLECT_GCC_OPTIONS='-std=gnu99' '-O' '-v' '-o' 'CMakeFiles/cmTC_d84a2.dir/CMakeCCompilerABI.c.o' '-c' '-I' '/glade/u/apps/ch/opt/gnu/8.3.0/include' '-I' '/glade/u/apps/ch/opt/netcdf/4.7.1/gnu/8.3.0/include' '-I' '/glade/u/apps/ch/opt/openblas/0.3.6/gnu/8.3.0/include' '-I' '/glade/u/apps/ch/opt/python/2.7.13/gnu/6.2.0/include' '-L/glade/u/apps/ch/opt/gnu/8.3.0/lib64' '-L/glade/u/apps/ch/opt/gnu/8.3.0/lib/gcc/x86_64-pc-linux-gnu/8.3.0' '-L/glade/u/apps/ch/opt/netcdf/4.7.1/gnu/8.3.0/lib' '-L/glade/u/apps/ch/opt/openblas/0.3.6/gnu/8.3.0/lib' '-L/opt/pbs/lib' '-L/glade/u/apps/ch/opt/python/2.7.13/gnu/6.2.0/lib' '-L/glade/u/apps/ch/opt/openmpi/3.1.4/gnu/8.3.0/lib' '-I' '/glade/u/apps/ch/opt/openmpi/3.1.4/gnu/8.3.0/include' '-pthread' '-mtune=generic' '-march=x86-64']
+  ignore line: [Linking C executable cmTC_d84a2]
+  ignore line: [/glade/u/apps/ch/opt/cmake/3.14.4/bin/cmake -E cmake_link_script CMakeFiles/cmTC_d84a2.dir/link.txt --verbose=1]
+  ignore line: [/glade/u/apps/ch/opt/ncarcompilers/0.5.0/gnu/8.3.0/mpi/mpicc -std=gnu99 -O    -v -rdynamic CMakeFiles/cmTC_d84a2.dir/CMakeCCompilerABI.c.o  -o cmTC_d84a2 ]
+  ignore line: [Using built-in specs.]
+  ignore line: [COLLECT_GCC=gcc]
+  ignore line: [COLLECT_LTO_WRAPPER=/glade/u/apps/ch/opt/gnu/8.3.0/libexec/gcc/x86_64-pc-linux-gnu/8.3.0/lto-wrapper]
+  ignore line: [Target: x86_64-pc-linux-gnu]
+  ignore line: [Configured with: ../configure --prefix=/glade/u/apps/ch/opt/gnu/8.3.0/ --enable-languages=c,c++,fortran,lto --enable-threads --disable-multilib]
+  ignore line: [Thread model: posix]
+  ignore line: [gcc version 8.3.0 (GCC) ]
+  ignore line: [COMPILER_PATH=/glade/u/apps/ch/opt/gnu/8.3.0/libexec/gcc/x86_64-pc-linux-gnu/8.3.0/:/glade/u/apps/ch/opt/gnu/8.3.0/libexec/gcc/x86_64-pc-linux-gnu/8.3.0/:/glade/u/apps/ch/opt/gnu/8.3.0/libexec/gcc/x86_64-pc-linux-gnu/:/glade/u/apps/ch/opt/gnu/8.3.0/lib/gcc/x86_64-pc-linux-gnu/8.3.0/:/glade/u/apps/ch/opt/gnu/8.3.0/lib/gcc/x86_64-pc-linux-gnu/]
+  ignore line: [LIBRARY_PATH=/glade/u/apps/ch/opt/gnu/8.3.0/lib/gcc/x86_64-pc-linux-gnu/8.3.0/:/glade/u/apps/ch/opt/gnu/8.3.0/lib/gcc/x86_64-pc-linux-gnu/8.3.0/../../../../lib64/:/lib/../lib64/:/usr/lib/../lib64/:/glade/u/apps/ch/opt/openmpi/3.1.4/gnu/8.3.0/lib/:/glade/u/apps/ch/opt/gnu/8.3.0/lib/gcc/x86_64-pc-linux-gnu/8.3.0/../../../:/lib/:/usr/lib/]
+  ignore line: [COLLECT_GCC_OPTIONS='-std=gnu99' '-O' '-v' '-rdynamic' '-o' 'cmTC_d84a2' '-I' '/glade/u/apps/ch/opt/gnu/8.3.0/include' '-I' '/glade/u/apps/ch/opt/netcdf/4.7.1/gnu/8.3.0/include' '-I' '/glade/u/apps/ch/opt/openblas/0.3.6/gnu/8.3.0/include' '-I' '/glade/u/apps/ch/opt/python/2.7.13/gnu/6.2.0/include' '-L/glade/u/apps/ch/opt/gnu/8.3.0/lib64' '-L/glade/u/apps/ch/opt/gnu/8.3.0/lib/gcc/x86_64-pc-linux-gnu/8.3.0' '-L/glade/u/apps/ch/opt/netcdf/4.7.1/gnu/8.3.0/lib' '-L/glade/u/apps/ch/opt/openblas/0.3.6/gnu/8.3.0/lib' '-L/opt/pbs/lib' '-L/glade/u/apps/ch/opt/python/2.7.13/gnu/6.2.0/lib' '-L/glade/u/apps/ch/opt/openmpi/3.1.4/gnu/8.3.0/lib' '-I' '/glade/u/apps/ch/opt/openmpi/3.1.4/gnu/8.3.0/include' '-pthread' '-L/glade/u/apps/ch/opt/openmpi/3.1.4/gnu/8.3.0/lib' '-mtune=generic' '-march=x86-64']
+  link line: [ /glade/u/apps/ch/opt/gnu/8.3.0/libexec/gcc/x86_64-pc-linux-gnu/8.3.0/collect2 -plugin /glade/u/apps/ch/opt/gnu/8.3.0/libexec/gcc/x86_64-pc-linux-gnu/8.3.0/liblto_plugin.so -plugin-opt=/glade/u/apps/ch/opt/gnu/8.3.0/libexec/gcc/x86_64-pc-linux-gnu/8.3.0/lto-wrapper -plugin-opt=-fresolution=/glade/scratch/tvda/cc5gjFZP.res -plugin-opt=-pass-through=-lgcc -plugin-opt=-pass-through=-lgcc_s -plugin-opt=-pass-through=-lpthread -plugin-opt=-pass-through=-lc -plugin-opt=-pass-through=-lgcc -plugin-opt=-pass-through=-lgcc_s --eh-frame-hdr -m elf_x86_64 -export-dynamic -dynamic-linker /lib64/ld-linux-x86-64.so.2 -o cmTC_d84a2 /usr/lib/../lib64/crt1.o /usr/lib/../lib64/crti.o /glade/u/apps/ch/opt/gnu/8.3.0/lib/gcc/x86_64-pc-linux-gnu/8.3.0/crtbegin.o -L/glade/u/apps/ch/opt/gnu/8.3.0/lib64 -L/glade/u/apps/ch/opt/gnu/8.3.0/lib/gcc/x86_64-pc-linux-gnu/8.3.0 -L/glade/u/apps/ch/opt/netcdf/4.7.1/gnu/8.3.0/lib -L/glade/u/apps/ch/opt/openblas/0.3.6/gnu/8.3.0/lib -L/opt/pbs/lib -L/glade/u/apps/ch/opt/python/2.7.13/gnu/6.2.0/lib -L/glade/u/apps/ch/opt/openmpi/3.1.4/gnu/8.3.0/lib -L/glade/u/apps/ch/opt/openmpi/3.1.4/gnu/8.3.0/lib -L/glade/u/apps/ch/opt/gnu/8.3.0/lib/gcc/x86_64-pc-linux-gnu/8.3.0 -L/glade/u/apps/ch/opt/gnu/8.3.0/lib/gcc/x86_64-pc-linux-gnu/8.3.0/../../../../lib64 -L/lib/../lib64 -L/usr/lib/../lib64 -L/glade/u/apps/ch/opt/openmpi/3.1.4/gnu/8.3.0/lib -L/glade/u/apps/ch/opt/gnu/8.3.0/lib/gcc/x86_64-pc-linux-gnu/8.3.0/../../.. CMakeFiles/cmTC_d84a2.dir/CMakeCCompilerABI.c.o -Bstatic -lnetcdff -lnetcdf -lhdf5hl_fortran -lhdf5_hl -lhdf5_fortran -lhdf5 -lsz -lz -Bdynamic -lm -ldl -lopenblas -lpython2.7 -lsec -lrt -ldl --disable-new-dtags -rpath /glade/u/apps/ch/opt/gnu/8.3.0/lib64 -rpath /glade/u/apps/ch/opt/gnu/8.3.0/lib/gcc/x86_64-pc-linux-gnu/8.3.0 -rpath /glade/u/apps/ch/opt/netcdf/4.7.1/gnu/8.3.0/lib -rpath /glade/u/apps/ch/opt/openblas/0.3.6/gnu/8.3.0/lib -rpath /opt/pbs/lib -rpath /glade/u/apps/ch/opt/python/2.7.13/gnu/6.2.0/lib -rpath /glade/u/apps/ch/opt/openmpi/3.1.4/gnu/8.3.0/lib -rpath /glade/u/apps/ch/opt/openmpi/3.1.4/gnu/8.3.0/lib -lmpi -lgcc --as-needed -lgcc_s --no-as-needed -lpthread -lc -lgcc --as-needed -lgcc_s --no-as-needed /glade/u/apps/ch/opt/gnu/8.3.0/lib/gcc/x86_64-pc-linux-gnu/8.3.0/crtend.o /usr/lib/../lib64/crtn.o]
+    arg [/glade/u/apps/ch/opt/gnu/8.3.0/libexec/gcc/x86_64-pc-linux-gnu/8.3.0/collect2] ==> ignore
+    arg [-plugin] ==> ignore
+    arg [/glade/u/apps/ch/opt/gnu/8.3.0/libexec/gcc/x86_64-pc-linux-gnu/8.3.0/liblto_plugin.so] ==> ignore
+    arg [-plugin-opt=/glade/u/apps/ch/opt/gnu/8.3.0/libexec/gcc/x86_64-pc-linux-gnu/8.3.0/lto-wrapper] ==> ignore
+    arg [-plugin-opt=-fresolution=/glade/scratch/tvda/cc5gjFZP.res] ==> ignore
+    arg [-plugin-opt=-pass-through=-lgcc] ==> ignore
+    arg [-plugin-opt=-pass-through=-lgcc_s] ==> ignore
+    arg [-plugin-opt=-pass-through=-lpthread] ==> ignore
+    arg [-plugin-opt=-pass-through=-lc] ==> ignore
+    arg [-plugin-opt=-pass-through=-lgcc] ==> ignore
+    arg [-plugin-opt=-pass-through=-lgcc_s] ==> ignore
+    arg [--eh-frame-hdr] ==> ignore
+    arg [-m] ==> ignore
+    arg [elf_x86_64] ==> ignore
+    arg [-export-dynamic] ==> ignore
+    arg [-dynamic-linker] ==> ignore
+    arg [/lib64/ld-linux-x86-64.so.2] ==> ignore
+    arg [-o] ==> ignore
+    arg [cmTC_d84a2] ==> ignore
+    arg [/usr/lib/../lib64/crt1.o] ==> ignore
+    arg [/usr/lib/../lib64/crti.o] ==> ignore
+    arg [/glade/u/apps/ch/opt/gnu/8.3.0/lib/gcc/x86_64-pc-linux-gnu/8.3.0/crtbegin.o] ==> ignore
+    arg [-L/glade/u/apps/ch/opt/gnu/8.3.0/lib64] ==> dir [/glade/u/apps/ch/opt/gnu/8.3.0/lib64]
+    arg [-L/glade/u/apps/ch/opt/gnu/8.3.0/lib/gcc/x86_64-pc-linux-gnu/8.3.0] ==> dir [/glade/u/apps/ch/opt/gnu/8.3.0/lib/gcc/x86_64-pc-linux-gnu/8.3.0]
+    arg [-L/glade/u/apps/ch/opt/netcdf/4.7.1/gnu/8.3.0/lib] ==> dir [/glade/u/apps/ch/opt/netcdf/4.7.1/gnu/8.3.0/lib]
+    arg [-L/glade/u/apps/ch/opt/openblas/0.3.6/gnu/8.3.0/lib] ==> dir [/glade/u/apps/ch/opt/openblas/0.3.6/gnu/8.3.0/lib]
+    arg [-L/opt/pbs/lib] ==> dir [/opt/pbs/lib]
+    arg [-L/glade/u/apps/ch/opt/python/2.7.13/gnu/6.2.0/lib] ==> dir [/glade/u/apps/ch/opt/python/2.7.13/gnu/6.2.0/lib]
+    arg [-L/glade/u/apps/ch/opt/openmpi/3.1.4/gnu/8.3.0/lib] ==> dir [/glade/u/apps/ch/opt/openmpi/3.1.4/gnu/8.3.0/lib]
+    arg [-L/glade/u/apps/ch/opt/openmpi/3.1.4/gnu/8.3.0/lib] ==> dir [/glade/u/apps/ch/opt/openmpi/3.1.4/gnu/8.3.0/lib]
+    arg [-L/glade/u/apps/ch/opt/gnu/8.3.0/lib/gcc/x86_64-pc-linux-gnu/8.3.0] ==> dir [/glade/u/apps/ch/opt/gnu/8.3.0/lib/gcc/x86_64-pc-linux-gnu/8.3.0]
+    arg [-L/glade/u/apps/ch/opt/gnu/8.3.0/lib/gcc/x86_64-pc-linux-gnu/8.3.0/../../../../lib64] ==> dir [/glade/u/apps/ch/opt/gnu/8.3.0/lib/gcc/x86_64-pc-linux-gnu/8.3.0/../../../../lib64]
+    arg [-L/lib/../lib64] ==> dir [/lib/../lib64]
+    arg [-L/usr/lib/../lib64] ==> dir [/usr/lib/../lib64]
+    arg [-L/glade/u/apps/ch/opt/openmpi/3.1.4/gnu/8.3.0/lib] ==> dir [/glade/u/apps/ch/opt/openmpi/3.1.4/gnu/8.3.0/lib]
+    arg [-L/glade/u/apps/ch/opt/gnu/8.3.0/lib/gcc/x86_64-pc-linux-gnu/8.3.0/../../..] ==> dir [/glade/u/apps/ch/opt/gnu/8.3.0/lib/gcc/x86_64-pc-linux-gnu/8.3.0/../../..]
+    arg [CMakeFiles/cmTC_d84a2.dir/CMakeCCompilerABI.c.o] ==> ignore
+    arg [-Bstatic] ==> ignore
+    arg [-lnetcdff] ==> lib [netcdff]
+    arg [-lnetcdf] ==> lib [netcdf]
+    arg [-lhdf5hl_fortran] ==> lib [hdf5hl_fortran]
+    arg [-lhdf5_hl] ==> lib [hdf5_hl]
+    arg [-lhdf5_fortran] ==> lib [hdf5_fortran]
+    arg [-lhdf5] ==> lib [hdf5]
+    arg [-lsz] ==> lib [sz]
+    arg [-lz] ==> lib [z]
+    arg [-Bdynamic] ==> ignore
+    arg [-lm] ==> lib [m]
+    arg [-ldl] ==> lib [dl]
+    arg [-lopenblas] ==> lib [openblas]
+    arg [-lpython2.7] ==> lib [python2.7]
+    arg [-lsec] ==> lib [sec]
+    arg [-lrt] ==> lib [rt]
+    arg [-ldl] ==> lib [dl]
+    arg [--disable-new-dtags] ==> ignore
+    arg [-rpath] ==> ignore
+    arg [/glade/u/apps/ch/opt/gnu/8.3.0/lib64] ==> ignore
+    arg [-rpath] ==> ignore
+    arg [/glade/u/apps/ch/opt/gnu/8.3.0/lib/gcc/x86_64-pc-linux-gnu/8.3.0] ==> ignore
+    arg [-rpath] ==> ignore
+    arg [/glade/u/apps/ch/opt/netcdf/4.7.1/gnu/8.3.0/lib] ==> ignore
+    arg [-rpath] ==> ignore
+    arg [/glade/u/apps/ch/opt/openblas/0.3.6/gnu/8.3.0/lib] ==> ignore
+    arg [-rpath] ==> ignore
+    arg [/opt/pbs/lib] ==> ignore
+    arg [-rpath] ==> ignore
+    arg [/glade/u/apps/ch/opt/python/2.7.13/gnu/6.2.0/lib] ==> ignore
+    arg [-rpath] ==> ignore
+    arg [/glade/u/apps/ch/opt/openmpi/3.1.4/gnu/8.3.0/lib] ==> ignore
+    arg [-rpath] ==> ignore
+    arg [/glade/u/apps/ch/opt/openmpi/3.1.4/gnu/8.3.0/lib] ==> ignore
+    arg [-lmpi] ==> lib [mpi]
+    arg [-lgcc] ==> lib [gcc]
+    arg [--as-needed] ==> ignore
+    arg [-lgcc_s] ==> lib [gcc_s]
+    arg [--no-as-needed] ==> ignore
+    arg [-lpthread] ==> lib [pthread]
+    arg [-lc] ==> lib [c]
+    arg [-lgcc] ==> lib [gcc]
+    arg [--as-needed] ==> ignore
+    arg [-lgcc_s] ==> lib [gcc_s]
+    arg [--no-as-needed] ==> ignore
+    arg [/glade/u/apps/ch/opt/gnu/8.3.0/lib/gcc/x86_64-pc-linux-gnu/8.3.0/crtend.o] ==> ignore
+    arg [/usr/lib/../lib64/crtn.o] ==> ignore
+  collapse library dir [/glade/u/apps/ch/opt/gnu/8.3.0/lib64] ==> [/glade/u/apps/ch/opt/gnu/8.3.0/lib64]
+  collapse library dir [/glade/u/apps/ch/opt/gnu/8.3.0/lib/gcc/x86_64-pc-linux-gnu/8.3.0] ==> [/glade/u/apps/ch/opt/gnu/8.3.0/lib/gcc/x86_64-pc-linux-gnu/8.3.0]
+  collapse library dir [/glade/u/apps/ch/opt/netcdf/4.7.1/gnu/8.3.0/lib] ==> [/glade/u/apps/ch/opt/netcdf/4.7.1/gnu/8.3.0/lib]
+  collapse library dir [/glade/u/apps/ch/opt/openblas/0.3.6/gnu/8.3.0/lib] ==> [/glade/u/apps/ch/opt/openblas/0.3.6/gnu/8.3.0/lib]
+  collapse library dir [/opt/pbs/lib] ==> [/opt/pbs/lib]
+  collapse library dir [/glade/u/apps/ch/opt/python/2.7.13/gnu/6.2.0/lib] ==> [/glade/u/apps/ch/opt/python/2.7.13/gnu/6.2.0/lib]
+  collapse library dir [/glade/u/apps/ch/opt/openmpi/3.1.4/gnu/8.3.0/lib] ==> [/glade/u/apps/ch/opt/openmpi/3.1.4/gnu/8.3.0/lib]
+  collapse library dir [/glade/u/apps/ch/opt/openmpi/3.1.4/gnu/8.3.0/lib] ==> [/glade/u/apps/ch/opt/openmpi/3.1.4/gnu/8.3.0/lib]
+  collapse library dir [/glade/u/apps/ch/opt/gnu/8.3.0/lib/gcc/x86_64-pc-linux-gnu/8.3.0] ==> [/glade/u/apps/ch/opt/gnu/8.3.0/lib/gcc/x86_64-pc-linux-gnu/8.3.0]
+  collapse library dir [/glade/u/apps/ch/opt/gnu/8.3.0/lib/gcc/x86_64-pc-linux-gnu/8.3.0/../../../../lib64] ==> [/glade/u/apps/ch/opt/gnu/8.3.0/lib64]
+  collapse library dir [/lib/../lib64] ==> [/lib64]
+  collapse library dir [/usr/lib/../lib64] ==> [/usr/lib64]
+  collapse library dir [/glade/u/apps/ch/opt/openmpi/3.1.4/gnu/8.3.0/lib] ==> [/glade/u/apps/ch/opt/openmpi/3.1.4/gnu/8.3.0/lib]
+  collapse library dir [/glade/u/apps/ch/opt/gnu/8.3.0/lib/gcc/x86_64-pc-linux-gnu/8.3.0/../../..] ==> [/glade/u/apps/ch/opt/gnu/8.3.0/lib]
+  implicit libs: [netcdff;netcdf;hdf5hl_fortran;hdf5_hl;hdf5_fortran;hdf5;sz;z;m;dl;openblas;python2.7;sec;rt;dl;mpi;gcc;gcc_s;pthread;c;gcc;gcc_s]
+  implicit dirs: [/glade/u/apps/ch/opt/gnu/8.3.0/lib64;/glade/u/apps/ch/opt/gnu/8.3.0/lib/gcc/x86_64-pc-linux-gnu/8.3.0;/glade/u/apps/ch/opt/netcdf/4.7.1/gnu/8.3.0/lib;/glade/u/apps/ch/opt/openblas/0.3.6/gnu/8.3.0/lib;/opt/pbs/lib;/glade/u/apps/ch/opt/python/2.7.13/gnu/6.2.0/lib;/glade/u/apps/ch/opt/openmpi/3.1.4/gnu/8.3.0/lib;/lib64;/usr/lib64;/glade/u/apps/ch/opt/gnu/8.3.0/lib]
+  implicit fwks: []
+
+
+
+
+Detecting C [-std=c11] compiler features compiled with the following output:
+Change Dir: /glade/u/home/tvda/CISM/builds/cheyenne-intel-bill/CMakeFiles/CMakeTmp
+
+Run Build Command(s):/usr/bin/gmake cmTC_a6876/fast 
+/usr/bin/gmake -f CMakeFiles/cmTC_a6876.dir/build.make CMakeFiles/cmTC_a6876.dir/build
+gmake[1]: Entering directory '/glade/u/home/tvda/CISM/builds/cheyenne-intel-bill/CMakeFiles/CMakeTmp'
+Building C object CMakeFiles/cmTC_a6876.dir/feature_tests.c.o
+/glade/u/apps/ch/opt/ncarcompilers/0.5.0/gnu/8.3.0/mpi/mpicc   -std=gnu99 -O    -std=c11 -o CMakeFiles/cmTC_a6876.dir/feature_tests.c.o   -c /glade/u/home/tvda/CISM/builds/cheyenne-intel-bill/CMakeFiles/feature_tests.c
+Linking C executable cmTC_a6876
+/glade/u/apps/ch/opt/cmake/3.14.4/bin/cmake -E cmake_link_script CMakeFiles/cmTC_a6876.dir/link.txt --verbose=1
+/glade/u/apps/ch/opt/ncarcompilers/0.5.0/gnu/8.3.0/mpi/mpicc -std=gnu99 -O     -rdynamic CMakeFiles/cmTC_a6876.dir/feature_tests.c.o  -o cmTC_a6876 
+gmake[1]: Leaving directory '/glade/u/home/tvda/CISM/builds/cheyenne-intel-bill/CMakeFiles/CMakeTmp'
+
+
+    Feature record: C_FEATURE:1c_function_prototypes
+    Feature record: C_FEATURE:1c_restrict
+    Feature record: C_FEATURE:1c_static_assert
+    Feature record: C_FEATURE:1c_variadic_macros
+
+
+Detecting C [-std=c99] compiler features compiled with the following output:
+Change Dir: /glade/u/home/tvda/CISM/builds/cheyenne-intel-bill/CMakeFiles/CMakeTmp
+
+Run Build Command(s):/usr/bin/gmake cmTC_e3e28/fast 
+/usr/bin/gmake -f CMakeFiles/cmTC_e3e28.dir/build.make CMakeFiles/cmTC_e3e28.dir/build
+gmake[1]: Entering directory '/glade/u/home/tvda/CISM/builds/cheyenne-intel-bill/CMakeFiles/CMakeTmp'
+Building C object CMakeFiles/cmTC_e3e28.dir/feature_tests.c.o
+/glade/u/apps/ch/opt/ncarcompilers/0.5.0/gnu/8.3.0/mpi/mpicc   -std=gnu99 -O    -std=c99 -o CMakeFiles/cmTC_e3e28.dir/feature_tests.c.o   -c /glade/u/home/tvda/CISM/builds/cheyenne-intel-bill/CMakeFiles/feature_tests.c
+Linking C executable cmTC_e3e28
+/glade/u/apps/ch/opt/cmake/3.14.4/bin/cmake -E cmake_link_script CMakeFiles/cmTC_e3e28.dir/link.txt --verbose=1
+/glade/u/apps/ch/opt/ncarcompilers/0.5.0/gnu/8.3.0/mpi/mpicc -std=gnu99 -O     -rdynamic CMakeFiles/cmTC_e3e28.dir/feature_tests.c.o  -o cmTC_e3e28 
+gmake[1]: Leaving directory '/glade/u/home/tvda/CISM/builds/cheyenne-intel-bill/CMakeFiles/CMakeTmp'
+
+
+    Feature record: C_FEATURE:1c_function_prototypes
+    Feature record: C_FEATURE:1c_restrict
+    Feature record: C_FEATURE:0c_static_assert
+    Feature record: C_FEATURE:1c_variadic_macros
+
+
+Detecting C [-std=c90] compiler features compiled with the following output:
+Change Dir: /glade/u/home/tvda/CISM/builds/cheyenne-intel-bill/CMakeFiles/CMakeTmp
+
+Run Build Command(s):/usr/bin/gmake cmTC_4ca03/fast 
+/usr/bin/gmake -f CMakeFiles/cmTC_4ca03.dir/build.make CMakeFiles/cmTC_4ca03.dir/build
+gmake[1]: Entering directory '/glade/u/home/tvda/CISM/builds/cheyenne-intel-bill/CMakeFiles/CMakeTmp'
+Building C object CMakeFiles/cmTC_4ca03.dir/feature_tests.c.o
+/glade/u/apps/ch/opt/ncarcompilers/0.5.0/gnu/8.3.0/mpi/mpicc   -std=gnu99 -O    -std=c90 -o CMakeFiles/cmTC_4ca03.dir/feature_tests.c.o   -c /glade/u/home/tvda/CISM/builds/cheyenne-intel-bill/CMakeFiles/feature_tests.c
+Linking C executable cmTC_4ca03
+/glade/u/apps/ch/opt/cmake/3.14.4/bin/cmake -E cmake_link_script CMakeFiles/cmTC_4ca03.dir/link.txt --verbose=1
+/glade/u/apps/ch/opt/ncarcompilers/0.5.0/gnu/8.3.0/mpi/mpicc -std=gnu99 -O     -rdynamic CMakeFiles/cmTC_4ca03.dir/feature_tests.c.o  -o cmTC_4ca03 
+gmake[1]: Leaving directory '/glade/u/home/tvda/CISM/builds/cheyenne-intel-bill/CMakeFiles/CMakeTmp'
+
+
+    Feature record: C_FEATURE:1c_function_prototypes
+    Feature record: C_FEATURE:0c_restrict
+    Feature record: C_FEATURE:0c_static_assert
+    Feature record: C_FEATURE:0c_variadic_macros

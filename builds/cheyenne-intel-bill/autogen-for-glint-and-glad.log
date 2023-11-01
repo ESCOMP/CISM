@@ -1,0 +1,10 @@
+
+Auto-generating glint_io.F90, glint_mbal_io.F90,
+glad_io.F90, glad_mbal_io.F90 in build directory.
+
+/glade/work/lipscomb/cism-development/builds/cheyenne-intel/fortran_autogen_srcs /glade/work/lipscomb/cism-development/builds/cheyenne-intel
+Auto-generate script is using CISM source directory: 
+/glade/work/lipscomb/cism-development
+  --creating glint_io.F90, glint_mbal_io.F90, glad_io.F90 and glad_mbal_io.F90 
+  --deleting temporary .def files and template file
+/glade/work/lipscomb/cism-development/builds/cheyenne-intel

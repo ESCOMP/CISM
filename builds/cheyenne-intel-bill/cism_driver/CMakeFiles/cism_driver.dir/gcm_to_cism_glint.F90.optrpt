@@ -1,0 +1,624 @@
+Intel(R) Advisor can now assist with vectorization and show optimization
+  report messages with your source code.
+See "https://software.intel.com/en-us/intel-advisor-xe" for details.
+
+
+    Report from: Interprocedural optimizations [ipo]
+
+INLINING OPTION VALUES:
+  -inline-factor: 100
+  -inline-min-size: 30
+  -inline-max-size: 230
+  -inline-max-total-size: 2000
+  -inline-max-per-routine: 10000
+  -inline-max-per-compile: 500000
+
+
+Begin optimization report for: gcm_to_cism_glint._
+
+    Report from: Interprocedural optimizations [ipo]
+
+INLINE REPORT: (gcm_to_cism_glint._) [1] /glade/u/home/lipscomb/cism-development/cism_driver/gcm_to_cism_glint.F90(31,8)
+
+
+    Report from: Code generation optimizations [cg]
+
+/glade/u/home/lipscomb/cism-development/cism_driver/gcm_to_cism_glint.F90(31,8):remark #34051: REGISTER ALLOCATION : [gcm_to_cism_glint._] /glade/u/home/lipscomb/cism-development/cism_driver/gcm_to_cism_glint.F90:31
+
+    Hardware registers
+        Reserved     :    2[ rsp rip]
+        Available    :   39[ rax rdx rcx rbx rbp rsi rdi r8-r15 mm0-mm7 zmm0-zmm15]
+        Callee-save  :    6[ rbx rbp r12-r15]
+        Assigned     :    0[ reg_null]
+        
+    Routine temporaries
+        Total         :       6
+            Global    :       0
+            Local     :       6
+        Regenerable   :       0
+        Spilled       :       0
+        
+    Routine stack
+        Variables     :       0 bytes*
+            Reads     :       0 [0.00e+00 ~ 0.0%]
+            Writes    :       0 [0.00e+00 ~ 0.0%]
+        Spills        :       0 bytes*
+            Reads     :       0 [0.00e+00 ~ 0.0%]
+            Writes    :       0 [0.00e+00 ~ 0.0%]
+    
+    Notes
+    
+        *Non-overlapping variables and spills may share stack space,
+         so the total stack size might be less than this.
+    
+
+===========================================================================
+
+Begin optimization report for: GCM_TO_CISM_GLINT::G2C_GLINT_RUN
+
+    Report from: Interprocedural optimizations [ipo]
+
+INLINE REPORT: (GCM_TO_CISM_GLINT::G2C_GLINT_RUN) [2] /glade/u/home/lipscomb/cism-development/cism_driver/gcm_to_cism_glint.F90(339,12)
+
+
+    Report from: Code generation optimizations [cg]
+
+/glade/u/home/lipscomb/cism-development/cism_driver/gcm_to_cism_glint.F90(339,12):remark #34051: REGISTER ALLOCATION : [gcm_to_cism_glint_mp_g2c_glint_run_] /glade/u/home/lipscomb/cism-development/cism_driver/gcm_to_cism_glint.F90:339
+
+    Hardware registers
+        Reserved     :    2[ rsp rip]
+        Available    :   39[ rax rdx rcx rbx rbp rsi rdi r8-r15 mm0-mm7 zmm0-zmm15]
+        Callee-save  :    6[ rbx rbp r12-r15]
+        Assigned     :   16[ rax rdx rcx rbx rsi rdi r8-r15 zmm0-zmm1]
+        
+    Routine temporaries
+        Total         :     164
+            Global    :      16
+            Local     :     148
+        Regenerable   :      44
+        Spilled       :       7
+        
+    Routine stack
+        Variables     :    1320 bytes*
+            Reads     :       0 [0.00e+00 ~ 0.0%]
+            Writes    :     146 [6.12e+01 ~ 34.9%]
+        Spills        :      16 bytes*
+            Reads     :       2 [3.17e-01 ~ 0.2%]
+            Writes    :       2 [3.17e-01 ~ 0.2%]
+    
+    Notes
+    
+        *Non-overlapping variables and spills may share stack space,
+         so the total stack size might be less than this.
+    
+
+===========================================================================
+
+Begin optimization report for: GCM_TO_CISM_GLINT::G2C_GLINT_CLIMATE_TIME_STEP
+
+    Report from: Interprocedural optimizations [ipo]
+
+INLINE REPORT: (GCM_TO_CISM_GLINT::G2C_GLINT_CLIMATE_TIME_STEP) [3] /glade/u/home/lipscomb/cism-development/cism_driver/gcm_to_cism_glint.F90(406,12)
+
+
+    Report from: Code generation optimizations [cg]
+
+/glade/u/home/lipscomb/cism-development/cism_driver/gcm_to_cism_glint.F90(406,12):remark #34051: REGISTER ALLOCATION : [gcm_to_cism_glint_mp_g2c_glint_climate_time_step_] /glade/u/home/lipscomb/cism-development/cism_driver/gcm_to_cism_glint.F90:406
+
+    Hardware registers
+        Reserved     :    2[ rsp rip]
+        Available    :   39[ rax rdx rcx rbx rbp rsi rdi r8-r15 mm0-mm7 zmm0-zmm15]
+        Callee-save  :    6[ rbx rbp r12-r15]
+        Assigned     :    2[ rax rdi]
+        
+    Routine temporaries
+        Total         :       9
+            Global    :       0
+            Local     :       9
+        Regenerable   :       0
+        Spilled       :       0
+        
+    Routine stack
+        Variables     :       0 bytes*
+            Reads     :       0 [0.00e+00 ~ 0.0%]
+            Writes    :       0 [0.00e+00 ~ 0.0%]
+        Spills        :       0 bytes*
+            Reads     :       0 [0.00e+00 ~ 0.0%]
+            Writes    :       0 [0.00e+00 ~ 0.0%]
+    
+    Notes
+    
+        *Non-overlapping variables and spills may share stack space,
+         so the total stack size might be less than this.
+    
+
+===========================================================================
+
+Begin optimization report for: GCM_TO_CISM_GLINT::G2C_GLINT_CHECK_FINISHED
+
+    Report from: Interprocedural optimizations [ipo]
+
+INLINE REPORT: (GCM_TO_CISM_GLINT::G2C_GLINT_CHECK_FINISHED) [4] /glade/u/home/lipscomb/cism-development/cism_driver/gcm_to_cism_glint.F90(413,12)
+
+
+    Report from: Code generation optimizations [cg]
+
+/glade/u/home/lipscomb/cism-development/cism_driver/gcm_to_cism_glint.F90(413,12):remark #34051: REGISTER ALLOCATION : [gcm_to_cism_glint_mp_g2c_glint_check_finished_] /glade/u/home/lipscomb/cism-development/cism_driver/gcm_to_cism_glint.F90:413
+
+    Hardware registers
+        Reserved     :    2[ rsp rip]
+        Available    :   39[ rax rdx rcx rbx rbp rsi rdi r8-r15 mm0-mm7 zmm0-zmm15]
+        Callee-save  :    6[ rbx rbp r12-r15]
+        Assigned     :    3[ rax rsi rdi]
+        
+    Routine temporaries
+        Total         :      12
+            Global    :       7
+            Local     :       5
+        Regenerable   :       0
+        Spilled       :       0
+        
+    Routine stack
+        Variables     :       0 bytes*
+            Reads     :       0 [0.00e+00 ~ 0.0%]
+            Writes    :       0 [0.00e+00 ~ 0.0%]
+        Spills        :       0 bytes*
+            Reads     :       0 [0.00e+00 ~ 0.0%]
+            Writes    :       0 [0.00e+00 ~ 0.0%]
+    
+    Notes
+    
+        *Non-overlapping variables and spills may share stack space,
+         so the total stack size might be less than this.
+    
+
+===========================================================================
+
+Begin optimization report for: GCM_TO_CISM_GLINT::G2C_GLINT_END
+
+    Report from: Interprocedural optimizations [ipo]
+
+INLINE REPORT: (GCM_TO_CISM_GLINT::G2C_GLINT_END) [5] /glade/u/home/lipscomb/cism-development/cism_driver/gcm_to_cism_glint.F90(427,12)
+
+
+    Report from: Code generation optimizations [cg]
+
+/glade/u/home/lipscomb/cism-development/cism_driver/gcm_to_cism_glint.F90(427,12):remark #34051: REGISTER ALLOCATION : [gcm_to_cism_glint_mp_g2c_glint_end_] /glade/u/home/lipscomb/cism-development/cism_driver/gcm_to_cism_glint.F90:427
+
+    Hardware registers
+        Reserved     :    2[ rsp rip]
+        Available    :   39[ rax rdx rcx rbx rbp rsi rdi r8-r15 mm0-mm7 zmm0-zmm15]
+        Callee-save  :    6[ rbx rbp r12-r15]
+        Assigned     :    8[ rax rdx rcx rbx rsi rdi r8 zmm0]
+        
+    Routine temporaries
+        Total         :      27
+            Global    :      11
+            Local     :      16
+        Regenerable   :       7
+        Spilled       :       1
+        
+    Routine stack
+        Variables     :       8 bytes*
+            Reads     :       0 [0.00e+00 ~ 0.0%]
+            Writes    :       1 [1.00e+00 ~ 3.0%]
+        Spills        :       0 bytes*
+            Reads     :       0 [0.00e+00 ~ 0.0%]
+            Writes    :       0 [0.00e+00 ~ 0.0%]
+    
+    Notes
+    
+        *Non-overlapping variables and spills may share stack space,
+         so the total stack size might be less than this.
+    
+
+===========================================================================
+
+Begin optimization report for: GCM_TO_CISM_GLINT::G2C_GLINT_INIT
+
+    Report from: Interprocedural optimizations [ipo]
+
+INLINE REPORT: (GCM_TO_CISM_GLINT::G2C_GLINT_INIT) [6] /glade/u/home/lipscomb/cism-development/cism_driver/gcm_to_cism_glint.F90(149,12)
+
+
+    Report from: Loop nest, Vector & Auto-parallelization optimizations [loop, vec, par]
+
+
+LOOP BEGIN at /glade/u/home/lipscomb/cism-development/cism_driver/gcm_to_cism_glint.F90(170,3)
+   remark #15300: LOOP WAS VECTORIZED
+LOOP END
+
+LOOP BEGIN at /glade/u/home/lipscomb/cism-development/cism_driver/gcm_to_cism_glint.F90(170,3)
+<Remainder loop for vectorization>
+   remark #25436: completely unrolled by 1  
+LOOP END
+
+LOOP BEGIN at /glade/u/home/lipscomb/cism-development/cism_driver/gcm_to_cism_glint.F90(179,3)
+   remark #15344: loop was not vectorized: vector dependence prevents vectorization. First dependence is shown below. Use level 5 report for details
+   remark #15346: vector dependence: assumed FLOW dependence between g2c(:) (179:3) and g2c%GCM_TO_CISM (179:3)
+LOOP END
+
+LOOP BEGIN at /glade/u/home/lipscomb/cism-development/cism_driver/gcm_to_cism_glint.F90(207,6)
+   remark #15344: loop was not vectorized: vector dependence prevents vectorization. First dependence is shown below. Use level 5 report for details
+   remark #15346: vector dependence: assumed OUTPUT dependence between at (208:9) and at (208:9)
+LOOP END
+
+LOOP BEGIN at /glade/u/home/lipscomb/cism-development/cism_driver/gcm_to_cism_glint.F90(226,3)
+<Multiversioned v1>
+   remark #25233: Loop multiversioned for stride tests on Assumed shape arrays
+   remark #15542: loop was not vectorized: inner loop was already vectorized
+
+   LOOP BEGIN at /glade/u/home/lipscomb/cism-development/cism_driver/gcm_to_cism_glint.F90(226,3)
+      remark #15300: LOOP WAS VECTORIZED
+   LOOP END
+
+   LOOP BEGIN at /glade/u/home/lipscomb/cism-development/cism_driver/gcm_to_cism_glint.F90(226,3)
+   <Remainder loop for vectorization>
+   LOOP END
+LOOP END
+
+LOOP BEGIN at /glade/u/home/lipscomb/cism-development/cism_driver/gcm_to_cism_glint.F90(226,3)
+<Multiversioned v2>
+   remark #15542: loop was not vectorized: inner loop was already vectorized
+
+   LOOP BEGIN at /glade/u/home/lipscomb/cism-development/cism_driver/gcm_to_cism_glint.F90(226,3)
+      remark #15300: LOOP WAS VECTORIZED
+   LOOP END
+
+   LOOP BEGIN at /glade/u/home/lipscomb/cism-development/cism_driver/gcm_to_cism_glint.F90(226,3)
+   <Remainder loop for vectorization>
+   LOOP END
+LOOP END
+
+LOOP BEGIN at /glade/u/home/lipscomb/cism-development/cism_driver/gcm_to_cism_glint.F90(227,3)
+   remark #15542: loop was not vectorized: inner loop was already vectorized
+
+   LOOP BEGIN at /glade/u/home/lipscomb/cism-development/cism_driver/gcm_to_cism_glint.F90(227,3)
+      remark #25408: memset generated
+      remark #15542: loop was not vectorized: inner loop was already vectorized
+
+      LOOP BEGIN at /glade/u/home/lipscomb/cism-development/cism_driver/gcm_to_cism_glint.F90(227,3)
+         remark #15300: LOOP WAS VECTORIZED
+      LOOP END
+
+      LOOP BEGIN at /glade/u/home/lipscomb/cism-development/cism_driver/gcm_to_cism_glint.F90(227,3)
+      <Remainder loop for vectorization>
+      LOOP END
+   LOOP END
+LOOP END
+
+LOOP BEGIN at /glade/u/home/lipscomb/cism-development/cism_driver/gcm_to_cism_glint.F90(228,3)
+   remark #15542: loop was not vectorized: inner loop was already vectorized
+
+   LOOP BEGIN at /glade/u/home/lipscomb/cism-development/cism_driver/gcm_to_cism_glint.F90(228,3)
+      remark #25408: memset generated
+      remark #15542: loop was not vectorized: inner loop was already vectorized
+
+      LOOP BEGIN at /glade/u/home/lipscomb/cism-development/cism_driver/gcm_to_cism_glint.F90(228,3)
+         remark #15300: LOOP WAS VECTORIZED
+      LOOP END
+
+      LOOP BEGIN at /glade/u/home/lipscomb/cism-development/cism_driver/gcm_to_cism_glint.F90(228,3)
+      <Remainder loop for vectorization>
+      LOOP END
+   LOOP END
+LOOP END
+
+LOOP BEGIN at /glade/u/home/lipscomb/cism-development/cism_driver/gcm_to_cism_glint.F90(229,3)
+   remark #15542: loop was not vectorized: inner loop was already vectorized
+
+   LOOP BEGIN at /glade/u/home/lipscomb/cism-development/cism_driver/gcm_to_cism_glint.F90(229,3)
+      remark #25408: memset generated
+      remark #15542: loop was not vectorized: inner loop was already vectorized
+
+      LOOP BEGIN at /glade/u/home/lipscomb/cism-development/cism_driver/gcm_to_cism_glint.F90(229,3)
+         remark #15300: LOOP WAS VECTORIZED
+      LOOP END
+
+      LOOP BEGIN at /glade/u/home/lipscomb/cism-development/cism_driver/gcm_to_cism_glint.F90(229,3)
+      <Remainder loop for vectorization>
+      LOOP END
+   LOOP END
+LOOP END
+
+LOOP BEGIN at /glade/u/home/lipscomb/cism-development/cism_driver/gcm_to_cism_glint.F90(230,3)
+<Multiversioned v1>
+   remark #25233: Loop multiversioned for stride tests on Assumed shape arrays
+   remark #15541: outer loop was not auto-vectorized: consider using SIMD directive
+
+   LOOP BEGIN at /glade/u/home/lipscomb/cism-development/cism_driver/gcm_to_cism_glint.F90(230,3)
+      remark #15344: loop was not vectorized: vector dependence prevents vectorization. First dependence is shown below. Use level 5 report for details
+      remark #15346: vector dependence: assumed FLOW dependence between g2c(:,:) (230:3) and g2c(:,:) (230:3)
+      remark #25439: unrolled with remainder by 2  
+   LOOP END
+
+   LOOP BEGIN at /glade/u/home/lipscomb/cism-development/cism_driver/gcm_to_cism_glint.F90(230,3)
+   <Remainder>
+   LOOP END
+LOOP END
+
+LOOP BEGIN at /glade/u/home/lipscomb/cism-development/cism_driver/gcm_to_cism_glint.F90(230,3)
+<Multiversioned v2>
+   remark #15541: outer loop was not auto-vectorized: consider using SIMD directive
+
+   LOOP BEGIN at /glade/u/home/lipscomb/cism-development/cism_driver/gcm_to_cism_glint.F90(230,3)
+      remark #15344: loop was not vectorized: vector dependence prevents vectorization. First dependence is shown below. Use level 5 report for details
+      remark #15346: vector dependence: assumed FLOW dependence between g2c(:,:) (230:3) and g2c(:,:) (230:3)
+      remark #25439: unrolled with remainder by 2  
+   LOOP END
+
+   LOOP BEGIN at /glade/u/home/lipscomb/cism-development/cism_driver/gcm_to_cism_glint.F90(230,3)
+   <Remainder>
+   LOOP END
+LOOP END
+
+LOOP BEGIN at /glade/u/home/lipscomb/cism-development/cism_driver/gcm_to_cism_glint.F90(241,6)
+   remark #15542: loop was not vectorized: inner loop was already vectorized
+
+   LOOP BEGIN at /glade/u/home/lipscomb/cism-development/cism_driver/gcm_to_cism_glint.F90(241,6)
+      remark #15542: loop was not vectorized: inner loop was already vectorized
+
+      LOOP BEGIN at /glade/u/home/lipscomb/cism-development/cism_driver/gcm_to_cism_glint.F90(241,6)
+         remark #25408: memset generated
+         remark #15542: loop was not vectorized: inner loop was already vectorized
+
+         LOOP BEGIN at /glade/u/home/lipscomb/cism-development/cism_driver/gcm_to_cism_glint.F90(241,6)
+            remark #15300: LOOP WAS VECTORIZED
+         LOOP END
+
+         LOOP BEGIN at /glade/u/home/lipscomb/cism-development/cism_driver/gcm_to_cism_glint.F90(241,6)
+         <Remainder loop for vectorization>
+         LOOP END
+      LOOP END
+   LOOP END
+LOOP END
+
+LOOP BEGIN at /glade/u/home/lipscomb/cism-development/cism_driver/gcm_to_cism_glint.F90(242,6)
+   remark #15542: loop was not vectorized: inner loop was already vectorized
+
+   LOOP BEGIN at /glade/u/home/lipscomb/cism-development/cism_driver/gcm_to_cism_glint.F90(242,6)
+      remark #15542: loop was not vectorized: inner loop was already vectorized
+
+      LOOP BEGIN at /glade/u/home/lipscomb/cism-development/cism_driver/gcm_to_cism_glint.F90(242,6)
+         remark #25408: memset generated
+         remark #15542: loop was not vectorized: inner loop was already vectorized
+
+         LOOP BEGIN at /glade/u/home/lipscomb/cism-development/cism_driver/gcm_to_cism_glint.F90(242,6)
+            remark #15300: LOOP WAS VECTORIZED
+         LOOP END
+
+         LOOP BEGIN at /glade/u/home/lipscomb/cism-development/cism_driver/gcm_to_cism_glint.F90(242,6)
+         <Remainder loop for vectorization>
+         LOOP END
+      LOOP END
+   LOOP END
+LOOP END
+
+LOOP BEGIN at /glade/u/home/lipscomb/cism-development/cism_driver/gcm_to_cism_glint.F90(243,6)
+   remark #15542: loop was not vectorized: inner loop was already vectorized
+
+   LOOP BEGIN at /glade/u/home/lipscomb/cism-development/cism_driver/gcm_to_cism_glint.F90(243,6)
+      remark #15542: loop was not vectorized: inner loop was already vectorized
+
+      LOOP BEGIN at /glade/u/home/lipscomb/cism-development/cism_driver/gcm_to_cism_glint.F90(243,6)
+         remark #25408: memset generated
+         remark #15542: loop was not vectorized: inner loop was already vectorized
+
+         LOOP BEGIN at /glade/u/home/lipscomb/cism-development/cism_driver/gcm_to_cism_glint.F90(243,6)
+            remark #15300: LOOP WAS VECTORIZED
+         LOOP END
+
+         LOOP BEGIN at /glade/u/home/lipscomb/cism-development/cism_driver/gcm_to_cism_glint.F90(243,6)
+         <Remainder loop for vectorization>
+         LOOP END
+      LOOP END
+   LOOP END
+LOOP END
+
+LOOP BEGIN at /glade/u/home/lipscomb/cism-development/cism_driver/gcm_to_cism_glint.F90(254,6)
+   remark #15542: loop was not vectorized: inner loop was already vectorized
+
+   LOOP BEGIN at /glade/u/home/lipscomb/cism-development/cism_driver/gcm_to_cism_glint.F90(254,6)
+      remark #15542: loop was not vectorized: inner loop was already vectorized
+
+      LOOP BEGIN at /glade/u/home/lipscomb/cism-development/cism_driver/gcm_to_cism_glint.F90(254,6)
+         remark #25408: memset generated
+         remark #15542: loop was not vectorized: inner loop was already vectorized
+
+         LOOP BEGIN at /glade/u/home/lipscomb/cism-development/cism_driver/gcm_to_cism_glint.F90(254,6)
+            remark #15300: LOOP WAS VECTORIZED
+         LOOP END
+
+         LOOP BEGIN at /glade/u/home/lipscomb/cism-development/cism_driver/gcm_to_cism_glint.F90(254,6)
+         <Remainder loop for vectorization>
+         LOOP END
+      LOOP END
+   LOOP END
+LOOP END
+
+LOOP BEGIN at /glade/u/home/lipscomb/cism-development/cism_driver/gcm_to_cism_glint.F90(255,6)
+   remark #15542: loop was not vectorized: inner loop was already vectorized
+
+   LOOP BEGIN at /glade/u/home/lipscomb/cism-development/cism_driver/gcm_to_cism_glint.F90(255,6)
+      remark #15542: loop was not vectorized: inner loop was already vectorized
+
+      LOOP BEGIN at /glade/u/home/lipscomb/cism-development/cism_driver/gcm_to_cism_glint.F90(255,6)
+         remark #25408: memset generated
+         remark #15542: loop was not vectorized: inner loop was already vectorized
+
+         LOOP BEGIN at /glade/u/home/lipscomb/cism-development/cism_driver/gcm_to_cism_glint.F90(255,6)
+            remark #15300: LOOP WAS VECTORIZED
+         LOOP END
+
+         LOOP BEGIN at /glade/u/home/lipscomb/cism-development/cism_driver/gcm_to_cism_glint.F90(255,6)
+         <Remainder loop for vectorization>
+         LOOP END
+      LOOP END
+   LOOP END
+LOOP END
+
+LOOP BEGIN at /glade/u/home/lipscomb/cism-development/cism_driver/gcm_to_cism_glint.F90(256,6)
+   remark #15542: loop was not vectorized: inner loop was already vectorized
+
+   LOOP BEGIN at /glade/u/home/lipscomb/cism-development/cism_driver/gcm_to_cism_glint.F90(256,6)
+      remark #15542: loop was not vectorized: inner loop was already vectorized
+
+      LOOP BEGIN at /glade/u/home/lipscomb/cism-development/cism_driver/gcm_to_cism_glint.F90(256,6)
+         remark #25408: memset generated
+         remark #15542: loop was not vectorized: inner loop was already vectorized
+
+         LOOP BEGIN at /glade/u/home/lipscomb/cism-development/cism_driver/gcm_to_cism_glint.F90(256,6)
+            remark #15300: LOOP WAS VECTORIZED
+         LOOP END
+
+         LOOP BEGIN at /glade/u/home/lipscomb/cism-development/cism_driver/gcm_to_cism_glint.F90(256,6)
+         <Remainder loop for vectorization>
+         LOOP END
+      LOOP END
+   LOOP END
+LOOP END
+
+LOOP BEGIN at /glade/u/home/lipscomb/cism-development/cism_driver/gcm_to_cism_glint.F90(257,6)
+   remark #15542: loop was not vectorized: inner loop was already vectorized
+
+   LOOP BEGIN at /glade/u/home/lipscomb/cism-development/cism_driver/gcm_to_cism_glint.F90(257,6)
+      remark #25408: memset generated
+      remark #15542: loop was not vectorized: inner loop was already vectorized
+
+      LOOP BEGIN at /glade/u/home/lipscomb/cism-development/cism_driver/gcm_to_cism_glint.F90(257,6)
+         remark #15300: LOOP WAS VECTORIZED
+      LOOP END
+
+      LOOP BEGIN at /glade/u/home/lipscomb/cism-development/cism_driver/gcm_to_cism_glint.F90(257,6)
+      <Remainder loop for vectorization>
+      LOOP END
+   LOOP END
+LOOP END
+
+LOOP BEGIN at /glade/u/home/lipscomb/cism-development/cism_driver/gcm_to_cism_glint.F90(258,6)
+   remark #15542: loop was not vectorized: inner loop was already vectorized
+
+   LOOP BEGIN at /glade/u/home/lipscomb/cism-development/cism_driver/gcm_to_cism_glint.F90(258,6)
+      remark #25408: memset generated
+      remark #15542: loop was not vectorized: inner loop was already vectorized
+
+      LOOP BEGIN at /glade/u/home/lipscomb/cism-development/cism_driver/gcm_to_cism_glint.F90(258,6)
+         remark #15300: LOOP WAS VECTORIZED
+      LOOP END
+
+      LOOP BEGIN at /glade/u/home/lipscomb/cism-development/cism_driver/gcm_to_cism_glint.F90(258,6)
+      <Remainder loop for vectorization>
+      LOOP END
+   LOOP END
+LOOP END
+
+LOOP BEGIN at /glade/u/home/lipscomb/cism-development/cism_driver/gcm_to_cism_glint.F90(259,6)
+   remark #15542: loop was not vectorized: inner loop was already vectorized
+
+   LOOP BEGIN at /glade/u/home/lipscomb/cism-development/cism_driver/gcm_to_cism_glint.F90(259,6)
+      remark #25408: memset generated
+      remark #15542: loop was not vectorized: inner loop was already vectorized
+
+      LOOP BEGIN at /glade/u/home/lipscomb/cism-development/cism_driver/gcm_to_cism_glint.F90(259,6)
+         remark #15300: LOOP WAS VECTORIZED
+      LOOP END
+
+      LOOP BEGIN at /glade/u/home/lipscomb/cism-development/cism_driver/gcm_to_cism_glint.F90(259,6)
+      <Remainder loop for vectorization>
+      LOOP END
+   LOOP END
+LOOP END
+
+LOOP BEGIN at /glade/u/home/lipscomb/cism-development/cism_driver/gcm_to_cism_glint.F90(260,6)
+   remark #15542: loop was not vectorized: inner loop was already vectorized
+
+   LOOP BEGIN at /glade/u/home/lipscomb/cism-development/cism_driver/gcm_to_cism_glint.F90(260,6)
+      remark #25408: memset generated
+      remark #15542: loop was not vectorized: inner loop was already vectorized
+
+      LOOP BEGIN at /glade/u/home/lipscomb/cism-development/cism_driver/gcm_to_cism_glint.F90(260,6)
+         remark #15300: LOOP WAS VECTORIZED
+      LOOP END
+
+      LOOP BEGIN at /glade/u/home/lipscomb/cism-development/cism_driver/gcm_to_cism_glint.F90(260,6)
+      <Remainder loop for vectorization>
+      LOOP END
+   LOOP END
+LOOP END
+
+LOOP BEGIN at /glade/u/home/lipscomb/cism-development/cism_driver/gcm_to_cism_glint.F90(268,3)
+   remark #15300: LOOP WAS VECTORIZED
+LOOP END
+
+LOOP BEGIN at /glade/u/home/lipscomb/cism-development/cism_driver/gcm_to_cism_glint.F90(268,3)
+<Remainder loop for vectorization>
+   remark #15301: REMAINDER LOOP WAS VECTORIZED
+LOOP END
+
+LOOP BEGIN at /glade/u/home/lipscomb/cism-development/cism_driver/gcm_to_cism_glint.F90(268,3)
+<Remainder loop for vectorization>
+LOOP END
+
+LOOP BEGIN at /glade/u/home/lipscomb/cism-development/cism_driver/gcm_to_cism_glint.F90(274,3)
+   remark #15300: LOOP WAS VECTORIZED
+LOOP END
+
+LOOP BEGIN at /glade/u/home/lipscomb/cism-development/cism_driver/gcm_to_cism_glint.F90(274,3)
+<Remainder loop for vectorization>
+   remark #15301: REMAINDER LOOP WAS VECTORIZED
+LOOP END
+
+LOOP BEGIN at /glade/u/home/lipscomb/cism-development/cism_driver/gcm_to_cism_glint.F90(274,3)
+<Remainder loop for vectorization>
+LOOP END
+
+    Report from: Code generation optimizations [cg]
+
+/glade/u/home/lipscomb/cism-development/cism_driver/gcm_to_cism_glint.F90(175,3):remark #34026: call to memcpy implemented as a call to optimized library version
+/glade/u/home/lipscomb/cism-development/cism_driver/gcm_to_cism_glint.F90(179,3):remark #34000: call to memcpy implemented inline with loads and stores with proven source (alignment, offset): (1, 0), and destination (alignment, offset): (1, 0)
+/glade/u/home/lipscomb/cism-development/cism_driver/gcm_to_cism_glint.F90(180,3):remark #34000: call to memcpy implemented inline with loads and stores with proven source (alignment, offset): (8, 0), and destination (alignment, offset): (1, 0)
+/glade/u/home/lipscomb/cism-development/cism_driver/gcm_to_cism_glint.F90(181,3):remark #34000: call to memcpy implemented inline with loads and stores with proven source (alignment, offset): (8, 0), and destination (alignment, offset): (1, 0)
+/glade/u/home/lipscomb/cism-development/cism_driver/gcm_to_cism_glint.F90(182,3):remark #34000: call to memcpy implemented inline with loads and stores with proven source (alignment, offset): (8, 0), and destination (alignment, offset): (1, 0)
+/glade/u/home/lipscomb/cism-development/cism_driver/gcm_to_cism_glint.F90(227,3):remark #34026: call to memset implemented as a call to optimized library version
+/glade/u/home/lipscomb/cism-development/cism_driver/gcm_to_cism_glint.F90(228,3):remark #34026: call to memset implemented as a call to optimized library version
+/glade/u/home/lipscomb/cism-development/cism_driver/gcm_to_cism_glint.F90(229,3):remark #34026: call to memset implemented as a call to optimized library version
+/glade/u/home/lipscomb/cism-development/cism_driver/gcm_to_cism_glint.F90(241,6):remark #34026: call to memset implemented as a call to optimized library version
+/glade/u/home/lipscomb/cism-development/cism_driver/gcm_to_cism_glint.F90(242,6):remark #34026: call to memset implemented as a call to optimized library version
+/glade/u/home/lipscomb/cism-development/cism_driver/gcm_to_cism_glint.F90(243,6):remark #34026: call to memset implemented as a call to optimized library version
+/glade/u/home/lipscomb/cism-development/cism_driver/gcm_to_cism_glint.F90(254,6):remark #34026: call to memset implemented as a call to optimized library version
+/glade/u/home/lipscomb/cism-development/cism_driver/gcm_to_cism_glint.F90(255,6):remark #34026: call to memset implemented as a call to optimized library version
+/glade/u/home/lipscomb/cism-development/cism_driver/gcm_to_cism_glint.F90(256,6):remark #34026: call to memset implemented as a call to optimized library version
+/glade/u/home/lipscomb/cism-development/cism_driver/gcm_to_cism_glint.F90(257,6):remark #34026: call to memset implemented as a call to optimized library version
+/glade/u/home/lipscomb/cism-development/cism_driver/gcm_to_cism_glint.F90(258,6):remark #34026: call to memset implemented as a call to optimized library version
+/glade/u/home/lipscomb/cism-development/cism_driver/gcm_to_cism_glint.F90(259,6):remark #34026: call to memset implemented as a call to optimized library version
+/glade/u/home/lipscomb/cism-development/cism_driver/gcm_to_cism_glint.F90(260,6):remark #34026: call to memset implemented as a call to optimized library version
+/glade/u/home/lipscomb/cism-development/cism_driver/gcm_to_cism_glint.F90(149,12):remark #34051: REGISTER ALLOCATION : [gcm_to_cism_glint_mp_g2c_glint_init_] /glade/u/home/lipscomb/cism-development/cism_driver/gcm_to_cism_glint.F90:149
+
+    Hardware registers
+        Reserved     :    2[ rsp rip]
+        Available    :   39[ rax rdx rcx rbx rbp rsi rdi r8-r15 mm0-mm7 zmm0-zmm15]
+        Callee-save  :    6[ rbx rbp r12-r15]
+        Assigned     :   27[ rax rdx rcx rbx rsi rdi r8-r15 zmm0-zmm12]
+        
+    Routine temporaries
+        Total         :    2290
+            Global    :     482
+            Local     :    1808
+        Regenerable   :     339
+        Spilled       :     170
+        
+    Routine stack
+        Variables     :    2328 bytes*
+            Reads     :      23 [1.70e+01 ~ 0.2%]
+            Writes    :     201 [1.17e+02 ~ 1.2%]
+        Spills        :    1224 bytes*
+            Reads     :     293 [3.89e+02 ~ 3.9%]
+            Writes    :     212 [3.00e+02 ~ 3.0%]
+    
+    Notes
+    
+        *Non-overlapping variables and spills may share stack space,
+         so the total stack size might be less than this.
+    
+
+===========================================================================
