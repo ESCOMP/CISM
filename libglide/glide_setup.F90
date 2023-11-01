@@ -793,6 +793,7 @@ contains
     call GetValue(section, 'which_ho_coulomb_c_relax',    model%options%which_ho_coulomb_c_relax)
     call GetValue(section, 'which_ho_bmlt_basin',         model%options%which_ho_bmlt_basin)
     call GetValue(section, 'which_ho_deltaT_ocn',         model%options%which_ho_deltaT_ocn)
+    call GetValue(section, 'deltaT_ocn_extrapolate',      model%options%deltaT_ocn_extrapolate)
     call GetValue(section, 'which_ho_flow_enhancement_factor', model%options%which_ho_flow_enhancement_factor)
     call GetValue(section, 'which_ho_bwat',               model%options%which_ho_bwat)
     call GetValue(section, 'ho_flux_routing_scheme',      model%options%ho_flux_routing_scheme)
@@ -1396,17 +1397,21 @@ contains
 
        if (model%options%remove_icebergs) then
           call write_log(' Icebergs will be removed')
+          write(message,*) ' f_ground_threshold =', model%calving%f_ground_threshold
+          call write_log(message)
        else
           call write_log(' Icebergs will not be removed')
        endif
 
        if (model%options%remove_isthmuses) then
+          call write_log(' Isthmuses will be removed')
+          write(message,*) ' f_ground_threshold =', model%calving%f_ground_threshold
+          call write_log(message)
           if (.not.model%options%remove_icebergs) then
              model%options%remove_icebergs = .true.
              write(message,*) ' Setting remove_icebergs = T for stability when remove_isthmuses = T'
              call write_log(message)
           endif
-          call write_log(' Isthmuses will be removed')
        endif
        
        if (model%options%expand_calving_mask) then
@@ -1419,7 +1424,6 @@ contains
 
        if (model%options%limit_marine_cliffs) then
           call write_log(' The thickness of marine ice cliffs will be limited')
-          call write_log(message)
        else
           call write_log(' The thickness of marine ice cliffs will not be limited')
        endif
@@ -1821,15 +1825,32 @@ contains
        end if
 
        if (model%options%which_ho_deltaT_ocn /= HO_DELTAT_OCN_NONE) then
+
           write(message,*) 'ho_deltaT_ocn           : ',model%options%which_ho_deltaT_ocn,  &
                             ho_deltaT_ocn(model%options%which_ho_deltaT_ocn)
           call write_log(message)
+
           if (model%options%whichbmlt_float /= BMLT_FLOAT_THERMAL_FORCING) then
              write(message,*) 'deltaT_ocn options are supported only for bmlt_float = ', &
                   BMLT_FLOAT_THERMAL_FORCING
              call write_log(message)
              call write_log('User setting will be ignored')
           endif
+
+          if (model%options%deltaT_ocn_extrapolate) then
+             if (model%options%which_ho_deltaT_ocn == HO_DELTAT_OCN_INVERSION) then
+                call write_log('deltaT_ocn will be extrapolated to non-floating cells during inversion')
+             else
+                model%options%deltaT_ocn_extrapolate = .false.
+                write(message,*) 'Setting deltaT_ocn_extrapolate = F for which_ho_deltaT_ocn =', &
+                     model%options%which_ho_deltaT_ocn
+                call write_log(message)
+                write(message,*) 'deltaT_ocn_extrapolate = T is appropriate for which_ho_deltaT_ocn =', &
+                    HO_DELTAT_OCN_INVERSION
+                call write_log(message)
+             endif
+          endif
+
           if (model%options%which_ho_deltaT_ocn == HO_DELTAT_OCN_DTHCK_DT) then
              if (model%options%bmlt_float_thermal_forcing_param /= BMLT_FLOAT_TF_ISMIP6_LOCAL .and. &
                  model%options%bmlt_float_thermal_forcing_param /= BMLT_FLOAT_TF_ISMIP6_NONLOCAL .and. &
@@ -2190,6 +2211,7 @@ contains
     call GetValue(section,'calving_front_x',    model%calving%calving_front_x)
     call GetValue(section,'calving_front_y',    model%calving%calving_front_y)
     call GetValue(section,'damage_threshold',   model%calving%damage_threshold)
+    call GetValue(section,'f_ground_threshold', model%calving%f_ground_threshold)
 
     ! NOTE: bpar is used only for BTRC_TANH_BWAT
     !       btrac_max and btrac_slope are used (with btrac_const) for BTRC_LINEAR_BMLT
@@ -3344,7 +3366,7 @@ contains
     end select  ! artm_input_function
 
     ! Add anomaly forcing variables
-    ! Note: If enable_acab_dthck_dt_corection = T, then dthck_dt_obs is needed for restart.
+    ! Note: If enable_acab_dthck_dt_correction = T, then dthck_dt_obs is needed for restart.
     !       Should be in restart file based on which_ho_deltaT_ocn /= 0
 
     if (options%enable_acab_anomaly) then
@@ -3635,6 +3657,7 @@ contains
     ! Note: This is not strictly needed for all options, but still is a useful diagnostic.
     if (options%which_ho_deltaT_ocn /= HO_DELTAT_OCN_NONE) then
        call glide_add_to_restart_variable_list('dthck_dt_obs')
+       call glide_add_to_restart_variable_list('dthck_dt_obs_basin')
     endif
 
     if (options%which_ho_damage /= HO_NO_DAMAGELINES) then  

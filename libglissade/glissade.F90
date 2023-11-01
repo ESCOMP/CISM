@@ -120,7 +120,7 @@ contains
     use glissade_grounding_line, only: glissade_grounded_fraction
     use glissade_utils, only: glissade_adjust_thickness, glissade_smooth_usrf, &
          glissade_smooth_topography, glissade_adjust_topography
-    use glissade_utils, only: glissade_stdev
+    use glissade_utils, only: glissade_stdev, glissade_basin_average
     use felix_dycore_interface, only: felix_velo_init
 
     implicit none
@@ -134,7 +134,7 @@ contains
     character(len=100) :: message
 
     real(dp) :: local_maxval, global_maxval   ! max values of a given variable; = 0 if not yet read in
-    integer :: i, j, k
+    integer :: i, j, k, nb
     logical :: l_evolve_ice  ! local version of evolve_ice
 
     integer, dimension(:,:), allocatable :: &
@@ -163,6 +163,8 @@ contains
 
     type(glimmer_nc_input), pointer :: infile
     type(parallel_type) :: parallel   ! info for parallel communication
+
+    real(dp), dimension(:), allocatable :: dthck_dt_basin  ! basin average of dthck_dt_obs
 
     !WHL - added for optional topg_stdev calculations
     logical, parameter :: compute_topg_stdev = .false.
@@ -377,7 +379,11 @@ contains
        call check_fill_values(model%ocean_data%thermal_forcing)
     endif
 
+<<<<<<< HEAD
     if (model%options%which_ho_deltaT_ocn == HO_DELTAT_OCN_DTHCK_DT .or. &
+=======
+    if (model%options%which_ho_deltaT_ocn == HO_DELTAT_OCN_DTHCK_DT .or.  &
+>>>>>>> ec7628ee76d29f8d15a7caec884f85197f039a9f
         model%options%enable_acab_dthck_dt_correction) then
        call check_fill_values(model%geometry%dthck_dt_obs)
     endif
@@ -896,7 +902,8 @@ contains
 
     ! If using dthck_dt_obs, make sure it was read in
 
-    if (model%options%which_ho_deltat_ocn == HO_DELTAT_OCN_DTHCK_DT) then
+    if (model%options%which_ho_deltat_ocn == HO_DELTAT_OCN_DTHCK_DT .or. &
+        model%options%enable_acab_dthck_dt_correction) then
        local_maxval = maxval(abs(model%geometry%dthck_dt_obs))
        global_maxval = parallel_reduce_max(local_maxval)
        if (global_maxval == 0.0d0) then   ! dthck_dt_obs was not read in; abort
@@ -1073,7 +1080,49 @@ contains
 
        call glissade_bmlt_float_thermal_forcing_init(model, model%ocean_data)
 
-    endif
+       ! Optionally, compute the basin average of dthck_dt_obs, the observed rate of thickening/thinning.
+       ! When inverting for deltaT_ocn, we can correct acab by applying (-dthck_dt_obs_basin).
+       ! This induces an ocean melt rate that will drive thinning when the correction is removed.
+       ! On restart, dthck_dt_obs_basin is read from the restart file.
+       !TODO: Is dthck_dt_obs needed in the restart file after dthck_dt_obs_basin is computed?
+
+       if (model%options%enable_acab_dthck_dt_correction .and. &
+           model%options%is_restart == RESTART_FALSE) then
+
+          allocate(dthck_dt_basin(model%ocean_data%nbasin))
+
+          call glissade_basin_average(&
+               model%general%ewn, model%general%nsn,   &
+               model%ocean_data%nbasin,                &
+               model%ocean_data%basin_number,          &
+               floating_mask * 1.0d0,                  &   ! real mask
+               model%geometry%dthck_dt_obs,            &
+               dthck_dt_basin)
+
+          if (main_task) then
+             write(6,*) ' '
+             write(6,*) 'nb, dthck_dt_basin'
+             do nb = 1, model%ocean_data%nbasin
+                print*, nb, dthck_dt_basin(nb)
+             enddo
+          endif
+
+          ! Make sure the basin average <= 0
+          dthck_dt_basin(:) = min(dthck_dt_basin(:), 0.0d0)
+
+          ! Assign the basin average to a 2D array
+          do j = 1, model%general%nsn
+             do i = 1, model%general%ewn
+                nb = model%ocean_data%basin_number(i,j)
+                model%geometry%dthck_dt_obs_basin(i,j) = dthck_dt_basin(nb)
+             enddo
+          enddo
+
+          deallocate(dthck_dt_basin)
+
+       endif   ! enable_acab_dthck_dt_correction
+
+    endif   ! whichbmlt_float
 
     ! clean up
     deallocate(ice_mask)
@@ -1561,6 +1610,7 @@ contains
        call glissade_bmlt_float_thermal_forcing(&
             model%options%bmlt_float_thermal_forcing_param, &
             model%options%ocean_data_extrapolate,  &
+            model%options%deltaT_ocn_extrapolate,  &
             parallel,                              &
             ewn,                nsn,               &
             dew*len0,           dns*len0,          & ! m
@@ -2828,10 +2878,16 @@ contains
        ! Convert acab_corrected to a temporary array in SI units (m/s)
        acab_unscaled(:,:) = model%climate%acab_corrected(:,:) * thk0/tim0
 
-       ! Optionally, correct acab by adding (-dthck_dt_obs) where dthck_dt_obs < 0 and ice is floating.
+       ! Optionally, correct acab by adding (-dthck_dt_obs_basin) where ice is floating.
        ! During inversions for deltaT_ocn, this will generally force a positive ocean melt rate
        !  where the ice is thinning, preventing large negative values of deltaT_ocn during spin-up.
        ! When the correction is removed, the ice should melt and thin in agreement with observations.
+       ! Algorithm:
+       ! (1) For each basin, compute the average of dthck_dt_obs over floating ice.
+       !     Include all floating cells in the average.
+       ! (2) For all cells in each basin, set dthck_dt_obs_basin to this average.
+       !     Limit so that dthck_dt_obs_basin <= 0.
+       ! (3) At runtime, add (-dthck_dt_obs_basin) to acab for each floating cell.
 
        if (model%options%enable_acab_dthck_dt_correction) then
 
@@ -2847,22 +2903,26 @@ contains
              enddo
           endif
 
+<<<<<<< HEAD
           where (model%geometry%f_ground_cell < 1.0d0 .and. model%geometry%dthck_dt_obs < model%inversion%floating_dhdt_limit)
              ! ice is floating and thinning in obs; apply a positive correction to acab
              ! Note: dthck_dt_obs has units of m/yr; convert to m/s
+=======
+          where (model%geometry%f_ground_cell < 1.0d0 .and. model%geometry%dthck_dt_obs_basin < 0.0d0)
+             ! floating ice is thinning in obs; apply a positive correction to acab
+             ! Note: dthck_dt_obs_basin has units of m/yr; convert to m/s
+>>>>>>> ec7628ee76d29f8d15a7caec884f85197f039a9f
              acab_unscaled = acab_unscaled &
-                  - (1.0d0 - model%geometry%f_ground_cell) * (model%geometry%dthck_dt_obs/scyr)
+                  - (1.0d0 - model%geometry%f_ground_cell) * (model%geometry%dthck_dt_obs_basin/scyr)
           endwhere
 
           if (verbose_smb .and. this_rank == rtest) then
-
              write(6,*) ' '
              write(6,*) 'dthck_dt_obs correction (m/yr)'
              do j = jtest+3, jtest-3, -1
                 write(6,'(i6)',advance='no') j
                 do i = itest-3, itest+3
-                   write(6,'(f10.3)',advance='no') &
-                        -model%geometry%dthck_dt_obs(i,j) * (1.0d0 - model%geometry%f_ground_cell(i,j))
+                   write(6,'(f10.3)',advance='no') -model%geometry%dthck_dt_obs_basin(i,j)
                 enddo
                 write(6,*) ' '
              enddo
@@ -2881,6 +2941,7 @@ contains
 
        endif   ! enable_acab_dthck_dt_correction
 
+<<<<<<< HEAD
 
 
        if (model%options%enable_acab_dthck_dt_grounded_correction) then
@@ -2932,6 +2993,8 @@ contains
 
        endif   ! enable_acab_dthck_dt_correction
 
+=======
+>>>>>>> ec7628ee76d29f8d15a7caec884f85197f039a9f
        ! Convert bmlt to SI units (m/s)
        ! Note: bmlt is the sum of bmlt_ground (computed in glissade_thermal_solve) and bmlt_float
        !       (computed in glissade_bmlt_float_solve).
@@ -3222,13 +3285,17 @@ contains
     !       is a real number in the range [0,1], allowing thinning instead of complete removal.
     !       Do not thin or remove ice if this is the initial calving call; force retreat only during runtime.
     ! There are two forced retreat options:
-    ! Option 1: Thin or remove ice wherever ice_fraction_retreat_mask > 0.
-    ! Option 2: Remove floating ice (but not grounded ice) where ice_fraction_retreat_mask > 0.
+    ! Option 1: Thin or remove ice wherever ice_fraction_retreat_mask > 0 (or a small threshold)
+    ! Option 2: Remove floating ice and weakly grounded ice where ice_fraction_retreat_mask > 0 (or a small threshold).
     !
-    ! Option 1 is done now, before calling glissade_calve_ice, so that ice thinned by the retreat mask
+    ! Option 1 is done before calling glissade_calve_ice, so that ice thinned by the retreat mask
     !        can undergo further thinning or removal by the calving scheme.
     ! Option 2 is done after the main calving solve, after thin ice at the calving front has been removed
     !  by other mechanisms.
+    ! An earlier version of option 2 removed only floating cells, but this can create
+    !  isolated, weakly grounded cells that are prone to instability.
+    ! In the current version, weakly grounded cells (i.e., cells with f_ground < f_ground_threshold)
+    !  are alse removed.
 
     if (model%options%force_retreat == FORCE_RETREAT_ALL_ICE .and. .not.init_calving) then
        if (this_rank == rtest) then
@@ -3532,7 +3599,7 @@ contains
        ! This is done after the main calving routine, to avoid complications
        !  involving thin ice near the calving front that calves after transport.
        ! The logic works as follows:
-       ! * Idenfity cells with ice_fraction_retreat_mask exceeding some threshold.
+       ! * Identify cells with ice_fraction_retreat_mask exceeding some threshold.
        ! * Remove any such cells if they are adjacent to ocean cells, or are connected
        !   to the ocean through other identified cells.
        ! * Do not remove cells without a connection to the ocean.
@@ -3546,11 +3613,33 @@ contains
                                model%climate%eus*thk0, model%numerics%thklim*thk0, &
                                ice_mask,                                           &
                                floating_mask = floating_mask,                      &
-                               ocean_mask = ocean_mask)
+                               ocean_mask = ocean_mask,                            &
+                               land_mask = land_mask)
 
-       ! Identify floating cells with ice_fraction_retreat_mask exceeding a prescribed threshold.
+       ! Compute f_ground_cell for forced retreat
 
-       where (floating_mask == 1 .and. model%geometry%ice_fraction_retreat_mask > retreat_mask_threshold)
+       call glissade_grounded_fraction(nx,          ny,               &
+                                       parallel,                      &
+                                       itest, jtest, rtest,           &  ! diagnostic only
+                                       thck_unscaled,                 &
+                                       model%geometry%topg*thk0,      &
+                                       model%climate%eus*thk0,        &
+                                       ice_mask,                      &
+                                       floating_mask,                 &
+                                       land_mask,                     &
+                                       model%options%which_ho_ground, &
+                                       model%options%which_ho_flotation_function, &
+                                       model%options%which_ho_fground_no_glp,     &
+                                       model%geometry%f_flotation,    &
+                                       model%geometry%f_ground,       &
+                                       model%geometry%f_ground_cell,  &
+                                       model%geometry%topg_stdev*thk0)
+
+       ! Identify floating or weakly grounded cells with ice_fraction_retreat_mask exceeding a prescribed threshold.
+       ! Note: f_ground_threshold is also used to identify weakly grounded cells in the algorithms
+       !       to remove icebergs and isthmuses.  It would be possible to create a separate parameter for forced retreat.
+       where (model%geometry%f_ground_cell < model%calving%f_ground_threshold .and. &
+              model%geometry%ice_fraction_retreat_mask > retreat_mask_threshold)
           retreat_mask = 1
        elsewhere
           retreat_mask = 0
@@ -3574,7 +3663,7 @@ contains
           do j = jtest+3, jtest-3, -1
              write(6,'(i6)',advance='no') j
              do i = itest-3, itest+3
-                write(6,'(f7.1)',advance='no') thck_unscaled(i,j)
+                write(6,'(f10.4)',advance='no') thck_unscaled(i,j)
              enddo
              write(6,*) ' '
           enddo
@@ -3583,7 +3672,7 @@ contains
           do j = jtest+3, jtest-3, -1
              write(6,'(i6)',advance='no') j
              do i = itest-3, itest+3
-                write(6,'(i7)',advance='no') floating_mask(i,j)
+                write(6,'(i10)',advance='no') floating_mask(i,j)
              enddo
              write(6,*) ' '
           enddo
@@ -3592,7 +3681,7 @@ contains
           do j = jtest+3, jtest-3, -1
              write(6,'(i6)',advance='no') j
              do i = itest-7, itest+3
-                write(6,'(i7)',advance='no') ocean_mask(i,j)
+                write(6,'(i10)',advance='no') ocean_mask(i,j)
              enddo
              write(6,*) ' '
           enddo
@@ -3601,7 +3690,7 @@ contains
           do j = jtest+3, jtest-3, -1
              write(6,'(i6)',advance='no') j
              do i = itest-3, itest+3
-                write(6,'(f7.2)',advance='no') model%geometry%ice_fraction_retreat_mask(i,j)
+                write(6,'(f10.2)',advance='no') model%geometry%ice_fraction_retreat_mask(i,j)
              enddo
              write(6,*) ' '
           enddo
@@ -3610,7 +3699,7 @@ contains
           do j = jtest+3, jtest-3, -1
              write(6,'(i6)',advance='no') j
              do i = itest-3, itest+3
-                write(6,'(i7)',advance='no') ocean_connection_mask(i,j)
+                write(6,'(i10)',advance='no') ocean_connection_mask(i,j)
              enddo
              write(6,*) ' '
           enddo
@@ -3667,6 +3756,7 @@ contains
        call glissade_remove_isthmuses(&
             nx,           ny,              &
             itest, jtest, rtest,           &
+            model%calving%f_ground_threshold, &
             thck_unscaled,                 &
             model%geometry%f_ground_cell,  &
             floating_mask,                 &
@@ -3757,6 +3847,7 @@ contains
        call glissade_remove_icebergs(nx,           ny,                     &
                                      parallel,                             &
                                      itest, jtest, rtest,                  &
+                                     model%calving%f_ground_threshold,     &
                                      thck_unscaled,                        &  ! m
                                      model%geometry%f_ground_cell,         &
                                      ice_mask,                             &
@@ -4304,6 +4395,7 @@ contains
     endif   ! which_ho_deltaT_ocn
 
     ! If setting deltaT_ocn based on observed dthck_dt, then so so here.
+    ! TODO - Deprecate this option?
 
     if (model%options%which_ho_deltat_ocn == HO_DELTAT_OCN_DTHCK_DT) then
 
@@ -4317,6 +4409,7 @@ contains
        call glissade_bmlt_float_thermal_forcing(&
             model%options%bmlt_float_thermal_forcing_param, &
             model%options%ocean_data_extrapolate,     &
+            model%options%deltaT_ocn_extrapolate,  &
             parallel,                                 &
             ewn,       nsn,                           &
             model%numerics%dew*len0,                  &   ! m

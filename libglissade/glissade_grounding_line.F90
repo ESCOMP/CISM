@@ -571,9 +571,11 @@
                                f_ground, f_ground_cell)
 
        ! Set f_ground_cell = 1 on land
-       where (land_mask == 1)
-          f_ground_cell = 1.0d0
-       endwhere
+       !WHL - Commented out to be consistent with GLP_DELUXE below;
+       !      not yet tested with this change.
+!       where (land_mask == 1)
+!          f_ground_cell = 1.0d0
+!       endwhere
 
        call parallel_halo(f_ground_cell, parallel)
 
@@ -722,9 +724,10 @@
        enddo
 
        ! Set f_ground_cell = 1 on land
-       where (land_mask == 1)
-          f_ground_cell = 1.0d0
-       endwhere
+       !WHL - Commented out to prevent weakly grounded land-based cells from becoming unstable
+!       where (land_mask == 1)
+!          f_ground_cell = 1.0d0
+!       endwhere
 
        call parallel_halo(f_ground_cell, parallel)
 

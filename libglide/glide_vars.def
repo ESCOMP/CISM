@@ -495,6 +495,7 @@ long_name:     observed rate of ice thickness change
 data:          data%geometry%dthck_dt_obs
 load:          1
 
+<<<<<<< HEAD
 [ff_invert_mask]
 dimensions:    time, y1, x1
 units:         -
@@ -502,6 +503,14 @@ long_name:      mask where to increase the flow factor to simulate damage
 data:          data%inversion%ff_invert_mask
 load:          1          
 
+=======
+[dthck_dt_obs_basin]
+dimensions:    time, y1, x1
+units:         meter/year
+long_name:     observed rate of ice thickness change, basin average
+data:          data%geometry%dthck_dt_obs_basin
+load:          1
+>>>>>>> ec7628ee76d29f8d15a7caec884f85197f039a9f
 
 [dthck_dt]
 dimensions:    time, y1, x1
