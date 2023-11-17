@@ -1,4 +1,4 @@
-#!/usr/bin/env python2
+#!/usr/bin/env python
 
 #NOTE: This is an annotated copy of the tests/higher-order/dome/runDome.py
 #      script. You should play around with the dome test case first so that you
@@ -146,7 +146,7 @@ def main():
         config_parser = configparser.ConfigParser(delimiters=('=', ':'),
                             comment_prefixes=('#', ';'),
                             inline_comment_prefixes=';',
-                            interpolation=None))
+                            interpolation=None)
         config_parser.read( args.config )
         
         nz = int(config_parser.get('grid','upn'))

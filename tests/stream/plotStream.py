@@ -1,4 +1,4 @@
-#!/usr/bin/env python2
+#!/usr/bin/env python
 
 """
 This script plots the results of an experiment with an ice stream.
@@ -109,9 +109,9 @@ def main():
     #btract = (btractx**2 + btracty**2)**0.5
 
     x0 = filein.variables['x0'][:]
-    xpos = x0.shape[0]/2   # integer division on x-length to get the middle column of the domain
+    xpos = x0.shape[0]//2   # integer division on x-length to get the middle column of the domain
 
-    ypos = y0.shape[0]/2   # integer division on y-length to get the middle row of the domain
+    ypos = y0.shape[0]//2   # integer division on y-length to get the middle row of the domain
 
     # Calculate analytic velocity profile - the analytic functions are in runStream.py
     if analytic_solution == 'raymond':

@@ -1,4 +1,4 @@
-#!/usr/bin/env python2
+#!/usr/bin/env python
 
 """
 This script plots the results of the Ross Ice Shelf Experiments.
