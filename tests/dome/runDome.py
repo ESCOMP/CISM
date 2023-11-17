@@ -247,7 +247,6 @@ def main():
     subprocess.check_call("cp *rilinosOptions.xml "+args.output_dir, shell=True)
     subprocess.check_call("mv "+file_name+" "+args.output_dir, shell=True)
     subprocess.check_call("mv "+config_name+" "+args.output_dir, shell=True)
-
     
 
     # create the forcing netCDF file
@@ -325,8 +324,8 @@ def main():
         if not args.quiet: 
             print("\nRunning CISM dome test")
             print(  "======================\n")
-        process = subprocess.check_call('source /etc/profile.d/modules.sh', shell=True, stderr=subprocess.STDOUT)
-        process = subprocess.check_call('module list', shell=True, stderr=subprocess.STDOUT)
+        #process = subprocess.check_call('source /etc/profile.d/modules.sh', shell=True, stderr=subprocess.STDOUT)
+        #process = subprocess.check_call('module list', shell=True, stderr=subprocess.STDOUT)
 
 
         process = subprocess.check_call(str.join("; ",command_list), shell=True, stderr=subprocess.STDOUT)

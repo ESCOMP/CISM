@@ -100,7 +100,7 @@ def main():
     config_parser = configparser.ConfigParser(delimiters=('=', ':'),
                             comment_prefixes=('#', ';'),
                             inline_comment_prefixes=';',
-                            interpolation=None))
+                            interpolation=None)
     config_file = os.path.join(args.output_dir, args.output_file.replace('out.nc','config'))
     config_parser.read(config_file)
 

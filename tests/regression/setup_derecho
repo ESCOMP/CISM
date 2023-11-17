@@ -1,0 +1,19 @@
+module load intel
+##module load git
+module load conda
+conda activate npl
+
+##module load jupyter
+
+##module load wrapt
+##module load pylint
+
+##module load numpy
+
+##module load numexpr
+##module load bottleneck
+##module load pandas
+
+##module load netcdf4-python
+
+module list
