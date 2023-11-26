@@ -1553,18 +1553,15 @@ contains
 
     !NOTE: The following physical constants have default values in glimmer_physcon.F90.
     !      Some test cases (e.g., MISMIP) specify different values. The default values
-    !      can therefore be overridden by the user in the config file (except that certain
-    !      constants in CESM's shr_const_mod cannot be overridden when CISM is coupled to CESM).
+    !      can therefore be overridden by the user in the config file.
     !      These constants are not part of the model derived type.
 
-#ifndef CCSMCOUPLED
     call GetValue(section,'rhoi', rhoi)
     call GetValue(section,'rhoo', rhoo)
     call GetValue(section,'grav', grav)
     call GetValue(section,'shci', shci)
     call GetValue(section,'lhci', lhci)
     call GetValue(section,'trpt', trpt)
-#endif
 
     loglevel = GM_levels-GM_ERROR
     call GetValue(section,'log_level',loglevel)
