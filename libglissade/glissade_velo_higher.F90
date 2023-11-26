@@ -200,8 +200,8 @@
 !    logical :: verbose = .true.  
     logical :: verbose_init = .false.   
 !    logical :: verbose_init = .true.   
-!    logical :: verbose_solver = .false.
-    logical :: verbose_solver = .true.
+    logical :: verbose_solver = .false.
+!    logical :: verbose_solver = .true.
     logical :: verbose_Jac = .false.
 !    logical :: verbose_Jac = .true.
     logical :: verbose_residual = .false.
@@ -3573,7 +3573,7 @@
                 write(6,*) ' '
              enddo
 
-          else	 ! 3D velocity solve
+          else   ! 3D velocity solve
 
              print*, ' '
              print*, 'Basal uvel field, itest, jtest, rank =', itest, jtest, rtest
@@ -3995,7 +3995,7 @@
        if (whichsparse /= HO_SPARSE_TRILINOS) then
           ! niters isn't set when using the trilinos solver
           if (main_task .and. verbose_solver) then
-             print*, 'Solved the linear system, niters, err =', niters, err
+             print*,'Solved the linear system, niters, err =', niters, err
           endif
        end if
 

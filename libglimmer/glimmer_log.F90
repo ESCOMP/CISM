@@ -170,10 +170,11 @@ contains
     ! and maybe to std out
     ! Note: Messages are written only from the main task, unless the error is fatal.
     !       For fatal errors, a message is also written from the task where the error occurred.
+#ifdef DEBUG
     if (local_type /= 0) then
        if ( (main_task .and. gm_show(local_type)) .or. local_type == GM_FATAL) write(*,*) trim(msg)
     end if
-
+#endif
     ! stop logging if we encountered a fatal error
     if (local_type == GM_FATAL) then
        write(*,*) "Exiting with fatal error: this_rank =", this_rank
@@ -252,7 +253,7 @@ contains
     if (present(unit)) then
        glimmer_unit = unit
     end if
-
+    
     call date_and_time(date,time)
     call write_log_div
     if (main_task) write(unit=glimmer_unit,fmt="(a,a4,'-',a2,'-',a2,' ',a2,':',a2,':',a6)") &
