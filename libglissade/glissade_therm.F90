@@ -1115,11 +1115,14 @@ module glissade_therm
              dissipcol(ew,ns) = dissipcol(ew,ns) * thck(ew,ns)*rhoi*shci
 
              ! Verify that the net input of energy into the column is equal to the change in
-             ! internal energy.  
+             ! internal energy.
 
              delta_e = (ucondflx(ew,ns) - lcondflx(ew,ns) + dissipcol(ew,ns)) * dttem
 
-             if (abs((efinal-einit-delta_e)/dttem) > 1.0d-8) then
+             ! Note: For very small dttem (e.g., 1.0d-6 year or less), this error can be triggered
+             !       by roundoff error.  In that case, the user may need to increase the threshold.
+             ! July 2021: Increased from 1.0d-8 to 1.0d-7 to allow smaller dttem.
+             if (abs((efinal-einit-delta_e)/dttem) > 1.0d-7) then
 
                 if (verbose_column) then
                    print*, 'Ice thickness:', thck(ew,ns)
@@ -1640,10 +1643,11 @@ module glissade_therm
     ! At each temperature point, compute the temperature part of the enthalpy.
     ! enth_T = enth for cold ice, enth_T < enth for temperate ice
 
-    enth_T(0) = rhoi*shci*temp(0)  !WHL - not sure enth_T(0) is needed
-    do up = 1, upn
+    do up = 1, upn-1
        enth_T(up) = (1.d0 - waterfrac(up)) * rhoi*shci*temp(up)
     enddo
+    enth_T(0) = rhoi*shci*temp(0)
+    enth_T(up) = rhoi*shci*temp(up)
 
 !WHL - debug
     if (verbose_column) then
@@ -2250,8 +2254,7 @@ module glissade_therm
     ! Compute the dissipation source term associated with strain heating,
     ! based on the shallow-ice approximation.
     
-    use glimmer_physcon, only : gn   ! Glen's n
-    use glimmer_physcon, only: rhoi, shci, grav
+    use glimmer_physcon, only: rhoi, shci, grav, n_glen
 
     integer, intent(in) :: ewn, nsn, upn   ! grid dimensions
 
@@ -2267,11 +2270,13 @@ module glissade_therm
     real(dp), dimension(:,:,:), intent(out) ::  &
          dissip       ! interior heat dissipation (deg/s)
     
-    integer, parameter :: p1 = gn + 1  
-
     integer :: ew, ns
     real(dp), dimension(upn-1) :: sia_dissip_fact  ! factor in SIA dissipation calculation
     real(dp) :: geom_fact         ! geometric factor
+
+    real(dp) :: p1                ! exponent = n_glen + 1
+
+    p1 = n_glen + 1.0d0
 
     ! Two methods of doing this calculation: 
     ! 1. find dissipation at u-pts and then average
@@ -2414,7 +2419,7 @@ module glissade_therm
 
     integer,                   intent(in)    :: whichflwa !> which method of calculating A
     integer,                   intent(in)    :: whichtemp !> which method of calculating temperature;
-                                                           !> include waterfrac in calculation if using enthalpy method
+                                                          !> include waterfrac in calculation if using enthalpy method
     real(dp),dimension(:),     intent(in)    :: stagsigma !> vertical coordinate at layer midpoints
     real(dp),dimension(:,:),   intent(in)    :: thck      !> ice thickness (m)
     real(dp),dimension(:,:,:), intent(in)    :: temp      !> 3D temperature field (deg C)
@@ -2488,17 +2493,16 @@ module glissade_therm
     endif
 
     ! Multiply the default rate factor by the enhancement factor if applicable
-    ! Note: Here, default_flwa is assumed to have units of Pa^{-n} s^{-1},
+    ! Note: Here, the input default_flwa is assumed to have units of Pa^{-n} s^{-1},
     !       whereas model%paramets%default_flwa has units of Pa^{-n} yr^{-1}.
 
     ! initialize
-    if (whichflwa /= FLWA_INPUT) then
-       do ns = 1, nsn
-          do ew = 1, ewn
-             flwa(:,ew,ns) = enhancement_factor(ew,ns) * default_flwa
-          enddo
+    !TODO - Move the next few lines inside the select case construct.
+    do ns = 1, nsn
+       do ew = 1, ewn
+          flwa(:,ew,ns) = enhancement_factor(ew,ns) * default_flwa
        enddo
-    endif
+    enddo
 
     select case(whichflwa)
 
@@ -2558,21 +2562,12 @@ module glissade_therm
       end do
 
     case(FLWA_CONST_FLWA)
-
-       ! do nothing (flwa is initialized to default_flwa above)
-
-    case(FLWA_INPUT)
-      ! do nothing - use flwa from input or forcing file
-      print *, 'FLWA', minval(flwa), maxval(flwa)
+       ! do nothing (flwa is set above, with units Pa^{-n} s^{-1})
 
     end select
 
-    ! This logic assumes that the input flwa is already in dimensionless model units.
-    ! TODO: Make a different assumption about input units?
-    if (whichflwa /= FLWA_INPUT) then
-       ! Change flwa to model units (glissade_flow_factor assumes SI units of Pa{-n} s^{-1})
-       flwa(:,:,:) = flwa(:,:,:) / vis0
-    endif
+    ! Change flwa to model units (glissade_flow_factor assumes SI units of Pa{-n} s^{-1})
+    flwa(:,:,:) = flwa(:,:,:) / vis0
 
     deallocate(enhancement_factor)
 
