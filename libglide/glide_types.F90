@@ -1895,6 +1895,9 @@ module glide_types
      logical :: scale_area = .false.
      !> if true, than scale glacier area based on latitude
 
+     logical :: redistribute_advanced_ice = .false.
+     !> if true, then thin and redistribute advanced ice in the accumulation zone
+
      ! parameters
      ! Note: glacier%minthck is currently set at initialization based on model%numerics%thklim.
      !       glacier%diagnostic_minthck is used only for diagnostic area and volume sums;
@@ -1938,6 +1941,15 @@ module glide_types
           baseline_date = 1980.d0,          & !> baseline date, when glaciers are assumed to be in balance
           rgi_date = 2003.d0,               & !> date of RGI observations
           recent_date = 2010.d0               !> recent date associated with SMB observations for glaciers out of balance
+
+     real(dp) :: &
+          thinning_rate_advanced_ice = 0.0d0  !> thinning rate (m/yr) for advanced ice in the accumulation zone;
+                                              !> applies when redistribute_advanced_ice = .true.
+                                              !> thinned ice volume is redistributed conservatively over the glacier
+
+     real(dp) :: &
+          smb_weight_advanced_ice = 0.5d0     !> weight (0 < w < 1) applied to advanced ice in ablation zone during inversion;
+                                              !> applied to initially glacier-free cells adjacent to glacier cells
 
      ! 1D arrays with size nglacier
 
