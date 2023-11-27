@@ -43,7 +43,7 @@ module glissade_utils
        glissade_basin_sum, glissade_basin_average, &
        glissade_usrf_to_thck, glissade_thck_to_usrf, &
        glissade_stdev, verbose_stdev, &
-       glissade_edge_fluxes
+       glissade_edge_fluxes, glissade_input_fluxes
 
   logical, parameter :: verbose_stdev = .true.
 
@@ -1166,6 +1166,127 @@ contains
     enddo
 
   end subroutine glissade_edge_fluxes
+
+!***********************************************************************
+
+  subroutine glissade_input_fluxes(&
+        nx,      ny,            &
+        dew,     dns,           &
+        itest,   jtest,  rtest, &
+        thck,                   &
+        uvel,    vvel,          &
+        flux_in)
+
+    use glimmer_physcon, only: scyr
+    use cism_parallel, only: nhalo
+
+    ! Compute ice volume fluxes into a cell from each neighboring cell
+
+    ! input/output arguments
+
+    integer, intent(in) :: &
+         nx, ny,                & ! number of cells in x and y direction on input grid (global)
+         itest, jtest, rtest
+
+    real(dp), intent(in) :: &
+         dew, dns                 ! cell edge lengths in EW and NS directions (m)
+
+    real(dp), dimension(nx,ny), intent(in) :: &
+         thck                     ! ice thickness (m) at cell centers
+
+    real(dp), dimension(nx-1,ny-1), intent(in) :: &
+         uvel, vvel               ! vertical mean velocity (m/s) at cell corners
+
+    real(dp), dimension(-1:1,-1:1,nx,ny), intent(out) :: &
+         flux_in                  ! ice volume fluxes (m^3/yr) into cell from each neighbor cell
+
+    ! local variables
+
+    integer :: i, j, ii, jj
+
+    real(dp) :: &
+         u_sw, u_se, u_ne, u_nw,    & ! u velocity components at each vertex
+         v_sw, v_se, v_ne, v_nw       ! u velocity components at each vertex
+
+    real(dp) :: &
+         area_w, area_s, area_e, area_n,   & ! area flux from each neighbor cell
+         area_sw, area_se, area_ne, area_nw
+
+    logical, parameter :: verbose_input_fluxes = .false.
+
+    ! initialize
+    flux_in(:,:,:,:) = 0.0d0
+
+    ! Estimate the ice volume flux into each cell from each neighbor.
+    ! Note: flux_in(0,0,:,:) = 0 since there is no flux from a cell into itself.
+
+    do j = nhalo+1, ny-nhalo
+       do i = nhalo+1, nx-nhalo
+
+          ! Compute the upwind velocity components at each vertex
+          ! Convert from m/s to m/yr for diagnostics
+          u_sw = max( uvel(i-1,j-1), 0.0d0)*scyr
+          v_sw = max( vvel(i-1,j-1), 0.0d0)*scyr
+          u_se = max(-uvel(i,j-1),   0.0d0)*scyr
+          v_se = max( vvel(i,j-1),   0.0d0)*scyr
+          u_ne = max(-uvel(i,j),     0.0d0)*scyr
+          v_ne = max(-vvel(i,j),     0.0d0)*scyr
+          u_nw = max( uvel(i-1,j),   0.0d0)*scyr
+          v_nw = max(-vvel(i-1,j),   0.0d0)*scyr
+
+          ! Estimate the area fluxes from each edge neighbor
+          area_w = 0.5d0*(u_nw + u_sw)*dns - 0.5d0*(u_nw*v_nw + u_sw*v_sw)
+          area_s = 0.5d0*(v_sw + v_se)*dew - 0.5d0*(u_sw*v_sw + u_se*v_se)
+          area_e = 0.5d0*(u_se + u_ne)*dns - 0.5d0*(u_se*v_se + u_ne*v_ne)
+          area_n = 0.5d0*(v_ne + v_nw)*dew - 0.5d0*(u_ne*v_ne + u_nw*v_nw)
+
+          ! Estimate the area fluxes from each diagonal neighbor
+          ! Note: The sum is equal to the sum of the terms subtracted from the edge areas above
+          area_sw = u_sw*v_sw
+          area_se = u_se*v_se
+          area_ne = u_ne*v_ne
+          area_nw = u_nw*v_nw
+
+          ! Estimate the volume fluxes from each edge neighbor
+          flux_in(-1, 0,i,j) = area_w * thck(i-1,j)
+          flux_in( 0,-1,i,j) = area_s * thck(i,j-1)
+          flux_in( 1, 0,i,j) = area_e * thck(i+1,j)
+          flux_in( 0, 1,i,j) = area_n * thck(i,j+1)
+
+          ! Estimate the volume fluxes from each diagonal neighbor
+          flux_in(-1,-1,i,j) = area_sw * thck(i-1,j-1)
+          flux_in( 1,-1,i,j) = area_se * thck(i+1,j-1)
+          flux_in( 1, 1,i,j) = area_ne * thck(i+1,j+1)
+          flux_in(-1, 1,i,j) = area_nw * thck(i-1,j+1)
+
+          if (verbose_input_fluxes .and. this_rank == rtest .and. i==itest .and. j==jtest) then
+             print*, ' '
+             print*, 'upstream u (m/yr), this_rank, i, j:'
+             write(6,'(3e12.4)') u_nw, u_ne
+             write(6,'(3e12.4)') u_sw, u_se
+             print*, ' '
+             print*, 'upstream v (m/yr):'
+             write(6,'(3e12.4)') v_nw, v_ne
+             write(6,'(3e12.4)') v_sw, v_se
+             print*, ' '
+             print*, 'Input area fluxes (km2/yr):'
+             write(6,'(3e12.4)') area_nw/1.d6, area_n/1.d6, area_ne/1.d6
+             write(6,'(3e12.4)') area_w /1.d6,  0.0d0/1.d6, area_e /1.d6
+             write(6,'(3e12.4)') area_sw/1.d6, area_s/1.d6, area_se/1.d6
+             print*, ' '
+             print*, 'Input ice volume fluxes (km^3/yr):'
+             do jj = 1,-1,-1
+                do ii = -1,1
+                   write(6,'(e12.4)',advance='no') flux_in(ii,jj,i,j)/1.d9
+                enddo
+                print*, ' '
+             enddo
+          endif
+
+       enddo   ! i
+    enddo   ! j
+
+  end subroutine glissade_input_fluxes
 
 !****************************************************************************
 
