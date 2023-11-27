@@ -3209,8 +3209,11 @@ contains
     call GetValue(section,'snow_threshold_max',      model%glacier%snow_threshold_max)
     call GetValue(section,'baseline_date',           model%glacier%baseline_date)
     call GetValue(section,'rgi_date',                model%glacier%rgi_date)
-    call GetValue(section,'recent_date',                model%glacier%recent_date)
+    call GetValue(section,'recent_date',             model%glacier%recent_date)
     call GetValue(section,'diagnostic_minthck',      model%glacier%diagnostic_minthck)
+    call GetValue(section,'redistribute_advanced_ice',  model%glacier%redistribute_advanced_ice)
+    call GetValue(section,'thinning_rate_advanced_ice', model%glacier%thinning_rate_advanced_ice)
+    call GetValue(section,'smb_weight_advanced_ice', model%glacier%smb_weight_advanced_ice)
 
   end subroutine handle_glaciers
 
@@ -3286,6 +3289,16 @@ contains
           call write_log('Error, glacier_snow_calc option out of range', GM_FATAL)
        end if
 
+       if (model%glacier%snow_calc == GLACIER_SNOW_CALC_PRECIP_ARTM) then
+          write(message,*) 'snow_threshold_min (deg C)  : ', model%glacier%snow_threshold_min
+          call write_log(message)
+          write(message,*) 'snow_threshold_max (deg C)  : ', model%glacier%snow_threshold_max
+          call write_log(message)
+       endif
+
+       write(message,*) 'glc tmlt (deg C)            :  ', model%glacier%tmlt
+       call write_log(message)
+
        if (model%glacier%scale_area) then
           call write_log ('Glacier area will be scaled based on latitude')
        endif
@@ -3302,14 +3315,55 @@ contains
           endif
        endif
 
-       if (model%glacier%set_mu_star == GLACIER_MU_STAR_INVERSION .and. &
-           model%glacier%set_alpha_snow == GLACIER_ALPHA_SNOW_INVERSION) then
-          write(message,*) 'baseline date for inversion :  ', model%glacier%baseline_date
+       write(message,*) 'glc diagnostic minthck (m)  :  ', model%glacier%diagnostic_minthck
+       call write_log(message)
+
+       if (model%glacier%redistribute_advanced_ice) then
+          call write_log('Advanced ice in the accumulation zone will be redistributed')
+          write(message,*) '  thinning rate (m/yr)      : ', model%glacier%thinning_rate_advanced_ice
           call write_log(message)
-          write(message,*) 'RGI date for inversion      :  ', model%glacier%rgi_date
+       endif
+
+       ! Inversion options
+
+       if (model%glacier%set_mu_star /= GLACIER_MU_STAR_INVERSION) then
+          if (model%glacier%set_alpha_snow == GLACIER_ALPHA_SNOW_INVERSION) then
+             call write_log('Error, must invert for mu_star if inverting for alpha_snow', GM_FATAL)
+          elseif (model%glacier%set_powerlaw_c == GLACIER_POWERLAW_C_INVERSION) then
+             call write_log('Error, must invert for mu_star if inverting for powerlaw_c', GM_FATAL)
+          endif
+       endif
+
+       if (model%glacier%set_mu_star == GLACIER_MU_STAR_INVERSION) then
+
+          write(message,*) 'smb_weight, advanced ablation zone:  ', model%glacier%smb_weight_advanced_ice
           call write_log(message)
-          write(message,*) 'recent date for inversion   :  ', model%glacier%recent_date
+          write(message,*) 'mu_star_const (mm/yr/degC)  :  ', model%glacier%mu_star_const
           call write_log(message)
+          write(message,*) 'mu_star_min (mm/yr/degC)    :  ', model%glacier%mu_star_min
+          call write_log(message)
+          write(message,*) 'mu_star_max (mm/yr/degC)    :  ', model%glacier%mu_star_max
+          call write_log(message)
+
+          if (model%glacier%set_alpha_snow == GLACIER_ALPHA_SNOW_INVERSION) then
+             write(message,*) 'alpha_snow_const            :  ', model%glacier%alpha_snow_const
+             call write_log(message)
+             write(message,*) 'alpha_snow_min              :  ', model%glacier%alpha_snow_min
+             call write_log(message)
+             write(message,*) 'alpha_snow_max              :  ', model%glacier%alpha_snow_max
+             call write_log(message)
+             write(message,*) 'beta_artm_max (degC)        :  ', model%glacier%beta_artm_max
+             call write_log(message)
+             write(message,*) 'beta_artm_increment (degC)  :  ', model%glacier%beta_artm_increment
+             call write_log(message)
+             write(message,*) 'baseline date for inversion :  ', model%glacier%baseline_date
+             call write_log(message)
+             write(message,*) 'RGI date for inversion      :  ', model%glacier%rgi_date
+             call write_log(message)
+             write(message,*) 'recent date for inversion   :  ', model%glacier%recent_date
+             call write_log(message)
+          endif
+
        endif
 
        if (model%glacier%set_powerlaw_c == GLACIER_POWERLAW_C_INVERSION) then
@@ -3320,43 +3374,6 @@ contains
           write(message,*) 'powerlaw_c_relax_factor     :  ', model%inversion%babc_relax_factor
           call write_log(message)
        endif
-
-       ! Check for combinations not allowed
-       if (model%glacier%set_mu_star /= GLACIER_MU_STAR_INVERSION) then
-          if (model%glacier%set_alpha_snow == GLACIER_ALPHA_SNOW_INVERSION) then
-             call write_log('Error, must invert for mu_star if inverting for alpha_snow', GM_FATAL)
-          elseif (model%glacier%set_powerlaw_c == GLACIER_POWERLAW_C_INVERSION) then
-             call write_log('Error, must invert for mu_star if inverting for powerlaw_c', GM_FATAL)
-          endif
-       endif
-
-       if (model%glacier%snow_calc == GLACIER_SNOW_CALC_PRECIP_ARTM) then
-          write(message,*) 'snow_threshold_min (deg C)  : ', model%glacier%snow_threshold_min
-          call write_log(message)
-          write(message,*) 'snow_threshold_max (deg C)  : ', model%glacier%snow_threshold_max
-          call write_log(message)
-       endif
-
-       write(message,*) 'glc diagnostic minthck (m)  :  ', model%glacier%diagnostic_minthck
-       call write_log(message)
-       write(message,*) 'glc tmlt (deg C)            :  ', model%glacier%tmlt
-       call write_log(message)
-       write(message,*) 'mu_star_const (mm/yr/degC)  :  ', model%glacier%mu_star_const
-       call write_log(message)
-       write(message,*) 'mu_star_min (mm/yr/degC)    :  ', model%glacier%mu_star_min
-       call write_log(message)
-       write(message,*) 'mu_star_max (mm/yr/degC)    :  ', model%glacier%mu_star_max
-       call write_log(message)
-       write(message,*) 'alpha_snow_const            :  ', model%glacier%alpha_snow_const
-       call write_log(message)
-       write(message,*) 'alpha_snow_min              :  ', model%glacier%alpha_snow_min
-       call write_log(message)
-       write(message,*) 'alpha_snow_max              :  ', model%glacier%alpha_snow_max
-       call write_log(message)
-       write(message,*) 'beta_artm_max (degC)        :  ', model%glacier%beta_artm_max
-       call write_log(message)
-       write(message,*) 'beta_artm_increment (degC)  :  ', model%glacier%beta_artm_increment
-       call write_log(message)
 
     endif   ! enable_glaciers
 

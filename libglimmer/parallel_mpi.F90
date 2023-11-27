@@ -2723,7 +2723,7 @@ contains
     integer, dimension(:), allocatable ::  &
          task_to_block                ! block associated with each task
 
-    logical, parameter :: verbose_active_blocks = .true.
+    logical :: verbose_active_blocks = .false.
 
     associate(  &
          periodic_bc => parallel%periodic_bc,  &
@@ -2765,6 +2765,7 @@ contains
 
     if (present(inquire_only)) then
        only_inquire = inquire_only
+       if (only_inquire) verbose_active_blocks = .true.
     else
        only_inquire = .false.
     endif
