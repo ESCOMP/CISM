@@ -16,20 +16,20 @@ else
 fi
 
 echo CISM: "${cism_top}"
-source /etc/profile.d/modules.sh
+
 
 module purge
-module load ncarenv/1.2
-module load intel/17.0.1
-module load mkl/2017.0.1
-module load mpt/2.15f
-module load netcdf-mpi/4.4.1.1
-module load ncarcompilers/0.4.1
-module load pnetcdf/1.8.0
-module load cmake/3.7.2
-module load python/2.7.13
-module load numpy/1.12.0
-module load netcdf4-python/1.2.7
+module load ncarenv/23.06
+module load intel/2023.0.0
+module load mkl/2023.0.0
+#module load mpt/2.15f
+module load netcdf/4.9.2
+module load ncarcompilers/1.0.0
+#module load pnetcdf/1.8.0
+module load cmake/3.26.3
+#module load python/2.7.13
+#module load numpy/1.12.0
+#module load netcdf4-python/1.2.7
 
 # remove old build data:
 rm -f ./CMakeCache.txt

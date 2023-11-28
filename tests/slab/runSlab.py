@@ -1,4 +1,4 @@
-#!/usr/bin/env python2
+#!/usr/bin/env python
 
 #FIXME: More detailed description of this test case!!!
 """
@@ -17,7 +17,7 @@ import os
 import sys
 import errno
 import subprocess
-import ConfigParser 
+import configparser 
 
 import numpy
 import netCDF
@@ -151,7 +151,7 @@ def main():
     # get the configuration
     # ---------------------
     try:
-        config_parser = ConfigParser.SafeConfigParser()
+        config_parser = configparser.ConfigParser()
         config_parser.read( args.config )
         
         nz = int(config_parser.get('grid','upn'))
@@ -202,7 +202,7 @@ def main():
     config_parser.set('CF output', 'name', out_name)
     config_parser.set('CF output', 'xtype', 'double')
     
-    with open(config_name, 'wb') as config_file:
+    with open(config_name, 'w') as config_file:
         config_parser.write(config_file)
 
 

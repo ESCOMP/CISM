@@ -1,4 +1,4 @@
-#!/usr/bin/env python2
+#!/usr/bin/env python
 
 """
 The build and test structure (BATS) module. BATS is primarily intended to allow

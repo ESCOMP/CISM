@@ -85,7 +85,7 @@ if __name__ == '__main__':
             if g not in grids:
                 grids[g] = gn
                 gn = gn+1
-    print grids
+    print( grids)
     key_y=2.5
     ysize = 7.
     dy = 1.

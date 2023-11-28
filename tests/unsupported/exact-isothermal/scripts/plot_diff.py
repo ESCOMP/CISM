@@ -8,7 +8,7 @@ import os.path
 import pylab, matplotlib
 import Scientific.IO.NetCDF
 import numpy.ma
-from optparse import OptionParser
+from argparse import ArgumentParser
 
 
 if __name__ == '__main__':
@@ -17,10 +17,10 @@ if __name__ == '__main__':
 
 plot difference between exact and simulated solution at specified time"""
 
-    parser = OptionParser(usage=usage)
-    parser.add_option("-o","--output",metavar="FILE",help="write image to file. image type is determined by file suffix")
-    parser.add_option("-T","--time-slice",metavar="T",default=-1,type='int',help="extract data for time slice T")
-    (options, args) = parser.parse_args()
+    parser = ArgumentParser(usage=usage)
+    parser.add_argument("-o","--output",metavar="FILE",help="write image to file. image type is determined by file suffix")
+    parser.add_argument("-T","--time-slice",metavar="T",default=-1,type=int,help="extract data for time slice T")
+    options = parser.parse_args()
 
     if len(args)!=1:
         parser.error('Expecting one input file')

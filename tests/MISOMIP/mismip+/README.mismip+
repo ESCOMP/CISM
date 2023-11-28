@@ -1,11 +1,13 @@
 Instructions for setting up and running the MISMIP+ experiments with CISM.
 
+Note: For setting up the experiments on an NCAR computing environment, follow the steps in the README.NCAR_HPC file in the tests directory.
+
 See this paper for details on MISMIP+:
 
-X. S. Asay-Davis et al. (2016), Experimental design for three interrelated
+"X. S. Asay-Davis et al. (2016), Experimental design for three interrelated
 marine ice sheet and ocean model intercomparison projects:
 MISMIP v. 3 (MISMIP+), ISOMIP v. 2 (ISOMIP+) and MISOMIP v. 1 (MISOMIP1),
-Geosci. Model Devel., 9, 2471-2497, doi: 10.5194/gmd-9-2471-2016.
+Geosci. Model Devel., 9, 2471-2497, doi: 10.5194/gmd-9-2471-2016."
 
 The following experiments are included in MISMIP+:
 
@@ -72,6 +74,10 @@ This script has the following optional arguments:
 Notes on optional arguments:
 - If setting up all the experiments at once, the -x argument is not needed.
 - The following resolutions (m) are supported: 8000, 4000, 2000, 1000, 500, 250.
+- For the timestep argument, the code takes the minimum between the parsed option and 2 
+  except for the spinup experiment for which it writes the parsed argument. The reason being
+  the non spinup experiment lead to CFL violation at the first few time steps due to the 
+  change in the forcing is the time step is too large.  
 - Some of the sensitivity experiments (e.g., Ice1r) might require a shorter time step
   than the Spinup experiment.  For instance, a spin-up using DIVA at 2 km is typically stable with dt = 1.0 yr.
   With identical config settings, Ice1r is unstable and requires a shorter time step, e.g. dt = 0.5 yr.
