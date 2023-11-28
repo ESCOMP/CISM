@@ -1,4 +1,4 @@
-#!/usr/bin/env python2
+#!/usr/bin/env python
 
 #FIXME: More detailed description of this test case!!!
 """
@@ -14,7 +14,7 @@ import os
 import sys
 import errno
 import subprocess
-import ConfigParser 
+import configparser 
 
 import numpy
 import netCDF
@@ -52,10 +52,6 @@ parser.add_argument('-q', '--quiet', action='store_true',
 parser.add_argument('-s','--setup-only', action='store_true',
         help="Set up the test, but don't actually run it.")
 
-# Additional test specific options:
-
-#optparser.add_option("-r", "--run", dest="doRun", default=False, action="store_true", help="Including this flag will run CISM.  Excluding it will cause the script to only setup the initial condition file")
-
 
 # Some useful functions
 # ---------------------
@@ -87,6 +83,8 @@ def prep_commands(args, config_name):
         # These calls to os.system will return the exit status: 0 for success (the command exists), some other integer for failure
         if os.system('which openmpirun > /dev/null') == 0:
             mpiexec = 'openmpirun -np ' + str(args.parallel)+" "
+        elif os.system('which mpiexec > /dev/null') == 0:
+            mpiexec = 'mpiexec -np ' + str(args.parallel)+" "
         elif os.system('which mpirun > /dev/null') == 0:
             mpiexec = 'mpirun -np ' + str(args.parallel)+" "
         elif os.system('which aprun > /dev/null') == 0:
@@ -152,7 +150,10 @@ def main():
     #scale_factor = 2 ** args.scale
     
     try:
-        config_parser = ConfigParser.SafeConfigParser()
+        config_parser = configparser.ConfigParser(delimiters=('=', ':'),
+                            comment_prefixes=('#', ';'),
+                            inline_comment_prefixes=';')
+        #                    interpolation=None)
         config_parser.read( args.config )
         
         nz = int(config_parser.get('grid','upn'))
@@ -166,18 +167,18 @@ def main():
         # because we are choosing to use the raw data on the velocity grid.
         if nx != 148:
             print("WARNING: ewn should be set to 148 in ross.config")
-            raise ConfigParser.Error
+            raise configparser.Error
         if ny != 112:
             print("WARNING: nsn should be set to 112 in ross.config")
-            raise ConfigParser.Error
+            raise configparser.Error
         if dx != 6822 or dy !=6822:
             print("WARNING: dew and dns should be set to 6822 in ross.config")
-            raise ConfigParser.Error
+            raise configparser.Error
 
         file_name = config_parser.get('CF input', 'name')
         root, ext = os.path.splitext(file_name)
 
-    except ConfigParser.Error as error:
+    except configparser.Error as error:
         print("Error parsing " + args.config )
         print("   "), 
         print(error)
@@ -209,7 +210,7 @@ def main():
     config_parser.set('CF output', 'name', out_name)
     config_parser.set('CF output', 'xtype', 'double')
     
-    with open(config_name, 'wb') as config_file:
+    with open(config_name, 'w') as config_file:
         config_parser.write(config_file)
 
 
@@ -331,6 +332,7 @@ def main():
         # Get the components of the velocity vector
         #NOTE: velocity1 is vvel, velocity 2 is uvel
         azimuth *= numpy.pi/180.0
+
         velocity1 = velocity * numpy.cos(azimuth)
         velocity2 = velocity * numpy.sin(azimuth)
 
@@ -414,7 +416,7 @@ def main():
     beta = numpy.zeros((ny-1,nx-1),dtype='float32') 
     uvel = numpy.array(nz*[velocity2])
     vvel = numpy.array(nz*[velocity1])
-  
+
     mask = numpy.logical_and(velocity==0,numpy.logical_or(mask1==1,mask3==1))
     kinbcmask = numpy.int32(numpy.where(mask, 0, 1))
   

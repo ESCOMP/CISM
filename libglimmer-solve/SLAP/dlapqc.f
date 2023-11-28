@@ -574,7 +574,7 @@ C
       DOUBLE PRECISION FACTOR, A(NELTMX)
       DOUBLE PRECISION F(N), SOLN(N), DSUM(N)
       INTEGER DUMMY
-      REAL, EXTERNAL :: RAND
+      REAL, EXTERNAL :: SLRAND
 C
 C         Start by setting the random number generator seed.
 C         This is done for reproducablility in debuggin.  Remove
@@ -582,7 +582,7 @@ C         the seed seeting call for production testing.
 C
 C***FIRST EXECUTABLE STATEMENT  DRMGEN
       DUMMY = 16381
-      ISEED = RAND( DUMMY )
+      ISEED = SLRAND( DUMMY )
       IERR = 0
       DO 10 I = 1, N
          IDIAG(I) = 0
@@ -599,7 +599,7 @@ CVD$ NOCONCUR
 C
 C         To keep things sparse divide by two, three or four or ...
 C
-         INUM = (IFIX( RAND(DUMMY)*NL ) + 1)/3
+         INUM = (IFIX( SLRAND(DUMMY)*NL ) + 1)/3
          CALL DMPL( NL, INUM, ITMP )
 C
 C         Set up this column (and row, if non-sym structure).
@@ -616,7 +616,7 @@ CVD$ NOCONCUR
             IF( IA(NELT).EQ.ICOL ) THEN
                IDIAG(ICOL) = NELT
             ELSE
-               A(NELT) = -RAND(DUMMY)
+               A(NELT) = -SLRAND(DUMMY)
                DSUM(ICOL) = DSUM(ICOL) + A(NELT)
                IF( ISYM.EQ.0 ) THEN
 C
@@ -666,7 +666,7 @@ C
 CVD$ NOVECTOR
 CVD$ NOCONCUR
       DO 50 I = 1, N
-         SOLN(I) = RAND(DUMMY)
+         SOLN(I) = SLRAND(DUMMY)
          F(I) = 0.0D0
  50   CONTINUE
 C
@@ -702,7 +702,7 @@ C            n with out any repetitions.
 C***ROUTINES CALLED  RAND
 C***END PROLOGUE
       IMPLICIT DOUBLE PRECISION(A-H,O-Z)
-      REAL, EXTERNAL :: RAND
+      REAL, EXTERNAL :: SLRAND
       INTEGER DUMMY
       INTEGER N, M, INDX(M)
 C
@@ -712,10 +712,10 @@ C***FIRST EXECUTABLE STATEMENT  DMPL
       IF( N*M.LT.0 .OR. M.GT.N ) RETURN
 C
 C..       Set the indeicies.      
-      INDX(1) = IFIX( RAND(DUMMY)*N ) + 1
+      INDX(1) = IFIX( SLRAND(DUMMY)*N ) + 1
 CVD$ NOCONCUR
       DO 30 I = 2, M
- 10      ID = IFIX( RAND(DUMMY)*N ) + 1
+ 10      ID = IFIX( SLRAND(DUMMY)*N ) + 1
 C
 C..       Check to see if id has already been chosen.
 CVD$ NOVECTOR

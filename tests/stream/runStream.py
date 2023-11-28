@@ -1,4 +1,4 @@
-#!/usr/bin/env python2
+#!/usr/bin/env python
 
 #FIXME: More detailed description of this test case!!!
 """
@@ -14,7 +14,7 @@ import os
 import sys
 import errno
 import subprocess
-import ConfigParser 
+import configparser 
 
 import numpy
 import netCDF
@@ -61,11 +61,9 @@ parser.add_argument('-s','--setup-only', action='store_true',
 parser.add_argument('-z','--stream-size', type=unsigned_int, default=25,
         help=") The number of grid cells used to model the ice stream portion of the domain."
             +"Note: values <19 may not work properly for all problems.")    
-#optparser.add_option('-s','--stream-size',dest='stream_grid_size',default=25,type='int',help='Number of cells to use to model the ice stream portion of the domain (values <19 may not work properly for all problems).')
 
 parser.add_argument('--vertical', type=unsigned_int,
         help="Override the vertical grid size (upn) in the config file.")
-#optparser.add_option('-v','--vert-grid-size',dest='vertical_grid_size',default=2,type='int',help='Number of vertical layers to use (upn); minimum value = 2')
 
 # Some useful functions
 # ---------------------
@@ -97,6 +95,8 @@ def prep_commands(args, config_name):
         # These calls to os.system will return the exit status: 0 for success (the command exists), some other integer for failure
         if os.system('which openmpirun > /dev/null') == 0:
             mpiexec = 'openmpirun -np ' + str(args.parallel)+" "
+        elif os.system('which mpiexec > /dev/null') == 0:
+            mpiexec = 'mpiexec -np ' + str(args.parallel)+" "
         elif os.system('which mpirun > /dev/null') == 0:
             mpiexec = 'mpirun -np ' + str(args.parallel)+" "
         elif os.system('which aprun > /dev/null') == 0:
@@ -124,6 +124,8 @@ def prep_commands(args, config_name):
 analytic_solution = 'raymond'  # can be 'raymond' or 'schoof'
 kinflag = 1    # 1=apply kinematic bc (analytic soln) at points in the domain (discussed further below); 0=the run will be doubly periodic (preferred)
 fillInitialGuess = 0  # 1=use the analytic solution as the initial guess for the velocity solver to speed convergence; 0=use the default 0-velocity initial guess
+
+eps = 1.e-10   # a small number
 
 # Domain parameters
 streamHalfWidth = 25000.0   # ice stream half-width, in m - used for both raymond & schoof formulations
@@ -199,7 +201,10 @@ def main():
     # get the configuration
     # ---------------------
     try:
-        config_parser = ConfigParser.SafeConfigParser()
+        config_parser = configparser.ConfigParser(delimiters=('=', ':'),
+                            comment_prefixes=('#', ';'),
+                            inline_comment_prefixes=';',
+                            interpolation=None)
         config_parser.read( args.config )
         
         if args.vertical:
@@ -210,7 +215,7 @@ def main():
         file_name = config_parser.get('CF input', 'name')
         root, ext = os.path.splitext(file_name)
 
-    except ConfigParser.Error as error:
+    except configparser.Error as error:
         print("Error parsing " + args.config )
         print("   "), 
         print(error)
@@ -229,7 +234,7 @@ def main():
     # Figure out the number of cells we need to add to get as close t0 the 
     # desired width of the strong region as possible (note: may want to use 
     # ceil() instead of round() here)
-    nStrongStrip = int(round(strongWidth / dy))  
+    nStrongStrip = int(round(strongWidth / dy + eps))  
 
     # a +1 is needed to convert from y0 to y1 but we leaving it off lets the 
     #stream boundaries fall on the y0 grid, which is needed to best match the 
@@ -279,7 +284,7 @@ def main():
     config_parser.set('CF output', 'name', out_name)
     config_parser.set('CF output', 'xtype', 'double')
     
-    with open(config_name, 'wb') as config_file:
+    with open(config_name, 'w') as config_file:
         config_parser.write(config_file)
 
 
@@ -305,6 +310,7 @@ def main():
 
     x0 = dx/2.0 + x1[:-1] # staggered grid
     y0 = dy/2.0 + y1[:-1]
+
 
     # Make sure the edge of the stream lands on the grid cells on the y0 grid.  
     # This should always happen with the logic above, so this check should never be activated.

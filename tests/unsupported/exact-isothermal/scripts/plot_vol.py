@@ -7,7 +7,7 @@
 
 import Scientific.IO.NetCDF
 import pylab
-from optparse import OptionParser
+from argparse import ArgumentParser
 
 def parse_title(title):
     """Parse title string."""
