@@ -1175,10 +1175,11 @@ contains
         itest,   jtest,  rtest, &
         thck,                   &
         uvel,    vvel,          &
-        flux_in)
+        flux_in,                &
+        parallel)
 
     use glimmer_physcon, only: scyr
-    use cism_parallel, only: nhalo
+    use cism_parallel, only: nhalo, parallel_halo, staggered_parallel_halo
 
     ! Compute ice volume fluxes into a cell from each neighboring cell
 
@@ -1200,6 +1201,8 @@ contains
     real(dp), dimension(-1:1,-1:1,nx,ny), intent(out) :: &
          flux_in                  ! ice volume fluxes (m^3/yr) into cell from each neighbor cell
 
+    type(parallel_type), intent(in) :: parallel   ! info for parallel communication
+
     ! local variables
 
     integer :: i, j, ii, jj
@@ -1214,11 +1217,18 @@ contains
 
     logical, parameter :: verbose_input_fluxes = .false.
 
+    ! halo updates for thickness and velocity
+
+    call parallel_halo(thck, parallel)
+    call staggered_parallel_halo(uvel, parallel)
+    call staggered_parallel_halo(vvel, parallel)
+
     ! initialize
     flux_in(:,:,:,:) = 0.0d0
 
     ! Estimate the ice volume flux into each cell from each neighbor.
     ! Note: flux_in(0,0,:,:) = 0 since there is no flux from a cell into itself.
+    ! The loop includes one row of halo cells.
 
     do j = nhalo+1, ny-nhalo
        do i = nhalo+1, nx-nhalo
@@ -1269,15 +1279,15 @@ contains
              write(6,'(3e12.4)') v_nw, v_ne
              write(6,'(3e12.4)') v_sw, v_se
              print*, ' '
-             print*, 'Input area fluxes (km2/yr):'
-             write(6,'(3e12.4)') area_nw/1.d6, area_n/1.d6, area_ne/1.d6
-             write(6,'(3e12.4)') area_w /1.d6,  0.0d0/1.d6, area_e /1.d6
-             write(6,'(3e12.4)') area_sw/1.d6, area_s/1.d6, area_se/1.d6
+             print*, 'Input area fluxes (m^2/yr):'
+             write(6,'(3e12.4)') area_nw, area_n, area_ne
+             write(6,'(3e12.4)') area_w,  0.0d0, area_e
+             write(6,'(3e12.4)') area_sw, area_s, area_se
              print*, ' '
-             print*, 'Input ice volume fluxes (km^3/yr):'
+             print*, 'Input ice volume fluxes (m^3/yr):'
              do jj = 1,-1,-1
                 do ii = -1,1
-                   write(6,'(e12.4)',advance='no') flux_in(ii,jj,i,j)/1.d9
+                   write(6,'(e12.4)',advance='no') flux_in(ii,jj,i,j)
                 enddo
                 print*, ' '
              enddo

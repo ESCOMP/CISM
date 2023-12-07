@@ -961,7 +961,7 @@ load:          1
 
 [smb_rgi]
 dimensions:    time, y1, x1
-units:         m
+units:         mm/year water equivalent
 long_name:     surface mass balance at RGI date
 data:          data%glacier%smb_rgi
 load:          1
@@ -973,6 +973,13 @@ long_name:     surface mass balance, recent date
 data:          data%glacier%smb_recent
 factor:        1.0
 load:          1
+
+[thck_target]
+dimensions:    time, y1, x1
+units:         m
+long_name:     glacier thickness target
+data:          data%glacier%thck_target
+factor:        1.0
 
 #WHL: Note sign convention: positive downward
 [bheatflx]
