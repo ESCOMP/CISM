@@ -35,7 +35,7 @@ module glide_diagnostics
   use glimmer_global, only: dp
   use glimmer_log
   use glide_types
-  use cism_parallel, only: this_rank, main_task, lhalo, uhalo, &
+  use cism_parallel, only: this_rank, main_task, lhalo, uhalo, nhalo, &
        parallel_type, broadcast, parallel_localindex, parallel_globalindex, &
        parallel_reduce_sum, parallel_reduce_max, parallel_reduce_maxloc, parallel_reduce_minloc
 
@@ -237,10 +237,15 @@ contains
          tot_glc_area_init, tot_glc_area,     & ! total glacier area, initial and current (km^2)
          tot_glc_volume_init, tot_glc_volume, & ! total glacier volume, initial and current (km^3)
          tot_glc_area_init_extent,            & ! glacier area summed over the initial extent (km^2)
-         tot_glc_volume_init_extent             ! glacier volume summed over the initial extent (km^2)
+         tot_glc_volume_init_extent,          & ! glacier volume summed over the initial extent (km^3)
+         tot_glc_area_target,                 & ! target glacier area for inversion (km^2)
+         tot_glc_volume_target,               & ! target glacier volume for inversion (km^3)
+         sum_sqr_err,                         & ! sum-squared error
+         rmse_thck, rmse_thck_init_extent       ! root mean square value of thck - thck_target
 
     integer :: &
-         count_area, count_volume            ! number of glaciers with nonzero area and volume
+         nglc_cells,                          & ! number of glacier grid cells
+         count_area, count_volume               ! number of glaciers with nonzero area and volume
 
     integer :: &
          i, j, k, ng,                       &
@@ -1080,9 +1085,8 @@ contains
 
     ! glacier diagnostics
 
-    if (model%options%enable_glaciers .and. main_task) then
+    if (model%options%enable_glaciers) then
 
-       ! Compute some global glacier sums
        tot_glc_area = 0.0d0
        tot_glc_volume = 0.0d0
        tot_glc_area_init = 0.0d0
@@ -1097,10 +1101,8 @@ contains
           tot_glc_volume = tot_glc_volume + model%glacier%volume(ng)
           tot_glc_area_init = tot_glc_area_init + model%glacier%area_init(ng)
           tot_glc_volume_init = tot_glc_volume_init + model%glacier%volume_init(ng)
-          tot_glc_area_init_extent = tot_glc_area_init_extent &
-               + model%glacier%area_init_extent(ng)
-          tot_glc_volume_init_extent = tot_glc_volume_init_extent &
-               + model%glacier%volume_init_extent(ng)
+          tot_glc_area_init_extent = tot_glc_area_init_extent + model%glacier%area_init_extent(ng)
+          tot_glc_volume_init_extent = tot_glc_volume_init_extent + model%glacier%volume_init_extent(ng)
           if (model%glacier%area(ng) > eps) then
              count_area = count_area + 1
           endif
@@ -1151,6 +1153,72 @@ contains
        write(message,'(a35,f14.6)') 'Total volume_init_extent (km^3)    ', &
             tot_glc_volume_init_extent / 1.0d9
        call write_log(trim(message), type = GM_DIAGNOSTIC)
+
+       if (model%glacier%set_powerlaw_c == GLACIER_POWERLAW_C_INVERSION) then
+
+          ! diagnostics related to thickness inversion
+
+          tot_glc_area_target = 0.0d0
+          tot_glc_volume_target = 0.0d0
+          do ng = 1, model%glacier%nglacier
+             tot_glc_area_target = tot_glc_area_target + model%glacier%area_target(ng)
+             tot_glc_volume_target = tot_glc_volume_target + model%glacier%volume_target(ng)
+          enddo
+
+          ! Compute the root-mean-square error (thck - thck_target), including cells
+          !  with cism_glacier_id > 0 or cism_glacier_id_init > 0
+          !TODO - Write an rmse subroutine?
+          nglc_cells = 0
+          sum_sqr_err = 0.0d0
+          do j = nhalo+1, nsn-nhalo
+             do i = nhalo+1, ewn-nhalo
+                ng = max(model%glacier%cism_glacier_id(i,j), &
+                         model%glacier%cism_glacier_id_init(i,j))
+                if (ng > 0) then
+                   nglc_cells = nglc_cells + 1
+                   sum_sqr_err = sum_sqr_err &
+                        + (model%geometry%thck(i,j)*thk0 - model%glacier%thck_target(i,j))**2
+                endif
+             enddo
+          enddo
+          nglc_cells = parallel_reduce_sum(nglc_cells)
+          sum_sqr_err = parallel_reduce_sum(sum_sqr_err)
+          rmse_thck = sqrt(sum_sqr_err/nglc_cells)
+
+          ! Repeat, including only cells within the initial glacier extent
+          nglc_cells = 0
+          sum_sqr_err = 0.0d0
+          do j = nhalo+1, nsn-nhalo
+             do i = nhalo+1, ewn-nhalo
+                ng = model%glacier%cism_glacier_id_init(i,j)
+                if (ng > 0) then
+                   nglc_cells = nglc_cells + 1
+                   sum_sqr_err = sum_sqr_err &
+                        + (model%geometry%thck(i,j)*thk0 - model%glacier%thck_target(i,j))**2
+                endif
+             enddo
+          enddo
+          nglc_cells = parallel_reduce_sum(nglc_cells)
+          sum_sqr_err = parallel_reduce_sum(sum_sqr_err)
+          rmse_thck_init_extent = sqrt(sum_sqr_err/nglc_cells)
+
+          write(message,'(a35,f14.6)') 'Total area target (km^2)           ', &
+               tot_glc_area_target / 1.0d6
+          call write_log(trim(message), type = GM_DIAGNOSTIC)
+
+          write(message,'(a35,f14.6)') 'Total volume target (km^2)         ', &
+               tot_glc_volume_target / 1.0d9
+          call write_log(trim(message), type = GM_DIAGNOSTIC)
+
+          write(message,'(a35,f14.6)') 'rms error, thck - thck_target (m)  ', &
+               rmse_thck
+          call write_log(trim(message), type = GM_DIAGNOSTIC)
+
+          write(message,'(a35,f14.6)') 'rms error over init extent (m)     ', &
+               rmse_thck_init_extent
+          call write_log(trim(message), type = GM_DIAGNOSTIC)
+
+       endif  ! set_powerlaw_c
 
        call write_log(' ')
 
@@ -1203,7 +1271,7 @@ contains
 
        call write_log(' ')
 
-    endif  ! enable_glaciers and main_task
+    endif  ! enable_glaciers
 
   end subroutine glide_write_diag
      

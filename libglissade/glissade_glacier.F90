@@ -212,6 +212,8 @@ contains
        if (associated(glacier%volume_init)) deallocate(glacier%volume_init)
        if (associated(glacier%area_init_extent)) deallocate(glacier%area_init_extent)
        if (associated(glacier%volume_init_extent)) deallocate(glacier%volume_init_extent)
+       if (associated(glacier%area_target)) deallocate(glacier%area_target)
+       if (associated(glacier%volume_target)) deallocate(glacier%volume_target)
        if (associated(glacier%smb)) deallocate(glacier%smb)
        if (associated(glacier%smb_obs)) deallocate(glacier%smb_obs)
        if (associated(glacier%mu_star)) deallocate(glacier%mu_star)
@@ -428,6 +430,8 @@ contains
        allocate(glacier%volume_init(nglacier))
        allocate(glacier%area_init_extent(nglacier))
        allocate(glacier%volume_init_extent(nglacier))
+       allocate(glacier%area_target(nglacier))
+       allocate(glacier%volume_target(nglacier))
        allocate(glacier%smb(nglacier))
        allocate(glacier%smb_obs(nglacier))
        allocate(glacier%mu_star(nglacier))
@@ -435,28 +439,31 @@ contains
        allocate(glacier%beta_artm(nglacier))
 
        ! Compute the initial area and volume of each glacier.
+       ! These values are saved and written to the restart file.
        ! Only ice thicker than diagnostic_minthck is included in area and volume sums.
 
        call glacier_area_volume(&
             ewn,           nsn,               &
             nglacier,                         &
-            glacier%cism_glacier_id,          &
+            glacier%cism_glacier_id_init,     &
             model%geometry%cell_area*len0**2, &  ! m^2
             model%geometry%thck*thk0,         &  ! m
             glacier%diagnostic_minthck,       &  ! m
-            glacier%area,                     &  ! m^2
-            glacier%volume)                      ! m^3
+            glacier%area_init,                &  ! m^2
+            glacier%volume_init)                 ! m^3
 
        ! Initialize other glacier arrays
+       glacier%area(:)   = glacier%area_init(:)
+       glacier%volume(:) = glacier%volume_init(:)
+       glacier%area_init_extent(:) = glacier%area_init(:)
+       glacier%volume_init_extent(:) = glacier%volume_init(:)
+       glacier%area_target(:) = glacier%area_init(:)
+       glacier%volume_target(:) = glacier%volume_init(:)
        glacier%smb(:)         = 0.0d0
-       glacier%area_init(:)   = glacier%area(:)
-       glacier%volume_init(:) = glacier%volume(:)
-       glacier%area_init_extent(:) = glacier%area(:)
-       glacier%volume_init_extent(:) = glacier%volume(:)
        glacier%mu_star(:)     = glacier%mu_star_const
        glacier%alpha_snow(:)  = glacier%alpha_snow_const
        glacier%beta_artm(:)   = 0.0d0
-       
+
        ! Initially, allow nonzero SMB only in glacier-covered cells.
        ! These masks are updated at runtime.
        glacier%smb_glacier_id_init(:,:) = glacier%cism_glacier_id_init(:,:)
@@ -487,17 +494,15 @@ contains
        model%geometry%usrf_obs = model%geometry%usrf
 
        ! If inverting for powerlaw_c, then initialize powerlaw_c to a constant value,
-       !  and initialize the inversion target to the initial usrf.
-       ! Note: usrf_obs is the thickness (in scaled model units) at the RGI date, e.g. the
-       !        Farinotti et al. consensus thickness.
-       !       usrf_target_baseline is the target thickness for the baseline state, which
-       !        ideally will evolve to usrf_obs between the baseline date and RGI date.
-       ! On restart, powerlaw_c and usrf_obs are read from the restart file;
-       !       usrf_target_baseline is not needed for exact restart.
-
+       !  and initialize the inversion target to the initial thickness.
+       ! Note: When inverting for thickness, thck_target is the target for the baseline date,
+       !       which usually is earlier than the RGI date. Thus, thck_target usually is greater than
+       !       the input thickness, if the input thickness corresponds to the RGI date.
+       ! On restart, powerlaw_c is read from the restart file;
+       !  thck_target is not a restart field but is updated annually during the inversion.
        if (glacier%set_powerlaw_c == GLACIER_POWERLAW_C_INVERSION) then
           model%basal_physics%powerlaw_c(:,:) = model%basal_physics%powerlaw_c_const
-          glacier%usrf_target_baseline(:,:) = model%geometry%usrf(:,:)*thk0
+          glacier%thck_target = model%geometry%thck*thk0
        endif
 
        !WHL - debug - Make sure cism_glacier_id_init = 0 where (and only where) rgi_glacier_id > 0
@@ -616,9 +621,7 @@ contains
           endif
        endif
 
-       ! Compute the initial area and volume of each glacier.
-       ! This is not necessary for exact restart, but is included as a diagnostic.
-       ! Only ice thicker than diagnostic_minthck is included in area and volume sums.
+       ! Compute the area and volume of each glacier (diagnostic only)
 
        call glacier_area_volume(&
             ewn,           nsn,               &
@@ -630,7 +633,7 @@ contains
             glacier%area,                     &  ! m^2
             glacier%volume)                      ! m^3
 
-       ! Compute the area and volume over the initial ice extent.
+       ! Repeat, summing over the initial glacier extent
 
        call glacier_area_volume(&
             ewn,           nsn,               &
@@ -791,8 +794,8 @@ contains
 
     real(dp), dimension(model%general%ewn, model%general%nsn) ::  &
          thck,                    & ! ice thickness (m)
-         thck_target,             & ! target ice thickness for the baseline state (m)
          dthck_dt,                & ! rate of change of thickness (m/yr)
+         cell_area,               & ! grid cell area (m^2)
          thck_old,                & ! saved value of ice thickness (m)
          artm,                    & ! artm, baseline or current date
          snow,                    & ! snowfall, baseline or current date
@@ -841,7 +844,10 @@ contains
     ! real(dp), dimension(:) :: volume            ! glacier volume (m^3)
     ! real(dp), dimension(:) :: area_init         ! initial glacier area (m^2)
     ! real(dp), dimension(:) :: volume_init       ! initial glacier volume (m^3)
+    ! real(dp), dimension(:) :: area_init_extent  ! current glacier area (m^2) over initial ice extent
     ! real(dp), dimension(:) :: volume_init_extent! current glacier volume (m^3) over initial ice extent
+    ! real(dp), dimension(:) :: area_target       ! target glacier area (m^2) for inversion
+    ! real(dp), dimension(:) :: volume_target     ! target glacier volume (m^3) for inversion
     ! real(dp), dimension(:) :: mu_star           ! SMB parameter for each glacier (mm/yr w.e./deg K)
     ! real(dp), dimension(:) :: alpha_snow        ! snow factor for each glacier (unitless)
     ! real(dp), dimension(:) :: beta_artm         ! artm correction for each glacier (deg C)
@@ -857,6 +863,9 @@ contains
     ! real(dp), dimension(:,:) :: snow_rgi_annmean     ! snow accumulated and averaged over 1 year, RGI date
     ! real(dp), dimension(:,:) :: Tpos_rgi_annmean     ! max(artm - tmlt,0) accumulated and averaged over 1 year, RGI date
     ! real(dp), dimension(:,:) :: dthck_dt_annmean     ! dthck_dt accumulated and averaged over 1 year
+    ! real(dp), dimension(:,:) :: usrf_target          ! target surface elevation (m) for the baseline climate
+    ! real(dp), dimension(:,:) :: thck_target          ! target thickness (m) for the baseline climate
+    !TODO - Are any glacier fields missing?
 
     ! Note: The following areas are computed based on the cism_glacier_id masks, without a min thickness criterion
     real(dp), dimension(glacier%nglacier) ::  &
@@ -888,9 +897,10 @@ contains
     ngdiag = glacier%ngdiag
 
     ! some unit conversions
-    dt = model%numerics%dt * tim0/scyr          ! model units to yr
-    thck = model%geometry%thck * thk0           ! model units to m
-    dthck_dt = model%geometry%dthck_dt * scyr   ! m/s to m/yr
+    dt = model%numerics%dt * tim0/scyr              ! model units to yr
+    thck = model%geometry%thck * thk0               ! model units to m
+    dthck_dt = model%geometry%dthck_dt * scyr       ! m/s to m/yr
+    cell_area = model%geometry%cell_area * len0**2  ! model units to m^2
 
     ! Accumulate the 2D fields used for mu_star and alpha_snow inversion: snow and Tpos.
     ! Also accumulate dthck_dt, which is used for powerlaw_c inversion.
@@ -941,23 +951,23 @@ contains
 
           ! Adjust the baseline target. The baseline target should exceed the RGI target by abs(delta_usrf_rgi),
           !  assuming the ice thins between the baseline and RGI dates.
-          ! Then, provided usrf is close to usrf_target_baseline in the spin-up, usrf will be close to
+          ! Then, provided usrf is close to usrf_target in the spin-up, usrf will be close to
           !  usrf_obs (the RGI target) when a forward run starting from the baseline date reaches the RGI date.
+          !TODO - How to set usrf_target if not inverting for mu_star? Set to usrf_obs?
 
-          glacier%usrf_target_baseline(:,:) = &
-               model%geometry%usrf_obs(:,:)*thk0 - glacier%delta_usrf_rgi(:,:)
+          glacier%usrf_target(:,:) = model%geometry%usrf_obs(:,:)*thk0 - glacier%delta_usrf_rgi(:,:)
 
           ! Make sure the target is not below the topography
-          glacier%usrf_target_baseline = &
-               max(glacier%usrf_target_baseline, (model%geometry%topg + model%climate%eus)*thk0)
+          glacier%usrf_target = &
+               max(glacier%usrf_target, (model%geometry%topg + model%climate%eus)*thk0)
 
           if (verbose_glacier .and. this_rank == rtest) then
              i = itest; j = jtest
              print*, ' '
              print*, 'RGI usrf correction, delta_smb:', &
                   glacier%delta_usrf_rgi(i,j), delta_smb_rgi(i,j)
-             print*,    'usrf RGI obs, new usrf_target_baseline =', &
-                  model%geometry%usrf_obs(i,j)*thk0, glacier%usrf_target_baseline(i,j)
+             print*,    'usrf RGI obs, new usrf_target baseline =', &
+                  model%geometry%usrf_obs(i,j)*thk0, glacier%usrf_target(i,j)
              print*, 'Recent usrf correction, delta_smb:', &
                   glacier%delta_usrf_recent(i,j), delta_smb_recent(i,j)
           endif
@@ -1265,6 +1275,7 @@ contains
             smb_weight_current,              &
             model%climate%smb,    smb_current_area)
 
+
        ! Invert for mu_star
        ! This can be done in either of two ways:
        ! (1) set_mu_star = 1, set_alpha_snow = 0 (1-parameter inversion)
@@ -1377,16 +1388,18 @@ contains
 
           ! Given the surface elevation target, compute the thickness target.
           ! (This can change in time if the bed topography is dynamic.)
+
           call glissade_usrf_to_thck(&
-               glacier%usrf_target_baseline,    &
+               glacier%usrf_target,             &
                model%geometry%topg * thk0,      &
                model%climate%eus * thk0,        &
-               thck_target)
+               glacier%thck_target)
 
           ! Interpolate thck_target to the staggered grid
           call glissade_stagger(&
                ewn,         nsn,              &
-               thck_target, stag_thck_target)
+               glacier%thck_target,           &
+               stag_thck_target)
 
           ! Interpolate thck to the staggered grid
           call glissade_stagger(&
@@ -1750,28 +1763,26 @@ contains
 
        endif   ! set_mu_star
 
-       ! Update the glacier area and volume (diagnostic only)
-
-       ! Compute the new area and volume
+       ! Compute the area and volume of each glacier
 
        call glacier_area_volume(&
             ewn,           nsn,               &
             nglacier,                         &
             glacier%cism_glacier_id,          &
-            model%geometry%cell_area*len0**2, &  ! m^2
+            cell_area,                        &  ! m^2
             thck,                             &  ! m
             glacier%diagnostic_minthck,       &  ! m
             glacier%area,                     &  ! m^2
             glacier%volume)                      ! m^3
 
-       ! Compute the new area and volume over the initial ice extent
-       ! Note: area_init_extent <= area_init; inequality applies if there has been any retreat
+       ! Repeat, summing over the initial glacier extent (no advanced cells)
+       ! Note: area_init_extent < area_init if there has been any retreat
 
        call glacier_area_volume(&
             ewn,           nsn,               &
             nglacier,                         &
             glacier%cism_glacier_id_init,     &
-            model%geometry%cell_area*len0**2, &  ! m^2
+            cell_area,                        &  ! m^2
             thck,                             &  ! m
             glacier%diagnostic_minthck,       &  ! m
             glacier%area_init_extent,         &  ! m^2
@@ -1786,6 +1797,29 @@ contains
                glacier%area(ngdiag)/1.0d6, glacier%volume(ngdiag)/1.0d9
           print*, 'A and V over init extent:', &
                glacier%area_init_extent(ngdiag)/1.0d6, glacier%volume_init_extent(ngdiag)/1.0d9
+          print*, 'A and V over init extent:', &
+               glacier%area_init_extent(ngdiag)/1.0d6, glacier%volume_init_extent(ngdiag)/1.0d9
+       endif
+
+       ! If inverting for thickness, compute the target area and volume
+
+       if (glacier%set_powerlaw_c == GLACIER_POWERLAW_C_INVERSION) then
+
+          call glacier_area_volume(&
+               ewn,           nsn,               &
+               nglacier,                         &
+               glacier%cism_glacier_id_init,     &
+               model%geometry%cell_area*len0**2, &  ! m^2
+               glacier%thck_target,              &  ! m
+               glacier%diagnostic_minthck,       &  ! m
+               glacier%area_target,              &  ! m^2
+               glacier%volume_target)               ! m^3
+
+          if (verbose_glacier .and. this_rank == rtest) then
+             print*, ' Target area and volume:', &
+                  glacier%area_target(ngdiag)/1.0d6, glacier%volume_target(ngdiag)/1.0d9
+          endif
+
        endif
 
        if (verbose_glacier) then
@@ -2952,6 +2986,7 @@ contains
        enddo   ! i
     enddo   ! j
 
+    call parallel_halo(thck, parallel)
     call parallel_halo(cism_glacier_id, parallel)
 
     ! Check advanced cells (beyond the initial extent) for problematic glacier IDs.
