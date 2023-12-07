@@ -1948,9 +1948,9 @@ module glide_types
                                               !> thinned ice volume is redistributed conservatively over the glacier
 
      real(dp) :: &
-          smb_weight_advanced_ice = 0.5d0     !> weight (0 < w < 1) applied to advanced ice in ablation zone during inversion;
+          smb_weight_advanced_ice = 1.0d0     !> weight applied to advanced ice in ablation zone during inversion;
                                               !> applied to initially glacier-free cells adjacent to glacier cells
-
+                                              !> typically O(1), with larger values on finer grids
      ! 1D arrays with size nglacier
 
      integer, dimension(:), pointer :: &
@@ -1972,6 +1972,8 @@ module glide_types
                                               !> excludes area where the glacier has advanced
           volume_init_extent => null(),     & !> glacier volume (m^3) over the initial ice extent;
                                               !> excludes volume where the glacier has advanced
+          area_target => null(),            & !> glacier area target (m^2) for inversion
+          volume_target => null(),          & !> glacier volume target (m^3) for inversion
           mu_star => null(),                & !> glacier-specific parameter relating SMB to monthly mean artm (mm/yr w.e./deg),
                                               !> defined as positive for ablation
           alpha_snow => null(),             & !> glacier-specific multiplicative snow factor (unitless)
@@ -2003,8 +2005,9 @@ module glide_types
           smb_applied_annmean => null()       !> annual mean applied SMB (mm/yr w.e.), = 0 when cell is ice-free
 
      real(dp), dimension(:,:), pointer :: &
-          usrf_target_baseline,             & !> target ice thickness (m) for the baseline date
-                                              !> Note: geometry%usrf_obs is the target for the RGI date
+          usrf_target => null(),            & !> target ice surface elevation (m) for the baseline date
+          thck_target => null(),            & !> target ice thickness (m) for the baseline date
+                                              !> Note: geometry%usrf_obs gives the target for the RGI date
           smb_rgi => null(),                & !> RGI-date SMB field, used for glacier inversion (mm/yr w.e.)
           delta_usrf_rgi => null(),         & !> change in usrf between baseline and RGI climate
           smb_recent => null(),             & !> recent SMB field, including anomaly forcing (mm/yr w.e.)
@@ -3068,7 +3071,8 @@ contains
        call coordsystem_allocate(model%general%velo_grid, model%glacier%boundary_mask)
 
        ! Note: The recent and RGI fields are used for glacier inversion
-       call coordsystem_allocate(model%general%ice_grid, model%glacier%usrf_target_baseline)
+       call coordsystem_allocate(model%general%ice_grid, model%glacier%usrf_target)
+       call coordsystem_allocate(model%general%ice_grid, model%glacier%thck_target)
        call coordsystem_allocate(model%general%ice_grid, model%glacier%smb_rgi)
        call coordsystem_allocate(model%general%ice_grid, model%glacier%delta_usrf_rgi)
        call coordsystem_allocate(model%general%ice_grid, model%glacier%smb_recent)
@@ -3094,6 +3098,8 @@ contains
        allocate(model%glacier%volume_init(model%glacier%nglacier))
        allocate(model%glacier%area_init_extent(model%glacier%nglacier))
        allocate(model%glacier%volume_init_extent(model%glacier%nglacier))
+       allocate(model%glacier%area_target(model%glacier%nglacier))
+       allocate(model%glacier%volume_target(model%glacier%nglacier))
        allocate(model%glacier%mu_star(model%glacier%nglacier))
        allocate(model%glacier%alpha_snow(model%glacier%nglacier))
        allocate(model%glacier%beta_artm(model%glacier%nglacier))
@@ -3568,6 +3574,10 @@ contains
         deallocate(model%glacier%area_init_extent)
     if (associated(model%glacier%volume_init_extent)) &
         deallocate(model%glacier%volume_init_extent)
+    if (associated(model%glacier%area_target)) &
+        deallocate(model%glacier%area_target)
+    if (associated(model%glacier%volume_target)) &
+        deallocate(model%glacier%volume_target)
     if (associated(model%glacier%mu_star)) &
         deallocate(model%glacier%mu_star)
     if (associated(model%glacier%alpha_snow)) &
@@ -3576,8 +3586,10 @@ contains
         deallocate(model%glacier%beta_artm)
     if (associated(model%glacier%smb)) &
         deallocate(model%glacier%smb)
-    if (associated(model%glacier%usrf_target_baseline)) &
-        deallocate(model%glacier%usrf_target_baseline)
+    if (associated(model%glacier%usrf_target)) &
+        deallocate(model%glacier%usrf_target)
+    if (associated(model%glacier%thck_target)) &
+        deallocate(model%glacier%thck_target)
     if (associated(model%glacier%smb_rgi)) &
         deallocate(model%glacier%smb_rgi)
     if (associated(model%glacier%delta_usrf_rgi)) &
