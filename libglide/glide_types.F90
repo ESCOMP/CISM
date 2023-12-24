@@ -1951,6 +1951,15 @@ module glide_types
           smb_weight_advanced_ice = 1.0d0     !> weight applied to advanced ice in ablation zone during inversion;
                                               !> applied to initially glacier-free cells adjacent to glacier cells
                                               !> typically O(1), with larger values on finer grids
+     ! diagnostic scalars
+
+     real(dp) :: &
+          total_area = 0.d0,                & !> total area (m^2), summed over all glaciers
+          total_volume = 0.d0                 !> total volume (m^3), summed over all glaciers
+
+     integer :: &
+          nglacier_active = 0                 !> number of dynamically active glaciers (nonzero area)
+
      ! 1D arrays with size nglacier
 
      integer, dimension(:), pointer :: &
