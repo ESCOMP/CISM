@@ -1111,6 +1111,11 @@ contains
           endif
        enddo
 
+       ! Copy selected scalars into the derived type
+       model%glacier%total_area = tot_glc_area
+       model%glacier%total_volume = tot_glc_volume
+       model%glacier%nglacier_active = count_area
+
        ! Write some total glacier diagnostics
 
        write(message,'(a25)') 'Glacier diagnostics: '
