@@ -1763,7 +1763,7 @@ load:          1
 
 [glacier_beta_artm]
 dimensions:    time, glacierid
-units:         1
+units:         degC
 long_name:     glacier temperature correction
 data:          data%glacier%beta_artm
 load:          1
@@ -1780,3 +1780,23 @@ dimensions:    time, glacierid
 units:         mm w.e./yr
 long_name:     modeled glacier-average SMB
 data:          data%glacier%smb
+
+[glacier_total_area]
+dimensions:    time
+units:         km2
+long_name:     total glacier area
+factor:        1.e-06
+data:          data%glacier%total_area
+
+[glacier_total_volume]
+dimensions:    time
+units:         km3
+long_name:     total glacier volume
+factor:        1.e-09
+data:          data%glacier%total_volume
+
+[nglacier_active]
+dimensions:    time
+units:         1
+long_name:     number of active glaciers
+data:          data%glacier%nglacier_active
