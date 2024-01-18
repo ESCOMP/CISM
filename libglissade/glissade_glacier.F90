@@ -754,7 +754,8 @@ contains
 
     use glissade_grid_operators, only: glissade_stagger
     use glissade_utils, only: glissade_usrf_to_thck
-    use cism_parallel, only: parallel_reduce_sum, parallel_global_sum, parallel_halo
+    use cism_parallel, only: parallel_reduce_sum, parallel_global_sum, &
+         parallel_halo, staggered_parallel_halo
 
     ! Do glacier inversion (if applicable), update glacier masks, and compute glacier diagnostics.
     !
@@ -1410,6 +1411,21 @@ contains
           call glissade_stagger(&
                ewn,                      nsn,           &
                glacier%dthck_dt_annmean, stag_dthck_dt)
+
+          ! Set stag_thck_dt = 0 at vertices that are initially ice-free.
+          ! This will zero out the dH/dt term in the inversion, which inhibits oscillations
+          !  in Cp and H near the terminus.
+          do j = nhalo, nsn-1
+             do i = nhalo, ewn-1
+                if (glacier%cism_glacier_id_init(i,  j+1) == 0 .and. &
+                    glacier%cism_glacier_id_init(i+1,j+1) == 0 .and. &
+                    glacier%cism_glacier_id_init(i,  j)   == 0 .and. &
+                    glacier%cism_glacier_id_init(i+1,j)   == 0) then
+                   stag_dthck_dt(i,j) = 0.0d0
+                endif
+             enddo
+          enddo
+          call staggered_parallel_halo(stag_dthck_dt, parallel)
 
           ! Update powerlaw_c
           call glacier_invert_powerlaw_c(&
@@ -2541,6 +2557,7 @@ contains
                 dpowerlaw_c = powerlaw_c(i,j) * (term_thck + term_dHdt + term_relax) * glacier_update_interval
 
                 ! Limit to prevent a large relative change in one step
+                !TODO - Maybe this should be a limit on the change per unit time, not per timestep.
                 if (abs(dpowerlaw_c) > 0.05d0 * powerlaw_c(i,j)) then
                    if (dpowerlaw_c > 0.0d0) then
                       dpowerlaw_c =  0.05d0 * powerlaw_c(i,j)
@@ -2571,7 +2588,7 @@ contains
 
                 ! do nothing; keep the current value
 
-             endif
+             endif  ! stag_thck > 0
 
           enddo   ! i
        enddo   ! j
