@@ -1094,7 +1094,7 @@
       endif
       indices_adv(2:3) = indices_adv(2:3) + staggered_lhalo  ! want the i,j coordinates WITH the halo present -
                                                              ! we got indices into the slice of owned cells
-      ! Finally, determine maximum allowable time step based on advectice CFL condition.
+      ! Finally, determine maximum allowable time step based on advective CFL condition.
       my_allowable_dt_adv = dew / (maxvel + 1.0d-20)
 
       ! ------------------------------------------------------------------------
@@ -1174,6 +1174,11 @@
              if (deltat > 10.d0 * allowable_dt_adv) then
                 print*, 'deltat, allowable_dt_adv, ratio =', deltat, allowable_dt_adv, deltat/allowable_dt_adv
                 call write_log('Aborting with CFL violation', GM_FATAL)
+             endif
+             !WHL - debug
+             if (deltat > allowable_dt_adv) then
+                print*, 'deltat, allowable_dt_adv, ratio =', deltat, allowable_dt_adv, deltat/allowable_dt_adv
+                print*, '  Limited by position', indices_adv_global(2), indices_adv_global(3)
              endif
           endif
 
