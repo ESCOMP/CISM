@@ -15,12 +15,15 @@ else
     cism_top=${1%/}
 fi
 
+source /etc/profile.d/z00_modules.sh
+
 echo CISM: "${cism_top}"
 
 
 module purge
 module load ncarenv/23.06
 module load intel/2023.0.0
+module load intel-mpi/2021.8.0
 module load mkl/2023.0.0
 #module load mpt/2.15f
 module load netcdf/4.9.2
@@ -65,6 +68,8 @@ cmake \
   -D CMAKE_CXX_COMPILER=mpiicpc \
   -D CMAKE_C_COMPILER=mpicc \
   -D CMAKE_Fortran_COMPILER=mpif90 \
+\
+  -D CMAKE_EXE_LINKER_FLAGS="-mkl=cluster" \
 \
   -D CMAKE_Fortran_FLAGS:STRING="-qno-opt-dynamic-align  -convert big_endian -assume byterecl -ftz -traceback -assume realloc_lhs -fp-model source -qopt-report -O2 -debug minimal " \
   -D CMAKE_C_FLAGS:STRING="-qno-opt-dynamic-align -fp-model precise -std=gnu99 -qopt-report -O2 -debug minimal " \
