@@ -78,7 +78,7 @@ optparser.add_option('-t', '--tstep',  dest='timestep',      type='float',  defa
 optparser.add_option('-r', '--res',    dest='resolution',    type='int',    default= 2000,    help="grid resolution (m)",    metavar="RES")
 optparser.add_option('-v', '--vlevel', dest='vertlevels',    type='int',    default= 3,       help="no. of vertical levels", metavar="VLEVEL")
 optparser.add_option('-a', '--approx', dest='approximation', type='string', default= 'DIVA',  help="Stokes approximation (SSA, DIVA, BP)")
-optparser.add_option('-b', '--basal',  dest='basalFriction', type='string', default='Schoof', help="basal friction law (Schoof, Tsai, powerlaw)")
+optparser.add_option('-b', '--basal',  dest='basalFriction', type='string', default='Schoof', help="basal friction law (Schoof, Tsai, powerlaw, zoet-Iversson)")
 optparser.add_option('-y', '--year',   dest='yearsSpinup',   type='int',    default= 20000,   help="length of spinup run (yr)")
 
 optparser.add_option 
@@ -198,6 +198,9 @@ elif options.basalFriction == 'Tsai':
 elif options.basalFriction == 'powerlaw':
     which_ho_babc = 9
     print 'Using basal friction power law'
+elif options.basalFriction == 'Zoet-Iversson'
+    which_ho_babc = 7
+    print 'Using Zoet Iverson as friction law'
 else:
     which_ho_babc = 11   # Schoof is default
     print 'Defaulting to Schoof basal friction law'

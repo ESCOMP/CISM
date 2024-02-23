@@ -2184,7 +2184,9 @@ contains
     call GetValue(section,'flow_enhancement_factor_velo_scale',  model%inversion%flow_enhancement_factor_velo_scale)
     call GetValue(section,'flow_enhancement_factor_minvalue',  model%inversion%flow_enhancement_factor_minvalue)
     call GetValue(section,'flow_enhancement_factor_maxvalue',  model%inversion%flow_enhancement_factor_maxvalue)
-    !TODO - Change default_flwa to flwa_constant?  Would have to change config files.
+    call GetValue(section,'vel_error_limit', model%inversion%vel_error_limit)
+ 
+   !TODO - Change default_flwa to flwa_constant?  Would have to change config files.
     call GetValue(section,'default_flwa',       model%paramets%default_flwa)
     call GetValue(section,'efvs_constant',      model%paramets%efvs_constant)
     call GetValue(section,'effstrain_min',      model%paramets%effstrain_min)

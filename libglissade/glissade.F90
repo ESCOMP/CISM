@@ -908,6 +908,24 @@ contains
        endif
     endif
 
+    ! TvdA: if we are using a flow enhancement factor, make sure it is read it and that the values that are 0 get the minimum value
+    ! this is needed for ice free cells that then get divided by zero, which gives errors in the velocity solver
+
+    if (model%options%which_ho_flow_enhancement_factor == HO_FLOW_ENHANCEMENT_FACTOR_EXTERNAL) then
+        local_maxval = maxval(model%temper%flow_enhancement_factor)
+        global_maxval = parallel_reduce_max(local_maxval)
+            if (global_maxval > 0) then
+            !we are using an external flow enhancement factor, and it has been read in
+            !replace all the zeros with the minimum value
+            where (model%temper%flow_enhancement_factor < eps11)
+                   model%temper%flow_enhancement_factor(:,:)= model%inversion%flow_enhancement_factor_minvalue
+            endwhere !check to overwrite zeros in the flow enhancement factor field
+        else
+           !we are trying to read in an external flow enhancement factor but there could be none found
+           call write_log('Error: trying to read in the flow enhancement factor but was unsuccesfull', GM_FATAL)
+        endif !local maxval
+    endif !which_ho_flow_enhancement_factor
+
     ! If using a mask to force ice retreat, then set the reference thickness (if not already read in).
 
     if (model%options%force_retreat /= FORCE_RETREAT_NONE) then
@@ -4480,6 +4498,12 @@ contains
           call parallel_halo(model%velocity%velo_sfc_unstag,parallel)
           call parallel_halo(model%velocity%velo_sfc_obs_unstag,parallel)
 
+          call glissade_unstagger(ewn,                 nsn,  &
+                          model%basal_physics%coulomb_c,model%basal_physics%coulomb_c_unstag)
+ 
+          !everything in this subroutine is done on the unstaggered grid. I added coulomb c as input to this function so I need to
+          !unstagger it and store it in coulomb_c_unstaggered
+
           call glissade_inversion_flow_enhancement_factor(&
                model%numerics%dt * tim0,                         &
                ewn, nsn,                                         &
@@ -4504,7 +4528,11 @@ contains
                model%inversion%term_thk_array,                   &
                model%inversion%term_dhdt_array,                  &
                model%inversion%term_velo_array,                  &
-               model%inversion%term_relax_array) 
+               model%inversion%term_relax_array,                 &
+               model%basal_physics%coulomb_c_unstag,            &
+               model%inversion%vel_error_limit,                  &
+               model%basal_physics%coulomb_c_max,                &
+               model%basal_physics%coulomb_c_min) 
 
 
            !clean up
