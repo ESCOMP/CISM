@@ -68,16 +68,15 @@ def computeBed(x,y,Ly):
 # Parse options.
 parser = ArgumentParser()
 
-parser.add_argument('-c', '--config', dest='configfile',    type=str, default='mismip+.config.template', help="config file template", metavar="FILE")
-parser.add_argument('-e', '--exec',   dest='executable',    type=str, default='cism_driver', help="path to the CISM executable")
-parser.add_argument('-x', '--expt',   dest='experiment',    type=str, default= 'all',   help="MISMIP+ experiment(s) to set up", metavar="EXPT")
-parser.add_argument('-t', '--tstep',  dest='timestep',      type=float,  default= 0.5,     help="time step (yr)",         metavar="TSTEP")
-parser.add_argument('-r', '--res',    dest='resolution',    type=int,    default= 2000,    help="grid resolution (m)",    metavar="RES")
-parser.add_argument('-v', '--vlevel', dest='vertlevels',    type=int,    default= 3,       help="no. of vertical levels", metavar="VLEVEL")
-parser.add_argument('-a', '--approx', dest='approximation', type=str, default= 'DIVA',  help="Stokes approximation (SSA, DIVA, BP)")
-parser.add_argument('-b', '--basal',  dest='basalFriction', type=str, default='Schoof', help="basal friction law (Schoof, Tsai, powerlaw)")
-parser.add_argument('-y', '--year',   dest='yearsSpinup',   type=int,    default= 20000,   help="length of spinup run (yr)")
-parser.add_argument('-g', '--gbc',    dest='global_bc',     type=int, default=0, help="global boundary condition")
+optparser.add_option('-c', '--config', dest='configfile',    type='string', default='mismip+.config.template', help="config file template", metavar="FILE")
+optparser.add_option('-e', '--exec',   dest='executable',    type='string', default='cism_driver', help="path to the CISM executable")
+optparser.add_option('-x', '--expt',   dest='experiment',    type='string', default= 'all',   help="MISMIP+ experiment(s) to set up", metavar="EXPT")
+optparser.add_option('-t', '--tstep',  dest='timestep',      type='float',  default= 0.5,     help="time step (yr)",         metavar="TSTEP")
+optparser.add_option('-r', '--res',    dest='resolution',    type='int',    default= 2000,    help="grid resolution (m)",    metavar="RES")
+optparser.add_option('-v', '--vlevel', dest='vertlevels',    type='int',    default= 3,       help="no. of vertical levels", metavar="VLEVEL")
+optparser.add_option('-a', '--approx', dest='approximation', type='string', default= 'DIVA',  help="Stokes approximation (SSA, DIVA, BP)")
+optparser.add_option('-b', '--basal',  dest='basalFriction', type='string', default='Schoof', help="basal friction law (Schoof, Tsai, powerlaw, zoet-Iversson)")
+optparser.add_option('-y', '--year',   dest='yearsSpinup',   type='int',    default= 20000,   help="length of spinup run (yr)")
 
 options = parser.parse_args()
 
@@ -201,7 +200,10 @@ elif options.basalFriction == 'Tsai':
     print( 'Using Tsai basal friction law')
 elif options.basalFriction == 'powerlaw':
     which_ho_babc = 9
-    print( 'Using basal friction power law')
+    print 'Using basal friction power law'
+elif options.basalFriction == 'Zoet-Iversson'
+    which_ho_babc = 7
+    print 'Using Zoet Iverson as friction law'
 else:
     which_ho_babc = 11   # Schoof is default
     print( 'Defaulting to Schoof basal friction law')

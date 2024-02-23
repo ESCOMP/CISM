@@ -49,15 +49,15 @@ def computeBed(x):
 # Parse options
 parser = ArgumentParser()
 
-parser.add_argument('-c', '--config', dest='configfile',   type=str,  default='mismip3d.config.template', help='config file name for setting up the MISMIP3d experiment', metavar='FILE')
-parser.add_argument('-e', '--exec',   dest='executable',              default='cism_driver',help='Set path to the CISM executable', metavar='EXECUTABLE')
-parser.add_argument('-x', '--expt',   dest='experiment',    type=str, default = 'all',    help='MISMIP3d experiment to set up', metavar='EXPT')
-parser.add_argument('-t', '--tstep',  dest='timestep',      type=float,  default = 1,        help='time step (yr)', metavar='TSTEP')
-parser.add_argument('-r', '--res',    dest='resolution',    type=int,    default = 2000,     help='grid resolution (m)', metavar='RES')
-parser.add_argument('-v', '--vlevel', dest='vertlevels',    type=int,    default = 3,        help='no. of vertical levels', metavar='VLEVEL')
-parser.add_argument('-a', '--approx', dest='approximation', type=str, default = 'DIVA',   help='Stokes approximation (SSA, DIVA, BP)', metavar='APPROXIMATION')
-parser.add_argument('-b', '--basal',  dest='basalFriction', type=str, default='powerlaw', help='Basal friction law (powerlaw, schoof)', metavar='BASALFRICTION')
-parser.add_argument('-y', '--year',   dest='yearsStnd',     type=int,    default = 20000,    help='Length of Stnd run (yr)', metavar='YEARSPINUP')
+optparser.add_option('-c', '--config', dest='configfile',   type='string',  default='mismip3d.config.template', help='config file name for setting up the MISMIP3d experiment', metavar='FILE')
+optparser.add_option('-e', '--exec',   dest='executable',                   default='cism_driver',help='Set path to the CISM executable', metavar='EXECUTABLE')
+optparser.add_option('-x', '--expt',   dest='experiment',    type='string', default = 'all',    help='MISMIP3d experiment to set up', metavar='EXPT')
+optparser.add_option('-t', '--tstep',  dest='timestep',      type='float',  default = 1,        help='time step (yr)', metavar='TSTEP')
+optparser.add_option('-r', '--res',    dest='resolution',    type='int',    default = 2000,     help='grid resolution (m)', metavar='RES')
+optparser.add_option('-v', '--vlevel', dest='vertlevels',    type='int',    default = 3,        help='no. of vertical levels', metavar='VLEVEL')
+optparser.add_option('-a', '--approx', dest='approximation', type='string', default = 'DIVA',   help='Stokes approximation (SSA, DIVA, BP)', metavar='APPROXIMATION')
+optparser.add_option('-b', '--basal',  dest='basalFriction', type='string', default='powerlaw', help='Basal friction law (powerlaw, schoof,zoet-iverson)', metavar='BASALFRICTION')
+optparser.add_option('-y', '--year',   dest='yearsStnd',     type='int',    default = 20000,    help='Length of Stnd run (yr)', metavar='YEARSPINUP')
 
 
 options = parser.parse_args()
@@ -169,16 +169,24 @@ config.set('ho_options', 'which_ho_approx', str(which_ho_approx))
 # Note: Each of these friction laws is associate with certain basal parameters.
 #       The desired parameters should be set in the config template.
 if options.basalFriction == 'powerlaw':
-    p_ocean_penetration = 0
-    print( 'Using basal friction power law (Schoof2007)')
+    p_ocean_penetration = 0.5
+    which_ho_babc=9
+    print 'Using basal friction power law (Schoof2007)'
 elif options.basalFriction == 'schoof':
-    p_ocean_penetration = 1
-    print( 'Using Schoof 2005 basal friction law')
+    p_ocean_penetration = 0.5
+    which_ho_babc = 11
+    print 'Using Schoof 2005 basal friction law'
+elif options.basalFricition == 'Zoet-Iversson':
+    p_ocean_penetration = 0.5
+    which_ho_babc = 7
+    print 'Using Zoet-Iversson 2020 law'
 else:
-    p_ocean_penetration = 0   #  is default
-    print( 'Defaulting to Powerlaw basal friction law')
-
-config.set('parameters', 'p_ocean_penetration', str(p_ocean_penetration))
+    p_ocean_penetration = 0.5   #  is default
+    print 'Defaulting to Powerlaw basal friction law'
+    which_ho_babc=9
+config.set('parameters', 'p_ocean_penetration', p_ocean_penetration)
+config.set('ho_options', 'which_ho_babc', which_ho_babc)
+>>>>>>> 1db05742 (Some small flow enhancement factor inversion fixes, and python2 to python3 changes in the mismip files)
 
 # Config setting related to spin up time.
 yearsStnd = float(options.yearsStnd)

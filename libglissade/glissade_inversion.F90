@@ -353,13 +353,15 @@ contains
        ! initialize flow_enhancement_factor, if not already read in
        var_maxval = maxval(model%temper%flow_enhancement_factor)
        var_maxval = parallel_reduce_max(var_maxval)
-       if (var_maxval > 0.0d0) then
+       if (var_maxval < 10000.0d0) then
           ! do nothing; flow_enhancement_factor has been read in already (e.g., when restarting)
        else
 
           ! initialize to the default values for grounded and floating ice
           ! For ice-free ocean, flow_enhancement_factor = 0 for now, but will change if ice-covered
 
+          ! backtrace for Tim. I changed this below to a simple hardcoded entry
+          ! I had similar problems with coulomb c once
           where (floating_mask == 1)
              model%temper%flow_enhancement_factor = model%paramets%flow_enhancement_factor_float
           elsewhere (ice_mask == 1 .or. land_mask == 1)  ! grounded ice or land
@@ -1536,7 +1538,20 @@ contains
        flow_enhancement_thck_scale,        &
        flow_enhancement_timescale,         &
        flow_enhancement_relax_factor,      &
-       flow_enhancement_factor)
+       flow_enhancement_factor,            &
+       flow_enhancement_velo_scale,        &
+       velo_sfc_unstag,                           &
+       velo_sfc_obs_unstag,                &
+       flow_enhancement_factor_minvalue,   &
+       flow_enhancement_factor_maxvalue,   &
+       term_thk_array,                     &
+       term_dhdt_array,                    &
+       term_velo_array,                    &
+       term_relax_array,                   &
+       coulomb_c_unstag,                   &
+       vel_error_limit,                    &
+       coulomb_c_min,                      &
+       coulomb_c_max)
 
     ! Compute a spatially varying field of flow enhancement factors at cell centers.
     ! This is an empirical factor, often denoted as E, that multiplies the
@@ -1548,6 +1563,16 @@ contains
     !    Where thck > thck_obs, E is increased to speed up and thin the ice.
     !    Where thck < thck_obs, E is decreased to slow and thicken the ice.
     ! E is constrained to lie within a prescribed range.
+ 
+
+    !Tim vd Akker: I added an option to invert based on a velocity target as well
+    !This is for example done in Ua, and might compensate the velocity error
+    !when inverting only for friction and a thickness target
+
+    ! I am also adding options to not interfere with the coulomb c inversion, so that if the friction is already
+    ! maximized to stop the ice from flowing that the flow factor 
+    ! This is now only done for the coulomb c, since I am testing it and I did not want to make a general case
+    ! The assumption then is of course that every initialization done is done with coulomb c inversion
 
     use glissade_grid_operators, only: glissade_laplacian_smoother
 
@@ -1564,7 +1589,11 @@ contains
          thck_obs_in,          & ! observed ice thickness (m)
          dthck_dt_in,          & ! rate of change of ice thickness (m/s)
          f_ground_cell,        & ! grounded fraction at cell centers, based on current thck
-         f_ground_cell_obs       ! grounded fraction at cell centers, based on thck_obs
+         f_ground_cell_obs,    &  ! grounded fraction at cell centers, based on thck_obs
+         velo_sfc_unstag,      & 
+         velo_sfc_obs_unstag,  &
+         coulomb_c_unstag
+
 
     integer, dimension(nx,ny), intent(in) ::  &
          ice_mask                ! = 1 where ice is present
@@ -1574,7 +1603,14 @@ contains
          flow_enhancement_factor_float,       & ! default flow_enhancement_factor for floating ice
          flow_enhancement_thck_scale,         & ! thickness scale for adjusting flow_enhancement_factor (s)
          flow_enhancement_timescale,          & ! timescale for adjusting flow_enhancement_factor (s)
-         flow_enhancement_relax_factor          ! controls strength of relaxation (unitless)
+         flow_enhancement_relax_factor,       & ! controls strength of relaxation (unitless)
+         flow_enhancement_velo_scale,         & ! controls strength of the velocity terms 
+         flow_enhancement_factor_minvalue,    & ! minimum values now used as config parameter
+         flow_enhancement_factor_maxvalue,    & !
+         vel_error_limit,                     & !
+         coulomb_c_min,                       &
+         coulomb_c_max       
+        
 
     real(dp), dimension(nx,ny), intent(inout) ::  &
          flow_enhancement_factor          ! flow enhancement factor (unitless)
@@ -1593,8 +1629,10 @@ contains
     real(dp) ::  &
          term_thck,            & ! tendency term based on thickness target
          term_dHdt,            & ! tendency term based on dH/dt
-         term_relax              ! term that relaxes E toward a default value
-
+         term_relax,           & ! term that relaxes E toward a default value
+         term_velo,            &  ! term that depends on the velocity mismatch
+         tendency_term           !what we would like to add to the flow factor
+        
     ! Note: Max and min values are somewhat arbitrary.
     ! TODO: Make these config parameters?
     real(dp), parameter :: &
@@ -1669,14 +1707,37 @@ contains
 
              ! Compute a relaxation term.  This term nudges flow_enhancement_factor toward a base value
              ! with a time scale of flow_enhancement_factor_timescale.
+             if (flow_enhancement_factor(i,j) > 0.d0 .and. relax_target(i,j)> 0.0d0) then
+                  term_relax = -flow_enhancement_relax_factor * log(flow_enhancement_factor(i,j)/relax_target(i,j)) &
+                      / flow_enhancement_timescale
+             else
+                  term_relax = 0.d0
+             endif
+             
+             ! Update arrays for troubleshooting
+             term_thk_array(i,j)=term_thck
+             term_dhdt_array(i,j)=term_dHdt
+             term_velo_array(i,j)=term_velo
+             term_relax_array(i,j)=term_relax
+             
 
-             term_relax = -flow_enhancement_relax_factor * log(flow_enhancement_factor(i,j)/relax_target(i,j)) &
-                  / flow_enhancement_timescale
+             !TvdA: Here I added some checks to make sure there is only an update once some criteria are met
+             !first one: the velocity error is larger than a config set limit, this is a hard cap
+             !in addition to the parameter flow_enhancement_velo_scale
+             if (abs(dvelo(i,j))>vel_error_limit) then
 
-             ! Update flow_enhancement_factor
-             flow_enhancement_factor(i,j) = flow_enhancement_factor(i,j) &
-                  * (1.0d0 + (term_thck + term_dHdt + term_relax)*dt)
-
+                 !now compute the tendency
+                 tendency_term = flow_enhancement_factor(i,j) &
+                       * (1.0d0 + (term_thck - term_velo + term_dHdt + term_relax)*dt)-flow_enhancement_factor(i,j)
+                 !make checks to prevent interference with the basal friction inversion
+                 !first, if coulomb_c is maximized, stop the flow factor from increasing
+                 if (coulomb_c_unstag(i,j)==coulomb_c_max .and. tendency_term > 0.d0) then
+                    tendency_term = 0.0d0
+                 else if (coulomb_c_unstag(i,j)==coulomb_c_min .and. tendency_term < 0.d0) then
+                    tendency_term =0.0d0
+                 endif
+                 flow_enhancement_factor(i,j)=flow_enhancement_factor(i,j)+tendency_term
+             endif
              !WHL - debug
              if (verbose_inversion .and. this_rank == rtest .and. i==itest .and. j==jtest) then
                 print*, ' '

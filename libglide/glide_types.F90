@@ -1777,8 +1777,11 @@ module glide_types
      real(dp) ::  &
           flow_enhancement_thck_scale = 100.d0, & !> thickness scale (m) for adjusting flow_enhancement_factor
           flow_enhancement_timescale = 500.d0,  & !> timescale (yr) for adjusting flow_enhancement_factor
-          flow_enhancement_relax_factor = 0.5d0   !> controls strength of relaxation to default values (unitless)
-
+          flow_enhancement_relax_factor = 0.5d0, &  !> controls strength of relaxation to default values (unitless)
+          flow_enhancement_factor_velo_scale = 0.d0, & !> when its larger than 0, flow enhancement factor 
+          flow_enhancement_factor_minvalue = 0.01d0, & !> unitless, arbitrary
+          flow_enhancement_factor_maxvalue = 100.d0, & !> same
+          vel_error_limit                  = 100.d0    !> the limit of the velocity we accept in the flow factor inversion
      ! parameters for adjusting the ice mass target in a given basin for deltaT_basin inversion
      ! Note: This option could in principle be applied to multiple basins, but currently is supported for one basin only.
      !       In practice, this basin is likely to be the Amundsen Sea Embayment (IMBIE/ISMIP6 basin #9).
@@ -2227,7 +2230,8 @@ module glide_types
           powerlaw_c => null(), &                !> powerlaw_c on staggered grid, Pa (m/yr)^(-1/m)
           powerlaw_c_relax => null(), &          !> powerlaw_c relaxation target
           coulomb_c => null(),  &                !> coulomb_c on staggered grid, unitless in range [0,1]
-          coulomb_c_relax => null()              !> coulomb_c relaxation target
+          coulomb_c_relax => null(), &           !> coulomb_c relaxation target
+          coulomb_c_unstag => null()             !> unstaggered inverted coulomb c, to be used in other routines
 
      ! parameters for power law, taub_b = C * u_b^(1/m); used for HO_BABC_COULOMB_POWERLAW_TSAI/SCHOOF
      ! The default values are from Asay-Davis et al. (2016).
@@ -3187,6 +3191,14 @@ contains
     call coordsystem_allocate(model%general%velo_grid,model%basal_physics%coulomb_c)
     call coordsystem_allocate(model%general%velo_grid,model%basal_physics%coulomb_c_relax)
 
+    call coordsystem_allocate(model%general%ice_grid,model%basal_physics%coulomb_c_unstag)
+
+   ! the arrays for troubleshooting the flow enhancement factor inversion
+    call coordsystem_allocate(model%general%ice_grid,model%inversion%term_thk_array)
+    call coordsystem_allocate(model%general%ice_grid,model%inversion%term_dhdt_array)
+    call coordsystem_allocate(model%general%ice_grid,model%inversion%term_velo_array)
+    call coordsystem_allocate(model%general%ice_grid,model%inversion%term_relax_array)
+ 
     if (model%options%which_ho_bmlt_basin /= HO_BMLT_BASIN_NONE) then
        if (model%ocean_data%nbasin < 1) then
           call write_log ('Must set nbasin >= 1 for the bmlt_basin options', GM_FATAL)
@@ -3691,7 +3703,8 @@ contains
         deallocate(model%basal_physics%coulomb_c_relax)
     if (associated(model%inversion%floating_thck_target)) &
         deallocate(model%inversion%floating_thck_target)
-
+    if (associated(model%basal_physics%coulomb_c_unstag)) &
+        deallocate(model%basal_physics%coulomb_c_unstag)
     ! MISOMIP arrays
     if (associated(model%plume%T_ambient)) &
         deallocate(model%plume%T_ambient)
