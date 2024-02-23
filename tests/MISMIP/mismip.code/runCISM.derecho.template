@@ -1,0 +1,15 @@
+#!/bin/bash
+#
+#PBS -N MISMIP
+#PBS -A P93300601
+#PBS -l walltime=01:30:00
+#PBS -q main
+#PBS -j oe
+#PBS -m abe
+#PBS -l select=1:ncpus=128:mpiprocs=128
+
+module load intel/2023.2.1
+module load craype/2.7.23
+module load mkl/2023.2.0
+
+mpiexec -n 128 ./cism_driver mismip.config
