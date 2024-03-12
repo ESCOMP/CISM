@@ -3614,7 +3614,7 @@ contains
     if (options%which_ho_powerlaw_c == HO_POWERLAW_C_INVERSION .or. &
         options%which_ho_coulomb_c  == HO_COULOMB_C_INVERSION  .or. &
         options%which_ho_deltaT_ocn == HO_DELTAT_OCN_INVERSION) then
-       call glide_add_to_restart_variable_list('usrf_obs')
+       call glide_add_to_restart_variable_list('usrf_obs', model_id)
        !WHL - velo_sfc_obs is not strictly needed unless inverting for surface velo,
        !      but is handy for diagnostics
        call glide_add_to_restart_variable_list('velo_sfc_obs', model_id)
@@ -3623,8 +3623,8 @@ contains
     ! fields needed for inversion options that try to match local dthck_dt
     ! Note: This is not strictly needed for all options, but still is a useful diagnostic.
     if (options%which_ho_deltaT_ocn /= HO_DELTAT_OCN_NONE) then
-       call glide_add_to_restart_variable_list('dthck_dt_obs')
-       call glide_add_to_restart_variable_list('dthck_dt_obs_basin')
+       call glide_add_to_restart_variable_list('dthck_dt_obs', model_id)
+       call glide_add_to_restart_variable_list('dthck_dt_obs_basin', model_id)
     endif
 
     ! effective pressure options
