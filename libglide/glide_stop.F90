@@ -43,28 +43,28 @@ module glide_stop
 
 contains
 
-  !Note: Currently, glide_finalise_all is never called. (glide_finalise is called from cism_driver)
+  !Note: Currently, glide_finalise_all is never called.
+  !      glide_finalise is called from cism_driver and glissade)
 
   subroutine glide_finalise_all(forcewrite_arg)
 
     !> Finalises all models in the model registry
-    logical, optional :: forcewrite_arg
-    
-    logical :: forcewrite
+    logical, optional, intent(in) :: forcewrite_arg
+
+    logical :: forcewrite = .false.         !> if true, then force a write to output files
     integer :: i
 
     if (present(forcewrite_arg)) then
         forcewrite = forcewrite_arg
-    else
-        forcewrite = .false.
     end if
 
     do i = 1, get_num_models()
         if (associated(registered_models(i)%p)) then
-            call glide_finalise(registered_models(i)%p, forcewrite_arg=forcewrite)
+           call glide_finalise(registered_models(i)%p, forcewrite_arg=forcewrite)
         end if
-    end do 
-  end subroutine
+    end do
+
+  end subroutine glide_finalise_all
 
 
   subroutine glide_finalise(model,forcewrite_arg)
@@ -85,9 +85,7 @@ contains
 
     ! force write to output files if specified by the optional input argument
     if (present(forcewrite_arg)) then
-       if (forcewrite_arg) then
-          forcewrite = .true.
-       end if
+       forcewrite = forcewrite_arg
     end if
 
     ! force write to output files if set by a model option
