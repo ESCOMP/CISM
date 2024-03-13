@@ -3497,12 +3497,12 @@ contains
           endif
 
        case(ARTM_INPUT_FUNCTION_XY_LAPSE)
-          call glide_add_to_restart_variable_list('artm_ref')
+          call glide_add_to_restart_variable_list('artm_ref', model_id)
           ! Note: Instead of artm_gradz, there is a uniform lapse rate
           if (options%smb_input_function == SMB_INPUT_FUNCTION_XY_GRADZ) then
              ! usrf_ref was added to restart above; nothing to do here
           else
-             call glide_add_to_restart_variable_list('usrf_ref')
+             call glide_add_to_restart_variable_list('usrf_ref', model_id)
           endif
 
     end select  ! artm_input_function
@@ -3810,7 +3810,6 @@ contains
     ! Needs to be saved in case this fraction is relaxed over time toward (1 - Hf/H)^p
     if (model%basal_physics%p_ocean_penetration > 0.0d0) then
        call glide_add_to_restart_variable_list('f_effecpress_ocean_p', model_id)
->>>>>>> lipscomb/basal_physics4
     endif
 
     ! fields needed for inversion options that try to match local thickness or upper surface elevation
@@ -3818,29 +3817,29 @@ contains
     if (options%which_ho_powerlaw_c == HO_POWERLAW_C_INVERSION .or. &
         options%which_ho_coulomb_c  == HO_COULOMB_C_INVERSION  .or. &
         options%which_ho_deltaT_ocn == HO_DELTAT_OCN_INVERSION) then
-       call glide_add_to_restart_variable_list('usrf_obs')
+       call glide_add_to_restart_variable_list('usrf_obs', model_id)
        !WHL - velo_sfc_obs is not strictly needed unless inverting for surface velo,
        !      but is handy for diagnostics
-       call glide_add_to_restart_variable_list('velo_sfc_obs')
+       call glide_add_to_restart_variable_list('velo_sfc_obs', model_id)
     endif
 
     ! fields needed for inversion options that try to match local dthck_dt
     ! Note: This is not strictly needed for all options, but still is a useful diagnostic.
     if (options%which_ho_deltaT_ocn /= HO_DELTAT_OCN_NONE) then
-       call glide_add_to_restart_variable_list('dthck_dt_obs')
-       call glide_add_to_restart_variable_list('dthck_dt_obs_basin')
+       call glide_add_to_restart_variable_list('dthck_dt_obs', model_id)
+       call glide_add_to_restart_variable_list('dthck_dt_obs_basin', model_id)
     endif
 
     ! effective pressure options
     ! f_effecpress_bwat represents the reduction of overburden pressure from bwatflx
     if (options%which_ho_effecpress == HO_EFFECPRESS_BWATFLX) then
-       call glide_add_to_restart_variable_list('f_effecpress_bwat')
+       call glide_add_to_restart_variable_list('f_effecpress_bwat', model_id)
     endif
 
     ! f_effecpress_ocean_p represents the reduction of overburden pressure when ocean_p > 0
     ! Needs to be saved in case this fraction is relaxed over time toward (1 - Hf/H)^p
     if (model%basal_physics%p_ocean_penetration > 0.0d0) then
-       call glide_add_to_restart_variable_list('f_effecpress_ocean_p')
+       call glide_add_to_restart_variable_list('f_effecpress_ocean_p', model_id)
     endif
 
     ! geothermal heat flux option
@@ -3881,31 +3880,31 @@ contains
     if (model%options%enable_glaciers) then
        ! some fields related to glacier indexing
        !TODO - Do we need all the SMB masks?
-       call glide_add_to_restart_variable_list('rgi_glacier_id')
-       call glide_add_to_restart_variable_list('cism_glacier_id')
-       call glide_add_to_restart_variable_list('cism_glacier_id_init')
-       call glide_add_to_restart_variable_list('cism_glacier_id_baseline')
-       call glide_add_to_restart_variable_list('smb_glacier_id')
-       call glide_add_to_restart_variable_list('smb_glacier_id_init')
-       call glide_add_to_restart_variable_list('smb_glacier_id_baseline')
-       call glide_add_to_restart_variable_list('cism_to_rgi_glacier_id')
+       call glide_add_to_restart_variable_list('rgi_glacier_id', model_id)
+       call glide_add_to_restart_variable_list('cism_glacier_id', model_id)
+       call glide_add_to_restart_variable_list('cism_glacier_id_init', model_id)
+       call glide_add_to_restart_variable_list('cism_glacier_id_baseline', model_id)
+       call glide_add_to_restart_variable_list('smb_glacier_id', model_id)
+       call glide_add_to_restart_variable_list('smb_glacier_id_init', model_id)
+       call glide_add_to_restart_variable_list('smb_glacier_id_baseline', model_id)
+       call glide_add_to_restart_variable_list('cism_to_rgi_glacier_id', model_id)
        ! SMB is computed at the end of each year to apply during the next year
-       call glide_add_to_restart_variable_list('smb')
-       call glide_add_to_restart_variable_list('smb_rgi')
-       call glide_add_to_restart_variable_list('smb_recent')
+       call glide_add_to_restart_variable_list('smb', model_id)
+       call glide_add_to_restart_variable_list('smb_rgi', model_id)
+       call glide_add_to_restart_variable_list('smb_recent', model_id)
        ! mu_star, alpha_snow, and beta_artm are inversion parameters
-       call glide_add_to_restart_variable_list('glacier_mu_star')
-       call glide_add_to_restart_variable_list('glacier_alpha_snow')
-       call glide_add_to_restart_variable_list('glacier_beta_artm')
+       call glide_add_to_restart_variable_list('glacier_mu_star', model_id)
+       call glide_add_to_restart_variable_list('glacier_alpha_snow', model_id)
+       call glide_add_to_restart_variable_list('glacier_beta_artm', model_id)
        ! smb_obs and usrf_obs are used to invert for mu_star
-       call glide_add_to_restart_variable_list('glacier_smb_obs')
-       call glide_add_to_restart_variable_list('usrf_obs')
+       call glide_add_to_restart_variable_list('glacier_smb_obs', model_id)
+       call glide_add_to_restart_variable_list('usrf_obs', model_id)
        ! powerlaw_c is used for power law sliding
-       call glide_add_to_restart_variable_list('powerlaw_c')
+       call glide_add_to_restart_variable_list('powerlaw_c', model_id)
        !TODO: Are area_init and volume_init needed in the restart file?
        !      These could be computed based on cism_glacier_id_init and usrf_obs.
-       call glide_add_to_restart_variable_list('glacier_volume_init')
-       call glide_add_to_restart_variable_list('glacier_area_init')
+       call glide_add_to_restart_variable_list('glacier_volume_init', model_id)
+       call glide_add_to_restart_variable_list('glacier_area_init', model_id)
     endif
 
     ! basal processes module - requires tauf for a restart
