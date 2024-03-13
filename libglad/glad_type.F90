@@ -43,6 +43,11 @@ module glad_type
   
   implicit none
 
+  ! General constants
+
+  integer, parameter :: len_history_vars = 4096
+  integer, parameter :: len_history_option = 256
+
   ! Constants that describe the options available
 
   ! basic Glad options
@@ -67,6 +72,7 @@ module glad_type
      type(glad_input_averages_type)   :: glad_inputs        !> Time-averaged inputs from the climate model
      type(glide_global_type)          :: model              !> The instance and all its arrays.
      character(fname_length)          :: paramfile          !> The name of the configuration file.
+     character(fname_length)          :: gcm_restart_file   !> Name of restart file
      integer                          :: ice_tstep          !> Ice timestep in hours
      integer                          :: mbal_tstep         !> Mass-balance timestep in hours
      integer                          :: mbal_accum_time    !> Accumulation time for mass-balance (hours)
@@ -75,6 +81,13 @@ module glad_type
      integer                          :: n_icetstep         !> Number of ice time-steps per mass-balance accumulation
      real(dp)                         :: glide_time         !> Time as seen by glide (years)
      integer                          :: next_time          !> The next time we expect to be called (hours)
+
+     ! History outputs, for history managed by the host ESM. GLAD (and the rest of CISM)
+     ! doesn't use these variables itself, but we store them in the glad_instance for
+     ! convenience, since they potentially differ for each ice sheet instance.
+     character(len=len_history_vars)   :: esm_history_vars = '' !> Space-delimited list of variables output to history file
+     character(len=len_history_option) :: history_option = ''   !> How history frequency is specified (interpreted by ESM)
+     integer                           :: history_frequency = 1 !> History frequency (interpreted by ESM)
 
      ! Climate inputs, on the local grid -------------------------
 
@@ -89,6 +102,7 @@ module glad_type
      ! Climate options -------------------------------------------
 
      integer :: evolve_ice = 1
+     logical :: zero_gcm_fluxes = .false.
 
      !> Whether the ice sheet can evolve:
      !> \begin{description}
@@ -196,6 +210,7 @@ contains
     call GetSection(config,section,'GLAD climate')
     if (associated(section)) then
        call GetValue(section,'evolve_ice',instance%evolve_ice)
+       call GetValue(section,'zero_gcm_fluxes',instance%zero_gcm_fluxes)
        call GetValue(section,'mbal_accum_time',mbal_time_temp)
        call GetValue(section,'ice_tstep_multiply',instance%ice_tstep_multiply)
     end if
@@ -204,6 +219,18 @@ contains
        instance%mbal_accum_time = mbal_time_temp * years2hours
     else
        instance%mbal_accum_time = -1
+    end if
+
+    call GetSection(config,section,'esm_output')
+    if (associated(section)) then
+       call GetValue(section,'esm_history_vars',instance%esm_history_vars)
+       call GetValue(section,'history_option',instance%history_option)
+       call GetValue(section,'history_frequency',instance%history_frequency)
+       if ((len_trim(instance%esm_history_vars)+3) >= len(instance%esm_history_vars)) then
+          ! Assume that if we get within 3 spaces of the variable length (excluding
+          ! spaces) then we may be truncating the intended value
+          call write_log('The value of esm_history_vars is too long for the variable', GM_FATAL)
+       end if
     end if
 
     call glad_nc_readparams(instance,config)
@@ -285,6 +312,11 @@ contains
     if (instance%evolve_ice == EVOLVE_ICE_FALSE) then
        call write_log('The ice sheet state will not evolve after initialization')
     endif
+    if (instance%zero_gcm_fluxes) then
+       call write_log('Fluxes to the GCM will be set to zero')
+    else
+       call write_log('Fluxes to the GCM will NOT be set to zero')
+    end if
 
     if (instance%mbal_accum_time == -1) then
        call write_log('Mass-balance accumulation time will be set to max(ice timestep, mbal timestep)')

@@ -1,12 +1,15 @@
 Instructions for setting up and running the MISMIP experiments with CISM.
 
+Note: For setting up the experiments in an NCAR computing environment,
+follow the steps in the README.NCAR_HPC file in the tests directory.
+
 Note: These instructions assume that you have access to the NCAR HPC Cheyenne,
 with an LIWG HPC account. If you do not have an account and would like one,
 please contact Gunter Leguy (gunterl@ucar.edu).
 
 See this paper for details on MISMIP:
-Pattyn,F., et al., Results of the Marine Ice Sheet Model Intercomparison Project, MISMIP, 
-The Cryosphere, 6, 573-588, doi:10.5194/tc-6-573-2012, 2012. 
+"Pattyn,F., et al., Results of the Marine Ice Sheet Model Intercomparison Project, MISMIP, 
+The Cryosphere, 6, 573-588, doi:10.5194/tc-6-573-2012, 2012."
 
 The MISMIP experiments consist of a set of advance and retreat experiments of the 
 grounding line. This is achieved by modifying the flow rate factor A. 

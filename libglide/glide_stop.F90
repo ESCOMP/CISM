@@ -30,8 +30,7 @@
 
 module glide_stop
 
-  use glide_types
-  use glimmer_log
+  use glide_model_registry, only : get_num_models, registered_models, deregister_model
 
   implicit none
 
@@ -42,52 +41,9 @@ module glide_stop
   !> registered and finalized with a single call without needing
   !> the model at call time
 
-  integer, parameter :: max_models = 32
-
-  type pmodel_type
-    !> Contains a pointer to a model
-    !> This is a hack to get around Fortran's lack of arrays of pointers
-    type(glide_global_type), pointer :: p => null()
-  end type pmodel_type
-
-  !> Pointers to all registered models
-  !> This has a fixed size at compile time
-  type(pmodel_type), dimension(max_models), save :: registered_models
-
 contains
 
-!EIB! register and finalise_all not present in gc2, are present in lanl, therefore added here
-
-  subroutine register_model(model)
-    !> Registers a model, ensuring that it is finalised in the case of an error
-    type(glide_global_type), target :: model
-    integer :: i
-
-    do i = 1, max_models
-      if (.not. associated(registered_models(i)%p)) then
-         registered_models(i)%p => model
-         model%model_id = i
-         return
-      end if
-    end do
-    call write_log("Model was not registered, did you instantiate too many instances?", GM_FATAL)
-  end subroutine
-
-  subroutine deregister_model(model)
-    !> Removes a model from the registry.  Normally this should only be done
-    !> glide_finalise is called on the model, and is done automatically by
-    !> that function
-    type(glide_global_type) :: model
-
-    if (model%model_id < 1 .or. model%model_id > max_models) then
-        call write_log("Attempting to deregister a non-allocated model", GM_WARNING) 
-    else
-        registered_models(model%model_id)%p => null()
-        model%model_id = 0
-    end if
-  end subroutine
-
-  !Note: Currently, glide_finalise_all is never called. (glide_finalise is called from cism_driver) 
+  !Note: Currently, glide_finalise_all is never called. (glide_finalise is called from cism_driver)
 
   subroutine glide_finalise_all(forcewrite_arg)
 
@@ -103,8 +59,7 @@ contains
         forcewrite = .false.
     end if
 
-
-    do i = 1,max_models
+    do i = 1, get_num_models()
         if (associated(registered_models(i)%p)) then
             call glide_finalise(registered_models(i)%p, forcewrite_arg=forcewrite)
         end if

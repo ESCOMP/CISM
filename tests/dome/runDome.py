@@ -1,4 +1,4 @@
-#!/usr/bin/env python2
+#!/usr/bin/env python
 
 #FIXME: More detailed description of this test case!!!
 """
@@ -15,7 +15,7 @@ import os
 import sys
 import errno
 import subprocess
-import ConfigParser 
+import configparser 
 
 import numpy
 import netCDF
@@ -125,7 +125,7 @@ def main():
     scale_factor = 2 ** args.scale
     
     try:
-        config_parser = ConfigParser.SafeConfigParser()
+        config_parser = configparser.ConfigParser()
         config_parser.read( args.config )
         
         nz = int(config_parser.get('grid','upn'))
@@ -141,10 +141,10 @@ def main():
         try:
             forcing_name = config_parser.get('CF forcing','name')
             forcing_root, forcing_ext = os.path.splitext(forcing_name)
-        except ConfigParser.NoSectionError as noForce:
+        except configparser.NoSectionError as noForce:
             forcing_name = ''
 
-    except ConfigParser.Error as error:
+    except configparser.Error as error:
         print("Error parsing " + args.config )
         print("   "), 
         print(error)
@@ -179,7 +179,7 @@ def main():
         forcing_name = forcing_root+mod+forcing_ext
         config_parser.set('CF forcing', 'name', forcing_name)
 
-    with open(config_name, 'wb') as config_file:
+    with open(config_name, 'w') as config_file:
         config_parser.write(config_file)
 
 
@@ -220,9 +220,9 @@ def main():
 
     # Calculate the thickness of the (ellipsoidal) dome of ice
     for i in range(nx):
-      x = float(i-nx/2)/nx
+      x = float(i-nx//2)/nx
       for j in range(ny):
-        y = float(j-ny/2)/ny
+        y = float(j-ny//2)/ny
         r_squared = x*x+y*y
         if r_squared < 0.125:
           thk[0,j,i] = 2000.0 * sqrt(0.125 - r_squared)
@@ -247,7 +247,6 @@ def main():
     subprocess.check_call("cp *rilinosOptions.xml "+args.output_dir, shell=True)
     subprocess.check_call("mv "+file_name+" "+args.output_dir, shell=True)
     subprocess.check_call("mv "+config_name+" "+args.output_dir, shell=True)
-
     
 
     # create the forcing netCDF file
@@ -314,7 +313,7 @@ def main():
     command_list =  prep_commands(args, config_name) 
     commands_all = ["# DOME"+mod+" test"]
     commands_all.extend(command_list)
-   
+
     result_mv = "mv results "+root+mod+".results 2>/dev/null"
     timing_mv = "for file in cism_timing*; do mv $file "+root+mod+".$file 2>/dev/null; done"
     commands_all.append(result_mv)
@@ -325,13 +324,18 @@ def main():
         if not args.quiet: 
             print("\nRunning CISM dome test")
             print(  "======================\n")
+        #process = subprocess.check_call('source /etc/profile.d/modules.sh', shell=True, stderr=subprocess.STDOUT)
+        #process = subprocess.check_call('module list', shell=True, stderr=subprocess.STDOUT)
 
-        process = subprocess.check_call(str.join("; ",command_list), shell=True)
-   
+
+        process = subprocess.check_call(str.join("; ",command_list), shell=True, stderr=subprocess.STDOUT)
+  
+ 
         try:
             subprocess.check_call("cd "+args.output_dir+"; "+result_mv, shell=True)
         except subprocess.CalledProcessError:
             pass 
+
 
         try:
             subprocess.check_call("cd "+args.output_dir+"; "+timing_mv, shell=True)

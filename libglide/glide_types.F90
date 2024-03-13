@@ -774,6 +774,9 @@ module glide_types
     !>          (required if restart velocities are nonzero on global boundaries)
     !> \end{description}
 
+    logical :: forcewrite_restart = .false.
+    !> flag that indicates whether to force writing of output on restart
+
     ! This is a Glimmer serial option
     ! The parallel code enforces periodic EW and NS boundary conditions by default
     logical :: periodic_ew = .false.
@@ -2571,7 +2574,7 @@ module glide_types
 
        
   type glide_global_type    ! type containing all of the above for an ice sheet model instance
-    integer              :: model_id !> Used in the global model list for error handling purposes
+    integer              :: model_id = 0 !> identifier of this model instance (1..N, where N is the number of ice sheets in this run)
     type(glide_general)  :: general
     type(glide_options)  :: options
     type(glide_geometry) :: geometry

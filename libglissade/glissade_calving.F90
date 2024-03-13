@@ -48,6 +48,7 @@ module glissade_calving
   public :: verbose_calving
 
   logical, parameter :: verbose_calving = .false.
+!!  logical, parameter :: verbose_calving = .true.
 
 contains
 

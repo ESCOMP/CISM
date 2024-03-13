@@ -1,4 +1,4 @@
-#!/usr/bin/env python2
+#!/usr/bin/env python
 # -*- coding: utf-8 -*-
 
 """
@@ -8,8 +8,9 @@ A run is deemed to be stable if the standard deviation of a small thickness pert
 decreases during a transient run (100 timesteps by default).
  
 Used to obtain the CISM stability results described in:
-Robinson, A., D. Goldberg, and W. H. Lipscomb, A comparison of the performance
-of depth-integrated ice-dynamics solvers, to be submitted.
+    Robinson, A., D. Goldberg, and W. H. Lipscomb, 2022, A comparison of the
+    stability and performance of depth-integrated ice-dynamics solvers.
+    The Cryosphere, 16, 689-709, doi:10.5194/tc-16-689-2022.
 """
 
 # Authors
@@ -20,8 +21,6 @@ import os
 import sys
 import errno
 import subprocess
-import ConfigParser
-
 import numpy as np
 import netCDF
 from math import sqrt, log10
@@ -296,7 +295,7 @@ def main():
                 filein = netCDF.NetCDFFile(outpath,'r')
                 thk = filein.variables['thk'][:]
 
-                j = ny/2
+                j = ny//2
                 thk_in = thk[0,j,:]
                 thk_out = thk[1,j,:]
 

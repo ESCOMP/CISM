@@ -764,6 +764,7 @@
     integer ::   &
        whichbabc, &             ! option for basal boundary condition
        whichbeta_limit, &       ! option to limit beta for grounded ice
+       which_powerlaw_c, &      ! option for powerlaw friction parameter Cp
        which_coulomb_c, &       ! option for coulomb friction parameter Cc
        whichefvs, &             ! option for effective viscosity calculation 
                                 ! (calculate it or make it uniform)
@@ -6498,7 +6499,6 @@
 
     logical, parameter :: &
          include_membrane_stress_in_tau = .true.  ! if true, include membrane stresses in tau_xz and tau_yz;
-
                                                   ! if false, include the SIA stress only
     integer :: &
          staggered_ilo, staggered_ihi, &  ! bounds of locally owned vertices on staggered grid

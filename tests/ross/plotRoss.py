@@ -1,4 +1,4 @@
-#!/usr/bin/env python2
+#!/usr/bin/env python
 
 """
 This script plots the results of the Ross Ice Shelf Experiments.
@@ -144,7 +144,7 @@ def main():
 
     # Read the RIGGS data
     riggs_file = open(os.path.join('data','riggs_clean.dat'))
-    latitude,longitude,riggs_velocity,glimmer_velocity = list(),list(),list(),list()
+    latitude,longitude,riggs_velocity,cism_velocity = list(),list(),list(),list()
     lat0,lon0,vel0 = list(),list(),list()
     for line in riggs_file:
         tokens = [float(data) for data in line.split()]
@@ -152,7 +152,7 @@ def main():
         lat = -(tokens[3] + tokens[4]/60 + tokens[5]/60**2)
         lon = -(tokens[6] + tokens[7]/60 + tokens[8]/60**2)*tokens[9]
         if y[1] < lat < y[-2] and x[1] < lon < x[-2]:
-            # Interpolate the Glimmer data onto this point
+            # Interpolate the CISM data onto this point
             for i in range(nx):
                 if lon < x[i+1]: break
             for j in range(ny):
@@ -168,40 +168,40 @@ def main():
                 latitude.append(lat)
                 longitude.append(lon)
                 riggs_velocity.append(tokens[10])
-                glimmer_velocity.append(v)
+                cism_velocity.append(v)
             else:
-                print 'Glimmer velocity is zero at (%g, %g); RIGGS velocity is %g' % (lon,lat,tokens[10])
+                print( 'CISM velocity is zero at (%g, %g); RIGGS velocity is %g' % (lon,lat,tokens[10]))
                 lat0.append(lat)
                 lon0.append(lon)
                 vel0.append(tokens[10])
         else:
-            print 'RIGGS data is off the grid at (%g, %g); RIGGS velocity is %g' % (lon,lat,tokens[10])
-    print 'These points are not included in Chi-squared.'
+            print( 'RIGGS data is off the grid at (%g, %g); RIGGS velocity is %g' % (lon,lat,tokens[10]))
+    print( 'These points are not included in Chi-squared.')
     riggs_file.close()
 
     # Present the output
     # ------------------
     sigma = 30
-    X2 = sum([((v1-v2)/sigma)**2 for v1,v2 in zip(riggs_velocity,glimmer_velocity)])
-    print
-    print 'Chi-squared for',len(riggs_velocity),'points is', X2
-    print 'The maximum velocity from Glimmer/CISM is', numpy.max(velnorm)
-    print 'The maximum velocity from the RIGGS data is', max(riggs_velocity)
+    X2 = sum([((v1-v2)/sigma)**2 for v1,v2 in zip(riggs_velocity,cism_velocity)])
+    print('\n')
+    print( 'Chi-squared for',len(riggs_velocity),'points is', X2)
+    print( 'The maximum velocity from CISM is', numpy.max(velnorm))
+    print( 'The maximum velocity from the RIGGS data is', max(riggs_velocity))
 
     # Create a scatter plot
     pyplot.figure(1)
     pyplot.clf()
     pyplot.plot([0,1800],[0,1800],color='red',linewidth=2,alpha=0.5)
-    pyplot.scatter(glimmer_velocity,riggs_velocity,color='blue')
+    pyplot.scatter(cism_velocity,riggs_velocity,color='blue')
     pyplot.axis('equal')
     pyplot.axis([0,1800,0,1800])
     pyplot.xticks(numpy.linspace(0.0, 1800.0, num=10, endpoint=True))
     pyplot.yticks(numpy.linspace(0.0, 1800.0, num=10, endpoint=True))
     pyplot.ylabel('Measured velocity from RIGGS (meters/year)')
-    pyplot.xlabel('Model velocity from Glimmer/CISM (meters/year)')
+    pyplot.xlabel('Model velocity from CISM (meters/year)')
     pyplot.title('Ross Ice Shelf Experiment')
 
-    # Create a color plot of Glimmer and RIGGS velocities
+    # Create a color plot of CISM and RIGGS velocities
     pyplot.figure(2)
     pyplot.clf()
     plot_discarded_points = False
@@ -232,17 +232,17 @@ def main():
     pyplot.axes().set_aspect('equal')
     pyplot.colorbar(orientation='vertical',fraction=0.05,pad=0.01,shrink=0.93,ticks=ticks)
     pyplot.title('Ross Ice Shelf Experiment - Velocity (meters/year)')
-    print
-    print 'FIGURE 2:'
-    print 'If Glimmer/CISM perfectly predicted the velocities measured by the Ross'
-    print 'Ice Shelf Geophysical and Glaciological Survey (RIGGS), the colors in'
-    print 'the circles (which represent the RIGGS velocities) would be the same as'
-    print 'the color of the background (which represents the velocities calculated'
-    print 'by Glimmer/CISM).'
-    print
+    print('\n')
+    print( 'FIGURE 2:')
+    print( 'If CISM perfectly predicted the velocities measured by the Ross')
+    print( 'Ice Shelf Geophysical and Glaciological Survey (RIGGS), the colors in')
+    print( 'the circles (which represent the RIGGS velocities) would be the same as')
+    print( 'the color of the background (which represents the velocities calculated')
+    print( 'by CISM).')
+    print('\n')
 
 
-    # Create a contour plot of Glimmer to compare to paper Figure 3.
+    # Create a contour plot of CISM to compare to paper Figure 3.
     pyplot.figure(3, facecolor='w', figsize=(12, 4), dpi=72)
     pyplot.clf()
     pyplot.subplot(1,2,1)
@@ -255,12 +255,11 @@ def main():
     pyplot.xlim((110,147))
     pyplot.ylim((1,58))
 
-    print
-    print 'FIGURE 3:'
-    print 'Compare this plot to Figure 3 in the EISMINT paper: '
-    print 'MacAyeal, et al.: An ice-shelf model test based on the Ross Ice Shelf, Antarctica, Ann. Glaciol., 23, 46-51, 1996'
-    print 'Try URL: http://www.igsoc.org/annals.old/23/igs_annals_vol23_year1996_pg46-51.pdf'
-    print
+    print( 'FIGURE 3:')
+    print( 'Compare this plot to Figure 3 in the EISMINT paper: ')
+    print( 'MacAyeal, et al.: An ice-shelf model test based on the Ross Ice Shelf, Antarctica, Ann. Glaciol., 23, 46-51, 1996')
+    print( 'Try URL: http://www.igsoc.org/annals.old/23/igs_annals_vol23_year1996_pg46-51.pdf')
+    print('\n')
 
     pyplot.show()
 

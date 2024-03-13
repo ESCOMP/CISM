@@ -1,4 +1,4 @@
-#!/usr/bin/env python2
+#!/usr/bin/env python
 # A script to compare CISM model output to the Halfar analytic solution of SIA evolution of a dome.
 
 # Matt Hoffman, LANL, October 2013
@@ -17,7 +17,7 @@ import matplotlib.pyplot as plt
 
 from math import tan, pi, sin, cos
 from netCDF import *
-from ConfigParser import ConfigParser
+import configparser 
 
 from runHalfar import halfarDome   # located in current directory
 
@@ -97,7 +97,10 @@ def main():
     filein = get_in_file()    
 
     # Open config file for reading
-    config_parser = ConfigParser()
+    config_parser = configparser.ConfigParser(delimiters=('=', ':'),
+                            comment_prefixes=('#', ';'),
+                            inline_comment_prefixes=';',
+                            interpolation=None)
     config_file = os.path.join(args.output_dir, args.output_file.replace('out.nc','config'))
     config_parser.read(config_file)
 
@@ -105,7 +108,7 @@ def main():
     # This is the only way this test case supports specifying flwa.
     try: 
         flwa = float(config_parser.get('parameters','default_flwa'))
-        print 'Parameter used: ' + config_file + ' has specified a flwa value of ' + str(flwa)
+        print('Parameter used: ' + config_file + ' has specified a flwa value of ' + str(flwa))
         flow_law = int(config_parser.get('options','flow_law'))
         if flow_law != 0:
             sys.exit('Error: The option "flow_law" must be set to 0 for the test case to work properly.')
@@ -116,9 +119,9 @@ def main():
     # Try to get ice density used by the model
     try:
         rhoi = float( subprocess.check_output( 'grep "real(dp),parameter :: rhoi =" ../../libglimmer/glimmer_physcon.F90 | cut -d " " -f 7 | cut -d "." -f 1', shell='/bin/bash' ) )
-        print 'Parameter used: ../../libglimmer/glimmer_physcon.F90 has specified a rhoi value of ' + str(rhoi)
+        print('Parameter used: ../../libglimmer/glimmer_physcon.F90 has specified a rhoi value of ' + str(rhoi))
     except:
-        print 'Warning: problem getting ice density value from ../../../libglimmer/glimmer_physcon.F90  Assuming 910.0 kg/m^3 as a default value.'
+        print('Warning: problem getting ice density value from ../../../libglimmer/glimmer_physcon.F90  Assuming 910.0 kg/m^3 as a default value.')
         rhoi = 910.0
 
 
@@ -141,15 +144,15 @@ def main():
     RMS = ( (thkDiffIce**2).sum() / float(len(thkDiffIce)) )**0.5
 
     # Print some stats about the error
-    print '\nError statistics for cells modeled to have ice (in m):'
-    print '* RMS error = ' + str( RMS )
-    print '* Maximum error is ' + str( thkDiffIce.max() )
-    print '* Minimum error is ' + str( thkDiffIce.min() )
-    print '* Mean error is ' + str( thkDiffIce.mean() )
-    print '* Median error is ' + str( np.median(thkDiffIce) )
-    print '* Mean absolute error = ' + str( np.absolute(thkDiffIce).mean() )
-    print '* Median absolute error = ' + str( np.median(np.absolute(thkDiffIce)) )
-    print ''
+    print('\nError statistics for cells modeled to have ice (in m):')
+    print('* RMS error = ' + str( RMS ))
+    print('* Maximum error is ' + str( thkDiffIce.max() ))
+    print('* Minimum error is ' + str( thkDiffIce.min() ))
+    print('* Mean error is ' + str( thkDiffIce.mean() ))
+    print('* Median error is ' + str( np.median(thkDiffIce) ))
+    print('* Mean absolute error = ' + str( np.absolute(thkDiffIce).mean() ))
+    print('* Median absolute error = ' + str( np.median(np.absolute(thkDiffIce)) ))
+    print('')
 
 
     # ================
