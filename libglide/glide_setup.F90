@@ -3496,12 +3496,12 @@ contains
           endif
 
        case(ARTM_INPUT_FUNCTION_XY_LAPSE)
-          call glide_add_to_restart_variable_list('artm_ref')
+          call glide_add_to_restart_variable_list('artm_ref', model_id)
           ! Note: Instead of artm_gradz, there is a uniform lapse rate
           if (options%smb_input_function == SMB_INPUT_FUNCTION_XY_GRADZ) then
              ! usrf_ref was added to restart above; nothing to do here
           else
-             call glide_add_to_restart_variable_list('usrf_ref')
+             call glide_add_to_restart_variable_list('usrf_ref', model_id)
           endif
 
     end select  ! artm_input_function
@@ -3849,31 +3849,31 @@ contains
     if (model%options%enable_glaciers) then
        ! some fields related to glacier indexing
        !TODO - Do we need all the SMB masks?
-       call glide_add_to_restart_variable_list('rgi_glacier_id')
-       call glide_add_to_restart_variable_list('cism_glacier_id')
-       call glide_add_to_restart_variable_list('cism_glacier_id_init')
-       call glide_add_to_restart_variable_list('cism_glacier_id_baseline')
-       call glide_add_to_restart_variable_list('smb_glacier_id')
-       call glide_add_to_restart_variable_list('smb_glacier_id_init')
-       call glide_add_to_restart_variable_list('smb_glacier_id_baseline')
-       call glide_add_to_restart_variable_list('cism_to_rgi_glacier_id')
+       call glide_add_to_restart_variable_list('rgi_glacier_id', model_id)
+       call glide_add_to_restart_variable_list('cism_glacier_id', model_id)
+       call glide_add_to_restart_variable_list('cism_glacier_id_init', model_id)
+       call glide_add_to_restart_variable_list('cism_glacier_id_baseline', model_id)
+       call glide_add_to_restart_variable_list('smb_glacier_id', model_id)
+       call glide_add_to_restart_variable_list('smb_glacier_id_init', model_id)
+       call glide_add_to_restart_variable_list('smb_glacier_id_baseline', model_id)
+       call glide_add_to_restart_variable_list('cism_to_rgi_glacier_id', model_id)
        ! SMB is computed at the end of each year to apply during the next year
-       call glide_add_to_restart_variable_list('smb')
-       call glide_add_to_restart_variable_list('smb_rgi')
-       call glide_add_to_restart_variable_list('smb_recent')
+       call glide_add_to_restart_variable_list('smb', model_id)
+       call glide_add_to_restart_variable_list('smb_rgi', model_id)
+       call glide_add_to_restart_variable_list('smb_recent', model_id)
        ! mu_star, alpha_snow, and beta_artm are inversion parameters
-       call glide_add_to_restart_variable_list('glacier_mu_star')
-       call glide_add_to_restart_variable_list('glacier_alpha_snow')
-       call glide_add_to_restart_variable_list('glacier_beta_artm')
+       call glide_add_to_restart_variable_list('glacier_mu_star', model_id)
+       call glide_add_to_restart_variable_list('glacier_alpha_snow', model_id)
+       call glide_add_to_restart_variable_list('glacier_beta_artm', model_id)
        ! smb_obs and usrf_obs are used to invert for mu_star
-       call glide_add_to_restart_variable_list('glacier_smb_obs')
-       call glide_add_to_restart_variable_list('usrf_obs')
+       call glide_add_to_restart_variable_list('glacier_smb_obs', model_id)
+       call glide_add_to_restart_variable_list('usrf_obs', model_id)
        ! powerlaw_c is used for power law sliding
-       call glide_add_to_restart_variable_list('powerlaw_c')
+       call glide_add_to_restart_variable_list('powerlaw_c', model_id)
        !TODO: Are area_init and volume_init needed in the restart file?
        !      These could be computed based on cism_glacier_id_init and usrf_obs.
-       call glide_add_to_restart_variable_list('glacier_volume_init')
-       call glide_add_to_restart_variable_list('glacier_area_init')
+       call glide_add_to_restart_variable_list('glacier_volume_init', model_id)
+       call glide_add_to_restart_variable_list('glacier_area_init', model_id)
     endif
 
     ! TODO bmlt was set as a restart variable, but I'm not sure when or if it is needed.
