@@ -85,8 +85,6 @@ contains
     type(ConfigSection), pointer :: ncconfig
     integer :: unit
 
-    integer :: k   !WHL - debug
-
     unit = 99
     if (present(fileunit)) then
        unit = fileunit
@@ -594,8 +592,8 @@ contains
           call calcbwat(model, &
                         model%options%whichbwat, &
                         model%basal_melt%bmlt, &
-                        model%temper%bwat, &
-                        model%temper%bwatflx, &
+                        model%basal_hydro%bwat, &
+                        model%basal_hydro%bwatflx, &
                         model%geometry%thck, &
                         model%geometry%topg, &
                         model%temper%temp(model%general%upn,:,:), &
@@ -604,8 +602,8 @@ contains
 
 
           ! This call is redundant for now, but is needed if the call to calcbwat is removed
-          call stagvarb(model%temper%bwat, &
-                        model%temper%stagbwat ,&
+          call stagvarb(model%basal_hydro%bwat, &
+                        model%basal_hydro%stagbwat ,&
                         model%general%ewn, &
                         model%general%nsn)
 
@@ -859,8 +857,8 @@ contains
        call calcbwat(model, &
                      model%options%whichbwat, &
                      model%basal_melt%bmlt, &
-                     model%temper%bwat, &
-                     model%temper%bwatflx, &
+                     model%basal_hydro%bwat, &
+                     model%basal_hydro%bwatflx, &
                      model%geometry%thck, &
                      model%geometry%topg, &
                      model%temper%temp(model%general%upn,:,:), &
@@ -910,9 +908,6 @@ contains
     use glide_ground, only: glide_calve_ice
 
     type(glide_global_type), intent(inout) :: model    ! model instance
-
-    !debug
-    integer :: j
 
     ! ------------------------------------------------------------------------ 
     ! Calculate flow evolution by various different methods

@@ -21,7 +21,6 @@ import os
 import sys
 import errno
 import subprocess
-
 import numpy as np
 import netCDF
 from math import sqrt, log10

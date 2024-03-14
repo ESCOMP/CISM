@@ -1092,7 +1092,8 @@
          maxvel = maxvvel
          indices_adv = maxloc(abs(vvel_layer(:,xs:xe,ys:ye)))
       endif
-      indices_adv(2:3) = indices_adv(2:3) + staggered_lhalo  ! want the i,j coordinates WITH the halo present - we got indices into the slice of owned cells
+      indices_adv(2:3) = indices_adv(2:3) + staggered_lhalo  ! want the i,j coordinates WITH the halo present -
+                                                             ! we got indices into the slice of owned cells
       ! Finally, determine maximum allowable time step based on advectice CFL condition.
       my_allowable_dt_adv = dew / (maxvel + 1.0d-20)
 
@@ -1670,9 +1671,10 @@
     use glide_types
 
     ! If overwrite_acab /=0 , then set overwrite_acab_mask = 1 for grid cells
-    !  where acab is to be overwritten.  Currently, two options are supported:
+    !  where acab is to be overwritten.  Currently, three options are supported:
     ! (1) Overwrite acab where the input acab = 0 at initialization
     ! (2) Overwrite acab where the input thck <= overwrite_acab_minthck at initialization
+    ! (3) Overwrite acab based on an input mask
     !
     ! Note: This subroutine should be called only on initialization, not on restart.
 
@@ -1691,6 +1693,7 @@
 
     integer :: ewn, nsn
     integer :: i, j
+    integer :: max_mask_local, max_mask_global
 
     ewn = size(overwrite_acab_mask,1)
     nsn = size(overwrite_acab_mask,2)
@@ -1723,6 +1726,25 @@
 
           enddo
        enddo
+
+    elseif (overwrite_acab == OVERWRITE_ACAB_INPUT_MASK) then
+
+       ! Make sure a mask was read in with some nonzero values
+       ! If not, then write a warning
+
+       max_mask_local = maxval(overwrite_acab_mask)
+       max_mask_global = parallel_reduce_max(max_mask_local)
+       if (main_task) then
+          print*, 'rank, max_mask_local, max_mask_global:', &
+               this_rank, max_mask_local, max_mask_global
+       endif
+       if (max_mask_global == 1) then
+          ! continue
+       elseif (max_mask_global == 0) then
+          call write_log('Using overwrite_acab_mask without any values > 0', GM_WARNING)
+       else
+          call write_log('Using overwrite_acab_mask with values other than 0 and 1', GM_FATAL)
+       endif
 
     endif  ! overwrite_acab
 

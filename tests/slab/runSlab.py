@@ -330,6 +330,7 @@ def main():
         approx = 4
     elif (args.approx == 'HYBRID'):
         approx = 5
+
     config_parser.set('ho_options', 'which_ho_approx', str(approx))
 
     config_parser.set('CF input', 'name', file_name)
