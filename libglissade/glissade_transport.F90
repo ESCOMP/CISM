@@ -979,6 +979,7 @@
                                   parallel,                         &
                                   stagthk, dusrfdew, dusrfdns,      &
                                   uvel,    vvel,     deltat,        &
+                                  adaptive_cfl_threshold,           &
                                   allowable_dt_adv,  allowable_dt_diff)
 
       ! Calculate maximum allowable time step based on both 
@@ -1014,6 +1015,10 @@
 
       real(dp), intent(in) :: &
          deltat      ! model deltat (yrs)
+
+      real(dp), intent(in) :: &
+         adaptive_cfl_threshold  ! threshold for adaptive subcycling
+                                 ! if = 0, there is no adaptive subcycling; code aborts when CFL > 1
 
       real(dp), intent(out) :: &
          allowable_dt_adv     ! maximum allowable dt (yrs) based on advective CFL 
@@ -1159,13 +1164,16 @@
           write(message,*) 'Advective CFL violation!  Maximum allowable time step for advective CFL condition is ' &
                // trim(adjustl(dt_string)) // ' yr, limited by global position i=' &
                // trim(adjustl(xpos_string)) // ' j=' //trim(adjustl(ypos_string))
+          call write_log(trim(message),GM_WARNING)
 
-          ! If the violation is egregious (defined as deltat > 10 * allowable_dt_adv), then abort.
-          ! Otherwise, write a warning and proceed.
-          if (deltat > 10.d0 * allowable_dt_adv) then
-             call write_log(trim(message),GM_FATAL)
-          else
-             call write_log(trim(message),GM_WARNING)
+          ! If adaptive subcyling is allowed, then make the code abort for egregious CFL violations,
+          ! (defined as deltat > 10 * allowable_dt_adv), to prevent excessive subcycling.
+
+          if (main_task .and. adaptive_cfl_threshold > 0.0d0) then
+             if (deltat > 10.d0 * allowable_dt_adv) then
+                print*, 'deltat, allowable_dt_adv, ratio =', deltat, allowable_dt_adv, deltat/allowable_dt_adv
+                call write_log('Aborting with CFL violation', GM_FATAL)
+             endif
           endif
 
       endif

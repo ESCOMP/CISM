@@ -440,9 +440,12 @@ contains
        !       If this factor is not present in the input file, it is set to 1 everywhere.
 
        ! Compute beta
-       ! gn = Glen's n from physcon module
-       beta(:,:) = coulomb_c * basal_physics%effecpress_stag(:,:) * speed(:,:)**(1.0d0/gn - 1.0d0) * &
-            (speed(:,:) + basal_physics%effecpress_stag(:,:)**gn * big_lambda)**(-1.0d0/gn)
+       ! Note: Where this equation has powerlaw_m, we used to have Glen's flow exponent n,
+       !       following the notation of Leguy et al. (2014).
+       !       Changed to powerlaw_m to be consistent with the Schoof and Tsai laws.
+       m = basal_physics%powerlaw_m
+       beta(:,:) = coulomb_c * basal_physics%effecpress_stag(:,:) * speed(:,:)**(1.0d0/m - 1.0d0) * &
+            (speed(:,:) + basal_physics%effecpress_stag(:,:)**m * big_lambda)**(-1.0d0/m)
 
        ! If c_space_factor /= 1.0 everywhere, then multiply beta by c_space_factor
        if (maxval(abs(basal_physics%c_space_factor_stag(:,:) - 1.0d0)) > tiny(0.0d0)) then

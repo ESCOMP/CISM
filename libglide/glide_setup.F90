@@ -160,7 +160,7 @@ contains
   subroutine glide_scale_params(model)
     !> scale parameters
     use glide_types
-    use glimmer_physcon,  only: scyr, gn
+    use glimmer_physcon,  only: scyr
     use glimmer_paramets, only: thk0, tim0, len0, vel0, vis0, acc0, tau0
 
     implicit none
@@ -883,11 +883,10 @@ contains
          'advective-diffusive balance ',&
          'temp from external file     ' /)
 
-    character(len=*), dimension(0:3), parameter :: flow_law = (/ &
-         'const 1e-16 Pa^-n a^-1      ', &
+    character(len=*), dimension(0:2), parameter :: flow_law = (/ &
+         'uniform factor flwa         ', &
          'Paterson and Budd (T = -5 C)', &
-         'Paterson and Budd           ', &
-         'read flwa/flwastag from file' /)
+         'Paterson and Budd           ' /)
 
     !TODO - Rename slip_coeff to which_btrc?
     character(len=*), dimension(0:5), parameter :: slip_coeff = (/ &
@@ -1094,13 +1093,14 @@ contains
          'Native PCG solver, Chronopoulos-Gear       ', &
          'Trilinos interface                         '/)
 
-    character(len=*), dimension(-1:4), parameter :: ho_whichapprox = (/ &
+    character(len=*), dimension(-1:5), parameter :: ho_whichapprox = (/ &
          'SIA only (glissade_velo_sia)                     ', &
          'SIA only (glissade_velo_higher)                  ', &
          'SSA only (glissade_velo_higher)                  ', &
          'Blatter-Pattyn HO (glissade_velo_higher)         ', &
          'Depth-integrated L1L2 (glissade_velo_higher)     ', &
-         'Depth-integrated viscosity (glissade_velo_higher)' /)
+         'Depth-integrated viscosity (glissade_velo_higher)', &
+         'Hybrid SIA/SSA                                   ' /)
 
     character(len=*), dimension(0:4), parameter :: ho_whichprecond = (/ &
          'No preconditioner (native PCG)                ', &
@@ -1243,7 +1243,8 @@ contains
 
        if ( (model%options%which_ho_approx == HO_APPROX_SSA  .or.  &
              model%options%which_ho_approx == HO_APPROX_L1L2 .or.  &
-             model%options%which_ho_approx == HO_APPROX_DIVA)   &
+             model%options%which_ho_approx == HO_APPROX_DIVA .or.  &
+             model%options%which_ho_approx == HO_APPROX_HYBRID)    &
                                 .and.                            &
              (model%options%which_ho_sparse == HO_SPARSE_PCG_STANDARD .or.    &
               model%options%which_ho_sparse == HO_SPARSE_PCG_CHRONGEAR) ) then
@@ -1996,7 +1997,7 @@ contains
     use glimmer_config
     use glide_types
     use glimmer_log
-    use glimmer_physcon, only: rhoi, rhoo, grav, shci, lhci, trpt
+    use glimmer_physcon, only: rhoi, rhoo, grav, shci, lhci, trpt, n_glen
 
     implicit none
     type(ConfigSection), pointer :: section
@@ -2021,6 +2022,7 @@ contains
     call GetValue(section,'lhci', lhci)
     call GetValue(section,'trpt', trpt)
 #endif
+    call GetValue(section,'n_glen', n_glen)
 
     loglevel = GM_levels-GM_ERROR
     call GetValue(section,'log_level',loglevel)
@@ -2033,9 +2035,9 @@ contains
     call GetValue(section,'pmp_offset',         model%temper%pmp_offset)
     call GetValue(section,'pmp_threshold',      model%temper%pmp_threshold)
     call GetValue(section,'geothermal',         model%paramets%geot)
-    !TODO - Change default_flwa to flwa_constant?  Would have to change config files.
     call GetValue(section,'flow_factor',        model%paramets%flow_enhancement_factor)
     call GetValue(section,'flow_factor_float',  model%paramets%flow_enhancement_factor_float)
+    !TODO - Change default_flwa to flwa_constant?  Would have to change config files.
     call GetValue(section,'default_flwa',       model%paramets%default_flwa)
     call GetValue(section,'efvs_constant',      model%paramets%efvs_constant)
     call GetValue(section,'effstrain_min',      model%paramets%effstrain_min)
@@ -2206,7 +2208,7 @@ contains
 
   subroutine print_parameters(model)
 
-    use glimmer_physcon, only: rhoi, rhoo, lhci, shci, trpt, grav
+    use glimmer_physcon, only: rhoi, rhoo, lhci, shci, trpt, grav, n_glen
     use glide_types
     use glimmer_log
     implicit none
@@ -2369,6 +2371,9 @@ contains
     call write_log(message)
 
     write(message,*) 'triple point of water (K)     : ', trpt
+    call write_log(message)
+
+    write(message,*) 'Glen flow law exponent        : ', n_glen
     call write_log(message)
 
     write(message,*) 'geothermal flux  (W/m^2)      : ', model%paramets%geot

@@ -2,7 +2,8 @@
 Shelf
 =====
 
-Note: For setting up the experiments on an NCAR computing environment, follow the steps in the README.NCAR_HPC file in the tests directory.
+Note: For setting up the experiments in an NCAR computing environment,
+follow the steps in the README.NCAR_HPC file in the tests directory.
 
 This directory contains Python scripts for running idealized ice shelf
 experiments.
@@ -65,8 +66,8 @@ order core, while still present in the code, is no longer supported).
 
 The script performs the following three steps:
 
-1. Create a netCDF input file for Glimmer.
-2. Run Glimmer, creating a netCDF output file.
+1. Create a netCDF input file for CISM.
+2. Run CISM, creating a netCDF output file.
 
 The netCDF files are written into the `output` subdirectory, which is controlled
 by the `-o/--output-dir` option.
@@ -132,8 +133,8 @@ center of the domain.
 
 The script performs the following three steps:
 
-1. Create a netCDF input file for Glimmer.
-2. Run Glimmer, creating a netCDF output file.
+1. Create a netCDF input file for CISM.
+2. Run CISM, creating a netCDF output file.
 
 The netCDF files are written into the `output` subdirectory, which is controlled
 by the `-o/--output-dir` option.

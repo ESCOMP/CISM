@@ -33,7 +33,7 @@
 module glimmer_paramets
 
   use glimmer_global, only : dp
-  use glimmer_physcon, only : scyr, gn
+  use glimmer_physcon, only : scyr
 
   implicit none
   save
@@ -118,6 +118,7 @@ module glimmer_paramets
   real(dp), parameter :: grav_glam = 9.81d0           ! m s^{-2}
 
   ! GLAM scaling parameters; units are correct if thk0 has units of meters
+  integer, parameter :: gn = 3                              ! Glen flow exponent; fixed at 3 for purposes of setting vis0
   real(dp), parameter :: tau0 = rhoi_glam*grav_glam*thk0    ! stress scale in GLAM ( Pa )  
   real(dp), parameter :: evs0 = tau0 / (vel0/len0)          ! eff. visc. scale in GLAM ( Pa s )
   real(dp), parameter :: vis0 = tau0**(-gn) * (vel0/len0)   ! rate factor scale in GLAM ( Pa^-3 s^-1 )
