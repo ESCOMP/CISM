@@ -104,7 +104,6 @@ module glide_types
   integer, parameter :: FLWA_CONST_FLWA = 0
   integer, parameter :: FLWA_PATERSON_BUDD_CONST_TEMP = 1
   integer, parameter :: FLWA_PATERSON_BUDD = 2
-  integer, parameter :: FLWA_INPUT = 3
 
   integer, parameter :: BTRC_ZERO = 0
   integer, parameter :: BTRC_CONSTANT = 1
@@ -314,6 +313,7 @@ module glide_types
   integer, parameter :: HO_APPROX_BP = 2
   integer, parameter :: HO_APPROX_L1L2 = 3
   integer, parameter :: HO_APPROX_DIVA = 4
+  integer, parameter :: HO_APPROX_HYBRID = 5
 
   integer, parameter :: HO_PRECOND_NONE = 0
   integer, parameter :: HO_PRECOND_DIAG = 1
@@ -470,7 +470,6 @@ module glide_types
     !> \item[1] \emph{Paterson and Budd} relationship, 
     !> with temperature set to $-5^{\circ}\mathrm{C}$ 
     !> \item[2] \emph{Paterson and Budd} relationship
-    !> \item[3] Read flwa/flwastag from file
     !> \end{description}
 
     integer :: whichbtrc = 0
@@ -778,7 +777,7 @@ module glide_types
 
     !> Flag that describes basal boundary condition for HO dyn core: 
     !> \begin{description}
-    !> \item[0] spatially uniform value (low value of 10 Pa/yr by default)
+    !> \item[0] spatially uniform value; low value of 10 Pa/(m/yr) by default
     !> \item[1] large value for frozen bed, lower value for bed at pressure melting point
     !> \item[2] treat beta value as a till yield stress (in Pa) using Picard iteration 
     !> \item[3] pseudo-plastic basal sliding law; can model linear, power-law or plastic behavior
@@ -895,6 +894,7 @@ module glide_types
     !> Flag that indicates which Stokes approximation to use with the glissade dycore.
     !> Not valid for other dycores 
     !> Compute Blatter-Pattyn HO momentum balance by default.
+    !> TODO: Change the default to DIVA
     !> Note: There are two SIA options:
     !>       Option -1 uses module glissade_velo_sia to compute local SIA velocities, similar to Glide
     !>       Option 0 uses module glissade_velo_higher to compute SIA velocities via an iterative solve
@@ -904,7 +904,8 @@ module glide_types
     !> \item[1]  Shallow-shelf approximation, horizontal-plane stresses only; uses glissade_velo_higher
     !> \item[2]  Blatter-Pattyn approximation with both vertical-shear and horizontal-plane stresses; uses glissade_velo_higher
     !> \item[3]  Vertically integrated 'L1L2' approximation with vertical-shear and horizontal-plane stresses; uses glissade_velo_higher
-    !> \item[4]  Depth-integrated viscosity approximation based on Goldberg (2011); uses glissade_velo_higher 
+    !> \item[4]  Depth-integrated viscosity approximation (DIVA) based on Goldberg (2011); uses glissade_velo_higher
+    !> \item[5]  Hybrid solver combining an SSA basal solve with a local vertical SIA solve
     !> \end{description}
 
     integer :: which_ho_precond = 2    
@@ -2148,6 +2149,7 @@ module glide_types
   !++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 
   !TODO - Move these parameters to types associated with a certain kind of physics
+  !TODO - Set default geot = 0, so that idealized tests by default have no mass loss
   type glide_paramets
     real(dp),dimension(5) :: bpar = (/ 0.2d0, 0.5d0, 0.0d0 ,1.0d-2, 1.0d0/)
     real(dp) :: btrac_const = 0.d0     ! m yr^{-1} Pa^{-1} (gets scaled during init)
