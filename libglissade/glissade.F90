@@ -1238,6 +1238,7 @@ contains
     ! Initialize the calving thickness.
     ! This should be done before the transport solve, which (if using the subgrid CF scheme)
     ! can remove unprotected ice that counts toward the calving flux.
+    !TODO - Move this calculation?
     model%calving%calving_thck = 0.0d0
 
     ! ------------------------------------------------------------------------
@@ -2252,7 +2253,6 @@ contains
 
     use cism_parallel, only: parallel_type, parallel_halo, parallel_halo_tracers,  &
          staggered_parallel_halo, parallel_reduce_max
-
     use glimmer_paramets, only: eps11, eps08, tim0, thk0, vel0, len0
     use glimmer_physcon, only: rhow, rhoi, scyr
     use glimmer_scales, only: scale_acab
@@ -2297,7 +2297,6 @@ contains
        ocean_mask,           & ! = 1 if topg is below sea level and thck = 0, else = 0
        land_mask,            & ! = 1 if topg is at or above sea level, else = 0
        calving_front_mask,   & ! = 1 where ice is floating and borders an ocean cell, else = 0
-       protected_mask,       & ! = 1 for cells that are protected from later calving (HO_CALVING_FRONT_SUBGRID)
        extended_ice_sheet_mask ! extension of ice_sheet_mask to include neighbor cells
 
     real(dp), dimension(model%general%ewn, model%general%nsn) ::  &
@@ -2385,51 +2384,62 @@ contains
 
        if (verbose_inversion .or. verbose_glissade .or. verbose_calving) then
           call point_diag(model%geometry%thck*thk0, 'Before glissade_transport_driver, thck (m)', &
-               itest, jtest, rtest, 7, 7, '(f12.6)')
+               itest, jtest, rtest, 7, 7, '(f10.4)')
        endif
 
        ! ------------------------------------------------------------------------
-       ! Optionally, compute some masks before horizontal transport.
+       ! Compute some masks before horizontal transport.
        ! ------------------------------------------------------------------------
+
+       call glissade_get_masks(&
+            ewn,              nsn,              &
+            parallel,                           &
+            model%geometry%thck*thk0,           &   ! m
+            model%geometry%topg*thk0,           &   ! m
+            model%climate%eus*thk0,             &   ! m
+            model%numerics%thklim*thk0,         &   ! m
+            ice_mask,                           &
+            floating_mask = floating_mask,      &
+            ocean_mask = ocean_mask,            &
+            land_mask = land_mask)
+
+       ! Near the calving front, distinguish full cells from partial cells.
+       ! effective_areafrac is used later to apply SMB and BMB.
+
+       call glissade_calving_front_mask(&
+            ewn,                    nsn,              &
+            model%options%which_ho_calving_front,     &
+            parallel,                                 &
+            model%geometry%thck*thk0,                 &   ! m
+            model%geometry%topg*thk0,                 &   ! m
+            model%climate%eus*thk0,                   &   ! m
+            ice_mask,               floating_mask,    &
+            ocean_mask,             land_mask,        &
+            calving_front_mask,                       &
+            dthck_dx_cf = model%calving%dthck_dx_cf,  &
+            dx = model%numerics%dew*len0,             &
+            dy = model%numerics%dns*len0,             &
+            thck_effective = model%calving%thck_effective, &
+            partial_cf_mask = partial_cf_mask,        &
+            full_mask = full_mask,                    &
+            effective_areafrac = effective_areafrac)
+
+       if (verbose_calving) then
+          call point_diag(calving_front_mask, 'Before transport, calving_front_mask', itest, jtest, rtest, 7, 7)
+          call point_diag(partial_cf_mask, 'partial_cf_mask', itest, jtest, rtest, 7, 7)
+          call point_diag(full_mask, 'full_mask', itest, jtest, rtest, 7, 7)
+          call point_diag(effective_areafrac, 'effective_areafrac', itest, jtest, rtest, 7, 7, '(f10.6)')
+       endif
+
+       ! If using the subgrid CF scheme, then compute a mask of protected cells.
 
        if (model%options%which_ho_calving_front == HO_CALVING_FRONT_SUBGRID) then
 
-          call glissade_get_masks(&
-               ewn,              nsn,              &
-               parallel,                           &
-               model%geometry%thck*thk0,           &   ! m
-               model%geometry%topg*thk0,           &   ! m
-               model%climate%eus*thk0,             &   ! m
-               model%numerics%thklim*thk0,         &   ! m
-               ice_mask,                           &
-               floating_mask = floating_mask,      &
-               ocean_mask = ocean_mask,            &
-               land_mask = land_mask)
-
-          ! Near the calving front, distinguish full cells from partial cells.
-
-          call glissade_calving_front_mask(&
-               ewn,                    nsn,              &
-               model%options%which_ho_calving_front,     &
-               parallel,                                 &
-               model%geometry%thck*thk0,                 &   ! m
-               model%geometry%topg*thk0,                 &   ! m
-               model%climate%eus*thk0,                   &   ! m
-               ice_mask,               floating_mask,    &
-               ocean_mask,             land_mask,        &
-               calving_front_mask,                       &
-               dthck_dx_cf = model%calving%dthck_dx_cf,  &
-               dx = model%numerics%dew*len0,             &
-               dy = model%numerics%dns*len0,             &
-               thck_effective = model%calving%thck_effective, &
-               partial_cf_mask = partial_cf_mask,        &
-               full_mask = full_mask)
-
           ! Compute a mask of protected cells, starting with full cells and land cells
 
-          protected_mask = 0
+          model%calving%protected_mask = 0
           where (full_mask == 1 .or. land_mask == 1)
-             protected_mask = 1
+             model%calving%protected_mask = 1
           endwhere
 
           ! Protect partial CF and ice-free ocean cells that are adjacent to full cells
@@ -2437,21 +2447,18 @@ contains
              do i = 2, ewn-1
                 if (full_mask(i-1,j) == 1 .or. full_mask(i+1,j) == 1 .or. &
                     full_mask(i,j-1) == 1 .or. full_mask(i,j+1) == 1) then
-                   protected_mask(i,j) = 1
+                   model%calving%protected_mask(i,j) = 1
                 endif
              enddo
           enddo
 
-          call parallel_halo(protected_mask, parallel)
+          call parallel_halo(model%calving%protected_mask, parallel)
 
           if (verbose_calving) then
-             call point_diag(calving_front_mask, 'calving_front_mask', itest, jtest, rtest, 7, 7)
-             call point_diag(partial_cf_mask, 'partial_cf_mask', itest, jtest, rtest, 7, 7)
-             call point_diag(full_mask, 'full_mask', itest, jtest, rtest, 7, 7)
-             call point_diag(protected_mask, 'protected_mask', itest, jtest, rtest, 7, 7)
+             call point_diag(model%calving%protected_mask, 'protected_mask', itest, jtest, rtest, 7, 7)
           endif
 
-       endif
+       endif  ! which_ho_calving_front
 
        ! For the enthalpy option, derive enthalpy from temperature and waterfrac.
        ! Must transport enthalpy rather than temperature/waterfrac to conserve energy.
@@ -2609,7 +2616,7 @@ contains
 
        if (verbose_inversion .or. verbose_glissade .or. verbose_calving) then
           call point_diag(thck_unscaled, 'After glissade_transport_driver, thck (m)', &
-               itest, jtest, rtest, 7, 7)
+               itest, jtest, rtest, 7, 7, '(f10.4)')
        endif
 
        ! If using a subgrid CF scheme, then remove any ice that has been transported
@@ -2620,18 +2627,24 @@ contains
 
        if (model%options%which_ho_calving_front == HO_CALVING_FRONT_SUBGRID) then
 
-          ! Remove ice from unprotected cells, and add to the calving flux
+          !WHL - If using the CF_ADVANCE_RETREAT_RATE scheme, then deal with protected ice later
 
-          where (protected_mask == 0 .and. thck_unscaled > 0.0d0)
-             model%calving%calving_thck = model%calving%calving_thck + thck_unscaled/thk0
-             thck_unscaled = 0.0d0
-          endwhere
+          if (model%options%whichcalving /= CF_ADVANCE_RETREAT_RATE) then
 
-          if (verbose_calving) then
-             call point_diag(model%calving%calving_thck*thk0, &
-                  'Remove unprotected ice, calving_thck (m)', itest, jtest, rtest, 7, 7)
-             call point_diag(thck_unscaled, 'New thck (m)', itest, jtest, rtest, 7, 7)
-          endif
+             ! Remove ice from unprotected cells, and add to the calving flux
+
+             where (model%calving%protected_mask == 0 .and. thck_unscaled > 0.0d0)
+                model%calving%calving_thck = model%calving%calving_thck + thck_unscaled/thk0
+                thck_unscaled = 0.0d0
+             endwhere
+
+             if (verbose_calving) then
+                call point_diag(model%calving%calving_thck*thk0, &
+                     'Remove unprotected ice, calving_thck (m)', itest, jtest, rtest, 7, 7)
+                call point_diag(thck_unscaled, 'New thck (m)', itest, jtest, rtest, 7, 7)
+             endif
+
+          endif  ! not CF_ADVANCE_RETREAT_RATE
 
        endif   ! subgrid calving front
 
@@ -3027,42 +3040,43 @@ contains
        ! Use thck_effective to compute a fractional area for calving_front cells.
        ! TODO - Is it correct to use the old value of f_ground_cell from the start of the time step?
        !        Note that this value is used to identify CF cells where the mass balance is corrected.
+       ! TODO - Would it be better not to recompute the masks here, but to use the pre-transport masks?
        ! ------------------------------------------------------------------------
 
-       call glissade_get_masks(&
-            ewn,              nsn,              &
-            parallel,                           &
-            thck_unscaled,                      &   ! m
-            topg_unscaled,                      &   ! m
-            model%climate%eus*thk0,             &   ! m
-            0.0d0,                              &   ! thklim = 0
-            ice_mask,                           &
-            floating_mask = floating_mask,      &
-            ocean_mask = ocean_mask,            &
-            land_mask = land_mask)
+       !Note: If not using the subgrid CF, then we should recompute effective_areafrac before
+       !       the call to glissade_mass_balance_driver. This allows us to remove small thin ice
+       !       from marine cells with negative acab or positive bmlt.
+       !      If using the subgrid CF, use the pre-transport masks. Thin ice in ocean cells
+       !       will be removed with different logic based on protected_mask.
 
-       ! Compute effective_areafrac for SMB purposes.
+       if (model%options%which_ho_calving_front == HO_CALVING_FRONT_NO_SUBGRID) then
 
-       call glissade_calving_front_mask(&
-            ewn,                    nsn,                &
-            model%options%which_ho_calving_front,       &
-            parallel,                                   &
-            thck_unscaled,          topg_unscaled,      &   ! m
-            model%climate%eus*thk0,                     &   ! m
-            ice_mask,               floating_mask,      &
-            ocean_mask,             land_mask,          &
-            calving_front_mask,                         &
-            dx = model%numerics%dew*len0,               &
-            dy = model%numerics%dns*len0,               &
-            dthck_dx_cf = model%calving%dthck_dx_cf,    &
-            thck_effective = model%calving%thck_effective, &
-            partial_cf_mask = partial_cf_mask,          &
-            full_mask = full_mask,                      &
-            effective_areafrac = effective_areafrac)
+          call glissade_get_masks(&
+               ewn,              nsn,              &
+               parallel,                           &
+               thck_unscaled,                      &   ! m
+               topg_unscaled,                      &   ! m
+               model%climate%eus*thk0,             &   ! m
+               0.0d0,                              &   ! thklim = 0
+               ice_mask,                           &
+               floating_mask = floating_mask,      &
+               ocean_mask = ocean_mask,            &
+               land_mask = land_mask)
 
-       call point_diag(calving_front_mask, 'calving_front_mask', itest, jtest, rtest, 7, 7)
-       call point_diag(model%calving%thck_effective, 'thck_effective (m)', itest, jtest, rtest, 7, 7)
-       call point_diag(effective_areafrac, 'effective_areafrac', itest, jtest, rtest, 7, 7, '(f10.6)')
+          ! Compute effective_areafrac for SMB purposes.
+          ! Set = 1 where H > 0 so that thin ice will be removed from cells with a negative mass balance
+
+          where (ice_mask == 1 .or. land_mask == 1)
+             effective_areafrac = 1.0d0
+          elsewhere
+             effective_areafrac = 0.0d0
+          endwhere
+
+          if (verbose_calving) then
+             call point_diag(effective_areafrac, 'Before mass driver: effective_areafrac', itest, jtest, rtest, 7, 7, '(f10.6)')
+          endif
+
+       endif  ! which_ho_calving_front
 
        ! TODO: Zero out acab_unscaled and bmlt_unscaled in cells that are ice-free ocean after transport?
        !       Then it would not be necessary to pass ocean_mask to glissade_mass_balance_driver.
@@ -3236,7 +3250,8 @@ contains
     use glimmer_paramets, only: thk0, tim0, len0, vel0
     use glimmer_physcon, only: scyr
     use glissade_calving, only: glissade_calve_ice, glissade_cull_calving_front, &
-         glissade_remove_icebergs, glissade_remove_isthmuses, glissade_limit_cliffs, verbose_calving
+         glissade_remove_icebergs, glissade_remove_isthmuses, glissade_limit_cliffs, &
+         glissade_redistribute_unprotected_ice, verbose_calving
     use glissade_masks, only: glissade_get_masks, glissade_ocean_connection_mask
     use glissade_grounding_line, only: glissade_grounded_fraction
     implicit none
@@ -3300,10 +3315,6 @@ contains
     endif
 
     parallel = model%parallel
-
-    ! Note: We set model%calving%calving_thck = 0 at the start of the time step.
-    !       Thus, calving_thck can be nonzero at the start of the calving solve,
-    !       if incremented during the transport solve (when using a subgrid CF).
 
     ! Thin or remove ice where retreat is forced.
     ! Note: This option is similar to apply_calving_mask.  It is different in that ice_fraction_retreat_mask
@@ -3389,6 +3400,32 @@ contains
     ! Set thickness to SI units (m)
     thck_unscaled(:,:) = model%geometry%thck(:,:)*thk0
     model%calving%calving_thck(:,:) = model%calving%calving_thck(:,:) * thk0
+
+    ! Note: We set model%calving%calving_thck = 0 at the start of the time step.
+    !       Thus, calving_thck can be nonzero at the start of the calving solve,
+    !       if incremented during the transport solve (when using a subgrid CF).
+    ! WHL - For calving option 9, do this removal here.
+    !       For now, do this only with the new CF option. Later, do this for all subgrid_cf options.
+    !       Then the 'if' statement can just check which_ho_calving_front, since all the
+    !        relevant calving options will use the subgrid scheme.
+
+    if (model%options%which_ho_calving_front == HO_CALVING_FRONT_SUBGRID .and. &
+        model%options%whichcalving == CF_ADVANCE_RETREAT_RATE) then
+
+       ! Gather ice from unprotected cells and move it upstream
+       ! TODO - Do we need to check that these are floating cells?
+
+       call glissade_redistribute_unprotected_ice(&
+            nx,                ny,            &
+            itest,  jtest,  rtest,            &
+            parallel,                         &
+            model%calving%protected_mask,     &
+            model%geometry%thck_old*thk0,     &
+            model%calving%thck_effective,     &
+            thck_unscaled,                    &
+            model%calving%calving_thck)
+
+    endif
 
     ! Remove ice where forced by a calving mask.
     ! Note: whichcalving = CALVING_GRID_MASK and apply_calving_mask = T are currently redundant.
@@ -3535,6 +3572,7 @@ contains
             model%numerics%sigma,              &
             model%numerics%thklim*thk0,        &        ! m
             model%velocity%velnorm_mean*vel0,  &        ! m/s
+            model%geometry%thck_old*thk0,      &        ! m
             thck_unscaled,                     &        ! m
             model%isostasy%relx*thk0,          &        ! m
             model%geometry%topg*thk0,          &        ! m

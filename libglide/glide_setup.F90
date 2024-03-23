@@ -978,16 +978,18 @@ contains
          'compute isostasy with model     ' /)
 
     !TODO - Change 'marine_margin' to 'calving'?  Would have to modify many config files
-    character(len=*), dimension(0:8), parameter :: marine_margin = (/ &
-         'no calving law                  ', &
-         'remove all floating ice         ', &
-         'remove fraction of floating ice ', &
-         'relaxed bedrock threshold       ', &
-         'present bedrock threshold       ', &
-         'calving based on grid location  ', &
-         'ice thickness threshold         ', &
-         'eigencalving scheme             ', & 
-         'damage-based calving scheme     ' /)
+    character(len=*), dimension(0:10), parameter :: marine_margin = (/ &
+         'no calving law                   ', &
+         'remove all floating ice          ', &
+         'remove fraction of floating ice  ', &
+         'relaxed bedrock threshold        ', &
+         'present bedrock threshold        ', &
+         'calving based on grid location   ', &
+         'ice thickness threshold          ', &
+         'eigencalving scheme              ', &
+         'damage-based calving scheme      ', &
+         'prescribe CF advance/retreat rate', &
+         'Huybrechts calving               '/)
 
     character(len=*), dimension(0:1), parameter :: init_calving = (/ &
          'no calving at initialization    ', &
@@ -1464,6 +1466,9 @@ contains
        endif
        if (model%options%whichcalving == CALVING_DAMAGE) then
           call write_log('Error, calving damage option is supported for Glissade dycore only', GM_FATAL)
+       endif
+       if (model%options%whichcalving == CF_ADVANCE_RETREAT_RATE) then
+          call write_log('Error, calving front advance/retreat option is supported for Glissade dycore only', GM_FATAL)
        endif
        if (model%options%calving_domain /= CALVING_DOMAIN_OCEAN_EDGE) then
           write(message,*) 'WARNING: calving domain can be selected for Glissade dycore only; user selection ignored'
@@ -2486,7 +2491,7 @@ contains
     if (model%options%limit_marine_cliffs) then
        write(message,*) 'taumax_cliff                  : ', model%calving%taumax_cliff
        call write_log(message)
-       write(message,*) 'cliff time scale (yr)       : ', model%calving%cliff_timescale
+       write(message,*) 'cliff time scale (yr)         : ', model%calving%cliff_timescale
        call write_log(message)
     endif
 
@@ -3693,6 +3698,10 @@ contains
         if (options%whichcalving == EIGENCALVING .or. options%whichcalving == CALVING_DAMAGE) then
            call glide_add_to_restart_variable_list('tau_eigen1', model_id)
            call glide_add_to_restart_variable_list('tau_eigen2', model_id)
+        endif
+
+        if (options%whichcalving == CF_ADVANCE_RETREAT_RATE) then
+           !TODO - Any restart variables for this option?
         endif
 
         ! If forcing ice retreat, then we need ice_fraction_retreat_mask (which specifies the cells where retreat is forced)
