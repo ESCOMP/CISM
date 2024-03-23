@@ -184,7 +184,8 @@ module glide_types
   integer, parameter :: CALVING_THCK_THRESHOLD = 6
   integer, parameter :: EIGENCALVING = 7
   integer, parameter :: CALVING_DAMAGE = 8
-  integer, parameter :: CALVING_HUYBRECHTS = 9
+  integer, parameter :: CF_ADVANCE_RETREAT_RATE = 9
+  integer, parameter :: CALVING_HUYBRECHTS = 10
 
   integer, parameter :: CALVING_INIT_OFF = 0
   integer, parameter :: CALVING_INIT_ON = 1
@@ -635,6 +636,8 @@ module glide_types
     !>          a certain value (variable 'calving_minthck' in glide_types)
     !> \item[7] Set thickness to zero based on stress (eigencalving) criterion
     !> \item[8] Calve ice that is sufficiently damaged
+    !> \item[9] Prescribe the rate of calving front advance or retreat
+    !> \item[10] Huybrechts calving
     !> \end{description}
 
     integer :: calving_init = 0
@@ -1451,6 +1454,7 @@ module glide_types
      real(dp),dimension(:,:),  pointer :: calving_rate => null()   !> rate of ice loss due to calving (m/yr ice)
      real(dp),dimension(:,:),  pointer :: calving_rate_tavg => null()  !> rate of ice loss due to calving (m/yr ice, time average)
      integer, dimension(:,:),  pointer :: calving_mask => null()   !> calve floating ice where the mask = 1 (whichcalving = CALVING_GRID_MASK)
+     integer, dimension(:,:),  pointer :: protected_mask => null() !> mask of cells protected from calving when using the subgrid CF scheme
      real(dp),dimension(:,:),  pointer :: thck_effective => null() !> effective thickness for calving (m)
      real(dp),dimension(:,:),  pointer :: lateral_rate => null()   !> lateral calving rate (m/yr, not scaled)
                                                                    !> (whichcalving = EIGENCALVING, CALVING_DAMAGE) 
@@ -2959,6 +2963,7 @@ contains
     call coordsystem_allocate(model%general%ice_grid, model%calving%calving_rate)
     call coordsystem_allocate(model%general%ice_grid, model%calving%calving_rate_tavg)
     call coordsystem_allocate(model%general%ice_grid, model%calving%calving_mask)
+    call coordsystem_allocate(model%general%ice_grid, model%calving%protected_mask)
     call coordsystem_allocate(model%general%ice_grid, model%calving%thck_effective)
     call coordsystem_allocate(model%general%ice_grid, model%calving%lateral_rate)
     call coordsystem_allocate(model%general%ice_grid, model%calving%tau_eigen1)
@@ -3528,6 +3533,8 @@ contains
         deallocate(model%calving%calving_rate_tavg)
     if (associated(model%calving%calving_mask)) &
         deallocate(model%calving%calving_mask)
+    if (associated(model%calving%protected_mask)) &
+        deallocate(model%calving%protected_mask)
     if (associated(model%calving%thck_effective)) &
         deallocate(model%calving%thck_effective)
     if (associated(model%calving%lateral_rate)) &
