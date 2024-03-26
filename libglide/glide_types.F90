@@ -1085,7 +1085,7 @@ module glide_types
     !> Flag that indicates whether to use a subgrid calving front parameterization
     !> \begin{description}
     !> \item[0] no subgrid calving front parameterization
-    !> \item[1] subgrid calving front parameterization with inactive CF cells
+    !> \item[1] subgrid parameterization with partially filled cells at the calving front
     !> \end{description}
 
     integer :: which_ho_ground = 0
@@ -1575,6 +1575,13 @@ module glide_types
                                                  !> NOTE: This option is applied only if calving_front_x or calving_front_y > 0
      real(dp) :: f_ground_threshold = 0.10d0     !> Threshold fraction for grounded cells in iceberg removal algorithm
                                                  !> Also used for isthmus removal
+     real(dp) :: &
+          time = 0.0d0,                        & !> time (s) relative to tstart for prescribed sinusoidal advance/retreat
+          cf_advance_retreat_amplitude = 0.0d0,& !> prescribed amplitude (m/yr) for calving front advance or retreat
+                                                 !> positive for sin(2*pi*t/period), negative for -sin(2*pi*t/period)
+                                                 !> should be negative for CalvingMIP Experiments 2 and 4
+          cf_advance_retreat_period = 0.0d0      !> period (yr) for an advance/retreat cycle
+                                                 !> period = 0 => constant amplitude
 
   end type glide_calving
 
