@@ -2109,9 +2109,11 @@ contains
     call GetValue(section,'damage_constant2',   model%calving%damage_constant2)
     call GetValue(section,'taumax_cliff',       model%calving%taumax_cliff)
     call GetValue(section,'cliff_timescale',    model%calving%cliff_timescale)
-    call GetValue(section,'ncull_calving_front',   model%calving%ncull_calving_front)
+    call GetValue(section,'ncull_calving_front',model%calving%ncull_calving_front)
     call GetValue(section,'calving_front_x',    model%calving%calving_front_x)
     call GetValue(section,'calving_front_y',    model%calving%calving_front_y)
+    call GetValue(section,'cf_advance_retreat_amplitude', model%calving%cf_advance_retreat_amplitude)
+    call GetValue(section,'cf_advance_retreat_period',    model%calving%cf_advance_retreat_period)
 
     ! NOTE: bpar is used only for BTRC_TANH_BWAT
     !       btrac_max and btrac_slope are used (with btrac_const) for BTRC_LINEAR_BMLT
@@ -2321,7 +2323,8 @@ contains
 
     if (model%options%whichcalving == CALVING_THCK_THRESHOLD .or.  &
         model%options%whichcalving == EIGENCALVING           .or.  &
-        model%options%whichcalving == CALVING_DAMAGE) then
+        model%options%whichcalving == CALVING_DAMAGE         .or.  &
+        model%options%whichcalving == CF_ADVANCE_RETREAT_RATE) then
 
        if (model%options%which_ho_calving_front == HO_CALVING_FRONT_NO_SUBGRID) then
           write(message,*) &
@@ -2356,6 +2359,11 @@ contains
           write(message,*) 'damage threshold              : ', model%calving%damage_threshold
           call write_log(message)
           write(message,*) 'damage-flwa feedback          : ', model%options%damage_flwa_feedback
+          call write_log(message)
+       elseif (model%options%whichcalving == CF_ADVANCE_RETREAT_RATE) then
+          write(message,*) 'CF advance/retreat amplitude (m/yr): ', model%calving%cf_advance_retreat_amplitude
+          call write_log(message)
+          write(message,*) 'CF advance/retreat period (yr)     : ', model%calving%cf_advance_retreat_period
           call write_log(message)
        endif
 
@@ -3437,7 +3445,10 @@ contains
         endif
 
         if (options%whichcalving == CF_ADVANCE_RETREAT_RATE) then
-           !TODO - Any restart variables for this option?
+           ! Note: The calving mask is not strictly needed for this option.
+           ! But some CalvingMIP experiments start with prescribed retreat and then switch to masked advance,
+           ! in which case it is useful to have calving_mask in the restart file.
+           call glide_add_to_restart_variable_list('calving_mask')
         endif
 
         ! If forcing ice retreat, then we need ice_fraction_retreat_mask (which specifies the cells where retreat is forced)

@@ -2221,7 +2221,7 @@ contains
 
        if (verbose_inversion .or. verbose_glissade .or. verbose_calving) then
           call point_diag(model%geometry%thck*thk0, 'Before glissade_transport_driver, thck (m)', &
-               itest, jtest, rtest, 7, 7, '(f10.4)')
+               itest, jtest, rtest, 7, 7, '(f10.3)')
        endif
 
        ! ------------------------------------------------------------------------
@@ -2453,7 +2453,7 @@ contains
 
        if (verbose_inversion .or. verbose_glissade .or. verbose_calving) then
           call point_diag(thck_unscaled, 'After glissade_transport_driver, thck (m)', &
-               itest, jtest, rtest, 7, 7, '(f10.4)')
+               itest, jtest, rtest, 7, 7, '(f10.3)')
        endif
 
        ! If using a subgrid CF scheme, then remove any ice that has been transported
@@ -3077,6 +3077,7 @@ contains
     use glissade_calving, only: glissade_calve_ice, glissade_cull_calving_front, &
          glissade_remove_icebergs, glissade_remove_isthmuses, glissade_limit_cliffs, &
          glissade_redistribute_unprotected_ice, verbose_calving
+    use glissade_utils, only: glissade_input_fluxes
     use glissade_masks, only: glissade_get_masks, glissade_ocean_connection_mask
     use glissade_grounding_line, only: glissade_grounded_fraction
     implicit none
@@ -3112,6 +3113,9 @@ contains
 
     integer :: nx, ny               ! horizontal grid dimensions
     integer :: itest, jtest, rtest  ! coordinates of diagnostic point
+
+    real(dp), dimension(-1:1,-1:1,model%general%ewn,model%general%nsn) :: &
+         flux_in                    ! ice volume fluxes (m^3/s) into cell from each neighbor cell
 
     real(dp), parameter :: &
          retreat_mask_threshold = 0.01d0  ! threshold value for removing cells based on ice_fraction_retreat_mask;
@@ -3233,6 +3237,28 @@ contains
     if (model%options%which_ho_calving_front == HO_CALVING_FRONT_SUBGRID .and. &
         model%options%whichcalving == CF_ADVANCE_RETREAT_RATE) then
 
+       ! Set the calving time(s).
+       ! This is used with a time-dependent advance/retreat rate
+       model%calving%time = model%numerics%time - model%numerics%tstart
+
+       ! Compute the ice flux into each cell from each neighbor cell.
+       ! This is not exact; it is an upwind estimate based on cell-center thickness.
+       ! But near the ice edge, where reconstructed thicknesses near cell edges
+       !  are close to cell-center values, the estimated flux should be close
+       !  to the incremental remapping flux.
+       !TODO - Do this exactly based on edge fluxes computed during IR?
+
+       call glissade_input_fluxes(&
+            nx,      ny,                      &
+            model%numerics%dew*len0,          & ! m
+            model%numerics%dew*len0,          & ! m
+            itest,   jtest,  rtest,           &
+            model%geometry%thck_old*thk0,     & ! m
+            model%velocity%uvel_2d*vel0,      & ! m/s
+            model%velocity%vvel_2d*vel0,      & ! m/s
+            flux_in,                          & ! m^3/s
+            parallel)
+
        ! Gather ice from unprotected cells and move it upstream
        ! TODO - Do we need to check that these are floating cells?
 
@@ -3241,10 +3267,11 @@ contains
             itest,  jtest,  rtest,            &
             parallel,                         &
             model%calving%protected_mask,     &
-            model%geometry%thck_old*thk0,     &
-            model%calving%thck_effective,     &
-            thck_unscaled,                    &
-            model%calving%calving_thck)
+            model%geometry%thck_old*thk0,     & ! m
+            model%calving%thck_effective,     & ! m
+            flux_in,                          & ! m^3/s
+            thck_unscaled,                    & ! m
+            model%calving%calving_thck)         ! m
 
     endif
 
@@ -3393,6 +3420,7 @@ contains
             model%numerics%sigma,              &
             model%numerics%thklim*thk0,        &        ! m
             model%velocity%velnorm_mean*vel0,  &        ! m/s
+            flux_in,                           &        ! m^3/s
             model%geometry%thck_old*thk0,      &        ! m
             thck_unscaled,                     &        ! m
             model%isostasy%relx*thk0,          &        ! m
