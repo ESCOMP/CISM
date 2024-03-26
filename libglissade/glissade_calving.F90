@@ -245,6 +245,7 @@ contains
                                 sigma,                   &
                                 thklim,                  &  ! m
                                 velnorm_mean,            &  ! m/s
+                                flux_in,                 &  ! m^3/s
                                 thck_pre_transport,      &  ! m
                                 thck,             relx,  &  ! m
                                 topg,             eus)      ! m
@@ -291,6 +292,9 @@ contains
 !    real(dp), dimension(:,:,:), intent(inout):: damage              !> 3D scalar damage parameter
 !    real(dp), intent(in)                     :: damage_threshold    !> threshold value where ice is sufficiently damaged to calve
 !    real(dp), intent(in)                     :: damage_constant     !> rate of change of damage (1/s) per unit stress (Pa)
+!    real(dp), intent(in)                     :: time                !> time(yr) for time-varying calving front advance/retreat rate
+!    real(dp), intent(in)            :: cf_advance_retreat_amplitude !> amplitude (m/yr) of CF advance/retreat rate
+!    real(dp), intent(in)            :: cf_advance_retreat_period    !> period (yr) of CF advance/retreat rate
 !    integer,  dimension(:,:), intent(in)     :: calving_mask        !> integer mask: calve ice where calving_mask = 1
 !    real(dp), dimension(:,:), intent(out)    :: calving_thck        !> thickness lost due to calving in each grid cell (m)
 
@@ -299,6 +303,7 @@ contains
     real(dp), intent(in)                      :: dx, dy            !> grid cell size in x and y directions (m)
     real(dp), dimension(:), intent(in)        :: sigma             !> vertical sigma coordinate
     real(dp), dimension(nx-1,ny-1), intent(in):: velnorm_mean      !> mean ice speed at vertices (m/s)
+    real(dp), dimension(-1:1,-1:1,nx,ny), intent(in) :: flux_in    ! ice volume fluxes (m^3/s) into cell from each neighbor cell
     real(dp), dimension(nx,ny), intent(in)    :: thck_pre_transport!> ice thickness (m) before doing transport, SMB, and BMB
     real(dp), dimension(nx,ny), intent(inout) :: thck              !> ice thickness (m)
     real(dp), dimension(nx,ny), intent(in)    :: relx              !> relaxed bedrock topography (m)
@@ -500,15 +505,18 @@ contains
        call calving_front_advance_retreat(&
                nx,                 ny,                    &
                dx,                 dy,                    &
-               dt,                                        &
+               dt,                 calving%time*scyr,     &  ! s
                itest,   jtest,     rtest,                 &
                parallel,                                  &
                which_ho_calving_front,                    &
+               flux_in,                                   &  ! m^3/s
                thck_pre_transport,                        &  ! m
                thck,               topg,                  &  ! m
                eus,                thklim,                &  ! m
                calving%thck_effective,                    &  ! m
                calving%dthck_dx_cf,                       &  ! m
+               calving%cf_advance_retreat_amplitude/scyr, &  ! m/s
+               calving%cf_advance_retreat_period*scyr,    &  ! s
                calving%calving_thck)                         ! m
 
     else   ! other calving options
@@ -639,8 +647,9 @@ contains
        itest,  jtest,   rtest,    &
        parallel,                  &
        protected_mask,            &
-       thck_old,                  &
+       thck_pre_transport,        &
        thck_effective,            &
+       flux_in,                   &
        thck,                      &
        calving_thck)
 
@@ -660,9 +669,12 @@ contains
                                    ! includes land cells, full cells, and partial CF cells
 
     real(dp), dimension(nx,ny), intent(in) :: &
-         thck_old,               & ! ice thickness (m) at start of timestep, before transport
+         thck_pre_transport,     & ! ice thickness (m) at start of timestep, before transport
          thck_effective            ! effective ice thickness (m) before transport;
                                    ! thck_effective < thck_pre_transport in partial CF cells
+
+    real(dp), dimension(-1:1,-1:1,nx,ny), intent(in) :: &
+         flux_in                  ! ice volume fluxes (m^3/s) into cell from each neighbor cell
 
     real(dp), dimension(nx,ny), intent(inout) :: &
          thck,                   & ! ice thickness (m) before and after redistribution
@@ -670,14 +682,17 @@ contains
 
     ! local variables
 
-    integer :: i, j, ii, jj
+    integer :: i, j, ii, jj, count
+    integer :: iup, jup, idn, jdn
     real(dp) :: thck_max           ! max thickness (m) in protected upstream cell
     real(dp) :: dthck              ! ice thickness (m) to be redistributed
+    real(dp) :: total_flux         ! total flux (m^3/s) entering a cell from neighbor cells
+    real(dp) :: total_dthck        ! total thickness (m) to be redistributed
 
     ! Write the initial thicknesses
     if (verbose_calving) then
        call point_diag(thck, 'Before redistribution, thck (m)', itest, jtest, rtest, 7, 7)
-       call point_diag(thck_old, 'thck_old (m)', itest, jtest, rtest, 7, 7)
+       call point_diag(thck_pre_transport, 'thck_pre_transport (m)', itest, jtest, rtest, 7, 7)
        call point_diag(thck_effective, 'thck_effective (m)', itest, jtest, rtest, 7, 7)
        call point_diag(protected_mask, 'protected_mask', itest, jtest, rtest, 7, 7)
     endif
@@ -689,41 +704,50 @@ contains
 
     do j = 2, ny-1
        do i = 2, nx-1
-
           if (thck(i,j) > 0.0d0 .and. protected_mask(i,j) == 0) then
 
-             ! Identify the protected edge neighbor with the thickest ice
-             thck_max = 0
-             if (thck_old(i-1,j) > thck_max .and. protected_mask(i-1,j) == 1) then
-                thck_max = thck_old(i-1,j); ii = i-1; jj = j
-             endif
-             if (thck_old(i+1,j) > thck_max .and. protected_mask(i+1,j) == 1) then
-                thck_max = thck_old(i+1,j); ii = i+1; jj = j
-             endif
-             if (thck_old(i,j-1) > thck_max .and. protected_mask(i,j-1) == 1) then
-                thck_max = thck_old(i,j-1); ii = i; jj = j-1
-             endif
-             if (thck_old(i,j+1) > thck_max .and. protected_mask(i,j+1) == 1) then
-                thck_max = thck_old(i,j+1); ii = i; jj = j+1
+             ! Given flux_in (ice flux in m^3/s entering the cell from each upstream neighbor),
+             ! compute the fraction of the flux to give back to each upstream neighbor.
+
+             count = 0
+             total_flux = 0.0d0
+             do jj = -1, 1
+                do ii = -1, 1
+                   iup = i + ii; jup = j + jj
+                   if (flux_in(ii,jj,i,j) > 0.0d0 .and. protected_mask(iup,jup) == 1) then
+                      count = count + 1
+                      total_flux = total_flux + flux_in(ii,jj,i,j)
+                   endif
+                enddo
+             enddo
+
+             !WHL - debug
+             if (verbose_calving .and. i==itest .and. j==jtest .and. this_rank==rtest) then
+                print*, 'Unprotected cell: thck, input flux (m^3/yr)=', thck(i,j), total_flux*scyr
+                print*, '   No. of upstream cells =', count
              endif
 
-             ! Move ice from the unprotected cell to the edge neighbor
-             ! (but not to exceed thck = thck_effective in the neighbor).
-             ! If any ice remains in the unprotected cell, calve it now.
-             if (thck_max > 0.0d0) then
-                if (thck(ii,jj) + thck(i,j) < thck_effective(ii,jj)) then
-                   dthck = thck(i,j)
-                   thck(ii,jj) = thck(ii,jj) + dthck
-                   thck(i,j) = 0.0d0
-                else   ! fill the upstream cell up to H = H_eff, and calve the rest
-                   dthck = thck_effective(ii,jj) - thck(ii,jj)
-                   thck(ii,jj) = thck(ii,jj) + dthck
-                   calving_thck(i,j) = calving_thck(i,j) + thck(i,j) - dthck
-                   thck(i,j) = 0.0d0
-                endif
+             ! Move ice from the unprotected cell to its upstream neighbors.
+             ! This can result in H > H_eff in upstream cells, but the excess ice will be removed
+             !  later by calving or downstream redistribution.
+             total_dthck = thck(i,j)
+             if (total_flux > 0.0d0) then
+                do jj = -1, 1
+                   do ii = -1, 1
+                      iup = i + ii; jup = j + jj
+                      if (flux_in(ii,jj,i,j) > 0.0d0 .and. protected_mask(iup,jup) == 1) then
+                         dthck = total_dthck * flux_in(ii,jj,i,j)/total_flux
+                         thck(iup,jup) = thck(iup,jup) + dthck
+                         thck(i,j) = thck(i,j) - dthck
+                         if (verbose_calving .and. i==itest .and. j==jtest .and. this_rank==rtest) then
+                            print*, '   Upstream ii, jj, frac:', ii, jj, flux_in(ii,jj,i,j)/total_flux
+                         endif
+                      endif
+                   enddo
+                enddo
              endif
 
-          endif   ! unprotected and thck > 0
+          endif   ! thck > 0 and unprotected
        enddo   ! i
     enddo   ! j
 
@@ -1751,20 +1775,24 @@ contains
   subroutine calving_front_advance_retreat(&
        nx,                 ny,             &
        dx,                 dy,             &
-       dt,                                 &
+       dt,                 time,           &  ! s
        itest,   jtest,     rtest,          &
        parallel,                           &
        which_ho_calving_front,             &
+       flux_in,                            &  ! m^3/s
        thck_pre_transport,                 &  ! m
        thck,               topg,           &  ! m
        eus,                thklim,         &  ! m
        thck_effective,                     &  ! m
        dthck_dx_cf,                        &  ! m/m
+       cf_advance_retreat_amplitude,       &  ! m/s
+       cf_advance_retreat_period,          &  ! s
        calving_thck)                          ! m
 
     ! Calve ice based on a prescribed rate of calving front advance or retreat.
     ! This option requires a subgrid calving front scheme.
 
+    use glimmer_physcon, only: pi
     use glissade_masks, only: glissade_get_masks, glissade_calving_front_mask
     use glide_diagnostics, only: point_diag
 
@@ -1776,13 +1804,17 @@ contains
 
     real(dp), intent(in) :: &
          dx, dy,                 & ! grid cell size (m)
-         dt                        ! time step (s)
+         dt,                     & ! time step (s)
+         time                      ! elapsed time (s) since start of CF advance/retreat
 
     type(parallel_type), intent(in) :: &
          parallel                  ! info for parallel communication
 
     integer, intent(in) :: &
          which_ho_calving_front    ! = 1 for subgrid calving-front scheme, else = 0
+
+    real(dp), dimension(-1:1,-1:1,nx,ny), intent(in) :: &
+         flux_in                   ! ice volume fluxes (m^3/s) into cell from each neighbor cell
 
     real(dp), dimension(nx,ny), intent(in) :: &
          thck_pre_transport,     & ! ice thickness (m) before doing transport, SMB, and BMB;
@@ -1794,7 +1826,12 @@ contains
          thklim                    ! minimum thickness for dynamically active grounded ice (m)
 
     real(dp), intent(in) :: &
-         dthck_dx_cf               ! assumed max thickness gradient (m/m) at the subgrid CF
+         dthck_dx_cf,            & ! assumed max thickness gradient (m/m) at the subgrid CF
+         cf_advance_retreat_amplitude, & ! prescribed amplitude (m/yr) for calving front advance or retreat
+                                         ! positive for sin(2*pi*t/period), negative for -sin(2*pi*t/period)
+                                         ! should be negative for CalvingMIP Experiments 2 and 4
+         cf_advance_retreat_period       ! period (s) for an advance/retreat cycle
+                                         ! period = 0 => constant amplitude
 
     real(dp), dimension(nx,ny), intent(inout) :: &
          thck,                   & ! ice thickness (m)
@@ -1803,53 +1840,49 @@ contains
 
     ! local variables
 
-    integer :: i, j
+    integer :: i, j, ii, jj
+    integer :: iup, jup, idn, jdn
+    integer :: count
 
     integer, dimension(nx,ny)  ::  &
          ice_mask,               & ! = 1 where ice is present (thck > thklim), else = 0
          floating_mask,          & ! = 1 where ice is present (thck > thklim) and floating, else = 0
          ocean_mask,             & ! = 1 where topg is below sea level and ice is absent, else = 0
          land_mask,              & ! = 1 where topg is at or above sea level, else = 0
-         calving_front_mask,     & ! = 1 where ice is floating and borders at least one ocean cell, else = 0
-         calving_front_mask_old
+         calving_front_mask        ! = 1 where ice is floating and borders at least one ocean cell, else = 0
 
     integer, dimension(nx,ny) :: &
          partial_cf_mask,        & ! = 1 for partially filled CF cells (thck < thck_effective), else = 0
          full_mask                 ! = 1 for ice-filled cells that are not partial_cf cells, else = 0
 
     real(dp), dimension(nx,ny) :: &
-         thck_old,               & ! old value of thck (m)
-         dt_calving_old,         & ! old value of dt_calving
-         dt_calving                ! time remaining for calving (s)
+         dthck_dt_transport,     & ! rate of thickness change from transport, SMB and BMB
+         dthck                     ! thickness (m) to be added to the calving flux
 
-    real(dp) :: &
-         thinning_rate,          & ! vertical thinning rate (m/s)
-         dthck                     ! thickness change (m)
+    real(dp) :: total_flux, total_dthck, my_dthck
 
-    !WHL - One might ask, why iterate? Here is one situation in which it matters.
-    !      Consider a setting like MISMIP+, with flow mainly in the x-direction.
-    !      We start with a sharp calving front, with thick ice to the left and ice-free ocean to the right.
-    !      During transport (which precedes calving), ice flows into the first row of ice-free cells.
-    !      Suppose we are prescribing CF retreat. This means that all the ice in the partial cells
-    !       should be calved, and in addition, the full cells that were in the interior should be thinned.
-    !      If we calve ice in the partial cells and do nothing more, the CF will not retreat at the desired speed.
-
-    logical :: iterate_calving     ! Iterate the calving until dt_calving = 0 for all cells
-    integer :: count
-
-    !WHL - temporary
     real(dp) :: cf_advance_retreat_rate  ! prescribed rate of calving-front advance or retreat (m/s);
                                          ! positive for advance
 
-    real(dp), dimension(nx,ny) :: &
-         dthck_dt_transport              ! rate of thickness change from transport, SMB and BMB
+    ! Set the calving front advance/retreat rate
+    if (cf_advance_retreat_period > 0.0d0) then
+       cf_advance_retreat_rate = &
+            cf_advance_retreat_amplitude * sin(2.0d0*pi*time / cf_advance_retreat_period)
+    else
+       cf_advance_retreat_rate = cf_advance_retreat_amplitude ! > 0 for advance, < 0 for retreat
+    endif
+
+    !TODO - Do the redistribution here instead of in glissade.F90
 
     ! Get masks
+    !TODO - Skip the mask call and pass in the masks?
+    !       For now, use thck_pre_transport to duplicate the mask call before transport.
 
     call glissade_get_masks(&
          nx,            ny,             &
          parallel,                      &
-         thck,          topg,           &
+!!         thck,          topg,           &
+         thck_pre_transport,  topg,           &
          eus,           thklim,         &
          ice_mask,                      &
          floating_mask = floating_mask, &
@@ -1860,7 +1893,8 @@ contains
          nx,            ny,                 &
          which_ho_calving_front,            &
          parallel,                          &
-         thck,          topg,               &
+!!         thck,          topg,               &
+         thck_pre_transport,  topg,           &
          eus,                               &
          ice_mask,      floating_mask,      &
          ocean_mask,    land_mask,          &
@@ -1871,18 +1905,17 @@ contains
          partial_cf_mask = partial_cf_mask, &
          full_mask = full_mask)
 
-    !WHL - For now, compute the CF advance/retreat rate locally.
-    !      Later, pass it in
-
-    cf_advance_retreat_rate =    0.0d0       ! stationary
-!    cf_advance_retreat_rate = -300.d0/scyr   ! retreat of 300 m/yr, converted to m/s
-!    cf_advance_retreat_rate =  300.d0/scyr   ! advance of 300 m/yr, converted to m/s
-
     dthck_dt_transport = (thck - thck_pre_transport) / dt
+    dthck = 0.0d0
+
+    if (verbose_calving .and. this_rank==rtest) then
+       write(6,*) ' '
+       write(6,*) 'rank, i, j, calving time (yr), cf_advance_retreat_rate (m/yr) =', &
+            this_rank, i, j, time/scyr, cf_advance_retreat_rate*scyr
+    endif
 
     if (verbose_calving) then
-       call point_diag(thck, 'Prescribe CF advance/retreat: thck (m)', itest, jtest, rtest, 7, 7)
-       call point_diag(thck_pre_transport, 'thck_pre_transport (m)', itest, jtest, rtest, 7, 7)
+       call point_diag(thck, 'thck (m)', itest, jtest, rtest, 7, 7)
        call point_diag(dthck_dt_transport*scyr, 'dH/dt transport (m/yr)', itest, jtest, rtest, 7, 7)
        call point_diag(thck_effective, 'thck_effective (m)', itest, jtest, rtest, 7, 7)
        call point_diag(calving_front_mask, 'calving_front_mask', itest, jtest, rtest, 7, 7)
@@ -1891,160 +1924,184 @@ contains
     endif
 
     ! Loop over locally owned cells
-    ! Calving occurs only in CF cells: cells with one or more ocean neighbors.
-    ! If time remains after one or more columns have calved completely, iterate until dt_calving = 0 everywhere.
+    ! Calving occurs only in CF cells: ice-filled cells with one or more ocean neighbors.
 
-    iterate_calving = .true.
-    count = 0
+    do j = nhalo+1, ny-nhalo
+       do i = nhalo+1, nx-nhalo
 
-    where (calving_front_mask == 1)
-       dt_calving = dt
-    elsewhere
-       dt_calving = 0.0d0
-    endwhere
+          if (calving_front_mask(i,j) == 1) then
 
-    do while (iterate_calving)
+             ! First, compute the calving needed to compensate for the thickness increase in partial CF cells.
+             ! This step should hold the calving front stationary by balancing transport/SMB/BMB with calving.
+             ! Note the sign: dthck > 0 for a positive calving flux, with thinning in cell (i,j).
 
-       count = count + 1
-       if (verbose_calving .and. this_rank == rtest) then
-          write(6,*) 'Iterate calving, count =', count
-          call point_diag(dt_calving/scyr, 'dt_calving (yr)', itest, jtest, rtest, 7, 7)
-       endif
+             dthck(i,j) = max(dthck_dt_transport(i,j), 0.0d0) * dt
 
-       iterate_calving = .false.
-       thck_old = thck   ! save current value of thck
+             ! If the CF is supposed to retreat, then increase the calving (negative increment for dthck).
+             ! If the CF is supposed to advance, then reduce the calving (positive increment for dthck).
+             ! Note: Some calving might already have been done in an unprotected cell just past the current CF.
+             !       If so, it is allowed to undo this calving so the CF can advance.
 
-       !TODO - For iterations 2 and higher, simply apply the remaining dthck to the upstream cell?
-       ! Main calving loop
+             if (cf_advance_retreat_rate /= 0.0d0) then
+
+                ! Increase the calving if the CF is advancing, decrease if the CF is retreating
+                dthck(i,j) = dthck(i,j) - (cf_advance_retreat_rate * dt) * thck_effective(i,j) / sqrt(dx*dy)
+
+                ! Make sure dthck >= 0. This prevents unphysical CF advance via negative calving.
+                dthck(i,j) = max(dthck(i,j), 0.0d0)
+
+             endif
+
+             if (verbose_calving .and. i==itest .and. j==jtest .and. this_rank==rtest) then
+                write(6,*) ' '
+                write(6,*) 'thck:', thck(i,j)
+                write(6,*) 'thck_effective (m) =', thck_effective(i,j)
+                write(6,*) 'dthck transport (m) =', dthck_dt_transport(i,j) * dt
+                write(6,*) 'dthck calving (m)     =', dthck(i,j)
+             endif
+
+             ! Apply this thinning to CF cells
+
+             if (dthck(i,j) > thck(i,j)) then
+                ! calve the full column and compute the time remaining for more calving
+                if (verbose_calving .and. this_rank == rtest) then
+                   write(6,*) 'thck, dthck, ratio:', thck(i,j), dthck(i,j), thck(i,j)/dthck(i,j)
+                endif
+                dthck(i,j) = dthck(i,j) - thck(i,j)  ! remainder will be used for upstreame calving
+                calving_thck(i,j) = calving_thck(i,j) + thck(i,j)
+                thck(i,j) = 0.0d0
+             else
+                ! calve part of the column
+                thck(i,j) = thck(i,j) - dthck(i,j)
+                calving_thck(i,j) = calving_thck(i,j) + dthck(i,j)
+                dthck(i,j) = 0.0d0
+             endif
+
+          endif   ! calving_front cell
+       enddo   ! i
+    enddo   ! j
+
+    call parallel_halo(thck, parallel)
+    call parallel_halo(dthck, parallel)
+
+    ! For CF cells with dthck > 0 after calving a full column, apply further calving to upstream neighbors.
+    ! The thinning in each neighbor is proportional to that cell's contribution to the downstream flux.
+
+    ! Loop includes halo cells so each local cell can be thinned by all its downstream neighbors
+    do j = 2, ny-1
+       do i = 2, nx-1
+          if (dthck(i,j) > 0.0d0) then
+
+             ! Given flux_in (ice flux in m^3/s entering the cell from each upstream neighbor),
+             ! compute the fraction of the thinning to be applied to each upstream neighbor.
+             count = 0
+             total_flux = 0.0d0
+                do jj = -1, 1
+                   do ii = -1, 1
+                      iup = i + ii; jup = j + jj
+                      !TODO - Is this logic correct? Both floating and full?
+                      if (flux_in(ii,jj,i,j) > 0.0d0 .and. floating_mask(iup,jup) == 1 &
+                           .and. full_mask(iup,jup) == 1) then
+                         count = count + 1
+                         total_flux = total_flux + flux_in(ii,jj,i,j)
+                      endif
+                   enddo
+                enddo
+
+                !WHL - debug
+                if (verbose_calving .and. i==itest .and. j==jtest .and. this_rank==rtest) then
+                   print*, 'Calve upstream: dthck, input flux (m^3/yr)=', dthck(i,j), total_flux*scyr
+                   print*, '   No. of upstream cells =', count
+                endif
+
+                ! Calve ice in the upstream neighbors
+                if (total_flux > 0.0d0) then
+                   total_dthck = dthck(i,j)
+                   do jj = -1, 1
+                      do ii = -1, 1
+                         iup = i + ii; jup = j + jj
+                      if (flux_in(ii,jj,i,j) > 0.0d0 .and. floating_mask(iup,jup) == 1 &
+                           .and. full_mask(iup,jup) == 1) then
+                            my_dthck = total_dthck * flux_in(ii,jj,i,j)/total_flux
+                            thck(iup,jup) = thck(iup,jup) - my_dthck
+                            calving_thck(iup,jup) = calving_thck(iup,jup) + my_dthck
+                            dthck(i,j) = dthck(i,j) - my_dthck
+                            if (verbose_calving .and. i==itest .and. j==jtest .and. this_rank==rtest) then
+                               print*, '   Upstream ii, jj, frac, remaining dthck:', &
+                                    ii, jj, flux_in(ii,jj,i,j)/total_flux, dthck(i,j)
+                            endif
+                         endif
+                      enddo
+                   enddo
+                endif
+
+             endif   ! dthck > 0
+          enddo   ! i
+       enddo   ! j
+
+       !TODO - Add a bug check for negative thicknesses?
+       thck = max(thck, 0.0d0)
+
+       call parallel_halo(thck, parallel)
+
+       ! Check for thck > thck_effective in CF cells. This can happen if ice in unprotected cells
+       ! has been redistributed to full or nearly full cells upstream, and then was not calved.
+       ! Distribute excess ice downstream
+
+       ! Omitting this call is not answer-changing
+!!       call parallel_halo(ocean_mask, parallel)
+
+       ! Loop must include halo cells so that each local cell can receive contributions
+       !  from all its upstream neighbors
        do j = 2, ny-1
           do i = 2, nx-1
+             if (thck(i,j) > thck_effective(i,j) .and. calving_front_mask(i,j) == 1) then
 
-             if (calving_front_mask(i,j) == 1 .and. dt_calving(i,j) > 0.0d0) then
+                ! Compute the fraction of excess ice in this cell to give to each downstream ocean neighbor
+                count = 0
+                total_flux = 0.0d0
+                do jj = -1, 1
+                   do ii = -1, 1
+                      idn = i + ii; jdn = j + jj
+                      !TODO - Is this logic OK?
+                      if (flux_in(-ii,-jj,idn,jdn) > 0.0d0 .and. ocean_mask(idn,jdn) == 1) then
+                         count = count + 1
+                         total_flux = total_flux + flux_in(-ii,-jj,idn,jdn)
+                      endif
+                   enddo
+                enddo
 
-                ! First, compute the calving needed to compensate for the thickness change in partial CF cells.
-                ! This step should hold the calving front stationary by balancing transport/SMB/BMB with calving.
-
-                dthck = max(dthck_dt_transport(i,j), 0.0d0) * dt_calving(i,j)
-
-                ! If the CF is supposed to retreat, then increase the calving.
-                ! If the CF is supposed to advance, then reduce the calving.
-                ! Note: Some calving might already have been done in an unprotected cell just past the current CF.
-                !       If so, it is allowed to undo this calving so the CF can advance.
-
-                if (cf_advance_retreat_rate /= 0.0d0) then
-
-                   ! increase dthck if the CF is retreating, decrease if the CF is advancing
-                   dthck = dthck - (cf_advance_retreat_rate * dt_calving(i,j)) * thck_effective(i,j) / sqrt(dx*dy)
-
-                   ! Make sure the sum of calving_thck (as previously computed) and dthck is non-negative
-                   ! This prevents unphysical negative calving and limits the rate of CF advance.
-                   if (calving_thck(i,j) + dthck < 0.0d0) dthck = -calving_thck(i,j)
-
+                if (verbose_calving .and. i==itest .and. abs(j-jtest)<=1 .and. this_rank==rtest) then
+                   print*, ' '
+                   print*, 'Excess ice: i, j, dthck, downstream flux (m^3/yr)=', &
+                        i, j, thck(i,j) - thck_effective(i,j), total_flux*scyr
+                   print*, '   No. of downstream cells =', count
                 endif
 
-
-                if (verbose_calving .and. i==itest .and. j==jtest .and. this_rank==rtest) then
-                   write(6,*) ' '
-                   write(6,*) 'count, rank, i, j, dt_calving (yr):', &
-                        count, this_rank, i, j, dt_calving(i,j)/scyr
-                   write(6,*) 'cf_advance_retreat_rate (m/yr) =', cf_advance_retreat_rate * scyr
-                   write(6,*) 'thck:', thck(i,j)
-                   write(6,*) 'thck_effective (m) =', thck_effective(i,j)
-                   write(6,*) 'dthck transport (m) =', dthck_dt_transport(i,j) * dt_calving(i,j)
-                   write(6,*) 'dthck calving (m)     =', dthck
+                ! Move ice to its downstream ocean neighbors
+                total_dthck = thck(i,j) - thck_effective(i,j)
+                if (total_flux > 0.0d0) then
+                   do jj = -1, 1
+                      do ii = -1, 1
+                         idn = i + ii; jdn = j + jj
+                         if (flux_in(-ii,-jj,idn,jdn) > 0.0d0 .and. ocean_mask(idn,jdn) == 1) then
+                            my_dthck = total_dthck * flux_in(-ii,-jj,idn,jdn)/total_flux
+                            thck(idn,jdn) = thck(idn,jdn) + my_dthck
+                            thck(i,j) = thck(i,j) - my_dthck
+                            if (verbose_calving .and. i==itest .and. abs(j-jtest)<=1 .and. this_rank==rtest) then
+                               print*, '   Downstream ii, jj, frac:', ii, jj, flux_in(-ii,-jj,idn,jdn)/total_flux
+                            endif
+                         endif
+                      enddo
+                   enddo
                 endif
 
-                ! Apply this thinning to CF cells
-
-                if (dthck > thck(i,j)) then
-                   ! calve the full column and compute the time remaining for more calving
-                   dt_calving(i,j) = dt_calving(i,j) * (1.0d0 - thck(i,j)/dthck)
-                   iterate_calving = .true.
-                   if (verbose_calving .and. this_rank == rtest) then
-                      write(6,*) 'thck, dthck, ratio:', thck(i,j), dthck, thck(i,j)/dthck
-                      write(6,*) 'calving time remaining (yr):', i, j, dt_calving(i,j)/scyr
-                   endif
-                   calving_thck(i,j) = calving_thck(i,j) + thck(i,j)
-                   thck(i,j) = 0.0d0
-                else
-                   ! calve part of the column
-                   thck(i,j) = thck(i,j) - dthck
-                   calving_thck(i,j) = calving_thck(i,j) + dthck
-                   dt_calving(i,j) = 0.0d0
-                endif
-
-             else   ! no calving
-
-                dt_calving(i,j) = 0.0d0
-
-             endif   ! calving_front cell
-
+             endif   ! CF cell with thck > thck_effective
           enddo   ! i
        enddo   ! j
 
        call parallel_halo(thck, parallel)
        call parallel_halo(calving_thck, parallel)
-
-       ! Check whether any processors have iterate_calving = T.
-       ! If so, then continue.  If not, then exit.
-       iterate_calving = parallel_reduce_log_or(iterate_calving)
-
-       if (iterate_calving) then
-
-          ! Recompute the CF mask
-          ! This could result in new CF cells that were previously in the interior.
-          ! Note: thck_effective keeps the values computed above.
-
-          calving_front_mask_old = calving_front_mask
-
-          call glissade_get_masks(&
-               nx,            ny,             &
-               parallel,                      &
-               thck,          topg,           &
-               eus,           thklim,         &
-               ice_mask,                      &
-               floating_mask = floating_mask, &
-               ocean_mask = ocean_mask,       &
-               land_mask = land_mask)
-
-          call glissade_calving_front_mask(&
-               nx,            ny,                 &
-               which_ho_calving_front,            &
-               parallel,                          &
-               thck,          topg,               &
-               eus,                               &
-               ice_mask,      floating_mask,      &
-               ocean_mask,    land_mask,          &
-               calving_front_mask,                &
-               dthck_dx_cf = dthck_dx_cf,         &
-               dx = dx,       dy = dy,            &
-               thck_effective = thck_effective,   &
-               partial_cf_mask = partial_cf_mask, &
-               full_mask = full_mask)
-
-          ! Save the old dt_calving values and compute new values
-          ! Loop through cells; if a new CF cell has ice-free neighbors with dt_calving > 0,
-          !  then use this time to calve.  If it has multiple such neighbors, then use the largest value.
-
-          dt_calving_old = dt_calving
-          dt_calving = 0.0d0
-
-          do j = 2, ny-1
-             do i = 2, nx-1
-                if (calving_front_mask_old(i,j) == 0 .and. calving_front_mask(i,j) == 1) then   ! new CF cell that can calve
-                   dt_calving(i,j) = max(dt_calving_old(i-1,j), dt_calving_old(i+1,j), &
-                                         dt_calving_old(i,j-1), dt_calving_old(i,j+1))
-                   if (verbose_calving .and. i==itest .and. j==jtest .and. &
-                        this_rank == rtest .and. dt_calving(i,j) > 0.0d0) then
-                      write(6,*) 'rank, i, j, new dt_calving (yr):', this_rank, i, j, dt_calving(i,j)/scyr
-                   endif
-                endif
-             enddo
-          enddo
-
-       endif   ! iterate_calving
-
-    enddo   ! do while iterate_calving = T
 
   end subroutine calving_front_advance_retreat
 
