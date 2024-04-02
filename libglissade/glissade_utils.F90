@@ -1305,7 +1305,7 @@ contains
   end subroutine glissade_input_fluxes
 
 !****************************************************************************
->>>>>>> eae95121 (More support for CalvingMIP experiments)
+
 !TODO - Other utility subroutines to add here?
 !       E.g., tridiag; calclsrf; subroutines to zero out tracers
 
