@@ -3413,47 +3413,6 @@ contains
     !       Then the 'if' statement can just check which_ho_calving_front, since all the
     !        relevant calving options will use the subgrid scheme.
 
-    if (model%options%which_ho_calving_front == HO_CALVING_FRONT_SUBGRID .and. &
-        model%options%whichcalving == CF_ADVANCE_RETREAT_RATE) then
-
-       ! Set the calving time(s).
-       ! This is used with a time-dependent advance/retreat rate
-       model%calving%time = model%numerics%time - model%numerics%tstart
-
-       ! Compute the ice flux into each cell from each neighbor cell.
-       ! This is not exact; it is an upwind estimate based on cell-center thickness.
-       ! But near the ice edge, where reconstructed thicknesses near cell edges
-       !  are close to cell-center values, the estimated flux should be close
-       !  to the incremental remapping flux.
-       !TODO - Do this exactly based on edge fluxes computed during IR?
-
-       call glissade_input_fluxes(&
-            nx,      ny,                      &
-            model%numerics%dew*len0,          & ! m
-            model%numerics%dew*len0,          & ! m
-            itest,   jtest,  rtest,           &
-            model%geometry%thck_old*thk0,     & ! m
-            model%velocity%uvel_2d*vel0,      & ! m/s
-            model%velocity%vvel_2d*vel0,      & ! m/s
-            flux_in,                          & ! m^3/s
-            parallel)
-
-       ! Gather ice from unprotected cells and move it upstream
-       ! TODO - Do we need to check that these are floating cells?
-
-       call glissade_redistribute_unprotected_ice(&
-            nx,                ny,            &
-            itest,  jtest,  rtest,            &
-            parallel,                         &
-            model%calving%protected_mask,     &
-            model%geometry%thck_old*thk0,     & ! m
-            model%calving%thck_effective,     & ! m
-            flux_in,                          & ! m^3/s
-            thck_unscaled,                    & ! m
-            model%calving%calving_thck)         ! m
-
-    endif
-
     ! Remove ice where forced by a calving mask.
     ! Note: whichcalving = CALVING_GRID_MASK and apply_calving_mask = T are currently redundant.
     ! TODO: Remove the CALVING_GRID_MASK option and use apply_calving_mask only (usually with marine_margin = 0).
@@ -3518,7 +3477,7 @@ contains
           call point_diag(model%calving%calving_mask, 'calving_mask',  itest, jtest, rtest, 7, 7)
        endif
 
-       ! calve ice where calving_mask = 1
+       ! Calve ice where calving_mask = 1
        ! Optionally, if calving%timescale > 0, then there is a time scale for removal,
        !  allowing the CF to advance into masked regions.
        !TODO - Apply a time scale wherever calving%timescale > 0.
@@ -3575,6 +3534,47 @@ contains
       endif  ! relaxed calving
 
     endif   ! apply_calving_mask
+
+    if (model%options%which_ho_calving_front == HO_CALVING_FRONT_SUBGRID .and. &
+        model%options%whichcalving == CF_ADVANCE_RETREAT_RATE) then
+
+       ! Set the calving time(s).
+       ! This is used with a time-dependent advance/retreat rate
+       model%calving%time = model%numerics%time - model%numerics%tstart
+
+       ! Compute the ice flux into each cell from each neighbor cell.
+       ! This is not exact; it is an upwind estimate based on cell-center thickness.
+       ! But near the ice edge, where reconstructed thicknesses near cell edges
+       !  are close to cell-center values, the estimated flux should be close
+       !  to the incremental remapping flux.
+       !TODO - Do this exactly based on edge fluxes computed during IR?
+
+       call glissade_input_fluxes(&
+            nx,      ny,                      &
+            model%numerics%dew*len0,          & ! m
+            model%numerics%dew*len0,          & ! m
+            itest,   jtest,  rtest,           &
+            model%geometry%thck_old*thk0,     & ! m
+            model%velocity%uvel_2d*vel0,      & ! m/s
+            model%velocity%vvel_2d*vel0,      & ! m/s
+            flux_in,                          & ! m^3/s
+            parallel)
+
+       ! Gather ice from unprotected cells and move it upstream
+       ! TODO - Do we need to check that these are floating cells?
+
+       call glissade_redistribute_unprotected_ice(&
+            nx,                ny,            &
+            itest,  jtest,  rtest,            &
+            parallel,                         &
+            model%calving%protected_mask,     &
+            model%geometry%thck_old*thk0,     & ! m
+            model%calving%thck_effective,     & ! m
+            flux_in,                          & ! m^3/s
+            thck_unscaled,                    & ! m
+            model%calving%calving_thck)         ! m
+
+    endif
 
     ! ------------------------------------------------------------------------
     ! Calve ice, based on the value of whichcalving.
