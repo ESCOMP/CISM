@@ -342,7 +342,7 @@
          dthck_dx                    ! dH/dx between adjacent cells near the CF
 
     integer, dimension(nx,ny) :: &
-         floating_interior_mask      ! = 1 for floating cells not at the CF
+         marine_interior_mask      ! = 1 for marine-grounded or floating cells not at the CF
 
     character(len=100) :: message
 
@@ -350,7 +350,7 @@
     ! CF cells are defined as floating cells that border ice-free ocean.
 
     calving_front_mask = 0
-    floating_interior_mask = 0
+    marine_interior_mask = 0
 
     ! Identify calving front cells (floating cells that border ice-free ocean)
     ! and floating interior cells (floating cells not at the calving front).
@@ -361,14 +361,16 @@
                  ocean_mask(i,j-1) == 1 .or. ocean_mask(i,j+1) == 1) then
                 calving_front_mask(i,j) = 1
              else
-                floating_interior_mask(i,j) = 1
+                marine_interior_mask(i,j) = 1
              endif
+          elseif (ice_mask(i,j) == 1 .and. land_mask(i,j) == 0) then  ! marine-grounded cell
+             marine_interior_mask = 1
           endif
        enddo
     enddo
 
     call parallel_halo(calving_front_mask, parallel)
-    call parallel_halo(floating_interior_mask, parallel)
+    call parallel_halo(marine_interior_mask, parallel)
 
     if (which_ho_calving_front == HO_CALVING_FRONT_SUBGRID) then
 
@@ -406,10 +408,10 @@
                       ! The gradient is defined to be positive when the neighbor cell is thicker
                       !  than the local cell.
                       max_neighbor_thck = max(&
-                           floating_interior_mask(i-1,j)*thck(i-1,j), &
-                           floating_interior_mask(i+1,j)*thck(i+1,j), &
-                           floating_interior_mask(i,j-1)*thck(i,j-1), &
-                           floating_interior_mask(i,j+1)*thck(i,j+1))
+                           marine_interior_mask(i-1,j)*thck(i-1,j), &
+                           marine_interior_mask(i+1,j)*thck(i+1,j), &
+                           marine_interior_mask(i,j-1)*thck(i,j-1), &
+                           marine_interior_mask(i,j+1)*thck(i,j+1))
                       if (max_neighbor_thck > 0.0d0) then
                          dthck_dx = (max_neighbor_thck - thck(i,j)) / sqrt(dx*dy)
                          ! If the gradient exceeds a critical value, this is a partial CF cell;
@@ -422,7 +424,7 @@
                             partial_cf_mask(i,j) = 0
                             full_mask(i,j) = 1
                          endif   ! dthck_dx > dthck_dx_cf
-                      else   ! no floating interior neighbors; mark as a partial CF cell
+                      else   ! no marine interior neighbors; mark as a partial CF cell
                          partial_cf_mask(i,j) = 1
                       endif   ! max_neighbor_thck > 0
 

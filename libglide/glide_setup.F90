@@ -3712,7 +3712,7 @@ contains
            ! Note: The calving mask is not strictly needed for this option.
            ! But some CalvingMIP experiments start with prescribed retreat and then switch to masked advance,
            ! in which case it is useful to have calving_mask in the restart file.
-           call glide_add_to_restart_variable_list('calving_mask')
+           call glide_add_to_restart_variable_list('calving_mask', model_id)
         endif
 
         ! If forcing ice retreat, then we need ice_fraction_retreat_mask (which specifies the cells where retreat is forced)
