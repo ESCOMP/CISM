@@ -1458,7 +1458,7 @@ contains
        if (model%options%whichcalving == CALVING_THCK_THRESHOLD) then
           call write_log('Error, calving thickness threshold option is supported for Glissade dycore only', GM_FATAL)
        endif
-       if (model%options%whichcalving == EIGENCALVING) then
+       if (model%options%whichcalving == EIGEN_CALVING) then
           call write_log('Error, eigencalving option is supported for Glissade dycore only', GM_FATAL)
        endif
        if (model%options%whichcalving == CALVING_GRID_MASK) then
@@ -2438,7 +2438,7 @@ contains
     endif
 
     if (model%options%whichcalving == CALVING_THCK_THRESHOLD .or.  &
-        model%options%whichcalving == EIGENCALVING           .or.  &
+        model%options%whichcalving == EIGEN_CALVING          .or.  &
         model%options%whichcalving == CALVING_DAMAGE         .or.  &
         model%options%whichcalving == CF_ADVANCE_RETREAT_RATE) then
 
@@ -2448,21 +2448,16 @@ contains
           call write_log(message, GM_FATAL)
        endif
 
-       ! Note: Eigencalving and damage-based calving are followed by thickness-based calving,
-       !        provided calving%minthck > 0.
-       !       For thickness-based calving, calving%minthck > 0 is mandatory.
-
-       write(message,*) 'calving minthck (m) : ', model%calving%minthck
-       call write_log(message)
-       write(message,*) 'calving timescale (yr) : ', model%calving%timescale
-       call write_log(message)
-
+!!       write(message,*) 'calving timescale (yr) : ', model%calving%timescale
+!!       call write_log(message)
        if (model%options%whichcalving == CALVING_THCK_THRESHOLD) then
+          write(message,*) 'calving minthck (m)           : ', model%calving%minthck
+          call write_log(message)
           if (model%calving%minthck <= 0.0d0) then
              write(message,*) 'Error, this calving option needs calving_minthck > 0'
              call write_log(message, GM_FATAL)
           endif
-       elseif (model%options%whichcalving == EIGENCALVING) then
+       elseif (model%options%whichcalving == EIGEN_CALVING) then
           write(message,*) 'eigenconstant1 (m/yr)         : ', model%calving%eigenconstant1
           call write_log(message)
           write(message,*) 'eigenconstant2 (m/yr)         : ', model%calving%eigenconstant2
@@ -3703,7 +3698,7 @@ contains
         ! The eigencalving calculation requires the product of eigenvalues of the horizontal strain rate tensor,
         !  which depends on the stress tensor, which is computed by the HO solver.
         ! On restart, the correct stress and strain rate tensors are not available, so we read in the eigenproduct.
-        if (options%whichcalving == EIGENCALVING .or. options%whichcalving == CALVING_DAMAGE) then
+        if (options%whichcalving == EIGEN_CALVING .or. options%whichcalving == CALVING_DAMAGE) then
            call glide_add_to_restart_variable_list('tau_eigen1', model_id)
            call glide_add_to_restart_variable_list('tau_eigen2', model_id)
         endif

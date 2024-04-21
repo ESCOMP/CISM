@@ -182,7 +182,7 @@ module glide_types
   integer, parameter :: CALVING_TOPG_THRESHOLD = 4
   integer, parameter :: CALVING_GRID_MASK = 5
   integer, parameter :: CALVING_THCK_THRESHOLD = 6
-  integer, parameter :: EIGENCALVING = 7
+  integer, parameter :: EIGEN_CALVING = 7
   integer, parameter :: CALVING_DAMAGE = 8
   integer, parameter :: CF_ADVANCE_RETREAT_RATE = 9
   integer, parameter :: CALVING_HUYBRECHTS = 10
@@ -1542,7 +1542,7 @@ module glide_types
      integer, dimension(:,:),  pointer :: protected_mask => null() !> mask of cells protected from calving when using the subgrid CF scheme
      real(dp),dimension(:,:),  pointer :: thck_effective => null() !> effective thickness for calving (m)
      real(dp),dimension(:,:),  pointer :: lateral_rate => null()   !> lateral calving rate (m/yr, not scaled)
-                                                                   !> (whichcalving = EIGENCALVING, CALVING_DAMAGE) 
+                                                                   !> (whichcalving = EIGEN_CALVING, CALVING_DAMAGE) 
      real(dp),dimension(:,:),  pointer :: tau_eigen1 => null()     !> first eigenvalue of 2D horizontal stress tensor (Pa)
      real(dp),dimension(:,:),  pointer :: tau_eigen2 => null()     !> second eigenvalue of 2D horizontal stress tensor (Pa)
      real(dp),dimension(:,:),  pointer :: eps_eigen1 => null()     !> first eigenvalue of 2D horizontal strain rate tensor (s^-1)
@@ -2469,18 +2469,18 @@ module glide_types
   !++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 
   !TODO - Move these parameters to types associated with a certain kind of physics
-  !TODO - Set default geot = 0, so that idealized tests by default have no mass loss
+  !WHL - Changed default geot to 0.0, so that idealized tests by default have no mass loss
   type glide_paramets
     real(dp),dimension(5) :: bpar = (/ 0.2d0, 0.5d0, 0.0d0 ,1.0d-2, 1.0d0/)
     real(dp) :: btrac_const = 0.d0     ! m yr^{-1} Pa^{-1} (gets scaled during init)
     real(dp) :: btrac_slope = 0.0d0    ! Pa^{-1} (gets scaled during init)
     real(dp) :: btrac_max = 0.d0       ! m yr^{-1} Pa^{-1} (gets scaled during init)
-    real(dp) :: geot   = -5.0d-2       ! W m^{-2}, positive down
+    real(dp) :: geot   = -5.0d-2       ! W m^{-2}, positive down  !TODO - Change default to 0.0?
     real(dp) :: flow_enhancement_factor_ground = 1.0d0   ! flow enhancement parameter for the Arrhenius relationship;
                                                          ! grounded ice only; typically > 1 for SIA models to speed up the ice
-    real(dp) :: flow_enhancement_factor_float = 1.0d0 ! flow enhancement parameter for floating ice
-                                                      ! Default is 1.0, but for marine simulations a smaller value
-                                                      !  is often needed to match observed shelf speeds
+    real(dp) :: flow_enhancement_factor_float = 1.0d0    ! flow enhancement parameter for floating ice
+                                                         ! Default is 1.0, but for marine simulations a smaller value
+                                                         !  is often needed to match observed shelf speeds
     real(dp) :: slip_ratio = 1.0d0     ! Slip ratio, used only in higher order code when the slip ratio beta computation is requested
     real(dp) :: hydtim = 1000.0d0      ! years, converted to s^{-1} and scaled
                                        ! 0 if no drainage
