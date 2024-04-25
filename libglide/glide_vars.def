@@ -1071,6 +1071,13 @@ long_name:     spatially varying C for Coulomb sliding, staggered grid
 data:          data%basal_physics%coulomb_c
 load:          1
 
+[coulomb_c_relax]
+dimensions:    time, y0, x0
+units:         1
+long_name:      target for coulomb c to relax towards
+data:          data%basal_physics%coulomb_c_relax
+load:          1
+
 [artm]
 dimensions:    time, y1, x1
 units:         degree_Celsius
@@ -1516,6 +1523,15 @@ dimensions:    time, y0, x0
 units:         unitless [0,1]
 long_name:     grounded ice fraction
 data:          data%geometry%f_ground
+standard_name: grounded_fraction
+load:          0
+
+
+[f_ground_obs]
+dimensions:    time, y0, x0
+units:         unitless [0,1]
+long_name:     grounded ice fraction
+data:          data%geometry%f_ground_obs
 standard_name: grounded_fraction
 load:          0
 

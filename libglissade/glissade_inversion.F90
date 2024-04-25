@@ -670,7 +670,6 @@ contains
                  !!we do not want to set a height dependent target in cells that are floating in the simulation but not
                  !!in the observations. I set it strict now, only where modelled cells are fully floating, to prevent 
                  !!oscilations at the modelled grounding line. 
-
                  where (model%geometry%f_ground_obs>0.0d0 .and. model%geometry%f_ground == 0.0d0)
                        model%basal_physics%coulomb_c_relax = model%basal_physics%coulomb_c_max
                  endwhere
