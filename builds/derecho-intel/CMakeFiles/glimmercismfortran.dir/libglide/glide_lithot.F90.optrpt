@@ -1,0 +1,520 @@
+Intel(R) Advisor can now assist with vectorization and show optimization
+  report messages with your source code.
+See "https://software.intel.com/en-us/intel-advisor-xe" for details.
+
+
+    Report from: Interprocedural optimizations [ipo]
+
+INLINING OPTION VALUES:
+  -inline-factor: 100
+  -inline-min-size: 30
+  -inline-max-size: 230
+  -inline-max-total-size: 2000
+  -inline-max-per-routine: 10000
+  -inline-max-per-compile: 500000
+
+
+Begin optimization report for: glide_lithot._
+
+    Report from: Interprocedural optimizations [ipo]
+
+INLINE REPORT: (glide_lithot._) [1] /glade/u/home/tvda/CISM/libglide/glide_lithot.F90(36,8)
+
+
+    Report from: Code generation optimizations [cg]
+
+/glade/u/home/tvda/CISM/libglide/glide_lithot.F90(36,8):remark #34051: REGISTER ALLOCATION : [glide_lithot._] /glade/u/home/tvda/CISM/libglide/glide_lithot.F90:36
+
+    Hardware registers
+        Reserved     :    2[ rsp rip]
+        Available    :   39[ rax rdx rcx rbx rbp rsi rdi r8-r15 mm0-mm7 zmm0-zmm15]
+        Callee-save  :    6[ rbx rbp r12-r15]
+        Assigned     :    0[ reg_null]
+        
+    Routine temporaries
+        Total         :       6
+            Global    :       0
+            Local     :       6
+        Regenerable   :       0
+        Spilled       :       0
+        
+    Routine stack
+        Variables     :       0 bytes*
+            Reads     :       0 [0.00e+00 ~ 0.0%]
+            Writes    :       0 [0.00e+00 ~ 0.0%]
+        Spills        :       0 bytes*
+            Reads     :       0 [0.00e+00 ~ 0.0%]
+            Writes    :       0 [0.00e+00 ~ 0.0%]
+    
+    Notes
+    
+        *Non-overlapping variables and spills may share stack space,
+         so the total stack size might be less than this.
+    
+
+===========================================================================
+
+Begin optimization report for: GLIDE_LITHOT::SPINUP_LITHOT
+
+    Report from: Interprocedural optimizations [ipo]
+
+INLINE REPORT: (GLIDE_LITHOT::SPINUP_LITHOT) [2] /glade/u/home/tvda/CISM/libglide/glide_lithot.F90(103,14)
+  -> INLINE: (119,16) GLIDE_LITHOT::CALC_LITHOT
+    -> INLINE: (141,10) GLIDE_LITHOT::CALC_GEOTH
+
+
+    Report from: Loop nest, Vector & Auto-parallelization optimizations [loop, vec, par]
+
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglide/glide_lithot.F90(154,5) inlined into /glade/u/home/tvda/CISM/libglide/glide_lithot.F90(147,16)
+   remark #15542: loop was not vectorized: inner loop was already vectorized
+
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglide/glide_lithot.F90(154,5) inlined into /glade/u/home/tvda/CISM/libglide/glide_lithot.F90(147,16)
+      remark #15300: LOOP WAS VECTORIZED
+   LOOP END
+
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglide/glide_lithot.F90(154,5) inlined into /glade/u/home/tvda/CISM/libglide/glide_lithot.F90(147,16)
+   <Remainder loop for vectorization>
+   LOOP END
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglide/glide_lithot.F90(154,5) inlined into /glade/u/home/tvda/CISM/libglide/glide_lithot.F90(147,16)
+<Multiversioned v1>
+   remark #25233: Loop multiversioned for stride tests on Assumed shape arrays
+   remark #15542: loop was not vectorized: inner loop was already vectorized
+
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglide/glide_lithot.F90(154,5) inlined into /glade/u/home/tvda/CISM/libglide/glide_lithot.F90(147,16)
+      remark #15300: LOOP WAS VECTORIZED
+   LOOP END
+
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglide/glide_lithot.F90(154,5) inlined into /glade/u/home/tvda/CISM/libglide/glide_lithot.F90(147,16)
+   <Remainder loop for vectorization>
+   LOOP END
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglide/glide_lithot.F90(154,5) inlined into /glade/u/home/tvda/CISM/libglide/glide_lithot.F90(147,16)
+<Multiversioned v2>
+   remark #15542: loop was not vectorized: inner loop was already vectorized
+
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglide/glide_lithot.F90(154,5) inlined into /glade/u/home/tvda/CISM/libglide/glide_lithot.F90(147,16)
+      remark #15300: LOOP WAS VECTORIZED
+   LOOP END
+
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglide/glide_lithot.F90(154,5) inlined into /glade/u/home/tvda/CISM/libglide/glide_lithot.F90(147,16)
+   <Remainder loop for vectorization>
+   LOOP END
+LOOP END
+
+
+Non-optimizable loops:
+
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglide/glide_lithot.F90(120,8)
+   remark #15543: loop was not vectorized: loop with function call not considered an optimization candidate.
+LOOP END
+
+    Report from: Code generation optimizations [cg]
+
+/glade/u/home/tvda/CISM/libglide/glide_lithot.F90(103,14):remark #34051: REGISTER ALLOCATION : [glide_lithot_mp_spinup_lithot_] /glade/u/home/tvda/CISM/libglide/glide_lithot.F90:103
+
+    Hardware registers
+        Reserved     :    2[ rsp rip]
+        Available    :   39[ rax rdx rcx rbx rbp rsi rdi r8-r15 mm0-mm7 zmm0-zmm15]
+        Callee-save  :    6[ rbx rbp r12-r15]
+        Assigned     :   24[ rax rdx rcx rbx rsi rdi r8-r15 zmm0-zmm9]
+        
+    Routine temporaries
+        Total         :     173
+            Global    :      64
+            Local     :     109
+        Regenerable   :      24
+        Spilled       :      31
+        
+    Routine stack
+        Variables     :       0 bytes*
+            Reads     :       0 [0.00e+00 ~ 0.0%]
+            Writes    :       0 [0.00e+00 ~ 0.0%]
+        Spills        :     232 bytes*
+            Reads     :      40 [6.18e+00 ~ 6.2%]
+            Writes    :      31 [2.47e+00 ~ 2.5%]
+    
+    Notes
+    
+        *Non-overlapping variables and spills may share stack space,
+         so the total stack size might be less than this.
+    
+
+===========================================================================
+
+Begin optimization report for: GLIDE_LITHOT::CALC_LITHOT
+
+    Report from: Interprocedural optimizations [ipo]
+
+INLINE REPORT: (GLIDE_LITHOT::CALC_LITHOT) [3] /glade/u/home/tvda/CISM/libglide/glide_lithot.F90(125,14)
+  -> INLINE: (141,10) GLIDE_LITHOT::CALC_GEOTH
+
+
+    Report from: Loop nest, Vector & Auto-parallelization optimizations [loop, vec, par]
+
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglide/glide_lithot.F90(154,5) inlined into /glade/u/home/tvda/CISM/libglide/glide_lithot.F90(169,10)
+   remark #15542: loop was not vectorized: inner loop was already vectorized
+
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglide/glide_lithot.F90(154,5) inlined into /glade/u/home/tvda/CISM/libglide/glide_lithot.F90(169,10)
+      remark #15300: LOOP WAS VECTORIZED
+   LOOP END
+
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglide/glide_lithot.F90(154,5) inlined into /glade/u/home/tvda/CISM/libglide/glide_lithot.F90(169,10)
+   <Remainder loop for vectorization>
+   LOOP END
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglide/glide_lithot.F90(154,5) inlined into /glade/u/home/tvda/CISM/libglide/glide_lithot.F90(169,10)
+<Multiversioned v1>
+   remark #25233: Loop multiversioned for stride tests on Assumed shape arrays
+   remark #15542: loop was not vectorized: inner loop was already vectorized
+
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglide/glide_lithot.F90(154,5) inlined into /glade/u/home/tvda/CISM/libglide/glide_lithot.F90(169,10)
+      remark #15300: LOOP WAS VECTORIZED
+   LOOP END
+
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglide/glide_lithot.F90(154,5) inlined into /glade/u/home/tvda/CISM/libglide/glide_lithot.F90(169,10)
+   <Remainder loop for vectorization>
+   LOOP END
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglide/glide_lithot.F90(154,5) inlined into /glade/u/home/tvda/CISM/libglide/glide_lithot.F90(169,10)
+<Multiversioned v2>
+   remark #15542: loop was not vectorized: inner loop was already vectorized
+
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglide/glide_lithot.F90(154,5) inlined into /glade/u/home/tvda/CISM/libglide/glide_lithot.F90(169,10)
+      remark #15300: LOOP WAS VECTORIZED
+   LOOP END
+
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglide/glide_lithot.F90(154,5) inlined into /glade/u/home/tvda/CISM/libglide/glide_lithot.F90(169,10)
+   <Remainder loop for vectorization>
+   LOOP END
+LOOP END
+
+    Report from: Code generation optimizations [cg]
+
+/glade/u/home/tvda/CISM/libglide/glide_lithot.F90(125,14):remark #34051: REGISTER ALLOCATION : [glide_lithot_mp_calc_lithot_] /glade/u/home/tvda/CISM/libglide/glide_lithot.F90:125
+
+    Hardware registers
+        Reserved     :    2[ rsp rip]
+        Available    :   39[ rax rdx rcx rbx rbp rsi rdi r8-r15 mm0-mm7 zmm0-zmm15]
+        Callee-save  :    6[ rbx rbp r12-r15]
+        Assigned     :   24[ rax rdx rcx rbx rsi rdi r8-r15 zmm0-zmm9]
+        
+    Routine temporaries
+        Total         :     158
+            Global    :      62
+            Local     :      96
+        Regenerable   :      11
+        Spilled       :      30
+        
+    Routine stack
+        Variables     :       0 bytes*
+            Reads     :       0 [0.00e+00 ~ 0.0%]
+            Writes    :       0 [0.00e+00 ~ 0.0%]
+        Spills        :     184 bytes*
+            Reads     :      28 [5.46e+00 ~ 5.5%]
+            Writes    :      23 [2.48e+00 ~ 2.5%]
+    
+    Notes
+    
+        *Non-overlapping variables and spills may share stack space,
+         so the total stack size might be less than this.
+    
+
+===========================================================================
+
+Begin optimization report for: GLIDE_LITHOT::CALC_GEOTH
+
+    Report from: Interprocedural optimizations [ipo]
+
+INLINE REPORT: (GLIDE_LITHOT::CALC_GEOTH) [4] /glade/u/home/tvda/CISM/libglide/glide_lithot.F90(145,14)
+
+
+    Report from: Loop nest, Vector & Auto-parallelization optimizations [loop, vec, par]
+
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglide/glide_lithot.F90(154,5)
+   remark #15542: loop was not vectorized: inner loop was already vectorized
+
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglide/glide_lithot.F90(154,5)
+      remark #15300: LOOP WAS VECTORIZED
+   LOOP END
+
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglide/glide_lithot.F90(154,5)
+   <Remainder loop for vectorization>
+   LOOP END
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglide/glide_lithot.F90(154,5)
+<Multiversioned v1>
+   remark #25233: Loop multiversioned for stride tests on Assumed shape arrays
+   remark #15542: loop was not vectorized: inner loop was already vectorized
+
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglide/glide_lithot.F90(154,5)
+      remark #15300: LOOP WAS VECTORIZED
+   LOOP END
+
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglide/glide_lithot.F90(154,5)
+   <Remainder loop for vectorization>
+   LOOP END
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglide/glide_lithot.F90(154,5)
+<Multiversioned v2>
+   remark #15542: loop was not vectorized: inner loop was already vectorized
+
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglide/glide_lithot.F90(154,5)
+      remark #15300: LOOP WAS VECTORIZED
+   LOOP END
+
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglide/glide_lithot.F90(154,5)
+   <Remainder loop for vectorization>
+   LOOP END
+LOOP END
+
+    Report from: Code generation optimizations [cg]
+
+/glade/u/home/tvda/CISM/libglide/glide_lithot.F90(145,14):remark #34051: REGISTER ALLOCATION : [glide_lithot_mp_calc_geoth_] /glade/u/home/tvda/CISM/libglide/glide_lithot.F90:145
+
+    Hardware registers
+        Reserved     :    2[ rsp rip]
+        Available    :   39[ rax rdx rcx rbx rbp rsi rdi r8-r15 mm0-mm7 zmm0-zmm15]
+        Callee-save  :    6[ rbx rbp r12-r15]
+        Assigned     :   24[ rax rdx rcx rbx rsi rdi r8-r15 zmm0-zmm9]
+        
+    Routine temporaries
+        Total         :     148
+            Global    :      56
+            Local     :      92
+        Regenerable   :       1
+        Spilled       :      28
+        
+    Routine stack
+        Variables     :       0 bytes*
+            Reads     :       0 [0.00e+00 ~ 0.0%]
+            Writes    :       0 [0.00e+00 ~ 0.0%]
+        Spills        :     168 bytes*
+            Reads     :      29 [5.18e+00 ~ 5.2%]
+            Writes    :      21 [2.28e+00 ~ 2.3%]
+    
+    Notes
+    
+        *Non-overlapping variables and spills may share stack space,
+         so the total stack size might be less than this.
+    
+
+===========================================================================
+
+Begin optimization report for: GLIDE_LITHOT::FINALISE_LITHOT
+
+    Report from: Interprocedural optimizations [ipo]
+
+INLINE REPORT: (GLIDE_LITHOT::FINALISE_LITHOT) [5] /glade/u/home/tvda/CISM/libglide/glide_lithot.F90(158,14)
+
+
+    Report from: Code generation optimizations [cg]
+
+/glade/u/home/tvda/CISM/libglide/glide_lithot.F90(158,14):remark #34051: REGISTER ALLOCATION : [glide_lithot_mp_finalise_lithot_] /glade/u/home/tvda/CISM/libglide/glide_lithot.F90:158
+
+    Hardware registers
+        Reserved     :    2[ rsp rip]
+        Available    :   39[ rax rdx rcx rbx rbp rsi rdi r8-r15 mm0-mm7 zmm0-zmm15]
+        Callee-save  :    6[ rbx rbp r12-r15]
+        Assigned     :    9[ rax rdx rcx rsi rdi r8-r9 r14-r15]
+        
+    Routine temporaries
+        Total         :     105
+            Global    :      16
+            Local     :      89
+        Regenerable   :      14
+        Spilled       :       2
+        
+    Routine stack
+        Variables     :       0 bytes*
+            Reads     :       0 [0.00e+00 ~ 0.0%]
+            Writes    :       0 [0.00e+00 ~ 0.0%]
+        Spills        :       0 bytes*
+            Reads     :       0 [0.00e+00 ~ 0.0%]
+            Writes    :       0 [0.00e+00 ~ 0.0%]
+    
+    Notes
+    
+        *Non-overlapping variables and spills may share stack space,
+         so the total stack size might be less than this.
+    
+
+===========================================================================
+
+Begin optimization report for: GLIDE_LITHOT::INIT_LITHOT
+
+    Report from: Interprocedural optimizations [ipo]
+
+INLINE REPORT: (GLIDE_LITHOT::INIT_LITHOT) [6] /glade/u/home/tvda/CISM/libglide/glide_lithot.F90(42,14)
+
+
+    Report from: Loop nest, Vector & Auto-parallelization optimizations [loop, vec, par]
+
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglide/glide_lithot.F90(57,57)
+<Multiversioned v1>
+   remark #25233: Loop multiversioned for stride tests on Assumed shape arrays
+   remark #15300: LOOP WAS VECTORIZED
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglide/glide_lithot.F90(57,57)
+<Remainder loop for vectorization, Multiversioned v1>
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglide/glide_lithot.F90(57,57)
+<Multiversioned v2>
+   remark #15300: LOOP WAS VECTORIZED
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglide/glide_lithot.F90(57,57)
+<Remainder loop for vectorization, Multiversioned v2>
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglide/glide_lithot.F90(58,61)
+<Multiversioned v1>
+   remark #25233: Loop multiversioned for stride tests on Assumed shape arrays
+   remark #15542: loop was not vectorized: inner loop was already vectorized
+
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglide/glide_lithot.F90(58,61)
+      remark #15300: LOOP WAS VECTORIZED
+   LOOP END
+
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglide/glide_lithot.F90(58,61)
+   <Remainder loop for vectorization>
+   LOOP END
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglide/glide_lithot.F90(58,61)
+<Multiversioned v2>
+   remark #15542: loop was not vectorized: inner loop was already vectorized
+
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglide/glide_lithot.F90(58,61)
+      remark #15300: LOOP WAS VECTORIZED
+   LOOP END
+
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglide/glide_lithot.F90(58,61)
+   <Remainder loop for vectorization>
+   LOOP END
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglide/glide_lithot.F90(71,62)
+   remark #15344: loop was not vectorized: vector dependence prevents vectorization. First dependence is shown below. Use level 5 report for details
+   remark #15346: vector dependence: assumed FLOW dependence between model(1,k) (71:8) and model(k+1) (75:8)
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglide/glide_lithot.F90(79,5)
+   remark #15300: LOOP WAS VECTORIZED
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglide/glide_lithot.F90(79,5)
+<Remainder loop for vectorization>
+   remark #15301: REMAINDER LOOP WAS VECTORIZED
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglide/glide_lithot.F90(79,5)
+<Remainder loop for vectorization>
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglide/glide_lithot.F90(79,5)
+<Multiversioned v1>
+   remark #25233: Loop multiversioned for stride tests on Assumed shape arrays
+   remark #15300: LOOP WAS VECTORIZED
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglide/glide_lithot.F90(79,5)
+<Remainder loop for vectorization, Multiversioned v1>
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglide/glide_lithot.F90(79,5)
+<Multiversioned v2>
+   remark #15300: LOOP WAS VECTORIZED
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglide/glide_lithot.F90(79,5)
+<Remainder loop for vectorization, Multiversioned v2>
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglide/glide_lithot.F90(88,8)
+   remark #15542: loop was not vectorized: inner loop was already vectorized
+
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglide/glide_lithot.F90(89,11)
+   <Multiversioned v1>
+      remark #25233: Loop multiversioned for stride tests on Assumed shape arrays
+      remark #15542: loop was not vectorized: inner loop was already vectorized
+
+      LOOP BEGIN at /glade/u/home/tvda/CISM/libglide/glide_lithot.F90(89,11)
+         remark #15300: LOOP WAS VECTORIZED
+      LOOP END
+
+      LOOP BEGIN at /glade/u/home/tvda/CISM/libglide/glide_lithot.F90(89,11)
+      <Remainder loop for vectorization>
+      LOOP END
+   LOOP END
+
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglide/glide_lithot.F90(89,11)
+   <Multiversioned v2>
+      remark #15542: loop was not vectorized: inner loop was already vectorized
+
+      LOOP BEGIN at /glade/u/home/tvda/CISM/libglide/glide_lithot.F90(89,11)
+         remark #15300: LOOP WAS VECTORIZED
+      LOOP END
+
+      LOOP BEGIN at /glade/u/home/tvda/CISM/libglide/glide_lithot.F90(89,11)
+      <Remainder loop for vectorization>
+      LOOP END
+   LOOP END
+LOOP END
+
+
+Non-optimizable loops:
+
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglide/glide_lithot.F90(64,5)
+   remark #15543: loop was not vectorized: loop with function call not considered an optimization candidate.
+LOOP END
+remark #25050: 
+Tempoary Array Elimination (FTAE) Report: 
+ftae for the loop at line +89 /glade/u/home/tvda/CISM/libglide/glide_lithot.F90
+
+    Report from: Code generation optimizations [cg]
+
+/glade/u/home/tvda/CISM/libglide/glide_lithot.F90(42,14):remark #34051: REGISTER ALLOCATION : [glide_lithot_mp_init_lithot_] /glade/u/home/tvda/CISM/libglide/glide_lithot.F90:42
+
+    Hardware registers
+        Reserved     :    2[ rsp rip]
+        Available    :   39[ rax rdx rcx rbx rbp rsi rdi r8-r15 mm0-mm7 zmm0-zmm15]
+        Callee-save  :    6[ rbx rbp r12-r15]
+        Assigned     :   28[ rax rdx rcx rbx rsi rdi r8-r15 zmm0-zmm13]
+        
+    Routine temporaries
+        Total         :     381
+            Global    :     161
+            Local     :     220
+        Regenerable   :      36
+        Spilled       :      36
+        
+    Routine stack
+        Variables     :      24 bytes*
+            Reads     :       2 [7.15e-02 ~ 0.1%]
+            Writes    :       1 [1.95e-01 ~ 0.2%]
+        Spills        :     240 bytes*
+            Reads     :      52 [3.32e+00 ~ 3.3%]
+            Writes    :      43 [1.21e+00 ~ 1.2%]
+    
+    Notes
+    
+        *Non-overlapping variables and spills may share stack space,
+         so the total stack size might be less than this.
+    
+
+===========================================================================

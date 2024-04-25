@@ -1,0 +1,1427 @@
+Intel(R) Advisor can now assist with vectorization and show optimization
+  report messages with your source code.
+See "https://software.intel.com/en-us/intel-advisor-xe" for details.
+
+
+    Report from: Interprocedural optimizations [ipo]
+
+INLINING OPTION VALUES:
+  -inline-factor: 100
+  -inline-min-size: 30
+  -inline-max-size: 230
+  -inline-max-total-size: 2000
+  -inline-max-per-routine: 10000
+  -inline-max-per-compile: 500000
+
+
+Begin optimization report for: glide_setup._
+
+    Report from: Interprocedural optimizations [ipo]
+
+INLINE REPORT: (glide_setup._) [1] /glade/u/home/tvda/CISM/libglide/glide_setup.F90(33,8)
+
+
+    Report from: Code generation optimizations [cg]
+
+/glade/u/home/tvda/CISM/libglide/glide_setup.F90(33,8):remark #34051: REGISTER ALLOCATION : [glide_setup._] /glade/u/home/tvda/CISM/libglide/glide_setup.F90:33
+
+    Hardware registers
+        Reserved     :    2[ rsp rip]
+        Available    :   39[ rax rdx rcx rbx rbp rsi rdi r8-r15 mm0-mm7 zmm0-zmm15]
+        Callee-save  :    6[ rbx rbp r12-r15]
+        Assigned     :    0[ reg_null]
+        
+    Routine temporaries
+        Total         :       6
+            Global    :       0
+            Local     :       6
+        Regenerable   :       0
+        Spilled       :       0
+        
+    Routine stack
+        Variables     :       0 bytes*
+            Reads     :       0 [0.00e+00 ~ 0.0%]
+            Writes    :       0 [0.00e+00 ~ 0.0%]
+        Spills        :       0 bytes*
+            Reads     :       0 [0.00e+00 ~ 0.0%]
+            Writes    :       0 [0.00e+00 ~ 0.0%]
+    
+    Notes
+    
+        *Non-overlapping variables and spills may share stack space,
+         so the total stack size might be less than this.
+    
+
+===========================================================================
+
+Begin optimization report for: GLIDE_SETUP::GLIDE_READCONFIG
+
+    Report from: Interprocedural optimizations [ipo]
+
+INLINE REPORT: (GLIDE_SETUP::GLIDE_READCONFIG) [2] /glade/u/home/tvda/CISM/libglide/glide_setup.F90(57,14)
+  -> INLINE: (74,13) GLIDE_SETUP::HANDLE_GRID
+  -> INLINE: (80,13) GLIDE_SETUP::HANDLE_TIME
+  -> INLINE: (86,13) GLIDE_SETUP::HANDLE_OPTIONS
+  -> INLINE: (92,14) GLIDE_SETUP::HANDLE_HO_OPTIONS
+  -> INLINE: (98,14) GLIDE_SETUP::HANDLE_DYCORE_OPTIONS
+  -> (105,13) GLIDE_SETUP::HANDLE_PARAMETERS
+  -> INLINE: (113,16) GLIDE_SETUP::HANDLE_GTHF
+  -> INLINE: (122,16) GLIDE_SETUP::HANDLE_ISOSTASY
+  -> INLINE: (139,10) GLIDE_SETUP::DEFINE_GLIDE_RESTART_VARIABLES
+
+
+    Report from: Code generation optimizations [cg]
+
+/glade/u/home/tvda/CISM/libglide/glide_setup.F90(3260,14):remark #34000: call to memcpy implemented inline with loads and stores with proven source (alignment, offset): (32, 0), and destination (alignment, offset): (16, 0)
+/glade/u/home/tvda/CISM/libglide/glide_setup.F90(3288,5):remark #34000: call to memcpy implemented inline with loads and stores with proven source (alignment, offset): (1, 0), and destination (alignment, offset): (16, 0)
+/glade/u/home/tvda/CISM/libglide/glide_setup.F90(541,8):remark #34026: call to memmove implemented as a call to optimized library version
+/glade/u/home/tvda/CISM/libglide/glide_setup.F90(57,14):remark #34051: REGISTER ALLOCATION : [glide_setup_mp_glide_readconfig_] /glade/u/home/tvda/CISM/libglide/glide_setup.F90:57
+
+    Hardware registers
+        Reserved     :    2[ rsp rip]
+        Available    :   39[ rax rdx rcx rbx rbp rsi rdi r8-r15 mm0-mm7 zmm0-zmm15]
+        Callee-save  :    6[ rbx rbp r12-r15]
+        Assigned     :   16[ rax rdx rcx rbx rsi rdi r8-r9 r12-r15 zmm0-zmm3]
+        
+    Routine temporaries
+        Total         :    1182
+            Global    :      38
+            Local     :    1144
+        Regenerable   :     822
+        Spilled       :       5
+        
+    Routine stack
+        Variables     :    1096 bytes*
+            Reads     :      49 [6.04e+00 ~ 6.0%]
+            Writes    :      16 [1.41e+01 ~ 14.1%]
+        Spills        :       0 bytes*
+            Reads     :       0 [0.00e+00 ~ 0.0%]
+            Writes    :       0 [0.00e+00 ~ 0.0%]
+    
+    Notes
+    
+        *Non-overlapping variables and spills may share stack space,
+         so the total stack size might be less than this.
+    
+
+===========================================================================
+
+Begin optimization report for: GLIDE_SETUP::HANDLE_PARAMETERS
+
+    Report from: Interprocedural optimizations [ipo]
+
+INLINE REPORT: (GLIDE_SETUP::HANDLE_PARAMETERS) [3] /glade/u/home/tvda/CISM/libglide/glide_setup.F90(2139,14)
+
+
+    Report from: Loop nest, Vector & Auto-parallelization optimizations [loop, vec, par]
+
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglide/glide_setup.F90(2236,8)
+<Multiversioned v1>
+   remark #25233: Loop multiversioned for stride tests on Assumed shape arrays
+   remark #15335: loop was not vectorized: vectorization possible but seems inefficient. Use vector always directive or -vec-threshold0 to override 
+   remark #25436: completely unrolled by 5  
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglide/glide_setup.F90(2236,8)
+<Multiversioned v2>
+   remark #15335: loop was not vectorized: vectorization possible but seems inefficient. Use vector always directive or -vec-threshold0 to override 
+   remark #25436: completely unrolled by 5  
+LOOP END
+
+    Report from: Code generation optimizations [cg]
+
+/glade/u/home/tvda/CISM/libglide/glide_setup.F90(2139,14):remark #34051: REGISTER ALLOCATION : [glide_setup_mp_handle_parameters_] /glade/u/home/tvda/CISM/libglide/glide_setup.F90:2139
+
+    Hardware registers
+        Reserved     :    2[ rsp rip]
+        Available    :   39[ rax rdx rcx rbx rbp rsi rdi r8-r15 mm0-mm7 zmm0-zmm15]
+        Callee-save  :    6[ rbx rbp r12-r15]
+        Assigned     :   12[ rax rdx rcx rsi rdi r8-r11 r13-r15]
+        
+    Routine temporaries
+        Total         :     991
+            Global    :      16
+            Local     :     975
+        Regenerable   :     477
+        Spilled       :       3
+        
+    Routine stack
+        Variables     :       4 bytes*
+            Reads     :       0 [0.00e+00 ~ 0.0%]
+            Writes    :       1 [1.27e-01 ~ 0.1%]
+        Spills        :       0 bytes*
+            Reads     :       0 [0.00e+00 ~ 0.0%]
+            Writes    :       0 [0.00e+00 ~ 0.0%]
+    
+    Notes
+    
+        *Non-overlapping variables and spills may share stack space,
+         so the total stack size might be less than this.
+    
+
+===========================================================================
+
+Begin optimization report for: GLIDE_SETUP::GLIDE_PRINTCONFIG
+
+    Report from: Interprocedural optimizations [ipo]
+
+INLINE REPORT: (GLIDE_SETUP::GLIDE_PRINTCONFIG) [4] /glade/u/home/tvda/CISM/libglide/glide_setup.F90(145,14)
+  -> INLINE: (154,10) GLIDE_SETUP::PRINT_GRID
+  -> INLINE: (155,10) GLIDE_SETUP::PRINT_TIME
+  -> (156,10) GLIDE_SETUP::PRINT_OPTIONS
+  -> (157,10) GLIDE_SETUP::PRINT_PARAMETERS
+  -> INLINE: (158,10) GLIDE_SETUP::PRINT_GTHF
+  -> INLINE: (159,10) GLIDE_SETUP::PRINT_ISOSTASY
+
+
+    Report from: Code generation optimizations [cg]
+
+/glade/u/home/tvda/CISM/libglide/glide_setup.F90(145,14):remark #34051: REGISTER ALLOCATION : [glide_setup_mp_glide_printconfig_] /glade/u/home/tvda/CISM/libglide/glide_setup.F90:145
+
+    Hardware registers
+        Reserved     :    2[ rsp rip]
+        Available    :   39[ rax rdx rcx rbx rbp rsi rdi r8-r15 mm0-mm7 zmm0-zmm15]
+        Callee-save  :    6[ rbx rbp r12-r15]
+        Assigned     :   11[ rax rdx rcx rsi rdi r8-r9 r15 zmm0-zmm2]
+        
+    Routine temporaries
+        Total         :     820
+            Global    :      84
+            Local     :     736
+        Regenerable   :     691
+        Spilled       :       1
+        
+    Routine stack
+        Variables     :    8320 bytes*
+            Reads     :       0 [0.00e+00 ~ 0.0%]
+            Writes    :     178 [1.74e+01 ~ 17.4%]
+        Spills        :       0 bytes*
+            Reads     :       0 [0.00e+00 ~ 0.0%]
+            Writes    :       0 [0.00e+00 ~ 0.0%]
+    
+    Notes
+    
+        *Non-overlapping variables and spills may share stack space,
+         so the total stack size might be less than this.
+    
+
+===========================================================================
+
+Begin optimization report for: GLIDE_SETUP::PRINT_OPTIONS
+
+    Report from: Interprocedural optimizations [ipo]
+
+INLINE REPORT: (GLIDE_SETUP::PRINT_OPTIONS) [5] /glade/u/home/tvda/CISM/libglide/glide_setup.F90(858,14)
+
+
+    Report from: Code generation optimizations [cg]
+
+/glade/u/home/tvda/CISM/libglide/glide_setup.F90(858,14):remark #34051: REGISTER ALLOCATION : [glide_setup_mp_print_options_] /glade/u/home/tvda/CISM/libglide/glide_setup.F90:858
+
+    Hardware registers
+        Reserved     :    2[ rsp rip]
+        Available    :   39[ rax rdx rcx rbx rbp rsi rdi r8-r15 mm0-mm7 zmm0-zmm15]
+        Callee-save  :    6[ rbx rbp r12-r15]
+        Assigned     :   14[ rax rdx rcx rbx rsi rdi r8-r9 r12-r15 zmm0-zmm1]
+        
+    Routine temporaries
+        Total         :    3178
+            Global    :      56
+            Local     :    3122
+        Regenerable   :    2871
+        Spilled       :       5
+        
+    Routine stack
+        Variables     :    5304 bytes*
+            Reads     :       0 [0.00e+00 ~ 0.0%]
+            Writes    :     726 [1.96e+01 ~ 19.6%]
+        Spills        :       0 bytes*
+            Reads     :       0 [0.00e+00 ~ 0.0%]
+            Writes    :       0 [0.00e+00 ~ 0.0%]
+    
+    Notes
+    
+        *Non-overlapping variables and spills may share stack space,
+         so the total stack size might be less than this.
+    
+
+===========================================================================
+
+Begin optimization report for: GLIDE_SETUP::PRINT_PARAMETERS
+
+    Report from: Interprocedural optimizations [ipo]
+
+INLINE REPORT: (GLIDE_SETUP::PRINT_PARAMETERS) [6] /glade/u/home/tvda/CISM/libglide/glide_setup.F90(2391,14)
+
+
+    Report from: Code generation optimizations [cg]
+
+/glade/u/home/tvda/CISM/libglide/glide_setup.F90(2391,14):remark #34051: REGISTER ALLOCATION : [glide_setup_mp_print_parameters_] /glade/u/home/tvda/CISM/libglide/glide_setup.F90:2391
+
+    Hardware registers
+        Reserved     :    2[ rsp rip]
+        Available    :   39[ rax rdx rcx rbx rbp rsi rdi r8-r15 mm0-mm7 zmm0-zmm15]
+        Callee-save  :    6[ rbx rbp r12-r15]
+        Assigned     :   10[ rax rdx rcx rsi rdi r8-r9 r15 zmm0-zmm1]
+        
+    Routine temporaries
+        Total         :    3207
+            Global    :      29
+            Local     :    3178
+        Regenerable   :    2996
+        Spilled       :       1
+        
+    Routine stack
+        Variables     :    6552 bytes*
+            Reads     :       0 [0.00e+00 ~ 0.0%]
+            Writes    :     974 [2.04e+01 ~ 20.4%]
+        Spills        :       0 bytes*
+            Reads     :       0 [0.00e+00 ~ 0.0%]
+            Writes    :       0 [0.00e+00 ~ 0.0%]
+    
+    Notes
+    
+        *Non-overlapping variables and spills may share stack space,
+         so the total stack size might be less than this.
+    
+
+===========================================================================
+
+Begin optimization report for: GLIDE_SETUP::GLIDE_SCALE_PARAMS
+
+    Report from: Interprocedural optimizations [ipo]
+
+INLINE REPORT: (GLIDE_SETUP::GLIDE_SCALE_PARAMS) [7] /glade/u/home/tvda/CISM/libglide/glide_setup.F90(166,14)
+
+
+    Report from: Code generation optimizations [cg]
+
+/glade/u/home/tvda/CISM/libglide/glide_setup.F90(166,14):remark #34051: REGISTER ALLOCATION : [glide_setup_mp_glide_scale_params_] /glade/u/home/tvda/CISM/libglide/glide_setup.F90:166
+
+    Hardware registers
+        Reserved     :    2[ rsp rip]
+        Available    :   39[ rax rdx rcx rbx rbp rsi rdi r8-r15 mm0-mm7 zmm0-zmm15]
+        Callee-save  :    6[ rbx rbp r12-r15]
+        Assigned     :   17[ rdi zmm0-zmm15]
+        
+    Routine temporaries
+        Total         :      86
+            Global    :       0
+            Local     :      86
+        Regenerable   :       5
+        Spilled       :       0
+        
+    Routine stack
+        Variables     :       0 bytes*
+            Reads     :       0 [0.00e+00 ~ 0.0%]
+            Writes    :       0 [0.00e+00 ~ 0.0%]
+        Spills        :       0 bytes*
+            Reads     :       0 [0.00e+00 ~ 0.0%]
+            Writes    :       0 [0.00e+00 ~ 0.0%]
+    
+    Notes
+    
+        *Non-overlapping variables and spills may share stack space,
+         so the total stack size might be less than this.
+    
+
+===========================================================================
+
+Begin optimization report for: GLIDE_SETUP::GLIDE_READ_SIGMA
+
+    Report from: Interprocedural optimizations [ipo]
+
+INLINE REPORT: (GLIDE_SETUP::GLIDE_READ_SIGMA) [8] /glade/u/home/tvda/CISM/libglide/glide_setup.F90(234,14)
+  -> INLINE: (256,16) GLIDE_SETUP::HANDLE_SIGMA
+
+
+    Report from: Code generation optimizations [cg]
+
+/glade/u/home/tvda/CISM/libglide/glide_setup.F90(3025,64):remark #34026: call to memmove implemented as a call to optimized library version
+/glade/u/home/tvda/CISM/libglide/glide_setup.F90(234,14):remark #34051: REGISTER ALLOCATION : [glide_setup_mp_glide_read_sigma_] /glade/u/home/tvda/CISM/libglide/glide_setup.F90:234
+
+    Hardware registers
+        Reserved     :    2[ rsp rip]
+        Available    :   39[ rax rdx rcx rbx rbp rsi rdi r8-r15 mm0-mm7 zmm0-zmm15]
+        Callee-save  :    6[ rbx rbp r12-r15]
+        Assigned     :   10[ rax rdx rcx rbx rsi rdi r8-r9 r14-r15]
+        
+    Routine temporaries
+        Total         :      52
+            Global    :      13
+            Local     :      39
+        Regenerable   :      27
+        Spilled       :       3
+        
+    Routine stack
+        Variables     :       0 bytes*
+            Reads     :       0 [0.00e+00 ~ 0.0%]
+            Writes    :       0 [0.00e+00 ~ 0.0%]
+        Spills        :       0 bytes*
+            Reads     :       0 [0.00e+00 ~ 0.0%]
+            Writes    :       0 [0.00e+00 ~ 0.0%]
+    
+    Notes
+    
+        *Non-overlapping variables and spills may share stack space,
+         so the total stack size might be less than this.
+    
+
+===========================================================================
+
+Begin optimization report for: GLIDE_SETUP::GLIDE_LOAD_SIGMA
+
+    Report from: Interprocedural optimizations [ipo]
+
+INLINE REPORT: (GLIDE_SETUP::GLIDE_LOAD_SIGMA) [9] /glade/u/home/tvda/CISM/libglide/glide_setup.F90(267,14)
+  -> INLINE: (303,38) GLIDE_SETUP::GLIDE_CALC_SIGMA
+  -> INLINE: (347,41) GLIDE_SETUP::GLIDE_CALC_SIGMA_PATTYN
+  -> INLINE: (366,10) GLIDE_SETUP::PRINT_SIGMA
+
+
+    Report from: Loop nest, Vector & Auto-parallelization optimizations [loop, vec, par]
+
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglide/glide_setup.F90(340,8)
+<Predicate Optimized v1>
+   remark #25423: Condition at line 343 hoisted out of this loop
+   remark #15300: LOOP WAS VECTORIZED
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglide/glide_setup.F90(340,8)
+<Remainder loop for vectorization, Predicate Optimized v1>
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglide/glide_setup.F90(340,8)
+<Predicate Optimized v3>
+   remark #15300: LOOP WAS VECTORIZED
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglide/glide_setup.F90(340,8)
+<Remainder loop for vectorization, Predicate Optimized v3>
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglide/glide_setup.F90(332,8)
+<Multiversioned v1>
+   remark #25233: Loop multiversioned for stride tests on Assumed shape arrays
+   remark #15300: LOOP WAS VECTORIZED
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglide/glide_setup.F90(332,8)
+<Remainder loop for vectorization, Multiversioned v1>
+   remark #15301: REMAINDER LOOP WAS VECTORIZED
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglide/glide_setup.F90(332,8)
+<Remainder loop for vectorization, Multiversioned v1>
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglide/glide_setup.F90(332,8)
+<Multiversioned v2>
+   remark #15300: LOOP WAS VECTORIZED
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglide/glide_setup.F90(332,8)
+<Remainder loop for vectorization, Multiversioned v2>
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglide/glide_setup.F90(301,8)
+   remark #15527: loop was not vectorized: function call to pow cannot be vectorized   [ /glade/u/home/tvda/CISM/libglide/glide_setup.F90(381,33) ]
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglide/glide_setup.F90(357,5)
+   remark #15300: LOOP WAS VECTORIZED
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglide/glide_setup.F90(357,5)
+<Remainder loop for vectorization>
+   remark #15335: remainder loop was not vectorized: vectorization possible but seems inefficient. Use vector always directive or -vec-threshold0 to override 
+   remark #25456: Number of Array Refs Scalar Replaced In Loop: 1
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglide/glide_setup.F90(357,5)
+<Multiversioned v1>
+   remark #25233: Loop multiversioned for stride tests on Assumed shape arrays
+   remark #15300: LOOP WAS VECTORIZED
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglide/glide_setup.F90(357,5)
+<Remainder loop for vectorization, Multiversioned v1>
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglide/glide_setup.F90(357,5)
+<Multiversioned v2>
+   remark #15300: LOOP WAS VECTORIZED
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglide/glide_setup.F90(357,5)
+<Remainder loop for vectorization, Multiversioned v2>
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglide/glide_setup.F90(362,5)
+<Multiversioned v1>
+   remark #25233: Loop multiversioned for stride tests on Assumed shape arrays
+   remark #15300: LOOP WAS VECTORIZED
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglide/glide_setup.F90(362,5)
+<Remainder loop for vectorization, Multiversioned v1>
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglide/glide_setup.F90(362,5)
+<Multiversioned v2>
+   remark #15300: LOOP WAS VECTORIZED
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglide/glide_setup.F90(362,5)
+<Remainder loop for vectorization, Multiversioned v2>
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglide/glide_setup.F90(362,5)
+<Multiversioned v1>
+   remark #25233: Loop multiversioned for stride tests on Assumed shape arrays
+   remark #15300: LOOP WAS VECTORIZED
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglide/glide_setup.F90(362,5)
+<Remainder loop for vectorization, Multiversioned v1>
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglide/glide_setup.F90(362,5)
+<Multiversioned v2>
+   remark #15300: LOOP WAS VECTORIZED
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglide/glide_setup.F90(362,5)
+<Remainder loop for vectorization, Multiversioned v2>
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglide/glide_setup.F90(3046,5) inlined into /glade/u/home/tvda/CISM/libglide/glide_setup.F90(394,10)
+   remark #15344: loop was not vectorized: vector dependence prevents vectorization. First dependence is shown below. Use level 5 report for details
+   remark #15346: vector dependence: assumed OUTPUT dependence between at (3047:8) and at (3047:8)
+LOOP END
+
+
+Non-optimizable loops:
+
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglide/glide_setup.F90(319,11)
+   remark #15523: loop was not vectorized: loop control variable up was found, but loop iteration count cannot be computed before executing the loop
+LOOP END
+
+    Report from: Code generation optimizations [cg]
+
+/glade/u/home/tvda/CISM/libglide/glide_setup.F90(267,14):remark #34051: REGISTER ALLOCATION : [glide_setup_mp_glide_load_sigma_] /glade/u/home/tvda/CISM/libglide/glide_setup.F90:267
+
+    Hardware registers
+        Reserved     :    2[ rsp rip]
+        Available    :   39[ rax rdx rcx rbx rbp rsi rdi r8-r15 mm0-mm7 zmm0-zmm15]
+        Callee-save  :    6[ rbx rbp r12-r15]
+        Assigned     :   23[ rax rdx rcx rbx rsi rdi r8-r15 zmm0-zmm8]
+        
+    Routine temporaries
+        Total         :     673
+            Global    :     208
+            Local     :     465
+        Regenerable   :     214
+        Spilled       :       9
+        
+    Routine stack
+        Variables     :    1632 bytes*
+            Reads     :       1 [9.84e-03 ~ 0.0%]
+            Writes    :      32 [4.23e+00 ~ 4.2%]
+        Spills        :      32 bytes*
+            Reads     :       4 [6.92e-02 ~ 0.1%]
+            Writes    :       4 [2.53e-02 ~ 0.0%]
+    
+    Notes
+    
+        *Non-overlapping variables and spills may share stack space,
+         so the total stack size might be less than this.
+    
+
+===========================================================================
+
+Begin optimization report for: GLIDE_SETUP::GLIDE_CALC_SIGMA
+
+    Report from: Interprocedural optimizations [ipo]
+
+INLINE REPORT: (GLIDE_SETUP::GLIDE_CALC_SIGMA) [10] /glade/u/home/tvda/CISM/libglide/glide_setup.F90(376,12)
+
+
+    Report from: Code generation optimizations [cg]
+
+/glade/u/home/tvda/CISM/libglide/glide_setup.F90(376,12):remark #34051: REGISTER ALLOCATION : [glide_setup_mp_glide_calc_sigma_] /glade/u/home/tvda/CISM/libglide/glide_setup.F90:376
+
+    Hardware registers
+        Reserved     :    2[ rsp rip]
+        Available    :   39[ rax rdx rcx rbx rbp rsi rdi r8-r15 mm0-mm7 zmm0-zmm15]
+        Callee-save  :    6[ rbx rbp r12-r15]
+        Assigned     :    6[ rsi rdi r12 zmm0-zmm2]
+        
+    Routine temporaries
+        Total         :      33
+            Global    :      11
+            Local     :      22
+        Regenerable   :       1
+        Spilled       :       2
+        
+    Routine stack
+        Variables     :       0 bytes*
+            Reads     :       0 [0.00e+00 ~ 0.0%]
+            Writes    :       0 [0.00e+00 ~ 0.0%]
+        Spills        :       8 bytes*
+            Reads     :       1 [3.33e+00 ~ 3.3%]
+            Writes    :       1 [3.33e+00 ~ 3.3%]
+    
+    Notes
+    
+        *Non-overlapping variables and spills may share stack space,
+         so the total stack size might be less than this.
+    
+
+===========================================================================
+
+Begin optimization report for: GLIDE_SETUP::GLIDE_CALC_SIGMA_PATTYN
+
+    Report from: Interprocedural optimizations [ipo]
+
+INLINE REPORT: (GLIDE_SETUP::GLIDE_CALC_SIGMA_PATTYN) [11] /glade/u/home/tvda/CISM/libglide/glide_setup.F90(387,12)
+
+
+    Report from: Code generation optimizations [cg]
+
+/glade/u/home/tvda/CISM/libglide/glide_setup.F90(387,12):remark #34051: REGISTER ALLOCATION : [glide_setup_mp_glide_calc_sigma_pattyn_] /glade/u/home/tvda/CISM/libglide/glide_setup.F90:387
+
+    Hardware registers
+        Reserved     :    2[ rsp rip]
+        Available    :   39[ rax rdx rcx rbx rbp rsi rdi r8-r15 mm0-mm7 zmm0-zmm15]
+        Callee-save  :    6[ rbx rbp r12-r15]
+        Assigned     :    4[ rdi zmm0-zmm2]
+        
+    Routine temporaries
+        Total         :      18
+            Global    :       0
+            Local     :      18
+        Regenerable   :       2
+        Spilled       :       0
+        
+    Routine stack
+        Variables     :       0 bytes*
+            Reads     :       0 [0.00e+00 ~ 0.0%]
+            Writes    :       0 [0.00e+00 ~ 0.0%]
+        Spills        :       0 bytes*
+            Reads     :       0 [0.00e+00 ~ 0.0%]
+            Writes    :       0 [0.00e+00 ~ 0.0%]
+    
+    Notes
+    
+        *Non-overlapping variables and spills may share stack space,
+         so the total stack size might be less than this.
+    
+
+===========================================================================
+
+Begin optimization report for: GLIDE_SETUP::GLIDE_GET_ZOCN
+
+    Report from: Interprocedural optimizations [ipo]
+
+INLINE REPORT: (GLIDE_SETUP::GLIDE_GET_ZOCN) [12] /glade/u/home/tvda/CISM/libglide/glide_setup.F90(402,14)
+
+
+    Report from: Loop nest, Vector & Auto-parallelization optimizations [loop, vec, par]
+
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglide/glide_setup.F90(456,11)
+   remark #15300: LOOP WAS VECTORIZED
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglide/glide_setup.F90(456,11)
+<Remainder loop for vectorization>
+   remark #15301: REMAINDER LOOP WAS VECTORIZED
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglide/glide_setup.F90(456,11)
+<Remainder loop for vectorization>
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglide/glide_setup.F90(464,17)
+<Multiversioned v1>
+   remark #25233: Loop multiversioned for stride tests on Assumed shape arrays
+   remark #15300: LOOP WAS VECTORIZED
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglide/glide_setup.F90(464,17)
+<Remainder loop for vectorization, Multiversioned v1>
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglide/glide_setup.F90(464,17)
+<Multiversioned v2>
+   remark #15300: LOOP WAS VECTORIZED
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglide/glide_setup.F90(464,17)
+<Remainder loop for vectorization, Multiversioned v2>
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglide/glide_setup.F90(477,11)
+   remark #15344: loop was not vectorized: vector dependence prevents vectorization. First dependence is shown below. Use level 5 report for details
+   remark #15346: vector dependence: assumed OUTPUT dependence between at (478:14) and at (478:14)
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglide/glide_setup.F90(501,8)
+<Multiversioned v1>
+   remark #25233: Loop multiversioned for stride tests on Assumed shape arrays
+   remark #15300: LOOP WAS VECTORIZED
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglide/glide_setup.F90(501,8)
+<Remainder loop for vectorization, Multiversioned v1>
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglide/glide_setup.F90(501,8)
+<Multiversioned v2>
+   remark #15300: LOOP WAS VECTORIZED
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglide/glide_setup.F90(501,8)
+<Remainder loop for vectorization, Multiversioned v2>
+LOOP END
+
+
+Non-optimizable loops:
+
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglide/glide_setup.F90(469,11)
+   remark #15543: loop was not vectorized: loop with function call not considered an optimization candidate.
+LOOP END
+
+    Report from: Code generation optimizations [cg]
+
+/glade/u/home/tvda/CISM/libglide/glide_setup.F90(402,14):remark #34051: REGISTER ALLOCATION : [glide_setup_mp_glide_get_zocn_] /glade/u/home/tvda/CISM/libglide/glide_setup.F90:402
+
+    Hardware registers
+        Reserved     :    2[ rsp rip]
+        Available    :   39[ rax rdx rcx rbx rbp rsi rdi r8-r15 mm0-mm7 zmm0-zmm15]
+        Callee-save  :    6[ rbx rbp r12-r15]
+        Assigned     :   23[ rax rdx rcx rbx rsi rdi r8-r15 zmm0-zmm8]
+        
+    Routine temporaries
+        Total         :     560
+            Global    :     106
+            Local     :     454
+        Regenerable   :     310
+        Spilled       :       6
+        
+    Routine stack
+        Variables     :    4016 bytes*
+            Reads     :       2 [1.82e-02 ~ 0.0%]
+            Writes    :      50 [6.03e+00 ~ 6.0%]
+        Spills        :      24 bytes*
+            Reads     :       5 [2.34e-01 ~ 0.2%]
+            Writes    :       5 [2.34e-01 ~ 0.2%]
+    
+    Notes
+    
+        *Non-overlapping variables and spills may share stack space,
+         so the total stack size might be less than this.
+    
+
+===========================================================================
+
+Begin optimization report for: GLIDE_SETUP::HANDLE_GRID
+
+    Report from: Interprocedural optimizations [ipo]
+
+INLINE REPORT: (GLIDE_SETUP::HANDLE_GRID) [13] /glade/u/home/tvda/CISM/libglide/glide_setup.F90(519,14)
+
+
+    Report from: Code generation optimizations [cg]
+
+/glade/u/home/tvda/CISM/libglide/glide_setup.F90(541,8):remark #34026: call to memmove implemented as a call to optimized library version
+/glade/u/home/tvda/CISM/libglide/glide_setup.F90(519,14):remark #34051: REGISTER ALLOCATION : [glide_setup_mp_handle_grid_] /glade/u/home/tvda/CISM/libglide/glide_setup.F90:519
+
+    Hardware registers
+        Reserved     :    2[ rsp rip]
+        Available    :   39[ rax rdx rcx rbx rbp rsi rdi r8-r15 mm0-mm7 zmm0-zmm15]
+        Callee-save  :    6[ rbx rbp r12-r15]
+        Assigned     :    9[ rax rdx rcx rsi rdi r8 r13-r15]
+        
+    Routine temporaries
+        Total         :      90
+            Global    :      14
+            Local     :      76
+        Regenerable   :      43
+        Spilled       :       3
+        
+    Routine stack
+        Variables     :     400 bytes*
+            Reads     :       0 [0.00e+00 ~ 0.0%]
+            Writes    :       0 [0.00e+00 ~ 0.0%]
+        Spills        :       0 bytes*
+            Reads     :       0 [0.00e+00 ~ 0.0%]
+            Writes    :       0 [0.00e+00 ~ 0.0%]
+    
+    Notes
+    
+        *Non-overlapping variables and spills may share stack space,
+         so the total stack size might be less than this.
+    
+
+===========================================================================
+
+Begin optimization report for: GLIDE_SETUP::PRINT_GRID
+
+    Report from: Interprocedural optimizations [ipo]
+
+INLINE REPORT: (GLIDE_SETUP::PRINT_GRID) [14] /glade/u/home/tvda/CISM/libglide/glide_setup.F90(549,14)
+
+
+    Report from: Code generation optimizations [cg]
+
+/glade/u/home/tvda/CISM/libglide/glide_setup.F90(549,14):remark #34051: REGISTER ALLOCATION : [glide_setup_mp_print_grid_] /glade/u/home/tvda/CISM/libglide/glide_setup.F90:549
+
+    Hardware registers
+        Reserved     :    2[ rsp rip]
+        Available    :   39[ rax rdx rcx rbx rbp rsi rdi r8-r15 mm0-mm7 zmm0-zmm15]
+        Callee-save  :    6[ rbx rbp r12-r15]
+        Assigned     :    8[ rax rdx rcx rbx rsi rdi r8-r9]
+        
+    Routine temporaries
+        Total         :     336
+            Global    :      56
+            Local     :     280
+        Regenerable   :     267
+        Spilled       :       1
+        
+    Routine stack
+        Variables     :    7408 bytes*
+            Reads     :       0 [0.00e+00 ~ 0.0%]
+            Writes    :      70 [1.68e+01 ~ 16.8%]
+        Spills        :       0 bytes*
+            Reads     :       0 [0.00e+00 ~ 0.0%]
+            Writes    :       0 [0.00e+00 ~ 0.0%]
+    
+    Notes
+    
+        *Non-overlapping variables and spills may share stack space,
+         so the total stack size might be less than this.
+    
+
+===========================================================================
+
+Begin optimization report for: GLIDE_SETUP::HANDLE_TIME
+
+    Report from: Interprocedural optimizations [ipo]
+
+INLINE REPORT: (GLIDE_SETUP::HANDLE_TIME) [15] /glade/u/home/tvda/CISM/libglide/glide_setup.F90(603,14)
+
+
+    Report from: Code generation optimizations [cg]
+
+/glade/u/home/tvda/CISM/libglide/glide_setup.F90(603,14):remark #34051: REGISTER ALLOCATION : [glide_setup_mp_handle_time_] /glade/u/home/tvda/CISM/libglide/glide_setup.F90:603
+
+    Hardware registers
+        Reserved     :    2[ rsp rip]
+        Available    :   39[ rax rdx rcx rbx rbp rsi rdi r8-r15 mm0-mm7 zmm0-zmm15]
+        Callee-save  :    6[ rbx rbp r12-r15]
+        Assigned     :   11[ rax rdx rcx rsi rdi r8-r9 r14-r15 zmm0-zmm1]
+        
+    Routine temporaries
+        Total         :     116
+            Global    :      11
+            Local     :     105
+        Regenerable   :      58
+        Spilled       :       2
+        
+    Routine stack
+        Variables     :       0 bytes*
+            Reads     :       0 [0.00e+00 ~ 0.0%]
+            Writes    :       0 [0.00e+00 ~ 0.0%]
+        Spills        :       0 bytes*
+            Reads     :       0 [0.00e+00 ~ 0.0%]
+            Writes    :       0 [0.00e+00 ~ 0.0%]
+    
+    Notes
+    
+        *Non-overlapping variables and spills may share stack space,
+         so the total stack size might be less than this.
+    
+
+===========================================================================
+
+Begin optimization report for: GLIDE_SETUP::PRINT_TIME
+
+    Report from: Interprocedural optimizations [ipo]
+
+INLINE REPORT: (GLIDE_SETUP::PRINT_TIME) [16] /glade/u/home/tvda/CISM/libglide/glide_setup.F90(657,14)
+
+
+    Report from: Code generation optimizations [cg]
+
+/glade/u/home/tvda/CISM/libglide/glide_setup.F90(657,14):remark #34051: REGISTER ALLOCATION : [glide_setup_mp_print_time_] /glade/u/home/tvda/CISM/libglide/glide_setup.F90:657
+
+    Hardware registers
+        Reserved     :    2[ rsp rip]
+        Available    :   39[ rax rdx rcx rbx rbp rsi rdi r8-r15 mm0-mm7 zmm0-zmm15]
+        Callee-save  :    6[ rbx rbp r12-r15]
+        Assigned     :   11[ rax rdx rcx rsi rdi r8-r9 r14 zmm0-zmm2]
+        
+    Routine temporaries
+        Total         :     202
+            Global    :      13
+            Local     :     189
+        Regenerable   :     178
+        Spilled       :       1
+        
+    Routine stack
+        Variables     :     384 bytes*
+            Reads     :       0 [0.00e+00 ~ 0.0%]
+            Writes    :      48 [1.78e+01 ~ 17.8%]
+        Spills        :       0 bytes*
+            Reads     :       0 [0.00e+00 ~ 0.0%]
+            Writes    :       0 [0.00e+00 ~ 0.0%]
+    
+    Notes
+    
+        *Non-overlapping variables and spills may share stack space,
+         so the total stack size might be less than this.
+    
+
+===========================================================================
+
+Begin optimization report for: GLIDE_SETUP::HANDLE_OPTIONS
+
+    Report from: Interprocedural optimizations [ipo]
+
+INLINE REPORT: (GLIDE_SETUP::HANDLE_OPTIONS) [17] /glade/u/home/tvda/CISM/libglide/glide_setup.F90(709,14)
+
+
+    Report from: Code generation optimizations [cg]
+
+/glade/u/home/tvda/CISM/libglide/glide_setup.F90(709,14):remark #34051: REGISTER ALLOCATION : [glide_setup_mp_handle_options_] /glade/u/home/tvda/CISM/libglide/glide_setup.F90:709
+
+    Hardware registers
+        Reserved     :    2[ rsp rip]
+        Available    :   39[ rax rdx rcx rbx rbp rsi rdi r8-r15 mm0-mm7 zmm0-zmm15]
+        Callee-save  :    6[ rbx rbp r12-r15]
+        Assigned     :    7[ rdx rcx rsi rdi r8 r14-r15]
+        
+    Routine temporaries
+        Total         :     293
+            Global    :       8
+            Local     :     285
+        Regenerable   :     142
+        Spilled       :       2
+        
+    Routine stack
+        Variables     :       0 bytes*
+            Reads     :       0 [0.00e+00 ~ 0.0%]
+            Writes    :       0 [0.00e+00 ~ 0.0%]
+        Spills        :       0 bytes*
+            Reads     :       0 [0.00e+00 ~ 0.0%]
+            Writes    :       0 [0.00e+00 ~ 0.0%]
+    
+    Notes
+    
+        *Non-overlapping variables and spills may share stack space,
+         so the total stack size might be less than this.
+    
+
+===========================================================================
+
+Begin optimization report for: GLIDE_SETUP::HANDLE_HO_OPTIONS
+
+    Report from: Interprocedural optimizations [ipo]
+
+INLINE REPORT: (GLIDE_SETUP::HANDLE_HO_OPTIONS) [18] /glade/u/home/tvda/CISM/libglide/glide_setup.F90(777,14)
+
+
+    Report from: Code generation optimizations [cg]
+
+/glade/u/home/tvda/CISM/libglide/glide_setup.F90(777,14):remark #34051: REGISTER ALLOCATION : [glide_setup_mp_handle_ho_options_] /glade/u/home/tvda/CISM/libglide/glide_setup.F90:777
+
+    Hardware registers
+        Reserved     :    2[ rsp rip]
+        Available    :   39[ rax rdx rcx rbx rbp rsi rdi r8-r15 mm0-mm7 zmm0-zmm15]
+        Callee-save  :    6[ rbx rbp r12-r15]
+        Assigned     :    6[ rdx rcx rsi rdi r14-r15]
+        
+    Routine temporaries
+        Total         :     304
+            Global    :       8
+            Local     :     296
+        Regenerable   :     147
+        Spilled       :       2
+        
+    Routine stack
+        Variables     :       0 bytes*
+            Reads     :       0 [0.00e+00 ~ 0.0%]
+            Writes    :       0 [0.00e+00 ~ 0.0%]
+        Spills        :       0 bytes*
+            Reads     :       0 [0.00e+00 ~ 0.0%]
+            Writes    :       0 [0.00e+00 ~ 0.0%]
+    
+    Notes
+    
+        *Non-overlapping variables and spills may share stack space,
+         so the total stack size might be less than this.
+    
+
+===========================================================================
+
+Begin optimization report for: GLIDE_SETUP::HANDLE_DYCORE_OPTIONS
+
+    Report from: Interprocedural optimizations [ipo]
+
+INLINE REPORT: (GLIDE_SETUP::HANDLE_DYCORE_OPTIONS) [19] /glade/u/home/tvda/CISM/libglide/glide_setup.F90(839,14)
+
+
+    Report from: Code generation optimizations [cg]
+
+/glade/u/home/tvda/CISM/libglide/glide_setup.F90(839,14):remark #34051: REGISTER ALLOCATION : [glide_setup_mp_handle_dycore_options_] /glade/u/home/tvda/CISM/libglide/glide_setup.F90:839
+
+    Hardware registers
+        Reserved     :    2[ rsp rip]
+        Available    :   39[ rax rdx rcx rbx rbp rsi rdi r8-r15 mm0-mm7 zmm0-zmm15]
+        Callee-save  :    6[ rbx rbp r12-r15]
+        Assigned     :    9[ rax rdx rcx rbx rsi rdi r8 r14-r15]
+        
+    Routine temporaries
+        Total         :      44
+            Global    :      11
+            Local     :      33
+        Regenerable   :      27
+        Spilled       :       3
+        
+    Routine stack
+        Variables     :     104 bytes*
+            Reads     :       0 [0.00e+00 ~ 0.0%]
+            Writes    :       6 [1.05e+01 ~ 10.5%]
+        Spills        :       0 bytes*
+            Reads     :       0 [0.00e+00 ~ 0.0%]
+            Writes    :       0 [0.00e+00 ~ 0.0%]
+    
+    Notes
+    
+        *Non-overlapping variables and spills may share stack space,
+         so the total stack size might be less than this.
+    
+
+===========================================================================
+
+Begin optimization report for: GLIDE_SETUP::HANDLE_SIGMA
+
+    Report from: Interprocedural optimizations [ipo]
+
+INLINE REPORT: (GLIDE_SETUP::HANDLE_SIGMA) [20] /glade/u/home/tvda/CISM/libglide/glide_setup.F90(3015,14)
+
+
+    Report from: Code generation optimizations [cg]
+
+/glade/u/home/tvda/CISM/libglide/glide_setup.F90(3025,64):remark #34026: call to memmove implemented as a call to optimized library version
+/glade/u/home/tvda/CISM/libglide/glide_setup.F90(3015,14):remark #34051: REGISTER ALLOCATION : [glide_setup_mp_handle_sigma_] /glade/u/home/tvda/CISM/libglide/glide_setup.F90:3015
+
+    Hardware registers
+        Reserved     :    2[ rsp rip]
+        Available    :   39[ rax rdx rcx rbx rbp rsi rdi r8-r15 mm0-mm7 zmm0-zmm15]
+        Callee-save  :    6[ rbx rbp r12-r15]
+        Assigned     :    9[ rax rdx rcx rsi rdi r8-r9 r14-r15]
+        
+    Routine temporaries
+        Total         :      34
+            Global    :      11
+            Local     :      23
+        Regenerable   :      13
+        Spilled       :       2
+        
+    Routine stack
+        Variables     :       0 bytes*
+            Reads     :       0 [0.00e+00 ~ 0.0%]
+            Writes    :       0 [0.00e+00 ~ 0.0%]
+        Spills        :       0 bytes*
+            Reads     :       0 [0.00e+00 ~ 0.0%]
+            Writes    :       0 [0.00e+00 ~ 0.0%]
+    
+    Notes
+    
+        *Non-overlapping variables and spills may share stack space,
+         so the total stack size might be less than this.
+    
+
+===========================================================================
+
+Begin optimization report for: GLIDE_SETUP::PRINT_SIGMA
+
+    Report from: Interprocedural optimizations [ipo]
+
+INLINE REPORT: (GLIDE_SETUP::PRINT_SIGMA) [21] /glade/u/home/tvda/CISM/libglide/glide_setup.F90(3035,14)
+
+
+    Report from: Loop nest, Vector & Auto-parallelization optimizations [loop, vec, par]
+
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglide/glide_setup.F90(3046,5)
+   remark #15344: loop was not vectorized: vector dependence prevents vectorization. First dependence is shown below. Use level 5 report for details
+   remark #15346: vector dependence: assumed OUTPUT dependence between at (3047:8) and at (3047:8)
+LOOP END
+
+    Report from: Code generation optimizations [cg]
+
+/glade/u/home/tvda/CISM/libglide/glide_setup.F90(3035,14):remark #34051: REGISTER ALLOCATION : [glide_setup_mp_print_sigma_] /glade/u/home/tvda/CISM/libglide/glide_setup.F90:3035
+
+    Hardware registers
+        Reserved     :    2[ rsp rip]
+        Available    :   39[ rax rdx rcx rbx rbp rsi rdi r8-r15 mm0-mm7 zmm0-zmm15]
+        Callee-save  :    6[ rbx rbp r12-r15]
+        Assigned     :   14[ rax rdx rcx rbx rsi rdi r8-r15]
+        
+    Routine temporaries
+        Total         :      89
+            Global    :      26
+            Local     :      63
+        Regenerable   :      65
+        Spilled       :       5
+        
+    Routine stack
+        Variables     :     420 bytes*
+            Reads     :       0 [0.00e+00 ~ 0.0%]
+            Writes    :       8 [1.48e+01 ~ 14.8%]
+        Spills        :      32 bytes*
+            Reads     :       4 [1.33e+00 ~ 1.3%]
+            Writes    :       4 [1.33e+00 ~ 1.3%]
+    
+    Notes
+    
+        *Non-overlapping variables and spills may share stack space,
+         so the total stack size might be less than this.
+    
+
+===========================================================================
+
+Begin optimization report for: GLIDE_SETUP::HANDLE_GTHF
+
+    Report from: Interprocedural optimizations [ipo]
+
+INLINE REPORT: (GLIDE_SETUP::HANDLE_GTHF) [22] /glade/u/home/tvda/CISM/libglide/glide_setup.F90(3058,14)
+
+
+    Report from: Code generation optimizations [cg]
+
+/glade/u/home/tvda/CISM/libglide/glide_setup.F90(3058,14):remark #34051: REGISTER ALLOCATION : [glide_setup_mp_handle_gthf_] /glade/u/home/tvda/CISM/libglide/glide_setup.F90:3058
+
+    Hardware registers
+        Reserved     :    2[ rsp rip]
+        Available    :   39[ rax rdx rcx rbx rbp rsi rdi r8-r15 mm0-mm7 zmm0-zmm15]
+        Callee-save  :    6[ rbx rbp r12-r15]
+        Assigned     :    6[ rdx rcx rsi rdi r14-r15]
+        
+    Routine temporaries
+        Total         :      58
+            Global    :       8
+            Local     :      50
+        Regenerable   :      24
+        Spilled       :       2
+        
+    Routine stack
+        Variables     :       0 bytes*
+            Reads     :       0 [0.00e+00 ~ 0.0%]
+            Writes    :       0 [0.00e+00 ~ 0.0%]
+        Spills        :       0 bytes*
+            Reads     :       0 [0.00e+00 ~ 0.0%]
+            Writes    :       0 [0.00e+00 ~ 0.0%]
+    
+    Notes
+    
+        *Non-overlapping variables and spills may share stack space,
+         so the total stack size might be less than this.
+    
+
+===========================================================================
+
+Begin optimization report for: GLIDE_SETUP::PRINT_GTHF
+
+    Report from: Interprocedural optimizations [ipo]
+
+INLINE REPORT: (GLIDE_SETUP::PRINT_GTHF) [23] /glade/u/home/tvda/CISM/libglide/glide_setup.F90(3077,14)
+
+
+    Report from: Code generation optimizations [cg]
+
+/glade/u/home/tvda/CISM/libglide/glide_setup.F90(3077,14):remark #34051: REGISTER ALLOCATION : [glide_setup_mp_print_gthf_] /glade/u/home/tvda/CISM/libglide/glide_setup.F90:3077
+
+    Hardware registers
+        Reserved     :    2[ rsp rip]
+        Available    :   39[ rax rdx rcx rbx rbp rsi rdi r8-r15 mm0-mm7 zmm0-zmm15]
+        Callee-save  :    6[ rbx rbp r12-r15]
+        Assigned     :    8[ rax rdx rcx rsi rdi r8-r9 r15]
+        
+    Routine temporaries
+        Total         :     177
+            Global    :      16
+            Local     :     161
+        Regenerable   :     151
+        Spilled       :       1
+        
+    Routine stack
+        Variables     :     344 bytes*
+            Reads     :       0 [0.00e+00 ~ 0.0%]
+            Writes    :      42 [8.17e+00 ~ 8.2%]
+        Spills        :       0 bytes*
+            Reads     :       0 [0.00e+00 ~ 0.0%]
+            Writes    :       0 [0.00e+00 ~ 0.0%]
+    
+    Notes
+    
+        *Non-overlapping variables and spills may share stack space,
+         so the total stack size might be less than this.
+    
+
+===========================================================================
+
+Begin optimization report for: GLIDE_SETUP::HANDLE_ISOSTASY
+
+    Report from: Interprocedural optimizations [ipo]
+
+INLINE REPORT: (GLIDE_SETUP::HANDLE_ISOSTASY) [24] /glade/u/home/tvda/CISM/libglide/glide_setup.F90(3114,14)
+
+
+    Report from: Code generation optimizations [cg]
+
+/glade/u/home/tvda/CISM/libglide/glide_setup.F90(3114,14):remark #34051: REGISTER ALLOCATION : [glide_setup_mp_handle_isostasy_] /glade/u/home/tvda/CISM/libglide/glide_setup.F90:3114
+
+    Hardware registers
+        Reserved     :    2[ rsp rip]
+        Available    :   39[ rax rdx rcx rbx rbp rsi rdi r8-r15 mm0-mm7 zmm0-zmm15]
+        Callee-save  :    6[ rbx rbp r12-r15]
+        Assigned     :    6[ rdx rcx rbx rsi rdi r15]
+        
+    Routine temporaries
+        Total         :      46
+            Global    :       8
+            Local     :      38
+        Regenerable   :      18
+        Spilled       :       2
+        
+    Routine stack
+        Variables     :       0 bytes*
+            Reads     :       0 [0.00e+00 ~ 0.0%]
+            Writes    :       0 [0.00e+00 ~ 0.0%]
+        Spills        :       0 bytes*
+            Reads     :       0 [0.00e+00 ~ 0.0%]
+            Writes    :       0 [0.00e+00 ~ 0.0%]
+    
+    Notes
+    
+        *Non-overlapping variables and spills may share stack space,
+         so the total stack size might be less than this.
+    
+
+===========================================================================
+
+Begin optimization report for: GLIDE_SETUP::PRINT_ISOSTASY
+
+    Report from: Interprocedural optimizations [ipo]
+
+INLINE REPORT: (GLIDE_SETUP::PRINT_ISOSTASY) [25] /glade/u/home/tvda/CISM/libglide/glide_setup.F90(3134,14)
+
+
+    Report from: Code generation optimizations [cg]
+
+/glade/u/home/tvda/CISM/libglide/glide_setup.F90(3134,14):remark #34051: REGISTER ALLOCATION : [glide_setup_mp_print_isostasy_] /glade/u/home/tvda/CISM/libglide/glide_setup.F90:3134
+
+    Hardware registers
+        Reserved     :    2[ rsp rip]
+        Available    :   39[ rax rdx rcx rbx rbp rsi rdi r8-r15 mm0-mm7 zmm0-zmm15]
+        Callee-save  :    6[ rbx rbp r12-r15]
+        Assigned     :    8[ rax rdx rcx rsi rdi r8-r9 r15]
+        
+    Routine temporaries
+        Total         :     131
+            Global    :      23
+            Local     :     108
+        Regenerable   :      99
+        Spilled       :       1
+        
+    Routine stack
+        Variables     :     184 bytes*
+            Reads     :       0 [0.00e+00 ~ 0.0%]
+            Writes    :      18 [1.51e+00 ~ 1.5%]
+        Spills        :       0 bytes*
+            Reads     :       0 [0.00e+00 ~ 0.0%]
+            Writes    :       0 [0.00e+00 ~ 0.0%]
+    
+    Notes
+    
+        *Non-overlapping variables and spills may share stack space,
+         so the total stack size might be less than this.
+    
+
+===========================================================================
+
+Begin optimization report for: GLIDE_SETUP::DEFINE_GLIDE_RESTART_VARIABLES
+
+    Report from: Interprocedural optimizations [ipo]
+
+INLINE REPORT: (GLIDE_SETUP::DEFINE_GLIDE_RESTART_VARIABLES) [26] /glade/u/home/tvda/CISM/libglide/glide_setup.F90(3260,14)
+
+
+    Report from: Code generation optimizations [cg]
+
+/glade/u/home/tvda/CISM/libglide/glide_setup.F90(3260,14):remark #34000: call to memcpy implemented inline with loads and stores with proven source (alignment, offset): (32, 0), and destination (alignment, offset): (16, 0)
+/glade/u/home/tvda/CISM/libglide/glide_setup.F90(3288,5):remark #34000: call to memcpy implemented inline with loads and stores with proven source (alignment, offset): (1, 0), and destination (alignment, offset): (16, 0)
+/glade/u/home/tvda/CISM/libglide/glide_setup.F90(3260,14):remark #34051: REGISTER ALLOCATION : [glide_setup_mp_define_glide_restart_variables_] /glade/u/home/tvda/CISM/libglide/glide_setup.F90:3260
+
+    Hardware registers
+        Reserved     :    2[ rsp rip]
+        Available    :   39[ rax rdx rcx rbx rbp rsi rdi r8-r15 mm0-mm7 zmm0-zmm15]
+        Callee-save  :    6[ rbx rbp r12-r15]
+        Assigned     :   10[ rax rdx rcx rsi rdi r15 zmm0-zmm3]
+        
+    Routine temporaries
+        Total         :     240
+            Global    :      22
+            Local     :     218
+        Regenerable   :     195
+        Spilled       :       1
+        
+    Routine stack
+        Variables     :     592 bytes*
+            Reads     :      49 [9.32e+00 ~ 9.3%]
+            Writes    :      10 [2.15e+01 ~ 21.5%]
+        Spills        :       0 bytes*
+            Reads     :       0 [0.00e+00 ~ 0.0%]
+            Writes    :       0 [0.00e+00 ~ 0.0%]
+    
+    Notes
+    
+        *Non-overlapping variables and spills may share stack space,
+         so the total stack size might be less than this.
+    
+
+===========================================================================
+
+Begin optimization report for: GLIDE_SETUP::CHECK_FILL_VALUES_REAL8_2D
+
+    Report from: Interprocedural optimizations [ipo]
+
+INLINE REPORT: (GLIDE_SETUP::CHECK_FILL_VALUES_REAL8_2D) [27] /glade/u/home/tvda/CISM/libglide/glide_setup.F90(3755,14)
+
+
+    Report from: Loop nest, Vector & Auto-parallelization optimizations [loop, vec, par]
+
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglide/glide_setup.F90(3796,8)
+   remark #15542: loop was not vectorized: inner loop was already vectorized
+
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglide/glide_setup.F90(3796,8)
+      remark #15300: LOOP WAS VECTORIZED
+   LOOP END
+
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglide/glide_setup.F90(3796,8)
+   <Remainder loop for vectorization>
+      remark #15301: REMAINDER LOOP WAS VECTORIZED
+   LOOP END
+
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglide/glide_setup.F90(3796,8)
+   <Remainder loop for vectorization>
+   LOOP END
+LOOP END
+
+    Report from: Code generation optimizations [cg]
+
+/glade/u/home/tvda/CISM/libglide/glide_setup.F90(3755,14):remark #34051: REGISTER ALLOCATION : [glide_setup_mp_check_fill_values_real8_2d_] /glade/u/home/tvda/CISM/libglide/glide_setup.F90:3755
+
+    Hardware registers
+        Reserved     :    2[ rsp rip]
+        Available    :   39[ rax rdx rcx rbx rbp rsi rdi r8-r15 mm0-mm7 zmm0-zmm15]
+        Callee-save  :    6[ rbx rbp r12-r15]
+        Assigned     :   30[ rax rdx rcx rbx rsi rdi r8-r15 zmm0-zmm15]
+        
+    Routine temporaries
+        Total         :     110
+            Global    :      44
+            Local     :      66
+        Regenerable   :       3
+        Spilled       :      10
+        
+    Routine stack
+        Variables     :       0 bytes*
+            Reads     :       0 [0.00e+00 ~ 0.0%]
+            Writes    :       0 [0.00e+00 ~ 0.0%]
+        Spills        :      64 bytes*
+            Reads     :       8 [1.06e+00 ~ 1.1%]
+            Writes    :       8 [4.47e-01 ~ 0.4%]
+    
+    Notes
+    
+        *Non-overlapping variables and spills may share stack space,
+         so the total stack size might be less than this.
+    
+
+===========================================================================
+
+Begin optimization report for: GLIDE_SETUP::CHECK_FILL_VALUES_REAL8_3D
+
+    Report from: Interprocedural optimizations [ipo]
+
+INLINE REPORT: (GLIDE_SETUP::CHECK_FILL_VALUES_REAL8_3D) [28] /glade/u/home/tvda/CISM/libglide/glide_setup.F90(3803,14)
+
+
+    Report from: Loop nest, Vector & Auto-parallelization optimizations [loop, vec, par]
+
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglide/glide_setup.F90(3844,8)
+   remark #15542: loop was not vectorized: inner loop was already vectorized
+
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglide/glide_setup.F90(3844,8)
+      remark #15542: loop was not vectorized: inner loop was already vectorized
+
+      LOOP BEGIN at /glade/u/home/tvda/CISM/libglide/glide_setup.F90(3844,8)
+         remark #15300: LOOP WAS VECTORIZED
+      LOOP END
+
+      LOOP BEGIN at /glade/u/home/tvda/CISM/libglide/glide_setup.F90(3844,8)
+      <Remainder loop for vectorization>
+         remark #15301: REMAINDER LOOP WAS VECTORIZED
+      LOOP END
+
+      LOOP BEGIN at /glade/u/home/tvda/CISM/libglide/glide_setup.F90(3844,8)
+      <Remainder loop for vectorization>
+      LOOP END
+   LOOP END
+LOOP END
+
+    Report from: Code generation optimizations [cg]
+
+/glade/u/home/tvda/CISM/libglide/glide_setup.F90(3803,14):remark #34051: REGISTER ALLOCATION : [glide_setup_mp_check_fill_values_real8_3d_] /glade/u/home/tvda/CISM/libglide/glide_setup.F90:3803
+
+    Hardware registers
+        Reserved     :    2[ rsp rip]
+        Available    :   39[ rax rdx rcx rbx rbp rsi rdi r8-r15 mm0-mm7 zmm0-zmm15]
+        Callee-save  :    6[ rbx rbp r12-r15]
+        Assigned     :   30[ rax rdx rcx rbx rsi rdi r8-r15 zmm0-zmm15]
+        
+    Routine temporaries
+        Total         :     116
+            Global    :      53
+            Local     :      63
+        Regenerable   :       3
+        Spilled       :      21
+        
+    Routine stack
+        Variables     :       0 bytes*
+            Reads     :       0 [0.00e+00 ~ 0.0%]
+            Writes    :       0 [0.00e+00 ~ 0.0%]
+        Spills        :     128 bytes*
+            Reads     :      18 [1.47e+00 ~ 1.5%]
+            Writes    :      16 [3.93e-01 ~ 0.4%]
+    
+    Notes
+    
+        *Non-overlapping variables and spills may share stack space,
+         so the total stack size might be less than this.
+    
+
+===========================================================================

@@ -1,0 +1,1181 @@
+Intel(R) Advisor can now assist with vectorization and show optimization
+  report messages with your source code.
+See "https://software.intel.com/en-us/intel-advisor-xe" for details.
+
+
+    Report from: Interprocedural optimizations [ipo]
+
+INLINING OPTION VALUES:
+  -inline-factor: 100
+  -inline-min-size: 30
+  -inline-max-size: 230
+  -inline-max-total-size: 2000
+  -inline-max-per-routine: 10000
+  -inline-max-per-compile: 500000
+
+
+Begin optimization report for: glissade_test._
+
+    Report from: Interprocedural optimizations [ipo]
+
+INLINE REPORT: (glissade_test._) [1] /glade/u/home/tvda/CISM/libglissade/glissade_test.F90(38,8)
+
+
+    Report from: Code generation optimizations [cg]
+
+/glade/u/home/tvda/CISM/libglissade/glissade_test.F90(38,8):remark #34051: REGISTER ALLOCATION : [glissade_test._] /glade/u/home/tvda/CISM/libglissade/glissade_test.F90:38
+
+    Hardware registers
+        Reserved     :    2[ rsp rip]
+        Available    :   39[ rax rdx rcx rbx rbp rsi rdi r8-r15 mm0-mm7 zmm0-zmm15]
+        Callee-save  :    6[ rbx rbp r12-r15]
+        Assigned     :    0[ reg_null]
+        
+    Routine temporaries
+        Total         :       6
+            Global    :       0
+            Local     :       6
+        Regenerable   :       0
+        Spilled       :       0
+        
+    Routine stack
+        Variables     :       0 bytes*
+            Reads     :       0 [0.00e+00 ~ 0.0%]
+            Writes    :       0 [0.00e+00 ~ 0.0%]
+        Spills        :       0 bytes*
+            Reads     :       0 [0.00e+00 ~ 0.0%]
+            Writes    :       0 [0.00e+00 ~ 0.0%]
+    
+    Notes
+    
+        *Non-overlapping variables and spills may share stack space,
+         so the total stack size might be less than this.
+    
+
+===========================================================================
+
+Begin optimization report for: GLISSADE_TEST::GLISSADE_TEST_HALO
+
+    Report from: Interprocedural optimizations [ipo]
+
+INLINE REPORT: (GLISSADE_TEST::GLISSADE_TEST_HALO) [2] /glade/u/home/tvda/CISM/libglissade/glissade_test.F90(53,14)
+
+
+    Report from: Loop nest, Vector & Auto-parallelization optimizations [loop, vec, par]
+
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_test.F90(139,5)
+   remark #15542: loop was not vectorized: inner loop was already vectorized
+
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_test.F90(139,5)
+      remark #25408: memset generated
+      remark #15542: loop was not vectorized: inner loop was already vectorized
+
+      LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_test.F90(139,5)
+         remark #15300: LOOP WAS VECTORIZED
+      LOOP END
+
+      LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_test.F90(139,5)
+      <Remainder loop for vectorization>
+      LOOP END
+   LOOP END
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_test.F90(141,5)
+   remark #25084: Preprocess Loopnests: Moving Out Store    [ /glade/u/home/tvda/CISM/libglissade/glissade_test.F90(145,5) ]
+   remark #15542: loop was not vectorized: inner loop was already vectorized
+
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_test.F90(142,5)
+      remark #25084: Preprocess Loopnests: Moving Out Store    [ /glade/u/home/tvda/CISM/libglissade/glissade_test.F90(144,5) ]
+      remark #15300: LOOP WAS VECTORIZED
+   LOOP END
+
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_test.F90(142,5)
+   <Remainder loop for vectorization>
+   LOOP END
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_test.F90(150,8)
+   remark #15344: loop was not vectorized: vector dependence prevents vectorization. First dependence is shown below. Use level 5 report for details
+   remark #15346: vector dependence: assumed OUTPUT dependence between at (151:11) and at (151:11)
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_test.F90(160,8)
+   remark #15344: loop was not vectorized: vector dependence prevents vectorization. First dependence is shown below. Use level 5 report for details
+   remark #15346: vector dependence: assumed OUTPUT dependence between at (161:11) and at (161:11)
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_test.F90(168,5)
+   remark #15542: loop was not vectorized: inner loop was already vectorized
+
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_test.F90(168,5)
+      remark #25408: memset generated
+      remark #15542: loop was not vectorized: inner loop was already vectorized
+
+      LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_test.F90(168,5)
+         remark #15300: LOOP WAS VECTORIZED
+      LOOP END
+
+      LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_test.F90(168,5)
+      <Remainder loop for vectorization>
+      LOOP END
+   LOOP END
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_test.F90(180,8)
+   remark #15541: outer loop was not auto-vectorized: consider using SIMD directive
+
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_test.F90(182,11)
+      remark #15344: loop was not vectorized: vector dependence prevents vectorization. First dependence is shown below. Use level 5 report for details
+      remark #15346: vector dependence: assumed OUTPUT dependence between at (183:14) and at (183:14)
+   LOOP END
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_test.F90(194,8)
+   remark #15541: outer loop was not auto-vectorized: consider using SIMD directive
+
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_test.F90(196,11)
+      remark #15344: loop was not vectorized: vector dependence prevents vectorization. First dependence is shown below. Use level 5 report for details
+      remark #15346: vector dependence: assumed OUTPUT dependence between at (197:14) and at (197:14)
+   LOOP END
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_test.F90(205,5)
+   remark #15542: loop was not vectorized: inner loop was already vectorized
+
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_test.F90(205,5)
+      remark #15542: loop was not vectorized: inner loop was already vectorized
+
+      LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_test.F90(205,5)
+         remark #25408: memset generated
+         remark #15542: loop was not vectorized: inner loop was already vectorized
+
+         LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_test.F90(205,5)
+            remark #15300: LOOP WAS VECTORIZED
+         LOOP END
+
+         LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_test.F90(205,5)
+         <Remainder loop for vectorization>
+         LOOP END
+      LOOP END
+   LOOP END
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_test.F90(210,11)
+   remark #15300: LOOP WAS VECTORIZED
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_test.F90(210,11)
+<Remainder loop for vectorization>
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_test.F90(217,8)
+   remark #15541: outer loop was not auto-vectorized: consider using SIMD directive
+
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_test.F90(219,11)
+      remark #15344: loop was not vectorized: vector dependence prevents vectorization. First dependence is shown below. Use level 5 report for details
+      remark #15346: vector dependence: assumed OUTPUT dependence between at (220:14) and at (220:14)
+   LOOP END
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_test.F90(231,8)
+   remark #15541: outer loop was not auto-vectorized: consider using SIMD directive
+
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_test.F90(233,11)
+      remark #15344: loop was not vectorized: vector dependence prevents vectorization. First dependence is shown below. Use level 5 report for details
+      remark #15346: vector dependence: assumed OUTPUT dependence between at (234:14) and at (234:14)
+   LOOP END
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_test.F90(242,5)
+   remark #15542: loop was not vectorized: inner loop was already vectorized
+
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_test.F90(242,5)
+      remark #25408: memset generated
+      remark #15542: loop was not vectorized: inner loop was already vectorized
+
+      LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_test.F90(242,5)
+         remark #15300: LOOP WAS VECTORIZED
+      LOOP END
+
+      LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_test.F90(242,5)
+      <Remainder loop for vectorization>
+      LOOP END
+   LOOP END
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_test.F90(254,8)
+   remark #15541: outer loop was not auto-vectorized: consider using SIMD directive
+
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_test.F90(257,11)
+      remark #15344: loop was not vectorized: vector dependence prevents vectorization. First dependence is shown below. Use level 5 report for details
+      remark #15346: vector dependence: assumed OUTPUT dependence between at (258:14) and at (258:14)
+   LOOP END
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_test.F90(269,8)
+   remark #15541: outer loop was not auto-vectorized: consider using SIMD directive
+
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_test.F90(272,11)
+      remark #15344: loop was not vectorized: vector dependence prevents vectorization. First dependence is shown below. Use level 5 report for details
+      remark #15346: vector dependence: assumed OUTPUT dependence between at (273:14) and at (273:14)
+   LOOP END
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_test.F90(281,5)
+   remark #15542: loop was not vectorized: inner loop was already vectorized
+
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_test.F90(281,5)
+      remark #15542: loop was not vectorized: inner loop was already vectorized
+
+      LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_test.F90(281,5)
+         remark #25408: memset generated
+         remark #15542: loop was not vectorized: inner loop was already vectorized
+
+         LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_test.F90(281,5)
+            remark #15300: LOOP WAS VECTORIZED
+         LOOP END
+
+         LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_test.F90(281,5)
+         <Remainder loop for vectorization>
+         LOOP END
+      LOOP END
+   LOOP END
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_test.F90(286,11)
+   remark #15300: LOOP WAS VECTORIZED
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_test.F90(286,11)
+<Remainder loop for vectorization>
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_test.F90(293,8)
+   remark #15541: outer loop was not auto-vectorized: consider using SIMD directive
+
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_test.F90(296,11)
+      remark #15344: loop was not vectorized: vector dependence prevents vectorization. First dependence is shown below. Use level 5 report for details
+      remark #15346: vector dependence: assumed OUTPUT dependence between at (297:14) and at (297:14)
+   LOOP END
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_test.F90(308,8)
+   remark #15541: outer loop was not auto-vectorized: consider using SIMD directive
+
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_test.F90(311,11)
+      remark #15344: loop was not vectorized: vector dependence prevents vectorization. First dependence is shown below. Use level 5 report for details
+      remark #15346: vector dependence: assumed OUTPUT dependence between at (312:14) and at (312:14)
+   LOOP END
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_test.F90(320,5)
+   remark #15542: loop was not vectorized: inner loop was already vectorized
+
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_test.F90(320,5)
+      remark #15542: loop was not vectorized: inner loop was already vectorized
+
+      LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_test.F90(320,5)
+         remark #25420: Collapsed with loop at line 320 
+         remark #25408: memset generated
+         remark #15542: loop was not vectorized: inner loop was already vectorized
+
+         LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_test.F90(320,5)
+            remark #15300: LOOP WAS VECTORIZED
+         LOOP END
+
+         LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_test.F90(320,5)
+         <Remainder loop for vectorization>
+         LOOP END
+
+         LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_test.F90(320,5)
+            remark #25421: Loop eliminated in Collapsing 
+
+         LOOP END
+      LOOP END
+   LOOP END
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_test.F90(325,11)
+   remark #15300: LOOP WAS VECTORIZED
+
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_test.F90(325,11)
+      remark #25436: completely unrolled by 2   (pre-vector) 
+   LOOP END
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_test.F90(325,11)
+<Remainder loop for vectorization>
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_test.F90(332,8)
+   remark #15541: outer loop was not auto-vectorized: consider using SIMD directive
+
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_test.F90(335,11)
+      remark #15344: loop was not vectorized: vector dependence prevents vectorization. First dependence is shown below. Use level 5 report for details
+      remark #15346: vector dependence: assumed OUTPUT dependence between at (336:14) and at (336:14)
+   LOOP END
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_test.F90(347,8)
+   remark #15541: outer loop was not auto-vectorized: consider using SIMD directive
+
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_test.F90(350,11)
+      remark #15344: loop was not vectorized: vector dependence prevents vectorization. First dependence is shown below. Use level 5 report for details
+      remark #15346: vector dependence: assumed OUTPUT dependence between at (351:14) and at (351:14)
+   LOOP END
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_test.F90(361,5)
+   remark #15542: loop was not vectorized: inner loop was already vectorized
+
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_test.F90(361,5)
+      remark #25408: memset generated
+      remark #15542: loop was not vectorized: inner loop was already vectorized
+
+      LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_test.F90(361,5)
+         remark #15300: LOOP WAS VECTORIZED
+      LOOP END
+
+      LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_test.F90(361,5)
+      <Remainder loop for vectorization>
+      LOOP END
+   LOOP END
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_test.F90(372,8)
+   remark #15344: loop was not vectorized: vector dependence prevents vectorization. First dependence is shown below. Use level 5 report for details
+   remark #15346: vector dependence: assumed OUTPUT dependence between at (373:11) and at (373:11)
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_test.F90(382,8)
+   remark #15344: loop was not vectorized: vector dependence prevents vectorization. First dependence is shown below. Use level 5 report for details
+   remark #15346: vector dependence: assumed OUTPUT dependence between at (383:11) and at (383:11)
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_test.F90(389,5)
+   remark #15542: loop was not vectorized: inner loop was already vectorized
+
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_test.F90(389,5)
+      remark #25408: memset generated
+      remark #15542: loop was not vectorized: inner loop was already vectorized
+
+      LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_test.F90(389,5)
+         remark #15300: LOOP WAS VECTORIZED
+      LOOP END
+
+      LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_test.F90(389,5)
+      <Remainder loop for vectorization>
+      LOOP END
+   LOOP END
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_test.F90(400,8)
+   remark #15344: loop was not vectorized: vector dependence prevents vectorization. First dependence is shown below. Use level 5 report for details
+   remark #15346: vector dependence: assumed OUTPUT dependence between at (401:11) and at (401:11)
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_test.F90(410,8)
+   remark #15344: loop was not vectorized: vector dependence prevents vectorization. First dependence is shown below. Use level 5 report for details
+   remark #15346: vector dependence: assumed OUTPUT dependence between at (411:11) and at (411:11)
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_test.F90(417,5)
+   remark #15542: loop was not vectorized: inner loop was already vectorized
+
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_test.F90(417,5)
+      remark #25408: memset generated
+      remark #15542: loop was not vectorized: inner loop was already vectorized
+
+      LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_test.F90(417,5)
+         remark #15300: LOOP WAS VECTORIZED
+      LOOP END
+
+      LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_test.F90(417,5)
+      <Remainder loop for vectorization>
+      LOOP END
+   LOOP END
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_test.F90(428,8)
+   remark #15344: loop was not vectorized: vector dependence prevents vectorization. First dependence is shown below. Use level 5 report for details
+   remark #15346: vector dependence: assumed OUTPUT dependence between at (429:11) and at (429:11)
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_test.F90(438,8)
+   remark #15344: loop was not vectorized: vector dependence prevents vectorization. First dependence is shown below. Use level 5 report for details
+   remark #15346: vector dependence: assumed OUTPUT dependence between at (439:11) and at (439:11)
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_test.F90(445,5)
+   remark #15542: loop was not vectorized: inner loop was already vectorized
+
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_test.F90(445,5)
+      remark #15542: loop was not vectorized: inner loop was already vectorized
+
+      LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_test.F90(445,5)
+         remark #25408: memset generated
+         remark #15542: loop was not vectorized: inner loop was already vectorized
+
+         LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_test.F90(445,5)
+            remark #15300: LOOP WAS VECTORIZED
+         LOOP END
+
+         LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_test.F90(445,5)
+         <Remainder loop for vectorization>
+         LOOP END
+      LOOP END
+   LOOP END
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_test.F90(461,8)
+   remark #15542: loop was not vectorized: inner loop was already vectorized
+
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_test.F90(462,11)
+      remark #15300: LOOP WAS VECTORIZED
+   LOOP END
+
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_test.F90(462,11)
+   <Remainder loop for vectorization>
+   LOOP END
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_test.F90(471,8)
+   remark #15542: loop was not vectorized: inner loop was already vectorized
+
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_test.F90(472,11)
+      remark #15300: LOOP WAS VECTORIZED
+   LOOP END
+
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_test.F90(472,11)
+   <Remainder loop for vectorization>
+   LOOP END
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_test.F90(480,5)
+   remark #15542: loop was not vectorized: inner loop was already vectorized
+
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_test.F90(480,5)
+      remark #25408: memset generated
+      remark #15542: loop was not vectorized: inner loop was already vectorized
+
+      LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_test.F90(480,5)
+         remark #15300: LOOP WAS VECTORIZED
+      LOOP END
+
+      LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_test.F90(480,5)
+      <Remainder loop for vectorization>
+      LOOP END
+   LOOP END
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_test.F90(492,8)
+   remark #15344: loop was not vectorized: vector dependence prevents vectorization. First dependence is shown below. Use level 5 report for details
+   remark #15346: vector dependence: assumed OUTPUT dependence between at (493:11) and at (493:11)
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_test.F90(502,8)
+   remark #15344: loop was not vectorized: vector dependence prevents vectorization. First dependence is shown below. Use level 5 report for details
+   remark #15346: vector dependence: assumed OUTPUT dependence between at (503:11) and at (503:11)
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_test.F90(509,5)
+   remark #15542: loop was not vectorized: inner loop was already vectorized
+
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_test.F90(509,5)
+      remark #25408: memset generated
+      remark #15542: loop was not vectorized: inner loop was already vectorized
+
+      LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_test.F90(509,5)
+         remark #15300: LOOP WAS VECTORIZED
+      LOOP END
+
+      LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_test.F90(509,5)
+      <Remainder loop for vectorization>
+      LOOP END
+   LOOP END
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_test.F90(521,8)
+   remark #15344: loop was not vectorized: vector dependence prevents vectorization. First dependence is shown below. Use level 5 report for details
+   remark #15346: vector dependence: assumed OUTPUT dependence between at (522:11) and at (522:11)
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_test.F90(531,8)
+   remark #15344: loop was not vectorized: vector dependence prevents vectorization. First dependence is shown below. Use level 5 report for details
+   remark #15346: vector dependence: assumed OUTPUT dependence between at (532:11) and at (532:11)
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_test.F90(538,5)
+   remark #15542: loop was not vectorized: inner loop was already vectorized
+
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_test.F90(538,5)
+      remark #15542: loop was not vectorized: inner loop was already vectorized
+
+      LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_test.F90(538,5)
+         remark #25408: memset generated
+         remark #15542: loop was not vectorized: inner loop was already vectorized
+
+         LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_test.F90(538,5)
+            remark #15300: LOOP WAS VECTORIZED
+         LOOP END
+
+         LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_test.F90(538,5)
+         <Remainder loop for vectorization>
+         LOOP END
+      LOOP END
+   LOOP END
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_test.F90(554,8)
+   remark #15542: loop was not vectorized: inner loop was already vectorized
+
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_test.F90(555,11)
+      remark #15300: LOOP WAS VECTORIZED
+   LOOP END
+
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_test.F90(555,11)
+   <Remainder loop for vectorization>
+   LOOP END
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_test.F90(565,11)
+   remark #15542: loop was not vectorized: inner loop was already vectorized
+
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_test.F90(565,11)
+      remark #15300: LOOP WAS VECTORIZED
+   LOOP END
+
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_test.F90(565,11)
+   <Remainder loop for vectorization>
+   LOOP END
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_test.F90(585,5)
+   remark #15542: loop was not vectorized: inner loop was already vectorized
+
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_test.F90(585,5)
+      remark #15542: loop was not vectorized: inner loop was already vectorized
+
+      LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_test.F90(585,5)
+         remark #15542: loop was not vectorized: inner loop was already vectorized
+
+         LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_test.F90(585,5)
+            remark #25408: memset generated
+            remark #15542: loop was not vectorized: inner loop was already vectorized
+
+            LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_test.F90(585,5)
+               remark #15300: LOOP WAS VECTORIZED
+            LOOP END
+
+            LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_test.F90(585,5)
+            <Remainder loop for vectorization>
+            LOOP END
+         LOOP END
+      LOOP END
+   LOOP END
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_test.F90(591,11)
+   remark #15335: loop was not vectorized: vectorization possible but seems inefficient. Use vector always directive or -vec-threshold0 to override 
+   remark #25436: completely unrolled by 2  
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_test.F90(601,8)
+   remark #15344: loop was not vectorized: vector dependence prevents vectorization. First dependence is shown below. Use level 5 report for details
+   remark #15346: vector dependence: assumed OUTPUT dependence between at (602:11) and at (602:11)
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_test.F90(612,11)
+   remark #15344: loop was not vectorized: vector dependence prevents vectorization. First dependence is shown below. Use level 5 report for details
+   remark #15346: vector dependence: assumed OUTPUT dependence between at (612:11) and at (612:11)
+LOOP END
+
+
+Non-optimizable loops:
+
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_test.F90(175,5)
+   remark #15543: loop was not vectorized: loop with function call not considered an optimization candidate.
+
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_test.F90(174,8)
+      remark #15521: loop was not vectorized: loop control variable was not identified. Explicitly compute the iteration count before executing the loop or try using canonical loop form from OpenMP specification
+   LOOP END
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_test.F90(212,5)
+   remark #15543: loop was not vectorized: loop with function call not considered an optimization candidate.
+
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_test.F90(211,8)
+      remark #15543: loop was not vectorized: loop with function call not considered an optimization candidate.
+   LOOP END
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_test.F90(249,5)
+   remark #15543: loop was not vectorized: loop with function call not considered an optimization candidate.
+
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_test.F90(248,8)
+      remark #15521: loop was not vectorized: loop control variable was not identified. Explicitly compute the iteration count before executing the loop or try using canonical loop form from OpenMP specification
+   LOOP END
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_test.F90(288,5)
+   remark #15543: loop was not vectorized: loop with function call not considered an optimization candidate.
+
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_test.F90(287,8)
+      remark #15543: loop was not vectorized: loop with function call not considered an optimization candidate.
+   LOOP END
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_test.F90(327,5)
+   remark #15543: loop was not vectorized: loop with function call not considered an optimization candidate.
+
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_test.F90(326,8)
+      remark #15543: loop was not vectorized: loop with function call not considered an optimization candidate.
+   LOOP END
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_test.F90(367,5)
+   remark #15543: loop was not vectorized: loop with function call not considered an optimization candidate.
+
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_test.F90(366,5)
+      remark #15521: loop was not vectorized: loop control variable was not identified. Explicitly compute the iteration count before executing the loop or try using canonical loop form from OpenMP specification
+   LOOP END
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_test.F90(395,5)
+   remark #15543: loop was not vectorized: loop with function call not considered an optimization candidate.
+
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_test.F90(394,5)
+      remark #15521: loop was not vectorized: loop control variable was not identified. Explicitly compute the iteration count before executing the loop or try using canonical loop form from OpenMP specification
+   LOOP END
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_test.F90(423,5)
+   remark #15543: loop was not vectorized: loop with function call not considered an optimization candidate.
+
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_test.F90(422,5)
+      remark #15521: loop was not vectorized: loop control variable was not identified. Explicitly compute the iteration count before executing the loop or try using canonical loop form from OpenMP specification
+   LOOP END
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_test.F90(454,5)
+   remark #15543: loop was not vectorized: loop with function call not considered an optimization candidate.
+
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_test.F90(453,5)
+      remark #15543: loop was not vectorized: loop with function call not considered an optimization candidate.
+
+      LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_test.F90(452,8)
+         remark #15521: loop was not vectorized: loop control variable was not identified. Explicitly compute the iteration count before executing the loop or try using canonical loop form from OpenMP specification
+      LOOP END
+   LOOP END
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_test.F90(486,5)
+   remark #15543: loop was not vectorized: loop with function call not considered an optimization candidate.
+
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_test.F90(485,5)
+      remark #15521: loop was not vectorized: loop control variable was not identified. Explicitly compute the iteration count before executing the loop or try using canonical loop form from OpenMP specification
+   LOOP END
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_test.F90(515,5)
+   remark #15543: loop was not vectorized: loop with function call not considered an optimization candidate.
+
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_test.F90(514,5)
+      remark #15521: loop was not vectorized: loop control variable was not identified. Explicitly compute the iteration count before executing the loop or try using canonical loop form from OpenMP specification
+   LOOP END
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_test.F90(547,5)
+   remark #15543: loop was not vectorized: loop with function call not considered an optimization candidate.
+
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_test.F90(546,5)
+      remark #15543: loop was not vectorized: loop with function call not considered an optimization candidate.
+
+      LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_test.F90(545,8)
+         remark #15521: loop was not vectorized: loop control variable was not identified. Explicitly compute the iteration count before executing the loop or try using canonical loop form from OpenMP specification
+      LOOP END
+   LOOP END
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_test.F90(594,5)
+   remark #15543: loop was not vectorized: loop with function call not considered an optimization candidate.
+
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_test.F90(593,8)
+      remark #15543: loop was not vectorized: loop with function call not considered an optimization candidate.
+
+      LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_test.F90(592,8)
+         remark #15543: loop was not vectorized: loop with function call not considered an optimization candidate.
+      LOOP END
+   LOOP END
+LOOP END
+
+    Report from: Code generation optimizations [cg]
+
+/glade/u/home/tvda/CISM/libglissade/glissade_test.F90(53,14):remark #34000: call to memcpy implemented inline with loads and stores with proven source (alignment, offset): (32, 0), and destination (alignment, offset): (16, 0)
+/glade/u/home/tvda/CISM/libglissade/glissade_test.F90(102,5):remark #34000: call to memcpy implemented inline with loads and stores with proven source (alignment, offset): (1, 0), and destination (alignment, offset): (16, 0)
+/glade/u/home/tvda/CISM/libglissade/glissade_test.F90(139,5):remark #34026: call to memset implemented as a call to optimized library version
+/glade/u/home/tvda/CISM/libglissade/glissade_test.F90(168,5):remark #34026: call to memset implemented as a call to optimized library version
+/glade/u/home/tvda/CISM/libglissade/glissade_test.F90(205,5):remark #34026: call to memset implemented as a call to optimized library version
+/glade/u/home/tvda/CISM/libglissade/glissade_test.F90(242,5):remark #34026: call to memset implemented as a call to optimized library version
+/glade/u/home/tvda/CISM/libglissade/glissade_test.F90(281,5):remark #34026: call to memset implemented as a call to optimized library version
+/glade/u/home/tvda/CISM/libglissade/glissade_test.F90(320,5):remark #34026: call to memset implemented as a call to optimized library version
+/glade/u/home/tvda/CISM/libglissade/glissade_test.F90(361,5):remark #34026: call to memset implemented as a call to optimized library version
+/glade/u/home/tvda/CISM/libglissade/glissade_test.F90(389,5):remark #34026: call to memset implemented as a call to optimized library version
+/glade/u/home/tvda/CISM/libglissade/glissade_test.F90(417,5):remark #34026: call to memset implemented as a call to optimized library version
+/glade/u/home/tvda/CISM/libglissade/glissade_test.F90(445,5):remark #34026: call to memset implemented as a call to optimized library version
+/glade/u/home/tvda/CISM/libglissade/glissade_test.F90(480,5):remark #34026: call to memset implemented as a call to optimized library version
+/glade/u/home/tvda/CISM/libglissade/glissade_test.F90(509,5):remark #34026: call to memset implemented as a call to optimized library version
+/glade/u/home/tvda/CISM/libglissade/glissade_test.F90(538,5):remark #34026: call to memset implemented as a call to optimized library version
+/glade/u/home/tvda/CISM/libglissade/glissade_test.F90(585,5):remark #34026: call to memset implemented as a call to optimized library version
+/glade/u/home/tvda/CISM/libglissade/glissade_test.F90(53,14):remark #34051: REGISTER ALLOCATION : [glissade_test_mp_glissade_test_halo_] /glade/u/home/tvda/CISM/libglissade/glissade_test.F90:53
+
+    Hardware registers
+        Reserved     :    2[ rsp rip]
+        Available    :   39[ rax rdx rcx rbx rbp rsi rdi r8-r15 mm0-mm7 zmm0-zmm15]
+        Callee-save  :    6[ rbx rbp r12-r15]
+        Assigned     :   19[ rax rdx rcx rbx rsi rdi r8-r15 zmm0-zmm4]
+        
+    Routine temporaries
+        Total         :    4763
+            Global    :     971
+            Local     :    3792
+        Regenerable   :    1566
+        Spilled       :     153
+        
+    Routine stack
+        Variables     :    5764 bytes*
+            Reads     :     387 [5.15e+00 ~ 5.2%]
+            Writes    :    1285 [4.06e+00 ~ 4.1%]
+        Spills        :    1168 bytes*
+            Reads     :     466 [1.39e+00 ~ 1.4%]
+            Writes    :     317 [8.59e-01 ~ 0.9%]
+    
+    Notes
+    
+        *Non-overlapping variables and spills may share stack space,
+         so the total stack size might be less than this.
+    
+
+===========================================================================
+
+Begin optimization report for: GLISSADE_TEST::GLISSADE_TEST_TRANSPORT
+
+    Report from: Interprocedural optimizations [ipo]
+
+INLINE REPORT: (GLISSADE_TEST::GLISSADE_TEST_TRANSPORT) [3] /glade/u/home/tvda/CISM/libglissade/glissade_test.F90(624,14)
+
+
+    Report from: Loop nest, Vector & Auto-parallelization optimizations [loop, vec, par]
+
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_test.F90(762,8)
+   remark #15542: loop was not vectorized: inner loop was already vectorized
+
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_test.F90(763,11)
+      remark #15300: LOOP WAS VECTORIZED
+   LOOP END
+
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_test.F90(763,11)
+   <Remainder loop for vectorization>
+      remark #25436: completely unrolled by 1  
+   LOOP END
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_test.F90(769,5)
+   remark #15542: loop was not vectorized: inner loop was already vectorized
+
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_test.F90(770,5)
+      remark #15542: loop was not vectorized: inner loop was already vectorized
+
+      LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_test.F90(771,8)
+         remark #15300: LOOP WAS VECTORIZED
+      LOOP END
+
+      LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_test.F90(771,8)
+      <Remainder loop for vectorization>
+      LOOP END
+   LOOP END
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_test.F90(795,13)
+<Multiversioned v1>
+   remark #25233: Loop multiversioned for stride tests on Assumed shape arrays
+   remark #15300: LOOP WAS VECTORIZED
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_test.F90(795,13)
+<Remainder loop for vectorization, Multiversioned v1>
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_test.F90(795,13)
+<Multiversioned v2>
+   remark #15300: LOOP WAS VECTORIZED
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_test.F90(795,13)
+<Remainder loop for vectorization, Multiversioned v2>
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_test.F90(795,13)
+   remark #15542: loop was not vectorized: inner loop was already vectorized
+
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_test.F90(795,13)
+      remark #15542: loop was not vectorized: inner loop was already vectorized
+
+      LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_test.F90(795,13)
+         remark #15300: LOOP WAS VECTORIZED
+      LOOP END
+
+      LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_test.F90(795,13)
+      <Remainder loop for vectorization>
+         remark #15301: REMAINDER LOOP WAS VECTORIZED
+      LOOP END
+
+      LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_test.F90(795,13)
+      <Remainder loop for vectorization>
+      LOOP END
+   LOOP END
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_test.F90(795,13)
+   remark #15542: loop was not vectorized: inner loop was already vectorized
+
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_test.F90(795,13)
+      remark #15542: loop was not vectorized: inner loop was already vectorized
+
+      LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_test.F90(795,13)
+         remark #15300: LOOP WAS VECTORIZED
+      LOOP END
+
+      LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_test.F90(795,13)
+      <Remainder loop for vectorization>
+         remark #15301: REMAINDER LOOP WAS VECTORIZED
+      LOOP END
+
+      LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_test.F90(795,13)
+      <Remainder loop for vectorization>
+      LOOP END
+   LOOP END
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_test.F90(795,13)
+<Multiversioned v1>
+   remark #25233: Loop multiversioned for stride tests on Assumed shape arrays
+   remark #15542: loop was not vectorized: inner loop was already vectorized
+
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_test.F90(795,13)
+      remark #15300: LOOP WAS VECTORIZED
+   LOOP END
+
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_test.F90(795,13)
+   <Remainder loop for vectorization>
+   LOOP END
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_test.F90(795,13)
+<Multiversioned v2>
+   remark #15542: loop was not vectorized: inner loop was already vectorized
+
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_test.F90(795,13)
+      remark #15300: LOOP WAS VECTORIZED
+   LOOP END
+
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_test.F90(795,13)
+   <Remainder loop for vectorization>
+   LOOP END
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_test.F90(801,39)
+   remark #15542: loop was not vectorized: inner loop was already vectorized
+
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_test.F90(801,39)
+      remark #25084: Preprocess Loopnests: Moving Out Store    [ /glade/u/home/tvda/CISM/libglissade/glissade_test.F90(803,39) ]
+      remark #15542: loop was not vectorized: inner loop was already vectorized
+
+      LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_test.F90(801,39)
+         remark #25084: Preprocess Loopnests: Moving Out Store    [ /glade/u/home/tvda/CISM/libglissade/glissade_test.F90(803,39) ]
+         remark #15542: loop was not vectorized: inner loop was already vectorized
+
+         LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_test.F90(801,39)
+            remark #15300: LOOP WAS VECTORIZED
+         LOOP END
+
+         LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_test.F90(801,39)
+         <Remainder loop for vectorization>
+         LOOP END
+      LOOP END
+   LOOP END
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_test.F90(803,39)
+   remark #15542: loop was not vectorized: inner loop was already vectorized
+
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_test.F90(803,39)
+      remark #25084: Preprocess Loopnests: Moving Out Store    [ /glade/u/home/tvda/CISM/libglissade/glissade_test.F90(804,39) ]
+      remark #15542: loop was not vectorized: inner loop was already vectorized
+
+      LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_test.F90(803,39)
+         remark #15300: LOOP WAS VECTORIZED
+      LOOP END
+
+      LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_test.F90(803,39)
+      <Remainder loop for vectorization>
+      LOOP END
+   LOOP END
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_test.F90(803,39)
+   remark #15542: loop was not vectorized: inner loop was already vectorized
+
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_test.F90(803,39)
+      remark #25084: Preprocess Loopnests: Moving Out Store    [ /glade/u/home/tvda/CISM/libglissade/glissade_test.F90(805,39) ]
+      remark #15542: loop was not vectorized: inner loop was already vectorized
+
+      LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_test.F90(803,39)
+         remark #15300: LOOP WAS VECTORIZED
+      LOOP END
+
+      LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_test.F90(803,39)
+      <Remainder loop for vectorization>
+      LOOP END
+   LOOP END
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_test.F90(801,39)
+<Multiversioned v1>
+   remark #25233: Loop multiversioned for stride tests on Assumed shape arrays
+   remark #15542: loop was not vectorized: inner loop was already vectorized
+
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_test.F90(801,39)
+      remark #15300: LOOP WAS VECTORIZED
+   LOOP END
+
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_test.F90(801,39)
+   <Remainder loop for vectorization>
+   LOOP END
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_test.F90(801,39)
+<Multiversioned v2>
+   remark #15542: loop was not vectorized: inner loop was already vectorized
+
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_test.F90(801,39)
+      remark #15300: LOOP WAS VECTORIZED
+   LOOP END
+
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_test.F90(801,39)
+   <Remainder loop for vectorization>
+   LOOP END
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_test.F90(803,39)
+   remark #15542: loop was not vectorized: inner loop was already vectorized
+
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_test.F90(803,39)
+      remark #15542: loop was not vectorized: inner loop was already vectorized
+
+      LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_test.F90(803,39)
+      <Multiversioned v1>
+         remark #25233: Loop multiversioned for stride tests on Assumed shape arrays
+         remark #15542: loop was not vectorized: inner loop was already vectorized
+
+         LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_test.F90(803,39)
+            remark #15300: LOOP WAS VECTORIZED
+         LOOP END
+
+         LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_test.F90(803,39)
+         <Remainder loop for vectorization>
+         LOOP END
+      LOOP END
+
+      LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_test.F90(803,39)
+      <Multiversioned v2>
+         remark #15542: loop was not vectorized: inner loop was already vectorized
+
+         LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_test.F90(803,39)
+            remark #15300: LOOP WAS VECTORIZED
+         LOOP END
+
+         LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_test.F90(803,39)
+         <Remainder loop for vectorization>
+         LOOP END
+      LOOP END
+   LOOP END
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_test.F90(814,11)
+   remark #15542: loop was not vectorized: inner loop was already vectorized
+
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_test.F90(815,14)
+      remark #15300: LOOP WAS VECTORIZED
+   LOOP END
+
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_test.F90(815,14)
+   <Remainder loop for vectorization>
+      remark #25436: completely unrolled by 1  
+   LOOP END
+LOOP END
+
+
+Non-optimizable loops:
+
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_test.F90(819,5)
+   remark #15543: loop was not vectorized: loop with function call not considered an optimization candidate.
+LOOP END
+
+    Report from: Code generation optimizations [cg]
+
+/glade/u/home/tvda/CISM/libglissade/glissade_test.F90(624,14):remark #34000: call to memcpy implemented inline with loads and stores with proven source (alignment, offset): (32, 0), and destination (alignment, offset): (16, 0)
+/glade/u/home/tvda/CISM/libglissade/glissade_test.F90(708,5):remark #34000: call to memcpy implemented inline with loads and stores with proven source (alignment, offset): (1, 0), and destination (alignment, offset): (16, 0)
+/glade/u/home/tvda/CISM/libglissade/glissade_test.F90(624,14):remark #34051: REGISTER ALLOCATION : [glissade_test_mp_glissade_test_transport_] /glade/u/home/tvda/CISM/libglissade/glissade_test.F90:624
+
+    Hardware registers
+        Reserved     :    2[ rsp rip]
+        Available    :   39[ rax rdx rcx rbx rbp rsi rdi r8-r15 mm0-mm7 zmm0-zmm15]
+        Callee-save  :    6[ rbx rbp r12-r15]
+        Assigned     :   24[ rax rdx rcx rbx rsi rdi r8-r15 zmm0-zmm9]
+        
+    Routine temporaries
+        Total         :    1273
+            Global    :     397
+            Local     :     876
+        Regenerable   :     262
+        Spilled       :     158
+        
+    Routine stack
+        Variables     :    1180 bytes*
+            Reads     :      43 [9.68e-02 ~ 0.1%]
+            Writes    :     166 [4.44e+00 ~ 4.4%]
+        Spills        :    1216 bytes*
+            Reads     :     271 [3.50e+00 ~ 3.5%]
+            Writes    :     211 [1.06e+00 ~ 1.1%]
+    
+    Notes
+    
+        *Non-overlapping variables and spills may share stack space,
+         so the total stack size might be less than this.
+    
+
+===========================================================================
+
+Begin optimization report for: GLISSADE_TEST::GLISSADE_TEST_COMM_ROW_COL
+
+    Report from: Interprocedural optimizations [ipo]
+
+INLINE REPORT: (GLISSADE_TEST::GLISSADE_TEST_COMM_ROW_COL) [4] /glade/u/home/tvda/CISM/libglissade/glissade_test.F90(830,14)
+
+
+    Report from: Loop nest, Vector & Auto-parallelization optimizations [loop, vec, par]
+
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_test.F90(862,11)
+   remark #15542: loop was not vectorized: inner loop was already vectorized
+
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_test.F90(861,8)
+      remark #15300: LOOP WAS VECTORIZED
+   LOOP END
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_test.F90(871,14)
+   remark #15541: outer loop was not auto-vectorized: consider using SIMD directive
+
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_test.F90(870,11)
+      remark #15344: loop was not vectorized: vector dependence prevents vectorization. First dependence is shown below. Use level 5 report for details
+      remark #15346: vector dependence: assumed OUTPUT dependence between at (871:14) and at (871:14)
+   LOOP END
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_test.F90(882,8)
+   remark #15541: outer loop was not auto-vectorized: consider using SIMD directive
+
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_test.F90(884,11)
+      remark #15344: loop was not vectorized: vector dependence prevents vectorization. First dependence is shown below. Use level 5 report for details
+      remark #15346: vector dependence: assumed OUTPUT dependence between at (885:14) and at (885:14)
+   LOOP END
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_test.F90(898,11)
+   remark #15541: outer loop was not auto-vectorized: consider using SIMD directive
+
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_test.F90(898,11)
+      remark #15344: loop was not vectorized: vector dependence prevents vectorization. First dependence is shown below. Use level 5 report for details
+      remark #15346: vector dependence: assumed OUTPUT dependence between at (899:14) and at (899:14)
+   LOOP END
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_test.F90(915,8)
+   remark #15542: loop was not vectorized: inner loop was already vectorized
+
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_test.F90(915,8)
+      remark #15300: LOOP WAS VECTORIZED
+   LOOP END
+
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_test.F90(915,8)
+   <Remainder loop for vectorization>
+   LOOP END
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_test.F90(922,8)
+   remark #15541: outer loop was not auto-vectorized: consider using SIMD directive
+
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_test.F90(924,11)
+      remark #15344: loop was not vectorized: vector dependence prevents vectorization. First dependence is shown below. Use level 5 report for details
+      remark #15346: vector dependence: assumed OUTPUT dependence between at (925:14) and at (925:14)
+   LOOP END
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_test.F90(936,8)
+   remark #15541: outer loop was not auto-vectorized: consider using SIMD directive
+
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_test.F90(938,11)
+      remark #15344: loop was not vectorized: vector dependence prevents vectorization. First dependence is shown below. Use level 5 report for details
+      remark #15346: vector dependence: assumed OUTPUT dependence between at (939:14) and at (939:14)
+   LOOP END
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_test.F90(952,11)
+   remark #15541: outer loop was not auto-vectorized: consider using SIMD directive
+
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_test.F90(952,11)
+      remark #15344: loop was not vectorized: vector dependence prevents vectorization. First dependence is shown below. Use level 5 report for details
+      remark #15346: vector dependence: assumed OUTPUT dependence between at (953:14) and at (953:14)
+   LOOP END
+LOOP END
+
+    Report from: Code generation optimizations [cg]
+
+/glade/u/home/tvda/CISM/libglissade/glissade_test.F90(830,14):remark #34000: call to memcpy implemented inline with loads and stores with proven source (alignment, offset): (32, 0), and destination (alignment, offset): (16, 0)
+/glade/u/home/tvda/CISM/libglissade/glissade_test.F90(848,5):remark #34000: call to memcpy implemented inline with loads and stores with proven source (alignment, offset): (1, 0), and destination (alignment, offset): (16, 0)
+/glade/u/home/tvda/CISM/libglissade/glissade_test.F90(830,14):remark #34051: REGISTER ALLOCATION : [glissade_test_mp_glissade_test_comm_row_col_] /glade/u/home/tvda/CISM/libglissade/glissade_test.F90:830
+
+    Hardware registers
+        Reserved     :    2[ rsp rip]
+        Available    :   39[ rax rdx rcx rbx rbp rsi rdi r8-r15 mm0-mm7 zmm0-zmm15]
+        Callee-save  :    6[ rbx rbp r12-r15]
+        Assigned     :   30[ rax rdx rcx rbx rsi rdi r8-r15 zmm0-zmm15]
+        
+    Routine temporaries
+        Total         :     807
+            Global    :     214
+            Local     :     593
+        Regenerable   :     372
+        Spilled       :      22
+        
+    Routine stack
+        Variables     :    1048 bytes*
+            Reads     :      43 [1.14e+00 ~ 1.1%]
+            Writes    :     170 [1.24e+01 ~ 12.4%]
+        Spills        :     144 bytes*
+            Reads     :      18 [7.77e-01 ~ 0.8%]
+            Writes    :      18 [6.55e-01 ~ 0.7%]
+    
+    Notes
+    
+        *Non-overlapping variables and spills may share stack space,
+         so the total stack size might be less than this.
+    
+
+===========================================================================

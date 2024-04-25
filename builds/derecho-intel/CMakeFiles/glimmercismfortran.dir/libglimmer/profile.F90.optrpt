@@ -1,0 +1,416 @@
+Intel(R) Advisor can now assist with vectorization and show optimization
+  report messages with your source code.
+See "https://software.intel.com/en-us/intel-advisor-xe" for details.
+
+
+    Report from: Interprocedural optimizations [ipo]
+
+INLINING OPTION VALUES:
+  -inline-factor: 100
+  -inline-min-size: 30
+  -inline-max-size: 230
+  -inline-max-total-size: 2000
+  -inline-max-per-routine: 10000
+  -inline-max-per-compile: 500000
+
+
+Begin optimization report for: profile._
+
+    Report from: Interprocedural optimizations [ipo]
+
+INLINE REPORT: (profile._) [1] /glade/u/home/tvda/CISM/libglimmer/profile.F90(34,8)
+
+
+    Report from: Code generation optimizations [cg]
+
+/glade/u/home/tvda/CISM/libglimmer/profile.F90(34,8):remark #34051: REGISTER ALLOCATION : [profile._] /glade/u/home/tvda/CISM/libglimmer/profile.F90:34
+
+    Hardware registers
+        Reserved     :    2[ rsp rip]
+        Available    :   39[ rax rdx rcx rbx rbp rsi rdi r8-r15 mm0-mm7 zmm0-zmm15]
+        Callee-save  :    6[ rbx rbp r12-r15]
+        Assigned     :    0[ reg_null]
+        
+    Routine temporaries
+        Total         :       6
+            Global    :       0
+            Local     :       6
+        Regenerable   :       0
+        Spilled       :       0
+        
+    Routine stack
+        Variables     :       0 bytes*
+            Reads     :       0 [0.00e+00 ~ 0.0%]
+            Writes    :       0 [0.00e+00 ~ 0.0%]
+        Spills        :       0 bytes*
+            Reads     :       0 [0.00e+00 ~ 0.0%]
+            Writes    :       0 [0.00e+00 ~ 0.0%]
+    
+    Notes
+    
+        *Non-overlapping variables and spills may share stack space,
+         so the total stack size might be less than this.
+    
+
+===========================================================================
+
+Begin optimization report for: PROFILE::PROFILE_REGISTER
+
+    Report from: Interprocedural optimizations [ipo]
+
+INLINE REPORT: (PROFILE::PROFILE_REGISTER) [2] /glade/u/home/tvda/CISM/libglimmer/profile.F90(91,12)
+
+
+    Report from: Code generation optimizations [cg]
+
+/glade/u/home/tvda/CISM/libglimmer/profile.F90(91,12):remark #34051: REGISTER ALLOCATION : [profile_mp_profile_register_] /glade/u/home/tvda/CISM/libglimmer/profile.F90:91
+
+    Hardware registers
+        Reserved     :    2[ rsp rip]
+        Available    :   39[ rax rdx rcx rbx rbp rsi rdi r8-r15 mm0-mm7 zmm0-zmm15]
+        Callee-save  :    6[ rbx rbp r12-r15]
+        Assigned     :   13[ rax rdx rcx rbx rsi rdi r8-r10 r12-r15]
+        
+    Routine temporaries
+        Total         :      46
+            Global    :      15
+            Local     :      31
+        Regenerable   :      12
+        Spilled       :       6
+        
+    Routine stack
+        Variables     :       0 bytes*
+            Reads     :       0 [0.00e+00 ~ 0.0%]
+            Writes    :       0 [0.00e+00 ~ 0.0%]
+        Spills        :       8 bytes*
+            Reads     :       1 [1.79e+00 ~ 1.8%]
+            Writes    :       1 [1.79e+00 ~ 1.8%]
+    
+    Notes
+    
+        *Non-overlapping variables and spills may share stack space,
+         so the total stack size might be less than this.
+    
+
+===========================================================================
+
+Begin optimization report for: PROFILE::PROFILE_START
+
+    Report from: Interprocedural optimizations [ipo]
+
+INLINE REPORT: (PROFILE::PROFILE_START) [3] /glade/u/home/tvda/CISM/libglimmer/profile.F90(108,14)
+
+
+    Report from: Code generation optimizations [cg]
+
+/glade/u/home/tvda/CISM/libglimmer/profile.F90(108,14):remark #34051: REGISTER ALLOCATION : [profile_mp_profile_start_] /glade/u/home/tvda/CISM/libglimmer/profile.F90:108
+
+    Hardware registers
+        Reserved     :    2[ rsp rip]
+        Available    :   39[ rax rdx rcx rbx rbp rsi rdi r8-r15 mm0-mm7 zmm0-zmm15]
+        Callee-save  :    6[ rbx rbp r12-r15]
+        Assigned     :    2[ rsi rdi]
+        
+    Routine temporaries
+        Total         :       8
+            Global    :       0
+            Local     :       8
+        Regenerable   :       0
+        Spilled       :       0
+        
+    Routine stack
+        Variables     :       0 bytes*
+            Reads     :       0 [0.00e+00 ~ 0.0%]
+            Writes    :       0 [0.00e+00 ~ 0.0%]
+        Spills        :       0 bytes*
+            Reads     :       0 [0.00e+00 ~ 0.0%]
+            Writes    :       0 [0.00e+00 ~ 0.0%]
+    
+    Notes
+    
+        *Non-overlapping variables and spills may share stack space,
+         so the total stack size might be less than this.
+    
+
+===========================================================================
+
+Begin optimization report for: PROFILE::PROFILE_LOG
+
+    Report from: Interprocedural optimizations [ipo]
+
+INLINE REPORT: (PROFILE::PROFILE_LOG) [4] /glade/u/home/tvda/CISM/libglimmer/profile.F90(141,14)
+
+
+    Report from: Code generation optimizations [cg]
+
+/glade/u/home/tvda/CISM/libglimmer/profile.F90(141,14):remark #34051: REGISTER ALLOCATION : [profile_mp_profile_log_] /glade/u/home/tvda/CISM/libglimmer/profile.F90:141
+
+    Hardware registers
+        Reserved     :    2[ rsp rip]
+        Available    :   39[ rax rdx rcx rbx rbp rsi rdi r8-r15 mm0-mm7 zmm0-zmm15]
+        Callee-save  :    6[ rbx rbp r12-r15]
+        Assigned     :    4[ rdx rcx rsi rdi]
+        
+    Routine temporaries
+        Total         :      10
+            Global    :       0
+            Local     :      10
+        Regenerable   :       0
+        Spilled       :       0
+        
+    Routine stack
+        Variables     :       0 bytes*
+            Reads     :       0 [0.00e+00 ~ 0.0%]
+            Writes    :       0 [0.00e+00 ~ 0.0%]
+        Spills        :       0 bytes*
+            Reads     :       0 [0.00e+00 ~ 0.0%]
+            Writes    :       0 [0.00e+00 ~ 0.0%]
+    
+    Notes
+    
+        *Non-overlapping variables and spills may share stack space,
+         so the total stack size might be less than this.
+    
+
+===========================================================================
+
+Begin optimization report for: PROFILE::PROFILE_CLOSE
+
+    Report from: Interprocedural optimizations [ipo]
+
+INLINE REPORT: (PROFILE::PROFILE_CLOSE) [5] /glade/u/home/tvda/CISM/libglimmer/profile.F90(162,14)
+
+
+    Report from: Code generation optimizations [cg]
+
+/glade/u/home/tvda/CISM/libglimmer/profile.F90(162,14):remark #34051: REGISTER ALLOCATION : [profile_mp_profile_close_] /glade/u/home/tvda/CISM/libglimmer/profile.F90:162
+
+    Hardware registers
+        Reserved     :    2[ rsp rip]
+        Available    :   39[ rax rdx rcx rbx rbp rsi rdi r8-r15 mm0-mm7 zmm0-zmm15]
+        Callee-save  :    6[ rbx rbp r12-r15]
+        Assigned     :    1[ rdi]
+        
+    Routine temporaries
+        Total         :       7
+            Global    :       0
+            Local     :       7
+        Regenerable   :       0
+        Spilled       :       0
+        
+    Routine stack
+        Variables     :       0 bytes*
+            Reads     :       0 [0.00e+00 ~ 0.0%]
+            Writes    :       0 [0.00e+00 ~ 0.0%]
+        Spills        :       0 bytes*
+            Reads     :       0 [0.00e+00 ~ 0.0%]
+            Writes    :       0 [0.00e+00 ~ 0.0%]
+    
+    Notes
+    
+        *Non-overlapping variables and spills may share stack space,
+         so the total stack size might be less than this.
+    
+
+===========================================================================
+
+Begin optimization report for: PROFILE::T_STARTF
+
+    Report from: Interprocedural optimizations [ipo]
+
+INLINE REPORT: (PROFILE::T_STARTF) [6] /glade/u/home/tvda/CISM/libglimmer/profile.F90(199,15)
+
+
+    Report from: Code generation optimizations [cg]
+
+/glade/u/home/tvda/CISM/libglimmer/profile.F90(199,15):remark #34051: REGISTER ALLOCATION : [profile_mp_t_startf_] /glade/u/home/tvda/CISM/libglimmer/profile.F90:199
+
+    Hardware registers
+        Reserved     :    2[ rsp rip]
+        Available    :   39[ rax rdx rcx rbx rbp rsi rdi r8-r15 mm0-mm7 zmm0-zmm15]
+        Callee-save  :    6[ rbx rbp r12-r15]
+        Assigned     :    3[ rdx rsi rdi]
+        
+    Routine temporaries
+        Total         :       9
+            Global    :       0
+            Local     :       9
+        Regenerable   :       0
+        Spilled       :       0
+        
+    Routine stack
+        Variables     :       0 bytes*
+            Reads     :       0 [0.00e+00 ~ 0.0%]
+            Writes    :       0 [0.00e+00 ~ 0.0%]
+        Spills        :       0 bytes*
+            Reads     :       0 [0.00e+00 ~ 0.0%]
+            Writes    :       0 [0.00e+00 ~ 0.0%]
+    
+    Notes
+    
+        *Non-overlapping variables and spills may share stack space,
+         so the total stack size might be less than this.
+    
+
+===========================================================================
+
+Begin optimization report for: PROFILE::T_ADJ_DETAILF
+
+    Report from: Interprocedural optimizations [ipo]
+
+INLINE REPORT: (PROFILE::T_ADJ_DETAILF) [7] /glade/u/home/tvda/CISM/libglimmer/profile.F90(213,15)
+
+
+    Report from: Code generation optimizations [cg]
+
+/glade/u/home/tvda/CISM/libglimmer/profile.F90(213,15):remark #34051: REGISTER ALLOCATION : [profile_mp_t_adj_detailf_] /glade/u/home/tvda/CISM/libglimmer/profile.F90:213
+
+    Hardware registers
+        Reserved     :    2[ rsp rip]
+        Available    :   39[ rax rdx rcx rbx rbp rsi rdi r8-r15 mm0-mm7 zmm0-zmm15]
+        Callee-save  :    6[ rbx rbp r12-r15]
+        Assigned     :    1[ rdi]
+        
+    Routine temporaries
+        Total         :       7
+            Global    :       0
+            Local     :       7
+        Regenerable   :       0
+        Spilled       :       0
+        
+    Routine stack
+        Variables     :       0 bytes*
+            Reads     :       0 [0.00e+00 ~ 0.0%]
+            Writes    :       0 [0.00e+00 ~ 0.0%]
+        Spills        :       0 bytes*
+            Reads     :       0 [0.00e+00 ~ 0.0%]
+            Writes    :       0 [0.00e+00 ~ 0.0%]
+    
+    Notes
+    
+        *Non-overlapping variables and spills may share stack space,
+         so the total stack size might be less than this.
+    
+
+===========================================================================
+
+Begin optimization report for: PROFILE::T_STOPF
+
+    Report from: Interprocedural optimizations [ipo]
+
+INLINE REPORT: (PROFILE::T_STOPF) [8] /glade/u/home/tvda/CISM/libglimmer/profile.F90(206,15)
+
+
+    Report from: Code generation optimizations [cg]
+
+/glade/u/home/tvda/CISM/libglimmer/profile.F90(206,15):remark #34051: REGISTER ALLOCATION : [profile_mp_t_stopf_] /glade/u/home/tvda/CISM/libglimmer/profile.F90:206
+
+    Hardware registers
+        Reserved     :    2[ rsp rip]
+        Available    :   39[ rax rdx rcx rbx rbp rsi rdi r8-r15 mm0-mm7 zmm0-zmm15]
+        Callee-save  :    6[ rbx rbp r12-r15]
+        Assigned     :    3[ rdx rsi rdi]
+        
+    Routine temporaries
+        Total         :       9
+            Global    :       0
+            Local     :       9
+        Regenerable   :       0
+        Spilled       :       0
+        
+    Routine stack
+        Variables     :       0 bytes*
+            Reads     :       0 [0.00e+00 ~ 0.0%]
+            Writes    :       0 [0.00e+00 ~ 0.0%]
+        Spills        :       0 bytes*
+            Reads     :       0 [0.00e+00 ~ 0.0%]
+            Writes    :       0 [0.00e+00 ~ 0.0%]
+    
+    Notes
+    
+        *Non-overlapping variables and spills may share stack space,
+         so the total stack size might be less than this.
+    
+
+===========================================================================
+
+Begin optimization report for: PROFILE::PROFILE_STOP
+
+    Report from: Interprocedural optimizations [ipo]
+
+INLINE REPORT: (PROFILE::PROFILE_STOP) [9] /glade/u/home/tvda/CISM/libglimmer/profile.F90(123,14)
+
+
+    Report from: Code generation optimizations [cg]
+
+/glade/u/home/tvda/CISM/libglimmer/profile.F90(123,14):remark #34051: REGISTER ALLOCATION : [profile_mp_profile_stop_] /glade/u/home/tvda/CISM/libglimmer/profile.F90:123
+
+    Hardware registers
+        Reserved     :    2[ rsp rip]
+        Available    :   39[ rax rdx rcx rbx rbp rsi rdi r8-r15 mm0-mm7 zmm0-zmm15]
+        Callee-save  :    6[ rbx rbp r12-r15]
+        Assigned     :    2[ rsi rdi]
+        
+    Routine temporaries
+        Total         :       8
+            Global    :       0
+            Local     :       8
+        Regenerable   :       0
+        Spilled       :       0
+        
+    Routine stack
+        Variables     :       0 bytes*
+            Reads     :       0 [0.00e+00 ~ 0.0%]
+            Writes    :       0 [0.00e+00 ~ 0.0%]
+        Spills        :       0 bytes*
+            Reads     :       0 [0.00e+00 ~ 0.0%]
+            Writes    :       0 [0.00e+00 ~ 0.0%]
+    
+    Notes
+    
+        *Non-overlapping variables and spills may share stack space,
+         so the total stack size might be less than this.
+    
+
+===========================================================================
+
+Begin optimization report for: PROFILE::PROFILE_INIT
+
+    Report from: Interprocedural optimizations [ipo]
+
+INLINE REPORT: (PROFILE::PROFILE_INIT) [10] /glade/u/home/tvda/CISM/libglimmer/profile.F90(65,14)
+
+
+    Report from: Code generation optimizations [cg]
+
+/glade/u/home/tvda/CISM/libglimmer/profile.F90(65,14):remark #34026: call to memcpy implemented as a call to optimized library version
+/glade/u/home/tvda/CISM/libglimmer/profile.F90(65,14):remark #34051: REGISTER ALLOCATION : [profile_mp_profile_init_] /glade/u/home/tvda/CISM/libglimmer/profile.F90:65
+
+    Hardware registers
+        Reserved     :    2[ rsp rip]
+        Available    :   39[ rax rdx rcx rbx rbp rsi rdi r8-r15 mm0-mm7 zmm0-zmm15]
+        Callee-save  :    6[ rbx rbp r12-r15]
+        Assigned     :    5[ rax rdx rsi rdi r15]
+        
+    Routine temporaries
+        Total         :      16
+            Global    :       7
+            Local     :       9
+        Regenerable   :       3
+        Spilled       :       1
+        
+    Routine stack
+        Variables     :       0 bytes*
+            Reads     :       0 [0.00e+00 ~ 0.0%]
+            Writes    :       0 [0.00e+00 ~ 0.0%]
+        Spills        :       0 bytes*
+            Reads     :       0 [0.00e+00 ~ 0.0%]
+            Writes    :       0 [0.00e+00 ~ 0.0%]
+    
+    Notes
+    
+        *Non-overlapping variables and spills may share stack space,
+         so the total stack size might be less than this.
+    
+
+===========================================================================

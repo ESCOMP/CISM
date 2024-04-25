@@ -1,0 +1,339 @@
+Intel(R) Advisor can now assist with vectorization and show optimization
+  report messages with your source code.
+See "https://software.intel.com/en-us/intel-advisor-xe" for details.
+
+
+    Report from: Interprocedural optimizations [ipo]
+
+INLINING OPTION VALUES:
+  -inline-factor: 100
+  -inline-min-size: 30
+  -inline-max-size: 230
+  -inline-max-total-size: 2000
+  -inline-max-per-routine: 10000
+  -inline-max-per-compile: 500000
+
+
+Begin optimization report for: glide_vertint._
+
+    Report from: Interprocedural optimizations [ipo]
+
+INLINE REPORT: (glide_vertint._) [1] /glade/u/home/tvda/CISM/libglide/glide_vertint.F90(29,8)
+
+
+    Report from: Code generation optimizations [cg]
+
+/glade/u/home/tvda/CISM/libglide/glide_vertint.F90(29,8):remark #34051: REGISTER ALLOCATION : [glide_vertint._] /glade/u/home/tvda/CISM/libglide/glide_vertint.F90:29
+
+    Hardware registers
+        Reserved     :    2[ rsp rip]
+        Available    :   39[ rax rdx rcx rbx rbp rsi rdi r8-r15 mm0-mm7 zmm0-zmm15]
+        Callee-save  :    6[ rbx rbp r12-r15]
+        Assigned     :    0[ reg_null]
+        
+    Routine temporaries
+        Total         :       6
+            Global    :       0
+            Local     :       6
+        Regenerable   :       0
+        Spilled       :       0
+        
+    Routine stack
+        Variables     :       0 bytes*
+            Reads     :       0 [0.00e+00 ~ 0.0%]
+            Writes    :       0 [0.00e+00 ~ 0.0%]
+        Spills        :       0 bytes*
+            Reads     :       0 [0.00e+00 ~ 0.0%]
+            Writes    :       0 [0.00e+00 ~ 0.0%]
+    
+    Notes
+    
+        *Non-overlapping variables and spills may share stack space,
+         so the total stack size might be less than this.
+    
+
+===========================================================================
+
+Begin optimization report for: GLIDE_VERTINT::VERTINT_OUTPUT3D
+
+    Report from: Interprocedural optimizations [ipo]
+
+INLINE REPORT: (GLIDE_VERTINT::VERTINT_OUTPUT3D) [2] /glade/u/home/tvda/CISM/libglide/glide_vertint.F90(44,16)
+
+
+    Report from: Loop nest, Vector & Auto-parallelization optimizations [loop, vec, par]
+
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglide/glide_vertint.F90(75,13)
+   remark #15541: outer loop was not auto-vectorized: consider using SIMD directive
+
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglide/glide_vertint.F90(75,13)
+      remark #15335: loop was not vectorized: vectorization possible but seems inefficient. Use vector always directive or -vec-threshold0 to override 
+      remark #25439: unrolled with remainder by 2  
+   LOOP END
+
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglide/glide_vertint.F90(75,13)
+   <Remainder>
+   LOOP END
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglide/glide_vertint.F90(77,13)
+<Multiversioned v1>
+   remark #25233: Loop multiversioned for stride tests on Assumed shape arrays
+   remark #15542: loop was not vectorized: inner loop was already vectorized
+
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglide/glide_vertint.F90(77,13)
+      remark #15300: LOOP WAS VECTORIZED
+   LOOP END
+
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglide/glide_vertint.F90(77,13)
+   <Remainder loop for vectorization>
+   LOOP END
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglide/glide_vertint.F90(77,13)
+<Multiversioned v2>
+   remark #15542: loop was not vectorized: inner loop was already vectorized
+
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglide/glide_vertint.F90(77,13)
+      remark #15300: LOOP WAS VECTORIZED
+   LOOP END
+
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglide/glide_vertint.F90(77,13)
+   <Remainder loop for vectorization>
+   LOOP END
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglide/glide_vertint.F90(81,9)
+   remark #15542: loop was not vectorized: inner loop was already vectorized
+
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglide/glide_vertint.F90(84,13)
+      remark #15542: loop was not vectorized: inner loop was already vectorized
+
+      LOOP BEGIN at /glade/u/home/tvda/CISM/libglide/glide_vertint.F90(84,13)
+         remark #15300: LOOP WAS VECTORIZED
+      LOOP END
+
+      LOOP BEGIN at /glade/u/home/tvda/CISM/libglide/glide_vertint.F90(84,13)
+      <Remainder loop for vectorization>
+         remark #15301: REMAINDER LOOP WAS VECTORIZED
+      LOOP END
+
+      LOOP BEGIN at /glade/u/home/tvda/CISM/libglide/glide_vertint.F90(84,13)
+      <Remainder loop for vectorization>
+      LOOP END
+   LOOP END
+LOOP END
+
+    Report from: Code generation optimizations [cg]
+
+/glade/u/home/tvda/CISM/libglide/glide_vertint.F90(44,16):remark #34051: REGISTER ALLOCATION : [glide_vertint_mp_vertint_output3d_] /glade/u/home/tvda/CISM/libglide/glide_vertint.F90:44
+
+    Hardware registers
+        Reserved     :    2[ rsp rip]
+        Available    :   39[ rax rdx rcx rbx rbp rsi rdi r8-r15 mm0-mm7 zmm0-zmm15]
+        Callee-save  :    6[ rbx rbp r12-r15]
+        Assigned     :   30[ rax rdx rcx rbx rsi rdi r8-r15 zmm0-zmm15]
+        
+    Routine temporaries
+        Total         :     383
+            Global    :     169
+            Local     :     214
+        Regenerable   :       4
+        Spilled       :      91
+        
+    Routine stack
+        Variables     :       0 bytes*
+            Reads     :       0 [0.00e+00 ~ 0.0%]
+            Writes    :       0 [0.00e+00 ~ 0.0%]
+        Spills        :     672 bytes*
+            Reads     :     139 [1.39e+01 ~ 13.9%]
+            Writes    :     104 [2.87e+00 ~ 2.9%]
+    
+    Notes
+    
+        *Non-overlapping variables and spills may share stack space,
+         so the total stack size might be less than this.
+    
+
+===========================================================================
+
+Begin optimization report for: GLIDE_VERTINT::VERTINT_OUTPUT2D
+
+    Report from: Interprocedural optimizations [ipo]
+
+INLINE REPORT: (GLIDE_VERTINT::VERTINT_OUTPUT2D) [3] /glade/u/home/tvda/CISM/libglide/glide_vertint.F90(88,16)
+
+
+    Report from: Loop nest, Vector & Auto-parallelization optimizations [loop, vec, par]
+
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglide/glide_vertint.F90(104,13)
+   remark #15541: outer loop was not auto-vectorized: consider using SIMD directive
+
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglide/glide_vertint.F90(104,13)
+      remark #15335: loop was not vectorized: vectorization possible but seems inefficient. Use vector always directive or -vec-threshold0 to override 
+      remark #25439: unrolled with remainder by 2  
+   LOOP END
+
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglide/glide_vertint.F90(104,13)
+   <Remainder>
+   LOOP END
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglide/glide_vertint.F90(106,13)
+<Multiversioned v1>
+   remark #25233: Loop multiversioned for stride tests on Assumed shape arrays
+   remark #15542: loop was not vectorized: inner loop was already vectorized
+
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglide/glide_vertint.F90(106,13)
+      remark #15300: LOOP WAS VECTORIZED
+   LOOP END
+
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglide/glide_vertint.F90(106,13)
+   <Remainder loop for vectorization>
+   LOOP END
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglide/glide_vertint.F90(106,13)
+<Multiversioned v2>
+   remark #15542: loop was not vectorized: inner loop was already vectorized
+
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglide/glide_vertint.F90(106,13)
+      remark #15300: LOOP WAS VECTORIZED
+   LOOP END
+
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglide/glide_vertint.F90(106,13)
+   <Remainder loop for vectorization>
+   LOOP END
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglide/glide_vertint.F90(109,9)
+   remark #15542: loop was not vectorized: inner loop was already vectorized
+
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglide/glide_vertint.F90(111,13)
+      remark #15542: loop was not vectorized: inner loop was already vectorized
+
+      LOOP BEGIN at /glade/u/home/tvda/CISM/libglide/glide_vertint.F90(111,13)
+         remark #15300: LOOP WAS VECTORIZED
+      LOOP END
+
+      LOOP BEGIN at /glade/u/home/tvda/CISM/libglide/glide_vertint.F90(111,13)
+      <Remainder loop for vectorization>
+         remark #15301: REMAINDER LOOP WAS VECTORIZED
+      LOOP END
+
+      LOOP BEGIN at /glade/u/home/tvda/CISM/libglide/glide_vertint.F90(111,13)
+      <Remainder loop for vectorization>
+      LOOP END
+   LOOP END
+LOOP END
+
+    Report from: Code generation optimizations [cg]
+
+/glade/u/home/tvda/CISM/libglide/glide_vertint.F90(88,16):remark #34051: REGISTER ALLOCATION : [glide_vertint_mp_vertint_output2d_] /glade/u/home/tvda/CISM/libglide/glide_vertint.F90:88
+
+    Hardware registers
+        Reserved     :    2[ rsp rip]
+        Available    :   39[ rax rdx rcx rbx rbp rsi rdi r8-r15 mm0-mm7 zmm0-zmm15]
+        Callee-save  :    6[ rbx rbp r12-r15]
+        Assigned     :   29[ rax rdx rcx rbx rsi rdi r8-r15 zmm0-zmm14]
+        
+    Routine temporaries
+        Total         :     275
+            Global    :     125
+            Local     :     150
+        Regenerable   :       3
+        Spilled       :      76
+        
+    Routine stack
+        Variables     :       0 bytes*
+            Reads     :       0 [0.00e+00 ~ 0.0%]
+            Writes    :       0 [0.00e+00 ~ 0.0%]
+        Spills        :     536 bytes*
+            Reads     :      91 [9.43e+00 ~ 9.4%]
+            Writes    :      76 [2.63e+00 ~ 2.6%]
+    
+    Notes
+    
+        *Non-overlapping variables and spills may share stack space,
+         so the total stack size might be less than this.
+    
+
+===========================================================================
+
+Begin optimization report for: GLIDE_VERTINT::TEST_VERTINT
+
+    Report from: Interprocedural optimizations [ipo]
+
+INLINE REPORT: (GLIDE_VERTINT::TEST_VERTINT) [4] /glade/u/home/tvda/CISM/libglide/glide_vertint.F90(118,16)
+  -> INLINE: (139,14) GLIDE_VERTINT::VERTINT_OUTPUT2D
+  -> INLINE: (160,14) GLIDE_VERTINT::VERTINT_OUTPUT2D
+
+
+    Report from: Loop nest, Vector & Auto-parallelization optimizations [loop, vec, par]
+
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglide/glide_vertint.F90(130,9)
+   remark #15344: loop was not vectorized: vector dependence prevents vectorization. First dependence is shown below. Use level 5 report for details
+   remark #15346: vector dependence: assumed OUTPUT dependence between at (134:13) and at (134:13)
+   remark #25436: completely unrolled by 11  
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglide/glide_vertint.F90(109,9) inlined into /glade/u/home/tvda/CISM/libglide/glide_vertint.F90(139,14)
+   remark #15331: loop was not vectorized: precise FP model implied by the command line or a directive prevents vectorization. Consider using fast FP model   [ /glade/u/home/tvda/CISM/libglide/glide_vertint.F90(111,13) ]
+   remark #25436: completely unrolled by 10  
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglide/glide_vertint.F90(143,9)
+   remark #15301: MATERIALIZED LOOP WAS VECTORIZED
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglide/glide_vertint.F90(143,9)
+<Remainder loop for vectorization>
+   remark #25436: completely unrolled by 1  
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglide/glide_vertint.F90(154,9)
+   remark #15344: loop was not vectorized: vector dependence prevents vectorization. First dependence is shown below. Use level 5 report for details
+   remark #15346: vector dependence: assumed OUTPUT dependence between at (156:13) and at (156:13)
+   remark #25436: completely unrolled by 11  
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglide/glide_vertint.F90(109,9) inlined into /glade/u/home/tvda/CISM/libglide/glide_vertint.F90(160,14)
+   remark #15331: loop was not vectorized: precise FP model implied by the command line or a directive prevents vectorization. Consider using fast FP model   [ /glade/u/home/tvda/CISM/libglide/glide_vertint.F90(111,13) ]
+   remark #25436: completely unrolled by 10  
+LOOP END
+
+    Report from: Code generation optimizations [cg]
+
+/glade/u/home/tvda/CISM/libglide/glide_vertint.F90(118,16):remark #34051: REGISTER ALLOCATION : [glide_vertint_mp_test_vertint_] /glade/u/home/tvda/CISM/libglide/glide_vertint.F90:118
+
+    Hardware registers
+        Reserved     :    2[ rsp rip]
+        Available    :   39[ rax rdx rcx rbx rbp rsi rdi r8-r15 mm0-mm7 zmm0-zmm15]
+        Callee-save  :    6[ rbx rbp r12-r15]
+        Assigned     :   24[ rax rdx rcx rsi rdi r8-r9 r13 zmm0-zmm15]
+        
+    Routine temporaries
+        Total         :     350
+            Global    :      52
+            Local     :     298
+        Regenerable   :     252
+        Spilled       :      21
+        
+    Routine stack
+        Variables     :     112 bytes*
+            Reads     :       0 [0.00e+00 ~ 0.0%]
+            Writes    :      70 [1.03e+01 ~ 10.3%]
+        Spills        :     160 bytes*
+            Reads     :      30 [3.44e+00 ~ 3.4%]
+            Writes    :      20 [4.59e+00 ~ 4.6%]
+    
+    Notes
+    
+        *Non-overlapping variables and spills may share stack space,
+         so the total stack size might be less than this.
+    
+
+===========================================================================

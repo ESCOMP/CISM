@@ -1,0 +1,20 @@
+Global optimization report for : gf_writestats_
+
+LOOP BEGIN at libglimmer/writestats.c (70, 3)
+LOOP END
+
+LOOP BEGIN at libglimmer/writestats.c (103, 3)
+LOOP END
+=================================================================
+
+---- Begin Inlining Report ----
+Option Values:
+  inline-threshold: 225
+  inlinehint-threshold: 325
+  inlinecold-threshold: 45
+  inlineoptsize-threshold: 15
+
+COMPILE FUNC: gf_writestats_
+   -> llvm.memcpy.p0i8.p0i8.i64 /glade/u/home/tvda/CISM/libglimmer/writestats.c (63,16)
+
+---- End Inlining Report ------

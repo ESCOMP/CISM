@@ -1,0 +1,431 @@
+Intel(R) Advisor can now assist with vectorization and show optimization
+  report messages with your source code.
+See "https://software.intel.com/en-us/intel-advisor-xe" for details.
+
+
+    Report from: Interprocedural optimizations [ipo]
+
+INLINING OPTION VALUES:
+  -inline-factor: 100
+  -inline-min-size: 30
+  -inline-max-size: 230
+  -inline-max-total-size: 2000
+  -inline-max-per-routine: 10000
+  -inline-max-per-compile: 500000
+
+
+Begin optimization report for: glimmer_log._
+
+    Report from: Interprocedural optimizations [ipo]
+
+INLINE REPORT: (glimmer_log._) [1] /glade/u/home/tvda/CISM/libglimmer/glimmer_log.F90(56,8)
+
+
+    Report from: Code generation optimizations [cg]
+
+/glade/u/home/tvda/CISM/libglimmer/glimmer_log.F90(56,8):remark #34051: REGISTER ALLOCATION : [glimmer_log._] /glade/u/home/tvda/CISM/libglimmer/glimmer_log.F90:56
+
+    Hardware registers
+        Reserved     :    2[ rsp rip]
+        Available    :   39[ rax rdx rcx rbx rbp rsi rdi r8-r15 mm0-mm7 zmm0-zmm15]
+        Callee-save  :    6[ rbx rbp r12-r15]
+        Assigned     :    0[ reg_null]
+        
+    Routine temporaries
+        Total         :       6
+            Global    :       0
+            Local     :       6
+        Regenerable   :       0
+        Spilled       :       0
+        
+    Routine stack
+        Variables     :       0 bytes*
+            Reads     :       0 [0.00e+00 ~ 0.0%]
+            Writes    :       0 [0.00e+00 ~ 0.0%]
+        Spills        :       0 bytes*
+            Reads     :       0 [0.00e+00 ~ 0.0%]
+            Writes    :       0 [0.00e+00 ~ 0.0%]
+    
+    Notes
+    
+        *Non-overlapping variables and spills may share stack space,
+         so the total stack size might be less than this.
+    
+
+===========================================================================
+
+Begin optimization report for: GLIMMER_LOG::LOGNAME
+
+    Report from: Interprocedural optimizations [ipo]
+
+INLINE REPORT: (GLIMMER_LOG::LOGNAME) [2] /glade/u/home/tvda/CISM/libglimmer/glimmer_log.F90(88,12)
+
+
+    Report from: Code generation optimizations [cg]
+
+/glade/u/home/tvda/CISM/libglimmer/glimmer_log.F90(88,12):remark #34051: REGISTER ALLOCATION : [glimmer_log_mp_logname_] /glade/u/home/tvda/CISM/libglimmer/glimmer_log.F90:88
+
+    Hardware registers
+        Reserved     :    2[ rsp rip]
+        Available    :   39[ rax rdx rcx rbx rbp rsi rdi r8-r15 mm0-mm7 zmm0-zmm15]
+        Callee-save  :    6[ rbx rbp r12-r15]
+        Assigned     :   11[ rax rdx rcx rbx rsi rdi r8 r12-r15]
+        
+    Routine temporaries
+        Total         :      63
+            Global    :      24
+            Local     :      39
+        Regenerable   :      13
+        Spilled       :       5
+        
+    Routine stack
+        Variables     :      64 bytes*
+            Reads     :       0 [0.00e+00 ~ 0.0%]
+            Writes    :       8 [6.40e+00 ~ 6.4%]
+        Spills        :       0 bytes*
+            Reads     :       0 [0.00e+00 ~ 0.0%]
+            Writes    :       0 [0.00e+00 ~ 0.0%]
+    
+    Notes
+    
+        *Non-overlapping variables and spills may share stack space,
+         so the total stack size might be less than this.
+    
+
+===========================================================================
+
+Begin optimization report for: GLIMMER_LOG::OPEN_LOG
+
+    Report from: Interprocedural optimizations [ipo]
+
+INLINE REPORT: (GLIMMER_LOG::OPEN_LOG) [3] /glade/u/home/tvda/CISM/libglimmer/glimmer_log.F90(104,14)
+  -> INLINE: (128,10) GLIMMER_LOG::WRITE_LOG_DIV
+  -> INLINE: (131,10) GLIMMER_LOG::WRITE_LOG_DIV
+
+
+    Report from: Code generation optimizations [cg]
+
+/glade/u/home/tvda/CISM/libglimmer/glimmer_log.F90(104,14):remark #34051: REGISTER ALLOCATION : [glimmer_log_mp_open_log_] /glade/u/home/tvda/CISM/libglimmer/glimmer_log.F90:104
+
+    Hardware registers
+        Reserved     :    2[ rsp rip]
+        Available    :   39[ rax rdx rcx rbx rbp rsi rdi r8-r15 mm0-mm7 zmm0-zmm15]
+        Callee-save  :    6[ rbx rbp r12-r15]
+        Assigned     :   11[ rax rdx rcx rbx rsi rdi r8-r9 r13-r15]
+        
+    Routine temporaries
+        Total         :     127
+            Global    :      21
+            Local     :     106
+        Regenerable   :      84
+        Spilled       :       4
+        
+    Routine stack
+        Variables     :     368 bytes*
+            Reads     :       0 [0.00e+00 ~ 0.0%]
+            Writes    :      26 [1.16e+01 ~ 11.6%]
+        Spills        :       0 bytes*
+            Reads     :       0 [0.00e+00 ~ 0.0%]
+            Writes    :       0 [0.00e+00 ~ 0.0%]
+    
+    Notes
+    
+        *Non-overlapping variables and spills may share stack space,
+         so the total stack size might be less than this.
+    
+
+===========================================================================
+
+Begin optimization report for: GLIMMER_LOG::WRITE_LOG
+
+    Report from: Interprocedural optimizations [ipo]
+
+INLINE REPORT: (GLIMMER_LOG::WRITE_LOG) [4] /glade/u/home/tvda/CISM/libglimmer/glimmer_log.F90(135,14)
+  -> INLINE: (180,13) GLIMMER_LOG::CLOSE_LOG
+    -> INLINE: (202,10) GLIMMER_LOG::WRITE_LOG_DIV
+    -> INLINE: (205,10) GLIMMER_LOG::WRITE_LOG_DIV
+
+
+    Report from: Code generation optimizations [cg]
+
+/glade/u/home/tvda/CISM/libglimmer/glimmer_log.F90(135,14):remark #34051: REGISTER ALLOCATION : [glimmer_log_mp_write_log_] /glade/u/home/tvda/CISM/libglimmer/glimmer_log.F90:135
+
+    Hardware registers
+        Reserved     :    2[ rsp rip]
+        Available    :   39[ rax rdx rcx rbx rbp rsi rdi r8-r15 mm0-mm7 zmm0-zmm15]
+        Callee-save  :    6[ rbx rbp r12-r15]
+        Assigned     :   12[ rax rdx rcx rbx rsi rdi r8-r9 r12-r15]
+        
+    Routine temporaries
+        Total         :     314
+            Global    :      58
+            Local     :     256
+        Regenerable   :     205
+        Spilled       :      12
+        
+    Routine stack
+        Variables     :    1802 bytes*
+            Reads     :       0 [0.00e+00 ~ 0.0%]
+            Writes    :      74 [1.34e+01 ~ 13.4%]
+        Spills        :      56 bytes*
+            Reads     :       7 [1.67e+00 ~ 1.7%]
+            Writes    :       7 [1.67e+00 ~ 1.7%]
+    
+    Notes
+    
+        *Non-overlapping variables and spills may share stack space,
+         so the total stack size might be less than this.
+    
+
+===========================================================================
+
+Begin optimization report for: GLIMMER_LOG::WRITE_LOG_DIV
+
+    Report from: Interprocedural optimizations [ipo]
+
+INLINE REPORT: (GLIMMER_LOG::WRITE_LOG_DIV) [5] /glade/u/home/tvda/CISM/libglimmer/glimmer_log.F90(187,14)
+
+
+    Report from: Code generation optimizations [cg]
+
+/glade/u/home/tvda/CISM/libglimmer/glimmer_log.F90(187,14):remark #34051: REGISTER ALLOCATION : [glimmer_log_mp_write_log_div_] /glade/u/home/tvda/CISM/libglimmer/glimmer_log.F90:187
+
+    Hardware registers
+        Reserved     :    2[ rsp rip]
+        Available    :   39[ rax rdx rcx rbx rbp rsi rdi r8-r15 mm0-mm7 zmm0-zmm15]
+        Callee-save  :    6[ rbx rbp r12-r15]
+        Assigned     :    6[ rax rdx rcx rsi rdi r8]
+        
+    Routine temporaries
+        Total         :      17
+            Global    :       6
+            Local     :      11
+        Regenerable   :       9
+        Spilled       :       0
+        
+    Routine stack
+        Variables     :      80 bytes*
+            Reads     :       0 [0.00e+00 ~ 0.0%]
+            Writes    :       3 [7.50e+00 ~ 7.5%]
+        Spills        :       0 bytes*
+            Reads     :       0 [0.00e+00 ~ 0.0%]
+            Writes    :       0 [0.00e+00 ~ 0.0%]
+    
+    Notes
+    
+        *Non-overlapping variables and spills may share stack space,
+         so the total stack size might be less than this.
+    
+
+===========================================================================
+
+Begin optimization report for: GLIMMER_LOG::CLOSE_LOG
+
+    Report from: Interprocedural optimizations [ipo]
+
+INLINE REPORT: (GLIMMER_LOG::CLOSE_LOG) [6] /glade/u/home/tvda/CISM/libglimmer/glimmer_log.F90(194,14)
+  -> INLINE: (202,10) GLIMMER_LOG::WRITE_LOG_DIV
+  -> INLINE: (205,10) GLIMMER_LOG::WRITE_LOG_DIV
+
+
+    Report from: Code generation optimizations [cg]
+
+/glade/u/home/tvda/CISM/libglimmer/glimmer_log.F90(194,14):remark #34051: REGISTER ALLOCATION : [glimmer_log_mp_close_log_] /glade/u/home/tvda/CISM/libglimmer/glimmer_log.F90:194
+
+    Hardware registers
+        Reserved     :    2[ rsp rip]
+        Available    :   39[ rax rdx rcx rbx rbp rsi rdi r8-r15 mm0-mm7 zmm0-zmm15]
+        Callee-save  :    6[ rbx rbp r12-r15]
+        Assigned     :    7[ rax rdx rcx rsi rdi r8-r9]
+        
+    Routine temporaries
+        Total         :      84
+            Global    :       9
+            Local     :      75
+        Regenerable   :      70
+        Spilled       :       0
+        
+    Routine stack
+        Variables     :     336 bytes*
+            Reads     :       0 [0.00e+00 ~ 0.0%]
+            Writes    :      22 [1.69e+01 ~ 16.9%]
+        Spills        :       0 bytes*
+            Reads     :       0 [0.00e+00 ~ 0.0%]
+            Writes    :       0 [0.00e+00 ~ 0.0%]
+    
+    Notes
+    
+        *Non-overlapping variables and spills may share stack space,
+         so the total stack size might be less than this.
+    
+
+===========================================================================
+
+Begin optimization report for: GLIMMER_LOG::SYNC_LOG
+
+    Report from: Interprocedural optimizations [ipo]
+
+INLINE REPORT: (GLIMMER_LOG::SYNC_LOG) [7] /glade/u/home/tvda/CISM/libglimmer/glimmer_log.F90(211,14)
+
+
+    Report from: Code generation optimizations [cg]
+
+/glade/u/home/tvda/CISM/libglimmer/glimmer_log.F90(211,14):remark #34051: REGISTER ALLOCATION : [glimmer_log_mp_sync_log_] /glade/u/home/tvda/CISM/libglimmer/glimmer_log.F90:211
+
+    Hardware registers
+        Reserved     :    2[ rsp rip]
+        Available    :   39[ rax rdx rcx rbx rbp rsi rdi r8-r15 mm0-mm7 zmm0-zmm15]
+        Callee-save  :    6[ rbx rbp r12-r15]
+        Assigned     :    6[ rax rdx rcx rsi rdi r8]
+        
+    Routine temporaries
+        Total         :      25
+            Global    :       8
+            Local     :      17
+        Regenerable   :      15
+        Spilled       :       0
+        
+    Routine stack
+        Variables     :     112 bytes*
+            Reads     :       0 [0.00e+00 ~ 0.0%]
+            Writes    :       8 [2.50e+01 ~ 25.0%]
+        Spills        :       0 bytes*
+            Reads     :       0 [0.00e+00 ~ 0.0%]
+            Writes    :       0 [0.00e+00 ~ 0.0%]
+    
+    Notes
+    
+        *Non-overlapping variables and spills may share stack space,
+         so the total stack size might be less than this.
+    
+
+===========================================================================
+
+Begin optimization report for: GLIMMER_LOG::GLIMMER_SET_MSG_LEVEL
+
+    Report from: Interprocedural optimizations [ipo]
+
+INLINE REPORT: (GLIMMER_LOG::GLIMMER_SET_MSG_LEVEL) [8] /glade/u/home/tvda/CISM/libglimmer/glimmer_log.F90(218,14)
+
+
+    Report from: Loop nest, Vector & Auto-parallelization optimizations [loop, vec, par]
+
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglimmer/glimmer_log.F90(223,8)
+   remark #15300: LOOP WAS VECTORIZED
+LOOP END
+
+    Report from: Code generation optimizations [cg]
+
+/glade/u/home/tvda/CISM/libglimmer/glimmer_log.F90(218,14):remark #34051: REGISTER ALLOCATION : [glimmer_log_mp_glimmer_set_msg_level_] /glade/u/home/tvda/CISM/libglimmer/glimmer_log.F90:218
+
+    Hardware registers
+        Reserved     :    2[ rsp rip]
+        Available    :   39[ rax rdx rcx rbx rbp rsi rdi r8-r15 mm0-mm7 zmm0-zmm15]
+        Callee-save  :    6[ rbx rbp r12-r15]
+        Assigned     :    9[ rax rdx rdi zmm0-zmm5]
+        
+    Routine temporaries
+        Total         :      21
+            Global    :       0
+            Local     :      21
+        Regenerable   :       2
+        Spilled       :       0
+        
+    Routine stack
+        Variables     :       0 bytes*
+            Reads     :       0 [0.00e+00 ~ 0.0%]
+            Writes    :       0 [0.00e+00 ~ 0.0%]
+        Spills        :       0 bytes*
+            Reads     :       0 [0.00e+00 ~ 0.0%]
+            Writes    :       0 [0.00e+00 ~ 0.0%]
+    
+    Notes
+    
+        *Non-overlapping variables and spills may share stack space,
+         so the total stack size might be less than this.
+    
+
+===========================================================================
+
+Begin optimization report for: GLIMMER_LOG::GLIMMER_GET_LOGUNIT
+
+    Report from: Interprocedural optimizations [ipo]
+
+INLINE REPORT: (GLIMMER_LOG::GLIMMER_GET_LOGUNIT) [9] /glade/u/home/tvda/CISM/libglimmer/glimmer_log.F90(233,12)
+
+
+    Report from: Code generation optimizations [cg]
+
+/glade/u/home/tvda/CISM/libglimmer/glimmer_log.F90(233,12):remark #34051: REGISTER ALLOCATION : [glimmer_log_mp_glimmer_get_logunit_] /glade/u/home/tvda/CISM/libglimmer/glimmer_log.F90:233
+
+    Hardware registers
+        Reserved     :    2[ rsp rip]
+        Available    :   39[ rax rdx rcx rbx rbp rsi rdi r8-r15 mm0-mm7 zmm0-zmm15]
+        Callee-save  :    6[ rbx rbp r12-r15]
+        Assigned     :    1[ rax]
+        
+    Routine temporaries
+        Total         :       8
+            Global    :       0
+            Local     :       8
+        Regenerable   :       0
+        Spilled       :       0
+        
+    Routine stack
+        Variables     :       0 bytes*
+            Reads     :       0 [0.00e+00 ~ 0.0%]
+            Writes    :       0 [0.00e+00 ~ 0.0%]
+        Spills        :       0 bytes*
+            Reads     :       0 [0.00e+00 ~ 0.0%]
+            Writes    :       0 [0.00e+00 ~ 0.0%]
+    
+    Notes
+    
+        *Non-overlapping variables and spills may share stack space,
+         so the total stack size might be less than this.
+    
+
+===========================================================================
+
+Begin optimization report for: GLIMMER_LOG::SET_GLIMMER_UNIT
+
+    Report from: Interprocedural optimizations [ipo]
+
+INLINE REPORT: (GLIMMER_LOG::SET_GLIMMER_UNIT) [10] /glade/u/home/tvda/CISM/libglimmer/glimmer_log.F90(240,14)
+  -> INLINE: (257,10) GLIMMER_LOG::WRITE_LOG_DIV
+  -> INLINE: (261,10) GLIMMER_LOG::WRITE_LOG_DIV
+
+
+    Report from: Code generation optimizations [cg]
+
+/glade/u/home/tvda/CISM/libglimmer/glimmer_log.F90(240,14):remark #34051: REGISTER ALLOCATION : [glimmer_log_mp_set_glimmer_unit_] /glade/u/home/tvda/CISM/libglimmer/glimmer_log.F90:240
+
+    Hardware registers
+        Reserved     :    2[ rsp rip]
+        Available    :   39[ rax rdx rcx rbx rbp rsi rdi r8-r15 mm0-mm7 zmm0-zmm15]
+        Callee-save  :    6[ rbx rbp r12-r15]
+        Assigned     :    7[ rax rdx rcx rsi rdi r8-r9]
+        
+    Routine temporaries
+        Total         :      79
+            Global    :      10
+            Local     :      69
+        Regenerable   :      64
+        Spilled       :       0
+        
+    Routine stack
+        Variables     :     336 bytes*
+            Reads     :       0 [0.00e+00 ~ 0.0%]
+            Writes    :      21 [1.60e+01 ~ 16.0%]
+        Spills        :       0 bytes*
+            Reads     :       0 [0.00e+00 ~ 0.0%]
+            Writes    :       0 [0.00e+00 ~ 0.0%]
+    
+    Notes
+    
+        *Non-overlapping variables and spills may share stack space,
+         so the total stack size might be less than this.
+    
+
+===========================================================================

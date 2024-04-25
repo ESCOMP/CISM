@@ -1,0 +1,343 @@
+Intel(R) Advisor can now assist with vectorization and show optimization
+  report messages with your source code.
+See "https://software.intel.com/en-us/intel-advisor-xe" for details.
+
+
+    Report from: Interprocedural optimizations [ipo]
+
+INLINING OPTION VALUES:
+  -inline-factor: 100
+  -inline-min-size: 30
+  -inline-max-size: 230
+  -inline-max-total-size: 2000
+  -inline-max-per-routine: 10000
+  -inline-max-per-compile: 500000
+
+
+Begin optimization report for: glint_precip_param._
+
+    Report from: Interprocedural optimizations [ipo]
+
+INLINE REPORT: (glint_precip_param._) [1] /glade/u/home/tvda/CISM/libglint/glint_precip_param.F90(31,8)
+
+
+    Report from: Code generation optimizations [cg]
+
+/glade/u/home/tvda/CISM/libglint/glint_precip_param.F90(31,8):remark #34051: REGISTER ALLOCATION : [glint_precip_param._] /glade/u/home/tvda/CISM/libglint/glint_precip_param.F90:31
+
+    Hardware registers
+        Reserved     :    2[ rsp rip]
+        Available    :   39[ rax rdx rcx rbx rbp rsi rdi r8-r15 mm0-mm7 zmm0-zmm15]
+        Callee-save  :    6[ rbx rbp r12-r15]
+        Assigned     :    0[ reg_null]
+        
+    Routine temporaries
+        Total         :       6
+            Global    :       0
+            Local     :       6
+        Regenerable   :       0
+        Spilled       :       0
+        
+    Routine stack
+        Variables     :       0 bytes*
+            Reads     :       0 [0.00e+00 ~ 0.0%]
+            Writes    :       0 [0.00e+00 ~ 0.0%]
+        Spills        :       0 bytes*
+            Reads     :       0 [0.00e+00 ~ 0.0%]
+            Writes    :       0 [0.00e+00 ~ 0.0%]
+    
+    Notes
+    
+        *Non-overlapping variables and spills may share stack space,
+         so the total stack size might be less than this.
+    
+
+===========================================================================
+
+Begin optimization report for: GLINT_PRECIP_PARAM::GLINT_PRECIP
+
+    Report from: Interprocedural optimizations [ipo]
+
+INLINE REPORT: (GLINT_PRECIP_PARAM::GLINT_PRECIP) [2] /glade/u/home/tvda/CISM/libglint/glint_precip_param.F90(46,14)
+  -> INLINE: (116,10) GLINT_PRECIP_PARAM::CALC_W0
+  -> INLINE: (123,33) GLINT_PRECIP_PARAM::SATVAP
+  -> INLINE: (126,27) GLINT_PRECIP_PARAM::SATVAP
+  -> INLINE: (127,52) GLINT_PRECIP_PARAM::ERROR_FUNC
+
+
+    Report from: Loop nest, Vector & Auto-parallelization optimizations [loop, vec, par]
+
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglint/glint_precip_param.F90(230,8) inlined into /glade/u/home/tvda/CISM/libglint/glint_precip_param.F90(144,10)
+   remark #15542: loop was not vectorized: inner loop was already vectorized
+
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglint/glint_precip_param.F90(230,8) inlined into /glade/u/home/tvda/CISM/libglint/glint_precip_param.F90(144,10)
+      remark #15300: LOOP WAS VECTORIZED
+   LOOP END
+
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglint/glint_precip_param.F90(230,8) inlined into /glade/u/home/tvda/CISM/libglint/glint_precip_param.F90(144,10)
+   <Remainder loop for vectorization>
+      remark #15301: REMAINDER LOOP WAS VECTORIZED
+   LOOP END
+
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglint/glint_precip_param.F90(230,8) inlined into /glade/u/home/tvda/CISM/libglint/glint_precip_param.F90(144,10)
+   <Remainder loop for vectorization>
+   LOOP END
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglint/glint_precip_param.F90(237,5) inlined into /glade/u/home/tvda/CISM/libglint/glint_precip_param.F90(144,10)
+   remark #15300: LOOP WAS VECTORIZED
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglint/glint_precip_param.F90(237,5) inlined into /glade/u/home/tvda/CISM/libglint/glint_precip_param.F90(144,10)
+<Remainder loop for vectorization>
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglint/glint_precip_param.F90(244,5) inlined into /glade/u/home/tvda/CISM/libglint/glint_precip_param.F90(144,10)
+   remark #15300: LOOP WAS VECTORIZED
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglint/glint_precip_param.F90(244,5) inlined into /glade/u/home/tvda/CISM/libglint/glint_precip_param.F90(144,10)
+<Remainder loop for vectorization>
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglint/glint_precip_param.F90(118,5)
+   remark #15541: outer loop was not auto-vectorized: consider using SIMD directive
+
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglint/glint_precip_param.F90(119,8)
+   <Predicate Optimized v1>
+      remark #25422: Invariant Condition at line 120 hoisted out of this loop
+      remark #15335: loop was not vectorized: vectorization possible but seems inefficient. Use vector always directive or -vec-threshold0 to override 
+   LOOP END
+
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglint/glint_precip_param.F90(119,8)
+   <Predicate Optimized v2>
+      remark #15335: loop was not vectorized: vectorization possible but seems inefficient. Use vector always directive or -vec-threshold0 to override 
+   LOOP END
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglint/glint_precip_param.F90(133,5)
+<Multiversioned v1>
+   remark #25233: Loop multiversioned for stride tests on Assumed shape arrays
+   remark #15542: loop was not vectorized: inner loop was already vectorized
+
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglint/glint_precip_param.F90(133,5)
+      remark #15300: LOOP WAS VECTORIZED
+   LOOP END
+
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglint/glint_precip_param.F90(133,5)
+   <Remainder loop for vectorization>
+      remark #15301: REMAINDER LOOP WAS VECTORIZED
+   LOOP END
+
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglint/glint_precip_param.F90(133,5)
+   <Remainder loop for vectorization>
+   LOOP END
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglint/glint_precip_param.F90(133,5)
+<Multiversioned v2>
+   remark #15542: loop was not vectorized: inner loop was already vectorized
+
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglint/glint_precip_param.F90(133,5)
+      remark #15300: LOOP WAS VECTORIZED
+   LOOP END
+
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglint/glint_precip_param.F90(133,5)
+   <Remainder loop for vectorization>
+      remark #15301: REMAINDER LOOP WAS VECTORIZED
+   LOOP END
+
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglint/glint_precip_param.F90(133,5)
+   <Remainder loop for vectorization>
+   LOOP END
+LOOP END
+
+    Report from: Code generation optimizations [cg]
+
+/glade/u/home/tvda/CISM/libglint/glint_precip_param.F90(46,14):remark #34051: REGISTER ALLOCATION : [glint_precip_param_mp_glint_precip_] /glade/u/home/tvda/CISM/libglint/glint_precip_param.F90:46
+
+    Hardware registers
+        Reserved     :    2[ rsp rip]
+        Available    :   39[ rax rdx rcx rbx rbp rsi rdi r8-r15 mm0-mm7 zmm0-zmm15]
+        Callee-save  :    6[ rbx rbp r12-r15]
+        Assigned     :   30[ rax rdx rcx rbx rsi rdi r8-r15 zmm0-zmm15]
+        
+    Routine temporaries
+        Total         :     984
+            Global    :     317
+            Local     :     667
+        Regenerable   :      25
+        Spilled       :     199
+        
+    Routine stack
+        Variables     :       0 bytes*
+            Reads     :       0 [0.00e+00 ~ 0.0%]
+            Writes    :       0 [0.00e+00 ~ 0.0%]
+        Spills        :    1520 bytes*
+            Reads     :     406 [1.80e+01 ~ 18.0%]
+            Writes    :     259 [7.03e+00 ~ 7.0%]
+    
+    Notes
+    
+        *Non-overlapping variables and spills may share stack space,
+         so the total stack size might be less than this.
+    
+
+===========================================================================
+
+Begin optimization report for: GLINT_PRECIP_PARAM::SATVAP
+
+    Report from: Interprocedural optimizations [ipo]
+
+INLINE REPORT: (GLINT_PRECIP_PARAM::SATVAP) [3] /glade/u/home/tvda/CISM/libglint/glint_precip_param.F90(141,21)
+
+
+    Report from: Code generation optimizations [cg]
+
+/glade/u/home/tvda/CISM/libglint/glint_precip_param.F90(141,21):remark #34051: REGISTER ALLOCATION : [glint_precip_param_mp_satvap_] /glade/u/home/tvda/CISM/libglint/glint_precip_param.F90:141
+
+    Hardware registers
+        Reserved     :    2[ rsp rip]
+        Available    :   39[ rax rdx rcx rbx rbp rsi rdi r8-r15 mm0-mm7 zmm0-zmm15]
+        Callee-save  :    6[ rbx rbp r12-r15]
+        Assigned     :    5[ rsi rdi zmm0-zmm2]
+        
+    Routine temporaries
+        Total         :      23
+            Global    :       9
+            Local     :      14
+        Regenerable   :       2
+        Spilled       :       0
+        
+    Routine stack
+        Variables     :       0 bytes*
+            Reads     :       0 [0.00e+00 ~ 0.0%]
+            Writes    :       0 [0.00e+00 ~ 0.0%]
+        Spills        :       0 bytes*
+            Reads     :       0 [0.00e+00 ~ 0.0%]
+            Writes    :       0 [0.00e+00 ~ 0.0%]
+    
+    Notes
+    
+        *Non-overlapping variables and spills may share stack space,
+         so the total stack size might be less than this.
+    
+
+===========================================================================
+
+Begin optimization report for: GLINT_PRECIP_PARAM::CALC_W0
+
+    Report from: Interprocedural optimizations [ipo]
+
+INLINE REPORT: (GLINT_PRECIP_PARAM::CALC_W0) [4] /glade/u/home/tvda/CISM/libglint/glint_precip_param.F90(186,12)
+
+
+    Report from: Loop nest, Vector & Auto-parallelization optimizations [loop, vec, par]
+
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglint/glint_precip_param.F90(230,8)
+   remark #15542: loop was not vectorized: inner loop was already vectorized
+
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglint/glint_precip_param.F90(230,8)
+      remark #15300: LOOP WAS VECTORIZED
+   LOOP END
+
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglint/glint_precip_param.F90(230,8)
+   <Remainder loop for vectorization>
+      remark #15301: REMAINDER LOOP WAS VECTORIZED
+   LOOP END
+
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglint/glint_precip_param.F90(230,8)
+   <Remainder loop for vectorization>
+   LOOP END
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglint/glint_precip_param.F90(237,5)
+   remark #15300: LOOP WAS VECTORIZED
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglint/glint_precip_param.F90(237,5)
+<Remainder loop for vectorization>
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglint/glint_precip_param.F90(244,5)
+   remark #15300: LOOP WAS VECTORIZED
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglint/glint_precip_param.F90(244,5)
+<Remainder loop for vectorization>
+LOOP END
+
+    Report from: Code generation optimizations [cg]
+
+/glade/u/home/tvda/CISM/libglint/glint_precip_param.F90(186,12):remark #34051: REGISTER ALLOCATION : [glint_precip_param_mp_calc_w0_] /glade/u/home/tvda/CISM/libglint/glint_precip_param.F90:186
+
+    Hardware registers
+        Reserved     :    2[ rsp rip]
+        Available    :   39[ rax rdx rcx rbx rbp rsi rdi r8-r15 mm0-mm7 zmm0-zmm15]
+        Callee-save  :    6[ rbx rbp r12-r15]
+        Assigned     :   30[ rax rdx rcx rbx rsi rdi r8-r15 zmm0-zmm15]
+        
+    Routine temporaries
+        Total         :     746
+            Global    :     214
+            Local     :     532
+        Regenerable   :       4
+        Spilled       :     166
+        
+    Routine stack
+        Variables     :       0 bytes*
+            Reads     :       0 [0.00e+00 ~ 0.0%]
+            Writes    :       0 [0.00e+00 ~ 0.0%]
+        Spills        :    1264 bytes*
+            Reads     :     324 [1.99e+01 ~ 19.9%]
+            Writes    :     221 [4.35e+00 ~ 4.4%]
+    
+    Notes
+    
+        *Non-overlapping variables and spills may share stack space,
+         so the total stack size might be less than this.
+    
+
+===========================================================================
+
+Begin optimization report for: GLINT_PRECIP_PARAM::ERROR_FUNC
+
+    Report from: Interprocedural optimizations [ipo]
+
+INLINE REPORT: (GLINT_PRECIP_PARAM::ERROR_FUNC) [5] /glade/u/home/tvda/CISM/libglint/glint_precip_param.F90(260,21)
+
+
+    Report from: Code generation optimizations [cg]
+
+/glade/u/home/tvda/CISM/libglint/glint_precip_param.F90(260,21):remark #34051: REGISTER ALLOCATION : [glint_precip_param_mp_error_func_] /glade/u/home/tvda/CISM/libglint/glint_precip_param.F90:260
+
+    Hardware registers
+        Reserved     :    2[ rsp rip]
+        Available    :   39[ rax rdx rcx rbx rbp rsi rdi r8-r15 mm0-mm7 zmm0-zmm15]
+        Callee-save  :    6[ rbx rbp r12-r15]
+        Assigned     :    6[ rdi r13 zmm0-zmm3]
+        
+    Routine temporaries
+        Total         :      36
+            Global    :      12
+            Local     :      24
+        Regenerable   :       5
+        Spilled       :       3
+        
+    Routine stack
+        Variables     :       0 bytes*
+            Reads     :       0 [0.00e+00 ~ 0.0%]
+            Writes    :       0 [0.00e+00 ~ 0.0%]
+        Spills        :      16 bytes*
+            Reads     :       2 [5.00e+00 ~ 5.0%]
+            Writes    :       2 [5.00e+00 ~ 5.0%]
+    
+    Notes
+    
+        *Non-overlapping variables and spills may share stack space,
+         so the total stack size might be less than this.
+    
+
+===========================================================================

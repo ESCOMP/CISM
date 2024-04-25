@@ -1,0 +1,1481 @@
+Intel(R) Advisor can now assist with vectorization and show optimization
+  report messages with your source code.
+See "https://software.intel.com/en-us/intel-advisor-xe" for details.
+
+
+    Report from: Interprocedural optimizations [ipo]
+
+INLINING OPTION VALUES:
+  -inline-factor: 100
+  -inline-min-size: 30
+  -inline-max-size: 230
+  -inline-max-total-size: 2000
+  -inline-max-per-routine: 10000
+  -inline-max-per-compile: 500000
+
+
+Begin optimization report for: glimmer_sparse_type._
+
+    Report from: Interprocedural optimizations [ipo]
+
+INLINE REPORT: (glimmer_sparse_type._) [1] /glade/u/home/tvda/CISM/libglimmer-solve/glimmer_sparse_type.F90(31,8)
+
+
+    Report from: Code generation optimizations [cg]
+
+/glade/u/home/tvda/CISM/libglimmer-solve/glimmer_sparse_type.F90(31,8):remark #34051: REGISTER ALLOCATION : [glimmer_sparse_type._] /glade/u/home/tvda/CISM/libglimmer-solve/glimmer_sparse_type.F90:31
+
+    Hardware registers
+        Reserved     :    2[ rsp rip]
+        Available    :   39[ rax rdx rcx rbx rbp rsi rdi r8-r15 mm0-mm7 zmm0-zmm15]
+        Callee-save  :    6[ rbx rbp r12-r15]
+        Assigned     :    0[ reg_null]
+        
+    Routine temporaries
+        Total         :       6
+            Global    :       0
+            Local     :       6
+        Regenerable   :       0
+        Spilled       :       0
+        
+    Routine stack
+        Variables     :       0 bytes*
+            Reads     :       0 [0.00e+00 ~ 0.0%]
+            Writes    :       0 [0.00e+00 ~ 0.0%]
+        Spills        :       0 bytes*
+            Reads     :       0 [0.00e+00 ~ 0.0%]
+            Writes    :       0 [0.00e+00 ~ 0.0%]
+    
+    Notes
+    
+        *Non-overlapping variables and spills may share stack space,
+         so the total stack size might be less than this.
+    
+
+===========================================================================
+
+Begin optimization report for: GLIMMER_SPARSE_TYPE::NEW_SPARSE_MATRIX
+
+    Report from: Interprocedural optimizations [ipo]
+
+INLINE REPORT: (GLIMMER_SPARSE_TYPE::NEW_SPARSE_MATRIX) [2] /glade/u/home/tvda/CISM/libglimmer-solve/glimmer_sparse_type.F90(70,14)
+  -> INLINE: (87,16) GLIMMER_SPARSE_TYPE::DEL_SPARSE_MATRIX
+
+
+    Report from: Code generation optimizations [cg]
+
+/glade/u/home/tvda/CISM/libglimmer-solve/glimmer_sparse_type.F90(70,14):remark #34051: REGISTER ALLOCATION : [glimmer_sparse_type_mp_new_sparse_matrix_] /glade/u/home/tvda/CISM/libglimmer-solve/glimmer_sparse_type.F90:70
+
+    Hardware registers
+        Reserved     :    2[ rsp rip]
+        Available    :   39[ rax rdx rcx rbx rbp rsi rdi r8-r15 mm0-mm7 zmm0-zmm15]
+        Callee-save  :    6[ rbx rbp r12-r15]
+        Assigned     :   12[ rax rdx rcx rbx rsi rdi r8-r9 r12-r15]
+        
+    Routine temporaries
+        Total         :     268
+            Global    :      44
+            Local     :     224
+        Regenerable   :      46
+        Spilled       :       5
+        
+    Routine stack
+        Variables     :      48 bytes*
+            Reads     :       6 [7.64e-01 ~ 0.8%]
+            Writes    :       0 [0.00e+00 ~ 0.0%]
+        Spills        :       0 bytes*
+            Reads     :       0 [0.00e+00 ~ 0.0%]
+            Writes    :       0 [0.00e+00 ~ 0.0%]
+    
+    Notes
+    
+        *Non-overlapping variables and spills may share stack space,
+         so the total stack size might be less than this.
+    
+
+===========================================================================
+
+Begin optimization report for: GLIMMER_SPARSE_TYPE::COPY_SPARSE_MATRIX
+
+    Report from: Interprocedural optimizations [ipo]
+
+INLINE REPORT: (GLIMMER_SPARSE_TYPE::COPY_SPARSE_MATRIX) [3] /glade/u/home/tvda/CISM/libglimmer-solve/glimmer_sparse_type.F90(98,14)
+  -> INLINE: (106,10) GLIMMER_SPARSE_TYPE::NEW_SPARSE_MATRIX
+    -> INLINE: (87,16) GLIMMER_SPARSE_TYPE::DEL_SPARSE_MATRIX
+
+
+    Report from: Loop nest, Vector & Auto-parallelization optimizations [loop, vec, par]
+
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglimmer-solve/glimmer_sparse_type.F90(107,5)
+<Multiversioned v1>
+   remark #25233: Loop multiversioned for stride tests on Assumed shape arrays
+   remark #15300: LOOP WAS VECTORIZED
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglimmer-solve/glimmer_sparse_type.F90(107,5)
+<Remainder loop for vectorization, Multiversioned v1>
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglimmer-solve/glimmer_sparse_type.F90(107,5)
+<Multiversioned v2>
+   remark #15335: loop was not vectorized: vectorization possible but seems inefficient. Use vector always directive or -vec-threshold0 to override 
+   remark #25439: unrolled with remainder by 2  
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglimmer-solve/glimmer_sparse_type.F90(107,5)
+<Remainder, Multiversioned v2>
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglimmer-solve/glimmer_sparse_type.F90(108,5)
+<Multiversioned v1>
+   remark #25233: Loop multiversioned for stride tests on Assumed shape arrays
+   remark #15300: LOOP WAS VECTORIZED
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglimmer-solve/glimmer_sparse_type.F90(108,5)
+<Remainder loop for vectorization, Multiversioned v1>
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglimmer-solve/glimmer_sparse_type.F90(108,5)
+<Multiversioned v2>
+   remark #15335: loop was not vectorized: vectorization possible but seems inefficient. Use vector always directive or -vec-threshold0 to override 
+   remark #25439: unrolled with remainder by 2  
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglimmer-solve/glimmer_sparse_type.F90(108,5)
+<Remainder, Multiversioned v2>
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglimmer-solve/glimmer_sparse_type.F90(109,5)
+<Multiversioned v1>
+   remark #25233: Loop multiversioned for stride tests on Assumed shape arrays
+   remark #15300: LOOP WAS VECTORIZED
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglimmer-solve/glimmer_sparse_type.F90(109,5)
+<Remainder loop for vectorization, Multiversioned v1>
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglimmer-solve/glimmer_sparse_type.F90(109,5)
+<Multiversioned v2>
+   remark #15335: loop was not vectorized: vectorization possible but seems inefficient. Use vector always directive or -vec-threshold0 to override 
+   remark #25439: unrolled with remainder by 2  
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglimmer-solve/glimmer_sparse_type.F90(109,5)
+<Remainder, Multiversioned v2>
+LOOP END
+
+    Report from: Code generation optimizations [cg]
+
+/glade/u/home/tvda/CISM/libglimmer-solve/glimmer_sparse_type.F90(98,14):remark #34051: REGISTER ALLOCATION : [glimmer_sparse_type_mp_copy_sparse_matrix_] /glade/u/home/tvda/CISM/libglimmer-solve/glimmer_sparse_type.F90:98
+
+    Hardware registers
+        Reserved     :    2[ rsp rip]
+        Available    :   39[ rax rdx rcx rbx rbp rsi rdi r8-r15 mm0-mm7 zmm0-zmm15]
+        Callee-save  :    6[ rbx rbp r12-r15]
+        Assigned     :   15[ rax rdx rcx rbx rsi rdi r8-r15 zmm0]
+        
+    Routine temporaries
+        Total         :     380
+            Global    :      90
+            Local     :     290
+        Regenerable   :      46
+        Spilled       :      17
+        
+    Routine stack
+        Variables     :      48 bytes*
+            Reads     :       6 [1.40e-01 ~ 0.1%]
+            Writes    :       0 [0.00e+00 ~ 0.0%]
+        Spills        :      48 bytes*
+            Reads     :      11 [1.98e+00 ~ 2.0%]
+            Writes    :      12 [1.98e+00 ~ 2.0%]
+    
+    Notes
+    
+        *Non-overlapping variables and spills may share stack space,
+         so the total stack size might be less than this.
+    
+
+===========================================================================
+
+Begin optimization report for: GLIMMER_SPARSE_TYPE::GROW_SPARSE_MATRIX
+
+    Report from: Interprocedural optimizations [ipo]
+
+INLINE REPORT: (GLIMMER_SPARSE_TYPE::GROW_SPARSE_MATRIX) [4] /glade/u/home/tvda/CISM/libglimmer-solve/glimmer_sparse_type.F90(114,14)
+
+
+    Report from: Loop nest, Vector & Auto-parallelization optimizations [loop, vec, par]
+
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglimmer-solve/glimmer_sparse_type.F90(129,5)
+<Multiversioned v1>
+   remark #25233: Loop multiversioned for stride tests on Assumed shape arrays
+   remark #15300: LOOP WAS VECTORIZED
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglimmer-solve/glimmer_sparse_type.F90(129,5)
+<Remainder loop for vectorization, Multiversioned v1>
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglimmer-solve/glimmer_sparse_type.F90(129,5)
+<Multiversioned v2>
+   remark #15335: loop was not vectorized: vectorization possible but seems inefficient. Use vector always directive or -vec-threshold0 to override 
+   remark #25439: unrolled with remainder by 2  
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglimmer-solve/glimmer_sparse_type.F90(129,5)
+<Remainder, Multiversioned v2>
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglimmer-solve/glimmer_sparse_type.F90(129,5)
+   remark #25399: memcopy generated
+   remark #15542: loop was not vectorized: inner loop was already vectorized
+
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglimmer-solve/glimmer_sparse_type.F90(129,5)
+      remark #15300: LOOP WAS VECTORIZED
+   LOOP END
+
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglimmer-solve/glimmer_sparse_type.F90(129,5)
+   <Remainder loop for vectorization>
+   LOOP END
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglimmer-solve/glimmer_sparse_type.F90(130,5)
+<Multiversioned v1>
+   remark #25233: Loop multiversioned for stride tests on Assumed shape arrays
+   remark #15300: LOOP WAS VECTORIZED
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglimmer-solve/glimmer_sparse_type.F90(130,5)
+<Remainder loop for vectorization, Multiversioned v1>
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglimmer-solve/glimmer_sparse_type.F90(130,5)
+<Multiversioned v2>
+   remark #15335: loop was not vectorized: vectorization possible but seems inefficient. Use vector always directive or -vec-threshold0 to override 
+   remark #25439: unrolled with remainder by 2  
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglimmer-solve/glimmer_sparse_type.F90(130,5)
+<Remainder, Multiversioned v2>
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglimmer-solve/glimmer_sparse_type.F90(130,5)
+   remark #25399: memcopy generated
+   remark #15542: loop was not vectorized: inner loop was already vectorized
+
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglimmer-solve/glimmer_sparse_type.F90(130,5)
+      remark #15300: LOOP WAS VECTORIZED
+   LOOP END
+
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglimmer-solve/glimmer_sparse_type.F90(130,5)
+   <Remainder loop for vectorization>
+   LOOP END
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglimmer-solve/glimmer_sparse_type.F90(131,5)
+<Multiversioned v1>
+   remark #25233: Loop multiversioned for stride tests on Assumed shape arrays
+   remark #15300: LOOP WAS VECTORIZED
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglimmer-solve/glimmer_sparse_type.F90(131,5)
+<Remainder loop for vectorization, Multiversioned v1>
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglimmer-solve/glimmer_sparse_type.F90(131,5)
+<Multiversioned v2>
+   remark #15300: LOOP WAS VECTORIZED
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglimmer-solve/glimmer_sparse_type.F90(131,5)
+<Remainder loop for vectorization, Multiversioned v2>
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglimmer-solve/glimmer_sparse_type.F90(131,5)
+   remark #25399: memcopy generated
+   remark #15542: loop was not vectorized: inner loop was already vectorized
+
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglimmer-solve/glimmer_sparse_type.F90(131,5)
+      remark #15300: LOOP WAS VECTORIZED
+   LOOP END
+
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglimmer-solve/glimmer_sparse_type.F90(131,5)
+   <Remainder loop for vectorization>
+   LOOP END
+LOOP END
+
+    Report from: Code generation optimizations [cg]
+
+/glade/u/home/tvda/CISM/libglimmer-solve/glimmer_sparse_type.F90(129,5):remark #34026: call to memcpy implemented as a call to optimized library version
+/glade/u/home/tvda/CISM/libglimmer-solve/glimmer_sparse_type.F90(130,5):remark #34026: call to memcpy implemented as a call to optimized library version
+/glade/u/home/tvda/CISM/libglimmer-solve/glimmer_sparse_type.F90(131,5):remark #34026: call to memcpy implemented as a call to optimized library version
+/glade/u/home/tvda/CISM/libglimmer-solve/glimmer_sparse_type.F90(114,14):remark #34051: REGISTER ALLOCATION : [glimmer_sparse_type_mp_grow_sparse_matrix_] /glade/u/home/tvda/CISM/libglimmer-solve/glimmer_sparse_type.F90:114
+
+    Hardware registers
+        Reserved     :    2[ rsp rip]
+        Available    :   39[ rax rdx rcx rbx rbp rsi rdi r8-r15 mm0-mm7 zmm0-zmm15]
+        Callee-save  :    6[ rbx rbp r12-r15]
+        Assigned     :   15[ rax rdx rcx rbx rsi rdi r8-r15 zmm0]
+        
+    Routine temporaries
+        Total         :     364
+            Global    :      80
+            Local     :     284
+        Regenerable   :      65
+        Spilled       :       9
+        
+    Routine stack
+        Variables     :     352 bytes*
+            Reads     :      43 [4.72e+00 ~ 4.7%]
+            Writes    :      36 [4.91e+00 ~ 4.9%]
+        Spills        :      32 bytes*
+            Reads     :      11 [1.10e+00 ~ 1.1%]
+            Writes    :       7 [4.23e-01 ~ 0.4%]
+    
+    Notes
+    
+        *Non-overlapping variables and spills may share stack space,
+         so the total stack size might be less than this.
+    
+
+===========================================================================
+
+Begin optimization report for: GLIMMER_SPARSE_TYPE::DEL_SPARSE_MATRIX
+
+    Report from: Interprocedural optimizations [ipo]
+
+INLINE REPORT: (GLIMMER_SPARSE_TYPE::DEL_SPARSE_MATRIX) [5] /glade/u/home/tvda/CISM/libglimmer-solve/glimmer_sparse_type.F90(143,14)
+
+
+    Report from: Code generation optimizations [cg]
+
+/glade/u/home/tvda/CISM/libglimmer-solve/glimmer_sparse_type.F90(143,14):remark #34051: REGISTER ALLOCATION : [glimmer_sparse_type_mp_del_sparse_matrix_] /glade/u/home/tvda/CISM/libglimmer-solve/glimmer_sparse_type.F90:143
+
+    Hardware registers
+        Reserved     :    2[ rsp rip]
+        Available    :   39[ rax rdx rcx rbx rbp rsi rdi r8-r15 mm0-mm7 zmm0-zmm15]
+        Callee-save  :    6[ rbx rbp r12-r15]
+        Assigned     :    9[ rax rdx rcx rsi rdi r8-r9 r12-r13]
+        
+    Routine temporaries
+        Total         :     133
+            Global    :      19
+            Local     :     114
+        Regenerable   :       5
+        Spilled       :       2
+        
+    Routine stack
+        Variables     :       0 bytes*
+            Reads     :       0 [0.00e+00 ~ 0.0%]
+            Writes    :       0 [0.00e+00 ~ 0.0%]
+        Spills        :       0 bytes*
+            Reads     :       0 [0.00e+00 ~ 0.0%]
+            Writes    :       0 [0.00e+00 ~ 0.0%]
+    
+    Notes
+    
+        *Non-overlapping variables and spills may share stack space,
+         so the total stack size might be less than this.
+    
+
+===========================================================================
+
+Begin optimization report for: GLIMMER_SPARSE_TYPE::PRINT_SPARSE
+
+    Report from: Interprocedural optimizations [ipo]
+
+INLINE REPORT: (GLIMMER_SPARSE_TYPE::PRINT_SPARSE) [6] /glade/u/home/tvda/CISM/libglimmer-solve/glimmer_sparse_type.F90(156,14)
+
+
+    Report from: Loop nest, Vector & Auto-parallelization optimizations [loop, vec, par]
+
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglimmer-solve/glimmer_sparse_type.F90(163,5)
+   remark #15344: loop was not vectorized: vector dependence prevents vectorization. First dependence is shown below. Use level 5 report for details
+   remark #15346: vector dependence: assumed OUTPUT dependence between at (164:8) and at (164:8)
+LOOP END
+
+    Report from: Code generation optimizations [cg]
+
+/glade/u/home/tvda/CISM/libglimmer-solve/glimmer_sparse_type.F90(156,14):remark #34051: REGISTER ALLOCATION : [glimmer_sparse_type_mp_print_sparse_] /glade/u/home/tvda/CISM/libglimmer-solve/glimmer_sparse_type.F90:156
+
+    Hardware registers
+        Reserved     :    2[ rsp rip]
+        Available    :   39[ rax rdx rcx rbx rbp rsi rdi r8-r15 mm0-mm7 zmm0-zmm15]
+        Callee-save  :    6[ rbx rbp r12-r15]
+        Assigned     :   14[ rax rdx rcx rbx rsi rdi r8-r15]
+        
+    Routine temporaries
+        Total         :      54
+            Global    :      28
+            Local     :      26
+        Regenerable   :      19
+        Spilled       :      12
+        
+    Routine stack
+        Variables     :      88 bytes*
+            Reads     :       0 [0.00e+00 ~ 0.0%]
+            Writes    :       4 [1.01e+01 ~ 10.1%]
+        Spills        :      56 bytes*
+            Reads     :       7 [1.77e+01 ~ 17.7%]
+            Writes    :       7 [3.18e+00 ~ 3.2%]
+    
+    Notes
+    
+        *Non-overlapping variables and spills may share stack space,
+         so the total stack size might be less than this.
+    
+
+===========================================================================
+
+Begin optimization report for: GLIMMER_SPARSE_TYPE::SPARSE_MATRIX_VEC_PROD
+
+    Report from: Interprocedural optimizations [ipo]
+
+INLINE REPORT: (GLIMMER_SPARSE_TYPE::SPARSE_MATRIX_VEC_PROD) [7] /glade/u/home/tvda/CISM/libglimmer-solve/glimmer_sparse_type.F90(168,14)
+
+
+    Report from: Loop nest, Vector & Auto-parallelization optimizations [loop, vec, par]
+
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglimmer-solve/glimmer_sparse_type.F90(177,5)
+<Multiversioned v1>
+   remark #25233: Loop multiversioned for stride tests on Assumed shape arrays
+   remark #15300: LOOP WAS VECTORIZED
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglimmer-solve/glimmer_sparse_type.F90(177,5)
+<Remainder loop for vectorization, Multiversioned v1>
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglimmer-solve/glimmer_sparse_type.F90(177,5)
+<Multiversioned v2>
+   remark #15300: LOOP WAS VECTORIZED
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglimmer-solve/glimmer_sparse_type.F90(177,5)
+<Remainder loop for vectorization, Multiversioned v2>
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglimmer-solve/glimmer_sparse_type.F90(178,5)
+<Multiversioned v1>
+   remark #25233: Loop multiversioned for stride tests on Assumed shape arrays
+   remark #15344: loop was not vectorized: vector dependence prevents vectorization. First dependence is shown below. Use level 5 report for details
+   remark #15346: vector dependence: assumed FLOW dependence between res(matrix(i)) (179:8) and res(matrix(i)) (179:8)
+   remark #25456: Number of Array Refs Scalar Replaced In Loop: 1
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglimmer-solve/glimmer_sparse_type.F90(178,5)
+<Multiversioned v2>
+   remark #15304: loop was not vectorized: non-vectorizable loop instance from multiversioning
+   remark #25456: Number of Array Refs Scalar Replaced In Loop: 1
+LOOP END
+
+    Report from: Code generation optimizations [cg]
+
+/glade/u/home/tvda/CISM/libglimmer-solve/glimmer_sparse_type.F90(168,14):remark #34051: REGISTER ALLOCATION : [glimmer_sparse_type_mp_sparse_matrix_vec_prod_] /glade/u/home/tvda/CISM/libglimmer-solve/glimmer_sparse_type.F90:168
+
+    Hardware registers
+        Reserved     :    2[ rsp rip]
+        Available    :   39[ rax rdx rcx rbx rbp rsi rdi r8-r15 mm0-mm7 zmm0-zmm15]
+        Callee-save  :    6[ rbx rbp r12-r15]
+        Assigned     :   15[ rax rdx rcx rbx rsi rdi r8-r15 zmm0]
+        
+    Routine temporaries
+        Total         :      89
+            Global    :      52
+            Local     :      37
+        Regenerable   :       6
+        Spilled       :       8
+        
+    Routine stack
+        Variables     :       0 bytes*
+            Reads     :       0 [0.00e+00 ~ 0.0%]
+            Writes    :       0 [0.00e+00 ~ 0.0%]
+        Spills        :      24 bytes*
+            Reads     :       4 [3.62e+00 ~ 3.6%]
+            Writes    :       3 [8.19e-01 ~ 0.8%]
+    
+    Notes
+    
+        *Non-overlapping variables and spills may share stack space,
+         so the total stack size might be less than this.
+    
+
+===========================================================================
+
+Begin optimization report for: GLIMMER_SPARSE_TYPE::SPARSE_INSERT_VAL
+
+    Report from: Interprocedural optimizations [ipo]
+
+INLINE REPORT: (GLIMMER_SPARSE_TYPE::SPARSE_INSERT_VAL) [8] /glade/u/home/tvda/CISM/libglimmer-solve/glimmer_sparse_type.F90(183,14)
+  -> INLINE: (196,18) GLIMMER_SPARSE_TYPE::GROW_SPARSE_MATRIX
+
+
+    Report from: Loop nest, Vector & Auto-parallelization optimizations [loop, vec, par]
+
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglimmer-solve/glimmer_sparse_type.F90(129,5) inlined into /glade/u/home/tvda/CISM/libglimmer-solve/glimmer_sparse_type.F90(224,18)
+<Multiversioned v1>
+   remark #25233: Loop multiversioned for stride tests on Assumed shape arrays
+   remark #15300: LOOP WAS VECTORIZED
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglimmer-solve/glimmer_sparse_type.F90(129,5) inlined into /glade/u/home/tvda/CISM/libglimmer-solve/glimmer_sparse_type.F90(224,18)
+<Remainder loop for vectorization, Multiversioned v1>
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglimmer-solve/glimmer_sparse_type.F90(129,5) inlined into /glade/u/home/tvda/CISM/libglimmer-solve/glimmer_sparse_type.F90(224,18)
+<Multiversioned v2>
+   remark #15335: loop was not vectorized: vectorization possible but seems inefficient. Use vector always directive or -vec-threshold0 to override 
+   remark #25439: unrolled with remainder by 2  
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglimmer-solve/glimmer_sparse_type.F90(129,5) inlined into /glade/u/home/tvda/CISM/libglimmer-solve/glimmer_sparse_type.F90(224,18)
+<Remainder, Multiversioned v2>
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglimmer-solve/glimmer_sparse_type.F90(129,5) inlined into /glade/u/home/tvda/CISM/libglimmer-solve/glimmer_sparse_type.F90(224,18)
+   remark #25399: memcopy generated
+   remark #15542: loop was not vectorized: inner loop was already vectorized
+
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglimmer-solve/glimmer_sparse_type.F90(129,5) inlined into /glade/u/home/tvda/CISM/libglimmer-solve/glimmer_sparse_type.F90(224,18)
+      remark #15300: LOOP WAS VECTORIZED
+   LOOP END
+
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglimmer-solve/glimmer_sparse_type.F90(129,5) inlined into /glade/u/home/tvda/CISM/libglimmer-solve/glimmer_sparse_type.F90(224,18)
+   <Remainder loop for vectorization>
+   LOOP END
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglimmer-solve/glimmer_sparse_type.F90(130,5) inlined into /glade/u/home/tvda/CISM/libglimmer-solve/glimmer_sparse_type.F90(224,18)
+<Multiversioned v1>
+   remark #25233: Loop multiversioned for stride tests on Assumed shape arrays
+   remark #15300: LOOP WAS VECTORIZED
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglimmer-solve/glimmer_sparse_type.F90(130,5) inlined into /glade/u/home/tvda/CISM/libglimmer-solve/glimmer_sparse_type.F90(224,18)
+<Remainder loop for vectorization, Multiversioned v1>
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglimmer-solve/glimmer_sparse_type.F90(130,5) inlined into /glade/u/home/tvda/CISM/libglimmer-solve/glimmer_sparse_type.F90(224,18)
+<Multiversioned v2>
+   remark #15335: loop was not vectorized: vectorization possible but seems inefficient. Use vector always directive or -vec-threshold0 to override 
+   remark #25439: unrolled with remainder by 2  
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglimmer-solve/glimmer_sparse_type.F90(130,5) inlined into /glade/u/home/tvda/CISM/libglimmer-solve/glimmer_sparse_type.F90(224,18)
+<Remainder, Multiversioned v2>
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglimmer-solve/glimmer_sparse_type.F90(130,5) inlined into /glade/u/home/tvda/CISM/libglimmer-solve/glimmer_sparse_type.F90(224,18)
+   remark #25399: memcopy generated
+   remark #15542: loop was not vectorized: inner loop was already vectorized
+
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglimmer-solve/glimmer_sparse_type.F90(130,5) inlined into /glade/u/home/tvda/CISM/libglimmer-solve/glimmer_sparse_type.F90(224,18)
+      remark #15300: LOOP WAS VECTORIZED
+   LOOP END
+
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglimmer-solve/glimmer_sparse_type.F90(130,5) inlined into /glade/u/home/tvda/CISM/libglimmer-solve/glimmer_sparse_type.F90(224,18)
+   <Remainder loop for vectorization>
+   LOOP END
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglimmer-solve/glimmer_sparse_type.F90(131,5) inlined into /glade/u/home/tvda/CISM/libglimmer-solve/glimmer_sparse_type.F90(224,18)
+<Multiversioned v1>
+   remark #25233: Loop multiversioned for stride tests on Assumed shape arrays
+   remark #15300: LOOP WAS VECTORIZED
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglimmer-solve/glimmer_sparse_type.F90(131,5) inlined into /glade/u/home/tvda/CISM/libglimmer-solve/glimmer_sparse_type.F90(224,18)
+<Remainder loop for vectorization, Multiversioned v1>
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglimmer-solve/glimmer_sparse_type.F90(131,5) inlined into /glade/u/home/tvda/CISM/libglimmer-solve/glimmer_sparse_type.F90(224,18)
+<Multiversioned v2>
+   remark #15300: LOOP WAS VECTORIZED
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglimmer-solve/glimmer_sparse_type.F90(131,5) inlined into /glade/u/home/tvda/CISM/libglimmer-solve/glimmer_sparse_type.F90(224,18)
+<Remainder loop for vectorization, Multiversioned v2>
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglimmer-solve/glimmer_sparse_type.F90(131,5) inlined into /glade/u/home/tvda/CISM/libglimmer-solve/glimmer_sparse_type.F90(224,18)
+   remark #25399: memcopy generated
+   remark #15542: loop was not vectorized: inner loop was already vectorized
+
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglimmer-solve/glimmer_sparse_type.F90(131,5) inlined into /glade/u/home/tvda/CISM/libglimmer-solve/glimmer_sparse_type.F90(224,18)
+      remark #15300: LOOP WAS VECTORIZED
+   LOOP END
+
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglimmer-solve/glimmer_sparse_type.F90(131,5) inlined into /glade/u/home/tvda/CISM/libglimmer-solve/glimmer_sparse_type.F90(224,18)
+   <Remainder loop for vectorization>
+   LOOP END
+LOOP END
+
+    Report from: Code generation optimizations [cg]
+
+/glade/u/home/tvda/CISM/libglimmer-solve/glimmer_sparse_type.F90(129,5):remark #34026: call to memcpy implemented as a call to optimized library version
+/glade/u/home/tvda/CISM/libglimmer-solve/glimmer_sparse_type.F90(130,5):remark #34026: call to memcpy implemented as a call to optimized library version
+/glade/u/home/tvda/CISM/libglimmer-solve/glimmer_sparse_type.F90(131,5):remark #34026: call to memcpy implemented as a call to optimized library version
+/glade/u/home/tvda/CISM/libglimmer-solve/glimmer_sparse_type.F90(183,14):remark #34051: REGISTER ALLOCATION : [glimmer_sparse_type_mp_sparse_insert_val_] /glade/u/home/tvda/CISM/libglimmer-solve/glimmer_sparse_type.F90:183
+
+    Hardware registers
+        Reserved     :    2[ rsp rip]
+        Available    :   39[ rax rdx rcx rbx rbp rsi rdi r8-r15 mm0-mm7 zmm0-zmm15]
+        Callee-save  :    6[ rbx rbp r12-r15]
+        Assigned     :   16[ rax rdx rcx rbx rsi rdi r8-r15 zmm0-zmm1]
+        
+    Routine temporaries
+        Total         :     394
+            Global    :      87
+            Local     :     307
+        Regenerable   :      66
+        Spilled       :      10
+        
+    Routine stack
+        Variables     :     352 bytes*
+            Reads     :      43 [1.76e+00 ~ 1.8%]
+            Writes    :      36 [1.84e+00 ~ 1.8%]
+        Spills        :      40 bytes*
+            Reads     :      16 [5.53e-01 ~ 0.6%]
+            Writes    :       8 [2.09e-01 ~ 0.2%]
+    
+    Notes
+    
+        *Non-overlapping variables and spills may share stack space,
+         so the total stack size might be less than this.
+    
+
+===========================================================================
+
+Begin optimization report for: GLIMMER_SPARSE_TYPE::SPARSE_CLEAR
+
+    Report from: Interprocedural optimizations [ipo]
+
+INLINE REPORT: (GLIMMER_SPARSE_TYPE::SPARSE_CLEAR) [9] /glade/u/home/tvda/CISM/libglimmer-solve/glimmer_sparse_type.F90(201,14)
+
+
+    Report from: Loop nest, Vector & Auto-parallelization optimizations [loop, vec, par]
+
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglimmer-solve/glimmer_sparse_type.F90(208,5)
+<Multiversioned v1>
+   remark #25233: Loop multiversioned for stride tests on Assumed shape arrays
+   remark #15300: LOOP WAS VECTORIZED
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglimmer-solve/glimmer_sparse_type.F90(208,5)
+<Remainder loop for vectorization, Multiversioned v1>
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglimmer-solve/glimmer_sparse_type.F90(208,5)
+<Multiversioned v2>
+   remark #15335: loop was not vectorized: vectorization possible but seems inefficient. Use vector always directive or -vec-threshold0 to override 
+   remark #25439: unrolled with remainder by 2  
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglimmer-solve/glimmer_sparse_type.F90(208,5)
+<Remainder, Multiversioned v2>
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglimmer-solve/glimmer_sparse_type.F90(209,5)
+<Multiversioned v1>
+   remark #25233: Loop multiversioned for stride tests on Assumed shape arrays
+   remark #15300: LOOP WAS VECTORIZED
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglimmer-solve/glimmer_sparse_type.F90(209,5)
+<Remainder loop for vectorization, Multiversioned v1>
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglimmer-solve/glimmer_sparse_type.F90(209,5)
+<Multiversioned v2>
+   remark #15335: loop was not vectorized: vectorization possible but seems inefficient. Use vector always directive or -vec-threshold0 to override 
+   remark #25439: unrolled with remainder by 2  
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglimmer-solve/glimmer_sparse_type.F90(209,5)
+<Remainder, Multiversioned v2>
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglimmer-solve/glimmer_sparse_type.F90(210,5)
+<Multiversioned v1>
+   remark #25233: Loop multiversioned for stride tests on Assumed shape arrays
+   remark #15300: LOOP WAS VECTORIZED
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglimmer-solve/glimmer_sparse_type.F90(210,5)
+<Remainder loop for vectorization, Multiversioned v1>
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglimmer-solve/glimmer_sparse_type.F90(210,5)
+<Multiversioned v2>
+   remark #15300: LOOP WAS VECTORIZED
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglimmer-solve/glimmer_sparse_type.F90(210,5)
+<Remainder loop for vectorization, Multiversioned v2>
+LOOP END
+
+    Report from: Code generation optimizations [cg]
+
+/glade/u/home/tvda/CISM/libglimmer-solve/glimmer_sparse_type.F90(201,14):remark #34051: REGISTER ALLOCATION : [glimmer_sparse_type_mp_sparse_clear_] /glade/u/home/tvda/CISM/libglimmer-solve/glimmer_sparse_type.F90:201
+
+    Hardware registers
+        Reserved     :    2[ rsp rip]
+        Available    :   39[ rax rdx rcx rbx rbp rsi rdi r8-r15 mm0-mm7 zmm0-zmm15]
+        Callee-save  :    6[ rbx rbp r12-r15]
+        Assigned     :   11[ rax rdx rcx rbx rsi rdi r8-r11 zmm0]
+        
+    Routine temporaries
+        Total         :      81
+            Global    :      49
+            Local     :      32
+        Regenerable   :      10
+        Spilled       :       1
+        
+    Routine stack
+        Variables     :       0 bytes*
+            Reads     :       0 [0.00e+00 ~ 0.0%]
+            Writes    :       0 [0.00e+00 ~ 0.0%]
+        Spills        :       0 bytes*
+            Reads     :       0 [0.00e+00 ~ 0.0%]
+            Writes    :       0 [0.00e+00 ~ 0.0%]
+    
+    Notes
+    
+        *Non-overlapping variables and spills may share stack space,
+         so the total stack size might be less than this.
+    
+
+===========================================================================
+
+Begin optimization report for: GLIMMER_SPARSE_TYPE::IS_TRIAD_FORMAT
+
+    Report from: Interprocedural optimizations [ipo]
+
+INLINE REPORT: (GLIMMER_SPARSE_TYPE::IS_TRIAD_FORMAT) [10] /glade/u/home/tvda/CISM/libglimmer-solve/glimmer_sparse_type.F90(213,12)
+  -> INLINE: (217,29) GLIMMER_SPARSE_TYPE::IS_COLUMN_FORMAT
+  -> INLINE: (217,67) GLIMMER_SPARSE_TYPE::IS_ROW_FORMAT
+
+
+    Report from: Code generation optimizations [cg]
+
+/glade/u/home/tvda/CISM/libglimmer-solve/glimmer_sparse_type.F90(213,12):remark #34051: REGISTER ALLOCATION : [glimmer_sparse_type_mp_is_triad_format_] /glade/u/home/tvda/CISM/libglimmer-solve/glimmer_sparse_type.F90:213
+
+    Hardware registers
+        Reserved     :    2[ rsp rip]
+        Available    :   39[ rax rdx rcx rbx rbp rsi rdi r8-r15 mm0-mm7 zmm0-zmm15]
+        Callee-save  :    6[ rbx rbp r12-r15]
+        Assigned     :    8[ rax rdx rcx rsi rdi r8-r10]
+        
+    Routine temporaries
+        Total         :      28
+            Global    :       0
+            Local     :      28
+        Regenerable   :       1
+        Spilled       :       0
+        
+    Routine stack
+        Variables     :       0 bytes*
+            Reads     :       0 [0.00e+00 ~ 0.0%]
+            Writes    :       0 [0.00e+00 ~ 0.0%]
+        Spills        :       0 bytes*
+            Reads     :       0 [0.00e+00 ~ 0.0%]
+            Writes    :       0 [0.00e+00 ~ 0.0%]
+    
+    Notes
+    
+        *Non-overlapping variables and spills may share stack space,
+         so the total stack size might be less than this.
+    
+
+===========================================================================
+
+Begin optimization report for: GLIMMER_SPARSE_TYPE::IS_ROW_FORMAT
+
+    Report from: Interprocedural optimizations [ipo]
+
+INLINE REPORT: (GLIMMER_SPARSE_TYPE::IS_ROW_FORMAT) [11] /glade/u/home/tvda/CISM/libglimmer-solve/glimmer_sparse_type.F90(220,12)
+
+
+    Report from: Code generation optimizations [cg]
+
+/glade/u/home/tvda/CISM/libglimmer-solve/glimmer_sparse_type.F90(220,12):remark #34051: REGISTER ALLOCATION : [glimmer_sparse_type_mp_is_row_format_] /glade/u/home/tvda/CISM/libglimmer-solve/glimmer_sparse_type.F90:220
+
+    Hardware registers
+        Reserved     :    2[ rsp rip]
+        Available    :   39[ rax rdx rcx rbx rbp rsi rdi r8-r15 mm0-mm7 zmm0-zmm15]
+        Callee-save  :    6[ rbx rbp r12-r15]
+        Assigned     :    5[ rax rdx rcx rsi rdi]
+        
+    Routine temporaries
+        Total         :      19
+            Global    :       0
+            Local     :      19
+        Regenerable   :       1
+        Spilled       :       0
+        
+    Routine stack
+        Variables     :       0 bytes*
+            Reads     :       0 [0.00e+00 ~ 0.0%]
+            Writes    :       0 [0.00e+00 ~ 0.0%]
+        Spills        :       0 bytes*
+            Reads     :       0 [0.00e+00 ~ 0.0%]
+            Writes    :       0 [0.00e+00 ~ 0.0%]
+    
+    Notes
+    
+        *Non-overlapping variables and spills may share stack space,
+         so the total stack size might be less than this.
+    
+
+===========================================================================
+
+Begin optimization report for: GLIMMER_SPARSE_TYPE::COICSR
+
+    Report from: Interprocedural optimizations [ipo]
+
+INLINE REPORT: (GLIMMER_SPARSE_TYPE::COICSR) [12] /glade/u/home/tvda/CISM/libglimmer-solve/glimmer_sparse_type.F90(227,18)
+
+
+    Report from: Loop nest, Vector & Auto-parallelization optimizations [loop, vec, par]
+
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglimmer-solve/glimmer_sparse_type.F90(282,10)
+<Multiversioned v1>
+   remark #25233: Loop multiversioned for stride tests on Assumed shape arrays
+   remark #15300: LOOP WAS VECTORIZED
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglimmer-solve/glimmer_sparse_type.F90(282,10)
+<Remainder loop for vectorization, Multiversioned v1>
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglimmer-solve/glimmer_sparse_type.F90(282,10)
+<Multiversioned v2>
+   remark #15335: loop was not vectorized: vectorization possible but seems inefficient. Use vector always directive or -vec-threshold0 to override 
+   remark #25439: unrolled with remainder by 2  
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglimmer-solve/glimmer_sparse_type.F90(282,10)
+<Remainder, Multiversioned v2>
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglimmer-solve/glimmer_sparse_type.F90(285,14)
+<Multiversioned v1>
+   remark #25233: Loop multiversioned for stride tests on Assumed shape arrays
+   remark #15344: loop was not vectorized: vector dependence prevents vectorization. First dependence is shown below. Use level 5 report for details
+   remark #15346: vector dependence: assumed FLOW dependence between iwk(i+1) (286:10) and iwk(i+1) (286:10)
+   remark #25439: unrolled with remainder by 2  
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglimmer-solve/glimmer_sparse_type.F90(285,14)
+<Remainder, Multiversioned v1>
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglimmer-solve/glimmer_sparse_type.F90(285,14)
+<Multiversioned v2>
+   remark #15304: loop was not vectorized: non-vectorizable loop instance from multiversioning
+   remark #25439: unrolled with remainder by 2  
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglimmer-solve/glimmer_sparse_type.F90(285,14)
+<Remainder, Multiversioned v2>
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglimmer-solve/glimmer_sparse_type.F90(290,7)
+<Multiversioned v1>
+   remark #25233: Loop multiversioned for stride tests on Assumed shape arrays
+   remark #15344: loop was not vectorized: vector dependence prevents vectorization. First dependence is shown below. Use level 5 report for details
+   remark #15346: vector dependence: assumed FLOW dependence between iwk(i) (291:10) and iwk(i-1) (291:10)
+   remark #25439: unrolled with remainder by 2  
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglimmer-solve/glimmer_sparse_type.F90(290,7)
+<Remainder, Multiversioned v1>
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglimmer-solve/glimmer_sparse_type.F90(290,7)
+<Multiversioned v2>
+   remark #15304: loop was not vectorized: non-vectorizable loop instance from multiversioning
+   remark #25439: unrolled with remainder by 2  
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglimmer-solve/glimmer_sparse_type.F90(290,7)
+<Remainder, Multiversioned v2>
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglimmer-solve/glimmer_sparse_type.F90(328,2)
+<Multiversioned v1>
+   remark #25233: Loop multiversioned for stride tests on Assumed shape arrays
+   remark #15300: LOOP WAS VECTORIZED
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglimmer-solve/glimmer_sparse_type.F90(328,2)
+<Remainder loop for vectorization, Multiversioned v1>
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglimmer-solve/glimmer_sparse_type.F90(328,2)
+<Multiversioned v2>
+   remark #15335: loop was not vectorized: vectorization possible but seems inefficient. Use vector always directive or -vec-threshold0 to override 
+   remark #25439: unrolled with remainder by 2  
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglimmer-solve/glimmer_sparse_type.F90(328,2)
+<Remainder, Multiversioned v2>
+LOOP END
+
+
+Non-optimizable loops:
+
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglimmer-solve/glimmer_sparse_type.F90(325,20)
+   remark #15522: loop was not vectorized: loop control flow is too complex. Try using canonical loop form from OpenMP specification
+
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglimmer-solve/glimmer_sparse_type.F90(321,13)
+      remark #15522: loop was not vectorized: loop control flow is too complex. Try using canonical loop form from OpenMP specification
+   LOOP END
+
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglimmer-solve/glimmer_sparse_type.F90(325,20)
+      remark #15523: loop was not vectorized: loop control variable init was found, but loop iteration count cannot be computed before executing the loop
+   LOOP END
+LOOP END
+
+    Report from: Code generation optimizations [cg]
+
+/glade/u/home/tvda/CISM/libglimmer-solve/glimmer_sparse_type.F90(227,18):remark #34051: REGISTER ALLOCATION : [glimmer_sparse_type_mp_coicsr_] /glade/u/home/tvda/CISM/libglimmer-solve/glimmer_sparse_type.F90:227
+
+    Hardware registers
+        Reserved     :    2[ rsp rip]
+        Available    :   39[ rax rdx rcx rbx rbp rsi rdi r8-r15 mm0-mm7 zmm0-zmm15]
+        Callee-save  :    6[ rbx rbp r12-r15]
+        Assigned     :   16[ rax rdx rcx rbx rsi rdi r8-r15 zmm0-zmm1]
+        
+    Routine temporaries
+        Total         :     159
+            Global    :      86
+            Local     :      73
+        Regenerable   :       4
+        Spilled       :      24
+        
+    Routine stack
+        Variables     :       0 bytes*
+            Reads     :       0 [0.00e+00 ~ 0.0%]
+            Writes    :       0 [0.00e+00 ~ 0.0%]
+        Spills        :     144 bytes*
+            Reads     :      51 [1.07e+01 ~ 10.7%]
+            Writes    :      23 [4.57e+00 ~ 4.6%]
+    
+    Notes
+    
+        *Non-overlapping variables and spills may share stack space,
+         so the total stack size might be less than this.
+    
+
+===========================================================================
+
+Begin optimization report for: GLIMMER_SPARSE_TYPE::COOCSR
+
+    Report from: Interprocedural optimizations [ipo]
+
+INLINE REPORT: (GLIMMER_SPARSE_TYPE::COOCSR) [13] /glade/u/home/tvda/CISM/libglimmer-solve/glimmer_sparse_type.F90(338,18)
+
+
+    Report from: Loop nest, Vector & Auto-parallelization optimizations [loop, vec, par]
+
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglimmer-solve/glimmer_sparse_type.F90(382,7)
+<Multiversioned v1>
+   remark #25233: Loop multiversioned for stride tests on Assumed shape arrays
+   remark #15300: LOOP WAS VECTORIZED
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglimmer-solve/glimmer_sparse_type.F90(382,7)
+<Remainder loop for vectorization, Multiversioned v1>
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglimmer-solve/glimmer_sparse_type.F90(382,7)
+<Multiversioned v2>
+   remark #15335: loop was not vectorized: vectorization possible but seems inefficient. Use vector always directive or -vec-threshold0 to override 
+   remark #25439: unrolled with remainder by 2  
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglimmer-solve/glimmer_sparse_type.F90(382,7)
+<Remainder, Multiversioned v2>
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglimmer-solve/glimmer_sparse_type.F90(384,7)
+<Multiversioned v1>
+   remark #25233: Loop multiversioned for stride tests on Assumed shape arrays
+   remark #15344: loop was not vectorized: vector dependence prevents vectorization. First dependence is shown below. Use level 5 report for details
+   remark #15346: vector dependence: assumed FLOW dependence between iao(ir(k)) (385:10) and iao(ir(k)) (385:10)
+   remark #25439: unrolled with remainder by 2  
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglimmer-solve/glimmer_sparse_type.F90(384,7)
+<Remainder, Multiversioned v1>
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglimmer-solve/glimmer_sparse_type.F90(384,7)
+<Multiversioned v2>
+   remark #15304: loop was not vectorized: non-vectorizable loop instance from multiversioning
+   remark #25439: unrolled with remainder by 2  
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglimmer-solve/glimmer_sparse_type.F90(384,7)
+<Remainder, Multiversioned v2>
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglimmer-solve/glimmer_sparse_type.F90(389,7)
+<Multiversioned v1>
+   remark #25233: Loop multiversioned for stride tests on Assumed shape arrays
+   remark #15344: loop was not vectorized: vector dependence prevents vectorization. First dependence is shown below. Use level 5 report for details
+   remark #15346: vector dependence: assumed ANTI dependence between k (391:10) and k (392:10)
+   remark #25439: unrolled with remainder by 2  
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglimmer-solve/glimmer_sparse_type.F90(389,7)
+<Remainder, Multiversioned v1>
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglimmer-solve/glimmer_sparse_type.F90(389,7)
+<Multiversioned v2>
+   remark #15304: loop was not vectorized: non-vectorizable loop instance from multiversioning
+   remark #25439: unrolled with remainder by 2  
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglimmer-solve/glimmer_sparse_type.F90(389,7)
+<Remainder, Multiversioned v2>
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglimmer-solve/glimmer_sparse_type.F90(395,7)
+   remark #15344: loop was not vectorized: vector dependence prevents vectorization. First dependence is shown below. Use level 5 report for details
+   remark #15346: vector dependence: assumed ANTI dependence between iao(i) (399:10) and iao(i) (402:10)
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglimmer-solve/glimmer_sparse_type.F90(405,7)
+<Multiversioned v1>
+   remark #25233: Loop multiversioned for stride tests on Assumed shape arrays
+   remark #15335: loop was not vectorized: vectorization possible but seems inefficient. Use vector always directive or -vec-threshold0 to override 
+   remark #25439: unrolled with remainder by 2  
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglimmer-solve/glimmer_sparse_type.F90(405,7)
+<Remainder, Multiversioned v1>
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglimmer-solve/glimmer_sparse_type.F90(405,7)
+<Multiversioned v2>
+   remark #15335: loop was not vectorized: vectorization possible but seems inefficient. Use vector always directive or -vec-threshold0 to override 
+   remark #25439: unrolled with remainder by 2  
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglimmer-solve/glimmer_sparse_type.F90(405,7)
+<Remainder, Multiversioned v2>
+LOOP END
+
+    Report from: Code generation optimizations [cg]
+
+/glade/u/home/tvda/CISM/libglimmer-solve/glimmer_sparse_type.F90(338,18):remark #34051: REGISTER ALLOCATION : [glimmer_sparse_type_mp_coocsr_] /glade/u/home/tvda/CISM/libglimmer-solve/glimmer_sparse_type.F90:338
+
+    Hardware registers
+        Reserved     :    2[ rsp rip]
+        Available    :   39[ rax rdx rcx rbx rbp rsi rdi r8-r15 mm0-mm7 zmm0-zmm15]
+        Callee-save  :    6[ rbx rbp r12-r15]
+        Assigned     :   15[ rax rdx rcx rbx rsi rdi r8-r15 zmm0]
+        
+    Routine temporaries
+        Total         :     172
+            Global    :      88
+            Local     :      84
+        Regenerable   :       8
+        Spilled       :      25
+        
+    Routine stack
+        Variables     :       0 bytes*
+            Reads     :       0 [0.00e+00 ~ 0.0%]
+            Writes    :       0 [0.00e+00 ~ 0.0%]
+        Spills        :     144 bytes*
+            Reads     :      31 [1.77e+01 ~ 17.7%]
+            Writes    :      23 [4.55e+00 ~ 4.5%]
+    
+    Notes
+    
+        *Non-overlapping variables and spills may share stack space,
+         so the total stack size might be less than this.
+    
+
+===========================================================================
+
+Begin optimization report for: GLIMMER_SPARSE_TYPE::IS_COLUMN_FORMAT
+
+    Report from: Interprocedural optimizations [ipo]
+
+INLINE REPORT: (GLIMMER_SPARSE_TYPE::IS_COLUMN_FORMAT) [14] /glade/u/home/tvda/CISM/libglimmer-solve/glimmer_sparse_type.F90(412,12)
+
+
+    Report from: Code generation optimizations [cg]
+
+/glade/u/home/tvda/CISM/libglimmer-solve/glimmer_sparse_type.F90(412,12):remark #34051: REGISTER ALLOCATION : [glimmer_sparse_type_mp_is_column_format_] /glade/u/home/tvda/CISM/libglimmer-solve/glimmer_sparse_type.F90:412
+
+    Hardware registers
+        Reserved     :    2[ rsp rip]
+        Available    :   39[ rax rdx rcx rbx rbp rsi rdi r8-r15 mm0-mm7 zmm0-zmm15]
+        Callee-save  :    6[ rbx rbp r12-r15]
+        Assigned     :    5[ rax rdx rcx rsi rdi]
+        
+    Routine temporaries
+        Total         :      19
+            Global    :       0
+            Local     :      19
+        Regenerable   :       1
+        Spilled       :       0
+        
+    Routine stack
+        Variables     :       0 bytes*
+            Reads     :       0 [0.00e+00 ~ 0.0%]
+            Writes    :       0 [0.00e+00 ~ 0.0%]
+        Spills        :       0 bytes*
+            Reads     :       0 [0.00e+00 ~ 0.0%]
+            Writes    :       0 [0.00e+00 ~ 0.0%]
+    
+    Notes
+    
+        *Non-overlapping variables and spills may share stack space,
+         so the total stack size might be less than this.
+    
+
+===========================================================================
+
+Begin optimization report for: GLIMMER_SPARSE_TYPE::TO_COLUMN_FORMAT
+
+    Report from: Interprocedural optimizations [ipo]
+
+INLINE REPORT: (GLIMMER_SPARSE_TYPE::TO_COLUMN_FORMAT) [15] /glade/u/home/tvda/CISM/libglimmer-solve/glimmer_sparse_type.F90(419,14)
+  -> INLINE: (422,8) GLIMMER_SPARSE_TYPE::IS_TRIAD_FORMAT
+    -> INLINE: (217,29) GLIMMER_SPARSE_TYPE::IS_COLUMN_FORMAT
+    -> INLINE: (217,67) GLIMMER_SPARSE_TYPE::IS_ROW_FORMAT
+
+
+    Report from: Loop nest, Vector & Auto-parallelization optimizations [loop, vec, par]
+
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglimmer-solve/glimmer_sparse_type.F90(423,50)
+<Multiversioned v1>
+   remark #25233: Loop multiversioned for stride tests on Assumed shape arrays
+   remark #15300: LOOP WAS VECTORIZED
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglimmer-solve/glimmer_sparse_type.F90(423,50)
+<Remainder loop for vectorization, Multiversioned v1>
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglimmer-solve/glimmer_sparse_type.F90(423,50)
+<Multiversioned v2>
+   remark #15335: loop was not vectorized: vectorization possible but seems inefficient. Use vector always directive or -vec-threshold0 to override 
+   remark #25439: unrolled with remainder by 2  
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglimmer-solve/glimmer_sparse_type.F90(423,50)
+<Remainder, Multiversioned v2>
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglimmer-solve/glimmer_sparse_type.F90(423,62)
+<Multiversioned v1>
+   remark #25233: Loop multiversioned for stride tests on Assumed shape arrays
+   remark #15300: LOOP WAS VECTORIZED
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglimmer-solve/glimmer_sparse_type.F90(423,62)
+<Remainder loop for vectorization, Multiversioned v1>
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglimmer-solve/glimmer_sparse_type.F90(423,62)
+<Multiversioned v2>
+   remark #15335: loop was not vectorized: vectorization possible but seems inefficient. Use vector always directive or -vec-threshold0 to override 
+   remark #25439: unrolled with remainder by 2  
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglimmer-solve/glimmer_sparse_type.F90(423,62)
+<Remainder, Multiversioned v2>
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglimmer-solve/glimmer_sparse_type.F90(423,74)
+<Multiversioned v1>
+   remark #25233: Loop multiversioned for stride tests on Assumed shape arrays
+   remark #15300: LOOP WAS VECTORIZED
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglimmer-solve/glimmer_sparse_type.F90(423,74)
+<Remainder loop for vectorization, Multiversioned v1>
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglimmer-solve/glimmer_sparse_type.F90(423,74)
+<Multiversioned v2>
+   remark #15300: LOOP WAS VECTORIZED
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglimmer-solve/glimmer_sparse_type.F90(423,74)
+<Remainder loop for vectorization, Multiversioned v2>
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglimmer-solve/glimmer_sparse_type.F90(423,50)
+<Multiversioned v1>
+   remark #25233: Loop multiversioned for stride tests on Assumed shape arrays
+   remark #15300: LOOP WAS VECTORIZED
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglimmer-solve/glimmer_sparse_type.F90(423,50)
+<Remainder loop for vectorization, Multiversioned v1>
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglimmer-solve/glimmer_sparse_type.F90(423,50)
+<Multiversioned v2>
+   remark #15335: loop was not vectorized: vectorization possible but seems inefficient. Use vector always directive or -vec-threshold0 to override 
+   remark #25439: unrolled with remainder by 2  
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglimmer-solve/glimmer_sparse_type.F90(423,50)
+<Remainder, Multiversioned v2>
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglimmer-solve/glimmer_sparse_type.F90(423,62)
+<Multiversioned v1>
+   remark #25233: Loop multiversioned for stride tests on Assumed shape arrays
+   remark #15300: LOOP WAS VECTORIZED
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglimmer-solve/glimmer_sparse_type.F90(423,62)
+<Remainder loop for vectorization, Multiversioned v1>
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglimmer-solve/glimmer_sparse_type.F90(423,62)
+<Multiversioned v2>
+   remark #15335: loop was not vectorized: vectorization possible but seems inefficient. Use vector always directive or -vec-threshold0 to override 
+   remark #25439: unrolled with remainder by 2  
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglimmer-solve/glimmer_sparse_type.F90(423,62)
+<Remainder, Multiversioned v2>
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglimmer-solve/glimmer_sparse_type.F90(423,74)
+<Multiversioned v1>
+   remark #25233: Loop multiversioned for stride tests on Assumed shape arrays
+   remark #15300: LOOP WAS VECTORIZED
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglimmer-solve/glimmer_sparse_type.F90(423,74)
+<Remainder loop for vectorization, Multiversioned v1>
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglimmer-solve/glimmer_sparse_type.F90(423,74)
+<Multiversioned v2>
+   remark #15300: LOOP WAS VECTORIZED
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglimmer-solve/glimmer_sparse_type.F90(423,74)
+<Remainder loop for vectorization, Multiversioned v2>
+LOOP END
+
+    Report from: Code generation optimizations [cg]
+
+/glade/u/home/tvda/CISM/libglimmer-solve/glimmer_sparse_type.F90(419,14):remark #34051: REGISTER ALLOCATION : [glimmer_sparse_type_mp_to_column_format_] /glade/u/home/tvda/CISM/libglimmer-solve/glimmer_sparse_type.F90:419
+
+    Hardware registers
+        Reserved     :    2[ rsp rip]
+        Available    :   39[ rax rdx rcx rbx rbp rsi rdi r8-r15 mm0-mm7 zmm0-zmm15]
+        Callee-save  :    6[ rbx rbp r12-r15]
+        Assigned     :   15[ rax rdx rcx rbx rsi rdi r8-r15 zmm0]
+        
+    Routine temporaries
+        Total         :     178
+            Global    :      89
+            Local     :      89
+        Regenerable   :       4
+        Spilled       :      16
+        
+    Routine stack
+        Variables     :       0 bytes*
+            Reads     :       0 [0.00e+00 ~ 0.0%]
+            Writes    :       0 [0.00e+00 ~ 0.0%]
+        Spills        :      72 bytes*
+            Reads     :      34 [1.50e+00 ~ 1.5%]
+            Writes    :      11 [6.09e-01 ~ 0.6%]
+    
+    Notes
+    
+        *Non-overlapping variables and spills may share stack space,
+         so the total stack size might be less than this.
+    
+
+===========================================================================
+
+Begin optimization report for: GLIMMER_SPARSE_TYPE::SORT_COLUMN_FORMAT
+
+    Report from: Interprocedural optimizations [ipo]
+
+INLINE REPORT: (GLIMMER_SPARSE_TYPE::SORT_COLUMN_FORMAT) [16] /glade/u/home/tvda/CISM/libglimmer-solve/glimmer_sparse_type.F90(427,14)
+  -> INLINE: (438,12) GLIMMER_SPARSE_TYPE::SORT
+
+
+    Report from: Loop nest, Vector & Auto-parallelization optimizations [loop, vec, par]
+
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglimmer-solve/glimmer_sparse_type.F90(437,5)
+   remark #15541: outer loop was not auto-vectorized: consider using SIMD directive
+
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglimmer-solve/glimmer_sparse_type.F90(468,5) inlined into /glade/u/home/tvda/CISM/libglimmer-solve/glimmer_sparse_type.F90(466,12)
+      remark #15541: outer loop was not auto-vectorized: consider using SIMD directive
+
+      LOOP BEGIN at /glade/u/home/tvda/CISM/libglimmer-solve/glimmer_sparse_type.F90(473,9) inlined into /glade/u/home/tvda/CISM/libglimmer-solve/glimmer_sparse_type.F90(466,12)
+         remark #15520: loop was not vectorized: loop with multiple exits cannot be vectorized unless it meets search loop idiom criteria   [ /glade/u/home/tvda/CISM/libglimmer-solve/glimmer_sparse_type.F90(476,13) ]
+      LOOP END
+   LOOP END
+LOOP END
+
+    Report from: Code generation optimizations [cg]
+
+/glade/u/home/tvda/CISM/libglimmer-solve/glimmer_sparse_type.F90(427,14):remark #34051: REGISTER ALLOCATION : [glimmer_sparse_type_mp_sort_column_format_] /glade/u/home/tvda/CISM/libglimmer-solve/glimmer_sparse_type.F90:427
+
+    Hardware registers
+        Reserved     :    2[ rsp rip]
+        Available    :   39[ rax rdx rcx rbx rbp rsi rdi r8-r15 mm0-mm7 zmm0-zmm15]
+        Callee-save  :    6[ rbx rbp r12-r15]
+        Assigned     :   14[ rax rdx rcx rbx rsi rdi r8-r15]
+        
+    Routine temporaries
+        Total         :      68
+            Global    :      46
+            Local     :      22
+        Regenerable   :       1
+        Spilled       :      29
+        
+    Routine stack
+        Variables     :       0 bytes*
+            Reads     :       0 [0.00e+00 ~ 0.0%]
+            Writes    :       0 [0.00e+00 ~ 0.0%]
+        Spills        :     232 bytes*
+            Reads     :      43 [2.57e+01 ~ 25.7%]
+            Writes    :      32 [7.93e+00 ~ 7.9%]
+    
+    Notes
+    
+        *Non-overlapping variables and spills may share stack space,
+         so the total stack size might be less than this.
+    
+
+===========================================================================
+
+Begin optimization report for: GLIMMER_SPARSE_TYPE::SORT_ROW_FORMAT
+
+    Report from: Interprocedural optimizations [ipo]
+
+INLINE REPORT: (GLIMMER_SPARSE_TYPE::SORT_ROW_FORMAT) [17] /glade/u/home/tvda/CISM/libglimmer-solve/glimmer_sparse_type.F90(442,14)
+  -> INLINE: (452,12) GLIMMER_SPARSE_TYPE::SORT
+
+
+    Report from: Loop nest, Vector & Auto-parallelization optimizations [loop, vec, par]
+
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglimmer-solve/glimmer_sparse_type.F90(451,5)
+   remark #15541: outer loop was not auto-vectorized: consider using SIMD directive
+
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglimmer-solve/glimmer_sparse_type.F90(468,5) inlined into /glade/u/home/tvda/CISM/libglimmer-solve/glimmer_sparse_type.F90(480,12)
+      remark #15541: outer loop was not auto-vectorized: consider using SIMD directive
+
+      LOOP BEGIN at /glade/u/home/tvda/CISM/libglimmer-solve/glimmer_sparse_type.F90(473,9) inlined into /glade/u/home/tvda/CISM/libglimmer-solve/glimmer_sparse_type.F90(480,12)
+         remark #15520: loop was not vectorized: loop with multiple exits cannot be vectorized unless it meets search loop idiom criteria   [ /glade/u/home/tvda/CISM/libglimmer-solve/glimmer_sparse_type.F90(476,13) ]
+      LOOP END
+   LOOP END
+LOOP END
+
+    Report from: Code generation optimizations [cg]
+
+/glade/u/home/tvda/CISM/libglimmer-solve/glimmer_sparse_type.F90(442,14):remark #34051: REGISTER ALLOCATION : [glimmer_sparse_type_mp_sort_row_format_] /glade/u/home/tvda/CISM/libglimmer-solve/glimmer_sparse_type.F90:442
+
+    Hardware registers
+        Reserved     :    2[ rsp rip]
+        Available    :   39[ rax rdx rcx rbx rbp rsi rdi r8-r15 mm0-mm7 zmm0-zmm15]
+        Callee-save  :    6[ rbx rbp r12-r15]
+        Assigned     :   14[ rax rdx rcx rbx rsi rdi r8-r15]
+        
+    Routine temporaries
+        Total         :      68
+            Global    :      46
+            Local     :      22
+        Regenerable   :       1
+        Spilled       :      29
+        
+    Routine stack
+        Variables     :       0 bytes*
+            Reads     :       0 [0.00e+00 ~ 0.0%]
+            Writes    :       0 [0.00e+00 ~ 0.0%]
+        Spills        :     232 bytes*
+            Reads     :      43 [2.57e+01 ~ 25.7%]
+            Writes    :      32 [7.93e+00 ~ 7.9%]
+    
+    Notes
+    
+        *Non-overlapping variables and spills may share stack space,
+         so the total stack size might be less than this.
+    
+
+===========================================================================
+
+Begin optimization report for: GLIMMER_SPARSE_TYPE::SORT
+
+    Report from: Interprocedural optimizations [ipo]
+
+INLINE REPORT: (GLIMMER_SPARSE_TYPE::SORT) [18] /glade/u/home/tvda/CISM/libglimmer-solve/glimmer_sparse_type.F90(457,14)
+
+
+    Report from: Loop nest, Vector & Auto-parallelization optimizations [loop, vec, par]
+
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglimmer-solve/glimmer_sparse_type.F90(468,5)
+   remark #15541: outer loop was not auto-vectorized: consider using SIMD directive
+
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglimmer-solve/glimmer_sparse_type.F90(473,9)
+      remark #15520: loop was not vectorized: loop with multiple exits cannot be vectorized unless it meets search loop idiom criteria   [ /glade/u/home/tvda/CISM/libglimmer-solve/glimmer_sparse_type.F90(476,13) ]
+   LOOP END
+LOOP END
+
+    Report from: Code generation optimizations [cg]
+
+/glade/u/home/tvda/CISM/libglimmer-solve/glimmer_sparse_type.F90(457,14):remark #34051: REGISTER ALLOCATION : [glimmer_sparse_type_mp_sort_] /glade/u/home/tvda/CISM/libglimmer-solve/glimmer_sparse_type.F90:457
+
+    Hardware registers
+        Reserved     :    2[ rsp rip]
+        Available    :   39[ rax rdx rcx rbx rbp rsi rdi r8-r15 mm0-mm7 zmm0-zmm15]
+        Callee-save  :    6[ rbx rbp r12-r15]
+        Assigned     :   14[ rax rdx rcx rbx rsi rdi r8-r15]
+        
+    Routine temporaries
+        Total         :      36
+            Global    :      27
+            Local     :       9
+        Regenerable   :       0
+        Spilled       :      12
+        
+    Routine stack
+        Variables     :       0 bytes*
+            Reads     :       0 [0.00e+00 ~ 0.0%]
+            Writes    :       0 [0.00e+00 ~ 0.0%]
+        Spills        :      80 bytes*
+            Reads     :      16 [1.40e+01 ~ 14.0%]
+            Writes    :      10 [6.51e+00 ~ 6.5%]
+    
+    Notes
+    
+        *Non-overlapping variables and spills may share stack space,
+         so the total stack size might be less than this.
+    
+
+===========================================================================

@@ -1,0 +1,463 @@
+Intel(R) Advisor can now assist with vectorization and show optimization
+  report messages with your source code.
+See "https://software.intel.com/en-us/intel-advisor-xe" for details.
+
+
+    Report from: Interprocedural optimizations [ipo]
+
+INLINING OPTION VALUES:
+  -inline-factor: 100
+  -inline-min-size: 30
+  -inline-max-size: 230
+  -inline-max-total-size: 2000
+  -inline-max-per-routine: 10000
+  -inline-max-per-compile: 500000
+
+
+Begin optimization report for: DCGS
+
+    Report from: Interprocedural optimizations [ipo]
+
+INLINE REPORT: (DCGS) [1] /glade/u/home/tvda/CISM/libglimmer-solve/SLAP/dcgs.f(2,18)
+  -> INDIRECT-: (253,12)  dcgs_$MATVEC_V$1b.0.1
+  -> INDIRECT-: (257,12)  dcgs_$MSOLVE_V$1c.0.1
+  -> (259,11) ISDCGS
+  -> INDIRECT-: (298,15)  dcgs_$MATVEC_V$1b.0.1
+  -> INDIRECT-: (299,15)  dcgs_$MSOLVE_V$1c.0.1
+  -> INDIRECT-: (314,15)  dcgs_$MATVEC_V$1b.0.1
+  -> INDIRECT-: (315,15)  dcgs_$MSOLVE_V$1c.0.1
+  -> (319,14) ISDCGS
+
+
+    Report from: Loop nest, Vector & Auto-parallelization optimizations [loop, vec, par]
+
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglimmer-solve/SLAP/dcgs.f(254,10)
+   remark #15300: LOOP WAS VECTORIZED
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglimmer-solve/SLAP/dcgs.f(254,10)
+<Remainder loop for vectorization>
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglimmer-solve/SLAP/dcgs.f(268,10)
+   remark #25399: memcopy generated
+   remark #15542: loop was not vectorized: inner loop was already vectorized
+
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglimmer-solve/SLAP/dcgs.f(268,10)
+      remark #15300: LOOP WAS VECTORIZED
+   LOOP END
+
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglimmer-solve/SLAP/dcgs.f(268,10)
+   <Remainder loop for vectorization>
+   LOOP END
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglimmer-solve/SLAP/dcgs.f(283,16)
+   remark #15300: LOOP WAS VECTORIZED
+   remark #25456: Number of Array Refs Scalar Replaced In Loop: 1
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglimmer-solve/SLAP/dcgs.f(283,16)
+<Remainder loop for vectorization>
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglimmer-solve/SLAP/dcgs.f(288,16)
+   remark #15300: LOOP WAS VECTORIZED
+   remark #25456: Number of Array Refs Scalar Replaced In Loop: 4
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglimmer-solve/SLAP/dcgs.f(288,16)
+<Remainder loop for vectorization>
+   remark #15335: remainder loop was not vectorized: vectorization possible but seems inefficient. Use vector always directive or -vec-threshold0 to override 
+   remark #25456: Number of Array Refs Scalar Replaced In Loop: 1
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglimmer-solve/SLAP/dcgs.f(292,16)
+   remark #15300: LOOP WAS VECTORIZED
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglimmer-solve/SLAP/dcgs.f(292,16)
+<Remainder loop for vectorization>
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglimmer-solve/SLAP/dcgs.f(304,13)
+   remark #15300: LOOP WAS VECTORIZED
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglimmer-solve/SLAP/dcgs.f(304,13)
+<Remainder loop for vectorization>
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglimmer-solve/SLAP/dcgs.f(307,13)
+   remark #15300: LOOP WAS VECTORIZED
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglimmer-solve/SLAP/dcgs.f(307,13)
+<Remainder loop for vectorization>
+LOOP END
+
+
+Non-optimizable loops:
+
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglimmer-solve/SLAP/dcgs.f(275,10)
+   remark #15532: loop was not vectorized: compile time constraints prevent loop optimization. Consider using -O3.
+LOOP END
+
+    Report from: Code generation optimizations [cg]
+
+/glade/u/home/tvda/CISM/libglimmer-solve/SLAP/dcgs.f(268,10):remark #34026: call to memcpy implemented as a call to optimized library version
+/glade/u/home/tvda/CISM/libglimmer-solve/SLAP/dcgs.f(2,18):remark #34051: REGISTER ALLOCATION : [dcgs_] /glade/u/home/tvda/CISM/libglimmer-solve/SLAP/dcgs.f:2
+
+    Hardware registers
+        Reserved     :    2[ rsp rip]
+        Available    :   39[ rax rdx rcx rbx rbp rsi rdi r8-r15 mm0-mm7 zmm0-zmm15]
+        Callee-save  :    6[ rbx rbp r12-r15]
+        Assigned     :   30[ rax rdx rcx rbx rsi rdi r8-r15 zmm0-zmm15]
+        
+    Routine temporaries
+        Total         :     305
+            Global    :      92
+            Local     :     213
+        Regenerable   :      68
+        Spilled       :      14
+        
+    Routine stack
+        Variables     :      40 bytes*
+            Reads     :       0 [0.00e+00 ~ 0.0%]
+            Writes    :       3 [8.71e-02 ~ 0.1%]
+        Spills        :      72 bytes*
+            Reads     :      29 [1.25e+00 ~ 1.3%]
+            Writes    :      11 [6.36e-01 ~ 0.6%]
+    
+    Notes
+    
+        *Non-overlapping variables and spills may share stack space,
+         so the total stack size might be less than this.
+    
+
+===========================================================================
+
+Begin optimization report for: ISDCGS
+
+    Report from: Interprocedural optimizations [ipo]
+
+INLINE REPORT: (ISDCGS) [2] /glade/u/home/tvda/CISM/libglimmer-solve/SLAP/dcgs.f(904,16)
+  -> INDIRECT-: (1088,15)  isdcgs_$MATVEC_V$e6.0.4
+  -> INDIRECT-: (1097,18)  isdcgs_$MSOLVE_V$e7.0.4
+
+
+    Report from: Loop nest, Vector & Auto-parallelization optimizations [loop, vec, par]
+
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglimmer-solve/SLAP/dcgs.f(1089,13)
+   remark #15300: LOOP WAS VECTORIZED
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglimmer-solve/SLAP/dcgs.f(1089,13)
+<Remainder loop for vectorization>
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglimmer-solve/SLAP/dcgs.f(1104,13)
+   remark #15315: loop was not vectorized: estimated number of iterations (1) is insufficient for vectorization
+   remark #25439: unrolled with remainder by 2  
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglimmer-solve/SLAP/dcgs.f(1104,13)
+<Remainder>
+LOOP END
+
+    Report from: Code generation optimizations [cg]
+
+/glade/u/home/tvda/CISM/libglimmer-solve/SLAP/dcgs.f(904,16):remark #34051: REGISTER ALLOCATION : [isdcgs_] /glade/u/home/tvda/CISM/libglimmer-solve/SLAP/dcgs.f:904
+
+    Hardware registers
+        Reserved     :    2[ rsp rip]
+        Available    :   39[ rax rdx rcx rbx rbp rsi rdi r8-r15 mm0-mm7 zmm0-zmm15]
+        Callee-save  :    6[ rbx rbp r12-r15]
+        Assigned     :   21[ rax rdx rcx rbx rsi rdi r8-r10 r12-r15 zmm0-zmm7]
+        
+    Routine temporaries
+        Total         :     173
+            Global    :      50
+            Local     :     123
+        Regenerable   :      77
+        Spilled       :       9
+        
+    Routine stack
+        Variables     :     112 bytes*
+            Reads     :       0 [0.00e+00 ~ 0.0%]
+            Writes    :       8 [2.47e+00 ~ 2.5%]
+        Spills        :      32 bytes*
+            Reads     :       5 [1.27e+00 ~ 1.3%]
+            Writes    :      10 [1.46e+00 ~ 1.5%]
+    
+    Notes
+    
+        *Non-overlapping variables and spills may share stack space,
+         so the total stack size might be less than this.
+    
+
+===========================================================================
+
+Begin optimization report for: DSDCGS
+
+    Report from: Interprocedural optimizations [ipo]
+
+INLINE REPORT: (DSDCGS) [3] /glade/u/home/tvda/CISM/libglimmer-solve/SLAP/dcgs.f(344,18)
+  -> INLINE: (599,12) DCGS
+    -> INDIRECT-: (253,12)  dcgs_$MATVEC_V$1b.0.1.6
+    -> INDIRECT-: (257,12)  dcgs_$MSOLVE_V$1c.0.1.6
+    -> (259,11) ISDCGS
+    -> INDIRECT-: (298,15)  dcgs_$MATVEC_V$1b.0.1.6
+    -> INDIRECT-: (299,15)  dcgs_$MSOLVE_V$1c.0.1.6
+    -> INDIRECT-: (314,15)  dcgs_$MATVEC_V$1b.0.1.6
+    -> INDIRECT-: (315,15)  dcgs_$MSOLVE_V$1c.0.1.6
+    -> (319,14) ISDCGS
+
+
+    Report from: Loop nest, Vector & Auto-parallelization optimizations [loop, vec, par]
+
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglimmer-solve/SLAP/dcgs.f(254,10) inlined into /glade/u/home/tvda/CISM/libglimmer-solve/SLAP/dcgs.f(599,12)
+   remark #15300: LOOP WAS VECTORIZED
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglimmer-solve/SLAP/dcgs.f(254,10) inlined into /glade/u/home/tvda/CISM/libglimmer-solve/SLAP/dcgs.f(599,12)
+<Remainder loop for vectorization>
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglimmer-solve/SLAP/dcgs.f(268,10) inlined into /glade/u/home/tvda/CISM/libglimmer-solve/SLAP/dcgs.f(599,12)
+   remark #25399: memcopy generated
+   remark #15542: loop was not vectorized: inner loop was already vectorized
+
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglimmer-solve/SLAP/dcgs.f(268,10) inlined into /glade/u/home/tvda/CISM/libglimmer-solve/SLAP/dcgs.f(599,12)
+      remark #15300: LOOP WAS VECTORIZED
+   LOOP END
+
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglimmer-solve/SLAP/dcgs.f(268,10) inlined into /glade/u/home/tvda/CISM/libglimmer-solve/SLAP/dcgs.f(599,12)
+   <Remainder loop for vectorization>
+   LOOP END
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglimmer-solve/SLAP/dcgs.f(283,16) inlined into /glade/u/home/tvda/CISM/libglimmer-solve/SLAP/dcgs.f(599,12)
+   remark #15300: LOOP WAS VECTORIZED
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglimmer-solve/SLAP/dcgs.f(283,16) inlined into /glade/u/home/tvda/CISM/libglimmer-solve/SLAP/dcgs.f(599,12)
+<Remainder loop for vectorization>
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglimmer-solve/SLAP/dcgs.f(288,16) inlined into /glade/u/home/tvda/CISM/libglimmer-solve/SLAP/dcgs.f(599,12)
+   remark #15300: LOOP WAS VECTORIZED
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglimmer-solve/SLAP/dcgs.f(288,16) inlined into /glade/u/home/tvda/CISM/libglimmer-solve/SLAP/dcgs.f(599,12)
+<Remainder loop for vectorization>
+   remark #15335: remainder loop was not vectorized: vectorization possible but seems inefficient. Use vector always directive or -vec-threshold0 to override 
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglimmer-solve/SLAP/dcgs.f(292,16) inlined into /glade/u/home/tvda/CISM/libglimmer-solve/SLAP/dcgs.f(599,12)
+   remark #15300: LOOP WAS VECTORIZED
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglimmer-solve/SLAP/dcgs.f(292,16) inlined into /glade/u/home/tvda/CISM/libglimmer-solve/SLAP/dcgs.f(599,12)
+<Remainder loop for vectorization>
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglimmer-solve/SLAP/dcgs.f(304,13) inlined into /glade/u/home/tvda/CISM/libglimmer-solve/SLAP/dcgs.f(599,12)
+   remark #15300: LOOP WAS VECTORIZED
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglimmer-solve/SLAP/dcgs.f(304,13) inlined into /glade/u/home/tvda/CISM/libglimmer-solve/SLAP/dcgs.f(599,12)
+<Remainder loop for vectorization>
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglimmer-solve/SLAP/dcgs.f(307,13) inlined into /glade/u/home/tvda/CISM/libglimmer-solve/SLAP/dcgs.f(599,12)
+   remark #15300: LOOP WAS VECTORIZED
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglimmer-solve/SLAP/dcgs.f(307,13) inlined into /glade/u/home/tvda/CISM/libglimmer-solve/SLAP/dcgs.f(599,12)
+<Remainder loop for vectorization>
+LOOP END
+
+
+Non-optimizable loops:
+
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglimmer-solve/SLAP/dcgs.f(275,10) inlined into /glade/u/home/tvda/CISM/libglimmer-solve/SLAP/dcgs.f(599,12)
+   remark #15532: loop was not vectorized: compile time constraints prevent loop optimization. Consider using -O3.
+LOOP END
+
+    Report from: Code generation optimizations [cg]
+
+/glade/u/home/tvda/CISM/libglimmer-solve/SLAP/dcgs.f(268,10):remark #34026: call to memcpy implemented as a call to optimized library version
+/glade/u/home/tvda/CISM/libglimmer-solve/SLAP/dcgs.f(344,18):remark #34051: REGISTER ALLOCATION : [dsdcgs_] /glade/u/home/tvda/CISM/libglimmer-solve/SLAP/dcgs.f:344
+
+    Hardware registers
+        Reserved     :    2[ rsp rip]
+        Available    :   39[ rax rdx rcx rbx rbp rsi rdi r8-r15 mm0-mm7 zmm0-zmm15]
+        Callee-save  :    6[ rbx rbp r12-r15]
+        Assigned     :   30[ rax rdx rcx rbx rsi rdi r8-r15 zmm0-zmm15]
+        
+    Routine temporaries
+        Total         :     353
+            Global    :      97
+            Local     :     256
+        Regenerable   :      63
+        Spilled       :      29
+        
+    Routine stack
+        Variables     :      48 bytes*
+            Reads     :       2 [3.87e-01 ~ 0.4%]
+            Writes    :       5 [8.18e-01 ~ 0.8%]
+        Spills        :     192 bytes*
+            Reads     :      94 [4.28e+00 ~ 4.3%]
+            Writes    :      27 [4.98e+00 ~ 5.0%]
+    
+    Notes
+    
+        *Non-overlapping variables and spills may share stack space,
+         so the total stack size might be less than this.
+    
+
+===========================================================================
+
+Begin optimization report for: DSLUCS
+
+    Report from: Interprocedural optimizations [ipo]
+
+INLINE REPORT: (DSLUCS) [4] /glade/u/home/tvda/CISM/libglimmer-solve/SLAP/dcgs.f(608,18)
+  -> INLINE: (895,12) DCGS
+    -> INDIRECT-: (253,12)  dcgs_$MATVEC_V$1b.0.1.5
+    -> INDIRECT-: (257,12)  dcgs_$MSOLVE_V$1c.0.1.5
+    -> (259,11) ISDCGS
+    -> INDIRECT-: (298,15)  dcgs_$MATVEC_V$1b.0.1.5
+    -> INDIRECT-: (299,15)  dcgs_$MSOLVE_V$1c.0.1.5
+    -> INDIRECT-: (314,15)  dcgs_$MATVEC_V$1b.0.1.5
+    -> INDIRECT-: (315,15)  dcgs_$MSOLVE_V$1c.0.1.5
+    -> (319,14) ISDCGS
+
+
+    Report from: Loop nest, Vector & Auto-parallelization optimizations [loop, vec, par]
+
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglimmer-solve/SLAP/dcgs.f(837,10)
+   remark #25084: Preprocess Loopnests: Moving Out Store    [ /glade/u/home/tvda/CISM/libglimmer-solve/SLAP/dcgs.f(839,10) ]
+   remark #15541: outer loop was not auto-vectorized: consider using SIMD directive
+
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglimmer-solve/SLAP/dcgs.f(843,16)
+      remark #15344: loop was not vectorized: vector dependence prevents vectorization. First dependence is shown below. Use level 5 report for details
+      remark #15346: vector dependence: assumed OUTPUT dependence between nu (846:35) and nu (848:19)
+      remark #25439: unrolled with remainder by 2  
+   LOOP END
+
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglimmer-solve/SLAP/dcgs.f(843,16)
+   <Remainder>
+   LOOP END
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglimmer-solve/SLAP/dcgs.f(254,10) inlined into /glade/u/home/tvda/CISM/libglimmer-solve/SLAP/dcgs.f(895,12)
+   remark #15300: LOOP WAS VECTORIZED
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglimmer-solve/SLAP/dcgs.f(254,10) inlined into /glade/u/home/tvda/CISM/libglimmer-solve/SLAP/dcgs.f(895,12)
+<Remainder loop for vectorization>
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglimmer-solve/SLAP/dcgs.f(268,10) inlined into /glade/u/home/tvda/CISM/libglimmer-solve/SLAP/dcgs.f(895,12)
+   remark #25399: memcopy generated
+   remark #15542: loop was not vectorized: inner loop was already vectorized
+
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglimmer-solve/SLAP/dcgs.f(268,10) inlined into /glade/u/home/tvda/CISM/libglimmer-solve/SLAP/dcgs.f(895,12)
+      remark #15300: LOOP WAS VECTORIZED
+   LOOP END
+
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglimmer-solve/SLAP/dcgs.f(268,10) inlined into /glade/u/home/tvda/CISM/libglimmer-solve/SLAP/dcgs.f(895,12)
+   <Remainder loop for vectorization>
+   LOOP END
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglimmer-solve/SLAP/dcgs.f(283,16) inlined into /glade/u/home/tvda/CISM/libglimmer-solve/SLAP/dcgs.f(895,12)
+   remark #15300: LOOP WAS VECTORIZED
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglimmer-solve/SLAP/dcgs.f(283,16) inlined into /glade/u/home/tvda/CISM/libglimmer-solve/SLAP/dcgs.f(895,12)
+<Remainder loop for vectorization>
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglimmer-solve/SLAP/dcgs.f(288,16) inlined into /glade/u/home/tvda/CISM/libglimmer-solve/SLAP/dcgs.f(895,12)
+   remark #15300: LOOP WAS VECTORIZED
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglimmer-solve/SLAP/dcgs.f(288,16) inlined into /glade/u/home/tvda/CISM/libglimmer-solve/SLAP/dcgs.f(895,12)
+<Remainder loop for vectorization>
+   remark #15335: remainder loop was not vectorized: vectorization possible but seems inefficient. Use vector always directive or -vec-threshold0 to override 
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglimmer-solve/SLAP/dcgs.f(292,16) inlined into /glade/u/home/tvda/CISM/libglimmer-solve/SLAP/dcgs.f(895,12)
+   remark #15300: LOOP WAS VECTORIZED
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglimmer-solve/SLAP/dcgs.f(292,16) inlined into /glade/u/home/tvda/CISM/libglimmer-solve/SLAP/dcgs.f(895,12)
+<Remainder loop for vectorization>
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglimmer-solve/SLAP/dcgs.f(304,13) inlined into /glade/u/home/tvda/CISM/libglimmer-solve/SLAP/dcgs.f(895,12)
+   remark #15300: LOOP WAS VECTORIZED
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglimmer-solve/SLAP/dcgs.f(304,13) inlined into /glade/u/home/tvda/CISM/libglimmer-solve/SLAP/dcgs.f(895,12)
+<Remainder loop for vectorization>
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglimmer-solve/SLAP/dcgs.f(307,13) inlined into /glade/u/home/tvda/CISM/libglimmer-solve/SLAP/dcgs.f(895,12)
+   remark #15300: LOOP WAS VECTORIZED
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglimmer-solve/SLAP/dcgs.f(307,13) inlined into /glade/u/home/tvda/CISM/libglimmer-solve/SLAP/dcgs.f(895,12)
+<Remainder loop for vectorization>
+LOOP END
+
+
+Non-optimizable loops:
+
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglimmer-solve/SLAP/dcgs.f(275,10) inlined into /glade/u/home/tvda/CISM/libglimmer-solve/SLAP/dcgs.f(895,12)
+   remark #15532: loop was not vectorized: compile time constraints prevent loop optimization. Consider using -O3.
+LOOP END
+
+    Report from: Code generation optimizations [cg]
+
+/glade/u/home/tvda/CISM/libglimmer-solve/SLAP/dcgs.f(268,10):remark #34026: call to memcpy implemented as a call to optimized library version
+/glade/u/home/tvda/CISM/libglimmer-solve/SLAP/dcgs.f(608,18):remark #34051: REGISTER ALLOCATION : [dslucs_] /glade/u/home/tvda/CISM/libglimmer-solve/SLAP/dcgs.f:608
+
+    Hardware registers
+        Reserved     :    2[ rsp rip]
+        Available    :   39[ rax rdx rcx rbx rbp rsi rdi r8-r15 mm0-mm7 zmm0-zmm15]
+        Callee-save  :    6[ rbx rbp r12-r15]
+        Assigned     :   30[ rax rdx rcx rbx rsi rdi r8-r15 zmm0-zmm15]
+        
+    Routine temporaries
+        Total         :     404
+            Global    :     121
+            Local     :     283
+        Regenerable   :      65
+        Spilled       :      36
+        
+    Routine stack
+        Variables     :      56 bytes*
+            Reads     :       2 [1.94e-01 ~ 0.2%]
+            Writes    :       9 [7.98e-01 ~ 0.8%]
+        Spills        :     248 bytes*
+            Reads     :     105 [3.70e+00 ~ 3.7%]
+            Writes    :      36 [4.90e+00 ~ 4.9%]
+    
+    Notes
+    
+        *Non-overlapping variables and spills may share stack space,
+         so the total stack size might be less than this.
+    
+
+===========================================================================

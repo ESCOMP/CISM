@@ -1,0 +1,3177 @@
+Intel(R) Advisor can now assist with vectorization and show optimization
+  report messages with your source code.
+See "https://software.intel.com/en-us/intel-advisor-xe" for details.
+
+
+    Report from: Interprocedural optimizations [ipo]
+
+INLINING OPTION VALUES:
+  -inline-factor: 100
+  -inline-min-size: 30
+  -inline-max-size: 230
+  -inline-max-total-size: 2000
+  -inline-max-per-routine: 10000
+  -inline-max-per-compile: 500000
+
+
+Begin optimization report for: glissade_transport._
+
+    Report from: Interprocedural optimizations [ipo]
+
+INLINE REPORT: (glissade_transport._) [1] /glade/u/home/tvda/CISM/libglissade/glissade_transport.F90(41,10)
+
+
+    Report from: Code generation optimizations [cg]
+
+/glade/u/home/tvda/CISM/libglissade/glissade_transport.F90(41,10):remark #34051: REGISTER ALLOCATION : [glissade_transport._] /glade/u/home/tvda/CISM/libglissade/glissade_transport.F90:41
+
+    Hardware registers
+        Reserved     :    2[ rsp rip]
+        Available    :   39[ rax rdx rcx rbx rbp rsi rdi r8-r15 mm0-mm7 zmm0-zmm15]
+        Callee-save  :    6[ rbx rbp r12-r15]
+        Assigned     :    0[ reg_null]
+        
+    Routine temporaries
+        Total         :       6
+            Global    :       0
+            Local     :       6
+        Regenerable   :       0
+        Spilled       :       0
+        
+    Routine stack
+        Variables     :       0 bytes*
+            Reads     :       0 [0.00e+00 ~ 0.0%]
+            Writes    :       0 [0.00e+00 ~ 0.0%]
+        Spills        :       0 bytes*
+            Reads     :       0 [0.00e+00 ~ 0.0%]
+            Writes    :       0 [0.00e+00 ~ 0.0%]
+    
+    Notes
+    
+        *Non-overlapping variables and spills may share stack space,
+         so the total stack size might be less than this.
+    
+
+===========================================================================
+
+Begin optimization report for: GLISSADE_TRANSPORT::GLISSADE_MASS_BALANCE_DRIVER
+
+    Report from: Interprocedural optimizations [ipo]
+
+INLINE REPORT: (GLISSADE_TRANSPORT::GLISSADE_MASS_BALANCE_DRIVER) [2] /glade/u/home/tvda/CISM/libglissade/glissade_transport.F90(287,16)
+  -> (431,15) GLISSADE_TRANSPORT::SUM_MASS_AND_TRACERS
+  -> (458,15) GLISSADE_TRANSPORT::GLISSADE_ADD_SMB
+  -> (477,15) GLISSADE_TRANSPORT::GLISSADE_VERTICAL_REMAP
+  -> (518,18) GLISSADE_TRANSPORT::SUM_MASS_AND_TRACERS
+  -> (528,21) GLISSADE_TRANSPORT::GLOBAL_CONSERVATION
+
+
+    Report from: Loop nest, Vector & Auto-parallelization optimizations [loop, vec, par]
+
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_transport.F90(415,7)
+   remark #15542: loop was not vectorized: inner loop was already vectorized
+
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_transport.F90(415,7)
+      remark #25408: memset generated
+      remark #15542: loop was not vectorized: inner loop was already vectorized
+
+      LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_transport.F90(415,7)
+         remark #15300: LOOP WAS VECTORIZED
+      LOOP END
+
+      LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_transport.F90(415,7)
+      <Remainder loop for vectorization>
+      LOOP END
+   LOOP END
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_transport.F90(421,7)
+   remark #15542: loop was not vectorized: inner loop was already vectorized
+
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_transport.F90(422,10)
+      remark #15542: loop was not vectorized: inner loop was already vectorized
+
+      LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_transport.F90(422,10)
+         remark #15300: LOOP WAS VECTORIZED
+      LOOP END
+
+      LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_transport.F90(422,10)
+      <Remainder loop for vectorization>
+         remark #15335: remainder loop was not vectorized: vectorization possible but seems inefficient. Use vector always directive or -vec-threshold0 to override 
+      LOOP END
+   LOOP END
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_transport.F90(450,22)
+   remark #15541: outer loop was not auto-vectorized: consider using SIMD directive
+
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_transport.F90(450,22)
+      remark #25084: Preprocess Loopnests: Moving Out Store    [ /glade/u/home/tvda/CISM/libglissade/glissade_transport.F90(450,22) ]
+      remark #15331: loop was not vectorized: precise FP model implied by the command line or a directive prevents vectorization. Consider using fast FP model
+      remark #25439: unrolled with remainder by 8  
+   LOOP END
+
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_transport.F90(450,22)
+   <Remainder>
+      remark #25436: completely unrolled by 7  
+   LOOP END
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_transport.F90(450,42)
+   remark #15541: outer loop was not auto-vectorized: consider using SIMD directive
+
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_transport.F90(450,42)
+      remark #25084: Preprocess Loopnests: Moving Out Store    [ /glade/u/home/tvda/CISM/libglissade/glissade_transport.F90(450,42) ]
+      remark #15331: loop was not vectorized: precise FP model implied by the command line or a directive prevents vectorization. Consider using fast FP model
+      remark #25439: unrolled with remainder by 8  
+   LOOP END
+
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_transport.F90(450,42)
+   <Remainder>
+      remark #25436: completely unrolled by 7  
+   LOOP END
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_transport.F90(451,22)
+   remark #15541: outer loop was not auto-vectorized: consider using SIMD directive
+
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_transport.F90(451,22)
+      remark #25084: Preprocess Loopnests: Moving Out Store    [ /glade/u/home/tvda/CISM/libglissade/glissade_transport.F90(451,22) ]
+      remark #15331: loop was not vectorized: precise FP model implied by the command line or a directive prevents vectorization. Consider using fast FP model
+      remark #25439: unrolled with remainder by 8  
+   LOOP END
+
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_transport.F90(451,22)
+   <Remainder>
+      remark #25436: completely unrolled by 7  
+   LOOP END
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_transport.F90(451,42)
+   remark #15541: outer loop was not auto-vectorized: consider using SIMD directive
+
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_transport.F90(451,42)
+      remark #25084: Preprocess Loopnests: Moving Out Store    [ /glade/u/home/tvda/CISM/libglissade/glissade_transport.F90(451,42) ]
+      remark #15331: loop was not vectorized: precise FP model implied by the command line or a directive prevents vectorization. Consider using fast FP model
+      remark #25439: unrolled with remainder by 8  
+   LOOP END
+
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_transport.F90(451,42)
+   <Remainder>
+      remark #25436: completely unrolled by 7  
+   LOOP END
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_transport.F90(502,13)
+   remark #15541: outer loop was not auto-vectorized: consider using SIMD directive
+
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_transport.F90(503,16)
+      remark #25084: Preprocess Loopnests: Moving Out Store    [ /glade/u/home/tvda/CISM/libglissade/glissade_transport.F90(504,19) ]
+      remark #25084: Preprocess Loopnests: Moving Out Store    [ /glade/u/home/tvda/CISM/libglissade/glissade_transport.F90(505,19) ]
+      remark #25084: Preprocess Loopnests: Moving Out Store    [ /glade/u/home/tvda/CISM/libglissade/glissade_transport.F90(506,19) ]
+      remark #15331: loop was not vectorized: precise FP model implied by the command line or a directive prevents vectorization. Consider using fast FP model   [ /glade/u/home/tvda/CISM/libglissade/glissade_transport.F90(504,19) ]
+      remark #25439: unrolled with remainder by 2  
+      remark #25456: Number of Array Refs Scalar Replaced In Loop: 2
+   LOOP END
+
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_transport.F90(503,16)
+   <Remainder>
+   LOOP END
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_transport.F90(542,10)
+   remark #15542: loop was not vectorized: inner loop was already vectorized
+
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_transport.F90(542,10)
+      remark #25408: memset generated
+      remark #15542: loop was not vectorized: inner loop was already vectorized
+
+      LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_transport.F90(542,10)
+         remark #15300: LOOP WAS VECTORIZED
+      LOOP END
+
+      LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_transport.F90(542,10)
+      <Remainder loop for vectorization>
+      LOOP END
+   LOOP END
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_transport.F90(543,10)
+   remark #15542: loop was not vectorized: inner loop was already vectorized
+
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_transport.F90(544,13)
+      remark #15542: loop was not vectorized: inner loop was already vectorized
+
+      LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_transport.F90(544,13)
+         remark #15300: LOOP WAS VECTORIZED
+      LOOP END
+
+      LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_transport.F90(544,13)
+      <Remainder loop for vectorization>
+      LOOP END
+   LOOP END
+LOOP END
+
+    Report from: Code generation optimizations [cg]
+
+/glade/u/home/tvda/CISM/libglissade/glissade_transport.F90(415,7):remark #34026: call to memset implemented as a call to optimized library version
+/glade/u/home/tvda/CISM/libglissade/glissade_transport.F90(542,10):remark #34026: call to memset implemented as a call to optimized library version
+/glade/u/home/tvda/CISM/libglissade/glissade_transport.F90(287,16):remark #34051: REGISTER ALLOCATION : [glissade_transport_mp_glissade_mass_balance_driver_] /glade/u/home/tvda/CISM/libglissade/glissade_transport.F90:287
+
+    Hardware registers
+        Reserved     :    2[ rsp rip]
+        Available    :   39[ rax rdx rcx rbx rbp rsi rdi r8-r15 mm0-mm7 zmm0-zmm15]
+        Callee-save  :    6[ rbx rbp r12-r15]
+        Assigned     :   24[ rax rdx rcx rbx rsi rdi r8-r15 zmm0-zmm9]
+        
+    Routine temporaries
+        Total         :     493
+            Global    :     168
+            Local     :     325
+        Regenerable   :      66
+        Spilled       :      36
+        
+    Routine stack
+        Variables     :     156 bytes*
+            Reads     :       5 [3.80e-02 ~ 0.0%]
+            Writes    :      21 [1.12e-01 ~ 0.1%]
+        Spills        :     248 bytes*
+            Reads     :      78 [1.12e+00 ~ 1.1%]
+            Writes    :      42 [6.84e-01 ~ 0.7%]
+    
+    Notes
+    
+        *Non-overlapping variables and spills may share stack space,
+         so the total stack size might be less than this.
+    
+
+===========================================================================
+
+Begin optimization report for: GLISSADE_TRANSPORT::GLISSADE_ADD_SMB
+
+    Report from: Interprocedural optimizations [ipo]
+
+INLINE REPORT: (GLISSADE_TRANSPORT::GLISSADE_ADD_SMB) [3] /glade/u/home/tvda/CISM/libglissade/glissade_transport.F90(1372,16)
+
+
+    Report from: Loop nest, Vector & Auto-parallelization optimizations [loop, vec, par]
+
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_transport.F90(1453,7)
+   remark #15542: loop was not vectorized: inner loop was already vectorized
+
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_transport.F90(1453,7)
+      remark #15300: LOOP WAS VECTORIZED
+   LOOP END
+
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_transport.F90(1453,7)
+   <Remainder loop for vectorization>
+   LOOP END
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_transport.F90(1454,7)
+   remark #15542: loop was not vectorized: inner loop was already vectorized
+
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_transport.F90(1454,7)
+      remark #15300: LOOP WAS VECTORIZED
+   LOOP END
+
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_transport.F90(1454,7)
+   <Remainder loop for vectorization>
+   LOOP END
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_transport.F90(1460,7)
+   remark #15542: loop was not vectorized: inner loop was already vectorized
+
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_transport.F90(1460,7)
+      remark #25408: memset generated
+      remark #15542: loop was not vectorized: inner loop was already vectorized
+
+      LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_transport.F90(1460,7)
+         remark #15300: LOOP WAS VECTORIZED
+      LOOP END
+
+      LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_transport.F90(1460,7)
+      <Remainder loop for vectorization>
+      LOOP END
+   LOOP END
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_transport.F90(1463,10)
+   remark #25084: Preprocess Loopnests: Moving Out Store    [ /glade/u/home/tvda/CISM/libglissade/glissade_transport.F90(1467,10) ]
+   remark #15541: outer loop was not auto-vectorized: consider using SIMD directive
+
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_transport.F90(1464,13)
+   <Distributed chunk1>
+      remark #25084: Preprocess Loopnests: Moving Out Store    [ /glade/u/home/tvda/CISM/libglissade/glissade_transport.F90(1466,13) ]
+      remark #25426: Loop Distributed (2 way) 
+      remark #15541: outer loop was not auto-vectorized: consider using SIMD directive
+
+      LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_transport.F90(1465,33)
+         remark #15331: loop was not vectorized: precise FP model implied by the command line or a directive prevents vectorization. Consider using fast FP model
+         remark #25439: unrolled with remainder by 2  
+      LOOP END
+
+      LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_transport.F90(1465,33)
+      <Remainder>
+      LOOP END
+   LOOP END
+
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_transport.F90(1464,13)
+   <Distributed chunk2>
+      remark #15335: loop was not vectorized: vectorization possible but seems inefficient. Use vector always directive or -vec-threshold0 to override 
+      remark #25456: Number of Array Refs Scalar Replaced In Loop: 1
+   LOOP END
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_transport.F90(1476,16)
+   remark #15300: LOOP WAS VECTORIZED
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_transport.F90(1476,16)
+<Remainder loop for vectorization>
+   remark #15301: REMAINDER LOOP WAS VECTORIZED
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_transport.F90(1476,16)
+<Remainder loop for vectorization>
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_transport.F90(1502,19)
+   remark #15300: LOOP WAS VECTORIZED
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_transport.F90(1502,19)
+<Remainder loop for vectorization>
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_transport.F90(1513,19)
+   remark #15300: LOOP WAS VECTORIZED
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_transport.F90(1513,19)
+<Remainder loop for vectorization>
+   remark #15301: REMAINDER LOOP WAS VECTORIZED
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_transport.F90(1513,19)
+<Remainder loop for vectorization>
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_transport.F90(1529,22)
+   remark #15300: LOOP WAS VECTORIZED
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_transport.F90(1529,22)
+<Remainder loop for vectorization>
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_transport.F90(1577,19)
+   remark #15300: LOOP WAS VECTORIZED
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_transport.F90(1577,19)
+<Remainder loop for vectorization>
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_transport.F90(1588,19)
+   remark #15300: LOOP WAS VECTORIZED
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_transport.F90(1588,19)
+<Remainder loop for vectorization>
+   remark #15301: REMAINDER LOOP WAS VECTORIZED
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_transport.F90(1588,19)
+<Remainder loop for vectorization>
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_transport.F90(1604,22)
+   remark #15300: LOOP WAS VECTORIZED
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_transport.F90(1604,22)
+<Remainder loop for vectorization>
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_transport.F90(1628,16)
+   remark #15300: LOOP WAS VECTORIZED
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_transport.F90(1628,16)
+<Remainder loop for vectorization>
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_transport.F90(1639,34)
+   remark #15331: loop was not vectorized: precise FP model implied by the command line or a directive prevents vectorization. Consider using fast FP model
+   remark #25439: unrolled with remainder by 2  
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_transport.F90(1639,34)
+<Remainder>
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_transport.F90(1658,7)
+   remark #15542: loop was not vectorized: inner loop was already vectorized
+
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_transport.F90(1658,7)
+      remark #15300: LOOP WAS VECTORIZED
+   LOOP END
+
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_transport.F90(1658,7)
+   <Remainder loop for vectorization>
+      remark #15301: REMAINDER LOOP WAS VECTORIZED
+   LOOP END
+
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_transport.F90(1658,7)
+   <Remainder loop for vectorization>
+   LOOP END
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_transport.F90(1659,7)
+   remark #15542: loop was not vectorized: inner loop was already vectorized
+
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_transport.F90(1659,7)
+      remark #15300: LOOP WAS VECTORIZED
+   LOOP END
+
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_transport.F90(1659,7)
+   <Remainder loop for vectorization>
+      remark #15301: REMAINDER LOOP WAS VECTORIZED
+   LOOP END
+
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_transport.F90(1659,7)
+   <Remainder loop for vectorization>
+   LOOP END
+LOOP END
+
+
+Non-optimizable loops:
+
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_transport.F90(1632,7)
+   remark #15532: loop was not vectorized: compile time constraints prevent loop optimization. Consider using -O3.
+
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_transport.F90(1631,10)
+      remark #15532: loop was not vectorized: compile time constraints prevent loop optimization. Consider using -O3.
+
+      LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_transport.F90(1526,33)
+         remark #15532: loop was not vectorized: compile time constraints prevent loop optimization. Consider using -O3.
+      LOOP END
+
+      LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_transport.F90(1601,33)
+         remark #15532: loop was not vectorized: compile time constraints prevent loop optimization. Consider using -O3.
+      LOOP END
+   LOOP END
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_transport.F90(1654,10)
+   remark #15543: loop was not vectorized: loop with function call not considered an optimization candidate.
+
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_transport.F90(1653,13)
+      remark #15543: loop was not vectorized: loop with function call not considered an optimization candidate.
+   LOOP END
+LOOP END
+
+    Report from: Code generation optimizations [cg]
+
+/glade/u/home/tvda/CISM/libglissade/glissade_transport.F90(1460,7):remark #34026: call to memset implemented as a call to optimized library version
+/glade/u/home/tvda/CISM/libglissade/glissade_transport.F90(1372,16):remark #34051: REGISTER ALLOCATION : [glissade_transport_mp_glissade_add_smb_] /glade/u/home/tvda/CISM/libglissade/glissade_transport.F90:1372
+
+    Hardware registers
+        Reserved     :    2[ rsp rip]
+        Available    :   39[ rax rdx rcx rbx rbp rsi rdi r8-r15 mm0-mm7 zmm0-zmm15]
+        Callee-save  :    6[ rbx rbp r12-r15]
+        Assigned     :   30[ rax rdx rcx rbx rsi rdi r8-r15 zmm0-zmm15]
+        
+    Routine temporaries
+        Total         :     973
+            Global    :     393
+            Local     :     580
+        Regenerable   :     150
+        Spilled       :     169
+        
+    Routine stack
+        Variables     :     296 bytes*
+            Reads     :       8 [4.80e-01 ~ 0.5%]
+            Writes    :      39 [2.01e+00 ~ 2.0%]
+        Spills        :    1272 bytes*
+            Reads     :     343 [8.63e+00 ~ 8.6%]
+            Writes    :     188 [1.52e+00 ~ 1.5%]
+    
+    Notes
+    
+        *Non-overlapping variables and spills may share stack space,
+         so the total stack size might be less than this.
+    
+
+===========================================================================
+
+Begin optimization report for: GLISSADE_TRANSPORT::GLISSADE_VERTICAL_REMAP
+
+    Report from: Interprocedural optimizations [ipo]
+
+INLINE REPORT: (GLISSADE_TRANSPORT::GLISSADE_VERTICAL_REMAP) [4] /glade/u/home/tvda/CISM/libglissade/glissade_transport.F90(1919,16)
+
+
+    Report from: Loop nest, Vector & Auto-parallelization optimizations [loop, vec, par]
+
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_transport.F90(2017,11)
+   remark #15331: loop was not vectorized: precise FP model implied by the command line or a directive prevents vectorization. Consider using fast FP model   [ /glade/u/home/tvda/CISM/libglissade/glissade_transport.F90(2018,14) ]
+   remark #25439: unrolled with remainder by 2  
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_transport.F90(2017,11)
+<Remainder>
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_transport.F90(2036,14)
+   remark #15344: loop was not vectorized: vector dependence prevents vectorization. First dependence is shown below. Use level 5 report for details
+   remark #15346: vector dependence: assumed FLOW dependence between z1(k) (2037:17) and z1(k-1) (2037:17)
+   remark #25439: unrolled with remainder by 2  
+   remark #25456: Number of Array Refs Scalar Replaced In Loop: 2
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_transport.F90(2036,14)
+<Remainder>
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_transport.F90(2046,14)
+<Peeled loop for vectorization>
+   remark #25436: completely unrolled by 1  
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_transport.F90(2046,14)
+   remark #15300: LOOP WAS VECTORIZED
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_transport.F90(2046,14)
+<Remainder loop for vectorization>
+   remark #15335: remainder loop was not vectorized: vectorization possible but seems inefficient. Use vector always directive or -vec-threshold0 to override 
+   remark #25456: Number of Array Refs Scalar Replaced In Loop: 1
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_transport.F90(2057,14)
+   remark #25399: memcopy generated
+   remark #15542: loop was not vectorized: inner loop was already vectorized
+
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_transport.F90(2057,14)
+      remark #15300: LOOP WAS VECTORIZED
+   LOOP END
+
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_transport.F90(2057,14)
+   <Remainder loop for vectorization>
+   LOOP END
+
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_transport.F90(2057,14)
+   <Peeled loop for vectorization>
+      remark #25436: completely unrolled by 1  
+   LOOP END
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_transport.F90(2066,14)
+   remark #15300: LOOP WAS VECTORIZED
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_transport.F90(2066,14)
+<Remainder loop for vectorization>
+   remark #15335: remainder loop was not vectorized: vectorization possible but seems inefficient. Use vector always directive or -vec-threshold0 to override 
+   remark #25456: Number of Array Refs Scalar Replaced In Loop: 1
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_transport.F90(2083,23)
+   remark #15300: LOOP WAS VECTORIZED
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_transport.F90(2083,23)
+<Remainder loop for vectorization>
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_transport.F90(2086,26)
+   remark #15300: LOOP WAS VECTORIZED
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_transport.F90(2086,26)
+<Remainder loop for vectorization>
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_transport.F90(2088,26)
+   remark #15300: LOOP WAS VECTORIZED
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_transport.F90(2088,26)
+<Remainder loop for vectorization>
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_transport.F90(2093,23)
+   remark #15300: LOOP WAS VECTORIZED
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_transport.F90(2093,23)
+<Remainder loop for vectorization>
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_transport.F90(2096,26)
+   remark #15300: LOOP WAS VECTORIZED
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_transport.F90(2096,26)
+<Remainder loop for vectorization>
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_transport.F90(2098,26)
+   remark #15300: LOOP WAS VECTORIZED
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_transport.F90(2098,26)
+<Remainder loop for vectorization>
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_transport.F90(2106,23)
+   remark #15300: LOOP WAS VECTORIZED
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_transport.F90(2106,23)
+<Remainder loop for vectorization>
+   remark #15301: REMAINDER LOOP WAS VECTORIZED
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_transport.F90(2106,23)
+<Remainder loop for vectorization>
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_transport.F90(2108,23)
+   remark #25408: memset generated
+   remark #15542: loop was not vectorized: inner loop was already vectorized
+
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_transport.F90(2108,23)
+      remark #15300: LOOP WAS VECTORIZED
+   LOOP END
+
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_transport.F90(2108,23)
+   <Remainder loop for vectorization>
+   LOOP END
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_transport.F90(2113,20)
+   remark #15335: loop was not vectorized: vectorization possible but seems inefficient. Use vector always directive or -vec-threshold0 to override 
+   remark #25439: unrolled with remainder by 4  
+   remark #25456: Number of Array Refs Scalar Replaced In Loop: 4
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_transport.F90(2113,20)
+<Remainder>
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_transport.F90(2114,20)
+   remark #15335: loop was not vectorized: vectorization possible but seems inefficient. Use vector always directive or -vec-threshold0 to override 
+   remark #25439: unrolled with remainder by 4  
+   remark #25456: Number of Array Refs Scalar Replaced In Loop: 4
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_transport.F90(2114,20)
+<Remainder>
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_transport.F90(2117,20)
+   remark #15300: LOOP WAS VECTORIZED
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_transport.F90(2117,20)
+<Remainder loop for vectorization>
+   remark #15301: REMAINDER LOOP WAS VECTORIZED
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_transport.F90(2117,20)
+<Remainder loop for vectorization>
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_transport.F90(2118,20)
+   remark #15300: LOOP WAS VECTORIZED
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_transport.F90(2118,20)
+<Remainder loop for vectorization>
+   remark #15301: REMAINDER LOOP WAS VECTORIZED
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_transport.F90(2118,20)
+<Remainder loop for vectorization>
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_transport.F90(2119,20)
+   remark #15300: LOOP WAS VECTORIZED
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_transport.F90(2119,20)
+<Remainder loop for vectorization>
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_transport.F90(2120,20)
+   remark #15300: LOOP WAS VECTORIZED
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_transport.F90(2120,20)
+<Remainder loop for vectorization>
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_transport.F90(2124,20)
+   remark #15300: LOOP WAS VECTORIZED
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_transport.F90(2124,20)
+<Remainder loop for vectorization>
+   remark #15301: REMAINDER LOOP WAS VECTORIZED
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_transport.F90(2124,20)
+<Remainder loop for vectorization>
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_transport.F90(2125,23)
+   remark #15335: loop was not vectorized: vectorization possible but seems inefficient. Use vector always directive or -vec-threshold0 to override 
+   remark #25439: unrolled with remainder by 2  
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_transport.F90(2125,23)
+<Remainder>
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_transport.F90(2127,23)
+   remark #15335: loop was not vectorized: vectorization possible but seems inefficient. Use vector always directive or -vec-threshold0 to override 
+   remark #25439: unrolled with remainder by 2  
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_transport.F90(2127,23)
+<Remainder>
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_transport.F90(2130,20)
+   remark #15300: LOOP WAS VECTORIZED
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_transport.F90(2130,20)
+<Remainder loop for vectorization>
+   remark #15301: REMAINDER LOOP WAS VECTORIZED
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_transport.F90(2130,20)
+<Remainder loop for vectorization>
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_transport.F90(2131,23)
+   remark #15335: loop was not vectorized: vectorization possible but seems inefficient. Use vector always directive or -vec-threshold0 to override 
+   remark #25439: unrolled with remainder by 2  
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_transport.F90(2131,23)
+<Remainder>
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_transport.F90(2133,23)
+   remark #15335: loop was not vectorized: vectorization possible but seems inefficient. Use vector always directive or -vec-threshold0 to override 
+   remark #25439: unrolled with remainder by 2  
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_transport.F90(2133,23)
+<Remainder>
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_transport.F90(2136,20)
+   remark #15335: loop was not vectorized: vectorization possible but seems inefficient. Use vector always directive or -vec-threshold0 to override 
+   remark #25439: unrolled with remainder by 2  
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_transport.F90(2136,20)
+<Remainder>
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_transport.F90(2142,17)
+   remark #15542: loop was not vectorized: inner loop was already vectorized
+
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_transport.F90(2142,17)
+      remark #25408: memset generated
+      remark #15542: loop was not vectorized: inner loop was already vectorized
+
+      LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_transport.F90(2142,17)
+         remark #15300: LOOP WAS VECTORIZED
+      LOOP END
+
+      LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_transport.F90(2142,17)
+      <Remainder loop for vectorization>
+      LOOP END
+   LOOP END
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_transport.F90(2159,14)
+   remark #15542: loop was not vectorized: inner loop was already vectorized
+
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_transport.F90(2159,14)
+      remark #25408: memset generated
+      remark #15542: loop was not vectorized: inner loop was already vectorized
+
+      LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_transport.F90(2159,14)
+         remark #15300: LOOP WAS VECTORIZED
+      LOOP END
+
+      LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_transport.F90(2159,14)
+      <Remainder loop for vectorization>
+      LOOP END
+   LOOP END
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_transport.F90(2167,17)
+   remark #15300: LOOP WAS VECTORIZED
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_transport.F90(2167,17)
+<Remainder loop for vectorization>
+   remark #15335: remainder loop was not vectorized: vectorization possible but seems inefficient. Use vector always directive or -vec-threshold0 to override 
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_transport.F90(2182,14)
+   remark #15542: loop was not vectorized: inner loop was already vectorized
+
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_transport.F90(2184,20)
+      remark #15300: LOOP WAS VECTORIZED
+   LOOP END
+
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_transport.F90(2184,20)
+   <Remainder loop for vectorization>
+      remark #15301: REMAINDER LOOP WAS VECTORIZED
+   LOOP END
+
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_transport.F90(2184,20)
+   <Remainder loop for vectorization>
+   LOOP END
+
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_transport.F90(2186,20)
+      remark #15300: LOOP WAS VECTORIZED
+   LOOP END
+
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_transport.F90(2186,20)
+   <Remainder loop for vectorization>
+   LOOP END
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_transport.F90(2192,14)
+   remark #25420: Collapsed with loop at line 2192 
+   remark #15300: LOOP WAS VECTORIZED
+
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_transport.F90(2192,14)
+      remark #25421: Loop eliminated in Collapsing 
+
+   LOOP END
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_transport.F90(2192,14)
+<Remainder loop for vectorization>
+LOOP END
+
+
+Non-optimizable loops:
+
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_transport.F90(2197,5)
+   remark #15532: loop was not vectorized: compile time constraints prevent loop optimization. Consider using -O3.
+
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_transport.F90(2196,8)
+      remark #15532: loop was not vectorized: compile time constraints prevent loop optimization. Consider using -O3.
+
+      LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_transport.F90(2138,17)
+         remark #15532: loop was not vectorized: compile time constraints prevent loop optimization. Consider using -O3.
+      LOOP END
+
+      LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_transport.F90(2162,14)
+         remark #15532: loop was not vectorized: compile time constraints prevent loop optimization. Consider using -O3.
+      LOOP END
+   LOOP END
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_transport.F90(2214,5)
+   remark #15543: loop was not vectorized: loop with function call not considered an optimization candidate.
+
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_transport.F90(2213,8)
+      remark #15543: loop was not vectorized: loop with function call not considered an optimization candidate.
+
+      LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_transport.F90(2212,11)
+         remark #15543: loop was not vectorized: loop with function call not considered an optimization candidate.
+
+         LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_transport.F90(2211,14)
+            remark #15521: loop was not vectorized: loop control variable was not identified. Explicitly compute the iteration count before executing the loop or try using canonical loop form from OpenMP specification
+         LOOP END
+      LOOP END
+   LOOP END
+LOOP END
+
+    Report from: Code generation optimizations [cg]
+
+/glade/u/home/tvda/CISM/libglissade/glissade_transport.F90(2047,36):remark #34055: adjacent dense (unit-strided stencil) loads are not optimized. Details: stride { 8 }, step { 8 }, types { F64-V128, F64-V128 }, number of elements { 2 }, select mask { 0x000000003 }.
+/glade/u/home/tvda/CISM/libglissade/glissade_transport.F90(2047,36):remark #34055: adjacent dense (unit-strided stencil) loads are not optimized. Details: stride { 8 }, step { 8 }, types { F64-V128, F64-V128 }, number of elements { 2 }, select mask { 0x000000003 }.
+/glade/u/home/tvda/CISM/libglissade/glissade_transport.F90(2047,36):remark #34055: adjacent dense (unit-strided stencil) loads are not optimized. Details: stride { 8 }, step { 8 }, types { F64-V128, F64-V128 }, number of elements { 2 }, select mask { 0x000000003 }.
+/glade/u/home/tvda/CISM/libglissade/glissade_transport.F90(2047,36):remark #34055: adjacent dense (unit-strided stencil) loads are not optimized. Details: stride { 8 }, step { 8 }, types { F64-V128, F64-V128 }, number of elements { 2 }, select mask { 0x000000003 }.
+/glade/u/home/tvda/CISM/libglissade/glissade_transport.F90(2067,32):remark #34055: adjacent dense (unit-strided stencil) loads are not optimized. Details: stride { 8 }, step { 8 }, types { F64-V128, F64-V128 }, number of elements { 2 }, select mask { 0x000000003 }.
+/glade/u/home/tvda/CISM/libglissade/glissade_transport.F90(2067,32):remark #34055: adjacent dense (unit-strided stencil) loads are not optimized. Details: stride { 8 }, step { 8 }, types { F64-V128, F64-V128 }, number of elements { 2 }, select mask { 0x000000003 }.
+/glade/u/home/tvda/CISM/libglissade/glissade_transport.F90(2067,32):remark #34055: adjacent dense (unit-strided stencil) loads are not optimized. Details: stride { 8 }, step { 8 }, types { F64-V128, F64-V128 }, number of elements { 2 }, select mask { 0x000000003 }.
+/glade/u/home/tvda/CISM/libglissade/glissade_transport.F90(2067,32):remark #34055: adjacent dense (unit-strided stencil) loads are not optimized. Details: stride { 8 }, step { 8 }, types { F64-V128, F64-V128 }, number of elements { 2 }, select mask { 0x000000003 }.
+/glade/u/home/tvda/CISM/libglissade/glissade_transport.F90(2057,14):remark #34026: call to memcpy implemented as a call to optimized library version
+/glade/u/home/tvda/CISM/libglissade/glissade_transport.F90(2142,17):remark #34026: call to memset implemented as a call to optimized library version
+/glade/u/home/tvda/CISM/libglissade/glissade_transport.F90(2159,14):remark #34026: call to memset implemented as a call to optimized library version
+/glade/u/home/tvda/CISM/libglissade/glissade_transport.F90(2108,23):remark #34026: call to memset implemented as a call to optimized library version
+/glade/u/home/tvda/CISM/libglissade/glissade_transport.F90(1919,16):remark #34051: REGISTER ALLOCATION : [glissade_transport_mp_glissade_vertical_remap_] /glade/u/home/tvda/CISM/libglissade/glissade_transport.F90:1919
+
+    Hardware registers
+        Reserved     :    2[ rsp rip]
+        Available    :   39[ rax rdx rcx rbx rbp rsi rdi r8-r15 mm0-mm7 zmm0-zmm15]
+        Callee-save  :    6[ rbx rbp r12-r15]
+        Assigned     :   30[ rax rdx rcx rbx rsi rdi r8-r15 zmm0-zmm15]
+        
+    Routine temporaries
+        Total         :    1154
+            Global    :     458
+            Local     :     696
+        Regenerable   :      87
+        Spilled       :     162
+        
+    Routine stack
+        Variables     :     424 bytes*
+            Reads     :      12 [3.22e+00 ~ 3.2%]
+            Writes    :      20 [3.59e+00 ~ 3.6%]
+        Spills        :    1264 bytes*
+            Reads     :     515 [5.68e+00 ~ 5.7%]
+            Writes    :     256 [1.02e+00 ~ 1.0%]
+    
+    Notes
+    
+        *Non-overlapping variables and spills may share stack space,
+         so the total stack size might be less than this.
+    
+
+===========================================================================
+
+Begin optimization report for: GLISSADE_TRANSPORT::GLISSADE_TRANSPORT_DRIVER
+
+    Report from: Interprocedural optimizations [ipo]
+
+INLINE REPORT: (GLISSADE_TRANSPORT::GLISSADE_TRANSPORT_DRIVER) [5] /glade/u/home/tvda/CISM/libglissade/glissade_transport.F90(554,16)
+  -> (720,15) GLISSADE_TRANSPORT::SUM_MASS_AND_TRACERS
+  -> INLINE: (769,21) GLISSADE_TRANSPORT::UPWIND_FIELD
+  -> (886,15) GLISSADE_TRANSPORT::SUM_MASS_AND_TRACERS
+  -> (895,18) GLISSADE_TRANSPORT::GLOBAL_CONSERVATION
+  -> (916,12) GLISSADE_TRANSPORT::GLISSADE_VERTICAL_REMAP
+  -> (939,15) GLISSADE_TRANSPORT::SUM_MASS_AND_TRACERS
+  -> (948,18) GLISSADE_TRANSPORT::GLOBAL_CONSERVATION
+
+
+    Report from: Loop nest, Vector & Auto-parallelization optimizations [loop, vec, par]
+
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_transport.F90(710,7)
+   remark #15542: loop was not vectorized: inner loop was already vectorized
+
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_transport.F90(711,10)
+      remark #15542: loop was not vectorized: inner loop was already vectorized
+
+      LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_transport.F90(711,10)
+         remark #15300: LOOP WAS VECTORIZED
+      LOOP END
+
+      LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_transport.F90(711,10)
+      <Remainder loop for vectorization>
+         remark #15335: remainder loop was not vectorized: vectorization possible but seems inefficient. Use vector always directive or -vec-threshold0 to override 
+      LOOP END
+   LOOP END
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_transport.F90(2273,10) inlined into /glade/u/home/tvda/CISM/libglissade/glissade_transport.F90(769,21)
+   remark #15542: loop was not vectorized: inner loop was already vectorized
+
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_transport.F90(742,13)
+      remark #15542: loop was not vectorized: inner loop was already vectorized
+
+      LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_transport.F90(743,13)
+         remark #15300: LOOP WAS VECTORIZED
+      LOOP END
+
+      LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_transport.F90(743,13)
+      <Remainder loop for vectorization>
+         remark #15335: remainder loop was not vectorized: vectorization possible but seems inefficient. Use vector always directive or -vec-threshold0 to override 
+      LOOP END
+   LOOP END
+
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_transport.F90(750,13)
+      remark #15542: loop was not vectorized: inner loop was already vectorized
+
+      LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_transport.F90(751,13)
+         remark #15300: LOOP WAS VECTORIZED
+      LOOP END
+
+      LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_transport.F90(751,13)
+      <Remainder loop for vectorization>
+         remark #15335: remainder loop was not vectorized: vectorization possible but seems inefficient. Use vector always directive or -vec-threshold0 to override 
+         remark #25456: Number of Array Refs Scalar Replaced In Loop: 2
+      LOOP END
+   LOOP END
+
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_transport.F90(759,13)
+      remark #15542: loop was not vectorized: inner loop was already vectorized
+
+      LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_transport.F90(759,13)
+         remark #25399: memcopy generated
+         remark #15542: loop was not vectorized: inner loop was already vectorized
+
+         LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_transport.F90(759,13)
+            remark #15300: LOOP WAS VECTORIZED
+         LOOP END
+
+         LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_transport.F90(759,13)
+         <Remainder loop for vectorization>
+         LOOP END
+      LOOP END
+   LOOP END
+
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_transport.F90(760,13)
+      remark #15542: loop was not vectorized: inner loop was already vectorized
+
+      LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_transport.F90(761,16)
+         remark #15542: loop was not vectorized: inner loop was already vectorized
+
+         LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_transport.F90(761,16)
+            remark #15300: LOOP WAS VECTORIZED
+         LOOP END
+
+         LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_transport.F90(761,16)
+         <Remainder loop for vectorization>
+         LOOP END
+      LOOP END
+   LOOP END
+
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_transport.F90(768,13)
+      remark #15542: loop was not vectorized: inner loop was already vectorized
+
+      LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_transport.F90(2271,7) inlined into /glade/u/home/tvda/CISM/libglissade/glissade_transport.F90(769,21)
+         remark #15542: loop was not vectorized: inner loop was already vectorized
+
+         LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_transport.F90(2272,7) inlined into /glade/u/home/tvda/CISM/libglissade/glissade_transport.F90(769,21)
+            remark #15300: LOOP WAS VECTORIZED
+            remark #25456: Number of Array Refs Scalar Replaced In Loop: 6
+         LOOP END
+
+         LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_transport.F90(2272,7) inlined into /glade/u/home/tvda/CISM/libglissade/glissade_transport.F90(769,21)
+         <Remainder loop for vectorization>
+         LOOP END
+      LOOP END
+
+      LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_transport.F90(2278,7) inlined into /glade/u/home/tvda/CISM/libglissade/glissade_transport.F90(769,21)
+         remark #15542: loop was not vectorized: inner loop was already vectorized
+
+         LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_transport.F90(2279,7) inlined into /glade/u/home/tvda/CISM/libglissade/glissade_transport.F90(769,21)
+            remark #15300: LOOP WAS VECTORIZED
+         LOOP END
+
+         LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_transport.F90(2279,7) inlined into /glade/u/home/tvda/CISM/libglissade/glissade_transport.F90(769,21)
+         <Remainder loop for vectorization>
+            remark #15301: REMAINDER LOOP WAS VECTORIZED
+         LOOP END
+
+         LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_transport.F90(2279,7) inlined into /glade/u/home/tvda/CISM/libglissade/glissade_transport.F90(769,21)
+         <Remainder loop for vectorization>
+         LOOP END
+      LOOP END
+   LOOP END
+
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_transport.F90(778,13)
+      remark #15542: loop was not vectorized: inner loop was already vectorized
+
+      LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_transport.F90(778,13)
+         remark #25399: memcopy generated
+         remark #15542: loop was not vectorized: inner loop was already vectorized
+
+         LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_transport.F90(778,13)
+            remark #15300: LOOP WAS VECTORIZED
+         LOOP END
+
+         LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_transport.F90(778,13)
+         <Remainder loop for vectorization>
+         LOOP END
+      LOOP END
+   LOOP END
+
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_transport.F90(779,13)
+      remark #15542: loop was not vectorized: inner loop was already vectorized
+
+      LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_transport.F90(780,16)
+         remark #15542: loop was not vectorized: inner loop was already vectorized
+
+         LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_transport.F90(781,16)
+            remark #15300: LOOP WAS VECTORIZED
+         LOOP END
+
+         LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_transport.F90(781,16)
+         <Remainder loop for vectorization>
+            remark #15301: REMAINDER LOOP WAS VECTORIZED
+         LOOP END
+
+         LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_transport.F90(781,16)
+         <Remainder loop for vectorization>
+         LOOP END
+      LOOP END
+   LOOP END
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_transport.F90(828,13)
+   remark #15542: loop was not vectorized: inner loop was already vectorized
+
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_transport.F90(828,13)
+      remark #15300: LOOP WAS VECTORIZED
+   LOOP END
+
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_transport.F90(828,13)
+   <Remainder loop for vectorization>
+   LOOP END
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_transport.F90(829,13)
+   remark #15542: loop was not vectorized: inner loop was already vectorized
+
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_transport.F90(829,13)
+      remark #15300: LOOP WAS VECTORIZED
+   LOOP END
+
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_transport.F90(829,13)
+   <Remainder loop for vectorization>
+   LOOP END
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_transport.F90(831,13)
+   remark #15542: loop was not vectorized: inner loop was already vectorized
+
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_transport.F90(831,13)
+      remark #25408: memset generated
+      remark #15542: loop was not vectorized: inner loop was already vectorized
+
+      LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_transport.F90(831,13)
+         remark #15300: LOOP WAS VECTORIZED
+      LOOP END
+
+      LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_transport.F90(831,13)
+      <Remainder loop for vectorization>
+      LOOP END
+   LOOP END
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_transport.F90(832,13)
+   remark #15542: loop was not vectorized: inner loop was already vectorized
+
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_transport.F90(832,13)
+      remark #25408: memset generated
+      remark #15542: loop was not vectorized: inner loop was already vectorized
+
+      LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_transport.F90(832,13)
+         remark #15300: LOOP WAS VECTORIZED
+      LOOP END
+
+      LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_transport.F90(832,13)
+      <Remainder loop for vectorization>
+      LOOP END
+   LOOP END
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_transport.F90(934,10)
+   remark #25399: memcopy generated
+   remark #15542: loop was not vectorized: inner loop was already vectorized
+
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_transport.F90(934,10)
+      remark #15300: LOOP WAS VECTORIZED
+   LOOP END
+
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_transport.F90(934,10)
+   <Remainder loop for vectorization>
+   LOOP END
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_transport.F90(968,7)
+   remark #15542: loop was not vectorized: inner loop was already vectorized
+
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_transport.F90(968,7)
+      remark #25408: memset generated
+      remark #15542: loop was not vectorized: inner loop was already vectorized
+
+      LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_transport.F90(968,7)
+         remark #15300: LOOP WAS VECTORIZED
+      LOOP END
+
+      LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_transport.F90(968,7)
+      <Remainder loop for vectorization>
+      LOOP END
+   LOOP END
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_transport.F90(969,7)
+   remark #15542: loop was not vectorized: inner loop was already vectorized
+
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_transport.F90(970,10)
+      remark #15542: loop was not vectorized: inner loop was already vectorized
+
+      LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_transport.F90(970,10)
+         remark #15300: LOOP WAS VECTORIZED
+      LOOP END
+
+      LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_transport.F90(970,10)
+      <Remainder loop for vectorization>
+      LOOP END
+   LOOP END
+LOOP END
+
+
+Non-optimizable loops:
+
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_transport.F90(870,10)
+   remark #15543: loop was not vectorized: loop with function call not considered an optimization candidate.
+LOOP END
+
+    Report from: Code generation optimizations [cg]
+
+/glade/u/home/tvda/CISM/libglissade/glissade_transport.F90(828,13):remark #34069: adjacent sparse (strided) loads seem unprofitable to optimize. Details: stride { unknown }, types { F64-V128, F64-V128 }, number of elements { 2 }, select mask { 0x000000003 }.
+/glade/u/home/tvda/CISM/libglissade/glissade_transport.F90(828,13):remark #34069: adjacent sparse (strided) loads seem unprofitable to optimize. Details: stride { unknown }, types { F64-V128, F64-V128 }, number of elements { 2 }, select mask { 0x000000003 }.
+/glade/u/home/tvda/CISM/libglissade/glissade_transport.F90(828,13):remark #34069: adjacent sparse (strided) loads seem unprofitable to optimize. Details: stride { unknown }, types { F64-V128, F64-V128 }, number of elements { 2 }, select mask { 0x000000003 }.
+/glade/u/home/tvda/CISM/libglissade/glissade_transport.F90(828,13):remark #34069: adjacent sparse (strided) loads seem unprofitable to optimize. Details: stride { unknown }, types { F64-V128, F64-V128 }, number of elements { 2 }, select mask { 0x000000003 }.
+/glade/u/home/tvda/CISM/libglissade/glissade_transport.F90(829,13):remark #34069: adjacent sparse (strided) loads seem unprofitable to optimize. Details: stride { unknown }, types { F64-V128, F64-V128 }, number of elements { 2 }, select mask { 0x000000003 }.
+/glade/u/home/tvda/CISM/libglissade/glissade_transport.F90(829,13):remark #34069: adjacent sparse (strided) loads seem unprofitable to optimize. Details: stride { unknown }, types { F64-V128, F64-V128 }, number of elements { 2 }, select mask { 0x000000003 }.
+/glade/u/home/tvda/CISM/libglissade/glissade_transport.F90(829,13):remark #34069: adjacent sparse (strided) loads seem unprofitable to optimize. Details: stride { unknown }, types { F64-V128, F64-V128 }, number of elements { 2 }, select mask { 0x000000003 }.
+/glade/u/home/tvda/CISM/libglissade/glissade_transport.F90(829,13):remark #34069: adjacent sparse (strided) loads seem unprofitable to optimize. Details: stride { unknown }, types { F64-V128, F64-V128 }, number of elements { 2 }, select mask { 0x000000003 }.
+/glade/u/home/tvda/CISM/libglissade/glissade_transport.F90(744,37):remark #34069: adjacent sparse (strided) loads seem unprofitable to optimize. Details: stride { unknown }, types { F64-V128, F64-V128 }, number of elements { 2 }, select mask { 0x000000003 }.
+/glade/u/home/tvda/CISM/libglissade/glissade_transport.F90(744,53):remark #34069: adjacent sparse (strided) loads seem unprofitable to optimize. Details: stride { unknown }, types { F64-V128, F64-V128 }, number of elements { 2 }, select mask { 0x000000003 }.
+/glade/u/home/tvda/CISM/libglissade/glissade_transport.F90(744,37):remark #34069: adjacent sparse (strided) loads seem unprofitable to optimize. Details: stride { unknown }, types { F64-V128, F64-V128 }, number of elements { 2 }, select mask { 0x000000003 }.
+/glade/u/home/tvda/CISM/libglissade/glissade_transport.F90(744,53):remark #34069: adjacent sparse (strided) loads seem unprofitable to optimize. Details: stride { unknown }, types { F64-V128, F64-V128 }, number of elements { 2 }, select mask { 0x000000003 }.
+/glade/u/home/tvda/CISM/libglissade/glissade_transport.F90(744,37):remark #34069: adjacent sparse (strided) loads seem unprofitable to optimize. Details: stride { unknown }, types { F64-V128, F64-V128 }, number of elements { 2 }, select mask { 0x000000003 }.
+/glade/u/home/tvda/CISM/libglissade/glissade_transport.F90(744,53):remark #34069: adjacent sparse (strided) loads seem unprofitable to optimize. Details: stride { unknown }, types { F64-V128, F64-V128 }, number of elements { 2 }, select mask { 0x000000003 }.
+/glade/u/home/tvda/CISM/libglissade/glissade_transport.F90(744,37):remark #34069: adjacent sparse (strided) loads seem unprofitable to optimize. Details: stride { unknown }, types { F64-V128, F64-V128 }, number of elements { 2 }, select mask { 0x000000003 }.
+/glade/u/home/tvda/CISM/libglissade/glissade_transport.F90(744,53):remark #34069: adjacent sparse (strided) loads seem unprofitable to optimize. Details: stride { unknown }, types { F64-V128, F64-V128 }, number of elements { 2 }, select mask { 0x000000003 }.
+/glade/u/home/tvda/CISM/libglissade/glissade_transport.F90(752,37):remark #34069: adjacent sparse (strided) loads seem unprofitable to optimize. Details: stride { unknown }, types { F64-V128, F64-V128 }, number of elements { 2 }, select mask { 0x000000003 }.
+/glade/u/home/tvda/CISM/libglissade/glissade_transport.F90(752,53):remark #34069: adjacent sparse (strided) loads seem unprofitable to optimize. Details: stride { unknown }, types { F64-V128, F64-V128 }, number of elements { 2 }, select mask { 0x000000003 }.
+/glade/u/home/tvda/CISM/libglissade/glissade_transport.F90(752,37):remark #34069: adjacent sparse (strided) loads seem unprofitable to optimize. Details: stride { unknown }, types { F64-V128, F64-V128 }, number of elements { 2 }, select mask { 0x000000003 }.
+/glade/u/home/tvda/CISM/libglissade/glissade_transport.F90(752,53):remark #34069: adjacent sparse (strided) loads seem unprofitable to optimize. Details: stride { unknown }, types { F64-V128, F64-V128 }, number of elements { 2 }, select mask { 0x000000003 }.
+/glade/u/home/tvda/CISM/libglissade/glissade_transport.F90(752,37):remark #34069: adjacent sparse (strided) loads seem unprofitable to optimize. Details: stride { unknown }, types { F64-V128, F64-V128 }, number of elements { 2 }, select mask { 0x000000003 }.
+/glade/u/home/tvda/CISM/libglissade/glissade_transport.F90(752,53):remark #34069: adjacent sparse (strided) loads seem unprofitable to optimize. Details: stride { unknown }, types { F64-V128, F64-V128 }, number of elements { 2 }, select mask { 0x000000003 }.
+/glade/u/home/tvda/CISM/libglissade/glissade_transport.F90(752,37):remark #34069: adjacent sparse (strided) loads seem unprofitable to optimize. Details: stride { unknown }, types { F64-V128, F64-V128 }, number of elements { 2 }, select mask { 0x000000003 }.
+/glade/u/home/tvda/CISM/libglissade/glissade_transport.F90(752,53):remark #34069: adjacent sparse (strided) loads seem unprofitable to optimize. Details: stride { unknown }, types { F64-V128, F64-V128 }, number of elements { 2 }, select mask { 0x000000003 }.
+/glade/u/home/tvda/CISM/libglissade/glissade_transport.F90(2273,10):remark #34055: adjacent dense (unit-strided stencil) loads are not optimized. Details: stride { 8 }, step { 8 }, types { F64-V128, F64-V128 }, number of elements { 2 }, select mask { 0x000000003 }.
+/glade/u/home/tvda/CISM/libglissade/glissade_transport.F90(2280,34):remark #34055: adjacent dense (unit-strided stencil) loads are not optimized. Details: stride { 8 }, step { 8 }, types { F64-V128, F64-V128 }, number of elements { 2 }, select mask { 0x000000003 }.
+/glade/u/home/tvda/CISM/libglissade/glissade_transport.F90(2280,34):remark #34055: adjacent dense (unit-strided stencil) loads are not optimized. Details: stride { 8 }, step { 8 }, types { F64-V128, F64-V128 }, number of elements { 2 }, select mask { 0x000000003 }.
+/glade/u/home/tvda/CISM/libglissade/glissade_transport.F90(2280,34):remark #34055: adjacent dense (unit-strided stencil) loads are not optimized. Details: stride { 8 }, step { 8 }, types { F64-V128, F64-V128 }, number of elements { 2 }, select mask { 0x000000003 }.
+/glade/u/home/tvda/CISM/libglissade/glissade_transport.F90(2280,34):remark #34055: adjacent dense (unit-strided stencil) loads are not optimized. Details: stride { 8 }, step { 8 }, types { F64-V128, F64-V128 }, number of elements { 2 }, select mask { 0x000000003 }.
+/glade/u/home/tvda/CISM/libglissade/glissade_transport.F90(2280,34):remark #34055: adjacent dense (unit-strided stencil) loads are not optimized. Details: stride { 8 }, step { 8 }, types { F64-V128, F64-V128 }, number of elements { 2 }, select mask { 0x000000003 }.
+/glade/u/home/tvda/CISM/libglissade/glissade_transport.F90(759,13):remark #34026: call to memcpy implemented as a call to optimized library version
+/glade/u/home/tvda/CISM/libglissade/glissade_transport.F90(831,13):remark #34026: call to memset implemented as a call to optimized library version
+/glade/u/home/tvda/CISM/libglissade/glissade_transport.F90(832,13):remark #34026: call to memset implemented as a call to optimized library version
+/glade/u/home/tvda/CISM/libglissade/glissade_transport.F90(934,10):remark #34026: call to memcpy implemented as a call to optimized library version
+/glade/u/home/tvda/CISM/libglissade/glissade_transport.F90(968,7):remark #34026: call to memset implemented as a call to optimized library version
+/glade/u/home/tvda/CISM/libglissade/glissade_transport.F90(778,13):remark #34026: call to memcpy implemented as a call to optimized library version
+/glade/u/home/tvda/CISM/libglissade/glissade_transport.F90(554,16):remark #34051: REGISTER ALLOCATION : [glissade_transport_mp_glissade_transport_driver_] /glade/u/home/tvda/CISM/libglissade/glissade_transport.F90:554
+
+    Hardware registers
+        Reserved     :    2[ rsp rip]
+        Available    :   39[ rax rdx rcx rbx rbp rsi rdi r8-r15 mm0-mm7 zmm0-zmm15]
+        Callee-save  :    6[ rbx rbp r12-r15]
+        Assigned     :   30[ rax rdx rcx rbx rsi rdi r8-r15 zmm0-zmm15]
+        
+    Routine temporaries
+        Total         :    1446
+            Global    :     454
+            Local     :     992
+        Regenerable   :     145
+        Spilled       :     176
+        
+    Routine stack
+        Variables     :     616 bytes*
+            Reads     :      20 [5.24e-03 ~ 0.0%]
+            Writes    :      86 [1.85e-02 ~ 0.0%]
+        Spills        :    1368 bytes*
+            Reads     :     510 [3.43e+00 ~ 3.4%]
+            Writes    :     258 [7.54e-01 ~ 0.8%]
+    
+    Notes
+    
+        *Non-overlapping variables and spills may share stack space,
+         so the total stack size might be less than this.
+    
+
+===========================================================================
+
+Begin optimization report for: GLISSADE_TRANSPORT::GLOBAL_CONSERVATION
+
+    Report from: Interprocedural optimizations [ipo]
+
+INLINE REPORT: (GLISSADE_TRANSPORT::GLOBAL_CONSERVATION) [6] /glade/u/home/tvda/CISM/libglissade/glissade_transport.F90(1279,16)
+
+
+    Report from: Loop nest, Vector & Auto-parallelization optimizations [loop, vec, par]
+
+
+
+Non-optimizable loops:
+
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_transport.F90(1365,10)
+   remark #15543: loop was not vectorized: loop with function call not considered an optimization candidate.
+LOOP END
+
+    Report from: Code generation optimizations [cg]
+
+/glade/u/home/tvda/CISM/libglissade/glissade_transport.F90(1279,16):remark #34051: REGISTER ALLOCATION : [glissade_transport_mp_global_conservation_] /glade/u/home/tvda/CISM/libglissade/glissade_transport.F90:1279
+
+    Hardware registers
+        Reserved     :    2[ rsp rip]
+        Available    :   39[ rax rdx rcx rbx rbp rsi rdi r8-r15 mm0-mm7 zmm0-zmm15]
+        Callee-save  :    6[ rbx rbp r12-r15]
+        Assigned     :   14[ rax rdx rcx rbx rsi rdi r8-r9 r12-r15 zmm0-zmm1]
+        
+    Routine temporaries
+        Total         :     260
+            Global    :      32
+            Local     :     228
+        Regenerable   :     214
+        Spilled       :      13
+        
+    Routine stack
+        Variables     :     528 bytes*
+            Reads     :       0 [0.00e+00 ~ 0.0%]
+            Writes    :      70 [1.98e+01 ~ 19.8%]
+        Spills        :      80 bytes*
+            Reads     :      14 [3.22e+00 ~ 3.2%]
+            Writes    :      11 [1.79e+00 ~ 1.8%]
+    
+    Notes
+    
+        *Non-overlapping variables and spills may share stack space,
+         so the total stack size might be less than this.
+    
+
+===========================================================================
+
+Begin optimization report for: GLISSADE_TRANSPORT::GLISSADE_CHECK_CFL
+
+    Report from: Interprocedural optimizations [ipo]
+
+INLINE REPORT: (GLISSADE_TRANSPORT::GLISSADE_CHECK_CFL) [7] /glade/u/home/tvda/CISM/libglissade/glissade_transport.F90(977,16)
+
+
+    Report from: Loop nest, Vector & Auto-parallelization optimizations [loop, vec, par]
+
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_transport.F90(1071,7)
+   remark #15542: loop was not vectorized: inner loop was already vectorized
+
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_transport.F90(1073,10)
+      remark #15542: loop was not vectorized: inner loop was already vectorized
+
+      LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_transport.F90(1073,10)
+         remark #15300: LOOP WAS VECTORIZED
+      LOOP END
+
+      LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_transport.F90(1073,10)
+      <Remainder loop for vectorization>
+      LOOP END
+   LOOP END
+
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_transport.F90(1074,10)
+      remark #15542: loop was not vectorized: inner loop was already vectorized
+
+      LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_transport.F90(1074,10)
+         remark #15300: LOOP WAS VECTORIZED
+      LOOP END
+
+      LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_transport.F90(1074,10)
+      <Remainder loop for vectorization>
+      LOOP END
+   LOOP END
+
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_transport.F90(1076,10)
+      remark #15542: loop was not vectorized: inner loop was already vectorized
+
+      LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_transport.F90(1076,10)
+         remark #15300: LOOP WAS VECTORIZED
+      LOOP END
+
+      LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_transport.F90(1076,10)
+      <Remainder loop for vectorization>
+         remark #15301: REMAINDER LOOP WAS VECTORIZED
+      LOOP END
+
+      LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_transport.F90(1076,10)
+      <Remainder loop for vectorization>
+      LOOP END
+   LOOP END
+
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_transport.F90(1077,10)
+      remark #15542: loop was not vectorized: inner loop was already vectorized
+
+      LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_transport.F90(1077,10)
+         remark #15300: LOOP WAS VECTORIZED
+      LOOP END
+
+      LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_transport.F90(1077,10)
+      <Remainder loop for vectorization>
+         remark #15301: REMAINDER LOOP WAS VECTORIZED
+      LOOP END
+
+      LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_transport.F90(1077,10)
+      <Remainder loop for vectorization>
+      LOOP END
+   LOOP END
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_transport.F90(1079,22)
+   remark #15542: loop was not vectorized: inner loop was already vectorized
+
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_transport.F90(1079,22)
+      remark #25408: memset generated
+      remark #15542: loop was not vectorized: inner loop was already vectorized
+
+      LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_transport.F90(1079,22)
+         remark #15300: LOOP WAS VECTORIZED
+      LOOP END
+
+      LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_transport.F90(1079,22)
+      <Remainder loop for vectorization>
+      LOOP END
+   LOOP END
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_transport.F90(1079,22)
+   remark #15541: outer loop was not auto-vectorized: consider using SIMD directive
+
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_transport.F90(1079,22)
+      remark #15541: outer loop was not auto-vectorized: consider using SIMD directive
+
+      LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_transport.F90(1079,22)
+         remark #15331: loop was not vectorized: precise FP model implied by the command line or a directive prevents vectorization. Consider using fast FP model
+         remark #25439: unrolled with remainder by 2  
+      LOOP END
+
+      LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_transport.F90(1079,22)
+      <Remainder>
+      LOOP END
+   LOOP END
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_transport.F90(1080,22)
+   remark #15542: loop was not vectorized: inner loop was already vectorized
+
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_transport.F90(1080,22)
+      remark #25408: memset generated
+      remark #15542: loop was not vectorized: inner loop was already vectorized
+
+      LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_transport.F90(1080,22)
+         remark #15300: LOOP WAS VECTORIZED
+      LOOP END
+
+      LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_transport.F90(1080,22)
+      <Remainder loop for vectorization>
+      LOOP END
+   LOOP END
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_transport.F90(1080,22)
+   remark #15541: outer loop was not auto-vectorized: consider using SIMD directive
+
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_transport.F90(1080,22)
+      remark #15541: outer loop was not auto-vectorized: consider using SIMD directive
+
+      LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_transport.F90(1080,22)
+         remark #15331: loop was not vectorized: precise FP model implied by the command line or a directive prevents vectorization. Consider using fast FP model
+         remark #25439: unrolled with remainder by 2  
+      LOOP END
+
+      LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_transport.F90(1080,22)
+      <Remainder>
+      LOOP END
+   LOOP END
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_transport.F90(1083,17)
+   remark #15541: outer loop was not auto-vectorized: consider using SIMD directive
+
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_transport.F90(1083,17)
+      remark #15541: outer loop was not auto-vectorized: consider using SIMD directive
+
+      LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_transport.F90(1083,17)
+         remark #25084: Preprocess Loopnests: Moving Out Store    [ /glade/u/home/tvda/CISM/libglissade/glissade_transport.F90(1083,17) ]
+         remark #15331: loop was not vectorized: precise FP model implied by the command line or a directive prevents vectorization. Consider using fast FP model
+         remark #25439: unrolled with remainder by 2  
+      LOOP END
+
+      LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_transport.F90(1083,17)
+      <Remainder>
+      LOOP END
+   LOOP END
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_transport.F90(1084,17)
+   remark #15541: outer loop was not auto-vectorized: consider using SIMD directive
+
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_transport.F90(1084,17)
+      remark #15541: outer loop was not auto-vectorized: consider using SIMD directive
+
+      LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_transport.F90(1084,17)
+         remark #25084: Preprocess Loopnests: Moving Out Store    [ /glade/u/home/tvda/CISM/libglissade/glissade_transport.F90(1084,17) ]
+         remark #15331: loop was not vectorized: precise FP model implied by the command line or a directive prevents vectorization. Consider using fast FP model
+         remark #25439: unrolled with remainder by 2  
+      LOOP END
+
+      LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_transport.F90(1084,17)
+      <Remainder>
+      LOOP END
+   LOOP END
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_transport.F90(1089,24)
+   remark #15541: outer loop was not auto-vectorized: consider using SIMD directive
+
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_transport.F90(1089,24)
+      remark #15541: outer loop was not auto-vectorized: consider using SIMD directive
+
+      LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_transport.F90(1089,24)
+         remark #15344: loop was not vectorized: vector dependence prevents vectorization. First dependence is shown below. Use level 5 report for details
+         remark #15346: vector dependence: assumed ANTI dependence between at (1089:24) and at (1089:24)
+         remark #25439: unrolled with remainder by 2  
+      LOOP END
+
+      LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_transport.F90(1089,24)
+      <Remainder>
+      LOOP END
+   LOOP END
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_transport.F90(1089,10)
+   remark #15335: loop was not vectorized: vectorization possible but seems inefficient. Use vector always directive or -vec-threshold0 to override 
+   remark #25436: completely unrolled by 3  
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_transport.F90(1093,24)
+   remark #15541: outer loop was not auto-vectorized: consider using SIMD directive
+
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_transport.F90(1093,24)
+      remark #15541: outer loop was not auto-vectorized: consider using SIMD directive
+
+      LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_transport.F90(1093,24)
+         remark #15344: loop was not vectorized: vector dependence prevents vectorization. First dependence is shown below. Use level 5 report for details
+         remark #15346: vector dependence: assumed ANTI dependence between at (1093:24) and at (1093:24)
+         remark #25439: unrolled with remainder by 2  
+      LOOP END
+
+      LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_transport.F90(1093,24)
+      <Remainder>
+      LOOP END
+   LOOP END
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_transport.F90(1093,10)
+   remark #15335: loop was not vectorized: vectorization possible but seems inefficient. Use vector always directive or -vec-threshold0 to override 
+   remark #25436: completely unrolled by 3  
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_transport.F90(1095,7)
+   remark #15335: loop was not vectorized: vectorization possible but seems inefficient. Use vector always directive or -vec-threshold0 to override 
+   remark #25436: completely unrolled by 2  
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_transport.F90(1109,7)
+   remark #15335: loop was not vectorized: vectorization possible but seems inefficient. Use vector always directive or -vec-threshold0 to override 
+   remark #25436: completely unrolled by 2  
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_transport.F90(1111,7)
+   remark #15541: outer loop was not auto-vectorized: consider using SIMD directive
+
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_transport.F90(1112,10)
+      remark #15344: loop was not vectorized: vector dependence prevents vectorization. First dependence is shown below. Use level 5 report for details
+      remark #15346: vector dependence: assumed ANTI dependence between my_allowable_dt_diff (1126:44) and my_allowable_dt_diff (1127:20)
+   LOOP END
+LOOP END
+
+    Report from: Code generation optimizations [cg]
+
+/glade/u/home/tvda/CISM/libglissade/glissade_transport.F90(1079,22):remark #34026: call to memset implemented as a call to optimized library version
+/glade/u/home/tvda/CISM/libglissade/glissade_transport.F90(1080,22):remark #34026: call to memset implemented as a call to optimized library version
+/glade/u/home/tvda/CISM/libglissade/glissade_transport.F90(977,16):remark #34051: REGISTER ALLOCATION : [glissade_transport_mp_glissade_check_cfl_] /glade/u/home/tvda/CISM/libglissade/glissade_transport.F90:977
+
+    Hardware registers
+        Reserved     :    2[ rsp rip]
+        Available    :   39[ rax rdx rcx rbx rbp rsi rdi r8-r15 mm0-mm7 zmm0-zmm15]
+        Callee-save  :    6[ rbx rbp r12-r15]
+        Assigned     :   27[ rax rdx rcx rbx rsi rdi r8-r15 zmm0-zmm12]
+        
+    Routine temporaries
+        Total         :    1047
+            Global    :     467
+            Local     :     580
+        Regenerable   :     204
+        Spilled       :     230
+        
+    Routine stack
+        Variables     :     768 bytes*
+            Reads     :       0 [0.00e+00 ~ 0.0%]
+            Writes    :      50 [3.42e-02 ~ 0.0%]
+        Spills        :    1744 bytes*
+            Reads     :     404 [1.21e+01 ~ 12.1%]
+            Writes    :     261 [3.32e+00 ~ 3.3%]
+    
+    Notes
+    
+        *Non-overlapping variables and spills may share stack space,
+         so the total stack size might be less than this.
+    
+
+===========================================================================
+
+Begin optimization report for: GLISSADE_TRANSPORT::GLISSADE_OVERWRITE_ACAB_MASK
+
+    Report from: Interprocedural optimizations [ipo]
+
+INLINE REPORT: (GLISSADE_TRANSPORT::GLISSADE_OVERWRITE_ACAB_MASK) [8] /glade/u/home/tvda/CISM/libglissade/glissade_transport.F90(1665,14)
+
+
+    Report from: Loop nest, Vector & Auto-parallelization optimizations [loop, vec, par]
+
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_transport.F90(1703,8)
+   remark #15542: loop was not vectorized: inner loop was already vectorized
+
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_transport.F90(1704,11)
+      remark #15300: LOOP WAS VECTORIZED
+   LOOP END
+
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_transport.F90(1704,11)
+   <Remainder loop for vectorization>
+      remark #15301: REMAINDER LOOP WAS VECTORIZED
+   LOOP END
+
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_transport.F90(1704,11)
+   <Remainder loop for vectorization>
+   LOOP END
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_transport.F90(1717,8)
+   remark #15542: loop was not vectorized: inner loop was already vectorized
+
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_transport.F90(1718,11)
+      remark #15300: LOOP WAS VECTORIZED
+   LOOP END
+
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_transport.F90(1718,11)
+   <Remainder loop for vectorization>
+      remark #15301: REMAINDER LOOP WAS VECTORIZED
+   LOOP END
+
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_transport.F90(1718,11)
+   <Remainder loop for vectorization>
+   LOOP END
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_transport.F90(1735,25)
+<Multiversioned v1>
+   remark #25233: Loop multiversioned for stride tests on Assumed shape arrays
+   remark #15542: loop was not vectorized: inner loop was already vectorized
+
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_transport.F90(1735,25)
+      remark #15300: LOOP WAS VECTORIZED
+   LOOP END
+
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_transport.F90(1735,25)
+   <Remainder loop for vectorization>
+   LOOP END
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_transport.F90(1735,25)
+<Multiversioned v2>
+   remark #15541: outer loop was not auto-vectorized: consider using SIMD directive
+
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_transport.F90(1735,25)
+      remark #15335: loop was not vectorized: vectorization possible but seems inefficient. Use vector always directive or -vec-threshold0 to override 
+      remark #25439: unrolled with remainder by 2  
+   LOOP END
+
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_transport.F90(1735,25)
+   <Remainder>
+   LOOP END
+LOOP END
+
+    Report from: Code generation optimizations [cg]
+
+/glade/u/home/tvda/CISM/libglissade/glissade_transport.F90(1665,14):remark #34051: REGISTER ALLOCATION : [glissade_transport_mp_glissade_overwrite_acab_mask_] /glade/u/home/tvda/CISM/libglissade/glissade_transport.F90:1665
+
+    Hardware registers
+        Reserved     :    2[ rsp rip]
+        Available    :   39[ rax rdx rcx rbx rbp rsi rdi r8-r15 mm0-mm7 zmm0-zmm15]
+        Callee-save  :    6[ rbx rbp r12-r15]
+        Assigned     :   30[ rax rdx rcx rbx rsi rdi r8-r15 zmm0-zmm15]
+        
+    Routine temporaries
+        Total         :     371
+            Global    :     136
+            Local     :     235
+        Regenerable   :      52
+        Spilled       :      55
+        
+    Routine stack
+        Variables     :     108 bytes*
+            Reads     :       1 [6.24e-03 ~ 0.0%]
+            Writes    :       7 [5.31e-02 ~ 0.1%]
+        Spills        :     384 bytes*
+            Reads     :      60 [5.35e+00 ~ 5.3%]
+            Writes    :      55 [2.24e+00 ~ 2.2%]
+    
+    Notes
+    
+        *Non-overlapping variables and spills may share stack space,
+         so the total stack size might be less than this.
+    
+
+===========================================================================
+
+Begin optimization report for: GLISSADE_TRANSPORT::GLISSADE_OVERWRITE_ACAB
+
+    Report from: Interprocedural optimizations [ipo]
+
+INLINE REPORT: (GLISSADE_TRANSPORT::GLISSADE_OVERWRITE_ACAB) [9] /glade/u/home/tvda/CISM/libglissade/glissade_transport.F90(1755,14)
+
+
+    Report from: Loop nest, Vector & Auto-parallelization optimizations [loop, vec, par]
+
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_transport.F90(1775,5)
+   remark #15541: outer loop was not auto-vectorized: consider using SIMD directive
+
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_transport.F90(1776,8)
+      remark #15335: loop was not vectorized: vectorization possible but seems inefficient. Use vector always directive or -vec-threshold0 to override 
+      remark #25439: unrolled with remainder by 2  
+   LOOP END
+
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_transport.F90(1776,8)
+   <Remainder>
+   LOOP END
+LOOP END
+
+    Report from: Code generation optimizations [cg]
+
+/glade/u/home/tvda/CISM/libglissade/glissade_transport.F90(1755,14):remark #34051: REGISTER ALLOCATION : [glissade_transport_mp_glissade_overwrite_acab_] /glade/u/home/tvda/CISM/libglissade/glissade_transport.F90:1755
+
+    Hardware registers
+        Reserved     :    2[ rsp rip]
+        Available    :   39[ rax rdx rcx rbx rbp rsi rdi r8-r15 mm0-mm7 zmm0-zmm15]
+        Callee-save  :    6[ rbx rbp r12-r15]
+        Assigned     :   14[ rax rdx rcx rbx rsi rdi r8-r15]
+        
+    Routine temporaries
+        Total         :      58
+            Global    :      37
+            Local     :      21
+        Regenerable   :       1
+        Spilled       :      17
+        
+    Routine stack
+        Variables     :       0 bytes*
+            Reads     :       0 [0.00e+00 ~ 0.0%]
+            Writes    :       0 [0.00e+00 ~ 0.0%]
+        Spills        :      96 bytes*
+            Reads     :      12 [1.47e+01 ~ 14.7%]
+            Writes    :      12 [3.95e+00 ~ 4.0%]
+    
+    Notes
+    
+        *Non-overlapping variables and spills may share stack space,
+         so the total stack size might be less than this.
+    
+
+===========================================================================
+
+Begin optimization report for: GLISSADE_TRANSPORT::GLISSADE_ADD_2D_ANOMALY
+
+    Report from: Interprocedural optimizations [ipo]
+
+INLINE REPORT: (GLISSADE_TRANSPORT::GLISSADE_ADD_2D_ANOMALY) [10] /glade/u/home/tvda/CISM/libglissade/glissade_transport.F90(1790,14)
+
+
+    Report from: Loop nest, Vector & Auto-parallelization optimizations [loop, vec, par]
+
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_transport.F90(1846,5)
+<Multiversioned v1>
+   remark #25233: Loop multiversioned for stride tests on Assumed shape arrays
+   remark #15542: loop was not vectorized: inner loop was already vectorized
+
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_transport.F90(1847,8)
+      remark #15300: LOOP WAS VECTORIZED
+   LOOP END
+
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_transport.F90(1847,8)
+   <Remainder loop for vectorization>
+   LOOP END
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_transport.F90(1846,5)
+<Multiversioned v2>
+   remark #15542: loop was not vectorized: inner loop was already vectorized
+
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_transport.F90(1847,8)
+      remark #15300: LOOP WAS VECTORIZED
+   LOOP END
+
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_transport.F90(1847,8)
+   <Remainder loop for vectorization>
+   LOOP END
+LOOP END
+
+    Report from: Code generation optimizations [cg]
+
+/glade/u/home/tvda/CISM/libglissade/glissade_transport.F90(1790,14):remark #34051: REGISTER ALLOCATION : [glissade_transport_mp_glissade_add_2d_anomaly_] /glade/u/home/tvda/CISM/libglissade/glissade_transport.F90:1790
+
+    Hardware registers
+        Reserved     :    2[ rsp rip]
+        Available    :   39[ rax rdx rcx rbx rbp rsi rdi r8-r15 mm0-mm7 zmm0-zmm15]
+        Callee-save  :    6[ rbx rbp r12-r15]
+        Assigned     :   24[ rax rdx rcx rbx rsi rdi r8-r15 zmm0-zmm9]
+        
+    Routine temporaries
+        Total         :     144
+            Global    :      56
+            Local     :      88
+        Regenerable   :       2
+        Spilled       :      31
+        
+    Routine stack
+        Variables     :       0 bytes*
+            Reads     :       0 [0.00e+00 ~ 0.0%]
+            Writes    :       0 [0.00e+00 ~ 0.0%]
+        Spills        :     192 bytes*
+            Reads     :      25 [4.13e+00 ~ 4.1%]
+            Writes    :      24 [2.28e+00 ~ 2.3%]
+    
+    Notes
+    
+        *Non-overlapping variables and spills may share stack space,
+         so the total stack size might be less than this.
+    
+
+===========================================================================
+
+Begin optimization report for: GLISSADE_TRANSPORT::GLISSADE_ADD_3D_ANOMALY
+
+    Report from: Interprocedural optimizations [ipo]
+
+INLINE REPORT: (GLISSADE_TRANSPORT::GLISSADE_ADD_3D_ANOMALY) [11] /glade/u/home/tvda/CISM/libglissade/glissade_transport.F90(1856,14)
+
+
+    Report from: Loop nest, Vector & Auto-parallelization optimizations [loop, vec, par]
+
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_transport.F90(1909,5)
+   remark #15542: loop was not vectorized: inner loop was already vectorized
+
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_transport.F90(1910,8)
+   <Multiversioned v1>
+      remark #25233: Loop multiversioned for stride tests on Assumed shape arrays
+      remark #15542: loop was not vectorized: inner loop was already vectorized
+
+      LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_transport.F90(1911,11)
+         remark #15300: LOOP WAS VECTORIZED
+      LOOP END
+
+      LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_transport.F90(1911,11)
+      <Remainder loop for vectorization>
+      LOOP END
+   LOOP END
+
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_transport.F90(1910,8)
+   <Multiversioned v2>
+      remark #15542: loop was not vectorized: inner loop was already vectorized
+
+      LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_transport.F90(1911,11)
+         remark #15300: LOOP WAS VECTORIZED
+      LOOP END
+
+      LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_transport.F90(1911,11)
+      <Remainder loop for vectorization>
+      LOOP END
+   LOOP END
+LOOP END
+
+    Report from: Code generation optimizations [cg]
+
+/glade/u/home/tvda/CISM/libglissade/glissade_transport.F90(1856,14):remark #34051: REGISTER ALLOCATION : [glissade_transport_mp_glissade_add_3d_anomaly_] /glade/u/home/tvda/CISM/libglissade/glissade_transport.F90:1856
+
+    Hardware registers
+        Reserved     :    2[ rsp rip]
+        Available    :   39[ rax rdx rcx rbx rbp rsi rdi r8-r15 mm0-mm7 zmm0-zmm15]
+        Callee-save  :    6[ rbx rbp r12-r15]
+        Assigned     :   24[ rax rdx rcx rbx rsi rdi r8-r15 zmm0-zmm9]
+        
+    Routine temporaries
+        Total         :     155
+            Global    :      71
+            Local     :      84
+        Regenerable   :       2
+        Spilled       :      45
+        
+    Routine stack
+        Variables     :       0 bytes*
+            Reads     :       0 [0.00e+00 ~ 0.0%]
+            Writes    :       0 [0.00e+00 ~ 0.0%]
+        Spills        :     304 bytes*
+            Reads     :      54 [5.05e+00 ~ 5.1%]
+            Writes    :      42 [1.53e+00 ~ 1.5%]
+    
+    Notes
+    
+        *Non-overlapping variables and spills may share stack space,
+         so the total stack size might be less than this.
+    
+
+===========================================================================
+
+Begin optimization report for: GLISSADE_TRANSPORT::UPWIND_FIELD
+
+    Report from: Interprocedural optimizations [ipo]
+
+INLINE REPORT: (GLISSADE_TRANSPORT::UPWIND_FIELD) [12] /glade/u/home/tvda/CISM/libglissade/glissade_transport.F90(2221,16)
+
+
+    Report from: Loop nest, Vector & Auto-parallelization optimizations [loop, vec, par]
+
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_transport.F90(2271,7)
+   remark #15542: loop was not vectorized: inner loop was already vectorized
+
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_transport.F90(2272,7)
+      remark #25427: Loop Statements Reordered
+      remark #15300: LOOP WAS VECTORIZED
+   LOOP END
+
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_transport.F90(2272,7)
+   <Remainder loop for vectorization>
+   LOOP END
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_transport.F90(2278,7)
+   remark #15542: loop was not vectorized: inner loop was already vectorized
+
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_transport.F90(2279,7)
+      remark #15300: LOOP WAS VECTORIZED
+   LOOP END
+
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_transport.F90(2279,7)
+   <Remainder loop for vectorization>
+      remark #15301: REMAINDER LOOP WAS VECTORIZED
+   LOOP END
+
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_transport.F90(2279,7)
+   <Remainder loop for vectorization>
+   LOOP END
+LOOP END
+
+    Report from: Code generation optimizations [cg]
+
+/glade/u/home/tvda/CISM/libglissade/glissade_transport.F90(2274,10):remark #34055: adjacent dense (unit-strided stencil) loads are not optimized. Details: stride { 8 }, step { 8 }, types { F64-V128, F64-V128 }, number of elements { 2 }, select mask { 0x000000003 }.
+/glade/u/home/tvda/CISM/libglissade/glissade_transport.F90(2280,34):remark #34055: adjacent dense (unit-strided stencil) loads are not optimized. Details: stride { 8 }, step { 8 }, types { F64-V128, F64-V128 }, number of elements { 2 }, select mask { 0x000000003 }.
+/glade/u/home/tvda/CISM/libglissade/glissade_transport.F90(2280,34):remark #34055: adjacent dense (unit-strided stencil) loads are not optimized. Details: stride { 8 }, step { 8 }, types { F64-V128, F64-V128 }, number of elements { 2 }, select mask { 0x000000003 }.
+/glade/u/home/tvda/CISM/libglissade/glissade_transport.F90(2280,34):remark #34055: adjacent dense (unit-strided stencil) loads are not optimized. Details: stride { 8 }, step { 8 }, types { F64-V128, F64-V128 }, number of elements { 2 }, select mask { 0x000000003 }.
+/glade/u/home/tvda/CISM/libglissade/glissade_transport.F90(2280,34):remark #34055: adjacent dense (unit-strided stencil) loads are not optimized. Details: stride { 8 }, step { 8 }, types { F64-V128, F64-V128 }, number of elements { 2 }, select mask { 0x000000003 }.
+/glade/u/home/tvda/CISM/libglissade/glissade_transport.F90(2280,34):remark #34055: adjacent dense (unit-strided stencil) loads are not optimized. Details: stride { 8 }, step { 8 }, types { F64-V128, F64-V128 }, number of elements { 2 }, select mask { 0x000000003 }.
+/glade/u/home/tvda/CISM/libglissade/glissade_transport.F90(2221,16):remark #34051: REGISTER ALLOCATION : [glissade_transport_mp_upwind_field_] /glade/u/home/tvda/CISM/libglissade/glissade_transport.F90:2221
+
+    Hardware registers
+        Reserved     :    2[ rsp rip]
+        Available    :   39[ rax rdx rcx rbx rbp rsi rdi r8-r15 mm0-mm7 zmm0-zmm15]
+        Callee-save  :    6[ rbx rbp r12-r15]
+        Assigned     :   30[ rax rdx rcx rbx rsi rdi r8-r15 zmm0-zmm15]
+        
+    Routine temporaries
+        Total         :     299
+            Global    :      96
+            Local     :     203
+        Regenerable   :       9
+        Spilled       :      39
+        
+    Routine stack
+        Variables     :       0 bytes*
+            Reads     :       0 [0.00e+00 ~ 0.0%]
+            Writes    :       0 [0.00e+00 ~ 0.0%]
+        Spills        :     272 bytes*
+            Reads     :      52 [4.94e+00 ~ 4.9%]
+            Writes    :      37 [1.37e+00 ~ 1.4%]
+    
+    Notes
+    
+        *Non-overlapping variables and spills may share stack space,
+         so the total stack size might be less than this.
+    
+
+===========================================================================
+
+Begin optimization report for: GLISSADE_TRANSPORT::SUM_MASS_AND_TRACERS
+
+    Report from: Interprocedural optimizations [ipo]
+
+INLINE REPORT: (GLISSADE_TRANSPORT::SUM_MASS_AND_TRACERS) [13] /glade/u/home/tvda/CISM/libglissade/glissade_transport.F90(1221,16)
+
+
+    Report from: Loop nest, Vector & Auto-parallelization optimizations [loop, vec, par]
+
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_transport.F90(1253,27)
+   remark #25408: memset generated
+   remark #15542: loop was not vectorized: inner loop was already vectorized
+
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_transport.F90(1253,27)
+      remark #15300: LOOP WAS VECTORIZED
+   LOOP END
+
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_transport.F90(1253,27)
+   <Remainder loop for vectorization>
+   LOOP END
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_transport.F90(1255,7)
+   remark #15541: outer loop was not auto-vectorized: consider using SIMD directive
+
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_transport.F90(1256,10)
+   <Distributed chunk1>
+      remark #25084: Preprocess Loopnests: Moving Out Store    [ /glade/u/home/tvda/CISM/libglissade/glissade_transport.F90(1261,13) ]
+      remark #25426: Loop Distributed (2 way) 
+      remark #15541: outer loop was not auto-vectorized: consider using SIMD directive
+
+      LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_transport.F90(1261,27)
+         remark #15331: loop was not vectorized: precise FP model implied by the command line or a directive prevents vectorization. Consider using fast FP model
+         remark #25439: unrolled with remainder by 2  
+      LOOP END
+
+      LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_transport.F90(1261,27)
+      <Remainder>
+      LOOP END
+   LOOP END
+
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_transport.F90(1256,10)
+   <Distributed chunk2>
+      remark #15541: outer loop was not auto-vectorized: consider using SIMD directive
+
+      LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_transport.F90(1264,16)
+         remark #15541: outer loop was not auto-vectorized: consider using SIMD directive
+
+         LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_transport.F90(1265,44)
+            remark #15331: loop was not vectorized: precise FP model implied by the command line or a directive prevents vectorization. Consider using fast FP model
+            remark #25439: unrolled with remainder by 2  
+         LOOP END
+
+         LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_transport.F90(1265,44)
+         <Remainder>
+         LOOP END
+      LOOP END
+   LOOP END
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_transport.F90(1273,27)
+   remark #25399: memcopy generated
+   remark #15542: loop was not vectorized: inner loop was already vectorized
+
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_transport.F90(1273,27)
+      remark #15300: LOOP WAS VECTORIZED
+   LOOP END
+
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_transport.F90(1273,27)
+   <Remainder loop for vectorization>
+   LOOP END
+LOOP END
+
+    Report from: Code generation optimizations [cg]
+
+/glade/u/home/tvda/CISM/libglissade/glissade_transport.F90(1253,27):remark #34026: call to memset implemented as a call to optimized library version
+/glade/u/home/tvda/CISM/libglissade/glissade_transport.F90(1273,27):remark #34026: call to memcpy implemented as a call to optimized library version
+/glade/u/home/tvda/CISM/libglissade/glissade_transport.F90(1221,16):remark #34051: REGISTER ALLOCATION : [glissade_transport_mp_sum_mass_and_tracers_] /glade/u/home/tvda/CISM/libglissade/glissade_transport.F90:1221
+
+    Hardware registers
+        Reserved     :    2[ rsp rip]
+        Available    :   39[ rax rdx rcx rbx rbp rsi rdi r8-r15 mm0-mm7 zmm0-zmm15]
+        Callee-save  :    6[ rbx rbp r12-r15]
+        Assigned     :   18[ rax rdx rcx rbx rsi rdi r8-r15 zmm0-zmm3]
+        
+    Routine temporaries
+        Total         :     154
+            Global    :      81
+            Local     :      73
+        Regenerable   :      14
+        Spilled       :      34
+        
+    Routine stack
+        Variables     :     144 bytes*
+            Reads     :       0 [0.00e+00 ~ 0.0%]
+            Writes    :      16 [4.90e-02 ~ 0.0%]
+        Spills        :     232 bytes*
+            Reads     :      57 [1.36e+01 ~ 13.6%]
+            Writes    :      31 [2.70e+00 ~ 2.7%]
+    
+    Notes
+    
+        *Non-overlapping variables and spills may share stack space,
+         so the total stack size might be less than this.
+    
+
+===========================================================================
+
+Begin optimization report for: GLISSADE_TRANSPORT::GLISSADE_TRANSPORT_FINISH_TRACERS
+
+    Report from: Interprocedural optimizations [ipo]
+
+INLINE REPORT: (GLISSADE_TRANSPORT::GLISSADE_TRANSPORT_FINISH_TRACERS) [14] /glade/u/home/tvda/CISM/libglissade/glissade_transport.F90(214,16)
+
+
+    Report from: Loop nest, Vector & Auto-parallelization optimizations [loop, vec, par]
+
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_transport.F90(240,10)
+   remark #15542: loop was not vectorized: inner loop was already vectorized
+
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_transport.F90(241,13)
+   <Multiversioned v1>
+      remark #25233: Loop multiversioned for stride tests on Assumed shape arrays
+      remark #15542: loop was not vectorized: inner loop was already vectorized
+
+      LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_transport.F90(241,13)
+         remark #15300: LOOP WAS VECTORIZED
+      LOOP END
+
+      LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_transport.F90(241,13)
+      <Remainder loop for vectorization>
+      LOOP END
+   LOOP END
+
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_transport.F90(241,13)
+   <Multiversioned v2>
+      remark #15542: loop was not vectorized: inner loop was already vectorized
+
+      LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_transport.F90(241,13)
+         remark #15300: LOOP WAS VECTORIZED
+      LOOP END
+
+      LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_transport.F90(241,13)
+      <Remainder loop for vectorization>
+      LOOP END
+   LOOP END
+
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_transport.F90(241,13)
+   <Multiversioned v1>
+      remark #25233: Loop multiversioned for stride tests on Assumed shape arrays
+      remark #15542: loop was not vectorized: inner loop was already vectorized
+
+      LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_transport.F90(241,13)
+         remark #15300: LOOP WAS VECTORIZED
+      LOOP END
+
+      LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_transport.F90(241,13)
+      <Remainder loop for vectorization>
+      LOOP END
+   LOOP END
+
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_transport.F90(241,13)
+   <Multiversioned v2>
+      remark #15542: loop was not vectorized: inner loop was already vectorized
+
+      LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_transport.F90(241,13)
+         remark #15300: LOOP WAS VECTORIZED
+      LOOP END
+
+      LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_transport.F90(241,13)
+      <Remainder loop for vectorization>
+      LOOP END
+   LOOP END
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_transport.F90(245,10)
+   remark #15542: loop was not vectorized: inner loop was already vectorized
+
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_transport.F90(246,13)
+   <Multiversioned v1>
+      remark #25233: Loop multiversioned for stride tests on Assumed shape arrays
+      remark #15542: loop was not vectorized: inner loop was already vectorized
+
+      LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_transport.F90(246,13)
+         remark #15300: LOOP WAS VECTORIZED
+      LOOP END
+
+      LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_transport.F90(246,13)
+      <Remainder loop for vectorization>
+      LOOP END
+   LOOP END
+
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_transport.F90(246,13)
+   <Multiversioned v2>
+      remark #15542: loop was not vectorized: inner loop was already vectorized
+
+      LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_transport.F90(246,13)
+         remark #15300: LOOP WAS VECTORIZED
+      LOOP END
+
+      LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_transport.F90(246,13)
+      <Remainder loop for vectorization>
+      LOOP END
+   LOOP END
+
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_transport.F90(246,13)
+   <Multiversioned v1>
+      remark #25233: Loop multiversioned for stride tests on Assumed shape arrays
+      remark #15542: loop was not vectorized: inner loop was already vectorized
+
+      LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_transport.F90(246,13)
+         remark #15300: LOOP WAS VECTORIZED
+      LOOP END
+
+      LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_transport.F90(246,13)
+      <Remainder loop for vectorization>
+      LOOP END
+   LOOP END
+
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_transport.F90(246,13)
+   <Multiversioned v2>
+      remark #15542: loop was not vectorized: inner loop was already vectorized
+
+      LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_transport.F90(246,13)
+         remark #15300: LOOP WAS VECTORIZED
+      LOOP END
+
+      LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_transport.F90(246,13)
+      <Remainder loop for vectorization>
+      LOOP END
+   LOOP END
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_transport.F90(253,10)
+   remark #15542: loop was not vectorized: inner loop was already vectorized
+
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_transport.F90(254,13)
+   <Multiversioned v1>
+      remark #25233: Loop multiversioned for stride tests on Assumed shape arrays
+      remark #15542: loop was not vectorized: inner loop was already vectorized
+
+      LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_transport.F90(254,13)
+         remark #15300: LOOP WAS VECTORIZED
+      LOOP END
+
+      LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_transport.F90(254,13)
+      <Remainder loop for vectorization>
+      LOOP END
+   LOOP END
+
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_transport.F90(254,13)
+   <Multiversioned v2>
+      remark #15542: loop was not vectorized: inner loop was already vectorized
+
+      LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_transport.F90(254,13)
+         remark #15300: LOOP WAS VECTORIZED
+      LOOP END
+
+      LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_transport.F90(254,13)
+      <Remainder loop for vectorization>
+      LOOP END
+   LOOP END
+
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_transport.F90(254,13)
+   <Multiversioned v1>
+      remark #25233: Loop multiversioned for stride tests on Assumed shape arrays
+      remark #15542: loop was not vectorized: inner loop was already vectorized
+
+      LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_transport.F90(254,13)
+         remark #15300: LOOP WAS VECTORIZED
+      LOOP END
+
+      LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_transport.F90(254,13)
+      <Remainder loop for vectorization>
+      LOOP END
+   LOOP END
+
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_transport.F90(254,13)
+   <Multiversioned v2>
+      remark #15542: loop was not vectorized: inner loop was already vectorized
+
+      LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_transport.F90(254,13)
+         remark #15300: LOOP WAS VECTORIZED
+      LOOP END
+
+      LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_transport.F90(254,13)
+      <Remainder loop for vectorization>
+      LOOP END
+   LOOP END
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_transport.F90(276,10)
+   remark #15542: loop was not vectorized: inner loop was already vectorized
+
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_transport.F90(277,13)
+   <Multiversioned v1>
+      remark #25233: Loop multiversioned for stride tests on Assumed shape arrays
+      remark #15542: loop was not vectorized: inner loop was already vectorized
+
+      LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_transport.F90(277,13)
+         remark #15300: LOOP WAS VECTORIZED
+      LOOP END
+
+      LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_transport.F90(277,13)
+      <Remainder loop for vectorization>
+      LOOP END
+   LOOP END
+
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_transport.F90(277,13)
+   <Multiversioned v2>
+      remark #15542: loop was not vectorized: inner loop was already vectorized
+
+      LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_transport.F90(277,13)
+         remark #15300: LOOP WAS VECTORIZED
+      LOOP END
+
+      LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_transport.F90(277,13)
+      <Remainder loop for vectorization>
+      LOOP END
+   LOOP END
+
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_transport.F90(277,13)
+   <Multiversioned v1>
+      remark #25233: Loop multiversioned for stride tests on Assumed shape arrays
+      remark #15542: loop was not vectorized: inner loop was already vectorized
+
+      LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_transport.F90(277,13)
+         remark #15300: LOOP WAS VECTORIZED
+      LOOP END
+
+      LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_transport.F90(277,13)
+      <Remainder loop for vectorization>
+      LOOP END
+   LOOP END
+
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_transport.F90(277,13)
+   <Multiversioned v2>
+      remark #15542: loop was not vectorized: inner loop was already vectorized
+
+      LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_transport.F90(277,13)
+         remark #15300: LOOP WAS VECTORIZED
+      LOOP END
+
+      LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_transport.F90(277,13)
+      <Remainder loop for vectorization>
+      LOOP END
+   LOOP END
+LOOP END
+
+    Report from: Code generation optimizations [cg]
+
+/glade/u/home/tvda/CISM/libglissade/glissade_transport.F90(214,16):remark #34051: REGISTER ALLOCATION : [glissade_transport_mp_glissade_transport_finish_tracers_] /glade/u/home/tvda/CISM/libglissade/glissade_transport.F90:214
+
+    Hardware registers
+        Reserved     :    2[ rsp rip]
+        Available    :   39[ rax rdx rcx rbx rbp rsi rdi r8-r15 mm0-mm7 zmm0-zmm15]
+        Callee-save  :    6[ rbx rbp r12-r15]
+        Assigned     :   15[ rax rdx rcx rbx rsi rdi r8-r15 zmm0]
+        
+    Routine temporaries
+        Total         :     352
+            Global    :     185
+            Local     :     167
+        Regenerable   :       1
+        Spilled       :      86
+        
+    Routine stack
+        Variables     :       0 bytes*
+            Reads     :       0 [0.00e+00 ~ 0.0%]
+            Writes    :       0 [0.00e+00 ~ 0.0%]
+        Spills        :     640 bytes*
+            Reads     :     251 [2.65e+00 ~ 2.6%]
+            Writes    :     174 [1.26e+00 ~ 1.3%]
+    
+    Notes
+    
+        *Non-overlapping variables and spills may share stack space,
+         so the total stack size might be less than this.
+    
+
+===========================================================================
+
+Begin optimization report for: GLISSADE_TRANSPORT::GLISSADE_TRANSPORT_SETUP_TRACERS
+
+    Report from: Interprocedural optimizations [ipo]
+
+INLINE REPORT: (GLISSADE_TRANSPORT::GLISSADE_TRANSPORT_SETUP_TRACERS) [15] /glade/u/home/tvda/CISM/libglissade/glissade_transport.F90(71,16)
+
+
+    Report from: Loop nest, Vector & Auto-parallelization optimizations [loop, vec, par]
+
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_transport.F90(130,10)
+   remark #15542: loop was not vectorized: inner loop was already vectorized
+
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_transport.F90(130,10)
+      remark #15542: loop was not vectorized: inner loop was already vectorized
+
+      LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_transport.F90(130,10)
+      <Multiversioned v1>
+         remark #25233: Loop multiversioned for stride tests on Assumed shape arrays
+         remark #15542: loop was not vectorized: inner loop was already vectorized
+
+         LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_transport.F90(130,10)
+            remark #15300: LOOP WAS VECTORIZED
+         LOOP END
+
+         LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_transport.F90(130,10)
+         <Remainder loop for vectorization>
+         LOOP END
+      LOOP END
+
+      LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_transport.F90(130,10)
+      <Multiversioned v2>
+         remark #15542: loop was not vectorized: inner loop was already vectorized
+
+         LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_transport.F90(130,10)
+            remark #15300: LOOP WAS VECTORIZED
+         LOOP END
+
+         LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_transport.F90(130,10)
+         <Remainder loop for vectorization>
+         LOOP END
+      LOOP END
+   LOOP END
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_transport.F90(131,10)
+   remark #15542: loop was not vectorized: inner loop was already vectorized
+
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_transport.F90(131,10)
+   <Multiversioned v1>
+      remark #25233: Loop multiversioned for stride tests on Assumed shape arrays
+      remark #15542: loop was not vectorized: inner loop was already vectorized
+
+      LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_transport.F90(131,10)
+         remark #15300: LOOP WAS VECTORIZED
+      LOOP END
+
+      LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_transport.F90(131,10)
+      <Remainder loop for vectorization>
+      LOOP END
+   LOOP END
+
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_transport.F90(131,10)
+   <Multiversioned v2>
+      remark #15542: loop was not vectorized: inner loop was already vectorized
+
+      LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_transport.F90(131,10)
+         remark #15300: LOOP WAS VECTORIZED
+      LOOP END
+
+      LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_transport.F90(131,10)
+      <Remainder loop for vectorization>
+      LOOP END
+   LOOP END
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_transport.F90(132,10)
+   remark #15542: loop was not vectorized: inner loop was already vectorized
+
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_transport.F90(132,10)
+   <Multiversioned v1>
+      remark #25233: Loop multiversioned for stride tests on Assumed shape arrays
+      remark #15542: loop was not vectorized: inner loop was already vectorized
+
+      LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_transport.F90(132,10)
+         remark #15300: LOOP WAS VECTORIZED
+      LOOP END
+
+      LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_transport.F90(132,10)
+      <Remainder loop for vectorization>
+      LOOP END
+   LOOP END
+
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_transport.F90(132,10)
+   <Multiversioned v2>
+      remark #15542: loop was not vectorized: inner loop was already vectorized
+
+      LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_transport.F90(132,10)
+         remark #15300: LOOP WAS VECTORIZED
+      LOOP END
+
+      LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_transport.F90(132,10)
+      <Remainder loop for vectorization>
+      LOOP END
+   LOOP END
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_transport.F90(152,16)
+   remark #15542: loop was not vectorized: inner loop was already vectorized
+
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_transport.F90(152,16)
+   <Multiversioned v1>
+      remark #25233: Loop multiversioned for stride tests on Assumed shape arrays
+      remark #15542: loop was not vectorized: inner loop was already vectorized
+
+      LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_transport.F90(152,16)
+         remark #15300: LOOP WAS VECTORIZED
+      LOOP END
+
+      LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_transport.F90(152,16)
+      <Remainder loop for vectorization>
+      LOOP END
+   LOOP END
+
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_transport.F90(152,16)
+   <Multiversioned v2>
+      remark #15542: loop was not vectorized: inner loop was already vectorized
+
+      LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_transport.F90(152,16)
+         remark #15300: LOOP WAS VECTORIZED
+      LOOP END
+
+      LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_transport.F90(152,16)
+      <Remainder loop for vectorization>
+      LOOP END
+   LOOP END
+
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_transport.F90(152,16)
+   <Multiversioned v1>
+      remark #25233: Loop multiversioned for stride tests on Assumed shape arrays
+      remark #15542: loop was not vectorized: inner loop was already vectorized
+
+      LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_transport.F90(152,16)
+         remark #15300: LOOP WAS VECTORIZED
+      LOOP END
+
+      LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_transport.F90(152,16)
+      <Remainder loop for vectorization>
+      LOOP END
+   LOOP END
+
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_transport.F90(152,16)
+   <Multiversioned v2>
+      remark #15542: loop was not vectorized: inner loop was already vectorized
+
+      LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_transport.F90(152,16)
+         remark #15300: LOOP WAS VECTORIZED
+      LOOP END
+
+      LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_transport.F90(152,16)
+      <Remainder loop for vectorization>
+      LOOP END
+   LOOP END
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_transport.F90(154,13)
+<Multiversioned v1>
+   remark #25233: Loop multiversioned for stride tests on Assumed shape arrays
+   remark #15542: loop was not vectorized: inner loop was already vectorized
+
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_transport.F90(154,13)
+      remark #15300: LOOP WAS VECTORIZED
+   LOOP END
+
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_transport.F90(154,13)
+   <Remainder loop for vectorization>
+   LOOP END
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_transport.F90(154,13)
+<Multiversioned v2>
+   remark #15542: loop was not vectorized: inner loop was already vectorized
+
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_transport.F90(154,13)
+      remark #15300: LOOP WAS VECTORIZED
+   LOOP END
+
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_transport.F90(154,13)
+   <Remainder loop for vectorization>
+   LOOP END
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_transport.F90(154,13)
+<Multiversioned v1>
+   remark #25233: Loop multiversioned for stride tests on Assumed shape arrays
+   remark #15542: loop was not vectorized: inner loop was already vectorized
+
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_transport.F90(154,13)
+      remark #15300: LOOP WAS VECTORIZED
+   LOOP END
+
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_transport.F90(154,13)
+   <Remainder loop for vectorization>
+   LOOP END
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_transport.F90(154,13)
+<Multiversioned v2>
+   remark #15542: loop was not vectorized: inner loop was already vectorized
+
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_transport.F90(154,13)
+      remark #15300: LOOP WAS VECTORIZED
+   LOOP END
+
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_transport.F90(154,13)
+   <Remainder loop for vectorization>
+   LOOP END
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_transport.F90(155,13)
+<Multiversioned v1>
+   remark #25233: Loop multiversioned for stride tests on Assumed shape arrays
+   remark #15542: loop was not vectorized: inner loop was already vectorized
+
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_transport.F90(155,13)
+      remark #15300: LOOP WAS VECTORIZED
+   LOOP END
+
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_transport.F90(155,13)
+   <Remainder loop for vectorization>
+   LOOP END
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_transport.F90(155,13)
+<Multiversioned v2>
+   remark #15542: loop was not vectorized: inner loop was already vectorized
+
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_transport.F90(155,13)
+      remark #15300: LOOP WAS VECTORIZED
+   LOOP END
+
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_transport.F90(155,13)
+   <Remainder loop for vectorization>
+   LOOP END
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_transport.F90(155,13)
+<Multiversioned v1>
+   remark #25233: Loop multiversioned for stride tests on Assumed shape arrays
+   remark #15542: loop was not vectorized: inner loop was already vectorized
+
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_transport.F90(155,13)
+      remark #15300: LOOP WAS VECTORIZED
+   LOOP END
+
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_transport.F90(155,13)
+   <Remainder loop for vectorization>
+   LOOP END
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_transport.F90(155,13)
+<Multiversioned v2>
+   remark #15542: loop was not vectorized: inner loop was already vectorized
+
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_transport.F90(155,13)
+      remark #15300: LOOP WAS VECTORIZED
+   LOOP END
+
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_transport.F90(155,13)
+   <Remainder loop for vectorization>
+   LOOP END
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_transport.F90(161,16)
+   remark #15542: loop was not vectorized: inner loop was already vectorized
+
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_transport.F90(161,16)
+   <Multiversioned v1>
+      remark #25233: Loop multiversioned for stride tests on Assumed shape arrays
+      remark #15542: loop was not vectorized: inner loop was already vectorized
+
+      LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_transport.F90(161,16)
+         remark #15300: LOOP WAS VECTORIZED
+      LOOP END
+
+      LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_transport.F90(161,16)
+      <Remainder loop for vectorization>
+      LOOP END
+   LOOP END
+
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_transport.F90(161,16)
+   <Multiversioned v2>
+      remark #15542: loop was not vectorized: inner loop was already vectorized
+
+      LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_transport.F90(161,16)
+         remark #15300: LOOP WAS VECTORIZED
+      LOOP END
+
+      LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_transport.F90(161,16)
+      <Remainder loop for vectorization>
+      LOOP END
+   LOOP END
+
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_transport.F90(161,16)
+   <Multiversioned v1>
+      remark #25233: Loop multiversioned for stride tests on Assumed shape arrays
+      remark #15542: loop was not vectorized: inner loop was already vectorized
+
+      LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_transport.F90(161,16)
+         remark #15300: LOOP WAS VECTORIZED
+      LOOP END
+
+      LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_transport.F90(161,16)
+      <Remainder loop for vectorization>
+      LOOP END
+   LOOP END
+
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_transport.F90(161,16)
+   <Multiversioned v2>
+      remark #15542: loop was not vectorized: inner loop was already vectorized
+
+      LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_transport.F90(161,16)
+         remark #15300: LOOP WAS VECTORIZED
+      LOOP END
+
+      LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_transport.F90(161,16)
+      <Remainder loop for vectorization>
+      LOOP END
+   LOOP END
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_transport.F90(163,13)
+<Multiversioned v1>
+   remark #25233: Loop multiversioned for stride tests on Assumed shape arrays
+   remark #15542: loop was not vectorized: inner loop was already vectorized
+
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_transport.F90(163,13)
+      remark #15300: LOOP WAS VECTORIZED
+   LOOP END
+
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_transport.F90(163,13)
+   <Remainder loop for vectorization>
+   LOOP END
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_transport.F90(163,13)
+<Multiversioned v2>
+   remark #15542: loop was not vectorized: inner loop was already vectorized
+
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_transport.F90(163,13)
+      remark #15300: LOOP WAS VECTORIZED
+   LOOP END
+
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_transport.F90(163,13)
+   <Remainder loop for vectorization>
+   LOOP END
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_transport.F90(163,13)
+<Multiversioned v1>
+   remark #25233: Loop multiversioned for stride tests on Assumed shape arrays
+   remark #15542: loop was not vectorized: inner loop was already vectorized
+
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_transport.F90(163,13)
+      remark #15300: LOOP WAS VECTORIZED
+   LOOP END
+
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_transport.F90(163,13)
+   <Remainder loop for vectorization>
+   LOOP END
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_transport.F90(163,13)
+<Multiversioned v2>
+   remark #15542: loop was not vectorized: inner loop was already vectorized
+
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_transport.F90(163,13)
+      remark #15300: LOOP WAS VECTORIZED
+   LOOP END
+
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_transport.F90(163,13)
+   <Remainder loop for vectorization>
+   LOOP END
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_transport.F90(164,13)
+<Multiversioned v1>
+   remark #25233: Loop multiversioned for stride tests on Assumed shape arrays
+   remark #15542: loop was not vectorized: inner loop was already vectorized
+
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_transport.F90(164,13)
+      remark #15300: LOOP WAS VECTORIZED
+   LOOP END
+
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_transport.F90(164,13)
+   <Remainder loop for vectorization>
+   LOOP END
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_transport.F90(164,13)
+<Multiversioned v2>
+   remark #15542: loop was not vectorized: inner loop was already vectorized
+
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_transport.F90(164,13)
+      remark #15300: LOOP WAS VECTORIZED
+   LOOP END
+
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_transport.F90(164,13)
+   <Remainder loop for vectorization>
+   LOOP END
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_transport.F90(164,13)
+<Multiversioned v1>
+   remark #25233: Loop multiversioned for stride tests on Assumed shape arrays
+   remark #15542: loop was not vectorized: inner loop was already vectorized
+
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_transport.F90(164,13)
+      remark #15300: LOOP WAS VECTORIZED
+   LOOP END
+
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_transport.F90(164,13)
+   <Remainder loop for vectorization>
+   LOOP END
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_transport.F90(164,13)
+<Multiversioned v2>
+   remark #15542: loop was not vectorized: inner loop was already vectorized
+
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_transport.F90(164,13)
+      remark #15300: LOOP WAS VECTORIZED
+   LOOP END
+
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_transport.F90(164,13)
+   <Remainder loop for vectorization>
+   LOOP END
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_transport.F90(173,16)
+   remark #15542: loop was not vectorized: inner loop was already vectorized
+
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_transport.F90(173,16)
+   <Multiversioned v1>
+      remark #25233: Loop multiversioned for stride tests on Assumed shape arrays
+      remark #15542: loop was not vectorized: inner loop was already vectorized
+
+      LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_transport.F90(173,16)
+         remark #15300: LOOP WAS VECTORIZED
+      LOOP END
+
+      LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_transport.F90(173,16)
+      <Remainder loop for vectorization>
+      LOOP END
+   LOOP END
+
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_transport.F90(173,16)
+   <Multiversioned v2>
+      remark #15542: loop was not vectorized: inner loop was already vectorized
+
+      LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_transport.F90(173,16)
+         remark #15300: LOOP WAS VECTORIZED
+      LOOP END
+
+      LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_transport.F90(173,16)
+      <Remainder loop for vectorization>
+      LOOP END
+   LOOP END
+
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_transport.F90(173,16)
+   <Multiversioned v1>
+      remark #25233: Loop multiversioned for stride tests on Assumed shape arrays
+      remark #15542: loop was not vectorized: inner loop was already vectorized
+
+      LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_transport.F90(173,16)
+         remark #15300: LOOP WAS VECTORIZED
+      LOOP END
+
+      LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_transport.F90(173,16)
+      <Remainder loop for vectorization>
+      LOOP END
+   LOOP END
+
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_transport.F90(173,16)
+   <Multiversioned v2>
+      remark #15542: loop was not vectorized: inner loop was already vectorized
+
+      LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_transport.F90(173,16)
+         remark #15300: LOOP WAS VECTORIZED
+      LOOP END
+
+      LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_transport.F90(173,16)
+      <Remainder loop for vectorization>
+      LOOP END
+   LOOP END
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_transport.F90(182,13)
+<Multiversioned v1>
+   remark #25233: Loop multiversioned for stride tests on Assumed shape arrays
+   remark #15542: loop was not vectorized: inner loop was already vectorized
+
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_transport.F90(182,13)
+      remark #15300: LOOP WAS VECTORIZED
+   LOOP END
+
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_transport.F90(182,13)
+   <Remainder loop for vectorization>
+   LOOP END
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_transport.F90(182,13)
+<Multiversioned v2>
+   remark #15542: loop was not vectorized: inner loop was already vectorized
+
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_transport.F90(182,13)
+      remark #15300: LOOP WAS VECTORIZED
+   LOOP END
+
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_transport.F90(182,13)
+   <Remainder loop for vectorization>
+   LOOP END
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_transport.F90(182,13)
+<Multiversioned v1>
+   remark #25233: Loop multiversioned for stride tests on Assumed shape arrays
+   remark #15542: loop was not vectorized: inner loop was already vectorized
+
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_transport.F90(182,13)
+      remark #15300: LOOP WAS VECTORIZED
+   LOOP END
+
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_transport.F90(182,13)
+   <Remainder loop for vectorization>
+   LOOP END
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_transport.F90(182,13)
+<Multiversioned v2>
+   remark #15542: loop was not vectorized: inner loop was already vectorized
+
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_transport.F90(182,13)
+      remark #15300: LOOP WAS VECTORIZED
+   LOOP END
+
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_transport.F90(182,13)
+   <Remainder loop for vectorization>
+   LOOP END
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_transport.F90(183,13)
+<Multiversioned v1>
+   remark #25233: Loop multiversioned for stride tests on Assumed shape arrays
+   remark #15542: loop was not vectorized: inner loop was already vectorized
+
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_transport.F90(183,13)
+      remark #15300: LOOP WAS VECTORIZED
+   LOOP END
+
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_transport.F90(183,13)
+   <Remainder loop for vectorization>
+   LOOP END
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_transport.F90(183,13)
+<Multiversioned v2>
+   remark #15542: loop was not vectorized: inner loop was already vectorized
+
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_transport.F90(183,13)
+      remark #15300: LOOP WAS VECTORIZED
+   LOOP END
+
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_transport.F90(183,13)
+   <Remainder loop for vectorization>
+   LOOP END
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_transport.F90(183,13)
+<Multiversioned v1>
+   remark #25233: Loop multiversioned for stride tests on Assumed shape arrays
+   remark #15542: loop was not vectorized: inner loop was already vectorized
+
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_transport.F90(183,13)
+      remark #15300: LOOP WAS VECTORIZED
+   LOOP END
+
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_transport.F90(183,13)
+   <Remainder loop for vectorization>
+   LOOP END
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_transport.F90(183,13)
+<Multiversioned v2>
+   remark #15542: loop was not vectorized: inner loop was already vectorized
+
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_transport.F90(183,13)
+      remark #15300: LOOP WAS VECTORIZED
+   LOOP END
+
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_transport.F90(183,13)
+   <Remainder loop for vectorization>
+   LOOP END
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_transport.F90(192,16)
+   remark #15542: loop was not vectorized: inner loop was already vectorized
+
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_transport.F90(192,16)
+   <Multiversioned v1>
+      remark #25233: Loop multiversioned for stride tests on Assumed shape arrays
+      remark #15542: loop was not vectorized: inner loop was already vectorized
+
+      LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_transport.F90(192,16)
+         remark #15300: LOOP WAS VECTORIZED
+      LOOP END
+
+      LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_transport.F90(192,16)
+      <Remainder loop for vectorization>
+      LOOP END
+   LOOP END
+
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_transport.F90(192,16)
+   <Multiversioned v2>
+      remark #15542: loop was not vectorized: inner loop was already vectorized
+
+      LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_transport.F90(192,16)
+         remark #15300: LOOP WAS VECTORIZED
+      LOOP END
+
+      LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_transport.F90(192,16)
+      <Remainder loop for vectorization>
+      LOOP END
+   LOOP END
+
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_transport.F90(192,16)
+   <Multiversioned v1>
+      remark #25233: Loop multiversioned for stride tests on Assumed shape arrays
+      remark #15542: loop was not vectorized: inner loop was already vectorized
+
+      LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_transport.F90(192,16)
+         remark #15300: LOOP WAS VECTORIZED
+      LOOP END
+
+      LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_transport.F90(192,16)
+      <Remainder loop for vectorization>
+      LOOP END
+   LOOP END
+
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_transport.F90(192,16)
+   <Multiversioned v2>
+      remark #15542: loop was not vectorized: inner loop was already vectorized
+
+      LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_transport.F90(192,16)
+         remark #15300: LOOP WAS VECTORIZED
+      LOOP END
+
+      LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_transport.F90(192,16)
+      <Remainder loop for vectorization>
+      LOOP END
+   LOOP END
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_transport.F90(201,13)
+<Multiversioned v1>
+   remark #25233: Loop multiversioned for stride tests on Assumed shape arrays
+   remark #15542: loop was not vectorized: inner loop was already vectorized
+
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_transport.F90(201,13)
+      remark #15300: LOOP WAS VECTORIZED
+   LOOP END
+
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_transport.F90(201,13)
+   <Remainder loop for vectorization>
+   LOOP END
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_transport.F90(201,13)
+<Multiversioned v2>
+   remark #15542: loop was not vectorized: inner loop was already vectorized
+
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_transport.F90(201,13)
+      remark #15300: LOOP WAS VECTORIZED
+   LOOP END
+
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_transport.F90(201,13)
+   <Remainder loop for vectorization>
+   LOOP END
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_transport.F90(202,13)
+<Multiversioned v1>
+   remark #25233: Loop multiversioned for stride tests on Assumed shape arrays
+   remark #15542: loop was not vectorized: inner loop was already vectorized
+
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_transport.F90(202,13)
+      remark #15300: LOOP WAS VECTORIZED
+   LOOP END
+
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_transport.F90(202,13)
+   <Remainder loop for vectorization>
+   LOOP END
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_transport.F90(202,13)
+<Multiversioned v2>
+   remark #15542: loop was not vectorized: inner loop was already vectorized
+
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_transport.F90(202,13)
+      remark #15300: LOOP WAS VECTORIZED
+   LOOP END
+
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_transport.F90(202,13)
+   <Remainder loop for vectorization>
+   LOOP END
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_transport.F90(202,13)
+<Multiversioned v1>
+   remark #25233: Loop multiversioned for stride tests on Assumed shape arrays
+   remark #15542: loop was not vectorized: inner loop was already vectorized
+
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_transport.F90(202,13)
+      remark #15300: LOOP WAS VECTORIZED
+   LOOP END
+
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_transport.F90(202,13)
+   <Remainder loop for vectorization>
+   LOOP END
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_transport.F90(202,13)
+<Multiversioned v2>
+   remark #15542: loop was not vectorized: inner loop was already vectorized
+
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_transport.F90(202,13)
+      remark #15300: LOOP WAS VECTORIZED
+   LOOP END
+
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_transport.F90(202,13)
+   <Remainder loop for vectorization>
+   LOOP END
+LOOP END
+
+    Report from: Code generation optimizations [cg]
+
+/glade/u/home/tvda/CISM/libglissade/glissade_transport.F90(71,16):remark #34051: REGISTER ALLOCATION : [glissade_transport_mp_glissade_transport_setup_tracers_] /glade/u/home/tvda/CISM/libglissade/glissade_transport.F90:71
+
+    Hardware registers
+        Reserved     :    2[ rsp rip]
+        Available    :   39[ rax rdx rcx rbx rbp rsi rdi r8-r15 mm0-mm7 zmm0-zmm15]
+        Callee-save  :    6[ rbx rbp r12-r15]
+        Assigned     :   15[ rax rdx rcx rbx rsi rdi r8-r15 zmm0]
+        
+    Routine temporaries
+        Total         :    1248
+            Global    :     646
+            Local     :     602
+        Regenerable   :      25
+        Spilled       :     193
+        
+    Routine stack
+        Variables     :      24 bytes*
+            Reads     :       3 [1.32e-02 ~ 0.0%]
+            Writes    :       0 [0.00e+00 ~ 0.0%]
+        Spills        :    1432 bytes*
+            Reads     :     479 [4.60e+00 ~ 4.6%]
+            Writes    :     342 [1.33e+00 ~ 1.3%]
+    
+    Notes
+    
+        *Non-overlapping variables and spills may share stack space,
+         so the total stack size might be less than this.
+    
+
+===========================================================================

@@ -1,0 +1,137 @@
+Intel(R) Advisor can now assist with vectorization and show optimization
+  report messages with your source code.
+See "https://software.intel.com/en-us/intel-advisor-xe" for details.
+
+
+    Report from: Interprocedural optimizations [ipo]
+
+INLINING OPTION VALUES:
+  -inline-factor: 100
+  -inline-min-size: 30
+  -inline-max-size: 230
+  -inline-max-total-size: 2000
+  -inline-max-per-routine: 10000
+  -inline-max-per-compile: 500000
+
+
+Begin optimization report for: R1MACH
+
+    Report from: Interprocedural optimizations [ipo]
+
+INLINE REPORT: (R1MACH) [1] /glade/u/home/tvda/CISM/libglimmer-solve/SLAP/mach.f(1,21)
+  -> INLINE: (256,13) I1MACH
+
+
+    Report from: Code generation optimizations [cg]
+
+/glade/u/home/tvda/CISM/libglimmer-solve/SLAP/mach.f(1,21):remark #34051: REGISTER ALLOCATION : [r1mach_] /glade/u/home/tvda/CISM/libglimmer-solve/SLAP/mach.f:1
+
+    Hardware registers
+        Reserved     :    2[ rsp rip]
+        Available    :   39[ rax rdx rcx rbx rbp rsi rdi r8-r15 mm0-mm7 zmm0-zmm15]
+        Callee-save  :    6[ rbx rbp r12-r15]
+        Assigned     :    8[ rax rdx rcx rsi rdi r8-r9 zmm0]
+        
+    Routine temporaries
+        Total         :      34
+            Global    :       9
+            Local     :      25
+        Regenerable   :      19
+        Spilled       :       1
+        
+    Routine stack
+        Variables     :      72 bytes*
+            Reads     :       0 [0.00e+00 ~ 0.0%]
+            Writes    :       2 [5.56e-01 ~ 0.6%]
+        Spills        :       8 bytes*
+            Reads     :       1 [2.78e-01 ~ 0.3%]
+            Writes    :       1 [2.78e-01 ~ 0.3%]
+    
+    Notes
+    
+        *Non-overlapping variables and spills may share stack space,
+         so the total stack size might be less than this.
+    
+
+===========================================================================
+
+Begin optimization report for: I1MACH
+
+    Report from: Interprocedural optimizations [ipo]
+
+INLINE REPORT: (I1MACH) [2] /glade/u/home/tvda/CISM/libglimmer-solve/SLAP/mach.f(605,24)
+
+
+    Report from: Code generation optimizations [cg]
+
+/glade/u/home/tvda/CISM/libglimmer-solve/SLAP/mach.f(605,24):remark #34051: REGISTER ALLOCATION : [i1mach_] /glade/u/home/tvda/CISM/libglimmer-solve/SLAP/mach.f:605
+
+    Hardware registers
+        Reserved     :    2[ rsp rip]
+        Available    :   39[ rax rdx rcx rbx rbp rsi rdi r8-r15 mm0-mm7 zmm0-zmm15]
+        Callee-save  :    6[ rbx rbp r12-r15]
+        Assigned     :    8[ rax rdx rcx rbx rsi rdi r8-r9]
+        
+    Routine temporaries
+        Total         :      34
+            Global    :       9
+            Local     :      25
+        Regenerable   :      19
+        Spilled       :       1
+        
+    Routine stack
+        Variables     :      72 bytes*
+            Reads     :       0 [0.00e+00 ~ 0.0%]
+            Writes    :       2 [4.80e-01 ~ 0.5%]
+        Spills        :       0 bytes*
+            Reads     :       0 [0.00e+00 ~ 0.0%]
+            Writes    :       0 [0.00e+00 ~ 0.0%]
+    
+    Notes
+    
+        *Non-overlapping variables and spills may share stack space,
+         so the total stack size might be less than this.
+    
+
+===========================================================================
+
+Begin optimization report for: D1MACH
+
+    Report from: Interprocedural optimizations [ipo]
+
+INLINE REPORT: (D1MACH) [3] /glade/u/home/tvda/CISM/libglimmer-solve/SLAP/mach.f(260,33)
+  -> INLINE: (601,13) I1MACH
+
+
+    Report from: Code generation optimizations [cg]
+
+/glade/u/home/tvda/CISM/libglimmer-solve/SLAP/mach.f(260,33):remark #34051: REGISTER ALLOCATION : [d1mach_] /glade/u/home/tvda/CISM/libglimmer-solve/SLAP/mach.f:260
+
+    Hardware registers
+        Reserved     :    2[ rsp rip]
+        Available    :   39[ rax rdx rcx rbx rbp rsi rdi r8-r15 mm0-mm7 zmm0-zmm15]
+        Callee-save  :    6[ rbx rbp r12-r15]
+        Assigned     :    8[ rax rdx rcx rsi rdi r8-r9 zmm0]
+        
+    Routine temporaries
+        Total         :      34
+            Global    :       9
+            Local     :      25
+        Regenerable   :      19
+        Spilled       :       1
+        
+    Routine stack
+        Variables     :      72 bytes*
+            Reads     :       0 [0.00e+00 ~ 0.0%]
+            Writes    :       2 [5.56e-01 ~ 0.6%]
+        Spills        :       8 bytes*
+            Reads     :       1 [2.78e-01 ~ 0.3%]
+            Writes    :       1 [2.78e-01 ~ 0.3%]
+    
+    Notes
+    
+        *Non-overlapping variables and spills may share stack space,
+         so the total stack size might be less than this.
+    
+
+===========================================================================

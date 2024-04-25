@@ -1,0 +1,469 @@
+Intel(R) Advisor can now assist with vectorization and show optimization
+  report messages with your source code.
+See "https://software.intel.com/en-us/intel-advisor-xe" for details.
+
+
+    Report from: Interprocedural optimizations [ipo]
+
+INLINING OPTION VALUES:
+  -inline-factor: 100
+  -inline-min-size: 30
+  -inline-max-size: 230
+  -inline-max-total-size: 2000
+  -inline-max-per-routine: 10000
+  -inline-max-per-compile: 500000
+
+
+Begin optimization report for: glint_daily_pdd._
+
+    Report from: Interprocedural optimizations [ipo]
+
+INLINE REPORT: (glint_daily_pdd._) [1] /glade/u/home/tvda/CISM/libglint/glint_daily_pdd.F90(31,8)
+
+
+    Report from: Code generation optimizations [cg]
+
+/glade/u/home/tvda/CISM/libglint/glint_daily_pdd.F90(31,8):remark #34051: REGISTER ALLOCATION : [glint_daily_pdd._] /glade/u/home/tvda/CISM/libglint/glint_daily_pdd.F90:31
+
+    Hardware registers
+        Reserved     :    2[ rsp rip]
+        Available    :   39[ rax rdx rcx rbx rbp rsi rdi r8-r15 mm0-mm7 zmm0-zmm15]
+        Callee-save  :    6[ rbx rbp r12-r15]
+        Assigned     :    0[ reg_null]
+        
+    Routine temporaries
+        Total         :       6
+            Global    :       0
+            Local     :       6
+        Regenerable   :       0
+        Spilled       :       0
+        
+    Routine stack
+        Variables     :       0 bytes*
+            Reads     :       0 [0.00e+00 ~ 0.0%]
+            Writes    :       0 [0.00e+00 ~ 0.0%]
+        Spills        :       0 bytes*
+            Reads     :       0 [0.00e+00 ~ 0.0%]
+            Writes    :       0 [0.00e+00 ~ 0.0%]
+    
+    Notes
+    
+        *Non-overlapping variables and spills may share stack space,
+         so the total stack size might be less than this.
+    
+
+===========================================================================
+
+Begin optimization report for: GLINT_DAILY_PDD::DAILY_PDD_READCONFIG
+
+    Report from: Interprocedural optimizations [ipo]
+
+INLINE REPORT: (GLINT_DAILY_PDD::DAILY_PDD_READCONFIG) [2] /glade/u/home/tvda/CISM/libglint/glint_daily_pdd.F90(89,14)
+
+
+    Report from: Code generation optimizations [cg]
+
+/glade/u/home/tvda/CISM/libglint/glint_daily_pdd.F90(89,14):remark #34051: REGISTER ALLOCATION : [glint_daily_pdd_mp_daily_pdd_readconfig_] /glade/u/home/tvda/CISM/libglint/glint_daily_pdd.F90:89
+
+    Hardware registers
+        Reserved     :    2[ rsp rip]
+        Available    :   39[ rax rdx rcx rbx rbp rsi rdi r8-r15 mm0-mm7 zmm0-zmm15]
+        Callee-save  :    6[ rbx rbp r12-r15]
+        Assigned     :    7[ rax rdx rcx rsi rdi r15 zmm0]
+        
+    Routine temporaries
+        Total         :      77
+            Global    :       9
+            Local     :      68
+        Regenerable   :      45
+        Spilled       :       1
+        
+    Routine stack
+        Variables     :       8 bytes*
+            Reads     :       1 [2.56e+00 ~ 2.6%]
+            Writes    :       1 [2.56e+00 ~ 2.6%]
+        Spills        :       0 bytes*
+            Reads     :       0 [0.00e+00 ~ 0.0%]
+            Writes    :       0 [0.00e+00 ~ 0.0%]
+    
+    Notes
+    
+        *Non-overlapping variables and spills may share stack space,
+         so the total stack size might be less than this.
+    
+
+===========================================================================
+
+Begin optimization report for: GLINT_DAILY_PDD::DAILY_PDD_PRINTCONFIG
+
+    Report from: Interprocedural optimizations [ipo]
+
+INLINE REPORT: (GLINT_DAILY_PDD::DAILY_PDD_PRINTCONFIG) [3] /glade/u/home/tvda/CISM/libglint/glint_daily_pdd.F90(123,14)
+
+
+    Report from: Code generation optimizations [cg]
+
+/glade/u/home/tvda/CISM/libglint/glint_daily_pdd.F90(123,14):remark #34051: REGISTER ALLOCATION : [glint_daily_pdd_mp_daily_pdd_printconfig_] /glade/u/home/tvda/CISM/libglint/glint_daily_pdd.F90:123
+
+    Hardware registers
+        Reserved     :    2[ rsp rip]
+        Available    :   39[ rax rdx rcx rbx rbp rsi rdi r8-r15 mm0-mm7 zmm0-zmm15]
+        Callee-save  :    6[ rbx rbp r12-r15]
+        Assigned     :    9[ rax rdx rcx rbx rsi rdi r8-r9 zmm0]
+        
+    Routine temporaries
+        Total         :     224
+            Global    :      10
+            Local     :     214
+        Regenerable   :     206
+        Spilled       :       1
+        
+    Routine stack
+        Variables     :     488 bytes*
+            Reads     :       0 [0.00e+00 ~ 0.0%]
+            Writes    :      62 [2.24e+01 ~ 22.4%]
+        Spills        :       0 bytes*
+            Reads     :       0 [0.00e+00 ~ 0.0%]
+            Writes    :       0 [0.00e+00 ~ 0.0%]
+    
+    Notes
+    
+        *Non-overlapping variables and spills may share stack space,
+         so the total stack size might be less than this.
+    
+
+===========================================================================
+
+Begin optimization report for: GLINT_DAILY_PDD::GLINT_DAILY_PDD_MBAL
+
+    Report from: Interprocedural optimizations [ipo]
+
+INLINE REPORT: (GLINT_DAILY_PDD::GLINT_DAILY_PDD_MBAL) [4] /glade/u/home/tvda/CISM/libglint/glint_daily_pdd.F90(158,14)
+  -> INLINE: (182,12) GLINT_DAILY_PDD::RAINORSNW
+  -> INLINE: (185,12) GLINT_DAILY_PDD::FINDDEGDAYS
+  -> INLINE: (191,19) GLINT_DAILY_PDD::DEGDAYMODEL
+  -> INLINE: (194,19) GLINT_DAILY_PDD::FIRN_DENSIFY
+
+
+    Report from: Loop nest, Vector & Auto-parallelization optimizations [loop, vec, par]
+
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglint/glint_daily_pdd.F90(179,5)
+   remark #15542: loop was not vectorized: inner loop was already vectorized
+
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglint/glint_daily_pdd.F90(179,5)
+      remark #15300: LOOP WAS VECTORIZED
+   LOOP END
+
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglint/glint_daily_pdd.F90(179,5)
+   <Remainder loop for vectorization>
+   LOOP END
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglint/glint_daily_pdd.F90(180,5)
+   remark #15542: loop was not vectorized: inner loop was already vectorized
+
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglint/glint_daily_pdd.F90(180,5)
+      remark #15300: LOOP WAS VECTORIZED
+   LOOP END
+
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglint/glint_daily_pdd.F90(180,5)
+   <Remainder loop for vectorization>
+   LOOP END
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglint/glint_daily_pdd.F90(182,5)
+   remark #15541: outer loop was not auto-vectorized: consider using SIMD directive
+
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglint/glint_daily_pdd.F90(182,5)
+      remark #15527: loop was not vectorized: function call to acos cannot be vectorized   [ /glade/u/home/tvda/CISM/libglint/glint_daily_pdd.F90(265,60) ]
+   LOOP END
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglint/glint_daily_pdd.F90(182,5)
+   remark #15542: loop was not vectorized: inner loop was already vectorized
+
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglint/glint_daily_pdd.F90(182,5)
+      remark #25399: memcopy generated
+      remark #15542: loop was not vectorized: inner loop was already vectorized
+
+      LOOP BEGIN at /glade/u/home/tvda/CISM/libglint/glint_daily_pdd.F90(182,5)
+         remark #15300: LOOP WAS VECTORIZED
+      LOOP END
+
+      LOOP BEGIN at /glade/u/home/tvda/CISM/libglint/glint_daily_pdd.F90(182,5)
+      <Remainder loop for vectorization>
+      LOOP END
+   LOOP END
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglint/glint_daily_pdd.F90(185,5)
+   remark #15541: outer loop was not auto-vectorized: consider using SIMD directive
+
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglint/glint_daily_pdd.F90(185,5)
+      remark #15527: loop was not vectorized: function call to acos cannot be vectorized   [ /glade/u/home/tvda/CISM/libglint/glint_daily_pdd.F90(224,15) ]
+   LOOP END
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglint/glint_daily_pdd.F90(186,5)
+   remark #15542: loop was not vectorized: inner loop was already vectorized
+
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglint/glint_daily_pdd.F90(186,5)
+      remark #25408: memset generated
+      remark #15542: loop was not vectorized: inner loop was already vectorized
+
+      LOOP BEGIN at /glade/u/home/tvda/CISM/libglint/glint_daily_pdd.F90(186,5)
+         remark #15300: LOOP WAS VECTORIZED
+      LOOP END
+
+      LOOP BEGIN at /glade/u/home/tvda/CISM/libglint/glint_daily_pdd.F90(186,5)
+      <Remainder loop for vectorization>
+      LOOP END
+   LOOP END
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglint/glint_daily_pdd.F90(188,5)
+   remark #15541: outer loop was not auto-vectorized: consider using SIMD directive
+
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglint/glint_daily_pdd.F90(189,8)
+      remark #15344: loop was not vectorized: vector dependence prevents vectorization. First dependence is shown below. Use level 5 report for details
+      remark #15346: vector dependence: assumed ANTI dependence between prcp(i,j) (306:5) and gicedepth (363:11)
+   LOOP END
+LOOP END
+
+    Report from: Code generation optimizations [cg]
+
+/glade/u/home/tvda/CISM/libglint/glint_daily_pdd.F90(182,5):remark #34026: call to memcpy implemented as a call to optimized library version
+/glade/u/home/tvda/CISM/libglint/glint_daily_pdd.F90(186,5):remark #34026: call to memset implemented as a call to optimized library version
+/glade/u/home/tvda/CISM/libglint/glint_daily_pdd.F90(158,14):remark #34051: REGISTER ALLOCATION : [glint_daily_pdd_mp_glint_daily_pdd_mbal_] /glade/u/home/tvda/CISM/libglint/glint_daily_pdd.F90:158
+
+    Hardware registers
+        Reserved     :    2[ rsp rip]
+        Available    :   39[ rax rdx rcx rbx rbp rsi rdi r8-r15 mm0-mm7 zmm0-zmm15]
+        Callee-save  :    6[ rbx rbp r12-r15]
+        Assigned     :   26[ rax rdx rcx rbx rsi rdi r8-r15 zmm0-zmm11]
+        
+    Routine temporaries
+        Total         :     407
+            Global    :     188
+            Local     :     219
+        Regenerable   :      19
+        Spilled       :      79
+        
+    Routine stack
+        Variables     :       0 bytes*
+            Reads     :       0 [0.00e+00 ~ 0.0%]
+            Writes    :       0 [0.00e+00 ~ 0.0%]
+        Spills        :     584 bytes*
+            Reads     :     189 [1.06e+01 ~ 10.6%]
+            Writes    :     116 [4.41e+00 ~ 4.4%]
+    
+    Notes
+    
+        *Non-overlapping variables and spills may share stack space,
+         so the total stack size might be less than this.
+    
+
+===========================================================================
+
+Begin optimization report for: GLINT_DAILY_PDD::FINDDEGDAYS
+
+    Report from: Interprocedural optimizations [ipo]
+
+INLINE REPORT: (GLINT_DAILY_PDD::FINDDEGDAYS) [5] /glade/u/home/tvda/CISM/libglint/glint_daily_pdd.F90(208,31)
+
+
+    Report from: Code generation optimizations [cg]
+
+/glade/u/home/tvda/CISM/libglint/glint_daily_pdd.F90(208,31):remark #34051: REGISTER ALLOCATION : [glint_daily_pdd_mp_finddegdays_] /glade/u/home/tvda/CISM/libglint/glint_daily_pdd.F90:208
+
+    Hardware registers
+        Reserved     :    2[ rsp rip]
+        Available    :   39[ rax rdx rcx rbx rbp rsi rdi r8-r15 mm0-mm7 zmm0-zmm15]
+        Callee-save  :    6[ rbx rbp r12-r15]
+        Assigned     :    7[ rsi rdi zmm0-zmm4]
+        
+    Routine temporaries
+        Total         :      30
+            Global    :      12
+            Local     :      18
+        Regenerable   :       2
+        Spilled       :       3
+        
+    Routine stack
+        Variables     :       0 bytes*
+            Reads     :       0 [0.00e+00 ~ 0.0%]
+            Writes    :       0 [0.00e+00 ~ 0.0%]
+        Spills        :      24 bytes*
+            Reads     :       5 [2.16e+00 ~ 2.2%]
+            Writes    :       5 [2.16e+00 ~ 2.2%]
+    
+    Notes
+    
+        *Non-overlapping variables and spills may share stack space,
+         so the total stack size might be less than this.
+    
+
+===========================================================================
+
+Begin optimization report for: GLINT_DAILY_PDD::RAINORSNW
+
+    Report from: Interprocedural optimizations [ipo]
+
+INLINE REPORT: (GLINT_DAILY_PDD::RAINORSNW) [6] /glade/u/home/tvda/CISM/libglint/glint_daily_pdd.F90(232,31)
+
+
+    Report from: Code generation optimizations [cg]
+
+/glade/u/home/tvda/CISM/libglint/glint_daily_pdd.F90(232,31):remark #34051: REGISTER ALLOCATION : [glint_daily_pdd_mp_rainorsnw_] /glade/u/home/tvda/CISM/libglint/glint_daily_pdd.F90:232
+
+    Hardware registers
+        Reserved     :    2[ rsp rip]
+        Available    :   39[ rax rdx rcx rbx rbp rsi rdi r8-r15 mm0-mm7 zmm0-zmm15]
+        Callee-save  :    6[ rbx rbp r12-r15]
+        Assigned     :   10[ rdx rcx rsi rdi r8 r14 zmm0-zmm3]
+        
+    Routine temporaries
+        Total         :      36
+            Global    :      18
+            Local     :      18
+        Regenerable   :       4
+        Spilled       :       2
+        
+    Routine stack
+        Variables     :       0 bytes*
+            Reads     :       0 [0.00e+00 ~ 0.0%]
+            Writes    :       0 [0.00e+00 ~ 0.0%]
+        Spills        :       8 bytes*
+            Reads     :       1 [1.52e-01 ~ 0.2%]
+            Writes    :       1 [1.52e-01 ~ 0.2%]
+    
+    Notes
+    
+        *Non-overlapping variables and spills may share stack space,
+         so the total stack size might be less than this.
+    
+
+===========================================================================
+
+Begin optimization report for: GLINT_DAILY_PDD::DEGDAYMODEL
+
+    Report from: Interprocedural optimizations [ipo]
+
+INLINE REPORT: (GLINT_DAILY_PDD::DEGDAYMODEL) [7] /glade/u/home/tvda/CISM/libglint/glint_daily_pdd.F90(286,14)
+
+
+    Report from: Code generation optimizations [cg]
+
+/glade/u/home/tvda/CISM/libglint/glint_daily_pdd.F90(286,14):remark #34051: REGISTER ALLOCATION : [glint_daily_pdd_mp_degdaymodel_] /glade/u/home/tvda/CISM/libglint/glint_daily_pdd.F90:286
+
+    Hardware registers
+        Reserved     :    2[ rsp rip]
+        Available    :   39[ rax rdx rcx rbx rbp rsi rdi r8-r15 mm0-mm7 zmm0-zmm15]
+        Callee-save  :    6[ rbx rbp r12-r15]
+        Assigned     :   13[ rax rdx rcx rsi rdi r8-r9 zmm0-zmm5]
+        
+    Routine temporaries
+        Total         :      50
+            Global    :      20
+            Local     :      30
+        Regenerable   :       2
+        Spilled       :       0
+        
+    Routine stack
+        Variables     :       0 bytes*
+            Reads     :       0 [0.00e+00 ~ 0.0%]
+            Writes    :       0 [0.00e+00 ~ 0.0%]
+        Spills        :       0 bytes*
+            Reads     :       0 [0.00e+00 ~ 0.0%]
+            Writes    :       0 [0.00e+00 ~ 0.0%]
+    
+    Notes
+    
+        *Non-overlapping variables and spills may share stack space,
+         so the total stack size might be less than this.
+    
+
+===========================================================================
+
+Begin optimization report for: GLINT_DAILY_PDD::FIRN_DENSIFY
+
+    Report from: Interprocedural optimizations [ipo]
+
+INLINE REPORT: (GLINT_DAILY_PDD::FIRN_DENSIFY) [8] /glade/u/home/tvda/CISM/libglint/glint_daily_pdd.F90(371,14)
+
+
+    Report from: Code generation optimizations [cg]
+
+/glade/u/home/tvda/CISM/libglint/glint_daily_pdd.F90(371,14):remark #34051: REGISTER ALLOCATION : [glint_daily_pdd_mp_firn_densify_] /glade/u/home/tvda/CISM/libglint/glint_daily_pdd.F90:371
+
+    Hardware registers
+        Reserved     :    2[ rsp rip]
+        Available    :   39[ rax rdx rcx rbx rbp rsi rdi r8-r15 mm0-mm7 zmm0-zmm15]
+        Callee-save  :    6[ rbx rbp r12-r15]
+        Assigned     :   15[ rdx rsi rdi r13-r15 zmm0-zmm8]
+        
+    Routine temporaries
+        Total         :      56
+            Global    :      17
+            Local     :      39
+        Regenerable   :       2
+        Spilled       :       6
+        
+    Routine stack
+        Variables     :       0 bytes*
+            Reads     :       0 [0.00e+00 ~ 0.0%]
+            Writes    :       0 [0.00e+00 ~ 0.0%]
+        Spills        :      24 bytes*
+            Reads     :       3 [3.11e+00 ~ 3.1%]
+            Writes    :       3 [3.11e+00 ~ 3.1%]
+    
+    Notes
+    
+        *Non-overlapping variables and spills may share stack space,
+         so the total stack size might be less than this.
+    
+
+===========================================================================
+
+Begin optimization report for: GLINT_DAILY_PDD::GLINT_DAILY_PDD_INIT
+
+    Report from: Interprocedural optimizations [ipo]
+
+INLINE REPORT: (GLINT_DAILY_PDD::GLINT_DAILY_PDD_INIT) [9] /glade/u/home/tvda/CISM/libglint/glint_daily_pdd.F90(68,14)
+  -> INLINE: (78,10) GLINT_DAILY_PDD::DAILY_PDD_READCONFIG
+  -> INLINE: (79,10) GLINT_DAILY_PDD::DAILY_PDD_PRINTCONFIG
+
+
+    Report from: Code generation optimizations [cg]
+
+/glade/u/home/tvda/CISM/libglint/glint_daily_pdd.F90(68,14):remark #34051: REGISTER ALLOCATION : [glint_daily_pdd_mp_glint_daily_pdd_init_] /glade/u/home/tvda/CISM/libglint/glint_daily_pdd.F90:68
+
+    Hardware registers
+        Reserved     :    2[ rsp rip]
+        Available    :   39[ rax rdx rcx rbx rbp rsi rdi r8-r15 mm0-mm7 zmm0-zmm15]
+        Callee-save  :    6[ rbx rbp r12-r15]
+        Assigned     :   11[ rax rdx rcx rsi rdi r8-r9 r13 zmm0-zmm2]
+        
+    Routine temporaries
+        Total         :     300
+            Global    :      12
+            Local     :     288
+        Regenerable   :     253
+        Spilled       :       1
+        
+    Routine stack
+        Variables     :     496 bytes*
+            Reads     :       1 [3.20e-01 ~ 0.3%]
+            Writes    :      63 [2.02e+01 ~ 20.2%]
+        Spills        :       0 bytes*
+            Reads     :       0 [0.00e+00 ~ 0.0%]
+            Writes    :       0 [0.00e+00 ~ 0.0%]
+    
+    Notes
+    
+        *Non-overlapping variables and spills may share stack space,
+         so the total stack size might be less than this.
+    
+
+===========================================================================

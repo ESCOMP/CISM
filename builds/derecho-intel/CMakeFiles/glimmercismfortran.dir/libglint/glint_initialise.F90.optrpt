@@ -1,0 +1,772 @@
+Intel(R) Advisor can now assist with vectorization and show optimization
+  report messages with your source code.
+See "https://software.intel.com/en-us/intel-advisor-xe" for details.
+
+
+    Report from: Interprocedural optimizations [ipo]
+
+INLINING OPTION VALUES:
+  -inline-factor: 100
+  -inline-min-size: 30
+  -inline-max-size: 230
+  -inline-max-total-size: 2000
+  -inline-max-per-routine: 10000
+  -inline-max-per-compile: 500000
+
+
+Begin optimization report for: GLINT_INITIALISE::SETUP_LGRID_FULLDOMAIN..0
+
+    Report from: Interprocedural optimizations [ipo]
+
+INLINE REPORT: (GLINT_INITIALISE::SETUP_LGRID_FULLDOMAIN..0) [1] /glade/u/home/tvda/CISM/libglint/glint_initialise.F90(593,14)
+  CLONED FROM: GLINT_INITIALISE::SETUP_LGRID_FULLDOMAIN(X,X,0x00000000,0x00000000)
+  -> (653,13) GLINT_INITIALISE::CALC_COVERAGE
+  -> (660,16) GLINT_INITIALISE::CALC_COVERAGE
+
+
+    Report from: Code generation optimizations [cg]
+
+/glade/u/home/tvda/CISM/libglint/glint_initialise.F90(593,14):remark #34000: call to memcpy implemented inline with loads and stores with proven source (alignment, offset): (32, 0), and destination (alignment, offset): (16, 0)
+/glade/u/home/tvda/CISM/libglint/glint_initialise.F90(628,5):remark #34000: call to memcpy implemented inline with loads and stores with proven source (alignment, offset): (1, 0), and destination (alignment, offset): (16, 0)
+/glade/u/home/tvda/CISM/libglint/glint_initialise.F90(593,14):remark #34051: REGISTER ALLOCATION : [glint_initialise_mp_setup_lgrid_fulldomain_..0] /glade/u/home/tvda/CISM/libglint/glint_initialise.F90:593
+
+    Hardware registers
+        Reserved     :    2[ rsp rip]
+        Available    :   39[ rax rdx rcx rbx rbp rsi rdi r8-r15 mm0-mm7 zmm0-zmm15]
+        Callee-save  :    6[ rbx rbp r12-r15]
+        Assigned     :   19[ rax rdx rcx rbx rsi rdi r8-r15 zmm0-zmm4]
+        
+    Routine temporaries
+        Total         :     138
+            Global    :      23
+            Local     :     115
+        Regenerable   :      23
+        Spilled       :       6
+        
+    Routine stack
+        Variables     :     360 bytes*
+            Reads     :      10 [2.89e+00 ~ 2.9%]
+            Writes    :      34 [2.68e+01 ~ 26.8%]
+        Spills        :       8 bytes*
+            Reads     :       1 [2.73e-01 ~ 0.3%]
+            Writes    :       1 [2.73e-01 ~ 0.3%]
+    
+    Notes
+    
+        *Non-overlapping variables and spills may share stack space,
+         so the total stack size might be less than this.
+    
+
+===========================================================================
+
+Begin optimization report for: GLINT_INITIALISE::DEFINE_GLINT_RESTART_VARIABLES
+
+    Report from: Interprocedural optimizations [ipo]
+
+INLINE REPORT: (GLINT_INITIALISE::DEFINE_GLINT_RESTART_VARIABLES) [2] /glade/u/home/tvda/CISM/libglint/glint_initialise.F90(845,14)
+
+
+    Report from: Code generation optimizations [cg]
+
+/glade/u/home/tvda/CISM/libglint/glint_initialise.F90(845,14):remark #34051: REGISTER ALLOCATION : [glint_initialise_mp_define_glint_restart_variables_] /glade/u/home/tvda/CISM/libglint/glint_initialise.F90:845
+
+    Hardware registers
+        Reserved     :    2[ rsp rip]
+        Available    :   39[ rax rdx rcx rbx rbp rsi rdi r8-r15 mm0-mm7 zmm0-zmm15]
+        Callee-save  :    6[ rbx rbp r12-r15]
+        Assigned     :    1[ rdi]
+        
+    Routine temporaries
+        Total         :       7
+            Global    :       0
+            Local     :       7
+        Regenerable   :       0
+        Spilled       :       0
+        
+    Routine stack
+        Variables     :       0 bytes*
+            Reads     :       0 [0.00e+00 ~ 0.0%]
+            Writes    :       0 [0.00e+00 ~ 0.0%]
+        Spills        :       0 bytes*
+            Reads     :       0 [0.00e+00 ~ 0.0%]
+            Writes    :       0 [0.00e+00 ~ 0.0%]
+    
+    Notes
+    
+        *Non-overlapping variables and spills may share stack space,
+         so the total stack size might be less than this.
+    
+
+===========================================================================
+
+Begin optimization report for: GLINT_INITIALISE::LON_DIFF
+
+    Report from: Interprocedural optimizations [ipo]
+
+INLINE REPORT: (GLINT_INITIALISE::LON_DIFF) [3] /glade/u/home/tvda/CISM/libglint/glint_initialise.F90(825,21)
+
+
+    Report from: Loop nest, Vector & Auto-parallelization optimizations [loop, vec, par]
+
+
+
+Non-optimizable loops:
+
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglint/glint_initialise.F90(836,8)
+   remark #15521: loop was not vectorized: loop control variable was not identified. Explicitly compute the iteration count before executing the loop or try using canonical loop form from OpenMP specification
+LOOP END
+
+    Report from: Code generation optimizations [cg]
+
+/glade/u/home/tvda/CISM/libglint/glint_initialise.F90(825,21):remark #34051: REGISTER ALLOCATION : [glint_initialise_mp_lon_diff_] /glade/u/home/tvda/CISM/libglint/glint_initialise.F90:825
+
+    Hardware registers
+        Reserved     :    2[ rsp rip]
+        Available    :   39[ rax rdx rcx rbx rbp rsi rdi r8-r15 mm0-mm7 zmm0-zmm15]
+        Callee-save  :    6[ rbx rbp r12-r15]
+        Assigned     :    5[ rsi rdi zmm0-zmm2]
+        
+    Routine temporaries
+        Total         :      15
+            Global    :       9
+            Local     :       6
+        Regenerable   :       1
+        Spilled       :       0
+        
+    Routine stack
+        Variables     :       0 bytes*
+            Reads     :       0 [0.00e+00 ~ 0.0%]
+            Writes    :       0 [0.00e+00 ~ 0.0%]
+        Spills        :       0 bytes*
+            Reads     :       0 [0.00e+00 ~ 0.0%]
+            Writes    :       0 [0.00e+00 ~ 0.0%]
+    
+    Notes
+    
+        *Non-overlapping variables and spills may share stack space,
+         so the total stack size might be less than this.
+    
+
+===========================================================================
+
+Begin optimization report for: GLINT_INITIALISE::CALC_COVERAGE
+
+    Report from: Interprocedural optimizations [ipo]
+
+INLINE REPORT: (GLINT_INITIALISE::CALC_COVERAGE) [4] /glade/u/home/tvda/CISM/libglint/glint_initialise.F90(673,14)
+  -> INLINE: (711,36) GLINT_INITIALISE::LON_DIFF
+
+
+    Report from: Loop nest, Vector & Auto-parallelization optimizations [loop, vec, par]
+
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglint/glint_initialise.F90(697,5)
+   remark #15542: loop was not vectorized: inner loop was already vectorized
+
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglint/glint_initialise.F90(697,5)
+      remark #25408: memset generated
+      remark #15542: loop was not vectorized: inner loop was already vectorized
+
+      LOOP BEGIN at /glade/u/home/tvda/CISM/libglint/glint_initialise.F90(697,5)
+         remark #15300: LOOP WAS VECTORIZED
+      LOOP END
+
+      LOOP BEGIN at /glade/u/home/tvda/CISM/libglint/glint_initialise.F90(697,5)
+      <Remainder loop for vectorization>
+      LOOP END
+   LOOP END
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglint/glint_initialise.F90(699,5)
+<Multiversioned v1>
+   remark #25233: Loop multiversioned for stride tests on Assumed shape arrays
+   remark #15541: outer loop was not auto-vectorized: consider using SIMD directive
+
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglint/glint_initialise.F90(700,8)
+      remark #15344: loop was not vectorized: vector dependence prevents vectorization. First dependence is shown below. Use level 5 report for details
+      remark #15346: vector dependence: assumed FLOW dependence between tempcount(ups(i,j),ups(i,j)) (701:11) and tempcount(ups(i,j),ups(i,j)) (701:11)
+      remark #25456: Number of Array Refs Scalar Replaced In Loop: 2
+   LOOP END
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglint/glint_initialise.F90(699,5)
+<Multiversioned v2>
+   remark #15541: outer loop was not auto-vectorized: consider using SIMD directive
+
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglint/glint_initialise.F90(700,8)
+      remark #15344: loop was not vectorized: vector dependence prevents vectorization. First dependence is shown below. Use level 5 report for details
+      remark #15346: vector dependence: assumed FLOW dependence between tempcount(ups(i,j),ups(i,j)) (701:11) and tempcount(ups(i,j),ups(i,j)) (701:11)
+      remark #25456: Number of Array Refs Scalar Replaced In Loop: 2
+   LOOP END
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglint/glint_initialise.F90(721,5)
+   remark #15541: outer loop was not auto-vectorized: consider using SIMD directive
+
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglint/glint_initialise.F90(722,8)
+      remark #15344: loop was not vectorized: vector dependence prevents vectorization. First dependence is shown below. Use level 5 report for details
+      remark #15346: vector dependence: assumed FLOW dependence between frac_coverage(i,j) (728:20) and frac_coverage(i,j-1) (726:46)
+      remark #25439: unrolled with remainder by 2  
+   LOOP END
+
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglint/glint_initialise.F90(722,8)
+   <Remainder>
+   LOOP END
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglint/glint_initialise.F90(734,5)
+   remark #15344: loop was not vectorized: vector dependence prevents vectorization. First dependence is shown below. Use level 5 report for details
+   remark #15346: vector dependence: assumed FLOW dependence between frac_coverage(i,1) (740:17) and frac_coverage(i+?/2,1) (738:42)
+   remark #25439: unrolled with remainder by 2  
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglint/glint_initialise.F90(734,5)
+<Remainder>
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglint/glint_initialise.F90(743,5)
+   remark #15344: loop was not vectorized: vector dependence prevents vectorization. First dependence is shown below. Use level 5 report for details
+   remark #15346: vector dependence: assumed FLOW dependence between frac_coverage(i,1) (749:17) and frac_coverage(i-?/2,1) (747:42)
+   remark #25439: unrolled with remainder by 2  
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglint/glint_initialise.F90(743,5)
+<Remainder>
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglint/glint_initialise.F90(752,5)
+   remark #15344: loop was not vectorized: vector dependence prevents vectorization. First dependence is shown below. Use level 5 report for details
+   remark #15346: vector dependence: assumed FLOW dependence between frac_coverage(i,:) (758:17) and frac_coverage(i-1,:) (756:48)
+   remark #25439: unrolled with remainder by 2  
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglint/glint_initialise.F90(752,5)
+<Remainder>
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglint/glint_initialise.F90(761,5)
+   remark #15344: loop was not vectorized: vector dependence prevents vectorization. First dependence is shown below. Use level 5 report for details
+   remark #15346: vector dependence: assumed FLOW dependence between frac_coverage(i,:) (767:17) and frac_coverage(i-1,:) (765:48)
+   remark #25439: unrolled with remainder by 2  
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglint/glint_initialise.F90(761,5)
+<Remainder>
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglint/glint_initialise.F90(772,5)
+   remark #15344: loop was not vectorized: vector dependence prevents vectorization. First dependence is shown below. Use level 5 report for details
+   remark #15346: vector dependence: assumed FLOW dependence between frac_coverage(1,j) (778:17) and frac_coverage(:,j-1) (782:48)
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglint/glint_initialise.F90(819,34)
+<Multiversioned v1>
+   remark #25233: Loop multiversioned for stride tests on Assumed shape arrays
+   remark #15541: outer loop was not auto-vectorized: consider using SIMD directive
+
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglint/glint_initialise.F90(819,34)
+      remark #15335: loop was not vectorized: vectorization possible but seems inefficient. Use vector always directive or -vec-threshold0 to override 
+      remark #25439: unrolled with remainder by 2  
+   LOOP END
+
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglint/glint_initialise.F90(819,34)
+   <Remainder>
+   LOOP END
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglint/glint_initialise.F90(819,34)
+<Multiversioned v2>
+   remark #15541: outer loop was not auto-vectorized: consider using SIMD directive
+
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglint/glint_initialise.F90(819,34)
+      remark #15335: loop was not vectorized: vectorization possible but seems inefficient. Use vector always directive or -vec-threshold0 to override 
+      remark #25439: unrolled with remainder by 2  
+   LOOP END
+
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglint/glint_initialise.F90(819,34)
+   <Remainder>
+   LOOP END
+LOOP END
+
+
+Non-optimizable loops:
+
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglint/glint_initialise.F90(715,5)
+   remark #15536: loop was not vectorized: inner loop throttling prevents vectorization of this outer loop. Refer to inner loop message for more details.   [ /glade/u/home/tvda/CISM/libglint/glint_initialise.F90(836,8) ]
+
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglint/glint_initialise.F90(714,8)
+      remark #15536: loop was not vectorized: inner loop throttling prevents vectorization of this outer loop. Refer to inner loop message for more details.   [ /glade/u/home/tvda/CISM/libglint/glint_initialise.F90(836,8) ]
+
+      LOOP BEGIN at /glade/u/home/tvda/CISM/libglint/glint_initialise.F90(836,8) inlined into /glade/u/home/tvda/CISM/libglint/glint_initialise.F90(748,36)
+         remark #15521: loop was not vectorized: loop control variable was not identified. Explicitly compute the iteration count before executing the loop or try using canonical loop form from OpenMP specification
+      LOOP END
+   LOOP END
+LOOP END
+
+    Report from: Code generation optimizations [cg]
+
+/glade/u/home/tvda/CISM/libglint/glint_initialise.F90(697,5):remark #34026: call to memset implemented as a call to optimized library version
+/glade/u/home/tvda/CISM/libglint/glint_initialise.F90(673,14):remark #34051: REGISTER ALLOCATION : [glint_initialise_mp_calc_coverage_] /glade/u/home/tvda/CISM/libglint/glint_initialise.F90:673
+
+    Hardware registers
+        Reserved     :    2[ rsp rip]
+        Available    :   39[ rax rdx rcx rbx rbp rsi rdi r8-r15 mm0-mm7 zmm0-zmm15]
+        Callee-save  :    6[ rbx rbp r12-r15]
+        Assigned     :   20[ rax rdx rcx rbx rsi rdi r8-r15 zmm0-zmm5]
+        
+    Routine temporaries
+        Total         :     569
+            Global    :     233
+            Local     :     336
+        Regenerable   :      24
+        Spilled       :     101
+        
+    Routine stack
+        Variables     :       0 bytes*
+            Reads     :       0 [0.00e+00 ~ 0.0%]
+            Writes    :       0 [0.00e+00 ~ 0.0%]
+        Spills        :     712 bytes*
+            Reads     :     185 [1.09e+01 ~ 10.9%]
+            Writes    :     122 [4.86e+00 ~ 4.9%]
+    
+    Notes
+    
+        *Non-overlapping variables and spills may share stack space,
+         so the total stack size might be less than this.
+    
+
+===========================================================================
+
+Begin optimization report for: GLINT_INITIALISE::SETUP_LGRID_FULLDOMAIN
+
+    Report from: Interprocedural optimizations [ipo]
+
+INLINE REPORT: (GLINT_INITIALISE::SETUP_LGRID_FULLDOMAIN) [5] /glade/u/home/tvda/CISM/libglint/glint_initialise.F90(593,14)
+  -> (653,13) GLINT_INITIALISE::CALC_COVERAGE
+  -> (660,16) GLINT_INITIALISE::CALC_COVERAGE
+
+
+    Report from: Code generation optimizations [cg]
+
+/glade/u/home/tvda/CISM/libglint/glint_initialise.F90(593,14):remark #34000: call to memcpy implemented inline with loads and stores with proven source (alignment, offset): (32, 0), and destination (alignment, offset): (16, 0)
+/glade/u/home/tvda/CISM/libglint/glint_initialise.F90(628,5):remark #34000: call to memcpy implemented inline with loads and stores with proven source (alignment, offset): (1, 0), and destination (alignment, offset): (16, 0)
+/glade/u/home/tvda/CISM/libglint/glint_initialise.F90(593,14):remark #34051: REGISTER ALLOCATION : [glint_initialise_mp_setup_lgrid_fulldomain_] /glade/u/home/tvda/CISM/libglint/glint_initialise.F90:593
+
+    Hardware registers
+        Reserved     :    2[ rsp rip]
+        Available    :   39[ rax rdx rcx rbx rbp rsi rdi r8-r15 mm0-mm7 zmm0-zmm15]
+        Callee-save  :    6[ rbx rbp r12-r15]
+        Assigned     :   19[ rax rdx rcx rbx rsi rdi r8-r15 zmm0-zmm4]
+        
+    Routine temporaries
+        Total         :     152
+            Global    :      24
+            Local     :     128
+        Regenerable   :      25
+        Spilled       :       7
+        
+    Routine stack
+        Variables     :     360 bytes*
+            Reads     :      10 [2.83e+00 ~ 2.8%]
+            Writes    :      34 [2.63e+01 ~ 26.3%]
+        Spills        :      16 bytes*
+            Reads     :       2 [5.35e-01 ~ 0.5%]
+            Writes    :       2 [5.35e-01 ~ 0.5%]
+    
+    Notes
+    
+        *Non-overlapping variables and spills may share stack space,
+         so the total stack size might be less than this.
+    
+
+===========================================================================
+
+Begin optimization report for: GLINT_INITIALISE::GLINT_I_READDATA
+
+    Report from: Interprocedural optimizations [ipo]
+
+INLINE REPORT: (GLINT_INITIALISE::GLINT_I_READDATA) [6] /glade/u/home/tvda/CISM/libglint/glint_initialise.F90(573,14)
+
+
+    Report from: Loop nest, Vector & Auto-parallelization optimizations [loop, vec, par]
+
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglint/glint_initialise.F90(587,5)
+<Multiversioned v1>
+   remark #25233: Loop multiversioned for stride tests on Assumed shape arrays
+   remark #15542: loop was not vectorized: inner loop was already vectorized
+
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglint/glint_initialise.F90(587,5)
+      remark #15300: LOOP WAS VECTORIZED
+   LOOP END
+
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglint/glint_initialise.F90(587,5)
+   <Remainder loop for vectorization>
+   LOOP END
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglint/glint_initialise.F90(587,5)
+<Multiversioned v2>
+   remark #15541: outer loop was not auto-vectorized: consider using SIMD directive
+
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglint/glint_initialise.F90(587,5)
+      remark #15335: loop was not vectorized: vectorization possible but seems inefficient. Use vector always directive or -vec-threshold0 to override 
+      remark #25439: unrolled with remainder by 2  
+   LOOP END
+
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglint/glint_initialise.F90(587,5)
+   <Remainder>
+   LOOP END
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglint/glint_initialise.F90(587,5)
+<Multiversioned v1>
+   remark #25233: Loop multiversioned for stride tests on Assumed shape arrays
+   remark #15542: loop was not vectorized: inner loop was already vectorized
+
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglint/glint_initialise.F90(587,5)
+      remark #15300: LOOP WAS VECTORIZED
+   LOOP END
+
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglint/glint_initialise.F90(587,5)
+   <Remainder loop for vectorization>
+   LOOP END
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglint/glint_initialise.F90(587,5)
+<Multiversioned v2>
+   remark #15542: loop was not vectorized: inner loop was already vectorized
+
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglint/glint_initialise.F90(587,5)
+      remark #15300: LOOP WAS VECTORIZED
+   LOOP END
+
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglint/glint_initialise.F90(587,5)
+   <Remainder loop for vectorization>
+   LOOP END
+LOOP END
+
+    Report from: Code generation optimizations [cg]
+
+/glade/u/home/tvda/CISM/libglint/glint_initialise.F90(573,14):remark #34051: REGISTER ALLOCATION : [glint_initialise_mp_glint_i_readdata_] /glade/u/home/tvda/CISM/libglint/glint_initialise.F90:573
+
+    Hardware registers
+        Reserved     :    2[ rsp rip]
+        Available    :   39[ rax rdx rcx rbx rbp rsi rdi r8-r15 mm0-mm7 zmm0-zmm15]
+        Callee-save  :    6[ rbx rbp r12-r15]
+        Assigned     :   27[ rax rdx rcx rbx rsi rdi r8-r15 zmm0-zmm12]
+        
+    Routine temporaries
+        Total         :     149
+            Global    :      72
+            Local     :      77
+        Regenerable   :       5
+        Spilled       :      28
+        
+    Routine stack
+        Variables     :       0 bytes*
+            Reads     :       0 [0.00e+00 ~ 0.0%]
+            Writes    :       0 [0.00e+00 ~ 0.0%]
+        Spills        :     176 bytes*
+            Reads     :      37 [5.30e+00 ~ 5.3%]
+            Writes    :      28 [2.40e+00 ~ 2.4%]
+    
+    Notes
+    
+        *Non-overlapping variables and spills may share stack space,
+         so the total stack size might be less than this.
+    
+
+===========================================================================
+
+Begin optimization report for: GLINT_INITIALISE::GLINT_I_END
+
+    Report from: Interprocedural optimizations [ipo]
+
+INLINE REPORT: (GLINT_INITIALISE::GLINT_I_END) [7] /glade/u/home/tvda/CISM/libglint/glint_initialise.F90(555,14)
+
+
+    Report from: Code generation optimizations [cg]
+
+/glade/u/home/tvda/CISM/libglint/glint_initialise.F90(555,14):remark #34051: REGISTER ALLOCATION : [glint_initialise_mp_glint_i_end_] /glade/u/home/tvda/CISM/libglint/glint_initialise.F90:555
+
+    Hardware registers
+        Reserved     :    2[ rsp rip]
+        Available    :   39[ rax rdx rcx rbx rbp rsi rdi r8-r15 mm0-mm7 zmm0-zmm15]
+        Callee-save  :    6[ rbx rbp r12-r15]
+        Assigned     :    4[ rsi rdi r12-r13]
+        
+    Routine temporaries
+        Total         :      14
+            Global    :       8
+            Local     :       6
+        Regenerable   :       1
+        Spilled       :       2
+        
+    Routine stack
+        Variables     :       0 bytes*
+            Reads     :       0 [0.00e+00 ~ 0.0%]
+            Writes    :       0 [0.00e+00 ~ 0.0%]
+        Spills        :       0 bytes*
+            Reads     :       0 [0.00e+00 ~ 0.0%]
+            Writes    :       0 [0.00e+00 ~ 0.0%]
+    
+    Notes
+    
+        *Non-overlapping variables and spills may share stack space,
+         so the total stack size might be less than this.
+    
+
+===========================================================================
+
+Begin optimization report for: GLINT_INITIALISE::GLINT_I_INITIALISE_GCM
+
+    Report from: Interprocedural optimizations [ipo]
+
+INLINE REPORT: (GLINT_INITIALISE::GLINT_I_INITIALISE_GCM) [8] /glade/u/home/tvda/CISM/libglint/glint_initialise.F90(316,14)
+  -> DELETED: (432,10) GLINT_INITIALISE::DEFINE_GLINT_RESTART_VARIABLES
+  -> INLINE: (467,10) GLINT_INITIALISE::GLINT_I_READDATA
+  -> CP_CLONE (473,10) GLINT_INITIALISE::SETUP_LGRID_FULLDOMAIN..0
+
+
+    Report from: Loop nest, Vector & Auto-parallelization optimizations [loop, vec, par]
+
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglint/glint_initialise.F90(587,5) inlined into /glade/u/home/tvda/CISM/libglint/glint_initialise.F90(504,10)
+<Multiversioned v1>
+   remark #25233: Loop multiversioned for stride tests on Assumed shape arrays
+   remark #15542: loop was not vectorized: inner loop was already vectorized
+
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglint/glint_initialise.F90(587,5) inlined into /glade/u/home/tvda/CISM/libglint/glint_initialise.F90(504,10)
+      remark #15300: LOOP WAS VECTORIZED
+   LOOP END
+
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglint/glint_initialise.F90(587,5) inlined into /glade/u/home/tvda/CISM/libglint/glint_initialise.F90(504,10)
+   <Remainder loop for vectorization>
+   LOOP END
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglint/glint_initialise.F90(587,5) inlined into /glade/u/home/tvda/CISM/libglint/glint_initialise.F90(504,10)
+<Multiversioned v2>
+   remark #15541: outer loop was not auto-vectorized: consider using SIMD directive
+
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglint/glint_initialise.F90(587,5) inlined into /glade/u/home/tvda/CISM/libglint/glint_initialise.F90(504,10)
+      remark #15335: loop was not vectorized: vectorization possible but seems inefficient. Use vector always directive or -vec-threshold0 to override 
+      remark #25439: unrolled with remainder by 2  
+   LOOP END
+
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglint/glint_initialise.F90(587,5) inlined into /glade/u/home/tvda/CISM/libglint/glint_initialise.F90(504,10)
+   <Remainder>
+   LOOP END
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglint/glint_initialise.F90(587,5) inlined into /glade/u/home/tvda/CISM/libglint/glint_initialise.F90(504,10)
+<Multiversioned v1>
+   remark #25233: Loop multiversioned for stride tests on Assumed shape arrays
+   remark #15542: loop was not vectorized: inner loop was already vectorized
+
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglint/glint_initialise.F90(587,5) inlined into /glade/u/home/tvda/CISM/libglint/glint_initialise.F90(504,10)
+      remark #15300: LOOP WAS VECTORIZED
+   LOOP END
+
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglint/glint_initialise.F90(587,5) inlined into /glade/u/home/tvda/CISM/libglint/glint_initialise.F90(504,10)
+   <Remainder loop for vectorization>
+   LOOP END
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglint/glint_initialise.F90(587,5) inlined into /glade/u/home/tvda/CISM/libglint/glint_initialise.F90(504,10)
+<Multiversioned v2>
+   remark #15542: loop was not vectorized: inner loop was already vectorized
+
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglint/glint_initialise.F90(587,5) inlined into /glade/u/home/tvda/CISM/libglint/glint_initialise.F90(504,10)
+      remark #15300: LOOP WAS VECTORIZED
+   LOOP END
+
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglint/glint_initialise.F90(587,5) inlined into /glade/u/home/tvda/CISM/libglint/glint_initialise.F90(504,10)
+   <Remainder loop for vectorization>
+   LOOP END
+LOOP END
+
+    Report from: Code generation optimizations [cg]
+
+/glade/u/home/tvda/CISM/libglint/glint_initialise.F90(511,72):remark #34026: call to memmove implemented as a call to optimized library version
+/glade/u/home/tvda/CISM/libglint/glint_initialise.F90(516,72):remark #34026: call to memmove implemented as a call to optimized library version
+/glade/u/home/tvda/CISM/libglint/glint_initialise.F90(522,78):remark #34026: call to memmove implemented as a call to optimized library version
+/glade/u/home/tvda/CISM/libglint/glint_initialise.F90(527,95):remark #34026: call to memmove implemented as a call to optimized library version
+/glade/u/home/tvda/CISM/libglint/glint_initialise.F90(316,14):remark #34051: REGISTER ALLOCATION : [glint_initialise_mp_glint_i_initialise_gcm_] /glade/u/home/tvda/CISM/libglint/glint_initialise.F90:316
+
+    Hardware registers
+        Reserved     :    2[ rsp rip]
+        Available    :   39[ rax rdx rcx rbx rbp rsi rdi r8-r15 mm0-mm7 zmm0-zmm15]
+        Callee-save  :    6[ rbx rbp r12-r15]
+        Assigned     :   27[ rax rdx rcx rbx rsi rdi r8-r15 zmm0-zmm12]
+        
+    Routine temporaries
+        Total         :     445
+            Global    :     116
+            Local     :     329
+        Regenerable   :     148
+        Spilled       :      34
+        
+    Routine stack
+        Variables     :     236 bytes*
+            Reads     :       8 [5.35e-01 ~ 0.5%]
+            Writes    :      21 [4.62e-01 ~ 0.5%]
+        Spills        :     224 bytes*
+            Reads     :      49 [4.48e+00 ~ 4.5%]
+            Writes    :      38 [2.27e+00 ~ 2.3%]
+    
+    Notes
+    
+        *Non-overlapping variables and spills may share stack space,
+         so the total stack size might be less than this.
+    
+
+===========================================================================
+
+Begin optimization report for: GLINT_INITIALISE::GLINT_I_INITIALISE
+
+    Report from: Interprocedural optimizations [ipo]
+
+INLINE REPORT: (GLINT_INITIALISE::GLINT_I_INITIALISE) [9] /glade/u/home/tvda/CISM/libglint/glint_initialise.F90(55,14)
+  -> DELETED: (172,10) GLINT_INITIALISE::DEFINE_GLINT_RESTART_VARIABLES
+  -> INLINE: (198,10) GLINT_INITIALISE::GLINT_I_READDATA
+  -> (204,10) GLINT_INITIALISE::SETUP_LGRID_FULLDOMAIN
+
+
+    Report from: Loop nest, Vector & Auto-parallelization optimizations [loop, vec, par]
+
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglint/glint_initialise.F90(587,5) inlined into /glade/u/home/tvda/CISM/libglint/glint_initialise.F90(235,10)
+<Multiversioned v1>
+   remark #25233: Loop multiversioned for stride tests on Assumed shape arrays
+   remark #15542: loop was not vectorized: inner loop was already vectorized
+
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglint/glint_initialise.F90(587,5) inlined into /glade/u/home/tvda/CISM/libglint/glint_initialise.F90(235,10)
+      remark #15300: LOOP WAS VECTORIZED
+   LOOP END
+
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglint/glint_initialise.F90(587,5) inlined into /glade/u/home/tvda/CISM/libglint/glint_initialise.F90(235,10)
+   <Remainder loop for vectorization>
+   LOOP END
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglint/glint_initialise.F90(587,5) inlined into /glade/u/home/tvda/CISM/libglint/glint_initialise.F90(235,10)
+<Multiversioned v2>
+   remark #15541: outer loop was not auto-vectorized: consider using SIMD directive
+
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglint/glint_initialise.F90(587,5) inlined into /glade/u/home/tvda/CISM/libglint/glint_initialise.F90(235,10)
+      remark #15335: loop was not vectorized: vectorization possible but seems inefficient. Use vector always directive or -vec-threshold0 to override 
+      remark #25439: unrolled with remainder by 2  
+   LOOP END
+
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglint/glint_initialise.F90(587,5) inlined into /glade/u/home/tvda/CISM/libglint/glint_initialise.F90(235,10)
+   <Remainder>
+   LOOP END
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglint/glint_initialise.F90(587,5) inlined into /glade/u/home/tvda/CISM/libglint/glint_initialise.F90(235,10)
+<Multiversioned v1>
+   remark #25233: Loop multiversioned for stride tests on Assumed shape arrays
+   remark #15542: loop was not vectorized: inner loop was already vectorized
+
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglint/glint_initialise.F90(587,5) inlined into /glade/u/home/tvda/CISM/libglint/glint_initialise.F90(235,10)
+      remark #15300: LOOP WAS VECTORIZED
+   LOOP END
+
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglint/glint_initialise.F90(587,5) inlined into /glade/u/home/tvda/CISM/libglint/glint_initialise.F90(235,10)
+   <Remainder loop for vectorization>
+   LOOP END
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglint/glint_initialise.F90(587,5) inlined into /glade/u/home/tvda/CISM/libglint/glint_initialise.F90(235,10)
+<Multiversioned v2>
+   remark #15542: loop was not vectorized: inner loop was already vectorized
+
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglint/glint_initialise.F90(587,5) inlined into /glade/u/home/tvda/CISM/libglint/glint_initialise.F90(235,10)
+      remark #15300: LOOP WAS VECTORIZED
+   LOOP END
+
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglint/glint_initialise.F90(587,5) inlined into /glade/u/home/tvda/CISM/libglint/glint_initialise.F90(235,10)
+   <Remainder loop for vectorization>
+   LOOP END
+LOOP END
+
+    Report from: Code generation optimizations [cg]
+
+/glade/u/home/tvda/CISM/libglint/glint_initialise.F90(252,72):remark #34026: call to memmove implemented as a call to optimized library version
+/glade/u/home/tvda/CISM/libglint/glint_initialise.F90(257,72):remark #34026: call to memmove implemented as a call to optimized library version
+/glade/u/home/tvda/CISM/libglint/glint_initialise.F90(263,78):remark #34026: call to memmove implemented as a call to optimized library version
+/glade/u/home/tvda/CISM/libglint/glint_initialise.F90(268,95):remark #34026: call to memmove implemented as a call to optimized library version
+/glade/u/home/tvda/CISM/libglint/glint_initialise.F90(55,14):remark #34051: REGISTER ALLOCATION : [glint_initialise_mp_glint_i_initialise_] /glade/u/home/tvda/CISM/libglint/glint_initialise.F90:55
+
+    Hardware registers
+        Reserved     :    2[ rsp rip]
+        Available    :   39[ rax rdx rcx rbx rbp rsi rdi r8-r15 mm0-mm7 zmm0-zmm15]
+        Callee-save  :    6[ rbx rbp r12-r15]
+        Assigned     :   27[ rax rdx rcx rbx rsi rdi r8-r15 zmm0-zmm12]
+        
+    Routine temporaries
+        Total         :     502
+            Global    :     120
+            Local     :     382
+        Regenerable   :     152
+        Spilled       :      36
+        
+    Routine stack
+        Variables     :     340 bytes*
+            Reads     :      10 [5.87e-01 ~ 0.6%]
+            Writes    :      36 [1.30e+00 ~ 1.3%]
+        Spills        :     240 bytes*
+            Reads     :      56 [4.49e+00 ~ 4.5%]
+            Writes    :      44 [2.38e+00 ~ 2.4%]
+    
+    Notes
+    
+        *Non-overlapping variables and spills may share stack space,
+         so the total stack size might be less than this.
+    
+
+===========================================================================
+
+Begin optimization report for: glint_initialise._
+
+    Report from: Interprocedural optimizations [ipo]
+
+INLINE REPORT: (glint_initialise._) [10] /glade/u/home/tvda/CISM/libglint/glint_initialise.F90(40,8)
+
+
+    Report from: Code generation optimizations [cg]
+
+/glade/u/home/tvda/CISM/libglint/glint_initialise.F90(40,8):remark #34051: REGISTER ALLOCATION : [glint_initialise._] /glade/u/home/tvda/CISM/libglint/glint_initialise.F90:40
+
+    Hardware registers
+        Reserved     :    2[ rsp rip]
+        Available    :   39[ rax rdx rcx rbx rbp rsi rdi r8-r15 mm0-mm7 zmm0-zmm15]
+        Callee-save  :    6[ rbx rbp r12-r15]
+        Assigned     :    0[ reg_null]
+        
+    Routine temporaries
+        Total         :       6
+            Global    :       0
+            Local     :       6
+        Regenerable   :       0
+        Spilled       :       0
+        
+    Routine stack
+        Variables     :       0 bytes*
+            Reads     :       0 [0.00e+00 ~ 0.0%]
+            Writes    :       0 [0.00e+00 ~ 0.0%]
+        Spills        :       0 bytes*
+            Reads     :       0 [0.00e+00 ~ 0.0%]
+            Writes    :       0 [0.00e+00 ~ 0.0%]
+    
+    Notes
+    
+        *Non-overlapping variables and spills may share stack space,
+         so the total stack size might be less than this.
+    
+
+===========================================================================

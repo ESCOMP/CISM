@@ -1,0 +1,1353 @@
+Intel(R) Advisor can now assist with vectorization and show optimization
+  report messages with your source code.
+See "https://software.intel.com/en-us/intel-advisor-xe" for details.
+
+
+    Report from: Interprocedural optimizations [ipo]
+
+INLINING OPTION VALUES:
+  -inline-factor: 100
+  -inline-min-size: 30
+  -inline-max-size: 230
+  -inline-max-total-size: 2000
+  -inline-max-per-routine: 10000
+  -inline-max-per-compile: 500000
+
+
+Begin optimization report for: glint_global_grid._
+
+    Report from: Interprocedural optimizations [ipo]
+
+INLINE REPORT: (glint_global_grid._) [1] /glade/u/home/tvda/CISM/libglint/glint_global_grid.F90(31,8)
+
+
+    Report from: Code generation optimizations [cg]
+
+/glade/u/home/tvda/CISM/libglint/glint_global_grid.F90(31,8):remark #34051: REGISTER ALLOCATION : [glint_global_grid._] /glade/u/home/tvda/CISM/libglint/glint_global_grid.F90:31
+
+    Hardware registers
+        Reserved     :    2[ rsp rip]
+        Available    :   39[ rax rdx rcx rbx rbp rsi rdi r8-r15 mm0-mm7 zmm0-zmm15]
+        Callee-save  :    6[ rbx rbp r12-r15]
+        Assigned     :    0[ reg_null]
+        
+    Routine temporaries
+        Total         :       6
+            Global    :       0
+            Local     :       6
+        Regenerable   :       0
+        Spilled       :       0
+        
+    Routine stack
+        Variables     :       0 bytes*
+            Reads     :       0 [0.00e+00 ~ 0.0%]
+            Writes    :       0 [0.00e+00 ~ 0.0%]
+        Spills        :       0 bytes*
+            Reads     :       0 [0.00e+00 ~ 0.0%]
+            Writes    :       0 [0.00e+00 ~ 0.0%]
+    
+    Notes
+    
+        *Non-overlapping variables and spills may share stack space,
+         so the total stack size might be less than this.
+    
+
+===========================================================================
+
+Begin optimization report for: GLINT_GLOBAL_GRID::NEW_GLOBAL_GRID
+
+    Report from: Interprocedural optimizations [ipo]
+
+INLINE REPORT: (GLINT_GLOBAL_GRID::NEW_GLOBAL_GRID) [2] /glade/u/home/tvda/CISM/libglint/glint_global_grid.F90(106,14)
+  -> INLINE: (196,16) GLINT_GLOBAL_GRID::CALC_BOUNDS_LON
+    -> INLINE: (358,18) GLINT_GLOBAL_GRID::MID_LON
+    -> INLINE: (361,13) GLINT_GLOBAL_GRID::MID_LON
+  -> INLINE: (204,16) GLINT_GLOBAL_GRID::CALC_BOUNDS_LAT
+  -> INLINE: (216,31) GLINT_GLOBAL_GRID::DELTA_LON
+  -> INLINE: (217,17) GLINT_GLOBAL_GRID::SIN_DEG
+  -> INLINE: (217,44) GLINT_GLOBAL_GRID::SIN_DEG
+
+
+    Report from: Loop nest, Vector & Auto-parallelization optimizations [loop, vec, par]
+
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglint/glint_global_grid.F90(174,5)
+<Multiversioned v1>
+   remark #25233: Loop multiversioned for stride tests on Assumed shape arrays
+   remark #15300: LOOP WAS VECTORIZED
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglint/glint_global_grid.F90(174,5)
+<Remainder loop for vectorization, Multiversioned v1>
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglint/glint_global_grid.F90(174,5)
+<Multiversioned v2>
+   remark #15335: loop was not vectorized: vectorization possible but seems inefficient. Use vector always directive or -vec-threshold0 to override 
+   remark #25439: unrolled with remainder by 2  
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglint/glint_global_grid.F90(174,5)
+<Remainder, Multiversioned v2>
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglint/glint_global_grid.F90(175,5)
+<Multiversioned v1>
+   remark #25233: Loop multiversioned for stride tests on Assumed shape arrays
+   remark #15300: LOOP WAS VECTORIZED
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglint/glint_global_grid.F90(175,5)
+<Remainder loop for vectorization, Multiversioned v1>
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglint/glint_global_grid.F90(175,5)
+<Multiversioned v2>
+   remark #15335: loop was not vectorized: vectorization possible but seems inefficient. Use vector always directive or -vec-threshold0 to override 
+   remark #25439: unrolled with remainder by 2  
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglint/glint_global_grid.F90(175,5)
+<Remainder, Multiversioned v2>
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglint/glint_global_grid.F90(194,11)
+<Multiversioned v1>
+   remark #25233: Loop multiversioned for stride tests on Assumed shape arrays
+   remark #15300: LOOP WAS VECTORIZED
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglint/glint_global_grid.F90(194,11)
+<Remainder loop for vectorization, Multiversioned v1>
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglint/glint_global_grid.F90(194,11)
+<Multiversioned v2>
+   remark #15335: loop was not vectorized: vectorization possible but seems inefficient. Use vector always directive or -vec-threshold0 to override 
+   remark #25439: unrolled with remainder by 2  
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglint/glint_global_grid.F90(194,11)
+<Remainder, Multiversioned v2>
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglint/glint_global_grid.F90(202,11)
+<Multiversioned v1>
+   remark #25233: Loop multiversioned for stride tests on Assumed shape arrays
+   remark #15300: LOOP WAS VECTORIZED
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglint/glint_global_grid.F90(202,11)
+<Remainder loop for vectorization, Multiversioned v1>
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglint/glint_global_grid.F90(202,11)
+<Multiversioned v2>
+   remark #15335: loop was not vectorized: vectorization possible but seems inefficient. Use vector always directive or -vec-threshold0 to override 
+   remark #25439: unrolled with remainder by 2  
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglint/glint_global_grid.F90(202,11)
+<Remainder, Multiversioned v2>
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglint/glint_global_grid.F90(392,5) inlined into /glade/u/home/tvda/CISM/libglint/glint_global_grid.F90(232,16)
+   remark #15300: LOOP WAS VECTORIZED
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglint/glint_global_grid.F90(392,5) inlined into /glade/u/home/tvda/CISM/libglint/glint_global_grid.F90(232,16)
+<Remainder loop for vectorization>
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglint/glint_global_grid.F90(224,8)
+   remark #15541: outer loop was not auto-vectorized: consider using SIMD directive
+
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglint/glint_global_grid.F90(224,8)
+      remark #15335: loop was not vectorized: vectorization possible but seems inefficient. Use vector always directive or -vec-threshold0 to override 
+      remark #25439: unrolled with remainder by 2  
+   LOOP END
+
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglint/glint_global_grid.F90(224,8)
+   <Remainder>
+   LOOP END
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglint/glint_global_grid.F90(226,8)
+<Multiversioned v1>
+   remark #25233: Loop multiversioned for stride tests on Assumed shape arrays
+   remark #15542: loop was not vectorized: inner loop was already vectorized
+
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglint/glint_global_grid.F90(226,8)
+      remark #15300: LOOP WAS VECTORIZED
+   LOOP END
+
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglint/glint_global_grid.F90(226,8)
+   <Remainder loop for vectorization>
+   LOOP END
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglint/glint_global_grid.F90(226,8)
+<Multiversioned v2>
+   remark #15541: outer loop was not auto-vectorized: consider using SIMD directive
+
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglint/glint_global_grid.F90(226,8)
+      remark #15335: loop was not vectorized: vectorization possible but seems inefficient. Use vector always directive or -vec-threshold0 to override 
+      remark #25439: unrolled with remainder by 2  
+   LOOP END
+
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglint/glint_global_grid.F90(226,8)
+   <Remainder>
+   LOOP END
+LOOP END
+
+
+Non-optimizable loops:
+
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglint/glint_global_grid.F90(359,5) inlined into /glade/u/home/tvda/CISM/libglint/glint_global_grid.F90(224,16)
+   remark #15543: loop was not vectorized: loop with function call not considered an optimization candidate.
+
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglint/glint_global_grid.F90(426,11) inlined into /glade/u/home/tvda/CISM/libglint/glint_global_grid.F90(224,16)
+      remark #15521: loop was not vectorized: loop control variable was not identified. Explicitly compute the iteration count before executing the loop or try using canonical loop form from OpenMP specification
+   LOOP END
+
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglint/glint_global_grid.F90(431,11) inlined into /glade/u/home/tvda/CISM/libglint/glint_global_grid.F90(224,16)
+      remark #15521: loop was not vectorized: loop control variable was not identified. Explicitly compute the iteration count before executing the loop or try using canonical loop form from OpenMP specification
+   LOOP END
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglint/glint_global_grid.F90(426,11) inlined into /glade/u/home/tvda/CISM/libglint/glint_global_grid.F90(224,16)
+   remark #15521: loop was not vectorized: loop control variable was not identified. Explicitly compute the iteration count before executing the loop or try using canonical loop form from OpenMP specification
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglint/glint_global_grid.F90(431,11) inlined into /glade/u/home/tvda/CISM/libglint/glint_global_grid.F90(224,16)
+   remark #15521: loop was not vectorized: loop control variable was not identified. Explicitly compute the iteration count before executing the loop or try using canonical loop form from OpenMP specification
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglint/glint_global_grid.F90(219,5)
+   remark #15536: loop was not vectorized: inner loop throttling prevents vectorization of this outer loop. Refer to inner loop message for more details.   [ /glade/u/home/tvda/CISM/libglint/glint_global_grid.F90(476,8) ]
+
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglint/glint_global_grid.F90(218,8)
+      remark #15536: loop was not vectorized: inner loop throttling prevents vectorization of this outer loop. Refer to inner loop message for more details.   [ /glade/u/home/tvda/CISM/libglint/glint_global_grid.F90(476,8) ]
+
+      LOOP BEGIN at /glade/u/home/tvda/CISM/libglint/glint_global_grid.F90(476,8) inlined into /glade/u/home/tvda/CISM/libglint/glint_global_grid.F90(244,31)
+         remark #15521: loop was not vectorized: loop control variable was not identified. Explicitly compute the iteration count before executing the loop or try using canonical loop form from OpenMP specification
+      LOOP END
+
+      LOOP BEGIN at /glade/u/home/tvda/CISM/libglint/glint_global_grid.F90(452,8) inlined into /glade/u/home/tvda/CISM/libglint/glint_global_grid.F90(245,17)
+         remark #15521: loop was not vectorized: loop control variable was not identified. Explicitly compute the iteration count before executing the loop or try using canonical loop form from OpenMP specification
+      LOOP END
+
+      LOOP BEGIN at /glade/u/home/tvda/CISM/libglint/glint_global_grid.F90(457,8) inlined into /glade/u/home/tvda/CISM/libglint/glint_global_grid.F90(245,17)
+         remark #15521: loop was not vectorized: loop control variable was not identified. Explicitly compute the iteration count before executing the loop or try using canonical loop form from OpenMP specification
+      LOOP END
+
+      LOOP BEGIN at /glade/u/home/tvda/CISM/libglint/glint_global_grid.F90(452,8) inlined into /glade/u/home/tvda/CISM/libglint/glint_global_grid.F90(245,44)
+         remark #15521: loop was not vectorized: loop control variable was not identified. Explicitly compute the iteration count before executing the loop or try using canonical loop form from OpenMP specification
+      LOOP END
+
+      LOOP BEGIN at /glade/u/home/tvda/CISM/libglint/glint_global_grid.F90(457,8) inlined into /glade/u/home/tvda/CISM/libglint/glint_global_grid.F90(245,44)
+         remark #15521: loop was not vectorized: loop control variable was not identified. Explicitly compute the iteration count before executing the loop or try using canonical loop form from OpenMP specification
+      LOOP END
+   LOOP END
+LOOP END
+
+    Report from: Code generation optimizations [cg]
+
+/glade/u/home/tvda/CISM/libglint/glint_global_grid.F90(106,14):remark #34051: REGISTER ALLOCATION : [glint_global_grid_mp_new_global_grid_] /glade/u/home/tvda/CISM/libglint/glint_global_grid.F90:106
+
+    Hardware registers
+        Reserved     :    2[ rsp rip]
+        Available    :   39[ rax rdx rcx rbx rbp rsi rdi r8-r15 mm0-mm7 zmm0-zmm15]
+        Callee-save  :    6[ rbx rbp r12-r15]
+        Assigned     :   27[ rax rdx rcx rbx rsi rdi r8-r15 zmm0-zmm12]
+        
+    Routine temporaries
+        Total         :     886
+            Global    :     232
+            Local     :     654
+        Regenerable   :     114
+        Spilled       :      54
+        
+    Routine stack
+        Variables     :      48 bytes*
+            Reads     :       6 [1.16e-01 ~ 0.1%]
+            Writes    :       0 [0.00e+00 ~ 0.0%]
+        Spills        :     360 bytes*
+            Reads     :      73 [7.73e+00 ~ 7.7%]
+            Writes    :      59 [2.87e+00 ~ 2.9%]
+    
+    Notes
+    
+        *Non-overlapping variables and spills may share stack space,
+         so the total stack size might be less than this.
+    
+
+===========================================================================
+
+Begin optimization report for: GLINT_GLOBAL_GRID::COPY_GLOBAL_GRID
+
+    Report from: Interprocedural optimizations [ipo]
+
+INLINE REPORT: (GLINT_GLOBAL_GRID::COPY_GLOBAL_GRID) [3] /glade/u/home/tvda/CISM/libglint/glint_global_grid.F90(241,14)
+
+
+    Report from: Loop nest, Vector & Auto-parallelization optimizations [loop, vec, par]
+
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglint/glint_global_grid.F90(274,5)
+<Multiversioned v1>
+   remark #25233: Loop multiversioned for stride tests on Assumed shape arrays
+   remark #15300: LOOP WAS VECTORIZED
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglint/glint_global_grid.F90(274,5)
+<Remainder loop for vectorization, Multiversioned v1>
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglint/glint_global_grid.F90(274,5)
+<Multiversioned v2>
+   remark #15335: loop was not vectorized: vectorization possible but seems inefficient. Use vector always directive or -vec-threshold0 to override 
+   remark #25439: unrolled with remainder by 2  
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglint/glint_global_grid.F90(274,5)
+<Remainder, Multiversioned v2>
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglint/glint_global_grid.F90(275,5)
+<Multiversioned v1>
+   remark #25233: Loop multiversioned for stride tests on Assumed shape arrays
+   remark #15300: LOOP WAS VECTORIZED
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglint/glint_global_grid.F90(275,5)
+<Remainder loop for vectorization, Multiversioned v1>
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglint/glint_global_grid.F90(275,5)
+<Multiversioned v2>
+   remark #15335: loop was not vectorized: vectorization possible but seems inefficient. Use vector always directive or -vec-threshold0 to override 
+   remark #25439: unrolled with remainder by 2  
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglint/glint_global_grid.F90(275,5)
+<Remainder, Multiversioned v2>
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglint/glint_global_grid.F90(276,5)
+<Multiversioned v1>
+   remark #25233: Loop multiversioned for stride tests on Assumed shape arrays
+   remark #15300: LOOP WAS VECTORIZED
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglint/glint_global_grid.F90(276,5)
+<Remainder loop for vectorization, Multiversioned v1>
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglint/glint_global_grid.F90(276,5)
+<Multiversioned v2>
+   remark #15335: loop was not vectorized: vectorization possible but seems inefficient. Use vector always directive or -vec-threshold0 to override 
+   remark #25439: unrolled with remainder by 2  
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglint/glint_global_grid.F90(276,5)
+<Remainder, Multiversioned v2>
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglint/glint_global_grid.F90(277,5)
+<Multiversioned v1>
+   remark #25233: Loop multiversioned for stride tests on Assumed shape arrays
+   remark #15300: LOOP WAS VECTORIZED
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglint/glint_global_grid.F90(277,5)
+<Remainder loop for vectorization, Multiversioned v1>
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglint/glint_global_grid.F90(277,5)
+<Multiversioned v2>
+   remark #15335: loop was not vectorized: vectorization possible but seems inefficient. Use vector always directive or -vec-threshold0 to override 
+   remark #25439: unrolled with remainder by 2  
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglint/glint_global_grid.F90(277,5)
+<Remainder, Multiversioned v2>
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglint/glint_global_grid.F90(278,5)
+<Multiversioned v1>
+   remark #25233: Loop multiversioned for stride tests on Assumed shape arrays
+   remark #15542: loop was not vectorized: inner loop was already vectorized
+
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglint/glint_global_grid.F90(278,5)
+      remark #15300: LOOP WAS VECTORIZED
+   LOOP END
+
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglint/glint_global_grid.F90(278,5)
+   <Remainder loop for vectorization>
+   LOOP END
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglint/glint_global_grid.F90(278,5)
+<Multiversioned v2>
+   remark #15541: outer loop was not auto-vectorized: consider using SIMD directive
+
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglint/glint_global_grid.F90(278,5)
+      remark #15335: loop was not vectorized: vectorization possible but seems inefficient. Use vector always directive or -vec-threshold0 to override 
+      remark #25439: unrolled with remainder by 2  
+   LOOP END
+
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglint/glint_global_grid.F90(278,5)
+   <Remainder>
+   LOOP END
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglint/glint_global_grid.F90(279,5)
+<Multiversioned v1>
+   remark #25233: Loop multiversioned for stride tests on Assumed shape arrays
+   remark #15542: loop was not vectorized: inner loop was already vectorized
+
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglint/glint_global_grid.F90(279,5)
+      remark #15300: LOOP WAS VECTORIZED
+   LOOP END
+
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglint/glint_global_grid.F90(279,5)
+   <Remainder loop for vectorization>
+   LOOP END
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglint/glint_global_grid.F90(279,5)
+<Multiversioned v2>
+   remark #15541: outer loop was not auto-vectorized: consider using SIMD directive
+
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglint/glint_global_grid.F90(279,5)
+      remark #15335: loop was not vectorized: vectorization possible but seems inefficient. Use vector always directive or -vec-threshold0 to override 
+      remark #25439: unrolled with remainder by 2  
+   LOOP END
+
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglint/glint_global_grid.F90(279,5)
+   <Remainder>
+   LOOP END
+LOOP END
+
+    Report from: Code generation optimizations [cg]
+
+/glade/u/home/tvda/CISM/libglint/glint_global_grid.F90(241,14):remark #34000: call to memcpy implemented inline with loads and stores with proven source (alignment, offset): (32, 0), and destination (alignment, offset): (1, 0)
+/glade/u/home/tvda/CISM/libglint/glint_global_grid.F90(241,14):remark #34051: REGISTER ALLOCATION : [glint_global_grid_mp_copy_global_grid_] /glade/u/home/tvda/CISM/libglint/glint_global_grid.F90:241
+
+    Hardware registers
+        Reserved     :    2[ rsp rip]
+        Available    :   39[ rax rdx rcx rbx rbp rsi rdi r8-r15 mm0-mm7 zmm0-zmm15]
+        Callee-save  :    6[ rbx rbp r12-r15]
+        Assigned     :   19[ rax rdx rcx rbx rsi rdi r8-r15 zmm0-zmm4]
+        
+    Routine temporaries
+        Total         :     661
+            Global    :     183
+            Local     :     478
+        Regenerable   :      53
+        Spilled       :      37
+        
+    Routine stack
+        Variables     :      48 bytes*
+            Reads     :       6 [4.78e-01 ~ 0.5%]
+            Writes    :       0 [0.00e+00 ~ 0.0%]
+        Spills        :     184 bytes*
+            Reads     :      36 [4.28e+00 ~ 4.3%]
+            Writes    :      32 [1.43e+00 ~ 1.4%]
+    
+    Notes
+    
+        *Non-overlapping variables and spills may share stack space,
+         so the total stack size might be less than this.
+    
+
+===========================================================================
+
+Begin optimization report for: GLINT_GLOBAL_GRID::GET_GRID_DIMS
+
+    Report from: Interprocedural optimizations [ipo]
+
+INLINE REPORT: (GLINT_GLOBAL_GRID::GET_GRID_DIMS) [4] /glade/u/home/tvda/CISM/libglint/glint_global_grid.F90(285,14)
+
+
+    Report from: Code generation optimizations [cg]
+
+/glade/u/home/tvda/CISM/libglint/glint_global_grid.F90(285,14):remark #34051: REGISTER ALLOCATION : [glint_global_grid_mp_get_grid_dims_] /glade/u/home/tvda/CISM/libglint/glint_global_grid.F90:285
+
+    Hardware registers
+        Reserved     :    2[ rsp rip]
+        Available    :   39[ rax rdx rcx rbx rbp rsi rdi r8-r15 mm0-mm7 zmm0-zmm15]
+        Callee-save  :    6[ rbx rbp r12-r15]
+        Assigned     :    6[ rax rdx rcx rsi rdi r8]
+        
+    Routine temporaries
+        Total         :      17
+            Global    :       8
+            Local     :       9
+        Regenerable   :       0
+        Spilled       :       0
+        
+    Routine stack
+        Variables     :       0 bytes*
+            Reads     :       0 [0.00e+00 ~ 0.0%]
+            Writes    :       0 [0.00e+00 ~ 0.0%]
+        Spills        :       0 bytes*
+            Reads     :       0 [0.00e+00 ~ 0.0%]
+            Writes    :       0 [0.00e+00 ~ 0.0%]
+    
+    Notes
+    
+        *Non-overlapping variables and spills may share stack space,
+         so the total stack size might be less than this.
+    
+
+===========================================================================
+
+Begin optimization report for: GLINT_GLOBAL_GRID::PRINT_GRID
+
+    Report from: Interprocedural optimizations [ipo]
+
+INLINE REPORT: (GLINT_GLOBAL_GRID::PRINT_GRID) [5] /glade/u/home/tvda/CISM/libglint/glint_global_grid.F90(300,14)
+
+
+    Report from: Loop nest, Vector & Auto-parallelization optimizations [loop, vec, par]
+
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglint/glint_global_grid.F90(322,8)
+<Multiversioned v1>
+   remark #25233: Loop multiversioned for stride tests on Assumed shape arrays
+   remark #15300: LOOP WAS VECTORIZED
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglint/glint_global_grid.F90(322,8)
+<Remainder loop for vectorization, Multiversioned v1>
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglint/glint_global_grid.F90(322,8)
+<Multiversioned v2>
+   remark #15300: LOOP WAS VECTORIZED
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglint/glint_global_grid.F90(322,8)
+<Remainder loop for vectorization, Multiversioned v2>
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglint/glint_global_grid.F90(325,8)
+<Multiversioned v1>
+   remark #25233: Loop multiversioned for stride tests on Assumed shape arrays
+   remark #15300: LOOP WAS VECTORIZED
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglint/glint_global_grid.F90(325,8)
+<Remainder loop for vectorization, Multiversioned v1>
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglint/glint_global_grid.F90(325,8)
+<Multiversioned v2>
+   remark #15300: LOOP WAS VECTORIZED
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglint/glint_global_grid.F90(325,8)
+<Remainder loop for vectorization, Multiversioned v2>
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglint/glint_global_grid.F90(328,8)
+<Multiversioned v1>
+   remark #25233: Loop multiversioned for stride tests on Assumed shape arrays
+   remark #15300: LOOP WAS VECTORIZED
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglint/glint_global_grid.F90(328,8)
+<Remainder loop for vectorization, Multiversioned v1>
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglint/glint_global_grid.F90(328,8)
+<Multiversioned v2>
+   remark #15300: LOOP WAS VECTORIZED
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglint/glint_global_grid.F90(328,8)
+<Remainder loop for vectorization, Multiversioned v2>
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglint/glint_global_grid.F90(331,8)
+<Multiversioned v1>
+   remark #25233: Loop multiversioned for stride tests on Assumed shape arrays
+   remark #15300: LOOP WAS VECTORIZED
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglint/glint_global_grid.F90(331,8)
+<Remainder loop for vectorization, Multiversioned v1>
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglint/glint_global_grid.F90(331,8)
+<Multiversioned v2>
+   remark #15300: LOOP WAS VECTORIZED
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglint/glint_global_grid.F90(331,8)
+<Remainder loop for vectorization, Multiversioned v2>
+LOOP END
+
+    Report from: Code generation optimizations [cg]
+
+/glade/u/home/tvda/CISM/libglint/glint_global_grid.F90(300,14):remark #34051: REGISTER ALLOCATION : [glint_global_grid_mp_print_grid_] /glade/u/home/tvda/CISM/libglint/glint_global_grid.F90:300
+
+    Hardware registers
+        Reserved     :    2[ rsp rip]
+        Available    :   39[ rax rdx rcx rbx rbp rsi rdi r8-r15 mm0-mm7 zmm0-zmm15]
+        Callee-save  :    6[ rbx rbp r12-r15]
+        Assigned     :   13[ rax rdx rcx rsi rdi r8-r12 r14-r15 zmm0]
+        
+    Routine temporaries
+        Total         :     266
+            Global    :      67
+            Local     :     199
+        Regenerable   :     156
+        Spilled       :       3
+        
+    Routine stack
+        Variables     :     296 bytes*
+            Reads     :       0 [0.00e+00 ~ 0.0%]
+            Writes    :      47 [1.24e+01 ~ 12.4%]
+        Spills        :       8 bytes*
+            Reads     :       3 [1.40e-01 ~ 0.1%]
+            Writes    :       3 [1.40e-01 ~ 0.1%]
+    
+    Notes
+    
+        *Non-overlapping variables and spills may share stack space,
+         so the total stack size might be less than this.
+    
+
+===========================================================================
+
+Begin optimization report for: GLINT_GLOBAL_GRID::CALC_BOUNDS_LON
+
+    Report from: Interprocedural optimizations [ipo]
+
+INLINE REPORT: (GLINT_GLOBAL_GRID::CALC_BOUNDS_LON) [6] /glade/u/home/tvda/CISM/libglint/glint_global_grid.F90(338,14)
+  -> INLINE: (358,18) GLINT_GLOBAL_GRID::MID_LON
+  -> INLINE: (361,13) GLINT_GLOBAL_GRID::MID_LON
+
+
+    Report from: Loop nest, Vector & Auto-parallelization optimizations [loop, vec, par]
+
+
+
+Non-optimizable loops:
+
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglint/glint_global_grid.F90(359,5)
+   remark #15543: loop was not vectorized: loop with function call not considered an optimization candidate.
+
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglint/glint_global_grid.F90(426,11) inlined into /glade/u/home/tvda/CISM/libglint/glint_global_grid.F90(386,18)
+      remark #15521: loop was not vectorized: loop control variable was not identified. Explicitly compute the iteration count before executing the loop or try using canonical loop form from OpenMP specification
+   LOOP END
+
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglint/glint_global_grid.F90(431,11) inlined into /glade/u/home/tvda/CISM/libglint/glint_global_grid.F90(386,18)
+      remark #15521: loop was not vectorized: loop control variable was not identified. Explicitly compute the iteration count before executing the loop or try using canonical loop form from OpenMP specification
+   LOOP END
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglint/glint_global_grid.F90(426,11) inlined into /glade/u/home/tvda/CISM/libglint/glint_global_grid.F90(389,13)
+   remark #15521: loop was not vectorized: loop control variable was not identified. Explicitly compute the iteration count before executing the loop or try using canonical loop form from OpenMP specification
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglint/glint_global_grid.F90(431,11) inlined into /glade/u/home/tvda/CISM/libglint/glint_global_grid.F90(389,13)
+   remark #15521: loop was not vectorized: loop control variable was not identified. Explicitly compute the iteration count before executing the loop or try using canonical loop form from OpenMP specification
+LOOP END
+
+    Report from: Code generation optimizations [cg]
+
+/glade/u/home/tvda/CISM/libglint/glint_global_grid.F90(338,14):remark #34051: REGISTER ALLOCATION : [glint_global_grid_mp_calc_bounds_lon_] /glade/u/home/tvda/CISM/libglint/glint_global_grid.F90:338
+
+    Hardware registers
+        Reserved     :    2[ rsp rip]
+        Available    :   39[ rax rdx rcx rbx rbp rsi rdi r8-r15 mm0-mm7 zmm0-zmm15]
+        Callee-save  :    6[ rbx rbp r12-r15]
+        Assigned     :   16[ rax rdx rcx rbx rsi rdi r8-r9 r12-r15 zmm0-zmm3]
+        
+    Routine temporaries
+        Total         :      81
+            Global    :      26
+            Local     :      55
+        Regenerable   :      26
+        Spilled       :      13
+        
+    Routine stack
+        Variables     :       0 bytes*
+            Reads     :       0 [0.00e+00 ~ 0.0%]
+            Writes    :       0 [0.00e+00 ~ 0.0%]
+        Spills        :      80 bytes*
+            Reads     :      12 [6.69e+00 ~ 6.7%]
+            Writes    :      10 [3.57e+00 ~ 3.6%]
+    
+    Notes
+    
+        *Non-overlapping variables and spills may share stack space,
+         so the total stack size might be less than this.
+    
+
+===========================================================================
+
+Begin optimization report for: GLINT_GLOBAL_GRID::CALC_BOUNDS_LAT
+
+    Report from: Interprocedural optimizations [ipo]
+
+INLINE REPORT: (GLINT_GLOBAL_GRID::CALC_BOUNDS_LAT) [7] /glade/u/home/tvda/CISM/libglint/glint_global_grid.F90(368,14)
+
+
+    Report from: Loop nest, Vector & Auto-parallelization optimizations [loop, vec, par]
+
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglint/glint_global_grid.F90(392,5)
+   remark #15300: LOOP WAS VECTORIZED
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglint/glint_global_grid.F90(392,5)
+<Remainder loop for vectorization>
+LOOP END
+
+    Report from: Code generation optimizations [cg]
+
+/glade/u/home/tvda/CISM/libglint/glint_global_grid.F90(368,14):remark #34051: REGISTER ALLOCATION : [glint_global_grid_mp_calc_bounds_lat_] /glade/u/home/tvda/CISM/libglint/glint_global_grid.F90:368
+
+    Hardware registers
+        Reserved     :    2[ rsp rip]
+        Available    :   39[ rax rdx rcx rbx rbp rsi rdi r8-r15 mm0-mm7 zmm0-zmm15]
+        Callee-save  :    6[ rbx rbp r12-r15]
+        Assigned     :   23[ rax rdx rcx rsi rdi r8-r12 zmm0-zmm12]
+        
+    Routine temporaries
+        Total         :     105
+            Global    :      23
+            Local     :      82
+        Regenerable   :       5
+        Spilled       :       1
+        
+    Routine stack
+        Variables     :       0 bytes*
+            Reads     :       0 [0.00e+00 ~ 0.0%]
+            Writes    :       0 [0.00e+00 ~ 0.0%]
+        Spills        :       8 bytes*
+            Reads     :       1 [1.79e-01 ~ 0.2%]
+            Writes    :       1 [1.79e-01 ~ 0.2%]
+    
+    Notes
+    
+        *Non-overlapping variables and spills may share stack space,
+         so the total stack size might be less than this.
+    
+
+===========================================================================
+
+Begin optimization report for: GLINT_GLOBAL_GRID::MID_LON
+
+    Report from: Interprocedural optimizations [ipo]
+
+INLINE REPORT: (GLINT_GLOBAL_GRID::MID_LON) [8] /glade/u/home/tvda/CISM/libglint/glint_global_grid.F90(400,21)
+
+
+    Report from: Loop nest, Vector & Auto-parallelization optimizations [loop, vec, par]
+
+
+
+Non-optimizable loops:
+
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglint/glint_global_grid.F90(426,11)
+   remark #15521: loop was not vectorized: loop control variable was not identified. Explicitly compute the iteration count before executing the loop or try using canonical loop form from OpenMP specification
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglint/glint_global_grid.F90(431,11)
+   remark #15521: loop was not vectorized: loop control variable was not identified. Explicitly compute the iteration count before executing the loop or try using canonical loop form from OpenMP specification
+LOOP END
+
+    Report from: Code generation optimizations [cg]
+
+/glade/u/home/tvda/CISM/libglint/glint_global_grid.F90(400,21):remark #34051: REGISTER ALLOCATION : [glint_global_grid_mp_mid_lon_] /glade/u/home/tvda/CISM/libglint/glint_global_grid.F90:400
+
+    Hardware registers
+        Reserved     :    2[ rsp rip]
+        Available    :   39[ rax rdx rcx rbx rbp rsi rdi r8-r15 mm0-mm7 zmm0-zmm15]
+        Callee-save  :    6[ rbx rbp r12-r15]
+        Assigned     :   11[ rdx rcx rsi rdi r8-r9 r14 zmm0-zmm3]
+        
+    Routine temporaries
+        Total         :      35
+            Global    :      13
+            Local     :      22
+        Regenerable   :      13
+        Spilled       :       3
+        
+    Routine stack
+        Variables     :       0 bytes*
+            Reads     :       0 [0.00e+00 ~ 0.0%]
+            Writes    :       0 [0.00e+00 ~ 0.0%]
+        Spills        :      16 bytes*
+            Reads     :       2 [2.47e+00 ~ 2.5%]
+            Writes    :       2 [2.47e+00 ~ 2.5%]
+    
+    Notes
+    
+        *Non-overlapping variables and spills may share stack space,
+         so the total stack size might be less than this.
+    
+
+===========================================================================
+
+Begin optimization report for: GLINT_GLOBAL_GRID::SIN_DEG
+
+    Report from: Interprocedural optimizations [ipo]
+
+INLINE REPORT: (GLINT_GLOBAL_GRID::SIN_DEG) [9] /glade/u/home/tvda/CISM/libglint/glint_global_grid.F90(441,21)
+
+
+    Report from: Loop nest, Vector & Auto-parallelization optimizations [loop, vec, par]
+
+
+
+Non-optimizable loops:
+
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglint/glint_global_grid.F90(452,8)
+   remark #15521: loop was not vectorized: loop control variable was not identified. Explicitly compute the iteration count before executing the loop or try using canonical loop form from OpenMP specification
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglint/glint_global_grid.F90(457,8)
+   remark #15521: loop was not vectorized: loop control variable was not identified. Explicitly compute the iteration count before executing the loop or try using canonical loop form from OpenMP specification
+LOOP END
+
+    Report from: Code generation optimizations [cg]
+
+/glade/u/home/tvda/CISM/libglint/glint_global_grid.F90(441,21):remark #34051: REGISTER ALLOCATION : [glint_global_grid_mp_sin_deg_] /glade/u/home/tvda/CISM/libglint/glint_global_grid.F90:441
+
+    Hardware registers
+        Reserved     :    2[ rsp rip]
+        Available    :   39[ rax rdx rcx rbx rbp rsi rdi r8-r15 mm0-mm7 zmm0-zmm15]
+        Callee-save  :    6[ rbx rbp r12-r15]
+        Assigned     :    4[ rdi zmm0-zmm2]
+        
+    Routine temporaries
+        Total         :      17
+            Global    :      10
+            Local     :       7
+        Regenerable   :       3
+        Spilled       :       0
+        
+    Routine stack
+        Variables     :       0 bytes*
+            Reads     :       0 [0.00e+00 ~ 0.0%]
+            Writes    :       0 [0.00e+00 ~ 0.0%]
+        Spills        :       0 bytes*
+            Reads     :       0 [0.00e+00 ~ 0.0%]
+            Writes    :       0 [0.00e+00 ~ 0.0%]
+    
+    Notes
+    
+        *Non-overlapping variables and spills may share stack space,
+         so the total stack size might be less than this.
+    
+
+===========================================================================
+
+Begin optimization report for: GLINT_GLOBAL_GRID::DELTA_LON
+
+    Report from: Interprocedural optimizations [ipo]
+
+INLINE REPORT: (GLINT_GLOBAL_GRID::DELTA_LON) [10] /glade/u/home/tvda/CISM/libglint/glint_global_grid.F90(466,21)
+
+
+    Report from: Loop nest, Vector & Auto-parallelization optimizations [loop, vec, par]
+
+
+
+Non-optimizable loops:
+
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglint/glint_global_grid.F90(476,8)
+   remark #15521: loop was not vectorized: loop control variable was not identified. Explicitly compute the iteration count before executing the loop or try using canonical loop form from OpenMP specification
+LOOP END
+
+    Report from: Code generation optimizations [cg]
+
+/glade/u/home/tvda/CISM/libglint/glint_global_grid.F90(466,21):remark #34051: REGISTER ALLOCATION : [glint_global_grid_mp_delta_lon_] /glade/u/home/tvda/CISM/libglint/glint_global_grid.F90:466
+
+    Hardware registers
+        Reserved     :    2[ rsp rip]
+        Available    :   39[ rax rdx rcx rbx rbp rsi rdi r8-r15 mm0-mm7 zmm0-zmm15]
+        Callee-save  :    6[ rbx rbp r12-r15]
+        Assigned     :    7[ rsi rdi zmm0-zmm4]
+        
+    Routine temporaries
+        Total         :      19
+            Global    :      11
+            Local     :       8
+        Regenerable   :       3
+        Spilled       :       0
+        
+    Routine stack
+        Variables     :       0 bytes*
+            Reads     :       0 [0.00e+00 ~ 0.0%]
+            Writes    :       0 [0.00e+00 ~ 0.0%]
+        Spills        :       0 bytes*
+            Reads     :       0 [0.00e+00 ~ 0.0%]
+            Writes    :       0 [0.00e+00 ~ 0.0%]
+    
+    Notes
+    
+        *Non-overlapping variables and spills may share stack space,
+         so the total stack size might be less than this.
+    
+
+===========================================================================
+
+Begin optimization report for: GLINT_GLOBAL_GRID::GRID_GREATER_THAN
+
+    Report from: Interprocedural optimizations [ipo]
+
+INLINE REPORT: (GLINT_GLOBAL_GRID::GRID_GREATER_THAN) [11] /glade/u/home/tvda/CISM/libglint/glint_global_grid.F90(485,20)
+
+
+    Report from: Code generation optimizations [cg]
+
+/glade/u/home/tvda/CISM/libglint/glint_global_grid.F90(485,20):remark #34051: REGISTER ALLOCATION : [glint_global_grid_mp_grid_greater_than_] /glade/u/home/tvda/CISM/libglint/glint_global_grid.F90:485
+
+    Hardware registers
+        Reserved     :    2[ rsp rip]
+        Available    :   39[ rax rdx rcx rbx rbp rsi rdi r8-r15 mm0-mm7 zmm0-zmm15]
+        Callee-save  :    6[ rbx rbp r12-r15]
+        Assigned     :    5[ rax rdx rcx rsi rdi]
+        
+    Routine temporaries
+        Total         :      18
+            Global    :       0
+            Local     :      18
+        Regenerable   :       1
+        Spilled       :       0
+        
+    Routine stack
+        Variables     :       0 bytes*
+            Reads     :       0 [0.00e+00 ~ 0.0%]
+            Writes    :       0 [0.00e+00 ~ 0.0%]
+        Spills        :       0 bytes*
+            Reads     :       0 [0.00e+00 ~ 0.0%]
+            Writes    :       0 [0.00e+00 ~ 0.0%]
+    
+    Notes
+    
+        *Non-overlapping variables and spills may share stack space,
+         so the total stack size might be less than this.
+    
+
+===========================================================================
+
+Begin optimization report for: GLINT_GLOBAL_GRID::GRID_LESS_THAN
+
+    Report from: Interprocedural optimizations [ipo]
+
+INLINE REPORT: (GLINT_GLOBAL_GRID::GRID_LESS_THAN) [12] /glade/u/home/tvda/CISM/libglint/glint_global_grid.F90(499,20)
+
+
+    Report from: Code generation optimizations [cg]
+
+/glade/u/home/tvda/CISM/libglint/glint_global_grid.F90(499,20):remark #34051: REGISTER ALLOCATION : [glint_global_grid_mp_grid_less_than_] /glade/u/home/tvda/CISM/libglint/glint_global_grid.F90:499
+
+    Hardware registers
+        Reserved     :    2[ rsp rip]
+        Available    :   39[ rax rdx rcx rbx rbp rsi rdi r8-r15 mm0-mm7 zmm0-zmm15]
+        Callee-save  :    6[ rbx rbp r12-r15]
+        Assigned     :    5[ rax rdx rcx rsi rdi]
+        
+    Routine temporaries
+        Total         :      18
+            Global    :       0
+            Local     :      18
+        Regenerable   :       1
+        Spilled       :       0
+        
+    Routine stack
+        Variables     :       0 bytes*
+            Reads     :       0 [0.00e+00 ~ 0.0%]
+            Writes    :       0 [0.00e+00 ~ 0.0%]
+        Spills        :       0 bytes*
+            Reads     :       0 [0.00e+00 ~ 0.0%]
+            Writes    :       0 [0.00e+00 ~ 0.0%]
+    
+    Notes
+    
+        *Non-overlapping variables and spills may share stack space,
+         so the total stack size might be less than this.
+    
+
+===========================================================================
+
+Begin optimization report for: GLINT_GLOBAL_GRID::GRID_MIN
+
+    Report from: Interprocedural optimizations [ipo]
+
+INLINE REPORT: (GLINT_GLOBAL_GRID::GRID_MIN) [13] /glade/u/home/tvda/CISM/libglint/glint_global_grid.F90(513,12)
+  -> INLINE: (518,10) GLINT_GLOBAL_GRID::GRID_GREATER_THAN
+
+
+    Report from: Code generation optimizations [cg]
+
+/glade/u/home/tvda/CISM/libglint/glint_global_grid.F90(513,12):remark #34000: call to memcpy implemented inline with loads and stores with proven source (alignment, offset): (32, 0), and destination (alignment, offset): (1, 0)
+/glade/u/home/tvda/CISM/libglint/glint_global_grid.F90(519,8):remark #34000: call to memcpy implemented inline with loads and stores with proven source (alignment, offset): (1, 0), and destination (alignment, offset): (1, 0)
+/glade/u/home/tvda/CISM/libglint/glint_global_grid.F90(521,8):remark #34000: call to memcpy implemented inline with loads and stores with proven source (alignment, offset): (1, 0), and destination (alignment, offset): (1, 0)
+/glade/u/home/tvda/CISM/libglint/glint_global_grid.F90(513,12):remark #34051: REGISTER ALLOCATION : [glint_global_grid_mp_grid_min_] /glade/u/home/tvda/CISM/libglint/glint_global_grid.F90:513
+
+    Hardware registers
+        Reserved     :    2[ rsp rip]
+        Available    :   39[ rax rdx rcx rbx rbp rsi rdi r8-r15 mm0-mm7 zmm0-zmm15]
+        Callee-save  :    6[ rbx rbp r12-r15]
+        Assigned     :   12[ rax rdx rcx rsi rdi r8-r9 zmm0-zmm4]
+        
+    Routine temporaries
+        Total         :      39
+            Global    :      13
+            Local     :      26
+        Regenerable   :       1
+        Spilled       :       0
+        
+    Routine stack
+        Variables     :       0 bytes*
+            Reads     :       0 [0.00e+00 ~ 0.0%]
+            Writes    :       0 [0.00e+00 ~ 0.0%]
+        Spills        :       0 bytes*
+            Reads     :       0 [0.00e+00 ~ 0.0%]
+            Writes    :       0 [0.00e+00 ~ 0.0%]
+    
+    Notes
+    
+        *Non-overlapping variables and spills may share stack space,
+         so the total stack size might be less than this.
+    
+
+===========================================================================
+
+Begin optimization report for: GLINT_GLOBAL_GRID::GRID_EQUIV
+
+    Report from: Interprocedural optimizations [ipo]
+
+INLINE REPORT: (GLINT_GLOBAL_GRID::GRID_EQUIV) [14] /glade/u/home/tvda/CISM/libglint/glint_global_grid.F90(528,20)
+  -> INLINE: (532,14) GLINT_GLOBAL_GRID::CHECK_ASSOCIATED
+  -> INLINE: (533,15) GLINT_GLOBAL_GRID::CHECK_ASSOCIATED
+
+
+    Report from: Loop nest, Vector & Auto-parallelization optimizations [loop, vec, par]
+
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglint/glint_global_grid.F90(545,9)
+   remark #15300: LOOP WAS VECTORIZED
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglint/glint_global_grid.F90(545,9)
+<Remainder loop for vectorization>
+   remark #15301: REMAINDER LOOP WAS VECTORIZED
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglint/glint_global_grid.F90(545,9)
+<Remainder loop for vectorization>
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglint/glint_global_grid.F90(546,9)
+   remark #15300: LOOP WAS VECTORIZED
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglint/glint_global_grid.F90(546,9)
+<Remainder loop for vectorization>
+   remark #15301: REMAINDER LOOP WAS VECTORIZED
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglint/glint_global_grid.F90(546,9)
+<Remainder loop for vectorization>
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglint/glint_global_grid.F90(547,9)
+   remark #15541: outer loop was not auto-vectorized: consider using SIMD directive
+
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglint/glint_global_grid.F90(547,9)
+      remark #15335: loop was not vectorized: vectorization possible but seems inefficient. Use vector always directive or -vec-threshold0 to override 
+      remark #25439: unrolled with remainder by 2  
+   LOOP END
+
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglint/glint_global_grid.F90(547,9)
+   <Remainder>
+   LOOP END
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglint/glint_global_grid.F90(548,9)
+   remark #15542: loop was not vectorized: inner loop was already vectorized
+
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglint/glint_global_grid.F90(548,9)
+      remark #15300: LOOP WAS VECTORIZED
+   LOOP END
+
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglint/glint_global_grid.F90(548,9)
+   <Remainder loop for vectorization>
+      remark #15301: REMAINDER LOOP WAS VECTORIZED
+   LOOP END
+
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglint/glint_global_grid.F90(548,9)
+   <Remainder loop for vectorization>
+   LOOP END
+LOOP END
+
+    Report from: Code generation optimizations [cg]
+
+/glade/u/home/tvda/CISM/libglint/glint_global_grid.F90(528,20):remark #34051: REGISTER ALLOCATION : [glint_global_grid_mp_grid_equiv_] /glade/u/home/tvda/CISM/libglint/glint_global_grid.F90:528
+
+    Hardware registers
+        Reserved     :    2[ rsp rip]
+        Available    :   39[ rax rdx rcx rbx rbp rsi rdi r8-r15 mm0-mm7 zmm0-zmm15]
+        Callee-save  :    6[ rbx rbp r12-r15]
+        Assigned     :   28[ rax rdx rcx rbx rsi rdi r8-r15 zmm0-zmm13]
+        
+    Routine temporaries
+        Total         :     433
+            Global    :     138
+            Local     :     295
+        Regenerable   :       7
+        Spilled       :      51
+        
+    Routine stack
+        Variables     :       0 bytes*
+            Reads     :       0 [0.00e+00 ~ 0.0%]
+            Writes    :       0 [0.00e+00 ~ 0.0%]
+        Spills        :     352 bytes*
+            Reads     :      78 [5.18e+00 ~ 5.2%]
+            Writes    :      61 [1.94e+00 ~ 1.9%]
+    
+    Notes
+    
+        *Non-overlapping variables and spills may share stack space,
+         so the total stack size might be less than this.
+    
+
+===========================================================================
+
+Begin optimization report for: GLINT_GLOBAL_GRID::GRID_NEQUIV
+
+    Report from: Interprocedural optimizations [ipo]
+
+INLINE REPORT: (GLINT_GLOBAL_GRID::GRID_NEQUIV) [15] /glade/u/home/tvda/CISM/libglint/glint_global_grid.F90(559,20)
+  -> INLINE: (563,22) GLINT_GLOBAL_GRID::GRID_EQUIV
+    -> INLINE: (532,14) GLINT_GLOBAL_GRID::CHECK_ASSOCIATED
+    -> INLINE: (533,15) GLINT_GLOBAL_GRID::CHECK_ASSOCIATED
+
+
+    Report from: Loop nest, Vector & Auto-parallelization optimizations [loop, vec, par]
+
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglint/glint_global_grid.F90(545,9) inlined into /glade/u/home/tvda/CISM/libglint/glint_global_grid.F90(591,22)
+   remark #15300: LOOP WAS VECTORIZED
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglint/glint_global_grid.F90(545,9) inlined into /glade/u/home/tvda/CISM/libglint/glint_global_grid.F90(591,22)
+<Remainder loop for vectorization>
+   remark #15301: REMAINDER LOOP WAS VECTORIZED
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglint/glint_global_grid.F90(545,9) inlined into /glade/u/home/tvda/CISM/libglint/glint_global_grid.F90(591,22)
+<Remainder loop for vectorization>
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglint/glint_global_grid.F90(546,9) inlined into /glade/u/home/tvda/CISM/libglint/glint_global_grid.F90(591,22)
+   remark #15300: LOOP WAS VECTORIZED
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglint/glint_global_grid.F90(546,9) inlined into /glade/u/home/tvda/CISM/libglint/glint_global_grid.F90(591,22)
+<Remainder loop for vectorization>
+   remark #15301: REMAINDER LOOP WAS VECTORIZED
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglint/glint_global_grid.F90(546,9) inlined into /glade/u/home/tvda/CISM/libglint/glint_global_grid.F90(591,22)
+<Remainder loop for vectorization>
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglint/glint_global_grid.F90(547,9) inlined into /glade/u/home/tvda/CISM/libglint/glint_global_grid.F90(591,22)
+   remark #15541: outer loop was not auto-vectorized: consider using SIMD directive
+
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglint/glint_global_grid.F90(547,9) inlined into /glade/u/home/tvda/CISM/libglint/glint_global_grid.F90(591,22)
+      remark #15335: loop was not vectorized: vectorization possible but seems inefficient. Use vector always directive or -vec-threshold0 to override 
+      remark #25439: unrolled with remainder by 2  
+   LOOP END
+
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglint/glint_global_grid.F90(547,9) inlined into /glade/u/home/tvda/CISM/libglint/glint_global_grid.F90(591,22)
+   <Remainder>
+   LOOP END
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglint/glint_global_grid.F90(548,9) inlined into /glade/u/home/tvda/CISM/libglint/glint_global_grid.F90(591,22)
+   remark #15542: loop was not vectorized: inner loop was already vectorized
+
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglint/glint_global_grid.F90(548,9) inlined into /glade/u/home/tvda/CISM/libglint/glint_global_grid.F90(591,22)
+      remark #15300: LOOP WAS VECTORIZED
+   LOOP END
+
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglint/glint_global_grid.F90(548,9) inlined into /glade/u/home/tvda/CISM/libglint/glint_global_grid.F90(591,22)
+   <Remainder loop for vectorization>
+      remark #15301: REMAINDER LOOP WAS VECTORIZED
+   LOOP END
+
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglint/glint_global_grid.F90(548,9) inlined into /glade/u/home/tvda/CISM/libglint/glint_global_grid.F90(591,22)
+   <Remainder loop for vectorization>
+   LOOP END
+LOOP END
+
+    Report from: Code generation optimizations [cg]
+
+/glade/u/home/tvda/CISM/libglint/glint_global_grid.F90(559,20):remark #34051: REGISTER ALLOCATION : [glint_global_grid_mp_grid_nequiv_] /glade/u/home/tvda/CISM/libglint/glint_global_grid.F90:559
+
+    Hardware registers
+        Reserved     :    2[ rsp rip]
+        Available    :   39[ rax rdx rcx rbx rbp rsi rdi r8-r15 mm0-mm7 zmm0-zmm15]
+        Callee-save  :    6[ rbx rbp r12-r15]
+        Assigned     :   28[ rax rdx rcx rbx rsi rdi r8-r15 zmm0-zmm13]
+        
+    Routine temporaries
+        Total         :     420
+            Global    :     119
+            Local     :     301
+        Regenerable   :       7
+        Spilled       :      39
+        
+    Routine stack
+        Variables     :       0 bytes*
+            Reads     :       0 [0.00e+00 ~ 0.0%]
+            Writes    :       0 [0.00e+00 ~ 0.0%]
+        Spills        :     248 bytes*
+            Reads     :      46 [2.86e+00 ~ 2.9%]
+            Writes    :      41 [1.45e+00 ~ 1.4%]
+    
+    Notes
+    
+        *Non-overlapping variables and spills may share stack space,
+         so the total stack size might be less than this.
+    
+
+===========================================================================
+
+Begin optimization report for: GLINT_GLOBAL_GRID::CHECK_ASSOCIATED
+
+    Report from: Interprocedural optimizations [ipo]
+
+INLINE REPORT: (GLINT_GLOBAL_GRID::CHECK_ASSOCIATED) [16] /glade/u/home/tvda/CISM/libglint/glint_global_grid.F90(569,20)
+
+
+    Report from: Code generation optimizations [cg]
+
+/glade/u/home/tvda/CISM/libglint/glint_global_grid.F90(569,20):remark #34051: REGISTER ALLOCATION : [glint_global_grid_mp_check_associated_] /glade/u/home/tvda/CISM/libglint/glint_global_grid.F90:569
+
+    Hardware registers
+        Reserved     :    2[ rsp rip]
+        Available    :   39[ rax rdx rcx rbx rbp rsi rdi r8-r15 mm0-mm7 zmm0-zmm15]
+        Callee-save  :    6[ rbx rbp r12-r15]
+        Assigned     :    2[ rax rdi]
+        
+    Routine temporaries
+        Total         :      10
+            Global    :       8
+            Local     :       2
+        Regenerable   :       0
+        Spilled       :       0
+        
+    Routine stack
+        Variables     :       0 bytes*
+            Reads     :       0 [0.00e+00 ~ 0.0%]
+            Writes    :       0 [0.00e+00 ~ 0.0%]
+        Spills        :       0 bytes*
+            Reads     :       0 [0.00e+00 ~ 0.0%]
+            Writes    :       0 [0.00e+00 ~ 0.0%]
+    
+    Notes
+    
+        *Non-overlapping variables and spills may share stack space,
+         so the total stack size might be less than this.
+    
+
+===========================================================================
+
+Begin optimization report for: GLINT_GLOBAL_GRID::GRID_ALLOC_3D
+
+    Report from: Interprocedural optimizations [ipo]
+
+INLINE REPORT: (GLINT_GLOBAL_GRID::GRID_ALLOC_3D) [17] /glade/u/home/tvda/CISM/libglint/glint_global_grid.F90(588,14)
+
+
+    Report from: Code generation optimizations [cg]
+
+/glade/u/home/tvda/CISM/libglint/glint_global_grid.F90(588,14):remark #34051: REGISTER ALLOCATION : [glint_global_grid_mp_grid_alloc_3d_] /glade/u/home/tvda/CISM/libglint/glint_global_grid.F90:588
+
+    Hardware registers
+        Reserved     :    2[ rsp rip]
+        Available    :   39[ rax rdx rcx rbx rbp rsi rdi r8-r15 mm0-mm7 zmm0-zmm15]
+        Callee-save  :    6[ rbx rbp r12-r15]
+        Assigned     :   12[ rax rdx rcx rbx rsi rdi r8-r11 r14-r15]
+        
+    Routine temporaries
+        Total         :      84
+            Global    :      15
+            Local     :      69
+        Regenerable   :      11
+        Spilled       :       3
+        
+    Routine stack
+        Variables     :       8 bytes*
+            Reads     :       1 [1.42e+00 ~ 1.4%]
+            Writes    :       0 [0.00e+00 ~ 0.0%]
+        Spills        :       0 bytes*
+            Reads     :       0 [0.00e+00 ~ 0.0%]
+            Writes    :       0 [0.00e+00 ~ 0.0%]
+    
+    Notes
+    
+        *Non-overlapping variables and spills may share stack space,
+         so the total stack size might be less than this.
+    
+
+===========================================================================
+
+Begin optimization report for: GLINT_GLOBAL_GRID::GRID_ALLOC_2D
+
+    Report from: Interprocedural optimizations [ipo]
+
+INLINE REPORT: (GLINT_GLOBAL_GRID::GRID_ALLOC_2D) [18] /glade/u/home/tvda/CISM/libglint/glint_global_grid.F90(602,14)
+
+
+    Report from: Code generation optimizations [cg]
+
+/glade/u/home/tvda/CISM/libglint/glint_global_grid.F90(602,14):remark #34051: REGISTER ALLOCATION : [glint_global_grid_mp_grid_alloc_2d_] /glade/u/home/tvda/CISM/libglint/glint_global_grid.F90:602
+
+    Hardware registers
+        Reserved     :    2[ rsp rip]
+        Available    :   39[ rax rdx rcx rbx rbp rsi rdi r8-r15 mm0-mm7 zmm0-zmm15]
+        Callee-save  :    6[ rbx rbp r12-r15]
+        Assigned     :   11[ rax rdx rcx rsi rdi r8-r11 r13 r15]
+        
+    Routine temporaries
+        Total         :      78
+            Global    :      14
+            Local     :      64
+        Regenerable   :      11
+        Spilled       :       2
+        
+    Routine stack
+        Variables     :       8 bytes*
+            Reads     :       1 [1.68e+00 ~ 1.7%]
+            Writes    :       0 [0.00e+00 ~ 0.0%]
+        Spills        :       0 bytes*
+            Reads     :       0 [0.00e+00 ~ 0.0%]
+            Writes    :       0 [0.00e+00 ~ 0.0%]
+    
+    Notes
+    
+        *Non-overlapping variables and spills may share stack space,
+         so the total stack size might be less than this.
+    
+
+===========================================================================

@@ -1,0 +1,1663 @@
+Intel(R) Advisor can now assist with vectorization and show optimization
+  report messages with your source code.
+See "https://software.intel.com/en-us/intel-advisor-xe" for details.
+
+
+    Report from: Interprocedural optimizations [ipo]
+
+INLINING OPTION VALUES:
+  -inline-factor: 100
+  -inline-min-size: 30
+  -inline-max-size: 230
+  -inline-max-total-size: 2000
+  -inline-max-per-routine: 10000
+  -inline-max-per-compile: 500000
+
+
+Begin optimization report for: glide_bwater._
+
+    Report from: Interprocedural optimizations [ipo]
+
+INLINE REPORT: (glide_bwater._) [1] /glade/u/home/tvda/CISM/libglide/glide_bwater.F90(29,8)
+
+
+    Report from: Code generation optimizations [cg]
+
+/glade/u/home/tvda/CISM/libglide/glide_bwater.F90(29,8):remark #34051: REGISTER ALLOCATION : [glide_bwater._] /glade/u/home/tvda/CISM/libglide/glide_bwater.F90:29
+
+    Hardware registers
+        Reserved     :    2[ rsp rip]
+        Available    :   39[ rax rdx rcx rbx rbp rsi rdi r8-r15 mm0-mm7 zmm0-zmm15]
+        Callee-save  :    6[ rbx rbp r12-r15]
+        Assigned     :    0[ reg_null]
+        
+    Routine temporaries
+        Total         :       6
+            Global    :       0
+            Local     :       6
+        Regenerable   :       0
+        Spilled       :       0
+        
+    Routine stack
+        Variables     :       0 bytes*
+            Reads     :       0 [0.00e+00 ~ 0.0%]
+            Writes    :       0 [0.00e+00 ~ 0.0%]
+        Spills        :       0 bytes*
+            Reads     :       0 [0.00e+00 ~ 0.0%]
+            Writes    :       0 [0.00e+00 ~ 0.0%]
+    
+    Notes
+    
+        *Non-overlapping variables and spills may share stack space,
+         so the total stack size might be less than this.
+    
+
+===========================================================================
+
+Begin optimization report for: GLIDE_BWATER::CALCBWAT
+
+    Report from: Interprocedural optimizations [ipo]
+
+INLINE REPORT: (GLIDE_BWATER::CALCBWAT) [2] /glade/u/home/tvda/CISM/libglide/glide_bwater.F90(83,14)
+  -> INLINE: (157,19) GLIDE_BWATER::CALCBWAT:SMOOTH_BWAT
+  -> INLINE: (164,19) GLIDE_BWATER::CALCBWAT:SMOOTH_BWAT
+  -> INLINE: (165,19) GLIDE_BWATER::CALCBWAT:SMOOTH_BWAT
+  -> INLINE: (177,13) GLIDE_BWATER::EFFECTIVE_PRESSURE
+  -> INLINE: (178,13) GLIDE_BWATER::PRESSURE_WPHI
+  -> (179,13) GLIDE_BWATER::ROUTE_BASAL_WATER
+  -> INLINE: (180,13) GLIDE_BWATER::FLUX_TO_DEPTH
+
+
+    Report from: Loop nest, Vector & Auto-parallelization optimizations [loop, vec, par]
+
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglide/glide_bwater.F90(135,8)
+   remark #15541: outer loop was not auto-vectorized: consider using SIMD directive
+
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglide/glide_bwater.F90(137,11)
+      remark #15541: outer loop was not auto-vectorized: consider using SIMD directive
+
+      LOOP BEGIN at /glade/u/home/tvda/CISM/libglide/glide_bwater.F90(138,14)
+         remark #15344: loop was not vectorized: vector dependence prevents vectorization. First dependence is shown below. Use level 5 report for details
+         remark #15346: vector dependence: assumed ANTI dependence between MODEL%TEMPWK(1) (141:20) and bwat(ew,ns) (147:20)
+      LOOP END
+   LOOP END
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglide/glide_bwater.F90(154,8)
+   remark #15542: loop was not vectorized: inner loop was already vectorized
+
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglide/glide_bwater.F90(154,8)
+      remark #15300: LOOP WAS VECTORIZED
+   LOOP END
+
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglide/glide_bwater.F90(154,8)
+   <Remainder loop for vectorization>
+   LOOP END
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglide/glide_bwater.F90(155,8)
+   remark #15541: outer loop was not auto-vectorized: consider using SIMD directive
+
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglide/glide_bwater.F90(156,11)
+      remark #15335: loop was not vectorized: vectorization possible but seems inefficient. Use vector always directive or -vec-threshold0 to override 
+   LOOP END
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglide/glide_bwater.F90(163,11)
+   remark #15344: loop was not vectorized: vector dependence prevents vectorization. First dependence is shown below. Use level 5 report for details
+   remark #15346: vector dependence: assumed ANTI dependence between BWAT (211:23) and model(ew,ns) (215:10)
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglide/glide_bwater.F90(169,8)
+<Multiversioned v1>
+   remark #25233: Loop multiversioned for stride tests on Assumed shape arrays
+   remark #15541: outer loop was not auto-vectorized: consider using SIMD directive
+
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglide/glide_bwater.F90(169,8)
+      remark #15344: loop was not vectorized: vector dependence prevents vectorization. First dependence is shown below. Use level 5 report for details
+      remark #15346: vector dependence: assumed FLOW dependence between bwat(:,:) (169:8) and MODEL(:,:) (169:8)
+      remark #25439: unrolled with remainder by 2  
+   LOOP END
+
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglide/glide_bwater.F90(169,8)
+   <Remainder>
+   LOOP END
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglide/glide_bwater.F90(169,8)
+<Multiversioned v2>
+   remark #15541: outer loop was not auto-vectorized: consider using SIMD directive
+
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglide/glide_bwater.F90(169,8)
+      remark #15344: loop was not vectorized: vector dependence prevents vectorization. First dependence is shown below. Use level 5 report for details
+      remark #15346: vector dependence: assumed FLOW dependence between bwat(:,:) (169:8) and MODEL%GLIDE_GLOBAL(0) (169:8)
+      remark #25439: unrolled with remainder by 2  
+   LOOP END
+
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglide/glide_bwater.F90(169,8)
+   <Remainder>
+   LOOP END
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglide/glide_bwater.F90(419,5) inlined into /glade/u/home/tvda/CISM/libglide/glide_bwater.F90(177,13)
+   remark #15542: loop was not vectorized: inner loop was already vectorized
+
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglide/glide_bwater.F90(419,5) inlined into /glade/u/home/tvda/CISM/libglide/glide_bwater.F90(177,13)
+      remark #15300: LOOP WAS VECTORIZED
+   LOOP END
+
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglide/glide_bwater.F90(419,5) inlined into /glade/u/home/tvda/CISM/libglide/glide_bwater.F90(177,13)
+   <Remainder loop for vectorization>
+      remark #15301: REMAINDER LOOP WAS VECTORIZED
+   LOOP END
+
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglide/glide_bwater.F90(419,5) inlined into /glade/u/home/tvda/CISM/libglide/glide_bwater.F90(177,13)
+   <Remainder loop for vectorization>
+   LOOP END
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglide/glide_bwater.F90(420,9) inlined into /glade/u/home/tvda/CISM/libglide/glide_bwater.F90(177,13)
+   remark #15541: outer loop was not auto-vectorized: consider using SIMD directive
+
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglide/glide_bwater.F90(420,9) inlined into /glade/u/home/tvda/CISM/libglide/glide_bwater.F90(177,13)
+      remark #15335: loop was not vectorized: vectorization possible but seems inefficient. Use vector always directive or -vec-threshold0 to override 
+      remark #25439: unrolled with remainder by 2  
+   LOOP END
+
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglide/glide_bwater.F90(420,9) inlined into /glade/u/home/tvda/CISM/libglide/glide_bwater.F90(177,13)
+   <Remainder>
+   LOOP END
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglide/glide_bwater.F90(422,9) inlined into /glade/u/home/tvda/CISM/libglide/glide_bwater.F90(177,13)
+   remark #15541: outer loop was not auto-vectorized: consider using SIMD directive
+
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglide/glide_bwater.F90(422,9) inlined into /glade/u/home/tvda/CISM/libglide/glide_bwater.F90(177,13)
+      remark #15335: loop was not vectorized: vectorization possible but seems inefficient. Use vector always directive or -vec-threshold0 to override 
+      remark #25439: unrolled with remainder by 2  
+   LOOP END
+
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglide/glide_bwater.F90(422,9) inlined into /glade/u/home/tvda/CISM/libglide/glide_bwater.F90(177,13)
+   <Remainder>
+   LOOP END
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglide/glide_bwater.F90(444,5) inlined into /glade/u/home/tvda/CISM/libglide/glide_bwater.F90(178,13)
+   remark #15541: outer loop was not auto-vectorized: consider using SIMD directive
+
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglide/glide_bwater.F90(444,5) inlined into /glade/u/home/tvda/CISM/libglide/glide_bwater.F90(178,13)
+      remark #15335: loop was not vectorized: vectorization possible but seems inefficient. Use vector always directive or -vec-threshold0 to override 
+      remark #25439: unrolled with remainder by 2  
+   LOOP END
+
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglide/glide_bwater.F90(444,5) inlined into /glade/u/home/tvda/CISM/libglide/glide_bwater.F90(178,13)
+   <Remainder>
+   LOOP END
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglide/glide_bwater.F90(445,7) inlined into /glade/u/home/tvda/CISM/libglide/glide_bwater.F90(178,13)
+   remark #15541: outer loop was not auto-vectorized: consider using SIMD directive
+
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglide/glide_bwater.F90(445,7) inlined into /glade/u/home/tvda/CISM/libglide/glide_bwater.F90(178,13)
+      remark #15335: loop was not vectorized: vectorization possible but seems inefficient. Use vector always directive or -vec-threshold0 to override 
+      remark #25439: unrolled with remainder by 2  
+   LOOP END
+
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglide/glide_bwater.F90(445,7) inlined into /glade/u/home/tvda/CISM/libglide/glide_bwater.F90(178,13)
+   <Remainder>
+   LOOP END
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglide/glide_bwater.F90(447,7) inlined into /glade/u/home/tvda/CISM/libglide/glide_bwater.F90(178,13)
+   remark #15541: outer loop was not auto-vectorized: consider using SIMD directive
+
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglide/glide_bwater.F90(447,7) inlined into /glade/u/home/tvda/CISM/libglide/glide_bwater.F90(178,13)
+      remark #15335: loop was not vectorized: vectorization possible but seems inefficient. Use vector always directive or -vec-threshold0 to override 
+      remark #25439: unrolled with remainder by 2  
+   LOOP END
+
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglide/glide_bwater.F90(447,7) inlined into /glade/u/home/tvda/CISM/libglide/glide_bwater.F90(178,13)
+   <Remainder>
+   LOOP END
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglide/glide_bwater.F90(401,5) inlined into /glade/u/home/tvda/CISM/libglide/glide_bwater.F90(180,13)
+   remark #15542: loop was not vectorized: inner loop was already vectorized
+
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglide/glide_bwater.F90(401,5) inlined into /glade/u/home/tvda/CISM/libglide/glide_bwater.F90(180,13)
+      remark #15300: LOOP WAS VECTORIZED
+   LOOP END
+
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglide/glide_bwater.F90(401,5) inlined into /glade/u/home/tvda/CISM/libglide/glide_bwater.F90(180,13)
+   <Remainder loop for vectorization>
+      remark #15301: REMAINDER LOOP WAS VECTORIZED
+   LOOP END
+
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglide/glide_bwater.F90(401,5) inlined into /glade/u/home/tvda/CISM/libglide/glide_bwater.F90(180,13)
+   <Remainder loop for vectorization>
+   LOOP END
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglide/glide_bwater.F90(403,5) inlined into /glade/u/home/tvda/CISM/libglide/glide_bwater.F90(180,13)
+   remark #15542: loop was not vectorized: inner loop was already vectorized
+
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglide/glide_bwater.F90(403,5) inlined into /glade/u/home/tvda/CISM/libglide/glide_bwater.F90(180,13)
+      remark #15300: LOOP WAS VECTORIZED
+   LOOP END
+
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglide/glide_bwater.F90(403,5) inlined into /glade/u/home/tvda/CISM/libglide/glide_bwater.F90(180,13)
+   <Remainder loop for vectorization>
+      remark #15301: REMAINDER LOOP WAS VECTORIZED
+   LOOP END
+
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglide/glide_bwater.F90(403,5) inlined into /glade/u/home/tvda/CISM/libglide/glide_bwater.F90(180,13)
+   <Remainder loop for vectorization>
+   LOOP END
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglide/glide_bwater.F90(406,9) inlined into /glade/u/home/tvda/CISM/libglide/glide_bwater.F90(180,13)
+   remark #15541: outer loop was not auto-vectorized: consider using SIMD directive
+
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglide/glide_bwater.F90(406,9) inlined into /glade/u/home/tvda/CISM/libglide/glide_bwater.F90(180,13)
+      remark #15335: loop was not vectorized: vectorization possible but seems inefficient. Use vector always directive or -vec-threshold0 to override 
+      remark #25439: unrolled with remainder by 2  
+   LOOP END
+
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglide/glide_bwater.F90(406,9) inlined into /glade/u/home/tvda/CISM/libglide/glide_bwater.F90(180,13)
+   <Remainder>
+   LOOP END
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglide/glide_bwater.F90(185,8)
+   remark #15542: loop was not vectorized: inner loop was already vectorized
+
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglide/glide_bwater.F90(185,8)
+      remark #15300: LOOP WAS VECTORIZED
+   LOOP END
+
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglide/glide_bwater.F90(185,8)
+   <Remainder loop for vectorization>
+      remark #15301: REMAINDER LOOP WAS VECTORIZED
+   LOOP END
+
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglide/glide_bwater.F90(185,8)
+   <Remainder loop for vectorization>
+   LOOP END
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglide/glide_bwater.F90(186,11)
+   remark #15541: outer loop was not auto-vectorized: consider using SIMD directive
+
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglide/glide_bwater.F90(186,11)
+      remark #15335: loop was not vectorized: vectorization possible but seems inefficient. Use vector always directive or -vec-threshold0 to override 
+      remark #25439: unrolled with remainder by 2  
+   LOOP END
+
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglide/glide_bwater.F90(186,11)
+   <Remainder>
+   LOOP END
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglide/glide_bwater.F90(188,11)
+   remark #15541: outer loop was not auto-vectorized: consider using SIMD directive
+
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglide/glide_bwater.F90(188,11)
+      remark #15335: loop was not vectorized: vectorization possible but seems inefficient. Use vector always directive or -vec-threshold0 to override 
+      remark #25439: unrolled with remainder by 2  
+   LOOP END
+
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglide/glide_bwater.F90(188,11)
+   <Remainder>
+   LOOP END
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglide/glide_bwater.F90(193,8)
+<Multiversioned v1>
+   remark #25233: Loop multiversioned for stride tests on Assumed shape arrays
+   remark #15542: loop was not vectorized: inner loop was already vectorized
+
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglide/glide_bwater.F90(193,8)
+      remark #15300: LOOP WAS VECTORIZED
+   LOOP END
+
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglide/glide_bwater.F90(193,8)
+   <Remainder loop for vectorization>
+   LOOP END
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglide/glide_bwater.F90(193,8)
+<Multiversioned v2>
+   remark #15542: loop was not vectorized: inner loop was already vectorized
+
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglide/glide_bwater.F90(193,8)
+      remark #15300: LOOP WAS VECTORIZED
+   LOOP END
+
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglide/glide_bwater.F90(193,8)
+   <Remainder loop for vectorization>
+   LOOP END
+LOOP END
+
+
+Non-optimizable loops:
+
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglide/glide_bwater.F90(404,9) inlined into /glade/u/home/tvda/CISM/libglide/glide_bwater.F90(180,13)
+   remark #15536: loop was not vectorized: inner loop throttling prevents vectorization of this outer loop. Refer to inner loop message for more details.   [ /glade/u/home/tvda/CISM/libglide/glide_bwater.F90(404,9) ]
+
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglide/glide_bwater.F90(404,9) inlined into /glade/u/home/tvda/CISM/libglide/glide_bwater.F90(180,13)
+      remark #15523: loop was not vectorized: loop control variable ? was found, but loop iteration count cannot be computed before executing the loop
+   LOOP END
+LOOP END
+
+    Report from: Code generation optimizations [cg]
+
+/glade/u/home/tvda/CISM/libglide/glide_bwater.F90(83,14):remark #34051: REGISTER ALLOCATION : [glide_bwater_mp_calcbwat_] /glade/u/home/tvda/CISM/libglide/glide_bwater.F90:83
+
+    Hardware registers
+        Reserved     :    2[ rsp rip]
+        Available    :   39[ rax rdx rcx rbx rbp rsi rdi r8-r15 mm0-mm7 zmm0-zmm15]
+        Callee-save  :    6[ rbx rbp r12-r15]
+        Assigned     :   30[ rax rdx rcx rbx rsi rdi r8-r15 zmm0-zmm15]
+        
+    Routine temporaries
+        Total         :    1435
+            Global    :     512
+            Local     :     923
+        Regenerable   :      73
+        Spilled       :     173
+        
+    Routine stack
+        Variables     :     504 bytes*
+            Reads     :      41 [4.77e-01 ~ 0.5%]
+            Writes    :      87 [4.41e-01 ~ 0.4%]
+        Spills        :    1288 bytes*
+            Reads     :     362 [8.37e+00 ~ 8.4%]
+            Writes    :     210 [2.34e+00 ~ 2.3%]
+    
+    Notes
+    
+        *Non-overlapping variables and spills may share stack space,
+         so the total stack size might be less than this.
+    
+
+===========================================================================
+
+Begin optimization report for: GLIDE_BWATER::CALCBWAT:SMOOTH_BWAT
+
+    Report from: Interprocedural optimizations [ipo]
+
+DEAD STATIC FUNCTION: (GLIDE_BWATER::CALCBWAT:SMOOTH_BWAT) /glade/u/home/tvda/CISM/libglide/glide_bwater.F90(206,16)
+
+===========================================================================
+
+Begin optimization report for: GLIDE_BWATER::ROUTE_BASAL_WATER
+
+    Report from: Interprocedural optimizations [ipo]
+
+INLINE REPORT: (GLIDE_BWATER::ROUTE_BASAL_WATER) [4] /glade/u/home/tvda/CISM/libglide/glide_bwater.F90(236,14)
+  -> INLINE: (286,10) GLIDE_BWATER::FILLHOLES
+  -> INLINE: (287,10) GLIDE_BWATER::HEIGHTS_SORT
+    -> INLINE: (563,10) GLIDE_BWATER::INDEXX
+      -> INLINE: (612,10) GLIDE_BWATER::Q_SORT_INDEX
+        -> (674,23) GLIDE_BWATER::Q_SORT_INDEX
+        -> (675,23) GLIDE_BWATER::Q_SORT_INDEX
+
+
+    Report from: Loop nest, Vector & Auto-parallelization optimizations [loop, vec, par]
+
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglide/glide_bwater.F90(274,5)
+   remark #15300: LOOP WAS VECTORIZED
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglide/glide_bwater.F90(274,5)
+<Remainder loop for vectorization>
+   remark #25436: completely unrolled by 1  
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglide/glide_bwater.F90(275,5)
+   remark #15300: LOOP WAS VECTORIZED
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglide/glide_bwater.F90(275,5)
+<Remainder loop for vectorization>
+   remark #25436: completely unrolled by 1  
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglide/glide_bwater.F90(276,5)
+   remark #15335: loop was not vectorized: vectorization possible but seems inefficient. Use vector always directive or -vec-threshold0 to override 
+   remark #25436: completely unrolled by 3  
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglide/glide_bwater.F90(281,5)
+<Multiversioned v1>
+   remark #25233: Loop multiversioned for stride tests on Assumed shape arrays
+   remark #15542: loop was not vectorized: inner loop was already vectorized
+
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglide/glide_bwater.F90(281,5)
+      remark #15300: LOOP WAS VECTORIZED
+   LOOP END
+
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglide/glide_bwater.F90(281,5)
+   <Remainder loop for vectorization>
+   LOOP END
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglide/glide_bwater.F90(281,5)
+<Multiversioned v2>
+   remark #15542: loop was not vectorized: inner loop was already vectorized
+
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglide/glide_bwater.F90(281,5)
+      remark #15300: LOOP WAS VECTORIZED
+   LOOP END
+
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglide/glide_bwater.F90(281,5)
+   <Remainder loop for vectorization>
+   LOOP END
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglide/glide_bwater.F90(282,5)
+   remark #15542: loop was not vectorized: inner loop was already vectorized
+
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglide/glide_bwater.F90(282,5)
+      remark #15300: LOOP WAS VECTORIZED
+   LOOP END
+
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglide/glide_bwater.F90(282,5)
+   <Remainder loop for vectorization>
+   LOOP END
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglide/glide_bwater.F90(487,8) inlined into /glade/u/home/tvda/CISM/libglide/glide_bwater.F90(286,10)
+<Multiversioned v1>
+   remark #25233: Loop multiversioned for stride tests on Assumed shape arrays
+   remark #15542: loop was not vectorized: inner loop was already vectorized
+
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglide/glide_bwater.F90(487,8) inlined into /glade/u/home/tvda/CISM/libglide/glide_bwater.F90(286,10)
+      remark #15300: LOOP WAS VECTORIZED
+   LOOP END
+
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglide/glide_bwater.F90(487,8) inlined into /glade/u/home/tvda/CISM/libglide/glide_bwater.F90(286,10)
+   <Remainder loop for vectorization>
+   LOOP END
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglide/glide_bwater.F90(487,8) inlined into /glade/u/home/tvda/CISM/libglide/glide_bwater.F90(286,10)
+<Multiversioned v2>
+   remark #15542: loop was not vectorized: inner loop was already vectorized
+
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglide/glide_bwater.F90(487,8) inlined into /glade/u/home/tvda/CISM/libglide/glide_bwater.F90(286,10)
+      remark #15300: LOOP WAS VECTORIZED
+   LOOP END
+
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglide/glide_bwater.F90(487,8) inlined into /glade/u/home/tvda/CISM/libglide/glide_bwater.F90(286,10)
+   <Remainder loop for vectorization>
+   LOOP END
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglide/glide_bwater.F90(496,21) inlined into /glade/u/home/tvda/CISM/libglide/glide_bwater.F90(286,10)
+   remark #15541: outer loop was not auto-vectorized: consider using SIMD directive
+   remark #25436: completely unrolled by 3  
+
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglide/glide_bwater.F90(496,21) inlined into /glade/u/home/tvda/CISM/libglide/glide_bwater.F90(286,10)
+      remark #15335: loop was not vectorized: vectorization possible but seems inefficient. Use vector always directive or -vec-threshold0 to override 
+      remark #25436: completely unrolled by 3  
+   LOOP END
+
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglide/glide_bwater.F90(496,21) inlined into /glade/u/home/tvda/CISM/libglide/glide_bwater.F90(286,10)
+   LOOP END
+
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglide/glide_bwater.F90(496,21) inlined into /glade/u/home/tvda/CISM/libglide/glide_bwater.F90(286,10)
+   LOOP END
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglide/glide_bwater.F90(506,20) inlined into /glade/u/home/tvda/CISM/libglide/glide_bwater.F90(286,10)
+   remark #15300: LOOP WAS VECTORIZED
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglide/glide_bwater.F90(506,20) inlined into /glade/u/home/tvda/CISM/libglide/glide_bwater.F90(286,10)
+<Remainder loop for vectorization>
+   remark #25436: completely unrolled by 1  
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglide/glide_bwater.F90(506,29) inlined into /glade/u/home/tvda/CISM/libglide/glide_bwater.F90(286,10)
+   remark #15300: LOOP WAS VECTORIZED
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglide/glide_bwater.F90(506,29) inlined into /glade/u/home/tvda/CISM/libglide/glide_bwater.F90(286,10)
+<Remainder loop for vectorization>
+   remark #25436: completely unrolled by 1  
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglide/glide_bwater.F90(506,51) inlined into /glade/u/home/tvda/CISM/libglide/glide_bwater.F90(286,10)
+   remark #15300: LOOP WAS VECTORIZED
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglide/glide_bwater.F90(506,51) inlined into /glade/u/home/tvda/CISM/libglide/glide_bwater.F90(286,10)
+<Remainder loop for vectorization>
+   remark #25436: completely unrolled by 1  
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglide/glide_bwater.F90(506,20) inlined into /glade/u/home/tvda/CISM/libglide/glide_bwater.F90(286,10)
+   remark #15300: LOOP WAS VECTORIZED
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglide/glide_bwater.F90(506,20) inlined into /glade/u/home/tvda/CISM/libglide/glide_bwater.F90(286,10)
+<Remainder loop for vectorization>
+   remark #25436: completely unrolled by 1  
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglide/glide_bwater.F90(506,20) inlined into /glade/u/home/tvda/CISM/libglide/glide_bwater.F90(286,10)
+   remark #15335: loop was not vectorized: vectorization possible but seems inefficient. Use vector always directive or -vec-threshold0 to override 
+   remark #25436: completely unrolled by 3  
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglide/glide_bwater.F90(506,20) inlined into /glade/u/home/tvda/CISM/libglide/glide_bwater.F90(286,10)
+   remark #15335: loop was not vectorized: vectorization possible but seems inefficient. Use vector always directive or -vec-threshold0 to override 
+   remark #25436: completely unrolled by 3  
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglide/glide_bwater.F90(506,20) inlined into /glade/u/home/tvda/CISM/libglide/glide_bwater.F90(286,10)
+   remark #15300: LOOP WAS VECTORIZED
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglide/glide_bwater.F90(506,20) inlined into /glade/u/home/tvda/CISM/libglide/glide_bwater.F90(286,10)
+<Remainder loop for vectorization>
+   remark #25436: completely unrolled by 1  
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglide/glide_bwater.F90(509,23) inlined into /glade/u/home/tvda/CISM/libglide/glide_bwater.F90(286,10)
+   remark #15300: LOOP WAS VECTORIZED
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglide/glide_bwater.F90(509,23) inlined into /glade/u/home/tvda/CISM/libglide/glide_bwater.F90(286,10)
+<Remainder loop for vectorization>
+   remark #25436: completely unrolled by 1  
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglide/glide_bwater.F90(512,30) inlined into /glade/u/home/tvda/CISM/libglide/glide_bwater.F90(286,10)
+   remark #15331: loop was not vectorized: precise FP model implied by the command line or a directive prevents vectorization. Consider using fast FP model
+   remark #25436: completely unrolled by 9  
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglide/glide_bwater.F90(556,5) inlined into /glade/u/home/tvda/CISM/libglide/glide_bwater.F90(287,10)
+<Multiversioned v1>
+   remark #25233: Loop multiversioned for stride tests on Assumed shape arrays
+   remark #15542: loop was not vectorized: inner loop was already vectorized
+
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglide/glide_bwater.F90(557,7) inlined into /glade/u/home/tvda/CISM/libglide/glide_bwater.F90(287,10)
+      remark #15300: LOOP WAS VECTORIZED
+   LOOP END
+
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglide/glide_bwater.F90(557,7) inlined into /glade/u/home/tvda/CISM/libglide/glide_bwater.F90(287,10)
+   <Remainder loop for vectorization>
+      remark #25456: Number of Array Refs Scalar Replaced In Loop: 1
+   LOOP END
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglide/glide_bwater.F90(556,5) inlined into /glade/u/home/tvda/CISM/libglide/glide_bwater.F90(287,10)
+<Multiversioned v2>
+   remark #15542: loop was not vectorized: inner loop was already vectorized
+
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglide/glide_bwater.F90(557,7) inlined into /glade/u/home/tvda/CISM/libglide/glide_bwater.F90(287,10)
+      remark #15300: LOOP WAS VECTORIZED
+   LOOP END
+
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglide/glide_bwater.F90(557,7) inlined into /glade/u/home/tvda/CISM/libglide/glide_bwater.F90(287,10)
+   <Remainder loop for vectorization>
+      remark #25456: Number of Array Refs Scalar Replaced In Loop: 1
+   LOOP END
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglide/glide_bwater.F90(563,10) inlined into /glade/u/home/tvda/CISM/libglide/glide_bwater.F90(287,10)
+   remark #15300: LOOP WAS VECTORIZED
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglide/glide_bwater.F90(563,10) inlined into /glade/u/home/tvda/CISM/libglide/glide_bwater.F90(287,10)
+<Remainder loop for vectorization>
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglide/glide_bwater.F90(565,5) inlined into /glade/u/home/tvda/CISM/libglide/glide_bwater.F90(287,10)
+   remark #15344: loop was not vectorized: vector dependence prevents vectorization. First dependence is shown below. Use level 5 report for details
+   remark #15346: vector dependence: assumed ANTI dependence between IND (566:19) and IND (567:7)
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglide/glide_bwater.F90(570,5) inlined into /glade/u/home/tvda/CISM/libglide/glide_bwater.F90(287,10)
+<Multiversioned v1>
+   remark #25233: Loop multiversioned for stride tests on Assumed shape arrays
+   remark #15335: loop was not vectorized: vectorization possible but seems inefficient. Use vector always directive or -vec-threshold0 to override 
+   remark #25439: unrolled with remainder by 2  
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglide/glide_bwater.F90(570,5) inlined into /glade/u/home/tvda/CISM/libglide/glide_bwater.F90(287,10)
+<Remainder, Multiversioned v1>
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglide/glide_bwater.F90(570,5) inlined into /glade/u/home/tvda/CISM/libglide/glide_bwater.F90(287,10)
+<Multiversioned v2>
+   remark #15335: loop was not vectorized: vectorization possible but seems inefficient. Use vector always directive or -vec-threshold0 to override 
+   remark #25439: unrolled with remainder by 2  
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglide/glide_bwater.F90(570,5) inlined into /glade/u/home/tvda/CISM/libglide/glide_bwater.F90(287,10)
+<Remainder, Multiversioned v2>
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglide/glide_bwater.F90(289,5)
+<Multiversioned v1>
+   remark #25233: Loop multiversioned for stride tests on Assumed shape arrays
+   remark #15542: loop was not vectorized: inner loop was already vectorized
+
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglide/glide_bwater.F90(289,5)
+      remark #15300: LOOP WAS VECTORIZED
+   LOOP END
+
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglide/glide_bwater.F90(289,5)
+   <Remainder loop for vectorization>
+   LOOP END
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglide/glide_bwater.F90(289,5)
+<Multiversioned v2>
+   remark #15542: loop was not vectorized: inner loop was already vectorized
+
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglide/glide_bwater.F90(289,5)
+      remark #15300: LOOP WAS VECTORIZED
+   LOOP END
+
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglide/glide_bwater.F90(289,5)
+   <Remainder loop for vectorization>
+   LOOP END
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglide/glide_bwater.F90(294,5)
+<Multiversioned v1>
+   remark #25233: Loop multiversioned for stride tests on Assumed shape arrays
+   remark #15542: loop was not vectorized: inner loop was already vectorized
+
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglide/glide_bwater.F90(294,5)
+      remark #15300: LOOP WAS VECTORIZED
+   LOOP END
+
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglide/glide_bwater.F90(294,5)
+   <Remainder loop for vectorization>
+   LOOP END
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglide/glide_bwater.F90(294,5)
+<Multiversioned v2>
+   remark #15542: loop was not vectorized: inner loop was already vectorized
+
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglide/glide_bwater.F90(294,5)
+      remark #15300: LOOP WAS VECTORIZED
+   LOOP END
+
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglide/glide_bwater.F90(294,5)
+   <Remainder loop for vectorization>
+   LOOP END
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglide/glide_bwater.F90(311,9)
+   remark #15541: outer loop was not auto-vectorized: consider using SIMD directive
+   remark #25436: completely unrolled by 3  
+
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglide/glide_bwater.F90(311,9)
+      remark #15335: loop was not vectorized: vectorization possible but seems inefficient. Use vector always directive or -vec-threshold0 to override 
+      remark #25436: completely unrolled by 3  
+   LOOP END
+
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglide/glide_bwater.F90(311,9)
+   LOOP END
+
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglide/glide_bwater.F90(311,9)
+   LOOP END
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglide/glide_bwater.F90(315,9)
+   remark #15541: outer loop was not auto-vectorized: consider using SIMD directive
+   remark #25436: completely unrolled by 3  
+
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglide/glide_bwater.F90(320,13)
+      remark #15335: loop was not vectorized: vectorization possible but seems inefficient. Use vector always directive or -vec-threshold0 to override 
+      remark #25436: completely unrolled by 3  
+   LOOP END
+
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglide/glide_bwater.F90(320,13)
+   LOOP END
+
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglide/glide_bwater.F90(320,13)
+   LOOP END
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglide/glide_bwater.F90(335,13)
+   remark #15541: outer loop was not auto-vectorized: consider using SIMD directive
+   remark #25436: completely unrolled by 3  
+
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglide/glide_bwater.F90(335,13)
+      remark #15331: loop was not vectorized: precise FP model implied by the command line or a directive prevents vectorization. Consider using fast FP model
+      remark #25436: completely unrolled by 3  
+   LOOP END
+
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglide/glide_bwater.F90(335,13)
+   LOOP END
+
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglide/glide_bwater.F90(335,13)
+   LOOP END
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglide/glide_bwater.F90(336,25)
+   remark #15541: outer loop was not auto-vectorized: consider using SIMD directive
+   remark #25436: completely unrolled by 3  
+
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglide/glide_bwater.F90(336,25)
+      remark #15331: loop was not vectorized: precise FP model implied by the command line or a directive prevents vectorization. Consider using fast FP model
+      remark #25436: completely unrolled by 3  
+   LOOP END
+
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglide/glide_bwater.F90(336,25)
+   LOOP END
+
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglide/glide_bwater.F90(336,25)
+   LOOP END
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglide/glide_bwater.F90(336,11)
+   remark #15542: loop was not vectorized: inner loop was already vectorized
+
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglide/glide_bwater.F90(336,11)
+      remark #15300: LOOP WAS VECTORIZED
+   LOOP END
+
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglide/glide_bwater.F90(336,11)
+   <Remainder loop for vectorization>
+      remark #25436: completely unrolled by 1  
+   LOOP END
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglide/glide_bwater.F90(337,11)
+   remark #15541: outer loop was not auto-vectorized: consider using SIMD directive
+   remark #25436: completely unrolled by 3  
+
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglide/glide_bwater.F90(339,15)
+      remark #15344: loop was not vectorized: vector dependence prevents vectorization. First dependence is shown below. Use level 5 report for details
+      remark #15346: vector dependence: assumed FLOW dependence between flux(px,py) (341:17) and flux(x,y) (341:17)
+      remark #25436: completely unrolled by 3  
+   LOOP END
+
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglide/glide_bwater.F90(339,15)
+   LOOP END
+
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglide/glide_bwater.F90(339,15)
+   LOOP END
+LOOP END
+
+
+Non-optimizable loops:
+
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglide/glide_bwater.F90(483,5) inlined into /glade/u/home/tvda/CISM/libglide/glide_bwater.F90(286,10)
+   remark #15532: loop was not vectorized: compile time constraints prevent loop optimization. Consider using -O3.
+
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglide/glide_bwater.F90(525,8) inlined into /glade/u/home/tvda/CISM/libglide/glide_bwater.F90(286,10)
+      remark #15536: loop was not vectorized: inner loop throttling prevents vectorization of this outer loop. Refer to inner loop message for more details.   [ /glade/u/home/tvda/CISM/libglide/glide_bwater.F90(524,11) ]
+
+      LOOP BEGIN at /glade/u/home/tvda/CISM/libglide/glide_bwater.F90(524,11) inlined into /glade/u/home/tvda/CISM/libglide/glide_bwater.F90(286,10)
+         remark #15532: loop was not vectorized: compile time constraints prevent loop optimization. Consider using -O3.
+      LOOP END
+   LOOP END
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglide/glide_bwater.F90(664,15) inlined into /glade/u/home/tvda/CISM/libglide/glide_bwater.F90(287,10)
+   remark #15536: loop was not vectorized: inner loop throttling prevents vectorization of this outer loop. Refer to inner loop message for more details.   [ /glade/u/home/tvda/CISM/libglide/glide_bwater.F90(650,16) ]
+
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglide/glide_bwater.F90(650,16) inlined into /glade/u/home/tvda/CISM/libglide/glide_bwater.F90(287,10)
+      remark #15523: loop was not vectorized: loop control variable rr was found, but loop iteration count cannot be computed before executing the loop
+   LOOP END
+
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglide/glide_bwater.F90(660,15) inlined into /glade/u/home/tvda/CISM/libglide/glide_bwater.F90(287,10)
+      remark #15523: loop was not vectorized: loop control variable ll was found, but loop iteration count cannot be computed before executing the loop
+   LOOP END
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglide/glide_bwater.F90(355,5)
+   remark #15532: loop was not vectorized: compile time constraints prevent loop optimization. Consider using -O3.
+LOOP END
+
+    Report from: Code generation optimizations [cg]
+
+/glade/u/home/tvda/CISM/libglide/glide_bwater.F90(275,5):remark #34070: adjacent sparse (strided) stores seem unprofitable to optimize. Details: stride { 24 }, types { F64-V128, F64-V128 }, number of elements { 2 }, select mask { 0x000000003 }.
+/glade/u/home/tvda/CISM/libglide/glide_bwater.F90(236,14):remark #34051: REGISTER ALLOCATION : [glide_bwater_mp_route_basal_water_] /glade/u/home/tvda/CISM/libglide/glide_bwater.F90:236
+
+    Hardware registers
+        Reserved     :    2[ rsp rip]
+        Available    :   39[ rax rdx rcx rbx rbp rsi rdi r8-r15 mm0-mm7 zmm0-zmm15]
+        Callee-save  :    6[ rbx rbp r12-r15]
+        Assigned     :   30[ rax rdx rcx rbx rsi rdi r8-r15 zmm0-zmm15]
+        
+    Routine temporaries
+        Total         :    1886
+            Global    :     457
+            Local     :    1429
+        Regenerable   :     129
+        Spilled       :     149
+        
+    Routine stack
+        Variables     :    1072 bytes*
+            Reads     :      93 [1.17e+00 ~ 1.2%]
+            Writes    :     200 [1.44e+00 ~ 1.4%]
+        Spills        :    1120 bytes*
+            Reads     :     238 [7.22e+00 ~ 7.2%]
+            Writes    :     167 [4.17e+00 ~ 4.2%]
+    
+    Notes
+    
+        *Non-overlapping variables and spills may share stack space,
+         so the total stack size might be less than this.
+    
+
+===========================================================================
+
+Begin optimization report for: GLIDE_BWATER::Q_SORT_INDEX
+
+    Report from: Interprocedural optimizations [ipo]
+
+INLINE REPORT: (GLIDE_BWATER::Q_SORT_INDEX) [5] /glade/u/home/tvda/CISM/libglide/glide_bwater.F90(618,24)
+  -> (674,23) GLIDE_BWATER::Q_SORT_INDEX
+  -> (675,23) GLIDE_BWATER::Q_SORT_INDEX
+
+
+    Report from: Loop nest, Vector & Auto-parallelization optimizations [loop, vec, par]
+
+
+
+Non-optimizable loops:
+
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglide/glide_bwater.F90(664,15)
+   remark #15536: loop was not vectorized: inner loop throttling prevents vectorization of this outer loop. Refer to inner loop message for more details.   [ /glade/u/home/tvda/CISM/libglide/glide_bwater.F90(650,16) ]
+
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglide/glide_bwater.F90(650,16)
+      remark #15523: loop was not vectorized: loop control variable rr was found, but loop iteration count cannot be computed before executing the loop
+   LOOP END
+
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglide/glide_bwater.F90(660,15)
+      remark #15523: loop was not vectorized: loop control variable ll was found, but loop iteration count cannot be computed before executing the loop
+   LOOP END
+LOOP END
+
+    Report from: Code generation optimizations [cg]
+
+/glade/u/home/tvda/CISM/libglide/glide_bwater.F90(618,24):remark #34051: REGISTER ALLOCATION : [glide_bwater_mp_q_sort_index_] /glade/u/home/tvda/CISM/libglide/glide_bwater.F90:618
+
+    Hardware registers
+        Reserved     :    2[ rsp rip]
+        Available    :   39[ rax rdx rcx rbx rbp rsi rdi r8-r15 mm0-mm7 zmm0-zmm15]
+        Callee-save  :    6[ rbx rbp r12-r15]
+        Assigned     :   16[ rax rdx rcx rbx rsi rdi r8-r15 zmm0-zmm1]
+        
+    Routine temporaries
+        Total         :      61
+            Global    :      22
+            Local     :      39
+        Regenerable   :       8
+        Spilled       :       6
+        
+    Routine stack
+        Variables     :      16 bytes*
+            Reads     :       1 [2.58e-01 ~ 0.3%]
+            Writes    :       4 [1.10e+00 ~ 1.1%]
+        Spills        :       8 bytes*
+            Reads     :       1 [2.93e-01 ~ 0.3%]
+            Writes    :       1 [2.93e-01 ~ 0.3%]
+    
+    Notes
+    
+        *Non-overlapping variables and spills may share stack space,
+         so the total stack size might be less than this.
+    
+
+===========================================================================
+
+Begin optimization report for: GLIDE_BWATER::FIND_DT_WAT
+
+    Report from: Interprocedural optimizations [ipo]
+
+INLINE REPORT: (GLIDE_BWATER::FIND_DT_WAT) [6] /glade/u/home/tvda/CISM/libglide/glide_bwater.F90(221,14)
+
+
+    Report from: Code generation optimizations [cg]
+
+/glade/u/home/tvda/CISM/libglide/glide_bwater.F90(221,14):remark #34051: REGISTER ALLOCATION : [glide_bwater_mp_find_dt_wat_] /glade/u/home/tvda/CISM/libglide/glide_bwater.F90:221
+
+    Hardware registers
+        Reserved     :    2[ rsp rip]
+        Available    :   39[ rax rdx rcx rbx rbp rsi rdi r8-r15 mm0-mm7 zmm0-zmm15]
+        Callee-save  :    6[ rbx rbp r12-r15]
+        Assigned     :    8[ rax rdx rcx rsi rdi zmm0-zmm2]
+        
+    Routine temporaries
+        Total         :      20
+            Global    :       0
+            Local     :      20
+        Regenerable   :       0
+        Spilled       :       0
+        
+    Routine stack
+        Variables     :       0 bytes*
+            Reads     :       0 [0.00e+00 ~ 0.0%]
+            Writes    :       0 [0.00e+00 ~ 0.0%]
+        Spills        :       0 bytes*
+            Reads     :       0 [0.00e+00 ~ 0.0%]
+            Writes    :       0 [0.00e+00 ~ 0.0%]
+    
+    Notes
+    
+        *Non-overlapping variables and spills may share stack space,
+         so the total stack size might be less than this.
+    
+
+===========================================================================
+
+Begin optimization report for: GLIDE_BWATER::FLUX_TO_DEPTH
+
+    Report from: Interprocedural optimizations [ipo]
+
+INLINE REPORT: (GLIDE_BWATER::FLUX_TO_DEPTH) [7] /glade/u/home/tvda/CISM/libglide/glide_bwater.F90(365,14)
+
+
+    Report from: Loop nest, Vector & Auto-parallelization optimizations [loop, vec, par]
+
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglide/glide_bwater.F90(401,5)
+   remark #15542: loop was not vectorized: inner loop was already vectorized
+
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglide/glide_bwater.F90(401,5)
+      remark #15300: LOOP WAS VECTORIZED
+   LOOP END
+
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglide/glide_bwater.F90(401,5)
+   <Remainder loop for vectorization>
+      remark #15301: REMAINDER LOOP WAS VECTORIZED
+   LOOP END
+
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglide/glide_bwater.F90(401,5)
+   <Remainder loop for vectorization>
+   LOOP END
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglide/glide_bwater.F90(403,5)
+   remark #15542: loop was not vectorized: inner loop was already vectorized
+
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglide/glide_bwater.F90(403,5)
+      remark #15300: LOOP WAS VECTORIZED
+   LOOP END
+
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglide/glide_bwater.F90(403,5)
+   <Remainder loop for vectorization>
+      remark #15301: REMAINDER LOOP WAS VECTORIZED
+   LOOP END
+
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglide/glide_bwater.F90(403,5)
+   <Remainder loop for vectorization>
+   LOOP END
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglide/glide_bwater.F90(406,9)
+   remark #15541: outer loop was not auto-vectorized: consider using SIMD directive
+
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglide/glide_bwater.F90(406,9)
+      remark #15335: loop was not vectorized: vectorization possible but seems inefficient. Use vector always directive or -vec-threshold0 to override 
+      remark #25439: unrolled with remainder by 2  
+   LOOP END
+
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglide/glide_bwater.F90(406,9)
+   <Remainder>
+   LOOP END
+LOOP END
+
+
+Non-optimizable loops:
+
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglide/glide_bwater.F90(404,9)
+   remark #15536: loop was not vectorized: inner loop throttling prevents vectorization of this outer loop. Refer to inner loop message for more details.   [ /glade/u/home/tvda/CISM/libglide/glide_bwater.F90(404,9) ]
+
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglide/glide_bwater.F90(404,9)
+      remark #15523: loop was not vectorized: loop control variable ? was found, but loop iteration count cannot be computed before executing the loop
+   LOOP END
+LOOP END
+
+    Report from: Code generation optimizations [cg]
+
+/glade/u/home/tvda/CISM/libglide/glide_bwater.F90(365,14):remark #34051: REGISTER ALLOCATION : [glide_bwater_mp_flux_to_depth_] /glade/u/home/tvda/CISM/libglide/glide_bwater.F90:365
+
+    Hardware registers
+        Reserved     :    2[ rsp rip]
+        Available    :   39[ rax rdx rcx rbx rbp rsi rdi r8-r15 mm0-mm7 zmm0-zmm15]
+        Callee-save  :    6[ rbx rbp r12-r15]
+        Assigned     :   29[ rax rdx rcx rbx rsi rdi r8-r15 zmm0-zmm14]
+        
+    Routine temporaries
+        Total         :     606
+            Global    :     141
+            Local     :     465
+        Regenerable   :      44
+        Spilled       :      40
+        
+    Routine stack
+        Variables     :     408 bytes*
+            Reads     :      44 [2.60e+00 ~ 2.6%]
+            Writes    :      76 [1.60e+00 ~ 1.6%]
+        Spills        :     272 bytes*
+            Reads     :      47 [4.69e+00 ~ 4.7%]
+            Writes    :      38 [1.62e+00 ~ 1.6%]
+    
+    Notes
+    
+        *Non-overlapping variables and spills may share stack space,
+         so the total stack size might be less than this.
+    
+
+===========================================================================
+
+Begin optimization report for: GLIDE_BWATER::EFFECTIVE_PRESSURE
+
+    Report from: Interprocedural optimizations [ipo]
+
+INLINE REPORT: (GLIDE_BWATER::EFFECTIVE_PRESSURE) [8] /glade/u/home/tvda/CISM/libglide/glide_bwater.F90(414,14)
+
+
+    Report from: Loop nest, Vector & Auto-parallelization optimizations [loop, vec, par]
+
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglide/glide_bwater.F90(419,5)
+   remark #15542: loop was not vectorized: inner loop was already vectorized
+
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglide/glide_bwater.F90(419,5)
+      remark #15300: LOOP WAS VECTORIZED
+   LOOP END
+
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglide/glide_bwater.F90(419,5)
+   <Remainder loop for vectorization>
+      remark #15301: REMAINDER LOOP WAS VECTORIZED
+   LOOP END
+
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglide/glide_bwater.F90(419,5)
+   <Remainder loop for vectorization>
+   LOOP END
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglide/glide_bwater.F90(420,9)
+   remark #15541: outer loop was not auto-vectorized: consider using SIMD directive
+
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglide/glide_bwater.F90(420,9)
+      remark #15335: loop was not vectorized: vectorization possible but seems inefficient. Use vector always directive or -vec-threshold0 to override 
+      remark #25439: unrolled with remainder by 2  
+   LOOP END
+
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglide/glide_bwater.F90(420,9)
+   <Remainder>
+   LOOP END
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglide/glide_bwater.F90(422,9)
+   remark #15541: outer loop was not auto-vectorized: consider using SIMD directive
+
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglide/glide_bwater.F90(422,9)
+      remark #15335: loop was not vectorized: vectorization possible but seems inefficient. Use vector always directive or -vec-threshold0 to override 
+      remark #25439: unrolled with remainder by 2  
+   LOOP END
+
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglide/glide_bwater.F90(422,9)
+   <Remainder>
+   LOOP END
+LOOP END
+
+    Report from: Code generation optimizations [cg]
+
+/glade/u/home/tvda/CISM/libglide/glide_bwater.F90(414,14):remark #34051: REGISTER ALLOCATION : [glide_bwater_mp_effective_pressure_] /glade/u/home/tvda/CISM/libglide/glide_bwater.F90:414
+
+    Hardware registers
+        Reserved     :    2[ rsp rip]
+        Available    :   39[ rax rdx rcx rbx rbp rsi rdi r8-r15 mm0-mm7 zmm0-zmm15]
+        Callee-save  :    6[ rbx rbp r12-r15]
+        Assigned     :   30[ rax rdx rcx rbx rsi rdi r8-r15 zmm0-zmm15]
+        
+    Routine temporaries
+        Total         :     172
+            Global    :      82
+            Local     :      90
+        Regenerable   :       7
+        Spilled       :      29
+        
+    Routine stack
+        Variables     :       0 bytes*
+            Reads     :       0 [0.00e+00 ~ 0.0%]
+            Writes    :       0 [0.00e+00 ~ 0.0%]
+        Spills        :     184 bytes*
+            Reads     :      61 [5.71e+00 ~ 5.7%]
+            Writes    :      25 [1.45e+00 ~ 1.4%]
+    
+    Notes
+    
+        *Non-overlapping variables and spills may share stack space,
+         so the total stack size might be less than this.
+    
+
+===========================================================================
+
+Begin optimization report for: GLIDE_BWATER::PRESSURE_WPHI
+
+    Report from: Interprocedural optimizations [ipo]
+
+INLINE REPORT: (GLIDE_BWATER::PRESSURE_WPHI) [9] /glade/u/home/tvda/CISM/libglide/glide_bwater.F90(428,14)
+
+
+    Report from: Loop nest, Vector & Auto-parallelization optimizations [loop, vec, par]
+
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglide/glide_bwater.F90(444,5)
+   remark #15541: outer loop was not auto-vectorized: consider using SIMD directive
+
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglide/glide_bwater.F90(444,5)
+      remark #15335: loop was not vectorized: vectorization possible but seems inefficient. Use vector always directive or -vec-threshold0 to override 
+      remark #25439: unrolled with remainder by 2  
+   LOOP END
+
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglide/glide_bwater.F90(444,5)
+   <Remainder>
+   LOOP END
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglide/glide_bwater.F90(445,7)
+   remark #15541: outer loop was not auto-vectorized: consider using SIMD directive
+
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglide/glide_bwater.F90(445,7)
+      remark #15335: loop was not vectorized: vectorization possible but seems inefficient. Use vector always directive or -vec-threshold0 to override 
+      remark #25439: unrolled with remainder by 2  
+   LOOP END
+
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglide/glide_bwater.F90(445,7)
+   <Remainder>
+   LOOP END
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglide/glide_bwater.F90(447,7)
+   remark #15541: outer loop was not auto-vectorized: consider using SIMD directive
+
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglide/glide_bwater.F90(447,7)
+      remark #15335: loop was not vectorized: vectorization possible but seems inefficient. Use vector always directive or -vec-threshold0 to override 
+      remark #25439: unrolled with remainder by 2  
+   LOOP END
+
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglide/glide_bwater.F90(447,7)
+   <Remainder>
+   LOOP END
+LOOP END
+
+    Report from: Code generation optimizations [cg]
+
+/glade/u/home/tvda/CISM/libglide/glide_bwater.F90(428,14):remark #34051: REGISTER ALLOCATION : [glide_bwater_mp_pressure_wphi_] /glade/u/home/tvda/CISM/libglide/glide_bwater.F90:428
+
+    Hardware registers
+        Reserved     :    2[ rsp rip]
+        Available    :   39[ rax rdx rcx rbx rbp rsi rdi r8-r15 mm0-mm7 zmm0-zmm15]
+        Callee-save  :    6[ rbx rbp r12-r15]
+        Assigned     :   20[ rax rdx rcx rbx rsi rdi r8-r15 zmm0-zmm5]
+        
+    Routine temporaries
+        Total         :     197
+            Global    :      99
+            Local     :      98
+        Regenerable   :       7
+        Spilled       :      55
+        
+    Routine stack
+        Variables     :       0 bytes*
+            Reads     :       0 [0.00e+00 ~ 0.0%]
+            Writes    :       0 [0.00e+00 ~ 0.0%]
+        Spills        :     392 bytes*
+            Reads     :     106 [2.02e+01 ~ 20.2%]
+            Writes    :      53 [7.21e+00 ~ 7.2%]
+    
+    Notes
+    
+        *Non-overlapping variables and spills may share stack space,
+         so the total stack size might be less than this.
+    
+
+===========================================================================
+
+Begin optimization report for: GLIDE_BWATER::FILLHOLES
+
+    Report from: Interprocedural optimizations [ipo]
+
+INLINE REPORT: (GLIDE_BWATER::FILLHOLES) [10] /glade/u/home/tvda/CISM/libglide/glide_bwater.F90(456,14)
+
+
+    Report from: Loop nest, Vector & Auto-parallelization optimizations [loop, vec, par]
+
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglide/glide_bwater.F90(487,8)
+<Multiversioned v1>
+   remark #25233: Loop multiversioned for stride tests on Assumed shape arrays
+   remark #15542: loop was not vectorized: inner loop was already vectorized
+
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglide/glide_bwater.F90(487,8)
+      remark #15300: LOOP WAS VECTORIZED
+   LOOP END
+
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglide/glide_bwater.F90(487,8)
+   <Remainder loop for vectorization>
+   LOOP END
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglide/glide_bwater.F90(487,8)
+<Multiversioned v2>
+   remark #15542: loop was not vectorized: inner loop was already vectorized
+
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglide/glide_bwater.F90(487,8)
+      remark #15300: LOOP WAS VECTORIZED
+   LOOP END
+
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglide/glide_bwater.F90(487,8)
+   <Remainder loop for vectorization>
+   LOOP END
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglide/glide_bwater.F90(496,21)
+   remark #15541: outer loop was not auto-vectorized: consider using SIMD directive
+   remark #25436: completely unrolled by 3  
+
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglide/glide_bwater.F90(496,21)
+      remark #15335: loop was not vectorized: vectorization possible but seems inefficient. Use vector always directive or -vec-threshold0 to override 
+      remark #25436: completely unrolled by 3  
+   LOOP END
+
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglide/glide_bwater.F90(496,21)
+   LOOP END
+
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglide/glide_bwater.F90(496,21)
+   LOOP END
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglide/glide_bwater.F90(506,20)
+   remark #15300: LOOP WAS VECTORIZED
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglide/glide_bwater.F90(506,20)
+<Remainder loop for vectorization>
+   remark #25436: completely unrolled by 1  
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglide/glide_bwater.F90(506,29)
+   remark #15300: LOOP WAS VECTORIZED
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglide/glide_bwater.F90(506,29)
+<Remainder loop for vectorization>
+   remark #25436: completely unrolled by 1  
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglide/glide_bwater.F90(506,51)
+   remark #15300: LOOP WAS VECTORIZED
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglide/glide_bwater.F90(506,51)
+<Remainder loop for vectorization>
+   remark #25436: completely unrolled by 1  
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglide/glide_bwater.F90(506,20)
+   remark #15300: LOOP WAS VECTORIZED
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglide/glide_bwater.F90(506,20)
+<Remainder loop for vectorization>
+   remark #25436: completely unrolled by 1  
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglide/glide_bwater.F90(506,20)
+   remark #15335: loop was not vectorized: vectorization possible but seems inefficient. Use vector always directive or -vec-threshold0 to override 
+   remark #25436: completely unrolled by 3  
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglide/glide_bwater.F90(506,20)
+   remark #15335: loop was not vectorized: vectorization possible but seems inefficient. Use vector always directive or -vec-threshold0 to override 
+   remark #25436: completely unrolled by 3  
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglide/glide_bwater.F90(506,20)
+   remark #15300: LOOP WAS VECTORIZED
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglide/glide_bwater.F90(506,20)
+<Remainder loop for vectorization>
+   remark #25436: completely unrolled by 1  
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglide/glide_bwater.F90(509,23)
+   remark #15300: LOOP WAS VECTORIZED
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglide/glide_bwater.F90(509,23)
+<Remainder loop for vectorization>
+   remark #25436: completely unrolled by 1  
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglide/glide_bwater.F90(512,30)
+   remark #15331: loop was not vectorized: precise FP model implied by the command line or a directive prevents vectorization. Consider using fast FP model
+   remark #25436: completely unrolled by 9  
+LOOP END
+
+
+Non-optimizable loops:
+
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglide/glide_bwater.F90(483,5)
+   remark #15532: loop was not vectorized: compile time constraints prevent loop optimization. Consider using -O3.
+
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglide/glide_bwater.F90(525,8)
+      remark #15536: loop was not vectorized: inner loop throttling prevents vectorization of this outer loop. Refer to inner loop message for more details.   [ /glade/u/home/tvda/CISM/libglide/glide_bwater.F90(524,11) ]
+
+      LOOP BEGIN at /glade/u/home/tvda/CISM/libglide/glide_bwater.F90(524,11)
+         remark #15532: loop was not vectorized: compile time constraints prevent loop optimization. Consider using -O3.
+      LOOP END
+   LOOP END
+LOOP END
+
+    Report from: Code generation optimizations [cg]
+
+/glade/u/home/tvda/CISM/libglide/glide_bwater.F90(456,14):remark #34051: REGISTER ALLOCATION : [glide_bwater_mp_fillholes_] /glade/u/home/tvda/CISM/libglide/glide_bwater.F90:456
+
+    Hardware registers
+        Reserved     :    2[ rsp rip]
+        Available    :   39[ rax rdx rcx rbx rbp rsi rdi r8-r15 mm0-mm7 zmm0-zmm15]
+        Callee-save  :    6[ rbx rbp r12-r15]
+        Assigned     :   30[ rax rdx rcx rbx rsi rdi r8-r15 zmm0-zmm15]
+        
+    Routine temporaries
+        Total         :     511
+            Global    :     112
+            Local     :     399
+        Regenerable   :      37
+        Spilled       :      47
+        
+    Routine stack
+        Variables     :     304 bytes*
+            Reads     :      15 [4.85e-01 ~ 0.5%]
+            Writes    :      55 [9.99e-01 ~ 1.0%]
+        Spills        :     336 bytes*
+            Reads     :      56 [1.07e+01 ~ 10.7%]
+            Writes    :      45 [5.58e+00 ~ 5.6%]
+    
+    Notes
+    
+        *Non-overlapping variables and spills may share stack space,
+         so the total stack size might be less than this.
+    
+
+===========================================================================
+
+Begin optimization report for: GLIDE_BWATER::HEIGHTS_SORT
+
+    Report from: Interprocedural optimizations [ipo]
+
+INLINE REPORT: (GLIDE_BWATER::HEIGHTS_SORT) [11] /glade/u/home/tvda/CISM/libglide/glide_bwater.F90(535,14)
+  -> INLINE: (563,10) GLIDE_BWATER::INDEXX
+    -> INLINE: (612,10) GLIDE_BWATER::Q_SORT_INDEX
+      -> (674,23) GLIDE_BWATER::Q_SORT_INDEX
+      -> (675,23) GLIDE_BWATER::Q_SORT_INDEX
+
+
+    Report from: Loop nest, Vector & Auto-parallelization optimizations [loop, vec, par]
+
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglide/glide_bwater.F90(556,5)
+<Multiversioned v1>
+   remark #25233: Loop multiversioned for stride tests on Assumed shape arrays
+   remark #15542: loop was not vectorized: inner loop was already vectorized
+
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglide/glide_bwater.F90(557,7)
+      remark #15300: LOOP WAS VECTORIZED
+   LOOP END
+
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglide/glide_bwater.F90(557,7)
+   <Remainder loop for vectorization>
+      remark #25456: Number of Array Refs Scalar Replaced In Loop: 1
+   LOOP END
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglide/glide_bwater.F90(556,5)
+<Multiversioned v2>
+   remark #15542: loop was not vectorized: inner loop was already vectorized
+
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglide/glide_bwater.F90(557,7)
+      remark #15300: LOOP WAS VECTORIZED
+   LOOP END
+
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglide/glide_bwater.F90(557,7)
+   <Remainder loop for vectorization>
+      remark #25456: Number of Array Refs Scalar Replaced In Loop: 1
+   LOOP END
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglide/glide_bwater.F90(563,10)
+   remark #15300: LOOP WAS VECTORIZED
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglide/glide_bwater.F90(563,10)
+<Remainder loop for vectorization>
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglide/glide_bwater.F90(565,5)
+   remark #15344: loop was not vectorized: vector dependence prevents vectorization. First dependence is shown below. Use level 5 report for details
+   remark #15346: vector dependence: assumed ANTI dependence between IND (566:19) and IND (567:7)
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglide/glide_bwater.F90(570,5)
+<Multiversioned v1>
+   remark #25233: Loop multiversioned for stride tests on Assumed shape arrays
+   remark #15335: loop was not vectorized: vectorization possible but seems inefficient. Use vector always directive or -vec-threshold0 to override 
+   remark #25439: unrolled with remainder by 2  
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglide/glide_bwater.F90(570,5)
+<Remainder, Multiversioned v1>
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglide/glide_bwater.F90(570,5)
+<Multiversioned v2>
+   remark #15335: loop was not vectorized: vectorization possible but seems inefficient. Use vector always directive or -vec-threshold0 to override 
+   remark #25439: unrolled with remainder by 2  
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglide/glide_bwater.F90(570,5)
+<Remainder, Multiversioned v2>
+LOOP END
+
+
+Non-optimizable loops:
+
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglide/glide_bwater.F90(664,15) inlined into /glade/u/home/tvda/CISM/libglide/glide_bwater.F90(563,10)
+   remark #15536: loop was not vectorized: inner loop throttling prevents vectorization of this outer loop. Refer to inner loop message for more details.   [ /glade/u/home/tvda/CISM/libglide/glide_bwater.F90(650,16) ]
+
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglide/glide_bwater.F90(650,16) inlined into /glade/u/home/tvda/CISM/libglide/glide_bwater.F90(563,10)
+      remark #15523: loop was not vectorized: loop control variable rr was found, but loop iteration count cannot be computed before executing the loop
+   LOOP END
+
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglide/glide_bwater.F90(660,15) inlined into /glade/u/home/tvda/CISM/libglide/glide_bwater.F90(563,10)
+      remark #15523: loop was not vectorized: loop control variable ll was found, but loop iteration count cannot be computed before executing the loop
+   LOOP END
+LOOP END
+
+    Report from: Code generation optimizations [cg]
+
+/glade/u/home/tvda/CISM/libglide/glide_bwater.F90(535,14):remark #34051: REGISTER ALLOCATION : [glide_bwater_mp_heights_sort_] /glade/u/home/tvda/CISM/libglide/glide_bwater.F90:535
+
+    Hardware registers
+        Reserved     :    2[ rsp rip]
+        Available    :   39[ rax rdx rcx rbx rbp rsi rdi r8-r15 mm0-mm7 zmm0-zmm15]
+        Callee-save  :    6[ rbx rbp r12-r15]
+        Assigned     :   18[ rax rdx rcx rbx rsi rdi r8-r15 zmm0-zmm3]
+        
+    Routine temporaries
+        Total         :     481
+            Global    :     126
+            Local     :     355
+        Regenerable   :      64
+        Spilled       :      40
+        
+    Routine stack
+        Variables     :     256 bytes*
+            Reads     :      17 [1.05e+00 ~ 1.0%]
+            Writes    :      40 [1.68e+00 ~ 1.7%]
+        Spills        :     248 bytes*
+            Reads     :      63 [5.07e+00 ~ 5.1%]
+            Writes    :      51 [2.20e+00 ~ 2.2%]
+    
+    Notes
+    
+        *Non-overlapping variables and spills may share stack space,
+         so the total stack size might be less than this.
+    
+
+===========================================================================
+
+Begin optimization report for: GLIDE_BWATER::INDEXX
+
+    Report from: Interprocedural optimizations [ipo]
+
+INLINE REPORT: (GLIDE_BWATER::INDEXX) [12] /glade/u/home/tvda/CISM/libglide/glide_bwater.F90(587,14)
+  -> INLINE: (612,10) GLIDE_BWATER::Q_SORT_INDEX
+    -> (674,23) GLIDE_BWATER::Q_SORT_INDEX
+    -> (675,23) GLIDE_BWATER::Q_SORT_INDEX
+
+
+    Report from: Loop nest, Vector & Auto-parallelization optimizations [loop, vec, par]
+
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglide/glide_bwater.F90(608,5)
+<Multiversioned v1>
+   remark #25233: Loop multiversioned for stride tests on Assumed shape arrays
+   remark #15300: LOOP WAS VECTORIZED
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglide/glide_bwater.F90(608,5)
+<Remainder loop for vectorization, Multiversioned v1>
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglide/glide_bwater.F90(608,5)
+<Multiversioned v2>
+   remark #15335: loop was not vectorized: vectorization possible but seems inefficient. Use vector always directive or -vec-threshold0 to override 
+   remark #25439: unrolled with remainder by 2  
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglide/glide_bwater.F90(608,5)
+<Remainder, Multiversioned v2>
+LOOP END
+
+
+Non-optimizable loops:
+
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglide/glide_bwater.F90(664,15) inlined into /glade/u/home/tvda/CISM/libglide/glide_bwater.F90(612,10)
+   remark #15536: loop was not vectorized: inner loop throttling prevents vectorization of this outer loop. Refer to inner loop message for more details.   [ /glade/u/home/tvda/CISM/libglide/glide_bwater.F90(650,16) ]
+
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglide/glide_bwater.F90(650,16) inlined into /glade/u/home/tvda/CISM/libglide/glide_bwater.F90(612,10)
+      remark #15523: loop was not vectorized: loop control variable rr was found, but loop iteration count cannot be computed before executing the loop
+   LOOP END
+
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglide/glide_bwater.F90(660,15) inlined into /glade/u/home/tvda/CISM/libglide/glide_bwater.F90(612,10)
+      remark #15523: loop was not vectorized: loop control variable ll was found, but loop iteration count cannot be computed before executing the loop
+   LOOP END
+LOOP END
+
+    Report from: Code generation optimizations [cg]
+
+/glade/u/home/tvda/CISM/libglide/glide_bwater.F90(587,14):remark #34051: REGISTER ALLOCATION : [glide_bwater_mp_indexx_] /glade/u/home/tvda/CISM/libglide/glide_bwater.F90:587
+
+    Hardware registers
+        Reserved     :    2[ rsp rip]
+        Available    :   39[ rax rdx rcx rbx rbp rsi rdi r8-r15 mm0-mm7 zmm0-zmm15]
+        Callee-save  :    6[ rbx rbp r12-r15]
+        Assigned     :   16[ rax rdx rcx rbx rsi rdi r8-r15 zmm0-zmm1]
+        
+    Routine temporaries
+        Total         :      94
+            Global    :      38
+            Local     :      56
+        Regenerable   :      21
+        Spilled       :       5
+        
+    Routine stack
+        Variables     :      16 bytes*
+            Reads     :       1 [2.16e-01 ~ 0.2%]
+            Writes    :       6 [9.24e-01 ~ 0.9%]
+        Spills        :       0 bytes*
+            Reads     :       0 [0.00e+00 ~ 0.0%]
+            Writes    :       0 [0.00e+00 ~ 0.0%]
+    
+    Notes
+    
+        *Non-overlapping variables and spills may share stack space,
+         so the total stack size might be less than this.
+    
+
+===========================================================================
+
+Begin optimization report for: GLIDE_BWATER::BWATER_INIT
+
+    Report from: Interprocedural optimizations [ipo]
+
+INLINE REPORT: (GLIDE_BWATER::BWATER_INIT) [13] /glade/u/home/tvda/CISM/libglide/glide_bwater.F90(38,14)
+  -> INLINE: (57,16) GLIDE_BWATER::FIND_DT_WAT
+  -> INLINE: (70,16) GLIDE_BWATER::FIND_DT_WAT
+
+
+    Report from: Loop nest, Vector & Auto-parallelization optimizations [loop, vec, par]
+
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglide/glide_bwater.F90(59,11)
+   remark #15300: LOOP WAS VECTORIZED
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglide/glide_bwater.F90(74,11)
+   remark #15300: LOOP WAS VECTORIZED
+LOOP END
+
+    Report from: Code generation optimizations [cg]
+
+/glade/u/home/tvda/CISM/libglide/glide_bwater.F90(38,14):remark #34051: REGISTER ALLOCATION : [glide_bwater_mp_bwater_init_] /glade/u/home/tvda/CISM/libglide/glide_bwater.F90:38
+
+    Hardware registers
+        Reserved     :    2[ rsp rip]
+        Available    :   39[ rax rdx rcx rbx rbp rsi rdi r8-r15 mm0-mm7 zmm0-zmm15]
+        Callee-save  :    6[ rbx rbp r12-r15]
+        Assigned     :   26[ rax rdx rcx rsi rdi r8-r11 r13 zmm0-zmm15]
+        
+    Routine temporaries
+        Total         :     135
+            Global    :      12
+            Local     :     123
+        Regenerable   :      27
+        Spilled       :       1
+        
+    Routine stack
+        Variables     :      16 bytes*
+            Reads     :       2 [2.23e-01 ~ 0.2%]
+            Writes    :       0 [0.00e+00 ~ 0.0%]
+        Spills        :       0 bytes*
+            Reads     :       0 [0.00e+00 ~ 0.0%]
+            Writes    :       0 [0.00e+00 ~ 0.0%]
+    
+    Notes
+    
+        *Non-overlapping variables and spills may share stack space,
+         so the total stack size might be less than this.
+    
+
+===========================================================================

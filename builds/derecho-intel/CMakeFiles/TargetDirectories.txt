@@ -1,0 +1,6 @@
+/glade/u/home/tvda/CISM/builds/derecho-intel/CMakeFiles/glimmercismfortran.dir
+/glade/u/home/tvda/CISM/builds/derecho-intel/CMakeFiles/edit_cache.dir
+/glade/u/home/tvda/CISM/builds/derecho-intel/CMakeFiles/rebuild_cache.dir
+/glade/u/home/tvda/CISM/builds/derecho-intel/cism_driver/CMakeFiles/cism_driver.dir
+/glade/u/home/tvda/CISM/builds/derecho-intel/cism_driver/CMakeFiles/edit_cache.dir
+/glade/u/home/tvda/CISM/builds/derecho-intel/cism_driver/CMakeFiles/rebuild_cache.dir

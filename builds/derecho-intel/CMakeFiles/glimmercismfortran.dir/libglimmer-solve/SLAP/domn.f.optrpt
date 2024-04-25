@@ -1,0 +1,319 @@
+Intel(R) Advisor can now assist with vectorization and show optimization
+  report messages with your source code.
+See "https://software.intel.com/en-us/intel-advisor-xe" for details.
+
+
+    Report from: Interprocedural optimizations [ipo]
+
+INLINING OPTION VALUES:
+  -inline-factor: 100
+  -inline-min-size: 30
+  -inline-max-size: 230
+  -inline-max-total-size: 2000
+  -inline-max-per-routine: 10000
+  -inline-max-per-compile: 500000
+
+
+Begin optimization report for: DOMN
+
+    Report from: Interprocedural optimizations [ipo]
+
+INLINE REPORT: (DOMN) [1] /glade/u/home/tvda/CISM/libglimmer-solve/SLAP/domn.f(2,18)
+  -> INDIRECT-: (252,12)  domn_$MATVEC_V$1c.0.1
+  -> INDIRECT-: (256,12)  domn_$MSOLVE_V$1d.0.1
+  -> (258,11) ISDOMN
+  -> INDIRECT-: (276,15)  domn_$MATVEC_V$1c.0.1
+  -> INDIRECT-: (277,15)  domn_$MSOLVE_V$1d.0.1
+  -> (315,14) ISDOMN
+
+
+    Report from: Loop nest, Vector & Auto-parallelization optimizations [loop, vec, par]
+
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglimmer-solve/SLAP/domn.f(253,10)
+   remark #15300: LOOP WAS VECTORIZED
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglimmer-solve/SLAP/domn.f(253,10)
+<Remainder loop for vectorization>
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglimmer-solve/SLAP/domn.f(293,22)
+   remark #15335: loop was not vectorized: vectorization possible but seems inefficient. Use vector always directive or -vec-threshold0 to override 
+   remark #25439: unrolled with remainder by 2  
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglimmer-solve/SLAP/domn.f(293,22)
+<Remainder>
+LOOP END
+
+
+Non-optimizable loops:
+
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglimmer-solve/SLAP/domn.f(269,10)
+   remark #15532: loop was not vectorized: compile time constraints prevent loop optimization. Consider using -O3.
+
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglimmer-solve/SLAP/domn.f(284,19)
+      remark #15543: loop was not vectorized: loop with function call not considered an optimization candidate.
+   LOOP END
+LOOP END
+
+    Report from: Code generation optimizations [cg]
+
+/glade/u/home/tvda/CISM/libglimmer-solve/SLAP/domn.f(2,18):remark #34051: REGISTER ALLOCATION : [domn_] /glade/u/home/tvda/CISM/libglimmer-solve/SLAP/domn.f:2
+
+    Hardware registers
+        Reserved     :    2[ rsp rip]
+        Available    :   39[ rax rdx rcx rbx rbp rsi rdi r8-r15 mm0-mm7 zmm0-zmm15]
+        Callee-save  :    6[ rbx rbp r12-r15]
+        Assigned     :   22[ rax rdx rcx rbx rsi rdi r8-r15 zmm0-zmm7]
+        
+    Routine temporaries
+        Total         :     260
+            Global    :      86
+            Local     :     174
+        Regenerable   :      84
+        Spilled       :      22
+        
+    Routine stack
+        Variables     :      64 bytes*
+            Reads     :       2 [1.75e-01 ~ 0.2%]
+            Writes    :       6 [1.37e+00 ~ 1.4%]
+        Spills        :     136 bytes*
+            Reads     :      51 [8.49e+00 ~ 8.5%]
+            Writes    :      19 [2.16e+00 ~ 2.2%]
+    
+    Notes
+    
+        *Non-overlapping variables and spills may share stack space,
+         so the total stack size might be less than this.
+    
+
+===========================================================================
+
+Begin optimization report for: ISDOMN
+
+    Report from: Interprocedural optimizations [ipo]
+
+INLINE REPORT: (ISDOMN) [2] /glade/u/home/tvda/CISM/libglimmer-solve/SLAP/domn.f(872,16)
+  -> INDIRECT-: (1052,18)  isdomn_$MSOLVE_V$f8.0.4
+
+
+    Report from: Loop nest, Vector & Auto-parallelization optimizations [loop, vec, par]
+
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglimmer-solve/SLAP/domn.f(1059,13)
+   remark #15315: loop was not vectorized: estimated number of iterations (1) is insufficient for vectorization
+   remark #25439: unrolled with remainder by 2  
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglimmer-solve/SLAP/domn.f(1059,13)
+<Remainder>
+LOOP END
+
+    Report from: Code generation optimizations [cg]
+
+/glade/u/home/tvda/CISM/libglimmer-solve/SLAP/domn.f(872,16):remark #34051: REGISTER ALLOCATION : [isdomn_] /glade/u/home/tvda/CISM/libglimmer-solve/SLAP/domn.f:872
+
+    Hardware registers
+        Reserved     :    2[ rsp rip]
+        Available    :   39[ rax rdx rcx rbx rbp rsi rdi r8-r15 mm0-mm7 zmm0-zmm15]
+        Callee-save  :    6[ rbx rbp r12-r15]
+        Assigned     :   16[ rax rdx rcx rbx rsi rdi r8-r15 zmm0-zmm1]
+        
+    Routine temporaries
+        Total         :     147
+            Global    :      45
+            Local     :     102
+        Regenerable   :      75
+        Spilled       :       6
+        
+    Routine stack
+        Variables     :     112 bytes*
+            Reads     :       0 [0.00e+00 ~ 0.0%]
+            Writes    :       8 [3.36e+00 ~ 3.4%]
+        Spills        :       8 bytes*
+            Reads     :       2 [1.68e+00 ~ 1.7%]
+            Writes    :       7 [1.96e+00 ~ 2.0%]
+    
+    Notes
+    
+        *Non-overlapping variables and spills may share stack space,
+         so the total stack size might be less than this.
+    
+
+===========================================================================
+
+Begin optimization report for: DSDOMN
+
+    Report from: Interprocedural optimizations [ipo]
+
+INLINE REPORT: (DSDOMN) [3] /glade/u/home/tvda/CISM/libglimmer-solve/SLAP/domn.f(332,18)
+  -> INLINE: (564,12) DOMN
+    -> INDIRECT-: (252,12)  domn_$MATVEC_V$1c.0.1.6
+    -> INDIRECT-: (256,12)  domn_$MSOLVE_V$1d.0.1.6
+    -> (258,11) ISDOMN
+    -> INDIRECT-: (276,15)  domn_$MATVEC_V$1c.0.1.6
+    -> INDIRECT-: (277,15)  domn_$MSOLVE_V$1d.0.1.6
+    -> (315,14) ISDOMN
+
+
+    Report from: Loop nest, Vector & Auto-parallelization optimizations [loop, vec, par]
+
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglimmer-solve/SLAP/domn.f(253,10) inlined into /glade/u/home/tvda/CISM/libglimmer-solve/SLAP/domn.f(564,12)
+   remark #15300: LOOP WAS VECTORIZED
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglimmer-solve/SLAP/domn.f(253,10) inlined into /glade/u/home/tvda/CISM/libglimmer-solve/SLAP/domn.f(564,12)
+<Remainder loop for vectorization>
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglimmer-solve/SLAP/domn.f(293,22) inlined into /glade/u/home/tvda/CISM/libglimmer-solve/SLAP/domn.f(564,12)
+   remark #15335: loop was not vectorized: vectorization possible but seems inefficient. Use vector always directive or -vec-threshold0 to override 
+   remark #25439: unrolled with remainder by 2  
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglimmer-solve/SLAP/domn.f(293,22) inlined into /glade/u/home/tvda/CISM/libglimmer-solve/SLAP/domn.f(564,12)
+<Remainder>
+LOOP END
+
+
+Non-optimizable loops:
+
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglimmer-solve/SLAP/domn.f(269,10) inlined into /glade/u/home/tvda/CISM/libglimmer-solve/SLAP/domn.f(564,12)
+   remark #15532: loop was not vectorized: compile time constraints prevent loop optimization. Consider using -O3.
+
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglimmer-solve/SLAP/domn.f(284,19) inlined into /glade/u/home/tvda/CISM/libglimmer-solve/SLAP/domn.f(564,12)
+      remark #15543: loop was not vectorized: loop with function call not considered an optimization candidate.
+   LOOP END
+LOOP END
+
+    Report from: Code generation optimizations [cg]
+
+/glade/u/home/tvda/CISM/libglimmer-solve/SLAP/domn.f(332,18):remark #34051: REGISTER ALLOCATION : [dsdomn_] /glade/u/home/tvda/CISM/libglimmer-solve/SLAP/domn.f:332
+
+    Hardware registers
+        Reserved     :    2[ rsp rip]
+        Available    :   39[ rax rdx rcx rbx rbp rsi rdi r8-r15 mm0-mm7 zmm0-zmm15]
+        Callee-save  :    6[ rbx rbp r12-r15]
+        Assigned     :   22[ rax rdx rcx rbx rsi rdi r8-r15 zmm0-zmm7]
+        
+    Routine temporaries
+        Total         :     309
+            Global    :      91
+            Local     :     218
+        Regenerable   :      88
+        Spilled       :      36
+        
+    Routine stack
+        Variables     :      72 bytes*
+            Reads     :       4 [4.42e-01 ~ 0.4%]
+            Writes    :       8 [1.44e+00 ~ 1.4%]
+        Spills        :     248 bytes*
+            Reads     :      80 [8.04e+00 ~ 8.0%]
+            Writes    :      32 [5.32e+00 ~ 5.3%]
+    
+    Notes
+    
+        *Non-overlapping variables and spills may share stack space,
+         so the total stack size might be less than this.
+    
+
+===========================================================================
+
+Begin optimization report for: DSLUOM
+
+    Report from: Interprocedural optimizations [ipo]
+
+INLINE REPORT: (DSLUOM) [4] /glade/u/home/tvda/CISM/libglimmer-solve/SLAP/domn.f(573,18)
+  -> INLINE: (864,12) DOMN
+    -> INDIRECT-: (252,12)  domn_$MATVEC_V$1c.0.1.5
+    -> INDIRECT-: (256,12)  domn_$MSOLVE_V$1d.0.1.5
+    -> (258,11) ISDOMN
+    -> INDIRECT-: (276,15)  domn_$MATVEC_V$1c.0.1.5
+    -> INDIRECT-: (277,15)  domn_$MSOLVE_V$1d.0.1.5
+    -> (315,14) ISDOMN
+
+
+    Report from: Loop nest, Vector & Auto-parallelization optimizations [loop, vec, par]
+
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglimmer-solve/SLAP/domn.f(807,10)
+   remark #25084: Preprocess Loopnests: Moving Out Store    [ /glade/u/home/tvda/CISM/libglimmer-solve/SLAP/domn.f(809,10) ]
+   remark #15541: outer loop was not auto-vectorized: consider using SIMD directive
+
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglimmer-solve/SLAP/domn.f(813,16)
+      remark #15344: loop was not vectorized: vector dependence prevents vectorization. First dependence is shown below. Use level 5 report for details
+      remark #15346: vector dependence: assumed OUTPUT dependence between nu (816:35) and nu (818:19)
+      remark #25439: unrolled with remainder by 2  
+   LOOP END
+
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglimmer-solve/SLAP/domn.f(813,16)
+   <Remainder>
+   LOOP END
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglimmer-solve/SLAP/domn.f(253,10) inlined into /glade/u/home/tvda/CISM/libglimmer-solve/SLAP/domn.f(864,12)
+   remark #15300: LOOP WAS VECTORIZED
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglimmer-solve/SLAP/domn.f(253,10) inlined into /glade/u/home/tvda/CISM/libglimmer-solve/SLAP/domn.f(864,12)
+<Remainder loop for vectorization>
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglimmer-solve/SLAP/domn.f(293,22) inlined into /glade/u/home/tvda/CISM/libglimmer-solve/SLAP/domn.f(864,12)
+   remark #15335: loop was not vectorized: vectorization possible but seems inefficient. Use vector always directive or -vec-threshold0 to override 
+   remark #25439: unrolled with remainder by 2  
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglimmer-solve/SLAP/domn.f(293,22) inlined into /glade/u/home/tvda/CISM/libglimmer-solve/SLAP/domn.f(864,12)
+<Remainder>
+LOOP END
+
+
+Non-optimizable loops:
+
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglimmer-solve/SLAP/domn.f(269,10) inlined into /glade/u/home/tvda/CISM/libglimmer-solve/SLAP/domn.f(864,12)
+   remark #15532: loop was not vectorized: compile time constraints prevent loop optimization. Consider using -O3.
+
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglimmer-solve/SLAP/domn.f(284,19) inlined into /glade/u/home/tvda/CISM/libglimmer-solve/SLAP/domn.f(864,12)
+      remark #15543: loop was not vectorized: loop with function call not considered an optimization candidate.
+   LOOP END
+LOOP END
+
+    Report from: Code generation optimizations [cg]
+
+/glade/u/home/tvda/CISM/libglimmer-solve/SLAP/domn.f(573,18):remark #34051: REGISTER ALLOCATION : [dsluom_] /glade/u/home/tvda/CISM/libglimmer-solve/SLAP/domn.f:573
+
+    Hardware registers
+        Reserved     :    2[ rsp rip]
+        Available    :   39[ rax rdx rcx rbx rbp rsi rdi r8-r15 mm0-mm7 zmm0-zmm15]
+        Callee-save  :    6[ rbx rbp r12-r15]
+        Assigned     :   22[ rax rdx rcx rbx rsi rdi r8-r15 zmm0-zmm7]
+        
+    Routine temporaries
+        Total         :     362
+            Global    :     117
+            Local     :     245
+        Regenerable   :      92
+        Spilled       :      42
+        
+    Routine stack
+        Variables     :      80 bytes*
+            Reads     :       4 [2.33e-01 ~ 0.2%]
+            Writes    :      12 [1.12e+00 ~ 1.1%]
+        Spills        :     296 bytes*
+            Reads     :      92 [5.88e+00 ~ 5.9%]
+            Writes    :      42 [5.14e+00 ~ 5.1%]
+    
+    Notes
+    
+        *Non-overlapping variables and spills may share stack space,
+         so the total stack size might be less than this.
+    
+
+===========================================================================

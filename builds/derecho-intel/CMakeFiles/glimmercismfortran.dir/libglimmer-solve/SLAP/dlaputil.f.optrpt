@@ -1,0 +1,511 @@
+Intel(R) Advisor can now assist with vectorization and show optimization
+  report messages with your source code.
+See "https://software.intel.com/en-us/intel-advisor-xe" for details.
+
+
+    Report from: Interprocedural optimizations [ipo]
+
+INLINING OPTION VALUES:
+  -inline-factor: 100
+  -inline-min-size: 30
+  -inline-max-size: 230
+  -inline-max-total-size: 2000
+  -inline-max-per-routine: 10000
+  -inline-max-per-compile: 500000
+
+
+Begin optimization report for: DBHIN
+
+    Report from: Interprocedural optimizations [ipo]
+
+INLINE REPORT: (DBHIN) [1] /glade/u/home/tvda/CISM/libglimmer-solve/SLAP/dlaputil.f(2,18)
+
+
+    Report from: Loop nest, Vector & Auto-parallelization optimizations [loop, vec, par]
+
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglimmer-solve/SLAP/dlaputil.f(202,10)
+   remark #25084: Preprocess Loopnests: Moving Out Store    [ /glade/u/home/tvda/CISM/libglimmer-solve/SLAP/dlaputil.f(203,10) ]
+   remark #15541: outer loop was not auto-vectorized: consider using SIMD directive
+
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglimmer-solve/SLAP/dlaputil.f(205,13)
+      remark #15520: loop was not vectorized: loop with multiple exits cannot be vectorized unless it meets search loop idiom criteria   [ /glade/u/home/tvda/CISM/libglimmer-solve/SLAP/dlaputil.f(206,22) ]
+   LOOP END
+
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglimmer-solve/SLAP/dlaputil.f(219,16)
+      remark #15541: outer loop was not auto-vectorized: consider using SIMD directive
+
+      LOOP BEGIN at /glade/u/home/tvda/CISM/libglimmer-solve/SLAP/dlaputil.f(220,19)
+         remark #15344: loop was not vectorized: vector dependence prevents vectorization. First dependence is shown below. Use level 5 report for details
+         remark #15346: vector dependence: assumed ANTI dependence between ia(i) (222:22) and ia(i) (223:22)
+         remark #25439: unrolled with remainder by 2  
+      LOOP END
+
+      LOOP BEGIN at /glade/u/home/tvda/CISM/libglimmer-solve/SLAP/dlaputil.f(220,19)
+      <Remainder>
+      LOOP END
+   LOOP END
+LOOP END
+
+    Report from: Code generation optimizations [cg]
+
+/glade/u/home/tvda/CISM/libglimmer-solve/SLAP/dlaputil.f(2,18):remark #34051: REGISTER ALLOCATION : [dbhin_] /glade/u/home/tvda/CISM/libglimmer-solve/SLAP/dlaputil.f:2
+
+    Hardware registers
+        Reserved     :    2[ rsp rip]
+        Available    :   39[ rax rdx rcx rbx rbp rsi rdi r8-r15 mm0-mm7 zmm0-zmm15]
+        Callee-save  :    6[ rbx rbp r12-r15]
+        Assigned     :   14[ rax rdx rcx rbx rsi rdi r8-r15]
+        
+    Routine temporaries
+        Total         :     256
+            Global    :      55
+            Local     :     201
+        Regenerable   :     146
+        Spilled       :      14
+        
+    Routine stack
+        Variables     :     492 bytes*
+            Reads     :       4 [4.48e-01 ~ 0.4%]
+            Writes    :      57 [7.05e+00 ~ 7.0%]
+        Spills        :      72 bytes*
+            Reads     :      13 [1.97e+00 ~ 2.0%]
+            Writes    :       9 [2.06e+00 ~ 2.1%]
+    
+    Notes
+    
+        *Non-overlapping variables and spills may share stack space,
+         so the total stack size might be less than this.
+    
+
+===========================================================================
+
+Begin optimization report for: DCHKW
+
+    Report from: Interprocedural optimizations [ipo]
+
+INLINE REPORT: (DCHKW) [2] /glade/u/home/tvda/CISM/libglimmer-solve/SLAP/dlaputil.f(244,18)
+
+
+    Report from: Code generation optimizations [cg]
+
+/glade/u/home/tvda/CISM/libglimmer-solve/SLAP/dlaputil.f(244,18):remark #34051: REGISTER ALLOCATION : [dchkw_] /glade/u/home/tvda/CISM/libglimmer-solve/SLAP/dlaputil.f:244
+
+    Hardware registers
+        Reserved     :    2[ rsp rip]
+        Available    :   39[ rax rdx rcx rbx rbp rsi rdi r8-r15 mm0-mm7 zmm0-zmm15]
+        Callee-save  :    6[ rbx rbp r12-r15]
+        Assigned     :   14[ rax rdx rcx rbx rsi rdi r8-r10 r12-r15 zmm0]
+        
+    Routine temporaries
+        Total         :      65
+            Global    :      23
+            Local     :      42
+        Regenerable   :      39
+        Spilled       :       6
+        
+    Routine stack
+        Variables     :      96 bytes*
+            Reads     :       0 [0.00e+00 ~ 0.0%]
+            Writes    :      12 [1.40e+00 ~ 1.4%]
+        Spills        :       8 bytes*
+            Reads     :       2 [2.34e-01 ~ 0.2%]
+            Writes    :       2 [2.34e-01 ~ 0.2%]
+    
+    Notes
+    
+        *Non-overlapping variables and spills may share stack space,
+         so the total stack size might be less than this.
+    
+
+===========================================================================
+
+Begin optimization report for: QS2I1D
+
+    Report from: Interprocedural optimizations [ipo]
+
+INLINE REPORT: (QS2I1D) [3] /glade/u/home/tvda/CISM/libglimmer-solve/SLAP/dlaputil.f(333,18)
+
+
+    Report from: Loop nest, Vector & Auto-parallelization optimizations [loop, vec, par]
+
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglimmer-solve/SLAP/dlaputil.f(417,13)
+   remark #15300: LOOP WAS VECTORIZED
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglimmer-solve/SLAP/dlaputil.f(417,13)
+<Remainder loop for vectorization>
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglimmer-solve/SLAP/dlaputil.f(558,13)
+   remark #15300: LOOP WAS VECTORIZED
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglimmer-solve/SLAP/dlaputil.f(558,13)
+<Remainder loop for vectorization>
+LOOP END
+
+
+Non-optimizable loops:
+
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglimmer-solve/SLAP/dlaputil.f(536,12)
+   remark #15522: loop was not vectorized: loop control flow is too complex. Try using canonical loop form from OpenMP specification
+
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglimmer-solve/SLAP/dlaputil.f(534,14)
+      remark #15522: loop was not vectorized: loop control flow is too complex. Try using canonical loop form from OpenMP specification
+
+      LOOP BEGIN at /glade/u/home/tvda/CISM/libglimmer-solve/SLAP/dlaputil.f(490,16)
+         remark #15536: loop was not vectorized: inner loop throttling prevents vectorization of this outer loop. Refer to inner loop message for more details.   [ /glade/u/home/tvda/CISM/libglimmer-solve/SLAP/dlaputil.f(496,16) ]
+
+         LOOP BEGIN at /glade/u/home/tvda/CISM/libglimmer-solve/SLAP/dlaputil.f(496,16)
+            remark #15523: loop was not vectorized: loop control variable k was found, but loop iteration count cannot be computed before executing the loop
+         LOOP END
+      LOOP END
+
+      LOOP BEGIN at /glade/u/home/tvda/CISM/libglimmer-solve/SLAP/dlaputil.f(533,7)
+         remark #15532: loop was not vectorized: compile time constraints prevent loop optimization. Consider using -O3.
+
+         LOOP BEGIN at /glade/u/home/tvda/CISM/libglimmer-solve/SLAP/dlaputil.f(543,16)
+            remark #15536: loop was not vectorized: inner loop throttling prevents vectorization of this outer loop. Refer to inner loop message for more details.   [ /glade/u/home/tvda/CISM/libglimmer-solve/SLAP/dlaputil.f(549,13) ]
+
+            LOOP BEGIN at /glade/u/home/tvda/CISM/libglimmer-solve/SLAP/dlaputil.f(549,13)
+               remark #15523: loop was not vectorized: loop control variable k was found, but loop iteration count cannot be computed before executing the loop
+            LOOP END
+         LOOP END
+      LOOP END
+   LOOP END
+LOOP END
+
+    Report from: Code generation optimizations [cg]
+
+/glade/u/home/tvda/CISM/libglimmer-solve/SLAP/dlaputil.f(333,18):remark #34051: REGISTER ALLOCATION : [qs2i1d_] /glade/u/home/tvda/CISM/libglimmer-solve/SLAP/dlaputil.f:333
+
+    Hardware registers
+        Reserved     :    2[ rsp rip]
+        Available    :   39[ rax rdx rcx rbx rbp rsi rdi r8-r15 mm0-mm7 zmm0-zmm15]
+        Callee-save  :    6[ rbx rbp r12-r15]
+        Assigned     :   19[ rax rdx rcx rbx rsi rdi r8-r15 zmm0-zmm4]
+        
+    Routine temporaries
+        Total         :     109
+            Global    :      51
+            Local     :      58
+        Regenerable   :      24
+        Spilled       :       7
+        
+    Routine stack
+        Variables     :       0 bytes*
+            Reads     :       0 [0.00e+00 ~ 0.0%]
+            Writes    :       0 [0.00e+00 ~ 0.0%]
+        Spills        :      56 bytes*
+            Reads     :       7 [1.74e-01 ~ 0.2%]
+            Writes    :       7 [1.74e-01 ~ 0.2%]
+    
+    Notes
+    
+        *Non-overlapping variables and spills may share stack space,
+         so the total stack size might be less than this.
+    
+
+===========================================================================
+
+Begin optimization report for: DS2Y
+
+    Report from: Interprocedural optimizations [ipo]
+
+INLINE REPORT: (DS2Y) [4] /glade/u/home/tvda/CISM/libglimmer-solve/SLAP/dlaputil.f(566,18)
+  -> INLINE: (694,12) QS2I1D
+
+
+    Report from: Loop nest, Vector & Auto-parallelization optimizations [loop, vec, par]
+
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglimmer-solve/SLAP/dlaputil.f(702,10)
+   remark #25084: Preprocess Loopnests: Moving Out Store    [ /glade/u/home/tvda/CISM/libglimmer-solve/SLAP/dlaputil.f(703,13) ]
+   remark #15541: outer loop was not auto-vectorized: consider using SIMD directive
+
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglimmer-solve/SLAP/dlaputil.f(703,13)
+      remark #15520: loop was not vectorized: loop with multiple exits cannot be vectorized unless it meets search loop idiom criteria   [ /glade/u/home/tvda/CISM/libglimmer-solve/SLAP/dlaputil.f(704,22) ]
+   LOOP END
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglimmer-solve/SLAP/dlaputil.f(721,10)
+   remark #25084: Preprocess Loopnests: Moving Out Store    [ /glade/u/home/tvda/CISM/libglimmer-solve/SLAP/dlaputil.f(722,10) ]
+   remark #15541: outer loop was not auto-vectorized: consider using SIMD directive
+
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglimmer-solve/SLAP/dlaputil.f(724,13)
+      remark #15520: loop was not vectorized: loop with multiple exits cannot be vectorized unless it meets search loop idiom criteria   [ /glade/u/home/tvda/CISM/libglimmer-solve/SLAP/dlaputil.f(725,22) ]
+   LOOP END
+
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglimmer-solve/SLAP/dlaputil.f(738,16)
+      remark #15541: outer loop was not auto-vectorized: consider using SIMD directive
+
+      LOOP BEGIN at /glade/u/home/tvda/CISM/libglimmer-solve/SLAP/dlaputil.f(739,19)
+         remark #15344: loop was not vectorized: vector dependence prevents vectorization. First dependence is shown below. Use level 5 report for details
+         remark #15346: vector dependence: assumed ANTI dependence between ia(i) (741:22) and ia(i) (742:22)
+         remark #25439: unrolled with remainder by 2  
+      LOOP END
+
+      LOOP BEGIN at /glade/u/home/tvda/CISM/libglimmer-solve/SLAP/dlaputil.f(739,19)
+      <Remainder>
+      LOOP END
+   LOOP END
+LOOP END
+
+
+Non-optimizable loops:
+
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglimmer-solve/SLAP/dlaputil.f(536,12) inlined into /glade/u/home/tvda/CISM/libglimmer-solve/SLAP/dlaputil.f(694,12)
+   remark #15522: loop was not vectorized: loop control flow is too complex. Try using canonical loop form from OpenMP specification
+
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglimmer-solve/SLAP/dlaputil.f(534,14) inlined into /glade/u/home/tvda/CISM/libglimmer-solve/SLAP/dlaputil.f(694,12)
+      remark #15522: loop was not vectorized: loop control flow is too complex. Try using canonical loop form from OpenMP specification
+
+      LOOP BEGIN at /glade/u/home/tvda/CISM/libglimmer-solve/SLAP/dlaputil.f(490,16) inlined into /glade/u/home/tvda/CISM/libglimmer-solve/SLAP/dlaputil.f(694,12)
+         remark #15536: loop was not vectorized: inner loop throttling prevents vectorization of this outer loop. Refer to inner loop message for more details.   [ /glade/u/home/tvda/CISM/libglimmer-solve/SLAP/dlaputil.f(496,16) ]
+
+         LOOP BEGIN at /glade/u/home/tvda/CISM/libglimmer-solve/SLAP/dlaputil.f(496,16) inlined into /glade/u/home/tvda/CISM/libglimmer-solve/SLAP/dlaputil.f(694,12)
+            remark #15523: loop was not vectorized: loop control variable k was found, but loop iteration count cannot be computed before executing the loop
+         LOOP END
+      LOOP END
+
+      LOOP BEGIN at /glade/u/home/tvda/CISM/libglimmer-solve/SLAP/dlaputil.f(533,7) inlined into /glade/u/home/tvda/CISM/libglimmer-solve/SLAP/dlaputil.f(694,12)
+         remark #15532: loop was not vectorized: compile time constraints prevent loop optimization. Consider using -O3.
+
+         LOOP BEGIN at /glade/u/home/tvda/CISM/libglimmer-solve/SLAP/dlaputil.f(543,16) inlined into /glade/u/home/tvda/CISM/libglimmer-solve/SLAP/dlaputil.f(694,12)
+            remark #15536: loop was not vectorized: inner loop throttling prevents vectorization of this outer loop. Refer to inner loop message for more details.   [ /glade/u/home/tvda/CISM/libglimmer-solve/SLAP/dlaputil.f(549,13) ]
+
+            LOOP BEGIN at /glade/u/home/tvda/CISM/libglimmer-solve/SLAP/dlaputil.f(549,13) inlined into /glade/u/home/tvda/CISM/libglimmer-solve/SLAP/dlaputil.f(694,12)
+               remark #15523: loop was not vectorized: loop control variable k was found, but loop iteration count cannot be computed before executing the loop
+            LOOP END
+         LOOP END
+      LOOP END
+   LOOP END
+LOOP END
+
+    Report from: Code generation optimizations [cg]
+
+/glade/u/home/tvda/CISM/libglimmer-solve/SLAP/dlaputil.f(566,18):remark #34051: REGISTER ALLOCATION : [ds2y_] /glade/u/home/tvda/CISM/libglimmer-solve/SLAP/dlaputil.f:566
+
+    Hardware registers
+        Reserved     :    2[ rsp rip]
+        Available    :   39[ rax rdx rcx rbx rbp rsi rdi r8-r15 mm0-mm7 zmm0-zmm15]
+        Callee-save  :    6[ rbx rbp r12-r15]
+        Assigned     :   19[ rax rdx rcx rbx rsi rdi r8-r15 zmm0-zmm4]
+        
+    Routine temporaries
+        Total         :     150
+            Global    :      87
+            Local     :      63
+        Regenerable   :      14
+        Spilled       :      17
+        
+    Routine stack
+        Variables     :       0 bytes*
+            Reads     :       0 [0.00e+00 ~ 0.0%]
+            Writes    :       0 [0.00e+00 ~ 0.0%]
+        Spills        :      96 bytes*
+            Reads     :      14 [1.03e+00 ~ 1.0%]
+            Writes    :      14 [1.03e+00 ~ 1.0%]
+    
+    Notes
+    
+        *Non-overlapping variables and spills may share stack space,
+         so the total stack size might be less than this.
+    
+
+===========================================================================
+
+Begin optimization report for: DCPPLT
+
+    Report from: Interprocedural optimizations [ipo]
+
+INLINE REPORT: (DCPPLT) [5] /glade/u/home/tvda/CISM/libglimmer-solve/SLAP/dlaputil.f(756,18)
+
+
+    Report from: Loop nest, Vector & Auto-parallelization optimizations [loop, vec, par]
+
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglimmer-solve/SLAP/dlaputil.f(862,10)
+   remark #15527: loop was not vectorized: function call to for_cpystr cannot be vectorized   [ /glade/u/home/tvda/CISM/libglimmer-solve/SLAP/dlaputil.f(863,10) ]
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglimmer-solve/SLAP/dlaputil.f(865,10)
+   remark #25084: Preprocess Loopnests: Moving Out Store    [ /glade/u/home/tvda/CISM/libglimmer-solve/SLAP/dlaputil.f(866,10) ]
+   remark #15541: outer loop was not auto-vectorized: consider using SIMD directive
+
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglimmer-solve/SLAP/dlaputil.f(868,13)
+      remark #15344: loop was not vectorized: vector dependence prevents vectorization. First dependence is shown below. Use level 5 report for details
+      remark #15346: vector dependence: assumed OUTPUT dependence between chmat(icol-1,irow) (874:22) and chmat(icol-1,irow) (897:22)
+   LOOP END
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglimmer-solve/SLAP/dlaputil.f(906,7)
+   remark #15344: loop was not vectorized: vector dependence prevents vectorization. First dependence is shown below. Use level 5 report for details
+   remark #15346: vector dependence: assumed OUTPUT dependence between at (906:7) and at (906:7)
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglimmer-solve/SLAP/dlaputil.f(909,10)
+   remark #15344: loop was not vectorized: vector dependence prevents vectorization. First dependence is shown below. Use level 5 report for details
+   remark #15346: vector dependence: assumed OUTPUT dependence between at (910:10) and at (910:10)
+LOOP END
+
+    Report from: Code generation optimizations [cg]
+
+/glade/u/home/tvda/CISM/libglimmer-solve/SLAP/dlaputil.f(756,18):remark #34051: REGISTER ALLOCATION : [dcpplt_] /glade/u/home/tvda/CISM/libglimmer-solve/SLAP/dlaputil.f:756
+
+    Hardware registers
+        Reserved     :    2[ rsp rip]
+        Available    :   39[ rax rdx rcx rbx rbp rsi rdi r8-r15 mm0-mm7 zmm0-zmm15]
+        Callee-save  :    6[ rbx rbp r12-r15]
+        Assigned     :   16[ rax rdx rcx rbx rsi rdi r8-r15 zmm0-zmm1]
+        
+    Routine temporaries
+        Total         :     133
+            Global    :      50
+            Local     :      83
+        Regenerable   :      68
+        Spilled       :      11
+        
+    Routine stack
+        Variables     :     128 bytes*
+            Reads     :       0 [0.00e+00 ~ 0.0%]
+            Writes    :      11 [1.49e+01 ~ 14.9%]
+        Spills        :      48 bytes*
+            Reads     :       7 [3.04e+00 ~ 3.0%]
+            Writes    :       6 [7.89e-02 ~ 0.1%]
+    
+    Notes
+    
+        *Non-overlapping variables and spills may share stack space,
+         so the total stack size might be less than this.
+    
+
+===========================================================================
+
+Begin optimization report for: DTOUT
+
+    Report from: Interprocedural optimizations [ipo]
+
+INLINE REPORT: (DTOUT) [6] /glade/u/home/tvda/CISM/libglimmer-solve/SLAP/dlaputil.f(920,18)
+
+
+    Report from: Loop nest, Vector & Auto-parallelization optimizations [loop, vec, par]
+
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglimmer-solve/SLAP/dlaputil.f(1044,10)
+   remark #15344: loop was not vectorized: vector dependence prevents vectorization. First dependence is shown below. Use level 5 report for details
+   remark #15346: vector dependence: assumed OUTPUT dependence between at (1045:10) and at (1045:10)
+LOOP END
+
+    Report from: Code generation optimizations [cg]
+
+/glade/u/home/tvda/CISM/libglimmer-solve/SLAP/dlaputil.f(920,18):remark #34051: REGISTER ALLOCATION : [dtout_] /glade/u/home/tvda/CISM/libglimmer-solve/SLAP/dlaputil.f:920
+
+    Hardware registers
+        Reserved     :    2[ rsp rip]
+        Available    :   39[ rax rdx rcx rbx rbp rsi rdi r8-r15 mm0-mm7 zmm0-zmm15]
+        Callee-save  :    6[ rbx rbp r12-r15]
+        Assigned     :   14[ rax rdx rcx rbx rsi rdi r8-r15]
+        
+    Routine temporaries
+        Total         :     112
+            Global    :      28
+            Local     :      84
+        Regenerable   :      74
+        Spilled       :      10
+        
+    Routine stack
+        Variables     :     208 bytes*
+            Reads     :       0 [0.00e+00 ~ 0.0%]
+            Writes    :      22 [1.25e+01 ~ 12.5%]
+        Spills        :      40 bytes*
+            Reads     :       8 [4.52e+00 ~ 4.5%]
+            Writes    :       5 [2.09e+00 ~ 2.1%]
+    
+    Notes
+    
+        *Non-overlapping variables and spills may share stack space,
+         so the total stack size might be less than this.
+    
+
+===========================================================================
+
+Begin optimization report for: DTIN
+
+    Report from: Interprocedural optimizations [ipo]
+
+INLINE REPORT: (DTIN) [7] /glade/u/home/tvda/CISM/libglimmer-solve/SLAP/dlaputil.f(1064,18)
+
+
+    Report from: Loop nest, Vector & Auto-parallelization optimizations [loop, vec, par]
+
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglimmer-solve/SLAP/dlaputil.f(1198,10)
+   remark #15344: loop was not vectorized: vector dependence prevents vectorization. First dependence is shown below. Use level 5 report for details
+   remark #15346: vector dependence: assumed OUTPUT dependence between at (1199:10) and at (1199:10)
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglimmer-solve/SLAP/dlaputil.f(1211,16)
+   remark #25408: memset generated
+   remark #15542: loop was not vectorized: inner loop was already vectorized
+
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglimmer-solve/SLAP/dlaputil.f(1211,16)
+      remark #15300: LOOP WAS VECTORIZED
+   LOOP END
+
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglimmer-solve/SLAP/dlaputil.f(1211,16)
+   <Remainder loop for vectorization>
+   LOOP END
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglimmer-solve/SLAP/dlaputil.f(1225,16)
+   remark #25408: memset generated
+   remark #15542: loop was not vectorized: inner loop was already vectorized
+
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglimmer-solve/SLAP/dlaputil.f(1225,16)
+      remark #15300: LOOP WAS VECTORIZED
+   LOOP END
+
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglimmer-solve/SLAP/dlaputil.f(1225,16)
+   <Remainder loop for vectorization>
+   LOOP END
+LOOP END
+
+    Report from: Code generation optimizations [cg]
+
+/glade/u/home/tvda/CISM/libglimmer-solve/SLAP/dlaputil.f(1225,16):remark #34026: call to memset implemented as a call to optimized library version
+/glade/u/home/tvda/CISM/libglimmer-solve/SLAP/dlaputil.f(1211,16):remark #34026: call to memset implemented as a call to optimized library version
+/glade/u/home/tvda/CISM/libglimmer-solve/SLAP/dlaputil.f(1064,18):remark #34051: REGISTER ALLOCATION : [dtin_] /glade/u/home/tvda/CISM/libglimmer-solve/SLAP/dlaputil.f:1064
+
+    Hardware registers
+        Reserved     :    2[ rsp rip]
+        Available    :   39[ rax rdx rcx rbx rbp rsi rdi r8-r15 mm0-mm7 zmm0-zmm15]
+        Callee-save  :    6[ rbx rbp r12-r15]
+        Assigned     :   15[ rax rdx rcx rbx rsi rdi r8-r15 zmm0]
+        
+    Routine temporaries
+        Total         :     142
+            Global    :      44
+            Local     :      98
+        Regenerable   :      86
+        Spilled       :       8
+        
+    Routine stack
+        Variables     :     240 bytes*
+            Reads     :       2 [3.24e-01 ~ 0.3%]
+            Writes    :      25 [1.46e+01 ~ 14.6%]
+        Spills        :      24 bytes*
+            Reads     :       6 [2.40e+00 ~ 2.4%]
+            Writes    :       3 [9.66e-01 ~ 1.0%]
+    
+    Notes
+    
+        *Non-overlapping variables and spills may share stack space,
+         so the total stack size might be less than this.
+    
+
+===========================================================================

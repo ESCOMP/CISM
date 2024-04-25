@@ -1,0 +1,1383 @@
+Intel(R) Advisor can now assist with vectorization and show optimization
+  report messages with your source code.
+See "https://software.intel.com/en-us/intel-advisor-xe" for details.
+
+
+    Report from: Interprocedural optimizations [ipo]
+
+INLINING OPTION VALUES:
+  -inline-factor: 100
+  -inline-min-size: 30
+  -inline-max-size: 230
+  -inline-max-total-size: 2000
+  -inline-max-per-routine: 10000
+  -inline-max-per-compile: 500000
+
+
+Begin optimization report for: glad_io._
+
+    Report from: Interprocedural optimizations [ipo]
+
+INLINE REPORT: (glad_io._) [1] /glade/u/home/tvda/CISM/builds/derecho-intel/fortran_autogen_srcs/glad_io.F90(43,8)
+
+
+    Report from: Code generation optimizations [cg]
+
+/glade/u/home/tvda/CISM/builds/derecho-intel/fortran_autogen_srcs/glad_io.F90(43,8):remark #34051: REGISTER ALLOCATION : [glad_io._] /glade/u/home/tvda/CISM/builds/derecho-intel/fortran_autogen_srcs/glad_io.F90:43
+
+    Hardware registers
+        Reserved     :    2[ rsp rip]
+        Available    :   39[ rax rdx rcx rbx rbp rsi rdi r8-r15 mm0-mm7 zmm0-zmm15]
+        Callee-save  :    6[ rbx rbp r12-r15]
+        Assigned     :    0[ reg_null]
+        
+    Routine temporaries
+        Total         :       6
+            Global    :       0
+            Local     :       6
+        Regenerable   :       0
+        Spilled       :       0
+        
+    Routine stack
+        Variables     :       0 bytes*
+            Reads     :       0 [0.00e+00 ~ 0.0%]
+            Writes    :       0 [0.00e+00 ~ 0.0%]
+        Spills        :       0 bytes*
+            Reads     :       0 [0.00e+00 ~ 0.0%]
+            Writes    :       0 [0.00e+00 ~ 0.0%]
+    
+    Notes
+    
+        *Non-overlapping variables and spills may share stack space,
+         so the total stack size might be less than this.
+    
+
+===========================================================================
+
+Begin optimization report for: GLAD_IO::GLAD_IO_CREATEALL
+
+    Report from: Interprocedural optimizations [ipo]
+
+INLINE REPORT: (GLAD_IO::GLAD_IO_CREATEALL) [2] /glade/u/home/tvda/CISM/builds/derecho-intel/fortran_autogen_srcs/glad_io.F90(79,14)
+  -> (97,13) GLAD_IO::GLAD_IO_CREATE
+
+
+    Report from: Loop nest, Vector & Auto-parallelization optimizations [loop, vec, par]
+
+
+
+Non-optimizable loops:
+
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/builds/derecho-intel/fortran_autogen_srcs/glad_io.F90(98,8)
+   remark #15521: loop was not vectorized: loop control variable was not identified. Explicitly compute the iteration count before executing the loop or try using canonical loop form from OpenMP specification
+LOOP END
+
+    Report from: Code generation optimizations [cg]
+
+/glade/u/home/tvda/CISM/builds/derecho-intel/fortran_autogen_srcs/glad_io.F90(79,14):remark #34051: REGISTER ALLOCATION : [glad_io_mp_glad_io_createall_] /glade/u/home/tvda/CISM/builds/derecho-intel/fortran_autogen_srcs/glad_io.F90:79
+
+    Hardware registers
+        Reserved     :    2[ rsp rip]
+        Available    :   39[ rax rdx rcx rbx rbp rsi rdi r8-r15 mm0-mm7 zmm0-zmm15]
+        Callee-save  :    6[ rbx rbp r12-r15]
+        Assigned     :    8[ rax rdx rcx rsi rdi r12-r14]
+        
+    Routine temporaries
+        Total         :      21
+            Global    :      11
+            Local     :      10
+        Regenerable   :       3
+        Spilled       :       3
+        
+    Routine stack
+        Variables     :       0 bytes*
+            Reads     :       0 [0.00e+00 ~ 0.0%]
+            Writes    :       0 [0.00e+00 ~ 0.0%]
+        Spills        :       0 bytes*
+            Reads     :       0 [0.00e+00 ~ 0.0%]
+            Writes    :       0 [0.00e+00 ~ 0.0%]
+    
+    Notes
+    
+        *Non-overlapping variables and spills may share stack space,
+         so the total stack size might be less than this.
+    
+
+===========================================================================
+
+Begin optimization report for: GLAD_IO::GLAD_IO_CREATE
+
+    Report from: Interprocedural optimizations [ipo]
+
+INLINE REPORT: (GLAD_IO::GLAD_IO_CREATE) [3] /glade/u/home/tvda/CISM/builds/derecho-intel/fortran_autogen_srcs/glad_io.F90(146,14)
+  -> INLINE: (248,9) GLAD_IO::IS_ENABLED_2DREAL
+  -> INLINE: (250,60) GLAD_IO::GET_XTYPE
+  -> INLINE: (257,12) GLAD_IO::GET_XTYPE
+  -> INLINE: (260,16) GLAD_IO::GET_XTYPE
+  -> INLINE: (281,9) GLAD_IO::IS_ENABLED_2DREAL
+  -> INLINE: (283,54) GLAD_IO::GET_XTYPE
+  -> INLINE: (292,12) GLAD_IO::GET_XTYPE
+  -> INLINE: (295,16) GLAD_IO::GET_XTYPE
+  -> INLINE: (315,9) GLAD_IO::IS_ENABLED_2DREAL
+  -> INLINE: (317,54) GLAD_IO::GET_XTYPE
+  -> INLINE: (326,12) GLAD_IO::GET_XTYPE
+  -> INLINE: (329,16) GLAD_IO::GET_XTYPE
+  -> INLINE: (349,9) GLAD_IO::IS_ENABLED_2DREAL
+  -> INLINE: (351,60) GLAD_IO::GET_XTYPE
+  -> INLINE: (358,12) GLAD_IO::GET_XTYPE
+  -> INLINE: (361,16) GLAD_IO::GET_XTYPE
+  -> INLINE: (382,9) GLAD_IO::IS_ENABLED_2DREAL
+  -> INLINE: (384,60) GLAD_IO::GET_XTYPE
+  -> INLINE: (391,12) GLAD_IO::GET_XTYPE
+  -> INLINE: (394,16) GLAD_IO::GET_XTYPE
+
+
+    Report from: Code generation optimizations [cg]
+
+/glade/u/home/tvda/CISM/builds/derecho-intel/fortran_autogen_srcs/glad_io.F90(146,14):remark #34051: REGISTER ALLOCATION : [glad_io_mp_glad_io_create_] /glade/u/home/tvda/CISM/builds/derecho-intel/fortran_autogen_srcs/glad_io.F90:146
+
+    Hardware registers
+        Reserved     :    2[ rsp rip]
+        Available    :   39[ rax rdx rcx rbx rbp rsi rdi r8-r15 mm0-mm7 zmm0-zmm15]
+        Callee-save  :    6[ rbx rbp r12-r15]
+        Assigned     :   14[ rax rdx rcx rbx rsi rdi r8-r15]
+        
+    Routine temporaries
+        Total         :    1073
+            Global    :     188
+            Local     :     885
+        Regenerable   :     598
+        Spilled       :       6
+        
+    Routine stack
+        Variables     :    4796 bytes*
+            Reads     :      20 [7.95e-01 ~ 0.8%]
+            Writes    :     143 [6.91e+00 ~ 6.9%]
+        Spills        :       8 bytes*
+            Reads     :       1 [2.93e-02 ~ 0.0%]
+            Writes    :       1 [5.87e-02 ~ 0.1%]
+    
+    Notes
+    
+        *Non-overlapping variables and spills may share stack space,
+         so the total stack size might be less than this.
+    
+
+===========================================================================
+
+Begin optimization report for: GLAD_IO::GLAD_IO_WRITEALL
+
+    Report from: Interprocedural optimizations [ipo]
+
+INLINE REPORT: (GLAD_IO::GLAD_IO_WRITEALL) [4] /glade/u/home/tvda/CISM/builds/derecho-intel/fortran_autogen_srcs/glad_io.F90(102,14)
+  -> INLINE: (135,16) GLAD_IO::GLAD_IO_WRITE
+
+
+    Report from: Loop nest, Vector & Auto-parallelization optimizations [loop, vec, par]
+
+
+
+Non-optimizable loops:
+
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/builds/derecho-intel/fortran_autogen_srcs/glad_io.F90(142,8)
+   remark #15521: loop was not vectorized: loop control variable was not identified. Explicitly compute the iteration count before executing the loop or try using canonical loop form from OpenMP specification
+LOOP END
+
+    Report from: Code generation optimizations [cg]
+
+/glade/u/home/tvda/CISM/builds/derecho-intel/fortran_autogen_srcs/glad_io.F90(410,14):remark #34000: call to memcpy implemented inline with loads and stores with proven source (alignment, offset): (32, 0), and destination (alignment, offset): (16, 0)
+/glade/u/home/tvda/CISM/builds/derecho-intel/fortran_autogen_srcs/glad_io.F90(425,5):remark #34000: call to memcpy implemented inline with loads and stores with proven source (alignment, offset): (1, 0), and destination (alignment, offset): (16, 0)
+/glade/u/home/tvda/CISM/builds/derecho-intel/fortran_autogen_srcs/glad_io.F90(102,14):remark #34051: REGISTER ALLOCATION : [glad_io_mp_glad_io_writeall_] /glade/u/home/tvda/CISM/builds/derecho-intel/fortran_autogen_srcs/glad_io.F90:102
+
+    Hardware registers
+        Reserved     :    2[ rsp rip]
+        Available    :   39[ rax rdx rcx rbx rbp rsi rdi r8-r15 mm0-mm7 zmm0-zmm15]
+        Callee-save  :    6[ rbx rbp r12-r15]
+        Assigned     :   19[ rax rdx rcx rbx rsi rdi r8-r15 zmm0-zmm4]
+        
+    Routine temporaries
+        Total         :     201
+            Global    :      44
+            Local     :     157
+        Regenerable   :      98
+        Spilled       :       9
+        
+    Routine stack
+        Variables     :     548 bytes*
+            Reads     :       0 [0.00e+00 ~ 0.0%]
+            Writes    :      64 [2.14e+01 ~ 21.4%]
+        Spills        :      32 bytes*
+            Reads     :       4 [1.37e-01 ~ 0.1%]
+            Writes    :       4 [8.37e-01 ~ 0.8%]
+    
+    Notes
+    
+        *Non-overlapping variables and spills may share stack space,
+         so the total stack size might be less than this.
+    
+
+===========================================================================
+
+Begin optimization report for: GLAD_IO::GLAD_IO_WRITE
+
+    Report from: Interprocedural optimizations [ipo]
+
+INLINE REPORT: (GLAD_IO::GLAD_IO_WRITE) [5] /glade/u/home/tvda/CISM/builds/derecho-intel/fortran_autogen_srcs/glad_io.F90(410,14)
+
+
+    Report from: Code generation optimizations [cg]
+
+/glade/u/home/tvda/CISM/builds/derecho-intel/fortran_autogen_srcs/glad_io.F90(410,14):remark #34000: call to memcpy implemented inline with loads and stores with proven source (alignment, offset): (32, 0), and destination (alignment, offset): (16, 0)
+/glade/u/home/tvda/CISM/builds/derecho-intel/fortran_autogen_srcs/glad_io.F90(425,5):remark #34000: call to memcpy implemented inline with loads and stores with proven source (alignment, offset): (1, 0), and destination (alignment, offset): (16, 0)
+/glade/u/home/tvda/CISM/builds/derecho-intel/fortran_autogen_srcs/glad_io.F90(410,14):remark #34051: REGISTER ALLOCATION : [glad_io_mp_glad_io_write_] /glade/u/home/tvda/CISM/builds/derecho-intel/fortran_autogen_srcs/glad_io.F90:410
+
+    Hardware registers
+        Reserved     :    2[ rsp rip]
+        Available    :   39[ rax rdx rcx rbx rbp rsi rdi r8-r15 mm0-mm7 zmm0-zmm15]
+        Callee-save  :    6[ rbx rbp r12-r15]
+        Assigned     :   15[ rax rdx rcx rsi rdi r8-r10 r13-r14 zmm0-zmm4]
+        
+    Routine temporaries
+        Total         :     183
+            Global    :      32
+            Local     :     151
+        Regenerable   :      92
+        Spilled       :       2
+        
+    Routine stack
+        Variables     :     548 bytes*
+            Reads     :       0 [0.00e+00 ~ 0.0%]
+            Writes    :      64 [2.40e+01 ~ 24.0%]
+        Spills        :       0 bytes*
+            Reads     :       0 [0.00e+00 ~ 0.0%]
+            Writes    :       0 [0.00e+00 ~ 0.0%]
+    
+    Notes
+    
+        *Non-overlapping variables and spills may share stack space,
+         so the total stack size might be less than this.
+    
+
+===========================================================================
+
+Begin optimization report for: GLAD_IO::GLAD_ADD_TO_RESTART_VARIABLE_LIST
+
+    Report from: Interprocedural optimizations [ipo]
+
+INLINE REPORT: (GLAD_IO::GLAD_ADD_TO_RESTART_VARIABLE_LIST) [6] /glade/u/home/tvda/CISM/builds/derecho-intel/fortran_autogen_srcs/glad_io.F90(472,14)
+
+
+    Report from: Code generation optimizations [cg]
+
+/glade/u/home/tvda/CISM/builds/derecho-intel/fortran_autogen_srcs/glad_io.F90(472,14):remark #34051: REGISTER ALLOCATION : [glad_io_mp_glad_add_to_restart_variable_list_] /glade/u/home/tvda/CISM/builds/derecho-intel/fortran_autogen_srcs/glad_io.F90:472
+
+    Hardware registers
+        Reserved     :    2[ rsp rip]
+        Available    :   39[ rax rdx rcx rbx rbp rsi rdi r8-r15 mm0-mm7 zmm0-zmm15]
+        Callee-save  :    6[ rbx rbp r12-r15]
+        Assigned     :   11[ rax rdx rcx rbx rsi rdi r8-r9 r12 r14-r15]
+        
+    Routine temporaries
+        Total         :      59
+            Global    :      22
+            Local     :      37
+        Regenerable   :      26
+        Spilled       :       4
+        
+    Routine stack
+        Variables     :    2096 bytes*
+            Reads     :       0 [0.00e+00 ~ 0.0%]
+            Writes    :       6 [5.50e+00 ~ 5.5%]
+        Spills        :       0 bytes*
+            Reads     :       0 [0.00e+00 ~ 0.0%]
+            Writes    :       0 [0.00e+00 ~ 0.0%]
+    
+    Notes
+    
+        *Non-overlapping variables and spills may share stack space,
+         so the total stack size might be less than this.
+    
+
+===========================================================================
+
+Begin optimization report for: GLAD_IO::IS_ENABLED_0DINT
+
+    Report from: Interprocedural optimizations [ipo]
+
+INLINE REPORT: (GLAD_IO::IS_ENABLED_0DINT) [7] /glade/u/home/tvda/CISM/builds/derecho-intel/fortran_autogen_srcs/glad_io.F90(506,12)
+
+
+    Report from: Code generation optimizations [cg]
+
+/glade/u/home/tvda/CISM/builds/derecho-intel/fortran_autogen_srcs/glad_io.F90(506,12):remark #34051: REGISTER ALLOCATION : [glad_io_mp_is_enabled_0dint_] /glade/u/home/tvda/CISM/builds/derecho-intel/fortran_autogen_srcs/glad_io.F90:506
+
+    Hardware registers
+        Reserved     :    2[ rsp rip]
+        Available    :   39[ rax rdx rcx rbx rbp rsi rdi r8-r15 mm0-mm7 zmm0-zmm15]
+        Callee-save  :    6[ rbx rbp r12-r15]
+        Assigned     :    2[ rax rdi]
+        
+    Routine temporaries
+        Total         :       8
+            Global    :       0
+            Local     :       8
+        Regenerable   :       1
+        Spilled       :       0
+        
+    Routine stack
+        Variables     :       0 bytes*
+            Reads     :       0 [0.00e+00 ~ 0.0%]
+            Writes    :       0 [0.00e+00 ~ 0.0%]
+        Spills        :       0 bytes*
+            Reads     :       0 [0.00e+00 ~ 0.0%]
+            Writes    :       0 [0.00e+00 ~ 0.0%]
+    
+    Notes
+    
+        *Non-overlapping variables and spills may share stack space,
+         so the total stack size might be less than this.
+    
+
+===========================================================================
+
+Begin optimization report for: GLAD_IO::IS_ENABLED_1DINT
+
+    Report from: Interprocedural optimizations [ipo]
+
+INLINE REPORT: (GLAD_IO::IS_ENABLED_1DINT) [8] /glade/u/home/tvda/CISM/builds/derecho-intel/fortran_autogen_srcs/glad_io.F90(513,12)
+
+
+    Report from: Code generation optimizations [cg]
+
+/glade/u/home/tvda/CISM/builds/derecho-intel/fortran_autogen_srcs/glad_io.F90(513,12):remark #34051: REGISTER ALLOCATION : [glad_io_mp_is_enabled_1dint_] /glade/u/home/tvda/CISM/builds/derecho-intel/fortran_autogen_srcs/glad_io.F90:513
+
+    Hardware registers
+        Reserved     :    2[ rsp rip]
+        Available    :   39[ rax rdx rcx rbx rbp rsi rdi r8-r15 mm0-mm7 zmm0-zmm15]
+        Callee-save  :    6[ rbx rbp r12-r15]
+        Assigned     :    2[ rax rdi]
+        
+    Routine temporaries
+        Total         :      13
+            Global    :       0
+            Local     :      13
+        Regenerable   :       0
+        Spilled       :       0
+        
+    Routine stack
+        Variables     :       0 bytes*
+            Reads     :       0 [0.00e+00 ~ 0.0%]
+            Writes    :       0 [0.00e+00 ~ 0.0%]
+        Spills        :       0 bytes*
+            Reads     :       0 [0.00e+00 ~ 0.0%]
+            Writes    :       0 [0.00e+00 ~ 0.0%]
+    
+    Notes
+    
+        *Non-overlapping variables and spills may share stack space,
+         so the total stack size might be less than this.
+    
+
+===========================================================================
+
+Begin optimization report for: GLAD_IO::IS_ENABLED_2DINT
+
+    Report from: Interprocedural optimizations [ipo]
+
+INLINE REPORT: (GLAD_IO::IS_ENABLED_2DINT) [9] /glade/u/home/tvda/CISM/builds/derecho-intel/fortran_autogen_srcs/glad_io.F90(524,12)
+
+
+    Report from: Code generation optimizations [cg]
+
+/glade/u/home/tvda/CISM/builds/derecho-intel/fortran_autogen_srcs/glad_io.F90(524,12):remark #34051: REGISTER ALLOCATION : [glad_io_mp_is_enabled_2dint_] /glade/u/home/tvda/CISM/builds/derecho-intel/fortran_autogen_srcs/glad_io.F90:524
+
+    Hardware registers
+        Reserved     :    2[ rsp rip]
+        Available    :   39[ rax rdx rcx rbx rbp rsi rdi r8-r15 mm0-mm7 zmm0-zmm15]
+        Callee-save  :    6[ rbx rbp r12-r15]
+        Assigned     :    2[ rax rdi]
+        
+    Routine temporaries
+        Total         :      13
+            Global    :       0
+            Local     :      13
+        Regenerable   :       0
+        Spilled       :       0
+        
+    Routine stack
+        Variables     :       0 bytes*
+            Reads     :       0 [0.00e+00 ~ 0.0%]
+            Writes    :       0 [0.00e+00 ~ 0.0%]
+        Spills        :       0 bytes*
+            Reads     :       0 [0.00e+00 ~ 0.0%]
+            Writes    :       0 [0.00e+00 ~ 0.0%]
+    
+    Notes
+    
+        *Non-overlapping variables and spills may share stack space,
+         so the total stack size might be less than this.
+    
+
+===========================================================================
+
+Begin optimization report for: GLAD_IO::IS_ENABLED_0DREAL
+
+    Report from: Interprocedural optimizations [ipo]
+
+INLINE REPORT: (GLAD_IO::IS_ENABLED_0DREAL) [10] /glade/u/home/tvda/CISM/builds/derecho-intel/fortran_autogen_srcs/glad_io.F90(535,12)
+
+
+    Report from: Code generation optimizations [cg]
+
+/glade/u/home/tvda/CISM/builds/derecho-intel/fortran_autogen_srcs/glad_io.F90(535,12):remark #34051: REGISTER ALLOCATION : [glad_io_mp_is_enabled_0dreal_] /glade/u/home/tvda/CISM/builds/derecho-intel/fortran_autogen_srcs/glad_io.F90:535
+
+    Hardware registers
+        Reserved     :    2[ rsp rip]
+        Available    :   39[ rax rdx rcx rbx rbp rsi rdi r8-r15 mm0-mm7 zmm0-zmm15]
+        Callee-save  :    6[ rbx rbp r12-r15]
+        Assigned     :    2[ rax rdi]
+        
+    Routine temporaries
+        Total         :       8
+            Global    :       0
+            Local     :       8
+        Regenerable   :       1
+        Spilled       :       0
+        
+    Routine stack
+        Variables     :       0 bytes*
+            Reads     :       0 [0.00e+00 ~ 0.0%]
+            Writes    :       0 [0.00e+00 ~ 0.0%]
+        Spills        :       0 bytes*
+            Reads     :       0 [0.00e+00 ~ 0.0%]
+            Writes    :       0 [0.00e+00 ~ 0.0%]
+    
+    Notes
+    
+        *Non-overlapping variables and spills may share stack space,
+         so the total stack size might be less than this.
+    
+
+===========================================================================
+
+Begin optimization report for: GLAD_IO::IS_ENABLED_1DREAL
+
+    Report from: Interprocedural optimizations [ipo]
+
+INLINE REPORT: (GLAD_IO::IS_ENABLED_1DREAL) [11] /glade/u/home/tvda/CISM/builds/derecho-intel/fortran_autogen_srcs/glad_io.F90(542,12)
+
+
+    Report from: Code generation optimizations [cg]
+
+/glade/u/home/tvda/CISM/builds/derecho-intel/fortran_autogen_srcs/glad_io.F90(542,12):remark #34051: REGISTER ALLOCATION : [glad_io_mp_is_enabled_1dreal_] /glade/u/home/tvda/CISM/builds/derecho-intel/fortran_autogen_srcs/glad_io.F90:542
+
+    Hardware registers
+        Reserved     :    2[ rsp rip]
+        Available    :   39[ rax rdx rcx rbx rbp rsi rdi r8-r15 mm0-mm7 zmm0-zmm15]
+        Callee-save  :    6[ rbx rbp r12-r15]
+        Assigned     :    2[ rax rdi]
+        
+    Routine temporaries
+        Total         :      13
+            Global    :       0
+            Local     :      13
+        Regenerable   :       0
+        Spilled       :       0
+        
+    Routine stack
+        Variables     :       0 bytes*
+            Reads     :       0 [0.00e+00 ~ 0.0%]
+            Writes    :       0 [0.00e+00 ~ 0.0%]
+        Spills        :       0 bytes*
+            Reads     :       0 [0.00e+00 ~ 0.0%]
+            Writes    :       0 [0.00e+00 ~ 0.0%]
+    
+    Notes
+    
+        *Non-overlapping variables and spills may share stack space,
+         so the total stack size might be less than this.
+    
+
+===========================================================================
+
+Begin optimization report for: GLAD_IO::IS_ENABLED_2DREAL
+
+    Report from: Interprocedural optimizations [ipo]
+
+INLINE REPORT: (GLAD_IO::IS_ENABLED_2DREAL) [12] /glade/u/home/tvda/CISM/builds/derecho-intel/fortran_autogen_srcs/glad_io.F90(553,12)
+
+
+    Report from: Code generation optimizations [cg]
+
+/glade/u/home/tvda/CISM/builds/derecho-intel/fortran_autogen_srcs/glad_io.F90(553,12):remark #34051: REGISTER ALLOCATION : [glad_io_mp_is_enabled_2dreal_] /glade/u/home/tvda/CISM/builds/derecho-intel/fortran_autogen_srcs/glad_io.F90:553
+
+    Hardware registers
+        Reserved     :    2[ rsp rip]
+        Available    :   39[ rax rdx rcx rbx rbp rsi rdi r8-r15 mm0-mm7 zmm0-zmm15]
+        Callee-save  :    6[ rbx rbp r12-r15]
+        Assigned     :    2[ rax rdi]
+        
+    Routine temporaries
+        Total         :      13
+            Global    :       0
+            Local     :      13
+        Regenerable   :       0
+        Spilled       :       0
+        
+    Routine stack
+        Variables     :       0 bytes*
+            Reads     :       0 [0.00e+00 ~ 0.0%]
+            Writes    :       0 [0.00e+00 ~ 0.0%]
+        Spills        :       0 bytes*
+            Reads     :       0 [0.00e+00 ~ 0.0%]
+            Writes    :       0 [0.00e+00 ~ 0.0%]
+    
+    Notes
+    
+        *Non-overlapping variables and spills may share stack space,
+         so the total stack size might be less than this.
+    
+
+===========================================================================
+
+Begin optimization report for: GLAD_IO::IS_ENABLED_3DREAL
+
+    Report from: Interprocedural optimizations [ipo]
+
+INLINE REPORT: (GLAD_IO::IS_ENABLED_3DREAL) [13] /glade/u/home/tvda/CISM/builds/derecho-intel/fortran_autogen_srcs/glad_io.F90(564,12)
+
+
+    Report from: Code generation optimizations [cg]
+
+/glade/u/home/tvda/CISM/builds/derecho-intel/fortran_autogen_srcs/glad_io.F90(564,12):remark #34051: REGISTER ALLOCATION : [glad_io_mp_is_enabled_3dreal_] /glade/u/home/tvda/CISM/builds/derecho-intel/fortran_autogen_srcs/glad_io.F90:564
+
+    Hardware registers
+        Reserved     :    2[ rsp rip]
+        Available    :   39[ rax rdx rcx rbx rbp rsi rdi r8-r15 mm0-mm7 zmm0-zmm15]
+        Callee-save  :    6[ rbx rbp r12-r15]
+        Assigned     :    2[ rax rdi]
+        
+    Routine temporaries
+        Total         :      13
+            Global    :       0
+            Local     :      13
+        Regenerable   :       0
+        Spilled       :       0
+        
+    Routine stack
+        Variables     :       0 bytes*
+            Reads     :       0 [0.00e+00 ~ 0.0%]
+            Writes    :       0 [0.00e+00 ~ 0.0%]
+        Spills        :       0 bytes*
+            Reads     :       0 [0.00e+00 ~ 0.0%]
+            Writes    :       0 [0.00e+00 ~ 0.0%]
+    
+    Notes
+    
+        *Non-overlapping variables and spills may share stack space,
+         so the total stack size might be less than this.
+    
+
+===========================================================================
+
+Begin optimization report for: GLAD_IO::GLAD_IO_READALL
+
+    Report from: Interprocedural optimizations [ipo]
+
+INLINE REPORT: (GLAD_IO::GLAD_IO_READALL) [14] /glade/u/home/tvda/CISM/builds/derecho-intel/fortran_autogen_srcs/glad_io.F90(579,14)
+  -> INLINE: (605,16) GLAD_IO::GLAD_IO_READ
+    -> INLINE: (728,9) GLAD_IO::IS_ENABLED_2DREAL
+    -> INLINE: (751,9) GLAD_IO::IS_ENABLED_2DREAL
+    -> INLINE: (774,9) GLAD_IO::IS_ENABLED_2DREAL
+    -> INLINE: (797,9) GLAD_IO::IS_ENABLED_2DREAL
+    -> INLINE: (820,9) GLAD_IO::IS_ENABLED_2DREAL
+
+
+    Report from: Loop nest, Vector & Auto-parallelization optimizations [loop, vec, par]
+
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/builds/derecho-intel/fortran_autogen_srcs/glad_io.F90(739,11) inlined into /glade/u/home/tvda/CISM/builds/derecho-intel/fortran_autogen_srcs/glad_io.F90(744,16)
+   remark #15542: loop was not vectorized: inner loop was already vectorized
+
+   LOOP BEGIN at /glade/u/home/tvda/CISM/builds/derecho-intel/fortran_autogen_srcs/glad_io.F90(739,11) inlined into /glade/u/home/tvda/CISM/builds/derecho-intel/fortran_autogen_srcs/glad_io.F90(744,16)
+      remark #15300: LOOP WAS VECTORIZED
+   LOOP END
+
+   LOOP BEGIN at /glade/u/home/tvda/CISM/builds/derecho-intel/fortran_autogen_srcs/glad_io.F90(739,11) inlined into /glade/u/home/tvda/CISM/builds/derecho-intel/fortran_autogen_srcs/glad_io.F90(744,16)
+   <Remainder loop for vectorization>
+   LOOP END
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/builds/derecho-intel/fortran_autogen_srcs/glad_io.F90(762,11) inlined into /glade/u/home/tvda/CISM/builds/derecho-intel/fortran_autogen_srcs/glad_io.F90(744,16)
+   remark #15542: loop was not vectorized: inner loop was already vectorized
+
+   LOOP BEGIN at /glade/u/home/tvda/CISM/builds/derecho-intel/fortran_autogen_srcs/glad_io.F90(762,11) inlined into /glade/u/home/tvda/CISM/builds/derecho-intel/fortran_autogen_srcs/glad_io.F90(744,16)
+      remark #15300: LOOP WAS VECTORIZED
+   LOOP END
+
+   LOOP BEGIN at /glade/u/home/tvda/CISM/builds/derecho-intel/fortran_autogen_srcs/glad_io.F90(762,11) inlined into /glade/u/home/tvda/CISM/builds/derecho-intel/fortran_autogen_srcs/glad_io.F90(744,16)
+   <Remainder loop for vectorization>
+   LOOP END
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/builds/derecho-intel/fortran_autogen_srcs/glad_io.F90(785,11) inlined into /glade/u/home/tvda/CISM/builds/derecho-intel/fortran_autogen_srcs/glad_io.F90(744,16)
+   remark #15542: loop was not vectorized: inner loop was already vectorized
+
+   LOOP BEGIN at /glade/u/home/tvda/CISM/builds/derecho-intel/fortran_autogen_srcs/glad_io.F90(785,11) inlined into /glade/u/home/tvda/CISM/builds/derecho-intel/fortran_autogen_srcs/glad_io.F90(744,16)
+      remark #15300: LOOP WAS VECTORIZED
+   LOOP END
+
+   LOOP BEGIN at /glade/u/home/tvda/CISM/builds/derecho-intel/fortran_autogen_srcs/glad_io.F90(785,11) inlined into /glade/u/home/tvda/CISM/builds/derecho-intel/fortran_autogen_srcs/glad_io.F90(744,16)
+   <Remainder loop for vectorization>
+   LOOP END
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/builds/derecho-intel/fortran_autogen_srcs/glad_io.F90(808,11) inlined into /glade/u/home/tvda/CISM/builds/derecho-intel/fortran_autogen_srcs/glad_io.F90(744,16)
+   remark #15542: loop was not vectorized: inner loop was already vectorized
+
+   LOOP BEGIN at /glade/u/home/tvda/CISM/builds/derecho-intel/fortran_autogen_srcs/glad_io.F90(808,11) inlined into /glade/u/home/tvda/CISM/builds/derecho-intel/fortran_autogen_srcs/glad_io.F90(744,16)
+      remark #15300: LOOP WAS VECTORIZED
+   LOOP END
+
+   LOOP BEGIN at /glade/u/home/tvda/CISM/builds/derecho-intel/fortran_autogen_srcs/glad_io.F90(808,11) inlined into /glade/u/home/tvda/CISM/builds/derecho-intel/fortran_autogen_srcs/glad_io.F90(744,16)
+   <Remainder loop for vectorization>
+   LOOP END
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/builds/derecho-intel/fortran_autogen_srcs/glad_io.F90(831,11) inlined into /glade/u/home/tvda/CISM/builds/derecho-intel/fortran_autogen_srcs/glad_io.F90(744,16)
+   remark #15542: loop was not vectorized: inner loop was already vectorized
+
+   LOOP BEGIN at /glade/u/home/tvda/CISM/builds/derecho-intel/fortran_autogen_srcs/glad_io.F90(831,11) inlined into /glade/u/home/tvda/CISM/builds/derecho-intel/fortran_autogen_srcs/glad_io.F90(744,16)
+      remark #15300: LOOP WAS VECTORIZED
+   LOOP END
+
+   LOOP BEGIN at /glade/u/home/tvda/CISM/builds/derecho-intel/fortran_autogen_srcs/glad_io.F90(831,11) inlined into /glade/u/home/tvda/CISM/builds/derecho-intel/fortran_autogen_srcs/glad_io.F90(744,16)
+   <Remainder loop for vectorization>
+   LOOP END
+LOOP END
+
+
+Non-optimizable loops:
+
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/builds/derecho-intel/fortran_autogen_srcs/glad_io.F90(607,8)
+   remark #15543: loop was not vectorized: loop with function call not considered an optimization candidate.
+LOOP END
+
+    Report from: Code generation optimizations [cg]
+
+/glade/u/home/tvda/CISM/builds/derecho-intel/fortran_autogen_srcs/glad_io.F90(705,14):remark #34000: call to memcpy implemented inline with loads and stores with proven source (alignment, offset): (32, 0), and destination (alignment, offset): (16, 0)
+/glade/u/home/tvda/CISM/builds/derecho-intel/fortran_autogen_srcs/glad_io.F90(723,5):remark #34000: call to memcpy implemented inline with loads and stores with proven source (alignment, offset): (1, 0), and destination (alignment, offset): (16, 0)
+/glade/u/home/tvda/CISM/builds/derecho-intel/fortran_autogen_srcs/glad_io.F90(579,14):remark #34051: REGISTER ALLOCATION : [glad_io_mp_glad_io_readall_] /glade/u/home/tvda/CISM/builds/derecho-intel/fortran_autogen_srcs/glad_io.F90:579
+
+    Hardware registers
+        Reserved     :    2[ rsp rip]
+        Available    :   39[ rax rdx rcx rbx rbp rsi rdi r8-r15 mm0-mm7 zmm0-zmm15]
+        Callee-save  :    6[ rbx rbp r12-r15]
+        Assigned     :   20[ rax rdx rcx rbx rsi rdi r8-r15 zmm0-zmm5]
+        
+    Routine temporaries
+        Total         :     662
+            Global    :     179
+            Local     :     483
+        Regenerable   :     243
+        Spilled       :      52
+        
+    Routine stack
+        Variables     :     556 bytes*
+            Reads     :      10 [2.70e-02 ~ 0.0%]
+            Writes    :      74 [1.59e+01 ~ 15.9%]
+        Spills        :     344 bytes*
+            Reads     :      51 [5.27e-01 ~ 0.5%]
+            Writes    :      51 [1.02e+00 ~ 1.0%]
+    
+    Notes
+    
+        *Non-overlapping variables and spills may share stack space,
+         so the total stack size might be less than this.
+    
+
+===========================================================================
+
+Begin optimization report for: GLAD_IO::GLAD_READ_FORCING
+
+    Report from: Interprocedural optimizations [ipo]
+
+INLINE REPORT: (GLAD_IO::GLAD_READ_FORCING) [15] /glade/u/home/tvda/CISM/builds/derecho-intel/fortran_autogen_srcs/glad_io.F90(613,14)
+  -> INLINE: (697,10) GLAD_IO::GLAD_IO_READALL
+    -> INLINE: (605,16) GLAD_IO::GLAD_IO_READ
+      -> INLINE: (728,9) GLAD_IO::IS_ENABLED_2DREAL
+      -> INLINE: (751,9) GLAD_IO::IS_ENABLED_2DREAL
+      -> INLINE: (774,9) GLAD_IO::IS_ENABLED_2DREAL
+      -> INLINE: (797,9) GLAD_IO::IS_ENABLED_2DREAL
+      -> INLINE: (820,9) GLAD_IO::IS_ENABLED_2DREAL
+
+
+    Report from: Loop nest, Vector & Auto-parallelization optimizations [loop, vec, par]
+
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/builds/derecho-intel/fortran_autogen_srcs/glad_io.F90(634,5)
+   remark #15541: outer loop was not auto-vectorized: consider using SIMD directive
+
+   LOOP BEGIN at /glade/u/home/tvda/CISM/builds/derecho-intel/fortran_autogen_srcs/glad_io.F90(662,8)
+      remark #15520: loop was not vectorized: loop with multiple exits cannot be vectorized unless it meets search loop idiom criteria   [ /glade/u/home/tvda/CISM/builds/derecho-intel/fortran_autogen_srcs/glad_io.F90(663,27) ]
+   LOOP END
+
+   LOOP BEGIN at /glade/u/home/tvda/CISM/builds/derecho-intel/fortran_autogen_srcs/glad_io.F90(671,8)
+      remark #15520: loop was not vectorized: loop with multiple exits cannot be vectorized unless it meets search loop idiom criteria   [ /glade/u/home/tvda/CISM/builds/derecho-intel/fortran_autogen_srcs/glad_io.F90(672,28) ]
+   LOOP END
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/builds/derecho-intel/fortran_autogen_srcs/glad_io.F90(739,11) inlined into /glade/u/home/tvda/CISM/builds/derecho-intel/fortran_autogen_srcs/glad_io.F90(836,10)
+   remark #15542: loop was not vectorized: inner loop was already vectorized
+
+   LOOP BEGIN at /glade/u/home/tvda/CISM/builds/derecho-intel/fortran_autogen_srcs/glad_io.F90(739,11) inlined into /glade/u/home/tvda/CISM/builds/derecho-intel/fortran_autogen_srcs/glad_io.F90(836,10)
+      remark #15300: LOOP WAS VECTORIZED
+   LOOP END
+
+   LOOP BEGIN at /glade/u/home/tvda/CISM/builds/derecho-intel/fortran_autogen_srcs/glad_io.F90(739,11) inlined into /glade/u/home/tvda/CISM/builds/derecho-intel/fortran_autogen_srcs/glad_io.F90(836,10)
+   <Remainder loop for vectorization>
+   LOOP END
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/builds/derecho-intel/fortran_autogen_srcs/glad_io.F90(762,11) inlined into /glade/u/home/tvda/CISM/builds/derecho-intel/fortran_autogen_srcs/glad_io.F90(836,10)
+   remark #15542: loop was not vectorized: inner loop was already vectorized
+
+   LOOP BEGIN at /glade/u/home/tvda/CISM/builds/derecho-intel/fortran_autogen_srcs/glad_io.F90(762,11) inlined into /glade/u/home/tvda/CISM/builds/derecho-intel/fortran_autogen_srcs/glad_io.F90(836,10)
+      remark #15300: LOOP WAS VECTORIZED
+   LOOP END
+
+   LOOP BEGIN at /glade/u/home/tvda/CISM/builds/derecho-intel/fortran_autogen_srcs/glad_io.F90(762,11) inlined into /glade/u/home/tvda/CISM/builds/derecho-intel/fortran_autogen_srcs/glad_io.F90(836,10)
+   <Remainder loop for vectorization>
+   LOOP END
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/builds/derecho-intel/fortran_autogen_srcs/glad_io.F90(785,11) inlined into /glade/u/home/tvda/CISM/builds/derecho-intel/fortran_autogen_srcs/glad_io.F90(836,10)
+   remark #15542: loop was not vectorized: inner loop was already vectorized
+
+   LOOP BEGIN at /glade/u/home/tvda/CISM/builds/derecho-intel/fortran_autogen_srcs/glad_io.F90(785,11) inlined into /glade/u/home/tvda/CISM/builds/derecho-intel/fortran_autogen_srcs/glad_io.F90(836,10)
+      remark #15300: LOOP WAS VECTORIZED
+   LOOP END
+
+   LOOP BEGIN at /glade/u/home/tvda/CISM/builds/derecho-intel/fortran_autogen_srcs/glad_io.F90(785,11) inlined into /glade/u/home/tvda/CISM/builds/derecho-intel/fortran_autogen_srcs/glad_io.F90(836,10)
+   <Remainder loop for vectorization>
+   LOOP END
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/builds/derecho-intel/fortran_autogen_srcs/glad_io.F90(808,11) inlined into /glade/u/home/tvda/CISM/builds/derecho-intel/fortran_autogen_srcs/glad_io.F90(836,10)
+   remark #15542: loop was not vectorized: inner loop was already vectorized
+
+   LOOP BEGIN at /glade/u/home/tvda/CISM/builds/derecho-intel/fortran_autogen_srcs/glad_io.F90(808,11) inlined into /glade/u/home/tvda/CISM/builds/derecho-intel/fortran_autogen_srcs/glad_io.F90(836,10)
+      remark #15300: LOOP WAS VECTORIZED
+   LOOP END
+
+   LOOP BEGIN at /glade/u/home/tvda/CISM/builds/derecho-intel/fortran_autogen_srcs/glad_io.F90(808,11) inlined into /glade/u/home/tvda/CISM/builds/derecho-intel/fortran_autogen_srcs/glad_io.F90(836,10)
+   <Remainder loop for vectorization>
+   LOOP END
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/builds/derecho-intel/fortran_autogen_srcs/glad_io.F90(831,11) inlined into /glade/u/home/tvda/CISM/builds/derecho-intel/fortran_autogen_srcs/glad_io.F90(836,10)
+   remark #15542: loop was not vectorized: inner loop was already vectorized
+
+   LOOP BEGIN at /glade/u/home/tvda/CISM/builds/derecho-intel/fortran_autogen_srcs/glad_io.F90(831,11) inlined into /glade/u/home/tvda/CISM/builds/derecho-intel/fortran_autogen_srcs/glad_io.F90(836,10)
+      remark #15300: LOOP WAS VECTORIZED
+   LOOP END
+
+   LOOP BEGIN at /glade/u/home/tvda/CISM/builds/derecho-intel/fortran_autogen_srcs/glad_io.F90(831,11) inlined into /glade/u/home/tvda/CISM/builds/derecho-intel/fortran_autogen_srcs/glad_io.F90(836,10)
+   <Remainder loop for vectorization>
+   LOOP END
+LOOP END
+
+
+Non-optimizable loops:
+
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/builds/derecho-intel/fortran_autogen_srcs/glad_io.F90(607,8) inlined into /glade/u/home/tvda/CISM/builds/derecho-intel/fortran_autogen_srcs/glad_io.F90(836,10)
+   remark #15543: loop was not vectorized: loop with function call not considered an optimization candidate.
+LOOP END
+
+    Report from: Code generation optimizations [cg]
+
+/glade/u/home/tvda/CISM/builds/derecho-intel/fortran_autogen_srcs/glad_io.F90(705,14):remark #34000: call to memcpy implemented inline with loads and stores with proven source (alignment, offset): (32, 0), and destination (alignment, offset): (16, 0)
+/glade/u/home/tvda/CISM/builds/derecho-intel/fortran_autogen_srcs/glad_io.F90(723,5):remark #34000: call to memcpy implemented inline with loads and stores with proven source (alignment, offset): (1, 0), and destination (alignment, offset): (16, 0)
+/glade/u/home/tvda/CISM/builds/derecho-intel/fortran_autogen_srcs/glad_io.F90(613,14):remark #34051: REGISTER ALLOCATION : [glad_io_mp_glad_read_forcing_] /glade/u/home/tvda/CISM/builds/derecho-intel/fortran_autogen_srcs/glad_io.F90:613
+
+    Hardware registers
+        Reserved     :    2[ rsp rip]
+        Available    :   39[ rax rdx rcx rbx rbp rsi rdi r8-r15 mm0-mm7 zmm0-zmm15]
+        Callee-save  :    6[ rbx rbp r12-r15]
+        Assigned     :   20[ rax rdx rcx rbx rsi rdi r8-r15 zmm0-zmm5]
+        
+    Routine temporaries
+        Total         :     690
+            Global    :     194
+            Local     :     496
+        Regenerable   :     243
+        Spilled       :      57
+        
+    Routine stack
+        Variables     :     556 bytes*
+            Reads     :      10 [1.96e-02 ~ 0.0%]
+            Writes    :      74 [1.15e+01 ~ 11.5%]
+        Spills        :     392 bytes*
+            Reads     :      69 [1.26e+00 ~ 1.3%]
+            Writes    :      65 [7.64e-01 ~ 0.8%]
+    
+    Notes
+    
+        *Non-overlapping variables and spills may share stack space,
+         so the total stack size might be less than this.
+    
+
+===========================================================================
+
+Begin optimization report for: GLAD_IO::GLAD_IO_READ
+
+    Report from: Interprocedural optimizations [ipo]
+
+INLINE REPORT: (GLAD_IO::GLAD_IO_READ) [16] /glade/u/home/tvda/CISM/builds/derecho-intel/fortran_autogen_srcs/glad_io.F90(705,14)
+  -> INLINE: (728,9) GLAD_IO::IS_ENABLED_2DREAL
+  -> INLINE: (751,9) GLAD_IO::IS_ENABLED_2DREAL
+  -> INLINE: (774,9) GLAD_IO::IS_ENABLED_2DREAL
+  -> INLINE: (797,9) GLAD_IO::IS_ENABLED_2DREAL
+  -> INLINE: (820,9) GLAD_IO::IS_ENABLED_2DREAL
+
+
+    Report from: Loop nest, Vector & Auto-parallelization optimizations [loop, vec, par]
+
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/builds/derecho-intel/fortran_autogen_srcs/glad_io.F90(739,11)
+<Multiversioned v1>
+   remark #25233: Loop multiversioned for stride tests on Assumed shape arrays
+   remark #15542: loop was not vectorized: inner loop was already vectorized
+
+   LOOP BEGIN at /glade/u/home/tvda/CISM/builds/derecho-intel/fortran_autogen_srcs/glad_io.F90(739,11)
+      remark #15300: LOOP WAS VECTORIZED
+   LOOP END
+
+   LOOP BEGIN at /glade/u/home/tvda/CISM/builds/derecho-intel/fortran_autogen_srcs/glad_io.F90(739,11)
+   <Remainder loop for vectorization>
+   LOOP END
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/builds/derecho-intel/fortran_autogen_srcs/glad_io.F90(739,11)
+<Multiversioned v2>
+   remark #15542: loop was not vectorized: inner loop was already vectorized
+
+   LOOP BEGIN at /glade/u/home/tvda/CISM/builds/derecho-intel/fortran_autogen_srcs/glad_io.F90(739,11)
+      remark #15300: LOOP WAS VECTORIZED
+   LOOP END
+
+   LOOP BEGIN at /glade/u/home/tvda/CISM/builds/derecho-intel/fortran_autogen_srcs/glad_io.F90(739,11)
+   <Remainder loop for vectorization>
+   LOOP END
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/builds/derecho-intel/fortran_autogen_srcs/glad_io.F90(762,11)
+<Multiversioned v1>
+   remark #25233: Loop multiversioned for stride tests on Assumed shape arrays
+   remark #15542: loop was not vectorized: inner loop was already vectorized
+
+   LOOP BEGIN at /glade/u/home/tvda/CISM/builds/derecho-intel/fortran_autogen_srcs/glad_io.F90(762,11)
+      remark #15300: LOOP WAS VECTORIZED
+   LOOP END
+
+   LOOP BEGIN at /glade/u/home/tvda/CISM/builds/derecho-intel/fortran_autogen_srcs/glad_io.F90(762,11)
+   <Remainder loop for vectorization>
+   LOOP END
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/builds/derecho-intel/fortran_autogen_srcs/glad_io.F90(762,11)
+<Multiversioned v2>
+   remark #15542: loop was not vectorized: inner loop was already vectorized
+
+   LOOP BEGIN at /glade/u/home/tvda/CISM/builds/derecho-intel/fortran_autogen_srcs/glad_io.F90(762,11)
+      remark #15300: LOOP WAS VECTORIZED
+   LOOP END
+
+   LOOP BEGIN at /glade/u/home/tvda/CISM/builds/derecho-intel/fortran_autogen_srcs/glad_io.F90(762,11)
+   <Remainder loop for vectorization>
+   LOOP END
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/builds/derecho-intel/fortran_autogen_srcs/glad_io.F90(785,11)
+<Multiversioned v1>
+   remark #25233: Loop multiversioned for stride tests on Assumed shape arrays
+   remark #15542: loop was not vectorized: inner loop was already vectorized
+
+   LOOP BEGIN at /glade/u/home/tvda/CISM/builds/derecho-intel/fortran_autogen_srcs/glad_io.F90(785,11)
+      remark #15300: LOOP WAS VECTORIZED
+   LOOP END
+
+   LOOP BEGIN at /glade/u/home/tvda/CISM/builds/derecho-intel/fortran_autogen_srcs/glad_io.F90(785,11)
+   <Remainder loop for vectorization>
+   LOOP END
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/builds/derecho-intel/fortran_autogen_srcs/glad_io.F90(785,11)
+<Multiversioned v2>
+   remark #15542: loop was not vectorized: inner loop was already vectorized
+
+   LOOP BEGIN at /glade/u/home/tvda/CISM/builds/derecho-intel/fortran_autogen_srcs/glad_io.F90(785,11)
+      remark #15300: LOOP WAS VECTORIZED
+   LOOP END
+
+   LOOP BEGIN at /glade/u/home/tvda/CISM/builds/derecho-intel/fortran_autogen_srcs/glad_io.F90(785,11)
+   <Remainder loop for vectorization>
+   LOOP END
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/builds/derecho-intel/fortran_autogen_srcs/glad_io.F90(808,11)
+<Multiversioned v1>
+   remark #25233: Loop multiversioned for stride tests on Assumed shape arrays
+   remark #15542: loop was not vectorized: inner loop was already vectorized
+
+   LOOP BEGIN at /glade/u/home/tvda/CISM/builds/derecho-intel/fortran_autogen_srcs/glad_io.F90(808,11)
+      remark #15300: LOOP WAS VECTORIZED
+   LOOP END
+
+   LOOP BEGIN at /glade/u/home/tvda/CISM/builds/derecho-intel/fortran_autogen_srcs/glad_io.F90(808,11)
+   <Remainder loop for vectorization>
+   LOOP END
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/builds/derecho-intel/fortran_autogen_srcs/glad_io.F90(808,11)
+<Multiversioned v2>
+   remark #15542: loop was not vectorized: inner loop was already vectorized
+
+   LOOP BEGIN at /glade/u/home/tvda/CISM/builds/derecho-intel/fortran_autogen_srcs/glad_io.F90(808,11)
+      remark #15300: LOOP WAS VECTORIZED
+   LOOP END
+
+   LOOP BEGIN at /glade/u/home/tvda/CISM/builds/derecho-intel/fortran_autogen_srcs/glad_io.F90(808,11)
+   <Remainder loop for vectorization>
+   LOOP END
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/builds/derecho-intel/fortran_autogen_srcs/glad_io.F90(831,11)
+<Multiversioned v1>
+   remark #25233: Loop multiversioned for stride tests on Assumed shape arrays
+   remark #15542: loop was not vectorized: inner loop was already vectorized
+
+   LOOP BEGIN at /glade/u/home/tvda/CISM/builds/derecho-intel/fortran_autogen_srcs/glad_io.F90(831,11)
+      remark #15300: LOOP WAS VECTORIZED
+   LOOP END
+
+   LOOP BEGIN at /glade/u/home/tvda/CISM/builds/derecho-intel/fortran_autogen_srcs/glad_io.F90(831,11)
+   <Remainder loop for vectorization>
+   LOOP END
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/builds/derecho-intel/fortran_autogen_srcs/glad_io.F90(831,11)
+<Multiversioned v2>
+   remark #15542: loop was not vectorized: inner loop was already vectorized
+
+   LOOP BEGIN at /glade/u/home/tvda/CISM/builds/derecho-intel/fortran_autogen_srcs/glad_io.F90(831,11)
+      remark #15300: LOOP WAS VECTORIZED
+   LOOP END
+
+   LOOP BEGIN at /glade/u/home/tvda/CISM/builds/derecho-intel/fortran_autogen_srcs/glad_io.F90(831,11)
+   <Remainder loop for vectorization>
+   LOOP END
+LOOP END
+
+    Report from: Code generation optimizations [cg]
+
+/glade/u/home/tvda/CISM/builds/derecho-intel/fortran_autogen_srcs/glad_io.F90(705,14):remark #34000: call to memcpy implemented inline with loads and stores with proven source (alignment, offset): (32, 0), and destination (alignment, offset): (16, 0)
+/glade/u/home/tvda/CISM/builds/derecho-intel/fortran_autogen_srcs/glad_io.F90(723,5):remark #34000: call to memcpy implemented inline with loads and stores with proven source (alignment, offset): (1, 0), and destination (alignment, offset): (16, 0)
+/glade/u/home/tvda/CISM/builds/derecho-intel/fortran_autogen_srcs/glad_io.F90(705,14):remark #34051: REGISTER ALLOCATION : [glad_io_mp_glad_io_read_] /glade/u/home/tvda/CISM/builds/derecho-intel/fortran_autogen_srcs/glad_io.F90:705
+
+    Hardware registers
+        Reserved     :    2[ rsp rip]
+        Available    :   39[ rax rdx rcx rbx rbp rsi rdi r8-r15 mm0-mm7 zmm0-zmm15]
+        Callee-save  :    6[ rbx rbp r12-r15]
+        Assigned     :   20[ rax rdx rcx rbx rsi rdi r8-r15 zmm0-zmm5]
+        
+    Routine temporaries
+        Total         :     753
+            Global    :     217
+            Local     :     536
+        Regenerable   :     247
+        Spilled       :      31
+        
+    Routine stack
+        Variables     :     556 bytes*
+            Reads     :      10 [2.77e-02 ~ 0.0%]
+            Writes    :      74 [1.69e+01 ~ 16.9%]
+        Spills        :     192 bytes*
+            Reads     :      30 [1.93e-01 ~ 0.2%]
+            Writes    :      30 [8.35e-02 ~ 0.1%]
+    
+    Notes
+    
+        *Non-overlapping variables and spills may share stack space,
+         so the total stack size might be less than this.
+    
+
+===========================================================================
+
+Begin optimization report for: GLAD_IO::GLAD_IO_CHECKDIM
+
+    Report from: Interprocedural optimizations [ipo]
+
+INLINE REPORT: (GLAD_IO::GLAD_IO_CHECKDIM) [17] /glade/u/home/tvda/CISM/builds/derecho-intel/fortran_autogen_srcs/glad_io.F90(844,14)
+
+
+    Report from: Code generation optimizations [cg]
+
+/glade/u/home/tvda/CISM/builds/derecho-intel/fortran_autogen_srcs/glad_io.F90(844,14):remark #34051: REGISTER ALLOCATION : [glad_io_mp_glad_io_checkdim_] /glade/u/home/tvda/CISM/builds/derecho-intel/fortran_autogen_srcs/glad_io.F90:844
+
+    Hardware registers
+        Reserved     :    2[ rsp rip]
+        Available    :   39[ rax rdx rcx rbx rbp rsi rdi r8-r15 mm0-mm7 zmm0-zmm15]
+        Callee-save  :    6[ rbx rbp r12-r15]
+        Assigned     :    3[ rdx rsi rdi]
+        
+    Routine temporaries
+        Total         :       9
+            Global    :       0
+            Local     :       9
+        Regenerable   :       0
+        Spilled       :       0
+        
+    Routine stack
+        Variables     :       0 bytes*
+            Reads     :       0 [0.00e+00 ~ 0.0%]
+            Writes    :       0 [0.00e+00 ~ 0.0%]
+        Spills        :       0 bytes*
+            Reads     :       0 [0.00e+00 ~ 0.0%]
+            Writes    :       0 [0.00e+00 ~ 0.0%]
+    
+    Notes
+    
+        *Non-overlapping variables and spills may share stack space,
+         so the total stack size might be less than this.
+    
+
+===========================================================================
+
+Begin optimization report for: GLAD_IO::GET_XTYPE
+
+    Report from: Interprocedural optimizations [ipo]
+
+INLINE REPORT: (GLAD_IO::GET_XTYPE) [18] /glade/u/home/tvda/CISM/builds/derecho-intel/fortran_autogen_srcs/glad_io.F90(912,20)
+
+
+    Report from: Code generation optimizations [cg]
+
+/glade/u/home/tvda/CISM/builds/derecho-intel/fortran_autogen_srcs/glad_io.F90(912,20):remark #34051: REGISTER ALLOCATION : [glad_io_mp_get_xtype_] /glade/u/home/tvda/CISM/builds/derecho-intel/fortran_autogen_srcs/glad_io.F90:912
+
+    Hardware registers
+        Reserved     :    2[ rsp rip]
+        Available    :   39[ rax rdx rcx rbx rbp rsi rdi r8-r15 mm0-mm7 zmm0-zmm15]
+        Callee-save  :    6[ rbx rbp r12-r15]
+        Assigned     :    5[ rax rdx rcx rsi rdi]
+        
+    Routine temporaries
+        Total         :      17
+            Global    :       9
+            Local     :       8
+        Regenerable   :       0
+        Spilled       :       0
+        
+    Routine stack
+        Variables     :       0 bytes*
+            Reads     :       0 [0.00e+00 ~ 0.0%]
+            Writes    :       0 [0.00e+00 ~ 0.0%]
+        Spills        :       0 bytes*
+            Reads     :       0 [0.00e+00 ~ 0.0%]
+            Writes    :       0 [0.00e+00 ~ 0.0%]
+    
+    Notes
+    
+        *Non-overlapping variables and spills may share stack space,
+         so the total stack size might be less than this.
+    
+
+===========================================================================
+
+Begin optimization report for: GLAD_IO::GLAD_GET_LAT
+
+    Report from: Interprocedural optimizations [ipo]
+
+INLINE REPORT: (GLAD_IO::GLAD_GET_LAT) [19] /glade/u/home/tvda/CISM/builds/derecho-intel/fortran_autogen_srcs/glad_io.F90(930,14)
+
+
+    Report from: Loop nest, Vector & Auto-parallelization optimizations [loop, vec, par]
+
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/builds/derecho-intel/fortran_autogen_srcs/glad_io.F90(935,5)
+<Multiversioned v1>
+   remark #25233: Loop multiversioned for stride tests on Assumed shape arrays
+   remark #15542: loop was not vectorized: inner loop was already vectorized
+
+   LOOP BEGIN at /glade/u/home/tvda/CISM/builds/derecho-intel/fortran_autogen_srcs/glad_io.F90(935,5)
+      remark #15300: LOOP WAS VECTORIZED
+   LOOP END
+
+   LOOP BEGIN at /glade/u/home/tvda/CISM/builds/derecho-intel/fortran_autogen_srcs/glad_io.F90(935,5)
+   <Remainder loop for vectorization>
+   LOOP END
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/builds/derecho-intel/fortran_autogen_srcs/glad_io.F90(935,5)
+<Multiversioned v2>
+   remark #15541: outer loop was not auto-vectorized: consider using SIMD directive
+
+   LOOP BEGIN at /glade/u/home/tvda/CISM/builds/derecho-intel/fortran_autogen_srcs/glad_io.F90(935,5)
+      remark #15335: loop was not vectorized: vectorization possible but seems inefficient. Use vector always directive or -vec-threshold0 to override 
+      remark #25439: unrolled with remainder by 2  
+   LOOP END
+
+   LOOP BEGIN at /glade/u/home/tvda/CISM/builds/derecho-intel/fortran_autogen_srcs/glad_io.F90(935,5)
+   <Remainder>
+   LOOP END
+LOOP END
+
+    Report from: Code generation optimizations [cg]
+
+/glade/u/home/tvda/CISM/builds/derecho-intel/fortran_autogen_srcs/glad_io.F90(930,14):remark #34051: REGISTER ALLOCATION : [glad_io_mp_glad_get_lat_] /glade/u/home/tvda/CISM/builds/derecho-intel/fortran_autogen_srcs/glad_io.F90:930
+
+    Hardware registers
+        Reserved     :    2[ rsp rip]
+        Available    :   39[ rax rdx rcx rbx rbp rsi rdi r8-r15 mm0-mm7 zmm0-zmm15]
+        Callee-save  :    6[ rbx rbp r12-r15]
+        Assigned     :   15[ rax rdx rcx rbx rsi rdi r8-r15 zmm0]
+        
+    Routine temporaries
+        Total         :      58
+            Global    :      39
+            Local     :      19
+        Regenerable   :       2
+        Spilled       :      13
+        
+    Routine stack
+        Variables     :       0 bytes*
+            Reads     :       0 [0.00e+00 ~ 0.0%]
+            Writes    :       0 [0.00e+00 ~ 0.0%]
+        Spills        :      72 bytes*
+            Reads     :      11 [6.95e+00 ~ 7.0%]
+            Writes    :       9 [1.72e+00 ~ 1.7%]
+    
+    Notes
+    
+        *Non-overlapping variables and spills may share stack space,
+         so the total stack size might be less than this.
+    
+
+===========================================================================
+
+Begin optimization report for: GLAD_IO::GLAD_SET_LAT
+
+    Report from: Interprocedural optimizations [ipo]
+
+INLINE REPORT: (GLAD_IO::GLAD_SET_LAT) [20] /glade/u/home/tvda/CISM/builds/derecho-intel/fortran_autogen_srcs/glad_io.F90(938,14)
+
+
+    Report from: Loop nest, Vector & Auto-parallelization optimizations [loop, vec, par]
+
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/builds/derecho-intel/fortran_autogen_srcs/glad_io.F90(943,5)
+<Multiversioned v1>
+   remark #25233: Loop multiversioned for stride tests on Assumed shape arrays
+   remark #15542: loop was not vectorized: inner loop was already vectorized
+
+   LOOP BEGIN at /glade/u/home/tvda/CISM/builds/derecho-intel/fortran_autogen_srcs/glad_io.F90(943,5)
+      remark #15300: LOOP WAS VECTORIZED
+   LOOP END
+
+   LOOP BEGIN at /glade/u/home/tvda/CISM/builds/derecho-intel/fortran_autogen_srcs/glad_io.F90(943,5)
+   <Remainder loop for vectorization>
+   LOOP END
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/builds/derecho-intel/fortran_autogen_srcs/glad_io.F90(943,5)
+<Multiversioned v2>
+   remark #15541: outer loop was not auto-vectorized: consider using SIMD directive
+
+   LOOP BEGIN at /glade/u/home/tvda/CISM/builds/derecho-intel/fortran_autogen_srcs/glad_io.F90(943,5)
+      remark #15335: loop was not vectorized: vectorization possible but seems inefficient. Use vector always directive or -vec-threshold0 to override 
+      remark #25439: unrolled with remainder by 2  
+   LOOP END
+
+   LOOP BEGIN at /glade/u/home/tvda/CISM/builds/derecho-intel/fortran_autogen_srcs/glad_io.F90(943,5)
+   <Remainder>
+   LOOP END
+LOOP END
+
+    Report from: Code generation optimizations [cg]
+
+/glade/u/home/tvda/CISM/builds/derecho-intel/fortran_autogen_srcs/glad_io.F90(938,14):remark #34051: REGISTER ALLOCATION : [glad_io_mp_glad_set_lat_] /glade/u/home/tvda/CISM/builds/derecho-intel/fortran_autogen_srcs/glad_io.F90:938
+
+    Hardware registers
+        Reserved     :    2[ rsp rip]
+        Available    :   39[ rax rdx rcx rbx rbp rsi rdi r8-r15 mm0-mm7 zmm0-zmm15]
+        Callee-save  :    6[ rbx rbp r12-r15]
+        Assigned     :   15[ rax rdx rcx rbx rsi rdi r8-r15 zmm0]
+        
+    Routine temporaries
+        Total         :      61
+            Global    :      42
+            Local     :      19
+        Regenerable   :       2
+        Spilled       :      13
+        
+    Routine stack
+        Variables     :       0 bytes*
+            Reads     :       0 [0.00e+00 ~ 0.0%]
+            Writes    :       0 [0.00e+00 ~ 0.0%]
+        Spills        :      72 bytes*
+            Reads     :      11 [6.87e+00 ~ 6.9%]
+            Writes    :       9 [1.70e+00 ~ 1.7%]
+    
+    Notes
+    
+        *Non-overlapping variables and spills may share stack space,
+         so the total stack size might be less than this.
+    
+
+===========================================================================
+
+Begin optimization report for: GLAD_IO::GLAD_GET_LON
+
+    Report from: Interprocedural optimizations [ipo]
+
+INLINE REPORT: (GLAD_IO::GLAD_GET_LON) [21] /glade/u/home/tvda/CISM/builds/derecho-intel/fortran_autogen_srcs/glad_io.F90(946,14)
+
+
+    Report from: Loop nest, Vector & Auto-parallelization optimizations [loop, vec, par]
+
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/builds/derecho-intel/fortran_autogen_srcs/glad_io.F90(951,5)
+<Multiversioned v1>
+   remark #25233: Loop multiversioned for stride tests on Assumed shape arrays
+   remark #15542: loop was not vectorized: inner loop was already vectorized
+
+   LOOP BEGIN at /glade/u/home/tvda/CISM/builds/derecho-intel/fortran_autogen_srcs/glad_io.F90(951,5)
+      remark #15300: LOOP WAS VECTORIZED
+   LOOP END
+
+   LOOP BEGIN at /glade/u/home/tvda/CISM/builds/derecho-intel/fortran_autogen_srcs/glad_io.F90(951,5)
+   <Remainder loop for vectorization>
+   LOOP END
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/builds/derecho-intel/fortran_autogen_srcs/glad_io.F90(951,5)
+<Multiversioned v2>
+   remark #15541: outer loop was not auto-vectorized: consider using SIMD directive
+
+   LOOP BEGIN at /glade/u/home/tvda/CISM/builds/derecho-intel/fortran_autogen_srcs/glad_io.F90(951,5)
+      remark #15335: loop was not vectorized: vectorization possible but seems inefficient. Use vector always directive or -vec-threshold0 to override 
+      remark #25439: unrolled with remainder by 2  
+   LOOP END
+
+   LOOP BEGIN at /glade/u/home/tvda/CISM/builds/derecho-intel/fortran_autogen_srcs/glad_io.F90(951,5)
+   <Remainder>
+   LOOP END
+LOOP END
+
+    Report from: Code generation optimizations [cg]
+
+/glade/u/home/tvda/CISM/builds/derecho-intel/fortran_autogen_srcs/glad_io.F90(946,14):remark #34051: REGISTER ALLOCATION : [glad_io_mp_glad_get_lon_] /glade/u/home/tvda/CISM/builds/derecho-intel/fortran_autogen_srcs/glad_io.F90:946
+
+    Hardware registers
+        Reserved     :    2[ rsp rip]
+        Available    :   39[ rax rdx rcx rbx rbp rsi rdi r8-r15 mm0-mm7 zmm0-zmm15]
+        Callee-save  :    6[ rbx rbp r12-r15]
+        Assigned     :   15[ rax rdx rcx rbx rsi rdi r8-r15 zmm0]
+        
+    Routine temporaries
+        Total         :      58
+            Global    :      39
+            Local     :      19
+        Regenerable   :       2
+        Spilled       :      13
+        
+    Routine stack
+        Variables     :       0 bytes*
+            Reads     :       0 [0.00e+00 ~ 0.0%]
+            Writes    :       0 [0.00e+00 ~ 0.0%]
+        Spills        :      72 bytes*
+            Reads     :      11 [6.95e+00 ~ 7.0%]
+            Writes    :       9 [1.72e+00 ~ 1.7%]
+    
+    Notes
+    
+        *Non-overlapping variables and spills may share stack space,
+         so the total stack size might be less than this.
+    
+
+===========================================================================
+
+Begin optimization report for: GLAD_IO::GLAD_SET_LON
+
+    Report from: Interprocedural optimizations [ipo]
+
+INLINE REPORT: (GLAD_IO::GLAD_SET_LON) [22] /glade/u/home/tvda/CISM/builds/derecho-intel/fortran_autogen_srcs/glad_io.F90(954,14)
+
+
+    Report from: Loop nest, Vector & Auto-parallelization optimizations [loop, vec, par]
+
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/builds/derecho-intel/fortran_autogen_srcs/glad_io.F90(959,5)
+<Multiversioned v1>
+   remark #25233: Loop multiversioned for stride tests on Assumed shape arrays
+   remark #15542: loop was not vectorized: inner loop was already vectorized
+
+   LOOP BEGIN at /glade/u/home/tvda/CISM/builds/derecho-intel/fortran_autogen_srcs/glad_io.F90(959,5)
+      remark #15300: LOOP WAS VECTORIZED
+   LOOP END
+
+   LOOP BEGIN at /glade/u/home/tvda/CISM/builds/derecho-intel/fortran_autogen_srcs/glad_io.F90(959,5)
+   <Remainder loop for vectorization>
+   LOOP END
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/builds/derecho-intel/fortran_autogen_srcs/glad_io.F90(959,5)
+<Multiversioned v2>
+   remark #15541: outer loop was not auto-vectorized: consider using SIMD directive
+
+   LOOP BEGIN at /glade/u/home/tvda/CISM/builds/derecho-intel/fortran_autogen_srcs/glad_io.F90(959,5)
+      remark #15335: loop was not vectorized: vectorization possible but seems inefficient. Use vector always directive or -vec-threshold0 to override 
+      remark #25439: unrolled with remainder by 2  
+   LOOP END
+
+   LOOP BEGIN at /glade/u/home/tvda/CISM/builds/derecho-intel/fortran_autogen_srcs/glad_io.F90(959,5)
+   <Remainder>
+   LOOP END
+LOOP END
+
+    Report from: Code generation optimizations [cg]
+
+/glade/u/home/tvda/CISM/builds/derecho-intel/fortran_autogen_srcs/glad_io.F90(954,14):remark #34051: REGISTER ALLOCATION : [glad_io_mp_glad_set_lon_] /glade/u/home/tvda/CISM/builds/derecho-intel/fortran_autogen_srcs/glad_io.F90:954
+
+    Hardware registers
+        Reserved     :    2[ rsp rip]
+        Available    :   39[ rax rdx rcx rbx rbp rsi rdi r8-r15 mm0-mm7 zmm0-zmm15]
+        Callee-save  :    6[ rbx rbp r12-r15]
+        Assigned     :   15[ rax rdx rcx rbx rsi rdi r8-r15 zmm0]
+        
+    Routine temporaries
+        Total         :      61
+            Global    :      42
+            Local     :      19
+        Regenerable   :       2
+        Spilled       :      13
+        
+    Routine stack
+        Variables     :       0 bytes*
+            Reads     :       0 [0.00e+00 ~ 0.0%]
+            Writes    :       0 [0.00e+00 ~ 0.0%]
+        Spills        :      72 bytes*
+            Reads     :      11 [6.87e+00 ~ 6.9%]
+            Writes    :       9 [1.70e+00 ~ 1.7%]
+    
+    Notes
+    
+        *Non-overlapping variables and spills may share stack space,
+         so the total stack size might be less than this.
+    
+
+===========================================================================

@@ -1,0 +1,1504 @@
+--- !Missed
+Pass:            inline
+Name:            NoDefinition
+DebugLoc:        { File: 'libglimmer/writestats.c', Line: 68, Column: 3 }
+Function:        gf_writestats_
+Args:
+  - Callee:          strncpy
+  - String:          ' will not be inlined into '
+  - Caller:          gf_writestats_
+    DebugLoc:        { File: 'libglimmer/writestats.c', Line: 51, Column: 0 }
+  - String:          ' because its definition is unavailable'
+...
+--- !Missed
+Pass:            inline
+Name:            NoDefinition
+DebugLoc:        { File: 'libglimmer/writestats.c', Line: 70, Column: 10 }
+Function:        gf_writestats_
+Args:
+  - Callee:          __ctype_b_loc
+  - String:          ' will not be inlined into '
+  - Caller:          gf_writestats_
+    DebugLoc:        { File: 'libglimmer/writestats.c', Line: 51, Column: 0 }
+  - String:          ' because its definition is unavailable'
+...
+--- !Missed
+Pass:            inline
+Name:            NoDefinition
+DebugLoc:        { File: 'libglimmer/writestats.c', Line: 74, Column: 10 }
+Function:        gf_writestats_
+Args:
+  - Callee:          times
+    DebugLoc:        { File: '/usr/include/sys/times.h', Line: 0, Column: 0 }
+  - String:          ' will not be inlined into '
+  - Caller:          gf_writestats_
+    DebugLoc:        { File: 'libglimmer/writestats.c', Line: 51, Column: 0 }
+  - String:          ' because its definition is unavailable'
+...
+--- !Missed
+Pass:            inline
+Name:            NoDefinition
+DebugLoc:        { File: 'libglimmer/writestats.c', Line: 75, Column: 53 }
+Function:        gf_writestats_
+Args:
+  - Callee:          sysconf
+    DebugLoc:        { File: '/usr/include/unistd.h', Line: 0, Column: 0 }
+  - String:          ' will not be inlined into '
+  - Caller:          gf_writestats_
+    DebugLoc:        { File: 'libglimmer/writestats.c', Line: 51, Column: 0 }
+  - String:          ' because its definition is unavailable'
+...
+--- !Missed
+Pass:            inline
+Name:            NoDefinition
+DebugLoc:        { File: 'libglimmer/writestats.c', Line: 79, Column: 9 }
+Function:        gf_writestats_
+Args:
+  - Callee:          time
+    DebugLoc:        { File: '/usr/include/time.h', Line: 0, Column: 0 }
+  - String:          ' will not be inlined into '
+  - Caller:          gf_writestats_
+    DebugLoc:        { File: 'libglimmer/writestats.c', Line: 51, Column: 0 }
+  - String:          ' because its definition is unavailable'
+...
+--- !Missed
+Pass:            inline
+Name:            NoDefinition
+DebugLoc:        { File: 'libglimmer/writestats.c', Line: 80, Column: 17 }
+Function:        gf_writestats_
+Args:
+  - Callee:          localtime
+    DebugLoc:        { File: '/usr/include/time.h', Line: 0, Column: 0 }
+  - String:          ' will not be inlined into '
+  - Caller:          gf_writestats_
+    DebugLoc:        { File: 'libglimmer/writestats.c', Line: 51, Column: 0 }
+  - String:          ' because its definition is unavailable'
+...
+--- !Missed
+Pass:            inline
+Name:            NoDefinition
+DebugLoc:        { File: 'libglimmer/writestats.c', Line: 81, Column: 3 }
+Function:        gf_writestats_
+Args:
+  - Callee:          snprintf
+  - String:          ' will not be inlined into '
+  - Caller:          gf_writestats_
+    DebugLoc:        { File: 'libglimmer/writestats.c', Line: 51, Column: 0 }
+  - String:          ' because its definition is unavailable'
+...
+--- !Missed
+Pass:            inline
+Name:            NoDefinition
+DebugLoc:        { File: 'libglimmer/writestats.c', Line: 84, Column: 8 }
+Function:        gf_writestats_
+Args:
+  - Callee:          uname
+    DebugLoc:        { File: '/usr/include/sys/utsname.h', Line: 0, Column: 0 }
+  - String:          ' will not be inlined into '
+  - Caller:          gf_writestats_
+    DebugLoc:        { File: 'libglimmer/writestats.c', Line: 51, Column: 0 }
+  - String:          ' because its definition is unavailable'
+...
+--- !Missed
+Pass:            inline
+Name:            NoDefinition
+DebugLoc:        { File: 'libglimmer/writestats.c', Line: 90, Column: 3 }
+Function:        gf_writestats_
+Args:
+  - Callee:          snprintf
+  - String:          ' will not be inlined into '
+  - Caller:          gf_writestats_
+    DebugLoc:        { File: 'libglimmer/writestats.c', Line: 51, Column: 0 }
+  - String:          ' because its definition is unavailable'
+...
+--- !Missed
+Pass:            inline
+Name:            NoDefinition
+DebugLoc:        { File: 'libglimmer/writestats.c', Line: 92, Column: 3 }
+Function:        gf_writestats_
+Args:
+  - Callee:          snprintf
+  - String:          ' will not be inlined into '
+  - Caller:          gf_writestats_
+    DebugLoc:        { File: 'libglimmer/writestats.c', Line: 51, Column: 0 }
+  - String:          ' because its definition is unavailable'
+...
+--- !Missed
+Pass:            inline
+Name:            NoDefinition
+DebugLoc:        { File: 'libglimmer/writestats.c', Line: 95, Column: 13 }
+Function:        gf_writestats_
+Args:
+  - Callee:          open
+    DebugLoc:        { File: '/usr/include/fcntl.h', Line: 0, Column: 0 }
+  - String:          ' will not be inlined into '
+  - Caller:          gf_writestats_
+    DebugLoc:        { File: 'libglimmer/writestats.c', Line: 51, Column: 0 }
+  - String:          ' because its definition is unavailable'
+...
+--- !Missed
+Pass:            inline
+Name:            NoDefinition
+DebugLoc:        { File: 'libglimmer/writestats.c', Line: 96, Column: 5 }
+Function:        gf_writestats_
+Args:
+  - Callee:          perror
+    DebugLoc:        { File: '/usr/include/stdio.h', Line: 0, Column: 0 }
+  - String:          ' will not be inlined into '
+  - Caller:          gf_writestats_
+    DebugLoc:        { File: 'libglimmer/writestats.c', Line: 51, Column: 0 }
+  - String:          ' because its definition is unavailable'
+...
+--- !Missed
+Pass:            inline
+Name:            NoDefinition
+DebugLoc:        { File: 'libglimmer/writestats.c', Line: 97, Column: 5 }
+Function:        gf_writestats_
+Args:
+  - Callee:          puts
+  - String:          ' will not be inlined into '
+  - Caller:          gf_writestats_
+    DebugLoc:        { File: 'libglimmer/writestats.c', Line: 51, Column: 0 }
+  - String:          ' because its definition is unavailable'
+...
+--- !Missed
+Pass:            inline
+Name:            NoDefinition
+DebugLoc:        { File: 'libglimmer/writestats.c', Line: 103, Column: 20 }
+Function:        gf_writestats_
+Args:
+  - Callee:          fcntl
+    DebugLoc:        { File: '/usr/include/fcntl.h', Line: 0, Column: 0 }
+  - String:          ' will not be inlined into '
+  - Caller:          gf_writestats_
+    DebugLoc:        { File: 'libglimmer/writestats.c', Line: 51, Column: 0 }
+  - String:          ' because its definition is unavailable'
+...
+--- !Missed
+Pass:            inline
+Name:            NoDefinition
+DebugLoc:        { File: 'libglimmer/writestats.c', Line: 105, Column: 5 }
+Function:        gf_writestats_
+Args:
+  - Callee:          close
+    DebugLoc:        { File: '/usr/include/unistd.h', Line: 0, Column: 0 }
+  - String:          ' will not be inlined into '
+  - Caller:          gf_writestats_
+    DebugLoc:        { File: 'libglimmer/writestats.c', Line: 51, Column: 0 }
+  - String:          ' because its definition is unavailable'
+...
+--- !Missed
+Pass:            inline
+Name:            NoDefinition
+DebugLoc:        { File: 'libglimmer/writestats.c', Line: 106, Column: 5 }
+Function:        gf_writestats_
+Args:
+  - Callee:          perror
+    DebugLoc:        { File: '/usr/include/stdio.h', Line: 0, Column: 0 }
+  - String:          ' will not be inlined into '
+  - Caller:          gf_writestats_
+    DebugLoc:        { File: 'libglimmer/writestats.c', Line: 51, Column: 0 }
+  - String:          ' because its definition is unavailable'
+...
+--- !Missed
+Pass:            inline
+Name:            NoDefinition
+DebugLoc:        { File: 'libglimmer/writestats.c', Line: 107, Column: 5 }
+Function:        gf_writestats_
+Args:
+  - Callee:          puts
+  - String:          ' will not be inlined into '
+  - Caller:          gf_writestats_
+    DebugLoc:        { File: 'libglimmer/writestats.c', Line: 51, Column: 0 }
+  - String:          ' because its definition is unavailable'
+...
+--- !Missed
+Pass:            inline
+Name:            NoDefinition
+DebugLoc:        { File: 'libglimmer/writestats.c', Line: 112, Column: 16 }
+Function:        gf_writestats_
+Args:
+  - Callee:          lseek
+    DebugLoc:        { File: '/usr/include/unistd.h', Line: 0, Column: 0 }
+  - String:          ' will not be inlined into '
+  - Caller:          gf_writestats_
+    DebugLoc:        { File: 'libglimmer/writestats.c', Line: 51, Column: 0 }
+  - String:          ' because its definition is unavailable'
+...
+--- !Missed
+Pass:            inline
+Name:            NoDefinition
+DebugLoc:        { File: 'libglimmer/writestats.c', Line: 116, Column: 24 }
+Function:        gf_writestats_
+Args:
+  - Callee:          strlen
+  - String:          ' will not be inlined into '
+  - Caller:          gf_writestats_
+    DebugLoc:        { File: 'libglimmer/writestats.c', Line: 51, Column: 0 }
+  - String:          ' because its definition is unavailable'
+...
+--- !Missed
+Pass:            inline
+Name:            NoDefinition
+DebugLoc:        { File: 'libglimmer/writestats.c', Line: 116, Column: 5 }
+Function:        gf_writestats_
+Args:
+  - Callee:          write
+    DebugLoc:        { File: '/usr/include/unistd.h', Line: 0, Column: 0 }
+  - String:          ' will not be inlined into '
+  - Caller:          gf_writestats_
+    DebugLoc:        { File: 'libglimmer/writestats.c', Line: 51, Column: 0 }
+  - String:          ' because its definition is unavailable'
+...
+--- !Missed
+Pass:            inline
+Name:            NoDefinition
+DebugLoc:        { File: 'libglimmer/writestats.c', Line: 117, Column: 22 }
+Function:        gf_writestats_
+Args:
+  - Callee:          strlen
+  - String:          ' will not be inlined into '
+  - Caller:          gf_writestats_
+    DebugLoc:        { File: 'libglimmer/writestats.c', Line: 51, Column: 0 }
+  - String:          ' because its definition is unavailable'
+...
+--- !Missed
+Pass:            inline
+Name:            NoDefinition
+DebugLoc:        { File: 'libglimmer/writestats.c', Line: 117, Column: 3 }
+Function:        gf_writestats_
+Args:
+  - Callee:          write
+    DebugLoc:        { File: '/usr/include/unistd.h', Line: 0, Column: 0 }
+  - String:          ' will not be inlined into '
+  - Caller:          gf_writestats_
+    DebugLoc:        { File: 'libglimmer/writestats.c', Line: 51, Column: 0 }
+  - String:          ' because its definition is unavailable'
+...
+--- !Missed
+Pass:            inline
+Name:            NoDefinition
+DebugLoc:        { File: 'libglimmer/writestats.c', Line: 121, Column: 7 }
+Function:        gf_writestats_
+Args:
+  - Callee:          fcntl
+    DebugLoc:        { File: '/usr/include/fcntl.h', Line: 0, Column: 0 }
+  - String:          ' will not be inlined into '
+  - Caller:          gf_writestats_
+    DebugLoc:        { File: 'libglimmer/writestats.c', Line: 51, Column: 0 }
+  - String:          ' because its definition is unavailable'
+...
+--- !Missed
+Pass:            inline
+Name:            NoDefinition
+DebugLoc:        { File: 'libglimmer/writestats.c', Line: 122, Column: 5 }
+Function:        gf_writestats_
+Args:
+  - Callee:          perror
+    DebugLoc:        { File: '/usr/include/stdio.h', Line: 0, Column: 0 }
+  - String:          ' will not be inlined into '
+  - Caller:          gf_writestats_
+    DebugLoc:        { File: 'libglimmer/writestats.c', Line: 51, Column: 0 }
+  - String:          ' because its definition is unavailable'
+...
+--- !Missed
+Pass:            inline
+Name:            NoDefinition
+DebugLoc:        { File: 'libglimmer/writestats.c', Line: 126, Column: 3 }
+Function:        gf_writestats_
+Args:
+  - Callee:          close
+    DebugLoc:        { File: '/usr/include/unistd.h', Line: 0, Column: 0 }
+  - String:          ' will not be inlined into '
+  - Caller:          gf_writestats_
+    DebugLoc:        { File: 'libglimmer/writestats.c', Line: 51, Column: 0 }
+  - String:          ' because its definition is unavailable'
+...
+--- !Missed
+Pass:            inline
+Name:            NoDefinition
+DebugLoc:        { File: 'libglimmer/writestats.c', Line: 68, Column: 3 }
+Function:        gf_writestats_
+Args:
+  - Callee:          strncpy
+  - String:          ' will not be inlined into '
+  - Caller:          gf_writestats_
+    DebugLoc:        { File: 'libglimmer/writestats.c', Line: 51, Column: 0 }
+  - String:          ' because its definition is unavailable'
+...
+--- !Missed
+Pass:            inline
+Name:            NoDefinition
+DebugLoc:        { File: 'libglimmer/writestats.c', Line: 70, Column: 10 }
+Function:        gf_writestats_
+Args:
+  - Callee:          __ctype_b_loc
+  - String:          ' will not be inlined into '
+  - Caller:          gf_writestats_
+    DebugLoc:        { File: 'libglimmer/writestats.c', Line: 51, Column: 0 }
+  - String:          ' because its definition is unavailable'
+...
+--- !Missed
+Pass:            inline
+Name:            NoDefinition
+DebugLoc:        { File: 'libglimmer/writestats.c', Line: 74, Column: 10 }
+Function:        gf_writestats_
+Args:
+  - Callee:          times
+    DebugLoc:        { File: '/usr/include/sys/times.h', Line: 0, Column: 0 }
+  - String:          ' will not be inlined into '
+  - Caller:          gf_writestats_
+    DebugLoc:        { File: 'libglimmer/writestats.c', Line: 51, Column: 0 }
+  - String:          ' because its definition is unavailable'
+...
+--- !Missed
+Pass:            inline
+Name:            NoDefinition
+DebugLoc:        { File: 'libglimmer/writestats.c', Line: 75, Column: 53 }
+Function:        gf_writestats_
+Args:
+  - Callee:          sysconf
+    DebugLoc:        { File: '/usr/include/unistd.h', Line: 0, Column: 0 }
+  - String:          ' will not be inlined into '
+  - Caller:          gf_writestats_
+    DebugLoc:        { File: 'libglimmer/writestats.c', Line: 51, Column: 0 }
+  - String:          ' because its definition is unavailable'
+...
+--- !Missed
+Pass:            inline
+Name:            NoDefinition
+DebugLoc:        { File: 'libglimmer/writestats.c', Line: 79, Column: 9 }
+Function:        gf_writestats_
+Args:
+  - Callee:          time
+    DebugLoc:        { File: '/usr/include/time.h', Line: 0, Column: 0 }
+  - String:          ' will not be inlined into '
+  - Caller:          gf_writestats_
+    DebugLoc:        { File: 'libglimmer/writestats.c', Line: 51, Column: 0 }
+  - String:          ' because its definition is unavailable'
+...
+--- !Missed
+Pass:            inline
+Name:            NoDefinition
+DebugLoc:        { File: 'libglimmer/writestats.c', Line: 80, Column: 17 }
+Function:        gf_writestats_
+Args:
+  - Callee:          localtime
+    DebugLoc:        { File: '/usr/include/time.h', Line: 0, Column: 0 }
+  - String:          ' will not be inlined into '
+  - Caller:          gf_writestats_
+    DebugLoc:        { File: 'libglimmer/writestats.c', Line: 51, Column: 0 }
+  - String:          ' because its definition is unavailable'
+...
+--- !Missed
+Pass:            inline
+Name:            NoDefinition
+DebugLoc:        { File: 'libglimmer/writestats.c', Line: 81, Column: 3 }
+Function:        gf_writestats_
+Args:
+  - Callee:          snprintf
+  - String:          ' will not be inlined into '
+  - Caller:          gf_writestats_
+    DebugLoc:        { File: 'libglimmer/writestats.c', Line: 51, Column: 0 }
+  - String:          ' because its definition is unavailable'
+...
+--- !Missed
+Pass:            inline
+Name:            NoDefinition
+DebugLoc:        { File: 'libglimmer/writestats.c', Line: 84, Column: 8 }
+Function:        gf_writestats_
+Args:
+  - Callee:          uname
+    DebugLoc:        { File: '/usr/include/sys/utsname.h', Line: 0, Column: 0 }
+  - String:          ' will not be inlined into '
+  - Caller:          gf_writestats_
+    DebugLoc:        { File: 'libglimmer/writestats.c', Line: 51, Column: 0 }
+  - String:          ' because its definition is unavailable'
+...
+--- !Missed
+Pass:            inline
+Name:            NoDefinition
+DebugLoc:        { File: 'libglimmer/writestats.c', Line: 90, Column: 3 }
+Function:        gf_writestats_
+Args:
+  - Callee:          snprintf
+  - String:          ' will not be inlined into '
+  - Caller:          gf_writestats_
+    DebugLoc:        { File: 'libglimmer/writestats.c', Line: 51, Column: 0 }
+  - String:          ' because its definition is unavailable'
+...
+--- !Missed
+Pass:            inline
+Name:            NoDefinition
+DebugLoc:        { File: 'libglimmer/writestats.c', Line: 92, Column: 3 }
+Function:        gf_writestats_
+Args:
+  - Callee:          snprintf
+  - String:          ' will not be inlined into '
+  - Caller:          gf_writestats_
+    DebugLoc:        { File: 'libglimmer/writestats.c', Line: 51, Column: 0 }
+  - String:          ' because its definition is unavailable'
+...
+--- !Missed
+Pass:            inline
+Name:            NoDefinition
+DebugLoc:        { File: 'libglimmer/writestats.c', Line: 95, Column: 13 }
+Function:        gf_writestats_
+Args:
+  - Callee:          open
+    DebugLoc:        { File: '/usr/include/fcntl.h', Line: 0, Column: 0 }
+  - String:          ' will not be inlined into '
+  - Caller:          gf_writestats_
+    DebugLoc:        { File: 'libglimmer/writestats.c', Line: 51, Column: 0 }
+  - String:          ' because its definition is unavailable'
+...
+--- !Missed
+Pass:            inline
+Name:            NoDefinition
+DebugLoc:        { File: 'libglimmer/writestats.c', Line: 96, Column: 5 }
+Function:        gf_writestats_
+Args:
+  - Callee:          perror
+    DebugLoc:        { File: '/usr/include/stdio.h', Line: 0, Column: 0 }
+  - String:          ' will not be inlined into '
+  - Caller:          gf_writestats_
+    DebugLoc:        { File: 'libglimmer/writestats.c', Line: 51, Column: 0 }
+  - String:          ' because its definition is unavailable'
+...
+--- !Missed
+Pass:            inline
+Name:            NoDefinition
+DebugLoc:        { File: 'libglimmer/writestats.c', Line: 97, Column: 5 }
+Function:        gf_writestats_
+Args:
+  - Callee:          puts
+  - String:          ' will not be inlined into '
+  - Caller:          gf_writestats_
+    DebugLoc:        { File: 'libglimmer/writestats.c', Line: 51, Column: 0 }
+  - String:          ' because its definition is unavailable'
+...
+--- !Missed
+Pass:            inline
+Name:            NoDefinition
+DebugLoc:        { File: 'libglimmer/writestats.c', Line: 103, Column: 20 }
+Function:        gf_writestats_
+Args:
+  - Callee:          fcntl
+    DebugLoc:        { File: '/usr/include/fcntl.h', Line: 0, Column: 0 }
+  - String:          ' will not be inlined into '
+  - Caller:          gf_writestats_
+    DebugLoc:        { File: 'libglimmer/writestats.c', Line: 51, Column: 0 }
+  - String:          ' because its definition is unavailable'
+...
+--- !Missed
+Pass:            inline
+Name:            NoDefinition
+DebugLoc:        { File: 'libglimmer/writestats.c', Line: 105, Column: 5 }
+Function:        gf_writestats_
+Args:
+  - Callee:          close
+    DebugLoc:        { File: '/usr/include/unistd.h', Line: 0, Column: 0 }
+  - String:          ' will not be inlined into '
+  - Caller:          gf_writestats_
+    DebugLoc:        { File: 'libglimmer/writestats.c', Line: 51, Column: 0 }
+  - String:          ' because its definition is unavailable'
+...
+--- !Missed
+Pass:            inline
+Name:            NoDefinition
+DebugLoc:        { File: 'libglimmer/writestats.c', Line: 106, Column: 5 }
+Function:        gf_writestats_
+Args:
+  - Callee:          perror
+    DebugLoc:        { File: '/usr/include/stdio.h', Line: 0, Column: 0 }
+  - String:          ' will not be inlined into '
+  - Caller:          gf_writestats_
+    DebugLoc:        { File: 'libglimmer/writestats.c', Line: 51, Column: 0 }
+  - String:          ' because its definition is unavailable'
+...
+--- !Missed
+Pass:            inline
+Name:            NoDefinition
+DebugLoc:        { File: 'libglimmer/writestats.c', Line: 107, Column: 5 }
+Function:        gf_writestats_
+Args:
+  - Callee:          puts
+  - String:          ' will not be inlined into '
+  - Caller:          gf_writestats_
+    DebugLoc:        { File: 'libglimmer/writestats.c', Line: 51, Column: 0 }
+  - String:          ' because its definition is unavailable'
+...
+--- !Missed
+Pass:            inline
+Name:            NoDefinition
+DebugLoc:        { File: 'libglimmer/writestats.c', Line: 112, Column: 16 }
+Function:        gf_writestats_
+Args:
+  - Callee:          lseek
+    DebugLoc:        { File: '/usr/include/unistd.h', Line: 0, Column: 0 }
+  - String:          ' will not be inlined into '
+  - Caller:          gf_writestats_
+    DebugLoc:        { File: 'libglimmer/writestats.c', Line: 51, Column: 0 }
+  - String:          ' because its definition is unavailable'
+...
+--- !Missed
+Pass:            inline
+Name:            NoDefinition
+DebugLoc:        { File: 'libglimmer/writestats.c', Line: 116, Column: 24 }
+Function:        gf_writestats_
+Args:
+  - Callee:          strlen
+  - String:          ' will not be inlined into '
+  - Caller:          gf_writestats_
+    DebugLoc:        { File: 'libglimmer/writestats.c', Line: 51, Column: 0 }
+  - String:          ' because its definition is unavailable'
+...
+--- !Missed
+Pass:            inline
+Name:            NoDefinition
+DebugLoc:        { File: 'libglimmer/writestats.c', Line: 116, Column: 5 }
+Function:        gf_writestats_
+Args:
+  - Callee:          write
+    DebugLoc:        { File: '/usr/include/unistd.h', Line: 0, Column: 0 }
+  - String:          ' will not be inlined into '
+  - Caller:          gf_writestats_
+    DebugLoc:        { File: 'libglimmer/writestats.c', Line: 51, Column: 0 }
+  - String:          ' because its definition is unavailable'
+...
+--- !Missed
+Pass:            inline
+Name:            NoDefinition
+DebugLoc:        { File: 'libglimmer/writestats.c', Line: 117, Column: 22 }
+Function:        gf_writestats_
+Args:
+  - Callee:          strlen
+  - String:          ' will not be inlined into '
+  - Caller:          gf_writestats_
+    DebugLoc:        { File: 'libglimmer/writestats.c', Line: 51, Column: 0 }
+  - String:          ' because its definition is unavailable'
+...
+--- !Missed
+Pass:            inline
+Name:            NoDefinition
+DebugLoc:        { File: 'libglimmer/writestats.c', Line: 117, Column: 3 }
+Function:        gf_writestats_
+Args:
+  - Callee:          write
+    DebugLoc:        { File: '/usr/include/unistd.h', Line: 0, Column: 0 }
+  - String:          ' will not be inlined into '
+  - Caller:          gf_writestats_
+    DebugLoc:        { File: 'libglimmer/writestats.c', Line: 51, Column: 0 }
+  - String:          ' because its definition is unavailable'
+...
+--- !Missed
+Pass:            inline
+Name:            NoDefinition
+DebugLoc:        { File: 'libglimmer/writestats.c', Line: 121, Column: 7 }
+Function:        gf_writestats_
+Args:
+  - Callee:          fcntl
+    DebugLoc:        { File: '/usr/include/fcntl.h', Line: 0, Column: 0 }
+  - String:          ' will not be inlined into '
+  - Caller:          gf_writestats_
+    DebugLoc:        { File: 'libglimmer/writestats.c', Line: 51, Column: 0 }
+  - String:          ' because its definition is unavailable'
+...
+--- !Missed
+Pass:            inline
+Name:            NoDefinition
+DebugLoc:        { File: 'libglimmer/writestats.c', Line: 122, Column: 5 }
+Function:        gf_writestats_
+Args:
+  - Callee:          perror
+    DebugLoc:        { File: '/usr/include/stdio.h', Line: 0, Column: 0 }
+  - String:          ' will not be inlined into '
+  - Caller:          gf_writestats_
+    DebugLoc:        { File: 'libglimmer/writestats.c', Line: 51, Column: 0 }
+  - String:          ' because its definition is unavailable'
+...
+--- !Missed
+Pass:            inline
+Name:            NoDefinition
+DebugLoc:        { File: 'libglimmer/writestats.c', Line: 126, Column: 3 }
+Function:        gf_writestats_
+Args:
+  - Callee:          close
+    DebugLoc:        { File: '/usr/include/unistd.h', Line: 0, Column: 0 }
+  - String:          ' will not be inlined into '
+  - Caller:          gf_writestats_
+    DebugLoc:        { File: 'libglimmer/writestats.c', Line: 51, Column: 0 }
+  - String:          ' because its definition is unavailable'
+...
+--- !Passed
+Pass:            tailcallelim
+Name:            tailcall-readnone
+DebugLoc:        { File: 'libglimmer/writestats.c', Line: 70, Column: 10 }
+Function:        gf_writestats_
+Args:
+  - String:          'marked as tail call candidate (readnone)'
+...
+--- !Passed
+Pass:            licm
+Name:            InstSunk
+DebugLoc:        { File: 'libglimmer/writestats.c', Line: 70, Column: 10 }
+Function:        gf_writestats_
+Args:
+  - String:          'sinking '
+  - Inst:            getelementptr
+    DebugLoc:        { File: 'libglimmer/writestats.c', Line: 70, Column: 10 }
+...
+--- !Passed
+Pass:            licm
+Name:            InstSunk
+DebugLoc:        { File: 'libglimmer/writestats.c', Line: 70, Column: 10 }
+Function:        gf_writestats_
+Args:
+  - String:          'sinking '
+  - Inst:            zext
+    DebugLoc:        { File: 'libglimmer/writestats.c', Line: 70, Column: 10 }
+...
+--- !Passed
+Pass:            licm
+Name:            Hoisted
+DebugLoc:        { File: 'libglimmer/writestats.c', Line: 70, Column: 10 }
+Function:        gf_writestats_
+Args:
+  - String:          'hoisting '
+  - Inst:            call
+    DebugLoc:        { File: 'libglimmer/writestats.c', Line: 70, Column: 10 }
+...
+--- !Passed
+Pass:            licm
+Name:            Hoisted
+DebugLoc:        { File: 'libglimmer/writestats.c', Line: 70, Column: 10 }
+Function:        gf_writestats_
+Args:
+  - String:          'hoisting '
+  - Inst:            load
+    DebugLoc:        { File: 'libglimmer/writestats.c', Line: 70, Column: 10 }
+...
+--- !Missed
+Pass:            gvn
+Name:            LoadClobbered
+DebugLoc:        { File: 'libglimmer/writestats.c', Line: 70, Column: 10 }
+Function:        gf_writestats_
+Args:
+  - String:          'load of type '
+  - Type:            ''
+  - String:          ' not eliminated'
+  - String:          ' because it is clobbered by '
+  - ClobberedBy:     call
+    DebugLoc:        { File: 'libglimmer/writestats.c', Line: 68, Column: 3 }
+...
+--- !Missed
+Pass:            gvn
+Name:            LoadClobbered
+DebugLoc:        { File: 'libglimmer/writestats.c', Line: 70, Column: 10 }
+Function:        gf_writestats_
+Args:
+  - String:          'load of type '
+  - Type:            ''
+  - String:          ' not eliminated'
+  - String:          ' because it is clobbered by '
+  - ClobberedBy:     call
+    DebugLoc:        { File: 'libglimmer/writestats.c', Line: 68, Column: 3 }
+...
+--- !Missed
+Pass:            gvn
+Name:            LoadClobbered
+DebugLoc:        { File: 'libglimmer/writestats.c', Line: 75, Column: 32 }
+Function:        gf_writestats_
+Args:
+  - String:          'load of type '
+  - Type:            ''
+  - String:          ' not eliminated'
+  - String:          ' because it is clobbered by '
+  - ClobberedBy:     call
+    DebugLoc:        { File: 'libglimmer/writestats.c', Line: 74, Column: 10 }
+...
+--- !Missed
+Pass:            gvn
+Name:            LoadClobbered
+DebugLoc:        { File: 'libglimmer/writestats.c', Line: 76, Column: 31 }
+Function:        gf_writestats_
+Args:
+  - String:          'load of type '
+  - Type:            ''
+  - String:          ' not eliminated'
+  - String:          ' because it is clobbered by '
+  - ClobberedBy:     call
+    DebugLoc:        { File: 'libglimmer/writestats.c', Line: 74, Column: 10 }
+...
+--- !Missed
+Pass:            gvn
+Name:            LoadClobbered
+DebugLoc:        { File: 'libglimmer/writestats.c', Line: 81, Column: 62 }
+Function:        gf_writestats_
+Args:
+  - String:          'load of type '
+  - Type:            ''
+  - String:          ' not eliminated'
+  - String:          ' because it is clobbered by '
+  - ClobberedBy:     call
+    DebugLoc:        { File: 'libglimmer/writestats.c', Line: 80, Column: 17 }
+...
+--- !Missed
+Pass:            gvn
+Name:            LoadClobbered
+DebugLoc:        { File: 'libglimmer/writestats.c', Line: 81, Column: 89 }
+Function:        gf_writestats_
+Args:
+  - String:          'load of type '
+  - Type:            ''
+  - String:          ' not eliminated'
+  - String:          ' because it is clobbered by '
+  - ClobberedBy:     call
+    DebugLoc:        { File: 'libglimmer/writestats.c', Line: 80, Column: 17 }
+...
+--- !Missed
+Pass:            gvn
+Name:            LoadClobbered
+DebugLoc:        { File: 'libglimmer/writestats.c', Line: 81, Column: 112 }
+Function:        gf_writestats_
+Args:
+  - String:          'load of type '
+  - Type:            ''
+  - String:          ' not eliminated'
+  - String:          ' because it is clobbered by '
+  - ClobberedBy:     call
+    DebugLoc:        { File: 'libglimmer/writestats.c', Line: 80, Column: 17 }
+...
+--- !Missed
+Pass:            gvn
+Name:            LoadClobbered
+DebugLoc:        { File: 'libglimmer/writestats.c', Line: 81, Column: 134 }
+Function:        gf_writestats_
+Args:
+  - String:          'load of type '
+  - Type:            ''
+  - String:          ' not eliminated'
+  - String:          ' because it is clobbered by '
+  - ClobberedBy:     call
+    DebugLoc:        { File: 'libglimmer/writestats.c', Line: 80, Column: 17 }
+...
+--- !Missed
+Pass:            gvn
+Name:            LoadClobbered
+DebugLoc:        { File: 'libglimmer/writestats.c', Line: 81, Column: 156 }
+Function:        gf_writestats_
+Args:
+  - String:          'load of type '
+  - Type:            ''
+  - String:          ' not eliminated'
+  - String:          ' because it is clobbered by '
+  - ClobberedBy:     call
+    DebugLoc:        { File: 'libglimmer/writestats.c', Line: 80, Column: 17 }
+...
+--- !Missed
+Pass:            gvn
+Name:            LoadClobbered
+DebugLoc:        { File: 'libglimmer/writestats.c', Line: 70, Column: 10 }
+Function:        gf_writestats_
+Args:
+  - String:          'load of type '
+  - Type:            ''
+  - String:          ' not eliminated'
+  - String:          ' because it is clobbered by '
+  - ClobberedBy:     call
+    DebugLoc:        { File: 'libglimmer/writestats.c', Line: 68, Column: 3 }
+...
+--- !Missed
+Pass:            gvn
+Name:            LoadClobbered
+DebugLoc:        { File: 'libglimmer/writestats.c', Line: 70, Column: 10 }
+Function:        gf_writestats_
+Args:
+  - String:          'load of type '
+  - Type:            ''
+  - String:          ' not eliminated'
+  - String:          ' because it is clobbered by '
+  - ClobberedBy:     call
+    DebugLoc:        { File: 'libglimmer/writestats.c', Line: 68, Column: 3 }
+...
+--- !Missed
+Pass:            gvn
+Name:            LoadClobbered
+DebugLoc:        { File: 'libglimmer/writestats.c', Line: 75, Column: 32 }
+Function:        gf_writestats_
+Args:
+  - String:          'load of type '
+  - Type:            ''
+  - String:          ' not eliminated'
+  - String:          ' because it is clobbered by '
+  - ClobberedBy:     call
+    DebugLoc:        { File: 'libglimmer/writestats.c', Line: 74, Column: 10 }
+...
+--- !Missed
+Pass:            gvn
+Name:            LoadClobbered
+DebugLoc:        { File: 'libglimmer/writestats.c', Line: 76, Column: 31 }
+Function:        gf_writestats_
+Args:
+  - String:          'load of type '
+  - Type:            ''
+  - String:          ' not eliminated'
+  - String:          ' because it is clobbered by '
+  - ClobberedBy:     call
+    DebugLoc:        { File: 'libglimmer/writestats.c', Line: 74, Column: 10 }
+...
+--- !Missed
+Pass:            gvn
+Name:            LoadClobbered
+DebugLoc:        { File: 'libglimmer/writestats.c', Line: 81, Column: 62 }
+Function:        gf_writestats_
+Args:
+  - String:          'load of type '
+  - Type:            ''
+  - String:          ' not eliminated'
+  - String:          ' because it is clobbered by '
+  - ClobberedBy:     call
+    DebugLoc:        { File: 'libglimmer/writestats.c', Line: 80, Column: 17 }
+...
+--- !Missed
+Pass:            gvn
+Name:            LoadClobbered
+DebugLoc:        { File: 'libglimmer/writestats.c', Line: 81, Column: 89 }
+Function:        gf_writestats_
+Args:
+  - String:          'load of type '
+  - Type:            ''
+  - String:          ' not eliminated'
+  - String:          ' because it is clobbered by '
+  - ClobberedBy:     call
+    DebugLoc:        { File: 'libglimmer/writestats.c', Line: 80, Column: 17 }
+...
+--- !Missed
+Pass:            gvn
+Name:            LoadClobbered
+DebugLoc:        { File: 'libglimmer/writestats.c', Line: 81, Column: 112 }
+Function:        gf_writestats_
+Args:
+  - String:          'load of type '
+  - Type:            ''
+  - String:          ' not eliminated'
+  - String:          ' because it is clobbered by '
+  - ClobberedBy:     call
+    DebugLoc:        { File: 'libglimmer/writestats.c', Line: 80, Column: 17 }
+...
+--- !Missed
+Pass:            gvn
+Name:            LoadClobbered
+DebugLoc:        { File: 'libglimmer/writestats.c', Line: 81, Column: 134 }
+Function:        gf_writestats_
+Args:
+  - String:          'load of type '
+  - Type:            ''
+  - String:          ' not eliminated'
+  - String:          ' because it is clobbered by '
+  - ClobberedBy:     call
+    DebugLoc:        { File: 'libglimmer/writestats.c', Line: 80, Column: 17 }
+...
+--- !Missed
+Pass:            gvn
+Name:            LoadClobbered
+DebugLoc:        { File: 'libglimmer/writestats.c', Line: 81, Column: 156 }
+Function:        gf_writestats_
+Args:
+  - String:          'load of type '
+  - Type:            ''
+  - String:          ' not eliminated'
+  - String:          ' because it is clobbered by '
+  - ClobberedBy:     call
+    DebugLoc:        { File: 'libglimmer/writestats.c', Line: 80, Column: 17 }
+...
+--- !Missed
+Pass:            gvn
+Name:            LoadClobbered
+DebugLoc:        { File: 'libglimmer/writestats.c', Line: 70, Column: 10 }
+Function:        gf_writestats_
+Args:
+  - String:          'load of type '
+  - Type:            ''
+  - String:          ' not eliminated'
+  - String:          ' because it is clobbered by '
+  - ClobberedBy:     call
+    DebugLoc:        { File: 'libglimmer/writestats.c', Line: 68, Column: 3 }
+...
+--- !Missed
+Pass:            gvn
+Name:            LoadClobbered
+DebugLoc:        { File: 'libglimmer/writestats.c', Line: 70, Column: 10 }
+Function:        gf_writestats_
+Args:
+  - String:          'load of type '
+  - Type:            ''
+  - String:          ' not eliminated'
+  - String:          ' because it is clobbered by '
+  - ClobberedBy:     call
+    DebugLoc:        { File: 'libglimmer/writestats.c', Line: 68, Column: 3 }
+...
+--- !Missed
+Pass:            gvn
+Name:            LoadClobbered
+DebugLoc:        { File: 'libglimmer/writestats.c', Line: 75, Column: 32 }
+Function:        gf_writestats_
+Args:
+  - String:          'load of type '
+  - Type:            ''
+  - String:          ' not eliminated'
+  - String:          ' because it is clobbered by '
+  - ClobberedBy:     call
+    DebugLoc:        { File: 'libglimmer/writestats.c', Line: 74, Column: 10 }
+...
+--- !Missed
+Pass:            gvn
+Name:            LoadClobbered
+DebugLoc:        { File: 'libglimmer/writestats.c', Line: 76, Column: 31 }
+Function:        gf_writestats_
+Args:
+  - String:          'load of type '
+  - Type:            ''
+  - String:          ' not eliminated'
+  - String:          ' because it is clobbered by '
+  - ClobberedBy:     call
+    DebugLoc:        { File: 'libglimmer/writestats.c', Line: 74, Column: 10 }
+...
+--- !Missed
+Pass:            gvn
+Name:            LoadClobbered
+DebugLoc:        { File: 'libglimmer/writestats.c', Line: 81, Column: 62 }
+Function:        gf_writestats_
+Args:
+  - String:          'load of type '
+  - Type:            ''
+  - String:          ' not eliminated'
+  - String:          ' because it is clobbered by '
+  - ClobberedBy:     call
+    DebugLoc:        { File: 'libglimmer/writestats.c', Line: 80, Column: 17 }
+...
+--- !Missed
+Pass:            gvn
+Name:            LoadClobbered
+DebugLoc:        { File: 'libglimmer/writestats.c', Line: 81, Column: 89 }
+Function:        gf_writestats_
+Args:
+  - String:          'load of type '
+  - Type:            ''
+  - String:          ' not eliminated'
+  - String:          ' because it is clobbered by '
+  - ClobberedBy:     call
+    DebugLoc:        { File: 'libglimmer/writestats.c', Line: 80, Column: 17 }
+...
+--- !Missed
+Pass:            gvn
+Name:            LoadClobbered
+DebugLoc:        { File: 'libglimmer/writestats.c', Line: 81, Column: 112 }
+Function:        gf_writestats_
+Args:
+  - String:          'load of type '
+  - Type:            ''
+  - String:          ' not eliminated'
+  - String:          ' because it is clobbered by '
+  - ClobberedBy:     call
+    DebugLoc:        { File: 'libglimmer/writestats.c', Line: 80, Column: 17 }
+...
+--- !Missed
+Pass:            gvn
+Name:            LoadClobbered
+DebugLoc:        { File: 'libglimmer/writestats.c', Line: 81, Column: 134 }
+Function:        gf_writestats_
+Args:
+  - String:          'load of type '
+  - Type:            ''
+  - String:          ' not eliminated'
+  - String:          ' because it is clobbered by '
+  - ClobberedBy:     call
+    DebugLoc:        { File: 'libglimmer/writestats.c', Line: 80, Column: 17 }
+...
+--- !Missed
+Pass:            gvn
+Name:            LoadClobbered
+DebugLoc:        { File: 'libglimmer/writestats.c', Line: 81, Column: 156 }
+Function:        gf_writestats_
+Args:
+  - String:          'load of type '
+  - Type:            ''
+  - String:          ' not eliminated'
+  - String:          ' because it is clobbered by '
+  - ClobberedBy:     call
+    DebugLoc:        { File: 'libglimmer/writestats.c', Line: 80, Column: 17 }
+...
+--- !Missed
+Pass:            gvn
+Name:            LoadClobbered
+DebugLoc:        { File: 'libglimmer/writestats.c', Line: 70, Column: 10 }
+Function:        gf_writestats_
+Args:
+  - String:          'load of type '
+  - Type:            ''
+  - String:          ' not eliminated'
+  - String:          ' because it is clobbered by '
+  - ClobberedBy:     call
+    DebugLoc:        { File: 'libglimmer/writestats.c', Line: 68, Column: 3 }
+...
+--- !Missed
+Pass:            gvn
+Name:            LoadClobbered
+DebugLoc:        { File: 'libglimmer/writestats.c', Line: 70, Column: 10 }
+Function:        gf_writestats_
+Args:
+  - String:          'load of type '
+  - Type:            ''
+  - String:          ' not eliminated'
+  - String:          ' because it is clobbered by '
+  - ClobberedBy:     call
+    DebugLoc:        { File: 'libglimmer/writestats.c', Line: 68, Column: 3 }
+...
+--- !Missed
+Pass:            gvn
+Name:            LoadClobbered
+DebugLoc:        { File: 'libglimmer/writestats.c', Line: 75, Column: 32 }
+Function:        gf_writestats_
+Args:
+  - String:          'load of type '
+  - Type:            ''
+  - String:          ' not eliminated'
+  - String:          ' because it is clobbered by '
+  - ClobberedBy:     call
+    DebugLoc:        { File: 'libglimmer/writestats.c', Line: 74, Column: 10 }
+...
+--- !Missed
+Pass:            gvn
+Name:            LoadClobbered
+DebugLoc:        { File: 'libglimmer/writestats.c', Line: 76, Column: 31 }
+Function:        gf_writestats_
+Args:
+  - String:          'load of type '
+  - Type:            ''
+  - String:          ' not eliminated'
+  - String:          ' because it is clobbered by '
+  - ClobberedBy:     call
+    DebugLoc:        { File: 'libglimmer/writestats.c', Line: 74, Column: 10 }
+...
+--- !Missed
+Pass:            gvn
+Name:            LoadClobbered
+DebugLoc:        { File: 'libglimmer/writestats.c', Line: 81, Column: 62 }
+Function:        gf_writestats_
+Args:
+  - String:          'load of type '
+  - Type:            ''
+  - String:          ' not eliminated'
+  - String:          ' because it is clobbered by '
+  - ClobberedBy:     call
+    DebugLoc:        { File: 'libglimmer/writestats.c', Line: 80, Column: 17 }
+...
+--- !Missed
+Pass:            gvn
+Name:            LoadClobbered
+DebugLoc:        { File: 'libglimmer/writestats.c', Line: 81, Column: 89 }
+Function:        gf_writestats_
+Args:
+  - String:          'load of type '
+  - Type:            ''
+  - String:          ' not eliminated'
+  - String:          ' because it is clobbered by '
+  - ClobberedBy:     call
+    DebugLoc:        { File: 'libglimmer/writestats.c', Line: 80, Column: 17 }
+...
+--- !Missed
+Pass:            gvn
+Name:            LoadClobbered
+DebugLoc:        { File: 'libglimmer/writestats.c', Line: 81, Column: 112 }
+Function:        gf_writestats_
+Args:
+  - String:          'load of type '
+  - Type:            ''
+  - String:          ' not eliminated'
+  - String:          ' because it is clobbered by '
+  - ClobberedBy:     call
+    DebugLoc:        { File: 'libglimmer/writestats.c', Line: 80, Column: 17 }
+...
+--- !Missed
+Pass:            gvn
+Name:            LoadClobbered
+DebugLoc:        { File: 'libglimmer/writestats.c', Line: 81, Column: 134 }
+Function:        gf_writestats_
+Args:
+  - String:          'load of type '
+  - Type:            ''
+  - String:          ' not eliminated'
+  - String:          ' because it is clobbered by '
+  - ClobberedBy:     call
+    DebugLoc:        { File: 'libglimmer/writestats.c', Line: 80, Column: 17 }
+...
+--- !Missed
+Pass:            gvn
+Name:            LoadClobbered
+DebugLoc:        { File: 'libglimmer/writestats.c', Line: 81, Column: 156 }
+Function:        gf_writestats_
+Args:
+  - String:          'load of type '
+  - Type:            ''
+  - String:          ' not eliminated'
+  - String:          ' because it is clobbered by '
+  - ClobberedBy:     call
+    DebugLoc:        { File: 'libglimmer/writestats.c', Line: 80, Column: 17 }
+...
+--- !Missed
+Pass:            slp-vectorizer
+Name:            NotBeneficial
+DebugLoc:        { File: 'libglimmer/writestats.c', Line: 103, Column: 44 }
+Function:        gf_writestats_
+Args:
+  - String:          'List vectorization was possible but not beneficial with cost '
+  - Cost:            '0'
+  - String:          ' >= '
+  - Treshold:        '0'
+...
+--- !Passed
+Pass:            TTI
+Name:            DontUnroll
+DebugLoc:        { File: 'libglimmer/writestats.c', Line: 103, Column: 3 }
+Function:        gf_writestats_
+Args:
+  - String:          'advising against unrolling the loop because it contains a '
+  - Call:            call
+    DebugLoc:        { File: 'libglimmer/writestats.c', Line: 103, Column: 20 }
+...
+--- !Passed
+Pass:            licm
+Name:            InstSunk
+DebugLoc:        { File: 'libglimmer/writestats.c', Line: 70, Column: 10 }
+Function:        gf_writestats_
+Args:
+  - String:          'sinking '
+  - Inst:            getelementptr
+    DebugLoc:        { File: 'libglimmer/writestats.c', Line: 70, Column: 10 }
+...
+--- !Missed
+Pass:            regalloc
+Name:            LoopSpillReloadCopies
+DebugLoc:        { File: 'libglimmer/writestats.c', Line: 103, Column: 3 }
+Function:        gf_writestats_
+Args:
+  - NumVRCopies:     '3'
+  - String:          ' virtual registers copies '
+  - TotalCopiesCost: '9.018954e+01'
+  - String:          ' total copies cost '
+  - String:          generated in loop
+...
+--- !Missed
+Pass:            regalloc
+Name:            LoopSpillReloadCopies
+DebugLoc:        { File: 'libglimmer/writestats.c', Line: 70, Column: 3 }
+Function:        gf_writestats_
+Args:
+  - NumVRCopies:     '1'
+  - String:          ' virtual registers copies '
+  - TotalCopiesCost: '3.160784e+01'
+  - String:          ' total copies cost '
+  - String:          generated in loop
+...
+--- !Missed
+Pass:            regalloc
+Name:            SpillReloadCopies
+DebugLoc:        { File: 'libglimmer/writestats.c', Line: 50, Column: 1 }
+Function:        gf_writestats_
+Args:
+  - NumSpills:       '4'
+  - String:          ' spills '
+  - TotalSpillsCost: '4.000000e+00'
+  - String:          ' total spills cost '
+  - NumReloads:      '4'
+  - String:          ' reloads '
+  - TotalReloadsCost: '4.000000e+00'
+  - String:          ' total reloads cost '
+  - NumVRCopies:     '20'
+  - String:          ' virtual registers copies '
+  - TotalCopiesCost: '1.333529e+02'
+  - String:          ' total copies cost '
+  - String:          generated in function
+...
+--- !Analysis
+Pass:            prologepilog
+Name:            StackSize
+DebugLoc:        { File: 'libglimmer/writestats.c', Line: 51, Column: 0 }
+Function:        gf_writestats_
+Args:
+  - NumStackBytes:   '1416'
+  - String:          ' stack bytes in function'
+...
+--- !Analysis
+Pass:            asm-printer
+Name:            InstructionMix
+Function:        gf_writestats_
+Args:
+  - String:          'BasicBlock: '
+  - BasicBlock:      ''
+  - String:          "\n"
+  - String:          ''
+  - String:          ': '
+  - INST_:           '17'
+  - String:          "\n"
+...
+--- !Analysis
+Pass:            asm-printer
+Name:            InstructionMix
+DebugLoc:        { File: 'libglimmer/writestats.c', Line: 70, Column: 10 }
+Function:        gf_writestats_
+Args:
+  - String:          'BasicBlock: '
+  - BasicBlock:      ''
+  - String:          "\n"
+  - String:          ''
+  - String:          ': '
+  - INST_:           '4'
+  - String:          "\n"
+...
+--- !Analysis
+Pass:            asm-printer
+Name:            InstructionMix
+DebugLoc:        { File: 'libglimmer/writestats.c', Line: 70, Column: 3 }
+Function:        gf_writestats_
+Args:
+  - String:          'BasicBlock: '
+  - BasicBlock:      ''
+  - String:          "\n"
+  - String:          ''
+  - String:          ': '
+  - INST_:           '3'
+  - String:          "\n"
+...
+--- !Analysis
+Pass:            asm-printer
+Name:            InstructionMix
+DebugLoc:        { File: 'libglimmer/writestats.c', Line: 71, Column: 15 }
+Function:        gf_writestats_
+Args:
+  - String:          'BasicBlock: '
+  - BasicBlock:      ''
+  - String:          "\n"
+  - String:          ''
+  - String:          ': '
+  - INST_:           '41'
+  - String:          "\n"
+...
+--- !Analysis
+Pass:            asm-printer
+Name:            InstructionMix
+DebugLoc:        { File: 'libglimmer/writestats.c', Line: 85, Column: 26 }
+Function:        gf_writestats_
+Args:
+  - String:          'BasicBlock: '
+  - BasicBlock:      ''
+  - String:          "\n"
+  - String:          ''
+  - String:          ': '
+  - INST_:           '2'
+  - String:          "\n"
+...
+--- !Analysis
+Pass:            asm-printer
+Name:            InstructionMix
+DebugLoc:        { File: 'libglimmer/writestats.c', Line: 91, Column: 5 }
+Function:        gf_writestats_
+Args:
+  - String:          'BasicBlock: '
+  - BasicBlock:      ''
+  - String:          "\n"
+  - String:          ''
+  - String:          ': '
+  - INST_:           '41'
+  - String:          "\n"
+...
+--- !Analysis
+Pass:            asm-printer
+Name:            InstructionMix
+DebugLoc:        { File: 'libglimmer/writestats.c', Line: 95, Column: 13 }
+Function:        gf_writestats_
+Args:
+  - String:          'BasicBlock: '
+  - BasicBlock:      ''
+  - String:          "\n"
+  - String:          ''
+  - String:          ': '
+  - INST_:           '3'
+  - String:          "\n"
+...
+--- !Analysis
+Pass:            asm-printer
+Name:            InstructionMix
+DebugLoc:        { File: 'libglimmer/writestats.c', Line: 103, Column: 20 }
+Function:        gf_writestats_
+Args:
+  - String:          'BasicBlock: '
+  - BasicBlock:      ''
+  - String:          "\n"
+  - String:          ''
+  - String:          ': '
+  - INST_:           '7'
+  - String:          "\n"
+...
+--- !Analysis
+Pass:            asm-printer
+Name:            InstructionMix
+DebugLoc:        { File: 'libglimmer/writestats.c', Line: 103, Column: 64 }
+Function:        gf_writestats_
+Args:
+  - String:          'BasicBlock: '
+  - BasicBlock:      ''
+  - String:          "\n"
+  - String:          ''
+  - String:          ': '
+  - INST_:           '4'
+  - String:          "\n"
+...
+--- !Analysis
+Pass:            asm-printer
+Name:            InstructionMix
+DebugLoc:        { File: 'libglimmer/writestats.c', Line: 103, Column: 44 }
+Function:        gf_writestats_
+Args:
+  - String:          'BasicBlock: '
+  - BasicBlock:      ''
+  - String:          "\n"
+  - String:          ''
+  - String:          ': '
+  - INST_:           '2'
+  - String:          "\n"
+...
+--- !Analysis
+Pass:            asm-printer
+Name:            InstructionMix
+DebugLoc:        { File: 'libglimmer/writestats.c', Line: 112, Column: 16 }
+Function:        gf_writestats_
+Args:
+  - String:          'BasicBlock: '
+  - BasicBlock:      ''
+  - String:          "\n"
+  - String:          ''
+  - String:          ': '
+  - INST_:           '6'
+  - String:          "\n"
+...
+--- !Analysis
+Pass:            asm-printer
+Name:            InstructionMix
+Function:        gf_writestats_
+Args:
+  - String:          'BasicBlock: '
+  - BasicBlock:      ''
+  - String:          "\n"
+  - String:          ''
+  - String:          ': '
+  - INST_:           '7'
+  - String:          "\n"
+...
+--- !Analysis
+Pass:            asm-printer
+Name:            InstructionMix
+Function:        gf_writestats_
+Args:
+  - String:          'BasicBlock: '
+  - BasicBlock:      ''
+  - String:          "\n"
+  - String:          ''
+  - String:          ': '
+  - INST_:           '15'
+  - String:          "\n"
+...
+--- !Analysis
+Pass:            asm-printer
+Name:            InstructionMix
+DebugLoc:        { File: 'libglimmer/writestats.c', Line: 126, Column: 3 }
+Function:        gf_writestats_
+Args:
+  - String:          'BasicBlock: '
+  - BasicBlock:      ''
+  - String:          "\n"
+  - String:          ''
+  - String:          ': '
+  - INST_:           '2'
+  - String:          "\n"
+...
+--- !Analysis
+Pass:            asm-printer
+Name:            InstructionMix
+DebugLoc:        { File: 'libglimmer/writestats.c', Line: 129, Column: 1 }
+Function:        gf_writestats_
+Args:
+  - String:          'BasicBlock: '
+  - BasicBlock:      ''
+  - String:          "\n"
+  - String:          ''
+  - String:          ': '
+  - INST_:           '5'
+  - String:          "\n"
+...
+--- !Analysis
+Pass:            asm-printer
+Name:            InstructionMix
+DebugLoc:        { File: 'libglimmer/writestats.c', Line: 96, Column: 5 }
+Function:        gf_writestats_
+Args:
+  - String:          'BasicBlock: '
+  - BasicBlock:      ''
+  - String:          "\n"
+  - String:          ''
+  - String:          ': '
+  - INST_:           '2'
+  - String:          "\n"
+...
+--- !Analysis
+Pass:            asm-printer
+Name:            InstructionMix
+DebugLoc:        { File: 'libglimmer/writestats.c', Line: 105, Column: 5 }
+Function:        gf_writestats_
+Args:
+  - String:          'BasicBlock: '
+  - BasicBlock:      ''
+  - String:          "\n"
+  - String:          ''
+  - String:          ': '
+  - INST_:           '3'
+  - String:          "\n"
+...
+--- !Analysis
+Pass:            asm-printer
+Name:            InstructionMix
+DebugLoc:        { File: 'libglimmer/writestats.c', Line: 0, Column: 0 }
+Function:        gf_writestats_
+Args:
+  - String:          'BasicBlock: '
+  - BasicBlock:      ''
+  - String:          "\n"
+  - String:          ''
+  - String:          ': '
+  - INST_:           '4'
+  - String:          "\n"
+...
+--- !Analysis
+Pass:            asm-printer
+Name:            InstructionMix
+DebugLoc:        { File: 'libglimmer/writestats.c', Line: 122, Column: 5 }
+Function:        gf_writestats_
+Args:
+  - String:          'BasicBlock: '
+  - BasicBlock:      ''
+  - String:          "\n"
+  - String:          ''
+  - String:          ': '
+  - INST_:           '3'
+  - String:          "\n"
+...
+--- !Analysis
+Pass:            asm-printer
+Name:            InstructionCount
+DebugLoc:        { File: 'libglimmer/writestats.c', Line: 51, Column: 0 }
+Function:        gf_writestats_
+Args:
+  - NumInstructions: '171'
+  - String:          ' instructions in function'
+...

@@ -1,0 +1,1600 @@
+Intel(R) Advisor can now assist with vectorization and show optimization
+  report messages with your source code.
+See "https://software.intel.com/en-us/intel-advisor-xe" for details.
+
+
+    Report from: Interprocedural optimizations [ipo]
+
+INLINING OPTION VALUES:
+  -inline-factor: 100
+  -inline-min-size: 30
+  -inline-max-size: 230
+  -inline-max-total-size: 2000
+  -inline-max-per-routine: 10000
+  -inline-max-per-compile: 500000
+
+
+Begin optimization report for: glimmer_config._
+
+    Report from: Interprocedural optimizations [ipo]
+
+INLINE REPORT: (glimmer_config._) [1] /glade/u/home/tvda/CISM/libglimmer/glimmer_config.F90(50,8)
+
+
+    Report from: Code generation optimizations [cg]
+
+/glade/u/home/tvda/CISM/libglimmer/glimmer_config.F90(50,8):remark #34051: REGISTER ALLOCATION : [glimmer_config._] /glade/u/home/tvda/CISM/libglimmer/glimmer_config.F90:50
+
+    Hardware registers
+        Reserved     :    2[ rsp rip]
+        Available    :   39[ rax rdx rcx rbx rbp rsi rdi r8-r15 mm0-mm7 zmm0-zmm15]
+        Callee-save  :    6[ rbx rbp r12-r15]
+        Assigned     :    0[ reg_null]
+        
+    Routine temporaries
+        Total         :       6
+            Global    :       0
+            Local     :       6
+        Regenerable   :       0
+        Spilled       :       0
+        
+    Routine stack
+        Variables     :       0 bytes*
+            Reads     :       0 [0.00e+00 ~ 0.0%]
+            Writes    :       0 [0.00e+00 ~ 0.0%]
+        Spills        :       0 bytes*
+            Reads     :       0 [0.00e+00 ~ 0.0%]
+            Writes    :       0 [0.00e+00 ~ 0.0%]
+    
+    Notes
+    
+        *Non-overlapping variables and spills may share stack space,
+         so the total stack size might be less than this.
+    
+
+===========================================================================
+
+Begin optimization report for: GLIMMER_CONFIG::CONFIGREAD
+
+    Report from: Interprocedural optimizations [ipo]
+
+INLINE REPORT: (GLIMMER_CONFIG::CONFIGREAD) [2] /glade/u/home/tvda/CISM/libglimmer/glimmer_config.F90(104,14)
+  -> INLINE: (151,19) GLIMMER_CONFIG::HANDLE_SECTION
+    -> INLINE: (878,10) GLIMMER_CONFIG::INSERTSECTION
+  -> INLINE: (164,19) GLIMMER_CONFIG::HANDLE_VALUE
+    -> INLINE: (902,10) GLIMMER_CONFIG::INSERTVALUE
+
+
+    Report from: Loop nest, Vector & Auto-parallelization optimizations [loop, vec, par]
+
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglimmer/glimmer_config.F90(868,5) inlined into /glade/u/home/tvda/CISM/libglimmer/glimmer_config.F90(179,19)
+   remark #15300: LOOP WAS VECTORIZED
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglimmer/glimmer_config.F90(868,5) inlined into /glade/u/home/tvda/CISM/libglimmer/glimmer_config.F90(179,19)
+<Remainder loop for vectorization>
+LOOP END
+
+
+Non-optimizable loops:
+
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglimmer/glimmer_config.F90(139,5)
+   remark #15532: loop was not vectorized: compile time constraints prevent loop optimization. Consider using -O3.
+
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglimmer/glimmer_config.F90(893,29) inlined into /glade/u/home/tvda/CISM/libglimmer/glimmer_config.F90(192,19)
+      remark #15523: loop was not vectorized: loop control variable i was found, but loop iteration count cannot be computed before executing the loop
+   LOOP END
+LOOP END
+
+    Report from: Code generation optimizations [cg]
+
+/glade/u/home/tvda/CISM/libglimmer/glimmer_config.F90(143,8):remark #34026: call to memmove implemented as a call to optimized library version
+/glade/u/home/tvda/CISM/libglimmer/glimmer_config.F90(934,5):remark #34000: call to memcpy implemented inline with loads and stores with proven source (alignment, offset): (32, 0), and destination (alignment, offset): (1, 0)
+/glade/u/home/tvda/CISM/libglimmer/glimmer_config.F90(913,5):remark #34000: call to memcpy implemented inline with loads and stores with proven source (alignment, offset): (32, 0), and destination (alignment, offset): (1, 0)
+/glade/u/home/tvda/CISM/libglimmer/glimmer_config.F90(104,14):remark #34051: REGISTER ALLOCATION : [glimmer_config_mp_configread_] /glade/u/home/tvda/CISM/libglimmer/glimmer_config.F90:104
+
+    Hardware registers
+        Reserved     :    2[ rsp rip]
+        Available    :   39[ rax rdx rcx rbx rbp rsi rdi r8-r15 mm0-mm7 zmm0-zmm15]
+        Callee-save  :    6[ rbx rbp r12-r15]
+        Assigned     :   16[ rax rdx rcx rbx rsi rdi r8-r9 r12-r15 zmm0-zmm3]
+        
+    Routine temporaries
+        Total         :     396
+            Global    :     107
+            Local     :     289
+        Regenerable   :     166
+        Spilled       :      28
+        
+    Routine stack
+        Variables     :     923 bytes*
+            Reads     :       6 [2.05e+00 ~ 2.0%]
+            Writes    :      43 [5.41e+00 ~ 5.4%]
+        Spills        :     176 bytes*
+            Reads     :      34 [1.93e+00 ~ 1.9%]
+            Writes    :      24 [3.81e+00 ~ 3.8%]
+    
+    Notes
+    
+        *Non-overlapping variables and spills may share stack space,
+         so the total stack size might be less than this.
+    
+
+===========================================================================
+
+Begin optimization report for: GLIMMER_CONFIG::PRINTCONFIG
+
+    Report from: Interprocedural optimizations [ipo]
+
+INLINE REPORT: (GLIMMER_CONFIG::PRINTCONFIG) [3] /glade/u/home/tvda/CISM/libglimmer/glimmer_config.F90(178,14)
+
+
+    Report from: Loop nest, Vector & Auto-parallelization optimizations [loop, vec, par]
+
+
+
+Non-optimizable loops:
+
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglimmer/glimmer_config.F90(194,8)
+   remark #15536: loop was not vectorized: inner loop throttling prevents vectorization of this outer loop. Refer to inner loop message for more details.   [ /glade/u/home/tvda/CISM/libglimmer/glimmer_config.F90(191,11) ]
+
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglimmer/glimmer_config.F90(191,11)
+      remark #15521: loop was not vectorized: loop control variable was not identified. Explicitly compute the iteration count before executing the loop or try using canonical loop form from OpenMP specification
+   LOOP END
+LOOP END
+
+    Report from: Code generation optimizations [cg]
+
+/glade/u/home/tvda/CISM/libglimmer/glimmer_config.F90(178,14):remark #34051: REGISTER ALLOCATION : [glimmer_config_mp_printconfig_] /glade/u/home/tvda/CISM/libglimmer/glimmer_config.F90:178
+
+    Hardware registers
+        Reserved     :    2[ rsp rip]
+        Available    :   39[ rax rdx rcx rbx rbp rsi rdi r8-r15 mm0-mm7 zmm0-zmm15]
+        Callee-save  :    6[ rbx rbp r12-r15]
+        Assigned     :   10[ rax rdx rcx rbx rsi rdi r8 r13-r15]
+        
+    Routine temporaries
+        Total         :      72
+            Global    :      17
+            Local     :      55
+        Regenerable   :      49
+        Spilled       :       4
+        
+    Routine stack
+        Variables     :     594 bytes*
+            Reads     :       0 [0.00e+00 ~ 0.0%]
+            Writes    :      12 [1.70e+01 ~ 17.0%]
+        Spills        :       0 bytes*
+            Reads     :       0 [0.00e+00 ~ 0.0%]
+            Writes    :       0 [0.00e+00 ~ 0.0%]
+    
+    Notes
+    
+        *Non-overlapping variables and spills may share stack space,
+         so the total stack size might be less than this.
+    
+
+===========================================================================
+
+Begin optimization report for: GLIMMER_CONFIG::CONFIGASSTRING
+
+    Report from: Interprocedural optimizations [ipo]
+
+INLINE REPORT: (GLIMMER_CONFIG::CONFIGASSTRING) [4] /glade/u/home/tvda/CISM/libglimmer/glimmer_config.F90(200,14)
+
+
+    Report from: Loop nest, Vector & Auto-parallelization optimizations [loop, vec, par]
+
+
+
+Non-optimizable loops:
+
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglimmer/glimmer_config.F90(219,8)
+   remark #15536: loop was not vectorized: inner loop throttling prevents vectorization of this outer loop. Refer to inner loop message for more details.   [ /glade/u/home/tvda/CISM/libglimmer/glimmer_config.F90(217,11) ]
+
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglimmer/glimmer_config.F90(217,11)
+      remark #15521: loop was not vectorized: loop control variable was not identified. Explicitly compute the iteration count before executing the loop or try using canonical loop form from OpenMP specification
+   LOOP END
+LOOP END
+
+    Report from: Code generation optimizations [cg]
+
+/glade/u/home/tvda/CISM/libglimmer/glimmer_config.F90(200,14):remark #34051: REGISTER ALLOCATION : [glimmer_config_mp_configasstring_] /glade/u/home/tvda/CISM/libglimmer/glimmer_config.F90:200
+
+    Hardware registers
+        Reserved     :    2[ rsp rip]
+        Available    :   39[ rax rdx rcx rbx rbp rsi rdi r8-r15 mm0-mm7 zmm0-zmm15]
+        Callee-save  :    6[ rbx rbp r12-r15]
+        Assigned     :   11[ rax rdx rcx rbx rsi rdi r8 r12-r15]
+        
+    Routine temporaries
+        Total         :     102
+            Global    :      39
+            Local     :      63
+        Regenerable   :      34
+        Spilled       :       7
+        
+    Routine stack
+        Variables     :     662 bytes*
+            Reads     :       0 [0.00e+00 ~ 0.0%]
+            Writes    :      20 [1.71e+01 ~ 17.1%]
+        Spills        :      16 bytes*
+            Reads     :       5 [3.75e+00 ~ 3.8%]
+            Writes    :       2 [4.27e-01 ~ 0.4%]
+    
+    Notes
+    
+        *Non-overlapping variables and spills may share stack space,
+         so the total stack size might be less than this.
+    
+
+===========================================================================
+
+Begin optimization report for: GLIMMER_CONFIG::CONFIGSETVALUEDATA
+
+    Report from: Interprocedural optimizations [ipo]
+
+INLINE REPORT: (GLIMMER_CONFIG::CONFIGSETVALUEDATA) [5] /glade/u/home/tvda/CISM/libglimmer/glimmer_config.F90(226,14)
+  -> INLINE: (234,10) GLIMMER_CONFIG::CONFIGSETVALUESEC
+    -> INLINE: (264,22) GLIMMER_CONFIG::CONFIGSECTIONHASTAG
+      -> INLINE: (404,9) GLIMMER_CONFIG::CONFIGSECTIONHASVALUE
+
+
+    Report from: Loop nest, Vector & Auto-parallelization optimizations [loop, vec, par]
+
+
+
+Non-optimizable loops:
+
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglimmer/glimmer_config.F90(272,17) inlined into /glade/u/home/tvda/CISM/libglimmer/glimmer_config.F90(262,10)
+   remark #15532: loop was not vectorized: compile time constraints prevent loop optimization. Consider using -O3.
+
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglimmer/glimmer_config.F90(434,11) inlined into /glade/u/home/tvda/CISM/libglimmer/glimmer_config.F90(262,10)
+      remark #15521: loop was not vectorized: loop control variable was not identified. Explicitly compute the iteration count before executing the loop or try using canonical loop form from OpenMP specification
+   LOOP END
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglimmer/glimmer_config.F90(307,17) inlined into /glade/u/home/tvda/CISM/libglimmer/glimmer_config.F90(262,10)
+   remark #15521: loop was not vectorized: loop control variable was not identified. Explicitly compute the iteration count before executing the loop or try using canonical loop form from OpenMP specification
+LOOP END
+
+    Report from: Code generation optimizations [cg]
+
+/glade/u/home/tvda/CISM/libglimmer/glimmer_config.F90(309,17):remark #34000: call to memcpy implemented inline with loads and stores with proven source (alignment, offset): (32, 0), and destination (alignment, offset): (1, 0)
+/glade/u/home/tvda/CISM/libglimmer/glimmer_config.F90(295,8):remark #34000: call to memcpy implemented inline with loads and stores with proven source (alignment, offset): (32, 0), and destination (alignment, offset): (1, 0)
+/glade/u/home/tvda/CISM/libglimmer/glimmer_config.F90(274,17):remark #34000: call to memcpy implemented inline with loads and stores with proven source (alignment, offset): (32, 0), and destination (alignment, offset): (1, 0)
+/glade/u/home/tvda/CISM/libglimmer/glimmer_config.F90(279,20):remark #34000: call to memcpy implemented inline with loads and stores with proven source (alignment, offset): (32, 0), and destination (alignment, offset): (1, 0)
+/glade/u/home/tvda/CISM/libglimmer/glimmer_config.F90(258,34):remark #34000: call to memcpy implemented inline with loads and stores with proven source (alignment, offset): (32, 0), and destination (alignment, offset): (1, 0)
+/glade/u/home/tvda/CISM/libglimmer/glimmer_config.F90(226,14):remark #34051: REGISTER ALLOCATION : [glimmer_config_mp_configsetvaluedata_] /glade/u/home/tvda/CISM/libglimmer/glimmer_config.F90:226
+
+    Hardware registers
+        Reserved     :    2[ rsp rip]
+        Available    :   39[ rax rdx rcx rbx rbp rsi rdi r8-r15 mm0-mm7 zmm0-zmm15]
+        Callee-save  :    6[ rbx rbp r12-r15]
+        Assigned     :   18[ rax rdx rcx rbx rsi rdi r8-r15 zmm0-zmm3]
+        
+    Routine temporaries
+        Total         :     309
+            Global    :      90
+            Local     :     219
+        Regenerable   :      89
+        Spilled       :      22
+        
+    Routine stack
+        Variables     :     750 bytes*
+            Reads     :       0 [0.00e+00 ~ 0.0%]
+            Writes    :       0 [0.00e+00 ~ 0.0%]
+        Spills        :     136 bytes*
+            Reads     :      39 [4.63e+00 ~ 4.6%]
+            Writes    :      22 [3.38e+00 ~ 3.4%]
+    
+    Notes
+    
+        *Non-overlapping variables and spills may share stack space,
+         so the total stack size might be less than this.
+    
+
+===========================================================================
+
+Begin optimization report for: GLIMMER_CONFIG::CONFIGCOMBINEDATASEC
+
+    Report from: Interprocedural optimizations [ipo]
+
+INLINE REPORT: (GLIMMER_CONFIG::CONFIGCOMBINEDATASEC) [6] /glade/u/home/tvda/CISM/libglimmer/glimmer_config.F90(323,14)
+  -> INLINE: (328,10) GLIMMER_CONFIG::CONFIGCOMBINESEC
+    -> INLINE: (375,21) GLIMMER_CONFIG::CONFIGSECTIONHASVALUE
+    -> (376,25) GLIMMER_CONFIG::CONFIGSETVALUESEC
+    -> CP_CLONE (378,25) GLIMMER_CONFIG::CONFIGSETVALUESEC..0
+
+
+    Report from: Loop nest, Vector & Auto-parallelization optimizations [loop, vec, par]
+
+
+
+Non-optimizable loops:
+
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglimmer/glimmer_config.F90(385,11) inlined into /glade/u/home/tvda/CISM/libglimmer/glimmer_config.F90(356,10)
+   remark #15543: loop was not vectorized: loop with function call not considered an optimization candidate.
+
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglimmer/glimmer_config.F90(380,17) inlined into /glade/u/home/tvda/CISM/libglimmer/glimmer_config.F90(356,10)
+      remark #15543: loop was not vectorized: loop with function call not considered an optimization candidate.
+
+      LOOP BEGIN at /glade/u/home/tvda/CISM/libglimmer/glimmer_config.F90(434,11) inlined into /glade/u/home/tvda/CISM/libglimmer/glimmer_config.F90(356,10)
+         remark #15521: loop was not vectorized: loop control variable was not identified. Explicitly compute the iteration count before executing the loop or try using canonical loop form from OpenMP specification
+      LOOP END
+   LOOP END
+LOOP END
+
+    Report from: Code generation optimizations [cg]
+
+/glade/u/home/tvda/CISM/libglimmer/glimmer_config.F90(323,14):remark #34051: REGISTER ALLOCATION : [glimmer_config_mp_configcombinedatasec_] /glade/u/home/tvda/CISM/libglimmer/glimmer_config.F90:323
+
+    Hardware registers
+        Reserved     :    2[ rsp rip]
+        Available    :   39[ rax rdx rcx rbx rbp rsi rdi r8-r15 mm0-mm7 zmm0-zmm15]
+        Callee-save  :    6[ rbx rbp r12-r15]
+        Assigned     :   12[ rax rdx rcx rbx rsi rdi r8-r9 r12-r15]
+        
+    Routine temporaries
+        Total         :     139
+            Global    :      45
+            Local     :      94
+        Regenerable   :      62
+        Spilled       :      10
+        
+    Routine stack
+        Variables     :    1400 bytes*
+            Reads     :       0 [0.00e+00 ~ 0.0%]
+            Writes    :       0 [0.00e+00 ~ 0.0%]
+        Spills        :      40 bytes*
+            Reads     :       8 [2.11e+00 ~ 2.1%]
+            Writes    :       5 [2.36e+00 ~ 2.4%]
+    
+    Notes
+    
+        *Non-overlapping variables and spills may share stack space,
+         so the total stack size might be less than this.
+    
+
+===========================================================================
+
+Begin optimization report for: GLIMMER_CONFIG::CONFIGCOMBINESECDATA
+
+    Report from: Interprocedural optimizations [ipo]
+
+INLINE REPORT: (GLIMMER_CONFIG::CONFIGCOMBINESECDATA) [7] /glade/u/home/tvda/CISM/libglimmer/glimmer_config.F90(334,14)
+  -> INLINE: (339,10) GLIMMER_CONFIG::CONFIGCOMBINESEC
+    -> INLINE: (375,21) GLIMMER_CONFIG::CONFIGSECTIONHASVALUE
+    -> (376,25) GLIMMER_CONFIG::CONFIGSETVALUESEC
+    -> CP_CLONE (378,25) GLIMMER_CONFIG::CONFIGSETVALUESEC..0
+
+
+    Report from: Loop nest, Vector & Auto-parallelization optimizations [loop, vec, par]
+
+
+
+Non-optimizable loops:
+
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglimmer/glimmer_config.F90(385,11) inlined into /glade/u/home/tvda/CISM/libglimmer/glimmer_config.F90(367,10)
+   remark #15543: loop was not vectorized: loop with function call not considered an optimization candidate.
+
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglimmer/glimmer_config.F90(380,17) inlined into /glade/u/home/tvda/CISM/libglimmer/glimmer_config.F90(367,10)
+      remark #15543: loop was not vectorized: loop with function call not considered an optimization candidate.
+
+      LOOP BEGIN at /glade/u/home/tvda/CISM/libglimmer/glimmer_config.F90(434,11) inlined into /glade/u/home/tvda/CISM/libglimmer/glimmer_config.F90(367,10)
+         remark #15521: loop was not vectorized: loop control variable was not identified. Explicitly compute the iteration count before executing the loop or try using canonical loop form from OpenMP specification
+      LOOP END
+   LOOP END
+LOOP END
+
+    Report from: Code generation optimizations [cg]
+
+/glade/u/home/tvda/CISM/libglimmer/glimmer_config.F90(334,14):remark #34051: REGISTER ALLOCATION : [glimmer_config_mp_configcombinesecdata_] /glade/u/home/tvda/CISM/libglimmer/glimmer_config.F90:334
+
+    Hardware registers
+        Reserved     :    2[ rsp rip]
+        Available    :   39[ rax rdx rcx rbx rbp rsi rdi r8-r15 mm0-mm7 zmm0-zmm15]
+        Callee-save  :    6[ rbx rbp r12-r15]
+        Assigned     :   12[ rax rdx rcx rbx rsi rdi r8-r9 r12-r15]
+        
+    Routine temporaries
+        Total         :     139
+            Global    :      45
+            Local     :      94
+        Regenerable   :      62
+        Spilled       :      10
+        
+    Routine stack
+        Variables     :    1400 bytes*
+            Reads     :       0 [0.00e+00 ~ 0.0%]
+            Writes    :       0 [0.00e+00 ~ 0.0%]
+        Spills        :      40 bytes*
+            Reads     :       8 [2.11e+00 ~ 2.1%]
+            Writes    :       5 [2.36e+00 ~ 2.4%]
+    
+    Notes
+    
+        *Non-overlapping variables and spills may share stack space,
+         so the total stack size might be less than this.
+    
+
+===========================================================================
+
+Begin optimization report for: GLIMMER_CONFIG::CONFIGCOMBINEDATA
+
+    Report from: Interprocedural optimizations [ipo]
+
+INLINE REPORT: (GLIMMER_CONFIG::CONFIGCOMBINEDATA) [8] /glade/u/home/tvda/CISM/libglimmer/glimmer_config.F90(346,14)
+  -> INLINE: (351,10) GLIMMER_CONFIG::CONFIGCOMBINESEC
+    -> INLINE: (375,21) GLIMMER_CONFIG::CONFIGSECTIONHASVALUE
+    -> (376,25) GLIMMER_CONFIG::CONFIGSETVALUESEC
+    -> CP_CLONE (378,25) GLIMMER_CONFIG::CONFIGSETVALUESEC..0
+
+
+    Report from: Loop nest, Vector & Auto-parallelization optimizations [loop, vec, par]
+
+
+
+Non-optimizable loops:
+
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglimmer/glimmer_config.F90(385,11) inlined into /glade/u/home/tvda/CISM/libglimmer/glimmer_config.F90(379,10)
+   remark #15543: loop was not vectorized: loop with function call not considered an optimization candidate.
+
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglimmer/glimmer_config.F90(380,17) inlined into /glade/u/home/tvda/CISM/libglimmer/glimmer_config.F90(379,10)
+      remark #15543: loop was not vectorized: loop with function call not considered an optimization candidate.
+
+      LOOP BEGIN at /glade/u/home/tvda/CISM/libglimmer/glimmer_config.F90(434,11) inlined into /glade/u/home/tvda/CISM/libglimmer/glimmer_config.F90(379,10)
+         remark #15521: loop was not vectorized: loop control variable was not identified. Explicitly compute the iteration count before executing the loop or try using canonical loop form from OpenMP specification
+      LOOP END
+   LOOP END
+LOOP END
+
+    Report from: Code generation optimizations [cg]
+
+/glade/u/home/tvda/CISM/libglimmer/glimmer_config.F90(346,14):remark #34051: REGISTER ALLOCATION : [glimmer_config_mp_configcombinedata_] /glade/u/home/tvda/CISM/libglimmer/glimmer_config.F90:346
+
+    Hardware registers
+        Reserved     :    2[ rsp rip]
+        Available    :   39[ rax rdx rcx rbx rbp rsi rdi r8-r15 mm0-mm7 zmm0-zmm15]
+        Callee-save  :    6[ rbx rbp r12-r15]
+        Assigned     :   12[ rax rdx rcx rbx rsi rdi r8-r9 r12-r15]
+        
+    Routine temporaries
+        Total         :     139
+            Global    :      45
+            Local     :      94
+        Regenerable   :      62
+        Spilled       :      10
+        
+    Routine stack
+        Variables     :    1400 bytes*
+            Reads     :       0 [0.00e+00 ~ 0.0%]
+            Writes    :       0 [0.00e+00 ~ 0.0%]
+        Spills        :      40 bytes*
+            Reads     :       8 [2.11e+00 ~ 2.1%]
+            Writes    :       5 [2.36e+00 ~ 2.4%]
+    
+    Notes
+    
+        *Non-overlapping variables and spills may share stack space,
+         so the total stack size might be less than this.
+    
+
+===========================================================================
+
+Begin optimization report for: GLIMMER_CONFIG::CONFIGCOMBINESEC
+
+    Report from: Interprocedural optimizations [ipo]
+
+INLINE REPORT: (GLIMMER_CONFIG::CONFIGCOMBINESEC) [9] /glade/u/home/tvda/CISM/libglimmer/glimmer_config.F90(357,14)
+  -> INLINE: (375,21) GLIMMER_CONFIG::CONFIGSECTIONHASVALUE
+  -> (376,25) GLIMMER_CONFIG::CONFIGSETVALUESEC
+  -> CP_CLONE (378,25) GLIMMER_CONFIG::CONFIGSETVALUESEC..0
+
+
+    Report from: Loop nest, Vector & Auto-parallelization optimizations [loop, vec, par]
+
+
+
+Non-optimizable loops:
+
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglimmer/glimmer_config.F90(385,11)
+   remark #15543: loop was not vectorized: loop with function call not considered an optimization candidate.
+
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglimmer/glimmer_config.F90(380,17)
+      remark #15543: loop was not vectorized: loop with function call not considered an optimization candidate.
+
+      LOOP BEGIN at /glade/u/home/tvda/CISM/libglimmer/glimmer_config.F90(434,11) inlined into /glade/u/home/tvda/CISM/libglimmer/glimmer_config.F90(403,21)
+         remark #15521: loop was not vectorized: loop control variable was not identified. Explicitly compute the iteration count before executing the loop or try using canonical loop form from OpenMP specification
+      LOOP END
+   LOOP END
+LOOP END
+
+    Report from: Code generation optimizations [cg]
+
+/glade/u/home/tvda/CISM/libglimmer/glimmer_config.F90(357,14):remark #34051: REGISTER ALLOCATION : [glimmer_config_mp_configcombinesec_] /glade/u/home/tvda/CISM/libglimmer/glimmer_config.F90:357
+
+    Hardware registers
+        Reserved     :    2[ rsp rip]
+        Available    :   39[ rax rdx rcx rbx rbp rsi rdi r8-r15 mm0-mm7 zmm0-zmm15]
+        Callee-save  :    6[ rbx rbp r12-r15]
+        Assigned     :   12[ rax rdx rcx rbx rsi rdi r8-r9 r12-r15]
+        
+    Routine temporaries
+        Total         :     137
+            Global    :      44
+            Local     :      93
+        Regenerable   :      62
+        Spilled       :       9
+        
+    Routine stack
+        Variables     :    1400 bytes*
+            Reads     :       0 [0.00e+00 ~ 0.0%]
+            Writes    :       0 [0.00e+00 ~ 0.0%]
+        Spills        :      32 bytes*
+            Reads     :       7 [2.08e+00 ~ 2.1%]
+            Writes    :       4 [2.32e+00 ~ 2.3%]
+    
+    Notes
+    
+        *Non-overlapping variables and spills may share stack space,
+         so the total stack size might be less than this.
+    
+
+===========================================================================
+
+Begin optimization report for: GLIMMER_CONFIG::CONFIGSETVALUESEC
+
+    Report from: Interprocedural optimizations [ipo]
+
+INLINE REPORT: (GLIMMER_CONFIG::CONFIGSETVALUESEC) [10] /glade/u/home/tvda/CISM/libglimmer/glimmer_config.F90(241,14)
+  -> INLINE: (264,22) GLIMMER_CONFIG::CONFIGSECTIONHASTAG
+    -> INLINE: (404,9) GLIMMER_CONFIG::CONFIGSECTIONHASVALUE
+
+
+    Report from: Loop nest, Vector & Auto-parallelization optimizations [loop, vec, par]
+
+
+
+Non-optimizable loops:
+
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglimmer/glimmer_config.F90(272,17)
+   remark #15532: loop was not vectorized: compile time constraints prevent loop optimization. Consider using -O3.
+
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglimmer/glimmer_config.F90(434,11) inlined into /glade/u/home/tvda/CISM/libglimmer/glimmer_config.F90(292,22)
+      remark #15521: loop was not vectorized: loop control variable was not identified. Explicitly compute the iteration count before executing the loop or try using canonical loop form from OpenMP specification
+   LOOP END
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglimmer/glimmer_config.F90(307,17)
+   remark #15521: loop was not vectorized: loop control variable was not identified. Explicitly compute the iteration count before executing the loop or try using canonical loop form from OpenMP specification
+LOOP END
+
+    Report from: Code generation optimizations [cg]
+
+/glade/u/home/tvda/CISM/libglimmer/glimmer_config.F90(309,17):remark #34000: call to memcpy implemented inline with loads and stores with proven source (alignment, offset): (32, 0), and destination (alignment, offset): (1, 0)
+/glade/u/home/tvda/CISM/libglimmer/glimmer_config.F90(295,8):remark #34000: call to memcpy implemented inline with loads and stores with proven source (alignment, offset): (32, 0), and destination (alignment, offset): (1, 0)
+/glade/u/home/tvda/CISM/libglimmer/glimmer_config.F90(274,17):remark #34000: call to memcpy implemented inline with loads and stores with proven source (alignment, offset): (32, 0), and destination (alignment, offset): (1, 0)
+/glade/u/home/tvda/CISM/libglimmer/glimmer_config.F90(279,20):remark #34000: call to memcpy implemented inline with loads and stores with proven source (alignment, offset): (32, 0), and destination (alignment, offset): (1, 0)
+/glade/u/home/tvda/CISM/libglimmer/glimmer_config.F90(258,34):remark #34000: call to memcpy implemented inline with loads and stores with proven source (alignment, offset): (32, 0), and destination (alignment, offset): (1, 0)
+/glade/u/home/tvda/CISM/libglimmer/glimmer_config.F90(241,14):remark #34051: REGISTER ALLOCATION : [glimmer_config_mp_configsetvaluesec_] /glade/u/home/tvda/CISM/libglimmer/glimmer_config.F90:241
+
+    Hardware registers
+        Reserved     :    2[ rsp rip]
+        Available    :   39[ rax rdx rcx rbx rbp rsi rdi r8-r15 mm0-mm7 zmm0-zmm15]
+        Callee-save  :    6[ rbx rbp r12-r15]
+        Assigned     :   17[ rax rdx rcx rbx rsi rdi r8-r10 r12-r15 zmm0-zmm3]
+        
+    Routine temporaries
+        Total         :     307
+            Global    :      89
+            Local     :     218
+        Regenerable   :      89
+        Spilled       :      20
+        
+    Routine stack
+        Variables     :     750 bytes*
+            Reads     :       0 [0.00e+00 ~ 0.0%]
+            Writes    :       0 [0.00e+00 ~ 0.0%]
+        Spills        :     120 bytes*
+            Reads     :      32 [4.23e+00 ~ 4.2%]
+            Writes    :      18 [2.95e+00 ~ 2.9%]
+    
+    Notes
+    
+        *Non-overlapping variables and spills may share stack space,
+         so the total stack size might be less than this.
+    
+
+===========================================================================
+
+Begin optimization report for: GLIMMER_CONFIG::CONFIGSETVALUESEC..0
+
+    Report from: Interprocedural optimizations [ipo]
+
+INLINE REPORT: (GLIMMER_CONFIG::CONFIGSETVALUESEC..0) [11] /glade/u/home/tvda/CISM/libglimmer/glimmer_config.F90(241,14)
+  CLONED FROM: GLIMMER_CONFIG::CONFIGSETVALUESEC(X,X,X,X,0x00000000,0x00000000,X,X,X,X)
+  -> INLINE: (264,22) GLIMMER_CONFIG::CONFIGSECTIONHASTAG
+    -> INLINE: (404,9) GLIMMER_CONFIG::CONFIGSECTIONHASVALUE
+
+
+    Report from: Loop nest, Vector & Auto-parallelization optimizations [loop, vec, par]
+
+
+
+Non-optimizable loops:
+
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglimmer/glimmer_config.F90(272,17)
+   remark #15521: loop was not vectorized: loop control variable was not identified. Explicitly compute the iteration count before executing the loop or try using canonical loop form from OpenMP specification
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglimmer/glimmer_config.F90(307,17)
+   remark #15521: loop was not vectorized: loop control variable was not identified. Explicitly compute the iteration count before executing the loop or try using canonical loop form from OpenMP specification
+LOOP END
+
+    Report from: Code generation optimizations [cg]
+
+/glade/u/home/tvda/CISM/libglimmer/glimmer_config.F90(309,17):remark #34000: call to memcpy implemented inline with loads and stores with proven source (alignment, offset): (32, 0), and destination (alignment, offset): (1, 0)
+/glade/u/home/tvda/CISM/libglimmer/glimmer_config.F90(295,8):remark #34000: call to memcpy implemented inline with loads and stores with proven source (alignment, offset): (32, 0), and destination (alignment, offset): (1, 0)
+/glade/u/home/tvda/CISM/libglimmer/glimmer_config.F90(274,17):remark #34000: call to memcpy implemented inline with loads and stores with proven source (alignment, offset): (32, 0), and destination (alignment, offset): (1, 0)
+/glade/u/home/tvda/CISM/libglimmer/glimmer_config.F90(258,34):remark #34000: call to memcpy implemented inline with loads and stores with proven source (alignment, offset): (32, 0), and destination (alignment, offset): (1, 0)
+/glade/u/home/tvda/CISM/libglimmer/glimmer_config.F90(241,14):remark #34051: REGISTER ALLOCATION : [glimmer_config_mp_configsetvaluesec_..0] /glade/u/home/tvda/CISM/libglimmer/glimmer_config.F90:241
+
+    Hardware registers
+        Reserved     :    2[ rsp rip]
+        Available    :   39[ rax rdx rcx rbx rbp rsi rdi r8-r15 mm0-mm7 zmm0-zmm15]
+        Callee-save  :    6[ rbx rbp r12-r15]
+        Assigned     :   17[ rax rdx rcx rbx rsi rdi r8-r10 r12-r15 zmm0-zmm3]
+        
+    Routine temporaries
+        Total         :     175
+            Global    :      48
+            Local     :     127
+        Regenerable   :      41
+        Spilled       :       9
+        
+    Routine stack
+        Variables     :     100 bytes*
+            Reads     :       0 [0.00e+00 ~ 0.0%]
+            Writes    :       0 [0.00e+00 ~ 0.0%]
+        Spills        :      32 bytes*
+            Reads     :      13 [3.25e+00 ~ 3.2%]
+            Writes    :       6 [1.78e+00 ~ 1.8%]
+    
+    Notes
+    
+        *Non-overlapping variables and spills may share stack space,
+         so the total stack size might be less than this.
+    
+
+===========================================================================
+
+Begin optimization report for: GLIMMER_CONFIG::CONFIGSECTIONHASTAG
+
+    Report from: Interprocedural optimizations [ipo]
+
+INLINE REPORT: (GLIMMER_CONFIG::CONFIGSECTIONHASTAG) [12] /glade/u/home/tvda/CISM/libglimmer/glimmer_config.F90(397,20)
+  -> INLINE: (404,9) GLIMMER_CONFIG::CONFIGSECTIONHASVALUE
+
+
+    Report from: Loop nest, Vector & Auto-parallelization optimizations [loop, vec, par]
+
+
+
+Non-optimizable loops:
+
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglimmer/glimmer_config.F90(434,11) inlined into /glade/u/home/tvda/CISM/libglimmer/glimmer_config.F90(432,9)
+   remark #15521: loop was not vectorized: loop control variable was not identified. Explicitly compute the iteration count before executing the loop or try using canonical loop form from OpenMP specification
+LOOP END
+
+    Report from: Code generation optimizations [cg]
+
+/glade/u/home/tvda/CISM/libglimmer/glimmer_config.F90(397,20):remark #34051: REGISTER ALLOCATION : [glimmer_config_mp_configsectionhastag_] /glade/u/home/tvda/CISM/libglimmer/glimmer_config.F90:397
+
+    Hardware registers
+        Reserved     :    2[ rsp rip]
+        Available    :   39[ rax rdx rcx rbx rbp rsi rdi r8-r15 mm0-mm7 zmm0-zmm15]
+        Callee-save  :    6[ rbx rbp r12-r15]
+        Assigned     :   11[ rax rdx rcx rbx rsi rdi r8 r12-r15]
+        
+    Routine temporaries
+        Total         :     104
+            Global    :      40
+            Local     :      64
+        Regenerable   :      35
+        Spilled       :      10
+        
+    Routine stack
+        Variables     :     650 bytes*
+            Reads     :       0 [0.00e+00 ~ 0.0%]
+            Writes    :       0 [0.00e+00 ~ 0.0%]
+        Spills        :      40 bytes*
+            Reads     :       8 [2.28e+00 ~ 2.3%]
+            Writes    :       5 [3.12e+00 ~ 3.1%]
+    
+    Notes
+    
+        *Non-overlapping variables and spills may share stack space,
+         so the total stack size might be less than this.
+    
+
+===========================================================================
+
+Begin optimization report for: GLIMMER_CONFIG::CONFIGSECTIONHASVALUE
+
+    Report from: Interprocedural optimizations [ipo]
+
+INLINE REPORT: (GLIMMER_CONFIG::CONFIGSECTIONHASVALUE) [13] /glade/u/home/tvda/CISM/libglimmer/glimmer_config.F90(414,20)
+
+
+    Report from: Loop nest, Vector & Auto-parallelization optimizations [loop, vec, par]
+
+
+
+Non-optimizable loops:
+
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglimmer/glimmer_config.F90(434,11)
+   remark #15521: loop was not vectorized: loop control variable was not identified. Explicitly compute the iteration count before executing the loop or try using canonical loop form from OpenMP specification
+LOOP END
+
+    Report from: Code generation optimizations [cg]
+
+/glade/u/home/tvda/CISM/libglimmer/glimmer_config.F90(414,20):remark #34051: REGISTER ALLOCATION : [glimmer_config_mp_configsectionhasvalue_] /glade/u/home/tvda/CISM/libglimmer/glimmer_config.F90:414
+
+    Hardware registers
+        Reserved     :    2[ rsp rip]
+        Available    :   39[ rax rdx rcx rbx rbp rsi rdi r8-r15 mm0-mm7 zmm0-zmm15]
+        Callee-save  :    6[ rbx rbp r12-r15]
+        Assigned     :   11[ rax rdx rcx rbx rsi rdi r8 r12-r15]
+        
+    Routine temporaries
+        Total         :      74
+            Global    :      29
+            Local     :      45
+        Regenerable   :      17
+        Spilled       :      10
+        
+    Routine stack
+        Variables     :     450 bytes*
+            Reads     :       0 [0.00e+00 ~ 0.0%]
+            Writes    :       0 [0.00e+00 ~ 0.0%]
+        Spills        :      40 bytes*
+            Reads     :       5 [3.92e+00 ~ 3.9%]
+            Writes    :       5 [3.34e+00 ~ 3.3%]
+    
+    Notes
+    
+        *Non-overlapping variables and spills may share stack space,
+         so the total stack size might be less than this.
+    
+
+===========================================================================
+
+Begin optimization report for: GLIMMER_CONFIG::GETSECTION
+
+    Report from: Interprocedural optimizations [ipo]
+
+INLINE REPORT: (GLIMMER_CONFIG::GETSECTION) [14] /glade/u/home/tvda/CISM/libglimmer/glimmer_config.F90(442,14)
+
+
+    Report from: Loop nest, Vector & Auto-parallelization optimizations [loop, vec, par]
+
+
+
+Non-optimizable loops:
+
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglimmer/glimmer_config.F90(454,8)
+   remark #15521: loop was not vectorized: loop control variable was not identified. Explicitly compute the iteration count before executing the loop or try using canonical loop form from OpenMP specification
+LOOP END
+
+    Report from: Code generation optimizations [cg]
+
+/glade/u/home/tvda/CISM/libglimmer/glimmer_config.F90(442,14):remark #34051: REGISTER ALLOCATION : [glimmer_config_mp_getsection_] /glade/u/home/tvda/CISM/libglimmer/glimmer_config.F90:442
+
+    Hardware registers
+        Reserved     :    2[ rsp rip]
+        Available    :   39[ rax rdx rcx rbx rbp rsi rdi r8-r15 mm0-mm7 zmm0-zmm15]
+        Callee-save  :    6[ rbx rbp r12-r15]
+        Assigned     :   11[ rax rdx rcx rsi rdi r8-r9 r12-r15]
+        
+    Routine temporaries
+        Total         :      36
+            Global    :      15
+            Local     :      21
+        Regenerable   :       7
+        Spilled       :       4
+        
+    Routine stack
+        Variables     :      50 bytes*
+            Reads     :       0 [0.00e+00 ~ 0.0%]
+            Writes    :       0 [0.00e+00 ~ 0.0%]
+        Spills        :       0 bytes*
+            Reads     :       0 [0.00e+00 ~ 0.0%]
+            Writes    :       0 [0.00e+00 ~ 0.0%]
+    
+    Notes
+    
+        *Non-overlapping variables and spills may share stack space,
+         so the total stack size might be less than this.
+    
+
+===========================================================================
+
+Begin optimization report for: GLIMMER_CONFIG::CHECKSECTIONS
+
+    Report from: Interprocedural optimizations [ipo]
+
+INLINE REPORT: (GLIMMER_CONFIG::CHECKSECTIONS) [15] /glade/u/home/tvda/CISM/libglimmer/glimmer_config.F90(459,14)
+
+
+    Report from: Loop nest, Vector & Auto-parallelization optimizations [loop, vec, par]
+
+
+
+Non-optimizable loops:
+
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglimmer/glimmer_config.F90(472,8)
+   remark #15521: loop was not vectorized: loop control variable was not identified. Explicitly compute the iteration count before executing the loop or try using canonical loop form from OpenMP specification
+LOOP END
+
+    Report from: Code generation optimizations [cg]
+
+/glade/u/home/tvda/CISM/libglimmer/glimmer_config.F90(459,14):remark #34051: REGISTER ALLOCATION : [glimmer_config_mp_checksections_] /glade/u/home/tvda/CISM/libglimmer/glimmer_config.F90:459
+
+    Hardware registers
+        Reserved     :    2[ rsp rip]
+        Available    :   39[ rax rdx rcx rbx rbp rsi rdi r8-r15 mm0-mm7 zmm0-zmm15]
+        Callee-save  :    6[ rbx rbp r12-r15]
+        Assigned     :   12[ rax rdx rcx rbx rsi rdi r8-r9 r12-r15]
+        
+    Routine temporaries
+        Total         :      38
+            Global    :      15
+            Local     :      23
+        Regenerable   :      13
+        Spilled       :       5
+        
+    Routine stack
+        Variables     :      82 bytes*
+            Reads     :       0 [0.00e+00 ~ 0.0%]
+            Writes    :       4 [3.22e+00 ~ 3.2%]
+        Spills        :       0 bytes*
+            Reads     :       0 [0.00e+00 ~ 0.0%]
+            Writes    :       0 [0.00e+00 ~ 0.0%]
+    
+    Notes
+    
+        *Non-overlapping variables and spills may share stack space,
+         so the total stack size might be less than this.
+    
+
+===========================================================================
+
+Begin optimization report for: GLIMMER_CONFIG::GETVALUEDOUBLEARRAY
+
+    Report from: Interprocedural optimizations [ipo]
+
+INLINE REPORT: (GLIMMER_CONFIG::GETVALUEDOUBLEARRAY) [16] /glade/u/home/tvda/CISM/libglimmer/glimmer_config.F90(477,14)
+  -> INLINE: (497,10) GLIMMER_CONFIG::GETVALUECHAR
+
+
+    Report from: Loop nest, Vector & Auto-parallelization optimizations [loop, vec, par]
+
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglimmer/glimmer_config.F90(526,8)
+   remark #25399: memcopy generated
+   remark #15542: loop was not vectorized: inner loop was already vectorized
+
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglimmer/glimmer_config.F90(526,8)
+      remark #15300: LOOP WAS VECTORIZED
+   LOOP END
+
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglimmer/glimmer_config.F90(526,8)
+   <Remainder loop for vectorization>
+   LOOP END
+LOOP END
+
+
+Non-optimizable loops:
+
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglimmer/glimmer_config.F90(810,8) inlined into /glade/u/home/tvda/CISM/libglimmer/glimmer_config.F90(525,10)
+   remark #15521: loop was not vectorized: loop control variable was not identified. Explicitly compute the iteration count before executing the loop or try using canonical loop form from OpenMP specification
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglimmer/glimmer_config.F90(519,8)
+   remark #15521: loop was not vectorized: loop control variable was not identified. Explicitly compute the iteration count before executing the loop or try using canonical loop form from OpenMP specification
+LOOP END
+
+    Report from: Code generation optimizations [cg]
+
+/glade/u/home/tvda/CISM/libglimmer/glimmer_config.F90(526,8):remark #34026: call to memcpy implemented as a call to optimized library version
+/glade/u/home/tvda/CISM/libglimmer/glimmer_config.F90(477,14):remark #34051: REGISTER ALLOCATION : [glimmer_config_mp_getvaluedoublearray_] /glade/u/home/tvda/CISM/libglimmer/glimmer_config.F90:477
+
+    Hardware registers
+        Reserved     :    2[ rsp rip]
+        Available    :   39[ rax rdx rcx rbx rbp rsi rdi r8-r15 mm0-mm7 zmm0-zmm15]
+        Callee-save  :    6[ rbx rbp r12-r15]
+        Assigned     :   14[ rax rdx rcx rbx rsi rdi r8-r10 r12-r15 zmm0]
+        
+    Routine temporaries
+        Total         :     328
+            Global    :      67
+            Local     :     261
+        Regenerable   :     104
+        Spilled       :       7
+        
+    Routine stack
+        Variables     :     682 bytes*
+            Reads     :       7 [9.14e-01 ~ 0.9%]
+            Writes    :      28 [2.70e+00 ~ 2.7%]
+        Spills        :      16 bytes*
+            Reads     :       3 [2.50e-01 ~ 0.2%]
+            Writes    :       2 [2.50e-01 ~ 0.2%]
+    
+    Notes
+    
+        *Non-overlapping variables and spills may share stack space,
+         so the total stack size might be less than this.
+    
+
+===========================================================================
+
+Begin optimization report for: GLIMMER_CONFIG::GETVALUEREALARRAY
+
+    Report from: Interprocedural optimizations [ipo]
+
+INLINE REPORT: (GLIMMER_CONFIG::GETVALUEREALARRAY) [17] /glade/u/home/tvda/CISM/libglimmer/glimmer_config.F90(535,14)
+  -> INLINE: (557,10) GLIMMER_CONFIG::GETVALUECHAR
+
+
+    Report from: Loop nest, Vector & Auto-parallelization optimizations [loop, vec, par]
+
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglimmer/glimmer_config.F90(587,8)
+   remark #25399: memcopy generated
+   remark #15542: loop was not vectorized: inner loop was already vectorized
+
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglimmer/glimmer_config.F90(587,8)
+      remark #15300: LOOP WAS VECTORIZED
+   LOOP END
+
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglimmer/glimmer_config.F90(587,8)
+   <Remainder loop for vectorization>
+   LOOP END
+LOOP END
+
+
+Non-optimizable loops:
+
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglimmer/glimmer_config.F90(810,8) inlined into /glade/u/home/tvda/CISM/libglimmer/glimmer_config.F90(585,10)
+   remark #15521: loop was not vectorized: loop control variable was not identified. Explicitly compute the iteration count before executing the loop or try using canonical loop form from OpenMP specification
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglimmer/glimmer_config.F90(579,8)
+   remark #15521: loop was not vectorized: loop control variable was not identified. Explicitly compute the iteration count before executing the loop or try using canonical loop form from OpenMP specification
+LOOP END
+
+    Report from: Code generation optimizations [cg]
+
+/glade/u/home/tvda/CISM/libglimmer/glimmer_config.F90(587,8):remark #34026: call to memcpy implemented as a call to optimized library version
+/glade/u/home/tvda/CISM/libglimmer/glimmer_config.F90(535,14):remark #34051: REGISTER ALLOCATION : [glimmer_config_mp_getvaluerealarray_] /glade/u/home/tvda/CISM/libglimmer/glimmer_config.F90:535
+
+    Hardware registers
+        Reserved     :    2[ rsp rip]
+        Available    :   39[ rax rdx rcx rbx rbp rsi rdi r8-r15 mm0-mm7 zmm0-zmm15]
+        Callee-save  :    6[ rbx rbp r12-r15]
+        Assigned     :   14[ rax rdx rcx rbx rsi rdi r8-r10 r12-r15 zmm0]
+        
+    Routine temporaries
+        Total         :     328
+            Global    :      67
+            Local     :     261
+        Regenerable   :     104
+        Spilled       :       7
+        
+    Routine stack
+        Variables     :     682 bytes*
+            Reads     :       7 [9.14e-01 ~ 0.9%]
+            Writes    :      28 [2.70e+00 ~ 2.7%]
+        Spills        :      16 bytes*
+            Reads     :       3 [2.50e-01 ~ 0.2%]
+            Writes    :       2 [2.50e-01 ~ 0.2%]
+    
+    Notes
+    
+        *Non-overlapping variables and spills may share stack space,
+         so the total stack size might be less than this.
+    
+
+===========================================================================
+
+Begin optimization report for: GLIMMER_CONFIG::GETVALUEINTARRAY
+
+    Report from: Interprocedural optimizations [ipo]
+
+INLINE REPORT: (GLIMMER_CONFIG::GETVALUEINTARRAY) [18] /glade/u/home/tvda/CISM/libglimmer/glimmer_config.F90(596,14)
+  -> INLINE: (617,10) GLIMMER_CONFIG::GETVALUECHAR
+
+
+    Report from: Loop nest, Vector & Auto-parallelization optimizations [loop, vec, par]
+
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglimmer/glimmer_config.F90(647,8)
+   remark #25399: memcopy generated
+   remark #15542: loop was not vectorized: inner loop was already vectorized
+
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglimmer/glimmer_config.F90(647,8)
+      remark #15300: LOOP WAS VECTORIZED
+   LOOP END
+
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglimmer/glimmer_config.F90(647,8)
+   <Remainder loop for vectorization>
+   LOOP END
+LOOP END
+
+
+Non-optimizable loops:
+
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglimmer/glimmer_config.F90(810,8) inlined into /glade/u/home/tvda/CISM/libglimmer/glimmer_config.F90(645,10)
+   remark #15521: loop was not vectorized: loop control variable was not identified. Explicitly compute the iteration count before executing the loop or try using canonical loop form from OpenMP specification
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglimmer/glimmer_config.F90(639,8)
+   remark #15521: loop was not vectorized: loop control variable was not identified. Explicitly compute the iteration count before executing the loop or try using canonical loop form from OpenMP specification
+LOOP END
+
+    Report from: Code generation optimizations [cg]
+
+/glade/u/home/tvda/CISM/libglimmer/glimmer_config.F90(647,8):remark #34026: call to memcpy implemented as a call to optimized library version
+/glade/u/home/tvda/CISM/libglimmer/glimmer_config.F90(596,14):remark #34051: REGISTER ALLOCATION : [glimmer_config_mp_getvalueintarray_] /glade/u/home/tvda/CISM/libglimmer/glimmer_config.F90:596
+
+    Hardware registers
+        Reserved     :    2[ rsp rip]
+        Available    :   39[ rax rdx rcx rbx rbp rsi rdi r8-r15 mm0-mm7 zmm0-zmm15]
+        Callee-save  :    6[ rbx rbp r12-r15]
+        Assigned     :   14[ rax rdx rcx rbx rsi rdi r8-r10 r12-r15 zmm0]
+        
+    Routine temporaries
+        Total         :     328
+            Global    :      67
+            Local     :     261
+        Regenerable   :     104
+        Spilled       :       7
+        
+    Routine stack
+        Variables     :     682 bytes*
+            Reads     :       7 [9.14e-01 ~ 0.9%]
+            Writes    :      28 [2.70e+00 ~ 2.7%]
+        Spills        :      16 bytes*
+            Reads     :       3 [2.50e-01 ~ 0.2%]
+            Writes    :       2 [2.50e-01 ~ 0.2%]
+    
+    Notes
+    
+        *Non-overlapping variables and spills may share stack space,
+         so the total stack size might be less than this.
+    
+
+===========================================================================
+
+Begin optimization report for: GLIMMER_CONFIG::GETVALUECHARARRAY
+
+    Report from: Interprocedural optimizations [ipo]
+
+INLINE REPORT: (GLIMMER_CONFIG::GETVALUECHARARRAY) [19] /glade/u/home/tvda/CISM/libglimmer/glimmer_config.F90(656,14)
+  -> INLINE: (676,10) GLIMMER_CONFIG::GETVALUECHAR
+
+
+    Report from: Loop nest, Vector & Auto-parallelization optimizations [loop, vec, par]
+
+
+
+Non-optimizable loops:
+
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglimmer/glimmer_config.F90(810,8) inlined into /glade/u/home/tvda/CISM/libglimmer/glimmer_config.F90(704,10)
+   remark #15521: loop was not vectorized: loop control variable was not identified. Explicitly compute the iteration count before executing the loop or try using canonical loop form from OpenMP specification
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglimmer/glimmer_config.F90(697,8)
+   remark #15521: loop was not vectorized: loop control variable was not identified. Explicitly compute the iteration count before executing the loop or try using canonical loop form from OpenMP specification
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglimmer/glimmer_config.F90(705,8)
+   remark #15523: loop was not vectorized: loop control variable ? was found, but loop iteration count cannot be computed before executing the loop
+LOOP END
+
+    Report from: Code generation optimizations [cg]
+
+/glade/u/home/tvda/CISM/libglimmer/glimmer_config.F90(705,8):remark #34000: call to memcpy implemented inline with loads and stores with proven source (alignment, offset): (1, 0), and destination (alignment, offset): (1, 0)
+/glade/u/home/tvda/CISM/libglimmer/glimmer_config.F90(656,14):remark #34051: REGISTER ALLOCATION : [glimmer_config_mp_getvaluechararray_] /glade/u/home/tvda/CISM/libglimmer/glimmer_config.F90:656
+
+    Hardware registers
+        Reserved     :    2[ rsp rip]
+        Available    :   39[ rax rdx rcx rbx rbp rsi rdi r8-r15 mm0-mm7 zmm0-zmm15]
+        Callee-save  :    6[ rbx rbp r12-r15]
+        Assigned     :   18[ rax rdx rcx rbx rsi rdi r8-r10 r12-r15 zmm0-zmm4]
+        
+    Routine temporaries
+        Total         :     311
+            Global    :      63
+            Local     :     248
+        Regenerable   :      85
+        Spilled       :       7
+        
+    Routine stack
+        Variables     :     586 bytes*
+            Reads     :       7 [1.64e+00 ~ 1.6%]
+            Writes    :      23 [2.22e+00 ~ 2.2%]
+        Spills        :      16 bytes*
+            Reads     :       3 [2.29e-01 ~ 0.2%]
+            Writes    :       2 [2.29e-01 ~ 0.2%]
+    
+    Notes
+    
+        *Non-overlapping variables and spills may share stack space,
+         so the total stack size might be less than this.
+    
+
+===========================================================================
+
+Begin optimization report for: GLIMMER_CONFIG::GETVALUEREAL
+
+    Report from: Interprocedural optimizations [ipo]
+
+INLINE REPORT: (GLIMMER_CONFIG::GETVALUEREAL) [20] /glade/u/home/tvda/CISM/libglimmer/glimmer_config.F90(714,14)
+  -> INLINE: (726,10) GLIMMER_CONFIG::GETVALUECHAR
+
+
+    Report from: Loop nest, Vector & Auto-parallelization optimizations [loop, vec, par]
+
+
+
+Non-optimizable loops:
+
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglimmer/glimmer_config.F90(810,8) inlined into /glade/u/home/tvda/CISM/libglimmer/glimmer_config.F90(754,10)
+   remark #15521: loop was not vectorized: loop control variable was not identified. Explicitly compute the iteration count before executing the loop or try using canonical loop form from OpenMP specification
+LOOP END
+
+    Report from: Code generation optimizations [cg]
+
+/glade/u/home/tvda/CISM/libglimmer/glimmer_config.F90(714,14):remark #34051: REGISTER ALLOCATION : [glimmer_config_mp_getvaluereal_] /glade/u/home/tvda/CISM/libglimmer/glimmer_config.F90:714
+
+    Hardware registers
+        Reserved     :    2[ rsp rip]
+        Available    :   39[ rax rdx rcx rbx rbp rsi rdi r8-r15 mm0-mm7 zmm0-zmm15]
+        Callee-save  :    6[ rbx rbp r12-r15]
+        Assigned     :   12[ rax rdx rcx rbx rsi rdi r8-r9 r12-r15]
+        
+    Routine temporaries
+        Total         :     125
+            Global    :      37
+            Local     :      88
+        Regenerable   :      46
+        Spilled       :       9
+        
+    Routine stack
+        Variables     :     238 bytes*
+            Reads     :       1 [3.86e-01 ~ 0.4%]
+            Writes    :      16 [4.90e+00 ~ 4.9%]
+        Spills        :      32 bytes*
+            Reads     :       5 [9.85e-01 ~ 1.0%]
+            Writes    :       4 [9.85e-01 ~ 1.0%]
+    
+    Notes
+    
+        *Non-overlapping variables and spills may share stack space,
+         so the total stack size might be less than this.
+    
+
+===========================================================================
+
+Begin optimization report for: GLIMMER_CONFIG::GETVALUEDOUBLE
+
+    Report from: Interprocedural optimizations [ipo]
+
+INLINE REPORT: (GLIMMER_CONFIG::GETVALUEDOUBLE) [21] /glade/u/home/tvda/CISM/libglimmer/glimmer_config.F90(739,14)
+  -> INLINE: (753,10) GLIMMER_CONFIG::GETVALUECHAR
+
+
+    Report from: Loop nest, Vector & Auto-parallelization optimizations [loop, vec, par]
+
+
+
+Non-optimizable loops:
+
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglimmer/glimmer_config.F90(810,8) inlined into /glade/u/home/tvda/CISM/libglimmer/glimmer_config.F90(781,10)
+   remark #15521: loop was not vectorized: loop control variable was not identified. Explicitly compute the iteration count before executing the loop or try using canonical loop form from OpenMP specification
+LOOP END
+
+    Report from: Code generation optimizations [cg]
+
+/glade/u/home/tvda/CISM/libglimmer/glimmer_config.F90(739,14):remark #34051: REGISTER ALLOCATION : [glimmer_config_mp_getvaluedouble_] /glade/u/home/tvda/CISM/libglimmer/glimmer_config.F90:739
+
+    Hardware registers
+        Reserved     :    2[ rsp rip]
+        Available    :   39[ rax rdx rcx rbx rbp rsi rdi r8-r15 mm0-mm7 zmm0-zmm15]
+        Callee-save  :    6[ rbx rbp r12-r15]
+        Assigned     :   12[ rax rdx rcx rbx rsi rdi r8-r9 r12-r15]
+        
+    Routine temporaries
+        Total         :     125
+            Global    :      37
+            Local     :      88
+        Regenerable   :      46
+        Spilled       :       9
+        
+    Routine stack
+        Variables     :     242 bytes*
+            Reads     :       1 [3.86e-01 ~ 0.4%]
+            Writes    :      16 [4.90e+00 ~ 4.9%]
+        Spills        :      32 bytes*
+            Reads     :       5 [9.85e-01 ~ 1.0%]
+            Writes    :       4 [9.85e-01 ~ 1.0%]
+    
+    Notes
+    
+        *Non-overlapping variables and spills may share stack space,
+         so the total stack size might be less than this.
+    
+
+===========================================================================
+
+Begin optimization report for: GLIMMER_CONFIG::GETVALUEINT
+
+    Report from: Interprocedural optimizations [ipo]
+
+INLINE REPORT: (GLIMMER_CONFIG::GETVALUEINT) [22] /glade/u/home/tvda/CISM/libglimmer/glimmer_config.F90(766,14)
+  -> INLINE: (778,10) GLIMMER_CONFIG::GETVALUECHAR
+
+
+    Report from: Loop nest, Vector & Auto-parallelization optimizations [loop, vec, par]
+
+
+
+Non-optimizable loops:
+
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglimmer/glimmer_config.F90(810,8) inlined into /glade/u/home/tvda/CISM/libglimmer/glimmer_config.F90(806,10)
+   remark #15521: loop was not vectorized: loop control variable was not identified. Explicitly compute the iteration count before executing the loop or try using canonical loop form from OpenMP specification
+LOOP END
+
+    Report from: Code generation optimizations [cg]
+
+/glade/u/home/tvda/CISM/libglimmer/glimmer_config.F90(766,14):remark #34051: REGISTER ALLOCATION : [glimmer_config_mp_getvalueint_] /glade/u/home/tvda/CISM/libglimmer/glimmer_config.F90:766
+
+    Hardware registers
+        Reserved     :    2[ rsp rip]
+        Available    :   39[ rax rdx rcx rbx rbp rsi rdi r8-r15 mm0-mm7 zmm0-zmm15]
+        Callee-save  :    6[ rbx rbp r12-r15]
+        Assigned     :   12[ rax rdx rcx rbx rsi rdi r8-r9 r12-r15]
+        
+    Routine temporaries
+        Total         :     125
+            Global    :      37
+            Local     :      88
+        Regenerable   :      46
+        Spilled       :       9
+        
+    Routine stack
+        Variables     :     238 bytes*
+            Reads     :       1 [3.86e-01 ~ 0.4%]
+            Writes    :      16 [4.90e+00 ~ 4.9%]
+        Spills        :      32 bytes*
+            Reads     :       5 [9.85e-01 ~ 1.0%]
+            Writes    :       4 [9.85e-01 ~ 1.0%]
+    
+    Notes
+    
+        *Non-overlapping variables and spills may share stack space,
+         so the total stack size might be less than this.
+    
+
+===========================================================================
+
+Begin optimization report for: GLIMMER_CONFIG::GETVALUECHAR
+
+    Report from: Interprocedural optimizations [ipo]
+
+INLINE REPORT: (GLIMMER_CONFIG::GETVALUECHAR) [23] /glade/u/home/tvda/CISM/libglimmer/glimmer_config.F90(791,14)
+
+
+    Report from: Loop nest, Vector & Auto-parallelization optimizations [loop, vec, par]
+
+
+
+Non-optimizable loops:
+
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglimmer/glimmer_config.F90(810,8)
+   remark #15521: loop was not vectorized: loop control variable was not identified. Explicitly compute the iteration count before executing the loop or try using canonical loop form from OpenMP specification
+LOOP END
+
+    Report from: Code generation optimizations [cg]
+
+/glade/u/home/tvda/CISM/libglimmer/glimmer_config.F90(791,14):remark #34051: REGISTER ALLOCATION : [glimmer_config_mp_getvaluechar_] /glade/u/home/tvda/CISM/libglimmer/glimmer_config.F90:791
+
+    Hardware registers
+        Reserved     :    2[ rsp rip]
+        Available    :   39[ rax rdx rcx rbx rbp rsi rdi r8-r15 mm0-mm7 zmm0-zmm15]
+        Callee-save  :    6[ rbx rbp r12-r15]
+        Assigned     :   12[ rax rdx rcx rbx rsi rdi r8-r9 r12-r15]
+        
+    Routine temporaries
+        Total         :      78
+            Global    :      26
+            Local     :      52
+        Regenerable   :      17
+        Spilled       :       6
+        
+    Routine stack
+        Variables     :      98 bytes*
+            Reads     :       0 [0.00e+00 ~ 0.0%]
+            Writes    :       6 [5.73e-01 ~ 0.6%]
+        Spills        :       8 bytes*
+            Reads     :       1 [4.34e-01 ~ 0.4%]
+            Writes    :       1 [1.04e+00 ~ 1.0%]
+    
+    Notes
+    
+        *Non-overlapping variables and spills may share stack space,
+         so the total stack size might be less than this.
+    
+
+===========================================================================
+
+Begin optimization report for: GLIMMER_CONFIG::GETVALUELOGICAL
+
+    Report from: Interprocedural optimizations [ipo]
+
+INLINE REPORT: (GLIMMER_CONFIG::GETVALUELOGICAL) [24] /glade/u/home/tvda/CISM/libglimmer/glimmer_config.F90(815,14)
+  -> INLINE: (830,10) GLIMMER_CONFIG::GETVALUECHAR
+
+
+    Report from: Loop nest, Vector & Auto-parallelization optimizations [loop, vec, par]
+
+
+
+Non-optimizable loops:
+
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglimmer/glimmer_config.F90(810,8) inlined into /glade/u/home/tvda/CISM/libglimmer/glimmer_config.F90(858,10)
+   remark #15521: loop was not vectorized: loop control variable was not identified. Explicitly compute the iteration count before executing the loop or try using canonical loop form from OpenMP specification
+LOOP END
+
+    Report from: Code generation optimizations [cg]
+
+/glade/u/home/tvda/CISM/libglimmer/glimmer_config.F90(815,14):remark #34051: REGISTER ALLOCATION : [glimmer_config_mp_getvaluelogical_] /glade/u/home/tvda/CISM/libglimmer/glimmer_config.F90:815
+
+    Hardware registers
+        Reserved     :    2[ rsp rip]
+        Available    :   39[ rax rdx rcx rbx rbp rsi rdi r8-r15 mm0-mm7 zmm0-zmm15]
+        Callee-save  :    6[ rbx rbp r12-r15]
+        Assigned     :   12[ rax rdx rcx rbx rsi rdi r8-r9 r12-r15]
+        
+    Routine temporaries
+        Total         :     137
+            Global    :      43
+            Local     :      94
+        Regenerable   :      55
+        Spilled       :      10
+        
+    Routine stack
+        Variables     :     266 bytes*
+            Reads     :       2 [7.25e-01 ~ 0.7%]
+            Writes    :      20 [6.42e+00 ~ 6.4%]
+        Spills        :      40 bytes*
+            Reads     :       6 [1.65e+00 ~ 1.6%]
+            Writes    :       5 [1.65e+00 ~ 1.6%]
+    
+    Notes
+    
+        *Non-overlapping variables and spills may share stack space,
+         so the total stack size might be less than this.
+    
+
+===========================================================================
+
+Begin optimization report for: GLIMMER_CONFIG::HANDLE_SECTION
+
+    Report from: Interprocedural optimizations [ipo]
+
+INLINE REPORT: (GLIMMER_CONFIG::HANDLE_SECTION) [25] /glade/u/home/tvda/CISM/libglimmer/glimmer_config.F90(857,14)
+  -> INLINE: (878,10) GLIMMER_CONFIG::INSERTSECTION
+
+
+    Report from: Loop nest, Vector & Auto-parallelization optimizations [loop, vec, par]
+
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglimmer/glimmer_config.F90(868,5)
+   remark #15524: loop was not vectorized: search loop cannot be vectorized unless all memory references can be aligned vector load
+LOOP END
+
+    Report from: Code generation optimizations [cg]
+
+/glade/u/home/tvda/CISM/libglimmer/glimmer_config.F90(913,5):remark #34000: call to memcpy implemented inline with loads and stores with proven source (alignment, offset): (32, 0), and destination (alignment, offset): (1, 0)
+/glade/u/home/tvda/CISM/libglimmer/glimmer_config.F90(857,14):remark #34051: REGISTER ALLOCATION : [glimmer_config_mp_handle_section_] /glade/u/home/tvda/CISM/libglimmer/glimmer_config.F90:857
+
+    Hardware registers
+        Reserved     :    2[ rsp rip]
+        Available    :   39[ rax rdx rcx rbx rbp rsi rdi r8-r15 mm0-mm7 zmm0-zmm15]
+        Callee-save  :    6[ rbx rbp r12-r15]
+        Assigned     :   16[ rax rdx rcx rbx rsi rdi r8-r9 r12-r15 zmm0-zmm3]
+        
+    Routine temporaries
+        Total         :      83
+            Global    :      24
+            Local     :      59
+        Regenerable   :      29
+        Spilled       :       6
+        
+    Routine stack
+        Variables     :     104 bytes*
+            Reads     :       0 [0.00e+00 ~ 0.0%]
+            Writes    :       6 [2.41e+00 ~ 2.4%]
+        Spills        :       8 bytes*
+            Reads     :       1 [8.04e-01 ~ 0.8%]
+            Writes    :       1 [8.04e-01 ~ 0.8%]
+    
+    Notes
+    
+        *Non-overlapping variables and spills may share stack space,
+         so the total stack size might be less than this.
+    
+
+===========================================================================
+
+Begin optimization report for: GLIMMER_CONFIG::HANDLE_VALUE
+
+    Report from: Interprocedural optimizations [ipo]
+
+INLINE REPORT: (GLIMMER_CONFIG::HANDLE_VALUE) [26] /glade/u/home/tvda/CISM/libglimmer/glimmer_config.F90(882,14)
+  -> INLINE: (902,10) GLIMMER_CONFIG::INSERTVALUE
+
+
+    Report from: Loop nest, Vector & Auto-parallelization optimizations [loop, vec, par]
+
+
+
+Non-optimizable loops:
+
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglimmer/glimmer_config.F90(893,29)
+   remark #15523: loop was not vectorized: loop control variable i was found, but loop iteration count cannot be computed before executing the loop
+LOOP END
+
+    Report from: Code generation optimizations [cg]
+
+/glade/u/home/tvda/CISM/libglimmer/glimmer_config.F90(934,5):remark #34000: call to memcpy implemented inline with loads and stores with proven source (alignment, offset): (32, 0), and destination (alignment, offset): (1, 0)
+/glade/u/home/tvda/CISM/libglimmer/glimmer_config.F90(882,14):remark #34051: REGISTER ALLOCATION : [glimmer_config_mp_handle_value_] /glade/u/home/tvda/CISM/libglimmer/glimmer_config.F90:882
+
+    Hardware registers
+        Reserved     :    2[ rsp rip]
+        Available    :   39[ rax rdx rcx rbx rbp rsi rdi r8-r15 mm0-mm7 zmm0-zmm15]
+        Callee-save  :    6[ rbx rbp r12-r15]
+        Assigned     :   16[ rax rdx rcx rbx rsi rdi r8-r9 r12-r15 zmm0-zmm3]
+        
+    Routine temporaries
+        Total         :     148
+            Global    :      50
+            Local     :      98
+        Regenerable   :      39
+        Spilled       :      15
+        
+    Routine stack
+        Variables     :     152 bytes*
+            Reads     :       0 [0.00e+00 ~ 0.0%]
+            Writes    :      12 [6.75e-01 ~ 0.7%]
+        Spills        :      80 bytes*
+            Reads     :      14 [3.55e+00 ~ 3.5%]
+            Writes    :      16 [3.54e+00 ~ 3.5%]
+    
+    Notes
+    
+        *Non-overlapping variables and spills may share stack space,
+         so the total stack size might be less than this.
+    
+
+===========================================================================
+
+Begin optimization report for: GLIMMER_CONFIG::INSERTSECTION
+
+    Report from: Interprocedural optimizations [ipo]
+
+INLINE REPORT: (GLIMMER_CONFIG::INSERTSECTION) [27] /glade/u/home/tvda/CISM/libglimmer/glimmer_config.F90(906,14)
+
+
+    Report from: Code generation optimizations [cg]
+
+/glade/u/home/tvda/CISM/libglimmer/glimmer_config.F90(913,5):remark #34000: call to memcpy implemented inline with loads and stores with proven source (alignment, offset): (32, 0), and destination (alignment, offset): (1, 0)
+/glade/u/home/tvda/CISM/libglimmer/glimmer_config.F90(906,14):remark #34051: REGISTER ALLOCATION : [glimmer_config_mp_insertsection_] /glade/u/home/tvda/CISM/libglimmer/glimmer_config.F90:906
+
+    Hardware registers
+        Reserved     :    2[ rsp rip]
+        Available    :   39[ rax rdx rcx rbx rbp rsi rdi r8-r15 mm0-mm7 zmm0-zmm15]
+        Callee-save  :    6[ rbx rbp r12-r15]
+        Assigned     :   13[ rax rdx rcx rsi rdi r8 r12-r14 zmm0-zmm3]
+        
+    Routine temporaries
+        Total         :      35
+            Global    :      13
+            Local     :      22
+        Regenerable   :       7
+        Spilled       :       3
+        
+    Routine stack
+        Variables     :       0 bytes*
+            Reads     :       0 [0.00e+00 ~ 0.0%]
+            Writes    :       0 [0.00e+00 ~ 0.0%]
+        Spills        :       0 bytes*
+            Reads     :       0 [0.00e+00 ~ 0.0%]
+            Writes    :       0 [0.00e+00 ~ 0.0%]
+    
+    Notes
+    
+        *Non-overlapping variables and spills may share stack space,
+         so the total stack size might be less than this.
+    
+
+===========================================================================
+
+Begin optimization report for: GLIMMER_CONFIG::INSERTVALUE
+
+    Report from: Interprocedural optimizations [ipo]
+
+INLINE REPORT: (GLIMMER_CONFIG::INSERTVALUE) [28] /glade/u/home/tvda/CISM/libglimmer/glimmer_config.F90(926,14)
+
+
+    Report from: Code generation optimizations [cg]
+
+/glade/u/home/tvda/CISM/libglimmer/glimmer_config.F90(934,5):remark #34000: call to memcpy implemented inline with loads and stores with proven source (alignment, offset): (32, 0), and destination (alignment, offset): (1, 0)
+/glade/u/home/tvda/CISM/libglimmer/glimmer_config.F90(926,14):remark #34051: REGISTER ALLOCATION : [glimmer_config_mp_insertvalue_] /glade/u/home/tvda/CISM/libglimmer/glimmer_config.F90:926
+
+    Hardware registers
+        Reserved     :    2[ rsp rip]
+        Available    :   39[ rax rdx rcx rbx rbp rsi rdi r8-r15 mm0-mm7 zmm0-zmm15]
+        Callee-save  :    6[ rbx rbp r12-r15]
+        Assigned     :   16[ rax rdx rcx rbx rsi rdi r8-r9 r12-r15 zmm0-zmm3]
+        
+    Routine temporaries
+        Total         :      82
+            Global    :      26
+            Local     :      56
+        Regenerable   :      17
+        Spilled       :       9
+        
+    Routine stack
+        Variables     :      48 bytes*
+            Reads     :       0 [0.00e+00 ~ 0.0%]
+            Writes    :       6 [3.02e-03 ~ 0.0%]
+        Spills        :      32 bytes*
+            Reads     :       4 [2.02e-03 ~ 0.0%]
+            Writes    :       4 [2.02e-03 ~ 0.0%]
+    
+    Notes
+    
+        *Non-overlapping variables and spills may share stack space,
+         so the total stack size might be less than this.
+    
+
+===========================================================================

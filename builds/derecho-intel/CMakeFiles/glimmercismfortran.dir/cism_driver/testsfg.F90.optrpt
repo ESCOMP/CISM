@@ -1,0 +1,317 @@
+Intel(R) Advisor can now assist with vectorization and show optimization
+  report messages with your source code.
+See "https://software.intel.com/en-us/intel-advisor-xe" for details.
+
+
+    Report from: Interprocedural optimizations [ipo]
+
+INLINING OPTION VALUES:
+  -inline-factor: 100
+  -inline-min-size: 30
+  -inline-max-size: 230
+  -inline-max-total-size: 2000
+  -inline-max-per-routine: 10000
+  -inline-max-per-compile: 500000
+
+
+Begin optimization report for: testsfg._
+
+    Report from: Interprocedural optimizations [ipo]
+
+INLINE REPORT: (testsfg._) [1] /glade/u/home/tvda/CISM/cism_driver/testsfg.F90(1,8)
+
+
+    Report from: Code generation optimizations [cg]
+
+/glade/u/home/tvda/CISM/cism_driver/testsfg.F90(1,8):remark #34051: REGISTER ALLOCATION : [testsfg._] /glade/u/home/tvda/CISM/cism_driver/testsfg.F90:1
+
+    Hardware registers
+        Reserved     :    2[ rsp rip]
+        Available    :   39[ rax rdx rcx rbx rbp rsi rdi r8-r15 mm0-mm7 zmm0-zmm15]
+        Callee-save  :    6[ rbx rbp r12-r15]
+        Assigned     :    0[ reg_null]
+        
+    Routine temporaries
+        Total         :       6
+            Global    :       0
+            Local     :       6
+        Regenerable   :       0
+        Spilled       :       0
+        
+    Routine stack
+        Variables     :       0 bytes*
+            Reads     :       0 [0.00e+00 ~ 0.0%]
+            Writes    :       0 [0.00e+00 ~ 0.0%]
+        Spills        :       0 bytes*
+            Reads     :       0 [0.00e+00 ~ 0.0%]
+            Writes    :       0 [0.00e+00 ~ 0.0%]
+    
+    Notes
+    
+        *Non-overlapping variables and spills may share stack space,
+         so the total stack size might be less than this.
+    
+
+===========================================================================
+
+Begin optimization report for: TESTSFG::TESTF
+
+    Report from: Interprocedural optimizations [ipo]
+
+INLINE REPORT: (TESTSFG::TESTF) [2] /glade/u/home/tvda/CISM/cism_driver/testsfg.F90(65,15)
+  -> INLINE: (68,12) TESTSFG::BOTHEXACT
+    -> INLINE: (127,12) TESTSFG::P3
+    -> INLINE: (127,35) TESTSFG::P3
+    -> INLINE: (152,12) TESTSFG::P4
+    -> INLINE: (152,35) TESTSFG::P4
+    -> INLINE: (156,13) TESTSFG::P4
+
+
+    Report from: Code generation optimizations [cg]
+
+/glade/u/home/tvda/CISM/cism_driver/testsfg.F90(65,15):remark #34051: REGISTER ALLOCATION : [testsfg_mp_testf_] /glade/u/home/tvda/CISM/cism_driver/testsfg.F90:65
+
+    Hardware registers
+        Reserved     :    2[ rsp rip]
+        Available    :   39[ rax rdx rcx rbx rbp rsi rdi r8-r15 mm0-mm7 zmm0-zmm15]
+        Callee-save  :    6[ rbx rbp r12-r15]
+        Assigned     :   28[ rax rdx rcx rbx rsi rdi r8-r9 r12-r15 zmm0-zmm15]
+        
+    Routine temporaries
+        Total         :     460
+            Global    :     128
+            Local     :     332
+        Regenerable   :      94
+        Spilled       :      55
+        
+    Routine stack
+        Variables     :      96 bytes*
+            Reads     :       0 [0.00e+00 ~ 0.0%]
+            Writes    :       6 [8.88e-02 ~ 0.1%]
+        Spills        :     400 bytes*
+            Reads     :     109 [2.11e+01 ~ 21.1%]
+            Writes    :      61 [1.16e+01 ~ 11.6%]
+    
+    Notes
+    
+        *Non-overlapping variables and spills may share stack space,
+         so the total stack size might be less than this.
+    
+
+===========================================================================
+
+Begin optimization report for: TESTSFG::TESTG
+
+    Report from: Interprocedural optimizations [ipo]
+
+INLINE REPORT: (TESTSFG::TESTG) [3] /glade/u/home/tvda/CISM/cism_driver/testsfg.F90(71,15)
+  -> INLINE: (74,12) TESTSFG::BOTHEXACT
+    -> INLINE: (127,12) TESTSFG::P3
+    -> INLINE: (127,35) TESTSFG::P3
+    -> INLINE: (152,12) TESTSFG::P4
+    -> INLINE: (152,35) TESTSFG::P4
+    -> INLINE: (156,13) TESTSFG::P4
+
+
+    Report from: Code generation optimizations [cg]
+
+/glade/u/home/tvda/CISM/cism_driver/testsfg.F90(71,15):remark #34051: REGISTER ALLOCATION : [testsfg_mp_testg_] /glade/u/home/tvda/CISM/cism_driver/testsfg.F90:71
+
+    Hardware registers
+        Reserved     :    2[ rsp rip]
+        Available    :   39[ rax rdx rcx rbx rbp rsi rdi r8-r15 mm0-mm7 zmm0-zmm15]
+        Callee-save  :    6[ rbx rbp r12-r15]
+        Assigned     :   28[ rax rdx rcx rbx rsi rdi r8-r9 r12-r15 zmm0-zmm15]
+        
+    Routine temporaries
+        Total         :     465
+            Global    :     131
+            Local     :     334
+        Regenerable   :      94
+        Spilled       :      56
+        
+    Routine stack
+        Variables     :      96 bytes*
+            Reads     :       0 [0.00e+00 ~ 0.0%]
+            Writes    :       6 [8.95e-02 ~ 0.1%]
+        Spills        :     408 bytes*
+            Reads     :     111 [2.17e+01 ~ 21.7%]
+            Writes    :      62 [1.20e+01 ~ 12.0%]
+    
+    Notes
+    
+        *Non-overlapping variables and spills may share stack space,
+         so the total stack size might be less than this.
+    
+
+===========================================================================
+
+Begin optimization report for: TESTSFG::BOTHEXACT
+
+    Report from: Interprocedural optimizations [ipo]
+
+INLINE REPORT: (TESTSFG::BOTHEXACT) [4] /glade/u/home/tvda/CISM/cism_driver/testsfg.F90(77,15)
+  -> INLINE: (127,12) TESTSFG::P3
+  -> INLINE: (127,35) TESTSFG::P3
+  -> INLINE: (152,12) TESTSFG::P4
+  -> INLINE: (152,35) TESTSFG::P4
+  -> INLINE: (156,13) TESTSFG::P4
+
+
+    Report from: Code generation optimizations [cg]
+
+/glade/u/home/tvda/CISM/cism_driver/testsfg.F90(77,15):remark #34051: REGISTER ALLOCATION : [testsfg_mp_bothexact_] /glade/u/home/tvda/CISM/cism_driver/testsfg.F90:77
+
+    Hardware registers
+        Reserved     :    2[ rsp rip]
+        Available    :   39[ rax rdx rcx rbx rbp rsi rdi r8-r15 mm0-mm7 zmm0-zmm15]
+        Callee-save  :    6[ rbx rbp r12-r15]
+        Assigned     :   28[ rax rdx rcx rbx rsi rdi r8-r9 r12-r15 zmm0-zmm15]
+        
+    Routine temporaries
+        Total         :     474
+            Global    :     135
+            Local     :     339
+        Regenerable   :      97
+        Spilled       :      57
+        
+    Routine stack
+        Variables     :      96 bytes*
+            Reads     :       0 [0.00e+00 ~ 0.0%]
+            Writes    :       6 [8.83e-02 ~ 0.1%]
+        Spills        :     416 bytes*
+            Reads     :     113 [2.18e+01 ~ 21.8%]
+            Writes    :      65 [1.22e+01 ~ 12.2%]
+    
+    Notes
+    
+        *Non-overlapping variables and spills may share stack space,
+         so the total stack size might be less than this.
+    
+
+===========================================================================
+
+Begin optimization report for: TESTSFG::P3
+
+    Report from: Interprocedural optimizations [ipo]
+
+INLINE REPORT: (TESTSFG::P3) [5] /glade/u/home/tvda/CISM/cism_driver/testsfg.F90(170,13)
+
+
+    Report from: Code generation optimizations [cg]
+
+/glade/u/home/tvda/CISM/cism_driver/testsfg.F90(170,13):remark #34051: REGISTER ALLOCATION : [testsfg_mp_p3_] /glade/u/home/tvda/CISM/cism_driver/testsfg.F90:170
+
+    Hardware registers
+        Reserved     :    2[ rsp rip]
+        Available    :   39[ rax rdx rcx rbx rbp rsi rdi r8-r15 mm0-mm7 zmm0-zmm15]
+        Callee-save  :    6[ rbx rbp r12-r15]
+        Assigned     :    3[ rdi zmm0-zmm1]
+        
+    Routine temporaries
+        Total         :      19
+            Global    :       0
+            Local     :      19
+        Regenerable   :       1
+        Spilled       :       0
+        
+    Routine stack
+        Variables     :       0 bytes*
+            Reads     :       0 [0.00e+00 ~ 0.0%]
+            Writes    :       0 [0.00e+00 ~ 0.0%]
+        Spills        :       0 bytes*
+            Reads     :       0 [0.00e+00 ~ 0.0%]
+            Writes    :       0 [0.00e+00 ~ 0.0%]
+    
+    Notes
+    
+        *Non-overlapping variables and spills may share stack space,
+         so the total stack size might be less than this.
+    
+
+===========================================================================
+
+Begin optimization report for: TESTSFG::P4
+
+    Report from: Interprocedural optimizations [ipo]
+
+INLINE REPORT: (TESTSFG::P4) [6] /glade/u/home/tvda/CISM/cism_driver/testsfg.F90(177,13)
+
+
+    Report from: Code generation optimizations [cg]
+
+/glade/u/home/tvda/CISM/cism_driver/testsfg.F90(177,13):remark #34051: REGISTER ALLOCATION : [testsfg_mp_p4_] /glade/u/home/tvda/CISM/cism_driver/testsfg.F90:177
+
+    Hardware registers
+        Reserved     :    2[ rsp rip]
+        Available    :   39[ rax rdx rcx rbx rbp rsi rdi r8-r15 mm0-mm7 zmm0-zmm15]
+        Callee-save  :    6[ rbx rbp r12-r15]
+        Assigned     :    3[ rdi zmm0-zmm1]
+        
+    Routine temporaries
+        Total         :      22
+            Global    :       0
+            Local     :      22
+        Regenerable   :       1
+        Spilled       :       0
+        
+    Routine stack
+        Variables     :       0 bytes*
+            Reads     :       0 [0.00e+00 ~ 0.0%]
+            Writes    :       0 [0.00e+00 ~ 0.0%]
+        Spills        :       0 bytes*
+            Reads     :       0 [0.00e+00 ~ 0.0%]
+            Writes    :       0 [0.00e+00 ~ 0.0%]
+    
+    Notes
+    
+        *Non-overlapping variables and spills may share stack space,
+         so the total stack size might be less than this.
+    
+
+===========================================================================
+
+Begin optimization report for: TESTSFG::MODEL_EXACT
+
+    Report from: Interprocedural optimizations [ipo]
+
+INLINE REPORT: (TESTSFG::MODEL_EXACT) [7] /glade/u/home/tvda/CISM/cism_driver/testsfg.F90(184,15)
+  -> INLINE: (242,12) TESTSFG::P3
+  -> INLINE: (242,35) TESTSFG::P3
+  -> INLINE: (267,12) TESTSFG::P4
+  -> INLINE: (267,35) TESTSFG::P4
+  -> INLINE: (271,13) TESTSFG::P4
+
+
+    Report from: Code generation optimizations [cg]
+
+/glade/u/home/tvda/CISM/cism_driver/testsfg.F90(184,15):remark #34051: REGISTER ALLOCATION : [testsfg_mp_model_exact_] /glade/u/home/tvda/CISM/cism_driver/testsfg.F90:184
+
+    Hardware registers
+        Reserved     :    2[ rsp rip]
+        Available    :   39[ rax rdx rcx rbx rbp rsi rdi r8-r15 mm0-mm7 zmm0-zmm15]
+        Callee-save  :    6[ rbx rbp r12-r15]
+        Assigned     :   28[ rax rdx rcx rbx rsi rdi r8-r9 r12-r15 zmm0-zmm15]
+        
+    Routine temporaries
+        Total         :     452
+            Global    :     132
+            Local     :     320
+        Regenerable   :      95
+        Spilled       :      56
+        
+    Routine stack
+        Variables     :      96 bytes*
+            Reads     :       0 [0.00e+00 ~ 0.0%]
+            Writes    :       6 [8.93e-02 ~ 0.1%]
+        Spills        :     408 bytes*
+            Reads     :     108 [2.06e+01 ~ 20.6%]
+            Writes    :      64 [1.16e+01 ~ 11.6%]
+    
+    Notes
+    
+        *Non-overlapping variables and spills may share stack space,
+         so the total stack size might be less than this.
+    
+
+===========================================================================

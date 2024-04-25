@@ -1,0 +1,115 @@
+--- !Missed
+Pass:            slp-vectorizer
+Name:            HorSLPNotBeneficial
+DebugLoc:        { File: CMakeCCompilerId.c, Line: 844, Column: 11 }
+Function:        main
+Args:
+  - String:          'Vectorizing horizontal reduction is possible '
+  - String:          'but not beneficial with cost '
+  - Cost:            '19'
+  - String:          ' and threshold '
+  - Threshold:       '0'
+...
+--- !Missed
+Pass:            slp-vectorizer
+Name:            HorSLPNotBeneficial
+DebugLoc:        { File: CMakeCCompilerId.c, Line: 844, Column: 11 }
+Function:        main
+Args:
+  - String:          'Vectorizing horizontal reduction is possible '
+  - String:          'but not beneficial with cost '
+  - Cost:            '10'
+  - String:          ' and threshold '
+  - Threshold:       '0'
+...
+--- !Missed
+Pass:            slp-vectorizer
+Name:            HorSLPNotBeneficial
+DebugLoc:        { File: CMakeCCompilerId.c, Line: 844, Column: 11 }
+Function:        main
+Args:
+  - String:          'Vectorizing horizontal reduction is possible '
+  - String:          'but not beneficial with cost '
+  - Cost:            '10'
+  - String:          ' and threshold '
+  - Threshold:       '0'
+...
+--- !Missed
+Pass:            slp-vectorizer
+Name:            HorSLPNotBeneficial
+DebugLoc:        { File: CMakeCCompilerId.c, Line: 845, Column: 11 }
+Function:        main
+Args:
+  - String:          'Vectorizing horizontal reduction is possible '
+  - String:          'but not beneficial with cost '
+  - Cost:            '10'
+  - String:          ' and threshold '
+  - Threshold:       '0'
+...
+--- !Missed
+Pass:            slp-vectorizer
+Name:            HorSLPNotBeneficial
+DebugLoc:        { File: CMakeCCompilerId.c, Line: 847, Column: 11 }
+Function:        main
+Args:
+  - String:          'Vectorizing horizontal reduction is possible '
+  - String:          'but not beneficial with cost '
+  - Cost:            '10'
+  - String:          ' and threshold '
+  - Threshold:       '0'
+...
+--- !Missed
+Pass:            slp-vectorizer
+Name:            HorSLPNotBeneficial
+DebugLoc:        { File: CMakeCCompilerId.c, Line: 853, Column: 11 }
+Function:        main
+Args:
+  - String:          'Vectorizing horizontal reduction is possible '
+  - String:          'but not beneficial with cost '
+  - Cost:            '10'
+  - String:          ' and threshold '
+  - Threshold:       '0'
+...
+--- !Missed
+Pass:            slp-vectorizer
+Name:            NotBeneficial
+DebugLoc:        { File: CMakeCCompilerId.c, Line: 844, Column: 14 }
+Function:        main
+Args:
+  - String:          'List vectorization was possible but not beneficial with cost '
+  - Cost:            '0'
+  - String:          ' >= '
+  - Treshold:        '0'
+...
+--- !Analysis
+Pass:            prologepilog
+Name:            StackSize
+DebugLoc:        { File: CMakeCCompilerId.c, Line: 841, Column: 0 }
+Function:        main
+Args:
+  - NumStackBytes:   '0'
+  - String:          ' stack bytes in function'
+...
+--- !Analysis
+Pass:            asm-printer
+Name:            InstructionMix
+DebugLoc:        { File: CMakeCCompilerId.c, Line: 843, Column: 14 }
+Function:        main
+Args:
+  - String:          'BasicBlock: '
+  - BasicBlock:      ''
+  - String:          "\n"
+  - String:          ''
+  - String:          ': '
+  - INST_:           '23'
+  - String:          "\n"
+...
+--- !Analysis
+Pass:            asm-printer
+Name:            InstructionCount
+DebugLoc:        { File: CMakeCCompilerId.c, Line: 841, Column: 0 }
+Function:        main
+Args:
+  - NumInstructions: '23'
+  - String:          ' instructions in function'
+...

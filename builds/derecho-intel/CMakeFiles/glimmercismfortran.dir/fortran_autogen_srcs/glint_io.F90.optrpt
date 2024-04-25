@@ -1,0 +1,2512 @@
+Intel(R) Advisor can now assist with vectorization and show optimization
+  report messages with your source code.
+See "https://software.intel.com/en-us/intel-advisor-xe" for details.
+
+
+    Report from: Interprocedural optimizations [ipo]
+
+INLINING OPTION VALUES:
+  -inline-factor: 100
+  -inline-min-size: 30
+  -inline-max-size: 230
+  -inline-max-total-size: 2000
+  -inline-max-per-routine: 10000
+  -inline-max-per-compile: 500000
+
+
+Begin optimization report for: glint_io._
+
+    Report from: Interprocedural optimizations [ipo]
+
+INLINE REPORT: (glint_io._) [1] /glade/u/home/tvda/CISM/builds/derecho-intel/fortran_autogen_srcs/glint_io.F90(43,8)
+
+
+    Report from: Code generation optimizations [cg]
+
+/glade/u/home/tvda/CISM/builds/derecho-intel/fortran_autogen_srcs/glint_io.F90(43,8):remark #34051: REGISTER ALLOCATION : [glint_io._] /glade/u/home/tvda/CISM/builds/derecho-intel/fortran_autogen_srcs/glint_io.F90:43
+
+    Hardware registers
+        Reserved     :    2[ rsp rip]
+        Available    :   39[ rax rdx rcx rbx rbp rsi rdi r8-r15 mm0-mm7 zmm0-zmm15]
+        Callee-save  :    6[ rbx rbp r12-r15]
+        Assigned     :    0[ reg_null]
+        
+    Routine temporaries
+        Total         :       6
+            Global    :       0
+            Local     :       6
+        Regenerable   :       0
+        Spilled       :       0
+        
+    Routine stack
+        Variables     :       0 bytes*
+            Reads     :       0 [0.00e+00 ~ 0.0%]
+            Writes    :       0 [0.00e+00 ~ 0.0%]
+        Spills        :       0 bytes*
+            Reads     :       0 [0.00e+00 ~ 0.0%]
+            Writes    :       0 [0.00e+00 ~ 0.0%]
+    
+    Notes
+    
+        *Non-overlapping variables and spills may share stack space,
+         so the total stack size might be less than this.
+    
+
+===========================================================================
+
+Begin optimization report for: GLINT_IO::GLINT_IO_CREATEALL
+
+    Report from: Interprocedural optimizations [ipo]
+
+INLINE REPORT: (GLINT_IO::GLINT_IO_CREATEALL) [2] /glade/u/home/tvda/CISM/builds/derecho-intel/fortran_autogen_srcs/glint_io.F90(79,14)
+  -> (97,13) GLINT_IO::GLINT_IO_CREATE
+
+
+    Report from: Loop nest, Vector & Auto-parallelization optimizations [loop, vec, par]
+
+
+
+Non-optimizable loops:
+
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/builds/derecho-intel/fortran_autogen_srcs/glint_io.F90(98,8)
+   remark #15521: loop was not vectorized: loop control variable was not identified. Explicitly compute the iteration count before executing the loop or try using canonical loop form from OpenMP specification
+LOOP END
+
+    Report from: Code generation optimizations [cg]
+
+/glade/u/home/tvda/CISM/builds/derecho-intel/fortran_autogen_srcs/glint_io.F90(79,14):remark #34051: REGISTER ALLOCATION : [glint_io_mp_glint_io_createall_] /glade/u/home/tvda/CISM/builds/derecho-intel/fortran_autogen_srcs/glint_io.F90:79
+
+    Hardware registers
+        Reserved     :    2[ rsp rip]
+        Available    :   39[ rax rdx rcx rbx rbp rsi rdi r8-r15 mm0-mm7 zmm0-zmm15]
+        Callee-save  :    6[ rbx rbp r12-r15]
+        Assigned     :    8[ rax rdx rcx rsi rdi r12-r14]
+        
+    Routine temporaries
+        Total         :      21
+            Global    :      11
+            Local     :      10
+        Regenerable   :       3
+        Spilled       :       3
+        
+    Routine stack
+        Variables     :       0 bytes*
+            Reads     :       0 [0.00e+00 ~ 0.0%]
+            Writes    :       0 [0.00e+00 ~ 0.0%]
+        Spills        :       0 bytes*
+            Reads     :       0 [0.00e+00 ~ 0.0%]
+            Writes    :       0 [0.00e+00 ~ 0.0%]
+    
+    Notes
+    
+        *Non-overlapping variables and spills may share stack space,
+         so the total stack size might be less than this.
+    
+
+===========================================================================
+
+Begin optimization report for: GLINT_IO::GLINT_IO_CREATE
+
+    Report from: Interprocedural optimizations [ipo]
+
+INLINE REPORT: (GLINT_IO::GLINT_IO_CREATE) [3] /glade/u/home/tvda/CISM/builds/derecho-intel/fortran_autogen_srcs/glint_io.F90(146,14)
+  -> (248,9) GLINT_IO::IS_ENABLED_2DREAL
+  -> CP_CLONE (250,55) GLINT_IO::GET_XTYPE..0
+  -> CP_CLONE (257,12) GLINT_IO::GET_XTYPE..0
+  -> CP_CLONE (260,16) GLINT_IO::GET_XTYPE..0
+  -> (281,9) GLINT_IO::IS_ENABLED_2DREAL
+  -> CP_CLONE (283,55) GLINT_IO::GET_XTYPE..0
+  -> CP_CLONE (290,12) GLINT_IO::GET_XTYPE..0
+  -> CP_CLONE (293,16) GLINT_IO::GET_XTYPE..0
+  -> (314,9) GLINT_IO::IS_ENABLED_2DREAL
+  -> CP_CLONE (316,62) GLINT_IO::GET_XTYPE..0
+  -> CP_CLONE (325,12) GLINT_IO::GET_XTYPE..0
+  -> CP_CLONE (328,16) GLINT_IO::GET_XTYPE..0
+  -> (349,9) GLINT_IO::IS_ENABLED_2DREAL
+  -> CP_CLONE (351,60) GLINT_IO::GET_XTYPE..0
+  -> CP_CLONE (358,12) GLINT_IO::GET_XTYPE..0
+  -> CP_CLONE (361,16) GLINT_IO::GET_XTYPE..0
+  -> (382,9) GLINT_IO::IS_ENABLED_2DINT
+  -> CP_CLONE (384,57) GLINT_IO::GET_XTYPE..0
+  -> CP_CLONE (391,12) GLINT_IO::GET_XTYPE..0
+  -> CP_CLONE (394,16) GLINT_IO::GET_XTYPE..0
+  -> (415,9) GLINT_IO::IS_ENABLED_2DREAL
+  -> CP_CLONE (417,61) GLINT_IO::GET_XTYPE..0
+  -> CP_CLONE (426,12) GLINT_IO::GET_XTYPE..0
+  -> CP_CLONE (429,16) GLINT_IO::GET_XTYPE..0
+  -> (450,9) GLINT_IO::IS_ENABLED_2DINT
+  -> CP_CLONE (452,58) GLINT_IO::GET_XTYPE..0
+  -> CP_CLONE (459,12) GLINT_IO::GET_XTYPE..0
+  -> CP_CLONE (462,16) GLINT_IO::GET_XTYPE..0
+  -> (483,9) GLINT_IO::IS_ENABLED_2DREAL
+  -> CP_CLONE (485,55) GLINT_IO::GET_XTYPE..0
+  -> CP_CLONE (494,12) GLINT_IO::GET_XTYPE..0
+  -> CP_CLONE (497,16) GLINT_IO::GET_XTYPE..0
+  -> (518,9) GLINT_IO::IS_ENABLED_2DREAL
+  -> CP_CLONE (520,60) GLINT_IO::GET_XTYPE..0
+  -> CP_CLONE (527,12) GLINT_IO::GET_XTYPE..0
+  -> CP_CLONE (530,16) GLINT_IO::GET_XTYPE..0
+  -> (551,9) GLINT_IO::IS_ENABLED_2DREAL
+  -> CP_CLONE (553,60) GLINT_IO::GET_XTYPE..0
+  -> CP_CLONE (560,12) GLINT_IO::GET_XTYPE..0
+  -> CP_CLONE (563,16) GLINT_IO::GET_XTYPE..0
+  -> (584,9) GLINT_IO::IS_ENABLED_2DREAL
+  -> CP_CLONE (586,56) GLINT_IO::GET_XTYPE..0
+  -> CP_CLONE (593,12) GLINT_IO::GET_XTYPE..0
+  -> CP_CLONE (596,16) GLINT_IO::GET_XTYPE..0
+  -> (617,9) GLINT_IO::IS_ENABLED_2DREAL
+  -> CP_CLONE (619,56) GLINT_IO::GET_XTYPE..0
+  -> CP_CLONE (628,12) GLINT_IO::GET_XTYPE..0
+  -> CP_CLONE (631,16) GLINT_IO::GET_XTYPE..0
+
+
+    Report from: Code generation optimizations [cg]
+
+/glade/u/home/tvda/CISM/builds/derecho-intel/fortran_autogen_srcs/glint_io.F90(146,14):remark #34051: REGISTER ALLOCATION : [glint_io_mp_glint_io_create_] /glade/u/home/tvda/CISM/builds/derecho-intel/fortran_autogen_srcs/glint_io.F90:146
+
+    Hardware registers
+        Reserved     :    2[ rsp rip]
+        Available    :   39[ rax rdx rcx rbx rbp rsi rdi r8-r15 mm0-mm7 zmm0-zmm15]
+        Callee-save  :    6[ rbx rbp r12-r15]
+        Assigned     :   14[ rax rdx rcx rbx rsi rdi r8-r15]
+        
+    Routine temporaries
+        Total         :    2450
+            Global    :     440
+            Local     :    2010
+        Regenerable   :    1341
+        Spilled       :       6
+        
+    Routine stack
+        Variables     :    5412 bytes*
+            Reads     :      48 [1.14e+00 ~ 1.1%]
+            Writes    :     301 [6.10e+00 ~ 6.1%]
+        Spills        :       8 bytes*
+            Reads     :       1 [1.82e-02 ~ 0.0%]
+            Writes    :       1 [3.64e-02 ~ 0.0%]
+    
+    Notes
+    
+        *Non-overlapping variables and spills may share stack space,
+         so the total stack size might be less than this.
+    
+
+===========================================================================
+
+Begin optimization report for: GLINT_IO::GET_XTYPE..0
+
+    Report from: Interprocedural optimizations [ipo]
+
+INLINE REPORT: (GLINT_IO::GET_XTYPE..0) [4] /glade/u/home/tvda/CISM/builds/derecho-intel/fortran_autogen_srcs/glint_io.F90(1221,20)
+  CLONED FROM: GLINT_IO::GET_XTYPE(X,5)
+
+
+    Report from: Code generation optimizations [cg]
+
+/glade/u/home/tvda/CISM/builds/derecho-intel/fortran_autogen_srcs/glint_io.F90(1221,20):remark #34051: REGISTER ALLOCATION : [glint_io_mp_get_xtype_..0] /glade/u/home/tvda/CISM/builds/derecho-intel/fortran_autogen_srcs/glint_io.F90:1221
+
+    Hardware registers
+        Reserved     :    2[ rsp rip]
+        Available    :   39[ rax rdx rcx rbx rbp rsi rdi r8-r15 mm0-mm7 zmm0-zmm15]
+        Callee-save  :    6[ rbx rbp r12-r15]
+        Assigned     :    4[ rax rdx rsi rdi]
+        
+    Routine temporaries
+        Total         :      14
+            Global    :       0
+            Local     :      14
+        Regenerable   :       1
+        Spilled       :       0
+        
+    Routine stack
+        Variables     :       0 bytes*
+            Reads     :       0 [0.00e+00 ~ 0.0%]
+            Writes    :       0 [0.00e+00 ~ 0.0%]
+        Spills        :       0 bytes*
+            Reads     :       0 [0.00e+00 ~ 0.0%]
+            Writes    :       0 [0.00e+00 ~ 0.0%]
+    
+    Notes
+    
+        *Non-overlapping variables and spills may share stack space,
+         so the total stack size might be less than this.
+    
+
+===========================================================================
+
+Begin optimization report for: GLINT_IO::IS_ENABLED_2DREAL
+
+    Report from: Interprocedural optimizations [ipo]
+
+INLINE REPORT: (GLINT_IO::IS_ENABLED_2DREAL) [5] /glade/u/home/tvda/CISM/builds/derecho-intel/fortran_autogen_srcs/glint_io.F90(839,12)
+
+
+    Report from: Code generation optimizations [cg]
+
+/glade/u/home/tvda/CISM/builds/derecho-intel/fortran_autogen_srcs/glint_io.F90(839,12):remark #34051: REGISTER ALLOCATION : [glint_io_mp_is_enabled_2dreal_] /glade/u/home/tvda/CISM/builds/derecho-intel/fortran_autogen_srcs/glint_io.F90:839
+
+    Hardware registers
+        Reserved     :    2[ rsp rip]
+        Available    :   39[ rax rdx rcx rbx rbp rsi rdi r8-r15 mm0-mm7 zmm0-zmm15]
+        Callee-save  :    6[ rbx rbp r12-r15]
+        Assigned     :    2[ rax rdi]
+        
+    Routine temporaries
+        Total         :      13
+            Global    :       0
+            Local     :      13
+        Regenerable   :       0
+        Spilled       :       0
+        
+    Routine stack
+        Variables     :       0 bytes*
+            Reads     :       0 [0.00e+00 ~ 0.0%]
+            Writes    :       0 [0.00e+00 ~ 0.0%]
+        Spills        :       0 bytes*
+            Reads     :       0 [0.00e+00 ~ 0.0%]
+            Writes    :       0 [0.00e+00 ~ 0.0%]
+    
+    Notes
+    
+        *Non-overlapping variables and spills may share stack space,
+         so the total stack size might be less than this.
+    
+
+===========================================================================
+
+Begin optimization report for: GLINT_IO::IS_ENABLED_2DINT
+
+    Report from: Interprocedural optimizations [ipo]
+
+INLINE REPORT: (GLINT_IO::IS_ENABLED_2DINT) [6] /glade/u/home/tvda/CISM/builds/derecho-intel/fortran_autogen_srcs/glint_io.F90(810,12)
+
+
+    Report from: Code generation optimizations [cg]
+
+/glade/u/home/tvda/CISM/builds/derecho-intel/fortran_autogen_srcs/glint_io.F90(810,12):remark #34051: REGISTER ALLOCATION : [glint_io_mp_is_enabled_2dint_] /glade/u/home/tvda/CISM/builds/derecho-intel/fortran_autogen_srcs/glint_io.F90:810
+
+    Hardware registers
+        Reserved     :    2[ rsp rip]
+        Available    :   39[ rax rdx rcx rbx rbp rsi rdi r8-r15 mm0-mm7 zmm0-zmm15]
+        Callee-save  :    6[ rbx rbp r12-r15]
+        Assigned     :    2[ rax rdi]
+        
+    Routine temporaries
+        Total         :      13
+            Global    :       0
+            Local     :      13
+        Regenerable   :       0
+        Spilled       :       0
+        
+    Routine stack
+        Variables     :       0 bytes*
+            Reads     :       0 [0.00e+00 ~ 0.0%]
+            Writes    :       0 [0.00e+00 ~ 0.0%]
+        Spills        :       0 bytes*
+            Reads     :       0 [0.00e+00 ~ 0.0%]
+            Writes    :       0 [0.00e+00 ~ 0.0%]
+    
+    Notes
+    
+        *Non-overlapping variables and spills may share stack space,
+         so the total stack size might be less than this.
+    
+
+===========================================================================
+
+Begin optimization report for: GLINT_IO::GLINT_IO_WRITEALL
+
+    Report from: Interprocedural optimizations [ipo]
+
+INLINE REPORT: (GLINT_IO::GLINT_IO_WRITEALL) [7] /glade/u/home/tvda/CISM/builds/derecho-intel/fortran_autogen_srcs/glint_io.F90(102,14)
+  -> INLINE: (135,16) GLINT_IO::GLINT_IO_WRITE
+
+
+    Report from: Loop nest, Vector & Auto-parallelization optimizations [loop, vec, par]
+
+
+
+Non-optimizable loops:
+
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/builds/derecho-intel/fortran_autogen_srcs/glint_io.F90(142,8)
+   remark #15521: loop was not vectorized: loop control variable was not identified. Explicitly compute the iteration count before executing the loop or try using canonical loop form from OpenMP specification
+LOOP END
+
+    Report from: Code generation optimizations [cg]
+
+/glade/u/home/tvda/CISM/builds/derecho-intel/fortran_autogen_srcs/glint_io.F90(647,14):remark #34000: call to memcpy implemented inline with loads and stores with proven source (alignment, offset): (32, 0), and destination (alignment, offset): (16, 0)
+/glade/u/home/tvda/CISM/builds/derecho-intel/fortran_autogen_srcs/glint_io.F90(662,5):remark #34000: call to memcpy implemented inline with loads and stores with proven source (alignment, offset): (1, 0), and destination (alignment, offset): (16, 0)
+/glade/u/home/tvda/CISM/builds/derecho-intel/fortran_autogen_srcs/glint_io.F90(102,14):remark #34051: REGISTER ALLOCATION : [glint_io_mp_glint_io_writeall_] /glade/u/home/tvda/CISM/builds/derecho-intel/fortran_autogen_srcs/glint_io.F90:102
+
+    Hardware registers
+        Reserved     :    2[ rsp rip]
+        Available    :   39[ rax rdx rcx rbx rbp rsi rdi r8-r15 mm0-mm7 zmm0-zmm15]
+        Callee-save  :    6[ rbx rbp r12-r15]
+        Assigned     :   19[ rax rdx rcx rbx rsi rdi r8-r15 zmm0-zmm4]
+        
+    Routine temporaries
+        Total         :     418
+            Global    :      79
+            Local     :     339
+        Regenerable   :     224
+        Spilled       :      17
+        
+    Routine stack
+        Variables     :    1052 bytes*
+            Reads     :       0 [0.00e+00 ~ 0.0%]
+            Writes    :     134 [1.87e+01 ~ 18.7%]
+        Spills        :      96 bytes*
+            Reads     :      12 [3.85e-01 ~ 0.4%]
+            Writes    :      12 [1.65e+00 ~ 1.6%]
+    
+    Notes
+    
+        *Non-overlapping variables and spills may share stack space,
+         so the total stack size might be less than this.
+    
+
+===========================================================================
+
+Begin optimization report for: GLINT_IO::GLINT_IO_WRITE
+
+    Report from: Interprocedural optimizations [ipo]
+
+INLINE REPORT: (GLINT_IO::GLINT_IO_WRITE) [8] /glade/u/home/tvda/CISM/builds/derecho-intel/fortran_autogen_srcs/glint_io.F90(647,14)
+
+
+    Report from: Code generation optimizations [cg]
+
+/glade/u/home/tvda/CISM/builds/derecho-intel/fortran_autogen_srcs/glint_io.F90(647,14):remark #34000: call to memcpy implemented inline with loads and stores with proven source (alignment, offset): (32, 0), and destination (alignment, offset): (16, 0)
+/glade/u/home/tvda/CISM/builds/derecho-intel/fortran_autogen_srcs/glint_io.F90(662,5):remark #34000: call to memcpy implemented inline with loads and stores with proven source (alignment, offset): (1, 0), and destination (alignment, offset): (16, 0)
+/glade/u/home/tvda/CISM/builds/derecho-intel/fortran_autogen_srcs/glint_io.F90(647,14):remark #34051: REGISTER ALLOCATION : [glint_io_mp_glint_io_write_] /glade/u/home/tvda/CISM/builds/derecho-intel/fortran_autogen_srcs/glint_io.F90:647
+
+    Hardware registers
+        Reserved     :    2[ rsp rip]
+        Available    :   39[ rax rdx rcx rbx rbp rsi rdi r8-r15 mm0-mm7 zmm0-zmm15]
+        Callee-save  :    6[ rbx rbp r12-r15]
+        Assigned     :   15[ rax rdx rcx rsi rdi r8-r10 r14-r15 zmm0-zmm4]
+        
+    Routine temporaries
+        Total         :     400
+            Global    :      60
+            Local     :     340
+        Regenerable   :     218
+        Spilled       :       2
+        
+    Routine stack
+        Variables     :    1052 bytes*
+            Reads     :       0 [0.00e+00 ~ 0.0%]
+            Writes    :     134 [2.04e+01 ~ 20.4%]
+        Spills        :       0 bytes*
+            Reads     :       0 [0.00e+00 ~ 0.0%]
+            Writes    :       0 [0.00e+00 ~ 0.0%]
+    
+    Notes
+    
+        *Non-overlapping variables and spills may share stack space,
+         so the total stack size might be less than this.
+    
+
+===========================================================================
+
+Begin optimization report for: GLINT_IO::GLINT_ADD_TO_RESTART_VARIABLE_LIST
+
+    Report from: Interprocedural optimizations [ipo]
+
+INLINE REPORT: (GLINT_IO::GLINT_ADD_TO_RESTART_VARIABLE_LIST) [9] /glade/u/home/tvda/CISM/builds/derecho-intel/fortran_autogen_srcs/glint_io.F90(758,14)
+
+
+    Report from: Code generation optimizations [cg]
+
+/glade/u/home/tvda/CISM/builds/derecho-intel/fortran_autogen_srcs/glint_io.F90(758,14):remark #34051: REGISTER ALLOCATION : [glint_io_mp_glint_add_to_restart_variable_list_] /glade/u/home/tvda/CISM/builds/derecho-intel/fortran_autogen_srcs/glint_io.F90:758
+
+    Hardware registers
+        Reserved     :    2[ rsp rip]
+        Available    :   39[ rax rdx rcx rbx rbp rsi rdi r8-r15 mm0-mm7 zmm0-zmm15]
+        Callee-save  :    6[ rbx rbp r12-r15]
+        Assigned     :   11[ rax rdx rcx rbx rsi rdi r8-r9 r12 r14-r15]
+        
+    Routine temporaries
+        Total         :      59
+            Global    :      22
+            Local     :      37
+        Regenerable   :      26
+        Spilled       :       4
+        
+    Routine stack
+        Variables     :    2096 bytes*
+            Reads     :       0 [0.00e+00 ~ 0.0%]
+            Writes    :       6 [5.50e+00 ~ 5.5%]
+        Spills        :       0 bytes*
+            Reads     :       0 [0.00e+00 ~ 0.0%]
+            Writes    :       0 [0.00e+00 ~ 0.0%]
+    
+    Notes
+    
+        *Non-overlapping variables and spills may share stack space,
+         so the total stack size might be less than this.
+    
+
+===========================================================================
+
+Begin optimization report for: GLINT_IO::IS_ENABLED_0DINT
+
+    Report from: Interprocedural optimizations [ipo]
+
+INLINE REPORT: (GLINT_IO::IS_ENABLED_0DINT) [10] /glade/u/home/tvda/CISM/builds/derecho-intel/fortran_autogen_srcs/glint_io.F90(792,12)
+
+
+    Report from: Code generation optimizations [cg]
+
+/glade/u/home/tvda/CISM/builds/derecho-intel/fortran_autogen_srcs/glint_io.F90(792,12):remark #34051: REGISTER ALLOCATION : [glint_io_mp_is_enabled_0dint_] /glade/u/home/tvda/CISM/builds/derecho-intel/fortran_autogen_srcs/glint_io.F90:792
+
+    Hardware registers
+        Reserved     :    2[ rsp rip]
+        Available    :   39[ rax rdx rcx rbx rbp rsi rdi r8-r15 mm0-mm7 zmm0-zmm15]
+        Callee-save  :    6[ rbx rbp r12-r15]
+        Assigned     :    2[ rax rdi]
+        
+    Routine temporaries
+        Total         :       8
+            Global    :       0
+            Local     :       8
+        Regenerable   :       1
+        Spilled       :       0
+        
+    Routine stack
+        Variables     :       0 bytes*
+            Reads     :       0 [0.00e+00 ~ 0.0%]
+            Writes    :       0 [0.00e+00 ~ 0.0%]
+        Spills        :       0 bytes*
+            Reads     :       0 [0.00e+00 ~ 0.0%]
+            Writes    :       0 [0.00e+00 ~ 0.0%]
+    
+    Notes
+    
+        *Non-overlapping variables and spills may share stack space,
+         so the total stack size might be less than this.
+    
+
+===========================================================================
+
+Begin optimization report for: GLINT_IO::IS_ENABLED_1DINT
+
+    Report from: Interprocedural optimizations [ipo]
+
+INLINE REPORT: (GLINT_IO::IS_ENABLED_1DINT) [11] /glade/u/home/tvda/CISM/builds/derecho-intel/fortran_autogen_srcs/glint_io.F90(799,12)
+
+
+    Report from: Code generation optimizations [cg]
+
+/glade/u/home/tvda/CISM/builds/derecho-intel/fortran_autogen_srcs/glint_io.F90(799,12):remark #34051: REGISTER ALLOCATION : [glint_io_mp_is_enabled_1dint_] /glade/u/home/tvda/CISM/builds/derecho-intel/fortran_autogen_srcs/glint_io.F90:799
+
+    Hardware registers
+        Reserved     :    2[ rsp rip]
+        Available    :   39[ rax rdx rcx rbx rbp rsi rdi r8-r15 mm0-mm7 zmm0-zmm15]
+        Callee-save  :    6[ rbx rbp r12-r15]
+        Assigned     :    2[ rax rdi]
+        
+    Routine temporaries
+        Total         :      13
+            Global    :       0
+            Local     :      13
+        Regenerable   :       0
+        Spilled       :       0
+        
+    Routine stack
+        Variables     :       0 bytes*
+            Reads     :       0 [0.00e+00 ~ 0.0%]
+            Writes    :       0 [0.00e+00 ~ 0.0%]
+        Spills        :       0 bytes*
+            Reads     :       0 [0.00e+00 ~ 0.0%]
+            Writes    :       0 [0.00e+00 ~ 0.0%]
+    
+    Notes
+    
+        *Non-overlapping variables and spills may share stack space,
+         so the total stack size might be less than this.
+    
+
+===========================================================================
+
+Begin optimization report for: GLINT_IO::IS_ENABLED_0DREAL
+
+    Report from: Interprocedural optimizations [ipo]
+
+INLINE REPORT: (GLINT_IO::IS_ENABLED_0DREAL) [12] /glade/u/home/tvda/CISM/builds/derecho-intel/fortran_autogen_srcs/glint_io.F90(821,12)
+
+
+    Report from: Code generation optimizations [cg]
+
+/glade/u/home/tvda/CISM/builds/derecho-intel/fortran_autogen_srcs/glint_io.F90(821,12):remark #34051: REGISTER ALLOCATION : [glint_io_mp_is_enabled_0dreal_] /glade/u/home/tvda/CISM/builds/derecho-intel/fortran_autogen_srcs/glint_io.F90:821
+
+    Hardware registers
+        Reserved     :    2[ rsp rip]
+        Available    :   39[ rax rdx rcx rbx rbp rsi rdi r8-r15 mm0-mm7 zmm0-zmm15]
+        Callee-save  :    6[ rbx rbp r12-r15]
+        Assigned     :    2[ rax rdi]
+        
+    Routine temporaries
+        Total         :       8
+            Global    :       0
+            Local     :       8
+        Regenerable   :       1
+        Spilled       :       0
+        
+    Routine stack
+        Variables     :       0 bytes*
+            Reads     :       0 [0.00e+00 ~ 0.0%]
+            Writes    :       0 [0.00e+00 ~ 0.0%]
+        Spills        :       0 bytes*
+            Reads     :       0 [0.00e+00 ~ 0.0%]
+            Writes    :       0 [0.00e+00 ~ 0.0%]
+    
+    Notes
+    
+        *Non-overlapping variables and spills may share stack space,
+         so the total stack size might be less than this.
+    
+
+===========================================================================
+
+Begin optimization report for: GLINT_IO::IS_ENABLED_1DREAL
+
+    Report from: Interprocedural optimizations [ipo]
+
+INLINE REPORT: (GLINT_IO::IS_ENABLED_1DREAL) [13] /glade/u/home/tvda/CISM/builds/derecho-intel/fortran_autogen_srcs/glint_io.F90(828,12)
+
+
+    Report from: Code generation optimizations [cg]
+
+/glade/u/home/tvda/CISM/builds/derecho-intel/fortran_autogen_srcs/glint_io.F90(828,12):remark #34051: REGISTER ALLOCATION : [glint_io_mp_is_enabled_1dreal_] /glade/u/home/tvda/CISM/builds/derecho-intel/fortran_autogen_srcs/glint_io.F90:828
+
+    Hardware registers
+        Reserved     :    2[ rsp rip]
+        Available    :   39[ rax rdx rcx rbx rbp rsi rdi r8-r15 mm0-mm7 zmm0-zmm15]
+        Callee-save  :    6[ rbx rbp r12-r15]
+        Assigned     :    2[ rax rdi]
+        
+    Routine temporaries
+        Total         :      13
+            Global    :       0
+            Local     :      13
+        Regenerable   :       0
+        Spilled       :       0
+        
+    Routine stack
+        Variables     :       0 bytes*
+            Reads     :       0 [0.00e+00 ~ 0.0%]
+            Writes    :       0 [0.00e+00 ~ 0.0%]
+        Spills        :       0 bytes*
+            Reads     :       0 [0.00e+00 ~ 0.0%]
+            Writes    :       0 [0.00e+00 ~ 0.0%]
+    
+    Notes
+    
+        *Non-overlapping variables and spills may share stack space,
+         so the total stack size might be less than this.
+    
+
+===========================================================================
+
+Begin optimization report for: GLINT_IO::IS_ENABLED_3DREAL
+
+    Report from: Interprocedural optimizations [ipo]
+
+INLINE REPORT: (GLINT_IO::IS_ENABLED_3DREAL) [14] /glade/u/home/tvda/CISM/builds/derecho-intel/fortran_autogen_srcs/glint_io.F90(850,12)
+
+
+    Report from: Code generation optimizations [cg]
+
+/glade/u/home/tvda/CISM/builds/derecho-intel/fortran_autogen_srcs/glint_io.F90(850,12):remark #34051: REGISTER ALLOCATION : [glint_io_mp_is_enabled_3dreal_] /glade/u/home/tvda/CISM/builds/derecho-intel/fortran_autogen_srcs/glint_io.F90:850
+
+    Hardware registers
+        Reserved     :    2[ rsp rip]
+        Available    :   39[ rax rdx rcx rbx rbp rsi rdi r8-r15 mm0-mm7 zmm0-zmm15]
+        Callee-save  :    6[ rbx rbp r12-r15]
+        Assigned     :    2[ rax rdi]
+        
+    Routine temporaries
+        Total         :      13
+            Global    :       0
+            Local     :      13
+        Regenerable   :       0
+        Spilled       :       0
+        
+    Routine stack
+        Variables     :       0 bytes*
+            Reads     :       0 [0.00e+00 ~ 0.0%]
+            Writes    :       0 [0.00e+00 ~ 0.0%]
+        Spills        :       0 bytes*
+            Reads     :       0 [0.00e+00 ~ 0.0%]
+            Writes    :       0 [0.00e+00 ~ 0.0%]
+    
+    Notes
+    
+        *Non-overlapping variables and spills may share stack space,
+         so the total stack size might be less than this.
+    
+
+===========================================================================
+
+Begin optimization report for: GLINT_IO::GLINT_IO_READALL
+
+    Report from: Interprocedural optimizations [ipo]
+
+INLINE REPORT: (GLINT_IO::GLINT_IO_READALL) [15] /glade/u/home/tvda/CISM/builds/derecho-intel/fortran_autogen_srcs/glint_io.F90(865,14)
+  -> INLINE: (891,16) GLINT_IO::GLINT_IO_READ
+    -> INLINE: (1014,9) GLINT_IO::IS_ENABLED_2DREAL
+    -> INLINE: (1037,9) GLINT_IO::IS_ENABLED_2DINT
+    -> INLINE: (1060,9) GLINT_IO::IS_ENABLED_2DREAL
+    -> INLINE: (1083,9) GLINT_IO::IS_ENABLED_2DREAL
+    -> INLINE: (1106,9) GLINT_IO::IS_ENABLED_2DREAL
+    -> INLINE: (1129,9) GLINT_IO::IS_ENABLED_2DREAL
+
+
+    Report from: Loop nest, Vector & Auto-parallelization optimizations [loop, vec, par]
+
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/builds/derecho-intel/fortran_autogen_srcs/glint_io.F90(1025,11) inlined into /glade/u/home/tvda/CISM/builds/derecho-intel/fortran_autogen_srcs/glint_io.F90(1030,16)
+   remark #15542: loop was not vectorized: inner loop was already vectorized
+
+   LOOP BEGIN at /glade/u/home/tvda/CISM/builds/derecho-intel/fortran_autogen_srcs/glint_io.F90(1025,11) inlined into /glade/u/home/tvda/CISM/builds/derecho-intel/fortran_autogen_srcs/glint_io.F90(1030,16)
+      remark #15300: LOOP WAS VECTORIZED
+   LOOP END
+
+   LOOP BEGIN at /glade/u/home/tvda/CISM/builds/derecho-intel/fortran_autogen_srcs/glint_io.F90(1025,11) inlined into /glade/u/home/tvda/CISM/builds/derecho-intel/fortran_autogen_srcs/glint_io.F90(1030,16)
+   <Remainder loop for vectorization>
+   LOOP END
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/builds/derecho-intel/fortran_autogen_srcs/glint_io.F90(1048,11) inlined into /glade/u/home/tvda/CISM/builds/derecho-intel/fortran_autogen_srcs/glint_io.F90(1030,16)
+   remark #15542: loop was not vectorized: inner loop was already vectorized
+
+   LOOP BEGIN at /glade/u/home/tvda/CISM/builds/derecho-intel/fortran_autogen_srcs/glint_io.F90(1048,11) inlined into /glade/u/home/tvda/CISM/builds/derecho-intel/fortran_autogen_srcs/glint_io.F90(1030,16)
+      remark #15300: LOOP WAS VECTORIZED
+   LOOP END
+
+   LOOP BEGIN at /glade/u/home/tvda/CISM/builds/derecho-intel/fortran_autogen_srcs/glint_io.F90(1048,11) inlined into /glade/u/home/tvda/CISM/builds/derecho-intel/fortran_autogen_srcs/glint_io.F90(1030,16)
+   <Remainder loop for vectorization>
+      remark #15301: REMAINDER LOOP WAS VECTORIZED
+   LOOP END
+
+   LOOP BEGIN at /glade/u/home/tvda/CISM/builds/derecho-intel/fortran_autogen_srcs/glint_io.F90(1048,11) inlined into /glade/u/home/tvda/CISM/builds/derecho-intel/fortran_autogen_srcs/glint_io.F90(1030,16)
+   <Remainder loop for vectorization>
+   LOOP END
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/builds/derecho-intel/fortran_autogen_srcs/glint_io.F90(1071,11) inlined into /glade/u/home/tvda/CISM/builds/derecho-intel/fortran_autogen_srcs/glint_io.F90(1030,16)
+   remark #15542: loop was not vectorized: inner loop was already vectorized
+
+   LOOP BEGIN at /glade/u/home/tvda/CISM/builds/derecho-intel/fortran_autogen_srcs/glint_io.F90(1071,11) inlined into /glade/u/home/tvda/CISM/builds/derecho-intel/fortran_autogen_srcs/glint_io.F90(1030,16)
+      remark #15300: LOOP WAS VECTORIZED
+   LOOP END
+
+   LOOP BEGIN at /glade/u/home/tvda/CISM/builds/derecho-intel/fortran_autogen_srcs/glint_io.F90(1071,11) inlined into /glade/u/home/tvda/CISM/builds/derecho-intel/fortran_autogen_srcs/glint_io.F90(1030,16)
+   <Remainder loop for vectorization>
+   LOOP END
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/builds/derecho-intel/fortran_autogen_srcs/glint_io.F90(1094,11) inlined into /glade/u/home/tvda/CISM/builds/derecho-intel/fortran_autogen_srcs/glint_io.F90(1030,16)
+   remark #15542: loop was not vectorized: inner loop was already vectorized
+
+   LOOP BEGIN at /glade/u/home/tvda/CISM/builds/derecho-intel/fortran_autogen_srcs/glint_io.F90(1094,11) inlined into /glade/u/home/tvda/CISM/builds/derecho-intel/fortran_autogen_srcs/glint_io.F90(1030,16)
+      remark #15300: LOOP WAS VECTORIZED
+   LOOP END
+
+   LOOP BEGIN at /glade/u/home/tvda/CISM/builds/derecho-intel/fortran_autogen_srcs/glint_io.F90(1094,11) inlined into /glade/u/home/tvda/CISM/builds/derecho-intel/fortran_autogen_srcs/glint_io.F90(1030,16)
+   <Remainder loop for vectorization>
+   LOOP END
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/builds/derecho-intel/fortran_autogen_srcs/glint_io.F90(1117,11) inlined into /glade/u/home/tvda/CISM/builds/derecho-intel/fortran_autogen_srcs/glint_io.F90(1030,16)
+   remark #15542: loop was not vectorized: inner loop was already vectorized
+
+   LOOP BEGIN at /glade/u/home/tvda/CISM/builds/derecho-intel/fortran_autogen_srcs/glint_io.F90(1117,11) inlined into /glade/u/home/tvda/CISM/builds/derecho-intel/fortran_autogen_srcs/glint_io.F90(1030,16)
+      remark #15300: LOOP WAS VECTORIZED
+   LOOP END
+
+   LOOP BEGIN at /glade/u/home/tvda/CISM/builds/derecho-intel/fortran_autogen_srcs/glint_io.F90(1117,11) inlined into /glade/u/home/tvda/CISM/builds/derecho-intel/fortran_autogen_srcs/glint_io.F90(1030,16)
+   <Remainder loop for vectorization>
+   LOOP END
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/builds/derecho-intel/fortran_autogen_srcs/glint_io.F90(1140,11) inlined into /glade/u/home/tvda/CISM/builds/derecho-intel/fortran_autogen_srcs/glint_io.F90(1030,16)
+   remark #15542: loop was not vectorized: inner loop was already vectorized
+
+   LOOP BEGIN at /glade/u/home/tvda/CISM/builds/derecho-intel/fortran_autogen_srcs/glint_io.F90(1140,11) inlined into /glade/u/home/tvda/CISM/builds/derecho-intel/fortran_autogen_srcs/glint_io.F90(1030,16)
+      remark #15300: LOOP WAS VECTORIZED
+   LOOP END
+
+   LOOP BEGIN at /glade/u/home/tvda/CISM/builds/derecho-intel/fortran_autogen_srcs/glint_io.F90(1140,11) inlined into /glade/u/home/tvda/CISM/builds/derecho-intel/fortran_autogen_srcs/glint_io.F90(1030,16)
+   <Remainder loop for vectorization>
+   LOOP END
+LOOP END
+
+
+Non-optimizable loops:
+
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/builds/derecho-intel/fortran_autogen_srcs/glint_io.F90(893,8)
+   remark #15543: loop was not vectorized: loop with function call not considered an optimization candidate.
+LOOP END
+
+    Report from: Code generation optimizations [cg]
+
+/glade/u/home/tvda/CISM/builds/derecho-intel/fortran_autogen_srcs/glint_io.F90(991,14):remark #34000: call to memcpy implemented inline with loads and stores with proven source (alignment, offset): (32, 0), and destination (alignment, offset): (16, 0)
+/glade/u/home/tvda/CISM/builds/derecho-intel/fortran_autogen_srcs/glint_io.F90(1009,5):remark #34000: call to memcpy implemented inline with loads and stores with proven source (alignment, offset): (1, 0), and destination (alignment, offset): (16, 0)
+/glade/u/home/tvda/CISM/builds/derecho-intel/fortran_autogen_srcs/glint_io.F90(865,14):remark #34051: REGISTER ALLOCATION : [glint_io_mp_glint_io_readall_] /glade/u/home/tvda/CISM/builds/derecho-intel/fortran_autogen_srcs/glint_io.F90:865
+
+    Hardware registers
+        Reserved     :    2[ rsp rip]
+        Available    :   39[ rax rdx rcx rbx rbp rsi rdi r8-r15 mm0-mm7 zmm0-zmm15]
+        Callee-save  :    6[ rbx rbp r12-r15]
+        Assigned     :   30[ rax rdx rcx rbx rsi rdi r8-r15 zmm0-zmm15]
+        
+    Routine temporaries
+        Total         :     829
+            Global    :     218
+            Local     :     611
+        Regenerable   :     290
+        Spilled       :      62
+        
+    Routine stack
+        Variables     :     628 bytes*
+            Reads     :      12 [2.85e-02 ~ 0.0%]
+            Writes    :      86 [1.44e+01 ~ 14.4%]
+        Spills        :     432 bytes*
+            Reads     :      64 [5.96e-01 ~ 0.6%]
+            Writes    :      65 [1.10e+00 ~ 1.1%]
+    
+    Notes
+    
+        *Non-overlapping variables and spills may share stack space,
+         so the total stack size might be less than this.
+    
+
+===========================================================================
+
+Begin optimization report for: GLINT_IO::GLINT_READ_FORCING
+
+    Report from: Interprocedural optimizations [ipo]
+
+INLINE REPORT: (GLINT_IO::GLINT_READ_FORCING) [16] /glade/u/home/tvda/CISM/builds/derecho-intel/fortran_autogen_srcs/glint_io.F90(899,14)
+  -> INLINE: (983,10) GLINT_IO::GLINT_IO_READALL
+    -> INLINE: (891,16) GLINT_IO::GLINT_IO_READ
+      -> INLINE: (1014,9) GLINT_IO::IS_ENABLED_2DREAL
+      -> INLINE: (1037,9) GLINT_IO::IS_ENABLED_2DINT
+      -> INLINE: (1060,9) GLINT_IO::IS_ENABLED_2DREAL
+      -> INLINE: (1083,9) GLINT_IO::IS_ENABLED_2DREAL
+      -> INLINE: (1106,9) GLINT_IO::IS_ENABLED_2DREAL
+      -> INLINE: (1129,9) GLINT_IO::IS_ENABLED_2DREAL
+
+
+    Report from: Loop nest, Vector & Auto-parallelization optimizations [loop, vec, par]
+
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/builds/derecho-intel/fortran_autogen_srcs/glint_io.F90(920,5)
+   remark #15541: outer loop was not auto-vectorized: consider using SIMD directive
+
+   LOOP BEGIN at /glade/u/home/tvda/CISM/builds/derecho-intel/fortran_autogen_srcs/glint_io.F90(948,8)
+      remark #15520: loop was not vectorized: loop with multiple exits cannot be vectorized unless it meets search loop idiom criteria   [ /glade/u/home/tvda/CISM/builds/derecho-intel/fortran_autogen_srcs/glint_io.F90(949,27) ]
+   LOOP END
+
+   LOOP BEGIN at /glade/u/home/tvda/CISM/builds/derecho-intel/fortran_autogen_srcs/glint_io.F90(957,8)
+      remark #15520: loop was not vectorized: loop with multiple exits cannot be vectorized unless it meets search loop idiom criteria   [ /glade/u/home/tvda/CISM/builds/derecho-intel/fortran_autogen_srcs/glint_io.F90(958,28) ]
+   LOOP END
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/builds/derecho-intel/fortran_autogen_srcs/glint_io.F90(1025,11) inlined into /glade/u/home/tvda/CISM/builds/derecho-intel/fortran_autogen_srcs/glint_io.F90(1122,10)
+   remark #15542: loop was not vectorized: inner loop was already vectorized
+
+   LOOP BEGIN at /glade/u/home/tvda/CISM/builds/derecho-intel/fortran_autogen_srcs/glint_io.F90(1025,11) inlined into /glade/u/home/tvda/CISM/builds/derecho-intel/fortran_autogen_srcs/glint_io.F90(1122,10)
+      remark #15300: LOOP WAS VECTORIZED
+   LOOP END
+
+   LOOP BEGIN at /glade/u/home/tvda/CISM/builds/derecho-intel/fortran_autogen_srcs/glint_io.F90(1025,11) inlined into /glade/u/home/tvda/CISM/builds/derecho-intel/fortran_autogen_srcs/glint_io.F90(1122,10)
+   <Remainder loop for vectorization>
+   LOOP END
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/builds/derecho-intel/fortran_autogen_srcs/glint_io.F90(1048,11) inlined into /glade/u/home/tvda/CISM/builds/derecho-intel/fortran_autogen_srcs/glint_io.F90(1122,10)
+   remark #15542: loop was not vectorized: inner loop was already vectorized
+
+   LOOP BEGIN at /glade/u/home/tvda/CISM/builds/derecho-intel/fortran_autogen_srcs/glint_io.F90(1048,11) inlined into /glade/u/home/tvda/CISM/builds/derecho-intel/fortran_autogen_srcs/glint_io.F90(1122,10)
+      remark #15300: LOOP WAS VECTORIZED
+   LOOP END
+
+   LOOP BEGIN at /glade/u/home/tvda/CISM/builds/derecho-intel/fortran_autogen_srcs/glint_io.F90(1048,11) inlined into /glade/u/home/tvda/CISM/builds/derecho-intel/fortran_autogen_srcs/glint_io.F90(1122,10)
+   <Remainder loop for vectorization>
+      remark #15301: REMAINDER LOOP WAS VECTORIZED
+   LOOP END
+
+   LOOP BEGIN at /glade/u/home/tvda/CISM/builds/derecho-intel/fortran_autogen_srcs/glint_io.F90(1048,11) inlined into /glade/u/home/tvda/CISM/builds/derecho-intel/fortran_autogen_srcs/glint_io.F90(1122,10)
+   <Remainder loop for vectorization>
+   LOOP END
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/builds/derecho-intel/fortran_autogen_srcs/glint_io.F90(1071,11) inlined into /glade/u/home/tvda/CISM/builds/derecho-intel/fortran_autogen_srcs/glint_io.F90(1122,10)
+   remark #15542: loop was not vectorized: inner loop was already vectorized
+
+   LOOP BEGIN at /glade/u/home/tvda/CISM/builds/derecho-intel/fortran_autogen_srcs/glint_io.F90(1071,11) inlined into /glade/u/home/tvda/CISM/builds/derecho-intel/fortran_autogen_srcs/glint_io.F90(1122,10)
+      remark #15300: LOOP WAS VECTORIZED
+   LOOP END
+
+   LOOP BEGIN at /glade/u/home/tvda/CISM/builds/derecho-intel/fortran_autogen_srcs/glint_io.F90(1071,11) inlined into /glade/u/home/tvda/CISM/builds/derecho-intel/fortran_autogen_srcs/glint_io.F90(1122,10)
+   <Remainder loop for vectorization>
+   LOOP END
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/builds/derecho-intel/fortran_autogen_srcs/glint_io.F90(1094,11) inlined into /glade/u/home/tvda/CISM/builds/derecho-intel/fortran_autogen_srcs/glint_io.F90(1122,10)
+   remark #15542: loop was not vectorized: inner loop was already vectorized
+
+   LOOP BEGIN at /glade/u/home/tvda/CISM/builds/derecho-intel/fortran_autogen_srcs/glint_io.F90(1094,11) inlined into /glade/u/home/tvda/CISM/builds/derecho-intel/fortran_autogen_srcs/glint_io.F90(1122,10)
+      remark #15300: LOOP WAS VECTORIZED
+   LOOP END
+
+   LOOP BEGIN at /glade/u/home/tvda/CISM/builds/derecho-intel/fortran_autogen_srcs/glint_io.F90(1094,11) inlined into /glade/u/home/tvda/CISM/builds/derecho-intel/fortran_autogen_srcs/glint_io.F90(1122,10)
+   <Remainder loop for vectorization>
+   LOOP END
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/builds/derecho-intel/fortran_autogen_srcs/glint_io.F90(1117,11) inlined into /glade/u/home/tvda/CISM/builds/derecho-intel/fortran_autogen_srcs/glint_io.F90(1122,10)
+   remark #15542: loop was not vectorized: inner loop was already vectorized
+
+   LOOP BEGIN at /glade/u/home/tvda/CISM/builds/derecho-intel/fortran_autogen_srcs/glint_io.F90(1117,11) inlined into /glade/u/home/tvda/CISM/builds/derecho-intel/fortran_autogen_srcs/glint_io.F90(1122,10)
+      remark #15300: LOOP WAS VECTORIZED
+   LOOP END
+
+   LOOP BEGIN at /glade/u/home/tvda/CISM/builds/derecho-intel/fortran_autogen_srcs/glint_io.F90(1117,11) inlined into /glade/u/home/tvda/CISM/builds/derecho-intel/fortran_autogen_srcs/glint_io.F90(1122,10)
+   <Remainder loop for vectorization>
+   LOOP END
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/builds/derecho-intel/fortran_autogen_srcs/glint_io.F90(1140,11) inlined into /glade/u/home/tvda/CISM/builds/derecho-intel/fortran_autogen_srcs/glint_io.F90(1122,10)
+   remark #15542: loop was not vectorized: inner loop was already vectorized
+
+   LOOP BEGIN at /glade/u/home/tvda/CISM/builds/derecho-intel/fortran_autogen_srcs/glint_io.F90(1140,11) inlined into /glade/u/home/tvda/CISM/builds/derecho-intel/fortran_autogen_srcs/glint_io.F90(1122,10)
+      remark #15300: LOOP WAS VECTORIZED
+   LOOP END
+
+   LOOP BEGIN at /glade/u/home/tvda/CISM/builds/derecho-intel/fortran_autogen_srcs/glint_io.F90(1140,11) inlined into /glade/u/home/tvda/CISM/builds/derecho-intel/fortran_autogen_srcs/glint_io.F90(1122,10)
+   <Remainder loop for vectorization>
+   LOOP END
+LOOP END
+
+
+Non-optimizable loops:
+
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/builds/derecho-intel/fortran_autogen_srcs/glint_io.F90(893,8) inlined into /glade/u/home/tvda/CISM/builds/derecho-intel/fortran_autogen_srcs/glint_io.F90(1122,10)
+   remark #15543: loop was not vectorized: loop with function call not considered an optimization candidate.
+LOOP END
+
+    Report from: Code generation optimizations [cg]
+
+/glade/u/home/tvda/CISM/builds/derecho-intel/fortran_autogen_srcs/glint_io.F90(991,14):remark #34000: call to memcpy implemented inline with loads and stores with proven source (alignment, offset): (32, 0), and destination (alignment, offset): (16, 0)
+/glade/u/home/tvda/CISM/builds/derecho-intel/fortran_autogen_srcs/glint_io.F90(1009,5):remark #34000: call to memcpy implemented inline with loads and stores with proven source (alignment, offset): (1, 0), and destination (alignment, offset): (16, 0)
+/glade/u/home/tvda/CISM/builds/derecho-intel/fortran_autogen_srcs/glint_io.F90(899,14):remark #34051: REGISTER ALLOCATION : [glint_io_mp_glint_read_forcing_] /glade/u/home/tvda/CISM/builds/derecho-intel/fortran_autogen_srcs/glint_io.F90:899
+
+    Hardware registers
+        Reserved     :    2[ rsp rip]
+        Available    :   39[ rax rdx rcx rbx rbp rsi rdi r8-r15 mm0-mm7 zmm0-zmm15]
+        Callee-save  :    6[ rbx rbp r12-r15]
+        Assigned     :   30[ rax rdx rcx rbx rsi rdi r8-r15 zmm0-zmm15]
+        
+    Routine temporaries
+        Total         :     857
+            Global    :     233
+            Local     :     624
+        Regenerable   :     290
+        Spilled       :      70
+        
+    Routine stack
+        Variables     :     628 bytes*
+            Reads     :      12 [2.13e-02 ~ 0.0%]
+            Writes    :      86 [1.08e+01 ~ 10.8%]
+        Spills        :     512 bytes*
+            Reads     :      89 [1.33e+00 ~ 1.3%]
+            Writes    :      85 [8.64e-01 ~ 0.9%]
+    
+    Notes
+    
+        *Non-overlapping variables and spills may share stack space,
+         so the total stack size might be less than this.
+    
+
+===========================================================================
+
+Begin optimization report for: GLINT_IO::GLINT_IO_READ
+
+    Report from: Interprocedural optimizations [ipo]
+
+INLINE REPORT: (GLINT_IO::GLINT_IO_READ) [17] /glade/u/home/tvda/CISM/builds/derecho-intel/fortran_autogen_srcs/glint_io.F90(991,14)
+  -> INLINE: (1014,9) GLINT_IO::IS_ENABLED_2DREAL
+  -> INLINE: (1037,9) GLINT_IO::IS_ENABLED_2DINT
+  -> INLINE: (1060,9) GLINT_IO::IS_ENABLED_2DREAL
+  -> INLINE: (1083,9) GLINT_IO::IS_ENABLED_2DREAL
+  -> INLINE: (1106,9) GLINT_IO::IS_ENABLED_2DREAL
+  -> INLINE: (1129,9) GLINT_IO::IS_ENABLED_2DREAL
+
+
+    Report from: Loop nest, Vector & Auto-parallelization optimizations [loop, vec, par]
+
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/builds/derecho-intel/fortran_autogen_srcs/glint_io.F90(1025,11)
+<Multiversioned v1>
+   remark #25233: Loop multiversioned for stride tests on Assumed shape arrays
+   remark #15542: loop was not vectorized: inner loop was already vectorized
+
+   LOOP BEGIN at /glade/u/home/tvda/CISM/builds/derecho-intel/fortran_autogen_srcs/glint_io.F90(1025,11)
+      remark #15300: LOOP WAS VECTORIZED
+   LOOP END
+
+   LOOP BEGIN at /glade/u/home/tvda/CISM/builds/derecho-intel/fortran_autogen_srcs/glint_io.F90(1025,11)
+   <Remainder loop for vectorization>
+   LOOP END
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/builds/derecho-intel/fortran_autogen_srcs/glint_io.F90(1025,11)
+<Multiversioned v2>
+   remark #15542: loop was not vectorized: inner loop was already vectorized
+
+   LOOP BEGIN at /glade/u/home/tvda/CISM/builds/derecho-intel/fortran_autogen_srcs/glint_io.F90(1025,11)
+      remark #15300: LOOP WAS VECTORIZED
+   LOOP END
+
+   LOOP BEGIN at /glade/u/home/tvda/CISM/builds/derecho-intel/fortran_autogen_srcs/glint_io.F90(1025,11)
+   <Remainder loop for vectorization>
+   LOOP END
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/builds/derecho-intel/fortran_autogen_srcs/glint_io.F90(1048,11)
+<Multiversioned v1>
+   remark #25233: Loop multiversioned for stride tests on Assumed shape arrays
+   remark #15542: loop was not vectorized: inner loop was already vectorized
+
+   LOOP BEGIN at /glade/u/home/tvda/CISM/builds/derecho-intel/fortran_autogen_srcs/glint_io.F90(1048,11)
+      remark #15300: LOOP WAS VECTORIZED
+   LOOP END
+
+   LOOP BEGIN at /glade/u/home/tvda/CISM/builds/derecho-intel/fortran_autogen_srcs/glint_io.F90(1048,11)
+   <Remainder loop for vectorization>
+      remark #15335: remainder loop was not vectorized: vectorization possible but seems inefficient. Use vector always directive or -vec-threshold0 to override 
+   LOOP END
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/builds/derecho-intel/fortran_autogen_srcs/glint_io.F90(1048,11)
+<Multiversioned v2>
+   remark #15542: loop was not vectorized: inner loop was already vectorized
+
+   LOOP BEGIN at /glade/u/home/tvda/CISM/builds/derecho-intel/fortran_autogen_srcs/glint_io.F90(1048,11)
+      remark #15300: LOOP WAS VECTORIZED
+   LOOP END
+
+   LOOP BEGIN at /glade/u/home/tvda/CISM/builds/derecho-intel/fortran_autogen_srcs/glint_io.F90(1048,11)
+   <Remainder loop for vectorization>
+      remark #15301: REMAINDER LOOP WAS VECTORIZED
+   LOOP END
+
+   LOOP BEGIN at /glade/u/home/tvda/CISM/builds/derecho-intel/fortran_autogen_srcs/glint_io.F90(1048,11)
+   <Remainder loop for vectorization>
+   LOOP END
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/builds/derecho-intel/fortran_autogen_srcs/glint_io.F90(1071,11)
+<Multiversioned v1>
+   remark #25233: Loop multiversioned for stride tests on Assumed shape arrays
+   remark #15542: loop was not vectorized: inner loop was already vectorized
+
+   LOOP BEGIN at /glade/u/home/tvda/CISM/builds/derecho-intel/fortran_autogen_srcs/glint_io.F90(1071,11)
+      remark #15300: LOOP WAS VECTORIZED
+   LOOP END
+
+   LOOP BEGIN at /glade/u/home/tvda/CISM/builds/derecho-intel/fortran_autogen_srcs/glint_io.F90(1071,11)
+   <Remainder loop for vectorization>
+   LOOP END
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/builds/derecho-intel/fortran_autogen_srcs/glint_io.F90(1071,11)
+<Multiversioned v2>
+   remark #15542: loop was not vectorized: inner loop was already vectorized
+
+   LOOP BEGIN at /glade/u/home/tvda/CISM/builds/derecho-intel/fortran_autogen_srcs/glint_io.F90(1071,11)
+      remark #15300: LOOP WAS VECTORIZED
+   LOOP END
+
+   LOOP BEGIN at /glade/u/home/tvda/CISM/builds/derecho-intel/fortran_autogen_srcs/glint_io.F90(1071,11)
+   <Remainder loop for vectorization>
+   LOOP END
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/builds/derecho-intel/fortran_autogen_srcs/glint_io.F90(1094,11)
+<Multiversioned v1>
+   remark #25233: Loop multiversioned for stride tests on Assumed shape arrays
+   remark #15542: loop was not vectorized: inner loop was already vectorized
+
+   LOOP BEGIN at /glade/u/home/tvda/CISM/builds/derecho-intel/fortran_autogen_srcs/glint_io.F90(1094,11)
+      remark #15300: LOOP WAS VECTORIZED
+   LOOP END
+
+   LOOP BEGIN at /glade/u/home/tvda/CISM/builds/derecho-intel/fortran_autogen_srcs/glint_io.F90(1094,11)
+   <Remainder loop for vectorization>
+   LOOP END
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/builds/derecho-intel/fortran_autogen_srcs/glint_io.F90(1094,11)
+<Multiversioned v2>
+   remark #15542: loop was not vectorized: inner loop was already vectorized
+
+   LOOP BEGIN at /glade/u/home/tvda/CISM/builds/derecho-intel/fortran_autogen_srcs/glint_io.F90(1094,11)
+      remark #15300: LOOP WAS VECTORIZED
+   LOOP END
+
+   LOOP BEGIN at /glade/u/home/tvda/CISM/builds/derecho-intel/fortran_autogen_srcs/glint_io.F90(1094,11)
+   <Remainder loop for vectorization>
+   LOOP END
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/builds/derecho-intel/fortran_autogen_srcs/glint_io.F90(1117,11)
+<Multiversioned v1>
+   remark #25233: Loop multiversioned for stride tests on Assumed shape arrays
+   remark #15542: loop was not vectorized: inner loop was already vectorized
+
+   LOOP BEGIN at /glade/u/home/tvda/CISM/builds/derecho-intel/fortran_autogen_srcs/glint_io.F90(1117,11)
+      remark #15300: LOOP WAS VECTORIZED
+   LOOP END
+
+   LOOP BEGIN at /glade/u/home/tvda/CISM/builds/derecho-intel/fortran_autogen_srcs/glint_io.F90(1117,11)
+   <Remainder loop for vectorization>
+   LOOP END
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/builds/derecho-intel/fortran_autogen_srcs/glint_io.F90(1117,11)
+<Multiversioned v2>
+   remark #15542: loop was not vectorized: inner loop was already vectorized
+
+   LOOP BEGIN at /glade/u/home/tvda/CISM/builds/derecho-intel/fortran_autogen_srcs/glint_io.F90(1117,11)
+      remark #15300: LOOP WAS VECTORIZED
+   LOOP END
+
+   LOOP BEGIN at /glade/u/home/tvda/CISM/builds/derecho-intel/fortran_autogen_srcs/glint_io.F90(1117,11)
+   <Remainder loop for vectorization>
+   LOOP END
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/builds/derecho-intel/fortran_autogen_srcs/glint_io.F90(1140,11)
+<Multiversioned v1>
+   remark #25233: Loop multiversioned for stride tests on Assumed shape arrays
+   remark #15542: loop was not vectorized: inner loop was already vectorized
+
+   LOOP BEGIN at /glade/u/home/tvda/CISM/builds/derecho-intel/fortran_autogen_srcs/glint_io.F90(1140,11)
+      remark #15300: LOOP WAS VECTORIZED
+   LOOP END
+
+   LOOP BEGIN at /glade/u/home/tvda/CISM/builds/derecho-intel/fortran_autogen_srcs/glint_io.F90(1140,11)
+   <Remainder loop for vectorization>
+   LOOP END
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/builds/derecho-intel/fortran_autogen_srcs/glint_io.F90(1140,11)
+<Multiversioned v2>
+   remark #15542: loop was not vectorized: inner loop was already vectorized
+
+   LOOP BEGIN at /glade/u/home/tvda/CISM/builds/derecho-intel/fortran_autogen_srcs/glint_io.F90(1140,11)
+      remark #15300: LOOP WAS VECTORIZED
+   LOOP END
+
+   LOOP BEGIN at /glade/u/home/tvda/CISM/builds/derecho-intel/fortran_autogen_srcs/glint_io.F90(1140,11)
+   <Remainder loop for vectorization>
+   LOOP END
+LOOP END
+
+    Report from: Code generation optimizations [cg]
+
+/glade/u/home/tvda/CISM/builds/derecho-intel/fortran_autogen_srcs/glint_io.F90(991,14):remark #34000: call to memcpy implemented inline with loads and stores with proven source (alignment, offset): (32, 0), and destination (alignment, offset): (16, 0)
+/glade/u/home/tvda/CISM/builds/derecho-intel/fortran_autogen_srcs/glint_io.F90(1009,5):remark #34000: call to memcpy implemented inline with loads and stores with proven source (alignment, offset): (1, 0), and destination (alignment, offset): (16, 0)
+/glade/u/home/tvda/CISM/builds/derecho-intel/fortran_autogen_srcs/glint_io.F90(991,14):remark #34051: REGISTER ALLOCATION : [glint_io_mp_glint_io_read_] /glade/u/home/tvda/CISM/builds/derecho-intel/fortran_autogen_srcs/glint_io.F90:991
+
+    Hardware registers
+        Reserved     :    2[ rsp rip]
+        Available    :   39[ rax rdx rcx rbx rbp rsi rdi r8-r15 mm0-mm7 zmm0-zmm15]
+        Callee-save  :    6[ rbx rbp r12-r15]
+        Assigned     :   30[ rax rdx rcx rbx rsi rdi r8-r15 zmm0-zmm15]
+        
+    Routine temporaries
+        Total         :     950
+            Global    :     267
+            Local     :     683
+        Regenerable   :     296
+        Spilled       :      40
+        
+    Routine stack
+        Variables     :     628 bytes*
+            Reads     :      12 [2.95e-02 ~ 0.0%]
+            Writes    :      86 [1.55e+01 ~ 15.5%]
+        Spills        :     248 bytes*
+            Reads     :      39 [2.27e-01 ~ 0.2%]
+            Writes    :      39 [9.92e-02 ~ 0.1%]
+    
+    Notes
+    
+        *Non-overlapping variables and spills may share stack space,
+         so the total stack size might be less than this.
+    
+
+===========================================================================
+
+Begin optimization report for: GLINT_IO::GLINT_IO_CHECKDIM
+
+    Report from: Interprocedural optimizations [ipo]
+
+INLINE REPORT: (GLINT_IO::GLINT_IO_CHECKDIM) [18] /glade/u/home/tvda/CISM/builds/derecho-intel/fortran_autogen_srcs/glint_io.F90(1153,14)
+
+
+    Report from: Code generation optimizations [cg]
+
+/glade/u/home/tvda/CISM/builds/derecho-intel/fortran_autogen_srcs/glint_io.F90(1153,14):remark #34051: REGISTER ALLOCATION : [glint_io_mp_glint_io_checkdim_] /glade/u/home/tvda/CISM/builds/derecho-intel/fortran_autogen_srcs/glint_io.F90:1153
+
+    Hardware registers
+        Reserved     :    2[ rsp rip]
+        Available    :   39[ rax rdx rcx rbx rbp rsi rdi r8-r15 mm0-mm7 zmm0-zmm15]
+        Callee-save  :    6[ rbx rbp r12-r15]
+        Assigned     :    3[ rdx rsi rdi]
+        
+    Routine temporaries
+        Total         :       9
+            Global    :       0
+            Local     :       9
+        Regenerable   :       0
+        Spilled       :       0
+        
+    Routine stack
+        Variables     :       0 bytes*
+            Reads     :       0 [0.00e+00 ~ 0.0%]
+            Writes    :       0 [0.00e+00 ~ 0.0%]
+        Spills        :       0 bytes*
+            Reads     :       0 [0.00e+00 ~ 0.0%]
+            Writes    :       0 [0.00e+00 ~ 0.0%]
+    
+    Notes
+    
+        *Non-overlapping variables and spills may share stack space,
+         so the total stack size might be less than this.
+    
+
+===========================================================================
+
+Begin optimization report for: GLINT_IO::GET_XTYPE
+
+    Report from: Interprocedural optimizations [ipo]
+
+INLINE REPORT: (GLINT_IO::GET_XTYPE) [19] /glade/u/home/tvda/CISM/builds/derecho-intel/fortran_autogen_srcs/glint_io.F90(1221,20)
+
+
+    Report from: Code generation optimizations [cg]
+
+/glade/u/home/tvda/CISM/builds/derecho-intel/fortran_autogen_srcs/glint_io.F90(1221,20):remark #34051: REGISTER ALLOCATION : [glint_io_mp_get_xtype_] /glade/u/home/tvda/CISM/builds/derecho-intel/fortran_autogen_srcs/glint_io.F90:1221
+
+    Hardware registers
+        Reserved     :    2[ rsp rip]
+        Available    :   39[ rax rdx rcx rbx rbp rsi rdi r8-r15 mm0-mm7 zmm0-zmm15]
+        Callee-save  :    6[ rbx rbp r12-r15]
+        Assigned     :    5[ rax rdx rcx rsi rdi]
+        
+    Routine temporaries
+        Total         :      17
+            Global    :       9
+            Local     :       8
+        Regenerable   :       0
+        Spilled       :       0
+        
+    Routine stack
+        Variables     :       0 bytes*
+            Reads     :       0 [0.00e+00 ~ 0.0%]
+            Writes    :       0 [0.00e+00 ~ 0.0%]
+        Spills        :       0 bytes*
+            Reads     :       0 [0.00e+00 ~ 0.0%]
+            Writes    :       0 [0.00e+00 ~ 0.0%]
+    
+    Notes
+    
+        *Non-overlapping variables and spills may share stack space,
+         so the total stack size might be less than this.
+    
+
+===========================================================================
+
+Begin optimization report for: GLINT_IO::GLINT_GET_ABLT
+
+    Report from: Interprocedural optimizations [ipo]
+
+INLINE REPORT: (GLINT_IO::GLINT_GET_ABLT) [20] /glade/u/home/tvda/CISM/builds/derecho-intel/fortran_autogen_srcs/glint_io.F90(1239,14)
+
+
+    Report from: Loop nest, Vector & Auto-parallelization optimizations [loop, vec, par]
+
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/builds/derecho-intel/fortran_autogen_srcs/glint_io.F90(1244,5)
+<Multiversioned v1>
+   remark #25233: Loop multiversioned for stride tests on Assumed shape arrays
+   remark #15542: loop was not vectorized: inner loop was already vectorized
+
+   LOOP BEGIN at /glade/u/home/tvda/CISM/builds/derecho-intel/fortran_autogen_srcs/glint_io.F90(1244,5)
+      remark #15300: LOOP WAS VECTORIZED
+   LOOP END
+
+   LOOP BEGIN at /glade/u/home/tvda/CISM/builds/derecho-intel/fortran_autogen_srcs/glint_io.F90(1244,5)
+   <Remainder loop for vectorization>
+   LOOP END
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/builds/derecho-intel/fortran_autogen_srcs/glint_io.F90(1244,5)
+<Multiversioned v2>
+   remark #15541: outer loop was not auto-vectorized: consider using SIMD directive
+
+   LOOP BEGIN at /glade/u/home/tvda/CISM/builds/derecho-intel/fortran_autogen_srcs/glint_io.F90(1244,5)
+      remark #15335: loop was not vectorized: vectorization possible but seems inefficient. Use vector always directive or -vec-threshold0 to override 
+      remark #25439: unrolled with remainder by 2  
+   LOOP END
+
+   LOOP BEGIN at /glade/u/home/tvda/CISM/builds/derecho-intel/fortran_autogen_srcs/glint_io.F90(1244,5)
+   <Remainder>
+   LOOP END
+LOOP END
+
+    Report from: Code generation optimizations [cg]
+
+/glade/u/home/tvda/CISM/builds/derecho-intel/fortran_autogen_srcs/glint_io.F90(1239,14):remark #34051: REGISTER ALLOCATION : [glint_io_mp_glint_get_ablt_] /glade/u/home/tvda/CISM/builds/derecho-intel/fortran_autogen_srcs/glint_io.F90:1239
+
+    Hardware registers
+        Reserved     :    2[ rsp rip]
+        Available    :   39[ rax rdx rcx rbx rbp rsi rdi r8-r15 mm0-mm7 zmm0-zmm15]
+        Callee-save  :    6[ rbx rbp r12-r15]
+        Assigned     :   15[ rax rdx rcx rbx rsi rdi r8-r15 zmm0]
+        
+    Routine temporaries
+        Total         :      58
+            Global    :      39
+            Local     :      19
+        Regenerable   :       2
+        Spilled       :      13
+        
+    Routine stack
+        Variables     :       0 bytes*
+            Reads     :       0 [0.00e+00 ~ 0.0%]
+            Writes    :       0 [0.00e+00 ~ 0.0%]
+        Spills        :      72 bytes*
+            Reads     :      11 [6.95e+00 ~ 7.0%]
+            Writes    :       9 [1.72e+00 ~ 1.7%]
+    
+    Notes
+    
+        *Non-overlapping variables and spills may share stack space,
+         so the total stack size might be less than this.
+    
+
+===========================================================================
+
+Begin optimization report for: GLINT_IO::GLINT_SET_ABLT
+
+    Report from: Interprocedural optimizations [ipo]
+
+INLINE REPORT: (GLINT_IO::GLINT_SET_ABLT) [21] /glade/u/home/tvda/CISM/builds/derecho-intel/fortran_autogen_srcs/glint_io.F90(1247,14)
+
+
+    Report from: Loop nest, Vector & Auto-parallelization optimizations [loop, vec, par]
+
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/builds/derecho-intel/fortran_autogen_srcs/glint_io.F90(1252,5)
+<Multiversioned v1>
+   remark #25233: Loop multiversioned for stride tests on Assumed shape arrays
+   remark #15542: loop was not vectorized: inner loop was already vectorized
+
+   LOOP BEGIN at /glade/u/home/tvda/CISM/builds/derecho-intel/fortran_autogen_srcs/glint_io.F90(1252,5)
+      remark #15300: LOOP WAS VECTORIZED
+   LOOP END
+
+   LOOP BEGIN at /glade/u/home/tvda/CISM/builds/derecho-intel/fortran_autogen_srcs/glint_io.F90(1252,5)
+   <Remainder loop for vectorization>
+   LOOP END
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/builds/derecho-intel/fortran_autogen_srcs/glint_io.F90(1252,5)
+<Multiversioned v2>
+   remark #15541: outer loop was not auto-vectorized: consider using SIMD directive
+
+   LOOP BEGIN at /glade/u/home/tvda/CISM/builds/derecho-intel/fortran_autogen_srcs/glint_io.F90(1252,5)
+      remark #15335: loop was not vectorized: vectorization possible but seems inefficient. Use vector always directive or -vec-threshold0 to override 
+      remark #25439: unrolled with remainder by 2  
+   LOOP END
+
+   LOOP BEGIN at /glade/u/home/tvda/CISM/builds/derecho-intel/fortran_autogen_srcs/glint_io.F90(1252,5)
+   <Remainder>
+   LOOP END
+LOOP END
+
+    Report from: Code generation optimizations [cg]
+
+/glade/u/home/tvda/CISM/builds/derecho-intel/fortran_autogen_srcs/glint_io.F90(1247,14):remark #34051: REGISTER ALLOCATION : [glint_io_mp_glint_set_ablt_] /glade/u/home/tvda/CISM/builds/derecho-intel/fortran_autogen_srcs/glint_io.F90:1247
+
+    Hardware registers
+        Reserved     :    2[ rsp rip]
+        Available    :   39[ rax rdx rcx rbx rbp rsi rdi r8-r15 mm0-mm7 zmm0-zmm15]
+        Callee-save  :    6[ rbx rbp r12-r15]
+        Assigned     :   15[ rax rdx rcx rbx rsi rdi r8-r15 zmm0]
+        
+    Routine temporaries
+        Total         :      61
+            Global    :      42
+            Local     :      19
+        Regenerable   :       2
+        Spilled       :      13
+        
+    Routine stack
+        Variables     :       0 bytes*
+            Reads     :       0 [0.00e+00 ~ 0.0%]
+            Writes    :       0 [0.00e+00 ~ 0.0%]
+        Spills        :      72 bytes*
+            Reads     :      11 [6.87e+00 ~ 6.9%]
+            Writes    :       9 [1.70e+00 ~ 1.7%]
+    
+    Notes
+    
+        *Non-overlapping variables and spills may share stack space,
+         so the total stack size might be less than this.
+    
+
+===========================================================================
+
+Begin optimization report for: GLINT_IO::GLINT_GET_ARNG
+
+    Report from: Interprocedural optimizations [ipo]
+
+INLINE REPORT: (GLINT_IO::GLINT_GET_ARNG) [22] /glade/u/home/tvda/CISM/builds/derecho-intel/fortran_autogen_srcs/glint_io.F90(1255,14)
+
+
+    Report from: Loop nest, Vector & Auto-parallelization optimizations [loop, vec, par]
+
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/builds/derecho-intel/fortran_autogen_srcs/glint_io.F90(1260,5)
+<Multiversioned v1>
+   remark #25233: Loop multiversioned for stride tests on Assumed shape arrays
+   remark #15542: loop was not vectorized: inner loop was already vectorized
+
+   LOOP BEGIN at /glade/u/home/tvda/CISM/builds/derecho-intel/fortran_autogen_srcs/glint_io.F90(1260,5)
+      remark #15300: LOOP WAS VECTORIZED
+   LOOP END
+
+   LOOP BEGIN at /glade/u/home/tvda/CISM/builds/derecho-intel/fortran_autogen_srcs/glint_io.F90(1260,5)
+   <Remainder loop for vectorization>
+   LOOP END
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/builds/derecho-intel/fortran_autogen_srcs/glint_io.F90(1260,5)
+<Multiversioned v2>
+   remark #15541: outer loop was not auto-vectorized: consider using SIMD directive
+
+   LOOP BEGIN at /glade/u/home/tvda/CISM/builds/derecho-intel/fortran_autogen_srcs/glint_io.F90(1260,5)
+      remark #15335: loop was not vectorized: vectorization possible but seems inefficient. Use vector always directive or -vec-threshold0 to override 
+      remark #25439: unrolled with remainder by 2  
+   LOOP END
+
+   LOOP BEGIN at /glade/u/home/tvda/CISM/builds/derecho-intel/fortran_autogen_srcs/glint_io.F90(1260,5)
+   <Remainder>
+   LOOP END
+LOOP END
+
+    Report from: Code generation optimizations [cg]
+
+/glade/u/home/tvda/CISM/builds/derecho-intel/fortran_autogen_srcs/glint_io.F90(1255,14):remark #34051: REGISTER ALLOCATION : [glint_io_mp_glint_get_arng_] /glade/u/home/tvda/CISM/builds/derecho-intel/fortran_autogen_srcs/glint_io.F90:1255
+
+    Hardware registers
+        Reserved     :    2[ rsp rip]
+        Available    :   39[ rax rdx rcx rbx rbp rsi rdi r8-r15 mm0-mm7 zmm0-zmm15]
+        Callee-save  :    6[ rbx rbp r12-r15]
+        Assigned     :   15[ rax rdx rcx rbx rsi rdi r8-r15 zmm0]
+        
+    Routine temporaries
+        Total         :      58
+            Global    :      39
+            Local     :      19
+        Regenerable   :       2
+        Spilled       :      13
+        
+    Routine stack
+        Variables     :       0 bytes*
+            Reads     :       0 [0.00e+00 ~ 0.0%]
+            Writes    :       0 [0.00e+00 ~ 0.0%]
+        Spills        :      72 bytes*
+            Reads     :      11 [6.95e+00 ~ 7.0%]
+            Writes    :       9 [1.72e+00 ~ 1.7%]
+    
+    Notes
+    
+        *Non-overlapping variables and spills may share stack space,
+         so the total stack size might be less than this.
+    
+
+===========================================================================
+
+Begin optimization report for: GLINT_IO::GLINT_SET_ARNG
+
+    Report from: Interprocedural optimizations [ipo]
+
+INLINE REPORT: (GLINT_IO::GLINT_SET_ARNG) [23] /glade/u/home/tvda/CISM/builds/derecho-intel/fortran_autogen_srcs/glint_io.F90(1263,14)
+
+
+    Report from: Loop nest, Vector & Auto-parallelization optimizations [loop, vec, par]
+
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/builds/derecho-intel/fortran_autogen_srcs/glint_io.F90(1268,5)
+<Multiversioned v1>
+   remark #25233: Loop multiversioned for stride tests on Assumed shape arrays
+   remark #15542: loop was not vectorized: inner loop was already vectorized
+
+   LOOP BEGIN at /glade/u/home/tvda/CISM/builds/derecho-intel/fortran_autogen_srcs/glint_io.F90(1268,5)
+      remark #15300: LOOP WAS VECTORIZED
+   LOOP END
+
+   LOOP BEGIN at /glade/u/home/tvda/CISM/builds/derecho-intel/fortran_autogen_srcs/glint_io.F90(1268,5)
+   <Remainder loop for vectorization>
+   LOOP END
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/builds/derecho-intel/fortran_autogen_srcs/glint_io.F90(1268,5)
+<Multiversioned v2>
+   remark #15541: outer loop was not auto-vectorized: consider using SIMD directive
+
+   LOOP BEGIN at /glade/u/home/tvda/CISM/builds/derecho-intel/fortran_autogen_srcs/glint_io.F90(1268,5)
+      remark #15335: loop was not vectorized: vectorization possible but seems inefficient. Use vector always directive or -vec-threshold0 to override 
+      remark #25439: unrolled with remainder by 2  
+   LOOP END
+
+   LOOP BEGIN at /glade/u/home/tvda/CISM/builds/derecho-intel/fortran_autogen_srcs/glint_io.F90(1268,5)
+   <Remainder>
+   LOOP END
+LOOP END
+
+    Report from: Code generation optimizations [cg]
+
+/glade/u/home/tvda/CISM/builds/derecho-intel/fortran_autogen_srcs/glint_io.F90(1263,14):remark #34051: REGISTER ALLOCATION : [glint_io_mp_glint_set_arng_] /glade/u/home/tvda/CISM/builds/derecho-intel/fortran_autogen_srcs/glint_io.F90:1263
+
+    Hardware registers
+        Reserved     :    2[ rsp rip]
+        Available    :   39[ rax rdx rcx rbx rbp rsi rdi r8-r15 mm0-mm7 zmm0-zmm15]
+        Callee-save  :    6[ rbx rbp r12-r15]
+        Assigned     :   15[ rax rdx rcx rbx rsi rdi r8-r15 zmm0]
+        
+    Routine temporaries
+        Total         :      61
+            Global    :      42
+            Local     :      19
+        Regenerable   :       2
+        Spilled       :      13
+        
+    Routine stack
+        Variables     :       0 bytes*
+            Reads     :       0 [0.00e+00 ~ 0.0%]
+            Writes    :       0 [0.00e+00 ~ 0.0%]
+        Spills        :      72 bytes*
+            Reads     :      11 [6.87e+00 ~ 6.9%]
+            Writes    :       9 [1.70e+00 ~ 1.7%]
+    
+    Notes
+    
+        *Non-overlapping variables and spills may share stack space,
+         so the total stack size might be less than this.
+    
+
+===========================================================================
+
+Begin optimization report for: GLINT_IO::GLINT_GET_GLOBAL_OROG
+
+    Report from: Interprocedural optimizations [ipo]
+
+INLINE REPORT: (GLINT_IO::GLINT_GET_GLOBAL_OROG) [24] /glade/u/home/tvda/CISM/builds/derecho-intel/fortran_autogen_srcs/glint_io.F90(1271,14)
+
+
+    Report from: Loop nest, Vector & Auto-parallelization optimizations [loop, vec, par]
+
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/builds/derecho-intel/fortran_autogen_srcs/glint_io.F90(1276,5)
+<Multiversioned v1>
+   remark #25233: Loop multiversioned for stride tests on Assumed shape arrays
+   remark #15542: loop was not vectorized: inner loop was already vectorized
+
+   LOOP BEGIN at /glade/u/home/tvda/CISM/builds/derecho-intel/fortran_autogen_srcs/glint_io.F90(1276,5)
+      remark #15300: LOOP WAS VECTORIZED
+   LOOP END
+
+   LOOP BEGIN at /glade/u/home/tvda/CISM/builds/derecho-intel/fortran_autogen_srcs/glint_io.F90(1276,5)
+   <Remainder loop for vectorization>
+   LOOP END
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/builds/derecho-intel/fortran_autogen_srcs/glint_io.F90(1276,5)
+<Multiversioned v2>
+   remark #15541: outer loop was not auto-vectorized: consider using SIMD directive
+
+   LOOP BEGIN at /glade/u/home/tvda/CISM/builds/derecho-intel/fortran_autogen_srcs/glint_io.F90(1276,5)
+      remark #15335: loop was not vectorized: vectorization possible but seems inefficient. Use vector always directive or -vec-threshold0 to override 
+      remark #25439: unrolled with remainder by 2  
+   LOOP END
+
+   LOOP BEGIN at /glade/u/home/tvda/CISM/builds/derecho-intel/fortran_autogen_srcs/glint_io.F90(1276,5)
+   <Remainder>
+   LOOP END
+LOOP END
+
+    Report from: Code generation optimizations [cg]
+
+/glade/u/home/tvda/CISM/builds/derecho-intel/fortran_autogen_srcs/glint_io.F90(1271,14):remark #34051: REGISTER ALLOCATION : [glint_io_mp_glint_get_global_orog_] /glade/u/home/tvda/CISM/builds/derecho-intel/fortran_autogen_srcs/glint_io.F90:1271
+
+    Hardware registers
+        Reserved     :    2[ rsp rip]
+        Available    :   39[ rax rdx rcx rbx rbp rsi rdi r8-r15 mm0-mm7 zmm0-zmm15]
+        Callee-save  :    6[ rbx rbp r12-r15]
+        Assigned     :   15[ rax rdx rcx rbx rsi rdi r8-r15 zmm0]
+        
+    Routine temporaries
+        Total         :      58
+            Global    :      39
+            Local     :      19
+        Regenerable   :       2
+        Spilled       :      13
+        
+    Routine stack
+        Variables     :       0 bytes*
+            Reads     :       0 [0.00e+00 ~ 0.0%]
+            Writes    :       0 [0.00e+00 ~ 0.0%]
+        Spills        :      72 bytes*
+            Reads     :      11 [6.95e+00 ~ 7.0%]
+            Writes    :       9 [1.72e+00 ~ 1.7%]
+    
+    Notes
+    
+        *Non-overlapping variables and spills may share stack space,
+         so the total stack size might be less than this.
+    
+
+===========================================================================
+
+Begin optimization report for: GLINT_IO::GLINT_SET_GLOBAL_OROG
+
+    Report from: Interprocedural optimizations [ipo]
+
+INLINE REPORT: (GLINT_IO::GLINT_SET_GLOBAL_OROG) [25] /glade/u/home/tvda/CISM/builds/derecho-intel/fortran_autogen_srcs/glint_io.F90(1279,14)
+
+
+    Report from: Loop nest, Vector & Auto-parallelization optimizations [loop, vec, par]
+
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/builds/derecho-intel/fortran_autogen_srcs/glint_io.F90(1284,5)
+<Multiversioned v1>
+   remark #25233: Loop multiversioned for stride tests on Assumed shape arrays
+   remark #15542: loop was not vectorized: inner loop was already vectorized
+
+   LOOP BEGIN at /glade/u/home/tvda/CISM/builds/derecho-intel/fortran_autogen_srcs/glint_io.F90(1284,5)
+      remark #15300: LOOP WAS VECTORIZED
+   LOOP END
+
+   LOOP BEGIN at /glade/u/home/tvda/CISM/builds/derecho-intel/fortran_autogen_srcs/glint_io.F90(1284,5)
+   <Remainder loop for vectorization>
+   LOOP END
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/builds/derecho-intel/fortran_autogen_srcs/glint_io.F90(1284,5)
+<Multiversioned v2>
+   remark #15541: outer loop was not auto-vectorized: consider using SIMD directive
+
+   LOOP BEGIN at /glade/u/home/tvda/CISM/builds/derecho-intel/fortran_autogen_srcs/glint_io.F90(1284,5)
+      remark #15335: loop was not vectorized: vectorization possible but seems inefficient. Use vector always directive or -vec-threshold0 to override 
+      remark #25439: unrolled with remainder by 2  
+   LOOP END
+
+   LOOP BEGIN at /glade/u/home/tvda/CISM/builds/derecho-intel/fortran_autogen_srcs/glint_io.F90(1284,5)
+   <Remainder>
+   LOOP END
+LOOP END
+
+    Report from: Code generation optimizations [cg]
+
+/glade/u/home/tvda/CISM/builds/derecho-intel/fortran_autogen_srcs/glint_io.F90(1279,14):remark #34051: REGISTER ALLOCATION : [glint_io_mp_glint_set_global_orog_] /glade/u/home/tvda/CISM/builds/derecho-intel/fortran_autogen_srcs/glint_io.F90:1279
+
+    Hardware registers
+        Reserved     :    2[ rsp rip]
+        Available    :   39[ rax rdx rcx rbx rbp rsi rdi r8-r15 mm0-mm7 zmm0-zmm15]
+        Callee-save  :    6[ rbx rbp r12-r15]
+        Assigned     :   15[ rax rdx rcx rbx rsi rdi r8-r15 zmm0]
+        
+    Routine temporaries
+        Total         :      61
+            Global    :      42
+            Local     :      19
+        Regenerable   :       2
+        Spilled       :      13
+        
+    Routine stack
+        Variables     :       0 bytes*
+            Reads     :       0 [0.00e+00 ~ 0.0%]
+            Writes    :       0 [0.00e+00 ~ 0.0%]
+        Spills        :      72 bytes*
+            Reads     :      11 [6.87e+00 ~ 6.9%]
+            Writes    :       9 [1.70e+00 ~ 1.7%]
+    
+    Notes
+    
+        *Non-overlapping variables and spills may share stack space,
+         so the total stack size might be less than this.
+    
+
+===========================================================================
+
+Begin optimization report for: GLINT_IO::GLINT_GET_INMASK
+
+    Report from: Interprocedural optimizations [ipo]
+
+INLINE REPORT: (GLINT_IO::GLINT_GET_INMASK) [26] /glade/u/home/tvda/CISM/builds/derecho-intel/fortran_autogen_srcs/glint_io.F90(1287,14)
+
+
+    Report from: Loop nest, Vector & Auto-parallelization optimizations [loop, vec, par]
+
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/builds/derecho-intel/fortran_autogen_srcs/glint_io.F90(1292,5)
+<Multiversioned v1>
+   remark #25233: Loop multiversioned for stride tests on Assumed shape arrays
+   remark #15542: loop was not vectorized: inner loop was already vectorized
+
+   LOOP BEGIN at /glade/u/home/tvda/CISM/builds/derecho-intel/fortran_autogen_srcs/glint_io.F90(1292,5)
+      remark #15300: LOOP WAS VECTORIZED
+   LOOP END
+
+   LOOP BEGIN at /glade/u/home/tvda/CISM/builds/derecho-intel/fortran_autogen_srcs/glint_io.F90(1292,5)
+   <Remainder loop for vectorization>
+   LOOP END
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/builds/derecho-intel/fortran_autogen_srcs/glint_io.F90(1292,5)
+<Multiversioned v2>
+   remark #15542: loop was not vectorized: inner loop was already vectorized
+
+   LOOP BEGIN at /glade/u/home/tvda/CISM/builds/derecho-intel/fortran_autogen_srcs/glint_io.F90(1292,5)
+      remark #15300: LOOP WAS VECTORIZED
+   LOOP END
+
+   LOOP BEGIN at /glade/u/home/tvda/CISM/builds/derecho-intel/fortran_autogen_srcs/glint_io.F90(1292,5)
+   <Remainder loop for vectorization>
+   LOOP END
+LOOP END
+
+    Report from: Code generation optimizations [cg]
+
+/glade/u/home/tvda/CISM/builds/derecho-intel/fortran_autogen_srcs/glint_io.F90(1287,14):remark #34051: REGISTER ALLOCATION : [glint_io_mp_glint_get_inmask_] /glade/u/home/tvda/CISM/builds/derecho-intel/fortran_autogen_srcs/glint_io.F90:1287
+
+    Hardware registers
+        Reserved     :    2[ rsp rip]
+        Available    :   39[ rax rdx rcx rbx rbp rsi rdi r8-r15 mm0-mm7 zmm0-zmm15]
+        Callee-save  :    6[ rbx rbp r12-r15]
+        Assigned     :   26[ rax rdx rcx rbx rsi rdi r8-r15 zmm0-zmm11]
+        
+    Routine temporaries
+        Total         :     115
+            Global    :      56
+            Local     :      59
+        Regenerable   :       2
+        Spilled       :      27
+        
+    Routine stack
+        Variables     :       0 bytes*
+            Reads     :       0 [0.00e+00 ~ 0.0%]
+            Writes    :       0 [0.00e+00 ~ 0.0%]
+        Spills        :     184 bytes*
+            Reads     :      29 [6.28e+00 ~ 6.3%]
+            Writes    :      26 [2.54e+00 ~ 2.5%]
+    
+    Notes
+    
+        *Non-overlapping variables and spills may share stack space,
+         so the total stack size might be less than this.
+    
+
+===========================================================================
+
+Begin optimization report for: GLINT_IO::GLINT_SET_INMASK
+
+    Report from: Interprocedural optimizations [ipo]
+
+INLINE REPORT: (GLINT_IO::GLINT_SET_INMASK) [27] /glade/u/home/tvda/CISM/builds/derecho-intel/fortran_autogen_srcs/glint_io.F90(1295,14)
+
+
+    Report from: Loop nest, Vector & Auto-parallelization optimizations [loop, vec, par]
+
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/builds/derecho-intel/fortran_autogen_srcs/glint_io.F90(1300,5)
+<Multiversioned v1>
+   remark #25233: Loop multiversioned for stride tests on Assumed shape arrays
+   remark #15542: loop was not vectorized: inner loop was already vectorized
+
+   LOOP BEGIN at /glade/u/home/tvda/CISM/builds/derecho-intel/fortran_autogen_srcs/glint_io.F90(1300,5)
+      remark #15300: LOOP WAS VECTORIZED
+   LOOP END
+
+   LOOP BEGIN at /glade/u/home/tvda/CISM/builds/derecho-intel/fortran_autogen_srcs/glint_io.F90(1300,5)
+   <Remainder loop for vectorization>
+   LOOP END
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/builds/derecho-intel/fortran_autogen_srcs/glint_io.F90(1300,5)
+<Multiversioned v2>
+   remark #15542: loop was not vectorized: inner loop was already vectorized
+
+   LOOP BEGIN at /glade/u/home/tvda/CISM/builds/derecho-intel/fortran_autogen_srcs/glint_io.F90(1300,5)
+      remark #15300: LOOP WAS VECTORIZED
+   LOOP END
+
+   LOOP BEGIN at /glade/u/home/tvda/CISM/builds/derecho-intel/fortran_autogen_srcs/glint_io.F90(1300,5)
+   <Remainder loop for vectorization>
+   LOOP END
+LOOP END
+
+    Report from: Code generation optimizations [cg]
+
+/glade/u/home/tvda/CISM/builds/derecho-intel/fortran_autogen_srcs/glint_io.F90(1295,14):remark #34051: REGISTER ALLOCATION : [glint_io_mp_glint_set_inmask_] /glade/u/home/tvda/CISM/builds/derecho-intel/fortran_autogen_srcs/glint_io.F90:1295
+
+    Hardware registers
+        Reserved     :    2[ rsp rip]
+        Available    :   39[ rax rdx rcx rbx rbp rsi rdi r8-r15 mm0-mm7 zmm0-zmm15]
+        Callee-save  :    6[ rbx rbp r12-r15]
+        Assigned     :   22[ rax rdx rcx rbx rsi rdi r8-r15 zmm0-zmm7]
+        
+    Routine temporaries
+        Total         :     117
+            Global    :      56
+            Local     :      61
+        Regenerable   :       2
+        Spilled       :      27
+        
+    Routine stack
+        Variables     :       0 bytes*
+            Reads     :       0 [0.00e+00 ~ 0.0%]
+            Writes    :       0 [0.00e+00 ~ 0.0%]
+        Spills        :     184 bytes*
+            Reads     :      29 [6.58e+00 ~ 6.6%]
+            Writes    :      26 [2.66e+00 ~ 2.7%]
+    
+    Notes
+    
+        *Non-overlapping variables and spills may share stack space,
+         so the total stack size might be less than this.
+    
+
+===========================================================================
+
+Begin optimization report for: GLINT_IO::GLINT_GET_LOCAL_OROG
+
+    Report from: Interprocedural optimizations [ipo]
+
+INLINE REPORT: (GLINT_IO::GLINT_GET_LOCAL_OROG) [28] /glade/u/home/tvda/CISM/builds/derecho-intel/fortran_autogen_srcs/glint_io.F90(1303,14)
+
+
+    Report from: Loop nest, Vector & Auto-parallelization optimizations [loop, vec, par]
+
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/builds/derecho-intel/fortran_autogen_srcs/glint_io.F90(1308,5)
+<Multiversioned v1>
+   remark #25233: Loop multiversioned for stride tests on Assumed shape arrays
+   remark #15542: loop was not vectorized: inner loop was already vectorized
+
+   LOOP BEGIN at /glade/u/home/tvda/CISM/builds/derecho-intel/fortran_autogen_srcs/glint_io.F90(1308,5)
+      remark #15300: LOOP WAS VECTORIZED
+   LOOP END
+
+   LOOP BEGIN at /glade/u/home/tvda/CISM/builds/derecho-intel/fortran_autogen_srcs/glint_io.F90(1308,5)
+   <Remainder loop for vectorization>
+   LOOP END
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/builds/derecho-intel/fortran_autogen_srcs/glint_io.F90(1308,5)
+<Multiversioned v2>
+   remark #15541: outer loop was not auto-vectorized: consider using SIMD directive
+
+   LOOP BEGIN at /glade/u/home/tvda/CISM/builds/derecho-intel/fortran_autogen_srcs/glint_io.F90(1308,5)
+      remark #15335: loop was not vectorized: vectorization possible but seems inefficient. Use vector always directive or -vec-threshold0 to override 
+      remark #25439: unrolled with remainder by 2  
+   LOOP END
+
+   LOOP BEGIN at /glade/u/home/tvda/CISM/builds/derecho-intel/fortran_autogen_srcs/glint_io.F90(1308,5)
+   <Remainder>
+   LOOP END
+LOOP END
+
+    Report from: Code generation optimizations [cg]
+
+/glade/u/home/tvda/CISM/builds/derecho-intel/fortran_autogen_srcs/glint_io.F90(1303,14):remark #34051: REGISTER ALLOCATION : [glint_io_mp_glint_get_local_orog_] /glade/u/home/tvda/CISM/builds/derecho-intel/fortran_autogen_srcs/glint_io.F90:1303
+
+    Hardware registers
+        Reserved     :    2[ rsp rip]
+        Available    :   39[ rax rdx rcx rbx rbp rsi rdi r8-r15 mm0-mm7 zmm0-zmm15]
+        Callee-save  :    6[ rbx rbp r12-r15]
+        Assigned     :   15[ rax rdx rcx rbx rsi rdi r8-r15 zmm0]
+        
+    Routine temporaries
+        Total         :      58
+            Global    :      39
+            Local     :      19
+        Regenerable   :       2
+        Spilled       :      13
+        
+    Routine stack
+        Variables     :       0 bytes*
+            Reads     :       0 [0.00e+00 ~ 0.0%]
+            Writes    :       0 [0.00e+00 ~ 0.0%]
+        Spills        :      72 bytes*
+            Reads     :      11 [6.95e+00 ~ 7.0%]
+            Writes    :       9 [1.72e+00 ~ 1.7%]
+    
+    Notes
+    
+        *Non-overlapping variables and spills may share stack space,
+         so the total stack size might be less than this.
+    
+
+===========================================================================
+
+Begin optimization report for: GLINT_IO::GLINT_SET_LOCAL_OROG
+
+    Report from: Interprocedural optimizations [ipo]
+
+INLINE REPORT: (GLINT_IO::GLINT_SET_LOCAL_OROG) [29] /glade/u/home/tvda/CISM/builds/derecho-intel/fortran_autogen_srcs/glint_io.F90(1311,14)
+
+
+    Report from: Loop nest, Vector & Auto-parallelization optimizations [loop, vec, par]
+
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/builds/derecho-intel/fortran_autogen_srcs/glint_io.F90(1316,5)
+<Multiversioned v1>
+   remark #25233: Loop multiversioned for stride tests on Assumed shape arrays
+   remark #15542: loop was not vectorized: inner loop was already vectorized
+
+   LOOP BEGIN at /glade/u/home/tvda/CISM/builds/derecho-intel/fortran_autogen_srcs/glint_io.F90(1316,5)
+      remark #15300: LOOP WAS VECTORIZED
+   LOOP END
+
+   LOOP BEGIN at /glade/u/home/tvda/CISM/builds/derecho-intel/fortran_autogen_srcs/glint_io.F90(1316,5)
+   <Remainder loop for vectorization>
+   LOOP END
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/builds/derecho-intel/fortran_autogen_srcs/glint_io.F90(1316,5)
+<Multiversioned v2>
+   remark #15541: outer loop was not auto-vectorized: consider using SIMD directive
+
+   LOOP BEGIN at /glade/u/home/tvda/CISM/builds/derecho-intel/fortran_autogen_srcs/glint_io.F90(1316,5)
+      remark #15335: loop was not vectorized: vectorization possible but seems inefficient. Use vector always directive or -vec-threshold0 to override 
+      remark #25439: unrolled with remainder by 2  
+   LOOP END
+
+   LOOP BEGIN at /glade/u/home/tvda/CISM/builds/derecho-intel/fortran_autogen_srcs/glint_io.F90(1316,5)
+   <Remainder>
+   LOOP END
+LOOP END
+
+    Report from: Code generation optimizations [cg]
+
+/glade/u/home/tvda/CISM/builds/derecho-intel/fortran_autogen_srcs/glint_io.F90(1311,14):remark #34051: REGISTER ALLOCATION : [glint_io_mp_glint_set_local_orog_] /glade/u/home/tvda/CISM/builds/derecho-intel/fortran_autogen_srcs/glint_io.F90:1311
+
+    Hardware registers
+        Reserved     :    2[ rsp rip]
+        Available    :   39[ rax rdx rcx rbx rbp rsi rdi r8-r15 mm0-mm7 zmm0-zmm15]
+        Callee-save  :    6[ rbx rbp r12-r15]
+        Assigned     :   15[ rax rdx rcx rbx rsi rdi r8-r15 zmm0]
+        
+    Routine temporaries
+        Total         :      61
+            Global    :      42
+            Local     :      19
+        Regenerable   :       2
+        Spilled       :      13
+        
+    Routine stack
+        Variables     :       0 bytes*
+            Reads     :       0 [0.00e+00 ~ 0.0%]
+            Writes    :       0 [0.00e+00 ~ 0.0%]
+        Spills        :      72 bytes*
+            Reads     :      11 [6.87e+00 ~ 6.9%]
+            Writes    :       9 [1.70e+00 ~ 1.7%]
+    
+    Notes
+    
+        *Non-overlapping variables and spills may share stack space,
+         so the total stack size might be less than this.
+    
+
+===========================================================================
+
+Begin optimization report for: GLINT_IO::GLINT_GET_OUTMASK
+
+    Report from: Interprocedural optimizations [ipo]
+
+INLINE REPORT: (GLINT_IO::GLINT_GET_OUTMASK) [30] /glade/u/home/tvda/CISM/builds/derecho-intel/fortran_autogen_srcs/glint_io.F90(1319,14)
+
+
+    Report from: Loop nest, Vector & Auto-parallelization optimizations [loop, vec, par]
+
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/builds/derecho-intel/fortran_autogen_srcs/glint_io.F90(1324,5)
+<Multiversioned v1>
+   remark #25233: Loop multiversioned for stride tests on Assumed shape arrays
+   remark #15542: loop was not vectorized: inner loop was already vectorized
+
+   LOOP BEGIN at /glade/u/home/tvda/CISM/builds/derecho-intel/fortran_autogen_srcs/glint_io.F90(1324,5)
+      remark #15300: LOOP WAS VECTORIZED
+   LOOP END
+
+   LOOP BEGIN at /glade/u/home/tvda/CISM/builds/derecho-intel/fortran_autogen_srcs/glint_io.F90(1324,5)
+   <Remainder loop for vectorization>
+   LOOP END
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/builds/derecho-intel/fortran_autogen_srcs/glint_io.F90(1324,5)
+<Multiversioned v2>
+   remark #15542: loop was not vectorized: inner loop was already vectorized
+
+   LOOP BEGIN at /glade/u/home/tvda/CISM/builds/derecho-intel/fortran_autogen_srcs/glint_io.F90(1324,5)
+      remark #15300: LOOP WAS VECTORIZED
+   LOOP END
+
+   LOOP BEGIN at /glade/u/home/tvda/CISM/builds/derecho-intel/fortran_autogen_srcs/glint_io.F90(1324,5)
+   <Remainder loop for vectorization>
+   LOOP END
+LOOP END
+
+    Report from: Code generation optimizations [cg]
+
+/glade/u/home/tvda/CISM/builds/derecho-intel/fortran_autogen_srcs/glint_io.F90(1319,14):remark #34051: REGISTER ALLOCATION : [glint_io_mp_glint_get_outmask_] /glade/u/home/tvda/CISM/builds/derecho-intel/fortran_autogen_srcs/glint_io.F90:1319
+
+    Hardware registers
+        Reserved     :    2[ rsp rip]
+        Available    :   39[ rax rdx rcx rbx rbp rsi rdi r8-r15 mm0-mm7 zmm0-zmm15]
+        Callee-save  :    6[ rbx rbp r12-r15]
+        Assigned     :   26[ rax rdx rcx rbx rsi rdi r8-r15 zmm0-zmm11]
+        
+    Routine temporaries
+        Total         :     115
+            Global    :      56
+            Local     :      59
+        Regenerable   :       2
+        Spilled       :      27
+        
+    Routine stack
+        Variables     :       0 bytes*
+            Reads     :       0 [0.00e+00 ~ 0.0%]
+            Writes    :       0 [0.00e+00 ~ 0.0%]
+        Spills        :     184 bytes*
+            Reads     :      29 [6.28e+00 ~ 6.3%]
+            Writes    :      26 [2.54e+00 ~ 2.5%]
+    
+    Notes
+    
+        *Non-overlapping variables and spills may share stack space,
+         so the total stack size might be less than this.
+    
+
+===========================================================================
+
+Begin optimization report for: GLINT_IO::GLINT_SET_OUTMASK
+
+    Report from: Interprocedural optimizations [ipo]
+
+INLINE REPORT: (GLINT_IO::GLINT_SET_OUTMASK) [31] /glade/u/home/tvda/CISM/builds/derecho-intel/fortran_autogen_srcs/glint_io.F90(1327,14)
+
+
+    Report from: Loop nest, Vector & Auto-parallelization optimizations [loop, vec, par]
+
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/builds/derecho-intel/fortran_autogen_srcs/glint_io.F90(1332,5)
+<Multiversioned v1>
+   remark #25233: Loop multiversioned for stride tests on Assumed shape arrays
+   remark #15542: loop was not vectorized: inner loop was already vectorized
+
+   LOOP BEGIN at /glade/u/home/tvda/CISM/builds/derecho-intel/fortran_autogen_srcs/glint_io.F90(1332,5)
+      remark #15300: LOOP WAS VECTORIZED
+   LOOP END
+
+   LOOP BEGIN at /glade/u/home/tvda/CISM/builds/derecho-intel/fortran_autogen_srcs/glint_io.F90(1332,5)
+   <Remainder loop for vectorization>
+   LOOP END
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/builds/derecho-intel/fortran_autogen_srcs/glint_io.F90(1332,5)
+<Multiversioned v2>
+   remark #15542: loop was not vectorized: inner loop was already vectorized
+
+   LOOP BEGIN at /glade/u/home/tvda/CISM/builds/derecho-intel/fortran_autogen_srcs/glint_io.F90(1332,5)
+      remark #15300: LOOP WAS VECTORIZED
+   LOOP END
+
+   LOOP BEGIN at /glade/u/home/tvda/CISM/builds/derecho-intel/fortran_autogen_srcs/glint_io.F90(1332,5)
+   <Remainder loop for vectorization>
+   LOOP END
+LOOP END
+
+    Report from: Code generation optimizations [cg]
+
+/glade/u/home/tvda/CISM/builds/derecho-intel/fortran_autogen_srcs/glint_io.F90(1327,14):remark #34051: REGISTER ALLOCATION : [glint_io_mp_glint_set_outmask_] /glade/u/home/tvda/CISM/builds/derecho-intel/fortran_autogen_srcs/glint_io.F90:1327
+
+    Hardware registers
+        Reserved     :    2[ rsp rip]
+        Available    :   39[ rax rdx rcx rbx rbp rsi rdi r8-r15 mm0-mm7 zmm0-zmm15]
+        Callee-save  :    6[ rbx rbp r12-r15]
+        Assigned     :   22[ rax rdx rcx rbx rsi rdi r8-r15 zmm0-zmm7]
+        
+    Routine temporaries
+        Total         :     117
+            Global    :      56
+            Local     :      61
+        Regenerable   :       2
+        Spilled       :      27
+        
+    Routine stack
+        Variables     :       0 bytes*
+            Reads     :       0 [0.00e+00 ~ 0.0%]
+            Writes    :       0 [0.00e+00 ~ 0.0%]
+        Spills        :     184 bytes*
+            Reads     :      29 [6.58e+00 ~ 6.6%]
+            Writes    :      26 [2.66e+00 ~ 2.7%]
+    
+    Notes
+    
+        *Non-overlapping variables and spills may share stack space,
+         so the total stack size might be less than this.
+    
+
+===========================================================================
+
+Begin optimization report for: GLINT_IO::GLINT_GET_PRCP
+
+    Report from: Interprocedural optimizations [ipo]
+
+INLINE REPORT: (GLINT_IO::GLINT_GET_PRCP) [32] /glade/u/home/tvda/CISM/builds/derecho-intel/fortran_autogen_srcs/glint_io.F90(1335,14)
+
+
+    Report from: Loop nest, Vector & Auto-parallelization optimizations [loop, vec, par]
+
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/builds/derecho-intel/fortran_autogen_srcs/glint_io.F90(1340,5)
+<Multiversioned v1>
+   remark #25233: Loop multiversioned for stride tests on Assumed shape arrays
+   remark #15542: loop was not vectorized: inner loop was already vectorized
+
+   LOOP BEGIN at /glade/u/home/tvda/CISM/builds/derecho-intel/fortran_autogen_srcs/glint_io.F90(1340,5)
+      remark #15300: LOOP WAS VECTORIZED
+   LOOP END
+
+   LOOP BEGIN at /glade/u/home/tvda/CISM/builds/derecho-intel/fortran_autogen_srcs/glint_io.F90(1340,5)
+   <Remainder loop for vectorization>
+   LOOP END
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/builds/derecho-intel/fortran_autogen_srcs/glint_io.F90(1340,5)
+<Multiversioned v2>
+   remark #15541: outer loop was not auto-vectorized: consider using SIMD directive
+
+   LOOP BEGIN at /glade/u/home/tvda/CISM/builds/derecho-intel/fortran_autogen_srcs/glint_io.F90(1340,5)
+      remark #15335: loop was not vectorized: vectorization possible but seems inefficient. Use vector always directive or -vec-threshold0 to override 
+      remark #25439: unrolled with remainder by 2  
+   LOOP END
+
+   LOOP BEGIN at /glade/u/home/tvda/CISM/builds/derecho-intel/fortran_autogen_srcs/glint_io.F90(1340,5)
+   <Remainder>
+   LOOP END
+LOOP END
+
+    Report from: Code generation optimizations [cg]
+
+/glade/u/home/tvda/CISM/builds/derecho-intel/fortran_autogen_srcs/glint_io.F90(1335,14):remark #34051: REGISTER ALLOCATION : [glint_io_mp_glint_get_prcp_] /glade/u/home/tvda/CISM/builds/derecho-intel/fortran_autogen_srcs/glint_io.F90:1335
+
+    Hardware registers
+        Reserved     :    2[ rsp rip]
+        Available    :   39[ rax rdx rcx rbx rbp rsi rdi r8-r15 mm0-mm7 zmm0-zmm15]
+        Callee-save  :    6[ rbx rbp r12-r15]
+        Assigned     :   15[ rax rdx rcx rbx rsi rdi r8-r15 zmm0]
+        
+    Routine temporaries
+        Total         :      58
+            Global    :      39
+            Local     :      19
+        Regenerable   :       2
+        Spilled       :      13
+        
+    Routine stack
+        Variables     :       0 bytes*
+            Reads     :       0 [0.00e+00 ~ 0.0%]
+            Writes    :       0 [0.00e+00 ~ 0.0%]
+        Spills        :      72 bytes*
+            Reads     :      11 [6.95e+00 ~ 7.0%]
+            Writes    :       9 [1.72e+00 ~ 1.7%]
+    
+    Notes
+    
+        *Non-overlapping variables and spills may share stack space,
+         so the total stack size might be less than this.
+    
+
+===========================================================================
+
+Begin optimization report for: GLINT_IO::GLINT_SET_PRCP
+
+    Report from: Interprocedural optimizations [ipo]
+
+INLINE REPORT: (GLINT_IO::GLINT_SET_PRCP) [33] /glade/u/home/tvda/CISM/builds/derecho-intel/fortran_autogen_srcs/glint_io.F90(1343,14)
+
+
+    Report from: Loop nest, Vector & Auto-parallelization optimizations [loop, vec, par]
+
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/builds/derecho-intel/fortran_autogen_srcs/glint_io.F90(1348,5)
+<Multiversioned v1>
+   remark #25233: Loop multiversioned for stride tests on Assumed shape arrays
+   remark #15542: loop was not vectorized: inner loop was already vectorized
+
+   LOOP BEGIN at /glade/u/home/tvda/CISM/builds/derecho-intel/fortran_autogen_srcs/glint_io.F90(1348,5)
+      remark #15300: LOOP WAS VECTORIZED
+   LOOP END
+
+   LOOP BEGIN at /glade/u/home/tvda/CISM/builds/derecho-intel/fortran_autogen_srcs/glint_io.F90(1348,5)
+   <Remainder loop for vectorization>
+   LOOP END
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/builds/derecho-intel/fortran_autogen_srcs/glint_io.F90(1348,5)
+<Multiversioned v2>
+   remark #15541: outer loop was not auto-vectorized: consider using SIMD directive
+
+   LOOP BEGIN at /glade/u/home/tvda/CISM/builds/derecho-intel/fortran_autogen_srcs/glint_io.F90(1348,5)
+      remark #15335: loop was not vectorized: vectorization possible but seems inefficient. Use vector always directive or -vec-threshold0 to override 
+      remark #25439: unrolled with remainder by 2  
+   LOOP END
+
+   LOOP BEGIN at /glade/u/home/tvda/CISM/builds/derecho-intel/fortran_autogen_srcs/glint_io.F90(1348,5)
+   <Remainder>
+   LOOP END
+LOOP END
+
+    Report from: Code generation optimizations [cg]
+
+/glade/u/home/tvda/CISM/builds/derecho-intel/fortran_autogen_srcs/glint_io.F90(1343,14):remark #34051: REGISTER ALLOCATION : [glint_io_mp_glint_set_prcp_] /glade/u/home/tvda/CISM/builds/derecho-intel/fortran_autogen_srcs/glint_io.F90:1343
+
+    Hardware registers
+        Reserved     :    2[ rsp rip]
+        Available    :   39[ rax rdx rcx rbx rbp rsi rdi r8-r15 mm0-mm7 zmm0-zmm15]
+        Callee-save  :    6[ rbx rbp r12-r15]
+        Assigned     :   15[ rax rdx rcx rbx rsi rdi r8-r15 zmm0]
+        
+    Routine temporaries
+        Total         :      61
+            Global    :      42
+            Local     :      19
+        Regenerable   :       2
+        Spilled       :      13
+        
+    Routine stack
+        Variables     :       0 bytes*
+            Reads     :       0 [0.00e+00 ~ 0.0%]
+            Writes    :       0 [0.00e+00 ~ 0.0%]
+        Spills        :      72 bytes*
+            Reads     :      11 [6.87e+00 ~ 6.9%]
+            Writes    :       9 [1.70e+00 ~ 1.7%]
+    
+    Notes
+    
+        *Non-overlapping variables and spills may share stack space,
+         so the total stack size might be less than this.
+    
+
+===========================================================================
+
+Begin optimization report for: GLINT_IO::GLINT_GET_SICED
+
+    Report from: Interprocedural optimizations [ipo]
+
+INLINE REPORT: (GLINT_IO::GLINT_GET_SICED) [34] /glade/u/home/tvda/CISM/builds/derecho-intel/fortran_autogen_srcs/glint_io.F90(1351,14)
+
+
+    Report from: Loop nest, Vector & Auto-parallelization optimizations [loop, vec, par]
+
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/builds/derecho-intel/fortran_autogen_srcs/glint_io.F90(1356,5)
+<Multiversioned v1>
+   remark #25233: Loop multiversioned for stride tests on Assumed shape arrays
+   remark #15542: loop was not vectorized: inner loop was already vectorized
+
+   LOOP BEGIN at /glade/u/home/tvda/CISM/builds/derecho-intel/fortran_autogen_srcs/glint_io.F90(1356,5)
+      remark #15300: LOOP WAS VECTORIZED
+   LOOP END
+
+   LOOP BEGIN at /glade/u/home/tvda/CISM/builds/derecho-intel/fortran_autogen_srcs/glint_io.F90(1356,5)
+   <Remainder loop for vectorization>
+   LOOP END
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/builds/derecho-intel/fortran_autogen_srcs/glint_io.F90(1356,5)
+<Multiversioned v2>
+   remark #15541: outer loop was not auto-vectorized: consider using SIMD directive
+
+   LOOP BEGIN at /glade/u/home/tvda/CISM/builds/derecho-intel/fortran_autogen_srcs/glint_io.F90(1356,5)
+      remark #15335: loop was not vectorized: vectorization possible but seems inefficient. Use vector always directive or -vec-threshold0 to override 
+      remark #25439: unrolled with remainder by 2  
+   LOOP END
+
+   LOOP BEGIN at /glade/u/home/tvda/CISM/builds/derecho-intel/fortran_autogen_srcs/glint_io.F90(1356,5)
+   <Remainder>
+   LOOP END
+LOOP END
+
+    Report from: Code generation optimizations [cg]
+
+/glade/u/home/tvda/CISM/builds/derecho-intel/fortran_autogen_srcs/glint_io.F90(1351,14):remark #34051: REGISTER ALLOCATION : [glint_io_mp_glint_get_siced_] /glade/u/home/tvda/CISM/builds/derecho-intel/fortran_autogen_srcs/glint_io.F90:1351
+
+    Hardware registers
+        Reserved     :    2[ rsp rip]
+        Available    :   39[ rax rdx rcx rbx rbp rsi rdi r8-r15 mm0-mm7 zmm0-zmm15]
+        Callee-save  :    6[ rbx rbp r12-r15]
+        Assigned     :   15[ rax rdx rcx rbx rsi rdi r8-r15 zmm0]
+        
+    Routine temporaries
+        Total         :      58
+            Global    :      39
+            Local     :      19
+        Regenerable   :       2
+        Spilled       :      13
+        
+    Routine stack
+        Variables     :       0 bytes*
+            Reads     :       0 [0.00e+00 ~ 0.0%]
+            Writes    :       0 [0.00e+00 ~ 0.0%]
+        Spills        :      72 bytes*
+            Reads     :      11 [6.95e+00 ~ 7.0%]
+            Writes    :       9 [1.72e+00 ~ 1.7%]
+    
+    Notes
+    
+        *Non-overlapping variables and spills may share stack space,
+         so the total stack size might be less than this.
+    
+
+===========================================================================
+
+Begin optimization report for: GLINT_IO::GLINT_SET_SICED
+
+    Report from: Interprocedural optimizations [ipo]
+
+INLINE REPORT: (GLINT_IO::GLINT_SET_SICED) [35] /glade/u/home/tvda/CISM/builds/derecho-intel/fortran_autogen_srcs/glint_io.F90(1359,14)
+
+
+    Report from: Loop nest, Vector & Auto-parallelization optimizations [loop, vec, par]
+
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/builds/derecho-intel/fortran_autogen_srcs/glint_io.F90(1364,5)
+<Multiversioned v1>
+   remark #25233: Loop multiversioned for stride tests on Assumed shape arrays
+   remark #15542: loop was not vectorized: inner loop was already vectorized
+
+   LOOP BEGIN at /glade/u/home/tvda/CISM/builds/derecho-intel/fortran_autogen_srcs/glint_io.F90(1364,5)
+      remark #15300: LOOP WAS VECTORIZED
+   LOOP END
+
+   LOOP BEGIN at /glade/u/home/tvda/CISM/builds/derecho-intel/fortran_autogen_srcs/glint_io.F90(1364,5)
+   <Remainder loop for vectorization>
+   LOOP END
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/builds/derecho-intel/fortran_autogen_srcs/glint_io.F90(1364,5)
+<Multiversioned v2>
+   remark #15541: outer loop was not auto-vectorized: consider using SIMD directive
+
+   LOOP BEGIN at /glade/u/home/tvda/CISM/builds/derecho-intel/fortran_autogen_srcs/glint_io.F90(1364,5)
+      remark #15335: loop was not vectorized: vectorization possible but seems inefficient. Use vector always directive or -vec-threshold0 to override 
+      remark #25439: unrolled with remainder by 2  
+   LOOP END
+
+   LOOP BEGIN at /glade/u/home/tvda/CISM/builds/derecho-intel/fortran_autogen_srcs/glint_io.F90(1364,5)
+   <Remainder>
+   LOOP END
+LOOP END
+
+    Report from: Code generation optimizations [cg]
+
+/glade/u/home/tvda/CISM/builds/derecho-intel/fortran_autogen_srcs/glint_io.F90(1359,14):remark #34051: REGISTER ALLOCATION : [glint_io_mp_glint_set_siced_] /glade/u/home/tvda/CISM/builds/derecho-intel/fortran_autogen_srcs/glint_io.F90:1359
+
+    Hardware registers
+        Reserved     :    2[ rsp rip]
+        Available    :   39[ rax rdx rcx rbx rbp rsi rdi r8-r15 mm0-mm7 zmm0-zmm15]
+        Callee-save  :    6[ rbx rbp r12-r15]
+        Assigned     :   15[ rax rdx rcx rbx rsi rdi r8-r15 zmm0]
+        
+    Routine temporaries
+        Total         :      61
+            Global    :      42
+            Local     :      19
+        Regenerable   :       2
+        Spilled       :      13
+        
+    Routine stack
+        Variables     :       0 bytes*
+            Reads     :       0 [0.00e+00 ~ 0.0%]
+            Writes    :       0 [0.00e+00 ~ 0.0%]
+        Spills        :      72 bytes*
+            Reads     :      11 [6.87e+00 ~ 6.9%]
+            Writes    :       9 [1.70e+00 ~ 1.7%]
+    
+    Notes
+    
+        *Non-overlapping variables and spills may share stack space,
+         so the total stack size might be less than this.
+    
+
+===========================================================================
+
+Begin optimization report for: GLINT_IO::GLINT_GET_SNOWD
+
+    Report from: Interprocedural optimizations [ipo]
+
+INLINE REPORT: (GLINT_IO::GLINT_GET_SNOWD) [36] /glade/u/home/tvda/CISM/builds/derecho-intel/fortran_autogen_srcs/glint_io.F90(1367,14)
+
+
+    Report from: Loop nest, Vector & Auto-parallelization optimizations [loop, vec, par]
+
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/builds/derecho-intel/fortran_autogen_srcs/glint_io.F90(1372,5)
+<Multiversioned v1>
+   remark #25233: Loop multiversioned for stride tests on Assumed shape arrays
+   remark #15542: loop was not vectorized: inner loop was already vectorized
+
+   LOOP BEGIN at /glade/u/home/tvda/CISM/builds/derecho-intel/fortran_autogen_srcs/glint_io.F90(1372,5)
+      remark #15300: LOOP WAS VECTORIZED
+   LOOP END
+
+   LOOP BEGIN at /glade/u/home/tvda/CISM/builds/derecho-intel/fortran_autogen_srcs/glint_io.F90(1372,5)
+   <Remainder loop for vectorization>
+   LOOP END
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/builds/derecho-intel/fortran_autogen_srcs/glint_io.F90(1372,5)
+<Multiversioned v2>
+   remark #15541: outer loop was not auto-vectorized: consider using SIMD directive
+
+   LOOP BEGIN at /glade/u/home/tvda/CISM/builds/derecho-intel/fortran_autogen_srcs/glint_io.F90(1372,5)
+      remark #15335: loop was not vectorized: vectorization possible but seems inefficient. Use vector always directive or -vec-threshold0 to override 
+      remark #25439: unrolled with remainder by 2  
+   LOOP END
+
+   LOOP BEGIN at /glade/u/home/tvda/CISM/builds/derecho-intel/fortran_autogen_srcs/glint_io.F90(1372,5)
+   <Remainder>
+   LOOP END
+LOOP END
+
+    Report from: Code generation optimizations [cg]
+
+/glade/u/home/tvda/CISM/builds/derecho-intel/fortran_autogen_srcs/glint_io.F90(1367,14):remark #34051: REGISTER ALLOCATION : [glint_io_mp_glint_get_snowd_] /glade/u/home/tvda/CISM/builds/derecho-intel/fortran_autogen_srcs/glint_io.F90:1367
+
+    Hardware registers
+        Reserved     :    2[ rsp rip]
+        Available    :   39[ rax rdx rcx rbx rbp rsi rdi r8-r15 mm0-mm7 zmm0-zmm15]
+        Callee-save  :    6[ rbx rbp r12-r15]
+        Assigned     :   15[ rax rdx rcx rbx rsi rdi r8-r15 zmm0]
+        
+    Routine temporaries
+        Total         :      58
+            Global    :      39
+            Local     :      19
+        Regenerable   :       2
+        Spilled       :      13
+        
+    Routine stack
+        Variables     :       0 bytes*
+            Reads     :       0 [0.00e+00 ~ 0.0%]
+            Writes    :       0 [0.00e+00 ~ 0.0%]
+        Spills        :      72 bytes*
+            Reads     :      11 [6.95e+00 ~ 7.0%]
+            Writes    :       9 [1.72e+00 ~ 1.7%]
+    
+    Notes
+    
+        *Non-overlapping variables and spills may share stack space,
+         so the total stack size might be less than this.
+    
+
+===========================================================================
+
+Begin optimization report for: GLINT_IO::GLINT_SET_SNOWD
+
+    Report from: Interprocedural optimizations [ipo]
+
+INLINE REPORT: (GLINT_IO::GLINT_SET_SNOWD) [37] /glade/u/home/tvda/CISM/builds/derecho-intel/fortran_autogen_srcs/glint_io.F90(1375,14)
+
+
+    Report from: Loop nest, Vector & Auto-parallelization optimizations [loop, vec, par]
+
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/builds/derecho-intel/fortran_autogen_srcs/glint_io.F90(1380,5)
+<Multiversioned v1>
+   remark #25233: Loop multiversioned for stride tests on Assumed shape arrays
+   remark #15542: loop was not vectorized: inner loop was already vectorized
+
+   LOOP BEGIN at /glade/u/home/tvda/CISM/builds/derecho-intel/fortran_autogen_srcs/glint_io.F90(1380,5)
+      remark #15300: LOOP WAS VECTORIZED
+   LOOP END
+
+   LOOP BEGIN at /glade/u/home/tvda/CISM/builds/derecho-intel/fortran_autogen_srcs/glint_io.F90(1380,5)
+   <Remainder loop for vectorization>
+   LOOP END
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/builds/derecho-intel/fortran_autogen_srcs/glint_io.F90(1380,5)
+<Multiversioned v2>
+   remark #15541: outer loop was not auto-vectorized: consider using SIMD directive
+
+   LOOP BEGIN at /glade/u/home/tvda/CISM/builds/derecho-intel/fortran_autogen_srcs/glint_io.F90(1380,5)
+      remark #15335: loop was not vectorized: vectorization possible but seems inefficient. Use vector always directive or -vec-threshold0 to override 
+      remark #25439: unrolled with remainder by 2  
+   LOOP END
+
+   LOOP BEGIN at /glade/u/home/tvda/CISM/builds/derecho-intel/fortran_autogen_srcs/glint_io.F90(1380,5)
+   <Remainder>
+   LOOP END
+LOOP END
+
+    Report from: Code generation optimizations [cg]
+
+/glade/u/home/tvda/CISM/builds/derecho-intel/fortran_autogen_srcs/glint_io.F90(1375,14):remark #34051: REGISTER ALLOCATION : [glint_io_mp_glint_set_snowd_] /glade/u/home/tvda/CISM/builds/derecho-intel/fortran_autogen_srcs/glint_io.F90:1375
+
+    Hardware registers
+        Reserved     :    2[ rsp rip]
+        Available    :   39[ rax rdx rcx rbx rbp rsi rdi r8-r15 mm0-mm7 zmm0-zmm15]
+        Callee-save  :    6[ rbx rbp r12-r15]
+        Assigned     :   15[ rax rdx rcx rbx rsi rdi r8-r15 zmm0]
+        
+    Routine temporaries
+        Total         :      61
+            Global    :      42
+            Local     :      19
+        Regenerable   :       2
+        Spilled       :      13
+        
+    Routine stack
+        Variables     :       0 bytes*
+            Reads     :       0 [0.00e+00 ~ 0.0%]
+            Writes    :       0 [0.00e+00 ~ 0.0%]
+        Spills        :      72 bytes*
+            Reads     :      11 [6.87e+00 ~ 6.9%]
+            Writes    :       9 [1.70e+00 ~ 1.7%]
+    
+    Notes
+    
+        *Non-overlapping variables and spills may share stack space,
+         so the total stack size might be less than this.
+    
+
+===========================================================================

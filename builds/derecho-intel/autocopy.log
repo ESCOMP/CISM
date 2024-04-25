@@ -1,0 +1,11 @@
+
+Automated copy of config.inc and glimmer_vers.F90 to build directory
+
+~/CISM/builds/derecho-intel/fortran_autogen_srcs ~/CISM/builds/derecho-intel
+Auto-copy script is using CISM source directory: 
+/glade/u/home/tvda/CISM
+  --making copy of glimmer_vers.F90
+~/CISM/builds/derecho-intel
+~/CISM/builds/derecho-intel/fortran_autocopy_includes ~/CISM/builds/derecho-intel
+  --making copy of config.inc
+~/CISM/builds/derecho-intel

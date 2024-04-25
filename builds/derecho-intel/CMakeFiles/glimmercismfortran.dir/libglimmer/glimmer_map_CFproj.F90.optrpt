@@ -1,0 +1,525 @@
+Intel(R) Advisor can now assist with vectorization and show optimization
+  report messages with your source code.
+See "https://software.intel.com/en-us/intel-advisor-xe" for details.
+
+
+    Report from: Interprocedural optimizations [ipo]
+
+INLINING OPTION VALUES:
+  -inline-factor: 100
+  -inline-min-size: 30
+  -inline-max-size: 230
+  -inline-max-total-size: 2000
+  -inline-max-per-routine: 10000
+  -inline-max-per-compile: 500000
+
+
+Begin optimization report for: glimmer_map_cfproj._
+
+    Report from: Interprocedural optimizations [ipo]
+
+INLINE REPORT: (glimmer_map_cfproj._) [1] /glade/u/home/tvda/CISM/libglimmer/glimmer_map_CFproj.F90(39,8)
+
+
+    Report from: Code generation optimizations [cg]
+
+/glade/u/home/tvda/CISM/libglimmer/glimmer_map_CFproj.F90(39,8):remark #34051: REGISTER ALLOCATION : [glimmer_map_cfproj._] /glade/u/home/tvda/CISM/libglimmer/glimmer_map_CFproj.F90:39
+
+    Hardware registers
+        Reserved     :    2[ rsp rip]
+        Available    :   39[ rax rdx rcx rbx rbp rsi rdi r8-r15 mm0-mm7 zmm0-zmm15]
+        Callee-save  :    6[ rbx rbp r12-r15]
+        Assigned     :    0[ reg_null]
+        
+    Routine temporaries
+        Total         :       6
+            Global    :       0
+            Local     :       6
+        Regenerable   :       0
+        Spilled       :       0
+        
+    Routine stack
+        Variables     :       0 bytes*
+            Reads     :       0 [0.00e+00 ~ 0.0%]
+            Writes    :       0 [0.00e+00 ~ 0.0%]
+        Spills        :       0 bytes*
+            Reads     :       0 [0.00e+00 ~ 0.0%]
+            Writes    :       0 [0.00e+00 ~ 0.0%]
+    
+    Notes
+    
+        *Non-overlapping variables and spills may share stack space,
+         so the total stack size might be less than this.
+    
+
+===========================================================================
+
+Begin optimization report for: GLIMMER_MAP_CFPROJ::GLIMMAP_CFGETPROJ
+
+    Report from: Interprocedural optimizations [ipo]
+
+INLINE REPORT: (GLIMMER_MAP_CFPROJ::GLIMMAP_CFGETPROJ) [2] /glade/u/home/tvda/CISM/libglimmer/glimmer_map_CFproj.F90(64,12)
+  -> INLINE: (106,37) GLIMMER_MAP_CFPROJ::CFPROJ_GET_LAEA
+  -> INLINE: (109,36) GLIMMER_MAP_CFPROJ::CFPROJ_GET_AEA
+  -> INLINE: (112,36) GLIMMER_MAP_CFPROJ::CFPROJ_GET_LCC
+  -> INLINE: (115,38) GLIMMER_MAP_CFPROJ::CFPROJ_GET_STERE_POLAR
+  -> INLINE: (118,38) GLIMMER_MAP_CFPROJ::CFPROJ_GET_STERE
+
+
+    Report from: Loop nest, Vector & Auto-parallelization optimizations [loop, vec, par]
+
+
+
+Non-optimizable loops:
+
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglimmer/glimmer_map_CFproj.F90(101,5)
+   remark #15532: loop was not vectorized: compile time constraints prevent loop optimization. Consider using -O3.
+
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglimmer/glimmer_map_CFproj.F90(99,8)
+      remark #15521: loop was not vectorized: loop control variable was not identified. Explicitly compute the iteration count before executing the loop or try using canonical loop form from OpenMP specification
+   LOOP END
+LOOP END
+
+    Report from: Code generation optimizations [cg]
+
+/glade/u/home/tvda/CISM/libglimmer/glimmer_map_CFproj.F90(64,12):remark #34000: call to memcpy implemented inline with loads and stores with proven source (alignment, offset): (16, 0), and destination (alignment, offset): (1, 0)
+/glade/u/home/tvda/CISM/libglimmer/glimmer_map_CFproj.F90(179,5):remark #34000: call to memcpy implemented inline with loads and stores with proven source (alignment, offset): (32, 0), and destination (alignment, offset): (1, 0)
+/glade/u/home/tvda/CISM/libglimmer/glimmer_map_CFproj.F90(207,5):remark #34000: call to memcpy implemented inline with loads and stores with proven source (alignment, offset): (32, 0), and destination (alignment, offset): (1, 0)
+/glade/u/home/tvda/CISM/libglimmer/glimmer_map_CFproj.F90(95,14):remark #34026: call to memmove implemented as a call to optimized library version
+/glade/u/home/tvda/CISM/libglimmer/glimmer_map_CFproj.F90(64,12):remark #34051: REGISTER ALLOCATION : [glimmer_map_cfproj_mp_glimmap_cfgetproj_] /glade/u/home/tvda/CISM/libglimmer/glimmer_map_CFproj.F90:64
+
+    Hardware registers
+        Reserved     :    2[ rsp rip]
+        Available    :   39[ rax rdx rcx rbx rbp rsi rdi r8-r15 mm0-mm7 zmm0-zmm15]
+        Callee-save  :    6[ rbx rbp r12-r15]
+        Assigned     :   18[ rax rdx rcx rbx rsi rdi r8-r15 zmm0-zmm3]
+        
+    Routine temporaries
+        Total         :     622
+            Global    :     104
+            Local     :     518
+        Regenerable   :     398
+        Spilled       :       5
+        
+    Routine stack
+        Variables     :     364 bytes*
+            Reads     :      39 [3.45e+00 ~ 3.5%]
+            Writes    :      53 [7.36e+00 ~ 7.4%]
+        Spills        :      16 bytes*
+            Reads     :       4 [4.24e-01 ~ 0.4%]
+            Writes    :       2 [5.12e-01 ~ 0.5%]
+    
+    Notes
+    
+        *Non-overlapping variables and spills may share stack space,
+         so the total stack size might be less than this.
+    
+
+===========================================================================
+
+Begin optimization report for: GLIMMER_MAP_CFPROJ::GLIMMAP_CFPUTPROJ
+
+    Report from: Interprocedural optimizations [ipo]
+
+INLINE REPORT: (GLIMMER_MAP_CFPROJ::GLIMMAP_CFPUTPROJ) [3] /glade/u/home/tvda/CISM/libglimmer/glimmer_map_CFproj.F90(133,14)
+  -> INLINE: (149,13) GLIMMER_MAP_CFPROJ::CFPROJ_PUT_LAEA
+  -> INLINE: (152,13) GLIMMER_MAP_CFPROJ::CFPROJ_PUT_AEA
+  -> INLINE: (155,13) GLIMMER_MAP_CFPROJ::CFPROJ_PUT_LCC
+  -> INLINE: (158,13) GLIMMER_MAP_CFPROJ::CFPROJ_PUT_STERE
+
+
+    Report from: Code generation optimizations [cg]
+
+/glade/u/home/tvda/CISM/libglimmer/glimmer_map_CFproj.F90(133,14):remark #34051: REGISTER ALLOCATION : [glimmer_map_cfproj_mp_glimmap_cfputproj_] /glade/u/home/tvda/CISM/libglimmer/glimmer_map_CFproj.F90:133
+
+    Hardware registers
+        Reserved     :    2[ rsp rip]
+        Available    :   39[ rax rdx rcx rbx rbp rsi rdi r8-r15 mm0-mm7 zmm0-zmm15]
+        Callee-save  :    6[ rbx rbp r12-r15]
+        Assigned     :   12[ rax rdx rcx rbx rsi rdi r8-r9 r14-r15 zmm0-zmm1]
+        
+    Routine temporaries
+        Total         :     453
+            Global    :      72
+            Local     :     381
+        Regenerable   :     264
+        Spilled       :       3
+        
+    Routine stack
+        Variables     :     160 bytes*
+            Reads     :       0 [0.00e+00 ~ 0.0%]
+            Writes    :      43 [4.94e+00 ~ 4.9%]
+        Spills        :       0 bytes*
+            Reads     :       0 [0.00e+00 ~ 0.0%]
+            Writes    :       0 [0.00e+00 ~ 0.0%]
+    
+    Notes
+    
+        *Non-overlapping variables and spills may share stack space,
+         so the total stack size might be less than this.
+    
+
+===========================================================================
+
+Begin optimization report for: GLIMMER_MAP_CFPROJ::CFPROJ_GET_STERE
+
+    Report from: Interprocedural optimizations [ipo]
+
+INLINE REPORT: (GLIMMER_MAP_CFPROJ::CFPROJ_GET_STERE) [4] /glade/u/home/tvda/CISM/libglimmer/glimmer_map_CFproj.F90(170,12)
+
+
+    Report from: Code generation optimizations [cg]
+
+/glade/u/home/tvda/CISM/libglimmer/glimmer_map_CFproj.F90(179,5):remark #34000: call to memcpy implemented inline with loads and stores with proven source (alignment, offset): (32, 0), and destination (alignment, offset): (1, 0)
+/glade/u/home/tvda/CISM/libglimmer/glimmer_map_CFproj.F90(170,12):remark #34051: REGISTER ALLOCATION : [glimmer_map_cfproj_mp_cfproj_get_stere_] /glade/u/home/tvda/CISM/libglimmer/glimmer_map_CFproj.F90:170
+
+    Hardware registers
+        Reserved     :    2[ rsp rip]
+        Available    :   39[ rax rdx rcx rbx rbp rsi rdi r8-r15 mm0-mm7 zmm0-zmm15]
+        Callee-save  :    6[ rbx rbp r12-r15]
+        Assigned     :   13[ rax rdx rcx rsi rdi r8 r12-r14 zmm0-zmm3]
+        
+    Routine temporaries
+        Total         :     102
+            Global    :      22
+            Local     :      80
+        Regenerable   :      48
+        Spilled       :       3
+        
+    Routine stack
+        Variables     :       4 bytes*
+            Reads     :       0 [0.00e+00 ~ 0.0%]
+            Writes    :       5 [4.07e+00 ~ 4.1%]
+        Spills        :       0 bytes*
+            Reads     :       0 [0.00e+00 ~ 0.0%]
+            Writes    :       0 [0.00e+00 ~ 0.0%]
+    
+    Notes
+    
+        *Non-overlapping variables and spills may share stack space,
+         so the total stack size might be less than this.
+    
+
+===========================================================================
+
+Begin optimization report for: GLIMMER_MAP_CFPROJ::CFPROJ_GET_STERE_POLAR
+
+    Report from: Interprocedural optimizations [ipo]
+
+INLINE REPORT: (GLIMMER_MAP_CFPROJ::CFPROJ_GET_STERE_POLAR) [5] /glade/u/home/tvda/CISM/libglimmer/glimmer_map_CFproj.F90(194,12)
+
+
+    Report from: Code generation optimizations [cg]
+
+/glade/u/home/tvda/CISM/libglimmer/glimmer_map_CFproj.F90(207,5):remark #34000: call to memcpy implemented inline with loads and stores with proven source (alignment, offset): (32, 0), and destination (alignment, offset): (1, 0)
+/glade/u/home/tvda/CISM/libglimmer/glimmer_map_CFproj.F90(194,12):remark #34051: REGISTER ALLOCATION : [glimmer_map_cfproj_mp_cfproj_get_stere_polar_] /glade/u/home/tvda/CISM/libglimmer/glimmer_map_CFproj.F90:194
+
+    Hardware registers
+        Reserved     :    2[ rsp rip]
+        Available    :   39[ rax rdx rcx rbx rbp rsi rdi r8-r15 mm0-mm7 zmm0-zmm15]
+        Callee-save  :    6[ rbx rbp r12-r15]
+        Assigned     :   14[ rax rdx rcx rbx rsi rdi r8-r9 r14-r15 zmm0-zmm3]
+        
+    Routine temporaries
+        Total         :     138
+            Global    :      28
+            Local     :     110
+        Regenerable   :      70
+        Spilled       :       3
+        
+    Routine stack
+        Variables     :      12 bytes*
+            Reads     :       2 [6.49e-01 ~ 0.6%]
+            Writes    :       6 [3.57e+00 ~ 3.6%]
+        Spills        :       0 bytes*
+            Reads     :       0 [0.00e+00 ~ 0.0%]
+            Writes    :       0 [0.00e+00 ~ 0.0%]
+    
+    Notes
+    
+        *Non-overlapping variables and spills may share stack space,
+         so the total stack size might be less than this.
+    
+
+===========================================================================
+
+Begin optimization report for: GLIMMER_MAP_CFPROJ::CFPROJ_GET_LAEA
+
+    Report from: Interprocedural optimizations [ipo]
+
+INLINE REPORT: (GLIMMER_MAP_CFPROJ::CFPROJ_GET_LAEA) [6] /glade/u/home/tvda/CISM/libglimmer/glimmer_map_CFproj.F90(237,12)
+
+
+    Report from: Code generation optimizations [cg]
+
+/glade/u/home/tvda/CISM/libglimmer/glimmer_map_CFproj.F90(237,12):remark #34051: REGISTER ALLOCATION : [glimmer_map_cfproj_mp_cfproj_get_laea_] /glade/u/home/tvda/CISM/libglimmer/glimmer_map_CFproj.F90:237
+
+    Hardware registers
+        Reserved     :    2[ rsp rip]
+        Available    :   39[ rax rdx rcx rbx rbp rsi rdi r8-r15 mm0-mm7 zmm0-zmm15]
+        Callee-save  :    6[ rbx rbp r12-r15]
+        Assigned     :    9[ rax rdx rcx rsi rdi r8 r13-r15]
+        
+    Routine temporaries
+        Total         :      80
+            Global    :      18
+            Local     :      62
+        Regenerable   :      39
+        Spilled       :       3
+        
+    Routine stack
+        Variables     :       4 bytes*
+            Reads     :       0 [0.00e+00 ~ 0.0%]
+            Writes    :       4 [5.13e+00 ~ 5.1%]
+        Spills        :       0 bytes*
+            Reads     :       0 [0.00e+00 ~ 0.0%]
+            Writes    :       0 [0.00e+00 ~ 0.0%]
+    
+    Notes
+    
+        *Non-overlapping variables and spills may share stack space,
+         so the total stack size might be less than this.
+    
+
+===========================================================================
+
+Begin optimization report for: GLIMMER_MAP_CFPROJ::CFPROJ_GET_AEA
+
+    Report from: Interprocedural optimizations [ipo]
+
+INLINE REPORT: (GLIMMER_MAP_CFPROJ::CFPROJ_GET_AEA) [7] /glade/u/home/tvda/CISM/libglimmer/glimmer_map_CFproj.F90(257,12)
+
+
+    Report from: Code generation optimizations [cg]
+
+/glade/u/home/tvda/CISM/libglimmer/glimmer_map_CFproj.F90(257,12):remark #34051: REGISTER ALLOCATION : [glimmer_map_cfproj_mp_cfproj_get_aea_] /glade/u/home/tvda/CISM/libglimmer/glimmer_map_CFproj.F90:257
+
+    Hardware registers
+        Reserved     :    2[ rsp rip]
+        Available    :   39[ rax rdx rcx rbx rbp rsi rdi r8-r15 mm0-mm7 zmm0-zmm15]
+        Callee-save  :    6[ rbx rbp r12-r15]
+        Assigned     :   12[ rax rdx rcx rsi rdi r8-r14]
+        
+    Routine temporaries
+        Total         :      99
+            Global    :      20
+            Local     :      79
+        Regenerable   :      52
+        Spilled       :       3
+        
+    Routine stack
+        Variables     :      76 bytes*
+            Reads     :       0 [0.00e+00 ~ 0.0%]
+            Writes    :      13 [1.27e+01 ~ 12.7%]
+        Spills        :       0 bytes*
+            Reads     :       0 [0.00e+00 ~ 0.0%]
+            Writes    :       0 [0.00e+00 ~ 0.0%]
+    
+    Notes
+    
+        *Non-overlapping variables and spills may share stack space,
+         so the total stack size might be less than this.
+    
+
+===========================================================================
+
+Begin optimization report for: GLIMMER_MAP_CFPROJ::CFPROJ_GET_LCC
+
+    Report from: Interprocedural optimizations [ipo]
+
+INLINE REPORT: (GLIMMER_MAP_CFPROJ::CFPROJ_GET_LCC) [8] /glade/u/home/tvda/CISM/libglimmer/glimmer_map_CFproj.F90(279,12)
+
+
+    Report from: Code generation optimizations [cg]
+
+/glade/u/home/tvda/CISM/libglimmer/glimmer_map_CFproj.F90(279,12):remark #34051: REGISTER ALLOCATION : [glimmer_map_cfproj_mp_cfproj_get_lcc_] /glade/u/home/tvda/CISM/libglimmer/glimmer_map_CFproj.F90:279
+
+    Hardware registers
+        Reserved     :    2[ rsp rip]
+        Available    :   39[ rax rdx rcx rbx rbp rsi rdi r8-r15 mm0-mm7 zmm0-zmm15]
+        Callee-save  :    6[ rbx rbp r12-r15]
+        Assigned     :   12[ rax rdx rcx rsi rdi r8-r14]
+        
+    Routine temporaries
+        Total         :      99
+            Global    :      20
+            Local     :      79
+        Regenerable   :      52
+        Spilled       :       3
+        
+    Routine stack
+        Variables     :      76 bytes*
+            Reads     :       0 [0.00e+00 ~ 0.0%]
+            Writes    :      13 [1.27e+01 ~ 12.7%]
+        Spills        :       0 bytes*
+            Reads     :       0 [0.00e+00 ~ 0.0%]
+            Writes    :       0 [0.00e+00 ~ 0.0%]
+    
+    Notes
+    
+        *Non-overlapping variables and spills may share stack space,
+         so the total stack size might be less than this.
+    
+
+===========================================================================
+
+Begin optimization report for: GLIMMER_MAP_CFPROJ::CFPROJ_PUT_STERE
+
+    Report from: Interprocedural optimizations [ipo]
+
+INLINE REPORT: (GLIMMER_MAP_CFPROJ::CFPROJ_PUT_STERE) [9] /glade/u/home/tvda/CISM/libglimmer/glimmer_map_CFproj.F90(304,14)
+
+
+    Report from: Code generation optimizations [cg]
+
+/glade/u/home/tvda/CISM/libglimmer/glimmer_map_CFproj.F90(304,14):remark #34051: REGISTER ALLOCATION : [glimmer_map_cfproj_mp_cfproj_put_stere_] /glade/u/home/tvda/CISM/libglimmer/glimmer_map_CFproj.F90:304
+
+    Hardware registers
+        Reserved     :    2[ rsp rip]
+        Available    :   39[ rax rdx rcx rbx rbp rsi rdi r8-r15 mm0-mm7 zmm0-zmm15]
+        Callee-save  :    6[ rbx rbp r12-r15]
+        Assigned     :   12[ rax rdx rcx rsi rdi r8-r9 r13-r15 zmm0-zmm1]
+        
+    Routine temporaries
+        Total         :     147
+            Global    :      32
+            Local     :     115
+        Regenerable   :      74
+        Spilled       :       3
+        
+    Routine stack
+        Variables     :       4 bytes*
+            Reads     :       0 [0.00e+00 ~ 0.0%]
+            Writes    :      10 [5.46e+00 ~ 5.5%]
+        Spills        :       0 bytes*
+            Reads     :       0 [0.00e+00 ~ 0.0%]
+            Writes    :       0 [0.00e+00 ~ 0.0%]
+    
+    Notes
+    
+        *Non-overlapping variables and spills may share stack space,
+         so the total stack size might be less than this.
+    
+
+===========================================================================
+
+Begin optimization report for: GLIMMER_MAP_CFPROJ::CFPROJ_PUT_LAEA
+
+    Report from: Interprocedural optimizations [ipo]
+
+INLINE REPORT: (GLIMMER_MAP_CFPROJ::CFPROJ_PUT_LAEA) [10] /glade/u/home/tvda/CISM/libglimmer/glimmer_map_CFproj.F90(344,14)
+
+
+    Report from: Code generation optimizations [cg]
+
+/glade/u/home/tvda/CISM/libglimmer/glimmer_map_CFproj.F90(344,14):remark #34051: REGISTER ALLOCATION : [glimmer_map_cfproj_mp_cfproj_put_laea_] /glade/u/home/tvda/CISM/libglimmer/glimmer_map_CFproj.F90:344
+
+    Hardware registers
+        Reserved     :    2[ rsp rip]
+        Available    :   39[ rax rdx rcx rbx rbp rsi rdi r8-r15 mm0-mm7 zmm0-zmm15]
+        Callee-save  :    6[ rbx rbp r12-r15]
+        Assigned     :   10[ rax rdx rcx rbx rsi rdi r8-r9 r12 r15]
+        
+    Routine temporaries
+        Total         :      92
+            Global    :      20
+            Local     :      72
+        Regenerable   :      49
+        Spilled       :       3
+        
+    Routine stack
+        Variables     :       4 bytes*
+            Reads     :       0 [0.00e+00 ~ 0.0%]
+            Writes    :       5 [5.95e+00 ~ 6.0%]
+        Spills        :       0 bytes*
+            Reads     :       0 [0.00e+00 ~ 0.0%]
+            Writes    :       0 [0.00e+00 ~ 0.0%]
+    
+    Notes
+    
+        *Non-overlapping variables and spills may share stack space,
+         so the total stack size might be less than this.
+    
+
+===========================================================================
+
+Begin optimization report for: GLIMMER_MAP_CFPROJ::CFPROJ_PUT_AEA
+
+    Report from: Interprocedural optimizations [ipo]
+
+INLINE REPORT: (GLIMMER_MAP_CFPROJ::CFPROJ_PUT_AEA) [11] /glade/u/home/tvda/CISM/libglimmer/glimmer_map_CFproj.F90(366,14)
+
+
+    Report from: Code generation optimizations [cg]
+
+/glade/u/home/tvda/CISM/libglimmer/glimmer_map_CFproj.F90(366,14):remark #34051: REGISTER ALLOCATION : [glimmer_map_cfproj_mp_cfproj_put_aea_] /glade/u/home/tvda/CISM/libglimmer/glimmer_map_CFproj.F90:366
+
+    Hardware registers
+        Reserved     :    2[ rsp rip]
+        Available    :   39[ rax rdx rcx rbx rbp rsi rdi r8-r15 mm0-mm7 zmm0-zmm15]
+        Callee-save  :    6[ rbx rbp r12-r15]
+        Assigned     :   10[ rax rdx rcx rbx rsi rdi r8-r9 r12-r13]
+        
+    Routine temporaries
+        Total         :     111
+            Global    :      22
+            Local     :      89
+        Regenerable   :      62
+        Spilled       :       3
+        
+    Routine stack
+        Variables     :      76 bytes*
+            Reads     :       0 [0.00e+00 ~ 0.0%]
+            Writes    :      14 [1.30e+01 ~ 13.0%]
+        Spills        :       0 bytes*
+            Reads     :       0 [0.00e+00 ~ 0.0%]
+            Writes    :       0 [0.00e+00 ~ 0.0%]
+    
+    Notes
+    
+        *Non-overlapping variables and spills may share stack space,
+         so the total stack size might be less than this.
+    
+
+===========================================================================
+
+Begin optimization report for: GLIMMER_MAP_CFPROJ::CFPROJ_PUT_LCC
+
+    Report from: Interprocedural optimizations [ipo]
+
+INLINE REPORT: (GLIMMER_MAP_CFPROJ::CFPROJ_PUT_LCC) [12] /glade/u/home/tvda/CISM/libglimmer/glimmer_map_CFproj.F90(390,14)
+
+
+    Report from: Code generation optimizations [cg]
+
+/glade/u/home/tvda/CISM/libglimmer/glimmer_map_CFproj.F90(390,14):remark #34051: REGISTER ALLOCATION : [glimmer_map_cfproj_mp_cfproj_put_lcc_] /glade/u/home/tvda/CISM/libglimmer/glimmer_map_CFproj.F90:390
+
+    Hardware registers
+        Reserved     :    2[ rsp rip]
+        Available    :   39[ rax rdx rcx rbx rbp rsi rdi r8-r15 mm0-mm7 zmm0-zmm15]
+        Callee-save  :    6[ rbx rbp r12-r15]
+        Assigned     :   10[ rax rdx rcx rbx rsi rdi r8-r9 r12-r13]
+        
+    Routine temporaries
+        Total         :     111
+            Global    :      22
+            Local     :      89
+        Regenerable   :      62
+        Spilled       :       3
+        
+    Routine stack
+        Variables     :      76 bytes*
+            Reads     :       0 [0.00e+00 ~ 0.0%]
+            Writes    :      14 [1.30e+01 ~ 13.0%]
+        Spills        :       0 bytes*
+            Reads     :       0 [0.00e+00 ~ 0.0%]
+            Writes    :       0 [0.00e+00 ~ 0.0%]
+    
+    Notes
+    
+        *Non-overlapping variables and spills may share stack space,
+         so the total stack size might be less than this.
+    
+
+===========================================================================

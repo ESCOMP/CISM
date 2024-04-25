@@ -1,0 +1,718 @@
+Intel(R) Advisor can now assist with vectorization and show optimization
+  report messages with your source code.
+See "https://software.intel.com/en-us/intel-advisor-xe" for details.
+
+
+    Report from: Interprocedural optimizations [ipo]
+
+INLINING OPTION VALUES:
+  -inline-factor: 100
+  -inline-min-size: 30
+  -inline-max-size: 230
+  -inline-max-total-size: 2000
+  -inline-max-per-routine: 10000
+  -inline-max-per-compile: 500000
+
+
+Begin optimization report for: eismint_forcing._
+
+    Report from: Interprocedural optimizations [ipo]
+
+INLINE REPORT: (eismint_forcing._) [1] /glade/u/home/tvda/CISM/cism_driver/eismint_forcing.F90(31,8)
+
+
+    Report from: Code generation optimizations [cg]
+
+/glade/u/home/tvda/CISM/cism_driver/eismint_forcing.F90(31,8):remark #34051: REGISTER ALLOCATION : [eismint_forcing._] /glade/u/home/tvda/CISM/cism_driver/eismint_forcing.F90:31
+
+    Hardware registers
+        Reserved     :    2[ rsp rip]
+        Available    :   39[ rax rdx rcx rbx rbp rsi rdi r8-r15 mm0-mm7 zmm0-zmm15]
+        Callee-save  :    6[ rbx rbp r12-r15]
+        Assigned     :    0[ reg_null]
+        
+    Routine temporaries
+        Total         :       6
+            Global    :       0
+            Local     :       6
+        Regenerable   :       0
+        Spilled       :       0
+        
+    Routine stack
+        Variables     :       0 bytes*
+            Reads     :       0 [0.00e+00 ~ 0.0%]
+            Writes    :       0 [0.00e+00 ~ 0.0%]
+        Spills        :       0 bytes*
+            Reads     :       0 [0.00e+00 ~ 0.0%]
+            Writes    :       0 [0.00e+00 ~ 0.0%]
+    
+    Notes
+    
+        *Non-overlapping variables and spills may share stack space,
+         so the total stack size might be less than this.
+    
+
+===========================================================================
+
+Begin optimization report for: EISMINT_FORCING::EISMINT_READCONFIG
+
+    Report from: Interprocedural optimizations [ipo]
+
+INLINE REPORT: (EISMINT_FORCING::EISMINT_READCONFIG) [2] /glade/u/home/tvda/CISM/cism_driver/eismint_forcing.F90(106,14)
+
+
+    Report from: Loop nest, Vector & Auto-parallelization optimizations [loop, vec, par]
+
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/cism_driver/eismint_forcing.F90(126,8)
+   remark #15335: loop was not vectorized: vectorization possible but seems inefficient. Use vector always directive or -vec-threshold0 to override 
+   remark #25436: completely unrolled by 2  
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/cism_driver/eismint_forcing.F90(128,11)
+<Multiversioned v1>
+   remark #25233: Loop multiversioned for stride tests on Assumed shape arrays
+   remark #15335: loop was not vectorized: vectorization possible but seems inefficient. Use vector always directive or -vec-threshold0 to override 
+   remark #25436: completely unrolled by 2  
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/cism_driver/eismint_forcing.F90(128,11)
+<Multiversioned v2>
+   remark #15335: loop was not vectorized: vectorization possible but seems inefficient. Use vector always directive or -vec-threshold0 to override 
+   remark #25436: completely unrolled by 2  
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/cism_driver/eismint_forcing.F90(133,8)
+   remark #15335: loop was not vectorized: vectorization possible but seems inefficient. Use vector always directive or -vec-threshold0 to override 
+   remark #25436: completely unrolled by 3  
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/cism_driver/eismint_forcing.F90(151,11)
+<Multiversioned v1>
+   remark #25233: Loop multiversioned for stride tests on Assumed shape arrays
+   remark #15335: loop was not vectorized: vectorization possible but seems inefficient. Use vector always directive or -vec-threshold0 to override 
+   remark #25436: completely unrolled by 2  
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/cism_driver/eismint_forcing.F90(151,11)
+<Multiversioned v2>
+   remark #15335: loop was not vectorized: vectorization possible but seems inefficient. Use vector always directive or -vec-threshold0 to override 
+   remark #25436: completely unrolled by 2  
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/cism_driver/eismint_forcing.F90(157,11)
+<Multiversioned v1>
+   remark #25233: Loop multiversioned for stride tests on Assumed shape arrays
+   remark #15335: loop was not vectorized: vectorization possible but seems inefficient. Use vector always directive or -vec-threshold0 to override 
+   remark #25436: completely unrolled by 3  
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/cism_driver/eismint_forcing.F90(157,11)
+<Multiversioned v2>
+   remark #15335: loop was not vectorized: vectorization possible but seems inefficient. Use vector always directive or -vec-threshold0 to override 
+   remark #25436: completely unrolled by 3  
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/cism_driver/eismint_forcing.F90(173,11)
+<Multiversioned v1>
+   remark #25233: Loop multiversioned for stride tests on Assumed shape arrays
+   remark #15335: loop was not vectorized: vectorization possible but seems inefficient. Use vector always directive or -vec-threshold0 to override 
+   remark #25436: completely unrolled by 2  
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/cism_driver/eismint_forcing.F90(173,11)
+<Multiversioned v2>
+   remark #15335: loop was not vectorized: vectorization possible but seems inefficient. Use vector always directive or -vec-threshold0 to override 
+   remark #25436: completely unrolled by 2  
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/cism_driver/eismint_forcing.F90(177,11)
+   remark #15335: loop was not vectorized: vectorization possible but seems inefficient. Use vector always directive or -vec-threshold0 to override 
+   remark #25436: completely unrolled by 2  
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/cism_driver/eismint_forcing.F90(181,11)
+<Multiversioned v1>
+   remark #25233: Loop multiversioned for stride tests on Assumed shape arrays
+   remark #15335: loop was not vectorized: vectorization possible but seems inefficient. Use vector always directive or -vec-threshold0 to override 
+   remark #25436: completely unrolled by 3  
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/cism_driver/eismint_forcing.F90(181,11)
+<Multiversioned v2>
+   remark #15335: loop was not vectorized: vectorization possible but seems inefficient. Use vector always directive or -vec-threshold0 to override 
+   remark #25436: completely unrolled by 3  
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/cism_driver/eismint_forcing.F90(197,12)
+<Multiversioned v1>
+   remark #25233: Loop multiversioned for stride tests on Assumed shape arrays
+   remark #15335: loop was not vectorized: vectorization possible but seems inefficient. Use vector always directive or -vec-threshold0 to override 
+   remark #25436: completely unrolled by 2  
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/cism_driver/eismint_forcing.F90(197,12)
+<Multiversioned v2>
+   remark #15335: loop was not vectorized: vectorization possible but seems inefficient. Use vector always directive or -vec-threshold0 to override 
+   remark #25436: completely unrolled by 2  
+LOOP END
+
+    Report from: Code generation optimizations [cg]
+
+/glade/u/home/tvda/CISM/cism_driver/eismint_forcing.F90(106,14):remark #34051: REGISTER ALLOCATION : [eismint_forcing_mp_eismint_readconfig_] /glade/u/home/tvda/CISM/cism_driver/eismint_forcing.F90:106
+
+    Hardware registers
+        Reserved     :    2[ rsp rip]
+        Available    :   39[ rax rdx rcx rbx rbp rsi rdi r8-r15 mm0-mm7 zmm0-zmm15]
+        Callee-save  :    6[ rbx rbp r12-r15]
+        Assigned     :   12[ rax rdx rcx rbx rsi rdi r8-r11 r14-r15]
+        
+    Routine temporaries
+        Total         :     443
+            Global    :      46
+            Local     :     397
+        Regenerable   :     100
+        Spilled       :       3
+        
+    Routine stack
+        Variables     :      72 bytes*
+            Reads     :      28 [3.49e+00 ~ 3.5%]
+            Writes    :      22 [5.05e+00 ~ 5.1%]
+        Spills        :       0 bytes*
+            Reads     :       0 [0.00e+00 ~ 0.0%]
+            Writes    :       0 [0.00e+00 ~ 0.0%]
+    
+    Notes
+    
+        *Non-overlapping variables and spills may share stack space,
+         so the total stack size might be less than this.
+    
+
+===========================================================================
+
+Begin optimization report for: EISMINT_FORCING::EISMINT_PRINTCONFIG
+
+    Report from: Interprocedural optimizations [ipo]
+
+INLINE REPORT: (EISMINT_FORCING::EISMINT_PRINTCONFIG) [3] /glade/u/home/tvda/CISM/cism_driver/eismint_forcing.F90(209,14)
+
+
+    Report from: Code generation optimizations [cg]
+
+/glade/u/home/tvda/CISM/cism_driver/eismint_forcing.F90(209,14):remark #34051: REGISTER ALLOCATION : [eismint_forcing_mp_eismint_printconfig_] /glade/u/home/tvda/CISM/cism_driver/eismint_forcing.F90:209
+
+    Hardware registers
+        Reserved     :    2[ rsp rip]
+        Available    :   39[ rax rdx rcx rbx rbp rsi rdi r8-r15 mm0-mm7 zmm0-zmm15]
+        Callee-save  :    6[ rbx rbp r12-r15]
+        Assigned     :   10[ rax rdx rcx rsi rdi r8-r9 r15 zmm0-zmm1]
+        
+    Routine temporaries
+        Total         :     403
+            Global    :      17
+            Local     :     386
+        Regenerable   :     374
+        Spilled       :       1
+        
+    Routine stack
+        Variables     :     744 bytes*
+            Reads     :       0 [0.00e+00 ~ 0.0%]
+            Writes    :     102 [1.67e+01 ~ 16.7%]
+        Spills        :       0 bytes*
+            Reads     :       0 [0.00e+00 ~ 0.0%]
+            Writes    :       0 [0.00e+00 ~ 0.0%]
+    
+    Notes
+    
+        *Non-overlapping variables and spills may share stack space,
+         so the total stack size might be less than this.
+    
+
+===========================================================================
+
+Begin optimization report for: EISMINT_FORCING::EISMINT_MASSBALANCE
+
+    Report from: Interprocedural optimizations [ipo]
+
+INLINE REPORT: (EISMINT_FORCING::EISMINT_MASSBALANCE) [4] /glade/u/home/tvda/CISM/cism_driver/eismint_forcing.F90(288,14)
+  -> INLINE: (361,13) EISMINT_FORCING::EXACT_SURFMASS
+
+
+    Report from: Loop nest, Vector & Auto-parallelization optimizations [loop, vec, par]
+
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/cism_driver/eismint_forcing.F90(325,8)
+<Multiversioned v1>
+   remark #25233: Loop multiversioned for stride tests on Assumed shape arrays
+   remark #15542: loop was not vectorized: inner loop was already vectorized
+
+   LOOP BEGIN at /glade/u/home/tvda/CISM/cism_driver/eismint_forcing.F90(325,8)
+      remark #15300: LOOP WAS VECTORIZED
+   LOOP END
+
+   LOOP BEGIN at /glade/u/home/tvda/CISM/cism_driver/eismint_forcing.F90(325,8)
+   <Remainder loop for vectorization>
+   LOOP END
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/cism_driver/eismint_forcing.F90(325,8)
+<Multiversioned v2>
+   remark #15542: loop was not vectorized: inner loop was already vectorized
+
+   LOOP BEGIN at /glade/u/home/tvda/CISM/cism_driver/eismint_forcing.F90(325,8)
+      remark #15300: LOOP WAS VECTORIZED
+   LOOP END
+
+   LOOP BEGIN at /glade/u/home/tvda/CISM/cism_driver/eismint_forcing.F90(325,8)
+   <Remainder loop for vectorization>
+   LOOP END
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/cism_driver/eismint_forcing.F90(327,11)
+   remark #15542: loop was not vectorized: inner loop was already vectorized
+
+   LOOP BEGIN at /glade/u/home/tvda/CISM/cism_driver/eismint_forcing.F90(327,11)
+      remark #15300: LOOP WAS VECTORIZED
+   LOOP END
+
+   LOOP BEGIN at /glade/u/home/tvda/CISM/cism_driver/eismint_forcing.F90(327,11)
+   <Remainder loop for vectorization>
+      remark #15301: REMAINDER LOOP WAS VECTORIZED
+   LOOP END
+
+   LOOP BEGIN at /glade/u/home/tvda/CISM/cism_driver/eismint_forcing.F90(327,11)
+   <Remainder loop for vectorization>
+   LOOP END
+LOOP END
+
+
+Non-optimizable loops:
+
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/cism_driver/eismint_forcing.F90(345,8)
+   remark #15543: loop was not vectorized: loop with function call not considered an optimization candidate.
+
+   LOOP BEGIN at /glade/u/home/tvda/CISM/cism_driver/eismint_forcing.F90(344,11)
+      remark #15521: loop was not vectorized: loop control variable was not identified. Explicitly compute the iteration count before executing the loop or try using canonical loop form from OpenMP specification
+   LOOP END
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/cism_driver/eismint_forcing.F90(357,8)
+   remark #15543: loop was not vectorized: loop with function call not considered an optimization candidate.
+
+   LOOP BEGIN at /glade/u/home/tvda/CISM/cism_driver/eismint_forcing.F90(356,11)
+      remark #15521: loop was not vectorized: loop control variable was not identified. Explicitly compute the iteration count before executing the loop or try using canonical loop form from OpenMP specification
+   LOOP END
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/cism_driver/eismint_forcing.F90(527,9) inlined into /glade/u/home/tvda/CISM/cism_driver/eismint_forcing.F90(414,13)
+   remark #15543: loop was not vectorized: loop with function call not considered an optimization candidate.
+
+   LOOP BEGIN at /glade/u/home/tvda/CISM/cism_driver/eismint_forcing.F90(526,13) inlined into /glade/u/home/tvda/CISM/cism_driver/eismint_forcing.F90(414,13)
+      remark #15543: loop was not vectorized: loop with function call not considered an optimization candidate.
+   LOOP END
+LOOP END
+
+    Report from: Code generation optimizations [cg]
+
+/glade/u/home/tvda/CISM/cism_driver/eismint_forcing.F90(288,14):remark #34051: REGISTER ALLOCATION : [eismint_forcing_mp_eismint_massbalance_] /glade/u/home/tvda/CISM/cism_driver/eismint_forcing.F90:288
+
+    Hardware registers
+        Reserved     :    2[ rsp rip]
+        Available    :   39[ rax rdx rcx rbx rbp rsi rdi r8-r15 mm0-mm7 zmm0-zmm15]
+        Callee-save  :    6[ rbx rbp r12-r15]
+        Assigned     :   22[ rax rdx rcx rbx rsi rdi r8-r15 zmm0-zmm7]
+        
+    Routine temporaries
+        Total         :     342
+            Global    :     122
+            Local     :     220
+        Regenerable   :      73
+        Spilled       :      32
+        
+    Routine stack
+        Variables     :      96 bytes*
+            Reads     :       9 [5.16e+00 ~ 5.2%]
+            Writes    :      14 [1.54e+00 ~ 1.5%]
+        Spills        :     216 bytes*
+            Reads     :      47 [6.15e+00 ~ 6.1%]
+            Writes    :      42 [7.09e-01 ~ 0.7%]
+    
+    Notes
+    
+        *Non-overlapping variables and spills may share stack space,
+         so the total stack size might be less than this.
+    
+
+===========================================================================
+
+Begin optimization report for: EISMINT_FORCING::EISMINT_SURFTEMP
+
+    Report from: Interprocedural optimizations [ipo]
+
+INLINE REPORT: (EISMINT_FORCING::EISMINT_SURFTEMP) [5] /glade/u/home/tvda/CISM/cism_driver/eismint_forcing.F90(367,14)
+  -> INLINE: (432,13) EISMINT_FORCING::EXACT_SURFMASS
+
+
+    Report from: Loop nest, Vector & Auto-parallelization optimizations [loop, vec, par]
+
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/cism_driver/eismint_forcing.F90(410,11)
+   remark #15542: loop was not vectorized: inner loop was already vectorized
+
+   LOOP BEGIN at /glade/u/home/tvda/CISM/cism_driver/eismint_forcing.F90(410,11)
+      remark #15300: LOOP WAS VECTORIZED
+   LOOP END
+
+   LOOP BEGIN at /glade/u/home/tvda/CISM/cism_driver/eismint_forcing.F90(410,11)
+   <Remainder loop for vectorization>
+      remark #15301: REMAINDER LOOP WAS VECTORIZED
+   LOOP END
+
+   LOOP BEGIN at /glade/u/home/tvda/CISM/cism_driver/eismint_forcing.F90(410,11)
+   <Remainder loop for vectorization>
+   LOOP END
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/cism_driver/eismint_forcing.F90(415,8)
+<Multiversioned v1>
+   remark #25233: Loop multiversioned for stride tests on Assumed shape arrays
+   remark #15542: loop was not vectorized: inner loop was already vectorized
+
+   LOOP BEGIN at /glade/u/home/tvda/CISM/cism_driver/eismint_forcing.F90(415,8)
+      remark #15300: LOOP WAS VECTORIZED
+   LOOP END
+
+   LOOP BEGIN at /glade/u/home/tvda/CISM/cism_driver/eismint_forcing.F90(415,8)
+   <Remainder loop for vectorization>
+      remark #15335: remainder loop was not vectorized: vectorization possible but seems inefficient. Use vector always directive or -vec-threshold0 to override 
+   LOOP END
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/cism_driver/eismint_forcing.F90(415,8)
+<Multiversioned v2>
+   remark #15542: loop was not vectorized: inner loop was already vectorized
+
+   LOOP BEGIN at /glade/u/home/tvda/CISM/cism_driver/eismint_forcing.F90(415,8)
+      remark #15300: LOOP WAS VECTORIZED
+   LOOP END
+
+   LOOP BEGIN at /glade/u/home/tvda/CISM/cism_driver/eismint_forcing.F90(415,8)
+   <Remainder loop for vectorization>
+      remark #15335: remainder loop was not vectorized: vectorization possible but seems inefficient. Use vector always directive or -vec-threshold0 to override 
+   LOOP END
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/cism_driver/eismint_forcing.F90(415,8)
+<Multiversioned v1>
+   remark #25233: Loop multiversioned for stride tests on Assumed shape arrays
+   remark #15542: loop was not vectorized: inner loop was already vectorized
+
+   LOOP BEGIN at /glade/u/home/tvda/CISM/cism_driver/eismint_forcing.F90(415,8)
+      remark #15300: LOOP WAS VECTORIZED
+   LOOP END
+
+   LOOP BEGIN at /glade/u/home/tvda/CISM/cism_driver/eismint_forcing.F90(415,8)
+   <Remainder loop for vectorization>
+   LOOP END
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/cism_driver/eismint_forcing.F90(415,8)
+<Multiversioned v2>
+   remark #15542: loop was not vectorized: inner loop was already vectorized
+
+   LOOP BEGIN at /glade/u/home/tvda/CISM/cism_driver/eismint_forcing.F90(415,8)
+      remark #15300: LOOP WAS VECTORIZED
+   LOOP END
+
+   LOOP BEGIN at /glade/u/home/tvda/CISM/cism_driver/eismint_forcing.F90(415,8)
+   <Remainder loop for vectorization>
+   LOOP END
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/cism_driver/eismint_forcing.F90(417,11)
+   remark #15542: loop was not vectorized: inner loop was already vectorized
+
+   LOOP BEGIN at /glade/u/home/tvda/CISM/cism_driver/eismint_forcing.F90(417,11)
+      remark #15300: LOOP WAS VECTORIZED
+   LOOP END
+
+   LOOP BEGIN at /glade/u/home/tvda/CISM/cism_driver/eismint_forcing.F90(417,11)
+   <Remainder loop for vectorization>
+      remark #15301: REMAINDER LOOP WAS VECTORIZED
+   LOOP END
+
+   LOOP BEGIN at /glade/u/home/tvda/CISM/cism_driver/eismint_forcing.F90(417,11)
+   <Remainder loop for vectorization>
+   LOOP END
+LOOP END
+
+
+Non-optimizable loops:
+
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/cism_driver/eismint_forcing.F90(408,8)
+   remark #15543: loop was not vectorized: loop with function call not considered an optimization candidate.
+
+   LOOP BEGIN at /glade/u/home/tvda/CISM/cism_driver/eismint_forcing.F90(407,11)
+      remark #15521: loop was not vectorized: loop control variable was not identified. Explicitly compute the iteration count before executing the loop or try using canonical loop form from OpenMP specification
+   LOOP END
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/cism_driver/eismint_forcing.F90(428,8)
+   remark #15543: loop was not vectorized: loop with function call not considered an optimization candidate.
+
+   LOOP BEGIN at /glade/u/home/tvda/CISM/cism_driver/eismint_forcing.F90(427,11)
+      remark #15521: loop was not vectorized: loop control variable was not identified. Explicitly compute the iteration count before executing the loop or try using canonical loop form from OpenMP specification
+   LOOP END
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/cism_driver/eismint_forcing.F90(496,9) inlined into /glade/u/home/tvda/CISM/cism_driver/eismint_forcing.F90(485,13)
+   remark #15543: loop was not vectorized: loop with function call not considered an optimization candidate.
+
+   LOOP BEGIN at /glade/u/home/tvda/CISM/cism_driver/eismint_forcing.F90(495,13) inlined into /glade/u/home/tvda/CISM/cism_driver/eismint_forcing.F90(485,13)
+      remark #15543: loop was not vectorized: loop with function call not considered an optimization candidate.
+
+      LOOP BEGIN at /glade/u/home/tvda/CISM/cism_driver/eismint_forcing.F90(494,17) inlined into /glade/u/home/tvda/CISM/cism_driver/eismint_forcing.F90(485,13)
+         remark #15543: loop was not vectorized: loop with function call not considered an optimization candidate.
+      LOOP END
+   LOOP END
+LOOP END
+
+    Report from: Code generation optimizations [cg]
+
+/glade/u/home/tvda/CISM/cism_driver/eismint_forcing.F90(367,14):remark #34051: REGISTER ALLOCATION : [eismint_forcing_mp_eismint_surftemp_] /glade/u/home/tvda/CISM/cism_driver/eismint_forcing.F90:367
+
+    Hardware registers
+        Reserved     :    2[ rsp rip]
+        Available    :   39[ rax rdx rcx rbx rbp rsi rdi r8-r15 mm0-mm7 zmm0-zmm15]
+        Callee-save  :    6[ rbx rbp r12-r15]
+        Assigned     :   26[ rax rdx rcx rbx rsi rdi r8-r15 zmm0-zmm11]
+        
+    Routine temporaries
+        Total         :     514
+            Global    :     183
+            Local     :     331
+        Regenerable   :      77
+        Spilled       :      43
+        
+    Routine stack
+        Variables     :      96 bytes*
+            Reads     :      10 [3.37e+00 ~ 3.4%]
+            Writes    :      12 [9.63e-01 ~ 1.0%]
+        Spills        :     296 bytes*
+            Reads     :      65 [3.41e+00 ~ 3.4%]
+            Writes    :      51 [7.10e-01 ~ 0.7%]
+    
+    Notes
+    
+        *Non-overlapping variables and spills may share stack space,
+         so the total stack size might be less than this.
+    
+
+===========================================================================
+
+Begin optimization report for: EISMINT_FORCING::EXACT_SURFMASS
+
+    Report from: Interprocedural optimizations [ipo]
+
+INLINE REPORT: (EISMINT_FORCING::EXACT_SURFMASS) [6] /glade/u/home/tvda/CISM/cism_driver/eismint_forcing.F90(444,14)
+
+
+    Report from: Loop nest, Vector & Auto-parallelization optimizations [loop, vec, par]
+
+
+
+Non-optimizable loops:
+
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/cism_driver/eismint_forcing.F90(527,9)
+   remark #15543: loop was not vectorized: loop with function call not considered an optimization candidate.
+
+   LOOP BEGIN at /glade/u/home/tvda/CISM/cism_driver/eismint_forcing.F90(526,13)
+      remark #15543: loop was not vectorized: loop with function call not considered an optimization candidate.
+   LOOP END
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/cism_driver/eismint_forcing.F90(496,9)
+   remark #15543: loop was not vectorized: loop with function call not considered an optimization candidate.
+
+   LOOP BEGIN at /glade/u/home/tvda/CISM/cism_driver/eismint_forcing.F90(495,13)
+      remark #15543: loop was not vectorized: loop with function call not considered an optimization candidate.
+
+      LOOP BEGIN at /glade/u/home/tvda/CISM/cism_driver/eismint_forcing.F90(494,17)
+         remark #15543: loop was not vectorized: loop with function call not considered an optimization candidate.
+      LOOP END
+   LOOP END
+LOOP END
+
+    Report from: Code generation optimizations [cg]
+
+/glade/u/home/tvda/CISM/cism_driver/eismint_forcing.F90(444,14):remark #34051: REGISTER ALLOCATION : [eismint_forcing_mp_exact_surfmass_] /glade/u/home/tvda/CISM/cism_driver/eismint_forcing.F90:444
+
+    Hardware registers
+        Reserved     :    2[ rsp rip]
+        Available    :   39[ rax rdx rcx rbx rbp rsi rdi r8-r15 mm0-mm7 zmm0-zmm15]
+        Callee-save  :    6[ rbx rbp r12-r15]
+        Assigned     :   24[ rax rdx rcx rbx rsi rdi r8-r15 zmm0-zmm9]
+        
+    Routine temporaries
+        Total         :     265
+            Global    :      56
+            Local     :     209
+        Regenerable   :      98
+        Spilled       :      15
+        
+    Routine stack
+        Variables     :      80 bytes*
+            Reads     :       3 [2.13e+00 ~ 2.1%]
+            Writes    :      14 [5.61e-01 ~ 0.6%]
+        Spills        :     120 bytes*
+            Reads     :      29 [1.35e+00 ~ 1.4%]
+            Writes    :      27 [1.23e+00 ~ 1.2%]
+    
+    Notes
+    
+        *Non-overlapping variables and spills may share stack space,
+         so the total stack size might be less than this.
+    
+
+===========================================================================
+
+Begin optimization report for: EISMINT_FORCING::EISMINT_INITIALISE
+
+    Report from: Interprocedural optimizations [ipo]
+
+INLINE REPORT: (EISMINT_FORCING::EISMINT_INITIALISE) [7] /glade/u/home/tvda/CISM/cism_driver/eismint_forcing.F90(56,14)
+  -> INLINE: (82,10) EISMINT_FORCING::EISMINT_READCONFIG
+  -> INLINE: (83,10) EISMINT_FORCING::EISMINT_PRINTCONFIG
+
+
+    Report from: Loop nest, Vector & Auto-parallelization optimizations [loop, vec, par]
+
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/cism_driver/eismint_forcing.F90(126,8) inlined into /glade/u/home/tvda/CISM/cism_driver/eismint_forcing.F90(135,10)
+   remark #15335: loop was not vectorized: vectorization possible but seems inefficient. Use vector always directive or -vec-threshold0 to override 
+   remark #25436: completely unrolled by 2  
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/cism_driver/eismint_forcing.F90(128,11) inlined into /glade/u/home/tvda/CISM/cism_driver/eismint_forcing.F90(135,10)
+<Multiversioned v1>
+   remark #25233: Loop multiversioned for stride tests on Assumed shape arrays
+   remark #15335: loop was not vectorized: vectorization possible but seems inefficient. Use vector always directive or -vec-threshold0 to override 
+   remark #25436: completely unrolled by 2  
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/cism_driver/eismint_forcing.F90(128,11) inlined into /glade/u/home/tvda/CISM/cism_driver/eismint_forcing.F90(135,10)
+<Multiversioned v2>
+   remark #15335: loop was not vectorized: vectorization possible but seems inefficient. Use vector always directive or -vec-threshold0 to override 
+   remark #25436: completely unrolled by 2  
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/cism_driver/eismint_forcing.F90(133,8) inlined into /glade/u/home/tvda/CISM/cism_driver/eismint_forcing.F90(135,10)
+   remark #15335: loop was not vectorized: vectorization possible but seems inefficient. Use vector always directive or -vec-threshold0 to override 
+   remark #25436: completely unrolled by 3  
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/cism_driver/eismint_forcing.F90(151,11) inlined into /glade/u/home/tvda/CISM/cism_driver/eismint_forcing.F90(135,10)
+<Multiversioned v1>
+   remark #25233: Loop multiversioned for stride tests on Assumed shape arrays
+   remark #15335: loop was not vectorized: vectorization possible but seems inefficient. Use vector always directive or -vec-threshold0 to override 
+   remark #25436: completely unrolled by 2  
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/cism_driver/eismint_forcing.F90(151,11) inlined into /glade/u/home/tvda/CISM/cism_driver/eismint_forcing.F90(135,10)
+<Multiversioned v2>
+   remark #15335: loop was not vectorized: vectorization possible but seems inefficient. Use vector always directive or -vec-threshold0 to override 
+   remark #25436: completely unrolled by 2  
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/cism_driver/eismint_forcing.F90(157,11) inlined into /glade/u/home/tvda/CISM/cism_driver/eismint_forcing.F90(135,10)
+<Multiversioned v1>
+   remark #25233: Loop multiversioned for stride tests on Assumed shape arrays
+   remark #15335: loop was not vectorized: vectorization possible but seems inefficient. Use vector always directive or -vec-threshold0 to override 
+   remark #25436: completely unrolled by 3  
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/cism_driver/eismint_forcing.F90(157,11) inlined into /glade/u/home/tvda/CISM/cism_driver/eismint_forcing.F90(135,10)
+<Multiversioned v2>
+   remark #15335: loop was not vectorized: vectorization possible but seems inefficient. Use vector always directive or -vec-threshold0 to override 
+   remark #25436: completely unrolled by 3  
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/cism_driver/eismint_forcing.F90(173,11) inlined into /glade/u/home/tvda/CISM/cism_driver/eismint_forcing.F90(135,10)
+<Multiversioned v1>
+   remark #25233: Loop multiversioned for stride tests on Assumed shape arrays
+   remark #15335: loop was not vectorized: vectorization possible but seems inefficient. Use vector always directive or -vec-threshold0 to override 
+   remark #25436: completely unrolled by 2  
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/cism_driver/eismint_forcing.F90(173,11) inlined into /glade/u/home/tvda/CISM/cism_driver/eismint_forcing.F90(135,10)
+<Multiversioned v2>
+   remark #15335: loop was not vectorized: vectorization possible but seems inefficient. Use vector always directive or -vec-threshold0 to override 
+   remark #25436: completely unrolled by 2  
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/cism_driver/eismint_forcing.F90(177,11) inlined into /glade/u/home/tvda/CISM/cism_driver/eismint_forcing.F90(135,10)
+   remark #15335: loop was not vectorized: vectorization possible but seems inefficient. Use vector always directive or -vec-threshold0 to override 
+   remark #25436: completely unrolled by 2  
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/cism_driver/eismint_forcing.F90(181,11) inlined into /glade/u/home/tvda/CISM/cism_driver/eismint_forcing.F90(135,10)
+<Multiversioned v1>
+   remark #25233: Loop multiversioned for stride tests on Assumed shape arrays
+   remark #15335: loop was not vectorized: vectorization possible but seems inefficient. Use vector always directive or -vec-threshold0 to override 
+   remark #25436: completely unrolled by 3  
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/cism_driver/eismint_forcing.F90(181,11) inlined into /glade/u/home/tvda/CISM/cism_driver/eismint_forcing.F90(135,10)
+<Multiversioned v2>
+   remark #15335: loop was not vectorized: vectorization possible but seems inefficient. Use vector always directive or -vec-threshold0 to override 
+   remark #25436: completely unrolled by 3  
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/cism_driver/eismint_forcing.F90(197,12) inlined into /glade/u/home/tvda/CISM/cism_driver/eismint_forcing.F90(135,10)
+<Multiversioned v1>
+   remark #25233: Loop multiversioned for stride tests on Assumed shape arrays
+   remark #15335: loop was not vectorized: vectorization possible but seems inefficient. Use vector always directive or -vec-threshold0 to override 
+   remark #25436: completely unrolled by 2  
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/cism_driver/eismint_forcing.F90(197,12) inlined into /glade/u/home/tvda/CISM/cism_driver/eismint_forcing.F90(135,10)
+<Multiversioned v2>
+   remark #15335: loop was not vectorized: vectorization possible but seems inefficient. Use vector always directive or -vec-threshold0 to override 
+   remark #25436: completely unrolled by 2  
+LOOP END
+
+    Report from: Code generation optimizations [cg]
+
+/glade/u/home/tvda/CISM/cism_driver/eismint_forcing.F90(56,14):remark #34051: REGISTER ALLOCATION : [eismint_forcing_mp_eismint_initialise_] /glade/u/home/tvda/CISM/cism_driver/eismint_forcing.F90:56
+
+    Hardware registers
+        Reserved     :    2[ rsp rip]
+        Available    :   39[ rax rdx rcx rbx rbp rsi rdi r8-r15 mm0-mm7 zmm0-zmm15]
+        Callee-save  :    6[ rbx rbp r12-r15]
+        Assigned     :   16[ rax rdx rcx rbx rsi rdi r8-r12 r15 zmm0-zmm3]
+        
+    Routine temporaries
+        Total         :     853
+            Global    :      55
+            Local     :     798
+        Regenerable   :     476
+        Spilled       :       3
+        
+    Routine stack
+        Variables     :     816 bytes*
+            Reads     :      28 [1.28e+00 ~ 1.3%]
+            Writes    :     124 [1.28e+01 ~ 12.8%]
+        Spills        :       0 bytes*
+            Reads     :       0 [0.00e+00 ~ 0.0%]
+            Writes    :       0 [0.00e+00 ~ 0.0%]
+    
+    Notes
+    
+        *Non-overlapping variables and spills may share stack space,
+         so the total stack size might be less than this.
+    
+
+===========================================================================

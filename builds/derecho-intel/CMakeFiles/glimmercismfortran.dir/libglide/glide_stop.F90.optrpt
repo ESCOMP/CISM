@@ -1,0 +1,240 @@
+Intel(R) Advisor can now assist with vectorization and show optimization
+  report messages with your source code.
+See "https://software.intel.com/en-us/intel-advisor-xe" for details.
+
+
+    Report from: Interprocedural optimizations [ipo]
+
+INLINING OPTION VALUES:
+  -inline-factor: 100
+  -inline-min-size: 30
+  -inline-max-size: 230
+  -inline-max-total-size: 2000
+  -inline-max-per-routine: 10000
+  -inline-max-per-compile: 500000
+
+
+Begin optimization report for: GLIDE_STOP::GLIDE_FINALISE
+
+    Report from: Interprocedural optimizations [ipo]
+
+INLINE REPORT: (GLIDE_STOP::GLIDE_FINALISE) [1] /glade/u/home/tvda/CISM/libglide/glide_stop.F90(113,14)
+  -> INLINE: (138,10) GLIDE_STOP::DEREGISTER_MODEL
+
+
+    Report from: Code generation optimizations [cg]
+
+/glade/u/home/tvda/CISM/libglide/glide_stop.F90(113,14):remark #34051: REGISTER ALLOCATION : [glide_stop_mp_glide_finalise_] /glade/u/home/tvda/CISM/libglide/glide_stop.F90:113
+
+    Hardware registers
+        Reserved     :    2[ rsp rip]
+        Available    :   39[ rax rdx rcx rbx rbp rsi rdi r8-r15 mm0-mm7 zmm0-zmm15]
+        Callee-save  :    6[ rbx rbp r12-r15]
+        Assigned     :    8[ rax rdx rcx rsi rdi r8-r9 r15]
+        
+    Routine temporaries
+        Total         :      60
+            Global    :      10
+            Local     :      50
+        Regenerable   :      41
+        Spilled       :       1
+        
+    Routine stack
+        Variables     :     104 bytes*
+            Reads     :       0 [0.00e+00 ~ 0.0%]
+            Writes    :       6 [9.37e+00 ~ 9.4%]
+        Spills        :       0 bytes*
+            Reads     :       0 [0.00e+00 ~ 0.0%]
+            Writes    :       0 [0.00e+00 ~ 0.0%]
+    
+    Notes
+    
+        *Non-overlapping variables and spills may share stack space,
+         so the total stack size might be less than this.
+    
+
+===========================================================================
+
+Begin optimization report for: GLIDE_STOP::GLIDE_FINALISE_ALL
+
+    Report from: Interprocedural optimizations [ipo]
+
+INLINE REPORT: (GLIDE_STOP::GLIDE_FINALISE_ALL) [2] /glade/u/home/tvda/CISM/libglide/glide_stop.F90(92,14)
+  -> INLINE: (107,18) GLIDE_STOP::GLIDE_FINALISE
+    -> INLINE: (138,10) GLIDE_STOP::DEREGISTER_MODEL
+
+
+    Report from: Loop nest, Vector & Auto-parallelization optimizations [loop, vec, par]
+
+
+
+Non-optimizable loops:
+
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglide/glide_stop.F90(109,5)
+   remark #15543: loop was not vectorized: loop with function call not considered an optimization candidate.
+LOOP END
+
+    Report from: Code generation optimizations [cg]
+
+/glade/u/home/tvda/CISM/libglide/glide_stop.F90(92,14):remark #34051: REGISTER ALLOCATION : [glide_stop_mp_glide_finalise_all_] /glade/u/home/tvda/CISM/libglide/glide_stop.F90:92
+
+    Hardware registers
+        Reserved     :    2[ rsp rip]
+        Available    :   39[ rax rdx rcx rbx rbp rsi rdi r8-r15 mm0-mm7 zmm0-zmm15]
+        Callee-save  :    6[ rbx rbp r12-r15]
+        Assigned     :   11[ rax rdx rcx rsi rdi r8-r9 r12-r15]
+        
+    Routine temporaries
+        Total         :      65
+            Global    :      14
+            Local     :      51
+        Regenerable   :      42
+        Spilled       :       4
+        
+    Routine stack
+        Variables     :     104 bytes*
+            Reads     :       0 [0.00e+00 ~ 0.0%]
+            Writes    :       6 [1.63e+00 ~ 1.6%]
+        Spills        :       0 bytes*
+            Reads     :       0 [0.00e+00 ~ 0.0%]
+            Writes    :       0 [0.00e+00 ~ 0.0%]
+    
+    Notes
+    
+        *Non-overlapping variables and spills may share stack space,
+         so the total stack size might be less than this.
+    
+
+===========================================================================
+
+Begin optimization report for: GLIDE_STOP::DEREGISTER_MODEL
+
+    Report from: Interprocedural optimizations [ipo]
+
+INLINE REPORT: (GLIDE_STOP::DEREGISTER_MODEL) [3] /glade/u/home/tvda/CISM/libglide/glide_stop.F90(76,14)
+
+
+    Report from: Code generation optimizations [cg]
+
+/glade/u/home/tvda/CISM/libglide/glide_stop.F90(76,14):remark #34051: REGISTER ALLOCATION : [glide_stop_mp_deregister_model_] /glade/u/home/tvda/CISM/libglide/glide_stop.F90:76
+
+    Hardware registers
+        Reserved     :    2[ rsp rip]
+        Available    :   39[ rax rdx rcx rbx rbp rsi rdi r8-r15 mm0-mm7 zmm0-zmm15]
+        Callee-save  :    6[ rbx rbp r12-r15]
+        Assigned     :    7[ rax rdx rcx rsi rdi r8-r9]
+        
+    Routine temporaries
+        Total         :      19
+            Global    :       8
+            Local     :      11
+        Regenerable   :       8
+        Spilled       :       0
+        
+    Routine stack
+        Variables     :       0 bytes*
+            Reads     :       0 [0.00e+00 ~ 0.0%]
+            Writes    :       0 [0.00e+00 ~ 0.0%]
+        Spills        :       0 bytes*
+            Reads     :       0 [0.00e+00 ~ 0.0%]
+            Writes    :       0 [0.00e+00 ~ 0.0%]
+    
+    Notes
+    
+        *Non-overlapping variables and spills may share stack space,
+         so the total stack size might be less than this.
+    
+
+===========================================================================
+
+Begin optimization report for: GLIDE_STOP::REGISTER_MODEL
+
+    Report from: Interprocedural optimizations [ipo]
+
+INLINE REPORT: (GLIDE_STOP::REGISTER_MODEL) [4] /glade/u/home/tvda/CISM/libglide/glide_stop.F90(61,14)
+
+
+    Report from: Loop nest, Vector & Auto-parallelization optimizations [loop, vec, par]
+
+
+
+Non-optimizable loops:
+
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglide/glide_stop.F90(72,5)
+   remark #15522: loop was not vectorized: loop control flow is too complex. Try using canonical loop form from OpenMP specification
+LOOP END
+
+    Report from: Code generation optimizations [cg]
+
+/glade/u/home/tvda/CISM/libglide/glide_stop.F90(61,14):remark #34051: REGISTER ALLOCATION : [glide_stop_mp_register_model_] /glade/u/home/tvda/CISM/libglide/glide_stop.F90:61
+
+    Hardware registers
+        Reserved     :    2[ rsp rip]
+        Available    :   39[ rax rdx rcx rbx rbp rsi rdi r8-r15 mm0-mm7 zmm0-zmm15]
+        Callee-save  :    6[ rbx rbp r12-r15]
+        Assigned     :    7[ rax rdx rcx rsi rdi r8-r9]
+        
+    Routine temporaries
+        Total         :      20
+            Global    :       9
+            Local     :      11
+        Regenerable   :       9
+        Spilled       :       0
+        
+    Routine stack
+        Variables     :       0 bytes*
+            Reads     :       0 [0.00e+00 ~ 0.0%]
+            Writes    :       0 [0.00e+00 ~ 0.0%]
+        Spills        :       0 bytes*
+            Reads     :       0 [0.00e+00 ~ 0.0%]
+            Writes    :       0 [0.00e+00 ~ 0.0%]
+    
+    Notes
+    
+        *Non-overlapping variables and spills may share stack space,
+         so the total stack size might be less than this.
+    
+
+===========================================================================
+
+Begin optimization report for: glide_stop._
+
+    Report from: Interprocedural optimizations [ipo]
+
+INLINE REPORT: (glide_stop._) [5] /glade/u/home/tvda/CISM/libglide/glide_stop.F90(31,8)
+
+
+    Report from: Code generation optimizations [cg]
+
+/glade/u/home/tvda/CISM/libglide/glide_stop.F90(31,8):remark #34051: REGISTER ALLOCATION : [glide_stop._] /glade/u/home/tvda/CISM/libglide/glide_stop.F90:31
+
+    Hardware registers
+        Reserved     :    2[ rsp rip]
+        Available    :   39[ rax rdx rcx rbx rbp rsi rdi r8-r15 mm0-mm7 zmm0-zmm15]
+        Callee-save  :    6[ rbx rbp r12-r15]
+        Assigned     :    0[ reg_null]
+        
+    Routine temporaries
+        Total         :       6
+            Global    :       0
+            Local     :       6
+        Regenerable   :       0
+        Spilled       :       0
+        
+    Routine stack
+        Variables     :       0 bytes*
+            Reads     :       0 [0.00e+00 ~ 0.0%]
+            Writes    :       0 [0.00e+00 ~ 0.0%]
+        Spills        :       0 bytes*
+            Reads     :       0 [0.00e+00 ~ 0.0%]
+            Writes    :       0 [0.00e+00 ~ 0.0%]
+    
+    Notes
+    
+        *Non-overlapping variables and spills may share stack space,
+         so the total stack size might be less than this.
+    
+
+===========================================================================

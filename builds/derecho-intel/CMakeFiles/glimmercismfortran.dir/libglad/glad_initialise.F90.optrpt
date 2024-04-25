@@ -1,0 +1,337 @@
+Intel(R) Advisor can now assist with vectorization and show optimization
+  report messages with your source code.
+See "https://software.intel.com/en-us/intel-advisor-xe" for details.
+
+
+    Report from: Interprocedural optimizations [ipo]
+
+INLINING OPTION VALUES:
+  -inline-factor: 100
+  -inline-min-size: 30
+  -inline-max-size: 230
+  -inline-max-total-size: 2000
+  -inline-max-per-routine: 10000
+  -inline-max-per-compile: 500000
+
+
+Begin optimization report for: GLAD_INITIALISE::DEFINE_GLAD_RESTART_VARIABLES
+
+    Report from: Interprocedural optimizations [ipo]
+
+INLINE REPORT: (GLAD_INITIALISE::DEFINE_GLAD_RESTART_VARIABLES) [1] /glade/u/home/tvda/CISM/libglad/glad_initialise.F90(318,14)
+
+
+    Report from: Code generation optimizations [cg]
+
+/glade/u/home/tvda/CISM/libglad/glad_initialise.F90(318,14):remark #34051: REGISTER ALLOCATION : [glad_initialise_mp_define_glad_restart_variables_] /glade/u/home/tvda/CISM/libglad/glad_initialise.F90:318
+
+    Hardware registers
+        Reserved     :    2[ rsp rip]
+        Available    :   39[ rax rdx rcx rbx rbp rsi rdi r8-r15 mm0-mm7 zmm0-zmm15]
+        Callee-save  :    6[ rbx rbp r12-r15]
+        Assigned     :    2[ rsi rdi]
+        
+    Routine temporaries
+        Total         :      13
+            Global    :       6
+            Local     :       7
+        Regenerable   :       6
+        Spilled       :       0
+        
+    Routine stack
+        Variables     :       0 bytes*
+            Reads     :       0 [0.00e+00 ~ 0.0%]
+            Writes    :       0 [0.00e+00 ~ 0.0%]
+        Spills        :       0 bytes*
+            Reads     :       0 [0.00e+00 ~ 0.0%]
+            Writes    :       0 [0.00e+00 ~ 0.0%]
+    
+    Notes
+    
+        *Non-overlapping variables and spills may share stack space,
+         so the total stack size might be less than this.
+    
+
+===========================================================================
+
+Begin optimization report for: GLAD_INITIALISE::GLAD_I_READDATA
+
+    Report from: Interprocedural optimizations [ipo]
+
+INLINE REPORT: (GLAD_INITIALISE::GLAD_I_READDATA) [2] /glade/u/home/tvda/CISM/libglad/glad_initialise.F90(298,14)
+
+
+    Report from: Loop nest, Vector & Auto-parallelization optimizations [loop, vec, par]
+
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglad/glad_initialise.F90(312,5)
+<Multiversioned v1>
+   remark #25233: Loop multiversioned for stride tests on Assumed shape arrays
+   remark #15542: loop was not vectorized: inner loop was already vectorized
+
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglad/glad_initialise.F90(312,5)
+      remark #15300: LOOP WAS VECTORIZED
+   LOOP END
+
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglad/glad_initialise.F90(312,5)
+   <Remainder loop for vectorization>
+   LOOP END
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglad/glad_initialise.F90(312,5)
+<Multiversioned v2>
+   remark #15541: outer loop was not auto-vectorized: consider using SIMD directive
+
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglad/glad_initialise.F90(312,5)
+      remark #15335: loop was not vectorized: vectorization possible but seems inefficient. Use vector always directive or -vec-threshold0 to override 
+      remark #25439: unrolled with remainder by 2  
+   LOOP END
+
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglad/glad_initialise.F90(312,5)
+   <Remainder>
+   LOOP END
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglad/glad_initialise.F90(312,5)
+<Multiversioned v1>
+   remark #25233: Loop multiversioned for stride tests on Assumed shape arrays
+   remark #15542: loop was not vectorized: inner loop was already vectorized
+
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglad/glad_initialise.F90(312,5)
+      remark #15300: LOOP WAS VECTORIZED
+   LOOP END
+
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglad/glad_initialise.F90(312,5)
+   <Remainder loop for vectorization>
+   LOOP END
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglad/glad_initialise.F90(312,5)
+<Multiversioned v2>
+   remark #15542: loop was not vectorized: inner loop was already vectorized
+
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglad/glad_initialise.F90(312,5)
+      remark #15300: LOOP WAS VECTORIZED
+   LOOP END
+
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglad/glad_initialise.F90(312,5)
+   <Remainder loop for vectorization>
+   LOOP END
+LOOP END
+
+    Report from: Code generation optimizations [cg]
+
+/glade/u/home/tvda/CISM/libglad/glad_initialise.F90(298,14):remark #34051: REGISTER ALLOCATION : [glad_initialise_mp_glad_i_readdata_] /glade/u/home/tvda/CISM/libglad/glad_initialise.F90:298
+
+    Hardware registers
+        Reserved     :    2[ rsp rip]
+        Available    :   39[ rax rdx rcx rbx rbp rsi rdi r8-r15 mm0-mm7 zmm0-zmm15]
+        Callee-save  :    6[ rbx rbp r12-r15]
+        Assigned     :   27[ rax rdx rcx rbx rsi rdi r8-r15 zmm0-zmm12]
+        
+    Routine temporaries
+        Total         :     149
+            Global    :      72
+            Local     :      77
+        Regenerable   :       5
+        Spilled       :      28
+        
+    Routine stack
+        Variables     :       0 bytes*
+            Reads     :       0 [0.00e+00 ~ 0.0%]
+            Writes    :       0 [0.00e+00 ~ 0.0%]
+        Spills        :     176 bytes*
+            Reads     :      37 [5.30e+00 ~ 5.3%]
+            Writes    :      28 [2.40e+00 ~ 2.4%]
+    
+    Notes
+    
+        *Non-overlapping variables and spills may share stack space,
+         so the total stack size might be less than this.
+    
+
+===========================================================================
+
+Begin optimization report for: GLAD_INITIALISE::GLAD_I_END
+
+    Report from: Interprocedural optimizations [ipo]
+
+INLINE REPORT: (GLAD_INITIALISE::GLAD_I_END) [3] /glade/u/home/tvda/CISM/libglad/glad_initialise.F90(281,14)
+
+
+    Report from: Code generation optimizations [cg]
+
+/glade/u/home/tvda/CISM/libglad/glad_initialise.F90(281,14):remark #34051: REGISTER ALLOCATION : [glad_initialise_mp_glad_i_end_] /glade/u/home/tvda/CISM/libglad/glad_initialise.F90:281
+
+    Hardware registers
+        Reserved     :    2[ rsp rip]
+        Available    :   39[ rax rdx rcx rbx rbp rsi rdi r8-r15 mm0-mm7 zmm0-zmm15]
+        Callee-save  :    6[ rbx rbp r12-r15]
+        Assigned     :    4[ rsi rdi r12-r13]
+        
+    Routine temporaries
+        Total         :      14
+            Global    :       8
+            Local     :       6
+        Regenerable   :       1
+        Spilled       :       2
+        
+    Routine stack
+        Variables     :       0 bytes*
+            Reads     :       0 [0.00e+00 ~ 0.0%]
+            Writes    :       0 [0.00e+00 ~ 0.0%]
+        Spills        :       0 bytes*
+            Reads     :       0 [0.00e+00 ~ 0.0%]
+            Writes    :       0 [0.00e+00 ~ 0.0%]
+    
+    Notes
+    
+        *Non-overlapping variables and spills may share stack space,
+         so the total stack size might be less than this.
+    
+
+===========================================================================
+
+Begin optimization report for: GLAD_INITIALISE::GLAD_I_INITIALISE_GCM
+
+    Report from: Interprocedural optimizations [ipo]
+
+INLINE REPORT: (GLAD_INITIALISE::GLAD_I_INITIALISE_GCM) [4] /glade/u/home/tvda/CISM/libglad/glad_initialise.F90(53,14)
+  -> INLINE: (166,10) GLAD_INITIALISE::DEFINE_GLAD_RESTART_VARIABLES
+  -> INLINE: (202,10) GLAD_INITIALISE::GLAD_I_READDATA
+
+
+    Report from: Loop nest, Vector & Auto-parallelization optimizations [loop, vec, par]
+
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglad/glad_initialise.F90(312,5) inlined into /glade/u/home/tvda/CISM/libglad/glad_initialise.F90(239,10)
+<Multiversioned v1>
+   remark #25233: Loop multiversioned for stride tests on Assumed shape arrays
+   remark #15542: loop was not vectorized: inner loop was already vectorized
+
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglad/glad_initialise.F90(312,5) inlined into /glade/u/home/tvda/CISM/libglad/glad_initialise.F90(239,10)
+      remark #15300: LOOP WAS VECTORIZED
+   LOOP END
+
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglad/glad_initialise.F90(312,5) inlined into /glade/u/home/tvda/CISM/libglad/glad_initialise.F90(239,10)
+   <Remainder loop for vectorization>
+   LOOP END
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglad/glad_initialise.F90(312,5) inlined into /glade/u/home/tvda/CISM/libglad/glad_initialise.F90(239,10)
+<Multiversioned v2>
+   remark #15541: outer loop was not auto-vectorized: consider using SIMD directive
+
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglad/glad_initialise.F90(312,5) inlined into /glade/u/home/tvda/CISM/libglad/glad_initialise.F90(239,10)
+      remark #15335: loop was not vectorized: vectorization possible but seems inefficient. Use vector always directive or -vec-threshold0 to override 
+      remark #25439: unrolled with remainder by 2  
+   LOOP END
+
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglad/glad_initialise.F90(312,5) inlined into /glade/u/home/tvda/CISM/libglad/glad_initialise.F90(239,10)
+   <Remainder>
+   LOOP END
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglad/glad_initialise.F90(312,5) inlined into /glade/u/home/tvda/CISM/libglad/glad_initialise.F90(239,10)
+<Multiversioned v1>
+   remark #25233: Loop multiversioned for stride tests on Assumed shape arrays
+   remark #15542: loop was not vectorized: inner loop was already vectorized
+
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglad/glad_initialise.F90(312,5) inlined into /glade/u/home/tvda/CISM/libglad/glad_initialise.F90(239,10)
+      remark #15300: LOOP WAS VECTORIZED
+   LOOP END
+
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglad/glad_initialise.F90(312,5) inlined into /glade/u/home/tvda/CISM/libglad/glad_initialise.F90(239,10)
+   <Remainder loop for vectorization>
+   LOOP END
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglad/glad_initialise.F90(312,5) inlined into /glade/u/home/tvda/CISM/libglad/glad_initialise.F90(239,10)
+<Multiversioned v2>
+   remark #15542: loop was not vectorized: inner loop was already vectorized
+
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglad/glad_initialise.F90(312,5) inlined into /glade/u/home/tvda/CISM/libglad/glad_initialise.F90(239,10)
+      remark #15300: LOOP WAS VECTORIZED
+   LOOP END
+
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglad/glad_initialise.F90(312,5) inlined into /glade/u/home/tvda/CISM/libglad/glad_initialise.F90(239,10)
+   <Remainder loop for vectorization>
+   LOOP END
+LOOP END
+
+    Report from: Code generation optimizations [cg]
+
+/glade/u/home/tvda/CISM/libglad/glad_initialise.F90(237,72):remark #34026: call to memmove implemented as a call to optimized library version
+/glade/u/home/tvda/CISM/libglad/glad_initialise.F90(242,72):remark #34026: call to memmove implemented as a call to optimized library version
+/glade/u/home/tvda/CISM/libglad/glad_initialise.F90(248,78):remark #34026: call to memmove implemented as a call to optimized library version
+/glade/u/home/tvda/CISM/libglad/glad_initialise.F90(253,95):remark #34026: call to memmove implemented as a call to optimized library version
+/glade/u/home/tvda/CISM/libglad/glad_initialise.F90(53,14):remark #34051: REGISTER ALLOCATION : [glad_initialise_mp_glad_i_initialise_gcm_] /glade/u/home/tvda/CISM/libglad/glad_initialise.F90:53
+
+    Hardware registers
+        Reserved     :    2[ rsp rip]
+        Available    :   39[ rax rdx rcx rbx rbp rsi rdi r8-r15 mm0-mm7 zmm0-zmm15]
+        Callee-save  :    6[ rbx rbp r12-r15]
+        Assigned     :   27[ rax rdx rcx rbx rsi rdi r8-r15 zmm0-zmm12]
+        
+    Routine temporaries
+        Total         :     448
+            Global    :     116
+            Local     :     332
+        Regenerable   :     153
+        Spilled       :      34
+        
+    Routine stack
+        Variables     :     244 bytes*
+            Reads     :       8 [5.33e-01 ~ 0.5%]
+            Writes    :      24 [5.95e-01 ~ 0.6%]
+        Spills        :     224 bytes*
+            Reads     :      47 [4.32e+00 ~ 4.3%]
+            Writes    :      38 [2.21e+00 ~ 2.2%]
+    
+    Notes
+    
+        *Non-overlapping variables and spills may share stack space,
+         so the total stack size might be less than this.
+    
+
+===========================================================================
+
+Begin optimization report for: glad_initialise._
+
+    Report from: Interprocedural optimizations [ipo]
+
+INLINE REPORT: (glad_initialise._) [5] /glade/u/home/tvda/CISM/libglad/glad_initialise.F90(40,8)
+
+
+    Report from: Code generation optimizations [cg]
+
+/glade/u/home/tvda/CISM/libglad/glad_initialise.F90(40,8):remark #34051: REGISTER ALLOCATION : [glad_initialise._] /glade/u/home/tvda/CISM/libglad/glad_initialise.F90:40
+
+    Hardware registers
+        Reserved     :    2[ rsp rip]
+        Available    :   39[ rax rdx rcx rbx rbp rsi rdi r8-r15 mm0-mm7 zmm0-zmm15]
+        Callee-save  :    6[ rbx rbp r12-r15]
+        Assigned     :    0[ reg_null]
+        
+    Routine temporaries
+        Total         :       6
+            Global    :       0
+            Local     :       6
+        Regenerable   :       0
+        Spilled       :       0
+        
+    Routine stack
+        Variables     :       0 bytes*
+            Reads     :       0 [0.00e+00 ~ 0.0%]
+            Writes    :       0 [0.00e+00 ~ 0.0%]
+        Spills        :       0 bytes*
+            Reads     :       0 [0.00e+00 ~ 0.0%]
+            Writes    :       0 [0.00e+00 ~ 0.0%]
+    
+    Notes
+    
+        *Non-overlapping variables and spills may share stack space,
+         so the total stack size might be less than this.
+    
+
+===========================================================================

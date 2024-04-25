@@ -1,0 +1,1784 @@
+Intel(R) Advisor can now assist with vectorization and show optimization
+  report messages with your source code.
+See "https://software.intel.com/en-us/intel-advisor-xe" for details.
+
+
+    Report from: Interprocedural optimizations [ipo]
+
+INLINING OPTION VALUES:
+  -inline-factor: 100
+  -inline-min-size: 30
+  -inline-max-size: 230
+  -inline-max-total-size: 2000
+  -inline-max-per-routine: 10000
+  -inline-max-per-compile: 500000
+
+
+Begin optimization report for: glint_example_clim._
+
+    Report from: Interprocedural optimizations [ipo]
+
+INLINE REPORT: (glint_example_clim._) [1] /glade/u/home/tvda/CISM/libglint/glint_example_clim.F90(31,8)
+
+
+    Report from: Code generation optimizations [cg]
+
+/glade/u/home/tvda/CISM/libglint/glint_example_clim.F90(31,8):remark #34051: REGISTER ALLOCATION : [glint_example_clim._] /glade/u/home/tvda/CISM/libglint/glint_example_clim.F90:31
+
+    Hardware registers
+        Reserved     :    2[ rsp rip]
+        Available    :   39[ rax rdx rcx rbx rbp rsi rdi r8-r15 mm0-mm7 zmm0-zmm15]
+        Callee-save  :    6[ rbx rbp r12-r15]
+        Assigned     :    0[ reg_null]
+        
+    Routine temporaries
+        Total         :       6
+            Global    :       0
+            Local     :       6
+        Regenerable   :       0
+        Spilled       :       0
+        
+    Routine stack
+        Variables     :       0 bytes*
+            Reads     :       0 [0.00e+00 ~ 0.0%]
+            Writes    :       0 [0.00e+00 ~ 0.0%]
+        Spills        :       0 bytes*
+            Reads     :       0 [0.00e+00 ~ 0.0%]
+            Writes    :       0 [0.00e+00 ~ 0.0%]
+    
+    Notes
+    
+        *Non-overlapping variables and spills may share stack space,
+         so the total stack size might be less than this.
+    
+
+===========================================================================
+
+Begin optimization report for: GLINT_EXAMPLE_CLIM::GLEX_CLIM_READCONFIG
+
+    Report from: Interprocedural optimizations [ipo]
+
+INLINE REPORT: (GLINT_EXAMPLE_CLIM::GLEX_CLIM_READCONFIG) [2] /glade/u/home/tvda/CISM/libglint/glint_example_clim.F90(151,14)
+
+
+    Report from: Code generation optimizations [cg]
+
+/glade/u/home/tvda/CISM/libglint/glint_example_clim.F90(151,14):remark #34051: REGISTER ALLOCATION : [glint_example_clim_mp_glex_clim_readconfig_] /glade/u/home/tvda/CISM/libglint/glint_example_clim.F90:151
+
+    Hardware registers
+        Reserved     :    2[ rsp rip]
+        Available    :   39[ rax rdx rcx rbx rbp rsi rdi r8-r15 mm0-mm7 zmm0-zmm15]
+        Callee-save  :    6[ rbx rbp r12-r15]
+        Assigned     :   12[ rax rdx rcx rbx rsi rdi r8-r9 r12-r15]
+        
+    Routine temporaries
+        Total         :     222
+            Global    :      22
+            Local     :     200
+        Regenerable   :     150
+        Spilled       :       6
+        
+    Routine stack
+        Variables     :       0 bytes*
+            Reads     :       0 [0.00e+00 ~ 0.0%]
+            Writes    :       0 [0.00e+00 ~ 0.0%]
+        Spills        :       8 bytes*
+            Reads     :       1 [6.65e-01 ~ 0.7%]
+            Writes    :       2 [6.65e-01 ~ 0.7%]
+    
+    Notes
+    
+        *Non-overlapping variables and spills may share stack space,
+         so the total stack size might be less than this.
+    
+
+===========================================================================
+
+Begin optimization report for: GLINT_EXAMPLE_CLIM::GLEX_CLIM_PRINTCONFIG
+
+    Report from: Interprocedural optimizations [ipo]
+
+INLINE REPORT: (GLINT_EXAMPLE_CLIM::GLEX_CLIM_PRINTCONFIG) [3] /glade/u/home/tvda/CISM/libglint/glint_example_clim.F90(207,14)
+
+
+    Report from: Code generation optimizations [cg]
+
+/glade/u/home/tvda/CISM/libglint/glint_example_clim.F90(207,14):remark #34051: REGISTER ALLOCATION : [glint_example_clim_mp_glex_clim_printconfig_] /glade/u/home/tvda/CISM/libglint/glint_example_clim.F90:207
+
+    Hardware registers
+        Reserved     :    2[ rsp rip]
+        Available    :   39[ rax rdx rcx rbx rbp rsi rdi r8-r15 mm0-mm7 zmm0-zmm15]
+        Callee-save  :    6[ rbx rbp r12-r15]
+        Assigned     :   13[ rax rdx rcx rbx rsi rdi r8-r10 r13-r15 zmm0]
+        
+    Routine temporaries
+        Total         :     222
+            Global    :      43
+            Local     :     179
+        Regenerable   :     143
+        Spilled       :       4
+        
+    Routine stack
+        Variables     :    1576 bytes*
+            Reads     :       0 [0.00e+00 ~ 0.0%]
+            Writes    :      42 [1.58e+01 ~ 15.8%]
+        Spills        :       0 bytes*
+            Reads     :       0 [0.00e+00 ~ 0.0%]
+            Writes    :       0 [0.00e+00 ~ 0.0%]
+    
+    Notes
+    
+        *Non-overlapping variables and spills may share stack space,
+         so the total stack size might be less than this.
+    
+
+===========================================================================
+
+Begin optimization report for: GLINT_EXAMPLE_CLIM::CHECK_GGRIDS
+
+    Report from: Interprocedural optimizations [ipo]
+
+INLINE REPORT: (GLINT_EXAMPLE_CLIM::CHECK_GGRIDS) [4] /glade/u/home/tvda/CISM/libglint/glint_example_clim.F90(315,14)
+
+
+    Report from: Loop nest, Vector & Auto-parallelization optimizations [loop, vec, par]
+
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglint/glint_example_clim.F90(329,9)
+   remark #15300: LOOP WAS VECTORIZED
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglint/glint_example_clim.F90(329,9)
+<Remainder loop for vectorization>
+   remark #15301: REMAINDER LOOP WAS VECTORIZED
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglint/glint_example_clim.F90(329,9)
+<Remainder loop for vectorization>
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglint/glint_example_clim.F90(329,36)
+   remark #15300: LOOP WAS VECTORIZED
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglint/glint_example_clim.F90(329,36)
+<Remainder loop for vectorization>
+   remark #15301: REMAINDER LOOP WAS VECTORIZED
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglint/glint_example_clim.F90(329,36)
+<Remainder loop for vectorization>
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglint/glint_example_clim.F90(330,9)
+   remark #15300: LOOP WAS VECTORIZED
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglint/glint_example_clim.F90(330,9)
+<Remainder loop for vectorization>
+   remark #15301: REMAINDER LOOP WAS VECTORIZED
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglint/glint_example_clim.F90(330,9)
+<Remainder loop for vectorization>
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglint/glint_example_clim.F90(330,36)
+   remark #15300: LOOP WAS VECTORIZED
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglint/glint_example_clim.F90(330,36)
+<Remainder loop for vectorization>
+   remark #15301: REMAINDER LOOP WAS VECTORIZED
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglint/glint_example_clim.F90(330,36)
+<Remainder loop for vectorization>
+LOOP END
+
+    Report from: Code generation optimizations [cg]
+
+/glade/u/home/tvda/CISM/libglint/glint_example_clim.F90(315,14):remark #34051: REGISTER ALLOCATION : [glint_example_clim_mp_check_ggrids_] /glade/u/home/tvda/CISM/libglint/glint_example_clim.F90:315
+
+    Hardware registers
+        Reserved     :    2[ rsp rip]
+        Available    :   39[ rax rdx rcx rbx rbp rsi rdi r8-r15 mm0-mm7 zmm0-zmm15]
+        Callee-save  :    6[ rbx rbp r12-r15]
+        Assigned     :   28[ rax rdx rcx rbx rsi rdi r8-r15 zmm0-zmm13]
+        
+    Routine temporaries
+        Total         :     471
+            Global    :     109
+            Local     :     362
+        Regenerable   :      20
+        Spilled       :      17
+        
+    Routine stack
+        Variables     :       0 bytes*
+            Reads     :       0 [0.00e+00 ~ 0.0%]
+            Writes    :       0 [0.00e+00 ~ 0.0%]
+        Spills        :      80 bytes*
+            Reads     :      30 [1.15e+00 ~ 1.1%]
+            Writes    :      18 [7.14e-01 ~ 0.7%]
+    
+    Notes
+    
+        *Non-overlapping variables and spills may share stack space,
+         so the total stack size might be less than this.
+    
+
+===========================================================================
+
+Begin optimization report for: GLINT_EXAMPLE_CLIM::NCDF_FIND_VAR
+
+    Report from: Interprocedural optimizations [ipo]
+
+INLINE REPORT: (GLINT_EXAMPLE_CLIM::NCDF_FIND_VAR) [5] /glade/u/home/tvda/CISM/libglint/glint_example_clim.F90(339,14)
+  -> INLINE: (369,10) GLINT_EXAMPLE_CLIM::HANDLE_ERR
+  -> INLINE: (374,13) GLINT_EXAMPLE_CLIM::HANDLE_ERR
+  -> INLINE: (380,16) GLINT_EXAMPLE_CLIM::HANDLE_ERR
+  -> INLINE: (387,19) GLINT_EXAMPLE_CLIM::HANDLE_ERR
+
+
+    Report from: Loop nest, Vector & Auto-parallelization optimizations [loop, vec, par]
+
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglint/glint_example_clim.F90(388,14)
+   remark #15520: loop was not vectorized: loop with multiple exits cannot be vectorized unless it meets search loop idiom criteria   [ /glade/u/home/tvda/CISM/libglint/glint_example_clim.F90(389,29) ]
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglint/glint_example_clim.F90(403,8)
+<Predicate Optimized v1>
+   remark #25423: Condition at line 405 hoisted out of this loop
+   remark #15344: loop was not vectorized: vector dependence prevents vectorization. First dependence is shown below. Use level 5 report for details
+   remark #15346: vector dependence: assumed FLOW dependence between at (404:21) and at (404:34)
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglint/glint_example_clim.F90(403,8)
+<Predicate Optimized v3>
+   remark #15344: loop was not vectorized: vector dependence prevents vectorization. First dependence is shown below. Use level 5 report for details
+   remark #15346: vector dependence: assumed FLOW dependence between at (404:21) and at (404:34)
+LOOP END
+
+
+Non-optimizable loops:
+
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglint/glint_example_clim.F90(398,5)
+   remark #15532: loop was not vectorized: compile time constraints prevent loop optimization. Consider using -O3.
+
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglint/glint_example_clim.F90(397,8)
+      remark #15532: loop was not vectorized: compile time constraints prevent loop optimization. Consider using -O3.
+   LOOP END
+LOOP END
+
+    Report from: Code generation optimizations [cg]
+
+/glade/u/home/tvda/CISM/libglint/glint_example_clim.F90(339,14):remark #34051: REGISTER ALLOCATION : [glint_example_clim_mp_ncdf_find_var_] /glade/u/home/tvda/CISM/libglint/glint_example_clim.F90:339
+
+    Hardware registers
+        Reserved     :    2[ rsp rip]
+        Available    :   39[ rax rdx rcx rbx rbp rsi rdi r8-r15 mm0-mm7 zmm0-zmm15]
+        Callee-save  :    6[ rbx rbp r12-r15]
+        Assigned     :   14[ rax rdx rcx rbx rsi rdi r8-r15]
+        
+    Routine temporaries
+        Total         :     471
+            Global    :     136
+            Local     :     335
+        Regenerable   :     294
+        Spilled       :      28
+        
+    Routine stack
+        Variables     :    1510 bytes*
+            Reads     :       6 [1.72e+00 ~ 1.7%]
+            Writes    :      63 [4.61e+00 ~ 4.6%]
+        Spills        :     184 bytes*
+            Reads     :      31 [4.21e+00 ~ 4.2%]
+            Writes    :      27 [1.10e+00 ~ 1.1%]
+    
+    Notes
+    
+        *Non-overlapping variables and spills may share stack space,
+         so the total stack size might be less than this.
+    
+
+===========================================================================
+
+Begin optimization report for: GLINT_EXAMPLE_CLIM::READ_NCDF_2D
+
+    Report from: Interprocedural optimizations [ipo]
+
+INLINE REPORT: (GLINT_EXAMPLE_CLIM::READ_NCDF_2D) [6] /glade/u/home/tvda/CISM/libglint/glint_example_clim.F90(476,14)
+  -> (495,10) GLINT_EXAMPLE_CLIM::READ_NCDF_FINDVAR
+  -> INLINE: (504,10) GLINT_EXAMPLE_CLIM::READ_NCDF_DIMNAMES
+    -> INLINE: (608,10) GLINT_EXAMPLE_CLIM::HANDLE_ERR
+    -> INLINE: (614,13) GLINT_EXAMPLE_CLIM::HANDLE_ERR
+  -> INLINE: (513,10) GLINT_EXAMPLE_CLIM::HANDLE_ERR
+  -> INLINE: (515,10) GLINT_EXAMPLE_CLIM::READ_NCDF_SCALING
+
+
+    Report from: Loop nest, Vector & Auto-parallelization optimizations [loop, vec, par]
+
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglint/glint_example_clim.F90(517,5)
+   remark #15542: loop was not vectorized: inner loop was already vectorized
+
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglint/glint_example_clim.F90(517,5)
+      remark #15300: LOOP WAS VECTORIZED
+   LOOP END
+
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglint/glint_example_clim.F90(517,5)
+   <Remainder loop for vectorization>
+   LOOP END
+LOOP END
+
+
+Non-optimizable loops:
+
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglint/glint_example_clim.F90(615,5) inlined into /glade/u/home/tvda/CISM/libglint/glint_example_clim.F90(532,10)
+   remark #15543: loop was not vectorized: loop with function call not considered an optimization candidate.
+LOOP END
+
+    Report from: Code generation optimizations [cg]
+
+/glade/u/home/tvda/CISM/libglint/glint_example_clim.F90(476,14):remark #34051: REGISTER ALLOCATION : [glint_example_clim_mp_read_ncdf_2d_] /glade/u/home/tvda/CISM/libglint/glint_example_clim.F90:476
+
+    Hardware registers
+        Reserved     :    2[ rsp rip]
+        Available    :   39[ rax rdx rcx rbx rbp rsi rdi r8-r15 mm0-mm7 zmm0-zmm15]
+        Callee-save  :    6[ rbx rbp r12-r15]
+        Assigned     :   22[ rax rdx rcx rbx rsi rdi r8-r15 zmm0-zmm7]
+        
+    Routine temporaries
+        Total         :     371
+            Global    :      81
+            Local     :     290
+        Regenerable   :     199
+        Spilled       :      11
+        
+    Routine stack
+        Variables     :    1156 bytes*
+            Reads     :       9 [1.51e+00 ~ 1.5%]
+            Writes    :      43 [1.55e+00 ~ 1.5%]
+        Spills        :      48 bytes*
+            Reads     :       6 [1.43e+00 ~ 1.4%]
+            Writes    :       6 [5.74e-01 ~ 0.6%]
+    
+    Notes
+    
+        *Non-overlapping variables and spills may share stack space,
+         so the total stack size might be less than this.
+    
+
+===========================================================================
+
+Begin optimization report for: GLINT_EXAMPLE_CLIM::READ_NCDF_FINDVAR
+
+    Report from: Interprocedural optimizations [ipo]
+
+INLINE REPORT: (GLINT_EXAMPLE_CLIM::READ_NCDF_FINDVAR) [7] /glade/u/home/tvda/CISM/libglint/glint_example_clim.F90(570,14)
+  -> INLINE: (582,10) GLINT_EXAMPLE_CLIM::HANDLE_ERR
+  -> INLINE: (587,10) GLINT_EXAMPLE_CLIM::HANDLE_ERR
+  -> INLINE: (589,10) GLINT_EXAMPLE_CLIM::HANDLE_ERR
+
+
+    Report from: Code generation optimizations [cg]
+
+/glade/u/home/tvda/CISM/libglint/glint_example_clim.F90(570,14):remark #34051: REGISTER ALLOCATION : [glint_example_clim_mp_read_ncdf_findvar_] /glade/u/home/tvda/CISM/libglint/glint_example_clim.F90:570
+
+    Hardware registers
+        Reserved     :    2[ rsp rip]
+        Available    :   39[ rax rdx rcx rbx rbp rsi rdi r8-r15 mm0-mm7 zmm0-zmm15]
+        Callee-save  :    6[ rbx rbp r12-r15]
+        Assigned     :   12[ rax rdx rcx rbx rsi rdi r8-r9 r12-r15]
+        
+    Routine temporaries
+        Total         :     175
+            Global    :      35
+            Local     :     140
+        Regenerable   :     134
+        Spilled       :       5
+        
+    Routine stack
+        Variables     :     796 bytes*
+            Reads     :       0 [0.00e+00 ~ 0.0%]
+            Writes    :      24 [3.62e+00 ~ 3.6%]
+        Spills        :       0 bytes*
+            Reads     :       0 [0.00e+00 ~ 0.0%]
+            Writes    :       0 [0.00e+00 ~ 0.0%]
+    
+    Notes
+    
+        *Non-overlapping variables and spills may share stack space,
+         so the total stack size might be less than this.
+    
+
+===========================================================================
+
+Begin optimization report for: GLINT_EXAMPLE_CLIM::READ_NCDF_DIMNAMES
+
+    Report from: Interprocedural optimizations [ipo]
+
+INLINE REPORT: (GLINT_EXAMPLE_CLIM::READ_NCDF_DIMNAMES) [8] /glade/u/home/tvda/CISM/libglint/glint_example_clim.F90(595,14)
+  -> INLINE: (608,10) GLINT_EXAMPLE_CLIM::HANDLE_ERR
+  -> INLINE: (614,13) GLINT_EXAMPLE_CLIM::HANDLE_ERR
+
+
+    Report from: Loop nest, Vector & Auto-parallelization optimizations [loop, vec, par]
+
+
+
+Non-optimizable loops:
+
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglint/glint_example_clim.F90(615,5)
+   remark #15543: loop was not vectorized: loop with function call not considered an optimization candidate.
+LOOP END
+
+    Report from: Code generation optimizations [cg]
+
+/glade/u/home/tvda/CISM/libglint/glint_example_clim.F90(595,14):remark #34051: REGISTER ALLOCATION : [glint_example_clim_mp_read_ncdf_dimnames_] /glade/u/home/tvda/CISM/libglint/glint_example_clim.F90:595
+
+    Hardware registers
+        Reserved     :    2[ rsp rip]
+        Available    :   39[ rax rdx rcx rbx rbp rsi rdi r8-r15 mm0-mm7 zmm0-zmm15]
+        Callee-save  :    6[ rbx rbp r12-r15]
+        Assigned     :   14[ rax rdx rcx rbx rsi rdi r8-r15]
+        
+    Routine temporaries
+        Total         :     140
+            Global    :      29
+            Local     :     111
+        Regenerable   :      86
+        Spilled       :       6
+        
+    Routine stack
+        Variables     :     532 bytes*
+            Reads     :       0 [0.00e+00 ~ 0.0%]
+            Writes    :      16 [3.94e+00 ~ 3.9%]
+        Spills        :       8 bytes*
+            Reads     :       1 [2.33e+00 ~ 2.3%]
+            Writes    :       1 [4.20e-01 ~ 0.4%]
+    
+    Notes
+    
+        *Non-overlapping variables and spills may share stack space,
+         so the total stack size might be less than this.
+    
+
+===========================================================================
+
+Begin optimization report for: GLINT_EXAMPLE_CLIM::READ_NCDF_SCALING
+
+    Report from: Interprocedural optimizations [ipo]
+
+INLINE REPORT: (GLINT_EXAMPLE_CLIM::READ_NCDF_SCALING) [9] /glade/u/home/tvda/CISM/libglint/glint_example_clim.F90(621,14)
+
+
+    Report from: Code generation optimizations [cg]
+
+/glade/u/home/tvda/CISM/libglint/glint_example_clim.F90(621,14):remark #34051: REGISTER ALLOCATION : [glint_example_clim_mp_read_ncdf_scaling_] /glade/u/home/tvda/CISM/libglint/glint_example_clim.F90:621
+
+    Hardware registers
+        Reserved     :    2[ rsp rip]
+        Available    :   39[ rax rdx rcx rbx rbp rsi rdi r8-r15 mm0-mm7 zmm0-zmm15]
+        Callee-save  :    6[ rbx rbp r12-r15]
+        Assigned     :   10[ rax rdx rcx rsi rdi r8 r12-r15]
+        
+    Routine temporaries
+        Total         :      31
+            Global    :      14
+            Local     :      17
+        Regenerable   :       7
+        Spilled       :       4
+        
+    Routine stack
+        Variables     :       0 bytes*
+            Reads     :       0 [0.00e+00 ~ 0.0%]
+            Writes    :       0 [0.00e+00 ~ 0.0%]
+        Spills        :       0 bytes*
+            Reads     :       0 [0.00e+00 ~ 0.0%]
+            Writes    :       0 [0.00e+00 ~ 0.0%]
+    
+    Notes
+    
+        *Non-overlapping variables and spills may share stack space,
+         so the total stack size might be less than this.
+    
+
+===========================================================================
+
+Begin optimization report for: GLINT_EXAMPLE_CLIM::EXAMPLE_CLIMATE
+
+    Report from: Interprocedural optimizations [ipo]
+
+INLINE REPORT: (GLINT_EXAMPLE_CLIM::EXAMPLE_CLIMATE) [10] /glade/u/home/tvda/CISM/libglint/glint_example_clim.F90(696,14)
+  -> INLINE: (715,10) GLINT_EXAMPLE_CLIM::BRACKET_POINT
+    -> INLINE: (766,10) GLINT_EXAMPLE_CLIM::FIXBOUNDS
+    -> INLINE: (767,10) GLINT_EXAMPLE_CLIM::FIXBOUNDS
+  -> INLINE: (716,12) GLINT_EXAMPLE_CLIM::LINEAR_INTERP
+  -> INLINE: (719,10) GLINT_EXAMPLE_CLIM::BRACKET_POINT
+    -> INLINE: (766,10) GLINT_EXAMPLE_CLIM::FIXBOUNDS
+    -> INLINE: (767,10) GLINT_EXAMPLE_CLIM::FIXBOUNDS
+  -> INLINE: (720,14) GLINT_EXAMPLE_CLIM::LINEAR_INTERP
+
+
+    Report from: Loop nest, Vector & Auto-parallelization optimizations [loop, vec, par]
+
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglint/glint_example_clim.F90(751,5) inlined into /glade/u/home/tvda/CISM/libglint/glint_example_clim.F90(743,10)
+<Peeled loop for vectorization, Multiversioned v1>
+   remark #25436: completely unrolled by 1  
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglint/glint_example_clim.F90(751,5) inlined into /glade/u/home/tvda/CISM/libglint/glint_example_clim.F90(743,10)
+<Multiversioned v1>
+   remark #25233: Loop multiversioned for stride tests on Assumed shape arrays
+   remark #15300: LOOP WAS VECTORIZED
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglint/glint_example_clim.F90(751,5) inlined into /glade/u/home/tvda/CISM/libglint/glint_example_clim.F90(743,10)
+<Remainder loop for vectorization, Multiversioned v1>
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglint/glint_example_clim.F90(751,5) inlined into /glade/u/home/tvda/CISM/libglint/glint_example_clim.F90(743,10)
+<Peeled loop for vectorization, Multiversioned v2>
+   remark #25436: completely unrolled by 1  
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglint/glint_example_clim.F90(751,5) inlined into /glade/u/home/tvda/CISM/libglint/glint_example_clim.F90(743,10)
+<Multiversioned v2>
+   remark #15300: LOOP WAS VECTORIZED
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglint/glint_example_clim.F90(751,5) inlined into /glade/u/home/tvda/CISM/libglint/glint_example_clim.F90(743,10)
+<Remainder loop for vectorization, Multiversioned v2>
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglint/glint_example_clim.F90(777,5) inlined into /glade/u/home/tvda/CISM/libglint/glint_example_clim.F90(743,10)
+   remark #15521: loop was not vectorized: loop control variable was not identified. Explicitly compute the iteration count before executing the loop or try using canonical loop form from OpenMP specification
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglint/glint_example_clim.F90(783,14) inlined into /glade/u/home/tvda/CISM/libglint/glint_example_clim.F90(743,10)
+   remark #15335: loop was not vectorized: vectorization possible but seems inefficient. Use vector always directive or -vec-threshold0 to override 
+   remark #25456: Number of Array Refs Scalar Replaced In Loop: 1
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglint/glint_example_clim.F90(777,5) inlined into /glade/u/home/tvda/CISM/libglint/glint_example_clim.F90(743,10)
+   remark #15521: loop was not vectorized: loop control variable was not identified. Explicitly compute the iteration count before executing the loop or try using canonical loop form from OpenMP specification
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglint/glint_example_clim.F90(783,14) inlined into /glade/u/home/tvda/CISM/libglint/glint_example_clim.F90(743,10)
+   remark #15335: loop was not vectorized: vectorization possible but seems inefficient. Use vector always directive or -vec-threshold0 to override 
+   remark #25456: Number of Array Refs Scalar Replaced In Loop: 1
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglint/glint_example_clim.F90(732,5) inlined into /glade/u/home/tvda/CISM/libglint/glint_example_clim.F90(744,12)
+   remark #15542: loop was not vectorized: inner loop was already vectorized
+
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglint/glint_example_clim.F90(732,5) inlined into /glade/u/home/tvda/CISM/libglint/glint_example_clim.F90(744,12)
+      remark #15300: LOOP WAS VECTORIZED
+   LOOP END
+
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglint/glint_example_clim.F90(732,5) inlined into /glade/u/home/tvda/CISM/libglint/glint_example_clim.F90(744,12)
+   <Remainder loop for vectorization>
+      remark #15301: REMAINDER LOOP WAS VECTORIZED
+   LOOP END
+
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglint/glint_example_clim.F90(732,5) inlined into /glade/u/home/tvda/CISM/libglint/glint_example_clim.F90(744,12)
+   <Remainder loop for vectorization>
+   LOOP END
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglint/glint_example_clim.F90(716,5)
+<Multiversioned v1>
+   remark #25233: Loop multiversioned for stride tests on Assumed shape arrays
+   remark #15542: loop was not vectorized: inner loop was already vectorized
+
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglint/glint_example_clim.F90(716,5)
+      remark #15300: LOOP WAS VECTORIZED
+   LOOP END
+
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglint/glint_example_clim.F90(716,5)
+   <Remainder loop for vectorization>
+   LOOP END
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglint/glint_example_clim.F90(716,5)
+<Multiversioned v2>
+   remark #15542: loop was not vectorized: inner loop was already vectorized
+
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglint/glint_example_clim.F90(716,5)
+      remark #15300: LOOP WAS VECTORIZED
+   LOOP END
+
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglint/glint_example_clim.F90(716,5)
+   <Remainder loop for vectorization>
+   LOOP END
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglint/glint_example_clim.F90(751,5) inlined into /glade/u/home/tvda/CISM/libglint/glint_example_clim.F90(747,10)
+<Peeled loop for vectorization, Multiversioned v1>
+   remark #25436: completely unrolled by 1  
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglint/glint_example_clim.F90(751,5) inlined into /glade/u/home/tvda/CISM/libglint/glint_example_clim.F90(747,10)
+<Multiversioned v1>
+   remark #25233: Loop multiversioned for stride tests on Assumed shape arrays
+   remark #15300: LOOP WAS VECTORIZED
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglint/glint_example_clim.F90(751,5) inlined into /glade/u/home/tvda/CISM/libglint/glint_example_clim.F90(747,10)
+<Remainder loop for vectorization, Multiversioned v1>
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglint/glint_example_clim.F90(751,5) inlined into /glade/u/home/tvda/CISM/libglint/glint_example_clim.F90(747,10)
+<Peeled loop for vectorization, Multiversioned v2>
+   remark #25436: completely unrolled by 1  
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglint/glint_example_clim.F90(751,5) inlined into /glade/u/home/tvda/CISM/libglint/glint_example_clim.F90(747,10)
+<Multiversioned v2>
+   remark #15300: LOOP WAS VECTORIZED
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglint/glint_example_clim.F90(751,5) inlined into /glade/u/home/tvda/CISM/libglint/glint_example_clim.F90(747,10)
+<Remainder loop for vectorization, Multiversioned v2>
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglint/glint_example_clim.F90(777,5) inlined into /glade/u/home/tvda/CISM/libglint/glint_example_clim.F90(747,10)
+   remark #15521: loop was not vectorized: loop control variable was not identified. Explicitly compute the iteration count before executing the loop or try using canonical loop form from OpenMP specification
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglint/glint_example_clim.F90(783,14) inlined into /glade/u/home/tvda/CISM/libglint/glint_example_clim.F90(747,10)
+   remark #15335: loop was not vectorized: vectorization possible but seems inefficient. Use vector always directive or -vec-threshold0 to override 
+   remark #25456: Number of Array Refs Scalar Replaced In Loop: 1
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglint/glint_example_clim.F90(777,5) inlined into /glade/u/home/tvda/CISM/libglint/glint_example_clim.F90(747,10)
+   remark #15521: loop was not vectorized: loop control variable was not identified. Explicitly compute the iteration count before executing the loop or try using canonical loop form from OpenMP specification
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglint/glint_example_clim.F90(783,14) inlined into /glade/u/home/tvda/CISM/libglint/glint_example_clim.F90(747,10)
+   remark #15335: loop was not vectorized: vectorization possible but seems inefficient. Use vector always directive or -vec-threshold0 to override 
+   remark #25456: Number of Array Refs Scalar Replaced In Loop: 1
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglint/glint_example_clim.F90(732,5) inlined into /glade/u/home/tvda/CISM/libglint/glint_example_clim.F90(748,14)
+   remark #15542: loop was not vectorized: inner loop was already vectorized
+
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglint/glint_example_clim.F90(732,5) inlined into /glade/u/home/tvda/CISM/libglint/glint_example_clim.F90(748,14)
+      remark #15300: LOOP WAS VECTORIZED
+   LOOP END
+
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglint/glint_example_clim.F90(732,5) inlined into /glade/u/home/tvda/CISM/libglint/glint_example_clim.F90(748,14)
+   <Remainder loop for vectorization>
+      remark #15301: REMAINDER LOOP WAS VECTORIZED
+   LOOP END
+
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglint/glint_example_clim.F90(732,5) inlined into /glade/u/home/tvda/CISM/libglint/glint_example_clim.F90(748,14)
+   <Remainder loop for vectorization>
+   LOOP END
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglint/glint_example_clim.F90(720,5)
+<Multiversioned v1>
+   remark #25233: Loop multiversioned for stride tests on Assumed shape arrays
+   remark #15542: loop was not vectorized: inner loop was already vectorized
+
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglint/glint_example_clim.F90(720,5)
+      remark #15300: LOOP WAS VECTORIZED
+   LOOP END
+
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglint/glint_example_clim.F90(720,5)
+   <Remainder loop for vectorization>
+   LOOP END
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglint/glint_example_clim.F90(720,5)
+<Multiversioned v2>
+   remark #15542: loop was not vectorized: inner loop was already vectorized
+
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglint/glint_example_clim.F90(720,5)
+      remark #15300: LOOP WAS VECTORIZED
+   LOOP END
+
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglint/glint_example_clim.F90(720,5)
+   <Remainder loop for vectorization>
+   LOOP END
+LOOP END
+
+
+Non-optimizable loops:
+
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglint/glint_example_clim.F90(762,8) inlined into /glade/u/home/tvda/CISM/libglint/glint_example_clim.F90(743,10)
+   remark #15522: loop was not vectorized: loop control flow is too complex. Try using canonical loop form from OpenMP specification
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglint/glint_example_clim.F90(762,8) inlined into /glade/u/home/tvda/CISM/libglint/glint_example_clim.F90(747,10)
+   remark #15522: loop was not vectorized: loop control flow is too complex. Try using canonical loop form from OpenMP specification
+LOOP END
+
+    Report from: Code generation optimizations [cg]
+
+/glade/u/home/tvda/CISM/libglint/glint_example_clim.F90(696,14):remark #34051: REGISTER ALLOCATION : [glint_example_clim_mp_example_climate_] /glade/u/home/tvda/CISM/libglint/glint_example_clim.F90:696
+
+    Hardware registers
+        Reserved     :    2[ rsp rip]
+        Available    :   39[ rax rdx rcx rbx rbp rsi rdi r8-r15 mm0-mm7 zmm0-zmm15]
+        Callee-save  :    6[ rbx rbp r12-r15]
+        Assigned     :   29[ rax rdx rcx rbx rsi rdi r8-r15 zmm0-zmm14]
+        
+    Routine temporaries
+        Total         :     526
+            Global    :     189
+            Local     :     337
+        Regenerable   :       6
+        Spilled       :      63
+        
+    Routine stack
+        Variables     :       0 bytes*
+            Reads     :       0 [0.00e+00 ~ 0.0%]
+            Writes    :       0 [0.00e+00 ~ 0.0%]
+        Spills        :     432 bytes*
+            Reads     :      83 [4.12e+00 ~ 4.1%]
+            Writes    :      61 [1.70e+00 ~ 1.7%]
+    
+    Notes
+    
+        *Non-overlapping variables and spills may share stack space,
+         so the total stack size might be less than this.
+    
+
+===========================================================================
+
+Begin optimization report for: GLINT_EXAMPLE_CLIM::LINEAR_INTERP
+
+    Report from: Interprocedural optimizations [ipo]
+
+INLINE REPORT: (GLINT_EXAMPLE_CLIM::LINEAR_INTERP) [11] /glade/u/home/tvda/CISM/libglint/glint_example_clim.F90(726,12)
+
+
+    Report from: Loop nest, Vector & Auto-parallelization optimizations [loop, vec, par]
+
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglint/glint_example_clim.F90(732,5)
+   remark #15542: loop was not vectorized: inner loop was already vectorized
+
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglint/glint_example_clim.F90(732,5)
+      remark #15300: LOOP WAS VECTORIZED
+   LOOP END
+
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglint/glint_example_clim.F90(732,5)
+   <Remainder loop for vectorization>
+      remark #15301: REMAINDER LOOP WAS VECTORIZED
+   LOOP END
+
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglint/glint_example_clim.F90(732,5)
+   <Remainder loop for vectorization>
+   LOOP END
+LOOP END
+
+    Report from: Code generation optimizations [cg]
+
+/glade/u/home/tvda/CISM/libglint/glint_example_clim.F90(726,12):remark #34051: REGISTER ALLOCATION : [glint_example_clim_mp_linear_interp_] /glade/u/home/tvda/CISM/libglint/glint_example_clim.F90:726
+
+    Hardware registers
+        Reserved     :    2[ rsp rip]
+        Available    :   39[ rax rdx rcx rbx rbp rsi rdi r8-r15 mm0-mm7 zmm0-zmm15]
+        Callee-save  :    6[ rbx rbp r12-r15]
+        Assigned     :   26[ rax rdx rcx rbx rsi rdi r8-r15 zmm0-zmm11]
+        
+    Routine temporaries
+        Total         :     157
+            Global    :      61
+            Local     :      96
+        Regenerable   :       2
+        Spilled       :      31
+        
+    Routine stack
+        Variables     :       0 bytes*
+            Reads     :       0 [0.00e+00 ~ 0.0%]
+            Writes    :       0 [0.00e+00 ~ 0.0%]
+        Spills        :     192 bytes*
+            Reads     :      29 [7.35e+00 ~ 7.3%]
+            Writes    :      27 [2.88e+00 ~ 2.9%]
+    
+    Notes
+    
+        *Non-overlapping variables and spills may share stack space,
+         so the total stack size might be less than this.
+    
+
+===========================================================================
+
+Begin optimization report for: GLINT_EXAMPLE_CLIM::BRACKET_POINT
+
+    Report from: Interprocedural optimizations [ipo]
+
+INLINE REPORT: (GLINT_EXAMPLE_CLIM::BRACKET_POINT) [12] /glade/u/home/tvda/CISM/libglint/glint_example_clim.F90(738,14)
+  -> INLINE: (766,10) GLINT_EXAMPLE_CLIM::FIXBOUNDS
+  -> INLINE: (767,10) GLINT_EXAMPLE_CLIM::FIXBOUNDS
+
+
+    Report from: Loop nest, Vector & Auto-parallelization optimizations [loop, vec, par]
+
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglint/glint_example_clim.F90(751,5)
+<Peeled loop for vectorization, Multiversioned v1>
+   remark #25436: completely unrolled by 1  
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglint/glint_example_clim.F90(751,5)
+<Multiversioned v1>
+   remark #25233: Loop multiversioned for stride tests on Assumed shape arrays
+   remark #15300: LOOP WAS VECTORIZED
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglint/glint_example_clim.F90(751,5)
+<Remainder loop for vectorization, Multiversioned v1>
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglint/glint_example_clim.F90(751,5)
+<Peeled loop for vectorization, Multiversioned v2>
+   remark #25436: completely unrolled by 1  
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglint/glint_example_clim.F90(751,5)
+<Multiversioned v2>
+   remark #15300: LOOP WAS VECTORIZED
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglint/glint_example_clim.F90(751,5)
+<Remainder loop for vectorization, Multiversioned v2>
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglint/glint_example_clim.F90(777,5) inlined into /glade/u/home/tvda/CISM/libglint/glint_example_clim.F90(794,10)
+   remark #15521: loop was not vectorized: loop control variable was not identified. Explicitly compute the iteration count before executing the loop or try using canonical loop form from OpenMP specification
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglint/glint_example_clim.F90(777,5) inlined into /glade/u/home/tvda/CISM/libglint/glint_example_clim.F90(795,10)
+   remark #15521: loop was not vectorized: loop control variable was not identified. Explicitly compute the iteration count before executing the loop or try using canonical loop form from OpenMP specification
+LOOP END
+
+
+Non-optimizable loops:
+
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglint/glint_example_clim.F90(762,8)
+   remark #15522: loop was not vectorized: loop control flow is too complex. Try using canonical loop form from OpenMP specification
+LOOP END
+
+    Report from: Code generation optimizations [cg]
+
+/glade/u/home/tvda/CISM/libglint/glint_example_clim.F90(738,14):remark #34051: REGISTER ALLOCATION : [glint_example_clim_mp_bracket_point_] /glade/u/home/tvda/CISM/libglint/glint_example_clim.F90:738
+
+    Hardware registers
+        Reserved     :    2[ rsp rip]
+        Available    :   39[ rax rdx rcx rbx rbp rsi rdi r8-r15 mm0-mm7 zmm0-zmm15]
+        Callee-save  :    6[ rbx rbp r12-r15]
+        Assigned     :   17[ rax rdx rcx rbx rsi rdi r8-r15 zmm0-zmm2]
+        
+    Routine temporaries
+        Total         :     108
+            Global    :      38
+            Local     :      70
+        Regenerable   :       2
+        Spilled       :       5
+        
+    Routine stack
+        Variables     :       0 bytes*
+            Reads     :       0 [0.00e+00 ~ 0.0%]
+            Writes    :       0 [0.00e+00 ~ 0.0%]
+        Spills        :       8 bytes*
+            Reads     :       2 [2.21e-01 ~ 0.2%]
+            Writes    :       2 [2.21e-01 ~ 0.2%]
+    
+    Notes
+    
+        *Non-overlapping variables and spills may share stack space,
+         so the total stack size might be less than this.
+    
+
+===========================================================================
+
+Begin optimization report for: GLINT_EXAMPLE_CLIM::FIXBOUNDS
+
+    Report from: Interprocedural optimizations [ipo]
+
+INLINE REPORT: (GLINT_EXAMPLE_CLIM::FIXBOUNDS) [13] /glade/u/home/tvda/CISM/libglint/glint_example_clim.F90(773,14)
+
+
+    Report from: Loop nest, Vector & Auto-parallelization optimizations [loop, vec, par]
+
+
+
+Non-optimizable loops:
+
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglint/glint_example_clim.F90(777,5)
+   remark #15308: loop was not vectorized: explicitly compute the iteration count before executing the loop or try using canonical loop form from OpenMP specification
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglint/glint_example_clim.F90(782,5)
+   remark #15308: loop was not vectorized: explicitly compute the iteration count before executing the loop or try using canonical loop form from OpenMP specification
+LOOP END
+
+    Report from: Code generation optimizations [cg]
+
+/glade/u/home/tvda/CISM/libglint/glint_example_clim.F90(773,14):remark #34051: REGISTER ALLOCATION : [glint_example_clim_mp_fixbounds_] /glade/u/home/tvda/CISM/libglint/glint_example_clim.F90:773
+
+    Hardware registers
+        Reserved     :    2[ rsp rip]
+        Available    :   39[ rax rdx rcx rbx rbp rsi rdi r8-r15 mm0-mm7 zmm0-zmm15]
+        Callee-save  :    6[ rbx rbp r12-r15]
+        Assigned     :    5[ rax rdx rcx rsi rdi]
+        
+    Routine temporaries
+        Total         :      18
+            Global    :      12
+            Local     :       6
+        Regenerable   :       0
+        Spilled       :       0
+        
+    Routine stack
+        Variables     :       0 bytes*
+            Reads     :       0 [0.00e+00 ~ 0.0%]
+            Writes    :       0 [0.00e+00 ~ 0.0%]
+        Spills        :       0 bytes*
+            Reads     :       0 [0.00e+00 ~ 0.0%]
+            Writes    :       0 [0.00e+00 ~ 0.0%]
+    
+    Notes
+    
+        *Non-overlapping variables and spills may share stack space,
+         so the total stack size might be less than this.
+    
+
+===========================================================================
+
+Begin optimization report for: GLINT_EXAMPLE_CLIM::COMPUTE_GCM_SMB
+
+    Report from: Interprocedural optimizations [ipo]
+
+INLINE REPORT: (GLINT_EXAMPLE_CLIM::COMPUTE_GCM_SMB) [14] /glade/u/home/tvda/CISM/libglint/glint_example_clim.F90(791,14)
+
+
+    Report from: Loop nest, Vector & Auto-parallelization optimizations [loop, vec, par]
+
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglint/glint_example_clim.F90(837,6)
+   remark #15300: LOOP WAS VECTORIZED
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglint/glint_example_clim.F90(837,6)
+<Remainder loop for vectorization>
+   remark #15335: remainder loop was not vectorized: vectorization possible but seems inefficient. Use vector always directive or -vec-threshold0 to override 
+   remark #25456: Number of Array Refs Scalar Replaced In Loop: 1
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglint/glint_example_clim.F90(843,6)
+   remark #15542: loop was not vectorized: inner loop was already vectorized
+
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglint/glint_example_clim.F90(845,9)
+      remark #15542: loop was not vectorized: inner loop was already vectorized
+
+      LOOP BEGIN at /glade/u/home/tvda/CISM/libglint/glint_example_clim.F90(846,9)
+         remark #15300: LOOP WAS VECTORIZED
+      LOOP END
+
+      LOOP BEGIN at /glade/u/home/tvda/CISM/libglint/glint_example_clim.F90(846,9)
+      <Remainder loop for vectorization>
+      LOOP END
+   LOOP END
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglint/glint_example_clim.F90(872,6)
+<Multiversioned v1>
+   remark #25233: Loop multiversioned for stride tests on Assumed shape arrays
+   remark #15542: loop was not vectorized: inner loop was already vectorized
+
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglint/glint_example_clim.F90(872,6)
+      remark #15300: LOOP WAS VECTORIZED
+   LOOP END
+
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglint/glint_example_clim.F90(872,6)
+   <Remainder loop for vectorization>
+   LOOP END
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglint/glint_example_clim.F90(872,6)
+<Multiversioned v2>
+   remark #15542: loop was not vectorized: inner loop was already vectorized
+
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglint/glint_example_clim.F90(872,6)
+      remark #15300: LOOP WAS VECTORIZED
+   LOOP END
+
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglint/glint_example_clim.F90(872,6)
+   <Remainder loop for vectorization>
+   LOOP END
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglint/glint_example_clim.F90(873,6)
+<Multiversioned v1>
+   remark #25233: Loop multiversioned for stride tests on Assumed shape arrays
+   remark #15542: loop was not vectorized: inner loop was already vectorized
+
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglint/glint_example_clim.F90(873,6)
+      remark #15300: LOOP WAS VECTORIZED
+   LOOP END
+
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglint/glint_example_clim.F90(873,6)
+   <Remainder loop for vectorization>
+   LOOP END
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglint/glint_example_clim.F90(873,6)
+<Multiversioned v2>
+   remark #15542: loop was not vectorized: inner loop was already vectorized
+
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglint/glint_example_clim.F90(873,6)
+      remark #15300: LOOP WAS VECTORIZED
+   LOOP END
+
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglint/glint_example_clim.F90(873,6)
+   <Remainder loop for vectorization>
+   LOOP END
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglint/glint_example_clim.F90(874,6)
+<Multiversioned v1>
+   remark #25233: Loop multiversioned for stride tests on Assumed shape arrays
+   remark #15542: loop was not vectorized: inner loop was already vectorized
+
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglint/glint_example_clim.F90(874,6)
+      remark #15300: LOOP WAS VECTORIZED
+   LOOP END
+
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglint/glint_example_clim.F90(874,6)
+   <Remainder loop for vectorization>
+   LOOP END
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglint/glint_example_clim.F90(874,6)
+<Multiversioned v2>
+   remark #15542: loop was not vectorized: inner loop was already vectorized
+
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglint/glint_example_clim.F90(874,6)
+      remark #15300: LOOP WAS VECTORIZED
+   LOOP END
+
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglint/glint_example_clim.F90(874,6)
+   <Remainder loop for vectorization>
+   LOOP END
+LOOP END
+
+    Report from: Code generation optimizations [cg]
+
+/glade/u/home/tvda/CISM/libglint/glint_example_clim.F90(838,35):remark #34055: adjacent dense (unit-strided stencil) loads are not optimized. Details: stride { 8 }, step { 8 }, types { F64-V128, F64-V128 }, number of elements { 2 }, select mask { 0x000000003 }.
+/glade/u/home/tvda/CISM/libglint/glint_example_clim.F90(838,35):remark #34055: adjacent dense (unit-strided stencil) loads are not optimized. Details: stride { 8 }, step { 8 }, types { F64-V128, F64-V128 }, number of elements { 2 }, select mask { 0x000000003 }.
+/glade/u/home/tvda/CISM/libglint/glint_example_clim.F90(838,35):remark #34055: adjacent dense (unit-strided stencil) loads are not optimized. Details: stride { 8 }, step { 8 }, types { F64-V128, F64-V128 }, number of elements { 2 }, select mask { 0x000000003 }.
+/glade/u/home/tvda/CISM/libglint/glint_example_clim.F90(838,35):remark #34055: adjacent dense (unit-strided stencil) loads are not optimized. Details: stride { 8 }, step { 8 }, types { F64-V128, F64-V128 }, number of elements { 2 }, select mask { 0x000000003 }.
+/glade/u/home/tvda/CISM/libglint/glint_example_clim.F90(791,14):remark #34051: REGISTER ALLOCATION : [glint_example_clim_mp_compute_gcm_smb_] /glade/u/home/tvda/CISM/libglint/glint_example_clim.F90:791
+
+    Hardware registers
+        Reserved     :    2[ rsp rip]
+        Available    :   39[ rax rdx rcx rbx rbp rsi rdi r8-r15 mm0-mm7 zmm0-zmm15]
+        Callee-save  :    6[ rbx rbp r12-r15]
+        Assigned     :   28[ rax rdx rcx rbx rsi rdi r8-r15 zmm0-zmm13]
+        
+    Routine temporaries
+        Total         :     290
+            Global    :     160
+            Local     :     130
+        Regenerable   :      15
+        Spilled       :      65
+        
+    Routine stack
+        Variables     :       0 bytes*
+            Reads     :       0 [0.00e+00 ~ 0.0%]
+            Writes    :       0 [0.00e+00 ~ 0.0%]
+        Spills        :     472 bytes*
+            Reads     :      92 [2.27e+01 ~ 22.7%]
+            Writes    :      62 [2.22e+00 ~ 2.2%]
+    
+    Notes
+    
+        *Non-overlapping variables and spills may share stack space,
+         so the total stack size might be less than this.
+    
+
+===========================================================================
+
+Begin optimization report for: GLINT_EXAMPLE_CLIM::READ_NCDF_GGRID
+
+    Report from: Interprocedural optimizations [ipo]
+
+INLINE REPORT: (GLINT_EXAMPLE_CLIM::READ_NCDF_GGRID) [15] /glade/u/home/tvda/CISM/libglint/glint_example_clim.F90(251,14)
+  -> INLINE: (273,10) GLINT_EXAMPLE_CLIM::HANDLE_ERR
+  -> CP_CLONE (277,10) GLINT_EXAMPLE_CLIM::NCDF_FIND_VAR..0
+  -> CP_CLONE (278,10) GLINT_EXAMPLE_CLIM::NCDF_FIND_VAR..0
+  -> INLINE: (286,10) GLINT_EXAMPLE_CLIM::HANDLE_ERR
+  -> INLINE: (288,10) GLINT_EXAMPLE_CLIM::HANDLE_ERR
+  -> INLINE: (290,10) GLINT_EXAMPLE_CLIM::HANDLE_ERR
+  -> INLINE: (292,10) GLINT_EXAMPLE_CLIM::HANDLE_ERR
+  -> INLINE: (299,10) GLINT_EXAMPLE_CLIM::HANDLE_ERR
+  -> INLINE: (301,10) GLINT_EXAMPLE_CLIM::HANDLE_ERR
+  -> INLINE: (309,10) GLINT_EXAMPLE_CLIM::HANDLE_ERR
+
+
+    Report from: Loop nest, Vector & Auto-parallelization optimizations [loop, vec, par]
+
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglint/glint_example_clim.F90(305,10)
+   remark #25399: memcopy generated
+   remark #15542: loop was not vectorized: inner loop was already vectorized
+
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglint/glint_example_clim.F90(305,10)
+      remark #15300: LOOP WAS VECTORIZED
+   LOOP END
+
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglint/glint_example_clim.F90(305,10)
+   <Remainder loop for vectorization>
+   LOOP END
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglint/glint_example_clim.F90(305,10)
+   remark #25399: memcopy generated
+   remark #15542: loop was not vectorized: inner loop was already vectorized
+
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglint/glint_example_clim.F90(305,10)
+      remark #15300: LOOP WAS VECTORIZED
+   LOOP END
+
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglint/glint_example_clim.F90(305,10)
+   <Remainder loop for vectorization>
+   LOOP END
+LOOP END
+
+    Report from: Code generation optimizations [cg]
+
+/glade/u/home/tvda/CISM/libglint/glint_example_clim.F90(251,14):remark #34000: call to memcpy implemented inline with loads and stores with proven source (alignment, offset): (32, 0), and destination (alignment, offset): (1, 0)
+/glade/u/home/tvda/CISM/libglint/glint_example_clim.F90(277,10):remark #34000: call to memcpy implemented inline with loads and stores with proven source (alignment, offset): (16, 0), and destination (alignment, offset): (1, 0)
+/glade/u/home/tvda/CISM/libglint/glint_example_clim.F90(278,10):remark #34000: call to memcpy implemented inline with loads and stores with proven source (alignment, offset): (16, 0), and destination (alignment, offset): (1, 0)
+/glade/u/home/tvda/CISM/libglint/glint_example_clim.F90(305,10):remark #34026: call to memcpy implemented as a call to optimized library version
+/glade/u/home/tvda/CISM/libglint/glint_example_clim.F90(305,10):remark #34026: call to memcpy implemented as a call to optimized library version
+/glade/u/home/tvda/CISM/libglint/glint_example_clim.F90(251,14):remark #34051: REGISTER ALLOCATION : [glint_example_clim_mp_read_ncdf_ggrid_] /glade/u/home/tvda/CISM/libglint/glint_example_clim.F90:251
+
+    Hardware registers
+        Reserved     :    2[ rsp rip]
+        Available    :   39[ rax rdx rcx rbx rbp rsi rdi r8-r15 mm0-mm7 zmm0-zmm15]
+        Callee-save  :    6[ rbx rbp r12-r15]
+        Assigned     :   19[ rax rdx rcx rbx rsi rdi r8-r15 zmm0-zmm4]
+        
+    Routine temporaries
+        Total         :     715
+            Global    :     119
+            Local     :     596
+        Regenerable   :     438
+        Spilled       :       6
+        
+    Routine stack
+        Variables     :    2753 bytes*
+            Reads     :      21 [2.60e+00 ~ 2.6%]
+            Writes    :     153 [1.46e+01 ~ 14.6%]
+        Spills        :       8 bytes*
+            Reads     :       1 [1.52e-01 ~ 0.2%]
+            Writes    :       1 [1.52e-01 ~ 0.2%]
+    
+    Notes
+    
+        *Non-overlapping variables and spills may share stack space,
+         so the total stack size might be less than this.
+    
+
+===========================================================================
+
+Begin optimization report for: GLINT_EXAMPLE_CLIM::NCDF_FIND_VAR..0
+
+    Report from: Interprocedural optimizations [ipo]
+
+INLINE REPORT: (GLINT_EXAMPLE_CLIM::NCDF_FIND_VAR..0) [16] /glade/u/home/tvda/CISM/libglint/glint_example_clim.F90(339,14)
+  CLONED FROM: GLINT_EXAMPLE_CLIM::NCDF_FIND_VAR(X,X,X,X,X,0x00000000,0x00000000,X)
+  -> INLINE: (369,10) GLINT_EXAMPLE_CLIM::HANDLE_ERR
+  -> INLINE: (374,13) GLINT_EXAMPLE_CLIM::HANDLE_ERR
+  -> INLINE: (380,16) GLINT_EXAMPLE_CLIM::HANDLE_ERR
+  -> INLINE: (387,19) GLINT_EXAMPLE_CLIM::HANDLE_ERR
+
+
+    Report from: Loop nest, Vector & Auto-parallelization optimizations [loop, vec, par]
+
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglint/glint_example_clim.F90(388,14)
+   remark #15520: loop was not vectorized: loop with multiple exits cannot be vectorized unless it meets search loop idiom criteria   [ /glade/u/home/tvda/CISM/libglint/glint_example_clim.F90(389,29) ]
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglint/glint_example_clim.F90(403,8)
+<Predicate Optimized v1>
+   remark #25423: Condition at line 405 hoisted out of this loop
+   remark #15344: loop was not vectorized: vector dependence prevents vectorization. First dependence is shown below. Use level 5 report for details
+   remark #15346: vector dependence: assumed FLOW dependence between at (404:21) and at (404:34)
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglint/glint_example_clim.F90(403,8)
+<Predicate Optimized v3>
+   remark #15344: loop was not vectorized: vector dependence prevents vectorization. First dependence is shown below. Use level 5 report for details
+   remark #15346: vector dependence: assumed FLOW dependence between at (404:21) and at (404:34)
+LOOP END
+
+
+Non-optimizable loops:
+
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglint/glint_example_clim.F90(398,5)
+   remark #15532: loop was not vectorized: compile time constraints prevent loop optimization. Consider using -O3.
+
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglint/glint_example_clim.F90(397,8)
+      remark #15532: loop was not vectorized: compile time constraints prevent loop optimization. Consider using -O3.
+   LOOP END
+LOOP END
+
+    Report from: Code generation optimizations [cg]
+
+/glade/u/home/tvda/CISM/libglint/glint_example_clim.F90(339,14):remark #34051: REGISTER ALLOCATION : [glint_example_clim_mp_ncdf_find_var_..0] /glade/u/home/tvda/CISM/libglint/glint_example_clim.F90:339
+
+    Hardware registers
+        Reserved     :    2[ rsp rip]
+        Available    :   39[ rax rdx rcx rbx rbp rsi rdi r8-r15 mm0-mm7 zmm0-zmm15]
+        Callee-save  :    6[ rbx rbp r12-r15]
+        Assigned     :   14[ rax rdx rcx rbx rsi rdi r8-r15]
+        
+    Routine temporaries
+        Total         :     469
+            Global    :     133
+            Local     :     336
+        Regenerable   :     294
+        Spilled       :      27
+        
+    Routine stack
+        Variables     :    1510 bytes*
+            Reads     :       6 [1.73e+00 ~ 1.7%]
+            Writes    :      62 [4.69e+00 ~ 4.7%]
+        Spills        :     176 bytes*
+            Reads     :      30 [4.18e+00 ~ 4.2%]
+            Writes    :      26 [1.03e+00 ~ 1.0%]
+    
+    Notes
+    
+        *Non-overlapping variables and spills may share stack space,
+         so the total stack size might be less than this.
+    
+
+===========================================================================
+
+Begin optimization report for: GLINT_EXAMPLE_CLIM::READ_NCDF_1D
+
+    Report from: Interprocedural optimizations [ipo]
+
+INLINE REPORT: (GLINT_EXAMPLE_CLIM::READ_NCDF_1D) [17] /glade/u/home/tvda/CISM/libglint/glint_example_clim.F90(416,14)
+  -> (439,10) GLINT_EXAMPLE_CLIM::READ_NCDF_FINDVAR
+  -> INLINE: (448,10) GLINT_EXAMPLE_CLIM::READ_NCDF_DIMNAMES
+    -> INLINE: (608,10) GLINT_EXAMPLE_CLIM::HANDLE_ERR
+    -> INLINE: (614,13) GLINT_EXAMPLE_CLIM::HANDLE_ERR
+  -> INLINE: (457,10) GLINT_EXAMPLE_CLIM::HANDLE_ERR
+  -> INLINE: (459,10) GLINT_EXAMPLE_CLIM::READ_NCDF_SCALING
+  -> INLINE: (466,13) GLINT_EXAMPLE_CLIM::HANDLE_ERR
+  -> INLINE: (468,13) GLINT_EXAMPLE_CLIM::HANDLE_ERR
+
+
+    Report from: Loop nest, Vector & Auto-parallelization optimizations [loop, vec, par]
+
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglint/glint_example_clim.F90(461,5)
+   remark #15300: LOOP WAS VECTORIZED
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglint/glint_example_clim.F90(461,5)
+<Remainder loop for vectorization>
+LOOP END
+
+
+Non-optimizable loops:
+
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglint/glint_example_clim.F90(615,5) inlined into /glade/u/home/tvda/CISM/libglint/glint_example_clim.F90(476,10)
+   remark #15543: loop was not vectorized: loop with function call not considered an optimization candidate.
+LOOP END
+
+    Report from: Code generation optimizations [cg]
+
+/glade/u/home/tvda/CISM/libglint/glint_example_clim.F90(416,14):remark #34051: REGISTER ALLOCATION : [glint_example_clim_mp_read_ncdf_1d_] /glade/u/home/tvda/CISM/libglint/glint_example_clim.F90:416
+
+    Hardware registers
+        Reserved     :    2[ rsp rip]
+        Available    :   39[ rax rdx rcx rbx rbp rsi rdi r8-r15 mm0-mm7 zmm0-zmm15]
+        Callee-save  :    6[ rbx rbp r12-r15]
+        Assigned     :   21[ rax rdx rcx rbx rsi rdi r8-r15 zmm0-zmm6]
+        
+    Routine temporaries
+        Total         :     481
+            Global    :      86
+            Local     :     395
+        Regenerable   :     296
+        Spilled       :      10
+        
+    Routine stack
+        Variables     :    1704 bytes*
+            Reads     :      11 [3.60e+00 ~ 3.6%]
+            Writes    :      62 [4.69e+00 ~ 4.7%]
+        Spills        :      40 bytes*
+            Reads     :       7 [6.67e-01 ~ 0.7%]
+            Writes    :       6 [4.90e-01 ~ 0.5%]
+    
+    Notes
+    
+        *Non-overlapping variables and spills may share stack space,
+         so the total stack size might be less than this.
+    
+
+===========================================================================
+
+Begin optimization report for: GLINT_EXAMPLE_CLIM::READ_NCDF_3D
+
+    Report from: Interprocedural optimizations [ipo]
+
+INLINE REPORT: (GLINT_EXAMPLE_CLIM::READ_NCDF_3D) [18] /glade/u/home/tvda/CISM/libglint/glint_example_clim.F90(523,14)
+  -> (542,10) GLINT_EXAMPLE_CLIM::READ_NCDF_FINDVAR
+  -> INLINE: (551,10) GLINT_EXAMPLE_CLIM::READ_NCDF_DIMNAMES
+    -> INLINE: (608,10) GLINT_EXAMPLE_CLIM::HANDLE_ERR
+    -> INLINE: (614,13) GLINT_EXAMPLE_CLIM::HANDLE_ERR
+  -> INLINE: (560,10) GLINT_EXAMPLE_CLIM::HANDLE_ERR
+  -> INLINE: (562,10) GLINT_EXAMPLE_CLIM::READ_NCDF_SCALING
+
+
+    Report from: Loop nest, Vector & Auto-parallelization optimizations [loop, vec, par]
+
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglint/glint_example_clim.F90(564,5)
+   remark #15542: loop was not vectorized: inner loop was already vectorized
+
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglint/glint_example_clim.F90(564,5)
+      remark #15542: loop was not vectorized: inner loop was already vectorized
+
+      LOOP BEGIN at /glade/u/home/tvda/CISM/libglint/glint_example_clim.F90(564,5)
+         remark #15300: LOOP WAS VECTORIZED
+      LOOP END
+
+      LOOP BEGIN at /glade/u/home/tvda/CISM/libglint/glint_example_clim.F90(564,5)
+      <Remainder loop for vectorization>
+      LOOP END
+   LOOP END
+LOOP END
+
+
+Non-optimizable loops:
+
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglint/glint_example_clim.F90(615,5) inlined into /glade/u/home/tvda/CISM/libglint/glint_example_clim.F90(579,10)
+   remark #15543: loop was not vectorized: loop with function call not considered an optimization candidate.
+LOOP END
+
+    Report from: Code generation optimizations [cg]
+
+/glade/u/home/tvda/CISM/libglint/glint_example_clim.F90(523,14):remark #34051: REGISTER ALLOCATION : [glint_example_clim_mp_read_ncdf_3d_] /glade/u/home/tvda/CISM/libglint/glint_example_clim.F90:523
+
+    Hardware registers
+        Reserved     :    2[ rsp rip]
+        Available    :   39[ rax rdx rcx rbx rbp rsi rdi r8-r15 mm0-mm7 zmm0-zmm15]
+        Callee-save  :    6[ rbx rbp r12-r15]
+        Assigned     :   22[ rax rdx rcx rbx rsi rdi r8-r15 zmm0-zmm7]
+        
+    Routine temporaries
+        Total         :     396
+            Global    :      90
+            Local     :     306
+        Regenerable   :     199
+        Spilled       :      20
+        
+    Routine stack
+        Variables     :    1156 bytes*
+            Reads     :       9 [3.54e-01 ~ 0.4%]
+            Writes    :      43 [3.63e-01 ~ 0.4%]
+        Spills        :     120 bytes*
+            Reads     :      17 [2.47e+00 ~ 2.5%]
+            Writes    :      15 [7.01e-01 ~ 0.7%]
+    
+    Notes
+    
+        *Non-overlapping variables and spills may share stack space,
+         so the total stack size might be less than this.
+    
+
+===========================================================================
+
+Begin optimization report for: GLINT_EXAMPLE_CLIM::SCALE_TIME
+
+    Report from: Interprocedural optimizations [ipo]
+
+INLINE REPORT: (GLINT_EXAMPLE_CLIM::SCALE_TIME) [19] /glade/u/home/tvda/CISM/libglint/glint_example_clim.F90(647,14)
+
+
+    Report from: Loop nest, Vector & Auto-parallelization optimizations [loop, vec, par]
+
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglint/glint_example_clim.F90(661,8)
+<Multiversioned v1>
+   remark #25233: Loop multiversioned for stride tests on Assumed shape arrays
+   remark #15300: LOOP WAS VECTORIZED
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglint/glint_example_clim.F90(661,8)
+<Remainder loop for vectorization, Multiversioned v1>
+   remark #15301: REMAINDER LOOP WAS VECTORIZED
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglint/glint_example_clim.F90(661,8)
+<Remainder loop for vectorization, Multiversioned v1>
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglint/glint_example_clim.F90(661,8)
+<Multiversioned v2>
+   remark #15300: LOOP WAS VECTORIZED
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglint/glint_example_clim.F90(661,8)
+<Remainder loop for vectorization, Multiversioned v2>
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglint/glint_example_clim.F90(666,8)
+<Multiversioned v1>
+   remark #25233: Loop multiversioned for stride tests on Assumed shape arrays
+   remark #15300: LOOP WAS VECTORIZED
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglint/glint_example_clim.F90(666,8)
+<Remainder loop for vectorization, Multiversioned v1>
+   remark #15301: REMAINDER LOOP WAS VECTORIZED
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglint/glint_example_clim.F90(666,8)
+<Remainder loop for vectorization, Multiversioned v1>
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglint/glint_example_clim.F90(666,8)
+<Multiversioned v2>
+   remark #15300: LOOP WAS VECTORIZED
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglint/glint_example_clim.F90(666,8)
+<Remainder loop for vectorization, Multiversioned v2>
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglint/glint_example_clim.F90(669,8)
+<Multiversioned v1>
+   remark #25233: Loop multiversioned for stride tests on Assumed shape arrays
+   remark #15300: LOOP WAS VECTORIZED
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglint/glint_example_clim.F90(669,8)
+<Remainder loop for vectorization, Multiversioned v1>
+   remark #15301: REMAINDER LOOP WAS VECTORIZED
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglint/glint_example_clim.F90(669,8)
+<Remainder loop for vectorization, Multiversioned v1>
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglint/glint_example_clim.F90(669,8)
+<Multiversioned v2>
+   remark #15300: LOOP WAS VECTORIZED
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglint/glint_example_clim.F90(669,8)
+<Remainder loop for vectorization, Multiversioned v2>
+LOOP END
+
+    Report from: Code generation optimizations [cg]
+
+/glade/u/home/tvda/CISM/libglint/glint_example_clim.F90(655,17):remark #34026: call to memmove implemented as a call to optimized library version
+/glade/u/home/tvda/CISM/libglint/glint_example_clim.F90(647,14):remark #34051: REGISTER ALLOCATION : [glint_example_clim_mp_scale_time_] /glade/u/home/tvda/CISM/libglint/glint_example_clim.F90:647
+
+    Hardware registers
+        Reserved     :    2[ rsp rip]
+        Available    :   39[ rax rdx rcx rbx rbp rsi rdi r8-r15 mm0-mm7 zmm0-zmm15]
+        Callee-save  :    6[ rbx rbp r12-r15]
+        Assigned     :   19[ rax rdx rcx rbx rsi rdi r8-r15 zmm0-zmm4]
+        
+    Routine temporaries
+        Total         :     300
+            Global    :      93
+            Local     :     207
+        Regenerable   :      32
+        Spilled       :       9
+        
+    Routine stack
+        Variables     :      48 bytes*
+            Reads     :       0 [0.00e+00 ~ 0.0%]
+            Writes    :       6 [9.68e-02 ~ 0.1%]
+        Spills        :      32 bytes*
+            Reads     :       5 [1.37e+00 ~ 1.4%]
+            Writes    :       4 [2.35e+00 ~ 2.3%]
+    
+    Notes
+    
+        *Non-overlapping variables and spills may share stack space,
+         so the total stack size might be less than this.
+    
+
+===========================================================================
+
+Begin optimization report for: GLINT_EXAMPLE_CLIM::HANDLE_ERR
+
+    Report from: Interprocedural optimizations [ipo]
+
+INLINE REPORT: (GLINT_EXAMPLE_CLIM::HANDLE_ERR) [20] /glade/u/home/tvda/CISM/libglint/glint_example_clim.F90(680,14)
+
+
+    Report from: Code generation optimizations [cg]
+
+/glade/u/home/tvda/CISM/libglint/glint_example_clim.F90(680,14):remark #34051: REGISTER ALLOCATION : [glint_example_clim_mp_handle_err_] /glade/u/home/tvda/CISM/libglint/glint_example_clim.F90:680
+
+    Hardware registers
+        Reserved     :    2[ rsp rip]
+        Available    :   39[ rax rdx rcx rbx rbp rsi rdi r8-r15 mm0-mm7 zmm0-zmm15]
+        Callee-save  :    6[ rbx rbp r12-r15]
+        Assigned     :    8[ rax rdx rcx rbx rsi rdi r8-r9]
+        
+    Routine temporaries
+        Total         :      54
+            Global    :      14
+            Local     :      40
+        Regenerable   :      39
+        Spilled       :       1
+        
+    Routine stack
+        Variables     :     264 bytes*
+            Reads     :       0 [0.00e+00 ~ 0.0%]
+            Writes    :       7 [1.73e+00 ~ 1.7%]
+        Spills        :       0 bytes*
+            Reads     :       0 [0.00e+00 ~ 0.0%]
+            Writes    :       0 [0.00e+00 ~ 0.0%]
+    
+    Notes
+    
+        *Non-overlapping variables and spills may share stack space,
+         so the total stack size might be less than this.
+    
+
+===========================================================================
+
+Begin optimization report for: GLINT_EXAMPLE_CLIM::GLEX_CLIM_INIT
+
+    Report from: Interprocedural optimizations [ipo]
+
+INLINE REPORT: (GLINT_EXAMPLE_CLIM::GLEX_CLIM_INIT) [21] /glade/u/home/tvda/CISM/libglint/glint_example_clim.F90(90,14)
+  -> DELETED: (102,31) for_write_seq_lis_xmit
+  -> DELETED: (102,31) for_write_seq_lis
+  -> INLINE: (104,10) GLINT_EXAMPLE_CLIM::GLEX_CLIM_READCONFIG
+  -> INLINE: (105,10) GLINT_EXAMPLE_CLIM::GLEX_CLIM_PRINTCONFIG
+  -> DELETED: (110,31) for_write_seq_lis_xmit
+  -> DELETED: (110,31) for_write_seq_lis
+  -> DELETED: (110,63) for_trim
+  -> (111,10) GLINT_EXAMPLE_CLIM::READ_NCDF_GGRID
+  -> DELETED: (112,31) for_write_seq_lis_xmit
+  -> DELETED: (112,31) for_write_seq_lis
+  -> DELETED: (112,69) for_trim
+  -> (113,10) GLINT_EXAMPLE_CLIM::READ_NCDF_GGRID
+  -> DELETED: (114,31) for_write_seq_lis_xmit
+  -> DELETED: (114,31) for_write_seq_lis
+  -> DELETED: (114,66) for_trim
+  -> (115,10) GLINT_EXAMPLE_CLIM::READ_NCDF_GGRID
+  -> INLINE: (119,10) GLINT_EXAMPLE_CLIM::CHECK_GGRIDS
+  -> (124,10) GLINT_EXAMPLE_CLIM::READ_NCDF_1D
+  -> (125,10) GLINT_EXAMPLE_CLIM::READ_NCDF_1D
+  -> (129,10) GLINT_EXAMPLE_CLIM::SCALE_TIME
+  -> (130,10) GLINT_EXAMPLE_CLIM::SCALE_TIME
+  -> DELETED: (134,31) for_write_seq_lis
+  -> (135,10) GLINT_EXAMPLE_CLIM::READ_NCDF_3D
+  -> (136,10) GLINT_EXAMPLE_CLIM::READ_NCDF_3D
+  -> INLINE: (137,10) GLINT_EXAMPLE_CLIM::READ_NCDF_2D
+    -> (495,10) GLINT_EXAMPLE_CLIM::READ_NCDF_FINDVAR
+    -> INLINE: (504,10) GLINT_EXAMPLE_CLIM::READ_NCDF_DIMNAMES
+      -> INLINE: (608,10) GLINT_EXAMPLE_CLIM::HANDLE_ERR
+      -> INLINE: (614,13) GLINT_EXAMPLE_CLIM::HANDLE_ERR
+    -> INLINE: (513,10) GLINT_EXAMPLE_CLIM::HANDLE_ERR
+    -> INLINE: (515,10) GLINT_EXAMPLE_CLIM::READ_NCDF_SCALING
+
+
+    Report from: Loop nest, Vector & Auto-parallelization optimizations [loop, vec, par]
+
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglint/glint_example_clim.F90(329,9) inlined into /glade/u/home/tvda/CISM/libglint/glint_example_clim.F90(147,10)
+   remark #15300: LOOP WAS VECTORIZED
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglint/glint_example_clim.F90(329,9) inlined into /glade/u/home/tvda/CISM/libglint/glint_example_clim.F90(147,10)
+<Remainder loop for vectorization>
+   remark #15301: REMAINDER LOOP WAS VECTORIZED
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglint/glint_example_clim.F90(329,9) inlined into /glade/u/home/tvda/CISM/libglint/glint_example_clim.F90(147,10)
+<Remainder loop for vectorization>
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglint/glint_example_clim.F90(329,36) inlined into /glade/u/home/tvda/CISM/libglint/glint_example_clim.F90(147,10)
+   remark #15300: LOOP WAS VECTORIZED
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglint/glint_example_clim.F90(329,36) inlined into /glade/u/home/tvda/CISM/libglint/glint_example_clim.F90(147,10)
+<Remainder loop for vectorization>
+   remark #15301: REMAINDER LOOP WAS VECTORIZED
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglint/glint_example_clim.F90(329,36) inlined into /glade/u/home/tvda/CISM/libglint/glint_example_clim.F90(147,10)
+<Remainder loop for vectorization>
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglint/glint_example_clim.F90(330,9) inlined into /glade/u/home/tvda/CISM/libglint/glint_example_clim.F90(147,10)
+   remark #15300: LOOP WAS VECTORIZED
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglint/glint_example_clim.F90(330,9) inlined into /glade/u/home/tvda/CISM/libglint/glint_example_clim.F90(147,10)
+<Remainder loop for vectorization>
+   remark #15301: REMAINDER LOOP WAS VECTORIZED
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglint/glint_example_clim.F90(330,9) inlined into /glade/u/home/tvda/CISM/libglint/glint_example_clim.F90(147,10)
+<Remainder loop for vectorization>
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglint/glint_example_clim.F90(330,36) inlined into /glade/u/home/tvda/CISM/libglint/glint_example_clim.F90(147,10)
+   remark #15300: LOOP WAS VECTORIZED
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglint/glint_example_clim.F90(330,36) inlined into /glade/u/home/tvda/CISM/libglint/glint_example_clim.F90(147,10)
+<Remainder loop for vectorization>
+   remark #15301: REMAINDER LOOP WAS VECTORIZED
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglint/glint_example_clim.F90(330,36) inlined into /glade/u/home/tvda/CISM/libglint/glint_example_clim.F90(147,10)
+<Remainder loop for vectorization>
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglint/glint_example_clim.F90(517,5) inlined into /glade/u/home/tvda/CISM/libglint/glint_example_clim.F90(165,10)
+   remark #15542: loop was not vectorized: inner loop was already vectorized
+
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglint/glint_example_clim.F90(517,5) inlined into /glade/u/home/tvda/CISM/libglint/glint_example_clim.F90(165,10)
+      remark #15300: LOOP WAS VECTORIZED
+   LOOP END
+
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglint/glint_example_clim.F90(517,5) inlined into /glade/u/home/tvda/CISM/libglint/glint_example_clim.F90(165,10)
+   <Remainder loop for vectorization>
+   LOOP END
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglint/glint_example_clim.F90(140,5)
+   remark #15542: loop was not vectorized: inner loop was already vectorized
+
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglint/glint_example_clim.F90(140,5)
+   <Multiversioned v1>
+      remark #25233: Loop multiversioned for stride tests on Assumed shape arrays
+      remark #15542: loop was not vectorized: inner loop was already vectorized
+
+      LOOP BEGIN at /glade/u/home/tvda/CISM/libglint/glint_example_clim.F90(140,5)
+         remark #15300: LOOP WAS VECTORIZED
+      LOOP END
+
+      LOOP BEGIN at /glade/u/home/tvda/CISM/libglint/glint_example_clim.F90(140,5)
+      <Remainder loop for vectorization>
+      LOOP END
+   LOOP END
+
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglint/glint_example_clim.F90(140,5)
+   <Multiversioned v2>
+      remark #15542: loop was not vectorized: inner loop was already vectorized
+
+      LOOP BEGIN at /glade/u/home/tvda/CISM/libglint/glint_example_clim.F90(140,5)
+         remark #15300: LOOP WAS VECTORIZED
+      LOOP END
+
+      LOOP BEGIN at /glade/u/home/tvda/CISM/libglint/glint_example_clim.F90(140,5)
+      <Remainder loop for vectorization>
+      LOOP END
+   LOOP END
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglint/glint_example_clim.F90(144,8)
+   remark #15542: loop was not vectorized: inner loop was already vectorized
+
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglint/glint_example_clim.F90(144,8)
+   <Multiversioned v1>
+      remark #25233: Loop multiversioned for stride tests on Assumed shape arrays
+      remark #15542: loop was not vectorized: inner loop was already vectorized
+
+      LOOP BEGIN at /glade/u/home/tvda/CISM/libglint/glint_example_clim.F90(144,8)
+         remark #15300: LOOP WAS VECTORIZED
+      LOOP END
+
+      LOOP BEGIN at /glade/u/home/tvda/CISM/libglint/glint_example_clim.F90(144,8)
+      <Remainder loop for vectorization>
+      LOOP END
+   LOOP END
+
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglint/glint_example_clim.F90(144,8)
+   <Multiversioned v2>
+      remark #15542: loop was not vectorized: inner loop was already vectorized
+
+      LOOP BEGIN at /glade/u/home/tvda/CISM/libglint/glint_example_clim.F90(144,8)
+         remark #15300: LOOP WAS VECTORIZED
+      LOOP END
+
+      LOOP BEGIN at /glade/u/home/tvda/CISM/libglint/glint_example_clim.F90(144,8)
+      <Remainder loop for vectorization>
+      LOOP END
+   LOOP END
+LOOP END
+
+
+Non-optimizable loops:
+
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglint/glint_example_clim.F90(615,5) inlined into /glade/u/home/tvda/CISM/libglint/glint_example_clim.F90(165,10)
+   remark #15543: loop was not vectorized: loop with function call not considered an optimization candidate.
+LOOP END
+
+    Report from: Code generation optimizations [cg]
+
+/glade/u/home/tvda/CISM/libglint/glint_example_clim.F90(90,14):remark #34000: call to memcpy implemented inline with loads and stores with proven source (alignment, offset): (32, 0), and destination (alignment, offset): (16, 0)
+/glade/u/home/tvda/CISM/libglint/glint_example_clim.F90(90,14):remark #34000: call to memcpy implemented inline with loads and stores with proven source (alignment, offset): (32, 0), and destination (alignment, offset): (16, 0)
+/glade/u/home/tvda/CISM/libglint/glint_example_clim.F90(90,14):remark #34000: call to memcpy implemented inline with loads and stores with proven source (alignment, offset): (32, 0), and destination (alignment, offset): (16, 0)
+/glade/u/home/tvda/CISM/libglint/glint_example_clim.F90(120,5):remark #34000: call to memcpy implemented inline with loads and stores with proven source (alignment, offset): (16, 0), and destination (alignment, offset): (1, 0)
+/glade/u/home/tvda/CISM/libglint/glint_example_clim.F90(90,14):remark #34051: REGISTER ALLOCATION : [glint_example_clim_mp_glex_clim_init_] /glade/u/home/tvda/CISM/libglint/glint_example_clim.F90:90
+
+    Hardware registers
+        Reserved     :    2[ rsp rip]
+        Available    :   39[ rax rdx rcx rbx rbp rsi rdi r8-r15 mm0-mm7 zmm0-zmm15]
+        Callee-save  :    6[ rbx rbp r12-r15]
+        Assigned     :   28[ rax rdx rcx rbx rsi rdi r8-r15 zmm0-zmm13]
+        
+    Routine temporaries
+        Total         :    1515
+            Global    :     323
+            Local     :    1192
+        Regenerable   :     547
+        Spilled       :      68
+        
+    Routine stack
+        Variables     :    4220 bytes*
+            Reads     :      53 [7.35e-01 ~ 0.7%]
+            Writes    :     104 [1.53e+00 ~ 1.5%]
+        Spills        :     448 bytes*
+            Reads     :     120 [2.17e+00 ~ 2.2%]
+            Writes    :      84 [7.30e-01 ~ 0.7%]
+    
+    Notes
+    
+        *Non-overlapping variables and spills may share stack space,
+         so the total stack size might be less than this.
+    
+
+===========================================================================

@@ -1,0 +1,1022 @@
+Intel(R) Advisor can now assist with vectorization and show optimization
+  report messages with your source code.
+See "https://software.intel.com/en-us/intel-advisor-xe" for details.
+
+
+    Report from: Interprocedural optimizations [ipo]
+
+INLINING OPTION VALUES:
+  -inline-factor: 100
+  -inline-min-size: 30
+  -inline-max-size: 230
+  -inline-max-total-size: 2000
+  -inline-max-per-routine: 10000
+  -inline-max-per-compile: 500000
+
+
+Begin optimization report for: XERABT
+
+    Report from: Interprocedural optimizations [ipo]
+
+INLINE REPORT: (XERABT) [1] /glade/u/home/tvda/CISM/libglimmer-solve/SLAP/xersla.f(4,18)
+
+
+    Report from: Code generation optimizations [cg]
+
+/glade/u/home/tvda/CISM/libglimmer-solve/SLAP/xersla.f(4,18):remark #34051: REGISTER ALLOCATION : [xerabt_] /glade/u/home/tvda/CISM/libglimmer-solve/SLAP/xersla.f:4
+
+    Hardware registers
+        Reserved     :    2[ rsp rip]
+        Available    :   39[ rax rdx rcx rbx rbp rsi rdi r8-r15 mm0-mm7 zmm0-zmm15]
+        Callee-save  :    6[ rbx rbp r12-r15]
+        Assigned     :    7[ rax rdx rcx rsi rdi r8-r9]
+        
+    Routine temporaries
+        Total         :      17
+            Global    :       0
+            Local     :      17
+        Regenerable   :       9
+        Spilled       :       0
+        
+    Routine stack
+        Variables     :       0 bytes*
+            Reads     :       0 [0.00e+00 ~ 0.0%]
+            Writes    :       0 [0.00e+00 ~ 0.0%]
+        Spills        :       0 bytes*
+            Reads     :       0 [0.00e+00 ~ 0.0%]
+            Writes    :       0 [0.00e+00 ~ 0.0%]
+    
+    Notes
+    
+        *Non-overlapping variables and spills may share stack space,
+         so the total stack size might be less than this.
+    
+
+===========================================================================
+
+Begin optimization report for: XGETUA
+
+    Report from: Interprocedural optimizations [ipo]
+
+INLINE REPORT: (XGETUA) [2] /glade/u/home/tvda/CISM/libglimmer-solve/SLAP/xersla.f(461,18)
+  -> INLINE: (500,11) J4SAVE
+  -> INLINE: (504,22) J4SAVE
+
+
+    Report from: Loop nest, Vector & Auto-parallelization optimizations [loop, vec, par]
+
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglimmer-solve/SLAP/xersla.f(501,10)
+   remark #25258: Invariant Condition eliminated(Loop at level 1 peeled) at line 503 
+   remark #25260: Invariant Condition eliminated(Proven False) at line 503
+   remark #15300: LOOP WAS VECTORIZED
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglimmer-solve/SLAP/xersla.f(501,10)
+<Remainder loop for vectorization>
+LOOP END
+
+    Report from: Code generation optimizations [cg]
+
+/glade/u/home/tvda/CISM/libglimmer-solve/SLAP/xersla.f(461,18):remark #34051: REGISTER ALLOCATION : [xgetua_] /glade/u/home/tvda/CISM/libglimmer-solve/SLAP/xersla.f:461
+
+    Hardware registers
+        Reserved     :    2[ rsp rip]
+        Available    :   39[ rax rdx rcx rbx rbp rsi rdi r8-r15 mm0-mm7 zmm0-zmm15]
+        Callee-save  :    6[ rbx rbp r12-r15]
+        Assigned     :    6[ rax rdx rcx rsi rdi zmm0]
+        
+    Routine temporaries
+        Total         :      21
+            Global    :      14
+            Local     :       7
+        Regenerable   :       0
+        Spilled       :       0
+        
+    Routine stack
+        Variables     :       0 bytes*
+            Reads     :       0 [0.00e+00 ~ 0.0%]
+            Writes    :       0 [0.00e+00 ~ 0.0%]
+        Spills        :       0 bytes*
+            Reads     :       0 [0.00e+00 ~ 0.0%]
+            Writes    :       0 [0.00e+00 ~ 0.0%]
+    
+    Notes
+    
+        *Non-overlapping variables and spills may share stack space,
+         so the total stack size might be less than this.
+    
+
+===========================================================================
+
+Begin optimization report for: J4SAVE
+
+    Report from: Interprocedural optimizations [ipo]
+
+INLINE REPORT: (J4SAVE) [3] /glade/u/home/tvda/CISM/libglimmer-solve/SLAP/xersla.f(509,16)
+
+
+    Report from: Code generation optimizations [cg]
+
+/glade/u/home/tvda/CISM/libglimmer-solve/SLAP/xersla.f(509,16):remark #34051: REGISTER ALLOCATION : [j4save_] /glade/u/home/tvda/CISM/libglimmer-solve/SLAP/xersla.f:509
+
+    Hardware registers
+        Reserved     :    2[ rsp rip]
+        Available    :   39[ rax rdx rcx rbx rbp rsi rdi r8-r15 mm0-mm7 zmm0-zmm15]
+        Callee-save  :    6[ rbx rbp r12-r15]
+        Assigned     :    5[ rax rdx rcx rsi rdi]
+        
+    Routine temporaries
+        Total         :      16
+            Global    :       9
+            Local     :       7
+        Regenerable   :       0
+        Spilled       :       0
+        
+    Routine stack
+        Variables     :       0 bytes*
+            Reads     :       0 [0.00e+00 ~ 0.0%]
+            Writes    :       0 [0.00e+00 ~ 0.0%]
+        Spills        :       0 bytes*
+            Reads     :       0 [0.00e+00 ~ 0.0%]
+            Writes    :       0 [0.00e+00 ~ 0.0%]
+    
+    Notes
+    
+        *Non-overlapping variables and spills may share stack space,
+         so the total stack size might be less than this.
+    
+
+===========================================================================
+
+Begin optimization report for: XGETF
+
+    Report from: Interprocedural optimizations [ipo]
+
+INLINE REPORT: (XGETF) [4] /glade/u/home/tvda/CISM/libglimmer-solve/SLAP/xersla.f(434,18)
+  -> INLINE: (457,16) J4SAVE
+
+
+    Report from: Code generation optimizations [cg]
+
+/glade/u/home/tvda/CISM/libglimmer-solve/SLAP/xersla.f(434,18):remark #34051: REGISTER ALLOCATION : [xgetf_] /glade/u/home/tvda/CISM/libglimmer-solve/SLAP/xersla.f:434
+
+    Hardware registers
+        Reserved     :    2[ rsp rip]
+        Available    :   39[ rax rdx rcx rbx rbp rsi rdi r8-r15 mm0-mm7 zmm0-zmm15]
+        Callee-save  :    6[ rbx rbp r12-r15]
+        Assigned     :    2[ rax rdi]
+        
+    Routine temporaries
+        Total         :       9
+            Global    :       0
+            Local     :       9
+        Regenerable   :       0
+        Spilled       :       0
+        
+    Routine stack
+        Variables     :       0 bytes*
+            Reads     :       0 [0.00e+00 ~ 0.0%]
+            Writes    :       0 [0.00e+00 ~ 0.0%]
+        Spills        :       0 bytes*
+            Reads     :       0 [0.00e+00 ~ 0.0%]
+            Writes    :       0 [0.00e+00 ~ 0.0%]
+    
+    Notes
+    
+        *Non-overlapping variables and spills may share stack space,
+         so the total stack size might be less than this.
+    
+
+===========================================================================
+
+Begin optimization report for: XERCLR
+
+    Report from: Interprocedural optimizations [ipo]
+
+INLINE REPORT: (XERCLR) [5] /glade/u/home/tvda/CISM/libglimmer-solve/SLAP/xersla.f(563,18)
+  -> INLINE: (586,14) J4SAVE
+
+
+    Report from: Code generation optimizations [cg]
+
+/glade/u/home/tvda/CISM/libglimmer-solve/SLAP/xersla.f(563,18):remark #34051: REGISTER ALLOCATION : [xerclr_] /glade/u/home/tvda/CISM/libglimmer-solve/SLAP/xersla.f:563
+
+    Hardware registers
+        Reserved     :    2[ rsp rip]
+        Available    :   39[ rax rdx rcx rbx rbp rsi rdi r8-r15 mm0-mm7 zmm0-zmm15]
+        Callee-save  :    6[ rbx rbp r12-r15]
+        Assigned     :    0[ reg_null]
+        
+    Routine temporaries
+        Total         :       6
+            Global    :       0
+            Local     :       6
+        Regenerable   :       0
+        Spilled       :       0
+        
+    Routine stack
+        Variables     :       0 bytes*
+            Reads     :       0 [0.00e+00 ~ 0.0%]
+            Writes    :       0 [0.00e+00 ~ 0.0%]
+        Spills        :       0 bytes*
+            Reads     :       0 [0.00e+00 ~ 0.0%]
+            Writes    :       0 [0.00e+00 ~ 0.0%]
+    
+    Notes
+    
+        *Non-overlapping variables and spills may share stack space,
+         so the total stack size might be less than this.
+    
+
+===========================================================================
+
+Begin optimization report for: XERDMP
+
+    Report from: Interprocedural optimizations [ipo]
+
+INLINE REPORT: (XERDMP) [6] /glade/u/home/tvda/CISM/libglimmer-solve/SLAP/xersla.f(589,18)
+  -> INLINE: (610,12) XERSAV
+    -> INLINE: (377,15) XGETUA
+      -> INLINE: (500,11) J4SAVE
+      -> INLINE: (504,22) J4SAVE
+
+
+    Report from: Loop nest, Vector & Auto-parallelization optimizations [loop, vec, par]
+
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglimmer-solve/SLAP/xersla.f(501,10) inlined into /glade/u/home/tvda/CISM/libglimmer-solve/SLAP/xersla.f(610,12)
+   remark #25258: Invariant Condition eliminated(Loop at level 1 peeled) at line 503 
+   remark #25260: Invariant Condition eliminated(Proven False) at line 503
+   remark #15315: loop was not vectorized: estimated number of iterations (5) is insufficient for vectorization
+   remark #25439: unrolled with remainder by 2  
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglimmer-solve/SLAP/xersla.f(501,10) inlined into /glade/u/home/tvda/CISM/libglimmer-solve/SLAP/xersla.f(610,12)
+<Remainder>
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglimmer-solve/SLAP/xersla.f(386,16) inlined into /glade/u/home/tvda/CISM/libglimmer-solve/SLAP/xersla.f(610,12)
+   remark #15520: loop was not vectorized: loop with multiple exits cannot be vectorized unless it meets search loop idiom criteria   [ /glade/u/home/tvda/CISM/libglimmer-solve/SLAP/xersla.f(388,16) ]
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglimmer-solve/SLAP/xersla.f(400,13) inlined into /glade/u/home/tvda/CISM/libglimmer-solve/SLAP/xersla.f(610,12)
+   remark #15300: LOOP WAS VECTORIZED
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglimmer-solve/SLAP/xersla.f(400,13) inlined into /glade/u/home/tvda/CISM/libglimmer-solve/SLAP/xersla.f(610,12)
+<Remainder loop for vectorization>
+   remark #25436: completely unrolled by 2  
+LOOP END
+
+
+Non-optimizable loops:
+
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglimmer-solve/SLAP/xersla.f(378,13) inlined into /glade/u/home/tvda/CISM/libglimmer-solve/SLAP/xersla.f(610,12)
+   remark #15543: loop was not vectorized: loop with function call not considered an optimization candidate.
+LOOP END
+
+    Report from: Code generation optimizations [cg]
+
+/glade/u/home/tvda/CISM/libglimmer-solve/SLAP/xersla.f(589,18):remark #34051: REGISTER ALLOCATION : [xerdmp_] /glade/u/home/tvda/CISM/libglimmer-solve/SLAP/xersla.f:589
+
+    Hardware registers
+        Reserved     :    2[ rsp rip]
+        Available    :   39[ rax rdx rcx rbx rbp rsi rdi r8-r15 mm0-mm7 zmm0-zmm15]
+        Callee-save  :    6[ rbx rbp r12-r15]
+        Assigned     :   14[ rax rdx rcx rbx rsi rdi r8-r10 r12-r15 zmm0]
+        
+    Routine temporaries
+        Total         :      92
+            Global    :      28
+            Local     :      64
+        Regenerable   :      58
+        Spilled       :       7
+        
+    Routine stack
+        Variables     :     120 bytes*
+            Reads     :       0 [0.00e+00 ~ 0.0%]
+            Writes    :      11 [8.86e+00 ~ 8.9%]
+        Spills        :      56 bytes*
+            Reads     :       9 [1.16e+00 ~ 1.2%]
+            Writes    :       7 [1.16e+00 ~ 1.2%]
+    
+    Notes
+    
+        *Non-overlapping variables and spills may share stack space,
+         so the total stack size might be less than this.
+    
+
+===========================================================================
+
+Begin optimization report for: XERMAX
+
+    Report from: Interprocedural optimizations [ipo]
+
+INLINE REPORT: (XERMAX) [7] /glade/u/home/tvda/CISM/libglimmer-solve/SLAP/xersla.f(613,18)
+  -> INLINE: (645,14) J4SAVE
+
+
+    Report from: Code generation optimizations [cg]
+
+/glade/u/home/tvda/CISM/libglimmer-solve/SLAP/xersla.f(613,18):remark #34051: REGISTER ALLOCATION : [xermax_] /glade/u/home/tvda/CISM/libglimmer-solve/SLAP/xersla.f:613
+
+    Hardware registers
+        Reserved     :    2[ rsp rip]
+        Available    :   39[ rax rdx rcx rbx rbp rsi rdi r8-r15 mm0-mm7 zmm0-zmm15]
+        Callee-save  :    6[ rbx rbp r12-r15]
+        Assigned     :    2[ rax rdi]
+        
+    Routine temporaries
+        Total         :       9
+            Global    :       0
+            Local     :       9
+        Regenerable   :       0
+        Spilled       :       0
+        
+    Routine stack
+        Variables     :       0 bytes*
+            Reads     :       0 [0.00e+00 ~ 0.0%]
+            Writes    :       0 [0.00e+00 ~ 0.0%]
+        Spills        :       0 bytes*
+            Reads     :       0 [0.00e+00 ~ 0.0%]
+            Writes    :       0 [0.00e+00 ~ 0.0%]
+    
+    Notes
+    
+        *Non-overlapping variables and spills may share stack space,
+         so the total stack size might be less than this.
+    
+
+===========================================================================
+
+Begin optimization report for: XGETUN
+
+    Report from: Interprocedural optimizations [ipo]
+
+INLINE REPORT: (XGETUN) [8] /glade/u/home/tvda/CISM/libglimmer-solve/SLAP/xersla.f(648,18)
+  -> INLINE: (679,15) J4SAVE
+
+
+    Report from: Code generation optimizations [cg]
+
+/glade/u/home/tvda/CISM/libglimmer-solve/SLAP/xersla.f(648,18):remark #34051: REGISTER ALLOCATION : [xgetun_] /glade/u/home/tvda/CISM/libglimmer-solve/SLAP/xersla.f:648
+
+    Hardware registers
+        Reserved     :    2[ rsp rip]
+        Available    :   39[ rax rdx rcx rbx rbp rsi rdi r8-r15 mm0-mm7 zmm0-zmm15]
+        Callee-save  :    6[ rbx rbp r12-r15]
+        Assigned     :    2[ rax rdi]
+        
+    Routine temporaries
+        Total         :       9
+            Global    :       0
+            Local     :       9
+        Regenerable   :       0
+        Spilled       :       0
+        
+    Routine stack
+        Variables     :       0 bytes*
+            Reads     :       0 [0.00e+00 ~ 0.0%]
+            Writes    :       0 [0.00e+00 ~ 0.0%]
+        Spills        :       0 bytes*
+            Reads     :       0 [0.00e+00 ~ 0.0%]
+            Writes    :       0 [0.00e+00 ~ 0.0%]
+    
+    Notes
+    
+        *Non-overlapping variables and spills may share stack space,
+         so the total stack size might be less than this.
+    
+
+===========================================================================
+
+Begin optimization report for: XSETF
+
+    Report from: Interprocedural optimizations [ipo]
+
+INLINE REPORT: (XSETF) [9] /glade/u/home/tvda/CISM/libglimmer-solve/SLAP/xersla.f(682,18)
+  -> (726,15) XERRWV
+  -> INLINE: (729,14) J4SAVE
+
+
+    Report from: Code generation optimizations [cg]
+
+/glade/u/home/tvda/CISM/libglimmer-solve/SLAP/xersla.f(682,18):remark #34051: REGISTER ALLOCATION : [xsetf_] /glade/u/home/tvda/CISM/libglimmer-solve/SLAP/xersla.f:682
+
+    Hardware registers
+        Reserved     :    2[ rsp rip]
+        Available    :   39[ rax rdx rcx rbx rbp rsi rdi r8-r15 mm0-mm7 zmm0-zmm15]
+        Callee-save  :    6[ rbx rbp r12-r15]
+        Assigned     :    8[ rax rdx rcx rsi rdi r8-r10]
+        
+    Routine temporaries
+        Total         :      22
+            Global    :       8
+            Local     :      14
+        Regenerable   :      11
+        Spilled       :       0
+        
+    Routine stack
+        Variables     :       0 bytes*
+            Reads     :       0 [0.00e+00 ~ 0.0%]
+            Writes    :       0 [0.00e+00 ~ 0.0%]
+        Spills        :       0 bytes*
+            Reads     :       0 [0.00e+00 ~ 0.0%]
+            Writes    :       0 [0.00e+00 ~ 0.0%]
+    
+    Notes
+    
+        *Non-overlapping variables and spills may share stack space,
+         so the total stack size might be less than this.
+    
+
+===========================================================================
+
+Begin optimization report for: XSETUA
+
+    Report from: Interprocedural optimizations [ipo]
+
+INLINE REPORT: (XSETUA) [10] /glade/u/home/tvda/CISM/libglimmer-solve/SLAP/xersla.f(732,18)
+  -> (770,15) XERRWV
+  -> INLINE: (777,17) J4SAVE
+  -> INLINE: (779,14) J4SAVE
+
+
+    Report from: Loop nest, Vector & Auto-parallelization optimizations [loop, vec, par]
+
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglimmer-solve/SLAP/xersla.f(774,10)
+   remark #25258: Invariant Condition eliminated(Loop at level 1 peeled) at line 776 
+   remark #25260: Invariant Condition eliminated(Proven False) at line 776
+   remark #15300: LOOP WAS VECTORIZED
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglimmer-solve/SLAP/xersla.f(774,10)
+<Remainder loop for vectorization>
+LOOP END
+
+    Report from: Code generation optimizations [cg]
+
+/glade/u/home/tvda/CISM/libglimmer-solve/SLAP/xersla.f(732,18):remark #34051: REGISTER ALLOCATION : [xsetua_] /glade/u/home/tvda/CISM/libglimmer-solve/SLAP/xersla.f:732
+
+    Hardware registers
+        Reserved     :    2[ rsp rip]
+        Available    :   39[ rax rdx rcx rbx rbp rsi rdi r8-r15 mm0-mm7 zmm0-zmm15]
+        Callee-save  :    6[ rbx rbp r12-r15]
+        Assigned     :    9[ rax rdx rcx rsi rdi r8-r10 zmm0]
+        
+    Routine temporaries
+        Total         :      33
+            Global    :      15
+            Local     :      18
+        Regenerable   :      11
+        Spilled       :       0
+        
+    Routine stack
+        Variables     :       0 bytes*
+            Reads     :       0 [0.00e+00 ~ 0.0%]
+            Writes    :       0 [0.00e+00 ~ 0.0%]
+        Spills        :       0 bytes*
+            Reads     :       0 [0.00e+00 ~ 0.0%]
+            Writes    :       0 [0.00e+00 ~ 0.0%]
+    
+    Notes
+    
+        *Non-overlapping variables and spills may share stack space,
+         so the total stack size might be less than this.
+    
+
+===========================================================================
+
+Begin optimization report for: XSETUN
+
+    Report from: Interprocedural optimizations [ipo]
+
+INLINE REPORT: (XSETUN) [11] /glade/u/home/tvda/CISM/libglimmer-solve/SLAP/xersla.f(782,18)
+  -> INLINE: (810,14) J4SAVE
+  -> INLINE: (811,14) J4SAVE
+
+
+    Report from: Code generation optimizations [cg]
+
+/glade/u/home/tvda/CISM/libglimmer-solve/SLAP/xersla.f(782,18):remark #34051: REGISTER ALLOCATION : [xsetun_] /glade/u/home/tvda/CISM/libglimmer-solve/SLAP/xersla.f:782
+
+    Hardware registers
+        Reserved     :    2[ rsp rip]
+        Available    :   39[ rax rdx rcx rbx rbp rsi rdi r8-r15 mm0-mm7 zmm0-zmm15]
+        Callee-save  :    6[ rbx rbp r12-r15]
+        Assigned     :    2[ rax rdi]
+        
+    Routine temporaries
+        Total         :       9
+            Global    :       0
+            Local     :       9
+        Regenerable   :       0
+        Spilled       :       0
+        
+    Routine stack
+        Variables     :       0 bytes*
+            Reads     :       0 [0.00e+00 ~ 0.0%]
+            Writes    :       0 [0.00e+00 ~ 0.0%]
+        Spills        :       0 bytes*
+            Reads     :       0 [0.00e+00 ~ 0.0%]
+            Writes    :       0 [0.00e+00 ~ 0.0%]
+    
+    Notes
+    
+        *Non-overlapping variables and spills may share stack space,
+         so the total stack size might be less than this.
+    
+
+===========================================================================
+
+Begin optimization report for: RAND
+
+    Report from: Interprocedural optimizations [ipo]
+
+INLINE REPORT: (RAND) [12] /glade/u/home/tvda/CISM/libglimmer-solve/SLAP/xersla.f(814,16)
+
+
+    Report from: Code generation optimizations [cg]
+
+/glade/u/home/tvda/CISM/libglimmer-solve/SLAP/xersla.f(814,16):remark #34051: REGISTER ALLOCATION : [rand_] /glade/u/home/tvda/CISM/libglimmer-solve/SLAP/xersla.f:814
+
+    Hardware registers
+        Reserved     :    2[ rsp rip]
+        Available    :   39[ rax rdx rcx rbx rbp rsi rdi r8-r15 mm0-mm7 zmm0-zmm15]
+        Callee-save  :    6[ rbx rbp r12-r15]
+        Assigned     :   13[ rax rdx rcx rsi rdi zmm0-zmm7]
+        
+    Routine temporaries
+        Total         :      63
+            Global    :      14
+            Local     :      49
+        Regenerable   :       4
+        Spilled       :       0
+        
+    Routine stack
+        Variables     :       0 bytes*
+            Reads     :       0 [0.00e+00 ~ 0.0%]
+            Writes    :       0 [0.00e+00 ~ 0.0%]
+        Spills        :       0 bytes*
+            Reads     :       0 [0.00e+00 ~ 0.0%]
+            Writes    :       0 [0.00e+00 ~ 0.0%]
+    
+    Notes
+    
+        *Non-overlapping variables and spills may share stack space,
+         so the total stack size might be less than this.
+    
+
+===========================================================================
+
+Begin optimization report for: XERCTL
+
+    Report from: Interprocedural optimizations [ipo]
+
+INLINE REPORT: (XERCTL) [13] /glade/u/home/tvda/CISM/libglimmer-solve/SLAP/xersla.f(37,18)
+
+
+    Report from: Code generation optimizations [cg]
+
+/glade/u/home/tvda/CISM/libglimmer-solve/SLAP/xersla.f(37,18):remark #34051: REGISTER ALLOCATION : [xerctl_] /glade/u/home/tvda/CISM/libglimmer-solve/SLAP/xersla.f:37
+
+    Hardware registers
+        Reserved     :    2[ rsp rip]
+        Available    :   39[ rax rdx rcx rbx rbp rsi rdi r8-r15 mm0-mm7 zmm0-zmm15]
+        Callee-save  :    6[ rbx rbp r12-r15]
+        Assigned     :    6[ rdx rcx rsi rdi r8-r9]
+        
+    Routine temporaries
+        Total         :      12
+            Global    :       0
+            Local     :      12
+        Regenerable   :       0
+        Spilled       :       0
+        
+    Routine stack
+        Variables     :       0 bytes*
+            Reads     :       0 [0.00e+00 ~ 0.0%]
+            Writes    :       0 [0.00e+00 ~ 0.0%]
+        Spills        :       0 bytes*
+            Reads     :       0 [0.00e+00 ~ 0.0%]
+            Writes    :       0 [0.00e+00 ~ 0.0%]
+    
+    Notes
+    
+        *Non-overlapping variables and spills may share stack space,
+         so the total stack size might be less than this.
+    
+
+===========================================================================
+
+Begin optimization report for: XERPRT
+
+    Report from: Interprocedural optimizations [ipo]
+
+INLINE REPORT: (XERPRT) [14] /glade/u/home/tvda/CISM/libglimmer-solve/SLAP/xersla.f(86,18)
+  -> INLINE: (109,12) XGETUA
+    -> INLINE: (500,11) J4SAVE
+    -> INLINE: (504,22) J4SAVE
+
+
+    Report from: Loop nest, Vector & Auto-parallelization optimizations [loop, vec, par]
+
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglimmer-solve/SLAP/xersla.f(501,10) inlined into /glade/u/home/tvda/CISM/libglimmer-solve/SLAP/xersla.f(109,12)
+   remark #25258: Invariant Condition eliminated(Loop at level 1 peeled) at line 503 
+   remark #25260: Invariant Condition eliminated(Proven False) at line 503
+   remark #15315: loop was not vectorized: estimated number of iterations (5) is insufficient for vectorization
+   remark #25439: unrolled with remainder by 2  
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglimmer-solve/SLAP/xersla.f(501,10) inlined into /glade/u/home/tvda/CISM/libglimmer-solve/SLAP/xersla.f(109,12)
+<Remainder>
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglimmer-solve/SLAP/xersla.f(114,13)
+   remark #15344: loop was not vectorized: vector dependence prevents vectorization. First dependence is shown below. Use level 5 report for details
+   remark #15346: vector dependence: assumed OUTPUT dependence between at (116:13) and at (116:13)
+LOOP END
+
+
+Non-optimizable loops:
+
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglimmer-solve/SLAP/xersla.f(111,10)
+   remark #15543: loop was not vectorized: loop with function call not considered an optimization candidate.
+LOOP END
+
+    Report from: Code generation optimizations [cg]
+
+/glade/u/home/tvda/CISM/libglimmer-solve/SLAP/xersla.f(86,18):remark #34051: REGISTER ALLOCATION : [xerprt_] /glade/u/home/tvda/CISM/libglimmer-solve/SLAP/xersla.f:86
+
+    Hardware registers
+        Reserved     :    2[ rsp rip]
+        Available    :   39[ rax rdx rcx rbx rbp rsi rdi r8-r15 mm0-mm7 zmm0-zmm15]
+        Callee-save  :    6[ rbx rbp r12-r15]
+        Assigned     :   14[ rax rdx rcx rbx rsi rdi r8-r15]
+        
+    Routine temporaries
+        Total         :      58
+            Global    :      33
+            Local     :      25
+        Regenerable   :      19
+        Spilled       :       9
+        
+    Routine stack
+        Variables     :      80 bytes*
+            Reads     :       0 [0.00e+00 ~ 0.0%]
+            Writes    :       3 [8.65e+00 ~ 8.7%]
+        Spills        :      72 bytes*
+            Reads     :       9 [7.34e+00 ~ 7.3%]
+            Writes    :       9 [2.19e+00 ~ 2.2%]
+    
+    Notes
+    
+        *Non-overlapping variables and spills may share stack space,
+         so the total stack size might be less than this.
+    
+
+===========================================================================
+
+Begin optimization report for: XERSAV
+
+    Report from: Interprocedural optimizations [ipo]
+
+INLINE REPORT: (XERSAV) [15] /glade/u/home/tvda/CISM/libglimmer-solve/SLAP/xersla.f(329,18)
+  -> INLINE: (377,15) XGETUA
+    -> INLINE: (500,11) J4SAVE
+    -> INLINE: (504,22) J4SAVE
+
+
+    Report from: Loop nest, Vector & Auto-parallelization optimizations [loop, vec, par]
+
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglimmer-solve/SLAP/xersla.f(409,10)
+   remark #15520: loop was not vectorized: loop with multiple exits cannot be vectorized unless it meets search loop idiom criteria   [ /glade/u/home/tvda/CISM/libglimmer-solve/SLAP/xersla.f(412,17) ]
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglimmer-solve/SLAP/xersla.f(501,10) inlined into /glade/u/home/tvda/CISM/libglimmer-solve/SLAP/xersla.f(377,15)
+   remark #25258: Invariant Condition eliminated(Loop at level 1 peeled) at line 503 
+   remark #25260: Invariant Condition eliminated(Proven False) at line 503
+   remark #15315: loop was not vectorized: estimated number of iterations (5) is insufficient for vectorization
+   remark #25439: unrolled with remainder by 2  
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglimmer-solve/SLAP/xersla.f(501,10) inlined into /glade/u/home/tvda/CISM/libglimmer-solve/SLAP/xersla.f(377,15)
+<Remainder>
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglimmer-solve/SLAP/xersla.f(386,16)
+   remark #15520: loop was not vectorized: loop with multiple exits cannot be vectorized unless it meets search loop idiom criteria   [ /glade/u/home/tvda/CISM/libglimmer-solve/SLAP/xersla.f(388,16) ]
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglimmer-solve/SLAP/xersla.f(400,13)
+   remark #15300: LOOP WAS VECTORIZED
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglimmer-solve/SLAP/xersla.f(400,13)
+<Remainder loop for vectorization>
+   remark #25436: completely unrolled by 2  
+LOOP END
+
+
+Non-optimizable loops:
+
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglimmer-solve/SLAP/xersla.f(378,13)
+   remark #15543: loop was not vectorized: loop with function call not considered an optimization candidate.
+LOOP END
+
+    Report from: Code generation optimizations [cg]
+
+/glade/u/home/tvda/CISM/libglimmer-solve/SLAP/xersla.f(427,10):remark #34000: call to memcpy implemented inline with loads and stores with proven source (alignment, offset): (16, 0), and destination (alignment, offset): (4, 0)
+/glade/u/home/tvda/CISM/libglimmer-solve/SLAP/xersla.f(329,18):remark #34051: REGISTER ALLOCATION : [xersav_] /glade/u/home/tvda/CISM/libglimmer-solve/SLAP/xersla.f:329
+
+    Hardware registers
+        Reserved     :    2[ rsp rip]
+        Available    :   39[ rax rdx rcx rbx rbp rsi rdi r8-r15 mm0-mm7 zmm0-zmm15]
+        Callee-save  :    6[ rbx rbp r12-r15]
+        Assigned     :   14[ rax rdx rcx rbx rsi rdi r8-r10 r12-r15 zmm0]
+        
+    Routine temporaries
+        Total         :     131
+            Global    :      41
+            Local     :      90
+        Regenerable   :      67
+        Spilled       :      10
+        
+    Routine stack
+        Variables     :     120 bytes*
+            Reads     :       0 [0.00e+00 ~ 0.0%]
+            Writes    :      11 [3.27e+00 ~ 3.3%]
+        Spills        :      56 bytes*
+            Reads     :      17 [2.89e+00 ~ 2.9%]
+            Writes    :       9 [3.14e+00 ~ 3.1%]
+    
+    Notes
+    
+        *Non-overlapping variables and spills may share stack space,
+         so the total stack size might be less than this.
+    
+
+===========================================================================
+
+Begin optimization report for: XERRWV
+
+    Report from: Interprocedural optimizations [ipo]
+
+INLINE REPORT: (XERRWV) [16] /glade/u/home/tvda/CISM/libglimmer-solve/SLAP/xersla.f(174,18)
+  -> INLINE: (234,16) J4SAVE
+  -> INLINE: (235,16) J4SAVE
+  -> (239,27) XERPRT
+  -> (240,15) XERPRT
+  -> INLINE: (242,27) XERPRT
+    -> INLINE: (109,12) XGETUA
+      -> INLINE: (500,11) J4SAVE
+      -> INLINE: (504,22) J4SAVE
+  -> (244,27) XERSAV
+  -> INLINE: (245,15) XERABT
+  -> INLINE: (249,14) J4SAVE
+  -> (250,12) XERSAV
+  -> DELETED: (256,12) XERCTL
+  -> INLINE: (270,18) XERPRT
+    -> INLINE: (109,12) XGETUA
+      -> INLINE: (500,11) J4SAVE
+      -> INLINE: (504,22) J4SAVE
+  -> INLINE: (272,33) XERPRT
+    -> INLINE: (109,12) XGETUA
+      -> INLINE: (500,11) J4SAVE
+      -> INLINE: (504,22) J4SAVE
+  -> (274,30) XERPRT
+  -> (275,30) XERPRT
+  -> (277,30) XERPRT
+  -> (280,15) XERPRT
+  -> INLINE: (281,15) XGETUA
+    -> INLINE: (500,11) J4SAVE
+    -> INLINE: (504,22) J4SAVE
+  -> INLINE: (316,27) XERPRT
+    -> INLINE: (109,12) XGETUA
+      -> INLINE: (500,11) J4SAVE
+      -> INLINE: (504,22) J4SAVE
+  -> INLINE: (318,27) XERPRT
+    -> INLINE: (109,12) XGETUA
+      -> INLINE: (500,11) J4SAVE
+      -> INLINE: (504,22) J4SAVE
+  -> (321,15) XERSAV
+  -> INLINE: (325,12) XERABT
+
+
+    Report from: Loop nest, Vector & Auto-parallelization optimizations [loop, vec, par]
+
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglimmer-solve/SLAP/xersla.f(501,10) inlined into /glade/u/home/tvda/CISM/libglimmer-solve/SLAP/xersla.f(270,18)
+   remark #25258: Invariant Condition eliminated(Loop at level 1 peeled) at line 503 
+   remark #25260: Invariant Condition eliminated(Proven False) at line 503
+   remark #15315: loop was not vectorized: estimated number of iterations (5) is insufficient for vectorization
+   remark #25439: unrolled with remainder by 2  
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglimmer-solve/SLAP/xersla.f(501,10) inlined into /glade/u/home/tvda/CISM/libglimmer-solve/SLAP/xersla.f(270,18)
+<Remainder>
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglimmer-solve/SLAP/xersla.f(501,10) inlined into /glade/u/home/tvda/CISM/libglimmer-solve/SLAP/xersla.f(272,33)
+   remark #25258: Invariant Condition eliminated(Loop at level 1 peeled) at line 503 
+   remark #25260: Invariant Condition eliminated(Proven False) at line 503
+   remark #15315: loop was not vectorized: estimated number of iterations (5) is insufficient for vectorization
+   remark #25439: unrolled with remainder by 2  
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglimmer-solve/SLAP/xersla.f(501,10) inlined into /glade/u/home/tvda/CISM/libglimmer-solve/SLAP/xersla.f(272,33)
+<Remainder>
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglimmer-solve/SLAP/xersla.f(501,10) inlined into /glade/u/home/tvda/CISM/libglimmer-solve/SLAP/xersla.f(281,15)
+   remark #25258: Invariant Condition eliminated(Loop at level 1 peeled) at line 503 
+   remark #25260: Invariant Condition eliminated(Proven False) at line 503
+   remark #15315: loop was not vectorized: estimated number of iterations (5) is insufficient for vectorization
+   remark #25439: unrolled with remainder by 2  
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglimmer-solve/SLAP/xersla.f(501,10) inlined into /glade/u/home/tvda/CISM/libglimmer-solve/SLAP/xersla.f(281,15)
+<Remainder>
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglimmer-solve/SLAP/xersla.f(287,16)
+<Predicate Optimized v1>
+   remark #25423: Condition at line 290 hoisted out of this loop
+   remark #15344: loop was not vectorized: vector dependence prevents vectorization. First dependence is shown below. Use level 5 report for details
+   remark #15346: vector dependence: assumed OUTPUT dependence between at (288:16) and at (291:28)
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglimmer-solve/SLAP/xersla.f(287,16)
+<Predicate Optimized v4>
+   remark #25423: Condition at line 291 hoisted out of this loop
+   remark #15344: loop was not vectorized: vector dependence prevents vectorization. First dependence is shown below. Use level 5 report for details
+   remark #15346: vector dependence: assumed OUTPUT dependence between at (288:16) and at (288:16)
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglimmer-solve/SLAP/xersla.f(287,16)
+<Predicate Optimized v6>
+   remark #15344: loop was not vectorized: vector dependence prevents vectorization. First dependence is shown below. Use level 5 report for details
+   remark #15346: vector dependence: assumed OUTPUT dependence between at (288:16) and at (288:16)
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglimmer-solve/SLAP/xersla.f(293,16)
+<Predicate Optimized v1>
+   remark #25423: Condition at line 297 hoisted out of this loop
+   remark #15344: loop was not vectorized: vector dependence prevents vectorization. First dependence is shown below. Use level 5 report for details
+   remark #15346: vector dependence: assumed OUTPUT dependence between at (294:16) and at (298:28)
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglimmer-solve/SLAP/xersla.f(293,16)
+<Predicate Optimized v4>
+   remark #25423: Condition at line 298 hoisted out of this loop
+   remark #15344: loop was not vectorized: vector dependence prevents vectorization. First dependence is shown below. Use level 5 report for details
+   remark #15346: vector dependence: assumed OUTPUT dependence between at (294:16) and at (294:16)
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglimmer-solve/SLAP/xersla.f(293,16)
+<Predicate Optimized v6>
+   remark #15344: loop was not vectorized: vector dependence prevents vectorization. First dependence is shown below. Use level 5 report for details
+   remark #15346: vector dependence: assumed OUTPUT dependence between at (294:16) and at (294:16)
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglimmer-solve/SLAP/xersla.f(501,10) inlined into /glade/u/home/tvda/CISM/libglimmer-solve/SLAP/xersla.f(316,27)
+   remark #25258: Invariant Condition eliminated(Loop at level 1 peeled) at line 503 
+   remark #25260: Invariant Condition eliminated(Proven False) at line 503
+   remark #15315: loop was not vectorized: estimated number of iterations (5) is insufficient for vectorization
+   remark #25439: unrolled with remainder by 2  
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglimmer-solve/SLAP/xersla.f(501,10) inlined into /glade/u/home/tvda/CISM/libglimmer-solve/SLAP/xersla.f(316,27)
+<Remainder>
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglimmer-solve/SLAP/xersla.f(501,10) inlined into /glade/u/home/tvda/CISM/libglimmer-solve/SLAP/xersla.f(318,27)
+   remark #25258: Invariant Condition eliminated(Loop at level 1 peeled) at line 503 
+   remark #25260: Invariant Condition eliminated(Proven False) at line 503
+   remark #15315: loop was not vectorized: estimated number of iterations (5) is insufficient for vectorization
+   remark #25439: unrolled with remainder by 2  
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglimmer-solve/SLAP/xersla.f(501,10) inlined into /glade/u/home/tvda/CISM/libglimmer-solve/SLAP/xersla.f(318,27)
+<Remainder>
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglimmer-solve/SLAP/xersla.f(501,10) inlined into /glade/u/home/tvda/CISM/libglimmer-solve/SLAP/xersla.f(242,27)
+   remark #25258: Invariant Condition eliminated(Loop at level 1 peeled) at line 503 
+   remark #25260: Invariant Condition eliminated(Proven False) at line 503
+   remark #15315: loop was not vectorized: estimated number of iterations (5) is insufficient for vectorization
+   remark #25439: unrolled with remainder by 2  
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglimmer-solve/SLAP/xersla.f(501,10) inlined into /glade/u/home/tvda/CISM/libglimmer-solve/SLAP/xersla.f(242,27)
+<Remainder>
+LOOP END
+
+
+Non-optimizable loops:
+
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglimmer-solve/SLAP/xersla.f(111,10) inlined into /glade/u/home/tvda/CISM/libglimmer-solve/SLAP/xersla.f(270,18)
+   remark #15543: loop was not vectorized: loop with function call not considered an optimization candidate.
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglimmer-solve/SLAP/xersla.f(111,10) inlined into /glade/u/home/tvda/CISM/libglimmer-solve/SLAP/xersla.f(272,33)
+   remark #15543: loop was not vectorized: loop with function call not considered an optimization candidate.
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglimmer-solve/SLAP/xersla.f(284,13)
+   remark #15543: loop was not vectorized: loop with function call not considered an optimization candidate.
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglimmer-solve/SLAP/xersla.f(111,10) inlined into /glade/u/home/tvda/CISM/libglimmer-solve/SLAP/xersla.f(316,27)
+   remark #15543: loop was not vectorized: loop with function call not considered an optimization candidate.
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglimmer-solve/SLAP/xersla.f(111,10) inlined into /glade/u/home/tvda/CISM/libglimmer-solve/SLAP/xersla.f(318,27)
+   remark #15543: loop was not vectorized: loop with function call not considered an optimization candidate.
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglimmer-solve/SLAP/xersla.f(111,10) inlined into /glade/u/home/tvda/CISM/libglimmer-solve/SLAP/xersla.f(242,27)
+   remark #15543: loop was not vectorized: loop with function call not considered an optimization candidate.
+LOOP END
+
+    Report from: Code generation optimizations [cg]
+
+/glade/u/home/tvda/CISM/libglimmer-solve/SLAP/xersla.f(174,18):remark #34051: REGISTER ALLOCATION : [xerrwv_] /glade/u/home/tvda/CISM/libglimmer-solve/SLAP/xersla.f:174
+
+    Hardware registers
+        Reserved     :    2[ rsp rip]
+        Available    :   39[ rax rdx rcx rbx rbp rsi rdi r8-r15 mm0-mm7 zmm0-zmm15]
+        Callee-save  :    6[ rbx rbp r12-r15]
+        Assigned     :   15[ rax rdx rcx rbx rsi rdi r8-r15 zmm0]
+        
+    Routine temporaries
+        Total         :     526
+            Global    :     157
+            Local     :     369
+        Regenerable   :     332
+        Spilled       :      23
+        
+    Routine stack
+        Variables     :     652 bytes*
+            Reads     :       6 [7.79e-02 ~ 0.1%]
+            Writes    :      74 [1.41e+01 ~ 14.1%]
+        Spills        :     144 bytes*
+            Reads     :      38 [2.31e+00 ~ 2.3%]
+            Writes    :      32 [9.01e-01 ~ 0.9%]
+    
+    Notes
+    
+        *Non-overlapping variables and spills may share stack space,
+         so the total stack size might be less than this.
+    
+
+===========================================================================
+
+Begin optimization report for: XERROR
+
+    Report from: Interprocedural optimizations [ipo]
+
+INLINE REPORT: (XERROR) [17] /glade/u/home/tvda/CISM/libglimmer-solve/SLAP/xersla.f(122,18)
+  -> (170,12) XERRWV
+
+
+    Report from: Code generation optimizations [cg]
+
+/glade/u/home/tvda/CISM/libglimmer-solve/SLAP/xersla.f(122,18):remark #34051: REGISTER ALLOCATION : [xerror_] /glade/u/home/tvda/CISM/libglimmer-solve/SLAP/xersla.f:122
+
+    Hardware registers
+        Reserved     :    2[ rsp rip]
+        Available    :   39[ rax rdx rcx rbx rbp rsi rdi r8-r15 mm0-mm7 zmm0-zmm15]
+        Callee-save  :    6[ rbx rbp r12-r15]
+        Assigned     :    7[ rax rdx rcx rsi rdi r8-r9]
+        
+    Routine temporaries
+        Total         :      24
+            Global    :       6
+            Local     :      18
+        Regenerable   :       4
+        Spilled       :       0
+        
+    Routine stack
+        Variables     :       0 bytes*
+            Reads     :       0 [0.00e+00 ~ 0.0%]
+            Writes    :       0 [0.00e+00 ~ 0.0%]
+        Spills        :       0 bytes*
+            Reads     :       0 [0.00e+00 ~ 0.0%]
+            Writes    :       0 [0.00e+00 ~ 0.0%]
+    
+    Notes
+    
+        *Non-overlapping variables and spills may share stack space,
+         so the total stack size might be less than this.
+    
+
+===========================================================================

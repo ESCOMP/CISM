@@ -1,0 +1,823 @@
+Intel(R) Advisor can now assist with vectorization and show optimization
+  report messages with your source code.
+See "https://software.intel.com/en-us/intel-advisor-xe" for details.
+
+
+    Report from: Interprocedural optimizations [ipo]
+
+INLINING OPTION VALUES:
+  -inline-factor: 100
+  -inline-min-size: 30
+  -inline-max-size: 230
+  -inline-max-total-size: 2000
+  -inline-max-per-routine: 10000
+  -inline-max-per-compile: 500000
+
+
+Begin optimization report for: glimmer_map_trans._
+
+    Report from: Interprocedural optimizations [ipo]
+
+INLINE REPORT: (glimmer_map_trans._) [1] /glade/u/home/tvda/CISM/libglimmer/glimmer_map_trans.F90(32,8)
+
+
+    Report from: Code generation optimizations [cg]
+
+/glade/u/home/tvda/CISM/libglimmer/glimmer_map_trans.F90(32,8):remark #34051: REGISTER ALLOCATION : [glimmer_map_trans._] /glade/u/home/tvda/CISM/libglimmer/glimmer_map_trans.F90:32
+
+    Hardware registers
+        Reserved     :    2[ rsp rip]
+        Available    :   39[ rax rdx rcx rbx rbp rsi rdi r8-r15 mm0-mm7 zmm0-zmm15]
+        Callee-save  :    6[ rbx rbp r12-r15]
+        Assigned     :    0[ reg_null]
+        
+    Routine temporaries
+        Total         :       6
+            Global    :       0
+            Local     :       6
+        Regenerable   :       0
+        Spilled       :       0
+        
+    Routine stack
+        Variables     :       0 bytes*
+            Reads     :       0 [0.00e+00 ~ 0.0%]
+            Writes    :       0 [0.00e+00 ~ 0.0%]
+        Spills        :       0 bytes*
+            Reads     :       0 [0.00e+00 ~ 0.0%]
+            Writes    :       0 [0.00e+00 ~ 0.0%]
+    
+    Notes
+    
+        *Non-overlapping variables and spills may share stack space,
+         so the total stack size might be less than this.
+    
+
+===========================================================================
+
+Begin optimization report for: GLIMMER_MAP_TRANS::GLIMMAP_LL_TO_XY
+
+    Report from: Interprocedural optimizations [ipo]
+
+INLINE REPORT: (GLIMMER_MAP_TRANS::GLIMMAP_LL_TO_XY) [2] /glade/u/home/tvda/CISM/libglimmer/glimmer_map_trans.F90(48,14)
+  -> INLINE: (65,13) GLIMMER_MAP_TRANS::GLIMMAP_LAEA
+    -> INLINE: (150,12) GLIMMER_MAP_TRANS::LONCORRECT
+    -> INLINE: (156,10) GLIMMER_MAP_TRANS::SINCOS
+    -> INLINE: (157,10) GLIMMER_MAP_TRANS::SINCOS
+  -> INLINE: (67,13) GLIMMER_MAP_TRANS::GLIMMAP_AEA
+    -> INLINE: (248,12) GLIMMER_MAP_TRANS::LONCORRECT
+    -> INLINE: (250,10) GLIMMER_MAP_TRANS::SINCOS
+  -> INLINE: (69,13) GLIMMER_MAP_TRANS::GLIMMAP_LCC
+    -> INLINE: (315,12) GLIMMER_MAP_TRANS::LONCORRECT
+    -> INLINE: (318,10) GLIMMER_MAP_TRANS::SINCOS
+  -> INLINE: (71,13) GLIMMER_MAP_TRANS::GLIMMAP_STERE
+    -> INLINE: (389,12) GLIMMER_MAP_TRANS::LONCORRECT
+    -> INLINE: (392,10) GLIMMER_MAP_TRANS::SINCOS
+    -> INLINE: (402,13) GLIMMER_MAP_TRANS::SINCOS
+  -> INLINE: (78,10) GLIMMER_MAP_TRANS::SPACE2GRID
+
+
+    Report from: Loop nest, Vector & Auto-parallelization optimizations [loop, vec, par]
+
+
+
+Non-optimizable loops:
+
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglimmer/glimmer_map_trans.F90(541,5) inlined into /glade/u/home/tvda/CISM/libglimmer/glimmer_map_trans.F90(93,13)
+   remark #15521: loop was not vectorized: loop control variable was not identified. Explicitly compute the iteration count before executing the loop or try using canonical loop form from OpenMP specification
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglimmer/glimmer_map_trans.F90(545,5) inlined into /glade/u/home/tvda/CISM/libglimmer/glimmer_map_trans.F90(93,13)
+   remark #15521: loop was not vectorized: loop control variable was not identified. Explicitly compute the iteration count before executing the loop or try using canonical loop form from OpenMP specification
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglimmer/glimmer_map_trans.F90(541,5) inlined into /glade/u/home/tvda/CISM/libglimmer/glimmer_map_trans.F90(95,13)
+   remark #15521: loop was not vectorized: loop control variable was not identified. Explicitly compute the iteration count before executing the loop or try using canonical loop form from OpenMP specification
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglimmer/glimmer_map_trans.F90(545,5) inlined into /glade/u/home/tvda/CISM/libglimmer/glimmer_map_trans.F90(95,13)
+   remark #15521: loop was not vectorized: loop control variable was not identified. Explicitly compute the iteration count before executing the loop or try using canonical loop form from OpenMP specification
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglimmer/glimmer_map_trans.F90(541,5) inlined into /glade/u/home/tvda/CISM/libglimmer/glimmer_map_trans.F90(97,13)
+   remark #15521: loop was not vectorized: loop control variable was not identified. Explicitly compute the iteration count before executing the loop or try using canonical loop form from OpenMP specification
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglimmer/glimmer_map_trans.F90(545,5) inlined into /glade/u/home/tvda/CISM/libglimmer/glimmer_map_trans.F90(97,13)
+   remark #15521: loop was not vectorized: loop control variable was not identified. Explicitly compute the iteration count before executing the loop or try using canonical loop form from OpenMP specification
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglimmer/glimmer_map_trans.F90(541,5) inlined into /glade/u/home/tvda/CISM/libglimmer/glimmer_map_trans.F90(99,13)
+   remark #15521: loop was not vectorized: loop control variable was not identified. Explicitly compute the iteration count before executing the loop or try using canonical loop form from OpenMP specification
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglimmer/glimmer_map_trans.F90(545,5) inlined into /glade/u/home/tvda/CISM/libglimmer/glimmer_map_trans.F90(99,13)
+   remark #15521: loop was not vectorized: loop control variable was not identified. Explicitly compute the iteration count before executing the loop or try using canonical loop form from OpenMP specification
+LOOP END
+
+    Report from: Code generation optimizations [cg]
+
+/glade/u/home/tvda/CISM/libglimmer/glimmer_map_trans.F90(48,14):remark #34051: REGISTER ALLOCATION : [glimmer_map_trans_mp_glimmap_ll_to_xy_] /glade/u/home/tvda/CISM/libglimmer/glimmer_map_trans.F90:48
+
+    Hardware registers
+        Reserved     :    2[ rsp rip]
+        Available    :   39[ rax rdx rcx rbx rbp rsi rdi r8-r15 mm0-mm7 zmm0-zmm15]
+        Callee-save  :    6[ rbx rbp r12-r15]
+        Assigned     :   22[ rax rdx rcx rbx rsi rdi r8-r10 r12-r15 zmm0-zmm8]
+        
+    Routine temporaries
+        Total         :     303
+            Global    :     101
+            Local     :     202
+        Regenerable   :     107
+        Spilled       :      23
+        
+    Routine stack
+        Variables     :     384 bytes*
+            Reads     :       0 [0.00e+00 ~ 0.0%]
+            Writes    :      14 [8.14e-01 ~ 0.8%]
+        Spills        :     144 bytes*
+            Reads     :      40 [3.79e+00 ~ 3.8%]
+            Writes    :      34 [3.76e+00 ~ 3.8%]
+    
+    Notes
+    
+        *Non-overlapping variables and spills may share stack space,
+         so the total stack size might be less than this.
+    
+
+===========================================================================
+
+Begin optimization report for: GLIMMER_MAP_TRANS::GLIMMAP_XY_TO_LL
+
+    Report from: Interprocedural optimizations [ipo]
+
+INLINE REPORT: (GLIMMER_MAP_TRANS::GLIMMAP_XY_TO_LL) [3] /glade/u/home/tvda/CISM/libglimmer/glimmer_map_trans.F90(88,14)
+  -> INLINE: (107,10) GLIMMER_MAP_TRANS::GRID2SPACE
+  -> INLINE: (110,13) GLIMMER_MAP_TRANS::GLIMMAP_ILAEA
+    -> INLINE: (203,9) GLIMMER_MAP_TRANS::HYPOT
+    -> INLINE: (211,13) GLIMMER_MAP_TRANS::SINCOS
+  -> INLINE: (112,13) GLIMMER_MAP_TRANS::GLIMMAP_IAEA
+  -> INLINE: (114,13) GLIMMER_MAP_TRANS::GLIMMAP_ILCC
+  -> INLINE: (116,13) GLIMMER_MAP_TRANS::GLIMMAP_ISTERE
+    -> INLINE: (443,11) GLIMMER_MAP_TRANS::HYPOT
+    -> INLINE: (450,13) GLIMMER_MAP_TRANS::SINCOS
+  -> INLINE: (121,9) GLIMMER_MAP_TRANS::LONCORRECT
+
+
+    Report from: Loop nest, Vector & Auto-parallelization optimizations [loop, vec, par]
+
+
+
+Non-optimizable loops:
+
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglimmer/glimmer_map_trans.F90(541,5) inlined into /glade/u/home/tvda/CISM/libglimmer/glimmer_map_trans.F90(149,9)
+   remark #15521: loop was not vectorized: loop control variable was not identified. Explicitly compute the iteration count before executing the loop or try using canonical loop form from OpenMP specification
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglimmer/glimmer_map_trans.F90(545,5) inlined into /glade/u/home/tvda/CISM/libglimmer/glimmer_map_trans.F90(149,9)
+   remark #15521: loop was not vectorized: loop control variable was not identified. Explicitly compute the iteration count before executing the loop or try using canonical loop form from OpenMP specification
+LOOP END
+
+    Report from: Code generation optimizations [cg]
+
+/glade/u/home/tvda/CISM/libglimmer/glimmer_map_trans.F90(88,14):remark #34051: REGISTER ALLOCATION : [glimmer_map_trans_mp_glimmap_xy_to_ll_] /glade/u/home/tvda/CISM/libglimmer/glimmer_map_trans.F90:88
+
+    Hardware registers
+        Reserved     :    2[ rsp rip]
+        Available    :   39[ rax rdx rcx rbx rbp rsi rdi r8-r15 mm0-mm7 zmm0-zmm15]
+        Callee-save  :    6[ rbx rbp r12-r15]
+        Assigned     :   20[ rax rdx rcx rbx rsi rdi r8-r10 r12-r13 zmm0-zmm8]
+        
+    Routine temporaries
+        Total         :     303
+            Global    :      91
+            Local     :     212
+        Regenerable   :      54
+        Spilled       :      17
+        
+    Routine stack
+        Variables     :     184 bytes*
+            Reads     :       0 [0.00e+00 ~ 0.0%]
+            Writes    :       6 [1.50e-01 ~ 0.2%]
+        Spills        :     112 bytes*
+            Reads     :      34 [2.74e+00 ~ 2.7%]
+            Writes    :      28 [2.54e+00 ~ 2.5%]
+    
+    Notes
+    
+        *Non-overlapping variables and spills may share stack space,
+         so the total stack size might be less than this.
+    
+
+===========================================================================
+
+Begin optimization report for: GLIMMER_MAP_TRANS::GLIMMAP_LAEA
+
+    Report from: Interprocedural optimizations [ipo]
+
+INLINE REPORT: (GLIMMER_MAP_TRANS::GLIMMAP_LAEA) [4] /glade/u/home/tvda/CISM/libglimmer/glimmer_map_trans.F90(132,14)
+  -> INLINE: (150,12) GLIMMER_MAP_TRANS::LONCORRECT
+  -> INLINE: (156,10) GLIMMER_MAP_TRANS::SINCOS
+  -> INLINE: (157,10) GLIMMER_MAP_TRANS::SINCOS
+
+
+    Report from: Loop nest, Vector & Auto-parallelization optimizations [loop, vec, par]
+
+
+
+Non-optimizable loops:
+
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglimmer/glimmer_map_trans.F90(541,5) inlined into /glade/u/home/tvda/CISM/libglimmer/glimmer_map_trans.F90(178,12)
+   remark #15521: loop was not vectorized: loop control variable was not identified. Explicitly compute the iteration count before executing the loop or try using canonical loop form from OpenMP specification
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglimmer/glimmer_map_trans.F90(545,5) inlined into /glade/u/home/tvda/CISM/libglimmer/glimmer_map_trans.F90(178,12)
+   remark #15521: loop was not vectorized: loop control variable was not identified. Explicitly compute the iteration count before executing the loop or try using canonical loop form from OpenMP specification
+LOOP END
+
+    Report from: Code generation optimizations [cg]
+
+/glade/u/home/tvda/CISM/libglimmer/glimmer_map_trans.F90(132,14):remark #34051: REGISTER ALLOCATION : [glimmer_map_trans_mp_glimmap_laea_] /glade/u/home/tvda/CISM/libglimmer/glimmer_map_trans.F90:132
+
+    Hardware registers
+        Reserved     :    2[ rsp rip]
+        Available    :   39[ rax rdx rcx rbx rbp rsi rdi r8-r15 mm0-mm7 zmm0-zmm15]
+        Callee-save  :    6[ rbx rbp r12-r15]
+        Assigned     :   17[ rax rdx rcx rbx rsi rdi r8-r9 r14-r15 zmm0-zmm6]
+        
+    Routine temporaries
+        Total         :     102
+            Global    :      37
+            Local     :      65
+        Regenerable   :      45
+        Spilled       :      10
+        
+    Routine stack
+        Variables     :     200 bytes*
+            Reads     :       0 [0.00e+00 ~ 0.0%]
+            Writes    :       8 [3.05e+00 ~ 3.0%]
+        Spills        :      56 bytes*
+            Reads     :      10 [5.71e+00 ~ 5.7%]
+            Writes    :       8 [6.09e+00 ~ 6.1%]
+    
+    Notes
+    
+        *Non-overlapping variables and spills may share stack space,
+         so the total stack size might be less than this.
+    
+
+===========================================================================
+
+Begin optimization report for: GLIMMER_MAP_TRANS::GLIMMAP_ILAEA
+
+    Report from: Interprocedural optimizations [ipo]
+
+INLINE REPORT: (GLIMMER_MAP_TRANS::GLIMMAP_ILAEA) [5] /glade/u/home/tvda/CISM/libglimmer/glimmer_map_trans.F90(183,14)
+  -> INLINE: (203,9) GLIMMER_MAP_TRANS::HYPOT
+  -> INLINE: (211,13) GLIMMER_MAP_TRANS::SINCOS
+
+
+    Report from: Code generation optimizations [cg]
+
+/glade/u/home/tvda/CISM/libglimmer/glimmer_map_trans.F90(183,14):remark #34051: REGISTER ALLOCATION : [glimmer_map_trans_mp_glimmap_ilaea_] /glade/u/home/tvda/CISM/libglimmer/glimmer_map_trans.F90:183
+
+    Hardware registers
+        Reserved     :    2[ rsp rip]
+        Available    :   39[ rax rdx rcx rbx rbp rsi rdi r8-r15 mm0-mm7 zmm0-zmm15]
+        Callee-save  :    6[ rbx rbp r12-r15]
+        Assigned     :   14[ rax rdx rcx rbx rsi rdi r8-r9 r12 r15 zmm0-zmm3]
+        
+    Routine temporaries
+        Total         :     113
+            Global    :      35
+            Local     :      78
+        Regenerable   :      31
+        Spilled       :      11
+        
+    Routine stack
+        Variables     :     184 bytes*
+            Reads     :       0 [0.00e+00 ~ 0.0%]
+            Writes    :       6 [1.56e+00 ~ 1.6%]
+        Spills        :      64 bytes*
+            Reads     :      16 [8.07e+00 ~ 8.1%]
+            Writes    :       8 [8.91e+00 ~ 8.9%]
+    
+    Notes
+    
+        *Non-overlapping variables and spills may share stack space,
+         so the total stack size might be less than this.
+    
+
+===========================================================================
+
+Begin optimization report for: GLIMMER_MAP_TRANS::GLIMMAP_AEA
+
+    Report from: Interprocedural optimizations [ipo]
+
+INLINE REPORT: (GLIMMER_MAP_TRANS::GLIMMAP_AEA) [6] /glade/u/home/tvda/CISM/libglimmer/glimmer_map_trans.F90(234,14)
+  -> INLINE: (248,12) GLIMMER_MAP_TRANS::LONCORRECT
+  -> INLINE: (250,10) GLIMMER_MAP_TRANS::SINCOS
+
+
+    Report from: Loop nest, Vector & Auto-parallelization optimizations [loop, vec, par]
+
+
+
+Non-optimizable loops:
+
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglimmer/glimmer_map_trans.F90(541,5) inlined into /glade/u/home/tvda/CISM/libglimmer/glimmer_map_trans.F90(276,12)
+   remark #15521: loop was not vectorized: loop control variable was not identified. Explicitly compute the iteration count before executing the loop or try using canonical loop form from OpenMP specification
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglimmer/glimmer_map_trans.F90(545,5) inlined into /glade/u/home/tvda/CISM/libglimmer/glimmer_map_trans.F90(276,12)
+   remark #15521: loop was not vectorized: loop control variable was not identified. Explicitly compute the iteration count before executing the loop or try using canonical loop form from OpenMP specification
+LOOP END
+
+    Report from: Code generation optimizations [cg]
+
+/glade/u/home/tvda/CISM/libglimmer/glimmer_map_trans.F90(234,14):remark #34051: REGISTER ALLOCATION : [glimmer_map_trans_mp_glimmap_aea_] /glade/u/home/tvda/CISM/libglimmer/glimmer_map_trans.F90:234
+
+    Hardware registers
+        Reserved     :    2[ rsp rip]
+        Available    :   39[ rax rdx rcx rbx rbp rsi rdi r8-r15 mm0-mm7 zmm0-zmm15]
+        Callee-save  :    6[ rbx rbp r12-r15]
+        Assigned     :   15[ rdx rcx rbx rsi rdi r8 r13-r15 zmm0-zmm5]
+        
+    Routine temporaries
+        Total         :      54
+            Global    :      23
+            Local     :      31
+        Regenerable   :       7
+        Spilled       :       8
+        
+    Routine stack
+        Variables     :       0 bytes*
+            Reads     :       0 [0.00e+00 ~ 0.0%]
+            Writes    :       0 [0.00e+00 ~ 0.0%]
+        Spills        :      32 bytes*
+            Reads     :       4 [3.97e+00 ~ 4.0%]
+            Writes    :       4 [3.97e+00 ~ 4.0%]
+    
+    Notes
+    
+        *Non-overlapping variables and spills may share stack space,
+         so the total stack size might be less than this.
+    
+
+===========================================================================
+
+Begin optimization report for: GLIMMER_MAP_TRANS::GLIMMAP_IAEA
+
+    Report from: Interprocedural optimizations [ipo]
+
+INLINE REPORT: (GLIMMER_MAP_TRANS::GLIMMAP_IAEA) [7] /glade/u/home/tvda/CISM/libglimmer/glimmer_map_trans.F90(267,14)
+
+
+    Report from: Code generation optimizations [cg]
+
+/glade/u/home/tvda/CISM/libglimmer/glimmer_map_trans.F90(267,14):remark #34051: REGISTER ALLOCATION : [glimmer_map_trans_mp_glimmap_iaea_] /glade/u/home/tvda/CISM/libglimmer/glimmer_map_trans.F90:267
+
+    Hardware registers
+        Reserved     :    2[ rsp rip]
+        Available    :   39[ rax rdx rcx rbx rbp rsi rdi r8-r15 mm0-mm7 zmm0-zmm15]
+        Callee-save  :    6[ rbx rbp r12-r15]
+        Assigned     :   16[ rdx rcx rbx rsi rdi r8 r12-r13 zmm0-zmm7]
+        
+    Routine temporaries
+        Total         :      57
+            Global    :      20
+            Local     :      37
+        Regenerable   :       2
+        Spilled       :       7
+        
+    Routine stack
+        Variables     :       0 bytes*
+            Reads     :       0 [0.00e+00 ~ 0.0%]
+            Writes    :       0 [0.00e+00 ~ 0.0%]
+        Spills        :      32 bytes*
+            Reads     :       4 [6.11e+00 ~ 6.1%]
+            Writes    :       5 [6.11e+00 ~ 6.1%]
+    
+    Notes
+    
+        *Non-overlapping variables and spills may share stack space,
+         so the total stack size might be less than this.
+    
+
+===========================================================================
+
+Begin optimization report for: GLIMMER_MAP_TRANS::GLIMMAP_LCC
+
+    Report from: Interprocedural optimizations [ipo]
+
+INLINE REPORT: (GLIMMER_MAP_TRANS::GLIMMAP_LCC) [8] /glade/u/home/tvda/CISM/libglimmer/glimmer_map_trans.F90(301,14)
+  -> INLINE: (315,12) GLIMMER_MAP_TRANS::LONCORRECT
+  -> INLINE: (318,10) GLIMMER_MAP_TRANS::SINCOS
+
+
+    Report from: Loop nest, Vector & Auto-parallelization optimizations [loop, vec, par]
+
+
+
+Non-optimizable loops:
+
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglimmer/glimmer_map_trans.F90(541,5) inlined into /glade/u/home/tvda/CISM/libglimmer/glimmer_map_trans.F90(343,12)
+   remark #15521: loop was not vectorized: loop control variable was not identified. Explicitly compute the iteration count before executing the loop or try using canonical loop form from OpenMP specification
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglimmer/glimmer_map_trans.F90(545,5) inlined into /glade/u/home/tvda/CISM/libglimmer/glimmer_map_trans.F90(343,12)
+   remark #15521: loop was not vectorized: loop control variable was not identified. Explicitly compute the iteration count before executing the loop or try using canonical loop form from OpenMP specification
+LOOP END
+
+    Report from: Code generation optimizations [cg]
+
+/glade/u/home/tvda/CISM/libglimmer/glimmer_map_trans.F90(301,14):remark #34051: REGISTER ALLOCATION : [glimmer_map_trans_mp_glimmap_lcc_] /glade/u/home/tvda/CISM/libglimmer/glimmer_map_trans.F90:301
+
+    Hardware registers
+        Reserved     :    2[ rsp rip]
+        Available    :   39[ rax rdx rcx rbx rbp rsi rdi r8-r15 mm0-mm7 zmm0-zmm15]
+        Callee-save  :    6[ rbx rbp r12-r15]
+        Assigned     :   12[ rdx rcx rbx rsi rdi r8 r12-r13 zmm0-zmm3]
+        
+    Routine temporaries
+        Total         :      53
+            Global    :      25
+            Local     :      28
+        Regenerable   :       6
+        Spilled       :       8
+        
+    Routine stack
+        Variables     :       0 bytes*
+            Reads     :       0 [0.00e+00 ~ 0.0%]
+            Writes    :       0 [0.00e+00 ~ 0.0%]
+        Spills        :      40 bytes*
+            Reads     :       8 [7.77e+00 ~ 7.8%]
+            Writes    :       7 [6.77e+00 ~ 6.8%]
+    
+    Notes
+    
+        *Non-overlapping variables and spills may share stack space,
+         so the total stack size might be less than this.
+    
+
+===========================================================================
+
+Begin optimization report for: GLIMMER_MAP_TRANS::GLIMMAP_ILCC
+
+    Report from: Interprocedural optimizations [ipo]
+
+INLINE REPORT: (GLIMMER_MAP_TRANS::GLIMMAP_ILCC) [9] /glade/u/home/tvda/CISM/libglimmer/glimmer_map_trans.F90(333,14)
+
+
+    Report from: Code generation optimizations [cg]
+
+/glade/u/home/tvda/CISM/libglimmer/glimmer_map_trans.F90(333,14):remark #34051: REGISTER ALLOCATION : [glimmer_map_trans_mp_glimmap_ilcc_] /glade/u/home/tvda/CISM/libglimmer/glimmer_map_trans.F90:333
+
+    Hardware registers
+        Reserved     :    2[ rsp rip]
+        Available    :   39[ rax rdx rcx rbx rbp rsi rdi r8-r15 mm0-mm7 zmm0-zmm15]
+        Callee-save  :    6[ rbx rbp r12-r15]
+        Assigned     :   17[ rax rdx rcx rbx rsi rdi r8 r12 r15 zmm0-zmm7]
+        
+    Routine temporaries
+        Total         :      66
+            Global    :      24
+            Local     :      42
+        Regenerable   :       5
+        Spilled       :       7
+        
+    Routine stack
+        Variables     :       0 bytes*
+            Reads     :       0 [0.00e+00 ~ 0.0%]
+            Writes    :       0 [0.00e+00 ~ 0.0%]
+        Spills        :      32 bytes*
+            Reads     :       6 [6.54e+00 ~ 6.5%]
+            Writes    :       8 [5.40e+00 ~ 5.4%]
+    
+    Notes
+    
+        *Non-overlapping variables and spills may share stack space,
+         so the total stack size might be less than this.
+    
+
+===========================================================================
+
+Begin optimization report for: GLIMMER_MAP_TRANS::GLIMMAP_STERE
+
+    Report from: Interprocedural optimizations [ipo]
+
+INLINE REPORT: (GLIMMER_MAP_TRANS::GLIMMAP_STERE) [10] /glade/u/home/tvda/CISM/libglimmer/glimmer_map_trans.F90(372,14)
+  -> INLINE: (389,12) GLIMMER_MAP_TRANS::LONCORRECT
+  -> INLINE: (392,10) GLIMMER_MAP_TRANS::SINCOS
+  -> INLINE: (402,13) GLIMMER_MAP_TRANS::SINCOS
+
+
+    Report from: Loop nest, Vector & Auto-parallelization optimizations [loop, vec, par]
+
+
+
+Non-optimizable loops:
+
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglimmer/glimmer_map_trans.F90(541,5) inlined into /glade/u/home/tvda/CISM/libglimmer/glimmer_map_trans.F90(417,12)
+   remark #15521: loop was not vectorized: loop control variable was not identified. Explicitly compute the iteration count before executing the loop or try using canonical loop form from OpenMP specification
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglimmer/glimmer_map_trans.F90(545,5) inlined into /glade/u/home/tvda/CISM/libglimmer/glimmer_map_trans.F90(417,12)
+   remark #15521: loop was not vectorized: loop control variable was not identified. Explicitly compute the iteration count before executing the loop or try using canonical loop form from OpenMP specification
+LOOP END
+
+    Report from: Code generation optimizations [cg]
+
+/glade/u/home/tvda/CISM/libglimmer/glimmer_map_trans.F90(372,14):remark #34051: REGISTER ALLOCATION : [glimmer_map_trans_mp_glimmap_stere_] /glade/u/home/tvda/CISM/libglimmer/glimmer_map_trans.F90:372
+
+    Hardware registers
+        Reserved     :    2[ rsp rip]
+        Available    :   39[ rax rdx rcx rbx rbp rsi rdi r8-r15 mm0-mm7 zmm0-zmm15]
+        Callee-save  :    6[ rbx rbp r12-r15]
+        Assigned     :   19[ rax rdx rcx rsi rdi r8-r9 r12-r15 zmm0-zmm7]
+        
+    Routine temporaries
+        Total         :     116
+            Global    :      37
+            Local     :      79
+        Regenerable   :      40
+        Spilled       :       9
+        
+    Routine stack
+        Variables     :     184 bytes*
+            Reads     :       0 [0.00e+00 ~ 0.0%]
+            Writes    :       6 [1.34e+00 ~ 1.3%]
+        Spills        :      40 bytes*
+            Reads     :      13 [4.24e+00 ~ 4.2%]
+            Writes    :      11 [4.47e+00 ~ 4.5%]
+    
+    Notes
+    
+        *Non-overlapping variables and spills may share stack space,
+         so the total stack size might be less than this.
+    
+
+===========================================================================
+
+Begin optimization report for: GLIMMER_MAP_TRANS::GLIMMAP_ISTERE
+
+    Report from: Interprocedural optimizations [ipo]
+
+INLINE REPORT: (GLIMMER_MAP_TRANS::GLIMMAP_ISTERE) [11] /glade/u/home/tvda/CISM/libglimmer/glimmer_map_trans.F90(426,14)
+  -> INLINE: (443,11) GLIMMER_MAP_TRANS::HYPOT
+  -> INLINE: (450,13) GLIMMER_MAP_TRANS::SINCOS
+
+
+    Report from: Code generation optimizations [cg]
+
+/glade/u/home/tvda/CISM/libglimmer/glimmer_map_trans.F90(426,14):remark #34051: REGISTER ALLOCATION : [glimmer_map_trans_mp_glimmap_istere_] /glade/u/home/tvda/CISM/libglimmer/glimmer_map_trans.F90:426
+
+    Hardware registers
+        Reserved     :    2[ rsp rip]
+        Available    :   39[ rax rdx rcx rbx rbp rsi rdi r8-r15 mm0-mm7 zmm0-zmm15]
+        Callee-save  :    6[ rbx rbp r12-r15]
+        Assigned     :   14[ rax rdx rcx rbx rsi rdi r8 r12-r13 zmm0-zmm4]
+        
+    Routine temporaries
+        Total         :      92
+            Global    :      37
+            Local     :      55
+        Regenerable   :       5
+        Spilled       :      13
+        
+    Routine stack
+        Variables     :       0 bytes*
+            Reads     :       0 [0.00e+00 ~ 0.0%]
+            Writes    :       0 [0.00e+00 ~ 0.0%]
+        Spills        :      80 bytes*
+            Reads     :      18 [7.41e+00 ~ 7.4%]
+            Writes    :      10 [8.40e+00 ~ 8.4%]
+    
+    Notes
+    
+        *Non-overlapping variables and spills may share stack space,
+         so the total stack size might be less than this.
+    
+
+===========================================================================
+
+Begin optimization report for: GLIMMER_MAP_TRANS::GRID2SPACE
+
+    Report from: Interprocedural optimizations [ipo]
+
+INLINE REPORT: (GLIMMER_MAP_TRANS::GRID2SPACE) [12] /glade/u/home/tvda/CISM/libglimmer/glimmer_map_trans.F90(474,14)
+
+
+    Report from: Code generation optimizations [cg]
+
+/glade/u/home/tvda/CISM/libglimmer/glimmer_map_trans.F90(474,14):remark #34051: REGISTER ALLOCATION : [glimmer_map_trans_mp_grid2space_] /glade/u/home/tvda/CISM/libglimmer/glimmer_map_trans.F90:474
+
+    Hardware registers
+        Reserved     :    2[ rsp rip]
+        Available    :   39[ rax rdx rcx rbx rbp rsi rdi r8-r15 mm0-mm7 zmm0-zmm15]
+        Callee-save  :    6[ rbx rbp r12-r15]
+        Assigned     :    8[ rdx rcx rsi rdi r8 zmm0-zmm2]
+        
+    Routine temporaries
+        Total         :      29
+            Global    :       0
+            Local     :      29
+        Regenerable   :       1
+        Spilled       :       0
+        
+    Routine stack
+        Variables     :       0 bytes*
+            Reads     :       0 [0.00e+00 ~ 0.0%]
+            Writes    :       0 [0.00e+00 ~ 0.0%]
+        Spills        :       0 bytes*
+            Reads     :       0 [0.00e+00 ~ 0.0%]
+            Writes    :       0 [0.00e+00 ~ 0.0%]
+    
+    Notes
+    
+        *Non-overlapping variables and spills may share stack space,
+         so the total stack size might be less than this.
+    
+
+===========================================================================
+
+Begin optimization report for: GLIMMER_MAP_TRANS::SPACE2GRID
+
+    Report from: Interprocedural optimizations [ipo]
+
+INLINE REPORT: (GLIMMER_MAP_TRANS::SPACE2GRID) [13] /glade/u/home/tvda/CISM/libglimmer/glimmer_map_trans.F90(494,14)
+
+
+    Report from: Code generation optimizations [cg]
+
+/glade/u/home/tvda/CISM/libglimmer/glimmer_map_trans.F90(494,14):remark #34051: REGISTER ALLOCATION : [glimmer_map_trans_mp_space2grid_] /glade/u/home/tvda/CISM/libglimmer/glimmer_map_trans.F90:494
+
+    Hardware registers
+        Reserved     :    2[ rsp rip]
+        Available    :   39[ rax rdx rcx rbx rbp rsi rdi r8-r15 mm0-mm7 zmm0-zmm15]
+        Callee-save  :    6[ rbx rbp r12-r15]
+        Assigned     :    8[ rdx rcx rsi rdi r8 zmm0-zmm2]
+        
+    Routine temporaries
+        Total         :      27
+            Global    :       0
+            Local     :      27
+        Regenerable   :       1
+        Spilled       :       0
+        
+    Routine stack
+        Variables     :       0 bytes*
+            Reads     :       0 [0.00e+00 ~ 0.0%]
+            Writes    :       0 [0.00e+00 ~ 0.0%]
+        Spills        :       0 bytes*
+            Reads     :       0 [0.00e+00 ~ 0.0%]
+            Writes    :       0 [0.00e+00 ~ 0.0%]
+    
+    Notes
+    
+        *Non-overlapping variables and spills may share stack space,
+         so the total stack size might be less than this.
+    
+
+===========================================================================
+
+Begin optimization report for: GLIMMER_MAP_TRANS::SINCOS
+
+    Report from: Interprocedural optimizations [ipo]
+
+INLINE REPORT: (GLIMMER_MAP_TRANS::SINCOS) [14] /glade/u/home/tvda/CISM/libglimmer/glimmer_map_trans.F90(514,14)
+
+
+    Report from: Code generation optimizations [cg]
+
+/glade/u/home/tvda/CISM/libglimmer/glimmer_map_trans.F90(514,14):remark #34051: REGISTER ALLOCATION : [glimmer_map_trans_mp_sincos_] /glade/u/home/tvda/CISM/libglimmer/glimmer_map_trans.F90:514
+
+    Hardware registers
+        Reserved     :    2[ rsp rip]
+        Available    :   39[ rax rdx rcx rbx rbp rsi rdi r8-r15 mm0-mm7 zmm0-zmm15]
+        Callee-save  :    6[ rbx rbp r12-r15]
+        Assigned     :    6[ rdx rsi rdi r13-r14 zmm0]
+        
+    Routine temporaries
+        Total         :      19
+            Global    :      11
+            Local     :       8
+        Regenerable   :       0
+        Spilled       :       3
+        
+    Routine stack
+        Variables     :       0 bytes*
+            Reads     :       0 [0.00e+00 ~ 0.0%]
+            Writes    :       0 [0.00e+00 ~ 0.0%]
+        Spills        :       8 bytes*
+            Reads     :       1 [3.85e+00 ~ 3.8%]
+            Writes    :       1 [3.85e+00 ~ 3.8%]
+    
+    Notes
+    
+        *Non-overlapping variables and spills may share stack space,
+         so the total stack size might be less than this.
+    
+
+===========================================================================
+
+Begin optimization report for: GLIMMER_MAP_TRANS::LONCORRECT
+
+    Report from: Interprocedural optimizations [ipo]
+
+INLINE REPORT: (GLIMMER_MAP_TRANS::LONCORRECT) [15] /glade/u/home/tvda/CISM/libglimmer/glimmer_map_trans.F90(531,21)
+
+
+    Report from: Loop nest, Vector & Auto-parallelization optimizations [loop, vec, par]
+
+
+
+Non-optimizable loops:
+
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglimmer/glimmer_map_trans.F90(541,5)
+   remark #15521: loop was not vectorized: loop control variable was not identified. Explicitly compute the iteration count before executing the loop or try using canonical loop form from OpenMP specification
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglimmer/glimmer_map_trans.F90(545,5)
+   remark #15521: loop was not vectorized: loop control variable was not identified. Explicitly compute the iteration count before executing the loop or try using canonical loop form from OpenMP specification
+LOOP END
+
+    Report from: Code generation optimizations [cg]
+
+/glade/u/home/tvda/CISM/libglimmer/glimmer_map_trans.F90(531,21):remark #34051: REGISTER ALLOCATION : [glimmer_map_trans_mp_loncorrect_] /glade/u/home/tvda/CISM/libglimmer/glimmer_map_trans.F90:531
+
+    Hardware registers
+        Reserved     :    2[ rsp rip]
+        Available    :   39[ rax rdx rcx rbx rbp rsi rdi r8-r15 mm0-mm7 zmm0-zmm15]
+        Callee-save  :    6[ rbx rbp r12-r15]
+        Assigned     :    6[ rsi rdi zmm0-zmm3]
+        
+    Routine temporaries
+        Total         :      15
+            Global    :      10
+            Local     :       5
+        Regenerable   :       1
+        Spilled       :       0
+        
+    Routine stack
+        Variables     :       0 bytes*
+            Reads     :       0 [0.00e+00 ~ 0.0%]
+            Writes    :       0 [0.00e+00 ~ 0.0%]
+        Spills        :       0 bytes*
+            Reads     :       0 [0.00e+00 ~ 0.0%]
+            Writes    :       0 [0.00e+00 ~ 0.0%]
+    
+    Notes
+    
+        *Non-overlapping variables and spills may share stack space,
+         so the total stack size might be less than this.
+    
+
+===========================================================================
+
+Begin optimization report for: GLIMMER_MAP_TRANS::HYPOT
+
+    Report from: Interprocedural optimizations [ipo]
+
+INLINE REPORT: (GLIMMER_MAP_TRANS::HYPOT) [16] /glade/u/home/tvda/CISM/libglimmer/glimmer_map_trans.F90(554,21)
+
+
+    Report from: Code generation optimizations [cg]
+
+/glade/u/home/tvda/CISM/libglimmer/glimmer_map_trans.F90(554,21):remark #34051: REGISTER ALLOCATION : [glimmer_map_trans_mp_hypot_] /glade/u/home/tvda/CISM/libglimmer/glimmer_map_trans.F90:554
+
+    Hardware registers
+        Reserved     :    2[ rsp rip]
+        Available    :   39[ rax rdx rcx rbx rbp rsi rdi r8-r15 mm0-mm7 zmm0-zmm15]
+        Callee-save  :    6[ rbx rbp r12-r15]
+        Assigned     :    4[ rsi rdi zmm0-zmm1]
+        
+    Routine temporaries
+        Total         :      17
+            Global    :       0
+            Local     :      17
+        Regenerable   :       0
+        Spilled       :       0
+        
+    Routine stack
+        Variables     :       0 bytes*
+            Reads     :       0 [0.00e+00 ~ 0.0%]
+            Writes    :       0 [0.00e+00 ~ 0.0%]
+        Spills        :       0 bytes*
+            Reads     :       0 [0.00e+00 ~ 0.0%]
+            Writes    :       0 [0.00e+00 ~ 0.0%]
+    
+    Notes
+    
+        *Non-overlapping variables and spills may share stack space,
+         so the total stack size might be less than this.
+    
+
+===========================================================================

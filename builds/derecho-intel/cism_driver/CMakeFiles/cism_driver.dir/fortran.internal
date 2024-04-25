@@ -1,0 +1,6 @@
+# The fortran modules provided by this target.
+provides
+ cism_external_dycore_interface.mod
+ cism_front_end.mod
+ gcm_cism_interface.mod
+ gcm_to_cism_glint.mod

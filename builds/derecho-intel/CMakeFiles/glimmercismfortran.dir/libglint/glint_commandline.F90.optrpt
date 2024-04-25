@@ -1,0 +1,206 @@
+Intel(R) Advisor can now assist with vectorization and show optimization
+  report messages with your source code.
+See "https://software.intel.com/en-us/intel-advisor-xe" for details.
+
+
+    Report from: Interprocedural optimizations [ipo]
+
+INLINING OPTION VALUES:
+  -inline-factor: 100
+  -inline-min-size: 30
+  -inline-max-size: 230
+  -inline-max-total-size: 2000
+  -inline-max-per-routine: 10000
+  -inline-max-per-compile: 500000
+
+
+Begin optimization report for: glint_commandline._
+
+    Report from: Interprocedural optimizations [ipo]
+
+INLINE REPORT: (glint_commandline._) [1] /glade/u/home/tvda/CISM/libglint/glint_commandline.F90(38,8)
+
+
+    Report from: Code generation optimizations [cg]
+
+/glade/u/home/tvda/CISM/libglint/glint_commandline.F90(38,8):remark #34051: REGISTER ALLOCATION : [glint_commandline._] /glade/u/home/tvda/CISM/libglint/glint_commandline.F90:38
+
+    Hardware registers
+        Reserved     :    2[ rsp rip]
+        Available    :   39[ rax rdx rcx rbx rbp rsi rdi r8-r15 mm0-mm7 zmm0-zmm15]
+        Callee-save  :    6[ rbx rbp r12-r15]
+        Assigned     :    0[ reg_null]
+        
+    Routine temporaries
+        Total         :       6
+            Global    :       0
+            Local     :       6
+        Regenerable   :       0
+        Spilled       :       0
+        
+    Routine stack
+        Variables     :       0 bytes*
+            Reads     :       0 [0.00e+00 ~ 0.0%]
+            Writes    :       0 [0.00e+00 ~ 0.0%]
+        Spills        :       0 bytes*
+            Reads     :       0 [0.00e+00 ~ 0.0%]
+            Writes    :       0 [0.00e+00 ~ 0.0%]
+    
+    Notes
+    
+        *Non-overlapping variables and spills may share stack space,
+         so the total stack size might be less than this.
+    
+
+===========================================================================
+
+Begin optimization report for: GLINT_COMMANDLINE::GLINT_GETCOMMANDLINE
+
+    Report from: Interprocedural optimizations [ipo]
+
+INLINE REPORT: (GLINT_COMMANDLINE::GLINT_GETCOMMANDLINE) [2] /glade/u/home/tvda/CISM/libglint/glint_commandline.F90(65,14)
+  -> INLINE: (105,22) GLINT_COMMANDLINE::GLINT_COMMANDLINEHELP
+  -> INLINE: (111,25) GLINT_COMMANDLINE::GLINT_COMMANDLINEHELP
+  -> INLINE: (117,22) GLINT_COMMANDLINE::GLINT_COMMANDLINEHELP
+  -> INLINE: (141,16) GLINT_COMMANDLINE::GLINT_COMMANDLINEHELP
+
+
+    Report from: Loop nest, Vector & Auto-parallelization optimizations [loop, vec, par]
+
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglint/glint_commandline.F90(89,5)
+   remark #15344: loop was not vectorized: vector dependence prevents vectorization. First dependence is shown below. Use level 5 report for details
+   remark #15346: vector dependence: assumed OUTPUT dependence between at (90:34) and at (90:13)
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglint/glint_commandline.F90(134,11)
+   remark #15344: loop was not vectorized: vector dependence prevents vectorization. First dependence is shown below. Use level 5 report for details
+   remark #15346: vector dependence: assumed OUTPUT dependence between at (135:40) and at (135:19)
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglint/glint_commandline.F90(157,8)
+   remark #15344: loop was not vectorized: vector dependence prevents vectorization. First dependence is shown below. Use level 5 report for details
+   remark #15346: vector dependence: assumed FLOW dependence between at (158:43) and at (158:78)
+LOOP END
+
+
+Non-optimizable loops:
+
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglint/glint_commandline.F90(98,8)
+   remark #15521: loop was not vectorized: loop control variable was not identified. Explicitly compute the iteration count before executing the loop or try using canonical loop form from OpenMP specification
+LOOP END
+
+    Report from: Code generation optimizations [cg]
+
+/glade/u/home/tvda/CISM/libglint/glint_commandline.F90(103,27):remark #34026: call to memmove implemented as a call to optimized library version
+/glade/u/home/tvda/CISM/libglint/glint_commandline.F90(65,14):remark #34051: REGISTER ALLOCATION : [glint_commandline_mp_glint_getcommandline_] /glade/u/home/tvda/CISM/libglint/glint_commandline.F90:65
+
+    Hardware registers
+        Reserved     :    2[ rsp rip]
+        Available    :   39[ rax rdx rcx rbx rbp rsi rdi r8-r15 mm0-mm7 zmm0-zmm15]
+        Callee-save  :    6[ rbx rbp r12-r15]
+        Assigned     :   14[ rax rdx rcx rbx rsi rdi r8-r15]
+        
+    Routine temporaries
+        Total         :     638
+            Global    :      89
+            Local     :     549
+        Regenerable   :     464
+        Spilled       :       6
+        
+    Routine stack
+        Variables     :    8868 bytes*
+            Reads     :       1 [1.32e-02 ~ 0.0%]
+            Writes    :     106 [1.48e+01 ~ 14.8%]
+        Spills        :       8 bytes*
+            Reads     :       1 [7.24e-02 ~ 0.1%]
+            Writes    :       1 [7.24e-02 ~ 0.1%]
+    
+    Notes
+    
+        *Non-overlapping variables and spills may share stack space,
+         so the total stack size might be less than this.
+    
+
+===========================================================================
+
+Begin optimization report for: GLINT_COMMANDLINE::GLINT_PRINTCOMMANDLINE
+
+    Report from: Interprocedural optimizations [ipo]
+
+INLINE REPORT: (GLINT_COMMANDLINE::GLINT_PRINTCOMMANDLINE) [3] /glade/u/home/tvda/CISM/libglint/glint_commandline.F90(169,14)
+
+
+    Report from: Code generation optimizations [cg]
+
+/glade/u/home/tvda/CISM/libglint/glint_commandline.F90(169,14):remark #34051: REGISTER ALLOCATION : [glint_commandline_mp_glint_printcommandline_] /glade/u/home/tvda/CISM/libglint/glint_commandline.F90:169
+
+    Hardware registers
+        Reserved     :    2[ rsp rip]
+        Available    :   39[ rax rdx rcx rbx rbp rsi rdi r8-r15 mm0-mm7 zmm0-zmm15]
+        Callee-save  :    6[ rbx rbp r12-r15]
+        Assigned     :    6[ rax rdx rcx rsi rdi r8]
+        
+    Routine temporaries
+        Total         :     106
+            Global    :      20
+            Local     :      86
+        Regenerable   :      88
+        Spilled       :       0
+        
+    Routine stack
+        Variables     :    5792 bytes*
+            Reads     :       0 [0.00e+00 ~ 0.0%]
+            Writes    :      22 [1.93e+01 ~ 19.3%]
+        Spills        :       0 bytes*
+            Reads     :       0 [0.00e+00 ~ 0.0%]
+            Writes    :       0 [0.00e+00 ~ 0.0%]
+    
+    Notes
+    
+        *Non-overlapping variables and spills may share stack space,
+         so the total stack size might be less than this.
+    
+
+===========================================================================
+
+Begin optimization report for: GLINT_COMMANDLINE::GLINT_COMMANDLINEHELP
+
+    Report from: Interprocedural optimizations [ipo]
+
+INLINE REPORT: (GLINT_COMMANDLINE::GLINT_COMMANDLINEHELP) [4] /glade/u/home/tvda/CISM/libglint/glint_commandline.F90(187,14)
+
+
+    Report from: Code generation optimizations [cg]
+
+/glade/u/home/tvda/CISM/libglint/glint_commandline.F90(187,14):remark #34051: REGISTER ALLOCATION : [glint_commandline_mp_glint_commandlinehelp_] /glade/u/home/tvda/CISM/libglint/glint_commandline.F90:187
+
+    Hardware registers
+        Reserved     :    2[ rsp rip]
+        Available    :   39[ rax rdx rcx rbx rbp rsi rdi r8-r15 mm0-mm7 zmm0-zmm15]
+        Callee-save  :    6[ rbx rbp r12-r15]
+        Assigned     :    6[ rax rdx rcx rsi rdi r8]
+        
+    Routine temporaries
+        Total         :      65
+            Global    :      12
+            Local     :      53
+        Regenerable   :      56
+        Spilled       :       0
+        
+    Routine stack
+        Variables     :     660 bytes*
+            Reads     :       0 [0.00e+00 ~ 0.0%]
+            Writes    :      16 [2.13e+01 ~ 21.3%]
+        Spills        :       0 bytes*
+            Reads     :       0 [0.00e+00 ~ 0.0%]
+            Writes    :       0 [0.00e+00 ~ 0.0%]
+    
+    Notes
+    
+        *Non-overlapping variables and spills may share stack space,
+         so the total stack size might be less than this.
+    
+
+===========================================================================
