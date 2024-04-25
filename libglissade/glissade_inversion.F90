@@ -666,7 +666,15 @@ contains
                   model%basal_physics%coulomb_c_bedmin,      &  ! m
                   model%basal_physics%coulomb_c_bedmax,      &  ! m
                   model%basal_physics%coulomb_c_relax)
+             if (model%options%which_ho_coulomb_c_error == HO_COULOMB_C_ERROR_OBS) then
+                 !!we do not want to set a height dependent target in cells that are floating in the simulation but not
+                 !!in the observations. I set it strict now, only where modelled cells are fully floating, to prevent 
+                 !!oscilations at the modelled grounding line. 
 
+                 where (model%geometry%f_ground_obs>0.0d0 .and. model%geometry%f_ground == 0.0d0)
+                       model%basal_physics%coulomb_c_relax = model%basal_physics%coulomb_c_max
+                 endwhere
+             endif
           else
 
              model%basal_physics%coulomb_c_relax = 0.0d0  ! no relaxation
@@ -1088,7 +1096,10 @@ contains
                 print*, 'dfriction_c, new friction_c =', dfriction_c(i,j), friction_c(i,j)
              endif
 
-          else   ! no ice present; relax friction_c to the default value
+          else   !ice is not grounded; relax friction_c to the default value
+                 !TvdA: if ice is not grounded and if it should be grounded in the observations
+                 !we do not want coulomb c to go down to the relax target, but we want to keep it at the last, possibly
+                 !high value. So we need to check if in observations the ice was grounded, so we need and f_ground_obs
              if (friction_c_relax(i,j) > 0.0d0) then
                    term_relax = -babc_relax_factor * log(friction_c(i,j)/friction_c_relax(i,j)) / babc_timescale
                    friction_c(i,j) = friction_c(i,j) * (1.0d0 + term_relax*dt)

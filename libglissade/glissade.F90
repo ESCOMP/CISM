@@ -114,7 +114,7 @@ contains
     use glissade_velo_higher, only: glissade_velo_higher_init
     use glide_diagnostics, only: glide_init_diag
     use glissade_calving, only: glissade_calving_mask_init, glissade_thck_calving_threshold_init
-    use glissade_inversion, only: glissade_init_inversion, verbose_inversion
+    use glissade_inversion, only: usrf_to_thck, glissade_init_inversion, verbose_inversion
     use glissade_basal_traction, only: glissade_init_effective_pressure
     use glissade_bmlt_float, only: glissade_bmlt_float_thermal_forcing_init, verbose_bmlt_float
     use glissade_grounding_line, only: glissade_grounded_fraction
@@ -146,6 +146,10 @@ contains
     real(dp), dimension(:,:), allocatable :: &
          topg_smoothed,     & ! smoothed input topography
          thck_flotation       ! flotation thickness
+
+
+    real(dp), dimension(model%general%ewn, model%general%nsn) ::  &
+         thck_obs            ! observed thickness target (m)
 
     integer, dimension(:,:), allocatable :: &
          ice_domain_mask      ! = 1 where ice is potentially present and active
@@ -893,6 +897,43 @@ contains
         model%options%which_ho_flow_enhancement_factor == HO_FLOW_ENHANCEMENT_FACTOR_INVERSION) then
 
        call glissade_init_inversion(model)
+
+       !TvdA: add a calculation to get the f_ground_obs here as well, to use that the whole run 
+       ! to assess if we want to relax to a target value. That is, if the ice in observations is groundded but floating
+       ! in the model, we do not want to decrease our friction field. Preventing this will make the ice easier to ground
+
+
+       call usrf_to_thck(&
+               model%geometry%usrf_obs,  &
+               model%geometry%topg,      &
+               model%climate%eus,        &
+               thck_obs)
+
+       call glissade_get_masks(model%general%ewn, model%general%nsn,       &
+                               parallel,                                   &
+                               model%geometry%thck, model%geometry%topg,   &
+                               model%climate%eus,   0.0d0,                 &  ! thklim = 0
+                               ice_mask,                                   &
+                               floating_mask = floating_mask,              &
+                               land_mask = land_mask)
+       call glissade_grounded_fraction(&
+               model%general%ewn,         model%general%nsn,             &
+               parallel,                      &
+               model%numerics%idiag_local,model%numerics%jdiag_local,    &
+               model%numerics%rdiag_local,           &  ! diagnostic only
+               thck_obs*thk0,                 &
+               model%geometry%topg*thk0,      &
+               model%climate%eus*thk0,        &
+               ice_mask,                      &
+               floating_mask,                 &
+               land_mask,                     &
+               model%options%which_ho_ground, &
+               model%options%which_ho_flotation_function, &
+               model%options%which_ho_fground_no_glp,     &
+               model%geometry%f_flotation_obs,               &
+               model%geometry%f_ground_obs,                  &
+               model%geometry%f_ground_cell_obs)
+
 
     endif  ! inversion for Cp, Cc or bmlt
 
@@ -4476,6 +4517,12 @@ contains
           ! Note: f_flotation_obs and f_ground_obs are not used, but they
           !       are required output arguments for the subroutine.
 
+          !TvdA: I am going to use this function for the basal friction inversion as well, to let areas that easily unground
+          ! such as the Bungenstock keep their inverted basal friction once the modelled grounding line recedes 
+          ! past observations. Therefore, I only need to compute the f_ground_obs a single time, every start of the run
+          ! this call down below here can therefore be time-inefficient, as the field already exists
+          ! I kept it in anyway, but we might want to consider to remove this one
+
           call glissade_grounded_fraction(&
                ewn,          nsn,             &
                parallel,                      &
@@ -4490,8 +4537,8 @@ contains
                model%options%which_ho_flotation_function, &
                model%options%which_ho_fground_no_glp,     &
                f_flotation_obs,               &
-               f_ground_obs,                  &
-               f_ground_cell_obs)
+               model%geometry%f_ground_obs,                  &
+               model%geometry%f_ground_cell_obs)
 
           call parallel_halo(thck_obs,parallel)
           call parallel_halo(model%geometry%thck,parallel)
@@ -4513,7 +4560,7 @@ contains
                thck_obs * thk0,                                  &
                ice_mask,                                         &
                model%geometry%f_ground_cell,                     &
-               f_ground_cell_obs,                                &
+               model%geometry%f_ground_cell_obs,                                &
                model%paramets%flow_enhancement_factor_ground,    &
                model%paramets%flow_enhancement_factor_float,     &
                model%inversion%flow_enhancement_thck_scale,      &  ! m

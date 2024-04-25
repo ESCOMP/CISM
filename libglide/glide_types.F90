@@ -281,6 +281,9 @@ module glide_types
   integer, parameter :: HO_COULOMB_C_RELAX_CONSTANT = 1
   integer, parameter :: HO_COULOMB_C_RELAX_ELEVATION = 2
 
+  integer, parameter :: HO_COULOMB_C_ERROR_NONE=0
+  integer, parameter :: HO_COULOMB_C_ERROR_OBS = 1
+
   !TODO - Remove option 3?
   integer, parameter :: HO_DELTAT_OCN_NONE = 0
   integer, parameter :: HO_DELTAT_OCN_INVERSION = 1
@@ -877,6 +880,14 @@ module glide_types
     !> \item[2] coulomb_c_relax = function of bed elevation
     !> \end{description}
 
+
+    integer :: which_ho_coulomb_c_error = 0
+    !> Flag for basal coulomb_c relax target at ice that is floating but should not be according to observations
+    !> \begin{description}
+    !> \item[0] Regardlerss of observations, floating ice is relaxed towards the target
+    !> \item[1] If ice is floating but it should not be: relax towards maximum coulomb c value to make regrounding easier
+    !> \end{description}
+
     integer :: which_ho_deltaT_ocn = 0
     !> Flag for local ocean temperature corrections
     !> \begin{description}
@@ -1225,8 +1236,19 @@ module glide_types
     real(dp),dimension(:,:),pointer :: f_flotation => null() 
     !> flotation function, > 0 for floating ice and <= 0 for grounded ice
 
+
+
+    real(dp),dimension(:,:),pointer :: f_flotation_obs => null() 
+    !> flotation function, > 0 for floating ice and <= 0 for grounded ice
+
     real(dp),dimension(:,:),pointer :: f_ground => null() 
     !> The fractional area at each vertex which is grounded
+
+    real(dp),dimension(:,:),pointer :: f_ground_obs => null() 
+    !> The fractional area at each vertex which is grounded in the observations
+
+    real(dp),dimension(:,:),pointer :: f_ground_cell_obs => null() 
+    !> The fractional area at each vertex which is grounded in the observations
 
     real(dp),dimension(:,:),pointer :: f_ground_cell => null() 
     !> The fractional area in each cell which is grounded
@@ -2863,8 +2885,14 @@ contains
        call coordsystem_allocate(model%general%velo_grid, model%velocity%velo_sfc)
        call coordsystem_allocate(model%general%velo_grid, model%velocity%velo_sfc_fei)
        call coordsystem_allocate(model%general%ice_grid,  model%geometry%f_flotation)
+
+       call coordsystem_allocate(model%general%ice_grid,  model%geometry%f_flotation_obs)
        call coordsystem_allocate(model%general%velo_grid, model%geometry%f_ground)
        call coordsystem_allocate(model%general%ice_grid,  model%geometry%f_ground_cell)
+
+       call coordsystem_allocate(model%general%velo_grid, model%geometry%f_ground_obs)
+       call coordsystem_allocate(model%general%ice_grid,  model%geometry%f_ground_cell_obs)
+
        call coordsystem_allocate(model%general%velo_grid, model%geomderv%dlsrfdew)
        call coordsystem_allocate(model%general%velo_grid, model%geomderv%dlsrfdns)
        call coordsystem_allocate(model%general%velo_grid, model%geomderv%staglsrf)
@@ -3511,10 +3539,18 @@ contains
         deallocate(model%geometry%tracers)
     if (associated(model%geometry%f_flotation)) &
         deallocate(model%geometry%f_flotation)
+    if (associated(model%geometry%f_flotation_obs)) &
+        deallocate(model%geometry%f_flotation_obs)
     if (associated(model%geometry%f_ground)) &
         deallocate(model%geometry%f_ground)
     if (associated(model%geometry%f_ground_cell)) &
         deallocate(model%geometry%f_ground_cell)
+
+    if (associated(model%geometry%f_ground_obs)) &
+        deallocate(model%geometry%f_ground_obs)
+    if (associated(model%geometry%f_ground_cell_obs)) &
+        deallocate(model%geometry%f_ground_cell_obs)
+
     if (associated(model%geomderv%dlsrfdew)) &
         deallocate(model%geomderv%dlsrfdew)
     if (associated(model%geomderv%dlsrfdns)) &
