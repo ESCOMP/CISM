@@ -702,6 +702,7 @@ module glissade_bmlt_float
 
   subroutine glissade_bmlt_float_thermal_forcing(&
        bmlt_float_thermal_forcing_param, &
+       which_ho_deltaT_cap,       &
        ocean_data_extrapolate,    &
        deltaT_ocn_extrapolate,    &
        parallel,                  &
@@ -732,7 +733,8 @@ module glissade_bmlt_float
     integer, intent(in) :: &
          bmlt_float_thermal_forcing_param, & !> melting parameterization used to derive melt rate from thermal forcing;
                                              !> current options are quadratic and ISMIP6 local, nonlocal and nonlocal_slope
-         ocean_data_extrapolate              !> = 1 if TF is to be extrapolated to sub-shelf cavities, else = 0
+         ocean_data_extrapolate,    &              !> = 1 if TF is to be extrapolated to sub-shelf cavities, else = 0
+         which_ho_deltaT_cap
 
     logical, intent(in) :: &
          deltaT_ocn_extrapolate              !> T if deltaT_ocn is to be extrapolated to non-floating cells, else = F
@@ -1373,6 +1375,7 @@ module glissade_bmlt_float
 
        call ismip6_bmlt_float(&
             bmlt_float_thermal_forcing_param, &
+            which_ho_deltaT_cap,              &
             nx,                ny,            &
             itest,   jtest,    rtest,         &
             ocean_data%nbasin,                &
@@ -1976,6 +1979,7 @@ module glissade_bmlt_float
 
   subroutine ismip6_bmlt_float(&
        bmlt_float_thermal_forcing_param, &
+       which_ho_deltaT_cap,       &
        nx,         ny,            &
        itest,   jtest,    rtest,  &
        nbasin,                    &
@@ -1995,8 +1999,8 @@ module glissade_bmlt_float
     !       In this case, we set effective TF = 0.
 
     integer, intent(in) :: &
-         bmlt_float_thermal_forcing_param  !> kind of melting parameterization, local or nonlocal
-
+         bmlt_float_thermal_forcing_param, &  !> kind of melting parameterization, local or nonlocal
+         which_ho_deltaT_cap
     integer, intent(in) :: &
          nx, ny                   !> number of grid cells in each dimension
 
@@ -2047,10 +2051,17 @@ module glissade_bmlt_float
     ! This prevents grid cells from reaching an unresponsive state in which an increase
     !  in deltaT_ocn does not generate any melt, since eff_thermal_forcing remains < 0.
 
-    where (thermal_forcing_mask == 1 .and. &
-           thermal_forcing_lsrf + deltaT_ocn < 0.0d0)
-       deltaT_ocn = -thermal_forcing_lsrf
-    endwhere
+
+    !TvdA: this is a spot where a change has been made since 2022 related to the ice shelves
+    !my logic is that it should not matter, nevertheless, I will make a config parameter for this
+    !defaulting to using this
+    
+    if (which_ho_deltaT_cap == HO_DELTAT_OCN_CAP) then
+        where (thermal_forcing_mask == 1 .and. &
+              thermal_forcing_lsrf + deltaT_ocn < 0.0d0)
+              deltaT_ocn = -thermal_forcing_lsrf
+        endwhere
+    endif
 
     if (bmlt_float_thermal_forcing_param == BMLT_FLOAT_TF_ISMIP6_LOCAL) then
 
