@@ -1348,6 +1348,11 @@ contains
     !       This might lead to small violations of energy conservation.
     !       TODO: Separate the bmlt_ground computation from the temperature computation?
 
+    !TvdA: I removed the option to apply a basal multiplyer per basin here for backtracibility
+    ! also, the basal melt is not automatically multiplied with the internal float factor anymore. 
+    ! 
+
+    model%basal_melt%bmlt(:,:) = model%basal_melt%bmlt_ground(:,:) + model%basal_melt%bmlt_float(:,:)
    !!add the option here to include an updated marine connection field that does not go thourgh marine grounded ice
     if (model%options%which_ho_marine_mask == HO_MARINE_MASK_ISOLATED) then
        
@@ -1367,13 +1372,8 @@ contains
          model%basal_melt%bmlt(:,:) = model%basal_melt%bmlt_ground(:,:) + &
          model%geometry%marine_connection_mask_isolated(:,:)*model%basal_melt%bmlt_float(:,:)*model%basal_melt%bmlt_float_factor_internal
 
-
-    else if (model%options%which_ho_bmlt_basin_correction == HO_BMLT_BASIN_CORRECTION) then
-         print*, 'Zakje' 
-         model%basal_melt%bmlt(:,:) = model%basal_melt%bmlt_ground(:,:) + model%basal_melt%bmlt_float(:,:)*model%basal_melt%basin_multiplier_array(:,:)
-    else
-         model%basal_melt%bmlt(:,:) = model%basal_melt%bmlt_ground(:,:) + model%basal_melt%bmlt_float(:,:)*model%basal_melt%bmlt_float_factor_internal
     endif
+
     if (verbose_glissade .and. this_rank == rtest) then
        i = itest
        j = jtest
@@ -1761,17 +1761,17 @@ contains
 
 
        !Tim: I added this, to stop the PMP - modeldrift spinup
-!       if (model%options%whichbmlt_float == BMLT_FLOAT_EXTERNAL) then
+       if (model%options%whichbmlt_float == BMLT_FLOAT_EXTERNAL) then
 
        ! Apply the external melt rate
 
- !      model%basal_melt%bmlt_float(:,:) = model%basal_melt%bmlt_float_external(:,:)
+       model%basal_melt%bmlt_float(:,:) = model%basal_melt%bmlt_float_external(:,:)
 
        ! Optionally, multiply bmlt_float by a scalar adjustment factor
-!       if (model%basal_melt%bmlt_float_factor /= 1.0d0) then
-!          model%basal_melt%bmlt_float(:,:) = model%basal_melt%bmlt_float(:,:) * model%basal_melt%bmlt_float_factor
-!       endif
-!       endif !external
+       if (model%basal_melt%bmlt_float_factor /= 1.0d0) then
+          model%basal_melt%bmlt_float(:,:) = model%basal_melt%bmlt_float(:,:) * model%basal_melt%bmlt_float_factor
+       endif
+       endif !external
 
        elseif (model%options%which_ho_ground_bmlt == HO_GROUND_BMLT_ZERO_GROUNDED) then
 

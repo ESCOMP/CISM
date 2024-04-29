@@ -352,6 +352,19 @@ LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_grounding_line.F90(68
    LOOP END
 LOOP END
 
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_grounding_line.F90(731,11)
+   remark #15541: outer loop was not auto-vectorized: consider using SIMD directive
+
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_grounding_line.F90(731,11)
+      remark #15335: loop was not vectorized: vectorization possible but seems inefficient. Use vector always directive or -vec-threshold0 to override 
+      remark #25439: unrolled with remainder by 2  
+   LOOP END
+
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_grounding_line.F90(731,11)
+   <Remainder>
+   LOOP END
+LOOP END
+
 
 Non-optimizable loops:
 
@@ -397,19 +410,19 @@ LOOP END
         Assigned     :   30[ rax rdx rcx rbx rsi rdi r8-r15 zmm0-zmm15]
         
     Routine temporaries
-        Total         :     933
-            Global    :     381
-            Local     :     552
-        Regenerable   :     126
-        Spilled       :      70
+        Total         :     947
+            Global    :     392
+            Local     :     555
+        Regenerable   :     127
+        Spilled       :      71
         
     Routine stack
         Variables     :     296 bytes*
-            Reads     :      10 [1.63e-01 ~ 0.2%]
-            Writes    :      71 [3.41e-01 ~ 0.3%]
-        Spills        :     520 bytes*
-            Reads     :     314 [6.67e+00 ~ 6.7%]
-            Writes    :     178 [2.68e+00 ~ 2.7%]
+            Reads     :      10 [1.62e-01 ~ 0.2%]
+            Writes    :      71 [3.38e-01 ~ 0.3%]
+        Spills        :     528 bytes*
+            Reads     :     317 [6.70e+00 ~ 6.7%]
+            Writes    :     180 [2.67e+00 ~ 2.7%]
     
     Notes
     
@@ -423,72 +436,72 @@ Begin optimization report for: GLISSADE_GROUNDING_LINE::COMPUTE_GROUNDED_FRACTIO
 
     Report from: Interprocedural optimizations [ipo]
 
-INLINE REPORT: (GLISSADE_GROUNDING_LINE::COMPUTE_GROUNDED_FRACTION) [3] /glade/u/home/tvda/CISM/libglissade/glissade_grounding_line.F90(740,14)
-  -> DELETED: (821,8) for_write_seq_lis
-  -> DELETED: (822,8) for_write_seq_lis
-  -> DELETED: (822,8) for_write_seq_lis_xmit
-  -> DELETED: (822,8) for_write_seq_lis_xmit
-  -> DELETED: (822,8) for_write_seq_lis_xmit
+INLINE REPORT: (GLISSADE_GROUNDING_LINE::COMPUTE_GROUNDED_FRACTION) [3] /glade/u/home/tvda/CISM/libglissade/glissade_grounding_line.F90(742,14)
   -> DELETED: (823,8) for_write_seq_lis
-  -> DELETED: (823,8) for_write_seq_lis_xmit
-  -> DELETED: (823,8) for_write_seq_lis_xmit
   -> DELETED: (824,8) for_write_seq_lis
+  -> DELETED: (824,8) for_write_seq_lis_xmit
   -> DELETED: (824,8) for_write_seq_lis_xmit
   -> DELETED: (824,8) for_write_seq_lis_xmit
   -> DELETED: (825,8) for_write_seq_lis
   -> DELETED: (825,8) for_write_seq_lis_xmit
-  -> DELETED: (909,11) for_write_seq_lis_xmit
-  -> DELETED: (909,11) for_write_seq_lis_xmit
-  -> DELETED: (909,11) for_write_seq_lis_xmit
-  -> DELETED: (909,11) for_write_seq_lis_xmit
-  -> DELETED: (909,11) for_write_seq_lis
-  -> DELETED: (910,11) for_write_seq_lis_xmit
-  -> DELETED: (910,11) for_write_seq_lis_xmit
-  -> DELETED: (910,11) for_write_seq_lis_xmit
-  -> DELETED: (910,11) for_write_seq_lis_xmit
-  -> DELETED: (910,11) for_write_seq_lis
-  -> DELETED: (1033,11) for_write_seq_lis_xmit
-  -> DELETED: (1033,11) for_write_seq_lis
-  -> DELETED: (1034,11) for_write_seq_lis_xmit
-  -> DELETED: (1034,11) for_write_seq_lis_xmit
-  -> DELETED: (1034,11) for_write_seq_lis_xmit
-  -> DELETED: (1034,11) for_write_seq_lis_xmit
-  -> DELETED: (1034,11) for_write_seq_lis
-  -> DELETED: (1035,11) for_write_seq_lis_xmit
-  -> DELETED: (1035,11) for_write_seq_lis_xmit
-  -> DELETED: (1035,11) for_write_seq_lis_xmit
+  -> DELETED: (825,8) for_write_seq_lis_xmit
+  -> DELETED: (826,8) for_write_seq_lis
+  -> DELETED: (826,8) for_write_seq_lis_xmit
+  -> DELETED: (826,8) for_write_seq_lis_xmit
+  -> DELETED: (827,8) for_write_seq_lis
+  -> DELETED: (827,8) for_write_seq_lis_xmit
+  -> DELETED: (911,11) for_write_seq_lis_xmit
+  -> DELETED: (911,11) for_write_seq_lis_xmit
+  -> DELETED: (911,11) for_write_seq_lis_xmit
+  -> DELETED: (911,11) for_write_seq_lis_xmit
+  -> DELETED: (911,11) for_write_seq_lis
+  -> DELETED: (912,11) for_write_seq_lis_xmit
+  -> DELETED: (912,11) for_write_seq_lis_xmit
+  -> DELETED: (912,11) for_write_seq_lis_xmit
+  -> DELETED: (912,11) for_write_seq_lis_xmit
+  -> DELETED: (912,11) for_write_seq_lis
   -> DELETED: (1035,11) for_write_seq_lis_xmit
   -> DELETED: (1035,11) for_write_seq_lis
-  -> DELETED: (1102,14) for_write_seq_lis_xmit
-  -> DELETED: (1102,14) for_write_seq_lis_xmit
-  -> DELETED: (1102,14) for_write_seq_lis_xmit
-  -> DELETED: (1102,14) for_write_seq_lis
+  -> DELETED: (1036,11) for_write_seq_lis_xmit
+  -> DELETED: (1036,11) for_write_seq_lis_xmit
+  -> DELETED: (1036,11) for_write_seq_lis_xmit
+  -> DELETED: (1036,11) for_write_seq_lis_xmit
+  -> DELETED: (1036,11) for_write_seq_lis
+  -> DELETED: (1037,11) for_write_seq_lis_xmit
+  -> DELETED: (1037,11) for_write_seq_lis_xmit
+  -> DELETED: (1037,11) for_write_seq_lis_xmit
+  -> DELETED: (1037,11) for_write_seq_lis_xmit
+  -> DELETED: (1037,11) for_write_seq_lis
+  -> DELETED: (1104,14) for_write_seq_lis_xmit
+  -> DELETED: (1104,14) for_write_seq_lis_xmit
+  -> DELETED: (1104,14) for_write_seq_lis_xmit
+  -> DELETED: (1104,14) for_write_seq_lis
 
 
     Report from: Loop nest, Vector & Auto-parallelization optimizations [loop, vec, par]
 
 
-LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_grounding_line.F90(810,5)
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_grounding_line.F90(812,5)
    remark #15335: loop was not vectorized: vectorization possible but seems inefficient. Use vector always directive or -vec-threshold0 to override 
    remark #25436: completely unrolled by 4  
 LOOP END
 
-LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_grounding_line.F90(839,30)
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_grounding_line.F90(841,30)
    remark #15331: loop was not vectorized: precise FP model implied by the command line or a directive prevents vectorization. Consider using fast FP model
    remark #25436: completely unrolled by 4  
-LOOP END
-
-LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_grounding_line.F90(861,11)
-   remark #15300: LOOP WAS VECTORIZED
 LOOP END
 
 LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_grounding_line.F90(863,11)
    remark #15300: LOOP WAS VECTORIZED
 LOOP END
 
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_grounding_line.F90(865,11)
+   remark #15300: LOOP WAS VECTORIZED
+LOOP END
+
     Report from: Code generation optimizations [cg]
 
-/glade/u/home/tvda/CISM/libglissade/glissade_grounding_line.F90(740,14):remark #34051: REGISTER ALLOCATION : [glissade_grounding_line_mp_compute_grounded_fraction_] /glade/u/home/tvda/CISM/libglissade/glissade_grounding_line.F90:740
+/glade/u/home/tvda/CISM/libglissade/glissade_grounding_line.F90(742,14):remark #34051: REGISTER ALLOCATION : [glissade_grounding_line_mp_compute_grounded_fraction_] /glade/u/home/tvda/CISM/libglissade/glissade_grounding_line.F90:742
 
     Hardware registers
         Reserved     :    2[ rsp rip]
@@ -523,66 +536,12 @@ Begin optimization report for: GLISSADE_GROUNDING_LINE::GLISSADE_GROUNDING_LINE_
 
     Report from: Interprocedural optimizations [ipo]
 
-INLINE REPORT: (GLISSADE_GROUNDING_LINE::GLISSADE_GROUNDING_LINE_FLUX) [4] /glade/u/home/tvda/CISM/libglissade/glissade_grounding_line.F90(1146,14)
+INLINE REPORT: (GLISSADE_GROUNDING_LINE::GLISSADE_GROUNDING_LINE_FLUX) [4] /glade/u/home/tvda/CISM/libglissade/glissade_grounding_line.F90(1148,14)
 
 
     Report from: Loop nest, Vector & Auto-parallelization optimizations [loop, vec, par]
 
 
-LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_grounding_line.F90(1215,5)
-<Multiversioned v1>
-   remark #25233: Loop multiversioned for stride tests on Assumed shape arrays
-   remark #15542: loop was not vectorized: inner loop was already vectorized
-
-   LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_grounding_line.F90(1215,5)
-      remark #15300: LOOP WAS VECTORIZED
-   LOOP END
-
-   LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_grounding_line.F90(1215,5)
-   <Remainder loop for vectorization>
-   LOOP END
-LOOP END
-
-LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_grounding_line.F90(1215,5)
-<Multiversioned v2>
-   remark #15542: loop was not vectorized: inner loop was already vectorized
-
-   LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_grounding_line.F90(1215,5)
-      remark #15300: LOOP WAS VECTORIZED
-   LOOP END
-
-   LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_grounding_line.F90(1215,5)
-   <Remainder loop for vectorization>
-   LOOP END
-LOOP END
-
-LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_grounding_line.F90(1216,5)
-<Multiversioned v1>
-   remark #25233: Loop multiversioned for stride tests on Assumed shape arrays
-   remark #15542: loop was not vectorized: inner loop was already vectorized
-
-   LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_grounding_line.F90(1216,5)
-      remark #15300: LOOP WAS VECTORIZED
-   LOOP END
-
-   LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_grounding_line.F90(1216,5)
-   <Remainder loop for vectorization>
-   LOOP END
-LOOP END
-
-LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_grounding_line.F90(1216,5)
-<Multiversioned v2>
-   remark #15542: loop was not vectorized: inner loop was already vectorized
-
-   LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_grounding_line.F90(1216,5)
-      remark #15300: LOOP WAS VECTORIZED
-   LOOP END
-
-   LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_grounding_line.F90(1216,5)
-   <Remainder loop for vectorization>
-   LOOP END
-LOOP END
-
 LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_grounding_line.F90(1217,5)
 <Multiversioned v1>
    remark #25233: Loop multiversioned for stride tests on Assumed shape arrays
@@ -610,96 +569,94 @@ LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_grounding_line.F90(12
    LOOP END
 LOOP END
 
-LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_grounding_line.F90(1232,17)
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_grounding_line.F90(1218,5)
+<Multiversioned v1>
+   remark #25233: Loop multiversioned for stride tests on Assumed shape arrays
+   remark #15542: loop was not vectorized: inner loop was already vectorized
+
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_grounding_line.F90(1218,5)
+      remark #15300: LOOP WAS VECTORIZED
+   LOOP END
+
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_grounding_line.F90(1218,5)
+   <Remainder loop for vectorization>
+   LOOP END
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_grounding_line.F90(1218,5)
+<Multiversioned v2>
+   remark #15542: loop was not vectorized: inner loop was already vectorized
+
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_grounding_line.F90(1218,5)
+      remark #15300: LOOP WAS VECTORIZED
+   LOOP END
+
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_grounding_line.F90(1218,5)
+   <Remainder loop for vectorization>
+   LOOP END
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_grounding_line.F90(1219,5)
+<Multiversioned v1>
+   remark #25233: Loop multiversioned for stride tests on Assumed shape arrays
+   remark #15542: loop was not vectorized: inner loop was already vectorized
+
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_grounding_line.F90(1219,5)
+      remark #15300: LOOP WAS VECTORIZED
+   LOOP END
+
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_grounding_line.F90(1219,5)
+   <Remainder loop for vectorization>
+   LOOP END
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_grounding_line.F90(1219,5)
+<Multiversioned v2>
+   remark #15542: loop was not vectorized: inner loop was already vectorized
+
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_grounding_line.F90(1219,5)
+      remark #15300: LOOP WAS VECTORIZED
+   LOOP END
+
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_grounding_line.F90(1219,5)
+   <Remainder loop for vectorization>
+   LOOP END
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_grounding_line.F90(1234,17)
    remark #15300: LOOP WAS VECTORIZED
 LOOP END
 
-LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_grounding_line.F90(1232,17)
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_grounding_line.F90(1234,17)
 <Remainder loop for vectorization>
    remark #15335: remainder loop was not vectorized: vectorization possible but seems inefficient. Use vector always directive or -vec-threshold0 to override 
 LOOP END
 
-LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_grounding_line.F90(1241,17)
-   remark #15331: loop was not vectorized: precise FP model implied by the command line or a directive prevents vectorization. Consider using fast FP model   [ /glade/u/home/tvda/CISM/libglissade/glissade_grounding_line.F90(1242,21) ]
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_grounding_line.F90(1243,17)
+   remark #15331: loop was not vectorized: precise FP model implied by the command line or a directive prevents vectorization. Consider using fast FP model   [ /glade/u/home/tvda/CISM/libglissade/glissade_grounding_line.F90(1244,21) ]
    remark #25456: Number of Array Refs Scalar Replaced In Loop: 1
 LOOP END
 
-LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_grounding_line.F90(1254,17)
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_grounding_line.F90(1256,17)
    remark #15300: LOOP WAS VECTORIZED
 LOOP END
 
-LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_grounding_line.F90(1254,17)
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_grounding_line.F90(1256,17)
 <Remainder loop for vectorization>
    remark #15335: remainder loop was not vectorized: vectorization possible but seems inefficient. Use vector always directive or -vec-threshold0 to override 
 LOOP END
 
-LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_grounding_line.F90(1263,17)
-   remark #15331: loop was not vectorized: precise FP model implied by the command line or a directive prevents vectorization. Consider using fast FP model   [ /glade/u/home/tvda/CISM/libglissade/glissade_grounding_line.F90(1264,21) ]
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_grounding_line.F90(1265,17)
+   remark #15331: loop was not vectorized: precise FP model implied by the command line or a directive prevents vectorization. Consider using fast FP model   [ /glade/u/home/tvda/CISM/libglissade/glissade_grounding_line.F90(1266,21) ]
    remark #25456: Number of Array Refs Scalar Replaced In Loop: 1
 LOOP END
 
-LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_grounding_line.F90(1275,5)
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_grounding_line.F90(1277,5)
    remark #15541: outer loop was not auto-vectorized: consider using SIMD directive
 
-   LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_grounding_line.F90(1276,9)
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_grounding_line.F90(1278,9)
       remark #15344: loop was not vectorized: vector dependence prevents vectorization. First dependence is shown below. Use level 5 report for details
-      remark #15346: vector dependence: assumed OUTPUT dependence between gl_flux(i+1,j) (1281:17) and gl_flux(i,j) (1293:17)
-   LOOP END
-LOOP END
-
-LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_grounding_line.F90(1300,5)
-<Multiversioned v1>
-   remark #25233: Loop multiversioned for stride tests on Assumed shape arrays
-   remark #15542: loop was not vectorized: inner loop was already vectorized
-
-   LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_grounding_line.F90(1300,5)
-      remark #15300: LOOP WAS VECTORIZED
-   LOOP END
-
-   LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_grounding_line.F90(1300,5)
-   <Remainder loop for vectorization>
-      remark #15335: remainder loop was not vectorized: vectorization possible but seems inefficient. Use vector always directive or -vec-threshold0 to override 
-   LOOP END
-LOOP END
-
-LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_grounding_line.F90(1300,5)
-<Multiversioned v2>
-   remark #15542: loop was not vectorized: inner loop was already vectorized
-
-   LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_grounding_line.F90(1300,5)
-      remark #15300: LOOP WAS VECTORIZED
-   LOOP END
-
-   LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_grounding_line.F90(1300,5)
-   <Remainder loop for vectorization>
-   LOOP END
-LOOP END
-
-LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_grounding_line.F90(1301,5)
-<Multiversioned v1>
-   remark #25233: Loop multiversioned for stride tests on Assumed shape arrays
-   remark #15542: loop was not vectorized: inner loop was already vectorized
-
-   LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_grounding_line.F90(1301,5)
-      remark #15300: LOOP WAS VECTORIZED
-   LOOP END
-
-   LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_grounding_line.F90(1301,5)
-   <Remainder loop for vectorization>
-      remark #15335: remainder loop was not vectorized: vectorization possible but seems inefficient. Use vector always directive or -vec-threshold0 to override 
-   LOOP END
-LOOP END
-
-LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_grounding_line.F90(1301,5)
-<Multiversioned v2>
-   remark #15542: loop was not vectorized: inner loop was already vectorized
-
-   LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_grounding_line.F90(1301,5)
-      remark #15300: LOOP WAS VECTORIZED
-   LOOP END
-
-   LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_grounding_line.F90(1301,5)
-   <Remainder loop for vectorization>
+      remark #15346: vector dependence: assumed OUTPUT dependence between gl_flux(i+1,j) (1283:17) and gl_flux(i,j) (1295:17)
    LOOP END
 LOOP END
 
@@ -727,6 +684,62 @@ LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_grounding_line.F90(13
    LOOP END
 
    LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_grounding_line.F90(1302,5)
+   <Remainder loop for vectorization>
+   LOOP END
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_grounding_line.F90(1303,5)
+<Multiversioned v1>
+   remark #25233: Loop multiversioned for stride tests on Assumed shape arrays
+   remark #15542: loop was not vectorized: inner loop was already vectorized
+
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_grounding_line.F90(1303,5)
+      remark #15300: LOOP WAS VECTORIZED
+   LOOP END
+
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_grounding_line.F90(1303,5)
+   <Remainder loop for vectorization>
+      remark #15335: remainder loop was not vectorized: vectorization possible but seems inefficient. Use vector always directive or -vec-threshold0 to override 
+   LOOP END
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_grounding_line.F90(1303,5)
+<Multiversioned v2>
+   remark #15542: loop was not vectorized: inner loop was already vectorized
+
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_grounding_line.F90(1303,5)
+      remark #15300: LOOP WAS VECTORIZED
+   LOOP END
+
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_grounding_line.F90(1303,5)
+   <Remainder loop for vectorization>
+   LOOP END
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_grounding_line.F90(1304,5)
+<Multiversioned v1>
+   remark #25233: Loop multiversioned for stride tests on Assumed shape arrays
+   remark #15542: loop was not vectorized: inner loop was already vectorized
+
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_grounding_line.F90(1304,5)
+      remark #15300: LOOP WAS VECTORIZED
+   LOOP END
+
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_grounding_line.F90(1304,5)
+   <Remainder loop for vectorization>
+      remark #15335: remainder loop was not vectorized: vectorization possible but seems inefficient. Use vector always directive or -vec-threshold0 to override 
+   LOOP END
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_grounding_line.F90(1304,5)
+<Multiversioned v2>
+   remark #15542: loop was not vectorized: inner loop was already vectorized
+
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_grounding_line.F90(1304,5)
+      remark #15300: LOOP WAS VECTORIZED
+   LOOP END
+
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_grounding_line.F90(1304,5)
    <Remainder loop for vectorization>
    LOOP END
 LOOP END
@@ -735,17 +748,17 @@ LOOP END
 Non-optimizable loops:
 
 
-LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_grounding_line.F90(1270,5)
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_grounding_line.F90(1272,5)
    remark #15532: loop was not vectorized: compile time constraints prevent loop optimization. Consider using -O3.
 
-   LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_grounding_line.F90(1269,9)
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_grounding_line.F90(1271,9)
       remark #15532: loop was not vectorized: compile time constraints prevent loop optimization. Consider using -O3.
    LOOP END
 LOOP END
 
     Report from: Code generation optimizations [cg]
 
-/glade/u/home/tvda/CISM/libglissade/glissade_grounding_line.F90(1146,14):remark #34051: REGISTER ALLOCATION : [glissade_grounding_line_mp_glissade_grounding_line_flux_] /glade/u/home/tvda/CISM/libglissade/glissade_grounding_line.F90:1146
+/glade/u/home/tvda/CISM/libglissade/glissade_grounding_line.F90(1148,14):remark #34051: REGISTER ALLOCATION : [glissade_grounding_line_mp_glissade_grounding_line_flux_] /glade/u/home/tvda/CISM/libglissade/glissade_grounding_line.F90:1148
 
     Hardware registers
         Reserved     :    2[ rsp rip]

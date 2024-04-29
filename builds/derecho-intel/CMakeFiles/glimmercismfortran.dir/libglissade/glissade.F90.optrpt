@@ -239,302 +239,248 @@ LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade.F90(4059,13) inlined 
    LOOP END
 LOOP END
 
-LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade.F90(1354,13)
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade.F90(1355,5)
 <Multiversioned v1>
    remark #25233: Loop multiversioned for stride tests on Assumed shape arrays
    remark #15542: loop was not vectorized: inner loop was already vectorized
 
-   LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade.F90(1354,13)
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade.F90(1355,5)
       remark #15300: LOOP WAS VECTORIZED
    LOOP END
 
-   LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade.F90(1354,13)
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade.F90(1355,5)
    <Remainder loop for vectorization>
    LOOP END
 LOOP END
 
-LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade.F90(1354,13)
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade.F90(1355,5)
 <Multiversioned v2>
    remark #15542: loop was not vectorized: inner loop was already vectorized
 
-   LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade.F90(1354,13)
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade.F90(1355,5)
       remark #15300: LOOP WAS VECTORIZED
    LOOP END
 
-   LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade.F90(1354,13)
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade.F90(1355,5)
    <Remainder loop for vectorization>
    LOOP END
 LOOP END
 
-LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade.F90(1354,13)
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade.F90(1355,5)
 <Multiversioned v1>
    remark #25233: Loop multiversioned for stride tests on Assumed shape arrays
    remark #15542: loop was not vectorized: inner loop was already vectorized
 
-   LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade.F90(1354,13)
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade.F90(1355,5)
       remark #15300: LOOP WAS VECTORIZED
    LOOP END
 
-   LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade.F90(1354,13)
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade.F90(1355,5)
    <Remainder loop for vectorization>
    LOOP END
 LOOP END
 
-LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade.F90(1354,13)
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade.F90(1355,5)
 <Multiversioned v2>
    remark #15542: loop was not vectorized: inner loop was already vectorized
 
-   LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade.F90(1354,13)
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade.F90(1355,5)
       remark #15300: LOOP WAS VECTORIZED
    LOOP END
 
-   LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade.F90(1354,13)
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade.F90(1355,5)
    <Remainder loop for vectorization>
    LOOP END
 LOOP END
 
-LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade.F90(1354,13)
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade.F90(1359,13)
 <Multiversioned v1>
    remark #25233: Loop multiversioned for stride tests on Assumed shape arrays
    remark #15542: loop was not vectorized: inner loop was already vectorized
 
-   LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade.F90(1354,13)
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade.F90(1359,13)
       remark #15300: LOOP WAS VECTORIZED
    LOOP END
 
-   LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade.F90(1354,13)
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade.F90(1359,13)
    <Remainder loop for vectorization>
    LOOP END
 LOOP END
 
-LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade.F90(1354,13)
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade.F90(1359,13)
+<Multiversioned v2>
+   remark #15542: loop was not vectorized: inner loop was already vectorized
+
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade.F90(1359,13)
+      remark #15300: LOOP WAS VECTORIZED
+   LOOP END
+
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade.F90(1359,13)
+   <Remainder loop for vectorization>
+   LOOP END
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade.F90(1359,13)
+<Multiversioned v1>
+   remark #25233: Loop multiversioned for stride tests on Assumed shape arrays
+   remark #15542: loop was not vectorized: inner loop was already vectorized
+
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade.F90(1359,13)
+      remark #15300: LOOP WAS VECTORIZED
+   LOOP END
+
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade.F90(1359,13)
+   <Remainder loop for vectorization>
+   LOOP END
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade.F90(1359,13)
+<Multiversioned v2>
+   remark #15542: loop was not vectorized: inner loop was already vectorized
+
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade.F90(1359,13)
+      remark #15300: LOOP WAS VECTORIZED
+   LOOP END
+
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade.F90(1359,13)
+   <Remainder loop for vectorization>
+   LOOP END
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade.F90(1359,13)
+<Multiversioned v1>
+   remark #25233: Loop multiversioned for stride tests on Assumed shape arrays
+   remark #15542: loop was not vectorized: inner loop was already vectorized
+
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade.F90(1359,13)
+      remark #15300: LOOP WAS VECTORIZED
+   LOOP END
+
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade.F90(1359,13)
+   <Remainder loop for vectorization>
+   LOOP END
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade.F90(1359,13)
 <Multiversioned v2>
    remark #15541: outer loop was not auto-vectorized: consider using SIMD directive
 
-   LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade.F90(1354,13)
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade.F90(1359,13)
       remark #15335: loop was not vectorized: vectorization possible but seems inefficient. Use vector always directive or -vec-threshold0 to override 
       remark #25439: unrolled with remainder by 2  
    LOOP END
 
-   LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade.F90(1354,13)
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade.F90(1359,13)
    <Remainder>
    LOOP END
 LOOP END
 
-LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade.F90(1361,13)
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade.F90(1366,13)
 <Multiversioned v1>
    remark #25233: Loop multiversioned for stride tests on Assumed shape arrays
    remark #15542: loop was not vectorized: inner loop was already vectorized
 
-   LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade.F90(1361,13)
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade.F90(1366,13)
       remark #15300: LOOP WAS VECTORIZED
    LOOP END
 
-   LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade.F90(1361,13)
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade.F90(1366,13)
    <Remainder loop for vectorization>
    LOOP END
 LOOP END
 
-LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade.F90(1361,13)
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade.F90(1366,13)
 <Multiversioned v2>
    remark #15542: loop was not vectorized: inner loop was already vectorized
 
-   LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade.F90(1361,13)
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade.F90(1366,13)
       remark #15300: LOOP WAS VECTORIZED
    LOOP END
 
-   LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade.F90(1361,13)
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade.F90(1366,13)
    <Remainder loop for vectorization>
    LOOP END
 LOOP END
 
-LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade.F90(1361,13)
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade.F90(1366,13)
 <Multiversioned v1>
    remark #25233: Loop multiversioned for stride tests on Assumed shape arrays
    remark #15542: loop was not vectorized: inner loop was already vectorized
 
-   LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade.F90(1361,13)
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade.F90(1366,13)
       remark #15300: LOOP WAS VECTORIZED
    LOOP END
 
-   LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade.F90(1361,13)
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade.F90(1366,13)
    <Remainder loop for vectorization>
    LOOP END
 LOOP END
 
-LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade.F90(1361,13)
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade.F90(1366,13)
 <Multiversioned v2>
    remark #15541: outer loop was not auto-vectorized: consider using SIMD directive
 
-   LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade.F90(1361,13)
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade.F90(1366,13)
       remark #15335: loop was not vectorized: vectorization possible but seems inefficient. Use vector always directive or -vec-threshold0 to override 
       remark #25439: unrolled with remainder by 2  
    LOOP END
 
-   LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade.F90(1361,13)
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade.F90(1366,13)
    <Remainder>
    LOOP END
 LOOP END
 
-LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade.F90(1367,10)
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade.F90(1372,10)
 <Multiversioned v1>
    remark #25233: Loop multiversioned for stride tests on Assumed shape arrays
    remark #15542: loop was not vectorized: inner loop was already vectorized
 
-   LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade.F90(1367,10)
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade.F90(1372,10)
       remark #15300: LOOP WAS VECTORIZED
    LOOP END
 
-   LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade.F90(1367,10)
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade.F90(1372,10)
    <Remainder loop for vectorization>
    LOOP END
 LOOP END
 
-LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade.F90(1367,10)
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade.F90(1372,10)
 <Multiversioned v2>
    remark #15542: loop was not vectorized: inner loop was already vectorized
 
-   LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade.F90(1367,10)
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade.F90(1372,10)
       remark #15300: LOOP WAS VECTORIZED
    LOOP END
 
-   LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade.F90(1367,10)
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade.F90(1372,10)
    <Remainder loop for vectorization>
       remark #15335: remainder loop was not vectorized: vectorization possible but seems inefficient. Use vector always directive or -vec-threshold0 to override 
    LOOP END
 LOOP END
 
-LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade.F90(1367,10)
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade.F90(1372,10)
 <Multiversioned v1>
    remark #25233: Loop multiversioned for stride tests on Assumed shape arrays
    remark #15542: loop was not vectorized: inner loop was already vectorized
 
-   LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade.F90(1367,10)
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade.F90(1372,10)
       remark #15300: LOOP WAS VECTORIZED
    LOOP END
 
-   LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade.F90(1367,10)
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade.F90(1372,10)
    <Remainder loop for vectorization>
    LOOP END
 LOOP END
 
-LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade.F90(1367,10)
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade.F90(1372,10)
 <Multiversioned v2>
    remark #15542: loop was not vectorized: inner loop was already vectorized
 
-   LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade.F90(1367,10)
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade.F90(1372,10)
       remark #15300: LOOP WAS VECTORIZED
    LOOP END
 
-   LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade.F90(1367,10)
-   <Remainder loop for vectorization>
-   LOOP END
-LOOP END
-
-LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade.F90(1373,10)
-<Multiversioned v1>
-   remark #25233: Loop multiversioned for stride tests on Assumed shape arrays
-   remark #15542: loop was not vectorized: inner loop was already vectorized
-
-   LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade.F90(1373,10)
-      remark #15300: LOOP WAS VECTORIZED
-   LOOP END
-
-   LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade.F90(1373,10)
-   <Remainder loop for vectorization>
-   LOOP END
-LOOP END
-
-LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade.F90(1373,10)
-<Multiversioned v2>
-   remark #15542: loop was not vectorized: inner loop was already vectorized
-
-   LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade.F90(1373,10)
-      remark #15300: LOOP WAS VECTORIZED
-   LOOP END
-
-   LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade.F90(1373,10)
-   <Remainder loop for vectorization>
-   LOOP END
-LOOP END
-
-LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade.F90(1373,10)
-<Multiversioned v1>
-   remark #25233: Loop multiversioned for stride tests on Assumed shape arrays
-   remark #15542: loop was not vectorized: inner loop was already vectorized
-
-   LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade.F90(1373,10)
-      remark #15300: LOOP WAS VECTORIZED
-   LOOP END
-
-   LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade.F90(1373,10)
-   <Remainder loop for vectorization>
-   LOOP END
-LOOP END
-
-LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade.F90(1373,10)
-<Multiversioned v2>
-   remark #15542: loop was not vectorized: inner loop was already vectorized
-
-   LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade.F90(1373,10)
-      remark #15300: LOOP WAS VECTORIZED
-   LOOP END
-
-   LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade.F90(1373,10)
-   <Remainder loop for vectorization>
-   LOOP END
-LOOP END
-
-LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade.F90(1375,10)
-<Multiversioned v1>
-   remark #25233: Loop multiversioned for stride tests on Assumed shape arrays
-   remark #15542: loop was not vectorized: inner loop was already vectorized
-
-   LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade.F90(1375,10)
-      remark #15300: LOOP WAS VECTORIZED
-   LOOP END
-
-   LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade.F90(1375,10)
-   <Remainder loop for vectorization>
-   LOOP END
-LOOP END
-
-LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade.F90(1375,10)
-<Multiversioned v2>
-   remark #15542: loop was not vectorized: inner loop was already vectorized
-
-   LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade.F90(1375,10)
-      remark #15300: LOOP WAS VECTORIZED
-   LOOP END
-
-   LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade.F90(1375,10)
-   <Remainder loop for vectorization>
-   LOOP END
-LOOP END
-
-LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade.F90(1375,10)
-<Multiversioned v1>
-   remark #25233: Loop multiversioned for stride tests on Assumed shape arrays
-   remark #15542: loop was not vectorized: inner loop was already vectorized
-
-   LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade.F90(1375,10)
-      remark #15300: LOOP WAS VECTORIZED
-   LOOP END
-
-   LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade.F90(1375,10)
-   <Remainder loop for vectorization>
-   LOOP END
-LOOP END
-
-LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade.F90(1375,10)
-<Multiversioned v2>
-   remark #15542: loop was not vectorized: inner loop was already vectorized
-
-   LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade.F90(1375,10)
-      remark #15300: LOOP WAS VECTORIZED
-   LOOP END
-
-   LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade.F90(1375,10)
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade.F90(1372,10)
    <Remainder loop for vectorization>
    LOOP END
 LOOP END
@@ -787,19 +733,19 @@ LOOP END
         Assigned     :   30[ rax rdx rcx rbx rsi rdi r8-r15 zmm0-zmm15]
         
     Routine temporaries
-        Total         :    3572
-            Global    :     895
-            Local     :    2677
-        Regenerable   :    1313
-        Spilled       :     373
+        Total         :    3336
+            Global    :     802
+            Local     :    2534
+        Regenerable   :    1303
+        Spilled       :     320
         
     Routine stack
-        Variables     :    1004 bytes*
+        Variables     :     988 bytes*
             Reads     :       0 [0.00e+00 ~ 0.0%]
-            Writes    :     729 [4.11e+00 ~ 4.1%]
-        Spills        :    2784 bytes*
-            Reads     :     900 [8.61e+00 ~ 8.6%]
-            Writes    :     457 [4.50e+00 ~ 4.5%]
+            Writes    :     726 [4.23e+00 ~ 4.2%]
+        Spills        :    2368 bytes*
+            Reads     :     768 [8.10e+00 ~ 8.1%]
+            Writes    :     369 [4.50e+00 ~ 4.5%]
     
     Notes
     
@@ -2115,6 +2061,87 @@ LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade.F90(1757,14)
    LOOP END
 LOOP END
 
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade.F90(1768,8)
+<Multiversioned v1>
+   remark #25233: Loop multiversioned for stride tests on Assumed shape arrays
+   remark #15542: loop was not vectorized: inner loop was already vectorized
+
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade.F90(1768,8)
+      remark #15300: LOOP WAS VECTORIZED
+   LOOP END
+
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade.F90(1768,8)
+   <Remainder loop for vectorization>
+   LOOP END
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade.F90(1768,8)
+<Multiversioned v2>
+   remark #15542: loop was not vectorized: inner loop was already vectorized
+
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade.F90(1768,8)
+      remark #15300: LOOP WAS VECTORIZED
+   LOOP END
+
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade.F90(1768,8)
+   <Remainder loop for vectorization>
+   LOOP END
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade.F90(1768,8)
+<Multiversioned v1>
+   remark #25233: Loop multiversioned for stride tests on Assumed shape arrays
+   remark #15542: loop was not vectorized: inner loop was already vectorized
+
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade.F90(1768,8)
+      remark #15300: LOOP WAS VECTORIZED
+   LOOP END
+
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade.F90(1768,8)
+   <Remainder loop for vectorization>
+   LOOP END
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade.F90(1768,8)
+<Multiversioned v2>
+   remark #15542: loop was not vectorized: inner loop was already vectorized
+
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade.F90(1768,8)
+      remark #15300: LOOP WAS VECTORIZED
+   LOOP END
+
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade.F90(1768,8)
+   <Remainder loop for vectorization>
+   LOOP END
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade.F90(1772,11)
+<Multiversioned v1>
+   remark #25233: Loop multiversioned for stride tests on Assumed shape arrays
+   remark #15542: loop was not vectorized: inner loop was already vectorized
+
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade.F90(1772,11)
+      remark #15300: LOOP WAS VECTORIZED
+   LOOP END
+
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade.F90(1772,11)
+   <Remainder loop for vectorization>
+   LOOP END
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade.F90(1772,11)
+<Multiversioned v2>
+   remark #15542: loop was not vectorized: inner loop was already vectorized
+
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade.F90(1772,11)
+      remark #15300: LOOP WAS VECTORIZED
+   LOOP END
+
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade.F90(1772,11)
+   <Remainder loop for vectorization>
+   LOOP END
+LOOP END
+
 LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade.F90(1783,11)
    remark #15542: loop was not vectorized: inner loop was already vectorized
 
@@ -2339,19 +2366,19 @@ LOOP END
         Assigned     :   30[ rax rdx rcx rbx rsi rdi r8-r15 zmm0-zmm15]
         
     Routine temporaries
-        Total         :    3316
-            Global    :    1000
-            Local     :    2316
+        Total         :    3422
+            Global    :    1055
+            Local     :    2367
         Regenerable   :    1170
-        Spilled       :     292
+        Spilled       :     301
         
     Routine stack
         Variables     :    1900 bytes*
             Reads     :      13 [3.62e-02 ~ 0.0%]
             Writes    :     549 [2.84e+00 ~ 2.8%]
-        Spills        :    2192 bytes*
-            Reads     :     542 [4.52e+00 ~ 4.5%]
-            Writes    :     414 [1.77e+00 ~ 1.8%]
+        Spills        :    2264 bytes*
+            Reads     :     573 [4.53e+00 ~ 4.5%]
+            Writes    :     429 [1.78e+00 ~ 1.8%]
     
     Notes
     
