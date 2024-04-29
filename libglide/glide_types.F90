@@ -290,6 +290,9 @@ module glide_types
   integer, parameter :: HO_DELTAT_OCN_EXTERNAL = 2
   integer, parameter :: HO_DELTAT_OCN_DTHCK_DT = 3
 
+  integer, parameter :: HO_DELTAT_OCN_CAP = 0
+  integer, parameter :: HO_DELTAT_OCN_NOCAP = 1
+
   integer, parameter :: HO_FLOW_ENHANCEMENT_FACTOR_CONSTANT = 0
   integer, parameter :: HO_FLOW_ENHANCEMENT_FACTOR_INVERSION = 1
   integer, parameter :: HO_FLOW_ENHANCEMENT_FACTOR_EXTERNAL = 2
@@ -895,6 +898,14 @@ module glide_types
     !> \item[1] invert for deltaT_ocn to match thickness target
     !> \item[2] read deltaT_ocn from external file
     !> \item[3] set deltaT_ocn to match dH/dt target
+    !> \end{description}
+
+
+    integer :: which_ho_deltaT_cap = 0
+    !> Flag for local ocean temperature corrections
+    !> \begin{description}
+    !> \item[0] deltaT_ocn is capped
+    !> \item[1] deltaT_ocn is not capped
     !> \end{description}
 
     logical :: deltaT_ocn_extrapolate = .false.

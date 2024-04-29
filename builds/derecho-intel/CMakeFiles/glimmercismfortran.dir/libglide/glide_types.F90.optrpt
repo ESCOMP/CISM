@@ -58,278 +58,278 @@ Begin optimization report for: GLIDE_TYPES::GLIDE_ALLOCARR
 
     Report from: Interprocedural optimizations [ipo]
 
-INLINE REPORT: (GLIDE_TYPES::GLIDE_ALLOCARR) [2] /glade/u/home/tvda/CISM/libglide/glide_types.F90(2495,14)
+INLINE REPORT: (GLIDE_TYPES::GLIDE_ALLOCARR) [2] /glade/u/home/tvda/CISM/libglide/glide_types.F90(2506,14)
 
 
     Report from: Loop nest, Vector & Auto-parallelization optimizations [loop, vec, par]
 
 
-LOOP BEGIN at /glade/u/home/tvda/CISM/libglide/glide_types.F90(2708,5)
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglide/glide_types.F90(2719,5)
    remark #15542: loop was not vectorized: inner loop was already vectorized
 
-   LOOP BEGIN at /glade/u/home/tvda/CISM/libglide/glide_types.F90(2708,5)
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglide/glide_types.F90(2719,5)
    <Multiversioned v1>
       remark #25233: Loop multiversioned for stride tests on Assumed shape arrays
       remark #15542: loop was not vectorized: inner loop was already vectorized
 
-      LOOP BEGIN at /glade/u/home/tvda/CISM/libglide/glide_types.F90(2708,5)
+      LOOP BEGIN at /glade/u/home/tvda/CISM/libglide/glide_types.F90(2719,5)
          remark #15300: LOOP WAS VECTORIZED
       LOOP END
 
-      LOOP BEGIN at /glade/u/home/tvda/CISM/libglide/glide_types.F90(2708,5)
+      LOOP BEGIN at /glade/u/home/tvda/CISM/libglide/glide_types.F90(2719,5)
       <Remainder loop for vectorization>
       LOOP END
    LOOP END
 
-   LOOP BEGIN at /glade/u/home/tvda/CISM/libglide/glide_types.F90(2708,5)
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglide/glide_types.F90(2719,5)
    <Multiversioned v2>
       remark #15542: loop was not vectorized: inner loop was already vectorized
 
-      LOOP BEGIN at /glade/u/home/tvda/CISM/libglide/glide_types.F90(2708,5)
+      LOOP BEGIN at /glade/u/home/tvda/CISM/libglide/glide_types.F90(2719,5)
          remark #15300: LOOP WAS VECTORIZED
       LOOP END
 
-      LOOP BEGIN at /glade/u/home/tvda/CISM/libglide/glide_types.F90(2708,5)
+      LOOP BEGIN at /glade/u/home/tvda/CISM/libglide/glide_types.F90(2719,5)
       <Remainder loop for vectorization>
       LOOP END
    LOOP END
 LOOP END
 
-LOOP BEGIN at /glade/u/home/tvda/CISM/libglide/glide_types.F90(2709,5)
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglide/glide_types.F90(2720,5)
    remark #15542: loop was not vectorized: inner loop was already vectorized
 
-   LOOP BEGIN at /glade/u/home/tvda/CISM/libglide/glide_types.F90(2709,5)
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglide/glide_types.F90(2720,5)
    <Multiversioned v1>
       remark #25233: Loop multiversioned for stride tests on Assumed shape arrays
       remark #15542: loop was not vectorized: inner loop was already vectorized
 
-      LOOP BEGIN at /glade/u/home/tvda/CISM/libglide/glide_types.F90(2709,5)
+      LOOP BEGIN at /glade/u/home/tvda/CISM/libglide/glide_types.F90(2720,5)
          remark #15300: LOOP WAS VECTORIZED
       LOOP END
 
-      LOOP BEGIN at /glade/u/home/tvda/CISM/libglide/glide_types.F90(2709,5)
+      LOOP BEGIN at /glade/u/home/tvda/CISM/libglide/glide_types.F90(2720,5)
       <Remainder loop for vectorization>
       LOOP END
    LOOP END
 
-   LOOP BEGIN at /glade/u/home/tvda/CISM/libglide/glide_types.F90(2709,5)
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglide/glide_types.F90(2720,5)
    <Multiversioned v2>
       remark #15542: loop was not vectorized: inner loop was already vectorized
 
-      LOOP BEGIN at /glade/u/home/tvda/CISM/libglide/glide_types.F90(2709,5)
+      LOOP BEGIN at /glade/u/home/tvda/CISM/libglide/glide_types.F90(2720,5)
          remark #15300: LOOP WAS VECTORIZED
       LOOP END
 
-      LOOP BEGIN at /glade/u/home/tvda/CISM/libglide/glide_types.F90(2709,5)
+      LOOP BEGIN at /glade/u/home/tvda/CISM/libglide/glide_types.F90(2720,5)
       <Remainder loop for vectorization>
       LOOP END
    LOOP END
 LOOP END
 
-LOOP BEGIN at /glade/u/home/tvda/CISM/libglide/glide_types.F90(2710,5)
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglide/glide_types.F90(2721,5)
    remark #15542: loop was not vectorized: inner loop was already vectorized
 
-   LOOP BEGIN at /glade/u/home/tvda/CISM/libglide/glide_types.F90(2710,5)
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglide/glide_types.F90(2721,5)
    <Multiversioned v1>
       remark #25233: Loop multiversioned for stride tests on Assumed shape arrays
       remark #15542: loop was not vectorized: inner loop was already vectorized
 
-      LOOP BEGIN at /glade/u/home/tvda/CISM/libglide/glide_types.F90(2710,5)
+      LOOP BEGIN at /glade/u/home/tvda/CISM/libglide/glide_types.F90(2721,5)
          remark #15300: LOOP WAS VECTORIZED
       LOOP END
 
-      LOOP BEGIN at /glade/u/home/tvda/CISM/libglide/glide_types.F90(2710,5)
+      LOOP BEGIN at /glade/u/home/tvda/CISM/libglide/glide_types.F90(2721,5)
       <Remainder loop for vectorization>
       LOOP END
    LOOP END
 
-   LOOP BEGIN at /glade/u/home/tvda/CISM/libglide/glide_types.F90(2710,5)
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglide/glide_types.F90(2721,5)
    <Multiversioned v2>
       remark #15542: loop was not vectorized: inner loop was already vectorized
 
-      LOOP BEGIN at /glade/u/home/tvda/CISM/libglide/glide_types.F90(2710,5)
+      LOOP BEGIN at /glade/u/home/tvda/CISM/libglide/glide_types.F90(2721,5)
          remark #15300: LOOP WAS VECTORIZED
       LOOP END
 
-      LOOP BEGIN at /glade/u/home/tvda/CISM/libglide/glide_types.F90(2710,5)
+      LOOP BEGIN at /glade/u/home/tvda/CISM/libglide/glide_types.F90(2721,5)
       <Remainder loop for vectorization>
       LOOP END
    LOOP END
 LOOP END
 
-LOOP BEGIN at /glade/u/home/tvda/CISM/libglide/glide_types.F90(2712,10)
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglide/glide_types.F90(2723,10)
    remark #15542: loop was not vectorized: inner loop was already vectorized
 
-   LOOP BEGIN at /glade/u/home/tvda/CISM/libglide/glide_types.F90(2712,10)
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglide/glide_types.F90(2723,10)
    <Multiversioned v1>
       remark #25233: Loop multiversioned for stride tests on Assumed shape arrays
       remark #15542: loop was not vectorized: inner loop was already vectorized
 
-      LOOP BEGIN at /glade/u/home/tvda/CISM/libglide/glide_types.F90(2712,10)
+      LOOP BEGIN at /glade/u/home/tvda/CISM/libglide/glide_types.F90(2723,10)
          remark #15300: LOOP WAS VECTORIZED
       LOOP END
 
-      LOOP BEGIN at /glade/u/home/tvda/CISM/libglide/glide_types.F90(2712,10)
+      LOOP BEGIN at /glade/u/home/tvda/CISM/libglide/glide_types.F90(2723,10)
       <Remainder loop for vectorization>
       LOOP END
    LOOP END
 
-   LOOP BEGIN at /glade/u/home/tvda/CISM/libglide/glide_types.F90(2712,10)
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglide/glide_types.F90(2723,10)
    <Multiversioned v2>
       remark #15542: loop was not vectorized: inner loop was already vectorized
 
-      LOOP BEGIN at /glade/u/home/tvda/CISM/libglide/glide_types.F90(2712,10)
+      LOOP BEGIN at /glade/u/home/tvda/CISM/libglide/glide_types.F90(2723,10)
          remark #15300: LOOP WAS VECTORIZED
       LOOP END
 
-      LOOP BEGIN at /glade/u/home/tvda/CISM/libglide/glide_types.F90(2712,10)
+      LOOP BEGIN at /glade/u/home/tvda/CISM/libglide/glide_types.F90(2723,10)
       <Remainder loop for vectorization>
       LOOP END
    LOOP END
 LOOP END
 
-LOOP BEGIN at /glade/u/home/tvda/CISM/libglide/glide_types.F90(2741,8)
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglide/glide_types.F90(2752,8)
    remark #15542: loop was not vectorized: inner loop was already vectorized
 
-   LOOP BEGIN at /glade/u/home/tvda/CISM/libglide/glide_types.F90(2741,8)
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglide/glide_types.F90(2752,8)
    <Multiversioned v1>
       remark #25233: Loop multiversioned for stride tests on Assumed shape arrays
       remark #15542: loop was not vectorized: inner loop was already vectorized
 
-      LOOP BEGIN at /glade/u/home/tvda/CISM/libglide/glide_types.F90(2741,8)
+      LOOP BEGIN at /glade/u/home/tvda/CISM/libglide/glide_types.F90(2752,8)
          remark #15300: LOOP WAS VECTORIZED
       LOOP END
 
-      LOOP BEGIN at /glade/u/home/tvda/CISM/libglide/glide_types.F90(2741,8)
+      LOOP BEGIN at /glade/u/home/tvda/CISM/libglide/glide_types.F90(2752,8)
       <Remainder loop for vectorization>
       LOOP END
    LOOP END
 
-   LOOP BEGIN at /glade/u/home/tvda/CISM/libglide/glide_types.F90(2741,8)
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglide/glide_types.F90(2752,8)
    <Multiversioned v2>
       remark #15542: loop was not vectorized: inner loop was already vectorized
 
-      LOOP BEGIN at /glade/u/home/tvda/CISM/libglide/glide_types.F90(2741,8)
+      LOOP BEGIN at /glade/u/home/tvda/CISM/libglide/glide_types.F90(2752,8)
          remark #15300: LOOP WAS VECTORIZED
       LOOP END
 
-      LOOP BEGIN at /glade/u/home/tvda/CISM/libglide/glide_types.F90(2741,8)
+      LOOP BEGIN at /glade/u/home/tvda/CISM/libglide/glide_types.F90(2752,8)
       <Remainder loop for vectorization>
       LOOP END
    LOOP END
 LOOP END
 
-LOOP BEGIN at /glade/u/home/tvda/CISM/libglide/glide_types.F90(2788,8)
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglide/glide_types.F90(2799,8)
 <Multiversioned v1>
    remark #25233: Loop multiversioned for stride tests on Assumed shape arrays
    remark #15542: loop was not vectorized: inner loop was already vectorized
 
-   LOOP BEGIN at /glade/u/home/tvda/CISM/libglide/glide_types.F90(2788,8)
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglide/glide_types.F90(2799,8)
       remark #15300: LOOP WAS VECTORIZED
    LOOP END
 
-   LOOP BEGIN at /glade/u/home/tvda/CISM/libglide/glide_types.F90(2788,8)
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglide/glide_types.F90(2799,8)
    <Remainder loop for vectorization>
    LOOP END
 LOOP END
 
-LOOP BEGIN at /glade/u/home/tvda/CISM/libglide/glide_types.F90(2788,8)
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglide/glide_types.F90(2799,8)
 <Multiversioned v2>
    remark #15542: loop was not vectorized: inner loop was already vectorized
 
-   LOOP BEGIN at /glade/u/home/tvda/CISM/libglide/glide_types.F90(2788,8)
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglide/glide_types.F90(2799,8)
       remark #15300: LOOP WAS VECTORIZED
    LOOP END
 
-   LOOP BEGIN at /glade/u/home/tvda/CISM/libglide/glide_types.F90(2788,8)
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglide/glide_types.F90(2799,8)
    <Remainder loop for vectorization>
    LOOP END
 LOOP END
 
-LOOP BEGIN at /glade/u/home/tvda/CISM/libglide/glide_types.F90(2789,8)
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglide/glide_types.F90(2800,8)
 <Multiversioned v1>
    remark #25233: Loop multiversioned for stride tests on Assumed shape arrays
    remark #15542: loop was not vectorized: inner loop was already vectorized
 
-   LOOP BEGIN at /glade/u/home/tvda/CISM/libglide/glide_types.F90(2789,8)
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglide/glide_types.F90(2800,8)
       remark #15300: LOOP WAS VECTORIZED
    LOOP END
 
-   LOOP BEGIN at /glade/u/home/tvda/CISM/libglide/glide_types.F90(2789,8)
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglide/glide_types.F90(2800,8)
    <Remainder loop for vectorization>
    LOOP END
 LOOP END
 
-LOOP BEGIN at /glade/u/home/tvda/CISM/libglide/glide_types.F90(2789,8)
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglide/glide_types.F90(2800,8)
 <Multiversioned v2>
    remark #15542: loop was not vectorized: inner loop was already vectorized
 
-   LOOP BEGIN at /glade/u/home/tvda/CISM/libglide/glide_types.F90(2789,8)
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglide/glide_types.F90(2800,8)
       remark #15300: LOOP WAS VECTORIZED
    LOOP END
 
-   LOOP BEGIN at /glade/u/home/tvda/CISM/libglide/glide_types.F90(2789,8)
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglide/glide_types.F90(2800,8)
    <Remainder loop for vectorization>
    LOOP END
 LOOP END
 
-LOOP BEGIN at /glade/u/home/tvda/CISM/libglide/glide_types.F90(2875,8)
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglide/glide_types.F90(2886,8)
    remark #15542: loop was not vectorized: inner loop was already vectorized
 
-   LOOP BEGIN at /glade/u/home/tvda/CISM/libglide/glide_types.F90(2875,8)
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglide/glide_types.F90(2886,8)
    <Multiversioned v1>
       remark #25233: Loop multiversioned for stride tests on Assumed shape arrays
       remark #15542: loop was not vectorized: inner loop was already vectorized
 
-      LOOP BEGIN at /glade/u/home/tvda/CISM/libglide/glide_types.F90(2875,8)
+      LOOP BEGIN at /glade/u/home/tvda/CISM/libglide/glide_types.F90(2886,8)
          remark #15300: LOOP WAS VECTORIZED
       LOOP END
 
-      LOOP BEGIN at /glade/u/home/tvda/CISM/libglide/glide_types.F90(2875,8)
+      LOOP BEGIN at /glade/u/home/tvda/CISM/libglide/glide_types.F90(2886,8)
       <Remainder loop for vectorization>
       LOOP END
    LOOP END
 
-   LOOP BEGIN at /glade/u/home/tvda/CISM/libglide/glide_types.F90(2875,8)
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglide/glide_types.F90(2886,8)
    <Multiversioned v2>
       remark #15542: loop was not vectorized: inner loop was already vectorized
 
-      LOOP BEGIN at /glade/u/home/tvda/CISM/libglide/glide_types.F90(2875,8)
+      LOOP BEGIN at /glade/u/home/tvda/CISM/libglide/glide_types.F90(2886,8)
          remark #15300: LOOP WAS VECTORIZED
       LOOP END
 
-      LOOP BEGIN at /glade/u/home/tvda/CISM/libglide/glide_types.F90(2875,8)
+      LOOP BEGIN at /glade/u/home/tvda/CISM/libglide/glide_types.F90(2886,8)
       <Remainder loop for vectorization>
       LOOP END
    LOOP END
 LOOP END
 
-LOOP BEGIN at /glade/u/home/tvda/CISM/libglide/glide_types.F90(3058,70)
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglide/glide_types.F90(3069,70)
    remark #15542: loop was not vectorized: inner loop was already vectorized
 
-   LOOP BEGIN at /glade/u/home/tvda/CISM/libglide/glide_types.F90(3058,70)
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglide/glide_types.F90(3069,70)
    <Multiversioned v1>
       remark #25233: Loop multiversioned for stride tests on Assumed shape arrays
       remark #15542: loop was not vectorized: inner loop was already vectorized
 
-      LOOP BEGIN at /glade/u/home/tvda/CISM/libglide/glide_types.F90(3058,70)
+      LOOP BEGIN at /glade/u/home/tvda/CISM/libglide/glide_types.F90(3069,70)
          remark #15300: LOOP WAS VECTORIZED
       LOOP END
 
-      LOOP BEGIN at /glade/u/home/tvda/CISM/libglide/glide_types.F90(3058,70)
+      LOOP BEGIN at /glade/u/home/tvda/CISM/libglide/glide_types.F90(3069,70)
       <Remainder loop for vectorization>
       LOOP END
    LOOP END
 
-   LOOP BEGIN at /glade/u/home/tvda/CISM/libglide/glide_types.F90(3058,70)
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglide/glide_types.F90(3069,70)
    <Multiversioned v2>
       remark #15542: loop was not vectorized: inner loop was already vectorized
 
-      LOOP BEGIN at /glade/u/home/tvda/CISM/libglide/glide_types.F90(3058,70)
+      LOOP BEGIN at /glade/u/home/tvda/CISM/libglide/glide_types.F90(3069,70)
          remark #15300: LOOP WAS VECTORIZED
       LOOP END
 
-      LOOP BEGIN at /glade/u/home/tvda/CISM/libglide/glide_types.F90(3058,70)
+      LOOP BEGIN at /glade/u/home/tvda/CISM/libglide/glide_types.F90(3069,70)
       <Remainder loop for vectorization>
       LOOP END
    LOOP END
@@ -337,7 +337,7 @@ LOOP END
 
     Report from: Code generation optimizations [cg]
 
-/glade/u/home/tvda/CISM/libglide/glide_types.F90(2495,14):remark #34051: REGISTER ALLOCATION : [glide_types_mp_glide_allocarr_] /glade/u/home/tvda/CISM/libglide/glide_types.F90:2495
+/glade/u/home/tvda/CISM/libglide/glide_types.F90(2506,14):remark #34051: REGISTER ALLOCATION : [glide_types_mp_glide_allocarr_] /glade/u/home/tvda/CISM/libglide/glide_types.F90:2506
 
     Hardware registers
         Reserved     :    2[ rsp rip]
@@ -372,12 +372,12 @@ Begin optimization report for: GLIDE_TYPES::GLIDE_DEALLOCARR
 
     Report from: Interprocedural optimizations [ipo]
 
-INLINE REPORT: (GLIDE_TYPES::GLIDE_DEALLOCARR) [3] /glade/u/home/tvda/CISM/libglide/glide_types.F90(3097,14)
+INLINE REPORT: (GLIDE_TYPES::GLIDE_DEALLOCARR) [3] /glade/u/home/tvda/CISM/libglide/glide_types.F90(3108,14)
 
 
     Report from: Code generation optimizations [cg]
 
-/glade/u/home/tvda/CISM/libglide/glide_types.F90(3097,14):remark #34051: REGISTER ALLOCATION : [glide_types_mp_glide_deallocarr_] /glade/u/home/tvda/CISM/libglide/glide_types.F90:3097
+/glade/u/home/tvda/CISM/libglide/glide_types.F90(3108,14):remark #34051: REGISTER ALLOCATION : [glide_types_mp_glide_deallocarr_] /glade/u/home/tvda/CISM/libglide/glide_types.F90:3108
 
     Hardware registers
         Reserved     :    2[ rsp rip]
@@ -412,12 +412,12 @@ Begin optimization report for: GLIDE_TYPES::GET_DEW
 
     Report from: Interprocedural optimizations [ipo]
 
-INLINE REPORT: (GLIDE_TYPES::GET_DEW) [4] /glade/u/home/tvda/CISM/libglide/glide_types.F90(3701,12)
+INLINE REPORT: (GLIDE_TYPES::GET_DEW) [4] /glade/u/home/tvda/CISM/libglide/glide_types.F90(3712,12)
 
 
     Report from: Code generation optimizations [cg]
 
-/glade/u/home/tvda/CISM/libglide/glide_types.F90(3701,12):remark #34051: REGISTER ALLOCATION : [glide_types_mp_get_dew_] /glade/u/home/tvda/CISM/libglide/glide_types.F90:3701
+/glade/u/home/tvda/CISM/libglide/glide_types.F90(3712,12):remark #34051: REGISTER ALLOCATION : [glide_types_mp_get_dew_] /glade/u/home/tvda/CISM/libglide/glide_types.F90:3712
 
     Hardware registers
         Reserved     :    2[ rsp rip]
@@ -452,12 +452,12 @@ Begin optimization report for: GLIDE_TYPES::GET_DNS
 
     Report from: Interprocedural optimizations [ipo]
 
-INLINE REPORT: (GLIDE_TYPES::GET_DNS) [5] /glade/u/home/tvda/CISM/libglide/glide_types.F90(3711,12)
+INLINE REPORT: (GLIDE_TYPES::GET_DNS) [5] /glade/u/home/tvda/CISM/libglide/glide_types.F90(3722,12)
 
 
     Report from: Code generation optimizations [cg]
 
-/glade/u/home/tvda/CISM/libglide/glide_types.F90(3711,12):remark #34051: REGISTER ALLOCATION : [glide_types_mp_get_dns_] /glade/u/home/tvda/CISM/libglide/glide_types.F90:3711
+/glade/u/home/tvda/CISM/libglide/glide_types.F90(3722,12):remark #34051: REGISTER ALLOCATION : [glide_types_mp_get_dns_] /glade/u/home/tvda/CISM/libglide/glide_types.F90:3722
 
     Hardware registers
         Reserved     :    2[ rsp rip]
@@ -492,12 +492,12 @@ Begin optimization report for: GLIDE_TYPES::GET_TSTART
 
     Report from: Interprocedural optimizations [ipo]
 
-INLINE REPORT: (GLIDE_TYPES::GET_TSTART) [6] /glade/u/home/tvda/CISM/libglide/glide_types.F90(3721,12)
+INLINE REPORT: (GLIDE_TYPES::GET_TSTART) [6] /glade/u/home/tvda/CISM/libglide/glide_types.F90(3732,12)
 
 
     Report from: Code generation optimizations [cg]
 
-/glade/u/home/tvda/CISM/libglide/glide_types.F90(3721,12):remark #34051: REGISTER ALLOCATION : [glide_types_mp_get_tstart_] /glade/u/home/tvda/CISM/libglide/glide_types.F90:3721
+/glade/u/home/tvda/CISM/libglide/glide_types.F90(3732,12):remark #34051: REGISTER ALLOCATION : [glide_types_mp_get_tstart_] /glade/u/home/tvda/CISM/libglide/glide_types.F90:3732
 
     Hardware registers
         Reserved     :    2[ rsp rip]
@@ -532,12 +532,12 @@ Begin optimization report for: GLIDE_TYPES::GET_TEND
 
     Report from: Interprocedural optimizations [ipo]
 
-INLINE REPORT: (GLIDE_TYPES::GET_TEND) [7] /glade/u/home/tvda/CISM/libglide/glide_types.F90(3730,12)
+INLINE REPORT: (GLIDE_TYPES::GET_TEND) [7] /glade/u/home/tvda/CISM/libglide/glide_types.F90(3741,12)
 
 
     Report from: Code generation optimizations [cg]
 
-/glade/u/home/tvda/CISM/libglide/glide_types.F90(3730,12):remark #34051: REGISTER ALLOCATION : [glide_types_mp_get_tend_] /glade/u/home/tvda/CISM/libglide/glide_types.F90:3730
+/glade/u/home/tvda/CISM/libglide/glide_types.F90(3741,12):remark #34051: REGISTER ALLOCATION : [glide_types_mp_get_tend_] /glade/u/home/tvda/CISM/libglide/glide_types.F90:3741
 
     Hardware registers
         Reserved     :    2[ rsp rip]
@@ -572,12 +572,12 @@ Begin optimization report for: GLIDE_TYPES::GET_TINC
 
     Report from: Interprocedural optimizations [ipo]
 
-INLINE REPORT: (GLIDE_TYPES::GET_TINC) [8] /glade/u/home/tvda/CISM/libglide/glide_types.F90(3739,12)
+INLINE REPORT: (GLIDE_TYPES::GET_TINC) [8] /glade/u/home/tvda/CISM/libglide/glide_types.F90(3750,12)
 
 
     Report from: Code generation optimizations [cg]
 
-/glade/u/home/tvda/CISM/libglide/glide_types.F90(3739,12):remark #34051: REGISTER ALLOCATION : [glide_types_mp_get_tinc_] /glade/u/home/tvda/CISM/libglide/glide_types.F90:3739
+/glade/u/home/tvda/CISM/libglide/glide_types.F90(3750,12):remark #34051: REGISTER ALLOCATION : [glide_types_mp_get_tinc_] /glade/u/home/tvda/CISM/libglide/glide_types.F90:3750
 
     Hardware registers
         Reserved     :    2[ rsp rip]
@@ -612,12 +612,12 @@ Begin optimization report for: GLIDE_TYPES::GET_EWN
 
     Report from: Interprocedural optimizations [ipo]
 
-INLINE REPORT: (GLIDE_TYPES::GET_EWN) [9] /glade/u/home/tvda/CISM/libglide/glide_types.F90(3748,12)
+INLINE REPORT: (GLIDE_TYPES::GET_EWN) [9] /glade/u/home/tvda/CISM/libglide/glide_types.F90(3759,12)
 
 
     Report from: Code generation optimizations [cg]
 
-/glade/u/home/tvda/CISM/libglide/glide_types.F90(3748,12):remark #34051: REGISTER ALLOCATION : [glide_types_mp_get_ewn_] /glade/u/home/tvda/CISM/libglide/glide_types.F90:3748
+/glade/u/home/tvda/CISM/libglide/glide_types.F90(3759,12):remark #34051: REGISTER ALLOCATION : [glide_types_mp_get_ewn_] /glade/u/home/tvda/CISM/libglide/glide_types.F90:3759
 
     Hardware registers
         Reserved     :    2[ rsp rip]
@@ -652,12 +652,12 @@ Begin optimization report for: GLIDE_TYPES::GET_NSN
 
     Report from: Interprocedural optimizations [ipo]
 
-INLINE REPORT: (GLIDE_TYPES::GET_NSN) [10] /glade/u/home/tvda/CISM/libglide/glide_types.F90(3757,12)
+INLINE REPORT: (GLIDE_TYPES::GET_NSN) [10] /glade/u/home/tvda/CISM/libglide/glide_types.F90(3768,12)
 
 
     Report from: Code generation optimizations [cg]
 
-/glade/u/home/tvda/CISM/libglide/glide_types.F90(3757,12):remark #34051: REGISTER ALLOCATION : [glide_types_mp_get_nsn_] /glade/u/home/tvda/CISM/libglide/glide_types.F90:3757
+/glade/u/home/tvda/CISM/libglide/glide_types.F90(3768,12):remark #34051: REGISTER ALLOCATION : [glide_types_mp_get_nsn_] /glade/u/home/tvda/CISM/libglide/glide_types.F90:3768
 
     Hardware registers
         Reserved     :    2[ rsp rip]
@@ -692,12 +692,12 @@ Begin optimization report for: GLIDE_TYPES::GET_NZOCN
 
     Report from: Interprocedural optimizations [ipo]
 
-INLINE REPORT: (GLIDE_TYPES::GET_NZOCN) [11] /glade/u/home/tvda/CISM/libglide/glide_types.F90(3766,12)
+INLINE REPORT: (GLIDE_TYPES::GET_NZOCN) [11] /glade/u/home/tvda/CISM/libglide/glide_types.F90(3777,12)
 
 
     Report from: Code generation optimizations [cg]
 
-/glade/u/home/tvda/CISM/libglide/glide_types.F90(3766,12):remark #34051: REGISTER ALLOCATION : [glide_types_mp_get_nzocn_] /glade/u/home/tvda/CISM/libglide/glide_types.F90:3766
+/glade/u/home/tvda/CISM/libglide/glide_types.F90(3777,12):remark #34051: REGISTER ALLOCATION : [glide_types_mp_get_nzocn_] /glade/u/home/tvda/CISM/libglide/glide_types.F90:3777
 
     Hardware registers
         Reserved     :    2[ rsp rip]
@@ -732,12 +732,12 @@ Begin optimization report for: GLIDE_TYPES::SET_TIME
 
     Report from: Interprocedural optimizations [ipo]
 
-INLINE REPORT: (GLIDE_TYPES::SET_TIME) [12] /glade/u/home/tvda/CISM/libglide/glide_types.F90(3775,14)
+INLINE REPORT: (GLIDE_TYPES::SET_TIME) [12] /glade/u/home/tvda/CISM/libglide/glide_types.F90(3786,14)
 
 
     Report from: Code generation optimizations [cg]
 
-/glade/u/home/tvda/CISM/libglide/glide_types.F90(3775,14):remark #34051: REGISTER ALLOCATION : [glide_types_mp_set_time_] /glade/u/home/tvda/CISM/libglide/glide_types.F90:3775
+/glade/u/home/tvda/CISM/libglide/glide_types.F90(3786,14):remark #34051: REGISTER ALLOCATION : [glide_types_mp_set_time_] /glade/u/home/tvda/CISM/libglide/glide_types.F90:3786
 
     Hardware registers
         Reserved     :    2[ rsp rip]

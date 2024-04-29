@@ -1664,6 +1664,7 @@ contains
 
        call glissade_bmlt_float_thermal_forcing(&
             model%options%bmlt_float_thermal_forcing_param, &
+            model%options%which_ho_deltaT_cap,     &
             model%options%ocean_data_extrapolate,  &
             model%options%deltaT_ocn_extrapolate,  &
             parallel,                              &
@@ -4471,6 +4472,7 @@ contains
 
        call glissade_bmlt_float_thermal_forcing(&
             model%options%bmlt_float_thermal_forcing_param, &
+            model%options%which_ho_deltaT_cap,       &
             model%options%ocean_data_extrapolate,     &
             model%options%deltaT_ocn_extrapolate,  &
             parallel,                                 &

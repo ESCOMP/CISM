@@ -72,8 +72,8 @@ INLINE REPORT: (GLIDE_SETUP::GLIDE_READCONFIG) [2] /glade/u/home/tvda/CISM/libgl
 
     Report from: Code generation optimizations [cg]
 
-/glade/u/home/tvda/CISM/libglide/glide_setup.F90(3260,14):remark #34000: call to memcpy implemented inline with loads and stores with proven source (alignment, offset): (32, 0), and destination (alignment, offset): (16, 0)
-/glade/u/home/tvda/CISM/libglide/glide_setup.F90(3288,5):remark #34000: call to memcpy implemented inline with loads and stores with proven source (alignment, offset): (1, 0), and destination (alignment, offset): (16, 0)
+/glade/u/home/tvda/CISM/libglide/glide_setup.F90(3262,14):remark #34000: call to memcpy implemented inline with loads and stores with proven source (alignment, offset): (32, 0), and destination (alignment, offset): (16, 0)
+/glade/u/home/tvda/CISM/libglide/glide_setup.F90(3290,5):remark #34000: call to memcpy implemented inline with loads and stores with proven source (alignment, offset): (1, 0), and destination (alignment, offset): (16, 0)
 /glade/u/home/tvda/CISM/libglide/glide_setup.F90(541,8):remark #34026: call to memmove implemented as a call to optimized library version
 /glade/u/home/tvda/CISM/libglide/glide_setup.F90(57,14):remark #34051: REGISTER ALLOCATION : [glide_setup_mp_glide_readconfig_] /glade/u/home/tvda/CISM/libglide/glide_setup.F90:57
 
@@ -84,16 +84,16 @@ INLINE REPORT: (GLIDE_SETUP::GLIDE_READCONFIG) [2] /glade/u/home/tvda/CISM/libgl
         Assigned     :   16[ rax rdx rcx rbx rsi rdi r8-r9 r12-r15 zmm0-zmm3]
         
     Routine temporaries
-        Total         :    1182
+        Total         :    1190
             Global    :      38
-            Local     :    1144
-        Regenerable   :     822
+            Local     :    1152
+        Regenerable   :     826
         Spilled       :       5
         
     Routine stack
-        Variables     :    1096 bytes*
-            Reads     :      49 [6.04e+00 ~ 6.0%]
-            Writes    :      16 [1.41e+01 ~ 14.1%]
+        Variables     :    1104 bytes*
+            Reads     :      49 [5.98e+00 ~ 6.0%]
+            Writes    :      18 [1.44e+01 ~ 14.4%]
         Spills        :       0 bytes*
             Reads     :       0 [0.00e+00 ~ 0.0%]
             Writes    :       0 [0.00e+00 ~ 0.0%]
@@ -110,20 +110,20 @@ Begin optimization report for: GLIDE_SETUP::HANDLE_PARAMETERS
 
     Report from: Interprocedural optimizations [ipo]
 
-INLINE REPORT: (GLIDE_SETUP::HANDLE_PARAMETERS) [3] /glade/u/home/tvda/CISM/libglide/glide_setup.F90(2139,14)
+INLINE REPORT: (GLIDE_SETUP::HANDLE_PARAMETERS) [3] /glade/u/home/tvda/CISM/libglide/glide_setup.F90(2141,14)
 
 
     Report from: Loop nest, Vector & Auto-parallelization optimizations [loop, vec, par]
 
 
-LOOP BEGIN at /glade/u/home/tvda/CISM/libglide/glide_setup.F90(2236,8)
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglide/glide_setup.F90(2238,8)
 <Multiversioned v1>
    remark #25233: Loop multiversioned for stride tests on Assumed shape arrays
    remark #15335: loop was not vectorized: vectorization possible but seems inefficient. Use vector always directive or -vec-threshold0 to override 
    remark #25436: completely unrolled by 5  
 LOOP END
 
-LOOP BEGIN at /glade/u/home/tvda/CISM/libglide/glide_setup.F90(2236,8)
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglide/glide_setup.F90(2238,8)
 <Multiversioned v2>
    remark #15335: loop was not vectorized: vectorization possible but seems inefficient. Use vector always directive or -vec-threshold0 to override 
    remark #25436: completely unrolled by 5  
@@ -131,7 +131,7 @@ LOOP END
 
     Report from: Code generation optimizations [cg]
 
-/glade/u/home/tvda/CISM/libglide/glide_setup.F90(2139,14):remark #34051: REGISTER ALLOCATION : [glide_setup_mp_handle_parameters_] /glade/u/home/tvda/CISM/libglide/glide_setup.F90:2139
+/glade/u/home/tvda/CISM/libglide/glide_setup.F90(2141,14):remark #34051: REGISTER ALLOCATION : [glide_setup_mp_handle_parameters_] /glade/u/home/tvda/CISM/libglide/glide_setup.F90:2141
 
     Hardware registers
         Reserved     :    2[ rsp rip]
@@ -212,12 +212,12 @@ Begin optimization report for: GLIDE_SETUP::PRINT_OPTIONS
 
     Report from: Interprocedural optimizations [ipo]
 
-INLINE REPORT: (GLIDE_SETUP::PRINT_OPTIONS) [5] /glade/u/home/tvda/CISM/libglide/glide_setup.F90(858,14)
+INLINE REPORT: (GLIDE_SETUP::PRINT_OPTIONS) [5] /glade/u/home/tvda/CISM/libglide/glide_setup.F90(860,14)
 
 
     Report from: Code generation optimizations [cg]
 
-/glade/u/home/tvda/CISM/libglide/glide_setup.F90(858,14):remark #34051: REGISTER ALLOCATION : [glide_setup_mp_print_options_] /glade/u/home/tvda/CISM/libglide/glide_setup.F90:858
+/glade/u/home/tvda/CISM/libglide/glide_setup.F90(860,14):remark #34051: REGISTER ALLOCATION : [glide_setup_mp_print_options_] /glade/u/home/tvda/CISM/libglide/glide_setup.F90:860
 
     Hardware registers
         Reserved     :    2[ rsp rip]
@@ -252,12 +252,12 @@ Begin optimization report for: GLIDE_SETUP::PRINT_PARAMETERS
 
     Report from: Interprocedural optimizations [ipo]
 
-INLINE REPORT: (GLIDE_SETUP::PRINT_PARAMETERS) [6] /glade/u/home/tvda/CISM/libglide/glide_setup.F90(2391,14)
+INLINE REPORT: (GLIDE_SETUP::PRINT_PARAMETERS) [6] /glade/u/home/tvda/CISM/libglide/glide_setup.F90(2393,14)
 
 
     Report from: Code generation optimizations [cg]
 
-/glade/u/home/tvda/CISM/libglide/glide_setup.F90(2391,14):remark #34051: REGISTER ALLOCATION : [glide_setup_mp_print_parameters_] /glade/u/home/tvda/CISM/libglide/glide_setup.F90:2391
+/glade/u/home/tvda/CISM/libglide/glide_setup.F90(2393,14):remark #34051: REGISTER ALLOCATION : [glide_setup_mp_print_parameters_] /glade/u/home/tvda/CISM/libglide/glide_setup.F90:2393
 
     Hardware registers
         Reserved     :    2[ rsp rip]
@@ -338,7 +338,7 @@ INLINE REPORT: (GLIDE_SETUP::GLIDE_READ_SIGMA) [8] /glade/u/home/tvda/CISM/libgl
 
     Report from: Code generation optimizations [cg]
 
-/glade/u/home/tvda/CISM/libglide/glide_setup.F90(3025,64):remark #34026: call to memmove implemented as a call to optimized library version
+/glade/u/home/tvda/CISM/libglide/glide_setup.F90(3027,64):remark #34026: call to memmove implemented as a call to optimized library version
 /glade/u/home/tvda/CISM/libglide/glide_setup.F90(234,14):remark #34051: REGISTER ALLOCATION : [glide_setup_mp_glide_read_sigma_] /glade/u/home/tvda/CISM/libglide/glide_setup.F90:234
 
     Hardware registers
@@ -497,9 +497,9 @@ LOOP BEGIN at /glade/u/home/tvda/CISM/libglide/glide_setup.F90(362,5)
 <Remainder loop for vectorization, Multiversioned v2>
 LOOP END
 
-LOOP BEGIN at /glade/u/home/tvda/CISM/libglide/glide_setup.F90(3046,5) inlined into /glade/u/home/tvda/CISM/libglide/glide_setup.F90(394,10)
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglide/glide_setup.F90(3048,5) inlined into /glade/u/home/tvda/CISM/libglide/glide_setup.F90(394,10)
    remark #15344: loop was not vectorized: vector dependence prevents vectorization. First dependence is shown below. Use level 5 report for details
-   remark #15346: vector dependence: assumed OUTPUT dependence between at (3047:8) and at (3047:8)
+   remark #15346: vector dependence: assumed OUTPUT dependence between at (3049:8) and at (3049:8)
 LOOP END
 
 
@@ -949,10 +949,10 @@ INLINE REPORT: (GLIDE_SETUP::HANDLE_HO_OPTIONS) [18] /glade/u/home/tvda/CISM/lib
         Assigned     :    6[ rdx rcx rsi rdi r14-r15]
         
     Routine temporaries
-        Total         :     304
+        Total         :     310
             Global    :       8
-            Local     :     296
-        Regenerable   :     147
+            Local     :     302
+        Regenerable   :     150
         Spilled       :       2
         
     Routine stack
@@ -975,12 +975,12 @@ Begin optimization report for: GLIDE_SETUP::HANDLE_DYCORE_OPTIONS
 
     Report from: Interprocedural optimizations [ipo]
 
-INLINE REPORT: (GLIDE_SETUP::HANDLE_DYCORE_OPTIONS) [19] /glade/u/home/tvda/CISM/libglide/glide_setup.F90(839,14)
+INLINE REPORT: (GLIDE_SETUP::HANDLE_DYCORE_OPTIONS) [19] /glade/u/home/tvda/CISM/libglide/glide_setup.F90(841,14)
 
 
     Report from: Code generation optimizations [cg]
 
-/glade/u/home/tvda/CISM/libglide/glide_setup.F90(839,14):remark #34051: REGISTER ALLOCATION : [glide_setup_mp_handle_dycore_options_] /glade/u/home/tvda/CISM/libglide/glide_setup.F90:839
+/glade/u/home/tvda/CISM/libglide/glide_setup.F90(841,14):remark #34051: REGISTER ALLOCATION : [glide_setup_mp_handle_dycore_options_] /glade/u/home/tvda/CISM/libglide/glide_setup.F90:841
 
     Hardware registers
         Reserved     :    2[ rsp rip]
@@ -1015,13 +1015,13 @@ Begin optimization report for: GLIDE_SETUP::HANDLE_SIGMA
 
     Report from: Interprocedural optimizations [ipo]
 
-INLINE REPORT: (GLIDE_SETUP::HANDLE_SIGMA) [20] /glade/u/home/tvda/CISM/libglide/glide_setup.F90(3015,14)
+INLINE REPORT: (GLIDE_SETUP::HANDLE_SIGMA) [20] /glade/u/home/tvda/CISM/libglide/glide_setup.F90(3017,14)
 
 
     Report from: Code generation optimizations [cg]
 
-/glade/u/home/tvda/CISM/libglide/glide_setup.F90(3025,64):remark #34026: call to memmove implemented as a call to optimized library version
-/glade/u/home/tvda/CISM/libglide/glide_setup.F90(3015,14):remark #34051: REGISTER ALLOCATION : [glide_setup_mp_handle_sigma_] /glade/u/home/tvda/CISM/libglide/glide_setup.F90:3015
+/glade/u/home/tvda/CISM/libglide/glide_setup.F90(3027,64):remark #34026: call to memmove implemented as a call to optimized library version
+/glade/u/home/tvda/CISM/libglide/glide_setup.F90(3017,14):remark #34051: REGISTER ALLOCATION : [glide_setup_mp_handle_sigma_] /glade/u/home/tvda/CISM/libglide/glide_setup.F90:3017
 
     Hardware registers
         Reserved     :    2[ rsp rip]
@@ -1056,20 +1056,20 @@ Begin optimization report for: GLIDE_SETUP::PRINT_SIGMA
 
     Report from: Interprocedural optimizations [ipo]
 
-INLINE REPORT: (GLIDE_SETUP::PRINT_SIGMA) [21] /glade/u/home/tvda/CISM/libglide/glide_setup.F90(3035,14)
+INLINE REPORT: (GLIDE_SETUP::PRINT_SIGMA) [21] /glade/u/home/tvda/CISM/libglide/glide_setup.F90(3037,14)
 
 
     Report from: Loop nest, Vector & Auto-parallelization optimizations [loop, vec, par]
 
 
-LOOP BEGIN at /glade/u/home/tvda/CISM/libglide/glide_setup.F90(3046,5)
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglide/glide_setup.F90(3048,5)
    remark #15344: loop was not vectorized: vector dependence prevents vectorization. First dependence is shown below. Use level 5 report for details
-   remark #15346: vector dependence: assumed OUTPUT dependence between at (3047:8) and at (3047:8)
+   remark #15346: vector dependence: assumed OUTPUT dependence between at (3049:8) and at (3049:8)
 LOOP END
 
     Report from: Code generation optimizations [cg]
 
-/glade/u/home/tvda/CISM/libglide/glide_setup.F90(3035,14):remark #34051: REGISTER ALLOCATION : [glide_setup_mp_print_sigma_] /glade/u/home/tvda/CISM/libglide/glide_setup.F90:3035
+/glade/u/home/tvda/CISM/libglide/glide_setup.F90(3037,14):remark #34051: REGISTER ALLOCATION : [glide_setup_mp_print_sigma_] /glade/u/home/tvda/CISM/libglide/glide_setup.F90:3037
 
     Hardware registers
         Reserved     :    2[ rsp rip]
@@ -1104,12 +1104,12 @@ Begin optimization report for: GLIDE_SETUP::HANDLE_GTHF
 
     Report from: Interprocedural optimizations [ipo]
 
-INLINE REPORT: (GLIDE_SETUP::HANDLE_GTHF) [22] /glade/u/home/tvda/CISM/libglide/glide_setup.F90(3058,14)
+INLINE REPORT: (GLIDE_SETUP::HANDLE_GTHF) [22] /glade/u/home/tvda/CISM/libglide/glide_setup.F90(3060,14)
 
 
     Report from: Code generation optimizations [cg]
 
-/glade/u/home/tvda/CISM/libglide/glide_setup.F90(3058,14):remark #34051: REGISTER ALLOCATION : [glide_setup_mp_handle_gthf_] /glade/u/home/tvda/CISM/libglide/glide_setup.F90:3058
+/glade/u/home/tvda/CISM/libglide/glide_setup.F90(3060,14):remark #34051: REGISTER ALLOCATION : [glide_setup_mp_handle_gthf_] /glade/u/home/tvda/CISM/libglide/glide_setup.F90:3060
 
     Hardware registers
         Reserved     :    2[ rsp rip]
@@ -1144,12 +1144,12 @@ Begin optimization report for: GLIDE_SETUP::PRINT_GTHF
 
     Report from: Interprocedural optimizations [ipo]
 
-INLINE REPORT: (GLIDE_SETUP::PRINT_GTHF) [23] /glade/u/home/tvda/CISM/libglide/glide_setup.F90(3077,14)
+INLINE REPORT: (GLIDE_SETUP::PRINT_GTHF) [23] /glade/u/home/tvda/CISM/libglide/glide_setup.F90(3079,14)
 
 
     Report from: Code generation optimizations [cg]
 
-/glade/u/home/tvda/CISM/libglide/glide_setup.F90(3077,14):remark #34051: REGISTER ALLOCATION : [glide_setup_mp_print_gthf_] /glade/u/home/tvda/CISM/libglide/glide_setup.F90:3077
+/glade/u/home/tvda/CISM/libglide/glide_setup.F90(3079,14):remark #34051: REGISTER ALLOCATION : [glide_setup_mp_print_gthf_] /glade/u/home/tvda/CISM/libglide/glide_setup.F90:3079
 
     Hardware registers
         Reserved     :    2[ rsp rip]
@@ -1184,12 +1184,12 @@ Begin optimization report for: GLIDE_SETUP::HANDLE_ISOSTASY
 
     Report from: Interprocedural optimizations [ipo]
 
-INLINE REPORT: (GLIDE_SETUP::HANDLE_ISOSTASY) [24] /glade/u/home/tvda/CISM/libglide/glide_setup.F90(3114,14)
+INLINE REPORT: (GLIDE_SETUP::HANDLE_ISOSTASY) [24] /glade/u/home/tvda/CISM/libglide/glide_setup.F90(3116,14)
 
 
     Report from: Code generation optimizations [cg]
 
-/glade/u/home/tvda/CISM/libglide/glide_setup.F90(3114,14):remark #34051: REGISTER ALLOCATION : [glide_setup_mp_handle_isostasy_] /glade/u/home/tvda/CISM/libglide/glide_setup.F90:3114
+/glade/u/home/tvda/CISM/libglide/glide_setup.F90(3116,14):remark #34051: REGISTER ALLOCATION : [glide_setup_mp_handle_isostasy_] /glade/u/home/tvda/CISM/libglide/glide_setup.F90:3116
 
     Hardware registers
         Reserved     :    2[ rsp rip]
@@ -1224,12 +1224,12 @@ Begin optimization report for: GLIDE_SETUP::PRINT_ISOSTASY
 
     Report from: Interprocedural optimizations [ipo]
 
-INLINE REPORT: (GLIDE_SETUP::PRINT_ISOSTASY) [25] /glade/u/home/tvda/CISM/libglide/glide_setup.F90(3134,14)
+INLINE REPORT: (GLIDE_SETUP::PRINT_ISOSTASY) [25] /glade/u/home/tvda/CISM/libglide/glide_setup.F90(3136,14)
 
 
     Report from: Code generation optimizations [cg]
 
-/glade/u/home/tvda/CISM/libglide/glide_setup.F90(3134,14):remark #34051: REGISTER ALLOCATION : [glide_setup_mp_print_isostasy_] /glade/u/home/tvda/CISM/libglide/glide_setup.F90:3134
+/glade/u/home/tvda/CISM/libglide/glide_setup.F90(3136,14):remark #34051: REGISTER ALLOCATION : [glide_setup_mp_print_isostasy_] /glade/u/home/tvda/CISM/libglide/glide_setup.F90:3136
 
     Hardware registers
         Reserved     :    2[ rsp rip]
@@ -1264,14 +1264,14 @@ Begin optimization report for: GLIDE_SETUP::DEFINE_GLIDE_RESTART_VARIABLES
 
     Report from: Interprocedural optimizations [ipo]
 
-INLINE REPORT: (GLIDE_SETUP::DEFINE_GLIDE_RESTART_VARIABLES) [26] /glade/u/home/tvda/CISM/libglide/glide_setup.F90(3260,14)
+INLINE REPORT: (GLIDE_SETUP::DEFINE_GLIDE_RESTART_VARIABLES) [26] /glade/u/home/tvda/CISM/libglide/glide_setup.F90(3262,14)
 
 
     Report from: Code generation optimizations [cg]
 
-/glade/u/home/tvda/CISM/libglide/glide_setup.F90(3260,14):remark #34000: call to memcpy implemented inline with loads and stores with proven source (alignment, offset): (32, 0), and destination (alignment, offset): (16, 0)
-/glade/u/home/tvda/CISM/libglide/glide_setup.F90(3288,5):remark #34000: call to memcpy implemented inline with loads and stores with proven source (alignment, offset): (1, 0), and destination (alignment, offset): (16, 0)
-/glade/u/home/tvda/CISM/libglide/glide_setup.F90(3260,14):remark #34051: REGISTER ALLOCATION : [glide_setup_mp_define_glide_restart_variables_] /glade/u/home/tvda/CISM/libglide/glide_setup.F90:3260
+/glade/u/home/tvda/CISM/libglide/glide_setup.F90(3262,14):remark #34000: call to memcpy implemented inline with loads and stores with proven source (alignment, offset): (32, 0), and destination (alignment, offset): (16, 0)
+/glade/u/home/tvda/CISM/libglide/glide_setup.F90(3290,5):remark #34000: call to memcpy implemented inline with loads and stores with proven source (alignment, offset): (1, 0), and destination (alignment, offset): (16, 0)
+/glade/u/home/tvda/CISM/libglide/glide_setup.F90(3262,14):remark #34051: REGISTER ALLOCATION : [glide_setup_mp_define_glide_restart_variables_] /glade/u/home/tvda/CISM/libglide/glide_setup.F90:3262
 
     Hardware registers
         Reserved     :    2[ rsp rip]
@@ -1280,16 +1280,16 @@ INLINE REPORT: (GLIDE_SETUP::DEFINE_GLIDE_RESTART_VARIABLES) [26] /glade/u/home/
         Assigned     :   10[ rax rdx rcx rsi rdi r15 zmm0-zmm3]
         
     Routine temporaries
-        Total         :     240
+        Total         :     242
             Global    :      22
-            Local     :     218
+            Local     :     220
         Regenerable   :     195
         Spilled       :       1
         
     Routine stack
-        Variables     :     592 bytes*
-            Reads     :      49 [9.32e+00 ~ 9.3%]
-            Writes    :      10 [2.15e+01 ~ 21.5%]
+        Variables     :     600 bytes*
+            Reads     :      49 [9.21e+00 ~ 9.2%]
+            Writes    :      12 [2.19e+01 ~ 21.9%]
         Spills        :       0 bytes*
             Reads     :       0 [0.00e+00 ~ 0.0%]
             Writes    :       0 [0.00e+00 ~ 0.0%]
@@ -1306,32 +1306,32 @@ Begin optimization report for: GLIDE_SETUP::CHECK_FILL_VALUES_REAL8_2D
 
     Report from: Interprocedural optimizations [ipo]
 
-INLINE REPORT: (GLIDE_SETUP::CHECK_FILL_VALUES_REAL8_2D) [27] /glade/u/home/tvda/CISM/libglide/glide_setup.F90(3755,14)
+INLINE REPORT: (GLIDE_SETUP::CHECK_FILL_VALUES_REAL8_2D) [27] /glade/u/home/tvda/CISM/libglide/glide_setup.F90(3757,14)
 
 
     Report from: Loop nest, Vector & Auto-parallelization optimizations [loop, vec, par]
 
 
-LOOP BEGIN at /glade/u/home/tvda/CISM/libglide/glide_setup.F90(3796,8)
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglide/glide_setup.F90(3798,8)
    remark #15542: loop was not vectorized: inner loop was already vectorized
 
-   LOOP BEGIN at /glade/u/home/tvda/CISM/libglide/glide_setup.F90(3796,8)
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglide/glide_setup.F90(3798,8)
       remark #15300: LOOP WAS VECTORIZED
    LOOP END
 
-   LOOP BEGIN at /glade/u/home/tvda/CISM/libglide/glide_setup.F90(3796,8)
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglide/glide_setup.F90(3798,8)
    <Remainder loop for vectorization>
       remark #15301: REMAINDER LOOP WAS VECTORIZED
    LOOP END
 
-   LOOP BEGIN at /glade/u/home/tvda/CISM/libglide/glide_setup.F90(3796,8)
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglide/glide_setup.F90(3798,8)
    <Remainder loop for vectorization>
    LOOP END
 LOOP END
 
     Report from: Code generation optimizations [cg]
 
-/glade/u/home/tvda/CISM/libglide/glide_setup.F90(3755,14):remark #34051: REGISTER ALLOCATION : [glide_setup_mp_check_fill_values_real8_2d_] /glade/u/home/tvda/CISM/libglide/glide_setup.F90:3755
+/glade/u/home/tvda/CISM/libglide/glide_setup.F90(3757,14):remark #34051: REGISTER ALLOCATION : [glide_setup_mp_check_fill_values_real8_2d_] /glade/u/home/tvda/CISM/libglide/glide_setup.F90:3757
 
     Hardware registers
         Reserved     :    2[ rsp rip]
@@ -1366,28 +1366,28 @@ Begin optimization report for: GLIDE_SETUP::CHECK_FILL_VALUES_REAL8_3D
 
     Report from: Interprocedural optimizations [ipo]
 
-INLINE REPORT: (GLIDE_SETUP::CHECK_FILL_VALUES_REAL8_3D) [28] /glade/u/home/tvda/CISM/libglide/glide_setup.F90(3803,14)
+INLINE REPORT: (GLIDE_SETUP::CHECK_FILL_VALUES_REAL8_3D) [28] /glade/u/home/tvda/CISM/libglide/glide_setup.F90(3805,14)
 
 
     Report from: Loop nest, Vector & Auto-parallelization optimizations [loop, vec, par]
 
 
-LOOP BEGIN at /glade/u/home/tvda/CISM/libglide/glide_setup.F90(3844,8)
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglide/glide_setup.F90(3846,8)
    remark #15542: loop was not vectorized: inner loop was already vectorized
 
-   LOOP BEGIN at /glade/u/home/tvda/CISM/libglide/glide_setup.F90(3844,8)
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglide/glide_setup.F90(3846,8)
       remark #15542: loop was not vectorized: inner loop was already vectorized
 
-      LOOP BEGIN at /glade/u/home/tvda/CISM/libglide/glide_setup.F90(3844,8)
+      LOOP BEGIN at /glade/u/home/tvda/CISM/libglide/glide_setup.F90(3846,8)
          remark #15300: LOOP WAS VECTORIZED
       LOOP END
 
-      LOOP BEGIN at /glade/u/home/tvda/CISM/libglide/glide_setup.F90(3844,8)
+      LOOP BEGIN at /glade/u/home/tvda/CISM/libglide/glide_setup.F90(3846,8)
       <Remainder loop for vectorization>
          remark #15301: REMAINDER LOOP WAS VECTORIZED
       LOOP END
 
-      LOOP BEGIN at /glade/u/home/tvda/CISM/libglide/glide_setup.F90(3844,8)
+      LOOP BEGIN at /glade/u/home/tvda/CISM/libglide/glide_setup.F90(3846,8)
       <Remainder loop for vectorization>
       LOOP END
    LOOP END
@@ -1395,7 +1395,7 @@ LOOP END
 
     Report from: Code generation optimizations [cg]
 
-/glade/u/home/tvda/CISM/libglide/glide_setup.F90(3803,14):remark #34051: REGISTER ALLOCATION : [glide_setup_mp_check_fill_values_real8_3d_] /glade/u/home/tvda/CISM/libglide/glide_setup.F90:3803
+/glade/u/home/tvda/CISM/libglide/glide_setup.F90(3805,14):remark #34051: REGISTER ALLOCATION : [glide_setup_mp_check_fill_values_real8_3d_] /glade/u/home/tvda/CISM/libglide/glide_setup.F90:3805
 
     Hardware registers
         Reserved     :    2[ rsp rip]
