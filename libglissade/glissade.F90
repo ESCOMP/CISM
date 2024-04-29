@@ -1348,7 +1348,32 @@ contains
     !       This might lead to small violations of energy conservation.
     !       TODO: Separate the bmlt_ground computation from the temperature computation?
 
+
+    !TvdA: I removed the option to apply a basal multiplyer per basin here for backtracibility
+    ! also, the basal melt is not automatically multiplied with the internal float factor anymore. 
+    ! 
+
     model%basal_melt%bmlt(:,:) = model%basal_melt%bmlt_ground(:,:) + model%basal_melt%bmlt_float(:,:)
+   !!add the option here to include an updated marine connection field that does not go thourgh marine grounded ice
+    if (model%options%which_ho_marine_mask == HO_MARINE_MASK_ISOLATED) then
+       
+       call glissade_marine_connection_mask(&
+            model%general%ewn,          model%general%nsn,          &
+            parallel,                                               &
+            model%numerics%idiag_local, model%numerics%jdiag_local, &
+            model%numerics%rdiag_local,                             &
+            model%geometry%thck * thk0, model%geometry%topg * thk0, &
+            model%climate%eus * thk0,   0.0d0,                      &  ! thklim = 0
+            model%geometry%marine_connection_mask_isolated,         &
+            model%options%which_ho_marine_mask,                     &
+            model%geometry%f_ground_cell,                           &
+            model%basal_melt%bmlt_fground_threshold)
+
+
+         model%basal_melt%bmlt(:,:) = model%basal_melt%bmlt_ground(:,:) + &
+         model%geometry%marine_connection_mask_isolated(:,:)*model%basal_melt%bmlt_float(:,:)*model%basal_melt%bmlt_float_factor_internal
+
+    endif
 
     if (verbose_glissade .and. this_rank == rtest) then
        i = itest
@@ -1740,6 +1765,24 @@ contains
                                          * (1.0d0 - model%geometry%f_ground_cell)
           endwhere
 
+<<<<<<< HEAD
+=======
+
+
+       !Tim: I added this, to stop the PMP - modeldrift spinup
+       if (model%options%whichbmlt_float == BMLT_FLOAT_EXTERNAL) then
+
+       ! Apply the external melt rate
+
+       model%basal_melt%bmlt_float(:,:) = model%basal_melt%bmlt_float_external(:,:)
+
+       ! Optionally, multiply bmlt_float by a scalar adjustment factor
+       if (model%basal_melt%bmlt_float_factor /= 1.0d0) then
+          model%basal_melt%bmlt_float(:,:) = model%basal_melt%bmlt_float(:,:) * model%basal_melt%bmlt_float_factor
+       endif
+       endif !external
+
+>>>>>>> 95047f13 (Cleaned up code with some test options removed)
        elseif (model%options%which_ho_ground_bmlt == HO_GROUND_BMLT_ZERO_GROUNDED) then
 
           ! Where f_ground_cell > 0, set bmlt_float = 0.
