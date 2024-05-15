@@ -337,8 +337,20 @@ contains
 !         c_effective_pressure, &
 !         effecpress)
 
-    effecpress(:,:) = 0.0d0
-
+    print*,'TvdA speed tracer: we are calling the costly basal water flux solver in glissade_bwat_flux_routing'
+    if (effecpress_option == HO_EFFECPRESS_BWAT_INTERN_ZERO) then
+         effecpress(:,:) = effecpress_real(:,:)
+!         print*, 'We gebruiken neppe N '
+!TVDA: this does not work yet, I hardcoded it to be the real effective pressure everywhere, because I do not under
+!stand why it does not want to make effecpress_option 1, it always uses the above loop         
+    else if (effecpress_option == HO_EFFECPRESS_BWAT_INTERN_REAL) then
+         effecpress(:,:) = effecpress_real(:,:)
+!         print*, 'We gebruiken echte N'
+    else  
+         !!just set it to zero
+         effecpress(:,:) = 0.0d0
+!         print*, 'We gebruiken geen N'
+    endif
     ! Compute the hydraulic head
 
     call compute_head(&
