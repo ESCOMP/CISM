@@ -552,6 +552,7 @@ module glissade_bmlt_float
 
        ! Set deltaT_basin in a similar way based on this_rank
        ! Will have more melting with larger rank
+!       print*,'TvdA: tracer, we are doing a simple_init'
        ocean_data%deltaT_ocn(:,:) = 0.50d0 * this_rank
 
        ! Use Xylar's median value (m/yr) for gamma0
@@ -627,6 +628,7 @@ module glissade_bmlt_float
              endif
 
              ! Assign the numbers above to each grid cell, given its basin number
+!             print*, 'TvdA: tracer, we are overwriting ocean deltaT with the ISMIP values'
              do j = 1, nsn
                 do i = 1, ewn
                    nb = ocean_data%basin_number(i,j)
@@ -688,6 +690,7 @@ module glissade_bmlt_float
           ! Fill halos (might not be needed)
           ! TODO: Remove these halo updates?
           call parallel_halo(ocean_data%basin_number, parallel)
+!          print*, 'TvdA, tracer, parallel_halo call for deltaT ocn'
           call parallel_halo(ocean_data%deltaT_ocn, parallel)
           call parallel_halo(ocean_data%thermal_forcing, parallel)
 
@@ -1190,24 +1193,51 @@ module glissade_bmlt_float
        !  with reduced weights for partly grounded cells and thin floating cells.
        ! Note: The basin average includes deltaT_ocn corrections.
 
-       call glissade_basin_average(&
-            nx,        ny,                   &
-            ocean_data%nbasin,               &
-            ocean_data%basin_number,         &
-            thermal_forcing_mask * f_float,  &
-            ocean_data%thermal_forcing_lsrf + ocean_data%deltaT_ocn, &
-            thermal_forcing_basin)
+!       print*, 'TvdA: tracer, we are calling twice the basin averages in glissade_bmlt_float'
+       !TvdA this is called but is not neccesary when using the deltaT_ocn from an external source
+       !therefore, I added the option to ignore this when using the deltaT_ocn
+
+          if (verbose_bmlt_float .and. this_rank==rtest) then
+             print*, ' '
+             print*, 'deltaT_ocn (degC) before the basin averages:'
+             do j = jtest+3, jtest-3, -1
+                do i = itest-3, itest+3
+                   write(6,'(f10.3)',advance='no') ocean_data%deltaT_ocn(i,j)
+                enddo
+                write(6,*) ' '
+             enddo
+          endif
+            call glissade_basin_average(&
+                 nx,        ny,                   &
+                 ocean_data%nbasin,               &
+                 ocean_data%basin_number,         &
+                 thermal_forcing_mask * f_float,  &
+                 ocean_data%thermal_forcing_lsrf + ocean_data%deltaT_ocn, &
+                 thermal_forcing_basin)
 
        ! For diagnostics, compute the average value of deltaT_ocn in each basin.
 
-       call glissade_basin_average(&
-            nx,        ny,                   &
-            ocean_data%nbasin,               &
-            ocean_data%basin_number,         &
-            thermal_forcing_mask * f_float,  &
-            ocean_data%deltaT_ocn,           &
-            deltaT_basin_avg)
+!       if (which_ho_deltat_ocn /= HO_DELTAT_OCN_EXTERNAL) then
+            call glissade_basin_average(&
+                 nx,        ny,                   &
+                 ocean_data%nbasin,               &
+                 ocean_data%basin_number,         &
+                 thermal_forcing_mask * f_float,  &
+                 ocean_data%deltaT_ocn,           &
+                 deltaT_basin_avg)
+ 
+!      endif !which_ho_deltaT_ocn
 
+          if (verbose_bmlt_float .and. this_rank==rtest) then
+             print*, ' '
+             print*, 'deltaT_ocn (degC) after the basin averages'
+             do j = jtest+3, jtest-3, -1
+                do i = itest-3, itest+3
+                   write(6,'(f10.3)',advance='no') ocean_data%deltaT_ocn(i,j)
+                enddo
+                write(6,*) ' '
+             enddo
+          endif
        if (verbose_bmlt_float .and. this_rank==rtest) then
           print*, ' '
           print*, 'thermal_forcing_basin (including deltaT_ocn corrections):'
@@ -1231,7 +1261,7 @@ module glissade_bmlt_float
        !       During the forward run, deltaT_ocn_extrapolate = F.  This is set automatically if the user forgets.
 
        if (deltaT_ocn_extrapolate) then
-
+          print*,'TvdA: tracer, we are extrapolating deltaT into grounded cells'
           do j = 1, ny
              do i = 1, nx
                 nb = ocean_data%basin_number(i,j)
@@ -1253,6 +1283,18 @@ module glissade_bmlt_float
           endif
 
        endif   ! deltaT_ocn_extrapolate
+
+
+          if (verbose_bmlt_float .and. this_rank==rtest) then
+             print*, ' '
+             print*, 'deltaT_ocn (degC) after the deltaT_ocn_extrapolate:'
+             do j = jtest+3, jtest-3, -1
+                do i = itest-3, itest+3
+                   write(6,'(f10.3)',advance='no') ocean_data%deltaT_ocn(i,j)
+                enddo
+                write(6,*) ' '
+             enddo
+          endif
 
        ! Compute the angle between the lower ice shelf surface and the horizontal.
        ! This option can be used to concentrate basal melting near the grounding line,
@@ -1296,7 +1338,7 @@ module glissade_bmlt_float
        if (which_ho_deltaT_ocn == HO_DELTAT_OCN_DTHCK_DT) then  ! compute deltaT_ocn to fit dthck_dt_obs
 
           if (bmlt_float_thermal_forcing_param == BMLT_FLOAT_TF_ISMIP6_LOCAL) then
-
+!             print*, 'TvdA: tracer, we are computing dT based on the dthck_dt by one of the three ISMIP6 protocols'
              deltaT_ocn_init = ocean_data%deltaT_ocn
 
              call ismip6_set_deltaT_ocn(&
@@ -1362,6 +1404,16 @@ module glissade_bmlt_float
 
     endif  ! present(which_ho_deltaT_ocn)
 
+          if (verbose_bmlt_float .and. this_rank==rtest) then
+             print*, ' '
+             print*, 'deltaT_ocn (degC) after the dh dt setting:'
+             do j = jtest+3, jtest-3, -1
+                do i = itest-3, itest+3
+                   write(6,'(f10.3)',advance='no') ocean_data%deltaT_ocn(i,j)
+                enddo
+                write(6,*) ' '
+             enddo
+          endif
     !-----------------------------------------------
     ! Compute the basal melt rate for each grid cell.
     ! Note: The output bmlt_float has units of m/yr.
@@ -1391,7 +1443,7 @@ module glissade_bmlt_float
 
        ! Compute the basal melt rate based on an ISMIP6 thermal forcing parameterization.
        ! Note: bmlt_float is nonzero only for cells with thermal_forcing_mask = 1.
-
+!       print*, 'TvdA: tracer, here we compute the basal melt with one of the basal melt options'
        call ismip6_bmlt_float(&
             bmlt_float_thermal_forcing_param, &
             which_ho_deltaT_cap,              &
@@ -1409,6 +1461,16 @@ module glissade_bmlt_float
 
     endif   ! bmlt_float_thermal_forcing_param
 
+          if (verbose_bmlt_float .and. this_rank==rtest) then
+             print*, ' '
+             print*, 'deltaT_ocn (degC) after the ismip6 bmlt float subroutine'
+             do j = jtest+3, jtest-3, -1
+                do i = itest-3, itest+3
+                   write(6,'(f10.3)',advance='no') ocean_data%deltaT_ocn(i,j)
+                enddo
+                write(6,*) ' '
+             enddo
+          endif
     if (verbose_bmlt_float .and. this_rank==rtest) then
        print*, ' '
        print*, 'bmlt_float (m/yr), before thin ice adjustment'
@@ -1448,6 +1510,16 @@ module glissade_bmlt_float
     ! Convert from m/yr to m/s for output.
     bmlt_float(:,:) = bmlt_float(:,:) / scyr
 
+          if (verbose_bmlt_float .and. this_rank==rtest) then
+             print*, ' '
+             print*, 'deltaT_ocn (degC) at the end of glissade_bmlt_float_thermal_forcing'
+             do j = jtest+3, jtest-3, -1
+                do i = itest-3, itest+3
+                   write(6,'(f10.3)',advance='no') ocean_data%deltaT_ocn(i,j)
+                enddo
+                write(6,*) ' '
+             enddo
+          endif
   end subroutine glissade_bmlt_float_thermal_forcing
 
 !****************************************************
@@ -2070,17 +2142,43 @@ module glissade_bmlt_float
     ! This prevents grid cells from reaching an unresponsive state in which an increase
     !  in deltaT_ocn does not generate any melt, since eff_thermal_forcing remains < 0.
 
-
+    
+          if (verbose_bmlt_float .and. this_rank==rtest) then
+             print*, ' '
+             print*, 'deltaT_ocn (degC) at the beginning of ismip6 bmlt subroutine'
+             do j = jtest+3, jtest-3, -1
+                do i = itest-3, itest+3
+                   write(6,'(f10.3)',advance='no') deltaT_ocn(i,j)
+                enddo
+                write(6,*) ' '
+             enddo
+          endif
     !TvdA: this is a spot where a change has been made since 2022 related to the ice shelves
     !my logic is that it should not matter, nevertheless, I will make a config parameter for this
     !defaulting to using this
     
     if (which_ho_deltaT_cap == HO_DELTAT_OCN_CAP) then
-        where (thermal_forcing_mask == 1 .and. &
-              thermal_forcing_lsrf + deltaT_ocn < 0.0d0)
-              deltaT_ocn = -thermal_forcing_lsrf
-        endwhere
+!        where (thermal_forcing_mask == 1 .and. &
+!              thermal_forcing_lsrf + deltaT_ocn < 0.0d0)
+!              deltaT_ocn = -thermal_forcing_lsrf
+!        endwhere
+         if (verbose_bmlt_float .and. this_rank==rtest) then
+             print*, 'We are capping deltaT ocn at the -thermal forcing lsrf, but we are doing that straight after the inversion'
+         endif
+   
     endif
+
+
+          if (verbose_bmlt_float .and. this_rank==rtest) then
+             print*, ' '
+             print*, 'deltaT_ocn (degC) after the capping of ismip6 bmlt subroutine'
+             do j = jtest+3, jtest-3, -1
+                do i = itest-3, itest+3
+                   write(6,'(f10.3)',advance='no') deltaT_ocn(i,j)
+                enddo
+                write(6,*) ' '
+             enddo
+          endif
 
     if (bmlt_float_thermal_forcing_param == BMLT_FLOAT_TF_ISMIP6_LOCAL) then
 
@@ -2148,6 +2246,18 @@ module glissade_bmlt_float
        enddo
 
     endif  ! local or nonlocal
+
+
+          if (verbose_bmlt_float .and. this_rank==rtest) then
+             print*, ' '
+             print*, 'deltaT_ocn (degC) at the end of ismip6 bmlt subroutine'
+             do j = jtest+3, jtest-3, -1
+                do i = itest-3, itest+3
+                   write(6,'(f10.3)',advance='no') deltaT_ocn(i,j)
+                enddo
+                write(6,*) ' '
+             enddo
+          endif
 
   end subroutine ismip6_bmlt_float
 

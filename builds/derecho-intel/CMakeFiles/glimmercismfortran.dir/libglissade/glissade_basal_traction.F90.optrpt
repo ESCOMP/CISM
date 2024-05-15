@@ -203,14 +203,14 @@ LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_basal_traction.F90(20
    LOOP END
 LOOP END
 
-LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_basal_traction.F90(1746,5) inlined into /glade/u/home/tvda/CISM/libglissade/glissade_basal_traction.F90(207,11)
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_basal_traction.F90(1747,5) inlined into /glade/u/home/tvda/CISM/libglissade/glissade_basal_traction.F90(207,11)
    remark #15542: loop was not vectorized: inner loop was already vectorized
 
-   LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_basal_traction.F90(1747,8) inlined into /glade/u/home/tvda/CISM/libglissade/glissade_basal_traction.F90(207,11)
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_basal_traction.F90(1748,8) inlined into /glade/u/home/tvda/CISM/libglissade/glissade_basal_traction.F90(207,11)
       remark #15300: LOOP WAS VECTORIZED
    LOOP END
 
-   LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_basal_traction.F90(1747,8) inlined into /glade/u/home/tvda/CISM/libglissade/glissade_basal_traction.F90(207,11)
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_basal_traction.F90(1748,8) inlined into /glade/u/home/tvda/CISM/libglissade/glissade_basal_traction.F90(207,11)
    <Remainder loop for vectorization>
    LOOP END
 LOOP END
@@ -1595,189 +1595,189 @@ LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_basal_traction.F90(15
    LOOP END
 LOOP END
 
-LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_basal_traction.F90(1639,55)
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_basal_traction.F90(1640,55)
    remark #15541: outer loop was not auto-vectorized: consider using SIMD directive
 
-   LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_basal_traction.F90(1582,10)
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_basal_traction.F90(1583,10)
       remark #15344: loop was not vectorized: vector dependence prevents vectorization. First dependence is shown below. Use level 5 report for details
-      remark #15346: vector dependence: assumed ANTI dependence between basal_physics(i,j) (1584:15) and basal_physics(i,j) (1588:19)
+      remark #15346: vector dependence: assumed ANTI dependence between basal_physics(i,j) (1585:15) and basal_physics(i,j) (1589:19)
    LOOP END
 LOOP END
 
-LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_basal_traction.F90(1566,7)
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_basal_traction.F90(1567,8)
    remark #15541: outer loop was not auto-vectorized: consider using SIMD directive
 
-   LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_basal_traction.F90(1567,10)
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_basal_traction.F90(1568,10)
       remark #15344: loop was not vectorized: vector dependence prevents vectorization. First dependence is shown below. Use level 5 report for details
-      remark #15346: vector dependence: assumed ANTI dependence between basal_physics(i,j) (1569:15) and basal_physics(i,j) (1573:19)
+      remark #15346: vector dependence: assumed ANTI dependence between basal_physics(i,j) (1570:15) and basal_physics(i,j) (1574:19)
    LOOP END
 LOOP END
 
-LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_basal_traction.F90(1601,14)
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_basal_traction.F90(1602,14)
    remark #15541: outer loop was not auto-vectorized: consider using SIMD directive
 
-   LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_basal_traction.F90(1603,17)
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_basal_traction.F90(1604,17)
       remark #15344: loop was not vectorized: vector dependence prevents vectorization. First dependence is shown below. Use level 5 report for details
-      remark #15346: vector dependence: assumed OUTPUT dependence between at (1605:23) and at (1607:23)
+      remark #15346: vector dependence: assumed OUTPUT dependence between at (1606:23) and at (1608:23)
       remark #25436: completely unrolled by 7  
    LOOP END
 LOOP END
 
-LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_basal_traction.F90(1618,14)
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_basal_traction.F90(1619,14)
    remark #15541: outer loop was not auto-vectorized: consider using SIMD directive
 
-   LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_basal_traction.F90(1620,17)
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_basal_traction.F90(1621,17)
       remark #15344: loop was not vectorized: vector dependence prevents vectorization. First dependence is shown below. Use level 5 report for details
-      remark #15346: vector dependence: assumed OUTPUT dependence between at (1622:23) and at (1624:23)
+      remark #15346: vector dependence: assumed OUTPUT dependence between at (1623:23) and at (1625:23)
       remark #25436: completely unrolled by 7  
    LOOP END
 LOOP END
 
-LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_basal_traction.F90(1635,14)
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_basal_traction.F90(1636,14)
    remark #15541: outer loop was not auto-vectorized: consider using SIMD directive
 
-   LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_basal_traction.F90(1637,17)
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_basal_traction.F90(1638,17)
       remark #15344: loop was not vectorized: vector dependence prevents vectorization. First dependence is shown below. Use level 5 report for details
-      remark #15346: vector dependence: assumed OUTPUT dependence between at (1639:23) and at (1641:23)
+      remark #15346: vector dependence: assumed OUTPUT dependence between at (1640:23) and at (1642:23)
       remark #25436: completely unrolled by 7  
    LOOP END
 LOOP END
 
-LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_basal_traction.F90(1652,14)
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_basal_traction.F90(1653,14)
    remark #15541: outer loop was not auto-vectorized: consider using SIMD directive
 
-   LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_basal_traction.F90(1654,17)
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_basal_traction.F90(1655,17)
       remark #15344: loop was not vectorized: vector dependence prevents vectorization. First dependence is shown below. Use level 5 report for details
-      remark #15346: vector dependence: assumed OUTPUT dependence between at (1656:23) and at (1658:23)
+      remark #15346: vector dependence: assumed OUTPUT dependence between at (1657:23) and at (1659:23)
       remark #25436: completely unrolled by 7  
    LOOP END
 LOOP END
 
-LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_basal_traction.F90(1674,10)
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_basal_traction.F90(1675,10)
 <Multiversioned v1>
    remark #25233: Loop multiversioned for stride tests on Assumed shape arrays
    remark #15542: loop was not vectorized: inner loop was already vectorized
 
-   LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_basal_traction.F90(1674,10)
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_basal_traction.F90(1675,10)
       remark #15300: LOOP WAS VECTORIZED
    LOOP END
 
-   LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_basal_traction.F90(1674,10)
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_basal_traction.F90(1675,10)
    <Remainder loop for vectorization>
    LOOP END
 LOOP END
 
-LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_basal_traction.F90(1674,10)
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_basal_traction.F90(1675,10)
 <Multiversioned v2>
    remark #15542: loop was not vectorized: inner loop was already vectorized
 
-   LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_basal_traction.F90(1674,10)
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_basal_traction.F90(1675,10)
       remark #15300: LOOP WAS VECTORIZED
    LOOP END
 
-   LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_basal_traction.F90(1674,10)
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_basal_traction.F90(1675,10)
    <Remainder loop for vectorization>
    LOOP END
 LOOP END
 
-LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_basal_traction.F90(1674,10)
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_basal_traction.F90(1675,10)
 <Multiversioned v1>
    remark #25233: Loop multiversioned for stride tests on Assumed shape arrays
    remark #15542: loop was not vectorized: inner loop was already vectorized
 
-   LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_basal_traction.F90(1674,10)
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_basal_traction.F90(1675,10)
       remark #15300: LOOP WAS VECTORIZED
    LOOP END
 
-   LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_basal_traction.F90(1674,10)
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_basal_traction.F90(1675,10)
    <Remainder loop for vectorization>
    LOOP END
 LOOP END
 
-LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_basal_traction.F90(1674,10)
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_basal_traction.F90(1675,10)
 <Multiversioned v2>
    remark #15542: loop was not vectorized: inner loop was already vectorized
 
-   LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_basal_traction.F90(1674,10)
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_basal_traction.F90(1675,10)
       remark #15300: LOOP WAS VECTORIZED
    LOOP END
 
-   LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_basal_traction.F90(1674,10)
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_basal_traction.F90(1675,10)
    <Remainder loop for vectorization>
    LOOP END
 LOOP END
 
-LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_basal_traction.F90(1675,54)
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_basal_traction.F90(1676,54)
 <Multiversioned v1>
    remark #25233: Loop multiversioned for stride tests on Assumed shape arrays
    remark #15542: loop was not vectorized: inner loop was already vectorized
 
-   LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_basal_traction.F90(1675,54)
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_basal_traction.F90(1676,54)
       remark #15300: LOOP WAS VECTORIZED
    LOOP END
 
-   LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_basal_traction.F90(1675,54)
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_basal_traction.F90(1676,54)
    <Remainder loop for vectorization>
    LOOP END
 LOOP END
 
-LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_basal_traction.F90(1675,54)
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_basal_traction.F90(1676,54)
 <Multiversioned v2>
    remark #15541: outer loop was not auto-vectorized: consider using SIMD directive
 
-   LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_basal_traction.F90(1675,54)
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_basal_traction.F90(1676,54)
       remark #15335: loop was not vectorized: vectorization possible but seems inefficient. Use vector always directive or -vec-threshold0 to override 
       remark #25439: unrolled with remainder by 2  
    LOOP END
 
-   LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_basal_traction.F90(1675,54)
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_basal_traction.F90(1676,54)
    <Remainder>
    LOOP END
 LOOP END
 
-LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_basal_traction.F90(1675,54)
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_basal_traction.F90(1676,54)
 <Multiversioned v1>
    remark #25233: Loop multiversioned for stride tests on Assumed shape arrays
    remark #15542: loop was not vectorized: inner loop was already vectorized
 
-   LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_basal_traction.F90(1675,54)
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_basal_traction.F90(1676,54)
       remark #15300: LOOP WAS VECTORIZED
    LOOP END
 
-   LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_basal_traction.F90(1675,54)
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_basal_traction.F90(1676,54)
    <Remainder loop for vectorization>
    LOOP END
 LOOP END
 
-LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_basal_traction.F90(1675,54)
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_basal_traction.F90(1676,54)
 <Multiversioned v2>
    remark #15542: loop was not vectorized: inner loop was already vectorized
 
-   LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_basal_traction.F90(1675,54)
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_basal_traction.F90(1676,54)
       remark #15300: LOOP WAS VECTORIZED
    LOOP END
 
-   LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_basal_traction.F90(1675,54)
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_basal_traction.F90(1676,54)
    <Remainder loop for vectorization>
    LOOP END
 LOOP END
 
-LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_basal_traction.F90(1681,8)
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_basal_traction.F90(1682,8)
    remark #15541: outer loop was not auto-vectorized: consider using SIMD directive
 
-   LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_basal_traction.F90(1683,10)
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_basal_traction.F90(1684,10)
       remark #15344: loop was not vectorized: vector dependence prevents vectorization. First dependence is shown below. Use level 5 report for details
-      remark #15346: vector dependence: assumed OUTPUT dependence between at (1685:17) and at (1687:17)
+      remark #15346: vector dependence: assumed OUTPUT dependence between at (1686:17) and at (1688:17)
       remark #25436: completely unrolled by 7  
    LOOP END
 LOOP END
 
-LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_basal_traction.F90(1694,8)
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_basal_traction.F90(1695,8)
    remark #15541: outer loop was not auto-vectorized: consider using SIMD directive
 
-   LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_basal_traction.F90(1696,11)
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_basal_traction.F90(1697,11)
       remark #15344: loop was not vectorized: vector dependence prevents vectorization. First dependence is shown below. Use level 5 report for details
-      remark #15346: vector dependence: assumed OUTPUT dependence between at (1697:13) and at (1697:13)
+      remark #15346: vector dependence: assumed OUTPUT dependence between at (1698:13) and at (1698:13)
       remark #25436: completely unrolled by 7  
    LOOP END
 LOOP END
@@ -1793,19 +1793,19 @@ LOOP END
         Assigned     :   30[ rax rdx rcx rbx rsi rdi r8-r15 zmm0-zmm15]
         
     Routine temporaries
-        Total         :    5691
+        Total         :    5709
             Global    :    1758
-            Local     :    3933
-        Regenerable   :    1969
+            Local     :    3951
+        Regenerable   :    1987
         Spilled       :     536
         
     Routine stack
-        Variables     :    2992 bytes*
+        Variables     :    3024 bytes*
             Reads     :       0 [0.00e+00 ~ 0.0%]
-            Writes    :    1398 [4.64e+00 ~ 4.6%]
-        Spills        :    4152 bytes*
-            Reads     :    1153 [7.19e+00 ~ 7.2%]
-            Writes    :     813 [2.52e+00 ~ 2.5%]
+            Writes    :    1404 [4.65e+00 ~ 4.6%]
+        Spills        :    4160 bytes*
+            Reads     :    1155 [7.19e+00 ~ 7.2%]
+            Writes    :     812 [2.53e+00 ~ 2.5%]
     
     Notes
     
@@ -1819,28 +1819,28 @@ Begin optimization report for: GLISSADE_BASAL_TRACTION::SET_COULOMB_C_ELEVATION
 
     Report from: Interprocedural optimizations [ipo]
 
-INLINE REPORT: (GLISSADE_BASAL_TRACTION::SET_COULOMB_C_ELEVATION) [4] /glade/u/home/tvda/CISM/libglissade/glissade_basal_traction.F90(1707,14)
+INLINE REPORT: (GLISSADE_BASAL_TRACTION::SET_COULOMB_C_ELEVATION) [4] /glade/u/home/tvda/CISM/libglissade/glissade_basal_traction.F90(1708,14)
 
 
     Report from: Loop nest, Vector & Auto-parallelization optimizations [loop, vec, par]
 
 
-LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_basal_traction.F90(1746,5)
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_basal_traction.F90(1747,5)
    remark #15542: loop was not vectorized: inner loop was already vectorized
 
-   LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_basal_traction.F90(1747,8)
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_basal_traction.F90(1748,8)
       remark #15300: LOOP WAS VECTORIZED
       remark #25456: Number of Array Refs Scalar Replaced In Loop: 4
    LOOP END
 
-   LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_basal_traction.F90(1747,8)
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_basal_traction.F90(1748,8)
    <Remainder loop for vectorization>
    LOOP END
 LOOP END
 
     Report from: Code generation optimizations [cg]
 
-/glade/u/home/tvda/CISM/libglissade/glissade_basal_traction.F90(1707,14):remark #34051: REGISTER ALLOCATION : [glissade_basal_traction_mp_set_coulomb_c_elevation_] /glade/u/home/tvda/CISM/libglissade/glissade_basal_traction.F90:1707
+/glade/u/home/tvda/CISM/libglissade/glissade_basal_traction.F90(1708,14):remark #34051: REGISTER ALLOCATION : [glissade_basal_traction_mp_set_coulomb_c_elevation_] /glade/u/home/tvda/CISM/libglissade/glissade_basal_traction.F90:1708
 
     Hardware registers
         Reserved     :    2[ rsp rip]

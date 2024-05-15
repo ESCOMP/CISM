@@ -895,7 +895,7 @@ contains
         model%options%which_ho_deltaT_ocn == HO_DELTAT_OCN_INVERSION .or.  &
         model%options%which_ho_bmlt_basin == HO_BMLT_BASIN_INVERSION .or.  &
         model%options%which_ho_flow_enhancement_factor == HO_FLOW_ENHANCEMENT_FACTOR_INVERSION) then
-
+!       print*, 'TvdA tracer: initializing inversion'
        call glissade_init_inversion(model)
 
        !TvdA: add a calculation to get the f_ground_obs here as well, to use that the whole run 
@@ -1253,6 +1253,16 @@ contains
        return
     endif
 
+          if (verbose_glissade .and. this_rank==rtest) then
+             print*, ' '
+             print*, 'deltaT_ocn (degC) at the beginning of a glissade timestep:'
+             do j = jtest+3, jtest-3, -1
+                do i = itest-3, itest+3
+                   write(6,'(f10.3)',advance='no') model%ocean_data%deltaT_ocn(i,j)
+                enddo
+                write(6,*) ' '
+             enddo
+          endif
     ! save the old ice thickness; used for diagnostics and tendencies
     ! also used to reset thickness for the no-evolution option
     model%geometry%thck_old(:,:) = model%geometry%thck(:,:)
@@ -1332,6 +1342,8 @@ contains
     ! Compute the basal melt rate beneath floating ice.
     ! (The basal melt rate beneath grounded ice is part of the thermal solve.)
     ! ------------------------------------------------------------------------ 
+   
+    !TvdA: here is where the capping of deltaT ocn happens when we use the deltaT ismip6 option
 
     call glissade_bmlt_float_solve(model)
 
@@ -1355,7 +1367,8 @@ contains
     model%basal_melt%bmlt(:,:) = model%basal_melt%bmlt_ground(:,:) + model%basal_melt%bmlt_float(:,:)
    !!add the option here to include an updated marine connection field that does not go thourgh marine grounded ice
     if (model%options%which_ho_marine_mask == HO_MARINE_MASK_ISOLATED) then
-       
+   !TvdA_speed_search: see if this one is actually called
+       print*, 'TvdA: we are calling glissade_marine_connection, possibly slow'    
        call glissade_marine_connection_mask(&
             model%general%ewn,          model%general%nsn,          &
             parallel,                                               &
@@ -1502,6 +1515,16 @@ contains
 
     !TODO - Any halo updates needed at the end of glissade_tstep?
 
+          if (verbose_glissade .and. this_rank==rtest) then
+             print*, ' '
+             print*, 'deltaT_ocn (degC) at the end of a glissade timestep:'
+             do j = jtest+3, jtest-3, -1
+                do i = itest-3, itest+3
+                   write(6,'(f10.3)',advance='no') model%ocean_data%deltaT_ocn(i,j)
+                enddo
+                write(6,*) ' '
+             enddo
+          endif
   end subroutine glissade_tstep
 
 !=======================================================================
@@ -2963,7 +2986,7 @@ contains
              ! ice is floating and thinning in obs; apply a positive correction to acab
              ! Note: dthck_dt_obs has units of m/yr; convert to m/s
              acab_unscaled = acab_unscaled &
-                  - (1.0d0 - model%geometry%f_ground_cell) * (model%geometry%dthck_dt_obs_basin/scyr)
+                  - (1.0d0 - model%geometry%f_ground_cell) * (model%geometry%dthck_dt_obs/scyr)
           endwhere
 
           if (verbose_smb .and. this_rank == rtest) then
@@ -2972,7 +2995,7 @@ contains
              do j = jtest+3, jtest-3, -1
                 write(6,'(i6)',advance='no') j
                 do i = itest-3, itest+3
-                   write(6,'(f10.3)',advance='no') -model%geometry%dthck_dt_obs_basin(i,j)
+                   write(6,'(f10.3)',advance='no') -model%geometry%dthck_dt_obs(i,j)
                 enddo
                 write(6,*) ' '
              enddo
@@ -4397,7 +4420,7 @@ contains
           ! first call after a restart; do not update basin-scale melting parameters
 
        else
-
+          print*, 'TvdA: tracer, we are calling glissade_inversion_bmlt_basin'
           call glissade_inversion_bmlt_basin(model%numerics%dt * tim0,                  &
                                              ewn, nsn,                                  &
                                              model%numerics%dew * len0,                 &  ! m
@@ -4438,7 +4461,6 @@ contains
                thck_obs)
 
           ! Given the thickness target, invert for deltaT_ocn
-
           call glissade_inversion_deltaT_ocn(&
                model%numerics%dt * tim0,              &  ! s
                ewn,           nsn,                    &
@@ -4454,6 +4476,15 @@ contains
                model%ocean_data%deltaT_ocn,           &  ! degC
                model%inversion%deltaT_ocn_maxval)
 
+          !we are done inverting for deltaT ocn, this should be the appropriate place to limit deltaT ocn to the 
+          !-thermal forcing of the lower surface. This is now double with the call in the subroutine ismip6 
+          if (model%options%which_ho_deltaT_cap == HO_DELTAT_OCN_CAP) then
+             where (model%ocean_data%thermal_forcing_lsrf + model%ocean_data%deltaT_ocn < 0.0d0)
+                  model%ocean_data%deltaT_ocn =-model%ocean_data%thermal_forcing_lsrf    
+             endwhere
+          endif
+
+ 
        endif  ! first call after a restart
 
     endif   ! which_ho_deltaT_ocn
@@ -4745,6 +4776,8 @@ contains
 
       if ( (model%options%which_ho_effecpress==HO_EFFECPRESS_BWAT_DIFF ) .and. &
          (model%options%which_ho_bwat == HO_BWAT_FLUX_ROUTING)) then
+
+!         print*, 'TvdA speed tracer: we are calling the slow subrouting effective pressure basal water depencies'
 	       call calc_effective_pressure(model%options%which_ho_effecpress, &
 					    model%options%which_ho_effecpress_select, &
                                             parallel,                          &
@@ -4761,7 +4794,7 @@ contains
 					    model%numerics%dt * tim0/scyr,     &   ! yr
 					    itest, jtest,  rtest)
       else !use bwatfluxrouting, and therefore if required, the bwat from the flux routing subroutine
-
+!          print*, 'TvdA speed tracer: we are calling the effective pressure subroutine with slow basal hydro'
 	       call calc_effective_pressure(model%options%which_ho_effecpress, &
 					    model%options%which_ho_effecpress_select, &
                                             parallel,                          &
@@ -5280,6 +5313,7 @@ contains
 
     ! Corrections for basal melt at the calving front; convert basal melt to calving in CF cells.
     ! Computed melt rates can be large in CF cells when applying a calving mask and adjusting deltaT_ocn
+
     !  based on a thickness target.  In this case, it is better to think of the melt as part of the calving.
     ! Note: Both calving_thck and bmlt_applied have dimensionless model units;
     !       calving_thck = calving thickness per timestep, while bmlt_applied = melt per unit time

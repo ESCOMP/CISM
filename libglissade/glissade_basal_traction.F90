@@ -1423,7 +1423,7 @@ contains
 
     !!Limit the effective pressure to 0.04 percentage of the overburden pressure, when using bwatflx
     !! this is suggested in Kaczmiercak et al (2022) - Tim
-
+   print*,'TvdA speed tracer: calling a slow algorithm here'
    if (basal_physics%bwatflx_timescale > 0.d0) then
 
           if (verbose_effecpress .and. this_rank == rtest) then
@@ -1563,7 +1563,8 @@ contains
 if (which_effecpress_select == HO_EFFECPRESS_SELECT_MIN)  then !select the minimum
    if ((which_effecpress == HO_EFFECPRESS_BWAT) .or. &
       (which_effecpress == HO_EFFECPRESS_BWAT_DIFF)) then !!use the f_effecpress_bwat
-      do j = 1, nsn
+       print*,'TvdA speed tracer: we are calling a very slow basal water flux scheme loop'
+       do j = 1, nsn
          do i = 1,ewn
            if (thck(i,j) > 0.0d0) then
               basal_physics%effecpress(i,j)=overburden(i,j)*min(basal_physics%f_effecpress_bwat(i,j),&

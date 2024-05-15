@@ -348,6 +348,8 @@ contains
 !         bwat,                 &
 !         c_effective_pressure, &
 !         effecpress)
+
+    print*,'TvdA speed tracer: we are calling the costly basal water flux solver in glissade_bwat_flux_routing'
     if (effecpress_option == HO_EFFECPRESS_BWAT_INTERN_ZERO) then
          effecpress(:,:) = effecpress_real(:,:)
 !         print*, 'We gebruiken neppe N '

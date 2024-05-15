@@ -200,212 +200,195 @@ Begin optimization report for: GLISSADE_BASAL_WATER::GLISSADE_BWAT_FLUX_ROUTING
 
 INLINE REPORT: (GLISSADE_BASAL_WATER::GLISSADE_BWAT_FLUX_ROUTING) [3] /glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(165,14)
   -> (320,13) GLISSADE_BASAL_WATER::FIX_FLATS
-  -> INLINE: (366,10) GLISSADE_BASAL_WATER::COMPUTE_HEAD
-  -> (451,10) GLISSADE_BASAL_WATER::ROUTE_BASAL_WATER
-  -> (491,10) GLISSADE_BASAL_WATER::FLUX_TO_DEPTH
+  -> INLINE: (368,10) GLISSADE_BASAL_WATER::COMPUTE_HEAD
+  -> (453,10) GLISSADE_BASAL_WATER::ROUTE_BASAL_WATER
+  -> (493,10) GLISSADE_BASAL_WATER::FLUX_TO_DEPTH
 
 
     Report from: Loop nest, Vector & Auto-parallelization optimizations [loop, vec, par]
 
 
-LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(352,10)
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(354,10)
    remark #15542: loop was not vectorized: inner loop was already vectorized
 
-   LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(352,10)
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(354,10)
       remark #25399: memcopy generated
       remark #15542: loop was not vectorized: inner loop was already vectorized
 
-      LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(352,10)
+      LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(354,10)
          remark #15300: LOOP WAS VECTORIZED
       LOOP END
 
-      LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(352,10)
+      LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(354,10)
       <Remainder loop for vectorization>
       LOOP END
    LOOP END
 LOOP END
 
-LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(357,10)
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(359,10)
    remark #15542: loop was not vectorized: inner loop was already vectorized
 
-   LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(357,10)
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(359,10)
       remark #25399: memcopy generated
       remark #15542: loop was not vectorized: inner loop was already vectorized
 
-      LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(357,10)
+      LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(359,10)
          remark #15300: LOOP WAS VECTORIZED
       LOOP END
 
-      LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(357,10)
+      LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(359,10)
       <Remainder loop for vectorization>
       LOOP END
    LOOP END
 LOOP END
 
-LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(361,10)
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(363,10)
    remark #15542: loop was not vectorized: inner loop was already vectorized
 
-   LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(361,10)
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(363,10)
       remark #25408: memset generated
       remark #15542: loop was not vectorized: inner loop was already vectorized
 
-      LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(361,10)
+      LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(363,10)
          remark #15300: LOOP WAS VECTORIZED
       LOOP END
 
-      LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(361,10)
+      LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(363,10)
       <Remainder loop for vectorization>
       LOOP END
    LOOP END
 LOOP END
 
-LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(621,5) inlined into /glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(366,10)
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(623,5) inlined into /glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(368,10)
    remark #15542: loop was not vectorized: inner loop was already vectorized
 
-   LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(621,5) inlined into /glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(366,10)
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(623,5) inlined into /glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(368,10)
       remark #15300: LOOP WAS VECTORIZED
    LOOP END
 
-   LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(621,5) inlined into /glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(366,10)
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(623,5) inlined into /glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(368,10)
    <Remainder loop for vectorization>
    LOOP END
 LOOP END
 
-LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(622,8) inlined into /glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(366,10)
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(624,8) inlined into /glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(368,10)
    remark #15541: outer loop was not auto-vectorized: consider using SIMD directive
 
-   LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(622,8) inlined into /glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(366,10)
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(624,8) inlined into /glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(368,10)
       remark #15335: loop was not vectorized: vectorization possible but seems inefficient. Use vector always directive or -vec-threshold0 to override 
       remark #25439: unrolled with remainder by 2  
    LOOP END
 
-   LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(622,8) inlined into /glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(366,10)
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(624,8) inlined into /glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(368,10)
    <Remainder>
    LOOP END
 LOOP END
 
-LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(624,8) inlined into /glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(366,10)
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(626,8) inlined into /glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(368,10)
    remark #15541: outer loop was not auto-vectorized: consider using SIMD directive
 
-   LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(624,8) inlined into /glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(366,10)
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(626,8) inlined into /glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(368,10)
       remark #15335: loop was not vectorized: vectorization possible but seems inefficient. Use vector always directive or -vec-threshold0 to override 
       remark #25439: unrolled with remainder by 2  
    LOOP END
 
-   LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(624,8) inlined into /glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(366,10)
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(626,8) inlined into /glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(368,10)
    <Remainder>
    LOOP END
 LOOP END
 
-LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(381,8)
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(383,8)
    remark #15344: loop was not vectorized: vector dependence prevents vectorization. First dependence is shown below. Use level 5 report for details
-   remark #15346: vector dependence: assumed OUTPUT dependence between at (382:11) and at (382:11)
+   remark #15346: vector dependence: assumed OUTPUT dependence between at (384:11) and at (384:11)
    remark #25436: completely unrolled by 7  
 LOOP END
 
-LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(385,8)
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(387,8)
    remark #15541: outer loop was not auto-vectorized: consider using SIMD directive
 
-   LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(387,11)
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(389,11)
       remark #15344: loop was not vectorized: vector dependence prevents vectorization. First dependence is shown below. Use level 5 report for details
-      remark #15346: vector dependence: assumed OUTPUT dependence between at (388:14) and at (388:14)
+      remark #15346: vector dependence: assumed OUTPUT dependence between at (390:14) and at (390:14)
       remark #25436: completely unrolled by 7  
    LOOP END
 LOOP END
 
-LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(395,8)
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(397,8)
    remark #15344: loop was not vectorized: vector dependence prevents vectorization. First dependence is shown below. Use level 5 report for details
-   remark #15346: vector dependence: assumed OUTPUT dependence between at (396:11) and at (396:11)
+   remark #15346: vector dependence: assumed OUTPUT dependence between at (398:11) and at (398:11)
    remark #25436: completely unrolled by 7  
 LOOP END
 
-LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(399,8)
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(401,8)
    remark #15541: outer loop was not auto-vectorized: consider using SIMD directive
 
-   LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(401,11)
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(403,11)
       remark #15344: loop was not vectorized: vector dependence prevents vectorization. First dependence is shown below. Use level 5 report for details
-      remark #15346: vector dependence: assumed OUTPUT dependence between at (402:14) and at (402:14)
+      remark #15346: vector dependence: assumed OUTPUT dependence between at (404:14) and at (404:14)
       remark #25436: completely unrolled by 7  
    LOOP END
 LOOP END
 
-LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(419,8)
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(421,8)
    remark #15541: outer loop was not auto-vectorized: consider using SIMD directive
 
-   LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(421,11)
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(423,11)
       remark #15344: loop was not vectorized: vector dependence prevents vectorization. First dependence is shown below. Use level 5 report for details
-      remark #15346: vector dependence: assumed OUTPUT dependence between at (422:14) and at (422:14)
+      remark #15346: vector dependence: assumed OUTPUT dependence between at (424:14) and at (424:14)
       remark #25436: completely unrolled by 7  
    LOOP END
 LOOP END
 
-LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(429,8)
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(431,8)
    remark #15541: outer loop was not auto-vectorized: consider using SIMD directive
 
-   LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(431,11)
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(433,11)
       remark #15344: loop was not vectorized: vector dependence prevents vectorization. First dependence is shown below. Use level 5 report for details
-      remark #15346: vector dependence: assumed OUTPUT dependence between at (432:14) and at (432:14)
+      remark #15346: vector dependence: assumed OUTPUT dependence between at (434:14) and at (434:14)
       remark #25436: completely unrolled by 7  
    LOOP END
 LOOP END
 
-LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(439,8)
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(441,8)
    remark #15541: outer loop was not auto-vectorized: consider using SIMD directive
 
-   LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(441,11)
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(443,11)
       remark #15344: loop was not vectorized: vector dependence prevents vectorization. First dependence is shown below. Use level 5 report for details
-      remark #15346: vector dependence: assumed OUTPUT dependence between at (442:14) and at (442:14)
+      remark #15346: vector dependence: assumed OUTPUT dependence between at (444:14) and at (444:14)
       remark #25436: completely unrolled by 7  
    LOOP END
 LOOP END
 
-LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(480,35)
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(482,35)
    remark #15542: loop was not vectorized: inner loop was already vectorized
 
-   LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(478,12)
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(480,12)
    <Predicate Optimized v1>
-      remark #25423: Condition at line 482 hoisted out of this loop
+      remark #25423: Condition at line 484 hoisted out of this loop
       remark #15300: LOOP WAS VECTORIZED
    LOOP END
 
-   LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(478,12)
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(480,12)
    <Remainder loop for vectorization, Predicate Optimized v1>
       remark #15301: REMAINDER LOOP WAS VECTORIZED
    LOOP END
 
-   LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(478,12)
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(480,12)
    <Remainder loop for vectorization, Predicate Optimized v1>
    LOOP END
 
-   LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(478,12)
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(480,12)
    <Predicate Optimized v3>
       remark #15300: LOOP WAS VECTORIZED
    LOOP END
 
-   LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(478,12)
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(480,12)
    <Remainder loop for vectorization, Predicate Optimized v3>
       remark #15301: REMAINDER LOOP WAS VECTORIZED
    LOOP END
 
-   LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(478,12)
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(480,12)
    <Remainder loop for vectorization, Predicate Optimized v3>
-   LOOP END
-LOOP END
-
-LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(506,5)
-   remark #15542: loop was not vectorized: inner loop was already vectorized
-
-   LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(506,5)
-      remark #15300: LOOP WAS VECTORIZED
-   LOOP END
-
-   LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(506,5)
-   <Remainder loop for vectorization>
-      remark #15301: REMAINDER LOOP WAS VECTORIZED
-   LOOP END
-
-   LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(506,5)
-   <Remainder loop for vectorization>
    LOOP END
 LOOP END
 
@@ -413,61 +396,78 @@ LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(508,5
    remark #15542: loop was not vectorized: inner loop was already vectorized
 
    LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(508,5)
+      remark #15300: LOOP WAS VECTORIZED
+   LOOP END
+
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(508,5)
+   <Remainder loop for vectorization>
+      remark #15301: REMAINDER LOOP WAS VECTORIZED
+   LOOP END
+
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(508,5)
+   <Remainder loop for vectorization>
+   LOOP END
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(510,5)
+   remark #15542: loop was not vectorized: inner loop was already vectorized
+
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(510,5)
       remark #25399: memcopy generated
       remark #15542: loop was not vectorized: inner loop was already vectorized
 
-      LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(508,5)
+      LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(510,5)
          remark #15300: LOOP WAS VECTORIZED
       LOOP END
 
-      LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(508,5)
+      LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(510,5)
       <Remainder loop for vectorization>
       LOOP END
    LOOP END
 LOOP END
 
-LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(513,8)
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(515,8)
    remark #15344: loop was not vectorized: vector dependence prevents vectorization. First dependence is shown below. Use level 5 report for details
-   remark #15346: vector dependence: assumed OUTPUT dependence between at (514:11) and at (514:11)
+   remark #15346: vector dependence: assumed OUTPUT dependence between at (516:11) and at (516:11)
    remark #25436: completely unrolled by 7  
 LOOP END
 
-LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(517,8)
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(519,8)
    remark #15541: outer loop was not auto-vectorized: consider using SIMD directive
 
-   LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(519,11)
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(521,11)
       remark #15344: loop was not vectorized: vector dependence prevents vectorization. First dependence is shown below. Use level 5 report for details
-      remark #15346: vector dependence: assumed OUTPUT dependence between at (520:14) and at (520:14)
+      remark #15346: vector dependence: assumed OUTPUT dependence between at (522:14) and at (522:14)
       remark #25436: completely unrolled by 7  
    LOOP END
 LOOP END
 
-LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(527,8)
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(529,8)
    remark #15541: outer loop was not auto-vectorized: consider using SIMD directive
 
-   LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(529,11)
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(531,11)
       remark #15344: loop was not vectorized: vector dependence prevents vectorization. First dependence is shown below. Use level 5 report for details
-      remark #15346: vector dependence: assumed OUTPUT dependence between at (530:14) and at (530:14)
+      remark #15346: vector dependence: assumed OUTPUT dependence between at (532:14) and at (532:14)
       remark #25436: completely unrolled by 7  
    LOOP END
 LOOP END
 
-LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(538,8)
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(540,8)
    remark #15541: outer loop was not auto-vectorized: consider using SIMD directive
 
-   LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(540,11)
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(542,11)
       remark #15344: loop was not vectorized: vector dependence prevents vectorization. First dependence is shown below. Use level 5 report for details
-      remark #15346: vector dependence: assumed OUTPUT dependence between at (541:14) and at (541:14)
+      remark #15346: vector dependence: assumed OUTPUT dependence between at (543:14) and at (543:14)
       remark #25436: completely unrolled by 7  
    LOOP END
 LOOP END
 
     Report from: Code generation optimizations [cg]
 
-/glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(352,10):remark #34026: call to memcpy implemented as a call to optimized library version
-/glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(357,10):remark #34026: call to memcpy implemented as a call to optimized library version
-/glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(361,10):remark #34026: call to memset implemented as a call to optimized library version
-/glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(508,5):remark #34026: call to memcpy implemented as a call to optimized library version
+/glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(354,10):remark #34026: call to memcpy implemented as a call to optimized library version
+/glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(359,10):remark #34026: call to memcpy implemented as a call to optimized library version
+/glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(363,10):remark #34026: call to memset implemented as a call to optimized library version
+/glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(510,5):remark #34026: call to memcpy implemented as a call to optimized library version
 /glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(165,14):remark #34051: REGISTER ALLOCATION : [glissade_basal_water_mp_glissade_bwat_flux_routing_] /glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90:165
 
     Hardware registers
@@ -477,19 +477,19 @@ LOOP END
         Assigned     :   29[ rax rdx rcx rbx rsi rdi r8-r15 zmm0-zmm14]
         
     Routine temporaries
-        Total         :    1802
-            Global    :     330
-            Local     :    1472
-        Regenerable   :    1040
+        Total         :    1804
+            Global    :     325
+            Local     :    1479
+        Regenerable   :    1042
         Spilled       :      55
         
     Routine stack
-        Variables     :    1640 bytes*
+        Variables     :    1656 bytes*
             Reads     :       4 [2.82e-02 ~ 0.0%]
-            Writes    :     518 [9.22e+00 ~ 9.2%]
+            Writes    :     521 [9.25e+00 ~ 9.2%]
         Spills        :     400 bytes*
             Reads     :     192 [2.10e+00 ~ 2.1%]
-            Writes    :     108 [8.10e-01 ~ 0.8%]
+            Writes    :     108 [8.09e-01 ~ 0.8%]
     
     Notes
     
@@ -503,401 +503,389 @@ Begin optimization report for: GLISSADE_BASAL_WATER::FIX_FLATS
 
     Report from: Interprocedural optimizations [ipo]
 
-INLINE REPORT: (GLISSADE_BASAL_WATER::FIX_FLATS) [4] /glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(1554,14)
-  -> (1692,10) GLISSADE_BASAL_WATER::FIND_FLATS
-  -> (1758,13) GLISSADE_BASAL_WATER::FIND_FLATS
-  -> (1998,13) GLISSADE_BASAL_WATER::FIND_FLATS
+INLINE REPORT: (GLISSADE_BASAL_WATER::FIX_FLATS) [4] /glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(1556,14)
+  -> (1694,10) GLISSADE_BASAL_WATER::FIND_FLATS
+  -> (1760,13) GLISSADE_BASAL_WATER::FIND_FLATS
+  -> (2000,13) GLISSADE_BASAL_WATER::FIND_FLATS
 
 
     Report from: Loop nest, Vector & Auto-parallelization optimizations [loop, vec, par]
 
 
-LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(1634,8)
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(1636,8)
    remark #15344: loop was not vectorized: vector dependence prevents vectorization. First dependence is shown below. Use level 5 report for details
-   remark #15346: vector dependence: assumed OUTPUT dependence between at (1635:11) and at (1635:11)
+   remark #15346: vector dependence: assumed OUTPUT dependence between at (1637:11) and at (1637:11)
    remark #25436: completely unrolled by 7  
 LOOP END
 
-LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(1638,8)
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(1640,8)
    remark #15541: outer loop was not auto-vectorized: consider using SIMD directive
 
-   LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(1640,11)
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(1642,11)
       remark #15344: loop was not vectorized: vector dependence prevents vectorization. First dependence is shown below. Use level 5 report for details
-      remark #15346: vector dependence: assumed OUTPUT dependence between at (1641:14) and at (1641:14)
+      remark #15346: vector dependence: assumed OUTPUT dependence between at (1643:14) and at (1643:14)
       remark #25436: completely unrolled by 7  
    LOOP END
 LOOP END
 
-LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(1647,8)
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(1649,8)
    remark #15541: outer loop was not auto-vectorized: consider using SIMD directive
 
-   LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(1649,11)
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(1651,11)
       remark #15344: loop was not vectorized: vector dependence prevents vectorization. First dependence is shown below. Use level 5 report for details
-      remark #15346: vector dependence: assumed OUTPUT dependence between at (1650:14) and at (1650:14)
+      remark #15346: vector dependence: assumed OUTPUT dependence between at (1652:14) and at (1652:14)
       remark #25436: completely unrolled by 7  
    LOOP END
 LOOP END
 
-LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(1658,5)
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(1660,5)
    remark #15542: loop was not vectorized: inner loop was already vectorized
 
-   LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(1658,5)
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(1660,5)
       remark #25399: memcopy generated
       remark #15542: loop was not vectorized: inner loop was already vectorized
 
-      LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(1658,5)
+      LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(1660,5)
          remark #15300: LOOP WAS VECTORIZED
       LOOP END
 
-      LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(1658,5)
+      LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(1660,5)
       <Remainder loop for vectorization>
       LOOP END
    LOOP END
 LOOP END
 
-LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(1662,5)
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(1664,5)
    remark #15542: loop was not vectorized: inner loop was already vectorized
 
-   LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(1662,5)
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(1664,5)
       remark #25408: memset generated
       remark #15542: loop was not vectorized: inner loop was already vectorized
 
-      LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(1662,5)
+      LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(1664,5)
          remark #15300: LOOP WAS VECTORIZED
       LOOP END
 
-      LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(1662,5)
-      <Remainder loop for vectorization>
-      LOOP END
-   LOOP END
-LOOP END
-
-LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(1663,5)
-   remark #15542: loop was not vectorized: inner loop was already vectorized
-
-   LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(1663,5)
-      remark #25408: memset generated
-      remark #15542: loop was not vectorized: inner loop was already vectorized
-
-      LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(1663,5)
-         remark #15300: LOOP WAS VECTORIZED
-      LOOP END
-
-      LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(1663,5)
+      LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(1664,5)
       <Remainder loop for vectorization>
       LOOP END
    LOOP END
 LOOP END
 
 LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(1665,5)
-   remark #15541: outer loop was not auto-vectorized: consider using SIMD directive
-
-   LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(1666,8)
-      remark #25260: Invariant Condition eliminated(Proven False) at line 1671
-      remark #25261: Invariant Condition eliminated(Proven True) at line 1671
-      remark #25261: Invariant Condition eliminated(Proven True) at line 1671
-      remark #25260: Invariant Condition eliminated(Proven False) at line 1671
-      remark #25260: Invariant Condition eliminated(Proven False) at line 1671
-      remark #25261: Invariant Condition eliminated(Proven True) at line 1671
-      remark #25260: Invariant Condition eliminated(Proven False) at line 1671
-      remark #25260: Invariant Condition eliminated(Proven False) at line 1671
-      remark #25260: Invariant Condition eliminated(Proven False) at line 1671
-      remark #25261: Invariant Condition eliminated(Proven True) at line 1671
-      remark #25261: Invariant Condition eliminated(Proven True) at line 1671
-      remark #25260: Invariant Condition eliminated(Proven False) at line 1671
-      remark #15335: loop was not vectorized: vectorization possible but seems inefficient. Use vector always directive or -vec-threshold0 to override 
-
-      LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(1668,14)
-         remark #25436: completely unrolled by 3   (pre-vector) 
-
-         LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(1675,23)
-            remark #25436: completely unrolled by 3   (pre-vector) 
-         LOOP END
-
-         LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(1675,23)
-         LOOP END
-
-         LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(1675,23)
-         LOOP END
-      LOOP END
-   LOOP END
-LOOP END
-
-LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(1702,8)
-   remark #15541: outer loop was not auto-vectorized: consider using SIMD directive
-
-   LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(1704,11)
-      remark #15344: loop was not vectorized: vector dependence prevents vectorization. First dependence is shown below. Use level 5 report for details
-      remark #15346: vector dependence: assumed OUTPUT dependence between at (1705:14) and at (1705:14)
-      remark #25436: completely unrolled by 7  
-   LOOP END
-LOOP END
-
-LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(1711,8)
-   remark #15541: outer loop was not auto-vectorized: consider using SIMD directive
-
-   LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(1713,11)
-      remark #15344: loop was not vectorized: vector dependence prevents vectorization. First dependence is shown below. Use level 5 report for details
-      remark #15346: vector dependence: assumed OUTPUT dependence between at (1714:14) and at (1714:14)
-      remark #25436: completely unrolled by 7  
-   LOOP END
-LOOP END
-
-LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(1720,8)
-   remark #15541: outer loop was not auto-vectorized: consider using SIMD directive
-
-   LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(1722,11)
-      remark #15344: loop was not vectorized: vector dependence prevents vectorization. First dependence is shown below. Use level 5 report for details
-      remark #15346: vector dependence: assumed OUTPUT dependence between at (1723:14) and at (1723:14)
-      remark #25436: completely unrolled by 7  
-   LOOP END
-LOOP END
-
-LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(1731,5)
    remark #15542: loop was not vectorized: inner loop was already vectorized
 
-   LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(1731,5)
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(1665,5)
       remark #25408: memset generated
       remark #15542: loop was not vectorized: inner loop was already vectorized
 
-      LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(1731,5)
+      LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(1665,5)
          remark #15300: LOOP WAS VECTORIZED
       LOOP END
 
-      LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(1731,5)
+      LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(1665,5)
       <Remainder loop for vectorization>
       LOOP END
    LOOP END
 LOOP END
 
-LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(1732,5)
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(1667,5)
+   remark #15541: outer loop was not auto-vectorized: consider using SIMD directive
+
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(1668,8)
+      remark #25260: Invariant Condition eliminated(Proven False) at line 1673
+      remark #25261: Invariant Condition eliminated(Proven True) at line 1673
+      remark #25261: Invariant Condition eliminated(Proven True) at line 1673
+      remark #25260: Invariant Condition eliminated(Proven False) at line 1673
+      remark #25260: Invariant Condition eliminated(Proven False) at line 1673
+      remark #25261: Invariant Condition eliminated(Proven True) at line 1673
+      remark #25260: Invariant Condition eliminated(Proven False) at line 1673
+      remark #25260: Invariant Condition eliminated(Proven False) at line 1673
+      remark #25260: Invariant Condition eliminated(Proven False) at line 1673
+      remark #25261: Invariant Condition eliminated(Proven True) at line 1673
+      remark #25261: Invariant Condition eliminated(Proven True) at line 1673
+      remark #25260: Invariant Condition eliminated(Proven False) at line 1673
+      remark #15335: loop was not vectorized: vectorization possible but seems inefficient. Use vector always directive or -vec-threshold0 to override 
+
+      LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(1670,14)
+         remark #25436: completely unrolled by 3   (pre-vector) 
+
+         LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(1677,23)
+            remark #25436: completely unrolled by 3   (pre-vector) 
+         LOOP END
+
+         LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(1677,23)
+         LOOP END
+
+         LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(1677,23)
+         LOOP END
+      LOOP END
+   LOOP END
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(1704,8)
+   remark #15541: outer loop was not auto-vectorized: consider using SIMD directive
+
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(1706,11)
+      remark #15344: loop was not vectorized: vector dependence prevents vectorization. First dependence is shown below. Use level 5 report for details
+      remark #15346: vector dependence: assumed OUTPUT dependence between at (1707:14) and at (1707:14)
+      remark #25436: completely unrolled by 7  
+   LOOP END
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(1713,8)
+   remark #15541: outer loop was not auto-vectorized: consider using SIMD directive
+
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(1715,11)
+      remark #15344: loop was not vectorized: vector dependence prevents vectorization. First dependence is shown below. Use level 5 report for details
+      remark #15346: vector dependence: assumed OUTPUT dependence between at (1716:14) and at (1716:14)
+      remark #25436: completely unrolled by 7  
+   LOOP END
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(1722,8)
+   remark #15541: outer loop was not auto-vectorized: consider using SIMD directive
+
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(1724,11)
+      remark #15344: loop was not vectorized: vector dependence prevents vectorization. First dependence is shown below. Use level 5 report for details
+      remark #15346: vector dependence: assumed OUTPUT dependence between at (1725:14) and at (1725:14)
+      remark #25436: completely unrolled by 7  
+   LOOP END
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(1733,5)
    remark #15542: loop was not vectorized: inner loop was already vectorized
 
-   LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(1732,5)
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(1733,5)
+      remark #25408: memset generated
+      remark #15542: loop was not vectorized: inner loop was already vectorized
+
+      LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(1733,5)
+         remark #15300: LOOP WAS VECTORIZED
+      LOOP END
+
+      LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(1733,5)
+      <Remainder loop for vectorization>
+      LOOP END
+   LOOP END
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(1734,5)
+   remark #15542: loop was not vectorized: inner loop was already vectorized
+
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(1734,5)
       remark #25399: memcopy generated
       remark #15542: loop was not vectorized: inner loop was already vectorized
 
-      LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(1732,5)
+      LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(1734,5)
          remark #15300: LOOP WAS VECTORIZED
       LOOP END
 
-      LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(1732,5)
+      LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(1734,5)
       <Remainder loop for vectorization>
       LOOP END
    LOOP END
 LOOP END
 
-LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(1748,11)
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(1750,11)
    remark #15541: outer loop was not auto-vectorized: consider using SIMD directive
 
-   LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(1748,11)
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(1750,11)
       remark #15335: loop was not vectorized: vectorization possible but seems inefficient. Use vector always directive or -vec-threshold0 to override 
       remark #25439: unrolled with remainder by 2  
    LOOP END
 
-   LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(1748,11)
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(1750,11)
    <Remainder>
    LOOP END
 LOOP END
 
-LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(1753,8)
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(1755,8)
    remark #15542: loop was not vectorized: inner loop was already vectorized
 
-   LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(1753,8)
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(1755,8)
       remark #15300: LOOP WAS VECTORIZED
    LOOP END
 
-   LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(1753,8)
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(1755,8)
    <Remainder loop for vectorization>
    LOOP END
 LOOP END
 
-LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(1768,11)
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(1770,11)
    remark #15541: outer loop was not auto-vectorized: consider using SIMD directive
 
-   LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(1770,14)
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(1772,14)
       remark #15344: loop was not vectorized: vector dependence prevents vectorization. First dependence is shown below. Use level 5 report for details
-      remark #15346: vector dependence: assumed OUTPUT dependence between at (1771:17) and at (1771:17)
+      remark #15346: vector dependence: assumed OUTPUT dependence between at (1773:17) and at (1773:17)
       remark #25436: completely unrolled by 7  
    LOOP END
 LOOP END
 
-LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(1777,11)
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(1779,11)
    remark #15541: outer loop was not auto-vectorized: consider using SIMD directive
 
-   LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(1779,14)
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(1781,14)
       remark #15344: loop was not vectorized: vector dependence prevents vectorization. First dependence is shown below. Use level 5 report for details
-      remark #15346: vector dependence: assumed OUTPUT dependence between at (1780:17) and at (1780:17)
+      remark #15346: vector dependence: assumed OUTPUT dependence between at (1782:17) and at (1782:17)
       remark #25436: completely unrolled by 7  
    LOOP END
 LOOP END
 
-LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(1809,5)
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(1811,5)
    remark #15542: loop was not vectorized: inner loop was already vectorized
 
-   LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(1809,5)
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(1811,5)
       remark #25408: memset generated
       remark #15542: loop was not vectorized: inner loop was already vectorized
 
-      LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(1809,5)
+      LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(1811,5)
          remark #15300: LOOP WAS VECTORIZED
       LOOP END
 
-      LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(1809,5)
+      LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(1811,5)
       <Remainder loop for vectorization>
       LOOP END
    LOOP END
 LOOP END
 
-LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(1810,5)
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(1812,5)
    remark #15542: loop was not vectorized: inner loop was already vectorized
 
-   LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(1810,5)
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(1812,5)
       remark #25408: memset generated
       remark #15542: loop was not vectorized: inner loop was already vectorized
 
-      LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(1810,5)
+      LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(1812,5)
          remark #15300: LOOP WAS VECTORIZED
       LOOP END
 
-      LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(1810,5)
+      LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(1812,5)
       <Remainder loop for vectorization>
       LOOP END
    LOOP END
 LOOP END
 
-LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(1819,5)
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(1821,5)
    remark #15541: outer loop was not auto-vectorized: consider using SIMD directive
 
-   LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(1820,8)
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(1822,8)
       remark #15335: loop was not vectorized: vectorization possible but seems inefficient. Use vector always directive or -vec-threshold0 to override 
       remark #25439: unrolled with remainder by 2  
    LOOP END
 
-   LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(1820,8)
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(1822,8)
    <Remainder>
    LOOP END
 LOOP END
 
-LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(1836,8)
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(1838,8)
    remark #15541: outer loop was not auto-vectorized: consider using SIMD directive
 
-   LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(1838,11)
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(1840,11)
       remark #15344: loop was not vectorized: vector dependence prevents vectorization. First dependence is shown below. Use level 5 report for details
-      remark #15346: vector dependence: assumed OUTPUT dependence between at (1839:14) and at (1839:14)
+      remark #15346: vector dependence: assumed OUTPUT dependence between at (1841:14) and at (1841:14)
       remark #25436: completely unrolled by 7  
    LOOP END
 LOOP END
 
-LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(1845,8)
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(1847,8)
    remark #15541: outer loop was not auto-vectorized: consider using SIMD directive
 
-   LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(1847,11)
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(1849,11)
       remark #15344: loop was not vectorized: vector dependence prevents vectorization. First dependence is shown below. Use level 5 report for details
-      remark #15346: vector dependence: assumed OUTPUT dependence between at (1848:14) and at (1848:14)
+      remark #15346: vector dependence: assumed OUTPUT dependence between at (1850:14) and at (1850:14)
       remark #25436: completely unrolled by 7  
    LOOP END
 LOOP END
 
-LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(1887,8)
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(1889,8)
    remark #15542: loop was not vectorized: inner loop was already vectorized
 
-   LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(1887,8)
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(1889,8)
       remark #25408: memset generated
       remark #15542: loop was not vectorized: inner loop was already vectorized
 
-      LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(1887,8)
+      LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(1889,8)
          remark #15300: LOOP WAS VECTORIZED
       LOOP END
 
-      LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(1887,8)
+      LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(1889,8)
       <Remainder loop for vectorization>
       LOOP END
    LOOP END
 LOOP END
 
-LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(1888,8)
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(1890,8)
    remark #15541: outer loop was not auto-vectorized: consider using SIMD directive
 
-   LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(1889,11)
-      remark #25260: Invariant Condition eliminated(Proven False) at line 1894
-      remark #25261: Invariant Condition eliminated(Proven True) at line 1894
-      remark #25261: Invariant Condition eliminated(Proven True) at line 1894
-      remark #25260: Invariant Condition eliminated(Proven False) at line 1894
-      remark #25260: Invariant Condition eliminated(Proven False) at line 1894
-      remark #25261: Invariant Condition eliminated(Proven True) at line 1894
-      remark #25260: Invariant Condition eliminated(Proven False) at line 1894
-      remark #25260: Invariant Condition eliminated(Proven False) at line 1894
-      remark #25260: Invariant Condition eliminated(Proven False) at line 1894
-      remark #25261: Invariant Condition eliminated(Proven True) at line 1894
-      remark #25261: Invariant Condition eliminated(Proven True) at line 1894
-      remark #25260: Invariant Condition eliminated(Proven False) at line 1894
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(1891,11)
+      remark #25260: Invariant Condition eliminated(Proven False) at line 1896
+      remark #25261: Invariant Condition eliminated(Proven True) at line 1896
+      remark #25261: Invariant Condition eliminated(Proven True) at line 1896
+      remark #25260: Invariant Condition eliminated(Proven False) at line 1896
+      remark #25260: Invariant Condition eliminated(Proven False) at line 1896
+      remark #25261: Invariant Condition eliminated(Proven True) at line 1896
+      remark #25260: Invariant Condition eliminated(Proven False) at line 1896
+      remark #25260: Invariant Condition eliminated(Proven False) at line 1896
+      remark #25260: Invariant Condition eliminated(Proven False) at line 1896
+      remark #25261: Invariant Condition eliminated(Proven True) at line 1896
+      remark #25261: Invariant Condition eliminated(Proven True) at line 1896
+      remark #25260: Invariant Condition eliminated(Proven False) at line 1896
       remark #15335: loop was not vectorized: vectorization possible but seems inefficient. Use vector always directive or -vec-threshold0 to override 
 
-      LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(1891,17)
+      LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(1893,17)
          remark #25436: completely unrolled by 3   (pre-vector) 
 
-         LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(1892,20)
+         LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(1894,20)
             remark #25436: completely unrolled by 3   (pre-vector) 
          LOOP END
 
-         LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(1892,20)
+         LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(1894,20)
          LOOP END
 
-         LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(1892,20)
+         LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(1894,20)
          LOOP END
       LOOP END
    LOOP END
 LOOP END
 
-LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(1912,8)
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(1914,8)
    remark #15541: outer loop was not auto-vectorized: consider using SIMD directive
 
-   LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(1913,11)
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(1915,11)
       remark #15335: loop was not vectorized: vectorization possible but seems inefficient. Use vector always directive or -vec-threshold0 to override 
    LOOP END
 LOOP END
 
-LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(1929,11)
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(1931,11)
    remark #15541: outer loop was not auto-vectorized: consider using SIMD directive
 
-   LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(1931,14)
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(1933,14)
       remark #15344: loop was not vectorized: vector dependence prevents vectorization. First dependence is shown below. Use level 5 report for details
-      remark #15346: vector dependence: assumed OUTPUT dependence between at (1932:17) and at (1932:17)
+      remark #15346: vector dependence: assumed OUTPUT dependence between at (1934:17) and at (1934:17)
       remark #25436: completely unrolled by 7  
    LOOP END
 LOOP END
 
-LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(1937,11)
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(1939,11)
    remark #15541: outer loop was not auto-vectorized: consider using SIMD directive
 
-   LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(1939,14)
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(1941,14)
       remark #15344: loop was not vectorized: vector dependence prevents vectorization. First dependence is shown below. Use level 5 report for details
-      remark #15346: vector dependence: assumed OUTPUT dependence between at (1940:17) and at (1940:17)
+      remark #15346: vector dependence: assumed OUTPUT dependence between at (1942:17) and at (1942:17)
       remark #25436: completely unrolled by 7  
    LOOP END
 LOOP END
 
-LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(1949,8)
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(1951,8)
    remark #15542: loop was not vectorized: inner loop was already vectorized
 
-   LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(1949,8)
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(1951,8)
       remark #15300: LOOP WAS VECTORIZED
    LOOP END
 
-   LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(1949,8)
-   <Remainder loop for vectorization>
-   LOOP END
-LOOP END
-
-LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(1950,11)
-   remark #15542: loop was not vectorized: inner loop was already vectorized
-
-   LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(1950,11)
-      remark #15300: LOOP WAS VECTORIZED
-   LOOP END
-
-   LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(1950,11)
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(1951,8)
    <Remainder loop for vectorization>
    LOOP END
 LOOP END
@@ -914,37 +902,49 @@ LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(1952,
    LOOP END
 LOOP END
 
-LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(1979,5)
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(1954,11)
    remark #15542: loop was not vectorized: inner loop was already vectorized
 
-   LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(1979,5)
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(1954,11)
       remark #15300: LOOP WAS VECTORIZED
    LOOP END
 
-   LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(1979,5)
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(1954,11)
    <Remainder loop for vectorization>
    LOOP END
 LOOP END
 
-LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(2007,11)
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(1981,5)
+   remark #15542: loop was not vectorized: inner loop was already vectorized
+
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(1981,5)
+      remark #15300: LOOP WAS VECTORIZED
+   LOOP END
+
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(1981,5)
+   <Remainder loop for vectorization>
+   LOOP END
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(2009,11)
    remark #15541: outer loop was not auto-vectorized: consider using SIMD directive
 
-   LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(2007,11)
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(2009,11)
       remark #15335: loop was not vectorized: vectorization possible but seems inefficient. Use vector always directive or -vec-threshold0 to override 
       remark #25439: unrolled with remainder by 2  
    LOOP END
 
-   LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(2007,11)
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(2009,11)
    <Remainder>
    LOOP END
 LOOP END
 
-LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(2036,8)
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(2038,8)
    remark #15541: outer loop was not auto-vectorized: consider using SIMD directive
 
-   LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(2038,11)
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(2040,11)
       remark #15344: loop was not vectorized: vector dependence prevents vectorization. First dependence is shown below. Use level 5 report for details
-      remark #15346: vector dependence: assumed OUTPUT dependence between at (2039:14) and at (2039:14)
+      remark #15346: vector dependence: assumed OUTPUT dependence between at (2041:14) and at (2041:14)
       remark #25436: completely unrolled by 7  
    LOOP END
 LOOP END
@@ -953,29 +953,29 @@ LOOP END
 Non-optimizable loops:
 
 
-LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(1739,5)
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(1741,5)
    remark #15543: loop was not vectorized: loop with function call not considered an optimization candidate.
 LOOP END
 
-LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(1876,5)
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(1878,5)
    remark #15543: loop was not vectorized: loop with function call not considered an optimization candidate.
 LOOP END
 
-LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(1987,5)
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(1989,5)
    remark #15543: loop was not vectorized: loop with function call not considered an optimization candidate.
 LOOP END
 
     Report from: Code generation optimizations [cg]
 
-/glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(1658,5):remark #34026: call to memcpy implemented as a call to optimized library version
-/glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(1662,5):remark #34026: call to memset implemented as a call to optimized library version
-/glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(1663,5):remark #34026: call to memset implemented as a call to optimized library version
-/glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(1731,5):remark #34026: call to memset implemented as a call to optimized library version
-/glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(1732,5):remark #34026: call to memcpy implemented as a call to optimized library version
-/glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(1809,5):remark #34026: call to memset implemented as a call to optimized library version
-/glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(1810,5):remark #34026: call to memset implemented as a call to optimized library version
-/glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(1887,8):remark #34026: call to memset implemented as a call to optimized library version
-/glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(1554,14):remark #34051: REGISTER ALLOCATION : [glissade_basal_water_mp_fix_flats_] /glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90:1554
+/glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(1660,5):remark #34026: call to memcpy implemented as a call to optimized library version
+/glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(1664,5):remark #34026: call to memset implemented as a call to optimized library version
+/glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(1665,5):remark #34026: call to memset implemented as a call to optimized library version
+/glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(1733,5):remark #34026: call to memset implemented as a call to optimized library version
+/glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(1734,5):remark #34026: call to memcpy implemented as a call to optimized library version
+/glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(1811,5):remark #34026: call to memset implemented as a call to optimized library version
+/glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(1812,5):remark #34026: call to memset implemented as a call to optimized library version
+/glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(1889,8):remark #34026: call to memset implemented as a call to optimized library version
+/glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(1556,14):remark #34051: REGISTER ALLOCATION : [glissade_basal_water_mp_fix_flats_] /glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90:1556
 
     Hardware registers
         Reserved     :    2[ rsp rip]
@@ -1010,32 +1010,20 @@ Begin optimization report for: GLISSADE_BASAL_WATER::FIND_FLATS
 
     Report from: Interprocedural optimizations [ipo]
 
-INLINE REPORT: (GLISSADE_BASAL_WATER::FIND_FLATS) [5] /glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(2049,14)
+INLINE REPORT: (GLISSADE_BASAL_WATER::FIND_FLATS) [5] /glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(2051,14)
 
 
     Report from: Loop nest, Vector & Auto-parallelization optimizations [loop, vec, par]
 
 
-LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(2078,5)
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(2080,5)
    remark #15542: loop was not vectorized: inner loop was already vectorized
 
-   LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(2078,5)
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(2080,5)
       remark #15300: LOOP WAS VECTORIZED
    LOOP END
 
-   LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(2078,5)
-   <Remainder loop for vectorization>
-   LOOP END
-LOOP END
-
-LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(2079,8)
-   remark #15542: loop was not vectorized: inner loop was already vectorized
-
-   LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(2079,8)
-      remark #15300: LOOP WAS VECTORIZED
-   LOOP END
-
-   LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(2079,8)
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(2080,5)
    <Remainder loop for vectorization>
    LOOP END
 LOOP END
@@ -1052,35 +1040,47 @@ LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(2081,
    LOOP END
 LOOP END
 
-LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(2086,5)
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(2083,8)
+   remark #15542: loop was not vectorized: inner loop was already vectorized
+
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(2083,8)
+      remark #15300: LOOP WAS VECTORIZED
+   LOOP END
+
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(2083,8)
+   <Remainder loop for vectorization>
+   LOOP END
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(2088,5)
    remark #15541: outer loop was not auto-vectorized: consider using SIMD directive
 
-   LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(2087,8)
-      remark #25260: Invariant Condition eliminated(Proven False) at line 2093
-      remark #25261: Invariant Condition eliminated(Proven True) at line 2093
-      remark #25261: Invariant Condition eliminated(Proven True) at line 2093
-      remark #25260: Invariant Condition eliminated(Proven False) at line 2093
-      remark #25260: Invariant Condition eliminated(Proven False) at line 2093
-      remark #25261: Invariant Condition eliminated(Proven True) at line 2093
-      remark #25260: Invariant Condition eliminated(Proven False) at line 2093
-      remark #25260: Invariant Condition eliminated(Proven False) at line 2093
-      remark #25260: Invariant Condition eliminated(Proven False) at line 2093
-      remark #25261: Invariant Condition eliminated(Proven True) at line 2093
-      remark #25261: Invariant Condition eliminated(Proven True) at line 2093
-      remark #25260: Invariant Condition eliminated(Proven False) at line 2093
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(2089,8)
+      remark #25260: Invariant Condition eliminated(Proven False) at line 2095
+      remark #25261: Invariant Condition eliminated(Proven True) at line 2095
+      remark #25261: Invariant Condition eliminated(Proven True) at line 2095
+      remark #25260: Invariant Condition eliminated(Proven False) at line 2095
+      remark #25260: Invariant Condition eliminated(Proven False) at line 2095
+      remark #25261: Invariant Condition eliminated(Proven True) at line 2095
+      remark #25260: Invariant Condition eliminated(Proven False) at line 2095
+      remark #25260: Invariant Condition eliminated(Proven False) at line 2095
+      remark #25260: Invariant Condition eliminated(Proven False) at line 2095
+      remark #25261: Invariant Condition eliminated(Proven True) at line 2095
+      remark #25261: Invariant Condition eliminated(Proven True) at line 2095
+      remark #25260: Invariant Condition eliminated(Proven False) at line 2095
       remark #15335: loop was not vectorized: vectorization possible but seems inefficient. Use vector always directive or -vec-threshold0 to override 
 
-      LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(2090,14)
+      LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(2092,14)
          remark #25436: completely unrolled by 3   (pre-vector) 
 
-         LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(2091,17)
+         LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(2093,17)
             remark #25436: completely unrolled by 3   (pre-vector) 
          LOOP END
 
-         LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(2091,17)
+         LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(2093,17)
          LOOP END
 
-         LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(2091,17)
+         LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(2093,17)
          LOOP END
       LOOP END
    LOOP END
@@ -1088,7 +1088,7 @@ LOOP END
 
     Report from: Code generation optimizations [cg]
 
-/glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(2049,14):remark #34051: REGISTER ALLOCATION : [glissade_basal_water_mp_find_flats_] /glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90:2049
+/glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(2051,14):remark #34051: REGISTER ALLOCATION : [glissade_basal_water_mp_find_flats_] /glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90:2051
 
     Hardware registers
         Reserved     :    2[ rsp rip]
@@ -1123,217 +1123,217 @@ Begin optimization report for: GLISSADE_BASAL_WATER::ROUTE_BASAL_WATER
 
     Report from: Interprocedural optimizations [ipo]
 
-INLINE REPORT: (GLISSADE_BASAL_WATER::ROUTE_BASAL_WATER) [6] /glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(631,14)
-  -> (748,10) GLISSADE_BASAL_WATER::FILL_DEPRESSIONS
-  -> INLINE: (796,10) GLISSADE_BASAL_WATER::SORT_HEIGHTS
-    -> INLINE: (2168,10) GLISSADE_BASAL_WATER::INDEXX
-      -> INLINE: (2485,10) GLISSADE_BASAL_WATER::Q_SORT_INDEX
-        -> (2550,23) GLISSADE_BASAL_WATER::Q_SORT_INDEX
-        -> (2551,23) GLISSADE_BASAL_WATER::Q_SORT_INDEX
-  -> (811,10) GLISSADE_BASAL_WATER::GET_FLUX_FRACTION
+INLINE REPORT: (GLISSADE_BASAL_WATER::ROUTE_BASAL_WATER) [6] /glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(633,14)
+  -> (750,10) GLISSADE_BASAL_WATER::FILL_DEPRESSIONS
+  -> INLINE: (798,10) GLISSADE_BASAL_WATER::SORT_HEIGHTS
+    -> INLINE: (2170,10) GLISSADE_BASAL_WATER::INDEXX
+      -> INLINE: (2487,10) GLISSADE_BASAL_WATER::Q_SORT_INDEX
+        -> (2552,23) GLISSADE_BASAL_WATER::Q_SORT_INDEX
+        -> (2553,23) GLISSADE_BASAL_WATER::Q_SORT_INDEX
+  -> (813,10) GLISSADE_BASAL_WATER::GET_FLUX_FRACTION
 
 
     Report from: Loop nest, Vector & Auto-parallelization optimizations [loop, vec, par]
 
 
-LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(734,5)
-   remark #15542: loop was not vectorized: inner loop was already vectorized
-
-   LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(734,5)
-      remark #25408: memset generated
-      remark #15542: loop was not vectorized: inner loop was already vectorized
-
-      LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(734,5)
-         remark #15300: LOOP WAS VECTORIZED
-      LOOP END
-
-      LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(734,5)
-      <Remainder loop for vectorization>
-      LOOP END
-   LOOP END
-LOOP END
-
-LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(735,5)
-   remark #15542: loop was not vectorized: inner loop was already vectorized
-
-   LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(735,5)
-      remark #25408: memset generated
-      remark #15542: loop was not vectorized: inner loop was already vectorized
-
-      LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(735,5)
-         remark #15300: LOOP WAS VECTORIZED
-      LOOP END
-
-      LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(735,5)
-      <Remainder loop for vectorization>
-      LOOP END
-   LOOP END
-LOOP END
-
 LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(736,5)
+   remark #15542: loop was not vectorized: inner loop was already vectorized
+
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(736,5)
+      remark #25408: memset generated
+      remark #15542: loop was not vectorized: inner loop was already vectorized
+
+      LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(736,5)
+         remark #15300: LOOP WAS VECTORIZED
+      LOOP END
+
+      LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(736,5)
+      <Remainder loop for vectorization>
+      LOOP END
+   LOOP END
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(737,5)
+   remark #15542: loop was not vectorized: inner loop was already vectorized
+
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(737,5)
+      remark #25408: memset generated
+      remark #15542: loop was not vectorized: inner loop was already vectorized
+
+      LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(737,5)
+         remark #15300: LOOP WAS VECTORIZED
+      LOOP END
+
+      LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(737,5)
+      <Remainder loop for vectorization>
+      LOOP END
+   LOOP END
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(738,5)
    remark #15541: outer loop was not auto-vectorized: consider using SIMD directive
 
-   LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(737,8)
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(739,8)
       remark #15335: loop was not vectorized: vectorization possible but seems inefficient. Use vector always directive or -vec-threshold0 to override 
    LOOP END
 LOOP END
 
-LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(760,5)
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(762,5)
    remark #15542: loop was not vectorized: inner loop was already vectorized
 
-   LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(760,5)
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(762,5)
       remark #15300: LOOP WAS VECTORIZED
    LOOP END
 
-   LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(760,5)
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(762,5)
    <Remainder loop for vectorization>
    LOOP END
 LOOP END
 
-LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(763,5)
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(765,5)
    remark #15542: loop was not vectorized: inner loop was already vectorized
 
-   LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(763,5)
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(765,5)
       remark #25399: memcopy generated
       remark #15542: loop was not vectorized: inner loop was already vectorized
 
-      LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(763,5)
+      LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(765,5)
          remark #15300: LOOP WAS VECTORIZED
       LOOP END
 
-      LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(763,5)
+      LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(765,5)
       <Remainder loop for vectorization>
       LOOP END
    LOOP END
 LOOP END
 
-LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(770,8)
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(772,8)
    remark #15344: loop was not vectorized: vector dependence prevents vectorization. First dependence is shown below. Use level 5 report for details
-   remark #15346: vector dependence: assumed OUTPUT dependence between at (771:11) and at (771:11)
+   remark #15346: vector dependence: assumed OUTPUT dependence between at (773:11) and at (773:11)
    remark #25436: completely unrolled by 7  
 LOOP END
 
-LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(774,8)
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(776,8)
    remark #15541: outer loop was not auto-vectorized: consider using SIMD directive
 
-   LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(776,11)
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(778,11)
       remark #15344: loop was not vectorized: vector dependence prevents vectorization. First dependence is shown below. Use level 5 report for details
-      remark #15346: vector dependence: assumed OUTPUT dependence between at (777:14) and at (777:14)
+      remark #15346: vector dependence: assumed OUTPUT dependence between at (779:14) and at (779:14)
       remark #25436: completely unrolled by 7  
    LOOP END
 LOOP END
 
-LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(784,8)
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(786,8)
    remark #15541: outer loop was not auto-vectorized: consider using SIMD directive
 
-   LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(786,11)
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(788,11)
       remark #15344: loop was not vectorized: vector dependence prevents vectorization. First dependence is shown below. Use level 5 report for details
-      remark #15346: vector dependence: assumed OUTPUT dependence between at (787:14) and at (787:14)
+      remark #15346: vector dependence: assumed OUTPUT dependence between at (789:14) and at (789:14)
       remark #25436: completely unrolled by 7  
    LOOP END
 LOOP END
 
-LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(2154,5) inlined into /glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(796,10)
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(2156,5) inlined into /glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(798,10)
    remark #15542: loop was not vectorized: inner loop was already vectorized
 
-   LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(2155,8) inlined into /glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(796,10)
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(2157,8) inlined into /glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(798,10)
       remark #15300: LOOP WAS VECTORIZED
    LOOP END
 
-   LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(2155,8) inlined into /glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(796,10)
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(2157,8) inlined into /glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(798,10)
    <Remainder loop for vectorization>
       remark #25456: Number of Array Refs Scalar Replaced In Loop: 1
    LOOP END
 LOOP END
 
-LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(2481,5) inlined into /glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(796,10)
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(2483,5) inlined into /glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(798,10)
    remark #15300: LOOP WAS VECTORIZED
 LOOP END
 
-LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(2481,5) inlined into /glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(796,10)
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(2483,5) inlined into /glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(798,10)
 <Remainder loop for vectorization>
 LOOP END
 
-LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(2174,8) inlined into /glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(796,10)
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(2176,8) inlined into /glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(798,10)
    remark #15344: loop was not vectorized: vector dependence prevents vectorization. First dependence is shown below. Use level 5 report for details
-   remark #15346: vector dependence: assumed OUTPUT dependence between call:floorf (2175:15) and call:for_write_seq_lis_xmit (2177:11)
+   remark #15346: vector dependence: assumed OUTPUT dependence between call:floorf (2177:15) and call:for_write_seq_lis_xmit (2179:11)
    remark #25436: completely unrolled by 11  
 LOOP END
 
-LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(2183,5) inlined into /glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(796,10)
-   remark #15527: loop was not vectorized: function call to floorf cannot be vectorized   [ /glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(2184,25) ]
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(2185,5) inlined into /glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(798,10)
+   remark #15527: loop was not vectorized: function call to floorf cannot be vectorized   [ /glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(2186,25) ]
 LOOP END
 
-LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(2189,5) inlined into /glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(796,10)
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(2191,5) inlined into /glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(798,10)
    remark #15542: loop was not vectorized: inner loop was already vectorized
 
-   LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(2189,5) inlined into /glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(796,10)
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(2191,5) inlined into /glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(798,10)
       remark #15300: LOOP WAS VECTORIZED
    LOOP END
 
-   LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(2189,5) inlined into /glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(796,10)
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(2191,5) inlined into /glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(798,10)
    <Remainder loop for vectorization>
    LOOP END
 LOOP END
 
-LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(805,15)
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(807,15)
    remark #15344: loop was not vectorized: vector dependence prevents vectorization. First dependence is shown below. Use level 5 report for details
-   remark #15346: vector dependence: assumed OUTPUT dependence between at (807:11) and at (807:11)
+   remark #15346: vector dependence: assumed OUTPUT dependence between at (809:11) and at (809:11)
    remark #25436: completely unrolled by 11  
 LOOP END
 
-LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(840,5)
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(842,5)
    remark #15542: loop was not vectorized: inner loop was already vectorized
 
-   LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(840,5)
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(842,5)
       remark #25408: memset generated
       remark #15542: loop was not vectorized: inner loop was already vectorized
 
-      LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(840,5)
+      LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(842,5)
          remark #15300: LOOP WAS VECTORIZED
       LOOP END
 
-      LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(840,5)
+      LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(842,5)
       <Remainder loop for vectorization>
       LOOP END
    LOOP END
 LOOP END
 
-LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(841,5)
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(843,5)
    remark #15542: loop was not vectorized: inner loop was already vectorized
 
-   LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(842,8)
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(844,8)
       remark #15300: LOOP WAS VECTORIZED
       remark #25456: Number of Array Refs Scalar Replaced In Loop: 4
    LOOP END
 
-   LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(842,8)
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(844,8)
    <Remainder loop for vectorization>
    LOOP END
 LOOP END
 
-LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(847,5)
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(849,5)
    remark #15542: loop was not vectorized: inner loop was already vectorized
 
-   LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(847,5)
-      remark #25420: Collapsed with loop at line 847 
-      remark #25420: Collapsed with loop at line 847 
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(849,5)
+      remark #25420: Collapsed with loop at line 849 
+      remark #25420: Collapsed with loop at line 849 
       remark #25408: memset generated
       remark #15542: loop was not vectorized: inner loop was already vectorized
 
-      LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(847,5)
+      LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(849,5)
          remark #15300: LOOP WAS VECTORIZED
       LOOP END
 
-      LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(847,5)
+      LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(849,5)
       <Remainder loop for vectorization>
       LOOP END
 
-      LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(847,5)
+      LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(849,5)
          remark #25421: Loop eliminated in Collapsing 
 
 
-         LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(847,5)
+         LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(849,5)
             remark #25421: Loop eliminated in Collapsing 
 
          LOOP END
@@ -1341,160 +1341,160 @@ LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(847,5
    LOOP END
 LOOP END
 
-LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(848,5)
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(850,5)
    remark #15542: loop was not vectorized: inner loop was already vectorized
 
-   LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(848,5)
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(850,5)
       remark #25408: memset generated
       remark #15542: loop was not vectorized: inner loop was already vectorized
 
-      LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(848,5)
+      LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(850,5)
          remark #15300: LOOP WAS VECTORIZED
       LOOP END
 
-      LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(848,5)
+      LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(850,5)
       <Remainder loop for vectorization>
       LOOP END
    LOOP END
 LOOP END
 
-LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(890,14)
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(892,14)
    remark #15541: outer loop was not auto-vectorized: consider using SIMD directive
    remark #25436: completely unrolled by 3  
 
-   LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(893,20)
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(895,20)
       remark #15344: loop was not vectorized: vector dependence prevents vectorization. First dependence is shown below. Use level 5 report for details
-      remark #15346: vector dependence: assumed ANTI dependence between bwatflx(i,j) (896:26) and bwatflx(ip,jp) (902:26)
+      remark #15346: vector dependence: assumed ANTI dependence between bwatflx(i,j) (898:26) and bwatflx(ip,jp) (904:26)
       remark #25436: completely unrolled by 3  
    LOOP END
 
-   LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(893,20)
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(895,20)
    LOOP END
 
-   LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(893,20)
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(895,20)
    LOOP END
 LOOP END
 
-LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(914,8)
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(916,8)
    remark #15542: loop was not vectorized: inner loop was already vectorized
 
-   LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(914,8)
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(916,8)
       remark #15300: LOOP WAS VECTORIZED
    LOOP END
 
-   LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(914,8)
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(916,8)
    <Remainder loop for vectorization>
    LOOP END
 LOOP END
 
-LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(915,8)
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(917,8)
    remark #15542: loop was not vectorized: inner loop was already vectorized
 
-   LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(915,8)
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(917,8)
       remark #25408: memset generated
       remark #15542: loop was not vectorized: inner loop was already vectorized
 
-      LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(915,8)
+      LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(917,8)
          remark #15300: LOOP WAS VECTORIZED
       LOOP END
 
-      LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(915,8)
+      LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(917,8)
       <Remainder loop for vectorization>
       LOOP END
    LOOP END
 LOOP END
 
-LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(929,8)
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(931,8)
    remark #15542: loop was not vectorized: inner loop was already vectorized
 
-   LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(930,11)
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(932,11)
       remark #15300: LOOP WAS VECTORIZED
 
-      LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(931,38)
+      LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(933,38)
          remark #25436: completely unrolled by 3   (pre-vector) 
 
-         LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(931,38)
+         LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(933,38)
             remark #25436: completely unrolled by 3   (pre-vector) 
          LOOP END
 
-         LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(931,38)
+         LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(933,38)
          LOOP END
 
-         LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(931,38)
+         LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(933,38)
          LOOP END
       LOOP END
    LOOP END
 
-   LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(930,11)
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(932,11)
    <Remainder loop for vectorization>
    LOOP END
 LOOP END
 
-LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(948,11)
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(950,11)
    remark #15541: outer loop was not auto-vectorized: consider using SIMD directive
 
-   LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(950,14)
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(952,14)
       remark #15344: loop was not vectorized: vector dependence prevents vectorization. First dependence is shown below. Use level 5 report for details
-      remark #15346: vector dependence: assumed OUTPUT dependence between at (951:17) and at (951:17)
+      remark #15346: vector dependence: assumed OUTPUT dependence between at (953:17) and at (953:17)
       remark #25436: completely unrolled by 7  
    LOOP END
 LOOP END
 
-LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(975,47)
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(977,47)
    remark #15541: outer loop was not auto-vectorized: consider using SIMD directive
    remark #25436: completely unrolled by 3  
 
-   LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(975,47)
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(977,47)
       remark #15331: loop was not vectorized: precise FP model implied by the command line or a directive prevents vectorization. Consider using fast FP model
       remark #25436: completely unrolled by 3  
    LOOP END
 
-   LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(975,47)
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(977,47)
    LOOP END
 
-   LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(975,47)
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(977,47)
    LOOP END
 LOOP END
 
-LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(976,20)
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(978,20)
    remark #15541: outer loop was not auto-vectorized: consider using SIMD directive
    remark #25436: completely unrolled by 3  
 
-   LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(980,29)
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(982,29)
       remark #15344: loop was not vectorized: vector dependence prevents vectorization. First dependence is shown below. Use level 5 report for details
-      remark #15346: vector dependence: assumed OUTPUT dependence between at (985:35) and at (985:35)
+      remark #15346: vector dependence: assumed OUTPUT dependence between at (987:35) and at (987:35)
       remark #25436: completely unrolled by 3  
    LOOP END
 
-   LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(980,29)
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(982,29)
    LOOP END
 
-   LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(980,29)
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(982,29)
    LOOP END
 LOOP END
 
-LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(997,11)
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(999,11)
    remark #15542: loop was not vectorized: inner loop was already vectorized
 
-   LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(997,11)
-      remark #25420: Collapsed with loop at line 997 
-      remark #25420: Collapsed with loop at line 997 
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(999,11)
+      remark #25420: Collapsed with loop at line 999 
+      remark #25420: Collapsed with loop at line 999 
       remark #25408: memset generated
       remark #15542: loop was not vectorized: inner loop was already vectorized
 
-      LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(997,11)
+      LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(999,11)
          remark #15300: LOOP WAS VECTORIZED
       LOOP END
 
-      LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(997,11)
+      LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(999,11)
       <Remainder loop for vectorization>
       LOOP END
 
-      LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(997,11)
+      LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(999,11)
          remark #25421: Loop eliminated in Collapsing 
 
 
-         LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(997,11)
+         LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(999,11)
             remark #25421: Loop eliminated in Collapsing 
 
          LOOP END
@@ -1502,45 +1502,33 @@ LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(997,1
    LOOP END
 LOOP END
 
-LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(1009,11)
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(1011,11)
    remark #15542: loop was not vectorized: inner loop was already vectorized
 
-   LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(1009,11)
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(1011,11)
       remark #25399: memcopy generated
       remark #15542: loop was not vectorized: inner loop was already vectorized
 
-      LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(1009,11)
+      LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(1011,11)
          remark #15300: LOOP WAS VECTORIZED
       LOOP END
 
-      LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(1009,11)
+      LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(1011,11)
       <Remainder loop for vectorization>
       LOOP END
    LOOP END
 LOOP END
 
-LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(1019,5)
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(1021,5)
    remark #15541: outer loop was not auto-vectorized: consider using SIMD directive
 
-   LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(1019,5)
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(1021,5)
       remark #15335: loop was not vectorized: vectorization possible but seems inefficient. Use vector always directive or -vec-threshold0 to override 
       remark #25439: unrolled with remainder by 2  
    LOOP END
 
-   LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(1019,5)
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(1021,5)
    <Remainder>
-   LOOP END
-LOOP END
-
-LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(1020,8)
-   remark #15542: loop was not vectorized: inner loop was already vectorized
-
-   LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(1020,8)
-      remark #15300: LOOP WAS VECTORIZED
-   LOOP END
-
-   LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(1020,8)
-   <Remainder loop for vectorization>
    LOOP END
 LOOP END
 
@@ -1556,14 +1544,26 @@ LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(1022,
    LOOP END
 LOOP END
 
-LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(1027,22)
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(1024,8)
    remark #15542: loop was not vectorized: inner loop was already vectorized
 
-   LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(1027,22)
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(1024,8)
       remark #15300: LOOP WAS VECTORIZED
    LOOP END
 
-   LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(1027,22)
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(1024,8)
+   <Remainder loop for vectorization>
+   LOOP END
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(1029,22)
+   remark #15542: loop was not vectorized: inner loop was already vectorized
+
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(1029,22)
+      remark #15300: LOOP WAS VECTORIZED
+   LOOP END
+
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(1029,22)
    <Remainder loop for vectorization>
    LOOP END
 LOOP END
@@ -1572,29 +1572,29 @@ LOOP END
 Non-optimizable loops:
 
 
-LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(2540,15) inlined into /glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(796,10)
-   remark #15536: loop was not vectorized: inner loop throttling prevents vectorization of this outer loop. Refer to inner loop message for more details.   [ /glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(2526,16) ]
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(2542,15) inlined into /glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(798,10)
+   remark #15536: loop was not vectorized: inner loop throttling prevents vectorization of this outer loop. Refer to inner loop message for more details.   [ /glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(2528,16) ]
 
-   LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(2526,16) inlined into /glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(796,10)
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(2528,16) inlined into /glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(798,10)
       remark #15523: loop was not vectorized: loop control variable rr was found, but loop iteration count cannot be computed before executing the loop
    LOOP END
 
-   LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(2536,15) inlined into /glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(796,10)
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(2538,15) inlined into /glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(798,10)
       remark #15523: loop was not vectorized: loop control variable ll was found, but loop iteration count cannot be computed before executing the loop
    LOOP END
 LOOP END
 
-LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(875,5)
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(877,5)
    remark #15543: loop was not vectorized: loop with function call not considered an optimization candidate.
 
-   LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(909,8)
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(911,8)
       remark #15532: loop was not vectorized: compile time constraints prevent loop optimization. Consider using -O3.
    LOOP END
 
-   LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(994,11)
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(996,11)
       remark #15532: loop was not vectorized: compile time constraints prevent loop optimization. Consider using -O3.
 
-      LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(993,14)
+      LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(995,14)
          remark #15532: loop was not vectorized: compile time constraints prevent loop optimization. Consider using -O3.
       LOOP END
    LOOP END
@@ -1602,17 +1602,17 @@ LOOP END
 
     Report from: Code generation optimizations [cg]
 
-/glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(931,38):remark #34069: adjacent sparse (strided) loads seem unprofitable to optimize. Details: stride { 72 }, types { F64-V128, F64-V128, F64-V128, F64-V128, F64-V128, F64-V128, F64-V128, F64-V128, F64-V128 }, number of elements { 2 }, select mask { 0x0000001FF }.
-/glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(734,5):remark #34026: call to memset implemented as a call to optimized library version
-/glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(735,5):remark #34026: call to memset implemented as a call to optimized library version
-/glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(763,5):remark #34026: call to memcpy implemented as a call to optimized library version
-/glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(840,5):remark #34026: call to memset implemented as a call to optimized library version
-/glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(847,5):remark #34026: call to memset implemented as a call to optimized library version
-/glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(848,5):remark #34026: call to memset implemented as a call to optimized library version
-/glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(915,8):remark #34026: call to memset implemented as a call to optimized library version
-/glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(997,11):remark #34026: call to memset implemented as a call to optimized library version
-/glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(1009,11):remark #34026: call to memcpy implemented as a call to optimized library version
-/glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(631,14):remark #34051: REGISTER ALLOCATION : [glissade_basal_water_mp_route_basal_water_] /glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90:631
+/glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(933,38):remark #34069: adjacent sparse (strided) loads seem unprofitable to optimize. Details: stride { 72 }, types { F64-V128, F64-V128, F64-V128, F64-V128, F64-V128, F64-V128, F64-V128, F64-V128, F64-V128 }, number of elements { 2 }, select mask { 0x0000001FF }.
+/glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(736,5):remark #34026: call to memset implemented as a call to optimized library version
+/glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(737,5):remark #34026: call to memset implemented as a call to optimized library version
+/glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(765,5):remark #34026: call to memcpy implemented as a call to optimized library version
+/glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(842,5):remark #34026: call to memset implemented as a call to optimized library version
+/glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(849,5):remark #34026: call to memset implemented as a call to optimized library version
+/glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(850,5):remark #34026: call to memset implemented as a call to optimized library version
+/glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(917,8):remark #34026: call to memset implemented as a call to optimized library version
+/glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(999,11):remark #34026: call to memset implemented as a call to optimized library version
+/glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(1011,11):remark #34026: call to memcpy implemented as a call to optimized library version
+/glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(633,14):remark #34051: REGISTER ALLOCATION : [glissade_basal_water_mp_route_basal_water_] /glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90:633
 
     Hardware registers
         Reserved     :    2[ rsp rip]
@@ -1647,9 +1647,9 @@ Begin optimization report for: GLISSADE_BASAL_WATER::Q_SORT_INDEX
 
     Report from: Interprocedural optimizations [ipo]
 
-INLINE REPORT: (GLISSADE_BASAL_WATER::Q_SORT_INDEX) [7] /glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(2491,24)
-  -> (2550,23) GLISSADE_BASAL_WATER::Q_SORT_INDEX
-  -> (2551,23) GLISSADE_BASAL_WATER::Q_SORT_INDEX
+INLINE REPORT: (GLISSADE_BASAL_WATER::Q_SORT_INDEX) [7] /glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(2493,24)
+  -> (2552,23) GLISSADE_BASAL_WATER::Q_SORT_INDEX
+  -> (2553,23) GLISSADE_BASAL_WATER::Q_SORT_INDEX
 
 
     Report from: Loop nest, Vector & Auto-parallelization optimizations [loop, vec, par]
@@ -1659,21 +1659,21 @@ INLINE REPORT: (GLISSADE_BASAL_WATER::Q_SORT_INDEX) [7] /glade/u/home/tvda/CISM/
 Non-optimizable loops:
 
 
-LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(2540,15)
-   remark #15536: loop was not vectorized: inner loop throttling prevents vectorization of this outer loop. Refer to inner loop message for more details.   [ /glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(2526,16) ]
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(2542,15)
+   remark #15536: loop was not vectorized: inner loop throttling prevents vectorization of this outer loop. Refer to inner loop message for more details.   [ /glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(2528,16) ]
 
-   LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(2526,16)
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(2528,16)
       remark #15523: loop was not vectorized: loop control variable rr was found, but loop iteration count cannot be computed before executing the loop
    LOOP END
 
-   LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(2536,15)
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(2538,15)
       remark #15523: loop was not vectorized: loop control variable ll was found, but loop iteration count cannot be computed before executing the loop
    LOOP END
 LOOP END
 
     Report from: Code generation optimizations [cg]
 
-/glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(2491,24):remark #34051: REGISTER ALLOCATION : [glissade_basal_water_mp_q_sort_index_] /glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90:2491
+/glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(2493,24):remark #34051: REGISTER ALLOCATION : [glissade_basal_water_mp_q_sort_index_] /glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90:2493
 
     Hardware registers
         Reserved     :    2[ rsp rip]
@@ -1708,98 +1708,98 @@ Begin optimization report for: GLISSADE_BASAL_WATER::FILL_DEPRESSIONS
 
     Report from: Interprocedural optimizations [ipo]
 
-INLINE REPORT: (GLISSADE_BASAL_WATER::FILL_DEPRESSIONS) [8] /glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(1270,14)
-  -> DELETED: (1397,8) for_write_seq_lis
-  -> DELETED: (1398,8) for_write_seq_lis
+INLINE REPORT: (GLISSADE_BASAL_WATER::FILL_DEPRESSIONS) [8] /glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(1272,14)
+  -> DELETED: (1399,8) for_write_seq_lis
+  -> DELETED: (1400,8) for_write_seq_lis
 
 
     Report from: Loop nest, Vector & Auto-parallelization optimizations [loop, vec, par]
 
 
-LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(1366,5)
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(1368,5)
    remark #15542: loop was not vectorized: inner loop was already vectorized
 
-   LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(1366,5)
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(1368,5)
       remark #15300: LOOP WAS VECTORIZED
    LOOP END
 
-   LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(1366,5)
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(1368,5)
    <Remainder loop for vectorization>
    LOOP END
 LOOP END
 
-LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(1367,8)
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(1369,8)
    remark #15541: outer loop was not auto-vectorized: consider using SIMD directive
 
-   LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(1367,8)
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(1369,8)
       remark #15335: loop was not vectorized: vectorization possible but seems inefficient. Use vector always directive or -vec-threshold0 to override 
       remark #25439: unrolled with remainder by 2  
    LOOP END
 
-   LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(1367,8)
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(1369,8)
    <Remainder>
-   LOOP END
-LOOP END
-
-LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(1368,8)
-   remark #15542: loop was not vectorized: inner loop was already vectorized
-
-   LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(1368,8)
-      remark #15300: LOOP WAS VECTORIZED
-   LOOP END
-
-   LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(1368,8)
-   <Remainder loop for vectorization>
    LOOP END
 LOOP END
 
 LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(1370,8)
-   remark #15541: outer loop was not auto-vectorized: consider using SIMD directive
-
-   LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(1370,8)
-      remark #15335: loop was not vectorized: vectorization possible but seems inefficient. Use vector always directive or -vec-threshold0 to override 
-      remark #25439: unrolled with remainder by 2  
-   LOOP END
-
-   LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(1370,8)
-   <Remainder>
-   LOOP END
-LOOP END
-
-LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(1371,8)
    remark #15542: loop was not vectorized: inner loop was already vectorized
 
-   LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(1371,8)
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(1370,8)
       remark #15300: LOOP WAS VECTORIZED
    LOOP END
 
-   LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(1371,8)
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(1370,8)
    <Remainder loop for vectorization>
    LOOP END
 LOOP END
 
-LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(1376,5)
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(1372,8)
    remark #15541: outer loop was not auto-vectorized: consider using SIMD directive
 
-   LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(1377,8)
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(1372,8)
+      remark #15335: loop was not vectorized: vectorization possible but seems inefficient. Use vector always directive or -vec-threshold0 to override 
+      remark #25439: unrolled with remainder by 2  
+   LOOP END
+
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(1372,8)
+   <Remainder>
+   LOOP END
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(1373,8)
+   remark #15542: loop was not vectorized: inner loop was already vectorized
+
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(1373,8)
+      remark #15300: LOOP WAS VECTORIZED
+   LOOP END
+
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(1373,8)
+   <Remainder loop for vectorization>
+   LOOP END
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(1378,5)
+   remark #15541: outer loop was not auto-vectorized: consider using SIMD directive
+
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(1379,8)
       remark #25427: Loop Statements Reordered
       remark #15335: loop was not vectorized: vectorization possible but seems inefficient. Use vector always directive or -vec-threshold0 to override 
    LOOP END
 LOOP END
 
-LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(1452,17)
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(1454,17)
    remark #15541: outer loop was not auto-vectorized: consider using SIMD directive
    remark #25436: completely unrolled by 3  
 
-   LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(1453,20)
-      remark #15331: loop was not vectorized: precise FP model implied by the command line or a directive prevents vectorization. Consider using fast FP model   [ /glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(1460,41) ]
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(1455,20)
+      remark #15331: loop was not vectorized: precise FP model implied by the command line or a directive prevents vectorization. Consider using fast FP model   [ /glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(1462,41) ]
       remark #25436: completely unrolled by 3  
    LOOP END
 
-   LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(1453,20)
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(1455,20)
    LOOP END
 
-   LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(1453,20)
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(1455,20)
    LOOP END
 LOOP END
 
@@ -1807,13 +1807,13 @@ LOOP END
 Non-optimizable loops:
 
 
-LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(1411,5)
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(1413,5)
    remark #15543: loop was not vectorized: loop with function call not considered an optimization candidate.
 
-   LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(1509,8)
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(1511,8)
       remark #15532: loop was not vectorized: compile time constraints prevent loop optimization. Consider using -O3.
 
-      LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(1508,11)
+      LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(1510,11)
          remark #15532: loop was not vectorized: compile time constraints prevent loop optimization. Consider using -O3.
       LOOP END
    LOOP END
@@ -1821,7 +1821,7 @@ LOOP END
 
     Report from: Code generation optimizations [cg]
 
-/glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(1270,14):remark #34051: REGISTER ALLOCATION : [glissade_basal_water_mp_fill_depressions_] /glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90:1270
+/glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(1272,14):remark #34051: REGISTER ALLOCATION : [glissade_basal_water_mp_fill_depressions_] /glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90:1272
 
     Hardware registers
         Reserved     :    2[ rsp rip]
@@ -1856,57 +1856,57 @@ Begin optimization report for: GLISSADE_BASAL_WATER::GET_FLUX_FRACTION
 
     Report from: Interprocedural optimizations [ipo]
 
-INLINE REPORT: (GLISSADE_BASAL_WATER::GET_FLUX_FRACTION) [9] /glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(2195,14)
+INLINE REPORT: (GLISSADE_BASAL_WATER::GET_FLUX_FRACTION) [9] /glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(2197,14)
 
 
     Report from: Loop nest, Vector & Auto-parallelization optimizations [loop, vec, par]
 
 
-LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(2256,5)
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(2258,5)
    remark #15300: LOOP WAS VECTORIZED
-LOOP END
-
-LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(2256,5)
-<Remainder loop for vectorization>
-   remark #25436: completely unrolled by 1  
-LOOP END
-
-LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(2257,5)
-   remark #15300: LOOP WAS VECTORIZED
-LOOP END
-
-LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(2257,5)
-<Remainder loop for vectorization>
-   remark #25436: completely unrolled by 1  
 LOOP END
 
 LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(2258,5)
+<Remainder loop for vectorization>
+   remark #25436: completely unrolled by 1  
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(2259,5)
+   remark #15300: LOOP WAS VECTORIZED
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(2259,5)
+<Remainder loop for vectorization>
+   remark #25436: completely unrolled by 1  
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(2260,5)
    remark #15335: loop was not vectorized: vectorization possible but seems inefficient. Use vector always directive or -vec-threshold0 to override 
    remark #25436: completely unrolled by 3  
 LOOP END
 
-LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(2264,5)
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(2266,5)
    remark #15542: loop was not vectorized: inner loop was already vectorized
 
-   LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(2264,5)
-      remark #25420: Collapsed with loop at line 2264 
-      remark #25420: Collapsed with loop at line 2264 
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(2266,5)
+      remark #25420: Collapsed with loop at line 2266 
+      remark #25420: Collapsed with loop at line 2266 
       remark #25408: memset generated
       remark #15542: loop was not vectorized: inner loop was already vectorized
 
-      LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(2264,5)
+      LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(2266,5)
          remark #15300: LOOP WAS VECTORIZED
       LOOP END
 
-      LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(2264,5)
+      LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(2266,5)
       <Remainder loop for vectorization>
       LOOP END
 
-      LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(2264,5)
+      LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(2266,5)
          remark #25421: Loop eliminated in Collapsing 
 
 
-         LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(2264,5)
+         LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(2266,5)
             remark #25421: Loop eliminated in Collapsing 
 
          LOOP END
@@ -1914,112 +1914,112 @@ LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(2264,
    LOOP END
 LOOP END
 
-LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(2277,11)
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(2279,11)
    remark #15541: outer loop was not auto-vectorized: consider using SIMD directive
    remark #25436: completely unrolled by 3  
 
-   LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(2277,11)
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(2279,11)
       remark #15335: loop was not vectorized: vectorization possible but seems inefficient. Use vector always directive or -vec-threshold0 to override 
       remark #25436: completely unrolled by 3  
    LOOP END
 
-   LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(2277,11)
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(2279,11)
    LOOP END
 
-   LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(2277,11)
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(2279,11)
    LOOP END
 LOOP END
 
-LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(2280,11)
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(2282,11)
    remark #15541: outer loop was not auto-vectorized: consider using SIMD directive
    remark #25436: completely unrolled by 3  
 
-   LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(2287,20)
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(2289,20)
       remark #15335: loop was not vectorized: vectorization possible but seems inefficient. Use vector always directive or -vec-threshold0 to override 
       remark #25436: completely unrolled by 3  
    LOOP END
 
-   LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(2287,20)
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(2289,20)
    LOOP END
 
-   LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(2287,20)
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(2289,20)
    LOOP END
 LOOP END
 
-LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(2297,23)
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(2299,23)
    remark #15541: outer loop was not auto-vectorized: consider using SIMD directive
    remark #25436: completely unrolled by 3  
 
-   LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(2297,23)
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(2299,23)
       remark #15331: loop was not vectorized: precise FP model implied by the command line or a directive prevents vectorization. Consider using fast FP model
       remark #25436: completely unrolled by 3  
    LOOP END
 
-   LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(2297,23)
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(2299,23)
    LOOP END
 
-   LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(2297,23)
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(2299,23)
    LOOP END
 LOOP END
 
-LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(2305,38)
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(2307,38)
    remark #15541: outer loop was not auto-vectorized: consider using SIMD directive
    remark #25436: completely unrolled by 3  
 
-   LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(2305,38)
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(2307,38)
       remark #15331: loop was not vectorized: precise FP model implied by the command line or a directive prevents vectorization. Consider using fast FP model
       remark #25436: completely unrolled by 3  
    LOOP END
 
-   LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(2305,38)
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(2307,38)
    LOOP END
 
-   LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(2305,38)
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(2307,38)
    LOOP END
 LOOP END
 
-LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(2321,17)
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(2323,17)
    remark #15541: outer loop was not auto-vectorized: consider using SIMD directive
    remark #25436: completely unrolled by 3  
 
-   LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(2322,20)
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(2324,20)
       remark #15344: loop was not vectorized: vector dependence prevents vectorization. First dependence is shown below. Use level 5 report for details
-      remark #15346: vector dependence: assumed ANTI dependence between slope1 (2325:40) and slope1 (2326:26)
+      remark #15346: vector dependence: assumed ANTI dependence between slope1 (2327:40) and slope1 (2328:26)
       remark #25436: completely unrolled by 3  
    LOOP END
 
-   LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(2322,20)
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(2324,20)
    LOOP END
 
-   LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(2322,20)
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(2324,20)
    LOOP END
 LOOP END
 
-LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(2354,14)
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(2356,14)
    remark #15541: outer loop was not auto-vectorized: consider using SIMD directive
    remark #25436: completely unrolled by 3  
 
-   LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(2357,20)
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(2359,20)
       remark #15344: loop was not vectorized: vector dependence prevents vectorization. First dependence is shown below. Use level 5 report for details
-      remark #15346: vector dependence: assumed ANTI dependence between i1 (2360:23) and i1 (2363:23)
+      remark #15346: vector dependence: assumed ANTI dependence between i1 (2362:23) and i1 (2365:23)
       remark #25436: completely unrolled by 3  
    LOOP END
 
-   LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(2357,20)
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(2359,20)
    LOOP END
 
-   LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(2357,20)
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(2359,20)
    LOOP END
 LOOP END
 
-LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(2419,17)
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(2421,17)
    remark #15542: loop was not vectorized: inner loop was already vectorized
 
-   LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(2420,20)
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(2422,20)
       remark #15300: LOOP WAS VECTORIZED
    LOOP END
 
-   LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(2420,20)
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(2422,20)
    <Remainder loop for vectorization>
       remark #25436: completely unrolled by 1  
    LOOP END
@@ -2029,15 +2029,15 @@ LOOP END
 Non-optimizable loops:
 
 
-LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(2445,5)
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(2447,5)
    remark #15532: loop was not vectorized: compile time constraints prevent loop optimization. Consider using -O3.
 LOOP END
 
     Report from: Code generation optimizations [cg]
 
-/glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(2257,5):remark #34070: adjacent sparse (strided) stores seem unprofitable to optimize. Details: stride { 24 }, types { F64-V128, F64-V128 }, number of elements { 2 }, select mask { 0x000000003 }.
-/glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(2264,5):remark #34026: call to memset implemented as a call to optimized library version
-/glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(2195,14):remark #34051: REGISTER ALLOCATION : [glissade_basal_water_mp_get_flux_fraction_] /glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90:2195
+/glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(2259,5):remark #34070: adjacent sparse (strided) stores seem unprofitable to optimize. Details: stride { 24 }, types { F64-V128, F64-V128 }, number of elements { 2 }, select mask { 0x000000003 }.
+/glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(2266,5):remark #34026: call to memset implemented as a call to optimized library version
+/glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(2197,14):remark #34051: REGISTER ALLOCATION : [glissade_basal_water_mp_get_flux_fraction_] /glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90:2197
 
     Hardware registers
         Reserved     :    2[ rsp rip]
@@ -2072,103 +2072,94 @@ Begin optimization report for: GLISSADE_BASAL_WATER::FLUX_TO_DEPTH
 
     Report from: Interprocedural optimizations [ipo]
 
-INLINE REPORT: (GLISSADE_BASAL_WATER::FLUX_TO_DEPTH) [10] /glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(1052,14)
+INLINE REPORT: (GLISSADE_BASAL_WATER::FLUX_TO_DEPTH) [10] /glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(1054,14)
 
 
     Report from: Loop nest, Vector & Auto-parallelization optimizations [loop, vec, par]
 
 
-LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(1122,5)
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(1124,5)
    remark #15542: loop was not vectorized: inner loop was already vectorized
 
-   LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(1122,5)
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(1124,5)
       remark #15300: LOOP WAS VECTORIZED
    LOOP END
 
-   LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(1122,5)
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(1124,5)
    <Remainder loop for vectorization>
    LOOP END
 LOOP END
 
-LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(1135,5)
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(1137,5)
    remark #15542: loop was not vectorized: inner loop was already vectorized
 
-   LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(1135,5)
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(1137,5)
       remark #25408: memset generated
       remark #15542: loop was not vectorized: inner loop was already vectorized
 
-      LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(1135,5)
+      LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(1137,5)
          remark #15300: LOOP WAS VECTORIZED
       LOOP END
 
-      LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(1135,5)
+      LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(1137,5)
       <Remainder loop for vectorization>
       LOOP END
    LOOP END
 LOOP END
 
-LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(1136,5)
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(1138,5)
    remark #15542: loop was not vectorized: inner loop was already vectorized
 
-   LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(1137,8)
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(1139,8)
       remark #15300: LOOP WAS VECTORIZED
    LOOP END
 
-   LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(1137,8)
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(1139,8)
    <Remainder loop for vectorization>
    LOOP END
 LOOP END
 
-LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(1153,8)
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(1155,8)
    remark #15344: loop was not vectorized: vector dependence prevents vectorization. First dependence is shown below. Use level 5 report for details
-   remark #15346: vector dependence: assumed OUTPUT dependence between at (1154:11) and at (1154:11)
+   remark #15346: vector dependence: assumed OUTPUT dependence between at (1156:11) and at (1156:11)
    remark #25436: completely unrolled by 7  
 LOOP END
 
-LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(1157,8)
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(1159,8)
    remark #15541: outer loop was not auto-vectorized: consider using SIMD directive
 
-   LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(1159,11)
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(1161,11)
       remark #15344: loop was not vectorized: vector dependence prevents vectorization. First dependence is shown below. Use level 5 report for details
-      remark #15346: vector dependence: assumed OUTPUT dependence between at (1160:14) and at (1160:14)
+      remark #15346: vector dependence: assumed OUTPUT dependence between at (1162:14) and at (1162:14)
       remark #25436: completely unrolled by 7  
    LOOP END
 LOOP END
 
-LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(1173,8)
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(1175,8)
    remark #15344: loop was not vectorized: vector dependence prevents vectorization. First dependence is shown below. Use level 5 report for details
-   remark #15346: vector dependence: assumed OUTPUT dependence between at (1174:11) and at (1174:11)
+   remark #15346: vector dependence: assumed OUTPUT dependence between at (1176:11) and at (1176:11)
    remark #25436: completely unrolled by 7  
 LOOP END
 
-LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(1177,8)
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(1179,8)
    remark #15541: outer loop was not auto-vectorized: consider using SIMD directive
 
-   LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(1179,11)
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(1181,11)
       remark #15344: loop was not vectorized: vector dependence prevents vectorization. First dependence is shown below. Use level 5 report for details
-      remark #15346: vector dependence: assumed OUTPUT dependence between at (1180:14) and at (1180:14)
+      remark #15346: vector dependence: assumed OUTPUT dependence between at (1182:14) and at (1182:14)
       remark #25436: completely unrolled by 7  
    LOOP END
 LOOP END
 
-LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(1210,8)
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(1212,8)
    remark #15542: loop was not vectorized: inner loop was already vectorized
 
-   LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(1210,8)
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(1212,8)
       remark #15300: LOOP WAS VECTORIZED
    LOOP END
 
-   LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(1210,8)
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(1212,8)
    <Remainder loop for vectorization>
-   LOOP END
-LOOP END
-
-LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(1211,13)
-   remark #15541: outer loop was not auto-vectorized: consider using SIMD directive
-
-   LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(1211,13)
-      remark #15344: loop was not vectorized: vector dependence prevents vectorization. First dependence is shown below. Use level 5 report for details
-      remark #15346: vector dependence: assumed OUTPUT dependence between call:pow (1211:72) and call:pow (1211:93)
    LOOP END
 LOOP END
 
@@ -2176,61 +2167,70 @@ LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(1213,
    remark #15541: outer loop was not auto-vectorized: consider using SIMD directive
 
    LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(1213,13)
+      remark #15344: loop was not vectorized: vector dependence prevents vectorization. First dependence is shown below. Use level 5 report for details
+      remark #15346: vector dependence: assumed OUTPUT dependence between call:pow (1213:72) and call:pow (1213:93)
+   LOOP END
+LOOP END
+
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(1215,13)
+   remark #15541: outer loop was not auto-vectorized: consider using SIMD directive
+
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(1215,13)
       remark #15335: loop was not vectorized: vectorization possible but seems inefficient. Use vector always directive or -vec-threshold0 to override 
       remark #25439: unrolled with remainder by 2  
    LOOP END
 
-   LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(1213,13)
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(1215,13)
    <Remainder>
    LOOP END
 LOOP END
 
-LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(1218,7)
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(1220,7)
    remark #15541: outer loop was not auto-vectorized: consider using SIMD directive
 
-   LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(1219,9)
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(1221,9)
       remark #15344: loop was not vectorized: vector dependence prevents vectorization. First dependence is shown below. Use level 5 report for details
-      remark #15346: vector dependence: assumed OUTPUT dependence between call:pow (1221:89) and call:pow (1221:109)
+      remark #15346: vector dependence: assumed OUTPUT dependence between call:pow (1223:89) and call:pow (1223:109)
    LOOP END
 LOOP END
 
-LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(1235,8)
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(1237,8)
    remark #15344: loop was not vectorized: vector dependence prevents vectorization. First dependence is shown below. Use level 5 report for details
-   remark #15346: vector dependence: assumed OUTPUT dependence between at (1236:11) and at (1236:11)
+   remark #15346: vector dependence: assumed OUTPUT dependence between at (1238:11) and at (1238:11)
    remark #25436: completely unrolled by 7  
 LOOP END
 
-LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(1239,8)
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(1241,8)
    remark #15541: outer loop was not auto-vectorized: consider using SIMD directive
 
-   LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(1241,11)
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(1243,11)
       remark #15344: loop was not vectorized: vector dependence prevents vectorization. First dependence is shown below. Use level 5 report for details
-      remark #15346: vector dependence: assumed OUTPUT dependence between at (1242:14) and at (1242:14)
+      remark #15346: vector dependence: assumed OUTPUT dependence between at (1244:14) and at (1244:14)
       remark #25436: completely unrolled by 7  
    LOOP END
 LOOP END
 
-LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(1254,8)
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(1256,8)
    remark #15344: loop was not vectorized: vector dependence prevents vectorization. First dependence is shown below. Use level 5 report for details
-   remark #15346: vector dependence: assumed OUTPUT dependence between at (1255:11) and at (1255:11)
+   remark #15346: vector dependence: assumed OUTPUT dependence between at (1257:11) and at (1257:11)
    remark #25436: completely unrolled by 7  
 LOOP END
 
-LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(1258,8)
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(1260,8)
    remark #15541: outer loop was not auto-vectorized: consider using SIMD directive
 
-   LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(1260,11)
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(1262,11)
       remark #15344: loop was not vectorized: vector dependence prevents vectorization. First dependence is shown below. Use level 5 report for details
-      remark #15346: vector dependence: assumed OUTPUT dependence between at (1261:14) and at (1261:14)
+      remark #15346: vector dependence: assumed OUTPUT dependence between at (1263:14) and at (1263:14)
       remark #25436: completely unrolled by 7  
    LOOP END
 LOOP END
 
     Report from: Code generation optimizations [cg]
 
-/glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(1138,35):remark #34055: adjacent dense (unit-strided stencil) loads are not optimized. Details: stride { 8 }, step { 8 }, types { F64-V128, F64-V128 }, number of elements { 2 }, select mask { 0x000000003 }.
-/glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(1135,5):remark #34026: call to memset implemented as a call to optimized library version
-/glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(1052,14):remark #34051: REGISTER ALLOCATION : [glissade_basal_water_mp_flux_to_depth_] /glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90:1052
+/glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(1140,35):remark #34055: adjacent dense (unit-strided stencil) loads are not optimized. Details: stride { 8 }, step { 8 }, types { F64-V128, F64-V128 }, number of elements { 2 }, select mask { 0x000000003 }.
+/glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(1137,5):remark #34026: call to memset implemented as a call to optimized library version
+/glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(1054,14):remark #34051: REGISTER ALLOCATION : [glissade_basal_water_mp_flux_to_depth_] /glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90:1054
 
     Hardware registers
         Reserved     :    2[ rsp rip]
@@ -2265,39 +2265,26 @@ Begin optimization report for: GLISSADE_BASAL_WATER::EFFECTIVE_PRESSURE
 
     Report from: Interprocedural optimizations [ipo]
 
-INLINE REPORT: (GLISSADE_BASAL_WATER::EFFECTIVE_PRESSURE) [11] /glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(551,14)
+INLINE REPORT: (GLISSADE_BASAL_WATER::EFFECTIVE_PRESSURE) [11] /glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(553,14)
 
 
     Report from: Loop nest, Vector & Auto-parallelization optimizations [loop, vec, par]
 
 
-LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(567,5)
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(569,5)
    remark #15542: loop was not vectorized: inner loop was already vectorized
 
-   LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(567,5)
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(569,5)
       remark #15300: LOOP WAS VECTORIZED
    LOOP END
 
-   LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(567,5)
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(569,5)
    <Remainder loop for vectorization>
       remark #15301: REMAINDER LOOP WAS VECTORIZED
    LOOP END
 
-   LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(567,5)
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(569,5)
    <Remainder loop for vectorization>
-   LOOP END
-LOOP END
-
-LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(568,9)
-   remark #15541: outer loop was not auto-vectorized: consider using SIMD directive
-
-   LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(568,9)
-      remark #15335: loop was not vectorized: vectorization possible but seems inefficient. Use vector always directive or -vec-threshold0 to override 
-      remark #25439: unrolled with remainder by 2  
-   LOOP END
-
-   LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(568,9)
-   <Remainder>
    LOOP END
 LOOP END
 
@@ -2314,9 +2301,22 @@ LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(570,9
    LOOP END
 LOOP END
 
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(572,9)
+   remark #15541: outer loop was not auto-vectorized: consider using SIMD directive
+
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(572,9)
+      remark #15335: loop was not vectorized: vectorization possible but seems inefficient. Use vector always directive or -vec-threshold0 to override 
+      remark #25439: unrolled with remainder by 2  
+   LOOP END
+
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(572,9)
+   <Remainder>
+   LOOP END
+LOOP END
+
     Report from: Code generation optimizations [cg]
 
-/glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(551,14):remark #34051: REGISTER ALLOCATION : [glissade_basal_water_mp_effective_pressure_] /glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90:551
+/glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(553,14):remark #34051: REGISTER ALLOCATION : [glissade_basal_water_mp_effective_pressure_] /glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90:553
 
     Hardware registers
         Reserved     :    2[ rsp rip]
@@ -2351,34 +2351,21 @@ Begin optimization report for: GLISSADE_BASAL_WATER::COMPUTE_HEAD
 
     Report from: Interprocedural optimizations [ipo]
 
-INLINE REPORT: (GLISSADE_BASAL_WATER::COMPUTE_HEAD) [12] /glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(577,14)
+INLINE REPORT: (GLISSADE_BASAL_WATER::COMPUTE_HEAD) [12] /glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(579,14)
 
 
     Report from: Loop nest, Vector & Auto-parallelization optimizations [loop, vec, par]
 
 
-LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(621,5)
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(623,5)
    remark #15542: loop was not vectorized: inner loop was already vectorized
 
-   LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(621,5)
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(623,5)
       remark #15300: LOOP WAS VECTORIZED
    LOOP END
 
-   LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(621,5)
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(623,5)
    <Remainder loop for vectorization>
-   LOOP END
-LOOP END
-
-LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(622,8)
-   remark #15541: outer loop was not auto-vectorized: consider using SIMD directive
-
-   LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(622,8)
-      remark #15335: loop was not vectorized: vectorization possible but seems inefficient. Use vector always directive or -vec-threshold0 to override 
-      remark #25439: unrolled with remainder by 2  
-   LOOP END
-
-   LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(622,8)
-   <Remainder>
    LOOP END
 LOOP END
 
@@ -2395,9 +2382,22 @@ LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(624,8
    LOOP END
 LOOP END
 
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(626,8)
+   remark #15541: outer loop was not auto-vectorized: consider using SIMD directive
+
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(626,8)
+      remark #15335: loop was not vectorized: vectorization possible but seems inefficient. Use vector always directive or -vec-threshold0 to override 
+      remark #25439: unrolled with remainder by 2  
+   LOOP END
+
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(626,8)
+   <Remainder>
+   LOOP END
+LOOP END
+
     Report from: Code generation optimizations [cg]
 
-/glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(577,14):remark #34051: REGISTER ALLOCATION : [glissade_basal_water_mp_compute_head_] /glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90:577
+/glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(579,14):remark #34051: REGISTER ALLOCATION : [glissade_basal_water_mp_compute_head_] /glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90:579
 
     Hardware registers
         Reserved     :    2[ rsp rip]
@@ -2432,55 +2432,55 @@ Begin optimization report for: GLISSADE_BASAL_WATER::SORT_HEIGHTS
 
     Report from: Interprocedural optimizations [ipo]
 
-INLINE REPORT: (GLISSADE_BASAL_WATER::SORT_HEIGHTS) [13] /glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(2114,14)
-  -> INLINE: (2168,10) GLISSADE_BASAL_WATER::INDEXX
-    -> INLINE: (2485,10) GLISSADE_BASAL_WATER::Q_SORT_INDEX
-      -> (2550,23) GLISSADE_BASAL_WATER::Q_SORT_INDEX
-      -> (2551,23) GLISSADE_BASAL_WATER::Q_SORT_INDEX
+INLINE REPORT: (GLISSADE_BASAL_WATER::SORT_HEIGHTS) [13] /glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(2116,14)
+  -> INLINE: (2170,10) GLISSADE_BASAL_WATER::INDEXX
+    -> INLINE: (2487,10) GLISSADE_BASAL_WATER::Q_SORT_INDEX
+      -> (2552,23) GLISSADE_BASAL_WATER::Q_SORT_INDEX
+      -> (2553,23) GLISSADE_BASAL_WATER::Q_SORT_INDEX
 
 
     Report from: Loop nest, Vector & Auto-parallelization optimizations [loop, vec, par]
 
 
-LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(2154,5)
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(2156,5)
    remark #15542: loop was not vectorized: inner loop was already vectorized
 
-   LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(2155,8)
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(2157,8)
       remark #15300: LOOP WAS VECTORIZED
    LOOP END
 
-   LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(2155,8)
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(2157,8)
    <Remainder loop for vectorization>
       remark #25456: Number of Array Refs Scalar Replaced In Loop: 1
    LOOP END
 LOOP END
 
-LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(2481,5) inlined into /glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(2168,10)
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(2483,5) inlined into /glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(2170,10)
    remark #15300: LOOP WAS VECTORIZED
 LOOP END
 
-LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(2481,5) inlined into /glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(2168,10)
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(2483,5) inlined into /glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(2170,10)
 <Remainder loop for vectorization>
 LOOP END
 
-LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(2174,8)
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(2176,8)
    remark #15344: loop was not vectorized: vector dependence prevents vectorization. First dependence is shown below. Use level 5 report for details
-   remark #15346: vector dependence: assumed OUTPUT dependence between call:floorf (2175:15) and call:for_write_seq_lis_xmit (2177:11)
+   remark #15346: vector dependence: assumed OUTPUT dependence between call:floorf (2177:15) and call:for_write_seq_lis_xmit (2179:11)
    remark #25436: completely unrolled by 11  
 LOOP END
 
-LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(2183,5)
-   remark #15527: loop was not vectorized: function call to floorf cannot be vectorized   [ /glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(2184,25) ]
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(2185,5)
+   remark #15527: loop was not vectorized: function call to floorf cannot be vectorized   [ /glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(2186,25) ]
 LOOP END
 
-LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(2189,5)
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(2191,5)
    remark #15542: loop was not vectorized: inner loop was already vectorized
 
-   LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(2189,5)
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(2191,5)
       remark #15300: LOOP WAS VECTORIZED
    LOOP END
 
-   LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(2189,5)
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(2191,5)
    <Remainder loop for vectorization>
    LOOP END
 LOOP END
@@ -2489,21 +2489,21 @@ LOOP END
 Non-optimizable loops:
 
 
-LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(2540,15) inlined into /glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(2168,10)
-   remark #15536: loop was not vectorized: inner loop throttling prevents vectorization of this outer loop. Refer to inner loop message for more details.   [ /glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(2526,16) ]
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(2542,15) inlined into /glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(2170,10)
+   remark #15536: loop was not vectorized: inner loop throttling prevents vectorization of this outer loop. Refer to inner loop message for more details.   [ /glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(2528,16) ]
 
-   LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(2526,16) inlined into /glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(2168,10)
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(2528,16) inlined into /glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(2170,10)
       remark #15523: loop was not vectorized: loop control variable rr was found, but loop iteration count cannot be computed before executing the loop
    LOOP END
 
-   LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(2536,15) inlined into /glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(2168,10)
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(2538,15) inlined into /glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(2170,10)
       remark #15523: loop was not vectorized: loop control variable ll was found, but loop iteration count cannot be computed before executing the loop
    LOOP END
 LOOP END
 
     Report from: Code generation optimizations [cg]
 
-/glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(2114,14):remark #34051: REGISTER ALLOCATION : [glissade_basal_water_mp_sort_heights_] /glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90:2114
+/glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(2116,14):remark #34051: REGISTER ALLOCATION : [glissade_basal_water_mp_sort_heights_] /glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90:2116
 
     Hardware registers
         Reserved     :    2[ rsp rip]
@@ -2538,32 +2538,32 @@ Begin optimization report for: GLISSADE_BASAL_WATER::INDEXX
 
     Report from: Interprocedural optimizations [ipo]
 
-INLINE REPORT: (GLISSADE_BASAL_WATER::INDEXX) [14] /glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(2462,14)
-  -> INLINE: (2485,10) GLISSADE_BASAL_WATER::Q_SORT_INDEX
-    -> (2550,23) GLISSADE_BASAL_WATER::Q_SORT_INDEX
-    -> (2551,23) GLISSADE_BASAL_WATER::Q_SORT_INDEX
+INLINE REPORT: (GLISSADE_BASAL_WATER::INDEXX) [14] /glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(2464,14)
+  -> INLINE: (2487,10) GLISSADE_BASAL_WATER::Q_SORT_INDEX
+    -> (2552,23) GLISSADE_BASAL_WATER::Q_SORT_INDEX
+    -> (2553,23) GLISSADE_BASAL_WATER::Q_SORT_INDEX
 
 
     Report from: Loop nest, Vector & Auto-parallelization optimizations [loop, vec, par]
 
 
-LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(2481,5)
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(2483,5)
 <Multiversioned v1>
    remark #25233: Loop multiversioned for stride tests on Assumed shape arrays
    remark #15300: LOOP WAS VECTORIZED
 LOOP END
 
-LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(2481,5)
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(2483,5)
 <Remainder loop for vectorization, Multiversioned v1>
 LOOP END
 
-LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(2481,5)
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(2483,5)
 <Multiversioned v2>
    remark #15335: loop was not vectorized: vectorization possible but seems inefficient. Use vector always directive or -vec-threshold0 to override 
    remark #25439: unrolled with remainder by 2  
 LOOP END
 
-LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(2481,5)
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(2483,5)
 <Remainder, Multiversioned v2>
 LOOP END
 
@@ -2571,21 +2571,21 @@ LOOP END
 Non-optimizable loops:
 
 
-LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(2540,15) inlined into /glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(2485,10)
-   remark #15536: loop was not vectorized: inner loop throttling prevents vectorization of this outer loop. Refer to inner loop message for more details.   [ /glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(2526,16) ]
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(2542,15) inlined into /glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(2487,10)
+   remark #15536: loop was not vectorized: inner loop throttling prevents vectorization of this outer loop. Refer to inner loop message for more details.   [ /glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(2528,16) ]
 
-   LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(2526,16) inlined into /glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(2485,10)
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(2528,16) inlined into /glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(2487,10)
       remark #15523: loop was not vectorized: loop control variable rr was found, but loop iteration count cannot be computed before executing the loop
    LOOP END
 
-   LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(2536,15) inlined into /glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(2485,10)
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(2538,15) inlined into /glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(2487,10)
       remark #15523: loop was not vectorized: loop control variable ll was found, but loop iteration count cannot be computed before executing the loop
    LOOP END
 LOOP END
 
     Report from: Code generation optimizations [cg]
 
-/glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(2462,14):remark #34051: REGISTER ALLOCATION : [glissade_basal_water_mp_indexx_] /glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90:2462
+/glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90(2464,14):remark #34051: REGISTER ALLOCATION : [glissade_basal_water_mp_indexx_] /glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90:2464
 
     Hardware registers
         Reserved     :    2[ rsp rip]

@@ -3667,7 +3667,9 @@ contains
     ! Note: This is not strictly needed for all options, but still is a useful diagnostic.
     if (options%which_ho_deltaT_ocn /= HO_DELTAT_OCN_NONE) then
        call glide_add_to_restart_variable_list('dthck_dt_obs')
-       call glide_add_to_restart_variable_list('dthck_dt_obs_basin')
+    !TvdA: I commented out the dthck_dt_obs_basin because I generally do not use it and it seems to mess with my 
+    !deltaT_inversion
+!       call glide_add_to_restart_variable_list('dthck_dt_obs_basin')
     endif
 
     if (options%which_ho_damage /= HO_NO_DAMAGELINES) then  

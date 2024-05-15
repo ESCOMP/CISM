@@ -1,6 +1,6 @@
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 ! WARNING: this file was automatically generated on
-! Mon, 29 Apr 2024 13:51:29 +0000
+! Tue, 07 May 2024 09:12:04 +0000
 ! from ncdf_template.F90.in
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 
@@ -12831,6 +12831,16 @@ contains
 
     outarray = data%ocean_data%deltaT_ocn
   end subroutine glide_get_deltaT_ocn
+
+
+  subroutine glide_set_deltaT_ocn(data,inarray)
+    implicit none
+    type(glide_global_type) :: data
+    real(dp), dimension(:,:), intent(in) :: inarray
+
+    data%ocean_data%deltaT_ocn = inarray
+  end subroutine glide_set_deltaT_ocn
+
 
   subroutine glide_get_diff_cfl_dt(data,outarray)
     implicit none
