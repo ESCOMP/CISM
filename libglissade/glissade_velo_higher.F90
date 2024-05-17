@@ -57,7 +57,7 @@
   module glissade_velo_higher
 
     use glimmer_global, only: dp
-    use glimmer_physcon, only: gn, rhoi, rhoo, grav, scyr, pi
+    use glimmer_physcon, only: n_glen, rhoi, rhoo, grav, scyr, pi
     use glimmer_paramets, only: eps08, eps10, thk0, len0, tim0, tau0, vel0, vis0, evs0
     use glimmer_paramets, only: vel_scale, len_scale   ! used for whichefvs = HO_EFVS_FLOWFACT
     use glimmer_log
@@ -200,8 +200,8 @@
 !    logical :: verbose = .true.  
     logical :: verbose_init = .false.   
 !    logical :: verbose_init = .true.   
-!    logical :: verbose_solver = .false.
-    logical :: verbose_solver = .true.
+    logical :: verbose_solver = .false.
+!    logical :: verbose_solver = .true.
     logical :: verbose_Jac = .false.
 !    logical :: verbose_Jac = .true.
     logical :: verbose_residual = .false.
@@ -663,7 +663,7 @@
     !       the local SIA solver (HO_APPROX_LOCAL_SIA) in glissade_velo_sia.F90.
     !----------------------------------------------------------------
 
-    use glissade_basal_traction, only: calcbeta, calc_effective_pressure
+    use glissade_basal_traction, only: calcbeta
     use glissade_therm, only: glissade_pressure_melting_point
     use profile, only: t_startf, t_stopf
 
@@ -726,8 +726,6 @@
        usrf,                 &  ! upper surface elevation (m)
        topg,                 &  ! elevation of topography (m)
        bpmp,                 &  ! pressure melting point temperature (C)
-       bwat,                 &  ! basal water thickness (m)
-       bmlt,                 &  ! basal melt rate (m/yr)
        beta,                 &  ! basal traction parameter (Pa/(m/yr))
        beta_internal,        &  ! beta field weighted by f_ground (such that beta = 0 beneath floating ice)
        bfricflx,             &  ! basal heat flux from friction (W/m^2) 
@@ -758,9 +756,6 @@
        tau_xx, tau_yy, tau_xy, &! horizontal components of stress tensor (Pa)
        tau_eff                  ! effective stress (Pa)
 
-    real(dp), dimension(:,:), pointer ::  &
-       powerlaw_c_inversion     ! Cp (for basal friction) computed from inversion, on staggered grid
-
     integer,  dimension(:,:), pointer ::   &
        kinbcmask,              &! = 1 at vertices where u and v are prescribed from input data (Dirichlet BC), = 0 elsewhere
        umask_no_penetration,   &! = 1 at vertices along east/west global boundary where uvel = 0, = 0 elsewhere
@@ -769,8 +764,8 @@
     integer ::   &
        whichbabc, &             ! option for basal boundary condition
        whichbeta_limit, &       ! option to limit beta for grounded ice
-       which_cp_inversion, &    ! option to invert for basal friction parameters
-       whicheffecpress,  &      ! option for effective pressure calculation
+       which_powerlaw_c, &      ! option for powerlaw friction parameter Cp
+       which_coulomb_c, &       ! option for coulomb friction parameter Cc
        whichefvs, &             ! option for effective viscosity calculation 
                                 ! (calculate it or make it uniform)
        whichresid, &            ! option for method of calculating residual
@@ -1108,8 +1103,6 @@
      beta_internal => model%velocity%beta_internal(:,:)
      bfricflx => model%temper%bfricflx(:,:)
      bpmp     => model%temper%bpmp(:,:)
-     bwat     => model%temper%bwat(:,:)
-     bmlt     => model%basal_melt%bmlt(:,:)
 
      uvel     => model%velocity%uvel(:,:,:)
      vvel     => model%velocity%vvel(:,:,:)
@@ -1131,8 +1124,6 @@
      tau_xy   => model%stress%tau%xy(:,:,:)
      tau_eff  => model%stress%tau%scalar(:,:,:)
 
-     powerlaw_c_inversion => model%inversion%powerlaw_c_inversion(:,:)
-
      kinbcmask => model%velocity%kinbcmask(:,:)
      umask_no_penetration => model%velocity%umask_no_penetration(:,:)
      vmask_no_penetration => model%velocity%vmask_no_penetration(:,:)
@@ -1148,8 +1139,8 @@
 
      whichbabc            = model%options%which_ho_babc
      whichbeta_limit      = model%options%which_ho_beta_limit
-     which_cp_inversion   = model%options%which_ho_cp_inversion
-     whicheffecpress      = model%options%which_ho_effecpress
+     which_powerlaw_c     = model%options%which_ho_powerlaw_c
+     which_coulomb_c      = model%options%which_ho_coulomb_c
      whichefvs            = model%options%which_ho_efvs
      whichresid           = model%options%which_ho_resid
      whichsparse          = model%options%which_ho_sparse
@@ -1187,7 +1178,6 @@
                                           topg,    eus,           &
                                           thklim,                 &
                                           thck_gradient_ramp,     &
-                                          bwat,    bmlt,          &
                                           flwa,    efvs,          &
                                           btractx, btracty,       &
                                           uvel,    vvel,          &
@@ -1320,7 +1310,6 @@
 !    call parallel_halo(topg, parallel)
 !    call parallel_halo(usrf, parallel)
 !    call parallel_halo(flwa, parallel)
-!    call parallel_halo(bwat, parallel)
 
     !------------------------------------------------------------------------------
     ! Setup for higher-order solver: Compute nodal geometry, allocate storage, etc.
@@ -2009,25 +1998,7 @@
 
     beta_internal(:,:) = 0.d0
 
-    !------------------------------------------------------------------------------
-    ! Compute the effective pressure N at the bed.
-    ! Although N is not needed for all sliding options, it is computed here just in case.
-    ! Note: effective pressure is part of the basal_physics derived type.
-    ! Note: Ideally, bpmp and temp(nz) are computed after the transport solve,
-    !       just before the velocity solve. Then they will be consistent with the
-    !       current thickness field.
-    !------------------------------------------------------------------------------
-
-    !TODO - Use btemp_ground instead of temp(nz)?
-    call calc_effective_pressure(whicheffecpress,              &
-                                 nx,            ny,            &
-                                 model%basal_physics,          &
-                                 ice_mask,      floating_mask, &
-                                 thck,          topg,          &
-                                 eus,                          &
-                                 bpmp(:,:) - temp(nz,:,:),     &
-                                 bmlt,          bwat,          &
-                                 itest, jtest,  rtest)
+    ! Note: There was a call here to calc_effective_pressure, moved to the glissade diagnostic solve.
 
     !------------------------------------------------------------------------------
     ! For the HO_BABC_BETA_BPMP option, compute a mask of vertices where the bed is at
@@ -2082,7 +2053,7 @@
           ! gn = exponent in Glen's flow law (= 3 by default)
           do k = 1, nz-1
              if (flwa(k,i,j) > 0.0d0) then
-                flwafact(k,i,j) = 0.5d0 * flwa(k,i,j)**(-1.d0/real(gn,dp))  
+                flwafact(k,i,j) = 0.5d0 * flwa(k,i,j)**(-1.d0/n_glen)
              endif
           enddo
        enddo
@@ -2768,16 +2739,6 @@
              enddo
 
              print*, ' '
-             print*, 'bwat field, itest, jtest, rank =', itest, jtest, rtest
-             do j = jtest+3, jtest-3, -1
-                write(6,'(i6)',advance='no') j
-                do i = itest-3, itest+3
-                   write(6,'(f10.3)',advance='no') bwat(i,j)
-                enddo
-                write(6,*) ' '
-             enddo
-
-             print*, ' '
              print*, 'effecpress field, itest, jtest, rank =', itest, jtest, rtest
              do j = jtest+3, jtest-3, -1
                 write(6,'(i6)',advance='no') j
@@ -2830,9 +2791,9 @@
                          beta*tau0/(vel0*scyr),            &  ! external beta (intent in)
                          beta_internal,                    &  ! beta weighted by f_ground (intent inout)
                          whichbeta_limit,                  &
-                         which_cp_inversion,               &
-                         powerlaw_c_inversion,             &
-                         itest, jtest, rtest)
+                         which_ho_powerlaw_c = which_powerlaw_c,  &
+                         which_ho_coulomb_c  = which_coulomb_c,   &
+                         itest = itest, jtest = jtest, rtest = rtest)
 
 !          if (verbose_beta) then
 !             maxbeta = maxval(beta_internal(:,:))
@@ -3348,7 +3309,6 @@
              call t_startf('glissade_velo_higher_scale_outp')
              call glissade_velo_higher_scale_output(thck,    usrf,          &
                                                     topg,                   &
-                                                    bwat,    bmlt,          &
                                                     flwa,    efvs,          &
                                                     beta_internal,          &
                                                     resid_u, resid_v,       &
@@ -3617,7 +3577,7 @@
 
           endif  ! solve_2d
 
-          if (whichbabc == HO_BABC_BETA_BPMP .or. whicheffecpress == HO_EFFECPRESS_BPMP) then
+          if (whichbabc == HO_BABC_BETA_BPMP) then
 
              print*, ' '
              print*, 'staggered bed temp, itest, jtest, rank =', itest, jtest, rtest
@@ -3649,21 +3609,7 @@
                 write(6,*) ' '
              enddo
 
-          endif  ! HO_BABC_BETA_BPMP or HO_EFFECPRESS_BPMP
-
-          if (whicheffecpress == HO_EFFECPRESS_BMLT) then
-
-             print*, ' '
-             print*, 'bmlt (m/yr), itest, jtest, rank =', itest, jtest, rtest
-             do j = jtest+3, jtest-3, -1
-                write(6,'(i6)',advance='no') j
-                do i = itest-3, itest+3
-                   write(6,'(f10.5)',advance='no') bmlt(i,j)
-                enddo
-                write(6,*) ' '
-             enddo
-
-          endif  ! HO_EFFECPRESS_BMLT
+          endif  ! HO_BABC_BETA_BPMP
 
           if (whichbabc == HO_BABC_YIELD_PICARD) then
              print*, ' '
@@ -4013,7 +3959,6 @@
           if (verbose_velo .and. this_rank==rtest) then
              i = itest
              j = jtest
-             print*, ' '
              print*, 'rank, i, j, uvel_2d, vvel_2d (m/yr):', &
                       this_rank, i, j, uvel_2d(i,j), vvel_2d(i,j)               
           endif
@@ -4209,7 +4154,8 @@
        enddo
 
        call compute_3d_velocity_L1L2(nx,               ny,              &
-                                     nz,               sigma,           &
+                                     nz,                                &
+                                     sigma,            stagsigma,       &
                                      dx,               dy,              &
                                      itest,   jtest,   rtest,           &
                                      parallel,                          &
@@ -4222,8 +4168,7 @@
                                      usrf,                              &
                                      dusrf_dx,         dusrf_dy,        &
                                      flwa,             efvs,            &
-                                     whichgradient_margin,              &
-                                     max_slope,                         &
+                                     whichefvs,                         &
                                      uvel,             vvel)
 
        call staggered_parallel_halo(uvel, parallel)
@@ -4303,30 +4248,43 @@
 
     ! Debug prints
     if (verbose_velo .and. this_rank==rtest) then
+       i = itest
+       j = jtest
        print*, ' '
        print*, 'uvel, k=1 (m/yr):'
-       do j = ny-nhalo, nhalo+1, -1
-          do i = nhalo+1, nx-nhalo
-             write(6,'(f8.2)',advance='no') uvel(1,i,j)
+       do j = jtest+3, jtest-3, -1
+          do i = itest-3, itest+3
+             write(6,'(f10.3)',advance='no') uvel(1,i,j)
           enddo
           print*, ' '
        enddo
-
        print*, ' '
        print*, 'vvel, k=1 (m/yr):'
-       do j = ny-nhalo, nhalo+1, -1
-          do i = nhalo+1, nx-nhalo
-             write(6,'(f8.2)',advance='no') vvel(1,i,j)
+       do j = jtest+3, jtest-3, -1
+          do i = itest-3, itest+3
+             write(6,'(f10.3)',advance='no') vvel(1,i,j)
           enddo
           print*, ' '
-       enddo       
-
+       enddo
+       print*, ' '
+       print*, 'uvel, k=nz (m/yr):'
+       do j = jtest+3, jtest-3, -1
+          do i = itest-3, itest+3
+             write(6,'(f10.3)',advance='no') uvel(nz,i,j)
+          enddo
+          print*, ' '
+       enddo
+       print*, ' '
+       print*, 'vvel, k=nz (m/yr):'
+       do j = jtest+3, jtest-3, -1
+          do i = itest-3, itest+3
+             write(6,'(f10.3)',advance='no') vvel(1,i,j)
+          enddo
+          print*, ' '
+       enddo
        print*, ' '
        print*, 'max(uvel, vvel) =', maxval(uvel), maxval(vvel)
        print*, ' '
-
-       i = itest
-       j = jtest
        print*, 'New velocity: rank, i, j =', this_rank, i, j    
        print*, 'k, uvel, vvel:'
        do k = 1, nz
@@ -4400,7 +4358,6 @@
 !pw call t_startf('glissade_velo_higher_scale_output')
     call glissade_velo_higher_scale_output(thck,    usrf,          &
                                            topg,                   &
-                                           bwat,    bmlt,          &
                                            flwa,    efvs,          &
                                            beta_internal,          &
                                            resid_u, resid_v,       &
@@ -4424,7 +4381,6 @@
                                               topg,    eus,           &
                                               thklim,                 &
                                               thck_gradient_ramp,     &
-                                              bwat,    bmlt,          &
                                               flwa,    efvs,          &
                                               btractx, btracty,       &
                                               uvel,    vvel,          &
@@ -4441,9 +4397,7 @@
     real(dp), dimension(:,:), intent(inout) ::   &
        thck,                &  ! ice thickness
        usrf,                &  ! upper surface elevation
-       topg,                &  ! elevation of topography
-       bwat,                &  ! basal water thickness
-       bmlt                    ! basal melt rate
+       topg                    ! elevation of topography
 
     real(dp), intent(inout) ::   &
        eus,                 &  ! eustatic sea level (= 0 by default)
@@ -4472,10 +4426,6 @@
     eus  = eus  * thk0
     thklim = thklim * thk0
     thck_gradient_ramp = thck_gradient_ramp * thk0
-    bwat = bwat * thk0
-
-    ! basal melt rate: rescale from dimensionless to m/yr
-    bmlt = bmlt * (scyr*thk0/tim0)
 
     ! rate factor: rescale from dimensionless to Pa^(-n) yr^(-1)
     flwa = flwa * (vis0*scyr)
@@ -4499,7 +4449,6 @@
 
   subroutine glissade_velo_higher_scale_output(thck,    usrf,           &
                                                topg,                    &
-                                               bwat,    bmlt,           &
                                                flwa,    efvs,           &                                       
                                                beta_internal,           &
                                                resid_u, resid_v,        &
@@ -4520,9 +4469,7 @@
     real(dp), dimension(:,:), intent(inout) ::  &
        thck,                 &  ! ice thickness
        usrf,                 &  ! upper surface elevation
-       topg,                 &  ! elevation of topography
-       bwat,                 &  ! basal water thickness
-       bmlt                     ! basal melt rate
+       topg                     ! elevation of topography
 
     real(dp), dimension(:,:,:), intent(inout) ::  &
        flwa,   &                ! flow factor in units of Pa^(-n) yr^(-1)
@@ -4550,10 +4497,6 @@
     thck = thck / thk0
     usrf = usrf / thk0
     topg = topg / thk0
-    bwat = bwat / thk0
-
-    ! Convert basal melt rate from m/yr to dimensionless units
-    bmlt = bmlt / (scyr*thk0/tim0)
 
     ! Convert flow factor from Pa^(-n) yr^(-1) to dimensionless units
     flwa = flwa / (vis0*scyr)
@@ -5763,7 +5706,9 @@
     ! The matrix A can be based on the shallow-shelf approximation or 
     !  the depth-integrated L1L2 approximation (Schoof and Hindmarsh, 2010).
     !----------------------------------------------------------------
- 
+
+    use glissade_grid_operators, only: glissade_vertical_average
+
     !----------------------------------------------------------------
     ! Input-output arguments
     !----------------------------------------------------------------
@@ -6414,7 +6359,8 @@
 !****************************************************************************
 
   subroutine compute_3d_velocity_L1L2(nx,               ny,              &
-                                      nz,               sigma,           &
+                                      nz,                                &
+                                      sigma,            stagsigma,       &
                                       dx,               dy,              &
                                       itest,   jtest,   rtest,           &
                                       parallel,                          &
@@ -6426,14 +6372,13 @@
                                       usrf,                              &
                                       dusrf_dx,         dusrf_dy,        &
                                       flwa,             efvs,            &
-                                      whichgradient_margin,              &
-                                      max_slope,                         &
+                                      whichefvs,                         &
                                       uvel,             vvel)
 
     !----------------------------------------------------------------
-    ! Given the basal velocity and the 3D profile of effective viscosity
-    !  and horizontal-plane stresses, construct the 3D stress and velocity
-    !  profiles for the L1L2 approximation.
+    ! Given the basal velocity and the 3D profile of effective viscosity and
+    !  horizontal-plane stresses, construct the 3D stress and velocity profiles
+    !  for the L1L2 approximation, following Perego et al. (J. Glaciol., 2012).
     !----------------------------------------------------------------
 
     !----------------------------------------------------------------
@@ -6454,7 +6399,10 @@
        parallel                    ! info for parallel communication
 
     real(dp), dimension(nz), intent(in) ::    &
-       sigma              ! sigma vertical coordinate
+       sigma                       ! sigma vertical coordinate at layer boundaries
+
+    real(dp), dimension(nz-1), intent(in) ::    &
+       stagsigma                   ! sigma vertical coordinate at layer midpoints
 
     integer, dimension(nx,ny), intent(in) ::  &
        ice_mask,        & ! = 1 for cells where ice is present (thck > thklim), else = 0
@@ -6486,14 +6434,8 @@
        flwa,           &  ! temperature-based flow factor A, Pa^{-n} yr^{-1}
        efvs               ! effective viscosity, Pa yr
 
-    integer, intent(in) ::  &
-       whichgradient_margin     ! option for computing gradient at ice margin
-                                ! 0 = include all neighbor cells in gradient calculation
-                                ! 1 = include ice-covered and/or land cells
-                                ! 2 = include ice-covered cells only
-
-    real(dp), intent(in) ::  &
-       max_slope          ! maximum slope allowed for surface gradient computations (unitless)
+    integer, intent(in) :: &
+       whichefvs          ! option for effective viscosity calculation
 
     real(dp), dimension(nz,nx-1,ny-1), intent(inout) ::  &
        uvel, vvel         ! velocity components (m/yr)
@@ -6527,7 +6469,8 @@
     ! Note: These L1L2 stresses are located at nodes.
     !       The diagnostic stresses (model%stress%tau%xz, etc.) are located at cell centers.
     real(dp), dimension(nz-1,nx-1,ny-1) ::   &
-       tau_xz, tau_yz            ! vertical shear stress components at layer midpoints for each vertex
+       tau_xz, tau_yz,          &! vertical shear stress components at layer midpoints for each vertex
+       tau_xz_sia, tau_yz_sia    ! like tau_xz and tau_yz, but with SIA terms only
        
     real(dp), dimension(nx-1,ny-1) ::   &
        dwork1_dx, dwork1_dy,    &! derivatives of work arrays; located at vertices
@@ -6543,45 +6486,21 @@
                                  ! = tau_parallel^2 + tau_perp^2 for L1L2
        fact                      ! factor in velocity integral
 
-    real(dp), dimension(nx-1,ny) ::  &
-       dusrf_dx_edge             ! x gradient of upper surface elevation at cell edges (m/m)
-
-    real(dp), dimension(nx,ny-1) ::  &
-       dusrf_dy_edge             ! y gradient of upper surface elevation at cell edges (m/m)
-
     integer :: i, j, k, n
 
     !-----------------------------------------------------------------------------------------------
-    !WHL: I tried two ways to compute the 3D velocity, given tau_perp, tau_xz and tau_yz in each layer:
-    ! (1) Compute velocity at vertices using     
-    !          u(z) = u_b + 2 * integral_b_to_z [A*tau_eff^(n-1)*tau_xz dz]
-    !          v(z) = v_b + 2 * integral_b_to_z [A*tau_eff^(n-1)*tau_yz dz]
-    ! (2) Compute velocity at edges using 
-    !          uedge(z) =  (vintfact(i,j) + vintfact(i,j-1))/2.d0 * dsdx_edge 
-    !          vedge(z) =  (vintfact(i,j) + vintfact(i-1,j))/2.d0 * dsdy_edge 
-    !     where vintfact = 2*A*tau_eff^(n-1)*(rho*g*|grad(s)|
-    !     Average uedge and vedge to vertices and add to u_b to get 3D uvel and vvel.
+    ! Compute velocity at vertices following Perego et al. (2012).
     !
-    ! Method 2 resembles the methods used by Glide and by the Glissade local SIA solver.
-    ! For the no-slip case, method 2 gives the same answers (within roundoff) as the local SIA solver.
-    ! However, method 2 does not include the gradient of membrane stresses in the tau_xz and tau_yz terms
-    !  (Perego et al. Eq. 27).  It does include tau_parallel in tau_eff.
-    ! For the Halfar test, method 1 is slightly more accurate but can give rise to checkerboard noise.
-    !   Checkerboard noise can be damped by using an upstream gradient for grad(s), but this
-    !   reduces the accuracy for the Halfar test. (Method 2 with centered gradients is more
-    !   accurate than method 1 with upstream gradients.)
+    ! The latest version was implemented in fall 2021 for the paper by Robinson et al. (TC, 2021).
+    ! An important change was to evaluate both the membrane stress and SIA stress terms at layer midpoints.
+    ! Previously, the membrane stress was evaluated at lower layer boundaries.
+    ! With the change, the stability curve is parallel to the SIA curve at fine resolution for the slab problem.
+    ! Before the change, the model did not converge on the solution for dx <~ 200 m.
     !-----------------------------------------------------------------------------------------------
 
-    logical, parameter :: edge_velocity = .false.  ! if false, use method 1 as discussed above 
-                                                   ! if true, use method 2
-
-    real(dp), dimension(nx,ny) ::   &
-       uedge, vedge        ! velocity components at edges of a layer, relative to bed (m/yr)
-                           ! u on E edge, v on N edge (C grid)
-
-    real(dp), dimension(nz,nx-1,ny-1) ::   &
-       vintfact            ! vertical integration factor at vertices
-
+    logical, parameter :: &
+         include_membrane_stress_in_tau = .true.  ! if true, include membrane stresses in tau_xz and tau_yz;
+                                                  ! if false, include the SIA stress only
     integer :: &
          staggered_ilo, staggered_ihi, &  ! bounds of locally owned vertices on staggered grid
          staggered_jlo, staggered_jhi
@@ -6598,13 +6517,20 @@
     du_dy(:,:) = 0.d0
     dv_dx(:,:) = 0.d0
     dv_dy(:,:) = 0.d0
+    tau_xz(:,:,:) = 0.d0
+    tau_yz(:,:,:) = 0.d0
+    tau_xz_sia(:,:,:) = 0.d0
+    tau_yz_sia(:,:,:) = 0.d0
+
+    ! initialize uvel = vvel = 0 except at bed
+    uvel(1:nz-1,:,:) = 0.d0
+    vvel(1:nz-1,:,:) = 0.d0
 
     ! Compute viscosity integral and strain rates in elements.
     ! Loop over all cells that border locally owned vertices.
 
     do j = nhalo+1, ny-nhalo+1
        do i = nhalo+1, nx-nhalo+1
-       
           if (active_cell(i,j)) then
 
              ! Load x and y coordinates and basal velocity at cell vertices
@@ -6645,7 +6571,7 @@
              enddo
 
              ! Compute effective strain rate (squared) at cell centers
-             ! See Perego et al. eq. 17: 
+             ! See Perego et al. Eq. 17:
              !     eps_parallel^2 = eps_xx^2 + eps_yy^2 + eps_xx*eps_yy + eps_xy^2
 
              eps_parallel = sqrt(du_dx(i,j)**2 + dv_dy(i,j)**2 + du_dx(i,j)*dv_dy(i,j)  &
@@ -6657,25 +6583,26 @@
              enddo
 
              ! For each layer k, compute the integral of the effective viscosity from
-             ! the base of layer k to the upper surface.
- 
-             efvs_integral_z_to_s(1,i,j) = efvs(1,i,j) * (sigma(2) - sigma(1))*thck(i,j)
+             ! the midpoint of layer k to the upper surface.
 
+             efvs_integral_z_to_s(1,i,j) = efvs(1,i,j) * (stagsigma(1))*thck(i,j)
              do k = 2, nz-1
                 efvs_integral_z_to_s(k,i,j) = efvs_integral_z_to_s(k-1,i,j)  &
-                                            + efvs(k,i,j) * (sigma(k+1) - sigma(k))*thck(i,j)
+                                            + efvs(k-1,i,j) * (sigma(k) - stagsigma(k-1))*thck(i,j)  &
+                                            + efvs(k,i,j)   * (stagsigma(k) - sigma(k))*thck(i,j)
              enddo   ! k
 
           endif   ! active_cell
-
        enddo      ! i
     enddo         ! j
+
+    call parallel_halo(tau_parallel, parallel)
 
     !--------------------------------------------------------------------------------
     ! For each active vertex, compute the vertical shear stresses tau_xz and tau_yz
     ! in each layer of the column.
     !
-    ! These stresses are given by (PGB eq. 27)
+    ! These stresses are given by Perego et al. Eq. 27:
     !
     !   tau_xz(z) = -rhoi*grav*ds_dx*(s-z) + 2*d/dx[efvs_int(z) * (2*du_dx + dv_dy)]
     !                                      + 2*d/dy[efvs_int(z) *   (du_dy + dv_dx)] 
@@ -6690,27 +6617,51 @@
     ! because strain rates are discontinuous at cell edges and vertices.  Instead, we use
     ! a standard centered finite difference method to evaluate d/dx and d/dy of the
     ! bracketed terms.
+    !
+    ! Given the vertical shear stresses tau_xz and tau_yz for each layer k,
+    !  compute the velocity components at each level, following Perego et al. Eq. 30:
+    ! 
+    !    u(z) = u_b + 2 * integral_b_to_z [A*tau_eff^(n-1)*tau_xz dz]
+    !    v(z) = v_b + 2 * integral_b_to_z [A*tau_eff^(n-1)*tau_yz dz]
+    ! 
+    ! where tau_eff^2 = tau_parallel^2 + tau_perp^2
+    !
+    !    tau_parallel^2 = (2 * efvs * eps_parallel)^2
+    !    tau_perp ^2 = tau_xz^2 + tau_yz^2
     !--------------------------------------------------------------------------------
 
-    tau_xz(:,:,:) = 0.d0
-    tau_yz(:,:,:) = 0.d0
+    do k = nz-1, 1, -1   ! loop over velocity levels above the bed
 
-    do k = 1, nz-1   ! loop over layers
+       ! Average tau_parallel and flwa to vertices
+       ! With stagger_margin_in = 1, only cells with ice are included in the average.
 
-       ! Evaluate centered finite differences of bracketed terms above.
-       ! We need dwork1_dx, dwork2_dx, dwork2_dy and dwork3_dx.
+       call glissade_stagger(nx,                   ny,                         &
+                             tau_parallel(k,:,:),  stagtau_parallel_sq(:,:),   &
+                             ice_mask,             stagger_margin_in = 1)
+       stagtau_parallel_sq(:,:) = stagtau_parallel_sq(:,:)**2
+
+       call glissade_stagger(nx,          ny,              &
+                             flwa(k,:,:), stagflwa(:,:),   &
+                             ice_mask,    stagger_margin_in = 1)
+
+       ! Compute work arrays at cell centers.
+       ! These are needed to find tau_xz and tau_yz.
+
+       work1(:,:) = efvs_integral_z_to_s(k,:,:) * (2.d0*du_dx(:,:) + dv_dy(:,:))
+       work2(:,:) = efvs_integral_z_to_s(k,:,:) *      (du_dy(:,:) + dv_dx(:,:))
+       work3(:,:) = efvs_integral_z_to_s(k,:,:) * (2.d0*dv_dy(:,:) + du_dx(:,:))
+
+       call parallel_halo(work1, parallel)
+       call parallel_halo(work2, parallel)
+       call parallel_halo(work3, parallel)
+
+       ! Compute horizontal gradients of the work arrays.
+       ! We need dwork1_dx, dwork2_dx, dwork2_dy and dwork3_dx at vertices.
        ! The calls to glissade_centered_gradient compute a couple of extraneous derivatives,
        !  but these calls are simpler than inlining the gradient code.
-       ! Setting gradient_margin_in = HO_GRADIENT_MARGIN_MARINE uses only ice-covered cells to
-       !  compute the gradient.  This is the appropriate flag for these
-       !  calls, because efvs and strain rates have no meaning in ice-free cells.
-
-       work1(:,:) = efvs_integral_z_to_s(k,:,:) * (2.d0*du_dx(:,:) + dv_dy(:,:)) 
-       work2(:,:) = efvs_integral_z_to_s(k,:,:) *      (du_dy(:,:) + dv_dx(:,:))
-       work3(:,:) = efvs_integral_z_to_s(k,:,:) * (2.d0*dv_dy(:,:) + du_dx(:,:)) 
-
        ! With gradient_margin_in = 1, only ice-covered cells are included in the gradient.
        ! This is the appropriate setting, since efvs and strain rates have no meaning in ice-free cells.
+       
        call glissade_gradient(nx,               ny,         &
                               dx,               dy,         &
                               work1,                        &
@@ -6732,223 +6683,85 @@
                               ice_mask,                     &
                               gradient_margin_in = 1)
 
-       ! Loop over locally owned active vertices, evaluating tau_xz and tau_yz for this layer
+       ! loop over locally owned active vertices
        do j = staggered_jlo, staggered_jhi
           do i = staggered_ilo, staggered_ihi
              if (active_vertex(i,j)) then
-                depth = 0.5d0*(sigma(k) + sigma(k+1)) * stagthck(i,j)   ! depth at layer midpoint
-                tau_xz(k,i,j) = -rhoi*grav*depth*dusrf_dx(i,j)   &
-                               + 2.d0*dwork1_dx(i,j) + dwork2_dy(i,j)
-                tau_yz(k,i,j) = -rhoi*grav*depth*dusrf_dy(i,j)   &
-                               + dwork2_dx(i,j) + 2.d0*dwork3_dy(i,j)
-             endif
-          enddo   ! i
-       enddo      ! j
 
-    enddo         ! k
-      
-    if ((verbose_L1L2 .or. verbose_tau) .and. this_rank==rtest) then 
-       i = itest
-       j = jtest
-       print*, ' '
-       print*, 'L1L2: k, -rho*g*(s-z)*ds/dx, -rho*g*(s-z)*ds/dy:'
-       do k = 1, nz-1
-          depth = 0.5d0*(sigma(k) + sigma(k+1)) * stagthck(i,j)
-          print*, k, -rhoi*grav*depth*dusrf_dx(i,j), -rhoi*grav*depth*dusrf_dy(i,j)
-       enddo
-       print*, ' '
-       print*, 'L1L2: k, tau_xz, tau_yz, tau_parallel:'
-       do k = 1, nz-1
-          print*, k, tau_xz(k,i,j), tau_yz(k,i,j), tau_parallel(k,i,j)
-       enddo
-    endif
+                ! Evaluate tau_xz and tau_yz for this layer
+                ! Compute two versions of these stresses: with all terms including membrane stresses,
+                !  and with SIA terms only.  Optionally, the SIA-only versions can be used in velocity integrals.
 
-    !--------------------------------------------------------------------------------
-    ! Given the vertical shear stresses tau_xz and tau_yz for each layer k,
-    !  compute the velocity components at each level.
-    !
-    ! These are given by (PGB eq. 30)
-    ! 
-    !    u(z) = u_b + 2 * integral_b_to_z [A*tau_eff^(n-1)*tau_xz dz]
-    !    v(z) = v_b + 2 * integral_b_to_z [A*tau_eff^(n-1)*tau_yz dz]
-    ! 
-    ! where tau_eff^2 = tau_parallel^2 + tau_perp^2
-    !
-    !    tau_parallel^2 = (2 * efvs * eps_parallel)^2
-    !    tau_perp ^2 = tau_xz^2 + tau_yz^2
-    !
-    ! See comments above about method 2, with edge_velocity = .true. 
-    !--------------------------------------------------------------------------------
+                depth = stagsigma(k) * stagthck(i,j)   ! depth at layer midpoint
+                tau_xz_sia(k,i,j) = -rhoi*grav*depth*dusrf_dx(i,j)
+                tau_yz_sia(k,i,j) = -rhoi*grav*depth*dusrf_dy(i,j)
 
-    ! initialize uvel = vvel = 0 except at bed
-       
-    uvel(1:nz-1,:,:) = 0.d0
-    vvel(1:nz-1,:,:) = 0.d0
-    vintfact(:,:,:) = 0.d0
+                tau_xz(k,i,j) = tau_xz_sia(k,i,j) + 2.d0*dwork1_dx(i,j) + dwork2_dy(i,j)
+                tau_yz(k,i,j) = tau_yz_sia(k,i,j) + dwork2_dx(i,j) + 2.d0*dwork3_dy(i,j)
 
-    ! Compute surface elevation gradient on cell edges.
-    ! Setting gradient_margin_in = 0 takes the gradient over both neighboring cells,
-    !  including ice-free cells.
-    ! Setting gradient_margin_in = 1 computes a gradient if both neighbor cells are
-    !  ice-covered, or an ice-covered cell sits above ice-free land; else gradient = 0
-    ! Setting gradient_margin_in = 2 computes a gradient only if both neighbor cells
-    !  are ice-covered.
-    ! At a land margin, either 0 or 1 is appropriate, but 2 is inaccurate.
-    ! At a shelf margin, either 1 or 2 is appropriate, but 0 is inaccurate.
-    ! So HO_GRADIENT_MARGIN_HYBRID = 1 is the safest value.
+                tau_eff_sq = stagtau_parallel_sq(i,j) + tau_xz(k,i,j)**2 + tau_yz(k,i,j)**2
 
-    if (edge_velocity) then
+                ! Note: The first formula below is correct for whichefvs = 2 (efvs computed from effective strain rate),
+                !        but not for whichefvs = 0 (constant efvs) or whichefvs = 1 (multiple of flow factor).
+                !       For these options we need a modified formula.
+                !
+                ! Recall: efvs = 1/2 * A^(-1/n) * eps_e^[(1-n)/n]
+                !              = 1/2 * A^(-1/n) * [A tau_e^n]^[(1-n)/n]
+                !              = 1/2 * A^(-1) * tau_e^(1-n)
+                !  =>   1/efvs = 2 * A * tau_e(n-1)
+                !
+                ! Thus, for options 0 and 1, we can replace 2 * A * tau_e^(n-1) below with 1/efvs.
 
-       uedge(:,:) = 0.d0
-       vedge(:,:) = 0.d0
+                if (whichefvs == HO_EFVS_NONLINEAR) then
+                   fact = 2.d0 * stagflwa(i,j) * tau_eff_sq**((n_glen-1.d0)/2.d0) &
+                        * (sigma(k+1) - sigma(k))*stagthck(i,j)
+                else   ! HO_EFVS_CONSTANT, HO_EFVS_FLOWFACT
+                   if (efvs(k,i,j) > 0.0d0) then
+                      fact = (sigma(k+1) - sigma(k))*stagthck(i,j) / efvs(k,i,j)
+                   else
+                      fact = 0.0d0
+                   endif
+                endif
 
-       call glissade_gradient_at_edges(nx,               ny,                &
-                                       dx,               dy,                &
-                                       usrf,                                &
-                                       dusrf_dx_edge,    dusrf_dy_edge,     &
-                                       ice_mask,                            &
-                                       gradient_margin_in = whichgradient_margin, &
-                                       usrf = usrf,                         &
-                                       land_mask = land_mask,               &
-                                       max_slope = max_slope)
-    endif
+                ! Reset velocity to prescribed basal value if Dirichlet condition applies,
+                ! else compute velocity at this level
 
-    if (verbose_L1L2 .and. this_rank==rtest) then
-       i = itest
-       j = jtest
-       print*, ' '
-       print*, 'i, j =', itest, jtest
-       print*, 'k, uvel, vvel:'
-    endif
-
-    do k = nz-1, 1, -1   ! loop over velocity levels above the bed
-       
-       ! Average tau_parallel and flwa to vertices
-       ! With stagger_margin_in = 1, only cells with ice are included in the average.
-
-       call glissade_stagger(nx,                   ny,                         &
-                             tau_parallel(k,:,:),  stagtau_parallel_sq(:,:),   &
-                             ice_mask,             stagger_margin_in = 1)
-       stagtau_parallel_sq(:,:) = stagtau_parallel_sq(:,:)**2
-
-       call glissade_stagger(nx,          ny,              &
-                             flwa(k,:,:), stagflwa(:,:),   &
-                             ice_mask,    stagger_margin_in = 1)
-       
-       if (edge_velocity) then  ! compute velocity at edges and interpolate to vertices
-                                ! (method 2)
-
-          ! Compute vertical integration factor at each active vertex
-          ! This is int_b_to_z{-2 * A * tau^2 * rho*g*(s-z) * dz},
-          !  similar to the factor computed in Glide and glissade_velo_sia..
-          ! Note: tau_xz ~ rho*g*(s-z)*ds_dx; ds_dx term is computed on edges below
-
-          do j = 1, ny-1
-          do i = 1, nx-1
-             if (active_vertex(i,j)) then
-
-                tau_eff_sq = stagtau_parallel_sq(i,j)   &
-                           + tau_xz(k,i,j)**2 + tau_yz(k,i,j)**2
-
-                depth = 0.5d0*(sigma(k) + sigma(k+1)) * stagthck(i,j)
-
-                vintfact(k,i,j) = vintfact(k+1,i,j)     &
-                     - 2.d0 * stagflwa(i,j) * tau_eff_sq * rhoi*grav*depth  &
-                                  * (sigma(k+1) - sigma(k))*stagthck(i,j)
-
-             endif
-          enddo
-          enddo
-
-          ! Need to have vintfact at halo nodes to compute uvel/vvel at locally owned nodes  
-          call staggered_parallel_halo(vintfact(k,:,:), parallel)
-
-          ! loop over cells, skipping outer halo rows
-
-          ! u at east edges
-          do j = 2, ny-1
-          do i = 1, nx-1
-             if (active_vertex(i,j) .and. active_vertex(i,j-1)) then
-                uedge(i,j) = (vintfact(k,i,j) + vintfact(k,i,j-1))/2.d0 * dusrf_dx_edge(i,j)
-             endif
-          enddo
-          enddo
-
-          ! v at north edges
-          do j = 1, ny-1
-          do i = 2, nx-1
-             if (active_vertex(i,j) .and. active_vertex(i-1,j)) then
-                vedge(i,j) = (vintfact(k,i,j) + vintfact(k,i-1,j))/2.d0 * dusrf_dy_edge(i,j)
-             endif
-          enddo
-          enddo
-
-          ! Average edge velocities to vertices and add to ubas                                                                                                   
-          ! Do this for locally owned vertices only
-          ! (Halo update is done at a higher level after returning)
-          ! Note: Currently do not support Dirichlet BC with depth-varying velocity
-          
-          do j = staggered_jlo, staggered_jhi
-          do i = staggered_ilo, staggered_ihi
-
-             if (umask_dirichlet(i,j) == 1) then
-                uvel(k,i,j) = uvel(nz,i,j)
-             else
-                uvel(k,i,j) = uvel(nz,i,j) + (uedge(i,j) + uedge(i,j+1)) / 2.d0
-             endif
-
-             if (vmask_dirichlet(i,j) == 1) then
-                vvel(k,i,j) = vvel(nz,i,j)
-             else
-                vvel(k,i,j) = vvel(nz,i,j) + (vedge(i,j) + vedge(i+1,j)) / 2.d0
-             endif
-
-             if (verbose_L1L2 .and. this_rank==rtest .and. i==itest .and. j==jtest) then
-                print*, k, uvel(k,i,j), vvel(k,i,j)
-             endif
-
-          enddo
-          enddo
-
-       else   ! compute velocity at vertices (method 1)
-
-          ! loop over locally owned active vertices
-          do j = staggered_jlo, staggered_jhi
-          do i = staggered_ilo, staggered_ihi
-
-             if (active_vertex(i,j)) then
-
-                tau_eff_sq = stagtau_parallel_sq(i,j)   &
-                           + tau_xz(k,i,j)**2 + tau_yz(k,i,j)**2
-
-                ! Note: This formula is correct for any value of Glen's n, but currently efvs is computed
-                !       only for gn = 3 (in which case (n-1)/2 = 1).
-                fact = 2.d0 * stagflwa(i,j) * tau_eff_sq**((gn-1.d0)/2.d0) * (sigma(k+1) - sigma(k))*stagthck(i,j)
-
-                ! reset velocity to prescribed basal value if Dirichlet condition applies
-                ! else compute velocity at this level 
                 if (umask_dirichlet(i,j) == 1) then
                    uvel(k,i,j) = uvel(nz,i,j)
                 else
-                   uvel(k,i,j) = uvel(k+1,i,j) + fact * tau_xz(k,i,j)
+                   if (include_membrane_stress_in_tau) then
+                      uvel(k,i,j) = uvel(k+1,i,j) + fact * tau_xz(k,i,j)
+                   else   ! SIA stress term only
+                      uvel(k,i,j) = uvel(k+1,i,j) + fact * tau_xz_sia(k,i,j)
+                   endif
                 endif
 
                 if (vmask_dirichlet(i,j) == 1) then
                    vvel(k,i,j) = vvel(nz,i,j)
                 else
-                   vvel(k,i,j) = vvel(k+1,i,j) + fact * tau_yz(k,i,j)
+                   if (include_membrane_stress_in_tau) then
+                      vvel(k,i,j) = vvel(k+1,i,j) + fact * tau_yz(k,i,j)
+                   else   ! SIA stress term only
+                      vvel(k,i,j) = vvel(k+1,i,j) + fact * tau_yz_sia(k,i,j)
+                   endif
                 endif
 
                 if (verbose_L1L2 .and. this_rank==rtest .and. i==itest .and. j==jtest) then
-                   print*, k, uvel(k,i,j), vvel(k,i,j)
+                   depth = stagsigma(k) * stagthck(i,j)
+                   print*, ' '
+                   print*, 'k, depth, fact:', &
+                        k, depth, fact
+                   print*, 'tau_xz(i,j): SIA term, membrane term, total:', &
+                        tau_xz_sia(k,i,j), tau_xz(k,i,j) - tau_xz_sia(k,i,j), tau_xz(k,i,j)
+                   print*, 'tau_yz(i,j): SIA term, membrane term, total:', &
+                        tau_yz_sia(k,i,j), tau_yz(k,i,j) - tau_yz_sia(k,i,j), tau_yz(k,i,j)
+                   print*, 'uvel(k), vvel(k):', uvel(k,i,j), vvel(k,i,j)
                 endif
 
              endif
 
           enddo   ! i
-          enddo   ! j
-
-       endif      ! edge_velocity
+       enddo      ! j
 
     enddo         ! k
 
@@ -7876,15 +7689,6 @@
     integer, intent(in) :: i, j, k, p
 
     !----------------------------------------------------------------
-    ! Local parameters
-    !----------------------------------------------------------------
-
-    real(dp), parameter ::   &
-       p_effstr  = (1.d0 - real(gn,dp))/real(gn,dp),  &! exponent (1-n)/n in effective viscosity relation
-       p2_effstr = p_effstr/2                          ! exponent (1-n)/(2n) in effective viscosity relation
-
-                                                               
-    !----------------------------------------------------------------
     ! Local variables
     !----------------------------------------------------------------
 
@@ -7896,8 +7700,14 @@
         
     integer :: n
 
+    real(dp) :: &
+       p_effstr                 ! exponent (1-n)/n in effective viscosity relation
+
     real(dp), parameter :: p2 = -1.d0/3.d0
   
+    ! Set exponent that depends on Glen's exponent
+    p_effstr  = (1.d0 - n_glen)/n_glen
+
     select case(whichefvs)
 
     case(HO_EFVS_CONSTANT)
@@ -7988,11 +7798,11 @@
        ! Compute effective viscosity (PGB 2012, eq. 4)
        ! Units: flwafact has units Pa yr^{1/n}
        !        effstrain has units yr^{-1}
-       !        p2_effstr = (1-n)/(2n) 
-       !                  = -1/3 for n=3
+       !        p_effstr = (1-n)/n 
+       !                  = -2/3 for n=3
        ! Thus efvs has units Pa yr
  
-       efvs = flwafact * effstrainsq**p2_effstr
+       efvs = flwafact * effstrainsq**(p_effstr/2.d0)
 
        if (verbose_efvs .and. this_rank==rtest .and. i==itest .and. j==jtest .and. k==ktest .and. p==ptest) then
           print*, ' '
@@ -8081,8 +7891,8 @@
     ! Local parameters
     !----------------------------------------------------------------
 
-    real(dp), parameter ::   &
-       p_effstr = (1.d0 - real(gn,dp)) / real(gn,dp)    ! exponent (1-n)/n in effective viscosity relation
+    real(dp) ::  &
+       p_effstr              ! exponent (1-n)/n in effective viscosity relation
                                                                
     !----------------------------------------------------------------
     ! Local variables
@@ -8107,6 +7917,9 @@
 
     integer :: n, k
 
+    ! Set exponent that depends on Glen's exponent
+    p_effstr = (1.d0 - n_glen) / n_glen
+
     select case(whichefvs)
 
     case(HO_EFVS_CONSTANT)
@@ -8125,7 +7938,7 @@
        !
        ! Units: flwafact has units Pa yr^{1/n}
        !        effstrain has units yr^{-1}
-       !        p_effstr = (1-n)/n 
+       !        p_effstr = (1-n)/n
        !                 = -2/3 for n=3
        ! Thus efvs has units Pa yr
    
@@ -8231,7 +8044,15 @@
              rootB = -a / (3.d0*(abs(b))**(1.d0/3.d0))
           endif
           tau_parallel = rootA + rootB
-          efvs(k) = 1.d0 / (2.d0 * flwa(k) * (tau_parallel**2 + tau_perp**2))  ! given n = 3
+
+          !TODO - Currently limited to n = 1 and n = 3.  Allow arbitrary n.
+          if (abs(n_glen - 1.d0) < 1.d-10) then  ! n = 1
+             efvs(k) = 1.d0 / (2.d0 * flwa(k))
+          elseif (abs(n_glen - 3.d0) < 1.d-10) then  ! n = 3
+             efvs(k) = 1.d0 / (2.d0 * flwa(k) * (tau_parallel**2 + tau_perp**2))  ! given n = 3
+          else
+             call write_log('Invalid value of n_glen for L1L2 solver', GM_FATAL)
+          endif
 
           !WHL - debug
           if (verbose_efvs .and. this_rank==rtest .and. i==itest .and. j==jtest .and. k==ktest .and. p==ptest) then
@@ -8321,14 +8142,6 @@
     integer, intent(in) :: i, j, p
 
     !----------------------------------------------------------------
-    ! Local parameters
-    !----------------------------------------------------------------
-
-    real(dp), parameter ::   &
-       p_effstr  = (1.d0 - real(gn,dp))/real(gn,dp), &! exponent (1-n)/n in effective viscosity relation
-       p2_effstr = p_effstr/2                         ! exponent (1-n)/(2n) in effective viscosity relation
-                                                               
-    !----------------------------------------------------------------
     ! Local variables
     !----------------------------------------------------------------
 
@@ -8346,10 +8159,16 @@
     integer :: n, k
     real(dp) :: du_dz, dv_dz
 
+    real(dp) :: &
+       p_effstr              ! exponent (1-n)/n in effective viscosity relation
+
     !WHL - For ISMIP-HOM, the cubic solve is not robust.  It leads to oscillations
     !      in successive iterations between uvel_2d/vvel_2d and btractx/btracty
     !TODO - Remove the cubic solve for efvs, unless we find a way to make it robust?
     logical, parameter :: cubic = .false.
+
+    ! Set exponent that depends on Glen's exponent
+    p_effstr  = (1.d0 - n_glen)/n_glen
 
     select case(whichefvs)
 
@@ -8493,7 +8312,8 @@
           effstrainsq = effstrain_min**2          &
                       + du_dx**2 + dv_dy**2 + du_dx*dv_dy + 0.25d0*(dv_dx + du_dy)**2  &
                       + 0.25d0 * (du_dz**2 + dv_dz**2)
-          efvs(k) = flwafact(k) * effstrainsq**p2_effstr
+          efvs(k) = flwafact(k) * effstrainsq**(p_effstr/2.d0)
+
        enddo
 
     endif   ! cubic

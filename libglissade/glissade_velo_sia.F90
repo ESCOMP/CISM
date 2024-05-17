@@ -55,7 +55,7 @@
   module glissade_velo_sia
 
     use glimmer_global, only: dp
-    use glimmer_physcon, only: gn, rhoi, grav, scyr
+    use glimmer_physcon, only: n_glen, rhoi, grav, scyr
     use glimmer_paramets, only: thk0, len0, vel0, vis0, tau0
 !    use glimmer_log, only: write_log
 
@@ -205,7 +205,7 @@
     usrf     => model%geometry%usrf(:,:)
     topg     => model%geometry%topg(:,:)
 
-    bwat     => model%temper%bwat(:,:)
+    bwat     => model%basal_hydro%bwat(:,:)
     btrc     => model%velocity%btrc(:,:)
     bfricflx => model%temper%bfricflx(:,:)
     temp     => model%temper%temp(:,:,:)
@@ -881,16 +881,15 @@
           
           if (stagthck(i,j) > thklim) then
 
-             siafact = 2.d0 * (rhoi*grav)**gn * stagthck(i,j)**(gn+1)             &
-                             * (dusrf_dx(i,j)**2 + dusrf_dy(i,j)**2) ** ((gn-1)/2)
-
+             siafact = 2.d0 * (rhoi*grav)**n_glen * stagthck(i,j)**(n_glen+1)             &
+                             * (dusrf_dx(i,j)**2 + dusrf_dy(i,j)**2) ** ((n_glen-1)/2)
              vintfact(nz,i,j) = 0.d0
 
              do k = nz-1, 1, -1
 
-                vintfact(k,i,j) = vintfact(k+1,i,j) -                             &
-                                  siafact * stagflwa(k,i,j)                       &
-                                          * ((sigma(k) + sigma(k+1))/2.d0) ** gn  &
+                vintfact(k,i,j) = vintfact(k+1,i,j) -                                 &
+                                  siafact * stagflwa(k,i,j)                           &
+                                          * ((sigma(k) + sigma(k+1))/2.d0) ** n_glen  &
                                           * (sigma(k+1) - sigma(k))
 
              enddo   ! k

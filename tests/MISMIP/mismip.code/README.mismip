@@ -1,6 +1,7 @@
 Instructions for setting up and running the MISMIP experiments with CISM.
 
-Note: For setting up the experiments on an NCAR computing environment, follow the steps in the README.NCAR_HPC file in the tests directory.
+Note: For setting up the experiments in an NCAR computing environment,
+follow the steps in the README.NCAR_HPC file in the tests directory.
 
 Note: These instructions assume that you have access to the NCAR HPC Cheyenne,
 with an LIWG HPC account. If you do not have an account and would like one,

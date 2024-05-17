@@ -146,7 +146,7 @@ contains
    subroutine felix_velo_driver(model)
 
       use glimmer_global, only : dp
-      use glimmer_physcon, only: gn, scyr
+      use glimmer_physcon, only: scyr
       use glimmer_paramets, only: thk0, len0, vel0, vis0
       use glimmer_log
       use glide_types

@@ -200,9 +200,12 @@ contains
          max_thck, max_thck_global,     &    ! max ice thickness (m)
          max_temp, max_temp_global,     &    ! max ice temperature (deg C)
          min_temp, min_temp_global,     &    ! min ice temperature (deg C)
-         max_bmlt, max_bmlt_global,     &    ! max basal melt rate (m/yr)
-         max_spd_sfc, max_spd_sfc_global,   &    ! max surface ice speed (m/yr)
-         max_spd_bas, max_spd_bas_global,   &    ! max basal ice speed (m/yr)
+         max_bmlt,                      &    ! max basal melt rate (m/yr)
+         max_bmlt_global,               &
+         max_bmlt_ground,               &    ! max basal melt rate, grounded ice (m/yr)
+         max_bmlt_ground_global,        &
+         max_spd_sfc, max_spd_sfc_global, &  ! max surface ice speed (m/yr)
+         max_spd_bas, max_spd_bas_global, &  ! max basal ice speed (m/yr)
          spd,                           &    ! speed
          thck_diag, usrf_diag,          &    ! local column diagnostics
          topg_diag, relx_diag,          &    
@@ -768,7 +771,8 @@ contains
                     min_temp_global, imin_global, jmin_global, kmin_global
     call write_log(trim(message), type = GM_DIAGNOSTIC)
 
-    ! max basal melt rate
+    ! max applied basal melt rate
+    ! Usually, this will be for floating ice, if floating ice is present
     imax = 0
     jmax = 0
     max_bmlt = unphys_val
@@ -791,8 +795,36 @@ contains
     ! Write to diagnostics only if nonzero
 
     if (abs(max_bmlt_global*thk0*scyr/tim0) > eps) then
-       write(message,'(a25,f24.16,2i6)') 'Max bmlt (m/yr), i, j    ',   &
+       write(message,'(a25,f24.16,2i6)') 'Max bmlt (m/y), i, j     ',   &
             max_bmlt_global*thk0*scyr/tim0, imax_global, jmax_global
+       call write_log(trim(message), type = GM_DIAGNOSTIC)
+    endif
+
+    ! max basal melt rate for grounded ice
+    imax = 0
+    jmax = 0
+    max_bmlt_ground = unphys_val
+
+    do j = lhalo+1, nsn-uhalo
+       do i = lhalo+1, ewn-uhalo
+          if (model%basal_melt%bmlt_ground(i,j) > max_bmlt_ground) then
+             max_bmlt_ground = model%basal_melt%bmlt_ground(i,j)
+             imax = i
+             jmax = j
+          endif
+       enddo
+    enddo
+
+    call parallel_reduce_maxloc(xin=max_bmlt_ground, xout=max_bmlt_ground_global, xprocout=procnum)
+    call parallel_globalindex(imax, jmax, imax_global, jmax_global, parallel)
+    call broadcast(imax_global, proc = procnum)
+    call broadcast(jmax_global, proc = procnum)
+
+    ! Write to diagnostics only if nonzero
+
+    if (abs(max_bmlt_global*thk0*scyr/tim0) > eps) then
+       write(message,'(a25,f24.16,2i6)') 'Max bmlt grnd (m/y), i, j',   &
+            max_bmlt_ground_global*thk0*scyr/tim0, imax_global, jmax_global
        call write_log(trim(message), type = GM_DIAGNOSTIC)
     endif
 
@@ -818,7 +850,7 @@ contains
     call broadcast(imax_global, proc = procnum)
     call broadcast(jmax_global, proc = procnum)
 
-    write(message,'(a25,f24.16,2i6)') 'Max sfc spd (m/yr), i, j ',   &
+    write(message,'(a25,f24.16,2i6)') 'Max sfc spd (m/y), i, j  ',   &
                     max_spd_sfc_global*vel0*scyr, imax_global, jmax_global
     call write_log(trim(message), type = GM_DIAGNOSTIC)
 
@@ -843,7 +875,7 @@ contains
     call parallel_globalindex(imax, jmax, imax_global, jmax_global, parallel)
     call broadcast(imax_global, proc = procnum)
     call broadcast(jmax_global, proc = procnum)
-    write(message,'(a25,f24.16,2i6)') 'Max base spd (m/yr), i, j',   &
+    write(message,'(a25,f24.16,2i6)') 'Max base spd (m/y), i, j ',   &
                     max_spd_bas_global*vel0*scyr, imax_global, jmax_global
     call write_log(trim(message), type = GM_DIAGNOSTIC)
 
@@ -884,7 +916,7 @@ contains
           artm_diag = model%climate%artm_corrected(i,j)  ! artm_corrected = artm + artm_anomaly
           acab_diag = model%climate%acab_applied(i,j) * thk0*scyr/tim0
           bmlt_diag = model%basal_melt%bmlt_applied(i,j) * thk0*scyr/tim0
-          bwat_diag = model%temper%bwat(i,j) * thk0
+          bwat_diag = model%basal_hydro%bwat(i,j) * thk0
           bheatflx_diag = model%temper%bheatflx(i,j)
        
           temp_diag(:) = model%temper%temp(1:upn,i,j)          

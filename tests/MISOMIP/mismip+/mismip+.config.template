@@ -26,7 +26,6 @@ restart_extend_velo = 1 # 1 = write uvel/vvel on extended grid
 
 [ho_options]
 which_ho_babc = 11                # 11 = Coulomb w/const basal flwa, 12 = Tsai law, 9 = power law
-which_ho_effecpress = 3           # 3 = ocean connection
 which_ho_efvs = 2                 # 0 = constant, 2 = nonlinear eff. visc. w/ n=3
 which_ho_sparse = 3               # 1 = SLAP GMRES, 3 = Fortran PCG, 4 = Trilinos for linear solver
 which_ho_nonlinear = 0            # 0 = Picard, 1 = accelerated Picard
@@ -47,14 +46,15 @@ glissade_maxiter = 50
 rhoi = 918.0            # MISMIP+ ice density
 rhoo = 1028.0           # MISMIP+ ocean density
 grav = 9.8              # MISMIP+ gravitational acceleration
-flow_factor = 1.
+flow_factor_ground = 1.
+flow_factor_float = 1.
 ice_limit = 1.                  #min thickness (m) for dynamics
 default_flwa = 2.0e-17
 beta_grounded_min = 10.
 calving_front_x = 640000.       # 640 km for mismip+
 p_ocean_penetration = 1.        # p value for Coulomb friction law
-coulomb_c = 0.5
-powerlaw_c = 1.e4               # constant for the power law stress
+coulomb_c_const = 0.5
+powerlaw_c_const = 1.e4         # constant for the power law stress
 powerlaw_m = 3                  # exponent for the power law stress
 bmlt_float_omega = 0.2          # parameter for Ice1
 bmlt_float_z0 = -100.           # parameter for Ice1

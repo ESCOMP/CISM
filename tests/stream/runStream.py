@@ -231,7 +231,7 @@ def main():
     dy = 2.0 * streamHalfWidth / float(nStream)
     dx = dy  # always want this
     
-    # Figure out the number of cells we need to add to get as close t0 the 
+    # Figure out the number of cells we need to add to get as close to the
     # desired width of the strong region as possible (note: may want to use 
     # ceil() instead of round() here)
     nStrongStrip = int(round(strongWidth / dy + eps))  
