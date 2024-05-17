@@ -38,8 +38,10 @@ module glissade_utils
   implicit none
 
   private
-  public :: glissade_adjust_thickness, glissade_smooth_topography, glissade_adjust_topography
-  public :: glissade_stdev, verbose_stdev
+  public :: glissade_adjust_thickness, glissade_smooth_usrf, &
+       glissade_smooth_topography, glissade_adjust_topography, &
+       glissade_basin_sum, glissade_basin_average, &
+       glissade_stdev, verbose_stdev
 
   logical, parameter :: verbose_stdev = .true.
 
@@ -215,6 +217,187 @@ contains
     endif   ! usrf_max > tiny
 
   end subroutine glissade_adjust_thickness
+
+!****************************************************************************
+
+  subroutine glissade_smooth_usrf(model, nsmooth)
+
+    ! Use a Laplacian smoother to smooth the upper surface elevation,
+    !  and compute a thickness consistent with this new elevation.
+    ! This can be useful if the input thickness and topography are inconsistent,
+    !  such that their sum has large gradients.
+
+    use glimmer_paramets, only: thk0
+    use glide_thck, only: glide_calclsrf
+    use glissade_masks, only: glissade_get_masks
+    use glissade_grid_operators, only: glissade_laplacian_smoother
+    use cism_parallel, only: parallel_halo
+
+    !----------------------------------------------------------------
+    ! Input-output arguments
+    !----------------------------------------------------------------
+
+    type(glide_global_type), intent(inout) :: model   ! derived type holding ice-sheet info
+
+    integer, intent(in), optional :: nsmooth     ! number of smoothing passes
+
+    ! local variables
+
+    real(dp), dimension(model%general%ewn, model%general%nsn) :: &
+         topg,               &  ! bed topography (m)
+         thck,               &  ! thickness (m)
+         usrf,               &  ! surface elevation (m)
+         usrf_smoothed          ! surface elevation after smoothing
+
+    integer, dimension(model%general%ewn, model%general%nsn) :: &
+         ice_mask,           &  ! = 1 if ice is present (thck > 0, else = 0
+         floating_mask,      &  ! = 1 if ice is present (thck > 0) and floating, else = 0
+         ocean_mask             ! = 1 if topg < 0 and ice is absent, else = 0
+
+    integer :: n_smoothing_passes   ! local version of nsmooth
+    integer :: i, j, n
+    integer :: nx, ny
+    integer :: itest, jtest, rtest
+
+!    logical, parameter :: verbose_smooth_usrf = .false.
+    logical, parameter :: verbose_smooth_usrf = .true.
+
+    ! Initialize
+
+    if (present(nsmooth)) then
+       n_smoothing_passes = nsmooth
+    else
+       n_smoothing_passes = 1
+    endif
+
+    ! Copy some model variables to local variables
+
+    nx = model%general%ewn
+    ny = model%general%nsn
+
+    rtest = -999
+    itest = 1
+    jtest = 1
+    if (this_rank == model%numerics%rdiag_local) then
+       rtest = model%numerics%rdiag_local
+       itest = model%numerics%idiag_local
+       jtest = model%numerics%jdiag_local
+    endif
+
+    ! compute the initial upper surface elevation
+    call glide_calclsrf(model%geometry%thck, model%geometry%topg, model%climate%eus, model%geometry%lsrf)
+    model%geometry%usrf = max(0.d0, model%geometry%thck + model%geometry%lsrf)
+
+    ! Save input fields
+    topg = (model%geometry%topg - model%climate%eus) * thk0
+    thck = model%geometry%thck * thk0
+    usrf = model%geometry%usrf * thk0
+
+    if (verbose_smooth_usrf .and. this_rank == rtest) then
+       i = itest
+       j = jtest
+       print*, ' '
+       print*, 'itest, jtest, rank =', itest, jtest, rtest
+       print*, ' '
+       print*, 'Before Laplacian smoother, topg (m):'
+       do j = jtest+3, jtest-3, -1
+          do i = itest-3, itest+3
+             write(6,'(f10.3)',advance='no') topg(i,j)
+          enddo
+          write(6,*) ' '
+       enddo
+       print*, ' '
+       print*, 'Before Laplacian smoother, usrf (m):'
+       do j = jtest+3, jtest-3, -1
+          do i = itest-3, itest+3
+             write(6,'(f10.3)',advance='no') usrf(i,j)
+          enddo
+          write(6,*) ' '
+       enddo
+       print*, ' '
+       print*, 'Before Laplacian smoother, thck (m):'
+       do j = jtest+3, jtest-3, -1
+          do i = itest-3, itest+3
+             write(6,'(f10.3)',advance='no') thck(i,j)
+          enddo
+          write(6,*) ' '
+       enddo
+    endif
+
+    ! compute initial masks
+    call glissade_get_masks(nx,                  ny,                    &
+                            model%parallel,                             &
+                            model%geometry%thck, model%geometry%topg,   &
+                            model%climate%eus,   0.0d0,                 &  ! thklim = 0
+                            ice_mask,                                   &
+                            floating_mask = floating_mask,              &
+                            ocean_mask = ocean_mask)
+
+    do n = 1, n_smoothing_passes
+
+       call glissade_laplacian_smoother(nx,     ny,              &
+                                        usrf,   usrf_smoothed,   &
+                                        npoints_stencil = 9)
+
+       ! Force usrf = topg on ice-free land
+       where (topg > 0.0d0 .and. ice_mask == 0) usrf_smoothed = topg
+
+       ! Force usrf = unsmoothed value for floating ice and ice-free ocean, to avoid advancing the calving front
+       where (floating_mask == 1 .or. ocean_mask == 1)
+          usrf_smoothed = usrf
+       endwhere
+
+       ! Force usrf >= topg
+       usrf_smoothed = max(usrf_smoothed, topg)
+
+       usrf = usrf_smoothed
+       call parallel_halo(usrf, model%parallel)
+
+    enddo
+
+    ! Given the smoothed usrf, adjust the input thickness such that topg is unchanged.
+    ! Do this only where ice is present.  Elsewhere, usrf = topg.
+
+    where (usrf > topg)     ! ice is present
+       where (topg < 0.0d0)    ! marine-based ice
+          where (topg*(1.0d0 - rhoo/rhoi) > usrf)  ! ice is floating
+             thck = usrf / (1.0d0 - rhoi/rhoo)
+          elsewhere   ! ice is grounded
+             thck = usrf - topg
+          endwhere
+       elsewhere   ! land-based ice
+          thck = usrf - topg
+       endwhere
+    endwhere
+
+    ! Copy the new thickness and usrf to the model derived type
+    model%geometry%thck = thck/thk0
+    model%geometry%usrf = usrf/thk0
+
+    if (verbose_smooth_usrf .and. this_rank == rtest) then
+       i = itest
+       j = jtest
+       print*, ' '
+       print*, 'itest, jtest, rank =', itest, jtest, rtest
+       print*, ' '
+       print*, 'After Laplacian smoother, usrf (m):'
+       do j = jtest+3, jtest-3, -1
+          do i = itest-3, itest+3
+             write(6,'(f10.3)',advance='no') usrf(i,j)
+          enddo
+          write(6,*) ' '
+       enddo
+       print*, ' '
+       print*, 'After Laplacian smoother, thck (m):'
+       do j = jtest+3, jtest-3, -1
+          do i = itest-3, itest+3
+             write(6,'(f10.3)',advance='no') thck(i,j)
+          enddo
+          write(6,*) ' '
+       enddo
+    endif
+
+  end subroutine glissade_smooth_usrf
 
 !****************************************************************************
 
@@ -611,6 +794,136 @@ contains
     endif
 
   end subroutine glissade_adjust_topography
+
+!****************************************************
+
+  subroutine glissade_basin_sum(&
+       nx,           ny,            &
+       nbasin,       basin_number,  &
+       rmask,                       &
+       field_2d,                    &
+       field_basin_sum)
+
+    ! For a given 2D input field, compute the sum over a basin.
+    ! The sum is taken over grid cells with mask = 1.
+    ! All cells are weighted equally.
+
+    use cism_parallel, only: parallel_reduce_sum, nhalo
+
+    integer, intent(in) :: &
+         nx, ny                    !> number of grid cells in each dimension
+
+    integer, intent(in) :: &
+         nbasin                    !> number of basins
+
+    integer, dimension(nx,ny), intent(in) :: &
+         basin_number              !> basin ID for each grid cell
+
+    real(dp), dimension(nx,ny), intent(in) :: &
+         rmask,                 &  !> real mask for weighting the input field
+         field_2d                  !> input field to be averaged over basins
+
+    real(dp), dimension(nbasin), intent(out) :: &
+         field_basin_sum           !> basin-sum output field
+
+    ! local variables
+
+    integer :: i, j, nb
+
+    !TODO - Replace sumcell with sumarea, and pass in cell area.
+    !       Current algorithm assumes all cells with mask = 1 have equal weight.
+
+    real(dp), dimension(nbasin) ::  &
+         sumfield_local     ! sum of field on local task
+
+    sumfield_local(:) = 0.0d0
+
+    ! loop over locally owned cells only
+    do j = nhalo+1, ny-nhalo
+       do i = nhalo+1, nx-nhalo
+          nb = basin_number(i,j)
+          if (nb >= 1) then
+             sumfield_local(nb) = sumfield_local(nb) + rmask(i,j)*field_2d(i,j)
+          endif
+       enddo
+    enddo
+
+    field_basin_sum(:) =  parallel_reduce_sum(sumfield_local(:))
+
+  end subroutine glissade_basin_sum
+
+!****************************************************
+
+  subroutine glissade_basin_average(&
+       nx,           ny,            &
+       nbasin,       basin_number,  &
+       rmask,                       &
+       field_2d,                    &
+       field_basin_avg)
+
+    ! For a given 2D input field, compute the average over a basin.
+    ! The average is taken over grid cells with mask = 1.
+    ! All cells are weighted equally.
+
+    use cism_parallel, only: parallel_reduce_sum, nhalo
+
+    integer, intent(in) :: &
+         nx, ny                    !> number of grid cells in each dimension
+
+    integer, intent(in) :: &
+         nbasin                    !> number of basins
+
+    integer, dimension(nx,ny), intent(in) :: &
+         basin_number              !> basin ID for each grid cell
+
+    real(dp), dimension(nx,ny), intent(in) :: &
+         rmask                     !> real mask for weighting the value in each cell
+
+    real(dp), dimension(nx,ny), intent(in) :: &
+         field_2d                  !> input field to be averaged over basins
+
+    real(dp), dimension(nbasin), intent(out) :: &
+         field_basin_avg           !> basin-average output field
+
+    ! local variables
+
+    integer :: i, j, nb
+
+    !TODO - Replace sumcell with sumarea, and pass in cell area.
+    !       Current algorithm assumes all cells with mask = 1 have equal weight.
+
+    real(dp), dimension(nbasin) ::  &
+         summask_local,          & ! sum of mask in each basin on local task
+         summask_global,         & ! sum of mask in each basin on full domain
+         sumfield_local,         & ! sum of field on local task
+         sumfield_global           ! sum of field over full domain
+
+    summask_local(:) = 0.0d0
+    sumfield_local(:) = 0.0d0
+
+    ! loop over locally owned cells only
+    do j = nhalo+1, ny-nhalo
+       do i = nhalo+1, nx-nhalo
+          nb = basin_number(i,j)
+          if (nb >= 1) then
+             summask_local(nb) = summask_local(nb) + rmask(i,j)
+             sumfield_local(nb) = sumfield_local(nb) + rmask(i,j)*field_2d(i,j)
+          endif
+       enddo
+    enddo
+
+    summask_global(:)  =  parallel_reduce_sum(summask_local(:))
+    sumfield_global(:) =  parallel_reduce_sum(sumfield_local(:))
+
+    do nb = 1, nbasin
+       if (summask_global(nb) > tiny(0.0d0)) then
+          field_basin_avg(nb) = sumfield_global(nb)/summask_global(nb)
+       else
+          field_basin_avg(nb) = 0.0d0
+       endif
+    enddo
+
+  end subroutine glissade_basin_average
 
 !****************************************************************************
 

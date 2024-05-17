@@ -57,6 +57,7 @@ contains
                                         parallel,                            &
                                         thck,              topg,             &
                                         eus,               thklim,           &
+                                        usfc_obs,          vsfc_obs,         &
                                         calving_front_x,   calving_front_y,  &
                                         calving_mask)
 
@@ -72,6 +73,8 @@ contains
     real(dp), dimension(:,:), intent(in) :: topg   !> present bedrock topography (m)
     real(dp), intent(in) :: eus                    !> eustatic sea level (m)
     real(dp), intent(in) :: thklim                 !> minimum thickness for dynamically active grounded ice (m)
+    real(dp), dimension(:,:), intent(in) :: &
+         usfc_obs, vsfc_obs                        !> observed surface velocity components (m/yr)
     real(dp), intent(in) :: calving_front_x        !> for CALVING_GRID_MASK option, calve ice wherever abs(x) > calving_front_x (m)
     real(dp), intent(in) :: calving_front_y        !> for CALVING_GRID_MASK option, calve ice wherever abs(y) > calving_front_y (m)
 
@@ -179,15 +182,38 @@ contains
                                ice_mask,                      &
                                ocean_mask = ocean_mask)
 
-       ! Set calving_mask = 1 for ice-free ocean cells.
+       ! Set the calving mask to include all ice-free ocean cells.
        ! Any ice entering these cells during the run will calve.
-       do j = 1, ny
-          do i = 1, nx
+
+       ! Note: We tested an exception for cells with observed nonzero velocity
+       ! (and hence ice present at the time of velocity observations) at vertices.
+       ! The goal was to better represent the Thwaites shelf region, but the spin-up
+       !  did not improve.
+       ! Leaving the commented-out code in case we want to add something similar later.
+
+       do j = 2, ny-1
+          do i = 2, nx-1
              if (ocean_mask(i,j) == 1) then
-                calving_mask(i,j) = 1
+!                if (usfc_obs(i-1,j)**2   + vsfc_obs(i-1,j)**2   > 0.0d0 .and. &
+!                    usfc_obs(i,j)**2     + vsfc_obs(i,j)**2     > 0.0d0 .and. &
+!                    usfc_obs(i-1,j-1)**2 + vsfc_obs(i-1,j-1)**2 > 0.0d0 .and. &
+!                    usfc_obs(i,j-1)**2   + vsfc_obs(i,j-1)**2   > 0.0d0) then
+!                   calving_mask(i,j) = 0
+!                   call parallel_globalindex(i, j, iglobal, jglobal, parallel)
+!                   if (verbose_calving) then   ! debug
+!                      print*, 'ocean cell with uobs, vobs > 0: ig, jg =', iglobal, jglobal
+!                   endif
+!                else
+!                   calving_mask(i,j) = 1   ! calve ice in this cell
+!                endif
+                calving_mask(i,j) = 1   ! calve ice in this cell
+             else
+                calving_mask(i,j) = 0
              endif
           enddo
        enddo
+
+       call parallel_halo(calving_mask, parallel)
 
        deallocate(ice_mask)
        deallocate(ocean_mask)
@@ -1334,6 +1360,7 @@ contains
        nx,           ny,            &
        parallel,                    &
        itest, jtest, rtest,         &
+       f_ground_threshold,          &
        thck,                        &
        f_ground_cell,               &
        ice_mask,                    &
@@ -1368,6 +1395,7 @@ contains
     integer, intent(in) :: nx, ny                                !> horizontal grid dimensions
     type(parallel_type), intent(in) :: parallel                  !> info for parallel communication
     integer, intent(in) :: itest, jtest, rtest                   !> coordinates of diagnostic point
+    real(dp), intent(in) :: f_ground_threshold                   !> threshold for counting cells as grounded
 
     real(dp), dimension(nx,ny), intent(inout) :: thck            !> ice thickness
     real(dp), dimension(nx,ny), intent(in)    :: f_ground_cell   !> grounded fraction in each grid cell
@@ -1391,9 +1419,6 @@ contains
 
     real(dp),  dimension(nx,ny) ::  &
          thck_calving_front    ! effective ice thickness at the calving front
-
-    real(dp), parameter :: &   ! threshold for counting cells as grounded
-         f_ground_threshold = 0.10d0
 
     if (verbose_calving .and. this_rank == rtest) then
        print*, ' '
@@ -1462,7 +1487,7 @@ contains
                 !  that f_ground_cell exceeds a threshold value defined above.
                 ! Note: If running without a GLP, then f_ground_cell is binary, either 0 or 1.
 
-                if (active_ice_mask(i,j) == 1 .and. f_ground_cell(i,j) > f_ground_threshold) then  ! grounded ice
+                if (active_ice_mask(i,j) == 1 .and. f_ground_cell(i,j) >= f_ground_threshold) then  ! grounded ice
 
                    if (color(i,j) /= boundary_color .and. color(i,j) /= fill_color) then
 
@@ -1556,10 +1581,12 @@ contains
     !       (2) connected diagonally to an active cell with the fill color.
     !       Such cells are considered part of the inactive calving front and are
     !        allowed to continue filling instead of calving.
+    ! Allow land-based cells to be removed if f_ground < f_ground_threshold
 
     do j = 2, ny-1
        do i = 2, nx-1
-          if (color(i,j) == initial_color .and. land_mask(i,j) == 0) then
+          if (color(i,j) == initial_color .and. &
+             (land_mask(i,j) == 0 .or. f_ground_cell(i,j) < f_ground_threshold)) then
              if (  ( color(i-1,j+1)==fill_color .and. active_ice_mask(i-1,j+1)==1 .and. &
                        (ice_mask(i-1,j)==1 .or. ice_mask(i,j+1)==1) ) &
               .or. ( color(i+1,j+1)==fill_color .and. active_ice_mask(i+1,j+1)==1 .and. &
@@ -1599,6 +1626,7 @@ contains
   subroutine glissade_remove_isthmuses(&
        nx,           ny,            &
        itest, jtest, rtest,         &
+       f_ground_threshold,          &
        thck,                        &
        f_ground_cell,               &
        floating_mask,               &
@@ -1616,6 +1644,7 @@ contains
 
     integer :: nx, ny                                   !> horizontal grid dimensions
     integer, intent(in) :: itest, jtest, rtest          !> coordinates of diagnostic point
+    real(dp), intent(in) :: f_ground_threshold          !> threshold for counting cells as grounded
 
     real(dp), dimension(nx,ny), intent(inout) :: thck            !> ice thickness (m)
     real(dp), dimension(nx,ny), intent(in)    :: f_ground_cell   !> grounded fraction in each grid cell
@@ -1632,12 +1661,10 @@ contains
          ocean_plus_thin_ice_mask         ! = 1 for ocean cells and cells with thin floating ice
 
     ! Both floating and weakly grounded cells can be identified as isthmuses and removed;
-    !  isthmuses_f_ground_threshold is used to identify weakly grounded cells.
-    real(dp), parameter :: &   ! threshold for counting cells as grounded
-         isthmus_f_ground_threshold = 0.50d0
+    !  f_ground_threshold is used to identify weakly grounded cells.
 
     ! An isthmus cell has ice-free ocean or thin floating ice on each side:
-    !  isthmus_f_ground_threshold is used to identify thin floating ice.
+    !  isthmus_thck_threshold is used to identify thin floating ice.
     real(dp), parameter :: &   ! threshold (m) for counting floating ice as thin
          isthmus_thck_threshold = 10.0d0
 
@@ -1662,7 +1689,7 @@ contains
 
     do j = 2, ny-1
        do i = 2, nx-1
-          if (floating_mask(i,j) == 1 .or. f_ground_cell(i,j) < isthmus_f_ground_threshold) then
+          if (floating_mask(i,j) == 1 .or. f_ground_cell(i,j) < f_ground_threshold) then
              if ( (ocean_plus_thin_ice_mask(i-1,j) == 1 .and. ocean_plus_thin_ice_mask(i+1,j) == 1) .or. &
                   (ocean_plus_thin_ice_mask(i,j-1) == 1 .and. ocean_plus_thin_ice_mask(i,j+1) == 1) ) then
                 calving_thck(i,j) = calving_thck(i,j) + thck(i,j)

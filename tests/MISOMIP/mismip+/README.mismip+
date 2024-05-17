@@ -1,6 +1,7 @@
 Instructions for setting up and running the MISMIP+ experiments with CISM.
 
-Note: For setting up the experiments on an NCAR computing environment, follow the steps in the README.NCAR_HPC file in the tests directory.
+Note: For setting up the experiments in an NCAR computing environment,
+follow the steps in the README.NCAR_HPC file in the tests directory.
 
 See this paper for details on MISMIP+:
 
@@ -47,7 +48,15 @@ This directory should contain several Python scripts, along with a template conf
 
 Put a copy or link of cism_driver in your directory. For example:
 
-> ln -s ../../../builds/mac-gnu/cism_driver/cism_driver cism_driver
+> ln -s ../../../builds/derecho-intel/cism_driver/cism_driver cism_driver
+
+WHL TODO - Do we want to also link to a script that loads the desired modules?
+For now, I'm linking to my version of derecho-intel-modules.
+
+On Derecho, you will need to load a conda environment that supports Python:
+
+> module load conda
+> conda activate npl
 
 To create the grid topography and set the appropriate config options for each test, run the Python setup script:
 
@@ -76,16 +85,13 @@ Notes on optional arguments:
 - The following resolutions (m) are supported: 8000, 4000, 2000, 1000, 500, 250.
 - For the timestep argument, the code takes the minimum between the parsed option and 2 
   except for the spinup experiment for which it writes the parsed argument. The reason being
-  the non spinup experiment lead to CFL violation at the first few time steps due to the 
-  change in the forcing is the time step is too large.  
+  that the non spinup experiments can have a CFL violation in the first few time steps
+  due to the change in forcing if the time step is too large.
 - Some of the sensitivity experiments (e.g., Ice1r) might require a shorter time step
   than the Spinup experiment.  For instance, a spin-up using DIVA at 2 km is typically stable with dt = 1.0 yr.
   With identical config settings, Ice1r is unstable and requires a shorter time step, e.g. dt = 0.5 yr.
-  If so, you might need to manually reduce dt in the config file for a given experiment
-  (assuming you don't want to repeat the Spinup). Alternatively you might choose to run all Ice1 
-  or Ice2 experiments with this shorter time step. In that case simply setup those experiments
-  separately from the Spinup and Ice0 experiment using (for res = 2km and Ice1 only):
-  > python mismip+Setup -r 2000 -t 0.5 -x Ice1
+  If so, you might want to run the setup script with dt having a smaller value as needed for the forcing experiments,
+  but then manually increase dt to a larger value for the Spinup experiment.
 - Three Stokes approximations are supported for MISMIP+: SSA, DIVA and BP.
 - Three basal BCs are supported:
   (1) a Weertman-type power law: 'powerlaw'
@@ -93,7 +99,7 @@ Notes on optional arguments:
   (3) a modified power law based on Schoof (2005) and Leguy et al. (2014): 'Schoof'
 
 The config template file includes sensible default values for a number of parameters 
-associated with the Stokes approximation, the basal friction law and the MISMIP+ basal melting
+associated with the Stokes approximation, the basal friction law, and the MISMIP+ basal melting
 parameterization. To change any of these parameters, you need to edit the template file.
 
 If you set up all the experiments, you should have the following subdirectories after running
@@ -115,26 +121,28 @@ Here are the optional arguments for the run script:
 
 If the run is interrupted for any reason and you need to restart it in order to finish your
 experiment, simply relaunch your experiment using the same command line used originally. Using 
-the same previous example of the Spinup run:
+the previous example of the Spinup run:
 
 > python mismip+Run.py -x Spinup -n 16
 
-The script will automatically read the restart file name, modify the config file and restart 
+The script will automatically read the restart file name, modify the config file, and restart
 the run from the latest time saved in the restart file.
-
 
 Continue as needed until you have completed the spin-up period.
 
-Alternatively, you may want to submit a batch job.  If so, do the following:
+WHL TODO: Where does runCISM.derecho.template live?
+WHL TODO: Can we supply a script that will run all the experiments as successive batch jobs?
+
+Alternatively, you may want to submit a batch job (say, on derecho).  If so, do the following:
 1/ Change to the subdirectory of the experiment you want to run. For example, if you'd like
    to submit a job for the "Spinup" experiment, type: "cd Spinup".
-2/ Copy the script runCISM.cheyenne.template into the directory.
+2/ Copy the script runCISM.derecho.template into the directory.
 3/ Modify the script:
     a/ Adjust the number of nodes and processors.
     b/ Adjust the time you'd like to run on HPC.
     c/ Modify the name of the config file to reflect the one in your current directory.
 4/ launch the job from your subdirectory by typing at the command line:
-   > qsub runCISM.cheyenne.template
+   > qsub runCISM.derecho.template
 
 
 Before proceeding, you may want to confirm that the GL has reached a steady state.
@@ -143,8 +151,7 @@ The value of f_ground in the last (partially) grounded cell should be stable wit
 
 If the spin-up cannot be completed with one job submission, you can finish it by initializing
 subsequent runs from the restart file, mismip+Spinup.restart.nc.  To do this, simply edit
-the config file (mismip+Spinup.config) by uncommenting the line 'restart = 1' under [options].
-If this option is not present, simply add it under this configuration segment.
+the config file (mismip+Spinup.config) by including the line 'restart = 1' under [options].
 (You may want to save a copy of the log file under a different name so that it will not
 be overwritten on restart.  The output file, mismip+Spinup.out.nc, will be appended on restart
 and does not need to be copied.)
@@ -152,10 +159,14 @@ and does not need to be copied.)
 Continue as needed until you have completed the spin-up period.
 
 The file mismip+Spinup.restart.nc in the Spinup directory will become the input file
-for the Ice0, Ice1r and Ice2r experiments. However, it needs to edited so that CISM's
+for the Ice0, Ice1r and Ice2r experiments. However, it needs to be edited so that CISM's
 internal_time coordinate for the final time slice is 0. If you are running interactively, 
 the script mismip+Run.py will do this automatically and you simply need to launch your 
 next experiment.
+
+WHL TODO: Instead of the editing the restart file manually, use option restart = 2,
+which will come into main when we marge the glacier branch.
+
 If you are not running interactively and submitting jobs, you will need to edit it yourself.
 You can check on the maximum internal_time value by typing at the command line:
 
@@ -190,7 +201,7 @@ Or all the Ice1 experiments without Ice0 or Ice2:
 
 Once these experiments have run, the next step is to convert the results
 to the format specified by Asay-Davis et al.  Compulsory output consists of the 
-following scalars and field written at 10-year intervals:
+following scalars and fields written at 10-year intervals:
 
 * iceVolume [m^3]
 * iceVAF = volume above flotation [m^3]

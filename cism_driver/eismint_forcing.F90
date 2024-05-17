@@ -273,8 +273,12 @@ contains
        call write_log(message)
     end select
 
-    if ( (eismint_climate%eismint_type > 0) .and. (tasks > 1) ) then
-       call write_log('EISMINT tests are not supported for more than one processor', GM_FATAL)
+    ! Note: The EISMINT-1 tests might work with a parallel Glissade solver, but this has not been tested.
+    !       Only EISMINT-2 has been tested in parallel as of August 2021.
+    if (eismint_climate%eismint_type == 1 .or. eismint_climate%eismint_type == 2) then
+       if (tasks > 1) then
+          call write_log('EISMINT-1 tests are not supported for more than one processor', GM_WARNING)
+       endif
     end if
 
     call write_log('')
@@ -285,27 +289,27 @@ contains
 
     ! calculate eismint mass balance
 
-!TODO - Remove acc0
-
     use glimmer_global, only : dp
     use glide_types
     use glimmer_paramets, only : len0, acc0, scyr
     use glimmer_physcon, only : pi
     use glimmer_scales, only : scale_acab
+    use cism_parallel, only: parallel_globalindex
+
     implicit none
 
     type(eismint_climate_type) :: eismint_climate         ! structure holding climate info
     type(glide_global_type) :: model        ! model instance
     real(dp), intent(in) :: time            ! current time
 
-    !WHL - Changed 'periodic_bc' to 'periodic' to avoid a name conflict with parallel modules
     ! local variables
-    integer  :: ns,ew
+    integer  :: ew, ns, ew_global, ns_global
     real(dp) :: dist, ewct, nsct, grid, rel
-    real(dp) :: periodic = 1.d0  !TODO - Make this an integer?
+    real(dp) :: periodic = 1.d0
 
-    ewct = (real(model%general%ewn,dp) + 1.d0) / 2.d0
-    nsct = (real(model%general%nsn,dp) + 1.d0) / 2.d0
+    ewct = (model%parallel%global_ewn + 1.d0) / 2.d0
+    nsct = (model%parallel%global_nsn + 1.d0) / 2.d0
+
     grid = real(model%numerics%dew,dp) * len0
 
     if (model%options%periodic_ew) then
@@ -322,7 +326,6 @@ contains
        if (eismint_climate%period .ne. 0.d0) then
           model%climate%acab(:,:) = model%climate%acab(:,:) + eismint_climate%mb_amplitude * &
                sin(2.d0*pi*time/eismint_climate%period)/ (acc0 * scyr)
-!          model%climate%acab(:,:) = model%climate%acab(:,:) + climate%mb_amplitude * sin(2.d0*pi*time/climate%period) / scale_acab
        end if
 
     case(2)
@@ -335,7 +338,8 @@ contains
 
        do ns = 1,model%general%nsn
           do ew = 1,model%general%ewn
-             dist = grid * sqrt(periodic*(real(ew,kind=dp) - ewct)**2 + (real(ns,kind=dp) - nsct)**2)
+             call parallel_globalindex(ew, ns, ew_global, ns_global, model%parallel)
+             dist = grid * sqrt((real(ew_global,kind=dp) - ewct)**2 + (real(ns_global,kind=dp) - nsct)**2)
              model%climate%acab(ew,ns) = min(eismint_climate%nmsb(1), eismint_climate%nmsb(2) * (rel - dist))
           end do
        end do
@@ -346,7 +350,8 @@ contains
 
        do ns = 1,model%general%nsn
           do ew = 1,model%general%ewn
-             dist = grid * sqrt(periodic*(real(ew,kind=dp) - ewct)**2 + (real(ns,kind=dp) - nsct)**2)
+             call parallel_globalindex(ew, ns, ew_global, ns_global, model%parallel)
+             dist = grid * sqrt((real(ew_global,kind=dp) - ewct)**2 + (real(ns_global,kind=dp) - nsct)**2)
              model%climate%acab(ew,ns) = min(eismint_climate%nmsb(1), eismint_climate%nmsb(2) * (rel - dist))
           end do
        end do
@@ -367,6 +372,8 @@ contains
     use glimmer_global, only: dp
     use glimmer_paramets, only : len0
     use glimmer_physcon, only : pi
+    use cism_parallel, only: parallel_globalindex
+
     implicit none
 
     type(eismint_climate_type) :: eismint_climate         ! structure holding climate info
@@ -374,12 +381,12 @@ contains
     real(dp), intent(in) :: time            ! current time
 
     ! local variables
-    integer  :: ns,ew
+    integer  :: ew, ns, ew_global, ns_global
     real(dp) :: dist, ewct, nsct, grid
     real(dp) :: periodic = 1.d0
 
-    ewct = (real(model%general%ewn,dp)+1.d0) / 2.d0
-    nsct = (real(model%general%nsn,dp)+1.d0) / 2.d0
+    ewct = (model%parallel%global_ewn + 1.d0) / 2.d0
+    nsct = (model%parallel%global_nsn + 1.d0) / 2.d0
     grid = real(model%numerics%dew,dp) * len0
 
     if (model%options%periodic_ew) then
@@ -394,7 +401,8 @@ contains
        ! EISMINT-1 fixed margin
        do ns = 1,model%general%nsn
           do ew = 1,model%general%ewn
-             dist = grid * max(periodic*abs(real(ew,kind=dp) - ewct),abs(real(ns,kind=dp) - nsct))*1d-3
+             call parallel_globalindex(ew, ns, ew_global, ns_global, model%parallel)
+             dist = grid * max(abs(real(ew_global,kind=dp) - ewct),abs(real(ns_global,kind=dp) - nsct))*1d-3
              model%climate%artm(ew,ns) = eismint_climate%airt(1) + eismint_climate%airt(2) * dist*dist*dist
           end do
        end do
@@ -413,7 +421,8 @@ contains
        ! EISMINT-2
        do ns = 1,model%general%nsn
           do ew = 1,model%general%ewn
-             dist = grid * sqrt(periodic*(real(ew,kind=dp) - ewct)**2 + (real(ns,kind=dp) - nsct)**2)
+             call parallel_globalindex(ew, ns, ew_global, ns_global, model%parallel)
+             dist = grid * sqrt((real(ew_global,kind=dp) - ewct)**2 + (real(ns_global,kind=dp) - nsct)**2)
              model%climate%artm(ew,ns) = eismint_climate%airt(1)+eismint_climate%airt(2) * dist
           end do
        end do
@@ -427,6 +436,10 @@ contains
   
   !which_call - eismint_surftemp(0)/eismint_massbalance(1)/both(2)
   !which_test - test f(0)/test g(1)/exact(2)
+
+  !Note: This subroutine is called only for eismint_climate%eismint_type = 4,
+  !      which is not currently supported.
+  !      It would need some changes to work for parallel runs; see eismint_surftemp above.
 
   subroutine exact_surfmass(eismint_climate,model,time,which_call,which_test)
 
@@ -450,7 +463,7 @@ contains
 
     !TODO - Change which_call to an integer?
     !       Modify for Glissade? (dissip has smaller vertical dimension)
-    if (which_call .eq. 0.d0 .or. which_call .eq. 2.d0) then
+    if (which_call == 0 .or. which_call == 2) then
 
         !point by point call to the function 
         do ns = 1,model%general%nsn
@@ -464,9 +477,9 @@ contains
                     if(r>0.d0 .and. r<L) then
                         if (which_test .eq. 0.d0) then
                             call testF(r,z,H,TT,U,w,Sig,M,Sigc)
-                        else if (which_test .eq. 1.d0) then
+                        else if (which_test == 1) then
                             call testG(time,r,z,H,TT,U,w,Sig,M,Sigc)
-                        else if (which_test .eq. 2.d0) then
+                        else if (which_test == 2) then
                             !H_0 = H0
                             H_0 = model%geometry%thck(center,center)
                             !TT = 0.d0
@@ -482,7 +495,7 @@ contains
             end do
         end do
 
-    else if (which_call .eq. 1.d0 .or. which_call .eq. 2.d0) then
+    else if (which_call == 1 .or. which_call == 2) then
 
         do ns = 1,model%general%nsn
             do ew = 1,model%general%ewn
@@ -492,11 +505,11 @@ contains
                 z = model%geometry%thck(ew,ns)
                 !the function only returns values within the radius
                 if(r>0.d0 .and. r<L) then
-                    if (which_test .eq. 0.d0) then
+                    if (which_test == 0) then
                         call testF(r,z,H,TT,U,w,Sig,M,Sigc)
-                    else if (which_test .eq. 1.d0) then
+                    else if (which_test == 1) then
                         call testG(time,r,z,H,TT,U,w,Sig,M,Sigc)
-                    else if (which_test .eq. 2.d0) then
+                    else if (which_test == 2) then
                         H_0 = H0 !H_0 = model%geometry%thck(center,center)
                         TT = 0.d0 !TT = model%temper%dissip(lev,ew,ns)
                         call model_exact(time,r,z,model%geometry%thck(ew,ns),H_0,TT,U,w,Sig,M,Sigc)
