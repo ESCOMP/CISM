@@ -1,5 +1,9 @@
 CISM Changelog
 
+Changes in CISM tag cism_main_2.01.015
+======================================
+Updates for running CISM standalone on the NSF NCAR Derecho supercomputer.
+
 Changes in CISM tag cism_main_2.01.014
 ======================================
 Basal hydrology scheme, new basal friction and inversion options ESCOMP/CISM PR#61
