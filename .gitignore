@@ -1,0 +1,45 @@
+# Ignore editor temporaries and backups
+*~
+.#*
+\#*#
+*.swp
+
+# Ignore python bytecode files
+*.pyc
+
+# Ignore build temporary files
+CMakeCache.txt
+CMakeFiles
+Makefile
+autocopy.log
+Makefile.am
+build
+cmake_install.cmake
+fortran_autocopy_includes
+fortran_autogen_srcs
+fortran_mod_files
+lib
+
+#ignore cism_driver executables
+cism_driver
+
+#ignore test outputs
+results
+*config.log
+*out.nc
+*restart.nc
+output
+*.o*
+e1-mm.3.nc
+isos.elra.nc
+mismip.config
+mismip3d.config
+mismip3dInit.nc
+greenland_20km.config.pdd.log
+greenland_20km.config.smb.log
+pbsout.txt
+linear
+P75R
+P75S
+Stnd
+mismip+Ice0
