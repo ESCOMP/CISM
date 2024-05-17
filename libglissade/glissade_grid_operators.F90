@@ -579,6 +579,9 @@ contains
     !
     !--------------------------------------------------------
 
+    ! TODO - Make HO_GRADIENT_MARGIN_LAND the default, since it is simple and requires no optional arguments?
+    ! TODO - Make ice_mask an optional argument, = 1 everywhere by default.
+
     if (present(gradient_margin_in)) then
        gradient_margin = gradient_margin_in
     else
@@ -586,7 +589,6 @@ contains
     endif
 
     ! Set logical edge mask based on gradient_margin.
-
     edge_mask_x(:,:) = .false.
     edge_mask_y(:,:) = .false.
 
@@ -1043,7 +1045,7 @@ contains
                 sign_factor = 1.0d0
              endif
 
-             if (land_mask(iu,j) == 1) then
+             if (land_mask(iu,j) == 1 .and. thck_gradient_ramp > 0.0d0) then
                 ! Compute a factor that reduces the gradient if ice in the upper cell is thin and land-based.
                 ! This inhibits oscillations in the gradient when the thickness in the upper cell is close to thklim.
                 edge_thck_upper = thck(iu,j)
@@ -1083,7 +1085,7 @@ contains
                 sign_factor = 1.0d0
              endif
 
-             if (land_mask(i,ju) == 1) then
+             if (land_mask(i,ju) == 1 .and. thck_gradient_ramp > 0.0d0) then
                 ! Compute a factor that reduces the gradient if ice in the upper cell is thin and land-based.
                 ! This inhibits oscillations in the gradient when the thickness in the upper cell is close to thklim.
                 edge_thck_upper = thck(i,ju)
@@ -1109,7 +1111,6 @@ contains
        enddo   ! j
 
     endif   ! ho_gradient_margin
-
 
     ! Average the edge gradients to the vertex, depending on the value of ho_gradient.
 

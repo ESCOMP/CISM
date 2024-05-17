@@ -63,14 +63,6 @@
        module procedure global_sum_staggered_2d_real8_nvar       
     end interface
 
-    ! linear solver settings
-    !TODO - Pass in these solver settings as arguments?
-!    integer, parameter ::    &
-!       maxiters = 200          ! max number of linear iterations before quitting
-                               ! TODO - change to maxiters_default?
-!    real(dp), parameter ::   &
-!       tolerance = 1.d-08    ! tolerance for linear solver
-
     logical, parameter :: verbose_pcg = .false.
     logical, parameter :: verbose_tridiag = .false.
 !!    logical, parameter :: verbose_pcg = .true.
