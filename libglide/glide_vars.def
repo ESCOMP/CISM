@@ -302,6 +302,33 @@ data:          data%velocity%wvel(data%general%upn,1:data%general%ewn,1:data%gen
 factor:        scale_uvel
 standard_name: land_ice_basal_z_velocity
 
+[usfc_obs]
+dimensions:    time, y0, x0
+units:         meter/year
+long_name:     observed surface velocity in x direction
+data:          data%velocity%usfc_obs
+factor:        scale_uvel
+standard_name: land_ice_surface_x_velocity_observed
+load:          1
+
+[vsfc_obs]
+dimensions:    time, y0, x0
+units:         meter/year
+long_name:     observed surface velocity in y direction
+data:          data%velocity%vsfc_obs
+factor:        scale_uvel
+standard_name: land_ice_surface_y_velocity_observed
+load:          1
+
+[velo_sfc_obs]
+dimensions:    time, y0, x0
+units:         meter/year
+long_name:     observed surface speed
+data:          data%velocity%velo_sfc_obs
+factor:        scale_uvel
+standard_name: land_ice_surface_speed_observed
+load:          1
+
 [bmlt_float]
 dimensions:    time, y1, x1
 units:         meter/year
@@ -329,23 +356,6 @@ factor:        scale_acab
 standard_name: floating_ice_basal_melt_rate_anomaly
 load:          1
 
-[bmlt_float_baseline]
-dimensions:    time, y1, x1
-units:         meter/year
-long_name:     baseline basal melt rate for floating ice
-data:          data%basal_melt%bmlt_float_baseline
-factor:        scyr
-standard_name: floating_ice_baseline_basal_melt_rate
-load:          1
-
-[bmlt_float_inversion]
-dimensions:    time, y1, x1
-units:         meter/year
-long_name:     basal melt rate for floating ice from inversion
-data:          data%inversion%bmlt_float_inversion
-factor:        scyr
-load:          0
-
 [warm_ocean_mask]
 dimensions:    time, y1, x1
 units:         1
@@ -364,109 +374,11 @@ data:          data%ocean_data%basin_number
 load:          1
 type:          int
 
-[deltaT_basin_local_median]
+[deltaT_ocn]
 dimensions:    time, y1, x1
 units:         degrees K
-long_name:     deltaT_basin_local_median
-data:          data%ocean_data%deltaT_basin_local_median
-load:          1
-
-[deltaT_basin_local_pct5]
-dimensions:    time, y1, x1
-units:         degrees K
-long_name:     deltaT_basin_local_pct5
-data:          data%ocean_data%deltaT_basin_local_pct5
-load:          1
-
-[deltaT_basin_local_pct95]
-dimensions:    time, y1, x1
-units:         degrees K
-long_name:     deltaT_basin_local_pct95
-data:          data%ocean_data%deltaT_basin_local_pct95
-load:          1
-
-[deltaT_basin_nonlocal_median]
-dimensions:    time, y1, x1
-units:         degrees K
-long_name:     deltaT_basin_nonlocal_median
-data:          data%ocean_data%deltaT_basin_nonlocal_median
-load:          1
-
-[deltaT_basin_nonlocal_pct5]
-dimensions:    time, y1, x1
-units:         degrees K
-long_name:     deltaT_basin_nonlocal_pct5
-data:          data%ocean_data%deltaT_basin_nonlocal_pct5
-load:          1
-
-[deltaT_basin_nonlocal_pct95]
-dimensions:    time, y1, x1
-units:         degrees K
-long_name:     deltaT_basin_nonlocal_pct95
-data:          data%ocean_data%deltaT_basin_nonlocal_pct95
-load:          1
-
-[deltaT_basin]
-dimensions:    time, y1, x1
-units:         degrees K
-long_name:     deltaT_basin
-data:          data%ocean_data%deltaT_basin
-load:          1
-
-[gamma0_local_median]
-dimensions:    time
-units:         meter/year
-long_name:     gamma0_local_median
-data:          data%ocean_data%gamma0_local_median
-load:          1
-
-[gamma0_local_pct5]
-dimensions:    time
-units:         meter/year
-long_name:     gamma0_local_pct5
-data:          data%ocean_data%gamma0_local_pct5
-load:          1
-
-[gamma0_local_pct95]
-dimensions:    time
-units:         meter/year
-long_name:     gamma0_local_pct95
-data:          data%ocean_data%gamma0_local_pct95
-load:          1
-
-[gamma0_nonlocal_median]
-dimensions:    time
-units:         meter/year
-long_name:     gamma0_nonlocal_median
-data:          data%ocean_data%gamma0_nonlocal_median
-load:          1
-
-[gamma0_nonlocal_pct5]
-dimensions:    time
-units:         meter/year
-long_name:     gamma0_nonlocal_pct5
-data:          data%ocean_data%gamma0_nonlocal_pct5
-load:          1
-
-[gamma0_nonlocal_pct95]
-dimensions:    time
-units:         meter/year
-long_name:     gamma0_nonlocal_pct95
-data:          data%ocean_data%gamma0_nonlocal_pct95
-load:          1
-
-[gamma0]
-dimensions:    time
-units:         meter/year
-long_name:     gamma0
-data:          data%ocean_data%gamma0
-load:          1
-
-[thermal_forcing_baseline]
-dimensions:    time, zocn, y1, x1
-units:         degree_Celsius
-long_name:     thermal_forcing_baseline
-data:          data%ocean_data%thermal_forcing_baseline(up,:,:)
+long_name:     deltaT_ocn
+data:          data%ocean_data%deltaT_ocn
 load:          1
 
 [thermal_forcing]
@@ -482,8 +394,14 @@ units:         degrees K
 long_name:     thermal_forcing at lower ice surface
 data:          data%ocean_data%thermal_forcing_lsrf(:,:)
 
+[flow_enhancement_factor]
+dimensions:    time, y1, x1
+units:         1
+long_name:     flow enhancement factor
+data:          data%temper%flow_enhancement_factor
+load:          1
 
-#WHL - A number of plume-related fields follow.
+#WHL - Fields for a future MISOMIP option
 
 [T_ambient]
 dimensions:    time, y1, x1
@@ -498,111 +416,6 @@ units:         psu
 long_name:     ambient ocean salinity
 data:          data%plume%S_ambient(1:data%general%ewn,1:data%general%nsn)
 standard_name: ambient ocean salinity
-
-[T_basal]
-dimensions:    time, y1, x1
-units:         degree_Celsius
-long_name:     basal ice temperature
-data:          data%plume%T_basal(1:data%general%ewn,1:data%general%nsn)
-standard_name: basal_ice_temperature
-
-[S_basal]
-dimensions:    time, y1, x1
-units:         psu
-long_name:     basal ice salinity
-data:          data%plume%S_basal(1:data%general%ewn,1:data%general%nsn)
-standard_name: basal_ice_salinity
-
-[T_plume]
-dimensions:    time, y1, x1
-units:         degree_Celsius
-long_name:     plume temperature
-data:          data%plume%T_plume(1:data%general%ewn,1:data%general%nsn)
-standard_name: plume_temperature
-load:          1
-
-[S_plume]
-dimensions:    time, y1, x1
-units:         psu
-long_name:     plume salinity
-data:          data%plume%S_plume(1:data%general%ewn,1:data%general%nsn)
-standard_name: plume_salinity
-load:          1
-
-[D_plume]
-dimensions:    time, y1, x1
-units:         meter
-long_name:     plume thickness
-data:          data%plume%D_plume(1:data%general%ewn,1:data%general%nsn)
-factor:        thk0
-standard_name: plume_thickness
-load:          1
-
-[u_plume]
-dimensions:    time, y0, x0
-units:         meter/second
-long_name:     plume velocity in x direction on B grid
-data:          data%plume%u_plume(1:data%general%ewn-1,1:data%general%nsn-1)
-standard_name: plume_x_velocity
-
-[v_plume]
-dimensions:    time, y0, x0
-units:         meter/second
-long_name:     plume velocity in y direction on B grid
-data:          data%plume%v_plume(1:data%general%ewn-1,1:data%general%nsn-1)
-standard_name: plume_y_velocity
-
-[u_plume_Cgrid]
-dimensions:    time, y1, x1
-units:         meter/second
-long_name:     plume velocity in x direction on C grid
-data:          data%plume%u_plume_Cgrid(1:data%general%ewn,1:data%general%nsn)
-standard_name: plume_x_velocity_Cgrid
-
-[v_plume_Cgrid]
-dimensions:    time, y1, x1
-units:         meter/second
-long_name:     plume velocity in y direction on C grid
-data:          data%plume%v_plume_Cgrid(1:data%general%ewn,1:data%general%nsn)
-standard_name: plume_y_velocity_Cgrid
-
-[ustar_plume]
-dimensions:    time, y1, x1
-units:         meter/second
-long_name:     plume friction velocity
-data:          data%plume%ustar_plume(1:data%general%ewn,1:data%general%nsn)
-standard_name: plume_friction_velocity
-
-[drho_plume]
-dimensions:    time, y1, x1
-units:         kg/m3
-long_name:     plume density diffrence with ambient ocean
-data:          data%plume%drho_plume(1:data%general%ewn,1:data%general%nsn)
-standard_name: plume_density_difference
-
-[entrainment]
-dimensions:    time, y1, x1
-units:         meter/year
-long_name:     entrainment rate
-data:          data%plume%entrainment(1:data%general%ewn,1:data%general%nsn)
-factor:        scale_acab
-standard_name: entrainment_rate
-
-[detrainment]
-dimensions:    time, y1, x1
-units:         meter/year
-long_name:     detrainment rate
-data:          data%plume%detrainment(1:data%general%ewn,1:data%general%nsn)
-factor:        scale_acab
-standard_name: detrainment_rate
-
-[divDu_plume]
-dimensions:    time, y1, x1
-units:         meter/year
-long_name:     divergence of D_plume*u_plume
-data:          data%plume%divDu_plume(1:data%general%ewn,1:data%general%nsn)
-factor:        scale_acab
-standard_name: plume divergence rate
 
 [taudx]
 dimensions:    time, y0, x0
@@ -674,6 +487,27 @@ long_name:     observed surface elevation
 data:          data%geometry%usrf_obs
 factor:        thk0
 load:          1
+
+[dthck_dt_obs]
+dimensions:    time, y1, x1
+units:         meter/year
+long_name:     observed rate of ice thickness change
+data:          data%geometry%dthck_dt_obs
+load:          1
+
+[dthck_dt_obs_basin]
+dimensions:    time, y1, x1
+units:         meter/year
+long_name:     observed rate of ice thickness change, basin average
+data:          data%geometry%dthck_dt_obs_basin
+load:          1
+
+[dthck_dt]
+dimensions:    time, y1, x1
+units:         meter/year
+long_name:     rate of ice thickness change
+data:          data%geometry%dthck_dt
+factor:        scyr
 
 [floating_thck_target]
 dimensions:    time, y1, x1
@@ -1122,22 +956,41 @@ load:          1
 dimensions:    time, y1, x1
 units:         meter
 long_name:     basal water depth
-data:          data%temper%bwat
+data:          data%basal_hydro%bwat
 factor:        thk0
 load:          1
 
 [bwatflx]
 dimensions:    time, y1, x1
-units:         meter3/year
+units:         meter/year
 long_name:     basal water flux
-data:          data%temper%bwatflx
-factor:        thk0
+data:          data%basal_hydro%bwatflx
+
+[head]
+dimensions:    time, y1, x1
+units:         meter
+long_name:     hydraulic head
+data:          data%basal_hydro%head
+factor:        1
 
 [effecpress]
 dimensions:    time, y1, x1
 units:         Pa
 long_name:     effective pressure
 data:          data%basal_physics%effecpress
+
+[f_effecpress_bwat]
+dimensions:    time, y1, x1
+units:         1
+long_name:     effective pressure factor from bwatflx
+data:          data%basal_physics%f_effecpress_bwat
+load:          1
+
+[f_effecpress_ocean_p]
+dimensions:    time, y1, x1
+units:         1
+long_name:     effective pressure factor from ocean_p
+data:          data%basal_physics%f_effecpress_ocean_p
 load:          1
 
 [c_space_factor]
@@ -1147,18 +1000,18 @@ long_name:     spatial factor for basal shear stress
 data:          data%basal_physics%c_space_factor
 load:          1
 
-[powerlaw_c_inversion]
+[powerlaw_c]
 dimensions:    time, y0, x0
 units:         Pa (m/yr)**(-1/3)
 long_name:     spatially varying C for powerlaw sliding, staggered grid
-data:          data%inversion%powerlaw_c_inversion
+data:          data%basal_physics%powerlaw_c
 load:          1
 
-[thck_inversion_save]
-dimensions:    time, y1,x1
-units:         meter
-long_name:     thickness from previous time step, for inversion
-data:          data%inversion%thck_save
+[coulomb_c]
+dimensions:    time, y0, x0
+units:         1
+long_name:     spatially varying C for Coulomb sliding, staggered grid
+data:          data%basal_physics%coulomb_c
 load:          1
 
 [artm]
@@ -1204,14 +1057,6 @@ units:         meter/year
 long_name:     tendency of ice thickness (NOTE: Glide only)
 data:          data%geomderv%dthckdtm
 factor:        scale_acab
-
-[dthck_dt]
-dimensions:    time, y1,x1
-units:         meter/year
-long_name:     tendency of ice thickness (NOTE: Glissade only)
-data:          data%geometry%dthck_dt
-factor:        scyr
-load:          1
 
 [uvel]
 dimensions:    time, level, y0, x0

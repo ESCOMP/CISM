@@ -32,7 +32,6 @@ from math import tan, pi, sin, cos, atan
 from runSlab import rhoi, grav
 
 import configparser
-
 import argparse
 parser = argparse.ArgumentParser(description=__doc__,
         formatter_class=argparse.ArgumentDefaultsHelpFormatter)
