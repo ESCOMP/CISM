@@ -24,7 +24,7 @@ mpirun -np 1 ./cism_driver e2.a.config
 and likewise for other test cases.
 
 Note that some tests use output "hotstart" files (marked with a "hot"
-extension) from previous tests as input files, so the tests should be run
+exentsion) from previous tests as input files, so the tests should be run
 sequentially, starting with test A.
 
 To view the results use ncview or another utility for viewing netCDF files.
@@ -35,8 +35,4 @@ More information on the EISMINT-2 test cases can be found here:
   227–238. <http://homepages.vub.ac.be/~phuybrec/eismint.html>
 
 (last edited on 2-6-14 by SFP)
-
-WHL TODO (Aug. 2021):
-* Add a script that will run the full suite of EISMINT-2 tests
-* Add a directory of config files for Glissade EISMINT-2 tests, with the option to run in parallel
 

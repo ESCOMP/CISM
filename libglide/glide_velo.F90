@@ -95,10 +95,10 @@ contains
 
     model%velowk%depthw = (/ ((model%numerics%sigma(up+1)+model%numerics%sigma(up)) / 2.0d0, up=1,upn-1), 0.0d0 /)
 
-    model%velowk%fact = (/ model%paramets%flow_enhancement_factor_ground * arrmlh / vis0, &   ! Value of a when T* is above -263K
-                           model%paramets%flow_enhancement_factor_ground * arrmll / vis0, &   ! Value of a when T* is below -263K
-                          -actenh / gascon,        &                                          ! Value of -Q/R when T* is above -263K
-                          -actenl / gascon/)                                                  ! Value of -Q/R when T* is below -263K
+    model%velowk%fact = (/ model%paramets%flow_enhancement_factor* arrmlh / vis0, &   ! Value of a when T* is above -263K
+                           model%paramets%flow_enhancement_factor* arrmll / vis0, &   ! Value of a when T* is below -263K
+                          -actenh / gascon,        &                               ! Value of -Q/R when T* is above -263K
+                          -actenl / gascon/)                                       ! Value of -Q/R when T* is below -263K
 
     model%velowk%watwd  = model%paramets%bpar(1)
     model%velowk%watct  = model%paramets%bpar(2)
@@ -112,11 +112,10 @@ contains
     model%velowk%c(3)   = (thk0 * pi) / model%velowk%watwd  
     model%velowk%c(4)   = pi*(model%velowk%watct / model%velowk%watwd)
 
-    ! Note: cflow < 0 is used in several equations below.
-    !       Signs in this module can be tricky, so comments are added to help keep track.
     cflow = -2.0d0*vis0*(rhoi*grav)**gn*thk0**p3/(8.0d0*vel0*len0**gn)
 
   end subroutine init_velo
+
 
   
   !*****************************************************************************
@@ -153,8 +152,7 @@ contains
              hrzflwa = flwa(:,ew,ns) + flwa(:,ew,ns+1) + flwa(:,ew+1,ns) + flwa(:,ew+1,ns+1)
              intflwa(upn) = 0.0d0
 
-             ! Perform inner integration.
-             ! Note: cflow < 0, so dintflwa < 0
+             !Perform inner integration.
              do up = upn-1, 1, -1
                 intflwa(up) = intflwa(up+1) + velowk%depth(up) * (hrzflwa(up)+hrzflwa(up+1))
              end do
@@ -187,8 +185,8 @@ contains
     real(dp),dimension(:,:),  intent(in)    :: dusrfdns
     real(dp),dimension(:,:),  intent(out)   :: diffu
 
+
     where (stagthck  /=  0.0d0)
-       ! Note: dintflwa < 0, so diffu < 0
        diffu = velowk%dintflwa * stagthck**p4 * sqrt(dusrfdew**2 + dusrfdns**2)**p2 
     elsewhere
        diffu = 0.0d0
@@ -243,9 +241,6 @@ contains
        do ew = 1,ewn
 
           if (stagthck(ew,ns) /= 0.0d0) then
-
-             ! Note: cflow < 0, dintflwa < 0, factor < 0, diffu < 0
-             !       So there are several cancelling minus signs here.
 
              vflx(ew,ns) = diffu(ew,ns) * dusrfdns(ew,ns) + vbas(ew,ns) * stagthck(ew,ns)
              uflx(ew,ns) = diffu(ew,ns) * dusrfdew(ew,ns) + ubas(ew,ns) * stagthck(ew,ns)
@@ -305,13 +300,14 @@ contains
     ! Subroutine arguments
     !------------------------------------------------------------------------------------
 
-    type(glide_global_type) :: model                !> model instance
-    integer, intent(in)                 :: flag1    !> \texttt{flag1} sets the calculation
-                                                    !> method to use for the basal velocity
-                                                    !> (corresponded to \texttt{whichslip} in the old model
-    real(dp),dimension(:,:),intent(in)  :: btrc     !> The basal slip coefficient
-    real(dp),dimension(:,:),intent(out) :: ubas     !> The $x$ basal velocity (scaled)
-    real(dp),dimension(:,:),intent(out) :: vbas     !> The $y$ basal velocity (scaled)
+    type(glide_global_type) :: model                  !> model instance
+    integer, intent(in)                 :: flag1      !> \texttt{flag1} sets the calculation
+                                                      !> method to use for the basal velocity
+                                                      !> (corresponded to \texttt{whichslip} in the
+                                                      !> old model. 
+    real(dp),dimension(:,:),intent(in)   :: btrc     !> The basal slip coefficient.
+    real(dp),dimension(:,:),intent(out)   :: ubas     !> The $x$ basal velocity (scaled)
+    real(dp),dimension(:,:),intent(out)   :: vbas     !> The $y$ basal velocity (scaled)
 
     !------------------------------------------------------------------------------------
     ! Internal variables
@@ -321,7 +317,7 @@ contains
 
     ! Get array sizes -------------------------------------------------------------------
 
-    ewn=size(btrc,1) ; nsn=size(btrc,2)
+    ewn=size(btrc,1) ; nsn=size(btrc,2)    
 
     !------------------------------------------------------------------------------------
     ! Main calculation starts here
@@ -332,14 +328,9 @@ contains
     
       ! Linear function of gravitational driving stress ---------------------------------
 
-      !WHL - This logic might be problematic in some cases since it can trap ice in an upstream cell
-      !       with stagthck > thklim, instead of letting it flow downhill to a cell with stagthck < thklim.
-      !      Alternatively, we could compute ubas and vbas for all vertices of cells with stagthck > thklim.
-      !      To be tested at some point.
-
-      where (model%geomderv%stagthck >= model%numerics%thklim)
-        ubas = -btrc * rhoi * grav * model%geomderv%stagthck * model%geomderv%dusrfdew
-        vbas = -btrc * rhoi * grav * model%geomderv%stagthck * model%geomderv%dusrfdns
+      where (model%numerics%thklim < model%geomderv%stagthck)
+        ubas = btrc * rhoi * grav * model%geomderv%stagthck * model%geomderv%dusrfdew
+        vbas = btrc * rhoi * grav * model%geomderv%stagthck * model%geomderv%dusrfdns
       elsewhere
         ubas = 0.0d0
         vbas = 0.0d0
@@ -349,21 +340,17 @@ contains
 
       ! *tp* option to be used in picard iteration for thck
       ! *tp* start by find constants which dont vary in iteration
-      !Note: fslip < 0
 
-      model%velowk%fslip = -rhoi * grav * btrc
+      model%velowk%fslip = rhoi * grav * btrc
 
     case(2)
 
       ! *tp* option to be used in picard iteration for thck
       ! *tp* called once per non-linear iteration, set uvel to ub * H /(ds/dx) which is
       ! *tp* a diffusivity for the slip term (note same in x and y)
-      !
-      !Note: Since fslip < 0, we have ubas < 0.
-      !      Need the minus sign to match the sign convention for the interior diffu0
 
-      where (model%geomderv%stagthck >= model%numerics%thklim)
-        ubas = model%velowk%fslip * model%geomderv%stagthck**2
+      where (model%numerics%thklim < model%geomderv%stagthck)
+        ubas = model%velowk%fslip * model%geomderv%stagthck**2  
       elsewhere
         ubas = 0.0d0
       end where
@@ -372,12 +359,8 @@ contains
 
       ! *tp* option to be used in picard iteration for thck
       ! *tp* finally calc ub and vb from diffusivities
-      !
-      !Note: On the rhs, ubas is the term computed above: fslip * stagthck^2
-      !      Since the rhs ubas < 0, the final (ubas, vbas) are directed
-      !       opposite the surface elevation gradient, as expected.
 
-      where (model%geomderv%stagthck >= model%numerics%thklim)
+      where (model%numerics%thklim < model%geomderv%stagthck)
         vbas = ubas *  model%geomderv%dusrfdns / model%geomderv%stagthck
         ubas = ubas *  model%geomderv%dusrfdew / model%geomderv%stagthck
       elsewhere
@@ -388,7 +371,6 @@ contains
     case default
       ubas = 0.0d0
       vbas = 0.0d0
-
     end select
 
   end subroutine slipvelo
@@ -435,6 +417,7 @@ contains
 
     upn=size(sigma) ; ewn=size(ubas,1) ; nsn=size(ubas,2)
 
+
     !------------------------------------------------------------------------------------
 
     select case(flag)
@@ -455,30 +438,25 @@ contains
             hrzflwa = flwa(:,ew,ns) + flwa(:,ew,ns+1) + flwa(:,ew+1,ns) + flwa(:,ew+1,ns+1)
 
             ! Calculate coefficient for integration
-            ! Note: cflow < 0, so const(1) < 0
+
             const(1) = cflow * stagthck(ew,ns)**p1 * sqrt(dusrfdew(ew,ns)**2 + dusrfdns(ew,ns)**2)**p2  
 
             ! Do first step of finding u according to (8) in Payne and Dongelmans 
-            ! Note: uvel here is a temporary variable, not the actual velocity.
-            !       const(1) < 0, so uvel < 0 and diffu < 0
 
             do up = upn-1, 1, -1
               uvel(up,ew,ns) = uvel(up+1,ew,ns) + const(1) * velowk%depth(up) * sum(hrzflwa(up:up+1)) 
             end do
 
-            ! Calculate diffusivity
+            ! Calculate u diffusivity (?)
 
             diffu(ew,ns) = vertintg(velowk,uvel(:,ew,ns)) * stagthck(ew,ns)
 
             ! Complete calculation of u and v
-            ! Note: temporary variable uvel < 0 on the rhs (since cflow and const(1) are negative),
-            !       so uvel and vvel are opposite the surface gradients as expected.
 
             vvel(:,ew,ns) = uvel(:,ew,ns) * dusrfdns(ew,ns) + vbas(ew,ns)
             uvel(:,ew,ns) = uvel(:,ew,ns) * dusrfdew(ew,ns) + ubas(ew,ns)
 
             ! Calculate ice fluxes
-            ! Note: diffu < 0, so fluxes are opposite the surface gradients as expected.
 
             uflx(ew,ns) = diffu(ew,ns) * dusrfdew(ew,ns) + ubas(ew,ns) * stagthck(ew,ns)
             vflx(ew,ns) = diffu(ew,ns) * dusrfdns(ew,ns) + vbas(ew,ns) * stagthck(ew,ns)
@@ -511,7 +489,6 @@ contains
                intflwa(up) = intflwa(up+1) + velowk%depth(up) * sum(hrzflwa(up:up+1)) 
             end do
 
-            ! Note: cflow < 0, so dintflwa < 0
             velowk%dintflwa(ew,ns) = cflow * vertintg(velowk,intflwa)
 
           else 
@@ -525,8 +502,6 @@ contains
     case(2)
 
       where (stagthck /= 0.0d0)
-
-         ! Note: dintflwa < 0, so diffu < 0
         diffu = velowk%dintflwa * stagthck**p4 * sqrt(dusrfdew**2 + dusrfdns**2)**p2 
       elsewhere
         diffu = 0.0d0
@@ -537,9 +512,6 @@ contains
       do ns = 1,nsn
         do ew = 1,ewn
           if (stagthck(ew,ns) /= 0.0d0) then
-
-             ! Note: cflow < 0, dintflwa < 0, diffu < 0
-             !       So there are several cancelling minus signs here.
 
             vflx(ew,ns) = diffu(ew,ns) * dusrfdns(ew,ns) + vbas(ew,ns) * stagthck(ew,ns)
             uflx(ew,ns) = diffu(ew,ns) * dusrfdew(ew,ns) + ubas(ew,ns) * stagthck(ew,ns)
@@ -1061,7 +1033,7 @@ contains
 
        do ns = 1,nsn-1
           do ew = 1,ewn-1
-             if (0.0d0 < model%basal_hydro%stagbwat(ew,ns)) then
+             if (0.0d0 < model%temper%stagbwat(ew,ns)) then
                 btrc(ew,ns) = model%velocity%bed_softness(ew,ns)
              else
                 btrc(ew,ns) = 0.0d0
@@ -1106,10 +1078,10 @@ contains
 
        do ns = 1,nsn-1
           do ew = 1,ewn-1
-             if (0.0d0 < model%basal_hydro%stagbwat(ew,ns)) then
+             if (0.0d0 < model%temper%stagbwat(ew,ns)) then
                
                 btrc(ew,ns) = model%velowk%c(1) + model%velowk%c(2) * tanh(model%velowk%c(3) * &
-                     model%basal_hydro%stagbwat(ew,ns) - model%velowk%c(4))
+                     model%temper%stagbwat(ew,ns) - model%velowk%c(4))
                 
                 if (0.0d0 > sum(model%isostasy%relx(ew:ew+1,ns:ns+1))) then
                    btrc(ew,ns) = btrc(ew,ns) * model%velowk%marine  

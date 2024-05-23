@@ -663,7 +663,7 @@
     !       the local SIA solver (HO_APPROX_LOCAL_SIA) in glissade_velo_sia.F90.
     !----------------------------------------------------------------
 
-    use glissade_basal_traction, only: calcbeta
+    use glissade_basal_traction, only: calcbeta, calc_effective_pressure
     use glissade_therm, only: glissade_pressure_melting_point
     use profile, only: t_startf, t_stopf
 
@@ -726,6 +726,8 @@
        usrf,                 &  ! upper surface elevation (m)
        topg,                 &  ! elevation of topography (m)
        bpmp,                 &  ! pressure melting point temperature (C)
+       bwat,                 &  ! basal water thickness (m)
+       bmlt,                 &  ! basal melt rate (m/yr)
        beta,                 &  ! basal traction parameter (Pa/(m/yr))
        beta_internal,        &  ! beta field weighted by f_ground (such that beta = 0 beneath floating ice)
        bfricflx,             &  ! basal heat flux from friction (W/m^2) 
@@ -756,6 +758,9 @@
        tau_xx, tau_yy, tau_xy, &! horizontal components of stress tensor (Pa)
        tau_eff                  ! effective stress (Pa)
 
+    real(dp), dimension(:,:), pointer ::  &
+       powerlaw_c_inversion     ! Cp (for basal friction) computed from inversion, on staggered grid
+
     integer,  dimension(:,:), pointer ::   &
        kinbcmask,              &! = 1 at vertices where u and v are prescribed from input data (Dirichlet BC), = 0 elsewhere
        umask_no_penetration,   &! = 1 at vertices along east/west global boundary where uvel = 0, = 0 elsewhere
@@ -764,8 +769,8 @@
     integer ::   &
        whichbabc, &             ! option for basal boundary condition
        whichbeta_limit, &       ! option to limit beta for grounded ice
-       which_powerlaw_c, &      ! option for powerlaw friction parameter Cp
-       which_coulomb_c, &       ! option for coulomb friction parameter Cc
+       which_cp_inversion, &    ! option to invert for basal friction parameters
+       whicheffecpress,  &      ! option for effective pressure calculation
        whichefvs, &             ! option for effective viscosity calculation 
                                 ! (calculate it or make it uniform)
        whichresid, &            ! option for method of calculating residual
@@ -1103,6 +1108,8 @@
      beta_internal => model%velocity%beta_internal(:,:)
      bfricflx => model%temper%bfricflx(:,:)
      bpmp     => model%temper%bpmp(:,:)
+     bwat     => model%temper%bwat(:,:)
+     bmlt     => model%basal_melt%bmlt(:,:)
 
      uvel     => model%velocity%uvel(:,:,:)
      vvel     => model%velocity%vvel(:,:,:)
@@ -1124,6 +1131,8 @@
      tau_xy   => model%stress%tau%xy(:,:,:)
      tau_eff  => model%stress%tau%scalar(:,:,:)
 
+     powerlaw_c_inversion => model%inversion%powerlaw_c_inversion(:,:)
+
      kinbcmask => model%velocity%kinbcmask(:,:)
      umask_no_penetration => model%velocity%umask_no_penetration(:,:)
      vmask_no_penetration => model%velocity%vmask_no_penetration(:,:)
@@ -1139,8 +1148,8 @@
 
      whichbabc            = model%options%which_ho_babc
      whichbeta_limit      = model%options%which_ho_beta_limit
-     which_powerlaw_c     = model%options%which_ho_powerlaw_c
-     which_coulomb_c      = model%options%which_ho_coulomb_c
+     which_cp_inversion   = model%options%which_ho_cp_inversion
+     whicheffecpress      = model%options%which_ho_effecpress
      whichefvs            = model%options%which_ho_efvs
      whichresid           = model%options%which_ho_resid
      whichsparse          = model%options%which_ho_sparse
@@ -1178,6 +1187,7 @@
                                           topg,    eus,           &
                                           thklim,                 &
                                           thck_gradient_ramp,     &
+                                          bwat,    bmlt,          &
                                           flwa,    efvs,          &
                                           btractx, btracty,       &
                                           uvel,    vvel,          &
@@ -1310,6 +1320,7 @@
 !    call parallel_halo(topg, parallel)
 !    call parallel_halo(usrf, parallel)
 !    call parallel_halo(flwa, parallel)
+!    call parallel_halo(bwat, parallel)
 
     !------------------------------------------------------------------------------
     ! Setup for higher-order solver: Compute nodal geometry, allocate storage, etc.
@@ -1998,7 +2009,25 @@
 
     beta_internal(:,:) = 0.d0
 
-    ! Note: There was a call here to calc_effective_pressure, moved to the glissade diagnostic solve.
+    !------------------------------------------------------------------------------
+    ! Compute the effective pressure N at the bed.
+    ! Although N is not needed for all sliding options, it is computed here just in case.
+    ! Note: effective pressure is part of the basal_physics derived type.
+    ! Note: Ideally, bpmp and temp(nz) are computed after the transport solve,
+    !       just before the velocity solve. Then they will be consistent with the
+    !       current thickness field.
+    !------------------------------------------------------------------------------
+
+    !TODO - Use btemp_ground instead of temp(nz)?
+    call calc_effective_pressure(whicheffecpress,              &
+                                 nx,            ny,            &
+                                 model%basal_physics,          &
+                                 ice_mask,      floating_mask, &
+                                 thck,          topg,          &
+                                 eus,                          &
+                                 bpmp(:,:) - temp(nz,:,:),     &
+                                 bmlt,          bwat,          &
+                                 itest, jtest,  rtest)
 
     !------------------------------------------------------------------------------
     ! For the HO_BABC_BETA_BPMP option, compute a mask of vertices where the bed is at
@@ -2739,6 +2768,16 @@
              enddo
 
              print*, ' '
+             print*, 'bwat field, itest, jtest, rank =', itest, jtest, rtest
+             do j = jtest+3, jtest-3, -1
+                write(6,'(i6)',advance='no') j
+                do i = itest-3, itest+3
+                   write(6,'(f10.3)',advance='no') bwat(i,j)
+                enddo
+                write(6,*) ' '
+             enddo
+
+             print*, ' '
              print*, 'effecpress field, itest, jtest, rank =', itest, jtest, rtest
              do j = jtest+3, jtest-3, -1
                 write(6,'(i6)',advance='no') j
@@ -2791,9 +2830,9 @@
                          beta*tau0/(vel0*scyr),            &  ! external beta (intent in)
                          beta_internal,                    &  ! beta weighted by f_ground (intent inout)
                          whichbeta_limit,                  &
-                         which_ho_powerlaw_c = which_powerlaw_c,  &
-                         which_ho_coulomb_c  = which_coulomb_c,   &
-                         itest = itest, jtest = jtest, rtest = rtest)
+                         which_cp_inversion,               &
+                         powerlaw_c_inversion,             &
+                         itest, jtest, rtest)
 
 !          if (verbose_beta) then
 !             maxbeta = maxval(beta_internal(:,:))
@@ -3309,6 +3348,7 @@
              call t_startf('glissade_velo_higher_scale_outp')
              call glissade_velo_higher_scale_output(thck,    usrf,          &
                                                     topg,                   &
+                                                    bwat,    bmlt,          &
                                                     flwa,    efvs,          &
                                                     beta_internal,          &
                                                     resid_u, resid_v,       &
@@ -3577,7 +3617,7 @@
 
           endif  ! solve_2d
 
-          if (whichbabc == HO_BABC_BETA_BPMP) then
+          if (whichbabc == HO_BABC_BETA_BPMP .or. whicheffecpress == HO_EFFECPRESS_BPMP) then
 
              print*, ' '
              print*, 'staggered bed temp, itest, jtest, rank =', itest, jtest, rtest
@@ -3609,7 +3649,21 @@
                 write(6,*) ' '
              enddo
 
-          endif  ! HO_BABC_BETA_BPMP
+          endif  ! HO_BABC_BETA_BPMP or HO_EFFECPRESS_BPMP
+
+          if (whicheffecpress == HO_EFFECPRESS_BMLT) then
+
+             print*, ' '
+             print*, 'bmlt (m/yr), itest, jtest, rank =', itest, jtest, rtest
+             do j = jtest+3, jtest-3, -1
+                write(6,'(i6)',advance='no') j
+                do i = itest-3, itest+3
+                   write(6,'(f10.5)',advance='no') bmlt(i,j)
+                enddo
+                write(6,*) ' '
+             enddo
+
+          endif  ! HO_EFFECPRESS_BMLT
 
           if (whichbabc == HO_BABC_YIELD_PICARD) then
              print*, ' '
@@ -4358,6 +4412,7 @@
 !pw call t_startf('glissade_velo_higher_scale_output')
     call glissade_velo_higher_scale_output(thck,    usrf,          &
                                            topg,                   &
+                                           bwat,    bmlt,          &
                                            flwa,    efvs,          &
                                            beta_internal,          &
                                            resid_u, resid_v,       &
@@ -4381,6 +4436,7 @@
                                               topg,    eus,           &
                                               thklim,                 &
                                               thck_gradient_ramp,     &
+                                              bwat,    bmlt,          &
                                               flwa,    efvs,          &
                                               btractx, btracty,       &
                                               uvel,    vvel,          &
@@ -4397,7 +4453,9 @@
     real(dp), dimension(:,:), intent(inout) ::   &
        thck,                &  ! ice thickness
        usrf,                &  ! upper surface elevation
-       topg                    ! elevation of topography
+       topg,                &  ! elevation of topography
+       bwat,                &  ! basal water thickness
+       bmlt                    ! basal melt rate
 
     real(dp), intent(inout) ::   &
        eus,                 &  ! eustatic sea level (= 0 by default)
@@ -4426,6 +4484,10 @@
     eus  = eus  * thk0
     thklim = thklim * thk0
     thck_gradient_ramp = thck_gradient_ramp * thk0
+    bwat = bwat * thk0
+
+    ! basal melt rate: rescale from dimensionless to m/yr
+    bmlt = bmlt * (scyr*thk0/tim0)
 
     ! rate factor: rescale from dimensionless to Pa^(-n) yr^(-1)
     flwa = flwa * (vis0*scyr)
@@ -4449,6 +4511,7 @@
 
   subroutine glissade_velo_higher_scale_output(thck,    usrf,           &
                                                topg,                    &
+                                               bwat,    bmlt,           &
                                                flwa,    efvs,           &                                       
                                                beta_internal,           &
                                                resid_u, resid_v,        &
@@ -4469,7 +4532,9 @@
     real(dp), dimension(:,:), intent(inout) ::  &
        thck,                 &  ! ice thickness
        usrf,                 &  ! upper surface elevation
-       topg                     ! elevation of topography
+       topg,                 &  ! elevation of topography
+       bwat,                 &  ! basal water thickness
+       bmlt                     ! basal melt rate
 
     real(dp), dimension(:,:,:), intent(inout) ::  &
        flwa,   &                ! flow factor in units of Pa^(-n) yr^(-1)
@@ -4497,6 +4562,10 @@
     thck = thck / thk0
     usrf = usrf / thk0
     topg = topg / thk0
+    bwat = bwat / thk0
+
+    ! Convert basal melt rate from m/yr to dimensionless units
+    bmlt = bmlt / (scyr*thk0/tim0)
 
     ! Convert flow factor from Pa^(-n) yr^(-1) to dimensionless units
     flwa = flwa / (vis0*scyr)
@@ -5706,9 +5775,7 @@
     ! The matrix A can be based on the shallow-shelf approximation or 
     !  the depth-integrated L1L2 approximation (Schoof and Hindmarsh, 2010).
     !----------------------------------------------------------------
-
-    use glissade_grid_operators, only: glissade_vertical_average
-
+ 
     !----------------------------------------------------------------
     ! Input-output arguments
     !----------------------------------------------------------------
@@ -6500,6 +6567,7 @@
 
     logical, parameter :: &
          include_membrane_stress_in_tau = .true.  ! if true, include membrane stresses in tau_xz and tau_yz;
+
                                                   ! if false, include the SIA stress only
     integer :: &
          staggered_ilo, staggered_ihi, &  ! bounds of locally owned vertices on staggered grid

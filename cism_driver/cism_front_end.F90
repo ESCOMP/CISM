@@ -226,7 +226,7 @@ subroutine cism_init_dycore(model)
 
   ! --- Output the initial state -------------
 
-  if (model%options%is_restart == RESTART_FALSE .or. model%options%forcewrite_restart) then
+  if (model%options%is_restart == RESTART_FALSE) then
      call t_startf('initial_io_writeall')
      call glide_io_writeall(model, model, time=time)          ! MJH The optional time argument needs to be supplied 
                                                               !     since we have not yet set model%numerics%time

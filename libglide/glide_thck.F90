@@ -131,29 +131,30 @@ contains
        !      and the geometry has not changed, so stagthck and the geometry
        !      derivatives are still up to date.  A call might be needed here
        !      if glide_tstep_p2 were called out of order.
+
 !!       call glide_geometry_derivs(model)
 
        ! calculate basal velos
        if (newtemps) then
 
-          call slipvelo(model,                     &
-                        1,                         &
-                        model%velocity%btrc,       &
-                        model%velocity%ubas,       &
-                        model%velocity%vbas)
+          call slipvelo(model,                &
+                        1,                             &
+                        model%velocity% btrc,          &
+                        model%velocity% ubas,          &
+                        model%velocity% vbas)
 
           ! calculate Glen's A if necessary
           call velo_integrate_flwa(model%velowk,  &
                                    model%geomderv%stagthck,   &
                                    model%temper%flwa)
 
-       end if   ! newtemps
+       end if
 
-       call slipvelo(model,                        &
-                     2,                            &
-                     model%velocity%btrc,          &
-                     model%velocity%ubas,          &
-                     model%velocity%vbas)
+       call slipvelo(model,                &
+                     2,                             &
+                     model%velocity% btrc,          &
+                     model%velocity% ubas,          &
+                     model%velocity% vbas)
 
        ! calculate diffusivity
 
@@ -161,12 +162,12 @@ contains
                             model%geomderv%dusrfdew, model%geomderv%dusrfdns,  &
                             model%velocity%diffu)
 
-       ! get new thicknesses
+        ! get new thicknesses
 
-       call thck_evolve(model,    &
-                        model%velocity%diffu, model%velocity%diffu, &
-                        .true.,   &
-                        model%geometry%thck,  model%geometry%thck)
+        call thck_evolve(model,    &
+                         model%velocity%diffu, model%velocity%diffu, &
+                         .true.,   &
+                         model%geometry%thck,  model%geometry%thck)
 
 !--- MJH: Since the linear evolution uses a diffusivity based on the old geometry, the
 !    velocity calculated here will also be based on the old geometry.  If it is
@@ -203,7 +204,7 @@ contains
                            model%velocity%uflx,     model%velocity%vflx,&
                            model%velocity%velnorm)
 
-    end if   ! model%geometry%empty
+    end if
 
   end subroutine thck_lin_evolve
 
@@ -268,9 +269,9 @@ contains
 
           call slipvelo(model,                         &
                         1,                             &
-                        model%velocity%btrc,           &
-                        model%velocity%ubas,           &
-                        model%velocity%vbas)
+                        model%velocity% btrc,          &
+                        model%velocity% ubas,          &
+                        model%velocity% vbas)
 
           ! calculate Glen's A if necessary
           call velo_integrate_flwa(model%velowk,             &
@@ -293,12 +294,11 @@ contains
           call glide_geometry_derivs(model)   
 
           ! flag = 2: compute basal contribution to diffusivity
-
-          call slipvelo(model,                        &
-                        2,                            &
-                        model%velocity%btrc,          &
-                        model%velocity%ubas,          &
-                        model%velocity%vbas)
+          call slipvelo(model,                         &
+                        2,                             &
+                        model%velocity% btrc,          &
+                        model%velocity% ubas,          &
+                        model%velocity% vbas)
 
           ! calculate diffusivity
           call velo_calc_diffu(model%velowk,            model%geomderv%stagthck,  &
@@ -386,7 +386,6 @@ contains
        ! calculate horizontal velocity field
 
        ! flag = 3: Calculate the basal velocity from the diffusivities
-
        call slipvelo(model,                         &
                      3,                             &
                      model%velocity%btrc,           &
@@ -406,7 +405,6 @@ contains
   end subroutine thck_nonlin_evolve
 
 !---------------------------------------------------------------------------------
-  !TODO - Pass in just diffu?  The same field is passed to diffu_x and diffu_y.
 
   subroutine thck_evolve(model, diffu_x, diffu_y, calc_rhs, old_thck, new_thck)
 
@@ -663,9 +661,7 @@ contains
       integer, intent(in) :: ewm,ew  ! ew index to left, right
       integer, intent(in) :: nsm,ns  ! ns index to lower, upper
 
-      !Note: Here, ubas = rhoi*grav*stagthck^2, from calling slipvelo with flag = 2.
-      !      It's an addition to the diffusivity term, not an actual basal speed.
-
+      ! calculate sparse matrix elements
       sumd(1) = alpha_dt_ew * (&
                (diffu_x(ewm,nsm) + diffu_x(ewm,ns)) + &
                (model%velocity%ubas (ewm,nsm) + model%velocity%ubas (ewm,ns)))

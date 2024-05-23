@@ -205,7 +205,7 @@
     usrf     => model%geometry%usrf(:,:)
     topg     => model%geometry%topg(:,:)
 
-    bwat     => model%basal_hydro%bwat(:,:)
+    bwat     => model%temper%bwat(:,:)
     btrc     => model%velocity%btrc(:,:)
     bfricflx => model%temper%bfricflx(:,:)
     temp     => model%temper%temp(:,:,:)
