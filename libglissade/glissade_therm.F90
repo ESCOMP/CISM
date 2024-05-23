@@ -181,7 +181,7 @@ module glissade_therm
     ! Method (3) may be optimal for reducing spinup time in the interior of large ice sheets.
     ! Option (4) requires that temperature is present in the input file.
 
-    if (is_restart == RESTART_TRUE) then
+    if (is_restart == STANDARD_RESTART .or. is_restart == HYBRID_RESTART) then
 
        ! Temperature has already been initialized from a restart file.
        ! (Temperature is always a restart variable.)
@@ -1122,7 +1122,7 @@ module glissade_therm
              if (abs((efinal-einit-delta_e)/dttem) > 1.0d-7) then
              ! WHL: For stability tests with a very short time step (e.g., < 1.d-6 year),
              !      the energy-conservation error can be triggered by machine roundoff.
-             !      For the tests in Robinson et al. (2021), I replaced the line above
+             !      For the slab tests in Robinson et al. (2021), I replaced the line above
              !      with the line below, which compares the error to the total energy.
              !      The latter criterion is less likely to give false positives,
              !       but might be more likely to give false negatives.
@@ -1266,6 +1266,14 @@ module glissade_therm
     ! Note: It is possible in principle to have internal melting in floating ice;
     !       if so, it is combined with bmlt_ground
     ! TODO: Treat melt_internal as a separate field in glissade_tstep?
+
+    ! WHL - debug
+    if (verbose_therm .and. this_rank == rtest) then
+       ew = itest
+       ns = jtest
+       print*, 'bmlt_ground (m/yr) w/out internal melt:', bmlt_ground(ew,ns)*scyr
+       print*, 'Internal melt (m/yr):', melt_internal(ew,ns)*scyr
+    endif
 
     bmlt_ground(:,:) = bmlt_ground(:,:) + melt_internal(:,:)
 

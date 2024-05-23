@@ -208,6 +208,20 @@ contains
        call nc_errorhandle(__FILE__,__LINE__,status)
     end if
 
+    !TODO - Uncomment to add an ocean level dimension
+    ! ocean level dimension
+!    status = parallel_inq_varid(NCO%id,'zocn',varid)
+!    status= parallel_put_var(NCO%id,varid,model%ocean_data%zocn)
+!    call nc_errorhandle(__FILE__,__LINE__,status)
+
+    ! glacier dimension
+
+    if (model%options%enable_glaciers) then
+       status = parallel_inq_varid(NCO%id,'glacierid',varid)
+       status= parallel_put_var(NCO%id,varid,model%glacier%glacierid)
+       call nc_errorhandle(__FILE__,__LINE__,status)
+    end if
+
     ! clean up
     deallocate(x0_global, y0_global)
     deallocate(x1_global, y1_global)
