@@ -1,5 +1,47 @@
 CISM Changelog
 
+Changes in CISM tag cism_main_2.01.015
+======================================
+Updates for running CISM standalone on the NSF NCAR Derecho supercomputer.
+
+Changes in CISM tag cism_main_2.01.014
+======================================
+Basal hydrology scheme, new basal friction and inversion options ESCOMP/CISM PR#61
+
+This PR includes three main lines of effort:
+(1) updates to the slab test
+(2) a steady-state flux routing basal hydrology scheme
+(3) various basal friction and inversion options to support Antarctic ice sheet experiments
+
+The slab test is as described in Section 3.4 of Robinson et al. (TC, 2022). It was used in that paper
+to test the stability of various solvers (SIA, SSA, DIVA, L1L2) in the simple case of an infinite slab
+of ice flowing down an inclined plane. Various test parameters can be specified when launching
+the run script. See the README file for details.
+
+The hydrology scheme is based on the idea that all water input at the bed is conservatively routed down
+the hydraulic gradient until it reaches the ice margin. Steady state means that for each grid cell, the
+water output is equal to the input. Water can be routed to one downstream neighbor (D8), two neighbors
+(Dinf), or all downstream neighbors (FD8). The scheme uses the efficient algorithm of Planchon & Darboux
+(2001) to fill depressions. It is fully parallel, unlike the similar scheme in old Glimmer. The scheme
+has been tested for the Greenland and Antarctic ice sheets; more testing and tuning will follow.
+
+The basal friction and inversion changes include the following:
+
+ - support for the Zoet-Iverson basal friction law
+ - an option to invert for Cc (aka Coulomb_c) in basal friction laws that have a Cc term, including ZI and pseudo-plastic. Previous inversions were for Cp (aka powerlaw_c) only.
+ - an option to apply an observation-based dH/dt field to floating ice during spin-up. This allows the ice to reach a spun-up steady-state and then to thin at observed rates during the subsequent forward run. This option was used for ISMIP6 Antarctica 2300 experiments. A similar option was used in the paper by van den Akker et al. (TC, 2024).
+ - an option to include a relaxation term when inverting for Cp and Cc, in addition to the terms proportional to (H - Hobs) and dH/dt. This term reduces clumping of Cc and Cp around their max and min values.
+ - new options for computing effective pressure, including an option to be used with the new hydrology scheme
+ - an option to invert locally for deltaT_ocn
+ - an option to invert for basin-scale flow factors
+ - an optional velocity target for Cp and Cc inversion
+ - an option to apply a time scale to mask-based calving
+Results from this branch were compared to main for several standard test cases.
+Using LIVVkit (with several dome, ISMIP-HOM, shelf, and stream tests), all tests pass. The stream test requires a config file change.
+MISMIP+ results are also BFB, with several config file changes.
+DIVA dome tests are not quite BFB, but agree within machine roundoff. I think this is acceptable, given the large number of changes on this branch.
+
+
 Changes in CISM tag cism_main_2.01.013
 ======================================
 

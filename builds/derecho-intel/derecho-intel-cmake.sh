@@ -15,21 +15,20 @@ else
     cism_top=${1%/}
 fi
 
+source /etc/profile.d/z00_modules.sh
+
 echo CISM: "${cism_top}"
 
 
 module purge
-module load ncarenv/23.06
-module load intel/2023.0.0
-module load mkl/2023.0.0
-#module load mpt/2.15f
+module load ncarenv/23.09
+module load intel/2023.2.1
+module load cray-mpich/8.1.27
+module load mkl/2023.2.0
 module load netcdf/4.9.2
 module load ncarcompilers/1.0.0
-#module load pnetcdf/1.8.0
 module load cmake/3.26.3
-#module load python/2.7.13
-#module load numpy/1.12.0
-#module load netcdf4-python/1.2.7
+
 
 # remove old build data:
 rm -f ./CMakeCache.txt
@@ -65,6 +64,8 @@ cmake \
   -D CMAKE_CXX_COMPILER=mpiicpc \
   -D CMAKE_C_COMPILER=mpicc \
   -D CMAKE_Fortran_COMPILER=mpif90 \
+\
+  -D CMAKE_EXE_LINKER_FLAGS="-mkl=cluster" \
 \
   -D CMAKE_Fortran_FLAGS:STRING="-qno-opt-dynamic-align  -convert big_endian -assume byterecl -ftz -traceback -assume realloc_lhs -fp-model source -qopt-report -O2 -debug minimal " \
   -D CMAKE_C_FLAGS:STRING="-qno-opt-dynamic-align -fp-model precise -std=gnu99 -qopt-report -O2 -debug minimal " \
