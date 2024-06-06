@@ -764,6 +764,7 @@ contains
     call GetValue(section,'forcewrite_final', model%options%forcewrite_final)
     call GetValue(section,'restart',model%options%is_restart)
     call GetValue(section,'restart_extend_velo',model%options%restart_extend_velo)
+    call GetValue(section,'forcewrite_restart',model%options%forcewrite_restart)
 
   end subroutine handle_options
 
@@ -1665,6 +1666,17 @@ contains
           call write_log('Using extended velocity fields for restart')
        endif
     end if
+
+    if (model%options%forcewrite_restart) then
+       call write_log('Will write to output files on restart')
+    endif
+
+!!     This option is not currently supported
+!!    if (model%options%which_bproc < 0 .or. model%options%which_bproc >= size(which_bproc)) then
+!!       call write_log('Error, basal_proc out of range',GM_FATAL)
+!!    end if
+!!    write(message,*) 'basal_proc              : ',model%options%which_bproc,which_bproc(model%options%which_bproc)
+!!    call write_log(message)
 
     !HO options
 
@@ -2640,10 +2652,6 @@ contains
     elseif (model%options%which_ho_babc == HO_BABC_POWERLAW) then
        write(message,*) 'Cp for power law, Pa (m/yr)^(-1/3)           : ', model%basal_physics%powerlaw_c_const
        call write_log(message)
-       write(message,*) 'Max Cp for power law, Pa (m/yr)^(-1/3)       : ', model%basal_physics%powerlaw_c_max
-       call write_log(message)
-       write(message,*) 'Min Cp for power law, Pa (m/yr)^(-1/3)       : ', model%basal_physics%powerlaw_c_min
-       call write_log(message)
        write(message,*) 'm exponent for power law                     : ', model%basal_physics%powerlaw_m
        call write_log(message)
     elseif (model%options%which_ho_babc == HO_BABC_COULOMB_FRICTION) then
@@ -2660,10 +2668,6 @@ contains
        call write_log(message)
        write(message,*) 'Cp for Schoof power law, Pa (m/yr)^(-1/3)    : ', model%basal_physics%powerlaw_c_const
        call write_log(message)
-       write(message,*) 'Max Cp for power law, Pa (m/yr)^(-1/3)       : ', model%basal_physics%powerlaw_c_max
-       call write_log(message)
-       write(message,*) 'Min Cp for power law, Pa (m/yr)^(-1/3)       : ', model%basal_physics%powerlaw_c_min
-       call write_log(message)
        write(message,*) 'm exponent for Schoof power law              : ', model%basal_physics%powerlaw_m
        call write_log(message)
     elseif (model%options%which_ho_babc == HO_BABC_COULOMB_POWERLAW_TSAI) then
@@ -2672,10 +2676,6 @@ contains
        write(message,*) 'Cc for Tsai Coulomb law                      : ', model%basal_physics%coulomb_c_const
        call write_log(message)
        write(message,*) 'Cp for Tsai power law, Pa (m/yr)^(-1/3)      : ', model%basal_physics%powerlaw_c_const
-       call write_log(message)
-       write(message,*) 'Max Cp for power law, Pa (m/yr)^(-1/3)       : ', model%basal_physics%powerlaw_c_max
-       call write_log(message)
-       write(message,*) 'Min Cp for power law, Pa (m/yr)^(-1/3)       : ', model%basal_physics%powerlaw_c_min
        call write_log(message)
        write(message,*) 'm exponent for Tsai power law                : ', model%basal_physics%powerlaw_m
        call write_log(message)
@@ -3399,6 +3399,7 @@ contains
     ! Subroutine arguments
     !------------------------------------------------------------------------------------
     type(glide_global_type), intent (in) :: model  !> Derived type holding all model info
+
     integer, intent(in) :: model_id  !> identifier of this ice sheet instance (1 - N, where N is the total number of ice sheet models in this run)
 
     !------------------------------------------------------------------------------------
@@ -3458,7 +3459,7 @@ contains
              call glide_add_to_restart_variable_list('smb_gradz', model_id)
           end select
 
-          call glide_add_to_restart_variable_list('smb_reference_usrf', model_id)
+          call glide_add_to_restart_variable_list('usrf_ref', model_id)
 
        case(SMB_INPUT_FUNCTION_XYZ)
 
@@ -3484,7 +3485,7 @@ contains
           if (options%smb_input_function == SMB_INPUT_FUNCTION_XY_GRADZ) then
              ! usrf_ref was added to restart above; nothing to do here
           else
-             call glide_add_to_restart_variable_list('smb_reference_usrf', model_id)
+             call glide_add_to_restart_variable_list('usrf_ref', model_id)
           endif
 
        case(ARTM_INPUT_FUNCTION_XYZ)
@@ -3811,6 +3812,36 @@ contains
        call glide_add_to_restart_variable_list('f_effecpress_ocean_p', model_id)
     endif
 
+    ! fields needed for inversion options that try to match local thickness or upper surface elevation
+    ! Note: If usrf_obs is supplied, thck_obs will be computed at initialization
+    if (options%which_ho_powerlaw_c == HO_POWERLAW_C_INVERSION .or. &
+        options%which_ho_coulomb_c  == HO_COULOMB_C_INVERSION  .or. &
+        options%which_ho_deltaT_ocn == HO_DELTAT_OCN_INVERSION) then
+       call glide_add_to_restart_variable_list('usrf_obs', model_id)
+       !WHL - velo_sfc_obs is not strictly needed unless inverting for surface velo,
+       !      but is handy for diagnostics
+       call glide_add_to_restart_variable_list('velo_sfc_obs', model_id)
+    endif
+
+    ! fields needed for inversion options that try to match local dthck_dt
+    ! Note: This is not strictly needed for all options, but still is a useful diagnostic.
+    if (options%which_ho_deltaT_ocn /= HO_DELTAT_OCN_NONE) then
+       call glide_add_to_restart_variable_list('dthck_dt_obs', model_id)
+       call glide_add_to_restart_variable_list('dthck_dt_obs_basin', model_id)
+    endif
+
+    ! effective pressure options
+    ! f_effecpress_bwat represents the reduction of overburden pressure from bwatflx
+    if (options%which_ho_effecpress == HO_EFFECPRESS_BWATFLX) then
+       call glide_add_to_restart_variable_list('f_effecpress_bwat', model_id)
+    endif
+
+    ! f_effecpress_ocean_p represents the reduction of overburden pressure when ocean_p > 0
+    ! Needs to be saved in case this fraction is relaxed over time toward (1 - Hf/H)^p
+    if (model%basal_physics%p_ocean_penetration > 0.0d0) then
+       call glide_add_to_restart_variable_list('f_effecpress_ocean_p', model_id)
+    endif
+
     ! geothermal heat flux option
     select case (options%gthf)
       case(GTHF_COMPUTE)
@@ -3875,6 +3906,11 @@ contains
        call glide_add_to_restart_variable_list('glacier_volume_init', model_id)
        call glide_add_to_restart_variable_list('glacier_area_init', model_id)
     endif
+
+    ! basal processes module - requires tauf for a restart
+!!    if (options%which_bproc /= BAS_PROC_DISABLED ) then
+!!        call glide_add_to_restart_variable_list('tauf', model_id)
+!!    endif
 
     ! TODO bmlt was set as a restart variable, but I'm not sure when or if it is needed.
 

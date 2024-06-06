@@ -398,6 +398,31 @@ contains
        call check_fill_values(model%geometry%dthck_dt_obs)
     endif
 
+    ! Some input fields may have a netCDF fill value, typically a very large positive number.
+    ! If present, convert these values to zero (or optionally, another suitable value).
+    ! Note: Optionally, can pass a user-specified fill value and replacement value,
+    !        and return a mask of grid cells where values are replaced.
+    !       Depending on the input dataset, might have fill values in other fields (e.g., artm, topg)
+
+    if (model%options%smb_input == SMB_INPUT_MMYR_WE) then
+       call check_fill_values(model%climate%smb)
+    else
+       call check_fill_values(model%climate%acab)
+    endif
+
+    if (model%options%gthf == GTHF_PRESCRIBED_2D) then
+       call check_fill_values(model%temper%bheatflx)
+    endif
+
+    if (associated(model%ocean_data%thermal_forcing)) then
+       call check_fill_values(model%ocean_data%thermal_forcing)
+    endif
+
+    if (model%options%which_ho_deltaT_ocn == HO_DELTAT_OCN_DTHCK_DT .or.  &
+        model%options%enable_acab_dthck_dt_correction) then
+       call check_fill_values(model%geometry%dthck_dt_obs)
+    endif
+
     ! Allocate mask arrays in case they are needed below
     allocate(ice_mask(model%general%ewn, model%general%nsn))
     allocate(floating_mask(model%general%ewn, model%general%nsn))
@@ -936,6 +961,7 @@ contains
     ! Initialize the effective pressure calculation
 
     if (model%options%is_restart == NO_RESTART) then
+
        call glissade_init_effective_pressure(model%options%which_ho_effecpress,  &
                                              model%basal_physics)
     endif
@@ -2516,7 +2542,7 @@ contains
           !        a suite of automated stability tests, e.g. with the stabilitySlab.py script.
           if (advective_cfl > 1.0d0) then
              if (main_task) print*, 'advective CFL violation; call glide_finalise and exit cleanly'
-             call glide_finalise(model)
+             call glide_finalise(model, forcewrite_arg=.true.)
              stop
           else
              nsubcyc = model%numerics%subcyc
@@ -4099,11 +4125,7 @@ contains
          f_ground_cell_obs,  & ! f_ground_cell as a function of thck_obs (instead of current thck)
          f_ground_obs,       & ! f_ground as a function of thck_obs (instead of current thck)
          f_flotation_obs,    & ! f_flotation_obs as a function of thck_obs (instead of current thck)
-         thck_calving_front,   & ! effective thickness of ice at the calving front
-         powerlaw_c_icegrid      ! powerlaw_c on the unstaggered ice grid
-
-    real(dp), dimension(model%general%ewn, model%general%nsn) ::  &
-         flow_enhancement_factor_float    ! flow enhancement factor for floating ice
+         thck_calving_front    ! effective thickness of ice at the calving front
 
     real(dp) :: &
          dsigma,                   & ! layer thickness in sigma coordinates
@@ -4327,6 +4349,7 @@ contains
 
     ! Compute the thickness tendency dH/dt from one step to the next (m/s)
     ! This tendency is used for coulomb_c and powerlaw_c inversion.
+
     if ( (model%options%is_restart == STANDARD_RESTART .or. model%options%is_restart == HYBRID_RESTART) &
          .and. (model%numerics%time == model%numerics%tstart) ) then
        ! first call after a restart; do not compute dthck_dt
@@ -4527,7 +4550,6 @@ contains
        endif  ! first call after a restart
 
     endif   ! which_ho_flow_enhancement_factor
-
 
     ! If glaciers are enabled, then do various updates:
     ! (1) If inverting for mu_star, alpha_snow, or powerlaw_c, then

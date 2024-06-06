@@ -145,6 +145,7 @@ contains
 
   ! variables for Coulomb friction law
   real(dp) :: coulomb_c   ! Coulomb law friction coefficient (unitless)
+  real(dp) :: powerlaw_c_const  ! power law friction coefficient (Pa m^{-1/3} yr^{1/3})
   real(dp) :: lambda_max        ! wavelength of bedrock bumps at subgrid scale (m)
   real(dp) :: m_max             ! maximum bed obstacle slope (unitless)
   real(dp) :: m                 ! exponent m in power law
@@ -210,6 +211,7 @@ contains
                                   basal_physics%coulomb_c_bedmin,  &
                                   basal_physics%coulomb_c_bedmax,  &
                                   basal_physics%coulomb_c)
+
   endif
 
   ! Compute beta based on whichbabc

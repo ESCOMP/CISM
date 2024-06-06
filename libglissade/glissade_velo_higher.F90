@@ -764,6 +764,7 @@
     integer ::   &
        whichbabc, &             ! option for basal boundary condition
        whichbeta_limit, &       ! option to limit beta for grounded ice
+       which_powerlaw_c, &      ! option for powerlaw friction parameter Cp
        which_coulomb_c, &       ! option for coulomb friction parameter Cc
        whichefvs, &             ! option for effective viscosity calculation 
                                 ! (calculate it or make it uniform)

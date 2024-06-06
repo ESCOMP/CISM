@@ -774,6 +774,9 @@ module glide_types
     !>          (required if restart velocities are nonzero on global boundaries)
     !> \end{description}
 
+    logical :: forcewrite_restart = .false.
+    !> flag that indicates whether to force writing of output on restart
+
     ! This is a Glimmer serial option
     ! The parallel code enforces periodic EW and NS boundary conditions by default
     logical :: periodic_ew = .false.
