@@ -665,6 +665,7 @@
 
     use glissade_basal_traction, only: calcbeta
     use glissade_therm, only: glissade_pressure_melting_point
+    use glide_thck, only: glide_calclsrf
     use profile, only: t_startf, t_stopf
 
     !----------------------------------------------------------------
@@ -725,7 +726,6 @@
        thck,                 &  ! ice thickness (m)
                                 ! Note: When using the subgrid CF scheme, thck => model%calving%thck_effective
                                 !       Otherwise, thck => model%geometry%thck
-       usrf,                 &  ! upper surface elevation (m)
        topg,                 &  ! elevation of topography (m)
        bpmp,                 &  ! pressure melting point temperature (C)
        beta,                 &  ! basal traction parameter (Pa/(m/yr))
@@ -834,6 +834,10 @@
        ocean_mask,          & ! = 1 for cells where topography is below sea level and ice is absent
        land_mask,           & ! = 1 for cells where topography is above sea level
        ice_plus_land_mask     ! = 1 for active ice cells plus ice-free land cells
+
+    real(dp), dimension(nx,ny) ::  &
+       lsrf,                & ! lower surface elevation (m)
+       usrf                   ! upper surface elevation (m)
 
     real(dp), dimension(nx-1,ny-1) :: &
        stagbedtemp,         & ! bed temperature averaged to vertices (deg C)
@@ -1087,12 +1091,13 @@
      !       instead of geometry%thck.  For partial_cf cells, thck_effective > thck.
      !      The goal is to compute velocities appropriate for a subgrid calving front,
      !       instead of a full cell with unrealistically thin ice.
+     !      Instead of pointing to model%geometry%usrf, compute a local value of usrf
+     !       that is consistent with the local value of thck.
      if (model%options%which_ho_calving_front == HO_CALVING_FRONT_SUBGRID) then
         thck  => model%calving%thck_effective(:,:)
      else
         thck  => model%geometry%thck(:,:)
      endif
-     usrf     => model%geometry%usrf(:,:)
      topg     => model%geometry%topg(:,:)
      sigma    => model%numerics%sigma(:)
      stagsigma=> model%numerics%stagsigma(:)
@@ -1180,7 +1185,7 @@
 !pw call t_startf('glissade_velo_higher_scale_input')
     call glissade_velo_higher_scale_input(dx,      dy,            &
                                           whichcalving_front,     &
-                                          thck,    usrf,          &
+                                          thck,                   &
                                           topg,    eus,           &
                                           thklim,                 &
                                           thck_gradient_ramp,     &
@@ -1189,6 +1194,12 @@
                                           uvel,    vvel,          &
                                           uvel_2d, vvel_2d)
 !pw call t_stopf('glissade_velo_higher_scale_input')
+
+    ! Now that thck and topg have the desired scaling (m), compute lsrf and usrf.
+    ! Note: If using a subgrid calving scheme, these will be based on effective thickness.
+    !       Will be recomputed based on the true thickness later in the diagnostic solve.
+    call glide_calclsrf(thck, topg, eus, lsrf)
+    usrf = max(0.d0, thck + lsrf)
 
     ! Set volume scale
     ! This is not strictly necessary, but dividing by this scale gives matrix coefficients 
@@ -3278,8 +3289,7 @@
 
              call t_startf('glissade_velo_higher_scale_output')
              call glissade_velo_higher_scale_output(whichcalving_front,     &
-                                                    thck,    usrf,          &
-                                                    topg,                   &
+                                                    thck,    topg,          &
                                                     flwa,    efvs,          &
                                                     beta_internal,          &
                                                     resid_u, resid_v,       &
@@ -3468,7 +3478,6 @@
        ! Optional diagnostics
 
        if (verbose_beta .and. this_rank==rtest .and. counter > 1 .and. mod(counter-1,12)==0) then
-!!          if (verbose_beta .and. this_rank==rtest .and. counter > 1 .and. mod(counter-1,25)==0) then
           print*, ' '
           print*, 'log_beta, itest, jtest, rank =', itest, jtest, rtest
           do j = jtest+3, jtest-3, -1
@@ -4327,8 +4336,7 @@
 
 !pw call t_startf('glissade_velo_higher_scale_output')
     call glissade_velo_higher_scale_output(whichcalving_front,     &
-                                           thck,    usrf,          &
-                                           topg,                   &
+                                           thck,    topg,          &
                                            flwa,    efvs,          &
                                            beta_internal,          &
                                            resid_u, resid_v,       &
@@ -4349,7 +4357,7 @@
 
   subroutine glissade_velo_higher_scale_input(dx,      dy,            &
                                               whichcalving_front,     &
-                                              thck,    usrf,          &
+                                              thck,                   &
                                               topg,    eus,           &
                                               thklim,                 &
                                               thck_gradient_ramp,     &
@@ -4371,7 +4379,6 @@
 
     real(dp), dimension(:,:), intent(inout) ::   &
        thck,                &  ! ice thickness
-       usrf,                &  ! upper surface elevation
        topg                    ! elevation of topography
 
     real(dp), intent(inout) ::   &
@@ -4400,9 +4407,7 @@
     !       geometry%thck or calving%thck_effective, which have different units.
     !       To be removed when scaling goes away.
     if (whichcalving_front == HO_CALVING_FRONT_NO_SUBGRID) thck = thck * thk0
-!!    thck = thck * thk0
 
-    usrf = usrf * thk0
     topg = topg * thk0
     eus  = eus  * thk0
     thklim = thklim * thk0
@@ -4428,9 +4433,8 @@
 
 !****************************************************************************
 
-  subroutine glissade_velo_higher_scale_output(whichcalving_front,     &
-                                               thck,    usrf,           &
-                                               topg,                    &
+  subroutine glissade_velo_higher_scale_output(whichcalving_front,      &
+                                               thck,    topg,           &
                                                flwa,    efvs,           &                                       
                                                beta_internal,           &
                                                resid_u, resid_v,        &
@@ -4453,7 +4457,6 @@
 
     real(dp), dimension(:,:), intent(inout) ::  &
        thck,                 &  ! ice thickness
-       usrf,                 &  ! upper surface elevation
        topg                     ! elevation of topography
 
     real(dp), dimension(:,:,:), intent(inout) ::  &
@@ -4484,9 +4487,7 @@
     !       geometry%thck or calving%thck_effective, which have different units.
     !       To be removed when scaling goes away.
     if (whichcalving_front == HO_CALVING_FRONT_NO_SUBGRID) thck = thck / thk0
-!!    thck = thck / thk0
 
-    usrf = usrf / thk0
     topg = topg / thk0
 
     ! Convert flow factor from Pa^(-n) yr^(-1) to dimensionless units
@@ -5114,7 +5115,7 @@
 
     character(len=*), intent(in) ::  &
        face                          ! 'north', 'south', 'east', or 'west'
- 
+
     real(dp), dimension(nz), intent(in) ::    &
        sigma                         ! sigma vertical coordinate
 
@@ -5163,6 +5164,7 @@
 
     if ((verbose_shelf .or. verbose_load) .and. &
          iCell == itest .and. jCell == jtest .and. this_rank == rtest) then
+       print*, ' '
        print*, 'In lateral_shelf_bc, rank, i, j =', this_rank, iCell, jCell
        print*, 'thck, usrf =', thck(iCell,jCell), usrf(iCell,jCell)
     endif
@@ -5296,12 +5298,11 @@
           !TODO - Modify this subroutine to return only detJ, and not the derivatives?
 
           if (verbose_shelf .and. this_rank==rtest .and. iCell==itest .and. jCell==jtest .and. k==ktest) then
-             print*, ' '
-             print*, 'Get detJ, i, j, k, p =', iCell, jCell, k, p
-             print*, 'x =', x(:)
-             print*, 'y =', y(:)
-             print*, 'dphi_dxr_2d =', dphi_dxr_2d(:,p)
-             print*, 'dphi_dyr_2d =', dphi_dyr_2d(:,p)
+!             print*, 'Get detJ, i, j, k, p =', iCell, jCell, k, p
+!             print*, 'x =', x(:)
+!             print*, 'y =', y(:)
+!             print*, 'dphi_dxr_2d =', dphi_dxr_2d(:,p)
+!             print*, 'dphi_dyr_2d =', dphi_dyr_2d(:,p)
           endif
 
           call get_basis_function_derivatives_2d(x(:),              y(:),               &
@@ -5337,24 +5338,29 @@
           if ( (verbose_shelf .or. verbose_load) .and. &
                this_rank==rtest .and. iCell==itest .and. jCell==jtest .and. k==ktest) then
              print*, ' '
-             print*, 'whichassemble_lateral =', whichassemble_lateral
              print*, 'Increment shelf load vector, i, j, face, k, p =', iCell, jCell, trim(face), k, p
-             print*, 'h_qp, s_qp =', h_qp, s_qp
-             print*, 'detJ/vol0 =', detJ/vol0
+!!             print*, 'whichassemble_lateral =', whichassemble_lateral
+!!             print*, 'h_qp, s_qp =', h_qp, s_qp
+!!             print*, 'detJ/vol0 =', detJ/vol0
           endif
 
           ! Increment the load vector with the shelf water pressure contribution from 
           !  this quadrature point.
           ! Increment loadu for east/west faces and loadv for north/south faces.
 
-          ! This formula works not just for floating ice, but for any edge between
+          ! The following formula works not just for floating ice, but for any edge between
           !  an ice-covered marine-based cell and an ocean cell.
           p_av = 0.5d0*rhoi*grav*h_qp &                                   ! p_out
                - 0.5d0*rhoo*grav*h_qp * (1.d0 - min(s_qp/h_qp,1.d0))**2   ! p_in
 
-          ! This formula works for floating ice.
+          ! The following formula works for floating ice.
           ! It can be derived from the formula above using Archimedes: rhoi*h = rhoo*(h-s) 
 !!          p_av = 0.5d0*rhoi*grav*h_qp * (1.d0 - rhoi/rhoo)
+
+          if ( (verbose_shelf .or. verbose_load) .and. &
+               this_rank==rtest .and. iCell==itest .and. jCell==jtest .and. k==ktest) then
+             print*, ' p_av =', p_av
+          endif
 
           if (trim(face) == 'west') then  ! net force in -x direction
 

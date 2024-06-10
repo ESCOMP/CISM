@@ -183,9 +183,10 @@ module glide_types
   integer, parameter :: CALVING_GRID_MASK = 5
   integer, parameter :: CALVING_THCK_THRESHOLD = 6
   integer, parameter :: EIGEN_CALVING = 7
-  integer, parameter :: CALVING_DAMAGE = 8
+  integer, parameter :: CALVING_STRESS = 8
   integer, parameter :: CF_ADVANCE_RETREAT_RATE = 9
-  integer, parameter :: CALVING_HUYBRECHTS = 10
+  integer, parameter :: CALVING_DAMAGE = 10
+  integer, parameter :: CALVING_HUYBRECHTS = 11
 
   integer, parameter :: CALVING_INIT_OFF = 0
   integer, parameter :: CALVING_INIT_ON = 1
@@ -661,10 +662,11 @@ module glide_types
     !> \item[5] Set thickness to zero based on grid location (field 'calving_mask')
     !> \item[6] Set thickness to zero if ice at marine margin is thinner than
     !>          a certain value (variable 'calving_minthck' in glide_types)
-    !> \item[7] Set thickness to zero based on stress (eigencalving) criterion
-    !> \item[8] Calve ice that is sufficiently damaged
+    !> \item[7] Calving rate based on strain-rate criterion (eigencalving)
+    !> \item[8] Calving rate based on stress threshold criterion (von Mises)
     !> \item[9] Prescribe the rate of calving front advance or retreat
-    !> \item[10] Huybrechts calving
+    !> \item[10] Calve ice that is sufficiently damaged
+    !> \item[11] Huybrechts calving
     !> \end{description}
 
     integer :: calving_init = 0
@@ -1541,6 +1543,7 @@ module glide_types
      integer, dimension(:,:),  pointer :: calving_mask => null()   !> calve floating ice where the mask = 1 (whichcalving = CALVING_GRID_MASK)
      integer, dimension(:,:),  pointer :: protected_mask => null() !> mask of cells protected from calving when using the subgrid CF scheme
      real(dp),dimension(:,:),  pointer :: thck_effective => null() !> effective thickness for calving (m)
+     real(dp),dimension(:,:),  pointer :: effective_areafrac => null() !> effective fractional area, < 1 for partial CF cells (m)
      real(dp),dimension(:,:),  pointer :: lateral_rate => null()   !> lateral calving rate (m/yr, not scaled)
                                                                    !> (whichcalving = EIGEN_CALVING, CALVING_DAMAGE) 
      real(dp),dimension(:,:),  pointer :: tau_eigen1 => null()     !> first eigenvalue of 2D horizontal stress tensor (Pa)
@@ -1560,8 +1563,10 @@ module glide_types
                                                  !> if used, must be set to a nonzero value in the config file
                                                  !> (whichcalving = CALVING_THCK_THRESHOLD, EIGENCALVING, CALVING_DAMAGE)
      real(dp) :: dthck_dx_cf = 0.0d0             !> assumed max value of |dH/dx| at the calving front for full (not partial) cells (m/m)
-     real(dp) :: eigenconstant1 = 0.0d0          !> constant that multiplies tau_eigen1 to determine the calving rate (m/yr)
-     real(dp) :: eigenconstant2 = 0.0d0          !> constant that multiplies tau_eigen2 to determine the calving rate (m/yr)
+     real(dp) :: eigenconstant = 0.0d0           !> constant that multiplies the eigen-based strain rate to determine the calving rate (m)
+     real(dp) :: tau_eigenconstant1 = 1.0d0      !> constant that multiplies the tau_eigen1 term in stress-based calving (unitless)
+     real(dp) :: tau_eigenconstant2 = 1.0d0      !> constant that multiplies the tau_eigen2 term in stress-based calving (unitless)
+     real(dp) :: stress_threshold = 1.0e5        !> stress threshold for CF retreat with stress-based calving (Pa)
      real(dp) :: damage_threshold = 0.0d0        !> threshold at which ice column is sufficiently damaged to calve
                                                  !> 0 = no damage, 1 = total damage (whichcalving = CALVING_DAMAGE)
      real(dp) :: damage_constant1 = 0.0d0        !> damage constant that multiplies tau_eigen1 (yr^-1)
@@ -2469,7 +2474,7 @@ module glide_types
   !++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 
   !TODO - Move these parameters to types associated with a certain kind of physics
-  !WHL - Changed default geot to 0.0, so that idealized tests by default have no mass loss
+  !TODO - Change default geot to 0.0, so that idealized tests by default have no mass loss
   type glide_paramets
     real(dp),dimension(5) :: bpar = (/ 0.2d0, 0.5d0, 0.0d0 ,1.0d-2, 1.0d0/)
     real(dp) :: btrac_const = 0.d0     ! m yr^{-1} Pa^{-1} (gets scaled during init)
@@ -3210,6 +3215,7 @@ contains
     call coordsystem_allocate(model%general%ice_grid, model%calving%calving_mask)
     call coordsystem_allocate(model%general%ice_grid, model%calving%protected_mask)
     call coordsystem_allocate(model%general%ice_grid, model%calving%thck_effective)
+    call coordsystem_allocate(model%general%ice_grid, model%calving%effective_areafrac)
     call coordsystem_allocate(model%general%ice_grid, model%calving%lateral_rate)
     call coordsystem_allocate(model%general%ice_grid, model%calving%tau_eigen1)
     call coordsystem_allocate(model%general%ice_grid, model%calving%tau_eigen2)
@@ -3849,6 +3855,8 @@ contains
         deallocate(model%calving%protected_mask)
     if (associated(model%calving%thck_effective)) &
         deallocate(model%calving%thck_effective)
+    if (associated(model%calving%effective_areafrac)) &
+        deallocate(model%calving%effective_areafrac)
     if (associated(model%calving%lateral_rate)) &
         deallocate(model%calving%lateral_rate)
     if (associated(model%calving%tau_eigen1)) &

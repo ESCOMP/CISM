@@ -2300,8 +2300,7 @@ contains
        extended_ice_sheet_mask ! extension of ice_sheet_mask to include neighbor cells
 
     real(dp), dimension(model%general%ewn, model%general%nsn) ::  &
-       thck_flotation,       & ! thickness at which ice is exactly floating
-       effective_areafrac      ! effective fractional area of ice at the calving front
+       thck_flotation          ! thickness at which ice is exactly floating
 
     real(dp) :: previous_time       ! time (yr) at the start of this time step
                                     ! (model%numerics%time is the time at the end of the step.)
@@ -2422,13 +2421,15 @@ contains
             thck_effective = model%calving%thck_effective, &
             partial_cf_mask = partial_cf_mask,        &
             full_mask = full_mask,                    &
-            effective_areafrac = effective_areafrac)
+            effective_areafrac = model%calving%effective_areafrac)
 
        if (verbose_calving) then
           call point_diag(calving_front_mask, 'Before transport, calving_front_mask', itest, jtest, rtest, 7, 7)
           call point_diag(partial_cf_mask, 'partial_cf_mask', itest, jtest, rtest, 7, 7)
           call point_diag(full_mask, 'full_mask', itest, jtest, rtest, 7, 7)
-          call point_diag(effective_areafrac, 'effective_areafrac', itest, jtest, rtest, 7, 7, '(f10.6)')
+          call point_diag(ocean_mask, 'ocean_mask', itest, jtest, rtest, 7, 7)
+          call point_diag(model%calving%effective_areafrac, &
+               'effective_areafrac', itest, jtest, rtest, 7, 7, '(f10.6)')
        endif
 
        ! If using the subgrid CF scheme, then compute a mask of protected cells.
@@ -2442,12 +2443,18 @@ contains
              model%calving%protected_mask = 1
           endwhere
 
-          ! Protect partial CF and ice-free ocean cells that are adjacent to full cells
+          ! Protect partial CF and ice-free ocean cells that are adjacent to full cells.
+          ! Protect ice-free ocean cells if adjacent to three partial CF cells.
           do j = 2, nsn-1
              do i = 2, ewn-1
                 if (full_mask(i-1,j) == 1 .or. full_mask(i+1,j) == 1 .or. &
                     full_mask(i,j-1) == 1 .or. full_mask(i,j+1) == 1) then
                    model%calving%protected_mask(i,j) = 1
+                elseif (ocean_mask(i,j) == 1) then
+                   if (partial_cf_mask(i-1,j) + partial_cf_mask(i+1,j) + &
+                       partial_cf_mask(i,j-1) + partial_cf_mask(i,j+1) >= 3) then
+                      model%calving%protected_mask(i,j) = 1
+                   endif
                 endif
              enddo
           enddo
@@ -3068,13 +3075,14 @@ contains
           ! Set = 1 where H > 0 so that thin ice will be removed from cells with a negative mass balance
 
           where (ice_mask == 1 .or. land_mask == 1)
-             effective_areafrac = 1.0d0
+             model%calving%effective_areafrac = 1.0d0
           elsewhere
-             effective_areafrac = 0.0d0
+             model%calving%effective_areafrac = 0.0d0
           endwhere
 
           if (verbose_calving) then
-             call point_diag(effective_areafrac, 'Before mass driver: effective_areafrac', itest, jtest, rtest, 7, 7, '(f10.6)')
+             call point_diag(model%calving%effective_areafrac, &
+                  'Before mass driver: effective_areafrac', itest, jtest, rtest, 7, 7, '(f10.6)')
           endif
 
        endif  ! which_ho_calving_front
@@ -3098,6 +3106,16 @@ contains
        !       * acab, bmlt (m/s)
        ! ------------------------------------------------------------------------
 
+       !WHL - debug
+       if (verbose_calving) then
+          call point_diag(model%calving%effective_areafrac, &
+               'Before mass driver: effective_areafrac', itest, jtest, rtest, 7, 7, '(f10.6)')
+          call point_diag(thck_unscaled, 'thck (m)', itest, jtest, rtest, 7, 7)
+          call point_diag(acab_unscaled*scyr, 'acab (m/yr)', itest, jtest, rtest, 7, 7)
+          call point_diag(bmlt_unscaled*scyr, 'bmlt (m/yr)', itest, jtest, rtest, 7, 7)
+          call point_diag(ocean_mask, 'ocean_mask', itest, jtest, rtest, 7, 7, '(i10)')
+       endif
+
        call glissade_mass_balance_driver(model%numerics%dt * tim0,                             &  ! s
                                          model%numerics%dew * len0, model%numerics%dns * len0, &  ! m
                                          ewn,         nsn,          upn-1,                     &
@@ -3109,7 +3127,7 @@ contains
                                          model%climate%acab_applied(:,:),                      &  ! m/s
                                          model%basal_melt%bmlt_applied(:,:),                   &  ! m/s
                                          ocean_mask(:,:),                                      &
-                                         effective_areafrac(:,:),                              &
+                                         model%calving%effective_areafrac(:,:),                &
                                          model%geometry%ntracers,                              &
                                          model%geometry%tracers(:,:,:,:),                      &
                                          model%geometry%tracers_usrf(:,:,:),                   &
@@ -3826,6 +3844,9 @@ contains
             itest, jtest, rtest, 7, 7)
     endif
 
+    !TODO - Recompute thck_effective and effective_areafrac based on the new thickness.
+    !       These are used in the velocity solver.
+
   end subroutine glissade_calving_solve
 
 !=======================================================================
@@ -3947,7 +3968,7 @@ contains
                               glissade_interior_dissipation_first_order, &
                               glissade_flow_factor,  &
                               glissade_pressure_melting_point
-    use glissade_calving, only: verbose_calving, glissade_extrapolate_to_calving_front, &
+    use glissade_calving, only: verbose_calving,  &
          glissade_stress_tensor_eigenvalues, glissade_strain_rate_tensor_eigenvalues
     use felix_dycore_interface, only: felix_velo_driver
     use glissade_basal_traction, only: calc_effective_pressure
@@ -4776,6 +4797,7 @@ contains
          .and. (model%numerics%time == model%numerics%tstart) ) then
 
        ! do nothing, since the tau eigenvalues are read from the restart file
+       !TODO - Same for eps eigenvalues?
 
     else  ! compute the eigenvalues of the 2D horizontal stress tensor
 
@@ -4789,51 +4811,32 @@ contains
        call parallel_halo(model%calving%tau_eigen1, parallel)
        call parallel_halo(model%calving%tau_eigen2, parallel)
 
+       if (verbose_calving) then
+          call point_diag(model%stress%tau%xx(1,:,:), 'tau_xx', itest, jtest, rtest, 7, 7, '(f10.0)')
+          call point_diag(model%stress%tau%yy(1,:,:), 'tau_yy', itest, jtest, rtest, 7, 7, '(f10.0)')
+          call point_diag(model%stress%tau%xy(1,:,:), 'tau_xy', itest, jtest, rtest, 7, 7, '(f10.0)')
+       endif
+
     endif   ! restart
 
     ! Compute the vertically integrated strain rate tensor (s^-1) and its eigenvalues.
-    ! These could be used for eigencalving, but the current eigencalving scheme uses stresses, not strain rates.
     ! Note: The stress tensor tau is derived by taking strain rates at quadrature points in the velocity solve.
     !       The strain rate tensor is then diagnosed from the stress tensor.
     !       These values will be incorrect on restart, since the stress tensor is not written to the restart file.
-    ! TODO: Optionally, write eps_eigen1 and eps_eigen2 to the restart file.
 
     call glissade_strain_rate_tensor_eigenvalues(&
-            ewn,      nsn,     upn,     &
-            model%numerics%sigma,       &
-            model%velocity%strain_rate, &
-            model%calving%eps_eigen1,   &
-            model%calving%eps_eigen2,   &
-            model%stress%tau,           &
-            model%stress%efvs,          &
-            model%velocity%divu,        &
-            model%velocity%shear)
+         ewn,      nsn,     upn,     &
+         model%numerics%sigma,       &
+         model%velocity%strain_rate, &
+         model%calving%eps_eigen1,   &
+         model%calving%eps_eigen2,   &
+         model%stress%tau,           &
+         model%stress%efvs,          &
+         model%velocity%divu,        &
+         model%velocity%shear)
 
     call parallel_halo(model%calving%eps_eigen1, parallel)
     call parallel_halo(model%calving%eps_eigen2, parallel)
-
-    !TODO - Test whether it works to use the actual value in the CF cell, Instead of extrapolating.
-    if (model%options%which_ho_calving_front == HO_CALVING_FRONT_SUBGRID) then
-
-       call glissade_extrapolate_to_calving_front(&
-            ewn,             nsn,           &
-            partial_cf_mask, full_mask,     &
-            model%calving%tau_eigen1,       &
-            model%calving%tau_eigen2)
-
-       call parallel_halo(model%calving%tau_eigen1, parallel)
-       call parallel_halo(model%calving%tau_eigen2, parallel)
-
-       call glissade_extrapolate_to_calving_front(&
-            ewn,             nsn,           &
-            partial_cf_mask, full_mask,     &
-            model%calving%eps_eigen1,       &
-            model%calving%eps_eigen2)
-
-       call parallel_halo(model%calving%eps_eigen1, parallel)
-       call parallel_halo(model%calving%eps_eigen2, parallel)
-
-    endif   ! subgrid CF
 
     ! Compute various vertical means.
     ! TODO - Write a utility subroutine for vertical averaging
