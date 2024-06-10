@@ -1510,19 +1510,27 @@
 
                sfc_ablat = -acab(i,j)*dt   ! positive by definition
 
-               acab_applied(i,j) = acab_applied(i,j) - sfc_ablat*effective_areafrac(i,j)
+               if (ocean_mask(i,j) == 1) then     ! no accumulation in open ocean
 
-               do k = 1, nlyr
-                  if (sfc_ablat > thck_layer(i,j,k)) then
-                     sfc_ablat = sfc_ablat - thck_layer(i,j,k)
-                     thck_layer(i,j,k) = 0.d0
-                     tracer(i,j,:,k) = 0.d0
-                  else
-                     thck_layer(i,j,k) = thck_layer(i,j,k) - sfc_ablat
-                     sfc_ablat = 0.d0
-                     exit
-                  endif
-               enddo
+                  ! do nothing
+
+               else  ! not ocean; melt ice
+
+                  acab_applied(i,j) = acab_applied(i,j) - sfc_ablat*effective_areafrac(i,j)
+
+                  do k = 1, nlyr
+                     if (sfc_ablat > thck_layer(i,j,k)) then
+                        sfc_ablat = sfc_ablat - thck_layer(i,j,k)
+                        thck_layer(i,j,k) = 0.d0
+                        tracer(i,j,:,k) = 0.d0
+                     else
+                        thck_layer(i,j,k) = thck_layer(i,j,k) - sfc_ablat
+                        sfc_ablat = 0.d0
+                        exit
+                     endif
+                  enddo
+
+               endif   ! ocean_mask = 1
 
                ! Adjust acab_applied if energy is still available for melting
                ! Also accumulate the remaining melt energy 
@@ -1585,20 +1593,28 @@
 
                bed_ablat = bmlt(i,j)*dt   ! positive by definition
 
-               bmlt_applied(i,j) = bmlt_applied(i,j) + bed_ablat*effective_areafrac(i,j)
+               if (ocean_mask(i,j) == 1) then     ! no accumulation in open ocean
 
-               do k = nlyr, 1, -1
-                  if (bed_ablat > thck_layer(i,j,k)) then
-                     bed_ablat = bed_ablat - thck_layer(i,j,k)
-                     thck_layer(i,j,k) = 0.d0
-                     tracer(i,j,:,k) = 0.d0
-                  else
-                     thck_layer(i,j,k) = thck_layer(i,j,k) - bed_ablat
-                     bed_ablat = 0.d0
-                     exit
-                  endif
-               enddo
-  
+                  ! do nothing
+
+               else  ! not ocean; melt ice
+
+                  bmlt_applied(i,j) = bmlt_applied(i,j) + bed_ablat*effective_areafrac(i,j)
+
+                  do k = nlyr, 1, -1
+                     if (bed_ablat > thck_layer(i,j,k)) then
+                        bed_ablat = bed_ablat - thck_layer(i,j,k)
+                        thck_layer(i,j,k) = 0.d0
+                        tracer(i,j,:,k) = 0.d0
+                     else
+                        thck_layer(i,j,k) = thck_layer(i,j,k) - bed_ablat
+                        bed_ablat = 0.d0
+                        exit
+                     endif
+                  enddo
+
+               endif   ! ocean_mask = 1
+
                ! Adjust bmlt_applied if energy is still available for melting
                ! Also accumulate the remaining melt energy 
 

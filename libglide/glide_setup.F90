@@ -194,11 +194,9 @@ contains
     model%calving%marine_limit = model%calving%marine_limit / thk0
     model%calving%timescale = model%calving%timescale * scyr                ! convert from yr to s
     model%calving%cliff_timescale = model%calving%cliff_timescale * scyr    ! convert from yr to s
-    model%calving%eigenconstant1 = model%calving%eigenconstant1 / scyr      ! convert from yr^{-1} to s^{-1}
-    model%calving%eigenconstant2 = model%calving%eigenconstant2 / scyr      ! convert from yr^{-1} to s^{-1}
     !TODO - No conversion for strain-based calving
-    model%calving%damage_constant1 = model%calving%damage_constant1 / scyr  ! convert from yr^{-1} to s^{-1}
-    model%calving%damage_constant2 = model%calving%damage_constant2 / scyr  ! convert from yr^{-1} to s^{-1}
+!!!    model%calving%damage_constant1 = model%calving%damage_constant1 / scyr  ! convert from yr^{-1} to s^{-1}
+!!!    model%calving%damage_constant2 = model%calving%damage_constant2 / scyr  ! convert from yr^{-1} to s^{-1}
 
     ! scale periodic offsets for ISMIP-HOM
     model%numerics%periodic_offset_ew = model%numerics%periodic_offset_ew / thk0
@@ -978,7 +976,7 @@ contains
          'compute isostasy with model     ' /)
 
     !TODO - Change 'marine_margin' to 'calving'?  Would have to modify many config files
-    character(len=*), dimension(0:10), parameter :: marine_margin = (/ &
+    character(len=*), dimension(0:11), parameter :: marine_margin = (/ &
          'no calving law                   ', &
          'remove all floating ice          ', &
          'remove fraction of floating ice  ', &
@@ -986,9 +984,10 @@ contains
          'present bedrock threshold        ', &
          'calving based on grid location   ', &
          'ice thickness threshold          ', &
-         'eigencalving scheme              ', &
-         'damage-based calving scheme      ', &
+         'strain-rate (eigencalving)       ', &
+         'stress threshold                 ', &
          'prescribe CF advance/retreat rate', &
+         'damage-based calving scheme      ', &
          'Huybrechts calving               '/)
 
     character(len=*), dimension(0:1), parameter :: init_calving = (/ &
@@ -1167,8 +1166,8 @@ contains
          'use local thck and usrf on each cell face (glissade dycore)'  /)
 
     character(len=*), dimension(0:1), parameter :: ho_whichcalving_front = (/ &
-         'no subgrid calving front parameterization      ', &
-         'subgrid calving front scheme; inactive CF cells' /)
+         'no subgrid calving front parameterization ', &
+         'subgrid calving front parameterization    ' /)
 
     character(len=*), dimension(0:2), parameter :: ho_whichground = (/ &
          'f_ground = 0 or 1; no GLP  (glissade dycore)               ', &
@@ -1460,6 +1459,9 @@ contains
        endif
        if (model%options%whichcalving == EIGEN_CALVING) then
           call write_log('Error, eigencalving option is supported for Glissade dycore only', GM_FATAL)
+       endif
+       if (model%options%whichcalving == CALVING_STRESS) then
+          call write_log('Error, stress-based calving option is supported for Glissade dycore only', GM_FATAL)
        endif
        if (model%options%whichcalving == CALVING_GRID_MASK) then
           call write_log('Error, calving grid mask option is supported for Glissade dycore only', GM_FATAL)
@@ -2200,8 +2202,10 @@ contains
     call GetValue(section,'calving_timescale',  model%calving%timescale)
     call GetValue(section,'calving_minthck',    model%calving%minthck)
     call GetValue(section,'dthck_dx_cf',        model%calving%dthck_dx_cf)
-    call GetValue(section,'eigenconstant1',     model%calving%eigenconstant1)
-    call GetValue(section,'eigenconstant2',     model%calving%eigenconstant2)
+    call GetValue(section,'eigenconstant',      model%calving%eigenconstant)
+    call GetValue(section,'tau_eigenconstant1', model%calving%tau_eigenconstant1)
+    call GetValue(section,'tau_eigenconstant2', model%calving%tau_eigenconstant2)
+    call GetValue(section,'stress_threshold',   model%calving%stress_threshold)
     call GetValue(section,'damage_threshold',   model%calving%damage_threshold)
     call GetValue(section,'damage_constant1',   model%calving%damage_constant1)
     call GetValue(section,'damage_constant2',   model%calving%damage_constant2)
@@ -2458,9 +2462,14 @@ contains
              call write_log(message, GM_FATAL)
           endif
        elseif (model%options%whichcalving == EIGEN_CALVING) then
-          write(message,*) 'eigenconstant1 (m/yr)         : ', model%calving%eigenconstant1
+          write(message,*) 'eigenconstant (m)             : ', model%calving%eigenconstant
           call write_log(message)
-          write(message,*) 'eigenconstant2 (m/yr)         : ', model%calving%eigenconstant2
+       elseif (model%options%whichcalving == CALVING_STRESS) then
+          write(message,*) 'tau_eigenconstant 1 (m)       : ', model%calving%tau_eigenconstant1
+          call write_log(message)
+          write(message,*) 'tau_eigenconstant 2 (m)       : ', model%calving%tau_eigenconstant2
+          call write_log(message)
+          write(message,*) 'stress_threshold (Pa)         : ', model%calving%stress_threshold
           call write_log(message)
        elseif (model%options%whichcalving == CALVING_DAMAGE) then
           write(message,*) 'damage constant1 (1/yr)       : ', model%calving%damage_constant1

@@ -1343,6 +1343,7 @@ units:      1/year
 long_name:  first eigenvalue of horizontal strain rate tensor
 data:       data%calving%eps_eigen1
 factor:     scyr
+load:       1
 
 [eps_eigen2]
 dimensions: time, y1, x1
@@ -1350,6 +1351,7 @@ units:      1/year
 long_name:  second eigenvalue of horizontal strain rate tensor
 data:       data%calving%eps_eigen2
 factor:     scyr
+load:       1
 
 [tau_eff]
 dimensions: time, staglevel, y1, x1
