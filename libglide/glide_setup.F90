@@ -2443,6 +2443,7 @@ contains
 
     if (model%options%whichcalving == CALVING_THCK_THRESHOLD .or.  &
         model%options%whichcalving == EIGEN_CALVING          .or.  &
+        model%options%whichcalving == CALVING_STRESS         .or.  &
         model%options%whichcalving == CALVING_DAMAGE         .or.  &
         model%options%whichcalving == CF_ADVANCE_RETREAT_RATE) then
 
@@ -2452,8 +2453,6 @@ contains
           call write_log(message, GM_FATAL)
        endif
 
-!!       write(message,*) 'calving timescale (yr) : ', model%calving%timescale
-!!       call write_log(message)
        if (model%options%whichcalving == CALVING_THCK_THRESHOLD) then
           write(message,*) 'calving minthck (m)           : ', model%calving%minthck
           call write_log(message)
@@ -2465,9 +2464,9 @@ contains
           write(message,*) 'eigenconstant (m)             : ', model%calving%eigenconstant
           call write_log(message)
        elseif (model%options%whichcalving == CALVING_STRESS) then
-          write(message,*) 'tau_eigenconstant 1 (m)       : ', model%calving%tau_eigenconstant1
+          write(message,*) 'tau_eigenconstant 1           : ', model%calving%tau_eigenconstant1
           call write_log(message)
-          write(message,*) 'tau_eigenconstant 2 (m)       : ', model%calving%tau_eigenconstant2
+          write(message,*) 'tau_eigenconstant 2           : ', model%calving%tau_eigenconstant2
           call write_log(message)
           write(message,*) 'stress_threshold (Pa)         : ', model%calving%stress_threshold
           call write_log(message)
@@ -3708,6 +3707,9 @@ contains
         !  which depends on the stress tensor, which is computed by the HO solver.
         ! On restart, the correct stress and strain rate tensors are not available, so we read in the eigenproduct.
         if (options%whichcalving == EIGEN_CALVING .or. options%whichcalving == CALVING_DAMAGE) then
+           call glide_add_to_restart_variable_list('eps_eigen1', model_id)
+           call glide_add_to_restart_variable_list('eps_eigen2', model_id)
+        elseif (options%whichcalving == CALVING_STRESS) then
            call glide_add_to_restart_variable_list('tau_eigen1', model_id)
            call glide_add_to_restart_variable_list('tau_eigen2', model_id)
         endif
