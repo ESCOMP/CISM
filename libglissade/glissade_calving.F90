@@ -435,36 +435,6 @@ contains
        !     move the extra ice downstream, advancing the CF.
        ! Only step (3) depends on the specific calving law.
        
-       ! Get masks
-       ! Use thck_pre_transport to duplicate the masks computed before transport.
-       !TODO - Skip the mask calls and pass the masks into the calving subroutine?
-
-       call glissade_get_masks(&
-            nx,            ny,             &
-            parallel,                      &
-            thck_pre_transport,  topg,     &
-            eus,           thklim,         &
-            ice_mask,                      &
-            floating_mask = floating_mask, &
-            ocean_mask = ocean_mask,       &
-            land_mask = land_mask)
-
-       call glissade_calving_front_mask(&
-            nx,            ny,                       &
-            which_ho_calving_front,                  &
-            parallel,                                &
-            thck_pre_transport,  topg,               &
-            eus,                                     &
-            ice_mask,      floating_mask,            &
-            ocean_mask,    land_mask,                &
-            calving_front_mask,                      &
-            dthck_dx_cf = calving%dthck_dx_cf,       &
-            dx = dx,       dy = dy,                  &
-            thck_effective = calving%thck_effective, &
-            partial_cf_mask = partial_cf_mask,       &
-            full_mask = full_mask,                   &
-            effective_areafrac = calving%effective_areafrac)
-
        ! Compute the ice speed at cell centers, averaged from neighboring vertices.
        ! Include in the average only vertices with nonzero speeds (i.e., ice present)
        ! This speed is used to compute the calving rate for thickness-based calving,
@@ -513,8 +483,8 @@ contains
             thck,                             & ! m
             calving%calving_thck)               ! m
 
-       ! Recompute the calving masks
-       !TODO - Can I skip the earlier calls? I think I can do the redistribution without it.
+       ! Compute masks for calving.
+       ! Use thck_pre_transport to duplicate the masks computed before transport.
 
        call glissade_get_masks(&
             nx,            ny,             &
@@ -779,6 +749,11 @@ contains
 
        call parallel_halo(thck, parallel)
        call parallel_halo(calving%calving_thck, parallel)
+
+       if (verbose_calving) then
+          call point_diag(thck, 'After advance: thck (m)', itest, jtest, rtest, 7, 7)
+          call point_diag(thck_full, '   thck_full (m)', itest, jtest, rtest, 7, 7)
+       endif
 
     else   ! other calving options (no subgrid calving front)
            !TODO - Put these in a separate subroutine
@@ -1209,7 +1184,7 @@ contains
     enddo   ! j
 
     if (verbose_calving) then
-       call point_diag(speed*scyr, 'Eigencalving, ice speed (m/yr)', itest, jtest, rtest, 7, 7)
+       call point_diag(speed*scyr, 'Stress-based calving, ice speed (m/yr)', itest, jtest, rtest, 7, 7)
        call point_diag(tau_eigen1, 'tau_eigen1 (Pa)',  itest, jtest, rtest, 7, 7, '(f10.0)')
        call point_diag(tau_eigen2, 'tau_eigen2 (Pa)',  itest, jtest, rtest, 7, 7, '(f10.0)')
        call point_diag(lateral_rate*scyr, 'lateral calving rate (m/yr)', itest, jtest, rtest, 7, 7)
@@ -1761,12 +1736,13 @@ contains
     ! Check for thck > thck_effective in CF cells. This can happen if ice in unprotected cells
     ! has been redistributed to full or nearly full cells upstream, and then was not calved.
     ! Distribute excess ice downstream.
-    !TODO - I want to reduce thck in CF cells where ice is thicker than it needs to be.
 
     ! input/output arguments
 
     integer, intent(in) :: &
-         nx, ny,                 & ! grid dimensions
+         nx, ny                    ! grid dimensions
+
+    integer, intent(in) :: &
          itest, jtest, rtest       ! coordinates of diagnostic point
 
     integer, dimension(nx,ny), intent(in)  ::  &
@@ -1787,7 +1763,7 @@ contains
     integer :: i, j, ii, jj, idn, jdn
     integer :: count
     real(dp) :: total_flux, total_dthck, my_dthck
-    
+
     ! Omitting this call is not answer-changing
 !!    call parallel_halo(ocean_mask, parallel)
 
@@ -1811,10 +1787,10 @@ contains
                 enddo
              enddo
 
-             if (verbose_calving .and. i==itest .and. abs(j-jtest)<=1 .and. this_rank==rtest) then
+             if (verbose_calving .and. abs(i-itest)<=1 .and. abs(j-jtest)<=1 .and. this_rank==rtest) then
                 print*, ' '
-                print*, 'Excess ice: i, j, dthck, downstream flux (m^3/yr)=', &
-                     i, j, thck(i,j) - thck_full(i,j), total_flux*scyr
+                print*, 'Excess ice: rank, i, j, dthck, downstream flux (m^3/s)=', &
+                     this_rank, i, j, thck(i,j) - thck_full(i,j), total_flux
                 print*, '   No. of downstream cells =', count
              endif
 
@@ -1828,7 +1804,7 @@ contains
                          my_dthck = total_dthck * flux_in(-ii,-jj,idn,jdn)/total_flux
                          thck(idn,jdn) = thck(idn,jdn) + my_dthck
                          thck(i,j) = thck(i,j) - my_dthck
-                         if (verbose_calving .and. i==itest .and. abs(j-jtest)<=1 .and. this_rank==rtest) then
+                         if (verbose_calving .and. abs(i-itest)<=1 .and. abs(j-jtest)<=1 .and. this_rank==rtest) then
                             print*, '   Downstream ii, jj, frac:', ii, jj, flux_in(-ii,-jj,idn,jdn)/total_flux
                          endif
                       endif

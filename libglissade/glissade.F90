@@ -3288,8 +3288,7 @@ contains
          ice_mask,                & ! = 1 if ice is present
          floating_mask,           & ! = 1 if ice is present and floating
          land_mask,               & ! = 1 if topg - eus >= 0
-         ocean_mask,              & ! = 1 if ice is absent and topg - eus < 0
-         calving_front_mask         ! = 1 for calving-front cells
+         ocean_mask                 ! = 1 if ice is absent and topg - eus < 0
 
     integer, dimension(model%general%ewn, model%general%nsn) :: &
          ocean_connection_mask,   & ! = 1 for cells that are masked for retreat and are connected to the ocean
@@ -3843,9 +3842,6 @@ contains
        call point_diag(model%geometry%usrf*thk0, 'Final usrf (m)', &
             itest, jtest, rtest, 7, 7)
     endif
-
-    !TODO - Recompute thck_effective and effective_areafrac based on the new thickness.
-    !       These are used in the velocity solver.
 
   end subroutine glissade_calving_solve
 
@@ -4789,17 +4785,21 @@ contains
                                   + (1.0d0 - model%numerics%stagsigma(k-1)) * model%velocity%vvel(k,:,:)
     model%velocity%velnorm_mean(:,:) = sqrt(model%velocity%uvel_mean(:,:)**2 + model%velocity%vvel_mean(:,:)**2)
 
-    ! Compute the vertically integrated stress tensor (Pa) and its eigenvalues.
+    ! Compute the vertically integrated strain-rate tensor (1/s) and stress tensor (Pa) and their eigenvalues.
     ! These are used for some calving schemes.
-    !TODO - Put these calculations in a utility subroutine
+    !TODO - Insert whichcalving logic
 
     if ( (model%options%is_restart == STANDARD_RESTART .or. model%options%is_restart == HYBRID_RESTART) &
          .and. (model%numerics%time == model%numerics%tstart) ) then
 
-       ! do nothing, since the tau eigenvalues are read from the restart file
-       !TODO - Same for eps eigenvalues?
+       ! do nothing, since the eigenvalues are read from the restart file
 
-    else  ! compute the eigenvalues of the 2D horizontal stress tensor
+    else
+
+       ! Compute the vertically integrated stress tensor (Pa) and its eigenvalues
+       ! Note: The stress tensor tau is derived by taking strain rates at quadrature points in the velocity solve.
+       !       The strain rate tensor is then diagnosed from the stress tensor.
+       !       The tensor components will be incorrect on restart, since the stress tensor is not written to the restart file.
 
        call glissade_stress_tensor_eigenvalues(&
             ewn,      nsn,     upn,    &
@@ -4811,32 +4811,29 @@ contains
        call parallel_halo(model%calving%tau_eigen1, parallel)
        call parallel_halo(model%calving%tau_eigen2, parallel)
 
-       if (verbose_calving) then
-          call point_diag(model%stress%tau%xx(1,:,:), 'tau_xx', itest, jtest, rtest, 7, 7, '(f10.0)')
-          call point_diag(model%stress%tau%yy(1,:,:), 'tau_yy', itest, jtest, rtest, 7, 7, '(f10.0)')
-          call point_diag(model%stress%tau%xy(1,:,:), 'tau_xy', itest, jtest, rtest, 7, 7, '(f10.0)')
-       endif
+       ! Compute the vertically integrated strain rate tensor (s^-1) and its eigenvalues.
+
+       call glissade_strain_rate_tensor_eigenvalues(&
+            ewn,      nsn,     upn,     &
+            model%numerics%sigma,       &
+            model%velocity%strain_rate, &
+            model%calving%eps_eigen1,   &
+            model%calving%eps_eigen2,   &
+            model%stress%tau,           &
+            model%stress%efvs,          &
+            model%velocity%divu,        &
+            model%velocity%shear)
+
+       call parallel_halo(model%calving%eps_eigen1, parallel)
+       call parallel_halo(model%calving%eps_eigen2, parallel)
+
+!       if (verbose_calving) then
+!          call point_diag(model%stress%tau%xx(1,:,:), 'tau_xx', itest, jtest, rtest, 7, 7, '(f10.0)')
+!          call point_diag(model%stress%tau%yy(1,:,:), 'tau_yy', itest, jtest, rtest, 7, 7, '(f10.0)')
+!          call point_diag(model%stress%tau%xy(1,:,:), 'tau_xy', itest, jtest, rtest, 7, 7, '(f10.0)')
+!       endif
 
     endif   ! restart
-
-    ! Compute the vertically integrated strain rate tensor (s^-1) and its eigenvalues.
-    ! Note: The stress tensor tau is derived by taking strain rates at quadrature points in the velocity solve.
-    !       The strain rate tensor is then diagnosed from the stress tensor.
-    !       These values will be incorrect on restart, since the stress tensor is not written to the restart file.
-
-    call glissade_strain_rate_tensor_eigenvalues(&
-         ewn,      nsn,     upn,     &
-         model%numerics%sigma,       &
-         model%velocity%strain_rate, &
-         model%calving%eps_eigen1,   &
-         model%calving%eps_eigen2,   &
-         model%stress%tau,           &
-         model%stress%efvs,          &
-         model%velocity%divu,        &
-         model%velocity%shear)
-
-    call parallel_halo(model%calving%eps_eigen1, parallel)
-    call parallel_halo(model%calving%eps_eigen2, parallel)
 
     ! Compute various vertical means.
     ! TODO - Write a utility subroutine for vertical averaging
