@@ -83,6 +83,8 @@ module glimmer_ncdf
      integer :: nstagwbndlevel = 0
      !WHL - added to handle ocean vertical coordinate
      integer :: nzocn = 0
+     !WHL - added to handle glacier coordinate
+     integer :: nglacier = 0
 
      !> size of vertical and stag vertical coordinate
 
@@ -145,7 +147,7 @@ module glimmer_ncdf
      !> element of linked list describing netCDF output file
      !NO_RESTART previous
 
-     type(glimmer_nc_stat) :: nc                          !< structure containg file info
+     type(glimmer_nc_stat) :: nc                          !< structure containing file info
      real(dp) :: freq = 1000.d0                           !< frequency at which data is written to file
      logical  :: write_init = .true.                      !< if true, then write at the start of the run (tstep_count = 0)
      real(dp) :: end_write = glimmer_nc_max_time          !< stop writing after this year
@@ -205,6 +207,14 @@ module glimmer_ncdf
      real(dp)                       :: time_start_cycle = 0.0d0   !> Start cycling once the model time exceeds this time
      integer                        :: nyear_cycle = 0            !> Cycle repeatedly through nyear_cycle years of forcing data
                                                                   !> No cycling unless nyear_cycle > 0
+
+     ! if shuffle_file is present, then read an ASCII file with a shuffled list of forcing years
+     character(len=fname_length)    :: shuffle_file = ''
+
+     ! The following parameter can be set to .true. to read all forcing time slices at initialization.
+     ! This increases the required storage, but can reduce computational time if applying the same N years
+     ! of forcing repeatedly, either cycled or shuffled.
+     logical                        :: read_once = .false.
 
   end type glimmer_nc_input
 
@@ -372,6 +382,7 @@ contains
     print*,'nstaglevel:      ',stat%nstaglevel
     print*,'nstagwbndlevel:  ',stat%nstagwbndlevel
     print*,'nzocn:           ',stat%nzocn
+    print*,'nglacier:        ',stat%nglacier
     print*,'timedim:         ',stat%timedim
     print*,'internal_timevar:',stat%internal_timevar
     print*,'timevar:         ',stat%timevar

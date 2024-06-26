@@ -431,7 +431,7 @@ contains
     logical, parameter :: verbose_read_forcing = .false.
 
     ! Make eps a fraction of the time step.
-    eps = model%numerics%tinc * 1.0d-4
+    eps = model%numerics%tinc * 1.0d-3
 
     ! read forcing files
     ic=>model%funits%frc_first
@@ -439,61 +439,75 @@ contains
 
 !       if (main_task .and. verbose_read_forcing) print *, 'possible forcing times', ic%times
 
-       ic%nc%just_processed = .true. ! until we find an acceptable time, set this to true which will prevent the file from being read.
+       if (ic%read_once) then  ! read once at initialization; do not re-read at runtime
 
-       ! Compute the current forcing time.
-       ! This is the current model time, plus any offset to be consistent with the time in the forcing file,
-       !  plus a small number to allow for roundoff error.
-       current_forcing_time = model%numerics%time + ic%time_offset + eps
+          ic%nc%just_processed = .true.  ! prevent the file from being read
+          if (main_task .and. verbose_read_forcing) then
+             print*, ' '
+             print*, 'In NAME_read_forcing; will not re-read the read_once file ', trim(ic%nc%filename)
+          endif
 
-       ! If cycling repeatedly through a subset of the forcing data, make a further correction:
-       ! compute the current time relative to time_start_cycle.
-       if (ic%nyear_cycle > 0 .and. current_forcing_time > ic%time_start_cycle) then
-          current_forcing_time = ic%time_start_cycle &
-               + mod(current_forcing_time - ic%time_start_cycle, real(ic%nyear_cycle,dp))
-       endif
+       else  ! not a read_once file
 
-       if (main_task .and. verbose_read_forcing) then
-          print*, 'In glide_read_forcing, model time + eps =', model%numerics%time + eps
-          print*, 'Forcing file nt, time_offset =', ic%nt, ic%time_offset
-          print*, 'time_start_cycle, nyear_cycle:', ic%time_start_cycle, ic%nyear_cycle
-          print*, 'current forcing time =', current_forcing_time
-       endif
+          ic%nc%just_processed = .true. ! until we find an acceptable time, set this to true which will prevent the file from being read.
 
-       ! Find the time index associated with the previous model time step
-       t_prev = 0
-       do t = ic%nt, 1, -1  ! look through the time array backwards
-          if (ic%times(t) <= current_forcing_time - model%numerics%tinc) then
-             t_prev = t
-             if (main_task .and. verbose_read_forcing) print*, 'Previous time index =', t_prev
-             exit
-          end if
-       enddo
+          ! Compute the current forcing time.
+          ! This is the current model time, plus any offset to be consistent with the time in the forcing file,
+          !  plus a small number to allow for roundoff error.
+          current_forcing_time = model%numerics%time + ic%time_offset + eps
 
-       ! Find the current time in the file
-       do t = ic%nt, 1, -1  ! look through the time array backwards
-          if ( ic%times(t) <= current_forcing_time) then
-             ! use the largest time that is smaller or equal to the current time (stepwise forcing)
-             if (main_task .and. verbose_read_forcing) &
-                  print*, 'Largest time less than current forcing time: t, times(t):', t, ic%times(t)
+          ! If cycling repeatedly through a subset of the forcing data, make a further correction:
+          ! compute the current time relative to time_start_cycle.
+          if (ic%nyear_cycle > 0 .and. current_forcing_time > ic%time_start_cycle) then
+             current_forcing_time = ic%time_start_cycle &
+                  + mod(current_forcing_time - ic%time_start_cycle, real(ic%nyear_cycle,dp))
+          endif
 
-             ! If this time index (t) is larger than the previous index (t_prev), then read a new time slice.
-             ! Otherwise, we already have the current slice, and there is nothing new to read.
-             if (t > t_prev) then
-                ! Set the desired time to be read
-                ic%current_time = t
-                ic%nc%just_processed = .false.  ! set this to false so file will be read.
-                if (main_task .and. verbose_read_forcing) print*, 'Read new forcing slice: t, times(t) =', t, ic%times(t)
-             endif ! t > t_prev
+          if (main_task .and. verbose_read_forcing) then
+             print*, ' '
+             print*, 'In NAME_read_forcing, model time + eps =', model%numerics%time + eps
+             print*, 'Forcing file nt, time_offset =', ic%nt, ic%time_offset
+             print*, 'time_start_cycle, nyear_cycle:', ic%time_start_cycle, ic%nyear_cycle
+             print*, 'current forcing time =', current_forcing_time
+          endif
 
-             exit  ! once we find the time, exit the loop
-          end if   ! ic%times(t) <= model%numerics%time + eps
+          ! Find the time index associated with the previous model time step
+          t_prev = 0
+          do t = ic%nt, 1, -1  ! look through the time array backwards
+             if (ic%times(t) <= current_forcing_time - model%numerics%tinc) then
+                t_prev = t
+                if (main_task .and. verbose_read_forcing) print*, 'Previous time index =', t_prev
+                exit
+             end if
+          enddo
 
-       end do  ! if we get to end of loop without exiting, then this file will not be read at this time
+          ! Find the current time in the file
+          do t = ic%nt, 1, -1  ! look through the time array backwards
+             if ( ic%times(t) <= current_forcing_time) then
+                ! use the largest time that is smaller or equal to the current time (stepwise forcing)
+                if (main_task .and. verbose_read_forcing) &
+                     print*, 'Largest time less than current forcing time: t, times(t):', t, ic%times(t)
+
+                ! If this time index (t) is larger than the previous index (t_prev), then read a new time slice.
+                ! Otherwise, we already have the current slice, and there is nothing new to read.
+                if (t > t_prev) then
+                   ! Set the desired time to be read
+                   ic%current_time = t
+                   ic%nc%just_processed = .false.  ! set this to false so file will be read.
+                   if (main_task .and. verbose_read_forcing) print*, 'Read new forcing slice: t, times(t) =', t, ic%times(t)
+                endif ! t > t_prev
+
+                exit  ! once we find the time, exit the loop
+             end if   ! ic%times(t) <= model%numerics%time + eps
+
+          end do  ! if we get to end of loop without exiting, then this file will not be read at this time
+
+       endif  ! read_once file
 
        ! move on to the next forcing file
        ic=>ic%next
-    end do
+
+    end do   ! while(associated)
 
     ! Now that we've updated metadata for each forcing file, actually perform the read.
     ! This call will only read forcing files where just_processed=.false.
@@ -502,7 +516,230 @@ contains
   end subroutine NAME_read_forcing
 
 
-!------------------------------------------------------------------------------
+  subroutine NAME_read_forcing_once(data, model)
+
+    ! Read data from forcing files with read_once = .true.
+    ! Read all time slices in a single call and write to arrays with a time index.
+
+    use glimmer_global, only: msg_length
+    use glimmer_log
+    use cism_parallel, only: main_task, parallel_reduce_sum
+
+    implicit none
+    type(DATATYPE) :: data
+    type(glide_global_type), intent(inout) :: model
+
+    ! Locals
+    type(glimmer_nc_input), pointer :: ic
+    integer :: t                         ! time index
+    integer :: nx, ny, nt                ! dimension sizes
+    real(dp) :: eps                      ! a tolerance to use for stepwise constant forcing
+    real(dp) :: global_sum               ! global sum of an input field
+    character(len=msg_length) :: message
+    logical, parameter :: verbose_read_forcing = .true.
+
+    ! Make eps a fraction of the time step.
+    eps = model%numerics%tinc * 1.0d-3
+
+    ! read forcing files
+    ic=>model%funits%frc_first
+    do while(associated(ic))
+
+       if (ic%read_once) then
+
+          if (main_task .and. verbose_read_forcing) then
+             print*, ' '
+             print*, 'In NAME_read_forcing_once'
+             print*, 'Filename =', trim(ic%nc%filename)
+             print*, 'Number of slices =', ic%nt
+          endif
+
+          write(message,*) 'Reading', ic%nt, 'slices of file ', trim(ic%nc%filename), ' just once at initialization'
+          call write_log(message)
+
+          nt = ic%nt
+          ic%nc%vars = ''
+
+          ! Allocate 3D arrays that contain all time slices for each 2D field
+          ! Note: Variables with the 'read_once' attribute must be 2D
+
+          !GENVAR_READ_ONCE_ALLOCATE!
+          ! Loop over all time slices in the file
+          do t = 1, ic%nt
+
+             if (main_task .and. verbose_read_forcing) then
+                print*, 'Read new forcing slice: t index, times(t) =', t, ic%times(t)
+             endif
+
+             ! Set the desired time to be read
+             ic%current_time = t
+
+             ! Read one time slice into the data derived type
+             call NAME_io_read(ic,data)
+
+             ! Copy data from this time slice into the 3D array.
+             ! Once the fields have been copied, zero them out.
+             ! Also increment the string ic%nc%vars.
+             ! This string contains a list of field names with a space before and after each name.
+
+             !GENVAR_READ_ONCE_COPY!
+          enddo   ! ic%nt
+
+       endif  ! read_once
+
+       if (main_task .and. verbose_read_forcing) then
+          print*, 'Final ic%nc%vars = ', trim(ic%nc%vars)
+       endif
+
+       ic=>ic%next
+
+    enddo   ! while(associated)
+
+  end subroutine NAME_read_forcing_once
+
+
+  subroutine NAME_retrieve_forcing(data, model)
+
+    ! Retrieve a single time slice of forcing from arrays that contain all the forcing.
+    ! Called repeatedly at runtime, after calling the read_forcing_once subroutine at initialization.
+
+    use glimmer_global, only: msg_length
+    use glimmer_log
+    use cism_parallel, only: main_task
+    implicit none
+    type(DATATYPE) :: data
+    type(glide_global_type), intent(inout) :: model
+
+    ! Locals
+    type(glimmer_nc_input), pointer :: ic
+    integer :: t, t_prev
+    real(dp) :: current_forcing_time   ! current time with reference to the forcing file
+    real(dp) :: eps                    ! a tolerance to use for stepwise constant forcing
+    logical :: retrieve_new_slice      ! if true, then retrieve data for this forcing time slice
+    integer :: forcing_year            ! year of data from the forcing file
+    integer :: this_year               ! current simulation year relative to tstart; starts at 0
+    integer :: year1, year2            ! years read from the shuffle file
+    real(dp) :: decimal_year           ! decimal part of the current year
+    character(len=msg_length) :: message
+    logical, parameter :: verbose_read_forcing = .false.
+
+    ! Make eps a fraction of the time step
+    eps = model%numerics%tinc * 1.0d-3
+
+    ! read forcing files
+
+    ic=>model%funits%frc_first
+    do while(associated(ic))
+
+       if (ic%read_once) then
+
+          retrieve_new_slice = .false.   ! default is to do nothing
+
+          ! Compute the current forcing time.
+          ! This is the current model time, plus any offset to be consistent with the time in the forcing file,
+          !  plus a small number to allow for roundoff error.
+          ! Code adapted from the read_forcing subroutine above
+
+          current_forcing_time = model%numerics%time + ic%time_offset + eps
+
+          ! If cycling repeatedly through a subset of the forcing data, make a further correction:
+          ! compute the current time relative to time_start_cycle.
+          if (ic%nyear_cycle > 0 .and. current_forcing_time > ic%time_start_cycle) then
+             current_forcing_time = ic%time_start_cycle &
+                  + mod(current_forcing_time - ic%time_start_cycle, real(ic%nyear_cycle,dp))
+          endif
+
+          if (main_task .and. verbose_read_forcing) then
+             print*, ' '
+             print*, 'In NAME_retrieve_forcing, model time + eps =', model%numerics%time + eps
+             print*, 'Filename = ', trim(ic%nc%filename)
+             print*, 'Forcing file nt, time_offset =', ic%nt, ic%time_offset
+             print*, 'time_start_cycle, nyear_cycle:', ic%time_start_cycle, ic%nyear_cycle
+             print*, 'current forcing time =', current_forcing_time
+             print*, 'variable list:', trim(ic%nc%vars)
+          endif
+
+          ! Optionally, associate the current forcing time with a different date in the forcing file.
+          ! This is done by reading a file that associates each simulation year (relative to tstart)
+          !  with a year that is read from a 'shuffle file'. The shuffle file typically consists of
+          !  consecutive integers (in column 1), followed by years chosen at random from all the years
+          !  in the forcing file (in column 2).
+
+          if (trim(ic%shuffle_file) /= '') then  ! shuffle_file exists
+             open(unit=11, file=trim(ic%shuffle_file), status='old')
+             this_year = int(current_forcing_time - model%numerics%tstart)
+             if (main_task .and. verbose_read_forcing) then
+                print*, 'shuffle_file = ', trim(ic%shuffle_file)
+                print*, 'tstart, this_year =', model%numerics%tstart, this_year
+             endif
+             forcing_year = 0
+             do while (forcing_year == 0)
+                read(11,'(i6,i8)') year1, year2
+                if (this_year == year1) then
+                   forcing_year = year2
+                   exit
+                endif
+             enddo
+             close(11)
+             decimal_year = current_forcing_time - floor(current_forcing_time)
+             current_forcing_time = real(forcing_year,dp) + decimal_year
+             if (main_task .and. verbose_read_forcing) then
+                print*, 'forcing_year, decimal =', forcing_year, decimal_year
+                print*, 'shuffled forcing_time =', current_forcing_time
+             endif
+          else
+             if (main_task .and. verbose_read_forcing) print*, 'no shuffle_file'
+          endif  ! shuffle_file exists
+
+          ! Find the time index associated with the previous model time step
+          t_prev = 0
+          do t = ic%nt, 1, -1  ! look through the time array backwards
+             if (ic%times(t) <= current_forcing_time - model%numerics%tinc) then
+                t_prev = t
+                if (main_task .and. verbose_read_forcing) print*, 'Previous time index =', t_prev
+                exit
+             end if
+          enddo
+
+          ! Find the current time in the file
+          do t = ic%nt, 1, -1  ! look through the time array backwards
+             if ( ic%times(t) <= current_forcing_time) then
+                ! use the largest time that is smaller or equal to the current time (stepwise forcing)
+                if (main_task .and. verbose_read_forcing) &
+                     print*, 'Largest time less than current forcing time: t, times(t):', t, ic%times(t)
+                ! If this time index (t) is larger than the previous index (t_prev), then retrieve a new time slice.
+                ! Otherwise, we already have the current slice, and there is nothing new to read.
+                if (t > t_prev) then
+                   ! Set the desired time to be read
+                   ic%current_time = t
+                   retrieve_new_slice = .true.
+                   if (main_task .and. verbose_read_forcing) print*, 'Retrieve new forcing slice'
+                   write(message,*) &
+                        'Retrieve slice', t, 'at forcing time', ic%times(t), 'from file ', trim(ic%nc%filename)
+                   call write_log(message)
+                endif ! t > t_prev
+
+                exit  ! once we find the time, exit the loop
+             end if   ! ic%times(t) <= model%numerics%time + eps
+
+          end do  ! if we get to end of loop without exiting, then there is nothing to retrieve at this time
+
+          ! Check whether each potential read_once field is part of this forcing file.
+          ! If so, then copy the data for this time slice from the 3D array to the 2D array.
+
+          if (retrieve_new_slice) then
+
+             !GENVAR_READ_ONCE_RETRIEVE!
+          endif   ! retrieve_new_slice
+
+       endif   ! read_once
+
+       ! move on to the next forcing file
+       ic=>ic%next
+
+    enddo   ! while(associated)
+
+  end subroutine NAME_retrieve_forcing
 
 
   subroutine NAME_io_read(infile,data)

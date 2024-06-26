@@ -17,18 +17,9 @@ fi
 
 source /etc/profile.d/z00_modules.sh
 
+source derecho-intel-modules
+
 echo CISM: "${cism_top}"
-
-
-module purge
-module load ncarenv/23.09
-module load intel/2023.2.1
-module load cray-mpich/8.1.27
-module load mkl/2023.2.0
-module load netcdf/4.9.2
-module load ncarcompilers/1.0.0
-module load cmake/3.26.3
-
 
 # remove old build data:
 rm -f ./CMakeCache.txt

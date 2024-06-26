@@ -199,7 +199,7 @@ contains
     !TODO - Make sure cells in the Glide temperature halo are initialized to reasonable values
     !       (not unphys_val), e.g. if reading temps from input or restart file.
 
-    if (model%options%is_restart == RESTART_TRUE) then
+    if (model%options%is_restart == STANDARD_RESTART .or. model%options%is_restart == HYBRID_RESTART) then
 
        ! Temperature has already been initialized from a restart file. 
        ! (Temperature is always a restart variable.)
@@ -291,7 +291,7 @@ contains
 
     ! ====== Calculate initial value of flwa ==================
 
-    if (model%options%is_restart == RESTART_FALSE) then
+    if (model%options%is_restart == NO_RESTART) then
        call write_log("Calculating initial flwa from temp and thk fields")
 
        ! Calculate Glen's A --------------------------------------------------------   

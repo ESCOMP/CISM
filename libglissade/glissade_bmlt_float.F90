@@ -567,7 +567,7 @@ module glissade_bmlt_float
 
     endif  ! simple_init
 
-    if (model%options%is_restart == RESTART_FALSE) then
+    if (model%options%is_restart == NO_RESTART) then
 
        if (model%options%bmlt_float_thermal_forcing_param == BMLT_FLOAT_TF_ISMIP6_LOCAL .or.  &
            model%options%bmlt_float_thermal_forcing_param == BMLT_FLOAT_TF_ISMIP6_NONLOCAL .or. &

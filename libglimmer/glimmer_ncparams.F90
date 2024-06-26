@@ -75,17 +75,25 @@ contains
     character(len=fname_length) :: restart_filename
     character(len=256) :: message
 
-    ! Note on restart files:
+    ! Notes on restart files:
     ! If a file is listed in the 'CF restart' section, then it is added to the glimmer_nc_output data structure
     !  and written at the specified frequency.
-    ! If model%options%is_restart = RESTART_TRUE, then the file listed in 'CF restart' (provided it exists) 
+    !
+    ! If model%options%is_restart = STANDARD_RESTART, then the file listed in 'CF restart' (provided it exists)
     !  is added to the glimmer_nc_input data structure, overriding any file listed in the 'CF input' section.
     !  The latest time slice will be read in.
-    ! Thus when restarting the model, it is only necessary to set restart = RESTART_TRUE (i.e, restart = 1)
-    !  in the config file; it is not necesssary to change filenames in 'CF input' or 'CF restart'.
-    ! At most one file should be listed in the 'CF restart' section, and it should contain the string 'restart'
-    ! If model%options%is_restart = RESTART_TRUE and there is no 'CF restart' section, then the model will restart
+    ! Thus when restarting the model, it is only necessary to set restart = 1 (i.e., STANDARD_RESTART)
+    !  in the config file; it is not necesssary to change the filenames in 'CF input' or 'CF restart'.
+    ! At most one file should be listed in the 'CF restart' section, and it should contain the string 'restart' or '.r.'
+    ! If model%options%is_restart = STANDARD_RESTART and there is no 'CF restart' section, then the model will restart
     !  from the file and time slice specified in the 'CF input' section. (This is the old Glimmer behavior.)
+    !
+    ! If model%options%is_restart = HYBRID_RESTART, then the file listed in 'CF input' is used to initialize the model.
+    ! This file should be a restart file from a previous run (e.g., a long ice-sheet spin-up),
+    !  which provides the initial ice state for the hybrid run.
+    ! The differences from STANDARD_RESTART (besides the config section where the filename is given) are
+    ! (1) tstep_count is set to 0, replacing the value in the CF input file.
+    ! (2) model%numerics%time is set to tstart from the config file, replacing the value in the CF input file.
 
     ! get config string
     call ConfigAsString(config,configstring)
@@ -135,7 +143,7 @@ contains
     end do
 
     ! set up restart input
-    if (model%options%is_restart == RESTART_TRUE) then
+    if (model%options%is_restart == STANDARD_RESTART) then
 
        ! If there is a 'CF restart' section, the model will restart from the file listed there (if it exists).
        ! Else the model will start from the input file in the 'CF input' section.
@@ -187,7 +195,7 @@ contains
 
        endif   ! associated(section)
 
-    endif  ! model%options%is_restart = RESTART_TRUE
+    endif  ! model%options%is_restart
 
     ! setup forcings
     call GetSection(config,section,'CF forcing')
@@ -365,6 +373,12 @@ contains
     call GetValue(section,'nyear_cycle',handle_forcing%nyear_cycle)
     call GetValue(section,'time_start_cycle',handle_forcing%time_start_cycle)
 
+    ! if shuffle_file is present, then read an ASCII file with a shuffled list of forcing years
+    call GetValue(section,'shuffle_file', handle_forcing%shuffle_file)
+
+    ! if read_once = true, then read in all time slices just once, at initialization
+    call GetValue(section,'read_once', handle_forcing%read_once)
+
     handle_forcing%current_time = handle_forcing%get_time_slice
 
     if (handle_forcing%nc%filename(1:1)==' ') then
@@ -381,6 +395,13 @@ contains
           call write_log(message)
           write(message,*) '   nyear_cycle:', handle_forcing%nyear_cycle
           call write_log(message)
+       endif
+       if (trim(handle_forcing%shuffle_file) /= '') then
+          write(message,*) '   shuffle_file: ', trim(handle_forcing%shuffle_file)
+          call write_log(message)
+       endif
+       if (handle_forcing%read_once) then
+          call write_log('All time slices will be read just once, at initialization')
        endif
     end if
 
