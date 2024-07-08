@@ -669,6 +669,9 @@ contains
 
     real(dp), dimension(:,:,:), allocatable :: uvel, vvel   ! uniform velocity field (m/yr)
 
+    integer, dimension(:,:), allocatable :: &
+         edgemask_e, edgemask_n   ! = 1 for edges across which ice can flow
+
     integer :: i, j, k, n
     integer :: nx, ny, nz
     real(dp) :: dx, dy
@@ -764,6 +767,10 @@ contains
        enddo
     endif
 
+    ! Allow transport across all edges
+    edgemask_e = 1
+    edgemask_n = 1
+
     ! Set uniform ice speed everywhere
 
     do j = 1, ny-1
@@ -804,6 +811,7 @@ contains
                                       model%geometry%tracers_usrf(:,:,:),                   &
                                       model%geometry%tracers_lsrf(:,:,:),                   &
                                       model%options%which_ho_vertical_remap,                &
+                                      edgemask_e,                edgemask_n,                &
                                       upwind_transport_in = do_upwind_transport)
 
        call glissade_transport_finish_tracers(model)

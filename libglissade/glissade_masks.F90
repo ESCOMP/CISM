@@ -341,6 +341,7 @@
 
     real(dp) :: &
          max_neighbor_thck,        & ! max thickness (m) of the four edge neighbors
+         distance,                 & ! distance between adjacent cell centers
          dthck_dx                    ! dH/dx between adjacent cells near the CF
 
     integer, dimension(nx,ny) :: &
@@ -366,7 +367,7 @@
                 marine_interior_mask(i,j) = 1
              endif
           elseif (ice_mask(i,j) == 1 .and. land_mask(i,j) == 0) then  ! marine-grounded cell
-             marine_interior_mask = 1
+             marine_interior_mask(i,j) = 1
           endif
        enddo
     enddo
@@ -405,29 +406,24 @@
              do i = 2, nx-1
                 if (ice_mask(i,j) == 1) then
                    if (calving_front_mask(i,j) == 1) then
-
-                      ! Find the greatest thickness of the edge-adjacent floating interior neighbors,
-                      !  and compute the thickness gradient between the cell and this neighbor.
-                      ! The gradient is defined to be positive when the neighbor cell is thicker
-                      !  than the local cell.
                       max_neighbor_thck = max(&
                            marine_interior_mask(i-1,j)*thck(i-1,j), &
                            marine_interior_mask(i+1,j)*thck(i+1,j), &
                            marine_interior_mask(i,j-1)*thck(i,j-1), &
                            marine_interior_mask(i,j+1)*thck(i,j+1))
                       if (max_neighbor_thck > 0.0d0) then
-                         dthck_dx = (max_neighbor_thck - thck(i,j)) / sqrt(dx*dy)
+                         distance = sqrt(dx*dy)
+                         dthck_dx = (max_neighbor_thck - thck(i,j)) / distance
                          ! If the gradient exceeds a critical value, this is a partial CF cell;
                          !  set thck_effective based on the critical gradient.
                          ! If the gradient is small, this is a full cell, with thck_effective = thck.
                          if (dthck_dx > dthck_dx_cf) then
                             partial_cf_mask(i,j) = 1
-                            thck_effective(i,j) = max_neighbor_thck - dthck_dx_cf*sqrt(dx*dy)
+                            thck_effective(i,j) = max_neighbor_thck - dthck_dx_cf*distance
                             if (present(thck_full)) thck_full(i,j) = thck_effective(i,j)   ! min thickness to be a full cell
                          else
-                            partial_cf_mask(i,j) = 0
                             full_mask(i,j) = 1
-                            if (present(thck_full)) thck_full(i,j) = max_neighbor_thck - dthck_dx_cf*sqrt(dx*dy)
+                            if (present(thck_full)) thck_full(i,j) = max_neighbor_thck - dthck_dx_cf*distance
                          endif   ! dthck_dx > dthck_dx_cf
                       else   ! no marine interior neighbors; mark as a partial CF cell
                          partial_cf_mask(i,j) = 1

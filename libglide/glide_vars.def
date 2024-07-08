@@ -551,6 +551,12 @@ long_name:     lateral calving rate
 data:          data%calving%lateral_rate
 factor:        scyr
 
+[effective_areafrac]
+dimensions:    time, y1, x1
+units:         1
+long_name:     effective area fraction
+data:          data%calving%effective_areafrac
+
 [damage]
 dimensions:    time, staglevel, y1, x1
 units:         unitless [0,1]

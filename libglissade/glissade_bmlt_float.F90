@@ -40,6 +40,7 @@ module glissade_bmlt_float
   use glimmer_paramets, only: unphys_val
   use glimmer_log
   use glide_types
+  use glide_diagnostics, only: point_diag
   use cism_parallel, only: this_rank, main_task, nhalo, &
        parallel_type, parallel_halo, parallel_globalindex, parallel_boundary_value, &
        parallel_reduce_sum, parallel_reduce_min, parallel_reduce_max
@@ -655,33 +656,13 @@ module glissade_bmlt_float
              print*, ' '
              print*, 'gamma0 =', ocean_data%gamma0
              print*, ' '
-             print*, 'basin_number, itest, jtest, rank =', itest, jtest, rtest
-             do j = jtest+3, jtest-3, -1
-                write(6,'(i6)',advance='no') j
-                do i = itest-3, itest+3
-                   write(6,'(i10)',advance='no') ocean_data%basin_number(i,j)
-                enddo
-                write(6,*) ' '
-             enddo
-             print*, ' '
-             print*, 'deltaT_ocn'
-             do j = jtest+3, jtest-3, -1
-                write(6,'(i6)',advance='no') j
-                do i = itest-3, itest+3
-                   write(6,'(f10.4)',advance='no') ocean_data%deltaT_ocn(i,j)
-                enddo
-                write(6,*) ' '
-             enddo
+             call point_diag(ocean_data%basin_number(:,:), 'basin_number', itest, jtest, rtest, 7, 7)
+             call point_diag(ocean_data%deltaT_ocn(:,:), 'deltaT_ocn', itest, jtest, rtest, 7, 7)
+             print*, 'associated(thermal_forcing) =', associated(ocean_data%thermal_forcing)
              do k = kmin_diag, kmax_diag
                 print*, ' '
                 print*, 'thermal_forcing, k =', k
-                do j = jtest+3, jtest-3, -1
-                   write(6,'(i6)',advance='no') j
-                   do i = itest-3, itest+3
-                      write(6,'(f10.3)',advance='no') ocean_data%thermal_forcing(k,i,j)
-                   enddo
-                   write(6,*) ' '
-                enddo
+                call point_diag(ocean_data%thermal_forcing(k,:,:), 'thermal_forcing', itest, jtest, rtest, 7, 7)
              enddo
           endif  ! verbose_bmlt_float
 
