@@ -3703,7 +3703,13 @@ contains
            call glide_add_to_restart_variable_list('calving_mask', model_id)
         endif
 
-        ! The eigencalving calculation requires the product of eigenvalues of the horizontal strain rate tensor,
+        !WHL - debug - Can be useful to compute a calving mask for testing subgrid CF schemes
+        !TODO - Remove if not needed permanently
+        if (options%which_ho_calving_front == HO_CALVING_FRONT_SUBGRID) then
+           call glide_add_to_restart_variable_list('calving_mask', model_id)
+        endif
+
+           ! The eigencalving calculation requires the product of eigenvalues of the horizontal strain rate tensor,
         !  which depends on the stress tensor, which is computed by the HO solver.
         ! On restart, the correct stress and strain rate tensors are not available, so we read in the eigenproduct.
         if (options%whichcalving == EIGEN_CALVING .or. options%whichcalving == CALVING_DAMAGE) then

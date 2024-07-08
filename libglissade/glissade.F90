@@ -114,7 +114,7 @@ contains
     use glissade_grid_operators, only: glissade_stagger, glissade_laplacian_smoother
     use glissade_velo_higher, only: glissade_velo_higher_init
     use glide_diagnostics, only: glide_init_diag
-    use glissade_calving, only: glissade_calving_mask_init
+    use glissade_calving, only: glissade_calving_mask_init, verbose_calving
     use glissade_inversion, only: glissade_init_inversion, verbose_inversion
     use glissade_basal_traction, only: glissade_init_effective_pressure
     use glissade_bmlt_float, only: glissade_bmlt_float_thermal_forcing_init, verbose_bmlt_float
@@ -971,13 +971,11 @@ contains
     ! Note: This can set powerlaw_c and coulomb_c to nonzero values when they are never used,
     !       but is simpler than checking all possible basal friction options.
 
-    if (model%options%is_restart == NO_RESTART) then
-       if (model%options%which_ho_powerlaw_c == HO_POWERLAW_C_CONSTANT) then
-          model%basal_physics%powerlaw_c = model%basal_physics%powerlaw_c_const
-       endif
-       if (model%options%which_ho_coulomb_c == HO_COULOMB_C_CONSTANT) then
-          model%basal_physics%coulomb_c = model%basal_physics%coulomb_c_const
-       endif
+    if (model%options%which_ho_powerlaw_c == HO_POWERLAW_C_CONSTANT) then
+       model%basal_physics%powerlaw_c = model%basal_physics%powerlaw_c_const
+    endif
+    if (model%options%which_ho_coulomb_c == HO_COULOMB_C_CONSTANT) then
+       model%basal_physics%coulomb_c = model%basal_physics%coulomb_c_const
     endif
 
     ! Optionally, do initial calculations for inversion
@@ -1058,7 +1056,10 @@ contains
 
     endif   ! force_retreat
 
-    if ((model%options%whichcalving == CALVING_GRID_MASK .or. model%options%apply_calving_mask)  &
+    !WHL - debug - Compute calving_mask for all the subgrid CF options
+!!    if ((model%options%whichcalving == CALVING_GRID_MASK .or. model%options%apply_calving_mask)  &
+    if ( (model%options%whichcalving == CALVING_GRID_MASK .or. model%options%apply_calving_mask .or.  &
+         model%options%which_ho_calving_front == HO_CALVING_FRONT_SUBGRID)  &
          .and. model%options%is_restart == NO_RESTART) then
 
        ! Initialize the no-advance calving_mask
@@ -1079,6 +1080,11 @@ contains
             model%velocity%usfc_obs*vel0*scyr, model%velocity%vsfc_obs*vel0*scyr, &  ! m/yr
             model%calving%calving_front_x,     model%calving%calving_front_y,     &
             model%calving%calving_mask)
+
+       if (verbose_calving) then
+          call point_diag(model%calving%calving_mask, 'Initial calving mask:', &
+               itest, jtest, rtest, 7, 7)
+       endif
 
     endif   ! calving grid mask
 
@@ -1375,19 +1381,6 @@ contains
     ! ------------------------------------------------------------------------ 
 
     call glissade_calving_solve(model, .false.)   ! init_calving = .false.
-
-    if (verbose_glissade .and. this_rank == rtest) then
-       i = itest
-       j = jtest
-       print*, ' '
-       print*, 'After calving, thck (m):'
-       do j = jtest+3, jtest-3, -1
-          do i = itest-3, itest+3
-             write(6,'(f10.4)',advance='no') model%geometry%thck(i,j)*thk0
-          enddo
-          write(6,*) ' '
-       enddo
-    endif
 
     ! ------------------------------------------------------------------------
     ! Clean up variables in ice-free columns.
@@ -2270,6 +2263,7 @@ contains
     use glissade_inversion, only: verbose_inversion
     use glissade_bmlt_float, only: verbose_bmlt_float
     use glissade_calving, only: verbose_calving
+    use glissade_calving, only: use_edgemasks  !TODO - Remove this option?
     use glissade_grid_operators, only: glissade_vertical_interpolate
     use glissade_glacier, only: verbose_glacier
     use glide_stop, only: glide_finalise
@@ -2327,7 +2321,12 @@ contains
          partial_cf_mask,         & ! = 1 for partially filled CF cells (thck < thck_effective), else = 0
          full_mask                  ! = 1 for ice-filled cells that are not partial_cf cells, else = 0
 
+    integer, dimension(model%general%ewn, model%general%nsn) :: &
+         edgemask_e     ,&! = 1 for east edges across which mass can flow; else = 0
+         edgemask_n       ! = 1 for north edges across which mass can flow; else = 0
+
     !WHL - debug
+    integer :: ig, jg
     real(dp) :: local_maxval, global_maxval
     character(len=100) :: message
 
@@ -2423,11 +2422,62 @@ contains
             full_mask = full_mask,                    &
             effective_areafrac = model%calving%effective_areafrac)
 
+       ! Initialize the edge masks for transport
+       ! Ice can flow across edges with edgemask = 1, but not edgemask = 0
+
+       edgemask_e = 1
+       edgemask_n = 1
+
+       if (use_edgemasks) then
+          !TODO - Remove this option? It leads to negative ice areas.
+
+          if (model%options%which_ho_calving_front == HO_CALVING_FRONT_SUBGRID) then
+
+             ! Set masks such that mass cannot flow from partial CF cells to open ocean,
+             !  or from one ocean cell to another.
+
+             !TODO - Simplify logic: All edges of full cells get mask = 1; else mask = 0
+             do j = 2, nsn-1
+                do i = 2, ewn-1
+                   if (partial_cf_mask(i,j) == 1 .or. ocean_mask(i,j) == 1) then
+                      if (ocean_mask(i-1,j) == 1 .or. partial_cf_mask(i-1,j) == 1) edgemask_e(i-1,j) = 0
+                      if (ocean_mask(i+1,j) == 1 .or. partial_cf_mask(i+1,j) == 1) edgemask_e(i,j) = 0
+                      if (ocean_mask(i,j-1) == 1 .or. partial_cf_mask(i,j-1) == 1) edgemask_n(i,j-1) = 0
+                      if (ocean_mask(i,j+1) == 1 .or. partial_cf_mask(i,j+1) == 1) edgemask_n(i,j) = 0
+                   endif
+                enddo
+             enddo
+
+             ! One exception: Ice can flow into ocean cells with 3 CF neighbors
+             do j = 2, nsn-1
+                do i = 2, ewn-1
+                   if (ocean_mask(i,j) == 1) then
+                      if (calving_front_mask(i-1,j) + calving_front_mask(i+1,j) + &
+                           calving_front_mask(i,j-1) + calving_front_mask(i,j+1) >= 3) then
+                         if (calving_front_mask(i-1,j) == 1) edgemask_e(i-1,j) = 1
+                         if (calving_front_mask(i+1,j) == 1) edgemask_e(i,j) = 1
+                         if (calving_front_mask(i,j-1) == 1) edgemask_n(i,j-1) = 1
+                         if (calving_front_mask(i,j+1) == 1) edgemask_n(i,j) = 1
+                      endif
+                   endif
+                enddo
+             enddo
+
+             call parallel_halo(edgemask_e, parallel)
+             call parallel_halo(edgemask_n, parallel)
+
+          endif
+       endif
+
        if (verbose_calving) then
           call point_diag(calving_front_mask, 'Before transport, calving_front_mask', itest, jtest, rtest, 7, 7)
           call point_diag(partial_cf_mask, 'partial_cf_mask', itest, jtest, rtest, 7, 7)
           call point_diag(full_mask, 'full_mask', itest, jtest, rtest, 7, 7)
           call point_diag(ocean_mask, 'ocean_mask', itest, jtest, rtest, 7, 7)
+          call point_diag(edgemask_e, 'edgemask_e', itest, jtest, rtest, 7, 7)
+          call point_diag(edgemask_n, 'edgemask_n', itest, jtest, rtest, 7, 7)
+          call point_diag(model%geometry%thck*thk0, 'thck', itest, jtest, rtest, 7, 7)
+          call point_diag(model%calving%thck_effective, 'thck_effective', itest, jtest, rtest, 7, 7)
           call point_diag(model%calving%effective_areafrac, &
                'effective_areafrac', itest, jtest, rtest, 7, 7, '(f10.6)')
        endif
@@ -2611,6 +2661,7 @@ contains
                                          model%geometry%tracers_usrf(:,:,:),                   &
                                          model%geometry%tracers_lsrf(:,:,:),                   &
                                          model%options%which_ho_vertical_remap,                &
+                                         edgemask_e(:,:),            edgemask_n(:,:),          &
                                          upwind_transport_in = do_upwind_transport)
 
           ! halo updates for thickness and tracers
@@ -2625,36 +2676,6 @@ contains
           call point_diag(thck_unscaled, 'After glissade_transport_driver, thck (m)', &
                itest, jtest, rtest, 7, 7, '(f10.3)')
        endif
-
-       ! If using a subgrid CF scheme, then remove any ice that has been transported
-       !  beyond the partial calving-front cells.
-       ! This is done to prevent the CF from advancing unrealistically before
-       !  the partial CF cells have filled with ice.
-       ! TODO: Think about whether iceberg removal could accomplish the same thing.
-       !WHL - Changing the subgrid CF schemes to do this differently
-       
-!       if (model%options%which_ho_calving_front == HO_CALVING_FRONT_SUBGRID) then
-
-          !WHL - If using the CF_ADVANCE_RETREAT_RATE scheme, then deal with protected ice later
-
-!          if (model%options%whichcalving /= CF_ADVANCE_RETREAT_RATE) then
-
-             ! Remove ice from unprotected cells, and add to the calving flux
-
-!             where (model%calving%protected_mask == 0 .and. thck_unscaled > 0.0d0)
-!                model%calving%calving_thck = model%calving%calving_thck + thck_unscaled/thk0
-!                thck_unscaled = 0.0d0
-!             endwhere
-
-!             if (verbose_calving) then
-!                call point_diag(model%calving%calving_thck*thk0, &
-!                     'Remove unprotected ice, calving_thck (m)', itest, jtest, rtest, 7, 7)
-!                call point_diag(thck_unscaled, 'New thck (m)', itest, jtest, rtest, 7, 7)
-!             endif
-
-!          endif  ! not CF_ADVANCE_RETREAT_RATE
-
-!       endif   ! subgrid calving front
 
        !-------------------------------------------------------------------------
        ! Prepare the surface and basal mass balance terms.
@@ -3106,16 +3127,6 @@ contains
        !       * acab, bmlt (m/s)
        ! ------------------------------------------------------------------------
 
-       !WHL - debug
-       if (verbose_calving) then
-          call point_diag(model%calving%effective_areafrac, &
-               'Before mass driver: effective_areafrac', itest, jtest, rtest, 7, 7, '(f10.6)')
-          call point_diag(thck_unscaled, 'thck (m)', itest, jtest, rtest, 7, 7)
-          call point_diag(acab_unscaled*scyr, 'acab (m/yr)', itest, jtest, rtest, 7, 7)
-          call point_diag(bmlt_unscaled*scyr, 'bmlt (m/yr)', itest, jtest, rtest, 7, 7)
-          call point_diag(ocean_mask, 'ocean_mask', itest, jtest, rtest, 7, 7, '(i10)')
-       endif
-
        call glissade_mass_balance_driver(model%numerics%dt * tim0,                             &  ! s
                                          model%numerics%dew * len0, model%numerics%dns * len0, &  ! m
                                          ewn,         nsn,          upn-1,                     &
@@ -3559,6 +3570,8 @@ contains
     !       Replace with calls to multiple subroutines based on whichcalving?
     ! ------------------------------------------------------------------------
 
+    if (main_task .and. verbose_calving) print*, 'Call glissade_calve_ice'
+
     if (model%options%whichcalving /= CALVING_GRID_MASK) then
 
        if (model%options%which_ho_calving_front == HO_CALVING_FRONT_SUBGRID) then
@@ -3580,6 +3593,8 @@ contains
             model%numerics%dt*tim0,            &        ! s
             model%numerics%dew*len0,           &        ! m
             model%numerics%dns*len0,           &        ! m
+            model%general%x1,                  &        ! m
+            model%general%y1,                  &        ! m
             model%numerics%sigma,              &
             model%numerics%thklim*thk0,        &        ! m
             model%velocity%uvel_2d*vel0,       &        ! m/s
@@ -4343,7 +4358,7 @@ contains
 
     endif   ! which_ho_deltaT_ocn
 
-    ! If setting deltaT_ocn based on observed dthck_dt, then so so here.
+    ! If setting deltaT_ocn based on observed dthck_dt, then do so here.
     ! TODO - Deprecate this option?
 
     if (model%options%which_ho_deltat_ocn == HO_DELTAT_OCN_DTHCK_DT) then
@@ -4377,6 +4392,15 @@ contains
             dthck_dt_obs = model%geometry%dthck_dt_obs)   ! m/yr
 
     endif   ! which_ho_deltaT_ocn
+
+    !WHL - debug
+    ! For testing subgrid CF schemes: Do not invert for deltaT_ocn where calving_mask = 1,
+    ! because this will prevent CF advance. In these cells, set deltaT_ocn = 0.
+    if (model%options%which_ho_calving_front == HO_CALVING_FRONT_SUBGRID .and. &
+!!         model%options%which_ho_deltaT_ocn == HO_DELTAT_OCN_INVERSION(
+        model%options%whichbmlt_float == BMLT_FLOAT_THERMAL_FORCING) then
+       where (model%calving%calving_mask == 1) model%ocean_data%deltaT_ocn = 0.0d0
+    endif
 
     ! If inverting for flow_enhancement_factor, then update it here
 

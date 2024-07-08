@@ -546,8 +546,8 @@
                                          ntracers,     tracers,      &
                                          tracers_usrf, tracers_lsrf, &
                                          vert_remap_accuracy,        &
+                                         edgemask_e,   edgemask_n,   &
                                          upwind_transport_in)
-
 
       ! This subroutine solves the transport equations for one timestep
       ! using the conservative remapping scheme developed by John Dukowicz
@@ -602,6 +602,10 @@
       integer, intent(in) ::  &
          vert_remap_accuracy    ! order of accuracy for vertical remapping
                                 ! HO_VERTICAL_REMAP_FIRST_ORDER or HO_VERTICAL_REMAP_SECOMD_ORDER
+
+      integer, dimension(nx,ny), intent(in) ::  &
+         edgemask_e     ,&! = 1 for east edges across which mass can flow; else = 0
+         edgemask_n       ! = 1 for north edges across which mass can flow; else = 0
 
       logical, intent(in), optional ::  &
          upwind_transport_in    ! if true, do first-order upwind transport
@@ -850,7 +854,9 @@
                                             indxi(:),          indxj(:),         &
                                             uvel_layer(:,:),   vvel_layer(:,:),  &
                                             thck_layer(:,:,k), tracers(:,:,:,k), &
-                                            edgearea_e(:,:),   edgearea_n(:,:))
+                                            edgearea_e(:,:),   edgearea_n(:,:),  &
+                                            edgemask_e = edgemask_e, &
+                                            edgemask_n = edgemask_n)
 
          enddo    ! nlyr
 

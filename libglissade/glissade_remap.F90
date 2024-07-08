@@ -259,7 +259,8 @@ module glissade_remap
                                           mass,              trcr,          &
                                           edgearea_e,        edgearea_n,    &
                                           prescribed_area_in,               &
-                                          integral_order_in, dp_midpt_in)
+                                          integral_order_in, dp_midpt_in,   &
+                                          edgemask_e,        edgemask_n)
       
       ! Solve the transport equations for one timestep using the incremental
       ! remapping scheme developed by John Dukowicz and John Baumgardner (DB)
@@ -333,6 +334,10 @@ module glissade_remap
          dp_midpt_in            ! if true, find departure points using
                                 ! corrected midpoint velocity
 
+      integer, dimension(nx_block,ny_block), intent(in), optional ::   &
+         edgemask_e     ,&! = 1 for east edges across which mass can flow; else = 0
+         edgemask_n       ! = 1 for north edges across which mass can flow; else = 0
+
       ! local variables
 
       logical ::     &
@@ -371,11 +376,17 @@ module glissade_remap
          iflux          ,&! i index of cell contributing transport
          jflux            ! j index of cell contributing transport
 
+      integer, dimension(nx_block,ny_block) :: &
+         edge_mask_e     ,&! = 1 for east edges across which mass can flow; else = 0
+         edge_mask_n       ! = 1 for north edges across which mass can flow; else = 0
+
       integer, dimension(ngroups) ::       &
          icellsng         ! number of cells with contribution from a given group
 
       integer, dimension(nx_block*ny_block,ngroups) ::     &
          indxing, indxjng ! compressed i/j indices
+
+      integer :: i, j, nt
 
       logical ::     &
          l_stop           ! if true, abort the model
@@ -462,6 +473,18 @@ module glissade_remap
          prescribed_area = prescribed_area_in
       else
          prescribed_area = .false.
+      endif
+
+      if (present(edgemask_e)) then
+         edge_mask_e = edgemask_e
+      else
+         edge_mask_e = 1
+      endif
+
+      if (present(edgemask_n)) then
+         edge_mask_n = edgemask_n
+      else
+         edge_mask_n = 1
       endif
 
       ! These arrays are passed to construct_fields in lieu of the dimensional
@@ -589,7 +612,7 @@ module glissade_remap
                                indxing(:,:),      indxjng(:,:),       &
                                triarea(:,:,:),    integral_order,     &
                                iflux(:,:,:),      jflux(:,:,:),       &
-                               xp(:,:,:,:),       yp(:,:,:,:),       &
+                               xp(:,:,:,:),       yp(:,:,:,:),        &
                                mc(:,:),           mx   (:,:),         &
                                my(:,:),           mflxe(:,:),         &
                                tc(:,:,:),         tx   (:,:,:),       &
@@ -627,6 +650,26 @@ module glissade_remap
                                my(:,:),            mflxn (:,:),       &
                                tc(:,:,:),          tx    (:,:,:),     &
                                ty(:,:,:),          mtflxn(:,:,:))
+
+    !-------------------------------------------------------------------
+    ! Zero out fluxes across masked-out edges
+    !-------------------------------------------------------------------
+
+      do j = 1, ny_block
+         do i = 1, nx_block
+            if (edge_mask_e(i,j) == 0) mflxe(i,j) = 0.0d0
+            if (edge_mask_n(i,j) == 0) mflxn(i,j) = 0.0d0
+         enddo
+      enddo
+
+      do nt = 1, ntracer
+         do j = 1, ny_block
+            do i = 1, nx_block
+               if (edge_mask_e(i,j) == 0) mtflxe(i,j,nt) = 0.0d0
+               if (edge_mask_n(i,j) == 0) mtflxn(i,j,nt) = 0.0d0
+            enddo
+         enddo
+      enddo
 
     !-------------------------------------------------------------------
     ! Update the ice area and tracers.
@@ -2965,6 +3008,7 @@ module glissade_remap
                mxysum(i,j) = mxsum(i,j)*yp(i,j,0,ng) 
                mysum(i,j)  =         m0*yp(i,j,0,ng) 
                myysum(i,j) = mysum(i,j)*yp(i,j,0,ng) 
+
             enddo               ! ij
 
          elseif (integral_order == 2) then  ! quadratic (3-point formula)
@@ -3059,53 +3103,50 @@ module glissade_remap
       ! input/output arguments
 
       integer, intent(in) ::   &
-         nx_block, ny_block,&! block dimensions
-         ilo,ihi,jlo,jhi   ,&! beginning and end of physical domain
-         ntracer             ! number of tracers in use
+           nx_block, ny_block,&! block dimensions
+           ilo,ihi,jlo,jhi   ,&! beginning and end of physical domain
+           ntracer             ! number of tracers in use
 
       type(parallel_type), intent(in) :: &
-           parallel       ! info for parallel communication
+           parallel         ! info for parallel communication
 
       real(dp), dimension (nx_block, ny_block), intent(in) ::   &
-         mflxe, mflxn     ! mass transport across east and north cell edges
+           mflxe, mflxn     ! mass transport across east and north cell edges
 
       real(dp), intent(in) ::   &
-         tarear           ! 1/tarea
+           tarear           ! 1/tarea
 
-      real(dp), dimension (nx_block, ny_block),   &
-         intent(inout) ::   &
-         mass             ! mass field (mean)
+      real(dp), dimension (nx_block, ny_block), intent(inout) ::   &
+           mass             ! mass field (mean)
 
-      real(dp), dimension (nx_block, ny_block, ntracer),  &
-         intent(in), optional ::   &
-         mtflxe, mtflxn   ! mass*tracer transport across E and N cell edges
+      real(dp), dimension (nx_block, ny_block, ntracer), intent(in), optional ::   &
+           mtflxe, mtflxn   ! mass*tracer transport across E and N cell edges
 
-      real(dp), dimension (nx_block, ny_block, ntracer),  &
-         intent(inout), optional ::   &
-         trcr             ! tracer fields
+      real(dp), dimension (nx_block, ny_block, ntracer), intent(inout), optional ::   &
+           trcr             ! tracer fields
 
       logical, intent(inout) ::   &
-         l_stop           ! if true, abort on return
+           l_stop           ! if true, abort on return
 
       ! local variables
 
       integer ::   &
-         i, j           ,&! horizontal indices
-         nt               ! tracer index
+           i, j           ,&! horizontal indices
+           nt               ! tracer index
 
       real(dp), dimension(nx_block,ny_block,ntracer) ::   &
-         mtold            ! old mass*tracer
+           mtold            ! old mass*tracer
 
       real(dp) ::   &
-         w1               ! work variable
+           w1               ! work variable
 
       integer, dimension(nx_block*ny_block) ::   &
-         indxi          ,&! compressed indices in i and j directions
-         indxj
+           indxi          ,&! compressed indices in i and j directions
+           indxj
 
       integer ::   &
-         icells         ,&! number of cells with mass > 0.
-         ij               ! combined i/j horizontal index
+           icells         ,&! number of cells with mass > 0.
+           ij               ! combined i/j horizontal index
 
       character(len=100) :: message
 
@@ -3113,7 +3154,7 @@ module glissade_remap
            iglobal, jglobal  ! global cell indices
 
       integer ::   &
-         istop, jstop     ! indices of grid cell where model aborts 
+           istop, jstop     ! indices of grid cell where model aborts
 
     !-------------------------------------------------------------------
     ! Save starting values of mass*tracer
@@ -3121,11 +3162,11 @@ module glissade_remap
 
       if (present(trcr)) then
          do nt = 1, ntracer
-           do j = jlo, jhi
-            do i = ilo, ihi
-               mtold(i,j,nt) = mass(i,j) * trcr(i,j,nt)
-            enddo            ! i
-            enddo              ! j
+            do j = jlo, jhi
+               do i = ilo, ihi
+                  mtold(i,j,nt) = mass(i,j) * trcr(i,j,nt)
+               enddo            ! i
+            enddo               ! j
          enddo                  ! nt
       endif                     ! present(trcr)
 
@@ -3134,21 +3175,21 @@ module glissade_remap
     !-------------------------------------------------------------------
 
       do j = jlo, jhi
-      do i = ilo, ihi
+         do i = ilo, ihi
 
-         w1 = mflxe(i,j) - mflxe(i-1,j)   &
-            + mflxn(i,j) - mflxn(i,j-1)
-         mass(i,j) = mass(i,j) - w1*tarear
+            w1 = mflxe(i,j) - mflxe(i-1,j)   &
+               + mflxn(i,j) - mflxn(i,j-1)
+            mass(i,j) = mass(i,j) - w1*tarear
 
-         if (mass(i,j) < -puny) then    ! abort with negative value
-            l_stop = .true.
-            istop = i
-            jstop = j
-         elseif (mass(i,j) < 0.d0) then   ! set to zero
-            mass(i,j) = 0.d0
-         endif
+            if (mass(i,j) < -puny) then    ! abort with negative value
+               l_stop = .true.
+               istop = i
+               jstop = j
+            elseif (mass(i,j) < 0.d0) then   ! set to zero
+               mass(i,j) = 0.d0
+            endif
 
-      enddo
+         enddo
       enddo
 
       !TODO - Write error message to log file.
@@ -3177,6 +3218,10 @@ module glissade_remap
          write (6,*) 'Old thickness =', mass(i,j) + w1*tarear
          write (6,*) 'New thickness =', mass(i,j)
          write (6,*) 'Net transport =', -w1*tarear
+         write(6,*) 'mflxe:', mflxe(i,j)
+         write(6,*) 'mflxw:', mflxe(i-1,j)
+         write(6,*) 'mflxn:', mflxn(i,j)
+         write(6,*) 'mflxs:', mflxn(i,j-1)
          return
       endif
 
