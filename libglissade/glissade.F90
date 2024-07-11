@@ -69,6 +69,7 @@ module glissade
 
   integer, private, parameter :: dummyunit=99
   logical, parameter :: verbose_glissade = .false.
+!!  logical, parameter :: verbose_glissade = .true.
 
   ! Change any of the following logical parameters to true to carry out simple tests
   logical, parameter :: test_transport = .false.    ! if true, call test_transport subroutine
@@ -96,7 +97,7 @@ contains
          parallel_create_comm_row, parallel_create_comm_col, not_parallel
 
     use glide_setup
-    use glimmer_ncio
+    use glimmer_ncio, only: openall_in, openall_out, glimmer_nc_get_var, glimmer_nc_get_dimlength
     use glide_velo, only: init_velo  !TODO - Remove call to init_velo?
     use glissade_therm, only: glissade_init_therm
     use glissade_transport, only: glissade_overwrite_acab_mask, glissade_add_2d_anomaly
@@ -117,6 +118,7 @@ contains
     use glissade_basal_traction, only: glissade_init_effective_pressure
     use glissade_bmlt_float, only: glissade_bmlt_float_thermal_forcing_init, verbose_bmlt_float
     use glissade_grounding_line, only: glissade_grounded_fraction
+    use glissade_glacier, only: glissade_glacier_init
     use glissade_utils, only: glissade_adjust_thickness, glissade_smooth_usrf, &
          glissade_smooth_topography, glissade_adjust_topography
     use glissade_utils, only: glissade_stdev, glissade_basin_average
@@ -300,6 +302,17 @@ contains
                                               model%numerics%dew,      model%numerics%dns,      &
                                               model%general%ewn-1,     model%general%nsn-1)
 
+    ! If the length of any dimension is unknown, then get the length now, before allocating arrays.
+    ! Currently, the length of most dimensions is set in the config file.
+    ! An exception is dimension glacierid, whose length (nglacier) is computed internally by CISM.
+    ! On restart, we can get the length from the restart file.
+
+    if (model%options%enable_glaciers .and. &
+         model%options%is_restart == STANDARD_RESTART .or. model%options%is_restart == HYBRID_RESTART) then
+       infile => model%funits%in_first   ! assume glacierid is a dimension in the restart file
+       call glimmer_nc_get_dimlength(infile, 'glacierid', model%glacier%nglacier)
+    endif
+
     ! allocate arrays
     call glide_allocarr(model)
 
@@ -356,6 +369,33 @@ contains
        if (global_maxval < eps11) then
           call write_log('Failed to read longitude (lon) field from input file', GM_FATAL)
        endif
+       call parallel_halo(model%general%lat, parallel)
+       call parallel_halo(model%general%lon, parallel)
+    endif
+
+    ! Some input fields may have a netCDF fill value, typically a very large positive number.
+    ! If present, convert these values to zero (or optionally, another suitable value).
+    ! Note: Optionally, can pass a user-specified fill value and replacement value,
+    !        and return a mask of grid cells where values are replaced.
+    !       Depending on the input dataset, might have fill values in other fields (e.g., artm, topg)
+
+    if (model%options%smb_input == SMB_INPUT_MMYR_WE) then
+       call check_fill_values(model%climate%smb)
+    else
+       call check_fill_values(model%climate%acab)
+    endif
+
+    if (model%options%gthf == GTHF_PRESCRIBED_2D) then
+       call check_fill_values(model%temper%bheatflx)
+    endif
+
+    if (associated(model%ocean_data%thermal_forcing)) then
+       call check_fill_values(model%ocean_data%thermal_forcing)
+    endif
+
+    if (model%options%which_ho_deltaT_ocn == HO_DELTAT_OCN_DTHCK_DT .or.  &
+        model%options%enable_acab_dthck_dt_correction) then
+       call check_fill_values(model%geometry%dthck_dt_obs)
     endif
 
     ! Some input fields may have a netCDF fill value, typically a very large positive number.
@@ -389,6 +429,11 @@ contains
     allocate(land_mask(model%general%ewn, model%general%nsn))
     allocate(ocean_mask(model%general%ewn, model%general%nsn))
 
+    ! Compute grid cell areas
+    ! Note: cell_area is used for diagnostics only. It is set to dew*dns by default but can be corrected below.
+    !       For the purposes of CISM dynamics, all grid cells are rectangles of dimension dew*dns.
+    model%geometry%cell_area(:,:) = model%numerics%dew*model%numerics%dns
+
     ! Optionally, compute area scale factors for stereographic map projection.
     ! This should be done after reading the input file, in case the input file contains mapping info.
     ! Note: Not yet enabled for other map projections.
@@ -409,16 +454,25 @@ contains
                                       model%numerics%dew*len0, &
                                       model%numerics%dns*len0, &
                                       parallel)
+
+       ! Given the stereographic area correction factors, correct the diagnostic grid cell areas.
+       ! Note: area_factor is actually a length correction factor k; must divide by k^2 to adjust areas.
+       ! TODO: Change the name of area_factor
+       where (model%projection%stere%area_factor > 0.0d0)
+          model%geometry%cell_area = &
+               model%geometry%cell_area / model%projection%stere%area_factor**2
+       endwhere
+
     endif
 
     ! Write projection info to log
     call glimmap_printproj(model%projection)
 
-    ! Optionally, adjust the input ice thickness is grid cells where there are interior lakes
+    ! Optionally, adjust the input ice thickness in grid cells where there are interior lakes
     !  (usrf - thck > topg), but the ice is above flotation thickness.
     ! In these grid cells, we set thck = usrf - topg, preserving the input usrf and removing the lakes.
 
-    if (model%options%adjust_input_thickness .and. model%options%is_restart == RESTART_FALSE) then
+    if (model%options%adjust_input_thickness .and. model%options%is_restart == NO_RESTART) then
        call glissade_adjust_thickness(model)
     endif
 
@@ -426,19 +480,19 @@ contains
     ! This subroutine does not change the topg, but returns thck consistent with the new usrf.
     ! If the initial usrf is rough, then multiple smoothing passes may be needed to stabilize the flow.
 
-    if (model%options%smooth_input_usrf .and. model%options%is_restart == RESTART_FALSE) then
+    if (model%options%smooth_input_usrf .and. model%options%is_restart == NO_RESTART) then
        call glissade_smooth_usrf(model, nsmooth = 5)
     endif   ! smooth_input_usrf
 
     ! Optionally, smooth the input topography with a Laplacian smoother.
 
-    if (model%options%smooth_input_topography .and. model%options%is_restart == RESTART_FALSE) then
+    if (model%options%smooth_input_topography .and. model%options%is_restart == NO_RESTART) then
        call glissade_smooth_topography(model)
     endif   ! smooth_input_topography
 
     ! Optionally, adjust the input topography in a specified region
 
-    if (model%options%adjust_input_topography .and. model%options%is_restart == RESTART_FALSE) then
+    if (model%options%adjust_input_topography .and. model%options%is_restart == NO_RESTART) then
        call glissade_adjust_topography(model)
     endif
 
@@ -498,19 +552,10 @@ contains
 
     end select
 
-    ! open all output files
-    call openall_out(model)
-
-    ! create glide variables
-    call glide_io_createall(model, model)
-
-    ! Compute the cell areas of the grid
-    model%geometry%cell_area = model%numerics%dew*model%numerics%dns
-
-    ! If a 2D bheatflx field is present in the input file, it will have been written 
+    ! If a 2D bheatflx field is present in the input file, it will have been written
     !  to model%temper%bheatflx.  For the case model%options%gthf = 0, we want to use
     !  a uniform heat flux instead.
-    ! If no bheatflx field is present in the input file, then we default to the 
+    ! If no bheatflx field is present in the input file, then we default to the
     !  prescribed uniform value, model%paramets%geot.
 
     if (model%options%gthf == GTHF_UNIFORM) then
@@ -540,6 +585,45 @@ contains
 
     endif  ! geothermal heat flux
 
+    ! If running with glaciers, then process the input glacier data
+    ! On start-up, this subroutine counts the glaciers.  It should be called before glide_io_createall,
+    !  which needs to know nglacier to set up glacier output files with the right dimensions.
+    ! On restart, most of the required glacier arrays are in the restart file, and this subroutine
+    !  computes a few remaining variable.
+
+    if (model%options%enable_glaciers) then
+
+       ! Glaciers are run with a no-ice BC to allow removal of inactive regions.
+       ! This can be problematic when running in a sub-region that has glaciers along the global boundary.
+       ! A halo update here for 'thck' will remove ice from cells along the global boundary.
+       ! It is best to do this before initializing glaciers, so that ice that initially exists
+       !  in these cells is removed before computing the area and thickness targets.
+       !TODO - These calls are repeated a few lines below.  Try moving them up, before the call
+       !       to glissade_glacier_init.  I don't think it's possible to move the glissade_glacier_init call
+       !       down, because we need to compute nglacier before setting up output files.
+
+       call parallel_halo(model%geometry%thck, parallel)
+       ! calculate the lower and upper ice surface
+       call glide_calclsrf(model%geometry%thck, model%geometry%topg, model%climate%eus, model%geometry%lsrf)
+       model%geometry%usrf = max(0.d0, model%geometry%thck + model%geometry%lsrf)
+
+       ! Initialize glaciers
+       ! Note: This subroutine can return modified values of model%numerics%dew, model%numerics%dns,
+       !        and model%geometry%cell_area.
+       !       This is a fix to deal with the fact that actual grid cell dimensions can be different
+       !        from the nominal dimensions on a projected grid.
+       !       See comments near the top of glissade_glacier_init.
+
+       call glissade_glacier_init(model, model%glacier)
+
+    endif
+
+    ! open all output files
+    call openall_out(model)
+
+    ! create glide I/O variables
+    call glide_io_createall(model, model)
+
     ! initialize glissade components
 
     ! Set some variables in halo cells
@@ -564,7 +648,7 @@ contains
     !        treat it as ice-free ocean. For this reason, topg is extrapolated from adjacent cells.
     !       Similarly, for no_ice BCs, we want to zero out ice state variables adjacent to the global boundary,
     !        but we do not want to zero out the topography.
-    ! Note: For periodic BCs, there is an optional aargument periodic_offset_ew for topg.
+    ! Note: For periodic BCs, there is an optional argument periodic_offset_ew for topg.
     !       This is for ismip-hom experiments. A positive EW offset means that
     !        the topography in west halo cells will be raised, and the topography
     !        in east halo cells will be lowered.  This ensures that the topography
@@ -607,11 +691,27 @@ contains
     model%climate%artm_corrected(:,:) = model%climate%artm(:,:)
 
     if (model%options%enable_artm_anomaly) then
-       call glissade_add_2d_anomaly(model%climate%artm_corrected,          &   ! degC
-                                    model%climate%artm_anomaly,            &   ! degC
-                                    model%climate%artm_anomaly_timescale,  &   ! yr
-                                    model%numerics%time)                       ! yr
+       ! Check whether artm_anomaly was read from an external file.
+       ! If so, then use this field as the anomaly.
+       ! If not, then set artm_anomaly = artm_anomaly_constant everywhere.
+       ! Note: The artm_anomaly field does not change during the run,
+       !       but it is possible to ramp up the anomaly using artm_anomaly_timescale.
+       ! TODO - Write a short utility function to compute global_maxval of any field.
+
+       local_maxval = maxval(abs(model%climate%artm_anomaly))
+       global_maxval = parallel_reduce_max(local_maxval)
+       if (global_maxval < eps11) then
+          model%climate%artm_anomaly = model%climate%artm_anomaly_const
+          write(message,*) &
+               'Setting artm_anomaly = constant value (degC):', model%climate%artm_anomaly_const
+          call write_log(trim(message))
+       else
+          if (model%options%is_restart == NO_RESTART) then
+             call write_log('Setting artm_anomaly from external file')
+          endif
+       endif
     endif
+    !TODO - Repeat for snow and precip anomalies
 
     ! Initialize the temperature profile in each column
     call glissade_init_therm(model%options%temp_init,    model%options%is_restart,  &
@@ -765,7 +865,7 @@ contains
     ! Note: This option is designed for standalone runs, and should be used only with caution for coupled runs.
     !       On restart, overwrite_acab_mask is read from the restart file.
 
-    if (model%climate%overwrite_acab_value /= 0 .and. model%options%is_restart == RESTART_FALSE) then
+    if (model%climate%overwrite_acab_value /= 0 .and. model%options%is_restart == NO_RESTART) then
 
        call glissade_overwrite_acab_mask(model%options%overwrite_acab,          &
                                          model%climate%acab,                    &
@@ -835,7 +935,7 @@ contains
     ! Note: Do initial calving only for a cold start with evolving ice, not for a restart
     if (l_evolve_ice .and. &
          model%options%calving_init == CALVING_INIT_ON .and. &
-         model%options%is_restart == RESTART_FALSE) then
+         model%options%is_restart == NO_RESTART) then
 
        ! ------------------------------------------------------------------------
        ! Note: The initial calving solve is treated differently from the runtime calving solve.
@@ -860,14 +960,29 @@ contains
 
     ! Initialize the effective pressure calculation
 
-    if (model%options%is_restart == RESTART_FALSE) then
+    if (model%options%is_restart == NO_RESTART) then
+
        call glissade_init_effective_pressure(model%options%which_ho_effecpress,  &
                                              model%basal_physics)
+    endif
+
+    ! Initialize powerlaw_c and coulomb_c.
+    ! Note: This can set powerlaw_c and coulomb_c to nonzero values when they are never used,
+    !       but is simpler than checking all possible basal friction options.
+
+    if (model%options%is_restart == NO_RESTART) then
+       if (model%options%which_ho_powerlaw_c == HO_POWERLAW_C_CONSTANT) then
+          model%basal_physics%powerlaw_c = model%basal_physics%powerlaw_c_const
+       endif
+       if (model%options%which_ho_coulomb_c == HO_COULOMB_C_CONSTANT) then
+          model%basal_physics%coulomb_c = model%basal_physics%coulomb_c_const
+       endif
     endif
 
     ! Optionally, do initial calculations for inversion
     ! At the start of the run (but not on restart), this might lead to further thickness adjustments,
     !  so it should be called before computing the calving mask.
+    !TODO: Separate the basal friction inversion from the bmlt_basin inversion.
 
     if (model%options%which_ho_powerlaw_c == HO_POWERLAW_C_INVERSION .or.  &
         model%options%which_ho_coulomb_c  == HO_COULOMB_C_INVERSION  .or.  &
@@ -983,7 +1098,7 @@ contains
     endif  ! thickness-based calving
 
     if ((model%options%whichcalving == CALVING_GRID_MASK .or. model%options%apply_calving_mask)  &
-         .and. model%options%is_restart == RESTART_FALSE) then
+         .and. model%options%is_restart == NO_RESTART) then
 
        ! Initialize the no-advance calving_mask
        ! Note: This is done after initial calving, which may include iceberg removal or calving-front culling.
@@ -1066,7 +1181,7 @@ contains
        !TODO: Is dthck_dt_obs needed in the restart file after dthck_dt_obs_basin is computed?
 
        if (model%options%enable_acab_dthck_dt_correction .and. &
-           model%options%is_restart == RESTART_FALSE) then
+           model%options%is_restart == NO_RESTART) then
 
           allocate(dthck_dt_basin(model%ocean_data%nbasin))
 
@@ -1268,6 +1383,14 @@ contains
        do j = jtest+3, jtest-3, -1
           do i = itest-3, itest+3
              write(6,'(f10.3)',advance='no') model%basal_melt%bmlt_ground(i,j)*scyr
+          enddo
+          write(6,*) ' '
+       enddo
+       print*, ' '
+       print*, 'bmlt_float (m/yr):'
+       do j = jtest+3, jtest-3, -1
+          do i = itest-3, itest+3
+             write(6,'(f10.3)',advance='no') model%basal_melt%bmlt_float(i,j)*scyr
           enddo
           write(6,*) ' '
        enddo
@@ -1600,6 +1723,7 @@ contains
        ! Add the bmlt_float anomaly where ice is present and floating
        call glissade_add_2d_anomaly(model%basal_melt%bmlt_float,              &   ! scaled model units
                                     model%basal_melt%bmlt_float_anomaly,      &   ! scaled model units
+                                    model%basal_melt%bmlt_anomaly_tstart,     &   ! yr
                                     model%basal_melt%bmlt_anomaly_timescale,  &   ! yr
                                     previous_time)                                ! yr
 
@@ -1818,6 +1942,7 @@ contains
 
     !WHL - debug
     use cism_parallel, only: parallel_reduce_max
+    use glissade_glacier, only : verbose_glacier
 
     implicit none
 
@@ -1860,50 +1985,20 @@ contains
 
     call t_startf('glissade_thermal_solve')
 
-    ! Optionally, add an anomaly to the surface air temperature
-    ! Typically, artm_corrected = artm, but sometimes (e.g., for ISMIP6 forcing experiments),
-    !  it includes a time-dependent anomaly.
-    ! Note that artm itself does not change in time.
-
-    ! initialize
-    model%climate%artm_corrected(:,:) = model%climate%artm(:,:)
-
-    if (model%options%enable_artm_anomaly) then
-
-       ! Note: When being ramped up, the anomaly is not incremented until after the final time step of the year.
-       !       This is the reason for passing the previous time to the subroutine.
-       previous_time = model%numerics%time - model%numerics%dt * tim0/scyr
-
-       call glissade_add_2d_anomaly(model%climate%artm_corrected,          &   ! degC
-                                    model%climate%artm_anomaly,            &   ! degC
-                                    model%climate%artm_anomaly_timescale,  &   ! yr
-                                    previous_time)                             ! yr
-
-       if (verbose_glissade .and. this_rank==rtest) then
-          i = itest
-          j = jtest
-          print*, 'i, j, previous_time, artm, artm anomaly, corrected artm (deg C):', &
-               i, j, previous_time, model%climate%artm(i,j), model%climate%artm_anomaly(i,j), &
-               model%climate%artm_corrected(i,j)
-       endif
-
-    endif
-
-    if (main_task .and. verbose_glissade) print*, 'Call glissade_therm_driver'
-
     ! Downscale artm to the current surface elevation if needed.
     ! Depending on the value of artm_input_function, artm might be dependent on the upper surface elevation.
     ! The options are:
     ! (0) artm(x,y); no dependence on surface elevation
     ! (1) artm(x,y) + d(artm)/dz(x,y) * dz; artm depends on input field at reference elevation, plus vertical correction
     ! (2) artm(x,y,z); artm obtained by linear interpolation between values prescribed at adjacent vertical levels
-    ! For options (1) and (2), the elevation-dependent artm is computed here.
+    ! (3) artm(x,y) adjusted with a uniform lapse rate
+    ! For options (1) - (3), the elevation-dependent artm is computed here.
 
     if (model%options%artm_input_function == ARTM_INPUT_FUNCTION_XY_GRADZ) then
 
        ! compute artm by a lapse-rate correction to the reference value
        model%climate%artm(:,:) = model%climate%artm_ref(:,:) + &
-            (model%geometry%usrf(:,:) - model%climate%smb_reference_usrf(:,:)) * model%climate%artm_gradz(:,:)
+            (model%geometry%usrf(:,:)*thk0 - model%climate%usrf_ref(:,:)) * model%climate%artm_gradz(:,:)
 
     elseif (model%options%artm_input_function == ARTM_INPUT_FUNCTION_XYZ) then
 
@@ -1920,11 +2015,98 @@ contains
                                           model%climate%artm,                                &
                                           linear_extrapolate_in = .true.)
 
-       call parallel_halo(model%climate%artm, parallel)
+    elseif (model%options%artm_input_function == ARTM_INPUT_FUNCTION_XY_LAPSE) then
+
+       ! compute artm by a lapse-rate correction to artm_ref
+       ! T_lapse is defined as positive for T decreasing with height
+       ! Note: This option is currently used for glaciers lapse rate adjustments
+
+       model%climate%artm(:,:) = model%climate%artm_ref(:,:) - &
+            (model%geometry%usrf(:,:)*thk0 - model%climate%usrf_ref(:,:)) * model%climate%t_lapse
+       if (verbose_glacier .and. this_rank == rtest) then
+          i = itest; j = jtest
+!          print*, ' '
+!          print*, 'rank, i, j, usrf_ref, usrf, dz:', this_rank, i, j, &
+!               model%climate%usrf_ref(i,j), model%geometry%usrf(i,j)*thk0, &
+!               model%geometry%usrf(i,j)*thk0 - model%climate%usrf_ref(i,j)
+!          print*, '   artm_ref, artm:', model%climate%artm_ref(i,j), model%climate%artm(i,j)
+       endif
 
     endif   ! artm_input_function
 
     call parallel_halo(model%climate%artm, parallel)
+
+    ! Optionally, add an anomaly to the surface air temperature
+    ! Typically, artm_corrected = artm, but sometimes (e.g., for ISMIP6 forcing experiments),
+    !  it includes a time-dependent anomaly.
+    ! Note that artm itself does not change in time, unless it is elevation-dependent.
+
+    model%climate%artm_corrected(:,:) = model%climate%artm(:,:)
+
+    if (model%options%enable_artm_anomaly) then
+
+       ! Note: When being ramped up, the anomaly is not incremented until after the final time step of the year.
+       !       This is the reason for passing the previous time to the subroutine.
+       previous_time = model%numerics%time - model%numerics%dt * tim0/scyr
+
+       call glissade_add_2d_anomaly(model%climate%artm_corrected,          &   ! degC
+                                    model%climate%artm_anomaly,            &   ! degC
+                                    model%climate%artm_anomaly_tstart,     &   ! yr
+                                    model%climate%artm_anomaly_timescale,  &   ! yr
+                                    previous_time)                             ! yr
+    endif
+
+    ! Similar calculations for snow and precip anomalies
+    ! Note: These variables are currently used only to compute glacier SMB.
+    !       There are assumed to have the same timescale as artm_anomaly.
+    ! TODO: Define a single anomaly timescale for all anomaly forcing?
+
+    model%climate%snow_corrected(:,:) = model%climate%snow(:,:)
+
+    if (model%options%enable_snow_anomaly) then
+
+       previous_time = model%numerics%time - model%numerics%dt * tim0/scyr
+
+       call glissade_add_2d_anomaly(model%climate%snow_corrected,          &   ! mm/yr w.e.
+                                    model%climate%snow_anomaly,            &   ! mm/yr w.e.
+                                    model%climate%artm_anomaly_tstart,     &   ! yr
+                                    model%climate%artm_anomaly_timescale,  &   ! yr
+                                    previous_time)                             ! yr
+    endif
+
+    model%climate%precip_corrected(:,:) = model%climate%precip(:,:)
+
+    if (model%options%enable_precip_anomaly) then
+
+       previous_time = model%numerics%time - model%numerics%dt * tim0/scyr
+
+       call glissade_add_2d_anomaly(model%climate%precip_corrected,        &   ! mm/yr w.e.
+                                    model%climate%precip_anomaly,          &   ! mm/yr w.e.
+                                    model%climate%artm_anomaly_tstart,     &   ! yr
+                                    model%climate%artm_anomaly_timescale,  &   ! yr
+                                    previous_time)                             ! yr
+    endif
+
+    if (verbose_glissade .and. this_rank==rtest) then
+       if (model%options%enable_artm_anomaly) then
+          i = itest
+          j = jtest
+          print*, 'rank, i, j, previous_time, current time, anomaly timescale (yr):', &
+               this_rank, i, j, previous_time, model%numerics%time, model%climate%artm_anomaly_timescale
+          print*, '   artm, artm anomaly, corrected artm (deg C):', model%climate%artm(i,j), &
+               model%climate%artm_anomaly(i,j), model%climate%artm_corrected(i,j)
+          if (model%options%enable_snow_anomaly) then
+             print*, '   snow, snow anomaly, corrected snow (mm/yr):', model%climate%snow(i,j), &
+                  model%climate%snow_anomaly(i,j), model%climate%snow_corrected(i,j)
+          endif
+          if (model%options%enable_precip_anomaly) then
+             print*, '   prcp, prcp anomaly, corrected prcp (mm/yr):', model%climate%precip(i,j), &
+                  model%climate%precip_anomaly(i,j), model%climate%precip_corrected(i,j)
+          endif
+       endif   ! enable_artm_anomaly
+    endif   ! verbose
+
+    if (main_task .and. verbose_glissade) print*, 'Call glissade_therm_driver'
 
     ! Note: glissade_therm_driver uses SI units
     !       Output arguments are temp, waterfrac, bpmp and bmlt_ground
@@ -2102,10 +2284,10 @@ contains
     !       after horizontal transport and before applying the surface and basal mass balance.
     ! ------------------------------------------------------------------------ 
 
-    use cism_parallel, only: parallel_type, parallel_halo, parallel_halo_tracers, staggered_parallel_halo, &
-         parallel_reduce_max
+    use cism_parallel, only: parallel_type, parallel_halo, parallel_halo_tracers,  &
+         staggered_parallel_halo, parallel_reduce_max
 
-    use glimmer_paramets, only: eps11, tim0, thk0, vel0, len0
+    use glimmer_paramets, only: eps11, eps08, tim0, thk0, vel0, len0
     use glimmer_physcon, only: rhow, rhoi, scyr
     use glimmer_scales, only: scale_acab
     use glissade_therm, only: glissade_temp2enth, glissade_enth2temp
@@ -2122,6 +2304,7 @@ contains
     use glissade_bmlt_float, only: verbose_bmlt_float
     use glissade_calving, only: verbose_calving
     use glissade_grid_operators, only: glissade_vertical_interpolate
+    use glissade_glacier, only: verbose_glacier
     use glide_stop, only: glide_finalise
 
     implicit none
@@ -2170,7 +2353,7 @@ contains
 
     integer :: ntracers             ! number of tracers to be transported
 
-    integer :: i, j, k
+    integer :: i, j, k, ng
     integer :: ewn, nsn, upn, nlev_smb
     integer :: itest, jtest, rtest
 
@@ -2181,6 +2364,7 @@ contains
     character(len=100) :: message
 
     logical, parameter :: verbose_smb = .false.
+!!    logical, parameter :: verbose_smb = .true.
 
     rtest = -999
     itest = 1
@@ -2358,7 +2542,7 @@ contains
           !        a suite of automated stability tests, e.g. with the stabilitySlab.py script.
           if (advective_cfl > 1.0d0) then
              if (main_task) print*, 'advective CFL violation; call glide_finalise and exit cleanly'
-             call glide_finalise(model, crash=.true.)
+             call glide_finalise(model, forcewrite_arg=.true.)
              stop
           else
              nsubcyc = model%numerics%subcyc
@@ -2526,7 +2710,7 @@ contains
 
           ! compute acab by a lapse-rate correction to the reference value
           model%climate%acab(:,:) = model%climate%acab_ref(:,:) + &
-               (model%geometry%usrf(:,:) - model%climate%smb_reference_usrf(:,:)) * model%climate%acab_gradz(:,:)
+               (model%geometry%usrf(:,:)*thk0 - model%climate%usrf_ref(:,:)) * model%climate%acab_gradz(:,:)
 
        elseif (model%options%smb_input_function == SMB_INPUT_FUNCTION_XYZ) then
 
@@ -2582,12 +2766,12 @@ contains
 
           if (model%options%smb_input_function == SMB_INPUT_FUNCTION_XY_GRADZ) then
              write(6,*) ' '
-             write(6,*) 'usrf - smb_ref_elevation'
+             write(6,*) 'usrf - usrf_ref'
              do j = jtest+3, jtest-3, -1
                 write(6,'(i6)',advance='no') j
                 do i = itest-3, itest+3
                    write(6,'(f10.3)',advance='no') &
-                        (model%geometry%usrf(i,j) - model%climate%smb_reference_usrf(i,j)) * thk0
+                        (model%geometry%usrf(i,j)*thk0 - model%climate%usrf_ref(i,j))
                 enddo
                 write(6,*) ' '
              enddo
@@ -2708,6 +2892,22 @@ contains
 
        endif  ! verbose_smb and this_rank
 
+       ! If using a glacier-specific SMB index method, then compute the SMB and convert to acab
+
+       if (model%options%enable_glaciers) then
+
+          !Note: In an earlier code version, glacier SMB was computed here during each dynamic timestep.
+          !      In the current version, temperature and snowfall are accumulated during each call to
+          !       glissade_glacier_update. The annual mean SMB is computed at the end of the year
+          !       and applied uniformly during the following year.
+          !      Thus, the only thing to do here is to convert SMB to acab.
+
+          ! Convert SMB (mm/yr w.e.) to acab (CISM model units)
+          model%climate%acab(:,:) = (model%climate%smb(:,:) * (rhow/rhoi)/1000.d0) / scale_acab
+          call parallel_halo(model%climate%acab, parallel)
+
+       endif   ! enable_glaciers
+
        ! Compute a corrected acab field that includes any prescribed anomalies.
        ! Typically, acab_corrected = acab, but sometimes (e.g., for initMIP) it includes a time-dependent anomaly.
        ! Note that acab itself does not change in time.
@@ -2737,6 +2937,7 @@ contains
 
           call glissade_add_2d_anomaly(model%climate%acab_corrected,          &   ! scaled model units
                                        model%climate%acab_anomaly,            &   ! scaled model units
+                                       model%climate%acab_anomaly_tstart,     &   ! yr
                                        model%climate%acab_anomaly_timescale,  &   ! yr
                                        previous_time)                             ! yr
 
@@ -2910,8 +3111,8 @@ contains
        !       * acab, bmlt (m/s)
        ! ------------------------------------------------------------------------
 
-       call glissade_mass_balance_driver(model%numerics%dt * tim0,                             &
-                                         model%numerics%dew * len0, model%numerics%dns * len0, &
+       call glissade_mass_balance_driver(model%numerics%dt * tim0,                             &  ! s
+                                         model%numerics%dew * len0, model%numerics%dns * len0, &  ! m
                                          ewn,         nsn,          upn-1,                     &
                                          model%numerics%sigma,                                 &
                                          parallel,                                             &
@@ -2927,9 +3128,6 @@ contains
                                          model%geometry%tracers_usrf(:,:,:),                   &
                                          model%geometry%tracers_lsrf(:,:,:),                   &
                                          model%options%which_ho_vertical_remap)
-
-       !WHL - debug
-       call parallel_halo(thck_unscaled, parallel)
 
        !-------------------------------------------------------------------------
        ! Cleanup
@@ -3880,7 +4078,7 @@ contains
          staggered_parallel_halo, staggered_parallel_halo_extrapolate, &
          parallel_reduce_max, parallel_reduce_min, parallel_globalindex
 
-    use glimmer_paramets, only: tim0, len0, vel0, thk0, vis0, tau0, evs0
+    use glimmer_paramets, only: eps08, tim0, len0, vel0, thk0, vis0, tau0, evs0
     use glimmer_physcon, only: rhow, rhoi, scyr
     use glimmer_scales, only: scale_acab
     use glide_thck, only: glide_calclsrf
@@ -3899,8 +4097,9 @@ contains
     use glissade_bmlt_float, only: glissade_bmlt_float_thermal_forcing
     use glissade_inversion, only: verbose_inversion, glissade_inversion_basal_friction,  &
          glissade_inversion_bmlt_basin, glissade_inversion_deltaT_ocn, &
-         glissade_inversion_flow_enhancement_factor, &
-         usrf_to_thck
+         glissade_inversion_flow_enhancement_factor
+    use glissade_utils, only: glissade_usrf_to_thck
+    use glissade_glacier, only: glissade_glacier_update
 
     implicit none
 
@@ -3908,7 +4107,7 @@ contains
 
     ! Local variables
 
-    integer :: i, j, k, n
+    integer :: i, j, k, n, ng
     integer :: itest, jtest, rtest
 
     integer, dimension(model%general%ewn, model%general%nsn) :: &
@@ -3945,8 +4144,8 @@ contains
     integer :: ewn, nsn, upn
 
     !WHL - debug
-    real(dp) :: my_max, my_min, global_max, global_min
     integer :: iglobal, jglobal, ii, jj
+    real(dp) :: my_max, my_min, global_max, global_min
     real(dp) :: sum_cell, sum1, sum2  ! temporary sums
 
     integer, dimension(model%general%ewn, model%general%nsn) :: &
@@ -4150,8 +4349,9 @@ contains
 
     ! Compute the thickness tendency dH/dt from one step to the next (m/s)
     ! This tendency is used for coulomb_c and powerlaw_c inversion.
-    if ( (model%options%is_restart == RESTART_TRUE) .and. &
-         (model%numerics%time == model%numerics%tstart) ) then
+
+    if ( (model%options%is_restart == STANDARD_RESTART .or. model%options%is_restart == HYBRID_RESTART) &
+         .and. (model%numerics%time == model%numerics%tstart) ) then
        ! first call after a restart; do not compute dthck_dt
     else
        model%geometry%dthck_dt(:,:) = (model%geometry%thck(:,:) - model%geometry%thck_old(:,:)) * thk0 &
@@ -4161,14 +4361,19 @@ contains
     ! If inverting for Cp = powerlaw_c or Cc = coulomb_c, then update it here.
     ! Note: This subroutine used to be called earlier, but now is called here
     !       in order to have f_ground_cell up to date.
+    ! If running with glaciers, inversion for powerlaw_c is done elsewhere,
+    !  in subroutine glissade_glacier_update.
+    !TODO: Call when the inversion options are set, not the external options.
+    !      Currently, the only thing done for the external options is to remove
+    !       zero values.
 
     if ( model%options%which_ho_powerlaw_c == HO_POWERLAW_C_INVERSION .or. &
          model%options%which_ho_powerlaw_c == HO_POWERLAW_C_EXTERNAL  .or. &
          model%options%which_ho_coulomb_c  == HO_COULOMB_C_INVERSION  .or. &
-         model%options%which_ho_coulomb_c  == HO_COULOMB_C_EXTERNAL) then
+         model%options%which_ho_coulomb_c  == HO_COULOMB_C_EXTERNAL ) then
 
-       if ( (model%options%is_restart == RESTART_TRUE) .and. &
-            (model%numerics%time == model%numerics%tstart) ) then
+       if ( (model%options%is_restart == STANDARD_RESTART .or. model%options%is_restart == HYBRID_RESTART) &
+            .and. (model%numerics%time == model%numerics%tstart) ) then
           ! first call after a restart; do not update powerlaw_c or coulomb_c
        else
           call glissade_inversion_basal_friction(model)
@@ -4176,18 +4381,18 @@ contains
 
     endif   ! which_ho_powerlaw_c/coulomb_c
 
-
     ! If inverting for deltaT_ocn at the basin level, then update it here
 
     if ( model%options%which_ho_bmlt_basin == HO_BMLT_BASIN_INVERSION) then
 
-       if ( (model%options%is_restart == RESTART_TRUE) .and. &
-            (model%numerics%time == model%numerics%tstart) ) then
+       if ( (model%options%is_restart == STANDARD_RESTART .or. model%options%is_restart == HYBRID_RESTART) &
+            .and. (model%numerics%time == model%numerics%tstart) ) then
+
           ! first call after a restart; do not update basin-scale melting parameters
 
        else
 
-          call glissade_inversion_bmlt_basin(model%numerics%dt * tim0,                  &
+          call glissade_inversion_bmlt_basin(model%numerics%dt * tim0,                  &  ! s
                                              ewn, nsn,                                  &
                                              model%numerics%dew * len0,                 &  ! m
                                              model%numerics%dns * len0,                 &  ! m
@@ -4211,8 +4416,9 @@ contains
 
     if ( model%options%which_ho_deltaT_ocn == HO_DELTAT_OCN_INVERSION) then
 
-       if ( (model%options%is_restart == RESTART_TRUE) .and. &
-            (model%numerics%time == model%numerics%tstart) ) then
+       if ( (model%options%is_restart == STANDARD_RESTART .or. model%options%is_restart == HYBRID_RESTART) &
+            .and. (model%numerics%time == model%numerics%tstart) ) then
+
           ! first call after a restart; do not update deltaT_ocn
 
        else
@@ -4220,7 +4426,7 @@ contains
           ! Given the surface elevation target, compute the thickness target.
           ! This can change in time if the bed topography is dynamic.
 
-          call usrf_to_thck(&
+          call glissade_usrf_to_thck(&
                model%geometry%usrf_obs,  &
                model%geometry%topg,      &
                model%climate%eus,        &
@@ -4285,8 +4491,9 @@ contains
 
     if ( model%options%which_ho_flow_enhancement_factor == HO_FLOW_ENHANCEMENT_FACTOR_INVERSION) then
 
-       if ( (model%options%is_restart == RESTART_TRUE) .and. &
-            (model%numerics%time == model%numerics%tstart) ) then
+       if ( (model%options%is_restart == STANDARD_RESTART .or. model%options%is_restart == HYBRID_RESTART) &
+            .and. (model%numerics%time == model%numerics%tstart) ) then
+
           ! first call after a restart; do not update basin-scale parameters
 
        else
@@ -4294,7 +4501,7 @@ contains
           ! Given the surface elevation target, compute the thickness target.
           ! This can change in time if the bed topography is dynamic.
 
-          call usrf_to_thck(&
+          call glissade_usrf_to_thck(&
                model%geometry%usrf_obs,  &
                model%geometry%topg,      &
                model%climate%eus,        &
@@ -4344,6 +4551,21 @@ contains
 
     endif   ! which_ho_flow_enhancement_factor
 
+    ! If glaciers are enabled, then do various updates:
+    ! (1) If inverting for mu_star, alpha_snow, or powerlaw_c, then
+    !     (a) Accumulate the fields needed for the inversion.
+    !     (b) Once a year, average the fields and do the inversion.
+    ! (2) Once a year, update the glacier masks as glaciers advance and retreat.
+
+    if (model%options%enable_glaciers) then
+
+       if (model%numerics%time == model%numerics%tstart) then
+           ! first call at start-up or after a restart; do nothing
+       else
+          call glissade_glacier_update(model, model%glacier)
+       endif   ! time = tstart
+
+    endif   ! enable_glaciers
 
     ! ------------------------------------------------------------------------ 
     ! Calculate Glen's A
@@ -4468,8 +4690,8 @@ contains
     ! Do not solve velocity for initial time on a restart because that breaks an exact restart.
     ! Note: model%numerics%tstart is the time of restart, not necessarily the value of tstart in the config file.
 
-    if ( (model%options%is_restart == RESTART_TRUE) .and. &
-         (model%numerics%time == model%numerics%tstart) ) then
+    if ( (model%options%is_restart == STANDARD_RESTART .or. model%options%is_restart == HYBRID_RESTART) &
+         .and. (model%numerics%time == model%numerics%tstart) ) then
   
        ! Do not solve for velocity, because this would break exact restart
 
@@ -4673,8 +4895,8 @@ contains
     ! These are used for some calving schemes.
     !TODO - Put these calculations in a utility subroutine
 
-    if ( (model%options%is_restart == RESTART_TRUE) .and. &
-         (model%numerics%time == model%numerics%tstart) ) then
+    if ( (model%options%is_restart == STANDARD_RESTART .or. model%options%is_restart == HYBRID_RESTART) &
+         .and. (model%numerics%time == model%numerics%tstart) ) then
 
        ! do nothing, since the tau eigenvalues are read from the restart file
 
