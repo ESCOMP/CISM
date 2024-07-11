@@ -2652,6 +2652,10 @@ contains
     elseif (model%options%which_ho_babc == HO_BABC_POWERLAW) then
        write(message,*) 'Cp for power law, Pa (m/yr)^(-1/3)           : ', model%basal_physics%powerlaw_c_const
        call write_log(message)
+       write(message,*) 'Max Cp for power law, Pa (m/yr)^(-1/3)       : ', model%basal_physics%powerlaw_c_max
+       call write_log(message)
+       write(message,*) 'Min Cp for power law, Pa (m/yr)^(-1/3)       : ', model%basal_physics%powerlaw_c_min
+       call write_log(message)
        write(message,*) 'm exponent for power law                     : ', model%basal_physics%powerlaw_m
        call write_log(message)
     elseif (model%options%which_ho_babc == HO_BABC_COULOMB_FRICTION) then
@@ -2668,6 +2672,10 @@ contains
        call write_log(message)
        write(message,*) 'Cp for Schoof power law, Pa (m/yr)^(-1/3)    : ', model%basal_physics%powerlaw_c_const
        call write_log(message)
+       write(message,*) 'Max Cp for power law, Pa (m/yr)^(-1/3)       : ', model%basal_physics%powerlaw_c_max
+       call write_log(message)
+       write(message,*) 'Min Cp for power law, Pa (m/yr)^(-1/3)       : ', model%basal_physics%powerlaw_c_min
+       call write_log(message)
        write(message,*) 'm exponent for Schoof power law              : ', model%basal_physics%powerlaw_m
        call write_log(message)
     elseif (model%options%which_ho_babc == HO_BABC_COULOMB_POWERLAW_TSAI) then
@@ -2676,6 +2684,10 @@ contains
        write(message,*) 'Cc for Tsai Coulomb law                      : ', model%basal_physics%coulomb_c_const
        call write_log(message)
        write(message,*) 'Cp for Tsai power law, Pa (m/yr)^(-1/3)      : ', model%basal_physics%powerlaw_c_const
+       call write_log(message)
+       write(message,*) 'Max Cp for power law, Pa (m/yr)^(-1/3)       : ', model%basal_physics%powerlaw_c_max
+       call write_log(message)
+       write(message,*) 'Min Cp for power law, Pa (m/yr)^(-1/3)       : ', model%basal_physics%powerlaw_c_min
        call write_log(message)
        write(message,*) 'm exponent for Tsai power law                : ', model%basal_physics%powerlaw_m
        call write_log(message)
