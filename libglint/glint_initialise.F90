@@ -559,6 +559,7 @@ contains
     use glide
     use glide_stop, only : glide_finalise
     use glimmer_ncio
+    use glide_stop, only : glide_finalise
     implicit none
     type(glint_instance),  intent(inout) :: instance    !> The instance being initialised.
 

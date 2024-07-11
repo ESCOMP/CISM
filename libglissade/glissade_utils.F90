@@ -41,7 +41,9 @@ module glissade_utils
   public :: glissade_adjust_thickness, glissade_smooth_usrf, &
        glissade_smooth_topography, glissade_adjust_topography, &
        glissade_basin_sum, glissade_basin_average, &
-       glissade_stdev, verbose_stdev
+       glissade_usrf_to_thck, glissade_thck_to_usrf, &
+       glissade_stdev, verbose_stdev, &
+       glissade_edge_fluxes, glissade_input_fluxes
 
   logical, parameter :: verbose_stdev = .true.
 
@@ -1030,6 +1032,273 @@ contains
 
   end subroutine glissade_stdev
 
+!***********************************************************************
+
+  subroutine glissade_usrf_to_thck(usrf, topg, eus, thck)
+
+    ! Given the bed topography and upper ice surface elevation, compute the ice thickness.
+    ! The ice is assumed to satisfy a flotation condition.
+    ! That is, if topg - eus < 0 (marine-based ice), and if the upper surface is too close
+    !  to sea level to ground the ice, then the ice thickness is chosen to satisfy
+    !  rhoi*H = -rhoo*(topg-eus).
+    ! Note: usrf, topg, eus and thck must all have the same units (often but not necessarily meters).
+
+    use glimmer_physcon, only : rhoo, rhoi
+
+    real(dp), dimension(:,:), intent(in) :: &
+         usrf,           & ! ice upper surface elevation
+         topg              ! elevation of bedrock topography
+
+    real(dp), intent(in) :: &
+         eus               ! eustatic sea level
+
+    real(dp), dimension(:,:), intent(out) :: &
+         thck              ! ice thickness
+
+    ! initialize
+    thck(:,:) = 0.0d0
+
+    where (usrf > (topg - eus))   ! ice is present, thck > 0
+       where (topg - eus < 0.0d0)   ! marine-based ice
+          where ((topg - eus) * (1.0d0 - rhoo/rhoi) > usrf)  ! ice is floating
+             thck = usrf / (1.0d0 - rhoi/rhoo)
+          elsewhere   ! ice is grounded
+             thck = usrf - (topg - eus)
+          endwhere
+       elsewhere   ! land-based ice
+          thck = usrf - (topg - eus)
+       endwhere
+    endwhere
+
+  end subroutine glissade_usrf_to_thck
+
+!***********************************************************************
+
+  subroutine glissade_thck_to_usrf(thck, topg, eus, usrf)
+
+    ! Given the bed topography and ice thickness, compute the upper surface elevation.
+    ! The ice is assumed to satisfy a flotation condition.
+    ! That is, if topg - eus < 0 (marine-based ice), and if the ice is too thin to be grounded,
+    !  then the upper surface is chosen to satisfy rhoi*H = rhoo*(H - usrf),
+    !  or equivalently usrf = (1 - rhoi/rhoo)*H.
+    ! Note: usrf, topg, eus and thck must all have the same units (often but not necessarily meters).
+
+    use glimmer_physcon, only : rhoo, rhoi
+
+    real(dp), dimension(:,:), intent(in) :: &
+         thck,           & ! ice thickness
+         topg              ! elevation of bedrock topography
+
+    real(dp), intent(in) :: &
+         eus               ! eustatic sea level
+
+    real(dp), dimension(:,:), intent(out) :: &
+         usrf              ! ice upper surface elevation
+
+    where ((topg - eus) < -(rhoi/rhoo)*thck)
+       usrf = (1.0d0 - rhoi/rhoo)*thck   ! ice is floating
+    elsewhere   ! ice is grounded
+       usrf = (topg - eus) + thck
+    endwhere
+
+  end subroutine glissade_thck_to_usrf
+
+!***********************************************************************
+
+  subroutine glissade_edge_fluxes(&
+        nx,        ny,        &
+        dew,       dns,       &
+        itest,     jtest,  rtest, &
+        thck,                 &
+        uvel,      vvel,      &
+        flux_e,    flux_n)
+
+    use cism_parallel, only: nhalo
+
+    ! Compute ice volume fluxes across each cell edge
+
+    ! input/output arguments
+
+    integer, intent(in) :: &
+         nx, ny,                & ! number of cells in x and y direction on input grid (global)
+         itest, jtest, rtest
+
+    real(dp), intent(in) :: &
+         dew, dns                 ! cell edge lengths in EW and NS directions (m)
+
+    real(dp), dimension(nx,ny), intent(in) :: &
+         thck                     ! ice thickness (m) at cell centers
+
+    real(dp), dimension(nx-1,ny-1), intent(in) :: &
+         uvel, vvel               ! vertical mean velocity (m/s) at cell corners
+
+    real(dp), dimension(nx,ny), intent(out) :: &
+         flux_e, flux_n           ! ice volume fluxes (m^3/yr) at cell edges
+
+    ! local variables
+
+    integer :: i, j
+    real(dp) :: thck_edge, u_edge, v_edge
+    logical, parameter :: verbose_edge_fluxes = .false.
+
+    ! loop over locally owned edges
+    do j = nhalo+1, ny-nhalo
+       do i = nhalo+1, nx-nhalo
+
+          ! east edge volume flux
+          thck_edge = 0.5d0 * (thck(i,j) + thck(i+1,j))
+          u_edge = 0.5d0 * (uvel(i,j-1) + uvel(i,j))
+          flux_e(i,j) = thck_edge * u_edge * dns  ! m^3/yr
+
+          ! north edge volume flux
+          thck_edge = 0.5d0 * (thck(i,j) + thck(i,j+1))
+          v_edge = 0.5d0 * (vvel(i-1,j) + vvel(i,j))
+          flux_n(i,j) = thck_edge * v_edge * dew  ! m^3/yr
+
+          if (verbose_edge_fluxes .and. this_rank == rtest .and. i==itest .and. j==jtest) then
+             print*, 'East  flux: rank, i, j, H, u, flx =', &
+                  rtest, itest, jtest, thck_edge, u_edge, flux_e(i,j)
+             print*, 'North flux: rank, i, j, H, v, flx =', &
+                  rtest, itest, jtest, thck_edge, v_edge, flux_n(i,j)
+          endif
+
+       enddo
+    enddo
+
+  end subroutine glissade_edge_fluxes
+
+!***********************************************************************
+
+  subroutine glissade_input_fluxes(&
+        nx,      ny,            &
+        dew,     dns,           &
+        itest,   jtest,  rtest, &
+        thck,                   &
+        uvel,    vvel,          &
+        flux_in,                &
+        parallel)
+
+    use glimmer_physcon, only: scyr
+    use cism_parallel, only: nhalo, parallel_halo, staggered_parallel_halo
+
+    ! Compute ice volume fluxes into a cell from each neighboring cell
+
+    ! input/output arguments
+
+    integer, intent(in) :: &
+         nx, ny,                & ! number of cells in x and y direction on input grid (global)
+         itest, jtest, rtest
+
+    real(dp), intent(in) :: &
+         dew, dns                 ! cell edge lengths in EW and NS directions (m)
+
+    real(dp), dimension(nx,ny), intent(in) :: &
+         thck                     ! ice thickness (m) at cell centers
+
+    real(dp), dimension(nx-1,ny-1), intent(in) :: &
+         uvel, vvel               ! vertical mean velocity (m/s) at cell corners
+
+    real(dp), dimension(-1:1,-1:1,nx,ny), intent(out) :: &
+         flux_in                  ! ice volume fluxes (m^3/yr) into cell from each neighbor cell
+
+    type(parallel_type), intent(in) :: parallel   ! info for parallel communication
+
+    ! local variables
+
+    integer :: i, j, ii, jj
+
+    real(dp) :: &
+         u_sw, u_se, u_ne, u_nw,    & ! u velocity components at each vertex
+         v_sw, v_se, v_ne, v_nw       ! u velocity components at each vertex
+
+    real(dp) :: &
+         area_w, area_s, area_e, area_n,   & ! area flux from each neighbor cell
+         area_sw, area_se, area_ne, area_nw
+
+    logical, parameter :: verbose_input_fluxes = .false.
+
+    ! halo updates for thickness and velocity
+
+    call parallel_halo(thck, parallel)
+    call staggered_parallel_halo(uvel, parallel)
+    call staggered_parallel_halo(vvel, parallel)
+
+    ! initialize
+    flux_in(:,:,:,:) = 0.0d0
+
+    ! Estimate the ice volume flux into each cell from each neighbor.
+    ! Note: flux_in(0,0,:,:) = 0 since there is no flux from a cell into itself.
+    ! The loop includes one row of halo cells.
+
+    do j = nhalo+1, ny-nhalo
+       do i = nhalo+1, nx-nhalo
+
+          ! Compute the upwind velocity components at each vertex
+          ! Convert from m/s to m/yr for diagnostics
+          u_sw = max( uvel(i-1,j-1), 0.0d0)*scyr
+          v_sw = max( vvel(i-1,j-1), 0.0d0)*scyr
+          u_se = max(-uvel(i,j-1),   0.0d0)*scyr
+          v_se = max( vvel(i,j-1),   0.0d0)*scyr
+          u_ne = max(-uvel(i,j),     0.0d0)*scyr
+          v_ne = max(-vvel(i,j),     0.0d0)*scyr
+          u_nw = max( uvel(i-1,j),   0.0d0)*scyr
+          v_nw = max(-vvel(i-1,j),   0.0d0)*scyr
+
+          ! Estimate the area fluxes from each edge neighbor
+          area_w = 0.5d0*(u_nw + u_sw)*dns - 0.5d0*(u_nw*v_nw + u_sw*v_sw)
+          area_s = 0.5d0*(v_sw + v_se)*dew - 0.5d0*(u_sw*v_sw + u_se*v_se)
+          area_e = 0.5d0*(u_se + u_ne)*dns - 0.5d0*(u_se*v_se + u_ne*v_ne)
+          area_n = 0.5d0*(v_ne + v_nw)*dew - 0.5d0*(u_ne*v_ne + u_nw*v_nw)
+
+          ! Estimate the area fluxes from each diagonal neighbor
+          ! Note: The sum is equal to the sum of the terms subtracted from the edge areas above
+          area_sw = u_sw*v_sw
+          area_se = u_se*v_se
+          area_ne = u_ne*v_ne
+          area_nw = u_nw*v_nw
+
+          ! Estimate the volume fluxes from each edge neighbor
+          flux_in(-1, 0,i,j) = area_w * thck(i-1,j)
+          flux_in( 0,-1,i,j) = area_s * thck(i,j-1)
+          flux_in( 1, 0,i,j) = area_e * thck(i+1,j)
+          flux_in( 0, 1,i,j) = area_n * thck(i,j+1)
+
+          ! Estimate the volume fluxes from each diagonal neighbor
+          flux_in(-1,-1,i,j) = area_sw * thck(i-1,j-1)
+          flux_in( 1,-1,i,j) = area_se * thck(i+1,j-1)
+          flux_in( 1, 1,i,j) = area_ne * thck(i+1,j+1)
+          flux_in(-1, 1,i,j) = area_nw * thck(i-1,j+1)
+
+          if (verbose_input_fluxes .and. this_rank == rtest .and. i==itest .and. j==jtest) then
+             print*, ' '
+             print*, 'upstream u (m/yr), this_rank, i, j:'
+             write(6,'(3e12.4)') u_nw, u_ne
+             write(6,'(3e12.4)') u_sw, u_se
+             print*, ' '
+             print*, 'upstream v (m/yr):'
+             write(6,'(3e12.4)') v_nw, v_ne
+             write(6,'(3e12.4)') v_sw, v_se
+             print*, ' '
+             print*, 'Input area fluxes (m^2/yr):'
+             write(6,'(3e12.4)') area_nw, area_n, area_ne
+             write(6,'(3e12.4)') area_w,  0.0d0, area_e
+             write(6,'(3e12.4)') area_sw, area_s, area_se
+             print*, ' '
+             print*, 'Input ice volume fluxes (m^3/yr):'
+             do jj = 1,-1,-1
+                do ii = -1,1
+                   write(6,'(e12.4)',advance='no') flux_in(ii,jj,i,j)
+                enddo
+                print*, ' '
+             enddo
+          endif
+
+       enddo   ! i
+    enddo   ! j
+
+  end subroutine glissade_input_fluxes
+
+!****************************************************************************
 
 !TODO - Other utility subroutines to add here?
 !       E.g., tridiag; calclsrf; subroutines to zero out tracers

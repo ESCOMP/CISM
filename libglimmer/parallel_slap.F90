@@ -302,6 +302,7 @@ module cism_parallel
 
   interface parallel_put_var
      module procedure parallel_put_var_integer
+     module procedure parallel_put_var_integer_1d
      module procedure parallel_put_var_real4
      module procedure parallel_put_var_real8
      module procedure parallel_put_var_real8_1d
@@ -311,6 +312,7 @@ module cism_parallel
      module procedure parallel_reduce_max_integer
      module procedure parallel_reduce_max_real4
      module procedure parallel_reduce_max_real8
+     module procedure parallel_reduce_max_real8_1d
   end interface
 
   ! This reduce interface determines the global min value and the processor on which it occurs
@@ -324,6 +326,7 @@ module cism_parallel
      module procedure parallel_reduce_min_integer
      module procedure parallel_reduce_min_real4
      module procedure parallel_reduce_min_real8
+     module procedure parallel_reduce_min_real8_1d
   end interface
 
   ! This reduce interface determines the global min value and the processor on which it occurs
@@ -3637,7 +3640,7 @@ contains
 
     implicit none
     integer :: ncid,parallel_put_var_integer,varid
-    integer,dimension(:) :: start
+    integer,dimension(:),optional :: start
     integer :: values
 
     ! begin
@@ -3648,11 +3651,31 @@ contains
   end function parallel_put_var_integer
 
 
+  function parallel_put_var_integer_1d(ncid, varid, values, start)
+
+    implicit none
+    integer :: ncid,parallel_put_var_integer_1d,varid
+    integer,dimension(:),optional :: start
+    integer,dimension(:) :: values
+
+    ! begin
+    if (main_task) then
+       if (present(start)) then
+          parallel_put_var_integer_1d = nf90_put_var(ncid,varid,values,start)
+       else
+          parallel_put_var_integer_1d = nf90_put_var(ncid,varid,values)
+       end if
+    end if
+    call broadcast(parallel_put_var_integer_1d)
+
+  end function parallel_put_var_integer_1d
+
+
   function parallel_put_var_real4(ncid, varid, values, start)
 
     implicit none
     integer :: ncid,parallel_put_var_real4,varid
-    integer,dimension(:) :: start
+    integer,dimension(:),optional :: start
     real(sp) :: values
 
     ! begin
@@ -3667,7 +3690,7 @@ contains
 
     implicit none
     integer :: ncid,parallel_put_var_real8,varid
-    integer,dimension(:) :: start
+    integer,dimension(:),optional :: start
     real(dp) :: values
 
     ! begin
@@ -3748,6 +3771,19 @@ contains
     parallel_reduce_max_real8 = x
 
   end function parallel_reduce_max_real8
+
+
+  function parallel_reduce_max_real8_1d(x)
+
+    ! Max x across all of the nodes.
+    ! In parallel_slap mode just return x.
+    implicit none
+    real(dp), dimension(:) :: x
+    real(dp), dimension(size(x)) :: parallel_reduce_max_real8_1d
+
+    parallel_reduce_max_real8_1d = x
+
+  end function parallel_reduce_max_real8_1d
 
 !=======================================================================
 
@@ -3835,6 +3871,19 @@ contains
     parallel_reduce_min_real8 = x
 
   end function parallel_reduce_min_real8
+
+  
+  function parallel_reduce_min_real8_1d(x)
+
+    ! Min x across all of the nodes.
+    ! In parallel_slap mode just return x.
+    implicit none
+    real(dp), dimension(:) :: x
+    real(dp), dimension(size(x)) :: parallel_reduce_min_real8_1d
+
+    parallel_reduce_min_real8_1d = x
+
+  end function parallel_reduce_min_real8_1d
 
 !=======================================================================
 

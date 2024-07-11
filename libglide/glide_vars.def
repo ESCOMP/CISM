@@ -55,7 +55,6 @@ dimensions:    level
 units:         1
 long_name:     sigma layers
 standard_name: land_ice_sigma_coordinate
-#formula_terms: sigma: level topo: topg thick: thk
 positive:      down
 dimlen:        model%general%upn
 
@@ -81,7 +80,13 @@ units:         meter
 long_name:     ocean_z_coordinate
 data:          data%ocean_data%zocn
 positive:      up
-dimlen:        data%ocean_data%nzocn
+dimlen:        model%ocean_data%nzocn
+
+[glacierid]
+dimensions:    glacierid
+units:         1
+long_name:     glacier_id_coordinate
+dimlen:        model%glacier%nglacier
 
 [nlev_smb]
 dimensions:    nlev_smb
@@ -753,6 +758,24 @@ factor:        1.0
 standard_name: land_ice_surface_specific_mass_balance
 load:          1
 
+[snow]
+dimensions:    time, y1, x1
+units:         mm/year water equivalent
+long_name:     snowfall rate
+data:          data%climate%snow
+factor:        1.0
+load:          1
+read_once:     1
+
+[precip]
+dimensions:    time, y1, x1
+units:         mm/year water equivalent
+long_name:     precipitation rate
+data:          data%climate%precip
+factor:        1.0
+load:          1
+read_once:     1
+
 [acab]
 dimensions:    time, y1, x1
 units:         meter/year ice
@@ -776,7 +799,6 @@ dimensions:    time, y1, x1
 units:         mm/year water equivalent per m
 long_name:     surface mass balance vertical gradient
 data:          data%climate%smb_gradz
-factor:        1.0/thk0
 standard_name: land_ice_surface_specific_mass_balance_vertical_gradient
 load:          1
 
@@ -803,7 +825,7 @@ dimensions:    time, y1, x1
 units:         m/year ice per m
 long_name:     surface mass balance vertical gradient
 data:          data%climate%acab_gradz
-factor:        scale_acab/thk0
+factor:        scale_acab
 standard_name: land_ice_surface_specific_mass_balance_vertical_gradient
 load:          1
 
@@ -821,8 +843,9 @@ dimensions:    time, y1, x1
 units:         deg Celsius
 long_name:     surface temperature at reference elevation
 data:          data%climate%artm_ref
-standard_name: land_ice_surface_temperature_reference
+standard_name: land_ice_reference_surface_temperature
 load:          1
+read_once:     1
 
 [artm_gradz]
 dimensions:    time, y1, x1
@@ -830,7 +853,14 @@ units:         deg Celsius per m
 long_name:     surface temperature vertical gradient
 data:          data%climate%artm_gradz
 standard_name: land_ice_surface_temperature_vertical_gradient
-factor:        1./thk0
+load:          1
+
+[usrf_ref]
+dimensions:    time, y1, x1
+units:         m
+long_name:     reference upper surface elevation for input forcing
+data:          data%climate%usrf_ref
+standard_name: land_ice_reference_surface_elevation
 load:          1
 
 [artm_anomaly]
@@ -840,15 +870,25 @@ long_name:     surface temperature anomaly
 data:          data%climate%artm_anomaly
 standard_name: land_ice_surface_temperature_anomaly
 load:          1
+read_once:     1
 
-[smb_reference_usrf]
+[snow_anomaly]
 dimensions:    time, y1, x1
-units:         m
-long_name:     reference upper surface elevation for SMB forcing
-data:          data%climate%smb_reference_usrf
-factor:        thk0
-standard_name: land_ice_specific_surface_mass_balance_reference_elevation
+units:         mm/year water equivalent
+long_name:     anomaly snowfall rate
+data:          data%climate%snow_anomaly
+factor:        1.0
 load:          1
+read_once:     1
+
+[precip_anomaly]
+dimensions:    time, y1, x1
+units:         mm/year water equivalent
+long_name:     anomaly precipitation rate
+data:          data%climate%precip_anomaly
+factor:        1.0
+load:          1
+read_once:     1
 
 [smb_3d]
 dimensions:    time, nlev_smb, y1, x1
@@ -910,6 +950,36 @@ data:          data%climate%overwrite_acab_mask
 standard_name: land_ice_overwrite_acab_mask
 type:          int
 load:          1
+
+[smb_obs]
+dimensions:    time, y1, x1
+units:         mm/year water equivalent
+long_name:     observed surface mass balance
+data:          data%climate%smb_obs
+factor:        1.0
+load:          1
+
+[smb_rgi]
+dimensions:    time, y1, x1
+units:         mm/year water equivalent
+long_name:     surface mass balance at RGI date
+data:          data%glacier%smb_rgi
+load:          1
+
+[smb_recent]
+dimensions:    time, y1, x1
+units:         mm/year water equivalent
+long_name:     surface mass balance, recent date
+data:          data%glacier%smb_recent
+factor:        1.0
+load:          1
+
+[thck_target]
+dimensions:    time, y1, x1
+units:         m
+long_name:     glacier thickness target
+data:          data%glacier%thck_target
+factor:        1.0
 
 #WHL: Note sign convention: positive downward
 [bheatflx]
@@ -1601,3 +1671,132 @@ dimensions:    time
 units:         years
 long_name:     diffusive CFL maximum time step
 data:          data%numerics%diff_cfl_dt
+
+[rgi_glacier_id]
+dimensions:    time, y1, x1
+units:         1
+long_name:     input RGI glacier ID
+data:          data%glacier%rgi_glacier_id
+load:          1
+
+[cism_glacier_id]
+dimensions:    time, y1, x1
+units:         1
+long_name:     CISM-specific glacier ID
+data:          data%glacier%cism_glacier_id
+load:          1
+
+[cism_glacier_id_init]
+dimensions:    time, y1, x1
+units:         1
+long_name:     initial CISM-specific glacier ID
+data:          data%glacier%cism_glacier_id_init
+load:          1
+
+[smb_glacier_id]
+dimensions:    time, y1, x1
+units:         1
+long_name:     glacier ID for applying SMB
+data:          data%glacier%smb_glacier_id
+load:          1
+
+[smb_glacier_id_init]
+dimensions:    time, y1, x1
+units:         1
+long_name:     initial glacier ID for applying SMB
+data:          data%glacier%smb_glacier_id_init
+load:          1
+
+[cism_to_rgi_glacier_id]
+dimensions:    time, glacierid
+units:         1
+long_name:     RGI glacier ID corresponding to CISM ID
+data:          data%glacier%cism_to_rgi_glacier_id
+load:          1
+
+[glacier_area_factor]
+dimensions:    time, y1, x1
+units:         1
+long_name:     glacier area scale factor
+data:          data%glacier%area_factor
+load:          1
+
+[glacier_area]
+dimensions:    time, glacierid
+units:         m2
+long_name:     glacier area
+data:          data%glacier%area
+
+[glacier_volume]
+dimensions:    time, glacierid
+units:         m3
+long_name:     glacier volume
+data:          data%glacier%volume
+
+[glacier_area_init]
+dimensions:    time, glacierid
+units:         m2
+long_name:     initial glacier area
+data:          data%glacier%area_init
+load:          1
+
+[glacier_volume_init]
+dimensions:    time, glacierid
+units:         m3
+long_name:     initial glacier volume
+data:          data%glacier%volume_init
+load:          1
+
+[glacier_mu_star]
+dimensions:    time, glacierid
+units:         mm w.e./yr/deg
+long_name:     glacier SMB coefficient
+data:          data%glacier%mu_star
+load:          1
+
+[glacier_alpha_snow]
+dimensions:    time, glacierid
+units:         1
+long_name:     glacier snow factor
+data:          data%glacier%alpha_snow
+load:          1
+
+[glacier_beta_artm]
+dimensions:    time, glacierid
+units:         degC
+long_name:     glacier temperature correction
+data:          data%glacier%beta_artm
+load:          1
+
+[glacier_smb_obs]
+dimensions:    time, glacierid
+units:         mm w.e./yr
+long_name:     observed glacier-average SMB
+data:          data%glacier%smb_obs
+load:          1
+
+[glacier_smb]
+dimensions:    time, glacierid
+units:         mm w.e./yr
+long_name:     modeled glacier-average SMB
+data:          data%glacier%smb
+
+[glacier_total_area]
+dimensions:    time
+units:         km2
+long_name:     total glacier area
+factor:        1.e-06
+data:          data%glacier%total_area
+
+[glacier_total_volume]
+dimensions:    time
+units:         km3
+long_name:     total glacier volume
+factor:        1.e-09
+data:          data%glacier%total_volume
+
+[nglacier_active]
+dimensions:    time
+units:         1
+long_name:     number of active glaciers
+data:          data%glacier%nglacier_active

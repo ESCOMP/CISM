@@ -40,7 +40,7 @@ module glissade_inversion
   private
   public :: verbose_inversion, glissade_init_inversion, glissade_inversion_basal_friction, &
             glissade_inversion_bmlt_basin, glissade_inversion_deltaT_ocn, &
-            glissade_inversion_flow_enhancement_factor, usrf_to_thck
+            glissade_inversion_flow_enhancement_factor
   public :: deltaT_ocn_maxval
 
   !-----------------------------------------------------------------------------
@@ -68,6 +68,7 @@ contains
     use glissade_masks, only: glissade_get_masks
     use glissade_grid_operators, only: glissade_stagger
     use glissade_basal_traction, only: set_coulomb_c_elevation
+    use glissade_utils, only: glissade_usrf_to_thck, glissade_thck_to_usrf
 
     type(glide_global_type), intent(inout) :: model   ! model instance
 
@@ -143,13 +144,14 @@ contains
        endif
 
        ! Given usrf_obs and topg, compute thck_obs.
-       call usrf_to_thck(&
+
+       call glissade_usrf_to_thck(&
             model%geometry%usrf_obs,  &
             model%geometry%topg,      &
             model%climate%eus,        &
             thck_obs)
 
-       if (model%options%is_restart == RESTART_FALSE) then
+       if (model%options%is_restart == NO_RESTART) then
 
           ! At the start of the run, adjust thck_obs so that the observational target is not too close to thck_flotation.
           ! The reason for this is that if we restore H to values very close to thck_flotation,
@@ -207,10 +209,11 @@ contains
 
           ! Reset usrf_obs to be consistent with thck_obs.
           ! (usrf itself will be recomputed later in glissade_initialise)
-          call thck_to_usrf(thck_obs,  &
-                            model%geometry%topg,      &
-                            model%climate%eus,        &
-                            model%geometry%usrf_obs)
+          call glissade_thck_to_usrf(&
+               thck_obs,  &
+               model%geometry%topg,      &
+               model%climate%eus,        &
+               model%geometry%usrf_obs)
 
        endif   ! not a restart
 
@@ -218,7 +221,7 @@ contains
        call parallel_halo(thck_obs, parallel)
 
        ! Set the surface speed target, velo_sfc_obs
-       if (model%options%is_restart == RESTART_FALSE) then
+       if (model%options%is_restart == NO_RESTART) then
           model%velocity%velo_sfc_obs(:,:) = &
                sqrt(model%velocity%usfc_obs(:,:)**2 + model%velocity%vsfc_obs(:,:)**2)
        endif
@@ -373,7 +376,7 @@ contains
 
     if (model%options%which_ho_bmlt_basin == HO_BMLT_BASIN_INVERSION) then
 
-       if (model%options%is_restart == RESTART_FALSE) then
+       if (model%options%is_restart == NO_RESTART) then
 
           ! Set floating_thck_target for floating ice and lightly grounded ice.
           ! Here, "lightly grounded" means that the magnitude of f_flotation = (-topg - eus) - (rhoi/rhoo)*thck
@@ -462,6 +465,7 @@ contains
     use glimmer_physcon, only: scyr, grav
     use glissade_grid_operators, only: glissade_stagger, glissade_stagger_real_mask
     use glissade_basal_traction, only: set_coulomb_c_elevation
+    use glissade_utils, only: glissade_usrf_to_thck
 
     implicit none
 
@@ -529,7 +533,8 @@ contains
 
        ! Given the surface elevation target, compute the thickness target.
        ! (This can change in time if the bed topography is dynamic.)
-       call usrf_to_thck(&
+
+       call glissade_usrf_to_thck(&
             model%geometry%usrf_obs,  &
             model%geometry%topg,      &
             model%climate%eus,        &
@@ -973,7 +978,7 @@ contains
              ! For a thickness target H_obs, the rate is given by
              !     dC/dt = -C * [(H - H_obs)/(H0*tau) + dH/dt * 2/H0 - r * ln(C/C_r) / tau]
              ! where tau = babc_timescale, H0 = babc_thck_scale, r = babc_relax_factor, and
-             !  C_r is a relaxation target..
+             !  C_r is a relaxation target.
              ! Apart from the relaxation term, this equation is similar to that of a damped harmonic oscillator:
              !     m * d2x/dt2 = -k*x - c*dx/dt
              ! where m is the mass, k is a spring constant, and c is a damping term.
@@ -1267,7 +1272,8 @@ contains
           print*, 'basin, term_thck, term_dHdt*dt, dTbasin, new deltaT_basin:'
           do nb = 1, nbasin
              write(6,'(i6,4f12.6)') nb, &
-                  dt/dbmlt_dtemp_scale * (floating_thck_basin(nb) - floating_thck_target_basin(nb)) / (bmlt_basin_timescale**2), &
+                  dt/dbmlt_dtemp_scale * (floating_thck_basin(nb) - floating_thck_target_basin(nb)) / &
+                  (bmlt_basin_timescale**2), &
                   dt/dbmlt_dtemp_scale * 2.0d0 * floating_dthck_dt_basin(nb) / bmlt_basin_timescale, &
                   dt*dTbasin_dt(nb), deltaT_basin(nb)
           enddo
@@ -1900,79 +1906,6 @@ contains
     endif
 
   end subroutine get_basin_targets
-
-!***********************************************************************
-
-  !TODO - Move the two following subroutines to a utility module?
-
-  subroutine usrf_to_thck(usrf, topg, eus, thck)
-
-    ! Given the bed topography and upper ice surface elevation, compute the ice thickness.
-    ! The ice is assumed to satisfy a flotation condition.
-    ! That is, if topg - eus < 0 (marine-based ice), and if the upper surface is too close
-    !  to sea level to ground the ice, then the ice thickness is chosen to satisfy
-    !  rhoi*H = -rhoo*(topg-eus).
-    ! Note: usrf, topg, eus and thck must all have the same units (often but not necessarily meters).
-
-    use glimmer_physcon, only : rhoo, rhoi
-
-    real(dp), dimension(:,:), intent(in) :: &
-         usrf,           & ! ice upper surface elevation
-         topg              ! elevation of bedrock topography
-
-    real(dp), intent(in) :: &
-         eus               ! eustatic sea level
-
-    real(dp), dimension(:,:), intent(out) :: &
-         thck              ! ice thickness
-
-    ! initialize
-    thck(:,:) = 0.0d0
-
-    where (usrf > (topg - eus))   ! ice is present, thck > 0
-       where (topg - eus < 0.0d0)   ! marine-based ice
-          where ((topg - eus) * (1.0d0 - rhoo/rhoi) > usrf)  ! ice is floating
-             thck = usrf / (1.0d0 - rhoi/rhoo)
-          elsewhere   ! ice is grounded
-             thck = usrf - (topg - eus)
-          endwhere
-       elsewhere   ! land-based ice
-          thck = usrf - (topg - eus)
-       endwhere
-    endwhere
-
-  end subroutine usrf_to_thck
-
-!***********************************************************************
-
-  subroutine thck_to_usrf(thck, topg, eus, usrf)
-
-    ! Given the bed topography and ice thickness, compute the upper surface elevation.
-    ! The ice is assumed to satisfy a flotation condition.
-    ! That is, if topg - eus < 0 (marine-based ice), and if the ice is too thin to be grounded,
-    !  then the upper surface is chosen to satisfy rhoi*H = rhoo*(H - usrf),
-    !  or equivalently usrf = (1 - rhoi/rhoo)*H.
-    ! Note: usrf, topg, eus and thck must all have the same units (often but not necessarily meters).
-
-    use glimmer_physcon, only : rhoo, rhoi
-
-    real(dp), dimension(:,:), intent(in) :: &
-         thck,           & ! ice thickness
-         topg              ! elevation of bedrock topography
-
-    real(dp), intent(in) :: &
-         eus               ! eustatic sea level
-
-    real(dp), dimension(:,:), intent(out) :: &
-         usrf              ! ice upper surface elevation
-
-    where ((topg - eus) < -(rhoi/rhoo)*thck)
-       usrf = (1.0d0 - rhoi/rhoo)*thck   ! ice is floating
-    elsewhere   ! ice is grounded
-       usrf = (topg - eus) + thck
-    endwhere
-
-  end subroutine thck_to_usrf
 
 !=======================================================================
 
