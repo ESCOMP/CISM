@@ -2414,6 +2414,7 @@ contains
             ice_mask,               floating_mask,    &
             ocean_mask,             land_mask,        &
             calving_front_mask,                       &
+            calving_minthck = model%calving%minthck,  &
             dthck_dx_cf = model%calving%dthck_dx_cf,  &
             dx = model%numerics%dew*len0,             &
             dy = model%numerics%dns*len0,             &
@@ -2474,8 +2475,6 @@ contains
           call point_diag(partial_cf_mask, 'partial_cf_mask', itest, jtest, rtest, 7, 7)
           call point_diag(full_mask, 'full_mask', itest, jtest, rtest, 7, 7)
           call point_diag(ocean_mask, 'ocean_mask', itest, jtest, rtest, 7, 7)
-          call point_diag(edgemask_e, 'edgemask_e', itest, jtest, rtest, 7, 7)
-          call point_diag(edgemask_n, 'edgemask_n', itest, jtest, rtest, 7, 7)
           call point_diag(model%geometry%thck*thk0, 'thck', itest, jtest, rtest, 7, 7)
           call point_diag(model%calving%thck_effective, 'thck_effective', itest, jtest, rtest, 7, 7)
           call point_diag(model%calving%effective_areafrac, &
@@ -2483,6 +2482,7 @@ contains
        endif
 
        ! If using the subgrid CF scheme, then compute a mask of protected cells.
+       ! These include partial CF cells that are allowed to fill up rather than having ice advected away.
 
        if (model%options%which_ho_calving_front == HO_CALVING_FRONT_SUBGRID) then
 
@@ -3854,7 +3854,9 @@ contains
             itest, jtest, rtest, 7, 7)
        call point_diag(model%geometry%thck*thk0, 'Final thck (m)', &
             itest, jtest, rtest, 7, 7)
-       call point_diag(model%geometry%usrf*thk0, 'Final usrf (m)', &
+       call point_diag(model%geometry%topg*thk0, 'topg (m)', &
+            itest, jtest, rtest, 7, 7)
+       call point_diag(model%geometry%usrf*thk0, 'usrf (m)', &
             itest, jtest, rtest, 7, 7)
     endif
 
@@ -4176,6 +4178,7 @@ contains
                                      ice_mask,            floating_mask,         &
                                      ocean_mask,          land_mask,             &
                                      calving_front_mask,                         &
+                                     calving_minthck = model%calving%minthck,    &
                                      dx = model%numerics%dew*len0,               &
                                      dy = model%numerics%dns*len0,               &
                                      dthck_dx_cf = model%calving%dthck_dx_cf,    &
