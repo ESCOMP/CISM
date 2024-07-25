@@ -983,10 +983,10 @@ contains
          'relaxed bedrock threshold        ', &
          'present bedrock threshold        ', &
          'calving based on grid location   ', &
-         'ice thickness threshold          ', &
-         'strain-rate (eigencalving)       ', &
-         'stress threshold                 ', &
          'prescribe CF advance/retreat rate', &
+         'ice thickness threshold          ', &
+         'stress threshold                 ', &
+         'strain-rate (eigencalving)       ', &
          'damage-based calving scheme      ', &
          'Huybrechts calving               '/)
 

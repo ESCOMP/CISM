@@ -181,10 +181,10 @@ module glide_types
   integer, parameter :: CALVING_RELX_THRESHOLD = 3
   integer, parameter :: CALVING_TOPG_THRESHOLD = 4
   integer, parameter :: CALVING_GRID_MASK = 5
-  integer, parameter :: CALVING_THCK_THRESHOLD = 6
-  integer, parameter :: EIGEN_CALVING = 7
+  integer, parameter :: CF_ADVANCE_RETREAT_RATE = 6
+  integer, parameter :: CALVING_THCK_THRESHOLD = 7
   integer, parameter :: CALVING_STRESS = 8
-  integer, parameter :: CF_ADVANCE_RETREAT_RATE = 9
+  integer, parameter :: EIGEN_CALVING = 9
   integer, parameter :: CALVING_DAMAGE = 10
   integer, parameter :: CALVING_HUYBRECHTS = 11
 
