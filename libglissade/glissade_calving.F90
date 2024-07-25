@@ -561,8 +561,8 @@ contains
 
        if (which_calving == CF_ADVANCE_RETREAT_RATE) then
 
-          ! Diagnose the current calving front location
-          ! TODO: Add logic to do this only for calvingMIP runs
+          ! Diagnose the current calving front location, based on the CalvingMIP domain.
+          ! (The advance/retreat option is used for several CalvingMIP experiments.)
 
           call locate_calving_front_calvingMIP(&
                nx,             ny,           &
