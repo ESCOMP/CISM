@@ -259,8 +259,7 @@ module glissade_remap
                                           mass,              trcr,          &
                                           edgearea_e,        edgearea_n,    &
                                           prescribed_area_in,               &
-                                          integral_order_in, dp_midpt_in,   &
-                                          edgemask_e,        edgemask_n)
+                                          integral_order_in, dp_midpt_in)
       
       ! Solve the transport equations for one timestep using the incremental
       ! remapping scheme developed by John Dukowicz and John Baumgardner (DB)
@@ -334,10 +333,6 @@ module glissade_remap
          dp_midpt_in            ! if true, find departure points using
                                 ! corrected midpoint velocity
 
-      integer, dimension(nx_block,ny_block), intent(in), optional ::   &
-         edgemask_e     ,&! = 1 for east edges across which mass can flow; else = 0
-         edgemask_n       ! = 1 for north edges across which mass can flow; else = 0
-
       ! local variables
 
       logical ::     &
@@ -375,10 +370,6 @@ module glissade_remap
       integer, dimension (nx_block,ny_block,ngroups) ::     &
          iflux          ,&! i index of cell contributing transport
          jflux            ! j index of cell contributing transport
-
-      integer, dimension(nx_block,ny_block) :: &
-         edge_mask_e     ,&! = 1 for east edges across which mass can flow; else = 0
-         edge_mask_n       ! = 1 for north edges across which mass can flow; else = 0
 
       integer, dimension(ngroups) ::       &
          icellsng         ! number of cells with contribution from a given group
@@ -473,18 +464,6 @@ module glissade_remap
          prescribed_area = prescribed_area_in
       else
          prescribed_area = .false.
-      endif
-
-      if (present(edgemask_e)) then
-         edge_mask_e = edgemask_e
-      else
-         edge_mask_e = 1
-      endif
-
-      if (present(edgemask_n)) then
-         edge_mask_n = edgemask_n
-      else
-         edge_mask_n = 1
       endif
 
       ! These arrays are passed to construct_fields in lieu of the dimensional
@@ -650,26 +629,6 @@ module glissade_remap
                                my(:,:),            mflxn (:,:),       &
                                tc(:,:,:),          tx    (:,:,:),     &
                                ty(:,:,:),          mtflxn(:,:,:))
-
-    !-------------------------------------------------------------------
-    ! Zero out fluxes across masked-out edges
-    !-------------------------------------------------------------------
-
-      do j = 1, ny_block
-         do i = 1, nx_block
-            if (edge_mask_e(i,j) == 0) mflxe(i,j) = 0.0d0
-            if (edge_mask_n(i,j) == 0) mflxn(i,j) = 0.0d0
-         enddo
-      enddo
-
-      do nt = 1, ntracer
-         do j = 1, ny_block
-            do i = 1, nx_block
-               if (edge_mask_e(i,j) == 0) mtflxe(i,j,nt) = 0.0d0
-               if (edge_mask_n(i,j) == 0) mtflxn(i,j,nt) = 0.0d0
-            enddo
-         enddo
-      enddo
 
     !-------------------------------------------------------------------
     ! Update the ice area and tracers.

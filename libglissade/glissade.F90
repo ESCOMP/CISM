@@ -2263,7 +2263,6 @@ contains
     use glissade_inversion, only: verbose_inversion
     use glissade_bmlt_float, only: verbose_bmlt_float
     use glissade_calving, only: verbose_calving
-    use glissade_calving, only: use_edgemasks  !TODO - Remove this option?
     use glissade_grid_operators, only: glissade_vertical_interpolate
     use glissade_glacier, only: verbose_glacier
     use glide_stop, only: glide_finalise
@@ -2320,10 +2319,6 @@ contains
     integer, dimension(model%general%ewn, model%general%nsn) :: &
          partial_cf_mask,         & ! = 1 for partially filled CF cells (thck < thck_effective), else = 0
          full_mask                  ! = 1 for ice-filled cells that are not partial_cf cells, else = 0
-
-    integer, dimension(model%general%ewn, model%general%nsn) :: &
-         edgemask_e     ,&! = 1 for east edges across which mass can flow; else = 0
-         edgemask_n       ! = 1 for north edges across which mass can flow; else = 0
 
     !WHL - debug
     integer :: ig, jg
@@ -2422,53 +2417,6 @@ contains
             partial_cf_mask = partial_cf_mask,        &
             full_mask = full_mask,                    &
             effective_areafrac = model%calving%effective_areafrac)
-
-       ! Initialize the edge masks for transport
-       ! Ice can flow across edges with edgemask = 1, but not edgemask = 0
-
-       edgemask_e = 1
-       edgemask_n = 1
-
-       if (use_edgemasks) then
-          !TODO - Remove this option? It leads to negative ice areas.
-
-          if (model%options%which_ho_calving_front == HO_CALVING_FRONT_SUBGRID) then
-
-             ! Set masks such that mass cannot flow from partial CF cells to open ocean,
-             !  or from one ocean cell to another.
-
-             !TODO - Simplify logic: All edges of full cells get mask = 1; else mask = 0
-             do j = 2, nsn-1
-                do i = 2, ewn-1
-                   if (partial_cf_mask(i,j) == 1 .or. ocean_mask(i,j) == 1) then
-                      if (ocean_mask(i-1,j) == 1 .or. partial_cf_mask(i-1,j) == 1) edgemask_e(i-1,j) = 0
-                      if (ocean_mask(i+1,j) == 1 .or. partial_cf_mask(i+1,j) == 1) edgemask_e(i,j) = 0
-                      if (ocean_mask(i,j-1) == 1 .or. partial_cf_mask(i,j-1) == 1) edgemask_n(i,j-1) = 0
-                      if (ocean_mask(i,j+1) == 1 .or. partial_cf_mask(i,j+1) == 1) edgemask_n(i,j) = 0
-                   endif
-                enddo
-             enddo
-
-             ! One exception: Ice can flow into ocean cells with 3 CF neighbors
-             do j = 2, nsn-1
-                do i = 2, ewn-1
-                   if (ocean_mask(i,j) == 1) then
-                      if (calving_front_mask(i-1,j) + calving_front_mask(i+1,j) + &
-                           calving_front_mask(i,j-1) + calving_front_mask(i,j+1) >= 3) then
-                         if (calving_front_mask(i-1,j) == 1) edgemask_e(i-1,j) = 1
-                         if (calving_front_mask(i+1,j) == 1) edgemask_e(i,j) = 1
-                         if (calving_front_mask(i,j-1) == 1) edgemask_n(i,j-1) = 1
-                         if (calving_front_mask(i,j+1) == 1) edgemask_n(i,j) = 1
-                      endif
-                   endif
-                enddo
-             enddo
-
-             call parallel_halo(edgemask_e, parallel)
-             call parallel_halo(edgemask_n, parallel)
-
-          endif
-       endif
 
        if (verbose_calving) then
           call point_diag(calving_front_mask, 'Before transport, calving_front_mask', itest, jtest, rtest, 7, 7)
@@ -2661,7 +2609,6 @@ contains
                                          model%geometry%tracers_usrf(:,:,:),                   &
                                          model%geometry%tracers_lsrf(:,:,:),                   &
                                          model%options%which_ho_vertical_remap,                &
-                                         edgemask_e(:,:),            edgemask_n(:,:),          &
                                          upwind_transport_in = do_upwind_transport)
 
           ! halo updates for thickness and tracers

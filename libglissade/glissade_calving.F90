@@ -48,14 +48,8 @@ module glissade_calving
             glissade_cull_calving_front, glissade_limit_cliffs,  &
             glissade_stress_tensor_eigenvalues, glissade_strain_rate_tensor_eigenvalues
   public :: verbose_calving
-  public :: use_edgemasks
 
-!!  logical, parameter :: verbose_calving = .false.
-  logical, parameter :: verbose_calving = .true.
-
-  !WHL - debug
-  logical, parameter :: use_edgemasks = .false.
-
+  logical, parameter :: verbose_calving = .false.
 
 contains
 
@@ -478,23 +472,9 @@ contains
             flux_in,                          & ! m^3/s
             parallel)
 
-       if (use_edgemasks) then
+       ! Gather ice that has flowed to unprotected cells and move it back upstream
 
-          ! get rid of unprotected ice by calving it (there should not be very much)
-          do j = nhalo+1, ny-nhalo
-             do i = nhalo+1, nx-nhalo
-                if (calving%protected_mask(i,j) == 0 .and. thck(i,j) > 0.0d0) then
-                   calving%calving_thck(i,j) = calving%calving_thck(i,j) + thck(i,j)
-                   thck(i,j) = 0.0d0
-                endif
-             enddo
-          enddo
-
-       else
-
-          ! Gather ice that has flowed to unprotected cells and move it back upstream
-
-          call redistribute_unprotected_ice(&
+       call redistribute_unprotected_ice(&
             nx,                ny,            &
             itest,  jtest,  rtest,            &
             parallel,                         &
@@ -502,8 +482,6 @@ contains
             flux_in,                          & ! m^3/s
             thck,                             & ! m
             calving%calving_thck)               ! m
-
-       endif
 
        ! Compute masks for calving.
 
