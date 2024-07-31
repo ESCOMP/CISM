@@ -277,10 +277,9 @@
        ice_mask,               floating_mask,        &
        ocean_mask,             land_mask,            &
        calving_front_mask,                           &
-       calving_minthck,                              &
        dthck_dx_cf,                                  &
        dx,                     dy,                   &
-       thck_effective,         thck_full,            &
+       thck_effective,         thck_effective_min,   &
        partial_cf_mask,        full_mask,            &
        effective_areafrac)
 
@@ -322,9 +321,7 @@
     real(dp), dimension(nx,ny), intent(out), optional :: &
          thck_effective,        & ! effective ice thickness (m) for calving
                                   ! Generally, H_eff > H at the CF, with H_eff = H elsewhere
-         thck_full,             & ! min thickness (m) to be counted as a full cell;
-                                  ! used to identify CF cells that are over-full
-         effective_areafrac       ! effective ice-covered fraction, in range [0,1]
+        effective_areafrac       ! effective ice-covered fraction, in range [0,1]
                                   ! 0 < f < 1 for partial calving-front cells
 
     integer, dimension(nx,ny), intent(out), optional :: &
@@ -332,7 +329,7 @@
          full_mask                ! = 1 for ice-filled cells that are not partial_cf cells, else = 0
 
     real(dp), intent(in), optional :: &
-         calving_minthck          ! minimum effective thickness for CF cells
+         thck_effective_min       ! minimum effective thickness for CF cells
 
     !----------------------------------------------------------------
     ! Local arguments
@@ -395,7 +392,6 @@
 
           ! Initialize thck_effective and masks
           thck_effective = thck
-          if (present(thck_full)) thck_full = thck
           full_mask = 0
           partial_cf_mask = 0
 
@@ -418,18 +414,14 @@
                          dthck_dx = (max_neighbor_thck - thck(i,j)) / distance
                          ! If the gradient exceeds a critical value, this is a partial CF cell;
                          !  set thck_effective based on the critical gradient.
-                         ! If the gradient is small, this is a full cell, with thck_effective = thck.
+                         ! If the gradient is at or below the critical valude, this is a full cell with thck_effective = thck.
                          if (dthck_dx > dthck_dx_cf) then
                             partial_cf_mask(i,j) = 1
                             thck_effective(i,j) = max_neighbor_thck - dthck_dx_cf*distance
-                            if (present(thck_full)) thck_full(i,j) = thck_effective(i,j)   ! min thickness to be a full cell
                          else
                             full_mask(i,j) = 1
-                            if (present(thck_full)) then
-                               thck_full(i,j) = max_neighbor_thck - dthck_dx_cf*distance
-                            endif
                          endif   ! dthck_dx > dthck_dx_cf
-                      else   ! no interior neighbors; mark as a partial cell?
+                      else   ! no interior neighbors; mark as a partial cell
                          partial_cf_mask(i,j) = 1
                          call parallel_globalindex(i, j, ig, jg, parallel)
 !!                         if (this_rank == rtest) then
@@ -437,7 +429,7 @@
 !!                         endif
                       endif   ! max_neighbor_thck > 0
 
-                   else   ! not a CF cell
+                   else   ! not a CF cell; thck_effective = thck
 
                       full_mask(i,j) = 1
 
@@ -453,18 +445,15 @@
           endwhere
 
           ! Optionally, set a minimum value for thck_effective
-          if (present(calving_minthck)) then
+          if (present(thck_effective_min)) then
              where (calving_front_mask == 1)
-                thck_effective = max(thck_effective, calving_minthck)
+                thck_effective = max(thck_effective, thck_effective_min)
              endwhere
           endif
 
           call parallel_halo(thck_effective, parallel)
           call parallel_halo(full_mask, parallel)
           call parallel_halo(partial_cf_mask, parallel)
-          if (present(thck_full)) call parallel_halo(thck_full, parallel)
-
-          !TODO - Abort if thck_full is passed without thck_effective?
 
        endif   ! present(thck_effective)
 

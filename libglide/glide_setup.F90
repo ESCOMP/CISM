@@ -2202,6 +2202,7 @@ contains
     call GetValue(section,'calving_timescale',  model%calving%timescale)
     call GetValue(section,'calving_minthck',    model%calving%minthck)
     call GetValue(section,'dthck_dx_cf',        model%calving%dthck_dx_cf)
+    call GetValue(section,'thck_effective_min', model%calving%thck_effective_min)
     call GetValue(section,'eigenconstant',      model%calving%eigenconstant)
     call GetValue(section,'tau_eigenconstant1', model%calving%tau_eigenconstant1)
     call GetValue(section,'tau_eigenconstant2', model%calving%tau_eigenconstant2)
@@ -2441,11 +2442,11 @@ contains
        call write_log(message)
     endif
 
-    if (model%options%whichcalving == CALVING_THCK_THRESHOLD .or.  &
-        model%options%whichcalving == EIGEN_CALVING          .or.  &
+    if (model%options%whichcalving == CF_ADVANCE_RETREAT_RATE.or.  &
+        model%options%whichcalving == CALVING_THCK_THRESHOLD .or.  &
         model%options%whichcalving == CALVING_STRESS         .or.  &
-        model%options%whichcalving == CALVING_DAMAGE         .or.  &
-        model%options%whichcalving == CF_ADVANCE_RETREAT_RATE) then
+        model%options%whichcalving == EIGEN_CALVING          .or.  &
+        model%options%whichcalving == CALVING_DAMAGE) then
 
        if (model%options%which_ho_calving_front == HO_CALVING_FRONT_NO_SUBGRID) then
           write(message,*) &
@@ -2490,6 +2491,8 @@ contains
 
     if (model%options%which_ho_calving_front == HO_CALVING_FRONT_SUBGRID) then
        write(message,*) 'subgrid dthck_dx_cf           : ', model%calving%dthck_dx_cf
+       call write_log(message)
+       write(message,*) 'thck_effective_min (m)        : ', model%calving%thck_effective_min
        call write_log(message)
        !TODO - Is the following needed with the new SUBGRID option?
        if (.not.model%options%remove_icebergs) then
