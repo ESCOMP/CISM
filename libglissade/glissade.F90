@@ -2414,11 +2414,11 @@ contains
             ice_mask,               floating_mask,    &
             ocean_mask,             land_mask,        &
             calving_front_mask,                       &
-            calving_minthck = model%calving%minthck,  &
             dthck_dx_cf = model%calving%dthck_dx_cf,  &
             dx = model%numerics%dew*len0,             &
             dy = model%numerics%dns*len0,             &
             thck_effective = model%calving%thck_effective, &
+            thck_effective_min = model%calving%thck_effective_min,  &
             partial_cf_mask = partial_cf_mask,        &
             full_mask = full_mask,                    &
             effective_areafrac = model%calving%effective_areafrac)
@@ -4178,11 +4178,11 @@ contains
                                      ice_mask,            floating_mask,         &
                                      ocean_mask,          land_mask,             &
                                      calving_front_mask,                         &
-                                     calving_minthck = model%calving%minthck,    &
                                      dx = model%numerics%dew*len0,               &
                                      dy = model%numerics%dns*len0,               &
                                      dthck_dx_cf = model%calving%dthck_dx_cf,    &
                                      thck_effective = model%calving%thck_effective,  &
+                                     thck_effective_min = model%calving%thck_effective_min,  &
                                      partial_cf_mask = partial_cf_mask,          &
                                      full_mask = full_mask)
 

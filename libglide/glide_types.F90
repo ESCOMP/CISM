@@ -1563,6 +1563,7 @@ module glide_types
                                                  !> if used, must be set to a nonzero value in the config file
                                                  !> (whichcalving = CALVING_THCK_THRESHOLD, EIGENCALVING, CALVING_DAMAGE)
      real(dp) :: dthck_dx_cf = 0.0d0             !> assumed max value of |dH/dx| at the calving front for full (not partial) cells (m/m)
+     real(dp) :: thck_effective_min = 50.0d0     !> minimum value of thck_effective (m) for calving-front cells
      real(dp) :: eigenconstant = 0.0d0           !> constant that multiplies the eigen-based strain rate to determine the calving rate (m)
      real(dp) :: tau_eigenconstant1 = 1.0d0      !> constant that multiplies the tau_eigen1 term in stress-based calving (unitless)
      real(dp) :: tau_eigenconstant2 = 1.0d0      !> constant that multiplies the tau_eigen2 term in stress-based calving (unitless)

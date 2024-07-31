@@ -526,10 +526,10 @@ contains
             ice_mask,      floating_mask,            &
             ocean_mask,    land_mask,                &
             calving_front_mask,                      &
-            calving_minthck = calving%minthck,       &
             dthck_dx_cf = calving%dthck_dx_cf,       &
             dx = dx,       dy = dy,                  &
             thck_effective = calving%thck_effective, &
+            thck_effective_min = calving%thck_effective_min, &
             partial_cf_mask = partial_cf_mask,       &
             full_mask = full_mask,                   &
             effective_areafrac = calving%effective_areafrac)
@@ -581,8 +581,8 @@ contains
                calving_front_mask,                        &
                thck_pre_transport,                        &  ! m
                thck,                                      &  ! m
-               calving%thck_effective,                    &  ! m
                cf_length,                                 &  ! m
+               calving%thck_effective,                    &  ! m
                calving%cf_advance_retreat_amplitude/scyr, &  ! m/s
                calving%cf_advance_retreat_period*scyr,    &  ! s
                calving_dthck)                                ! m
@@ -598,32 +598,10 @@ contains
                itest,   jtest,     rtest,                 &
                calving_front_mask,                        &
                speed,                                     &  ! m/s
+               cf_length,                                 &  ! m
                calving%thck_effective,                    &  ! m
                calving%minthck,                           &  ! m
                calving_dthck)                                ! m
-
-       elseif (which_calving == EIGEN_CALVING) then
-
-          call extrapolate_to_calving_front(&
-               nx,                 ny,     &
-               partial_cf_mask,            &
-               full_mask,                  &
-               calving%effective_areafrac, &
-               calving%eps_eigen1,         &
-               calving%eps_eigen2)
-
-          call eigencalving(&
-               nx,                 ny,            &
-               dx,                 dy,            &  ! m
-               dt,                                &  ! s
-               itest,   jtest,     rtest,         &
-               calving_front_mask,                &
-               cf_length,                         &  ! m
-               calving%thck_effective,            &  ! m
-               calving%eps_eigen1,                &  ! 1/s
-               calving%eps_eigen2,                &  ! 1/s
-               calving%eigenconstant,             &  ! m
-               calving_dthck)                        ! m
 
        elseif (which_calving == CALVING_STRESS) then
 
@@ -649,6 +627,29 @@ contains
                calving%tau_eigenconstant1,        &
                calving%tau_eigenconstant2,        &
                calving%stress_threshold,          &  ! Pa
+               calving_dthck)                        ! m
+
+       elseif (which_calving == EIGEN_CALVING) then
+
+          call extrapolate_to_calving_front(&
+               nx,                 ny,     &
+               partial_cf_mask,            &
+               full_mask,                  &
+               calving%effective_areafrac, &
+               calving%eps_eigen1,         &
+               calving%eps_eigen2)
+
+          call eigencalving(&
+               nx,                 ny,            &
+               dx,                 dy,            &  ! m
+               dt,                                &  ! s
+               itest,   jtest,     rtest,         &
+               calving_front_mask,                &
+               cf_length,                         &  ! m
+               calving%thck_effective,            &  ! m
+               calving%eps_eigen1,                &  ! 1/s
+               calving%eps_eigen2,                &  ! 1/s
+               calving%eigenconstant,             &  ! m
                calving_dthck)                        ! m
 
        elseif (which_calving == CALVING_DAMAGE) then
@@ -731,10 +732,10 @@ contains
             ice_mask,      floating_mask,            &
             ocean_mask,    land_mask,                &
             calving_front_mask,                      &
-            calving_minthck = calving%minthck,       &
             dthck_dx_cf = calving%dthck_dx_cf,       &
             dx = dx,       dy = dy,                  &
             thck_effective = calving%thck_effective, &
+            thck_effective_min = calving%thck_effective_min, &
             partial_cf_mask = partial_cf_mask,       &
             full_mask = full_mask)
 
@@ -1293,6 +1294,7 @@ contains
        itest,   jtest,     rtest,                 &
        calving_front_mask,                        &
        speed,                                     &  ! m/s
+       cf_length,                                 &  ! m
        thck_effective,                            &  ! m
        calving_minthck,                           &  ! m
        calving_dthck)                                ! m
@@ -1320,6 +1322,7 @@ contains
 
     real(dp), dimension(nx,ny), intent(in) :: &
          speed,                  & ! mean ice speed averaged to cell centers (m/s)
+         cf_length,              & ! length of calving front in each grid cell (m)
          thck_effective            ! effective thickness for calving (m)
 
     real(dp), intent(in) :: &
@@ -1348,15 +1351,14 @@ contains
     ! * Cr = 0 where H_eff > 2*H_c
     ! * For H_eff < H < 2*H_c, there is some calving, but not enough to halt ice advance.
     ! * For H_eff = H_c, the calving rate is in balance with the ice speed, so the CF is stable.
-    ! * For H_eff < H_c, the CF retreats. When H_eff ~ 0, we have Cr = 2v, so the CF
-    !   will retreat at a rate of v.
+    ! * For H_eff < H_c, the CF retreats. As H_eff -> 0, we have Cr -> 2v.
     !
     ! This calving law is based on Experiment 5 of CalvingMIP:
     !   https://github.com/JRowanJordan/CalvingMIP/wiki/Experiment-5
     !
     ! The lateral calving rate is converted to a thinning rate dH using
     ! 
-    !   dH = Cr * dt * H_eff / sqrt(dx*dy),
+    !   dH = Cr * dt * H_eff * cf_length / (dx*dy),
     !
     ! The RHS is equal to the ice volume removed per unit grid cell area during one time step
 
@@ -1369,7 +1371,7 @@ contains
 
              lateral_rate(i,j) = &
                   max(0.0d0, 1.0d0 + (calving_minthck - thck_effective(i,j))/calving_minthck) * speed(i,j)
-             calving_dthck(i,j) = lateral_rate(i,j) * dt * thck_effective(i,j) / sqrt(dx*dy)
+             calving_dthck(i,j) = lateral_rate(i,j) * dt * thck_effective(i,j) * cf_length(i,j) / (dx*dy)
 
           endif   ! CF mask
        enddo   ! i
@@ -1772,8 +1774,8 @@ contains
        calving_front_mask,                 &
        thck_pre_transport,                 &  ! m
        thck,                               &  ! m
-       thck_effective,                     &  ! m
        cf_length,                          &  ! m
+       thck_effective,                     &  ! m
        cf_advance_retreat_amplitude,       &  ! m/s
        cf_advance_retreat_period,          &  ! s
        calving_dthck)                         ! m
@@ -1812,8 +1814,8 @@ contains
 
     real(dp), dimension(nx,ny), intent(inout) :: &
          thck,                   & ! ice thickness (m)
-         thck_effective,         & ! effective thickness for calving (m)
-         cf_length                 ! length of calving front in each grid cell (m)
+         cf_length,              & ! length of calving front in each grid cell (m)
+         thck_effective            ! effective thickness for calving (m)
 
     real(dp), dimension(nx,ny), intent(out) :: &
          calving_dthck             ! thickness (m) to be added to the calving flux
