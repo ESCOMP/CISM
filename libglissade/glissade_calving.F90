@@ -237,7 +237,7 @@ contains
                                 parallel,                &
                                 calving,                 &  ! calving derived type
                                 itest,  jtest,  rtest,   &
-                                dt,                      &  ! s
+                                dt,             time,    &  ! s
                                 dx,             dy,      &  ! m
                                 x1,             y1,      &  ! m
                                 sigma,                   &
@@ -292,7 +292,6 @@ contains
 !    real(dp), dimension(:,:,:), intent(inout):: damage              !> 3D scalar damage parameter
 !    real(dp), intent(in)                     :: damage_threshold    !> threshold value where ice is sufficiently damaged to calve
 !    real(dp), intent(in)                     :: damage_constant     !> rate of change of damage (1/s) per unit stress (Pa)
-!    real(dp), intent(in)                     :: time                !> time(yr) for time-varying calving front advance/retreat rate
 !    real(dp), intent(in)            :: cf_advance_retreat_amplitude !> amplitude (m/yr) of CF advance/retreat rate
 !    real(dp), intent(in)            :: cf_advance_retreat_period    !> period (yr) of CF advance/retreat rate
 !    integer,  dimension(:,:), intent(in)     :: calving_mask        !> integer mask: calve ice where calving_mask = 1
@@ -300,6 +299,7 @@ contains
 
     integer, intent(in) :: itest, jtest, rtest                     !> coordinates of diagnostic point
     real(dp), intent(in)                      :: dt                !> model timestep (s)
+    real(dp), intent(in)                      :: time              !> model time (s)
     real(dp), intent(in)                      :: dx, dy            !> grid cell size in x and y directions (m)
     real(dp), dimension(nx), intent(in)       :: x1                !> x coordinates of cell centers (m)
     real(dp), dimension(ny), intent(in)       :: y1                !> y coordinates of cell centers (m)
@@ -554,7 +554,7 @@ contains
           call calving_front_advance_retreat(&
                nx,                 ny,                    &
                dx,                 dy,                    &
-               dt,                 calving%time*scyr,     &  ! s
+               dt,                 time,                  &  ! s
                itest,   jtest,     rtest,                 &
                calving_front_mask,                        &
                thck_pre_transport,                        &  ! m
@@ -1773,7 +1773,7 @@ contains
     real(dp), intent(in) :: &
          dx, dy,                 & ! grid cell size (m)
          dt,                     & ! time step (s)
-         time                      ! elapsed time (s) since start of CF advance/retreat
+         time                      ! elapsed time (s) of model run
 
     integer, dimension(nx,ny), intent(in)  ::  &
          calving_front_mask        ! = 1 where ice is floating and borders at least one ocean cell, else = 0
@@ -1828,7 +1828,7 @@ contains
 
     if (verbose_calving .and. this_rank==rtest) then
        write(6,*) ' '
-       write(6,*) 'Calving time (yr)', time/scyr
+       write(6,*) 'Time (yr)', time/scyr
        write(6,*) 'CF advance_retreat_rate (m/yr) =', cf_advance_retreat_rate*scyr
        write(6,*) 'Net CF advance (km):', cf_net_advance / 1000.d0
        write(6,*) 'Prescribed radius (km):', 750.d0 + cf_net_advance/1000.d0

@@ -3521,14 +3521,6 @@ contains
 
     if (model%options%whichcalving /= CALVING_GRID_MASK) then
 
-       if (model%options%which_ho_calving_front == HO_CALVING_FRONT_SUBGRID) then
-          ! Set the calving time(s).
-          ! This is used with a time-dependent advance/retreat rate
-          if (model%options%whichcalving == CF_ADVANCE_RETREAT_RATE) then
-             model%calving%time = model%numerics%time - model%numerics%tstart
-          endif
-       endif
-
        call glissade_calve_ice(&
             nx,           ny,                  &
             model%options%whichcalving,        &
@@ -3538,6 +3530,7 @@ contains
             model%calving,                     &        ! calving object; includes calving_thck (m)
             itest, jtest, rtest,               &
             model%numerics%dt*tim0,            &        ! s
+            model%numerics%time*scyr,          &        ! s
             model%numerics%dew*len0,           &        ! m
             model%numerics%dns*len0,           &        ! m
             model%general%x1,                  &        ! m

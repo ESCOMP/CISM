@@ -1582,7 +1582,6 @@ module glide_types
      real(dp) :: f_ground_threshold = 0.10d0     !> Threshold fraction for grounded cells in iceberg removal algorithm
                                                  !> Also used for isthmus removal
      real(dp) :: &
-          time = 0.0d0,                        & !> time (s) relative to tstart for prescribed sinusoidal advance/retreat
           cf_advance_retreat_amplitude = 0.0d0,& !> prescribed amplitude (m/yr) for calving front advance or retreat
                                                  !> positive for sin(2*pi*t/period), negative for -sin(2*pi*t/period)
                                                  !> should be negative for CalvingMIP Experiments 2 and 4
