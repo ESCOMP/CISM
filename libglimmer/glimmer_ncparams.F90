@@ -79,12 +79,15 @@ contains
     ! If a file is listed in the 'CF restart' section, then it is added to the glimmer_nc_output data structure
     !  and written at the specified frequency.
     !
+    ! There should be at most one 'CF restart' section in the config file.
+    ! The filename should contain the string 'restart' or '.r.'
+    !
     ! If model%options%is_restart = STANDARD_RESTART, then the file listed in 'CF restart' (provided it exists)
     !  is added to the glimmer_nc_input data structure, overriding any file listed in the 'CF input' section.
     !  The latest time slice will be read in.
     ! Thus when restarting the model, it is only necessary to set restart = 1 (i.e., STANDARD_RESTART)
     !  in the config file; it is not necesssary to change the filenames in 'CF input' or 'CF restart'.
-    ! At most one file should be listed in the 'CF restart' section, and it should contain the string 'restart' or '.r.'
+    !
     ! If model%options%is_restart = STANDARD_RESTART and there is no 'CF restart' section, then the model will restart
     !  from the file and time slice specified in the 'CF input' section. (This is the old Glimmer behavior.)
     !
@@ -116,8 +119,7 @@ contains
 
     ! set up restart output
     ! If there is a 'CF restart' section, the file listed there is added to the output list.
-    ! Note: There should be only one 'CF restart' section. Duplicate sections will be ignored.
-    !TODO: Check that there is only one 'CF restart' section, and abort if there are more than one.
+    ! Note: There should be at most one 'CF restart' section.
     call GetSection(config,section,'CF restart')
     if (associated(section)) then
        output => handle_output(section,output,configstring)
@@ -172,11 +174,6 @@ contains
              pos = index(input%nc%filename,'restart')
              if (pos == 0) then
                 call write_log ('Error, filename in CF restart section should include "restart"', GM_FATAL)
-             endif
-
-             ! Make sure there is only one 'CF restart' section
-             if (associated(section%next)) then
-                call write_log ('Error, there should not be more than one CF restart section', GM_FATAL)
              endif
 
              write(message,*) 'Starting from restart file:', trim(input%nc%filename)

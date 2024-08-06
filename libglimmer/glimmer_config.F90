@@ -448,7 +448,16 @@ contains
 
     found=>config
     do while(associated(found))
-       if (name == trim(found%name)) then
+       if (name == 'CF input' .or. name == 'CF output') then
+          !Note: The following code allows CISM to link multiple I/O files with similar but unique section names
+          !       like [CF output], [CF output1], [CF output2], etc.
+          !      Although the config file is allowed to have multiple sections called '[CF input]' and/or '[CF output]',
+          !       a config file created with a Python configparser may require unique section names.
+          if (index(trim(found%name),name) == 1) then  ! name (e.g., 'CF output') is a substring of found%name
+             found%used = .true.
+             return
+          end if
+       elseif (name == trim(found%name)) then
           found%used = .true.
           return
        end if
