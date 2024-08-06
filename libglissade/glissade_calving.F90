@@ -1137,7 +1137,7 @@ contains
     call parallel_reduce_minloc(xin=cf_location(1,axis), xout=cf_location_ymax, xprocout=procnum)
     call broadcast(cf_location(:,axis), proc=procnum)
 
-    if (main_task) then
+    if (verbose_calving .and. main_task) then
        print*, ' '
        print*, 'axis, CF location, radius (km):'
        do axis = 1, 8
