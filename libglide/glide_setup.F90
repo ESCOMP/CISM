@@ -194,9 +194,9 @@ contains
     model%calving%marine_limit = model%calving%marine_limit / thk0
     model%calving%timescale = model%calving%timescale * scyr                ! convert from yr to s
     model%calving%cliff_timescale = model%calving%cliff_timescale * scyr    ! convert from yr to s
-    model%calving%eigencalving_constant = model%calving%eigencalving_constant / scyr    ! convert from m/yr/Pa to m/s/Pa
-    model%calving%damage_constant = model%calving%damage_constant / scyr    ! convert from yr^{-1} to s^{-1}
-    model%calving%lateral_rate_max = model%calving%lateral_rate_max / scyr  ! convert from m/yr to m/s
+    !TODO - No conversion for strain-based calving
+!!!    model%calving%damage_constant1 = model%calving%damage_constant1 / scyr  ! convert from yr^{-1} to s^{-1}
+!!!    model%calving%damage_constant2 = model%calving%damage_constant2 / scyr  ! convert from yr^{-1} to s^{-1}
 
     ! scale periodic offsets for ISMIP-HOM
     model%numerics%periodic_offset_ew = model%numerics%periodic_offset_ew / thk0
@@ -750,6 +750,7 @@ contains
     call GetValue(section,'expand_calving_mask', model%options%expand_calving_mask)
     call GetValue(section,'limit_marine_cliffs', model%options%limit_marine_cliffs)
     call GetValue(section,'cull_calving_front', model%options%cull_calving_front)
+    call GetValue(section,'damage_flwa_feedback', model%options%damage_flwa_feedback)
     call GetValue(section,'adjust_input_thickness', model%options%adjust_input_thickness)
     call GetValue(section,'smooth_input_topography', model%options%smooth_input_topography)
     call GetValue(section,'smooth_input_usrf', model%options%smooth_input_usrf)
@@ -975,17 +976,19 @@ contains
          'compute isostasy with model     ' /)
 
     !TODO - Change 'marine_margin' to 'calving'?  Would have to modify many config files
-    character(len=*), dimension(0:9), parameter :: marine_margin = (/ &
-         'no calving law                  ', &
-         'remove all floating ice         ', &
-         'remove fraction of floating ice ', &
-         'relaxed bedrock threshold       ', &
-         'present bedrock threshold       ', &
-         'calving based on grid location  ', &
-         'ice thickness threshold         ', &
-         'eigencalving scheme             ', & 
-         'damage-based calving scheme     ', & 
-         'Huybrechts grounding-line scheme' /) 
+    character(len=*), dimension(0:11), parameter :: marine_margin = (/ &
+         'no calving law                   ', &
+         'remove all floating ice          ', &
+         'remove fraction of floating ice  ', &
+         'relaxed bedrock threshold        ', &
+         'present bedrock threshold        ', &
+         'calving based on grid location   ', &
+         'prescribe CF advance/retreat rate', &
+         'ice thickness threshold          ', &
+         'stress threshold                 ', &
+         'strain-rate (eigencalving)       ', &
+         'damage-based calving scheme      ', &
+         'Huybrechts calving               '/)
 
     character(len=*), dimension(0:1), parameter :: init_calving = (/ &
          'no calving at initialization    ', &
@@ -1163,8 +1166,8 @@ contains
          'use local thck and usrf on each cell face (glissade dycore)'  /)
 
     character(len=*), dimension(0:1), parameter :: ho_whichcalving_front = (/ &
-         'no subgrid calving front parameterization      ', &
-         'subgrid calving front scheme; inactive CF cells' /)
+         'no subgrid calving front parameterization ', &
+         'subgrid calving front parameterization    ' /)
 
     character(len=*), dimension(0:2), parameter :: ho_whichground = (/ &
          'f_ground = 0 or 1; no GLP  (glissade dycore)               ', &
@@ -1454,14 +1457,20 @@ contains
        if (model%options%whichcalving == CALVING_THCK_THRESHOLD) then
           call write_log('Error, calving thickness threshold option is supported for Glissade dycore only', GM_FATAL)
        endif
-       if (model%options%whichcalving == EIGENCALVING) then
+       if (model%options%whichcalving == EIGEN_CALVING) then
           call write_log('Error, eigencalving option is supported for Glissade dycore only', GM_FATAL)
+       endif
+       if (model%options%whichcalving == CALVING_STRESS) then
+          call write_log('Error, stress-based calving option is supported for Glissade dycore only', GM_FATAL)
        endif
        if (model%options%whichcalving == CALVING_GRID_MASK) then
           call write_log('Error, calving grid mask option is supported for Glissade dycore only', GM_FATAL)
        endif
        if (model%options%whichcalving == CALVING_DAMAGE) then
           call write_log('Error, calving damage option is supported for Glissade dycore only', GM_FATAL)
+       endif
+       if (model%options%whichcalving == CF_ADVANCE_RETREAT_RATE) then
+          call write_log('Error, calving front advance/retreat option is supported for Glissade dycore only', GM_FATAL)
        endif
        if (model%options%calving_domain /= CALVING_DOMAIN_OCEAN_EDGE) then
           write(message,*) 'WARNING: calving domain can be selected for Glissade dycore only; user selection ignored'
@@ -2190,19 +2199,25 @@ contains
     ! calving parameters
     call GetValue(section,'marine_limit',       model%calving%marine_limit)
     call GetValue(section,'calving_fraction',   model%calving%calving_fraction)
+    call GetValue(section,'calving_timescale',  model%calving%timescale)
     call GetValue(section,'calving_minthck',    model%calving%minthck)
-    call GetValue(section,'lateral_rate_max',   model%calving%lateral_rate_max)
-    call GetValue(section,'eigencalving_constant', model%calving%eigencalving_constant)
-    call GetValue(section,'eigen2_weight',      model%calving%eigen2_weight)
-    call GetValue(section,'damage_constant',    model%calving%damage_constant)
+    call GetValue(section,'dthck_dx_cf',        model%calving%dthck_dx_cf)
+    call GetValue(section,'thck_effective_min', model%calving%thck_effective_min)
+    call GetValue(section,'eigenconstant',      model%calving%eigenconstant)
+    call GetValue(section,'tau_eigenconstant1', model%calving%tau_eigenconstant1)
+    call GetValue(section,'tau_eigenconstant2', model%calving%tau_eigenconstant2)
+    call GetValue(section,'stress_threshold',   model%calving%stress_threshold)
+    call GetValue(section,'damage_threshold',   model%calving%damage_threshold)
+    call GetValue(section,'damage_constant1',   model%calving%damage_constant1)
+    call GetValue(section,'damage_constant2',   model%calving%damage_constant2)
     call GetValue(section,'taumax_cliff',       model%calving%taumax_cliff)
     call GetValue(section,'cliff_timescale',    model%calving%cliff_timescale)
-    call GetValue(section,'ncull_calving_front',   model%calving%ncull_calving_front)
-    call GetValue(section,'calving_timescale',  model%calving%timescale)
+    call GetValue(section,'ncull_calving_front',model%calving%ncull_calving_front)
     call GetValue(section,'calving_front_x',    model%calving%calving_front_x)
     call GetValue(section,'calving_front_y',    model%calving%calving_front_y)
-    call GetValue(section,'damage_threshold',   model%calving%damage_threshold)
     call GetValue(section,'f_ground_threshold', model%calving%f_ground_threshold)
+    call GetValue(section,'cf_advance_retreat_amplitude', model%calving%cf_advance_retreat_amplitude)
+    call GetValue(section,'cf_advance_retreat_period',    model%calving%cf_advance_retreat_period)
 
     ! NOTE: bpar is used only for BTRC_TANH_BWAT
     !       btrac_max and btrac_slope are used (with btrac_const) for BTRC_LINEAR_BMLT
@@ -2414,6 +2429,8 @@ contains
        call write_log(message)
     endif
 
+    ! calving options
+
     if (model%options%whichcalving == CALVING_FLOAT_FRACTION) then
        write(message,*) 'ice fraction lost in calving  : ', model%calving%calving_fraction
        call write_log(message)
@@ -2425,63 +2442,59 @@ contains
        call write_log(message)
     endif
 
-    ! thickness-based calving options
-    if (model%options%whichcalving == CALVING_THCK_THRESHOLD .or. &
-        model%options%whichcalving == EIGENCALVING           .or. &
+    if (model%options%whichcalving == CF_ADVANCE_RETREAT_RATE.or.  &
+        model%options%whichcalving == CALVING_THCK_THRESHOLD .or.  &
+        model%options%whichcalving == CALVING_STRESS         .or.  &
+        model%options%whichcalving == EIGEN_CALVING          .or.  &
         model%options%whichcalving == CALVING_DAMAGE) then
 
-       if (model%calving%timescale <= 0.0d0) then
-          write(message,*) 'Must set calving_timescale to a positive nonzero value for this calving option'
+       if (model%options%which_ho_calving_front == HO_CALVING_FRONT_NO_SUBGRID) then
+          write(message,*) &
+               'Calving option ', model%options%whichcalving, ' requires a subgrid calving front'
           call write_log(message, GM_FATAL)
        endif
 
-       if (model%options%whichcalving == EIGENCALVING .or. &
-           model%options%whichcalving == CALVING_DAMAGE) then
-          if (model%options%which_ho_calving_front == HO_CALVING_FRONT_NO_SUBGRID) then
-             write(message,*) &
-                  'Calving option ', model%options%whichcalving, ' requires a subgrid calving front'
-             call write_log(message, GM_FATAL)
-          endif
-       endif
-
        if (model%options%whichcalving == CALVING_THCK_THRESHOLD) then
-          if (model%calving%minthck > 0.0d0) then
-             write(message,*) 'calving thickness threshold (m) : ', model%calving%minthck
-             call write_log(message)
-          else
-             write(message,*) 'Will use a 2D calving thickness threshold field'
-             call write_log(message)
-          endif
-       elseif (model%options%whichcalving == EIGENCALVING) then
-          if (model%calving%minthck == 0.0d0) then
-             write(message,*) 'Error: Eigencalving requires minthck > 0'
-             call write_log(message, GM_FATAL)
-          else
-             write(message,*) 'calving thickness threshold (m) : ', model%calving%minthck
-             call write_log(message)
-          endif
-          write(message,*) 'eigencalving constant (m yr^-1 Pa^-1): ', model%calving%eigencalving_constant
+          write(message,*) 'calving minthck (m)           : ', model%calving%minthck
           call write_log(message)
-          write(message,*) 'eigenvalue 2 weight (unitless)       : ', model%calving%eigen2_weight
+          if (model%calving%minthck <= 0.0d0) then
+             write(message,*) 'Error, this calving option needs calving_minthck > 0'
+             call write_log(message, GM_FATAL)
+          endif
+       elseif (model%options%whichcalving == EIGEN_CALVING) then
+          write(message,*) 'eigenconstant (m)             : ', model%calving%eigenconstant
+          call write_log(message)
+       elseif (model%options%whichcalving == CALVING_STRESS) then
+          write(message,*) 'tau_eigenconstant 1           : ', model%calving%tau_eigenconstant1
+          call write_log(message)
+          write(message,*) 'tau_eigenconstant 2           : ', model%calving%tau_eigenconstant2
+          call write_log(message)
+          write(message,*) 'stress_threshold (Pa)         : ', model%calving%stress_threshold
           call write_log(message)
        elseif (model%options%whichcalving == CALVING_DAMAGE) then
-          if (model%calving%minthck == 0.0d0) then
-             write(message,*) 'Error: Damage-based calving requires minthck > 0'
-             call write_log(message, GM_FATAL)
-          else
-             write(message,*) 'calving thickness threshold (m) : ', model%calving%minthck
-             call write_log(message)
-          endif
-          write(message,*) 'damage constant (yr^-1)              : ', model%calving%damage_constant
+          write(message,*) 'damage constant1 (1/yr)       : ', model%calving%damage_constant1
           call write_log(message)
-          write(message,*) 'damage threshold                     : ', model%calving%damage_threshold
+          write(message,*) 'damage constant2 (1/yr)       : ', model%calving%damage_constant2
           call write_log(message)
-          write(message,*) 'max lateral calving rate (m/yr)      : ', model%calving%lateral_rate_max
+          write(message,*) 'damage threshold              : ', model%calving%damage_threshold
+          call write_log(message)
+          write(message,*) 'damage-flwa feedback          : ', model%options%damage_flwa_feedback
+          call write_log(message)
+       elseif (model%options%whichcalving == CF_ADVANCE_RETREAT_RATE) then
+          write(message,*) 'CF advance/retreat amplitude (m/yr): ', model%calving%cf_advance_retreat_amplitude
+          call write_log(message)
+          write(message,*) 'CF advance/retreat period (yr)     : ', model%calving%cf_advance_retreat_period
           call write_log(message)
        endif
-    endif   ! CALVING_THCK_THRESHOLD, EIGENCALVING, CALVING_DAMAGE
+
+    endif   ! calving options: thck_threshold, eigencalving, damage
 
     if (model%options%which_ho_calving_front == HO_CALVING_FRONT_SUBGRID) then
+       write(message,*) 'subgrid dthck_dx_cf           : ', model%calving%dthck_dx_cf
+       call write_log(message)
+       write(message,*) 'thck_effective_min (m)        : ', model%calving%thck_effective_min
+       call write_log(message)
+       !TODO - Is the following needed with the new SUBGRID option?
        if (.not.model%options%remove_icebergs) then
           model%options%remove_icebergs = .true.
           write(message,*) 'Setting remove_icebergs = T for stability when using subgrid calving_front scheme'
@@ -2492,7 +2505,7 @@ contains
     if (model%options%limit_marine_cliffs) then
        write(message,*) 'taumax_cliff                  : ', model%calving%taumax_cliff
        call write_log(message)
-       write(message,*) 'cliff time scale (yr)       : ', model%calving%cliff_timescale
+       write(message,*) 'cliff time scale (yr)         : ', model%calving%cliff_timescale
        call write_log(message)
     endif
 
@@ -3705,16 +3718,28 @@ contains
            call glide_add_to_restart_variable_list('calving_mask', model_id)
         endif
 
-        if (options%whichcalving == CALVING_THCK_THRESHOLD) then
-           call glide_add_to_restart_variable_list('thck_calving_threshold', model_id)
+        !WHL - debug - Can be useful to compute a calving mask for testing subgrid CF schemes
+        !TODO - Remove if not needed permanently
+        if (options%which_ho_calving_front == HO_CALVING_FRONT_SUBGRID) then
+           call glide_add_to_restart_variable_list('calving_mask', model_id)
         endif
 
-        ! The eigencalving calculation requires the product of eigenvalues of the horizontal strain rate tensor,
+           ! The eigencalving calculation requires the product of eigenvalues of the horizontal strain rate tensor,
         !  which depends on the stress tensor, which is computed by the HO solver.
         ! On restart, the correct stress and strain rate tensors are not available, so we read in the eigenproduct.
-        if (options%whichcalving == EIGENCALVING .or. options%whichcalving == CALVING_DAMAGE) then
+        if (options%whichcalving == EIGEN_CALVING .or. options%whichcalving == CALVING_DAMAGE) then
+           call glide_add_to_restart_variable_list('eps_eigen1', model_id)
+           call glide_add_to_restart_variable_list('eps_eigen2', model_id)
+        elseif (options%whichcalving == CALVING_STRESS) then
            call glide_add_to_restart_variable_list('tau_eigen1', model_id)
            call glide_add_to_restart_variable_list('tau_eigen2', model_id)
+        endif
+
+        if (options%whichcalving == CF_ADVANCE_RETREAT_RATE) then
+           ! Note: The calving mask is not strictly needed for this option.
+           ! But some CalvingMIP experiments start with prescribed retreat and then switch to masked advance,
+           ! in which case it is useful to have calving_mask in the restart file.
+           call glide_add_to_restart_variable_list('calving_mask', model_id)
         endif
 
         ! If forcing ice retreat, then we need ice_fraction_retreat_mask (which specifies the cells where retreat is forced)
