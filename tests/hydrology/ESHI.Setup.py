@@ -133,8 +133,13 @@ masterConfigFile = 'ESHI.config.template'
 
 try:
     shutil.copy(args.configfile, masterConfigFile)
-except:
-    sys.exit('Could not copy', args.configfile)
+except FileNotFoundError:
+    sys.exit(f'File not found: {args.configfile}')
+except PermissionError:
+    sys.exit(f'Permission denied: {args.configfile}')
+except Exception as e:
+    sys.exit(f'Could not copy {args.configfile} to {masterConfigFile}: {e}')
+
 
 print( 'Creating master config file', masterConfigFile)
 
@@ -225,8 +230,8 @@ topg = ncfile.createVariable('topg', 'f4', ('time','y1','x1'))
 # Compute x and y on each grid.
 # The origin (x = y = 0) is placed at the terminus of the domain.
 
-x = np.arange(0,max_x+dx,dx,dtype='float32')
-y = np.arange(0,max_y+dy,dy,dtype='float32')
+x = np.arange(0,max_x,dx,dtype='float32')
+y = np.arange(0,max_y,dy,dtype='float32')
 
 x1[:] = x[:]
 y1[:] = y[:]
