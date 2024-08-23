@@ -1253,16 +1253,16 @@ contains
        return
     endif
 
-          if (verbose_glissade .and. this_rank==rtest) then
-             print*, ' '
-             print*, 'deltaT_ocn (degC) at the beginning of a glissade timestep:'
-             do j = jtest+3, jtest-3, -1
-                do i = itest-3, itest+3
-                   write(6,'(f10.3)',advance='no') model%ocean_data%deltaT_ocn(i,j)
-                enddo
-                write(6,*) ' '
-             enddo
-          endif
+!          if (verbose_glissade .and. this_rank==rtest) then
+!             print*, ' '
+!             print*, 'deltaT_ocn (degC) at the beginning of a glissade timestep:'
+!             do j = jtest+3, jtest-3, -1
+!                do i = itest-3, itest+3
+!                   write(6,'(f10.3)',advance='no') model%ocean_data%deltaT_ocn(i,j)
+!                enddo
+!                write(6,*) ' '
+!             enddo
+!          endif
     ! save the old ice thickness; used for diagnostics and tendencies
     ! also used to reset thickness for the no-evolution option
     model%geometry%thck_old(:,:) = model%geometry%thck(:,:)
@@ -1515,16 +1515,16 @@ contains
 
     !TODO - Any halo updates needed at the end of glissade_tstep?
 
-          if (verbose_glissade .and. this_rank==rtest) then
-             print*, ' '
-             print*, 'deltaT_ocn (degC) at the end of a glissade timestep:'
-             do j = jtest+3, jtest-3, -1
-                do i = itest-3, itest+3
-                   write(6,'(f10.3)',advance='no') model%ocean_data%deltaT_ocn(i,j)
-                enddo
-                write(6,*) ' '
-             enddo
-          endif
+!          if (verbose_glissade .and. this_rank==rtest) then
+!             print*, ' '
+!             print*, 'deltaT_ocn (degC) at the end of a glissade timestep:'
+!             do j = jtest+3, jtest-3, -1
+!                do i = itest-3, itest+3
+!                   write(6,'(f10.3)',advance='no') model%ocean_data%deltaT_ocn(i,j)
+!                enddo
+!                write(6,*) ' '
+!             enddo
+!          endif
   end subroutine glissade_tstep
 
 !=======================================================================
@@ -3563,7 +3563,7 @@ contains
           ! Thus the thinning rate is largest for thick ice.
           ! For thin ice, the rate has a minimum value H_c/tau_c..
           ! Note: calving%timescale has units of s (though input in yr in the config file)
-
+          print*, 'TvdA: here we are doing a loop during the timestep'
           do j = 1, ny
              do i = 1, nx
                 if (floating_mask(i,j) == 1 .and. model%calving%calving_mask(i,j) == 1) then
@@ -3664,7 +3664,7 @@ contains
     endif
 
     if (model%options%force_retreat == FORCE_RETREAT_FLOATING_ICE) then
-
+       print*,'TvdA: we are doing a possibly costly forced retreat'
        ! Remove floating ice based on ice_fraction_retreat_mask.
        ! This is done after the main calving routine, to avoid complications
        !  involving thin ice near the calving front that calves after transport.

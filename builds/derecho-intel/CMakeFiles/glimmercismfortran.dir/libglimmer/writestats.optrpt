@@ -1,9 +1,11 @@
 Global optimization report for : gf_writestats_
 
 LOOP BEGIN at libglimmer/writestats.c (70, 3)
+    remark #15521: Loop was not vectorized: loop control variable was not identified. Explicitly compute the iteration count before executing the loop or try using canonical loop form from OpenMP specification
 LOOP END
 
 LOOP BEGIN at libglimmer/writestats.c (103, 3)
+    remark #15521: Loop was not vectorized: loop control variable was not identified. Explicitly compute the iteration count before executing the loop or try using canonical loop form from OpenMP specification
 LOOP END
 =================================================================
 
@@ -14,7 +16,12 @@ Option Values:
   inlinecold-threshold: 45
   inlineoptsize-threshold: 15
 
+DEAD STATIC FUNC: printf
+
 COMPILE FUNC: gf_writestats_
-   -> llvm.memcpy.p0i8.p0i8.i64 /glade/u/home/tvda/CISM/libglimmer/writestats.c (63,16)
+   -> llvm.memcpy.p0.p0.i64 /glade/u/home/tvda/CISM/libglimmer/writestats.c (63,16)
+   -> DELETE: sysconf /glade/u/home/tvda/CISM/libglimmer/writestats.c (76,52)
+   -> DELETE: printf /glade/u/home/tvda/CISM/libglimmer/writestats.c (97,5)
+   -> DELETE: printf /glade/u/home/tvda/CISM/libglimmer/writestats.c (107,5)
 
 ---- End Inlining Report ------

@@ -4521,19 +4521,19 @@ Optimization 'OSR' reduced: function size or variable count limit exceeded: use 
         Assigned     :   26[ rax rdx rcx rbx rsi rdi r8-r15 zmm0-zmm11]
         
     Routine temporaries
-        Total         :   33858
-            Global    :    6103
-            Local     :   27755
+        Total         :   33873
+            Global    :    6105
+            Local     :   27768
         Regenerable   :    9057
-        Spilled       :    4839
+        Spilled       :    4841
         
     Routine stack
         Variables     :   24596 bytes*
-            Reads     :    7790 [9.20e+00 ~ 9.2%]
+            Reads     :    7790 [9.21e+00 ~ 9.2%]
             Writes    :    5529 [2.97e+00 ~ 3.0%]
-        Spills        :   38880 bytes*
-            Reads     :   11699 [3.29e+01 ~ 32.9%]
-            Writes    :    7579 [9.36e+00 ~ 9.4%]
+        Spills        :   38896 bytes*
+            Reads     :   11709 [3.29e+01 ~ 32.9%]
+            Writes    :    7585 [9.35e+00 ~ 9.3%]
     
     Notes
         RA scaled back due to excessive number of blocks

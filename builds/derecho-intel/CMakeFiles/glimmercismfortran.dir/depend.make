@@ -640,7 +640,7 @@ CMakeFiles/glimmercismfortran.dir/libglimmer/glimmer_map_CFproj.F90.o: CMakeFile
 CMakeFiles/glimmercismfortran.dir/libglimmer/glimmer_map_CFproj.F90.o: CMakeFiles/glimmercismfortran.dir/glimmer_map_init.mod.stamp
 CMakeFiles/glimmercismfortran.dir/libglimmer/glimmer_map_CFproj.F90.o: CMakeFiles/glimmercismfortran.dir/glimmer_map_types.mod.stamp
 CMakeFiles/glimmercismfortran.dir/libglimmer/glimmer_map_CFproj.F90.o: CMakeFiles/glimmercismfortran.dir/glimmer_ncdf.mod.stamp
-CMakeFiles/glimmercismfortran.dir/libglimmer/glimmer_map_CFproj.F90.o: /glade/u/apps/derecho/23.06/spack/opt/spack/netcdf/4.9.2/oneapi/2023.0.0/iijr/include/netcdf.mod
+CMakeFiles/glimmercismfortran.dir/libglimmer/glimmer_map_CFproj.F90.o: /glade/u/apps/derecho/23.09/spack/opt/spack/netcdf/4.9.2/oneapi/2023.2.1/yzvj/include/netcdf.mod
 CMakeFiles/glimmercismfortran.dir/libglimmer/glimmer_map_CFproj.F90.o.provides.build: CMakeFiles/glimmercismfortran.dir/glimmer_map_cfproj.mod.stamp
 CMakeFiles/glimmercismfortran.dir/glimmer_map_cfproj.mod.stamp: CMakeFiles/glimmercismfortran.dir/libglimmer/glimmer_map_CFproj.F90.o
 	$(CMAKE_COMMAND) -E cmake_copy_f90_mod fortran_mod_files/glimmer_map_cfproj.mod CMakeFiles/glimmercismfortran.dir/glimmer_map_cfproj.mod.stamp Intel
@@ -688,7 +688,7 @@ CMakeFiles/glimmercismfortran.dir/libglimmer/glimmer_map_types.F90.o.provides.bu
 CMakeFiles/glimmercismfortran.dir/build: CMakeFiles/glimmercismfortran.dir/libglimmer/glimmer_map_types.F90.o.provides.build
 CMakeFiles/glimmercismfortran.dir/libglimmer/glimmer_ncdf.F90.o: CMakeFiles/glimmercismfortran.dir/glimmer_global.mod.stamp
 CMakeFiles/glimmercismfortran.dir/libglimmer/glimmer_ncdf.F90.o: CMakeFiles/glimmercismfortran.dir/glimmer_log.mod.stamp
-CMakeFiles/glimmercismfortran.dir/libglimmer/glimmer_ncdf.F90.o: /glade/u/apps/derecho/23.06/spack/opt/spack/netcdf/4.9.2/oneapi/2023.0.0/iijr/include/netcdf.mod
+CMakeFiles/glimmercismfortran.dir/libglimmer/glimmer_ncdf.F90.o: /glade/u/apps/derecho/23.09/spack/opt/spack/netcdf/4.9.2/oneapi/2023.2.1/yzvj/include/netcdf.mod
 CMakeFiles/glimmercismfortran.dir/libglimmer/glimmer_ncdf.F90.o.provides.build: CMakeFiles/glimmercismfortran.dir/glimmer_ncdf.mod.stamp
 CMakeFiles/glimmercismfortran.dir/glimmer_ncdf.mod.stamp: CMakeFiles/glimmercismfortran.dir/libglimmer/glimmer_ncdf.F90.o
 	$(CMAKE_COMMAND) -E cmake_copy_f90_mod fortran_mod_files/glimmer_ncdf.mod CMakeFiles/glimmercismfortran.dir/glimmer_ncdf.mod.stamp Intel
@@ -783,7 +783,7 @@ CMakeFiles/glimmercismfortran.dir/libglimmer/mpi_mod.F90.o.provides.build:
 	$(CMAKE_COMMAND) -E touch CMakeFiles/glimmercismfortran.dir/libglimmer/mpi_mod.F90.o.provides.build
 CMakeFiles/glimmercismfortran.dir/build: CMakeFiles/glimmercismfortran.dir/libglimmer/mpi_mod.F90.o.provides.build
 CMakeFiles/glimmercismfortran.dir/libglimmer/ncdf_utils.F90.o: CMakeFiles/glimmercismfortran.dir/glimmer_global.mod.stamp
-CMakeFiles/glimmercismfortran.dir/libglimmer/ncdf_utils.F90.o: /glade/u/apps/derecho/23.06/spack/opt/spack/netcdf/4.9.2/oneapi/2023.0.0/iijr/include/netcdf.mod
+CMakeFiles/glimmercismfortran.dir/libglimmer/ncdf_utils.F90.o: /glade/u/apps/derecho/23.09/spack/opt/spack/netcdf/4.9.2/oneapi/2023.2.1/yzvj/include/netcdf.mod
 CMakeFiles/glimmercismfortran.dir/libglimmer/ncdf_utils.F90.o.provides.build: CMakeFiles/glimmercismfortran.dir/ncdf_utils.mod.stamp
 CMakeFiles/glimmercismfortran.dir/ncdf_utils.mod.stamp: CMakeFiles/glimmercismfortran.dir/libglimmer/ncdf_utils.F90.o
 	$(CMAKE_COMMAND) -E cmake_copy_f90_mod fortran_mod_files/ncdf_utils.mod CMakeFiles/glimmercismfortran.dir/ncdf_utils.mod.stamp Intel
@@ -792,7 +792,7 @@ CMakeFiles/glimmercismfortran.dir/libglimmer/ncdf_utils.F90.o.provides.build:
 CMakeFiles/glimmercismfortran.dir/build: CMakeFiles/glimmercismfortran.dir/libglimmer/ncdf_utils.F90.o.provides.build
 CMakeFiles/glimmercismfortran.dir/libglimmer/parallel_mpi.F90.o: CMakeFiles/glimmercismfortran.dir/glimmer_global.mod.stamp
 CMakeFiles/glimmercismfortran.dir/libglimmer/parallel_mpi.F90.o: CMakeFiles/glimmercismfortran.dir/mpi_mod.mod.stamp
-CMakeFiles/glimmercismfortran.dir/libglimmer/parallel_mpi.F90.o: /glade/u/apps/derecho/23.06/spack/opt/spack/netcdf/4.9.2/oneapi/2023.0.0/iijr/include/netcdf.mod
+CMakeFiles/glimmercismfortran.dir/libglimmer/parallel_mpi.F90.o: /glade/u/apps/derecho/23.09/spack/opt/spack/netcdf/4.9.2/oneapi/2023.2.1/yzvj/include/netcdf.mod
 CMakeFiles/glimmercismfortran.dir/libglimmer/parallel_mpi.F90.o.provides.build: CMakeFiles/glimmercismfortran.dir/cism_parallel.mod.stamp
 CMakeFiles/glimmercismfortran.dir/cism_parallel.mod.stamp: CMakeFiles/glimmercismfortran.dir/libglimmer/parallel_mpi.F90.o
 	$(CMAKE_COMMAND) -E cmake_copy_f90_mod fortran_mod_files/cism_parallel.mod CMakeFiles/glimmercismfortran.dir/cism_parallel.mod.stamp Intel
@@ -813,7 +813,7 @@ CMakeFiles/glimmercismfortran.dir/libglint/glint_anomcouple.F90.o: CMakeFiles/gl
 CMakeFiles/glimmercismfortran.dir/libglint/glint_anomcouple.F90.o: CMakeFiles/glimmercismfortran.dir/glimmer_global.mod.stamp
 CMakeFiles/glimmercismfortran.dir/libglint/glint_anomcouple.F90.o: CMakeFiles/glimmercismfortran.dir/glimmer_log.mod.stamp
 CMakeFiles/glimmercismfortran.dir/libglint/glint_anomcouple.F90.o: CMakeFiles/glimmercismfortran.dir/glimmer_ncdf.mod.stamp
-CMakeFiles/glimmercismfortran.dir/libglint/glint_anomcouple.F90.o: /glade/u/apps/derecho/23.06/spack/opt/spack/netcdf/4.9.2/oneapi/2023.0.0/iijr/include/netcdf.mod
+CMakeFiles/glimmercismfortran.dir/libglint/glint_anomcouple.F90.o: /glade/u/apps/derecho/23.09/spack/opt/spack/netcdf/4.9.2/oneapi/2023.2.1/yzvj/include/netcdf.mod
 CMakeFiles/glimmercismfortran.dir/libglint/glint_anomcouple.F90.o.provides.build: CMakeFiles/glimmercismfortran.dir/glint_anomcouple.mod.stamp
 CMakeFiles/glimmercismfortran.dir/glint_anomcouple.mod.stamp: CMakeFiles/glimmercismfortran.dir/libglint/glint_anomcouple.F90.o
 	$(CMAKE_COMMAND) -E cmake_copy_f90_mod fortran_mod_files/glint_anomcouple.mod CMakeFiles/glimmercismfortran.dir/glint_anomcouple.mod.stamp Intel
@@ -867,7 +867,7 @@ CMakeFiles/glimmercismfortran.dir/libglint/glint_example_clim.F90.o: CMakeFiles/
 CMakeFiles/glimmercismfortran.dir/libglint/glint_example_clim.F90.o: CMakeFiles/glimmercismfortran.dir/glimmer_log.mod.stamp
 CMakeFiles/glimmercismfortran.dir/libglint/glint_example_clim.F90.o: CMakeFiles/glimmercismfortran.dir/glimmer_physcon.mod.stamp
 CMakeFiles/glimmercismfortran.dir/libglint/glint_example_clim.F90.o: CMakeFiles/glimmercismfortran.dir/glint_global_grid.mod.stamp
-CMakeFiles/glimmercismfortran.dir/libglint/glint_example_clim.F90.o: /glade/u/apps/derecho/23.06/spack/opt/spack/netcdf/4.9.2/oneapi/2023.0.0/iijr/include/netcdf.mod
+CMakeFiles/glimmercismfortran.dir/libglint/glint_example_clim.F90.o: /glade/u/apps/derecho/23.09/spack/opt/spack/netcdf/4.9.2/oneapi/2023.2.1/yzvj/include/netcdf.mod
 CMakeFiles/glimmercismfortran.dir/libglint/glint_example_clim.F90.o.provides.build: CMakeFiles/glimmercismfortran.dir/glint_example_clim.mod.stamp
 CMakeFiles/glimmercismfortran.dir/glint_example_clim.mod.stamp: CMakeFiles/glimmercismfortran.dir/libglint/glint_example_clim.F90.o
 	$(CMAKE_COMMAND) -E cmake_copy_f90_mod fortran_mod_files/glint_example_clim.mod CMakeFiles/glimmercismfortran.dir/glint_example_clim.mod.stamp Intel

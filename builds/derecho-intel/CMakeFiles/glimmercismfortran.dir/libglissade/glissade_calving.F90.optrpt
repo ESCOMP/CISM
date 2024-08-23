@@ -95,11 +95,11 @@ INLINE REPORT: (GLISSADE_CALVING::GLISSADE_CALVE_ICE) [2] /glade/u/home/tvda/CIS
   -> DELETED: (953,11) for_write_seq_lis_xmit
   -> DELETED: (953,11) for_write_seq_lis_xmit
   -> DELETED: (953,11) for_write_seq_lis
-  -> DELETED: (1167,14) for_write_seq_lis
-  -> DELETED: (1168,14) for_write_seq_lis_xmit
-  -> DELETED: (1168,14) for_write_seq_lis_xmit
-  -> DELETED: (1168,14) for_write_seq_lis_xmit
-  -> DELETED: (1168,14) for_write_seq_lis
+  -> DELETED: (1188,14) for_write_seq_lis
+  -> DELETED: (1189,14) for_write_seq_lis_xmit
+  -> DELETED: (1189,14) for_write_seq_lis_xmit
+  -> DELETED: (1189,14) for_write_seq_lis_xmit
+  -> DELETED: (1189,14) for_write_seq_lis
 
 
     Report from: Loop nest, Vector & Auto-parallelization optimizations [loop, vec, par]
@@ -384,211 +384,211 @@ LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_calving.F90(857,8)
    LOOP END
 LOOP END
 
-LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_calving.F90(1087,11)
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_calving.F90(1108,11)
    remark #15542: loop was not vectorized: inner loop was already vectorized
 
-   LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_calving.F90(1088,14)
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_calving.F90(1109,14)
       remark #15300: LOOP WAS VECTORIZED
    LOOP END
 
-   LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_calving.F90(1088,14)
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_calving.F90(1109,14)
    <Remainder loop for vectorization>
    LOOP END
 LOOP END
 
-LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_calving.F90(1107,11)
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_calving.F90(1128,11)
    remark #15542: loop was not vectorized: inner loop was already vectorized
 
-   LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_calving.F90(1107,11)
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_calving.F90(1128,11)
       remark #15300: LOOP WAS VECTORIZED
    LOOP END
 
-   LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_calving.F90(1107,11)
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_calving.F90(1128,11)
    <Remainder loop for vectorization>
       remark #15301: REMAINDER LOOP WAS VECTORIZED
    LOOP END
 
-   LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_calving.F90(1107,11)
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_calving.F90(1128,11)
    <Remainder loop for vectorization>
    LOOP END
 LOOP END
 
-LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_calving.F90(1108,14)
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_calving.F90(1129,14)
    remark #15542: loop was not vectorized: inner loop was already vectorized
 
-   LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_calving.F90(1108,14)
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_calving.F90(1129,14)
       remark #15300: LOOP WAS VECTORIZED
    LOOP END
 
-   LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_calving.F90(1108,14)
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_calving.F90(1129,14)
    <Remainder loop for vectorization>
    LOOP END
 LOOP END
 
-LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_calving.F90(1110,14)
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_calving.F90(1131,14)
    remark #15542: loop was not vectorized: inner loop was already vectorized
 
-   LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_calving.F90(1110,14)
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_calving.F90(1131,14)
       remark #15300: LOOP WAS VECTORIZED
    LOOP END
 
-   LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_calving.F90(1110,14)
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_calving.F90(1131,14)
    <Remainder loop for vectorization>
    LOOP END
 LOOP END
 
-LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_calving.F90(1115,11)
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_calving.F90(1136,11)
    remark #15542: loop was not vectorized: inner loop was already vectorized
 
-   LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_calving.F90(1115,11)
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_calving.F90(1136,11)
       remark #15300: LOOP WAS VECTORIZED
    LOOP END
 
-   LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_calving.F90(1115,11)
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_calving.F90(1136,11)
    <Remainder loop for vectorization>
       remark #15301: REMAINDER LOOP WAS VECTORIZED
    LOOP END
 
-   LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_calving.F90(1115,11)
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_calving.F90(1136,11)
    <Remainder loop for vectorization>
    LOOP END
 LOOP END
 
-LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_calving.F90(1116,14)
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_calving.F90(1137,14)
    remark #15542: loop was not vectorized: inner loop was already vectorized
 
-   LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_calving.F90(1116,14)
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_calving.F90(1137,14)
       remark #15300: LOOP WAS VECTORIZED
    LOOP END
 
-   LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_calving.F90(1116,14)
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_calving.F90(1137,14)
    <Remainder loop for vectorization>
    LOOP END
 LOOP END
 
-LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_calving.F90(1118,14)
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_calving.F90(1139,14)
    remark #15542: loop was not vectorized: inner loop was already vectorized
 
-   LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_calving.F90(1118,14)
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_calving.F90(1139,14)
       remark #15300: LOOP WAS VECTORIZED
    LOOP END
 
-   LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_calving.F90(1118,14)
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_calving.F90(1139,14)
    <Remainder loop for vectorization>
    LOOP END
 LOOP END
 
-LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_calving.F90(1124,14)
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_calving.F90(1145,14)
    remark #15542: loop was not vectorized: inner loop was already vectorized
 
-   LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_calving.F90(1124,14)
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_calving.F90(1145,14)
       remark #15300: LOOP WAS VECTORIZED
    LOOP END
 
-   LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_calving.F90(1124,14)
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_calving.F90(1145,14)
    <Remainder loop for vectorization>
       remark #15301: REMAINDER LOOP WAS VECTORIZED
    LOOP END
 
-   LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_calving.F90(1124,14)
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_calving.F90(1145,14)
    <Remainder loop for vectorization>
    LOOP END
 LOOP END
 
-LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_calving.F90(1125,17)
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_calving.F90(1146,17)
    remark #15542: loop was not vectorized: inner loop was already vectorized
 
-   LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_calving.F90(1125,17)
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_calving.F90(1146,17)
       remark #15300: LOOP WAS VECTORIZED
    LOOP END
 
-   LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_calving.F90(1125,17)
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_calving.F90(1146,17)
    <Remainder loop for vectorization>
    LOOP END
 LOOP END
 
-LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_calving.F90(1127,17)
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_calving.F90(1148,17)
    remark #15542: loop was not vectorized: inner loop was already vectorized
 
-   LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_calving.F90(1127,17)
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_calving.F90(1148,17)
       remark #15300: LOOP WAS VECTORIZED
    LOOP END
 
-   LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_calving.F90(1127,17)
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_calving.F90(1148,17)
    <Remainder loop for vectorization>
    LOOP END
 LOOP END
 
-LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_calving.F90(1130,14)
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_calving.F90(1151,14)
    remark #15542: loop was not vectorized: inner loop was already vectorized
 
-   LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_calving.F90(1130,14)
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_calving.F90(1151,14)
       remark #15300: LOOP WAS VECTORIZED
    LOOP END
 
-   LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_calving.F90(1130,14)
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_calving.F90(1151,14)
    <Remainder loop for vectorization>
       remark #15301: REMAINDER LOOP WAS VECTORIZED
    LOOP END
 
-   LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_calving.F90(1130,14)
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_calving.F90(1151,14)
    <Remainder loop for vectorization>
    LOOP END
 LOOP END
 
-LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_calving.F90(1131,17)
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_calving.F90(1152,17)
    remark #15542: loop was not vectorized: inner loop was already vectorized
 
-   LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_calving.F90(1131,17)
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_calving.F90(1152,17)
       remark #15300: LOOP WAS VECTORIZED
    LOOP END
 
-   LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_calving.F90(1131,17)
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_calving.F90(1152,17)
    <Remainder loop for vectorization>
    LOOP END
 LOOP END
 
-LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_calving.F90(1133,17)
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_calving.F90(1154,17)
    remark #15542: loop was not vectorized: inner loop was already vectorized
 
-   LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_calving.F90(1133,17)
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_calving.F90(1154,17)
       remark #15300: LOOP WAS VECTORIZED
    LOOP END
 
-   LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_calving.F90(1133,17)
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_calving.F90(1154,17)
    <Remainder loop for vectorization>
    LOOP END
 LOOP END
 
-LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_calving.F90(1146,11)
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_calving.F90(1167,11)
    remark #15541: outer loop was not auto-vectorized: consider using SIMD directive
 
-   LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_calving.F90(1147,14)
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_calving.F90(1168,14)
       remark #15335: loop was not vectorized: vectorization possible but seems inefficient. Use vector always directive or -vec-threshold0 to override 
    LOOP END
 LOOP END
 
-LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_calving.F90(1181,11)
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_calving.F90(1202,11)
    remark #15542: loop was not vectorized: inner loop was already vectorized
 
-   LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_calving.F90(1181,11)
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_calving.F90(1202,11)
       remark #25408: memset generated
       remark #15542: loop was not vectorized: inner loop was already vectorized
 
-      LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_calving.F90(1181,11)
+      LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_calving.F90(1202,11)
          remark #15300: LOOP WAS VECTORIZED
       LOOP END
 
-      LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_calving.F90(1181,11)
+      LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_calving.F90(1202,11)
       <Remainder loop for vectorization>
       LOOP END
    LOOP END
 LOOP END
 
-LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_calving.F90(1194,45)
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_calving.F90(1215,45)
    remark #15541: outer loop was not auto-vectorized: consider using SIMD directive
 
-   LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_calving.F90(1187,11)
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_calving.F90(1208,11)
       remark #15335: loop was not vectorized: vectorization possible but seems inefficient. Use vector always directive or -vec-threshold0 to override 
    LOOP END
 LOOP END
@@ -598,14 +598,14 @@ LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_calving.F90(1011,8)
 
    LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_calving.F90(1012,11)
       remark #15344: loop was not vectorized: vector dependence prevents vectorization. First dependence is shown below. Use level 5 report for details
-      remark #15346: vector dependence: assumed ANTI dependence between calving(i,j) (1020:17) and calving(i,j) (1042:20)
+      remark #15346: vector dependence: assumed ANTI dependence between calving(i,j) (1015:19) and calving(i,j) (1063:20)
    LOOP END
 LOOP END
 
     Report from: Code generation optimizations [cg]
 
 /glade/u/home/tvda/CISM/libglissade/glissade_calving.F90(800,11):remark #34026: call to memset implemented as a call to optimized library version
-/glade/u/home/tvda/CISM/libglissade/glissade_calving.F90(1181,11):remark #34026: call to memset implemented as a call to optimized library version
+/glade/u/home/tvda/CISM/libglissade/glissade_calving.F90(1202,11):remark #34026: call to memset implemented as a call to optimized library version
 /glade/u/home/tvda/CISM/libglissade/glissade_calving.F90(469,14):remark #34051: REGISTER ALLOCATION : [glissade_calving_mp_glissade_calve_ice_] /glade/u/home/tvda/CISM/libglissade/glissade_calving.F90:469
 
     Hardware registers
@@ -615,19 +615,19 @@ LOOP END
         Assigned     :   29[ rax rdx rcx rbx rsi rdi r8-r15 zmm0-zmm14]
         
     Routine temporaries
-        Total         :    1472
-            Global    :     722
+        Total         :    1476
+            Global    :     726
             Local     :     750
-        Regenerable   :     128
-        Spilled       :     169
+        Regenerable   :     129
+        Spilled       :     168
         
     Routine stack
         Variables     :     480 bytes*
             Reads     :       0 [0.00e+00 ~ 0.0%]
-            Writes    :      49 [4.13e-01 ~ 0.4%]
-        Spills        :    1280 bytes*
-            Reads     :     363 [5.60e+00 ~ 5.6%]
-            Writes    :     219 [2.28e+00 ~ 2.3%]
+            Writes    :      49 [4.12e-01 ~ 0.4%]
+        Spills        :    1272 bytes*
+            Reads     :     362 [5.58e+00 ~ 5.6%]
+            Writes    :     218 [2.25e+00 ~ 2.2%]
     
     Notes
     
@@ -641,21 +641,21 @@ Begin optimization report for: GLISSADE_CALVING::GLISSADE_CULL_CALVING_FRONT
 
     Report from: Interprocedural optimizations [ipo]
 
-INLINE REPORT: (GLISSADE_CALVING::GLISSADE_CULL_CALVING_FRONT) [3] /glade/u/home/tvda/CISM/libglissade/glissade_calving.F90(1228,14)
+INLINE REPORT: (GLISSADE_CALVING::GLISSADE_CULL_CALVING_FRONT) [3] /glade/u/home/tvda/CISM/libglissade/glissade_calving.F90(1249,14)
 
 
     Report from: Loop nest, Vector & Auto-parallelization optimizations [loop, vec, par]
 
 
-LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_calving.F90(1331,8)
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_calving.F90(1352,8)
    remark #15541: outer loop was not auto-vectorized: consider using SIMD directive
 
-   LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_calving.F90(1332,11)
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_calving.F90(1353,11)
       remark #15335: loop was not vectorized: vectorization possible but seems inefficient. Use vector always directive or -vec-threshold0 to override 
       remark #25439: unrolled with remainder by 2  
    LOOP END
 
-   LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_calving.F90(1332,11)
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_calving.F90(1353,11)
    <Remainder>
    LOOP END
 LOOP END
@@ -664,13 +664,13 @@ LOOP END
 Non-optimizable loops:
 
 
-LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_calving.F90(1354,5)
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_calving.F90(1375,5)
    remark #15543: loop was not vectorized: loop with function call not considered an optimization candidate.
 LOOP END
 
     Report from: Code generation optimizations [cg]
 
-/glade/u/home/tvda/CISM/libglissade/glissade_calving.F90(1228,14):remark #34051: REGISTER ALLOCATION : [glissade_calving_mp_glissade_cull_calving_front_] /glade/u/home/tvda/CISM/libglissade/glissade_calving.F90:1228
+/glade/u/home/tvda/CISM/libglissade/glissade_calving.F90(1249,14):remark #34051: REGISTER ALLOCATION : [glissade_calving_mp_glissade_cull_calving_front_] /glade/u/home/tvda/CISM/libglissade/glissade_calving.F90:1249
 
     Hardware registers
         Reserved     :    2[ rsp rip]
@@ -705,65 +705,65 @@ Begin optimization report for: GLISSADE_CALVING::GLISSADE_REMOVE_ICEBERGS
 
     Report from: Interprocedural optimizations [ipo]
 
-INLINE REPORT: (GLISSADE_CALVING::GLISSADE_REMOVE_ICEBERGS) [4] /glade/u/home/tvda/CISM/libglissade/glissade_calving.F90(1360,14)
-  -> DELETED: (1425,8) for_write_seq_lis
-  -> DELETED: (1426,8) for_write_seq_lis
-  -> DELETED: (1427,8) for_write_seq_lis
-  -> DELETED: (1428,8) for_write_seq_lis
-  -> DELETED: (1428,8) for_write_seq_lis_xmit
-  -> DELETED: (1428,8) for_write_seq_lis_xmit
-  -> DELETED: (1428,8) for_write_seq_lis_xmit
-  -> DELETED: (1568,16) for_write_seq_lis_xmit
-  -> DELETED: (1568,16) for_write_seq_lis_xmit
-  -> DELETED: (1568,16) for_write_seq_lis
-  -> DELETED: (1610,8) for_write_seq_lis
-  -> DELETED: (1611,8) for_write_seq_lis
-  -> DELETED: (1612,8) for_write_seq_lis
-  -> DELETED: (1613,8) for_write_seq_lis
-  -> DELETED: (1613,8) for_write_seq_lis_xmit
-  -> DELETED: (1613,8) for_write_seq_lis_xmit
-  -> DELETED: (1613,8) for_write_seq_lis_xmit
+INLINE REPORT: (GLISSADE_CALVING::GLISSADE_REMOVE_ICEBERGS) [4] /glade/u/home/tvda/CISM/libglissade/glissade_calving.F90(1381,14)
+  -> DELETED: (1446,8) for_write_seq_lis
+  -> DELETED: (1447,8) for_write_seq_lis
+  -> DELETED: (1448,8) for_write_seq_lis
+  -> DELETED: (1449,8) for_write_seq_lis
+  -> DELETED: (1449,8) for_write_seq_lis_xmit
+  -> DELETED: (1449,8) for_write_seq_lis_xmit
+  -> DELETED: (1449,8) for_write_seq_lis_xmit
+  -> DELETED: (1589,16) for_write_seq_lis_xmit
+  -> DELETED: (1589,16) for_write_seq_lis_xmit
+  -> DELETED: (1589,16) for_write_seq_lis
+  -> DELETED: (1631,8) for_write_seq_lis
+  -> DELETED: (1632,8) for_write_seq_lis
+  -> DELETED: (1633,8) for_write_seq_lis
+  -> DELETED: (1634,8) for_write_seq_lis
+  -> DELETED: (1634,8) for_write_seq_lis_xmit
+  -> DELETED: (1634,8) for_write_seq_lis_xmit
+  -> DELETED: (1634,8) for_write_seq_lis_xmit
 
 
     Report from: Loop nest, Vector & Auto-parallelization optimizations [loop, vec, par]
 
 
-LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_calving.F90(1462,5)
-   remark #25084: Preprocess Loopnests: Moving Out Store    [ /glade/u/home/tvda/CISM/libglissade/glissade_calving.F90(1470,5) ]
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_calving.F90(1483,5)
+   remark #25084: Preprocess Loopnests: Moving Out Store    [ /glade/u/home/tvda/CISM/libglissade/glissade_calving.F90(1491,5) ]
    remark #15542: loop was not vectorized: inner loop was already vectorized
 
-   LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_calving.F90(1463,8)
-      remark #25084: Preprocess Loopnests: Moving Out Store    [ /glade/u/home/tvda/CISM/libglissade/glissade_calving.F90(1469,8) ]
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_calving.F90(1484,8)
+      remark #25084: Preprocess Loopnests: Moving Out Store    [ /glade/u/home/tvda/CISM/libglissade/glissade_calving.F90(1490,8) ]
       remark #15300: LOOP WAS VECTORIZED
    LOOP END
 
-   LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_calving.F90(1463,8)
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_calving.F90(1484,8)
    <Remainder loop for vectorization>
       remark #15301: REMAINDER LOOP WAS VECTORIZED
    LOOP END
 
-   LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_calving.F90(1463,8)
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_calving.F90(1484,8)
    <Remainder loop for vectorization>
    LOOP END
 LOOP END
 
-LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_calving.F90(1557,8)
-   remark #25084: Preprocess Loopnests: Moving Out Store    [ /glade/u/home/tvda/CISM/libglissade/glissade_calving.F90(1561,8) ]
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_calving.F90(1578,8)
+   remark #25084: Preprocess Loopnests: Moving Out Store    [ /glade/u/home/tvda/CISM/libglissade/glissade_calving.F90(1582,8) ]
    remark #15541: outer loop was not auto-vectorized: consider using SIMD directive
 
-   LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_calving.F90(1558,11)
-      remark #25084: Preprocess Loopnests: Moving Out Store    [ /glade/u/home/tvda/CISM/libglissade/glissade_calving.F90(1560,11) ]
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_calving.F90(1579,11)
+      remark #25084: Preprocess Loopnests: Moving Out Store    [ /glade/u/home/tvda/CISM/libglissade/glissade_calving.F90(1581,11) ]
       remark #15344: loop was not vectorized: vector dependence prevents vectorization. First dependence is shown below. Use level 5 report for details
-      remark #15346: vector dependence: assumed ANTI dependence between local_count (1559:44) and local_count (1559:44)
+      remark #15346: vector dependence: assumed ANTI dependence between local_count (1580:44) and local_count (1580:44)
       remark #25439: unrolled with remainder by 2  
    LOOP END
 
-   LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_calving.F90(1558,11)
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_calving.F90(1579,11)
    <Remainder>
    LOOP END
 LOOP END
 
-LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_calving.F90(1588,8)
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_calving.F90(1609,8)
    remark #25427: Loop Statements Reordered
    remark #15335: loop was not vectorized: vectorization possible but seems inefficient. Use vector always directive or -vec-threshold0 to override 
 LOOP END
@@ -772,41 +772,41 @@ LOOP END
 Non-optimizable loops:
 
 
-LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_calving.F90(1576,5)
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_calving.F90(1597,5)
    remark #15532: loop was not vectorized: compile time constraints prevent loop optimization. Consider using -O3.
 
-   LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_calving.F90(1504,11)
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_calving.F90(1525,11)
       remark #15543: loop was not vectorized: loop with function call not considered an optimization candidate.
 
-      LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_calving.F90(1503,14)
+      LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_calving.F90(1524,14)
          remark #15521: loop was not vectorized: loop control variable was not identified. Explicitly compute the iteration count before executing the loop or try using canonical loop form from OpenMP specification
       LOOP END
    LOOP END
 
-   LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_calving.F90(1522,11)
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_calving.F90(1543,11)
       remark #15521: loop was not vectorized: loop control variable was not identified. Explicitly compute the iteration count before executing the loop or try using canonical loop form from OpenMP specification
    LOOP END
 
-   LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_calving.F90(1532,11)
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_calving.F90(1553,11)
       remark #15521: loop was not vectorized: loop control variable was not identified. Explicitly compute the iteration count before executing the loop or try using canonical loop form from OpenMP specification
    LOOP END
 
-   LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_calving.F90(1542,11)
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_calving.F90(1563,11)
       remark #15521: loop was not vectorized: loop control variable was not identified. Explicitly compute the iteration count before executing the loop or try using canonical loop form from OpenMP specification
    LOOP END
 
-   LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_calving.F90(1552,11)
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_calving.F90(1573,11)
       remark #15521: loop was not vectorized: loop control variable was not identified. Explicitly compute the iteration count before executing the loop or try using canonical loop form from OpenMP specification
    LOOP END
 LOOP END
 
-LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_calving.F90(1607,5)
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_calving.F90(1628,5)
    remark #15532: loop was not vectorized: compile time constraints prevent loop optimization. Consider using -O3.
 LOOP END
 
     Report from: Code generation optimizations [cg]
 
-/glade/u/home/tvda/CISM/libglissade/glissade_calving.F90(1360,14):remark #34051: REGISTER ALLOCATION : [glissade_calving_mp_glissade_remove_icebergs_] /glade/u/home/tvda/CISM/libglissade/glissade_calving.F90:1360
+/glade/u/home/tvda/CISM/libglissade/glissade_calving.F90(1381,14):remark #34051: REGISTER ALLOCATION : [glissade_calving_mp_glissade_remove_icebergs_] /glade/u/home/tvda/CISM/libglissade/glissade_calving.F90:1381
 
     Hardware registers
         Reserved     :    2[ rsp rip]
@@ -841,59 +841,59 @@ Begin optimization report for: GLISSADE_CALVING::GLISSADE_REMOVE_ISTHMUSES
 
     Report from: Interprocedural optimizations [ipo]
 
-INLINE REPORT: (GLISSADE_CALVING::GLISSADE_REMOVE_ISTHMUSES) [5] /glade/u/home/tvda/CISM/libglissade/glissade_calving.F90(1627,14)
-  -> DELETED: (1673,8) for_write_seq_lis
-  -> DELETED: (1674,8) for_write_seq_lis
-  -> DELETED: (1675,8) for_write_seq_lis
-  -> DELETED: (1676,8) for_write_seq_lis
-  -> DELETED: (1704,8) for_write_seq_lis
-  -> DELETED: (1705,8) for_write_seq_lis
+INLINE REPORT: (GLISSADE_CALVING::GLISSADE_REMOVE_ISTHMUSES) [5] /glade/u/home/tvda/CISM/libglissade/glissade_calving.F90(1648,14)
+  -> DELETED: (1694,8) for_write_seq_lis
+  -> DELETED: (1695,8) for_write_seq_lis
+  -> DELETED: (1696,8) for_write_seq_lis
+  -> DELETED: (1697,8) for_write_seq_lis
+  -> DELETED: (1725,8) for_write_seq_lis
+  -> DELETED: (1726,8) for_write_seq_lis
 
 
     Report from: Loop nest, Vector & Auto-parallelization optimizations [loop, vec, par]
 
 
-LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_calving.F90(1686,5)
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_calving.F90(1707,5)
    remark #15542: loop was not vectorized: inner loop was already vectorized
 
-   LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_calving.F90(1686,5)
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_calving.F90(1707,5)
       remark #25399: memcopy generated
       remark #15542: loop was not vectorized: inner loop was already vectorized
 
-      LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_calving.F90(1686,5)
+      LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_calving.F90(1707,5)
          remark #15300: LOOP WAS VECTORIZED
       LOOP END
 
-      LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_calving.F90(1686,5)
+      LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_calving.F90(1707,5)
       <Remainder loop for vectorization>
       LOOP END
    LOOP END
 LOOP END
 
-LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_calving.F90(1688,8)
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_calving.F90(1709,8)
    remark #15542: loop was not vectorized: inner loop was already vectorized
 
-   LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_calving.F90(1688,8)
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_calving.F90(1709,8)
       remark #15300: LOOP WAS VECTORIZED
    LOOP END
 
-   LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_calving.F90(1688,8)
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_calving.F90(1709,8)
    <Remainder loop for vectorization>
    LOOP END
 LOOP END
 
-LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_calving.F90(1691,5)
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_calving.F90(1712,5)
    remark #15541: outer loop was not auto-vectorized: consider using SIMD directive
 
-   LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_calving.F90(1692,8)
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_calving.F90(1713,8)
       remark #15335: loop was not vectorized: vectorization possible but seems inefficient. Use vector always directive or -vec-threshold0 to override 
    LOOP END
 LOOP END
 
     Report from: Code generation optimizations [cg]
 
-/glade/u/home/tvda/CISM/libglissade/glissade_calving.F90(1686,5):remark #34026: call to memcpy implemented as a call to optimized library version
-/glade/u/home/tvda/CISM/libglissade/glissade_calving.F90(1627,14):remark #34051: REGISTER ALLOCATION : [glissade_calving_mp_glissade_remove_isthmuses_] /glade/u/home/tvda/CISM/libglissade/glissade_calving.F90:1627
+/glade/u/home/tvda/CISM/libglissade/glissade_calving.F90(1707,5):remark #34026: call to memcpy implemented as a call to optimized library version
+/glade/u/home/tvda/CISM/libglissade/glissade_calving.F90(1648,14):remark #34051: REGISTER ALLOCATION : [glissade_calving_mp_glissade_remove_isthmuses_] /glade/u/home/tvda/CISM/libglissade/glissade_calving.F90:1648
 
     Hardware registers
         Reserved     :    2[ rsp rip]
@@ -928,30 +928,30 @@ Begin optimization report for: GLISSADE_CALVING::GLISSADE_LIMIT_CLIFFS
 
     Report from: Interprocedural optimizations [ipo]
 
-INLINE REPORT: (GLISSADE_CALVING::GLISSADE_LIMIT_CLIFFS) [6] /glade/u/home/tvda/CISM/libglissade/glissade_calving.F90(1719,14)
-  -> DELETED: (1807,8) for_write_seq_lis
-  -> DELETED: (1808,8) for_write_seq_lis
-  -> DELETED: (1809,8) for_write_seq_lis
-  -> DELETED: (1810,8) for_write_seq_lis
-  -> DELETED: (1810,8) for_write_seq_lis_xmit
-  -> DELETED: (1810,8) for_write_seq_lis_xmit
-  -> DELETED: (1810,8) for_write_seq_lis_xmit
+INLINE REPORT: (GLISSADE_CALVING::GLISSADE_LIMIT_CLIFFS) [6] /glade/u/home/tvda/CISM/libglissade/glissade_calving.F90(1740,14)
+  -> DELETED: (1828,8) for_write_seq_lis
+  -> DELETED: (1829,8) for_write_seq_lis
+  -> DELETED: (1830,8) for_write_seq_lis
+  -> DELETED: (1831,8) for_write_seq_lis
+  -> DELETED: (1831,8) for_write_seq_lis_xmit
+  -> DELETED: (1831,8) for_write_seq_lis_xmit
+  -> DELETED: (1831,8) for_write_seq_lis_xmit
 
 
     Report from: Loop nest, Vector & Auto-parallelization optimizations [loop, vec, par]
 
 
-LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_calving.F90(1832,5)
+LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_calving.F90(1853,5)
    remark #15541: outer loop was not auto-vectorized: consider using SIMD directive
 
-   LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_calving.F90(1833,8)
+   LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade_calving.F90(1854,8)
       remark #15335: loop was not vectorized: vectorization possible but seems inefficient. Use vector always directive or -vec-threshold0 to override 
    LOOP END
 LOOP END
 
     Report from: Code generation optimizations [cg]
 
-/glade/u/home/tvda/CISM/libglissade/glissade_calving.F90(1719,14):remark #34051: REGISTER ALLOCATION : [glissade_calving_mp_glissade_limit_cliffs_] /glade/u/home/tvda/CISM/libglissade/glissade_calving.F90:1719
+/glade/u/home/tvda/CISM/libglissade/glissade_calving.F90(1740,14):remark #34051: REGISTER ALLOCATION : [glissade_calving_mp_glissade_limit_cliffs_] /glade/u/home/tvda/CISM/libglissade/glissade_calving.F90:1740
 
     Hardware registers
         Reserved     :    2[ rsp rip]

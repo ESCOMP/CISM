@@ -1423,7 +1423,7 @@ contains
 
     !!Limit the effective pressure to 0.04 percentage of the overburden pressure, when using bwatflx
     !! this is suggested in Kaczmiercak et al (2022) - Tim
-   print*,'TvdA speed tracer: calling a slow algorithm here'
+!   print*,'TvdA speed tracer: calling a slow algorithm here'
    if (basal_physics%bwatflx_timescale > 0.d0) then
 
           if (verbose_effecpress .and. this_rank == rtest) then

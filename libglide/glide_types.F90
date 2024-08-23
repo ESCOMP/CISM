@@ -1608,7 +1608,8 @@ module glide_types
                                                  !> NOTE: This option is applied only if calving_front_x or calving_front_y > 0
      real(dp) :: f_ground_threshold = 0.10d0     !> Threshold fraction for grounded cells in iceberg removal algorithm
                                                  !> Also used for isthmus removal
-
+     real(dp) :: MICIflag = 0                    !> if 1, MICI based calving is turned on
+ 
   end type glide_calving
 
   !++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++

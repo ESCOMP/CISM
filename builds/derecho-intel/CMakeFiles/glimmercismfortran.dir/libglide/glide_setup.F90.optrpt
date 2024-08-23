@@ -140,10 +140,10 @@ LOOP END
         Assigned     :   12[ rax rdx rcx rsi rdi r8-r11 r13-r15]
         
     Routine temporaries
-        Total         :     991
+        Total         :     997
             Global    :      16
-            Local     :     975
-        Regenerable   :     477
+            Local     :     981
+        Regenerable   :     480
         Spilled       :       3
         
     Routine stack

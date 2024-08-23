@@ -338,9 +338,9 @@ subroutine cism_run_dycore(model)
 
       call t_stopf('tstep')
       !endif
-
-      print*, 'Current time, tstep_count =', model%numerics%time, model%numerics%tstep_count
-
+      if (this_rank == model%numerics%rdiag_local) then
+           print*, 'Current time, tstep_count =', model%numerics%time, model%numerics%tstep_count
+      endif
       ! write ice sheet diagnostics to log file at desired interval (model%numerics%dt_diag)
 
       call t_startf('write_diagnostics')

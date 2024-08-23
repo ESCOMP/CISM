@@ -2518,6 +2518,7 @@ module glissade_therm
     if (which_ho_damage == HO_DAMAGELINES) then 
        do ns = 1, nsn
           do ew = 1,ewn
+             print*,'TvdA: we are doing damage'
              if (ff_invert_mask(ew,ns)> 0.0d0) then
                 flow_enhancement_factor(ew,ns) = ff_multiplier
              endif

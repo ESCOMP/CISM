@@ -5,6 +5,7 @@ DebugLoc:        { File: 'libglimmer/writestats.c', Line: 68, Column: 3 }
 Function:        gf_writestats_
 Args:
   - Callee:          strncpy
+    DebugLoc:        { File: '/usr/include/string.h', Line: 0, Column: 0 }
   - String:          ' will not be inlined into '
   - Caller:          gf_writestats_
     DebugLoc:        { File: 'libglimmer/writestats.c', Line: 51, Column: 0 }
@@ -17,6 +18,7 @@ DebugLoc:        { File: 'libglimmer/writestats.c', Line: 70, Column: 10 }
 Function:        gf_writestats_
 Args:
   - Callee:          __ctype_b_loc
+    DebugLoc:        { File: '/usr/include/ctype.h', Line: 0, Column: 0 }
   - String:          ' will not be inlined into '
   - Caller:          gf_writestats_
     DebugLoc:        { File: 'libglimmer/writestats.c', Line: 51, Column: 0 }
@@ -81,6 +83,7 @@ DebugLoc:        { File: 'libglimmer/writestats.c', Line: 81, Column: 3 }
 Function:        gf_writestats_
 Args:
   - Callee:          snprintf
+    DebugLoc:        { File: '/usr/include/stdio.h', Line: 0, Column: 0 }
   - String:          ' will not be inlined into '
   - Caller:          gf_writestats_
     DebugLoc:        { File: 'libglimmer/writestats.c', Line: 51, Column: 0 }
@@ -106,6 +109,7 @@ DebugLoc:        { File: 'libglimmer/writestats.c', Line: 90, Column: 3 }
 Function:        gf_writestats_
 Args:
   - Callee:          snprintf
+    DebugLoc:        { File: '/usr/include/stdio.h', Line: 0, Column: 0 }
   - String:          ' will not be inlined into '
   - Caller:          gf_writestats_
     DebugLoc:        { File: 'libglimmer/writestats.c', Line: 51, Column: 0 }
@@ -118,6 +122,7 @@ DebugLoc:        { File: 'libglimmer/writestats.c', Line: 92, Column: 3 }
 Function:        gf_writestats_
 Args:
   - Callee:          snprintf
+    DebugLoc:        { File: '/usr/include/stdio.h', Line: 0, Column: 0 }
   - String:          ' will not be inlined into '
   - Caller:          gf_writestats_
     DebugLoc:        { File: 'libglimmer/writestats.c', Line: 51, Column: 0 }
@@ -232,6 +237,7 @@ DebugLoc:        { File: 'libglimmer/writestats.c', Line: 116, Column: 24 }
 Function:        gf_writestats_
 Args:
   - Callee:          strlen
+    DebugLoc:        { File: '/usr/include/string.h', Line: 0, Column: 0 }
   - String:          ' will not be inlined into '
   - Caller:          gf_writestats_
     DebugLoc:        { File: 'libglimmer/writestats.c', Line: 51, Column: 0 }
@@ -257,6 +263,7 @@ DebugLoc:        { File: 'libglimmer/writestats.c', Line: 117, Column: 22 }
 Function:        gf_writestats_
 Args:
   - Callee:          strlen
+    DebugLoc:        { File: '/usr/include/string.h', Line: 0, Column: 0 }
   - String:          ' will not be inlined into '
   - Caller:          gf_writestats_
     DebugLoc:        { File: 'libglimmer/writestats.c', Line: 51, Column: 0 }
@@ -321,6 +328,7 @@ DebugLoc:        { File: 'libglimmer/writestats.c', Line: 68, Column: 3 }
 Function:        gf_writestats_
 Args:
   - Callee:          strncpy
+    DebugLoc:        { File: '/usr/include/string.h', Line: 0, Column: 0 }
   - String:          ' will not be inlined into '
   - Caller:          gf_writestats_
     DebugLoc:        { File: 'libglimmer/writestats.c', Line: 51, Column: 0 }
@@ -333,6 +341,7 @@ DebugLoc:        { File: 'libglimmer/writestats.c', Line: 70, Column: 10 }
 Function:        gf_writestats_
 Args:
   - Callee:          __ctype_b_loc
+    DebugLoc:        { File: '/usr/include/ctype.h', Line: 0, Column: 0 }
   - String:          ' will not be inlined into '
   - Caller:          gf_writestats_
     DebugLoc:        { File: 'libglimmer/writestats.c', Line: 51, Column: 0 }
@@ -397,6 +406,7 @@ DebugLoc:        { File: 'libglimmer/writestats.c', Line: 81, Column: 3 }
 Function:        gf_writestats_
 Args:
   - Callee:          snprintf
+    DebugLoc:        { File: '/usr/include/stdio.h', Line: 0, Column: 0 }
   - String:          ' will not be inlined into '
   - Caller:          gf_writestats_
     DebugLoc:        { File: 'libglimmer/writestats.c', Line: 51, Column: 0 }
@@ -422,6 +432,7 @@ DebugLoc:        { File: 'libglimmer/writestats.c', Line: 90, Column: 3 }
 Function:        gf_writestats_
 Args:
   - Callee:          snprintf
+    DebugLoc:        { File: '/usr/include/stdio.h', Line: 0, Column: 0 }
   - String:          ' will not be inlined into '
   - Caller:          gf_writestats_
     DebugLoc:        { File: 'libglimmer/writestats.c', Line: 51, Column: 0 }
@@ -434,6 +445,7 @@ DebugLoc:        { File: 'libglimmer/writestats.c', Line: 92, Column: 3 }
 Function:        gf_writestats_
 Args:
   - Callee:          snprintf
+    DebugLoc:        { File: '/usr/include/stdio.h', Line: 0, Column: 0 }
   - String:          ' will not be inlined into '
   - Caller:          gf_writestats_
     DebugLoc:        { File: 'libglimmer/writestats.c', Line: 51, Column: 0 }
@@ -548,6 +560,7 @@ DebugLoc:        { File: 'libglimmer/writestats.c', Line: 116, Column: 24 }
 Function:        gf_writestats_
 Args:
   - Callee:          strlen
+    DebugLoc:        { File: '/usr/include/string.h', Line: 0, Column: 0 }
   - String:          ' will not be inlined into '
   - Caller:          gf_writestats_
     DebugLoc:        { File: 'libglimmer/writestats.c', Line: 51, Column: 0 }
@@ -573,6 +586,7 @@ DebugLoc:        { File: 'libglimmer/writestats.c', Line: 117, Column: 22 }
 Function:        gf_writestats_
 Args:
   - Callee:          strlen
+    DebugLoc:        { File: '/usr/include/string.h', Line: 0, Column: 0 }
   - String:          ' will not be inlined into '
   - Caller:          gf_writestats_
     DebugLoc:        { File: 'libglimmer/writestats.c', Line: 51, Column: 0 }

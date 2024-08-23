@@ -75,35 +75,6 @@ INLINE REPORT: (GLISSADE::GLISSADE_TSTEP) [2] /glade/u/home/tvda/CISM/libglissad
     Report from: Loop nest, Vector & Auto-parallelization optimizations [loop, vec, par]
 
 
-LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade.F90(1259,14)
-   remark #15541: outer loop was not auto-vectorized: consider using SIMD directive
-   remark #25436: completely unrolled by 7  
-
-   LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade.F90(1260,17)
-      remark #15344: loop was not vectorized: vector dependence prevents vectorization. First dependence is shown below. Use level 5 report for details
-      remark #15346: vector dependence: assumed OUTPUT dependence between at (1261:20) and at (1261:20)
-      remark #25436: completely unrolled by 7  
-   LOOP END
-
-   LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade.F90(1260,17)
-   LOOP END
-
-   LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade.F90(1260,17)
-   LOOP END
-
-   LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade.F90(1260,17)
-   LOOP END
-
-   LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade.F90(1260,17)
-   LOOP END
-
-   LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade.F90(1260,17)
-   LOOP END
-
-   LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade.F90(1260,17)
-   LOOP END
-LOOP END
-
 LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade.F90(1268,5)
 <Multiversioned v1>
    remark #25233: Loop multiversioned for stride tests on Assumed shape arrays
@@ -733,35 +704,6 @@ LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade.F90(1452,8)
    LOOP END
 LOOP END
 
-LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade.F90(1521,14)
-   remark #15541: outer loop was not auto-vectorized: consider using SIMD directive
-   remark #25436: completely unrolled by 7  
-
-   LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade.F90(1522,17)
-      remark #15344: loop was not vectorized: vector dependence prevents vectorization. First dependence is shown below. Use level 5 report for details
-      remark #15346: vector dependence: assumed OUTPUT dependence between at (1523:20) and at (1523:20)
-      remark #25436: completely unrolled by 7  
-   LOOP END
-
-   LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade.F90(1522,17)
-   LOOP END
-
-   LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade.F90(1522,17)
-   LOOP END
-
-   LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade.F90(1522,17)
-   LOOP END
-
-   LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade.F90(1522,17)
-   LOOP END
-
-   LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade.F90(1522,17)
-   LOOP END
-
-   LOOP BEGIN at /glade/u/home/tvda/CISM/libglissade/glissade.F90(1522,17)
-   LOOP END
-LOOP END
-
 
 Non-optimizable loops:
 
@@ -791,19 +733,19 @@ LOOP END
         Assigned     :   30[ rax rdx rcx rbx rsi rdi r8-r15 zmm0-zmm15]
         
     Routine temporaries
-        Total         :    4370
-            Global    :     856
-            Local     :    3514
-        Regenerable   :    2131
-        Spilled       :     329
+        Total         :    3346
+            Global    :     802
+            Local     :    2544
+        Regenerable   :    1313
+        Spilled       :     319
         
     Routine stack
-        Variables     :    1148 bytes*
+        Variables     :    1004 bytes*
             Reads     :       0 [0.00e+00 ~ 0.0%]
-            Writes    :    1175 [5.40e+00 ~ 5.4%]
-        Spills        :    2448 bytes*
-            Reads     :     853 [7.81e+00 ~ 7.8%]
-            Writes    :     380 [4.08e+00 ~ 4.1%]
+            Writes    :     729 [3.92e+00 ~ 3.9%]
+        Spills        :    2368 bytes*
+            Reads     :     763 [7.98e+00 ~ 8.0%]
+            Writes    :     368 [4.32e+00 ~ 4.3%]
     
     Notes
     
@@ -4191,19 +4133,19 @@ LOOP END
         Assigned     :   27[ rax rdx rcx rbx rsi rdi r8-r15 zmm0-zmm12]
         
     Routine temporaries
-        Total         :    5647
+        Total         :    5667
             Global    :    1824
-            Local     :    3823
-        Regenerable   :    1818
-        Spilled       :     533
+            Local     :    3843
+        Regenerable   :    1838
+        Spilled       :     536
         
     Routine stack
-        Variables     :     744 bytes*
-            Reads     :       7 [7.58e-03 ~ 0.0%]
-            Writes    :     939 [5.90e-01 ~ 0.6%]
-        Spills        :    4176 bytes*
-            Reads     :    1470 [3.22e+00 ~ 3.2%]
-            Writes    :     783 [1.47e+00 ~ 1.5%]
+        Variables     :     776 bytes*
+            Reads     :       7 [7.06e-03 ~ 0.0%]
+            Writes    :     945 [5.64e-01 ~ 0.6%]
+        Spills        :    4192 bytes*
+            Reads     :    1478 [3.34e+00 ~ 3.3%]
+            Writes    :     795 [1.48e+00 ~ 1.5%]
     
     Notes
     
@@ -8764,19 +8706,19 @@ Optimization 'OSR' reduced: function size or variable count limit exceeded: use 
         Assigned     :   30[ rax rdx rcx rbx rsi rdi r8-r15 zmm0-zmm15]
         
     Routine temporaries
-        Total         :   16865
-            Global    :    5716
-            Local     :   11149
+        Total         :   16887
+            Global    :    5722
+            Local     :   11165
         Regenerable   :     702
-        Spilled       :    1887
+        Spilled       :    1891
         
     Routine stack
         Variables     :    4108 bytes*
-            Reads     :     182 [4.30e-01 ~ 0.4%]
+            Reads     :     168 [4.27e-01 ~ 0.4%]
             Writes    :     572 [2.44e-01 ~ 0.2%]
-        Spills        :   14888 bytes*
-            Reads     :    5371 [1.05e+01 ~ 10.5%]
-            Writes    :    3524 [2.50e+00 ~ 2.5%]
+        Spills        :   14920 bytes*
+            Reads     :    5390 [1.05e+01 ~ 10.5%]
+            Writes    :    3525 [2.50e+00 ~ 2.5%]
     
     Notes
     
@@ -11460,19 +11402,19 @@ Optimization 'OSR' reduced: function size or variable count limit exceeded: use 
         Assigned     :   30[ rax rdx rcx rbx rsi rdi r8-r15 zmm0-zmm15]
         
     Routine temporaries
-        Total         :   10013
-            Global    :    3140
-            Local     :    6873
+        Total         :   10021
+            Global    :    3150
+            Local     :    6871
         Regenerable   :    2719
-        Spilled       :    1062
+        Spilled       :    1070
         
     Routine stack
         Variables     :    4428 bytes*
             Reads     :       7 [2.02e-03 ~ 0.0%]
             Writes    :    1299 [1.13e+00 ~ 1.1%]
-        Spills        :    8104 bytes*
-            Reads     :    2373 [4.45e+00 ~ 4.5%]
-            Writes    :    1463 [1.47e+00 ~ 1.5%]
+        Spills        :    8200 bytes*
+            Reads     :    2397 [4.48e+00 ~ 4.5%]
+            Writes    :    1469 [1.48e+00 ~ 1.5%]
     
     Notes
     

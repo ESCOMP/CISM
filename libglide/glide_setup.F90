@@ -2221,7 +2221,7 @@ contains
     call GetValue(section,'calving_front_y',    model%calving%calving_front_y)
     call GetValue(section,'damage_threshold',   model%calving%damage_threshold)
     call GetValue(section,'f_ground_threshold', model%calving%f_ground_threshold)
-
+    call GetValue(section,'MICIflag',           model%calving%MICIflag)
     ! NOTE: bpar is used only for BTRC_TANH_BWAT
     !       btrac_max and btrac_slope are used (with btrac_const) for BTRC_LINEAR_BMLT
     !       btrac_const is used for several options

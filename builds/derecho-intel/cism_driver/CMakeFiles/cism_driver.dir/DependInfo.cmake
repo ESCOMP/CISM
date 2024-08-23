@@ -28,7 +28,7 @@ set(CMAKE_TARGET_DEFINITIONS_Fortran
 set(CMAKE_Fortran_TARGET_INCLUDE_PATH
   "fortran_mod_files"
   "fortran_autocopy_includes"
-  "/glade/u/apps/derecho/23.06/spack/opt/spack/netcdf/4.9.2/oneapi/2023.0.0/iijr/include"
+  "/glade/u/apps/derecho/23.09/spack/opt/spack/netcdf/4.9.2/oneapi/2023.2.1/yzvj/include"
   "."
   "/glade/u/home/tvda/CISM"
   "/glade/u/home/tvda/CISM/libglide"

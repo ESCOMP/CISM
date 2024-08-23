@@ -44,10 +44,10 @@ cmake_force:
 SHELL = /bin/sh
 
 # The CMake executable.
-CMAKE_COMMAND = /glade/u/apps/derecho/23.06/spack/opt/spack/cmake/3.26.3/gcc/7.5.0/l2rq/bin/cmake
+CMAKE_COMMAND = /glade/u/apps/derecho/23.09/spack/opt/spack/cmake/3.26.3/gcc/7.5.0/k34x/bin/cmake
 
 # The command to remove a file.
-RM = /glade/u/apps/derecho/23.06/spack/opt/spack/cmake/3.26.3/gcc/7.5.0/l2rq/bin/cmake -E rm -f
+RM = /glade/u/apps/derecho/23.09/spack/opt/spack/cmake/3.26.3/gcc/7.5.0/k34x/bin/cmake -E rm -f
 
 # Escaping for special characters.
 EQUALS = =
@@ -98,1615 +98,1615 @@ fortran_autogen_srcs/glad_mbal_io.F90: fortran_autogen_srcs/glint_io.F90
 CMakeFiles/glimmercismfortran.dir/cism_driver/eismint_forcing.F90.o: CMakeFiles/glimmercismfortran.dir/flags.make
 CMakeFiles/glimmercismfortran.dir/cism_driver/eismint_forcing.F90.o: /glade/u/home/tvda/CISM/cism_driver/eismint_forcing.F90
 	@$(CMAKE_COMMAND) -E cmake_echo_color --switch=$(COLOR) --green --progress-dir=/glade/u/home/tvda/CISM/builds/derecho-intel/CMakeFiles --progress-num=$(CMAKE_PROGRESS_3) "Building Fortran object CMakeFiles/glimmercismfortran.dir/cism_driver/eismint_forcing.F90.o"
-	/glade/u/apps/derecho/23.06/spack/opt/spack/ncarcompilers/1.0.0/oneapi/2023.0.0/ec7b/bin/mpi/mpif90 $(Fortran_DEFINES) $(Fortran_INCLUDES) $(Fortran_FLAGS) -c /glade/u/home/tvda/CISM/cism_driver/eismint_forcing.F90 -o CMakeFiles/glimmercismfortran.dir/cism_driver/eismint_forcing.F90.o
+	/glade/u/apps/derecho/23.09/spack/opt/spack/intel-oneapi-mpi/2021.10.0/oneapi/2023.2.1/ve6v/bin/mpif90 $(Fortran_DEFINES) $(Fortran_INCLUDES) $(Fortran_FLAGS) -c /glade/u/home/tvda/CISM/cism_driver/eismint_forcing.F90 -o CMakeFiles/glimmercismfortran.dir/cism_driver/eismint_forcing.F90.o
 
 CMakeFiles/glimmercismfortran.dir/cism_driver/eismint_forcing.F90.i: cmake_force
 	@$(CMAKE_COMMAND) -E cmake_echo_color --switch=$(COLOR) --green "Preprocessing Fortran source to CMakeFiles/glimmercismfortran.dir/cism_driver/eismint_forcing.F90.i"
-	/glade/u/apps/derecho/23.06/spack/opt/spack/ncarcompilers/1.0.0/oneapi/2023.0.0/ec7b/bin/mpi/mpif90 $(Fortran_DEFINES) $(Fortran_INCLUDES) $(Fortran_FLAGS) -E /glade/u/home/tvda/CISM/cism_driver/eismint_forcing.F90 > CMakeFiles/glimmercismfortran.dir/cism_driver/eismint_forcing.F90.i
+	/glade/u/apps/derecho/23.09/spack/opt/spack/intel-oneapi-mpi/2021.10.0/oneapi/2023.2.1/ve6v/bin/mpif90 $(Fortran_DEFINES) $(Fortran_INCLUDES) $(Fortran_FLAGS) -E /glade/u/home/tvda/CISM/cism_driver/eismint_forcing.F90 > CMakeFiles/glimmercismfortran.dir/cism_driver/eismint_forcing.F90.i
 
 CMakeFiles/glimmercismfortran.dir/cism_driver/eismint_forcing.F90.s: cmake_force
 	@$(CMAKE_COMMAND) -E cmake_echo_color --switch=$(COLOR) --green "Compiling Fortran source to assembly CMakeFiles/glimmercismfortran.dir/cism_driver/eismint_forcing.F90.s"
-	/glade/u/apps/derecho/23.06/spack/opt/spack/ncarcompilers/1.0.0/oneapi/2023.0.0/ec7b/bin/mpi/mpif90 $(Fortran_DEFINES) $(Fortran_INCLUDES) $(Fortran_FLAGS) -S /glade/u/home/tvda/CISM/cism_driver/eismint_forcing.F90 -o CMakeFiles/glimmercismfortran.dir/cism_driver/eismint_forcing.F90.s
+	/glade/u/apps/derecho/23.09/spack/opt/spack/intel-oneapi-mpi/2021.10.0/oneapi/2023.2.1/ve6v/bin/mpif90 $(Fortran_DEFINES) $(Fortran_INCLUDES) $(Fortran_FLAGS) -S /glade/u/home/tvda/CISM/cism_driver/eismint_forcing.F90 -o CMakeFiles/glimmercismfortran.dir/cism_driver/eismint_forcing.F90.s
 
 CMakeFiles/glimmercismfortran.dir/cism_driver/testsfg.F90.o: CMakeFiles/glimmercismfortran.dir/flags.make
 CMakeFiles/glimmercismfortran.dir/cism_driver/testsfg.F90.o: /glade/u/home/tvda/CISM/cism_driver/testsfg.F90
 	@$(CMAKE_COMMAND) -E cmake_echo_color --switch=$(COLOR) --green --progress-dir=/glade/u/home/tvda/CISM/builds/derecho-intel/CMakeFiles --progress-num=$(CMAKE_PROGRESS_4) "Building Fortran object CMakeFiles/glimmercismfortran.dir/cism_driver/testsfg.F90.o"
-	/glade/u/apps/derecho/23.06/spack/opt/spack/ncarcompilers/1.0.0/oneapi/2023.0.0/ec7b/bin/mpi/mpif90 $(Fortran_DEFINES) $(Fortran_INCLUDES) $(Fortran_FLAGS) -c /glade/u/home/tvda/CISM/cism_driver/testsfg.F90 -o CMakeFiles/glimmercismfortran.dir/cism_driver/testsfg.F90.o
+	/glade/u/apps/derecho/23.09/spack/opt/spack/intel-oneapi-mpi/2021.10.0/oneapi/2023.2.1/ve6v/bin/mpif90 $(Fortran_DEFINES) $(Fortran_INCLUDES) $(Fortran_FLAGS) -c /glade/u/home/tvda/CISM/cism_driver/testsfg.F90 -o CMakeFiles/glimmercismfortran.dir/cism_driver/testsfg.F90.o
 
 CMakeFiles/glimmercismfortran.dir/cism_driver/testsfg.F90.i: cmake_force
 	@$(CMAKE_COMMAND) -E cmake_echo_color --switch=$(COLOR) --green "Preprocessing Fortran source to CMakeFiles/glimmercismfortran.dir/cism_driver/testsfg.F90.i"
-	/glade/u/apps/derecho/23.06/spack/opt/spack/ncarcompilers/1.0.0/oneapi/2023.0.0/ec7b/bin/mpi/mpif90 $(Fortran_DEFINES) $(Fortran_INCLUDES) $(Fortran_FLAGS) -E /glade/u/home/tvda/CISM/cism_driver/testsfg.F90 > CMakeFiles/glimmercismfortran.dir/cism_driver/testsfg.F90.i
+	/glade/u/apps/derecho/23.09/spack/opt/spack/intel-oneapi-mpi/2021.10.0/oneapi/2023.2.1/ve6v/bin/mpif90 $(Fortran_DEFINES) $(Fortran_INCLUDES) $(Fortran_FLAGS) -E /glade/u/home/tvda/CISM/cism_driver/testsfg.F90 > CMakeFiles/glimmercismfortran.dir/cism_driver/testsfg.F90.i
 
 CMakeFiles/glimmercismfortran.dir/cism_driver/testsfg.F90.s: cmake_force
 	@$(CMAKE_COMMAND) -E cmake_echo_color --switch=$(COLOR) --green "Compiling Fortran source to assembly CMakeFiles/glimmercismfortran.dir/cism_driver/testsfg.F90.s"
-	/glade/u/apps/derecho/23.06/spack/opt/spack/ncarcompilers/1.0.0/oneapi/2023.0.0/ec7b/bin/mpi/mpif90 $(Fortran_DEFINES) $(Fortran_INCLUDES) $(Fortran_FLAGS) -S /glade/u/home/tvda/CISM/cism_driver/testsfg.F90 -o CMakeFiles/glimmercismfortran.dir/cism_driver/testsfg.F90.s
+	/glade/u/apps/derecho/23.09/spack/opt/spack/intel-oneapi-mpi/2021.10.0/oneapi/2023.2.1/ve6v/bin/mpif90 $(Fortran_DEFINES) $(Fortran_INCLUDES) $(Fortran_FLAGS) -S /glade/u/home/tvda/CISM/cism_driver/testsfg.F90 -o CMakeFiles/glimmercismfortran.dir/cism_driver/testsfg.F90.s
 
 CMakeFiles/glimmercismfortran.dir/libglad/glad_constants.F90.o: CMakeFiles/glimmercismfortran.dir/flags.make
 CMakeFiles/glimmercismfortran.dir/libglad/glad_constants.F90.o: /glade/u/home/tvda/CISM/libglad/glad_constants.F90
 	@$(CMAKE_COMMAND) -E cmake_echo_color --switch=$(COLOR) --green --progress-dir=/glade/u/home/tvda/CISM/builds/derecho-intel/CMakeFiles --progress-num=$(CMAKE_PROGRESS_5) "Building Fortran object CMakeFiles/glimmercismfortran.dir/libglad/glad_constants.F90.o"
-	/glade/u/apps/derecho/23.06/spack/opt/spack/ncarcompilers/1.0.0/oneapi/2023.0.0/ec7b/bin/mpi/mpif90 $(Fortran_DEFINES) $(Fortran_INCLUDES) $(Fortran_FLAGS) -c /glade/u/home/tvda/CISM/libglad/glad_constants.F90 -o CMakeFiles/glimmercismfortran.dir/libglad/glad_constants.F90.o
+	/glade/u/apps/derecho/23.09/spack/opt/spack/intel-oneapi-mpi/2021.10.0/oneapi/2023.2.1/ve6v/bin/mpif90 $(Fortran_DEFINES) $(Fortran_INCLUDES) $(Fortran_FLAGS) -c /glade/u/home/tvda/CISM/libglad/glad_constants.F90 -o CMakeFiles/glimmercismfortran.dir/libglad/glad_constants.F90.o
 
 CMakeFiles/glimmercismfortran.dir/libglad/glad_constants.F90.i: cmake_force
 	@$(CMAKE_COMMAND) -E cmake_echo_color --switch=$(COLOR) --green "Preprocessing Fortran source to CMakeFiles/glimmercismfortran.dir/libglad/glad_constants.F90.i"
-	/glade/u/apps/derecho/23.06/spack/opt/spack/ncarcompilers/1.0.0/oneapi/2023.0.0/ec7b/bin/mpi/mpif90 $(Fortran_DEFINES) $(Fortran_INCLUDES) $(Fortran_FLAGS) -E /glade/u/home/tvda/CISM/libglad/glad_constants.F90 > CMakeFiles/glimmercismfortran.dir/libglad/glad_constants.F90.i
+	/glade/u/apps/derecho/23.09/spack/opt/spack/intel-oneapi-mpi/2021.10.0/oneapi/2023.2.1/ve6v/bin/mpif90 $(Fortran_DEFINES) $(Fortran_INCLUDES) $(Fortran_FLAGS) -E /glade/u/home/tvda/CISM/libglad/glad_constants.F90 > CMakeFiles/glimmercismfortran.dir/libglad/glad_constants.F90.i
 
 CMakeFiles/glimmercismfortran.dir/libglad/glad_constants.F90.s: cmake_force
 	@$(CMAKE_COMMAND) -E cmake_echo_color --switch=$(COLOR) --green "Compiling Fortran source to assembly CMakeFiles/glimmercismfortran.dir/libglad/glad_constants.F90.s"
-	/glade/u/apps/derecho/23.06/spack/opt/spack/ncarcompilers/1.0.0/oneapi/2023.0.0/ec7b/bin/mpi/mpif90 $(Fortran_DEFINES) $(Fortran_INCLUDES) $(Fortran_FLAGS) -S /glade/u/home/tvda/CISM/libglad/glad_constants.F90 -o CMakeFiles/glimmercismfortran.dir/libglad/glad_constants.F90.s
+	/glade/u/apps/derecho/23.09/spack/opt/spack/intel-oneapi-mpi/2021.10.0/oneapi/2023.2.1/ve6v/bin/mpif90 $(Fortran_DEFINES) $(Fortran_INCLUDES) $(Fortran_FLAGS) -S /glade/u/home/tvda/CISM/libglad/glad_constants.F90 -o CMakeFiles/glimmercismfortran.dir/libglad/glad_constants.F90.s
 
 CMakeFiles/glimmercismfortran.dir/libglad/glad_initialise.F90.o: CMakeFiles/glimmercismfortran.dir/flags.make
 CMakeFiles/glimmercismfortran.dir/libglad/glad_initialise.F90.o: /glade/u/home/tvda/CISM/libglad/glad_initialise.F90
 	@$(CMAKE_COMMAND) -E cmake_echo_color --switch=$(COLOR) --green --progress-dir=/glade/u/home/tvda/CISM/builds/derecho-intel/CMakeFiles --progress-num=$(CMAKE_PROGRESS_6) "Building Fortran object CMakeFiles/glimmercismfortran.dir/libglad/glad_initialise.F90.o"
-	/glade/u/apps/derecho/23.06/spack/opt/spack/ncarcompilers/1.0.0/oneapi/2023.0.0/ec7b/bin/mpi/mpif90 $(Fortran_DEFINES) $(Fortran_INCLUDES) $(Fortran_FLAGS) -c /glade/u/home/tvda/CISM/libglad/glad_initialise.F90 -o CMakeFiles/glimmercismfortran.dir/libglad/glad_initialise.F90.o
+	/glade/u/apps/derecho/23.09/spack/opt/spack/intel-oneapi-mpi/2021.10.0/oneapi/2023.2.1/ve6v/bin/mpif90 $(Fortran_DEFINES) $(Fortran_INCLUDES) $(Fortran_FLAGS) -c /glade/u/home/tvda/CISM/libglad/glad_initialise.F90 -o CMakeFiles/glimmercismfortran.dir/libglad/glad_initialise.F90.o
 
 CMakeFiles/glimmercismfortran.dir/libglad/glad_initialise.F90.i: cmake_force
 	@$(CMAKE_COMMAND) -E cmake_echo_color --switch=$(COLOR) --green "Preprocessing Fortran source to CMakeFiles/glimmercismfortran.dir/libglad/glad_initialise.F90.i"
-	/glade/u/apps/derecho/23.06/spack/opt/spack/ncarcompilers/1.0.0/oneapi/2023.0.0/ec7b/bin/mpi/mpif90 $(Fortran_DEFINES) $(Fortran_INCLUDES) $(Fortran_FLAGS) -E /glade/u/home/tvda/CISM/libglad/glad_initialise.F90 > CMakeFiles/glimmercismfortran.dir/libglad/glad_initialise.F90.i
+	/glade/u/apps/derecho/23.09/spack/opt/spack/intel-oneapi-mpi/2021.10.0/oneapi/2023.2.1/ve6v/bin/mpif90 $(Fortran_DEFINES) $(Fortran_INCLUDES) $(Fortran_FLAGS) -E /glade/u/home/tvda/CISM/libglad/glad_initialise.F90 > CMakeFiles/glimmercismfortran.dir/libglad/glad_initialise.F90.i
 
 CMakeFiles/glimmercismfortran.dir/libglad/glad_initialise.F90.s: cmake_force
 	@$(CMAKE_COMMAND) -E cmake_echo_color --switch=$(COLOR) --green "Compiling Fortran source to assembly CMakeFiles/glimmercismfortran.dir/libglad/glad_initialise.F90.s"
-	/glade/u/apps/derecho/23.06/spack/opt/spack/ncarcompilers/1.0.0/oneapi/2023.0.0/ec7b/bin/mpi/mpif90 $(Fortran_DEFINES) $(Fortran_INCLUDES) $(Fortran_FLAGS) -S /glade/u/home/tvda/CISM/libglad/glad_initialise.F90 -o CMakeFiles/glimmercismfortran.dir/libglad/glad_initialise.F90.s
+	/glade/u/apps/derecho/23.09/spack/opt/spack/intel-oneapi-mpi/2021.10.0/oneapi/2023.2.1/ve6v/bin/mpif90 $(Fortran_DEFINES) $(Fortran_INCLUDES) $(Fortran_FLAGS) -S /glade/u/home/tvda/CISM/libglad/glad_initialise.F90 -o CMakeFiles/glimmercismfortran.dir/libglad/glad_initialise.F90.s
 
 CMakeFiles/glimmercismfortran.dir/libglad/glad_input_averages.F90.o: CMakeFiles/glimmercismfortran.dir/flags.make
 CMakeFiles/glimmercismfortran.dir/libglad/glad_input_averages.F90.o: /glade/u/home/tvda/CISM/libglad/glad_input_averages.F90
 	@$(CMAKE_COMMAND) -E cmake_echo_color --switch=$(COLOR) --green --progress-dir=/glade/u/home/tvda/CISM/builds/derecho-intel/CMakeFiles --progress-num=$(CMAKE_PROGRESS_7) "Building Fortran object CMakeFiles/glimmercismfortran.dir/libglad/glad_input_averages.F90.o"
-	/glade/u/apps/derecho/23.06/spack/opt/spack/ncarcompilers/1.0.0/oneapi/2023.0.0/ec7b/bin/mpi/mpif90 $(Fortran_DEFINES) $(Fortran_INCLUDES) $(Fortran_FLAGS) -c /glade/u/home/tvda/CISM/libglad/glad_input_averages.F90 -o CMakeFiles/glimmercismfortran.dir/libglad/glad_input_averages.F90.o
+	/glade/u/apps/derecho/23.09/spack/opt/spack/intel-oneapi-mpi/2021.10.0/oneapi/2023.2.1/ve6v/bin/mpif90 $(Fortran_DEFINES) $(Fortran_INCLUDES) $(Fortran_FLAGS) -c /glade/u/home/tvda/CISM/libglad/glad_input_averages.F90 -o CMakeFiles/glimmercismfortran.dir/libglad/glad_input_averages.F90.o
 
 CMakeFiles/glimmercismfortran.dir/libglad/glad_input_averages.F90.i: cmake_force
 	@$(CMAKE_COMMAND) -E cmake_echo_color --switch=$(COLOR) --green "Preprocessing Fortran source to CMakeFiles/glimmercismfortran.dir/libglad/glad_input_averages.F90.i"
-	/glade/u/apps/derecho/23.06/spack/opt/spack/ncarcompilers/1.0.0/oneapi/2023.0.0/ec7b/bin/mpi/mpif90 $(Fortran_DEFINES) $(Fortran_INCLUDES) $(Fortran_FLAGS) -E /glade/u/home/tvda/CISM/libglad/glad_input_averages.F90 > CMakeFiles/glimmercismfortran.dir/libglad/glad_input_averages.F90.i
+	/glade/u/apps/derecho/23.09/spack/opt/spack/intel-oneapi-mpi/2021.10.0/oneapi/2023.2.1/ve6v/bin/mpif90 $(Fortran_DEFINES) $(Fortran_INCLUDES) $(Fortran_FLAGS) -E /glade/u/home/tvda/CISM/libglad/glad_input_averages.F90 > CMakeFiles/glimmercismfortran.dir/libglad/glad_input_averages.F90.i
 
 CMakeFiles/glimmercismfortran.dir/libglad/glad_input_averages.F90.s: cmake_force
 	@$(CMAKE_COMMAND) -E cmake_echo_color --switch=$(COLOR) --green "Compiling Fortran source to assembly CMakeFiles/glimmercismfortran.dir/libglad/glad_input_averages.F90.s"
-	/glade/u/apps/derecho/23.06/spack/opt/spack/ncarcompilers/1.0.0/oneapi/2023.0.0/ec7b/bin/mpi/mpif90 $(Fortran_DEFINES) $(Fortran_INCLUDES) $(Fortran_FLAGS) -S /glade/u/home/tvda/CISM/libglad/glad_input_averages.F90 -o CMakeFiles/glimmercismfortran.dir/libglad/glad_input_averages.F90.s
+	/glade/u/apps/derecho/23.09/spack/opt/spack/intel-oneapi-mpi/2021.10.0/oneapi/2023.2.1/ve6v/bin/mpif90 $(Fortran_DEFINES) $(Fortran_INCLUDES) $(Fortran_FLAGS) -S /glade/u/home/tvda/CISM/libglad/glad_input_averages.F90 -o CMakeFiles/glimmercismfortran.dir/libglad/glad_input_averages.F90.s
 
 CMakeFiles/glimmercismfortran.dir/libglad/glad_main.F90.o: CMakeFiles/glimmercismfortran.dir/flags.make
 CMakeFiles/glimmercismfortran.dir/libglad/glad_main.F90.o: /glade/u/home/tvda/CISM/libglad/glad_main.F90
 	@$(CMAKE_COMMAND) -E cmake_echo_color --switch=$(COLOR) --green --progress-dir=/glade/u/home/tvda/CISM/builds/derecho-intel/CMakeFiles --progress-num=$(CMAKE_PROGRESS_8) "Building Fortran object CMakeFiles/glimmercismfortran.dir/libglad/glad_main.F90.o"
-	/glade/u/apps/derecho/23.06/spack/opt/spack/ncarcompilers/1.0.0/oneapi/2023.0.0/ec7b/bin/mpi/mpif90 $(Fortran_DEFINES) $(Fortran_INCLUDES) $(Fortran_FLAGS) -c /glade/u/home/tvda/CISM/libglad/glad_main.F90 -o CMakeFiles/glimmercismfortran.dir/libglad/glad_main.F90.o
+	/glade/u/apps/derecho/23.09/spack/opt/spack/intel-oneapi-mpi/2021.10.0/oneapi/2023.2.1/ve6v/bin/mpif90 $(Fortran_DEFINES) $(Fortran_INCLUDES) $(Fortran_FLAGS) -c /glade/u/home/tvda/CISM/libglad/glad_main.F90 -o CMakeFiles/glimmercismfortran.dir/libglad/glad_main.F90.o
 
 CMakeFiles/glimmercismfortran.dir/libglad/glad_main.F90.i: cmake_force
 	@$(CMAKE_COMMAND) -E cmake_echo_color --switch=$(COLOR) --green "Preprocessing Fortran source to CMakeFiles/glimmercismfortran.dir/libglad/glad_main.F90.i"
-	/glade/u/apps/derecho/23.06/spack/opt/spack/ncarcompilers/1.0.0/oneapi/2023.0.0/ec7b/bin/mpi/mpif90 $(Fortran_DEFINES) $(Fortran_INCLUDES) $(Fortran_FLAGS) -E /glade/u/home/tvda/CISM/libglad/glad_main.F90 > CMakeFiles/glimmercismfortran.dir/libglad/glad_main.F90.i
+	/glade/u/apps/derecho/23.09/spack/opt/spack/intel-oneapi-mpi/2021.10.0/oneapi/2023.2.1/ve6v/bin/mpif90 $(Fortran_DEFINES) $(Fortran_INCLUDES) $(Fortran_FLAGS) -E /glade/u/home/tvda/CISM/libglad/glad_main.F90 > CMakeFiles/glimmercismfortran.dir/libglad/glad_main.F90.i
 
 CMakeFiles/glimmercismfortran.dir/libglad/glad_main.F90.s: cmake_force
 	@$(CMAKE_COMMAND) -E cmake_echo_color --switch=$(COLOR) --green "Compiling Fortran source to assembly CMakeFiles/glimmercismfortran.dir/libglad/glad_main.F90.s"
-	/glade/u/apps/derecho/23.06/spack/opt/spack/ncarcompilers/1.0.0/oneapi/2023.0.0/ec7b/bin/mpi/mpif90 $(Fortran_DEFINES) $(Fortran_INCLUDES) $(Fortran_FLAGS) -S /glade/u/home/tvda/CISM/libglad/glad_main.F90 -o CMakeFiles/glimmercismfortran.dir/libglad/glad_main.F90.s
+	/glade/u/apps/derecho/23.09/spack/opt/spack/intel-oneapi-mpi/2021.10.0/oneapi/2023.2.1/ve6v/bin/mpif90 $(Fortran_DEFINES) $(Fortran_INCLUDES) $(Fortran_FLAGS) -S /glade/u/home/tvda/CISM/libglad/glad_main.F90 -o CMakeFiles/glimmercismfortran.dir/libglad/glad_main.F90.s
 
 CMakeFiles/glimmercismfortran.dir/libglad/glad_mbal_coupling.F90.o: CMakeFiles/glimmercismfortran.dir/flags.make
 CMakeFiles/glimmercismfortran.dir/libglad/glad_mbal_coupling.F90.o: /glade/u/home/tvda/CISM/libglad/glad_mbal_coupling.F90
 	@$(CMAKE_COMMAND) -E cmake_echo_color --switch=$(COLOR) --green --progress-dir=/glade/u/home/tvda/CISM/builds/derecho-intel/CMakeFiles --progress-num=$(CMAKE_PROGRESS_9) "Building Fortran object CMakeFiles/glimmercismfortran.dir/libglad/glad_mbal_coupling.F90.o"
-	/glade/u/apps/derecho/23.06/spack/opt/spack/ncarcompilers/1.0.0/oneapi/2023.0.0/ec7b/bin/mpi/mpif90 $(Fortran_DEFINES) $(Fortran_INCLUDES) $(Fortran_FLAGS) -c /glade/u/home/tvda/CISM/libglad/glad_mbal_coupling.F90 -o CMakeFiles/glimmercismfortran.dir/libglad/glad_mbal_coupling.F90.o
+	/glade/u/apps/derecho/23.09/spack/opt/spack/intel-oneapi-mpi/2021.10.0/oneapi/2023.2.1/ve6v/bin/mpif90 $(Fortran_DEFINES) $(Fortran_INCLUDES) $(Fortran_FLAGS) -c /glade/u/home/tvda/CISM/libglad/glad_mbal_coupling.F90 -o CMakeFiles/glimmercismfortran.dir/libglad/glad_mbal_coupling.F90.o
 
 CMakeFiles/glimmercismfortran.dir/libglad/glad_mbal_coupling.F90.i: cmake_force
 	@$(CMAKE_COMMAND) -E cmake_echo_color --switch=$(COLOR) --green "Preprocessing Fortran source to CMakeFiles/glimmercismfortran.dir/libglad/glad_mbal_coupling.F90.i"
-	/glade/u/apps/derecho/23.06/spack/opt/spack/ncarcompilers/1.0.0/oneapi/2023.0.0/ec7b/bin/mpi/mpif90 $(Fortran_DEFINES) $(Fortran_INCLUDES) $(Fortran_FLAGS) -E /glade/u/home/tvda/CISM/libglad/glad_mbal_coupling.F90 > CMakeFiles/glimmercismfortran.dir/libglad/glad_mbal_coupling.F90.i
+	/glade/u/apps/derecho/23.09/spack/opt/spack/intel-oneapi-mpi/2021.10.0/oneapi/2023.2.1/ve6v/bin/mpif90 $(Fortran_DEFINES) $(Fortran_INCLUDES) $(Fortran_FLAGS) -E /glade/u/home/tvda/CISM/libglad/glad_mbal_coupling.F90 > CMakeFiles/glimmercismfortran.dir/libglad/glad_mbal_coupling.F90.i
 
 CMakeFiles/glimmercismfortran.dir/libglad/glad_mbal_coupling.F90.s: cmake_force
 	@$(CMAKE_COMMAND) -E cmake_echo_color --switch=$(COLOR) --green "Compiling Fortran source to assembly CMakeFiles/glimmercismfortran.dir/libglad/glad_mbal_coupling.F90.s"
-	/glade/u/apps/derecho/23.06/spack/opt/spack/ncarcompilers/1.0.0/oneapi/2023.0.0/ec7b/bin/mpi/mpif90 $(Fortran_DEFINES) $(Fortran_INCLUDES) $(Fortran_FLAGS) -S /glade/u/home/tvda/CISM/libglad/glad_mbal_coupling.F90 -o CMakeFiles/glimmercismfortran.dir/libglad/glad_mbal_coupling.F90.s
+	/glade/u/apps/derecho/23.09/spack/opt/spack/intel-oneapi-mpi/2021.10.0/oneapi/2023.2.1/ve6v/bin/mpif90 $(Fortran_DEFINES) $(Fortran_INCLUDES) $(Fortran_FLAGS) -S /glade/u/home/tvda/CISM/libglad/glad_mbal_coupling.F90 -o CMakeFiles/glimmercismfortran.dir/libglad/glad_mbal_coupling.F90.s
 
 CMakeFiles/glimmercismfortran.dir/libglad/glad_output_fluxes.F90.o: CMakeFiles/glimmercismfortran.dir/flags.make
 CMakeFiles/glimmercismfortran.dir/libglad/glad_output_fluxes.F90.o: /glade/u/home/tvda/CISM/libglad/glad_output_fluxes.F90
 	@$(CMAKE_COMMAND) -E cmake_echo_color --switch=$(COLOR) --green --progress-dir=/glade/u/home/tvda/CISM/builds/derecho-intel/CMakeFiles --progress-num=$(CMAKE_PROGRESS_10) "Building Fortran object CMakeFiles/glimmercismfortran.dir/libglad/glad_output_fluxes.F90.o"
-	/glade/u/apps/derecho/23.06/spack/opt/spack/ncarcompilers/1.0.0/oneapi/2023.0.0/ec7b/bin/mpi/mpif90 $(Fortran_DEFINES) $(Fortran_INCLUDES) $(Fortran_FLAGS) -c /glade/u/home/tvda/CISM/libglad/glad_output_fluxes.F90 -o CMakeFiles/glimmercismfortran.dir/libglad/glad_output_fluxes.F90.o
+	/glade/u/apps/derecho/23.09/spack/opt/spack/intel-oneapi-mpi/2021.10.0/oneapi/2023.2.1/ve6v/bin/mpif90 $(Fortran_DEFINES) $(Fortran_INCLUDES) $(Fortran_FLAGS) -c /glade/u/home/tvda/CISM/libglad/glad_output_fluxes.F90 -o CMakeFiles/glimmercismfortran.dir/libglad/glad_output_fluxes.F90.o
 
 CMakeFiles/glimmercismfortran.dir/libglad/glad_output_fluxes.F90.i: cmake_force
 	@$(CMAKE_COMMAND) -E cmake_echo_color --switch=$(COLOR) --green "Preprocessing Fortran source to CMakeFiles/glimmercismfortran.dir/libglad/glad_output_fluxes.F90.i"
-	/glade/u/apps/derecho/23.06/spack/opt/spack/ncarcompilers/1.0.0/oneapi/2023.0.0/ec7b/bin/mpi/mpif90 $(Fortran_DEFINES) $(Fortran_INCLUDES) $(Fortran_FLAGS) -E /glade/u/home/tvda/CISM/libglad/glad_output_fluxes.F90 > CMakeFiles/glimmercismfortran.dir/libglad/glad_output_fluxes.F90.i
+	/glade/u/apps/derecho/23.09/spack/opt/spack/intel-oneapi-mpi/2021.10.0/oneapi/2023.2.1/ve6v/bin/mpif90 $(Fortran_DEFINES) $(Fortran_INCLUDES) $(Fortran_FLAGS) -E /glade/u/home/tvda/CISM/libglad/glad_output_fluxes.F90 > CMakeFiles/glimmercismfortran.dir/libglad/glad_output_fluxes.F90.i
 
 CMakeFiles/glimmercismfortran.dir/libglad/glad_output_fluxes.F90.s: cmake_force
 	@$(CMAKE_COMMAND) -E cmake_echo_color --switch=$(COLOR) --green "Compiling Fortran source to assembly CMakeFiles/glimmercismfortran.dir/libglad/glad_output_fluxes.F90.s"
-	/glade/u/apps/derecho/23.06/spack/opt/spack/ncarcompilers/1.0.0/oneapi/2023.0.0/ec7b/bin/mpi/mpif90 $(Fortran_DEFINES) $(Fortran_INCLUDES) $(Fortran_FLAGS) -S /glade/u/home/tvda/CISM/libglad/glad_output_fluxes.F90 -o CMakeFiles/glimmercismfortran.dir/libglad/glad_output_fluxes.F90.s
+	/glade/u/apps/derecho/23.09/spack/opt/spack/intel-oneapi-mpi/2021.10.0/oneapi/2023.2.1/ve6v/bin/mpif90 $(Fortran_DEFINES) $(Fortran_INCLUDES) $(Fortran_FLAGS) -S /glade/u/home/tvda/CISM/libglad/glad_output_fluxes.F90 -o CMakeFiles/glimmercismfortran.dir/libglad/glad_output_fluxes.F90.s
 
 CMakeFiles/glimmercismfortran.dir/libglad/glad_output_states.F90.o: CMakeFiles/glimmercismfortran.dir/flags.make
 CMakeFiles/glimmercismfortran.dir/libglad/glad_output_states.F90.o: /glade/u/home/tvda/CISM/libglad/glad_output_states.F90
 	@$(CMAKE_COMMAND) -E cmake_echo_color --switch=$(COLOR) --green --progress-dir=/glade/u/home/tvda/CISM/builds/derecho-intel/CMakeFiles --progress-num=$(CMAKE_PROGRESS_11) "Building Fortran object CMakeFiles/glimmercismfortran.dir/libglad/glad_output_states.F90.o"
-	/glade/u/apps/derecho/23.06/spack/opt/spack/ncarcompilers/1.0.0/oneapi/2023.0.0/ec7b/bin/mpi/mpif90 $(Fortran_DEFINES) $(Fortran_INCLUDES) $(Fortran_FLAGS) -c /glade/u/home/tvda/CISM/libglad/glad_output_states.F90 -o CMakeFiles/glimmercismfortran.dir/libglad/glad_output_states.F90.o
+	/glade/u/apps/derecho/23.09/spack/opt/spack/intel-oneapi-mpi/2021.10.0/oneapi/2023.2.1/ve6v/bin/mpif90 $(Fortran_DEFINES) $(Fortran_INCLUDES) $(Fortran_FLAGS) -c /glade/u/home/tvda/CISM/libglad/glad_output_states.F90 -o CMakeFiles/glimmercismfortran.dir/libglad/glad_output_states.F90.o
 
 CMakeFiles/glimmercismfortran.dir/libglad/glad_output_states.F90.i: cmake_force
 	@$(CMAKE_COMMAND) -E cmake_echo_color --switch=$(COLOR) --green "Preprocessing Fortran source to CMakeFiles/glimmercismfortran.dir/libglad/glad_output_states.F90.i"
-	/glade/u/apps/derecho/23.06/spack/opt/spack/ncarcompilers/1.0.0/oneapi/2023.0.0/ec7b/bin/mpi/mpif90 $(Fortran_DEFINES) $(Fortran_INCLUDES) $(Fortran_FLAGS) -E /glade/u/home/tvda/CISM/libglad/glad_output_states.F90 > CMakeFiles/glimmercismfortran.dir/libglad/glad_output_states.F90.i
+	/glade/u/apps/derecho/23.09/spack/opt/spack/intel-oneapi-mpi/2021.10.0/oneapi/2023.2.1/ve6v/bin/mpif90 $(Fortran_DEFINES) $(Fortran_INCLUDES) $(Fortran_FLAGS) -E /glade/u/home/tvda/CISM/libglad/glad_output_states.F90 > CMakeFiles/glimmercismfortran.dir/libglad/glad_output_states.F90.i
 
 CMakeFiles/glimmercismfortran.dir/libglad/glad_output_states.F90.s: cmake_force
 	@$(CMAKE_COMMAND) -E cmake_echo_color --switch=$(COLOR) --green "Compiling Fortran source to assembly CMakeFiles/glimmercismfortran.dir/libglad/glad_output_states.F90.s"
-	/glade/u/apps/derecho/23.06/spack/opt/spack/ncarcompilers/1.0.0/oneapi/2023.0.0/ec7b/bin/mpi/mpif90 $(Fortran_DEFINES) $(Fortran_INCLUDES) $(Fortran_FLAGS) -S /glade/u/home/tvda/CISM/libglad/glad_output_states.F90 -o CMakeFiles/glimmercismfortran.dir/libglad/glad_output_states.F90.s
+	/glade/u/apps/derecho/23.09/spack/opt/spack/intel-oneapi-mpi/2021.10.0/oneapi/2023.2.1/ve6v/bin/mpif90 $(Fortran_DEFINES) $(Fortran_INCLUDES) $(Fortran_FLAGS) -S /glade/u/home/tvda/CISM/libglad/glad_output_states.F90 -o CMakeFiles/glimmercismfortran.dir/libglad/glad_output_states.F90.s
 
 CMakeFiles/glimmercismfortran.dir/libglad/glad_restart_gcm.F90.o: CMakeFiles/glimmercismfortran.dir/flags.make
 CMakeFiles/glimmercismfortran.dir/libglad/glad_restart_gcm.F90.o: /glade/u/home/tvda/CISM/libglad/glad_restart_gcm.F90
 	@$(CMAKE_COMMAND) -E cmake_echo_color --switch=$(COLOR) --green --progress-dir=/glade/u/home/tvda/CISM/builds/derecho-intel/CMakeFiles --progress-num=$(CMAKE_PROGRESS_12) "Building Fortran object CMakeFiles/glimmercismfortran.dir/libglad/glad_restart_gcm.F90.o"
-	/glade/u/apps/derecho/23.06/spack/opt/spack/ncarcompilers/1.0.0/oneapi/2023.0.0/ec7b/bin/mpi/mpif90 $(Fortran_DEFINES) $(Fortran_INCLUDES) $(Fortran_FLAGS) -c /glade/u/home/tvda/CISM/libglad/glad_restart_gcm.F90 -o CMakeFiles/glimmercismfortran.dir/libglad/glad_restart_gcm.F90.o
+	/glade/u/apps/derecho/23.09/spack/opt/spack/intel-oneapi-mpi/2021.10.0/oneapi/2023.2.1/ve6v/bin/mpif90 $(Fortran_DEFINES) $(Fortran_INCLUDES) $(Fortran_FLAGS) -c /glade/u/home/tvda/CISM/libglad/glad_restart_gcm.F90 -o CMakeFiles/glimmercismfortran.dir/libglad/glad_restart_gcm.F90.o
 
 CMakeFiles/glimmercismfortran.dir/libglad/glad_restart_gcm.F90.i: cmake_force
 	@$(CMAKE_COMMAND) -E cmake_echo_color --switch=$(COLOR) --green "Preprocessing Fortran source to CMakeFiles/glimmercismfortran.dir/libglad/glad_restart_gcm.F90.i"
-	/glade/u/apps/derecho/23.06/spack/opt/spack/ncarcompilers/1.0.0/oneapi/2023.0.0/ec7b/bin/mpi/mpif90 $(Fortran_DEFINES) $(Fortran_INCLUDES) $(Fortran_FLAGS) -E /glade/u/home/tvda/CISM/libglad/glad_restart_gcm.F90 > CMakeFiles/glimmercismfortran.dir/libglad/glad_restart_gcm.F90.i
+	/glade/u/apps/derecho/23.09/spack/opt/spack/intel-oneapi-mpi/2021.10.0/oneapi/2023.2.1/ve6v/bin/mpif90 $(Fortran_DEFINES) $(Fortran_INCLUDES) $(Fortran_FLAGS) -E /glade/u/home/tvda/CISM/libglad/glad_restart_gcm.F90 > CMakeFiles/glimmercismfortran.dir/libglad/glad_restart_gcm.F90.i
 
 CMakeFiles/glimmercismfortran.dir/libglad/glad_restart_gcm.F90.s: cmake_force
 	@$(CMAKE_COMMAND) -E cmake_echo_color --switch=$(COLOR) --green "Compiling Fortran source to assembly CMakeFiles/glimmercismfortran.dir/libglad/glad_restart_gcm.F90.s"
-	/glade/u/apps/derecho/23.06/spack/opt/spack/ncarcompilers/1.0.0/oneapi/2023.0.0/ec7b/bin/mpi/mpif90 $(Fortran_DEFINES) $(Fortran_INCLUDES) $(Fortran_FLAGS) -S /glade/u/home/tvda/CISM/libglad/glad_restart_gcm.F90 -o CMakeFiles/glimmercismfortran.dir/libglad/glad_restart_gcm.F90.s
+	/glade/u/apps/derecho/23.09/spack/opt/spack/intel-oneapi-mpi/2021.10.0/oneapi/2023.2.1/ve6v/bin/mpif90 $(Fortran_DEFINES) $(Fortran_INCLUDES) $(Fortran_FLAGS) -S /glade/u/home/tvda/CISM/libglad/glad_restart_gcm.F90 -o CMakeFiles/glimmercismfortran.dir/libglad/glad_restart_gcm.F90.s
 
 CMakeFiles/glimmercismfortran.dir/libglad/glad_timestep.F90.o: CMakeFiles/glimmercismfortran.dir/flags.make
 CMakeFiles/glimmercismfortran.dir/libglad/glad_timestep.F90.o: /glade/u/home/tvda/CISM/libglad/glad_timestep.F90
 	@$(CMAKE_COMMAND) -E cmake_echo_color --switch=$(COLOR) --green --progress-dir=/glade/u/home/tvda/CISM/builds/derecho-intel/CMakeFiles --progress-num=$(CMAKE_PROGRESS_13) "Building Fortran object CMakeFiles/glimmercismfortran.dir/libglad/glad_timestep.F90.o"
-	/glade/u/apps/derecho/23.06/spack/opt/spack/ncarcompilers/1.0.0/oneapi/2023.0.0/ec7b/bin/mpi/mpif90 $(Fortran_DEFINES) $(Fortran_INCLUDES) $(Fortran_FLAGS) -c /glade/u/home/tvda/CISM/libglad/glad_timestep.F90 -o CMakeFiles/glimmercismfortran.dir/libglad/glad_timestep.F90.o
+	/glade/u/apps/derecho/23.09/spack/opt/spack/intel-oneapi-mpi/2021.10.0/oneapi/2023.2.1/ve6v/bin/mpif90 $(Fortran_DEFINES) $(Fortran_INCLUDES) $(Fortran_FLAGS) -c /glade/u/home/tvda/CISM/libglad/glad_timestep.F90 -o CMakeFiles/glimmercismfortran.dir/libglad/glad_timestep.F90.o
 
 CMakeFiles/glimmercismfortran.dir/libglad/glad_timestep.F90.i: cmake_force
 	@$(CMAKE_COMMAND) -E cmake_echo_color --switch=$(COLOR) --green "Preprocessing Fortran source to CMakeFiles/glimmercismfortran.dir/libglad/glad_timestep.F90.i"
-	/glade/u/apps/derecho/23.06/spack/opt/spack/ncarcompilers/1.0.0/oneapi/2023.0.0/ec7b/bin/mpi/mpif90 $(Fortran_DEFINES) $(Fortran_INCLUDES) $(Fortran_FLAGS) -E /glade/u/home/tvda/CISM/libglad/glad_timestep.F90 > CMakeFiles/glimmercismfortran.dir/libglad/glad_timestep.F90.i
+	/glade/u/apps/derecho/23.09/spack/opt/spack/intel-oneapi-mpi/2021.10.0/oneapi/2023.2.1/ve6v/bin/mpif90 $(Fortran_DEFINES) $(Fortran_INCLUDES) $(Fortran_FLAGS) -E /glade/u/home/tvda/CISM/libglad/glad_timestep.F90 > CMakeFiles/glimmercismfortran.dir/libglad/glad_timestep.F90.i
 
 CMakeFiles/glimmercismfortran.dir/libglad/glad_timestep.F90.s: cmake_force
 	@$(CMAKE_COMMAND) -E cmake_echo_color --switch=$(COLOR) --green "Compiling Fortran source to assembly CMakeFiles/glimmercismfortran.dir/libglad/glad_timestep.F90.s"
-	/glade/u/apps/derecho/23.06/spack/opt/spack/ncarcompilers/1.0.0/oneapi/2023.0.0/ec7b/bin/mpi/mpif90 $(Fortran_DEFINES) $(Fortran_INCLUDES) $(Fortran_FLAGS) -S /glade/u/home/tvda/CISM/libglad/glad_timestep.F90 -o CMakeFiles/glimmercismfortran.dir/libglad/glad_timestep.F90.s
+	/glade/u/apps/derecho/23.09/spack/opt/spack/intel-oneapi-mpi/2021.10.0/oneapi/2023.2.1/ve6v/bin/mpif90 $(Fortran_DEFINES) $(Fortran_INCLUDES) $(Fortran_FLAGS) -S /glade/u/home/tvda/CISM/libglad/glad_timestep.F90 -o CMakeFiles/glimmercismfortran.dir/libglad/glad_timestep.F90.s
 
 CMakeFiles/glimmercismfortran.dir/libglad/glad_type.F90.o: CMakeFiles/glimmercismfortran.dir/flags.make
 CMakeFiles/glimmercismfortran.dir/libglad/glad_type.F90.o: /glade/u/home/tvda/CISM/libglad/glad_type.F90
 	@$(CMAKE_COMMAND) -E cmake_echo_color --switch=$(COLOR) --green --progress-dir=/glade/u/home/tvda/CISM/builds/derecho-intel/CMakeFiles --progress-num=$(CMAKE_PROGRESS_14) "Building Fortran object CMakeFiles/glimmercismfortran.dir/libglad/glad_type.F90.o"
-	/glade/u/apps/derecho/23.06/spack/opt/spack/ncarcompilers/1.0.0/oneapi/2023.0.0/ec7b/bin/mpi/mpif90 $(Fortran_DEFINES) $(Fortran_INCLUDES) $(Fortran_FLAGS) -c /glade/u/home/tvda/CISM/libglad/glad_type.F90 -o CMakeFiles/glimmercismfortran.dir/libglad/glad_type.F90.o
+	/glade/u/apps/derecho/23.09/spack/opt/spack/intel-oneapi-mpi/2021.10.0/oneapi/2023.2.1/ve6v/bin/mpif90 $(Fortran_DEFINES) $(Fortran_INCLUDES) $(Fortran_FLAGS) -c /glade/u/home/tvda/CISM/libglad/glad_type.F90 -o CMakeFiles/glimmercismfortran.dir/libglad/glad_type.F90.o
 
 CMakeFiles/glimmercismfortran.dir/libglad/glad_type.F90.i: cmake_force
 	@$(CMAKE_COMMAND) -E cmake_echo_color --switch=$(COLOR) --green "Preprocessing Fortran source to CMakeFiles/glimmercismfortran.dir/libglad/glad_type.F90.i"
-	/glade/u/apps/derecho/23.06/spack/opt/spack/ncarcompilers/1.0.0/oneapi/2023.0.0/ec7b/bin/mpi/mpif90 $(Fortran_DEFINES) $(Fortran_INCLUDES) $(Fortran_FLAGS) -E /glade/u/home/tvda/CISM/libglad/glad_type.F90 > CMakeFiles/glimmercismfortran.dir/libglad/glad_type.F90.i
+	/glade/u/apps/derecho/23.09/spack/opt/spack/intel-oneapi-mpi/2021.10.0/oneapi/2023.2.1/ve6v/bin/mpif90 $(Fortran_DEFINES) $(Fortran_INCLUDES) $(Fortran_FLAGS) -E /glade/u/home/tvda/CISM/libglad/glad_type.F90 > CMakeFiles/glimmercismfortran.dir/libglad/glad_type.F90.i
 
 CMakeFiles/glimmercismfortran.dir/libglad/glad_type.F90.s: cmake_force
 	@$(CMAKE_COMMAND) -E cmake_echo_color --switch=$(COLOR) --green "Compiling Fortran source to assembly CMakeFiles/glimmercismfortran.dir/libglad/glad_type.F90.s"
-	/glade/u/apps/derecho/23.06/spack/opt/spack/ncarcompilers/1.0.0/oneapi/2023.0.0/ec7b/bin/mpi/mpif90 $(Fortran_DEFINES) $(Fortran_INCLUDES) $(Fortran_FLAGS) -S /glade/u/home/tvda/CISM/libglad/glad_type.F90 -o CMakeFiles/glimmercismfortran.dir/libglad/glad_type.F90.s
+	/glade/u/apps/derecho/23.09/spack/opt/spack/intel-oneapi-mpi/2021.10.0/oneapi/2023.2.1/ve6v/bin/mpif90 $(Fortran_DEFINES) $(Fortran_INCLUDES) $(Fortran_FLAGS) -S /glade/u/home/tvda/CISM/libglad/glad_type.F90 -o CMakeFiles/glimmercismfortran.dir/libglad/glad_type.F90.s
 
 CMakeFiles/glimmercismfortran.dir/libglide/felix_dycore_interface.F90.o: CMakeFiles/glimmercismfortran.dir/flags.make
 CMakeFiles/glimmercismfortran.dir/libglide/felix_dycore_interface.F90.o: /glade/u/home/tvda/CISM/libglide/felix_dycore_interface.F90
 	@$(CMAKE_COMMAND) -E cmake_echo_color --switch=$(COLOR) --green --progress-dir=/glade/u/home/tvda/CISM/builds/derecho-intel/CMakeFiles --progress-num=$(CMAKE_PROGRESS_15) "Building Fortran object CMakeFiles/glimmercismfortran.dir/libglide/felix_dycore_interface.F90.o"
-	/glade/u/apps/derecho/23.06/spack/opt/spack/ncarcompilers/1.0.0/oneapi/2023.0.0/ec7b/bin/mpi/mpif90 $(Fortran_DEFINES) $(Fortran_INCLUDES) $(Fortran_FLAGS) -c /glade/u/home/tvda/CISM/libglide/felix_dycore_interface.F90 -o CMakeFiles/glimmercismfortran.dir/libglide/felix_dycore_interface.F90.o
+	/glade/u/apps/derecho/23.09/spack/opt/spack/intel-oneapi-mpi/2021.10.0/oneapi/2023.2.1/ve6v/bin/mpif90 $(Fortran_DEFINES) $(Fortran_INCLUDES) $(Fortran_FLAGS) -c /glade/u/home/tvda/CISM/libglide/felix_dycore_interface.F90 -o CMakeFiles/glimmercismfortran.dir/libglide/felix_dycore_interface.F90.o
 
 CMakeFiles/glimmercismfortran.dir/libglide/felix_dycore_interface.F90.i: cmake_force
 	@$(CMAKE_COMMAND) -E cmake_echo_color --switch=$(COLOR) --green "Preprocessing Fortran source to CMakeFiles/glimmercismfortran.dir/libglide/felix_dycore_interface.F90.i"
-	/glade/u/apps/derecho/23.06/spack/opt/spack/ncarcompilers/1.0.0/oneapi/2023.0.0/ec7b/bin/mpi/mpif90 $(Fortran_DEFINES) $(Fortran_INCLUDES) $(Fortran_FLAGS) -E /glade/u/home/tvda/CISM/libglide/felix_dycore_interface.F90 > CMakeFiles/glimmercismfortran.dir/libglide/felix_dycore_interface.F90.i
+	/glade/u/apps/derecho/23.09/spack/opt/spack/intel-oneapi-mpi/2021.10.0/oneapi/2023.2.1/ve6v/bin/mpif90 $(Fortran_DEFINES) $(Fortran_INCLUDES) $(Fortran_FLAGS) -E /glade/u/home/tvda/CISM/libglide/felix_dycore_interface.F90 > CMakeFiles/glimmercismfortran.dir/libglide/felix_dycore_interface.F90.i
 
 CMakeFiles/glimmercismfortran.dir/libglide/felix_dycore_interface.F90.s: cmake_force
 	@$(CMAKE_COMMAND) -E cmake_echo_color --switch=$(COLOR) --green "Compiling Fortran source to assembly CMakeFiles/glimmercismfortran.dir/libglide/felix_dycore_interface.F90.s"
-	/glade/u/apps/derecho/23.06/spack/opt/spack/ncarcompilers/1.0.0/oneapi/2023.0.0/ec7b/bin/mpi/mpif90 $(Fortran_DEFINES) $(Fortran_INCLUDES) $(Fortran_FLAGS) -S /glade/u/home/tvda/CISM/libglide/felix_dycore_interface.F90 -o CMakeFiles/glimmercismfortran.dir/libglide/felix_dycore_interface.F90.s
+	/glade/u/apps/derecho/23.09/spack/opt/spack/intel-oneapi-mpi/2021.10.0/oneapi/2023.2.1/ve6v/bin/mpif90 $(Fortran_DEFINES) $(Fortran_INCLUDES) $(Fortran_FLAGS) -S /glade/u/home/tvda/CISM/libglide/felix_dycore_interface.F90 -o CMakeFiles/glimmercismfortran.dir/libglide/felix_dycore_interface.F90.s
 
 CMakeFiles/glimmercismfortran.dir/libglide/glide.F90.o: CMakeFiles/glimmercismfortran.dir/flags.make
 CMakeFiles/glimmercismfortran.dir/libglide/glide.F90.o: /glade/u/home/tvda/CISM/libglide/glide.F90
 	@$(CMAKE_COMMAND) -E cmake_echo_color --switch=$(COLOR) --green --progress-dir=/glade/u/home/tvda/CISM/builds/derecho-intel/CMakeFiles --progress-num=$(CMAKE_PROGRESS_16) "Building Fortran object CMakeFiles/glimmercismfortran.dir/libglide/glide.F90.o"
-	/glade/u/apps/derecho/23.06/spack/opt/spack/ncarcompilers/1.0.0/oneapi/2023.0.0/ec7b/bin/mpi/mpif90 $(Fortran_DEFINES) $(Fortran_INCLUDES) $(Fortran_FLAGS) -c /glade/u/home/tvda/CISM/libglide/glide.F90 -o CMakeFiles/glimmercismfortran.dir/libglide/glide.F90.o
+	/glade/u/apps/derecho/23.09/spack/opt/spack/intel-oneapi-mpi/2021.10.0/oneapi/2023.2.1/ve6v/bin/mpif90 $(Fortran_DEFINES) $(Fortran_INCLUDES) $(Fortran_FLAGS) -c /glade/u/home/tvda/CISM/libglide/glide.F90 -o CMakeFiles/glimmercismfortran.dir/libglide/glide.F90.o
 
 CMakeFiles/glimmercismfortran.dir/libglide/glide.F90.i: cmake_force
 	@$(CMAKE_COMMAND) -E cmake_echo_color --switch=$(COLOR) --green "Preprocessing Fortran source to CMakeFiles/glimmercismfortran.dir/libglide/glide.F90.i"
-	/glade/u/apps/derecho/23.06/spack/opt/spack/ncarcompilers/1.0.0/oneapi/2023.0.0/ec7b/bin/mpi/mpif90 $(Fortran_DEFINES) $(Fortran_INCLUDES) $(Fortran_FLAGS) -E /glade/u/home/tvda/CISM/libglide/glide.F90 > CMakeFiles/glimmercismfortran.dir/libglide/glide.F90.i
+	/glade/u/apps/derecho/23.09/spack/opt/spack/intel-oneapi-mpi/2021.10.0/oneapi/2023.2.1/ve6v/bin/mpif90 $(Fortran_DEFINES) $(Fortran_INCLUDES) $(Fortran_FLAGS) -E /glade/u/home/tvda/CISM/libglide/glide.F90 > CMakeFiles/glimmercismfortran.dir/libglide/glide.F90.i
 
 CMakeFiles/glimmercismfortran.dir/libglide/glide.F90.s: cmake_force
 	@$(CMAKE_COMMAND) -E cmake_echo_color --switch=$(COLOR) --green "Compiling Fortran source to assembly CMakeFiles/glimmercismfortran.dir/libglide/glide.F90.s"
-	/glade/u/apps/derecho/23.06/spack/opt/spack/ncarcompilers/1.0.0/oneapi/2023.0.0/ec7b/bin/mpi/mpif90 $(Fortran_DEFINES) $(Fortran_INCLUDES) $(Fortran_FLAGS) -S /glade/u/home/tvda/CISM/libglide/glide.F90 -o CMakeFiles/glimmercismfortran.dir/libglide/glide.F90.s
+	/glade/u/apps/derecho/23.09/spack/opt/spack/intel-oneapi-mpi/2021.10.0/oneapi/2023.2.1/ve6v/bin/mpif90 $(Fortran_DEFINES) $(Fortran_INCLUDES) $(Fortran_FLAGS) -S /glade/u/home/tvda/CISM/libglide/glide.F90 -o CMakeFiles/glimmercismfortran.dir/libglide/glide.F90.s
 
 CMakeFiles/glimmercismfortran.dir/libglide/glide_bwater.F90.o: CMakeFiles/glimmercismfortran.dir/flags.make
 CMakeFiles/glimmercismfortran.dir/libglide/glide_bwater.F90.o: /glade/u/home/tvda/CISM/libglide/glide_bwater.F90
 	@$(CMAKE_COMMAND) -E cmake_echo_color --switch=$(COLOR) --green --progress-dir=/glade/u/home/tvda/CISM/builds/derecho-intel/CMakeFiles --progress-num=$(CMAKE_PROGRESS_17) "Building Fortran object CMakeFiles/glimmercismfortran.dir/libglide/glide_bwater.F90.o"
-	/glade/u/apps/derecho/23.06/spack/opt/spack/ncarcompilers/1.0.0/oneapi/2023.0.0/ec7b/bin/mpi/mpif90 $(Fortran_DEFINES) $(Fortran_INCLUDES) $(Fortran_FLAGS) -c /glade/u/home/tvda/CISM/libglide/glide_bwater.F90 -o CMakeFiles/glimmercismfortran.dir/libglide/glide_bwater.F90.o
+	/glade/u/apps/derecho/23.09/spack/opt/spack/intel-oneapi-mpi/2021.10.0/oneapi/2023.2.1/ve6v/bin/mpif90 $(Fortran_DEFINES) $(Fortran_INCLUDES) $(Fortran_FLAGS) -c /glade/u/home/tvda/CISM/libglide/glide_bwater.F90 -o CMakeFiles/glimmercismfortran.dir/libglide/glide_bwater.F90.o
 
 CMakeFiles/glimmercismfortran.dir/libglide/glide_bwater.F90.i: cmake_force
 	@$(CMAKE_COMMAND) -E cmake_echo_color --switch=$(COLOR) --green "Preprocessing Fortran source to CMakeFiles/glimmercismfortran.dir/libglide/glide_bwater.F90.i"
-	/glade/u/apps/derecho/23.06/spack/opt/spack/ncarcompilers/1.0.0/oneapi/2023.0.0/ec7b/bin/mpi/mpif90 $(Fortran_DEFINES) $(Fortran_INCLUDES) $(Fortran_FLAGS) -E /glade/u/home/tvda/CISM/libglide/glide_bwater.F90 > CMakeFiles/glimmercismfortran.dir/libglide/glide_bwater.F90.i
+	/glade/u/apps/derecho/23.09/spack/opt/spack/intel-oneapi-mpi/2021.10.0/oneapi/2023.2.1/ve6v/bin/mpif90 $(Fortran_DEFINES) $(Fortran_INCLUDES) $(Fortran_FLAGS) -E /glade/u/home/tvda/CISM/libglide/glide_bwater.F90 > CMakeFiles/glimmercismfortran.dir/libglide/glide_bwater.F90.i
 
 CMakeFiles/glimmercismfortran.dir/libglide/glide_bwater.F90.s: cmake_force
 	@$(CMAKE_COMMAND) -E cmake_echo_color --switch=$(COLOR) --green "Compiling Fortran source to assembly CMakeFiles/glimmercismfortran.dir/libglide/glide_bwater.F90.s"
-	/glade/u/apps/derecho/23.06/spack/opt/spack/ncarcompilers/1.0.0/oneapi/2023.0.0/ec7b/bin/mpi/mpif90 $(Fortran_DEFINES) $(Fortran_INCLUDES) $(Fortran_FLAGS) -S /glade/u/home/tvda/CISM/libglide/glide_bwater.F90 -o CMakeFiles/glimmercismfortran.dir/libglide/glide_bwater.F90.s
+	/glade/u/apps/derecho/23.09/spack/opt/spack/intel-oneapi-mpi/2021.10.0/oneapi/2023.2.1/ve6v/bin/mpif90 $(Fortran_DEFINES) $(Fortran_INCLUDES) $(Fortran_FLAGS) -S /glade/u/home/tvda/CISM/libglide/glide_bwater.F90 -o CMakeFiles/glimmercismfortran.dir/libglide/glide_bwater.F90.s
 
 CMakeFiles/glimmercismfortran.dir/libglide/glide_diagnostics.F90.o: CMakeFiles/glimmercismfortran.dir/flags.make
 CMakeFiles/glimmercismfortran.dir/libglide/glide_diagnostics.F90.o: /glade/u/home/tvda/CISM/libglide/glide_diagnostics.F90
 	@$(CMAKE_COMMAND) -E cmake_echo_color --switch=$(COLOR) --green --progress-dir=/glade/u/home/tvda/CISM/builds/derecho-intel/CMakeFiles --progress-num=$(CMAKE_PROGRESS_18) "Building Fortran object CMakeFiles/glimmercismfortran.dir/libglide/glide_diagnostics.F90.o"
-	/glade/u/apps/derecho/23.06/spack/opt/spack/ncarcompilers/1.0.0/oneapi/2023.0.0/ec7b/bin/mpi/mpif90 $(Fortran_DEFINES) $(Fortran_INCLUDES) $(Fortran_FLAGS) -c /glade/u/home/tvda/CISM/libglide/glide_diagnostics.F90 -o CMakeFiles/glimmercismfortran.dir/libglide/glide_diagnostics.F90.o
+	/glade/u/apps/derecho/23.09/spack/opt/spack/intel-oneapi-mpi/2021.10.0/oneapi/2023.2.1/ve6v/bin/mpif90 $(Fortran_DEFINES) $(Fortran_INCLUDES) $(Fortran_FLAGS) -c /glade/u/home/tvda/CISM/libglide/glide_diagnostics.F90 -o CMakeFiles/glimmercismfortran.dir/libglide/glide_diagnostics.F90.o
 
 CMakeFiles/glimmercismfortran.dir/libglide/glide_diagnostics.F90.i: cmake_force
 	@$(CMAKE_COMMAND) -E cmake_echo_color --switch=$(COLOR) --green "Preprocessing Fortran source to CMakeFiles/glimmercismfortran.dir/libglide/glide_diagnostics.F90.i"
-	/glade/u/apps/derecho/23.06/spack/opt/spack/ncarcompilers/1.0.0/oneapi/2023.0.0/ec7b/bin/mpi/mpif90 $(Fortran_DEFINES) $(Fortran_INCLUDES) $(Fortran_FLAGS) -E /glade/u/home/tvda/CISM/libglide/glide_diagnostics.F90 > CMakeFiles/glimmercismfortran.dir/libglide/glide_diagnostics.F90.i
+	/glade/u/apps/derecho/23.09/spack/opt/spack/intel-oneapi-mpi/2021.10.0/oneapi/2023.2.1/ve6v/bin/mpif90 $(Fortran_DEFINES) $(Fortran_INCLUDES) $(Fortran_FLAGS) -E /glade/u/home/tvda/CISM/libglide/glide_diagnostics.F90 > CMakeFiles/glimmercismfortran.dir/libglide/glide_diagnostics.F90.i
 
 CMakeFiles/glimmercismfortran.dir/libglide/glide_diagnostics.F90.s: cmake_force
 	@$(CMAKE_COMMAND) -E cmake_echo_color --switch=$(COLOR) --green "Compiling Fortran source to assembly CMakeFiles/glimmercismfortran.dir/libglide/glide_diagnostics.F90.s"
-	/glade/u/apps/derecho/23.06/spack/opt/spack/ncarcompilers/1.0.0/oneapi/2023.0.0/ec7b/bin/mpi/mpif90 $(Fortran_DEFINES) $(Fortran_INCLUDES) $(Fortran_FLAGS) -S /glade/u/home/tvda/CISM/libglide/glide_diagnostics.F90 -o CMakeFiles/glimmercismfortran.dir/libglide/glide_diagnostics.F90.s
+	/glade/u/apps/derecho/23.09/spack/opt/spack/intel-oneapi-mpi/2021.10.0/oneapi/2023.2.1/ve6v/bin/mpif90 $(Fortran_DEFINES) $(Fortran_INCLUDES) $(Fortran_FLAGS) -S /glade/u/home/tvda/CISM/libglide/glide_diagnostics.F90 -o CMakeFiles/glimmercismfortran.dir/libglide/glide_diagnostics.F90.s
 
 CMakeFiles/glimmercismfortran.dir/libglide/glide_grid_operators.F90.o: CMakeFiles/glimmercismfortran.dir/flags.make
 CMakeFiles/glimmercismfortran.dir/libglide/glide_grid_operators.F90.o: /glade/u/home/tvda/CISM/libglide/glide_grid_operators.F90
 	@$(CMAKE_COMMAND) -E cmake_echo_color --switch=$(COLOR) --green --progress-dir=/glade/u/home/tvda/CISM/builds/derecho-intel/CMakeFiles --progress-num=$(CMAKE_PROGRESS_19) "Building Fortran object CMakeFiles/glimmercismfortran.dir/libglide/glide_grid_operators.F90.o"
-	/glade/u/apps/derecho/23.06/spack/opt/spack/ncarcompilers/1.0.0/oneapi/2023.0.0/ec7b/bin/mpi/mpif90 $(Fortran_DEFINES) $(Fortran_INCLUDES) $(Fortran_FLAGS) -c /glade/u/home/tvda/CISM/libglide/glide_grid_operators.F90 -o CMakeFiles/glimmercismfortran.dir/libglide/glide_grid_operators.F90.o
+	/glade/u/apps/derecho/23.09/spack/opt/spack/intel-oneapi-mpi/2021.10.0/oneapi/2023.2.1/ve6v/bin/mpif90 $(Fortran_DEFINES) $(Fortran_INCLUDES) $(Fortran_FLAGS) -c /glade/u/home/tvda/CISM/libglide/glide_grid_operators.F90 -o CMakeFiles/glimmercismfortran.dir/libglide/glide_grid_operators.F90.o
 
 CMakeFiles/glimmercismfortran.dir/libglide/glide_grid_operators.F90.i: cmake_force
 	@$(CMAKE_COMMAND) -E cmake_echo_color --switch=$(COLOR) --green "Preprocessing Fortran source to CMakeFiles/glimmercismfortran.dir/libglide/glide_grid_operators.F90.i"
-	/glade/u/apps/derecho/23.06/spack/opt/spack/ncarcompilers/1.0.0/oneapi/2023.0.0/ec7b/bin/mpi/mpif90 $(Fortran_DEFINES) $(Fortran_INCLUDES) $(Fortran_FLAGS) -E /glade/u/home/tvda/CISM/libglide/glide_grid_operators.F90 > CMakeFiles/glimmercismfortran.dir/libglide/glide_grid_operators.F90.i
+	/glade/u/apps/derecho/23.09/spack/opt/spack/intel-oneapi-mpi/2021.10.0/oneapi/2023.2.1/ve6v/bin/mpif90 $(Fortran_DEFINES) $(Fortran_INCLUDES) $(Fortran_FLAGS) -E /glade/u/home/tvda/CISM/libglide/glide_grid_operators.F90 > CMakeFiles/glimmercismfortran.dir/libglide/glide_grid_operators.F90.i
 
 CMakeFiles/glimmercismfortran.dir/libglide/glide_grid_operators.F90.s: cmake_force
 	@$(CMAKE_COMMAND) -E cmake_echo_color --switch=$(COLOR) --green "Compiling Fortran source to assembly CMakeFiles/glimmercismfortran.dir/libglide/glide_grid_operators.F90.s"
-	/glade/u/apps/derecho/23.06/spack/opt/spack/ncarcompilers/1.0.0/oneapi/2023.0.0/ec7b/bin/mpi/mpif90 $(Fortran_DEFINES) $(Fortran_INCLUDES) $(Fortran_FLAGS) -S /glade/u/home/tvda/CISM/libglide/glide_grid_operators.F90 -o CMakeFiles/glimmercismfortran.dir/libglide/glide_grid_operators.F90.s
+	/glade/u/apps/derecho/23.09/spack/opt/spack/intel-oneapi-mpi/2021.10.0/oneapi/2023.2.1/ve6v/bin/mpif90 $(Fortran_DEFINES) $(Fortran_INCLUDES) $(Fortran_FLAGS) -S /glade/u/home/tvda/CISM/libglide/glide_grid_operators.F90 -o CMakeFiles/glimmercismfortran.dir/libglide/glide_grid_operators.F90.s
 
 CMakeFiles/glimmercismfortran.dir/libglide/glide_ground.F90.o: CMakeFiles/glimmercismfortran.dir/flags.make
 CMakeFiles/glimmercismfortran.dir/libglide/glide_ground.F90.o: /glade/u/home/tvda/CISM/libglide/glide_ground.F90
 	@$(CMAKE_COMMAND) -E cmake_echo_color --switch=$(COLOR) --green --progress-dir=/glade/u/home/tvda/CISM/builds/derecho-intel/CMakeFiles --progress-num=$(CMAKE_PROGRESS_20) "Building Fortran object CMakeFiles/glimmercismfortran.dir/libglide/glide_ground.F90.o"
-	/glade/u/apps/derecho/23.06/spack/opt/spack/ncarcompilers/1.0.0/oneapi/2023.0.0/ec7b/bin/mpi/mpif90 $(Fortran_DEFINES) $(Fortran_INCLUDES) $(Fortran_FLAGS) -c /glade/u/home/tvda/CISM/libglide/glide_ground.F90 -o CMakeFiles/glimmercismfortran.dir/libglide/glide_ground.F90.o
+	/glade/u/apps/derecho/23.09/spack/opt/spack/intel-oneapi-mpi/2021.10.0/oneapi/2023.2.1/ve6v/bin/mpif90 $(Fortran_DEFINES) $(Fortran_INCLUDES) $(Fortran_FLAGS) -c /glade/u/home/tvda/CISM/libglide/glide_ground.F90 -o CMakeFiles/glimmercismfortran.dir/libglide/glide_ground.F90.o
 
 CMakeFiles/glimmercismfortran.dir/libglide/glide_ground.F90.i: cmake_force
 	@$(CMAKE_COMMAND) -E cmake_echo_color --switch=$(COLOR) --green "Preprocessing Fortran source to CMakeFiles/glimmercismfortran.dir/libglide/glide_ground.F90.i"
-	/glade/u/apps/derecho/23.06/spack/opt/spack/ncarcompilers/1.0.0/oneapi/2023.0.0/ec7b/bin/mpi/mpif90 $(Fortran_DEFINES) $(Fortran_INCLUDES) $(Fortran_FLAGS) -E /glade/u/home/tvda/CISM/libglide/glide_ground.F90 > CMakeFiles/glimmercismfortran.dir/libglide/glide_ground.F90.i
+	/glade/u/apps/derecho/23.09/spack/opt/spack/intel-oneapi-mpi/2021.10.0/oneapi/2023.2.1/ve6v/bin/mpif90 $(Fortran_DEFINES) $(Fortran_INCLUDES) $(Fortran_FLAGS) -E /glade/u/home/tvda/CISM/libglide/glide_ground.F90 > CMakeFiles/glimmercismfortran.dir/libglide/glide_ground.F90.i
 
 CMakeFiles/glimmercismfortran.dir/libglide/glide_ground.F90.s: cmake_force
 	@$(CMAKE_COMMAND) -E cmake_echo_color --switch=$(COLOR) --green "Compiling Fortran source to assembly CMakeFiles/glimmercismfortran.dir/libglide/glide_ground.F90.s"
-	/glade/u/apps/derecho/23.06/spack/opt/spack/ncarcompilers/1.0.0/oneapi/2023.0.0/ec7b/bin/mpi/mpif90 $(Fortran_DEFINES) $(Fortran_INCLUDES) $(Fortran_FLAGS) -S /glade/u/home/tvda/CISM/libglide/glide_ground.F90 -o CMakeFiles/glimmercismfortran.dir/libglide/glide_ground.F90.s
+	/glade/u/apps/derecho/23.09/spack/opt/spack/intel-oneapi-mpi/2021.10.0/oneapi/2023.2.1/ve6v/bin/mpif90 $(Fortran_DEFINES) $(Fortran_INCLUDES) $(Fortran_FLAGS) -S /glade/u/home/tvda/CISM/libglide/glide_ground.F90 -o CMakeFiles/glimmercismfortran.dir/libglide/glide_ground.F90.s
 
 CMakeFiles/glimmercismfortran.dir/libglide/glide_lithot.F90.o: CMakeFiles/glimmercismfortran.dir/flags.make
 CMakeFiles/glimmercismfortran.dir/libglide/glide_lithot.F90.o: /glade/u/home/tvda/CISM/libglide/glide_lithot.F90
 	@$(CMAKE_COMMAND) -E cmake_echo_color --switch=$(COLOR) --green --progress-dir=/glade/u/home/tvda/CISM/builds/derecho-intel/CMakeFiles --progress-num=$(CMAKE_PROGRESS_21) "Building Fortran object CMakeFiles/glimmercismfortran.dir/libglide/glide_lithot.F90.o"
-	/glade/u/apps/derecho/23.06/spack/opt/spack/ncarcompilers/1.0.0/oneapi/2023.0.0/ec7b/bin/mpi/mpif90 $(Fortran_DEFINES) $(Fortran_INCLUDES) $(Fortran_FLAGS) -c /glade/u/home/tvda/CISM/libglide/glide_lithot.F90 -o CMakeFiles/glimmercismfortran.dir/libglide/glide_lithot.F90.o
+	/glade/u/apps/derecho/23.09/spack/opt/spack/intel-oneapi-mpi/2021.10.0/oneapi/2023.2.1/ve6v/bin/mpif90 $(Fortran_DEFINES) $(Fortran_INCLUDES) $(Fortran_FLAGS) -c /glade/u/home/tvda/CISM/libglide/glide_lithot.F90 -o CMakeFiles/glimmercismfortran.dir/libglide/glide_lithot.F90.o
 
 CMakeFiles/glimmercismfortran.dir/libglide/glide_lithot.F90.i: cmake_force
 	@$(CMAKE_COMMAND) -E cmake_echo_color --switch=$(COLOR) --green "Preprocessing Fortran source to CMakeFiles/glimmercismfortran.dir/libglide/glide_lithot.F90.i"
-	/glade/u/apps/derecho/23.06/spack/opt/spack/ncarcompilers/1.0.0/oneapi/2023.0.0/ec7b/bin/mpi/mpif90 $(Fortran_DEFINES) $(Fortran_INCLUDES) $(Fortran_FLAGS) -E /glade/u/home/tvda/CISM/libglide/glide_lithot.F90 > CMakeFiles/glimmercismfortran.dir/libglide/glide_lithot.F90.i
+	/glade/u/apps/derecho/23.09/spack/opt/spack/intel-oneapi-mpi/2021.10.0/oneapi/2023.2.1/ve6v/bin/mpif90 $(Fortran_DEFINES) $(Fortran_INCLUDES) $(Fortran_FLAGS) -E /glade/u/home/tvda/CISM/libglide/glide_lithot.F90 > CMakeFiles/glimmercismfortran.dir/libglide/glide_lithot.F90.i
 
 CMakeFiles/glimmercismfortran.dir/libglide/glide_lithot.F90.s: cmake_force
 	@$(CMAKE_COMMAND) -E cmake_echo_color --switch=$(COLOR) --green "Compiling Fortran source to assembly CMakeFiles/glimmercismfortran.dir/libglide/glide_lithot.F90.s"
-	/glade/u/apps/derecho/23.06/spack/opt/spack/ncarcompilers/1.0.0/oneapi/2023.0.0/ec7b/bin/mpi/mpif90 $(Fortran_DEFINES) $(Fortran_INCLUDES) $(Fortran_FLAGS) -S /glade/u/home/tvda/CISM/libglide/glide_lithot.F90 -o CMakeFiles/glimmercismfortran.dir/libglide/glide_lithot.F90.s
+	/glade/u/apps/derecho/23.09/spack/opt/spack/intel-oneapi-mpi/2021.10.0/oneapi/2023.2.1/ve6v/bin/mpif90 $(Fortran_DEFINES) $(Fortran_INCLUDES) $(Fortran_FLAGS) -S /glade/u/home/tvda/CISM/libglide/glide_lithot.F90 -o CMakeFiles/glimmercismfortran.dir/libglide/glide_lithot.F90.s
 
 CMakeFiles/glimmercismfortran.dir/libglide/glide_lithot1d.F90.o: CMakeFiles/glimmercismfortran.dir/flags.make
 CMakeFiles/glimmercismfortran.dir/libglide/glide_lithot1d.F90.o: /glade/u/home/tvda/CISM/libglide/glide_lithot1d.F90
 	@$(CMAKE_COMMAND) -E cmake_echo_color --switch=$(COLOR) --green --progress-dir=/glade/u/home/tvda/CISM/builds/derecho-intel/CMakeFiles --progress-num=$(CMAKE_PROGRESS_22) "Building Fortran object CMakeFiles/glimmercismfortran.dir/libglide/glide_lithot1d.F90.o"
-	/glade/u/apps/derecho/23.06/spack/opt/spack/ncarcompilers/1.0.0/oneapi/2023.0.0/ec7b/bin/mpi/mpif90 $(Fortran_DEFINES) $(Fortran_INCLUDES) $(Fortran_FLAGS) -c /glade/u/home/tvda/CISM/libglide/glide_lithot1d.F90 -o CMakeFiles/glimmercismfortran.dir/libglide/glide_lithot1d.F90.o
+	/glade/u/apps/derecho/23.09/spack/opt/spack/intel-oneapi-mpi/2021.10.0/oneapi/2023.2.1/ve6v/bin/mpif90 $(Fortran_DEFINES) $(Fortran_INCLUDES) $(Fortran_FLAGS) -c /glade/u/home/tvda/CISM/libglide/glide_lithot1d.F90 -o CMakeFiles/glimmercismfortran.dir/libglide/glide_lithot1d.F90.o
 
 CMakeFiles/glimmercismfortran.dir/libglide/glide_lithot1d.F90.i: cmake_force
 	@$(CMAKE_COMMAND) -E cmake_echo_color --switch=$(COLOR) --green "Preprocessing Fortran source to CMakeFiles/glimmercismfortran.dir/libglide/glide_lithot1d.F90.i"
-	/glade/u/apps/derecho/23.06/spack/opt/spack/ncarcompilers/1.0.0/oneapi/2023.0.0/ec7b/bin/mpi/mpif90 $(Fortran_DEFINES) $(Fortran_INCLUDES) $(Fortran_FLAGS) -E /glade/u/home/tvda/CISM/libglide/glide_lithot1d.F90 > CMakeFiles/glimmercismfortran.dir/libglide/glide_lithot1d.F90.i
+	/glade/u/apps/derecho/23.09/spack/opt/spack/intel-oneapi-mpi/2021.10.0/oneapi/2023.2.1/ve6v/bin/mpif90 $(Fortran_DEFINES) $(Fortran_INCLUDES) $(Fortran_FLAGS) -E /glade/u/home/tvda/CISM/libglide/glide_lithot1d.F90 > CMakeFiles/glimmercismfortran.dir/libglide/glide_lithot1d.F90.i
 
 CMakeFiles/glimmercismfortran.dir/libglide/glide_lithot1d.F90.s: cmake_force
 	@$(CMAKE_COMMAND) -E cmake_echo_color --switch=$(COLOR) --green "Compiling Fortran source to assembly CMakeFiles/glimmercismfortran.dir/libglide/glide_lithot1d.F90.s"
-	/glade/u/apps/derecho/23.06/spack/opt/spack/ncarcompilers/1.0.0/oneapi/2023.0.0/ec7b/bin/mpi/mpif90 $(Fortran_DEFINES) $(Fortran_INCLUDES) $(Fortran_FLAGS) -S /glade/u/home/tvda/CISM/libglide/glide_lithot1d.F90 -o CMakeFiles/glimmercismfortran.dir/libglide/glide_lithot1d.F90.s
+	/glade/u/apps/derecho/23.09/spack/opt/spack/intel-oneapi-mpi/2021.10.0/oneapi/2023.2.1/ve6v/bin/mpif90 $(Fortran_DEFINES) $(Fortran_INCLUDES) $(Fortran_FLAGS) -S /glade/u/home/tvda/CISM/libglide/glide_lithot1d.F90 -o CMakeFiles/glimmercismfortran.dir/libglide/glide_lithot1d.F90.s
 
 CMakeFiles/glimmercismfortran.dir/libglide/glide_lithot3d.F90.o: CMakeFiles/glimmercismfortran.dir/flags.make
 CMakeFiles/glimmercismfortran.dir/libglide/glide_lithot3d.F90.o: /glade/u/home/tvda/CISM/libglide/glide_lithot3d.F90
 	@$(CMAKE_COMMAND) -E cmake_echo_color --switch=$(COLOR) --green --progress-dir=/glade/u/home/tvda/CISM/builds/derecho-intel/CMakeFiles --progress-num=$(CMAKE_PROGRESS_23) "Building Fortran object CMakeFiles/glimmercismfortran.dir/libglide/glide_lithot3d.F90.o"
-	/glade/u/apps/derecho/23.06/spack/opt/spack/ncarcompilers/1.0.0/oneapi/2023.0.0/ec7b/bin/mpi/mpif90 $(Fortran_DEFINES) $(Fortran_INCLUDES) $(Fortran_FLAGS) -c /glade/u/home/tvda/CISM/libglide/glide_lithot3d.F90 -o CMakeFiles/glimmercismfortran.dir/libglide/glide_lithot3d.F90.o
+	/glade/u/apps/derecho/23.09/spack/opt/spack/intel-oneapi-mpi/2021.10.0/oneapi/2023.2.1/ve6v/bin/mpif90 $(Fortran_DEFINES) $(Fortran_INCLUDES) $(Fortran_FLAGS) -c /glade/u/home/tvda/CISM/libglide/glide_lithot3d.F90 -o CMakeFiles/glimmercismfortran.dir/libglide/glide_lithot3d.F90.o
 
 CMakeFiles/glimmercismfortran.dir/libglide/glide_lithot3d.F90.i: cmake_force
 	@$(CMAKE_COMMAND) -E cmake_echo_color --switch=$(COLOR) --green "Preprocessing Fortran source to CMakeFiles/glimmercismfortran.dir/libglide/glide_lithot3d.F90.i"
-	/glade/u/apps/derecho/23.06/spack/opt/spack/ncarcompilers/1.0.0/oneapi/2023.0.0/ec7b/bin/mpi/mpif90 $(Fortran_DEFINES) $(Fortran_INCLUDES) $(Fortran_FLAGS) -E /glade/u/home/tvda/CISM/libglide/glide_lithot3d.F90 > CMakeFiles/glimmercismfortran.dir/libglide/glide_lithot3d.F90.i
+	/glade/u/apps/derecho/23.09/spack/opt/spack/intel-oneapi-mpi/2021.10.0/oneapi/2023.2.1/ve6v/bin/mpif90 $(Fortran_DEFINES) $(Fortran_INCLUDES) $(Fortran_FLAGS) -E /glade/u/home/tvda/CISM/libglide/glide_lithot3d.F90 > CMakeFiles/glimmercismfortran.dir/libglide/glide_lithot3d.F90.i
 
 CMakeFiles/glimmercismfortran.dir/libglide/glide_lithot3d.F90.s: cmake_force
 	@$(CMAKE_COMMAND) -E cmake_echo_color --switch=$(COLOR) --green "Compiling Fortran source to assembly CMakeFiles/glimmercismfortran.dir/libglide/glide_lithot3d.F90.s"
-	/glade/u/apps/derecho/23.06/spack/opt/spack/ncarcompilers/1.0.0/oneapi/2023.0.0/ec7b/bin/mpi/mpif90 $(Fortran_DEFINES) $(Fortran_INCLUDES) $(Fortran_FLAGS) -S /glade/u/home/tvda/CISM/libglide/glide_lithot3d.F90 -o CMakeFiles/glimmercismfortran.dir/libglide/glide_lithot3d.F90.s
+	/glade/u/apps/derecho/23.09/spack/opt/spack/intel-oneapi-mpi/2021.10.0/oneapi/2023.2.1/ve6v/bin/mpif90 $(Fortran_DEFINES) $(Fortran_INCLUDES) $(Fortran_FLAGS) -S /glade/u/home/tvda/CISM/libglide/glide_lithot3d.F90 -o CMakeFiles/glimmercismfortran.dir/libglide/glide_lithot3d.F90.s
 
 CMakeFiles/glimmercismfortran.dir/libglide/glide_mask.F90.o: CMakeFiles/glimmercismfortran.dir/flags.make
 CMakeFiles/glimmercismfortran.dir/libglide/glide_mask.F90.o: /glade/u/home/tvda/CISM/libglide/glide_mask.F90
 	@$(CMAKE_COMMAND) -E cmake_echo_color --switch=$(COLOR) --green --progress-dir=/glade/u/home/tvda/CISM/builds/derecho-intel/CMakeFiles --progress-num=$(CMAKE_PROGRESS_24) "Building Fortran object CMakeFiles/glimmercismfortran.dir/libglide/glide_mask.F90.o"
-	/glade/u/apps/derecho/23.06/spack/opt/spack/ncarcompilers/1.0.0/oneapi/2023.0.0/ec7b/bin/mpi/mpif90 $(Fortran_DEFINES) $(Fortran_INCLUDES) $(Fortran_FLAGS) -c /glade/u/home/tvda/CISM/libglide/glide_mask.F90 -o CMakeFiles/glimmercismfortran.dir/libglide/glide_mask.F90.o
+	/glade/u/apps/derecho/23.09/spack/opt/spack/intel-oneapi-mpi/2021.10.0/oneapi/2023.2.1/ve6v/bin/mpif90 $(Fortran_DEFINES) $(Fortran_INCLUDES) $(Fortran_FLAGS) -c /glade/u/home/tvda/CISM/libglide/glide_mask.F90 -o CMakeFiles/glimmercismfortran.dir/libglide/glide_mask.F90.o
 
 CMakeFiles/glimmercismfortran.dir/libglide/glide_mask.F90.i: cmake_force
 	@$(CMAKE_COMMAND) -E cmake_echo_color --switch=$(COLOR) --green "Preprocessing Fortran source to CMakeFiles/glimmercismfortran.dir/libglide/glide_mask.F90.i"
-	/glade/u/apps/derecho/23.06/spack/opt/spack/ncarcompilers/1.0.0/oneapi/2023.0.0/ec7b/bin/mpi/mpif90 $(Fortran_DEFINES) $(Fortran_INCLUDES) $(Fortran_FLAGS) -E /glade/u/home/tvda/CISM/libglide/glide_mask.F90 > CMakeFiles/glimmercismfortran.dir/libglide/glide_mask.F90.i
+	/glade/u/apps/derecho/23.09/spack/opt/spack/intel-oneapi-mpi/2021.10.0/oneapi/2023.2.1/ve6v/bin/mpif90 $(Fortran_DEFINES) $(Fortran_INCLUDES) $(Fortran_FLAGS) -E /glade/u/home/tvda/CISM/libglide/glide_mask.F90 > CMakeFiles/glimmercismfortran.dir/libglide/glide_mask.F90.i
 
 CMakeFiles/glimmercismfortran.dir/libglide/glide_mask.F90.s: cmake_force
 	@$(CMAKE_COMMAND) -E cmake_echo_color --switch=$(COLOR) --green "Compiling Fortran source to assembly CMakeFiles/glimmercismfortran.dir/libglide/glide_mask.F90.s"
-	/glade/u/apps/derecho/23.06/spack/opt/spack/ncarcompilers/1.0.0/oneapi/2023.0.0/ec7b/bin/mpi/mpif90 $(Fortran_DEFINES) $(Fortran_INCLUDES) $(Fortran_FLAGS) -S /glade/u/home/tvda/CISM/libglide/glide_mask.F90 -o CMakeFiles/glimmercismfortran.dir/libglide/glide_mask.F90.s
+	/glade/u/apps/derecho/23.09/spack/opt/spack/intel-oneapi-mpi/2021.10.0/oneapi/2023.2.1/ve6v/bin/mpif90 $(Fortran_DEFINES) $(Fortran_INCLUDES) $(Fortran_FLAGS) -S /glade/u/home/tvda/CISM/libglide/glide_mask.F90 -o CMakeFiles/glimmercismfortran.dir/libglide/glide_mask.F90.s
 
 CMakeFiles/glimmercismfortran.dir/libglide/glide_model_registry.F90.o: CMakeFiles/glimmercismfortran.dir/flags.make
 CMakeFiles/glimmercismfortran.dir/libglide/glide_model_registry.F90.o: /glade/u/home/tvda/CISM/libglide/glide_model_registry.F90
 	@$(CMAKE_COMMAND) -E cmake_echo_color --switch=$(COLOR) --green --progress-dir=/glade/u/home/tvda/CISM/builds/derecho-intel/CMakeFiles --progress-num=$(CMAKE_PROGRESS_25) "Building Fortran object CMakeFiles/glimmercismfortran.dir/libglide/glide_model_registry.F90.o"
-	/glade/u/apps/derecho/23.06/spack/opt/spack/ncarcompilers/1.0.0/oneapi/2023.0.0/ec7b/bin/mpi/mpif90 $(Fortran_DEFINES) $(Fortran_INCLUDES) $(Fortran_FLAGS) -c /glade/u/home/tvda/CISM/libglide/glide_model_registry.F90 -o CMakeFiles/glimmercismfortran.dir/libglide/glide_model_registry.F90.o
+	/glade/u/apps/derecho/23.09/spack/opt/spack/intel-oneapi-mpi/2021.10.0/oneapi/2023.2.1/ve6v/bin/mpif90 $(Fortran_DEFINES) $(Fortran_INCLUDES) $(Fortran_FLAGS) -c /glade/u/home/tvda/CISM/libglide/glide_model_registry.F90 -o CMakeFiles/glimmercismfortran.dir/libglide/glide_model_registry.F90.o
 
 CMakeFiles/glimmercismfortran.dir/libglide/glide_model_registry.F90.i: cmake_force
 	@$(CMAKE_COMMAND) -E cmake_echo_color --switch=$(COLOR) --green "Preprocessing Fortran source to CMakeFiles/glimmercismfortran.dir/libglide/glide_model_registry.F90.i"
-	/glade/u/apps/derecho/23.06/spack/opt/spack/ncarcompilers/1.0.0/oneapi/2023.0.0/ec7b/bin/mpi/mpif90 $(Fortran_DEFINES) $(Fortran_INCLUDES) $(Fortran_FLAGS) -E /glade/u/home/tvda/CISM/libglide/glide_model_registry.F90 > CMakeFiles/glimmercismfortran.dir/libglide/glide_model_registry.F90.i
+	/glade/u/apps/derecho/23.09/spack/opt/spack/intel-oneapi-mpi/2021.10.0/oneapi/2023.2.1/ve6v/bin/mpif90 $(Fortran_DEFINES) $(Fortran_INCLUDES) $(Fortran_FLAGS) -E /glade/u/home/tvda/CISM/libglide/glide_model_registry.F90 > CMakeFiles/glimmercismfortran.dir/libglide/glide_model_registry.F90.i
 
 CMakeFiles/glimmercismfortran.dir/libglide/glide_model_registry.F90.s: cmake_force
 	@$(CMAKE_COMMAND) -E cmake_echo_color --switch=$(COLOR) --green "Compiling Fortran source to assembly CMakeFiles/glimmercismfortran.dir/libglide/glide_model_registry.F90.s"
-	/glade/u/apps/derecho/23.06/spack/opt/spack/ncarcompilers/1.0.0/oneapi/2023.0.0/ec7b/bin/mpi/mpif90 $(Fortran_DEFINES) $(Fortran_INCLUDES) $(Fortran_FLAGS) -S /glade/u/home/tvda/CISM/libglide/glide_model_registry.F90 -o CMakeFiles/glimmercismfortran.dir/libglide/glide_model_registry.F90.s
+	/glade/u/apps/derecho/23.09/spack/opt/spack/intel-oneapi-mpi/2021.10.0/oneapi/2023.2.1/ve6v/bin/mpif90 $(Fortran_DEFINES) $(Fortran_INCLUDES) $(Fortran_FLAGS) -S /glade/u/home/tvda/CISM/libglide/glide_model_registry.F90 -o CMakeFiles/glimmercismfortran.dir/libglide/glide_model_registry.F90.s
 
 CMakeFiles/glimmercismfortran.dir/libglide/glide_nc_custom.F90.o: CMakeFiles/glimmercismfortran.dir/flags.make
 CMakeFiles/glimmercismfortran.dir/libglide/glide_nc_custom.F90.o: /glade/u/home/tvda/CISM/libglide/glide_nc_custom.F90
 	@$(CMAKE_COMMAND) -E cmake_echo_color --switch=$(COLOR) --green --progress-dir=/glade/u/home/tvda/CISM/builds/derecho-intel/CMakeFiles --progress-num=$(CMAKE_PROGRESS_26) "Building Fortran object CMakeFiles/glimmercismfortran.dir/libglide/glide_nc_custom.F90.o"
-	/glade/u/apps/derecho/23.06/spack/opt/spack/ncarcompilers/1.0.0/oneapi/2023.0.0/ec7b/bin/mpi/mpif90 $(Fortran_DEFINES) $(Fortran_INCLUDES) $(Fortran_FLAGS) -c /glade/u/home/tvda/CISM/libglide/glide_nc_custom.F90 -o CMakeFiles/glimmercismfortran.dir/libglide/glide_nc_custom.F90.o
+	/glade/u/apps/derecho/23.09/spack/opt/spack/intel-oneapi-mpi/2021.10.0/oneapi/2023.2.1/ve6v/bin/mpif90 $(Fortran_DEFINES) $(Fortran_INCLUDES) $(Fortran_FLAGS) -c /glade/u/home/tvda/CISM/libglide/glide_nc_custom.F90 -o CMakeFiles/glimmercismfortran.dir/libglide/glide_nc_custom.F90.o
 
 CMakeFiles/glimmercismfortran.dir/libglide/glide_nc_custom.F90.i: cmake_force
 	@$(CMAKE_COMMAND) -E cmake_echo_color --switch=$(COLOR) --green "Preprocessing Fortran source to CMakeFiles/glimmercismfortran.dir/libglide/glide_nc_custom.F90.i"
-	/glade/u/apps/derecho/23.06/spack/opt/spack/ncarcompilers/1.0.0/oneapi/2023.0.0/ec7b/bin/mpi/mpif90 $(Fortran_DEFINES) $(Fortran_INCLUDES) $(Fortran_FLAGS) -E /glade/u/home/tvda/CISM/libglide/glide_nc_custom.F90 > CMakeFiles/glimmercismfortran.dir/libglide/glide_nc_custom.F90.i
+	/glade/u/apps/derecho/23.09/spack/opt/spack/intel-oneapi-mpi/2021.10.0/oneapi/2023.2.1/ve6v/bin/mpif90 $(Fortran_DEFINES) $(Fortran_INCLUDES) $(Fortran_FLAGS) -E /glade/u/home/tvda/CISM/libglide/glide_nc_custom.F90 > CMakeFiles/glimmercismfortran.dir/libglide/glide_nc_custom.F90.i
 
 CMakeFiles/glimmercismfortran.dir/libglide/glide_nc_custom.F90.s: cmake_force
 	@$(CMAKE_COMMAND) -E cmake_echo_color --switch=$(COLOR) --green "Compiling Fortran source to assembly CMakeFiles/glimmercismfortran.dir/libglide/glide_nc_custom.F90.s"
-	/glade/u/apps/derecho/23.06/spack/opt/spack/ncarcompilers/1.0.0/oneapi/2023.0.0/ec7b/bin/mpi/mpif90 $(Fortran_DEFINES) $(Fortran_INCLUDES) $(Fortran_FLAGS) -S /glade/u/home/tvda/CISM/libglide/glide_nc_custom.F90 -o CMakeFiles/glimmercismfortran.dir/libglide/glide_nc_custom.F90.s
+	/glade/u/apps/derecho/23.09/spack/opt/spack/intel-oneapi-mpi/2021.10.0/oneapi/2023.2.1/ve6v/bin/mpif90 $(Fortran_DEFINES) $(Fortran_INCLUDES) $(Fortran_FLAGS) -S /glade/u/home/tvda/CISM/libglide/glide_nc_custom.F90 -o CMakeFiles/glimmercismfortran.dir/libglide/glide_nc_custom.F90.s
 
 CMakeFiles/glimmercismfortran.dir/libglide/glide_nonlin.F90.o: CMakeFiles/glimmercismfortran.dir/flags.make
 CMakeFiles/glimmercismfortran.dir/libglide/glide_nonlin.F90.o: /glade/u/home/tvda/CISM/libglide/glide_nonlin.F90
 	@$(CMAKE_COMMAND) -E cmake_echo_color --switch=$(COLOR) --green --progress-dir=/glade/u/home/tvda/CISM/builds/derecho-intel/CMakeFiles --progress-num=$(CMAKE_PROGRESS_27) "Building Fortran object CMakeFiles/glimmercismfortran.dir/libglide/glide_nonlin.F90.o"
-	/glade/u/apps/derecho/23.06/spack/opt/spack/ncarcompilers/1.0.0/oneapi/2023.0.0/ec7b/bin/mpi/mpif90 $(Fortran_DEFINES) $(Fortran_INCLUDES) $(Fortran_FLAGS) -c /glade/u/home/tvda/CISM/libglide/glide_nonlin.F90 -o CMakeFiles/glimmercismfortran.dir/libglide/glide_nonlin.F90.o
+	/glade/u/apps/derecho/23.09/spack/opt/spack/intel-oneapi-mpi/2021.10.0/oneapi/2023.2.1/ve6v/bin/mpif90 $(Fortran_DEFINES) $(Fortran_INCLUDES) $(Fortran_FLAGS) -c /glade/u/home/tvda/CISM/libglide/glide_nonlin.F90 -o CMakeFiles/glimmercismfortran.dir/libglide/glide_nonlin.F90.o
 
 CMakeFiles/glimmercismfortran.dir/libglide/glide_nonlin.F90.i: cmake_force
 	@$(CMAKE_COMMAND) -E cmake_echo_color --switch=$(COLOR) --green "Preprocessing Fortran source to CMakeFiles/glimmercismfortran.dir/libglide/glide_nonlin.F90.i"
-	/glade/u/apps/derecho/23.06/spack/opt/spack/ncarcompilers/1.0.0/oneapi/2023.0.0/ec7b/bin/mpi/mpif90 $(Fortran_DEFINES) $(Fortran_INCLUDES) $(Fortran_FLAGS) -E /glade/u/home/tvda/CISM/libglide/glide_nonlin.F90 > CMakeFiles/glimmercismfortran.dir/libglide/glide_nonlin.F90.i
+	/glade/u/apps/derecho/23.09/spack/opt/spack/intel-oneapi-mpi/2021.10.0/oneapi/2023.2.1/ve6v/bin/mpif90 $(Fortran_DEFINES) $(Fortran_INCLUDES) $(Fortran_FLAGS) -E /glade/u/home/tvda/CISM/libglide/glide_nonlin.F90 > CMakeFiles/glimmercismfortran.dir/libglide/glide_nonlin.F90.i
 
 CMakeFiles/glimmercismfortran.dir/libglide/glide_nonlin.F90.s: cmake_force
 	@$(CMAKE_COMMAND) -E cmake_echo_color --switch=$(COLOR) --green "Compiling Fortran source to assembly CMakeFiles/glimmercismfortran.dir/libglide/glide_nonlin.F90.s"
-	/glade/u/apps/derecho/23.06/spack/opt/spack/ncarcompilers/1.0.0/oneapi/2023.0.0/ec7b/bin/mpi/mpif90 $(Fortran_DEFINES) $(Fortran_INCLUDES) $(Fortran_FLAGS) -S /glade/u/home/tvda/CISM/libglide/glide_nonlin.F90 -o CMakeFiles/glimmercismfortran.dir/libglide/glide_nonlin.F90.s
+	/glade/u/apps/derecho/23.09/spack/opt/spack/intel-oneapi-mpi/2021.10.0/oneapi/2023.2.1/ve6v/bin/mpif90 $(Fortran_DEFINES) $(Fortran_INCLUDES) $(Fortran_FLAGS) -S /glade/u/home/tvda/CISM/libglide/glide_nonlin.F90 -o CMakeFiles/glimmercismfortran.dir/libglide/glide_nonlin.F90.s
 
 CMakeFiles/glimmercismfortran.dir/libglide/glide_profile.F90.o: CMakeFiles/glimmercismfortran.dir/flags.make
 CMakeFiles/glimmercismfortran.dir/libglide/glide_profile.F90.o: /glade/u/home/tvda/CISM/libglide/glide_profile.F90
 	@$(CMAKE_COMMAND) -E cmake_echo_color --switch=$(COLOR) --green --progress-dir=/glade/u/home/tvda/CISM/builds/derecho-intel/CMakeFiles --progress-num=$(CMAKE_PROGRESS_28) "Building Fortran object CMakeFiles/glimmercismfortran.dir/libglide/glide_profile.F90.o"
-	/glade/u/apps/derecho/23.06/spack/opt/spack/ncarcompilers/1.0.0/oneapi/2023.0.0/ec7b/bin/mpi/mpif90 $(Fortran_DEFINES) $(Fortran_INCLUDES) $(Fortran_FLAGS) -c /glade/u/home/tvda/CISM/libglide/glide_profile.F90 -o CMakeFiles/glimmercismfortran.dir/libglide/glide_profile.F90.o
+	/glade/u/apps/derecho/23.09/spack/opt/spack/intel-oneapi-mpi/2021.10.0/oneapi/2023.2.1/ve6v/bin/mpif90 $(Fortran_DEFINES) $(Fortran_INCLUDES) $(Fortran_FLAGS) -c /glade/u/home/tvda/CISM/libglide/glide_profile.F90 -o CMakeFiles/glimmercismfortran.dir/libglide/glide_profile.F90.o
 
 CMakeFiles/glimmercismfortran.dir/libglide/glide_profile.F90.i: cmake_force
 	@$(CMAKE_COMMAND) -E cmake_echo_color --switch=$(COLOR) --green "Preprocessing Fortran source to CMakeFiles/glimmercismfortran.dir/libglide/glide_profile.F90.i"
-	/glade/u/apps/derecho/23.06/spack/opt/spack/ncarcompilers/1.0.0/oneapi/2023.0.0/ec7b/bin/mpi/mpif90 $(Fortran_DEFINES) $(Fortran_INCLUDES) $(Fortran_FLAGS) -E /glade/u/home/tvda/CISM/libglide/glide_profile.F90 > CMakeFiles/glimmercismfortran.dir/libglide/glide_profile.F90.i
+	/glade/u/apps/derecho/23.09/spack/opt/spack/intel-oneapi-mpi/2021.10.0/oneapi/2023.2.1/ve6v/bin/mpif90 $(Fortran_DEFINES) $(Fortran_INCLUDES) $(Fortran_FLAGS) -E /glade/u/home/tvda/CISM/libglide/glide_profile.F90 > CMakeFiles/glimmercismfortran.dir/libglide/glide_profile.F90.i
 
 CMakeFiles/glimmercismfortran.dir/libglide/glide_profile.F90.s: cmake_force
 	@$(CMAKE_COMMAND) -E cmake_echo_color --switch=$(COLOR) --green "Compiling Fortran source to assembly CMakeFiles/glimmercismfortran.dir/libglide/glide_profile.F90.s"
-	/glade/u/apps/derecho/23.06/spack/opt/spack/ncarcompilers/1.0.0/oneapi/2023.0.0/ec7b/bin/mpi/mpif90 $(Fortran_DEFINES) $(Fortran_INCLUDES) $(Fortran_FLAGS) -S /glade/u/home/tvda/CISM/libglide/glide_profile.F90 -o CMakeFiles/glimmercismfortran.dir/libglide/glide_profile.F90.s
+	/glade/u/apps/derecho/23.09/spack/opt/spack/intel-oneapi-mpi/2021.10.0/oneapi/2023.2.1/ve6v/bin/mpif90 $(Fortran_DEFINES) $(Fortran_INCLUDES) $(Fortran_FLAGS) -S /glade/u/home/tvda/CISM/libglide/glide_profile.F90 -o CMakeFiles/glimmercismfortran.dir/libglide/glide_profile.F90.s
 
 CMakeFiles/glimmercismfortran.dir/libglide/glide_setup.F90.o: CMakeFiles/glimmercismfortran.dir/flags.make
 CMakeFiles/glimmercismfortran.dir/libglide/glide_setup.F90.o: /glade/u/home/tvda/CISM/libglide/glide_setup.F90
 	@$(CMAKE_COMMAND) -E cmake_echo_color --switch=$(COLOR) --green --progress-dir=/glade/u/home/tvda/CISM/builds/derecho-intel/CMakeFiles --progress-num=$(CMAKE_PROGRESS_29) "Building Fortran object CMakeFiles/glimmercismfortran.dir/libglide/glide_setup.F90.o"
-	/glade/u/apps/derecho/23.06/spack/opt/spack/ncarcompilers/1.0.0/oneapi/2023.0.0/ec7b/bin/mpi/mpif90 $(Fortran_DEFINES) $(Fortran_INCLUDES) $(Fortran_FLAGS) -c /glade/u/home/tvda/CISM/libglide/glide_setup.F90 -o CMakeFiles/glimmercismfortran.dir/libglide/glide_setup.F90.o
+	/glade/u/apps/derecho/23.09/spack/opt/spack/intel-oneapi-mpi/2021.10.0/oneapi/2023.2.1/ve6v/bin/mpif90 $(Fortran_DEFINES) $(Fortran_INCLUDES) $(Fortran_FLAGS) -c /glade/u/home/tvda/CISM/libglide/glide_setup.F90 -o CMakeFiles/glimmercismfortran.dir/libglide/glide_setup.F90.o
 
 CMakeFiles/glimmercismfortran.dir/libglide/glide_setup.F90.i: cmake_force
 	@$(CMAKE_COMMAND) -E cmake_echo_color --switch=$(COLOR) --green "Preprocessing Fortran source to CMakeFiles/glimmercismfortran.dir/libglide/glide_setup.F90.i"
-	/glade/u/apps/derecho/23.06/spack/opt/spack/ncarcompilers/1.0.0/oneapi/2023.0.0/ec7b/bin/mpi/mpif90 $(Fortran_DEFINES) $(Fortran_INCLUDES) $(Fortran_FLAGS) -E /glade/u/home/tvda/CISM/libglide/glide_setup.F90 > CMakeFiles/glimmercismfortran.dir/libglide/glide_setup.F90.i
+	/glade/u/apps/derecho/23.09/spack/opt/spack/intel-oneapi-mpi/2021.10.0/oneapi/2023.2.1/ve6v/bin/mpif90 $(Fortran_DEFINES) $(Fortran_INCLUDES) $(Fortran_FLAGS) -E /glade/u/home/tvda/CISM/libglide/glide_setup.F90 > CMakeFiles/glimmercismfortran.dir/libglide/glide_setup.F90.i
 
 CMakeFiles/glimmercismfortran.dir/libglide/glide_setup.F90.s: cmake_force
 	@$(CMAKE_COMMAND) -E cmake_echo_color --switch=$(COLOR) --green "Compiling Fortran source to assembly CMakeFiles/glimmercismfortran.dir/libglide/glide_setup.F90.s"
-	/glade/u/apps/derecho/23.06/spack/opt/spack/ncarcompilers/1.0.0/oneapi/2023.0.0/ec7b/bin/mpi/mpif90 $(Fortran_DEFINES) $(Fortran_INCLUDES) $(Fortran_FLAGS) -S /glade/u/home/tvda/CISM/libglide/glide_setup.F90 -o CMakeFiles/glimmercismfortran.dir/libglide/glide_setup.F90.s
+	/glade/u/apps/derecho/23.09/spack/opt/spack/intel-oneapi-mpi/2021.10.0/oneapi/2023.2.1/ve6v/bin/mpif90 $(Fortran_DEFINES) $(Fortran_INCLUDES) $(Fortran_FLAGS) -S /glade/u/home/tvda/CISM/libglide/glide_setup.F90 -o CMakeFiles/glimmercismfortran.dir/libglide/glide_setup.F90.s
 
 CMakeFiles/glimmercismfortran.dir/libglide/glide_stop.F90.o: CMakeFiles/glimmercismfortran.dir/flags.make
 CMakeFiles/glimmercismfortran.dir/libglide/glide_stop.F90.o: /glade/u/home/tvda/CISM/libglide/glide_stop.F90
 	@$(CMAKE_COMMAND) -E cmake_echo_color --switch=$(COLOR) --green --progress-dir=/glade/u/home/tvda/CISM/builds/derecho-intel/CMakeFiles --progress-num=$(CMAKE_PROGRESS_30) "Building Fortran object CMakeFiles/glimmercismfortran.dir/libglide/glide_stop.F90.o"
-	/glade/u/apps/derecho/23.06/spack/opt/spack/ncarcompilers/1.0.0/oneapi/2023.0.0/ec7b/bin/mpi/mpif90 $(Fortran_DEFINES) $(Fortran_INCLUDES) $(Fortran_FLAGS) -c /glade/u/home/tvda/CISM/libglide/glide_stop.F90 -o CMakeFiles/glimmercismfortran.dir/libglide/glide_stop.F90.o
+	/glade/u/apps/derecho/23.09/spack/opt/spack/intel-oneapi-mpi/2021.10.0/oneapi/2023.2.1/ve6v/bin/mpif90 $(Fortran_DEFINES) $(Fortran_INCLUDES) $(Fortran_FLAGS) -c /glade/u/home/tvda/CISM/libglide/glide_stop.F90 -o CMakeFiles/glimmercismfortran.dir/libglide/glide_stop.F90.o
 
 CMakeFiles/glimmercismfortran.dir/libglide/glide_stop.F90.i: cmake_force
 	@$(CMAKE_COMMAND) -E cmake_echo_color --switch=$(COLOR) --green "Preprocessing Fortran source to CMakeFiles/glimmercismfortran.dir/libglide/glide_stop.F90.i"
-	/glade/u/apps/derecho/23.06/spack/opt/spack/ncarcompilers/1.0.0/oneapi/2023.0.0/ec7b/bin/mpi/mpif90 $(Fortran_DEFINES) $(Fortran_INCLUDES) $(Fortran_FLAGS) -E /glade/u/home/tvda/CISM/libglide/glide_stop.F90 > CMakeFiles/glimmercismfortran.dir/libglide/glide_stop.F90.i
+	/glade/u/apps/derecho/23.09/spack/opt/spack/intel-oneapi-mpi/2021.10.0/oneapi/2023.2.1/ve6v/bin/mpif90 $(Fortran_DEFINES) $(Fortran_INCLUDES) $(Fortran_FLAGS) -E /glade/u/home/tvda/CISM/libglide/glide_stop.F90 > CMakeFiles/glimmercismfortran.dir/libglide/glide_stop.F90.i
 
 CMakeFiles/glimmercismfortran.dir/libglide/glide_stop.F90.s: cmake_force
 	@$(CMAKE_COMMAND) -E cmake_echo_color --switch=$(COLOR) --green "Compiling Fortran source to assembly CMakeFiles/glimmercismfortran.dir/libglide/glide_stop.F90.s"
-	/glade/u/apps/derecho/23.06/spack/opt/spack/ncarcompilers/1.0.0/oneapi/2023.0.0/ec7b/bin/mpi/mpif90 $(Fortran_DEFINES) $(Fortran_INCLUDES) $(Fortran_FLAGS) -S /glade/u/home/tvda/CISM/libglide/glide_stop.F90 -o CMakeFiles/glimmercismfortran.dir/libglide/glide_stop.F90.s
+	/glade/u/apps/derecho/23.09/spack/opt/spack/intel-oneapi-mpi/2021.10.0/oneapi/2023.2.1/ve6v/bin/mpif90 $(Fortran_DEFINES) $(Fortran_INCLUDES) $(Fortran_FLAGS) -S /glade/u/home/tvda/CISM/libglide/glide_stop.F90 -o CMakeFiles/glimmercismfortran.dir/libglide/glide_stop.F90.s
 
 CMakeFiles/glimmercismfortran.dir/libglide/glide_temp.F90.o: CMakeFiles/glimmercismfortran.dir/flags.make
 CMakeFiles/glimmercismfortran.dir/libglide/glide_temp.F90.o: /glade/u/home/tvda/CISM/libglide/glide_temp.F90
 	@$(CMAKE_COMMAND) -E cmake_echo_color --switch=$(COLOR) --green --progress-dir=/glade/u/home/tvda/CISM/builds/derecho-intel/CMakeFiles --progress-num=$(CMAKE_PROGRESS_31) "Building Fortran object CMakeFiles/glimmercismfortran.dir/libglide/glide_temp.F90.o"
-	/glade/u/apps/derecho/23.06/spack/opt/spack/ncarcompilers/1.0.0/oneapi/2023.0.0/ec7b/bin/mpi/mpif90 $(Fortran_DEFINES) $(Fortran_INCLUDES) $(Fortran_FLAGS) -c /glade/u/home/tvda/CISM/libglide/glide_temp.F90 -o CMakeFiles/glimmercismfortran.dir/libglide/glide_temp.F90.o
+	/glade/u/apps/derecho/23.09/spack/opt/spack/intel-oneapi-mpi/2021.10.0/oneapi/2023.2.1/ve6v/bin/mpif90 $(Fortran_DEFINES) $(Fortran_INCLUDES) $(Fortran_FLAGS) -c /glade/u/home/tvda/CISM/libglide/glide_temp.F90 -o CMakeFiles/glimmercismfortran.dir/libglide/glide_temp.F90.o
 
 CMakeFiles/glimmercismfortran.dir/libglide/glide_temp.F90.i: cmake_force
 	@$(CMAKE_COMMAND) -E cmake_echo_color --switch=$(COLOR) --green "Preprocessing Fortran source to CMakeFiles/glimmercismfortran.dir/libglide/glide_temp.F90.i"
-	/glade/u/apps/derecho/23.06/spack/opt/spack/ncarcompilers/1.0.0/oneapi/2023.0.0/ec7b/bin/mpi/mpif90 $(Fortran_DEFINES) $(Fortran_INCLUDES) $(Fortran_FLAGS) -E /glade/u/home/tvda/CISM/libglide/glide_temp.F90 > CMakeFiles/glimmercismfortran.dir/libglide/glide_temp.F90.i
+	/glade/u/apps/derecho/23.09/spack/opt/spack/intel-oneapi-mpi/2021.10.0/oneapi/2023.2.1/ve6v/bin/mpif90 $(Fortran_DEFINES) $(Fortran_INCLUDES) $(Fortran_FLAGS) -E /glade/u/home/tvda/CISM/libglide/glide_temp.F90 > CMakeFiles/glimmercismfortran.dir/libglide/glide_temp.F90.i
 
 CMakeFiles/glimmercismfortran.dir/libglide/glide_temp.F90.s: cmake_force
 	@$(CMAKE_COMMAND) -E cmake_echo_color --switch=$(COLOR) --green "Compiling Fortran source to assembly CMakeFiles/glimmercismfortran.dir/libglide/glide_temp.F90.s"
-	/glade/u/apps/derecho/23.06/spack/opt/spack/ncarcompilers/1.0.0/oneapi/2023.0.0/ec7b/bin/mpi/mpif90 $(Fortran_DEFINES) $(Fortran_INCLUDES) $(Fortran_FLAGS) -S /glade/u/home/tvda/CISM/libglide/glide_temp.F90 -o CMakeFiles/glimmercismfortran.dir/libglide/glide_temp.F90.s
+	/glade/u/apps/derecho/23.09/spack/opt/spack/intel-oneapi-mpi/2021.10.0/oneapi/2023.2.1/ve6v/bin/mpif90 $(Fortran_DEFINES) $(Fortran_INCLUDES) $(Fortran_FLAGS) -S /glade/u/home/tvda/CISM/libglide/glide_temp.F90 -o CMakeFiles/glimmercismfortran.dir/libglide/glide_temp.F90.s
 
 CMakeFiles/glimmercismfortran.dir/libglide/glide_thck.F90.o: CMakeFiles/glimmercismfortran.dir/flags.make
 CMakeFiles/glimmercismfortran.dir/libglide/glide_thck.F90.o: /glade/u/home/tvda/CISM/libglide/glide_thck.F90
 	@$(CMAKE_COMMAND) -E cmake_echo_color --switch=$(COLOR) --green --progress-dir=/glade/u/home/tvda/CISM/builds/derecho-intel/CMakeFiles --progress-num=$(CMAKE_PROGRESS_32) "Building Fortran object CMakeFiles/glimmercismfortran.dir/libglide/glide_thck.F90.o"
-	/glade/u/apps/derecho/23.06/spack/opt/spack/ncarcompilers/1.0.0/oneapi/2023.0.0/ec7b/bin/mpi/mpif90 $(Fortran_DEFINES) $(Fortran_INCLUDES) $(Fortran_FLAGS) -c /glade/u/home/tvda/CISM/libglide/glide_thck.F90 -o CMakeFiles/glimmercismfortran.dir/libglide/glide_thck.F90.o
+	/glade/u/apps/derecho/23.09/spack/opt/spack/intel-oneapi-mpi/2021.10.0/oneapi/2023.2.1/ve6v/bin/mpif90 $(Fortran_DEFINES) $(Fortran_INCLUDES) $(Fortran_FLAGS) -c /glade/u/home/tvda/CISM/libglide/glide_thck.F90 -o CMakeFiles/glimmercismfortran.dir/libglide/glide_thck.F90.o
 
 CMakeFiles/glimmercismfortran.dir/libglide/glide_thck.F90.i: cmake_force
 	@$(CMAKE_COMMAND) -E cmake_echo_color --switch=$(COLOR) --green "Preprocessing Fortran source to CMakeFiles/glimmercismfortran.dir/libglide/glide_thck.F90.i"
-	/glade/u/apps/derecho/23.06/spack/opt/spack/ncarcompilers/1.0.0/oneapi/2023.0.0/ec7b/bin/mpi/mpif90 $(Fortran_DEFINES) $(Fortran_INCLUDES) $(Fortran_FLAGS) -E /glade/u/home/tvda/CISM/libglide/glide_thck.F90 > CMakeFiles/glimmercismfortran.dir/libglide/glide_thck.F90.i
+	/glade/u/apps/derecho/23.09/spack/opt/spack/intel-oneapi-mpi/2021.10.0/oneapi/2023.2.1/ve6v/bin/mpif90 $(Fortran_DEFINES) $(Fortran_INCLUDES) $(Fortran_FLAGS) -E /glade/u/home/tvda/CISM/libglide/glide_thck.F90 > CMakeFiles/glimmercismfortran.dir/libglide/glide_thck.F90.i
 
 CMakeFiles/glimmercismfortran.dir/libglide/glide_thck.F90.s: cmake_force
 	@$(CMAKE_COMMAND) -E cmake_echo_color --switch=$(COLOR) --green "Compiling Fortran source to assembly CMakeFiles/glimmercismfortran.dir/libglide/glide_thck.F90.s"
-	/glade/u/apps/derecho/23.06/spack/opt/spack/ncarcompilers/1.0.0/oneapi/2023.0.0/ec7b/bin/mpi/mpif90 $(Fortran_DEFINES) $(Fortran_INCLUDES) $(Fortran_FLAGS) -S /glade/u/home/tvda/CISM/libglide/glide_thck.F90 -o CMakeFiles/glimmercismfortran.dir/libglide/glide_thck.F90.s
+	/glade/u/apps/derecho/23.09/spack/opt/spack/intel-oneapi-mpi/2021.10.0/oneapi/2023.2.1/ve6v/bin/mpif90 $(Fortran_DEFINES) $(Fortran_INCLUDES) $(Fortran_FLAGS) -S /glade/u/home/tvda/CISM/libglide/glide_thck.F90 -o CMakeFiles/glimmercismfortran.dir/libglide/glide_thck.F90.s
 
 CMakeFiles/glimmercismfortran.dir/libglide/glide_types.F90.o: CMakeFiles/glimmercismfortran.dir/flags.make
 CMakeFiles/glimmercismfortran.dir/libglide/glide_types.F90.o: /glade/u/home/tvda/CISM/libglide/glide_types.F90
 	@$(CMAKE_COMMAND) -E cmake_echo_color --switch=$(COLOR) --green --progress-dir=/glade/u/home/tvda/CISM/builds/derecho-intel/CMakeFiles --progress-num=$(CMAKE_PROGRESS_33) "Building Fortran object CMakeFiles/glimmercismfortran.dir/libglide/glide_types.F90.o"
-	/glade/u/apps/derecho/23.06/spack/opt/spack/ncarcompilers/1.0.0/oneapi/2023.0.0/ec7b/bin/mpi/mpif90 $(Fortran_DEFINES) $(Fortran_INCLUDES) $(Fortran_FLAGS) -c /glade/u/home/tvda/CISM/libglide/glide_types.F90 -o CMakeFiles/glimmercismfortran.dir/libglide/glide_types.F90.o
+	/glade/u/apps/derecho/23.09/spack/opt/spack/intel-oneapi-mpi/2021.10.0/oneapi/2023.2.1/ve6v/bin/mpif90 $(Fortran_DEFINES) $(Fortran_INCLUDES) $(Fortran_FLAGS) -c /glade/u/home/tvda/CISM/libglide/glide_types.F90 -o CMakeFiles/glimmercismfortran.dir/libglide/glide_types.F90.o
 
 CMakeFiles/glimmercismfortran.dir/libglide/glide_types.F90.i: cmake_force
 	@$(CMAKE_COMMAND) -E cmake_echo_color --switch=$(COLOR) --green "Preprocessing Fortran source to CMakeFiles/glimmercismfortran.dir/libglide/glide_types.F90.i"
-	/glade/u/apps/derecho/23.06/spack/opt/spack/ncarcompilers/1.0.0/oneapi/2023.0.0/ec7b/bin/mpi/mpif90 $(Fortran_DEFINES) $(Fortran_INCLUDES) $(Fortran_FLAGS) -E /glade/u/home/tvda/CISM/libglide/glide_types.F90 > CMakeFiles/glimmercismfortran.dir/libglide/glide_types.F90.i
+	/glade/u/apps/derecho/23.09/spack/opt/spack/intel-oneapi-mpi/2021.10.0/oneapi/2023.2.1/ve6v/bin/mpif90 $(Fortran_DEFINES) $(Fortran_INCLUDES) $(Fortran_FLAGS) -E /glade/u/home/tvda/CISM/libglide/glide_types.F90 > CMakeFiles/glimmercismfortran.dir/libglide/glide_types.F90.i
 
 CMakeFiles/glimmercismfortran.dir/libglide/glide_types.F90.s: cmake_force
 	@$(CMAKE_COMMAND) -E cmake_echo_color --switch=$(COLOR) --green "Compiling Fortran source to assembly CMakeFiles/glimmercismfortran.dir/libglide/glide_types.F90.s"
-	/glade/u/apps/derecho/23.06/spack/opt/spack/ncarcompilers/1.0.0/oneapi/2023.0.0/ec7b/bin/mpi/mpif90 $(Fortran_DEFINES) $(Fortran_INCLUDES) $(Fortran_FLAGS) -S /glade/u/home/tvda/CISM/libglide/glide_types.F90 -o CMakeFiles/glimmercismfortran.dir/libglide/glide_types.F90.s
+	/glade/u/apps/derecho/23.09/spack/opt/spack/intel-oneapi-mpi/2021.10.0/oneapi/2023.2.1/ve6v/bin/mpif90 $(Fortran_DEFINES) $(Fortran_INCLUDES) $(Fortran_FLAGS) -S /glade/u/home/tvda/CISM/libglide/glide_types.F90 -o CMakeFiles/glimmercismfortran.dir/libglide/glide_types.F90.s
 
 CMakeFiles/glimmercismfortran.dir/libglide/glide_velo.F90.o: CMakeFiles/glimmercismfortran.dir/flags.make
 CMakeFiles/glimmercismfortran.dir/libglide/glide_velo.F90.o: /glade/u/home/tvda/CISM/libglide/glide_velo.F90
 	@$(CMAKE_COMMAND) -E cmake_echo_color --switch=$(COLOR) --green --progress-dir=/glade/u/home/tvda/CISM/builds/derecho-intel/CMakeFiles --progress-num=$(CMAKE_PROGRESS_34) "Building Fortran object CMakeFiles/glimmercismfortran.dir/libglide/glide_velo.F90.o"
-	/glade/u/apps/derecho/23.06/spack/opt/spack/ncarcompilers/1.0.0/oneapi/2023.0.0/ec7b/bin/mpi/mpif90 $(Fortran_DEFINES) $(Fortran_INCLUDES) $(Fortran_FLAGS) -c /glade/u/home/tvda/CISM/libglide/glide_velo.F90 -o CMakeFiles/glimmercismfortran.dir/libglide/glide_velo.F90.o
+	/glade/u/apps/derecho/23.09/spack/opt/spack/intel-oneapi-mpi/2021.10.0/oneapi/2023.2.1/ve6v/bin/mpif90 $(Fortran_DEFINES) $(Fortran_INCLUDES) $(Fortran_FLAGS) -c /glade/u/home/tvda/CISM/libglide/glide_velo.F90 -o CMakeFiles/glimmercismfortran.dir/libglide/glide_velo.F90.o
 
 CMakeFiles/glimmercismfortran.dir/libglide/glide_velo.F90.i: cmake_force
 	@$(CMAKE_COMMAND) -E cmake_echo_color --switch=$(COLOR) --green "Preprocessing Fortran source to CMakeFiles/glimmercismfortran.dir/libglide/glide_velo.F90.i"
-	/glade/u/apps/derecho/23.06/spack/opt/spack/ncarcompilers/1.0.0/oneapi/2023.0.0/ec7b/bin/mpi/mpif90 $(Fortran_DEFINES) $(Fortran_INCLUDES) $(Fortran_FLAGS) -E /glade/u/home/tvda/CISM/libglide/glide_velo.F90 > CMakeFiles/glimmercismfortran.dir/libglide/glide_velo.F90.i
+	/glade/u/apps/derecho/23.09/spack/opt/spack/intel-oneapi-mpi/2021.10.0/oneapi/2023.2.1/ve6v/bin/mpif90 $(Fortran_DEFINES) $(Fortran_INCLUDES) $(Fortran_FLAGS) -E /glade/u/home/tvda/CISM/libglide/glide_velo.F90 > CMakeFiles/glimmercismfortran.dir/libglide/glide_velo.F90.i
 
 CMakeFiles/glimmercismfortran.dir/libglide/glide_velo.F90.s: cmake_force
 	@$(CMAKE_COMMAND) -E cmake_echo_color --switch=$(COLOR) --green "Compiling Fortran source to assembly CMakeFiles/glimmercismfortran.dir/libglide/glide_velo.F90.s"
-	/glade/u/apps/derecho/23.06/spack/opt/spack/ncarcompilers/1.0.0/oneapi/2023.0.0/ec7b/bin/mpi/mpif90 $(Fortran_DEFINES) $(Fortran_INCLUDES) $(Fortran_FLAGS) -S /glade/u/home/tvda/CISM/libglide/glide_velo.F90 -o CMakeFiles/glimmercismfortran.dir/libglide/glide_velo.F90.s
+	/glade/u/apps/derecho/23.09/spack/opt/spack/intel-oneapi-mpi/2021.10.0/oneapi/2023.2.1/ve6v/bin/mpif90 $(Fortran_DEFINES) $(Fortran_INCLUDES) $(Fortran_FLAGS) -S /glade/u/home/tvda/CISM/libglide/glide_velo.F90 -o CMakeFiles/glimmercismfortran.dir/libglide/glide_velo.F90.s
 
 CMakeFiles/glimmercismfortran.dir/libglide/glide_vertint.F90.o: CMakeFiles/glimmercismfortran.dir/flags.make
 CMakeFiles/glimmercismfortran.dir/libglide/glide_vertint.F90.o: /glade/u/home/tvda/CISM/libglide/glide_vertint.F90
 	@$(CMAKE_COMMAND) -E cmake_echo_color --switch=$(COLOR) --green --progress-dir=/glade/u/home/tvda/CISM/builds/derecho-intel/CMakeFiles --progress-num=$(CMAKE_PROGRESS_35) "Building Fortran object CMakeFiles/glimmercismfortran.dir/libglide/glide_vertint.F90.o"
-	/glade/u/apps/derecho/23.06/spack/opt/spack/ncarcompilers/1.0.0/oneapi/2023.0.0/ec7b/bin/mpi/mpif90 $(Fortran_DEFINES) $(Fortran_INCLUDES) $(Fortran_FLAGS) -c /glade/u/home/tvda/CISM/libglide/glide_vertint.F90 -o CMakeFiles/glimmercismfortran.dir/libglide/glide_vertint.F90.o
+	/glade/u/apps/derecho/23.09/spack/opt/spack/intel-oneapi-mpi/2021.10.0/oneapi/2023.2.1/ve6v/bin/mpif90 $(Fortran_DEFINES) $(Fortran_INCLUDES) $(Fortran_FLAGS) -c /glade/u/home/tvda/CISM/libglide/glide_vertint.F90 -o CMakeFiles/glimmercismfortran.dir/libglide/glide_vertint.F90.o
 
 CMakeFiles/glimmercismfortran.dir/libglide/glide_vertint.F90.i: cmake_force
 	@$(CMAKE_COMMAND) -E cmake_echo_color --switch=$(COLOR) --green "Preprocessing Fortran source to CMakeFiles/glimmercismfortran.dir/libglide/glide_vertint.F90.i"
-	/glade/u/apps/derecho/23.06/spack/opt/spack/ncarcompilers/1.0.0/oneapi/2023.0.0/ec7b/bin/mpi/mpif90 $(Fortran_DEFINES) $(Fortran_INCLUDES) $(Fortran_FLAGS) -E /glade/u/home/tvda/CISM/libglide/glide_vertint.F90 > CMakeFiles/glimmercismfortran.dir/libglide/glide_vertint.F90.i
+	/glade/u/apps/derecho/23.09/spack/opt/spack/intel-oneapi-mpi/2021.10.0/oneapi/2023.2.1/ve6v/bin/mpif90 $(Fortran_DEFINES) $(Fortran_INCLUDES) $(Fortran_FLAGS) -E /glade/u/home/tvda/CISM/libglide/glide_vertint.F90 > CMakeFiles/glimmercismfortran.dir/libglide/glide_vertint.F90.i
 
 CMakeFiles/glimmercismfortran.dir/libglide/glide_vertint.F90.s: cmake_force
 	@$(CMAKE_COMMAND) -E cmake_echo_color --switch=$(COLOR) --green "Compiling Fortran source to assembly CMakeFiles/glimmercismfortran.dir/libglide/glide_vertint.F90.s"
-	/glade/u/apps/derecho/23.06/spack/opt/spack/ncarcompilers/1.0.0/oneapi/2023.0.0/ec7b/bin/mpi/mpif90 $(Fortran_DEFINES) $(Fortran_INCLUDES) $(Fortran_FLAGS) -S /glade/u/home/tvda/CISM/libglide/glide_vertint.F90 -o CMakeFiles/glimmercismfortran.dir/libglide/glide_vertint.F90.s
+	/glade/u/apps/derecho/23.09/spack/opt/spack/intel-oneapi-mpi/2021.10.0/oneapi/2023.2.1/ve6v/bin/mpif90 $(Fortran_DEFINES) $(Fortran_INCLUDES) $(Fortran_FLAGS) -S /glade/u/home/tvda/CISM/libglide/glide_vertint.F90 -o CMakeFiles/glimmercismfortran.dir/libglide/glide_vertint.F90.s
 
 CMakeFiles/glimmercismfortran.dir/libglide/isostasy.F90.o: CMakeFiles/glimmercismfortran.dir/flags.make
 CMakeFiles/glimmercismfortran.dir/libglide/isostasy.F90.o: /glade/u/home/tvda/CISM/libglide/isostasy.F90
 	@$(CMAKE_COMMAND) -E cmake_echo_color --switch=$(COLOR) --green --progress-dir=/glade/u/home/tvda/CISM/builds/derecho-intel/CMakeFiles --progress-num=$(CMAKE_PROGRESS_36) "Building Fortran object CMakeFiles/glimmercismfortran.dir/libglide/isostasy.F90.o"
-	/glade/u/apps/derecho/23.06/spack/opt/spack/ncarcompilers/1.0.0/oneapi/2023.0.0/ec7b/bin/mpi/mpif90 $(Fortran_DEFINES) $(Fortran_INCLUDES) $(Fortran_FLAGS) -c /glade/u/home/tvda/CISM/libglide/isostasy.F90 -o CMakeFiles/glimmercismfortran.dir/libglide/isostasy.F90.o
+	/glade/u/apps/derecho/23.09/spack/opt/spack/intel-oneapi-mpi/2021.10.0/oneapi/2023.2.1/ve6v/bin/mpif90 $(Fortran_DEFINES) $(Fortran_INCLUDES) $(Fortran_FLAGS) -c /glade/u/home/tvda/CISM/libglide/isostasy.F90 -o CMakeFiles/glimmercismfortran.dir/libglide/isostasy.F90.o
 
 CMakeFiles/glimmercismfortran.dir/libglide/isostasy.F90.i: cmake_force
 	@$(CMAKE_COMMAND) -E cmake_echo_color --switch=$(COLOR) --green "Preprocessing Fortran source to CMakeFiles/glimmercismfortran.dir/libglide/isostasy.F90.i"
-	/glade/u/apps/derecho/23.06/spack/opt/spack/ncarcompilers/1.0.0/oneapi/2023.0.0/ec7b/bin/mpi/mpif90 $(Fortran_DEFINES) $(Fortran_INCLUDES) $(Fortran_FLAGS) -E /glade/u/home/tvda/CISM/libglide/isostasy.F90 > CMakeFiles/glimmercismfortran.dir/libglide/isostasy.F90.i
+	/glade/u/apps/derecho/23.09/spack/opt/spack/intel-oneapi-mpi/2021.10.0/oneapi/2023.2.1/ve6v/bin/mpif90 $(Fortran_DEFINES) $(Fortran_INCLUDES) $(Fortran_FLAGS) -E /glade/u/home/tvda/CISM/libglide/isostasy.F90 > CMakeFiles/glimmercismfortran.dir/libglide/isostasy.F90.i
 
 CMakeFiles/glimmercismfortran.dir/libglide/isostasy.F90.s: cmake_force
 	@$(CMAKE_COMMAND) -E cmake_echo_color --switch=$(COLOR) --green "Compiling Fortran source to assembly CMakeFiles/glimmercismfortran.dir/libglide/isostasy.F90.s"
-	/glade/u/apps/derecho/23.06/spack/opt/spack/ncarcompilers/1.0.0/oneapi/2023.0.0/ec7b/bin/mpi/mpif90 $(Fortran_DEFINES) $(Fortran_INCLUDES) $(Fortran_FLAGS) -S /glade/u/home/tvda/CISM/libglide/isostasy.F90 -o CMakeFiles/glimmercismfortran.dir/libglide/isostasy.F90.s
+	/glade/u/apps/derecho/23.09/spack/opt/spack/intel-oneapi-mpi/2021.10.0/oneapi/2023.2.1/ve6v/bin/mpif90 $(Fortran_DEFINES) $(Fortran_INCLUDES) $(Fortran_FLAGS) -S /glade/u/home/tvda/CISM/libglide/isostasy.F90 -o CMakeFiles/glimmercismfortran.dir/libglide/isostasy.F90.s
 
 CMakeFiles/glimmercismfortran.dir/libglide/isostasy_elastic.F90.o: CMakeFiles/glimmercismfortran.dir/flags.make
 CMakeFiles/glimmercismfortran.dir/libglide/isostasy_elastic.F90.o: /glade/u/home/tvda/CISM/libglide/isostasy_elastic.F90
 	@$(CMAKE_COMMAND) -E cmake_echo_color --switch=$(COLOR) --green --progress-dir=/glade/u/home/tvda/CISM/builds/derecho-intel/CMakeFiles --progress-num=$(CMAKE_PROGRESS_37) "Building Fortran object CMakeFiles/glimmercismfortran.dir/libglide/isostasy_elastic.F90.o"
-	/glade/u/apps/derecho/23.06/spack/opt/spack/ncarcompilers/1.0.0/oneapi/2023.0.0/ec7b/bin/mpi/mpif90 $(Fortran_DEFINES) $(Fortran_INCLUDES) $(Fortran_FLAGS) -c /glade/u/home/tvda/CISM/libglide/isostasy_elastic.F90 -o CMakeFiles/glimmercismfortran.dir/libglide/isostasy_elastic.F90.o
+	/glade/u/apps/derecho/23.09/spack/opt/spack/intel-oneapi-mpi/2021.10.0/oneapi/2023.2.1/ve6v/bin/mpif90 $(Fortran_DEFINES) $(Fortran_INCLUDES) $(Fortran_FLAGS) -c /glade/u/home/tvda/CISM/libglide/isostasy_elastic.F90 -o CMakeFiles/glimmercismfortran.dir/libglide/isostasy_elastic.F90.o
 
 CMakeFiles/glimmercismfortran.dir/libglide/isostasy_elastic.F90.i: cmake_force
 	@$(CMAKE_COMMAND) -E cmake_echo_color --switch=$(COLOR) --green "Preprocessing Fortran source to CMakeFiles/glimmercismfortran.dir/libglide/isostasy_elastic.F90.i"
-	/glade/u/apps/derecho/23.06/spack/opt/spack/ncarcompilers/1.0.0/oneapi/2023.0.0/ec7b/bin/mpi/mpif90 $(Fortran_DEFINES) $(Fortran_INCLUDES) $(Fortran_FLAGS) -E /glade/u/home/tvda/CISM/libglide/isostasy_elastic.F90 > CMakeFiles/glimmercismfortran.dir/libglide/isostasy_elastic.F90.i
+	/glade/u/apps/derecho/23.09/spack/opt/spack/intel-oneapi-mpi/2021.10.0/oneapi/2023.2.1/ve6v/bin/mpif90 $(Fortran_DEFINES) $(Fortran_INCLUDES) $(Fortran_FLAGS) -E /glade/u/home/tvda/CISM/libglide/isostasy_elastic.F90 > CMakeFiles/glimmercismfortran.dir/libglide/isostasy_elastic.F90.i
 
 CMakeFiles/glimmercismfortran.dir/libglide/isostasy_elastic.F90.s: cmake_force
 	@$(CMAKE_COMMAND) -E cmake_echo_color --switch=$(COLOR) --green "Compiling Fortran source to assembly CMakeFiles/glimmercismfortran.dir/libglide/isostasy_elastic.F90.s"
-	/glade/u/apps/derecho/23.06/spack/opt/spack/ncarcompilers/1.0.0/oneapi/2023.0.0/ec7b/bin/mpi/mpif90 $(Fortran_DEFINES) $(Fortran_INCLUDES) $(Fortran_FLAGS) -S /glade/u/home/tvda/CISM/libglide/isostasy_elastic.F90 -o CMakeFiles/glimmercismfortran.dir/libglide/isostasy_elastic.F90.s
+	/glade/u/apps/derecho/23.09/spack/opt/spack/intel-oneapi-mpi/2021.10.0/oneapi/2023.2.1/ve6v/bin/mpif90 $(Fortran_DEFINES) $(Fortran_INCLUDES) $(Fortran_FLAGS) -S /glade/u/home/tvda/CISM/libglide/isostasy_elastic.F90 -o CMakeFiles/glimmercismfortran.dir/libglide/isostasy_elastic.F90.s
 
 CMakeFiles/glimmercismfortran.dir/libglide/isostasy_kelvin.F90.o: CMakeFiles/glimmercismfortran.dir/flags.make
 CMakeFiles/glimmercismfortran.dir/libglide/isostasy_kelvin.F90.o: /glade/u/home/tvda/CISM/libglide/isostasy_kelvin.F90
 	@$(CMAKE_COMMAND) -E cmake_echo_color --switch=$(COLOR) --green --progress-dir=/glade/u/home/tvda/CISM/builds/derecho-intel/CMakeFiles --progress-num=$(CMAKE_PROGRESS_38) "Building Fortran object CMakeFiles/glimmercismfortran.dir/libglide/isostasy_kelvin.F90.o"
-	/glade/u/apps/derecho/23.06/spack/opt/spack/ncarcompilers/1.0.0/oneapi/2023.0.0/ec7b/bin/mpi/mpif90 $(Fortran_DEFINES) $(Fortran_INCLUDES) $(Fortran_FLAGS) -c /glade/u/home/tvda/CISM/libglide/isostasy_kelvin.F90 -o CMakeFiles/glimmercismfortran.dir/libglide/isostasy_kelvin.F90.o
+	/glade/u/apps/derecho/23.09/spack/opt/spack/intel-oneapi-mpi/2021.10.0/oneapi/2023.2.1/ve6v/bin/mpif90 $(Fortran_DEFINES) $(Fortran_INCLUDES) $(Fortran_FLAGS) -c /glade/u/home/tvda/CISM/libglide/isostasy_kelvin.F90 -o CMakeFiles/glimmercismfortran.dir/libglide/isostasy_kelvin.F90.o
 
 CMakeFiles/glimmercismfortran.dir/libglide/isostasy_kelvin.F90.i: cmake_force
 	@$(CMAKE_COMMAND) -E cmake_echo_color --switch=$(COLOR) --green "Preprocessing Fortran source to CMakeFiles/glimmercismfortran.dir/libglide/isostasy_kelvin.F90.i"
-	/glade/u/apps/derecho/23.06/spack/opt/spack/ncarcompilers/1.0.0/oneapi/2023.0.0/ec7b/bin/mpi/mpif90 $(Fortran_DEFINES) $(Fortran_INCLUDES) $(Fortran_FLAGS) -E /glade/u/home/tvda/CISM/libglide/isostasy_kelvin.F90 > CMakeFiles/glimmercismfortran.dir/libglide/isostasy_kelvin.F90.i
+	/glade/u/apps/derecho/23.09/spack/opt/spack/intel-oneapi-mpi/2021.10.0/oneapi/2023.2.1/ve6v/bin/mpif90 $(Fortran_DEFINES) $(Fortran_INCLUDES) $(Fortran_FLAGS) -E /glade/u/home/tvda/CISM/libglide/isostasy_kelvin.F90 > CMakeFiles/glimmercismfortran.dir/libglide/isostasy_kelvin.F90.i
 
 CMakeFiles/glimmercismfortran.dir/libglide/isostasy_kelvin.F90.s: cmake_force
 	@$(CMAKE_COMMAND) -E cmake_echo_color --switch=$(COLOR) --green "Compiling Fortran source to assembly CMakeFiles/glimmercismfortran.dir/libglide/isostasy_kelvin.F90.s"
-	/glade/u/apps/derecho/23.06/spack/opt/spack/ncarcompilers/1.0.0/oneapi/2023.0.0/ec7b/bin/mpi/mpif90 $(Fortran_DEFINES) $(Fortran_INCLUDES) $(Fortran_FLAGS) -S /glade/u/home/tvda/CISM/libglide/isostasy_kelvin.F90 -o CMakeFiles/glimmercismfortran.dir/libglide/isostasy_kelvin.F90.s
+	/glade/u/apps/derecho/23.09/spack/opt/spack/intel-oneapi-mpi/2021.10.0/oneapi/2023.2.1/ve6v/bin/mpif90 $(Fortran_DEFINES) $(Fortran_INCLUDES) $(Fortran_FLAGS) -S /glade/u/home/tvda/CISM/libglide/isostasy_kelvin.F90 -o CMakeFiles/glimmercismfortran.dir/libglide/isostasy_kelvin.F90.s
 
 CMakeFiles/glimmercismfortran.dir/libglimmer-solve/SLAP/dbcg.f.o: CMakeFiles/glimmercismfortran.dir/flags.make
 CMakeFiles/glimmercismfortran.dir/libglimmer-solve/SLAP/dbcg.f.o: /glade/u/home/tvda/CISM/libglimmer-solve/SLAP/dbcg.f
 	@$(CMAKE_COMMAND) -E cmake_echo_color --switch=$(COLOR) --green --progress-dir=/glade/u/home/tvda/CISM/builds/derecho-intel/CMakeFiles --progress-num=$(CMAKE_PROGRESS_39) "Building Fortran object CMakeFiles/glimmercismfortran.dir/libglimmer-solve/SLAP/dbcg.f.o"
-	/glade/u/apps/derecho/23.06/spack/opt/spack/ncarcompilers/1.0.0/oneapi/2023.0.0/ec7b/bin/mpi/mpif90 $(Fortran_DEFINES) $(Fortran_INCLUDES) $(Fortran_FLAGS) -fixed -c /glade/u/home/tvda/CISM/libglimmer-solve/SLAP/dbcg.f -o CMakeFiles/glimmercismfortran.dir/libglimmer-solve/SLAP/dbcg.f.o
+	/glade/u/apps/derecho/23.09/spack/opt/spack/intel-oneapi-mpi/2021.10.0/oneapi/2023.2.1/ve6v/bin/mpif90 $(Fortran_DEFINES) $(Fortran_INCLUDES) $(Fortran_FLAGS) -fixed -c /glade/u/home/tvda/CISM/libglimmer-solve/SLAP/dbcg.f -o CMakeFiles/glimmercismfortran.dir/libglimmer-solve/SLAP/dbcg.f.o
 
 CMakeFiles/glimmercismfortran.dir/libglimmer-solve/SLAP/dbcg.f.i: cmake_force
 	@$(CMAKE_COMMAND) -E cmake_echo_color --switch=$(COLOR) --green "Preprocessing Fortran source to CMakeFiles/glimmercismfortran.dir/libglimmer-solve/SLAP/dbcg.f.i"
-	/glade/u/apps/derecho/23.06/spack/opt/spack/ncarcompilers/1.0.0/oneapi/2023.0.0/ec7b/bin/mpi/mpif90 $(Fortran_DEFINES) $(Fortran_INCLUDES) $(Fortran_FLAGS) -fixed -E /glade/u/home/tvda/CISM/libglimmer-solve/SLAP/dbcg.f > CMakeFiles/glimmercismfortran.dir/libglimmer-solve/SLAP/dbcg.f.i
+	/glade/u/apps/derecho/23.09/spack/opt/spack/intel-oneapi-mpi/2021.10.0/oneapi/2023.2.1/ve6v/bin/mpif90 $(Fortran_DEFINES) $(Fortran_INCLUDES) $(Fortran_FLAGS) -fixed -E /glade/u/home/tvda/CISM/libglimmer-solve/SLAP/dbcg.f > CMakeFiles/glimmercismfortran.dir/libglimmer-solve/SLAP/dbcg.f.i
 
 CMakeFiles/glimmercismfortran.dir/libglimmer-solve/SLAP/dbcg.f.s: cmake_force
 	@$(CMAKE_COMMAND) -E cmake_echo_color --switch=$(COLOR) --green "Compiling Fortran source to assembly CMakeFiles/glimmercismfortran.dir/libglimmer-solve/SLAP/dbcg.f.s"
-	/glade/u/apps/derecho/23.06/spack/opt/spack/ncarcompilers/1.0.0/oneapi/2023.0.0/ec7b/bin/mpi/mpif90 $(Fortran_DEFINES) $(Fortran_INCLUDES) $(Fortran_FLAGS) -fixed -S /glade/u/home/tvda/CISM/libglimmer-solve/SLAP/dbcg.f -o CMakeFiles/glimmercismfortran.dir/libglimmer-solve/SLAP/dbcg.f.s
+	/glade/u/apps/derecho/23.09/spack/opt/spack/intel-oneapi-mpi/2021.10.0/oneapi/2023.2.1/ve6v/bin/mpif90 $(Fortran_DEFINES) $(Fortran_INCLUDES) $(Fortran_FLAGS) -fixed -S /glade/u/home/tvda/CISM/libglimmer-solve/SLAP/dbcg.f -o CMakeFiles/glimmercismfortran.dir/libglimmer-solve/SLAP/dbcg.f.s
 
 CMakeFiles/glimmercismfortran.dir/libglimmer-solve/SLAP/dcg.f.o: CMakeFiles/glimmercismfortran.dir/flags.make
 CMakeFiles/glimmercismfortran.dir/libglimmer-solve/SLAP/dcg.f.o: /glade/u/home/tvda/CISM/libglimmer-solve/SLAP/dcg.f
 	@$(CMAKE_COMMAND) -E cmake_echo_color --switch=$(COLOR) --green --progress-dir=/glade/u/home/tvda/CISM/builds/derecho-intel/CMakeFiles --progress-num=$(CMAKE_PROGRESS_40) "Building Fortran object CMakeFiles/glimmercismfortran.dir/libglimmer-solve/SLAP/dcg.f.o"
-	/glade/u/apps/derecho/23.06/spack/opt/spack/ncarcompilers/1.0.0/oneapi/2023.0.0/ec7b/bin/mpi/mpif90 $(Fortran_DEFINES) $(Fortran_INCLUDES) $(Fortran_FLAGS) -fixed -c /glade/u/home/tvda/CISM/libglimmer-solve/SLAP/dcg.f -o CMakeFiles/glimmercismfortran.dir/libglimmer-solve/SLAP/dcg.f.o
+	/glade/u/apps/derecho/23.09/spack/opt/spack/intel-oneapi-mpi/2021.10.0/oneapi/2023.2.1/ve6v/bin/mpif90 $(Fortran_DEFINES) $(Fortran_INCLUDES) $(Fortran_FLAGS) -fixed -c /glade/u/home/tvda/CISM/libglimmer-solve/SLAP/dcg.f -o CMakeFiles/glimmercismfortran.dir/libglimmer-solve/SLAP/dcg.f.o
 
 CMakeFiles/glimmercismfortran.dir/libglimmer-solve/SLAP/dcg.f.i: cmake_force
 	@$(CMAKE_COMMAND) -E cmake_echo_color --switch=$(COLOR) --green "Preprocessing Fortran source to CMakeFiles/glimmercismfortran.dir/libglimmer-solve/SLAP/dcg.f.i"
-	/glade/u/apps/derecho/23.06/spack/opt/spack/ncarcompilers/1.0.0/oneapi/2023.0.0/ec7b/bin/mpi/mpif90 $(Fortran_DEFINES) $(Fortran_INCLUDES) $(Fortran_FLAGS) -fixed -E /glade/u/home/tvda/CISM/libglimmer-solve/SLAP/dcg.f > CMakeFiles/glimmercismfortran.dir/libglimmer-solve/SLAP/dcg.f.i
+	/glade/u/apps/derecho/23.09/spack/opt/spack/intel-oneapi-mpi/2021.10.0/oneapi/2023.2.1/ve6v/bin/mpif90 $(Fortran_DEFINES) $(Fortran_INCLUDES) $(Fortran_FLAGS) -fixed -E /glade/u/home/tvda/CISM/libglimmer-solve/SLAP/dcg.f > CMakeFiles/glimmercismfortran.dir/libglimmer-solve/SLAP/dcg.f.i
 
 CMakeFiles/glimmercismfortran.dir/libglimmer-solve/SLAP/dcg.f.s: cmake_force
 	@$(CMAKE_COMMAND) -E cmake_echo_color --switch=$(COLOR) --green "Compiling Fortran source to assembly CMakeFiles/glimmercismfortran.dir/libglimmer-solve/SLAP/dcg.f.s"
-	/glade/u/apps/derecho/23.06/spack/opt/spack/ncarcompilers/1.0.0/oneapi/2023.0.0/ec7b/bin/mpi/mpif90 $(Fortran_DEFINES) $(Fortran_INCLUDES) $(Fortran_FLAGS) -fixed -S /glade/u/home/tvda/CISM/libglimmer-solve/SLAP/dcg.f -o CMakeFiles/glimmercismfortran.dir/libglimmer-solve/SLAP/dcg.f.s
+	/glade/u/apps/derecho/23.09/spack/opt/spack/intel-oneapi-mpi/2021.10.0/oneapi/2023.2.1/ve6v/bin/mpif90 $(Fortran_DEFINES) $(Fortran_INCLUDES) $(Fortran_FLAGS) -fixed -S /glade/u/home/tvda/CISM/libglimmer-solve/SLAP/dcg.f -o CMakeFiles/glimmercismfortran.dir/libglimmer-solve/SLAP/dcg.f.s
 
 CMakeFiles/glimmercismfortran.dir/libglimmer-solve/SLAP/dcgn.f.o: CMakeFiles/glimmercismfortran.dir/flags.make
 CMakeFiles/glimmercismfortran.dir/libglimmer-solve/SLAP/dcgn.f.o: /glade/u/home/tvda/CISM/libglimmer-solve/SLAP/dcgn.f
 	@$(CMAKE_COMMAND) -E cmake_echo_color --switch=$(COLOR) --green --progress-dir=/glade/u/home/tvda/CISM/builds/derecho-intel/CMakeFiles --progress-num=$(CMAKE_PROGRESS_41) "Building Fortran object CMakeFiles/glimmercismfortran.dir/libglimmer-solve/SLAP/dcgn.f.o"
-	/glade/u/apps/derecho/23.06/spack/opt/spack/ncarcompilers/1.0.0/oneapi/2023.0.0/ec7b/bin/mpi/mpif90 $(Fortran_DEFINES) $(Fortran_INCLUDES) $(Fortran_FLAGS) -fixed -c /glade/u/home/tvda/CISM/libglimmer-solve/SLAP/dcgn.f -o CMakeFiles/glimmercismfortran.dir/libglimmer-solve/SLAP/dcgn.f.o
+	/glade/u/apps/derecho/23.09/spack/opt/spack/intel-oneapi-mpi/2021.10.0/oneapi/2023.2.1/ve6v/bin/mpif90 $(Fortran_DEFINES) $(Fortran_INCLUDES) $(Fortran_FLAGS) -fixed -c /glade/u/home/tvda/CISM/libglimmer-solve/SLAP/dcgn.f -o CMakeFiles/glimmercismfortran.dir/libglimmer-solve/SLAP/dcgn.f.o
 
 CMakeFiles/glimmercismfortran.dir/libglimmer-solve/SLAP/dcgn.f.i: cmake_force
 	@$(CMAKE_COMMAND) -E cmake_echo_color --switch=$(COLOR) --green "Preprocessing Fortran source to CMakeFiles/glimmercismfortran.dir/libglimmer-solve/SLAP/dcgn.f.i"
-	/glade/u/apps/derecho/23.06/spack/opt/spack/ncarcompilers/1.0.0/oneapi/2023.0.0/ec7b/bin/mpi/mpif90 $(Fortran_DEFINES) $(Fortran_INCLUDES) $(Fortran_FLAGS) -fixed -E /glade/u/home/tvda/CISM/libglimmer-solve/SLAP/dcgn.f > CMakeFiles/glimmercismfortran.dir/libglimmer-solve/SLAP/dcgn.f.i
+	/glade/u/apps/derecho/23.09/spack/opt/spack/intel-oneapi-mpi/2021.10.0/oneapi/2023.2.1/ve6v/bin/mpif90 $(Fortran_DEFINES) $(Fortran_INCLUDES) $(Fortran_FLAGS) -fixed -E /glade/u/home/tvda/CISM/libglimmer-solve/SLAP/dcgn.f > CMakeFiles/glimmercismfortran.dir/libglimmer-solve/SLAP/dcgn.f.i
 
 CMakeFiles/glimmercismfortran.dir/libglimmer-solve/SLAP/dcgn.f.s: cmake_force
 	@$(CMAKE_COMMAND) -E cmake_echo_color --switch=$(COLOR) --green "Compiling Fortran source to assembly CMakeFiles/glimmercismfortran.dir/libglimmer-solve/SLAP/dcgn.f.s"
-	/glade/u/apps/derecho/23.06/spack/opt/spack/ncarcompilers/1.0.0/oneapi/2023.0.0/ec7b/bin/mpi/mpif90 $(Fortran_DEFINES) $(Fortran_INCLUDES) $(Fortran_FLAGS) -fixed -S /glade/u/home/tvda/CISM/libglimmer-solve/SLAP/dcgn.f -o CMakeFiles/glimmercismfortran.dir/libglimmer-solve/SLAP/dcgn.f.s
+	/glade/u/apps/derecho/23.09/spack/opt/spack/intel-oneapi-mpi/2021.10.0/oneapi/2023.2.1/ve6v/bin/mpif90 $(Fortran_DEFINES) $(Fortran_INCLUDES) $(Fortran_FLAGS) -fixed -S /glade/u/home/tvda/CISM/libglimmer-solve/SLAP/dcgn.f -o CMakeFiles/glimmercismfortran.dir/libglimmer-solve/SLAP/dcgn.f.s
 
 CMakeFiles/glimmercismfortran.dir/libglimmer-solve/SLAP/dcgs.f.o: CMakeFiles/glimmercismfortran.dir/flags.make
 CMakeFiles/glimmercismfortran.dir/libglimmer-solve/SLAP/dcgs.f.o: /glade/u/home/tvda/CISM/libglimmer-solve/SLAP/dcgs.f
 	@$(CMAKE_COMMAND) -E cmake_echo_color --switch=$(COLOR) --green --progress-dir=/glade/u/home/tvda/CISM/builds/derecho-intel/CMakeFiles --progress-num=$(CMAKE_PROGRESS_42) "Building Fortran object CMakeFiles/glimmercismfortran.dir/libglimmer-solve/SLAP/dcgs.f.o"
-	/glade/u/apps/derecho/23.06/spack/opt/spack/ncarcompilers/1.0.0/oneapi/2023.0.0/ec7b/bin/mpi/mpif90 $(Fortran_DEFINES) $(Fortran_INCLUDES) $(Fortran_FLAGS) -fixed -c /glade/u/home/tvda/CISM/libglimmer-solve/SLAP/dcgs.f -o CMakeFiles/glimmercismfortran.dir/libglimmer-solve/SLAP/dcgs.f.o
+	/glade/u/apps/derecho/23.09/spack/opt/spack/intel-oneapi-mpi/2021.10.0/oneapi/2023.2.1/ve6v/bin/mpif90 $(Fortran_DEFINES) $(Fortran_INCLUDES) $(Fortran_FLAGS) -fixed -c /glade/u/home/tvda/CISM/libglimmer-solve/SLAP/dcgs.f -o CMakeFiles/glimmercismfortran.dir/libglimmer-solve/SLAP/dcgs.f.o
 
 CMakeFiles/glimmercismfortran.dir/libglimmer-solve/SLAP/dcgs.f.i: cmake_force
 	@$(CMAKE_COMMAND) -E cmake_echo_color --switch=$(COLOR) --green "Preprocessing Fortran source to CMakeFiles/glimmercismfortran.dir/libglimmer-solve/SLAP/dcgs.f.i"
-	/glade/u/apps/derecho/23.06/spack/opt/spack/ncarcompilers/1.0.0/oneapi/2023.0.0/ec7b/bin/mpi/mpif90 $(Fortran_DEFINES) $(Fortran_INCLUDES) $(Fortran_FLAGS) -fixed -E /glade/u/home/tvda/CISM/libglimmer-solve/SLAP/dcgs.f > CMakeFiles/glimmercismfortran.dir/libglimmer-solve/SLAP/dcgs.f.i
+	/glade/u/apps/derecho/23.09/spack/opt/spack/intel-oneapi-mpi/2021.10.0/oneapi/2023.2.1/ve6v/bin/mpif90 $(Fortran_DEFINES) $(Fortran_INCLUDES) $(Fortran_FLAGS) -fixed -E /glade/u/home/tvda/CISM/libglimmer-solve/SLAP/dcgs.f > CMakeFiles/glimmercismfortran.dir/libglimmer-solve/SLAP/dcgs.f.i
 
 CMakeFiles/glimmercismfortran.dir/libglimmer-solve/SLAP/dcgs.f.s: cmake_force
 	@$(CMAKE_COMMAND) -E cmake_echo_color --switch=$(COLOR) --green "Compiling Fortran source to assembly CMakeFiles/glimmercismfortran.dir/libglimmer-solve/SLAP/dcgs.f.s"
-	/glade/u/apps/derecho/23.06/spack/opt/spack/ncarcompilers/1.0.0/oneapi/2023.0.0/ec7b/bin/mpi/mpif90 $(Fortran_DEFINES) $(Fortran_INCLUDES) $(Fortran_FLAGS) -fixed -S /glade/u/home/tvda/CISM/libglimmer-solve/SLAP/dcgs.f -o CMakeFiles/glimmercismfortran.dir/libglimmer-solve/SLAP/dcgs.f.s
+	/glade/u/apps/derecho/23.09/spack/opt/spack/intel-oneapi-mpi/2021.10.0/oneapi/2023.2.1/ve6v/bin/mpif90 $(Fortran_DEFINES) $(Fortran_INCLUDES) $(Fortran_FLAGS) -fixed -S /glade/u/home/tvda/CISM/libglimmer-solve/SLAP/dcgs.f -o CMakeFiles/glimmercismfortran.dir/libglimmer-solve/SLAP/dcgs.f.s
 
 CMakeFiles/glimmercismfortran.dir/libglimmer-solve/SLAP/dgmres.f.o: CMakeFiles/glimmercismfortran.dir/flags.make
 CMakeFiles/glimmercismfortran.dir/libglimmer-solve/SLAP/dgmres.f.o: /glade/u/home/tvda/CISM/libglimmer-solve/SLAP/dgmres.f
 	@$(CMAKE_COMMAND) -E cmake_echo_color --switch=$(COLOR) --green --progress-dir=/glade/u/home/tvda/CISM/builds/derecho-intel/CMakeFiles --progress-num=$(CMAKE_PROGRESS_43) "Building Fortran object CMakeFiles/glimmercismfortran.dir/libglimmer-solve/SLAP/dgmres.f.o"
-	/glade/u/apps/derecho/23.06/spack/opt/spack/ncarcompilers/1.0.0/oneapi/2023.0.0/ec7b/bin/mpi/mpif90 $(Fortran_DEFINES) $(Fortran_INCLUDES) $(Fortran_FLAGS) -fixed -c /glade/u/home/tvda/CISM/libglimmer-solve/SLAP/dgmres.f -o CMakeFiles/glimmercismfortran.dir/libglimmer-solve/SLAP/dgmres.f.o
+	/glade/u/apps/derecho/23.09/spack/opt/spack/intel-oneapi-mpi/2021.10.0/oneapi/2023.2.1/ve6v/bin/mpif90 $(Fortran_DEFINES) $(Fortran_INCLUDES) $(Fortran_FLAGS) -fixed -c /glade/u/home/tvda/CISM/libglimmer-solve/SLAP/dgmres.f -o CMakeFiles/glimmercismfortran.dir/libglimmer-solve/SLAP/dgmres.f.o
 
 CMakeFiles/glimmercismfortran.dir/libglimmer-solve/SLAP/dgmres.f.i: cmake_force
 	@$(CMAKE_COMMAND) -E cmake_echo_color --switch=$(COLOR) --green "Preprocessing Fortran source to CMakeFiles/glimmercismfortran.dir/libglimmer-solve/SLAP/dgmres.f.i"
-	/glade/u/apps/derecho/23.06/spack/opt/spack/ncarcompilers/1.0.0/oneapi/2023.0.0/ec7b/bin/mpi/mpif90 $(Fortran_DEFINES) $(Fortran_INCLUDES) $(Fortran_FLAGS) -fixed -E /glade/u/home/tvda/CISM/libglimmer-solve/SLAP/dgmres.f > CMakeFiles/glimmercismfortran.dir/libglimmer-solve/SLAP/dgmres.f.i
+	/glade/u/apps/derecho/23.09/spack/opt/spack/intel-oneapi-mpi/2021.10.0/oneapi/2023.2.1/ve6v/bin/mpif90 $(Fortran_DEFINES) $(Fortran_INCLUDES) $(Fortran_FLAGS) -fixed -E /glade/u/home/tvda/CISM/libglimmer-solve/SLAP/dgmres.f > CMakeFiles/glimmercismfortran.dir/libglimmer-solve/SLAP/dgmres.f.i
 
 CMakeFiles/glimmercismfortran.dir/libglimmer-solve/SLAP/dgmres.f.s: cmake_force
 	@$(CMAKE_COMMAND) -E cmake_echo_color --switch=$(COLOR) --green "Compiling Fortran source to assembly CMakeFiles/glimmercismfortran.dir/libglimmer-solve/SLAP/dgmres.f.s"
-	/glade/u/apps/derecho/23.06/spack/opt/spack/ncarcompilers/1.0.0/oneapi/2023.0.0/ec7b/bin/mpi/mpif90 $(Fortran_DEFINES) $(Fortran_INCLUDES) $(Fortran_FLAGS) -fixed -S /glade/u/home/tvda/CISM/libglimmer-solve/SLAP/dgmres.f -o CMakeFiles/glimmercismfortran.dir/libglimmer-solve/SLAP/dgmres.f.s
+	/glade/u/apps/derecho/23.09/spack/opt/spack/intel-oneapi-mpi/2021.10.0/oneapi/2023.2.1/ve6v/bin/mpif90 $(Fortran_DEFINES) $(Fortran_INCLUDES) $(Fortran_FLAGS) -fixed -S /glade/u/home/tvda/CISM/libglimmer-solve/SLAP/dgmres.f -o CMakeFiles/glimmercismfortran.dir/libglimmer-solve/SLAP/dgmres.f.s
 
 CMakeFiles/glimmercismfortran.dir/libglimmer-solve/SLAP/dir.f.o: CMakeFiles/glimmercismfortran.dir/flags.make
 CMakeFiles/glimmercismfortran.dir/libglimmer-solve/SLAP/dir.f.o: /glade/u/home/tvda/CISM/libglimmer-solve/SLAP/dir.f
 	@$(CMAKE_COMMAND) -E cmake_echo_color --switch=$(COLOR) --green --progress-dir=/glade/u/home/tvda/CISM/builds/derecho-intel/CMakeFiles --progress-num=$(CMAKE_PROGRESS_44) "Building Fortran object CMakeFiles/glimmercismfortran.dir/libglimmer-solve/SLAP/dir.f.o"
-	/glade/u/apps/derecho/23.06/spack/opt/spack/ncarcompilers/1.0.0/oneapi/2023.0.0/ec7b/bin/mpi/mpif90 $(Fortran_DEFINES) $(Fortran_INCLUDES) $(Fortran_FLAGS) -fixed -c /glade/u/home/tvda/CISM/libglimmer-solve/SLAP/dir.f -o CMakeFiles/glimmercismfortran.dir/libglimmer-solve/SLAP/dir.f.o
+	/glade/u/apps/derecho/23.09/spack/opt/spack/intel-oneapi-mpi/2021.10.0/oneapi/2023.2.1/ve6v/bin/mpif90 $(Fortran_DEFINES) $(Fortran_INCLUDES) $(Fortran_FLAGS) -fixed -c /glade/u/home/tvda/CISM/libglimmer-solve/SLAP/dir.f -o CMakeFiles/glimmercismfortran.dir/libglimmer-solve/SLAP/dir.f.o
 
 CMakeFiles/glimmercismfortran.dir/libglimmer-solve/SLAP/dir.f.i: cmake_force
 	@$(CMAKE_COMMAND) -E cmake_echo_color --switch=$(COLOR) --green "Preprocessing Fortran source to CMakeFiles/glimmercismfortran.dir/libglimmer-solve/SLAP/dir.f.i"
-	/glade/u/apps/derecho/23.06/spack/opt/spack/ncarcompilers/1.0.0/oneapi/2023.0.0/ec7b/bin/mpi/mpif90 $(Fortran_DEFINES) $(Fortran_INCLUDES) $(Fortran_FLAGS) -fixed -E /glade/u/home/tvda/CISM/libglimmer-solve/SLAP/dir.f > CMakeFiles/glimmercismfortran.dir/libglimmer-solve/SLAP/dir.f.i
+	/glade/u/apps/derecho/23.09/spack/opt/spack/intel-oneapi-mpi/2021.10.0/oneapi/2023.2.1/ve6v/bin/mpif90 $(Fortran_DEFINES) $(Fortran_INCLUDES) $(Fortran_FLAGS) -fixed -E /glade/u/home/tvda/CISM/libglimmer-solve/SLAP/dir.f > CMakeFiles/glimmercismfortran.dir/libglimmer-solve/SLAP/dir.f.i
 
 CMakeFiles/glimmercismfortran.dir/libglimmer-solve/SLAP/dir.f.s: cmake_force
 	@$(CMAKE_COMMAND) -E cmake_echo_color --switch=$(COLOR) --green "Compiling Fortran source to assembly CMakeFiles/glimmercismfortran.dir/libglimmer-solve/SLAP/dir.f.s"
-	/glade/u/apps/derecho/23.06/spack/opt/spack/ncarcompilers/1.0.0/oneapi/2023.0.0/ec7b/bin/mpi/mpif90 $(Fortran_DEFINES) $(Fortran_INCLUDES) $(Fortran_FLAGS) -fixed -S /glade/u/home/tvda/CISM/libglimmer-solve/SLAP/dir.f -o CMakeFiles/glimmercismfortran.dir/libglimmer-solve/SLAP/dir.f.s
+	/glade/u/apps/derecho/23.09/spack/opt/spack/intel-oneapi-mpi/2021.10.0/oneapi/2023.2.1/ve6v/bin/mpif90 $(Fortran_DEFINES) $(Fortran_INCLUDES) $(Fortran_FLAGS) -fixed -S /glade/u/home/tvda/CISM/libglimmer-solve/SLAP/dir.f -o CMakeFiles/glimmercismfortran.dir/libglimmer-solve/SLAP/dir.f.s
 
 CMakeFiles/glimmercismfortran.dir/libglimmer-solve/SLAP/dlaputil.f.o: CMakeFiles/glimmercismfortran.dir/flags.make
 CMakeFiles/glimmercismfortran.dir/libglimmer-solve/SLAP/dlaputil.f.o: /glade/u/home/tvda/CISM/libglimmer-solve/SLAP/dlaputil.f
 	@$(CMAKE_COMMAND) -E cmake_echo_color --switch=$(COLOR) --green --progress-dir=/glade/u/home/tvda/CISM/builds/derecho-intel/CMakeFiles --progress-num=$(CMAKE_PROGRESS_45) "Building Fortran object CMakeFiles/glimmercismfortran.dir/libglimmer-solve/SLAP/dlaputil.f.o"
-	/glade/u/apps/derecho/23.06/spack/opt/spack/ncarcompilers/1.0.0/oneapi/2023.0.0/ec7b/bin/mpi/mpif90 $(Fortran_DEFINES) $(Fortran_INCLUDES) $(Fortran_FLAGS) -fixed -c /glade/u/home/tvda/CISM/libglimmer-solve/SLAP/dlaputil.f -o CMakeFiles/glimmercismfortran.dir/libglimmer-solve/SLAP/dlaputil.f.o
+	/glade/u/apps/derecho/23.09/spack/opt/spack/intel-oneapi-mpi/2021.10.0/oneapi/2023.2.1/ve6v/bin/mpif90 $(Fortran_DEFINES) $(Fortran_INCLUDES) $(Fortran_FLAGS) -fixed -c /glade/u/home/tvda/CISM/libglimmer-solve/SLAP/dlaputil.f -o CMakeFiles/glimmercismfortran.dir/libglimmer-solve/SLAP/dlaputil.f.o
 
 CMakeFiles/glimmercismfortran.dir/libglimmer-solve/SLAP/dlaputil.f.i: cmake_force
 	@$(CMAKE_COMMAND) -E cmake_echo_color --switch=$(COLOR) --green "Preprocessing Fortran source to CMakeFiles/glimmercismfortran.dir/libglimmer-solve/SLAP/dlaputil.f.i"
-	/glade/u/apps/derecho/23.06/spack/opt/spack/ncarcompilers/1.0.0/oneapi/2023.0.0/ec7b/bin/mpi/mpif90 $(Fortran_DEFINES) $(Fortran_INCLUDES) $(Fortran_FLAGS) -fixed -E /glade/u/home/tvda/CISM/libglimmer-solve/SLAP/dlaputil.f > CMakeFiles/glimmercismfortran.dir/libglimmer-solve/SLAP/dlaputil.f.i
+	/glade/u/apps/derecho/23.09/spack/opt/spack/intel-oneapi-mpi/2021.10.0/oneapi/2023.2.1/ve6v/bin/mpif90 $(Fortran_DEFINES) $(Fortran_INCLUDES) $(Fortran_FLAGS) -fixed -E /glade/u/home/tvda/CISM/libglimmer-solve/SLAP/dlaputil.f > CMakeFiles/glimmercismfortran.dir/libglimmer-solve/SLAP/dlaputil.f.i
 
 CMakeFiles/glimmercismfortran.dir/libglimmer-solve/SLAP/dlaputil.f.s: cmake_force
 	@$(CMAKE_COMMAND) -E cmake_echo_color --switch=$(COLOR) --green "Compiling Fortran source to assembly CMakeFiles/glimmercismfortran.dir/libglimmer-solve/SLAP/dlaputil.f.s"
-	/glade/u/apps/derecho/23.06/spack/opt/spack/ncarcompilers/1.0.0/oneapi/2023.0.0/ec7b/bin/mpi/mpif90 $(Fortran_DEFINES) $(Fortran_INCLUDES) $(Fortran_FLAGS) -fixed -S /glade/u/home/tvda/CISM/libglimmer-solve/SLAP/dlaputil.f -o CMakeFiles/glimmercismfortran.dir/libglimmer-solve/SLAP/dlaputil.f.s
+	/glade/u/apps/derecho/23.09/spack/opt/spack/intel-oneapi-mpi/2021.10.0/oneapi/2023.2.1/ve6v/bin/mpif90 $(Fortran_DEFINES) $(Fortran_INCLUDES) $(Fortran_FLAGS) -fixed -S /glade/u/home/tvda/CISM/libglimmer-solve/SLAP/dlaputil.f -o CMakeFiles/glimmercismfortran.dir/libglimmer-solve/SLAP/dlaputil.f.s
 
 CMakeFiles/glimmercismfortran.dir/libglimmer-solve/SLAP/dmset.f.o: CMakeFiles/glimmercismfortran.dir/flags.make
 CMakeFiles/glimmercismfortran.dir/libglimmer-solve/SLAP/dmset.f.o: /glade/u/home/tvda/CISM/libglimmer-solve/SLAP/dmset.f
 	@$(CMAKE_COMMAND) -E cmake_echo_color --switch=$(COLOR) --green --progress-dir=/glade/u/home/tvda/CISM/builds/derecho-intel/CMakeFiles --progress-num=$(CMAKE_PROGRESS_46) "Building Fortran object CMakeFiles/glimmercismfortran.dir/libglimmer-solve/SLAP/dmset.f.o"
-	/glade/u/apps/derecho/23.06/spack/opt/spack/ncarcompilers/1.0.0/oneapi/2023.0.0/ec7b/bin/mpi/mpif90 $(Fortran_DEFINES) $(Fortran_INCLUDES) $(Fortran_FLAGS) -fixed -c /glade/u/home/tvda/CISM/libglimmer-solve/SLAP/dmset.f -o CMakeFiles/glimmercismfortran.dir/libglimmer-solve/SLAP/dmset.f.o
+	/glade/u/apps/derecho/23.09/spack/opt/spack/intel-oneapi-mpi/2021.10.0/oneapi/2023.2.1/ve6v/bin/mpif90 $(Fortran_DEFINES) $(Fortran_INCLUDES) $(Fortran_FLAGS) -fixed -c /glade/u/home/tvda/CISM/libglimmer-solve/SLAP/dmset.f -o CMakeFiles/glimmercismfortran.dir/libglimmer-solve/SLAP/dmset.f.o
 
 CMakeFiles/glimmercismfortran.dir/libglimmer-solve/SLAP/dmset.f.i: cmake_force
 	@$(CMAKE_COMMAND) -E cmake_echo_color --switch=$(COLOR) --green "Preprocessing Fortran source to CMakeFiles/glimmercismfortran.dir/libglimmer-solve/SLAP/dmset.f.i"
-	/glade/u/apps/derecho/23.06/spack/opt/spack/ncarcompilers/1.0.0/oneapi/2023.0.0/ec7b/bin/mpi/mpif90 $(Fortran_DEFINES) $(Fortran_INCLUDES) $(Fortran_FLAGS) -fixed -E /glade/u/home/tvda/CISM/libglimmer-solve/SLAP/dmset.f > CMakeFiles/glimmercismfortran.dir/libglimmer-solve/SLAP/dmset.f.i
+	/glade/u/apps/derecho/23.09/spack/opt/spack/intel-oneapi-mpi/2021.10.0/oneapi/2023.2.1/ve6v/bin/mpif90 $(Fortran_DEFINES) $(Fortran_INCLUDES) $(Fortran_FLAGS) -fixed -E /glade/u/home/tvda/CISM/libglimmer-solve/SLAP/dmset.f > CMakeFiles/glimmercismfortran.dir/libglimmer-solve/SLAP/dmset.f.i
 
 CMakeFiles/glimmercismfortran.dir/libglimmer-solve/SLAP/dmset.f.s: cmake_force
 	@$(CMAKE_COMMAND) -E cmake_echo_color --switch=$(COLOR) --green "Compiling Fortran source to assembly CMakeFiles/glimmercismfortran.dir/libglimmer-solve/SLAP/dmset.f.s"
-	/glade/u/apps/derecho/23.06/spack/opt/spack/ncarcompilers/1.0.0/oneapi/2023.0.0/ec7b/bin/mpi/mpif90 $(Fortran_DEFINES) $(Fortran_INCLUDES) $(Fortran_FLAGS) -fixed -S /glade/u/home/tvda/CISM/libglimmer-solve/SLAP/dmset.f -o CMakeFiles/glimmercismfortran.dir/libglimmer-solve/SLAP/dmset.f.s
+	/glade/u/apps/derecho/23.09/spack/opt/spack/intel-oneapi-mpi/2021.10.0/oneapi/2023.2.1/ve6v/bin/mpif90 $(Fortran_DEFINES) $(Fortran_INCLUDES) $(Fortran_FLAGS) -fixed -S /glade/u/home/tvda/CISM/libglimmer-solve/SLAP/dmset.f -o CMakeFiles/glimmercismfortran.dir/libglimmer-solve/SLAP/dmset.f.s
 
 CMakeFiles/glimmercismfortran.dir/libglimmer-solve/SLAP/dmvops.f.o: CMakeFiles/glimmercismfortran.dir/flags.make
 CMakeFiles/glimmercismfortran.dir/libglimmer-solve/SLAP/dmvops.f.o: /glade/u/home/tvda/CISM/libglimmer-solve/SLAP/dmvops.f
 	@$(CMAKE_COMMAND) -E cmake_echo_color --switch=$(COLOR) --green --progress-dir=/glade/u/home/tvda/CISM/builds/derecho-intel/CMakeFiles --progress-num=$(CMAKE_PROGRESS_47) "Building Fortran object CMakeFiles/glimmercismfortran.dir/libglimmer-solve/SLAP/dmvops.f.o"
-	/glade/u/apps/derecho/23.06/spack/opt/spack/ncarcompilers/1.0.0/oneapi/2023.0.0/ec7b/bin/mpi/mpif90 $(Fortran_DEFINES) $(Fortran_INCLUDES) $(Fortran_FLAGS) -fixed -c /glade/u/home/tvda/CISM/libglimmer-solve/SLAP/dmvops.f -o CMakeFiles/glimmercismfortran.dir/libglimmer-solve/SLAP/dmvops.f.o
+	/glade/u/apps/derecho/23.09/spack/opt/spack/intel-oneapi-mpi/2021.10.0/oneapi/2023.2.1/ve6v/bin/mpif90 $(Fortran_DEFINES) $(Fortran_INCLUDES) $(Fortran_FLAGS) -fixed -c /glade/u/home/tvda/CISM/libglimmer-solve/SLAP/dmvops.f -o CMakeFiles/glimmercismfortran.dir/libglimmer-solve/SLAP/dmvops.f.o
 
 CMakeFiles/glimmercismfortran.dir/libglimmer-solve/SLAP/dmvops.f.i: cmake_force
 	@$(CMAKE_COMMAND) -E cmake_echo_color --switch=$(COLOR) --green "Preprocessing Fortran source to CMakeFiles/glimmercismfortran.dir/libglimmer-solve/SLAP/dmvops.f.i"
-	/glade/u/apps/derecho/23.06/spack/opt/spack/ncarcompilers/1.0.0/oneapi/2023.0.0/ec7b/bin/mpi/mpif90 $(Fortran_DEFINES) $(Fortran_INCLUDES) $(Fortran_FLAGS) -fixed -E /glade/u/home/tvda/CISM/libglimmer-solve/SLAP/dmvops.f > CMakeFiles/glimmercismfortran.dir/libglimmer-solve/SLAP/dmvops.f.i
+	/glade/u/apps/derecho/23.09/spack/opt/spack/intel-oneapi-mpi/2021.10.0/oneapi/2023.2.1/ve6v/bin/mpif90 $(Fortran_DEFINES) $(Fortran_INCLUDES) $(Fortran_FLAGS) -fixed -E /glade/u/home/tvda/CISM/libglimmer-solve/SLAP/dmvops.f > CMakeFiles/glimmercismfortran.dir/libglimmer-solve/SLAP/dmvops.f.i
 
 CMakeFiles/glimmercismfortran.dir/libglimmer-solve/SLAP/dmvops.f.s: cmake_force
 	@$(CMAKE_COMMAND) -E cmake_echo_color --switch=$(COLOR) --green "Compiling Fortran source to assembly CMakeFiles/glimmercismfortran.dir/libglimmer-solve/SLAP/dmvops.f.s"
-	/glade/u/apps/derecho/23.06/spack/opt/spack/ncarcompilers/1.0.0/oneapi/2023.0.0/ec7b/bin/mpi/mpif90 $(Fortran_DEFINES) $(Fortran_INCLUDES) $(Fortran_FLAGS) -fixed -S /glade/u/home/tvda/CISM/libglimmer-solve/SLAP/dmvops.f -o CMakeFiles/glimmercismfortran.dir/libglimmer-solve/SLAP/dmvops.f.s
+	/glade/u/apps/derecho/23.09/spack/opt/spack/intel-oneapi-mpi/2021.10.0/oneapi/2023.2.1/ve6v/bin/mpif90 $(Fortran_DEFINES) $(Fortran_INCLUDES) $(Fortran_FLAGS) -fixed -S /glade/u/home/tvda/CISM/libglimmer-solve/SLAP/dmvops.f -o CMakeFiles/glimmercismfortran.dir/libglimmer-solve/SLAP/dmvops.f.s
 
 CMakeFiles/glimmercismfortran.dir/libglimmer-solve/SLAP/domn.f.o: CMakeFiles/glimmercismfortran.dir/flags.make
 CMakeFiles/glimmercismfortran.dir/libglimmer-solve/SLAP/domn.f.o: /glade/u/home/tvda/CISM/libglimmer-solve/SLAP/domn.f
 	@$(CMAKE_COMMAND) -E cmake_echo_color --switch=$(COLOR) --green --progress-dir=/glade/u/home/tvda/CISM/builds/derecho-intel/CMakeFiles --progress-num=$(CMAKE_PROGRESS_48) "Building Fortran object CMakeFiles/glimmercismfortran.dir/libglimmer-solve/SLAP/domn.f.o"
-	/glade/u/apps/derecho/23.06/spack/opt/spack/ncarcompilers/1.0.0/oneapi/2023.0.0/ec7b/bin/mpi/mpif90 $(Fortran_DEFINES) $(Fortran_INCLUDES) $(Fortran_FLAGS) -fixed -c /glade/u/home/tvda/CISM/libglimmer-solve/SLAP/domn.f -o CMakeFiles/glimmercismfortran.dir/libglimmer-solve/SLAP/domn.f.o
+	/glade/u/apps/derecho/23.09/spack/opt/spack/intel-oneapi-mpi/2021.10.0/oneapi/2023.2.1/ve6v/bin/mpif90 $(Fortran_DEFINES) $(Fortran_INCLUDES) $(Fortran_FLAGS) -fixed -c /glade/u/home/tvda/CISM/libglimmer-solve/SLAP/domn.f -o CMakeFiles/glimmercismfortran.dir/libglimmer-solve/SLAP/domn.f.o
 
 CMakeFiles/glimmercismfortran.dir/libglimmer-solve/SLAP/domn.f.i: cmake_force
 	@$(CMAKE_COMMAND) -E cmake_echo_color --switch=$(COLOR) --green "Preprocessing Fortran source to CMakeFiles/glimmercismfortran.dir/libglimmer-solve/SLAP/domn.f.i"
-	/glade/u/apps/derecho/23.06/spack/opt/spack/ncarcompilers/1.0.0/oneapi/2023.0.0/ec7b/bin/mpi/mpif90 $(Fortran_DEFINES) $(Fortran_INCLUDES) $(Fortran_FLAGS) -fixed -E /glade/u/home/tvda/CISM/libglimmer-solve/SLAP/domn.f > CMakeFiles/glimmercismfortran.dir/libglimmer-solve/SLAP/domn.f.i
+	/glade/u/apps/derecho/23.09/spack/opt/spack/intel-oneapi-mpi/2021.10.0/oneapi/2023.2.1/ve6v/bin/mpif90 $(Fortran_DEFINES) $(Fortran_INCLUDES) $(Fortran_FLAGS) -fixed -E /glade/u/home/tvda/CISM/libglimmer-solve/SLAP/domn.f > CMakeFiles/glimmercismfortran.dir/libglimmer-solve/SLAP/domn.f.i
 
 CMakeFiles/glimmercismfortran.dir/libglimmer-solve/SLAP/domn.f.s: cmake_force
 	@$(CMAKE_COMMAND) -E cmake_echo_color --switch=$(COLOR) --green "Compiling Fortran source to assembly CMakeFiles/glimmercismfortran.dir/libglimmer-solve/SLAP/domn.f.s"
-	/glade/u/apps/derecho/23.06/spack/opt/spack/ncarcompilers/1.0.0/oneapi/2023.0.0/ec7b/bin/mpi/mpif90 $(Fortran_DEFINES) $(Fortran_INCLUDES) $(Fortran_FLAGS) -fixed -S /glade/u/home/tvda/CISM/libglimmer-solve/SLAP/domn.f -o CMakeFiles/glimmercismfortran.dir/libglimmer-solve/SLAP/domn.f.s
+	/glade/u/apps/derecho/23.09/spack/opt/spack/intel-oneapi-mpi/2021.10.0/oneapi/2023.2.1/ve6v/bin/mpif90 $(Fortran_DEFINES) $(Fortran_INCLUDES) $(Fortran_FLAGS) -fixed -S /glade/u/home/tvda/CISM/libglimmer-solve/SLAP/domn.f -o CMakeFiles/glimmercismfortran.dir/libglimmer-solve/SLAP/domn.f.s
 
 CMakeFiles/glimmercismfortran.dir/libglimmer-solve/SLAP/mach.f.o: CMakeFiles/glimmercismfortran.dir/flags.make
 CMakeFiles/glimmercismfortran.dir/libglimmer-solve/SLAP/mach.f.o: /glade/u/home/tvda/CISM/libglimmer-solve/SLAP/mach.f
 	@$(CMAKE_COMMAND) -E cmake_echo_color --switch=$(COLOR) --green --progress-dir=/glade/u/home/tvda/CISM/builds/derecho-intel/CMakeFiles --progress-num=$(CMAKE_PROGRESS_49) "Building Fortran object CMakeFiles/glimmercismfortran.dir/libglimmer-solve/SLAP/mach.f.o"
-	/glade/u/apps/derecho/23.06/spack/opt/spack/ncarcompilers/1.0.0/oneapi/2023.0.0/ec7b/bin/mpi/mpif90 $(Fortran_DEFINES) $(Fortran_INCLUDES) $(Fortran_FLAGS) -fixed -c /glade/u/home/tvda/CISM/libglimmer-solve/SLAP/mach.f -o CMakeFiles/glimmercismfortran.dir/libglimmer-solve/SLAP/mach.f.o
+	/glade/u/apps/derecho/23.09/spack/opt/spack/intel-oneapi-mpi/2021.10.0/oneapi/2023.2.1/ve6v/bin/mpif90 $(Fortran_DEFINES) $(Fortran_INCLUDES) $(Fortran_FLAGS) -fixed -c /glade/u/home/tvda/CISM/libglimmer-solve/SLAP/mach.f -o CMakeFiles/glimmercismfortran.dir/libglimmer-solve/SLAP/mach.f.o
 
 CMakeFiles/glimmercismfortran.dir/libglimmer-solve/SLAP/mach.f.i: cmake_force
 	@$(CMAKE_COMMAND) -E cmake_echo_color --switch=$(COLOR) --green "Preprocessing Fortran source to CMakeFiles/glimmercismfortran.dir/libglimmer-solve/SLAP/mach.f.i"
-	/glade/u/apps/derecho/23.06/spack/opt/spack/ncarcompilers/1.0.0/oneapi/2023.0.0/ec7b/bin/mpi/mpif90 $(Fortran_DEFINES) $(Fortran_INCLUDES) $(Fortran_FLAGS) -fixed -E /glade/u/home/tvda/CISM/libglimmer-solve/SLAP/mach.f > CMakeFiles/glimmercismfortran.dir/libglimmer-solve/SLAP/mach.f.i
+	/glade/u/apps/derecho/23.09/spack/opt/spack/intel-oneapi-mpi/2021.10.0/oneapi/2023.2.1/ve6v/bin/mpif90 $(Fortran_DEFINES) $(Fortran_INCLUDES) $(Fortran_FLAGS) -fixed -E /glade/u/home/tvda/CISM/libglimmer-solve/SLAP/mach.f > CMakeFiles/glimmercismfortran.dir/libglimmer-solve/SLAP/mach.f.i
 
 CMakeFiles/glimmercismfortran.dir/libglimmer-solve/SLAP/mach.f.s: cmake_force
 	@$(CMAKE_COMMAND) -E cmake_echo_color --switch=$(COLOR) --green "Compiling Fortran source to assembly CMakeFiles/glimmercismfortran.dir/libglimmer-solve/SLAP/mach.f.s"
-	/glade/u/apps/derecho/23.06/spack/opt/spack/ncarcompilers/1.0.0/oneapi/2023.0.0/ec7b/bin/mpi/mpif90 $(Fortran_DEFINES) $(Fortran_INCLUDES) $(Fortran_FLAGS) -fixed -S /glade/u/home/tvda/CISM/libglimmer-solve/SLAP/mach.f -o CMakeFiles/glimmercismfortran.dir/libglimmer-solve/SLAP/mach.f.s
+	/glade/u/apps/derecho/23.09/spack/opt/spack/intel-oneapi-mpi/2021.10.0/oneapi/2023.2.1/ve6v/bin/mpif90 $(Fortran_DEFINES) $(Fortran_INCLUDES) $(Fortran_FLAGS) -fixed -S /glade/u/home/tvda/CISM/libglimmer-solve/SLAP/mach.f -o CMakeFiles/glimmercismfortran.dir/libglimmer-solve/SLAP/mach.f.s
 
 CMakeFiles/glimmercismfortran.dir/libglimmer-solve/SLAP/xersla.f.o: CMakeFiles/glimmercismfortran.dir/flags.make
 CMakeFiles/glimmercismfortran.dir/libglimmer-solve/SLAP/xersla.f.o: /glade/u/home/tvda/CISM/libglimmer-solve/SLAP/xersla.f
 	@$(CMAKE_COMMAND) -E cmake_echo_color --switch=$(COLOR) --green --progress-dir=/glade/u/home/tvda/CISM/builds/derecho-intel/CMakeFiles --progress-num=$(CMAKE_PROGRESS_50) "Building Fortran object CMakeFiles/glimmercismfortran.dir/libglimmer-solve/SLAP/xersla.f.o"
-	/glade/u/apps/derecho/23.06/spack/opt/spack/ncarcompilers/1.0.0/oneapi/2023.0.0/ec7b/bin/mpi/mpif90 $(Fortran_DEFINES) $(Fortran_INCLUDES) $(Fortran_FLAGS) -fixed -c /glade/u/home/tvda/CISM/libglimmer-solve/SLAP/xersla.f -o CMakeFiles/glimmercismfortran.dir/libglimmer-solve/SLAP/xersla.f.o
+	/glade/u/apps/derecho/23.09/spack/opt/spack/intel-oneapi-mpi/2021.10.0/oneapi/2023.2.1/ve6v/bin/mpif90 $(Fortran_DEFINES) $(Fortran_INCLUDES) $(Fortran_FLAGS) -fixed -c /glade/u/home/tvda/CISM/libglimmer-solve/SLAP/xersla.f -o CMakeFiles/glimmercismfortran.dir/libglimmer-solve/SLAP/xersla.f.o
 
 CMakeFiles/glimmercismfortran.dir/libglimmer-solve/SLAP/xersla.f.i: cmake_force
 	@$(CMAKE_COMMAND) -E cmake_echo_color --switch=$(COLOR) --green "Preprocessing Fortran source to CMakeFiles/glimmercismfortran.dir/libglimmer-solve/SLAP/xersla.f.i"
-	/glade/u/apps/derecho/23.06/spack/opt/spack/ncarcompilers/1.0.0/oneapi/2023.0.0/ec7b/bin/mpi/mpif90 $(Fortran_DEFINES) $(Fortran_INCLUDES) $(Fortran_FLAGS) -fixed -E /glade/u/home/tvda/CISM/libglimmer-solve/SLAP/xersla.f > CMakeFiles/glimmercismfortran.dir/libglimmer-solve/SLAP/xersla.f.i
+	/glade/u/apps/derecho/23.09/spack/opt/spack/intel-oneapi-mpi/2021.10.0/oneapi/2023.2.1/ve6v/bin/mpif90 $(Fortran_DEFINES) $(Fortran_INCLUDES) $(Fortran_FLAGS) -fixed -E /glade/u/home/tvda/CISM/libglimmer-solve/SLAP/xersla.f > CMakeFiles/glimmercismfortran.dir/libglimmer-solve/SLAP/xersla.f.i
 
 CMakeFiles/glimmercismfortran.dir/libglimmer-solve/SLAP/xersla.f.s: cmake_force
 	@$(CMAKE_COMMAND) -E cmake_echo_color --switch=$(COLOR) --green "Compiling Fortran source to assembly CMakeFiles/glimmercismfortran.dir/libglimmer-solve/SLAP/xersla.f.s"
-	/glade/u/apps/derecho/23.06/spack/opt/spack/ncarcompilers/1.0.0/oneapi/2023.0.0/ec7b/bin/mpi/mpif90 $(Fortran_DEFINES) $(Fortran_INCLUDES) $(Fortran_FLAGS) -fixed -S /glade/u/home/tvda/CISM/libglimmer-solve/SLAP/xersla.f -o CMakeFiles/glimmercismfortran.dir/libglimmer-solve/SLAP/xersla.f.s
+	/glade/u/apps/derecho/23.09/spack/opt/spack/intel-oneapi-mpi/2021.10.0/oneapi/2023.2.1/ve6v/bin/mpif90 $(Fortran_DEFINES) $(Fortran_INCLUDES) $(Fortran_FLAGS) -fixed -S /glade/u/home/tvda/CISM/libglimmer-solve/SLAP/xersla.f -o CMakeFiles/glimmercismfortran.dir/libglimmer-solve/SLAP/xersla.f.s
 
 CMakeFiles/glimmercismfortran.dir/libglimmer-solve/glimmer_sparse.F90.o: CMakeFiles/glimmercismfortran.dir/flags.make
 CMakeFiles/glimmercismfortran.dir/libglimmer-solve/glimmer_sparse.F90.o: /glade/u/home/tvda/CISM/libglimmer-solve/glimmer_sparse.F90
 	@$(CMAKE_COMMAND) -E cmake_echo_color --switch=$(COLOR) --green --progress-dir=/glade/u/home/tvda/CISM/builds/derecho-intel/CMakeFiles --progress-num=$(CMAKE_PROGRESS_51) "Building Fortran object CMakeFiles/glimmercismfortran.dir/libglimmer-solve/glimmer_sparse.F90.o"
-	/glade/u/apps/derecho/23.06/spack/opt/spack/ncarcompilers/1.0.0/oneapi/2023.0.0/ec7b/bin/mpi/mpif90 $(Fortran_DEFINES) $(Fortran_INCLUDES) $(Fortran_FLAGS) -c /glade/u/home/tvda/CISM/libglimmer-solve/glimmer_sparse.F90 -o CMakeFiles/glimmercismfortran.dir/libglimmer-solve/glimmer_sparse.F90.o
+	/glade/u/apps/derecho/23.09/spack/opt/spack/intel-oneapi-mpi/2021.10.0/oneapi/2023.2.1/ve6v/bin/mpif90 $(Fortran_DEFINES) $(Fortran_INCLUDES) $(Fortran_FLAGS) -c /glade/u/home/tvda/CISM/libglimmer-solve/glimmer_sparse.F90 -o CMakeFiles/glimmercismfortran.dir/libglimmer-solve/glimmer_sparse.F90.o
 
 CMakeFiles/glimmercismfortran.dir/libglimmer-solve/glimmer_sparse.F90.i: cmake_force
 	@$(CMAKE_COMMAND) -E cmake_echo_color --switch=$(COLOR) --green "Preprocessing Fortran source to CMakeFiles/glimmercismfortran.dir/libglimmer-solve/glimmer_sparse.F90.i"
-	/glade/u/apps/derecho/23.06/spack/opt/spack/ncarcompilers/1.0.0/oneapi/2023.0.0/ec7b/bin/mpi/mpif90 $(Fortran_DEFINES) $(Fortran_INCLUDES) $(Fortran_FLAGS) -E /glade/u/home/tvda/CISM/libglimmer-solve/glimmer_sparse.F90 > CMakeFiles/glimmercismfortran.dir/libglimmer-solve/glimmer_sparse.F90.i
+	/glade/u/apps/derecho/23.09/spack/opt/spack/intel-oneapi-mpi/2021.10.0/oneapi/2023.2.1/ve6v/bin/mpif90 $(Fortran_DEFINES) $(Fortran_INCLUDES) $(Fortran_FLAGS) -E /glade/u/home/tvda/CISM/libglimmer-solve/glimmer_sparse.F90 > CMakeFiles/glimmercismfortran.dir/libglimmer-solve/glimmer_sparse.F90.i
 
 CMakeFiles/glimmercismfortran.dir/libglimmer-solve/glimmer_sparse.F90.s: cmake_force
 	@$(CMAKE_COMMAND) -E cmake_echo_color --switch=$(COLOR) --green "Compiling Fortran source to assembly CMakeFiles/glimmercismfortran.dir/libglimmer-solve/glimmer_sparse.F90.s"
-	/glade/u/apps/derecho/23.06/spack/opt/spack/ncarcompilers/1.0.0/oneapi/2023.0.0/ec7b/bin/mpi/mpif90 $(Fortran_DEFINES) $(Fortran_INCLUDES) $(Fortran_FLAGS) -S /glade/u/home/tvda/CISM/libglimmer-solve/glimmer_sparse.F90 -o CMakeFiles/glimmercismfortran.dir/libglimmer-solve/glimmer_sparse.F90.s
+	/glade/u/apps/derecho/23.09/spack/opt/spack/intel-oneapi-mpi/2021.10.0/oneapi/2023.2.1/ve6v/bin/mpif90 $(Fortran_DEFINES) $(Fortran_INCLUDES) $(Fortran_FLAGS) -S /glade/u/home/tvda/CISM/libglimmer-solve/glimmer_sparse.F90 -o CMakeFiles/glimmercismfortran.dir/libglimmer-solve/glimmer_sparse.F90.s
 
 CMakeFiles/glimmercismfortran.dir/libglimmer-solve/glimmer_sparse_slap.F90.o: CMakeFiles/glimmercismfortran.dir/flags.make
 CMakeFiles/glimmercismfortran.dir/libglimmer-solve/glimmer_sparse_slap.F90.o: /glade/u/home/tvda/CISM/libglimmer-solve/glimmer_sparse_slap.F90
 	@$(CMAKE_COMMAND) -E cmake_echo_color --switch=$(COLOR) --green --progress-dir=/glade/u/home/tvda/CISM/builds/derecho-intel/CMakeFiles --progress-num=$(CMAKE_PROGRESS_52) "Building Fortran object CMakeFiles/glimmercismfortran.dir/libglimmer-solve/glimmer_sparse_slap.F90.o"
-	/glade/u/apps/derecho/23.06/spack/opt/spack/ncarcompilers/1.0.0/oneapi/2023.0.0/ec7b/bin/mpi/mpif90 $(Fortran_DEFINES) $(Fortran_INCLUDES) $(Fortran_FLAGS) -c /glade/u/home/tvda/CISM/libglimmer-solve/glimmer_sparse_slap.F90 -o CMakeFiles/glimmercismfortran.dir/libglimmer-solve/glimmer_sparse_slap.F90.o
+	/glade/u/apps/derecho/23.09/spack/opt/spack/intel-oneapi-mpi/2021.10.0/oneapi/2023.2.1/ve6v/bin/mpif90 $(Fortran_DEFINES) $(Fortran_INCLUDES) $(Fortran_FLAGS) -c /glade/u/home/tvda/CISM/libglimmer-solve/glimmer_sparse_slap.F90 -o CMakeFiles/glimmercismfortran.dir/libglimmer-solve/glimmer_sparse_slap.F90.o
 
 CMakeFiles/glimmercismfortran.dir/libglimmer-solve/glimmer_sparse_slap.F90.i: cmake_force
 	@$(CMAKE_COMMAND) -E cmake_echo_color --switch=$(COLOR) --green "Preprocessing Fortran source to CMakeFiles/glimmercismfortran.dir/libglimmer-solve/glimmer_sparse_slap.F90.i"
-	/glade/u/apps/derecho/23.06/spack/opt/spack/ncarcompilers/1.0.0/oneapi/2023.0.0/ec7b/bin/mpi/mpif90 $(Fortran_DEFINES) $(Fortran_INCLUDES) $(Fortran_FLAGS) -E /glade/u/home/tvda/CISM/libglimmer-solve/glimmer_sparse_slap.F90 > CMakeFiles/glimmercismfortran.dir/libglimmer-solve/glimmer_sparse_slap.F90.i
+	/glade/u/apps/derecho/23.09/spack/opt/spack/intel-oneapi-mpi/2021.10.0/oneapi/2023.2.1/ve6v/bin/mpif90 $(Fortran_DEFINES) $(Fortran_INCLUDES) $(Fortran_FLAGS) -E /glade/u/home/tvda/CISM/libglimmer-solve/glimmer_sparse_slap.F90 > CMakeFiles/glimmercismfortran.dir/libglimmer-solve/glimmer_sparse_slap.F90.i
 
 CMakeFiles/glimmercismfortran.dir/libglimmer-solve/glimmer_sparse_slap.F90.s: cmake_force
 	@$(CMAKE_COMMAND) -E cmake_echo_color --switch=$(COLOR) --green "Compiling Fortran source to assembly CMakeFiles/glimmercismfortran.dir/libglimmer-solve/glimmer_sparse_slap.F90.s"
-	/glade/u/apps/derecho/23.06/spack/opt/spack/ncarcompilers/1.0.0/oneapi/2023.0.0/ec7b/bin/mpi/mpif90 $(Fortran_DEFINES) $(Fortran_INCLUDES) $(Fortran_FLAGS) -S /glade/u/home/tvda/CISM/libglimmer-solve/glimmer_sparse_slap.F90 -o CMakeFiles/glimmercismfortran.dir/libglimmer-solve/glimmer_sparse_slap.F90.s
+	/glade/u/apps/derecho/23.09/spack/opt/spack/intel-oneapi-mpi/2021.10.0/oneapi/2023.2.1/ve6v/bin/mpif90 $(Fortran_DEFINES) $(Fortran_INCLUDES) $(Fortran_FLAGS) -S /glade/u/home/tvda/CISM/libglimmer-solve/glimmer_sparse_slap.F90 -o CMakeFiles/glimmercismfortran.dir/libglimmer-solve/glimmer_sparse_slap.F90.s
 
 CMakeFiles/glimmercismfortran.dir/libglimmer-solve/glimmer_sparse_type.F90.o: CMakeFiles/glimmercismfortran.dir/flags.make
 CMakeFiles/glimmercismfortran.dir/libglimmer-solve/glimmer_sparse_type.F90.o: /glade/u/home/tvda/CISM/libglimmer-solve/glimmer_sparse_type.F90
 	@$(CMAKE_COMMAND) -E cmake_echo_color --switch=$(COLOR) --green --progress-dir=/glade/u/home/tvda/CISM/builds/derecho-intel/CMakeFiles --progress-num=$(CMAKE_PROGRESS_53) "Building Fortran object CMakeFiles/glimmercismfortran.dir/libglimmer-solve/glimmer_sparse_type.F90.o"
-	/glade/u/apps/derecho/23.06/spack/opt/spack/ncarcompilers/1.0.0/oneapi/2023.0.0/ec7b/bin/mpi/mpif90 $(Fortran_DEFINES) $(Fortran_INCLUDES) $(Fortran_FLAGS) -c /glade/u/home/tvda/CISM/libglimmer-solve/glimmer_sparse_type.F90 -o CMakeFiles/glimmercismfortran.dir/libglimmer-solve/glimmer_sparse_type.F90.o
+	/glade/u/apps/derecho/23.09/spack/opt/spack/intel-oneapi-mpi/2021.10.0/oneapi/2023.2.1/ve6v/bin/mpif90 $(Fortran_DEFINES) $(Fortran_INCLUDES) $(Fortran_FLAGS) -c /glade/u/home/tvda/CISM/libglimmer-solve/glimmer_sparse_type.F90 -o CMakeFiles/glimmercismfortran.dir/libglimmer-solve/glimmer_sparse_type.F90.o
 
 CMakeFiles/glimmercismfortran.dir/libglimmer-solve/glimmer_sparse_type.F90.i: cmake_force
 	@$(CMAKE_COMMAND) -E cmake_echo_color --switch=$(COLOR) --green "Preprocessing Fortran source to CMakeFiles/glimmercismfortran.dir/libglimmer-solve/glimmer_sparse_type.F90.i"
-	/glade/u/apps/derecho/23.06/spack/opt/spack/ncarcompilers/1.0.0/oneapi/2023.0.0/ec7b/bin/mpi/mpif90 $(Fortran_DEFINES) $(Fortran_INCLUDES) $(Fortran_FLAGS) -E /glade/u/home/tvda/CISM/libglimmer-solve/glimmer_sparse_type.F90 > CMakeFiles/glimmercismfortran.dir/libglimmer-solve/glimmer_sparse_type.F90.i
+	/glade/u/apps/derecho/23.09/spack/opt/spack/intel-oneapi-mpi/2021.10.0/oneapi/2023.2.1/ve6v/bin/mpif90 $(Fortran_DEFINES) $(Fortran_INCLUDES) $(Fortran_FLAGS) -E /glade/u/home/tvda/CISM/libglimmer-solve/glimmer_sparse_type.F90 > CMakeFiles/glimmercismfortran.dir/libglimmer-solve/glimmer_sparse_type.F90.i
 
 CMakeFiles/glimmercismfortran.dir/libglimmer-solve/glimmer_sparse_type.F90.s: cmake_force
 	@$(CMAKE_COMMAND) -E cmake_echo_color --switch=$(COLOR) --green "Compiling Fortran source to assembly CMakeFiles/glimmercismfortran.dir/libglimmer-solve/glimmer_sparse_type.F90.s"
-	/glade/u/apps/derecho/23.06/spack/opt/spack/ncarcompilers/1.0.0/oneapi/2023.0.0/ec7b/bin/mpi/mpif90 $(Fortran_DEFINES) $(Fortran_INCLUDES) $(Fortran_FLAGS) -S /glade/u/home/tvda/CISM/libglimmer-solve/glimmer_sparse_type.F90 -o CMakeFiles/glimmercismfortran.dir/libglimmer-solve/glimmer_sparse_type.F90.s
+	/glade/u/apps/derecho/23.09/spack/opt/spack/intel-oneapi-mpi/2021.10.0/oneapi/2023.2.1/ve6v/bin/mpif90 $(Fortran_DEFINES) $(Fortran_INCLUDES) $(Fortran_FLAGS) -S /glade/u/home/tvda/CISM/libglimmer-solve/glimmer_sparse_type.F90 -o CMakeFiles/glimmercismfortran.dir/libglimmer-solve/glimmer_sparse_type.F90.s
 
 CMakeFiles/glimmercismfortran.dir/libglimmer/glimmer_commandline.F90.o: CMakeFiles/glimmercismfortran.dir/flags.make
 CMakeFiles/glimmercismfortran.dir/libglimmer/glimmer_commandline.F90.o: /glade/u/home/tvda/CISM/libglimmer/glimmer_commandline.F90
 	@$(CMAKE_COMMAND) -E cmake_echo_color --switch=$(COLOR) --green --progress-dir=/glade/u/home/tvda/CISM/builds/derecho-intel/CMakeFiles --progress-num=$(CMAKE_PROGRESS_54) "Building Fortran object CMakeFiles/glimmercismfortran.dir/libglimmer/glimmer_commandline.F90.o"
-	/glade/u/apps/derecho/23.06/spack/opt/spack/ncarcompilers/1.0.0/oneapi/2023.0.0/ec7b/bin/mpi/mpif90 $(Fortran_DEFINES) $(Fortran_INCLUDES) $(Fortran_FLAGS) -c /glade/u/home/tvda/CISM/libglimmer/glimmer_commandline.F90 -o CMakeFiles/glimmercismfortran.dir/libglimmer/glimmer_commandline.F90.o
+	/glade/u/apps/derecho/23.09/spack/opt/spack/intel-oneapi-mpi/2021.10.0/oneapi/2023.2.1/ve6v/bin/mpif90 $(Fortran_DEFINES) $(Fortran_INCLUDES) $(Fortran_FLAGS) -c /glade/u/home/tvda/CISM/libglimmer/glimmer_commandline.F90 -o CMakeFiles/glimmercismfortran.dir/libglimmer/glimmer_commandline.F90.o
 
 CMakeFiles/glimmercismfortran.dir/libglimmer/glimmer_commandline.F90.i: cmake_force
 	@$(CMAKE_COMMAND) -E cmake_echo_color --switch=$(COLOR) --green "Preprocessing Fortran source to CMakeFiles/glimmercismfortran.dir/libglimmer/glimmer_commandline.F90.i"
-	/glade/u/apps/derecho/23.06/spack/opt/spack/ncarcompilers/1.0.0/oneapi/2023.0.0/ec7b/bin/mpi/mpif90 $(Fortran_DEFINES) $(Fortran_INCLUDES) $(Fortran_FLAGS) -E /glade/u/home/tvda/CISM/libglimmer/glimmer_commandline.F90 > CMakeFiles/glimmercismfortran.dir/libglimmer/glimmer_commandline.F90.i
+	/glade/u/apps/derecho/23.09/spack/opt/spack/intel-oneapi-mpi/2021.10.0/oneapi/2023.2.1/ve6v/bin/mpif90 $(Fortran_DEFINES) $(Fortran_INCLUDES) $(Fortran_FLAGS) -E /glade/u/home/tvda/CISM/libglimmer/glimmer_commandline.F90 > CMakeFiles/glimmercismfortran.dir/libglimmer/glimmer_commandline.F90.i
 
 CMakeFiles/glimmercismfortran.dir/libglimmer/glimmer_commandline.F90.s: cmake_force
 	@$(CMAKE_COMMAND) -E cmake_echo_color --switch=$(COLOR) --green "Compiling Fortran source to assembly CMakeFiles/glimmercismfortran.dir/libglimmer/glimmer_commandline.F90.s"
-	/glade/u/apps/derecho/23.06/spack/opt/spack/ncarcompilers/1.0.0/oneapi/2023.0.0/ec7b/bin/mpi/mpif90 $(Fortran_DEFINES) $(Fortran_INCLUDES) $(Fortran_FLAGS) -S /glade/u/home/tvda/CISM/libglimmer/glimmer_commandline.F90 -o CMakeFiles/glimmercismfortran.dir/libglimmer/glimmer_commandline.F90.s
+	/glade/u/apps/derecho/23.09/spack/opt/spack/intel-oneapi-mpi/2021.10.0/oneapi/2023.2.1/ve6v/bin/mpif90 $(Fortran_DEFINES) $(Fortran_INCLUDES) $(Fortran_FLAGS) -S /glade/u/home/tvda/CISM/libglimmer/glimmer_commandline.F90 -o CMakeFiles/glimmercismfortran.dir/libglimmer/glimmer_commandline.F90.s
 
 CMakeFiles/glimmercismfortran.dir/libglimmer/glimmer_config.F90.o: CMakeFiles/glimmercismfortran.dir/flags.make
 CMakeFiles/glimmercismfortran.dir/libglimmer/glimmer_config.F90.o: /glade/u/home/tvda/CISM/libglimmer/glimmer_config.F90
 	@$(CMAKE_COMMAND) -E cmake_echo_color --switch=$(COLOR) --green --progress-dir=/glade/u/home/tvda/CISM/builds/derecho-intel/CMakeFiles --progress-num=$(CMAKE_PROGRESS_55) "Building Fortran object CMakeFiles/glimmercismfortran.dir/libglimmer/glimmer_config.F90.o"
-	/glade/u/apps/derecho/23.06/spack/opt/spack/ncarcompilers/1.0.0/oneapi/2023.0.0/ec7b/bin/mpi/mpif90 $(Fortran_DEFINES) $(Fortran_INCLUDES) $(Fortran_FLAGS) -c /glade/u/home/tvda/CISM/libglimmer/glimmer_config.F90 -o CMakeFiles/glimmercismfortran.dir/libglimmer/glimmer_config.F90.o
+	/glade/u/apps/derecho/23.09/spack/opt/spack/intel-oneapi-mpi/2021.10.0/oneapi/2023.2.1/ve6v/bin/mpif90 $(Fortran_DEFINES) $(Fortran_INCLUDES) $(Fortran_FLAGS) -c /glade/u/home/tvda/CISM/libglimmer/glimmer_config.F90 -o CMakeFiles/glimmercismfortran.dir/libglimmer/glimmer_config.F90.o
 
 CMakeFiles/glimmercismfortran.dir/libglimmer/glimmer_config.F90.i: cmake_force
 	@$(CMAKE_COMMAND) -E cmake_echo_color --switch=$(COLOR) --green "Preprocessing Fortran source to CMakeFiles/glimmercismfortran.dir/libglimmer/glimmer_config.F90.i"
-	/glade/u/apps/derecho/23.06/spack/opt/spack/ncarcompilers/1.0.0/oneapi/2023.0.0/ec7b/bin/mpi/mpif90 $(Fortran_DEFINES) $(Fortran_INCLUDES) $(Fortran_FLAGS) -E /glade/u/home/tvda/CISM/libglimmer/glimmer_config.F90 > CMakeFiles/glimmercismfortran.dir/libglimmer/glimmer_config.F90.i
+	/glade/u/apps/derecho/23.09/spack/opt/spack/intel-oneapi-mpi/2021.10.0/oneapi/2023.2.1/ve6v/bin/mpif90 $(Fortran_DEFINES) $(Fortran_INCLUDES) $(Fortran_FLAGS) -E /glade/u/home/tvda/CISM/libglimmer/glimmer_config.F90 > CMakeFiles/glimmercismfortran.dir/libglimmer/glimmer_config.F90.i
 
 CMakeFiles/glimmercismfortran.dir/libglimmer/glimmer_config.F90.s: cmake_force
 	@$(CMAKE_COMMAND) -E cmake_echo_color --switch=$(COLOR) --green "Compiling Fortran source to assembly CMakeFiles/glimmercismfortran.dir/libglimmer/glimmer_config.F90.s"
-	/glade/u/apps/derecho/23.06/spack/opt/spack/ncarcompilers/1.0.0/oneapi/2023.0.0/ec7b/bin/mpi/mpif90 $(Fortran_DEFINES) $(Fortran_INCLUDES) $(Fortran_FLAGS) -S /glade/u/home/tvda/CISM/libglimmer/glimmer_config.F90 -o CMakeFiles/glimmercismfortran.dir/libglimmer/glimmer_config.F90.s
+	/glade/u/apps/derecho/23.09/spack/opt/spack/intel-oneapi-mpi/2021.10.0/oneapi/2023.2.1/ve6v/bin/mpif90 $(Fortran_DEFINES) $(Fortran_INCLUDES) $(Fortran_FLAGS) -S /glade/u/home/tvda/CISM/libglimmer/glimmer_config.F90 -o CMakeFiles/glimmercismfortran.dir/libglimmer/glimmer_config.F90.s
 
 CMakeFiles/glimmercismfortran.dir/libglimmer/glimmer_coordinates.F90.o: CMakeFiles/glimmercismfortran.dir/flags.make
 CMakeFiles/glimmercismfortran.dir/libglimmer/glimmer_coordinates.F90.o: /glade/u/home/tvda/CISM/libglimmer/glimmer_coordinates.F90
 	@$(CMAKE_COMMAND) -E cmake_echo_color --switch=$(COLOR) --green --progress-dir=/glade/u/home/tvda/CISM/builds/derecho-intel/CMakeFiles --progress-num=$(CMAKE_PROGRESS_56) "Building Fortran object CMakeFiles/glimmercismfortran.dir/libglimmer/glimmer_coordinates.F90.o"
-	/glade/u/apps/derecho/23.06/spack/opt/spack/ncarcompilers/1.0.0/oneapi/2023.0.0/ec7b/bin/mpi/mpif90 $(Fortran_DEFINES) $(Fortran_INCLUDES) $(Fortran_FLAGS) -c /glade/u/home/tvda/CISM/libglimmer/glimmer_coordinates.F90 -o CMakeFiles/glimmercismfortran.dir/libglimmer/glimmer_coordinates.F90.o
+	/glade/u/apps/derecho/23.09/spack/opt/spack/intel-oneapi-mpi/2021.10.0/oneapi/2023.2.1/ve6v/bin/mpif90 $(Fortran_DEFINES) $(Fortran_INCLUDES) $(Fortran_FLAGS) -c /glade/u/home/tvda/CISM/libglimmer/glimmer_coordinates.F90 -o CMakeFiles/glimmercismfortran.dir/libglimmer/glimmer_coordinates.F90.o
 
 CMakeFiles/glimmercismfortran.dir/libglimmer/glimmer_coordinates.F90.i: cmake_force
 	@$(CMAKE_COMMAND) -E cmake_echo_color --switch=$(COLOR) --green "Preprocessing Fortran source to CMakeFiles/glimmercismfortran.dir/libglimmer/glimmer_coordinates.F90.i"
-	/glade/u/apps/derecho/23.06/spack/opt/spack/ncarcompilers/1.0.0/oneapi/2023.0.0/ec7b/bin/mpi/mpif90 $(Fortran_DEFINES) $(Fortran_INCLUDES) $(Fortran_FLAGS) -E /glade/u/home/tvda/CISM/libglimmer/glimmer_coordinates.F90 > CMakeFiles/glimmercismfortran.dir/libglimmer/glimmer_coordinates.F90.i
+	/glade/u/apps/derecho/23.09/spack/opt/spack/intel-oneapi-mpi/2021.10.0/oneapi/2023.2.1/ve6v/bin/mpif90 $(Fortran_DEFINES) $(Fortran_INCLUDES) $(Fortran_FLAGS) -E /glade/u/home/tvda/CISM/libglimmer/glimmer_coordinates.F90 > CMakeFiles/glimmercismfortran.dir/libglimmer/glimmer_coordinates.F90.i
 
 CMakeFiles/glimmercismfortran.dir/libglimmer/glimmer_coordinates.F90.s: cmake_force
 	@$(CMAKE_COMMAND) -E cmake_echo_color --switch=$(COLOR) --green "Compiling Fortran source to assembly CMakeFiles/glimmercismfortran.dir/libglimmer/glimmer_coordinates.F90.s"
-	/glade/u/apps/derecho/23.06/spack/opt/spack/ncarcompilers/1.0.0/oneapi/2023.0.0/ec7b/bin/mpi/mpif90 $(Fortran_DEFINES) $(Fortran_INCLUDES) $(Fortran_FLAGS) -S /glade/u/home/tvda/CISM/libglimmer/glimmer_coordinates.F90 -o CMakeFiles/glimmercismfortran.dir/libglimmer/glimmer_coordinates.F90.s
+	/glade/u/apps/derecho/23.09/spack/opt/spack/intel-oneapi-mpi/2021.10.0/oneapi/2023.2.1/ve6v/bin/mpif90 $(Fortran_DEFINES) $(Fortran_INCLUDES) $(Fortran_FLAGS) -S /glade/u/home/tvda/CISM/libglimmer/glimmer_coordinates.F90 -o CMakeFiles/glimmercismfortran.dir/libglimmer/glimmer_coordinates.F90.s
 
 CMakeFiles/glimmercismfortran.dir/libglimmer/glimmer_filenames.F90.o: CMakeFiles/glimmercismfortran.dir/flags.make
 CMakeFiles/glimmercismfortran.dir/libglimmer/glimmer_filenames.F90.o: /glade/u/home/tvda/CISM/libglimmer/glimmer_filenames.F90
 	@$(CMAKE_COMMAND) -E cmake_echo_color --switch=$(COLOR) --green --progress-dir=/glade/u/home/tvda/CISM/builds/derecho-intel/CMakeFiles --progress-num=$(CMAKE_PROGRESS_57) "Building Fortran object CMakeFiles/glimmercismfortran.dir/libglimmer/glimmer_filenames.F90.o"
-	/glade/u/apps/derecho/23.06/spack/opt/spack/ncarcompilers/1.0.0/oneapi/2023.0.0/ec7b/bin/mpi/mpif90 $(Fortran_DEFINES) $(Fortran_INCLUDES) $(Fortran_FLAGS) -c /glade/u/home/tvda/CISM/libglimmer/glimmer_filenames.F90 -o CMakeFiles/glimmercismfortran.dir/libglimmer/glimmer_filenames.F90.o
+	/glade/u/apps/derecho/23.09/spack/opt/spack/intel-oneapi-mpi/2021.10.0/oneapi/2023.2.1/ve6v/bin/mpif90 $(Fortran_DEFINES) $(Fortran_INCLUDES) $(Fortran_FLAGS) -c /glade/u/home/tvda/CISM/libglimmer/glimmer_filenames.F90 -o CMakeFiles/glimmercismfortran.dir/libglimmer/glimmer_filenames.F90.o
 
 CMakeFiles/glimmercismfortran.dir/libglimmer/glimmer_filenames.F90.i: cmake_force
 	@$(CMAKE_COMMAND) -E cmake_echo_color --switch=$(COLOR) --green "Preprocessing Fortran source to CMakeFiles/glimmercismfortran.dir/libglimmer/glimmer_filenames.F90.i"
-	/glade/u/apps/derecho/23.06/spack/opt/spack/ncarcompilers/1.0.0/oneapi/2023.0.0/ec7b/bin/mpi/mpif90 $(Fortran_DEFINES) $(Fortran_INCLUDES) $(Fortran_FLAGS) -E /glade/u/home/tvda/CISM/libglimmer/glimmer_filenames.F90 > CMakeFiles/glimmercismfortran.dir/libglimmer/glimmer_filenames.F90.i
+	/glade/u/apps/derecho/23.09/spack/opt/spack/intel-oneapi-mpi/2021.10.0/oneapi/2023.2.1/ve6v/bin/mpif90 $(Fortran_DEFINES) $(Fortran_INCLUDES) $(Fortran_FLAGS) -E /glade/u/home/tvda/CISM/libglimmer/glimmer_filenames.F90 > CMakeFiles/glimmercismfortran.dir/libglimmer/glimmer_filenames.F90.i
 
 CMakeFiles/glimmercismfortran.dir/libglimmer/glimmer_filenames.F90.s: cmake_force
 	@$(CMAKE_COMMAND) -E cmake_echo_color --switch=$(COLOR) --green "Compiling Fortran source to assembly CMakeFiles/glimmercismfortran.dir/libglimmer/glimmer_filenames.F90.s"
-	/glade/u/apps/derecho/23.06/spack/opt/spack/ncarcompilers/1.0.0/oneapi/2023.0.0/ec7b/bin/mpi/mpif90 $(Fortran_DEFINES) $(Fortran_INCLUDES) $(Fortran_FLAGS) -S /glade/u/home/tvda/CISM/libglimmer/glimmer_filenames.F90 -o CMakeFiles/glimmercismfortran.dir/libglimmer/glimmer_filenames.F90.s
+	/glade/u/apps/derecho/23.09/spack/opt/spack/intel-oneapi-mpi/2021.10.0/oneapi/2023.2.1/ve6v/bin/mpif90 $(Fortran_DEFINES) $(Fortran_INCLUDES) $(Fortran_FLAGS) -S /glade/u/home/tvda/CISM/libglimmer/glimmer_filenames.F90 -o CMakeFiles/glimmercismfortran.dir/libglimmer/glimmer_filenames.F90.s
 
 CMakeFiles/glimmercismfortran.dir/libglimmer/glimmer_global.F90.o: CMakeFiles/glimmercismfortran.dir/flags.make
 CMakeFiles/glimmercismfortran.dir/libglimmer/glimmer_global.F90.o: /glade/u/home/tvda/CISM/libglimmer/glimmer_global.F90
 	@$(CMAKE_COMMAND) -E cmake_echo_color --switch=$(COLOR) --green --progress-dir=/glade/u/home/tvda/CISM/builds/derecho-intel/CMakeFiles --progress-num=$(CMAKE_PROGRESS_58) "Building Fortran object CMakeFiles/glimmercismfortran.dir/libglimmer/glimmer_global.F90.o"
-	/glade/u/apps/derecho/23.06/spack/opt/spack/ncarcompilers/1.0.0/oneapi/2023.0.0/ec7b/bin/mpi/mpif90 $(Fortran_DEFINES) $(Fortran_INCLUDES) $(Fortran_FLAGS) -c /glade/u/home/tvda/CISM/libglimmer/glimmer_global.F90 -o CMakeFiles/glimmercismfortran.dir/libglimmer/glimmer_global.F90.o
+	/glade/u/apps/derecho/23.09/spack/opt/spack/intel-oneapi-mpi/2021.10.0/oneapi/2023.2.1/ve6v/bin/mpif90 $(Fortran_DEFINES) $(Fortran_INCLUDES) $(Fortran_FLAGS) -c /glade/u/home/tvda/CISM/libglimmer/glimmer_global.F90 -o CMakeFiles/glimmercismfortran.dir/libglimmer/glimmer_global.F90.o
 
 CMakeFiles/glimmercismfortran.dir/libglimmer/glimmer_global.F90.i: cmake_force
 	@$(CMAKE_COMMAND) -E cmake_echo_color --switch=$(COLOR) --green "Preprocessing Fortran source to CMakeFiles/glimmercismfortran.dir/libglimmer/glimmer_global.F90.i"
-	/glade/u/apps/derecho/23.06/spack/opt/spack/ncarcompilers/1.0.0/oneapi/2023.0.0/ec7b/bin/mpi/mpif90 $(Fortran_DEFINES) $(Fortran_INCLUDES) $(Fortran_FLAGS) -E /glade/u/home/tvda/CISM/libglimmer/glimmer_global.F90 > CMakeFiles/glimmercismfortran.dir/libglimmer/glimmer_global.F90.i
+	/glade/u/apps/derecho/23.09/spack/opt/spack/intel-oneapi-mpi/2021.10.0/oneapi/2023.2.1/ve6v/bin/mpif90 $(Fortran_DEFINES) $(Fortran_INCLUDES) $(Fortran_FLAGS) -E /glade/u/home/tvda/CISM/libglimmer/glimmer_global.F90 > CMakeFiles/glimmercismfortran.dir/libglimmer/glimmer_global.F90.i
 
 CMakeFiles/glimmercismfortran.dir/libglimmer/glimmer_global.F90.s: cmake_force
 	@$(CMAKE_COMMAND) -E cmake_echo_color --switch=$(COLOR) --green "Compiling Fortran source to assembly CMakeFiles/glimmercismfortran.dir/libglimmer/glimmer_global.F90.s"
-	/glade/u/apps/derecho/23.06/spack/opt/spack/ncarcompilers/1.0.0/oneapi/2023.0.0/ec7b/bin/mpi/mpif90 $(Fortran_DEFINES) $(Fortran_INCLUDES) $(Fortran_FLAGS) -S /glade/u/home/tvda/CISM/libglimmer/glimmer_global.F90 -o CMakeFiles/glimmercismfortran.dir/libglimmer/glimmer_global.F90.s
+	/glade/u/apps/derecho/23.09/spack/opt/spack/intel-oneapi-mpi/2021.10.0/oneapi/2023.2.1/ve6v/bin/mpif90 $(Fortran_DEFINES) $(Fortran_INCLUDES) $(Fortran_FLAGS) -S /glade/u/home/tvda/CISM/libglimmer/glimmer_global.F90 -o CMakeFiles/glimmercismfortran.dir/libglimmer/glimmer_global.F90.s
 
 CMakeFiles/glimmercismfortran.dir/libglimmer/glimmer_log.F90.o: CMakeFiles/glimmercismfortran.dir/flags.make
 CMakeFiles/glimmercismfortran.dir/libglimmer/glimmer_log.F90.o: /glade/u/home/tvda/CISM/libglimmer/glimmer_log.F90
 	@$(CMAKE_COMMAND) -E cmake_echo_color --switch=$(COLOR) --green --progress-dir=/glade/u/home/tvda/CISM/builds/derecho-intel/CMakeFiles --progress-num=$(CMAKE_PROGRESS_59) "Building Fortran object CMakeFiles/glimmercismfortran.dir/libglimmer/glimmer_log.F90.o"
-	/glade/u/apps/derecho/23.06/spack/opt/spack/ncarcompilers/1.0.0/oneapi/2023.0.0/ec7b/bin/mpi/mpif90 $(Fortran_DEFINES) $(Fortran_INCLUDES) $(Fortran_FLAGS) -c /glade/u/home/tvda/CISM/libglimmer/glimmer_log.F90 -o CMakeFiles/glimmercismfortran.dir/libglimmer/glimmer_log.F90.o
+	/glade/u/apps/derecho/23.09/spack/opt/spack/intel-oneapi-mpi/2021.10.0/oneapi/2023.2.1/ve6v/bin/mpif90 $(Fortran_DEFINES) $(Fortran_INCLUDES) $(Fortran_FLAGS) -c /glade/u/home/tvda/CISM/libglimmer/glimmer_log.F90 -o CMakeFiles/glimmercismfortran.dir/libglimmer/glimmer_log.F90.o
 
 CMakeFiles/glimmercismfortran.dir/libglimmer/glimmer_log.F90.i: cmake_force
 	@$(CMAKE_COMMAND) -E cmake_echo_color --switch=$(COLOR) --green "Preprocessing Fortran source to CMakeFiles/glimmercismfortran.dir/libglimmer/glimmer_log.F90.i"
-	/glade/u/apps/derecho/23.06/spack/opt/spack/ncarcompilers/1.0.0/oneapi/2023.0.0/ec7b/bin/mpi/mpif90 $(Fortran_DEFINES) $(Fortran_INCLUDES) $(Fortran_FLAGS) -E /glade/u/home/tvda/CISM/libglimmer/glimmer_log.F90 > CMakeFiles/glimmercismfortran.dir/libglimmer/glimmer_log.F90.i
+	/glade/u/apps/derecho/23.09/spack/opt/spack/intel-oneapi-mpi/2021.10.0/oneapi/2023.2.1/ve6v/bin/mpif90 $(Fortran_DEFINES) $(Fortran_INCLUDES) $(Fortran_FLAGS) -E /glade/u/home/tvda/CISM/libglimmer/glimmer_log.F90 > CMakeFiles/glimmercismfortran.dir/libglimmer/glimmer_log.F90.i
 
 CMakeFiles/glimmercismfortran.dir/libglimmer/glimmer_log.F90.s: cmake_force
 	@$(CMAKE_COMMAND) -E cmake_echo_color --switch=$(COLOR) --green "Compiling Fortran source to assembly CMakeFiles/glimmercismfortran.dir/libglimmer/glimmer_log.F90.s"
-	/glade/u/apps/derecho/23.06/spack/opt/spack/ncarcompilers/1.0.0/oneapi/2023.0.0/ec7b/bin/mpi/mpif90 $(Fortran_DEFINES) $(Fortran_INCLUDES) $(Fortran_FLAGS) -S /glade/u/home/tvda/CISM/libglimmer/glimmer_log.F90 -o CMakeFiles/glimmercismfortran.dir/libglimmer/glimmer_log.F90.s
+	/glade/u/apps/derecho/23.09/spack/opt/spack/intel-oneapi-mpi/2021.10.0/oneapi/2023.2.1/ve6v/bin/mpif90 $(Fortran_DEFINES) $(Fortran_INCLUDES) $(Fortran_FLAGS) -S /glade/u/home/tvda/CISM/libglimmer/glimmer_log.F90 -o CMakeFiles/glimmercismfortran.dir/libglimmer/glimmer_log.F90.s
 
 CMakeFiles/glimmercismfortran.dir/libglimmer/glimmer_map_CFproj.F90.o: CMakeFiles/glimmercismfortran.dir/flags.make
 CMakeFiles/glimmercismfortran.dir/libglimmer/glimmer_map_CFproj.F90.o: /glade/u/home/tvda/CISM/libglimmer/glimmer_map_CFproj.F90
 	@$(CMAKE_COMMAND) -E cmake_echo_color --switch=$(COLOR) --green --progress-dir=/glade/u/home/tvda/CISM/builds/derecho-intel/CMakeFiles --progress-num=$(CMAKE_PROGRESS_60) "Building Fortran object CMakeFiles/glimmercismfortran.dir/libglimmer/glimmer_map_CFproj.F90.o"
-	/glade/u/apps/derecho/23.06/spack/opt/spack/ncarcompilers/1.0.0/oneapi/2023.0.0/ec7b/bin/mpi/mpif90 $(Fortran_DEFINES) $(Fortran_INCLUDES) $(Fortran_FLAGS) -c /glade/u/home/tvda/CISM/libglimmer/glimmer_map_CFproj.F90 -o CMakeFiles/glimmercismfortran.dir/libglimmer/glimmer_map_CFproj.F90.o
+	/glade/u/apps/derecho/23.09/spack/opt/spack/intel-oneapi-mpi/2021.10.0/oneapi/2023.2.1/ve6v/bin/mpif90 $(Fortran_DEFINES) $(Fortran_INCLUDES) $(Fortran_FLAGS) -c /glade/u/home/tvda/CISM/libglimmer/glimmer_map_CFproj.F90 -o CMakeFiles/glimmercismfortran.dir/libglimmer/glimmer_map_CFproj.F90.o
 
 CMakeFiles/glimmercismfortran.dir/libglimmer/glimmer_map_CFproj.F90.i: cmake_force
 	@$(CMAKE_COMMAND) -E cmake_echo_color --switch=$(COLOR) --green "Preprocessing Fortran source to CMakeFiles/glimmercismfortran.dir/libglimmer/glimmer_map_CFproj.F90.i"
-	/glade/u/apps/derecho/23.06/spack/opt/spack/ncarcompilers/1.0.0/oneapi/2023.0.0/ec7b/bin/mpi/mpif90 $(Fortran_DEFINES) $(Fortran_INCLUDES) $(Fortran_FLAGS) -E /glade/u/home/tvda/CISM/libglimmer/glimmer_map_CFproj.F90 > CMakeFiles/glimmercismfortran.dir/libglimmer/glimmer_map_CFproj.F90.i
+	/glade/u/apps/derecho/23.09/spack/opt/spack/intel-oneapi-mpi/2021.10.0/oneapi/2023.2.1/ve6v/bin/mpif90 $(Fortran_DEFINES) $(Fortran_INCLUDES) $(Fortran_FLAGS) -E /glade/u/home/tvda/CISM/libglimmer/glimmer_map_CFproj.F90 > CMakeFiles/glimmercismfortran.dir/libglimmer/glimmer_map_CFproj.F90.i
 
 CMakeFiles/glimmercismfortran.dir/libglimmer/glimmer_map_CFproj.F90.s: cmake_force
 	@$(CMAKE_COMMAND) -E cmake_echo_color --switch=$(COLOR) --green "Compiling Fortran source to assembly CMakeFiles/glimmercismfortran.dir/libglimmer/glimmer_map_CFproj.F90.s"
-	/glade/u/apps/derecho/23.06/spack/opt/spack/ncarcompilers/1.0.0/oneapi/2023.0.0/ec7b/bin/mpi/mpif90 $(Fortran_DEFINES) $(Fortran_INCLUDES) $(Fortran_FLAGS) -S /glade/u/home/tvda/CISM/libglimmer/glimmer_map_CFproj.F90 -o CMakeFiles/glimmercismfortran.dir/libglimmer/glimmer_map_CFproj.F90.s
+	/glade/u/apps/derecho/23.09/spack/opt/spack/intel-oneapi-mpi/2021.10.0/oneapi/2023.2.1/ve6v/bin/mpif90 $(Fortran_DEFINES) $(Fortran_INCLUDES) $(Fortran_FLAGS) -S /glade/u/home/tvda/CISM/libglimmer/glimmer_map_CFproj.F90 -o CMakeFiles/glimmercismfortran.dir/libglimmer/glimmer_map_CFproj.F90.s
 
 CMakeFiles/glimmercismfortran.dir/libglimmer/glimmer_map_init.F90.o: CMakeFiles/glimmercismfortran.dir/flags.make
 CMakeFiles/glimmercismfortran.dir/libglimmer/glimmer_map_init.F90.o: /glade/u/home/tvda/CISM/libglimmer/glimmer_map_init.F90
 	@$(CMAKE_COMMAND) -E cmake_echo_color --switch=$(COLOR) --green --progress-dir=/glade/u/home/tvda/CISM/builds/derecho-intel/CMakeFiles --progress-num=$(CMAKE_PROGRESS_61) "Building Fortran object CMakeFiles/glimmercismfortran.dir/libglimmer/glimmer_map_init.F90.o"
-	/glade/u/apps/derecho/23.06/spack/opt/spack/ncarcompilers/1.0.0/oneapi/2023.0.0/ec7b/bin/mpi/mpif90 $(Fortran_DEFINES) $(Fortran_INCLUDES) $(Fortran_FLAGS) -c /glade/u/home/tvda/CISM/libglimmer/glimmer_map_init.F90 -o CMakeFiles/glimmercismfortran.dir/libglimmer/glimmer_map_init.F90.o
+	/glade/u/apps/derecho/23.09/spack/opt/spack/intel-oneapi-mpi/2021.10.0/oneapi/2023.2.1/ve6v/bin/mpif90 $(Fortran_DEFINES) $(Fortran_INCLUDES) $(Fortran_FLAGS) -c /glade/u/home/tvda/CISM/libglimmer/glimmer_map_init.F90 -o CMakeFiles/glimmercismfortran.dir/libglimmer/glimmer_map_init.F90.o
 
 CMakeFiles/glimmercismfortran.dir/libglimmer/glimmer_map_init.F90.i: cmake_force
 	@$(CMAKE_COMMAND) -E cmake_echo_color --switch=$(COLOR) --green "Preprocessing Fortran source to CMakeFiles/glimmercismfortran.dir/libglimmer/glimmer_map_init.F90.i"
-	/glade/u/apps/derecho/23.06/spack/opt/spack/ncarcompilers/1.0.0/oneapi/2023.0.0/ec7b/bin/mpi/mpif90 $(Fortran_DEFINES) $(Fortran_INCLUDES) $(Fortran_FLAGS) -E /glade/u/home/tvda/CISM/libglimmer/glimmer_map_init.F90 > CMakeFiles/glimmercismfortran.dir/libglimmer/glimmer_map_init.F90.i
+	/glade/u/apps/derecho/23.09/spack/opt/spack/intel-oneapi-mpi/2021.10.0/oneapi/2023.2.1/ve6v/bin/mpif90 $(Fortran_DEFINES) $(Fortran_INCLUDES) $(Fortran_FLAGS) -E /glade/u/home/tvda/CISM/libglimmer/glimmer_map_init.F90 > CMakeFiles/glimmercismfortran.dir/libglimmer/glimmer_map_init.F90.i
 
 CMakeFiles/glimmercismfortran.dir/libglimmer/glimmer_map_init.F90.s: cmake_force
 	@$(CMAKE_COMMAND) -E cmake_echo_color --switch=$(COLOR) --green "Compiling Fortran source to assembly CMakeFiles/glimmercismfortran.dir/libglimmer/glimmer_map_init.F90.s"
-	/glade/u/apps/derecho/23.06/spack/opt/spack/ncarcompilers/1.0.0/oneapi/2023.0.0/ec7b/bin/mpi/mpif90 $(Fortran_DEFINES) $(Fortran_INCLUDES) $(Fortran_FLAGS) -S /glade/u/home/tvda/CISM/libglimmer/glimmer_map_init.F90 -o CMakeFiles/glimmercismfortran.dir/libglimmer/glimmer_map_init.F90.s
+	/glade/u/apps/derecho/23.09/spack/opt/spack/intel-oneapi-mpi/2021.10.0/oneapi/2023.2.1/ve6v/bin/mpif90 $(Fortran_DEFINES) $(Fortran_INCLUDES) $(Fortran_FLAGS) -S /glade/u/home/tvda/CISM/libglimmer/glimmer_map_init.F90 -o CMakeFiles/glimmercismfortran.dir/libglimmer/glimmer_map_init.F90.s
 
 CMakeFiles/glimmercismfortran.dir/libglimmer/glimmer_map_proj4.F90.o: CMakeFiles/glimmercismfortran.dir/flags.make
 CMakeFiles/glimmercismfortran.dir/libglimmer/glimmer_map_proj4.F90.o: /glade/u/home/tvda/CISM/libglimmer/glimmer_map_proj4.F90
 	@$(CMAKE_COMMAND) -E cmake_echo_color --switch=$(COLOR) --green --progress-dir=/glade/u/home/tvda/CISM/builds/derecho-intel/CMakeFiles --progress-num=$(CMAKE_PROGRESS_62) "Building Fortran object CMakeFiles/glimmercismfortran.dir/libglimmer/glimmer_map_proj4.F90.o"
-	/glade/u/apps/derecho/23.06/spack/opt/spack/ncarcompilers/1.0.0/oneapi/2023.0.0/ec7b/bin/mpi/mpif90 $(Fortran_DEFINES) $(Fortran_INCLUDES) $(Fortran_FLAGS) -c /glade/u/home/tvda/CISM/libglimmer/glimmer_map_proj4.F90 -o CMakeFiles/glimmercismfortran.dir/libglimmer/glimmer_map_proj4.F90.o
+	/glade/u/apps/derecho/23.09/spack/opt/spack/intel-oneapi-mpi/2021.10.0/oneapi/2023.2.1/ve6v/bin/mpif90 $(Fortran_DEFINES) $(Fortran_INCLUDES) $(Fortran_FLAGS) -c /glade/u/home/tvda/CISM/libglimmer/glimmer_map_proj4.F90 -o CMakeFiles/glimmercismfortran.dir/libglimmer/glimmer_map_proj4.F90.o
 
 CMakeFiles/glimmercismfortran.dir/libglimmer/glimmer_map_proj4.F90.i: cmake_force
 	@$(CMAKE_COMMAND) -E cmake_echo_color --switch=$(COLOR) --green "Preprocessing Fortran source to CMakeFiles/glimmercismfortran.dir/libglimmer/glimmer_map_proj4.F90.i"
-	/glade/u/apps/derecho/23.06/spack/opt/spack/ncarcompilers/1.0.0/oneapi/2023.0.0/ec7b/bin/mpi/mpif90 $(Fortran_DEFINES) $(Fortran_INCLUDES) $(Fortran_FLAGS) -E /glade/u/home/tvda/CISM/libglimmer/glimmer_map_proj4.F90 > CMakeFiles/glimmercismfortran.dir/libglimmer/glimmer_map_proj4.F90.i
+	/glade/u/apps/derecho/23.09/spack/opt/spack/intel-oneapi-mpi/2021.10.0/oneapi/2023.2.1/ve6v/bin/mpif90 $(Fortran_DEFINES) $(Fortran_INCLUDES) $(Fortran_FLAGS) -E /glade/u/home/tvda/CISM/libglimmer/glimmer_map_proj4.F90 > CMakeFiles/glimmercismfortran.dir/libglimmer/glimmer_map_proj4.F90.i
 
 CMakeFiles/glimmercismfortran.dir/libglimmer/glimmer_map_proj4.F90.s: cmake_force
 	@$(CMAKE_COMMAND) -E cmake_echo_color --switch=$(COLOR) --green "Compiling Fortran source to assembly CMakeFiles/glimmercismfortran.dir/libglimmer/glimmer_map_proj4.F90.s"
-	/glade/u/apps/derecho/23.06/spack/opt/spack/ncarcompilers/1.0.0/oneapi/2023.0.0/ec7b/bin/mpi/mpif90 $(Fortran_DEFINES) $(Fortran_INCLUDES) $(Fortran_FLAGS) -S /glade/u/home/tvda/CISM/libglimmer/glimmer_map_proj4.F90 -o CMakeFiles/glimmercismfortran.dir/libglimmer/glimmer_map_proj4.F90.s
+	/glade/u/apps/derecho/23.09/spack/opt/spack/intel-oneapi-mpi/2021.10.0/oneapi/2023.2.1/ve6v/bin/mpif90 $(Fortran_DEFINES) $(Fortran_INCLUDES) $(Fortran_FLAGS) -S /glade/u/home/tvda/CISM/libglimmer/glimmer_map_proj4.F90 -o CMakeFiles/glimmercismfortran.dir/libglimmer/glimmer_map_proj4.F90.s
 
 CMakeFiles/glimmercismfortran.dir/libglimmer/glimmer_map_trans.F90.o: CMakeFiles/glimmercismfortran.dir/flags.make
 CMakeFiles/glimmercismfortran.dir/libglimmer/glimmer_map_trans.F90.o: /glade/u/home/tvda/CISM/libglimmer/glimmer_map_trans.F90
 	@$(CMAKE_COMMAND) -E cmake_echo_color --switch=$(COLOR) --green --progress-dir=/glade/u/home/tvda/CISM/builds/derecho-intel/CMakeFiles --progress-num=$(CMAKE_PROGRESS_63) "Building Fortran object CMakeFiles/glimmercismfortran.dir/libglimmer/glimmer_map_trans.F90.o"
-	/glade/u/apps/derecho/23.06/spack/opt/spack/ncarcompilers/1.0.0/oneapi/2023.0.0/ec7b/bin/mpi/mpif90 $(Fortran_DEFINES) $(Fortran_INCLUDES) $(Fortran_FLAGS) -c /glade/u/home/tvda/CISM/libglimmer/glimmer_map_trans.F90 -o CMakeFiles/glimmercismfortran.dir/libglimmer/glimmer_map_trans.F90.o
+	/glade/u/apps/derecho/23.09/spack/opt/spack/intel-oneapi-mpi/2021.10.0/oneapi/2023.2.1/ve6v/bin/mpif90 $(Fortran_DEFINES) $(Fortran_INCLUDES) $(Fortran_FLAGS) -c /glade/u/home/tvda/CISM/libglimmer/glimmer_map_trans.F90 -o CMakeFiles/glimmercismfortran.dir/libglimmer/glimmer_map_trans.F90.o
 
 CMakeFiles/glimmercismfortran.dir/libglimmer/glimmer_map_trans.F90.i: cmake_force
 	@$(CMAKE_COMMAND) -E cmake_echo_color --switch=$(COLOR) --green "Preprocessing Fortran source to CMakeFiles/glimmercismfortran.dir/libglimmer/glimmer_map_trans.F90.i"
-	/glade/u/apps/derecho/23.06/spack/opt/spack/ncarcompilers/1.0.0/oneapi/2023.0.0/ec7b/bin/mpi/mpif90 $(Fortran_DEFINES) $(Fortran_INCLUDES) $(Fortran_FLAGS) -E /glade/u/home/tvda/CISM/libglimmer/glimmer_map_trans.F90 > CMakeFiles/glimmercismfortran.dir/libglimmer/glimmer_map_trans.F90.i
+	/glade/u/apps/derecho/23.09/spack/opt/spack/intel-oneapi-mpi/2021.10.0/oneapi/2023.2.1/ve6v/bin/mpif90 $(Fortran_DEFINES) $(Fortran_INCLUDES) $(Fortran_FLAGS) -E /glade/u/home/tvda/CISM/libglimmer/glimmer_map_trans.F90 > CMakeFiles/glimmercismfortran.dir/libglimmer/glimmer_map_trans.F90.i
 
 CMakeFiles/glimmercismfortran.dir/libglimmer/glimmer_map_trans.F90.s: cmake_force
 	@$(CMAKE_COMMAND) -E cmake_echo_color --switch=$(COLOR) --green "Compiling Fortran source to assembly CMakeFiles/glimmercismfortran.dir/libglimmer/glimmer_map_trans.F90.s"
-	/glade/u/apps/derecho/23.06/spack/opt/spack/ncarcompilers/1.0.0/oneapi/2023.0.0/ec7b/bin/mpi/mpif90 $(Fortran_DEFINES) $(Fortran_INCLUDES) $(Fortran_FLAGS) -S /glade/u/home/tvda/CISM/libglimmer/glimmer_map_trans.F90 -o CMakeFiles/glimmercismfortran.dir/libglimmer/glimmer_map_trans.F90.s
+	/glade/u/apps/derecho/23.09/spack/opt/spack/intel-oneapi-mpi/2021.10.0/oneapi/2023.2.1/ve6v/bin/mpif90 $(Fortran_DEFINES) $(Fortran_INCLUDES) $(Fortran_FLAGS) -S /glade/u/home/tvda/CISM/libglimmer/glimmer_map_trans.F90 -o CMakeFiles/glimmercismfortran.dir/libglimmer/glimmer_map_trans.F90.s
 
 CMakeFiles/glimmercismfortran.dir/libglimmer/glimmer_map_types.F90.o: CMakeFiles/glimmercismfortran.dir/flags.make
 CMakeFiles/glimmercismfortran.dir/libglimmer/glimmer_map_types.F90.o: /glade/u/home/tvda/CISM/libglimmer/glimmer_map_types.F90
 	@$(CMAKE_COMMAND) -E cmake_echo_color --switch=$(COLOR) --green --progress-dir=/glade/u/home/tvda/CISM/builds/derecho-intel/CMakeFiles --progress-num=$(CMAKE_PROGRESS_64) "Building Fortran object CMakeFiles/glimmercismfortran.dir/libglimmer/glimmer_map_types.F90.o"
-	/glade/u/apps/derecho/23.06/spack/opt/spack/ncarcompilers/1.0.0/oneapi/2023.0.0/ec7b/bin/mpi/mpif90 $(Fortran_DEFINES) $(Fortran_INCLUDES) $(Fortran_FLAGS) -c /glade/u/home/tvda/CISM/libglimmer/glimmer_map_types.F90 -o CMakeFiles/glimmercismfortran.dir/libglimmer/glimmer_map_types.F90.o
+	/glade/u/apps/derecho/23.09/spack/opt/spack/intel-oneapi-mpi/2021.10.0/oneapi/2023.2.1/ve6v/bin/mpif90 $(Fortran_DEFINES) $(Fortran_INCLUDES) $(Fortran_FLAGS) -c /glade/u/home/tvda/CISM/libglimmer/glimmer_map_types.F90 -o CMakeFiles/glimmercismfortran.dir/libglimmer/glimmer_map_types.F90.o
 
 CMakeFiles/glimmercismfortran.dir/libglimmer/glimmer_map_types.F90.i: cmake_force
 	@$(CMAKE_COMMAND) -E cmake_echo_color --switch=$(COLOR) --green "Preprocessing Fortran source to CMakeFiles/glimmercismfortran.dir/libglimmer/glimmer_map_types.F90.i"
-	/glade/u/apps/derecho/23.06/spack/opt/spack/ncarcompilers/1.0.0/oneapi/2023.0.0/ec7b/bin/mpi/mpif90 $(Fortran_DEFINES) $(Fortran_INCLUDES) $(Fortran_FLAGS) -E /glade/u/home/tvda/CISM/libglimmer/glimmer_map_types.F90 > CMakeFiles/glimmercismfortran.dir/libglimmer/glimmer_map_types.F90.i
+	/glade/u/apps/derecho/23.09/spack/opt/spack/intel-oneapi-mpi/2021.10.0/oneapi/2023.2.1/ve6v/bin/mpif90 $(Fortran_DEFINES) $(Fortran_INCLUDES) $(Fortran_FLAGS) -E /glade/u/home/tvda/CISM/libglimmer/glimmer_map_types.F90 > CMakeFiles/glimmercismfortran.dir/libglimmer/glimmer_map_types.F90.i
 
 CMakeFiles/glimmercismfortran.dir/libglimmer/glimmer_map_types.F90.s: cmake_force
 	@$(CMAKE_COMMAND) -E cmake_echo_color --switch=$(COLOR) --green "Compiling Fortran source to assembly CMakeFiles/glimmercismfortran.dir/libglimmer/glimmer_map_types.F90.s"
-	/glade/u/apps/derecho/23.06/spack/opt/spack/ncarcompilers/1.0.0/oneapi/2023.0.0/ec7b/bin/mpi/mpif90 $(Fortran_DEFINES) $(Fortran_INCLUDES) $(Fortran_FLAGS) -S /glade/u/home/tvda/CISM/libglimmer/glimmer_map_types.F90 -o CMakeFiles/glimmercismfortran.dir/libglimmer/glimmer_map_types.F90.s
+	/glade/u/apps/derecho/23.09/spack/opt/spack/intel-oneapi-mpi/2021.10.0/oneapi/2023.2.1/ve6v/bin/mpif90 $(Fortran_DEFINES) $(Fortran_INCLUDES) $(Fortran_FLAGS) -S /glade/u/home/tvda/CISM/libglimmer/glimmer_map_types.F90 -o CMakeFiles/glimmercismfortran.dir/libglimmer/glimmer_map_types.F90.s
 
 CMakeFiles/glimmercismfortran.dir/libglimmer/glimmer_ncdf.F90.o: CMakeFiles/glimmercismfortran.dir/flags.make
 CMakeFiles/glimmercismfortran.dir/libglimmer/glimmer_ncdf.F90.o: /glade/u/home/tvda/CISM/libglimmer/glimmer_ncdf.F90
 	@$(CMAKE_COMMAND) -E cmake_echo_color --switch=$(COLOR) --green --progress-dir=/glade/u/home/tvda/CISM/builds/derecho-intel/CMakeFiles --progress-num=$(CMAKE_PROGRESS_65) "Building Fortran object CMakeFiles/glimmercismfortran.dir/libglimmer/glimmer_ncdf.F90.o"
-	/glade/u/apps/derecho/23.06/spack/opt/spack/ncarcompilers/1.0.0/oneapi/2023.0.0/ec7b/bin/mpi/mpif90 $(Fortran_DEFINES) $(Fortran_INCLUDES) $(Fortran_FLAGS) -c /glade/u/home/tvda/CISM/libglimmer/glimmer_ncdf.F90 -o CMakeFiles/glimmercismfortran.dir/libglimmer/glimmer_ncdf.F90.o
+	/glade/u/apps/derecho/23.09/spack/opt/spack/intel-oneapi-mpi/2021.10.0/oneapi/2023.2.1/ve6v/bin/mpif90 $(Fortran_DEFINES) $(Fortran_INCLUDES) $(Fortran_FLAGS) -c /glade/u/home/tvda/CISM/libglimmer/glimmer_ncdf.F90 -o CMakeFiles/glimmercismfortran.dir/libglimmer/glimmer_ncdf.F90.o
 
 CMakeFiles/glimmercismfortran.dir/libglimmer/glimmer_ncdf.F90.i: cmake_force
 	@$(CMAKE_COMMAND) -E cmake_echo_color --switch=$(COLOR) --green "Preprocessing Fortran source to CMakeFiles/glimmercismfortran.dir/libglimmer/glimmer_ncdf.F90.i"
-	/glade/u/apps/derecho/23.06/spack/opt/spack/ncarcompilers/1.0.0/oneapi/2023.0.0/ec7b/bin/mpi/mpif90 $(Fortran_DEFINES) $(Fortran_INCLUDES) $(Fortran_FLAGS) -E /glade/u/home/tvda/CISM/libglimmer/glimmer_ncdf.F90 > CMakeFiles/glimmercismfortran.dir/libglimmer/glimmer_ncdf.F90.i
+	/glade/u/apps/derecho/23.09/spack/opt/spack/intel-oneapi-mpi/2021.10.0/oneapi/2023.2.1/ve6v/bin/mpif90 $(Fortran_DEFINES) $(Fortran_INCLUDES) $(Fortran_FLAGS) -E /glade/u/home/tvda/CISM/libglimmer/glimmer_ncdf.F90 > CMakeFiles/glimmercismfortran.dir/libglimmer/glimmer_ncdf.F90.i
 
 CMakeFiles/glimmercismfortran.dir/libglimmer/glimmer_ncdf.F90.s: cmake_force
 	@$(CMAKE_COMMAND) -E cmake_echo_color --switch=$(COLOR) --green "Compiling Fortran source to assembly CMakeFiles/glimmercismfortran.dir/libglimmer/glimmer_ncdf.F90.s"
-	/glade/u/apps/derecho/23.06/spack/opt/spack/ncarcompilers/1.0.0/oneapi/2023.0.0/ec7b/bin/mpi/mpif90 $(Fortran_DEFINES) $(Fortran_INCLUDES) $(Fortran_FLAGS) -S /glade/u/home/tvda/CISM/libglimmer/glimmer_ncdf.F90 -o CMakeFiles/glimmercismfortran.dir/libglimmer/glimmer_ncdf.F90.s
+	/glade/u/apps/derecho/23.09/spack/opt/spack/intel-oneapi-mpi/2021.10.0/oneapi/2023.2.1/ve6v/bin/mpif90 $(Fortran_DEFINES) $(Fortran_INCLUDES) $(Fortran_FLAGS) -S /glade/u/home/tvda/CISM/libglimmer/glimmer_ncdf.F90 -o CMakeFiles/glimmercismfortran.dir/libglimmer/glimmer_ncdf.F90.s
 
 CMakeFiles/glimmercismfortran.dir/libglimmer/glimmer_ncio.F90.o: CMakeFiles/glimmercismfortran.dir/flags.make
 CMakeFiles/glimmercismfortran.dir/libglimmer/glimmer_ncio.F90.o: /glade/u/home/tvda/CISM/libglimmer/glimmer_ncio.F90
 	@$(CMAKE_COMMAND) -E cmake_echo_color --switch=$(COLOR) --green --progress-dir=/glade/u/home/tvda/CISM/builds/derecho-intel/CMakeFiles --progress-num=$(CMAKE_PROGRESS_66) "Building Fortran object CMakeFiles/glimmercismfortran.dir/libglimmer/glimmer_ncio.F90.o"
-	/glade/u/apps/derecho/23.06/spack/opt/spack/ncarcompilers/1.0.0/oneapi/2023.0.0/ec7b/bin/mpi/mpif90 $(Fortran_DEFINES) $(Fortran_INCLUDES) $(Fortran_FLAGS) -c /glade/u/home/tvda/CISM/libglimmer/glimmer_ncio.F90 -o CMakeFiles/glimmercismfortran.dir/libglimmer/glimmer_ncio.F90.o
+	/glade/u/apps/derecho/23.09/spack/opt/spack/intel-oneapi-mpi/2021.10.0/oneapi/2023.2.1/ve6v/bin/mpif90 $(Fortran_DEFINES) $(Fortran_INCLUDES) $(Fortran_FLAGS) -c /glade/u/home/tvda/CISM/libglimmer/glimmer_ncio.F90 -o CMakeFiles/glimmercismfortran.dir/libglimmer/glimmer_ncio.F90.o
 
 CMakeFiles/glimmercismfortran.dir/libglimmer/glimmer_ncio.F90.i: cmake_force
 	@$(CMAKE_COMMAND) -E cmake_echo_color --switch=$(COLOR) --green "Preprocessing Fortran source to CMakeFiles/glimmercismfortran.dir/libglimmer/glimmer_ncio.F90.i"
-	/glade/u/apps/derecho/23.06/spack/opt/spack/ncarcompilers/1.0.0/oneapi/2023.0.0/ec7b/bin/mpi/mpif90 $(Fortran_DEFINES) $(Fortran_INCLUDES) $(Fortran_FLAGS) -E /glade/u/home/tvda/CISM/libglimmer/glimmer_ncio.F90 > CMakeFiles/glimmercismfortran.dir/libglimmer/glimmer_ncio.F90.i
+	/glade/u/apps/derecho/23.09/spack/opt/spack/intel-oneapi-mpi/2021.10.0/oneapi/2023.2.1/ve6v/bin/mpif90 $(Fortran_DEFINES) $(Fortran_INCLUDES) $(Fortran_FLAGS) -E /glade/u/home/tvda/CISM/libglimmer/glimmer_ncio.F90 > CMakeFiles/glimmercismfortran.dir/libglimmer/glimmer_ncio.F90.i
 
 CMakeFiles/glimmercismfortran.dir/libglimmer/glimmer_ncio.F90.s: cmake_force
 	@$(CMAKE_COMMAND) -E cmake_echo_color --switch=$(COLOR) --green "Compiling Fortran source to assembly CMakeFiles/glimmercismfortran.dir/libglimmer/glimmer_ncio.F90.s"
-	/glade/u/apps/derecho/23.06/spack/opt/spack/ncarcompilers/1.0.0/oneapi/2023.0.0/ec7b/bin/mpi/mpif90 $(Fortran_DEFINES) $(Fortran_INCLUDES) $(Fortran_FLAGS) -S /glade/u/home/tvda/CISM/libglimmer/glimmer_ncio.F90 -o CMakeFiles/glimmercismfortran.dir/libglimmer/glimmer_ncio.F90.s
+	/glade/u/apps/derecho/23.09/spack/opt/spack/intel-oneapi-mpi/2021.10.0/oneapi/2023.2.1/ve6v/bin/mpif90 $(Fortran_DEFINES) $(Fortran_INCLUDES) $(Fortran_FLAGS) -S /glade/u/home/tvda/CISM/libglimmer/glimmer_ncio.F90 -o CMakeFiles/glimmercismfortran.dir/libglimmer/glimmer_ncio.F90.s
 
 CMakeFiles/glimmercismfortran.dir/libglimmer/glimmer_ncparams.F90.o: CMakeFiles/glimmercismfortran.dir/flags.make
 CMakeFiles/glimmercismfortran.dir/libglimmer/glimmer_ncparams.F90.o: /glade/u/home/tvda/CISM/libglimmer/glimmer_ncparams.F90
 	@$(CMAKE_COMMAND) -E cmake_echo_color --switch=$(COLOR) --green --progress-dir=/glade/u/home/tvda/CISM/builds/derecho-intel/CMakeFiles --progress-num=$(CMAKE_PROGRESS_67) "Building Fortran object CMakeFiles/glimmercismfortran.dir/libglimmer/glimmer_ncparams.F90.o"
-	/glade/u/apps/derecho/23.06/spack/opt/spack/ncarcompilers/1.0.0/oneapi/2023.0.0/ec7b/bin/mpi/mpif90 $(Fortran_DEFINES) $(Fortran_INCLUDES) $(Fortran_FLAGS) -c /glade/u/home/tvda/CISM/libglimmer/glimmer_ncparams.F90 -o CMakeFiles/glimmercismfortran.dir/libglimmer/glimmer_ncparams.F90.o
+	/glade/u/apps/derecho/23.09/spack/opt/spack/intel-oneapi-mpi/2021.10.0/oneapi/2023.2.1/ve6v/bin/mpif90 $(Fortran_DEFINES) $(Fortran_INCLUDES) $(Fortran_FLAGS) -c /glade/u/home/tvda/CISM/libglimmer/glimmer_ncparams.F90 -o CMakeFiles/glimmercismfortran.dir/libglimmer/glimmer_ncparams.F90.o
 
 CMakeFiles/glimmercismfortran.dir/libglimmer/glimmer_ncparams.F90.i: cmake_force
 	@$(CMAKE_COMMAND) -E cmake_echo_color --switch=$(COLOR) --green "Preprocessing Fortran source to CMakeFiles/glimmercismfortran.dir/libglimmer/glimmer_ncparams.F90.i"
-	/glade/u/apps/derecho/23.06/spack/opt/spack/ncarcompilers/1.0.0/oneapi/2023.0.0/ec7b/bin/mpi/mpif90 $(Fortran_DEFINES) $(Fortran_INCLUDES) $(Fortran_FLAGS) -E /glade/u/home/tvda/CISM/libglimmer/glimmer_ncparams.F90 > CMakeFiles/glimmercismfortran.dir/libglimmer/glimmer_ncparams.F90.i
+	/glade/u/apps/derecho/23.09/spack/opt/spack/intel-oneapi-mpi/2021.10.0/oneapi/2023.2.1/ve6v/bin/mpif90 $(Fortran_DEFINES) $(Fortran_INCLUDES) $(Fortran_FLAGS) -E /glade/u/home/tvda/CISM/libglimmer/glimmer_ncparams.F90 > CMakeFiles/glimmercismfortran.dir/libglimmer/glimmer_ncparams.F90.i
 
 CMakeFiles/glimmercismfortran.dir/libglimmer/glimmer_ncparams.F90.s: cmake_force
 	@$(CMAKE_COMMAND) -E cmake_echo_color --switch=$(COLOR) --green "Compiling Fortran source to assembly CMakeFiles/glimmercismfortran.dir/libglimmer/glimmer_ncparams.F90.s"
-	/glade/u/apps/derecho/23.06/spack/opt/spack/ncarcompilers/1.0.0/oneapi/2023.0.0/ec7b/bin/mpi/mpif90 $(Fortran_DEFINES) $(Fortran_INCLUDES) $(Fortran_FLAGS) -S /glade/u/home/tvda/CISM/libglimmer/glimmer_ncparams.F90 -o CMakeFiles/glimmercismfortran.dir/libglimmer/glimmer_ncparams.F90.s
+	/glade/u/apps/derecho/23.09/spack/opt/spack/intel-oneapi-mpi/2021.10.0/oneapi/2023.2.1/ve6v/bin/mpif90 $(Fortran_DEFINES) $(Fortran_INCLUDES) $(Fortran_FLAGS) -S /glade/u/home/tvda/CISM/libglimmer/glimmer_ncparams.F90 -o CMakeFiles/glimmercismfortran.dir/libglimmer/glimmer_ncparams.F90.s
 
 CMakeFiles/glimmercismfortran.dir/libglimmer/glimmer_paramets.F90.o: CMakeFiles/glimmercismfortran.dir/flags.make
 CMakeFiles/glimmercismfortran.dir/libglimmer/glimmer_paramets.F90.o: /glade/u/home/tvda/CISM/libglimmer/glimmer_paramets.F90
 	@$(CMAKE_COMMAND) -E cmake_echo_color --switch=$(COLOR) --green --progress-dir=/glade/u/home/tvda/CISM/builds/derecho-intel/CMakeFiles --progress-num=$(CMAKE_PROGRESS_68) "Building Fortran object CMakeFiles/glimmercismfortran.dir/libglimmer/glimmer_paramets.F90.o"
-	/glade/u/apps/derecho/23.06/spack/opt/spack/ncarcompilers/1.0.0/oneapi/2023.0.0/ec7b/bin/mpi/mpif90 $(Fortran_DEFINES) $(Fortran_INCLUDES) $(Fortran_FLAGS) -c /glade/u/home/tvda/CISM/libglimmer/glimmer_paramets.F90 -o CMakeFiles/glimmercismfortran.dir/libglimmer/glimmer_paramets.F90.o
+	/glade/u/apps/derecho/23.09/spack/opt/spack/intel-oneapi-mpi/2021.10.0/oneapi/2023.2.1/ve6v/bin/mpif90 $(Fortran_DEFINES) $(Fortran_INCLUDES) $(Fortran_FLAGS) -c /glade/u/home/tvda/CISM/libglimmer/glimmer_paramets.F90 -o CMakeFiles/glimmercismfortran.dir/libglimmer/glimmer_paramets.F90.o
 
 CMakeFiles/glimmercismfortran.dir/libglimmer/glimmer_paramets.F90.i: cmake_force
 	@$(CMAKE_COMMAND) -E cmake_echo_color --switch=$(COLOR) --green "Preprocessing Fortran source to CMakeFiles/glimmercismfortran.dir/libglimmer/glimmer_paramets.F90.i"
-	/glade/u/apps/derecho/23.06/spack/opt/spack/ncarcompilers/1.0.0/oneapi/2023.0.0/ec7b/bin/mpi/mpif90 $(Fortran_DEFINES) $(Fortran_INCLUDES) $(Fortran_FLAGS) -E /glade/u/home/tvda/CISM/libglimmer/glimmer_paramets.F90 > CMakeFiles/glimmercismfortran.dir/libglimmer/glimmer_paramets.F90.i
+	/glade/u/apps/derecho/23.09/spack/opt/spack/intel-oneapi-mpi/2021.10.0/oneapi/2023.2.1/ve6v/bin/mpif90 $(Fortran_DEFINES) $(Fortran_INCLUDES) $(Fortran_FLAGS) -E /glade/u/home/tvda/CISM/libglimmer/glimmer_paramets.F90 > CMakeFiles/glimmercismfortran.dir/libglimmer/glimmer_paramets.F90.i
 
 CMakeFiles/glimmercismfortran.dir/libglimmer/glimmer_paramets.F90.s: cmake_force
 	@$(CMAKE_COMMAND) -E cmake_echo_color --switch=$(COLOR) --green "Compiling Fortran source to assembly CMakeFiles/glimmercismfortran.dir/libglimmer/glimmer_paramets.F90.s"
-	/glade/u/apps/derecho/23.06/spack/opt/spack/ncarcompilers/1.0.0/oneapi/2023.0.0/ec7b/bin/mpi/mpif90 $(Fortran_DEFINES) $(Fortran_INCLUDES) $(Fortran_FLAGS) -S /glade/u/home/tvda/CISM/libglimmer/glimmer_paramets.F90 -o CMakeFiles/glimmercismfortran.dir/libglimmer/glimmer_paramets.F90.s
+	/glade/u/apps/derecho/23.09/spack/opt/spack/intel-oneapi-mpi/2021.10.0/oneapi/2023.2.1/ve6v/bin/mpif90 $(Fortran_DEFINES) $(Fortran_INCLUDES) $(Fortran_FLAGS) -S /glade/u/home/tvda/CISM/libglimmer/glimmer_paramets.F90 -o CMakeFiles/glimmercismfortran.dir/libglimmer/glimmer_paramets.F90.s
 
 CMakeFiles/glimmercismfortran.dir/libglimmer/glimmer_physcon.F90.o: CMakeFiles/glimmercismfortran.dir/flags.make
 CMakeFiles/glimmercismfortran.dir/libglimmer/glimmer_physcon.F90.o: /glade/u/home/tvda/CISM/libglimmer/glimmer_physcon.F90
 	@$(CMAKE_COMMAND) -E cmake_echo_color --switch=$(COLOR) --green --progress-dir=/glade/u/home/tvda/CISM/builds/derecho-intel/CMakeFiles --progress-num=$(CMAKE_PROGRESS_69) "Building Fortran object CMakeFiles/glimmercismfortran.dir/libglimmer/glimmer_physcon.F90.o"
-	/glade/u/apps/derecho/23.06/spack/opt/spack/ncarcompilers/1.0.0/oneapi/2023.0.0/ec7b/bin/mpi/mpif90 $(Fortran_DEFINES) $(Fortran_INCLUDES) $(Fortran_FLAGS) -c /glade/u/home/tvda/CISM/libglimmer/glimmer_physcon.F90 -o CMakeFiles/glimmercismfortran.dir/libglimmer/glimmer_physcon.F90.o
+	/glade/u/apps/derecho/23.09/spack/opt/spack/intel-oneapi-mpi/2021.10.0/oneapi/2023.2.1/ve6v/bin/mpif90 $(Fortran_DEFINES) $(Fortran_INCLUDES) $(Fortran_FLAGS) -c /glade/u/home/tvda/CISM/libglimmer/glimmer_physcon.F90 -o CMakeFiles/glimmercismfortran.dir/libglimmer/glimmer_physcon.F90.o
 
 CMakeFiles/glimmercismfortran.dir/libglimmer/glimmer_physcon.F90.i: cmake_force
 	@$(CMAKE_COMMAND) -E cmake_echo_color --switch=$(COLOR) --green "Preprocessing Fortran source to CMakeFiles/glimmercismfortran.dir/libglimmer/glimmer_physcon.F90.i"
-	/glade/u/apps/derecho/23.06/spack/opt/spack/ncarcompilers/1.0.0/oneapi/2023.0.0/ec7b/bin/mpi/mpif90 $(Fortran_DEFINES) $(Fortran_INCLUDES) $(Fortran_FLAGS) -E /glade/u/home/tvda/CISM/libglimmer/glimmer_physcon.F90 > CMakeFiles/glimmercismfortran.dir/libglimmer/glimmer_physcon.F90.i
+	/glade/u/apps/derecho/23.09/spack/opt/spack/intel-oneapi-mpi/2021.10.0/oneapi/2023.2.1/ve6v/bin/mpif90 $(Fortran_DEFINES) $(Fortran_INCLUDES) $(Fortran_FLAGS) -E /glade/u/home/tvda/CISM/libglimmer/glimmer_physcon.F90 > CMakeFiles/glimmercismfortran.dir/libglimmer/glimmer_physcon.F90.i
 
 CMakeFiles/glimmercismfortran.dir/libglimmer/glimmer_physcon.F90.s: cmake_force
 	@$(CMAKE_COMMAND) -E cmake_echo_color --switch=$(COLOR) --green "Compiling Fortran source to assembly CMakeFiles/glimmercismfortran.dir/libglimmer/glimmer_physcon.F90.s"
-	/glade/u/apps/derecho/23.06/spack/opt/spack/ncarcompilers/1.0.0/oneapi/2023.0.0/ec7b/bin/mpi/mpif90 $(Fortran_DEFINES) $(Fortran_INCLUDES) $(Fortran_FLAGS) -S /glade/u/home/tvda/CISM/libglimmer/glimmer_physcon.F90 -o CMakeFiles/glimmercismfortran.dir/libglimmer/glimmer_physcon.F90.s
+	/glade/u/apps/derecho/23.09/spack/opt/spack/intel-oneapi-mpi/2021.10.0/oneapi/2023.2.1/ve6v/bin/mpif90 $(Fortran_DEFINES) $(Fortran_INCLUDES) $(Fortran_FLAGS) -S /glade/u/home/tvda/CISM/libglimmer/glimmer_physcon.F90 -o CMakeFiles/glimmercismfortran.dir/libglimmer/glimmer_physcon.F90.s
 
 CMakeFiles/glimmercismfortran.dir/libglimmer/glimmer_scales.F90.o: CMakeFiles/glimmercismfortran.dir/flags.make
 CMakeFiles/glimmercismfortran.dir/libglimmer/glimmer_scales.F90.o: /glade/u/home/tvda/CISM/libglimmer/glimmer_scales.F90
 	@$(CMAKE_COMMAND) -E cmake_echo_color --switch=$(COLOR) --green --progress-dir=/glade/u/home/tvda/CISM/builds/derecho-intel/CMakeFiles --progress-num=$(CMAKE_PROGRESS_70) "Building Fortran object CMakeFiles/glimmercismfortran.dir/libglimmer/glimmer_scales.F90.o"
-	/glade/u/apps/derecho/23.06/spack/opt/spack/ncarcompilers/1.0.0/oneapi/2023.0.0/ec7b/bin/mpi/mpif90 $(Fortran_DEFINES) $(Fortran_INCLUDES) $(Fortran_FLAGS) -c /glade/u/home/tvda/CISM/libglimmer/glimmer_scales.F90 -o CMakeFiles/glimmercismfortran.dir/libglimmer/glimmer_scales.F90.o
+	/glade/u/apps/derecho/23.09/spack/opt/spack/intel-oneapi-mpi/2021.10.0/oneapi/2023.2.1/ve6v/bin/mpif90 $(Fortran_DEFINES) $(Fortran_INCLUDES) $(Fortran_FLAGS) -c /glade/u/home/tvda/CISM/libglimmer/glimmer_scales.F90 -o CMakeFiles/glimmercismfortran.dir/libglimmer/glimmer_scales.F90.o
 
 CMakeFiles/glimmercismfortran.dir/libglimmer/glimmer_scales.F90.i: cmake_force
 	@$(CMAKE_COMMAND) -E cmake_echo_color --switch=$(COLOR) --green "Preprocessing Fortran source to CMakeFiles/glimmercismfortran.dir/libglimmer/glimmer_scales.F90.i"
-	/glade/u/apps/derecho/23.06/spack/opt/spack/ncarcompilers/1.0.0/oneapi/2023.0.0/ec7b/bin/mpi/mpif90 $(Fortran_DEFINES) $(Fortran_INCLUDES) $(Fortran_FLAGS) -E /glade/u/home/tvda/CISM/libglimmer/glimmer_scales.F90 > CMakeFiles/glimmercismfortran.dir/libglimmer/glimmer_scales.F90.i
+	/glade/u/apps/derecho/23.09/spack/opt/spack/intel-oneapi-mpi/2021.10.0/oneapi/2023.2.1/ve6v/bin/mpif90 $(Fortran_DEFINES) $(Fortran_INCLUDES) $(Fortran_FLAGS) -E /glade/u/home/tvda/CISM/libglimmer/glimmer_scales.F90 > CMakeFiles/glimmercismfortran.dir/libglimmer/glimmer_scales.F90.i
 
 CMakeFiles/glimmercismfortran.dir/libglimmer/glimmer_scales.F90.s: cmake_force
 	@$(CMAKE_COMMAND) -E cmake_echo_color --switch=$(COLOR) --green "Compiling Fortran source to assembly CMakeFiles/glimmercismfortran.dir/libglimmer/glimmer_scales.F90.s"
-	/glade/u/apps/derecho/23.06/spack/opt/spack/ncarcompilers/1.0.0/oneapi/2023.0.0/ec7b/bin/mpi/mpif90 $(Fortran_DEFINES) $(Fortran_INCLUDES) $(Fortran_FLAGS) -S /glade/u/home/tvda/CISM/libglimmer/glimmer_scales.F90 -o CMakeFiles/glimmercismfortran.dir/libglimmer/glimmer_scales.F90.s
+	/glade/u/apps/derecho/23.09/spack/opt/spack/intel-oneapi-mpi/2021.10.0/oneapi/2023.2.1/ve6v/bin/mpif90 $(Fortran_DEFINES) $(Fortran_INCLUDES) $(Fortran_FLAGS) -S /glade/u/home/tvda/CISM/libglimmer/glimmer_scales.F90 -o CMakeFiles/glimmercismfortran.dir/libglimmer/glimmer_scales.F90.s
 
 CMakeFiles/glimmercismfortran.dir/libglimmer/glimmer_searchcircle.F90.o: CMakeFiles/glimmercismfortran.dir/flags.make
 CMakeFiles/glimmercismfortran.dir/libglimmer/glimmer_searchcircle.F90.o: /glade/u/home/tvda/CISM/libglimmer/glimmer_searchcircle.F90
 	@$(CMAKE_COMMAND) -E cmake_echo_color --switch=$(COLOR) --green --progress-dir=/glade/u/home/tvda/CISM/builds/derecho-intel/CMakeFiles --progress-num=$(CMAKE_PROGRESS_71) "Building Fortran object CMakeFiles/glimmercismfortran.dir/libglimmer/glimmer_searchcircle.F90.o"
-	/glade/u/apps/derecho/23.06/spack/opt/spack/ncarcompilers/1.0.0/oneapi/2023.0.0/ec7b/bin/mpi/mpif90 $(Fortran_DEFINES) $(Fortran_INCLUDES) $(Fortran_FLAGS) -c /glade/u/home/tvda/CISM/libglimmer/glimmer_searchcircle.F90 -o CMakeFiles/glimmercismfortran.dir/libglimmer/glimmer_searchcircle.F90.o
+	/glade/u/apps/derecho/23.09/spack/opt/spack/intel-oneapi-mpi/2021.10.0/oneapi/2023.2.1/ve6v/bin/mpif90 $(Fortran_DEFINES) $(Fortran_INCLUDES) $(Fortran_FLAGS) -c /glade/u/home/tvda/CISM/libglimmer/glimmer_searchcircle.F90 -o CMakeFiles/glimmercismfortran.dir/libglimmer/glimmer_searchcircle.F90.o
 
 CMakeFiles/glimmercismfortran.dir/libglimmer/glimmer_searchcircle.F90.i: cmake_force
 	@$(CMAKE_COMMAND) -E cmake_echo_color --switch=$(COLOR) --green "Preprocessing Fortran source to CMakeFiles/glimmercismfortran.dir/libglimmer/glimmer_searchcircle.F90.i"
-	/glade/u/apps/derecho/23.06/spack/opt/spack/ncarcompilers/1.0.0/oneapi/2023.0.0/ec7b/bin/mpi/mpif90 $(Fortran_DEFINES) $(Fortran_INCLUDES) $(Fortran_FLAGS) -E /glade/u/home/tvda/CISM/libglimmer/glimmer_searchcircle.F90 > CMakeFiles/glimmercismfortran.dir/libglimmer/glimmer_searchcircle.F90.i
+	/glade/u/apps/derecho/23.09/spack/opt/spack/intel-oneapi-mpi/2021.10.0/oneapi/2023.2.1/ve6v/bin/mpif90 $(Fortran_DEFINES) $(Fortran_INCLUDES) $(Fortran_FLAGS) -E /glade/u/home/tvda/CISM/libglimmer/glimmer_searchcircle.F90 > CMakeFiles/glimmercismfortran.dir/libglimmer/glimmer_searchcircle.F90.i
 
 CMakeFiles/glimmercismfortran.dir/libglimmer/glimmer_searchcircle.F90.s: cmake_force
 	@$(CMAKE_COMMAND) -E cmake_echo_color --switch=$(COLOR) --green "Compiling Fortran source to assembly CMakeFiles/glimmercismfortran.dir/libglimmer/glimmer_searchcircle.F90.s"
-	/glade/u/apps/derecho/23.06/spack/opt/spack/ncarcompilers/1.0.0/oneapi/2023.0.0/ec7b/bin/mpi/mpif90 $(Fortran_DEFINES) $(Fortran_INCLUDES) $(Fortran_FLAGS) -S /glade/u/home/tvda/CISM/libglimmer/glimmer_searchcircle.F90 -o CMakeFiles/glimmercismfortran.dir/libglimmer/glimmer_searchcircle.F90.s
+	/glade/u/apps/derecho/23.09/spack/opt/spack/intel-oneapi-mpi/2021.10.0/oneapi/2023.2.1/ve6v/bin/mpif90 $(Fortran_DEFINES) $(Fortran_INCLUDES) $(Fortran_FLAGS) -S /glade/u/home/tvda/CISM/libglimmer/glimmer_searchcircle.F90 -o CMakeFiles/glimmercismfortran.dir/libglimmer/glimmer_searchcircle.F90.s
 
 CMakeFiles/glimmercismfortran.dir/libglimmer/glimmer_ts.F90.o: CMakeFiles/glimmercismfortran.dir/flags.make
 CMakeFiles/glimmercismfortran.dir/libglimmer/glimmer_ts.F90.o: /glade/u/home/tvda/CISM/libglimmer/glimmer_ts.F90
 	@$(CMAKE_COMMAND) -E cmake_echo_color --switch=$(COLOR) --green --progress-dir=/glade/u/home/tvda/CISM/builds/derecho-intel/CMakeFiles --progress-num=$(CMAKE_PROGRESS_72) "Building Fortran object CMakeFiles/glimmercismfortran.dir/libglimmer/glimmer_ts.F90.o"
-	/glade/u/apps/derecho/23.06/spack/opt/spack/ncarcompilers/1.0.0/oneapi/2023.0.0/ec7b/bin/mpi/mpif90 $(Fortran_DEFINES) $(Fortran_INCLUDES) $(Fortran_FLAGS) -c /glade/u/home/tvda/CISM/libglimmer/glimmer_ts.F90 -o CMakeFiles/glimmercismfortran.dir/libglimmer/glimmer_ts.F90.o
+	/glade/u/apps/derecho/23.09/spack/opt/spack/intel-oneapi-mpi/2021.10.0/oneapi/2023.2.1/ve6v/bin/mpif90 $(Fortran_DEFINES) $(Fortran_INCLUDES) $(Fortran_FLAGS) -c /glade/u/home/tvda/CISM/libglimmer/glimmer_ts.F90 -o CMakeFiles/glimmercismfortran.dir/libglimmer/glimmer_ts.F90.o
 
 CMakeFiles/glimmercismfortran.dir/libglimmer/glimmer_ts.F90.i: cmake_force
 	@$(CMAKE_COMMAND) -E cmake_echo_color --switch=$(COLOR) --green "Preprocessing Fortran source to CMakeFiles/glimmercismfortran.dir/libglimmer/glimmer_ts.F90.i"
-	/glade/u/apps/derecho/23.06/spack/opt/spack/ncarcompilers/1.0.0/oneapi/2023.0.0/ec7b/bin/mpi/mpif90 $(Fortran_DEFINES) $(Fortran_INCLUDES) $(Fortran_FLAGS) -E /glade/u/home/tvda/CISM/libglimmer/glimmer_ts.F90 > CMakeFiles/glimmercismfortran.dir/libglimmer/glimmer_ts.F90.i
+	/glade/u/apps/derecho/23.09/spack/opt/spack/intel-oneapi-mpi/2021.10.0/oneapi/2023.2.1/ve6v/bin/mpif90 $(Fortran_DEFINES) $(Fortran_INCLUDES) $(Fortran_FLAGS) -E /glade/u/home/tvda/CISM/libglimmer/glimmer_ts.F90 > CMakeFiles/glimmercismfortran.dir/libglimmer/glimmer_ts.F90.i
 
 CMakeFiles/glimmercismfortran.dir/libglimmer/glimmer_ts.F90.s: cmake_force
 	@$(CMAKE_COMMAND) -E cmake_echo_color --switch=$(COLOR) --green "Compiling Fortran source to assembly CMakeFiles/glimmercismfortran.dir/libglimmer/glimmer_ts.F90.s"
-	/glade/u/apps/derecho/23.06/spack/opt/spack/ncarcompilers/1.0.0/oneapi/2023.0.0/ec7b/bin/mpi/mpif90 $(Fortran_DEFINES) $(Fortran_INCLUDES) $(Fortran_FLAGS) -S /glade/u/home/tvda/CISM/libglimmer/glimmer_ts.F90 -o CMakeFiles/glimmercismfortran.dir/libglimmer/glimmer_ts.F90.s
+	/glade/u/apps/derecho/23.09/spack/opt/spack/intel-oneapi-mpi/2021.10.0/oneapi/2023.2.1/ve6v/bin/mpif90 $(Fortran_DEFINES) $(Fortran_INCLUDES) $(Fortran_FLAGS) -S /glade/u/home/tvda/CISM/libglimmer/glimmer_ts.F90 -o CMakeFiles/glimmercismfortran.dir/libglimmer/glimmer_ts.F90.s
 
 CMakeFiles/glimmercismfortran.dir/libglimmer/glimmer_utils.F90.o: CMakeFiles/glimmercismfortran.dir/flags.make
 CMakeFiles/glimmercismfortran.dir/libglimmer/glimmer_utils.F90.o: /glade/u/home/tvda/CISM/libglimmer/glimmer_utils.F90
 	@$(CMAKE_COMMAND) -E cmake_echo_color --switch=$(COLOR) --green --progress-dir=/glade/u/home/tvda/CISM/builds/derecho-intel/CMakeFiles --progress-num=$(CMAKE_PROGRESS_73) "Building Fortran object CMakeFiles/glimmercismfortran.dir/libglimmer/glimmer_utils.F90.o"
-	/glade/u/apps/derecho/23.06/spack/opt/spack/ncarcompilers/1.0.0/oneapi/2023.0.0/ec7b/bin/mpi/mpif90 $(Fortran_DEFINES) $(Fortran_INCLUDES) $(Fortran_FLAGS) -c /glade/u/home/tvda/CISM/libglimmer/glimmer_utils.F90 -o CMakeFiles/glimmercismfortran.dir/libglimmer/glimmer_utils.F90.o
+	/glade/u/apps/derecho/23.09/spack/opt/spack/intel-oneapi-mpi/2021.10.0/oneapi/2023.2.1/ve6v/bin/mpif90 $(Fortran_DEFINES) $(Fortran_INCLUDES) $(Fortran_FLAGS) -c /glade/u/home/tvda/CISM/libglimmer/glimmer_utils.F90 -o CMakeFiles/glimmercismfortran.dir/libglimmer/glimmer_utils.F90.o
 
 CMakeFiles/glimmercismfortran.dir/libglimmer/glimmer_utils.F90.i: cmake_force
 	@$(CMAKE_COMMAND) -E cmake_echo_color --switch=$(COLOR) --green "Preprocessing Fortran source to CMakeFiles/glimmercismfortran.dir/libglimmer/glimmer_utils.F90.i"
-	/glade/u/apps/derecho/23.06/spack/opt/spack/ncarcompilers/1.0.0/oneapi/2023.0.0/ec7b/bin/mpi/mpif90 $(Fortran_DEFINES) $(Fortran_INCLUDES) $(Fortran_FLAGS) -E /glade/u/home/tvda/CISM/libglimmer/glimmer_utils.F90 > CMakeFiles/glimmercismfortran.dir/libglimmer/glimmer_utils.F90.i
+	/glade/u/apps/derecho/23.09/spack/opt/spack/intel-oneapi-mpi/2021.10.0/oneapi/2023.2.1/ve6v/bin/mpif90 $(Fortran_DEFINES) $(Fortran_INCLUDES) $(Fortran_FLAGS) -E /glade/u/home/tvda/CISM/libglimmer/glimmer_utils.F90 > CMakeFiles/glimmercismfortran.dir/libglimmer/glimmer_utils.F90.i
 
 CMakeFiles/glimmercismfortran.dir/libglimmer/glimmer_utils.F90.s: cmake_force
 	@$(CMAKE_COMMAND) -E cmake_echo_color --switch=$(COLOR) --green "Compiling Fortran source to assembly CMakeFiles/glimmercismfortran.dir/libglimmer/glimmer_utils.F90.s"
-	/glade/u/apps/derecho/23.06/spack/opt/spack/ncarcompilers/1.0.0/oneapi/2023.0.0/ec7b/bin/mpi/mpif90 $(Fortran_DEFINES) $(Fortran_INCLUDES) $(Fortran_FLAGS) -S /glade/u/home/tvda/CISM/libglimmer/glimmer_utils.F90 -o CMakeFiles/glimmercismfortran.dir/libglimmer/glimmer_utils.F90.s
+	/glade/u/apps/derecho/23.09/spack/opt/spack/intel-oneapi-mpi/2021.10.0/oneapi/2023.2.1/ve6v/bin/mpif90 $(Fortran_DEFINES) $(Fortran_INCLUDES) $(Fortran_FLAGS) -S /glade/u/home/tvda/CISM/libglimmer/glimmer_utils.F90 -o CMakeFiles/glimmercismfortran.dir/libglimmer/glimmer_utils.F90.s
 
 CMakeFiles/glimmercismfortran.dir/libglimmer/glimmer_writestats.F90.o: CMakeFiles/glimmercismfortran.dir/flags.make
 CMakeFiles/glimmercismfortran.dir/libglimmer/glimmer_writestats.F90.o: /glade/u/home/tvda/CISM/libglimmer/glimmer_writestats.F90
 	@$(CMAKE_COMMAND) -E cmake_echo_color --switch=$(COLOR) --green --progress-dir=/glade/u/home/tvda/CISM/builds/derecho-intel/CMakeFiles --progress-num=$(CMAKE_PROGRESS_74) "Building Fortran object CMakeFiles/glimmercismfortran.dir/libglimmer/glimmer_writestats.F90.o"
-	/glade/u/apps/derecho/23.06/spack/opt/spack/ncarcompilers/1.0.0/oneapi/2023.0.0/ec7b/bin/mpi/mpif90 $(Fortran_DEFINES) $(Fortran_INCLUDES) $(Fortran_FLAGS) -c /glade/u/home/tvda/CISM/libglimmer/glimmer_writestats.F90 -o CMakeFiles/glimmercismfortran.dir/libglimmer/glimmer_writestats.F90.o
+	/glade/u/apps/derecho/23.09/spack/opt/spack/intel-oneapi-mpi/2021.10.0/oneapi/2023.2.1/ve6v/bin/mpif90 $(Fortran_DEFINES) $(Fortran_INCLUDES) $(Fortran_FLAGS) -c /glade/u/home/tvda/CISM/libglimmer/glimmer_writestats.F90 -o CMakeFiles/glimmercismfortran.dir/libglimmer/glimmer_writestats.F90.o
 
 CMakeFiles/glimmercismfortran.dir/libglimmer/glimmer_writestats.F90.i: cmake_force
 	@$(CMAKE_COMMAND) -E cmake_echo_color --switch=$(COLOR) --green "Preprocessing Fortran source to CMakeFiles/glimmercismfortran.dir/libglimmer/glimmer_writestats.F90.i"
-	/glade/u/apps/derecho/23.06/spack/opt/spack/ncarcompilers/1.0.0/oneapi/2023.0.0/ec7b/bin/mpi/mpif90 $(Fortran_DEFINES) $(Fortran_INCLUDES) $(Fortran_FLAGS) -E /glade/u/home/tvda/CISM/libglimmer/glimmer_writestats.F90 > CMakeFiles/glimmercismfortran.dir/libglimmer/glimmer_writestats.F90.i
+	/glade/u/apps/derecho/23.09/spack/opt/spack/intel-oneapi-mpi/2021.10.0/oneapi/2023.2.1/ve6v/bin/mpif90 $(Fortran_DEFINES) $(Fortran_INCLUDES) $(Fortran_FLAGS) -E /glade/u/home/tvda/CISM/libglimmer/glimmer_writestats.F90 > CMakeFiles/glimmercismfortran.dir/libglimmer/glimmer_writestats.F90.i
 
 CMakeFiles/glimmercismfortran.dir/libglimmer/glimmer_writestats.F90.s: cmake_force
 	@$(CMAKE_COMMAND) -E cmake_echo_color --switch=$(COLOR) --green "Compiling Fortran source to assembly CMakeFiles/glimmercismfortran.dir/libglimmer/glimmer_writestats.F90.s"
-	/glade/u/apps/derecho/23.06/spack/opt/spack/ncarcompilers/1.0.0/oneapi/2023.0.0/ec7b/bin/mpi/mpif90 $(Fortran_DEFINES) $(Fortran_INCLUDES) $(Fortran_FLAGS) -S /glade/u/home/tvda/CISM/libglimmer/glimmer_writestats.F90 -o CMakeFiles/glimmercismfortran.dir/libglimmer/glimmer_writestats.F90.s
+	/glade/u/apps/derecho/23.09/spack/opt/spack/intel-oneapi-mpi/2021.10.0/oneapi/2023.2.1/ve6v/bin/mpif90 $(Fortran_DEFINES) $(Fortran_INCLUDES) $(Fortran_FLAGS) -S /glade/u/home/tvda/CISM/libglimmer/glimmer_writestats.F90 -o CMakeFiles/glimmercismfortran.dir/libglimmer/glimmer_writestats.F90.s
 
 CMakeFiles/glimmercismfortran.dir/libglimmer/mpi_mod.F90.o: CMakeFiles/glimmercismfortran.dir/flags.make
 CMakeFiles/glimmercismfortran.dir/libglimmer/mpi_mod.F90.o: /glade/u/home/tvda/CISM/libglimmer/mpi_mod.F90
 	@$(CMAKE_COMMAND) -E cmake_echo_color --switch=$(COLOR) --green --progress-dir=/glade/u/home/tvda/CISM/builds/derecho-intel/CMakeFiles --progress-num=$(CMAKE_PROGRESS_75) "Building Fortran object CMakeFiles/glimmercismfortran.dir/libglimmer/mpi_mod.F90.o"
-	/glade/u/apps/derecho/23.06/spack/opt/spack/ncarcompilers/1.0.0/oneapi/2023.0.0/ec7b/bin/mpi/mpif90 $(Fortran_DEFINES) $(Fortran_INCLUDES) $(Fortran_FLAGS) -c /glade/u/home/tvda/CISM/libglimmer/mpi_mod.F90 -o CMakeFiles/glimmercismfortran.dir/libglimmer/mpi_mod.F90.o
+	/glade/u/apps/derecho/23.09/spack/opt/spack/intel-oneapi-mpi/2021.10.0/oneapi/2023.2.1/ve6v/bin/mpif90 $(Fortran_DEFINES) $(Fortran_INCLUDES) $(Fortran_FLAGS) -c /glade/u/home/tvda/CISM/libglimmer/mpi_mod.F90 -o CMakeFiles/glimmercismfortran.dir/libglimmer/mpi_mod.F90.o
 
 CMakeFiles/glimmercismfortran.dir/libglimmer/mpi_mod.F90.i: cmake_force
 	@$(CMAKE_COMMAND) -E cmake_echo_color --switch=$(COLOR) --green "Preprocessing Fortran source to CMakeFiles/glimmercismfortran.dir/libglimmer/mpi_mod.F90.i"
-	/glade/u/apps/derecho/23.06/spack/opt/spack/ncarcompilers/1.0.0/oneapi/2023.0.0/ec7b/bin/mpi/mpif90 $(Fortran_DEFINES) $(Fortran_INCLUDES) $(Fortran_FLAGS) -E /glade/u/home/tvda/CISM/libglimmer/mpi_mod.F90 > CMakeFiles/glimmercismfortran.dir/libglimmer/mpi_mod.F90.i
+	/glade/u/apps/derecho/23.09/spack/opt/spack/intel-oneapi-mpi/2021.10.0/oneapi/2023.2.1/ve6v/bin/mpif90 $(Fortran_DEFINES) $(Fortran_INCLUDES) $(Fortran_FLAGS) -E /glade/u/home/tvda/CISM/libglimmer/mpi_mod.F90 > CMakeFiles/glimmercismfortran.dir/libglimmer/mpi_mod.F90.i
 
 CMakeFiles/glimmercismfortran.dir/libglimmer/mpi_mod.F90.s: cmake_force
 	@$(CMAKE_COMMAND) -E cmake_echo_color --switch=$(COLOR) --green "Compiling Fortran source to assembly CMakeFiles/glimmercismfortran.dir/libglimmer/mpi_mod.F90.s"
-	/glade/u/apps/derecho/23.06/spack/opt/spack/ncarcompilers/1.0.0/oneapi/2023.0.0/ec7b/bin/mpi/mpif90 $(Fortran_DEFINES) $(Fortran_INCLUDES) $(Fortran_FLAGS) -S /glade/u/home/tvda/CISM/libglimmer/mpi_mod.F90 -o CMakeFiles/glimmercismfortran.dir/libglimmer/mpi_mod.F90.s
+	/glade/u/apps/derecho/23.09/spack/opt/spack/intel-oneapi-mpi/2021.10.0/oneapi/2023.2.1/ve6v/bin/mpif90 $(Fortran_DEFINES) $(Fortran_INCLUDES) $(Fortran_FLAGS) -S /glade/u/home/tvda/CISM/libglimmer/mpi_mod.F90 -o CMakeFiles/glimmercismfortran.dir/libglimmer/mpi_mod.F90.s
 
 CMakeFiles/glimmercismfortran.dir/libglimmer/ncdf_utils.F90.o: CMakeFiles/glimmercismfortran.dir/flags.make
 CMakeFiles/glimmercismfortran.dir/libglimmer/ncdf_utils.F90.o: /glade/u/home/tvda/CISM/libglimmer/ncdf_utils.F90
 	@$(CMAKE_COMMAND) -E cmake_echo_color --switch=$(COLOR) --green --progress-dir=/glade/u/home/tvda/CISM/builds/derecho-intel/CMakeFiles --progress-num=$(CMAKE_PROGRESS_76) "Building Fortran object CMakeFiles/glimmercismfortran.dir/libglimmer/ncdf_utils.F90.o"
-	/glade/u/apps/derecho/23.06/spack/opt/spack/ncarcompilers/1.0.0/oneapi/2023.0.0/ec7b/bin/mpi/mpif90 $(Fortran_DEFINES) $(Fortran_INCLUDES) $(Fortran_FLAGS) -c /glade/u/home/tvda/CISM/libglimmer/ncdf_utils.F90 -o CMakeFiles/glimmercismfortran.dir/libglimmer/ncdf_utils.F90.o
+	/glade/u/apps/derecho/23.09/spack/opt/spack/intel-oneapi-mpi/2021.10.0/oneapi/2023.2.1/ve6v/bin/mpif90 $(Fortran_DEFINES) $(Fortran_INCLUDES) $(Fortran_FLAGS) -c /glade/u/home/tvda/CISM/libglimmer/ncdf_utils.F90 -o CMakeFiles/glimmercismfortran.dir/libglimmer/ncdf_utils.F90.o
 
 CMakeFiles/glimmercismfortran.dir/libglimmer/ncdf_utils.F90.i: cmake_force
 	@$(CMAKE_COMMAND) -E cmake_echo_color --switch=$(COLOR) --green "Preprocessing Fortran source to CMakeFiles/glimmercismfortran.dir/libglimmer/ncdf_utils.F90.i"
-	/glade/u/apps/derecho/23.06/spack/opt/spack/ncarcompilers/1.0.0/oneapi/2023.0.0/ec7b/bin/mpi/mpif90 $(Fortran_DEFINES) $(Fortran_INCLUDES) $(Fortran_FLAGS) -E /glade/u/home/tvda/CISM/libglimmer/ncdf_utils.F90 > CMakeFiles/glimmercismfortran.dir/libglimmer/ncdf_utils.F90.i
+	/glade/u/apps/derecho/23.09/spack/opt/spack/intel-oneapi-mpi/2021.10.0/oneapi/2023.2.1/ve6v/bin/mpif90 $(Fortran_DEFINES) $(Fortran_INCLUDES) $(Fortran_FLAGS) -E /glade/u/home/tvda/CISM/libglimmer/ncdf_utils.F90 > CMakeFiles/glimmercismfortran.dir/libglimmer/ncdf_utils.F90.i
 
 CMakeFiles/glimmercismfortran.dir/libglimmer/ncdf_utils.F90.s: cmake_force
 	@$(CMAKE_COMMAND) -E cmake_echo_color --switch=$(COLOR) --green "Compiling Fortran source to assembly CMakeFiles/glimmercismfortran.dir/libglimmer/ncdf_utils.F90.s"
-	/glade/u/apps/derecho/23.06/spack/opt/spack/ncarcompilers/1.0.0/oneapi/2023.0.0/ec7b/bin/mpi/mpif90 $(Fortran_DEFINES) $(Fortran_INCLUDES) $(Fortran_FLAGS) -S /glade/u/home/tvda/CISM/libglimmer/ncdf_utils.F90 -o CMakeFiles/glimmercismfortran.dir/libglimmer/ncdf_utils.F90.s
+	/glade/u/apps/derecho/23.09/spack/opt/spack/intel-oneapi-mpi/2021.10.0/oneapi/2023.2.1/ve6v/bin/mpif90 $(Fortran_DEFINES) $(Fortran_INCLUDES) $(Fortran_FLAGS) -S /glade/u/home/tvda/CISM/libglimmer/ncdf_utils.F90 -o CMakeFiles/glimmercismfortran.dir/libglimmer/ncdf_utils.F90.s
 
 CMakeFiles/glimmercismfortran.dir/libglimmer/parallel_mpi.F90.o: CMakeFiles/glimmercismfortran.dir/flags.make
 CMakeFiles/glimmercismfortran.dir/libglimmer/parallel_mpi.F90.o: /glade/u/home/tvda/CISM/libglimmer/parallel_mpi.F90
 	@$(CMAKE_COMMAND) -E cmake_echo_color --switch=$(COLOR) --green --progress-dir=/glade/u/home/tvda/CISM/builds/derecho-intel/CMakeFiles --progress-num=$(CMAKE_PROGRESS_77) "Building Fortran object CMakeFiles/glimmercismfortran.dir/libglimmer/parallel_mpi.F90.o"
-	/glade/u/apps/derecho/23.06/spack/opt/spack/ncarcompilers/1.0.0/oneapi/2023.0.0/ec7b/bin/mpi/mpif90 $(Fortran_DEFINES) $(Fortran_INCLUDES) $(Fortran_FLAGS) -c /glade/u/home/tvda/CISM/libglimmer/parallel_mpi.F90 -o CMakeFiles/glimmercismfortran.dir/libglimmer/parallel_mpi.F90.o
+	/glade/u/apps/derecho/23.09/spack/opt/spack/intel-oneapi-mpi/2021.10.0/oneapi/2023.2.1/ve6v/bin/mpif90 $(Fortran_DEFINES) $(Fortran_INCLUDES) $(Fortran_FLAGS) -c /glade/u/home/tvda/CISM/libglimmer/parallel_mpi.F90 -o CMakeFiles/glimmercismfortran.dir/libglimmer/parallel_mpi.F90.o
 
 CMakeFiles/glimmercismfortran.dir/libglimmer/parallel_mpi.F90.i: cmake_force
 	@$(CMAKE_COMMAND) -E cmake_echo_color --switch=$(COLOR) --green "Preprocessing Fortran source to CMakeFiles/glimmercismfortran.dir/libglimmer/parallel_mpi.F90.i"
-	/glade/u/apps/derecho/23.06/spack/opt/spack/ncarcompilers/1.0.0/oneapi/2023.0.0/ec7b/bin/mpi/mpif90 $(Fortran_DEFINES) $(Fortran_INCLUDES) $(Fortran_FLAGS) -E /glade/u/home/tvda/CISM/libglimmer/parallel_mpi.F90 > CMakeFiles/glimmercismfortran.dir/libglimmer/parallel_mpi.F90.i
+	/glade/u/apps/derecho/23.09/spack/opt/spack/intel-oneapi-mpi/2021.10.0/oneapi/2023.2.1/ve6v/bin/mpif90 $(Fortran_DEFINES) $(Fortran_INCLUDES) $(Fortran_FLAGS) -E /glade/u/home/tvda/CISM/libglimmer/parallel_mpi.F90 > CMakeFiles/glimmercismfortran.dir/libglimmer/parallel_mpi.F90.i
 
 CMakeFiles/glimmercismfortran.dir/libglimmer/parallel_mpi.F90.s: cmake_force
 	@$(CMAKE_COMMAND) -E cmake_echo_color --switch=$(COLOR) --green "Compiling Fortran source to assembly CMakeFiles/glimmercismfortran.dir/libglimmer/parallel_mpi.F90.s"
-	/glade/u/apps/derecho/23.06/spack/opt/spack/ncarcompilers/1.0.0/oneapi/2023.0.0/ec7b/bin/mpi/mpif90 $(Fortran_DEFINES) $(Fortran_INCLUDES) $(Fortran_FLAGS) -S /glade/u/home/tvda/CISM/libglimmer/parallel_mpi.F90 -o CMakeFiles/glimmercismfortran.dir/libglimmer/parallel_mpi.F90.s
+	/glade/u/apps/derecho/23.09/spack/opt/spack/intel-oneapi-mpi/2021.10.0/oneapi/2023.2.1/ve6v/bin/mpif90 $(Fortran_DEFINES) $(Fortran_INCLUDES) $(Fortran_FLAGS) -S /glade/u/home/tvda/CISM/libglimmer/parallel_mpi.F90 -o CMakeFiles/glimmercismfortran.dir/libglimmer/parallel_mpi.F90.s
 
 CMakeFiles/glimmercismfortran.dir/libglimmer/profile.F90.o: CMakeFiles/glimmercismfortran.dir/flags.make
 CMakeFiles/glimmercismfortran.dir/libglimmer/profile.F90.o: /glade/u/home/tvda/CISM/libglimmer/profile.F90
 	@$(CMAKE_COMMAND) -E cmake_echo_color --switch=$(COLOR) --green --progress-dir=/glade/u/home/tvda/CISM/builds/derecho-intel/CMakeFiles --progress-num=$(CMAKE_PROGRESS_78) "Building Fortran object CMakeFiles/glimmercismfortran.dir/libglimmer/profile.F90.o"
-	/glade/u/apps/derecho/23.06/spack/opt/spack/ncarcompilers/1.0.0/oneapi/2023.0.0/ec7b/bin/mpi/mpif90 $(Fortran_DEFINES) $(Fortran_INCLUDES) $(Fortran_FLAGS) -c /glade/u/home/tvda/CISM/libglimmer/profile.F90 -o CMakeFiles/glimmercismfortran.dir/libglimmer/profile.F90.o
+	/glade/u/apps/derecho/23.09/spack/opt/spack/intel-oneapi-mpi/2021.10.0/oneapi/2023.2.1/ve6v/bin/mpif90 $(Fortran_DEFINES) $(Fortran_INCLUDES) $(Fortran_FLAGS) -c /glade/u/home/tvda/CISM/libglimmer/profile.F90 -o CMakeFiles/glimmercismfortran.dir/libglimmer/profile.F90.o
 
 CMakeFiles/glimmercismfortran.dir/libglimmer/profile.F90.i: cmake_force
 	@$(CMAKE_COMMAND) -E cmake_echo_color --switch=$(COLOR) --green "Preprocessing Fortran source to CMakeFiles/glimmercismfortran.dir/libglimmer/profile.F90.i"
-	/glade/u/apps/derecho/23.06/spack/opt/spack/ncarcompilers/1.0.0/oneapi/2023.0.0/ec7b/bin/mpi/mpif90 $(Fortran_DEFINES) $(Fortran_INCLUDES) $(Fortran_FLAGS) -E /glade/u/home/tvda/CISM/libglimmer/profile.F90 > CMakeFiles/glimmercismfortran.dir/libglimmer/profile.F90.i
+	/glade/u/apps/derecho/23.09/spack/opt/spack/intel-oneapi-mpi/2021.10.0/oneapi/2023.2.1/ve6v/bin/mpif90 $(Fortran_DEFINES) $(Fortran_INCLUDES) $(Fortran_FLAGS) -E /glade/u/home/tvda/CISM/libglimmer/profile.F90 > CMakeFiles/glimmercismfortran.dir/libglimmer/profile.F90.i
 
 CMakeFiles/glimmercismfortran.dir/libglimmer/profile.F90.s: cmake_force
 	@$(CMAKE_COMMAND) -E cmake_echo_color --switch=$(COLOR) --green "Compiling Fortran source to assembly CMakeFiles/glimmercismfortran.dir/libglimmer/profile.F90.s"
-	/glade/u/apps/derecho/23.06/spack/opt/spack/ncarcompilers/1.0.0/oneapi/2023.0.0/ec7b/bin/mpi/mpif90 $(Fortran_DEFINES) $(Fortran_INCLUDES) $(Fortran_FLAGS) -S /glade/u/home/tvda/CISM/libglimmer/profile.F90 -o CMakeFiles/glimmercismfortran.dir/libglimmer/profile.F90.s
+	/glade/u/apps/derecho/23.09/spack/opt/spack/intel-oneapi-mpi/2021.10.0/oneapi/2023.2.1/ve6v/bin/mpif90 $(Fortran_DEFINES) $(Fortran_INCLUDES) $(Fortran_FLAGS) -S /glade/u/home/tvda/CISM/libglimmer/profile.F90 -o CMakeFiles/glimmercismfortran.dir/libglimmer/profile.F90.s
 
 CMakeFiles/glimmercismfortran.dir/libglimmer/writestats.c.o: CMakeFiles/glimmercismfortran.dir/flags.make
 CMakeFiles/glimmercismfortran.dir/libglimmer/writestats.c.o: /glade/u/home/tvda/CISM/libglimmer/writestats.c
 CMakeFiles/glimmercismfortran.dir/libglimmer/writestats.c.o: CMakeFiles/glimmercismfortran.dir/compiler_depend.ts
 	@$(CMAKE_COMMAND) -E cmake_echo_color --switch=$(COLOR) --green --progress-dir=/glade/u/home/tvda/CISM/builds/derecho-intel/CMakeFiles --progress-num=$(CMAKE_PROGRESS_79) "Building C object CMakeFiles/glimmercismfortran.dir/libglimmer/writestats.c.o"
-	/glade/u/apps/derecho/23.06/spack/opt/spack/ncarcompilers/1.0.0/oneapi/2023.0.0/ec7b/bin/mpi/mpicc $(C_DEFINES) $(C_INCLUDES) $(C_FLAGS) -MD -MT CMakeFiles/glimmercismfortran.dir/libglimmer/writestats.c.o -MF CMakeFiles/glimmercismfortran.dir/libglimmer/writestats.c.o.d -o CMakeFiles/glimmercismfortran.dir/libglimmer/writestats.c.o -c /glade/u/home/tvda/CISM/libglimmer/writestats.c
+	/glade/u/apps/derecho/23.09/spack/opt/spack/intel-oneapi-mpi/2021.10.0/oneapi/2023.2.1/ve6v/bin/mpicc $(C_DEFINES) $(C_INCLUDES) $(C_FLAGS) -MD -MT CMakeFiles/glimmercismfortran.dir/libglimmer/writestats.c.o -MF CMakeFiles/glimmercismfortran.dir/libglimmer/writestats.c.o.d -o CMakeFiles/glimmercismfortran.dir/libglimmer/writestats.c.o -c /glade/u/home/tvda/CISM/libglimmer/writestats.c
 
 CMakeFiles/glimmercismfortran.dir/libglimmer/writestats.c.i: cmake_force
 	@$(CMAKE_COMMAND) -E cmake_echo_color --switch=$(COLOR) --green "Preprocessing C source to CMakeFiles/glimmercismfortran.dir/libglimmer/writestats.c.i"
-	/glade/u/apps/derecho/23.06/spack/opt/spack/ncarcompilers/1.0.0/oneapi/2023.0.0/ec7b/bin/mpi/mpicc $(C_DEFINES) $(C_INCLUDES) $(C_FLAGS) -E /glade/u/home/tvda/CISM/libglimmer/writestats.c > CMakeFiles/glimmercismfortran.dir/libglimmer/writestats.c.i
+	/glade/u/apps/derecho/23.09/spack/opt/spack/intel-oneapi-mpi/2021.10.0/oneapi/2023.2.1/ve6v/bin/mpicc $(C_DEFINES) $(C_INCLUDES) $(C_FLAGS) -E /glade/u/home/tvda/CISM/libglimmer/writestats.c > CMakeFiles/glimmercismfortran.dir/libglimmer/writestats.c.i
 
 CMakeFiles/glimmercismfortran.dir/libglimmer/writestats.c.s: cmake_force
 	@$(CMAKE_COMMAND) -E cmake_echo_color --switch=$(COLOR) --green "Compiling C source to assembly CMakeFiles/glimmercismfortran.dir/libglimmer/writestats.c.s"
-	/glade/u/apps/derecho/23.06/spack/opt/spack/ncarcompilers/1.0.0/oneapi/2023.0.0/ec7b/bin/mpi/mpicc $(C_DEFINES) $(C_INCLUDES) $(C_FLAGS) -S /glade/u/home/tvda/CISM/libglimmer/writestats.c -o CMakeFiles/glimmercismfortran.dir/libglimmer/writestats.c.s
+	/glade/u/apps/derecho/23.09/spack/opt/spack/intel-oneapi-mpi/2021.10.0/oneapi/2023.2.1/ve6v/bin/mpicc $(C_DEFINES) $(C_INCLUDES) $(C_FLAGS) -S /glade/u/home/tvda/CISM/libglimmer/writestats.c -o CMakeFiles/glimmercismfortran.dir/libglimmer/writestats.c.s
 
 CMakeFiles/glimmercismfortran.dir/libglint/glint_anomcouple.F90.o: CMakeFiles/glimmercismfortran.dir/flags.make
 CMakeFiles/glimmercismfortran.dir/libglint/glint_anomcouple.F90.o: /glade/u/home/tvda/CISM/libglint/glint_anomcouple.F90
 	@$(CMAKE_COMMAND) -E cmake_echo_color --switch=$(COLOR) --green --progress-dir=/glade/u/home/tvda/CISM/builds/derecho-intel/CMakeFiles --progress-num=$(CMAKE_PROGRESS_80) "Building Fortran object CMakeFiles/glimmercismfortran.dir/libglint/glint_anomcouple.F90.o"
-	/glade/u/apps/derecho/23.06/spack/opt/spack/ncarcompilers/1.0.0/oneapi/2023.0.0/ec7b/bin/mpi/mpif90 $(Fortran_DEFINES) $(Fortran_INCLUDES) $(Fortran_FLAGS) -c /glade/u/home/tvda/CISM/libglint/glint_anomcouple.F90 -o CMakeFiles/glimmercismfortran.dir/libglint/glint_anomcouple.F90.o
+	/glade/u/apps/derecho/23.09/spack/opt/spack/intel-oneapi-mpi/2021.10.0/oneapi/2023.2.1/ve6v/bin/mpif90 $(Fortran_DEFINES) $(Fortran_INCLUDES) $(Fortran_FLAGS) -c /glade/u/home/tvda/CISM/libglint/glint_anomcouple.F90 -o CMakeFiles/glimmercismfortran.dir/libglint/glint_anomcouple.F90.o
 
 CMakeFiles/glimmercismfortran.dir/libglint/glint_anomcouple.F90.i: cmake_force
 	@$(CMAKE_COMMAND) -E cmake_echo_color --switch=$(COLOR) --green "Preprocessing Fortran source to CMakeFiles/glimmercismfortran.dir/libglint/glint_anomcouple.F90.i"
-	/glade/u/apps/derecho/23.06/spack/opt/spack/ncarcompilers/1.0.0/oneapi/2023.0.0/ec7b/bin/mpi/mpif90 $(Fortran_DEFINES) $(Fortran_INCLUDES) $(Fortran_FLAGS) -E /glade/u/home/tvda/CISM/libglint/glint_anomcouple.F90 > CMakeFiles/glimmercismfortran.dir/libglint/glint_anomcouple.F90.i
+	/glade/u/apps/derecho/23.09/spack/opt/spack/intel-oneapi-mpi/2021.10.0/oneapi/2023.2.1/ve6v/bin/mpif90 $(Fortran_DEFINES) $(Fortran_INCLUDES) $(Fortran_FLAGS) -E /glade/u/home/tvda/CISM/libglint/glint_anomcouple.F90 > CMakeFiles/glimmercismfortran.dir/libglint/glint_anomcouple.F90.i
 
 CMakeFiles/glimmercismfortran.dir/libglint/glint_anomcouple.F90.s: cmake_force
 	@$(CMAKE_COMMAND) -E cmake_echo_color --switch=$(COLOR) --green "Compiling Fortran source to assembly CMakeFiles/glimmercismfortran.dir/libglint/glint_anomcouple.F90.s"
-	/glade/u/apps/derecho/23.06/spack/opt/spack/ncarcompilers/1.0.0/oneapi/2023.0.0/ec7b/bin/mpi/mpif90 $(Fortran_DEFINES) $(Fortran_INCLUDES) $(Fortran_FLAGS) -S /glade/u/home/tvda/CISM/libglint/glint_anomcouple.F90 -o CMakeFiles/glimmercismfortran.dir/libglint/glint_anomcouple.F90.s
+	/glade/u/apps/derecho/23.09/spack/opt/spack/intel-oneapi-mpi/2021.10.0/oneapi/2023.2.1/ve6v/bin/mpif90 $(Fortran_DEFINES) $(Fortran_INCLUDES) $(Fortran_FLAGS) -S /glade/u/home/tvda/CISM/libglint/glint_anomcouple.F90 -o CMakeFiles/glimmercismfortran.dir/libglint/glint_anomcouple.F90.s
 
 CMakeFiles/glimmercismfortran.dir/libglint/glint_commandline.F90.o: CMakeFiles/glimmercismfortran.dir/flags.make
 CMakeFiles/glimmercismfortran.dir/libglint/glint_commandline.F90.o: /glade/u/home/tvda/CISM/libglint/glint_commandline.F90
 	@$(CMAKE_COMMAND) -E cmake_echo_color --switch=$(COLOR) --green --progress-dir=/glade/u/home/tvda/CISM/builds/derecho-intel/CMakeFiles --progress-num=$(CMAKE_PROGRESS_81) "Building Fortran object CMakeFiles/glimmercismfortran.dir/libglint/glint_commandline.F90.o"
-	/glade/u/apps/derecho/23.06/spack/opt/spack/ncarcompilers/1.0.0/oneapi/2023.0.0/ec7b/bin/mpi/mpif90 $(Fortran_DEFINES) $(Fortran_INCLUDES) $(Fortran_FLAGS) -c /glade/u/home/tvda/CISM/libglint/glint_commandline.F90 -o CMakeFiles/glimmercismfortran.dir/libglint/glint_commandline.F90.o
+	/glade/u/apps/derecho/23.09/spack/opt/spack/intel-oneapi-mpi/2021.10.0/oneapi/2023.2.1/ve6v/bin/mpif90 $(Fortran_DEFINES) $(Fortran_INCLUDES) $(Fortran_FLAGS) -c /glade/u/home/tvda/CISM/libglint/glint_commandline.F90 -o CMakeFiles/glimmercismfortran.dir/libglint/glint_commandline.F90.o
 
 CMakeFiles/glimmercismfortran.dir/libglint/glint_commandline.F90.i: cmake_force
 	@$(CMAKE_COMMAND) -E cmake_echo_color --switch=$(COLOR) --green "Preprocessing Fortran source to CMakeFiles/glimmercismfortran.dir/libglint/glint_commandline.F90.i"
-	/glade/u/apps/derecho/23.06/spack/opt/spack/ncarcompilers/1.0.0/oneapi/2023.0.0/ec7b/bin/mpi/mpif90 $(Fortran_DEFINES) $(Fortran_INCLUDES) $(Fortran_FLAGS) -E /glade/u/home/tvda/CISM/libglint/glint_commandline.F90 > CMakeFiles/glimmercismfortran.dir/libglint/glint_commandline.F90.i
+	/glade/u/apps/derecho/23.09/spack/opt/spack/intel-oneapi-mpi/2021.10.0/oneapi/2023.2.1/ve6v/bin/mpif90 $(Fortran_DEFINES) $(Fortran_INCLUDES) $(Fortran_FLAGS) -E /glade/u/home/tvda/CISM/libglint/glint_commandline.F90 > CMakeFiles/glimmercismfortran.dir/libglint/glint_commandline.F90.i
 
 CMakeFiles/glimmercismfortran.dir/libglint/glint_commandline.F90.s: cmake_force
 	@$(CMAKE_COMMAND) -E cmake_echo_color --switch=$(COLOR) --green "Compiling Fortran source to assembly CMakeFiles/glimmercismfortran.dir/libglint/glint_commandline.F90.s"
-	/glade/u/apps/derecho/23.06/spack/opt/spack/ncarcompilers/1.0.0/oneapi/2023.0.0/ec7b/bin/mpi/mpif90 $(Fortran_DEFINES) $(Fortran_INCLUDES) $(Fortran_FLAGS) -S /glade/u/home/tvda/CISM/libglint/glint_commandline.F90 -o CMakeFiles/glimmercismfortran.dir/libglint/glint_commandline.F90.s
+	/glade/u/apps/derecho/23.09/spack/opt/spack/intel-oneapi-mpi/2021.10.0/oneapi/2023.2.1/ve6v/bin/mpif90 $(Fortran_DEFINES) $(Fortran_INCLUDES) $(Fortran_FLAGS) -S /glade/u/home/tvda/CISM/libglint/glint_commandline.F90 -o CMakeFiles/glimmercismfortran.dir/libglint/glint_commandline.F90.s
 
 CMakeFiles/glimmercismfortran.dir/libglint/glint_daily_pdd.F90.o: CMakeFiles/glimmercismfortran.dir/flags.make
 CMakeFiles/glimmercismfortran.dir/libglint/glint_daily_pdd.F90.o: /glade/u/home/tvda/CISM/libglint/glint_daily_pdd.F90
 	@$(CMAKE_COMMAND) -E cmake_echo_color --switch=$(COLOR) --green --progress-dir=/glade/u/home/tvda/CISM/builds/derecho-intel/CMakeFiles --progress-num=$(CMAKE_PROGRESS_82) "Building Fortran object CMakeFiles/glimmercismfortran.dir/libglint/glint_daily_pdd.F90.o"
-	/glade/u/apps/derecho/23.06/spack/opt/spack/ncarcompilers/1.0.0/oneapi/2023.0.0/ec7b/bin/mpi/mpif90 $(Fortran_DEFINES) $(Fortran_INCLUDES) $(Fortran_FLAGS) -c /glade/u/home/tvda/CISM/libglint/glint_daily_pdd.F90 -o CMakeFiles/glimmercismfortran.dir/libglint/glint_daily_pdd.F90.o
+	/glade/u/apps/derecho/23.09/spack/opt/spack/intel-oneapi-mpi/2021.10.0/oneapi/2023.2.1/ve6v/bin/mpif90 $(Fortran_DEFINES) $(Fortran_INCLUDES) $(Fortran_FLAGS) -c /glade/u/home/tvda/CISM/libglint/glint_daily_pdd.F90 -o CMakeFiles/glimmercismfortran.dir/libglint/glint_daily_pdd.F90.o
 
 CMakeFiles/glimmercismfortran.dir/libglint/glint_daily_pdd.F90.i: cmake_force
 	@$(CMAKE_COMMAND) -E cmake_echo_color --switch=$(COLOR) --green "Preprocessing Fortran source to CMakeFiles/glimmercismfortran.dir/libglint/glint_daily_pdd.F90.i"
-	/glade/u/apps/derecho/23.06/spack/opt/spack/ncarcompilers/1.0.0/oneapi/2023.0.0/ec7b/bin/mpi/mpif90 $(Fortran_DEFINES) $(Fortran_INCLUDES) $(Fortran_FLAGS) -E /glade/u/home/tvda/CISM/libglint/glint_daily_pdd.F90 > CMakeFiles/glimmercismfortran.dir/libglint/glint_daily_pdd.F90.i
+	/glade/u/apps/derecho/23.09/spack/opt/spack/intel-oneapi-mpi/2021.10.0/oneapi/2023.2.1/ve6v/bin/mpif90 $(Fortran_DEFINES) $(Fortran_INCLUDES) $(Fortran_FLAGS) -E /glade/u/home/tvda/CISM/libglint/glint_daily_pdd.F90 > CMakeFiles/glimmercismfortran.dir/libglint/glint_daily_pdd.F90.i
 
 CMakeFiles/glimmercismfortran.dir/libglint/glint_daily_pdd.F90.s: cmake_force
 	@$(CMAKE_COMMAND) -E cmake_echo_color --switch=$(COLOR) --green "Compiling Fortran source to assembly CMakeFiles/glimmercismfortran.dir/libglint/glint_daily_pdd.F90.s"
-	/glade/u/apps/derecho/23.06/spack/opt/spack/ncarcompilers/1.0.0/oneapi/2023.0.0/ec7b/bin/mpi/mpif90 $(Fortran_DEFINES) $(Fortran_INCLUDES) $(Fortran_FLAGS) -S /glade/u/home/tvda/CISM/libglint/glint_daily_pdd.F90 -o CMakeFiles/glimmercismfortran.dir/libglint/glint_daily_pdd.F90.s
+	/glade/u/apps/derecho/23.09/spack/opt/spack/intel-oneapi-mpi/2021.10.0/oneapi/2023.2.1/ve6v/bin/mpif90 $(Fortran_DEFINES) $(Fortran_INCLUDES) $(Fortran_FLAGS) -S /glade/u/home/tvda/CISM/libglint/glint_daily_pdd.F90 -o CMakeFiles/glimmercismfortran.dir/libglint/glint_daily_pdd.F90.s
 
 CMakeFiles/glimmercismfortran.dir/libglint/glint_downscale.F90.o: CMakeFiles/glimmercismfortran.dir/flags.make
 CMakeFiles/glimmercismfortran.dir/libglint/glint_downscale.F90.o: /glade/u/home/tvda/CISM/libglint/glint_downscale.F90
 	@$(CMAKE_COMMAND) -E cmake_echo_color --switch=$(COLOR) --green --progress-dir=/glade/u/home/tvda/CISM/builds/derecho-intel/CMakeFiles --progress-num=$(CMAKE_PROGRESS_83) "Building Fortran object CMakeFiles/glimmercismfortran.dir/libglint/glint_downscale.F90.o"
-	/glade/u/apps/derecho/23.06/spack/opt/spack/ncarcompilers/1.0.0/oneapi/2023.0.0/ec7b/bin/mpi/mpif90 $(Fortran_DEFINES) $(Fortran_INCLUDES) $(Fortran_FLAGS) -c /glade/u/home/tvda/CISM/libglint/glint_downscale.F90 -o CMakeFiles/glimmercismfortran.dir/libglint/glint_downscale.F90.o
+	/glade/u/apps/derecho/23.09/spack/opt/spack/intel-oneapi-mpi/2021.10.0/oneapi/2023.2.1/ve6v/bin/mpif90 $(Fortran_DEFINES) $(Fortran_INCLUDES) $(Fortran_FLAGS) -c /glade/u/home/tvda/CISM/libglint/glint_downscale.F90 -o CMakeFiles/glimmercismfortran.dir/libglint/glint_downscale.F90.o
 
 CMakeFiles/glimmercismfortran.dir/libglint/glint_downscale.F90.i: cmake_force
 	@$(CMAKE_COMMAND) -E cmake_echo_color --switch=$(COLOR) --green "Preprocessing Fortran source to CMakeFiles/glimmercismfortran.dir/libglint/glint_downscale.F90.i"
-	/glade/u/apps/derecho/23.06/spack/opt/spack/ncarcompilers/1.0.0/oneapi/2023.0.0/ec7b/bin/mpi/mpif90 $(Fortran_DEFINES) $(Fortran_INCLUDES) $(Fortran_FLAGS) -E /glade/u/home/tvda/CISM/libglint/glint_downscale.F90 > CMakeFiles/glimmercismfortran.dir/libglint/glint_downscale.F90.i
+	/glade/u/apps/derecho/23.09/spack/opt/spack/intel-oneapi-mpi/2021.10.0/oneapi/2023.2.1/ve6v/bin/mpif90 $(Fortran_DEFINES) $(Fortran_INCLUDES) $(Fortran_FLAGS) -E /glade/u/home/tvda/CISM/libglint/glint_downscale.F90 > CMakeFiles/glimmercismfortran.dir/libglint/glint_downscale.F90.i
 
 CMakeFiles/glimmercismfortran.dir/libglint/glint_downscale.F90.s: cmake_force
 	@$(CMAKE_COMMAND) -E cmake_echo_color --switch=$(COLOR) --green "Compiling Fortran source to assembly CMakeFiles/glimmercismfortran.dir/libglint/glint_downscale.F90.s"
-	/glade/u/apps/derecho/23.06/spack/opt/spack/ncarcompilers/1.0.0/oneapi/2023.0.0/ec7b/bin/mpi/mpif90 $(Fortran_DEFINES) $(Fortran_INCLUDES) $(Fortran_FLAGS) -S /glade/u/home/tvda/CISM/libglint/glint_downscale.F90 -o CMakeFiles/glimmercismfortran.dir/libglint/glint_downscale.F90.s
+	/glade/u/apps/derecho/23.09/spack/opt/spack/intel-oneapi-mpi/2021.10.0/oneapi/2023.2.1/ve6v/bin/mpif90 $(Fortran_DEFINES) $(Fortran_INCLUDES) $(Fortran_FLAGS) -S /glade/u/home/tvda/CISM/libglint/glint_downscale.F90 -o CMakeFiles/glimmercismfortran.dir/libglint/glint_downscale.F90.s
 
 CMakeFiles/glimmercismfortran.dir/libglint/glint_ebm.F90.o: CMakeFiles/glimmercismfortran.dir/flags.make
 CMakeFiles/glimmercismfortran.dir/libglint/glint_ebm.F90.o: /glade/u/home/tvda/CISM/libglint/glint_ebm.F90
 	@$(CMAKE_COMMAND) -E cmake_echo_color --switch=$(COLOR) --green --progress-dir=/glade/u/home/tvda/CISM/builds/derecho-intel/CMakeFiles --progress-num=$(CMAKE_PROGRESS_84) "Building Fortran object CMakeFiles/glimmercismfortran.dir/libglint/glint_ebm.F90.o"
-	/glade/u/apps/derecho/23.06/spack/opt/spack/ncarcompilers/1.0.0/oneapi/2023.0.0/ec7b/bin/mpi/mpif90 $(Fortran_DEFINES) $(Fortran_INCLUDES) $(Fortran_FLAGS) -c /glade/u/home/tvda/CISM/libglint/glint_ebm.F90 -o CMakeFiles/glimmercismfortran.dir/libglint/glint_ebm.F90.o
+	/glade/u/apps/derecho/23.09/spack/opt/spack/intel-oneapi-mpi/2021.10.0/oneapi/2023.2.1/ve6v/bin/mpif90 $(Fortran_DEFINES) $(Fortran_INCLUDES) $(Fortran_FLAGS) -c /glade/u/home/tvda/CISM/libglint/glint_ebm.F90 -o CMakeFiles/glimmercismfortran.dir/libglint/glint_ebm.F90.o
 
 CMakeFiles/glimmercismfortran.dir/libglint/glint_ebm.F90.i: cmake_force
 	@$(CMAKE_COMMAND) -E cmake_echo_color --switch=$(COLOR) --green "Preprocessing Fortran source to CMakeFiles/glimmercismfortran.dir/libglint/glint_ebm.F90.i"
-	/glade/u/apps/derecho/23.06/spack/opt/spack/ncarcompilers/1.0.0/oneapi/2023.0.0/ec7b/bin/mpi/mpif90 $(Fortran_DEFINES) $(Fortran_INCLUDES) $(Fortran_FLAGS) -E /glade/u/home/tvda/CISM/libglint/glint_ebm.F90 > CMakeFiles/glimmercismfortran.dir/libglint/glint_ebm.F90.i
+	/glade/u/apps/derecho/23.09/spack/opt/spack/intel-oneapi-mpi/2021.10.0/oneapi/2023.2.1/ve6v/bin/mpif90 $(Fortran_DEFINES) $(Fortran_INCLUDES) $(Fortran_FLAGS) -E /glade/u/home/tvda/CISM/libglint/glint_ebm.F90 > CMakeFiles/glimmercismfortran.dir/libglint/glint_ebm.F90.i
 
 CMakeFiles/glimmercismfortran.dir/libglint/glint_ebm.F90.s: cmake_force
 	@$(CMAKE_COMMAND) -E cmake_echo_color --switch=$(COLOR) --green "Compiling Fortran source to assembly CMakeFiles/glimmercismfortran.dir/libglint/glint_ebm.F90.s"
-	/glade/u/apps/derecho/23.06/spack/opt/spack/ncarcompilers/1.0.0/oneapi/2023.0.0/ec7b/bin/mpi/mpif90 $(Fortran_DEFINES) $(Fortran_INCLUDES) $(Fortran_FLAGS) -S /glade/u/home/tvda/CISM/libglint/glint_ebm.F90 -o CMakeFiles/glimmercismfortran.dir/libglint/glint_ebm.F90.s
+	/glade/u/apps/derecho/23.09/spack/opt/spack/intel-oneapi-mpi/2021.10.0/oneapi/2023.2.1/ve6v/bin/mpif90 $(Fortran_DEFINES) $(Fortran_INCLUDES) $(Fortran_FLAGS) -S /glade/u/home/tvda/CISM/libglint/glint_ebm.F90 -o CMakeFiles/glimmercismfortran.dir/libglint/glint_ebm.F90.s
 
 CMakeFiles/glimmercismfortran.dir/libglint/glint_example_clim.F90.o: CMakeFiles/glimmercismfortran.dir/flags.make
 CMakeFiles/glimmercismfortran.dir/libglint/glint_example_clim.F90.o: /glade/u/home/tvda/CISM/libglint/glint_example_clim.F90
 	@$(CMAKE_COMMAND) -E cmake_echo_color --switch=$(COLOR) --green --progress-dir=/glade/u/home/tvda/CISM/builds/derecho-intel/CMakeFiles --progress-num=$(CMAKE_PROGRESS_85) "Building Fortran object CMakeFiles/glimmercismfortran.dir/libglint/glint_example_clim.F90.o"
-	/glade/u/apps/derecho/23.06/spack/opt/spack/ncarcompilers/1.0.0/oneapi/2023.0.0/ec7b/bin/mpi/mpif90 $(Fortran_DEFINES) $(Fortran_INCLUDES) $(Fortran_FLAGS) -c /glade/u/home/tvda/CISM/libglint/glint_example_clim.F90 -o CMakeFiles/glimmercismfortran.dir/libglint/glint_example_clim.F90.o
+	/glade/u/apps/derecho/23.09/spack/opt/spack/intel-oneapi-mpi/2021.10.0/oneapi/2023.2.1/ve6v/bin/mpif90 $(Fortran_DEFINES) $(Fortran_INCLUDES) $(Fortran_FLAGS) -c /glade/u/home/tvda/CISM/libglint/glint_example_clim.F90 -o CMakeFiles/glimmercismfortran.dir/libglint/glint_example_clim.F90.o
 
 CMakeFiles/glimmercismfortran.dir/libglint/glint_example_clim.F90.i: cmake_force
 	@$(CMAKE_COMMAND) -E cmake_echo_color --switch=$(COLOR) --green "Preprocessing Fortran source to CMakeFiles/glimmercismfortran.dir/libglint/glint_example_clim.F90.i"
-	/glade/u/apps/derecho/23.06/spack/opt/spack/ncarcompilers/1.0.0/oneapi/2023.0.0/ec7b/bin/mpi/mpif90 $(Fortran_DEFINES) $(Fortran_INCLUDES) $(Fortran_FLAGS) -E /glade/u/home/tvda/CISM/libglint/glint_example_clim.F90 > CMakeFiles/glimmercismfortran.dir/libglint/glint_example_clim.F90.i
+	/glade/u/apps/derecho/23.09/spack/opt/spack/intel-oneapi-mpi/2021.10.0/oneapi/2023.2.1/ve6v/bin/mpif90 $(Fortran_DEFINES) $(Fortran_INCLUDES) $(Fortran_FLAGS) -E /glade/u/home/tvda/CISM/libglint/glint_example_clim.F90 > CMakeFiles/glimmercismfortran.dir/libglint/glint_example_clim.F90.i
 
 CMakeFiles/glimmercismfortran.dir/libglint/glint_example_clim.F90.s: cmake_force
 	@$(CMAKE_COMMAND) -E cmake_echo_color --switch=$(COLOR) --green "Compiling Fortran source to assembly CMakeFiles/glimmercismfortran.dir/libglint/glint_example_clim.F90.s"
-	/glade/u/apps/derecho/23.06/spack/opt/spack/ncarcompilers/1.0.0/oneapi/2023.0.0/ec7b/bin/mpi/mpif90 $(Fortran_DEFINES) $(Fortran_INCLUDES) $(Fortran_FLAGS) -S /glade/u/home/tvda/CISM/libglint/glint_example_clim.F90 -o CMakeFiles/glimmercismfortran.dir/libglint/glint_example_clim.F90.s
+	/glade/u/apps/derecho/23.09/spack/opt/spack/intel-oneapi-mpi/2021.10.0/oneapi/2023.2.1/ve6v/bin/mpif90 $(Fortran_DEFINES) $(Fortran_INCLUDES) $(Fortran_FLAGS) -S /glade/u/home/tvda/CISM/libglint/glint_example_clim.F90 -o CMakeFiles/glimmercismfortran.dir/libglint/glint_example_clim.F90.s
 
 CMakeFiles/glimmercismfortran.dir/libglint/glint_global_grid.F90.o: CMakeFiles/glimmercismfortran.dir/flags.make
 CMakeFiles/glimmercismfortran.dir/libglint/glint_global_grid.F90.o: /glade/u/home/tvda/CISM/libglint/glint_global_grid.F90
 	@$(CMAKE_COMMAND) -E cmake_echo_color --switch=$(COLOR) --green --progress-dir=/glade/u/home/tvda/CISM/builds/derecho-intel/CMakeFiles --progress-num=$(CMAKE_PROGRESS_86) "Building Fortran object CMakeFiles/glimmercismfortran.dir/libglint/glint_global_grid.F90.o"
-	/glade/u/apps/derecho/23.06/spack/opt/spack/ncarcompilers/1.0.0/oneapi/2023.0.0/ec7b/bin/mpi/mpif90 $(Fortran_DEFINES) $(Fortran_INCLUDES) $(Fortran_FLAGS) -c /glade/u/home/tvda/CISM/libglint/glint_global_grid.F90 -o CMakeFiles/glimmercismfortran.dir/libglint/glint_global_grid.F90.o
+	/glade/u/apps/derecho/23.09/spack/opt/spack/intel-oneapi-mpi/2021.10.0/oneapi/2023.2.1/ve6v/bin/mpif90 $(Fortran_DEFINES) $(Fortran_INCLUDES) $(Fortran_FLAGS) -c /glade/u/home/tvda/CISM/libglint/glint_global_grid.F90 -o CMakeFiles/glimmercismfortran.dir/libglint/glint_global_grid.F90.o
 
 CMakeFiles/glimmercismfortran.dir/libglint/glint_global_grid.F90.i: cmake_force
 	@$(CMAKE_COMMAND) -E cmake_echo_color --switch=$(COLOR) --green "Preprocessing Fortran source to CMakeFiles/glimmercismfortran.dir/libglint/glint_global_grid.F90.i"
-	/glade/u/apps/derecho/23.06/spack/opt/spack/ncarcompilers/1.0.0/oneapi/2023.0.0/ec7b/bin/mpi/mpif90 $(Fortran_DEFINES) $(Fortran_INCLUDES) $(Fortran_FLAGS) -E /glade/u/home/tvda/CISM/libglint/glint_global_grid.F90 > CMakeFiles/glimmercismfortran.dir/libglint/glint_global_grid.F90.i
+	/glade/u/apps/derecho/23.09/spack/opt/spack/intel-oneapi-mpi/2021.10.0/oneapi/2023.2.1/ve6v/bin/mpif90 $(Fortran_DEFINES) $(Fortran_INCLUDES) $(Fortran_FLAGS) -E /glade/u/home/tvda/CISM/libglint/glint_global_grid.F90 > CMakeFiles/glimmercismfortran.dir/libglint/glint_global_grid.F90.i
 
 CMakeFiles/glimmercismfortran.dir/libglint/glint_global_grid.F90.s: cmake_force
 	@$(CMAKE_COMMAND) -E cmake_echo_color --switch=$(COLOR) --green "Compiling Fortran source to assembly CMakeFiles/glimmercismfortran.dir/libglint/glint_global_grid.F90.s"
-	/glade/u/apps/derecho/23.06/spack/opt/spack/ncarcompilers/1.0.0/oneapi/2023.0.0/ec7b/bin/mpi/mpif90 $(Fortran_DEFINES) $(Fortran_INCLUDES) $(Fortran_FLAGS) -S /glade/u/home/tvda/CISM/libglint/glint_global_grid.F90 -o CMakeFiles/glimmercismfortran.dir/libglint/glint_global_grid.F90.s
+	/glade/u/apps/derecho/23.09/spack/opt/spack/intel-oneapi-mpi/2021.10.0/oneapi/2023.2.1/ve6v/bin/mpif90 $(Fortran_DEFINES) $(Fortran_INCLUDES) $(Fortran_FLAGS) -S /glade/u/home/tvda/CISM/libglint/glint_global_grid.F90 -o CMakeFiles/glimmercismfortran.dir/libglint/glint_global_grid.F90.s
 
 CMakeFiles/glimmercismfortran.dir/libglint/glint_global_interp.F90.o: CMakeFiles/glimmercismfortran.dir/flags.make
 CMakeFiles/glimmercismfortran.dir/libglint/glint_global_interp.F90.o: /glade/u/home/tvda/CISM/libglint/glint_global_interp.F90
 	@$(CMAKE_COMMAND) -E cmake_echo_color --switch=$(COLOR) --green --progress-dir=/glade/u/home/tvda/CISM/builds/derecho-intel/CMakeFiles --progress-num=$(CMAKE_PROGRESS_87) "Building Fortran object CMakeFiles/glimmercismfortran.dir/libglint/glint_global_interp.F90.o"
-	/glade/u/apps/derecho/23.06/spack/opt/spack/ncarcompilers/1.0.0/oneapi/2023.0.0/ec7b/bin/mpi/mpif90 $(Fortran_DEFINES) $(Fortran_INCLUDES) $(Fortran_FLAGS) -c /glade/u/home/tvda/CISM/libglint/glint_global_interp.F90 -o CMakeFiles/glimmercismfortran.dir/libglint/glint_global_interp.F90.o
+	/glade/u/apps/derecho/23.09/spack/opt/spack/intel-oneapi-mpi/2021.10.0/oneapi/2023.2.1/ve6v/bin/mpif90 $(Fortran_DEFINES) $(Fortran_INCLUDES) $(Fortran_FLAGS) -c /glade/u/home/tvda/CISM/libglint/glint_global_interp.F90 -o CMakeFiles/glimmercismfortran.dir/libglint/glint_global_interp.F90.o
 
 CMakeFiles/glimmercismfortran.dir/libglint/glint_global_interp.F90.i: cmake_force
 	@$(CMAKE_COMMAND) -E cmake_echo_color --switch=$(COLOR) --green "Preprocessing Fortran source to CMakeFiles/glimmercismfortran.dir/libglint/glint_global_interp.F90.i"
-	/glade/u/apps/derecho/23.06/spack/opt/spack/ncarcompilers/1.0.0/oneapi/2023.0.0/ec7b/bin/mpi/mpif90 $(Fortran_DEFINES) $(Fortran_INCLUDES) $(Fortran_FLAGS) -E /glade/u/home/tvda/CISM/libglint/glint_global_interp.F90 > CMakeFiles/glimmercismfortran.dir/libglint/glint_global_interp.F90.i
+	/glade/u/apps/derecho/23.09/spack/opt/spack/intel-oneapi-mpi/2021.10.0/oneapi/2023.2.1/ve6v/bin/mpif90 $(Fortran_DEFINES) $(Fortran_INCLUDES) $(Fortran_FLAGS) -E /glade/u/home/tvda/CISM/libglint/glint_global_interp.F90 > CMakeFiles/glimmercismfortran.dir/libglint/glint_global_interp.F90.i
 
 CMakeFiles/glimmercismfortran.dir/libglint/glint_global_interp.F90.s: cmake_force
 	@$(CMAKE_COMMAND) -E cmake_echo_color --switch=$(COLOR) --green "Compiling Fortran source to assembly CMakeFiles/glimmercismfortran.dir/libglint/glint_global_interp.F90.s"
-	/glade/u/apps/derecho/23.06/spack/opt/spack/ncarcompilers/1.0.0/oneapi/2023.0.0/ec7b/bin/mpi/mpif90 $(Fortran_DEFINES) $(Fortran_INCLUDES) $(Fortran_FLAGS) -S /glade/u/home/tvda/CISM/libglint/glint_global_interp.F90 -o CMakeFiles/glimmercismfortran.dir/libglint/glint_global_interp.F90.s
+	/glade/u/apps/derecho/23.09/spack/opt/spack/intel-oneapi-mpi/2021.10.0/oneapi/2023.2.1/ve6v/bin/mpif90 $(Fortran_DEFINES) $(Fortran_INCLUDES) $(Fortran_FLAGS) -S /glade/u/home/tvda/CISM/libglint/glint_global_interp.F90 -o CMakeFiles/glimmercismfortran.dir/libglint/glint_global_interp.F90.s
 
 CMakeFiles/glimmercismfortran.dir/libglint/glint_initialise.F90.o: CMakeFiles/glimmercismfortran.dir/flags.make
 CMakeFiles/glimmercismfortran.dir/libglint/glint_initialise.F90.o: /glade/u/home/tvda/CISM/libglint/glint_initialise.F90
 	@$(CMAKE_COMMAND) -E cmake_echo_color --switch=$(COLOR) --green --progress-dir=/glade/u/home/tvda/CISM/builds/derecho-intel/CMakeFiles --progress-num=$(CMAKE_PROGRESS_88) "Building Fortran object CMakeFiles/glimmercismfortran.dir/libglint/glint_initialise.F90.o"
-	/glade/u/apps/derecho/23.06/spack/opt/spack/ncarcompilers/1.0.0/oneapi/2023.0.0/ec7b/bin/mpi/mpif90 $(Fortran_DEFINES) $(Fortran_INCLUDES) $(Fortran_FLAGS) -c /glade/u/home/tvda/CISM/libglint/glint_initialise.F90 -o CMakeFiles/glimmercismfortran.dir/libglint/glint_initialise.F90.o
+	/glade/u/apps/derecho/23.09/spack/opt/spack/intel-oneapi-mpi/2021.10.0/oneapi/2023.2.1/ve6v/bin/mpif90 $(Fortran_DEFINES) $(Fortran_INCLUDES) $(Fortran_FLAGS) -c /glade/u/home/tvda/CISM/libglint/glint_initialise.F90 -o CMakeFiles/glimmercismfortran.dir/libglint/glint_initialise.F90.o
 
 CMakeFiles/glimmercismfortran.dir/libglint/glint_initialise.F90.i: cmake_force
 	@$(CMAKE_COMMAND) -E cmake_echo_color --switch=$(COLOR) --green "Preprocessing Fortran source to CMakeFiles/glimmercismfortran.dir/libglint/glint_initialise.F90.i"
-	/glade/u/apps/derecho/23.06/spack/opt/spack/ncarcompilers/1.0.0/oneapi/2023.0.0/ec7b/bin/mpi/mpif90 $(Fortran_DEFINES) $(Fortran_INCLUDES) $(Fortran_FLAGS) -E /glade/u/home/tvda/CISM/libglint/glint_initialise.F90 > CMakeFiles/glimmercismfortran.dir/libglint/glint_initialise.F90.i
+	/glade/u/apps/derecho/23.09/spack/opt/spack/intel-oneapi-mpi/2021.10.0/oneapi/2023.2.1/ve6v/bin/mpif90 $(Fortran_DEFINES) $(Fortran_INCLUDES) $(Fortran_FLAGS) -E /glade/u/home/tvda/CISM/libglint/glint_initialise.F90 > CMakeFiles/glimmercismfortran.dir/libglint/glint_initialise.F90.i
 
 CMakeFiles/glimmercismfortran.dir/libglint/glint_initialise.F90.s: cmake_force
 	@$(CMAKE_COMMAND) -E cmake_echo_color --switch=$(COLOR) --green "Compiling Fortran source to assembly CMakeFiles/glimmercismfortran.dir/libglint/glint_initialise.F90.s"
-	/glade/u/apps/derecho/23.06/spack/opt/spack/ncarcompilers/1.0.0/oneapi/2023.0.0/ec7b/bin/mpi/mpif90 $(Fortran_DEFINES) $(Fortran_INCLUDES) $(Fortran_FLAGS) -S /glade/u/home/tvda/CISM/libglint/glint_initialise.F90 -o CMakeFiles/glimmercismfortran.dir/libglint/glint_initialise.F90.s
+	/glade/u/apps/derecho/23.09/spack/opt/spack/intel-oneapi-mpi/2021.10.0/oneapi/2023.2.1/ve6v/bin/mpif90 $(Fortran_DEFINES) $(Fortran_INCLUDES) $(Fortran_FLAGS) -S /glade/u/home/tvda/CISM/libglint/glint_initialise.F90 -o CMakeFiles/glimmercismfortran.dir/libglint/glint_initialise.F90.s
 
 CMakeFiles/glimmercismfortran.dir/libglint/glint_integrate.F90.o: CMakeFiles/glimmercismfortran.dir/flags.make
 CMakeFiles/glimmercismfortran.dir/libglint/glint_integrate.F90.o: /glade/u/home/tvda/CISM/libglint/glint_integrate.F90
 	@$(CMAKE_COMMAND) -E cmake_echo_color --switch=$(COLOR) --green --progress-dir=/glade/u/home/tvda/CISM/builds/derecho-intel/CMakeFiles --progress-num=$(CMAKE_PROGRESS_89) "Building Fortran object CMakeFiles/glimmercismfortran.dir/libglint/glint_integrate.F90.o"
-	/glade/u/apps/derecho/23.06/spack/opt/spack/ncarcompilers/1.0.0/oneapi/2023.0.0/ec7b/bin/mpi/mpif90 $(Fortran_DEFINES) $(Fortran_INCLUDES) $(Fortran_FLAGS) -c /glade/u/home/tvda/CISM/libglint/glint_integrate.F90 -o CMakeFiles/glimmercismfortran.dir/libglint/glint_integrate.F90.o
+	/glade/u/apps/derecho/23.09/spack/opt/spack/intel-oneapi-mpi/2021.10.0/oneapi/2023.2.1/ve6v/bin/mpif90 $(Fortran_DEFINES) $(Fortran_INCLUDES) $(Fortran_FLAGS) -c /glade/u/home/tvda/CISM/libglint/glint_integrate.F90 -o CMakeFiles/glimmercismfortran.dir/libglint/glint_integrate.F90.o
 
 CMakeFiles/glimmercismfortran.dir/libglint/glint_integrate.F90.i: cmake_force
 	@$(CMAKE_COMMAND) -E cmake_echo_color --switch=$(COLOR) --green "Preprocessing Fortran source to CMakeFiles/glimmercismfortran.dir/libglint/glint_integrate.F90.i"
-	/glade/u/apps/derecho/23.06/spack/opt/spack/ncarcompilers/1.0.0/oneapi/2023.0.0/ec7b/bin/mpi/mpif90 $(Fortran_DEFINES) $(Fortran_INCLUDES) $(Fortran_FLAGS) -E /glade/u/home/tvda/CISM/libglint/glint_integrate.F90 > CMakeFiles/glimmercismfortran.dir/libglint/glint_integrate.F90.i
+	/glade/u/apps/derecho/23.09/spack/opt/spack/intel-oneapi-mpi/2021.10.0/oneapi/2023.2.1/ve6v/bin/mpif90 $(Fortran_DEFINES) $(Fortran_INCLUDES) $(Fortran_FLAGS) -E /glade/u/home/tvda/CISM/libglint/glint_integrate.F90 > CMakeFiles/glimmercismfortran.dir/libglint/glint_integrate.F90.i
 
 CMakeFiles/glimmercismfortran.dir/libglint/glint_integrate.F90.s: cmake_force
 	@$(CMAKE_COMMAND) -E cmake_echo_color --switch=$(COLOR) --green "Compiling Fortran source to assembly CMakeFiles/glimmercismfortran.dir/libglint/glint_integrate.F90.s"
-	/glade/u/apps/derecho/23.06/spack/opt/spack/ncarcompilers/1.0.0/oneapi/2023.0.0/ec7b/bin/mpi/mpif90 $(Fortran_DEFINES) $(Fortran_INCLUDES) $(Fortran_FLAGS) -S /glade/u/home/tvda/CISM/libglint/glint_integrate.F90 -o CMakeFiles/glimmercismfortran.dir/libglint/glint_integrate.F90.s
+	/glade/u/apps/derecho/23.09/spack/opt/spack/intel-oneapi-mpi/2021.10.0/oneapi/2023.2.1/ve6v/bin/mpif90 $(Fortran_DEFINES) $(Fortran_INCLUDES) $(Fortran_FLAGS) -S /glade/u/home/tvda/CISM/libglint/glint_integrate.F90 -o CMakeFiles/glimmercismfortran.dir/libglint/glint_integrate.F90.s
 
 CMakeFiles/glimmercismfortran.dir/libglint/glint_interp.F90.o: CMakeFiles/glimmercismfortran.dir/flags.make
 CMakeFiles/glimmercismfortran.dir/libglint/glint_interp.F90.o: /glade/u/home/tvda/CISM/libglint/glint_interp.F90
 	@$(CMAKE_COMMAND) -E cmake_echo_color --switch=$(COLOR) --green --progress-dir=/glade/u/home/tvda/CISM/builds/derecho-intel/CMakeFiles --progress-num=$(CMAKE_PROGRESS_90) "Building Fortran object CMakeFiles/glimmercismfortran.dir/libglint/glint_interp.F90.o"
-	/glade/u/apps/derecho/23.06/spack/opt/spack/ncarcompilers/1.0.0/oneapi/2023.0.0/ec7b/bin/mpi/mpif90 $(Fortran_DEFINES) $(Fortran_INCLUDES) $(Fortran_FLAGS) -c /glade/u/home/tvda/CISM/libglint/glint_interp.F90 -o CMakeFiles/glimmercismfortran.dir/libglint/glint_interp.F90.o
+	/glade/u/apps/derecho/23.09/spack/opt/spack/intel-oneapi-mpi/2021.10.0/oneapi/2023.2.1/ve6v/bin/mpif90 $(Fortran_DEFINES) $(Fortran_INCLUDES) $(Fortran_FLAGS) -c /glade/u/home/tvda/CISM/libglint/glint_interp.F90 -o CMakeFiles/glimmercismfortran.dir/libglint/glint_interp.F90.o
 
 CMakeFiles/glimmercismfortran.dir/libglint/glint_interp.F90.i: cmake_force
 	@$(CMAKE_COMMAND) -E cmake_echo_color --switch=$(COLOR) --green "Preprocessing Fortran source to CMakeFiles/glimmercismfortran.dir/libglint/glint_interp.F90.i"
-	/glade/u/apps/derecho/23.06/spack/opt/spack/ncarcompilers/1.0.0/oneapi/2023.0.0/ec7b/bin/mpi/mpif90 $(Fortran_DEFINES) $(Fortran_INCLUDES) $(Fortran_FLAGS) -E /glade/u/home/tvda/CISM/libglint/glint_interp.F90 > CMakeFiles/glimmercismfortran.dir/libglint/glint_interp.F90.i
+	/glade/u/apps/derecho/23.09/spack/opt/spack/intel-oneapi-mpi/2021.10.0/oneapi/2023.2.1/ve6v/bin/mpif90 $(Fortran_DEFINES) $(Fortran_INCLUDES) $(Fortran_FLAGS) -E /glade/u/home/tvda/CISM/libglint/glint_interp.F90 > CMakeFiles/glimmercismfortran.dir/libglint/glint_interp.F90.i
 
 CMakeFiles/glimmercismfortran.dir/libglint/glint_interp.F90.s: cmake_force
 	@$(CMAKE_COMMAND) -E cmake_echo_color --switch=$(COLOR) --green "Compiling Fortran source to assembly CMakeFiles/glimmercismfortran.dir/libglint/glint_interp.F90.s"
-	/glade/u/apps/derecho/23.06/spack/opt/spack/ncarcompilers/1.0.0/oneapi/2023.0.0/ec7b/bin/mpi/mpif90 $(Fortran_DEFINES) $(Fortran_INCLUDES) $(Fortran_FLAGS) -S /glade/u/home/tvda/CISM/libglint/glint_interp.F90 -o CMakeFiles/glimmercismfortran.dir/libglint/glint_interp.F90.s
+	/glade/u/apps/derecho/23.09/spack/opt/spack/intel-oneapi-mpi/2021.10.0/oneapi/2023.2.1/ve6v/bin/mpif90 $(Fortran_DEFINES) $(Fortran_INCLUDES) $(Fortran_FLAGS) -S /glade/u/home/tvda/CISM/libglint/glint_interp.F90 -o CMakeFiles/glimmercismfortran.dir/libglint/glint_interp.F90.s
 
 CMakeFiles/glimmercismfortran.dir/libglint/glint_main.F90.o: CMakeFiles/glimmercismfortran.dir/flags.make
 CMakeFiles/glimmercismfortran.dir/libglint/glint_main.F90.o: /glade/u/home/tvda/CISM/libglint/glint_main.F90
 	@$(CMAKE_COMMAND) -E cmake_echo_color --switch=$(COLOR) --green --progress-dir=/glade/u/home/tvda/CISM/builds/derecho-intel/CMakeFiles --progress-num=$(CMAKE_PROGRESS_91) "Building Fortran object CMakeFiles/glimmercismfortran.dir/libglint/glint_main.F90.o"
-	/glade/u/apps/derecho/23.06/spack/opt/spack/ncarcompilers/1.0.0/oneapi/2023.0.0/ec7b/bin/mpi/mpif90 $(Fortran_DEFINES) $(Fortran_INCLUDES) $(Fortran_FLAGS) -c /glade/u/home/tvda/CISM/libglint/glint_main.F90 -o CMakeFiles/glimmercismfortran.dir/libglint/glint_main.F90.o
+	/glade/u/apps/derecho/23.09/spack/opt/spack/intel-oneapi-mpi/2021.10.0/oneapi/2023.2.1/ve6v/bin/mpif90 $(Fortran_DEFINES) $(Fortran_INCLUDES) $(Fortran_FLAGS) -c /glade/u/home/tvda/CISM/libglint/glint_main.F90 -o CMakeFiles/glimmercismfortran.dir/libglint/glint_main.F90.o
 
 CMakeFiles/glimmercismfortran.dir/libglint/glint_main.F90.i: cmake_force
 	@$(CMAKE_COMMAND) -E cmake_echo_color --switch=$(COLOR) --green "Preprocessing Fortran source to CMakeFiles/glimmercismfortran.dir/libglint/glint_main.F90.i"
-	/glade/u/apps/derecho/23.06/spack/opt/spack/ncarcompilers/1.0.0/oneapi/2023.0.0/ec7b/bin/mpi/mpif90 $(Fortran_DEFINES) $(Fortran_INCLUDES) $(Fortran_FLAGS) -E /glade/u/home/tvda/CISM/libglint/glint_main.F90 > CMakeFiles/glimmercismfortran.dir/libglint/glint_main.F90.i
+	/glade/u/apps/derecho/23.09/spack/opt/spack/intel-oneapi-mpi/2021.10.0/oneapi/2023.2.1/ve6v/bin/mpif90 $(Fortran_DEFINES) $(Fortran_INCLUDES) $(Fortran_FLAGS) -E /glade/u/home/tvda/CISM/libglint/glint_main.F90 > CMakeFiles/glimmercismfortran.dir/libglint/glint_main.F90.i
 
 CMakeFiles/glimmercismfortran.dir/libglint/glint_main.F90.s: cmake_force
 	@$(CMAKE_COMMAND) -E cmake_echo_color --switch=$(COLOR) --green "Compiling Fortran source to assembly CMakeFiles/glimmercismfortran.dir/libglint/glint_main.F90.s"
-	/glade/u/apps/derecho/23.06/spack/opt/spack/ncarcompilers/1.0.0/oneapi/2023.0.0/ec7b/bin/mpi/mpif90 $(Fortran_DEFINES) $(Fortran_INCLUDES) $(Fortran_FLAGS) -S /glade/u/home/tvda/CISM/libglint/glint_main.F90 -o CMakeFiles/glimmercismfortran.dir/libglint/glint_main.F90.s
+	/glade/u/apps/derecho/23.09/spack/opt/spack/intel-oneapi-mpi/2021.10.0/oneapi/2023.2.1/ve6v/bin/mpif90 $(Fortran_DEFINES) $(Fortran_INCLUDES) $(Fortran_FLAGS) -S /glade/u/home/tvda/CISM/libglint/glint_main.F90 -o CMakeFiles/glimmercismfortran.dir/libglint/glint_main.F90.s
 
 CMakeFiles/glimmercismfortran.dir/libglint/glint_mbal.F90.o: CMakeFiles/glimmercismfortran.dir/flags.make
 CMakeFiles/glimmercismfortran.dir/libglint/glint_mbal.F90.o: /glade/u/home/tvda/CISM/libglint/glint_mbal.F90
 	@$(CMAKE_COMMAND) -E cmake_echo_color --switch=$(COLOR) --green --progress-dir=/glade/u/home/tvda/CISM/builds/derecho-intel/CMakeFiles --progress-num=$(CMAKE_PROGRESS_92) "Building Fortran object CMakeFiles/glimmercismfortran.dir/libglint/glint_mbal.F90.o"
-	/glade/u/apps/derecho/23.06/spack/opt/spack/ncarcompilers/1.0.0/oneapi/2023.0.0/ec7b/bin/mpi/mpif90 $(Fortran_DEFINES) $(Fortran_INCLUDES) $(Fortran_FLAGS) -c /glade/u/home/tvda/CISM/libglint/glint_mbal.F90 -o CMakeFiles/glimmercismfortran.dir/libglint/glint_mbal.F90.o
+	/glade/u/apps/derecho/23.09/spack/opt/spack/intel-oneapi-mpi/2021.10.0/oneapi/2023.2.1/ve6v/bin/mpif90 $(Fortran_DEFINES) $(Fortran_INCLUDES) $(Fortran_FLAGS) -c /glade/u/home/tvda/CISM/libglint/glint_mbal.F90 -o CMakeFiles/glimmercismfortran.dir/libglint/glint_mbal.F90.o
 
 CMakeFiles/glimmercismfortran.dir/libglint/glint_mbal.F90.i: cmake_force
 	@$(CMAKE_COMMAND) -E cmake_echo_color --switch=$(COLOR) --green "Preprocessing Fortran source to CMakeFiles/glimmercismfortran.dir/libglint/glint_mbal.F90.i"
-	/glade/u/apps/derecho/23.06/spack/opt/spack/ncarcompilers/1.0.0/oneapi/2023.0.0/ec7b/bin/mpi/mpif90 $(Fortran_DEFINES) $(Fortran_INCLUDES) $(Fortran_FLAGS) -E /glade/u/home/tvda/CISM/libglint/glint_mbal.F90 > CMakeFiles/glimmercismfortran.dir/libglint/glint_mbal.F90.i
+	/glade/u/apps/derecho/23.09/spack/opt/spack/intel-oneapi-mpi/2021.10.0/oneapi/2023.2.1/ve6v/bin/mpif90 $(Fortran_DEFINES) $(Fortran_INCLUDES) $(Fortran_FLAGS) -E /glade/u/home/tvda/CISM/libglint/glint_mbal.F90 > CMakeFiles/glimmercismfortran.dir/libglint/glint_mbal.F90.i
 
 CMakeFiles/glimmercismfortran.dir/libglint/glint_mbal.F90.s: cmake_force
 	@$(CMAKE_COMMAND) -E cmake_echo_color --switch=$(COLOR) --green "Compiling Fortran source to assembly CMakeFiles/glimmercismfortran.dir/libglint/glint_mbal.F90.s"
-	/glade/u/apps/derecho/23.06/spack/opt/spack/ncarcompilers/1.0.0/oneapi/2023.0.0/ec7b/bin/mpi/mpif90 $(Fortran_DEFINES) $(Fortran_INCLUDES) $(Fortran_FLAGS) -S /glade/u/home/tvda/CISM/libglint/glint_mbal.F90 -o CMakeFiles/glimmercismfortran.dir/libglint/glint_mbal.F90.s
+	/glade/u/apps/derecho/23.09/spack/opt/spack/intel-oneapi-mpi/2021.10.0/oneapi/2023.2.1/ve6v/bin/mpif90 $(Fortran_DEFINES) $(Fortran_INCLUDES) $(Fortran_FLAGS) -S /glade/u/home/tvda/CISM/libglint/glint_mbal.F90 -o CMakeFiles/glimmercismfortran.dir/libglint/glint_mbal.F90.s
 
 CMakeFiles/glimmercismfortran.dir/libglint/glint_mbal_coupling.F90.o: CMakeFiles/glimmercismfortran.dir/flags.make
 CMakeFiles/glimmercismfortran.dir/libglint/glint_mbal_coupling.F90.o: /glade/u/home/tvda/CISM/libglint/glint_mbal_coupling.F90
 	@$(CMAKE_COMMAND) -E cmake_echo_color --switch=$(COLOR) --green --progress-dir=/glade/u/home/tvda/CISM/builds/derecho-intel/CMakeFiles --progress-num=$(CMAKE_PROGRESS_93) "Building Fortran object CMakeFiles/glimmercismfortran.dir/libglint/glint_mbal_coupling.F90.o"
-	/glade/u/apps/derecho/23.06/spack/opt/spack/ncarcompilers/1.0.0/oneapi/2023.0.0/ec7b/bin/mpi/mpif90 $(Fortran_DEFINES) $(Fortran_INCLUDES) $(Fortran_FLAGS) -c /glade/u/home/tvda/CISM/libglint/glint_mbal_coupling.F90 -o CMakeFiles/glimmercismfortran.dir/libglint/glint_mbal_coupling.F90.o
+	/glade/u/apps/derecho/23.09/spack/opt/spack/intel-oneapi-mpi/2021.10.0/oneapi/2023.2.1/ve6v/bin/mpif90 $(Fortran_DEFINES) $(Fortran_INCLUDES) $(Fortran_FLAGS) -c /glade/u/home/tvda/CISM/libglint/glint_mbal_coupling.F90 -o CMakeFiles/glimmercismfortran.dir/libglint/glint_mbal_coupling.F90.o
 
 CMakeFiles/glimmercismfortran.dir/libglint/glint_mbal_coupling.F90.i: cmake_force
 	@$(CMAKE_COMMAND) -E cmake_echo_color --switch=$(COLOR) --green "Preprocessing Fortran source to CMakeFiles/glimmercismfortran.dir/libglint/glint_mbal_coupling.F90.i"
-	/glade/u/apps/derecho/23.06/spack/opt/spack/ncarcompilers/1.0.0/oneapi/2023.0.0/ec7b/bin/mpi/mpif90 $(Fortran_DEFINES) $(Fortran_INCLUDES) $(Fortran_FLAGS) -E /glade/u/home/tvda/CISM/libglint/glint_mbal_coupling.F90 > CMakeFiles/glimmercismfortran.dir/libglint/glint_mbal_coupling.F90.i
+	/glade/u/apps/derecho/23.09/spack/opt/spack/intel-oneapi-mpi/2021.10.0/oneapi/2023.2.1/ve6v/bin/mpif90 $(Fortran_DEFINES) $(Fortran_INCLUDES) $(Fortran_FLAGS) -E /glade/u/home/tvda/CISM/libglint/glint_mbal_coupling.F90 > CMakeFiles/glimmercismfortran.dir/libglint/glint_mbal_coupling.F90.i
 
 CMakeFiles/glimmercismfortran.dir/libglint/glint_mbal_coupling.F90.s: cmake_force
 	@$(CMAKE_COMMAND) -E cmake_echo_color --switch=$(COLOR) --green "Compiling Fortran source to assembly CMakeFiles/glimmercismfortran.dir/libglint/glint_mbal_coupling.F90.s"
-	/glade/u/apps/derecho/23.06/spack/opt/spack/ncarcompilers/1.0.0/oneapi/2023.0.0/ec7b/bin/mpi/mpif90 $(Fortran_DEFINES) $(Fortran_INCLUDES) $(Fortran_FLAGS) -S /glade/u/home/tvda/CISM/libglint/glint_mbal_coupling.F90 -o CMakeFiles/glimmercismfortran.dir/libglint/glint_mbal_coupling.F90.s
+	/glade/u/apps/derecho/23.09/spack/opt/spack/intel-oneapi-mpi/2021.10.0/oneapi/2023.2.1/ve6v/bin/mpif90 $(Fortran_DEFINES) $(Fortran_INCLUDES) $(Fortran_FLAGS) -S /glade/u/home/tvda/CISM/libglint/glint_mbal_coupling.F90 -o CMakeFiles/glimmercismfortran.dir/libglint/glint_mbal_coupling.F90.s
 
 CMakeFiles/glimmercismfortran.dir/libglint/glint_mpinterp.F90.o: CMakeFiles/glimmercismfortran.dir/flags.make
 CMakeFiles/glimmercismfortran.dir/libglint/glint_mpinterp.F90.o: /glade/u/home/tvda/CISM/libglint/glint_mpinterp.F90
 	@$(CMAKE_COMMAND) -E cmake_echo_color --switch=$(COLOR) --green --progress-dir=/glade/u/home/tvda/CISM/builds/derecho-intel/CMakeFiles --progress-num=$(CMAKE_PROGRESS_94) "Building Fortran object CMakeFiles/glimmercismfortran.dir/libglint/glint_mpinterp.F90.o"
-	/glade/u/apps/derecho/23.06/spack/opt/spack/ncarcompilers/1.0.0/oneapi/2023.0.0/ec7b/bin/mpi/mpif90 $(Fortran_DEFINES) $(Fortran_INCLUDES) $(Fortran_FLAGS) -c /glade/u/home/tvda/CISM/libglint/glint_mpinterp.F90 -o CMakeFiles/glimmercismfortran.dir/libglint/glint_mpinterp.F90.o
+	/glade/u/apps/derecho/23.09/spack/opt/spack/intel-oneapi-mpi/2021.10.0/oneapi/2023.2.1/ve6v/bin/mpif90 $(Fortran_DEFINES) $(Fortran_INCLUDES) $(Fortran_FLAGS) -c /glade/u/home/tvda/CISM/libglint/glint_mpinterp.F90 -o CMakeFiles/glimmercismfortran.dir/libglint/glint_mpinterp.F90.o
 
 CMakeFiles/glimmercismfortran.dir/libglint/glint_mpinterp.F90.i: cmake_force
 	@$(CMAKE_COMMAND) -E cmake_echo_color --switch=$(COLOR) --green "Preprocessing Fortran source to CMakeFiles/glimmercismfortran.dir/libglint/glint_mpinterp.F90.i"
-	/glade/u/apps/derecho/23.06/spack/opt/spack/ncarcompilers/1.0.0/oneapi/2023.0.0/ec7b/bin/mpi/mpif90 $(Fortran_DEFINES) $(Fortran_INCLUDES) $(Fortran_FLAGS) -E /glade/u/home/tvda/CISM/libglint/glint_mpinterp.F90 > CMakeFiles/glimmercismfortran.dir/libglint/glint_mpinterp.F90.i
+	/glade/u/apps/derecho/23.09/spack/opt/spack/intel-oneapi-mpi/2021.10.0/oneapi/2023.2.1/ve6v/bin/mpif90 $(Fortran_DEFINES) $(Fortran_INCLUDES) $(Fortran_FLAGS) -E /glade/u/home/tvda/CISM/libglint/glint_mpinterp.F90 > CMakeFiles/glimmercismfortran.dir/libglint/glint_mpinterp.F90.i
 
 CMakeFiles/glimmercismfortran.dir/libglint/glint_mpinterp.F90.s: cmake_force
 	@$(CMAKE_COMMAND) -E cmake_echo_color --switch=$(COLOR) --green "Compiling Fortran source to assembly CMakeFiles/glimmercismfortran.dir/libglint/glint_mpinterp.F90.s"
-	/glade/u/apps/derecho/23.06/spack/opt/spack/ncarcompilers/1.0.0/oneapi/2023.0.0/ec7b/bin/mpi/mpif90 $(Fortran_DEFINES) $(Fortran_INCLUDES) $(Fortran_FLAGS) -S /glade/u/home/tvda/CISM/libglint/glint_mpinterp.F90 -o CMakeFiles/glimmercismfortran.dir/libglint/glint_mpinterp.F90.s
+	/glade/u/apps/derecho/23.09/spack/opt/spack/intel-oneapi-mpi/2021.10.0/oneapi/2023.2.1/ve6v/bin/mpif90 $(Fortran_DEFINES) $(Fortran_INCLUDES) $(Fortran_FLAGS) -S /glade/u/home/tvda/CISM/libglint/glint_mpinterp.F90 -o CMakeFiles/glimmercismfortran.dir/libglint/glint_mpinterp.F90.s
 
 CMakeFiles/glimmercismfortran.dir/libglint/glint_pdd.F90.o: CMakeFiles/glimmercismfortran.dir/flags.make
 CMakeFiles/glimmercismfortran.dir/libglint/glint_pdd.F90.o: /glade/u/home/tvda/CISM/libglint/glint_pdd.F90
 	@$(CMAKE_COMMAND) -E cmake_echo_color --switch=$(COLOR) --green --progress-dir=/glade/u/home/tvda/CISM/builds/derecho-intel/CMakeFiles --progress-num=$(CMAKE_PROGRESS_95) "Building Fortran object CMakeFiles/glimmercismfortran.dir/libglint/glint_pdd.F90.o"
-	/glade/u/apps/derecho/23.06/spack/opt/spack/ncarcompilers/1.0.0/oneapi/2023.0.0/ec7b/bin/mpi/mpif90 $(Fortran_DEFINES) $(Fortran_INCLUDES) $(Fortran_FLAGS) -c /glade/u/home/tvda/CISM/libglint/glint_pdd.F90 -o CMakeFiles/glimmercismfortran.dir/libglint/glint_pdd.F90.o
+	/glade/u/apps/derecho/23.09/spack/opt/spack/intel-oneapi-mpi/2021.10.0/oneapi/2023.2.1/ve6v/bin/mpif90 $(Fortran_DEFINES) $(Fortran_INCLUDES) $(Fortran_FLAGS) -c /glade/u/home/tvda/CISM/libglint/glint_pdd.F90 -o CMakeFiles/glimmercismfortran.dir/libglint/glint_pdd.F90.o
 
 CMakeFiles/glimmercismfortran.dir/libglint/glint_pdd.F90.i: cmake_force
 	@$(CMAKE_COMMAND) -E cmake_echo_color --switch=$(COLOR) --green "Preprocessing Fortran source to CMakeFiles/glimmercismfortran.dir/libglint/glint_pdd.F90.i"
-	/glade/u/apps/derecho/23.06/spack/opt/spack/ncarcompilers/1.0.0/oneapi/2023.0.0/ec7b/bin/mpi/mpif90 $(Fortran_DEFINES) $(Fortran_INCLUDES) $(Fortran_FLAGS) -E /glade/u/home/tvda/CISM/libglint/glint_pdd.F90 > CMakeFiles/glimmercismfortran.dir/libglint/glint_pdd.F90.i
+	/glade/u/apps/derecho/23.09/spack/opt/spack/intel-oneapi-mpi/2021.10.0/oneapi/2023.2.1/ve6v/bin/mpif90 $(Fortran_DEFINES) $(Fortran_INCLUDES) $(Fortran_FLAGS) -E /glade/u/home/tvda/CISM/libglint/glint_pdd.F90 > CMakeFiles/glimmercismfortran.dir/libglint/glint_pdd.F90.i
 
 CMakeFiles/glimmercismfortran.dir/libglint/glint_pdd.F90.s: cmake_force
 	@$(CMAKE_COMMAND) -E cmake_echo_color --switch=$(COLOR) --green "Compiling Fortran source to assembly CMakeFiles/glimmercismfortran.dir/libglint/glint_pdd.F90.s"
-	/glade/u/apps/derecho/23.06/spack/opt/spack/ncarcompilers/1.0.0/oneapi/2023.0.0/ec7b/bin/mpi/mpif90 $(Fortran_DEFINES) $(Fortran_INCLUDES) $(Fortran_FLAGS) -S /glade/u/home/tvda/CISM/libglint/glint_pdd.F90 -o CMakeFiles/glimmercismfortran.dir/libglint/glint_pdd.F90.s
+	/glade/u/apps/derecho/23.09/spack/opt/spack/intel-oneapi-mpi/2021.10.0/oneapi/2023.2.1/ve6v/bin/mpif90 $(Fortran_DEFINES) $(Fortran_INCLUDES) $(Fortran_FLAGS) -S /glade/u/home/tvda/CISM/libglint/glint_pdd.F90 -o CMakeFiles/glimmercismfortran.dir/libglint/glint_pdd.F90.s
 
 CMakeFiles/glimmercismfortran.dir/libglint/glint_precip_param.F90.o: CMakeFiles/glimmercismfortran.dir/flags.make
 CMakeFiles/glimmercismfortran.dir/libglint/glint_precip_param.F90.o: /glade/u/home/tvda/CISM/libglint/glint_precip_param.F90
 	@$(CMAKE_COMMAND) -E cmake_echo_color --switch=$(COLOR) --green --progress-dir=/glade/u/home/tvda/CISM/builds/derecho-intel/CMakeFiles --progress-num=$(CMAKE_PROGRESS_96) "Building Fortran object CMakeFiles/glimmercismfortran.dir/libglint/glint_precip_param.F90.o"
-	/glade/u/apps/derecho/23.06/spack/opt/spack/ncarcompilers/1.0.0/oneapi/2023.0.0/ec7b/bin/mpi/mpif90 $(Fortran_DEFINES) $(Fortran_INCLUDES) $(Fortran_FLAGS) -c /glade/u/home/tvda/CISM/libglint/glint_precip_param.F90 -o CMakeFiles/glimmercismfortran.dir/libglint/glint_precip_param.F90.o
+	/glade/u/apps/derecho/23.09/spack/opt/spack/intel-oneapi-mpi/2021.10.0/oneapi/2023.2.1/ve6v/bin/mpif90 $(Fortran_DEFINES) $(Fortran_INCLUDES) $(Fortran_FLAGS) -c /glade/u/home/tvda/CISM/libglint/glint_precip_param.F90 -o CMakeFiles/glimmercismfortran.dir/libglint/glint_precip_param.F90.o
 
 CMakeFiles/glimmercismfortran.dir/libglint/glint_precip_param.F90.i: cmake_force
 	@$(CMAKE_COMMAND) -E cmake_echo_color --switch=$(COLOR) --green "Preprocessing Fortran source to CMakeFiles/glimmercismfortran.dir/libglint/glint_precip_param.F90.i"
-	/glade/u/apps/derecho/23.06/spack/opt/spack/ncarcompilers/1.0.0/oneapi/2023.0.0/ec7b/bin/mpi/mpif90 $(Fortran_DEFINES) $(Fortran_INCLUDES) $(Fortran_FLAGS) -E /glade/u/home/tvda/CISM/libglint/glint_precip_param.F90 > CMakeFiles/glimmercismfortran.dir/libglint/glint_precip_param.F90.i
+	/glade/u/apps/derecho/23.09/spack/opt/spack/intel-oneapi-mpi/2021.10.0/oneapi/2023.2.1/ve6v/bin/mpif90 $(Fortran_DEFINES) $(Fortran_INCLUDES) $(Fortran_FLAGS) -E /glade/u/home/tvda/CISM/libglint/glint_precip_param.F90 > CMakeFiles/glimmercismfortran.dir/libglint/glint_precip_param.F90.i
 
 CMakeFiles/glimmercismfortran.dir/libglint/glint_precip_param.F90.s: cmake_force
 	@$(CMAKE_COMMAND) -E cmake_echo_color --switch=$(COLOR) --green "Compiling Fortran source to assembly CMakeFiles/glimmercismfortran.dir/libglint/glint_precip_param.F90.s"
-	/glade/u/apps/derecho/23.06/spack/opt/spack/ncarcompilers/1.0.0/oneapi/2023.0.0/ec7b/bin/mpi/mpif90 $(Fortran_DEFINES) $(Fortran_INCLUDES) $(Fortran_FLAGS) -S /glade/u/home/tvda/CISM/libglint/glint_precip_param.F90 -o CMakeFiles/glimmercismfortran.dir/libglint/glint_precip_param.F90.s
+	/glade/u/apps/derecho/23.09/spack/opt/spack/intel-oneapi-mpi/2021.10.0/oneapi/2023.2.1/ve6v/bin/mpif90 $(Fortran_DEFINES) $(Fortran_INCLUDES) $(Fortran_FLAGS) -S /glade/u/home/tvda/CISM/libglint/glint_precip_param.F90 -o CMakeFiles/glimmercismfortran.dir/libglint/glint_precip_param.F90.s
 
 CMakeFiles/glimmercismfortran.dir/libglint/glint_routing.F90.o: CMakeFiles/glimmercismfortran.dir/flags.make
 CMakeFiles/glimmercismfortran.dir/libglint/glint_routing.F90.o: /glade/u/home/tvda/CISM/libglint/glint_routing.F90
 	@$(CMAKE_COMMAND) -E cmake_echo_color --switch=$(COLOR) --green --progress-dir=/glade/u/home/tvda/CISM/builds/derecho-intel/CMakeFiles --progress-num=$(CMAKE_PROGRESS_97) "Building Fortran object CMakeFiles/glimmercismfortran.dir/libglint/glint_routing.F90.o"
-	/glade/u/apps/derecho/23.06/spack/opt/spack/ncarcompilers/1.0.0/oneapi/2023.0.0/ec7b/bin/mpi/mpif90 $(Fortran_DEFINES) $(Fortran_INCLUDES) $(Fortran_FLAGS) -c /glade/u/home/tvda/CISM/libglint/glint_routing.F90 -o CMakeFiles/glimmercismfortran.dir/libglint/glint_routing.F90.o
+	/glade/u/apps/derecho/23.09/spack/opt/spack/intel-oneapi-mpi/2021.10.0/oneapi/2023.2.1/ve6v/bin/mpif90 $(Fortran_DEFINES) $(Fortran_INCLUDES) $(Fortran_FLAGS) -c /glade/u/home/tvda/CISM/libglint/glint_routing.F90 -o CMakeFiles/glimmercismfortran.dir/libglint/glint_routing.F90.o
 
 CMakeFiles/glimmercismfortran.dir/libglint/glint_routing.F90.i: cmake_force
 	@$(CMAKE_COMMAND) -E cmake_echo_color --switch=$(COLOR) --green "Preprocessing Fortran source to CMakeFiles/glimmercismfortran.dir/libglint/glint_routing.F90.i"
-	/glade/u/apps/derecho/23.06/spack/opt/spack/ncarcompilers/1.0.0/oneapi/2023.0.0/ec7b/bin/mpi/mpif90 $(Fortran_DEFINES) $(Fortran_INCLUDES) $(Fortran_FLAGS) -E /glade/u/home/tvda/CISM/libglint/glint_routing.F90 > CMakeFiles/glimmercismfortran.dir/libglint/glint_routing.F90.i
+	/glade/u/apps/derecho/23.09/spack/opt/spack/intel-oneapi-mpi/2021.10.0/oneapi/2023.2.1/ve6v/bin/mpif90 $(Fortran_DEFINES) $(Fortran_INCLUDES) $(Fortran_FLAGS) -E /glade/u/home/tvda/CISM/libglint/glint_routing.F90 > CMakeFiles/glimmercismfortran.dir/libglint/glint_routing.F90.i
 
 CMakeFiles/glimmercismfortran.dir/libglint/glint_routing.F90.s: cmake_force
 	@$(CMAKE_COMMAND) -E cmake_echo_color --switch=$(COLOR) --green "Compiling Fortran source to assembly CMakeFiles/glimmercismfortran.dir/libglint/glint_routing.F90.s"
-	/glade/u/apps/derecho/23.06/spack/opt/spack/ncarcompilers/1.0.0/oneapi/2023.0.0/ec7b/bin/mpi/mpif90 $(Fortran_DEFINES) $(Fortran_INCLUDES) $(Fortran_FLAGS) -S /glade/u/home/tvda/CISM/libglint/glint_routing.F90 -o CMakeFiles/glimmercismfortran.dir/libglint/glint_routing.F90.s
+	/glade/u/apps/derecho/23.09/spack/opt/spack/intel-oneapi-mpi/2021.10.0/oneapi/2023.2.1/ve6v/bin/mpif90 $(Fortran_DEFINES) $(Fortran_INCLUDES) $(Fortran_FLAGS) -S /glade/u/home/tvda/CISM/libglint/glint_routing.F90 -o CMakeFiles/glimmercismfortran.dir/libglint/glint_routing.F90.s
 
 CMakeFiles/glimmercismfortran.dir/libglint/glint_timestep.F90.o: CMakeFiles/glimmercismfortran.dir/flags.make
 CMakeFiles/glimmercismfortran.dir/libglint/glint_timestep.F90.o: /glade/u/home/tvda/CISM/libglint/glint_timestep.F90
 	@$(CMAKE_COMMAND) -E cmake_echo_color --switch=$(COLOR) --green --progress-dir=/glade/u/home/tvda/CISM/builds/derecho-intel/CMakeFiles --progress-num=$(CMAKE_PROGRESS_98) "Building Fortran object CMakeFiles/glimmercismfortran.dir/libglint/glint_timestep.F90.o"
-	/glade/u/apps/derecho/23.06/spack/opt/spack/ncarcompilers/1.0.0/oneapi/2023.0.0/ec7b/bin/mpi/mpif90 $(Fortran_DEFINES) $(Fortran_INCLUDES) $(Fortran_FLAGS) -c /glade/u/home/tvda/CISM/libglint/glint_timestep.F90 -o CMakeFiles/glimmercismfortran.dir/libglint/glint_timestep.F90.o
+	/glade/u/apps/derecho/23.09/spack/opt/spack/intel-oneapi-mpi/2021.10.0/oneapi/2023.2.1/ve6v/bin/mpif90 $(Fortran_DEFINES) $(Fortran_INCLUDES) $(Fortran_FLAGS) -c /glade/u/home/tvda/CISM/libglint/glint_timestep.F90 -o CMakeFiles/glimmercismfortran.dir/libglint/glint_timestep.F90.o
 
 CMakeFiles/glimmercismfortran.dir/libglint/glint_timestep.F90.i: cmake_force
 	@$(CMAKE_COMMAND) -E cmake_echo_color --switch=$(COLOR) --green "Preprocessing Fortran source to CMakeFiles/glimmercismfortran.dir/libglint/glint_timestep.F90.i"
-	/glade/u/apps/derecho/23.06/spack/opt/spack/ncarcompilers/1.0.0/oneapi/2023.0.0/ec7b/bin/mpi/mpif90 $(Fortran_DEFINES) $(Fortran_INCLUDES) $(Fortran_FLAGS) -E /glade/u/home/tvda/CISM/libglint/glint_timestep.F90 > CMakeFiles/glimmercismfortran.dir/libglint/glint_timestep.F90.i
+	/glade/u/apps/derecho/23.09/spack/opt/spack/intel-oneapi-mpi/2021.10.0/oneapi/2023.2.1/ve6v/bin/mpif90 $(Fortran_DEFINES) $(Fortran_INCLUDES) $(Fortran_FLAGS) -E /glade/u/home/tvda/CISM/libglint/glint_timestep.F90 > CMakeFiles/glimmercismfortran.dir/libglint/glint_timestep.F90.i
 
 CMakeFiles/glimmercismfortran.dir/libglint/glint_timestep.F90.s: cmake_force
 	@$(CMAKE_COMMAND) -E cmake_echo_color --switch=$(COLOR) --green "Compiling Fortran source to assembly CMakeFiles/glimmercismfortran.dir/libglint/glint_timestep.F90.s"
-	/glade/u/apps/derecho/23.06/spack/opt/spack/ncarcompilers/1.0.0/oneapi/2023.0.0/ec7b/bin/mpi/mpif90 $(Fortran_DEFINES) $(Fortran_INCLUDES) $(Fortran_FLAGS) -S /glade/u/home/tvda/CISM/libglint/glint_timestep.F90 -o CMakeFiles/glimmercismfortran.dir/libglint/glint_timestep.F90.s
+	/glade/u/apps/derecho/23.09/spack/opt/spack/intel-oneapi-mpi/2021.10.0/oneapi/2023.2.1/ve6v/bin/mpif90 $(Fortran_DEFINES) $(Fortran_INCLUDES) $(Fortran_FLAGS) -S /glade/u/home/tvda/CISM/libglint/glint_timestep.F90 -o CMakeFiles/glimmercismfortran.dir/libglint/glint_timestep.F90.s
 
 CMakeFiles/glimmercismfortran.dir/libglint/glint_type.F90.o: CMakeFiles/glimmercismfortran.dir/flags.make
 CMakeFiles/glimmercismfortran.dir/libglint/glint_type.F90.o: /glade/u/home/tvda/CISM/libglint/glint_type.F90
 	@$(CMAKE_COMMAND) -E cmake_echo_color --switch=$(COLOR) --green --progress-dir=/glade/u/home/tvda/CISM/builds/derecho-intel/CMakeFiles --progress-num=$(CMAKE_PROGRESS_99) "Building Fortran object CMakeFiles/glimmercismfortran.dir/libglint/glint_type.F90.o"
-	/glade/u/apps/derecho/23.06/spack/opt/spack/ncarcompilers/1.0.0/oneapi/2023.0.0/ec7b/bin/mpi/mpif90 $(Fortran_DEFINES) $(Fortran_INCLUDES) $(Fortran_FLAGS) -c /glade/u/home/tvda/CISM/libglint/glint_type.F90 -o CMakeFiles/glimmercismfortran.dir/libglint/glint_type.F90.o
+	/glade/u/apps/derecho/23.09/spack/opt/spack/intel-oneapi-mpi/2021.10.0/oneapi/2023.2.1/ve6v/bin/mpif90 $(Fortran_DEFINES) $(Fortran_INCLUDES) $(Fortran_FLAGS) -c /glade/u/home/tvda/CISM/libglint/glint_type.F90 -o CMakeFiles/glimmercismfortran.dir/libglint/glint_type.F90.o
 
 CMakeFiles/glimmercismfortran.dir/libglint/glint_type.F90.i: cmake_force
 	@$(CMAKE_COMMAND) -E cmake_echo_color --switch=$(COLOR) --green "Preprocessing Fortran source to CMakeFiles/glimmercismfortran.dir/libglint/glint_type.F90.i"
-	/glade/u/apps/derecho/23.06/spack/opt/spack/ncarcompilers/1.0.0/oneapi/2023.0.0/ec7b/bin/mpi/mpif90 $(Fortran_DEFINES) $(Fortran_INCLUDES) $(Fortran_FLAGS) -E /glade/u/home/tvda/CISM/libglint/glint_type.F90 > CMakeFiles/glimmercismfortran.dir/libglint/glint_type.F90.i
+	/glade/u/apps/derecho/23.09/spack/opt/spack/intel-oneapi-mpi/2021.10.0/oneapi/2023.2.1/ve6v/bin/mpif90 $(Fortran_DEFINES) $(Fortran_INCLUDES) $(Fortran_FLAGS) -E /glade/u/home/tvda/CISM/libglint/glint_type.F90 > CMakeFiles/glimmercismfortran.dir/libglint/glint_type.F90.i
 
 CMakeFiles/glimmercismfortran.dir/libglint/glint_type.F90.s: cmake_force
 	@$(CMAKE_COMMAND) -E cmake_echo_color --switch=$(COLOR) --green "Compiling Fortran source to assembly CMakeFiles/glimmercismfortran.dir/libglint/glint_type.F90.s"
-	/glade/u/apps/derecho/23.06/spack/opt/spack/ncarcompilers/1.0.0/oneapi/2023.0.0/ec7b/bin/mpi/mpif90 $(Fortran_DEFINES) $(Fortran_INCLUDES) $(Fortran_FLAGS) -S /glade/u/home/tvda/CISM/libglint/glint_type.F90 -o CMakeFiles/glimmercismfortran.dir/libglint/glint_type.F90.s
+	/glade/u/apps/derecho/23.09/spack/opt/spack/intel-oneapi-mpi/2021.10.0/oneapi/2023.2.1/ve6v/bin/mpif90 $(Fortran_DEFINES) $(Fortran_INCLUDES) $(Fortran_FLAGS) -S /glade/u/home/tvda/CISM/libglint/glint_type.F90 -o CMakeFiles/glimmercismfortran.dir/libglint/glint_type.F90.s
 
 CMakeFiles/glimmercismfortran.dir/libglint/glint_upscale.F90.o: CMakeFiles/glimmercismfortran.dir/flags.make
 CMakeFiles/glimmercismfortran.dir/libglint/glint_upscale.F90.o: /glade/u/home/tvda/CISM/libglint/glint_upscale.F90
 	@$(CMAKE_COMMAND) -E cmake_echo_color --switch=$(COLOR) --green --progress-dir=/glade/u/home/tvda/CISM/builds/derecho-intel/CMakeFiles --progress-num=$(CMAKE_PROGRESS_100) "Building Fortran object CMakeFiles/glimmercismfortran.dir/libglint/glint_upscale.F90.o"
-	/glade/u/apps/derecho/23.06/spack/opt/spack/ncarcompilers/1.0.0/oneapi/2023.0.0/ec7b/bin/mpi/mpif90 $(Fortran_DEFINES) $(Fortran_INCLUDES) $(Fortran_FLAGS) -c /glade/u/home/tvda/CISM/libglint/glint_upscale.F90 -o CMakeFiles/glimmercismfortran.dir/libglint/glint_upscale.F90.o
+	/glade/u/apps/derecho/23.09/spack/opt/spack/intel-oneapi-mpi/2021.10.0/oneapi/2023.2.1/ve6v/bin/mpif90 $(Fortran_DEFINES) $(Fortran_INCLUDES) $(Fortran_FLAGS) -c /glade/u/home/tvda/CISM/libglint/glint_upscale.F90 -o CMakeFiles/glimmercismfortran.dir/libglint/glint_upscale.F90.o
 
 CMakeFiles/glimmercismfortran.dir/libglint/glint_upscale.F90.i: cmake_force
 	@$(CMAKE_COMMAND) -E cmake_echo_color --switch=$(COLOR) --green "Preprocessing Fortran source to CMakeFiles/glimmercismfortran.dir/libglint/glint_upscale.F90.i"
-	/glade/u/apps/derecho/23.06/spack/opt/spack/ncarcompilers/1.0.0/oneapi/2023.0.0/ec7b/bin/mpi/mpif90 $(Fortran_DEFINES) $(Fortran_INCLUDES) $(Fortran_FLAGS) -E /glade/u/home/tvda/CISM/libglint/glint_upscale.F90 > CMakeFiles/glimmercismfortran.dir/libglint/glint_upscale.F90.i
+	/glade/u/apps/derecho/23.09/spack/opt/spack/intel-oneapi-mpi/2021.10.0/oneapi/2023.2.1/ve6v/bin/mpif90 $(Fortran_DEFINES) $(Fortran_INCLUDES) $(Fortran_FLAGS) -E /glade/u/home/tvda/CISM/libglint/glint_upscale.F90 > CMakeFiles/glimmercismfortran.dir/libglint/glint_upscale.F90.i
 
 CMakeFiles/glimmercismfortran.dir/libglint/glint_upscale.F90.s: cmake_force
 	@$(CMAKE_COMMAND) -E cmake_echo_color --switch=$(COLOR) --green "Compiling Fortran source to assembly CMakeFiles/glimmercismfortran.dir/libglint/glint_upscale.F90.s"
-	/glade/u/apps/derecho/23.06/spack/opt/spack/ncarcompilers/1.0.0/oneapi/2023.0.0/ec7b/bin/mpi/mpif90 $(Fortran_DEFINES) $(Fortran_INCLUDES) $(Fortran_FLAGS) -S /glade/u/home/tvda/CISM/libglint/glint_upscale.F90 -o CMakeFiles/glimmercismfortran.dir/libglint/glint_upscale.F90.s
+	/glade/u/apps/derecho/23.09/spack/opt/spack/intel-oneapi-mpi/2021.10.0/oneapi/2023.2.1/ve6v/bin/mpif90 $(Fortran_DEFINES) $(Fortran_INCLUDES) $(Fortran_FLAGS) -S /glade/u/home/tvda/CISM/libglint/glint_upscale.F90 -o CMakeFiles/glimmercismfortran.dir/libglint/glint_upscale.F90.s
 
 CMakeFiles/glimmercismfortran.dir/libglissade/glissade.F90.o: CMakeFiles/glimmercismfortran.dir/flags.make
 CMakeFiles/glimmercismfortran.dir/libglissade/glissade.F90.o: /glade/u/home/tvda/CISM/libglissade/glissade.F90
 	@$(CMAKE_COMMAND) -E cmake_echo_color --switch=$(COLOR) --green --progress-dir=/glade/u/home/tvda/CISM/builds/derecho-intel/CMakeFiles --progress-num=$(CMAKE_PROGRESS_101) "Building Fortran object CMakeFiles/glimmercismfortran.dir/libglissade/glissade.F90.o"
-	/glade/u/apps/derecho/23.06/spack/opt/spack/ncarcompilers/1.0.0/oneapi/2023.0.0/ec7b/bin/mpi/mpif90 $(Fortran_DEFINES) $(Fortran_INCLUDES) $(Fortran_FLAGS) -c /glade/u/home/tvda/CISM/libglissade/glissade.F90 -o CMakeFiles/glimmercismfortran.dir/libglissade/glissade.F90.o
+	/glade/u/apps/derecho/23.09/spack/opt/spack/intel-oneapi-mpi/2021.10.0/oneapi/2023.2.1/ve6v/bin/mpif90 $(Fortran_DEFINES) $(Fortran_INCLUDES) $(Fortran_FLAGS) -c /glade/u/home/tvda/CISM/libglissade/glissade.F90 -o CMakeFiles/glimmercismfortran.dir/libglissade/glissade.F90.o
 
 CMakeFiles/glimmercismfortran.dir/libglissade/glissade.F90.i: cmake_force
 	@$(CMAKE_COMMAND) -E cmake_echo_color --switch=$(COLOR) --green "Preprocessing Fortran source to CMakeFiles/glimmercismfortran.dir/libglissade/glissade.F90.i"
-	/glade/u/apps/derecho/23.06/spack/opt/spack/ncarcompilers/1.0.0/oneapi/2023.0.0/ec7b/bin/mpi/mpif90 $(Fortran_DEFINES) $(Fortran_INCLUDES) $(Fortran_FLAGS) -E /glade/u/home/tvda/CISM/libglissade/glissade.F90 > CMakeFiles/glimmercismfortran.dir/libglissade/glissade.F90.i
+	/glade/u/apps/derecho/23.09/spack/opt/spack/intel-oneapi-mpi/2021.10.0/oneapi/2023.2.1/ve6v/bin/mpif90 $(Fortran_DEFINES) $(Fortran_INCLUDES) $(Fortran_FLAGS) -E /glade/u/home/tvda/CISM/libglissade/glissade.F90 > CMakeFiles/glimmercismfortran.dir/libglissade/glissade.F90.i
 
 CMakeFiles/glimmercismfortran.dir/libglissade/glissade.F90.s: cmake_force
 	@$(CMAKE_COMMAND) -E cmake_echo_color --switch=$(COLOR) --green "Compiling Fortran source to assembly CMakeFiles/glimmercismfortran.dir/libglissade/glissade.F90.s"
-	/glade/u/apps/derecho/23.06/spack/opt/spack/ncarcompilers/1.0.0/oneapi/2023.0.0/ec7b/bin/mpi/mpif90 $(Fortran_DEFINES) $(Fortran_INCLUDES) $(Fortran_FLAGS) -S /glade/u/home/tvda/CISM/libglissade/glissade.F90 -o CMakeFiles/glimmercismfortran.dir/libglissade/glissade.F90.s
+	/glade/u/apps/derecho/23.09/spack/opt/spack/intel-oneapi-mpi/2021.10.0/oneapi/2023.2.1/ve6v/bin/mpif90 $(Fortran_DEFINES) $(Fortran_INCLUDES) $(Fortran_FLAGS) -S /glade/u/home/tvda/CISM/libglissade/glissade.F90 -o CMakeFiles/glimmercismfortran.dir/libglissade/glissade.F90.s
 
 CMakeFiles/glimmercismfortran.dir/libglissade/glissade_basal_traction.F90.o: CMakeFiles/glimmercismfortran.dir/flags.make
 CMakeFiles/glimmercismfortran.dir/libglissade/glissade_basal_traction.F90.o: /glade/u/home/tvda/CISM/libglissade/glissade_basal_traction.F90
 	@$(CMAKE_COMMAND) -E cmake_echo_color --switch=$(COLOR) --green --progress-dir=/glade/u/home/tvda/CISM/builds/derecho-intel/CMakeFiles --progress-num=$(CMAKE_PROGRESS_102) "Building Fortran object CMakeFiles/glimmercismfortran.dir/libglissade/glissade_basal_traction.F90.o"
-	/glade/u/apps/derecho/23.06/spack/opt/spack/ncarcompilers/1.0.0/oneapi/2023.0.0/ec7b/bin/mpi/mpif90 $(Fortran_DEFINES) $(Fortran_INCLUDES) $(Fortran_FLAGS) -c /glade/u/home/tvda/CISM/libglissade/glissade_basal_traction.F90 -o CMakeFiles/glimmercismfortran.dir/libglissade/glissade_basal_traction.F90.o
+	/glade/u/apps/derecho/23.09/spack/opt/spack/intel-oneapi-mpi/2021.10.0/oneapi/2023.2.1/ve6v/bin/mpif90 $(Fortran_DEFINES) $(Fortran_INCLUDES) $(Fortran_FLAGS) -c /glade/u/home/tvda/CISM/libglissade/glissade_basal_traction.F90 -o CMakeFiles/glimmercismfortran.dir/libglissade/glissade_basal_traction.F90.o
 
 CMakeFiles/glimmercismfortran.dir/libglissade/glissade_basal_traction.F90.i: cmake_force
 	@$(CMAKE_COMMAND) -E cmake_echo_color --switch=$(COLOR) --green "Preprocessing Fortran source to CMakeFiles/glimmercismfortran.dir/libglissade/glissade_basal_traction.F90.i"
-	/glade/u/apps/derecho/23.06/spack/opt/spack/ncarcompilers/1.0.0/oneapi/2023.0.0/ec7b/bin/mpi/mpif90 $(Fortran_DEFINES) $(Fortran_INCLUDES) $(Fortran_FLAGS) -E /glade/u/home/tvda/CISM/libglissade/glissade_basal_traction.F90 > CMakeFiles/glimmercismfortran.dir/libglissade/glissade_basal_traction.F90.i
+	/glade/u/apps/derecho/23.09/spack/opt/spack/intel-oneapi-mpi/2021.10.0/oneapi/2023.2.1/ve6v/bin/mpif90 $(Fortran_DEFINES) $(Fortran_INCLUDES) $(Fortran_FLAGS) -E /glade/u/home/tvda/CISM/libglissade/glissade_basal_traction.F90 > CMakeFiles/glimmercismfortran.dir/libglissade/glissade_basal_traction.F90.i
 
 CMakeFiles/glimmercismfortran.dir/libglissade/glissade_basal_traction.F90.s: cmake_force
 	@$(CMAKE_COMMAND) -E cmake_echo_color --switch=$(COLOR) --green "Compiling Fortran source to assembly CMakeFiles/glimmercismfortran.dir/libglissade/glissade_basal_traction.F90.s"
-	/glade/u/apps/derecho/23.06/spack/opt/spack/ncarcompilers/1.0.0/oneapi/2023.0.0/ec7b/bin/mpi/mpif90 $(Fortran_DEFINES) $(Fortran_INCLUDES) $(Fortran_FLAGS) -S /glade/u/home/tvda/CISM/libglissade/glissade_basal_traction.F90 -o CMakeFiles/glimmercismfortran.dir/libglissade/glissade_basal_traction.F90.s
+	/glade/u/apps/derecho/23.09/spack/opt/spack/intel-oneapi-mpi/2021.10.0/oneapi/2023.2.1/ve6v/bin/mpif90 $(Fortran_DEFINES) $(Fortran_INCLUDES) $(Fortran_FLAGS) -S /glade/u/home/tvda/CISM/libglissade/glissade_basal_traction.F90 -o CMakeFiles/glimmercismfortran.dir/libglissade/glissade_basal_traction.F90.s
 
 CMakeFiles/glimmercismfortran.dir/libglissade/glissade_basal_water.F90.o: CMakeFiles/glimmercismfortran.dir/flags.make
 CMakeFiles/glimmercismfortran.dir/libglissade/glissade_basal_water.F90.o: /glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90
 	@$(CMAKE_COMMAND) -E cmake_echo_color --switch=$(COLOR) --green --progress-dir=/glade/u/home/tvda/CISM/builds/derecho-intel/CMakeFiles --progress-num=$(CMAKE_PROGRESS_103) "Building Fortran object CMakeFiles/glimmercismfortran.dir/libglissade/glissade_basal_water.F90.o"
-	/glade/u/apps/derecho/23.06/spack/opt/spack/ncarcompilers/1.0.0/oneapi/2023.0.0/ec7b/bin/mpi/mpif90 $(Fortran_DEFINES) $(Fortran_INCLUDES) $(Fortran_FLAGS) -c /glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90 -o CMakeFiles/glimmercismfortran.dir/libglissade/glissade_basal_water.F90.o
+	/glade/u/apps/derecho/23.09/spack/opt/spack/intel-oneapi-mpi/2021.10.0/oneapi/2023.2.1/ve6v/bin/mpif90 $(Fortran_DEFINES) $(Fortran_INCLUDES) $(Fortran_FLAGS) -c /glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90 -o CMakeFiles/glimmercismfortran.dir/libglissade/glissade_basal_water.F90.o
 
 CMakeFiles/glimmercismfortran.dir/libglissade/glissade_basal_water.F90.i: cmake_force
 	@$(CMAKE_COMMAND) -E cmake_echo_color --switch=$(COLOR) --green "Preprocessing Fortran source to CMakeFiles/glimmercismfortran.dir/libglissade/glissade_basal_water.F90.i"
-	/glade/u/apps/derecho/23.06/spack/opt/spack/ncarcompilers/1.0.0/oneapi/2023.0.0/ec7b/bin/mpi/mpif90 $(Fortran_DEFINES) $(Fortran_INCLUDES) $(Fortran_FLAGS) -E /glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90 > CMakeFiles/glimmercismfortran.dir/libglissade/glissade_basal_water.F90.i
+	/glade/u/apps/derecho/23.09/spack/opt/spack/intel-oneapi-mpi/2021.10.0/oneapi/2023.2.1/ve6v/bin/mpif90 $(Fortran_DEFINES) $(Fortran_INCLUDES) $(Fortran_FLAGS) -E /glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90 > CMakeFiles/glimmercismfortran.dir/libglissade/glissade_basal_water.F90.i
 
 CMakeFiles/glimmercismfortran.dir/libglissade/glissade_basal_water.F90.s: cmake_force
 	@$(CMAKE_COMMAND) -E cmake_echo_color --switch=$(COLOR) --green "Compiling Fortran source to assembly CMakeFiles/glimmercismfortran.dir/libglissade/glissade_basal_water.F90.s"
-	/glade/u/apps/derecho/23.06/spack/opt/spack/ncarcompilers/1.0.0/oneapi/2023.0.0/ec7b/bin/mpi/mpif90 $(Fortran_DEFINES) $(Fortran_INCLUDES) $(Fortran_FLAGS) -S /glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90 -o CMakeFiles/glimmercismfortran.dir/libglissade/glissade_basal_water.F90.s
+	/glade/u/apps/derecho/23.09/spack/opt/spack/intel-oneapi-mpi/2021.10.0/oneapi/2023.2.1/ve6v/bin/mpif90 $(Fortran_DEFINES) $(Fortran_INCLUDES) $(Fortran_FLAGS) -S /glade/u/home/tvda/CISM/libglissade/glissade_basal_water.F90 -o CMakeFiles/glimmercismfortran.dir/libglissade/glissade_basal_water.F90.s
 
 CMakeFiles/glimmercismfortran.dir/libglissade/glissade_bmlt_float.F90.o: CMakeFiles/glimmercismfortran.dir/flags.make
 CMakeFiles/glimmercismfortran.dir/libglissade/glissade_bmlt_float.F90.o: /glade/u/home/tvda/CISM/libglissade/glissade_bmlt_float.F90
 	@$(CMAKE_COMMAND) -E cmake_echo_color --switch=$(COLOR) --green --progress-dir=/glade/u/home/tvda/CISM/builds/derecho-intel/CMakeFiles --progress-num=$(CMAKE_PROGRESS_104) "Building Fortran object CMakeFiles/glimmercismfortran.dir/libglissade/glissade_bmlt_float.F90.o"
-	/glade/u/apps/derecho/23.06/spack/opt/spack/ncarcompilers/1.0.0/oneapi/2023.0.0/ec7b/bin/mpi/mpif90 $(Fortran_DEFINES) $(Fortran_INCLUDES) $(Fortran_FLAGS) -c /glade/u/home/tvda/CISM/libglissade/glissade_bmlt_float.F90 -o CMakeFiles/glimmercismfortran.dir/libglissade/glissade_bmlt_float.F90.o
+	/glade/u/apps/derecho/23.09/spack/opt/spack/intel-oneapi-mpi/2021.10.0/oneapi/2023.2.1/ve6v/bin/mpif90 $(Fortran_DEFINES) $(Fortran_INCLUDES) $(Fortran_FLAGS) -c /glade/u/home/tvda/CISM/libglissade/glissade_bmlt_float.F90 -o CMakeFiles/glimmercismfortran.dir/libglissade/glissade_bmlt_float.F90.o
 
 CMakeFiles/glimmercismfortran.dir/libglissade/glissade_bmlt_float.F90.i: cmake_force
 	@$(CMAKE_COMMAND) -E cmake_echo_color --switch=$(COLOR) --green "Preprocessing Fortran source to CMakeFiles/glimmercismfortran.dir/libglissade/glissade_bmlt_float.F90.i"
-	/glade/u/apps/derecho/23.06/spack/opt/spack/ncarcompilers/1.0.0/oneapi/2023.0.0/ec7b/bin/mpi/mpif90 $(Fortran_DEFINES) $(Fortran_INCLUDES) $(Fortran_FLAGS) -E /glade/u/home/tvda/CISM/libglissade/glissade_bmlt_float.F90 > CMakeFiles/glimmercismfortran.dir/libglissade/glissade_bmlt_float.F90.i
+	/glade/u/apps/derecho/23.09/spack/opt/spack/intel-oneapi-mpi/2021.10.0/oneapi/2023.2.1/ve6v/bin/mpif90 $(Fortran_DEFINES) $(Fortran_INCLUDES) $(Fortran_FLAGS) -E /glade/u/home/tvda/CISM/libglissade/glissade_bmlt_float.F90 > CMakeFiles/glimmercismfortran.dir/libglissade/glissade_bmlt_float.F90.i
 
 CMakeFiles/glimmercismfortran.dir/libglissade/glissade_bmlt_float.F90.s: cmake_force
 	@$(CMAKE_COMMAND) -E cmake_echo_color --switch=$(COLOR) --green "Compiling Fortran source to assembly CMakeFiles/glimmercismfortran.dir/libglissade/glissade_bmlt_float.F90.s"
-	/glade/u/apps/derecho/23.06/spack/opt/spack/ncarcompilers/1.0.0/oneapi/2023.0.0/ec7b/bin/mpi/mpif90 $(Fortran_DEFINES) $(Fortran_INCLUDES) $(Fortran_FLAGS) -S /glade/u/home/tvda/CISM/libglissade/glissade_bmlt_float.F90 -o CMakeFiles/glimmercismfortran.dir/libglissade/glissade_bmlt_float.F90.s
+	/glade/u/apps/derecho/23.09/spack/opt/spack/intel-oneapi-mpi/2021.10.0/oneapi/2023.2.1/ve6v/bin/mpif90 $(Fortran_DEFINES) $(Fortran_INCLUDES) $(Fortran_FLAGS) -S /glade/u/home/tvda/CISM/libglissade/glissade_bmlt_float.F90 -o CMakeFiles/glimmercismfortran.dir/libglissade/glissade_bmlt_float.F90.s
 
 CMakeFiles/glimmercismfortran.dir/libglissade/glissade_calving.F90.o: CMakeFiles/glimmercismfortran.dir/flags.make
 CMakeFiles/glimmercismfortran.dir/libglissade/glissade_calving.F90.o: /glade/u/home/tvda/CISM/libglissade/glissade_calving.F90
 	@$(CMAKE_COMMAND) -E cmake_echo_color --switch=$(COLOR) --green --progress-dir=/glade/u/home/tvda/CISM/builds/derecho-intel/CMakeFiles --progress-num=$(CMAKE_PROGRESS_105) "Building Fortran object CMakeFiles/glimmercismfortran.dir/libglissade/glissade_calving.F90.o"
-	/glade/u/apps/derecho/23.06/spack/opt/spack/ncarcompilers/1.0.0/oneapi/2023.0.0/ec7b/bin/mpi/mpif90 $(Fortran_DEFINES) $(Fortran_INCLUDES) $(Fortran_FLAGS) -c /glade/u/home/tvda/CISM/libglissade/glissade_calving.F90 -o CMakeFiles/glimmercismfortran.dir/libglissade/glissade_calving.F90.o
+	/glade/u/apps/derecho/23.09/spack/opt/spack/intel-oneapi-mpi/2021.10.0/oneapi/2023.2.1/ve6v/bin/mpif90 $(Fortran_DEFINES) $(Fortran_INCLUDES) $(Fortran_FLAGS) -c /glade/u/home/tvda/CISM/libglissade/glissade_calving.F90 -o CMakeFiles/glimmercismfortran.dir/libglissade/glissade_calving.F90.o
 
 CMakeFiles/glimmercismfortran.dir/libglissade/glissade_calving.F90.i: cmake_force
 	@$(CMAKE_COMMAND) -E cmake_echo_color --switch=$(COLOR) --green "Preprocessing Fortran source to CMakeFiles/glimmercismfortran.dir/libglissade/glissade_calving.F90.i"
-	/glade/u/apps/derecho/23.06/spack/opt/spack/ncarcompilers/1.0.0/oneapi/2023.0.0/ec7b/bin/mpi/mpif90 $(Fortran_DEFINES) $(Fortran_INCLUDES) $(Fortran_FLAGS) -E /glade/u/home/tvda/CISM/libglissade/glissade_calving.F90 > CMakeFiles/glimmercismfortran.dir/libglissade/glissade_calving.F90.i
+	/glade/u/apps/derecho/23.09/spack/opt/spack/intel-oneapi-mpi/2021.10.0/oneapi/2023.2.1/ve6v/bin/mpif90 $(Fortran_DEFINES) $(Fortran_INCLUDES) $(Fortran_FLAGS) -E /glade/u/home/tvda/CISM/libglissade/glissade_calving.F90 > CMakeFiles/glimmercismfortran.dir/libglissade/glissade_calving.F90.i
 
 CMakeFiles/glimmercismfortran.dir/libglissade/glissade_calving.F90.s: cmake_force
 	@$(CMAKE_COMMAND) -E cmake_echo_color --switch=$(COLOR) --green "Compiling Fortran source to assembly CMakeFiles/glimmercismfortran.dir/libglissade/glissade_calving.F90.s"
-	/glade/u/apps/derecho/23.06/spack/opt/spack/ncarcompilers/1.0.0/oneapi/2023.0.0/ec7b/bin/mpi/mpif90 $(Fortran_DEFINES) $(Fortran_INCLUDES) $(Fortran_FLAGS) -S /glade/u/home/tvda/CISM/libglissade/glissade_calving.F90 -o CMakeFiles/glimmercismfortran.dir/libglissade/glissade_calving.F90.s
+	/glade/u/apps/derecho/23.09/spack/opt/spack/intel-oneapi-mpi/2021.10.0/oneapi/2023.2.1/ve6v/bin/mpif90 $(Fortran_DEFINES) $(Fortran_INCLUDES) $(Fortran_FLAGS) -S /glade/u/home/tvda/CISM/libglissade/glissade_calving.F90 -o CMakeFiles/glimmercismfortran.dir/libglissade/glissade_calving.F90.s
 
 CMakeFiles/glimmercismfortran.dir/libglissade/glissade_grid_operators.F90.o: CMakeFiles/glimmercismfortran.dir/flags.make
 CMakeFiles/glimmercismfortran.dir/libglissade/glissade_grid_operators.F90.o: /glade/u/home/tvda/CISM/libglissade/glissade_grid_operators.F90
 	@$(CMAKE_COMMAND) -E cmake_echo_color --switch=$(COLOR) --green --progress-dir=/glade/u/home/tvda/CISM/builds/derecho-intel/CMakeFiles --progress-num=$(CMAKE_PROGRESS_106) "Building Fortran object CMakeFiles/glimmercismfortran.dir/libglissade/glissade_grid_operators.F90.o"
-	/glade/u/apps/derecho/23.06/spack/opt/spack/ncarcompilers/1.0.0/oneapi/2023.0.0/ec7b/bin/mpi/mpif90 $(Fortran_DEFINES) $(Fortran_INCLUDES) $(Fortran_FLAGS) -c /glade/u/home/tvda/CISM/libglissade/glissade_grid_operators.F90 -o CMakeFiles/glimmercismfortran.dir/libglissade/glissade_grid_operators.F90.o
+	/glade/u/apps/derecho/23.09/spack/opt/spack/intel-oneapi-mpi/2021.10.0/oneapi/2023.2.1/ve6v/bin/mpif90 $(Fortran_DEFINES) $(Fortran_INCLUDES) $(Fortran_FLAGS) -c /glade/u/home/tvda/CISM/libglissade/glissade_grid_operators.F90 -o CMakeFiles/glimmercismfortran.dir/libglissade/glissade_grid_operators.F90.o
 
 CMakeFiles/glimmercismfortran.dir/libglissade/glissade_grid_operators.F90.i: cmake_force
 	@$(CMAKE_COMMAND) -E cmake_echo_color --switch=$(COLOR) --green "Preprocessing Fortran source to CMakeFiles/glimmercismfortran.dir/libglissade/glissade_grid_operators.F90.i"
-	/glade/u/apps/derecho/23.06/spack/opt/spack/ncarcompilers/1.0.0/oneapi/2023.0.0/ec7b/bin/mpi/mpif90 $(Fortran_DEFINES) $(Fortran_INCLUDES) $(Fortran_FLAGS) -E /glade/u/home/tvda/CISM/libglissade/glissade_grid_operators.F90 > CMakeFiles/glimmercismfortran.dir/libglissade/glissade_grid_operators.F90.i
+	/glade/u/apps/derecho/23.09/spack/opt/spack/intel-oneapi-mpi/2021.10.0/oneapi/2023.2.1/ve6v/bin/mpif90 $(Fortran_DEFINES) $(Fortran_INCLUDES) $(Fortran_FLAGS) -E /glade/u/home/tvda/CISM/libglissade/glissade_grid_operators.F90 > CMakeFiles/glimmercismfortran.dir/libglissade/glissade_grid_operators.F90.i
 
 CMakeFiles/glimmercismfortran.dir/libglissade/glissade_grid_operators.F90.s: cmake_force
 	@$(CMAKE_COMMAND) -E cmake_echo_color --switch=$(COLOR) --green "Compiling Fortran source to assembly CMakeFiles/glimmercismfortran.dir/libglissade/glissade_grid_operators.F90.s"
-	/glade/u/apps/derecho/23.06/spack/opt/spack/ncarcompilers/1.0.0/oneapi/2023.0.0/ec7b/bin/mpi/mpif90 $(Fortran_DEFINES) $(Fortran_INCLUDES) $(Fortran_FLAGS) -S /glade/u/home/tvda/CISM/libglissade/glissade_grid_operators.F90 -o CMakeFiles/glimmercismfortran.dir/libglissade/glissade_grid_operators.F90.s
+	/glade/u/apps/derecho/23.09/spack/opt/spack/intel-oneapi-mpi/2021.10.0/oneapi/2023.2.1/ve6v/bin/mpif90 $(Fortran_DEFINES) $(Fortran_INCLUDES) $(Fortran_FLAGS) -S /glade/u/home/tvda/CISM/libglissade/glissade_grid_operators.F90 -o CMakeFiles/glimmercismfortran.dir/libglissade/glissade_grid_operators.F90.s
 
 CMakeFiles/glimmercismfortran.dir/libglissade/glissade_grounding_line.F90.o: CMakeFiles/glimmercismfortran.dir/flags.make
 CMakeFiles/glimmercismfortran.dir/libglissade/glissade_grounding_line.F90.o: /glade/u/home/tvda/CISM/libglissade/glissade_grounding_line.F90
 	@$(CMAKE_COMMAND) -E cmake_echo_color --switch=$(COLOR) --green --progress-dir=/glade/u/home/tvda/CISM/builds/derecho-intel/CMakeFiles --progress-num=$(CMAKE_PROGRESS_107) "Building Fortran object CMakeFiles/glimmercismfortran.dir/libglissade/glissade_grounding_line.F90.o"
-	/glade/u/apps/derecho/23.06/spack/opt/spack/ncarcompilers/1.0.0/oneapi/2023.0.0/ec7b/bin/mpi/mpif90 $(Fortran_DEFINES) $(Fortran_INCLUDES) $(Fortran_FLAGS) -c /glade/u/home/tvda/CISM/libglissade/glissade_grounding_line.F90 -o CMakeFiles/glimmercismfortran.dir/libglissade/glissade_grounding_line.F90.o
+	/glade/u/apps/derecho/23.09/spack/opt/spack/intel-oneapi-mpi/2021.10.0/oneapi/2023.2.1/ve6v/bin/mpif90 $(Fortran_DEFINES) $(Fortran_INCLUDES) $(Fortran_FLAGS) -c /glade/u/home/tvda/CISM/libglissade/glissade_grounding_line.F90 -o CMakeFiles/glimmercismfortran.dir/libglissade/glissade_grounding_line.F90.o
 
 CMakeFiles/glimmercismfortran.dir/libglissade/glissade_grounding_line.F90.i: cmake_force
 	@$(CMAKE_COMMAND) -E cmake_echo_color --switch=$(COLOR) --green "Preprocessing Fortran source to CMakeFiles/glimmercismfortran.dir/libglissade/glissade_grounding_line.F90.i"
-	/glade/u/apps/derecho/23.06/spack/opt/spack/ncarcompilers/1.0.0/oneapi/2023.0.0/ec7b/bin/mpi/mpif90 $(Fortran_DEFINES) $(Fortran_INCLUDES) $(Fortran_FLAGS) -E /glade/u/home/tvda/CISM/libglissade/glissade_grounding_line.F90 > CMakeFiles/glimmercismfortran.dir/libglissade/glissade_grounding_line.F90.i
+	/glade/u/apps/derecho/23.09/spack/opt/spack/intel-oneapi-mpi/2021.10.0/oneapi/2023.2.1/ve6v/bin/mpif90 $(Fortran_DEFINES) $(Fortran_INCLUDES) $(Fortran_FLAGS) -E /glade/u/home/tvda/CISM/libglissade/glissade_grounding_line.F90 > CMakeFiles/glimmercismfortran.dir/libglissade/glissade_grounding_line.F90.i
 
 CMakeFiles/glimmercismfortran.dir/libglissade/glissade_grounding_line.F90.s: cmake_force
 	@$(CMAKE_COMMAND) -E cmake_echo_color --switch=$(COLOR) --green "Compiling Fortran source to assembly CMakeFiles/glimmercismfortran.dir/libglissade/glissade_grounding_line.F90.s"
-	/glade/u/apps/derecho/23.06/spack/opt/spack/ncarcompilers/1.0.0/oneapi/2023.0.0/ec7b/bin/mpi/mpif90 $(Fortran_DEFINES) $(Fortran_INCLUDES) $(Fortran_FLAGS) -S /glade/u/home/tvda/CISM/libglissade/glissade_grounding_line.F90 -o CMakeFiles/glimmercismfortran.dir/libglissade/glissade_grounding_line.F90.s
+	/glade/u/apps/derecho/23.09/spack/opt/spack/intel-oneapi-mpi/2021.10.0/oneapi/2023.2.1/ve6v/bin/mpif90 $(Fortran_DEFINES) $(Fortran_INCLUDES) $(Fortran_FLAGS) -S /glade/u/home/tvda/CISM/libglissade/glissade_grounding_line.F90 -o CMakeFiles/glimmercismfortran.dir/libglissade/glissade_grounding_line.F90.s
 
 CMakeFiles/glimmercismfortran.dir/libglissade/glissade_inversion.F90.o: CMakeFiles/glimmercismfortran.dir/flags.make
 CMakeFiles/glimmercismfortran.dir/libglissade/glissade_inversion.F90.o: /glade/u/home/tvda/CISM/libglissade/glissade_inversion.F90
 	@$(CMAKE_COMMAND) -E cmake_echo_color --switch=$(COLOR) --green --progress-dir=/glade/u/home/tvda/CISM/builds/derecho-intel/CMakeFiles --progress-num=$(CMAKE_PROGRESS_108) "Building Fortran object CMakeFiles/glimmercismfortran.dir/libglissade/glissade_inversion.F90.o"
-	/glade/u/apps/derecho/23.06/spack/opt/spack/ncarcompilers/1.0.0/oneapi/2023.0.0/ec7b/bin/mpi/mpif90 $(Fortran_DEFINES) $(Fortran_INCLUDES) $(Fortran_FLAGS) -c /glade/u/home/tvda/CISM/libglissade/glissade_inversion.F90 -o CMakeFiles/glimmercismfortran.dir/libglissade/glissade_inversion.F90.o
+	/glade/u/apps/derecho/23.09/spack/opt/spack/intel-oneapi-mpi/2021.10.0/oneapi/2023.2.1/ve6v/bin/mpif90 $(Fortran_DEFINES) $(Fortran_INCLUDES) $(Fortran_FLAGS) -c /glade/u/home/tvda/CISM/libglissade/glissade_inversion.F90 -o CMakeFiles/glimmercismfortran.dir/libglissade/glissade_inversion.F90.o
 
 CMakeFiles/glimmercismfortran.dir/libglissade/glissade_inversion.F90.i: cmake_force
 	@$(CMAKE_COMMAND) -E cmake_echo_color --switch=$(COLOR) --green "Preprocessing Fortran source to CMakeFiles/glimmercismfortran.dir/libglissade/glissade_inversion.F90.i"
-	/glade/u/apps/derecho/23.06/spack/opt/spack/ncarcompilers/1.0.0/oneapi/2023.0.0/ec7b/bin/mpi/mpif90 $(Fortran_DEFINES) $(Fortran_INCLUDES) $(Fortran_FLAGS) -E /glade/u/home/tvda/CISM/libglissade/glissade_inversion.F90 > CMakeFiles/glimmercismfortran.dir/libglissade/glissade_inversion.F90.i
+	/glade/u/apps/derecho/23.09/spack/opt/spack/intel-oneapi-mpi/2021.10.0/oneapi/2023.2.1/ve6v/bin/mpif90 $(Fortran_DEFINES) $(Fortran_INCLUDES) $(Fortran_FLAGS) -E /glade/u/home/tvda/CISM/libglissade/glissade_inversion.F90 > CMakeFiles/glimmercismfortran.dir/libglissade/glissade_inversion.F90.i
 
 CMakeFiles/glimmercismfortran.dir/libglissade/glissade_inversion.F90.s: cmake_force
 	@$(CMAKE_COMMAND) -E cmake_echo_color --switch=$(COLOR) --green "Compiling Fortran source to assembly CMakeFiles/glimmercismfortran.dir/libglissade/glissade_inversion.F90.s"
-	/glade/u/apps/derecho/23.06/spack/opt/spack/ncarcompilers/1.0.0/oneapi/2023.0.0/ec7b/bin/mpi/mpif90 $(Fortran_DEFINES) $(Fortran_INCLUDES) $(Fortran_FLAGS) -S /glade/u/home/tvda/CISM/libglissade/glissade_inversion.F90 -o CMakeFiles/glimmercismfortran.dir/libglissade/glissade_inversion.F90.s
+	/glade/u/apps/derecho/23.09/spack/opt/spack/intel-oneapi-mpi/2021.10.0/oneapi/2023.2.1/ve6v/bin/mpif90 $(Fortran_DEFINES) $(Fortran_INCLUDES) $(Fortran_FLAGS) -S /glade/u/home/tvda/CISM/libglissade/glissade_inversion.F90 -o CMakeFiles/glimmercismfortran.dir/libglissade/glissade_inversion.F90.s
 
 CMakeFiles/glimmercismfortran.dir/libglissade/glissade_masks.F90.o: CMakeFiles/glimmercismfortran.dir/flags.make
 CMakeFiles/glimmercismfortran.dir/libglissade/glissade_masks.F90.o: /glade/u/home/tvda/CISM/libglissade/glissade_masks.F90
 	@$(CMAKE_COMMAND) -E cmake_echo_color --switch=$(COLOR) --green --progress-dir=/glade/u/home/tvda/CISM/builds/derecho-intel/CMakeFiles --progress-num=$(CMAKE_PROGRESS_109) "Building Fortran object CMakeFiles/glimmercismfortran.dir/libglissade/glissade_masks.F90.o"
-	/glade/u/apps/derecho/23.06/spack/opt/spack/ncarcompilers/1.0.0/oneapi/2023.0.0/ec7b/bin/mpi/mpif90 $(Fortran_DEFINES) $(Fortran_INCLUDES) $(Fortran_FLAGS) -c /glade/u/home/tvda/CISM/libglissade/glissade_masks.F90 -o CMakeFiles/glimmercismfortran.dir/libglissade/glissade_masks.F90.o
+	/glade/u/apps/derecho/23.09/spack/opt/spack/intel-oneapi-mpi/2021.10.0/oneapi/2023.2.1/ve6v/bin/mpif90 $(Fortran_DEFINES) $(Fortran_INCLUDES) $(Fortran_FLAGS) -c /glade/u/home/tvda/CISM/libglissade/glissade_masks.F90 -o CMakeFiles/glimmercismfortran.dir/libglissade/glissade_masks.F90.o
 
 CMakeFiles/glimmercismfortran.dir/libglissade/glissade_masks.F90.i: cmake_force
 	@$(CMAKE_COMMAND) -E cmake_echo_color --switch=$(COLOR) --green "Preprocessing Fortran source to CMakeFiles/glimmercismfortran.dir/libglissade/glissade_masks.F90.i"
-	/glade/u/apps/derecho/23.06/spack/opt/spack/ncarcompilers/1.0.0/oneapi/2023.0.0/ec7b/bin/mpi/mpif90 $(Fortran_DEFINES) $(Fortran_INCLUDES) $(Fortran_FLAGS) -E /glade/u/home/tvda/CISM/libglissade/glissade_masks.F90 > CMakeFiles/glimmercismfortran.dir/libglissade/glissade_masks.F90.i
+	/glade/u/apps/derecho/23.09/spack/opt/spack/intel-oneapi-mpi/2021.10.0/oneapi/2023.2.1/ve6v/bin/mpif90 $(Fortran_DEFINES) $(Fortran_INCLUDES) $(Fortran_FLAGS) -E /glade/u/home/tvda/CISM/libglissade/glissade_masks.F90 > CMakeFiles/glimmercismfortran.dir/libglissade/glissade_masks.F90.i
 
 CMakeFiles/glimmercismfortran.dir/libglissade/glissade_masks.F90.s: cmake_force
 	@$(CMAKE_COMMAND) -E cmake_echo_color --switch=$(COLOR) --green "Compiling Fortran source to assembly CMakeFiles/glimmercismfortran.dir/libglissade/glissade_masks.F90.s"
-	/glade/u/apps/derecho/23.06/spack/opt/spack/ncarcompilers/1.0.0/oneapi/2023.0.0/ec7b/bin/mpi/mpif90 $(Fortran_DEFINES) $(Fortran_INCLUDES) $(Fortran_FLAGS) -S /glade/u/home/tvda/CISM/libglissade/glissade_masks.F90 -o CMakeFiles/glimmercismfortran.dir/libglissade/glissade_masks.F90.s
+	/glade/u/apps/derecho/23.09/spack/opt/spack/intel-oneapi-mpi/2021.10.0/oneapi/2023.2.1/ve6v/bin/mpif90 $(Fortran_DEFINES) $(Fortran_INCLUDES) $(Fortran_FLAGS) -S /glade/u/home/tvda/CISM/libglissade/glissade_masks.F90 -o CMakeFiles/glimmercismfortran.dir/libglissade/glissade_masks.F90.s
 
 CMakeFiles/glimmercismfortran.dir/libglissade/glissade_remap.F90.o: CMakeFiles/glimmercismfortran.dir/flags.make
 CMakeFiles/glimmercismfortran.dir/libglissade/glissade_remap.F90.o: /glade/u/home/tvda/CISM/libglissade/glissade_remap.F90
 	@$(CMAKE_COMMAND) -E cmake_echo_color --switch=$(COLOR) --green --progress-dir=/glade/u/home/tvda/CISM/builds/derecho-intel/CMakeFiles --progress-num=$(CMAKE_PROGRESS_110) "Building Fortran object CMakeFiles/glimmercismfortran.dir/libglissade/glissade_remap.F90.o"
-	/glade/u/apps/derecho/23.06/spack/opt/spack/ncarcompilers/1.0.0/oneapi/2023.0.0/ec7b/bin/mpi/mpif90 $(Fortran_DEFINES) $(Fortran_INCLUDES) $(Fortran_FLAGS) -c /glade/u/home/tvda/CISM/libglissade/glissade_remap.F90 -o CMakeFiles/glimmercismfortran.dir/libglissade/glissade_remap.F90.o
+	/glade/u/apps/derecho/23.09/spack/opt/spack/intel-oneapi-mpi/2021.10.0/oneapi/2023.2.1/ve6v/bin/mpif90 $(Fortran_DEFINES) $(Fortran_INCLUDES) $(Fortran_FLAGS) -c /glade/u/home/tvda/CISM/libglissade/glissade_remap.F90 -o CMakeFiles/glimmercismfortran.dir/libglissade/glissade_remap.F90.o
 
 CMakeFiles/glimmercismfortran.dir/libglissade/glissade_remap.F90.i: cmake_force
 	@$(CMAKE_COMMAND) -E cmake_echo_color --switch=$(COLOR) --green "Preprocessing Fortran source to CMakeFiles/glimmercismfortran.dir/libglissade/glissade_remap.F90.i"
-	/glade/u/apps/derecho/23.06/spack/opt/spack/ncarcompilers/1.0.0/oneapi/2023.0.0/ec7b/bin/mpi/mpif90 $(Fortran_DEFINES) $(Fortran_INCLUDES) $(Fortran_FLAGS) -E /glade/u/home/tvda/CISM/libglissade/glissade_remap.F90 > CMakeFiles/glimmercismfortran.dir/libglissade/glissade_remap.F90.i
+	/glade/u/apps/derecho/23.09/spack/opt/spack/intel-oneapi-mpi/2021.10.0/oneapi/2023.2.1/ve6v/bin/mpif90 $(Fortran_DEFINES) $(Fortran_INCLUDES) $(Fortran_FLAGS) -E /glade/u/home/tvda/CISM/libglissade/glissade_remap.F90 > CMakeFiles/glimmercismfortran.dir/libglissade/glissade_remap.F90.i
 
 CMakeFiles/glimmercismfortran.dir/libglissade/glissade_remap.F90.s: cmake_force
 	@$(CMAKE_COMMAND) -E cmake_echo_color --switch=$(COLOR) --green "Compiling Fortran source to assembly CMakeFiles/glimmercismfortran.dir/libglissade/glissade_remap.F90.s"
-	/glade/u/apps/derecho/23.06/spack/opt/spack/ncarcompilers/1.0.0/oneapi/2023.0.0/ec7b/bin/mpi/mpif90 $(Fortran_DEFINES) $(Fortran_INCLUDES) $(Fortran_FLAGS) -S /glade/u/home/tvda/CISM/libglissade/glissade_remap.F90 -o CMakeFiles/glimmercismfortran.dir/libglissade/glissade_remap.F90.s
+	/glade/u/apps/derecho/23.09/spack/opt/spack/intel-oneapi-mpi/2021.10.0/oneapi/2023.2.1/ve6v/bin/mpif90 $(Fortran_DEFINES) $(Fortran_INCLUDES) $(Fortran_FLAGS) -S /glade/u/home/tvda/CISM/libglissade/glissade_remap.F90 -o CMakeFiles/glimmercismfortran.dir/libglissade/glissade_remap.F90.s
 
 CMakeFiles/glimmercismfortran.dir/libglissade/glissade_test.F90.o: CMakeFiles/glimmercismfortran.dir/flags.make
 CMakeFiles/glimmercismfortran.dir/libglissade/glissade_test.F90.o: /glade/u/home/tvda/CISM/libglissade/glissade_test.F90
 	@$(CMAKE_COMMAND) -E cmake_echo_color --switch=$(COLOR) --green --progress-dir=/glade/u/home/tvda/CISM/builds/derecho-intel/CMakeFiles --progress-num=$(CMAKE_PROGRESS_111) "Building Fortran object CMakeFiles/glimmercismfortran.dir/libglissade/glissade_test.F90.o"
-	/glade/u/apps/derecho/23.06/spack/opt/spack/ncarcompilers/1.0.0/oneapi/2023.0.0/ec7b/bin/mpi/mpif90 $(Fortran_DEFINES) $(Fortran_INCLUDES) $(Fortran_FLAGS) -c /glade/u/home/tvda/CISM/libglissade/glissade_test.F90 -o CMakeFiles/glimmercismfortran.dir/libglissade/glissade_test.F90.o
+	/glade/u/apps/derecho/23.09/spack/opt/spack/intel-oneapi-mpi/2021.10.0/oneapi/2023.2.1/ve6v/bin/mpif90 $(Fortran_DEFINES) $(Fortran_INCLUDES) $(Fortran_FLAGS) -c /glade/u/home/tvda/CISM/libglissade/glissade_test.F90 -o CMakeFiles/glimmercismfortran.dir/libglissade/glissade_test.F90.o
 
 CMakeFiles/glimmercismfortran.dir/libglissade/glissade_test.F90.i: cmake_force
 	@$(CMAKE_COMMAND) -E cmake_echo_color --switch=$(COLOR) --green "Preprocessing Fortran source to CMakeFiles/glimmercismfortran.dir/libglissade/glissade_test.F90.i"
-	/glade/u/apps/derecho/23.06/spack/opt/spack/ncarcompilers/1.0.0/oneapi/2023.0.0/ec7b/bin/mpi/mpif90 $(Fortran_DEFINES) $(Fortran_INCLUDES) $(Fortran_FLAGS) -E /glade/u/home/tvda/CISM/libglissade/glissade_test.F90 > CMakeFiles/glimmercismfortran.dir/libglissade/glissade_test.F90.i
+	/glade/u/apps/derecho/23.09/spack/opt/spack/intel-oneapi-mpi/2021.10.0/oneapi/2023.2.1/ve6v/bin/mpif90 $(Fortran_DEFINES) $(Fortran_INCLUDES) $(Fortran_FLAGS) -E /glade/u/home/tvda/CISM/libglissade/glissade_test.F90 > CMakeFiles/glimmercismfortran.dir/libglissade/glissade_test.F90.i
 
 CMakeFiles/glimmercismfortran.dir/libglissade/glissade_test.F90.s: cmake_force
 	@$(CMAKE_COMMAND) -E cmake_echo_color --switch=$(COLOR) --green "Compiling Fortran source to assembly CMakeFiles/glimmercismfortran.dir/libglissade/glissade_test.F90.s"
-	/glade/u/apps/derecho/23.06/spack/opt/spack/ncarcompilers/1.0.0/oneapi/2023.0.0/ec7b/bin/mpi/mpif90 $(Fortran_DEFINES) $(Fortran_INCLUDES) $(Fortran_FLAGS) -S /glade/u/home/tvda/CISM/libglissade/glissade_test.F90 -o CMakeFiles/glimmercismfortran.dir/libglissade/glissade_test.F90.s
+	/glade/u/apps/derecho/23.09/spack/opt/spack/intel-oneapi-mpi/2021.10.0/oneapi/2023.2.1/ve6v/bin/mpif90 $(Fortran_DEFINES) $(Fortran_INCLUDES) $(Fortran_FLAGS) -S /glade/u/home/tvda/CISM/libglissade/glissade_test.F90 -o CMakeFiles/glimmercismfortran.dir/libglissade/glissade_test.F90.s
 
 CMakeFiles/glimmercismfortran.dir/libglissade/glissade_therm.F90.o: CMakeFiles/glimmercismfortran.dir/flags.make
 CMakeFiles/glimmercismfortran.dir/libglissade/glissade_therm.F90.o: /glade/u/home/tvda/CISM/libglissade/glissade_therm.F90
 	@$(CMAKE_COMMAND) -E cmake_echo_color --switch=$(COLOR) --green --progress-dir=/glade/u/home/tvda/CISM/builds/derecho-intel/CMakeFiles --progress-num=$(CMAKE_PROGRESS_112) "Building Fortran object CMakeFiles/glimmercismfortran.dir/libglissade/glissade_therm.F90.o"
-	/glade/u/apps/derecho/23.06/spack/opt/spack/ncarcompilers/1.0.0/oneapi/2023.0.0/ec7b/bin/mpi/mpif90 $(Fortran_DEFINES) $(Fortran_INCLUDES) $(Fortran_FLAGS) -c /glade/u/home/tvda/CISM/libglissade/glissade_therm.F90 -o CMakeFiles/glimmercismfortran.dir/libglissade/glissade_therm.F90.o
+	/glade/u/apps/derecho/23.09/spack/opt/spack/intel-oneapi-mpi/2021.10.0/oneapi/2023.2.1/ve6v/bin/mpif90 $(Fortran_DEFINES) $(Fortran_INCLUDES) $(Fortran_FLAGS) -c /glade/u/home/tvda/CISM/libglissade/glissade_therm.F90 -o CMakeFiles/glimmercismfortran.dir/libglissade/glissade_therm.F90.o
 
 CMakeFiles/glimmercismfortran.dir/libglissade/glissade_therm.F90.i: cmake_force
 	@$(CMAKE_COMMAND) -E cmake_echo_color --switch=$(COLOR) --green "Preprocessing Fortran source to CMakeFiles/glimmercismfortran.dir/libglissade/glissade_therm.F90.i"
-	/glade/u/apps/derecho/23.06/spack/opt/spack/ncarcompilers/1.0.0/oneapi/2023.0.0/ec7b/bin/mpi/mpif90 $(Fortran_DEFINES) $(Fortran_INCLUDES) $(Fortran_FLAGS) -E /glade/u/home/tvda/CISM/libglissade/glissade_therm.F90 > CMakeFiles/glimmercismfortran.dir/libglissade/glissade_therm.F90.i
+	/glade/u/apps/derecho/23.09/spack/opt/spack/intel-oneapi-mpi/2021.10.0/oneapi/2023.2.1/ve6v/bin/mpif90 $(Fortran_DEFINES) $(Fortran_INCLUDES) $(Fortran_FLAGS) -E /glade/u/home/tvda/CISM/libglissade/glissade_therm.F90 > CMakeFiles/glimmercismfortran.dir/libglissade/glissade_therm.F90.i
 
 CMakeFiles/glimmercismfortran.dir/libglissade/glissade_therm.F90.s: cmake_force
 	@$(CMAKE_COMMAND) -E cmake_echo_color --switch=$(COLOR) --green "Compiling Fortran source to assembly CMakeFiles/glimmercismfortran.dir/libglissade/glissade_therm.F90.s"
-	/glade/u/apps/derecho/23.06/spack/opt/spack/ncarcompilers/1.0.0/oneapi/2023.0.0/ec7b/bin/mpi/mpif90 $(Fortran_DEFINES) $(Fortran_INCLUDES) $(Fortran_FLAGS) -S /glade/u/home/tvda/CISM/libglissade/glissade_therm.F90 -o CMakeFiles/glimmercismfortran.dir/libglissade/glissade_therm.F90.s
+	/glade/u/apps/derecho/23.09/spack/opt/spack/intel-oneapi-mpi/2021.10.0/oneapi/2023.2.1/ve6v/bin/mpif90 $(Fortran_DEFINES) $(Fortran_INCLUDES) $(Fortran_FLAGS) -S /glade/u/home/tvda/CISM/libglissade/glissade_therm.F90 -o CMakeFiles/glimmercismfortran.dir/libglissade/glissade_therm.F90.s
 
 CMakeFiles/glimmercismfortran.dir/libglissade/glissade_transport.F90.o: CMakeFiles/glimmercismfortran.dir/flags.make
 CMakeFiles/glimmercismfortran.dir/libglissade/glissade_transport.F90.o: /glade/u/home/tvda/CISM/libglissade/glissade_transport.F90
 	@$(CMAKE_COMMAND) -E cmake_echo_color --switch=$(COLOR) --green --progress-dir=/glade/u/home/tvda/CISM/builds/derecho-intel/CMakeFiles --progress-num=$(CMAKE_PROGRESS_113) "Building Fortran object CMakeFiles/glimmercismfortran.dir/libglissade/glissade_transport.F90.o"
-	/glade/u/apps/derecho/23.06/spack/opt/spack/ncarcompilers/1.0.0/oneapi/2023.0.0/ec7b/bin/mpi/mpif90 $(Fortran_DEFINES) $(Fortran_INCLUDES) $(Fortran_FLAGS) -c /glade/u/home/tvda/CISM/libglissade/glissade_transport.F90 -o CMakeFiles/glimmercismfortran.dir/libglissade/glissade_transport.F90.o
+	/glade/u/apps/derecho/23.09/spack/opt/spack/intel-oneapi-mpi/2021.10.0/oneapi/2023.2.1/ve6v/bin/mpif90 $(Fortran_DEFINES) $(Fortran_INCLUDES) $(Fortran_FLAGS) -c /glade/u/home/tvda/CISM/libglissade/glissade_transport.F90 -o CMakeFiles/glimmercismfortran.dir/libglissade/glissade_transport.F90.o
 
 CMakeFiles/glimmercismfortran.dir/libglissade/glissade_transport.F90.i: cmake_force
 	@$(CMAKE_COMMAND) -E cmake_echo_color --switch=$(COLOR) --green "Preprocessing Fortran source to CMakeFiles/glimmercismfortran.dir/libglissade/glissade_transport.F90.i"
-	/glade/u/apps/derecho/23.06/spack/opt/spack/ncarcompilers/1.0.0/oneapi/2023.0.0/ec7b/bin/mpi/mpif90 $(Fortran_DEFINES) $(Fortran_INCLUDES) $(Fortran_FLAGS) -E /glade/u/home/tvda/CISM/libglissade/glissade_transport.F90 > CMakeFiles/glimmercismfortran.dir/libglissade/glissade_transport.F90.i
+	/glade/u/apps/derecho/23.09/spack/opt/spack/intel-oneapi-mpi/2021.10.0/oneapi/2023.2.1/ve6v/bin/mpif90 $(Fortran_DEFINES) $(Fortran_INCLUDES) $(Fortran_FLAGS) -E /glade/u/home/tvda/CISM/libglissade/glissade_transport.F90 > CMakeFiles/glimmercismfortran.dir/libglissade/glissade_transport.F90.i
 
 CMakeFiles/glimmercismfortran.dir/libglissade/glissade_transport.F90.s: cmake_force
 	@$(CMAKE_COMMAND) -E cmake_echo_color --switch=$(COLOR) --green "Compiling Fortran source to assembly CMakeFiles/glimmercismfortran.dir/libglissade/glissade_transport.F90.s"
-	/glade/u/apps/derecho/23.06/spack/opt/spack/ncarcompilers/1.0.0/oneapi/2023.0.0/ec7b/bin/mpi/mpif90 $(Fortran_DEFINES) $(Fortran_INCLUDES) $(Fortran_FLAGS) -S /glade/u/home/tvda/CISM/libglissade/glissade_transport.F90 -o CMakeFiles/glimmercismfortran.dir/libglissade/glissade_transport.F90.s
+	/glade/u/apps/derecho/23.09/spack/opt/spack/intel-oneapi-mpi/2021.10.0/oneapi/2023.2.1/ve6v/bin/mpif90 $(Fortran_DEFINES) $(Fortran_INCLUDES) $(Fortran_FLAGS) -S /glade/u/home/tvda/CISM/libglissade/glissade_transport.F90 -o CMakeFiles/glimmercismfortran.dir/libglissade/glissade_transport.F90.s
 
 CMakeFiles/glimmercismfortran.dir/libglissade/glissade_utils.F90.o: CMakeFiles/glimmercismfortran.dir/flags.make
 CMakeFiles/glimmercismfortran.dir/libglissade/glissade_utils.F90.o: /glade/u/home/tvda/CISM/libglissade/glissade_utils.F90
 	@$(CMAKE_COMMAND) -E cmake_echo_color --switch=$(COLOR) --green --progress-dir=/glade/u/home/tvda/CISM/builds/derecho-intel/CMakeFiles --progress-num=$(CMAKE_PROGRESS_114) "Building Fortran object CMakeFiles/glimmercismfortran.dir/libglissade/glissade_utils.F90.o"
-	/glade/u/apps/derecho/23.06/spack/opt/spack/ncarcompilers/1.0.0/oneapi/2023.0.0/ec7b/bin/mpi/mpif90 $(Fortran_DEFINES) $(Fortran_INCLUDES) $(Fortran_FLAGS) -c /glade/u/home/tvda/CISM/libglissade/glissade_utils.F90 -o CMakeFiles/glimmercismfortran.dir/libglissade/glissade_utils.F90.o
+	/glade/u/apps/derecho/23.09/spack/opt/spack/intel-oneapi-mpi/2021.10.0/oneapi/2023.2.1/ve6v/bin/mpif90 $(Fortran_DEFINES) $(Fortran_INCLUDES) $(Fortran_FLAGS) -c /glade/u/home/tvda/CISM/libglissade/glissade_utils.F90 -o CMakeFiles/glimmercismfortran.dir/libglissade/glissade_utils.F90.o
 
 CMakeFiles/glimmercismfortran.dir/libglissade/glissade_utils.F90.i: cmake_force
 	@$(CMAKE_COMMAND) -E cmake_echo_color --switch=$(COLOR) --green "Preprocessing Fortran source to CMakeFiles/glimmercismfortran.dir/libglissade/glissade_utils.F90.i"
-	/glade/u/apps/derecho/23.06/spack/opt/spack/ncarcompilers/1.0.0/oneapi/2023.0.0/ec7b/bin/mpi/mpif90 $(Fortran_DEFINES) $(Fortran_INCLUDES) $(Fortran_FLAGS) -E /glade/u/home/tvda/CISM/libglissade/glissade_utils.F90 > CMakeFiles/glimmercismfortran.dir/libglissade/glissade_utils.F90.i
+	/glade/u/apps/derecho/23.09/spack/opt/spack/intel-oneapi-mpi/2021.10.0/oneapi/2023.2.1/ve6v/bin/mpif90 $(Fortran_DEFINES) $(Fortran_INCLUDES) $(Fortran_FLAGS) -E /glade/u/home/tvda/CISM/libglissade/glissade_utils.F90 > CMakeFiles/glimmercismfortran.dir/libglissade/glissade_utils.F90.i
 
 CMakeFiles/glimmercismfortran.dir/libglissade/glissade_utils.F90.s: cmake_force
 	@$(CMAKE_COMMAND) -E cmake_echo_color --switch=$(COLOR) --green "Compiling Fortran source to assembly CMakeFiles/glimmercismfortran.dir/libglissade/glissade_utils.F90.s"
-	/glade/u/apps/derecho/23.06/spack/opt/spack/ncarcompilers/1.0.0/oneapi/2023.0.0/ec7b/bin/mpi/mpif90 $(Fortran_DEFINES) $(Fortran_INCLUDES) $(Fortran_FLAGS) -S /glade/u/home/tvda/CISM/libglissade/glissade_utils.F90 -o CMakeFiles/glimmercismfortran.dir/libglissade/glissade_utils.F90.s
+	/glade/u/apps/derecho/23.09/spack/opt/spack/intel-oneapi-mpi/2021.10.0/oneapi/2023.2.1/ve6v/bin/mpif90 $(Fortran_DEFINES) $(Fortran_INCLUDES) $(Fortran_FLAGS) -S /glade/u/home/tvda/CISM/libglissade/glissade_utils.F90 -o CMakeFiles/glimmercismfortran.dir/libglissade/glissade_utils.F90.s
 
 CMakeFiles/glimmercismfortran.dir/libglissade/glissade_velo.F90.o: CMakeFiles/glimmercismfortran.dir/flags.make
 CMakeFiles/glimmercismfortran.dir/libglissade/glissade_velo.F90.o: /glade/u/home/tvda/CISM/libglissade/glissade_velo.F90
 	@$(CMAKE_COMMAND) -E cmake_echo_color --switch=$(COLOR) --green --progress-dir=/glade/u/home/tvda/CISM/builds/derecho-intel/CMakeFiles --progress-num=$(CMAKE_PROGRESS_115) "Building Fortran object CMakeFiles/glimmercismfortran.dir/libglissade/glissade_velo.F90.o"
-	/glade/u/apps/derecho/23.06/spack/opt/spack/ncarcompilers/1.0.0/oneapi/2023.0.0/ec7b/bin/mpi/mpif90 $(Fortran_DEFINES) $(Fortran_INCLUDES) $(Fortran_FLAGS) -c /glade/u/home/tvda/CISM/libglissade/glissade_velo.F90 -o CMakeFiles/glimmercismfortran.dir/libglissade/glissade_velo.F90.o
+	/glade/u/apps/derecho/23.09/spack/opt/spack/intel-oneapi-mpi/2021.10.0/oneapi/2023.2.1/ve6v/bin/mpif90 $(Fortran_DEFINES) $(Fortran_INCLUDES) $(Fortran_FLAGS) -c /glade/u/home/tvda/CISM/libglissade/glissade_velo.F90 -o CMakeFiles/glimmercismfortran.dir/libglissade/glissade_velo.F90.o
 
 CMakeFiles/glimmercismfortran.dir/libglissade/glissade_velo.F90.i: cmake_force
 	@$(CMAKE_COMMAND) -E cmake_echo_color --switch=$(COLOR) --green "Preprocessing Fortran source to CMakeFiles/glimmercismfortran.dir/libglissade/glissade_velo.F90.i"
-	/glade/u/apps/derecho/23.06/spack/opt/spack/ncarcompilers/1.0.0/oneapi/2023.0.0/ec7b/bin/mpi/mpif90 $(Fortran_DEFINES) $(Fortran_INCLUDES) $(Fortran_FLAGS) -E /glade/u/home/tvda/CISM/libglissade/glissade_velo.F90 > CMakeFiles/glimmercismfortran.dir/libglissade/glissade_velo.F90.i
+	/glade/u/apps/derecho/23.09/spack/opt/spack/intel-oneapi-mpi/2021.10.0/oneapi/2023.2.1/ve6v/bin/mpif90 $(Fortran_DEFINES) $(Fortran_INCLUDES) $(Fortran_FLAGS) -E /glade/u/home/tvda/CISM/libglissade/glissade_velo.F90 > CMakeFiles/glimmercismfortran.dir/libglissade/glissade_velo.F90.i
 
 CMakeFiles/glimmercismfortran.dir/libglissade/glissade_velo.F90.s: cmake_force
 	@$(CMAKE_COMMAND) -E cmake_echo_color --switch=$(COLOR) --green "Compiling Fortran source to assembly CMakeFiles/glimmercismfortran.dir/libglissade/glissade_velo.F90.s"
-	/glade/u/apps/derecho/23.06/spack/opt/spack/ncarcompilers/1.0.0/oneapi/2023.0.0/ec7b/bin/mpi/mpif90 $(Fortran_DEFINES) $(Fortran_INCLUDES) $(Fortran_FLAGS) -S /glade/u/home/tvda/CISM/libglissade/glissade_velo.F90 -o CMakeFiles/glimmercismfortran.dir/libglissade/glissade_velo.F90.s
+	/glade/u/apps/derecho/23.09/spack/opt/spack/intel-oneapi-mpi/2021.10.0/oneapi/2023.2.1/ve6v/bin/mpif90 $(Fortran_DEFINES) $(Fortran_INCLUDES) $(Fortran_FLAGS) -S /glade/u/home/tvda/CISM/libglissade/glissade_velo.F90 -o CMakeFiles/glimmercismfortran.dir/libglissade/glissade_velo.F90.s
 
 CMakeFiles/glimmercismfortran.dir/libglissade/glissade_velo_higher.F90.o: CMakeFiles/glimmercismfortran.dir/flags.make
 CMakeFiles/glimmercismfortran.dir/libglissade/glissade_velo_higher.F90.o: /glade/u/home/tvda/CISM/libglissade/glissade_velo_higher.F90
 	@$(CMAKE_COMMAND) -E cmake_echo_color --switch=$(COLOR) --green --progress-dir=/glade/u/home/tvda/CISM/builds/derecho-intel/CMakeFiles --progress-num=$(CMAKE_PROGRESS_116) "Building Fortran object CMakeFiles/glimmercismfortran.dir/libglissade/glissade_velo_higher.F90.o"
-	/glade/u/apps/derecho/23.06/spack/opt/spack/ncarcompilers/1.0.0/oneapi/2023.0.0/ec7b/bin/mpi/mpif90 $(Fortran_DEFINES) $(Fortran_INCLUDES) $(Fortran_FLAGS) -c /glade/u/home/tvda/CISM/libglissade/glissade_velo_higher.F90 -o CMakeFiles/glimmercismfortran.dir/libglissade/glissade_velo_higher.F90.o
+	/glade/u/apps/derecho/23.09/spack/opt/spack/intel-oneapi-mpi/2021.10.0/oneapi/2023.2.1/ve6v/bin/mpif90 $(Fortran_DEFINES) $(Fortran_INCLUDES) $(Fortran_FLAGS) -c /glade/u/home/tvda/CISM/libglissade/glissade_velo_higher.F90 -o CMakeFiles/glimmercismfortran.dir/libglissade/glissade_velo_higher.F90.o
 
 CMakeFiles/glimmercismfortran.dir/libglissade/glissade_velo_higher.F90.i: cmake_force
 	@$(CMAKE_COMMAND) -E cmake_echo_color --switch=$(COLOR) --green "Preprocessing Fortran source to CMakeFiles/glimmercismfortran.dir/libglissade/glissade_velo_higher.F90.i"
-	/glade/u/apps/derecho/23.06/spack/opt/spack/ncarcompilers/1.0.0/oneapi/2023.0.0/ec7b/bin/mpi/mpif90 $(Fortran_DEFINES) $(Fortran_INCLUDES) $(Fortran_FLAGS) -E /glade/u/home/tvda/CISM/libglissade/glissade_velo_higher.F90 > CMakeFiles/glimmercismfortran.dir/libglissade/glissade_velo_higher.F90.i
+	/glade/u/apps/derecho/23.09/spack/opt/spack/intel-oneapi-mpi/2021.10.0/oneapi/2023.2.1/ve6v/bin/mpif90 $(Fortran_DEFINES) $(Fortran_INCLUDES) $(Fortran_FLAGS) -E /glade/u/home/tvda/CISM/libglissade/glissade_velo_higher.F90 > CMakeFiles/glimmercismfortran.dir/libglissade/glissade_velo_higher.F90.i
 
 CMakeFiles/glimmercismfortran.dir/libglissade/glissade_velo_higher.F90.s: cmake_force
 	@$(CMAKE_COMMAND) -E cmake_echo_color --switch=$(COLOR) --green "Compiling Fortran source to assembly CMakeFiles/glimmercismfortran.dir/libglissade/glissade_velo_higher.F90.s"
-	/glade/u/apps/derecho/23.06/spack/opt/spack/ncarcompilers/1.0.0/oneapi/2023.0.0/ec7b/bin/mpi/mpif90 $(Fortran_DEFINES) $(Fortran_INCLUDES) $(Fortran_FLAGS) -S /glade/u/home/tvda/CISM/libglissade/glissade_velo_higher.F90 -o CMakeFiles/glimmercismfortran.dir/libglissade/glissade_velo_higher.F90.s
+	/glade/u/apps/derecho/23.09/spack/opt/spack/intel-oneapi-mpi/2021.10.0/oneapi/2023.2.1/ve6v/bin/mpif90 $(Fortran_DEFINES) $(Fortran_INCLUDES) $(Fortran_FLAGS) -S /glade/u/home/tvda/CISM/libglissade/glissade_velo_higher.F90 -o CMakeFiles/glimmercismfortran.dir/libglissade/glissade_velo_higher.F90.s
 
 CMakeFiles/glimmercismfortran.dir/libglissade/glissade_velo_higher_pcg.F90.o: CMakeFiles/glimmercismfortran.dir/flags.make
 CMakeFiles/glimmercismfortran.dir/libglissade/glissade_velo_higher_pcg.F90.o: /glade/u/home/tvda/CISM/libglissade/glissade_velo_higher_pcg.F90
 	@$(CMAKE_COMMAND) -E cmake_echo_color --switch=$(COLOR) --green --progress-dir=/glade/u/home/tvda/CISM/builds/derecho-intel/CMakeFiles --progress-num=$(CMAKE_PROGRESS_117) "Building Fortran object CMakeFiles/glimmercismfortran.dir/libglissade/glissade_velo_higher_pcg.F90.o"
-	/glade/u/apps/derecho/23.06/spack/opt/spack/ncarcompilers/1.0.0/oneapi/2023.0.0/ec7b/bin/mpi/mpif90 $(Fortran_DEFINES) $(Fortran_INCLUDES) $(Fortran_FLAGS) -c /glade/u/home/tvda/CISM/libglissade/glissade_velo_higher_pcg.F90 -o CMakeFiles/glimmercismfortran.dir/libglissade/glissade_velo_higher_pcg.F90.o
+	/glade/u/apps/derecho/23.09/spack/opt/spack/intel-oneapi-mpi/2021.10.0/oneapi/2023.2.1/ve6v/bin/mpif90 $(Fortran_DEFINES) $(Fortran_INCLUDES) $(Fortran_FLAGS) -c /glade/u/home/tvda/CISM/libglissade/glissade_velo_higher_pcg.F90 -o CMakeFiles/glimmercismfortran.dir/libglissade/glissade_velo_higher_pcg.F90.o
 
 CMakeFiles/glimmercismfortran.dir/libglissade/glissade_velo_higher_pcg.F90.i: cmake_force
 	@$(CMAKE_COMMAND) -E cmake_echo_color --switch=$(COLOR) --green "Preprocessing Fortran source to CMakeFiles/glimmercismfortran.dir/libglissade/glissade_velo_higher_pcg.F90.i"
-	/glade/u/apps/derecho/23.06/spack/opt/spack/ncarcompilers/1.0.0/oneapi/2023.0.0/ec7b/bin/mpi/mpif90 $(Fortran_DEFINES) $(Fortran_INCLUDES) $(Fortran_FLAGS) -E /glade/u/home/tvda/CISM/libglissade/glissade_velo_higher_pcg.F90 > CMakeFiles/glimmercismfortran.dir/libglissade/glissade_velo_higher_pcg.F90.i
+	/glade/u/apps/derecho/23.09/spack/opt/spack/intel-oneapi-mpi/2021.10.0/oneapi/2023.2.1/ve6v/bin/mpif90 $(Fortran_DEFINES) $(Fortran_INCLUDES) $(Fortran_FLAGS) -E /glade/u/home/tvda/CISM/libglissade/glissade_velo_higher_pcg.F90 > CMakeFiles/glimmercismfortran.dir/libglissade/glissade_velo_higher_pcg.F90.i
 
 CMakeFiles/glimmercismfortran.dir/libglissade/glissade_velo_higher_pcg.F90.s: cmake_force
 	@$(CMAKE_COMMAND) -E cmake_echo_color --switch=$(COLOR) --green "Compiling Fortran source to assembly CMakeFiles/glimmercismfortran.dir/libglissade/glissade_velo_higher_pcg.F90.s"
-	/glade/u/apps/derecho/23.06/spack/opt/spack/ncarcompilers/1.0.0/oneapi/2023.0.0/ec7b/bin/mpi/mpif90 $(Fortran_DEFINES) $(Fortran_INCLUDES) $(Fortran_FLAGS) -S /glade/u/home/tvda/CISM/libglissade/glissade_velo_higher_pcg.F90 -o CMakeFiles/glimmercismfortran.dir/libglissade/glissade_velo_higher_pcg.F90.s
+	/glade/u/apps/derecho/23.09/spack/opt/spack/intel-oneapi-mpi/2021.10.0/oneapi/2023.2.1/ve6v/bin/mpif90 $(Fortran_DEFINES) $(Fortran_INCLUDES) $(Fortran_FLAGS) -S /glade/u/home/tvda/CISM/libglissade/glissade_velo_higher_pcg.F90 -o CMakeFiles/glimmercismfortran.dir/libglissade/glissade_velo_higher_pcg.F90.s
 
 CMakeFiles/glimmercismfortran.dir/libglissade/glissade_velo_higher_slap.F90.o: CMakeFiles/glimmercismfortran.dir/flags.make
 CMakeFiles/glimmercismfortran.dir/libglissade/glissade_velo_higher_slap.F90.o: /glade/u/home/tvda/CISM/libglissade/glissade_velo_higher_slap.F90
 	@$(CMAKE_COMMAND) -E cmake_echo_color --switch=$(COLOR) --green --progress-dir=/glade/u/home/tvda/CISM/builds/derecho-intel/CMakeFiles --progress-num=$(CMAKE_PROGRESS_118) "Building Fortran object CMakeFiles/glimmercismfortran.dir/libglissade/glissade_velo_higher_slap.F90.o"
-	/glade/u/apps/derecho/23.06/spack/opt/spack/ncarcompilers/1.0.0/oneapi/2023.0.0/ec7b/bin/mpi/mpif90 $(Fortran_DEFINES) $(Fortran_INCLUDES) $(Fortran_FLAGS) -c /glade/u/home/tvda/CISM/libglissade/glissade_velo_higher_slap.F90 -o CMakeFiles/glimmercismfortran.dir/libglissade/glissade_velo_higher_slap.F90.o
+	/glade/u/apps/derecho/23.09/spack/opt/spack/intel-oneapi-mpi/2021.10.0/oneapi/2023.2.1/ve6v/bin/mpif90 $(Fortran_DEFINES) $(Fortran_INCLUDES) $(Fortran_FLAGS) -c /glade/u/home/tvda/CISM/libglissade/glissade_velo_higher_slap.F90 -o CMakeFiles/glimmercismfortran.dir/libglissade/glissade_velo_higher_slap.F90.o
 
 CMakeFiles/glimmercismfortran.dir/libglissade/glissade_velo_higher_slap.F90.i: cmake_force
 	@$(CMAKE_COMMAND) -E cmake_echo_color --switch=$(COLOR) --green "Preprocessing Fortran source to CMakeFiles/glimmercismfortran.dir/libglissade/glissade_velo_higher_slap.F90.i"
-	/glade/u/apps/derecho/23.06/spack/opt/spack/ncarcompilers/1.0.0/oneapi/2023.0.0/ec7b/bin/mpi/mpif90 $(Fortran_DEFINES) $(Fortran_INCLUDES) $(Fortran_FLAGS) -E /glade/u/home/tvda/CISM/libglissade/glissade_velo_higher_slap.F90 > CMakeFiles/glimmercismfortran.dir/libglissade/glissade_velo_higher_slap.F90.i
+	/glade/u/apps/derecho/23.09/spack/opt/spack/intel-oneapi-mpi/2021.10.0/oneapi/2023.2.1/ve6v/bin/mpif90 $(Fortran_DEFINES) $(Fortran_INCLUDES) $(Fortran_FLAGS) -E /glade/u/home/tvda/CISM/libglissade/glissade_velo_higher_slap.F90 > CMakeFiles/glimmercismfortran.dir/libglissade/glissade_velo_higher_slap.F90.i
 
 CMakeFiles/glimmercismfortran.dir/libglissade/glissade_velo_higher_slap.F90.s: cmake_force
 	@$(CMAKE_COMMAND) -E cmake_echo_color --switch=$(COLOR) --green "Compiling Fortran source to assembly CMakeFiles/glimmercismfortran.dir/libglissade/glissade_velo_higher_slap.F90.s"
-	/glade/u/apps/derecho/23.06/spack/opt/spack/ncarcompilers/1.0.0/oneapi/2023.0.0/ec7b/bin/mpi/mpif90 $(Fortran_DEFINES) $(Fortran_INCLUDES) $(Fortran_FLAGS) -S /glade/u/home/tvda/CISM/libglissade/glissade_velo_higher_slap.F90 -o CMakeFiles/glimmercismfortran.dir/libglissade/glissade_velo_higher_slap.F90.s
+	/glade/u/apps/derecho/23.09/spack/opt/spack/intel-oneapi-mpi/2021.10.0/oneapi/2023.2.1/ve6v/bin/mpif90 $(Fortran_DEFINES) $(Fortran_INCLUDES) $(Fortran_FLAGS) -S /glade/u/home/tvda/CISM/libglissade/glissade_velo_higher_slap.F90 -o CMakeFiles/glimmercismfortran.dir/libglissade/glissade_velo_higher_slap.F90.s
 
 CMakeFiles/glimmercismfortran.dir/libglissade/glissade_velo_higher_trilinos.F90.o: CMakeFiles/glimmercismfortran.dir/flags.make
 CMakeFiles/glimmercismfortran.dir/libglissade/glissade_velo_higher_trilinos.F90.o: /glade/u/home/tvda/CISM/libglissade/glissade_velo_higher_trilinos.F90
 	@$(CMAKE_COMMAND) -E cmake_echo_color --switch=$(COLOR) --green --progress-dir=/glade/u/home/tvda/CISM/builds/derecho-intel/CMakeFiles --progress-num=$(CMAKE_PROGRESS_119) "Building Fortran object CMakeFiles/glimmercismfortran.dir/libglissade/glissade_velo_higher_trilinos.F90.o"
-	/glade/u/apps/derecho/23.06/spack/opt/spack/ncarcompilers/1.0.0/oneapi/2023.0.0/ec7b/bin/mpi/mpif90 $(Fortran_DEFINES) $(Fortran_INCLUDES) $(Fortran_FLAGS) -c /glade/u/home/tvda/CISM/libglissade/glissade_velo_higher_trilinos.F90 -o CMakeFiles/glimmercismfortran.dir/libglissade/glissade_velo_higher_trilinos.F90.o
+	/glade/u/apps/derecho/23.09/spack/opt/spack/intel-oneapi-mpi/2021.10.0/oneapi/2023.2.1/ve6v/bin/mpif90 $(Fortran_DEFINES) $(Fortran_INCLUDES) $(Fortran_FLAGS) -c /glade/u/home/tvda/CISM/libglissade/glissade_velo_higher_trilinos.F90 -o CMakeFiles/glimmercismfortran.dir/libglissade/glissade_velo_higher_trilinos.F90.o
 
 CMakeFiles/glimmercismfortran.dir/libglissade/glissade_velo_higher_trilinos.F90.i: cmake_force
 	@$(CMAKE_COMMAND) -E cmake_echo_color --switch=$(COLOR) --green "Preprocessing Fortran source to CMakeFiles/glimmercismfortran.dir/libglissade/glissade_velo_higher_trilinos.F90.i"
-	/glade/u/apps/derecho/23.06/spack/opt/spack/ncarcompilers/1.0.0/oneapi/2023.0.0/ec7b/bin/mpi/mpif90 $(Fortran_DEFINES) $(Fortran_INCLUDES) $(Fortran_FLAGS) -E /glade/u/home/tvda/CISM/libglissade/glissade_velo_higher_trilinos.F90 > CMakeFiles/glimmercismfortran.dir/libglissade/glissade_velo_higher_trilinos.F90.i
+	/glade/u/apps/derecho/23.09/spack/opt/spack/intel-oneapi-mpi/2021.10.0/oneapi/2023.2.1/ve6v/bin/mpif90 $(Fortran_DEFINES) $(Fortran_INCLUDES) $(Fortran_FLAGS) -E /glade/u/home/tvda/CISM/libglissade/glissade_velo_higher_trilinos.F90 > CMakeFiles/glimmercismfortran.dir/libglissade/glissade_velo_higher_trilinos.F90.i
 
 CMakeFiles/glimmercismfortran.dir/libglissade/glissade_velo_higher_trilinos.F90.s: cmake_force
 	@$(CMAKE_COMMAND) -E cmake_echo_color --switch=$(COLOR) --green "Compiling Fortran source to assembly CMakeFiles/glimmercismfortran.dir/libglissade/glissade_velo_higher_trilinos.F90.s"
-	/glade/u/apps/derecho/23.06/spack/opt/spack/ncarcompilers/1.0.0/oneapi/2023.0.0/ec7b/bin/mpi/mpif90 $(Fortran_DEFINES) $(Fortran_INCLUDES) $(Fortran_FLAGS) -S /glade/u/home/tvda/CISM/libglissade/glissade_velo_higher_trilinos.F90 -o CMakeFiles/glimmercismfortran.dir/libglissade/glissade_velo_higher_trilinos.F90.s
+	/glade/u/apps/derecho/23.09/spack/opt/spack/intel-oneapi-mpi/2021.10.0/oneapi/2023.2.1/ve6v/bin/mpif90 $(Fortran_DEFINES) $(Fortran_INCLUDES) $(Fortran_FLAGS) -S /glade/u/home/tvda/CISM/libglissade/glissade_velo_higher_trilinos.F90 -o CMakeFiles/glimmercismfortran.dir/libglissade/glissade_velo_higher_trilinos.F90.s
 
 CMakeFiles/glimmercismfortran.dir/libglissade/glissade_velo_sia.F90.o: CMakeFiles/glimmercismfortran.dir/flags.make
 CMakeFiles/glimmercismfortran.dir/libglissade/glissade_velo_sia.F90.o: /glade/u/home/tvda/CISM/libglissade/glissade_velo_sia.F90
 	@$(CMAKE_COMMAND) -E cmake_echo_color --switch=$(COLOR) --green --progress-dir=/glade/u/home/tvda/CISM/builds/derecho-intel/CMakeFiles --progress-num=$(CMAKE_PROGRESS_120) "Building Fortran object CMakeFiles/glimmercismfortran.dir/libglissade/glissade_velo_sia.F90.o"
-	/glade/u/apps/derecho/23.06/spack/opt/spack/ncarcompilers/1.0.0/oneapi/2023.0.0/ec7b/bin/mpi/mpif90 $(Fortran_DEFINES) $(Fortran_INCLUDES) $(Fortran_FLAGS) -c /glade/u/home/tvda/CISM/libglissade/glissade_velo_sia.F90 -o CMakeFiles/glimmercismfortran.dir/libglissade/glissade_velo_sia.F90.o
+	/glade/u/apps/derecho/23.09/spack/opt/spack/intel-oneapi-mpi/2021.10.0/oneapi/2023.2.1/ve6v/bin/mpif90 $(Fortran_DEFINES) $(Fortran_INCLUDES) $(Fortran_FLAGS) -c /glade/u/home/tvda/CISM/libglissade/glissade_velo_sia.F90 -o CMakeFiles/glimmercismfortran.dir/libglissade/glissade_velo_sia.F90.o
 
 CMakeFiles/glimmercismfortran.dir/libglissade/glissade_velo_sia.F90.i: cmake_force
 	@$(CMAKE_COMMAND) -E cmake_echo_color --switch=$(COLOR) --green "Preprocessing Fortran source to CMakeFiles/glimmercismfortran.dir/libglissade/glissade_velo_sia.F90.i"
-	/glade/u/apps/derecho/23.06/spack/opt/spack/ncarcompilers/1.0.0/oneapi/2023.0.0/ec7b/bin/mpi/mpif90 $(Fortran_DEFINES) $(Fortran_INCLUDES) $(Fortran_FLAGS) -E /glade/u/home/tvda/CISM/libglissade/glissade_velo_sia.F90 > CMakeFiles/glimmercismfortran.dir/libglissade/glissade_velo_sia.F90.i
+	/glade/u/apps/derecho/23.09/spack/opt/spack/intel-oneapi-mpi/2021.10.0/oneapi/2023.2.1/ve6v/bin/mpif90 $(Fortran_DEFINES) $(Fortran_INCLUDES) $(Fortran_FLAGS) -E /glade/u/home/tvda/CISM/libglissade/glissade_velo_sia.F90 > CMakeFiles/glimmercismfortran.dir/libglissade/glissade_velo_sia.F90.i
 
 CMakeFiles/glimmercismfortran.dir/libglissade/glissade_velo_sia.F90.s: cmake_force
 	@$(CMAKE_COMMAND) -E cmake_echo_color --switch=$(COLOR) --green "Compiling Fortran source to assembly CMakeFiles/glimmercismfortran.dir/libglissade/glissade_velo_sia.F90.s"
-	/glade/u/apps/derecho/23.06/spack/opt/spack/ncarcompilers/1.0.0/oneapi/2023.0.0/ec7b/bin/mpi/mpif90 $(Fortran_DEFINES) $(Fortran_INCLUDES) $(Fortran_FLAGS) -S /glade/u/home/tvda/CISM/libglissade/glissade_velo_sia.F90 -o CMakeFiles/glimmercismfortran.dir/libglissade/glissade_velo_sia.F90.s
+	/glade/u/apps/derecho/23.09/spack/opt/spack/intel-oneapi-mpi/2021.10.0/oneapi/2023.2.1/ve6v/bin/mpif90 $(Fortran_DEFINES) $(Fortran_INCLUDES) $(Fortran_FLAGS) -S /glade/u/home/tvda/CISM/libglissade/glissade_velo_sia.F90 -o CMakeFiles/glimmercismfortran.dir/libglissade/glissade_velo_sia.F90.s
 
 CMakeFiles/glimmercismfortran.dir/fortran_autogen_srcs/glide_io.F90.o: CMakeFiles/glimmercismfortran.dir/flags.make
 CMakeFiles/glimmercismfortran.dir/fortran_autogen_srcs/glide_io.F90.o: fortran_autogen_srcs/glide_io.F90
 	@$(CMAKE_COMMAND) -E cmake_echo_color --switch=$(COLOR) --green --progress-dir=/glade/u/home/tvda/CISM/builds/derecho-intel/CMakeFiles --progress-num=$(CMAKE_PROGRESS_121) "Building Fortran object CMakeFiles/glimmercismfortran.dir/fortran_autogen_srcs/glide_io.F90.o"
-	/glade/u/apps/derecho/23.06/spack/opt/spack/ncarcompilers/1.0.0/oneapi/2023.0.0/ec7b/bin/mpi/mpif90 $(Fortran_DEFINES) $(Fortran_INCLUDES) $(Fortran_FLAGS) -c /glade/u/home/tvda/CISM/builds/derecho-intel/fortran_autogen_srcs/glide_io.F90 -o CMakeFiles/glimmercismfortran.dir/fortran_autogen_srcs/glide_io.F90.o
+	/glade/u/apps/derecho/23.09/spack/opt/spack/intel-oneapi-mpi/2021.10.0/oneapi/2023.2.1/ve6v/bin/mpif90 $(Fortran_DEFINES) $(Fortran_INCLUDES) $(Fortran_FLAGS) -c /glade/u/home/tvda/CISM/builds/derecho-intel/fortran_autogen_srcs/glide_io.F90 -o CMakeFiles/glimmercismfortran.dir/fortran_autogen_srcs/glide_io.F90.o
 
 CMakeFiles/glimmercismfortran.dir/fortran_autogen_srcs/glide_io.F90.i: cmake_force
 	@$(CMAKE_COMMAND) -E cmake_echo_color --switch=$(COLOR) --green "Preprocessing Fortran source to CMakeFiles/glimmercismfortran.dir/fortran_autogen_srcs/glide_io.F90.i"
-	/glade/u/apps/derecho/23.06/spack/opt/spack/ncarcompilers/1.0.0/oneapi/2023.0.0/ec7b/bin/mpi/mpif90 $(Fortran_DEFINES) $(Fortran_INCLUDES) $(Fortran_FLAGS) -E /glade/u/home/tvda/CISM/builds/derecho-intel/fortran_autogen_srcs/glide_io.F90 > CMakeFiles/glimmercismfortran.dir/fortran_autogen_srcs/glide_io.F90.i
+	/glade/u/apps/derecho/23.09/spack/opt/spack/intel-oneapi-mpi/2021.10.0/oneapi/2023.2.1/ve6v/bin/mpif90 $(Fortran_DEFINES) $(Fortran_INCLUDES) $(Fortran_FLAGS) -E /glade/u/home/tvda/CISM/builds/derecho-intel/fortran_autogen_srcs/glide_io.F90 > CMakeFiles/glimmercismfortran.dir/fortran_autogen_srcs/glide_io.F90.i
 
 CMakeFiles/glimmercismfortran.dir/fortran_autogen_srcs/glide_io.F90.s: cmake_force
 	@$(CMAKE_COMMAND) -E cmake_echo_color --switch=$(COLOR) --green "Compiling Fortran source to assembly CMakeFiles/glimmercismfortran.dir/fortran_autogen_srcs/glide_io.F90.s"
-	/glade/u/apps/derecho/23.06/spack/opt/spack/ncarcompilers/1.0.0/oneapi/2023.0.0/ec7b/bin/mpi/mpif90 $(Fortran_DEFINES) $(Fortran_INCLUDES) $(Fortran_FLAGS) -S /glade/u/home/tvda/CISM/builds/derecho-intel/fortran_autogen_srcs/glide_io.F90 -o CMakeFiles/glimmercismfortran.dir/fortran_autogen_srcs/glide_io.F90.s
+	/glade/u/apps/derecho/23.09/spack/opt/spack/intel-oneapi-mpi/2021.10.0/oneapi/2023.2.1/ve6v/bin/mpif90 $(Fortran_DEFINES) $(Fortran_INCLUDES) $(Fortran_FLAGS) -S /glade/u/home/tvda/CISM/builds/derecho-intel/fortran_autogen_srcs/glide_io.F90 -o CMakeFiles/glimmercismfortran.dir/fortran_autogen_srcs/glide_io.F90.s
 
 CMakeFiles/glimmercismfortran.dir/fortran_autogen_srcs/glint_io.F90.o: CMakeFiles/glimmercismfortran.dir/flags.make
 CMakeFiles/glimmercismfortran.dir/fortran_autogen_srcs/glint_io.F90.o: fortran_autogen_srcs/glint_io.F90
 	@$(CMAKE_COMMAND) -E cmake_echo_color --switch=$(COLOR) --green --progress-dir=/glade/u/home/tvda/CISM/builds/derecho-intel/CMakeFiles --progress-num=$(CMAKE_PROGRESS_122) "Building Fortran object CMakeFiles/glimmercismfortran.dir/fortran_autogen_srcs/glint_io.F90.o"
-	/glade/u/apps/derecho/23.06/spack/opt/spack/ncarcompilers/1.0.0/oneapi/2023.0.0/ec7b/bin/mpi/mpif90 $(Fortran_DEFINES) $(Fortran_INCLUDES) $(Fortran_FLAGS) -c /glade/u/home/tvda/CISM/builds/derecho-intel/fortran_autogen_srcs/glint_io.F90 -o CMakeFiles/glimmercismfortran.dir/fortran_autogen_srcs/glint_io.F90.o
+	/glade/u/apps/derecho/23.09/spack/opt/spack/intel-oneapi-mpi/2021.10.0/oneapi/2023.2.1/ve6v/bin/mpif90 $(Fortran_DEFINES) $(Fortran_INCLUDES) $(Fortran_FLAGS) -c /glade/u/home/tvda/CISM/builds/derecho-intel/fortran_autogen_srcs/glint_io.F90 -o CMakeFiles/glimmercismfortran.dir/fortran_autogen_srcs/glint_io.F90.o
 
 CMakeFiles/glimmercismfortran.dir/fortran_autogen_srcs/glint_io.F90.i: cmake_force
 	@$(CMAKE_COMMAND) -E cmake_echo_color --switch=$(COLOR) --green "Preprocessing Fortran source to CMakeFiles/glimmercismfortran.dir/fortran_autogen_srcs/glint_io.F90.i"
-	/glade/u/apps/derecho/23.06/spack/opt/spack/ncarcompilers/1.0.0/oneapi/2023.0.0/ec7b/bin/mpi/mpif90 $(Fortran_DEFINES) $(Fortran_INCLUDES) $(Fortran_FLAGS) -E /glade/u/home/tvda/CISM/builds/derecho-intel/fortran_autogen_srcs/glint_io.F90 > CMakeFiles/glimmercismfortran.dir/fortran_autogen_srcs/glint_io.F90.i
+	/glade/u/apps/derecho/23.09/spack/opt/spack/intel-oneapi-mpi/2021.10.0/oneapi/2023.2.1/ve6v/bin/mpif90 $(Fortran_DEFINES) $(Fortran_INCLUDES) $(Fortran_FLAGS) -E /glade/u/home/tvda/CISM/builds/derecho-intel/fortran_autogen_srcs/glint_io.F90 > CMakeFiles/glimmercismfortran.dir/fortran_autogen_srcs/glint_io.F90.i
 
 CMakeFiles/glimmercismfortran.dir/fortran_autogen_srcs/glint_io.F90.s: cmake_force
 	@$(CMAKE_COMMAND) -E cmake_echo_color --switch=$(COLOR) --green "Compiling Fortran source to assembly CMakeFiles/glimmercismfortran.dir/fortran_autogen_srcs/glint_io.F90.s"
-	/glade/u/apps/derecho/23.06/spack/opt/spack/ncarcompilers/1.0.0/oneapi/2023.0.0/ec7b/bin/mpi/mpif90 $(Fortran_DEFINES) $(Fortran_INCLUDES) $(Fortran_FLAGS) -S /glade/u/home/tvda/CISM/builds/derecho-intel/fortran_autogen_srcs/glint_io.F90 -o CMakeFiles/glimmercismfortran.dir/fortran_autogen_srcs/glint_io.F90.s
+	/glade/u/apps/derecho/23.09/spack/opt/spack/intel-oneapi-mpi/2021.10.0/oneapi/2023.2.1/ve6v/bin/mpif90 $(Fortran_DEFINES) $(Fortran_INCLUDES) $(Fortran_FLAGS) -S /glade/u/home/tvda/CISM/builds/derecho-intel/fortran_autogen_srcs/glint_io.F90 -o CMakeFiles/glimmercismfortran.dir/fortran_autogen_srcs/glint_io.F90.s
 
 CMakeFiles/glimmercismfortran.dir/fortran_autogen_srcs/glint_mbal_io.F90.o: CMakeFiles/glimmercismfortran.dir/flags.make
 CMakeFiles/glimmercismfortran.dir/fortran_autogen_srcs/glint_mbal_io.F90.o: fortran_autogen_srcs/glint_mbal_io.F90
 	@$(CMAKE_COMMAND) -E cmake_echo_color --switch=$(COLOR) --green --progress-dir=/glade/u/home/tvda/CISM/builds/derecho-intel/CMakeFiles --progress-num=$(CMAKE_PROGRESS_123) "Building Fortran object CMakeFiles/glimmercismfortran.dir/fortran_autogen_srcs/glint_mbal_io.F90.o"
-	/glade/u/apps/derecho/23.06/spack/opt/spack/ncarcompilers/1.0.0/oneapi/2023.0.0/ec7b/bin/mpi/mpif90 $(Fortran_DEFINES) $(Fortran_INCLUDES) $(Fortran_FLAGS) -c /glade/u/home/tvda/CISM/builds/derecho-intel/fortran_autogen_srcs/glint_mbal_io.F90 -o CMakeFiles/glimmercismfortran.dir/fortran_autogen_srcs/glint_mbal_io.F90.o
+	/glade/u/apps/derecho/23.09/spack/opt/spack/intel-oneapi-mpi/2021.10.0/oneapi/2023.2.1/ve6v/bin/mpif90 $(Fortran_DEFINES) $(Fortran_INCLUDES) $(Fortran_FLAGS) -c /glade/u/home/tvda/CISM/builds/derecho-intel/fortran_autogen_srcs/glint_mbal_io.F90 -o CMakeFiles/glimmercismfortran.dir/fortran_autogen_srcs/glint_mbal_io.F90.o
 
 CMakeFiles/glimmercismfortran.dir/fortran_autogen_srcs/glint_mbal_io.F90.i: cmake_force
 	@$(CMAKE_COMMAND) -E cmake_echo_color --switch=$(COLOR) --green "Preprocessing Fortran source to CMakeFiles/glimmercismfortran.dir/fortran_autogen_srcs/glint_mbal_io.F90.i"
-	/glade/u/apps/derecho/23.06/spack/opt/spack/ncarcompilers/1.0.0/oneapi/2023.0.0/ec7b/bin/mpi/mpif90 $(Fortran_DEFINES) $(Fortran_INCLUDES) $(Fortran_FLAGS) -E /glade/u/home/tvda/CISM/builds/derecho-intel/fortran_autogen_srcs/glint_mbal_io.F90 > CMakeFiles/glimmercismfortran.dir/fortran_autogen_srcs/glint_mbal_io.F90.i
+	/glade/u/apps/derecho/23.09/spack/opt/spack/intel-oneapi-mpi/2021.10.0/oneapi/2023.2.1/ve6v/bin/mpif90 $(Fortran_DEFINES) $(Fortran_INCLUDES) $(Fortran_FLAGS) -E /glade/u/home/tvda/CISM/builds/derecho-intel/fortran_autogen_srcs/glint_mbal_io.F90 > CMakeFiles/glimmercismfortran.dir/fortran_autogen_srcs/glint_mbal_io.F90.i
 
 CMakeFiles/glimmercismfortran.dir/fortran_autogen_srcs/glint_mbal_io.F90.s: cmake_force
 	@$(CMAKE_COMMAND) -E cmake_echo_color --switch=$(COLOR) --green "Compiling Fortran source to assembly CMakeFiles/glimmercismfortran.dir/fortran_autogen_srcs/glint_mbal_io.F90.s"
-	/glade/u/apps/derecho/23.06/spack/opt/spack/ncarcompilers/1.0.0/oneapi/2023.0.0/ec7b/bin/mpi/mpif90 $(Fortran_DEFINES) $(Fortran_INCLUDES) $(Fortran_FLAGS) -S /glade/u/home/tvda/CISM/builds/derecho-intel/fortran_autogen_srcs/glint_mbal_io.F90 -o CMakeFiles/glimmercismfortran.dir/fortran_autogen_srcs/glint_mbal_io.F90.s
+	/glade/u/apps/derecho/23.09/spack/opt/spack/intel-oneapi-mpi/2021.10.0/oneapi/2023.2.1/ve6v/bin/mpif90 $(Fortran_DEFINES) $(Fortran_INCLUDES) $(Fortran_FLAGS) -S /glade/u/home/tvda/CISM/builds/derecho-intel/fortran_autogen_srcs/glint_mbal_io.F90 -o CMakeFiles/glimmercismfortran.dir/fortran_autogen_srcs/glint_mbal_io.F90.s
 
 CMakeFiles/glimmercismfortran.dir/fortran_autogen_srcs/glad_io.F90.o: CMakeFiles/glimmercismfortran.dir/flags.make
 CMakeFiles/glimmercismfortran.dir/fortran_autogen_srcs/glad_io.F90.o: fortran_autogen_srcs/glad_io.F90
 	@$(CMAKE_COMMAND) -E cmake_echo_color --switch=$(COLOR) --green --progress-dir=/glade/u/home/tvda/CISM/builds/derecho-intel/CMakeFiles --progress-num=$(CMAKE_PROGRESS_124) "Building Fortran object CMakeFiles/glimmercismfortran.dir/fortran_autogen_srcs/glad_io.F90.o"
-	/glade/u/apps/derecho/23.06/spack/opt/spack/ncarcompilers/1.0.0/oneapi/2023.0.0/ec7b/bin/mpi/mpif90 $(Fortran_DEFINES) $(Fortran_INCLUDES) $(Fortran_FLAGS) -c /glade/u/home/tvda/CISM/builds/derecho-intel/fortran_autogen_srcs/glad_io.F90 -o CMakeFiles/glimmercismfortran.dir/fortran_autogen_srcs/glad_io.F90.o
+	/glade/u/apps/derecho/23.09/spack/opt/spack/intel-oneapi-mpi/2021.10.0/oneapi/2023.2.1/ve6v/bin/mpif90 $(Fortran_DEFINES) $(Fortran_INCLUDES) $(Fortran_FLAGS) -c /glade/u/home/tvda/CISM/builds/derecho-intel/fortran_autogen_srcs/glad_io.F90 -o CMakeFiles/glimmercismfortran.dir/fortran_autogen_srcs/glad_io.F90.o
 
 CMakeFiles/glimmercismfortran.dir/fortran_autogen_srcs/glad_io.F90.i: cmake_force
 	@$(CMAKE_COMMAND) -E cmake_echo_color --switch=$(COLOR) --green "Preprocessing Fortran source to CMakeFiles/glimmercismfortran.dir/fortran_autogen_srcs/glad_io.F90.i"
-	/glade/u/apps/derecho/23.06/spack/opt/spack/ncarcompilers/1.0.0/oneapi/2023.0.0/ec7b/bin/mpi/mpif90 $(Fortran_DEFINES) $(Fortran_INCLUDES) $(Fortran_FLAGS) -E /glade/u/home/tvda/CISM/builds/derecho-intel/fortran_autogen_srcs/glad_io.F90 > CMakeFiles/glimmercismfortran.dir/fortran_autogen_srcs/glad_io.F90.i
+	/glade/u/apps/derecho/23.09/spack/opt/spack/intel-oneapi-mpi/2021.10.0/oneapi/2023.2.1/ve6v/bin/mpif90 $(Fortran_DEFINES) $(Fortran_INCLUDES) $(Fortran_FLAGS) -E /glade/u/home/tvda/CISM/builds/derecho-intel/fortran_autogen_srcs/glad_io.F90 > CMakeFiles/glimmercismfortran.dir/fortran_autogen_srcs/glad_io.F90.i
 
 CMakeFiles/glimmercismfortran.dir/fortran_autogen_srcs/glad_io.F90.s: cmake_force
 	@$(CMAKE_COMMAND) -E cmake_echo_color --switch=$(COLOR) --green "Compiling Fortran source to assembly CMakeFiles/glimmercismfortran.dir/fortran_autogen_srcs/glad_io.F90.s"
-	/glade/u/apps/derecho/23.06/spack/opt/spack/ncarcompilers/1.0.0/oneapi/2023.0.0/ec7b/bin/mpi/mpif90 $(Fortran_DEFINES) $(Fortran_INCLUDES) $(Fortran_FLAGS) -S /glade/u/home/tvda/CISM/builds/derecho-intel/fortran_autogen_srcs/glad_io.F90 -o CMakeFiles/glimmercismfortran.dir/fortran_autogen_srcs/glad_io.F90.s
+	/glade/u/apps/derecho/23.09/spack/opt/spack/intel-oneapi-mpi/2021.10.0/oneapi/2023.2.1/ve6v/bin/mpif90 $(Fortran_DEFINES) $(Fortran_INCLUDES) $(Fortran_FLAGS) -S /glade/u/home/tvda/CISM/builds/derecho-intel/fortran_autogen_srcs/glad_io.F90 -o CMakeFiles/glimmercismfortran.dir/fortran_autogen_srcs/glad_io.F90.s
 
 CMakeFiles/glimmercismfortran.dir/fortran_autogen_srcs/glad_mbal_io.F90.o: CMakeFiles/glimmercismfortran.dir/flags.make
 CMakeFiles/glimmercismfortran.dir/fortran_autogen_srcs/glad_mbal_io.F90.o: fortran_autogen_srcs/glad_mbal_io.F90
 	@$(CMAKE_COMMAND) -E cmake_echo_color --switch=$(COLOR) --green --progress-dir=/glade/u/home/tvda/CISM/builds/derecho-intel/CMakeFiles --progress-num=$(CMAKE_PROGRESS_125) "Building Fortran object CMakeFiles/glimmercismfortran.dir/fortran_autogen_srcs/glad_mbal_io.F90.o"
-	/glade/u/apps/derecho/23.06/spack/opt/spack/ncarcompilers/1.0.0/oneapi/2023.0.0/ec7b/bin/mpi/mpif90 $(Fortran_DEFINES) $(Fortran_INCLUDES) $(Fortran_FLAGS) -c /glade/u/home/tvda/CISM/builds/derecho-intel/fortran_autogen_srcs/glad_mbal_io.F90 -o CMakeFiles/glimmercismfortran.dir/fortran_autogen_srcs/glad_mbal_io.F90.o
+	/glade/u/apps/derecho/23.09/spack/opt/spack/intel-oneapi-mpi/2021.10.0/oneapi/2023.2.1/ve6v/bin/mpif90 $(Fortran_DEFINES) $(Fortran_INCLUDES) $(Fortran_FLAGS) -c /glade/u/home/tvda/CISM/builds/derecho-intel/fortran_autogen_srcs/glad_mbal_io.F90 -o CMakeFiles/glimmercismfortran.dir/fortran_autogen_srcs/glad_mbal_io.F90.o
 
 CMakeFiles/glimmercismfortran.dir/fortran_autogen_srcs/glad_mbal_io.F90.i: cmake_force
 	@$(CMAKE_COMMAND) -E cmake_echo_color --switch=$(COLOR) --green "Preprocessing Fortran source to CMakeFiles/glimmercismfortran.dir/fortran_autogen_srcs/glad_mbal_io.F90.i"
-	/glade/u/apps/derecho/23.06/spack/opt/spack/ncarcompilers/1.0.0/oneapi/2023.0.0/ec7b/bin/mpi/mpif90 $(Fortran_DEFINES) $(Fortran_INCLUDES) $(Fortran_FLAGS) -E /glade/u/home/tvda/CISM/builds/derecho-intel/fortran_autogen_srcs/glad_mbal_io.F90 > CMakeFiles/glimmercismfortran.dir/fortran_autogen_srcs/glad_mbal_io.F90.i
+	/glade/u/apps/derecho/23.09/spack/opt/spack/intel-oneapi-mpi/2021.10.0/oneapi/2023.2.1/ve6v/bin/mpif90 $(Fortran_DEFINES) $(Fortran_INCLUDES) $(Fortran_FLAGS) -E /glade/u/home/tvda/CISM/builds/derecho-intel/fortran_autogen_srcs/glad_mbal_io.F90 > CMakeFiles/glimmercismfortran.dir/fortran_autogen_srcs/glad_mbal_io.F90.i
 
 CMakeFiles/glimmercismfortran.dir/fortran_autogen_srcs/glad_mbal_io.F90.s: cmake_force
 	@$(CMAKE_COMMAND) -E cmake_echo_color --switch=$(COLOR) --green "Compiling Fortran source to assembly CMakeFiles/glimmercismfortran.dir/fortran_autogen_srcs/glad_mbal_io.F90.s"
-	/glade/u/apps/derecho/23.06/spack/opt/spack/ncarcompilers/1.0.0/oneapi/2023.0.0/ec7b/bin/mpi/mpif90 $(Fortran_DEFINES) $(Fortran_INCLUDES) $(Fortran_FLAGS) -S /glade/u/home/tvda/CISM/builds/derecho-intel/fortran_autogen_srcs/glad_mbal_io.F90 -o CMakeFiles/glimmercismfortran.dir/fortran_autogen_srcs/glad_mbal_io.F90.s
+	/glade/u/apps/derecho/23.09/spack/opt/spack/intel-oneapi-mpi/2021.10.0/oneapi/2023.2.1/ve6v/bin/mpif90 $(Fortran_DEFINES) $(Fortran_INCLUDES) $(Fortran_FLAGS) -S /glade/u/home/tvda/CISM/builds/derecho-intel/fortran_autogen_srcs/glad_mbal_io.F90 -o CMakeFiles/glimmercismfortran.dir/fortran_autogen_srcs/glad_mbal_io.F90.s
 
 CMakeFiles/glimmercismfortran.dir/fortran_autogen_srcs/glimmer_vers.F90.o: CMakeFiles/glimmercismfortran.dir/flags.make
 CMakeFiles/glimmercismfortran.dir/fortran_autogen_srcs/glimmer_vers.F90.o: fortran_autogen_srcs/glimmer_vers.F90
 	@$(CMAKE_COMMAND) -E cmake_echo_color --switch=$(COLOR) --green --progress-dir=/glade/u/home/tvda/CISM/builds/derecho-intel/CMakeFiles --progress-num=$(CMAKE_PROGRESS_126) "Building Fortran object CMakeFiles/glimmercismfortran.dir/fortran_autogen_srcs/glimmer_vers.F90.o"
-	/glade/u/apps/derecho/23.06/spack/opt/spack/ncarcompilers/1.0.0/oneapi/2023.0.0/ec7b/bin/mpi/mpif90 $(Fortran_DEFINES) $(Fortran_INCLUDES) $(Fortran_FLAGS) -c /glade/u/home/tvda/CISM/builds/derecho-intel/fortran_autogen_srcs/glimmer_vers.F90 -o CMakeFiles/glimmercismfortran.dir/fortran_autogen_srcs/glimmer_vers.F90.o
+	/glade/u/apps/derecho/23.09/spack/opt/spack/intel-oneapi-mpi/2021.10.0/oneapi/2023.2.1/ve6v/bin/mpif90 $(Fortran_DEFINES) $(Fortran_INCLUDES) $(Fortran_FLAGS) -c /glade/u/home/tvda/CISM/builds/derecho-intel/fortran_autogen_srcs/glimmer_vers.F90 -o CMakeFiles/glimmercismfortran.dir/fortran_autogen_srcs/glimmer_vers.F90.o
 
 CMakeFiles/glimmercismfortran.dir/fortran_autogen_srcs/glimmer_vers.F90.i: cmake_force
 	@$(CMAKE_COMMAND) -E cmake_echo_color --switch=$(COLOR) --green "Preprocessing Fortran source to CMakeFiles/glimmercismfortran.dir/fortran_autogen_srcs/glimmer_vers.F90.i"
-	/glade/u/apps/derecho/23.06/spack/opt/spack/ncarcompilers/1.0.0/oneapi/2023.0.0/ec7b/bin/mpi/mpif90 $(Fortran_DEFINES) $(Fortran_INCLUDES) $(Fortran_FLAGS) -E /glade/u/home/tvda/CISM/builds/derecho-intel/fortran_autogen_srcs/glimmer_vers.F90 > CMakeFiles/glimmercismfortran.dir/fortran_autogen_srcs/glimmer_vers.F90.i
+	/glade/u/apps/derecho/23.09/spack/opt/spack/intel-oneapi-mpi/2021.10.0/oneapi/2023.2.1/ve6v/bin/mpif90 $(Fortran_DEFINES) $(Fortran_INCLUDES) $(Fortran_FLAGS) -E /glade/u/home/tvda/CISM/builds/derecho-intel/fortran_autogen_srcs/glimmer_vers.F90 > CMakeFiles/glimmercismfortran.dir/fortran_autogen_srcs/glimmer_vers.F90.i
 
 CMakeFiles/glimmercismfortran.dir/fortran_autogen_srcs/glimmer_vers.F90.s: cmake_force
 	@$(CMAKE_COMMAND) -E cmake_echo_color --switch=$(COLOR) --green "Compiling Fortran source to assembly CMakeFiles/glimmercismfortran.dir/fortran_autogen_srcs/glimmer_vers.F90.s"
-	/glade/u/apps/derecho/23.06/spack/opt/spack/ncarcompilers/1.0.0/oneapi/2023.0.0/ec7b/bin/mpi/mpif90 $(Fortran_DEFINES) $(Fortran_INCLUDES) $(Fortran_FLAGS) -S /glade/u/home/tvda/CISM/builds/derecho-intel/fortran_autogen_srcs/glimmer_vers.F90 -o CMakeFiles/glimmercismfortran.dir/fortran_autogen_srcs/glimmer_vers.F90.s
+	/glade/u/apps/derecho/23.09/spack/opt/spack/intel-oneapi-mpi/2021.10.0/oneapi/2023.2.1/ve6v/bin/mpif90 $(Fortran_DEFINES) $(Fortran_INCLUDES) $(Fortran_FLAGS) -S /glade/u/home/tvda/CISM/builds/derecho-intel/fortran_autogen_srcs/glimmer_vers.F90 -o CMakeFiles/glimmercismfortran.dir/fortran_autogen_srcs/glimmer_vers.F90.s
 
 # Object files for target glimmercismfortran
 glimmercismfortran_OBJECTS = \

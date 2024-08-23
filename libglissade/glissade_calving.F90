@@ -1011,8 +1011,11 @@ contains
        do j = 2, ny-1
           do i = 2, nx-1
              if (calving_front_mask(i,j) == 1 .and. &
-                  thck_calving_front(i,j) > 0.0d0 .and. thck_calving_front(i,j) <= calving%thck_calving_threshold(i,j)) then
-                
+                  thck_calving_front(i,j) > 0.0d0 .and. thck_calving_front(i,j) <= calving%thck_calving_threshold(i,j) &
+                  .and. calving%MICIflag ==0) then
+                !TvdA, I added here a flag to induce MICI like calving. Before, the thckthreshold was only a maximum
+                !however, with MICI, any calvinf front above the limit should not be able to exist, so the opposite 
+
 !!                if (verbose_calving .and. thck(i,j) > 0.0d0) &
 !!                     print*, 'Calve thin floating ice: task, i, j, thck =', this_rank, i, j, thck(i,j)
 
@@ -1022,6 +1025,24 @@ contains
 !!                areafrac = min(thck(i,j)/thck_calving_front(i,j), 1.0d0)
 !!                dthck = areafrac*thinning_rate * dt
                 dthck = thinning_rate * dt
+                
+                
+             elseif (calving_front_mask(i,j) == 1 .and. &
+                  thck_calving_front(i,j) > 0.0d0 .and. thck_calving_front(i,j) >= calving%thck_calving_threshold(i,j) &
+                  .and. calving%MICIflag ==1) then
+                !TvdA, I added here a flag to induce MICI like calving. Before, the thckthreshold was only a maximum
+                !however, with MICI, any calvinf front above the limit should not be able to exist, so the opposite 
+
+!!                if (verbose_calving .and. thck(i,j) > 0.0d0) &
+!!                     print*, 'Calve thin floating ice: task, i, j, thck =', this_rank, i, j, thck(i,j)
+
+                ! calving%timescale has units of s
+                thinning_rate = (calving%thck_calving_threshold(i,j) - thck_calving_front(i,j)) / calving%timescale
+                !WHL - Do not weight by areafrac
+!!                areafrac = min(thck(i,j)/thck_calving_front(i,j), 1.0d0)
+!!                dthck = areafrac*thinning_rate * dt
+                dthck = thinning_rate * dt
+
 
                 !WHL - debug
                 if (verbose_calving .and. i==itest .and. j==jtest .and. this_rank==rtest) then

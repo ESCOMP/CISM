@@ -7,8 +7,8 @@ CMakeFiles/glimmercismfortran.dir/libglimmer/writestats.c.o: \
   /usr/include/sys/cdefs.h /usr/include/bits/wordsize.h \
   /usr/include/bits/long-double.h /usr/include/gnu/stubs.h \
   /usr/include/gnu/stubs-64.h \
-  /glade/u/apps/common/23.04/spack/opt/spack/intel-oneapi-compilers/2023.0.0/compiler/2023.0.0/linux/lib/clang/16.0.0/include/stddef.h \
-  /glade/u/apps/common/23.04/spack/opt/spack/intel-oneapi-compilers/2023.0.0/compiler/2023.0.0/linux/lib/clang/16.0.0/include/stdarg.h \
+  /glade/u/apps/common/23.08/spack/opt/spack/intel-oneapi-compilers/2023.2.1/compiler/2023.2.1/linux/lib/clang/17/include/stddef.h \
+  /glade/u/apps/common/23.08/spack/opt/spack/intel-oneapi-compilers/2023.2.1/compiler/2023.2.1/linux/lib/clang/17/include/stdarg.h \
   /usr/include/bits/types.h /usr/include/bits/timesize.h \
   /usr/include/bits/typesizes.h /usr/include/bits/time64.h \
   /usr/include/bits/types/__fpos_t.h \

@@ -4,11 +4,12 @@
 
 # This cmake configuration script is set up to perform a parallel build with Trilinos
 
-module purge
-module load ncarenv/23.06
-module load intel/2023.0.0
-module load intel-mpi/2021.8.0
-module load mkl/2023.0.0
+module --force purge
+
+module load ncarenv/23.09
+module load intel/2023.2.1
+module load intel-mpi/2021.10.0
+module load mkl
 #module load mpt/2.19
 module load netcdf/4.9.2
 module load ncarcompilers/1.0.0

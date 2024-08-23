@@ -6,7 +6,7 @@ Function:        main
 Args:
   - String:          'Vectorizing horizontal reduction is possible '
   - String:          'but not beneficial with cost '
-  - Cost:            '19'
+  - Cost:            '21'
   - String:          ' and threshold '
   - Threshold:       '0'
 ...
@@ -18,7 +18,7 @@ Function:        main
 Args:
   - String:          'Vectorizing horizontal reduction is possible '
   - String:          'but not beneficial with cost '
-  - Cost:            '10'
+  - Cost:            '13'
   - String:          ' and threshold '
   - Threshold:       '0'
 ...
@@ -30,7 +30,7 @@ Function:        main
 Args:
   - String:          'Vectorizing horizontal reduction is possible '
   - String:          'but not beneficial with cost '
-  - Cost:            '10'
+  - Cost:            '13'
   - String:          ' and threshold '
   - Threshold:       '0'
 ...
@@ -42,7 +42,7 @@ Function:        main
 Args:
   - String:          'Vectorizing horizontal reduction is possible '
   - String:          'but not beneficial with cost '
-  - Cost:            '10'
+  - Cost:            '13'
   - String:          ' and threshold '
   - Threshold:       '0'
 ...
@@ -54,7 +54,7 @@ Function:        main
 Args:
   - String:          'Vectorizing horizontal reduction is possible '
   - String:          'but not beneficial with cost '
-  - Cost:            '10'
+  - Cost:            '13'
   - String:          ' and threshold '
   - Threshold:       '0'
 ...
@@ -66,7 +66,7 @@ Function:        main
 Args:
   - String:          'Vectorizing horizontal reduction is possible '
   - String:          'but not beneficial with cost '
-  - Cost:            '10'
+  - Cost:            '13'
   - String:          ' and threshold '
   - Threshold:       '0'
 ...
