@@ -1588,6 +1588,8 @@ module glide_types
           cf_advance_retreat_period = 0.0d0      !> period (yr) for an advance/retreat cycle
                                                  !> period = 0 => constant amplitude
 
+     real(dp) :: MICIflag = 0                    !> if 1, MICI based calving is turned on
+ 
   end type glide_calving
 
   !++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++

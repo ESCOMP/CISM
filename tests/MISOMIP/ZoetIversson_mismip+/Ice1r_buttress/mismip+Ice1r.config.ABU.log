@@ -1,0 +1,320 @@
+ *******************************************************************************
+ Started logging at 2024-08-13 08:47:37.842
+ *******************************************************************************
+ *******************************************************************************
+   Grid specification
+   ------------------
+    ewn             :          644
+    nsn             :           80
+    upn             :            5
+    EW grid spacing :    1000.00000000000
+    NS grid spacing :    1000.00000000000
+    nx_block        :           8
+    ny_block        :           7
+    Periodic global boundary conditions
+    sigma file      :
+ 
+   Time steps
+   ----------
+    start time (yr)     :   0.000000000000000E+000
+    end time (yr)       :    20040.0100000000
+    time step (yr)      :   1.000000000000000E-002
+    nsteps per year     :          100
+    thermal dt factor   :    1.00000000000000
+    diagnostic interval (years):  1.000000000000000E-002
+ 
+   Dycore options
+   -------------
+    I/O parameter file      :
+    Dycore                  :            2 glissade
+    temperature calculation :            0 isothermal
+    flow law                :            0 uniform factor flwa
+    basal_water             :            0 none
+    marine_margin           :            1 remove all floating ice
+    calving_init            :            0 no calving at initialization
+    calving_domain          :            1 calving in all cells where criterion 
+ is met
+    Icebergs will be removed
+     f_ground_threshold =  0.100000000000000
+    The thickness of marine ice cliffs will not be limited
+    Calving-front cells will not be culled at initialization
+    evolution               :            3 incremental remapping
+    minthck for diagnostics :            1 include cells with H > thklim in glob
+ al diagnostics
+    vertical_integration    :            0 standard
+    basal melt, floating ice:            1 MISMIP+ melt rate profile
+    basal mass balance      :            1 in continuity eqn
+    smb input units         :            0 SMB input in units of m/yr ice
+    smb input function      :            0 SMB input as function of (x,y)
+    artm input function     :            0 artm input as function of (x,y)
+    overwrite_acab          :            0 do not overwrite acab anywhere
+    geothermal heat flux    :            0 uniform geothermal flux
+    isostasy                :            0 no isostasy calculation
+   Restarting model from a previous run
+   Using extended velocity fields for restart
+ 
+   Higher-order options:
+   ----------
+    ho_whichefvs            :            2 nonlinear, from eff strain rate
+    ho_whichdisp            :            1 first-order model (Blatter-Pattyn)
+    ho_whichthermal_timestep:            0 vertical thermal solve before transpo
+ rt
+    ho_whichbabc            :            7 Zoet-Iverson sliding law
+    ho_whichbeta_limit      :            0 absolute beta limit based on beta_gro
+ unded_min
+    ho_powerlaw_c           :            0 spatially uniform friction parameter 
+ Cp
+    ho_coulomb_c            :            0 spatially uniform friction parameter 
+ Cc
+    ho_whichbwat            :            0 zero basal water depth
+    ho_whicheffecpress      :            3 reduced effecpress where bwatflx > 0
+    which_ho_nonlinear      :            1 use Picard iteration with acceleratio
+ n
+    ho_whichresid           :            4 relative L2 norm, |Ax-b|/|b|
+    ho_whichsparse          :            3 Native PCG solver, Chronopoulos-Gear
+    ho_whichapprox          :            4 Depth-integrated viscosity (glissade_
+ velo_higher)
+    ho_whichgradient        :            0 centered gradient (glissade)
+    ho_whichgradient_margin :            2 compute edge gradient when both cells
+  have ice
+    ho_whichvertical_remap  :            0 first-order accurate
+    ho_whichassemble_beta   :            1 use local beta at each vertex (glissa
+ de dycore)
+    ho_whichassemble_taud   :            1 use local driving stress at each vert
+ ex (glissade dycore)
+    ho_whichassemble_bfric  :            1 use local basal friction at each vert
+ ex (glissade dycore)
+    ho_whichassemble_lateral  :            0 standard finite-element assembly (g
+ lissade dycore)
+    ho_whichcalving_front   :            0 no subgrid calving front parameteriza
+ tion
+    ho_whichground          :            1 GLP for basal friction with 0 <= f_gr
+ ound <= 1 for vertices
+    ho_whichground_bmlt     :            1 weigh bmlt_float by floating fraction
+  of cell
+    This setting of which_ho_ground_bmlt requires which_ho_ground =           2
+    Defaulting to which_ho_ground_bmlt =           0
+    ho_whichflotation_function:           2 linear = -b - (rhoi/rhoo)*H
+    ho_whichice_age         :            1 ice age computation on
+    glissade_maxiter        :           50
+    linear_solve_ncheck     :            5
+    linear_maxiters         :          200
+    linear_tolerance        :   1.000000000000000E-008
+    ho_whichprecond         :            1 Diagonal preconditioner (native PCG)
+ 
+   Parameters
+   ----------
+    thickness limit for dynamically active ice (m) :    1.00000000000000
+    Advection will be subcycled when CFL >  0.100000000000000
+    thickness limit for temperature calculations (m) :    1.00000000000000
+    pmp threshold for temperature (K):   1.000000000000000E-003
+    ice density (kg/m^3)          :    918.000000000000
+    ocean density (kg/m^3)        :    1028.00000000000
+    gravitational accel (m/s^2)   :    9.80000000000000
+    heat capacity of ice (J/kg/K) :    2009.00000000000
+    latent heat of ice (J/kg)     :    335000.000000000
+    triple point of water (K)     :    273.160000000000
+    Glen flow law exponent        :    3.00000000000000
+    geothermal flux  (W/m^2)      :  -5.000000000000000E-002
+    flow factor (grounded ice)    :    1.00000000000000
+    flow factor (floating ice)    :    1.00000000000000
+    max surface slope             :    1.00000000000000
+    constant flow factor (Pa^-n yr^-1) :  2.000000000000000E-017
+    min effective strain rate (yr^-1)  :  1.000000000000000E-008
+    Cc for Zoet-Iversion law                     :   0.500000000000000
+    m exponent for Zoet-Iverson law              :    3.00000000000000
+    threshold speed for Zoet-Iverson law (m/yr)  :    200.000000000000
+    max effecpress for Zoet-Iverson law (Pa)     :    100000000.000000
+    min beta, grounded ice (Pa yr/m)             :    10.0000000000000
+    effecpress bwatflx threshold (m/yr) :   1.000000000000000E-002
+    effecpress timescale (yr)     :    500.000000000000
+    effective pressure delta      :   2.000000000000000E-002
+    Apply ocean connection to reduce effective pressure
+    p_ocean_penetration           :    1.00000000000000
+    bmlt_float_omega (yr^-1) :    0.200000000000000
+    bmlt_float_h0 (m)        :     75.0000000000000
+    bmlt_float_z0 (m)        :    -100.000000000000
+    Starting from restart file:mismip+Ice1r.restart.nc
+ *******************************************************************************
+ 
+   CISM 2.0
+   Computing Glide sigma levels
+   Sigma levels:
+   ------------------
+    0.000 0.480 0.741 0.898 1.000
+ 
+ *******************************************************************************
+   opening file mismip+Ice1r.restart.nc for input
+  * WARNING: No map projection found
+ *******************************************************************************
+    Restart: New tstart, tstep_count =   20040.0000000000            40160
+    Reading time slice            5 (   20040.0000000000      ) from file mismip
+ +Ice1r.restart.nc at time    20040.0000000000
+     Loading x1
+     Loading y1
+     Loading acab
+     Loading artm
+     Loading beta
+     Loading bfricflx
+     Loading bheatflx
+     Loading btractx_extend
+     Loading btracty_extend
+     Loading calving_mask
+     Loading dissipstag
+     Loading efvs
+     Loading f_effecpress_bwat
+     Loading f_effecpress_bwatflx
+     Loading f_effecpress_ocean_p
+     Loading ice_age
+     Loading kinbcmask
+     Loading tempstag
+     Loading thk
+     Loading thkmask
+     Loading topg
+     Loading uvel_2d_extend
+     Loading uvel_extend
+     Loading vvel_2d_extend
+     Loading vvel_extend
+  * Global idiag, jdiag:          1     1
+  * Local idiag, jdiag, task:     3     3     0
+   Projection
+   ----------
+   No projection found
+ *******************************************************************************
+    Opening file ABUMIP_output.nc for output;
+      Write output at start of run and every   1.000000000000000E-002  years
+   Creating variables internal_time, time, and tstep_count
+ *******************************************************************************
+    Reopening file mismip+Ice1r.restart.nc for output;
+      Write every    100.000000000000       years
+   Creating variable level
+   Creating variable lithoz
+   Creating variable nlev_smb
+   Creating variable staglevel
+   Creating variable stagwbndlevel
+   Creating variable x0
+   Creating variable x1
+   Creating variable y0
+   Creating variable y1
+   Creating variable zocn
+   Creating variable uvel
+   Creating variable vvel
+   Temperature remapping option uses temperature on a staggered vertical grid.  
+ The netCDF output variable "temp" has been changed to "tempstag".
+   Temperature remapping option uses dissip on a staggered vertical grid.  The n
+ etCDF output variable "dissip" has been changed to "dissipstag".
+   Setting uniform prescribed geothermal flux
+   (Set gthf = 1 to read geothermal flux field from input file)
+   Initializing ice temperature from the restart file
+   Using uvel_extend, vvel_extend from input or restart file at initial time
+   Using uvel_2d_extend, vvel_2d_extend from input or restart file at initial ti
+ me
+   ----------------------------------------------------------
+ 
+  * Diagnostic output, time =  20040.0000000000000000
+ 
+  * Total ice area (km^2)      0.5120000000000000E+05
+  * Grounded ice area (km^2)   0.3629200000000000E+05
+  * Floating ice area (km^2)   0.1490800000000000E+05
+  * Total ice volume (km^3)    0.8653334069997331E+05
+  * Total ice mass (kg)        0.7943760676257550E+17
+  * Mass above flotation (kg)  0.6812583886849167E+17
+  * Total ice energy (J)       0.0000000000000000E+00
+  * Total SMB flux (kg/s)      0.0000000000000000E+00
+  * Total BMB flux (kg/s)      0.0000000000000000E+00
+  * Total calving flux (kg/s)  0.0000000000000000E+00
+  * Total dmass/dt (kg/s)      0.0000000000000000E+00
+  * dmass/dt error (kg/s)      0.0000000000000000E+00
+  * Total gr line flux (kg/s) -0.1424205160483238E+07
+  * Mean thickness (m)          1690.1043105463538723
+  * Mean temperature (C)           0.0000000000000000
+  * Max thickness (m), i, j     6112.0002388936118223     1    71
+  * Max temperature, i, j, k       0.0000000000000000     1     1     0
+  * Min temperature, i, j, k      -5.3586497571020377     1     1     5
+  * Max sfc spd (m/y), i, j     1755.7103525008380984   437    40
+  * Max base spd (m/y), i, j    1755.7103525008380984   437    40
+ 
+  *         Grid point diagnostics: (i,j) =     1     1
+  *         Local (i,j,rank) =                  3     3     0
+ 
+  * Upper surface (m)           6461.7768502217368223
+  * Thickness (m)               6112.0002388936118223
+  * Bedrock topo (m)             349.7766113281250000
+  * Sfc mass balance (m/yr)        0.0000000000000000
+  * Basal mass balance (m/yr)      0.0000000000000000
+  * Basal water depth (m)          0.0000000000000000
+  * Basal heat flux (W/m^2)       -0.0500000000000000
+ 
+  *  Sigma       Ice speed (m/yr)       Ice temperature (C)
+  *  0.000      0.0000000000000000      0.0000000000000000
+  *  0.240                              0.0000000000000000
+  *  0.480      0.0000000000000000
+  *  0.610                              0.0000000000000000
+  *  0.741      0.0000000000000000
+  *  0.819                              0.0000000000000000
+  *  0.898      0.0000000000000000
+  *  0.949                              0.0000000000000000
+  *  1.000      0.0000000000000000     -5.3586497571020377
+ 
+   ----------------------------------------------------------
+ 
+  * Diagnostic output, time =  20040.0099999999983993
+ 
+  * Total ice area (km^2)      0.3629200000000000E+05
+  * Grounded ice area (km^2)   0.3629200000000000E+05
+  * Floating ice area (km^2)   0.0000000000000000E+00
+  * Total ice volume (km^3)    0.8449209060898621E+05
+  * Total ice mass (kg)        0.7756373917904933E+17
+  * Mass above flotation (kg)  0.6812549002585342E+17
+  * Total ice energy (J)       0.0000000000000000E+00
+  * Total SMB flux (kg/s)      0.4478219356030638E+06
+  * Total BMB flux (kg/s)     -0.1746279237003323E+07
+  * Total calving flux (kg/s) -0.5940696670571991E+10
+  * Total dmass/dt (kg/s)     -0.5941995127873386E+10
+  * dmass/dt error (kg/s)      0.4768371582031250E-05
+  * Total gr line flux (kg/s) -0.2326262103841404E+07
+  * Mean thickness (m)          2328.1188859524468171
+  * Mean temperature (C)           0.0000000000000000
+  * Max thickness (m), i, j     6112.0032388937315773     1    71
+  * Max temperature, i, j, k       0.0000000000000000     1     1     0
+  * Min temperature, i, j, k      -5.3587155135915294     1     1     5
+  * Max bmlt (m/y), i, j          76.4553968888198341   431    46
+  * Max bmlt grnd (m/y), i, j      0.0000000000000000     1     1
+  * Max sfc spd (m/y), i, j     2531.2710224980851308   426    34
+  * Max base spd (m/y), i, j    2503.5359444529995017   426    34
+ 
+  *         Grid point diagnostics: (i,j) =     1     1
+  *         Local (i,j,rank) =                  3     3     0
+ 
+  * Upper surface (m)           6461.7798502218574868
+  * Thickness (m)               6112.0032388937315773
+  * Bedrock topo (m)             349.7766113281250000
+  * Sfc mass balance (m/yr)        0.3000000119209290
+  * Basal mass balance (m/yr)      0.0000000000000000
+  * Basal water depth (m)          0.0000000000000000
+  * Basal heat flux (W/m^2)       -0.0500000000000000
+ 
+  *  Sigma       Ice speed (m/yr)       Ice temperature (C)
+  *  0.000      0.0000000000000000      0.0000000000000000
+  *  0.240                              0.0000000000000000
+  *  0.480      0.0000000000000000
+  *  0.610                              0.0000000000000000
+  *  0.741      0.0000000000000000
+  *  0.819                              0.0000000000000000
+  *  0.898      0.0000000000000000
+  *  0.949                              0.0000000000000000
+  *  1.000      0.0000000000000000     -5.3587155135915294
+ 
+ *******************************************************************************
+    Writing to file ABUMIP_output.nc at time    20040.0100000000
+ *******************************************************************************
+   Closing input file mismip+Ice1r.restart.nc
+ *******************************************************************************
+   Closing output file ABUMIP_output.nc
+ *******************************************************************************
+   Closing output file mismip+Ice1r.restart.nc
+   Some Stats
+    Maximum temperature iterations:            0
+ *******************************************************************************
+ Finished logging at 2024-08-13 08:47:38.536
+ *******************************************************************************

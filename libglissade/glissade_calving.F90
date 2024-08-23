@@ -733,8 +733,103 @@ contains
           call point_diag(calving%thck_effective, 'thck_effective (m)', itest, jtest, rtest, 7, 7)
        endif
 
-    else   ! other calving options (no subgrid calving front)
-           !TODO - Put these in a separate subroutine
+       ! Apply thinning in calving-front cells whose effective thickness (H_e = thck_calving_front) is less than
+       !  a prescribed minimum value (Hc_min = thck_calving_threshold).
+       !
+       ! The effective thinning rate is given by
+       !
+       !    dH_e/dt = -(Hc_min - H_e) / tau_c  where Hc_min > H_e
+       !    dH_e/dt = 0 elsewhere
+       !
+       ! where tau_c = calving%timescale.
+       !
+       ! The thinning rate applied to the mean cell thickness (thck) is given by
+       !
+       !    dH/dt = min(H/H_e, 1) * dH_e/dt
+       !
+       ! Thus, any ice with H_e < Hc_min is removed on a time scale given by tau_c.
+
+       if (calving%timescale <= 0.0d0) then
+          write(message,*) 'Must set calving timescale to a positive nonzero value for this calving option'
+          call write_log(message, GM_FATAL)
+       endif
+
+       do j = 2, ny-1
+          do i = 2, nx-1
+             if (calving_front_mask(i,j) == 1 .and. &
+                  thck_calving_front(i,j) > 0.0d0 .and. thck_calving_front(i,j) <= calving%thck_calving_threshold(i,j) &
+                  .and. calving%MICIflag ==0) then
+                !TvdA, I added here a flag to induce MICI like calving. Before, the thckthreshold was only a maximum
+                !however, with MICI, any calvinf front above the limit should not be able to exist, so the opposite 
+
+!!                if (verbose_calving .and. thck(i,j) > 0.0d0) &
+!!                     print*, 'Calve thin floating ice: task, i, j, thck =', this_rank, i, j, thck(i,j)
+
+                ! calving%timescale has units of s
+                thinning_rate = (calving%thck_calving_threshold(i,j) - thck_calving_front(i,j)) / calving%timescale
+                !WHL - Do not weight by areafrac
+!!                areafrac = min(thck(i,j)/thck_calving_front(i,j), 1.0d0)
+!!                dthck = areafrac*thinning_rate * dt
+                dthck = thinning_rate * dt
+                
+                
+             elseif (calving_front_mask(i,j) == 1 .and. &
+                  thck_calving_front(i,j) > 0.0d0 .and. thck_calving_front(i,j) >= calving%thck_calving_threshold(i,j) &
+                  .and. calving%MICIflag ==1) then
+                !TvdA, I added here a flag to induce MICI like calving. Before, the thckthreshold was only a maximum
+                !however, with MICI, any calvinf front above the limit should not be able to exist, so the opposite 
+
+!!                if (verbose_calving .and. thck(i,j) > 0.0d0) &
+!!                     print*, 'Calve thin floating ice: task, i, j, thck =', this_rank, i, j, thck(i,j)
+
+                ! calving%timescale has units of s
+                thinning_rate = (calving%thck_calving_threshold(i,j) - thck_calving_front(i,j)) / calving%timescale
+                !WHL - Do not weight by areafrac
+!!                areafrac = min(thck(i,j)/thck_calving_front(i,j), 1.0d0)
+!!                dthck = areafrac*thinning_rate * dt
+                dthck = thinning_rate * dt
+
+
+                !WHL - debug
+                if (verbose_calving .and. i==itest .and. j==jtest .and. this_rank==rtest) then
+                   print*, ' '
+                   print*, 'Thinning: r, i, j =', rtest, itest, jtest
+                   print*, 'thck:', thck(i,j)
+                   print*, 'thck_calving_front (m) =', thck_calving_front(i,j)
+                   print*, 'thck_calving_threshold (m) =', calving%thck_calving_threshold(i,j)
+                   print*, 'thinning rate (m/yr) =', thinning_rate * scyr
+                   print*, 'dthck (m) =', dthck
+                endif
+
+                if (dthck > thck(i,j)) then
+                   calving%calving_thck(i,j) = calving%calving_thck(i,j) + thck(i,j)
+                   thck(i,j) = 0.0d0
+                else
+                   thck(i,j) = thck(i,j) - dthck
+                   calving%calving_thck(i,j) = calving%calving_thck(i,j) + dthck
+                endif
+
+             endif   ! thck_calving_front < thck_calving_threshold in calving_front cell
+          enddo   ! i
+       enddo   ! j
+
+       !WHL - debug
+       if (verbose_calving .and. this_rank == rtest) then
+
+          print*, ' '
+          print*, 'Did thickness-based calving, task =', this_rank 
+         print*, ' '
+          print*, 'new thck (m), itest, jtest, rank =', itest, jtest, rtest
+          do j = jtest+3, jtest-3, -1
+             write(6,'(i6)',advance='no') j
+             do i = itest-3, itest+3
+                write(6,'(f10.3)',advance='no') thck(i,j)
+             enddo
+             write(6,*) ' '
+          enddo
+       endif  ! verbose
+
+    else   ! other calving options
 
        ! Get masks.
        ! Use thickness limit of 0.0 instead of thklim so as to remove ice from any cell

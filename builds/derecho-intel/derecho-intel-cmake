@@ -8,6 +8,26 @@ source /etc/profile.d/z00_modules.csh
 
 source derecho-intel-modules
 
+# TvdA : the above lines where used in the previous commit. I think they do the same as the lines below. 
+# If errors arise, I would suggest to keep the lines above since we are sourcing the latest derecho-intel-modules
+# which largely contains the lines below here
+# I double checked that and commented out the lines below here for that reason
+
+#module --force purge
+
+#module load ncarenv/23.09
+#module load intel/2023.2.1
+#module load intel-mpi/2021.10.0
+#module load mkl
+#module load mpt/2.19
+#module load netcdf/4.9.2
+#module load ncarcompilers/1.0.0
+#module load pnetcdf/1.11.0
+#module load cmake/3.26.3
+#module load python/2.7.13
+#module load numpy/1.12.0
+#module load netcdf4-python/1.2.7
+
 # remove old build data:
 rm -f ./CMakeCache.txt
 rm -rf ./CMakeFiles

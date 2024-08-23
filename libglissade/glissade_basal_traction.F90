@@ -1171,6 +1171,359 @@ contains
        basal_physics%effecpress = overburden
     endwhere
 
+    select case(which_effecpress)
+
+    case(HO_EFFECPRESS_BWAT_DIFF)
+    !!similar to the one below but added later, a relaxation period to decrease N where there is bwat present
+
+
+
+   if (basal_physics%bwat_timescale > 0.0d0) then
+    do j = 1 , nsn
+     do i = 1, ewn
+       if (thck(i,j)>0.0d0) then
+              basal_physics%f_effecpress_bwat(i,j)=basal_physics%f_effecpress_bwat(i,j)+&
+                                         (basal_physics%f_effecpress_bwat_target(i,j)-basal_physics%f_effecpress_bwat(i,j))&
+                                         *min(dt/basal_physics%bwat_timescale,1.0d0)
+
+
+
+
+
+
+        if (which_effecpress_select == HO_EFFECPRESS_SELECT_NONE) then    
+             basal_physics%effecpress(i,j)=basal_physics%effecpress(i,j)*basal_physics%f_effecpress_bwat(i,j)
+             !limit by a certain user defined percentage of overburden (0.95 - 0.99 usually)
+             if (basal_physics%effecpress(i,j)<((1- basal_physics%Pw_fraction)*overburden(i,j))) then
+                 basal_physics%effecpress(i,j) = (1-basal_physics%Pw_fraction)*overburden(i,j)
+             endif
+        endif
+
+  
+     endif
+    enddo
+   enddo  
+  else
+      basal_physics%effecpress(:,:)=basal_physics%effecpress(:,:)*basal_physics%f_effecpress_bwat(:,:)
+  endif
+          if (verbose_effecpress .and. this_rank == rtest) then
+             print*, ' '
+             print*, 'After bwatflx, effecpress'
+             do j = jtest+3, jtest-3, -1
+                write(6,'(i6)',advance='no') j
+                do i = itest-3, itest+3
+                   if (thck(i,j) > 0.0d0) then
+                      write(6,'(f10.0)',advance='no') basal_physics%effecpress(i,j)
+                   else
+                      write(6,'(f10.5)',advance='no') 0.0d0
+                   endif
+                enddo
+                write(6,*) ' '
+             enddo
+          endif
+
+          if (verbose_effecpress .and. this_rank == rtest) then
+             print*, ' '
+             print*, 'After bwatflx, N/overburden'
+             do j = jtest+3, jtest-3, -1
+                write(6,'(i6)',advance='no') j
+                do i = itest-3, itest+3
+                   if (thck(i,j) > 0.0d0) then
+                      write(6,'(f10.5)',advance='no') basal_physics%effecpress(i,j)/overburden(i,j)
+                   else
+                      write(6,'(f10.5)',advance='no') 0.0d0
+                   endif
+                enddo
+                write(6,*) ' '
+             enddo
+          endif
+
+    
+          if (verbose_effecpress .and. this_rank == rtest) then
+             print*, ' '
+             print*, 'After bwatflx, f_effecpress_bwat, itest, jtest, rank =', itest, jtest, rtest
+             do j = jtest+3, jtest-3, -1
+                write(6,'(i6)',advance='no') j
+                do i = itest-3, itest+3
+                   if (thck(i,j) > 0.0d0) then
+                      write(6,'(f10.5)',advance='no') basal_physics%f_effecpress_bwat(i,j)
+                   else
+                      write(6,'(f10.5)',advance='no') 0.0d0
+                   endif
+                enddo
+                write(6,*) ' '
+             enddo
+          endif
+
+
+          if (verbose_effecpress .and. this_rank == rtest) then
+             print*, ' '
+             print*, 'After bwatflx, f_effecpress_bwat_target, itest, jtest, rank =', itest, jtest, rtest
+             do j = jtest+3, jtest-3, -1
+                write(6,'(i6)',advance='no') j
+                do i = itest-3, itest+3
+                   if (thck(i,j) > 0.0d0) then
+                      write(6,'(f10.5)',advance='no') basal_physics%f_effecpress_bwat_target(i,j)
+                   else
+                      write(6,'(f10.5)',advance='no') 0.0d0
+                   endif
+                enddo
+                write(6,*) ' '
+             enddo
+          endif
+
+
+    case(HO_EFFECPRESS_BWATFLX)
+    !!include an extra relaxation step similar to the p_ocean_penetration. This should not be needed, as f_bwatflx is already 
+    !!relaxed in its original differential equation, ocean_p not, but since including bwatflx dependcy, we get quite some CFL-errors
+    !!Therefore, add another relaxation step
+
+
+
+
+    !!Limit the effective pressure to 0.04 percentage of the overburden pressure, when using bwatflx
+    !! this is suggested in Kaczmiercak et al (2022) - Tim
+!   print*,'TvdA speed tracer: calling a slow algorithm here'
+   if (basal_physics%bwatflx_timescale > 0.d0) then
+
+          if (verbose_effecpress .and. this_rank == rtest) then
+             print*, ' '
+             print*, 'effecpress voor bwatflx, itest, jtest, rank =', itest, jtest, rtest
+             do j = jtest+3, jtest-3, -1
+                write(6,'(i6)',advance='no') j
+                do i = itest-3, itest+3
+                   write(6,'(f10.0)',advance='no') basal_physics%effecpress(i,j)
+                enddo
+                write(6,*) ' '
+             enddo
+          endif
+
+    do j = 1 , nsn
+     do i = 1, ewn
+       if (thck(i,j)>0.0d0) then
+          !same procedure as the ocean p: parameter = parameter + (target - parameter)*min(dt/tau,1)
+          !f_effecpress_bwatflx is the one that the effective pressure is multiplied with, so the parameter in the equation
+          !f_effecpress_bwat is the one that is changing in the case(HO_BWATFLX), so this is the target (that can change every timestep)
+              basal_physics%f_effecpress_bwatflx(i,j)=basal_physics%f_effecpress_bwatflx(i,j)+&
+                                         (basal_physics%f_effecpress_bwat(i,j)-basal_physics%f_effecpress_bwatflx(i,j))&
+                                         *min(dt/basal_physics%bwatflx_timescale,1.0d0)
+             
+
+
+          if (which_effecpress_select == HO_EFFECPRESS_SELECT_NONE) then
+              basal_physics%effecpress(i,j)=basal_physics%effecpress(i,j)*basal_physics%f_effecpress_bwatflx(i,j)
+          endif
+
+          else !there is no timescale, simply multiply the effective pressure with the factor from case(HO_BWATFLX)
+              basal_physics%effecpress(i,j)=basal_physics%effecpress(i,j)*basal_physics%f_effecpress_bwat(i,j)
+
+
+         !limit by a certain user defined percentage of overburden (0.95 - 0.99 usually)
+
+
+          if (which_effecpress_select == HO_EFFECPRESS_SELECT_NONE) then
+              basal_physics%effecpress(i,j)=basal_physics%effecpress(i,j)*basal_physics%f_effecpress_bwatflx(i,j)
+              if (basal_physics%effecpress(i,j)<((1- basal_physics%Pw_fraction)*overburden(i,j))) then
+                  basal_physics%effecpress(i,j) = (1-basal_physics%Pw_fraction)*overburden(i,j)
+              endif
+          endif
+
+  
+     endif
+    enddo
+   enddo  
+
+
+          if (verbose_effecpress .and. this_rank == rtest) then
+             print*, ' '
+             print*, 'effecpress na bwatflx, itest, jtest, rank =', itest, jtest, rtest
+             do j = jtest+3, jtest-3, -1
+                write(6,'(i6)',advance='no') j
+                do i = itest-3, itest+3
+                   write(6,'(f10.0)',advance='no') basal_physics%effecpress(i,j)
+                enddo
+                write(6,*) ' '
+             enddo
+         endif
+  else !there is no timescale, simply multiply the effective pressure with the factor from case(HO_BWATFLX)
+     basal_physics%effecpress(:,:)=basal_physics%effecpress(:,:)*basal_physics%f_effecpress_bwat(:,:)
+  endif
+      !!diagnostics
+
+
+          if (verbose_effecpress .and. this_rank == rtest) then
+             print*, ' '
+             print*, 'After bwatflx, effecpress'
+             do j = jtest+3, jtest-3, -1
+                write(6,'(i6)',advance='no') j
+                do i = itest-3, itest+3
+                   if (thck(i,j) > 0.0d0) then
+                      write(6,'(f10.0)',advance='no') basal_physics%effecpress(i,j)
+                   else
+                      write(6,'(f10.5)',advance='no') 0.0d0
+                   endif
+                enddo
+                write(6,*) ' '
+             enddo
+          endif
+
+          if (verbose_effecpress .and. this_rank == rtest) then
+             print*, ' '
+             print*, 'After bwatflx, N/overburden'
+             do j = jtest+3, jtest-3, -1
+                write(6,'(i6)',advance='no') j
+                do i = itest-3, itest+3
+                   if (thck(i,j) > 0.0d0) then
+                      write(6,'(f10.5)',advance='no') basal_physics%effecpress(i,j)/overburden(i,j)
+                   else
+                      write(6,'(f10.5)',advance='no') 0.0d0
+                   endif
+                enddo
+                write(6,*) ' '
+             enddo
+          endif
+
+    
+          if (verbose_effecpress .and. this_rank == rtest) then
+             print*, ' '
+             print*, 'After bwatflx, f_effecpress_bwat, itest, jtest, rank =', itest, jtest, rtest
+             do j = jtest+3, jtest-3, -1
+                write(6,'(i6)',advance='no') j
+                do i = itest-3, itest+3
+                   if (thck(i,j) > 0.0d0) then
+                      write(6,'(f10.5)',advance='no') basal_physics%f_effecpress_bwat(i,j)
+                   else
+                      write(6,'(f10.5)',advance='no') 0.0d0
+                   endif
+                enddo
+                write(6,*) ' '
+             enddo
+          endif
+
+
+          if (verbose_effecpress .and. this_rank == rtest) then
+             print*, ' '
+             print*, 'After bwatflx, f_effecpress_bwatflx, itest, jtest, rank =', itest, jtest, rtest
+             do j = jtest+3, jtest-3, -1
+                write(6,'(i6)',advance='no') j
+                do i = itest-3, itest+3
+                   if (thck(i,j) > 0.0d0) then
+                      write(6,'(f10.5)',advance='no') basal_physics%f_effecpress_bwatflx(i,j)
+                   else
+                      write(6,'(f10.5)',advance='no') 0.0d0
+                   endif
+                enddo
+                write(6,*) ' '
+             enddo
+          endif
+
+    end select
+
+!!Add a loop that, if selected in the config file, selects the minimum between either f_bwat or f_ocean connection
+if (which_effecpress_select == HO_EFFECPRESS_SELECT_MIN)  then !select the minimum
+   if ((which_effecpress == HO_EFFECPRESS_BWAT) .or. &
+      (which_effecpress == HO_EFFECPRESS_BWAT_DIFF)) then !!use the f_effecpress_bwat
+       print*,'TvdA speed tracer: we are calling a very slow basal water flux scheme loop'
+       do j = 1, nsn
+         do i = 1,ewn
+           if (thck(i,j) > 0.0d0) then
+              basal_physics%effecpress(i,j)=overburden(i,j)*min(basal_physics%f_effecpress_bwat(i,j),&
+                                                                basal_physics%f_effecpress_ocean_p(i,j))
+
+              if (basal_physics%effecpress(i,j)<((1- basal_physics%Pw_fraction)*overburden(i,j))) then
+                  basal_physics%effecpress(i,j) = (1-basal_physics%Pw_fraction)*overburden(i,j)
+              endif
+           endif
+         enddo
+      enddo
+
+   else if (which_effecpress == HO_EFFECPRESS_BWATFLX) then !!use f_effecpress_bwatflx
+
+      do j = 1, nsn
+         do i = 1,ewn
+           if (thck(i,j) > 0.0d0) then
+              basal_physics%effecpress(i,j)=overburden(i,j)*min(basal_physics%f_effecpress_bwatflx(i,j), &
+                                                                basal_physics%f_effecpress_ocean_p(i,j))
+
+              if (basal_physics%effecpress(i,j)<((1- basal_physics%Pw_fraction)*overburden(i,j))) then
+                  basal_physics%effecpress(i,j) = (1-basal_physics%Pw_fraction)*overburden(i,j)
+              endif
+           endif
+         enddo
+      enddo
+
+
+   endif
+
+
+          if (verbose_effecpress .and. this_rank == rtest) then
+             print*, ' '
+             print*, 'N-minimization, f_effecpress_bwat, itest, jtest, rank =', itest, jtest, rtest
+             do j = jtest+3, jtest-3, -1
+                write(6,'(i6)',advance='no') j
+                do i = itest-3, itest+3
+                   if (thck(i,j) > 0.0d0) then
+                      write(6,'(f10.5)',advance='no') basal_physics%f_effecpress_bwat(i,j)
+                   else
+                      write(6,'(f10.5)',advance='no') 0.0d0
+                   endif
+                enddo
+                write(6,*) ' '
+             enddo
+          endif
+
+
+          if (verbose_effecpress .and. this_rank == rtest) then
+             print*, ' '
+             print*, 'N-minimization, f_effecpress_bwatflx, itest, jtest, rank =', itest, jtest, rtest
+             do j = jtest+3, jtest-3, -1
+                write(6,'(i6)',advance='no') j
+                do i = itest-3, itest+3
+                   if (thck(i,j) > 0.0d0) then
+                      write(6,'(f10.5)',advance='no') basal_physics%f_effecpress_bwatflx(i,j)
+                   else
+                      write(6,'(f10.5)',advance='no') 0.0d0
+                   endif
+                enddo
+                write(6,*) ' '
+             enddo
+          endif
+
+
+          if (verbose_effecpress .and. this_rank == rtest) then
+             print*, ' '
+             print*, 'N-minimization, f_effecpress_ocean_p, itest, jtest, rank =', itest, jtest, rtest
+             do j = jtest+3, jtest-3, -1
+                write(6,'(i6)',advance='no') j
+                do i = itest-3, itest+3
+                   if (thck(i,j) > 0.0d0) then
+                      write(6,'(f10.5)',advance='no') basal_physics%f_effecpress_ocean_p(i,j)
+                   else
+                      write(6,'(f10.5)',advance='no') 0.0d0
+                   endif
+                enddo
+                write(6,*) ' '
+             enddo
+          endif
+
+
+          if (verbose_effecpress .and. this_rank == rtest) then
+             print*, ' '
+             print*, 'After the minimization, N/overburden'
+             do j = jtest+3, jtest-3, -1
+                write(6,'(i6)',advance='no') j
+                do i = itest-3, itest+3
+                   if (thck(i,j) > 0.0d0) then
+                      write(6,'(f10.5)',advance='no') basal_physics%effecpress(i,j)/overburden(i,j)
+                   else
+                      write(6,'(f10.5)',advance='no') 0.0d0
+                   endif
+                enddo
+                write(6,*) ' '
+             enddo
+          endif
+endif
+
     ! Halo update before staggering
     call parallel_halo(basal_physics%effecpress, parallel)
 
