@@ -171,6 +171,7 @@ contains
 
     ! Case added by Jesse Johnson 11/15/08
     ! Steady state routing of basal water using flux calculation
+    ! This code was a starting point for Glissade's steady-state flux-routing scheme
 
     case(BWATER_FLUX)
 

@@ -50,13 +50,14 @@
   use glimmer_paramets, only : vel0, tau0
   use glimmer_log
   use glide_types
+  use glide_diagnostics, only: point_diag
   use cism_parallel, only : this_rank, main_task, parallel_type, &
        parallel_halo, staggered_parallel_halo, parallel_globalindex, distributed_scatter_var
 
   implicit none
 
   private
-  public :: calcbeta, calc_effective_pressure, glissade_init_effective_pressure, &
+  public :: calcbeta, glissade_init_effecpress, glissade_calc_effecpress, &
        set_coulomb_c_elevation
 
 !***********************************************************************
@@ -720,7 +721,7 @@ contains
 
 !***********************************************************************
 
-  subroutine glissade_init_effective_pressure(which_effecpress, basal_physics)
+  subroutine glissade_init_effecpress(which_effecpress, basal_physics)
 
     ! Initialize calculations related to effective pressure.
     ! Currently, the only thing to do is initialize two scalar arrays that represent
@@ -748,23 +749,6 @@ contains
 
     character(len=100) :: message
 
-    if (which_effecpress == HO_EFFECPRESS_BWATFLX) then
-       ! Check to see if f_effecpress_bwat has been read from the input file.
-       local_maxval = maxval(basal_physics%f_effecpress_bwat)
-       global_maxval = parallel_reduce_max(local_maxval)
-       if (global_maxval >= eps11) then
-          ! Do nothing; keep the values read from the input or restart file
-          write(message,*) 'f_effecpress_bwat was read from the input/restart file'
-          call write_log(trim(message))
-       else
-          ! initialize to 1.0
-          ! This means that effecpress will initially not be reduced based on bwat.
-          write(message,*) 'Setting f_effecpress_bwat = 1.0 everywhere'
-          call write_log(trim(message))
-          basal_physics%f_effecpress_bwat(:,:) = 1.0d0
-       endif
-    endif
-
     if (basal_physics%ocean_p_timescale > 0.0d0) then
        ! Check to see if f_effecpress_ocean_p has been read from the input file.
        local_maxval = maxval(basal_physics%f_effecpress_ocean_p)
@@ -782,31 +766,36 @@ contains
        endif
     endif
 
-  end subroutine glissade_init_effective_pressure
+  end subroutine glissade_init_effecpress
 
 !***********************************************************************
 
-  subroutine calc_effective_pressure (which_effecpress,             &
-                                      parallel,                     &
-                                      ewn,           nsn,           &
-                                      basal_physics, basal_hydro,   &
-                                      ice_mask,      floating_mask, &
-                                      thck,          topg,          &
-                                      eus,                          &
-                                      delta_bpmp,                   &
-                                      bwat,          bwatflx,       &
-                                      dt,                           &
-                                      itest, jtest,  rtest)
+  subroutine glissade_calc_effecpress (&
+       which_effecpress,             &
+       parallel,                     &
+       itest, jtest,  rtest,         &
+       ewn,   nsn,    upn,           &
+       dew,   dns,                   &  ! m
+       basal_physics, basal_hydro,   &
+       ice_mask,      floating_mask, &
+       thck,          topg,          &  ! m
+       eus,                          &  ! m
+       bmlt_ground,                  &  ! m/s
+       uvel,          vvel,          &  ! m/s
+       delta_bpmp,                   &  ! degC
+       dt)                              ! yr (TODO: change to s)
 
     ! Calculate the effective pressure N at the bed.
     ! By default, N is equal to the overburden pressure, rhoi*g*H.
     ! Optionally, N can be reduced by the presence of water at the bed
-    !  (btemp near bpmp, or nonzero bwat or bwatflx).
-    ! N can also be reduced where there is a hydrological connection to the ocean,
-    !  through weighting by (1 - Hf/H)^p (where Hf is the flotation thickness).
+    !  (btemp near bpmp, or nonzero bwat_diag).
+    ! N can also be reduced where there is a hydrological connection to the ocean.
+    ! If there is water at the bed as well as a hydrology connection, we compute N
+    !  by both methods and take the minimum.
 
-    use glimmer_physcon, only: rhoi, grav, rhoo
-    use glissade_grid_operators, only: glissade_stagger
+    use glimmer_physcon, only: rhoi, rhow, rhoo, grav, lhci, n_glen
+    use glimmer_paramets, only: eps08
+    use glissade_grid_operators, only: glissade_stagger, glissade_unstagger
 
     implicit none
 
@@ -819,7 +808,12 @@ contains
          parallel            ! info for parallel communication
 
     integer, intent(in) :: &
-         ewn, nsn            ! grid dimensions
+         ewn, nsn, upn       ! grid dimensions
+
+    real(dp), intent(in) :: &
+         dew, dns            ! grid cell length (m)
+
+    integer, intent(in), optional :: itest, jtest, rtest     ! coordinates of diagnostic point
 
     type(glide_basal_physics), intent(inout) :: &
          basal_physics       ! basal physics object
@@ -827,39 +821,48 @@ contains
 
     type(glide_basal_hydro), intent(inout) :: &
          basal_hydro         ! basal hydro object
-                             ! includes bwat and various parameters
+                             ! includes bwat, bwat_diag, and various parameters
 
     integer, dimension(:,:), intent(in) :: &
          ice_mask,         & ! = 1 where ice is present (thk > thklim), else = 0
          floating_mask       ! = 1 where ice is present and floating, else = 0
  
-    !NOTE: If used, the following 2D fields (delta_bpmp, bwat, bwatflx, thck and topg) need to be correct in halos.
-
+    !NOTE: If used, the following 2D fields (delta_bpmp, bwat, thck and topg) need to be correct in halos.
     real(dp), dimension(:,:), intent(in) ::  &
          thck,             & ! ice thickness (m)
-         topg                ! bed topography (m)
+         topg,             & ! bed topography (m)
+         bmlt_ground         ! melt rate at the bed for grounded ice (m/s)
 
     real(dp), intent(in) ::  &
          eus                 ! eustatic sea level (m) relative to z = 0
 
+    real(dp), dimension(:,:,:), intent(in) ::  &
+         uvel, vvel          ! ice velocity (m/s)
+
     real(dp), dimension(:,:), intent(in), optional ::  &
-         delta_bpmp,       & ! Tpmp - T at the bed (K), used for HO_EFFECPRESS_BPMP option
-         bwat,             & ! basal water thickness (m), used for HO_EFFECPRESS_BWAT option
-         bwatflx             ! basal water flux at the bed (m/yr), used for HO_EFFECPRESS_BWATFLX option
+         delta_bpmp          ! Tpmp - T at the bed (K), used for HO_EFFECPRESS_BPMP option
 
     real(dp), intent(in), optional :: dt                     ! time step (yr)
-
-    integer, intent(in), optional :: itest, jtest, rtest     ! coordinates of diagnostic point
 
     ! Local variables
 
     real(dp) :: &
-         bpmp_factor,     &  ! factor between 0 and 1, used in linear ramp based on bpmp
-         relative_bwat,   &  ! ratio bwat/bwat_threshold, limited to range [0,1]
-         df_dt               ! rate of change of f_effecpress_bwat
+         bpmp_factor,           & ! factor between 0 and 1, used in linear ramp based on bpmp
+         relative_bwat,         & ! ratio (bwat/bwat_threshold)^gamma, limited to range [0,1]
+         denom                    ! denominator in equation for N; based on the closing term (m/s)
+
+    real(dp), dimension(ewn-1,nsn-1) ::  &
+         stag_sliding_speed       ! basal sliding speed (m/s) at vertices
+
+    real(dp), dimension(ewn,nsn) ::  &
+         sliding_speed,         & ! basal sliding speed (m/s) at cell centers
+         opening_slide,         & ! rate of cavity opening by sliding (m/s)
+         opening_melt,          & ! rate of cavity opening by melt (m/s)
+         closing                  ! rate of cavity opening by creep (m/s)
 
     real(dp), dimension(ewn,nsn) ::  &
          overburden,            & ! overburden pressure, rhoi*g*H
+         N_to_overburden,       & ! ratio N/(rhoi*g*H)
          f_pattyn_2d,           & ! rhoo*(eus-topg)/(rhoi*thck)
                                   ! = 1 at grounding line, < 1 for grounded ice, > 1 for floating ice
          f_ocean_p_target         ! target value for (1 - Hf/H)^p
@@ -871,10 +874,16 @@ contains
 
     integer :: i, j
 
-    logical, parameter :: verbose_effecpress = .false.
-!!    logical, parameter :: verbose_effecpress = .true.
+!!    logical, parameter :: verbose_effecpress = .false.
+    logical, parameter :: verbose_effecpress = .true.
 
-    ! Initialize the effective pressure N to the overburden pressure, rhoi*g*H
+    ! Compute the overburden pressure, and initialize the effective pressure to overburden.
+
+!!    overburden(:,:) = 0.0d0
+
+!!    where (ice_mask == 1 .and. floating_mask == 0)
+!!       overburden = rhoi*grav*thck
+!!    endwhere
 
     overburden(:,:) = rhoi*grav*thck(:,:)
     basal_physics%effecpress(:,:) = overburden(:,:)
@@ -905,14 +914,9 @@ contains
           do j = 1, nsn
              do i = 1, ewn
 
-                bpmp_factor = max(0.0d0, min(1.0d0, delta_bpmp(i,j)/basal_physics%effecpress_bpmp_threshold))
-                basal_physics%effecpress(i,j) = basal_physics%effecpress(i,j) * &
-                     (basal_physics%effecpress_delta + bpmp_factor * (1.0d0 - basal_physics%effecpress_delta))
-
-                !TODO - not sure this is needed, because of weighting by f_ground
-                ! set to zero for floating ice
-                if (floating_mask(i,j) == 1) basal_physics%effecpress(i,j) = 0.0d0
-
+                bpmp_factor = max(0.0d0, min(1.0d0, delta_bpmp(i,j)/basal_hydro%bpmp_threshold))
+                basal_physics%effecpress(i,j) = overburden(i,j) * &
+                     (basal_hydro%effecpress_delta + bpmp_factor * (1.0d0 - basal_hydro%effecpress_delta))
              enddo
           enddo
 
@@ -920,140 +924,160 @@ contains
 
     case(HO_EFFECPRESS_BWAT)
 
-       if (present(bwat)) then
+       ! Reduce N where basal water is present.
+       ! This option uses the field bwat_diag, computed in the steady-state flux-routing model.
+       ! N decreases from overburden for bwat_diag = 0 to a small value (possibly 0) for bwat_diag = bwat_threshold.
+       !
+       ! Note: This option supports a macroporous sheet formulation, defined by
+       !           p_w = overburden * min((bwat/bwat_threshold)**gamma, 1.0)
+       !             N = p_i - p_w
+       !               = overburden * [1 - min((bwat/bwat_threshold)**gamma, 1.0)]
+       !       Flowers & Clarke (2002) proposed this formulation with gamma = 7/2.
+       !       For this formulation we would set gamma > 1 and effecpress_delta = 0.
 
-          ! Reduce N where basal water is present.
-          ! N decreases from overburden for bwat = 0 to a small value for bwat = effecpress_bwat_threshold.
+       do j = 1, nsn
+          do i = 1, ewn
+             if (basal_hydro%bwat_diag(i,j) > 0.0d0) then
 
-          do j = 1, nsn
-             do i = 1, ewn
-                if (bwat(i,j) > 0.0d0) then
+                relative_bwat = &
+                     min( (basal_hydro%bwat_diag(i,j)/basal_hydro%bwat_threshold)**basal_hydro%bwat_gamma, 1.0d0 )
 
-                   relative_bwat = max(0.0d0, min(bwat(i,j)/basal_physics%effecpress_bwat_threshold, 1.0d0))
+                basal_physics%effecpress(i,j) = overburden(i,j) * &
+                     (basal_hydro%effecpress_delta + (1.0d0 - relative_bwat) * (1.0d0 - basal_hydro%effecpress_delta))
 
-                   basal_physics%effecpress(i,j) = basal_physics%effecpress(i,j) * &
-                        (basal_physics%effecpress_delta + &
-                        (1.0d0 - relative_bwat) * (1.0d0 - basal_physics%effecpress_delta))
-
-                end if
-             enddo
+             endif
           enddo
+       enddo
 
-       endif   ! present(bwat)
+    case(HO_EFFECPRESS_CAVITY_SHEET)
 
-       !TODO - Not needed?
-       where (floating_mask == 1)
-          ! set to zero for floating ice
-          basal_physics%effecpress = 0.0d0
-       end where
+       ! Solve the steady-state equation v_o + V_o = v_c, i.e. opening = closing,
+       ! where v_o = u_b * max(bump_height - bwat, 0) / bump_wavelength is the term for opening due to sliding,
+       !       V_o = m = bmlt_ground + (qflx*grad(phi))/(rhoi*L) is the term for opening by melting,
+       !       v_c = C_close * A * bwat * N^n is the closing term,
+       !       u_b = sliding speed
+       !       bump_wavelength = distance between bumps
+       !       bmlt_ground = basal ice melting from glissade_therm
+       !       qflx = bwatflx*dx (since qflx has units of m^2/s, and bwatflx has units of m/s)
+       !       C_closing = unitless constant, typically taken as 2/(n^n)
+       !       A = flwa_basal
+       !       n = Glen's n
+       !
+       ! Since N appears only in the closing term, we can solve using
+       !       N = [(v_o + V_o) / (C_close * A * bwat)]^(1/n)
 
-    case(HO_EFFECPRESS_BWATFLX)
+       ! ice speed at the bed (m/s) for the opening-by-sliding term
 
-       ! Reduce N where there the flux of basal water at the bed exceeds a threshold value.
-       ! Note: The units of bwatflx are volume per unit area per unit time, i.e. m/yr.
-       !       This is the rate at which bwat would increase if there were inflow but no outflow.
-       ! Note: The relaxation scale is babc_timescale, the same as for coulomb_c or powerlaw_c.
+       ! initialize
+       sliding_speed = 0.0d0
+       opening_slide = 0.0d0
+       opening_melt = 0.0d0
+       closing = 0.0d0
 
-       if (present(bwatflx)) then
+       ! set the sliding speed
+       if (basal_hydro%cavity_open_slide == CAVITY_OPEN_SLIDE_FIXED_UB) then
+          where (ice_mask == 1)
+             sliding_speed = basal_hydro%sliding_speed_fixed  ! m/s
+          endwhere
+       elseif (basal_hydro%cavity_open_slide == CAVITY_OPEN_SLIDE_DYNAMIC_UB) then
+          stag_sliding_speed(:,:) = dsqrt(uvel(upn,:,:)**2 + vvel(upn,:,:)**2)
+          call glissade_unstagger(&
+               nsn,                ewn,    &
+               stag_sliding_speed, sliding_speed)
+          where (ice_mask == 0)
+             sliding_speed = 0.0d0
+          endwhere
+       endif
 
-          ! Prognose a scalar f_effecpress_bwat = effecpress/overburden:
-          !          df/dt = [1 - f*(F/F0)] / tau
-          !          where f = f_effecpress_bwat, F = bwatflx, F0 = effecpress_bwatflx_threshold,
-          !              tau = effecpress_timescale
-          ! The steady-state f < 1 when F > F0.
-          ! As f decreases, the marginal effect of additional flux also decreases.
+       ! opening-by-melting term (m/s)
+       ! Note: bwatflx has units of m/s
 
-          do j = 1, nsn
-             do i = 1, ewn
-                if (bwatflx(i,j) > 0.0d0) then
+       if (basal_hydro%cavity_open_melt == CAVITY_OPEN_MELT_BMLT) then
+          where (ice_mask == 1)
+             opening_melt(:,:) = bmlt_ground(:,:)
+          endwhere
+       elseif (basal_hydro%cavity_open_melt == CAVITY_OPEN_MELT_DISSIP) then
+          ! Note: bwatflx has units of m/s; qflx (which appears in this equation) has units of m^2/s
+          where (ice_mask == 1)
+             opening_melt(:,:) = basal_hydro%bwatflx(:,:)*sqrt(dew*dns) * rhow*grav*basal_hydro%grad_head(:,:)/(rhoi*lhci)
+          endwhere
+       elseif (basal_hydro%cavity_open_melt == CAVITY_OPEN_MELT_BMLT_DISSIP) then
+          where (ice_mask == 1)
+             opening_melt(:,:) = bmlt_ground(:,:) &
+                  + basal_hydro%bwatflx(:,:)*sqrt(dew*dns) * rhow*grav*basal_hydro%grad_head(:,:) / (rhoi*lhci)
+          endwhere
+       endif
 
-                   df_dt = ( 1.0d0 - basal_physics%f_effecpress_bwat(i,j) * &
-                        (bwatflx(i,j)/basal_physics%effecpress_bwatflx_threshold) ) / &
-                        basal_physics%effecpress_timescale
-                   basal_physics%f_effecpress_bwat(i,j) = basal_physics%f_effecpress_bwat(i,j) + df_dt * dt
+       ! Compute effective pressure by equating the opening rate to the closing rate
+       ! Note: flwa_basal has units of Pa^{-3} s^{-1}
+       !       c_close is unitless with a default value of 0.074
 
-                   ! Limit to be in the range [effecpress_delta, 1.0)
-                   basal_physics%f_effecpress_bwat(i,j) = min(basal_physics%f_effecpress_bwat(i,j), 1.0d0)
-                   basal_physics%f_effecpress_bwat(i,j) = &
-                        max(basal_physics%f_effecpress_bwat(i,j), basal_physics%effecpress_delta)
+       do j = 1, nsn
+          do i = 1, ewn
+             if (ice_mask(i,j) == 1 .and. basal_hydro%bwat_diag(i,j) > 0.0d0) then
 
-                   ! Compute the effective pressure relative to overburden
-                   basal_physics%effecpress(i,j) = basal_physics%f_effecpress_bwat(i,j) * overburden(i,j)
+                ! Compute the rate of opening by sliding (m/s)
+                relative_bwat = max(basal_hydro%bump_height - basal_hydro%bwat_diag(i,j), 0.0d0) / &
+                     basal_hydro%bump_wavelength
+                opening_slide(i,j) = relative_bwat * sliding_speed(i,j)  ! m/s
 
-                end if
-             enddo
-          enddo
+                denom = basal_hydro%c_close * basal_hydro%flwa_basal * basal_hydro%bwat_diag(i,j)
 
-          if (verbose_effecpress .and. this_rank == rtest) then
-             print*, ' '
-             print*, 'After bwatflx, f_effecpress_bwat, itest, jtest, rank =', itest, jtest, rtest
-             do j = jtest+3, jtest-3, -1
-                write(6,'(i6)',advance='no') j
-                do i = itest-3, itest+3
-                   if (thck(i,j) > 0.0d0) then
-                      write(6,'(f10.5)',advance='no') basal_physics%f_effecpress_bwat(i,j)
-                   else
-                      write(6,'(f10.5)',advance='no') 0.0d0
-                   endif
-                enddo
-                write(6,*) ' '
-             enddo
-          endif
+                basal_physics%effecpress(i,j) = ((opening_slide(i,j) + opening_melt(i,j))/denom)**(1.d0/n_glen)
 
-       endif   ! present(bwatflx)
+                !TODO - Check whether N > overburden at this stage
+                ! limit so as not to exceed overburden
+                basal_physics%effecpress(i,j) = min(basal_physics%effecpress(i,j), overburden(i,j))
 
-       !TODO - Modify for deluxe GLP?
-       !TODO - Not sure this is needed, because beta is later weighted by f_ground.
-!       where (floating_mask == 1)
-!          ! set to zero for floating ice
-!          basal_physics%effecpress = 0.0d0
-!       end where
+                closing(i,j) = denom * basal_physics%effecpress(i,j)**n_glen  ! should equal opening_slide + opening_melt
+
+             endif   ! bwat > 0
+          enddo   ! i
+       enddo   ! j
+
+       ! Write diagnostics for the three terms
+       call point_diag(opening_slide*scyr, 'opening_slide (m/yr)', itest, jtest, rtest, 7, 7)
+       call point_diag(opening_melt*scyr, 'opening_melt (m/yr)', itest, jtest, rtest, 7, 7)
+       call point_diag(closing*scyr, 'closing (m/yr)', itest, jtest, rtest, 7, 7)
 
     case(HO_EFFECPRESS_BWAT_BVP)
 
-       if (present(bwat)) then
+       ! Reduce N where basal water is present, following Bueler % van Pelt (2015).
+       ! N decreases from overburden P_0 for bwat = 0 to a small value for bwat = bwat_till_max.
+       ! This scheme was used for Greenland simulations in Lipscomb et al. (2019, GMD)
+       !  and is retained for backward compatibility.
+       ! Note: Instead of using a linear ramp for the variation between overburden and the small value
+       !       (as for the BPMP and BWAT options above), we use the published formulation of Bueler & van Pelt (2015).
+       !       This formulation has N = P_0 for bwat up to ~0.6*bwat_till_max; then N decreases
+       !        as bwat => bwat_till_max.
+       !       See Fig. 1b of Bueler & van Pelt (2015).
 
-          ! Reduce N where basal water is present, following Bueler % van Pelt (2015).
-          ! N decreases from overburden P_0 for bwat = 0 to a small value for bwat = effecpress_bwat_threshold.
-          ! This scheme was used for Greenland simulations in Lipscomb et al. (2019, GMD)
-          !  and is retained for back compatibility.
-          ! Note: Instead of using a linear ramp for the variation between overburden and the small value
-          !       (as for the BPMP and BWAT options above), we use the published formulation of Bueler & van Pelt (2015).
-          !       This formulation has N = P_0 for bwat up to ~0.6*effecpress_bwat_threshold; then N decreases
-          !        as bwat => effecpress_bwat_threshold.
-          !       See Fig. 1b of Bueler & van Pelt (2015).
-          ! Note: relative bwat used to be computed in terms of basal_hydro%bwat_till_max.
-          !       This formulation gives the same answer, provided that effecpress_bwat_threshold = bwat_till_max.
-          !       Both parameters have default values of 2 m.
+       do j = 1, nsn
+          do i = 1, ewn
+             if (basal_hydro%bwat(i,j) > 0.0d0) then
 
-          do j = 1, nsn
-             do i = 1, ewn
+                relative_bwat = max(0.0d0, min(basal_hydro%bwat(i,j)/basal_hydro%bwat_till_max, 1.0d0))
 
-                if (bwat(i,j) > 0.0d0) then
+                ! Eq. 23 from Bueler & van Pelt (2015)
+                basal_physics%effecpress(i,j) = basal_hydro%N_0  &
+                     * (basal_hydro%effecpress_delta * overburden(i,j) / basal_hydro%N_0)**relative_bwat  &
+                     * 10.d0**((basal_hydro%e_0/basal_hydro%C_c) * (1.0d0 - relative_bwat))
 
-                   relative_bwat = max(0.0d0, min(bwat(i,j)/basal_physics%effecpress_bwat_threshold, 1.0d0))
+                ! The following line (if uncommented) would implement Eq. 5 of Aschwanden et al. (2016).
+                ! Results are similar to Bueler & van Pelt, but the dropoff in N from P_0 to delta*P_0 begins
+                !  with a larger value of bwat (~0.7*bwat_till_max instead of 0.6*bwat_till_max).
 
-                   ! Eq. 23 from Bueler & van Pelt (2015)
-                   basal_physics%effecpress(i,j) = basal_hydro%N_0  &
-                        * (basal_physics%effecpress_delta * overburden(i,j) / basal_hydro%N_0)**relative_bwat  &
-                        * 10.d0**((basal_hydro%e_0/basal_hydro%C_c) * (1.0d0 - relative_bwat))
+!!                basal_hydro%effecpress(i,j) = basal_hydro%effecpress_delta * overburden(i,j)  &
+!!                     * 10.d0**((basal_hydro%e_0/basal_hydro%C_c) * (1.0d0 - relative_bwat))
 
-                   ! The following line (if uncommented) would implement Eq. 5 of Aschwanden et al. (2016).
-                   ! Results are similar to Bueler & van Pelt, but the dropoff in N from P_0 to delta*P_0 begins
-                   !  with a larger value of bwat (~0.7*bwat_threshold instead of 0.6*bwat_threshold).
-
-!!                 basal_physics%effecpress(i,j) = basal_physics%effecpress_delta * overburden(i,j)  &
-!!                      * 10.d0**((basal_hydro%e_0/basal_hydro%C_c) * (1.0d0 - relative_bwat))
-
-                   ! limit so as not to exceed overburden
-                   basal_physics%effecpress(i,j) = min(basal_physics%effecpress(i,j), overburden(i,j))
-                end if
-             enddo
+                ! limit so as not to exceed overburden
+                basal_physics%effecpress(i,j) = min(basal_physics%effecpress(i,j), overburden(i,j))
+             end if
           enddo
+       enddo
 
-       endif   ! present(bwat)
-
-       !TODO - Not sure this is needed, because of weighting by f_ground.
+       ! TODO - Not sure this is needed, because beta is later weighted by f_ground.
+       !        Removing these lines is answer-changing; need to understand better (9/2/24)
        where (floating_mask == 1)
           ! set to zero for floating ice
           basal_physics%effecpress = 0.0d0
@@ -1061,8 +1085,11 @@ contains
 
     end select   ! which_effecpress
 
-    ! Optionally, reduce N for grounded marine ice based on the connectivity of subglacial water to the ocean.
-    ! N is weighted by the factor (1 - Hf/H)^p, where Hf is the flotation thickness.
+    !TODO - Do this calculation in a separate subroutine.
+    !       Then use a min statement to merge the two calculations.
+
+    ! Optionally, compute N for grounded marine ice based on the connectivity of subglacial water to the ocean.
+    ! N is weighted by the factor (1 - Hf/H)^p, where Hf is the flotation thickness, and 0 <= p <= 1.
     ! p = 1 => full connectivity
     ! 0 < p < 1 => partial connectivity
     ! p = 0 => no connectivity; water pressure p_w = 0
@@ -1073,6 +1100,11 @@ contains
     !   the grounding line retreats unstably.  (Thwaites Glacier is a typical case.)
     !  However, we want the GL to advance, which will happen only if N is *not* immmediately reduced,
     !   and instead the ice is allowed to thicken, increasing (1 - Hf/H)^p and stabilizing the GL.
+    !
+    ! Note: This calculation is independent of the computation above based on which_ho_effecpress.
+    !       In general, we will compute two different values for N in each location, and we take the minimum.
+    !       If which_ho_effecpres = 0 (i.e., N = overburden), then the ocean_p calculation with p > 0
+    !        will reduce N wherever the topography is below sea level.
 
     ocean_p = basal_physics%p_ocean_penetration
 
@@ -1109,8 +1141,14 @@ contains
        ! Note: f_effecpress_ocean_p is initialized to 1, and is reduced near marine margins only if ocean_p > 0.
        basal_physics%effecpress(:,:) = basal_physics%effecpress(:,:) * basal_physics%f_effecpress_ocean_p(:,:)
 
+       ! If this value is lower than the value computed above (under the which_ho_effecpress options),
+       !  then replace that value with the ocean_p value just computed.
+       !TODO - Make sure this is done correctly, then uncomment in a future commit.
+!!!       basal_physics%effecpress(:,:) = &
+!!!            min(basal_physics%effecpress(:,:), overburden(:,:)*basal_physics%f_effecpress_ocean_p(:,:))
+
        if (present(itest) .and. present(jtest) .and. present(rtest)) then
-          if (this_rank == rtest .and. verbose_effecpress) then
+          if (verbose_effecpress) then
 
              ! Compute f_pattyn as a 2D field for diagnostics.
              do j = 1, nsn
@@ -1127,24 +1165,10 @@ contains
                 enddo
              enddo
 
-             print*, ' '
-             print*, 'f_pattyn, itest, jtest, rank =', itest, jtest, rtest
-             do j = jtest+3, jtest-3, -1
-                write(6,'(i6)',advance='no') j
-                do i = itest-3, itest+3
-                   write(6,'(f10.4)',advance='no') f_pattyn_2d(i,j)
-                enddo
-                write(6,*) ' '
-             enddo
-             print*, ' '
-             print*, 'f_effecpress_ocean_p, itest, jtest, rank =', itest, jtest, rtest
-             do j = jtest+3, jtest-3, -1
-                write(6,'(i6)',advance='no') j
-                do i = itest-3, itest+3
-                   write(6,'(f10.5)',advance='no') basal_physics%f_effecpress_ocean_p(i,j)
-                enddo
-                write(6,*) ' '
-             enddo
+             call point_diag(f_pattyn_2d, 'f_pattyn', itest, jtest, rtest, 7, 7, '(f10.4)')
+             call point_diag(basal_physics%f_effecpress_ocean_p, 'f_effecpress_ocean_p', &
+                  itest, jtest, rtest, 7, 7, '(f10.5)')
+
           endif   ! verbose_effecpress
        endif   ! present(itest,jtest,rtest)
 
@@ -1183,32 +1207,20 @@ contains
                           basal_physics%effecpress,  basal_physics%effecpress_stag,   &
                           ice_mask,                  stagger_margin_in = 0)
 
-    if (verbose_effecpress .and. this_rank == rtest) then
-       print*, ' '
-       print*, 'Final N/overburden, itest, jtest, rank =', itest, jtest, rtest
-       do j = jtest+3, jtest-3, -1
-          write(6,'(i6)',advance='no') j
-         do i = itest-3, itest+3
-             if (overburden(i,j) > 0.0d0) then
-                write(6,'(f10.5)',advance='no') basal_physics%effecpress(i,j) / overburden(i,j)
-             else
-                write(6,'(f10.5)',advance='no') 0.0d0
-             endif
-          enddo
-          write(6,*) ' '
-       enddo
-       print*, ' '
-       print*, 'effecpress_stag:'
-       do j = jtest+3, jtest-3, -1
-          write(6,'(i6)',advance='no') j
-          do i = itest-3, itest+3
-            write(6,'(f10.0)',advance='no') basal_physics%effecpress_stag(i,j)
-          enddo
-          write(6,*) ' '
-       enddo
+    if (verbose_effecpress) then
+
+       where (overburden > 0.0d0)
+          N_to_overburden = basal_physics%effecpress / overburden
+       elsewhere
+          N_to_overburden = 0.0d0
+       endwhere
+
+       call point_diag(basal_physics%effecpress, 'Final effecpress', itest, jtest, rtest, 7, 7, '(f10.0)')
+       call point_diag(N_to_overburden, 'effecpress/overburden', itest, jtest, rtest, 7, 7, '(f10.3)')
+       call point_diag(basal_physics%effecpress_stag, 'staggered effecpress', itest, jtest, rtest, 7, 7, '(f10.0)')
     endif
 
-  end subroutine calc_effective_pressure
+  end subroutine glissade_calc_effecpress
 
 !***********************************************************************
 

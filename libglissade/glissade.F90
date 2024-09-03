@@ -116,7 +116,7 @@ contains
     use glide_diagnostics, only: glide_init_diag
     use glissade_calving, only: glissade_calving_mask_init, verbose_calving
     use glissade_inversion, only: glissade_init_inversion, verbose_inversion
-    use glissade_basal_traction, only: glissade_init_effective_pressure
+    use glissade_basal_traction, only: glissade_init_effecpress
     use glissade_bmlt_float, only: glissade_bmlt_float_thermal_forcing_init, verbose_bmlt_float
     use glissade_grounding_line, only: glissade_grounded_fraction
     use glissade_glacier, only: glissade_glacier_init
@@ -963,8 +963,10 @@ contains
 
     if (model%options%is_restart == NO_RESTART) then
 
-       call glissade_init_effective_pressure(model%options%which_ho_effecpress,  &
-                                             model%basal_physics)
+       call glissade_init_effecpress(&
+            model%options%which_ho_effecpress,  &
+            model%basal_physics)
+
     endif
 
     ! Initialize powerlaw_c and coulomb_c.
@@ -2168,11 +2170,22 @@ contains
        endif
 
        !WHL - debug - Set mask = 0 where thck = 0 for dome test
-!       where (model%geometry%thck == 0)
-!          bwat_mask = 0
-!       endwhere
+       ! An alternative would be to identify cells that have a path through land to the domain edge
+       where (model%geometry%thck == 0)
+          bwat_mask = 0
+       endwhere
 
        call parallel_halo(bwat_mask, parallel)
+
+       ! Set the meltwater source for the basal hydrology scheme.
+       ! By default, this is bmlt_ground_unscaled (m/s), but optionally can be
+       !  increased by the value const_source where bwat_mask = 1.
+       !TODO - Optionally, use the constant value only, ignoring bmlt_ground?
+       where (bwat_mask == 1)
+          model%basal_hydro%bmlt_hydro = bmlt_ground_unscaled + model%basal_hydro%const_source/scyr
+       elsewhere
+          model%basal_hydro%bmlt_hydro = 0.0d0
+       endwhere
 
        ! Compute the steady-state basal water flux based on a flux-routing scheme
 
@@ -2181,15 +2194,22 @@ contains
             model%numerics%dew*len0, model%numerics%dns*len0, &  ! m
             model%parallel,                                   &
             itest, jtest, rtest,                              &
-            model%options%ho_flux_routing_scheme,             &
+            model%basal_hydro%ho_flux_routing_scheme,         &
             model%geometry%thck*thk0,                         &  ! m
             model%geometry%topg*thk0,                         &  ! m
             model%numerics%thklim_temp*thk0,                  &  ! m
             bwat_mask,                                        &
             floating_mask,                                    &
-            bmlt_ground_unscaled,                             &  ! m/s
-            model%basal_hydro%bwatflx,                        &  ! m^3/s
-            model%basal_hydro%head)                              ! m
+            model%basal_hydro%bmlt_hydro,                     &  ! m/s
+            model%basal_hydro%bwatflx,                        &  ! m/yr
+            model%basal_hydro%bwat_diag,                      &  ! m
+            model%basal_hydro%head,                           &  ! m
+            model%basal_hydro%grad_head)                         ! m/m
+
+       ! halo updates (not sure if all are needed)
+       call parallel_halo(model%basal_hydro%bwatflx, parallel)
+       call parallel_halo(model%basal_hydro%bwat_diag, parallel)
+       call parallel_halo(model%basal_hydro%grad_head, parallel)
 
     else  ! simpler basal water options
 
@@ -2222,9 +2242,6 @@ contains
     ! Halo updates
     !------------------------------------------------------------------------ 
     
-    ! Note: bwat is needed in halos to compute effective pressure if which_ho_effecpress = HO_EFFECPRESS_BWAT
-    call parallel_halo(model%basal_hydro%bwat, parallel)
-
     call t_stopf('glissade_thermal_solve')
     
   end subroutine glissade_thermal_solve
@@ -3924,7 +3941,7 @@ contains
     use glissade_calving, only: verbose_calving,  &
          glissade_stress_tensor_eigenvalues, glissade_strain_rate_tensor_eigenvalues
     use felix_dycore_interface, only: felix_velo_driver
-    use glissade_basal_traction, only: calc_effective_pressure
+    use glissade_basal_traction, only: glissade_calc_effecpress
     use glissade_bmlt_float, only: glissade_bmlt_float_thermal_forcing
     use glissade_inversion, only: verbose_inversion, glissade_inversion_basal_friction,  &
          glissade_inversion_bmlt_basin, glissade_inversion_deltaT_ocn, &
@@ -4574,20 +4591,27 @@ contains
        !------------------------------------------------------------------------------
 
        !TODO - Use btemp_ground instead of temp(upn)?
-       call calc_effective_pressure(model%options%which_ho_effecpress, &
-                                    parallel,                          &
-                                    ewn,           nsn,                &
-                                    model%basal_physics,               &
-                                    model%basal_hydro,                 &
-                                    ice_mask,      floating_mask,      &
-                                    model%geometry%thck * thk0,        &
-                                    model%geometry%topg * thk0,        &
-                                    model%climate%eus * thk0,          &
-                                    model%temper%bpmp(:,:) - model%temper%temp(upn,:,:), &
-                                    model%basal_hydro%bwat * thk0,     &   ! m
-                                    model%basal_hydro%bwatflx,         &   ! m/yr
-                                    model%numerics%dt * tim0/scyr,     &   ! yr
-                                    itest, jtest,  rtest)
+       !TODO - Break into two subroutines (second subroutine for ocean_p)
+       call glissade_calc_effecpress(&
+            model%options%which_ho_effecpress,   &
+            parallel,                            &
+            itest, jtest,  rtest,                &
+            ewn,   nsn,    upn,                  &
+            model%numerics%dew*len0,             &   ! m
+            model%numerics%dns*len0,             &   ! m
+            model%basal_physics,                 &
+            model%basal_hydro,                   &
+            ice_mask,      floating_mask,        &
+            model%geometry%thck * thk0,          &   ! m
+            model%geometry%topg * thk0,          &   ! m
+            model%climate%eus * thk0,            &   ! m
+            model%basal_melt%bmlt_ground*thk0/tim0, &! m/s
+            model%velocity%uvel*vel0,            &   ! m/s
+            model%velocity%vvel*vel0,            &   ! m/s
+            model%temper%bpmp(:,:) - model%temper%temp(upn,:,:), & ! degC
+            model%numerics%dt * tim0/scyr)           ! yr [Change to s?]
+
+       ! TODO: call ocean_p subroutine here, then merge the two calculations
 
        if ( (model%numerics%time == model%numerics%tstart) .and. &
          ( (maxval(abs(model%velocity%uvel)) /= 0.0d0) .or. & 

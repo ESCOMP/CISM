@@ -123,6 +123,14 @@ contains
        end if
     endif
 
+    ! read basal hydrology info
+    if (model%options%which_ho_bwat /= HO_BWAT_NONE) then
+       call GetSection(config,section,'basal_hydro')
+       if (associated(section)) then
+          call handle_basal_hydro(section, model)
+       end if
+    endif
+
     ! read glacier info
     if (model%options%enable_glaciers) then
        call GetSection(config,section,'glaciers')
@@ -158,6 +166,7 @@ contains
     call print_parameters(model)
     call print_gthf(model)
     call print_isostasy(model)
+    call print_basal_hydro(model)
     call print_glaciers(model)
 
   end subroutine glide_printconfig
@@ -227,6 +236,10 @@ contains
     ! scale SMB/acab parameters
     model%climate%overwrite_acab_value = model%climate%overwrite_acab_value*tim0/(scyr*thk0)
     model%climate%overwrite_acab_minthck = model%climate%overwrite_acab_minthck / thk0
+
+    ! scale basal_hydro parameters
+    model%basal_hydro%sliding_speed_fixed = model%basal_hydro%sliding_speed_fixed / scyr  ! m/yr to m/s
+    model%basal_hydro%flwa_basal = model%basal_hydro%flwa_basal / scyr  ! Pa^{-3} yr^{-1} to Pa^{-3} s^{-1}
 
   end subroutine glide_scale_params
 
@@ -794,7 +807,6 @@ contains
     call GetValue(section, 'deltaT_ocn_extrapolate',      model%options%deltaT_ocn_extrapolate)
     call GetValue(section, 'which_ho_flow_enhancement_factor', model%options%which_ho_flow_enhancement_factor)
     call GetValue(section, 'which_ho_bwat',               model%options%which_ho_bwat)
-    call GetValue(section, 'ho_flux_routing_scheme',      model%options%ho_flux_routing_scheme)
     call GetValue(section, 'which_ho_effecpress',         model%options%which_ho_effecpress)
     call GetValue(section, 'which_ho_resid',              model%options%which_ho_resid)
     call GetValue(section, 'which_ho_nonlinear',          model%options%which_ho_nonlinear)
@@ -851,6 +863,7 @@ contains
 
     use glide_types
     use glimmer_log
+    use glimmer_physcon, only: scyr
     use cism_parallel, only: tasks
 
     implicit none
@@ -1081,17 +1094,6 @@ contains
          'uniform flow enhancement factors               ', &
          'invert for flow_enhancement_factor             ', &
          'read flow_enhancment_factor from external file ' /)
-
-    character(len=*), dimension(0:3), parameter :: ho_whichbwat = (/ &
-         'zero basal water depth                          ', &
-         'constant basal water depth                      ', &
-         'basal water depth computed from local till model', &
-         'steady-state water routing with flux calculation' /)
-
-    character(len=*), dimension(0:2), parameter :: ho_flux_routing_scheme = (/ &
-         'D8; route flux to lowest-elevation neighbor      ', &
-         'Dinf; route flux to two lower-elevation neighbors', &
-         'FD8; route flux to all lower-elevation neighbors ' /)
 
     character(len=*), dimension(0:4), parameter :: ho_whicheffecpress = (/ &
          'full overburden pressure                             ', &
@@ -1352,7 +1354,7 @@ contains
 
     ! unsupported basal_water options
     if (model%options%whichbwat == BWATER_FLUX) then
-      call write_log('WARNING: Steady state routing basal_water option is not currently scientifically supported.  &
+      call write_log('WARNING: Steady state routing basal_water option is not scientifically supported.  &
            &USE AT YOUR OWN RISK.', GM_WARNING)
     endif
 
@@ -1886,33 +1888,6 @@ contains
           call write_log('Cannot invert for deltaT_ocn both locally and in basins', GM_FATAL)
        endif
 
-       ! basal water options
-
-       write(message,*) 'ho_whichbwat            : ',model%options%which_ho_bwat,  &
-                         ho_whichbwat(model%options%which_ho_bwat)
-       call write_log(message)
-       if (model%options%which_ho_bwat < 0 .or. model%options%which_ho_bwat >= size(ho_whichbwat)) then
-          call write_log('Error, HO basal water input out of range', GM_FATAL)
-       end if
-
-    if (model%options%which_ho_bwat == HO_BWAT_CONSTANT) then
-       write(message,*) 'constant basal water depth (m): ', model%basal_hydro%const_bwat
-       call write_log(message)
-    elseif (model%options%which_ho_bwat == HO_BWAT_LOCAL_TILL) then
-       write(message,*) 'maximum till water depth (m)  : ', model%basal_hydro%bwat_till_max
-       call write_log(message)
-       write(message,*) 'till drainage rate (m/yr)     : ', model%basal_hydro%c_drainage
-       call write_log(message)
-    elseif (model%options%which_ho_bwat == HO_BWAT_FLUX_ROUTING) then
-       if (model%options%ho_flux_routing_scheme < 0.or. &
-           model%options%ho_flux_routing_scheme >= size(ho_flux_routing_scheme)) then
-          call write_log('Error, HO flux routing scheme out of range', GM_FATAL)
-       end if
-       write(message,*) 'ho_flux_routing_scheme  : ',model%options%ho_flux_routing_scheme,  &
-            ho_flux_routing_scheme(model%options%ho_flux_routing_scheme)
-       call write_log(message)
-    endif
-
        write(message,*) 'ho_whicheffecpress      : ',model%options%which_ho_effecpress,  &
                          ho_whicheffecpress(model%options%which_ho_effecpress)
        call write_log(message)
@@ -2261,19 +2236,10 @@ contains
     call GetValue(section, 'coulomb_bump_max_slope', model%basal_physics%coulomb_bump_max_slope)
     call GetValue(section, 'coulomb_bump_wavelength', model%basal_physics%coulomb_bump_wavelength)
 
-    ! effective pressure parameters
+    ! ocean_p parameters
+    !TODO - Move to the basal hydro section?
     call GetValue(section, 'p_ocean_penetration', model%basal_physics%p_ocean_penetration)
     call GetValue(section, 'ocean_p_timescale', model%basal_physics%ocean_p_timescale)
-    call GetValue(section, 'effecpress_delta', model%basal_physics%effecpress_delta)
-    call GetValue(section, 'effecpress_bpmp_threshold', model%basal_physics%effecpress_bpmp_threshold)
-    call GetValue(section, 'effecpress_bwat_threshold', model%basal_physics%effecpress_bwat_threshold)
-    call GetValue(section, 'effecpress_bwatflx_threshold', model%basal_physics%effecpress_bwatflx_threshold)
-    call GetValue(section, 'effecpress_timescale', model%basal_physics%effecpress_timescale)
-
-    ! basal water parameters
-    call GetValue(section, 'const_bwat', model%basal_hydro%const_bwat)
-    call GetValue(section, 'bwat_till_max', model%basal_hydro%bwat_till_max)
-    call GetValue(section, 'c_drainage', model%basal_hydro%c_drainage)
 
     ! pseudo-plastic parameters
     call GetValue(section, 'pseudo_plastic_q', model%basal_physics%pseudo_plastic_q)
@@ -2842,32 +2808,8 @@ contains
        call write_log(message)
     endif
 
-    ! effective pressure parameters
-
-    if (model%options%which_ho_effecpress == HO_EFFECPRESS_BPMP) then
-       write(message,*) 'effective pressure delta      : ', model%basal_physics%effecpress_delta
-       call write_log(message)
-       write(message,*) 'effecpress bpmp threshold (K) : ', model%basal_physics%effecpress_bpmp_threshold
-       call write_log(message)
-    elseif (model%options%which_ho_effecpress == HO_EFFECPRESS_BWAT) then
-       write(message,*) 'effective pressure delta      : ', model%basal_physics%effecpress_delta
-       call write_log(message)
-       write(message,*) 'effecpress bwat threshold (m) : ', model%basal_physics%effecpress_bwat_threshold
-       call write_log(message)
-    elseif (model%options%which_ho_effecpress == HO_EFFECPRESS_BWATFLX) then
-       write(message,*) 'effecpress bwatflx threshold (m/yr) : ', model%basal_physics%effecpress_bwatflx_threshold
-       call write_log(message)
-       write(message,*) 'effecpress timescale (yr)     : ', model%basal_physics%effecpress_timescale
-       call write_log(message)
-       write(message,*) 'effective pressure delta      : ', model%basal_physics%effecpress_delta
-       call write_log(message)
-    elseif (model%options%which_ho_effecpress == HO_EFFECPRESS_BWAT_BVP) then
-       write(message,*) 'effective pressure delta      : ', model%basal_physics%effecpress_delta
-       call write_log(message)
-       write(message,*) 'effecpress bwat threshold (m) : ', model%basal_physics%effecpress_bwat_threshold
-       call write_log(message)
-    endif
-
+    ! ocean_p parameters
+    !TODO - Move these to basal_hydro?
     if (model%basal_physics%p_ocean_penetration > 0.0d0) then
        write(message,*) 'Apply ocean connection to reduce effective pressure'
        call write_log(message)
@@ -3191,6 +3133,161 @@ contains
     endif   ! compute isostasy
 
   end subroutine print_isostasy
+
+!--------------------------------------------------------------------------------
+
+  subroutine handle_basal_hydro(section, model)
+
+    use glimmer_config
+    use glide_types
+    implicit none
+
+    type(ConfigSection), pointer :: section
+    type(glide_global_type)  :: model
+
+    ! constant basal water
+    call GetValue(section, 'const_bwat', model%basal_hydro%const_bwat)
+
+    ! local basal till
+    call GetValue(section, 'bwat_till_max', model%basal_hydro%bwat_till_max)
+    call GetValue(section, 'c_drainage', model%basal_hydro%c_drainage)
+
+    ! flux routing
+    call GetValue(section, 'ho_flux_routing_scheme', model%basal_hydro%ho_flux_routing_scheme)
+    call GetValue(section, 'const_source', model%basal_hydro%const_source)
+
+    ! effective pressure options and parameters
+    call GetValue(section, 'effecpress_delta',   model%basal_hydro%effecpress_delta)
+    call GetValue(section, 'bwat_threshold', model%basal_hydro%bwat_threshold)
+    call GetValue(section, 'bwat_gamma',   model%basal_hydro%bwat_gamma)
+    call GetValue(section, 'cavity_open_slide', model%basal_hydro%cavity_open_slide)
+    call GetValue(section, 'cavity_open_melt', model%basal_hydro%cavity_open_melt)
+    call GetValue(section, 'bump_height', model%basal_hydro%bump_height)
+    call GetValue(section, 'bump_wavelength', model%basal_hydro%bump_wavelength)
+    call GetValue(section, 'sliding_speed_fixed', model%basal_hydro%sliding_speed_fixed)
+    call GetValue(section, 'flwa_basal', model%basal_hydro%flwa_basal)
+    call GetValue(section, 'c_close', model%basal_hydro%c_close)
+
+    if (main_task) print*, 'handle_basal_hydro done!!!'
+
+  end subroutine handle_basal_hydro
+
+!--------------------------------------------------------------------------------
+
+  subroutine print_basal_hydro(model)
+
+    use glide_types
+    use glimmer_log
+
+    implicit none
+    type(glide_global_type)  :: model
+    character(len=100) :: message
+
+    character(len=*), dimension(0:3), parameter :: ho_whichbwat = (/ &
+         'zero basal water depth                           ', &
+         'constant basal water depth                       ', &
+         'basal water depth computed from local till model ', &
+         'steady-state flux routing                        ' /)
+
+    character(len=*), dimension(0:2), parameter :: ho_flux_routing_scheme = (/ &
+         'D8; route flux to lowest-elevation neighbor      ', &
+         'Dinf; route flux to two lower-elevation neighbors', &
+         'FD8; route flux to all lower-elevation neighbors ' /)
+
+    character(len=*), dimension(0:2), parameter :: cavity_open_slide = (/ &
+         'no opening by sliding                           ', &
+         'opening by sliding with fixed u_b               ', &
+         'opening by sliding with dynamic u_b             ' /)
+
+    character(len=*), dimension(0:3), parameter :: cavity_open_melt = (/ &
+         'no opening by melting                           ', &
+         'opening by melting based on bmlt_ground         ', &
+         'opening by melting based on cavity dissipation  ', &
+         'opening based on bmlt_ground plus dissipation   ' /)
+
+    write(message,*) 'ho_whichbwat                  : ',model%options%which_ho_bwat,  &
+                      ho_whichbwat(model%options%which_ho_bwat)
+    call write_log(message)
+    if (model%options%which_ho_bwat < 0 .or. model%options%which_ho_bwat >= size(ho_whichbwat)) then
+       call write_log('Error, HO basal water input out of range', GM_FATAL)
+    end if
+
+    if (model%options%which_ho_bwat == HO_BWAT_CONSTANT) then
+       write(message,*) 'constant basal water depth (m): ', model%basal_hydro%const_bwat
+       call write_log(message)
+    elseif (model%options%which_ho_bwat == HO_BWAT_LOCAL_TILL) then
+       if (model%options%which_ho_effecpress == HO_EFFECPRESS_BWAT_BVP) then
+          write(message,*) 'effective pressure delta      : ', model%basal_hydro%effecpress_delta
+          call write_log(message)
+          write(message,*) 'maximum till water depth (m)  : ', model%basal_hydro%bwat_till_max
+          call write_log(message)
+          write(message,*) 'till drainage rate (m/yr)     : ', model%basal_hydro%c_drainage
+          call write_log(message)
+       else
+          write(message,*) 'local till option must use which_ho_effecpress =', HO_EFFECPRESS_BWAT_BVP
+          call write_log(message, GM_FATAL)
+       endif
+    elseif (model%options%which_ho_bwat == HO_BWAT_FLUX_ROUTING) then
+       if (model%basal_hydro%ho_flux_routing_scheme < 0.or. &
+            model%basal_hydro%ho_flux_routing_scheme >= size(ho_flux_routing_scheme)) then
+          call write_log('Error, HO flux routing scheme out of range', GM_FATAL)
+       end if
+       write(message,*) 'ho_flux_routing_scheme        : ',model%basal_hydro%ho_flux_routing_scheme,  &
+            ho_flux_routing_scheme(model%basal_hydro%ho_flux_routing_scheme)
+       call write_log(message)
+       if (model%basal_hydro%const_source > 0.0d0) then
+          write(message,*) 'constant melt source at the bed (m/yr): ', model%basal_hydro%const_source
+          call write_log(message)
+       endif
+       if (model%options%which_ho_effecpress == HO_EFFECPRESS_BWAT) then
+          write(message,*) 'effective pressure delta      : ', model%basal_hydro%effecpress_delta
+          call write_log(message)
+          write(message,*) 'bwat threshold (m)            : ', model%basal_hydro%bwat_threshold
+          call write_log(message)
+          write(message,*) 'bwat gamma                    : ', model%basal_hydro%bwat_gamma
+          call write_log(message)
+       elseif (model%options%which_ho_effecpress == HO_EFFECPRESS_CAVITY_SHEET) then
+          if (model%basal_hydro%cavity_open_slide < 0 .or. &
+               model%basal_hydro%cavity_open_slide >= size(cavity_open_slide)) then
+             call write_log('Error, cavity_open_slide out of range', GM_FATAL)
+          endif
+          write(message,*) 'cavity_open_slide             : ', &
+               cavity_open_slide(model%basal_hydro%cavity_open_slide)
+          call write_log(message)
+          if (model%basal_hydro%cavity_open_melt < 0 .or. &
+               model%basal_hydro%cavity_open_melt >= size(cavity_open_melt)) then
+             call write_log('Error, cavity_open_melt out of range', GM_FATAL)
+          endif
+          write(message,*) 'cavity_open_melt              : ', &
+               cavity_open_melt(model%basal_hydro%cavity_open_slide)
+          call write_log(message)
+          if (model%basal_hydro%cavity_open_slide /= CAVITY_OPEN_SLIDE_NONE) then
+             write(message,*) 'bump height                   : ', model%basal_hydro%bump_height
+             call write_log(message)
+             write(message,*) 'bump wavelength               : ', model%basal_hydro%bump_wavelength
+             call write_log(message)
+             if (model%basal_hydro%cavity_open_slide == CAVITY_OPEN_SLIDE_FIXED_UB) then
+                write(message,*) 'fixed sliding speed (m/yr)    : ', model%basal_hydro%sliding_speed_fixed
+                call write_log(message)
+             endif
+          endif   ! opening by sliding
+          write(message,*) 'flwa for closing (Pa-3 yr-1)  : ', model%basal_hydro%flwa_basal
+          call write_log(message)
+          write(message,*) 'constant for closing          : ', model%basal_hydro%c_close
+          call write_log(message)
+       endif   ! cavity-sheet parameterization
+    endif   ! which_ho_bwat
+
+    ! other effective pressure options
+
+    if (model%options%which_ho_effecpress == HO_EFFECPRESS_BPMP) then
+       write(message,*) 'effective pressure delta      : ', model%basal_hydro%effecpress_delta
+       call write_log(message)
+       write(message,*) 'bpmp threshold (K)            : ', model%basal_hydro%bpmp_threshold
+       call write_log(message)
+    endif
+
+  end subroutine print_basal_hydro
 
 !--------------------------------------------------------------------------------
 
@@ -3826,10 +3923,6 @@ contains
     endif
 
     ! effective pressure options
-    ! f_effecpress_bwat represents the reduction of overburden pressure from bwatflx
-    if (options%which_ho_effecpress == HO_EFFECPRESS_BWATFLX) then
-       call glide_add_to_restart_variable_list('f_effecpress_bwat', model_id)
-    endif
 
     ! f_effecpress_ocean_p represents the reduction of overburden pressure when ocean_p > 0
     ! Needs to be saved in case this fraction is relaxed over time toward (1 - Hf/H)^p
@@ -3853,18 +3946,6 @@ contains
     if (options%which_ho_deltaT_ocn /= HO_DELTAT_OCN_NONE) then
        call glide_add_to_restart_variable_list('dthck_dt_obs', model_id)
        call glide_add_to_restart_variable_list('dthck_dt_obs_basin', model_id)
-    endif
-
-    ! effective pressure options
-    ! f_effecpress_bwat represents the reduction of overburden pressure from bwatflx
-    if (options%which_ho_effecpress == HO_EFFECPRESS_BWATFLX) then
-       call glide_add_to_restart_variable_list('f_effecpress_bwat', model_id)
-    endif
-
-    ! f_effecpress_ocean_p represents the reduction of overburden pressure when ocean_p > 0
-    ! Needs to be saved in case this fraction is relaxed over time toward (1 - Hf/H)^p
-    if (model%basal_physics%p_ocean_penetration > 0.0d0) then
-       call glide_add_to_restart_variable_list('f_effecpress_ocean_p', model_id)
     endif
 
     ! geothermal heat flux option

@@ -1024,9 +1024,16 @@ load:          1
 [bwat]
 dimensions:    time, y1, x1
 units:         meter
-long_name:     basal water depth
+long_name:     local basal water depth
 data:          data%basal_hydro%bwat
 factor:        thk0
+load:          1
+
+[bwat_diag]
+dimensions:    time, y1, x1
+units:         meter
+long_name:     basal water depth diagnosed from flux routing
+data:          data%basal_hydro%bwat_diag
 load:          1
 
 [bwatflx]
@@ -1047,13 +1054,6 @@ dimensions:    time, y1, x1
 units:         Pa
 long_name:     effective pressure
 data:          data%basal_physics%effecpress
-
-[f_effecpress_bwat]
-dimensions:    time, y1, x1
-units:         1
-long_name:     effective pressure factor from bwatflx
-data:          data%basal_physics%f_effecpress_bwat
-load:          1
 
 [f_effecpress_ocean_p]
 dimensions:    time, y1, x1

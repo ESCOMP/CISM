@@ -112,6 +112,7 @@ module glide_types
   integer, parameter :: BTRC_LINEAR_BMLT = 4
   integer, parameter :: BTRC_TANH_BWAT = 5
 
+  ! Old Glimmer basal water options
   integer, parameter :: BWATER_NONE  = 0
   integer, parameter :: BWATER_LOCAL = 1
   integer, parameter :: BWATER_FLUX  = 2
@@ -295,6 +296,7 @@ module glide_types
   integer, parameter :: HO_BMLT_BASIN_EXTERNAL = 2
   integer, parameter :: HO_BMLT_BASIN_ISMIP6 = 3
 
+  ! New Glissade basal water options
   integer, parameter :: HO_BWAT_NONE = 0
   integer, parameter :: HO_BWAT_CONSTANT = 1
   integer, parameter :: HO_BWAT_LOCAL_TILL = 2
@@ -304,10 +306,19 @@ module glide_types
   integer, parameter :: HO_FLUX_ROUTING_DINF = 1
   integer, parameter :: HO_FLUX_ROUTING_FD8 = 2
 
+  integer, parameter :: CAVITY_OPEN_SLIDE_NONE = 0
+  integer, parameter :: CAVITY_OPEN_SLIDE_FIXED_UB = 1
+  integer, parameter :: CAVITY_OPEN_SLIDE_DYNAMIC_UB = 2
+
+  integer, parameter :: CAVITY_OPEN_MELT_NONE = 0
+  integer, parameter :: CAVITY_OPEN_MELT_BMLT = 1
+  integer, parameter :: CAVITY_OPEN_MELT_DISSIP = 2
+  integer, parameter :: CAVITY_OPEN_MELT_BMLT_DISSIP = 3
+
   integer, parameter :: HO_EFFECPRESS_OVERBURDEN = 0
   integer, parameter :: HO_EFFECPRESS_BPMP = 1
   integer, parameter :: HO_EFFECPRESS_BWAT = 2
-  integer, parameter :: HO_EFFECPRESS_BWATFLX = 3
+  integer, parameter :: HO_EFFECPRESS_CAVITY_SHEET = 3
   integer, parameter :: HO_EFFECPRESS_BWAT_BVP = 4
 
   integer, parameter :: HO_NONLIN_PICARD = 0
@@ -922,14 +933,6 @@ module glide_types
     !> \item[1] Set to constant everywhere, to force T = Tpmp.
     !> \item[2] Local basal till model with constant drainage
     !> \item[3] Steady-state water routing with flux calculation
-    !> \end{description}
-
-    integer :: ho_flux_routing_scheme = 0
-    !> Flux routing scheme for basal water:
-    !> \begin{description}
-    !> \item[0] D8; send flux to lowest-elevation neighbor
-    !> \item[1] Dinf; divide flux between two lower-elevation neighbors
-    !> \item[2] FD8; divide flux among all lower-elevation neighbors
     !> \end{description}
 
     integer :: which_ho_effecpress = 0
@@ -2089,16 +2092,50 @@ module glide_types
      !> Holds variables related to basal hydrology
      !> See glissade_bwater.F90 for usage details
 
+     ! hydrology options
+
+     integer :: ho_flux_routing_scheme = 0
+     !> Flux routing scheme for basal water:
+     !> \begin{description}
+     !> \item[0] D8; send flux to lowest-elevation neighbor
+     !> \item[1] Dinf; divide flux between two lower-elevation neighbors
+     !> \item[2] FD8; divide flux among all lower-elevation neighbors
+     !> \end{description}
+
+     integer :: cavity_open_slide = 0
+     !> Treatment of opening by sliding in cavity-sheet equations
+     !> \begin{description}
+     !> \item[0] no opening by sliding
+     !> \item[1] opening by sliding with fixed u_b
+     !> \item[2] opening by sliding with dynamic u_b
+     !> \end{description}
+
+     integer :: cavity_open_melt = 0
+     !> Treatment of opening by melting in cavity-sheet equations
+     !> \begin{description}
+     !> \item[0] no opening by melting
+     !> \item[1] opening by melting based on bmlt_ground
+     !> \item[2] opening by melting based on dissipation in cavities
+     !> \item[3] opening by melting based on bmlt_ground plus dissipation
+     !> \end{description}
+
+     !TODO - Add options for closing by creep?
+     !       For now, assume closing is proportional to flwa_basal * bwat * effecpress^n
+
      ! fields related to basal water
      ! Note: Ideally, bwat should have MKS units (m), but currently is scaled.
-     real(dp),dimension(:,:),  pointer :: bwat => null()      !> Basal water depth
-     real(dp),dimension(:,:),  pointer :: stagbwat => null()  !> Basal water depth on velo grid
-     real(dp),dimension(:,:),  pointer :: bwatflx => null()   !> Basal water flux (m^3/s)
-     real(dp),dimension(:,:),  pointer :: head => null()      !> Hydraulic head (m)
+     !       bwat_diag has units of m; not scaled
+     real(dp),dimension(:,:),  pointer :: bwat => null()        !> Local basal water depth
+     real(dp),dimension(:,:),  pointer :: stagbwat => null()    !> Basal water depth on velo grid
+     real(dp),dimension(:,:),  pointer :: bwatflx => null()     !> Basal water flux through a cell per unit cell area (m/s)
+     real(dp),dimension(:,:),  pointer :: bmlt_hydro => null()  !> Meltwater source at bed for hydrology (m/s);
+                                                                !> sum of local bmlt and englacial/surface meltwater source
+     real(dp),dimension(:,:),  pointer :: bwat_diag => null()   !> Steady-state basal water depth diagnosed from bwatflx (m)
+     real(dp),dimension(:,:),  pointer :: head => null()        !> Hydraulic head (m)
+     real(dp),dimension(:,:),  pointer :: grad_head => null()   !> Gradient of hydraulic head (m/m)
 
-     ! parameter for constant basal water
+     ! parameters for constant basal water
      ! Note: This parameter applies to the case HO_BWAT_CONSTANT.
-     ! For Glide's BWATER_CONST, the constant value is hardwired in subroutine calcbwat.
      real(dp) :: const_bwat = 10.d0              !> constant basal water depth (m)
 
      ! parameters for local till model
@@ -2112,8 +2149,30 @@ module glide_types
                                                  !> Note: The ratio (e_0/C_c) is the key parameter
 
      ! parameters for steady-state flux-routing model
-     ! Could add visc_water and omega_hydro here; currently set in glissade_bwater module
-     ! Some of these parameters might apply to more general models like SHAKTI
+     real(dp) :: const_source = 0.0d0            !> constant melt source at the bed (m/yr)
+                                                 !> could be used to represent an englacial or surface source
+     !TODO - Add visc_water and omega_hydro? Currently set in glissade_basal_water module
+
+     ! parameters for macroporous sheet
+     real(dp) :: bwat_threshold = 0.1d0          !> bwat range over which N ramps down from overburden to a small value (m);
+                                                 !> Flowers & Clarke (2002): 0.1 m (Table 2)
+     real(dp) :: bwat_gamma = 3.5d0              !> exponent in the expression (bwat/bwat_threshold)^bwat_gamma;
+                                                 !> Flowers & Clarke (2002): 7/2 (Eq. 30)
+     ! parameters for cavity-sheet
+     real(dp) :: bump_height = 0.1d0             !> height scale for bedrock bumps (m);
+                                                 !> de Fleurian et al. (2018): 0.1 m (Table 3)
+     real(dp) :: bump_wavelength = 2.0d0         !> length scale for bedrock bumps (m); de Fleurian et al. (2018) used 2.0 m
+                                                 !> de Fleurian et al. (2018): 2.0 m (Table 3)
+     real(dp) :: sliding_speed_fixed = 31.5d0    !> fixed sliding speed (m/yr) for cavity opening by sliding;
+                                                 !> de Fleurian et al. (2018): 1.e-6 m/s = 31.5 m/yr (Table 3)
+     real(dp) :: flwa_basal = 1.064e-16          !> flow factor A at the bed for cavity closing by creep (Pa^-3 yr-1);
+                                                 !> de Fleurian et al. (2018): 3.375e-24 Pa^-3 s^-1 = 1.064e-16 Pa^-3 yr^-1 (Table 3)
+     real(dp) :: c_close = 0.074                 !> constant in the closing equation, v_close = c_close * A * bwat * N^n
+                                                 !> de Fleurian et al. (2018): 2/(n^n) = 0.074 with n = 3
+
+     ! other parameters for effective pressure
+     real(dp) :: effecpress_delta = 0.02d0       !> min value for effecpress N relative to overburden (unitless)
+     real(dp) :: bpmp_threshold = 0.1d0          !> temperature range over which N ramps up from a small value to overburden (deg C)
 
   end type glide_basal_hydro
 
@@ -2121,9 +2180,8 @@ module glide_types
 
   type glide_basal_physics
 
-     !> Holds variables related to basal physics associated with ice dynamics
+     !> Holds variables related to basal physics associated with friction laws.
      !> See glissade_basal_traction.F90 for usage details
-     !> TODO: Divide into separate types for basal friction/sliding and basal hydrology?
 
      !Note: By default, beta_grounded_min is set to a small nonzero value.
      !      Larger values (~10 to 100 Pa yr/m) might be needed for stability in realistic simulations.
@@ -2136,27 +2194,12 @@ module glide_types
      integer,  dimension(:,:), pointer :: bpmp_mask => null()   !> basal pressure melting point mask; = 1 where Tbed = bpmp, elsewhere = 0
                                                                 !> Note: Defined on velocity grid, whereas temp and bpmp are on ice grid
 
-     real(dp), dimension(:,:), pointer :: effecpress => null()          !> effective pressure (Pa)
-     real(dp), dimension(:,:), pointer :: effecpress_stag => null()     !> effective pressure on staggered grid (Pa)
-     real(dp), dimension(:,:), pointer :: f_effecpress_bwat => null()   !> fractional effecpress due to bwatflx; in range (0,1]
-     real(dp), dimension(:,:), pointer :: f_effecpress_ocean_p => null()!> fractional effecpress due to ocean_p > 0; in range [0,1]
 
      ! Note: c_space_factor supported for which_ho_babc = HO_BABC_COULOMB_FRICTION, *COULOMB_POWERLAW_SCHOOF AND *COULOMB_POWERLAW_TSAI
      real(dp), dimension(:,:), pointer :: c_space_factor => null()      !> spatial factor for basal shear stress (no dimension)
      real(dp), dimension(:,:), pointer :: c_space_factor_stag => null() !> spatial factor for basal shear stress on staggered grid
 
      real(dp), dimension(:,:), pointer :: tau_c => null()               !> yield stress for plastic sliding (Pa)
-
-     ! parameters for reducing the effective pressure where the bed is warm, saturated or connected to the ocean
-     real(dp) :: effecpress_delta = 0.02d0             !> multiplier for effecpress N where the bed is saturated or thawed (unitless)
-     real(dp) :: effecpress_bpmp_threshold = 0.1d0     !> temperature range over which N ramps up from a small value to overburden (deg C)
-     real(dp) :: effecpress_bwat_threshold = 2.0d0     !> bwat range over which N ramps down from overburden to a small value (m);
-                                                       !> typically set to same value as bwat_till_max when using local till model
-     real(dp) :: effecpress_bwatflx_threshold = 0.01d0 !> bwatflx scale (m/yr); min value that gives N < overburden
-     real(dp) :: effecpress_timescale = 500.0d0        !> timescale (yr) for relaxing N/overburden based on bwatflx
-                                                       !> same default value as babc_timescale
-     real(dp) :: p_ocean_penetration = 0.0d0           !> p-exponent for ocean penetration; N weighted by (1-Hf/H)^p (0 <= p <= 1)
-     real(dp) :: ocean_p_timescale = 0.0d0             !> timescale (yr) for relaxing N/overburden to (1-Hf/H)^p
 
      ! parameters for the Zoet-Iverson sliding law
      ! tau_b = N * tan(phi) * [u_b / (u_b + u_t)]^(1/m), Eq. 3 in ZI(2020)
@@ -2221,7 +2264,8 @@ module glide_types
 
      ! parameters for older form of Coulomb friction sliding law (default values from Pimentel et al. 2010)
      ! Pimentel et al. have coulomb_c = 0.84*m_max, where m_max = coulomb_bump_max_slope
-     !TODO - Remove these constants?
+     !TODO - Remove these constants? They are used for babc option HO_BABC_COULOMB_FRICTION,
+     !       which is functionally equivalent to the Schoof law.
      real(dp) :: coulomb_bump_wavelength = 2.0d0 !> bedrock wavelength at subgrid scale precision (m)
      real(dp) :: coulomb_bump_max_slope = 0.5d0  !> maximum bed bump slope at subgrid scale precision (no dimension)
      real(dp) :: flwa_basal = 1.0d-16            !> Glen's A at the bed for Schoof (2005) Coulomb friction law (Pa^{-n} yr^{-1})
@@ -2234,6 +2278,17 @@ module glide_types
      ! Note: A basal process model is not currently supported, but a specified mintauf can be passed to subroutine calcbeta
      !       to simulate a plastic bed.
      real(dp),dimension(:,:), pointer :: mintauf => null() ! Bed strength (yield stress) calculated with basal process model
+
+     !TODO - At some point, move the remaining fields to the basal_hydro type
+     !       Moving them will break some existing config files.
+     ! fields related to the effective pressure
+     real(dp), dimension(:,:), pointer :: effecpress => null()          !> effective pressure (Pa)
+     real(dp), dimension(:,:), pointer :: effecpress_stag => null()     !> effective pressure on staggered grid (Pa)
+     real(dp), dimension(:,:), pointer :: f_effecpress_ocean_p => null()!> fractional effecpress due to ocean_p > 0; in range [0,1]
+
+     ! parameters for reducing the effective pressure where the bed is connected to the ocean
+     real(dp) :: p_ocean_penetration = 0.0d0           !> p-exponent for ocean penetration; N weighted by (1-Hf/H)^p (0 <= p <= 1)
+     real(dp) :: ocean_p_timescale = 0.0d0             !> timescale (yr) for relaxing N/overburden to (1-Hf/H)^p
 
   end type glide_basal_physics
 
@@ -2871,7 +2926,10 @@ contains
     call coordsystem_allocate(model%general%velo_grid, model%basal_hydro%stagbwat)
     call coordsystem_allocate(model%general%ice_grid,  model%basal_hydro%bwatflx)
     if (model%options%which_ho_bwat == HO_BWAT_FLUX_ROUTING) then
+       call coordsystem_allocate(model%general%ice_grid,  model%basal_hydro%bmlt_hydro)
+       call coordsystem_allocate(model%general%ice_grid,  model%basal_hydro%bwat_diag)
        call coordsystem_allocate(model%general%ice_grid,  model%basal_hydro%head)
+       call coordsystem_allocate(model%general%ice_grid,  model%basal_hydro%grad_head)
     endif
 
     if (model%options%whichdycore == DYCORE_GLISSADE) then   ! glissade only
@@ -3044,7 +3102,6 @@ contains
        call coordsystem_allocate(model%general%velo_grid, model%basal_physics%bpmp_mask)
        call coordsystem_allocate(model%general%ice_grid, model%basal_physics%effecpress)
        call coordsystem_allocate(model%general%velo_grid, model%basal_physics%effecpress_stag)
-       call coordsystem_allocate(model%general%ice_grid, model%basal_physics%f_effecpress_bwat)
        call coordsystem_allocate(model%general%ice_grid, model%basal_physics%f_effecpress_ocean_p)
        call coordsystem_allocate(model%general%velo_grid, model%basal_physics%tau_c)
        call coordsystem_allocate(model%general%ice_grid, model%basal_physics%c_space_factor)
@@ -3507,8 +3564,14 @@ contains
         deallocate(model%basal_hydro%stagbwat)
     if (associated(model%basal_hydro%bwatflx)) &
         deallocate(model%basal_hydro%bwatflx)
+    if (associated(model%basal_hydro%bmlt_hydro)) &
+        deallocate(model%basal_hydro%bmlt_hydro)
+    if (associated(model%basal_hydro%bwat_diag)) &
+        deallocate(model%basal_hydro%bwat_diag)
     if (associated(model%basal_hydro%head)) &
         deallocate(model%basal_hydro%head)
+    if (associated(model%basal_hydro%grad_head)) &
+        deallocate(model%basal_hydro%grad_head)
 
     ! basal physics arrays
     if (associated(model%basal_physics%bpmp_mask)) &
@@ -3517,8 +3580,6 @@ contains
         deallocate(model%basal_physics%effecpress)
     if (associated(model%basal_physics%effecpress_stag)) &
         deallocate(model%basal_physics%effecpress_stag)
-    if (associated(model%basal_physics%f_effecpress_bwat)) &
-        deallocate(model%basal_physics%f_effecpress_bwat)
     if (associated(model%basal_physics%f_effecpress_ocean_p)) &
         deallocate(model%basal_physics%f_effecpress_ocean_p)
     if (associated(model%basal_physics%tau_c)) &
