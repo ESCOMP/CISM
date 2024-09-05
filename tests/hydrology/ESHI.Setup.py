@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 
-# This script sets up experiments for the Efficient Subglacial Hydrology for Ice Sheets (ESHI).
+# This script sets up Suite A SHMIP experiments for the Efficient Subglacial Hydrology for Ice Sheets (ESHI).
 # More information about ESHI (will) be found on github:
 # https://github.com/link.
 # For now, the script sets up Experiments 1 to X of ESHI Phase 1.
@@ -79,11 +79,12 @@ def computeBedLinear(x,Bc,Bl, alpha):
 parser.add_argument('-c', '--configfile',   type=str,   default='ESHI.config.template', help="config file template")
 parser.add_argument('-e', '--executable',   type=str,   default='cism_driver', help="path to the CISM executable")
 parser.add_argument('-x', '--experiment',   type=str,   default= 'all',   help="ESHI experiment(s) to set up")
-parser.add_argument('-t', '--timestep',     type=float, default= 1.0,     help="time step (yr)")
 parser.add_argument('-r', '--resolution',   type=float, default= 5000.,   help="grid resolution (m)")
-parser.add_argument('-v', '--vertlevels',   type=int,   default= 5,       help="no. of vertical levels")
-parser.add_argument('-a', '--approximation',type=str,   default= 'DIVA',  help="Stokes approximation (SSA, DIVA, BP)")
-parser.add_argument('-fl', '--outputfreq',type=float,   default= 1.0,   help="low output frequency (yr)")
+parser.add_argument('-h', '--hydromodel',   type=str,   default= 'bwat_constant',  help="Hydrology model (bwat_constant, local_till, ss_flux, mp_sheet, cav_sheet)")
+# parser.add_argument('-t', '--timestep',     type=float, default= 1.0,     help="time step (yr)")
+# parser.add_argument('-v', '--vertlevels',   type=int,   default= 5,       help="no. of vertical levels")
+# parser.add_argument('-a', '--approximation',type=str,   default= 'DIVA',  help="Stokes approximation (SSA, DIVA, BP)")
+# parser.add_argument('-fl', '--outputfreq',type=float,   default= 1.0,   help="low output frequency (yr)")
 
 args = parser.parse_args()
 
@@ -103,6 +104,47 @@ if args.executable != 'cism_driver':
     os.unlink('cism_driver')
     # Make the new link.
     os.symlink(args.executable, 'cism_driver')
+
+# Set the basal hydrology model - bwat_constant, local_till, ss_flux, mp_sheet, cav_sheet
+if args.hydromodel == 'bwat_constant':
+    # constant basal water
+    config.set('basal_hydro', 'which_ho_bwat', '0')
+    config.set('basal_hydro', 'const_bwat', '10.0')
+
+elif args.hydromodel == 'local_till':
+    # local till
+    config.set('basal_hydro', 'which_ho_bwat', '1')
+    config.set('basal_hydro', 'c_drainage', '1.0e-3')
+    # config.set('basal_hydro', 'N_0', '1000')
+    # config.set('basal_hydro', 'e_0', '0.69')
+    # config.set('basal_hydro', 'C_c', '0.12')
+
+elif args.hydromodel == 'ss_flux':
+    # steady state flux
+    config.set('basal_hydro', 'which_ho_bwat', '2')
+    config.set('basal_hydro', 'const_source', '0.0')
+
+elif args.hydromodel == 'mp_sheet':
+    # macroporous sheet (new!)
+    config.set('basal_hydro', 'which_ho_bwat', '3')
+    config.set('basal_hydro', 'bwat_threshold', '0.1')
+    config.set('basal_hydro', 'bwat_gamma', '3.5')
+
+elif args.hydromodel == 'cav_sheet':
+    # cavity sheet (new!)
+    config.set('basal_hydro', 'which_ho_bwat', '4')
+    config.set('basal_hydro', 'bump_height', '0.1')
+    config.set('basal_hydro', 'bump_wavelength', '2.0')
+    config.set('basal_hydro', 'sliding_speed_fixed', '31.5')
+    config.set('basal_hydro', 'flwa_basal', '1.064e-16')
+    config.set('basal_hydro', 'c_close', '0.074')
+
+    # what about..
+    # config.set('basal_hydro', 'effecpress_delta','0.02')
+    # config.set('basal_hydro', 'bpmp_threshold','0.1')
+
+else:
+    sys.exit('Please specify a hydrology model from this list: bwat_constant, local_till, ss_flux, mp_sheet, cav_sheet')
 
 # Set grid resolution.
 if max_x%args.resolution==0 and max_y%args.resolution==0:
@@ -167,21 +209,21 @@ config.set('time', 'jdiag', str(jdiag))
 print('idiag:',idiag)
 print('jdiag:',jdiag)
 
-# Set the Stokes approximation - leaving this for now, but we aren't driving ice dynamics
-if args.approximation == 'SSA':
-    which_ho_approx = 1
-    print( 'Using SSA velocity solver')
-elif args.approximation == 'DIVA':
-    which_ho_approx = 4
-    print( 'Using DIVA velocity solver')
-elif args.approximation == 'BP':
-    which_ho_approx = 2
-    print( 'Using Blatter-Pattyn velocity solver')
-else:
-    which_ho_approx = 4
-    print( 'Defaulting to DIVA velocity solver')
+# # Set the Stokes approximation - leaving this for now, but we aren't driving ice dynamics
+# if args.approximation == 'SSA':
+#     which_ho_approx = 1
+#     print( 'Using SSA velocity solver')
+# elif args.approximation == 'DIVA':
+#     which_ho_approx = 4
+#     print( 'Using DIVA velocity solver')
+# elif args.approximation == 'BP':
+#     which_ho_approx = 2
+#     print( 'Using Blatter-Pattyn velocity solver')
+# else:
+#     which_ho_approx = 4
+#     print( 'Defaulting to DIVA velocity solver')
 
-config.set('ho_options', 'which_ho_approx', str(which_ho_approx))
+# config.set('ho_options', 'which_ho_approx', str(which_ho_approx))
 
 # Write to the master config file.
 with open(masterConfigFile, 'w') as configfile:
