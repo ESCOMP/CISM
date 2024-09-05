@@ -964,7 +964,7 @@ contains
     if (model%options%is_restart == NO_RESTART) then
 
        call glissade_init_effecpress(&
-            model%options%which_ho_effecpress,  &
+            model%ho_options%which_ho_effecpress,  &
             model%basal_physics)
 
     endif
@@ -2111,7 +2111,7 @@ contains
 
     !TODO - Move the following calls to a new basal hydrology solver?
 
-    if (model%options%which_ho_bwat == HO_BWAT_FLUX_ROUTING) then
+    if (model%ho_options%which_ho_bwat == HO_BWAT_FLUX_ROUTING) then
 
        !WHL - Temporary code for debugging: Make up a simple basal melt field.
 !       model%basal_hydro%head(:,:) = &
@@ -2213,7 +2213,7 @@ contains
 
     else  ! simpler basal water options
 
-       call glissade_calcbwat(model%options%which_ho_bwat,      &
+       call glissade_calcbwat(model%ho_options%which_ho_bwat,      &
                               model%basal_hydro,                &
                               dt,                               &  ! s
                               model%geometry%thck*thk0,         &  ! m
@@ -4593,7 +4593,7 @@ contains
        !TODO - Use btemp_ground instead of temp(upn)?
        !TODO - Break into two subroutines (second subroutine for ocean_p)
        call glissade_calc_effecpress(&
-            model%options%which_ho_effecpress,   &
+            model%ho_options%which_ho_effecpress,   &
             parallel,                            &
             itest, jtest,  rtest,                &
             ewn,   nsn,    upn,                  &

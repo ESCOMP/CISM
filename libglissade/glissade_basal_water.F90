@@ -52,7 +52,7 @@ contains
 
     type(glide_global_type) :: model
 
-    select case (model%options%which_ho_bwat)
+    select case (model%ho_options%which_ho_bwat)
 
     ! HO_BWAT_NONE:         basal water depth = 0
     ! HO_BWAT_CONSTANT:     basal water depth = prescribed constant

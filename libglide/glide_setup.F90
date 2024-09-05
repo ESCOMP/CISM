@@ -124,7 +124,7 @@ contains
     endif
 
     ! read basal hydrology info
-    if (model%options%which_ho_bwat /= HO_BWAT_NONE) then
+    if (model%ho_options%which_ho_bwat /= HO_BWAT_NONE) then
        call GetSection(config,section,'basal_hydro')
        if (associated(section)) then
           call handle_basal_hydro(section, model)
@@ -806,8 +806,8 @@ contains
     call GetValue(section, 'which_ho_deltaT_ocn',         model%options%which_ho_deltaT_ocn)
     call GetValue(section, 'deltaT_ocn_extrapolate',      model%options%deltaT_ocn_extrapolate)
     call GetValue(section, 'which_ho_flow_enhancement_factor', model%options%which_ho_flow_enhancement_factor)
-    call GetValue(section, 'which_ho_bwat',               model%options%which_ho_bwat)
-    call GetValue(section, 'which_ho_effecpress',         model%options%which_ho_effecpress)
+    call GetValue(section, 'which_ho_bwat',               model%ho_options%which_ho_bwat)
+    call GetValue(section, 'which_ho_effecpress',         model%ho_options%which_ho_effecpress)
     call GetValue(section, 'which_ho_resid',              model%options%which_ho_resid)
     call GetValue(section, 'which_ho_nonlinear',          model%options%which_ho_nonlinear)
     call GetValue(section, 'which_ho_sparse',             model%options%which_ho_sparse)
@@ -1888,10 +1888,10 @@ contains
           call write_log('Cannot invert for deltaT_ocn both locally and in basins', GM_FATAL)
        endif
 
-       write(message,*) 'ho_whicheffecpress      : ',model%options%which_ho_effecpress,  &
-                         ho_whicheffecpress(model%options%which_ho_effecpress)
+       write(message,*) 'ho_whicheffecpress      : ',model%ho_options%which_ho_effecpress,  &
+                         ho_whicheffecpress(model%ho_options%which_ho_effecpress)
        call write_log(message)
-       if (model%options%which_ho_effecpress < 0 .or. model%options%which_ho_effecpress >= size(ho_whicheffecpress)) then
+       if (model%ho_options%which_ho_effecpress < 0 .or. model%ho_options%which_ho_effecpress >= size(ho_whicheffecpress)) then
           call write_log('Error, HO effective pressure input out of range', GM_FATAL)
        end if
 
@@ -3205,18 +3205,18 @@ contains
          'opening by melting based on cavity dissipation  ', &
          'opening based on bmlt_ground plus dissipation   ' /)
 
-    write(message,*) 'ho_whichbwat                  : ',model%options%which_ho_bwat,  &
-                      ho_whichbwat(model%options%which_ho_bwat)
+    write(message,*) 'ho_whichbwat                  : ',model%ho_options%which_ho_bwat,  &
+                      ho_whichbwat(model%ho_options%which_ho_bwat)
     call write_log(message)
-    if (model%options%which_ho_bwat < 0 .or. model%options%which_ho_bwat >= size(ho_whichbwat)) then
+    if (model%ho_options%which_ho_bwat < 0 .or. model%ho_options%which_ho_bwat >= size(ho_whichbwat)) then
        call write_log('Error, HO basal water input out of range', GM_FATAL)
     end if
 
-    if (model%options%which_ho_bwat == HO_BWAT_CONSTANT) then
+    if (model%ho_options%which_ho_bwat == HO_BWAT_CONSTANT) then
        write(message,*) 'constant basal water depth (m): ', model%basal_hydro%const_bwat
        call write_log(message)
-    elseif (model%options%which_ho_bwat == HO_BWAT_LOCAL_TILL) then
-       if (model%options%which_ho_effecpress == HO_EFFECPRESS_BWAT_BVP) then
+    elseif (model%ho_options%which_ho_bwat == HO_BWAT_LOCAL_TILL) then
+       if (model%ho_options%which_ho_effecpress == HO_EFFECPRESS_BWAT_BVP) then
           write(message,*) 'effective pressure delta      : ', model%basal_hydro%effecpress_delta
           call write_log(message)
           write(message,*) 'maximum till water depth (m)  : ', model%basal_hydro%bwat_till_max
@@ -3227,7 +3227,7 @@ contains
           write(message,*) 'local till option must use which_ho_effecpress =', HO_EFFECPRESS_BWAT_BVP
           call write_log(message, GM_FATAL)
        endif
-    elseif (model%options%which_ho_bwat == HO_BWAT_FLUX_ROUTING) then
+    elseif (model%ho_options%which_ho_bwat == HO_BWAT_FLUX_ROUTING) then
        if (model%basal_hydro%ho_flux_routing_scheme < 0.or. &
             model%basal_hydro%ho_flux_routing_scheme >= size(ho_flux_routing_scheme)) then
           call write_log('Error, HO flux routing scheme out of range', GM_FATAL)
@@ -3239,14 +3239,14 @@ contains
           write(message,*) 'constant melt source at the bed (m/yr): ', model%basal_hydro%const_source
           call write_log(message)
        endif
-       if (model%options%which_ho_effecpress == HO_EFFECPRESS_BWAT) then
+       if (model%ho_options%which_ho_effecpress == HO_EFFECPRESS_BWAT) then
           write(message,*) 'effective pressure delta      : ', model%basal_hydro%effecpress_delta
           call write_log(message)
           write(message,*) 'bwat threshold (m)            : ', model%basal_hydro%bwat_threshold
           call write_log(message)
           write(message,*) 'bwat gamma                    : ', model%basal_hydro%bwat_gamma
           call write_log(message)
-       elseif (model%options%which_ho_effecpress == HO_EFFECPRESS_CAVITY_SHEET) then
+       elseif (model%ho_options%which_ho_effecpress == HO_EFFECPRESS_CAVITY_SHEET) then
           if (model%basal_hydro%cavity_open_slide < 0 .or. &
                model%basal_hydro%cavity_open_slide >= size(cavity_open_slide)) then
              call write_log('Error, cavity_open_slide out of range', GM_FATAL)
@@ -3280,7 +3280,7 @@ contains
 
     ! other effective pressure options
 
-    if (model%options%which_ho_effecpress == HO_EFFECPRESS_BPMP) then
+    if (model%ho_options%which_ho_effecpress == HO_EFFECPRESS_BPMP) then
        write(message,*) 'effective pressure delta      : ', model%basal_hydro%effecpress_delta
        call write_log(message)
        write(message,*) 'bpmp threshold (K)            : ', model%basal_hydro%bpmp_threshold

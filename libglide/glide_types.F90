@@ -297,24 +297,29 @@ module glide_types
   integer, parameter :: HO_BMLT_BASIN_ISMIP6 = 3
 
   ! New Glissade basal water options
+  ! which_ho_bwat
   integer, parameter :: HO_BWAT_NONE = 0
   integer, parameter :: HO_BWAT_CONSTANT = 1
   integer, parameter :: HO_BWAT_LOCAL_TILL = 2
   integer, parameter :: HO_BWAT_FLUX_ROUTING = 3
 
+  ! ho_flux_routing_scheme
   integer, parameter :: HO_FLUX_ROUTING_D8 = 0
   integer, parameter :: HO_FLUX_ROUTING_DINF = 1
   integer, parameter :: HO_FLUX_ROUTING_FD8 = 2
 
+  ! cavity_open_slide
   integer, parameter :: CAVITY_OPEN_SLIDE_NONE = 0
   integer, parameter :: CAVITY_OPEN_SLIDE_FIXED_UB = 1
   integer, parameter :: CAVITY_OPEN_SLIDE_DYNAMIC_UB = 2
 
+  ! cavity_open_melt
   integer, parameter :: CAVITY_OPEN_MELT_NONE = 0
   integer, parameter :: CAVITY_OPEN_MELT_BMLT = 1
   integer, parameter :: CAVITY_OPEN_MELT_DISSIP = 2
   integer, parameter :: CAVITY_OPEN_MELT_BMLT_DISSIP = 3
 
+  ! which_ho_effecpress
   integer, parameter :: HO_EFFECPRESS_OVERBURDEN = 0
   integer, parameter :: HO_EFFECPRESS_BPMP = 1
   integer, parameter :: HO_EFFECPRESS_BWAT = 2
@@ -2925,7 +2930,7 @@ contains
     call coordsystem_allocate(model%general%ice_grid,  model%basal_hydro%bwat)
     call coordsystem_allocate(model%general%velo_grid, model%basal_hydro%stagbwat)
     call coordsystem_allocate(model%general%ice_grid,  model%basal_hydro%bwatflx)
-    if (model%options%which_ho_bwat == HO_BWAT_FLUX_ROUTING) then
+    if (model%ho_options%which_ho_bwat == HO_BWAT_FLUX_ROUTING) then
        call coordsystem_allocate(model%general%ice_grid,  model%basal_hydro%bmlt_hydro)
        call coordsystem_allocate(model%general%ice_grid,  model%basal_hydro%bwat_diag)
        call coordsystem_allocate(model%general%ice_grid,  model%basal_hydro%head)
