@@ -106,33 +106,35 @@ if args.executable != 'cism_driver':
     os.symlink(args.executable, 'cism_driver')
 
 # Set the basal hydrology model - bwat_constant, local_till, ss_flux, mp_sheet, cav_sheet
-if args.hydromodel == 'bwat_constant':
-    # constant basal water
-    config.set('basal_hydro', 'which_ho_bwat', '0')
-    config.set('basal_hydro', 'const_bwat', '10.0')
+# if args.hydromodel == 'bwat_constant':
+#     # constant basal water
+#     config.set('basal_hydro', 'which_ho_bwat', '0')
+#     config.set('basal_hydro', 'const_bwat', '10.0')
 
-elif args.hydromodel == 'local_till':
-    # local till
-    config.set('basal_hydro', 'which_ho_bwat', '1')
-    config.set('basal_hydro', 'c_drainage', '1.0e-3')
-    # config.set('basal_hydro', 'N_0', '1000')
-    # config.set('basal_hydro', 'e_0', '0.69')
-    # config.set('basal_hydro', 'C_c', '0.12')
+# elif args.hydromodel == 'local_till':
+#     # local till
+#     config.set('basal_hydro', 'which_ho_bwat', '1')
+#     config.set('basal_hydro', 'c_drainage', '1.0e-3')
+#     # config.set('basal_hydro', 'N_0', '1000')
+#     # config.set('basal_hydro', 'e_0', '0.69')
+#     # config.set('basal_hydro', 'C_c', '0.12')
 
-elif args.hydromodel == 'ss_flux':
-    # steady state flux
-    config.set('basal_hydro', 'which_ho_bwat', '2')
-    config.set('basal_hydro', 'const_source', '0.0')
+# elif args.hydromodel == 'ss_flux':
+#     # steady state flux
+#     config.set('basal_hydro', 'which_ho_bwat', '2')
+#     config.set('basal_hydro', 'const_source', '0.0')
 
-elif args.hydromodel == 'mp_sheet':
+if args.hydromodel == 'mp_sheet':
     # macroporous sheet (new!)
     config.set('basal_hydro', 'which_ho_bwat', '3')
+    config.set('basal_hydro', 'which_ho_effecpress', '2')
     config.set('basal_hydro', 'bwat_threshold', '0.1')
     config.set('basal_hydro', 'bwat_gamma', '3.5')
 
 elif args.hydromodel == 'cav_sheet':
     # cavity sheet (new!)
-    config.set('basal_hydro', 'which_ho_bwat', '4')
+    config.set('basal_hydro', 'which_ho_bwat', '3')
+    config.set('basal_hydro', 'which_ho_effecpress', '3')
     config.set('basal_hydro', 'bump_height', '0.1')
     config.set('basal_hydro', 'bump_wavelength', '2.0')
     config.set('basal_hydro', 'sliding_speed_fixed', '31.5')
