@@ -50,13 +50,8 @@ max_y = 20.e3 # (m) width of ice-sheet
 # Thus, beta = (1/C)^{1/m} = 10^4 Pa m^{-1/3} a^{1/3}
 
 g = 9.81        # gravitational acceleration (m s-2)
-# accum = 0.3     # Surface mass balance (m a-1)
 rhoi = 917.     # Ice density (kg m-3)
 rhoo = 1028.    # Sea water density (kg m-3)
-# A = 2.9377e-18  # Ice rate factor (Pa-3 a-1)
-# n = 3           # Flow law stress exponent
-# C = 10000.      # Basal slipperiness (m a-1 Pa-3) --- well this is what might be informed by ESHI, we aren't evolving the ice-dynamics yet
-# m = 3.          # Sliding law stress exponent
 sec2yr = 31556926  # Seconds in a year (s)
 
 
@@ -88,8 +83,6 @@ parser.add_argument('-x', '--experiment',   type=str,   default= 'all',   help="
 parser.add_argument('-r', '--resolution',   type=float, default= 5000.,   help="grid resolution (m)")
 parser.add_argument('-m', '--hydromodel',   type=str,   default= 'mp_sheet',  help="Hydrology model (mp_sheet, cav_sheet)")
 parser.add_argument('-t', '--timestep',     type=float, default= 1.0,     help="time step (yr)")
-# parser.add_argument('-v', '--vertlevels',   type=int,   default= 5,       help="no. of vertical levels")
-# parser.add_argument('-a', '--approximation',type=str,   default= 'DIVA',  help="Stokes approximation (SSA, DIVA, BP)")
 parser.add_argument('-fl', '--outputfreq',type=float,   default= 1.0,   help="low output frequency (yr)")
 
 args = parser.parse_args()
@@ -136,25 +129,17 @@ if args.executable != 'cism_driver':
 # Set the basal hydrology model - mp_sheet, cav_sheet
 
 if args.hydromodel == 'mp_sheet':
-    # macroporous sheet (new!)
-    # config.set('basal_hydro', 'which_ho_bwat', '3') # this is the default
     config.set('basal_hydro', 'which_ho_effecpress', '2')
     # config.set('basal_hydro', 'bwat_threshold', '0.1')
     # config.set('basal_hydro', 'bwat_gamma', '3.5')
 
 elif args.hydromodel == 'cav_sheet':
-    # cavity sheet (new!)
-    # config.set('basal_hydro', 'which_ho_bwat', '3')
     config.set('basal_hydro', 'which_ho_effecpress', '3')
     # config.set('basal_hydro', 'bump_height', '0.1')
     # config.set('basal_hydro', 'bump_wavelength', '2.0')
     # config.set('basal_hydro', 'sliding_speed_fixed', '31.5')
     # config.set('basal_hydro', 'flwa_basal', '1.064e-16')
     # config.set('basal_hydro', 'c_close', '0.074')
-
-    # what about..
-    # config.set('basal_hydro', 'effecpress_delta','0.02')
-    # config.set('basal_hydro', 'bpmp_threshold','0.1')
 
 else:
     sys.exit('Please specify a hydrology model from this list: mp_sheet, cav_sheet')
@@ -200,22 +185,6 @@ config.set('time', 'idiag', str(idiag))
 config.set('time', 'jdiag', str(jdiag))
 print('idiag:',idiag)
 print('jdiag:',jdiag)
-
-# # Set the Stokes approximation - leaving this for now, but we aren't driving ice dynamics
-# if args.approximation == 'SSA':
-#     which_ho_approx = 1
-#     print( 'Using SSA velocity solver')
-# elif args.approximation == 'DIVA':
-#     which_ho_approx = 4
-#     print( 'Using DIVA velocity solver')
-# elif args.approximation == 'BP':
-#     which_ho_approx = 2
-#     print( 'Using Blatter-Pattyn velocity solver')
-# else:
-#     which_ho_approx = 4
-#     print( 'Defaulting to DIVA velocity solver')
-
-# config.set('ho_options', 'which_ho_approx', str(which_ho_approx))
 
 # Write to the master config file.
 with open(masterConfigFile, 'w') as configfile:
@@ -301,6 +270,8 @@ for expt in experiments:
 #    print('Config file for this experiment:', newConfigFile)
     shutil.copy(masterConfigFile, newConfigFile)
 
+    
+
     # Read the new config file.
     config = ConfigParser()
     config.read(newConfigFile)
@@ -355,7 +326,7 @@ for expt in experiments:
         m           = 5.79e-7 # water input, m s-1
 
     # Set the water input
-    print(f'const_source = {m}')
+    # print(f'const_source = {m}')
     config.set('basal_hydro', 'const_source', str(m))
     # config.set('basal_hydro', 'which_ho_bwat', '3')
         
@@ -393,6 +364,10 @@ for expt in experiments:
         print('Created subdirectory', expt)
     except:
         print('Subdirectory', expt, 'already exists')
+    # Write to the new config file.
+
+    with open(newConfigFile, 'w') as configfile:
+        config.write(configfile)
 
     os.chdir(expt)
     
