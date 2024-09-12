@@ -19,12 +19,12 @@ parser.add_argument('-n', '--parallel', dest='parallel',   type =int, help="Numb
 
 options = parser.parse_args()
 
-if args.experiment == 'all':
+if options.experiment == 'all':
     experiments = ['SteadyStateA','SteadyStateB','SteadyStateC','SteadyStateD','SteadyStateE','SteadyStateF'] # future experiment, steadystate w/ linear bed slope
     print('Running all the SHMIP A experiments')
-elif args.experiment in ['SteadyStateA','SteadyStateB','SteadyStateC','SteadyStateD','SteadyStateE','SteadyStateF']: 
-    experiments = [args.experiment]
-    print( 'Running SHMIP A experiment', args.experiment)
+elif options.experiment in ['SteadyStateA','SteadyStateB','SteadyStateC','SteadyStateD','SteadyStateE','SteadyStateF']: 
+    experiments = [options.experiment]
+    print( 'Running SHMIP A experiment', options.experiment)
 else:
     sys.exit('Please specify experiment(s) from this list: all, SteadyStateA, SteadyStateB, SteadyStateC, SteadyStateD, SteadyStateE, SteadyStateF') 
 

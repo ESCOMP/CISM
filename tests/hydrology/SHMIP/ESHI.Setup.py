@@ -355,7 +355,8 @@ for expt in experiments:
         m           = 5.79e-7 # water input, m s-1
 
     # Set the water input
-    config.set('basal_hydro', 'bmlt_hydro', str(m))
+    print(f'const_source = {m}')
+    config.set('basal_hydro', 'const_source', str(m))
     # config.set('basal_hydro', 'which_ho_bwat', '3')
         
     # Set the start and end times
