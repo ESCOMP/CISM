@@ -997,6 +997,15 @@ factor:        scale_acab
 standard_name: land_ice_basal_melt_rate
 #average:       1
 
+[bmlt_hydro]
+dimensions:    time, y1, x1
+units:         meter/year
+long_name:     basal melt rate for hydrology model
+data:          data%basal_melt%bmlt_hydro
+factor:        scyr
+standard_name: basal_melt_rate_hydrology
+#average:       1
+
 [bmlt_ground]
 dimensions:    time, y1, x1
 units:         meter/year
