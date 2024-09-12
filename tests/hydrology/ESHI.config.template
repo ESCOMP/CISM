@@ -2,10 +2,9 @@
 upn = 5
 ewn = 20
 nsn = 4
-dew = 5000.0
-dns = 5000.0
+dew = 5000
+dns = 5000
 global_bc = 1     # 1 = outflow BCs
-
 [time]
 tstart = 0.
 tend = 1.0
@@ -29,13 +28,15 @@ smb_input = 0           # 0 = m/yr ice, 1 = mm/yr w.e.
 restart_extend_velo = 1 # 1 = write uvel/vvel on extended grid
 restart = 0             # 0 = no restart, 1 = standard restart, 2 = hybrid restart
 
+
 [ho_options]
+which_ho_bwat = 3                 # 3 = steady state flux routing (always the case for SHMIP)
 which_ho_babc = 9                 # 9 = power law
-which_ho_effecpress = 0           # 0 = overburden
+which_ho_effecpress = 0           # 0 = overburden, 1 = reduce N near pressure melting pt, 2 = reduce N where basal water exists, 3 = reduce where nonzero water flux, 4 = reduce where basal water exists, Bueler/van Pelt
 which_ho_efvs = 2                 # 0 = constant, 2 = nonlinear eff. visc. w/ n=3
 which_ho_sparse = 3               # 1 = SLAP GMRES, 3 = Fortran PCG, 4 = Trilinos for linear solver
 which_ho_nonlinear = 1            # 0 = Picard, 1 = accelerated Picard
-which_ho_approx = 4
+which_ho_approx = 4               # 1 = SSA, 2 = Blatter-Pattyn, 3 = L1L2, 4 = DIVA
 which_ho_precond = 1              # 1 = diagonal precond, 2 = shallow ice preconditioner
 which_ho_gradient_margin = 2      # 2 = marine BC
 which_ho_gradient = 0             # 0 = centered, 1 = upstream
@@ -51,10 +52,29 @@ which_ho_powerlaw_c = 0           # 0 = spatially uniform constant
 which_ho_calving_front = 1        # 0 = no subgrid calving front, 1 = subgrid calving front
 glissade_maxiter = 50
 
+[basal_hydro]
+
+ho_flux_routing_scheme = 2         # 0 = route downhill to one cell, 1 = route downhill to two cells, 2 = route downhill proportionate to grad(head)
+const_source = 0                   # constant melt source at the bed (m/yr), for ss flux-routing model
+
+bwat_threshold = 0.10              # macroporous sheet, bwat range over which N ramps down from overburden to a small value (m)
+bwat_gamma = 3.5                   # macroporous sheet, exponent in the expression (bwat/bwat_threshold)^bwat_gamma
+
+cavity_open_slide = 0              # 0 = no opening by sliding, 1 = opening by sliding with fixed u_b, 2 = opening by sliding with dynamic u_b
+cavity_open_melt = 0               # 0 = no opening by melting, 1 = opening by melting based on bmlt_ground, 2 = opening by melting based on cavity dissipation, 3 = opening based on bmlt_ground plus dissipation
+bump_height = 0.1                  # for cavity opening by sliding
+bump_wavelength = 2.0              # for cavity opening by sliding
+sliding_speed_fixed = 31.5         # fixed sliding speed (m/yr)
+flwa_basal = 1.064e-16             # flow factor A for closing by creep (Pa-3 yr-1)
+c_close = 0.074                    # constant for closing
+
+
+bmlt_hydro = 0                     # melt source term, varies for shmip experiment suite A, set with py script
+
 [parameters]
 rhoi = 917.0                    # ice density
 rhoo = 1028.0                   # ocean density
-grav = 9.81	                # gravitational acceleration
+grav = 9.81	                    # gravitational acceleration
 ice_limit = 1.                  # min thickness (m) for dynamics
 default_flwa = 2.9377e-18
 powerlaw_c_const = 10000.       # constant for the power law stress
@@ -85,4 +105,3 @@ xtype = double
 frequency = 1000
 name = ESHI.restart.nc
 write_init = F
-

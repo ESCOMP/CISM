@@ -1,9 +1,15 @@
-#!/usr/bin/env python
+'''
+!/usr/bin/env python
 
-# This script sets up Suite A SHMIP experiments for the Efficient Subglacial Hydrology for Ice Sheets (ESHI).
-# More information about ESHI (will) be found on github:
-# https://github.com/link.
-# For now, the script sets up Experiments 1 to X of ESHI Phase 1.
+This script sets up Suite A SHMIP experiments for the Efficient Subglacial Hydrology for Ice Sheets (ESHI).
+More information about ESHI (will) be found on github:
+https://github.com/link.
+For now, the script sets up Experiments 1 to X of ESHI Phase 1.
+
+example usage:
+python3 ESHI.Setup.py -c ESHI.config.template
+
+'''
 
 import sys, os
 import shutil
@@ -80,13 +86,35 @@ parser.add_argument('-c', '--configfile',   type=str,   default='ESHI.config.tem
 parser.add_argument('-e', '--executable',   type=str,   default='cism_driver', help="path to the CISM executable")
 parser.add_argument('-x', '--experiment',   type=str,   default= 'all',   help="ESHI experiment(s) to set up")
 parser.add_argument('-r', '--resolution',   type=float, default= 5000.,   help="grid resolution (m)")
-parser.add_argument('-h', '--hydromodel',   type=str,   default= 'bwat_constant',  help="Hydrology model (mp_sheet, cav_sheet)")
-# parser.add_argument('-t', '--timestep',     type=float, default= 1.0,     help="time step (yr)")
+parser.add_argument('-m', '--hydromodel',   type=str,   default= 'mp_sheet',  help="Hydrology model (mp_sheet, cav_sheet)")
+parser.add_argument('-t', '--timestep',     type=float, default= 1.0,     help="time step (yr)")
 # parser.add_argument('-v', '--vertlevels',   type=int,   default= 5,       help="no. of vertical levels")
 # parser.add_argument('-a', '--approximation',type=str,   default= 'DIVA',  help="Stokes approximation (SSA, DIVA, BP)")
-# parser.add_argument('-fl', '--outputfreq',type=float,   default= 1.0,   help="low output frequency (yr)")
+parser.add_argument('-fl', '--outputfreq',type=float,   default= 1.0,   help="low output frequency (yr)")
 
 args = parser.parse_args()
+
+# Copy the config template to a new master config file.
+# Later, the master file will be tailored to each experiment.
+masterConfigFile = 'ESHI.config'
+# masterConfigFile = 'ESHI.config'
+
+try:
+    shutil.copy(args.configfile, masterConfigFile)
+except FileNotFoundError:
+    sys.exit(f'File not found: {args.configfile}')
+except PermissionError:
+    sys.exit(f'Permission denied: {args.configfile}')
+except Exception as e:
+    sys.exit(f'Could not copy {args.configfile} to {masterConfigFile}: {e}')
+
+
+print( 'Creating master config file', masterConfigFile)
+
+# Read the master config file.
+config = ConfigParser()
+config.read(masterConfigFile)
+
 
 if args.experiment == 'all':
     experiments = ['SteadyStateA','SteadyStateB','SteadyStateC','SteadyStateD','SteadyStateE','SteadyStateF'] # future experiment, steadystate w/ linear bed slope
@@ -138,13 +166,13 @@ if max_x%args.resolution==0 and max_y%args.resolution==0:
 else:
     sys.exit('Your resolution should be a divider of the domain size of 100 km x 20 km')
 
-if args.vertlevels >= 2:
-    nz = args.vertlevels
-else:
-    sys.exit('Error: must have at least 2 vertical levels')
+# if args.vertlevels >= 2:
+#     nz = args.vertlevels
+# else:
+#     sys.exit('Error: must have at least 2 vertical levels')
 
 print( 'ESHI grid resolution (m) =', args.resolution)
-print( 'Number of vertical levels =', nz)
+# print( 'Number of vertical levels =', nz)
 
 # Set number of grid cells in each direction.
 nx = int(max_x/dx) # 100 km length
@@ -153,31 +181,10 @@ ny = int(max_y/dy) # 20 km width
 print('grid dimension in x:',nx)
 print('grid dimension in y:',ny)
 
-# Copy the config template to a new master config file.
-# Later, the master file will be tailored to each experiment.
-masterConfigFile = 'ESHI.config.template'
-# masterConfigFile = 'ESHI.config'
-
-try:
-    shutil.copy(args.configfile, masterConfigFile)
-except FileNotFoundError:
-    sys.exit(f'File not found: {args.configfile}')
-except PermissionError:
-    sys.exit(f'Permission denied: {args.configfile}')
-except Exception as e:
-    sys.exit(f'Could not copy {args.configfile} to {masterConfigFile}: {e}')
-
-
-print( 'Creating master config file', masterConfigFile)
-
-# Read the master config file.
-config = ConfigParser()
-config.read(masterConfigFile)
-
 # Set the grid variables
 config.set('grid', 'ewn', str(nx))
 config.set('grid', 'nsn', str(ny))
-config.set('grid', 'upn', str(nz))
+# config.set('grid', 'upn', str(nz))
 config.set('grid', 'dew', str(dx))
 config.set('grid', 'dns', str(dy))
 
@@ -235,9 +242,9 @@ ncfile.createDimension('x1',  nx)
 ncfile.createDimension('y1',  ny)
 # ncfile.createDimension('x0',  nx-1)
 # ncfile.createDimension('y0',  ny-1)
-ncfile.createDimension('level',         nz)
+# ncfile.createDimension('level',         nz)
 # ncfile.createDimension('staglevel',     nz-1)
-ncfile.createDimension('stagwbndlevel', nz+1)
+# ncfile.createDimension('stagwbndlevel', nz+1)
 
 # Create time and grid variables.
 # Note: (x1,y1) are loadable and need to be in the input file.
@@ -348,8 +355,8 @@ for expt in experiments:
         m           = 5.79e-7 # water input, m s-1
 
     # Set the water input
-    config.set('basal_hydro', 'bmlt_hydro', m)
-    config.set('basal_hydro', 'which_ho_bwat', '')
+    config.set('basal_hydro', 'bmlt_hydro', str(m))
+    # config.set('basal_hydro', 'which_ho_bwat', '3')
         
     # Set the start and end times
     config.set('time', 'tstart', str(tstart))
