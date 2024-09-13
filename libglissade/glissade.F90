@@ -4732,6 +4732,9 @@ contains
     ! ------------------------------------------------------------------------ 
     ! ------------------------------------------------------------------------ 
 
+
+    model%velocity%uvel = 0.0d0
+    model%velocity%vvel = 0.0d0
     ! Calculate wvel, assuming grid velocity is 0.
     ! This is calculated relative to the ice sheet base, rather than a fixed reference location.
     ! Note: This current implementation for wvel only supports whichwvel=VERTINT_STANDARD
