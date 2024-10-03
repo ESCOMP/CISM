@@ -4,6 +4,7 @@ ewn = 324
 nsn = 40
 dew = 2000
 dns = 2000
+global_bc = 0
 
 [time]
 tstart = 0.

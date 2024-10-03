@@ -21,6 +21,8 @@ from argparse import ArgumentParser
 # Constants #
 #############
 
+xDomain = 640000
+yDomain = 80000
 xCalve  = 640000.      # calving front location (m)
 initThickness = 100.   # initial uniform ice thikcness (m)
 accum = 0.3            # uniform accumulation rate (m/yr)
@@ -75,14 +77,16 @@ parser.add_argument('-v', '--vlevel', dest='vertlevels',    type=int,    default
 parser.add_argument('-a', '--approx', dest='approximation', type=str, default= 'DIVA',  help="Stokes approximation (SSA, DIVA, BP)")
 parser.add_argument('-b', '--basal',  dest='basalFriction', type=str, default='Schoof', help="basal friction law (Schoof, Tsai, powerlaw)")
 parser.add_argument('-y', '--year',   dest='yearsSpinup',   type=int,    default= 20000,   help="length of spinup run (yr)")
+parser.add_argument('-g', '--gbc',    dest='global_bc',     type=int, default=0, help="global boundary condition")
 
 options = parser.parse_args()
 
-for option in optparser.option_list:
+"""
+for option in parser.option_list:
     if option.default != ("NO", "DEFAULT"):
         option.help += (" " if option.help else "") + "[default: %default]"
-options, args = optparser.parse_args()
->>>>>>> e8b19514 (Modified MISMIP+ to support calving tests)
+options, args = parser.parse_args()
+"""
 
 if options.experiment == 'all':
     experiments = ['Spinup', 'Ice0', 'Ice1r', 'Ice1ra', 'Ice1rr', 'Ice1rax', 'Ice1rrx', 'Ice2r', 'Ice2ra', 'Ice2rr', 'Ice2rax', 'Ice2rrx']
@@ -142,8 +146,8 @@ print( 'Number of vertical levels =', nz)
 
 # Set number of grid cells in each direction.
 # Include a few extra cells in the x direction to handle boundary conditions.
-nx = int(options.xDomain/dx) + 4
-ny = int(options.yDomain/dy)
+nx = int(xDomain/dx) + 4
+ny = int(yDomain/dy)
 
 # Copy the config template to a new master config file.
 masterConfigFile = 'mismip+.config'
@@ -282,7 +286,7 @@ for i in range(nx):
 
 
 # Set bed topography.
-Ly = options.yDomain / 1.e3  # m to km
+Ly = yDomain / 1.e3  # m to km
 for i in range(nx):
     for j in range(ny):
         topg[:,j,i] = computeBed(x1[i], y1[j], Ly)
