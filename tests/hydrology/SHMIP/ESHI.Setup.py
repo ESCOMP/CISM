@@ -1,9 +1,15 @@
-#!/usr/bin/env python
+'''
+!/usr/bin/env python
 
-# This script sets up experiments for the Efficient Subglacial Hydrology for Ice Sheets (ESHI).
-# More information about ESHI (will) be found on github:
-# https://github.com/link.
-# For now, the script sets up Experiments 1 to X of ESHI Phase 1.
+This script sets up Suite A SHMIP experiments for the Efficient Subglacial Hydrology for Ice Sheets (ESHI).
+More information about ESHI (will) be found on github:
+https://github.com/link.
+For now, the script sets up Experiments 1 to X of ESHI Phase 1.
+
+example usage:
+python3 ESHI.Setup.py -c ESHI.config.template
+
+'''
 
 import sys, os
 import shutil
@@ -44,13 +50,8 @@ max_y = 20.e3 # (m) width of ice-sheet
 # Thus, beta = (1/C)^{1/m} = 10^4 Pa m^{-1/3} a^{1/3}
 
 g = 9.81        # gravitational acceleration (m s-2)
-# accum = 0.3     # Surface mass balance (m a-1)
 rhoi = 917.     # Ice density (kg m-3)
 rhoo = 1028.    # Sea water density (kg m-3)
-# A = 2.9377e-18  # Ice rate factor (Pa-3 a-1)
-# n = 3           # Flow law stress exponent
-# C = 10000.      # Basal slipperiness (m a-1 Pa-3) --- well this is what might be informed by ESHI, we aren't evolving the ice-dynamics yet
-# m = 3.          # Sliding law stress exponent
 sec2yr = 31556926  # Seconds in a year (s)
 
 
@@ -79,56 +80,16 @@ def computeBedLinear(x,Bc,Bl, alpha):
 parser.add_argument('-c', '--configfile',   type=str,   default='ESHI.config.template', help="config file template")
 parser.add_argument('-e', '--executable',   type=str,   default='cism_driver', help="path to the CISM executable")
 parser.add_argument('-x', '--experiment',   type=str,   default= 'all',   help="ESHI experiment(s) to set up")
-parser.add_argument('-t', '--timestep',     type=float, default= 1.0,     help="time step (yr)")
 parser.add_argument('-r', '--resolution',   type=float, default= 5000.,   help="grid resolution (m)")
-parser.add_argument('-v', '--vertlevels',   type=int,   default= 5,       help="no. of vertical levels")
-parser.add_argument('-a', '--approximation',type=str,   default= 'DIVA',  help="Stokes approximation (SSA, DIVA, BP)")
+parser.add_argument('-m', '--hydromodel',   type=str,   default= 'mp_sheet',  help="Hydrology model (mp_sheet, cav_sheet)")
+parser.add_argument('-t', '--timestep',     type=float, default= 1.0,     help="time step (yr)")
 parser.add_argument('-fl', '--outputfreq',type=float,   default= 1.0,   help="low output frequency (yr)")
 
 args = parser.parse_args()
 
-if args.experiment == 'all':
-    experiments = ['SteadyStateA','SteadyStateB','SteadyStateC','SteadyStateD','SteadyStateE','SteadyStateF'] # future experiment, steadystate w/ linear bed slope
-    print('Setting up all the ESHI experiments')
-elif args.experiment in ['SteadyStateA','SteadyStateB','SteadyStateC','SteadyStateD','SteadyStateE','SteadyStateF']: 
-    experiments = [args.experiment]
-    print( 'Setting up experiment', args.experiment)
-else:
-    sys.exit('Please specify experiment(s) from this list: all, SteadyState') 
-
-# If the executable is not called 'cism_driver', then create a link called 'cism_driver' to the executable.
-# Each subdirectory will link to cism_driver in the main directory.
-if args.executable != 'cism_driver':
-    # Remove the existing link, if present.
-    os.unlink('cism_driver')
-    # Make the new link.
-    os.symlink(args.executable, 'cism_driver')
-
-# Set grid resolution.
-if max_x%args.resolution==0 and max_y%args.resolution==0:
-    dx = args.resolution
-    dy = args.resolution
-else:
-    sys.exit('Your resolution should be a divider of the domain size of 100 km x 20 km')
-
-if args.vertlevels >= 2:
-    nz = args.vertlevels
-else:
-    sys.exit('Error: must have at least 2 vertical levels')
-
-print( 'ESHI grid resolution (m) =', args.resolution)
-print( 'Number of vertical levels =', nz)
-
-# Set number of grid cells in each direction.
-nx = int(max_x/dx) # 100 km length
-ny = int(max_y/dy) # 20 km width
-
-print('grid dimension in x:',nx)
-print('grid dimension in y:',ny)
-
 # Copy the config template to a new master config file.
 # Later, the master file will be tailored to each experiment.
-masterConfigFile = 'ESHI.config.template'
+masterConfigFile = 'ESHI.config'
 # masterConfigFile = 'ESHI.config'
 
 try:
@@ -147,10 +108,68 @@ print( 'Creating master config file', masterConfigFile)
 config = ConfigParser()
 config.read(masterConfigFile)
 
+
+if args.experiment == 'all':
+    experiments = ['SteadyStateA','SteadyStateB','SteadyStateC','SteadyStateD','SteadyStateE','SteadyStateF'] # future experiment, steadystate w/ linear bed slope
+    print('Setting up all the ESHI experiments')
+elif args.experiment in ['SteadyStateA','SteadyStateB','SteadyStateC','SteadyStateD','SteadyStateE','SteadyStateF']: 
+    experiments = [args.experiment]
+    print( 'Setting up experiment', args.experiment)
+else:
+    sys.exit('Please specify experiment(s) from this list: all, SteadyState') 
+
+# If the executable is not called 'cism_driver', then create a link called 'cism_driver' to the executable.
+# Each subdirectory will link to cism_driver in the main directory.
+if args.executable != 'cism_driver':
+    # Remove the existing link, if present.
+    os.unlink('cism_driver')
+    # Make the new link.
+    os.symlink(args.executable, 'cism_driver')
+
+# Set the basal hydrology model - mp_sheet, cav_sheet
+
+if args.hydromodel == 'mp_sheet':
+    config.set('basal_hydro', 'which_ho_effecpress', '2')
+    # config.set('basal_hydro', 'bwat_threshold', '0.1')
+    # config.set('basal_hydro', 'bwat_gamma', '3.5')
+
+elif args.hydromodel == 'cav_sheet':
+    config.set('basal_hydro', 'which_ho_effecpress', '3')
+    # config.set('basal_hydro', 'bump_height', '0.1')
+    # config.set('basal_hydro', 'bump_wavelength', '2.0')
+    # config.set('basal_hydro', 'sliding_speed_fixed', '31.5')
+    # config.set('basal_hydro', 'flwa_basal', '1.064e-16')
+    # config.set('basal_hydro', 'c_close', '0.074')
+
+else:
+    sys.exit('Please specify a hydrology model from this list: mp_sheet, cav_sheet')
+
+# Set grid resolution.
+if max_x%args.resolution==0 and max_y%args.resolution==0:
+    dx = args.resolution
+    dy = args.resolution
+else:
+    sys.exit('Your resolution should be a divider of the domain size of 100 km x 20 km')
+
+# if args.vertlevels >= 2:
+#     nz = args.vertlevels
+# else:
+#     sys.exit('Error: must have at least 2 vertical levels')
+
+print( 'ESHI grid resolution (m) =', args.resolution)
+# print( 'Number of vertical levels =', nz)
+
+# Set number of grid cells in each direction.
+nx = int(max_x/dx) # 100 km length
+ny = int(max_y/dy) # 20 km width
+
+print('grid dimension in x:',nx)
+print('grid dimension in y:',ny)
+
 # Set the grid variables
 config.set('grid', 'ewn', str(nx))
 config.set('grid', 'nsn', str(ny))
-config.set('grid', 'upn', str(nz))
+# config.set('grid', 'upn', str(nz))
 config.set('grid', 'dew', str(dx))
 config.set('grid', 'dns', str(dy))
 
@@ -166,22 +185,6 @@ config.set('time', 'idiag', str(idiag))
 config.set('time', 'jdiag', str(jdiag))
 print('idiag:',idiag)
 print('jdiag:',jdiag)
-
-# Set the Stokes approximation - leaving this for now, but we aren't driving ice dynamics
-if args.approximation == 'SSA':
-    which_ho_approx = 1
-    print( 'Using SSA velocity solver')
-elif args.approximation == 'DIVA':
-    which_ho_approx = 4
-    print( 'Using DIVA velocity solver')
-elif args.approximation == 'BP':
-    which_ho_approx = 2
-    print( 'Using Blatter-Pattyn velocity solver')
-else:
-    which_ho_approx = 4
-    print( 'Defaulting to DIVA velocity solver')
-
-config.set('ho_options', 'which_ho_approx', str(which_ho_approx))
 
 # Write to the master config file.
 with open(masterConfigFile, 'w') as configfile:
@@ -208,9 +211,9 @@ ncfile.createDimension('x1',  nx)
 ncfile.createDimension('y1',  ny)
 # ncfile.createDimension('x0',  nx-1)
 # ncfile.createDimension('y0',  ny-1)
-ncfile.createDimension('level',         nz)
+# ncfile.createDimension('level',         nz)
 # ncfile.createDimension('staglevel',     nz-1)
-ncfile.createDimension('stagwbndlevel', nz+1)
+# ncfile.createDimension('stagwbndlevel', nz+1)
 
 # Create time and grid variables.
 # Note: (x1,y1) are loadable and need to be in the input file.
@@ -267,6 +270,8 @@ for expt in experiments:
 #    print('Config file for this experiment:', newConfigFile)
     shutil.copy(masterConfigFile, newConfigFile)
 
+    
+
     # Read the new config file.
     config = ConfigParser()
     config.read(newConfigFile)
@@ -320,6 +325,10 @@ for expt in experiments:
         outputfreq  = args.outputfreq
         m           = 5.79e-7 # water input, m s-1
 
+    # Set the water input
+    # print(f'const_source = {m}')
+    config.set('basal_hydro', 'const_source', str(m))
+    # config.set('basal_hydro', 'which_ho_bwat', '3')
         
     # Set the start and end times
     config.set('time', 'tstart', str(tstart))
@@ -355,6 +364,10 @@ for expt in experiments:
         print('Created subdirectory', expt)
     except:
         print('Subdirectory', expt, 'already exists')
+    # Write to the new config file.
+
+    with open(newConfigFile, 'w') as configfile:
+        config.write(configfile)
 
     os.chdir(expt)
     
