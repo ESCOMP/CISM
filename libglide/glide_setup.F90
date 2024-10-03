@@ -124,7 +124,7 @@ contains
     endif
 
     ! read basal hydrology info
-    if (model%ho_options%which_ho_bwat /= HO_BWAT_NONE) then
+    if (model%options%which_ho_bwat /= HO_BWAT_NONE) then
        call GetSection(config,section,'basal_hydro')
        if (associated(section)) then
           call handle_basal_hydro(section, model)
@@ -806,8 +806,8 @@ contains
     call GetValue(section, 'which_ho_deltaT_ocn',         model%options%which_ho_deltaT_ocn)
     call GetValue(section, 'deltaT_ocn_extrapolate',      model%options%deltaT_ocn_extrapolate)
     call GetValue(section, 'which_ho_flow_enhancement_factor', model%options%which_ho_flow_enhancement_factor)
-    call GetValue(section, 'which_ho_bwat',               model%ho_options%which_ho_bwat)
-    call GetValue(section, 'which_ho_effecpress',         model%ho_options%which_ho_effecpress)
+    call GetValue(section, 'which_ho_bwat',               model%options%which_ho_bwat)
+    call GetValue(section, 'which_ho_effecpress',         model%options%which_ho_effecpress)
     call GetValue(section, 'which_ho_resid',              model%options%which_ho_resid)
     call GetValue(section, 'which_ho_nonlinear',          model%options%which_ho_nonlinear)
     call GetValue(section, 'which_ho_sparse',             model%options%which_ho_sparse)
