@@ -80,7 +80,11 @@ def computeBedLinear(x,Bc,Bl, alpha):
 parser.add_argument('-c', '--configfile',   type=str,   default='ESHI.config.template', help="config file template")
 parser.add_argument('-e', '--executable',   type=str,   default='cism_driver', help="path to the CISM executable")
 parser.add_argument('-x', '--experiment',   type=str,   default= 'all',   help="ESHI experiment(s) to set up")
+<<<<<<<< HEAD:tests/hydrology/SHMIP.testA/ESHI.Setup.py
 parser.add_argument('-r', '--resolution',   type=float, default= 4000.,   help="grid resolution (m)")
+========
+parser.add_argument('-r', '--resolution',   type=float, default= 5000.,   help="grid resolution (m)")
+>>>>>>>> origin/rachel/hydrology:tests/hydrology/SHMIP/ESHI.Setup.py
 parser.add_argument('-m', '--hydromodel',   type=str,   default= 'mp_sheet',  help="Hydrology model (mp_sheet, cav_sheet)")
 parser.add_argument('-t', '--timestep',     type=float, default= 1.0,     help="time step (yr)")
 parser.add_argument('-fl', '--outputfreq',type=float,   default= 1.0,   help="low output frequency (yr)")
@@ -90,6 +94,10 @@ args = parser.parse_args()
 # Copy the config template to a new master config file.
 # Later, the master file will be tailored to each experiment.
 masterConfigFile = 'ESHI.config'
+<<<<<<<< HEAD:tests/hydrology/SHMIP.testA/ESHI.Setup.py
+========
+# masterConfigFile = 'ESHI.config'
+>>>>>>>> origin/rachel/hydrology:tests/hydrology/SHMIP/ESHI.Setup.py
 
 try:
     shutil.copy(args.configfile, masterConfigFile)
@@ -147,7 +155,10 @@ else:
 if max_x%args.resolution==0 and max_y%args.resolution==0:
     dx = args.resolution
     dy = args.resolution
+<<<<<<<< HEAD:tests/hydrology/SHMIP.testA/ESHI.Setup.py
     
+========
+>>>>>>>> origin/rachel/hydrology:tests/hydrology/SHMIP/ESHI.Setup.py
 else:
     sys.exit('Your resolution should be a divider of the domain size of 100 km x 20 km')
 
