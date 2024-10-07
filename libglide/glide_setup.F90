@@ -779,6 +779,9 @@ contains
     call GetValue(section,'restart',model%options%is_restart)
     call GetValue(section,'restart_extend_velo',model%options%restart_extend_velo)
     call GetValue(section,'forcewrite_restart',model%options%forcewrite_restart)
+    call GetValue(section, 'which_ho_bwat', model%options%which_ho_bwat)
+    call GetValue(section, 'which_ho_effecpress',model%options%which_ho_effecpress)
+    
 
   end subroutine handle_options
 
@@ -1201,6 +1204,14 @@ contains
 
     write(message,*) 'I/O parameter file      : ',trim(model%funits%ncfile)
     call write_log(message)
+
+    write(message,*) 'Hydrology params: ho_whichbwat  : ',model%options%which_ho_bwat
+    call write_log(message)
+
+    write(message,*) 'which_ho_effecpress     : ',model%options%which_ho_effecpress
+    call write_log(message)
+
+
 
     if (model%options%whichdycore < 0 .or. model%options%whichdycore >= size(dycore)) then
        call write_log('Error, dycore option out of range',GM_FATAL)
