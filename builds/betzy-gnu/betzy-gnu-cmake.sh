@@ -4,25 +4,13 @@
 
 # This cmake configuration script is set up to perform a parallel build with Trilinos
 
-#module reset
-#module load ncarenv/1.2
-#module load gnu/8.3.0
-#module load openblas/0.3.6
-#module load openmpi/3.1.4
-#module load netcdf/4.7.1
-#module load ncarcompilers/0.5.0
-#module load cmake/3.14.4
-#module load python/2.7.13
-#module load numpy/1.12.0
-#module load netcdf4-python/1.2.7
-
 module purge
 module load StdEnv
-module load GCCcore/11.2.0
-module load CMake/3.22.1-GCCcore-11.2.0
-module load netCDF/4.8.1-gompi-2021b
-module load netCDF-Fortran/4.5.3-gompi-2021b 
-module load OpenBLAS/0.3.18-GCC-11.2.0
+# module load GCCcore/12.3.0
+module load CMake/3.26.3-GCCcore-12.3.0
+#module load netCDF/4.9.2-gompi-2023a
+module load netCDF-Fortran/4.6.1-gompi-2023a
+module load OpenBLAS/0.3.23-GCC-12.3.0
 
 # remove old build data:
 rm -f ./CMakeCache.txt
