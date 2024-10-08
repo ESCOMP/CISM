@@ -49,6 +49,7 @@ contains
       use glide_types
       use glissade_velo_higher, only: glissade_velo_higher_solve
       use glissade_velo_sia, only: glissade_velo_sia_solve
+      use glissade_velo_noism, only: glissade_velo_noism_solve
       use glide_mask
       use profile, only: t_startf, t_stopf
 
@@ -84,7 +85,11 @@ contains
       ! There is also a local shallow-ice solver, glissade_velo_sia_solve.
       !-------------------------------------------------------------------
       
-      if (model%options%which_ho_approx == HO_APPROX_LOCAL_SIA) then
+      if (model%options%which_ho_approx == HO_APPROX_NOISM) then
+ 
+         call glissade_velo_noism_solve(model, ewn, nsn, upn)
+
+      elseif (model%options%which_ho_approx == HO_APPROX_LOCAL_SIA) then
  
          call glissade_velo_sia_solve(model, ewn, nsn, upn)
 

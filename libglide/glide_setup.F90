@@ -1124,7 +1124,8 @@ contains
          'Native PCG solver, Chronopoulos-Gear       ', &
          'Trilinos interface                         '/)
 
-    character(len=*), dimension(-1:5), parameter :: ho_whichapprox = (/ &
+    character(len=*), dimension(-2:5), parameter :: ho_whichapprox = (/ &
+         'noism (glissade_velo_noism)                      ', &
          'SIA only (glissade_velo_sia)                     ', &
          'SIA only (glissade_velo_higher)                  ', &
          'SSA only (glissade_velo_higher)                  ', &

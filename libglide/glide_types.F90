@@ -322,6 +322,7 @@ module glide_types
   integer, parameter :: HO_SPARSE_PCG_CHRONGEAR = 3
   integer, parameter :: HO_SPARSE_TRILINOS = 4
 
+  integer, parameter :: HO_APPROX_NOISM = -2
   integer, parameter :: HO_APPROX_LOCAL_SIA = -1
   integer, parameter :: HO_APPROX_SIA = 0
   integer, parameter :: HO_APPROX_SSA = 1
