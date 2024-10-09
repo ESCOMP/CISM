@@ -2557,7 +2557,8 @@ contains
            model%options%smb_input_function == SMB_INPUT_FUNCTION_XYZ) then
           local_maxval = maxval(abs(model%climate%acab))
           global_maxval = parallel_reduce_max(local_maxval)
-          if (global_maxval < eps11) then
+          ! allowing acab = 0 for noism runs          
+          if (global_maxval < eps11 .and. .not. model%options%which_ho_approx == HO_APPROX_NOISM) then
              write(message,*) 'Error: acab = 0 everywhere with smb_input_function =', &
                   model%options%smb_input_function
              call write_log(trim(message), GM_FATAL)

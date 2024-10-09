@@ -1942,7 +1942,7 @@ contains
           write(message,*) 'ho_whichapprox          : ',model%options%which_ho_approx,  &
                             ho_whichapprox(model%options%which_ho_approx)
           call write_log(message)
-          if (model%options%which_ho_approx < -1 .or. model%options%which_ho_approx >= size(ho_whichapprox)-1) then
+          if (model%options%which_ho_approx < -2 .or. model%options%which_ho_approx >= size(ho_whichapprox)-1) then
              call write_log('Error, Stokes approximation out of range for glissade dycore', GM_FATAL)
           end if
 
