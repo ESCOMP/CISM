@@ -2122,7 +2122,6 @@ contains
 
   subroutine parallel_create_comm_row(comm, parallel)
 
-    use mpi_mod
     implicit none
     integer, intent(in) :: comm          ! global communicator
     type(parallel_type) :: parallel
@@ -2140,7 +2139,6 @@ contains
 
   subroutine parallel_create_comm_col(comm, parallel)
 
-    use mpi_mod
     implicit none
     integer, intent(in) :: comm          ! global communicator
     type(parallel_type) :: parallel
@@ -3935,6 +3933,31 @@ contains
 
 !=======================================================================
 
+  ! functions for parallel reduction of logical variables
+  ! * parallel_reduce_log_or returns 'true' iff x = 'true' on at least one processor
+  ! * parallel_reduce_log_and returns 'true' iff x = 'true' on all processors
+
+  function parallel_reduce_log_or(x)
+
+    implicit none
+    logical :: x, parallel_reduce_log_or
+
+    parallel_reduce_log_or = x
+
+  end function parallel_reduce_log_or
+
+
+  function parallel_reduce_log_and(x)
+
+    implicit none
+    logical :: x, parallel_reduce_log_and
+
+    parallel_reduce_log_and = x
+
+  end function parallel_reduce_log_and
+
+!=======================================================================
+
   ! functions belonging to the parallel_reduce_sum interface
 
   function parallel_reduce_sum_integer(x)
@@ -4037,6 +4060,21 @@ contains
     call broadcast(parallel_sync)
 
   end function parallel_sync
+
+!=======================================================================
+
+  subroutine parallel_test_comm_row_col(parallel)
+
+    ! Test the communicators for rows and columns of processors.
+    ! Row and column communicators are not supported for serial code.
+    ! Write an error message and abort.
+
+    type(parallel_type), intent(in) :: parallel
+
+    write(*,*) 'Error: Row and column communicators are not supported for serial code.'
+    call parallel_stop(__FILE__, __LINE__)
+
+  end subroutine parallel_test_comm_row_col
 
 !=======================================================================
 

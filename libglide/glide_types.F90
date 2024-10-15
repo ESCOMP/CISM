@@ -181,10 +181,12 @@ module glide_types
   integer, parameter :: CALVING_RELX_THRESHOLD = 3
   integer, parameter :: CALVING_TOPG_THRESHOLD = 4
   integer, parameter :: CALVING_GRID_MASK = 5
-  integer, parameter :: CALVING_THCK_THRESHOLD = 6
-  integer, parameter :: EIGENCALVING = 7
-  integer, parameter :: CALVING_DAMAGE = 8
-  integer, parameter :: CALVING_HUYBRECHTS = 9
+  integer, parameter :: CF_ADVANCE_RETREAT_RATE = 6
+  integer, parameter :: CALVING_THCK_THRESHOLD = 7
+  integer, parameter :: CALVING_STRESS = 8
+  integer, parameter :: EIGEN_CALVING = 9
+  integer, parameter :: CALVING_DAMAGE = 10
+  integer, parameter :: CALVING_HUYBRECHTS = 11
 
   integer, parameter :: CALVING_INIT_OFF = 0
   integer, parameter :: CALVING_INIT_ON = 1
@@ -660,9 +662,11 @@ module glide_types
     !> \item[5] Set thickness to zero based on grid location (field 'calving_mask')
     !> \item[6] Set thickness to zero if ice at marine margin is thinner than
     !>          a certain value (variable 'calving_minthck' in glide_types)
-    !> \item[7] Set thickness to zero based on stress (eigencalving) criterion
-    !> \item[8] Calve ice that is sufficiently damaged
-    !> \item[9] Huybrechts grounding line scheme for Greenland initialization
+    !> \item[7] Calving rate based on strain-rate criterion (eigencalving)
+    !> \item[8] Calving rate based on stress threshold criterion (von Mises)
+    !> \item[9] Prescribe the rate of calving front advance or retreat
+    !> \item[10] Calve ice that is sufficiently damaged
+    !> \item[11] Huybrechts calving
     !> \end{description}
 
     integer :: calving_init = 0
@@ -700,6 +704,10 @@ module glide_types
     logical :: cull_calving_front = .false.
     !> if true, then cull calving_front cells at initialization
     !> This can make the run more stable by removing long, thin peninsulas
+
+    logical :: damage_flwa_feedback = .false.
+    !> if true, then flwa increases as damage increases
+    !> This can be a strong positive feedback on damage
 
     logical :: adjust_input_thickness = .false.
     !> if true, then adjust thck to maintain usrf, instead of deriving usrf from topg and thck
@@ -1079,7 +1087,7 @@ module glide_types
     !> Flag that indicates whether to use a subgrid calving front parameterization
     !> \begin{description}
     !> \item[0] no subgrid calving front parameterization
-    !> \item[1] subgrid calving front parameterization with inactive CF cells
+    !> \item[1] subgrid parameterization with partially filled cells at the calving front
     !> \end{description}
 
     integer :: which_ho_ground = 0
@@ -1363,6 +1371,7 @@ module glide_types
     real(dp),dimension(:,:)  ,pointer :: vvel_2d  => null()   !> 2D $y$-velocity; typically the vertical average
     real(dp),dimension(:,:)  ,pointer :: uvel_mean  => null() !> vertical mean $x$-velocity
     real(dp),dimension(:,:)  ,pointer :: vvel_mean  => null() !> vertical mean $y$-velocity
+    real(dp),dimension(:,:)  ,pointer :: velnorm_mean  => null() !> vertical mean ice speed
 
     real(dp),dimension(:,:)  ,pointer :: usfc_obs => null()     !> observed surface $x$-velocity
     real(dp),dimension(:,:)  ,pointer :: vsfc_obs => null()     !> observed surface $y$-velocity
@@ -1405,6 +1414,7 @@ module glide_types
     type(glide_tensor) :: strain_rate                          ! strain rate tensor, diagnosed from stress tensor and efvs (s^-1)
 
     real(dp), dimension(:,:), pointer :: divu => null()        ! horizontal divergence rate, eps_xx + eps_yy (s^-1)
+    real(dp), dimension(:,:), pointer :: shear => null()       ! invariant related to shear (s^-1): sqrt{[(eps_xx - eps_yy)/2]^2 + eps_xy^2}
 
   end type glide_velocity
 
@@ -1531,14 +1541,15 @@ module glide_types
      real(dp),dimension(:,:),  pointer :: calving_rate => null()   !> rate of ice loss due to calving (m/yr ice)
      real(dp),dimension(:,:),  pointer :: calving_rate_tavg => null()  !> rate of ice loss due to calving (m/yr ice, time average)
      integer, dimension(:,:),  pointer :: calving_mask => null()   !> calve floating ice where the mask = 1 (whichcalving = CALVING_GRID_MASK)
-     real(dp),dimension(:,:),  pointer :: thck_calving_threshold => null() !> ice in the calving domain calves when thinner than this value (m)
+     integer, dimension(:,:),  pointer :: protected_mask => null() !> mask of cells protected from calving when using the subgrid CF scheme
+     real(dp),dimension(:,:),  pointer :: thck_effective => null() !> effective thickness for calving (m)
+     real(dp),dimension(:,:),  pointer :: effective_areafrac => null() !> effective fractional area, < 1 for partial CF cells (m)
      real(dp),dimension(:,:),  pointer :: lateral_rate => null()   !> lateral calving rate (m/yr, not scaled)
-                                                                   !> (whichcalving = EIGENCALVING, CALVING_DAMAGE) 
+                                                                   !> (whichcalving = EIGEN_CALVING, CALVING_DAMAGE) 
      real(dp),dimension(:,:),  pointer :: tau_eigen1 => null()     !> first eigenvalue of 2D horizontal stress tensor (Pa)
      real(dp),dimension(:,:),  pointer :: tau_eigen2 => null()     !> second eigenvalue of 2D horizontal stress tensor (Pa)
      real(dp),dimension(:,:),  pointer :: eps_eigen1 => null()     !> first eigenvalue of 2D horizontal strain rate tensor (s^-1)
      real(dp),dimension(:,:),  pointer :: eps_eigen2 => null()     !> second eigenvalue of 2D horizontal strain rate tensor (s^-1)
-     real(dp),dimension(:,:),  pointer :: tau_eff => null()        !> effective stress (Pa) for calving; derived from tau_eigen1, tau_eigen2
      real(dp),dimension(:,:,:),pointer :: damage => null()         !> 3D damage tracer, 0 > damage < 1 (whichcalving = CALVING_DAMAGE)
   
      real(dp) :: marine_limit =  -200.d0         !> value of topg/relx at which floating ice calves (m)
@@ -1551,15 +1562,17 @@ module glide_types
      real(dp) :: minthck = 0.d0                  !> minimum thickness (m) of floating ice at marine edge before it calves;
                                                  !> if used, must be set to a nonzero value in the config file
                                                  !> (whichcalving = CALVING_THCK_THRESHOLD, EIGENCALVING, CALVING_DAMAGE)
-     real(dp) :: eigencalving_constant = 0.01d0  !> eigencalving constant, lateral calving rate (m/yr) per unit stress (Pa)
-                                                 !> (whichcalving = EIGENCALVING)
-     real(dp) :: eigen2_weight = 1.0d0           !> weight given to tau_eigen2 relative to tau_eigen1 in tau_eff (unitless)
-     real(dp) :: damage_constant = 1.0d-7        !> damage constant; rate of change of damage (1/yr) per unit stress (Pa)
-                                                 !> (whichcalving = CALVING_DAMAGE) 
-     real(dp) :: damage_threshold = 0.75d0       !> threshold at which ice column is deemed sufficiently damaged to calve
-                                                 !> assuming that 0 = no damage, 1 = total damage (whichcalving = CALVING_DAMAGE)
-     real(dp) :: lateral_rate_max = 3000.d0      !> max lateral calving rate (m/yr) for damaged ice (whichcalving = CALVING_DAMAGE)
-     integer :: ncull_calving_front = 0          !> number of times to cull calving_front cells at initialization, if cull_calving_front = T
+     real(dp) :: dthck_dx_cf = 0.0d0             !> assumed max value of |dH/dx| at the calving front for full (not partial) cells (m/m)
+     real(dp) :: thck_effective_min = 50.0d0     !> minimum value of thck_effective (m) for calving-front cells
+     real(dp) :: eigenconstant = 0.0d0           !> constant that multiplies the eigen-based strain rate to determine the calving rate (m)
+     real(dp) :: tau_eigenconstant1 = 1.0d0      !> constant that multiplies the tau_eigen1 term in stress-based calving (unitless)
+     real(dp) :: tau_eigenconstant2 = 1.0d0      !> constant that multiplies the tau_eigen2 term in stress-based calving (unitless)
+     real(dp) :: stress_threshold = 1.0e5        !> stress threshold for CF retreat with stress-based calving (Pa)
+     real(dp) :: damage_threshold = 0.0d0        !> threshold at which ice column is sufficiently damaged to calve
+                                                 !> 0 = no damage, 1 = total damage (whichcalving = CALVING_DAMAGE)
+     real(dp) :: damage_constant1 = 0.0d0        !> damage constant that multiplies tau_eigen1 (yr^-1)
+     real(dp) :: damage_constant2 = 0.0d0        !> damage constant that multiplies tau_eigen2 (yr^-1)
+     integer  :: ncull_calving_front = 0         !> number of times to cull calving_front cells at initialization, if cull_calving_front = T
                                                  !> Set to a larger value to remove wider peninsulas
      real(dp) :: taumax_cliff = 1.0d6            !> yield stress (Pa) for marine-based ice cliffs
      real(dp) :: cliff_timescale = 10.0d0        !> time scale (yr) for limiting marine cliffs (yr)
@@ -1568,6 +1581,12 @@ module glide_types
                                                  !> NOTE: This option is applied only if calving_front_x or calving_front_y > 0
      real(dp) :: f_ground_threshold = 0.10d0     !> Threshold fraction for grounded cells in iceberg removal algorithm
                                                  !> Also used for isthmus removal
+     real(dp) :: &
+          cf_advance_retreat_amplitude = 0.0d0,& !> prescribed amplitude (m/yr) for calving front advance or retreat
+                                                 !> positive for sin(2*pi*t/period), negative for -sin(2*pi*t/period)
+                                                 !> should be negative for CalvingMIP Experiments 2 and 4
+          cf_advance_retreat_period = 0.0d0      !> period (yr) for an advance/retreat cycle
+                                                 !> period = 0 => constant amplitude
 
   end type glide_calving
 
@@ -2455,18 +2474,18 @@ module glide_types
   !++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 
   !TODO - Move these parameters to types associated with a certain kind of physics
-  !TODO - Set default geot = 0, so that idealized tests by default have no mass loss
+  !TODO - Change default geot to 0.0, so that idealized tests by default have no mass loss
   type glide_paramets
     real(dp),dimension(5) :: bpar = (/ 0.2d0, 0.5d0, 0.0d0 ,1.0d-2, 1.0d0/)
     real(dp) :: btrac_const = 0.d0     ! m yr^{-1} Pa^{-1} (gets scaled during init)
     real(dp) :: btrac_slope = 0.0d0    ! Pa^{-1} (gets scaled during init)
     real(dp) :: btrac_max = 0.d0       ! m yr^{-1} Pa^{-1} (gets scaled during init)
-    real(dp) :: geot   = -5.0d-2       ! W m^{-2}, positive down
+    real(dp) :: geot   = -5.0d-2       ! W m^{-2}, positive down  !TODO - Change default to 0.0?
     real(dp) :: flow_enhancement_factor_ground = 1.0d0   ! flow enhancement parameter for the Arrhenius relationship;
                                                          ! grounded ice only; typically > 1 for SIA models to speed up the ice
-    real(dp) :: flow_enhancement_factor_float = 1.0d0 ! flow enhancement parameter for floating ice
-                                                      ! Default is 1.0, but for marine simulations a smaller value
-                                                      !  is often needed to match observed shelf speeds
+    real(dp) :: flow_enhancement_factor_float = 1.0d0    ! flow enhancement parameter for floating ice
+                                                         ! Default is 1.0, but for marine simulations a smaller value
+                                                         !  is often needed to match observed shelf speeds
     real(dp) :: slip_ratio = 1.0d0     ! Slip ratio, used only in higher order code when the slip ratio beta computation is requested
     real(dp) :: hydtim = 1000.0d0      ! years, converted to s^{-1} and scaled
                                        ! 0 if no drainage
@@ -2884,6 +2903,7 @@ contains
     call coordsystem_allocate(model%general%velo_grid, model%velocity%vvel_2d)
     call coordsystem_allocate(model%general%velo_grid, model%velocity%uvel_mean)
     call coordsystem_allocate(model%general%velo_grid, model%velocity%vvel_mean)
+    call coordsystem_allocate(model%general%velo_grid, model%velocity%velnorm_mean)
     call coordsystem_allocate(model%general%velo_grid, model%velocity%usfc_obs)
     call coordsystem_allocate(model%general%velo_grid, model%velocity%vsfc_obs)
     call coordsystem_allocate(model%general%ice_grid,  upn, model%velocity%wvel)
@@ -2917,6 +2937,7 @@ contains
        call coordsystem_allocate(model%general%velo_grid, model%velocity%umask_no_penetration)
        call coordsystem_allocate(model%general%velo_grid, model%velocity%vmask_no_penetration)
        call coordsystem_allocate(model%general%ice_grid, model%velocity%divu)
+       call coordsystem_allocate(model%general%ice_grid, model%velocity%shear)
     endif
 
     ! higher-order stress arrays
@@ -3192,11 +3213,12 @@ contains
     call coordsystem_allocate(model%general%ice_grid, model%calving%calving_rate)
     call coordsystem_allocate(model%general%ice_grid, model%calving%calving_rate_tavg)
     call coordsystem_allocate(model%general%ice_grid, model%calving%calving_mask)
-    call coordsystem_allocate(model%general%ice_grid, model%calving%thck_calving_threshold)
+    call coordsystem_allocate(model%general%ice_grid, model%calving%protected_mask)
+    call coordsystem_allocate(model%general%ice_grid, model%calving%thck_effective)
+    call coordsystem_allocate(model%general%ice_grid, model%calving%effective_areafrac)
     call coordsystem_allocate(model%general%ice_grid, model%calving%lateral_rate)
     call coordsystem_allocate(model%general%ice_grid, model%calving%tau_eigen1)
     call coordsystem_allocate(model%general%ice_grid, model%calving%tau_eigen2)
-    call coordsystem_allocate(model%general%ice_grid, model%calving%tau_eff)
     call coordsystem_allocate(model%general%ice_grid, model%calving%eps_eigen1)
     call coordsystem_allocate(model%general%ice_grid, model%calving%eps_eigen2)
     if (model%options%whichcalving == CALVING_DAMAGE) then
@@ -3384,6 +3406,8 @@ contains
         deallocate(model%velocity%uvel_mean)
     if (associated(model%velocity%vvel_mean)) &
         deallocate(model%velocity%vvel_mean)
+    if (associated(model%velocity%velnorm_mean)) &
+        deallocate(model%velocity%velnorm_mean)
     if (associated(model%velocity%usfc_obs)) &
         deallocate(model%velocity%usfc_obs)
     if (associated(model%velocity%vsfc_obs)) &
@@ -3428,6 +3452,8 @@ contains
         deallocate(model%velocity%vmask_no_penetration)
     if (associated(model%velocity%divu)) &
         deallocate(model%velocity%divu)
+    if (associated(model%velocity%shear)) &
+        deallocate(model%velocity%shear)
 
     ! higher-order stress arrays
 
@@ -3825,16 +3851,18 @@ contains
         deallocate(model%calving%calving_rate_tavg)
     if (associated(model%calving%calving_mask)) &
         deallocate(model%calving%calving_mask)
-    if (associated(model%calving%thck_calving_threshold)) &
-        deallocate(model%calving%thck_calving_threshold)
+    if (associated(model%calving%protected_mask)) &
+        deallocate(model%calving%protected_mask)
+    if (associated(model%calving%thck_effective)) &
+        deallocate(model%calving%thck_effective)
+    if (associated(model%calving%effective_areafrac)) &
+        deallocate(model%calving%effective_areafrac)
     if (associated(model%calving%lateral_rate)) &
         deallocate(model%calving%lateral_rate)
     if (associated(model%calving%tau_eigen1)) &
         deallocate(model%calving%tau_eigen1)
     if (associated(model%calving%tau_eigen2)) &
         deallocate(model%calving%tau_eigen2)
-    if (associated(model%calving%tau_eff)) &
-        deallocate(model%calving%tau_eff)
     if (associated(model%calving%eps_eigen1)) &
         deallocate(model%calving%eps_eigen1)
     if (associated(model%calving%eps_eigen2)) &

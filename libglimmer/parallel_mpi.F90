@@ -7956,6 +7956,44 @@ contains
 
 !=======================================================================
 
+  ! functions for parallel reduction of logical variables
+  ! * parallel_reduce_log_or returns 'true' iff x = 'true' on at least one processor
+  ! * parallel_reduce_log_and returns 'true' iff x = 'true' on all processors
+
+  function parallel_reduce_log_or(x)
+
+    use mpi_mod
+    implicit none
+    logical :: x
+
+    integer :: ierror
+    logical :: recvbuf,sendbuf, parallel_reduce_log_or
+
+    ! begin
+    sendbuf = x
+    call mpi_allreduce(sendbuf,recvbuf,1,mpi_logical,mpi_lor,comm,ierror)
+    parallel_reduce_log_or = recvbuf
+
+  end function parallel_reduce_log_or
+
+  function parallel_reduce_log_and(x)
+
+    use mpi_mod
+    implicit none
+    logical :: x
+
+    integer :: ierror
+    logical :: recvbuf,sendbuf, parallel_reduce_log_and
+
+    ! begin
+    sendbuf = x
+    call mpi_allreduce(sendbuf,recvbuf,1,mpi_logical,mpi_land,comm,ierror)
+    parallel_reduce_log_and = recvbuf
+
+  end function parallel_reduce_log_and
+
+!=======================================================================
+
   ! functions belonging to the parallel_reduce_sum interface
 
   function parallel_reduce_sum_integer(x)
@@ -8371,6 +8409,136 @@ contains
     call broadcast(parallel_sync)
 
   end function parallel_sync
+
+!=======================================================================
+
+  subroutine parallel_test_comm_row_col(parallel)
+
+    ! Test the communicators for rows and columns of processors.
+    ! Optionally, these communicators can be used when solving a 1D system of equations
+    !  along a single row or column of the domain.
+
+    use mpi_mod
+
+    type(parallel_type), intent(in) :: parallel
+
+    integer :: i, j, ierror
+    real(dp), dimension(:,:), allocatable :: test_array
+    real(dp), dimension(:,:), allocatable :: global_test_array
+
+    ! Test the row and column communicators
+
+    ! row gather/scatter
+
+    ! mpi barriers not strictly needed, but can make print statements cleaner
+    call mpi_barrier(parallel%comm_row,ierror)
+    call mpi_barrier(parallel%comm_col,ierror)
+
+    allocate(test_array(2,parallel%own_nsn))
+
+    do j = 1, parallel%own_nsn
+       do i = 1, 2
+          test_array(i,j) = (this_rank + 2) * real(i*j, dp)
+       enddo
+    enddo
+
+    if (this_rank == 0 .or. this_rank == 1) then
+       print*, ' '
+       do i = 1, 2
+          print*, 'test_array, i, this_rank =', i, this_rank
+          do j = 1, parallel%own_nsn
+             write(6,'(f6.0)',advance='no') test_array(i,j)
+          enddo
+          print*, ' '
+          print*, ' '
+       enddo
+    endif   ! this_rank
+
+    call distributed_gather_var_row(test_array, global_test_array, parallel)
+
+!!    if (parallel%main_task_row) then
+    if (parallel%main_task_row .and. this_rank == 0) then
+       do i = 1, 2*parallel%tasks_row
+          print*, 'Gathered row test_array, this_rank, i =', this_rank, i
+          do j = 1, size(global_test_array,2)
+             write(6,'(f6.0)',advance='no') global_test_array(i,j)
+          enddo
+          print*, ' '
+       enddo
+       print*, ' '
+    endif
+
+    call distributed_scatter_var_row(test_array, global_test_array, parallel)
+
+    if (this_rank == 0) then
+       print*, ' '
+       do i = 1, 2
+          print*, 'Scattered test_array, i, this_rank =', i, this_rank
+          do j = 1, parallel%own_nsn
+             write(6,'(f6.0)',advance='no') test_array(i,j)
+          enddo
+          print*, ' '
+          print*, ' '
+       enddo
+    endif   ! this_rank
+
+    deallocate(test_array)
+
+    ! column gather/scatter
+
+    call mpi_barrier(parallel%comm_row,ierror)
+    call mpi_barrier(parallel%comm_col,ierror)
+
+    allocate(test_array(2,parallel%own_ewn))
+    do j = 1, 2
+       do i = 1, parallel%own_ewn
+          test_array(j,i) = (this_rank + 2) * real(j*i, dp)
+       enddo
+    enddo
+
+    if (this_rank == 0 .or. this_rank == 2) then
+       print*, ' '
+       do j = 1, 2
+          print*, 'test_array: j, this_rank =', j, this_rank
+          do i = 1, parallel%own_ewn
+             write(6,'(f6.0)',advance='no') test_array(j,i)
+          enddo
+          print*, ' '
+          print*, ' '
+       enddo
+    endif   ! this_rank
+
+    call distributed_gather_var_col(test_array, global_test_array, parallel)
+
+!!    if (parallel%main_task_col) then
+    if (parallel%main_task_col .and. this_rank == 0) then
+       do j = 1, 2*parallel%tasks_col
+          print*, 'Gathered column test_array, this_rank, j =', this_rank, j
+          do i = 1, size(global_test_array,2)
+             write(6,'(f6.0)',advance='no') global_test_array(j,i)
+          enddo
+          print*, ' '
+       enddo
+       print*, ' '
+    endif
+
+    call distributed_scatter_var_col(test_array, global_test_array, parallel)
+
+    if (this_rank == 0) then
+       print*, ' '
+       do j = 1, 2
+          print*, 'Scattered test_array, j, this_rank =', j, this_rank
+          do i = 1, parallel%own_ewn
+             write(6,'(f6.0)',advance='no') test_array(j,i)
+          enddo
+          print*, ' '
+          print*, ' '
+       enddo
+    endif   ! this_rank
+
+    deallocate(test_array)
+
+  end subroutine parallel_test_comm_row_col
 
 !=======================================================================
 
