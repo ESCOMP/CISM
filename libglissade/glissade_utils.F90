@@ -1296,6 +1296,12 @@ contains
        enddo   ! i
     enddo   ! j
 
+    do j = -1, 1
+       do i = -1, 1
+          call parallel_halo(flux_in, parallel)
+       enddo
+    enddo
+
   end subroutine glissade_input_fluxes
 
 !****************************************************************************

@@ -1,0 +1,130 @@
+Instructions for setting up and running the CalvingMIP experiments with CISM.
+
+Note: For setting up the experiments in an NCAR computing environment,
+follow the steps in the README.NCAR_HPC file in the tests directory.
+
+See this wiki for details on MISMIP+:
+
+There are two experimental domains for CalvingMIP:
+* a circular domain, which is radially symmetric
+* the Thule domain, which has more complex bed topography
+
+The following experiments are included in phase 1 of CalvingMIP:
+
+Experiment1   1000 years on the circular domain with a fixed calving front
+Experiment2   1000 years on the circular domain with a prescribed rate of retreat and advance
+Experiment3   1000 years on the Thule domain with a fixed calving front
+Experiment4   1000 years on the Thule domain with a prescribed rate of retreat and advance
+Experiment5   1000 years with a thickness-based calving front
+
+To initialize these experiments, we also need a long spin-up on each domain.
+
+This directory contains two files needed to set up the experiments:
+* calvingMIP.Setup.py
+* calvingMIP.config.template
+
+The python script creates a directory for each of the seven experiments: SpinupCircular, SpinupThule,
+and Experiments 1 to 5. Optionally, the user can create directories for the spin-ups alone,
+or the five experiments alone, or any single experiment. Each directory will contain a config file
+appropriate for the experiment. The file 'calvingMIP.config.template' serves as a template
+for the different config files.
+
+These setup files are located in directory ../tests/calvingMIP.
+You might want to keep this directory clean and set up your tests in a duplicate directory.
+For example, from ../tests/calvingMIP:
+
+> cp -rf calvingMIP ../calvingMIP.test
+> cd ../calvingMIP.test
+
+The following instructions are for running calvingMIP on derecho:
+
+Put a copy or link of the cism_driver executable in your directory. For example:
+
+> ln -s ../../builds/derecho-intel/cism_driver/cism_driver
+
+You may also need a link to a script that loads the required modules for running CISM.
+(CISM should have been built with the same modules loaded.)
+
+> ln -s ../../builds/derecho-intel/derecho-intel-modules
+
+Set up a conda environment that supports Python:
+> module load conda
+> conda activate npl
+
+To create the various directories and input files, run the Python script:
+
+> python calvingMIP.Setup.py [arguments]
+
+This script has the following optional arguments:
+
+'-c', '--configfile',   type=str,   default='calvingMIP.config.template', help="config file template"
+'-e', '--executable',   type=str,   default='cism_driver', help="path to the CISM executable"
+'-x', '--experiment',   type=str,   default= 'all',   help="CalvingMIP experiment(s) to set up"
+'-t', '--timestep',     type=float, default= 1.0,     help="time step (yr)"
+'-r', '--resolution',   type=float, default= 5000.,   help="grid resolution (m)"
+'-v', '--vertlevels',   type=int,   default= 5,       help="no. of vertical levels"
+'-a', '--approximation',type=str,   default= 'DIVA',  help="Stokes approximation (SSA, DIVA, BP)"
+'-y', '--yearsSpinup',  type=float, default= 10000.,  help="length of spinup run (yr)"
+'-fh','--outputfreqhi', type=float, default= 10.,     help="high output frequency (yr)"
+'-fm','--outputfreqmd', type=float, default= 100.,    help="medium output frequency (yr)"
+'-fl','--outputfreqlo', type=float, default= 1000.,   help="low output frequency (yr)"
+
+Notes on optional arguments:
+- Can use the '-x' argument to set up a subset of experiments.
+- The high output frequency is used for scalars, the medium frequency for 2D fields in Expt1 to Expt4,
+  and the low frequency for 2D fields in the Spinup runs and Expt5.
+- Three Stokes approximations are supported: SSA, DIVA and BP.
+- There is no argument for basal sliding laws; all experiments use a power law.
+- If the resolution is relatively high (e.g., 5000 m or finer), it may take several minutes
+  to create the input files.
+
+The config template file includes sensible default values for other parameters. 
+To change any of these parameters, you need to edit the template file.
+
+After setup, you should first run the SpinupCircular and SpinupThule experiments.
+To do this, you will need a run script in each directory. The test directory does not include a run script,
+but the following is a sample run script for Derecho with a Land Ice Working Group account code:
+
+*****
+#!/bin/bash
+#
+#PBS -N calvingMIP
+#PBS -A P93300601
+#PBS -l walltime=01:00:00
+#PBS -q main
+#PBS -l job_priority=regular
+#PBS -k eod
+#PBS -j oe
+#PBS -m abe
+#PBS -M myusername@ucar.edu
+#PBS -l select=1:ncpus=128:mpiprocs=128
+
+. derecho-intel-modules
+
+mpiexec -n 128 -ppn 128 ./cism_driver calvingMIP.SpinupCircular.config > cism.out.$PBS_JOBID 2>&1
+*****
+
+On 128 Derecho cores, the required walltime is typically about 30 minutes for a 10kyr spin-up,
+and less than 5 minutes for the 1kry experiments.
+
+You can launch the job by typing
+
+> qsub runCISM.SpinupCircular [or whatever the name may be]
+
+The file calvingMIP.SpinupCircular.restart.nc becomes the initial condition for Experiments 1 and 2.
+Similarly, calvingMIP.ThuleCircular.restart.nc becomes the initial condition for Experiments 3, 4 and 5.
+Note that these experiments start in the hybrid restart mode ('restart = 2'), so they begin at year 0,
+regardless of the length of the Spinup run.
+
+For each of the five experiments, the output should include several files, e.g.
+
+* calvingMIP.Experiment1.out.nc
+* calvingMIP.Experiment1.out.x1.nc
+* calvingMIP.Experiment1.out.x2.nc
+* calvingMIP.Experiment1.out.scalars.nc
+
+The first file includes 'standard' CISM output. The other three files include the fields needed
+to obtain the fields and scalars specified on the calvingMIP wiki. Gunter Leguy has written scripts
+to parse the CISM output and assemble the files requested by CalvingMIP with appropriate variable names.
+
+For questions, please contact Gunter Leguy (gunterl@ucar.edu) or William Lipscomb (lipscomb@ucar.edu).

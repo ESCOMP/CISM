@@ -64,7 +64,7 @@
     use glimmer_sparse_type
     use glimmer_sparse
     use glissade_grid_operators
-    use glissade_masks, only: glissade_get_masks, glissade_calving_front_mask
+    use glissade_masks, only: glissade_get_masks
 
     use glide_types
 
@@ -665,6 +665,7 @@
 
     use glissade_basal_traction, only: calcbeta
     use glissade_therm, only: glissade_pressure_melting_point
+    use glide_thck, only: glide_calclsrf
     use profile, only: t_startf, t_stopf
 
     !----------------------------------------------------------------
@@ -723,7 +724,8 @@
 
     real(dp), dimension(:,:), pointer ::  &
        thck,                 &  ! ice thickness (m)
-       usrf,                 &  ! upper surface elevation (m)
+                                ! Note: When using the subgrid CF scheme, thck => model%calving%thck_effective
+                                !       Otherwise, thck => model%geometry%thck
        topg,                 &  ! elevation of topography (m)
        bpmp,                 &  ! pressure melting point temperature (C)
        beta,                 &  ! basal traction parameter (Pa/(m/yr))
@@ -831,12 +833,11 @@
        floating_mask,       & ! = 1 for cells where ice is present (thck > thklim) and floating
        ocean_mask,          & ! = 1 for cells where topography is below sea level and ice is absent
        land_mask,           & ! = 1 for cells where topography is above sea level
-       calving_front_mask,  & ! = 1 for floating cells that border at least one ocean cell
-       active_ice_mask,     & ! = 1 for active cells (ice_mask = 1, excluding inactive calving_front cells)
        ice_plus_land_mask     ! = 1 for active ice cells plus ice-free land cells
 
-    real(dp), dimension(nx,ny) ::     &
-       thck_calving_front     ! effective thickness of ice at the calving front
+    real(dp), dimension(nx,ny) ::  &
+       lsrf,                & ! lower surface elevation (m)
+       usrf                   ! upper surface elevation (m)
 
     real(dp), dimension(nx-1,ny-1) :: &
        stagbedtemp,         & ! bed temperature averaged to vertices (deg C)
@@ -1085,12 +1086,22 @@
      staggered_jhi = parallel%staggered_jhi
 
      !TODO - Remove (:), (:,:) and (:,:,:) from pointer targets?
+
+     !Note: If running with the subgrid CF scheme, thck points to calving%thck_effective
+     !       instead of geometry%thck.  For partial_cf cells, thck_effective > thck.
+     !      The goal is to compute velocities appropriate for a subgrid calving front,
+     !       instead of a full cell with unrealistically thin ice.
+     !      Instead of pointing to model%geometry%usrf, compute a local value of usrf
+     !       that is consistent with the local value of thck.
+     if (model%options%which_ho_calving_front == HO_CALVING_FRONT_SUBGRID) then
+        thck  => model%calving%thck_effective(:,:)
+     else
+        thck  => model%geometry%thck(:,:)
+     endif
+     topg     => model%geometry%topg(:,:)
      sigma    => model%numerics%sigma(:)
      stagsigma=> model%numerics%stagsigma(:)
      stagwbndsigma=> model%numerics%stagwbndsigma(:)
-     thck     => model%geometry%thck(:,:)
-     usrf     => model%geometry%usrf(:,:)
-     topg     => model%geometry%topg(:,:)
      stagmask => model%geometry%stagmask(:,:)
      f_ground => model%geometry%f_ground(:,:)
      f_ground_cell => model%geometry%f_ground_cell(:,:)
@@ -1173,7 +1184,8 @@
 
 !pw call t_startf('glissade_velo_higher_scale_input')
     call glissade_velo_higher_scale_input(dx,      dy,            &
-                                          thck,    usrf,          &
+                                          whichcalving_front,     &
+                                          thck,                   &
                                           topg,    eus,           &
                                           thklim,                 &
                                           thck_gradient_ramp,     &
@@ -1182,6 +1194,12 @@
                                           uvel,    vvel,          &
                                           uvel_2d, vvel_2d)
 !pw call t_stopf('glissade_velo_higher_scale_input')
+
+    ! Now that thck and topg have the desired scaling (m), compute lsrf and usrf.
+    ! Note: If using a subgrid calving scheme, these will be based on effective thickness.
+    !       Will be recomputed based on the true thickness later in the diagnostic solve.
+    call glide_calclsrf(thck, topg, eus, lsrf)
+    usrf = max(0.d0, thck + lsrf)
 
     ! Set volume scale
     ! This is not strictly necessary, but dividing by this scale gives matrix coefficients 
@@ -1335,36 +1353,54 @@
           enddo
           
           print*, ' '
+          print*, 'Upper surface field, rank =', rtest
+          do j = jtest+3, jtest-3, -1
+             do i = itest-3, itest+3
+                write(6,'(f10.3)',advance='no') usrf(i,j)
+             enddo
+             write(6,*) ' '
+          enddo
+          
+          print*, ' '
           print*, 'Thickness field, rank =', rtest
-          do j = ny, 1, -1
-             do i = 1, nx
-                write(6,'(f6.0)',advance='no') thck(i,j)
+          do j = jtest+3, jtest-3, -1
+             do i = itest-3, itest+3
+                write(6,'(f10.3)',advance='no') thck(i,j)
              enddo
              write(6,*) ' '
           enddo
           
           print*, ' '
           print*, 'Topography field, rank =', rtest
-          do j = ny, 1, -1
-             do i = 1, nx
-                write(6,'(f6.0)',advance='no') topg(i,j)
+          do j = jtest+3, jtest-3, -1
+             do i = itest-3, itest+3
+                write(6,'(f10.3)',advance='no') topg(i,j)
              enddo
              write(6,*) ' '
           enddo
+
           print*, ' '
-          
-          print*, 'Upper surface field, rank =', rtest
-          do j = ny, 1, -1
-             do i = 1, nx
-                write(6,'(f6.0)',advance='no') usrf(i,j)
+          print*, 'Surface uvel, rank =', rtest
+          do j = jtest+3, jtest-3, -1
+             do i = itest-3, itest+3
+                write(6,'(f10.3)',advance='no') uvel(1,i,j)
+             enddo
+             write(6,*) ' '
+          enddo
+
+          print*, ' '
+          print*, 'Surface vvel, rank =', rtest
+          do j = jtest+3, jtest-3, -1
+             do i = itest-3, itest+3
+                write(6,'(f10.3)',advance='no') vvel(1,i,j)
              enddo
              write(6,*) ' '
           enddo
           
           print*, ' '
           print*, 'flwa (Pa-3 yr-1), k = 1, rank =', rtest
-          do j = ny, 1, -1
-             do i = 1, nx
+          do j = jtest+3, jtest-3, -1
+             do i = itest-3, itest+3
                 write(6,'(e12.5)',advance='no') flwa(1,i,j)
              enddo
              write(6,*) ' '
@@ -1559,15 +1595,6 @@
     ! (2) floating mask = 1 in cells where ice is present (thck > thklim) and floating
     ! (3) ocean mask = = 1 in cells where topography is below sea level and ice is absent
     ! (4) land mask = 1 in cells where topography is at or above sea level
-    ! (5) active_ice_mask = 1 for dynamically active cells, else = 0
-    ! (6) calving_front_mask = 1 for floating cells that border at least one cell with ocean_mask = 1, else = 0.
-    !     With subgrid calving front scheme option 1, cells on the calving front are inactive
-    !      unless thck > thck_calving_front.
-    !
-    ! Note: There is a subtle difference between the active_ice_mask and active_cell array,
-    !       aside from the fortran type (integer v. logical).
-    !       The condition for active_cell = .true. is (1) active_ice_mask = 1, and 
-    !       (2) the cell borders a locally owned vertex (so outer halo cells are excluded).
     !------------------------------------------------------------------------------
 
     !TODO: Modify glissade_get_masks so that 'parallel' is not needed
@@ -1578,30 +1605,7 @@
                             ice_mask,                           &
                             floating_mask = floating_mask,      &
                             ocean_mask = ocean_mask,            &
-                            land_mask = land_mask,              &
-                            active_ice_mask = active_ice_mask)
-
-    ! If using a subgrid calving-front scheme, then compute calving_front_mask
-    !  and recompute active_ice_mask.
-    ! Note: If running without a subgrid CF scheme, then CF cells are active,
-    !       and the values of calving_front_mask and thck_calving_front do not matter.
-
-    if (model%options%which_ho_calving_front == HO_CALVING_FRONT_SUBGRID) then
-
-       call glissade_calving_front_mask(nx,                 ny,                 &
-                                        whichcalving_front,                     &
-                                        parallel,                               &
-                                        thck,               topg,               &
-                                        eus,                                    &
-                                        ice_mask,           floating_mask,      &
-                                        ocean_mask,         land_mask,          &
-                                        calving_front_mask, thck_calving_front, &
-                                        active_ice_mask = active_ice_mask)
-
-    else
-       calving_front_mask(:,:) = 0
-       thck_calving_front(:,:) = 0.0d0
-    endif
+                            land_mask = land_mask)
 
     ! Compute a mask which is the union of ice cells and land-based cells (including ice-free land).
     where (ice_mask == 1 .or. land_mask == 1)
@@ -1613,7 +1617,7 @@
     !------------------------------------------------------------------------------
     ! Compute the ice thickness and upper surface elevation on the staggered grid.
     ! (requires that thck and usrf are up to date in all cells that border locally owned vertices).
-    ! All cells (including ice-free and inactive CF cells) are included in the interpolation.
+    ! All cells, including ice-free cells, are included in the interpolation.
     !------------------------------------------------------------------------------
 
     call glissade_stagger(nx,           ny,         &
@@ -1684,7 +1688,7 @@
     call glissade_surface_elevation_gradient(nx,           ny,          &
                                              dx,           dy,          &
                                              itest, jtest, rtest,       &
-                                             active_ice_mask,           &
+                                             ice_mask,                  &
                                              land_mask,                 &
                                              usrf,         thck,        &
                                              topg,         eus,         &
@@ -1766,40 +1770,41 @@
     if (verbose_gridop .and. this_rank==rtest) then
        print*, ' '
        print*, 'thck:'
-       do j = ny, 1, -1
-          do i = 1, nx
+       do j = jtest+3, jtest-3, -1
+          write(6,'(i6)',advance='no') j
+          do i = itest-3, itest+3
              write(6,'(f7.0)',advance='no') thck(i,j)
           enddo
           print*, ' '
        enddo
        print*, ' '
        print*, 'stagthck, rank =',rtest
-       do j = ny-1, 1, -1
-          do i = 1, nx-1
+       do j = jtest+3, jtest-3, -1
+          do i = itest-3, itest+3
              write(6,'(f7.0)',advance='no') stagthck(i,j)
           enddo
           print*, ' '
        enddo
        print*, ' '
        print*, 'usrf:'
-       do j = ny, 1, -1
-          do i = 1, nx
+       do j = jtest+3, jtest-3, -1
+          do i = itest-3, itest+3
              write(6,'(f7.0)',advance='no') usrf(i,j)
           enddo
           print*, ' '
        enddo
        print*, ' '
        print*, 'dusrf_dx:'
-       do j = ny-1, 1, -1
-          do i = 1, nx-1
+       do j = jtest+3, jtest-3, -1
+          do i = itest-3, itest+3
              write(6,'(f7.3)',advance='no') dusrf_dx(i,j)
           enddo
           print*, ' '
        enddo
        print*, ' '
        print*, 'dusrf_dy:'
-       do j = ny-1, 1, -1
-          do i = 1, nx-1
+       do j = jtest+3, jtest-3, -1
+          do i = itest-3, itest+3
              write(6,'(f7.3)',advance='no') dusrf_dy(i,j)
           enddo
           print*, ' '
@@ -1808,7 +1813,7 @@
     endif  ! verbose_gridop
 
     !------------------------------------------------------------------------------
-    ! Identify the active cells (i.e., cells with active_ice_mask = 1, and bordering
+    ! Identify the active cells (i.e., cells with ice_mask = 1, and bordering
     !  a locally owned vertex) and active vertices (all vertices of active cells).
     ! Compute the vertices of each element.
     ! Count the number of owned active nodes on this processor, and assign a 
@@ -1821,7 +1826,7 @@
                              parallel,                             &
                              dx,             dy,                   &
                              itest,  jtest,  rtest,                &
-                             active_ice_mask,                      &
+                             ice_mask,                      &
                              xVertex,        yVertex,              &
                              active_cell,    active_vertex,        &
                              nNodesSolve,    nVerticesSolve,       &
@@ -2173,8 +2178,7 @@
                              sigma,            stagwbndsigma,   &
                              dx,               dy,              &
                              itest,   jtest,   rtest,           &
-                             active_cell,                       &
-                             active_vertex,                     &
+                             active_cell,      active_vertex,   &
                              xVertex,          yVertex,         &
                              stagusrf,         stagthck,        &
                              dusrf_dx,         dusrf_dy,        &
@@ -2235,7 +2239,6 @@
 
     !------------------------------------------------------------------------------
     ! Lateral pressure at vertical ice edge.
-    ! Inactive cells with calving_front_mask = 1 are treated as if they were ice-free ocean.
     !------------------------------------------------------------------------------
 
     ! The following is a kluge for computing lateral load at marine cliff edges.
@@ -2272,7 +2275,6 @@
                                 itest,   jtest,   rtest,           &
                                 whichassemble_lateral,             &
                                 land_mask,        ocean_mask,      &
-                                calving_front_mask,                &
                                 active_cell,                       &
                                 xVertex,          yVertex,         &
                                 usrf,             thck,            &
@@ -2580,26 +2582,6 @@
                 write(6,'(i6)',advance='no') j
                 do i = itest-3, itest+3
                    write(6,'(f10.3)',advance='no') topg(i,j)
-                enddo
-                write(6,*) ' '
-             enddo
-
-             print*, ' '
-             print*, 'calving_front_mask, itest, jtest, rank =', itest, jtest, rtest
-             do j = jtest+3, jtest-3, -1
-                write(6,'(i6)',advance='no') j
-                do i = itest-3, itest+3
-                   write(6,'(i10)',advance='no') calving_front_mask(i,j)
-                enddo
-                write(6,*) ' '
-             enddo
-
-             print*, ' '
-             print*, 'active_ice_mask, itest, jtest, rank =', itest, jtest, rtest
-             do j = jtest+3, jtest-3, -1
-                write(6,'(i6)',advance='no') j
-                do i = itest-3, itest+3
-                   write(6,'(i10)',advance='no') active_ice_mask(i,j)
                 enddo
                 write(6,*) ' '
              enddo
@@ -3305,9 +3287,9 @@
              uvel(:,:,:) = 0.d0
              vvel(:,:,:) = 0.d0
 
-             call t_startf('glissade_velo_higher_scale_outp')
-             call glissade_velo_higher_scale_output(thck,    usrf,          &
-                                                    topg,                   &
+             call t_startf('glissade_velo_higher_scale_output')
+             call glissade_velo_higher_scale_output(whichcalving_front,     &
+                                                    thck,    topg,          &
                                                     flwa,    efvs,          &
                                                     beta_internal,          &
                                                     resid_u, resid_v,       &
@@ -3319,7 +3301,7 @@
                                                     tau_xz,  tau_yz,        &
                                                     tau_xx,  tau_yy,        &
                                                     tau_xy,  tau_eff)
-             call t_stopf('glissade_velo_higher_scale_outp')
+             call t_stopf('glissade_velo_higher_scale_output')
           
              if (main_task) print*, 'No nonzeros in matrix; exit glissade_velo_higher_solve'
              return
@@ -3496,7 +3478,6 @@
        ! Optional diagnostics
 
        if (verbose_beta .and. this_rank==rtest .and. counter > 1 .and. mod(counter-1,12)==0) then
-!!          if (verbose_beta .and. this_rank==rtest .and. counter > 1 .and. mod(counter-1,25)==0) then
           print*, ' '
           print*, 'log_beta, itest, jtest, rank =', itest, jtest, rtest
           do j = jtest+3, jtest-3, -1
@@ -4217,8 +4198,7 @@
     call compute_basal_friction_heatflx(nx,            ny,            &
                                         nhalo,                        &
                                         itest, jtest,  rtest,         &
-                                        active_cell,                  &
-                                        active_vertex,                &
+                                        active_cell,   active_vertex, &
                                         xVertex,       yVertex,       &
                                         uvel(nz,:,:),  vvel(nz,:,:),  &
                                         beta_internal, whichassemble_bfric,  &
@@ -4355,8 +4335,8 @@
     !------------------------------------------------------------------------------
 
 !pw call t_startf('glissade_velo_higher_scale_output')
-    call glissade_velo_higher_scale_output(thck,    usrf,          &
-                                           topg,                   &
+    call glissade_velo_higher_scale_output(whichcalving_front,     &
+                                           thck,    topg,          &
                                            flwa,    efvs,          &
                                            beta_internal,          &
                                            resid_u, resid_v,       &
@@ -4376,7 +4356,8 @@
 !****************************************************************************
 
   subroutine glissade_velo_higher_scale_input(dx,      dy,            &
-                                              thck,    usrf,          &
+                                              whichcalving_front,     &
+                                              thck,                   &
                                               topg,    eus,           &
                                               thklim,                 &
                                               thck_gradient_ramp,     &
@@ -4393,9 +4374,11 @@
     real(dp), intent(inout) ::   &
        dx, dy                  ! grid cell length and width 
 
+    integer, intent(in) :: &
+         whichcalving_front    ! = 1 for subgrid CF, else = 0
+
     real(dp), dimension(:,:), intent(inout) ::   &
        thck,                &  ! ice thickness
-       usrf,                &  ! upper surface elevation
        topg                    ! elevation of topography
 
     real(dp), intent(inout) ::   &
@@ -4419,8 +4402,12 @@
     dy = dy * len0
 
     ! ice geometry: rescale from dimensionless to m
-    thck = thck * thk0
-    usrf = usrf * thk0
+
+    ! Note: The following is a kluge. It is needed because thck can point to either
+    !       geometry%thck or calving%thck_effective, which have different units.
+    !       To be removed when scaling goes away.
+    if (whichcalving_front == HO_CALVING_FRONT_NO_SUBGRID) thck = thck * thk0
+
     topg = topg * thk0
     eus  = eus  * thk0
     thklim = thklim * thk0
@@ -4446,8 +4433,8 @@
 
 !****************************************************************************
 
-  subroutine glissade_velo_higher_scale_output(thck,    usrf,           &
-                                               topg,                    &
+  subroutine glissade_velo_higher_scale_output(whichcalving_front,      &
+                                               thck,    topg,           &
                                                flwa,    efvs,           &                                       
                                                beta_internal,           &
                                                resid_u, resid_v,        &
@@ -4465,9 +4452,11 @@
     ! (generally dimensionless)
     !--------------------------------------------------------
 
+    integer, intent(in) :: &
+         whichcalving_front    ! = 1 for subgrid CF, else = 0
+
     real(dp), dimension(:,:), intent(inout) ::  &
        thck,                 &  ! ice thickness
-       usrf,                 &  ! upper surface elevation
        topg                     ! elevation of topography
 
     real(dp), dimension(:,:,:), intent(inout) ::  &
@@ -4493,8 +4482,12 @@
        tau_eff                  ! effective stress (Pa)
 
     ! Convert geometry variables from m to dimensionless units
-    thck = thck / thk0
-    usrf = usrf / thk0
+
+    ! Note: The following is a kluge. It is needed because thck can point to either
+    !       geometry%thck or calving%thck_effective, which have different units.
+    !       To be removed when scaling goes away.
+    if (whichcalving_front == HO_CALVING_FRONT_NO_SUBGRID) thck = thck / thk0
+
     topg = topg / thk0
 
     ! Convert flow factor from Pa^(-n) yr^(-1) to dimensionless units
@@ -4539,7 +4532,7 @@
                                  parallel,                             &
                                  dx,             dy,                   &
                                  itest,  jtest,  rtest,                &
-                                 active_ice_mask,                      &
+                                 ice_mask,                             &
                                  xVertex,        yVertex,              &
                                  active_cell,    active_vertex,        &
                                  nNodesSolve,    nVerticesSolve,       &
@@ -4577,7 +4570,7 @@
        itest, jtest, rtest    ! coordinates of diagnostic point
 
     integer, dimension(nx,ny), intent(in) ::  &
-       active_ice_mask        ! = 1 for cells with active ice, else = 0
+       ice_mask        ! = 1 for cells with active ice, else = 0
 
     real(dp), dimension(nx-1,ny-1), intent(out) :: &
        xVertex, yVertex       ! x and y coordinates of each vertex
@@ -4637,13 +4630,13 @@
     enddo
 
     ! Identify the active cells.
-    ! Include all cells that border locally owned vertices and contain active ice.
+    ! Include all cells that border locally owned vertices and contain ice.
 
     active_cell(:,:) = .false.
 
     do j = nhalo+1, ny-nhalo+1  ! include east and north layer of halo cells
     do i = nhalo+1, nx-nhalo+1
-       if (active_ice_mask(i,j) == 1) then
+       if (ice_mask(i,j) == 1) then
           active_cell(i,j) = .true.
        endif
     enddo
@@ -4710,8 +4703,7 @@
                                  sigma,            stagwbndsigma,   & 
                                  dx,               dy,              &
                                  itest,  jtest,    rtest,           &
-                                 active_cell,                       &
-                                 active_vertex,                     &
+                                 active_cell,      active_vertex,   &
                                  xVertex,          yVertex,         &
                                  stagusrf,         stagthck,        &
                                  dusrf_dx,         dusrf_dy,        &
@@ -4937,7 +4929,6 @@
                                     whichassemble_lateral,             &
                                     land_mask,                         &
                                     ocean_mask,                        &
-                                    calving_front_mask,                &
                                     active_cell,                       &
                                     xVertex,          yVertex,         &
                                     usrf,             thck,            &
@@ -4964,8 +4955,7 @@
 
     integer, dimension(nx,ny), intent(in) ::  &
        land_mask,                  & ! = 1 if topg >= eus
-       ocean_mask,                 & ! = 1 if topography is below sea level and ice is absent
-       calving_front_mask            ! = 1 if ice is floating and borders the ocean
+       ocean_mask                    ! = 1 if topography is below sea level and ice is absent
 
     real(dp), dimension(nx-1,ny-1), intent(in) ::   &
        xVertex, yVertex     ! x and y coordinates of vertices
@@ -4991,7 +4981,6 @@
     ! Loop over cells that contain locally owned vertices
 
     ! Note: Lateral shelf BCs are applied to active cells (either floating or grounded) that border the ocean.
-    !       Inactive calving_front cells are treated as if they were ocean cells.
 
     do j = nhalo+1, ny-nhalo+1
     do i = nhalo+1, nx-nhalo+1
@@ -5000,16 +4989,13 @@
           print*, 'rank, i, j =', this_rank, i, j
           print*, 'ocean_mask (i-1:i,j)  =', ocean_mask(i-1:i, j)
           print*, 'ocean_mask (i-1:i,j-1)=', ocean_mask(i-1:i, j-1)
-          print*, 'calving_front_mask (i-1:i,j)  =', calving_front_mask(i-1:i, j)
-          print*, 'calving_front_mask (i-1:i,j-1)=', calving_front_mask(i-1:i, j-1)
        endif
 
        ! Compute the spreading term for all active cells that share an edge with an ice-free ocean cell.
 
        if (active_cell(i,j)) then
 
-          if ( ocean_mask(i-1,j) == 1 .or.  &
-              (calving_front_mask(i-1,j) == 1 .and. .not.active_cell(i-1,j)) ) then ! compute lateral BC for west face
+          if ( ocean_mask(i-1,j) == 1) then
 
              call lateral_shelf_bc(nx,              ny,              &
                                    nz,              sigma,           &
@@ -5023,8 +5009,7 @@
                                    loadu,           loadv)
           endif
 
-          if ( ocean_mask(i+1,j) == 1 .or.  &
-              (calving_front_mask(i+1,j) == 1 .and. .not.active_cell(i+1,j)) ) then ! compute lateral BC for east face
+          if ( ocean_mask(i+1,j) == 1) then
 
              call lateral_shelf_bc(nx,              ny,              &
                                    nz,              sigma,           &
@@ -5038,8 +5023,7 @@
                                    loadu,           loadv)
           endif
 
-          if ( ocean_mask(i,j-1) == 1 .or.  &
-              (calving_front_mask(i,j-1) == 1 .and. .not.active_cell(i,j-1)) ) then ! compute lateral BC for south face
+          if ( ocean_mask(i,j-1) == 1) then
 
              call lateral_shelf_bc(nx,              ny,              &
                                    nz,              sigma,           &
@@ -5053,8 +5037,7 @@
                                    loadu,           loadv)
           endif
 
-          if ( ocean_mask(i,j+1) == 1 .or.  &
-              (calving_front_mask(i,j+1) == 1 .and. .not.active_cell(i,j+1)) ) then ! compute lateral BC for north face
+          if ( ocean_mask(i,j+1) == 1) then
 
              call lateral_shelf_bc(nx,              ny,              &
                                    nz,              sigma,           &
@@ -5132,7 +5115,7 @@
 
     character(len=*), intent(in) ::  &
        face                          ! 'north', 'south', 'east', or 'west'
- 
+
     real(dp), dimension(nz), intent(in) ::    &
        sigma                         ! sigma vertical coordinate
 
@@ -5181,6 +5164,7 @@
 
     if ((verbose_shelf .or. verbose_load) .and. &
          iCell == itest .and. jCell == jtest .and. this_rank == rtest) then
+       print*, ' '
        print*, 'In lateral_shelf_bc, rank, i, j =', this_rank, iCell, jCell
        print*, 'thck, usrf =', thck(iCell,jCell), usrf(iCell,jCell)
     endif
@@ -5314,12 +5298,11 @@
           !TODO - Modify this subroutine to return only detJ, and not the derivatives?
 
           if (verbose_shelf .and. this_rank==rtest .and. iCell==itest .and. jCell==jtest .and. k==ktest) then
-             print*, ' '
-             print*, 'Get detJ, i, j, k, p =', iCell, jCell, k, p
-             print*, 'x =', x(:)
-             print*, 'y =', y(:)
-             print*, 'dphi_dxr_2d =', dphi_dxr_2d(:,p)
-             print*, 'dphi_dyr_2d =', dphi_dyr_2d(:,p)
+!             print*, 'Get detJ, i, j, k, p =', iCell, jCell, k, p
+!             print*, 'x =', x(:)
+!             print*, 'y =', y(:)
+!             print*, 'dphi_dxr_2d =', dphi_dxr_2d(:,p)
+!             print*, 'dphi_dyr_2d =', dphi_dyr_2d(:,p)
           endif
 
           call get_basis_function_derivatives_2d(x(:),              y(:),               &
@@ -5355,24 +5338,29 @@
           if ( (verbose_shelf .or. verbose_load) .and. &
                this_rank==rtest .and. iCell==itest .and. jCell==jtest .and. k==ktest) then
              print*, ' '
-             print*, 'whichassemble_lateral =', whichassemble_lateral
              print*, 'Increment shelf load vector, i, j, face, k, p =', iCell, jCell, trim(face), k, p
-             print*, 'h_qp, s_qp =', h_qp, s_qp
-             print*, 'detJ/vol0 =', detJ/vol0
+!!             print*, 'whichassemble_lateral =', whichassemble_lateral
+!!             print*, 'h_qp, s_qp =', h_qp, s_qp
+!!             print*, 'detJ/vol0 =', detJ/vol0
           endif
 
           ! Increment the load vector with the shelf water pressure contribution from 
           !  this quadrature point.
           ! Increment loadu for east/west faces and loadv for north/south faces.
 
-          ! This formula works not just for floating ice, but for any edge between
+          ! The following formula works not just for floating ice, but for any edge between
           !  an ice-covered marine-based cell and an ocean cell.
           p_av = 0.5d0*rhoi*grav*h_qp &                                   ! p_out
                - 0.5d0*rhoo*grav*h_qp * (1.d0 - min(s_qp/h_qp,1.d0))**2   ! p_in
 
-          ! This formula works for floating ice.
+          ! The following formula works for floating ice.
           ! It can be derived from the formula above using Archimedes: rhoi*h = rhoo*(h-s) 
 !!          p_av = 0.5d0*rhoi*grav*h_qp * (1.d0 - rhoi/rhoo)
+
+          if ( (verbose_shelf .or. verbose_load) .and. &
+               this_rank==rtest .and. iCell==itest .and. jCell==jtest .and. k==ktest) then
+             print*, ' p_av =', p_av
+          endif
 
           if (trim(face) == 'west') then  ! net force in -x direction
 
@@ -7176,8 +7164,7 @@
   subroutine compute_basal_friction_heatflx(nx,            ny,            &
                                             nhalo,                        &
                                             itest, jtest,  rtest,         &
-                                            active_cell,                  &
-                                            active_vertex,                &
+                                            active_cell,   active_vertex, &
                                             xVertex,       yVertex,       &
                                             uvel,          vvel,          &
                                             beta,          whichassemble_bfric,  &
