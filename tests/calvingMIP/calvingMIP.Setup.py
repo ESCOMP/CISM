@@ -26,11 +26,11 @@ def unsigned_int(x):
 # Constants #
 #############
 
-R = 800.e3   # (m) size of the circular and Thule domains; x and y range over (-R, R)
+R = 800000.        # (m) size of the circular and Thule domains; x and y range over (-R, R)
 
 # For the circular domain (Experiments 1 and 2)
-Bc_circ = 900.    # (m) maximum bed topography elevation at the center of the domain
-Bl_circ = -2000.  # (m) minimum bed topography elevation at the edge of the domain
+Bc_circ = 900.     # (m) maximum bed topography elevation at the center of the domain
+Bl_circ = -2000.   # (m) minimum bed topography elevation at the edge of the domain
 
 # For the Thule domain (Experiments 3, 4 and 5)
 Bc_thule = 900.    # (m) maximum bed topography elevation at the center of the domain
@@ -200,9 +200,10 @@ print( 'CalvingMIP grid resolution (m) =', args.resolution)
 print( 'Number of vertical levels =', nz)
 
 # Set number of grid cells in each direction.
-# E.g., if R = 800 km with dx = dy = 10 km, we have 161 cells in each direction
-nx = 2*int(R/dx) + 1
-ny = 2*int(R/dy) + 1
+# E.g., if R = 800 km with dx = dy = 10 km, we have 160 cells in each direction
+# Note: The origin lies at a cell corner
+nx = 2*int(R/dx)
+ny = 2*int(R/dy)
 
 print('grid dimension in x:',nx)
 print('grid dimension in y:',ny)
@@ -236,10 +237,10 @@ config.set('time', 'dt',      str(args.timestep))
 config.set('time', 'dt_diag', str(args.timestep))
 
 # Set the diagnostic cell
-# By default, this cell lies at the center of the x-axis, near the
+# By default, this cell lies just to the right of the x-axis, near the
 # northern boundary of the domain.
 idiag = int(nx/2) + 1
-jdiag = int(idiag*31./16.) - 1
+jdiag = int(nx/2) + int(rcalve/dy)
 config.set('time', 'idiag', str(idiag))
 config.set('time', 'jdiag', str(jdiag))
 print('idiag:',idiag)
@@ -329,18 +330,16 @@ calving_mask = ncfile.createVariable('calving_mask', 'i4', ('time','y1','x1'))
 # Compute x and y on each grid.
 # The origin (x = y = 0) is placed at the center of the domain.
 
-x = np.arange(-R,R+dx,dx,dtype='float32')   # x = -R, -R+dx,..., -dx, 0, dx,..., R-dx, R
-y = np.arange(-R,R+dy,dy,dtype='float32')   # y = -R, -R+dx,..., -dx, 0, dx,..., R-dx, R
+x = np.arange(-R+dx/2.,R+dx/2.,dx,dtype='float32')   # x = -R+dx/2, -R+3*dx/2,..., -dx/2, dx/2.,..., R-dx/2
+y = np.arange(-R+dy/2.,R+dy/2.,dy,dtype='float32')   # y = -R+dy/2, -R+3*dy/2,..., -dy/2, dy/2.,..., R-dy/2
 
 #print('x=',x[-4::])
 #print('y=',y[-4::])
-#sys.exit('coucou')
 
 x1[:] = x[:]
 y1[:] = y[:]
-
-x0[:] = x[:-1] + dx/2.   # x = -R+dx/2,..., -dx/2, dx/2,..., R-dx/2
-y0[:] = y[:-1] + dy/2.   # x = -R+dy/2,..., -dy/2, dy/2,..., R-dy/2
+x0[:] = x[:-1] + dx/2.   # x = -R+dx,..., -dx, 0, dx,..., R-dx
+y0[:] = y[:-1] + dy/2.   # x = -R+dy,..., -dy, 0, dy,..., R-dy
 
 # Set SMB
 acab[:,:,:] = accum
@@ -349,16 +348,12 @@ acab[:,:,:] = accum
 thk[:,:,:] = 0.
 calving_mask[:,:,:] = 1
 
-for i in range(1,nx-1):
-    for j in range(1,ny-1):
-        # Find the distance r from the origin to the most distant cell vertex.
-        # If r < rcalve, then put ice in the cell and set calving_mask = 0; if not, then set H = 0 and calving_mask = 1.
-        rsw = np.sqrt(x0[i-1]**2 + y0[j-1]**2)
-        rnw = np.sqrt(x0[i-1]**2 + y0[j]**2)
-        rne = np.sqrt(x0[i]**2 + y0[j]**2)
-        rse = np.sqrt(x0[i]**2 + y0[j-1]**2)
-        rmax = max(rsw,rnw,rne,rse)  # distance from the origin to the most distant vertex
-        if rmax <= rcalve:
+for i in range(0,nx):
+    for j in range(0,ny):
+        # Find the distance d from the origin to the cell center.
+        # If d < rcalve, then put ice in the cell and set calving_mask = 0; if not, then set H = 0 and calving_mask = 1.
+        d = np.sqrt(x1[i]**2 + y1[j]**2)
+        if d <= rcalve:
             thk[:,j,i] = initThickness
             calving_mask[:,j,i] = 0
 
@@ -394,7 +389,7 @@ for i in range(0,nx):
         ncfile['topg'][:,j,i] = computeBedThule(ncfile['x1'][i], ncfile['y1'][j], R, Bc_thule, Bl_thule, Ba_thule)
 
 
-# Close the file 
+# Close the file
 ncfile.close()
 
 print('Experiments:', experiments)
@@ -490,15 +485,10 @@ for expt in experiments:
         cf_advance_retreat_amplitude = -300.
         cf_advance_retreat_period = 1000.
     elif expt == 'Experiment4':
-        # for retreat500
+        # for retreat_500 (will be changed below for advance_1000)
         cf_advance_retreat_amplitude = -750.
         cf_advance_retreat_period = 1000.
-        # for advance_500_1000
-        cf_advance_retreat_amplitude = 5000.
-        cf_advance_retreat_period = 0.
         
-    #TODO: Modify for Experiment 5
-            
     # Set other parameters specific to certain experiments
     # TODO: Do we need to read in the input temperature? Or do we always want temp_init = 1?
 
@@ -514,6 +504,12 @@ for expt in experiments:
         calvingMinthck = 325.
         config.set('parameters', 'calving_minthck', str(calvingMinthck))
             
+    # Set the calvingMIP domain (circular or Thule)
+    if expt == 'SpinupCircular' or expt == 'Experiment1' or expt == 'Experiment2':
+        config.set('ho_options', 'which_ho_calvingmip_domain', '1')
+    elif expt == 'SpinupCircular' or expt == 'Experiment3' or expt == 'Experiment4' or expt == 'Experiment5':
+        config.set('ho_options', 'which_ho_calvingmip_domain', '2')
+
     # Set the start and end times
     config.set('time', 'tstart', str(tstart))
     config.set('time', 'tend',   str(tend))
@@ -544,7 +540,7 @@ for expt in experiments:
     # Set the output filename in the section '[CF output]'.
     outputfile = 'calvingMIP.' + expt + '.out.nc'
     config.set('CF output', 'name', outputfile)
-    config.set('CF output', 'freq', str(outputfreq))
+    config.set('CF output', 'frequency', str(outputfreq))
     #    print('Output file:', outputfile)
 
     # Specify additional output files for CalvingMIP experiments.
