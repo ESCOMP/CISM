@@ -366,6 +366,10 @@ module glide_types
   integer, parameter :: HO_CALVING_FRONT_NO_SUBGRID = 0
   integer, parameter :: HO_CALVING_FRONT_SUBGRID = 1
 
+  integer, parameter :: HO_CALVINGMIP_DOMAIN_NONE = 0
+  integer, parameter :: HO_CALVINGMIP_DOMAIN_CIRCULAR = 1
+  integer, parameter :: HO_CALVINGMIP_DOMAIN_THULE = 2
+
   integer, parameter :: HO_GROUND_NO_GLP = 0
   integer, parameter :: HO_GROUND_GLP_BASAL_FRICTION = 1
   integer, parameter :: HO_GROUND_GLP_DELUXE = 2
@@ -1088,6 +1092,14 @@ module glide_types
     !> \begin{description}
     !> \item[0] no subgrid calving front parameterization
     !> \item[1] subgrid parameterization with partially filled cells at the calving front
+    !> \end{description}
+
+    integer :: which_ho_calvingmip_domain = 0
+    !> Flag that indicates the desired domain for CalvingMIP experiments
+    !> \begin{description}
+    !> \item[0] none
+    !> \item[1] circular (radially symmetric)
+    !> \item[1] Thule (complex topography)
     !> \end{description}
 
     integer :: which_ho_ground = 0

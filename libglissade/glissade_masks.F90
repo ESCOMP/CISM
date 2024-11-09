@@ -321,7 +321,7 @@
     real(dp), dimension(nx,ny), intent(out), optional :: &
          thck_effective,        & ! effective ice thickness (m) for calving
                                   ! Generally, H_eff > H at the CF, with H_eff = H elsewhere
-        effective_areafrac       ! effective ice-covered fraction, in range [0,1]
+         effective_areafrac       ! effective ice-covered fraction, in range [0,1]
                                   ! 0 < f < 1 for partial calving-front cells
 
     integer, dimension(nx,ny), intent(out), optional :: &

@@ -2419,11 +2419,10 @@ contains
             effective_areafrac = model%calving%effective_areafrac)
 
        if (verbose_calving) then
-          call point_diag(calving_front_mask, 'Before transport, calving_front_mask', itest, jtest, rtest, 7, 7)
+          call point_diag(calving_front_mask, 'calving_front_mask', itest, jtest, rtest, 7, 7)
           call point_diag(partial_cf_mask, 'partial_cf_mask', itest, jtest, rtest, 7, 7)
           call point_diag(full_mask, 'full_mask', itest, jtest, rtest, 7, 7)
-          call point_diag(ocean_mask, 'ocean_mask', itest, jtest, rtest, 7, 7)
-          call point_diag(model%geometry%thck*thk0, 'thck', itest, jtest, rtest, 7, 7)
+!          call point_diag(ocean_mask, 'ocean_mask', itest, jtest, rtest, 7, 7)
           call point_diag(model%calving%thck_effective, 'thck_effective', itest, jtest, rtest, 7, 7)
           call point_diag(model%calving%effective_areafrac, &
                'effective_areafrac', itest, jtest, rtest, 7, 7, '(f10.6)')
@@ -3525,7 +3524,8 @@ contains
             nx,           ny,                  &
             model%options%whichcalving,        &
             model%options%calving_domain,      &
-            model%options%which_ho_calving_front, &
+            model%options%which_ho_calving_front,     &
+            model%options%which_ho_calvingmip_domain, &
             parallel,                          &
             model%calving,                     &        ! calving object; includes calving_thck (m)
             itest, jtest, rtest,               &
@@ -3533,6 +3533,8 @@ contains
             model%numerics%time*scyr,          &        ! s
             model%numerics%dew*len0,           &        ! m
             model%numerics%dns*len0,           &        ! m
+            model%general%x0,                  &        ! m
+            model%general%y0,                  &        ! m
             model%general%x1,                  &        ! m
             model%general%y1,                  &        ! m
             model%numerics%sigma,              &
@@ -4124,7 +4126,8 @@ contains
                                      thck_effective = model%calving%thck_effective,  &
                                      thck_effective_min = model%calving%thck_effective_min,  &
                                      partial_cf_mask = partial_cf_mask,          &
-                                     full_mask = full_mask)
+                                     full_mask = full_mask,                      &
+                                     effective_areafrac = model%calving%effective_areafrac)
 
     ! ------------------------------------------------------------------------
     ! Compute the fraction of grounded ice in each cell and at each vertex.

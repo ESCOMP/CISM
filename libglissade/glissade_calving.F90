@@ -36,7 +36,7 @@ module glissade_calving
        parallel_halo, parallel_globalindex, &
        parallel_reduce_sum, parallel_reduce_max, parallel_reduce_log_or
 
-  use glimmer_paramets, only: eps08, thk0
+  use glimmer_paramets, only: eps11, thk0
   use glimmer_physcon, only: rhoi, rhoo, grav, scyr
   use glide_diagnostics, only: point_diag
 
@@ -49,7 +49,8 @@ module glissade_calving
             glissade_stress_tensor_eigenvalues, glissade_strain_rate_tensor_eigenvalues
   public :: verbose_calving
 
-  logical, parameter :: verbose_calving = .false.
+!!  logical, parameter :: verbose_calving = .false.
+  logical, parameter :: verbose_calving = .true.
 
 contains
 
@@ -234,11 +235,13 @@ contains
                                 which_calving,           &
                                 calving_domain,          &
                                 which_ho_calving_front,  &
+                                which_ho_calvingmip_domain, &
                                 parallel,                &
                                 calving,                 &  ! calving derived type
                                 itest,  jtest,  rtest,   &
                                 dt,             time,    &  ! s
                                 dx,             dy,      &  ! m
+                                x0,             y0,      &  ! m
                                 x1,             y1,      &  ! m
                                 sigma,                   &
                                 thklim,                  &  ! m
@@ -262,6 +265,7 @@ contains
 
     integer, intent(in) :: nx, ny                  !> horizontal grid dimensions
 
+    !TODO: Move these options to the calving derived type
     integer, intent(in) :: which_calving           !> option for calving law
     integer, intent(in) :: calving_domain          !> option for where calving can occur
                                                    !> = 0 if calving occurs at the ocean edge only
@@ -269,6 +273,7 @@ contains
                                                    !> = 2 if calving occurs where criterion is met and there is a connected path
                                                    !>     to the ocean through other cells where the criterion is met
     integer, intent(in) :: which_ho_calving_front  !> = 1 for subgrid calving-front scheme, else = 0
+    integer, intent(in) :: which_ho_calvingmip_domain  !> = 1 for circular, 2 for Thule; otherwise = 0
 
     type(parallel_type), intent(in) :: parallel    !> info for parallel communication
     type(glide_calving), intent(inout) :: calving  !> calving object
@@ -301,6 +306,8 @@ contains
     real(dp), intent(in)                      :: dt                !> model timestep (s)
     real(dp), intent(in)                      :: time              !> model time (s)
     real(dp), intent(in)                      :: dx, dy            !> grid cell size in x and y directions (m)
+    real(dp), dimension(nx-1), intent(in)     :: x0                !> x coordinates of NE cell corners (m)
+    real(dp), dimension(ny-1), intent(in)     :: y0                !> y coordinates of NE cell corners (m)
     real(dp), dimension(nx), intent(in)       :: x1                !> x coordinates of cell centers (m)
     real(dp), dimension(ny), intent(in)       :: y1                !> y coordinates of cell centers (m)
     real(dp), dimension(:), intent(in)        :: sigma             !> vertical sigma coordinate
@@ -370,6 +377,12 @@ contains
     real(dp), dimension(2,8) :: &
          cf_location             ! x and y components of calving front location
                                  ! first index is (x,y); second corresponds to 8 CalvingMIP axes
+
+    ! some optional diagnostics
+    real(dp) :: &
+         total_ice_area,       & ! total effective ice area (with weighting by effective_areafrac)
+         total_cf_length         ! total length of the calving front
+
     character(len=100) :: message
 
     ! initialize
@@ -400,7 +413,7 @@ contains
        !WHL - Changed definition of calving fraction; now it is the fraction lost
        !      rather than the fraction remaining
        float_fraction_calve = calving%calving_fraction
-       
+
     else  ! other calving options
 
        if (calving%timescale == 0.0d0) then  ! calve the entire column for eligible columns (this is the default)
@@ -472,6 +485,10 @@ contains
             flux_in,                          & ! m^3/s
             parallel)
 
+       if (verbose_calving) then
+          call point_diag(thck, 'Before redistribution, thck (m)', itest, jtest, rtest, 7, 7)
+       endif
+
        ! Gather ice that has flowed to unprotected cells and move it back upstream
 
        call redistribute_unprotected_ice(&
@@ -482,6 +499,10 @@ contains
             flux_in,                          & ! m^3/s
             thck,                             & ! m
             calving%calving_thck)               ! m
+
+       if (verbose_calving) then
+          call point_diag(thck, 'After redistribution, thck (m)', itest, jtest, rtest, 7, 7)
+       endif
 
        ! Compute masks for calving.
 
@@ -513,43 +534,67 @@ contains
             effective_areafrac = calving%effective_areafrac)
 
        if (verbose_calving) then
-          call point_diag(thck, 'thck (m)', itest, jtest, rtest, 7, 7)
-          call point_diag(calving%thck_effective, 'thck_effective (m)', itest, jtest, rtest, 7, 7)
-          call point_diag(calving%effective_areafrac, 'effective_areafrac', itest, jtest, rtest, 7, 7)
           call point_diag(calving_front_mask, 'calving_front_mask', itest, jtest, rtest, 7, 7)
           call point_diag(partial_cf_mask, 'partial_cf_mask', itest, jtest, rtest, 7, 7)
           call point_diag(full_mask, 'full_mask', itest, jtest, rtest, 7, 7)
+          call point_diag(calving%thck_effective, 'thck_effective (m)', itest, jtest, rtest, 7, 7)
+          call point_diag(calving%effective_areafrac, 'effective_areafrac', itest, jtest, rtest, 7, 7)
        endif
 
        ! Compute the effective length of the calving front in each grid cell
 
-       call compute_calving_front_length(&
-            nx,           ny,             &
-            dx,           dy,             &
-            itest, jtest, rtest,          &
-            parallel,                     &
-            calving_front_mask,           &
-            cf_length)
+       if (which_calving == CF_ADVANCE_RETREAT_RATE) then
+
+          ! compute the CF length as a function of a cell's location on the unit circle
+          ! surrounding the origin (assuming a radially symmetric calving rate).
+
+          call compute_calving_front_length_radial(&
+               nx,           ny,             &
+               dx,           dy,             &
+               x1,           y1,             &
+               itest, jtest, rtest,          &
+               calving_front_mask,           &
+               ocean_mask,                   &
+               cf_length)
+
+       else
+
+          ! compute the CF length for each cell based on its number of ocean neighbors
+          ! (i.e., enhanced calving for cells with 2 or 3 ocean neighbors).
+
+          call compute_calving_front_length(&
+               nx,           ny,             &
+               dx,           dy,             &
+               itest, jtest, rtest,          &
+               calving_front_mask,           &
+               ocean_mask,                   &
+               cf_length)
+
+       endif   ! which_calving
 
        call parallel_halo(cf_length, parallel)
 
        if (verbose_calving) then
-          call point_diag(cf_length, 'cf_length(m)', itest, jtest, rtest, 7, 7)
+          call point_diag(cf_length, 'cf_length (m)', itest, jtest, rtest, 7, 7)
+          ! Diagnose the total CF length
+          total_cf_length = 0.0d0
+          do j = nhalo+1, ny-nhalo
+             do i = nhalo+1, nx-nhalo
+                if (calving_front_mask(i,j) == 1) then
+                   total_cf_length = total_cf_length + cf_length(i,j)
+                endif
+             enddo
+          enddo
+          total_cf_length =  parallel_reduce_sum(total_cf_length)
+          if (this_rank == rtest) then
+             print*, 'Total CF length (km)', total_cf_length/1000.d0
+          endif
        endif
 
+       ! Depending on the calving method, compute the calving rate for each grid cell
+       ! and convert to an equivalent thinning rate.
+
        if (which_calving == CF_ADVANCE_RETREAT_RATE) then
-
-          ! Diagnose the current calving front location, based on the CalvingMIP domain.
-          ! (The advance/retreat option is used for several CalvingMIP experiments.)
-
-          call locate_calving_front_calvingMIP(&
-               nx,             ny,           &
-               dx,             dy,           &  ! m
-               x1,             y1,           &  ! m
-               parallel,                     &
-               itest, jtest, rtest,          &
-               calving%effective_areafrac,   &
-               cf_location)                     ! m
 
           call calving_front_advance_retreat(&
                nx,                 ny,                    &
@@ -566,8 +611,6 @@ contains
                calving_dthck)                                ! m
 
        elseif (which_calving == CALVING_THCK_THRESHOLD) then
-
-          !TODO - Pass in cf_length?
 
           call thickness_based_calving(&
                nx,                 ny,                    &
@@ -666,7 +709,6 @@ contains
        endif
 
        ! Apply calving_dthck as computed above.
-       ! Adjust the thinning based on the estimated calving-front length in the cell.
 
        call apply_calving_dthck(&
             nx,           ny,        &
@@ -685,9 +727,6 @@ contains
 
        call parallel_halo(thck, parallel)
        call parallel_halo(calving%calving_thck, parallel)
-
-       !TODO - Is it possible to skip the call to advance_calving_front
-       !       and the two mask calls? The mask calls are needed to compute thck_effective.
 
        ! Recompute the calving masks
 
@@ -715,22 +754,106 @@ contains
             thck_effective = calving%thck_effective, &
             thck_effective_min = calving%thck_effective_min, &
             partial_cf_mask = partial_cf_mask,       &
-            full_mask = full_mask)
-
-       ! Where thck > thck_effective, allow the CF to advance by distributing ice downstream
-
-       call advance_calving_front(&
-            nx,           ny,        &
-            itest, jtest, rtest,     &
-            ocean_mask,              &
-            calving_front_mask,      &
-            flux_in,                 &
-            calving%thck_effective,  &
-            thck)
+            full_mask = full_mask,                   &
+            effective_areafrac = calving%effective_areafrac)
 
        if (verbose_calving) then
-          call point_diag(thck, 'After advance: thck (m)', itest, jtest, rtest, 7, 7)
-          call point_diag(calving%thck_effective, 'thck_effective (m)', itest, jtest, rtest, 7, 7)
+          call point_diag(thck, 'After calving dthck: thck (m)', itest, jtest, rtest, 7, 7)
+!          call point_diag(calving%thck_effective, 'thck_effective (m)', itest, jtest, rtest, 7, 7)
+!          call point_diag(calving%effective_areafrac, 'effective_areafrac', itest, jtest, rtest, 7, 7)
+!          call point_diag(thck/calving%effective_areafrac, 'CF thickness', itest, jtest, rtest, 7, 7)
+       endif
+
+       if (which_calving == CF_ADVANCE_RETREAT_RATE) then
+
+          ! Compute some CalvingMIP diagnostics.
+          ! Note: If running with a prescribed advance/retreat rate on a grid other than
+          !       the CalvingMIP circular and Thule domains, we would need some additional
+          !       logic to identify the domain.
+          ! Note: With a prescribed advance/retreat rate, it isn't necessary to call advance_calving_front.
+
+          if (which_ho_calvingmip_domain == HO_CALVINGMIP_DOMAIN_CIRCULAR) then
+
+             call locate_calving_front_circular(&
+                  nx,             ny,           &
+                  dx,             dy,           &  ! m
+                  x0,             y0,           &  ! m
+                  x1,             y1,           &  ! m
+                  parallel,                     &
+                  itest, jtest, rtest,          &
+                  calving%effective_areafrac,   &
+                  cf_location)                     ! m
+
+          elseif (which_ho_calvingmip_domain == HO_CALVINGMIP_DOMAIN_THULE) then
+
+                call locate_calving_front_thule(&
+                  nx,             ny,           &
+                  dx,             dy,           &  ! m
+                  x0,             y0,           &  ! m
+                  x1,             y1,           &  ! m
+                  parallel,                     &
+                  itest, jtest, rtest,          &
+                  calving%effective_areafrac,   &
+                  cf_location)                     ! m
+
+          endif
+
+          ! Compute the total ice area and the area of each quadrant
+          total_ice_area = 0.0d0
+          do j = nhalo+1, ny-nhalo
+             do i = nhalo+1, nx-nhalo
+                total_ice_area = total_ice_area + dx*dy*calving%effective_areafrac(i,j)
+             enddo
+          enddo
+          total_ice_area = parallel_reduce_sum(total_ice_area)
+          if (this_rank == rtest) then
+             print*, 'Total ice area (km^2)=', total_ice_area/1.0d6
+             print*, 'Quadrant area (km^2)=', total_ice_area/4.0d6
+          endif
+
+       else  ! other calving schemes
+
+          ! Where thck > thck_effective, allow the CF to advance by distributing ice downstream.
+          ! Note: This is not necessary when running with a prescribed advance/retreat rate.
+
+          call advance_calving_front(&
+               nx,           ny,        &
+               itest, jtest, rtest,     &
+               ocean_mask,              &
+               calving_front_mask,      &
+               flux_in,                 &
+               calving%thck_effective,  &
+               thck)
+
+          ! Recompute the calving masks
+
+          call glissade_get_masks(&
+               nx,            ny,             &
+               parallel,                      &
+               thck,          topg,           &
+               eus,           thklim,         &
+               ice_mask,                      &
+               floating_mask = floating_mask, &
+               ocean_mask = ocean_mask,       &
+               land_mask = land_mask)
+
+          call glissade_calving_front_mask(&
+               nx,            ny,                       &
+               which_ho_calving_front,                  &
+               parallel,                                &
+               thck,          topg,                     &
+               eus,                                     &
+               ice_mask,      floating_mask,            &
+               ocean_mask,    land_mask,                &
+               calving_front_mask,                      &
+               dthck_dx_cf = calving%dthck_dx_cf,       &
+               dx = dx,       dy = dy,                  &
+               thck_effective = calving%thck_effective, &
+               thck_effective_min = calving%thck_effective_min, &
+               partial_cf_mask = partial_cf_mask,       &
+               full_mask = full_mask,                   &
+               effective_areafrac = calving%effective_areafrac)
+
        endif
 
     else   ! other calving options (no subgrid calving front)
@@ -900,11 +1023,6 @@ contains
     ! I think the halo update is needed only to get the right halo values for diagnostics
     call parallel_halo(thck, parallel)
 
-    if (verbose_calving) then
-       call point_diag(thck, 'Before redistribution, thck (m)', itest, jtest, rtest, 7, 7)
-       call point_diag(protected_mask, 'protected_mask', itest, jtest, rtest, 7, 7)
-    endif
-
     ! Identify unprotected ice with nonzero thickness.
     ! Instead of calving this ice, move it to one or more protected upstream CF cell
     ! (from which most or all of the ice likely arrived during transport).
@@ -953,200 +1071,7 @@ contains
 
     call parallel_halo(thck, parallel)
 
-    ! Write the final thicknesses
-    if (verbose_calving) then
-       call point_diag(thck, 'After redistribution, thck (m)', itest, jtest, rtest, 7, 7)
-    endif
-
   end subroutine redistribute_unprotected_ice
-
-!---------------------------------------------------------------------------
-
-  subroutine locate_calving_front_calvingMIP(&
-       nx,             ny,           &
-       dx,             dy,           &
-       x1,             y1,           &
-       parallel,                     &
-       itest, jtest,   rtest,        &
-       areafrac,                     &
-       cf_location)
-
-    use cism_parallel, only: parallel_reduce_maxloc, parallel_reduce_minloc, broadcast
-
-    integer, intent(in) :: &
-         nx, ny,                 & ! grid dimensions
-         itest, jtest, rtest       ! coordinates of diagnostic point
-
-    real(dp), intent(in) :: &
-             dx, dy                ! grid cell size (m)
-
-    real(dp), dimension(nx), intent(in) :: x1
-    real(dp), dimension(ny), intent(in) :: y1
-
-    type(parallel_type), intent(in) :: &
-         parallel                  ! info for parallel communication
-
-    real(dp), dimension(nx,ny), intent(in) :: areafrac
-    real(dp), dimension(2,8), intent(out) :: cf_location
-
-    ! local variables
-
-    integer :: i, j, iglobal, jglobal
-    integer :: axis
-    integer :: procnum
-    real(dp) :: cf_location_xmax, cf_location_ymax, cf_location_xmin, cf_location_ymin, radius
-
-    ! Find the x and y coordinates of the calving front along the different axes
-    !  specified in CalvingMIP.
-    ! The code assumes a circular domain with center at (0,0).
-    !TODO: Do this processing offline with a Python script
-
-    if (this_rank == rtest) print*, 'Locate_calving_front for calvingMIP, rtest =', rtest
-
-    cf_location(:,:) = 0.0d0
-
-    ! Find the CF location along each of 8 axes
-    ! The CF lies in the last cell along a given axis with areafrac > 0
-    ! All loops are over locally owned cells
-
-    axis = 1  ! index for the positive y-axis
-    do i = nhalo+1, nx-nhalo
-       if (x1(i) == 0.0d0) then
-          cf_location(1,axis) = 0.0d0
-          do j = nhalo+1, ny-nhalo
-             if (areafrac(i,j) > 0.0d0 .and. areafrac(i,j+1) == 0.0d0) then
-                cf_location(2,axis) = y1(j) + (areafrac(i,j) - 0.5d0)*dy
-             endif
-          enddo
-       endif
-    enddo
-
-    ! If this proc has a positive value of y, then broadcast the coordinates to all procs
-    call parallel_reduce_maxloc(xin=cf_location(2,axis), xout=cf_location_ymax, xprocout=procnum)
-    call broadcast(cf_location(:,axis), proc=procnum)
-
-    axis = 2  ! index for the line y = x in the positive x and y direction
-    do i = nhalo+1, nx-nhalo
-       do j = nhalo+1, ny-nhalo
-          if (x1(i) == y1(j)) then ! on the line y = x
-             if (areafrac(i,j) > 0.0d0 .and. areafrac(i+1,j+1) == 0.0d0) then
-                cf_location(1,axis) = x1(i) + (areafrac(i,j) - 0.5d0)*dx
-                cf_location(2,axis) = y1(j) + (areafrac(i,j) - 0.5d0)*dy
-             endif
-          endif
-       enddo   ! i
-    enddo   ! j
-
-    ! If this proc has a positive value of x, then broadcast the coordinates to all procs
-    call parallel_reduce_maxloc(xin=cf_location(1,axis), xout=cf_location_ymax, xprocout=procnum)
-    call broadcast(cf_location(:,axis), proc=procnum)
-
-    axis = 3  ! index for the positive x-axis
-    do j = nhalo+1, ny-nhalo
-       if (y1(j) == 0.0d0) then
-          cf_location(2,axis) = 0.0d0
-          do i = nhalo+1, nx-nhalo
-             if (areafrac(i,j) > 0.0d0 .and. areafrac(i+1,j) == 0.0d0) then
-                cf_location(1,axis) = x1(i) + (areafrac(i,j) - 0.5d0)*dx
-             endif
-          enddo
-       endif
-    enddo
-
-    ! If this proc has a positive value of x, then broadcast the coordinates to all procs
-    call parallel_reduce_maxloc(xin=cf_location(1,axis), xout=cf_location_xmax, xprocout=procnum)
-    call broadcast(cf_location(:,axis), proc=procnum)
-
-    axis = 4  ! index for the line y = -x in the positive x and negative y direction
-    do i = nhalo+1, nx-nhalo
-       do j = nhalo+1, ny-nhalo
-          if (x1(i) == -y1(j)) then ! on the line y = -x
-             if (areafrac(i,j) > 0.0d0 .and. areafrac(i+1,j-1) == 0.0d0) then
-                cf_location(1,axis) = x1(i) + (areafrac(i,j) - 0.5d0)*dx
-                cf_location(2,axis) = y1(j) + (0.5d0 - areafrac(i,j))*dy
-             endif
-          endif
-       enddo   ! i
-    enddo   ! j
-
-    ! If this proc has a positive value of x, then broadcast the coordinates to all procs
-    call parallel_reduce_maxloc(xin=cf_location(1,axis), xout=cf_location_ymax, xprocout=procnum)
-    call broadcast(cf_location(:,axis), proc=procnum)
-
-    axis = 5  ! index for the negative y-axis
-    do i = nhalo+1, nx-nhalo
-       if (x1(i) == 0.0d0) then
-          cf_location(1,axis) = 0.0d0
-          do j = ny-nhalo, nhalo+1, -1
-             if (areafrac(i,j) > 0.0d0 .and. areafrac(i,j-1) == 0.0d0) then
-                cf_location(2,axis) = y1(j) + (0.5d0 - areafrac(i,j))*dy
-             endif
-          enddo
-       endif
-    enddo
-
-    ! If this proc has a negative value of y, then broadcast the coordinates to all procs
-    call parallel_reduce_minloc(xin=cf_location(2,axis), xout=cf_location_ymin, xprocout=procnum)
-    call broadcast(cf_location(:,axis), proc=procnum)
-
-    axis = 6  ! index for the line y = x in the negative x and y direction
-    do i = nhalo+1, nx-nhalo
-       do j = nhalo+1, ny-nhalo
-          if (x1(i) == y1(j)) then ! on the line y = x
-             if (areafrac(i,j) > 0.0d0 .and. areafrac(i-1,j-1) == 0.0d0) then
-                cf_location(1,axis) = x1(i) + (0.5d0 - areafrac(i,j))*dx
-                cf_location(2,axis) = y1(j) + (0.5d0 - areafrac(i,j))*dy
-             endif
-          endif
-       enddo   ! i
-    enddo   ! j
-
-    ! If this proc has a negative value of x, then broadcast the coordinates to all procs
-    call parallel_reduce_minloc(xin=cf_location(1,axis), xout=cf_location_ymax, xprocout=procnum)
-    call broadcast(cf_location(:,axis), proc=procnum)
-
-    axis = 7  ! index for the negative x-axis
-    do j = nhalo+1, ny-nhalo
-       if (y1(j) == 0.0d0) then
-          cf_location(2,axis) = 0.0d0
-          do i = nx-nhalo, nhalo+1, -1
-             if (areafrac(i,j) > 0.0d0 .and. areafrac(i-1,j) == 0.0d0) then
-                cf_location(1,axis) = x1(i) + (0.5d0 - areafrac(i,j))*dx
-             endif
-          enddo
-       endif
-    enddo
-
-    ! If this proc has a negative value of x, then broadcast the coordinates to all procs
-    call parallel_reduce_minloc(xin=cf_location(1,axis), xout=cf_location_xmin, xprocout=procnum)
-    call broadcast(cf_location(:,axis), proc=procnum)
-
-    axis = 8  ! index for the line y = -x in the negative x and positive y direction
-    do i = nhalo+1, nx-nhalo
-       do j = nhalo+1, ny-nhalo
-          if (x1(i) == -y1(j)) then ! on the line y = -x
-             if (areafrac(i,j) > 0.0d0 .and. areafrac(i-1,j+1) == 0.0d0) then
-                cf_location(1,axis) = x1(i) + (0.5d0 - areafrac(i,j))*dx
-                cf_location(2,axis) = y1(j) + (areafrac(i,j) - 0.5d0)*dy
-             endif
-          endif
-       enddo   ! i
-    enddo   ! j
-
-    ! If this proc has a negative value of x, then broadcast the coordinates to all procs
-    call parallel_reduce_minloc(xin=cf_location(1,axis), xout=cf_location_ymax, xprocout=procnum)
-    call broadcast(cf_location(:,axis), proc=procnum)
-
-    if (verbose_calving .and. main_task) then
-       print*, ' '
-       print*, 'axis, CF location, radius (km):'
-       do axis = 1, 8
-          radius = sqrt(cf_location(1,axis)**2 + cf_location(2,axis)**2)
-          write(6,'(i4,3f10.3)') axis, cf_location(:,axis)/1000.d0, radius/1000.d0
-       enddo
-    endif
-
-  end subroutine locate_calving_front_calvingMIP
 
 !---------------------------------------------------------------------------
 
@@ -1154,18 +1079,86 @@ contains
        nx,           ny,             &
        dx,           dy,             &
        itest, jtest, rtest,          &
-       parallel,                     &
        calving_front_mask,           &
+       ocean_mask,                   &
        cf_length)
 
-    use glimmer_physcon, only: pi
+    ! Compute the effective length of the calving front in each grid cell,
+    !  based on the number of ocean neighbors.
+    ! Cells with a single ocean edge receive a length of dx or dy.
+    ! Cells with two or three adjacent edges receive a length of sqrt(dx^2 + dy^2).
+    !
+    ! input/output arguments
 
-    ! Compute the effective length of the calving front in each grid cell.
-    ! The method is as follows:
-    ! * For each CF cell, identify its CF neighbors (usually 2 neighbors).
-    ! * Connect the center of the cell with the center of each neighbor.
-    ! * Compute the distance associated with these connections:
-    !   dx/2 or dy/2 for edge neighbors and sqrt(dx^2+dy^2)/2 for corner neighbors
+    integer, intent(in) :: &
+         nx, ny,                 & ! grid dimensions
+         itest, jtest, rtest       ! coordinates of diagnostic point
+
+    real(dp), intent(in) :: &
+         dx, dy                    ! grid cell size (m)
+
+    integer, dimension(nx,ny), intent(in) :: &
+         calving_front_mask,     & ! = 1 for floating cells with an ice-free ocean neighber
+         ocean_mask                ! = 1 for ice-free ocean cells
+
+    real(dp), dimension(nx,ny), intent(out) :: &
+         cf_length                 ! calving front length (m) through a given grid cell
+
+    ! local variables
+
+    integer :: i, j, ip, jp, ii, jj
+    integer :: count, count_ew, count_ns    ! number of neighbors of a CF cell
+
+    ! Compute the CF length based on the number of ocean neighbors;
+    ! the CF is longer for cells with two ocean neighbors.
+
+    cf_length = 0.0d0
+
+    do j = nhalo+1, ny-nhalo
+       do i = nhalo+1, nx-nhalo
+          if (calving_front_mask(i,j) == 1) then
+
+             ! Count the number of ocean edges in each direction
+             count_ns = ocean_mask(i,j-1) + ocean_mask(i,j+1)   ! N/S neighbors; edge of length dx
+             count_ew = ocean_mask(i-1,j) + ocean_mask(i+1,j)   ! E/W neighbors; edge of length dy
+             count = count_ns + count_ew
+             if (count == 1) then   ! one ocean neighbor
+                cf_length(i,j) = count_ns*dx + count_ew*dy
+             elseif (count == 2) then   ! two ocean neighbors; usually a corner in the CF
+                if (count_ew == 1 .and. count_ns == 1) then
+                   cf_length(i,j) = sqrt(dx*dx + dy*dy)
+                else  ! rare case of an isthmus with ocean on opposite edges
+                   cf_length(i,j) = count_ns*dx + count_ew*dy
+                endif
+             elseif (count == 3) then
+                ! This is a bit arbitrary; assume the same length as a CF bordering two edges
+                cf_length(i,j) = sqrt(dx*dx + dy*dy)
+             endif
+
+          endif   ! calving_mask
+       enddo   ! i
+    enddo   ! j
+
+  end subroutine compute_calving_front_length
+
+!---------------------------------------------------------------------------
+
+  subroutine compute_calving_front_length_radial(&
+       nx,           ny,             &
+       dx,           dy,             &
+       x1,           y1,             &
+       itest, jtest, rtest,          &
+       calving_front_mask,           &
+       ocean_mask,                   &
+       cf_length)
+
+    ! This is an alternate method of computing the calving front length in idealized problems
+    ! (e.g., CalvingMIP) in which the calving rate has radial symmetry.
+    ! For this method, the CF length for a given gridcell has a minimum value = dx) when a line drawn
+    !  from the origin to the cell center is parallel to the x or y axis.
+    ! The CF length has a maximum value when a line drawn from the origin to the cell center
+    !  makes an angle of pi/4 = 45 degrees with the x and y axes.
+    ! At intermediate angles, the CF length has an intermediate value.
 
     ! input/output arguments
 
@@ -1176,8 +1169,109 @@ contains
     real(dp), intent(in) :: &
          dx, dy                    ! grid cell size (m)
 
-    type(parallel_type), intent(in) :: &
-         parallel                  ! info for parallel communication
+    real(dp), dimension(nx), intent(in) :: x1  ! x coordinate of cell centers
+    real(dp), dimension(ny), intent(in) :: y1  ! y coordinate of cell centers
+
+    integer, dimension(nx,ny), intent(in) :: &
+         calving_front_mask,     & ! = 1 for floating cells with an ice-free ocean neighber
+         ocean_mask                ! = 1 for ice-free ocean cells
+
+    real(dp), dimension(nx,ny), intent(out) :: &
+         cf_length                 ! calving front length (m) through a given grid cell
+
+    ! local variables
+
+    integer :: i, j
+
+    real(dp) :: absx, absy          ! absolute value of (x1,y1)
+    real(dp) :: theta               ! angle relative to x or y axis
+
+    if (abs(dx - dy) > eps11) then
+       write(6,*) 'Error, compute_calving_front_length_radial, this_rank, i, j,', this_rank, i, j
+       call write_log('Must have dx = dy for the cf_length method', GM_FATAL)
+    endif
+
+    ! Compute the CF length for each grid cell:
+    ! *  equal to dx when the calving direction is parallel to the x or y axis
+    ! *  equal to sqrt(2)*dx when the calving direction is along a diagonal
+    ! *  of intermediate length for intermediate angles
+    ! Note: The method assumes dx = dy.
+    !       It fails if the center of a CF cell lies at the origin (0,0).
+
+    do j = nhalo+1, ny-nhalo
+       do i = nhalo+1, nx-nhalo
+          if (calving_front_mask(i,j) == 1) then
+             absx = abs(x1(i))
+             absy = abs(y1(j))
+             if (absx == 0.0d0 .and. absy == 0.0d0) then
+                write(6,*) 'Error, compute_calving_front_length_radial, this_rank, i, j,', this_rank, i, j
+                call write_log('Cannot compute angle for CF cell at the origin', GM_FATAL)
+             else
+                if (absx >= absy) then
+                   theta = atan(absy/absx)
+                else   ! absx < absy
+                   theta = atan(absx/absy)
+                endif
+             endif
+             ! Note: theta lies in the range [0, pi/4], so cos(theta) is in the range [sqrt(2)/2, 1]
+             cf_length(i,j) = dx / cos(theta)
+          endif   ! calving front cell
+       enddo   ! i
+    enddo   ! j
+
+  end subroutine compute_calving_front_length_radial
+
+!---------------------------------------------------------------------------
+
+  subroutine compute_calving_front_length_advance(&
+       nx,           ny,             &
+       dx,           dy,             &
+       itest, jtest, rtest,          &
+       calving_front_mask,           &
+       cf_length)
+
+    ! Compute the calving front length by a method slightly different from the method
+    !  in subroutine compute_calving_front_length.
+    ! This method is based on connecting all the adjacent cell centers on the calving front,
+    !  such that cells with diagonal CF neighbors thin more than cells with edge neighbors.
+    !
+    ! This was originally the method used for CalvingMIP experiments,
+    !  before switching to the more accurate radial method.
+    ! When applied to CalvingMIP problems, it is more accurate than the method
+    !  in subroutine compute_calving_front_length during the advance phases,
+    !  but less accurate during the retreat phase.
+    !
+    ! A picture can be helpful. Let 'x' denote ice-filled cells and let 'o' denote ocean cells.
+    !
+    !  |    o   |    o   |    o   |    o   |
+    !  |--------|--------|--------|--------|
+    !  |        |        |        |        |
+    !  |    x   |    x   |    o   |    o   |
+    !  |        | (i,j+1)|        |        |
+    !  |--------|--------|--------|--------|
+    !  |        |        |        |        |
+    !  |    x   |    x   |    x   |    x   |
+    !  |        |  (i,j) | (i+1,j)|        |
+    !  |------- |--------|--------|--------|
+    !
+    ! Note the corner in the CF at the NE vertex of cell (i,j).
+    ! In general, we want calving to smooth out the CF rather than created teeth and indentations.
+    ! During retreat, we can smooth the corner by enhancing the calving in cell (i,j+1),
+    !  which borders two ocean cells. We do this by giving this cell an increased CF length.
+    ! But when the CF is prescribed to advance, it's better to smooth the corner by reducing the
+    !  amount of ice entering ocean cell (i+1,j+1). We do this by increasing the CF length in both
+    !  (i,j+1) and (i+1,j), to reflect the diagonal connection between the two cells.
+    ! This subroutine is not currently called but is here for now in case it's useful later.
+    !---------------------------------------------------------------------------
+
+    ! input/output variables
+
+    integer, intent(in) :: &
+         nx, ny,                 & ! grid dimensions
+         itest, jtest, rtest       ! coordinates of diagnostic point
+
+    real(dp), intent(in) :: &
+         dx, dy                    ! grid cell size (m)
 
     integer, dimension(nx,ny), intent(in) :: &
          calving_front_mask        ! = 1 for floating cells with an ice-free ocean neighber
@@ -1187,19 +1281,13 @@ contains
 
     ! local variables
 
-    integer :: i, j, ip, jp, ii, jj, ig, jg
+    integer :: i, j, ip, jp, ii, jj
     integer :: count
-
-    real(dp) :: &
-         local_cf_length,         & ! length of CF on local domain
-         global_cf_length           ! length of CF on global domain
-
-    ! Initialize
-    cf_length = 0.0d0
 
     do j = nhalo+1, ny-nhalo
        do i = nhalo+1, nx-nhalo
           if (calving_front_mask(i,j) == 1) then
+
              count = 0
              ! start with edge CF neighbors
              do jp = -1,1
@@ -1216,6 +1304,7 @@ contains
                    endif
                 enddo   ! ip
              enddo   ! jp
+
              ! check for corner CF neighbors
              ! Note: Occasionally, a cell can have 3 CF neighbors.
              !      If so, then count corner neighbors only if there are not already 2 edge neighbors
@@ -1225,45 +1314,28 @@ contains
                       ii = i + ip; jj = j + jp
                       if (calving_front_mask(ii,jj) == 1) then
                          count = count + 1
-                         if (count <= 2) cf_length(i,j) = cf_length(i,j) + 0.5d0*sqrt(dx*dx + dy*dy)
+                         if (count <= 2) then
+                            cf_length(i,j) = cf_length(i,j) + 0.5d0*sqrt(dx*dx + dy*dy)
+                         endif
                       endif
                    enddo
                 enddo
              endif
+
              ! if we have not found 2 neighbors, then add a CF length of sqrt(dx*dy)/2 for each missing neighbor
              if (count == 0) then
                 cf_length(i,j) = sqrt(dx*dy)
              elseif (count == 1) then
                 cf_length(i,j) = cf_length(i,j) + 0.5d0*sqrt(dx*dy)
              endif
-             !WHL - debug
-             if (cf_length(i,j) > 1.01d0*sqrt(dx*dx + dy*dy)) then
-                call parallel_globalindex(i, j, ig, jg, parallel)
-                print*, 'Warning: ig, jg, CF length:', ig, jg, cf_length(i,j)
-             endif
+
           endif   ! calving_mask
        enddo   ! i
     enddo   ! j
 
-    ! Diagnose the total CF length
-    if (verbose_calving) then
-       local_cf_length = 0.0d0
-       do j = nhalo+1, ny-nhalo
-          do i = nhalo+1, nx-nhalo
-             if (calving_front_mask(i,j) == 1) then
-                local_cf_length = local_cf_length + cf_length(i,j)
-             endif
-          enddo
-       enddo
-       global_cf_length =  parallel_reduce_sum(local_cf_length)
-       if (this_rank == rtest) then
-          print*, 'Total CF length (km)', global_cf_length/1000.d0
-       endif
-    endif
+  end subroutine compute_calving_front_length_advance
 
-  end subroutine compute_calving_front_length
-
-  !---------------------------------------------------------------------------
+!---------------------------------------------------------------------------
 
   subroutine thickness_based_calving(&
        nx,                 ny,                    &
@@ -1855,19 +1927,12 @@ contains
              !       If so, it is possible to undo this calving so the CF can advance.
 
              ! Decrease the calving if the CF is advancing, increase if the CF is retreating
+
              calving_dthck(i,j) = calving_dthck(i,j) - &
                   (cf_advance_retreat_rate*dt * thck_effective(i,j) * cf_length(i,j)) / (dx*dy)
 
              ! Make sure dthck >= 0. This prevents unphysical CF advance via negative calving
              calving_dthck(i,j) = max(calving_dthck(i,j), 0.0d0)
-
-             if (verbose_calving .and. i==itest .and. j==jtest .and. this_rank==rtest) then
-                write(6,*) ' '
-                write(6,*) 'thck:', thck(i,j)
-                write(6,*) 'thck_effective (m) =', thck_effective(i,j)
-                write(6,*) 'dthck transport (m) =', dthck_dt_transport(i,j) * dt
-                write(6,*) 'dthck calving (m)     =', calving_dthck(i,j)
-             endif
 
           endif   ! calving_front cell
        enddo   ! i
@@ -2875,6 +2940,748 @@ contains
     enddo
 
   end subroutine extrapolate_to_calving_front
+
+!---------------------------------------------------------------------------
+! The next two subroutines are diagnostic subroutines for CalvingMIP.
+! They estimate the calving front location along 8 prescribed axes
+!  for the circular and Thule domains.
+! They are not necessary if we have offline tools for locating the CF,
+!  but are left here for reference.
+!---------------------------------------------------------------------------
+
+  subroutine locate_calving_front_circular(&
+       nx,             ny,           &
+       dx,             dy,           &
+       x0,             y0,           &
+       x1,             y1,           &
+       parallel,                     &
+       itest, jtest,   rtest,        &
+       areafrac,                     &
+       cf_location)
+
+    use cism_parallel, only: parallel_reduce_maxloc, parallel_reduce_minloc, broadcast
+    use glissade_grid_operators, only: glissade_stagger
+    use glide_diagnostics, only: point_diag
+
+    ! Find the calving front location along eight profiles on the circular domain.
+    ! These profiles are the four cardinal directions (N, S, E, W) along with the diagonals
+    !  that form 45-degree angles with the cardinal directions.
+
+    integer, intent(in) :: &
+         nx, ny,                 & ! grid dimensions
+         itest, jtest, rtest       ! coordinates of diagnostic point
+
+    real(dp), intent(in) :: &
+         dx, dy                    ! grid cell size (m)
+
+    real(dp), dimension(nx-1), intent(in) :: x0  ! x coordinate of NE cell corners
+    real(dp), dimension(ny-1), intent(in) :: y0  ! y coordinate of NE cell corners
+    real(dp), dimension(nx), intent(in) :: x1  ! x coordinate of cell centers
+    real(dp), dimension(ny), intent(in) :: y1  ! y coordinate of cell centers
+
+    type(parallel_type), intent(in) :: &
+         parallel                  ! info for parallel communication
+
+    real(dp), dimension(nx,ny), intent(in) :: areafrac
+    real(dp), dimension(2,8), intent(out) :: cf_location
+
+    ! local variables
+
+    integer :: i, j, iglobal, jglobal
+    integer :: axis
+    integer :: procnum
+    real(dp) :: cf_location_xmax, cf_location_ymax, cf_location_xmin, cf_location_ymin, radius
+    real(dp) :: &
+         this_areafrac_avg, next_areafrac_avg  ! average of areafrac in two adjacent cells
+    real(dp) :: areafrac_ne, areafrac_nw, areafrac_se, areafrac_sw
+
+    ! Note: For the original CalvingMIP grid, the origin was located at a cell center,
+    !        so both axes passed through cell centers.
+    !       For the new CalvingMIP grid (as of Nov. 2024), the origin is located at a cell corner,
+    !        so both axes lie along cell edges.
+    !       The following code is written generally to find the CF along the x-axis and y-axis
+    !        in either case.
+    !       The code aborts if one of the other is not true.
+
+    logical :: &
+         x_axis_thru_centers,  & ! true if the x-axis passes through cell centers
+         x_axis_thru_edges,    & ! true if the x-axis passes through cell edges
+         y_axis_thru_centers,  & ! true if the y-axis passes through cell centers
+         y_axis_thru_edges       ! true if the y-axis passes through cell edges
+
+    ! Find the x and y coordinates of the calving front along the different axes
+    !  specified in CalvingMIP.
+    ! The code assumes a circular domain with center at (0,0).
+    ! The logic depends on whether the N, S, E and W axes pass through cell centers or edges.
+
+    if (this_rank == rtest) print*, 'Locate_calving_front for calvingMIP, rtest =', rtest
+
+    ! Determine whether the x and y axes passes through cell centers, or through cell edges.
+    ! They should pass through one or the other.
+    x_axis_thru_centers = .false.
+    do j = nhalo+1, ny-nhalo
+       if (y1(j) == 0.0d0) then
+          x_axis_thru_centers = .true.
+       endif
+    enddo
+
+    x_axis_thru_edges = .false.
+    do j = nhalo+1, ny-nhalo
+       if (y0(j) == 0.0d0) then
+          x_axis_thru_edges = .true.
+       endif
+    enddo
+
+    y_axis_thru_centers = .false.
+    do i = nhalo+1, nx-nhalo
+       if (x1(i) == 0.0d0) then
+          y_axis_thru_centers = .true.
+       endif
+    enddo
+
+    y_axis_thru_edges = .false.
+    do i = nhalo+1, nx-nhalo
+       if (x0(i) == 0.0d0) then
+          y_axis_thru_edges = .true.
+       endif
+    enddo
+
+!    if (x_axis_thru_centers) then
+!       print*, this_rank, 'x_axis_thru_centers', x_axis_thru_centers
+!    endif
+!    if (y_axis_thru_centers) then
+!       print*, this_rank, 'y_axis_thru_centers', y_axis_thru_centers
+!    endif
+!    if (x_axis_thru_edges) then
+!       print*, this_rank, 'x_axis_thru_edges', x_axis_thru_edges
+!    endif
+!    if (y_axis_thru_edges) then
+!       print*, this_rank, 'y_axis_thru_edges', y_axis_thru_edges
+!    endif
+
+    cf_location(:,:) = 0.0d0
+
+    ! Find the CF location along each of 8 axes
+    ! The CF lies in the last cell along a given axis with areafrac > 0
+    ! All loops are over locally owned cells
+
+    axis = 1  ! index for the positive y-axis (profile A)
+    if (y_axis_thru_centers) then
+       do i = nhalo+1, nx-nhalo
+          if (x1(i) == 0.0d0) then
+             cf_location(1,axis) = 0.0d0
+             do j = nhalo+1, ny-nhalo
+                if (areafrac(i,j) > 0.0d0 .and. areafrac(i,j+1) == 0.0d0) then
+                   cf_location(2,axis) = y1(j) + (areafrac(i,j) - 0.5d0)*dy
+                endif
+             enddo
+          endif
+       enddo
+    elseif (y_axis_thru_edges) then
+       do i = nhalo+1, nx-nhalo
+          if (x0(i) == 0.0d0) then  ! E edge of cell lies on the y-axis
+             cf_location(1,axis) = 0.0d0
+             do j = nhalo+1, ny-nhalo
+                this_areafrac_avg = 0.5d0 * (areafrac(i,j) + areafrac(i+1,j))
+                next_areafrac_avg = 0.5d0 * (areafrac(i,j+1) + areafrac(i+1,j+1))
+                if (this_areafrac_avg > 0.0d0 .and. next_areafrac_avg == 0.0d0) then
+                   cf_location(2,axis) = y1(j) + (this_areafrac_avg - 0.5d0)*dy
+                endif
+             enddo
+          endif
+       enddo
+    endif   ! y_axis_thru_centers
+
+    ! If this proc has a positive value of y, then broadcast the coordinates to all procs
+    call parallel_reduce_maxloc(xin=cf_location(2,axis), xout=cf_location_ymax, xprocout=procnum)
+    call broadcast(cf_location(:,axis), proc=procnum)
+
+    axis = 2  ! index for the line y = x in the positive x and y direction (profile B)
+    do i = nhalo+1, nx-nhalo
+       do j = nhalo+1, ny-nhalo
+          if (x1(i) == y1(j)) then ! on the line y = x
+             if (areafrac(i,j) > 0.0d0 .and. areafrac(i+1,j+1) == 0.0d0) then
+                areafrac_ne = 0.5d0 * (areafrac(i+1,j) + areafrac(i,j+1))
+                areafrac_sw = 0.5d0 * (areafrac(i,j-1) + areafrac(i-1,j))
+                if (areafrac_ne >= 0.5d0) then  ! CF in cell (i+1,j+1)
+                   cf_location(1,axis) = x0(i) + (areafrac_ne - 0.5d0)/areafrac_ne * (0.5d0*dx)
+                   cf_location(2,axis) = y0(j) + (areafrac_ne - 0.5d0)/areafrac_ne * (0.5d0*dy)
+                elseif (areafrac_sw < 0.5d0) then  ! CF in cell (i-1,j-1)
+                   cf_location(1,axis) = x0(i-1) - (0.5d0 - areafrac_sw)/(areafrac(i-1,j-1) - areafrac_sw) * (0.5d0*dx)
+                   cf_location(2,axis) = y0(j-1) - (0.5d0 - areafrac_sw)/(areafrac(i-1,j-1) - areafrac_sw) * (0.5d0*dy)
+                else   ! CF in cell (i,j)
+                   if (areafrac(i,j) >= 0.5d0) then   ! CF in upper right of cell
+                      cf_location(1,axis) = x1(i) + (areafrac(i,j) - 0.5d0)/(areafrac(i,j) - areafrac_ne) * (0.5d0*dx)
+                      cf_location(2,axis) = y1(j) + (areafrac(i,j) - 0.5d0)/(areafrac(i,j) - areafrac_ne) * (0.5d0*dy)
+                   else  ! areafrac(i,j) < 0.5; CF in lower left of cell
+                      cf_location(1,axis) = x1(i) - (0.5d0 - areafrac(i,j))/(areafrac_sw - areafrac(i,j)) * (0.5d0*dx)
+                      cf_location(2,axis) = y1(j) - (0.5d0 - areafrac(i,j))/(areafrac_sw - areafrac(i,j)) * (0.5d0*dy)
+                   endif
+                endif
+             endif
+          endif   ! on the line y = x
+       enddo   ! i
+    enddo   ! j
+
+    ! If this proc has a positive value of x, then broadcast the coordinates to all procs
+    call parallel_reduce_maxloc(xin=cf_location(1,axis), xout=cf_location_ymax, xprocout=procnum)
+    call broadcast(cf_location(:,axis), proc=procnum)
+
+    axis = 3  ! index for the positive x-axis (profile C)
+    if (x_axis_thru_centers) then
+       do j = nhalo+1, ny-nhalo
+          if (y1(j) == 0.0d0) then
+             cf_location(2,axis) = 0.0d0
+             do i = nhalo+1, nx-nhalo
+                if (areafrac(i,j) > 0.0d0 .and. areafrac(i+1,j) == 0.0d0) then
+                   cf_location(1,axis) = x1(i) + (areafrac(i,j) - 0.5d0)*dx
+                endif
+             enddo
+          endif
+       enddo
+    elseif (x_axis_thru_edges) then
+       do j = nhalo+1, ny-nhalo
+          if (y0(j) == 0.0d0) then
+             cf_location(2,axis) = 0.0d0
+             do i = nhalo+1, nx-nhalo
+                this_areafrac_avg = 0.5d0 * (areafrac(i,j) + areafrac(i,j+1))
+                next_areafrac_avg = 0.5d0 * (areafrac(i+1,j) + areafrac(i+1,j+1))
+                if (this_areafrac_avg > 0.0d0 .and. next_areafrac_avg == 0.0d0) then
+                   cf_location(1,axis) = x1(i) + (this_areafrac_avg - 0.5d0)*dx
+                endif
+             enddo
+          endif
+       enddo
+    endif   ! x_axis_thru_centers
+
+    ! If this proc has a positive value of x, then broadcast the coordinates to all procs
+    call parallel_reduce_maxloc(xin=cf_location(1,axis), xout=cf_location_xmax, xprocout=procnum)
+    call broadcast(cf_location(:,axis), proc=procnum)
+
+    axis = 4  ! index for the line y = -x in the positive x and negative y direction (profile D)
+    do i = nhalo+1, nx-nhalo
+       do j = nhalo+1, ny-nhalo
+          if (x1(i) == -y1(j)) then ! on the line y = -x
+             if (areafrac(i,j) > 0.0d0 .and. areafrac(i+1,j-1) == 0.0d0) then
+                areafrac_se = 0.5d0 * (areafrac(i+1,j) + areafrac(i,j-1))
+                areafrac_nw = 0.5d0 * (areafrac(i-1,j) + areafrac(i,j+1))
+                if (areafrac_se >= 0.5d0) then  ! CF in cell (i+1,j-1)
+                   cf_location(1,axis) = x0(i) + (areafrac_se - 0.5d0)/areafrac_se * (0.5d0*dx)
+                   cf_location(2,axis) = y0(j-1) - (areafrac_se - 0.5d0)/areafrac_se * (0.5d0*dy)
+                elseif (areafrac_nw < 0.5d0) then  ! CF in cell (i-1,j+1)
+                   cf_location(1,axis) = x0(i-1) - (0.5d0 - areafrac_nw)/(areafrac(i-1,j-1) - areafrac_nw) * (0.5d0*dx)
+                   cf_location(2,axis) = y0(j) + (0.5d0 - areafrac_nw)/(areafrac(i-1,j-1) - areafrac_nw) * (0.5d0*dy)
+                else   ! CF in cell (i,j)
+                   if (areafrac(i,j) >= 0.5d0) then   ! CF in lower right of cell
+                      cf_location(1,axis) = x1(i) + (areafrac(i,j) - 0.5d0)/(areafrac(i,j) - areafrac_se) * (0.5d0*dx)
+                      cf_location(2,axis) = y1(j) - (areafrac(i,j) - 0.5d0)/(areafrac(i,j) - areafrac_se) * (0.5d0*dy)
+                   else  ! areafrac(i,j) < 0.5; CF in upper left of cell
+                      cf_location(1,axis) = x1(i) - (0.5d0 - areafrac(i,j))/(areafrac_nw - areafrac(i,j)) * (0.5d0*dx)
+                      cf_location(2,axis) = y1(j) + (0.5d0 - areafrac(i,j))/(areafrac_nw - areafrac(i,j)) * (0.5d0*dy)
+                   endif
+                endif
+             endif
+          endif
+       enddo   ! i
+    enddo   ! j
+
+    ! If this proc has a positive value of x, then broadcast the coordinates to all procs
+    call parallel_reduce_maxloc(xin=cf_location(1,axis), xout=cf_location_ymax, xprocout=procnum)
+    call broadcast(cf_location(:,axis), proc=procnum)
+
+    axis = 5  ! index for the negative y-axis (profile E)
+    if (y_axis_thru_centers) then
+       do i = nhalo+1, nx-nhalo
+          if (x1(i) == 0.0d0) then
+             cf_location(1,axis) = 0.0d0
+             do j = ny-nhalo, nhalo+1, -1
+                if (areafrac(i,j) > 0.0d0 .and. areafrac(i,j-1) == 0.0d0) then
+                   cf_location(2,axis) = y1(j) + (0.5d0 - areafrac(i,j))*dy
+                endif
+             enddo
+          endif
+       enddo
+    elseif (y_axis_thru_edges) then
+       do i = nhalo+1, nx-nhalo
+          if (x0(i) == 0.0d0) then  ! E edge of cell lies on the y-axis
+             cf_location(1,axis) = 0.0d0
+             do j = ny-nhalo, nhalo+1, -1
+                this_areafrac_avg = 0.5d0 * (areafrac(i,j) + areafrac(i+1,j))
+                next_areafrac_avg = 0.5d0 * (areafrac(i,j-1) + areafrac(i+1,j-1))
+                if (this_areafrac_avg > 0.0d0 .and. next_areafrac_avg == 0.0d0) then
+                   cf_location(2,axis) = y1(j) + (0.5d0 - this_areafrac_avg)*dy
+                endif
+             enddo
+          endif
+       enddo
+    endif   ! y_axis_thru_centers
+
+    ! If this proc has a negative value of y, then broadcast the coordinates to all procs
+    call parallel_reduce_minloc(xin=cf_location(2,axis), xout=cf_location_ymin, xprocout=procnum)
+    call broadcast(cf_location(:,axis), proc=procnum)
+
+    axis = 6  ! index for the line y = x in the negative x and y direction (profile F)
+    do i = nhalo+1, nx-nhalo
+       do j = nhalo+1, ny-nhalo
+          if (x1(i) == y1(j)) then ! on the line y = x
+             if (areafrac(i,j) > 0.0d0 .and. areafrac(i-1,j-1) == 0.0d0) then
+                areafrac_sw = 0.5d0 * (areafrac(i,j-1) + areafrac(i-1,j))
+                areafrac_ne = 0.5d0 * (areafrac(i,j+1) + areafrac(i+1,j))
+                if (areafrac_sw >= 0.5d0) then  ! CF in cell (i-1,j-1)
+                   cf_location(1,axis) = x0(i-1) - (areafrac_sw - 0.5d0)/areafrac_sw * (0.5d0*dx)
+                   cf_location(2,axis) = y0(j-1) - (areafrac_sw - 0.5d0)/areafrac_sw * (0.5d0*dy)
+                elseif (areafrac_ne < 0.5d0) then  ! CF in cell (i+1,j+1)
+                   cf_location(1,axis) = x0(i) + (0.5d0 - areafrac_ne)/(areafrac(i-1,j-1) - areafrac_ne) * (0.5d0*dx)
+                   cf_location(2,axis) = y0(j) + (0.5d0 - areafrac_ne)/(areafrac(i-1,j-1) - areafrac_ne) * (0.5d0*dy)
+                else   ! CF in cell (i,j)
+                   if (areafrac(i,j) >= 0.5d0) then   ! CF in lower left of cell
+                      cf_location(1,axis) = x1(i) - (areafrac(i,j) - 0.5d0)/(areafrac(i,j) - areafrac_sw) * (0.5d0*dx)
+                      cf_location(2,axis) = y1(j) - (areafrac(i,j) - 0.5d0)/(areafrac(i,j) - areafrac_sw) * (0.5d0*dy)
+                   else  ! areafrac(i,j) < 0.5; CF in upper right of cell
+                      cf_location(1,axis) = x1(i) + (0.5d0 - areafrac(i,j))/(areafrac_ne - areafrac(i,j)) * (0.5d0*dx)
+                      cf_location(2,axis) = y1(j) + (0.5d0 - areafrac(i,j))/(areafrac_ne - areafrac(i,j)) * (0.5d0*dy)
+                   endif
+                endif
+             endif
+          endif
+       enddo   ! i
+    enddo   ! j
+
+    ! If this proc has a negative value of x, then broadcast the coordinates to all procs
+    call parallel_reduce_minloc(xin=cf_location(1,axis), xout=cf_location_ymax, xprocout=procnum)
+    call broadcast(cf_location(:,axis), proc=procnum)
+
+    axis = 7  ! index for the negative x-axis (profile g)
+    if (x_axis_thru_centers) then
+       do j = nhalo+1, ny-nhalo
+          if (y1(j) == 0.0d0) then
+             cf_location(2,axis) = 0.0d0
+             do i = nx-nhalo, nhalo+1, -1
+                if (areafrac(i,j) > 0.0d0 .and. areafrac(i-1,j) == 0.0d0) then
+                   cf_location(1,axis) = x1(i) + (0.5d0 - areafrac(i,j))*dx
+                endif
+             enddo
+          endif
+       enddo
+    elseif (x_axis_thru_edges) then
+       do j = nhalo+1, ny-nhalo
+          if (y0(j) == 0.0d0) then
+             cf_location(2,axis) = 0.0d0
+             do i = nx-nhalo, nhalo+1, -1
+                this_areafrac_avg = 0.5d0 * (areafrac(i,j) + areafrac(i,j+1))
+                next_areafrac_avg = 0.5d0 * (areafrac(i-1,j) + areafrac(i-1,j+1))
+                if (this_areafrac_avg > 0.0d0 .and. next_areafrac_avg == 0.0d0) then
+                   cf_location(1,axis) = x1(i) + (0.5d0 - this_areafrac_avg)*dx
+                endif
+             enddo
+          endif
+       enddo
+    endif   ! x_axis_thru_centers
+
+    ! If this proc has a negative value of x, then broadcast the coordinates to all procs
+    call parallel_reduce_minloc(xin=cf_location(1,axis), xout=cf_location_xmin, xprocout=procnum)
+    call broadcast(cf_location(:,axis), proc=procnum)
+
+    axis = 8  ! index for the line y = -x in the negative x and positive y direction (profile H)
+    do i = nhalo+1, nx-nhalo
+       do j = nhalo+1, ny-nhalo
+          if (x1(i) == -y1(j)) then ! on the line y = -x
+             if (areafrac(i,j) > 0.0d0 .and. areafrac(i-1,j+1) == 0.0d0) then
+                areafrac_nw = 0.5d0 * (areafrac(i-1,j) + areafrac(i,j+1))
+                areafrac_se = 0.5d0 * (areafrac(i+1,j) + areafrac(i,j-1))
+                if (areafrac_nw >= 0.5d0) then  ! CF in cell (i-1,j+1)
+                   cf_location(1,axis) = x0(i-1) - (areafrac_nw - 0.5d0)/areafrac_nw * (0.5d0*dx)
+                   cf_location(2,axis) = y0(j)   + (areafrac_nw - 0.5d0)/areafrac_nw * (0.5d0*dy)
+                elseif (areafrac_se < 0.5d0) then  ! CF in cell (i+1,j-1)
+                   cf_location(1,axis) = x0(i)   + (0.5d0 - areafrac_se)/(areafrac(i+1,j-1) - areafrac_se) * (0.5d0*dx)
+                   cf_location(2,axis) = y0(j-1) - (0.5d0 - areafrac_se)/(areafrac(i+1,j-1) - areafrac_se) * (0.5d0*dy)
+                else   ! CF in cell (i,j)
+                   if (areafrac(i,j) >= 0.5d0) then   ! CF in upper left of cell
+                      cf_location(1,axis) = x1(i) - (areafrac(i,j) - 0.5d0)/(areafrac(i,j) - areafrac_nw) * (0.5d0*dx)
+                      cf_location(2,axis) = y1(j) + (areafrac(i,j) - 0.5d0)/(areafrac(i,j) - areafrac_nw) * (0.5d0*dy)
+                   else  ! areafrac(i,j) < 0.5; CF in lower right of cell
+                      cf_location(1,axis) = x1(i) + (0.5d0 - areafrac(i,j))/(areafrac_se - areafrac(i,j)) * (0.5d0*dx)
+                      cf_location(2,axis) = y1(j) - (0.5d0 - areafrac(i,j))/(areafrac_se - areafrac(i,j)) * (0.5d0*dy)
+                   endif
+                endif
+             endif
+          endif
+       enddo   ! i
+    enddo   ! j
+
+    ! If this proc has a negative value of x, then broadcast the coordinates to all procs
+    call parallel_reduce_minloc(xin=cf_location(1,axis), xout=cf_location_ymax, xprocout=procnum)
+    call broadcast(cf_location(:,axis), proc=procnum)
+
+    if (verbose_calving .and. main_task) then
+       print*, ' '
+       print*, 'Circular domain: axis, CF location, radius (km)'
+       do axis = 1, 8
+          radius = sqrt(cf_location(1,axis)**2 + cf_location(2,axis)**2)
+          write(6,'(i4,3f10.3)') axis, cf_location(:,axis)/1000.d0, radius/1000.d0
+       enddo
+    endif
+
+  end subroutine locate_calving_front_circular
+
+!---------------------------------------------------------------------------
+
+  subroutine locate_calving_front_thule(&
+       nx,             ny,           &
+       dx,             dy,           &
+       x0,             y0,           &
+       x1,             y1,           &
+       parallel,                     &
+       itest, jtest,   rtest,        &
+       areafrac,                     &
+       cf_location)
+
+    use cism_parallel, only: parallel_reduce_maxloc, parallel_reduce_minloc, broadcast
+    use glissade_grid_operators, only: glissade_stagger
+    use glide_diagnostics, only: point_diag
+
+    ! Find the calving front location along eight profiles on the Thule domain.
+    ! These profiles are defined as follows:
+    !
+    ! Halbrane profiles:
+    ! A: (-150,0) to (-150, 740)
+    ! B: (150, 0) to ( 150, 740)
+    ! C: (-150,0) to (-150,-740)
+    ! D: (150, 0) to ( 150,-740)
+    !
+    ! Caprona profiles:
+    ! A: (-390,0) to (-590, 450)
+    ! B:  (390,0) to ( 590, 450)
+    ! C: (-390,0) to (-590,-450)
+    ! D:  (390,0) to ( 590,-450)
+    !
+    ! The Halbrane profiles are easier. Not sure if I'm going to implement the Caprona profiles.
+
+    integer, intent(in) :: &
+         nx, ny,                 & ! grid dimensions
+         itest, jtest, rtest       ! coordinates of diagnostic point
+
+    real(dp), intent(in) :: &
+         dx, dy                    ! grid cell size (m)
+
+    real(dp), dimension(nx-1), intent(in) :: x0  ! x coordinate of NE cell corners
+    real(dp), dimension(ny-1), intent(in) :: y0  ! y coordinate of NE cell corners
+    real(dp), dimension(nx), intent(in) :: x1  ! x coordinate of cell centers
+    real(dp), dimension(ny), intent(in) :: y1  ! y coordinate of cell centers
+
+    type(parallel_type), intent(in) :: &
+         parallel                  ! info for parallel communication
+
+    real(dp), dimension(nx,ny), intent(in) :: areafrac
+
+    real(dp), dimension(2,8), intent(out) :: &
+         cf_location      ! x and y locations of CF along the Halbrane and Caprona profiles
+                          ! first index: x and y
+                          ! second index: 1 to 4 for Halbrane, 5 to 8 for Caprona
+
+    ! local variables
+
+    integer :: i, j, jj, iglobal, jglobal
+    integer :: axis
+    integer :: procnum
+    real(dp) :: cf_location_xmax, cf_location_ymax, cf_location_xmin, cf_location_ymin, radius
+    real(dp) :: this_areafrac, next_areafrac
+    real(dp) :: &
+         this_areafrac_avg, next_areafrac_avg    ! average of areafrac in two adjacent cells
+
+    real(dp), dimension(nx) :: y_int, areafrac_int
+    real(dp) :: x_intercept, y_intercept, slope  ! properties of the profile
+    real(dp) :: x_lim, y_lim                     ! outer limits of the profile
+    real(dp) :: dist_y, frac_dist
+
+    ! Find the x and y coordinates of the calving front for the Thule domain
+    ! along the different profiles specified in CalvingMIP.
+
+    cf_location(:,:) = 0.0d0
+
+    ! Find the CF location along Halbrane profiles A, B, C and D.
+    ! All loops are over locally owned cells.
+    ! Assume that the x value of each profile coincides with a cell edge
+    ! (not a cell center).
+
+    axis = 1  ! index for Halbrane A
+    x_intercept = -150.d3
+
+    do i = nhalo+1, nx-nhalo
+       if (x0(i) == x_intercept) then  ! E edge of cell lies on the vertical Halbrane profile
+          cf_location(1,axis) = x_intercept
+          do j = nhalo+1, ny-nhalo
+             this_areafrac_avg = 0.5d0 * (areafrac(i,j) + areafrac(i+1,j))
+             next_areafrac_avg = 0.5d0 * (areafrac(i,j+1) + areafrac(i+1,j+1))
+             if (this_areafrac_avg > 0.0d0 .and. next_areafrac_avg == 0.0d0) then
+                cf_location(2,axis) = y1(j) + (this_areafrac_avg - 0.5d0)*dy
+             endif
+          enddo
+       endif
+    enddo
+
+    ! If this proc has a positive value of y, then broadcast the coordinates to all procs
+    call parallel_reduce_maxloc(xin=cf_location(2,axis), xout=cf_location_ymax, xprocout=procnum)
+    call broadcast(cf_location(:,axis), proc=procnum)
+
+    axis = 2  ! index for Halbrane B (same as A except for positive x_intercept)
+    x_intercept = 150.d3
+
+    do i = nhalo+1, nx-nhalo
+       if (x0(i) == x_intercept) then  ! E edge of cell lies on the vertical Halbrane profile
+          cf_location(1,axis) = x_intercept
+          do j = nhalo+1, ny-nhalo
+             this_areafrac_avg = 0.5d0 * (areafrac(i,j) + areafrac(i+1,j))
+             next_areafrac_avg = 0.5d0 * (areafrac(i,j+1) + areafrac(i+1,j+1))
+             if (this_areafrac_avg > 0.0d0 .and. next_areafrac_avg == 0.0d0) then
+                cf_location(2,axis) = y1(j) + (this_areafrac_avg - 0.5d0)*dy
+             endif
+          enddo
+       endif
+    enddo
+
+    ! If this proc has a positive value of y, then broadcast the coordinates to all procs
+    call parallel_reduce_maxloc(xin=cf_location(2,axis), xout=cf_location_ymax, xprocout=procnum)
+    call broadcast(cf_location(:,axis), proc=procnum)
+
+    axis = 3  ! index for Halbrane C (same as A except in the negative y direction)
+    x_intercept = -150.d3
+
+    do i = nhalo+1, nx-nhalo
+       if (x0(i) == x_intercept) then  ! E edge of cell lies on the vertical Halbrane profile
+          cf_location(1,axis) = x_intercept
+          do j = ny-nhalo, nhalo+1, -1
+             this_areafrac_avg = 0.5d0 * (areafrac(i,j) + areafrac(i+1,j))
+             next_areafrac_avg = 0.5d0 * (areafrac(i,j-1) + areafrac(i+1,j-1))
+             if (this_areafrac_avg > 0.0d0 .and. next_areafrac_avg == 0.0d0) then
+                cf_location(2,axis) = y1(j) + (0.5d0 - this_areafrac_avg)*dy
+             endif
+          enddo
+       endif
+    enddo
+
+    ! If this proc has a negative value of y, then broadcast the coordinates to all procs
+    call parallel_reduce_minloc(xin=cf_location(2,axis), xout=cf_location_ymin, xprocout=procnum)
+    call broadcast(cf_location(:,axis), proc=procnum)
+
+    axis = 4  ! index for Halbrane D (same as C except for positive x_intercept)
+    x_intercept = 150.d3
+
+    do i = nhalo+1, nx-nhalo
+       if (x0(i) == x_intercept) then  ! E edge of cell lies on the vertical Halbrane profile
+          cf_location(1,axis) = x_intercept
+          do j = ny-nhalo, nhalo+1, -1
+             this_areafrac_avg = 0.5d0 * (areafrac(i,j) + areafrac(i+1,j))
+             next_areafrac_avg = 0.5d0 * (areafrac(i,j-1) + areafrac(i+1,j-1))
+             if (this_areafrac_avg > 0.0d0 .and. next_areafrac_avg == 0.0d0) then
+                cf_location(2,axis) = y1(j) + (0.5d0 - this_areafrac_avg)*dy
+             endif
+          enddo
+       endif
+    enddo
+
+    ! If this proc has a negative value of y, then broadcast the coordinates to all procs
+    call parallel_reduce_minloc(xin=cf_location(2,axis), xout=cf_location_ymin, xprocout=procnum)
+    call broadcast(cf_location(:,axis), proc=procnum)
+
+    ! Find the CF location along Caprona profiles A, B, C and D.
+    ! The Caprona profiles cut across cells without passing through centers or corners.
+    ! As a result, the logic below is more complicated than for the Halbrane profiles,
+    !  and more approximate. Results might be better with offline interpolation of areafrac.
+
+    axis = 5  ! index for Caprona A
+    x_intercept = -390.d3
+    x_lim = -590.d3
+    y_lim = 450.d3
+    slope = y_lim/(x_lim - x_intercept)  ! rise over run = 450/(-200) = -2.25
+    y_intercept = -x_intercept * slope
+
+    ! Adjust x_lim to allow the CF to be a little out of bounds
+    x_lim = -650.d3
+
+    y_int = 0.0d0
+    areafrac_int = 0.0d0
+
+    ! Estimate areafrac at each point where the Caprona profile intersects the x1 grid
+    do i = nx-nhalo, nhalo+1, -1
+       if (x1(i) < x_intercept .and. x1(i) >= x_lim) then  ! x1 in range
+          y_int(i) = slope*x1(i) + y_intercept  ! profile intersects x1 grid at (x1(i),y)
+          do j = nhalo+1, ny-nhalo
+             if (y_int(i) >= y1(j) .and. y_int(i) < y1(j+1)) then
+                ! Interpolate to estimate a_eff at (x1(i),y_int)
+                areafrac_int(i) = areafrac(i,j) + (y_int(i) - y1(j))/dy * (areafrac(i,j+1) - areafrac(i,j))
+                exit
+             endif
+          enddo
+       endif
+    enddo
+
+    ! Find a point along the profile where the interpolated areafrac = 0.5
+    do i = nx-nhalo, nhalo+1, -1
+       if (areafrac_int(i) > 0.5d0 .and. areafrac_int(i-1) < 0.5d0) then
+          dist_y = y_int(i-1) - y_int(i) ! y distance between neighboring intersection points
+          frac_dist = (areafrac_int(i) - 0.5d0) / (areafrac_int(i) - areafrac_int(i-1))
+          cf_location(1,axis) = x1(i) - frac_dist*dx
+          cf_location(2,axis) = y_int(i) + frac_dist*dist_y
+          exit
+       endif
+    enddo
+
+    ! If this proc has a positive value of y, then broadcast the coordinates to all procs
+    call parallel_reduce_maxloc(xin=cf_location(2,axis), xout=cf_location_ymin, xprocout=procnum)
+    call broadcast(cf_location(:,axis), proc=procnum)
+
+    axis = 6  ! index for Caprona B
+    x_intercept = 390.d3
+    x_lim = 590.d3
+    y_lim = 450.d3
+    slope = y_lim/(x_lim - x_intercept)  ! rise over run = 450/200 = 2.25
+    y_intercept = -x_intercept * slope
+
+    ! Adjust x_lim to allow the CF to be a little out of bounds
+    x_lim = 650.d3
+
+    y_int = 0.0d0
+    areafrac_int = 0.0d0
+
+    ! Estimate areafrac at each point where the Caprona profile intersects the x1 grid
+    do i = nhalo+1, nx-nhalo
+       if (x1(i) >= x_intercept .and. x1(i) < x_lim) then  ! x1 in range
+          y_int(i) = slope*x1(i) + y_intercept  ! profile intersects x1 grid at (x1(i),y)
+          do j = nhalo+1, ny-nhalo
+             if (y_int(i) >= y1(j) .and. y_int(i) < y1(j+1)) then
+                ! Interpolate to estimate a_eff at (x1(i),y_int)
+                areafrac_int(i) = areafrac(i,j) + (y_int(i) - y1(j))/dy * (areafrac(i,j+1) - areafrac(i,j))
+                exit
+             endif
+          enddo
+       endif
+    enddo
+
+    if (verbose_calving .and. this_rank ==rtest) then
+!       print*, 'Caprona B intersection points: i, x, y, areafrac'
+!       do i = nhalo+1, nx-nhalo
+!          if (y_int(i) /= 0.0d0) then
+!             write(6,'(i4,3f10.3)'), i, x1(i)/1000.d0, y_int(i)/1000.d0, areafrac_int(i)
+!          endif
+!       enddo
+    endif
+
+    ! Find a point along the profile where the interpolated areafrac = 0.5
+    do i = nhalo+1, nx-nhalo
+       if (areafrac_int(i) > 0.5d0 .and. areafrac_int(i+1) < 0.5d0) then
+          dist_y = y_int(i+1) - y_int(i) ! y distance between neighboring intersection points
+          frac_dist = (areafrac_int(i) - 0.5d0) / (areafrac_int(i) - areafrac_int(i+1))
+          cf_location(1,axis) = x1(i) + frac_dist*dx
+          cf_location(2,axis) = y_int(i) + frac_dist*dist_y
+          if (verbose_calving .and. this_rank == rtest) then
+!             print*, '1st IP: x, y, a_eff =', x1(i)/1000.d0, y_int(i)/1000.d0, areafrac_int(i)
+!             print*, '2nd IP: x, y, a_eff =', x1(i+1)/1000.d0, y_int(i+1)/1000.d0, areafrac_int(i+1)
+!             print*, 'dist_y, frac_dist =', dist_y/1000.d0, frac_dist
+!             print*, 'CF location =', cf_location(1,axis)/1000.d0, cf_location(2,axis)/1000.d0
+!             print*, 'residual y - (mx + b):', cf_location(2,axis) - slope*cf_location(1,axis) - y_intercept
+          endif
+          exit
+       endif
+    enddo
+
+    ! If this proc has a positive value of y, then broadcast the coordinates to all procs
+    call parallel_reduce_maxloc(xin=cf_location(2,axis), xout=cf_location_ymin, xprocout=procnum)
+    call broadcast(cf_location(:,axis), proc=procnum)
+
+    axis = 7  ! index for Caprona C
+    x_intercept = -390.d3
+    x_lim = -590.d3
+    y_lim = -450.d3
+    slope = y_lim/(x_lim - x_intercept)  ! rise over run = -450/(-200) = 9/4
+    y_intercept = -x_intercept * slope
+
+    ! Adjust x_lim to allow the CF to be a little out of bounds
+    x_lim = -650.d3
+
+    y_int = 0.0d0
+    areafrac_int = 0.0d0
+
+    ! Estimate areafrac at each point where the Caprona profile intersects the x1 grid
+    do i = nx-nhalo, nhalo+1, -1
+       if (x1(i) < x_intercept .and. x1(i) >= x_lim) then  ! x1 in range
+          y_int(i) = slope*x1(i) + y_intercept  ! profile intersects x1 grid at (x1(i),y)
+          do j = ny-nhalo, nhalo+1, -1
+             if (y_int(i) <= y1(j) .and. y_int(i) > y1(j-1)) then
+                ! Interpolate to estimate a_eff at (x1(i),y_int)
+                areafrac_int(i) = areafrac(i,j) + (y1(j) - y_int(i))/dy * (areafrac(i,j-1) - areafrac(i,j))
+                exit
+             endif
+          enddo
+       endif
+    enddo
+
+    ! Find a point along the profile where the interpolated areafrac = 0.5
+    do i = nx-nhalo, nhalo+1, -1
+       if (areafrac_int(i) > 0.5d0 .and. areafrac_int(i-1) < 0.5d0) then
+          dist_y = y_int(i-1) - y_int(i) ! y distance between neighboring intersection points
+          frac_dist = (areafrac_int(i) - 0.5d0) / (areafrac_int(i) - areafrac_int(i-1))
+          cf_location(1,axis) = x1(i) - frac_dist*dx
+          cf_location(2,axis) = y_int(i) + frac_dist*dist_y
+          exit
+       endif
+    enddo
+
+    ! If this proc has a negative value of y, then broadcast the coordinates to all procs
+    call parallel_reduce_minloc(xin=cf_location(2,axis), xout=cf_location_ymin, xprocout=procnum)
+    call broadcast(cf_location(:,axis), proc=procnum)
+
+    axis = 8  ! index for Caprona D
+    x_intercept = 390.d3
+    x_lim = 590.d3
+    y_lim = -450.d3
+    slope = y_lim/(x_lim - x_intercept)  ! rise over run = -450/200 = -9/4
+    y_intercept = -x_intercept * slope
+
+    ! Adjust x_lim to allow the CF to be a little out of bounds
+    x_lim = 650.d3
+
+    y_int = 0.0d0
+    areafrac_int = 0.0d0
+
+    ! Estimate areafrac at each point where the Caprona profile intersects the x1 grid
+    do i = nhalo+1, nx-nhalo
+       if (x1(i) >= x_intercept .and. x1(i) < x_lim) then  ! x1 in range
+          y_int(i) = slope*x1(i) + y_intercept  ! profile intersects x1 grid at (x1(i),y)
+          do j = ny-nhalo, nhalo+1, -1
+             if (y_int(i) <= y1(j) .and. y_int(i) > y1(j-1)) then
+                ! Interpolate to estimate a_eff at (x1(i),y_int)
+                areafrac_int(i) = areafrac(i,j) + (y1(j) - y_int(i))/dy * (areafrac(i,j-1) - areafrac(i,j))
+                exit
+             endif
+          enddo
+       endif
+    enddo
+
+    ! Find a point along the profile where the interpolated areafrac = 0.5
+    do i = nhalo+1, nx-nhalo
+       if (areafrac_int(i) > 0.5d0 .and. areafrac_int(i+1) < 0.5d0) then
+          dist_y = y_int(i+1) - y_int(i) ! y distance between neighboring intersection points
+          frac_dist = (areafrac_int(i) - 0.5d0) / (areafrac_int(i) - areafrac_int(i+1))
+          cf_location(1,axis) = x1(i) + frac_dist*dx
+          cf_location(2,axis) = y_int(i) + frac_dist*dist_y
+       endif
+    enddo
+
+    ! If this proc has a negative value of y, then broadcast the coordinates to all procs
+    call parallel_reduce_minloc(xin=cf_location(2,axis), xout=cf_location_ymin, xprocout=procnum)
+    call broadcast(cf_location(:,axis), proc=procnum)
+
+    if (verbose_calving .and. main_task) then
+       print*, ' '
+       print*, 'Thule domain: axis, CF location, radius (km)'
+       do axis = 1, 8
+          radius = sqrt(cf_location(1,axis)**2 + cf_location(2,axis)**2)
+          write(6,'(i4,3f10.3)') axis, cf_location(:,axis)/1000.d0, radius/1000.d0
+       enddo
+    endif
+
+  end subroutine locate_calving_front_thule
 
 !---------------------------------------------------------------------------
 

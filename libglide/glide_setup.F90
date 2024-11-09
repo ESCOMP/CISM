@@ -809,6 +809,7 @@ contains
     call GetValue(section, 'which_ho_assemble_bfric',     model%options%which_ho_assemble_bfric)
     call GetValue(section, 'which_ho_assemble_lateral',   model%options%which_ho_assemble_lateral)
     call GetValue(section, 'which_ho_calving_front',      model%options%which_ho_calving_front)
+    call GetValue(section, 'which_ho_calvingmip_domain',  model%options%which_ho_calvingmip_domain)
     call GetValue(section, 'which_ho_ground',             model%options%which_ho_ground)
     call GetValue(section, 'which_ho_fground_no_glp',     model%options%which_ho_fground_no_glp)
     call GetValue(section, 'which_ho_ground_bmlt',        model%options%which_ho_ground_bmlt)
@@ -1168,6 +1169,11 @@ contains
     character(len=*), dimension(0:1), parameter :: ho_whichcalving_front = (/ &
          'no subgrid calving front parameterization ', &
          'subgrid calving front parameterization    ' /)
+
+    character(len=*), dimension(0:2), parameter :: ho_calvingmip_domain = (/ &
+         'none       ', &
+         'circular   ', &
+         'Thule'  /)
 
     character(len=*), dimension(0:2), parameter :: ho_whichground = (/ &
          'f_ground = 0 or 1; no GLP  (glissade dycore)               ', &
@@ -2026,7 +2032,17 @@ contains
              call write_log('Error, calving front option out of range for glissade dycore', GM_FATAL)
           end if
 
-          write(message,*) 'ho_whichground          : ',model%options%which_ho_ground,  &
+          if (model%options%which_ho_calvingmip_domain /= HO_CALVINGMIP_DOMAIN_NONE) then
+             write(message,*) 'ho_calvingmip_domain    : ',model%options%which_ho_calvingmip_domain,  &
+                  ho_calvingmip_domain(model%options%which_ho_calvingmip_domain)
+             call write_log(message)
+             if (model%options%which_ho_calvingmip_domain < 0 .or. &
+                  model%options%which_ho_calvingmip_domain >= size(ho_calvingmip_domain)) then
+                call write_log('Error, calvingMIP domain option out of range for glissade dycore', GM_FATAL)
+             end if
+          end if
+
+          write(message,*) 'ho_whichground          : ', model%options%which_ho_ground,  &
                             ho_whichground(model%options%which_ho_ground)
           call write_log(message)
           if (model%options%which_ho_ground < 0 .or. model%options%which_ho_ground >= size(ho_whichground)) then

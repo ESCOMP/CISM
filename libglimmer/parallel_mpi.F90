@@ -1920,7 +1920,7 @@ contains
     real(sp),dimension(:) :: values
     type(parallel_type) :: parallel
 
-    integer :: i,ierror,myn,status,x1id,y1id
+    integer :: i,ierror,myn,status,x0id,y0id,x1id,y1id
     integer,dimension(2) :: mybounds
     integer,dimension(:),allocatable :: displs,sendcounts
     integer,dimension(:,:),allocatable :: bounds
@@ -1945,14 +1945,26 @@ contains
 
     if (main_task) then
        allocate(bounds(2,tasks))
+       status = nf90_inq_varid(ncid,"x0",x0id)
+       status = nf90_inq_varid(ncid,"y0",y0id)
        status = nf90_inq_varid(ncid,"x1",x1id)
        status = nf90_inq_varid(ncid,"y1",y1id)
     else
        allocate(bounds(1,1))
     end if
+    call broadcast(x0id)
+    call broadcast(y0id)
     call broadcast(x1id)
     call broadcast(y1id)
-    if (varid==x1id) then
+    if (varid==x0id) then
+       mybounds(1) = ewlb
+       mybounds(2) = ewub-1
+       myn = global_ewn-1
+    else if (varid==y0id) then
+       mybounds(1) = nslb
+       mybounds(2) = nsub-1
+       myn = global_nsn-1
+    else if (varid==x1id) then
        mybounds(1) = ewlb
        mybounds(2) = ewub
        myn = global_ewn
@@ -1968,7 +1980,11 @@ contains
     if (main_task) then
        !WHL - See comments above on allocating the global_values array
 !!       allocate(global_values(minval(bounds(1,:)):maxval(bounds(2,:))))
-       if (varid==x1id) then
+       if (varid==x0id) then
+          allocate(global_values(global_minval_ewlb:global_maxval_ewub-1))
+       elseif (varid==y0id) then
+          allocate(global_values(global_minval_nslb:global_maxval_nsub-1))
+       elseif (varid==x1id) then
           allocate(global_values(global_minval_ewlb:global_maxval_ewub))
        elseif (varid==y1id) then
           allocate(global_values(global_minval_nslb:global_maxval_nsub))
@@ -2105,7 +2121,7 @@ contains
     real(dp),dimension(:) :: values
     type(parallel_type) :: parallel
 
-    integer :: i,ierror,myn,status,x1id,y1id
+    integer :: i,ierror,myn,status,x0id,y0id,x1id,y1id
     integer,dimension(2) :: mybounds
     integer,dimension(:),allocatable :: displs,sendcounts
     integer,dimension(:,:),allocatable :: bounds
@@ -2130,14 +2146,26 @@ contains
 
     if (main_task) then
        allocate(bounds(2,tasks))
+       status = nf90_inq_varid(ncid,"x0",x0id)
+       status = nf90_inq_varid(ncid,"y0",y0id)
        status = nf90_inq_varid(ncid,"x1",x1id)
        status = nf90_inq_varid(ncid,"y1",y1id)
     else
        allocate(bounds(1,1))
     end if
+    call broadcast(x0id)
+    call broadcast(y0id)
     call broadcast(x1id)
     call broadcast(y1id)
-    if (varid==x1id) then
+    if (varid==x0id) then
+       mybounds(1) = ewlb
+       mybounds(2) = ewub-1
+       myn = global_ewn-1
+    else if (varid==y0id) then
+       mybounds(1) = nslb
+       mybounds(2) = nsub-1
+       myn = global_nsn-1
+    else if (varid==x1id) then
        mybounds(1) = ewlb
        mybounds(2) = ewub
        myn = global_ewn
@@ -2153,7 +2181,11 @@ contains
     if (main_task) then
        !WHL - See comments above on allocating the global_values array
 !!       allocate(global_values(minval(bounds(1,:)):maxval(bounds(2,:))))
-       if (varid==x1id) then
+       if (varid==x0id) then
+          allocate(global_values(global_minval_ewlb:global_maxval_ewub-1))
+       elseif (varid==y0id) then
+          allocate(global_values(global_minval_nslb:global_maxval_nsub-1))
+       elseif (varid==x1id) then
           allocate(global_values(global_minval_ewlb:global_maxval_ewub))
        elseif (varid==y1id) then
           allocate(global_values(global_minval_nslb:global_maxval_nsub))
@@ -3753,7 +3785,7 @@ contains
     type(parallel_type) :: parallel
     integer,dimension(:),optional :: start
 
-    integer :: i,ierror,myn,status,x0id,x1id,y0id,y1id
+    integer :: i,ierror,myn,status,x0id,y0id,x1id,y1id
     integer,dimension(2) :: mybounds
     integer,dimension(:),allocatable :: displs,recvcounts
     integer,dimension(:,:),allocatable :: bounds
@@ -3777,28 +3809,28 @@ contains
     if (main_task) then
        allocate(bounds(2,tasks))
        status = nf90_inq_varid(ncid,"x0",x0id)
-       status = nf90_inq_varid(ncid,"x1",x1id)
        status = nf90_inq_varid(ncid,"y0",y0id)
+       status = nf90_inq_varid(ncid,"x1",x1id)
        status = nf90_inq_varid(ncid,"y1",y1id)
     else
        allocate(bounds(1,1))
     end if
     call broadcast(x0id)
-    call broadcast(x1id)
     call broadcast(y0id)
+    call broadcast(x1id)
     call broadcast(y1id)
     if (varid==x0id) then
        mybounds(1) = ewlb
        mybounds(2) = ewub-1
        myn = global_ewn-1
-    else if (varid==x1id) then
-       mybounds(1) = ewlb
-       mybounds(2) = ewub
-       myn = global_ewn
     else if (varid==y0id) then
        mybounds(1) = nslb
        mybounds(2) = nsub-1
        myn = global_nsn-1
+    else if (varid==x1id) then
+       mybounds(1) = ewlb
+       mybounds(2) = ewub
+       myn = global_ewn
     else if (varid==y1id) then
        mybounds(1) = nslb
        mybounds(2) = nsub
@@ -3813,10 +3845,10 @@ contains
 !!       allocate(global_values(minval(bounds(1,:)):maxval(bounds(2,:))))
        if (varid==x0id) then
           allocate(global_values(global_minval_ewlb:global_maxval_ewub-1))
-       elseif (varid==x1id) then
-          allocate(global_values(global_minval_ewlb:global_maxval_ewub))
        elseif (varid==y0id) then
           allocate(global_values(global_minval_nslb:global_maxval_nsub-1))
+       elseif (varid==x1id) then
+          allocate(global_values(global_minval_ewlb:global_maxval_ewub))
        elseif (varid==y1id) then
           allocate(global_values(global_minval_nslb:global_maxval_nsub))
        endif
@@ -3948,7 +3980,7 @@ contains
     type(parallel_type) :: parallel
     integer,dimension(:),optional :: start
 
-    integer :: i,ierror,myn,status,x0id,x1id,y0id,y1id
+    integer :: i,ierror,myn,status,x0id,y0id,x1id,y1id
 
     integer,dimension(2) :: mybounds
     integer,dimension(:),allocatable :: displs,recvcounts
@@ -3973,28 +4005,28 @@ contains
     if (main_task) then
        allocate(bounds(2,tasks))
        status = nf90_inq_varid(ncid,"x0",x0id)
-       status = nf90_inq_varid(ncid,"x1",x1id)
        status = nf90_inq_varid(ncid,"y0",y0id)
+       status = nf90_inq_varid(ncid,"x1",x1id)
        status = nf90_inq_varid(ncid,"y1",y1id)
     else
        allocate(bounds(1,1))
     end if
     call broadcast(x0id)
-    call broadcast(x1id)
     call broadcast(y0id)
+    call broadcast(x1id)
     call broadcast(y1id)
     if (varid==x0id) then
        mybounds(1) = ewlb
        mybounds(2) = ewub-1
        myn = global_ewn-1
-    else if (varid==x1id) then
-       mybounds(1) = ewlb
-       mybounds(2) = ewub
-       myn = global_ewn
     else if (varid==y0id) then
        mybounds(1) = nslb
        mybounds(2) = nsub-1
        myn = global_nsn-1
+    else if (varid==x1id) then
+       mybounds(1) = ewlb
+       mybounds(2) = ewub
+       myn = global_ewn
     else if (varid==y1id) then
        mybounds(1) = nslb
        mybounds(2) = nsub
@@ -4009,10 +4041,10 @@ contains
 !!       allocate(global_values(minval(bounds(1,:)):maxval(bounds(2,:))))
        if (varid==x0id) then
           allocate(global_values(global_minval_ewlb:global_maxval_ewub-1))
-       elseif (varid==x1id) then
-          allocate(global_values(global_minval_ewlb:global_maxval_ewub))
        elseif (varid==y0id) then
           allocate(global_values(global_minval_nslb:global_maxval_nsub-1))
+       elseif (varid==x1id) then
+          allocate(global_values(global_minval_ewlb:global_maxval_ewub))
        elseif (varid==y1id) then
           allocate(global_values(global_minval_nslb:global_maxval_nsub))
        endif

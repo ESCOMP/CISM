@@ -23,6 +23,7 @@ long_name:     Cartesian x-coordinate, velocity grid
 axis:          X
 data:          data%general%x0
 dimlen:        model%parallel%global_ewn-1
+load:          1
 
 [y0]
 dimensions:    y0
@@ -31,6 +32,7 @@ long_name:     Cartesian y-coordinate, velocity grid
 axis:          Y
 data:          data%general%y0
 dimlen:        model%parallel%global_nsn-1
+load:          1
 
 [x1]
 dimensions:    x1
