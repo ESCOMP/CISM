@@ -39,8 +39,8 @@ module glissade_inversion
 
   private
   public :: verbose_inversion, glissade_init_inversion, glissade_inversion_basal_friction, &
-            glissade_inversion_bmlt_basin, glissade_inversion_deltaT_ocn, deltaT_ocn_maxval, &
-            glissade_inversion_flow_enhancement_factor, usrf_to_thck
+            glissade_inversion_bmlt_basin, glissade_inversion_deltaT_ocn, &
+            glissade_inversion_flow_enhancement_factor
 
   !-----------------------------------------------------------------------------
   ! Subroutines to invert for basal fields (including basal friction beneath
@@ -1622,13 +1622,15 @@ contains
          flow_enhancement_factor_minvalue,    & ! minimum values now used as config parameter
          flow_enhancement_factor_maxvalue,    & !
          vel_error_limit,                     & !
-         coulomb_c_min,                       &
-         coulomb_c_max       
-        
+         coulomb_c_min       
+                             
 
     real(dp), dimension(nx,ny), intent(inout) ::  &
-         flow_enhancement_factor          ! flow enhancement factor (unitless)
-
+         flow_enhancement_factor,&          ! flow enhancement factor (unitless)
+         term_thk_array,&
+         term_dhdt_array,&
+         term_velo_array,&
+         term_relax_array
     ! local variables
 
     integer :: i, j
@@ -1638,7 +1640,8 @@ contains
          thck_obs,             & ! observed ice thickness (m), optionally smoothed
          dthck_dt,             & ! rate of change of ice thickness (m/s), optionally smoothed
          dthck,                & ! thck - thck_obs
-         relax_target            ! value toward which E is relaxed
+         relax_target,         & ! value toward which E is relaxed
+         dvelo
 
     real(dp) ::  &
          term_thck,            & ! tendency term based on thickness target
@@ -1646,7 +1649,11 @@ contains
          term_relax,           & ! term that relaxes E toward a default value
          term_velo,            &  ! term that depends on the velocity mismatch
          tendency_term           !what we would like to add to the flow factor
-        
+    
+
+    !velocity difference mod -obs   
+    dvelo=velo_sfc_unstag-velo_sfc_obs_unstag   
+    
     ! Note: Max and min values are somewhat arbitrary.
     ! TODO: Make these config parameters?
     real(dp), parameter :: &

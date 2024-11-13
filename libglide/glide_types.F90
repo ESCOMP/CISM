@@ -1864,6 +1864,11 @@ module glide_types
 
      real(dp), dimension(:,:), pointer :: &
           ff_invert_mask => null()
+     real(dp), dimension(:,:), pointer :: &
+          term_thk_array,&
+          term_dhdt_array,&
+          term_velo_array,&
+          term_relax_array
 
      real(dp) :: &
           ff_multiplier = 1.0d0

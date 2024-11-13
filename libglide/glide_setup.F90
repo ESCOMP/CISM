@@ -3746,7 +3746,7 @@ contains
            call glide_add_to_restart_variable_list('bwat', model_id)
         end select
         if (model%options%which_ho_bwat == HO_BWAT_FLUX_ROUTING) then
-           call glide_add_to_restart_variable_list('bwat_diag')
+           call glide_add_to_restart_variable_list('bwat_diag',model_id)
         endif
        
 
@@ -3878,31 +3878,28 @@ contains
     ! fields needed for inversion options that try to match local dthck_dt
     ! Note: This is not strictly needed for all options, but still is a useful diagnostic.
     if (options%which_ho_deltaT_ocn /= HO_DELTAT_OCN_NONE) then
-       call glide_add_to_restart_variable_list('dthck_dt_obs')
+       call glide_add_to_restart_variable_list('dthck_dt_obs',model_id)
     !TvdA: I commented out the dthck_dt_obs_basin because I generally do not use it and it seems to mess with my 
     !deltaT_inversion
 !       call glide_add_to_restart_variable_list('dthck_dt_obs_basin')
     endif
 
     if (options%which_ho_damage /= HO_NO_DAMAGELINES) then  
-       call glide_add_to_restart_variable_list('ff_invert_mask')
-    endif
-
-    if (options%which_ho_damage /= HO_NO_DAMAGELINES) then  
-       call glide_add_to_restart_variable_list('ff_invert_mask')
+       call glide_add_to_restart_variable_list('ff_invert_mask',model_id)
     endif
 
     ! effective pressure options
     ! f_effecpress_bwat represents the reduction of overburden pressure from bwatflx
     if (options%which_ho_effecpress == HO_EFFECPRESS_BWATFLX) then
-       call glide_add_to_restart_variable_list('f_effecpress_bwat')
-       call glide_add_to_restart_variable_list('f_effecpress_bwatflx')
-    endif
+       call glide_add_to_restart_variable_list('f_effecpress_bwat',model_id)
+       call glide_add_to_restart_variable_list('f_effecpress_bwatflx',model_id)
+    
+endif
 
     if (options%which_ho_effecpress == HO_EFFECPRESS_BWAT .or. &
         options%which_ho_effecpress == HO_EFFECPRESS_BWAT_DIFF) then
-        call glide_add_to_restart_variable_list('f_effecpress_bwat')
-        call glide_add_to_restart_variable_list('f_effecpress_bwat_target')
+        call glide_add_to_restart_variable_list('f_effecpress_bwat',model_id)
+        call glide_add_to_restart_variable_list('f_effecpress_bwat_target',model_id)
     endif
 
     ! f_effecpress_ocean_p represents the reduction of overburden pressure when ocean_p > 0
