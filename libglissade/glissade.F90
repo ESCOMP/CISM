@@ -1375,7 +1375,7 @@ contains
     ! Calculate ice thickness and tracer evolution under horizontal transport.
     ! The surface and basal mass balances are also applied here.
     ! ------------------------------------------------------------------------ 
-
+    
     call glissade_thickness_tracer_solve(model)
 
     ! ------------------------------------------------------------------------ 
@@ -1462,6 +1462,11 @@ contains
     ! ------------------------------------------------------------------------
 
     call glissade_diagnostic_variable_solve(model)
+    ! Rachel debug
+    ! manually set velocity to zero for SHMIP runs
+    print *, 'Manually setting velocities to 0 everywhere after call glissade_diagnostic_variable_solve'
+    model%velocity%uvel = 0.0d0
+    model%velocity%vvel = 0.0d0
 
     !TODO - Any halo updates needed at the end of glissade_tstep?
 
@@ -1901,6 +1906,7 @@ contains
     use glissade_transport, only: glissade_add_2d_anomaly
     use glissade_grid_operators, only: glissade_vertical_interpolate
     use glissade_masks, only: glissade_get_masks
+    ! use glide_diagnostics, only: point_diag
 
     !WHL - debug
     use cism_parallel, only: parallel_reduce_max
@@ -2205,7 +2211,8 @@ contains
             model%basal_hydro%bwat_diag,                      &  ! m
             model%basal_hydro%head,                           &  ! m
             model%basal_hydro%grad_head)                         ! m/m
-
+       ! Rachel debug
+       call point_diag (model%basal_hydro%bwat_diag, 'bwat_diag', itest, jtest, rtest, 7, 7)
        ! halo updates (not sure if all are needed)
        call parallel_halo(model%basal_hydro%bwatflx, parallel)
        call parallel_halo(model%basal_hydro%bwat_diag, parallel)
@@ -2283,6 +2290,8 @@ contains
     use glissade_grid_operators, only: glissade_vertical_interpolate
     use glissade_glacier, only: verbose_glacier
     use glide_stop, only: glide_finalise
+    ! use glide_diagnostics, only: point_diag
+    ! Rachel
 
     implicit none
 
@@ -2391,6 +2400,14 @@ contains
        if (verbose_glissade .and. main_task) print*, 'Compute dH/dt'
 
        call t_startf('glissade_transport_driver')
+
+       ! Rachel debug
+       ! For diagnosing why thickness evolves, 
+       call point_diag(model%velocity%uvel(1,:,:), 'Before glissade_transport_driver, uvel', &
+               itest, jtest, rtest, 7, 7)
+
+       call point_diag(model%velocity%vvel(1,:,:), 'Before glissade_transport_driver, vvel', &
+               itest, jtest, rtest, 7, 7, '(f10.3)')
 
        if (verbose_inversion .or. verbose_glissade .or. verbose_calving) then
           call point_diag(model%geometry%thck*thk0, 'Before glissade_transport_driver, thck (m)', &
@@ -2638,8 +2655,16 @@ contains
 
        if (verbose_inversion .or. verbose_glissade .or. verbose_calving) then
           call point_diag(thck_unscaled, 'After glissade_transport_driver, thck (m)', &
+          
                itest, jtest, rtest, 7, 7, '(f10.3)')
        endif
+       ! Rachel debug
+       ! For diagnosing why thickness evolves, 
+       call point_diag(model%velocity%uvel(1,:,:), 'After glissade_transport_driver, uvel', &
+               itest, jtest, rtest, 7, 7, '(f10.3)')
+
+       call point_diag(model%velocity%vvel(1,:,:), 'After glissade_transport_driver, vvel', &
+               itest, jtest, rtest, 7, 7, '(f10.3)')
 
        !-------------------------------------------------------------------------
        ! Prepare the surface and basal mass balance terms.
@@ -2802,7 +2827,7 @@ contains
              enddo
 
           endif  ! smb_input_function
-
+          
           if (model%options%artm_input_function == ARTM_INPUT_FUNCTION_XY_GRADZ) then
 
              write(6,*) ' '
@@ -3127,8 +3152,11 @@ contains
 
        ! convert thck back to scaled units
        ! (acab_unscaled is intent(in) above, so no need to scale it back)
+       
+       ! Rachel debug
+       print*, 'Ratio thck_old:thck ( before model%geometry%thck(:,:) = thck_unscaled(:,:) / thk0)', model%geometry%thck_old/model%geometry%thck
        model%geometry%thck(:,:) = thck_unscaled(:,:) / thk0
-
+       print*, 'Ratio thck_old:thck (after)', model%geometry%thck_old/model%geometry%thck
        ! For the enthalpy option, convert enthalpy back to temperature/waterfrac.
 
        if (model%options%whichtemp == TEMP_ENTHALPY) then
@@ -3202,12 +3230,12 @@ contains
     !TODO - Not sure this update is needed here.  It is done at the start
     !       of the diagnostic solve, but may not be needed for calving.
     !------------------------------------------------------------------------
-    
+
     call glide_calclsrf(model%geometry%thck, model%geometry%topg,       &
                         model%climate%eus,   model%geometry%lsrf)
 
     model%geometry%usrf(:,:) = max(0.d0, model%geometry%thck(:,:) + model%geometry%lsrf(:,:))
-
+    
     if (verbose_inversion .and. this_rank == rtest) then
        i = itest
        j = jtest
@@ -3948,6 +3976,7 @@ contains
          glissade_inversion_flow_enhancement_factor
     use glissade_utils, only: glissade_usrf_to_thck
     use glissade_glacier, only: glissade_glacier_update
+    ! use glide_diagnostics, only: point_diag
 
     implicit none
 
@@ -4611,6 +4640,7 @@ contains
             model%temper%bpmp(:,:) - model%temper%temp(upn,:,:), & ! degC
             model%numerics%dt * tim0/scyr)           ! yr [Change to s?]
 
+
        ! TODO: call ocean_p subroutine here, then merge the two calculations
 
        if ( (model%numerics%time == model%numerics%tstart) .and. &
@@ -4732,6 +4762,17 @@ contains
     ! ------------------------------------------------------------------------ 
     ! ------------------------------------------------------------------------ 
 
+    ! For SHMIP, set velocity = to 0 everywhere
+    print *, 'Manually setting velocities to 0 everywhere in glissade_diagnostic_variable_solve after vel. solver'
+    
+    ! Rachel debug 
+    call point_diag(model%velocity%uvel(1,:,:), 'uvel before:', itest, jtest, rtest, 7, 7)
+    call point_diag(model%velocity%vvel(1,:,:), 'vvel before:', itest, jtest, rtest, 7, 7)
+
+    model%velocity%uvel = 0.0d0
+    model%velocity%vvel = 0.0d0
+    call point_diag(model%velocity%uvel(1,:,:), 'uvel after:', itest, jtest, rtest, 7, 7)
+    call point_diag(model%velocity%vvel(1,:,:), 'vvel after:', itest, jtest, rtest, 7, 7)
     ! Calculate wvel, assuming grid velocity is 0.
     ! This is calculated relative to the ice sheet base, rather than a fixed reference location.
     ! Note: This current implementation for wvel only supports whichwvel=VERTINT_STANDARD

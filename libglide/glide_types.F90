@@ -297,24 +297,29 @@ module glide_types
   integer, parameter :: HO_BMLT_BASIN_ISMIP6 = 3
 
   ! New Glissade basal water options
+  ! which_ho_bwat
   integer, parameter :: HO_BWAT_NONE = 0
   integer, parameter :: HO_BWAT_CONSTANT = 1
   integer, parameter :: HO_BWAT_LOCAL_TILL = 2
   integer, parameter :: HO_BWAT_FLUX_ROUTING = 3
 
+  ! ho_flux_routing_scheme
   integer, parameter :: HO_FLUX_ROUTING_D8 = 0
   integer, parameter :: HO_FLUX_ROUTING_DINF = 1
   integer, parameter :: HO_FLUX_ROUTING_FD8 = 2
 
+  ! cavity_open_slide
   integer, parameter :: CAVITY_OPEN_SLIDE_NONE = 0
   integer, parameter :: CAVITY_OPEN_SLIDE_FIXED_UB = 1
   integer, parameter :: CAVITY_OPEN_SLIDE_DYNAMIC_UB = 2
 
+  ! cavity_open_melt
   integer, parameter :: CAVITY_OPEN_MELT_NONE = 0
   integer, parameter :: CAVITY_OPEN_MELT_BMLT = 1
   integer, parameter :: CAVITY_OPEN_MELT_DISSIP = 2
   integer, parameter :: CAVITY_OPEN_MELT_BMLT_DISSIP = 3
 
+  ! which_ho_effecpress
   integer, parameter :: HO_EFFECPRESS_OVERBURDEN = 0
   integer, parameter :: HO_EFFECPRESS_BPMP = 1
   integer, parameter :: HO_EFFECPRESS_BWAT = 2
@@ -1778,6 +1783,7 @@ module glide_types
      real(dp), dimension(:,:), pointer :: &
           bmlt => null(),                         & !> basal melt rate (> 0 for melt, < 0 for freeze-on)
                                                     !> bmlt = bmlt_ground + bmlt_float
+          bmlt_hydro => null(),                   & !> bmlt_hydro is basal melt rate for hydrology model (m/yr)
           bmlt_applied => null(),                 & !> basal melt rate applied to ice (m/yr)
                                                     !>    = 0 for ice-free cells with bmlt > 0
           bmlt_applied_tavg => null(),            & !> basal melt rate applied to ice (m/yr, time average)
@@ -2925,7 +2931,9 @@ contains
     call coordsystem_allocate(model%general%ice_grid,  model%basal_hydro%bwat)
     call coordsystem_allocate(model%general%velo_grid, model%basal_hydro%stagbwat)
     call coordsystem_allocate(model%general%ice_grid,  model%basal_hydro%bwatflx)
+
     if (model%options%which_ho_bwat == HO_BWAT_FLUX_ROUTING) then
+       print *, 'HO_BWAT_FLUX_ROUTING condition met. Allocating coordinate systems.'
        call coordsystem_allocate(model%general%ice_grid,  model%basal_hydro%bmlt_hydro)
        call coordsystem_allocate(model%general%ice_grid,  model%basal_hydro%bwat_diag)
        call coordsystem_allocate(model%general%ice_grid,  model%basal_hydro%head)

@@ -935,6 +935,9 @@ contains
        !       Flowers & Clarke (2002) proposed this formulation with gamma = 7/2.
        !       For this formulation we would set gamma > 1 and effecpress_delta = 0.
 
+       ! Rachel debug
+       call point_diag(basal_hydro%bwat_diag, 'bwat_diag in glissade_basal_traction', itest, jtest, rtest, 7, 7)
+
        do j = 1, nsn
           do i = 1, ewn
              if (basal_hydro%bwat_diag(i,j) > 0.0d0) then
@@ -948,7 +951,11 @@ contains
              endif
           enddo
        enddo
-
+       
+       ! Rachel debug
+       call point_diag(basal_physics%effecpress, 'effecpress', itest, jtest, rtest, 7, 7, '(f15.1)')
+       call point_diag(overburden, 'overburden', itest, jtest, rtest, 7, 7, '(f15.1)')
+       call point_diag(basal_physics%effecpress / overburden, 'Effecpress/Overburden', itest,jtest,rtest,7,7, '(f7.5)')
     case(HO_EFFECPRESS_CAVITY_SHEET)
 
        ! Solve the steady-state equation v_o + V_o = v_c, i.e. opening = closing,
@@ -1011,7 +1018,7 @@ contains
        ! Compute effective pressure by equating the opening rate to the closing rate
        ! Note: flwa_basal has units of Pa^{-3} s^{-1}
        !       c_close is unitless with a default value of 0.074
-
+       
        do j = 1, nsn
           do i = 1, ewn
              if (ice_mask(i,j) == 1 .and. basal_hydro%bwat_diag(i,j) > 0.0d0) then
