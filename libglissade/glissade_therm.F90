@@ -2459,8 +2459,8 @@ module glissade_therm
     integer, dimension(:,:),   intent(in)    :: floating_mask       !> = 1 for floating ice
     real(dp),dimension(:,:),   intent(in)    :: f_ground_cell       !> grounded ice fraction in cell, 0 to 1
     real(dp),dimension(:,:,:), intent(in), optional :: waterfrac    !> internal water content fraction, 0 to 1
-    real(dp),dimension(:,:,:), intent(in), optional :: damage      !> damage tracer, 0 to 1
-    logical, intent(in), optional :: damage_flwa_feedback     !> if true, let flwa increase with damage
+!    real(dp),dimension(:,:,:), intent(in), optional :: damage      !> damage tracer, 0 to 1
+!    logical, intent(in), optional :: damage_flwa_feedback     !> if true, let flwa increase with damage
 
     !> stuff for the damage lines
     integer,                   intent(in)    :: which_ho_damage
@@ -2625,16 +2625,16 @@ module glissade_therm
     ! Optionally, increase flwa (i.e., make the ice softer) where damage > 0
     ! Note: Sun et al. (2017) increase flwa by a factor of 1/(1 - d)^gn, where gn is the Glen exponent.
     !       For simplicity, we assume a linear relationship here.
-
-    if (present(damage) .and. present(damage_flwa_feedback)) then
-       if (damage_flwa_feedback) then
-          where (damage < flwa_damage_max)
-             flwa = flwa / (1.0d0 - damage)**nexp_damage
-          elsewhere
-             flwa = flwa / (1.0d0 - flwa_damage_max)**nexp_damage
-          endwhere
-       endif
-    endif
+!TvdA: commented this out because it is incompatible with one of commits, I should add this later
+!    if (present(damage) .and. present(damage_flwa_feedback)) then
+!       if (damage_flwa_feedback) then
+!          where (damage < flwa_damage_max)
+!             flwa = flwa / (1.0d0 - damage)**nexp_damage
+!          elsewhere
+!             flwa = flwa / (1.0d0 - flwa_damage_max)**nexp_damage
+!          endwhere
+!       endif
+!    endif
 
     ! Change flwa to model units (glissade_flow_factor assumes SI units of Pa{-n} s^{-1})
     flwa(:,:,:) = flwa(:,:,:) / vis0

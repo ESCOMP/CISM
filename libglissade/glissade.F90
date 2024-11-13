@@ -114,14 +114,14 @@ contains
     use glissade_grid_operators, only: glissade_stagger, glissade_laplacian_smoother
     use glissade_velo_higher, only: glissade_velo_higher_init
     use glide_diagnostics, only: glide_init_diag
-    use glissade_calving, only: glissade_calving_mask_init, glissade_thck_calving_threshold_init
-    use glissade_inversion, only: usrf_to_thck, glissade_init_inversion, verbose_inversion
+    use glissade_calving, only: glissade_calving_mask_init,verbose_calving ! glissade_thck_calving_threshold_init, does not exist anymore
+    use glissade_inversion, only:  glissade_init_inversion, verbose_inversion
     use glissade_basal_traction, only: glissade_init_effective_pressure
     use glissade_bmlt_float, only: glissade_bmlt_float_thermal_forcing_init, verbose_bmlt_float
     use glissade_grounding_line, only: glissade_grounded_fraction
     use glissade_glacier, only: glissade_glacier_init
     use glissade_utils, only: glissade_adjust_thickness, glissade_smooth_usrf, &
-         glissade_smooth_topography, glissade_adjust_topography
+         glissade_smooth_topography, glissade_adjust_topography, glissade_usrf_to_thck
     use glissade_utils, only: glissade_stdev, glissade_basin_average
     use felix_dycore_interface, only: felix_velo_init
 
@@ -497,7 +497,7 @@ contains
     endif
 
     !check if there is an f_effecpress_field read in from the input file
-    if (model%options%is_restart == RESTART_TRUE) then
+    if (model%options%is_restart /= NO_RESTART) then
         if (model%basal_physics%p_ocean_penetration > 0.0d0) then
             ! ocean penetration is turned on. Is there a file available?
             if ( SUM(model%basal_physics%f_effecpress_ocean_p) < 1) then !safely assume that there is no file read in
@@ -1472,7 +1472,7 @@ contains
          model%geometry%marine_connection_mask_isolated(:,:)*model%basal_melt%bmlt_float(:,:)*model%basal_melt%bmlt_float_factor_internal
 
 
-    else if (model%options%which_ho_bmlt_basin_correction == HO_BMLT_BASIN_CORRECTION) then
+    if (model%options%which_ho_bmlt_basin_correction == HO_BMLT_BASIN_CORRECTION) then
           
          model%basal_melt%bmlt(:,:) = model%basal_melt%bmlt_ground(:,:) + model%basal_melt%bmlt_float(:,:)*model%basal_melt%basin_multiplier_array(:,:)
     else
@@ -1876,6 +1876,7 @@ contains
        ! Apply the external melt rate
 
        model%basal_melt%bmlt_float(:,:) = model%basal_melt%bmlt_float_external(:,:)
+       endif
 
        ! Optionally, multiply bmlt_float by a scalar adjustment factor
        if (model%basal_melt%bmlt_float_factor /= 1.0d0) then
@@ -4706,9 +4707,8 @@ contains
                               model%options%which_ho_ground,      &
                               floating_mask,                      &
                               model%geometry%f_ground_cell,       &
-                              model%temper%waterfrac,             &
-                              model%calving%damage,               &
-                              model%options%damage_flwa_feedback)
+                             ! model%calving%damage,               &
+                             ! model%options%damage_flwa_feedback, &
                               model%options%which_ho_damage,      &
                               model%inversion%ff_multiplier,      &
                               model%inversion%ff_invert_mask,     &

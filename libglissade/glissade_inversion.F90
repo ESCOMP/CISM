@@ -1622,7 +1622,8 @@ contains
          flow_enhancement_factor_minvalue,    & ! minimum values now used as config parameter
          flow_enhancement_factor_maxvalue,    & !
          vel_error_limit,                     & !
-         coulomb_c_min       
+         coulomb_c_min,                       &
+         coulomb_c_max       
                              
 
     real(dp), dimension(nx,ny), intent(inout) ::  &
@@ -1649,11 +1650,7 @@ contains
          term_relax,           & ! term that relaxes E toward a default value
          term_velo,            &  ! term that depends on the velocity mismatch
          tendency_term           !what we would like to add to the flow factor
-    
-
-    !velocity difference mod -obs   
-    dvelo=velo_sfc_unstag-velo_sfc_obs_unstag   
-    
+     
     ! Note: Max and min values are somewhat arbitrary.
     ! TODO: Make these config parameters?
     real(dp), parameter :: &
@@ -1704,6 +1701,7 @@ contains
     ! Note: For ice-covered cells with ice-free targets, dthck will be > 0 to encourage thinning.
     dthck(:,:) = thck(:,:) - thck_obs(:,:)
 
+    dvelo(:,:)=velo_sfc_unstag(:,:)-velo_sfc_obs_unstag(:,:)   
     ! Initialize the relaxation target
     ! This is the value we would want if there were no thickness error.
     relax_target(:,:) = f_ground_cell_obs  * flow_enhancement_factor_ground  &
@@ -1725,7 +1723,11 @@ contains
                 term_thck = dthck(i,j) / (flow_enhancement_thck_scale * flow_enhancement_timescale)
                 term_dHdt = dthck_dt(i,j) * 2.0d0 / flow_enhancement_thck_scale
              endif
-
+             
+             if (flow_enhancement_velo_scale < 0.d0) then
+                term_velo=dvelo(i,j)/ (flow_enhancement_velo_scale*flow_enhancement_timescale)
+             endif
+             
              ! Compute a relaxation term.  This term nudges flow_enhancement_factor toward a base value
              ! with a time scale of flow_enhancement_factor_timescale.
              if (flow_enhancement_factor(i,j) > 0.d0 .and. relax_target(i,j)> 0.0d0) then
