@@ -1,0 +1,7 @@
+# ESHI run outputs
+
+SHMIP/*/*/*/SteadyState[A-F]/
+SHMIP/*/*/SteadyState[A-F]/
+
+# jupyter notebook directory (need to refine)
+jupyter_notebooks/
