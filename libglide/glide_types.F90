@@ -1478,6 +1478,11 @@ module glide_types
     real(dp),dimension(:,:)  ,pointer :: velo_sfc_obs => null() !> observed surface speed = sqrt(usfc_obc^2 + vsfc_obs^2)
     real(dp),dimension(:,:)  ,pointer :: velo_sfc => null()     !> surface speed
 
+    !some of the arrays needed or the flow factor enhancement inversion
+    real(dp),dimension(:,:)  ,pointer :: velo_sfc_fei => null()
+    real(dp),dimension(:,:)  ,pointer :: velo_sfc_unstag => null()
+    real(dp),dimension(:,:)  ,pointer :: velo_sfc_obs_unstag => null()
+
     ! Note: uvel_extend and vvel_extend can be used for input and output of uvel, vvel on a staggered grid 
     !       that is the same size as the unstaggered grid. This is required for exact restart if velocities
     !       are nonzero along the north and east boundaries of the global domain.
@@ -3164,6 +3169,11 @@ contains
        call coordsystem_allocate(model%general%velo_grid, model%velocity%velo_sfc_obs)
        call coordsystem_allocate(model%general%velo_grid, model%velocity%velo_sfc)
        call coordsystem_allocate(model%general%ice_grid,  model%geometry%f_flotation)
+
+       !make the ice grid arrays for the flow enhancement factor inversion
+       call coordsystem_allocate(model%general%ice_grid, model%velocity%velo_sfc_unstag)
+       call coordsystem_allocate(model%general%ice_grid, model%velocity%velo_sfc_obs_unstag)
+       call coordsystem_allocate(model%general%velo_grid,model%velocity%velo_sfc_fei)
 
        call coordsystem_allocate(model%general%ice_grid,  model%geometry%f_flotation_obs)
        call coordsystem_allocate(model%general%velo_grid, model%geometry%f_ground)

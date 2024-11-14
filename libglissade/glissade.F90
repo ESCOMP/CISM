@@ -1006,7 +1006,7 @@ contains
        ! in the model, we do not want to decrease our friction field. Preventing this will make the ice easier to ground
 
 
-       call usrf_to_thck(&
+       call glissade_usrf_to_thck(&
                model%geometry%usrf_obs,  &
                model%geometry%topg,      &
                model%climate%eus,        &
@@ -4134,7 +4134,7 @@ contains
     use glissade_velo, only: glissade_velo_driver
     use glide_velo, only: wvelintg
     use glissade_masks, only: glissade_get_masks, glissade_ice_sheet_mask, glissade_calving_front_mask
-    use glissade_grid_operators, only: glissade_stagger, glissade_gradient, glissade_laplacian_smoother
+    use glissade_grid_operators, only: glissade_stagger, glissade_unstagger,glissade_gradient, glissade_laplacian_smoother
     use glissade_grounding_line, only: glissade_grounded_fraction, glissade_grounding_line_flux, verbose_glp
     use glissade_therm, only: glissade_interior_dissipation_sia,  &
                               glissade_interior_dissipation_first_order, &
@@ -4625,6 +4625,14 @@ contains
 
           call glissade_unstagger(ewn,                 nsn,  &
                           model%basal_physics%coulomb_c,model%basal_physics%coulomb_c_unstag)
+
+          !we need unstaggered velocities as well
+          model%velocity%velo_sfc_fei(:,:) =sqrt(model%velocity%uvel(1,:,:)**2+model%velocity%vvel(1,:,:)**2)
+
+          call glissade_unstagger(ewn, nsn,&
+                                  model%velocity%velo_sfc_fei,model%velocity%velo_sfc_unstag)
+          call glissade_unstagger(ewn,nsn,&
+                                 model%velocity%velo_sfc_obs,model%velocity%velo_sfc_obs_unstag)
  
           !everything in this subroutine is done on the unstaggered grid. I added coulomb c as input to this function so I need to
           !unstagger it and store it in coulomb_c_unstaggered
