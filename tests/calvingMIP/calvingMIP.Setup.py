@@ -200,10 +200,12 @@ print( 'CalvingMIP grid resolution (m) =', args.resolution)
 print( 'Number of vertical levels =', nz)
 
 # Set number of grid cells in each direction.
-# E.g., if R = 800 km with dx = dy = 10 km, we have 160 cells in each direction
-# Note: The origin lies at a cell corner
-nx = 2*int(R/dx)
-ny = 2*int(R/dy)
+# E.g., if R = 800 km with dx = dy = 10 km, we have 162 cells in each direction.
+# The origin lies at a cell corner.
+# The outer row of cells lies outside the CalvingMIP domain but is
+# useful for interpolating data to the CalvingMIP grid.
+nx = 2*int(R/dx) + 2
+ny = 2*int(R/dy) + 2
 
 print('grid dimension in x:',nx)
 print('grid dimension in y:',ny)
@@ -329,17 +331,20 @@ calving_mask = ncfile.createVariable('calving_mask', 'i4', ('time','y1','x1'))
 
 # Compute x and y on each grid.
 # The origin (x = y = 0) is placed at the center of the domain.
-
-x = np.arange(-R+dx/2.,R+dx/2.,dx,dtype='float32')   # x = -R+dx/2, -R+3*dx/2,..., -dx/2, dx/2.,..., R-dx/2
-y = np.arange(-R+dy/2.,R+dy/2.,dy,dtype='float32')   # y = -R+dy/2, -R+3*dy/2,..., -dy/2, dy/2.,..., R-dy/2
+# The (x0,y0) grid extends a distance R along the x and y axes.
+# The (x1,y1) grid extends by one additional grid cell in each direction.
+# The extension makes it easier to interpolate scalars onto the CalvingMIP grid,
+# which corresponds to (x0,y0).
+x = np.arange(-R-dx/2.,R+3.*dx/2.,dx,dtype='float32')   # x = -R-dx/2, -R+3*dx/2,..., -dx/2, dx/2.,..., R+dx/2
+y = np.arange(-R-dy/2.,R+3.*dy/2.,dy,dtype='float32')   # y = -R-dy/2, -R+3*dy/2,..., -dy/2, dy/2.,..., R+dy/2
 
 #print('x=',x[-4::])
 #print('y=',y[-4::])
 
 x1[:] = x[:]
 y1[:] = y[:]
-x0[:] = x[:-1] + dx/2.   # x = -R+dx,..., -dx, 0, dx,..., R-dx
-y0[:] = y[:-1] + dy/2.   # x = -R+dy,..., -dy, 0, dy,..., R-dy
+x0[:] = x[:-1] + dx/2.   # x = -R,..., -dx, 0, dx,..., R
+y0[:] = y[:-1] + dy/2.   # x = -R,..., -dy, 0, dy,..., R
 
 # Set SMB
 acab[:,:,:] = accum
