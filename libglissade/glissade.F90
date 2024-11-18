@@ -4518,6 +4518,9 @@ contains
 
           !we are done inverting for deltaT ocn, this should be the appropriate place to limit deltaT ocn to the 
           !-thermal forcing of the lower surface. This is now double with the call in the subroutine ismip6 
+          ! it does also happen at the calculation step of the basal melt rates, but over there it does not change the array
+          ! containing the deltaT_ocn.
+
           if (model%options%which_ho_deltaT_cap == HO_DELTAT_OCN_CAP) then
              where (model%ocean_data%thermal_forcing_lsrf + model%ocean_data%deltaT_ocn < 0.0d0)
                   model%ocean_data%deltaT_ocn =-model%ocean_data%thermal_forcing_lsrf    

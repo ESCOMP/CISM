@@ -2137,19 +2137,9 @@ module glissade_bmlt_float
     !TvdA: this is a spot where a change has been made since 2022 related to the ice shelves
     !my logic is that it should not matter, nevertheless, I will make a config parameter for this
     !defaulting to using this
+
+    !I removed it here. I left it in right after the inversion
     
-    if (which_ho_deltaT_cap == HO_DELTAT_OCN_CAP) then
-!        where (thermal_forcing_mask == 1 .and. &
-!              thermal_forcing_lsrf + deltaT_ocn < 0.0d0)
-!              deltaT_ocn = -thermal_forcing_lsrf
-!        endwhere
-         if (verbose_bmlt_float .and. this_rank==rtest) then
-             print*, 'We are capping deltaT ocn at the -thermal forcing lsrf, but we are doing that straight after the inversion'
-         endif
-   
-    endif
-
-
           if (verbose_bmlt_float .and. this_rank==rtest) then
              print*, ' '
              print*, 'deltaT_ocn (degC) after the capping of ismip6 bmlt subroutine'
