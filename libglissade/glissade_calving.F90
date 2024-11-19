@@ -704,10 +704,6 @@ contains
 
        call parallel_halo(calving_dthck, parallel)
 
-       if (verbose_calving) then
-          call point_diag(calving_dthck, 'dthck (m)', itest, jtest, rtest, 7, 7)
-       endif
-
        ! Apply calving_dthck as computed above.
 
        call apply_calving_dthck(&
@@ -721,6 +717,11 @@ contains
             calving_dthck,           &
             thck,                    &
             calving%calving_thck)
+
+       if (verbose_calving) then
+          call point_diag(calving_dthck, 'dthck (m)', itest, jtest, rtest, 7, 7)
+          call point_diag(thck, 'New thck (m)', itest, jtest, rtest, 7, 7)
+       endif
 
        !TODO - Add a bug check for negative thicknesses?
        thck = max(thck, 0.0d0)
@@ -756,13 +757,6 @@ contains
             partial_cf_mask = partial_cf_mask,       &
             full_mask = full_mask,                   &
             effective_areafrac = calving%effective_areafrac)
-
-       if (verbose_calving) then
-          call point_diag(thck, 'After calving dthck: thck (m)', itest, jtest, rtest, 7, 7)
-!          call point_diag(calving%thck_effective, 'thck_effective (m)', itest, jtest, rtest, 7, 7)
-!          call point_diag(calving%effective_areafrac, 'effective_areafrac', itest, jtest, rtest, 7, 7)
-!          call point_diag(thck/calving%effective_areafrac, 'CF thickness', itest, jtest, rtest, 7, 7)
-       endif
 
        if (which_calving == CF_ADVANCE_RETREAT_RATE) then
 
@@ -809,6 +803,12 @@ contains
           if (this_rank == rtest) then
              print*, 'Total ice area (km^2)=', total_ice_area/1.0d6
              print*, 'Quadrant area (km^2)=', total_ice_area/4.0d6
+          endif
+
+          if (verbose_calving) then
+             call point_diag(calving%thck_effective, 'New thck_effective (m)', itest, jtest, rtest, 7, 7)
+             call point_diag(calving%effective_areafrac, 'New effective_areafrac', itest, jtest, rtest, 7, 7)
+!!             call point_diag(thck/calving%effective_areafrac, '   CF thickness', itest, jtest, rtest, 7, 7)
           endif
 
        else  ! other calving schemes
@@ -2329,8 +2329,8 @@ contains
 
     if (verbose_calving) then
        call point_diag(thck, 'Remove icebergs, thck (m)', itest, jtest, rtest, 7, 7)
-       call point_diag(ice_mask, 'ice_mask', itest, jtest, rtest, 7, 7)
-       call point_diag(f_ground_cell, 'f_ground_cell', itest, jtest, rtest, 7, 7)
+!!       call point_diag(ice_mask, 'ice_mask', itest, jtest, rtest, 7, 7)
+!!       call point_diag(f_ground_cell, 'f_ground_cell', itest, jtest, rtest, 7, 7)
     endif
     
     ! Initialize iceberg removal
@@ -2449,8 +2449,8 @@ contains
        global_count = parallel_reduce_sum(local_count)
 
        if (global_count == global_count_save) then
-          if (verbose_calving .and. main_task) &
-               write(6,*) 'Fill converged: iter, global_count =', iter, global_count
+!!          if (verbose_calving .and. main_task) &
+!!               write(6,*) 'Fill converged: iter, global_count =', iter, global_count
           exit
        else
 !!          if (verbose_calving .and. main_task) &
@@ -3107,8 +3107,8 @@ contains
                    cf_location(1,axis) = x0(i) + (areafrac_ne - 0.5d0)/areafrac_ne * (0.5d0*dx)
                    cf_location(2,axis) = y0(j) + (areafrac_ne - 0.5d0)/areafrac_ne * (0.5d0*dy)
                 elseif (areafrac_sw < 0.5d0) then  ! CF in cell (i-1,j-1)
-                   cf_location(1,axis) = x0(i-1) - (0.5d0 - areafrac_sw)/(areafrac(i-1,j-1) - areafrac_sw) * (0.5d0*dx)
-                   cf_location(2,axis) = y0(j-1) - (0.5d0 - areafrac_sw)/(areafrac(i-1,j-1) - areafrac_sw) * (0.5d0*dy)
+                   cf_location(1,axis) = x0(i-1) - (0.5d0 - areafrac_sw)/(1.0d0 - areafrac_sw) * (0.5d0*dx)
+                   cf_location(2,axis) = y0(j-1) - (0.5d0 - areafrac_sw)/(1.0d0 - areafrac_sw) * (0.5d0*dy)
                 else   ! CF in cell (i,j)
                    if (areafrac(i,j) >= 0.5d0) then   ! CF in upper right of cell
                       cf_location(1,axis) = x1(i) + (areafrac(i,j) - 0.5d0)/(areafrac(i,j) - areafrac_ne) * (0.5d0*dx)
@@ -3169,8 +3169,8 @@ contains
                    cf_location(1,axis) = x0(i) + (areafrac_se - 0.5d0)/areafrac_se * (0.5d0*dx)
                    cf_location(2,axis) = y0(j-1) - (areafrac_se - 0.5d0)/areafrac_se * (0.5d0*dy)
                 elseif (areafrac_nw < 0.5d0) then  ! CF in cell (i-1,j+1)
-                   cf_location(1,axis) = x0(i-1) - (0.5d0 - areafrac_nw)/(areafrac(i-1,j-1) - areafrac_nw) * (0.5d0*dx)
-                   cf_location(2,axis) = y0(j) + (0.5d0 - areafrac_nw)/(areafrac(i-1,j-1) - areafrac_nw) * (0.5d0*dy)
+                   cf_location(1,axis) = x0(i-1) - (0.5d0 - areafrac_nw)/(1.0d0 - areafrac_nw) * (0.5d0*dx)
+                   cf_location(2,axis) = y0(j) + (0.5d0 - areafrac_nw)/(1.0d0 - areafrac_nw) * (0.5d0*dy)
                 else   ! CF in cell (i,j)
                    if (areafrac(i,j) >= 0.5d0) then   ! CF in lower right of cell
                       cf_location(1,axis) = x1(i) + (areafrac(i,j) - 0.5d0)/(areafrac(i,j) - areafrac_se) * (0.5d0*dx)
@@ -3231,8 +3231,8 @@ contains
                    cf_location(1,axis) = x0(i-1) - (areafrac_sw - 0.5d0)/areafrac_sw * (0.5d0*dx)
                    cf_location(2,axis) = y0(j-1) - (areafrac_sw - 0.5d0)/areafrac_sw * (0.5d0*dy)
                 elseif (areafrac_ne < 0.5d0) then  ! CF in cell (i+1,j+1)
-                   cf_location(1,axis) = x0(i) + (0.5d0 - areafrac_ne)/(areafrac(i-1,j-1) - areafrac_ne) * (0.5d0*dx)
-                   cf_location(2,axis) = y0(j) + (0.5d0 - areafrac_ne)/(areafrac(i-1,j-1) - areafrac_ne) * (0.5d0*dy)
+                   cf_location(1,axis) = x0(i) + (0.5d0 - areafrac_ne)/(1.0d0 - areafrac_ne) * (0.5d0*dx)
+                   cf_location(2,axis) = y0(j) + (0.5d0 - areafrac_ne)/(1.0d0 - areafrac_ne) * (0.5d0*dy)
                 else   ! CF in cell (i,j)
                    if (areafrac(i,j) >= 0.5d0) then   ! CF in lower left of cell
                       cf_location(1,axis) = x1(i) - (areafrac(i,j) - 0.5d0)/(areafrac(i,j) - areafrac_sw) * (0.5d0*dx)
@@ -3293,8 +3293,8 @@ contains
                    cf_location(1,axis) = x0(i-1) - (areafrac_nw - 0.5d0)/areafrac_nw * (0.5d0*dx)
                    cf_location(2,axis) = y0(j)   + (areafrac_nw - 0.5d0)/areafrac_nw * (0.5d0*dy)
                 elseif (areafrac_se < 0.5d0) then  ! CF in cell (i+1,j-1)
-                   cf_location(1,axis) = x0(i)   + (0.5d0 - areafrac_se)/(areafrac(i+1,j-1) - areafrac_se) * (0.5d0*dx)
-                   cf_location(2,axis) = y0(j-1) - (0.5d0 - areafrac_se)/(areafrac(i+1,j-1) - areafrac_se) * (0.5d0*dy)
+                   cf_location(1,axis) = x0(i)   + (0.5d0 - areafrac_se)/(1.0d0 - areafrac_se) * (0.5d0*dx)
+                   cf_location(2,axis) = y0(j-1) - (0.5d0 - areafrac_se)/(1.0d0 - areafrac_se) * (0.5d0*dy)
                 else   ! CF in cell (i,j)
                    if (areafrac(i,j) >= 0.5d0) then   ! CF in upper left of cell
                       cf_location(1,axis) = x1(i) - (areafrac(i,j) - 0.5d0)/(areafrac(i,j) - areafrac_nw) * (0.5d0*dx)

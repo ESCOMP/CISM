@@ -62,7 +62,7 @@ powerlaw_m = 3.                 # exponent for the power law stress
 geothermal = 0.
 beta_grounded_min = 1.
 thck_effective_min = 50.
-dthck_dx_cf = 0.
+dthck_dx_cf = 0.0005            # surface slope at the CF
 cf_advance_retreat_amplitude = 0.
 cf_advance_retreat_period = 0.
 

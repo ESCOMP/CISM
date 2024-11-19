@@ -421,12 +421,20 @@
                          else
                             full_mask(i,j) = 1
                          endif   ! dthck_dx > dthck_dx_cf
-                      else   ! no interior neighbors; mark as a partial cell
+                      else   ! no interior neighbors
+                         ! Mark as a partial cell, and compute thck_effective from a CF neighbor
                          partial_cf_mask(i,j) = 1
-                         call parallel_globalindex(i, j, ig, jg, parallel)
-!!                         if (this_rank == rtest) then
-!!                            write(6,*) 'No interior neighbor:', ig, jg, thck(i,j)
-!!                         endif
+                         max_neighbor_thck = max(&
+                              calving_front_mask(i-1,j)*thck(i-1,j), calving_front_mask(i+1,j)*thck(i+1,j), &
+                              calving_front_mask(i,j-1)*thck(i,j-1), calving_front_mask(i,j+1)*thck(i,j+1))
+                         distance = sqrt(dx*dy)
+                         dthck_dx = (max_neighbor_thck - thck(i,j)) / distance
+                         if (dthck_dx > dthck_dx_cf) then
+                            thck_effective(i,j) = max_neighbor_thck - dthck_dx_cf*distance
+                         endif
+!!                         call parallel_globalindex(i, j, ig, jg, parallel)
+!!                         write(6,*) 'No interior neighbor:', ig, jg, thck(i,j)
+!!                         write(6,*) '   New H_eff:', thck_effective(i,j)
                       endif   ! max_neighbor_thck > 0
 
                    else   ! not a CF cell; thck_effective = thck
