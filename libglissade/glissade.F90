@@ -3154,9 +3154,9 @@ contains
        ! (acab_unscaled is intent(in) above, so no need to scale it back)
        
        ! Rachel debug
-       print*, 'Ratio thck_old:thck ( before model%geometry%thck(:,:) = thck_unscaled(:,:) / thk0)', model%geometry%thck_old/model%geometry%thck
+       !print*, 'Ratio thck_old:thck ( before model%geometry%thck(:,:) = thck_unscaled(:,:) / thk0)', model%geometry%thck_old/model%geometry%thck
        model%geometry%thck(:,:) = thck_unscaled(:,:) / thk0
-       print*, 'Ratio thck_old:thck (after)', model%geometry%thck_old/model%geometry%thck
+       !print*, 'Ratio thck_old:thck (after)', model%geometry%thck_old/model%geometry%thck
        ! For the enthalpy option, convert enthalpy back to temperature/waterfrac.
 
        if (model%options%whichtemp == TEMP_ENTHALPY) then
