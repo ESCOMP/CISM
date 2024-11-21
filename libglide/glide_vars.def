@@ -539,6 +539,22 @@ units:         meter
 long_name:     thickness of calving ice
 data:          data%calving%calving_thck
 factor:        thk0
+load:          1
+
+[calving_front_mask_save]
+dimensions:    time, y1, x1
+untis:         -
+long_name:     calving front mask
+data:          data%calving%calving_front_mask_save
+load:          1
+
+
+[calving_front_mask_marinecliff_save]
+dimensions:    time, y1, x1
+untis:         -
+long_name:     calving front mask
+data:          data%calving%calving_front_mask_marinecliff_save
+load:          1
 
 [calving_rate]
 dimensions:    time, y1, x1
@@ -546,6 +562,7 @@ units:         meter/year
 long_name:     rate of mass loss by calving
 data:          data%calving%calving_rate
 average:       1
+load:          1
 
 [calving_mask]
 dimensions:    time, y1, x1
@@ -561,6 +578,14 @@ units:         meter/year
 long_name:     lateral calving rate
 data:          data%calving%lateral_rate
 factor:        scyr
+load:          1
+
+[calving_effective_thickness]
+dimensions:    time, y1, x1
+units:         meter
+long_name:     Effective thickness at the calving front
+data:          data%calving%thck_effective
+load:          1
 
 [effective_areafrac]
 dimensions:    time, y1, x1

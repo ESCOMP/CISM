@@ -277,6 +277,7 @@
        ice_mask,               floating_mask,        &
        ocean_mask,             land_mask,            &
        calving_front_mask,                           &
+       calving_front_mask_marinecliff,               &
        dthck_dx_cf,                                  &
        dx,                     dy,                   &
        thck_effective,         thck_effective_min,   &
@@ -312,7 +313,8 @@
          land_mask                ! = 1 if topg is at or above sea level, else = 0
 
     integer, dimension(nx,ny), intent(out) ::  &
-         calving_front_mask       ! = 1 if ice is floating and borders at least one ocean cell, else = 0
+         calving_front_mask,    &   ! = 1 if ice is floating and borders at least one ocean cell, else = 0
+         calving_front_mask_marinecliff ! =1 when a marine cliff appears
 
     real(dp), intent(in), optional :: &
          dthck_dx_cf,           & ! assumed max value of |dH/dx| at the CF for full cells
@@ -372,6 +374,19 @@
           endif
        enddo
     enddo
+
+   
+    do j = 2, ny-1
+       do i = 2, nx-1
+          if (floating_mask(i,j) == 0) then
+             if (ocean_mask(i-1,j) == 1 .or. ocean_mask(i+1,j) == 1 .or. &
+                 ocean_mask(i,j-1) == 1 .or. ocean_mask(i,j+1) == 1) then
+                calving_front_mask_marinecliff(i,j) = 1
+           endif 
+         endif
+       enddo
+    enddo
+   
 
     call parallel_halo(calving_front_mask, parallel)
     call parallel_halo(interior_mask, parallel)

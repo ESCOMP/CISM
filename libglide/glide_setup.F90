@@ -2249,6 +2249,12 @@ contains
     call GetValue(section,'cf_advance_retreat_amplitude', model%calving%cf_advance_retreat_amplitude)
     call GetValue(section,'cf_advance_retreat_period',    model%calving%cf_advance_retreat_period)
     call GetValue(section,'MICIflag',           model%calving%MICIflag)
+ 
+    call GetValue(section,'MICI_I',           model%calving%MICI_I)
+    call GetValue(section,'MICI_alpha',           model%calving%MICI_alpha)
+    call GetValue(section,'MICI_calving_threshold',           model%calving%MICI_calving_threshold)
+
+
     ! NOTE: bpar is used only for BTRC_TANH_BWAT
     !       btrac_max and btrac_slope are used (with btrac_const) for BTRC_LINEAR_BMLT
     !       btrac_const is used for several options

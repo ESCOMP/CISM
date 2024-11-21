@@ -1693,8 +1693,15 @@ module glide_types
           cf_advance_retreat_period = 0.0d0      !> period (yr) for an advance/retreat cycle
                                                  !> period = 0 => constant amplitude
 
-     real(dp) :: MICIflag = 0                    !> if 1, MICI based calving is turned on
- 
+     real(dp) :: MICIflag   = 0                    !> if 1, MICI based calving is turned on
+     real(dp) :: MICI_I     = 1.9e-16              !> in Calving rate = I * (Hc)^ alpha this is the I
+     real(dp) :: MICI_alpha = 7.3 
+     real(dp) :: MICI_calving_threshold = 135      !> limit
+
+     !arrays for saving and debugging
+     real(dp), dimension(:,:), pointer :: calving_front_mask_save
+     real(dp), dimension(:,:), pointer :: calving_front_mask_marinecliff_save
+
   end type glide_calving
 
   !++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
@@ -3377,6 +3384,10 @@ contains
 
     ! calving arrays
     call coordsystem_allocate(model%general%ice_grid, model%calving%calving_thck)
+
+    call coordsystem_allocate(model%general%ice_grid, model%calving%calving_front_mask_save)
+    call coordsystem_allocate(model%general%ice_grid, model%calving%calving_front_mask_marinecliff_save)
+    
     call coordsystem_allocate(model%general%ice_grid, model%calving%calving_rate)
     call coordsystem_allocate(model%general%ice_grid, model%calving%calving_rate_tavg)
     call coordsystem_allocate(model%general%ice_grid, model%calving%calving_mask)

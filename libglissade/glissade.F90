@@ -2459,6 +2459,7 @@ contains
        ocean_mask,           & ! = 1 if topg is below sea level and thck = 0, else = 0
        land_mask,            & ! = 1 if topg is at or above sea level, else = 0
        calving_front_mask,   & ! = 1 where ice is floating and borders an ocean cell, else = 0
+       calving_front_mask_marinecliff, & ! = 1 where there is a marine cliff
        extended_ice_sheet_mask ! extension of ice_sheet_mask to include neighbor cells
 
     real(dp), dimension(model%general%ewn, model%general%nsn) ::  &
@@ -2577,6 +2578,7 @@ contains
             ice_mask,               floating_mask,    &
             ocean_mask,             land_mask,        &
             calving_front_mask,                       &
+            calving_front_mask_marinecliff,           &
             dthck_dx_cf = model%calving%dthck_dx_cf,  &
             dx = model%numerics%dew*len0,             &
             dy = model%numerics%dns*len0,             &
@@ -4165,7 +4167,8 @@ contains
          floating_mask,      & ! = 1 where ice is present and floating, else = 0
          ocean_mask,         & ! = 1 where topg is below sea level and ice is absent
          land_mask,          & ! = 1 where topg is at or above sea level
-         calving_front_mask    ! = 1 where ice is floating and borders an ocean cell, else = 0
+         calving_front_mask, &   ! = 1 where ice is floating and borders an ocean cell, else = 0
+         calving_front_mask_marinecliff != this is the marine cliffs needed for MICI
 
     ! Note: f_flotation_obs and f_ground_obs are used only as dummy output arguments
     !       for the subroutine that computes f_ground_cell_obs.
@@ -4337,6 +4340,7 @@ contains
                                      ice_mask,            floating_mask,         &
                                      ocean_mask,          land_mask,             &
                                      calving_front_mask,                         &
+                                     calving_front_mask_marinecliff,             &
                                      dx = model%numerics%dew*len0,               &
                                      dy = model%numerics%dns*len0,               &
                                      dthck_dx_cf = model%calving%dthck_dx_cf,    &

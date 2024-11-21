@@ -329,7 +329,8 @@ contains
          floating_mask,          & ! = 1 where ice is present (thck > thklim) and floating, else = 0
          ocean_mask,             & ! = 1 where topg is below sea level and ice is absent, else = 0
          land_mask,              & ! = 1 where topg is at or above sea level, else = 0
-         calving_front_mask        ! = 1 where ice is floating with at least one ocean edge neighbor, else = 0
+         calving_front_mask,     & ! = 1 where ice is floating with at least one ocean edge neighbor, else = 0
+         calving_front_mask_marinecliff
 
     ! Note: Calving occurs in a cell if and only if (1) the calving law permits calving, 
     !       and (2) the cell is in the calving domain, as specified by the calving_domain option.
@@ -504,6 +505,7 @@ contains
             ice_mask,      floating_mask,            &
             ocean_mask,    land_mask,                &
             calving_front_mask,                      &
+            calving_front_mask_marinecliff,          &
             dthck_dx_cf = calving%dthck_dx_cf,       &
             dx = dx,       dy = dy,                  &
             thck_effective = calving%thck_effective, &
@@ -511,6 +513,9 @@ contains
             partial_cf_mask = partial_cf_mask,       &
             full_mask = full_mask,                   &
             effective_areafrac = calving%effective_areafrac)
+
+       calving%calving_front_mask_save(:,:)=calving_front_mask
+       calving%calving_front_mask_marinecliff_save(:,:)=calving_front_mask_marinecliff
 
        if (verbose_calving) then
           call point_diag(thck, 'thck (m)', itest, jtest, rtest, 7, 7)
@@ -530,6 +535,7 @@ contains
             parallel,                     &
             calving_front_mask,           &
             cf_length)
+
 
        call parallel_halo(cf_length, parallel)
 
@@ -579,6 +585,12 @@ contains
                cf_length,                                 &  ! m
                calving%thck_effective,                    &  ! m
                calving%minthck,                           &  ! m
+               calving%MICIflag,                          &
+               calving%MICI_I,                            &
+               calving%MICI_alpha,                        &
+               calving%MICI_calving_threshold,             &
+               topg,                                      &
+               calving_front_mask_marinecliff,            &
                calving_dthck)                                ! m
 
        elseif (which_calving == CALVING_STRESS) then
@@ -710,6 +722,7 @@ contains
             ice_mask,      floating_mask,            &
             ocean_mask,    land_mask,                &
             calving_front_mask,                      &
+            calving_front_mask_marinecliff,          &
             dthck_dx_cf = calving%dthck_dx_cf,       &
             dx = dx,       dy = dy,                  &
             thck_effective = calving%thck_effective, &
@@ -733,104 +746,7 @@ contains
           call point_diag(calving%thck_effective, 'thck_effective (m)', itest, jtest, rtest, 7, 7)
        endif
 
-       ! Apply thinning in calving-front cells whose effective thickness (H_e = thck_calving_front) is less than
-       !  a prescribed minimum value (Hc_min = thck_calving_threshold).
-       !
-       ! The effective thinning rate is given by
-       !
-       !    dH_e/dt = -(Hc_min - H_e) / tau_c  where Hc_min > H_e
-       !    dH_e/dt = 0 elsewhere
-       !
-       ! where tau_c = calving%timescale.
-       !
-       ! The thinning rate applied to the mean cell thickness (thck) is given by
-       !
-       !    dH/dt = min(H/H_e, 1) * dH_e/dt
-       !
-       ! Thus, any ice with H_e < Hc_min is removed on a time scale given by tau_c.
-
-       if (calving%timescale <= 0.0d0) then
-          write(message,*) 'Must set calving timescale to a positive nonzero value for this calving option'
-          call write_log(message, GM_FATAL)
-       endif
-
-       !!this is the MICI option TvdA introduced. To make it compile, I replaced thck_calving front with calving%thck_effective
-       !! although I do not know if that is the correct one to use. I should investigate this more
-
-       do j = 2, ny-1
-          do i = 2, nx-1
-             if (calving_front_mask(i,j) == 1 .and. &
-                  calving%thck_effective(i,j) > 0.0d0 .and. calving%thck_effective(i,j) <= calving%minthck &
-                  .and. calving%MICIflag ==0) then
-                !TvdA, I added here a flag to induce MICI like calving. Before, the thckthreshold was only a maximum
-                !however, with MICI, any calvinf front above the limit should not be able to exist, so the opposite 
-
-!!                if (verbose_calving .and. thck(i,j) > 0.0d0) &
-!!                     print*, 'Calve thin floating ice: task, i, j, thck =', this_rank, i, j, thck(i,j)
-
-                ! calving%timescale has units of s
-                thinning_rate = (calving%minthck - calving%thck_effective(i,j)) / calving%timescale
-                !WHL - Do not weight by areafrac
-!!                areafrac = min(thck(i,j)/thck_calving_front(i,j), 1.0d0)
-!!                dthck = areafrac*thinning_rate * dt
-                dthck = thinning_rate * dt
-                
-                
-             elseif (calving_front_mask(i,j) == 1 .and. &
-                  calving%thck_effective(i,j) > 0.0d0 .and. calving%thck_effective(i,j) >= calving%minthck &
-                  .and. calving%MICIflag ==1) then
-                !TvdA, I added here a flag to induce MICI like calving. Before, the thckthreshold was only a maximum
-                !however, with MICI, any calvinf front above the limit should not be able to exist, so the opposite 
-
-!!                if (verbose_calving .and. thck(i,j) > 0.0d0) &
-!!                     print*, 'Calve thin floating ice: task, i, j, thck =', this_rank, i, j, thck(i,j)
-
-                ! calving%timescale has units of s
-                thinning_rate = (calving%minthck - calving%thck_effective(i,j)) / calving%timescale
-                !WHL - Do not weight by areafrac
-!!                areafrac = min(thck(i,j)/thck_calving_front(i,j), 1.0d0)
-!!                dthck = areafrac*thinning_rate * dt
-                dthck = thinning_rate * dt
-
-
-                !WHL - debug
-                if (verbose_calving .and. i==itest .and. j==jtest .and. this_rank==rtest) then
-                   print*, ' '
-                   print*, 'Thinning: r, i, j =', rtest, itest, jtest
-                   print*, 'thck:', thck(i,j)
-                  ! print*, 'thck_calving_front (m) =', thck_calving_front(i,j)
-                  ! print*, 'thck_calving_threshold (m) =', calving%thck_calving_threshold(i,j)
-                   print*, 'thinning rate (m/yr) =', thinning_rate * scyr
-                   print*, 'dthck (m) =', dthck
-                endif
-
-                if (dthck > thck(i,j)) then
-                   calving%calving_thck(i,j) = calving%calving_thck(i,j) + thck(i,j)
-                   thck(i,j) = 0.0d0
-                else
-                   thck(i,j) = thck(i,j) - dthck
-                   calving%calving_thck(i,j) = calving%calving_thck(i,j) + dthck
-                endif
-
-             endif   ! thck_calving_front < thck_calving_threshold in calving_front cell
-          enddo   ! i
-       enddo   ! j
-
-       !WHL - debug
-       if (verbose_calving .and. this_rank == rtest) then
-
-          print*, ' '
-          print*, 'Did thickness-based calving, task =', this_rank 
-         print*, ' '
-          print*, 'new thck (m), itest, jtest, rank =', itest, jtest, rtest
-          do j = jtest+3, jtest-3, -1
-             write(6,'(i6)',advance='no') j
-             do i = itest-3, itest+3
-                write(6,'(f10.3)',advance='no') thck(i,j)
-             enddo
-             write(6,*) ' '
-          enddo
-       endif  ! verbose
+      !Tvda: Here I removed the MICI option from the cherrypicking, and I should put in in thickness calving option 
 
     else   ! other calving options
 
@@ -1373,6 +1289,12 @@ contains
        cf_length,                                 &  ! m
        thck_effective,                            &  ! m
        calving_minthck,                           &  ! m
+       MICIflag,                                  &
+       MICI_I,                                    &
+       MICI_alpha,                                & 
+       MICI_calving_threshold,                       &
+       topg,                                      &
+       calving_front_mask_marinecliff,            &
        calving_dthck)                                ! m
 
     ! Calve ice that is thinner than a prescribed threshold.
@@ -1394,15 +1316,22 @@ contains
          dt                        ! time step (s)
 
     integer, dimension(nx,ny), intent(in)  ::  &
-         calving_front_mask        ! = 1 where ice is floating and borders at least one ocean cell, else = 0
+         calving_front_mask,      &  ! = 1 where ice is floating and borders at least one ocean cell, else = 0
+         calving_front_mask_marinecliff ! =1 where there is a marine cliff
 
     real(dp), dimension(nx,ny), intent(in) :: &
          speed,                  & ! mean ice speed averaged to cell centers (m/s)
          cf_length,              & ! length of calving front in each grid cell (m)
-         thck_effective            ! effective thickness for calving (m)
+         thck_effective,         &  ! effective thickness for calving (m)
+         topg
 
     real(dp), intent(in) :: &
-         calving_minthck           ! target effective thickness (m) for the CF
+         calving_minthck,   &         ! target effective thickness (m) for the CF
+         MICIflag,          &         ! if set to 1, the minimum thickness is changed to a maximum
+         MICI_I,            &        ! this is the I in the Calving rate = I *(Hc)^alpha
+         MICI_alpha,        &
+         MICI_calving_threshold 
+
 
     real(dp), dimension(nx,ny), intent(out) :: &
          calving_dthck             ! thickness lost due to calving (m)
@@ -1410,6 +1339,9 @@ contains
     ! local variables
 
     integer :: i, j
+
+    real(dp) :: &
+         Hc                         ! cliff height
 
     real(dp), dimension(nx,ny) :: &
          lateral_rate               ! lateral calving rate (m/s)
@@ -1440,18 +1372,39 @@ contains
 
     lateral_rate = 0.0d0
     calving_dthck = 0.0d0
+    if (MICIflag == 0) then
+       do j = nhalo+1, ny-nhalo
+          do i = nhalo+1, nx-nhalo
+             if (calving_front_mask(i,j) == 1) then
+
+                lateral_rate(i,j) = &
+                     max(0.0d0, 1.0d0 + (calving_minthck - thck_effective(i,j))/calving_minthck) * speed(i,j)
+                calving_dthck(i,j) = lateral_rate(i,j) * dt * thck_effective(i,j) * cf_length(i,j) / (dx*dy)
+
+             endif   ! CF mask
+          enddo   ! i
+        enddo   ! j
+    elseif (MICIflag == 1) then
+
 
     do j = nhalo+1, ny-nhalo
        do i = nhalo+1, nx-nhalo
-          if (calving_front_mask(i,j) == 1) then
-
-             lateral_rate(i,j) = &
-                  max(0.0d0, 1.0d0 + (calving_minthck - thck_effective(i,j))/calving_minthck) * speed(i,j)
-             calving_dthck(i,j) = lateral_rate(i,j) * dt * thck_effective(i,j) * cf_length(i,j) / (dx*dy)
-
+          if (calving_front_mask_marinecliff(i,j) == 1) then
+             !here I am assuming for now that we are only considering cliffs that are resting or bedrock
+             !I should check if the calving_front_mask also allows for grounded cells
+             if (topg(i,j) <0 ) then
+                if (Hc > MICI_calving_threshold) then
+                   Hc = thck_effective(i,j) + topg(i,j)                          
+                   lateral_rate(i,j) = MICI_I * (Hc) **MICI_alpha
+                   calving_dthck(i,j) = lateral_rate(i,j) * dt * thck_effective(i,j) * cf_length(i,j) / (dx*dy)
+                endif
+             endif !below 0
           endif   ! CF mask
        enddo   ! i
     enddo   ! j
+
+
+    endif !MICI or not
 
     if (verbose_calving) then
        call point_diag(speed*scyr, 'Thickness-based calving, ice speed (m/yr)', itest, jtest, rtest, 7, 7)
@@ -2244,7 +2197,8 @@ contains
          floating_mask,      & ! = 1 where ice is present (thck > thklim) and floating, else = 0
          ocean_mask,         & ! = 1 where topg is below sea level and ice is absent, else = 0
          land_mask,          & ! = 1 where topg is at or above sea level, else = 0
-         calving_front_mask    ! = 1 where ice is floating and borders the ocean, else = 0
+         calving_front_mask, & ! = 1 where ice is floating and borders the ocean, else = 0
+         calving_front_mask_marinecliff
 
     do n = 1, ncull_calving_front
 
@@ -2271,7 +2225,8 @@ contains
             eus,                               &
             ice_mask,      floating_mask,      &
             ocean_mask,    land_mask,          &
-            calving_front_mask)
+            calving_front_mask,                &
+            calving_front_mask_marinecliff)
 
        if (main_task) then
           call write_log ('cull_calving_front: Removing ice from calving_front cells')
