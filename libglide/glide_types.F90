@@ -664,11 +664,10 @@ module glide_types
     !> \item[4] Set thickness to zero if present bedrock topography lies below
     !>          a certain water depth (variable "marine_limit" in glide_types)  
     !> \item[5] Set thickness to zero based on grid location (field 'calving_mask')
-    !> \item[6] Set thickness to zero if ice at marine margin is thinner than
-    !>          a certain value (variable 'calving_minthck' in glide_types)
-    !> \item[7] Calving rate based on strain-rate criterion (eigencalving)
+    !> \item[6] Prescribe the rate of calving front advance or retreat
+    !> \item[7] Calve ice whose thickness is below a given threshold
     !> \item[8] Calving rate based on stress threshold criterion (von Mises)
-    !> \item[9] Prescribe the rate of calving front advance or retreat
+    !> \item[9] Calving rate based on strain-rate criterion (eigencalving)
     !> \item[10] Calve ice that is sufficiently damaged
     !> \item[11] Huybrechts calving
     !> \end{description}
@@ -704,10 +703,6 @@ module glide_types
 
     logical :: limit_marine_cliffs = .false.
     !> if true, then thin marine-based cliffs based on a thickness threshold
-
-    logical :: cull_calving_front = .false.
-    !> if true, then cull calving_front cells at initialization
-    !> This can make the run more stable by removing long, thin peninsulas
 
     logical :: damage_flwa_feedback = .false.
     !> if true, then flwa increases as damage increases
@@ -1584,8 +1579,6 @@ module glide_types
                                                  !> 0 = no damage, 1 = total damage (whichcalving = CALVING_DAMAGE)
      real(dp) :: damage_constant1 = 0.0d0        !> damage constant that multiplies tau_eigen1 (yr^-1)
      real(dp) :: damage_constant2 = 0.0d0        !> damage constant that multiplies tau_eigen2 (yr^-1)
-     integer  :: ncull_calving_front = 0         !> number of times to cull calving_front cells at initialization, if cull_calving_front = T
-                                                 !> Set to a larger value to remove wider peninsulas
      real(dp) :: taumax_cliff = 1.0d6            !> yield stress (Pa) for marine-based ice cliffs
      real(dp) :: cliff_timescale = 10.0d0        !> time scale (yr) for limiting marine cliffs (yr)
      real(dp) :: calving_front_x = 0.0d0         !> for CALVING_GRID_MASK option, calve ice wherever abs(x) > calving_front_x (m)

@@ -749,7 +749,6 @@ contains
     call GetValue(section,'remove_isthmuses', model%options%remove_isthmuses)
     call GetValue(section,'expand_calving_mask', model%options%expand_calving_mask)
     call GetValue(section,'limit_marine_cliffs', model%options%limit_marine_cliffs)
-    call GetValue(section,'cull_calving_front', model%options%cull_calving_front)
     call GetValue(section,'damage_flwa_feedback', model%options%damage_flwa_feedback)
     call GetValue(section,'adjust_input_thickness', model%options%adjust_input_thickness)
     call GetValue(section,'smooth_input_topography', model%options%smooth_input_topography)
@@ -1424,13 +1423,6 @@ contains
           call write_log(' The thickness of marine ice cliffs will be limited')
        else
           call write_log(' The thickness of marine ice cliffs will not be limited')
-       endif
-
-       if (model%options%cull_calving_front) then
-          write(message,*) ' Calving-front cells will be culled', model%calving%ncull_calving_front, 'times at initialization'
-          call write_log(message)
-       else
-          call write_log(' Calving-front cells will not be culled at initialization')
        endif
 
        if (model%options%whichcalving == CALVING_FLOAT_FRACTION) then
@@ -2228,7 +2220,6 @@ contains
     call GetValue(section,'damage_constant2',   model%calving%damage_constant2)
     call GetValue(section,'taumax_cliff',       model%calving%taumax_cliff)
     call GetValue(section,'cliff_timescale',    model%calving%cliff_timescale)
-    call GetValue(section,'ncull_calving_front',model%calving%ncull_calving_front)
     call GetValue(section,'calving_front_x',    model%calving%calving_front_x)
     call GetValue(section,'calving_front_y',    model%calving%calving_front_y)
     call GetValue(section,'f_ground_threshold', model%calving%f_ground_threshold)

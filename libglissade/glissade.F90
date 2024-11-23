@@ -3225,9 +3225,8 @@ contains
 
     use glimmer_paramets, only: thk0, tim0, len0, vel0
     use glimmer_physcon, only: scyr
-    use glissade_calving, only: glissade_calve_ice, glissade_cull_calving_front, &
-         glissade_remove_icebergs, glissade_remove_isthmuses, glissade_limit_cliffs, &
-         verbose_calving
+    use glissade_calving, only: glissade_calve_ice, verbose_calving, &
+         glissade_remove_icebergs, glissade_remove_isthmuses, glissade_limit_cliffs
     use glissade_masks, only: glissade_get_masks, glissade_ocean_connection_mask
     use glissade_grounding_line, only: glissade_grounded_fraction
     implicit none
@@ -3255,8 +3254,6 @@ contains
     real(dp) :: &
          maxthck,                 & ! max thickness of retreating ice
          dthck                      ! thickness loss for retreating ice
-
-    logical :: cull_calving_front   ! true iff init_calving = T and options%cull_calving_front = T
 
     integer :: i, j
 
@@ -3546,22 +3543,6 @@ contains
             model%isostasy%relx*thk0,          &        ! m
             model%geometry%topg*thk0,          &        ! m
             model%climate%eus*thk0)                     ! m
-
-    endif
-
-    if (init_calving .and. model%options%cull_calving_front) then
-
-       call glissade_cull_calving_front(&
-            nx,           ny,              &
-            parallel,                      &
-            itest, jtest, rtest,           &
-            thck_unscaled,                 &  ! m
-            model%geometry%topg*thk0,      &  ! m
-            model%climate%eus*thk0,        &  ! m
-            model%numerics%thklim*thk0,    &  ! m
-            model%options%which_ho_calving_front, &
-            model%calving%ncull_calving_front,    &
-            model%calving%calving_thck)       ! m
 
     endif
 
@@ -4978,7 +4959,8 @@ contains
 
     !WHL - inversion debug
     ! The goal is to spin up in a way that minimizes flipping between grounded and floating.
-    if (verbose_inversion .and. model%numerics%time > model%numerics%tstart .and. &
+!!    if (verbose_inversion .and. model%numerics%time > model%numerics%tstart .and. &
+    if (0 == 1 .and. model%numerics%time > model%numerics%tstart .and. &
         (model%options%which_ho_powerlaw_c == HO_POWERLAW_C_INVERSION .or.  &
          model%options%which_ho_coulomb_c  == HO_COULOMB_C_INVERSION) ) then
        do j = nhalo+1, nsn-nhalo
