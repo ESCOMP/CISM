@@ -1701,6 +1701,7 @@ module glide_types
      !arrays for saving and debugging
      real(dp), dimension(:,:), pointer :: calving_front_mask_save
      real(dp), dimension(:,:), pointer :: calving_front_mask_marinecliff_save
+     real(dp), dimension(:,:), pointer :: calving_dthck_save 
 
   end type glide_calving
 
@@ -3387,7 +3388,8 @@ contains
 
     call coordsystem_allocate(model%general%ice_grid, model%calving%calving_front_mask_save)
     call coordsystem_allocate(model%general%ice_grid, model%calving%calving_front_mask_marinecliff_save)
-    
+    call coordsystem_allocate(model%general%ice_grid, model%calving%calving_dthck_save)   
+ 
     call coordsystem_allocate(model%general%ice_grid, model%calving%calving_rate)
     call coordsystem_allocate(model%general%ice_grid, model%calving%calving_rate_tavg)
     call coordsystem_allocate(model%general%ice_grid, model%calving%calving_mask)

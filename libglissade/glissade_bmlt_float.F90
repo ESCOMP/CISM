@@ -2158,8 +2158,9 @@ module glissade_bmlt_float
 
        do j = 1, ny
           do i = 1, nx
-             if (thermal_forcing_mask(i,j) == 1) then
-
+!             if (thermal_forcing_mask(i,j) == 1) then
+!             TvdA: I commented this out because I am suspecting that this is limiting the basal melt rates to 
+!             only apply melt in present day cells. If the calving front advances, you want to be able to remove ice there a well
                 !WHL - debug
 !                if (thermal_forcing_lsrf(i,j) + deltaT_ocn(i,j) < 0.0d0) then
 !                   print*, 'Negative eff_thermal forcing: task, i, j, nb, TF, dT:', &
@@ -2168,7 +2169,7 @@ module glissade_bmlt_float
 
                 eff_thermal_forcing = max(0.0d0, thermal_forcing_lsrf(i,j) + deltaT_ocn(i,j))
                 bmlt_float(i,j) = coeff * eff_thermal_forcing**2
-             endif
+!             endif
           enddo
        enddo
 
@@ -2429,7 +2430,10 @@ module glissade_bmlt_float
 
     ! Cap at max allowed value
     !Tim: I made it 5 here, did not want to fiddle to much with this, I did not use this anyway
-    deltaT_ocn_new = min(deltaT_ocn_new, 5.0d0)
+    !Tim, but now in 2024. This is unwanted because in some rewriting cases we need enormous basal melt rates
+    !I comment it out
+
+ !   deltaT_ocn_new = min(deltaT_ocn_new, 5.0d0)
 
     ! For diagnostics, compute the new melt rate
 

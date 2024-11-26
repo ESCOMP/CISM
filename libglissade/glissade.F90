@@ -1446,7 +1446,7 @@ contains
     ! also, the basal melt is not automatically multiplied with the internal float factor anymore. 
     ! 
 
-    model%basal_melt%bmlt(:,:) = model%basal_melt%bmlt_ground(:,:) + model%basal_melt%bmlt_float(:,:)
+    model%basal_melt%bmlt(:,:) = model%basal_melt%bmlt_ground(:,:) + model%basal_melt%bmlt_float(:,:)**model%basal_melt%bmlt_float_factor_internal
    !!add the option here to include an updated marine connection field that does not go thourgh marine grounded ice
     if (model%options%which_ho_marine_mask == HO_MARINE_MASK_ISOLATED) then
        
@@ -1468,16 +1468,11 @@ contains
     endif
 
 
-         model%basal_melt%bmlt(:,:) = model%basal_melt%bmlt_ground(:,:) + &
-         model%geometry%marine_connection_mask_isolated(:,:)*model%basal_melt%bmlt_float(:,:)*model%basal_melt%bmlt_float_factor_internal
-
-
     if (model%options%which_ho_bmlt_basin_correction == HO_BMLT_BASIN_CORRECTION) then
           
          model%basal_melt%bmlt(:,:) = model%basal_melt%bmlt_ground(:,:) + model%basal_melt%bmlt_float(:,:)*model%basal_melt%basin_multiplier_array(:,:)
-    else
-         model%basal_melt%bmlt(:,:) = model%basal_melt%bmlt_ground(:,:) + model%basal_melt%bmlt_float(:,:)*model%basal_melt%bmlt_float_factor_internal
     endif
+
     if (verbose_glissade .and. this_rank == rtest) then
        i = itest
        j = jtest
@@ -2579,6 +2574,7 @@ contains
             ocean_mask,             land_mask,        &
             calving_front_mask,                       &
             calving_front_mask_marinecliff,           &
+            model%calving%MICIflag,                         &
             dthck_dx_cf = model%calving%dthck_dx_cf,  &
             dx = model%numerics%dew*len0,             &
             dy = model%numerics%dns*len0,             &
@@ -3764,7 +3760,8 @@ contains
             thck_unscaled,                     &        ! m
             model%isostasy%relx*thk0,          &        ! m
             model%geometry%topg*thk0,          &        ! m
-            model%climate%eus*thk0)                     ! m
+            model%climate%eus*thk0,            &
+            model%ocean_data%deltaT_ocn)                     ! m
 
     endif
 
@@ -4341,6 +4338,7 @@ contains
                                      ocean_mask,          land_mask,             &
                                      calving_front_mask,                         &
                                      calving_front_mask_marinecliff,             &
+                                     model%calving%MICIflag,                     &
                                      dx = model%numerics%dew*len0,               &
                                      dy = model%numerics%dns*len0,               &
                                      dthck_dx_cf = model%calving%dthck_dx_cf,    &
@@ -4575,9 +4573,13 @@ contains
     !WHL - debug
     ! For testing subgrid CF schemes: Do not invert for deltaT_ocn where calving_mask = 1,
     ! because this will prevent CF advance. In these cells, set deltaT_ocn = 0.
+    
+    !TvdA: I added an if statement here: if MICI is turned on we typically want to keep deltaT in cells outside of the calving front
+    ! because we are using insane basal melt rates based on insane high deltaT's to stop ice from forming there. 
+
     if (model%options%which_ho_calving_front == HO_CALVING_FRONT_SUBGRID .and. &
 !!         model%options%which_ho_deltaT_ocn == HO_DELTAT_OCN_INVERSION(
-        model%options%whichbmlt_float == BMLT_FLOAT_THERMAL_FORCING) then
+        model%options%whichbmlt_float == BMLT_FLOAT_THERMAL_FORCING .and. model%calving%MICIflag== 0 ) then
        where (model%calving%calving_mask == 1) model%ocean_data%deltaT_ocn = 0.0d0
     endif
 
@@ -5217,12 +5219,17 @@ contains
     ! Note: Both calving_thck and bmlt_applied have dimensionless model units;
     !       calving_thck = calving thickness per timestep, while bmlt_applied = melt per unit time
 
+    !TVDA Tracker: here is bmlt_applied modified to be zero at the calving front. In case MICI does weird again
+    !I can remove this option
+
     if (model%options%whichcalving == CALVING_GRID_MASK .or. model%options%apply_calving_mask) then
-       where (calving_front_mask == 1)
-          model%calving%calving_thck = model%calving%calving_thck + &
-               model%basal_melt%bmlt_applied * model%numerics%dt
-          model%basal_melt%bmlt_applied = 0.0d0
-       endwhere
+       if (model%calving%MICIflag == 0) then
+          where (calving_front_mask == 1)
+             model%calving%calving_thck = model%calving%calving_thck + &
+                  model%basal_melt%bmlt_applied * model%numerics%dt
+             model%basal_melt%bmlt_applied = 0.0d0
+          endwhere
+       endif !MICI
     endif
 
     ! surface, basal and calving mass fluxes (kg/m^2/s)

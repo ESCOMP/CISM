@@ -556,6 +556,14 @@ long_name:     calving front mask
 data:          data%calving%calving_front_mask_marinecliff_save
 load:          1
 
+
+[calving_dthck]
+dimensions:    time, y1, x1
+untis:         m
+long_name:     calving front dthck
+data:          data%calving%calving_dthck_save
+load:          1
+
 [calving_rate]
 dimensions:    time, y1, x1
 units:         meter/year
