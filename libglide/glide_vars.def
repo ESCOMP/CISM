@@ -564,6 +564,14 @@ long_name:     calving front dthck
 data:          data%calving%calving_dthck_save
 load:          1
 
+[thck_effective]
+dimensions:    time,y1,x1
+units:         m
+long_name:     Effective thickness used for calving
+data:          data%calving%thck_effective
+load:          1 
+
+
 [calving_rate]
 dimensions:    time, y1, x1
 units:         meter/year

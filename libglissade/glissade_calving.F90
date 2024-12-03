@@ -446,6 +446,14 @@ contains
        ! This speed is used to compute the calving rate for thickness-based calving,
        !  eigencalving, and damage-based calving.
 
+
+       !Tim van den Akker: I agree with this scheme. For MICI we need to include a step to indentify cells that are at the marine calving
+       !front, aka marine ice cliffs and prevent them from thinning in the z-axis, but to keep their
+       !height the same but decrease the ice content. This is very similar to using the effective thickness
+       !but it is not the same. First, the marine ice cliffs have a constant thickness throughout the calving process, which is based
+       !on the initial thickness of the cell. Second, there should be a time-evolving mask with the percent of a cell that
+       !is empty to keep track on how much ice has been removed
+
        velnorm_mean = sqrt(uvel_2d**2 + vvel_2d**2)
 
        where (velnorm_mean > 0.0d0)
@@ -500,9 +508,16 @@ contains
             ocean_mask = ocean_mask,       &
             land_mask = land_mask)
 
-       !create a mask here in case we are doing MICI and we removed the shelves 
+       !Tim van den Akker: Here I am adding a recomputation of the 
+
+       !create a mask here in case we are doing MICI and we removed the shelves. calving_front_mask_marinecliff_save is not updated
+       !from the last timestep here, so I prevent cells from being removed that are floating due to their MICI calving in the previous timeste       p
+       ! I can add the calculation on which part of the cell is floating here as well. But I doubt between adding it here
+       ! or at the calving_dthck applying subroutine. 
+       ! I created arrays to store neccesary information in, marine_calving_fillpercentage and marine_calving_fillthck
+ 
        if (calving%MICIflag == 1) then
-          where (floating_mask == 1 .and. deltaT_ocn > 1000)
+          where (floating_mask == 1 .and. deltaT_ocn > 1000 .and. calving%calving_front_mask_marinecliff_save==1 )
                 thk_new =0
           endwhere
        !then recompute the masks
@@ -668,7 +683,7 @@ contains
                   calving_front_mask,                        &
                   speed,                                     &  ! m/s
                   cf_length,                                 &  ! m
-                  thk_new,                    &  ! m
+                  calving%thck_effective,                    &  ! m
                   calving%minthck,                           &  ! m
                   calving%MICIflag,                          &
                   calving%MICI_I,                            &

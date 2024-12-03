@@ -1473,6 +1473,18 @@ contains
          model%basal_melt%bmlt(:,:) = model%basal_melt%bmlt_ground(:,:) + model%basal_melt%bmlt_float(:,:)*model%basal_melt%basin_multiplier_array(:,:)
     endif
 
+    !prevent a MICI-prone cliff from receiving melt from the ocean, because in a single timestep, the MICI calving can 
+    !let an MICI receiving become afloat, and then the cell can be removed because of high basal melt rates typically 
+    !needed to remove floating ice when simulating cliff collapse. We only want to assess the MICI parameterization
+    !and not the combined MICI -> floating -> basal melt rates feedback. Done by Tim van den Akker, 2024
+
+    if (model%calving%MICIflag == 1) then
+       where (model%calving%calving_front_mask_marinecliff_save == 1)
+          model%basal_melt%bmlt = 0
+       endwhere
+    endif ! MICIflag
+
+
     if (verbose_glissade .and. this_rank == rtest) then
        i = itest
        j = jtest

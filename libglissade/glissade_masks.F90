@@ -378,18 +378,22 @@
        enddo
     enddo
 
-   
-    do j = 2, ny-1
-       do i = 2, nx-1
-          if (floating_mask(i,j) == 0 .and. ice_mask(i,j) ==1)   then
-             if (ocean_mask(i-1,j) == 1 .or. ocean_mask(i+1,j) == 1 .or. &
-                 ocean_mask(i,j-1) == 1 .or. ocean_mask(i,j+1) == 1) then
-                calving_front_mask_marinecliff(i,j) = 1
-           endif 
-         endif
+    if (MICIflag == 1) then
+       interior_mask = 0
+       do j = 2, ny-1
+          do i = 2, nx-1
+             if (floating_mask(i,j) == 0 .and. ice_mask(i,j) ==1)   then
+                if (ocean_mask(i-1,j) == 1 .or. ocean_mask(i+1,j) == 1 .or. &
+                    ocean_mask(i,j-1) == 1 .or. ocean_mask(i,j+1) == 1) then
+                   calving_front_mask_marinecliff(i,j) = 1
+                else
+                   interior_mask(i,j) = 1
+
+              endif !ocean_mask
+            endif !floating and ice mask
+          enddo
        enddo
-    enddo
-   
+     endif !MICIflag 
 
     call parallel_halo(calving_front_mask, parallel)
     call parallel_halo(calving_front_mask_marinecliff, parallel)
@@ -468,6 +472,9 @@
 
 
           if (MICIflag == 1) then 
+             thck_effective = thck
+             full_mask = 0
+             partial_cf_mask = 0
              do j = 2, ny-1
                 do i = 2, nx-1
                    if (ice_mask(i,j) == 1) then
@@ -511,12 +518,13 @@
              thck_flotation = -(rhoo/rhoi) * (topg - eus)
              thck_effective = min(thck_effective, thck_flotation)
           endwhere
-          !do the same for the marinecliffs when using the MICIflag
+          !do the same for the marinecliffs when using the MICIflag, but with a max function, we do not want the
+          !marine cliff cell to become afloat
 
           if (MICIflag ==1 ) then
              where (calving_front_mask_marinecliff == 1)
                 thck_flotation = -(rhoo/rhoi) * (topg - eus)
-                thck_effective = min(thck_effective, thck_flotation)
+                thck_effective = max(thck_effective, thck_flotation)
              endwhere
 
              if (present(thck_effective_min)) then

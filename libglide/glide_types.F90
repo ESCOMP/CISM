@@ -1701,7 +1701,9 @@ module glide_types
      !arrays for saving and debugging
      real(dp), dimension(:,:), pointer :: calving_front_mask_save
      real(dp), dimension(:,:), pointer :: calving_front_mask_marinecliff_save
-     real(dp), dimension(:,:), pointer :: calving_dthck_save 
+     real(dp), dimension(:,:), pointer :: calving_dthck_save
+     real(dp), dimension(:,:), pointer :: marine_calving_fillpercentage
+     real(dp), dimension(:,:), pointer :: marine_calving_fillthck 
 
   end type glide_calving
 
@@ -1947,7 +1949,7 @@ module glide_types
      real(dp) :: bmlt_float_depth_frzmax = 0.d0       !> max freezing rate near surface (m/yr)
      real(dp) :: bmlt_float_depth_zmeltmax = -500.d0  !> depth (m) below which bmlt_float = meltmax
      real(dp) :: bmlt_float_depth_zmelt0 = -200.d0    !> depth (m) where bmlt_float = 0
-     real(dp) :: bmlt_float_depth_zfrzmax = -100.d0   !> depth (m) above which bmlt_float = -frzmax
+     real(dp) :: bmlt_float_depth_zfrzmax = -100.d0   !> depth (m/) above which bmlt_float = -frzmax
 
      ! parameters and fields for warm ocean
      ! Where warm_ocean_mask = 1, the sub-shelf melt rate is meltmin above zmeltmin, then increases linearly
@@ -3389,6 +3391,12 @@ contains
     call coordsystem_allocate(model%general%ice_grid, model%calving%calving_front_mask_save)
     call coordsystem_allocate(model%general%ice_grid, model%calving%calving_front_mask_marinecliff_save)
     call coordsystem_allocate(model%general%ice_grid, model%calving%calving_dthck_save)   
+ 
+    call coordsystem_allocate(model%general%ice_grid, model%calving%marine_calving_fillpercentage)   
+    call coordsystem_allocate(model%general%ice_grid, model%calving%marine_calving_fillthck)
+   
+
+
  
     call coordsystem_allocate(model%general%ice_grid, model%calving%calving_rate)
     call coordsystem_allocate(model%general%ice_grid, model%calving%calving_rate_tavg)
