@@ -7,6 +7,10 @@
 # Ignore python bytecode files
 *.pyc
 
+#ignore mismip files
+tests/MISOMIP/ZoetIversson_mismip+/Ice1r_buttress/Buttress_output.nc
+tests/MISOMIP/ZoetIversson_mismip+/Ice1r/SSA_output.nc
+
 # Ignore build temporary files
 CMakeCache.txt
 CMakeFiles
