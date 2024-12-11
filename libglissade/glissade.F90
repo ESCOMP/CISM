@@ -3192,7 +3192,9 @@ contains
                      * (1.0d0 - model%geometry%ice_fraction_retreat_mask(i,j))
                 dthck = model%geometry%thck(i,j) - min(maxthck, model%geometry%thck(i,j))
                 model%geometry%thck(i,j) = model%geometry%thck(i,j) - dthck
-                model%calving%calving_thck(i,j) = model%calving%calving_thck(i,j) + dthck
+                ! write retreat to separate variable
+                !model%calving%calving_thck(i,j) = model%calving%calving_thck(i,j) + dthck
+                model%calving%forceretreat_thck(i,j) = dthck
              endif
           enddo
        enddo
@@ -4049,7 +4051,9 @@ contains
        !       it will show where ice caps existed before they were removed.
 
        where (model%geometry%ice_cap_mask == 1)
-          model%calving%calving_thck = model%calving%calving_thck + model%geometry%thck
+          ! Record ice cap removal in separate variable 
+          !model%calving%calving_thck = model%calving%calving_thck + model%geometry%thck
+          model%calving%rmicecap_thck = model%geometry%thck
           model%geometry%thck = 0.0d0
        endwhere
 
@@ -5025,6 +5029,8 @@ contains
     model%geometry%sfc_mbal_flux(:,:) = rhoi * model%climate%acab_applied(:,:)*thk0/tim0
     model%geometry%basal_mbal_flux(:,:) = rhoi * (-model%basal_melt%bmlt_applied(:,:)) * thk0/tim0
     model%geometry%calving_flux(:,:) = rhoi * (-model%calving%calving_thck(:,:)*thk0) / (model%numerics%dt*tim0)
+    model%geometry%forceretreat_flux(:,:) = rhoi * (-model%calving%forceretreat_thck(:,:)*thk0) / (model%numerics%dt*tim0)
+    model%geometry%rmicecap_flux(:,:) = rhoi * (-model%calving%rmicecap_thck(:,:)) / (model%numerics%dt*tim0)
 
     ! calving rate (m/yr ice; positive for calving)
     model%calving%calving_rate(:,:) = (model%calving%calving_thck(:,:)*thk0) / (model%numerics%dt*tim0/scyr)
