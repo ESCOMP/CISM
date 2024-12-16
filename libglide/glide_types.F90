@@ -185,8 +185,9 @@ module glide_types
   integer, parameter :: CALVING_THCK_THRESHOLD = 7
   integer, parameter :: CALVING_STRESS = 8
   integer, parameter :: EIGEN_CALVING = 9
-  integer, parameter :: CALVING_DAMAGE = 10
-  integer, parameter :: CALVING_HUYBRECHTS = 11
+  integer, parameter :: CALVING_STRESS_STOCHASTIC = 10
+  integer, parameter :: CALVING_DAMAGE = 11
+  integer, parameter :: CALVING_HUYBRECHTS = 12
 
   integer, parameter :: CALVING_INIT_OFF = 0
   integer, parameter :: CALVING_INIT_ON = 1
@@ -668,8 +669,10 @@ module glide_types
     !> \item[7] Calve ice whose thickness is below a given threshold
     !> \item[8] Calving rate based on stress threshold criterion (von Mises)
     !> \item[9] Calving rate based on strain-rate criterion (eigencalving)
-    !> \item[10] Calve ice that is sufficiently damaged
-    !> \item[11] Huybrechts calving
+    !> \item[10] Stochastic stress-based calving
+    !> \item[11] Calve ice that is sufficiently damaged
+    !> \item[12] Huybrechts calving
+    !TODO - Revise the numbering?
     !> \end{description}
 
     integer :: calving_init = 0

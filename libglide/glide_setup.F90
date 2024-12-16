@@ -194,9 +194,6 @@ contains
     model%calving%marine_limit = model%calving%marine_limit / thk0
     model%calving%timescale = model%calving%timescale * scyr                ! convert from yr to s
     model%calving%cliff_timescale = model%calving%cliff_timescale * scyr    ! convert from yr to s
-    !TODO - No conversion for strain-based calving
-!!!    model%calving%damage_constant1 = model%calving%damage_constant1 / scyr  ! convert from yr^{-1} to s^{-1}
-!!!    model%calving%damage_constant2 = model%calving%damage_constant2 / scyr  ! convert from yr^{-1} to s^{-1}
 
     ! scale periodic offsets for ISMIP-HOM
     model%numerics%periodic_offset_ew = model%numerics%periodic_offset_ew / thk0
@@ -976,7 +973,7 @@ contains
          'compute isostasy with model     ' /)
 
     !TODO - Change 'marine_margin' to 'calving'?  Would have to modify many config files
-    character(len=*), dimension(0:11), parameter :: marine_margin = (/ &
+    character(len=*), dimension(0:12), parameter :: marine_margin = (/ &
          'no calving law                   ', &
          'remove all floating ice          ', &
          'remove fraction of floating ice  ', &
@@ -987,6 +984,7 @@ contains
          'ice thickness threshold          ', &
          'stress threshold                 ', &
          'strain-rate (eigencalving)       ', &
+         'stochastic stress-based calving  ', &
          'damage-based calving scheme      ', &
          'Huybrechts calving               '/)
 
@@ -1452,24 +1450,16 @@ contains
 
     else   ! not Glissade
 
-       if (model%options%whichcalving == CALVING_THCK_THRESHOLD) then
-          call write_log('Error, calving thickness threshold option is supported for Glissade dycore only', GM_FATAL)
+       if (model%options%whichcalving == CALVING_GRID_MASK .or. &
+           model%options%whichcalving == CALVING_THCK_THRESHOLD .or. &
+           model%options%whichcalving == CF_ADVANCE_RETREAT_RATE .or. &
+           model%options%whichcalving == CALVING_STRESS .or. &
+           model%options%whichcalving == EIGEN_CALVING .or. &
+           model%options%whichcalving == CALVING_STRESS_STOCHASTIC .or. &
+           model%options%whichcalving == CALVING_DAMAGE) then
+          call write_log('Error, this calving option is supported for Glissade dycore only', GM_FATAL)
        endif
-       if (model%options%whichcalving == EIGEN_CALVING) then
-          call write_log('Error, eigencalving option is supported for Glissade dycore only', GM_FATAL)
-       endif
-       if (model%options%whichcalving == CALVING_STRESS) then
-          call write_log('Error, stress-based calving option is supported for Glissade dycore only', GM_FATAL)
-       endif
-       if (model%options%whichcalving == CALVING_GRID_MASK) then
-          call write_log('Error, calving grid mask option is supported for Glissade dycore only', GM_FATAL)
-       endif
-       if (model%options%whichcalving == CALVING_DAMAGE) then
-          call write_log('Error, calving damage option is supported for Glissade dycore only', GM_FATAL)
-       endif
-       if (model%options%whichcalving == CF_ADVANCE_RETREAT_RATE) then
-          call write_log('Error, calving front advance/retreat option is supported for Glissade dycore only', GM_FATAL)
-       endif
+
        if (model%options%calving_domain /= CALVING_DOMAIN_OCEAN_EDGE) then
           write(message,*) 'WARNING: calving domain can be selected for Glissade dycore only; user selection ignored'
           call write_log(message, GM_WARNING)
@@ -2449,10 +2439,11 @@ contains
        call write_log(message)
     endif
 
-    if (model%options%whichcalving == CF_ADVANCE_RETREAT_RATE.or.  &
-        model%options%whichcalving == CALVING_THCK_THRESHOLD .or.  &
-        model%options%whichcalving == CALVING_STRESS         .or.  &
-        model%options%whichcalving == EIGEN_CALVING          .or.  &
+    if (model%options%whichcalving == CF_ADVANCE_RETREAT_RATE    .or.  &
+        model%options%whichcalving == CALVING_THCK_THRESHOLD     .or.  &
+        model%options%whichcalving == CALVING_STRESS             .or.  &
+        model%options%whichcalving == EIGEN_CALVING              .or.  &
+        model%options%whichcalving == CALVING_STRESS_STOCHASTIC  .or.  &
         model%options%whichcalving == CALVING_DAMAGE) then
 
        if (model%options%which_ho_calving_front == HO_CALVING_FRONT_NO_SUBGRID) then
@@ -2478,6 +2469,13 @@ contains
           call write_log(message)
           write(message,*) 'stress_threshold (Pa)         : ', model%calving%stress_threshold
           call write_log(message)
+       elseif (model%options%whichcalving == CALVING_STRESS_STOCHASTIC) then
+          write(message,*) 'tau_eigenconstant 1           : ', model%calving%tau_eigenconstant1
+          call write_log(message)
+          write(message,*) 'tau_eigenconstant 2           : ', model%calving%tau_eigenconstant2
+          call write_log(message)
+          write(message,*) 'stress_threshold (Pa)         : ', model%calving%stress_threshold
+          call write_log(message)
        elseif (model%options%whichcalving == CALVING_DAMAGE) then
           write(message,*) 'damage constant1 (1/yr)       : ', model%calving%damage_constant1
           call write_log(message)
@@ -2494,14 +2492,13 @@ contains
           call write_log(message)
        endif
 
-    endif   ! calving options: thck_threshold, eigencalving, damage
+    endif   ! calving options: thck_threshold, eigencalving, stress-based, etc.
 
     if (model%options%which_ho_calving_front == HO_CALVING_FRONT_SUBGRID) then
        write(message,*) 'subgrid dthck_dx_cf           : ', model%calving%dthck_dx_cf
        call write_log(message)
        write(message,*) 'thck_effective_min (m)        : ', model%calving%thck_effective_min
        call write_log(message)
-       !TODO - Is the following needed with the new SUBGRID option?
        if (.not.model%options%remove_icebergs) then
           model%options%remove_icebergs = .true.
           write(message,*) 'Setting remove_icebergs = T for stability when using subgrid calving_front scheme'

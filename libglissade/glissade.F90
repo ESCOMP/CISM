@@ -3733,6 +3733,7 @@ contains
             thck_unscaled,                        &  ! m
             model%geometry%f_ground_cell,         &
             ice_mask,                             &
+            floating_mask,                        &
             land_mask,                            &
             model%calving%calving_thck)              ! m
 

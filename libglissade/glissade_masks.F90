@@ -378,9 +378,7 @@
              else
                 interior_mask(i,j) = 1
              endif
-          elseif (ice_mask(i,j) == 1) then ! grounded ice-covered cell
-             interior_mask(i,j) = 1
-          endif
+          endif   ! floating
        enddo
     enddo
 
@@ -425,7 +423,7 @@
                       else
                          full_mask(i,j) = 1
                       endif   ! dthck_dx > dthck_dx_cf
-                   else   ! no interior neighbors
+                   else   ! no floating interior neighbors
                       ! Mark as a partial cell, and compute thck_effective from a CF neighbor
                       partial_cf_mask(i,j) = 1
                       max_neighbor_thck = max(&
