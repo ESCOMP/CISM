@@ -1860,8 +1860,8 @@ module glide_types
      ! parameters for flow_enhancement_factor inversion
 
      real(dp) ::  &
-          flow_enhancement_thck_scale = 100.d0, & !> thickness scale (m) for adjusting flow_enhancement_factor
-          flow_enhancement_timescale = 500.d0,  & !> timescale (yr) for adjusting flow_enhancement_factor
+          flow_enhancement_factor_thck_scale = 100.d0, & !> thickness scale (m) for adjusting flow_enhancement_factor
+          flow_enhancement_factor_timescale = 500.d0,  & !> timescale (yr) for adjusting flow_enhancement_factor
           flow_enhancement_relax_factor = 0.5d0, &  !> controls strength of relaxation to default values (unitless)
           flow_enhancement_factor_velo_scale = 0.d0, & !> when its larger than 0, flow enhancement factor 
           flow_enhancement_factor_minvalue = 0.01d0, & !> unitless, arbitrary

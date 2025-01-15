@@ -4670,8 +4670,8 @@ contains
                model%geometry%f_ground_cell_obs,                                &
                model%paramets%flow_enhancement_factor_ground,    &
                model%paramets%flow_enhancement_factor_float,     &
-               model%inversion%flow_enhancement_thck_scale,      &  ! m
-               model%inversion%flow_enhancement_timescale,       &  ! s
+               model%inversion%flow_enhancement_factor_thck_scale,      &  ! m
+               model%inversion%flow_enhancement_factor_timescale,       &  ! s
                model%inversion%flow_enhancement_relax_factor,    &
                model%temper%flow_enhancement_factor,             &
                model%inversion%flow_enhancement_factor_velo_scale, &

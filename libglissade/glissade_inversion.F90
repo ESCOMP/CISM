@@ -48,8 +48,8 @@ module glissade_inversion
   ! a target ice thickness field.
   !-----------------------------------------------------------------------------
 
-    logical, parameter :: verbose_inversion = .false.
-!!    logical, parameter :: verbose_inversion = .true.
+!!    logical, parameter :: verbose_inversion = .false.
+    logical, parameter :: verbose_inversion = .true.
 
 !    real(dp), parameter :: &
 !         deltaT_ocn_maxval = 5.0d0      ! max allowed magnitude of deltaT_ocn (degC)
@@ -364,7 +364,10 @@ contains
 
           ! initialize to the default values for grounded and floating ice
           ! For ice-free ocean, flow_enhancement_factor = 0 for now, but will change if ice-covered
-
+          
+          ! make sure the array contains ones so there are no nans
+          model%temper%flow_enhancement_factor(:,:)=1.0d0 
+         
           ! backtrace for Tim. I changed this below to a simple hardcoded entry
           ! I had similar problems with coulomb c once
           where (floating_mask == 1)
@@ -1651,12 +1654,6 @@ contains
          term_velo,            &  ! term that depends on the velocity mismatch
          tendency_term           !what we would like to add to the flow factor
      
-    ! Note: Max and min values are somewhat arbitrary.
-    ! TODO: Make these config parameters?
-    real(dp), parameter :: &
-         flow_enhancement_factor_maxval = 100.0d0,  & ! max allowed value of flow_enhancement_factor (unitless)
-         flow_enhancement_factor_minval = 0.010d0     ! min allowed value of flow_enhancement_factor (unitless)
-
     logical, parameter :: &
          smooth_thck = .false.    ! if true, apply laplacian smoothing to input thickness fields
 
@@ -1724,7 +1721,7 @@ contains
                 term_dHdt = dthck_dt(i,j) * 2.0d0 / flow_enhancement_thck_scale
              endif
              
-             if (flow_enhancement_velo_scale < 0.d0) then
+             if (flow_enhancement_velo_scale > 0.d0) then
                 term_velo=dvelo(i,j)/ (flow_enhancement_velo_scale*flow_enhancement_timescale)
              endif
              
@@ -1776,15 +1773,20 @@ contains
              endif
 
              ! Limit to a physically reasonable range
-             flow_enhancement_factor(i,j) = min(flow_enhancement_factor(i,j), flow_enhancement_factor_maxval)
-             flow_enhancement_factor(i,j) = max(flow_enhancement_factor(i,j), flow_enhancement_factor_minval)
+             flow_enhancement_factor(i,j) = min(flow_enhancement_factor(i,j), flow_enhancement_factor_maxvalue)
+             flow_enhancement_factor(i,j) = max(flow_enhancement_factor(i,j), flow_enhancement_factor_minvalue)
 
           else   ! floating neither in current state nor in observations
 
              ! relax toward the default value for grounded ice
-             term_relax = -flow_enhancement_relax_factor * log(flow_enhancement_factor(i,j)/relax_target(i,j)) &
-                  / flow_enhancement_timescale
-             flow_enhancement_factor(i,j) = flow_enhancement_factor(i,j) * (1.0d0 + term_relax*dt)
+
+
+             if (flow_enhancement_factor(i,j) > 0.d0 .and. relax_target(i,j)> 0.0d0) then
+                  term_relax = -flow_enhancement_relax_factor * log(flow_enhancement_factor(i,j)/relax_target(i,j)) &
+                      / flow_enhancement_timescale
+             else
+                  term_relax = 0.d0
+             endif
 
           endif  ! f_ground_cell or f_ground_cell_obs < 1
 

@@ -219,7 +219,7 @@ contains
     model%inversion%babc_timescale = model%inversion%babc_timescale * scyr    ! convert yr to s
     model%inversion%bmlt_basin_timescale = model%inversion%bmlt_basin_timescale * scyr   ! yr to s
     model%inversion%deltaT_ocn_timescale = model%inversion%deltaT_ocn_timescale * scyr   ! yr to s
-    model%inversion%flow_enhancement_timescale = model%inversion%flow_enhancement_timescale * scyr  ! yr to s
+    model%inversion%flow_enhancement_factor_timescale = model%inversion%flow_enhancement_factor_timescale * scyr  ! yr to s
     model%inversion%dbmlt_dtemp_scale = model%inversion%dbmlt_dtemp_scale / scyr   ! m/yr/degC to m/s/degC
     model%inversion%thck_threshold = model%inversion%thck_threshold / thk0
     model%inversion%thck_flotation_buffer = model%inversion%thck_flotation_buffer / thk0
@@ -2208,6 +2208,10 @@ contains
     call GetValue(section,'flow_enhancement_factor_minvalue',  model%inversion%flow_enhancement_factor_minvalue)
     call GetValue(section,'flow_enhancement_factor_maxvalue',  model%inversion%flow_enhancement_factor_maxvalue)
     call GetValue(section,'vel_error_limit', model%inversion%vel_error_limit)
+    
+    call GetValue(section,'flow_enhancement_factor_thck_scale',  model%inversion%flow_enhancement_factor_thck_scale)
+    call GetValue(section,'flow_enhancement_factor_timescale',  model%inversion%flow_enhancement_factor_timescale)
+    call GetValue(section,'flow_enhancement_relax_factor',  model%inversion%flow_enhancement_relax_factor)
  
    !TODO - Change default_flwa to flwa_constant?  Would have to change config files.
     call GetValue(section,'default_flwa',       model%paramets%default_flwa)
@@ -2363,9 +2367,9 @@ contains
     call GetValue(section, 'inversion_deltaT_ocn_temp_scale', model%inversion%deltaT_ocn_temp_scale)
 
     call GetValue(section, 'inversion_flow_enhancement_timescale', &
-         model%inversion%flow_enhancement_timescale)
+         model%inversion%flow_enhancement_factor_timescale)
     call GetValue(section, 'inversion_flow_enhancement_thck_scale', &
-         model%inversion%flow_enhancement_thck_scale)
+         model%inversion%flow_enhancement_factor_thck_scale)
     call GetValue(section, 'inversion_flow_enhancement_relax_factor', &
          model%inversion%flow_enhancement_relax_factor)
 
