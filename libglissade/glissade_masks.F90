@@ -277,8 +277,6 @@
        ice_mask,               floating_mask,        &
        ocean_mask,             land_mask,            &
        calving_front_mask,                           &
-       calving_front_mask_marinecliff,               &
-       MICIflag,                                     &
        dthck_dx_cf,                                  &
        dx,                     dy,                   &
        thck_effective,         thck_effective_min,   &
@@ -294,7 +292,7 @@
     integer, intent(in) ::   &
          nx,  ny,              &  ! number of grid cells in each direction
          which_ho_calving_front   ! subgrid calving front option
- 
+
     type(parallel_type), intent(in) :: parallel    !> info for parallel communication
 
     ! Default dimensions are meters, but this subroutine will work for any units
@@ -305,9 +303,8 @@
          topg                     ! elevation of topography (m)
 
     real(dp), intent(in) :: &
-         eus,      &                      ! eustatic sea level (m), = 0. by default
-         MICIflag
-  
+         eus                      ! eustatic sea level (m), = 0. by default
+
     integer, dimension(nx,ny), intent(in) ::  &
          ice_mask,              & ! = 1 if thck > thklim, else = 0
          floating_mask,         & ! = 1 if thck > thklim and ice is floating, else = 0
@@ -315,25 +312,24 @@
          land_mask                ! = 1 if topg is at or above sea level, else = 0
 
     integer, dimension(nx,ny), intent(out) ::  &
-         calving_front_mask,    &   ! = 1 if ice is floating and borders at least one ocean cell, else = 0
-         calving_front_mask_marinecliff ! =1 when a marine cliff appears
+         calving_front_mask       ! = 1 if ice is floating and borders at least one ocean cell, else = 0
 
-    real(dp), intent(in), optional :: &
+    real(dp), intent(in) :: &
          dthck_dx_cf,           & ! assumed max value of |dH/dx| at the CF for full cells
          dx, dy                   ! grid cell size (m)
 
-    real(dp), dimension(nx,ny), intent(out), optional :: &
+    real(dp), dimension(nx,ny), intent(out) :: &
          thck_effective,        & ! effective ice thickness (m) for calving
                                   ! Generally, H_eff > H at the CF, with H_eff = H elsewhere
-        effective_areafrac       ! effective ice-covered fraction, in range [0,1]
+         effective_areafrac       ! effective ice-covered fraction, in range [0,1]
                                   ! 0 < f < 1 for partial calving-front cells
 
-    integer, dimension(nx,ny), intent(out), optional :: &
+    real(dp), intent(in) :: &
+         thck_effective_min       ! minimum effective thickness for CF cells
+
+    integer, dimension(nx,ny), intent(out) :: &
          partial_cf_mask,       & ! = 1 for partially filled CF cells (thck < thck_effective), else = 0
          full_mask                ! = 1 for ice-filled cells that are not partial_cf cells, else = 0
-
-    real(dp), intent(in), optional :: &
-         thck_effective_min       ! minimum effective thickness for CF cells
 
     !----------------------------------------------------------------
     ! Local arguments
@@ -342,7 +338,8 @@
     integer :: i, j, ii, jj, ig, jg
 
     real(dp), dimension(nx,ny) :: &
-         thck_flotation         ! flotation thickness
+         thck_flotation,           & ! flotation thickness (m)
+         capped_thck                 ! min(thck, thck_flotation)
 
     real(dp) :: &
          max_neighbor_thck,        & ! max thickness (m) of the four edge neighbors
@@ -358,7 +355,6 @@
     ! CF cells are defined as floating cells that border ice-free ocean.
 
     calving_front_mask = 0
-    calving_front_mask_marinecliff = 0
     interior_mask = 0
 
     ! Identify calving front cells (floating cells that border ice-free ocean)
@@ -369,257 +365,129 @@
              if (ocean_mask(i-1,j) == 1 .or. ocean_mask(i+1,j) == 1 .or. &
                  ocean_mask(i,j-1) == 1 .or. ocean_mask(i,j+1) == 1) then
                 calving_front_mask(i,j) = 1
+              ! Note - The following logic adds some CF cells in regions with thin floating ice.
+              ! Commmented out for now because it changes CalvingMIP answers.
+             elseif (thck(i,j) < thck_effective_min) then
+                ! If two adjacent floating cells have very thin ice, we can think of them as sharing a CF
+                if ( (floating_mask(i-1,j) == 1 .and. thck(i-1,j) < thck_effective_min) .or. &
+                     (floating_mask(i+1,j) == 1 .and. thck(i+1,j) < thck_effective_min) .or. &
+                     (floating_mask(i,j-1) == 1 .and. thck(i,j-1) < thck_effective_min) .or. &
+                     (floating_mask(i,j+1) == 1 .and. thck(i,j+1) < thck_effective_min) ) then
+                   calving_front_mask(i,j) = 1
+                endif
              else
                 interior_mask(i,j) = 1
              endif
-          elseif (ice_mask(i,j) == 1) then ! grounded ice-covered cell
-             interior_mask(i,j) = 1
-          endif
+          endif   ! floating
        enddo
     enddo
 
-    if (MICIflag == 1) then
-       interior_mask = 0
-       do j = 2, ny-1
-          do i = 2, nx-1
-             if (floating_mask(i,j) == 0 .and. ice_mask(i,j) ==1)   then
-                if (ocean_mask(i-1,j) == 1 .or. ocean_mask(i+1,j) == 1 .or. &
-                    ocean_mask(i,j-1) == 1 .or. ocean_mask(i,j+1) == 1) then
-                   calving_front_mask_marinecliff(i,j) = 1
-                else
-                   interior_mask(i,j) = 1
-
-              endif !ocean_mask
-            endif !floating and ice mask
-          enddo
-       enddo
-     endif !MICIflag 
-
     call parallel_halo(calving_front_mask, parallel)
-    call parallel_halo(calving_front_mask_marinecliff, parallel)
     call parallel_halo(interior_mask, parallel)
 
     if (which_ho_calving_front == HO_CALVING_FRONT_SUBGRID) then
 
-       if (present(thck_effective)) then
+       ! Initialize thck_effective and masks
+       thck_effective = thck
+       full_mask = 0
+       partial_cf_mask = 0
 
-          ! Note: thck_effective, full_mask, partial_cf_mask, dx, dy, and dthck_dx_cf should all be passed together.
-          !       The following fatal error message does not account for all permutations of missing arguments,
-          !        but will prevent bad calculations of thck_effective.
-          if (.not.present(full_mask) .or. .not.present(partial_cf_mask) .or. &
-              .not.present(dx) .or. .not.present(dy) .or. .not.present(dthck_dx_cf)) then
-             write(message,*) &
-                  'Must pass full_mask, partial_cf_mask, dx, dy and dthck_dx_cf to compute thck_effective'
-             call write_log(message, GM_FATAL)
-          endif
+       ! Identify full cells and partial CF cells.
+       ! All ice-covered cells not at the CF are full cells.
+       ! For CF cells, compute the max thickness of interior neighbors (capped at the flotation thicknes)..
+       ! * If the thickness of the CF cell is close to that of the interior cell,
+       !   mark the CF cell as a full cell.
+       ! * Otherwise, mark the CF cell as a partial CF cell.
+       ! If there are no interior neighbors with nonzero (capped) thickness, then compare
+       ! to the thickness of CF neighbors.
 
-          ! Initialize thck_effective and masks
-          thck_effective = thck
-          full_mask = 0
-          partial_cf_mask = 0
+       thck_flotation = max(-(rhoo/rhoi) * (topg - eus), 0.0d0)
+       capped_thck = min(thck, thck_flotation)
 
-          ! Identify full cells and partial_cf cells.
-          ! All ice-covered cells not at the CF are full cells.
-          ! For CF cells, compute the max thickness of interior neighbors.
-          ! * If the thickness of the CF cell is close to that of the interior cell
-          !   (based on the thickness gradient), mark the CF cell as a full cell.
-          ! * Otherwise, mark the CF cell as a partial CF cell.
-
-          do j = 2, ny-1
-             do i = 2, nx-1
-                if (ice_mask(i,j) == 1) then
-                   if (calving_front_mask(i,j) == 1) then
-                      max_neighbor_thck = max(&
-                           interior_mask(i-1,j)*thck(i-1,j), interior_mask(i+1,j)*thck(i+1,j), &
-                           interior_mask(i,j-1)*thck(i,j-1), interior_mask(i,j+1)*thck(i,j+1))
-                      if (max_neighbor_thck > 0.0d0) then
-                         distance = sqrt(dx*dy)
-                         dthck_dx = (max_neighbor_thck - thck(i,j)) / distance
-                         ! If the gradient exceeds a critical value, this is a partial CF cell;
-                         !  set thck_effective based on the critical gradient.
-                         ! If the gradient is at or below the critical valude, this is a full cell with thck_effective = thck.
-                         if (dthck_dx > dthck_dx_cf) then
-                            partial_cf_mask(i,j) = 1
-                            thck_effective(i,j) = max_neighbor_thck - dthck_dx_cf*distance
-                         else
-                            full_mask(i,j) = 1
-                         endif   ! dthck_dx > dthck_dx_cf
-                      else   ! no interior neighbors; mark as a partial cell
+       do j = 2, ny-1
+          do i = 2, nx-1
+             if (ice_mask(i,j) == 1) then
+                if (calving_front_mask(i,j) == 1) then
+                   max_neighbor_thck = max(&
+                        interior_mask(i-1,j)*capped_thck(i-1,j), interior_mask(i+1,j)*capped_thck(i+1,j), &
+                        interior_mask(i,j-1)*capped_thck(i,j-1), interior_mask(i,j+1)*capped_thck(i,j+1))
+                   if (max_neighbor_thck > 0.0d0) then
+                      distance = sqrt(dx*dy)
+                      dthck_dx = (max_neighbor_thck - thck(i,j)) / distance
+                      ! If the gradient exceeds a critical value, this is a partial CF cell;
+                      !  set thck_effective based on the critical gradient.
+                      ! If the gradient is at or below the critical valude, this is a full cell with thck_effective = thck.
+                      if (dthck_dx > dthck_dx_cf) then
                          partial_cf_mask(i,j) = 1
-                         call parallel_globalindex(i, j, ig, jg, parallel)
-!!                         if (this_rank == rtest) then
-!!                            write(6,*) 'No interior neighbor:', ig, jg, thck(i,j)
-!!                         endif
-                      endif   ! max_neighbor_thck > 0
-
-                   else   ! not a CF cell; thck_effective = thck
-
-                      full_mask(i,j) = 1
-
-                   endif   ! calving_front_mask
-                endif   ! ice_mask
-             enddo   ! i
-          enddo   ! j
-
-
-          !TvdA: do the same thing for the MICIflag==1 and calving_front_mask_marinecliff
-          ! Identify full cells and partial_cf cells.
-          ! All ice-covered cells not at the CF are full cells.
-          ! For CF cells, compute the max thickness of interior neighbors.
-          ! * If the thickness of the CF cell is close to that of the interior cell
-          !   (based on the thickness gradient), mark the CF cell as a full cell.
-          ! * Otherwise, mark the CF cell as a partial CF cell.
-
-
-          if (MICIflag == 1) then 
-             thck_effective = thck
-             full_mask = 0
-             partial_cf_mask = 0
-             do j = 2, ny-1
-                do i = 2, nx-1
-                   if (ice_mask(i,j) == 1) then
-                      if (calving_front_mask_marinecliff(i,j) == 1) then
-                         max_neighbor_thck = max(&
-                              interior_mask(i-1,j)*thck(i-1,j), interior_mask(i+1,j)*thck(i+1,j), &
-                              interior_mask(i,j-1)*thck(i,j-1), interior_mask(i,j+1)*thck(i,j+1))
-                         if (max_neighbor_thck > 0.0d0) then
-                            distance = sqrt(dx*dy)
-                            dthck_dx = (max_neighbor_thck - thck(i,j)) / distance
-                         ! If the gradient exceeds a critical value, this is a partial CF cell;
-                         !  set thck_effective based on the critical gradient.
-                         ! If the gradient is at or below the critical valude, this is a full cell with thck_effective = thck.
-                            if (dthck_dx > dthck_dx_cf) then
-                               partial_cf_mask(i,j) = 1
-                               thck_effective(i,j) = max_neighbor_thck - dthck_dx_cf*distance
-                            else
-                               full_mask(i,j) = 1
-                            endif   ! dthck_dx > dthck_dx_cf
-                         else   ! no interior neighbors; mark as a partial cell
-                            partial_cf_mask(i,j) = 1
-                            call parallel_globalindex(i, j, ig, jg, parallel)
-!!                            if (this_rank == rtest) then
-!!                               write(6,*) 'No interior neighbor:', ig, jg, thck(i,j)
-!!                            endif
-                         endif   ! max_neighbor_thck > 0
-
-                      else   ! not a CF cell; thck_effective = thck
-
+                         thck_effective(i,j) = max_neighbor_thck - dthck_dx_cf*distance
+                      else
                          full_mask(i,j) = 1
-
-                      endif   ! calving_front_mask
-                   endif   ! ice_mask
-                enddo   ! i
-             enddo   ! j
-          endif !MICIflag
-
-
-          ! Limit thck_effective at the CF so as not to exceed the flotation thickness
-          where (calving_front_mask == 1)
-             thck_flotation = -(rhoo/rhoi) * (topg - eus)
-             thck_effective = min(thck_effective, thck_flotation)
-          endwhere
-          !do the same for the marinecliffs when using the MICIflag, but with a max function, we do not want the
-          !marine cliff cell to become afloat
-
-          if (MICIflag ==1 ) then
-             where (calving_front_mask_marinecliff == 1)
-                thck_flotation = -(rhoo/rhoi) * (topg - eus)
-                thck_effective = max(thck_effective, thck_flotation)
-             endwhere
-
-             if (present(thck_effective_min)) then
-                where (calving_front_mask_marinecliff == 1)
-                   thck_effective = max(thck_effective, thck_effective_min)
-                endwhere
-             endif
-
-          endif !MICIflag
-          ! Optionally, set a minimum value for thck_effective
-          if (present(thck_effective_min)) then
-             where (calving_front_mask == 1)
-                thck_effective = max(thck_effective, thck_effective_min)
-             endwhere
-          endif
-
-          call parallel_halo(thck_effective, parallel)
-          call parallel_halo(full_mask, parallel)
-          call parallel_halo(partial_cf_mask, parallel)
-
-       endif   ! present(thck_effective)
-
-       ! Optionally, use the ratio thck/thck_effective to compute effective_areafrac.
-
-       if (present(effective_areafrac)) then
-          if (present(thck_effective)) then
-             do j = 1, ny
-                do i = 1, nx
-                   if (calving_front_mask(i,j) == 1) then
-                      effective_areafrac(i,j) = thck(i,j) / thck_effective(i,j)
-                      effective_areafrac(i,j) = min(effective_areafrac(i,j), 1.0d0)
-                   elseif (ocean_mask(i,j) == 1) then
-                      effective_areafrac(i,j) = 0.0d0
-                   else  ! non-CF ice-covered cells and/or land cells
-                      effective_areafrac(i,j) = 1.0d0
-                   endif
-                enddo
-             enddo
-          else
-             write(message,*) 'Cannot compute effective_areafrac without thck_effective'
-             call write_log(message, GM_FATAL)
-          endif  ! present(thck_effective)
-       endif   ! present(effective_areafrac)
-
-       if (MICIflag ==1 ) then
-
-
-          ! Optionally, use the ratio thck/thck_effective to compute effective_areafrac.
-
-          if (present(effective_areafrac)) then
-             if (present(thck_effective)) then
-                do j = 1, ny
-                   do i = 1, nx
-                      if (calving_front_mask_marinecliff(i,j) == 1) then
-                         effective_areafrac(i,j) = thck(i,j) / thck_effective(i,j)
-                         effective_areafrac(i,j) = min(effective_areafrac(i,j), 1.0d0)
-                      elseif (ocean_mask(i,j) == 1) then
-                         effective_areafrac(i,j) = 0.0d0
-                      else  ! non-CF ice-covered cells and/or land cells
-                         effective_areafrac(i,j) = 1.0d0
+                      endif   ! dthck_dx > dthck_dx_cf
+                   else   ! no floating interior neighbors
+                      ! Mark as a partial cell, and compute thck_effective from a CF neighbor
+                      partial_cf_mask(i,j) = 1
+                      max_neighbor_thck = max(&
+                           calving_front_mask(i-1,j)*thck(i-1,j), calving_front_mask(i+1,j)*thck(i+1,j), &
+                           calving_front_mask(i,j-1)*thck(i,j-1), calving_front_mask(i,j+1)*thck(i,j+1))
+                      distance = sqrt(dx*dy)
+                      dthck_dx = (max_neighbor_thck - thck(i,j)) / distance
+                      if (dthck_dx > dthck_dx_cf) then
+                         thck_effective(i,j) = max_neighbor_thck - dthck_dx_cf*distance
                       endif
-                   enddo
-                enddo
-             else
-                write(message,*) 'Cannot compute effective_areafrac without thck_effective'
-                call write_log(message, GM_FATAL)
-             endif  ! present(thck_effective)
-          endif   ! present(effective_areafrac)
+!!                         call parallel_globalindex(i, j, ig, jg, parallel)
+!!                         write(6,*) 'No interior neighbor:', ig, jg, thck(i,j)
+!!                         write(6,*) '   New H_eff:', thck_effective(i,j)
+                   endif   ! max_neighbor_thck > 0
 
+                else   ! not a CF cell; thck_effective = thck
 
-    endif ! MICIflag
+                   full_mask(i,j) = 1
 
+                endif   ! calving_front_mask
+             endif   ! ice_mask
+          enddo   ! i
+       enddo   ! j
 
+       ! Limit thck_effective at the CF so as not to exceed the flotation thickness
+       where (calving_front_mask == 1)
+          thck_effective = min(thck_effective, thck_flotation)
+       endwhere
+
+       ! Set a lower limit for thck_effective
+       where (calving_front_mask == 1)
+          thck_effective = max(thck_effective, thck_effective_min)
+       endwhere
+
+       call parallel_halo(thck_effective, parallel)
+       call parallel_halo(full_mask, parallel)
+       call parallel_halo(partial_cf_mask, parallel)
+
+       ! Use the ratio thck/thck_effective to compute effective_areafrac.
+
+       do j = 1, ny
+          do i = 1, nx
+             if (calving_front_mask(i,j) == 1) then
+                effective_areafrac(i,j) = thck(i,j) / thck_effective(i,j)
+                effective_areafrac(i,j) = min(effective_areafrac(i,j), 1.0d0)
+             elseif (ocean_mask(i,j) == 1) then
+                effective_areafrac(i,j) = 0.0d0
+             else  ! non-CF ice-covered cells and/or land cells
+                effective_areafrac(i,j) = 1.0d0
+             endif
+          enddo
+       enddo
 
     else   ! no subgrid calving front scheme
 
-       if (present(thck_effective)) then
-          thck_effective = thck
-       endif
+       thck_effective = thck
+       partial_cf_mask = 0
+       full_mask = ice_mask
 
-       if (present(partial_cf_mask)) then
-          partial_cf_mask = 0
-       endif
-
-       if (present(full_mask)) then
-          full_mask = ice_mask
-       endif
-
-       if (present(effective_areafrac)) then
-          where (ice_mask == 1 .or. land_mask == 1)
-             effective_areafrac = 1.0d0
-          elsewhere
-             effective_areafrac = 0.0d0
-          endwhere
-       endif
+       where (ice_mask == 1 .or. land_mask == 1)
+          effective_areafrac = 1.0d0
+       elsewhere
+          effective_areafrac = 0.0d0
+       endwhere
 
     endif  ! which_ho_calving_front
 
@@ -1049,10 +917,7 @@
                                              itest, jtest, rtest,          &
                                              thck,         topg,           &
                                              eus,          thklim,         &
-                                             marine_connection_mask,       &
-                                             which_ho_marine_mask,         &
-                                             f_ground_cell,                &
-                                             bmlt_fground_threshold)
+                                             marine_connection_mask)
 
     ! Identify cells that have a marine path to the ocean.
     ! The path can include grounded marine-based ice.
@@ -1079,25 +944,14 @@
     integer, dimension(nx,ny), intent(out) ::  &
          marine_connection_mask    !> = 1 for ocean cells and cells connected to the ocean through marine-based ice
 
-    integer, intent(in), optional :: &
-         which_ho_marine_mask
-
-    real(dp), dimension(nx,ny),  intent(in), optional :: &
-         f_ground_cell           !>extended grid ground function 
-   
-    real(dp), intent(in), optional :: &
-         bmlt_fground_threshold  !> with an fgroundcell above this value, cells are considered to block ocean melting
-   ! local variables 
+    ! local variables
 
     integer, dimension(nx,ny) ::  &
          ocean_mask,          &  !> = 1 where topg - eus is below sea level and ice is absent, else = 0
          ocean_mask_temp,     &  !> temporary version of ocean_mask
          marine_mask,         &  !> marine-based cells; topg - eus < 0
-         color                  ! integer 'color' mask to mark filled cells
-         
+         color                   ! integer 'color' mask to mark filled cells
 
-    real(dp), dimension(nx,ny) :: & 
-         topg_local              !>array to hold the topography used here, possibly adjusted where the f_ground_cell=1
     integer :: i, j, iter
 
     integer :: &
@@ -1110,31 +964,11 @@
     real(dp), parameter :: &
          ocean_topg_threshold = -500.d0   !> ocean threshold elevation (m) to seed the fill; negative below sea level
 
-    logical, parameter :: verbose_marine_connection = .true.
+    logical, parameter :: verbose_marine_connection = .false.
 
     ! Compute ocean_mask, which is used to seed the fill.
     ! If ocean_topg_threshold was passed in, then ocean_mask includes only cells
     !  with topg - eus < ocean_topg_threshold.
-    ! TIM: debug, this next loop I added but I suspect this is what is causing a vertical remap problem. I'll remove it
-
-!    if (present(which_ho_marine_mask)) then
-!      if (which_ho_marine_mask == HO_MARINE_MASK_ISOLATED) then
-!        do j=1, ny
-!           do i=1, nx
-!              if (f_ground_cell(i,j)>bmlt_fground_threshold) then
-!                 topg_local(i,j)=1999.0d0 !dummy variable above sl
-!              else
-!                 topg_local(i,j)=topg(i,j)
-!              endif
-!           enddo
-!          enddo
-!       else
-!          topg_local(:,:) = topg(:,:)
-!       endif !which_ho_marine_mask
-!    else
-!       topg_local(:,:) = topg(:,:)
-!    endif !if present
-
 
     where (thck <= thklim .and. topg - eus < ocean_topg_threshold)
        ocean_mask = 1

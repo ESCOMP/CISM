@@ -1457,10 +1457,7 @@ contains
             model%numerics%rdiag_local,                             &
             model%geometry%thck * thk0, model%geometry%topg * thk0, &
             model%climate%eus * thk0,   0.0d0,                      &  ! thklim = 0
-            model%geometry%marine_connection_mask_isolated,         &
-            model%options%which_ho_marine_mask,                     &
-            model%geometry%f_ground_cell,                           &
-            model%basal_melt%bmlt_fground_threshold)
+            model%geometry%marine_connection_mask_isolated)
 
          model%basal_melt%bmlt(:,:) = model%basal_melt%bmlt_ground(:,:) + &
          model%geometry%marine_connection_mask_isolated(:,:)*model%basal_melt%bmlt_float(:,:)*model%basal_melt%bmlt_float_factor_internal
@@ -2585,8 +2582,6 @@ contains
             ice_mask,               floating_mask,    &
             ocean_mask,             land_mask,        &
             calving_front_mask,                       &
-            calving_front_mask_marinecliff,           &
-            model%calving%MICIflag,                         &
             dthck_dx_cf = model%calving%dthck_dx_cf,  &
             dx = model%numerics%dew*len0,             &
             dy = model%numerics%dns*len0,             &
@@ -3455,7 +3450,7 @@ contains
 
     use glimmer_paramets, only: thk0, tim0, len0, vel0
     use glimmer_physcon, only: scyr
-    use glissade_calving, only: glissade_calve_ice, glissade_cull_calving_front, &
+    use glissade_calving, only: glissade_calve_ice, &
          glissade_remove_icebergs, glissade_remove_isthmuses, glissade_limit_cliffs, &
          verbose_calving
     use glissade_masks, only: glissade_get_masks, glissade_ocean_connection_mask
@@ -3755,6 +3750,7 @@ contains
             model%options%whichcalving,        &
             model%options%calving_domain,      &
             model%options%which_ho_calving_front, &
+            model%options%which_ho_calvingmip_domain, &
             parallel,                          &
             model%calving,                     &        ! calving object; includes calving_thck (m)
             itest, jtest, rtest,               &
@@ -3762,6 +3758,8 @@ contains
             model%numerics%time*scyr,          &        ! s
             model%numerics%dew*len0,           &        ! m
             model%numerics%dns*len0,           &        ! m
+            model%general%x0,                  &        ! m
+            model%general%y0,                  &        ! m
             model%general%x1,                  &        ! m
             model%general%y1,                  &        ! m
             model%numerics%sigma,              &
@@ -3772,24 +3770,23 @@ contains
             thck_unscaled,                     &        ! m
             model%isostasy%relx*thk0,          &        ! m
             model%geometry%topg*thk0,          &        ! m
-            model%climate%eus*thk0,            &
-            model%ocean_data%deltaT_ocn)                     ! m
+            model%climate%eus*thk0)            
 
     endif
 
     if (init_calving .and. model%options%cull_calving_front) then
 
-       call glissade_cull_calving_front(&
-            nx,           ny,              &
-            parallel,                      &
-            itest, jtest, rtest,           &
-            thck_unscaled,                 &  ! m
-            model%geometry%topg*thk0,      &  ! m
-            model%climate%eus*thk0,        &  ! m
-            model%numerics%thklim*thk0,    &  ! m
-            model%options%which_ho_calving_front, &
-            model%calving%ncull_calving_front,    &
-            model%calving%calving_thck)       ! m
+!       call glissade_cull_calving_front(&
+!            nx,           ny,              &
+!            parallel,                      &
+!            itest, jtest, rtest,           &
+!            thck_unscaled,                 &  ! m
+!            model%geometry%topg*thk0,      &  ! m
+!            model%climate%eus*thk0,        &  ! m
+!            model%numerics%thklim*thk0,    &  ! m
+!            model%options%which_ho_calving_front, &
+!            model%calving%ncull_calving_front,    &
+!            model%calving%calving_thck)       ! m
 
     endif
 
@@ -3980,6 +3977,7 @@ contains
             thck_unscaled,                        &  ! m
             model%geometry%f_ground_cell,         &
             ice_mask,                             &
+            floating_mask,                        &
             land_mask,                            &
             model%calving%calving_thck)              ! m
 
@@ -4348,16 +4346,15 @@ contains
                                      model%climate%eus*thk0,                     &
                                      ice_mask,            floating_mask,         &
                                      ocean_mask,          land_mask,             &
-                                     calving_front_mask,                         &
-                                     calving_front_mask_marinecliff,             &
-                                     model%calving%MICIflag,                     &
+                                     calving_front_mask,                         & 
+                                     dthck_dx_cf = model%calving%dthck_dx_cf,    &
                                      dx = model%numerics%dew*len0,               &
                                      dy = model%numerics%dns*len0,               &
-                                     dthck_dx_cf = model%calving%dthck_dx_cf,    &
                                      thck_effective = model%calving%thck_effective,  &
                                      thck_effective_min = model%calving%thck_effective_min,  &
                                      partial_cf_mask = partial_cf_mask,          &
-                                     full_mask = full_mask)
+                                     full_mask = full_mask,                      &
+                                     effective_areafrac = model%calving%effective_areafrac)
 
     ! ------------------------------------------------------------------------
     ! Compute the fraction of grounded ice in each cell and at each vertex.

@@ -1173,6 +1173,9 @@ module glide_types
     !> \item[1] subgrid parameterization with partially filled cells at the calving front
     !> \end{description}
 
+    integer :: which_ho_calvingmip_domain = 0 !just here as a placeholder so that I, Tim, could use Bills calving 
+    ! algorithm
+
     integer :: which_ho_ground = 0
     !> Flag that indicates how to compute the grounded fraction of each gridcell in the glissade dycore.
     !> Not valid for other dycores
