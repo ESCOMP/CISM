@@ -793,7 +793,7 @@ contains
     call GetValue(section, 'which_ho_coulomb_c_error',    model%options%which_ho_coulomb_c_error)
     call GetValue(section, 'which_ho_bmlt_basin',         model%options%which_ho_bmlt_basin)
     call GetValue(section, 'which_ho_deltaT_ocn',         model%options%which_ho_deltaT_ocn)
-
+    call GetValue(section, 'which_ho_dhdt_limit',         model%options%which_ho_dhdt_limit)
     call GetValue(section, 'which_ho_deltaT_cap',         model%options%which_ho_deltaT_cap)
     call GetValue(section, 'deltaT_ocn_extrapolate',      model%options%deltaT_ocn_extrapolate)
     call GetValue(section, 'which_ho_flow_enhancement_factor', model%options%which_ho_flow_enhancement_factor)

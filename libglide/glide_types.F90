@@ -321,6 +321,8 @@ module glide_types
   integer, parameter :: HO_NO_DAMAGELINES = 0
   integer, parameter :: HO_DAMAGELINES = 1
 
+  integer, parameter :: HO_NO_DHDT_LIMITATION = 0
+  integer, parameter :: HO_DHDT_LIMITATION    = 1
 
   integer, parameter :: HO_EFFECPRESS_OVERBURDEN = 0
   integer, parameter :: HO_EFFECPRESS_BPMP = 1
@@ -840,6 +842,12 @@ module glide_types
     !> \item[1] Compute on active blocks only; one task per active block, no task for some or all inactive blocks
     !> \item[2] Inquire how many active blocks there are, in prep for resubmitting with option 1
     !> \end{description}
+    
+    integer :: which_ho_dhdt_limit = 0
+    !> \begin{description}
+    !> \item[0] just apply all dhdt
+    !> \item[1] remove dhdt from the calving front cells
+
 
     integer :: which_ho_efvs = 2
 

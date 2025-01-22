@@ -3222,6 +3222,15 @@ contains
 
        endif   ! enable_acab_dthck_dt_correction
 
+
+       !!create here a check to remove the dhdt correction at the calving front cells
+       if (model%options%which_ho_dhdt_limit == HO_DHDT_LIMITATION) then
+          where (calving_front_mask == 1)
+             acab_unscaled = acab_unscaled + model%geometry%dthck_dt_obs/scyr
+          endwhere
+       endif
+
+
        ! Convert bmlt to SI units (m/s)
        ! Note: bmlt is the sum of bmlt_ground (computed in glissade_thermal_solve) and bmlt_float
        !       (computed in glissade_bmlt_float_solve).
