@@ -386,6 +386,14 @@ long_name:     deltaT_ocn
 data:          data%ocean_data%deltaT_ocn
 load:          1
 
+[ocean_data_save]
+dimensions:     time, y1, x1
+units:         degrees K
+long_name:     Thermal forcing at the calving front at certain depth
+data:          data%ocean_data%ocean_data_save
+load:          1
+
+
 [thermal_forcing]
 dimensions:    time, zocn, y1, x1
 units:         degrees K

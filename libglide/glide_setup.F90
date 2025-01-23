@@ -2258,6 +2258,8 @@ contains
     call GetValue(section,'MICI_alpha',           model%calving%MICI_alpha)
     call GetValue(section,'MICI_calving_threshold',           model%calving%MICI_calving_threshold)
 
+    !depth at which to save the thermal forcing at the calving front
+    call GetValue(section, 'depth_ocean_data_save', model%ocean_data%depth_ocean_data_save) 
 
     ! NOTE: bpar is used only for BTRC_TANH_BWAT
     !       btrac_max and btrac_slope are used (with btrac_const) for BTRC_LINEAR_BMLT

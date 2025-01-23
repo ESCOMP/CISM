@@ -1061,8 +1061,9 @@ contains
              ! * When C = C_r, there is no further relaxation.
              ! * In steady state (dC/dt = 0, dH/dt = 0), we have dthck/thck_scale = -k * ln(C/C_r),
              !    or C = C_r * exp(-dthck/(k*thck_scale)), where k is a prescribed constant.
+             !TvdA: I've added a plus something to the log to prevent logs of zero, that result in NaN
              if (friction_c_relax(i,j) > 0.0d0) then
-                     term_relax = -babc_relax_factor * log(friction_c(i,j)/friction_c_relax(i,j)) / babc_timescale
+                     term_relax = -babc_relax_factor * log((friction_c(i,j)+0.00001)/friction_c_relax(i,j)) / babc_timescale
              else 
                      term_relax = 0.0d0
              endif

@@ -2019,6 +2019,11 @@ module glide_types
           thermal_forcing_anomaly_tstart = 0.0d0, & !> starting time (yr) for applying or phasing in the anomaly
           thermal_forcing_anomaly_timescale = 0.0d0 !> number of years over which the anomaly is phased in linearly
                                                     !> If set to zero, then the full anomaly is applied immediately.
+     real(dp), dimension(:,:), pointer  :: &
+          ocean_data_save => null()                 !to save the thermal forcing at the calving front at a certain depth
+
+     real(dp) :: depth_ocean_data_save = -500.0d0
+
      integer :: &
           thermal_forcing_anomaly_basin = 0         !> basin where anomaly is applied;
                                                     !> for default value of 0, apply to all basins
@@ -3142,6 +3147,7 @@ contains
     call coordsystem_allocate(model%general%ice_grid, model%geometry%thkmask)
     call coordsystem_allocate(model%general%velo_grid, model%geometry%stagmask)
     call coordsystem_allocate(model%general%ice_grid, model%geometry%cell_area)
+    call coordsystem_allocate(model%general%ice_grid, model%ocean_data%ocean_data_save)
 
     !Note: model%geometry%tracers and related arrays are allocated later, in glissade_transport_setup_tracers,
     !      once we know model%geometry%ntracers
@@ -3653,7 +3659,7 @@ contains
         deallocate(model%velocity%divu)
     if (associated(model%velocity%shear)) &
         deallocate(model%velocity%shear)
-
+ 
     ! higher-order stress arrays
 
     if (associated(model%stress%efvs)) &
@@ -3773,6 +3779,8 @@ contains
         deallocate(model%ocean_data%thermal_forcing)
     if (associated(model%ocean_data%thermal_forcing_lsrf)) &
         deallocate(model%ocean_data%thermal_forcing_lsrf)
+    if (associated(model%ocean_data%ocean_data_save)) &
+        deallocate(model%ocean_data%ocean_data_save)    
 
     ! glacier arrays
     if (associated(model%glacier%glacierid)) &

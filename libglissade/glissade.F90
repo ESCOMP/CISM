@@ -4552,6 +4552,31 @@ contains
 
     endif   ! which_ho_deltaT_ocn
 
+    !save the thermal forcing at the lsrf at a certain depth
+    ! use model%ocean_data%thermal_forcing_lsrf, model%ocean_data%depth_ocean_data_save, model%ocean_data%ocean_data_save, 
+    ! and calving_front_mask which has been updated just before here
+
+    !calculate the index at which zocn is closesed with ocean_data%nzocn and ocean_data%zocn
+    ! I do not feel like interpolating too much
+
+
+    if (model%ocean_data%depth_ocean_data_save >= model%ocean_data%zocn(1)) then
+       !index equals 1, take the first layer
+       model%ocean_data%ocean_data_save(:,:)=model%ocean_data%thermal_forcing(1,:,:)*calving_front_mask
+    elseif (model%ocean_data%depth_ocean_data_save < model%ocean_data%zocn(1)) then
+       !index equals nzocn, take the last layer
+              model%ocean_data%ocean_data_save(:,:)=model%ocean_data%thermal_forcing(model%ocean_data%nzocn,:,:)*calving_front_mask
+    else
+       do k = 1, model%ocean_data%nzocn-1
+          if (model%ocean_data%depth_ocean_data_save < model%ocean_data%zocn(k) .and. &
+                      model%ocean_data%depth_ocean_data_save >= model%ocean_data%zocn(k+1)) then
+             model%ocean_data%ocean_data_save(:,:)=model%ocean_data%thermal_forcing(k,:,:)*calving_front_mask
+          endif
+       enddo
+    endif ! 
+    
+    
+
     ! If setting deltaT_ocn based on observed dthck_dt, then do so here.
     ! TODO - Deprecate this option?
 
