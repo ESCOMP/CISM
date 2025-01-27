@@ -4562,10 +4562,10 @@ contains
 
     if (model%ocean_data%depth_ocean_data_save >= model%ocean_data%zocn(1)) then
        !index equals 1, take the first layer
-       model%ocean_data%ocean_data_save(:,:)=model%ocean_data%thermal_forcing(1,:,:)*calving_front_mask
+       model%ocean_data%ocean_data_save(:,:)=model%ocean_data%thermal_forcing(1,:,:)*model%calving%calving_mask
     elseif (model%ocean_data%depth_ocean_data_save < model%ocean_data%zocn(1)) then
        !index equals nzocn, take the last layer
-              model%ocean_data%ocean_data_save(:,:)=model%ocean_data%thermal_forcing(model%ocean_data%nzocn,:,:)*calving_front_mask
+              model%ocean_data%ocean_data_save(:,:)=model%ocean_data%thermal_forcing(model%ocean_data%nzocn,:,:)*model%calving%calving_mask
     else
        do k = 1, model%ocean_data%nzocn-1
           if (model%ocean_data%depth_ocean_data_save < model%ocean_data%zocn(k) .and. &
