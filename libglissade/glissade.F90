@@ -1056,10 +1056,11 @@ contains
 
     endif   ! force_retreat
 
-    !WHL - debug - Compute calving_mask for all the subgrid CF options
-!!    if ((model%options%whichcalving == CALVING_GRID_MASK .or. model%options%apply_calving_mask)  &
+    !Note: Compute calving_mask not only for the CALVING_GRID_MASK option, but also for the
+    !      subgrid CF options. With the subgrid CF options, we can use calving_mask to disable
+    !      inversion procedures that might inhibit CF advance/retreat (since this would be cheating).
     if ( (model%options%whichcalving == CALVING_GRID_MASK .or. model%options%apply_calving_mask .or.  &
-         model%options%which_ho_calving_front == HO_CALVING_FRONT_SUBGRID)  &
+          model%options%which_ho_calving_front == HO_CALVING_FRONT_SUBGRID)  &
          .and. model%options%is_restart == NO_RESTART) then
 
        ! Initialize the no-advance calving_mask
@@ -3227,7 +3228,8 @@ contains
     use glimmer_physcon, only: scyr
     use glissade_calving, only: glissade_calve_ice, verbose_calving, &
          glissade_remove_icebergs, glissade_remove_isthmuses, glissade_limit_cliffs
-    use glissade_masks, only: glissade_get_masks, glissade_ocean_connection_mask
+    use glissade_masks, only: glissade_get_masks, glissade_ocean_connection_mask, &
+         glissade_calving_front_mask
     use glissade_grounding_line, only: glissade_grounded_fraction
     implicit none
 
@@ -3276,6 +3278,11 @@ contains
     type(parallel_type) :: parallel   ! info for parallel communication
 
     logical, parameter :: verbose_retreat = .true.
+
+    integer, dimension(model%general%ewn, model%general%nsn) :: &
+         calving_front_mask,      & !
+         partial_cf_mask,         & ! = 1 for partially filled CF cells (thck < thck_effective), else = 0
+         full_mask                  ! = 1 for ice-filled cells that are not partial_cf cells, else = 0
 
     nx = model%general%ewn
     ny = model%general%nsn
@@ -3702,7 +3709,7 @@ contains
             land_mask = land_mask,  ocean_mask = ocean_mask)
 
        ! Compute the grounded ice fraction in each grid cell
-
+       !TODO - See if we can spread the fill with a grounded_mask (i.e., without f_ground_cell)
        call glissade_grounded_fraction(&
             nx,          ny,               &
             parallel,                      &
@@ -3720,6 +3727,33 @@ contains
             model%geometry%f_ground,       &
             model%geometry%f_ground_cell,  &
             model%geometry%topg_stdev*thk0)
+
+       if (model%options%which_ho_calving_front == HO_CALVING_FRONT_SUBGRID) then
+
+          ! Compute partial_cf_mask and full-mask.
+          ! This is to prevent partial CF cells from spreading the fill.
+          call glissade_calving_front_mask(&
+               nx,          ny,     &
+               model%options%which_ho_calving_front,       &
+               parallel,                                   &
+               model%geometry%thck*thk0,                   &
+               model%geometry%topg*thk0,                   &
+               model%climate%eus*thk0,                     &
+               ice_mask,            floating_mask,         &
+               ocean_mask,          land_mask,             &
+               calving_front_mask,                         &
+               dx = model%numerics%dew*len0,               &
+               dy = model%numerics%dns*len0,               &
+               dthck_dx_cf = model%calving%dthck_dx_cf,    &
+               thck_effective = model%calving%thck_effective,  &
+               thck_effective_min = model%calving%thck_effective_min,  &
+               partial_cf_mask = partial_cf_mask,          &
+               full_mask = full_mask,                      &
+               effective_areafrac = model%calving%effective_areafrac)
+
+          ice_mask = full_mask
+
+       endif   ! which_ho_calving_front
 
        ! Remove icebergs.
        ! Icebergs are defined as floating cells that do not have a path through active cells

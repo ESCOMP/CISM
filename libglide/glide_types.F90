@@ -184,9 +184,9 @@ module glide_types
   integer, parameter :: CF_ADVANCE_RETREAT_RATE = 6
   integer, parameter :: CALVING_THCK_THRESHOLD = 7
   integer, parameter :: CALVING_STRESS = 8
-  integer, parameter :: EIGEN_CALVING = 9
-  integer, parameter :: CALVING_STRESS_STOCHASTIC = 10
-  integer, parameter :: CALVING_DAMAGE = 11
+  integer, parameter :: CALVING_STRESS_STOCHASTIC = 9
+  integer, parameter :: CALVING_DAMAGE = 10
+  integer, parameter :: EIGEN_CALVING = 11
   integer, parameter :: CALVING_HUYBRECHTS = 12
 
   integer, parameter :: CALVING_INIT_OFF = 0
@@ -667,10 +667,10 @@ module glide_types
     !> \item[5] Set thickness to zero based on grid location (field 'calving_mask')
     !> \item[6] Prescribe the rate of calving front advance or retreat
     !> \item[7] Calve ice whose thickness is below a given threshold
-    !> \item[8] Calving rate based on stress threshold criterion (von Mises)
-    !> \item[9] Calving rate based on strain-rate criterion (eigencalving)
-    !> \item[10] Stochastic stress-based calving
-    !> \item[11] Calve ice that is sufficiently damaged
+    !> \item[8] Deterministic calving based on eigenvalues of the horizontal stress tensor
+    !> \item[9] Stochastic calving based on eigenvalues of the horizontal stress tensor
+    !> \item[10] Calving based on stochastic internal damage
+    !> \item[11] Eigencalving following Levermann et al. (2012)
     !> \item[12] Huybrechts calving
     !TODO - Revise the numbering?
     !> \end{description}
@@ -868,16 +868,16 @@ module glide_types
     !> Flag for basal powerlaw_c options
     !> \begin{description}
     !> \item[0] powerlaw_c = spatially uniform constant
-    !> \item[1] powerlaw_c = invert for 2D coulomb_c
-    !> \item[2] powerlaw_c = read 2D coulomb_c from external file
+    !> \item[1] invert for 2D powerlaw_c
+    !> \item[2] read 2D powerlaw_c from external file
     !> \end{description}
 
     integer :: which_ho_coulomb_c = 0
     !> Flag for basal coulomb_c options
     !> \begin{description}
     !> \item[0] coulomb_c = spatially uniform constant
-    !> \item[1] coulomb_c = invert for 2D coulomb_c
-    !> \item[2] coulomb_c = read 2D coulomb_c from external file
+    !> \item[1] invert for 2D coulomb_c
+    !> \item[2] read 2D coulomb_c from external file
     !> \item[3] coulomb_c = function of bed elevation
     !> \end{description}
 
@@ -921,7 +921,7 @@ module glide_types
     !> Basal water depth:
     !> \begin{description}
     !> \item[0] Set to zero everywhere
-    !> \item[1] Set to constant everywhere, to force T = Tpmp.
+    !> \item[1] Set to constant everywhere, to force T = Tpmp
     !> \item[2] Local basal till model with constant drainage
     !> \item[3] Steady-state water routing with flux calculation
     !> \end{description}
@@ -1555,7 +1555,6 @@ module glide_types
      real(dp),dimension(:,:),  pointer :: thck_effective => null() !> effective thickness for calving (m)
      real(dp),dimension(:,:),  pointer :: effective_areafrac => null() !> effective fractional area, < 1 for partial CF cells (m)
      real(dp),dimension(:,:),  pointer :: lateral_rate => null()   !> lateral calving rate (m/yr, not scaled)
-                                                                   !> (whichcalving = EIGEN_CALVING, CALVING_DAMAGE) 
      real(dp),dimension(:,:),  pointer :: tau_eigen1 => null()     !> first eigenvalue of 2D horizontal stress tensor (Pa)
      real(dp),dimension(:,:),  pointer :: tau_eigen2 => null()     !> second eigenvalue of 2D horizontal stress tensor (Pa)
      real(dp),dimension(:,:),  pointer :: eps_eigen1 => null()     !> first eigenvalue of 2D horizontal strain rate tensor (s^-1)
@@ -1575,13 +1574,17 @@ module glide_types
      real(dp) :: dthck_dx_cf = 0.0d0             !> assumed max value of |dH/dx| at the calving front for full (not partial) cells (m/m)
      real(dp) :: thck_effective_min = 50.0d0     !> minimum value of thck_effective (m) for calving-front cells
      real(dp) :: eigenconstant = 0.0d0           !> constant that multiplies the eigen-based strain rate to determine the calving rate (m)
-     real(dp) :: tau_eigenconstant1 = 1.0d0      !> constant that multiplies the tau_eigen1 term in stress-based calving (unitless)
+     real(dp) :: tau_eigenconstant1 = 0.25d0     !> constant that multiplies the tau_eigen1 term in stress-based calving (unitless)
      real(dp) :: tau_eigenconstant2 = 1.0d0      !> constant that multiplies the tau_eigen2 term in stress-based calving (unitless)
-     real(dp) :: stress_threshold = 1.0e5        !> stress threshold for CF retreat with stress-based calving (Pa)
+     real(dp) :: stress_threshold = 6.0e4        !> stress threshold for CF retreat with stress-based calving (Pa)
+     real(dp) :: lateral_rate_min = 0.0d0        !> minimum lateral retreat rate at CF (m/yr)
+     real(dp) :: effec_stress_min = 0.0d0        !> minimum effective stress for calving at CF (m/yr)
+     real(dp) :: length_scale = 4000.d0          !> length scale (m) for calving events (CALVING_STRESS_STOCHASTIC)
      real(dp) :: damage_threshold = 0.0d0        !> threshold at which ice column is sufficiently damaged to calve
                                                  !> 0 = no damage, 1 = total damage (whichcalving = CALVING_DAMAGE)
-     real(dp) :: damage_constant1 = 0.0d0        !> damage constant that multiplies tau_eigen1 (yr^-1)
-     real(dp) :: damage_constant2 = 0.0d0        !> damage constant that multiplies tau_eigen2 (yr^-1)
+     real(dp) :: damage_constant = 1.e5          !> damage scaling term with units of Pa * yr
+!     real(dp) :: damage_constant1 = 0.0d0        !> damage constant that multiplies tau_eigen1 (yr^-1)
+!     real(dp) :: damage_constant2 = 0.0d0        !> damage constant that multiplies tau_eigen2 (yr^-1)
      real(dp) :: taumax_cliff = 1.0d6            !> yield stress (Pa) for marine-based ice cliffs
      real(dp) :: cliff_timescale = 10.0d0        !> time scale (yr) for limiting marine cliffs (yr)
      real(dp) :: calving_front_x = 0.0d0         !> for CALVING_GRID_MASK option, calve ice wherever abs(x) > calving_front_x (m)
@@ -1911,8 +1914,8 @@ module glide_types
      integer :: set_powerlaw_c = 0
      !> \begin{description}
      !> \item[0] apply spatially uniform powerlaw_c
-     !> \item[1] invert for glacier-specific powerlaw_c
-     !> \item[2] read glacier-specific powerlaw_c from external file
+     !> \item[1] invert for 2D powerlaw_c
+     !> \item[2] read 2D powerlaw_c from external file
      !> \end{description}
 
      ! other options
@@ -1958,6 +1961,7 @@ module glide_types
           alpha_snow_max = 3.0d0              ! max value of alpha_snow
 
      real(dp) ::  &
+          !TODO - Change beta_artm_max to 5.0 as in Alps runs?
           beta_artm_max = 3.0,              & ! max magnitude of beta_artm (deg C)
           beta_artm_increment = 0.05d0        ! fixed increment in beta_artm (deg C)
 
@@ -1968,6 +1972,7 @@ module glide_types
           snow_threshold_max = 2.0d0          !> air temperature (deg C) above which all precip falls as rain
 
      real(dp) :: &
+          !TODO - Change baseline date to 1984 as in Alps runs?
           baseline_date = 1980.d0,          & !> baseline date, when glaciers are assumed to be in balance
           rgi_date = 2003.d0,               & !> date of RGI observations
           recent_date = 2010.d0               !> recent date associated with SMB observations for glaciers out of balance

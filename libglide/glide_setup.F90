@@ -974,19 +974,19 @@ contains
 
     !TODO - Change 'marine_margin' to 'calving'?  Would have to modify many config files
     character(len=*), dimension(0:12), parameter :: marine_margin = (/ &
-         'no calving law                   ', &
-         'remove all floating ice          ', &
-         'remove fraction of floating ice  ', &
-         'relaxed bedrock threshold        ', &
-         'present bedrock threshold        ', &
-         'calving based on grid location   ', &
-         'prescribe CF advance/retreat rate', &
-         'ice thickness threshold          ', &
-         'stress threshold                 ', &
-         'strain-rate (eigencalving)       ', &
-         'stochastic stress-based calving  ', &
-         'damage-based calving scheme      ', &
-         'Huybrechts calving               '/)
+         'no calving law                     ', &
+         'remove all floating ice           ', &
+         'remove fraction of floating ice   ', &
+         'relaxed bedrock threshold         ', &
+         'present bedrock threshold         ', &
+         'calving based on grid location    ', &
+         'prescribe CF advance/retreat rate ', &
+         'ice thickness threshold           ', &
+         'deterministic stress-based calving', &
+         'stochastic stress-based calving   ', &
+         'damage-based calving scheme       ', &
+         'strain-rate (eigencalving)        ', &
+         'Huybrechts calving                '/)
 
     character(len=*), dimension(0:1), parameter :: init_calving = (/ &
          'no calving at initialization    ', &
@@ -2205,9 +2205,11 @@ contains
     call GetValue(section,'tau_eigenconstant1', model%calving%tau_eigenconstant1)
     call GetValue(section,'tau_eigenconstant2', model%calving%tau_eigenconstant2)
     call GetValue(section,'stress_threshold',   model%calving%stress_threshold)
+    call GetValue(section,'lateral_rate_min',   model%calving%lateral_rate_min)
+    call GetValue(section,'effec_stress_min',   model%calving%effec_stress_min)
+    call GetValue(section,'length_scale',       model%calving%length_scale)
     call GetValue(section,'damage_threshold',   model%calving%damage_threshold)
-    call GetValue(section,'damage_constant1',   model%calving%damage_constant1)
-    call GetValue(section,'damage_constant2',   model%calving%damage_constant2)
+    call GetValue(section,'damage_constant',    model%calving%damage_constant)
     call GetValue(section,'taumax_cliff',       model%calving%taumax_cliff)
     call GetValue(section,'cliff_timescale',    model%calving%cliff_timescale)
     call GetValue(section,'calving_front_x',    model%calving%calving_front_x)
@@ -2442,8 +2444,8 @@ contains
     if (model%options%whichcalving == CF_ADVANCE_RETREAT_RATE    .or.  &
         model%options%whichcalving == CALVING_THCK_THRESHOLD     .or.  &
         model%options%whichcalving == CALVING_STRESS             .or.  &
-        model%options%whichcalving == EIGEN_CALVING              .or.  &
         model%options%whichcalving == CALVING_STRESS_STOCHASTIC  .or.  &
+        model%options%whichcalving == EIGEN_CALVING              .or.  &
         model%options%whichcalving == CALVING_DAMAGE) then
 
        if (model%options%which_ho_calving_front == HO_CALVING_FRONT_NO_SUBGRID) then
@@ -2469,6 +2471,8 @@ contains
           call write_log(message)
           write(message,*) 'stress_threshold (Pa)         : ', model%calving%stress_threshold
           call write_log(message)
+          write(message,*) 'lateral_rate_min (m/yr)       : ', model%calving%lateral_rate_min
+          call write_log(message)
        elseif (model%options%whichcalving == CALVING_STRESS_STOCHASTIC) then
           write(message,*) 'tau_eigenconstant 1           : ', model%calving%tau_eigenconstant1
           call write_log(message)
@@ -2476,10 +2480,14 @@ contains
           call write_log(message)
           write(message,*) 'stress_threshold (Pa)         : ', model%calving%stress_threshold
           call write_log(message)
-       elseif (model%options%whichcalving == CALVING_DAMAGE) then
-          write(message,*) 'damage constant1 (1/yr)       : ', model%calving%damage_constant1
+          write(message,*) 'effec_stress_min (m/yr)       : ', model%calving%effec_stress_min
           call write_log(message)
-          write(message,*) 'damage constant2 (1/yr)       : ', model%calving%damage_constant2
+          write(message,*) 'calving_length_scale (m)      : ', model%calving%length_scale
+          call write_log(message)
+       elseif (model%options%whichcalving == CALVING_DAMAGE) then
+          write(message,*) 'tau_eigenconstant 1           : ', model%calving%tau_eigenconstant1
+          call write_log(message)
+          write(message,*) 'tau_eigenconstant 2           : ', model%calving%tau_eigenconstant2
           call write_log(message)
           write(message,*) 'damage threshold              : ', model%calving%damage_threshold
           call write_log(message)
@@ -3728,13 +3736,15 @@ contains
            call glide_add_to_restart_variable_list('calving_mask', model_id)
         endif
 
-           ! The eigencalving calculation requires the product of eigenvalues of the horizontal strain rate tensor,
+        ! The eigencalving calculation requires the product of eigenvalues of the horizontal strain rate tensor,
         !  which depends on the stress tensor, which is computed by the HO solver.
         ! On restart, the correct stress and strain rate tensors are not available, so we read in the eigenproduct.
-        if (options%whichcalving == EIGEN_CALVING .or. options%whichcalving == CALVING_DAMAGE) then
+        if (options%whichcalving == EIGEN_CALVING) then
            call glide_add_to_restart_variable_list('eps_eigen1', model_id)
            call glide_add_to_restart_variable_list('eps_eigen2', model_id)
-        elseif (options%whichcalving == CALVING_STRESS) then
+        elseif (options%whichcalving == CALVING_STRESS .or. &
+                options%whichcalving == CALVING_STRESS_STOCHASTIC .or. &
+                options%whichcalving == CALVING_DAMAGE) then
            call glide_add_to_restart_variable_list('tau_eigen1', model_id)
            call glide_add_to_restart_variable_list('tau_eigen2', model_id)
         endif

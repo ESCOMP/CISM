@@ -298,6 +298,9 @@ contains
 !    real(dp), intent(in)                     :: damage_constant     !> rate of change of damage (1/s) per unit stress (Pa)
 !    real(dp), intent(in)            :: cf_advance_retreat_amplitude !> amplitude (m/yr) of CF advance/retreat rate
 !    real(dp), intent(in)            :: cf_advance_retreat_period    !> period (yr) of CF advance/retreat rate
+!    integer,  dimension(:,:), intent(in)     :: protected_mask      !> integer mask: = 1 for cells that are able to fill,
+!                                                                    !>  = 0 for cells that are not allowed to fill
+!    integer,  dimension(:,:), intent(in)     :: damage_mask         !> integer mask: = 1 for damaged cells, else = 0
 !    integer,  dimension(:,:), intent(in)     :: calving_mask        !> integer mask: calve ice where calving_mask = 1
 !    real(dp), dimension(:,:), intent(out)    :: calving_thck        !> thickness lost due to calving in each grid cell (m)
 
@@ -663,6 +666,7 @@ contains
                calving%tau_eigenconstant1,        &
                calving%tau_eigenconstant2,        &
                calving%stress_threshold,          &  ! Pa
+               calving%lateral_rate_min/scyr,     &  ! m/s
                calving_dthck)                        ! m
 
        elseif (which_calving == CALVING_STRESS_STOCHASTIC) then
@@ -689,14 +693,18 @@ contains
                itest,   jtest,     rtest,         &
                parallel,                          &
                calving_front_mask,                &
-               floating_mask,                     &
-               speed,                             &  ! m/s
                thck,                              &  ! m
+               calving%thck_effective,            &  ! m
+               calving%effective_areafrac,        &
+               speed,                             &  ! m/s
+               cf_length,                         &  ! m
                calving%tau_eigen1,                &  ! Pa
                calving%tau_eigen2,                &  ! Pa
                calving%tau_eigenconstant1,        &
                calving%tau_eigenconstant2,        &
                calving%stress_threshold,          &  ! Pa
+               calving%effec_stress_min,          &  ! Pa
+               calving%length_scale,              &  ! m
                calving_dthck)                        ! m
 
        elseif (which_calving == EIGEN_CALVING) then
@@ -742,40 +750,55 @@ contains
                calving%tau_eigen1,         &
                calving%tau_eigen2)
 
-          call damage_based_calving(&
+          call stochastic_damage_based_calving(&
                nx,       ny,       nz,                 &
                dx,                 dy,                 &  ! m
                sigma,              dt,                 &
                itest,   jtest,     rtest,              &
+               parallel,                               &
                floating_mask,                          &
                calving_front_mask,                     &
-               speed,                                  &  ! m/s
-               cf_length,                              &  ! m
-               calving%thck_effective,                 &  ! m
+               thck,                                   &  ! m
+               topg,                                   &  ! m
                calving%tau_eigen1, calving%tau_eigen2, &  ! Pa
                calving%tau_eigenconstant1,             &
                calving%tau_eigenconstant2,             &
-               calving%damage_threshold,               &
+               calving%stress_threshold,               &
+               calving%effec_stress_min,               &  ! Pa
+               calving%damage_constant*scyr,           &  ! Pa s
                calving%damage,                         &
-               calving_dthck)                             ! m
+               calving_dthck,                          &  ! m
+               calving%eps_eigen1, calving%eps_eigen2)    ! 1/s
 
-       endif
+       endif   ! which_calving
 
        call parallel_halo(calving_dthck, parallel)
 
        ! Apply calving_dthck as computed above.
 
-       call apply_calving_dthck(&
-            nx,           ny,        &
-            itest, jtest, rtest,     &
-            parallel,                &
-            calving_front_mask,      &
-            floating_mask,           &
-            full_mask,               &
-            flux_in,                 &
-            calving_dthck,           &
-            thck,                    &
-            calving%calving_thck)
+       if (which_calving == CALVING_DAMAGE) then
+
+          ! different treatment because we can calve cells not on the CF
+          where (calving_dthck == thck)
+             calving%calving_thck = calving_dthck
+             thck = 0.0d0
+          endwhere
+
+       else
+
+          call apply_calving_dthck(&
+               nx,           ny,        &
+               itest, jtest, rtest,     &
+               parallel,                &
+               calving_front_mask,      &
+               floating_mask,           &
+               full_mask,               &
+               flux_in,                 &
+               calving_dthck,           &
+               thck,                    &
+               calving%calving_thck)
+
+       endif
 
        !TODO - Add a bug check for negative thicknesses?
        thck = max(thck, 0.0d0)
@@ -1186,8 +1209,9 @@ contains
                    cf_length(i,j) = count_ns*dx + count_ew*dy
                 endif
              elseif (count == 3) then
-                ! This is a bit arbitrary; assume the same length as a CF bordering two edges
-                cf_length(i,j) = sqrt(dx*dx + dy*dy)
+                ! This is a bit arbitrary; assume the same length as a CF bordering two edges.
+                ! The goal is to speed up calving for 'teeth' but not remove them instantly.
+                cf_length(i,j) = dx + dy
              endif
 
           endif   ! calving_mask
@@ -1505,6 +1529,7 @@ contains
        tau_eigenconstant1,                &
        tau_eigenconstant2,                &
        stress_threshold,                  &  ! Pa
+       lateral_rate_min,                  &  ! m/s
        calving_dthck)                        ! m
 
     ! Calve ice based on the eigenvalues of the 2D horizontal stress tensor near the calving front.
@@ -1535,7 +1560,8 @@ contains
     real(dp), intent(in) :: &
          tau_eigenconstant1,     & ! multiplier for tau_eigen1 (unitless)
          tau_eigenconstant2,     & ! multiplier for tau_eigen2 (unitless)
-         stress_threshold          ! stress threshold for calving front retreat
+         stress_threshold,       & ! stress threshold for calving front retreat
+         lateral_rate_min          ! min lateral rate at CF (m/s)
 
     real(dp), dimension(nx,ny), intent(inout) :: &
          calving_dthck             ! thickness lost due to calving (m)
@@ -1573,14 +1599,20 @@ contains
     calving_dthck = 0.0d0
     effec_stress = 0.0d0
 
+    !TODO - Compute nonzero values for floating cells only?
+    do j = nhalo+1, ny-nhalo
+       do i = nhalo+1, nx-nhalo
+          effec_stress(i,j) = tau_eigenconstant1 * max(tau_eigen1(i,j), 0.0d0)   &
+                            + tau_eigenconstant2 * max(tau_eigen2(i,j), 0.0d0)
+       enddo
+    enddo
+
     do j = nhalo+1, ny-nhalo
        do i = nhalo+1, nx-nhalo
 
-          effec_stress(i,j) = tau_eigenconstant1 * max(tau_eigen1(i,j), 0.0d0)   &
-                            + tau_eigenconstant2 * max(tau_eigen2(i,j), 0.0d0)
-
           if (calving_front_mask(i,j) == 1) then
-             lateral_rate(i,j) =  speed(i,j) * effec_stress(i,j) / stress_threshold
+             lateral_rate(i,j)  = speed(i,j) * effec_stress(i,j) / stress_threshold
+             lateral_rate(i,j) = max(lateral_rate(i,j), lateral_rate_min)
              calving_dthck(i,j) = lateral_rate(i,j) * dt * thck_effective(i,j) * cf_length(i,j) / (dx*dy)
           endif   ! CF mask
 
@@ -1607,13 +1639,17 @@ contains
        itest,   jtest,     rtest,         &
        parallel,                          &
        calving_front_mask,                &
-       floating_mask,                     &
-       speed,                             &  ! m/s
        thck,                              &  ! m
+       thck_effective,                    &  ! m
+       effective_areafrac,                &
+       speed,                             &  ! m/s
+       cf_length,                         &  ! m
        tau_eigen1,    tau_eigen2,         &  ! Pa
        tau_eigenconstant1,                &
        tau_eigenconstant2,                &
        stress_threshold,                  &  ! Pa
+       effec_stress_min,                  &  ! Pa
+       length_scale,                      &  ! m
        calving_dthck)                        ! m
 
     ! Calve ice based on the eigenvalues of the 2D horizontal stress tensor near the calving front.
@@ -1646,198 +1682,110 @@ contains
          dt                        ! time step (s)
 
     integer, dimension(nx,ny), intent(in) ::  &
-         calving_front_mask,     & ! = 1 where ice is floating and borders at least one ocean cell, else = 0
-         floating_mask             ! = 1 where ice is present and floating, else = 0
+         calving_front_mask        ! = 1 where ice is floating and borders at least one ocean cell, else = 0
 
     real(dp), dimension(nx,ny), intent(in) :: &
-         speed,                  & ! mean ice speed averaged to cell centers (m/s)
          thck,                   & ! ice thickness (m)
+         thck_effective,         & ! effective ice thickness (m) at the CF
+         effective_areafrac,     & !
+         speed,                  & ! mean ice speed averaged to cell centers (m/s)
+         cf_length,              & ! length of calving front in each grid cell (m)
          tau_eigen1, tau_eigen2    ! eigenvalues of the horizontal stress tensor (Pa)
 
     real(dp), intent(in) :: &
          tau_eigenconstant1,     & ! multiplier for tau_eigen1 (unitless)
          tau_eigenconstant2,     & ! multiplier for tau_eigen2 (unitless)
-         stress_threshold          ! stress threshold for calving front retreat
+         stress_threshold,       & ! stress threshold for calving front retreat (Pa)
+         effec_stress_min,       & ! minimum effec stress (Pa) for purposes of computing CF retreat
+         length_scale              ! length scale for calving events (m);
+                                   ! typically less than or equal to the grid scale
 
     real(dp), dimension(nx,ny), intent(inout) :: &
          calving_dthck             ! thickness lost due to calving (m)
 
     ! local variables
 
-    integer :: i, j, count, count_save, iter, max_iter
-
-    real(dp) :: rnd                ! random number between 0 and 1
+    integer :: i, j
+    integer :: count, count_save, iter, max_iter
 
     real(dp), dimension(nx,ny) :: &
          effec_stress,           & ! effective stress (Pa)
-         failure_probability       ! probability that the cell fails at this time
+         calving_probability       ! probability that all or part of a CF cell is calved during this time step
 
-    ! This mask identifies cells that will calve if there is a path
-    ! through other failed cells to the CF.
-    integer, dimension(nx,ny) :: &
-         failed_mask               ! mask = 1 for failed calls, else = 0
+    real(dp) :: &
+         rnd                       ! random number between 0 and 1
 
-    integer,  dimension(nx,ny) ::  &
-         color                     ! integer 'color' for identifying cells that will calve
+    real(dp) :: &
+         stress_fac, speed_fac, length_fac  ! unitless factors that determine calving probability
 
-    ! Compute an effective stress in each cell
-    ! Based on a stress threshold, compute a probability of cell failure.
-    !  (When effec_stress = stress_threshold, we have p = 1 - 1/e, or about 63%.)
-    ! Then determine whether the cell fails.
+    real(dp) :: grid_scale         ! sqrt(dx*dy) = grid cell length scale (= dx = dy on a square grid)
+    real(dp) :: length_ratio       ! calving length_scale / grid_scale
 
-    failed_mask = 0
+    ! Initialize
     effec_stress = 0.0d0
+    calving_probability = 0.0d0
+    calving_dthck = 0.0d0
+    grid_scale = sqrt(dx*dy)
 
-    !TODO - Incorporate the ice speed and timestep somehow?
+    ! Compute the effective stress
     do j = nhalo+1, ny-nhalo
        do i = nhalo+1, nx-nhalo
-          if (floating_mask(i,j) == 1) then
-
-             effec_stress(i,j) = tau_eigenconstant1 * max(tau_eigen1(i,j), 0.0d0)   &
-                               + tau_eigenconstant2 * max(tau_eigen2(i,j), 0.0d0)
-             failure_probability(i,j) = 1.0d0 - exp(-effec_stress(i,j)/stress_threshold)
-             call random_number(rnd)
-             if (rnd < failure_probability(i,j)) failed_mask(i,j) = 1
-
-          endif   ! floating
-       enddo   ! i
-    enddo   ! j
-
-    call parallel_halo(failed_mask, parallel)
-
-    ! Mark all floating cells with the initial color.
-    ! Mark other cells with the boundary color.
-
-    do j = nhalo+1, ny-nhalo
-       do i = nhalo+1, nx-nhalo
-          if (floating_mask(i,j) == 1) then
-             color(i,j) = initial_color
-          else
-             color(i,j) = boundary_color
-          endif
+          effec_stress(i,j) = tau_eigenconstant1 * max(tau_eigen1(i,j), 0.0d0)   &
+                            + tau_eigenconstant2 * max(tau_eigen2(i,j), 0.0d0)
+          effec_stress(i,j) = max(effec_stress(i,j), effec_stress_min)
        enddo
     enddo
 
-    call parallel_halo(color, parallel)
+    if (verbose_calving) then
+       call point_diag(tau_eigen1, 'Stochastic calving, tau_eigen1 (Pa)', itest, jtest, rtest, 7, 7, '(f10.0)')
+       call point_diag(tau_eigen2, 'tau_eigen2 (Pa)', itest, jtest, rtest, 7, 7, '(f10.0)')
+       call point_diag(effec_stress, 'effec_stress (Pa)', itest, jtest, rtest, 7, 7, '(f10.0)')
+    endif
 
-    ! Seed the fill with failed CF cells, and then ecursively fill all cells that are to be calved.
-    ! Repeat the recursion as necessary to spread the fill to adjacent processors.
+    ! Calve cells at the calving front, with a probability based on effec_stress, speed, and other factors.
+    ! Notes:
+    ! (1) If the timestep is doubled, the probability of a calving event during a given timestep is doubled,
+    !      as desired (assuming p << 1). This follows from exp[-(t1 + t2)] = exp(-t1)*exp(-t2).
+    ! (2) The calved ice thickness (calving_dthck) is based on thck_effective, not thck.
+    !     In CF cells where calving_dthck > thck, the calving will extend into upstream cells.
+    !     This is done in subroutine apply_calving_dthck.
+    ! (3) If length_scale = grid_scale, then the calving probability p is the probability
+    !      of a calving event of extent grid_scale^2 (i.e., one grid cell area) during interval dt.
+    !     length_scale < grid_scale, then the calving_probability is greater, but less
+    !      area is calved per event. E.g., if length_scale = grid_scale/2, then calving events
+    !      are 4x as likely, but the calved area per event is 4x smaller.
+    !     In either case, the time-average calving area is the same.
+    ! (4) A larger value of length_ratio (i.e., fewer, bigger icebergs) implies greater random variation in CF location.
+    ! (5) Deterministic stress-based calving can be viewed as equivalent to stochastic stress-based calving,
+    !     in the limit as length_scale -> 0 and there are many small calving events.
+    ! (6) The method is probably more realistic for length_ratio < 1 (icebergs smaller than grid scale)
+    !     than length_ratio > 1 (icebergs larger than grid scale).
 
-    max_iter = max(parallel%ewtasks, parallel%nstasks)
-    count_save = 0
+    length_ratio = length_scale/grid_scale
 
-    do iter = 1, max_iter
-
-       if (iter == 1) then
-
-          do j = 1, ny
-             do i = 1, nx
-                if (calving_front_mask(i,j) == 1 .and. failed_mask(i,j) == 1) then  ! cell that can seed the fill
-                   if (color(i,j) /= fill_color) then
-                      ! assign the fill color to this cell, and recursively fill neighbor cells
-                      call glissade_fill(&
-                           nx,    ny,    &
-                           i,     j,     &
-                           color, failed_mask)
-                   endif
-                endif
-             enddo
-          enddo
-
-       else   ! iter > 1
-
-          call parallel_halo(color, parallel)
-
-          ! Loop through halo cells that were just filled on neighbor processors
-
-          ! west halo layer
-          i = nhalo
-          do j = 1, ny
-             if (color(i,j) == fill_color) then
-                call glissade_fill(&
-                     nx,    ny,    &
-                     i+1,   j,     &
-                     color, failed_mask)
+    do j = nhalo+1, ny-nhalo
+       do i = nhalo+1, nx-nhalo
+          if (calving_front_mask(i,j) == 1) then
+             ! compute three unitless factors
+             stress_fac = effec_stress(i,j) / stress_threshold
+             speed_fac = speed(i,j) * (dt/length_ratio**2) / grid_scale
+             length_fac = cf_length(i,j) / grid_scale
+             ! compute the calving probability
+             calving_probability(i,j) = 1.0d0 - exp(-stress_fac*speed_fac*length_fac)
+             call random_number(rnd)
+             if (rnd < calving_probability(i,j)) then
+                calving_dthck(i,j) = thck_effective(i,j) * length_ratio**2
              endif
-          enddo
+          endif   ! CF mask
+       enddo   ! i
+    enddo   ! j
 
-          ! east halo layer
-          i = nx - nhalo + 1
-          do j = 1, ny
-             if (color(i,j) == fill_color) then
-                call glissade_fill(&
-                     nx,    ny,    &
-                     i-1,   j,     &
-                     color, failed_mask)
-             endif
-          enddo
-
-          ! south halo layer
-          j = nhalo
-          do i = nhalo+1, nx-nhalo  ! already checked halo corners above
-             if (color(i,j) == fill_color) then
-                call glissade_fill(&
-                     nx,    ny,    &
-                     i,     j+1,   &
-                     color, failed_mask)
-             endif
-          enddo
-
-          ! north halo layer
-          j = ny-nhalo+1
-          do i = nhalo+1, nx-nhalo  ! already checked halo corners above
-             if (color(i,j) == fill_color) then
-                call glissade_fill(&
-                     nx,    ny,    &
-                     i,     j-1,   &
-                     color, failed_mask)
-             endif
-          enddo
-
-       endif   ! iter
-
-       ! Count the calving cells
-       count = 0
-       do j = nhalo+1, ny-nhalo
-          do i = nhalo+1, nx-nhalo
-             if (color(i,j) == fill_color) count = count + 1
-          enddo
-       enddo
-       !WHL - If running a large problem, may want to reduce the frequency of this global sum
-       count = parallel_reduce_sum(count)
-
-       if (count == count_save) then
-!!          if (verbose_calving .and. main_task) &
-!!               write(6,*) 'Fill converged: iter, global_count =', iter, global_count
-          exit
-       else
-!!          if (verbose_calving .and. main_task) &
-!!               write(6,*) 'Convergence check: iter, global_count =', iter, global_count
-          count_save = count
-       endif
-
-    enddo   ! max_iter
-
-    call parallel_halo(color, parallel)
-
-    ! Once the fill is done, any cells with the fill color are to be calved.
-    ! The actual calving is done in another subroutine.
-
-    where (color == fill_color)
-       calving_dthck = thck
-    elsewhere
-       calving_dthck = 0.0d0
-    endwhere
+    call parallel_halo(calving_probability, parallel)
+    call parallel_halo(calving_dthck, parallel)
 
     if (verbose_calving) then
-       call point_diag(speed*scyr, 'Stochastic calving, ice speed (m/yr)', itest, jtest, rtest, 7, 7)
-       call point_diag(tau_eigen1, 'tau_eigen1 (Pa)', itest, jtest, rtest, 7, 7, '(f10.0)')
-       call point_diag(tau_eigen2, 'tau_eigen2 (Pa)', itest, jtest, rtest, 7, 7, '(f10.0)')
-       call point_diag(effec_stress, 'eff_stress (Pa)', itest, jtest, rtest, 7, 7, '(f10.0)')
-       call point_diag(failure_probability, 'failure probability', itest, jtest, rtest, 7, 7, '(f10.3)')
-       call point_diag(failed_mask, 'failed mask', itest, jtest, rtest, 7, 7)
-       call point_diag(color, 'color', itest, jtest, rtest, 7, 7)
-       call point_diag(calving_dthck, 'calving_dthck (m)', itest, jtest, rtest, 7, 7)
+       call point_diag(calving_probability, 'calving probability', itest, jtest, rtest, 7, 7, '(f10.3)')
+       call point_diag(calving_dthck, 'calving_dthck (m)', itest, jtest, rtest, 7, 7, '(f10.3)')
     endif
 
   end subroutine stochastic_stress_based_calving
@@ -1940,6 +1888,9 @@ contains
 
 !---------------------------------------------------------------------------
 
+  ! This subroutine previously was called for the CALVING_DAMAGE option,
+  ! which now uses subroutine stochastic_damage_based_calving.
+  ! Keeping the older version for reference and further testing.
   subroutine damage_based_calving(&
        nx,       ny,       nz,            &
        dx,                 dy,            &  ! m
@@ -2056,9 +2007,6 @@ contains
 
              d_damage_dt = effec_stress(i,j) / (damage_scale*scyr)
 
-             !WHL: Alternatives would be to (1) accumulate damage only when effec_stress is above
-             !     a given threshold and (2) allow the ice to heal under low or negative tensile stress.
-
              damage(:,i,j) = damage(:,i,j) + d_damage_dt * dt
              damage(:,i,j) = min(damage(:,i,j), 1.0d0)
              damage(:,i,j) = max(damage(:,i,j), 0.0d0)
@@ -2117,6 +2065,339 @@ contains
     endif
 
   end subroutine damage_based_calving
+
+!---------------------------------------------------------------------------
+
+  subroutine stochastic_damage_based_calving(&
+       nx,       ny,       nz,            &
+       dx,                 dy,            &  ! m
+       sigma,              dt,            &
+       itest,   jtest,     rtest,         &
+       parallel,                          &
+       floating_mask,                     &
+       calving_front_mask,                &
+       thck,                              &  ! m
+       topg,                              &  ! m
+       tau_eigen1,    tau_eigen2,         &  ! Pa
+       tau_eigenconstant1,                &  ! 1/s
+       tau_eigenconstant2,                &  ! 1/s
+       stress_threshold,                  &  ! Pa
+       effec_stress_min,                  &  ! Pa
+       damage_constant,                   &  ! Pa s
+       damage,                            &
+       calving_dthck,                     &  ! m
+       eps_eigen1,    eps_eigen2)            ! 1/s
+
+    ! Calve ice based on accumulated damage.
+    ! This is similar to stress-based calving, except that stresses contribute to damage
+    ! instead of directly determining the lateral calving rate.
+
+    use glide_diagnostics, only: point_diag
+    use glissade_masks, only: glissade_fill, initial_color, fill_color, boundary_color
+
+    ! input/output arguments
+
+    integer, intent(in) :: &
+         nx, ny, nz,             & ! grid dimensions
+         itest, jtest, rtest       ! coordinates of diagnostic point
+
+    type(parallel_type), intent(in) :: &
+         parallel                  ! info for parallel communication
+
+    real(dp), intent(in) :: &
+         dx, dy,                 & ! grid cell size (m)
+         dt                        ! time step (s)
+
+    real(dp), dimension(nz), intent(in) ::&
+         sigma                     ! vertical sigma coordinate
+
+    integer, dimension(nx,ny), intent(in) ::  &
+         floating_mask,          & ! = 1 where ice is present and floating, else = 0
+         calving_front_mask        ! = 1 where ice is floating and borders at least one ocean cell, else = 0
+
+    real(dp), dimension(nx,ny), intent(in) :: &
+         thck,                   & ! ice thickness (m)
+         topg,                   & ! bed topography (m)
+         tau_eigen1, tau_eigen2    ! eigenvalues of the horizontal stress tensor (Pa)
+
+    real(dp), intent(in) :: &
+         tau_eigenconstant1,     & ! multiplier for tau_eigen1 (unitless)
+         tau_eigenconstant2,     & ! multiplier for tau_eigen2 (unitless)
+         stress_threshold,       & ! stress value at which damage begins (Pa)
+         effec_stress_min,       & ! min value for effec_stress (Pa)
+         damage_constant           ! damage scaling term (Pa s)
+
+    real(dp), dimension(nz-1,nx,ny), intent(inout) :: &
+         damage                    ! 3D damage tracer, 0 > damage < 1
+
+    real(dp), dimension(nx,ny), intent(inout) :: &
+         calving_dthck             ! thickness lost due to calving (m)
+
+    real(dp), dimension(nx,ny), intent(in), optional :: &
+         eps_eigen1, eps_eigen2    ! eigenvalues of the horizontal strain rate tensor (s^-1)
+
+    ! local variables
+
+    integer :: i, j, k
+
+    integer, dimension(nx,ny) :: &
+         damage_mask               ! = 1 for damaged cells, else = 0
+
+    real(dp), dimension(nx,ny) :: &
+         damage_column,          & ! average damage in an ice column
+         effec_stress              ! effective stress (Pa)
+
+    real(dp) :: &
+         d_damage_dt,            & ! rate of change of damage scalar (1/s)
+         rnd                       ! random number
+
+    integer :: count, count_save, iter, max_iter
+
+    integer,  dimension(nx,ny) ::  &
+         color                     ! integer 'color' for identifying cells that will calve
+
+    logical, parameter :: tau2_only = .false.
+
+    ! Compute calving based on damage, a scalar quantity prognosed from eigenvalues
+    ! of the horizontal stress tensor (or strain rate tensor).
+    !
+    ! This is a stochastic version of a damage-based scheme. The idea is as follows:
+    ! * Damage is a scalar D in the range [0,1]. At each timestep, the pre-existing damage field is advected with the ice.
+    ! * In this subroutine, first compute changes in damage due to stress.
+    ! * The resulting field D can have any values in the range [0,1].
+    ! * Use a random number to convert damage into a binary field, with values of 0 and 1 only.
+    ! * Use a flood-fill algorithm to remove connected regions of damaged ice (D = 1) at the CF.
+
+    ! Compute the change in damage in each cell
+    ! For now, this is done using a simple scheme based on the horizontal stress tensor.
+    ! At some point, we may want to prognose damage in a way that depends on other factors such as mass balance.
+    ! Note: Damage is formally a 3D field, which makes it easier to advect, even though
+    !       (in the current scheme) the damage source term is uniform in each column.
+
+    ! Compute an effective stress for damage, based on the eigenvalues of the horizontal stress tensor
+
+    effec_stress = 0.0d0
+
+    do j = 2, ny-1
+       do i = 1, nx-1
+          if (floating_mask(i,j) == 1) then
+             effec_stress(i,j) = &
+                  max(tau_eigenconstant1*tau_eigen1(i,j) + tau_eigenconstant2*tau_eigen2(i,j), 0.0d0)
+          endif
+       enddo
+    enddo
+
+    ! In calving-front cells, impose a lower bound for effec_stress
+    do j = 2, ny-1
+       do i = 1, nx-1
+          if (calving_front_mask(i,j) == 1) then
+             effec_stress(i,j) = max(effec_stress(i,j), effec_stress_min)
+          endif
+       enddo
+    enddo
+
+    ! Compute the change in damage as a function of effec_stress
+    do j = 2, ny-1
+       do i = 1, nx-1
+          if (floating_mask(i,j) == 1) then
+             !WHL - Assume a threshold of zero?
+!!             d_damage_dt = (effec_stress(i,j) - stress_threshold) / damage_constant
+             ! Note: damage_constant has units of Pa*s, so d_damage_dt has units of 1/s
+             d_damage_dt = effec_stress(i,j) / damage_constant
+             damage(:,i,j) = damage(:,i,j) + d_damage_dt * dt
+             damage(:,i,j) = min(damage(:,i,j), 1.0d0)
+             damage(:,i,j) = max(damage(:,i,j), 0.0d0)
+          else    ! set damage to zero elsewhere (grounded or ice-free)
+             damage(:,i,j) = 0.0d0
+          endif   ! floating_mask
+       enddo   ! i
+    enddo   ! j
+
+    ! Compute the vertically integrated damage in each column.
+    damage_column(:,:) = 0.0d0
+    do j = 2, ny-1
+       do i = 2, nx-1
+          do k = 1, nz-1
+             damage_column(i,j) = damage_column(i,j) + damage(k,i,j) * (sigma(k+1) - sigma(k))
+          enddo
+       enddo
+    enddo
+
+    call parallel_halo(damage_column, parallel)
+
+    if (verbose_calving) then
+       call point_diag(tau_eigen1, 'tau_eigen1 (Pa)',  itest, jtest, rtest, 9, 9, '(f8.0)')
+       call point_diag(tau_eigen2, 'tau_eigen2 (Pa)',  itest, jtest, rtest, 9, 9, '(f8.0)')
+       call point_diag(effec_stress, 'effec_stress (Pa)',  itest, jtest, rtest, 9, 9, '(f8.0)')
+       call point_diag(sqrt(tau_eigen1**2 + tau_eigen2**2), 'true eff stress (Pa)',  itest, jtest, rtest, 9, 9, '(f8.0)')
+       call point_diag(damage_column, 'new damage', itest, jtest, rtest, 9, 9, '(f8.4)')
+    endif
+
+    ! Convert damage to a binary field, with D = 0.0 or 1.0 everywhere
+
+    do j = nhalo+1, ny-nhalo
+       do i = nhalo+1, nx-nhalo
+          if (damage_column(i,j) > 0.0d0) then
+             call random_number(rnd)
+             if (rnd < damage_column(i,j)) then
+                damage_column(i,j) = 1.0d0
+                damage(:,i,j) = 1.0d0
+             else
+                damage_column(i,j) = 0.0d0
+                damage(:,i,j) = 0.0d0
+             endif
+          endif   ! damage > 0
+       enddo   ! i
+    enddo   ! j
+
+    call parallel_halo(damage_column, parallel)
+
+    ! Based on damage_column, compute a binary integer mask
+    where (damage_column == 1.0d0)
+       damage_mask = 1
+    elsewhere
+       damage_mask = 0
+    endwhere
+
+    if (verbose_calving) then
+       call point_diag(damage_mask, 'damage_mask', itest, jtest, rtest, 9, 9, '(i8)')
+    endif
+
+    ! Mark all floating cells with the initial color.
+    ! Mark other cells with the boundary color.
+
+    do j = nhalo+1, ny-nhalo
+       do i = nhalo+1, nx-nhalo
+          if (floating_mask(i,j) == 1) then
+             color(i,j) = initial_color
+          else
+             color(i,j) = boundary_color
+          endif
+       enddo
+    enddo
+
+    call parallel_halo(color, parallel)
+
+    ! Seed the fill with damaged CF cells, and then recursively fill all damaged cells that
+    !  have a path to the CF through other damaged cells and are therefore to be calved.
+    ! Repeat the recursion as necessary to spread the fill to adjacent processors.
+
+    max_iter = max(parallel%ewtasks, parallel%nstasks)
+    count_save = 0
+
+    do iter = 1, max_iter
+
+       if (iter == 1) then
+
+          do j = 1, ny
+             do i = 1, nx
+                if (calving_front_mask(i,j) == 1 .and. damage_mask(i,j) == 1) then  ! cell that can seed the fill
+                   if (color(i,j) /= fill_color) then
+                      ! assign the fill color to this cell, and recursively fill neighbor cells
+                      call glissade_fill(&
+                           nx,    ny,    &
+                           i,     j,     &
+                           color, damage_mask)
+                   endif
+                endif
+             enddo
+          enddo
+
+       else   ! iter > 1
+
+          call parallel_halo(color, parallel)
+
+          ! Loop through halo cells that were just filled on neighbor processors
+
+          ! west halo layer
+          i = nhalo
+          do j = 1, ny
+             if (color(i,j) == fill_color) then
+                call glissade_fill(&
+                     nx,    ny,    &
+                     i+1,   j,     &
+                     color, damage_mask)
+             endif
+          enddo
+
+          ! east halo layer
+          i = nx - nhalo + 1
+          do j = 1, ny
+             if (color(i,j) == fill_color) then
+                call glissade_fill(&
+                     nx,    ny,    &
+                     i-1,   j,     &
+                     color, damage_mask)
+             endif
+          enddo
+
+          ! south halo layer
+          j = nhalo
+          do i = nhalo+1, nx-nhalo  ! already checked halo corners above
+             if (color(i,j) == fill_color) then
+                call glissade_fill(&
+                     nx,    ny,    &
+                     i,     j+1,   &
+                     color, damage_mask)
+             endif
+          enddo
+
+          ! north halo layer
+          j = ny-nhalo+1
+          do i = nhalo+1, nx-nhalo  ! already checked halo corners above
+             if (color(i,j) == fill_color) then
+                call glissade_fill(&
+                     nx,    ny,    &
+                     i,     j-1,   &
+                     color, damage_mask)
+             endif
+          enddo
+
+       endif   ! iter
+
+       ! Count the calving cells
+       count = 0
+       do j = nhalo+1, ny-nhalo
+          do i = nhalo+1, nx-nhalo
+             if (color(i,j) == fill_color) count = count + 1
+          enddo
+       enddo
+       !WHL - If running a large problem, may want to reduce the frequency of this global sum
+       count = parallel_reduce_sum(count)
+
+       if (count == count_save) then
+!!          if (verbose_calving .and. main_task) &
+!!               write(6,*) 'Fill converged: iter, global_count =', iter, global_count
+          exit
+       else
+!!          if (verbose_calving .and. main_task) &
+!!               write(6,*) 'Convergence check: iter, global_count =', iter, global_count
+          count_save = count
+       endif
+
+    enddo   ! max_iter
+
+    call parallel_halo(color, parallel)
+
+    ! Once the fill is done, any cells with the fill color are to be calved.
+    ! The actual calving is done in another subroutine.
+
+    where (color == fill_color .and. floating_mask == 1)
+       calving_dthck = thck
+    elsewhere
+       calving_dthck = 0.0d0
+    endwhere
+
+    if (verbose_calving) then
+!       if (main_task) then
+!          print*, 'boundary_color, initial color, fill color:', &
+!               boundary_color, initial_color, fill_color
+!       endif
+       call point_diag(color, 'After damage, color', itest, jtest, rtest, 9, 9, '(i8)')
+       call point_diag(calving_dthck, 'calving_dthck (m)', itest, jtest, rtest, 9, 9, '(f8.0)')
+    endif
+
+  end subroutine stochastic_damage_based_calving
 
 !---------------------------------------------------------------------------
 
@@ -2511,7 +2792,10 @@ contains
 
     real(dp), dimension(nx,ny), intent(inout) :: thck            !> ice thickness
     real(dp), dimension(nx,ny), intent(in)    :: f_ground_cell   !> grounded fraction in each grid cell
-    integer,  dimension(nx,ny), intent(in)    :: ice_mask        !> = 1 where ice is present (thck > thklim), else = 0
+    !Note: When using a subgrid CF scheme, it is safer to pass in full_mask in place of the usual ice_mask,
+    !      so that partial CF cells do not spread the fill.
+    integer,  dimension(nx,ny), intent(inout) :: ice_mask        !> = 1 where ice is present (thck > thklim), else = 0;
+                                                                 !> may exclude partial CF cells
     integer,  dimension(nx,ny), intent(in)    :: floating_mask   !> = 1 where ice is present and floating, else = 0
     integer,  dimension(nx,ny), intent(in)    :: land_mask       !> = 1 where topg - eus >= 0, else = 0
     real(dp), dimension(nx,ny), intent(inout) :: calving_thck    !> thickness lost due to calving in each grid cell;
@@ -2531,7 +2815,7 @@ contains
 
     if (verbose_calving) then
        call point_diag(thck, 'Remove icebergs, thck (m)', itest, jtest, rtest, 7, 7)
-!!       call point_diag(ice_mask, 'ice_mask', itest, jtest, rtest, 7, 7)
+       call point_diag(ice_mask, 'ice_mask', itest, jtest, rtest, 7, 7)
 !!       call point_diag(f_ground_cell, 'f_ground_cell', itest, jtest, rtest, 7, 7)
     endif
     
@@ -2592,7 +2876,7 @@ contains
        else  ! iter > 1
 
           ! Check for halo cells that were just filled on neighbor processors
-          ! TODO - Is the 'ice_mask = 1' logic redundant? (Here and below?)  Use glissade_fill without buffer?
+          ! TODO - Is the 'ice_mask = 1' logic redundant?
           call parallel_halo(color, parallel)
 
           ! west halo layer
@@ -2696,8 +2980,8 @@ contains
 
     ! Remove any ice isthmuses.
     ! An isthmus is defined as a floating or weakly grounded grid cell with ice-free ocean
-    !  or thin floating ice (H < 10 m) on both sides: i.e., in cells (i-1,j) and (i+1,j),
-    !  or (i,j-1) and (i,j+1).
+    !  or thin floating ice (H < 10 m) on two opposite sides (i.e., in cells (i-1,j) and (i+1,j),
+    !  or (i,j-1) and (i,j+1)), connected to ice on the other two sides.
     ! When using an ice_fraction_retreat_mask derived from a model (e.g., CESM),
     !  it may be necessary to remove isthmuses to prevent unstable ice configurations,
     !  e.g. a shelf split into two parts connected by a bridge one cell wide.
@@ -2756,14 +3040,22 @@ contains
                   (floating_mask (i,j-1) == 1 .and. thck(i,j-1) < thin_threshold) ) then
                 mask_s = 1
              endif
-             if ( (mask_e == 1 .and. mask_w == 1) .or. &
-                  (mask_n == 1 .and. mask_s == 1) ) then
-                calving_thck(i,j) = calving_thck(i,j) + thck(i,j)
-                thck(i,j) = 0.0d0
+             ! Note: We call a cell an isthmus only if it borders floating ice on the other two edges.
+             !       Without this requirement, we will remove many cells that are not true isthmuses.
+             if (mask_e == 1 .and. mask_w == 1) then
+                if (floating_mask(i,j-1) == 1 .and. floating_mask (i,j+1) == 1) then
+                   calving_thck(i,j) = calving_thck(i,j) + thck(i,j)
+                   thck(i,j) = 0.0d0
+                endif
+             elseif (mask_n == 1 .and. mask_s == 1) then
+                if (floating_mask(i-1,j) == 1 .and. floating_mask (i+1,j) == 1) then
+                   calving_thck(i,j) = calving_thck(i,j) + thck(i,j)
+                   thck(i,j) = 0.0d0
+                endif
              endif
-          endif
-       enddo
-    enddo
+          endif  ! floating or lightly grounded
+       enddo  ! i
+    enddo  ! j
 
     if (verbose_calving) then
        call point_diag(thck, 'After isthmus removal, thck', itest, jtest, rtest, 7, 7)
