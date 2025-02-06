@@ -291,10 +291,10 @@ module glide_types
   integer, parameter :: HO_FLOW_ENHANCEMENT_FACTOR_INVERSION = 1
   integer, parameter :: HO_FLOW_ENHANCEMENT_FACTOR_EXTERNAL = 2
 
-  integer, parameter :: HO_BMLT_BASIN_NONE = 0
-  integer, parameter :: HO_BMLT_BASIN_INVERSION = 1
-  integer, parameter :: HO_BMLT_BASIN_EXTERNAL = 2
-  integer, parameter :: HO_BMLT_BASIN_ISMIP6 = 3
+  integer, parameter :: HO_DELTAT_BASIN_NONE = 0
+  integer, parameter :: HO_DELTAT_BASIN_INVERSION = 1
+  integer, parameter :: HO_DELTAT_BASIN_EXTERNAL = 2
+  integer, parameter :: HO_DELTAT_BASIN_ISMIP6 = 3
 
   integer, parameter :: HO_BWAT_NONE = 0
   integer, parameter :: HO_BWAT_CONSTANT = 1
@@ -908,12 +908,12 @@ module glide_types
     !> \item[1] invert for flow_enhancement factor E
     !> \item[2] read flow_enhancement factor E from external file
 
-    integer :: which_ho_bmlt_basin = 0
-    !> Flag for basin-based temperature corrections
+    integer :: which_ho_deltat_basin = 0
+    !> Flag for basin-based temperature corrections (previously called which_ho_bmlt_basin)
     !> \begin{description}
     !> \item[0] deltaT_ocn = 0 in each basin
-    !> \item[1] invert for deltaT_ocn in each basin
-    !> \item[2] read deltaT_ocn from external file in each basin
+    !> \item[1] invert for a single value of deltaT_ocn in each basin
+    !> \item[2] read deltaT_ocn from external file for each basin
     !> \item[3] prescribe deltaT_ocn in each basin using ISMIP6 values
     !> \end{description}
 
@@ -1706,7 +1706,7 @@ module glide_types
   type glide_inversion
 
      !TODO - Break into different derived types for each kind of inversion?
-     !       Remove the 2D bmlt inversion, keeping bmlt_basin inversion only?
+
      ! parameters for initializing inversion fields
      real(dp) :: &
           thck_threshold = 0.0d0,          & !> ice thinner than this threshold (m) is removed at initialization
@@ -1731,39 +1731,28 @@ module glide_types
 
      ! parameters for local deltaT_ocn inversion
      ! Note: deltaT_ocn is in the ocean_data type
-
      real(dp) ::  &
           deltaT_ocn_thck_scale = 100.0d0,     & !> thickness scale (m) for adjusting deltaT_ocn
           deltaT_ocn_timescale = 100.0d0,      & !> timescale (yr) for adjusting deltaT_ocn
-          deltaT_ocn_temp_scale = 2.0d0          !> temperature scale (degC) for adjusting deltaT_ocn
+          deltaT_ocn_temp_scale = 2.0d0,       & !> temperature scale (degC) for adjusting deltaT_ocn
+          deltaT_ocn_relax = 0.0d0               !> deltaT_ocn toward which we relax (deg C);
+                                                 !> typically = 0 since we prefer a correction as small as possible
 
      ! fields and parameters for basin-scale deltaT_ocn inversion
-
      real(dp), dimension(:,:), pointer ::  &
           floating_thck_target => null()         !> Observational target for floating ice thickness
-                                                 !> Note: Defined on the 2D (i,j) grid, but uniform within a basin
-
      real(dp) ::  &
-          dbmlt_dtemp_scale = 10.0d0,          & !> scale for rate of change of bmlt w/temperature, m/yr/degC
-          bmlt_basin_timescale = 100.0d0,      & !> timescale (yr) for adjusting deltaT_basin
           basin_flotation_threshold = 200.d0     !> threshold (m) for counting ice as lightly floating/grounded
+     real(dp) :: &
+          basin_mass_correction = 0.0d0          !> optional mass correction (Gt) for a selected basin
+     integer ::  &
+          basin_number_mass_correction = 0       !> integer ID for the basin receiving the correction
 
      ! parameters for flow_enhancement_factor inversion
-
      real(dp) ::  &
           flow_enhancement_thck_scale = 100.d0, & !> thickness scale (m) for adjusting flow_enhancement_factor
           flow_enhancement_timescale = 500.d0,  & !> timescale (yr) for adjusting flow_enhancement_factor
           flow_enhancement_relax_factor = 0.5d0   !> controls strength of relaxation to default values (unitless)
-
-     ! parameters for adjusting the ice mass target in a given basin for deltaT_basin inversion
-     ! Note: This option could in principle be applied to multiple basins, but currently is supported for one basin only.
-     !       In practice, this basin is likely to be the Amundsen Sea Embayment (IMBIE/ISMIP6 basin #9).
-
-     real(dp) :: &
-          basin_mass_correction = 0.0d0           !> optional mass correction (Gt) for a selected basin
-
-     integer ::  &
-          basin_number_mass_correction = 0        !> integer ID for the basin receiving the correction
 
   end type glide_inversion
 
@@ -1868,8 +1857,7 @@ module glide_types
           basin_number => null()                    !> basin number for each grid cell
 
      real(dp), dimension(:,:), pointer :: &
-          deltaT_ocn => null(),   &                 !> deltaT_ocn in each grid cell (deg C)
-          deltaT_ocn_relax => null()                !> deltaT_ocn toward which we relax (deg C)
+          deltaT_ocn => null()                      !> deltaT_ocn in each grid cell (deg C)
 
      real(dp) :: &
           thermal_forcing_anomaly = 0.0d0,  &       !> thermal forcing anomaly (deg C), applied everywhere
@@ -3100,7 +3088,6 @@ contains
                 call write_log ('Must set nbasin >= 1 for the ISMIP6 thermal forcing options', GM_FATAL)
              endif
              call coordsystem_allocate(model%general%ice_grid, model%ocean_data%deltaT_ocn)
-             call coordsystem_allocate(model%general%ice_grid, model%ocean_data%deltaT_ocn_relax)
           endif
        endif
     endif  ! Glissade
@@ -3159,9 +3146,9 @@ contains
     call coordsystem_allocate(model%general%velo_grid,model%basal_physics%coulomb_c)
     call coordsystem_allocate(model%general%velo_grid,model%basal_physics%coulomb_c_relax)
 
-    if (model%options%which_ho_bmlt_basin /= HO_BMLT_BASIN_NONE) then
+    if (model%options%which_ho_deltaT_basin /= HO_DELTAT_BASIN_NONE) then
        if (model%ocean_data%nbasin < 1) then
-          call write_log ('Must set nbasin >= 1 for the bmlt_basin options', GM_FATAL)
+          call write_log ('Must set nbasin >= 1 for the deltaT_basin options', GM_FATAL)
        endif
        call coordsystem_allocate(model%general%ice_grid, model%inversion%floating_thck_target)
     endif
@@ -3571,8 +3558,6 @@ contains
         deallocate(model%ocean_data%basin_number)
     if (associated(model%ocean_data%deltaT_ocn)) &
         deallocate(model%ocean_data%deltaT_ocn)
-    if (associated(model%ocean_data%deltaT_ocn_relax)) &
-        deallocate(model%ocean_data%deltaT_ocn_relax)
     if (associated(model%ocean_data%thermal_forcing)) &
         deallocate(model%ocean_data%thermal_forcing)
     if (associated(model%ocean_data%thermal_forcing_lsrf)) &

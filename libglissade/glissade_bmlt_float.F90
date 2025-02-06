@@ -51,8 +51,8 @@ module glissade_bmlt_float
   public :: verbose_bmlt_float, glissade_basal_melting_float, &
        glissade_bmlt_float_thermal_forcing_init, glissade_bmlt_float_thermal_forcing
 
-    logical :: verbose_bmlt_float = .false.
-!!    logical :: verbose_bmlt_float = .true.
+!!    logical :: verbose_bmlt_float = .false.
+    logical :: verbose_bmlt_float = .true.
 
     logical :: verbose_velo = .true.
     logical :: verbose_continuity = .true.
@@ -577,7 +577,7 @@ module glissade_bmlt_float
           ! Initialize deltaT_ocn based on deltaT_basin_ismip6, if needed for the ISMIP6 option
           ! For other options, deltaT_ocn(:,:) = 0 initially or has already been read in
 
-          if (model%options%which_ho_bmlt_basin == HO_BMLT_BASIN_ISMIP6) then
+          if (model%options%which_ho_deltaT_basin == HO_DELTAT_BASIN_ISMIP6) then
 
              if (main_task) then
                 print*, 'Assign deltaT_basin from ismip6'
@@ -637,7 +637,7 @@ module glissade_bmlt_float
                 enddo
              enddo
 
-          endif   ! ho_bmlt_basin_ismip6
+          endif   ! ho_deltaT_basin_ismip6
 
           !WHL - In earlier code, nonzero values of gamma0 could either be set in the config file,
           !       read from the input file, or assigned here based on the ISMIP6 parameterization.
@@ -1004,13 +1004,8 @@ module glissade_bmlt_float
           print*, 'TF to interpolate to lsrf, rank, i, j =', rtest, itest, jtest
           do k = kmin_diag, kmax_diag
              print*, ' '
-             print*, 'kocn =', k
-             do j = jtest+3, jtest-3, -1
-                do i = itest-3, itest+3
-                   write(6,'(f10.3)',advance='no') ocean_data%thermal_forcing(k,i,j)
-                enddo
-                write(6,*) ' '
-             enddo
+             print*, 'k =', k
+             call point_diag(ocean_data%thermal_forcing(k,:,:), 'thermal_forcing', itest, jtest, rtest, 7, 7)
           enddo
        endif
 
@@ -1117,14 +1112,15 @@ module glissade_bmlt_float
     ! Note: For the ISMIP6 local scheme, the basin-scale thermal forcing is not used,
     !       but is computed for diagnostics.
 
-     if (bmlt_float_thermal_forcing_param == BMLT_FLOAT_TF_ISMIP6_LOCAL .or.  &
-         bmlt_float_thermal_forcing_param == BMLT_FLOAT_TF_ISMIP6_NONLOCAL .or.  &
-         bmlt_float_thermal_forcing_param == BMLT_FLOAT_TF_ISMIP6_NONLOCAL_SLOPE) then
+    if (bmlt_float_thermal_forcing_param == BMLT_FLOAT_TF_ISMIP6_LOCAL .or.  &
+        bmlt_float_thermal_forcing_param == BMLT_FLOAT_TF_ISMIP6_NONLOCAL .or.  &
+        bmlt_float_thermal_forcing_param == BMLT_FLOAT_TF_ISMIP6_NONLOCAL_SLOPE) then
 
        ! Compute a weighting function that is proportional to the floating fraction of ice-filled cells,
        !  and also tapers linearly to zero for thin floating ice.
        ! This function is used to ensure smooth changes in the basin averages as cells
        !  transition between grounded and floating, or between ice-free and thick.
+       !TODO: Modify for partial CF cells?
 
        f_float = 1.0d0 - f_ground_cell
 
@@ -2016,6 +2012,7 @@ module glissade_bmlt_float
          thermal_forcing_lsrf,  & !> thermal forcing (K) at lower ice surface
          theta_slope              !> sub-shelf slope angle (radians)
 
+    !TODO - Make this intent(in) so it doesn't change when inverted values are held fixed
     real(dp), dimension(nx,ny), intent(inout) :: &
          deltaT_ocn               !> thermal forcing correction factor (deg C)
 
@@ -2042,15 +2039,6 @@ module glissade_bmlt_float
     bmlt_float(:,:) = 0.0d0
 
     coeff = gamma0 * ( (rhosw_ismip6*cpw_ismip6)/(rhoi_ismip6*Lf_ismip6) )**2
-
-    ! Limit deltaT_ocn such that thermal_forcing_lsrf + deltaT_ocn >= 0
-    ! This prevents grid cells from reaching an unresponsive state in which an increase
-    !  in deltaT_ocn does not generate any melt, since eff_thermal_forcing remains < 0.
-
-    where (thermal_forcing_mask == 1 .and. &
-           thermal_forcing_lsrf + deltaT_ocn < 0.0d0)
-       deltaT_ocn = -thermal_forcing_lsrf
-    endwhere
 
     if (bmlt_float_thermal_forcing_param == BMLT_FLOAT_TF_ISMIP6_LOCAL) then
 

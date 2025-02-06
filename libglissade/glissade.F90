@@ -981,12 +981,11 @@ contains
     ! Optionally, do initial calculations for inversion
     ! At the start of the run (but not on restart), this might lead to further thickness adjustments,
     !  so it should be called before computing the calving mask.
-    !TODO: Separate the basal friction inversion from the bmlt_basin inversion.
 
-    if (model%options%which_ho_powerlaw_c == HO_POWERLAW_C_INVERSION .or.  &
-        model%options%which_ho_coulomb_c  == HO_COULOMB_C_INVERSION  .or.  &
-        model%options%which_ho_deltaT_ocn == HO_DELTAT_OCN_INVERSION .or.  &
-        model%options%which_ho_bmlt_basin == HO_BMLT_BASIN_INVERSION .or.  &
+    if (model%options%which_ho_powerlaw_c   == HO_POWERLAW_C_INVERSION .or.  &
+        model%options%which_ho_coulomb_c    == HO_COULOMB_C_INVERSION  .or.  &
+        model%options%which_ho_deltaT_ocn   == HO_DELTAT_OCN_INVERSION .or.  &
+        model%options%which_ho_deltaT_basin == HO_DELTAT_BASIN_INVERSION .or.  &
         model%options%which_ho_flow_enhancement_factor == HO_FLOW_ENHANCEMENT_FACTOR_INVERSION) then
 
        call glissade_init_inversion(model)
@@ -3945,7 +3944,7 @@ contains
     use glissade_basal_traction, only: calc_effective_pressure
     use glissade_bmlt_float, only: glissade_bmlt_float_thermal_forcing
     use glissade_inversion, only: verbose_inversion, glissade_inversion_basal_friction,  &
-         glissade_inversion_bmlt_basin, glissade_inversion_deltaT_ocn, &
+         glissade_inversion_deltaT_basin, glissade_inversion_deltaT_ocn, &
          glissade_inversion_flow_enhancement_factor
     use glissade_utils, only: glissade_usrf_to_thck
     use glissade_glacier, only: glissade_glacier_update
@@ -4251,7 +4250,7 @@ contains
 
     ! If inverting for deltaT_ocn at the basin level, then update it here
 
-    if ( model%options%which_ho_bmlt_basin == HO_BMLT_BASIN_INVERSION) then
+    if ( model%options%which_ho_deltaT_basin == HO_DELTAT_BASIN_INVERSION) then
 
        if ( (model%options%is_restart == STANDARD_RESTART .or. model%options%is_restart == HYBRID_RESTART) &
             .and. (model%numerics%time == model%numerics%tstart) ) then
@@ -4260,7 +4259,7 @@ contains
 
        else
 
-          call glissade_inversion_bmlt_basin(model%numerics%dt * tim0,                  &  ! s
+          call glissade_inversion_deltaT_basin(model%numerics%dt * tim0,                  &  ! s
                                              ewn, nsn,                                  &
                                              model%numerics%dew * len0,                 &  ! m
                                              model%numerics%dns * len0,                 &  ! m
@@ -4270,15 +4269,19 @@ contains
                                              model%geometry%thck*thk0,                  &  ! m
                                              model%geometry%dthck_dt,                   &  ! m/s
                                              model%inversion%floating_thck_target*thk0, &  ! m
+                                             model%inversion%deltaT_ocn_thck_scale,     &  ! m
+                                             model%inversion%deltaT_ocn_timescale,      &  ! s
+                                             model%inversion%deltaT_ocn_temp_scale,     &  ! degC
+                                             model%inversion%deltaT_ocn_relax,          &  ! degC
                                              model%inversion%basin_mass_correction,     &
                                              model%inversion%basin_number_mass_correction, &
-                                             model%inversion%dbmlt_dtemp_scale,         &  ! (m/s)/degC
-                                             model%inversion%bmlt_basin_timescale,      &  ! s
+!                                             model%inversion%dbmlt_dtemp_scale,         &  ! (m/s)/degC
+!                                             model%inversion%bmlt_basin_timescale,      &  ! s
                                              model%ocean_data%deltaT_ocn)
 
        endif  ! first call after a restart
 
-    endif   ! which_ho_bmlt_basin
+    endif   ! which_ho_deltaT_basin
 
     ! If inverting for deltaT_ocn based on observed ice thickness, then update it here.
 
@@ -4309,11 +4312,11 @@ contains
                model%inversion%deltaT_ocn_thck_scale, &  ! m
                model%inversion%deltaT_ocn_timescale,  &  ! s
                model%inversion%deltaT_ocn_temp_scale, &  ! degC
+               model%inversion%deltaT_ocn_relax,      &  ! degC
                model%geometry%f_ground_cell,          &
                model%geometry%thck * thk0,            &  ! m
                thck_obs * thk0,                       &  ! m
                model%geometry%dthck_dt,               &  ! m/s
-               model%ocean_data%deltaT_ocn_relax,     &  ! degC
                model%ocean_data%deltaT_ocn)              ! degC
 
        endif  ! first call after a restart
