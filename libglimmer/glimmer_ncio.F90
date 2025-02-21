@@ -927,7 +927,7 @@ contains
     !WHL, Feb. 2022:
     ! This is a custom subroutine that opens an input file, finds the length
     ! of a specific dimension, and closes the file.
-    ! It is useful for getting array dimension whose size is not known in advance.
+    ! It is useful for getting an array dimension whose size is not known in advance.
     ! Currently, it is called from glissade_initialise to get the length of the
     ! glacierid dimension, without having to put 'nglacier' in the config file by hand.
 
@@ -953,7 +953,7 @@ contains
     ! get the dimension length
     status = parallel_inq_dimid(infile%nc%id, trim(dimname), dimid)
     if (status .eq. nf90_noerr) then
-       call write_log('Getting length of dimension'//trim(dimname)//' ')
+       call write_log('Getting length of dimension '//trim(dimname)//' ')
        status = parallel_inquire_dimension(infile%nc%id, dimid, len=dimlength)
        if (status /= nf90_noerr) then
           call write_log('Error getting dimlength '//trim(dimname)//':'//nf90_strerror(status),&

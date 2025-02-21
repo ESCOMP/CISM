@@ -1994,8 +1994,6 @@ module glide_types
           glacierid => null()                 !> glacier ID dimension variable, used for I/O
 
      ! The following will be allocated with size nglacier, once nglacier is known.
-     ! Note: mu_star and powerlaw_c have the suffix 'glc' to avoid confusion with the 2D fields
-     !       glacier%mu_star and basal_physics%powerlaw_c
 
      integer, dimension(:), pointer :: &
           cism_to_rgi_glacier_id => null()    !> maps CISM glacier IDs (1:nglacier) to input RGI glacier IDs

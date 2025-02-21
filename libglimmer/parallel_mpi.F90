@@ -5611,120 +5611,174 @@ contains
 
   ! functions belonging to the parallel_get_var interface
 
-  !WHL - Added parallel_get_var functions in analogy to parallel_put_var functions.
-  !      Similar to distributed_get_var, but they lack a 'start' argument.
+  !WHL - Added some parallel_get_var functions in analogy to parallel_put_var functions.
   !      The scalar and 1D functions broadcast values from main_task to other tasks.
   !      The 2D functions do not broadcast; they only bring a global array to main_task.
+  !WHL Feb. 2025: Previously, these functions lacked an input 'start' argument.
+  !      As a result, they always read the first time slice in each array.
+  !      The 'start' argument is needed to get the correct time slice for time-varying fields.
+  !      It is optional, since some calls do not need it.
 
-  function parallel_get_var_integer(ncid, varid, values)
+  function parallel_get_var_integer(ncid, varid, values, start)
 
     implicit none
     integer :: ncid, parallel_get_var_integer, varid
     integer :: values
+    integer,dimension(:),optional :: start
 
     ! begin
-    if (main_task) parallel_get_var_integer = nf90_get_var(ncid,varid,values)
+    if (main_task) then
+       if (present(start)) then
+          parallel_get_var_integer = nf90_get_var(ncid,varid,values,start)
+       else
+          parallel_get_var_integer = nf90_get_var(ncid,varid,values)
+       endif
+    endif
     call broadcast(parallel_get_var_integer)
     call broadcast(values)
 
   end function parallel_get_var_integer
 
 
-  function parallel_get_var_real4(ncid, varid, values)
+  function parallel_get_var_real4(ncid, varid, values, start)
 
     implicit none
     integer :: ncid, parallel_get_var_real4, varid
     real(sp) :: values
+    integer,dimension(:),optional :: start
 
     ! begin
-    if (main_task) parallel_get_var_real4 = nf90_get_var(ncid,varid,values)
+    if (main_task) then
+       if (present(start)) then
+          parallel_get_var_real4 = nf90_get_var(ncid,varid,values,start)
+       else
+          parallel_get_var_real4 = nf90_get_var(ncid,varid,values)
+       endif
+    endif
     call broadcast(parallel_get_var_real4)
     call broadcast(values)
 
   end function parallel_get_var_real4
 
 
-  function parallel_get_var_real8(ncid, varid, values)
+  function parallel_get_var_real8(ncid, varid, values, start)
 
     implicit none
     integer :: ncid,parallel_get_var_real8,varid
     real(dp) :: values
+    integer,dimension(:),optional :: start
 
     ! begin
-    if (main_task) parallel_get_var_real8 = nf90_get_var(ncid,varid,values)
+    if (main_task) then
+       if (present(start)) then
+          parallel_get_var_real8 = nf90_get_var(ncid,varid,values,start)
+       else
+          parallel_get_var_real8 = nf90_get_var(ncid,varid,values)
+       endif
+    endif
     call broadcast(parallel_get_var_real8)
     call broadcast(values)
 
   end function parallel_get_var_real8
 
 
-  function parallel_get_var_integer_1d(ncid, varid, values)
+  function parallel_get_var_integer_1d(ncid, varid, values, start)
 
     implicit none
     integer :: ncid,parallel_get_var_integer_1d,varid
     integer,dimension(:) :: values
+    integer,dimension(:),optional :: start
 
     ! begin
-    if (main_task) parallel_get_var_integer_1d = &
-         nf90_get_var(ncid,varid,values)
+    if (main_task) then
+       if (present(start)) then
+          parallel_get_var_integer_1d = nf90_get_var(ncid,varid,values,start)
+       else
+          parallel_get_var_integer_1d = nf90_get_var(ncid,varid,values)
+       endif
+    endif
     call broadcast(parallel_get_var_integer_1d)
     call broadcast(values)
 
   end function parallel_get_var_integer_1d
 
-  function parallel_get_var_real4_1d(ncid, varid, values)
+  function parallel_get_var_real4_1d(ncid, varid, values, start)
 
     implicit none
     integer :: ncid,parallel_get_var_real4_1d,varid
     real(sp),dimension(:) :: values
+    integer,dimension(:),optional :: start
 
     ! begin
-    if (main_task) parallel_get_var_real4_1d = &
-         nf90_get_var(ncid,varid,values)
+    if (main_task) then
+       if (present(start)) then
+          parallel_get_var_real4_1d = nf90_get_var(ncid,varid,values,start)
+       else
+          parallel_get_var_real4_1d = nf90_get_var(ncid,varid,values)
+       endif
+    endif
     call broadcast(parallel_get_var_real4_1d)
     call broadcast(values)
 
   end function parallel_get_var_real4_1d
 
-  function parallel_get_var_real8_1d(ncid, varid, values)
+  function parallel_get_var_real8_1d(ncid, varid, values, start)
 
     implicit none
     integer :: ncid,parallel_get_var_real8_1d,varid
     real(dp),dimension(:) :: values
+    integer,dimension(:),optional :: start
 
     ! begin
-    if (main_task) parallel_get_var_real8_1d = &
-         nf90_get_var(ncid,varid,values)
+    if (main_task) then
+       if (present(start)) then
+          parallel_get_var_real8_1d = nf90_get_var(ncid,varid,values,start)
+       else
+          parallel_get_var_real8_1d = nf90_get_var(ncid,varid,values)
+       endif
+    endif
     call broadcast(parallel_get_var_real8_1d)
     call broadcast(values)
 
   end function parallel_get_var_real8_1d
 
 
-  function parallel_get_var_integer_2d(ncid, varid, values)
+  function parallel_get_var_integer_2d(ncid, varid, values, start)
 
     implicit none
     integer :: ncid,parallel_get_var_integer_2d,varid
     integer,dimension(:,:) :: values
+    integer,dimension(:),optional :: start
 
     ! begin
-    if (main_task) parallel_get_var_integer_2d = &
-         nf90_get_var(ncid,varid,values)
+    if (main_task) then
+       if (present(start)) then
+          parallel_get_var_integer_2d = nf90_get_var(ncid,varid,values,start)
+       else
+          parallel_get_var_integer_2d = nf90_get_var(ncid,varid,values)
+       endif
+    endif
     call broadcast(parallel_get_var_integer_2d)
 !!    call broadcast(values)  ! no broadcast subroutine for 2D arrays
 
   end function parallel_get_var_integer_2d
 
 
-  function parallel_get_var_real8_2d(ncid, varid, values)
+  function parallel_get_var_real8_2d(ncid, varid, values, start)
 
     implicit none
     integer :: ncid,parallel_get_var_real8_2d,varid
     real(dp),dimension(:,:) :: values
+    integer,dimension(:),optional :: start
 
     ! begin
-    if (main_task) parallel_get_var_real8_2d = &
-         nf90_get_var(ncid,varid,values)
+    if (main_task) then
+       if (present(start)) then
+          parallel_get_var_real8_2d = nf90_get_var(ncid,varid,values,start)
+       else
+          parallel_get_var_real8_2d = nf90_get_var(ncid,varid,values)
+       endif
+    endif
     call broadcast(parallel_get_var_real8_2d)
 !!    call broadcast(values)  ! no broadcast subroutine for 2D arrays
 
