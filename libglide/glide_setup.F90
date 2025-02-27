@@ -215,6 +215,7 @@ contains
     ! scale inversion parameters
     model%inversion%babc_timescale = model%inversion%babc_timescale * scyr    ! convert yr to s
     model%inversion%deltaT_ocn_timescale = model%inversion%deltaT_ocn_timescale * scyr   ! yr to s
+    model%inversion%flow_enhancement_velo_scale = model%inversion%flow_enhancement_velo_scale / scyr  ! m/yr to m/s
     model%inversion%flow_enhancement_timescale = model%inversion%flow_enhancement_timescale * scyr  ! yr to s
     model%inversion%thck_threshold = model%inversion%thck_threshold / thk0
     model%inversion%thck_flotation_buffer = model%inversion%thck_flotation_buffer / thk0
@@ -1184,12 +1185,11 @@ contains
          'weigh bmlt_float by floating fraction of cell', &
          'set bmlt_float = 0 in partly grounded cells  ' /)
 
-    character(len=*), dimension(0:4), parameter :: ho_whichflotation_function = (/ &
-         'f_pattyn = (-rhoo*b)/(rhoi*H)       ', &
-         '1/fpattyn = (rhoi*H)/(-rhoo*b)      ', &
-         'linear = -b - (rhoi/rhoo)*H         ', &
-         'modified linear = -b - (rhoi/rhoo)*H', &
-         'modified linear; topg stdev addition'/)
+    character(len=*), dimension(0:3), parameter :: ho_whichflotation_function = (/ &
+         'f_pattyn = (-rhoo*b)/(rhoi*H)     ', &
+         '1/fpattyn = (rhoi*H)/(-rhoo*b)    ', &
+         'linear = -b - (rhoi/rhoo)*H       ', &
+         'modified linear, with topg_raised '/)
 
     character(len=*), dimension(0:1), parameter :: ho_whichice_age = (/ &
          'ice age computation off', &
@@ -2299,13 +2299,13 @@ contains
 
     ! inversion parameters
     !TODO - Put inversion parameters in a separate section
+    call GetValue(section, 'inversion_thck_error_exponent', model%inversion%thck_error_exponent)
     call GetValue(section, 'inversion_thck_flotation_buffer', model%inversion%thck_flotation_buffer)
     call GetValue(section, 'inversion_thck_threshold', model%inversion%thck_threshold)
 
     call GetValue(section, 'inversion_babc_timescale', model%inversion%babc_timescale)
     call GetValue(section, 'inversion_babc_thck_scale', model%inversion%babc_thck_scale)
     call GetValue(section, 'inversion_babc_relax_factor', model%inversion%babc_relax_factor)
-    call GetValue(section, 'inversion_babc_velo_scale', model%inversion%babc_velo_scale)
 
     call GetValue(section, 'inversion_deltaT_ocn_timescale', model%inversion%deltaT_ocn_timescale)
     call GetValue(section, 'inversion_deltaT_ocn_thck_scale', model%inversion%deltaT_ocn_thck_scale)
@@ -2316,6 +2316,8 @@ contains
 
     call GetValue(section, 'inversion_flow_enhancement_timescale', &
          model%inversion%flow_enhancement_timescale)
+    call GetValue(section, 'inversion_flow_enhancement_velo_scale', &
+         model%inversion%flow_enhancement_velo_scale)
     call GetValue(section, 'inversion_flow_enhancement_thck_scale', &
          model%inversion%flow_enhancement_thck_scale)
     call GetValue(section, 'inversion_flow_enhancement_relax_factor', &
@@ -2751,6 +2753,16 @@ contains
     endif
 
     ! inversion parameters
+    if (model%options%which_ho_powerlaw_c   == HO_POWERLAW_C_INVERSION   .or. &
+        model%options%which_ho_coulomb_c    == HO_COULOMB_C_INVERSION    .or. &
+        model%options%which_ho_deltaT_ocn   == HO_DELTAT_OCN_INVERSION   .or. &
+        model%options%which_ho_deltaT_basin == HO_DELTAT_BASIN_INVERSION) then
+       ! write parameters common to inversion schemes with a thickness target
+       !TODO - thickness threshold and flotation buffer also?
+       write(message,*) 'inversion exponent for thickness errors      : ', &
+            model%inversion%thck_error_exponent
+       call write_log(message)
+    endif
 
     if (model%options%which_ho_powerlaw_c == HO_POWERLAW_C_INVERSION) then
        write(message,*) 'inversion flotation thickness buffer (m)     : ', &
@@ -2774,11 +2786,6 @@ contains
        write(message,*) 'relaxation factor for C_p inversion          : ', &
             model%inversion%babc_relax_factor
        call write_log(message)
-       if (model%inversion%babc_velo_scale > 0.0d0) then
-          write(message,*) 'velocity scale (m/yr) for C_p inversion      : ', &
-               model%inversion%babc_velo_scale
-          call write_log(message)
-       endif
     endif   ! which_ho_powerlaw_c
 
     if (model%options%which_ho_coulomb_c == HO_COULOMB_C_INVERSION) then
@@ -2797,11 +2804,6 @@ contains
        write(message,*) 'relaxation factor for C_c inversion          : ', &
             model%inversion%babc_relax_factor
        call write_log(message)
-       if (model%inversion%babc_velo_scale > 0.0d0) then
-          write(message,*) 'velocity scale (m/yr) for C_c inversion       : ', &
-               model%inversion%babc_velo_scale
-          call write_log(message)
-       endif
        if (model%options%which_ho_coulomb_c_relax == HO_COULOMB_C_RELAX_CONSTANT) then
           write(message,*) 'coulomb_c_relax constant                     : ',model%basal_physics%coulomb_c_const
           call write_log(message)
@@ -2848,6 +2850,21 @@ contains
           endif
        endif   ! deltaT_basin inversion
     endif   ! deltaT_ocn or deltaT_basin inversion
+
+    if (model%options%which_ho_flow_enhancement_factor == HO_FLOW_ENHANCEMENT_FACTOR_INVERSION) then
+       write(message,*) 'velocity scale (m/yr) for flow factor inversion   : ', &
+            model%inversion%flow_enhancement_velo_scale
+       call write_log(message)
+       write(message,*) 'thickness scale (m) for flow factor inversion   : ', &
+            model%inversion%flow_enhancement_thck_scale
+       call write_log(message)
+       write(message,*) 'timescale (yr) for flow factor inversion          : ', &
+            model%inversion%flow_enhancement_timescale
+       call write_log(message)
+       write(message,*) 'relaxation factor for flow factor inversion: ', &
+            model%inversion%flow_enhancement_relax_factor
+       call write_log(message)
+    endif
 
     if (model%basal_physics%beta_powerlaw_umax > 0.0d0) then
        write(message,*) 'max ice speed (m/yr) when evaluating beta(u) : ', model%basal_physics%beta_powerlaw_umax
@@ -3711,9 +3728,9 @@ contains
         end select
 
         ! grounding-line option for Glissade
-        if (options%which_ho_flotation_function == HO_FLOTATION_FUNCTION_LINEAR_STDEV) then
-           ! This option uses a correction based on topg_stdev to compute the flotation function.
-           call glide_add_to_restart_variable_list('topg_stdev', model_id)
+        if (options%which_ho_flotation_function == HO_FLOTATION_FUNCTION_LINEAR_RAISED_TOPG) then
+           ! uses corrected bed topography, topg_raised, to compute the flotation function
+           call glide_add_to_restart_variable_list('topg_raised', model_id)
         endif
 
         ! calving options for Glissade
@@ -3821,27 +3838,31 @@ contains
        call glide_add_to_restart_variable_list('floating_thck_target', model_id)
     endif
 
-    ! inversion options for the flow enhancement factor
-    if (options%which_ho_flow_enhancement_factor /= HO_FLOW_ENHANCEMENT_FACTOR_CONSTANT) then
-       call glide_add_to_restart_variable_list('flow_enhancement_factor', model_id)
-    endif
-
     ! fields needed for inversion options that try to match local thickness or upper surface elevation
     ! Note: If usrf_obs is supplied, thck_obs will be computed at initialization
     if (options%which_ho_powerlaw_c == HO_POWERLAW_C_INVERSION .or. &
         options%which_ho_coulomb_c  == HO_COULOMB_C_INVERSION  .or. &
         options%which_ho_deltaT_ocn == HO_DELTAT_OCN_INVERSION) then
        call glide_add_to_restart_variable_list('usrf_obs', model_id)
-       !WHL - velo_sfc_obs is not strictly needed unless inverting for surface velo,
-       !      but is handy for diagnostics
-       call glide_add_to_restart_variable_list('velo_sfc_obs', model_id)
     endif
 
     ! fields needed for inversion options that try to match local dthck_dt
     ! Note: This is not strictly needed for all options, but still is a useful diagnostic.
+    !TODO: Add an option to match basin-scale dthck_dt?
     if (options%which_ho_deltaT_ocn /= HO_DELTAT_OCN_NONE) then
        call glide_add_to_restart_variable_list('dthck_dt_obs', model_id)
        call glide_add_to_restart_variable_list('dthck_dt_obs_basin', model_id)
+    endif
+
+    ! inversion options for the flow enhancement factor E
+    if (options%which_ho_flow_enhancement_factor /= HO_FLOW_ENHANCEMENT_FACTOR_CONSTANT) then
+       call glide_add_to_restart_variable_list('flow_enhancement_factor', model_id)
+    endif
+
+    ! if inverting for E, we need the modeled and observed surface speed
+    if (options%which_ho_flow_enhancement_factor == HO_FLOW_ENHANCEMENT_FACTOR_INVERSION) then
+       call glide_add_to_restart_variable_list('velo_sfc', model_id)
+       call glide_add_to_restart_variable_list('velo_sfc_obs', model_id)
     endif
 
     ! effective pressure options
@@ -3862,9 +3883,6 @@ contains
         options%which_ho_coulomb_c  == HO_COULOMB_C_INVERSION  .or. &
         options%which_ho_deltaT_ocn == HO_DELTAT_OCN_INVERSION) then
        call glide_add_to_restart_variable_list('usrf_obs', model_id)
-       !WHL - velo_sfc_obs is not strictly needed unless inverting for surface velo,
-       !      but is handy for diagnostics
-       call glide_add_to_restart_variable_list('velo_sfc_obs', model_id)
     endif
 
     ! fields needed for inversion options that try to match local dthck_dt

@@ -122,7 +122,7 @@ contains
     use glissade_glacier, only: glissade_glacier_init
     use glissade_utils, only: glissade_adjust_thickness, glissade_smooth_usrf, &
          glissade_smooth_topography, glissade_adjust_topography
-    use glissade_utils, only: glissade_stdev, glissade_basin_average
+    use glissade_utils, only: glissade_basin_average
     use felix_dycore_interface, only: felix_velo_init
 
     implicit none
@@ -167,12 +167,6 @@ contains
     type(parallel_type) :: parallel   ! info for parallel communication
 
     real(dp), dimension(:), allocatable :: dthck_dt_basin  ! basin average of dthck_dt_obs
-
-    !WHL - added for optional topg_stdev calculations
-    logical, parameter :: compute_topg_stdev = .false.
-    real(dp), dimension(:,:), allocatable :: topg_global, topg_stdev_global
-    integer, parameter :: grid_ratio = 8   ! ratio between no. of grid cells on the input grid and
-                                           ! the grid on which we want to compute topg_stdev; typically 2, 4, or 8
 
     if (main_task) print*, 'In glissade_initialise'
 
@@ -495,40 +489,6 @@ contains
 
     if (model%options%adjust_input_topography .and. model%options%is_restart == NO_RESTART) then
        call glissade_adjust_topography(model)
-    endif
-
-    ! Optionally, compute the standard deviation of the topography.
-    ! Ideally, this would be done when preparing the input file.
-    ! But the following code can be used to compute topg_stdev from a high-resolution
-    !  input file that contains topg only.
-    ! For example, we can read in a 1-km file, set grid_ratio = 8, compute topg_stdev
-    !  in 8x8 blocks of cells, and write it to the initial output file.
-    ! In a given 8x8 block of data, each cell will contain topg_stdev for that block.
-    ! If we then coarsen the output from the 1-km grid to the 8-km grid,
-    !  we have a field of topg_stdev to be used in 8-km simulations.
-
-    if (compute_topg_stdev) then
-
-       allocate(topg_global(parallel%global_ewn, parallel%global_nsn))
-       allocate(topg_stdev_global(parallel%global_ewn, parallel%global_nsn))
-
-       ! gather topg to global grid
-       call distributed_gather_var(model%geometry%topg*thk0, topg_global, parallel)
-
-       if (main_task) then
-          call glissade_stdev(parallel%global_ewn,  parallel%global_nsn,  &
-                              grid_ratio,                                 &
-                              model%numerics%idiag, model%numerics%jdiag, &
-                              topg_global,          topg_stdev_global)
-       endif
-
-       ! scatter topg_stdev to processors, and rescale
-       call distributed_scatter_var(model%geometry%topg_stdev, topg_stdev_global, parallel)
-       model%geometry%topg_stdev = model%geometry%topg_stdev/thk0
-
-       deallocate(topg_global)
-       deallocate(topg_stdev_global)
-
     endif
 
     ! handle relaxed/equilibrium topo
@@ -1137,7 +1097,7 @@ contains
                                        model%geometry%f_flotation,    &
                                        model%geometry%f_ground,       &
                                        model%geometry%f_ground_cell,  &
-                                       model%geometry%topg_stdev*thk0)
+                                       model%geometry%topg_raised*thk0)
 
        call glissade_bmlt_float_thermal_forcing_init(model, model%ocean_data)
 
@@ -3593,7 +3553,7 @@ contains
                                        model%geometry%f_flotation,    &
                                        model%geometry%f_ground,       &
                                        model%geometry%f_ground_cell,  &
-                                       model%geometry%topg_stdev*thk0)
+                                       model%geometry%topg_raised*thk0)
 
        ! Identify floating or weakly grounded cells with ice_fraction_retreat_mask exceeding a prescribed threshold.
        ! Note: f_ground_threshold is also used to identify weakly grounded cells in the algorithms
@@ -3674,7 +3634,7 @@ contains
             model%geometry%f_flotation,    &
             model%geometry%f_ground,       &
             model%geometry%f_ground_cell,  &
-            model%geometry%topg_stdev*thk0)
+            model%geometry%topg_raised*thk0)
 
        call glissade_remove_isthmuses(&
             nx,           ny,              &
@@ -3725,7 +3685,7 @@ contains
             model%geometry%f_flotation,    &
             model%geometry%f_ground,       &
             model%geometry%f_ground_cell,  &
-            model%geometry%topg_stdev*thk0)
+            model%geometry%topg_raised*thk0)
 
        if (model%options%which_ho_calving_front == HO_CALVING_FRONT_SUBGRID) then
 
@@ -4176,50 +4136,28 @@ contains
                                     model%geometry%f_flotation,    &
                                     model%geometry%f_ground,       &
                                     model%geometry%f_ground_cell,  &
-                                    model%geometry%topg_stdev*thk0)
+                                    model%geometry%topg_raised*thk0)
 
     !WHL - debug
     if (this_rank == rtest .and. verbose_glp) then
        print*, ' '
        print*, 'Called GLP subroutine, which_ho_ground =', model%options%which_ho_ground
        print*, ' '
-       print*, 'f_flotation:'
-       do j = jtest+3, jtest-3, -1
-          write(6,'(i8)',advance='no') j
-          do i = itest-3, itest+3
-             write(6,'(f10.3)',advance='no') model%geometry%f_flotation(i,j)
-          enddo
-          print*, ' '
-       enddo
-       print*, ' '
-       print*, 'f_ground at vertex:'
-       do j = jtest+3, jtest-3, -1
-          write(6,'(i8)',advance='no') j
-          do i = itest-3, itest+3
-             write(6,'(f10.5)',advance='no') model%geometry%f_ground(i,j)
-          enddo
-          print*, ' '
-       enddo
-       print*, ' '
-       print*, 'f_ground_cell:'
-       do j = jtest+3, jtest-3, -1
-          write(6,'(i8)',advance='no') j
-          do i = itest-3, itest+3
-             write(6,'(f10.5)',advance='no') model%geometry%f_ground_cell(i,j)
-          enddo
-          print*, ' '
-       enddo
-       print*, ' '
+       call point_diag(model%geometry%f_flotation, 'f_flotation', itest, jtest, rtest, 7, 7, '(f10.5)')
+       call point_diag(model%geometry%f_ground, 'f_ground at vertex', itest, jtest, rtest, 7, 7, '(f10.5)')
+       call point_diag(model%geometry%f_ground_cell, 'f_ground_cell', itest, jtest, rtest, 7, 7, '(f10.5)')
     endif  ! this_rank = rtest
 
+
     !TODO - Put the following runtime inversion code in a separate subroutine in glissade_inversion.
+!!    call subroutine glissade_inversion_solve(model)
 
     ! Compute the thickness tendency dH/dt from one step to the next (m/s)
     ! This tendency is used for coulomb_c and powerlaw_c inversion.
 
     if ( (model%options%is_restart == STANDARD_RESTART .or. model%options%is_restart == HYBRID_RESTART) &
          .and. (model%numerics%time == model%numerics%tstart) ) then
-       ! first call after a restart; do not compute dthck_dt
+       ! first call after a restart
     else
        model%geometry%dthck_dt(:,:) = (model%geometry%thck(:,:) - model%geometry%thck_old(:,:)) * thk0 &
                                     / (model%numerics%dt * tim0)
@@ -4273,6 +4211,7 @@ contains
                                              model%inversion%deltaT_ocn_timescale,      &  ! s
                                              model%inversion%deltaT_ocn_temp_scale,     &  ! degC
                                              model%inversion%deltaT_ocn_relax,          &  ! degC
+                                             model%inversion%thck_error_exponent,       &
                                              model%inversion%basin_mass_correction,     &
                                              model%inversion%basin_number_mass_correction, &
 !                                             model%inversion%dbmlt_dtemp_scale,         &  ! (m/s)/degC
@@ -4313,6 +4252,7 @@ contains
                model%inversion%deltaT_ocn_timescale,  &  ! s
                model%inversion%deltaT_ocn_temp_scale, &  ! degC
                model%inversion%deltaT_ocn_relax,      &  ! degC
+               model%inversion%thck_error_exponent,   &
                model%geometry%f_ground_cell,          &
                model%geometry%thck * thk0,            &  ! m
                thck_obs * thk0,                       &  ! m
@@ -4374,7 +4314,7 @@ contains
        if ( (model%options%is_restart == STANDARD_RESTART .or. model%options%is_restart == HYBRID_RESTART) &
             .and. (model%numerics%time == model%numerics%tstart) ) then
 
-          ! first call after a restart; do not update basin-scale parameters
+          ! first call after a restart; do not update
 
        else
 
@@ -4392,6 +4332,8 @@ contains
           !  (not the current ice) is grounded or floating.
           ! Note: f_flotation_obs and f_ground_obs are not used, but they
           !       are required output arguments for the subroutine.
+          ! Note: This call is not needed if the target for grounded and floating ice
+          !       have the same target for E.
 
           call glissade_grounded_fraction(&
                ewn,          nsn,             &
@@ -4410,22 +4352,26 @@ contains
                f_ground_obs,                  &
                f_ground_cell_obs)
 
+          ! Compute the current surface speed and its rate of change
           call glissade_inversion_flow_enhancement_factor(&
                model%numerics%dt * tim0,                         &
                ewn, nsn,                                         &
                itest, jtest, rtest,                              &
-               model%geometry%thck * thk0,                       &  ! m
+               model%velocity%velo_sfc * vel0,                   &  ! m/s
+               model%velocity%velo_sfc_obs * vel0,               &  ! m/s
                model%geometry%dthck_dt,                          &  ! m/s
-               thck_obs * thk0,                                  &
                ice_mask,                                         &
                model%geometry%f_ground_cell,                     &
                f_ground_cell_obs,                                &
                model%paramets%flow_enhancement_factor_ground,    &
                model%paramets%flow_enhancement_factor_float,     &
-               model%inversion%flow_enhancement_thck_scale,      &  ! m
+               model%inversion%flow_enhancement_velo_scale,      &  ! m/s
                model%inversion%flow_enhancement_timescale,       &  ! s
+               model%inversion%flow_enhancement_thck_scale,      &  ! m
                model%inversion%flow_enhancement_relax_factor,    &
                model%temper%flow_enhancement_factor)
+
+          call parallel_halo(model%temper%flow_enhancement_factor, parallel)
 
        endif  ! first call after a restart
 
@@ -4479,7 +4425,6 @@ contains
                               model%calving%damage,               &
                               model%options%damage_flwa_feedback)
 
-    !TODO - flwa halo update not needed?
     ! Halo update for flwa
     call parallel_halo(model%temper%flwa, parallel)
 
@@ -4748,6 +4693,7 @@ contains
 
     ! compute the velocity norm (for diagnostic output)
     model%velocity%velnorm(:,:,:) = sqrt(model%velocity%uvel(:,:,:)**2 + model%velocity%vvel(:,:,:)**2)
+    model%velocity%velo_sfc(:,:) = model%velocity%velnorm(1,:,:)
 
     ! compute the mean velocity
 
@@ -5073,7 +5019,6 @@ contains
     if (verbose_glissade .and. main_task) then
        print*, 'Done in glissade_diagnostic_variable_solve'
     endif
-
   end subroutine glissade_diagnostic_variable_solve
 
 !=======================================================================

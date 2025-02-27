@@ -1062,49 +1062,17 @@ module glissade_bmlt_float
        enddo
     enddo
 
-    if (verbose_bmlt_float .and. this_rank==rtest) then
-       print*, ' '
-       print*, 'basin number =', ocean_data%basin_number(itest,jtest)
-       print*, ' '
-       print*, 'lsrf (m)'
-       do j = jtest+3, jtest-3, -1
-          write(6,'(i6)',advance='no') j
-          do i = itest-3, itest+3
-             write(6,'(f10.3)',advance='no') lsrf(i,j)
-          enddo
-          write(6,*) ' '
-       enddo
-       print*, ' '
-       print*, 'thermal_forcing_lsrf (deg C)'
-       do j = jtest+3, jtest-3, -1
-          write(6,'(i6)',advance='no') j
-          do i = itest-3, itest+3
-             write(6,'(f10.3)',advance='no') ocean_data%thermal_forcing_lsrf(i,j)
-          enddo
-          write(6,*) ' '
-       enddo
+    if (verbose_bmlt_float) then
+       if (this_rank == rtest) print*, 'basin number =', ocean_data%basin_number(itest,jtest)
+       call point_diag(lsrf, 'lsrf (m)', itest, jtest, rtest, 7, 7)
+       call point_diag(ocean_data%thermal_forcing_lsrf, 'thermal_forcing_lsrf (degC)', itest, jtest, rtest, 7, 7)
+
        if (bmlt_float_thermal_forcing_param == BMLT_FLOAT_TF_ISMIP6_LOCAL .or.  &
            bmlt_float_thermal_forcing_param == BMLT_FLOAT_TF_ISMIP6_NONLOCAL .or.  &
            bmlt_float_thermal_forcing_param == BMLT_FLOAT_TF_ISMIP6_NONLOCAL_SLOPE) then
-          print*, ' '
-          print*, 'deltaT_ocn (deg C)'
-          do j = jtest+3, jtest-3, -1
-             write(6,'(i6)',advance='no') j
-             do i = itest-3, itest+3
-                write(6,'(f10.3)',advance='no') ocean_data%deltaT_ocn(i,j)
-             enddo
-             write(6,*) ' '
-          enddo
-          print*, ' '
-          print*, 'corrected TF (deg C)'
-          do j = jtest+3, jtest-3, -1
-             write(6,'(i6)',advance='no') j
-             do i = itest-3, itest+3
-                write(6,'(f10.3)',advance='no') &
-                     ocean_data%thermal_forcing_lsrf(i,j) + ocean_data%deltaT_ocn(i,j)
-             enddo
-             write(6,*) ' '
-          enddo
+          call point_diag(ocean_data%deltaT_ocn, 'deltaT_ocn (degC)', itest, jtest, rtest, 7, 7)
+          call point_diag(ocean_data%thermal_forcing_lsrf + ocean_data%deltaT_ocn, 'corrected TF (degC)', &
+               itest, jtest, rtest, 7, 7)
        endif
     endif
 
@@ -2035,10 +2003,20 @@ module glissade_bmlt_float
          eff_thermal_forcing,      & ! effective local thermal forcing, after deltaT correction
          eff_thermal_forcing_basin   ! effective basin thermal forcing, after deltaT correction
 
+    !WHL - debug - can set this parameter to force nonzero circulation in all basins
+    !              The Ronne cavity has TF ~ 0.5 C near the GL; Filchner closer to 0.3 C.
+!!    real(dp), parameter :: thermal_forcing_basin_min = 0.50d0  ! min basin-scale TF (degC)
+    real(dp), parameter :: thermal_forcing_basin_min = 0.0d0  ! min basin-scale TF (degC)
+
     ! initialize
     bmlt_float(:,:) = 0.0d0
 
     coeff = gamma0 * ( (rhosw_ismip6*cpw_ismip6)/(rhoi_ismip6*Lf_ismip6) )**2
+
+    !TODO: Previously, deltaT_ocn was limited so as not to be so negative that the local TF is negative.
+    !      Removed this code because it resulted in deltaT_ocn mods after inversion was done.
+    !      However, it would be good to prevent basin-scale TF from becoming strongly negative
+    !       during the inversion. Maybe save the basin-scale average TF and pass to the inversion routine?
 
     if (bmlt_float_thermal_forcing_param == BMLT_FLOAT_TF_ISMIP6_LOCAL) then
 
@@ -2072,7 +2050,11 @@ module glissade_bmlt_float
              if (thermal_forcing_mask(i,j) == 1) then
                 ! Note: Can have bmlt_float < 0 where thermal_forcing_lsrf + deltaT_ocn < 0
                 eff_thermal_forcing = thermal_forcing_lsrf(i,j) + deltaT_ocn(i,j)
-                eff_thermal_forcing_basin = max(0.0d0, thermal_forcing_basin(nb))
+
+                ! Note: If thermal_forcing_basin_min > 0, there will always be some thermal forcing in the basin
+                !       even if the basin is too cold to melt ice. The nonzero TF will promote basal freezing.
+                eff_thermal_forcing_basin = max(thermal_forcing_basin_min, thermal_forcing_basin(nb))
+
                 bmlt_float(i,j) = coeff * eff_thermal_forcing * eff_thermal_forcing_basin
 
                 !WHL - debug
@@ -2132,8 +2114,6 @@ module glissade_bmlt_float
     !
     ! The adjustment is made for all cells that can have melting driven by thermal forcing (thermal_forcing_mask = 1).
     ! This includes cells that are currently grounded, but might be floating in a forward run.
-
-    use glissade_inversion, only : deltaT_ocn_maxval
 
     integer, intent(in) :: &
          bmlt_float_thermal_forcing_param  !> kind of melting parameterization, local or nonlocal
@@ -2304,9 +2284,6 @@ module glissade_bmlt_float
     ! Adjust deltaT_ocn
     deltaT_ocn_new = deltaT_ocn_init + dTocn
 
-    ! Cap at max allowed value
-    deltaT_ocn_new = min(deltaT_ocn_new, deltaT_ocn_maxval)
-
     ! For diagnostics, compute the new melt rate
 
     if (bmlt_float_thermal_forcing_param == BMLT_FLOAT_TF_ISMIP6_LOCAL) then
@@ -2349,87 +2326,17 @@ module glissade_bmlt_float
        enddo
     endif
 
-    if (verbose_bmlt_float .and. this_rank == rtest) then
-       print*, ' '
-       print*, 'thermal_forcing_lsrf (degC):'
-       do j = jtest+3, jtest-3, -1
-          do i = itest-3, itest+3
-             write(6,'(f10.3)',advance='no') thermal_forcing_lsrf(i,j)
-          enddo
-          write(6,*) ' '
-       enddo
-       print*, ' '
-       print*, 'Initial deltaT_ocn (degC):'
-       do j = jtest+3, jtest-3, -1
-          do i = itest-3, itest+3
-             write(6,'(f10.3)',advance='no') deltaT_ocn_init(i,j)
-          enddo
-          write(6,*) ' '
-       enddo
-       print*, ' '
-       print*, 'Initial effective TF (degC):'
-       do j = jtest+3, jtest-3, -1
-          do i = itest-3, itest+3
-             write(6,'(f10.3)',advance='no') thermal_forcing_lsrf(i,j) + deltaT_ocn_init(i,j)
-          enddo
-          write(6,*) ' '
-       enddo
-       print*, ' '
-       print*, 'Initial melt rate (m/yr):'
-       do j = jtest+3, jtest-3, -1
-          do i = itest-3, itest+3
-             write(6,'(f10.3)',advance='no') bmlt_float_init(i,j)
-          enddo
-          write(6,*) ' '
-       enddo
-       print*, ' '
-       print*, 'deltaT_ocn adjustment (degC):'
-       do j = jtest+3, jtest-3, -1
-          do i = itest-3, itest+3
-             write(6,'(f10.3)',advance='no') dTocn(i,j)
-          enddo
-          write(6,*) ' '
-       enddo
-       print*, ' '
-       print*, 'New deltaT_ocn (degC):'
-       do j = jtest+3, jtest-3, -1
-          do i = itest-3, itest+3
-             write(6,'(f10.3)',advance='no') deltaT_ocn_new(i,j)
-          enddo
-          write(6,*) ' '
-       enddo
-       print*, ' '
-       print*, 'New effective TF (degC):'
-       do j = jtest+3, jtest-3, -1
-          do i = itest-3, itest+3
-             write(6,'(f10.3)',advance='no') thermal_forcing_lsrf(i,j) + deltaT_ocn_new(i,j)
-          enddo
-          write(6,*) ' '
-       enddo
-       print*, ' '
-       print*, 'New melt rate (m/yr):'
-       do j = jtest+3, jtest-3, -1
-          do i = itest-3, itest+3
-             write(6,'(f10.3)',advance='no') bmlt_float_new(i,j)
-          enddo
-          write(6,*) ' '
-       enddo
-       print*, ' '
-       print*, 'Melt difference (m/yr):'
-       do j = jtest+3, jtest-3, -1
-          do i = itest-3, itest+3
-             write(6,'(f10.3)',advance='no') bmlt_float_new(i,j) - bmlt_float_init(i,j)
-          enddo
-          write(6,*) ' '
-       enddo
-       print*, ' '
-       print*, 'dthck_dt_target (m/yr):'
-       do j = jtest+3, jtest-3, -1
-          do i = itest-3, itest+3
-             write(6,'(f10.3)',advance='no') dthck_dt_target(i,j)
-          enddo
-          write(6,*) ' '
-       enddo
+    if (verbose_bmlt_float) then
+       call point_diag(thermal_forcing_lsrf, 'thermal_forcing_lsrf (degC)', itest, jtest, rtest, 7, 7)
+       call point_diag(deltaT_ocn_init, 'Initial deltaT_ocn', itest, jtest, rtest, 7, 7)
+       call point_diag(thermal_forcing_lsrf + deltaT_ocn_init, 'Initial effective TF', itest, jtest, rtest, 7, 7)
+       call point_diag(bmlt_float_init, 'Initial melt rate (m/yr)', itest, jtest, rtest, 7, 7)
+       call point_diag(dTocn, 'deltaT_ocn adjustment', itest, jtest, rtest, 7, 7)
+       call point_diag(deltaT_ocn_new, 'New deltaT_ocn', itest, jtest, rtest, 7, 7)
+       call point_diag(thermal_forcing_lsrf + deltaT_ocn_new, 'New effective TF', itest, jtest, rtest, 7, 7)
+       call point_diag(bmlt_float_new, 'New melt rate (m/yr)', itest, jtest, rtest, 7, 7)
+       call point_diag(bmlt_float_new - bmlt_float_init, 'Melt difference (m/yr)', itest, jtest, rtest, 7, 7)
+       call point_diag(dthck_dt_target, 'dthck_dt_target (m/yr)', itest, jtest, rtest, 7, 7)
     endif
 
   end subroutine ismip6_set_deltaT_ocn

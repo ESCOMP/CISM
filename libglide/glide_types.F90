@@ -385,8 +385,7 @@ module glide_types
   integer, parameter :: HO_FLOTATION_FUNCTION_PATTYN = 0
   integer, parameter :: HO_FLOTATION_FUNCTION_INVERSE_PATTYN = 1
   integer, parameter :: HO_FLOTATION_FUNCTION_LINEAR = 2
-  integer, parameter :: HO_FLOTATION_FUNCTION_LINEARB = 3
-  integer, parameter :: HO_FLOTATION_FUNCTION_LINEAR_STDEV = 4
+  integer, parameter :: HO_FLOTATION_FUNCTION_LINEAR_RAISED_TOPG = 3
 
   integer, parameter :: HO_ICE_AGE_NONE = 0
   integer, parameter :: HO_ICE_AGE_COMPUTE = 1 
@@ -1131,8 +1130,8 @@ module glide_types
     !> \item[0] f_flotation = (-rhow*b/rhoi*H) = f_pattyn; <=1 for grounded, > 1 for floating
     !> \item[1] f_flotation = (rhoi*H)/(-rhow*b) = 1/f_pattyn; >=1 for grounded, < 1 for floating
     !> \item[2] f_flotation = -rhow*b - rhoi*H = ocean cavity thickness; <=0 for grounded, > 0 for floating 
-    !> \item[3] Modified version of (2), without extrapolation to ice-free ocean
-    !> \item[4] Like (3), but with stdev correction for topg
+    !>          (without extrapolation to ice-free ocean, as in an older version)
+    !> \item[3] Like (2), but with a correction for topg
     !> \end{description}
 
     logical :: block_inception = .false.
@@ -1202,8 +1201,9 @@ module glide_types
     real(dp),dimension(:,:),pointer :: topg => null() 
     !> The elevation of the topography, divided by \texttt{thk0}.
 
-    real(dp),dimension(:,:),pointer :: topg_stdev => null()
-    !> Standard deviation of the topography, divided by \texttt{thk0}.
+    real(dp),dimension(:,:),pointer :: topg_raised => null()
+    !> Raised version of the topography, divided by \texttt{thk0}.
+    !> Used to resolve pinning points for one of the GLP options
 
     real(dp),dimension(:,:),pointer :: usrf_obs => null()
     !> Observed upper surface elevation, divided by \texttt{thk0}.
@@ -1377,6 +1377,7 @@ module glide_types
     real(dp),dimension(:,:)  ,pointer :: total_diffu => null() !> total diffusivity
 
     ! Note: DIVA solves for uvel_2d and vvel_2d; these are typically (but not necessarily) the vertical average
+    ! Velocities are currently scaled to model units; multiply by vel0 to convert to m/s
     real(dp),dimension(:,:)  ,pointer :: uvel_2d  => null()   !> 2D $x$-velocity; typically the vertical average
     real(dp),dimension(:,:)  ,pointer :: vvel_2d  => null()   !> 2D $y$-velocity; typically the vertical average
     real(dp),dimension(:,:)  ,pointer :: uvel_mean  => null() !> vertical mean $x$-velocity
@@ -1710,8 +1711,11 @@ module glide_types
      ! parameters for initializing inversion fields
      real(dp) :: &
           thck_threshold = 0.0d0,          & !> ice thinner than this threshold (m) is removed at initialization
-          thck_flotation_buffer = 1.0d0      !> if usrf_obs implies thck near the flotation thickness,
+          thck_flotation_buffer = 1.0d0,   & !> if usrf_obs implies thck near the flotation thickness,
                                              !> set to thck_flotation +/- thck_flotation_buffer (m)
+          thck_error_exponent = 1.0d0        !> exponent for term of the form dH/H0,
+                                             !> where dH = H - H_target and H0 = thickness scale
+                                             !> values > 1 will tend to penalize large errors but tolerate small errors
 
      ! fields and parameters for powerlaw_c and coulomb_c inversion
      ! Note: powerlaw_c and coulomb_c are in the basal_physics type
@@ -1719,15 +1723,10 @@ module glide_types
      ! parameters for adjusting powerlaw_c or coulomb_c during inversion
      ! Note: inversion%babc_timescale is later rescaled to SI units (s).
      ! If babc_thck_scale > 0.0, then there is inversion based on a thickness target.
-     ! If babc_velo_scale > 0.0, then there is inversion based on a velocity target.
-     ! Either babc_thck_scale or babc_velo_scale must be set > 0 to turn on the inversion.
-     ! Setting both scales > 0 gives two inversion targets.
      real(dp) ::  &
-          babc_timescale  = 500.d0,            & !> inversion timescale (yr); must be > 0
+          babc_timescale  = 200.d0,            & !> inversion timescale (yr); must be > 0
           babc_thck_scale = 100.d0,            & !> thickness inversion scale (m)
-          babc_relax_factor = 0.05d0,          & !> controls strength of relaxation to default values (unitless)
-          babc_velo_scale = 0.0d0                !> velocity inversion scale (m/yr)
-                                                 !> typical value for inversion = 200 m/yr
+          babc_relax_factor = 0.05d0             !> controls strength of relaxation to default values (unitless)
 
      ! parameters for local deltaT_ocn inversion
      ! Note: deltaT_ocn is in the ocean_data type
@@ -1750,9 +1749,10 @@ module glide_types
 
      ! parameters for flow_enhancement_factor inversion
      real(dp) ::  &
+          flow_enhancement_velo_scale = 100.d0, & !> velocity scale (m/yr) for adjusting flow_enhancement_factor
           flow_enhancement_thck_scale = 100.d0, & !> thickness scale (m) for adjusting flow_enhancement_factor
-          flow_enhancement_timescale = 500.d0,  & !> timescale (yr) for adjusting flow_enhancement_factor
-          flow_enhancement_relax_factor = 0.5d0   !> controls strength of relaxation to default values (unitless)
+          flow_enhancement_timescale = 200.d0,  & !> timescale (yr) for adjusting flow_enhancement_factor
+          flow_enhancement_relax_factor = 1.0d0   !> controls strength of relaxation to default values (unitless)
 
   end type glide_inversion
 
@@ -2702,11 +2702,10 @@ contains
     !> \item \texttt{vflx(ewn-1,nsn-1))}
     !> \item \texttt{diffu(ewn,nsn))}
     !> \item \texttt{btrc(ewn-1,nsn-1))}
-    !> \item \texttt{usfc_obs(ewn,nsn))}
-    !> \item \texttt{vsfc_obs(ewn,nsn))}
+    !> \item \texttt{usfc_obs(ewn-1,nsn-1))}
+    !> \item \texttt{vsfc_obs(ewn-1,nsn-1))}
     !> \item \texttt{velo_sfc_obs(ewn-1,nsn-1))}
     !> \item \texttt{velo_sfc(ewn-1,nsn-1))}
-!!    !> \item \texttt{dvelo_sfc_dt(ewn-1,nsn-1))}
     !> \end{itemize}
 
     !> In \texttt{model\%climate}:
@@ -2732,7 +2731,7 @@ contains
     !> \item \texttt{usrf(ewn,nsn))}
     !> \item \texttt{lsrf(ewn,nsn))}
     !> \item \texttt{topg(ewn,nsn))}
-    !> \item \texttt{topg_stdev(ewn,nsn))}
+    !> \item \texttt{topg_raised(ewn,nsn))}
     !> \item \texttt{usrf_obs(ewn,nsn))}
     !> \item \texttt{thck_old(ewn,nsn))}
     !> \item \texttt{dthck_dt(ewn,nsn))}
@@ -2972,7 +2971,7 @@ contains
     call coordsystem_allocate(model%general%ice_grid, model%geometry%usrf)
     call coordsystem_allocate(model%general%ice_grid, model%geometry%lsrf)
     call coordsystem_allocate(model%general%ice_grid, model%geometry%topg)
-    call coordsystem_allocate(model%general%ice_grid, model%geometry%topg_stdev)
+    call coordsystem_allocate(model%general%ice_grid, model%geometry%topg_raised)
     call coordsystem_allocate(model%general%ice_grid, model%geometry%usrf_obs)
     call coordsystem_allocate(model%general%ice_grid, model%geometry%dthck_dt)
     call coordsystem_allocate(model%general%ice_grid, model%geometry%dthck_dt_obs)
@@ -3665,8 +3664,8 @@ contains
         deallocate(model%geometry%lsrf)
     if (associated(model%geometry%topg)) &
         deallocate(model%geometry%topg)
-    if (associated(model%geometry%topg_stdev)) &
-        deallocate(model%geometry%topg_stdev)
+    if (associated(model%geometry%topg_raised)) &
+        deallocate(model%geometry%topg_raised)
     if (associated(model%geometry%usrf_obs)) &
         deallocate(model%geometry%usrf_obs)
     if (associated(model%geometry%dthck_dt)) &

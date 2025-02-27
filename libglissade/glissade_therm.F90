@@ -2448,8 +2448,11 @@ module glissade_therm
     integer,                   intent(in)    :: &
          which_ho_flow_enhancement_factor           !> option for flow enhancement factor
 
+    !Note: flow_enhancement_factor should not be modified if which_ho_flow_enhancement_factor = 1 (inversion)
+    !      or = 2 (read external).
     real(dp),dimension(:,:),   intent(inout) :: &
          flow_enhancement_factor                    !> flow enhancement factor, unitless
+
     real(dp),                  intent(in)    :: &
          flow_enhancement_factor_ground,        &   !> flow enhancement factor for grounded ice
          flow_enhancement_factor_float              !> flow enhancement factor for floating ice
@@ -2487,7 +2490,8 @@ module glissade_therm
 
     real(dp), parameter :: flwa_damage_max = 0.95d0   ! max damage value used to enhance flwa
     real(dp), parameter :: nexp_damage = 1.0d0        ! exponent in damage-flwa relation
-!!    real(dp), parameter :: nexp_damage = 3.0d0      ! exponent in damage-flwa relation
+
+    character(len=150) :: message
 
     !------------------------------------------------------------------------------------
    
@@ -2517,11 +2521,20 @@ module glissade_therm
 
        endif
 
-    else
-
-       ! do nothing; use the input value of flow_enhancement_factor
-
     endif
+
+    ! Bug check: Make sure flow_enhancement_factor E /= 0 in cells with ice,
+    ! since E = 0 leads to flwa = 0, which gives NaNs in the velocity solver.
+    do ns = 1, nsn
+       do ew = 1, ewn
+          if (f_ground_cell(ew,ns) > 0.0d0 .or. floating_mask(ew,ns) == 1) then  ! ice-filled
+             if (flow_enhancement_factor(ew,ns) == 0.0d0) then
+                write(message,*) 'glissade_flow_factor, E = 0 in cell with ice, rank, i, j =', this_rank, ew, ns
+                call write_log(trim(message), GM_FATAL)
+             endif
+          endif
+       enddo
+    enddo
 
     ! Check that the temperature array has the desired vertical dimension
 

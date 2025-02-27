@@ -48,8 +48,8 @@ module glissade_calving
             glissade_stress_tensor_eigenvalues, glissade_strain_rate_tensor_eigenvalues
   public :: verbose_calving
 
-!!  logical, parameter :: verbose_calving = .false.
-  logical, parameter :: verbose_calving = .true.
+  logical, parameter :: verbose_calving = .false.
+!!  logical, parameter :: verbose_calving = .true.
 
 contains
 

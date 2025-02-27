@@ -10659,6 +10659,14 @@
                 m = indxA_3d(0,0,0)
                 diag_entry = Auu(m,k,i,j)
 
+                !WHL - debug
+                if (diag_entry /= diag_entry) then
+                   print*, 'Diagonal NaN: k, i, j =', k, i, j
+                   call parallel_globalindex(i, j, iglobal, jglobal, parallel)
+                   print*, '   iglobal, jglobal:', iglobal, jglobal
+!!                   stop
+                endif
+
                 do jA = -1, 1
                 do iA = -1, 1
                 do kA = -1, 1
@@ -10688,8 +10696,8 @@
                             print*, 'WARNING: Auu is not symmetric: this_rank, i, j, k, iA, jA, kA =', &
                                  this_rank, i, j, k, iA, jA, kA
                             print*, 'Auu(row,col), Auu(col,row), diff/diag:', val1, val2, (val2 - val1)/diag_entry
-!!                            call parallel_globalindex(i, j, iglobal, jglobal)
-!!                            print*, '   iglobal, jglobal:', iglobal, jglobal
+                            call parallel_globalindex(i, j, iglobal, jglobal, parallel)
+                            print*, '   iglobal, jglobal:', iglobal, jglobal
 !!                            stop
                          endif
 
@@ -10715,6 +10723,8 @@
                             print*, 'WARNING: Auv is not equal to (Avu)^T, this_rank, i, j, k, iA, jA, kA =', &
                                  this_rank, i, j, k, iA, jA, kA
                             print*, 'Auv(row,col), Avu(col,row), diff/diag:', val1, val2, (val2 - val1)/diag_entry
+                            call parallel_globalindex(i, j, iglobal, jglobal, parallel)
+                            print*, '   iglobal, jglobal:', iglobal, jglobal
 !!                            stop
                          endif
 
@@ -10730,6 +10740,14 @@
 
                 m = indxA_3d(0,0,0)
                 diag_entry = Avv(m,k,i,j)
+
+                !WHL - debug
+                if (diag_entry /= diag_entry) then
+                   print*, 'WARNING: Diagonal NaN: k, i, j =', k, i, j
+                   call parallel_globalindex(i, j, iglobal, jglobal, parallel)
+                   print*, '   iglobal, jglobal:', iglobal, jglobal
+!!                   stop
+                endif
 
                 ! check that Avv = (Avv)^T
 
@@ -10760,6 +10778,8 @@
                             print*, 'WARNING: Avv is not symmetric: this_rank, i, j, k, iA, jA, kA =', &
                                  this_rank, i, j, k, iA, jA, kA
                             print*, 'Avv(row,col), Avv(col,row), diff/diag:', val1, val2, (val2 - val1)/diag_entry
+                            call parallel_globalindex(i, j, iglobal, jglobal, parallel)
+                            print*, '   iglobal, jglobal:', iglobal, jglobal
 !!                            stop
                          endif
 
@@ -10785,6 +10805,8 @@
                             print*, 'WARNING: Avu is not equal to (Auv)^T, this_rank, i, j, k, iA, jA, kA =', &
                                  this_rank, i, j, k, iA, jA, kA
                             print*, 'Avu(row,col), Auv(col,row), diff/diag:', val1, val2, (val2 - val1)/diag_entry
+                            call parallel_globalindex(i, j, iglobal, jglobal, parallel)
+                            print*, '   iglobal, jglobal:', iglobal, jglobal
 !!                            stop
                          endif
 
@@ -10846,7 +10868,7 @@
                                 !         |
                                 !    Avu  | Avv                                    
 
-    integer :: i, j, iA, jA, m, mm
+    integer :: i, j, iA, jA, m, mm, iglobal, jglobal
 
     real(dp) :: val1, val2          ! values of matrix coefficients
 
@@ -10886,6 +10908,14 @@
                 ! Check Auu and Auv for symmetry
                 diag_entry = Auu(i,j,indxA_2d(0,0))
 
+                !WHL - debug
+                if (diag_entry /= diag_entry) then
+                   print*, 'WARNING: Diagonal NaN: i, j =', i, j
+                   call parallel_globalindex(i, j, iglobal, jglobal, parallel)
+                   print*, '   iglobal, jglobal:', iglobal, jglobal
+!!                   stop
+                endif
+
                 ! Check that Auu = Auu^T
                 val1 = Auu(i,    j,    m )   ! value of Auu(row,col)
                 val2 = Auu(i+iA, j+jA, mm)   ! value of Auu(col,row)
@@ -10900,6 +10930,8 @@
                    else
                       print*, 'WARNING: Auu is not symmetric: this_rank, i, j, iA, jA =', this_rank, i, j, iA, jA
                       print*, 'Auu(row,col), Auu(col,row), diff/diag:', val1, val2, (val2 - val1)/diag_entry
+                      call parallel_globalindex(i, j, iglobal, jglobal, parallel)
+                      print*, '   iglobal, jglobal:', iglobal, jglobal
 !!                      stop
                    endif
                 endif   ! val2 /= val1
@@ -10918,6 +10950,8 @@
                    else
                       print*, 'WARNING: Auv is not equal to (Avu)^T, this_rank, i, j, iA, jA =', this_rank, i, j, iA, jA
                       print*, 'Auv(row,col), Avu(col,row), diff/diag:', val1, val2, (val2 - val1)/diag_entry
+                      call parallel_globalindex(i, j, iglobal, jglobal, parallel)
+                      print*, '   iglobal, jglobal:', iglobal, jglobal
 !!                      stop
                    endif
                 endif  ! val2 /= val1
@@ -10941,6 +10975,8 @@
                    else
                       print*, 'WARNING: Avv is not symmetric: this_rank, i, j, iA, jA =', this_rank, i, j, iA, jA
                       print*, 'Avv(row,col), Avv(col,row), diff/diag:', val1, val2, (val2 - val1)/diag_entry
+                      call parallel_globalindex(i, j, iglobal, jglobal, parallel)
+                      print*, '   iglobal, jglobal:', iglobal, jglobal
 !!                      stop
                    endif
 
@@ -10963,6 +10999,8 @@
                    else
                       print*, 'WARNING: Avu is not equal to (Auv)^T, this_rank, i, j, iA, jA =', this_rank, i, j, iA, jA
                       print*, 'Avu(row,col), Auv(col,row), diff/diag:', val1, val2, (val2 - val1)/diag_entry
+                      call parallel_globalindex(i, j, iglobal, jglobal, parallel)
+                      print*, '   iglobal, jglobal:', iglobal, jglobal
 !!                      stop
                    endif
 
