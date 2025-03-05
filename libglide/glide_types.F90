@@ -143,6 +143,10 @@ module glide_types
   integer, parameter :: SMB_INPUT_MYR_ICE = 0     ! use 'acab' for input
   integer, parameter :: SMB_INPUT_MMYR_WE = 1     ! use 'smb' for input
 
+
+  integer, parameter :: ACAB_INPUT_MYR_ICE = 0     ! use 'acab' for input
+  integer, parameter :: ACAB_INPUT_MMYR_WE = 1     ! use 'smb' for input
+
   integer, parameter :: SMB_INPUT_FUNCTION_XY = 0
   integer, parameter :: SMB_INPUT_FUNCTION_XY_GRADZ = 1
   integer, parameter :: SMB_INPUT_FUNCTION_XYZ = 2
@@ -620,7 +624,12 @@ module glide_types
     !> \item[0] SMB input in units of m/yr ice (same as acab)
     !> \item[1] SMB input in units of mm/yr water equivalent
     !> \end{description}
-    
+   
+    integer :: acab_input = 0
+    !> units for the ACAB anomaly, they might deviate from the smb input
+    !> 0 means as m/yr
+    !> 1 means as mm/yr
+ 
     integer :: smb_input_function = 0
 
     !> functional form of SMB input:

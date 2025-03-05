@@ -3044,7 +3044,7 @@ contains
 
        if (model%options%enable_acab_anomaly) then
 
-          if (model%options%smb_input == SMB_INPUT_MMYR_WE) then
+          if (model%options%acab_input == ACAB_INPUT_MMYR_WE) then
              ! Convert units from mm/yr w.e. to m/yr ice, then convert to model units.
              !Note: If smb_anomaly is read from the input file, we could do this conversion once at initialization.
              !      But if read from a time-dependent forcing file, the conversion must be done repeatedly.

@@ -1825,10 +1825,19 @@
     ! Given the model time, compute the fraction of the anomaly to be applied now.
     ! Add a small value to the time to avoid rounding errors when time is close to an integer value.
 
-    if (time + eps08 > anomaly_tstart + anomaly_timescale .or. anomaly_timescale == 0.0d0) then
+    if (time + eps08 > anomaly_tstart + anomaly_timescale .or. anomaly_timescale == 0.0d0 ) then
+
+       anomaly_fraction = 1.0d0
+
+    elseif (time + eps08 > anomaly_tstart + anomaly_timescale .and. anomaly_timescale == 0.0d0 ) then
+
+       anomaly_fraction = 1.0d0
+! TvdA: I tried to mess with this. I think that, when you define anomaly_start and anomaly_timescale are both zero the or statement above is
+!  
+!    elseif ( anomaly_timescale == 0.0d0) then
 
        ! apply the full anomaly
-       anomaly_fraction = 1.0d0
+!       anomaly_fraction = 1.0d0
 
     elseif (time + eps08 > anomaly_tstart) then
 

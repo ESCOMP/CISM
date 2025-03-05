@@ -730,6 +730,7 @@ contains
     call GetValue(section,'enable_bmlt_anomaly',model%options%enable_bmlt_anomaly)
     call GetValue(section,'basal_mass_balance',model%options%basal_mbal)
     call GetValue(section,'smb_input',model%options%smb_input)
+    call GetValue(section,'acab_input',model%options%acab_input)
     call GetValue(section,'smb_input_function',model%options%smb_input_function)
     call GetValue(section,'artm_input_function',model%options%artm_input_function)
     call GetValue(section,'nlev_smb',model%climate%nlev_smb)

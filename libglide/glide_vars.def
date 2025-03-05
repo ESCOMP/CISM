@@ -1008,6 +1008,7 @@ long_name:     corrected accumulation, ablation rate
 data:          data%climate%acab_corrected
 factor:        scale_acab
 standard_name: land_ice_surface_specific_mass_balance_corrected
+load:          1
 
 [acab_applied]
 dimensions:    time, y1, x1
