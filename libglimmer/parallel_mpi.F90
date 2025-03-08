@@ -293,6 +293,13 @@ module cism_parallel
      module procedure parallel_global_sum_real8_2d
   end interface
 
+  interface parallel_global_sum_staggered
+     module procedure parallel_global_sum_staggered_3d_real8
+     module procedure parallel_global_sum_staggered_3d_real8_nvar
+     module procedure parallel_global_sum_staggered_2d_real8
+     module procedure parallel_global_sum_staggered_2d_real8_nvar
+  end interface parallel_global_sum_staggered
+
   interface parallel_halo
      module procedure parallel_halo_integer_2d
      module procedure parallel_halo_logical_2d
@@ -5925,14 +5932,18 @@ contains
 
 !=======================================================================
 
-  function parallel_global_sum_integer_2d(a, parallel)
+  ! functions belonging to the parallel_global_sum interface
+
+  function parallel_global_sum_integer_2d(a, parallel, mask)
 
     ! Calculates the global sum of a 2D integer field
 
     integer,dimension(:,:),intent(in) :: a
     type(parallel_type) :: parallel
+    integer, dimension(:,:), intent(in), optional :: mask
 
     integer :: i, j
+    integer, dimension(parallel%local_ewn,parallel%local_nsn) :: sum_mask
     integer :: local_sum
     integer :: parallel_global_sum_integer_2d
 
@@ -5940,10 +5951,18 @@ contains
          local_ewn   => parallel%local_ewn,    &
          local_nsn   => parallel%local_nsn)
 
+    if (present(mask)) then
+       sum_mask = mask
+    else
+       sum_mask = 1
+    endif
+
     local_sum = 0
     do j = nhalo+1, local_nsn-nhalo
        do i = nhalo+1, local_ewn-nhalo
-          local_sum = local_sum + a(i,j)
+          if (sum_mask(i,j) == 1) then
+             local_sum = local_sum + a(i,j)
+          endif
        enddo
     enddo
     parallel_global_sum_integer_2d = parallel_reduce_sum(local_sum)
@@ -5954,14 +5973,16 @@ contains
 
 !=======================================================================
 
-  function parallel_global_sum_real4_2d(a, parallel)
+  function parallel_global_sum_real4_2d(a, parallel, mask)
 
     ! Calculates the global sum of a 2D single-precision field
 
     real(sp),dimension(:,:),intent(in) :: a
     type(parallel_type) :: parallel
+    integer, dimension(:,:), intent(in), optional :: mask
 
     integer :: i, j
+    integer, dimension(parallel%local_ewn,parallel%local_nsn) :: sum_mask
     real(sp) :: local_sum
     real(sp) :: parallel_global_sum_real4_2d
 
@@ -5969,10 +5990,18 @@ contains
          local_ewn   => parallel%local_ewn,    &
          local_nsn   => parallel%local_nsn)
 
+    if (present(mask)) then
+       sum_mask = mask
+    else
+       sum_mask = 1
+    endif
+
     local_sum = 0.0
     do j = nhalo+1, local_nsn-nhalo
        do i = nhalo+1, local_ewn-nhalo
-          local_sum = local_sum + a(i,j)
+          if (sum_mask(i,j) == 1) then
+             local_sum = local_sum + a(i,j)
+          endif
        enddo
     enddo
     parallel_global_sum_real4_2d = parallel_reduce_sum(local_sum)
@@ -5983,14 +6012,16 @@ contains
 
 !=======================================================================
 
-  function parallel_global_sum_real8_2d(a, parallel)
+  function parallel_global_sum_real8_2d(a, parallel, mask)
 
     ! Calculates the global sum of a 2D double-precision field
 
-    real(dp),dimension(:,:),intent(in) :: a
+    real(dp), dimension(:,:), intent(in) :: a
     type(parallel_type) :: parallel
+    integer, dimension(:,:), intent(in), optional :: mask
 
     integer :: i, j
+    integer, dimension(parallel%local_ewn,parallel%local_nsn) :: sum_mask
     real(dp) :: local_sum
     real(dp) :: parallel_global_sum_real8_2d
 
@@ -5998,10 +6029,18 @@ contains
          local_ewn   => parallel%local_ewn,    &
          local_nsn   => parallel%local_nsn)
 
+    if (present(mask)) then
+       sum_mask = mask
+    else
+       sum_mask = 1
+    endif
+
     local_sum = 0.0d0
     do j = nhalo+1, local_nsn-nhalo
        do i = nhalo+1, local_ewn-nhalo
-          local_sum = local_sum + a(i,j)
+          if (sum_mask(i,j) == 1) then
+             local_sum = local_sum + a(i,j)
+          endif
        enddo
     enddo
     parallel_global_sum_real8_2d = parallel_reduce_sum(local_sum)
@@ -6009,6 +6048,283 @@ contains
     end associate
 
   end function parallel_global_sum_real8_2d
+
+!=======================================================================
+
+  ! subroutines belonging to the parallel_global_sum_staggered interface
+  !TODO - Turn these into functions, analogous to the parallel_global_sum functions above.
+
+  subroutine parallel_global_sum_staggered_3d_real8(&
+       nx,            ny,         &
+       nz,            parallel,   &
+       global_sum,                &
+       work1,  work2)
+
+    ! Sum one or two local arrays on the staggered grid, then take the global sum.
+
+    integer, intent(in) :: &
+         nx, ny,             &  ! horizontal grid dimensions (for scalars)
+         nz                     ! number of vertical layers at which velocity is computed
+
+    type(parallel_type), intent(in) :: &
+         parallel               ! info for parallel communication
+
+    real(dp), intent(out) :: global_sum   ! global sum
+    real(dp), intent(in), dimension(nz,nx-1,ny-1) :: work1            ! local array
+    real(dp), intent(in), dimension(nz,nx-1,ny-1), optional :: work2  ! local array
+
+    integer :: i, j, k
+    real(dp) :: local_sum
+
+    integer :: &
+         staggered_ilo, staggered_ihi, &  ! bounds of locally owned vertices on staggered grid
+         staggered_jlo, staggered_jhi
+
+    staggered_ilo = parallel%staggered_ilo
+    staggered_ihi = parallel%staggered_ihi
+    staggered_jlo = parallel%staggered_jlo
+    staggered_jhi = parallel%staggered_jhi
+
+    local_sum = 0.d0
+
+    ! sum over locally owned velocity points
+
+    if (present(work2)) then
+       do j = staggered_jlo, staggered_jhi
+          do i = staggered_ilo, staggered_ihi
+             do k = 1, nz
+                local_sum = local_sum + work1(k,i,j) + work2(k,i,j)
+             enddo
+          enddo
+       enddo
+    else
+       do j = staggered_jlo, staggered_jhi
+          do i = staggered_ilo, staggered_ihi
+             do k = 1, nz
+                local_sum = local_sum + work1(k,i,j)
+             enddo
+          enddo
+       enddo
+    endif
+
+    ! take the global sum
+
+    global_sum = parallel_reduce_sum(local_sum)
+
+  end subroutine parallel_global_sum_staggered_3d_real8
+
+!=======================================================================
+
+  subroutine parallel_global_sum_staggered_3d_real8_nvar(&
+       nx,            ny,         &
+       nz,            parallel,   &
+       global_sum,                &
+       work1,  work2)
+
+    ! Sum one or two local arrays on the staggered grid, then take the global sum.
+
+    integer, intent(in) :: &
+         nx, ny,                &  ! horizontal grid dimensions (for scalars)
+         nz                        ! number of vertical layers at which velocity is computed
+
+    type(parallel_type), intent(in) :: &
+         parallel               ! info for parallel communication
+
+    real(dp), intent(out), dimension(:) :: global_sum   ! global sum
+
+    real(dp), intent(in), dimension(nz,nx-1,ny-1,size(global_sum)) :: work1            ! local array
+    real(dp), intent(in), dimension(nz,nx-1,ny-1,size(global_sum)), optional :: work2  ! local array
+
+    integer :: i, j, k, n, nvar
+    real(dp), dimension(size(global_sum)) :: local_sum
+
+    integer :: &
+         staggered_ilo, staggered_ihi, &  ! bounds of locally owned vertices on staggered grid
+         staggered_jlo, staggered_jhi
+
+    staggered_ilo = parallel%staggered_ilo
+    staggered_ihi = parallel%staggered_ihi
+    staggered_jlo = parallel%staggered_jlo
+    staggered_jhi = parallel%staggered_jhi
+
+    nvar = size(global_sum)
+
+    local_sum(:) = 0.d0
+
+    do n = 1, nvar
+
+       ! sum over locally owned velocity points
+
+       if (present(work2)) then
+          do j = staggered_jlo, staggered_jhi
+             do i = staggered_ilo, staggered_ihi
+                do k = 1, nz
+                   local_sum(n) = local_sum(n) + work1(k,i,j,n) + work2(k,i,j,n)
+                enddo
+             enddo
+          enddo
+       else
+          do j = staggered_jlo, staggered_jhi
+             do i = staggered_ilo, staggered_ihi
+                do k = 1, nz
+                   local_sum(n) = local_sum(n) + work1(k,i,j,n)
+                enddo
+             enddo
+          enddo
+       endif
+
+    enddo   ! nvar
+
+    ! take the global sum
+
+    global_sum(:) = parallel_reduce_sum(local_sum(:))
+
+  end subroutine parallel_global_sum_staggered_3d_real8_nvar
+
+!=======================================================================
+
+  subroutine parallel_global_sum_staggered_2d_real8(&
+       nx,            ny,    &
+       parallel,             &
+       global_sum,           &
+       work1,  work2)
+
+    ! Sum one or two local arrays on the staggered grid, then take the global sum.
+
+    integer, intent(in) :: &
+         nx, ny                     ! horizontal grid dimensions (for scalars)
+
+    type(parallel_type), intent(in) :: &
+         parallel               ! info for parallel communication
+
+    real(dp), intent(out) :: global_sum   ! global sum
+
+    real(dp), intent(in), dimension(nx-1,ny-1) :: work1            ! local array
+    real(dp), intent(in), dimension(nx-1,ny-1), optional :: work2  ! local array
+
+    integer :: i, j
+    real(dp) :: local_sum
+
+    integer :: &
+         staggered_ilo, staggered_ihi, &  ! bounds of locally owned vertices on staggered grid
+         staggered_jlo, staggered_jhi
+
+    staggered_ilo = parallel%staggered_ilo
+    staggered_ihi = parallel%staggered_ihi
+    staggered_jlo = parallel%staggered_jlo
+    staggered_jhi = parallel%staggered_jhi
+
+    local_sum = 0.d0
+
+    ! sum over locally owned velocity points
+
+    if (present(work2)) then
+       do j = staggered_jlo, staggered_jhi
+          do i = staggered_ilo, staggered_ihi
+             local_sum = local_sum + work1(i,j) + work2(i,j)
+          enddo
+       enddo
+    else
+       do j = staggered_jlo, staggered_jhi
+          do i = staggered_ilo, staggered_ihi
+             local_sum = local_sum + work1(i,j)
+          enddo
+       enddo
+    endif
+
+    ! take the global sum
+
+    global_sum = parallel_reduce_sum(local_sum)
+
+  end subroutine parallel_global_sum_staggered_2d_real8
+
+!=======================================================================
+
+  subroutine parallel_global_sum_staggered_2d_real8_nvar(&
+       nx,            ny,            &
+       parallel,                     &
+       global_sum,                   &
+       work1,  work2)
+
+    ! Sum one or two local arrays on the staggered grid, then take the global sum.
+
+    integer, intent(in) :: &
+         nx, ny              ! horizontal grid dimensions (for scalars)
+
+    type(parallel_type), intent(in) :: &
+         parallel               ! info for parallel communication
+
+    real(dp), intent(out), dimension(:) :: &
+         global_sum          ! global sum
+
+    real(dp), intent(in), dimension(nx-1,ny-1,size(global_sum)) :: work1            ! local array
+    real(dp), intent(in), dimension(nx-1,ny-1,size(global_sum)), optional :: work2  ! local array
+
+    integer :: i, j, n, nvar
+
+    real(dp), dimension(size(global_sum)) :: local_sum
+
+    integer :: &
+         staggered_ilo, staggered_ihi, &  ! bounds of locally owned vertices on staggered grid
+         staggered_jlo, staggered_jhi
+
+    staggered_ilo = parallel%staggered_ilo
+    staggered_ihi = parallel%staggered_ihi
+    staggered_jlo = parallel%staggered_jlo
+    staggered_jhi = parallel%staggered_jhi
+
+    nvar = size(global_sum)
+
+    local_sum(:) = 0.d0
+
+    do n = 1, nvar
+
+       ! sum over locally owned velocity points
+
+       if (present(work2)) then
+          do j = staggered_jlo, staggered_jhi
+             do i = staggered_ilo, staggered_ihi
+                local_sum(n) = local_sum(n) + work1(i,j,n) + work2(i,j,n)
+             enddo
+          enddo
+       else
+          do j = staggered_jlo, staggered_jhi
+             do i = staggered_ilo, staggered_ihi
+                local_sum(n) = local_sum(n) + work1(i,j,n)
+             enddo
+          enddo
+       endif
+
+    enddo   ! nvar
+
+    ! take the global sum
+
+    global_sum(:) = parallel_reduce_sum(local_sum(:))
+
+  end subroutine parallel_global_sum_staggered_2d_real8_nvar
+
+!=======================================================================
+
+  !TODO - make this an interface with 2d and 3d versions
+
+  function parallel_is_nonzero(a)
+
+    ! returns .true. if the field has any nonzero values, else returns false
+
+    real(dp), dimension(:,:), intent(in) :: a
+    logical :: parallel_is_nonzero
+
+    real(dp) :: maxval_a
+
+    maxval_a = maxval(abs(a))
+    maxval_a = parallel_reduce_max(maxval_a)
+    if (maxval_a > 0.0d0) then
+       parallel_is_nonzero = .true.
+    else
+       parallel_is_nonzero = .false.
+    endif
+
+  end function parallel_is_nonzero
 
 !=======================================================================
 

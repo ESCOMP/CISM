@@ -1547,7 +1547,7 @@ contains
        write(message,*) 'ocean data extrapolate  : ', model%options%ocean_data_extrapolate, &
             ocean_data_extrapolate(model%options%ocean_data_extrapolate)
        call write_log(message)
-    endif
+    endif   ! which_bmlt_float
 
     if (model%options%basal_mbal < 0 .or. model%options%basal_mbal >= size(b_mbal)) then
        call write_log('Error, basal_mass_balance out of range',GM_FATAL)
@@ -2283,6 +2283,7 @@ contains
 
     ! ocean data parameters
     call GetValue(section, 'gamma0', model%ocean_data%gamma0)
+    call GetValue(section, 'thermal_forcing_basin_min', model%ocean_data%thermal_forcing_basin_min)
     call GetValue(section, 'thermal_forcing_anomaly', model%ocean_data%thermal_forcing_anomaly)
     call GetValue(section, 'thermal_forcing_anomaly_tstart', model%ocean_data%thermal_forcing_anomaly_tstart)
     call GetValue(section, 'thermal_forcing_anomaly_timescale', model%ocean_data%thermal_forcing_anomaly_timescale)
@@ -2851,17 +2852,25 @@ contains
        endif   ! deltaT_basin inversion
     endif   ! deltaT_ocn or deltaT_basin inversion
 
+    if (model%options%bmlt_float_thermal_forcing_param == BMLT_FLOAT_TF_ISMIP6_NONLOCAL .or. &
+        model%options%bmlt_float_thermal_forcing_param == BMLT_FLOAT_TF_ISMIP6_NONLOCAL_SLOPE) then
+       if (model%ocean_data%thermal_forcing_basin_min > 0.0d0) then
+          write(message,*) 'TF_basin_min for nonlocal basal melt (deg C) : ', model%ocean_data%thermal_forcing_basin_min
+          call write_log(message)
+       endif
+    endif   ! nonlocal melt schemes
+
     if (model%options%which_ho_flow_enhancement_factor == HO_FLOW_ENHANCEMENT_FACTOR_INVERSION) then
-       write(message,*) 'velocity scale (m/yr) for flow factor inversion   : ', &
+       write(message,*) 'velocity scale (m/yr) for flow factor inversion: ', &
             model%inversion%flow_enhancement_velo_scale
        call write_log(message)
-       write(message,*) 'thickness scale (m) for flow factor inversion   : ', &
+       write(message,*) 'thickness scale (m) for flow factor inversion  : ', &
             model%inversion%flow_enhancement_thck_scale
        call write_log(message)
-       write(message,*) 'timescale (yr) for flow factor inversion          : ', &
+       write(message,*) 'timescale (yr) for flow factor inversion       : ', &
             model%inversion%flow_enhancement_timescale
        call write_log(message)
-       write(message,*) 'relaxation factor for flow factor inversion: ', &
+       write(message,*) 'relaxation factor for flow factor inversion    : ', &
             model%inversion%flow_enhancement_relax_factor
        call write_log(message)
     endif

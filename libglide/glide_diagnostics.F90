@@ -36,8 +36,11 @@ module glide_diagnostics
   use glimmer_log
   use glide_types
   use cism_parallel, only: this_rank, main_task, lhalo, uhalo, nhalo, &
-       parallel_type, broadcast, parallel_localindex, parallel_globalindex, &
-       parallel_reduce_sum, parallel_reduce_max, parallel_reduce_maxloc, parallel_reduce_minloc
+       parallel_type, broadcast, &
+       parallel_localindex, parallel_globalindex, &
+       parallel_reduce_sum, parallel_reduce_max, &
+       parallel_reduce_maxloc, parallel_reduce_minloc, &
+       parallel_is_nonzero
 
   implicit none
 
@@ -170,7 +173,8 @@ contains
  
     use glimmer_paramets, only: thk0, len0, vel0, tim0, unphys_val
     use glimmer_physcon, only: scyr, rhoi, shci
- 
+    use glissade_utils, only: glissade_usrf_to_thck, glissade_rms_error
+
     implicit none
  
     ! input/output arguments
@@ -225,6 +229,7 @@ contains
          artm_diag, acab_diag,          &
          bmlt_diag, bwat_diag,          &
          bheatflx_diag, level,          &
+         rmse_thck, rmse_velo,          &    ! rms errors for ice thickness (m) and surface speed (m/yr)
          factor                              ! unit conversion factor
 
     integer, dimension(model%general%ewn,model%general%nsn) ::  &
@@ -234,11 +239,12 @@ contains
     real(dp), dimension(model%general%upn) ::  &
          temp_diag,                     &    ! Note: sfc temp not included if temps are staggered
                                              !       (use artm instead)
-         spd_diag
+         spd_diag                            ! speed (m/yr)
 
     real(dp), dimension(model%lithot%nlayer) ::  &
          lithtemp_diag                       ! lithosphere column diagnostics
 
+    ! glacier diagnostics
     real(dp) :: &
          tot_glc_area_init, tot_glc_area,     & ! total glacier area, initial and current (km^2)
          tot_glc_volume_init, tot_glc_volume, & ! total glacier volume, initial and current (km^3)
@@ -247,7 +253,8 @@ contains
          tot_glc_area_target,                 & ! target glacier area for inversion (km^2)
          tot_glc_volume_target,               & ! target glacier volume for inversion (km^3)
          sum_sqr_err,                         & ! sum-squared error
-         rmse_thck, rmse_thck_init_extent       ! root mean square value of thck - thck_target
+         glc_rmse_thck,                       & ! root mean square value of thck - thck_target
+         glc_rmse_thck_init_extent              ! as above, but within initial extent
 
     integer :: &
          nglc_cells,                          & ! number of glacier grid cells
@@ -266,7 +273,11 @@ contains
          ewn, nsn, upn,                     &    ! model%numerics%ewn, etc.
          nlith,                             &    ! model%lithot%nlayer
          velo_ew_ubound, velo_ns_ubound          ! upper bounds for velocity variables
- 
+
+    real(dp), dimension(model%general%ewn, model%general%nsn) ::  &
+         velo_sfc,            & ! surface ice speed
+         thck_obs               ! observed ice thickness, derived from usrf_obs and topg
+
     character(len=100) :: message
     
     ! Note: cell_area is copied here from model%geometry%cell_area
@@ -918,6 +929,52 @@ contains
                     max_spd_bas_global*vel0*scyr, imax_global, jmax_global
     call write_log(trim(message), type = GM_DIAGNOSTIC)
 
+    !-----------------------------------------------------------------
+    ! Optionally, compute the rms_error of model thickness and surface speed
+    ! compared to observations.
+    ! TODO - Instead of ice_mask, use a mask that also includes cells
+    !        which are ice-free in the model but ice-covered in observations
+    !-----------------------------------------------------------------
+
+    if (parallel_is_nonzero(model%geometry%usrf_obs)) then
+
+       call glissade_usrf_to_thck(&
+            model%geometry%usrf_obs,      &
+            model%geometry%topg,          &
+            model%climate%eus,            &
+            thck_obs)
+
+       call glissade_rms_error(&
+            ewn,            nsn,          &
+            ice_mask,                     &
+            parallel,                     &
+            model%geometry%thck*thk0,     &  ! m
+            thck_obs*thk0,                &  ! m
+            rmse_thck)
+
+       write(message,'(a25,f24.16)') 'rms error, thickness (m) ', rmse_thck
+       call write_log(trim(message), type = GM_DIAGNOSTIC)
+
+    endif
+
+    if (parallel_is_nonzero(model%velocity%velo_sfc_obs)) then
+
+       velo_sfc = sqrt(model%velocity%uvel(1,:,:)**2   &
+                     + model%velocity%vvel(1,:,:)**2)
+
+       call glissade_rms_error(&
+            ewn,            nsn,          &
+            ice_mask,                     &
+            parallel,                     &
+            velo_sfc * (vel0*scyr),       &  ! m/yr
+            model%velocity%velo_sfc_obs * (vel0*scyr), &  ! m/yr
+            rmse_velo)
+
+       write(message,'(a25,f24.16)') 'rms error, sfc spd (m/y) ', rmse_velo
+       call write_log(trim(message), type = GM_DIAGNOSTIC)
+
+    endif
+
     ! local diagnostics
 
     ! initialize to unphysical negative values
@@ -1178,7 +1235,7 @@ contains
 
           ! Compute the root-mean-square error (thck - thck_target), including cells
           !  with cism_glacier_id > 0 or cism_glacier_id_init > 0
-          !TODO - Write an rmse subroutine?
+          !TODO - Call an rmse subroutine (with a mask for glacier cells)
           nglc_cells = 0
           sum_sqr_err = 0.0d0
           do j = nhalo+1, nsn-nhalo
@@ -1194,7 +1251,7 @@ contains
           enddo
           nglc_cells = parallel_reduce_sum(nglc_cells)
           sum_sqr_err = parallel_reduce_sum(sum_sqr_err)
-          rmse_thck = sqrt(sum_sqr_err/nglc_cells)
+          glc_rmse_thck = sqrt(sum_sqr_err/nglc_cells)
 
           ! Repeat, including only cells within the initial glacier extent
           nglc_cells = 0
@@ -1211,7 +1268,7 @@ contains
           enddo
           nglc_cells = parallel_reduce_sum(nglc_cells)
           sum_sqr_err = parallel_reduce_sum(sum_sqr_err)
-          rmse_thck_init_extent = sqrt(sum_sqr_err/nglc_cells)
+          glc_rmse_thck_init_extent = sqrt(sum_sqr_err/nglc_cells)
 
           write(message,'(a35,f14.6)') 'Total area target (km^2)           ', &
                tot_glc_area_target / 1.0d6
@@ -1222,11 +1279,11 @@ contains
           call write_log(trim(message), type = GM_DIAGNOSTIC)
 
           write(message,'(a35,f14.6)') 'rms error, thck - thck_target (m)  ', &
-               rmse_thck
+               glc_rmse_thck
           call write_log(trim(message), type = GM_DIAGNOSTIC)
 
           write(message,'(a35,f14.6)') 'rms error over init extent (m)     ', &
-               rmse_thck_init_extent
+               glc_rmse_thck_init_extent
           call write_log(trim(message), type = GM_DIAGNOSTIC)
 
        endif  ! set_powerlaw_c

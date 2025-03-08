@@ -539,6 +539,7 @@ contains
 
        if (glacier%set_mu_star == GLACIER_MU_STAR_INVERSION .and. &
            glacier%set_alpha_snow == GLACIER_ALPHA_SNOW_INVERSION) then
+          !TODO - here and elsewhere, use the parallel_is_nonzero function
           ! Make sure a nonzero smb_obs field was read in
           max_glcval = maxval(abs(model%climate%smb_obs))
           max_glcval = parallel_reduce_max(max_glcval)

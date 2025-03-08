@@ -353,6 +353,7 @@ contains
     jtest = model%numerics%jdiag_local
 
     ! Check that lat and lon fields were read in, if desired
+    !TODO - Use the parallel_is_nonzero function instead, here and below
     if (model%options%read_lat_lon) then
        local_maxval = maxval(abs(model%general%lat))
        global_maxval = parallel_reduce_max(local_maxval)
@@ -1433,6 +1434,7 @@ contains
 
     use glimmer_paramets, only: eps08, eps11, tim0, thk0, len0
     use glimmer_physcon, only: scyr
+    use glide_diagnostics, only: point_diag
     use glissade_bmlt_float, only: glissade_basal_melting_float, &
          glissade_bmlt_float_thermal_forcing, verbose_bmlt_float
     use glissade_transport, only: glissade_add_2d_anomaly
@@ -1719,127 +1721,49 @@ contains
     if (model%basal_melt%bmlt_cavity_h0 > 0.0d0 .and.  &
         model%options%whichbmlt_float /= BMLT_FLOAT_MISMIP) then
 
-       ! TODO: Make sure lsrf is up to date.
+       ! TODO: Make sure lsrf is up to date. Add eus term.
 
        h_cavity = max(model%geometry%lsrf - model%geometry%topg, 0.0d0) * thk0  ! cavity thickness (m)
 
-       if (this_rank==rtest .and. verbose_bmlt_float) then
-          print*, ' '
-          print*, 'Reduce bmlt_float in shallow cavities, bmlt_cavity_h0 =', &
-               model%basal_melt%bmlt_cavity_h0
-          print*, ' '
-          print*, 'original bmlt_float (m/yr):'
-          write(6,'(a6)',advance='no') '      '
-          do i = itest-3, itest+3
-             write(6,'(i10)',advance='no') i
-          enddo
-          print*, ' '
-          do j = jtest+3, jtest-3, -1
-             write(6,'(i6)',advance='no') j
-             do i = itest-3, itest+3
-                write(6,'(f10.3)',advance='no') model%basal_melt%bmlt_float(i,j) * thk0*scyr/tim0
-             enddo
+       if (verbose_bmlt_float) then
+          if (this_rank == rtest) then
              print*, ' '
-          enddo
-          print*, ' '
-          print*, 'h_cavity:'
-          print*, ' '
-          do j = jtest+3, jtest-3, -1
-             write(6,'(i6)',advance='no') j
-             do i = itest-3, itest+3
-                write(6,'(f10.3)',advance='no') h_cavity(i,j)
-             enddo
-             print*, ' '
-          enddo
-          print*, ' '
-          print*, 'Adjustment factor:'
-          do j = jtest+3, jtest-3, -1
-             write(6,'(i6)',advance='no') j
-             do i = itest-3, itest+3
-                write(6,'(f10.3)',advance='no') &
-                     tanh(h_cavity(i,j)/model%basal_melt%bmlt_cavity_h0)
-             enddo
-             print*, ' '
-          enddo
-       endif   ! verbose_bmlt_float
+             print*, 'Reduce bmlt_float in shallow cavities, bmlt_cavity_h0 (m) =', &
+                  model%basal_melt%bmlt_cavity_h0
+          endif
+          call point_diag(model%basal_melt%bmlt_float*thk0*scyr/tim0, 'original bmlt_float (m/yr)', &
+               itest, jtest, rtest, 7, 7)
+          call point_diag(h_cavity, 'h_cavity (m)', itest, jtest, rtest, 7, 7)
+          call point_diag(min(h_cavity/model%basal_melt%bmlt_cavity_h0, 1.0d0), 'fractional reduction', &
+               itest, jtest, rtest, 7, 7)
+       endif
 
        where (h_cavity > 0.0d0)
           model%basal_melt%bmlt_float = model%basal_melt%bmlt_float * &
                tanh(h_cavity/model%basal_melt%bmlt_cavity_h0)
+          ! WHL - Uncomment the following (and comment the line above) to replace the tanh function with a linear ramp.
+!          model%basal_melt%bmlt_float = model%basal_melt%bmlt_float * &
+!               min(h_cavity/model%basal_melt%bmlt_cavity_h0, 1.0d0)
        elsewhere
           model%basal_melt%bmlt_float = 0.0d0
        endwhere
 
-       if (this_rank==rtest .and. verbose_bmlt_float) then
-          print*, ' '
-          print*, 'reduced bmlt_float (m/yr):'
-          do j = jtest+3, jtest-3, -1
-             write(6,'(i6)',advance='no') j
-             do i = itest-3, itest+3
-                write(6,'(f10.3)',advance='no') model%basal_melt%bmlt_float(i,j) * thk0*scyr/tim0
-             enddo
-             print*, ' '
-          enddo
-       endif
-
     endif   ! bmlt_cavity_h0 > 0
 
-    !WHL - debug
-    if (this_rank==rtest .and. verbose_bmlt_float) then
-       print*, ' '
-       print*, 'After glissade_bmlt_float_solve, which_ho_ground_bmlt =', model%options%which_ho_ground_bmlt
-
+    if (verbose_bmlt_float) then
+       if (this_rank == rtest) then
+          print*, ' '
+          print*, 'After glissade_bmlt_float_solve, which_ho_ground_bmlt =', model%options%which_ho_ground_bmlt
+       endif
        if (model%options%which_ho_ground == HO_GROUND_GLP_DELUXE) then
-          print*, ' '
-          print*, '1 - f_ground_cell:'
-          write(6,'(a6)',advance='no') '      '
-          do i = itest-3, itest+3
-             write(6,'(i10)',advance='no') i
-          enddo
-          write(6,*) ' '
-          do j = jtest+3, jtest-3, -1
-             write(6,'(i6)',advance='no') j
-             do i = itest-3, itest+3
-                write(6,'(f10.3)',advance='no') 1.0d0 - model%geometry%f_ground_cell(i,j)
-             enddo
-             write(6,*) ' '
-          enddo
+          call point_diag(1.0d0 - model%geometry%f_ground_cell, '1 - f_ground_cell', &
+               itest, jtest, rtest, 7, 7)
        else
-          print*, ' '
-          print*, 'floating_mask:'
-          write(6,'(a6)',advance='no') '      '
-          do i = itest-3, itest+3
-             write(6,'(i10)',advance='no') i
-          enddo
-          write(6,*) ' '
-          do j = jtest+3, jtest-3, -1
-             write(6,'(i6)',advance='no') j
-             do i = itest-3, itest+3
-                write(6,'(i10)',advance='no') floating_mask(i,j)
-             enddo
-             write(6,*) ' '
-          enddo
-       endif   ! which_ho_ground
-
-       print*, ' '
-       print*, 'bmlt_float (m/yr):'
-       write(6,'(a6)',advance='no') '      '
-       do i = itest-3, itest+3
-          write(6,'(i10)',advance='no') i
-       enddo
-       write(6,*) ' '
-       do j = jtest+3, jtest-3, -1
-          write(6,'(i6)',advance='no') j
-          do i = itest-3, itest+3
-             write(6,'(f10.4)',advance='no') model%basal_melt%bmlt_float(i,j) * thk0*scyr/tim0
-          enddo
-          write(6,*) ' '
-       enddo
-       print*, ' '
-
-       print*, 'Done in glissade_bmlt_float_solve'
-
-    endif  ! this_rank = rtest and verbose_bmlt_float
+          call point_diag(floating_mask, 'floating_mask', itest, jtest, rtest, 7, 7)
+       endif
+       call point_diag(model%basal_melt%bmlt_float*thk0*scyr/tim0, 'Final bmlt_float (m/yr)', &
+            itest, jtest, rtest, 7, 7)
+    endif  ! verbose_bmlt_float
 
   end subroutine glissade_bmlt_float_solve
 
@@ -1859,7 +1783,6 @@ contains
     use glissade_transport, only: glissade_add_2d_anomaly
     use glissade_grid_operators, only: glissade_vertical_interpolate
     use glissade_masks, only: glissade_get_masks
-
     !WHL - debug
     use cism_parallel, only: parallel_reduce_max
     use glissade_glacier, only : verbose_glacier

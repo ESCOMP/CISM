@@ -47,7 +47,8 @@
     use glimmer_log
     use profile, only: t_startf, t_stopf
     use cism_parallel, only: this_rank, main_task, &
-         parallel_type, staggered_parallel_halo, parallel_reduce_sum
+         parallel_type, staggered_parallel_halo, parallel_reduce_sum,  &
+         parallel_global_sum_staggered
 
     implicit none
     
@@ -55,13 +56,6 @@
     public :: pcg_solver_standard_3d,  pcg_solver_standard_2d,  &
               pcg_solver_chrongear_3d, pcg_solver_chrongear_2d, &
               matvec_multiply_structured_3d
-    
-    interface global_sum_staggered
-       module procedure global_sum_staggered_3d_real8
-       module procedure global_sum_staggered_3d_real8_nvar       
-       module procedure global_sum_staggered_2d_real8
-       module procedure global_sum_staggered_2d_real8_nvar       
-    end interface
 
     logical, parameter :: verbose_pcg = .false.
     logical, parameter :: verbose_tridiag = .false.
@@ -327,10 +321,11 @@
     ! find global sum of the squared L2 norm
 
     call t_startf("pcg_glbsum_init")
-    call global_sum_staggered(nx,            ny,          &
-                              nz,            parallel,    &
-                              L2_rhs,                     &
-                              work0u, work0v)
+    call parallel_global_sum_staggered(&
+         nx,            ny,          &
+         nz,            parallel,    &
+         L2_rhs,                     &
+         work0u, work0v)
     call t_stopf("pcg_glbsum_init")
 
     ! take square root
@@ -391,10 +386,11 @@
        call t_stopf("pcg_dotprod")
 
        call t_startf("pcg_glbsum_iter")
-       call global_sum_staggered(nx,            ny,            &
-                                 nz,            parallel,      &
-                                 eta1,                         &
-                                 work0u, work0v)
+       call parallel_global_sum_staggered(&
+            nx,            ny,            &
+            nz,            parallel,      &
+            eta1,                         &
+            work0u, work0v)
        call t_stopf("pcg_glbsum_iter")
 
        !WHL - If the SIA solver has failed due to singular matrices,
@@ -450,10 +446,11 @@
        call t_stopf("pcg_dotprod")
 
        call t_startf("pcg_glbsum_iter")
-       call global_sum_staggered(nx,            ny,        &
-                                 nz,            parallel,  &
-                                 eta2,                     &
-                                 work0u, work0v)
+       call parallel_global_sum_staggered(&
+            nx,            ny,        &
+            nz,            parallel,  &
+            eta2,                     &
+            work0u, work0v)
        call t_stopf("pcg_glbsum_iter")
 
        ! Compute alpha
@@ -521,10 +518,11 @@
           call t_stopf("pcg_dotprod")
 
           call t_startf("pcg_glbsum_resid")
-          call global_sum_staggered(nx,            ny,       &
-                                    nz,            parallel, &
-                                    L2_resid,                &
-                                    work0u, work0v)
+          call parallel_global_sum_staggered(&
+               nx,            ny,       &
+               nz,            parallel, &
+               L2_resid,                &
+               work0u, work0v)
           call t_stopf("pcg_glbsum_resid")
 
           ! take square root
@@ -754,10 +752,11 @@
     ! find global sum of the squared L2 norm
 
     call t_startf("pcg_glbsum_init")
-    call global_sum_staggered(nx,        ny,       &
-                              parallel,            &
-                              L2_rhs,              &
-                              work0u,    work0v)
+    call parallel_global_sum_staggered(&
+         nx,        ny,       &
+         parallel,            &
+         L2_rhs,              &
+         work0u,    work0v)
     call t_stopf("pcg_glbsum_init")
 
     ! take square root
@@ -810,10 +809,11 @@
        call t_stopf("pcg_dotprod")
 
        call t_startf("pcg_glbsum_iter")
-       call global_sum_staggered(nx,     ny,     &
-                                 parallel,       &
-                                 eta1,           &
-                                 work0u, work0v)
+       call parallel_global_sum_staggered(&
+            nx,     ny,     &
+            parallel,       &
+            eta1,           &
+            work0u, work0v)
        call t_stopf("pcg_glbsum_iter")
 
        !WHL - If the SIA solver has failed due to singular matrices,
@@ -869,10 +869,11 @@
        call t_stopf("pcg_dotprod")
 
        call t_startf("pcg_glbsum_iter")
-       call global_sum_staggered(nx,     ny,       &
-                                 parallel,         &
-                                 eta2,             &
-                                 work0u, work0v)
+       call parallel_global_sum_staggered(&
+            nx,     ny,       &
+            parallel,         &
+            eta2,             &
+            work0u, work0v)
        call t_stopf("pcg_glbsum_iter")
 
        ! Compute alpha
@@ -940,10 +941,11 @@
           call t_stopf("pcg_dotprod")
 
           call t_startf("pcg_glbsum_resid")
-          call global_sum_staggered(nx,     ny,     &
-                                    parallel,       &
-                                    L2_resid,       &
-                                    work0u, work0v)
+          call parallel_global_sum_staggered(&
+               nx,     ny,     &
+               parallel,       &
+               L2_resid,       &
+               work0u, work0v)
           call t_stopf("pcg_glbsum_resid")
 
           ! take square root
@@ -1425,10 +1427,11 @@
     ! find global sum of the squared L2 norm
 
     call t_startf("pcg_glbsum_init")
-    call global_sum_staggered(nx,     ny,         &
-                              nz,     parallel,   &
-                              bb,                 &
-                              worku,  workv)
+    call parallel_global_sum_staggered(&
+         nx,     ny,         &
+         nz,     parallel,   &
+         bb,                 &
+         worku,  workv)
     call t_stopf("pcg_glbsum_init")
 
     ! take square root
@@ -1622,10 +1625,11 @@
     !---- Find global sums of (r,z) and (d,q)
 
     call t_startf("pcg_glbsum_iter")
-    call global_sum_staggered(nx,     ny,         &
-                              nz,     parallel,   &
-                              gsum,               &
-                              work2u, work2v)
+    call parallel_global_sum_staggered(&
+         nx,     ny,         &
+         nz,     parallel,   &
+         gsum,               &
+         work2u, work2v)
     call t_stopf("pcg_glbsum_iter")
 
     !---- Halo update for q
@@ -1800,10 +1804,11 @@
        ! this is the one MPI global reduction per iteration.
 
        call t_startf("pcg_glbsum_iter")
-       call global_sum_staggered(nx,     ny,          &
-                                 nz,     parallel,    &
-                                 gsum,                &
-                                 work2u, work2v)
+       call parallel_global_sum_staggered(&
+            nx,     ny,          &
+            nz,     parallel,    &
+            gsum,                &
+            work2u, work2v)
        call t_stopf("pcg_glbsum_iter")
 
        !---- Halo update for Az
@@ -1905,10 +1910,11 @@
           call t_stopf("pcg_dotprod")
 
           call t_startf("pcg_glbsum_resid")
-          call global_sum_staggered(nx,     ny,         &
-                                    nz,     parallel,   &
-                                    rr,                 &
-                                    worku,  workv)
+          call parallel_global_sum_staggered(&
+               nx,     ny,         &
+               nz,     parallel,   &
+               rr,                 &
+               worku,  workv)
           call t_stopf("pcg_glbsum_resid")
 
           L2_resid = sqrt(rr)          ! L2 norm of residual
@@ -2358,10 +2364,11 @@
     ! find global sum of the squared L2 norm
 
     call t_startf("pcg_glbsum_init")
-    call global_sum_staggered(nx,     ny,   &
-                              parallel,     &
-                              bb,           &
-                              worku,  workv)
+    call parallel_global_sum_staggered(&
+         nx,     ny,   &
+         parallel,     &
+         bb,           &
+         worku,  workv)
     call t_stopf("pcg_glbsum_init")
 
     ! take square root
@@ -2639,10 +2646,11 @@
     !---- Find global sums of (r,z) and (d,q)
 
     call t_startf("pcg_glbsum_iter")
-    call global_sum_staggered(nx,     ny,   &
-                              parallel,     &
-                              gsum,         &
-                              work2u, work2v)
+    call parallel_global_sum_staggered(&
+         nx,     ny,   &
+         parallel,     &
+         gsum,         &
+         work2u, work2v)
     call t_stopf("pcg_glbsum_iter")
 
     if (verbose_pcg .and. this_rank == rtest) then
@@ -2925,10 +2933,11 @@
        ! this is the one MPI global reduction per iteration.
 
        call t_startf("pcg_glbsum_iter")
-       call global_sum_staggered(nx,      ny,    &
-                                 parallel,        &
-                                 gsum,            &
-                                 work2u,  work2v)
+       call parallel_global_sum_staggered(&
+            nx,      ny,    &
+            parallel,        &
+            gsum,            &
+            work2u,  work2v)
        call t_stopf("pcg_glbsum_iter")
 
        !---- Halo update for Az
@@ -3028,10 +3037,11 @@
           call t_stopf("pcg_dotprod")
 
           call t_startf("pcg_glbsum_resid")
-          call global_sum_staggered(nx,     ny,    &
-                                    parallel,      &
-                                    rr,            &
-                                    worku,  workv)
+          call parallel_global_sum_staggered(&
+               nx,     ny,    &
+               parallel,      &
+               rr,            &
+               worku,  workv)
           call t_stopf("pcg_glbsum_resid")
 
           L2_resid = sqrt(rr)          ! L2 norm of residual
@@ -5036,259 +5046,6 @@
     endif   ! verbose_tridiag
 
   end subroutine tridiag_solver_global_2d
-
-!****************************************************************************
-
-  subroutine global_sum_staggered_3d_real8(nx,            ny,         &
-                                           nz,            parallel,   &
-                                           global_sum,                &
-                                           work1,  work2)
-
-     ! Sum one or two local arrays on the staggered grid, then take the global sum.
-
-     integer, intent(in) :: &
-          nx, ny,             &  ! horizontal grid dimensions (for scalars)
-          nz                     ! number of vertical layers at which velocity is computed
-
-     type(parallel_type), intent(in) :: &
-          parallel               ! info for parallel communication
-
-     real(dp), intent(out) :: global_sum   ! global sum
-
-     real(dp), intent(in), dimension(nz,nx-1,ny-1) :: work1            ! local array
-     real(dp), intent(in), dimension(nz,nx-1,ny-1), optional :: work2  ! local array
-
-     integer :: i, j, k
-     real(dp) :: local_sum
-
-     integer :: &
-          staggered_ilo, staggered_ihi, &  ! bounds of locally owned vertices on staggered grid
-          staggered_jlo, staggered_jhi
-
-     staggered_ilo = parallel%staggered_ilo
-     staggered_ihi = parallel%staggered_ihi
-     staggered_jlo = parallel%staggered_jlo
-     staggered_jhi = parallel%staggered_jhi
-
-     local_sum = 0.d0
-
-     ! sum over locally owned velocity points
-     
-     if (present(work2)) then
-        do j = staggered_jlo, staggered_jhi
-           do i = staggered_ilo, staggered_ihi
-              do k = 1, nz
-                 local_sum = local_sum + work1(k,i,j) + work2(k,i,j)
-              enddo
-           enddo
-        enddo
-     else
-        do j = staggered_jlo, staggered_jhi
-           do i = staggered_ilo, staggered_ihi
-              do k = 1, nz
-                 local_sum = local_sum + work1(k,i,j)    
-              enddo
-           enddo
-        enddo
-     endif
-
-     ! take the global sum
-
-     global_sum = parallel_reduce_sum(local_sum)
-
-    end subroutine global_sum_staggered_3d_real8
-
-!****************************************************************************
-
-  subroutine global_sum_staggered_3d_real8_nvar(nx,            ny,         &
-                                                nz,            parallel,   &
-                                                global_sum,                &
-                                                work1,  work2)
-
-     ! Sum one or two local arrays on the staggered grid, then take the global sum.
-
-     integer, intent(in) :: &
-       nx, ny,                &  ! horizontal grid dimensions (for scalars)
-       nz                        ! number of vertical layers at which velocity is computed
-
-     type(parallel_type), intent(in) :: &
-          parallel               ! info for parallel communication
-
-     real(dp), intent(out), dimension(:) :: global_sum   ! global sum
-
-     real(dp), intent(in), dimension(nz,nx-1,ny-1,size(global_sum)) :: work1            ! local array
-     real(dp), intent(in), dimension(nz,nx-1,ny-1,size(global_sum)), optional :: work2  ! local array
-
-     integer :: i, j, k, n, nvar
-     real(dp), dimension(size(global_sum)) :: local_sum
-
-     integer :: &
-          staggered_ilo, staggered_ihi, &  ! bounds of locally owned vertices on staggered grid
-          staggered_jlo, staggered_jhi
-
-     staggered_ilo = parallel%staggered_ilo
-     staggered_ihi = parallel%staggered_ihi
-     staggered_jlo = parallel%staggered_jlo
-     staggered_jhi = parallel%staggered_jhi
-
-     nvar = size(global_sum)
-
-     local_sum(:) = 0.d0
-
-     do n = 1, nvar
-
-        ! sum over locally owned velocity points
-
-        if (present(work2)) then
-           do j = staggered_jlo, staggered_jhi
-              do i = staggered_ilo, staggered_ihi
-                 do k = 1, nz
-                    local_sum(n) = local_sum(n) + work1(k,i,j,n) + work2(k,i,j,n)
-                 enddo
-              enddo
-           enddo
-        else
-           do j = staggered_jlo, staggered_jhi
-              do i = staggered_ilo, staggered_ihi
-                 do k = 1, nz
-                    local_sum(n) = local_sum(n) + work1(k,i,j,n)    
-                 enddo
-              enddo
-           enddo
-        endif
-
-     enddo   ! nvar
-
-     ! take the global sum
-
-     global_sum(:) = parallel_reduce_sum(local_sum(:))
-
-   end subroutine global_sum_staggered_3d_real8_nvar
-
-!****************************************************************************
-
-  subroutine global_sum_staggered_2d_real8(nx,            ny,    &
-                                           parallel,             &
-                                           global_sum,           &
-                                           work1,  work2)
-
-     ! Sum one or two local arrays on the staggered grid, then take the global sum.
-
-     integer, intent(in) :: &
-       nx, ny                     ! horizontal grid dimensions (for scalars)
-
-      type(parallel_type), intent(in) :: &
-           parallel               ! info for parallel communication
-
-     real(dp), intent(out) :: global_sum   ! global sum
-
-     real(dp), intent(in), dimension(nx-1,ny-1) :: work1            ! local array
-     real(dp), intent(in), dimension(nx-1,ny-1), optional :: work2  ! local array
-
-     integer :: i, j
-     real(dp) :: local_sum
-
-     integer :: &
-          staggered_ilo, staggered_ihi, &  ! bounds of locally owned vertices on staggered grid
-          staggered_jlo, staggered_jhi
-
-     staggered_ilo = parallel%staggered_ilo
-     staggered_ihi = parallel%staggered_ihi
-     staggered_jlo = parallel%staggered_jlo
-     staggered_jhi = parallel%staggered_jhi
-
-     local_sum = 0.d0
-
-     ! sum over locally owned velocity points
-     
-     if (present(work2)) then
-        do j = staggered_jlo, staggered_jhi
-           do i = staggered_ilo, staggered_ihi
-              local_sum = local_sum + work1(i,j) + work2(i,j)
-           enddo
-        enddo
-     else
-        do j = staggered_jlo, staggered_jhi
-           do i = staggered_ilo, staggered_ihi
-              local_sum = local_sum + work1(i,j) 
-           enddo
-        enddo
-     endif
-
-     ! take the global sum
-
-     global_sum = parallel_reduce_sum(local_sum)
-
-    end subroutine global_sum_staggered_2d_real8
-
-!****************************************************************************
-
-    subroutine global_sum_staggered_2d_real8_nvar(nx,            ny,            &
-                                                  parallel,                     &
-                                                  global_sum,                   &
-                                                  work1,  work2)
-
-      ! Sum one or two local arrays on the staggered grid, then take the global sum.
-
-      integer, intent(in) :: &
-           nx, ny              ! horizontal grid dimensions (for scalars)
-
-      type(parallel_type), intent(in) :: &
-           parallel               ! info for parallel communication
-
-      real(dp), intent(out), dimension(:) :: &
-           global_sum          ! global sum
-
-      real(dp), intent(in), dimension(nx-1,ny-1,size(global_sum)) :: work1            ! local array
-      real(dp), intent(in), dimension(nx-1,ny-1,size(global_sum)), optional :: work2  ! local array
-
-      integer :: i, j, n, nvar
-
-      real(dp), dimension(size(global_sum)) :: local_sum
-
-      integer :: &
-           staggered_ilo, staggered_ihi, &  ! bounds of locally owned vertices on staggered grid
-           staggered_jlo, staggered_jhi
-
-      staggered_ilo = parallel%staggered_ilo
-      staggered_ihi = parallel%staggered_ihi
-      staggered_jlo = parallel%staggered_jlo
-      staggered_jhi = parallel%staggered_jhi
-
-      nvar = size(global_sum)
-
-      local_sum(:) = 0.d0
-
-      do n = 1, nvar
-
-         ! sum over locally owned velocity points
-
-         if (present(work2)) then
-            do j = staggered_jlo, staggered_jhi
-               do i = staggered_ilo, staggered_ihi
-                  local_sum(n) = local_sum(n) + work1(i,j,n) + work2(i,j,n)
-               enddo
-            enddo
-         else
-            do j = staggered_jlo, staggered_jhi
-               do i = staggered_ilo, staggered_ihi
-                  local_sum(n) = local_sum(n) + work1(i,j,n)
-               enddo
-            enddo
-         endif
-
-      enddo   ! nvar
-
-      !WHL - debug
-!     if (verbose_pcg .and. main_task) then
-!        print*, '   Call parallel_reduce_sum'
-!     endif
-
-      ! take the global sum
-
-      global_sum(:) = parallel_reduce_sum(local_sum(:))
-
-    end subroutine global_sum_staggered_2d_real8_nvar
 
 !****************************************************************************
 

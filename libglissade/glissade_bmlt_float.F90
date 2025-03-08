@@ -1336,17 +1336,18 @@ module glissade_bmlt_float
        ! Note: bmlt_float is nonzero only for cells with thermal_forcing_mask = 1.
 
        call ismip6_bmlt_float(&
-            bmlt_float_thermal_forcing_param, &
-            nx,                ny,            &
-            itest,   jtest,    rtest,         &
-            ocean_data%nbasin,                &
-            ocean_data%basin_number,          &
-            ocean_data%gamma0,                &
-            ocean_data%thermal_forcing_lsrf,  &
-            ocean_data%deltaT_ocn,            &
-            theta_slope,                      &
-            thermal_forcing_basin,            &
-            thermal_forcing_mask,             &
+            bmlt_float_thermal_forcing_param,     &
+            nx,                ny,                &
+            itest,   jtest,    rtest,             &
+            ocean_data%nbasin,                    &
+            ocean_data%basin_number,              &
+            ocean_data%gamma0,                    &
+            ocean_data%thermal_forcing_lsrf,      &
+            ocean_data%deltaT_ocn,                &
+            ocean_data%thermal_forcing_basin_min, &
+            theta_slope,                          &
+            thermal_forcing_basin,                &
+            thermal_forcing_mask,                 &
             bmlt_float)
 
     endif   ! bmlt_float_thermal_forcing_param
@@ -1947,6 +1948,7 @@ module glissade_bmlt_float
        gamma0,                    &
        thermal_forcing_lsrf,      &
        deltaT_ocn,                &
+       thermal_forcing_basin_min, &
        theta_slope,               &
        thermal_forcing_basin,     &
        thermal_forcing_mask,      &
@@ -1980,9 +1982,14 @@ module glissade_bmlt_float
          thermal_forcing_lsrf,  & !> thermal forcing (K) at lower ice surface
          theta_slope              !> sub-shelf slope angle (radians)
 
-    !TODO - Make this intent(in) so it doesn't change when inverted values are held fixed
-    real(dp), dimension(nx,ny), intent(inout) :: &
+    real(dp), dimension(nx,ny), intent(in) :: &
          deltaT_ocn               !> thermal forcing correction factor (deg C)
+
+    ! Note: If thermal_forcing_basin_min > 0, there will always be some thermal forcing in the basin
+    !        even if the basin is too cold to melt ice. This will promote basal freezing in cells with local TF < 0.
+    !       In the ISMIP6 dataset, the Ronne cavity has TF ~ 0.5 C near the GL; Filchner has TF ~0.3 C.
+    real(dp), intent(in) :: &
+         thermal_forcing_basin_min  !> min basin-scale TF; can be applied to nonlocal and nonlocal-slope schemes
 
     real(dp), dimension(nbasin), intent(in) :: &
          thermal_forcing_basin    !> thermal forcing averaged over each basin (deg C)
@@ -2003,20 +2010,11 @@ module glissade_bmlt_float
          eff_thermal_forcing,      & ! effective local thermal forcing, after deltaT correction
          eff_thermal_forcing_basin   ! effective basin thermal forcing, after deltaT correction
 
-    !WHL - debug - can set this parameter to force nonzero circulation in all basins
-    !              The Ronne cavity has TF ~ 0.5 C near the GL; Filchner closer to 0.3 C.
-!!    real(dp), parameter :: thermal_forcing_basin_min = 0.50d0  ! min basin-scale TF (degC)
-    real(dp), parameter :: thermal_forcing_basin_min = 0.0d0  ! min basin-scale TF (degC)
 
     ! initialize
     bmlt_float(:,:) = 0.0d0
 
     coeff = gamma0 * ( (rhosw_ismip6*cpw_ismip6)/(rhoi_ismip6*Lf_ismip6) )**2
-
-    !TODO: Previously, deltaT_ocn was limited so as not to be so negative that the local TF is negative.
-    !      Removed this code because it resulted in deltaT_ocn mods after inversion was done.
-    !      However, it would be good to prevent basin-scale TF from becoming strongly negative
-    !       during the inversion. Maybe save the basin-scale average TF and pass to the inversion routine?
 
     if (bmlt_float_thermal_forcing_param == BMLT_FLOAT_TF_ISMIP6_LOCAL) then
 
@@ -2026,13 +2024,6 @@ module glissade_bmlt_float
        do j = 1, ny
           do i = 1, nx
              if (thermal_forcing_mask(i,j) == 1) then
-
-                !WHL - debug
-!                if (thermal_forcing_lsrf(i,j) + deltaT_ocn(i,j) < 0.0d0) then
-!                   print*, 'Negative eff_thermal forcing: task, i, j, nb, TF, dT:', &
-!                        this_rank, i, j, basin_number(i,j), thermal_forcing_lsrf(i,j), deltaT_ocn(i,j)
-!                endif
-
                 eff_thermal_forcing = max(0.0d0, thermal_forcing_lsrf(i,j) + deltaT_ocn(i,j))
                 bmlt_float(i,j) = coeff * eff_thermal_forcing**2
              endif
@@ -2048,25 +2039,9 @@ module glissade_bmlt_float
           do i = 1, nx
              nb = basin_number(i,j)
              if (thermal_forcing_mask(i,j) == 1) then
-                ! Note: Can have bmlt_float < 0 where thermal_forcing_lsrf + deltaT_ocn < 0
                 eff_thermal_forcing = thermal_forcing_lsrf(i,j) + deltaT_ocn(i,j)
-
-                ! Note: If thermal_forcing_basin_min > 0, there will always be some thermal forcing in the basin
-                !       even if the basin is too cold to melt ice. The nonzero TF will promote basal freezing.
                 eff_thermal_forcing_basin = max(thermal_forcing_basin_min, thermal_forcing_basin(nb))
-
                 bmlt_float(i,j) = coeff * eff_thermal_forcing * eff_thermal_forcing_basin
-
-                !WHL - debug
-                if (verbose_bmlt_float .and. this_rank == rtest .and. i==itest .and. j==jtest) then
-                   print*, ' '
-                   print*, 'In ismip6_bmlt_float, r, i, j, nb =', rtest, itest, jtest, nb
-                   print*, 'thermal_forcing_lsrf =', thermal_forcing_lsrf(i,j)
-                   print*, 'deltaT_ocn =', deltaT_ocn(i,j)
-                   print*, 'thermal_forcing_basin =', thermal_forcing_basin(nb)
-                   print*, 'eff_TF, eff_TF_basin =', eff_thermal_forcing, eff_thermal_forcing_basin
-                endif
-
              endif
           enddo
        enddo
@@ -2079,9 +2054,8 @@ module glissade_bmlt_float
           do i = 1, nx
              nb = basin_number(i,j)
              if (thermal_forcing_mask(i,j) == 1) then
-                ! Note: Can have bmlt_float < 0 where thermal_forcing_lsrf + deltaT_ocn < 0
                 eff_thermal_forcing = thermal_forcing_lsrf(i,j) + deltaT_ocn(i,j)
-                eff_thermal_forcing_basin = max(0.0d0, thermal_forcing_basin(nb))
+                eff_thermal_forcing_basin = max(thermal_forcing_basin_min, thermal_forcing_basin(nb))
                 bmlt_float(i,j) = coeff * sin(theta_slope(i,j)) * eff_thermal_forcing * eff_thermal_forcing_basin
              endif
           enddo

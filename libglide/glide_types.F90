@@ -1844,6 +1844,7 @@ module glide_types
           zocn => null()                            !> ocean levels (m) where forcing is provided, negative below sea level
  
      real(dp) :: gamma0 = 0.d0                      !> coefficient relating sub-shelf melt rates to thermal forcing (m/yr)
+     real(dp) :: thermal_forcing_basin_min = 0.0d0  !> min value of thermal_forcing_basin (deg C) applied to nonlocal and nonlocal-slope schemes
 
      ! fields read from input or forcing files
 
@@ -1862,8 +1863,8 @@ module glide_types
      real(dp) :: &
           thermal_forcing_anomaly = 0.0d0,  &       !> thermal forcing anomaly (deg C), applied everywhere
           thermal_forcing_anomaly_tstart = 0.0d0, & !> starting time (yr) for applying or phasing in the anomaly
-          thermal_forcing_anomaly_timescale = 0.0d0 !> number of years over which the anomaly is phased in linearly
-                                                    !> If set to zero, then the full anomaly is applied immediately.
+          thermal_forcing_anomaly_timescale = 0.0d0 !> number of years over which the anomaly is phased in linearly;
+                                                    !> if timescale = 0, the full anomaly is applied immediately
      integer :: &
           thermal_forcing_anomaly_basin = 0         !> basin where anomaly is applied;
                                                     !> for default value of 0, apply to all basins

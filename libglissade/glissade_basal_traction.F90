@@ -750,6 +750,7 @@ contains
 
     if (which_effecpress == HO_EFFECPRESS_BWATFLX) then
        ! Check to see if f_effecpress_bwat has been read from the input file.
+       !TODO - Use the parallel_is_nonzero function instead, here and below
        local_maxval = maxval(basal_physics%f_effecpress_bwat)
        global_maxval = parallel_reduce_max(local_maxval)
        if (global_maxval >= eps11) then

@@ -390,46 +390,15 @@
 
     endif   ! which_ho_flotation_function
 
-    if (verbose_glp .and. this_rank == rtest) then
-       i = itest; j = jtest
-       print*, ' '
-       print*, 'thck, itest, jtest, rtest:', itest, jtest, rtest
-       do j = jtest+3, jtest-3, -1
-          write(6,'(i8)',advance='no') j
-          do i = itest-3, itest+3
-             write(6,'(f10.3)',advance='no') thck(i,j)
-          enddo
-          print*, ' '
-       enddo
+    if (verbose_glp) then
+       call point_diag(thck, 'thck (m)', itest, jtest, rtest, 7, 7)
        if (which_ho_flotation_function == HO_FLOTATION_FUNCTION_LINEAR_RAISED_TOPG) then
-          print*, 'topg_raised'
-          do j = jtest+3, jtest-3, -1
-             write(6,'(i8)',advance='no') j
-             do i = itest-3, itest+3
-                write(6,'(f10.3)',advance='no') topg_raised(i,j)
-             enddo
-             print*, ' '
-          enddo
+          call point_diag(topg_raised, 'topg_raised (m)', itest, jtest, rtest, 7, 7)
        else
-          print*, ' '
-          print*, 'topg, itest, jtest, rtest:', itest, jtest, rtest
-          do j = jtest+3, jtest-3, -1
-             write(6,'(i8)',advance='no') j
-             do i = itest-3, itest+3
-                write(6,'(f10.3)',advance='no') topg(i,j)
-             enddo
-             print*, ' '
-          enddo
+          call point_diag(topg, 'topg (m)', itest, jtest, rtest, 7, 7)
        endif
-       print*, ' '
+       call point_diag(f_flotation, 'f_flotation (m)', itest, jtest, rtest, 7, 7)
        print*, 'f_flotation, rtest, itest, jtest:', rtest, itest, jtest
-       do j = jtest+3, jtest-3, -1
-          write(6,'(i8)',advance='no') j
-          do i = itest-3, itest+3
-             write(6,'(f10.3)',advance='no') f_flotation(i,j)
-          enddo
-          print*, ' '
-       enddo
     endif
 
     ! initialize the arrays computed below

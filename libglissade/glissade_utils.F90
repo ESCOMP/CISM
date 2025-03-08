@@ -42,7 +42,8 @@ module glissade_utils
        glissade_smooth_topography, glissade_adjust_topography, &
        glissade_basin_sum, glissade_basin_average, &
        glissade_usrf_to_thck, glissade_thck_to_usrf, &
-       glissade_edge_fluxes, glissade_input_fluxes
+       glissade_edge_fluxes, glissade_input_fluxes, &
+       glissade_rms_error
 
 contains
 
@@ -926,8 +927,57 @@ contains
 
 !****************************************************************************
 
-  ! Note: Removed an older subroutine, glissade_stdev
-  !       If we need the standard deviation of topography, can compute it offline
+  subroutine glissade_rms_error(&
+       nx,       ny,          &
+       mask,     parallel,    &
+       field,    field_ref,   &
+       rmse)
+
+    use cism_parallel, only: parallel_global_sum
+
+    ! Compute the root-mean-square error of an input field relative to a reference field.
+    ! Typically, the input field would be computed by CISM, with the reference field
+    !  based on observations.
+
+    ! input/output arguments
+
+    integer, intent(in) :: &
+         nx, ny                  ! number of cells in x and y direction on input grid (global)
+
+    integer, dimension(nx,ny), intent(in) :: &
+         mask                    ! = 1 for the domain over which the rmse is computed
+
+    type(parallel_type), intent(in) :: &
+         parallel                ! info for parallel communication
+
+    real(dp), dimension(nx,ny), intent(in) :: &
+         field,                & ! 2D model field
+         field_ref               ! reference field
+
+    real(dp), intent(out) :: &
+         rmse                    ! root-mean-square error
+
+    ! local variables
+
+    real(dp), dimension(nx,ny) :: &
+         sq_diff              ! |field - field_ref|^2
+
+    real(dp) :: &
+         sum_sq_diff,       & ! global sum of sq_diff
+         ncells               ! number of global cells with mask = 1
+
+    ncells = parallel_global_sum(mask, parallel)
+
+    sq_diff = (abs(field - field_ref))**2
+    sum_sq_diff = parallel_global_sum(sq_diff, parallel, mask)
+
+    if (ncells > 0.0d0) then
+       rmse = sqrt(sum_sq_diff/ncells)
+    else
+       rmse = 0.0d0
+    endif
+
+  end subroutine glissade_rms_error
 
 !***********************************************************************
 
