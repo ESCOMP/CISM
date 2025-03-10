@@ -1718,6 +1718,10 @@ module glide_types
      real(dp) :: MICI_alpha = 7.3 
      real(dp) :: MICI_calving_threshold = 135      !> limit
 
+     real(dp) :: calving_minrate = 0             !> limit the lateral calving rate to never be bigger thant his value. If zero, it is unlimited
+     real(dp) :: calving_constant_velocity = 0   !> use a constant velocity in the stress based calving. If zero, the modelled variable velocity is applied
+     real(dp) :: calving_stress_thickness_scale = 0 !> scale the lateral stress based calving rate by H_scale/ H, to increase the calving rate at thin ice shelves to make the chance that shelfs with a thickness below 100 m exist. 
+
      !arrays for saving and debugging
      real(dp), dimension(:,:), pointer :: calving_front_mask_save
      real(dp), dimension(:,:), pointer :: calving_front_mask_marinecliff_save

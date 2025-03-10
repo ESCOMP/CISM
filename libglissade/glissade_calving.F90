@@ -663,9 +663,14 @@ contains
                calving%tau_eigenconstant1,        &
                calving%tau_eigenconstant2,        &
                calving%stress_threshold,          &  ! Pa
+               calving%calving_minrate,           &  ! m/yr
+               calving%calving_constant_velocity, &  ! m/yr
+               calving%calving_stress_thickness_scale, & ! m
                calving_dthck)                        ! m
 
+       elseif (which_calving == EIGEN_CALVING) then
 
+!!Is an elseif missing?
           call extrapolate_to_calving_front(&
                nx,                 ny,     &
                partial_cf_mask,            &
@@ -1445,6 +1450,9 @@ contains
        tau_eigenconstant1,                &
        tau_eigenconstant2,                &
        stress_threshold,                  &  ! Pa
+       calving_minrate,                   &  ! m/yr
+       calving_constant_velocity,         &  ! m/yr
+       calving_stress_thickness_scale,    &  ! m
        calving_dthck)                        ! m
 
     ! Calve ice based on the eigenvalues of the 2D horizontal stress tensor near the calving front.
@@ -1475,7 +1483,11 @@ contains
     real(dp), intent(in) :: &
          tau_eigenconstant1,     & ! multiplier for tau_eigen1 (unitless)
          tau_eigenconstant2,     & ! multiplier for tau_eigen2 (unitless)
-         stress_threshold          ! stress threshold for calving front retreat
+         stress_threshold,       &   ! stress threshold for calving front retreat
+         calving_minrate,        & !maximum calving rate allowed, I called it min for some reason unknown.. if not zero, it is applied
+         calving_constant_velocity, & ! constant velocity in the stress based calving. It is used if it is not zero (which it is by default)
+         calving_stress_thickness_scale ! thickness scale of the extra term added to multiply the rate with to enhance dthck on thin shelves. This can create a feedback effect, thin shelves below the limit will be thinner next timestep where they'll receive an ever increasing enhancement. This is not neccesary a bad thing but something to keep in mind in case unstabilities arise. 
+
 
     real(dp), dimension(nx,ny), intent(inout) :: &
          calving_dthck             ! thickness lost due to calving (m)
@@ -1487,6 +1499,11 @@ contains
     real(dp), dimension(nx,ny) :: &
          effec_stress,           & ! effective stress (Pa)
          lateral_rate              ! lateral calving rate (m/s)
+    real(dp) :: &
+         multiply_velocity,      & !either the ice velocities or a constant velocity depending on calving_constant_velocity
+         thickness_fraction        !either 1 or based on calving_stress_thickness_scale/thck_effective. I will limit this to be 1, so that it cannot
+                                   !ever decrease the calving rate for thick ice shelves. I.e. we assume for now that stress based calving works 
+                                   ! for thick ice shelves and that it for now is only a way to deal with thinner shelves. 
 
     ! Compute thinning in calving-front cells based on the principal eigenvalues of the
     ! horizontal stress tensor, in relation to a stress threshold.
@@ -1512,6 +1529,9 @@ contains
     lateral_rate = 0.0d0
     calving_dthck = 0.0d0
     effec_stress = 0.0d0
+    thickness_fraction = 1.0d0
+    multiply_velocity  = 1.0d0
+
 
     do j = nhalo+1, ny-nhalo
        do i = nhalo+1, nx-nhalo
@@ -1520,7 +1540,23 @@ contains
                             + tau_eigenconstant2 * max(tau_eigen2(i,j), 0.0d0)
 
           if (calving_front_mask(i,j) == 1) then
-             lateral_rate(i,j) =  speed(i,j) * effec_stress(i,j) / stress_threshold
+             !!set the two values for the fractional thickness and the velocity
+             if (calving_constant_velocity > 0.d0) then
+                multiply_velocity = calving_constant_velocity/scyr  !now in m/s
+             else
+                multiply_velocity = speed(i,j)
+             endif
+
+             if (calving_stress_thickness_scale > 0.d0) then
+                thickness_fraction = calving_stress_thickness_scale/thck_effective(i,j)
+                thickness_fraction = max(thickness_fraction,1.0d0)  !limited to not go below 1, for thick ice shelves
+             endif           
+
+             lateral_rate(i,j) = thickness_fraction*multiply_velocity * effec_stress(i,j) / stress_threshold
+             if (calving_minrate > 0.d0) then
+                lateral_rate(i,j) = min(lateral_rate(i,j), calving_minrate/scyr)  !calving_minrate is in m/yr, lateral_rate in m/s
+             endif          
+   
              calving_dthck(i,j) = lateral_rate(i,j) * dt * thck_effective(i,j) * cf_length(i,j) / (dx*dy)
           endif   ! CF mask
 

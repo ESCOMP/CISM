@@ -2236,6 +2236,11 @@ contains
     call GetValue(section,'calving_fraction',   model%calving%calving_fraction)
     call GetValue(section,'calving_timescale',  model%calving%timescale)
     call GetValue(section,'calving_minthck',    model%calving%minthck)
+
+    call GetValue(section,'calving_minrate',    model%calving%calving_minrate)
+    call GetValue(section,'calving_constant_velocity',    model%calving%calving_constant_velocity)
+    call GetValue(section,'calving_stress_thickness_scale',    model%calving%calving_stress_thickness_scale)
+
     call GetValue(section,'dthck_dx_cf',        model%calving%dthck_dx_cf)
     call GetValue(section,'thck_effective_min', model%calving%thck_effective_min)
     call GetValue(section,'eigenconstant',      model%calving%eigenconstant)

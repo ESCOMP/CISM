@@ -334,6 +334,16 @@ factor:        scale_uvel
 standard_name: land_ice_surface_speed_observed
 load:          1
 
+[velo_sfc_fei]
+dimensions:    time, y0, x0
+units:         meter/year
+long_name:     modelled surface speed
+data:          data%velocity%velo_sfc_fei
+factor:        scale_uvel
+standard_name: land_ice_surface_speed_modelled
+load:          1
+
+
 [bmlt_float]
 dimensions:    time, y1, x1
 units:         meter/year
