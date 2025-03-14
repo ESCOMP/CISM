@@ -797,6 +797,9 @@ contains
                                       nx,                        ny,                        &
                                       nz-1,                      model%numerics%sigma,      &
                                       parallel,                                             &
+                                      model%numerics%idiag_local,                           &
+                                      model%numerics%jdiag_local,                           &
+                                      model%numerics%rdiag_local,                           &
                                       uvel(:,:,:)/scyr,          vvel(:,:,:)/scyr,          &
                                       model%geometry%thck(:,:),                             &
                                       model%geometry%ntracers,                              &

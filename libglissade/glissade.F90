@@ -1188,8 +1188,27 @@ contains
     ! Update internal clock
     model%numerics%time = time  
     model%numerics%tstep_count = model%numerics%tstep_count + 1
+    if (main_task .and. verbose_glissade) then
+       write(6,*) 'glissade_tstep, tstep_count =', model%numerics%tstep_count
+    endif
 
-    if (main_task .and. verbose_glissade) print*, 'glissade_tstep, test_count =', model%numerics%tstep_count
+    ! ------------------------------------------------------------------------
+    ! Increment the ice age.
+    ! If a cell becomes ice-free, the age is reset to zero.
+    ! Note: Internally, the age has the same units as dt, but on output is converted to years.
+    ! ------------------------------------------------------------------------
+
+    if (model%options%which_ho_ice_age == HO_ICE_AGE_COMPUTE) then
+       do j = 1, model%general%nsn
+          do i = 1, model%general%ewn
+             if (model%geometry%thck(i,j) > 0.0d0) then
+                model%geometry%ice_age(:,i,j) = model%geometry%ice_age(:,i,j) + model%numerics%dt
+             else
+                model%geometry%ice_age(:,i,j) = 0.0d0
+             endif
+          enddo
+       enddo
+    endif
 
     ! optional transport test
     ! code execution will end when this is done
@@ -1350,24 +1369,6 @@ contains
     ! ------------------------------------------------------------------------ 
 
     call glissade_cleanup_icefree_cells(model)
-
-    ! ------------------------------------------------------------------------ 
-    ! Increment the ice age.
-    ! If a cell becomes ice-free, the age is reset to zero.
-    ! Note: Internally, the age has the same units as dt, but on output it will be converted to years.
-    ! ------------------------------------------------------------------------ 
-    
-    if (model%options%which_ho_ice_age == HO_ICE_AGE_COMPUTE) then
-       do j = 1, model%general%nsn 
-          do i = 1, model%general%ewn 
-             if (model%geometry%thck(i,j) > 0.0d0) then
-                model%geometry%ice_age(:,i,j) = model%geometry%ice_age(:,i,j) + model%numerics%dt
-             else
-                model%geometry%ice_age(:,i,j) = 0.0d0
-             endif
-          enddo
-       enddo
-    endif
 
     ! glissade_calve_ice adjusts thickness for calved ice.  Therefore the mask needs to be recalculated.
     ! Note: glide_set_mask includes a halo update of thkmask
@@ -2483,6 +2484,7 @@ contains
                                          ewn,          nsn,         upn-1,                     &
                                          model%numerics%sigma,                                 &
                                          parallel,                                             &
+                                         itest,        jtest,       rtest,                     &
                                          model%velocity%uvel(:,:,:) * vel0,                    &  ! m/s
                                          model%velocity%vvel(:,:,:) * vel0,                    &  ! m/s
                                          thck_unscaled(:,:),                                   &  ! m
@@ -2961,6 +2963,7 @@ contains
                                          ewn,         nsn,          upn-1,                     &
                                          model%numerics%sigma,                                 &
                                          parallel,                                             &
+                                         itest,       jtest,        rtest,                     &
                                          thck_unscaled(:,:),                                   &  ! m
                                          acab_unscaled(:,:),                                   &  ! m/s
                                          bmlt_unscaled(:,:),                                   &  ! m/s

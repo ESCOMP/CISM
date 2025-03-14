@@ -228,7 +228,9 @@ contains
          load_diag,                     &
          artm_diag, acab_diag,          &
          bmlt_diag, bwat_diag,          &
-         bheatflx_diag, level,          &
+         bheatflx_diag,                 &
+         top_age_diag, bot_age_diag,    &
+         level,                         &
          rmse_thck, rmse_velo,          &    ! rms errors for ice thickness (m) and surface speed (m/yr)
          factor                              ! unit conversion factor
 
@@ -240,6 +242,9 @@ contains
          temp_diag,                     &    ! Note: sfc temp not included if temps are staggered
                                              !       (use artm instead)
          spd_diag                            ! speed (m/yr)
+
+    real(dp), dimension(model%general%upn) ::  &
+         age_diag                            ! ice age (yr)
 
     real(dp), dimension(model%lithot%nlayer) ::  &
          lithtemp_diag                       ! lithosphere column diagnostics
@@ -988,8 +993,11 @@ contains
     bmlt_diag     = unphys_val
     bwat_diag     = unphys_val
     bheatflx_diag = unphys_val
+    top_age_diag  = unphys_val
+    bot_age_diag  = unphys_val
     temp_diag(:)  = unphys_val
-    spd_diag (:)  = unphys_val
+    spd_diag(:)   = unphys_val
+    age_diag(:)   = unphys_val
     lithtemp_diag(:) = unphys_val    
 
     ! Set local diagnostic values, and communicate them to main_task
@@ -1014,10 +1022,14 @@ contains
           bmlt_diag = model%basal_melt%bmlt_applied(i,j) * thk0*scyr/tim0
           bwat_diag = model%basal_hydro%bwat(i,j) * thk0
           bheatflx_diag = model%temper%bheatflx(i,j)
+          top_age_diag = model%geometry%ice_age(1,i,j)       ! age of top ice layer
+          bot_age_diag = model%geometry%ice_age(upn-1,i,j)   ! age of bottom ice layer
        
           temp_diag(:) = model%temper%temp(1:upn,i,j)          
           spd_diag(:) = sqrt(model%velocity%uvel(1:upn,i,j)**2   &
                            + model%velocity%vvel(1:upn,i,j)**2) * vel0*scyr
+          if (model%options%which_ho_ice_age == HO_ICE_AGE_COMPUTE) &
+               age_diag(:) = model%geometry%ice_age(:,i,j) * tim0/scyr
           if (model%options%gthf == GTHF_COMPUTE) &
                lithtemp_diag(:) = model%lithot%temp(i,j,:)
        endif
@@ -1034,12 +1046,15 @@ contains
        bmlt_diag = parallel_reduce_max(bmlt_diag)
        bwat_diag = parallel_reduce_max(bwat_diag)
        bheatflx_diag = parallel_reduce_max(bheatflx_diag)
-
+       top_age_diag = parallel_reduce_max(top_age_diag)
+       bot_age_diag = parallel_reduce_max(bot_age_diag)
        do k = 1, upn
           temp_diag(k) = parallel_reduce_max(temp_diag(k))
           spd_diag(k)  = parallel_reduce_max(spd_diag(k))
        enddo
-
+       do k = 1, upn-1
+          age_diag(k)  = parallel_reduce_max(age_diag(k))
+       enddo
        do k = 1, nlith
           lithtemp_diag(k) = parallel_reduce_max(lithtemp_diag(k))
        enddo
@@ -1083,11 +1098,19 @@ contains
 
        write(message,'(a25,f24.16)') 'Basal heat flux (W/m^2)  ', bheatflx_diag
        call write_log(trim(message), type = GM_DIAGNOSTIC)
- 
+
+       ! Commented out, since we are writing the age in every column below
+!       if (model%options%which_ho_ice_age == HO_ICE_AGE_COMPUTE) then
+!          write(message,'(a25,f24.16)') 'Age of top layer (yr)    ', top_age_diag*tim0/scyr
+!          call write_log(trim(message), type = GM_DIAGNOSTIC)
+!          write(message,'(a25,f24.16)') 'Age of bottom layer (yr) ', bot_age_diag*tim0/scyr
+!          call write_log(trim(message), type = GM_DIAGNOSTIC)
+!       endif
+
        ! Vertical profile of ice speed and temperature
 
        call write_log(' ')
-       write(message,'(a55)') ' Sigma       Ice speed (m/yr)       Ice temperature (C)'
+       write(message,'(a74)') ' Sigma       Ice speed (m/yr)      Ice temperature (C)        Ice age (yr)'
        call write_log(trim(message), type = GM_DIAGNOSTIC)
  
        if (size(model%temper%temp,1) == upn+1) then   ! temperatures staggered in vertical
@@ -1106,9 +1129,14 @@ contains
                  call write_log(trim(message), type = GM_DIAGNOSTIC)
               endif
 
-              ! temp at layer midpoint
-              write (message,'(f6.3,24x,f24.16)') model%numerics%stagsigma(k), temp_diag(k)
-              call write_log(trim(message), type = GM_DIAGNOSTIC)
+              ! temp (and optionally age) at layer midpoint
+              if (model%options%which_ho_ice_age == HO_ICE_AGE_COMPUTE) then
+                 write (message,'(f6.3,24x,f24.16,f18.6)') model%numerics%stagsigma(k), temp_diag(k), age_diag(k)
+                 call write_log(trim(message), type = GM_DIAGNOSTIC)
+              else
+                 write (message,'(f6.3,24x,f24.16)') model%numerics%stagsigma(k), temp_diag(k)
+                 call write_log(trim(message), type = GM_DIAGNOSTIC)
+              endif
 
            enddo
 

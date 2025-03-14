@@ -62,6 +62,8 @@
     logical, parameter ::     &
          conservation_check = .true. ! if true, check global conservation
 
+    logical, parameter :: verbose_ice_age = .false.
+
 !=======================================================================
 
   contains
@@ -109,11 +111,11 @@
             model%geometry%ntracers = model%geometry%ntracers + 1
          endif
 
-         if (model%options%whichcalving == CALVING_DAMAGE) then
+         if (model%options%which_ho_ice_age == HO_ICE_AGE_COMPUTE) then
             model%geometry%ntracers = model%geometry%ntracers + 1
          endif
 
-         if (model%options%which_ho_ice_age == HO_ICE_AGE_COMPUTE) then
+         if (model%options%whichcalving == CALVING_DAMAGE) then
             model%geometry%ntracers = model%geometry%ntracers + 1
          endif
 
@@ -274,6 +276,7 @@
                                             nx,           ny,           &
                                             nlyr,         sigma,        &
                                             parallel,                   &
+                                            itest, jtest, rtest,        &
                                             thck,                       &
                                             acab,         bmlt,         &
                                             acab_applied, bmlt_applied, &
@@ -309,6 +312,9 @@
 
       type(parallel_type), intent(in) :: &
          parallel               ! info for parallel communication
+
+      integer, intent(in) ::  &
+         itest, jtest, rtest    ! coordinates of diagnostic point
 
       real(dp), dimension(nx,ny), intent(in) ::  &
          effective_areafrac     ! effective fractional area, in range [0,1]
@@ -459,14 +465,17 @@
          ! Interpolate tracers back to sigma coordinates
          !-------------------------------------------------------------------
 
-         call glissade_vertical_remap(nx,                ny,       &
-                                      nlyr,              ntracers, &
-                                      parallel,          sigma(:), &
-                                      thck_layer(:,:,:),           &
-                                      tracers(:,:,:,:),            &
-                                      tracers_usrf(:,:,:),         &
-                                      tracers_lsrf(:,:,:),         &
-                                      vert_remap_accuracy)
+         call glissade_vertical_remap(&
+              nx,             ny,       &
+              nlyr,           ntracers, &
+              parallel,                 &
+              itest,  jtest,  rtest,    &
+              sigma(:),                 &
+              thck_layer(:,:,:),        &
+              tracers(:,:,:,:),         &
+              tracers_usrf(:,:,:),      &
+              tracers_lsrf(:,:,:),      &
+              vert_remap_accuracy)
 
          !-------------------------------------------------------------------
          ! Check that mass is conserved, allowing for mass gain/loss due to acab/bmlt
@@ -531,7 +540,6 @@
 
       endif  ! max_acab > 0 or max_bmlt > 0
 
-
     end subroutine glissade_mass_balance_driver
 
 !=======================================================================
@@ -541,6 +549,7 @@
                                          nx,           ny,           &
                                          nlyr,         sigma,        &
                                          parallel,                   &
+                                         itest, jtest, rtest,        &
                                          uvel,         vvel,         &
                                          thck,                       &
                                          ntracers,     tracers,      &
@@ -579,6 +588,9 @@
 
       type(parallel_type), intent(in) :: &
          parallel               ! info for parallel communication
+
+      integer, intent(in) ::  &
+         itest, jtest, rtest    ! coordinates of diagnostic point
 
       real(dp), dimension(nlyr+1,nx-1,ny-1), intent(in) ::  &
          uvel, vvel             ! horizontal velocity components (m/s)
@@ -897,14 +909,17 @@
       ! Interpolate tracers back to sigma coordinates
       !-------------------------------------------------------------------
 
-      call glissade_vertical_remap(nx,                ny,       &
-                                   nlyr,              ntracers, &
-                                   parallel,          sigma(:), &
-                                   thck_layer(:,:,:),           &
-                                   tracers(:,:,:,:),            &
-                                   tracers_usrf(:,:,:),         &
-                                   tracers_lsrf(:,:,:),         &
-                                   vert_remap_accuracy)
+      call glissade_vertical_remap(&
+           nx,             ny,       &
+           nlyr,           ntracers, &
+           parallel,                 &
+           itest,  jtest,  rtest,    &
+           sigma(:),                 &
+           thck_layer(:,:,:),        &
+           tracers(:,:,:,:),         &
+           tracers_usrf(:,:,:),      &
+           tracers_lsrf(:,:,:),      &
+           vert_remap_accuracy)
 
       !-------------------------------------------------------------------
       ! Final conservation check: Check that mass and mass*tracers are
@@ -1923,13 +1938,20 @@
 
 !----------------------------------------------------------------------
 
-    subroutine glissade_vertical_remap(nx,        ny,        &
-                                       nlyr,      ntracer,   &
-                                       parallel,  sigma,     &
-                                       hlyr,      trcr,      &
-                                       trcr_usrf, trcr_lsrf, &
-                                       vert_remap_accuracy)
- 
+  subroutine glissade_vertical_remap(&
+       nx,           ny,       &
+       nlyr,         ntracer,  &
+       parallel,               &
+       itest, jtest, rtest,    &
+       sigma,                  &
+       hlyr,      trcr,        &
+       trcr_usrf, trcr_lsrf,   &
+       vert_remap_accuracy)
+
+    use cism_parallel, only: parallel_reduce_max, parallel_reduce_min
+    use glimmer_paramets, only: tim0
+    use glimmer_physcon, only: scyr
+
     ! Conservative remapping of tracer fields from one set of vertical 
     ! coordinates to another.  The remapping can be chosen to be first-order 
     ! or second-order accurate.
@@ -1951,6 +1973,9 @@
 
     type(parallel_type), intent(in) :: &
          parallel    ! info for parallel communication
+
+    integer, intent(in) ::  &
+         itest, jtest, rtest    ! coordinates of diagnostic point
 
     real(dp), dimension (nlyr+1), intent(in) ::  &
          sigma        ! sigma vertical coordinate (at layer interfaces)
@@ -1974,6 +1999,7 @@
  
     integer :: i, j, k, k1, k2
     integer :: iglobal, jglobal
+    integer :: nt
 
     real(dp), dimension(nlyr+1) ::  &
          z1,        &! layer interfaces in old coordinate system
@@ -2006,13 +2032,26 @@
     character(len=256) :: message
 
     !WHL - debug
-    integer :: nt
-!    integer, parameter :: itest = 14, jtest = 33
-!    print*, 'Vertical remap: itest, jtest =', itest, jtest
-!    print*, 'max, min(age):', maxval(trcr(:,:,nt,:)), minval(trcr(:,:,nt,:))
-!    print*, 'vert_remap_accuracy =', vert_remap_accuracy
-!    print*, 'HO_VERTICAL_REMAP_SECOND_ORDER =', HO_VERTICAL_REMAP_SECOND_ORDER
+    real(dp) :: local_max, global_max
+    real(dp) :: local_min, global_min
 
+    !Note: Currently, temperature or enthalpy has tracer index 1; ice age, if computed, has index 2.
+    !      Could make this more robust by having an nt_ice_age variable assigned at startup.
+    integer, parameter :: nt_ice_age = 2
+
+    ! Global max and min ice age
+    if (verbose_ice_age) then
+       local_min = minval(trcr(:,:,nt_ice_age,:))
+       global_min = parallel_reduce_min(local_min)
+       local_max = maxval(trcr(:,:,nt_ice_age,:))
+       global_max = parallel_reduce_max(local_max)
+       if (this_rank == rtest) then
+          print*, 'Vertical remap, accuracy =', vert_remap_accuracy
+          print*, 'max, min(ice_age):', global_max, global_min
+       endif
+    endif
+
+    ! loop over locally owned cells
     do j = 1+nhalo, ny-nhalo
        do i = 1+nhalo, nx-nhalo
 
@@ -2065,6 +2104,15 @@
                 z2(k) = sigma(k)
              enddo
              z2(nlyr+1) = 1.d0
+
+             if (verbose_ice_age .and. i == itest .and. j == jtest .and. this_rank == rtest) then
+                write(6,*) ' '
+                write(6,*) 'Column age, r, i, j =', rtest, i, j
+                write(6,*) 'k, z1, dz, init ice_age (yr):'
+                do k = 1,nlyr
+                   write(6,'(i4,3f14.8)') k, z1(k), hlyr(i,j,k), trcr(i,j,nt_ice_age,k)*tim0/scyr
+                enddo
+             endif
 
              !-----------------------------------------------------------------
              ! Compute new layer thicknesses (z2 coordinates)
@@ -2219,6 +2267,17 @@
           enddo
        enddo
     enddo
+
+    if (verbose_ice_age .and. this_rank == rtest .and. ntracer >= 2) then
+       ! print column diagnostics
+       i = itest
+       j = jtest
+       write(6,*) ' '
+       write(6,*) 'k, z2, hlyr, remapped ice_age (yr):'
+       do k = 1, nlyr
+          write(6,'(i4,3f14.8)') k, z2(k), hlyr(i,j,k), trcr(i,j,nt_ice_age,k)*tim0/scyr
+       enddo
+    endif
 
     end subroutine glissade_vertical_remap
 
