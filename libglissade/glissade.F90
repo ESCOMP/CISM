@@ -1291,7 +1291,7 @@ contains
 
     use glissade_masks, only: glissade_marine_connection_mask
 
-    use cism_parallel, only: parallel_type, not_parallel
+    use cism_parallel, only: parallel_type, not_parallel, parallel_halo
 
     implicit none
 
@@ -1347,6 +1347,10 @@ contains
     ! can remove unprotected ice that counts toward the calving flux.
     !TODO - Move this calculation?
     model%calving%calving_thck = 0.0d0
+   
+    !intialize the calving counter
+    model%calving%calving_counter_maxrate_exceeded = 0.d0
+
 
     ! ------------------------------------------------------------------------
     ! Calculate isostatic adjustment
@@ -1602,6 +1606,25 @@ contains
     ! ------------------------------------------------------------------------
 
     call glissade_diagnostic_variable_solve(model)
+
+    !Here we check out calving front behaviour, if we needed to limit the lateral_rate
+    !maybe we should do the halo_update here? 
+    call parallel_halo(model%calving%calving_front_mask_save, parallel)
+
+    model%calving%calving_amount_cells = sum(model%calving%calving_front_mask_save)
+
+    
+    if (this_rank ==rtest) then
+       if (model%calving%calving_counter_maxrate_exceeded >  0.d0) then
+          print*,' '
+          print*, 'WARNING: Cells at the calving front needed to be capped at the maximum lateral rate'
+          print*, 'Maximum lateral rate allowed (m/yr) = '  , model%calving%calving_minrate
+          print*, 'Number of grid cells exceeding this limit = ', model%calving%calving_counter_maxrate_exceeded
+          print*, 'Total number of grid cells at the calving front = ', model%calving%calving_amount_cells
+          print*, ' '
+       endif
+    endif
+
 
     !TODO - Any halo updates needed at the end of glissade_tstep?
 
@@ -3709,7 +3732,7 @@ contains
           ! Thus the thinning rate is largest for thick ice.
           ! For thin ice, the rate has a minimum value H_c/tau_c..
           ! Note: calving%timescale has units of s (though input in yr in the config file)
-          print*, 'TvdA: here we are doing a loop during the timestep'
+!          print*, 'TvdA: here we are doing a loop during the timestep'
           do j = 1, ny
              do i = 1, nx
                 if (floating_mask(i,j) == 1 .and. model%calving%calving_mask(i,j) == 1) then
@@ -3752,6 +3775,10 @@ contains
 
     if (main_task .and. verbose_calving) print*, 'Call glissade_calve_ice'
 
+    ! This variable contains the the number of calving grid cells that needed to be capped at a maximum rate
+    model%calving%calving_counter_maxrate_exceeded = 0
+
+
     if (model%options%whichcalving /= CALVING_GRID_MASK) then
 
        call glissade_calve_ice(&
@@ -3782,6 +3809,7 @@ contains
             model%climate%eus*thk0)            
 
     endif
+
 
     if (init_calving .and. model%options%cull_calving_front) then
 

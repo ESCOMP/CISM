@@ -647,6 +647,13 @@ units:         m2
 long_name:     area covered by ice 
 data:          data%geometry%iarea
 
+[calving_maxrate_exceeded]
+dimensions:    time
+units:         unitless
+long_name:     Amount of calving grid cells where the lateral calving rate had to be capped
+data:          data%calving%calving_counter_maxrate_exceeded
+load:          1
+
 [iareag]
 dimensions:    time
 units:         m2

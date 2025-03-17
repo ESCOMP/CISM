@@ -399,6 +399,8 @@ contains
        write(6,*) 'calving_domain =', calving_domain
     endif
 
+
+
     !WHL - Not sure if this update is needed
     call parallel_halo(thck, parallel)
 
@@ -666,6 +668,7 @@ contains
                calving%calving_minrate,           &  ! m/yr
                calving%calving_constant_velocity, &  ! m/yr
                calving%calving_stress_thickness_scale, & ! m
+               calving%calving_counter_maxrate_exceeded, & 
                calving_dthck)                        ! m
 
        elseif (which_calving == EIGEN_CALVING) then
@@ -974,6 +977,10 @@ contains
        call point_diag(thck, 'After calving, new thck (m)', itest, jtest, rtest, 7, 7)
        call point_diag(calving%calving_thck, 'calving_thck (m)', itest, jtest, rtest, 7, 7)
     endif
+  
+
+  !!save the calving front mask
+  calving%calving_front_mask_save(:,:) = calving_front_mask  
 
   end subroutine glissade_calve_ice
 
@@ -1453,6 +1460,7 @@ contains
        calving_minrate,                   &  ! m/yr
        calving_constant_velocity,         &  ! m/yr
        calving_stress_thickness_scale,    &  ! m
+       calving_counter_maxrate_exceeded,  &
        calving_dthck)                        ! m
 
     ! Calve ice based on the eigenvalues of the 2D horizontal stress tensor near the calving front.
@@ -1486,7 +1494,12 @@ contains
          stress_threshold,       &   ! stress threshold for calving front retreat
          calving_minrate,        & !maximum calving rate allowed, I called it min for some reason unknown.. if not zero, it is applied
          calving_constant_velocity, & ! constant velocity in the stress based calving. It is used if it is not zero (which it is by default)
-         calving_stress_thickness_scale ! thickness scale of the extra term added to multiply the rate with to enhance dthck on thin shelves. This can create a feedback effect, thin shelves below the limit will be thinner next timestep where they'll receive an ever increasing enhancement. This is not neccesary a bad thing but something to keep in mind in case unstabilities arise. 
+         calving_stress_thickness_scale
+
+     real(dp), intent(inout):: &
+         calving_counter_maxrate_exceeded !how many cells do we have to cap at calving_minrate?
+ 
+ ! thickness scale of the extra term added to multiply the rate with to enhance dthck on thin shelves. This can create a feedback effect, thin shelves below the limit will be thinner next timestep where they'll receive an ever increasing enhancement. This is not neccesary a bad thing but something to keep in mind in case unstabilities arise. 
 
 
     real(dp), dimension(nx,ny), intent(inout) :: &
@@ -1501,7 +1514,9 @@ contains
          lateral_rate              ! lateral calving rate (m/s)
     real(dp) :: &
          multiply_velocity,      & !either the ice velocities or a constant velocity depending on calving_constant_velocity
-         thickness_fraction        !either 1 or based on calving_stress_thickness_scale/thck_effective. I will limit this to be 1, so that it cannot
+         thickness_fraction,    &
+         calving_counter_total !> how many calving grid cells are there?
+                                   !either 1 or based on calving_stress_thickness_scale/thck_effective. I will limit this to be 1, so that it cannot
                                    !ever decrease the calving rate for thick ice shelves. I.e. we assume for now that stress based calving works 
                                    ! for thick ice shelves and that it for now is only a way to deal with thinner shelves. 
 
@@ -1531,6 +1546,7 @@ contains
     effec_stress = 0.0d0
     thickness_fraction = 1.0d0
     multiply_velocity  = 1.0d0
+    calving_counter_total  = sum(calving_front_mask)
 
 
     do j = nhalo+1, ny-nhalo
@@ -1555,6 +1571,7 @@ contains
              lateral_rate(i,j) = thickness_fraction*multiply_velocity * effec_stress(i,j) / stress_threshold
              if (calving_minrate > 0.d0) then
                 lateral_rate(i,j) = min(lateral_rate(i,j), calving_minrate/scyr)  !calving_minrate is in m/yr, lateral_rate in m/s
+                calving_counter_maxrate_exceeded = calving_counter_maxrate_exceeded + 1
              endif          
    
              calving_dthck(i,j) = lateral_rate(i,j) * dt * thck_effective(i,j) * cf_length(i,j) / (dx*dy)

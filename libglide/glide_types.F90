@@ -1721,6 +1721,8 @@ module glide_types
      real(dp) :: calving_minrate = 0             !> limit the lateral calving rate to never be bigger thant his value. If zero, it is unlimited
      real(dp) :: calving_constant_velocity = 0   !> use a constant velocity in the stress based calving. If zero, the modelled variable velocity is applied
      real(dp) :: calving_stress_thickness_scale = 0 !> scale the lateral stress based calving rate by H_scale/ H, to increase the calving rate at thin ice shelves to make the chance that shelfs with a thickness below 100 m exist. 
+     real(dp) :: calving_counter_maxrate_exceeded = 0 !> count in how many cells we exceed the calving_minrate
+     real(dp) :: calving_amount_cells = 0 !> amount of grid cells at the calving front
 
      !arrays for saving and debugging
      real(dp), dimension(:,:), pointer :: calving_front_mask_save
