@@ -473,7 +473,7 @@ contains
 
     use glimmer_paramets, only: tim0, thk0, vel0
     use glimmer_physcon, only: scyr, grav
-    use glissade_grid_operators, only: glissade_stagger, glissade_stagger_real_mask
+    use glissade_grid_operators, only: glissade_stagger, glissade_stagger_real_mask, glissade_gradient
     use glissade_basal_traction, only: set_coulomb_c_elevation
     use glissade_utils, only: glissade_usrf_to_thck
 
@@ -490,7 +490,12 @@ contains
          stag_thck,            & ! ice thickness on staggered grid
          stag_dthck_dt,        & ! dthck_dt on staggered grid
          stag_thck_obs,        & ! thck_obs on staggered grid
-         velo_sfc                ! surface ice speed
+         velo_sfc,             & ! surface ice speed
+         dC_dx,                & ! Gradient of the inverted coulomb c in the x direction
+         dC_dy,                & ! Gradient of the inverted coulomb c in the y direction
+         dC2_dx,               & ! second spatial derivative of coulomb c in the x direction
+         dC2_dy,               & ! second spatial derivative of coulomb c in the y direction
+         dC_dxdy                 ! nonlinear term of the second order gradient
 
     real(dp), dimension(model%general%ewn-1,model%general%nsn-1) ::   &
          stag_topg,            &
@@ -540,7 +545,29 @@ contains
     if (invert_powerlaw_c .or. invert_coulomb_c) then
 
        ! Compute the new value of powerlaw_c or coulomb_c at each vertex
+       
+       if (invert_coulomb_c .and. model%inversion%babc_laplacian_time_scale > 0.d0) then
+          !create some gradient operators for the inversion and the laplacian smoother. I have to do the 100 multiply
+          !for some weird reason to include 4km resolution as 4000 meters in the gradient calculations
+!          print*, 'Moeten we de dx nog schalen: ',  model%numerics%dew*thk0*100
 
+          call glissade_gradient(ewn-1,nsn-1,   &
+                                model%numerics%dew*thk0, model%numerics%dns*thk0*100,       &
+                                model%basal_physics%coulomb_c,&
+                                dC_dx, dC_dy)
+
+          call glissade_gradient(ewn-1,nsn-1,   &
+                                model%numerics%dew*thk0, model%numerics%dns*thk0*100,       &
+                                dC_dx,&
+                                dC2_dx, dC_dxdy)
+
+          call glissade_gradient(ewn-1,nsn-1,   &
+                                model%numerics%dew*thk0, model%numerics%dns*thk0*100,       &
+                                dC_dy,&
+                                dC_dxdy, dC2_dy)
+
+       endif
+    
        ! Given the surface elevation target, compute the thickness target.
        ! (This can change in time if the bed topography is dynamic.)
 
@@ -633,6 +660,8 @@ contains
                                      stag_dthck_dt,                            &  ! m/s
                                      velo_sfc*(vel0*scyr),                     &  ! m/yr
                                      model%velocity%velo_sfc_obs*(vel0*scyr),  &  ! m/yr
+                                     model%inversion%babc_laplacian_time_scale, & !yr
+                                     model%inversion%babc_laplacian_length_scale, &
                                      model%basal_physics%powerlaw_c_relax,     &
                                      model%basal_physics%powerlaw_c)
 
@@ -757,8 +786,11 @@ contains
                                      stag_dthck_dt,                            &  ! m/s
                                      velo_sfc*(vel0*scyr),                     &  ! m/yr
                                      model%velocity%velo_sfc_obs*(vel0*scyr),  &  ! m/yr
+                                     model%inversion%babc_laplacian_time_scale, &
+                                     model%inversion%babc_laplacian_length_scale, & !m
                                      model%basal_physics%coulomb_c_relax,      &
                                      model%basal_physics%coulomb_c,            &
+                                     dC2_dx = dC2_dx, dC2_dy = dC2_dy,         &
                                      stag_thck_flotation = stag_thck_flotation, &
                                      p_ocean = model%basal_physics%p_ocean_penetration)
 
@@ -843,9 +875,13 @@ contains
                                    stag_dthck_dt,            &
                                    velo_sfc,                 &
                                    velo_sfc_obs,             &
+                                   laplacian_time_scale,     & 
+                                   laplacian_length_scale,   &
                                    friction_c_relax,         &
                                    friction_c,               &
                                    stag_thck_flotation,      &
+                                   dC2_dx,                   &
+                                   dC2_dy,                   &
                                    p_ocean)
 
     ! Compute a spatially varying basal friction field defined at cell vertices.
@@ -875,7 +911,9 @@ contains
          babc_relax_factor,    & ! controls strength of relaxation to default values
          babc_velo_scale,      & ! velocity inversion scale (m/yr)
          friction_c_max,       & ! upper bound for friction_c (units correspond to powerlaw_c or coulomb_c)
-         friction_c_min          ! lower bound for friction_c
+         friction_c_min,       & ! lower bound for friction_c
+         laplacian_time_scale, & ! laplacian time scale
+         laplacian_length_scale  ! laplacian length scale
 
     real(dp), dimension(nx-1,ny-1), intent(in) ::  &
          f_ground,             & ! grounded fraction at vertices, 0 to 1
@@ -890,8 +928,10 @@ contains
          friction_c              ! basal friction field to be adjusted (powerlaw_c or coulomb_c)
 
     real(dp), dimension(nx-1,ny-1), intent(in), optional :: &
-         stag_thck_flotation     ! flotation thickness (m) on staggered grid; used for term_thck2
-
+         stag_thck_flotation,    & ! flotation thickness (m) on staggered grid; used for term_thck2
+         dC2_dx,                 & ! second derivative
+         dC2_dy                    ! here as well
+ 
     real(dp), intent(in), optional :: p_ocean
 
     ! local variables
@@ -904,7 +944,8 @@ contains
     real(dp) ::  &
          term_thck, term_dHdt, term_thck2,  & ! tendency terms based on thickness target
          term_velo,                         & ! tendency term based on surface speed target
-         term_relax                           ! tendency term based on relaxation to default value
+         term_relax,                        & ! tendency term based on relaxation to default value
+         term_laplacian
 
     real(dp) :: thck_target, velo_target  ! local targets for ice thickness (m) and surface speed (m/yr)
     integer :: i, j
@@ -1068,8 +1109,18 @@ contains
                      term_relax = 0.0d0
              endif
              
+             ! Add a laplacian smoothing term to the dfriction term
+             if (laplacian_time_scale > 0.d0 .and. dC2_dx(i,j) > 0.d0 ) then
+                    term_laplacian = (dC2_dx(i,j) + dC2_dy(i,j))*((laplacian_length_scale**2)/laplacian_time_scale) 
+ !                   print*, 'Pinguin, term_laplacian, dC2_dx, dC2_dy, length_scale, laplacian_time_scale'
+ !                   print*,  term_laplacian, dC2_dx(i,j), dC2_dy(i,j), laplacian_length_scale, laplacian_time_scale                    
+                    
+             else  
+                    term_laplacian = 0.0d0
+             endif
+                  
              dfriction_c(i,j) = friction_c(i,j) * dt &
-                  * (term_thck + term_dHdt + term_thck2 + term_velo + term_relax)
+                  * (term_thck + term_dHdt + term_thck2 + term_velo + term_relax + term_laplacian)
 
              ! Limit to prevent a large relative change in one step
              if (abs(dfriction_c(i,j)) > 0.05d0 * friction_c(i,j)) then

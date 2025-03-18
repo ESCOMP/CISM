@@ -1858,8 +1858,10 @@ module glide_types
           babc_timescale  = 500.d0,            & !> inversion timescale (yr); must be > 0
           babc_thck_scale = 100.d0,            & !> thickness inversion scale (m)
           babc_relax_factor = 0.05d0,          & !> controls strength of relaxation to default values (unitless)
-          babc_velo_scale = 0.0d0                !> velocity inversion scale (m/yr)
-                                                 !> typical value for inversion = 200 m/yr
+          babc_velo_scale = 0.0d0,             & !> velocity inversion scale (m/yr)
+          babc_laplacian_length_scale = 0.d0,  & !> length scale of the laplacian smoother           
+          babc_laplacian_time_scale = 0.d0       !> time scale of the laplacian smoother
+                                       
     real (dp) :: deltaT_ocn_maxval = 5.0d0
 
      ! parameters for local deltaT_ocn inversion

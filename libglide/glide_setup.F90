@@ -220,6 +220,8 @@ contains
     model%inversion%bmlt_basin_timescale = model%inversion%bmlt_basin_timescale * scyr   ! yr to s
     model%inversion%deltaT_ocn_timescale = model%inversion%deltaT_ocn_timescale * scyr   ! yr to s
     model%inversion%flow_enhancement_factor_timescale = model%inversion%flow_enhancement_factor_timescale * scyr  ! yr to s
+!    model%inversion%babc_laplacian_length_scale = model%inversion%babc_laplacian_length_scale *scyr
+!    model%inversion%babc_laplacian_time_scale = model%inversion%babc_laplacian_time_scale /thk0
     model%inversion%dbmlt_dtemp_scale = model%inversion%dbmlt_dtemp_scale / scyr   ! m/yr/degC to m/s/degC
     model%inversion%thck_threshold = model%inversion%thck_threshold / thk0
     model%inversion%thck_flotation_buffer = model%inversion%thck_flotation_buffer / thk0
@@ -2360,6 +2362,9 @@ contains
     call GetValue(section, 'inversion_babc_thck_scale', model%inversion%babc_thck_scale)
     call GetValue(section, 'inversion_babc_relax_factor', model%inversion%babc_relax_factor)
     call GetValue(section, 'inversion_babc_velo_scale', model%inversion%babc_velo_scale)
+    call GetValue(section, 'laplacian_length_scale', model%inversion%babc_laplacian_length_scale)
+    call GetValue(section, 'laplacian_timescale', model%inversion%babc_laplacian_time_scale)
+
 
     !dhdt parameters
     call GetValue(section, 'dhdt_multi_factor', model%inversion%dhdt_multi_factor)
