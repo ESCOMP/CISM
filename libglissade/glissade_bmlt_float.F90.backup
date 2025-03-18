@@ -890,7 +890,8 @@ module glissade_bmlt_float
 
     ! Set thermal_forcing_mask
     ! This mask identifies cells where we could have basal melting and need valid TF data.
-    where (ice_mask == 1 .and. f_ground_cell < 1.0d0 .and. marine_connection_mask == 1)
+    !;where (ice_mask == 1 .and. f_ground_cell < 1.0d0 .and. marine_connection_mask == 1)
+    where (f_ground_cell < 1.0d0 .and. marine_connection_mask == 1) !Michele: why do we need icemask?    
        thermal_forcing_mask = 1
     elsewhere
        thermal_forcing_mask = 0
@@ -998,7 +999,6 @@ module glissade_bmlt_float
             topg,                              &  ! m
             thermal_forcing_mask,              &
             marine_connection_mask,            &
-            ice_mask, ocean_mask,              &
             unphys_val,                        &  ! identifies unfilled cells on input
             unphys_val,                       &  ! default value given to unfilled cells on output
             ocean_data%thermal_forcing)
@@ -1459,7 +1459,6 @@ module glissade_bmlt_float
        lsrf,            topg,                  &
        thermal_forcing_mask,                   &
        marine_connection_mask,                 &
-       ice_mask, ocean_mask,                   &
        unphys_val,      default_val,           &
        thermal_forcing)
 
@@ -1503,8 +1502,8 @@ module glissade_bmlt_float
 
     integer, dimension(nx,ny), intent(in) ::  &
          thermal_forcing_mask, & ! = 1 where thermal forcing and bmlt_float are potentially nonzero, else = 0
-         marine_connection_mask, &  ! = 1 for cells with marine connection to the ocean, else = 0
-         ice_mask, ocean_mask       ! Note: marine_connection_mask includes paths through grounded marine-based cells
+         marine_connection_mask  ! = 1 for cells with marine connection to the ocean, else = 0
+                                 ! Note: marine_connection_mask includes paths through grounded marine-based cells
 
    real(dp), intent(in) :: &
          unphys_val,           & ! unphysical value given to cells/levels not yet filled
@@ -1559,21 +1558,6 @@ module glissade_bmlt_float
     ! Note: If thermal forcing is close to but not quite equal to unphys_val (e.g., because of roundoff error),
     !       it is interpreted as equal to unphys_val.
     real(dp), parameter :: tf_roundoff_threshold = 1.0d0  ! roundoff error threshold for thermal_forcing (deg K)
-   
-  
-    !Michele: I have realised that the remapped ocean is taking values where it shouldn't - points that are ice 
-   !shelves in CISM and should not have ocean values - this could be the reason for weird patterns of remapped
-   !ocean fields. So the idea could be, before starting to counting unphys_val, to set to unphys val all points 
-   !that are ice covered. 
-
-   do j = 1+nhalo, ny-nhalo
-       do i = 1+nhalo,  nx-nhalo
-             if (ice_mask(i,j) == 1 .or. ocean_mask(i,j) == 0) then
-                thermal_forcing(:,i,j) = unphys_val
-             end if
-       end do
-   end do
-
 
     ! Count the number of filled levels/cells with valid values in the input thermal_forcing.
 
@@ -1602,8 +1586,8 @@ module glissade_bmlt_float
     kbot(:,:) = 0
 
     do j = 1+nhalo, ny-nhalo
-       do i = 1+nhalo,  nx-nhalo
-          if (marine_connection_mask(i,j) == 1) then   ! there is a marine path to the ocean
+       do i = 1+nhalo,  nx-nhalo    ! Michele: try to apply extrapolation to floating cells only
+          if (thermal_forcing_mask(i,j) == 1 ) then   ! there is a marine path to the ocean
 
              ! ktop is the layer just above lsrf
              if (lsrf(i,j) <= zocn(nzocn)) then ! lsrf lies at or below the bottom ocean layer
@@ -1665,14 +1649,16 @@ module glissade_bmlt_float
     !  counts doubling for each halving of grid size.
 
     max_iter = max(parallel%ewtasks, parallel%nstasks) * max(nx-2*nhalo, ny-2*nhalo)
-
+   
     write(message,*) 'Max number of iteration is', max_iter
     call write_log(message)
+    
+    max_iter = max_iter*2
 
     ! Extrapolate the data horizontally.
 
     do iter = 1, max_iter
-
+   
     write(message,*) 'Iteration number ', iter
     call write_log(message)
 
@@ -1709,8 +1695,8 @@ module glissade_bmlt_float
        ! Can think of the extrapolation as a crude version of circulation in a C-grid ocean model.
 
        do j = 1+nhalo, ny-nhalo
-          do i = 1+nhalo,  nx-nhalo
-             if (marine_connection_mask(i,j) == 1) then   ! there is a marine path to the ocean
+       do i = 1+nhalo,  nx-nhalo ! Michele try to do extrapolation on floating cells only
+             if (thermal_forcing_mask(i,j) == 1) then   ! there is a marine path to the ocean
 
                 do k = ktop(i,j), kbot(i,j)
                    if (mask(k,i,j) == 0) then   ! not yet filled
@@ -1846,8 +1832,8 @@ module glissade_bmlt_float
        ! Extend TF downward in columns that contain unfilled cells below filled cells.
 
        do j = 1+nhalo, ny-nhalo
-          do i = 1+nhalo,  nx-nhalo
-             if (marine_connection_mask(i,j) == 1) then   ! there is a marine path to the ocean
+       do i = 1+nhalo,  nx-nhalo  !Michele try to do the extrapolation on floating cells only
+             if (thermal_forcing_mask(i,j) == 1) then   ! there is a marine path to the ocean
                 do k = ktop(i,j)+1, kbot(i,j)
                    if (thermal_forcing(k,i,j) == unphys_val .and. thermal_forcing(k-1,i,j) /= unphys_val) then
                       thermal_forcing(k,i,j) = thermal_forcing(k-1,i,j) - dtocnfrz_dz * (zocn(k) - zocn(k-1))
@@ -1861,8 +1847,8 @@ module glissade_bmlt_float
        ! This is less common than having unfilled cells below filled cells, but it happens occasionally.
 
        do j = 1+nhalo, ny-nhalo
-          do i = 1+nhalo,  nx-nhalo
-             if (marine_connection_mask(i,j) == 1) then   ! there is a marine path to the ocean
+       do i = 1+nhalo,  nx-nhalo !Michele try to do the extrapolation on floating cells only
+             if (thermal_forcing_mask(i,j) == 1) then   ! there is a marine path to the ocean
                 do k = kbot(i,j)-1, ktop(i,j), -1
                    if (thermal_forcing(k,i,j) == unphys_val .and. thermal_forcing(k+1,i,j) /= unphys_val) then
                       thermal_forcing(k,i,j) = thermal_forcing(k+1,i,j) - dtocnfrz_dz * (zocn(k) - zocn(k+1))
@@ -1893,8 +1879,8 @@ module glissade_bmlt_float
        if (iter == 1 .or. iter == 2 .or. iter == 5 .or. mod(iter, 10) == 0) then
           local_count = 0
           do j = 1+nhalo, ny-nhalo
-             do i = 1+nhalo,  nx-nhalo
-                if (marine_connection_mask(i,j) == 1) then   ! there is a marine path to the ocean
+          do i = 1+nhalo,  nx-nhalo !Michele try to do extrapolation on floating cells only
+                if (thermal_forcing_mask(i,j) == 1) then   ! there is a marine path to the ocean
                    do k = ktop(i,j), kbot(i,j)
                       if (thermal_forcing(k,i,j) /= unphys_val) local_count = local_count + 1
                    enddo
@@ -1906,17 +1892,15 @@ module glissade_bmlt_float
 
           if (global_count == global_count_save) then
              !if (verbose_bmlt_float .and. this_rank == rtest) &
-             !     print*, 'Extrapolation converged: iter, global_count =', iter, global_count
-             write(message,*) 'Extrapolation converged: iter, global_count =', &
-             iter, global_count
-             call write_log(message)
+                  write(message,*) 'Extrapolation converged: iter, global_count =', & 
+                  iter, global_count
+                  call write_log(message)
              exit
           else
              !if (verbose_bmlt_float .and. this_rank == rtest) &
-             !     print*, 'Extrapolation convergence check: iter, global_count =', iter, global_count
-             write(message,*) 'Extrapolation convergence check: iter, global_count =', &
-             iter, global_count
-             call write_log(message)
+                  write(message,*) 'Extrapolation convergence check: iter, global_count =', &
+                  iter, global_count
+                  call write_log(message)
              global_count_save = global_count
           endif
           
@@ -1933,7 +1917,7 @@ module glissade_bmlt_float
     ! Make sure all levels from ktop to kbot are filled in cells with thermal_forcing_mask = 1.
 
     do j = 1, ny
-       do i = 1, nx
+    do i = 1, nx !Michele try to do the extrapolation on floating cells only
           if (thermal_forcing_mask(i,j) == 1) then
              do k = ktop(i,j), kbot(i,j)
                 if (thermal_forcing(k,i,j) == unphys_val) then
@@ -1941,7 +1925,9 @@ module glissade_bmlt_float
                    print*, 'i, j, ktop, kbot =', i, j, ktop(i,j), kbot(i,j)
                    write(message,*) 'Ocean data extrapolation error: unphys value in level k, i, j:', &
                         k, iglobal, jglobal, thermal_forcing(k,i,j)
-                   call write_log(message, GM_FATAL)
+                   !;call write_log(message, GM_FATAL)
+                   call write_log(message)
+                   thermal_forcing(k,i,j) = 0.
                 endif
              enddo   ! k
           endif   ! thermal_forcing_mask
@@ -1971,13 +1957,11 @@ module glissade_bmlt_float
             unphys_mask = 1
     endwhere 
     
-    call write_log('Number of iterations is ',model%options%smoothiter)
-
     phi1 = thermal_forcing
 
     do iter = 1, model%options%smoothiter
-
-    write(message,*) 'Iteration', iter, 'of ', model%options%smoothiter
+    
+    write(message,*) 'Iteration', iter, 'of ', model%options%smoothiter 
     call write_log(message)
 
     do j = nhalo+1, ny-nhalo
