@@ -49,6 +49,7 @@ module glissade_grid_operators
     private
     public :: glissade_stagger, glissade_unstagger, glissade_stagger_real_mask, &
               glissade_gradient, glissade_gradient_at_edges, &
+              glissade_average_to_edges,            &
               glissade_surface_elevation_gradient,  &
               glissade_slope_angle,                 &
               glissade_laplacian_smoother,          &
@@ -261,7 +262,7 @@ contains
     if (present(stagger_margin_in)) then
        stagger_margin = stagger_margin_in
     else
-       stagger_margin = 0  ! default is to average over all cells, including those where ice is absent
+       stagger_margin = 0  ! default is to average over all vertices, including those where ice is absent
     endif
 
     if (stagger_margin == 1 .and. .not.present(vmask)) then
@@ -578,6 +579,9 @@ contains
     !
     !--------------------------------------------------------
 
+    ! TODO - Make HO_GRADIENT_MARGIN_LAND the default, since it is simple and requires no optional arguments?
+    ! TODO - Make ice_mask an optional argument, = 1 everywhere by default.
+
     if (present(gradient_margin_in)) then
        gradient_margin = gradient_margin_in
     else
@@ -585,7 +589,6 @@ contains
     endif
 
     ! Set logical edge mask based on gradient_margin.
-
     edge_mask_x(:,:) = .false.
     edge_mask_y(:,:) = .false.
 
@@ -708,6 +711,64 @@ contains
 
 !****************************************************************************
 
+  subroutine glissade_average_to_edges(nx,           ny,           &
+                                       field,                      &
+                                       field_east,   field_north,  &
+                                       cell_mask)
+
+    !----------------------------------------------------------------
+    ! Given a scalar variable f on the unstaggered grid (dimension nx, ny),
+    ! average the field to east and north edges.
+    ! Note: The east fields have dimension (nx-1,ny) and the north fields (nx,ny-1).
+    !----------------------------------------------------------------
+
+    !----------------------------------------------------------------
+    ! Input-output arguments
+    !----------------------------------------------------------------
+
+    integer, intent(in) ::      &
+       nx, ny                   ! horizontal grid dimensions
+
+    real(dp), dimension(nx,ny), intent(in) ::       &
+       field                    ! scalar field, defined at cell centers
+
+    real(dp), dimension(nx-1,ny), intent(out) ::    &
+       field_east               ! field averaged to east edges
+
+    real(dp), dimension(nx,ny-1), intent(out) ::    &
+       field_north              ! field averaged to north edges
+
+    integer, dimension(nx,ny), intent(in) ::        &
+       cell_mask                ! average at edges only if cell_mask = 1 on either side
+
+    ! Local variables
+
+    integer :: i, j
+
+    field_east(:,:) = 0.0d0
+    field_north(:,:) = 0.0d0
+
+    do j = 1, ny
+       do i = 1, nx-1
+          if (cell_mask(i,j) == 1  .and. cell_mask(i+1,j) == 1) then
+             field_east(i,j) = 0.5d0*(field(i,j) + field(i+1,j))
+          endif
+       enddo
+    enddo
+
+    do j = 1, ny-1
+       do i = 1, nx
+          if (cell_mask(i,j) == 1  .and. cell_mask(i,j+1) == 1) then
+             field_north(i,j) = 0.5d0*(field(i,j) + field(i,j+1))
+          endif
+       enddo
+    enddo
+
+
+  end subroutine glissade_average_to_edges
+
+!****************************************************************************
+
   subroutine glissade_edgemask_gradient_margin_hybrid(nx,          ny,         &
                                                       ice_mask,                &
                                                       land_mask,               &
@@ -724,7 +785,6 @@ contains
     !
     ! This method sets the gradient to zero at edges where
     ! (1) An ice-covered cell (grounded or floating) lies above ice-free ocean.
-    !     Note: Inactive calving-front cells are treated as ice-free ocean.
     ! (2) An ice-covered land cell lies below an ice-free land cell (i.e., a nunatak).
     !
     ! This method aims to give a reasonable gradient at both land-terminating and marine-terminating margins.
@@ -808,7 +868,7 @@ contains
   subroutine glissade_surface_elevation_gradient(nx,           ny,        &
                                                  dx,           dy,        &
                                                  itest, jtest, rtest,     &
-                                                 active_ice_mask,         &
+                                                 ice_mask,                &
                                                  land_mask,               &
                                                  usrf,         thck,      &
                                                  topg,         eus,       &
@@ -840,7 +900,6 @@ contains
     !
     ! This method sets the gradient to zero at edges where
     ! (1) An ice-covered cell (grounded or floating) lies above ice-free ocean.
-    !     Note: Inactive calving-front cells are treated as ice-free ocean.
     ! (2) An ice-covered land cell lies below an ice-free land cell (i.e., a nunatak).
 
     ! The aim is to give a reasonable gradient at both land-terminating and marine-terminating margins.
@@ -881,7 +940,7 @@ contains
          itest, jtest, rtest      ! coordinates of diagnostic point
 
     integer, dimension(nx,ny), intent(in) ::        &
-         active_ice_mask,       & ! = 1 where active ice is present, else = 0
+         ice_mask,              & ! = 1 where ice is present, else = 0
          land_mask                ! = 1 for land cells, else = 0
 
     real(dp), dimension(nx,ny), intent(in) ::       &
@@ -891,7 +950,7 @@ contains
 
     real(dp), intent(in) ::       &
          eus,                   & ! eustatic sea level
-         thklim,                & ! minimum thickness for active ice
+         thklim,                & ! minimum thickness for dynamically active ice
          thck_gradient_ramp
 
     real(dp), dimension(nx-1,ny-1), intent(out) ::    &
@@ -950,10 +1009,10 @@ contains
 
     elseif (ho_gradient_margin == HO_GRADIENT_MARGIN_MARINE) then
 
-       ! Compute ds_dx and ds_dy only on edges with active ice in each adjacent cell
+       ! Compute ds_dx and ds_dy only on edges with ice in each adjacent cell
        do j = 1, ny
           do i = 1, nx-1
-             if (active_ice_mask(i,j) == 1 .and. active_ice_mask(i+1,j) == 1) then
+             if (ice_mask(i,j) == 1 .and. ice_mask(i+1,j) == 1) then
                 ds_dx_edge(i,j) = (usrf(i+1,j) - usrf(i,j)) / dx
              endif
           enddo
@@ -961,7 +1020,7 @@ contains
 
        do j = 1, ny-1
           do i = 1, nx
-             if (active_ice_mask(i,j) == 1 .and. active_ice_mask(i,j+1) == 1) then
+             if (ice_mask(i,j) == 1 .and. ice_mask(i,j+1) == 1) then
                 ds_dy_edge(i,j) = (usrf(i,j+1) - usrf(i,j)) / dy
              endif
           enddo
@@ -984,7 +1043,7 @@ contains
                 sign_factor = 1.0d0
              endif
 
-             if (land_mask(iu,j) == 1) then
+             if (land_mask(iu,j) == 1 .and. thck_gradient_ramp > 0.0d0) then
                 ! Compute a factor that reduces the gradient if ice in the upper cell is thin and land-based.
                 ! This inhibits oscillations in the gradient when the thickness in the upper cell is close to thklim.
                 edge_thck_upper = thck(iu,j)
@@ -994,14 +1053,14 @@ contains
                 edge_factor = 1.0d0
              endif
 
-             if (active_ice_mask(iu,j) == 1 .and. active_ice_mask(il,j) == 1) then  ! both cells have active ice
+             if (ice_mask(iu,j) == 1 .and. ice_mask(il,j) == 1) then  ! both cells have ice
 
                 ! compute the gradient
                 ds_dx_edge(i,j) = edge_factor * sign_factor * (usrf(iu,j) - usrf(il,j)) / dx
 
-             elseif (active_ice_mask(iu,j) == 1 .and. land_mask(il,j) == 1) then
+             elseif (ice_mask(iu,j) == 1 .and. land_mask(il,j) == 1) then
 
-                ! upper cell has active ice, and ice-free lower cell is land; compute the gradient
+                ! upper cell has ice, and ice-free lower cell is land; compute the gradient
                 ds_dx_edge(i,j) = edge_factor * sign_factor * (usrf(iu,j) - usrf(il,j)) / dx
 
              endif  ! both cells have ice
@@ -1024,7 +1083,7 @@ contains
                 sign_factor = 1.0d0
              endif
 
-             if (land_mask(i,ju) == 1) then
+             if (land_mask(i,ju) == 1 .and. thck_gradient_ramp > 0.0d0) then
                 ! Compute a factor that reduces the gradient if ice in the upper cell is thin and land-based.
                 ! This inhibits oscillations in the gradient when the thickness in the upper cell is close to thklim.
                 edge_thck_upper = thck(i,ju)
@@ -1034,14 +1093,14 @@ contains
                 edge_factor = 1.0d0
              endif
 
-             if (active_ice_mask(i,ju)==1 .and. active_ice_mask(i,jl)==1) then  ! both cells have ice
+             if (ice_mask(i,ju)==1 .and. ice_mask(i,jl)==1) then  ! both cells have ice
 
                 ! compute the gradient
                 ds_dy_edge(i,j) = edge_factor * sign_factor * (usrf(i,ju) - usrf(i,jl)) / dy
 
-             elseif (active_ice_mask(i,ju) == 1 .and. land_mask(i,jl) == 1) then
+             elseif (ice_mask(i,ju) == 1 .and. land_mask(i,jl) == 1) then
 
-                ! upper cell has active ice, and ice-free lower cell is land; compute the gradient
+                ! upper cell has ice, and ice-free lower cell is land; compute the gradient
                 ds_dy_edge(i,j) = edge_factor * sign_factor * (usrf(i,ju) - usrf(i,jl)) / dy
 
              endif  ! both cells have ice
@@ -1050,7 +1109,6 @@ contains
        enddo   ! j
 
     endif   ! ho_gradient_margin
-
 
     ! Average the edge gradients to the vertex, depending on the value of ho_gradient.
 

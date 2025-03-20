@@ -5,25 +5,25 @@
 # Create test configuration based on Ed Bueler's exact solutions
 
 import sys,string, Numeric, PyCF, datetime
-from optparse import OptionParser
+from argparse import ArgumentParser
 import exact_is
 
 if __name__ == '__main__':
 
     # setup options
-    parser = OptionParser(usage = "usage: %prog [options] name")
-    parser.add_option("-m","--massbalance",metavar="MB",default=0.3,type="float",help="set accumulation [m/a] (default = 0.3)")
-    parser.add_option("-n","--flow-law-exponent",metavar="N",default=3.,type="float",help="set Glen's flow law exponent (default = 3)")
-    parser.add_option("-l","--margin-radius",metavar="L",default=750.,type="float",help="set radius of margin [km] (default = 750)")
-    parser.add_option("-d","--delta",metavar="D",default=25.,type="float",help="set grid spacing [km] (default = 25)")
+    parser = ArgumentParser(usage = "usage: %prog [options] name")
+    parser.add_argument("-m","--massbalance",      metavar="MB",default=0.3, type=float,help="set accumulation [m/a] (default = 0.3)")
+    parser.add_argument("-n","--flow-law-exponent",metavar="N", default=3.,  type=float,help="set Glen's flow law exponent (default = 3)")
+    parser.add_argument("-l","--margin-radius",    metavar="L", default=750.,type=float,help="set radius of margin [km] (default = 750)")
+    parser.add_argument("-d","--delta",            metavar="D", default=25., type=float,help="set grid spacing [km] (default = 25)")
 
-    (options, args) = parser.parse_args()
+    options = parser.parse_args()
 
     if len(args)!=1:
         parser.error("no output file name given")
 
     # ice sheet
-    print options.massbalance,options.flow_law_exponent,options.margin_radius
+    print( options.massbalance,options.flow_law_exponent,options.margin_radius)
     ism = exact_is.ModelAE(options.massbalance,options.flow_law_exponent,options.margin_radius)
 
     # creating output netCDF file

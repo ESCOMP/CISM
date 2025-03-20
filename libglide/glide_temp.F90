@@ -199,7 +199,7 @@ contains
     !TODO - Make sure cells in the Glide temperature halo are initialized to reasonable values
     !       (not unphys_val), e.g. if reading temps from input or restart file.
 
-    if (model%options%is_restart == RESTART_TRUE) then
+    if (model%options%is_restart == STANDARD_RESTART .or. model%options%is_restart == HYBRID_RESTART) then
 
        ! Temperature has already been initialized from a restart file. 
        ! (Temperature is always a restart variable.)
@@ -291,7 +291,7 @@ contains
 
     ! ====== Calculate initial value of flwa ==================
 
-    if (model%options%is_restart == RESTART_FALSE) then
+    if (model%options%is_restart == NO_RESTART) then
        call write_log("Calculating initial flwa from temp and thk fields")
 
        ! Calculate Glen's A --------------------------------------------------------   
@@ -301,7 +301,7 @@ contains
                            model%temper%flwa,           &
                            model%temper%temp(:,1:model%general%ewn,1:model%general%nsn), &
                            model%geometry%thck,         &
-                           model%paramets%flow_enhancement_factor,  &
+                           model%paramets%flow_enhancement_factor_ground,  &
                            model%paramets%default_flwa, &
                            model%options%whichflwa) 
     else
@@ -512,7 +512,7 @@ contains
 
                 call corrpmpt(model%temper%temp(:,ew,ns),     &
                               model%geometry%thck(ew,ns),     &
-                              model%temper%bwat(ew,ns),       &
+                              model%basal_hydro%bwat(ew,ns),  &
                               model%numerics%sigma,           &
                               model%general%upn)
             
@@ -560,7 +560,7 @@ contains
 
                    call corrpmpt(model%temper%temp(:,ew,ns),     &
                                  model%geometry%thck(ew,ns),     &
-                                 model%temper%bwat(ew,ns),       &
+                                 model%basal_hydro%bwat(ew,ns),  &
                                  model%numerics%sigma,           &
                                  model%general%upn)
 
@@ -632,7 +632,6 @@ contains
        end if
 
        ! Calculate basal melt rate --------------------------------------------------
-       ! Note: bmlt_float = 0 for Glide
 
        call glide_calcbmlt(model, &
                            model%temper%temp, &
@@ -644,6 +643,10 @@ contains
                            model%velocity%vbas, &
                            model%basal_melt%bmlt, &
                            GLIDE_IS_FLOAT(model%geometry%thkmask))
+
+       ! Copy bmlt to bmlt_ground, so that bmlt_ground is available for diagnostics.
+       ! Note: bmlt_float = 0 for Glide.
+       model%basal_melt%bmlt_ground = model%basal_melt%bmlt
 
        ! Transform basal temperature and pressure melting point onto velocity grid
        ! We need stagbpmp for one of the basal traction cases.
@@ -691,7 +694,7 @@ contains
                         model%temper%flwa,           &
                         model%temper%temp(:,1:model%general%ewn,1:model%general%nsn), &
                         model%geometry%thck,         &
-                        model%paramets%flow_enhancement_factor,  &
+                        model%paramets%flow_enhancement_factor_ground,  &
                         model%paramets%default_flwa, &
                         model%options%whichflwa) 
 

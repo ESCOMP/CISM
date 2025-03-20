@@ -1,0 +1,87 @@
+[grid]
+upn = 5
+ewn = 321
+nsn = 321
+dew = 5000
+dns = 5000
+global_bc = 1     # 1 = outflow BCs
+[time]
+tstart = 0.
+tend = 1000.0
+dt = 1.0
+dt_diag = 1.0
+adaptive_cfl_threshold = 0.5
+idiag = 161
+jdiag = 310
+
+[options]
+dycore = 2              # 0 = glide, 2 = glissade
+evolution = 3           # 3 = remapping, 4 = first order upwind
+flow_law = 0            # 0 = constant, 2 = Paterson-Budd
+temperature = 0         # 0 = sfc air temp, 1 = prognostic
+temp_init = 4           # 4 = read from external file
+basal_mass_balance = 0  # 1 = include basal mass balance in continuity eqn
+bmlt_float = 0          # 0 = no melting of floating ice
+marine_margin = 6       # 5 = calving mask, 6 = prescribed advance/retreat rate
+dm_dt_diag = 1          # 0 = kg/s, 1 = Gt/yr
+smb_input = 0           # 0 = m/yr ice, 1 = mm/yr w.e.
+restart_extend_velo = 1 # 1 = write uvel/vvel on extended grid
+restart = 0             # 0 = no restart, 1 = standard restart, 2 = hybrid restart
+
+[ho_options]
+which_ho_babc = 9                 # 9 = power law
+which_ho_effecpress = 0           # 0 = overburden
+which_ho_efvs = 2                 # 0 = constant, 2 = nonlinear eff. visc. w/ n=3
+which_ho_sparse = 3               # 1 = SLAP GMRES, 3 = Fortran PCG, 4 = Trilinos for linear solver
+which_ho_nonlinear = 1            # 0 = Picard, 1 = accelerated Picard
+which_ho_approx = 4               # 1 = SSA, 2 = Blatter-Pattyn, 3 = L1L2, 4 = DIVA
+which_ho_precond = 1              # 1 = diagonal precond, 2 = shallow ice preconditioner
+which_ho_gradient_margin = 2      # 2 = marine BC
+which_ho_gradient = 0             # 0 = centered, 1 = upstream
+which_ho_assemble_beta = 1        # 0 = standard FE, 1 = local
+which_ho_assemble_taud = 1        # 0 = standard FE, 1 = local
+which_ho_assemble_bfric = 1       # 0 = standard FE, 1 = local
+which_ho_assemble_lateral = 1     # 1 = local assembly applied at the marine boundary
+which_ho_ground = 1               # 0 = no GLP, 1 = GLP
+which_ho_ground_bmlt = 0          # 0 = no bmlt GLP, 1 = bmlt GLP
+which_ho_resid = 4                # 3 = absolute, 4 = relative
+which_ho_flotation_function = 3   # 0 = f_pattyn, 2 = linear, 3 = modified linear
+which_ho_powerlaw_c = 0           # 0 = spatially uniform constant
+which_ho_calving_front = 1        # 0 = no subgrid calving front, 1 = subgrid calving front
+glissade_maxiter = 50
+
+[parameters]
+rhoi = 917.0                    # ice density
+rhoo = 1028.0                   # ocean density
+grav = 9.81	                # gravitational acceleration
+ice_limit = 1.                  # min thickness (m) for dynamics
+default_flwa = 2.9377e-18
+powerlaw_c_const = 10000.       # constant for the power law stress
+powerlaw_m = 3.                 # exponent for the power law stress
+geothermal = 0.
+beta_grounded_min = 1.
+thck_effective_min = 50.
+dthck_dx_cf = 0.
+cf_advance_retreat_amplitude = 0.
+cf_advance_retreat_period = 0.
+
+[CF default]
+comment = created with calvingMIP.Setup.py
+title = calvingMIP experiment using CISM
+
+[CF input]
+name = calvingMIP.input.nc
+time = 1
+
+[CF output]
+variables = thk topg usurf uvel vvel beta_internal effecpress f_ground f_flotation floating_mask grounded_mask usfc vsfc ubas vbas uvel_mean vvel_mean stagthk ivol imass_above_flotation iareag calving_thck calving_mask
+frequency = 1000
+name = calvingMIP.out.nc
+
+[CF restart]
+variables = restart
+xtype = double
+frequency = 1000
+name = calvingMIP.restart.nc
+write_init = F
+

@@ -14,8 +14,8 @@ import shutil
 import fileinput
 import numpy as np
 from netCDF4 import Dataset
-from ConfigParser import ConfigParser
-from optparse import OptionParser
+import configparser
+from argparse import ArgumentParser
 
 
 ###############################
@@ -258,27 +258,22 @@ def computeHGuess(xH, xu, bedType, HInitType):
 
 
 # Parse options.
-optparser = OptionParser()
+parser = ArgumentParser()
 
-optparser.add_option('-c', '--config',dest='configfile',   type='string',default='mismip.config.template', help='config file name for setting up the MISMIP experiment', metavar='FILE')
-optparser.add_option('-e', '--exec',  dest='executable',default='cism_driver',help='Set path to the CISM executable', metavar='EXECUTABLE')
-optparser.add_option('-x', '--expt',  dest='experiment',   type='string',default = 'all', help='MISMIP experiment(s) to set up', metavar='EXPT')
-optparser.add_option('-t', '--tstep', dest='timestep',     type='float', default = 1,     help='time step (yr)', metavar='TSTEP')
-optparser.add_option('-r', '--res',   dest='resolution',   type='int',   default = 2000,  help='grid resolution (m)', metavar='RES')
-optparser.add_option('-v', '--vlevel',dest='vertlevels',   type='int',   default = 3,     help='no. of vertical levels', metavar='VLEVEL')
-optparser.add_option('-a', '--approx',dest='approximation',type='string',default = 'DIVA',help='Stokes approximation (SSA, DIVA, BP)', metavar='APPROXIMATION')
-optparser.add_option('-b', '--basal', dest='basalFriction', type='string', default='powerlaw', help='Basal friction law (powerlaw, schoof)', metavar='BASALFRICTION')
-optparser.add_option('-y', '--year',  dest='yearsSpinup', type='int', default = 30000, help='Length of Spinup run (yr)', metavar='YEARSPINUP')
-optparser.add_option('--bed',  dest='bedtopo',  type='string',default ='linear',help='bed topography, linear or poly', metavar='BEDTOPO')
-optparser.add_option('--yrun', dest='yearsRun', type='int',   default ='20000', help='run length between 2 experiments', metavar='YEARSRUN')
-optparser.add_option('--hinit',dest='initThick',type='string',default ='slab',  help='experiment initial thickness profile', metavar='INITTHICK')
+parser.add_argument('-c', '--config',dest='configfile',   type=str,default='mismip.config.template', help='config file name for setting up the MISMIP experiment', metavar='FILE')
+parser.add_argument('-e', '--exec',  dest='executable',default='cism_driver',help='Set path to the CISM executable', metavar='EXECUTABLE')
+parser.add_argument('-x', '--expt',  dest='experiment',   type=str,default = 'all', help='MISMIP experiment(s) to set up', metavar='EXPT')
+parser.add_argument('-t', '--tstep', dest='timestep',     type=float, default = 1,     help='time step (yr)', metavar='TSTEP')
+parser.add_argument('-r', '--res',   dest='resolution',   type=int,   default = 2000,  help='grid resolution (m)', metavar='RES')
+parser.add_argument('-v', '--vlevel',dest='vertlevels',   type=int,   default = 3,     help='no. of vertical levels', metavar='VLEVEL')
+parser.add_argument('-a', '--approx',dest='approximation',type=str,default = 'DIVA',help='Stokes approximation (SSA, DIVA, BP)', metavar='APPROXIMATION')
+parser.add_argument('-b', '--basal', dest='basalFriction', type=str, default='powerlaw', help='Basal friction law (powerlaw, schoof)', metavar='BASALFRICTION')
+parser.add_argument('-y', '--year',  dest='yearsSpinup', type=int, default = 30000, help='Length of Spinup run (yr)', metavar='YEARSPINUP')
+parser.add_argument('--bed',  dest='bedtopo',  type=str,default ='linear',help='bed topography, linear or poly', metavar='BEDTOPO')
+parser.add_argument('--yrun', dest='yearsRun', type=int,   default ='20000', help='run length between 2 experiments', metavar='YEARSRUN')
+parser.add_argument('--hinit',dest='initThick',type=str,default ='slab',  help='experiment initial thickness profile', metavar='INITTHICK')
 
-optparser.add_option
-
-for option in optparser.option_list:
-    if option.default != ('NO', 'DEFAULT'):
-        option.help += (' ' if option.help else '') + '[default: %default]'
-options, args = optparser.parse_args()
+options = parser.parse_args()
 
 
 if options.bedtopo == 'linear':
@@ -309,17 +304,17 @@ if options.experiment == 'all':
     experiments = As
     AsTime      = AsTimePoly
     Astat       = Astatus
-    print 'Setting up all the experiments'
+    print( 'Setting up all the experiments')
 elif options.experiment == 'advance':
     experiments = AsAdvance
     AsTime      = AsTimeAdvancePoly
     Astat       = AstatusAdvance
-    print 'Setting up advance experiments'
+    print( 'Setting up advance experiments')
 elif options.experiment == 'retreat':
     experiments = AsRetreat
     AsTime      = AsTimeRetreatPoly
     Astat       = AstatusRetreat
-    print 'Setting up retreat experiments'
+    print( 'Setting up retreat experiments')
 else:
     sys.exit('Please specify experiment(s) from this list: all, advance, retreat.')
 
@@ -360,8 +355,8 @@ if options.vertlevels >= 2:
 else:
     sys.exit('Error: must have at least 2 vertical levels')
 
-print 'MISMIP grid resolution (m) =', options.resolution
-print 'Number of vertical levels =', nz
+print( 'MISMIP grid resolution (m) =', options.resolution)
+print( 'Number of vertical levels =', nz)
 
 # Note: This is a streamline experiment with no y-direction variation in bed or forces.
 #       For this reason we can limit the domain in y-direction by a fixed amount of grid cells.
@@ -380,85 +375,91 @@ try:
 except OSError:
     sys.exit('Could not copy', options.configfile)
 
-print 'Creating master config file', masterConfigFile
+print( 'Creating master config file', masterConfigFile)
 
 # Read the master config file.
-config = ConfigParser()
+config = configparser.ConfigParser(delimiters=('=', ':'),
+                            comment_prefixes=('#', ';'),
+                            inline_comment_prefixes=';',
+                            interpolation=None)
 config.read(masterConfigFile)
 
 # Set the grid variables in the master config file.
-config.set('grid', 'ewn', nx)
-config.set('grid', 'nsn', ny)
-config.set('grid', 'upn', nz)
-config.set('grid', 'dew', dx)
-config.set('grid', 'dns', dy)
+config.set('grid', 'ewn', str(nx))
+config.set('grid', 'nsn', str(ny))
+config.set('grid', 'upn', str(nz))
+config.set('grid', 'dew', str(dx))
+config.set('grid', 'dns', str(dy))
 
 # Set the time step in the msster config file.
 # Set the diagnostic interval to the same value (not necessary, but helpful for debugging).
 
-config.set('time', 'dt',      options.timestep)
-config.set('time', 'dt_diag', options.timestep)
+config.set('time', 'dt',      str(options.timestep))
+config.set('time', 'dt_diag', str(options.timestep))
 
 # Set Stokes approximation in config file.
 if options.approximation == 'SSA':
     which_ho_approx = 1
-    print 'Using SSA velocity solver'
+    print( 'Using SSA velocity solver')
 elif options.approximation == 'DIVA':
     which_ho_approx = 4
-    print 'Using DIVA velocity solver'
+    print( 'Using DIVA velocity solver')
 elif options.approximation == 'BP':
     which_ho_approx = 2
-    print 'Using Blatter-Pattyn velocity solver'
+    print( 'Using Blatter-Pattyn velocity solver')
 else:
     which_ho_approx = 4
-    print 'Defaulting to DIVA velocity solver'
+    print( 'Defaulting to DIVA velocity solver')
 
-config.set('ho_options', 'which_ho_approx', which_ho_approx)
+config.set('ho_options', 'which_ho_approx', str(which_ho_approx))
 
 # Config settings related to basal friction law.
 # Note: Each of these friction laws is associate with certain basal parameters.
 #       The desired parameters should be set in the config template.
 if options.basalFriction == 'Schoof':
     which_ho_babc = 11
-    print 'Using Schoof basal friction law'
+    print( 'Using Schoof basal friction law')
 elif options.basalFriction == 'Tsai':
     which_ho_babc = 12
-    print 'Using Tsai basal friction law'
+    print( 'Using Tsai basal friction law')
 elif options.basalFriction == 'powerlaw':
     which_ho_babc = 9
-    print 'Using basal friction power law'
+    print( 'Using basal friction power law')
 else:
     which_ho_babc = 9   # powerlaw is default
-    print 'Defaulting to powerlaw basal friction law'
+    print( 'Defaulting to powerlaw basal friction law')
 
-config.set('ho_options', 'which_ho_babc', which_ho_babc)
+config.set('ho_options', 'which_ho_babc', str(which_ho_babc))
 
 # Config setting related to spin up time.
 yearsSpinup = float(options.yearsSpinup)
-config.set('time', 'tend', yearsSpinup)
+config.set('time', 'tend', str(yearsSpinup))
 
 # Config setting related to presence of ice.
-config.set('parameters','marine_limit',marine_limit)
+config.set('parameters','marine_limit', str(marine_limit))
 
 # Write to the master config file.
 with open(masterConfigFile, 'w') as configfile:
     config.write(configfile)
 
 
-print 'years of Spinup experiment =', yearsSpinup
+print( 'years of Spinup experiment =', yearsSpinup)
 restartfreqSpinup = min(1000.0, options.yearsSpinup)    # can be changed by the user if needed
-print 'Spinup restart frequency =', restartfreqSpinup
+print( 'Spinup restart frequency =', restartfreqSpinup)
 
 
 # Create the netCDF input file according to the information in the config file.
 try:
-    parser = ConfigParser()
+    parser = configparser.ConfigParser(delimiters=('=', ':'),
+                            comment_prefixes=('#', ';'),
+                            inline_comment_prefixes=';',
+                            interpolation=None)
     parser.read(options.configfile)
     initfile = parser.get('CF input', 'name')
 except OSError:
     sys.exit('Error parsing ' + options.configfile)
     
-print 'Creating input file', initfile
+print( 'Creating input file', initfile)
 ncfile = Dataset(initfile, 'w')
     
 
@@ -510,7 +511,7 @@ y0[:] = y[:-1] + dy       # y0 = dy, 2*dy, ..., (ny-1)*dy
 
 # Set bed topography.
 bedType = options.bedtopo
-print 'Computing ' + bedType + ' bed'
+print( 'Computing ' + bedType + ' bed')
 for i in range(nx):
     topg[:,:,i] = computeBed(x1[i]/1.e3, bedType) # x1 is in [m] and we need input in [km]
 
@@ -518,9 +519,9 @@ for i in range(nx):
 # Creating 'linear' or 'poly' bedtype directory.
 try:
     os.mkdir(bedType)
-    print 'Created subdirectory', bedType
+    print( 'Created subdirectory', bedType)
 except OSError:
-    print 'Subdirectory', bedType, 'already exists'
+    print( 'Subdirectory', bedType, 'already exists')
 
 
 # Set initial ice thickness.
@@ -565,26 +566,29 @@ for expt in experiments:
     # Create advance and/or retreat directory if needed.
     try:
         os.mkdir(stat)
-        print 'Created subdirectory', expt
+        print( 'Created subdirectory', expt)
     except OSError:
-        print 'Subdirectory', expt, 'already exists'
+        print( 'Subdirectory', expt, 'already exists')
 
     # Change to advance or retreat directory.
     os.chdir(stat)
 
     # For each experiment, make a suitable config file and set up a subdirectory.
-    print 'Creating config file for experiment A value', expt
+    print( 'Creating config file for experiment A value', expt)
     
     # Make a copy of the mismip config file.
     # Below, this copy will be tailored for the chosen MISMIP experiment,
     # without changing the settings used for the Spinup experiment.
     
     newConfigFile = 'mismip_' + expt + '.config'
-    print 'Config file for this experiment:', newConfigFile
+    print( 'Config file for this experiment:', newConfigFile)
     shutil.copy('../../' + masterConfigFile, newConfigFile)
     
     # Read the new config file.
-    config = ConfigParser()
+    config = configparser.ConfigParser(delimiters=('=', ':'),
+                            comment_prefixes=('#', ';'),
+                            inline_comment_prefixes=';',
+                            interpolation=None)
     config.read(newConfigFile)
 
     # Experiment-specific settings.
@@ -643,11 +647,11 @@ for expt in experiments:
         sys.exit('Exiting the run.')
 
     # Set the start and end times.
-    config.set('time', 'tstart', tstart)
-    config.set('time', 'tend',   tend)
+    config.set('time', 'tstart', str(tstart))
+    config.set('time', 'tend',   str(tend))
 
     # Set the default flwa value.
-    config.set('parameters', 'default_flwa', float(expt))
+    config.set('parameters', 'default_flwa', str(float(expt)))
 
     # Change the default comment.
     comment = 'MISMIP experiment ' + expt
@@ -655,22 +659,22 @@ for expt in experiments:
     
     # Set input file and time slice.
     config.set('CF input', 'name', inputfile)
-    config.set('CF input', 'time', inputslice)
+    config.set('CF input', 'time', str(inputslice))
 
     # Set the output filename in the section [CF output].
     outfilename = 'mismip_' + expt + '.out.nc'
-    print 'Output file:', outfilename
+    print( 'Output file:', outfilename)
     config.set('CF output', 'name',      outfilename)
-    config.set('CF output', 'frequency', outputfreq)
+    config.set('CF output', 'frequency', str(outputfreq))
 
     # Set restart info.  This should be in the section called '[CF output]'.
     # Note: Each experiment (except Stnd) writes out only one time slice to a restart file.
     restartfilename = 'mismip_' + expt + '.restart.nc'
-    print 'Restart file:', restartfilename
+    print( 'Restart file:', restartfilename)
     config.set('CF restart', 'name',       restartfilename)
     config.set('CF restart', 'variables',  'restart')
-    config.set('CF restart', 'frequency',  restartfreq)
-    config.set('CF restart', 'start',      tstart + restartfreq)
+    config.set('CF restart', 'frequency',  str(restartfreq))
+    config.set('CF restart', 'start',      str(tstart + restartfreq))
     config.set('CF restart', 'xtype',      'double')
 
     # Write to the new config file.
@@ -680,15 +684,15 @@ for expt in experiments:
     # Create a subdirectory named for the experiment, and stage the run there.
     try:
         os.mkdir(expt)
-        print 'Created subdirectory', expt
+        print( 'Created subdirectory', expt)
     except OSError:
-        print 'Subdirectory', expt, 'already exists'
+        print( 'Subdirectory', expt, 'already exists')
 
     os.chdir(expt)
     
     # Move the config file from the parent directory to the subdirectory.
     shutil.move('../' + newConfigFile, newConfigFile)
-    print 'Created config file', newConfigFile
+    print( 'Created config file', newConfigFile)
     
     # Link to the cism_driver executable in the parent directory.
     try:

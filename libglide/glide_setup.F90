@@ -40,7 +40,13 @@ module glide_setup
 
   private
   public :: glide_readconfig, glide_printconfig, glide_scale_params, &
-            glide_load_sigma, glide_read_sigma, glide_calc_sigma, glide_get_zocn
+            glide_load_sigma, glide_read_sigma, glide_calc_sigma, glide_get_zocn, &
+            check_fill_values
+
+  interface check_fill_values
+     module procedure check_fill_values_real8_2d
+     module procedure check_fill_values_real8_3d
+  end interface check_fill_values
 
 !-------------------------------------------------------------------------
 
@@ -74,19 +80,19 @@ contains
        call handle_time(section, model)
     end if
 
-    ! read options parameters
+    ! read options
     call GetSection(config,section,'options')
     if (associated(section)) then
        call handle_options(section, model)
     end if
 
-    !read options for higher-order computation
+    ! read options for higher-order computation
     call GetSection(config,section,'ho_options')
     if (associated(section)) then
         call handle_ho_options(section, model)
     end if
 
-     !read options for computation using an external dycore -- Doug Ranken 04/20/12
+    ! read options for computation using an external dycore -- Doug Ranken 04/20/12
     call GetSection(config,section,'external_dycore_options')
     if (associated(section)) then
         call handle_dycore_options(section, model)
@@ -117,12 +123,13 @@ contains
        end if
     endif
 
-    ! Till options are not currently supported
-    ! read till parameters
-!!    call GetSection(config,section,'till_options')
-!!    if (associated(section)) then
-!!       call handle_till_options(section, model)
-!!    end if
+    ! read glacier info
+    if (model%options%enable_glaciers) then
+       call GetSection(config,section,'glaciers')
+       if (associated(section)) then
+          call handle_glaciers(section, model)
+       end if
+    endif
 
     ! Construct the list of necessary restart variables based on the config options 
     ! selected by the user in the config file.
@@ -130,7 +137,7 @@ contains
     ! This is done regardless of whether or not a restart ouput file is going 
     ! to be created for this run, but this information is needed before setting up outputs.   MJH 1/17/13
 
-    call define_glide_restart_variables(model%options, model%model_id)
+    call define_glide_restart_variables(model, model%model_id)
 
   end subroutine glide_readconfig
 
@@ -151,7 +158,7 @@ contains
     call print_parameters(model)
     call print_gthf(model)
     call print_isostasy(model)
-!!    call print_till_options(model)  ! disabled for now
+    call print_glaciers(model)
 
   end subroutine glide_printconfig
 
@@ -160,7 +167,7 @@ contains
   subroutine glide_scale_params(model)
     !> scale parameters
     use glide_types
-    use glimmer_physcon,  only: scyr, gn
+    use glimmer_physcon,  only: scyr
     use glimmer_paramets, only: thk0, tim0, len0, vel0, vis0, acc0, tau0
 
     implicit none
@@ -187,9 +194,9 @@ contains
     model%calving%marine_limit = model%calving%marine_limit / thk0
     model%calving%timescale = model%calving%timescale * scyr                ! convert from yr to s
     model%calving%cliff_timescale = model%calving%cliff_timescale * scyr    ! convert from yr to s
-    model%calving%eigencalving_constant = model%calving%eigencalving_constant / scyr    ! convert from m/yr/Pa to m/s/Pa
-    model%calving%damage_constant = model%calving%damage_constant / scyr    ! convert from yr^{-1} to s^{-1}
-    model%calving%lateral_rate_max = model%calving%lateral_rate_max / scyr  ! convert from m/yr to m/s
+    !TODO - No conversion for strain-based calving
+!!!    model%calving%damage_constant1 = model%calving%damage_constant1 / scyr  ! convert from yr^{-1} to s^{-1}
+!!!    model%calving%damage_constant2 = model%calving%damage_constant2 / scyr  ! convert from yr^{-1} to s^{-1}
 
     ! scale periodic offsets for ISMIP-HOM
     model%numerics%periodic_offset_ew = model%numerics%periodic_offset_ew / thk0
@@ -208,16 +215,14 @@ contains
     model%basal_melt%bmlt_float_depth_frzmax = model%basal_melt%bmlt_float_depth_frzmax / scyr
     model%basal_melt%bmlt_float_depth_meltmin = model%basal_melt%bmlt_float_depth_meltmin / scyr
 
-    ! scale basal inversion parameters
-    !TODO - Leave buffer units as meters?
+    ! scale inversion parameters
     model%inversion%babc_timescale = model%inversion%babc_timescale * scyr    ! convert yr to s
-    model%inversion%bmlt_timescale = model%inversion%bmlt_timescale * scyr    ! convert yr to s
-    model%inversion%bmlt_max_melt = model%inversion%bmlt_max_melt / scyr      ! convert m/yr to m/s
-    model%inversion%bmlt_max_freeze = model%inversion%bmlt_max_freeze / scyr  ! convert m/yr to m/s
+    model%inversion%bmlt_basin_timescale = model%inversion%bmlt_basin_timescale * scyr   ! yr to s
+    model%inversion%deltaT_ocn_timescale = model%inversion%deltaT_ocn_timescale * scyr   ! yr to s
+    model%inversion%flow_enhancement_timescale = model%inversion%flow_enhancement_timescale * scyr  ! yr to s
+    model%inversion%dbmlt_dtemp_scale = model%inversion%dbmlt_dtemp_scale / scyr   ! m/yr/degC to m/s/degC
     model%inversion%thck_threshold = model%inversion%thck_threshold / thk0
     model%inversion%thck_flotation_buffer = model%inversion%thck_flotation_buffer / thk0
-    model%inversion%dbmlt_dtemp_scale = model%inversion%dbmlt_dtemp_scale / scyr   ! m/yr/degC to m/s/degC
-    model%inversion%bmlt_basin_timescale = model%inversion%bmlt_basin_timescale * scyr   ! yr to s
 
     ! scale SMB/acab parameters
     model%climate%overwrite_acab_value = model%climate%overwrite_acab_value*tim0/(scyr*thk0)
@@ -720,7 +725,6 @@ contains
     call GetValue(section,'basal_water',model%options%whichbwat)
     call GetValue(section,'bmlt_float',model%options%whichbmlt_float)
     call GetValue(section,'bmlt_float_thermal_forcing_param',model%options%bmlt_float_thermal_forcing_param)
-    call GetValue(section,'bmlt_float_ismip6_magnitude',model%options%bmlt_float_ismip6_magnitude)
     call GetValue(section,'ocean_data_domain',model%options%ocean_data_domain)
     call GetValue(section,'ocean_data_extrapolate',model%options%ocean_data_extrapolate)
     call GetValue(section,'enable_bmlt_anomaly',model%options%enable_bmlt_anomaly)
@@ -731,7 +735,10 @@ contains
     call GetValue(section,'nlev_smb',model%climate%nlev_smb)
     call GetValue(section,'enable_acab_anomaly',model%options%enable_acab_anomaly)
     call GetValue(section,'enable_artm_anomaly',model%options%enable_artm_anomaly)
+    call GetValue(section,'enable_snow_anomaly',model%options%enable_snow_anomaly)
+    call GetValue(section,'enable_precip_anomaly',model%options%enable_precip_anomaly)
     call GetValue(section,'overwrite_acab',model%options%overwrite_acab)
+    call GetValue(section,'enable_acab_dthck_dt_correction',model%options%enable_acab_dthck_dt_correction)
     call GetValue(section,'gthf',model%options%gthf)
     call GetValue(section,'isostasy',model%options%isostasy)
     call GetValue(section,'marine_margin',model%options%whichcalving)
@@ -743,8 +750,10 @@ contains
     call GetValue(section,'expand_calving_mask', model%options%expand_calving_mask)
     call GetValue(section,'limit_marine_cliffs', model%options%limit_marine_cliffs)
     call GetValue(section,'cull_calving_front', model%options%cull_calving_front)
+    call GetValue(section,'damage_flwa_feedback', model%options%damage_flwa_feedback)
     call GetValue(section,'adjust_input_thickness', model%options%adjust_input_thickness)
     call GetValue(section,'smooth_input_topography', model%options%smooth_input_topography)
+    call GetValue(section,'smooth_input_usrf', model%options%smooth_input_usrf)
     call GetValue(section,'adjust_input_topography', model%options%adjust_input_topography)
     call GetValue(section,'read_lat_lon',model%options%read_lat_lon)
     call GetValue(section,'dm_dt_diag',model%options%dm_dt_diag)
@@ -753,15 +762,10 @@ contains
     call GetValue(section,'periodic_ew',model%options%periodic_ew)
     call GetValue(section,'sigma',model%options%which_sigma)
     call GetValue(section,'ioparams',model%funits%ncfile)
-
-    !Note: Previously, the terms 'hotstart' and 'restart' were both supported in the config file.
-    !      Going forward, only 'restart' is supported.
+    call GetValue(section,'forcewrite_final', model%options%forcewrite_final)
     call GetValue(section,'restart',model%options%is_restart)
-
     call GetValue(section,'restart_extend_velo',model%options%restart_extend_velo)
-
-    ! These are not currently supported
-    !call GetValue(section,'basal_proc',model%options%which_bproc)
+    call GetValue(section,'forcewrite_restart',model%options%forcewrite_restart)
 
   end subroutine handle_options
 
@@ -782,10 +786,15 @@ contains
     call GetValue(section, 'which_ho_babc',               model%options%which_ho_babc)
     call GetValue(section, 'use_c_space_factor',          model%options%use_c_space_factor)
     call GetValue(section, 'which_ho_beta_limit',         model%options%which_ho_beta_limit)
-    call GetValue(section, 'which_ho_cp_inversion',       model%options%which_ho_cp_inversion)
-    call GetValue(section, 'which_ho_bmlt_inversion',     model%options%which_ho_bmlt_inversion)
-    call GetValue(section, 'which_ho_bmlt_basin_inversion', model%options%which_ho_bmlt_basin_inversion)
+    call GetValue(section, 'which_ho_powerlaw_c',         model%options%which_ho_powerlaw_c)
+    call GetValue(section, 'which_ho_coulomb_c',          model%options%which_ho_coulomb_c)
+    call GetValue(section, 'which_ho_coulomb_c_relax',    model%options%which_ho_coulomb_c_relax)
+    call GetValue(section, 'which_ho_bmlt_basin',         model%options%which_ho_bmlt_basin)
+    call GetValue(section, 'which_ho_deltaT_ocn',         model%options%which_ho_deltaT_ocn)
+    call GetValue(section, 'deltaT_ocn_extrapolate',      model%options%deltaT_ocn_extrapolate)
+    call GetValue(section, 'which_ho_flow_enhancement_factor', model%options%which_ho_flow_enhancement_factor)
     call GetValue(section, 'which_ho_bwat',               model%options%which_ho_bwat)
+    call GetValue(section, 'ho_flux_routing_scheme',      model%options%ho_flux_routing_scheme)
     call GetValue(section, 'which_ho_effecpress',         model%options%which_ho_effecpress)
     call GetValue(section, 'which_ho_resid',              model%options%which_ho_resid)
     call GetValue(section, 'which_ho_nonlinear',          model%options%which_ho_nonlinear)
@@ -808,6 +817,7 @@ contains
     call GetValue(section, 'remove_ice_caps',             model%options%remove_ice_caps)
     call GetValue(section, 'force_retreat',               model%options%force_retreat)
     call GetValue(section, 'which_ho_ice_age',            model%options%which_ho_ice_age)
+    call GetValue(section, 'enable_glaciers',             model%options%enable_glaciers)
     call GetValue(section, 'glissade_maxiter',            model%options%glissade_maxiter)
     call GetValue(section, 'linear_solve_ncheck',         model%options%linear_solve_ncheck)
     call GetValue(section, 'linear_maxiters',             model%options%linear_maxiters)
@@ -883,11 +893,10 @@ contains
          'advective-diffusive balance ',&
          'temp from external file     ' /)
 
-    character(len=*), dimension(0:3), parameter :: flow_law = (/ &
-         'const 1e-16 Pa^-n a^-1      ', &
+    character(len=*), dimension(0:2), parameter :: flow_law = (/ &
+         'uniform factor flwa         ', &
          'Paterson and Budd (T = -5 C)', &
-         'Paterson and Budd           ', &
-         'read flwa/flwastag from file' /)
+         'Paterson and Budd           ' /)
 
     !TODO - Rename slip_coeff to which_btrc?
     character(len=*), dimension(0:5), parameter :: slip_coeff = (/ &
@@ -904,14 +913,6 @@ contains
          'local + steady-state flux', &
          'Constant value (= 10 m)  ' /)
 
-      ! basal proc model is disabled for now.
-!!    character(len=*), dimension(0:2), parameter :: which_bproc = (/ &
-!!         'Basal proc mod disabled '  , &
-!!         'Basal proc, high res.   '   , &
-!!         'Basal proc, fast calc.  ' /)
-    character(len=*), dimension(0:0), parameter :: which_bproc = (/ &
-         'Basal process model disabled ' /)
-
     character(len=*), dimension(0:1), parameter :: b_mbal = (/ &
          'not in continuity eqn', &
          'in continuity eqn    ' /)
@@ -922,7 +923,7 @@ contains
          'constant melt rate                    ', &
          'depth-dependent melt rate             ', &
          'melt rate from external file          ', &
-         'melt rate from MISOMIP T/S profile    ', &
+         'melt rate from MISOMIP T/S profile    ', &   ! not supported
          'melt rate from thermal forcing        ' /)
 
     character(len=*), dimension(0:3), parameter :: bmlt_float_thermal_forcing_param = (/ &
@@ -930,11 +931,6 @@ contains
          'ISMIP6 local quadratic                    ', &
          'ISMIP6 nonlocal quadratic                 ', &
          'ISMIP6 nonlocal quadratic, slope-dependent' /)
-
-    character(len=*), dimension(0:2), parameter :: bmlt_float_ismip6_magnitude = (/ &
-         'lowest forcing magnitude  ', &
-         'median forcing magnitude  ', &
-         'highest forcing magnitude '  /)
 
     character(len=*), dimension(0:2), parameter :: ocean_data_domain = (/ &
          'ocean data computed internally by CISM', &
@@ -954,15 +950,17 @@ contains
          'SMB and d(SMB)/dz input as function of (x,y)', &
          'SMB input as function of (x,y,z)            ' /)
 
-    character(len=*), dimension(0:2), parameter :: artm_input_function = (/ &
+    character(len=*), dimension(0:3), parameter :: artm_input_function = (/ &
          'artm input as function of (x,y)               ', &
          'artm and d(artm)/dz input as function of (x,y)', &
-         'artm input as function of (x,y,z)             ' /)
+         'artm input as function of (x,y,z)             ', &
+         'artm input as function of (x,y) w/ lapse rate ' /)
 
-    character(len=*), dimension(0:2), parameter :: overwrite_acab = (/ &
+    character(len=*), dimension(0:3), parameter :: overwrite_acab = (/ &
          'do not overwrite acab anywhere            ', &
          'overwrite acab where input acab = 0       ', &
-         'overwrite acab where input thck <= minthck' /)
+         'overwrite acab where input thck <= minthck', &
+         'overwrite acab based on input mask        ' /)
 
     ! NOTE: Set gthf = 1 in the config file to read the geothermal heat flux from an input file.
     !       Otherwise it will be overwritten, even if the 'bheatflx' field is present.
@@ -978,17 +976,19 @@ contains
          'compute isostasy with model     ' /)
 
     !TODO - Change 'marine_margin' to 'calving'?  Would have to modify many config files
-    character(len=*), dimension(0:9), parameter :: marine_margin = (/ &
-         'no calving law                  ', &
-         'remove all floating ice         ', &
-         'remove fraction of floating ice ', &
-         'relaxed bedrock threshold       ', &
-         'present bedrock threshold       ', &
-         'calving based on grid location  ', &
-         'ice thickness threshold         ', &
-         'eigencalving scheme             ', & 
-         'damage-based calving scheme     ', & 
-         'Huybrechts grounding-line scheme' /) 
+    character(len=*), dimension(0:11), parameter :: marine_margin = (/ &
+         'no calving law                   ', &
+         'remove all floating ice          ', &
+         'remove fraction of floating ice  ', &
+         'relaxed bedrock threshold        ', &
+         'present bedrock threshold        ', &
+         'calving based on grid location   ', &
+         'prescribe CF advance/retreat rate', &
+         'ice thickness threshold          ', &
+         'stress threshold                 ', &
+         'strain-rate (eigencalving)       ', &
+         'damage-based calving scheme      ', &
+         'Huybrechts calving               '/)
 
     character(len=*), dimension(0:1), parameter :: init_calving = (/ &
          'no calving at initialization    ', &
@@ -1027,53 +1027,78 @@ contains
          'vertical thermal solve after transport     ', &
          'vertical thermal solve split into two parts' /)
 
-    character(len=*), dimension(0:14), parameter :: ho_whichbabc = (/ &
+    character(len=*), dimension(0:15), parameter :: ho_whichbabc = (/ &
          'constant beta                                    ', &
          'beta depends on basal temp (melting or frozen)   ', &
-         'till yield stress (Picard)                       ', &
-         'pseudo-plastic sliding law                       ', &
+         'pseudo-plastic sliding law, new C_c options      ', &
+         'pseudo-plastic sliding law, old tan(phi) options ', &
          'no slip (using large B^2)                        ', &
          'beta from external file                          ', &
          'no slip (Dirichlet implementation)               ', &
-         'till yield stress (Newton)                       ', &
+         'Zoet-Iverson sliding law                         ', &
          'beta as in ISMIP-HOM test C                      ', &
          'power law                                        ', &
          'Coulomb friction law w/ effec press              ', &
          'Coulomb friction law w/ effec press, const flwa_b', &
          'min of Coulomb stress and power-law stress (Tsai)', &
          'power law using effective pressure               ', &
-         'simple pattern of beta                           ' /)
+         'simple pattern of beta                           ', &
+         'till yield stress (Picard)                       ' /)
 
     character(len=*), dimension(0:1), parameter :: ho_whichbeta_limit = (/ &
          'absolute beta limit based on beta_grounded_min   ', &
          'beta is limited, then scaled by f_ground_cell    ' /)
 
-    character(len=*), dimension(0:2), parameter :: ho_cp_whichinversion = (/ &
-         'no inversion for basal friction parameters            ', &
-         'invert for basal friction parameters                  ', &
-         'apply basal friction parameters from earlier inversion' /)
+    character(len=*), dimension(0:2), parameter :: ho_powerlaw_c = (/ &
+         'spatially uniform friction parameter Cp ', &
+         'friction parameter Cp found by inversion', &
+         'friction parameter Cp read from file    ' /)
 
-    character(len=*), dimension(0:2), parameter :: ho_bmlt_whichinversion = (/ &
-         'no inversion for basal melt rate            ', &
-         'invert for basal melt rate                  ', &
-         'apply basal melt rate from earlier inversion' /)
+    character(len=*), dimension(0:3), parameter :: ho_coulomb_c = (/ &
+         'spatially uniform friction parameter Cc ', &
+         'friction parameter Cc found by inversion', &
+         'friction parameter Cc read from file    ', &
+         'Cc is a function of bed elevation       ' /)
 
-    character(len=*), dimension(0:2), parameter :: ho_bmlt_basin_whichinversion = (/ &
-         'no inversion for basin-based basal melting parameters      ', &
-         'invert for basin-based basal melting parameters            ', &
-         'apply basin basal melting parameters from earlier inversion' /)
+    character(len=*), dimension(0:2), parameter :: ho_coulomb_c_relax = (/ &
+         'no Cc_relax target                      ', &
+         'spatially uniform Cc_relax              ', &
+         'Cc_relax is a function of bed elevation ' /)
 
-    character(len=*), dimension(0:2), parameter :: ho_whichbwat = (/ &
+    character(len=*), dimension(0:3), parameter :: ho_bmlt_basin = (/ &
+         'uniform deltaT_ocn in each basin                ', &
+         'invert for deltaT_ocn in each basin             ', &
+         'read deltaT_ocn in each basin from external file', &
+         'prescribe deltaT_ocn in each basin from ISMIP6  ' /)
+
+    character(len=*), dimension(0:3), parameter :: ho_deltaT_ocn = (/ &
+         'deltaT_ocn = 0                         ', &
+         'invert for deltaT_ocn based on thck    ', &
+         'read deltaT_ocn from external file     ', &
+         'invert for deltaT_ocn based on dthck_dt' /)
+
+    character(len=*), dimension(0:2), parameter :: ho_flow_enhancement_factor = (/ &
+         'uniform flow enhancement factors               ', &
+         'invert for flow_enhancement_factor             ', &
+         'read flow_enhancment_factor from external file ' /)
+
+    character(len=*), dimension(0:3), parameter :: ho_whichbwat = (/ &
          'zero basal water depth                          ', &
          'constant basal water depth                      ', &
-         'basal water depth computed from local till model' /)
+         'basal water depth computed from local till model', &
+         'steady-state water routing with flux calculation' /)
+
+    character(len=*), dimension(0:2), parameter :: ho_flux_routing_scheme = (/ &
+         'D8; route flux to lowest-elevation neighbor      ', &
+         'Dinf; route flux to two lower-elevation neighbors', &
+         'FD8; route flux to all lower-elevation neighbors ' /)
 
     character(len=*), dimension(0:4), parameter :: ho_whicheffecpress = (/ &
          'full overburden pressure                             ', &
          'reduced effecpress near pressure melting point       ', &
-         'reduced effecpress where there is melting at the bed ', &
-         'reduced effecpress where bed is connected to ocean   ', &
-         'reduced effecpress with increasing basal water       '/)
+         'reduced effecpress where bwat > 0 (ramp)             ', &
+         'reduced effecpress where bwatflx > 0                 ', &
+         'reduced effecpress where bwat > 0 (B/vP)             '/)
 
     character(len=*), dimension(0:1), parameter :: which_ho_nonlinear = (/ &
          'use standard Picard iteration          ', &
@@ -1094,13 +1119,14 @@ contains
          'Native PCG solver, Chronopoulos-Gear       ', &
          'Trilinos interface                         '/)
 
-    character(len=*), dimension(-1:4), parameter :: ho_whichapprox = (/ &
+    character(len=*), dimension(-1:5), parameter :: ho_whichapprox = (/ &
          'SIA only (glissade_velo_sia)                     ', &
          'SIA only (glissade_velo_higher)                  ', &
          'SSA only (glissade_velo_higher)                  ', &
          'Blatter-Pattyn HO (glissade_velo_higher)         ', &
          'Depth-integrated L1L2 (glissade_velo_higher)     ', &
-         'Depth-integrated viscosity (glissade_velo_higher)' /)
+         'Depth-integrated viscosity (glissade_velo_higher)', &
+         'Hybrid SIA/SSA                                   ' /)
 
     character(len=*), dimension(0:4), parameter :: ho_whichprecond = (/ &
          'No preconditioner (native PCG)                ', &
@@ -1140,8 +1166,8 @@ contains
          'use local thck and usrf on each cell face (glissade dycore)'  /)
 
     character(len=*), dimension(0:1), parameter :: ho_whichcalving_front = (/ &
-         'no subgrid calving front parameterization      ', &
-         'subgrid calving front scheme; inactive CF cells' /)
+         'no subgrid calving front parameterization ', &
+         'subgrid calving front parameterization    ' /)
 
     character(len=*), dimension(0:2), parameter :: ho_whichground = (/ &
          'f_ground = 0 or 1; no GLP  (glissade dycore)               ', &
@@ -1234,7 +1260,7 @@ contains
     end if
 
     if (tasks > 1 .and. model%options%whichbwat==BWATER_FLUX) then
-       call write_log('Error, flux-based basal water option not supported for more than one processor', GM_FATAL)
+       call write_log('Error, flux-based basal water option not yet supported for more than one processor', GM_FATAL)
     endif
 
     ! Forbidden options associated with Glissade dycore
@@ -1243,7 +1269,8 @@ contains
 
        if ( (model%options%which_ho_approx == HO_APPROX_SSA  .or.  &
              model%options%which_ho_approx == HO_APPROX_L1L2 .or.  &
-             model%options%which_ho_approx == HO_APPROX_DIVA)   &
+             model%options%which_ho_approx == HO_APPROX_DIVA .or.  &
+             model%options%which_ho_approx == HO_APPROX_HYBRID)    &
                                 .and.                            &
              (model%options%which_ho_sparse == HO_SPARSE_PCG_STANDARD .or.    &
               model%options%which_ho_sparse == HO_SPARSE_PCG_CHRONGEAR) ) then
@@ -1318,11 +1345,6 @@ contains
     call write_log(message)
 
     if (model%options%whichbwat < 0 .or. model%options%whichbwat >= size(basal_water)) then
-       if (model%options%whichbwat == BWATER_OCEAN_PENETRATION) then  ! deprecated option
-          call write_log('basal_water ocean penetration option has been deprecated')
-          write(message,*) 'Instead, set which_ho_effecpress =', HO_EFFECPRESS_OCEAN_PENETRATION 
-          call write_log(message)
-       endif
        call write_log('Error, basal_water out of range',GM_FATAL)
     end if
     write(message,*) 'basal_water             : ',model%options%whichbwat,basal_water(model%options%whichbwat)
@@ -1351,7 +1373,12 @@ contains
     end if
     write(message,*) 'calving_domain          : ', model%options%calving_domain, domain_calving(model%options%calving_domain)
     call write_log(message)
-    
+
+    if (model%options%read_lat_lon) then
+       write(message,*) ' Lat and lon fields will be read from input files and written to restart'
+       call write_log(message)
+    endif
+
     ! dycore-dependent options; most of these are supported for Glissade only
 
     if (model%options%whichdycore == DYCORE_GLISSADE) then
@@ -1362,17 +1389,21 @@ contains
 
        if (model%options%remove_icebergs) then
           call write_log(' Icebergs will be removed')
+          write(message,*) ' f_ground_threshold =', model%calving%f_ground_threshold
+          call write_log(message)
        else
           call write_log(' Icebergs will not be removed')
        endif
 
        if (model%options%remove_isthmuses) then
+          call write_log(' Isthmuses will be removed')
+          write(message,*) ' f_ground_threshold =', model%calving%f_ground_threshold
+          call write_log(message)
           if (.not.model%options%remove_icebergs) then
              model%options%remove_icebergs = .true.
              write(message,*) ' Setting remove_icebergs = T for stability when remove_isthmuses = T'
              call write_log(message)
           endif
-          call write_log(' Isthmuses will be removed')
        endif
        
        if (model%options%expand_calving_mask) then
@@ -1385,7 +1416,6 @@ contains
 
        if (model%options%limit_marine_cliffs) then
           call write_log(' The thickness of marine ice cliffs will be limited')
-          call write_log(message)
        else
           call write_log(' The thickness of marine ice cliffs will not be limited')
        endif
@@ -1407,6 +1437,11 @@ contains
           call write_log(message)
        endif
 
+       if (model%options%smooth_input_usrf) then
+          write(message,*) ' Input usrf will be smoothed'
+          call write_log(message)
+       endif
+
        if (model%options%smooth_input_topography) then
           write(message,*) ' Input topography will be smoothed'
           call write_log(message)
@@ -1417,24 +1452,25 @@ contains
           call write_log(message)
        endif
 
-       if (model%options%read_lat_lon) then
-          write(message,*) ' Lat and lon fields will be read from input files and written to restart'
-          call write_log(message)
-       endif
-
     else   ! not Glissade
 
        if (model%options%whichcalving == CALVING_THCK_THRESHOLD) then
           call write_log('Error, calving thickness threshold option is supported for Glissade dycore only', GM_FATAL)
        endif
-       if (model%options%whichcalving == EIGENCALVING) then
+       if (model%options%whichcalving == EIGEN_CALVING) then
           call write_log('Error, eigencalving option is supported for Glissade dycore only', GM_FATAL)
+       endif
+       if (model%options%whichcalving == CALVING_STRESS) then
+          call write_log('Error, stress-based calving option is supported for Glissade dycore only', GM_FATAL)
        endif
        if (model%options%whichcalving == CALVING_GRID_MASK) then
           call write_log('Error, calving grid mask option is supported for Glissade dycore only', GM_FATAL)
        endif
        if (model%options%whichcalving == CALVING_DAMAGE) then
           call write_log('Error, calving damage option is supported for Glissade dycore only', GM_FATAL)
+       endif
+       if (model%options%whichcalving == CF_ADVANCE_RETREAT_RATE) then
+          call write_log('Error, calving front advance/retreat option is supported for Glissade dycore only', GM_FATAL)
        endif
        if (model%options%calving_domain /= CALVING_DOMAIN_OCEAN_EDGE) then
           write(message,*) 'WARNING: calving domain can be selected for Glissade dycore only; user selection ignored'
@@ -1513,17 +1549,12 @@ contains
     write(message,*) 'basal melt, floating ice: ',model%options%whichbmlt_float, which_bmlt_float(model%options%whichbmlt_float)
     call write_log(message)
 
-    if (model%options%whichbmlt_float == BMLT_FLOAT_THERMAL_FORCING) then
+    if (model%options%whichbmlt_float == BMLT_FLOAT_MISOMIP) then
+       call write_log('Error, BMLT_FLOAT_MISOMIP option is not supported', GM_FATAL)
+    elseif (model%options%whichbmlt_float == BMLT_FLOAT_THERMAL_FORCING) then
        write(message,*) 'melt parameterization   : ', model%options%bmlt_float_thermal_forcing_param, &
             bmlt_float_thermal_forcing_param(model%options%bmlt_float_thermal_forcing_param)
        call write_log(message)
-       if (model%options%bmlt_float_thermal_forcing_param == BMLT_FLOAT_TF_ISMIP6_LOCAL .or.  &
-           model%options%bmlt_float_thermal_forcing_param == BMLT_FLOAT_TF_ISMIP6_NONLOCAL .or. &
-           model%options%bmlt_float_thermal_forcing_param == BMLT_FLOAT_TF_ISMIP6_NONLOCAL_SLOPE) then
-          write(message,*) 'magnitude of forcing    : ', model%options%bmlt_float_ismip6_magnitude, &
-               bmlt_float_ismip6_magnitude(model%options%bmlt_float_ismip6_magnitude)
-          call write_log(message)
-       endif
        write(message,*) 'ocean data domain       : ', model%options%ocean_data_domain, &
             ocean_data_domain(model%options%ocean_data_domain)
        call write_log(message)
@@ -1588,12 +1619,24 @@ contains
        call write_log('artm anomaly forcing is enabled')
     endif
 
+    if (model%options%enable_snow_anomaly) then
+       call write_log('snow anomaly forcing is enabled')
+    endif
+
+    if (model%options%enable_precip_anomaly) then
+       call write_log('precip anomaly forcing is enabled')
+    endif
+
     if (model%options%overwrite_acab < 0 .or. model%options%overwrite_acab >= size(overwrite_acab)) then
        call write_log('Error, overwrite_acab option out of range',GM_FATAL)
     end if
 
     write(message,*) 'overwrite_acab          : ',model%options%overwrite_acab,overwrite_acab(model%options%overwrite_acab)
     call write_log(message)
+
+    if (model%options%enable_acab_dthck_dt_correction) then
+       call write_log('acab correction based on dthck_dt_obs is enabled')
+    endif
 
     if (model%options%gthf < 0 .or. model%options%gthf >= size(gthf)) then
        call write_log('Error, geothermal flux option out of range',GM_FATAL)
@@ -1617,12 +1660,25 @@ contains
        call write_log('  Slightly cheated with how temperature is implemented.',GM_WARNING)
     end if
 
-    if (model%options%is_restart == RESTART_TRUE) then
+    if (model%options%forcewrite_final) then
+       call write_log('Force write to output files when the run completes')
+    endif
+
+    if (model%options%is_restart == STANDARD_RESTART) then
        call write_log('Restarting model from a previous run')
        if (model%options%restart_extend_velo == RESTART_EXTEND_VELO_TRUE) then
           call write_log('Using extended velocity fields for restart')
        endif
+    elseif (model%options%is_restart == HYBRID_RESTART) then
+       call write_log('Hybrid restart from a previous run')
+       if (model%options%restart_extend_velo == RESTART_EXTEND_VELO_TRUE) then
+          call write_log('Using extended velocity fields for restart')
+       endif
     end if
+
+    if (model%options%forcewrite_restart) then
+       call write_log('Will write to output files on restart')
+    endif
 
 !!     This option is not currently supported
 !!    if (model%options%which_bproc < 0 .or. model%options%which_bproc >= size(which_bproc)) then
@@ -1699,65 +1755,138 @@ contains
           call write_log('Error, HO beta limit input out of range', GM_FATAL)
        end if
 
+       ! basal friction options
+
+       write(message,*) 'ho_powerlaw_c           : ',model%options%which_ho_powerlaw_c,  &
+                         ho_powerlaw_c(model%options%which_ho_powerlaw_c)
+       call write_log(message)
+       if (model%options%which_ho_powerlaw_c < 0 .or. model%options%which_ho_powerlaw_c >= size(ho_powerlaw_c)) then
+          call write_log('Error, HO powerlaw_c input out of range', GM_FATAL)
+       end if
+
+       write(message,*) 'ho_coulomb_c            : ',model%options%which_ho_coulomb_c,  &
+                         ho_coulomb_c(model%options%which_ho_coulomb_c)
+       call write_log(message)
+       if (model%options%which_ho_coulomb_c < 0 .or. model%options%which_ho_coulomb_c >= size(ho_coulomb_c)) then
+          call write_log('Error, HO coulomb_c input out of range', GM_FATAL)
+       end if
+
        ! Inversion options
 
-       if (model%options%which_ho_cp_inversion /= HO_CP_INVERSION_NONE) then
-          write(message,*) 'ho_cp_whichinversion    : ',model%options%which_ho_cp_inversion,  &
-                            ho_cp_whichinversion(model%options%which_ho_cp_inversion)
-          call write_log(message)
-          ! Note: Inversion for Cp is currently supported only for Schoof sliding law and basic power law
+       ! Note: Inversion for Cp is currently supported for the Schoof sliding law, Tsai law, and basic power law
+       if (model%options%which_ho_powerlaw_c == HO_POWERLAW_C_INVERSION) then
           if (model%options%which_ho_babc == HO_BABC_COULOMB_POWERLAW_SCHOOF .or.  &
+              model%options%which_ho_babc == HO_BABC_COULOMB_POWERLAW_TSAI .or.  &
               model%options%which_ho_babc == HO_BABC_POWERLAW) then
              ! inversion for Cp is supported
           else
              call write_log('Error, Cp inversion is not supported for this basal BC option')
              write(message,*) 'Cp inversion is supported only for these options: ', &
-                  HO_BABC_COULOMB_POWERLAW_SCHOOF, HO_BABC_POWERLAW
+                  HO_BABC_COULOMB_POWERLAW_SCHOOF, HO_BABC_COULOMB_POWERLAW_TSAI, HO_BABC_POWERLAW
              call write_log(message, GM_FATAL)
           endif
        endif
 
-       if (model%options%which_ho_cp_inversion < 0 .or. &
-           model%options%which_ho_cp_inversion >= size(ho_cp_whichinversion)) then
-          call write_log('Error, Cp inversion input out of range', GM_FATAL)
-       end if
+       ! Note: Inversion for Cc is currently supported only for the Zoet-Iverson law
+       if (model%options%which_ho_coulomb_c == HO_COULOMB_C_INVERSION) then
 
-       if (model%options%which_ho_bmlt_inversion /= HO_BMLT_INVERSION_NONE) then
-          write(message,*) 'ho_bmlt_whichinversion  : ',model%options%which_ho_bmlt_inversion,  &
-                            ho_bmlt_whichinversion(model%options%which_ho_bmlt_inversion)
+          if (model%options%which_ho_babc == HO_BABC_ZOET_IVERSON) then
+             ! inversion for Cc is supported
+          else
+             call write_log('Error, Cc inversion is not supported for this basal BC option')
+             write(message,*) 'Cc inversion is supported only for these options: ', &
+                  HO_BABC_ZOET_IVERSON
+             call write_log(message, GM_FATAL)
+          endif
+
+          ! If inverting for Cc, there may be a relaxation target
+          if (model%options%which_ho_coulomb_c_relax < 0 .or. &
+              model%options%which_ho_coulomb_c_relax >= size(ho_coulomb_c_relax)) then
+             call write_log('Error, HO coulomb_c_relax input out of range', GM_FATAL)
+          end if
+          write(message,*) 'ho_coulomb_c_relax      : ',model%options%which_ho_coulomb_c_relax,  &
+                            ho_coulomb_c_relax(model%options%which_ho_coulomb_c_relax)
           call write_log(message)
+
        endif
 
-       if (model%options%which_ho_bmlt_inversion < 0 .or. &
-            model%options%which_ho_bmlt_inversion >= size(ho_bmlt_whichinversion)) then
-          call write_log('Error, basal melt inversion input out of range', GM_FATAL)
-       end if
-
-       if (model%options%which_ho_bmlt_basin_inversion /= HO_BMLT_BASIN_INVERSION_NONE) then
-          write(message,*) 'ho_bmlt_basin_whichinversion : ',model%options%which_ho_bmlt_basin_inversion,  &
-                            ho_bmlt_basin_whichinversion(model%options%which_ho_bmlt_basin_inversion)
+       if (model%options%which_ho_bmlt_basin /= HO_BMLT_BASIN_NONE) then
+          write(message,*) 'ho_bmlt_basin           : ',model%options%which_ho_bmlt_basin,  &
+                            ho_bmlt_basin(model%options%which_ho_bmlt_basin)
           call write_log(message)
           if (model%options%whichbmlt_float /= BMLT_FLOAT_THERMAL_FORCING) then
-             call write_log('Error, bmlt_basin inversion is not supported for this bmlt_float option')
-             write(message,*) 'bmlt_basin inversion is supported only for bmlt_float = ', BMLT_FLOAT_THERMAL_FORCING
-             call write_log(message, GM_FATAL)
+             write(message,*) 'bmlt_basin options are supported only for bmlt_float = ', &
+                  BMLT_FLOAT_THERMAL_FORCING
+             call write_log(message)
+             call write_log('User setting will be ignored')
           endif
        endif
 
-       if (model%options%which_ho_bmlt_basin_inversion < 0 .or. &
-            model%options%which_ho_bmlt_basin_inversion >= size(ho_bmlt_basin_whichinversion)) then
-          call write_log('Error, bmlt_basin inversion input out of range', GM_FATAL)
+       if (model%options%which_ho_bmlt_basin < 0 .or. &
+            model%options%which_ho_bmlt_basin >= size(ho_bmlt_basin)) then
+          call write_log('Error, ho_bmlt_basin out of range', GM_FATAL)
        end if
 
-       ! unsupported ho-babc options
-       if (model%options%which_ho_babc == HO_BABC_YIELD_NEWTON) then
-         call write_log('Yield stress higher-order basal boundary condition is not currently scientifically supported.  &
-              &USE AT YOUR OWN RISK.', GM_WARNING)
+       if (model%options%which_ho_deltaT_ocn /= HO_DELTAT_OCN_NONE) then
+
+          write(message,*) 'ho_deltaT_ocn           : ',model%options%which_ho_deltaT_ocn,  &
+                            ho_deltaT_ocn(model%options%which_ho_deltaT_ocn)
+          call write_log(message)
+
+          if (model%options%whichbmlt_float /= BMLT_FLOAT_THERMAL_FORCING) then
+             write(message,*) 'deltaT_ocn options are supported only for bmlt_float = ', &
+                  BMLT_FLOAT_THERMAL_FORCING
+             call write_log(message)
+             call write_log('User setting will be ignored')
+          endif
+
+          if (model%options%deltaT_ocn_extrapolate) then
+             if (model%options%which_ho_deltaT_ocn == HO_DELTAT_OCN_INVERSION) then
+                call write_log('deltaT_ocn will be extrapolated to non-floating cells during inversion')
+             else
+                model%options%deltaT_ocn_extrapolate = .false.
+                write(message,*) 'Setting deltaT_ocn_extrapolate = F for which_ho_deltaT_ocn =', &
+                     model%options%which_ho_deltaT_ocn
+                call write_log(message)
+                write(message,*) 'deltaT_ocn_extrapolate = T is appropriate for which_ho_deltaT_ocn =', &
+                    HO_DELTAT_OCN_INVERSION
+                call write_log(message)
+             endif
+          endif
+
+          if (model%options%which_ho_deltaT_ocn == HO_DELTAT_OCN_DTHCK_DT) then
+             if (model%options%bmlt_float_thermal_forcing_param /= BMLT_FLOAT_TF_ISMIP6_LOCAL .and. &
+                 model%options%bmlt_float_thermal_forcing_param /= BMLT_FLOAT_TF_ISMIP6_NONLOCAL .and. &
+                 model%options%bmlt_float_thermal_forcing_param /= BMLT_FLOAT_TF_ISMIP6_NONLOCAL_SLOPE) then
+                write(message,*) 'deltaT_ocn dthck_dt options supported only for ISMIP6 bmlt_float schemes'
+                call write_log(message, GM_FATAL)
+             endif
+          endif
        endif
-       if (model%options%which_ho_babc == HO_BABC_POWERLAW_EFFECPRESS) then
-         call write_log('Weertman-style power law higher-order basal boundary condition is not currently scientifically &
-              &supported.  USE AT YOUR OWN RISK.', GM_WARNING)
+
+       if (model%options%which_ho_deltaT_ocn < 0 .or. &
+            model%options%which_ho_deltaT_ocn >= size(ho_deltaT_ocn)) then
+          call write_log('Error, ho_deltaT_ocn out of range', GM_FATAL)
+       end if
+
+       if (model%options%which_ho_flow_enhancement_factor /= HO_FLOW_ENHANCEMENT_FACTOR_CONSTANT) then
+          write(message,*) 'ho_flow_enhancement_factor: ',model%options%which_ho_flow_enhancement_factor,  &
+                            ho_flow_enhancement_factor(model%options%which_ho_flow_enhancement_factor)
+          call write_log(message)
        endif
+
+       if (model%options%which_ho_flow_enhancement_factor < 0 .or. &
+            model%options%which_ho_flow_enhancement_factor >= size(ho_flow_enhancement_factor)) then
+          call write_log('Error, ho_flow_enhancement_factor out of range', GM_FATAL)
+       end if
+
+       ! Make sure no more than one of the following inversion options is selected
+       if (model%options%which_ho_bmlt_basin == HO_BMLT_BASIN_INVERSION .and.  &
+           model%options%which_ho_deltaT_ocn == HO_DELTAT_OCN_INVERSION) then
+          call write_log('Cannot invert for deltaT_ocn both locally and in basins', GM_FATAL)
+       endif
+
+       ! basal water options
 
        write(message,*) 'ho_whichbwat            : ',model%options%which_ho_bwat,  &
                          ho_whichbwat(model%options%which_ho_bwat)
@@ -1765,6 +1894,24 @@ contains
        if (model%options%which_ho_bwat < 0 .or. model%options%which_ho_bwat >= size(ho_whichbwat)) then
           call write_log('Error, HO basal water input out of range', GM_FATAL)
        end if
+
+    if (model%options%which_ho_bwat == HO_BWAT_CONSTANT) then
+       write(message,*) 'constant basal water depth (m): ', model%basal_hydro%const_bwat
+       call write_log(message)
+    elseif (model%options%which_ho_bwat == HO_BWAT_LOCAL_TILL) then
+       write(message,*) 'maximum till water depth (m)  : ', model%basal_hydro%bwat_till_max
+       call write_log(message)
+       write(message,*) 'till drainage rate (m/yr)     : ', model%basal_hydro%c_drainage
+       call write_log(message)
+    elseif (model%options%which_ho_bwat == HO_BWAT_FLUX_ROUTING) then
+       if (model%options%ho_flux_routing_scheme < 0.or. &
+           model%options%ho_flux_routing_scheme >= size(ho_flux_routing_scheme)) then
+          call write_log('Error, HO flux routing scheme out of range', GM_FATAL)
+       end if
+       write(message,*) 'ho_flux_routing_scheme  : ',model%options%ho_flux_routing_scheme,  &
+            ho_flux_routing_scheme(model%options%ho_flux_routing_scheme)
+       call write_log(message)
+    endif
 
        write(message,*) 'ho_whicheffecpress      : ',model%options%which_ho_effecpress,  &
                          ho_whicheffecpress(model%options%which_ho_effecpress)
@@ -1863,7 +2010,7 @@ contains
              call write_log('Error, basal-friction assembly option out of range for glissade dycore', GM_FATAL)
           end if
 
-          write(message,*) 'ho_whichassemble_lateral  : ',model%options%which_ho_assemble_lateral,  &
+          write(message,*) 'ho_whichassemble_lateral: ',model%options%which_ho_assemble_lateral,  &
                             ho_whichassemble_lateral(model%options%which_ho_assemble_lateral)
           call write_log(message)
           if (model%options%which_ho_assemble_lateral < 0 .or. &
@@ -1996,7 +2143,7 @@ contains
     use glimmer_config
     use glide_types
     use glimmer_log
-    use glimmer_physcon, only: rhoi, rhoo, grav, shci, lhci, trpt
+    use glimmer_physcon, only: rhoi, rhoo, grav, shci, lhci, trpt, n_glen
 
     implicit none
     type(ConfigSection), pointer :: section
@@ -2004,6 +2151,7 @@ contains
     real(dp), pointer, dimension(:) :: tempvar => NULL()
     integer :: loglevel
 
+    !TODO - Reorganize parameters into sections based on relevant physics
     !Note: The following physical constants have default values in glimmer_physcon.F90.
     !      Some test cases (e.g., MISMIP) specify different values. The default values
     !       can therefore be overridden by the user in the config file.
@@ -2021,6 +2169,7 @@ contains
     call GetValue(section,'lhci', lhci)
     call GetValue(section,'trpt', trpt)
 #endif
+    call GetValue(section,'n_glen', n_glen)
 
     loglevel = GM_levels-GM_ERROR
     call GetValue(section,'log_level',loglevel)
@@ -2033,9 +2182,9 @@ contains
     call GetValue(section,'pmp_offset',         model%temper%pmp_offset)
     call GetValue(section,'pmp_threshold',      model%temper%pmp_threshold)
     call GetValue(section,'geothermal',         model%paramets%geot)
-    !TODO - Change default_flwa to flwa_constant?  Would have to change config files.
-    call GetValue(section,'flow_factor',        model%paramets%flow_enhancement_factor)
+    call GetValue(section,'flow_factor_ground', model%paramets%flow_enhancement_factor_ground)
     call GetValue(section,'flow_factor_float',  model%paramets%flow_enhancement_factor_float)
+    !TODO - Change default_flwa to flwa_constant?  Would have to change config files.
     call GetValue(section,'default_flwa',       model%paramets%default_flwa)
     call GetValue(section,'efvs_constant',      model%paramets%efvs_constant)
     call GetValue(section,'effstrain_min',      model%paramets%effstrain_min)
@@ -2043,24 +2192,32 @@ contains
     call GetValue(section,'max_slope',          model%paramets%max_slope)
 
     ! parameters to adjust external forcing
+    call GetValue(section,'t_lapse',            model%climate%t_lapse)
     call GetValue(section,'acab_factor',        model%climate%acab_factor)
     call GetValue(section,'bmlt_float_factor',  model%basal_melt%bmlt_float_factor)
 
     ! calving parameters
     call GetValue(section,'marine_limit',       model%calving%marine_limit)
     call GetValue(section,'calving_fraction',   model%calving%calving_fraction)
+    call GetValue(section,'calving_timescale',  model%calving%timescale)
     call GetValue(section,'calving_minthck',    model%calving%minthck)
-    call GetValue(section,'lateral_rate_max',   model%calving%lateral_rate_max)
-    call GetValue(section,'eigencalving_constant', model%calving%eigencalving_constant)
-    call GetValue(section,'eigen2_weight',      model%calving%eigen2_weight)
-    call GetValue(section,'damage_constant',    model%calving%damage_constant)
+    call GetValue(section,'dthck_dx_cf',        model%calving%dthck_dx_cf)
+    call GetValue(section,'thck_effective_min', model%calving%thck_effective_min)
+    call GetValue(section,'eigenconstant',      model%calving%eigenconstant)
+    call GetValue(section,'tau_eigenconstant1', model%calving%tau_eigenconstant1)
+    call GetValue(section,'tau_eigenconstant2', model%calving%tau_eigenconstant2)
+    call GetValue(section,'stress_threshold',   model%calving%stress_threshold)
+    call GetValue(section,'damage_threshold',   model%calving%damage_threshold)
+    call GetValue(section,'damage_constant1',   model%calving%damage_constant1)
+    call GetValue(section,'damage_constant2',   model%calving%damage_constant2)
     call GetValue(section,'taumax_cliff',       model%calving%taumax_cliff)
     call GetValue(section,'cliff_timescale',    model%calving%cliff_timescale)
-    call GetValue(section,'ncull_calving_front',   model%calving%ncull_calving_front)
-    call GetValue(section,'calving_timescale',  model%calving%timescale)
+    call GetValue(section,'ncull_calving_front',model%calving%ncull_calving_front)
     call GetValue(section,'calving_front_x',    model%calving%calving_front_x)
     call GetValue(section,'calving_front_y',    model%calving%calving_front_y)
-    call GetValue(section,'damage_threshold',   model%calving%damage_threshold)
+    call GetValue(section,'f_ground_threshold', model%calving%f_ground_threshold)
+    call GetValue(section,'cf_advance_retreat_amplitude', model%calving%cf_advance_retreat_amplitude)
+    call GetValue(section,'cf_advance_retreat_period',    model%calving%cf_advance_retreat_period)
 
     ! NOTE: bpar is used only for BTRC_TANH_BWAT
     !       btrac_max and btrac_slope are used (with btrac_const) for BTRC_LINEAR_BMLT
@@ -2079,38 +2236,49 @@ contains
        deallocate(tempvar)
     end if
 
-!!    call GetValue(section,'sliding_constant',  model%climate%slidconst)  ! not currently used
-
     call GetValue(section,'beta_grounded_min', model%basal_physics%beta_grounded_min)
     call GetValue(section,'ho_beta_const', model%basal_physics%ho_beta_const)
     call GetValue(section,'ho_beta_small', model%basal_physics%ho_beta_small)
     call GetValue(section,'ho_beta_large', model%basal_physics%ho_beta_large)
 
     ! basal friction parameters
+    call GetValue(section, 'powerlaw_c_const', model%basal_physics%powerlaw_c_const)
+    call GetValue(section, 'powerlaw_c_max', model%basal_physics%powerlaw_c_max)
+    call GetValue(section, 'powerlaw_c_min', model%basal_physics%powerlaw_c_min)
+    call GetValue(section, 'powerlaw_m', model%basal_physics%powerlaw_m)
+    call GetValue(section, 'coulomb_c_const', model%basal_physics%coulomb_c_const)
+    call GetValue(section, 'coulomb_c_max', model%basal_physics%coulomb_c_max)
+    call GetValue(section, 'coulomb_c_min', model%basal_physics%coulomb_c_min)
+    call GetValue(section, 'coulomb_c_bedmax', model%basal_physics%coulomb_c_bedmax)
+    call GetValue(section, 'coulomb_c_bedmin', model%basal_physics%coulomb_c_bedmin)
+    call GetValue(section, 'coulomb_c_relax_max', model%basal_physics%coulomb_c_relax_max)
+    call GetValue(section, 'coulomb_c_relax_min', model%basal_physics%coulomb_c_relax_min)
+    call GetValue(section, 'beta_powerlaw_umax', model%basal_physics%beta_powerlaw_umax)
+    call GetValue(section, 'zoet_iversion_ut', model%basal_physics%zoet_iverson_ut)
+    call GetValue(section, 'zoet_iversion_nmax', model%basal_physics%zoet_iverson_nmax)
     call GetValue(section, 'friction_powerlaw_k', model%basal_physics%friction_powerlaw_k)
-    call GetValue(section, 'coulomb_c', model%basal_physics%coulomb_c)
+    call GetValue(section, 'flwa_basal', model%basal_physics%flwa_basal)
     call GetValue(section, 'coulomb_bump_max_slope', model%basal_physics%coulomb_bump_max_slope)
     call GetValue(section, 'coulomb_bump_wavelength', model%basal_physics%coulomb_bump_wavelength)
-    call GetValue(section, 'flwa_basal', model%basal_physics%flwa_basal)
-    call GetValue(section, 'powerlaw_c', model%basal_physics%powerlaw_c)
-    call GetValue(section, 'powerlaw_m', model%basal_physics%powerlaw_m)
-    call GetValue(section, 'beta_powerlaw_umax', model%basal_physics%beta_powerlaw_umax)
 
     ! effective pressure parameters
     call GetValue(section, 'p_ocean_penetration', model%basal_physics%p_ocean_penetration)
+    call GetValue(section, 'ocean_p_timescale', model%basal_physics%ocean_p_timescale)
     call GetValue(section, 'effecpress_delta', model%basal_physics%effecpress_delta)
     call GetValue(section, 'effecpress_bpmp_threshold', model%basal_physics%effecpress_bpmp_threshold)
-    call GetValue(section, 'effecpress_bmlt_threshold', model%basal_physics%effecpress_bmlt_threshold)
+    call GetValue(section, 'effecpress_bwat_threshold', model%basal_physics%effecpress_bwat_threshold)
+    call GetValue(section, 'effecpress_bwatflx_threshold', model%basal_physics%effecpress_bwatflx_threshold)
+    call GetValue(section, 'effecpress_timescale', model%basal_physics%effecpress_timescale)
 
     ! basal water parameters
-    call GetValue(section, 'const_bwat', model%basal_physics%const_bwat)
-    call GetValue(section, 'bwat_till_max', model%basal_physics%bwat_till_max)
-    call GetValue(section, 'c_drainage', model%basal_physics%c_drainage)
+    call GetValue(section, 'const_bwat', model%basal_hydro%const_bwat)
+    call GetValue(section, 'bwat_till_max', model%basal_hydro%bwat_till_max)
+    call GetValue(section, 'c_drainage', model%basal_hydro%c_drainage)
 
     ! pseudo-plastic parameters
-    !TODO - Put pseudo-plastic and other basal sliding parameters in a separate section
     call GetValue(section, 'pseudo_plastic_q', model%basal_physics%pseudo_plastic_q)
     call GetValue(section, 'pseudo_plastic_u0', model%basal_physics%pseudo_plastic_u0)
+    !TODO - next four to be removed in favor of coulomb_c_min, etc.
     call GetValue(section, 'pseudo_plastic_phimin', model%basal_physics%pseudo_plastic_phimin)
     call GetValue(section, 'pseudo_plastic_phimax', model%basal_physics%pseudo_plastic_phimax)
     call GetValue(section, 'pseudo_plastic_bedmin', model%basal_physics%pseudo_plastic_bedmin)
@@ -2137,43 +2305,49 @@ contains
     call GetValue(section, 'inversion_thck_flotation_buffer', model%inversion%thck_flotation_buffer)
     call GetValue(section, 'inversion_thck_threshold', model%inversion%thck_threshold)
 
-    call GetValue(section, 'powerlaw_c_max', model%inversion%powerlaw_c_max)
-    call GetValue(section, 'powerlaw_c_min', model%inversion%powerlaw_c_min)
     call GetValue(section, 'inversion_babc_timescale', model%inversion%babc_timescale)
     call GetValue(section, 'inversion_babc_thck_scale', model%inversion%babc_thck_scale)
-
-    call GetValue(section, 'inversion_bmlt_timescale', model%inversion%bmlt_timescale)
-    call GetValue(section, 'inversion_bmlt_max_melt', model%inversion%bmlt_max_melt)
-    call GetValue(section, 'inversion_bmlt_max_freeze', model%inversion%bmlt_max_freeze)
-    call GetValue(section, 'inversion_nudging_factor_min', model%inversion%nudging_factor_min)
-    call GetValue(section, 'inversion_wean_bmlt_float_tstart', model%inversion%wean_bmlt_float_tstart)
-    call GetValue(section, 'inversion_wean_bmlt_float_tend', model%inversion%wean_bmlt_float_tend)
-    call GetValue(section, 'inversion_wean_bmlt_float_timescale', model%inversion%wean_bmlt_float_timescale)
+    call GetValue(section, 'inversion_babc_relax_factor', model%inversion%babc_relax_factor)
+    call GetValue(section, 'inversion_babc_velo_scale', model%inversion%babc_velo_scale)
 
     call GetValue(section, 'inversion_dbmlt_dtemp_scale', model%inversion%dbmlt_dtemp_scale)
     call GetValue(section, 'inversion_bmlt_basin_timescale', model%inversion%bmlt_basin_timescale)
-    call GetValue(section, 'inversion_bmlt_basin_flotation_threshold', &
-         model%inversion%bmlt_basin_flotation_threshold)
-    call GetValue(section, 'inversion_bmlt_basin_mass_correction', &
-         model%inversion%bmlt_basin_mass_correction)
-    call GetValue(section, 'inversion_bmlt_basin_number_mass_correction', &
-         model%inversion%bmlt_basin_number_mass_correction)
+    call GetValue(section, 'inversion_basin_flotation_threshold', &
+         model%inversion%basin_flotation_threshold)
+
+    call GetValue(section, 'inversion_deltaT_ocn_timescale', model%inversion%deltaT_ocn_timescale)
+    call GetValue(section, 'inversion_deltaT_ocn_thck_scale', model%inversion%deltaT_ocn_thck_scale)
+    call GetValue(section, 'inversion_deltaT_ocn_temp_scale', model%inversion%deltaT_ocn_temp_scale)
+
+    call GetValue(section, 'inversion_flow_enhancement_timescale', &
+         model%inversion%flow_enhancement_timescale)
+    call GetValue(section, 'inversion_flow_enhancement_thck_scale', &
+         model%inversion%flow_enhancement_thck_scale)
+    call GetValue(section, 'inversion_flow_enhancement_relax_factor', &
+         model%inversion%flow_enhancement_relax_factor)
+
+    call GetValue(section, 'inversion_basin_mass_correction', &
+         model%inversion%basin_mass_correction)
+    call GetValue(section, 'inversion_basin_number_mass_correction', &
+         model%inversion%basin_number_mass_correction)
 
     ! ISMIP-HOM parameters
     call GetValue(section,'periodic_offset_ew',model%numerics%periodic_offset_ew)
     call GetValue(section,'periodic_offset_ns',model%numerics%periodic_offset_ns)
 
     ! parameters for acab/artm anomaly and overwrite options
+    call GetValue(section,'acab_anomaly_tstart',    model%climate%acab_anomaly_tstart)
     call GetValue(section,'acab_anomaly_timescale', model%climate%acab_anomaly_timescale)
-    call GetValue(section,'overwrite_acab_value', model%climate%overwrite_acab_value)
+    call GetValue(section,'overwrite_acab_value',   model%climate%overwrite_acab_value)
     call GetValue(section,'overwrite_acab_minthck', model%climate%overwrite_acab_minthck)
-    call GetValue(section,'bmlt_anomaly_timescale', model%basal_melt%bmlt_anomaly_timescale)
-
-    ! parameters for artm anomaly option
+    call GetValue(section,'artm_anomaly_const',     model%climate%artm_anomaly_const)
+    call GetValue(section,'artm_anomaly_tstart',    model%climate%artm_anomaly_tstart)
     call GetValue(section,'artm_anomaly_timescale', model%climate%artm_anomaly_timescale)
 
     ! basal melting parameters
-    call GetValue(section,'bmlt_cavity_h0', model%basal_melt%bmlt_cavity_h0)
+    call GetValue(section,'bmlt_cavity_h0',         model%basal_melt%bmlt_cavity_h0)
+    call GetValue(section,'bmlt_anomaly_tstart',    model%basal_melt%bmlt_anomaly_tstart)
+    call GetValue(section,'bmlt_anomaly_timescale', model%basal_melt%bmlt_anomaly_timescale)
 
     ! MISMIP+ basal melting parameters
     call GetValue(section,'bmlt_float_omega', model%basal_melt%bmlt_float_omega)
@@ -2206,7 +2380,7 @@ contains
 
   subroutine print_parameters(model)
 
-    use glimmer_physcon, only: rhoi, rhoo, lhci, shci, trpt, grav
+    use glimmer_physcon, only: rhoi, rhoo, lhci, shci, trpt, grav, n_glen
     use glide_types
     use glimmer_log
     implicit none
@@ -2255,6 +2429,8 @@ contains
        call write_log(message)
     endif
 
+    ! calving options
+
     if (model%options%whichcalving == CALVING_FLOAT_FRACTION) then
        write(message,*) 'ice fraction lost in calving  : ', model%calving%calving_fraction
        call write_log(message)
@@ -2266,63 +2442,59 @@ contains
        call write_log(message)
     endif
 
-    ! thickness-based calving options
-    if (model%options%whichcalving == CALVING_THCK_THRESHOLD .or. &
-        model%options%whichcalving == EIGENCALVING           .or. &
+    if (model%options%whichcalving == CF_ADVANCE_RETREAT_RATE.or.  &
+        model%options%whichcalving == CALVING_THCK_THRESHOLD .or.  &
+        model%options%whichcalving == CALVING_STRESS         .or.  &
+        model%options%whichcalving == EIGEN_CALVING          .or.  &
         model%options%whichcalving == CALVING_DAMAGE) then
 
-       if (model%calving%timescale <= 0.0d0) then
-          write(message,*) 'Must set calving_timescale to a positive nonzero value for this calving option'
+       if (model%options%which_ho_calving_front == HO_CALVING_FRONT_NO_SUBGRID) then
+          write(message,*) &
+               'Calving option ', model%options%whichcalving, ' requires a subgrid calving front'
           call write_log(message, GM_FATAL)
        endif
 
-       if (model%options%whichcalving == EIGENCALVING .or. &
-           model%options%whichcalving == CALVING_DAMAGE) then
-          if (model%options%which_ho_calving_front == HO_CALVING_FRONT_NO_SUBGRID) then
-             write(message,*) &
-                  'Calving option ', model%options%whichcalving, ' requires a subgrid calving front'
-             call write_log(message, GM_FATAL)
-          endif
-       endif
-
        if (model%options%whichcalving == CALVING_THCK_THRESHOLD) then
-          if (model%calving%minthck > 0.0d0) then
-             write(message,*) 'calving thickness threshold (m) : ', model%calving%minthck
-             call write_log(message)
-          else
-             write(message,*) 'Will use a 2D calving thickness threshold field'
-             call write_log(message)
-          endif
-       elseif (model%options%whichcalving == EIGENCALVING) then
-          if (model%calving%minthck == 0.0d0) then
-             write(message,*) 'Error: Eigencalving requires minthck > 0'
-             call write_log(message, GM_FATAL)
-          else
-             write(message,*) 'calving thickness threshold (m) : ', model%calving%minthck
-             call write_log(message)
-          endif
-          write(message,*) 'eigencalving constant (m yr^-1 Pa^-1): ', model%calving%eigencalving_constant
+          write(message,*) 'calving minthck (m)           : ', model%calving%minthck
           call write_log(message)
-          write(message,*) 'eigenvalue 2 weight (unitless)       : ', model%calving%eigen2_weight
+          if (model%calving%minthck <= 0.0d0) then
+             write(message,*) 'Error, this calving option needs calving_minthck > 0'
+             call write_log(message, GM_FATAL)
+          endif
+       elseif (model%options%whichcalving == EIGEN_CALVING) then
+          write(message,*) 'eigenconstant (m)             : ', model%calving%eigenconstant
+          call write_log(message)
+       elseif (model%options%whichcalving == CALVING_STRESS) then
+          write(message,*) 'tau_eigenconstant 1           : ', model%calving%tau_eigenconstant1
+          call write_log(message)
+          write(message,*) 'tau_eigenconstant 2           : ', model%calving%tau_eigenconstant2
+          call write_log(message)
+          write(message,*) 'stress_threshold (Pa)         : ', model%calving%stress_threshold
           call write_log(message)
        elseif (model%options%whichcalving == CALVING_DAMAGE) then
-          if (model%calving%minthck == 0.0d0) then
-             write(message,*) 'Error: Damage-based calving requires minthck > 0'
-             call write_log(message, GM_FATAL)
-          else
-             write(message,*) 'calving thickness threshold (m) : ', model%calving%minthck
-             call write_log(message)
-          endif
-          write(message,*) 'damage constant (yr^-1)              : ', model%calving%damage_constant
+          write(message,*) 'damage constant1 (1/yr)       : ', model%calving%damage_constant1
           call write_log(message)
-          write(message,*) 'damage threshold                     : ', model%calving%damage_threshold
+          write(message,*) 'damage constant2 (1/yr)       : ', model%calving%damage_constant2
           call write_log(message)
-          write(message,*) 'max lateral calving rate (m/yr)      : ', model%calving%lateral_rate_max
+          write(message,*) 'damage threshold              : ', model%calving%damage_threshold
+          call write_log(message)
+          write(message,*) 'damage-flwa feedback          : ', model%options%damage_flwa_feedback
+          call write_log(message)
+       elseif (model%options%whichcalving == CF_ADVANCE_RETREAT_RATE) then
+          write(message,*) 'CF advance/retreat amplitude (m/yr): ', model%calving%cf_advance_retreat_amplitude
+          call write_log(message)
+          write(message,*) 'CF advance/retreat period (yr)     : ', model%calving%cf_advance_retreat_period
           call write_log(message)
        endif
-    endif   ! CALVING_THCK_THRESHOLD, EIGENCALVING, CALVING_DAMAGE
+
+    endif   ! calving options: thck_threshold, eigencalving, damage
 
     if (model%options%which_ho_calving_front == HO_CALVING_FRONT_SUBGRID) then
+       write(message,*) 'subgrid dthck_dx_cf           : ', model%calving%dthck_dx_cf
+       call write_log(message)
+       write(message,*) 'thck_effective_min (m)        : ', model%calving%thck_effective_min
+       call write_log(message)
+       !TODO - Is the following needed with the new SUBGRID option?
        if (.not.model%options%remove_icebergs) then
           model%options%remove_icebergs = .true.
           write(message,*) 'Setting remove_icebergs = T for stability when using subgrid calving_front scheme'
@@ -2333,7 +2505,7 @@ contains
     if (model%options%limit_marine_cliffs) then
        write(message,*) 'taumax_cliff                  : ', model%calving%taumax_cliff
        call write_log(message)
-       write(message,*) 'cliff time scale (yr)       : ', model%calving%cliff_timescale
+       write(message,*) 'cliff time scale (yr)         : ', model%calving%cliff_timescale
        call write_log(message)
     endif
 
@@ -2371,10 +2543,13 @@ contains
     write(message,*) 'triple point of water (K)     : ', trpt
     call write_log(message)
 
+    write(message,*) 'Glen flow law exponent        : ', n_glen
+    call write_log(message)
+
     write(message,*) 'geothermal flux  (W/m^2)      : ', model%paramets%geot
     call write_log(message)
 
-    write(message,*) 'flow factor (grounded ice)    : ', model%paramets%flow_enhancement_factor
+    write(message,*) 'flow factor (grounded ice)    : ', model%paramets%flow_enhancement_factor_ground
     call write_log(message)
 
     write(message,*) 'flow factor (floating ice)    : ', model%paramets%flow_enhancement_factor_float
@@ -2439,19 +2614,23 @@ contains
        call write_log(message)
        write(message,*) 'small (thawed) beta (Pa yr/m) : ',model%basal_physics%ho_beta_small
        call write_log(message)
-    elseif (model%options%which_ho_babc == HO_BABC_PSEUDO_PLASTIC) then
+    elseif (model%options%which_ho_babc == HO_BABC_PSEUDO_PLASTIC_OLD .or.  &
+            model%options%which_ho_babc == HO_BABC_PSEUDO_PLASTIC) then
        write(message,*) 'pseudo-plastic q              : ',model%basal_physics%pseudo_plastic_q
        call write_log(message)
        write(message,*) 'pseudo-plastic u0             : ',model%basal_physics%pseudo_plastic_u0
        call write_log(message)
-       write(message,*) 'pseudo-plastic phi_min (deg)  : ',model%basal_physics%pseudo_plastic_phimin
-       call write_log(message)
-       write(message,*) 'pseudo-plastic phi_max (deg)  : ',model%basal_physics%pseudo_plastic_phimax
-       call write_log(message)
-       write(message,*) 'pseudo-plastic bed min (m)    : ',model%basal_physics%pseudo_plastic_bedmin
-       call write_log(message)
-       write(message,*) 'pseudo-plastic bed max (m)    : ',model%basal_physics%pseudo_plastic_bedmax
-       call write_log(message)
+       if (model%options%which_ho_babc == HO_BABC_PSEUDO_PLASTIC_OLD) then
+          write(message,*) 'pseudo-plastic phi_min (deg)  : ',model%basal_physics%pseudo_plastic_phimin
+          call write_log(message)
+          write(message,*) 'pseudo-plastic phi_max (deg)  : ',model%basal_physics%pseudo_plastic_phimax
+          call write_log(message)
+          write(message,*) 'pseudo-plastic bed min (m)    : ',model%basal_physics%pseudo_plastic_bedmin
+          call write_log(message)
+          write(message,*) 'pseudo-plastic bed max (m)    : ',model%basal_physics%pseudo_plastic_bedmax
+          call write_log(message)
+       endif
+       ! Note: For the new Coulomb_C elevation option, phimin/phimax/bedmin/bedmax are written below.
        if (model%options%which_ho_assemble_beta == HO_ASSEMBLE_BETA_STANDARD) then
           call write_log('WARNING: local beta assembly is recommended for the pseudo-plastic sliding law')
           write(message,*) 'Set which_ho_assemble_beta =', HO_ASSEMBLE_BETA_LOCAL
@@ -2468,39 +2647,80 @@ contains
                HO_THERMAL_AFTER_TRANSPORT, HO_THERMAL_SPLIT_TIMESTEP
           call write_log(message, GM_WARNING)
        endif
+    elseif (model%options%which_ho_babc == HO_BABC_ZOET_IVERSON) then
+       ! Note: The Zoet-Iverson law typically uses a spatially variable coulomb_c.
+       !       If so, the value written here is just the initial value.
+       write(message,*) 'Cc for Zoet-Iversion law                     : ', model%basal_physics%coulomb_c_const
+       call write_log(message)
+       write(message,*) 'm exponent for Zoet-Iverson law              : ', model%basal_physics%powerlaw_m
+       call write_log(message)
+       write(message,*) 'threshold speed for Zoet-Iverson law (m/yr)  : ', model%basal_physics%zoet_iverson_ut
+       call write_log(message)
+       write(message,*) 'max effecpress for Zoet-Iverson law (Pa)     : ', model%basal_physics%zoet_iverson_nmax
+       call write_log(message)
     elseif (model%options%which_ho_babc == HO_BABC_ISHOMC) then
        if (model%general%ewn /= model%general%nsn) then
           call write_log('Error, must have ewn = nsn for ISMIP-HOM test C', GM_FATAL)
        endif
     elseif (model%options%which_ho_babc == HO_BABC_POWERLAW) then
-       write(message,*) 'C coefficient for power law, Pa (m/yr)^(-1/3): ', model%basal_physics%powerlaw_c
+       write(message,*) 'Cp for power law, Pa (m/yr)^(-1/3)           : ', model%basal_physics%powerlaw_c_const
+       call write_log(message)
+       write(message,*) 'Max Cp for power law, Pa (m/yr)^(-1/3)       : ', model%basal_physics%powerlaw_c_max
+       call write_log(message)
+       write(message,*) 'Min Cp for power law, Pa (m/yr)^(-1/3)       : ', model%basal_physics%powerlaw_c_min
        call write_log(message)
        write(message,*) 'm exponent for power law                     : ', model%basal_physics%powerlaw_m
        call write_log(message)
     elseif (model%options%which_ho_babc == HO_BABC_COULOMB_FRICTION) then
-       write(message,*) 'C coefficient for Coulomb friction law       : ', model%basal_physics%coulomb_c
+       write(message,*) 'Cc for Coulomb friction law                  : ', model%basal_physics%coulomb_c_const
        call write_log(message)
        write(message,*) 'bed bump max slope for Coulomb friction law  : ', model%basal_physics%coulomb_bump_max_slope
        call write_log(message)
        write(message,*) 'bed bump wavelength for Coulomb friction law : ', model%basal_physics%coulomb_bump_wavelength
        call write_log(message)
     elseif (model%options%which_ho_babc == HO_BABC_COULOMB_POWERLAW_SCHOOF) then
-       write(message,*) 'C coefficient for Coulomb friction law       : ', model%basal_physics%coulomb_c
+       ! Note: The Schoof law typically uses a spatially variable powerlaw_c.
+       !       If so, the value written here is just the initial value.
+       write(message,*) 'Cc for Schoof Coulomb law                    : ', model%basal_physics%coulomb_c_const
        call write_log(message)
-       write(message,*) 'C coefficient for power law, Pa (m/yr)^(-1/3): ', model%basal_physics%powerlaw_c
+       write(message,*) 'Cp for Schoof power law, Pa (m/yr)^(-1/3)    : ', model%basal_physics%powerlaw_c_const
        call write_log(message)
-       write(message,*) 'm exponent for power law                     : ', model%basal_physics%powerlaw_m
+       write(message,*) 'Max Cp for power law, Pa (m/yr)^(-1/3)       : ', model%basal_physics%powerlaw_c_max
+       call write_log(message)
+       write(message,*) 'Min Cp for power law, Pa (m/yr)^(-1/3)       : ', model%basal_physics%powerlaw_c_min
+       call write_log(message)
+       write(message,*) 'm exponent for Schoof power law              : ', model%basal_physics%powerlaw_m
        call write_log(message)
     elseif (model%options%which_ho_babc == HO_BABC_COULOMB_POWERLAW_TSAI) then
-       write(message,*) 'C coefficient for Coulomb friction law       : ', model%basal_physics%coulomb_c
+       ! Note: The Tsai law typically uses a spatially variable powerlaw_c. 
+       !       If so, the value written here is just the initial value.
+       write(message,*) 'Cc for Tsai Coulomb law                      : ', model%basal_physics%coulomb_c_const
        call write_log(message)
-       write(message,*) 'C coefficient for power law, Pa (m/yr)^(-1/3): ', model%basal_physics%powerlaw_c
+       write(message,*) 'Cp for Tsai power law, Pa (m/yr)^(-1/3)      : ', model%basal_physics%powerlaw_c_const
        call write_log(message)
-       write(message,*) 'm exponent for power law                     : ', model%basal_physics%powerlaw_m
+       write(message,*) 'Max Cp for power law, Pa (m/yr)^(-1/3)       : ', model%basal_physics%powerlaw_c_max
+       call write_log(message)
+       write(message,*) 'Min Cp for power law, Pa (m/yr)^(-1/3)       : ', model%basal_physics%powerlaw_c_min
+       call write_log(message)
+       write(message,*) 'm exponent for Tsai power law                : ', model%basal_physics%powerlaw_m
        call write_log(message)
     elseif (model%options%which_ho_babc == HO_BABC_POWERLAW_EFFECPRESS) then
+       call write_log('Weertman-style power law higher-order basal boundary condition is not currently scientifically &
+            &supported.  USE AT YOUR OWN RISK.', GM_WARNING)
        !TODO - Use powerlaw_c instead of friction_powerlaw_k?  Allow p and q to be set in config file instead of hard-wired?
        write(message,*) 'roughness parameter, k, for power-law friction law : ',model%basal_physics%friction_powerlaw_k
+       call write_log(message)
+    endif
+
+    ! Coulomb elevation parameters
+    if (model%options%which_ho_coulomb_c == HO_COULOMB_C_ELEVATION) then
+       write(message,*) 'coulomb_c_max                                : ',model%basal_physics%coulomb_c_max
+       call write_log(message)
+       write(message,*) 'coulomb_c_min                                : ',model%basal_physics%coulomb_c_min
+       call write_log(message)
+       write(message,*) 'coulomb_c_bedmax (m)                         : ',model%basal_physics%coulomb_c_bedmax
+       call write_log(message)
+       write(message,*) 'coulomb_c_bedmin (m)                         : ',model%basal_physics%coulomb_c_bedmin
        call write_log(message)
     endif
 
@@ -2522,81 +2742,107 @@ contains
        call write_log(message)
     endif
 
-    if (model%options%which_ho_cp_inversion == HO_CP_INVERSION_COMPUTE .or. &
-        model%options%which_ho_bmlt_inversion == HO_BMLT_INVERSION_COMPUTE) then
+    ! inversion parameters
+
+    if (model%options%which_ho_powerlaw_c == HO_POWERLAW_C_INVERSION) then
        write(message,*) 'inversion flotation thickness buffer (m)     : ', &
             model%inversion%thck_flotation_buffer
        call write_log(message)
        write(message,*) 'inversion thickness threshold (m)            : ', &
             model%inversion%thck_threshold
        call write_log(message)
-    endif
-
-    if (model%options%which_ho_cp_inversion == HO_CP_INVERSION_COMPUTE) then
        write(message,*) 'powerlaw_c max, Pa (m/yr)^(-1/3)             : ', &
-            model%inversion%powerlaw_c_max
+            model%basal_physics%powerlaw_c_max
        call write_log(message)
        write(message,*) 'powerlaw_c min, Pa (m/yr)^(-1/3)             : ', &
-            model%inversion%powerlaw_c_min
+            model%basal_physics%powerlaw_c_min
        call write_log(message)
-       write(message,*) 'inversion basal friction timescale (yr)      : ', &
-            model%inversion%babc_timescale
-       call write_log(message)
-       write(message,*) 'inversion thickness scale (m)                : ', &
+       write(message,*) 'thickness scale (m) for C_p inversion        : ', &
             model%inversion%babc_thck_scale
        call write_log(message)
-    endif   ! which_ho_cp_inversion
-
-    if (model%options%which_ho_bmlt_inversion == HO_BMLT_INVERSION_COMPUTE) then
-       write(message,*) 'inversion basal melting timescale (yr)       : ', &
-            model%inversion%bmlt_timescale
+       write(message,*) 'timescale (yr) for C_p inversion             : ', &
+            model%inversion%babc_timescale
        call write_log(message)
-       write(message,*) 'inversion max melting rate (m/yr)            : ', &
-            model%inversion%bmlt_max_melt
+       write(message,*) 'relaxation factor for C_p inversion          : ', &
+            model%inversion%babc_relax_factor
        call write_log(message)
-       write(message,*) 'inversion max freezing rate (m/yr)           : ', &
-            model%inversion%bmlt_max_freeze
-       call write_log(message)
-       if (model%inversion%wean_bmlt_float_tstart > 0.0d0 .and. model%inversion%wean_bmlt_float_tend > 0.0d0) then
-          write(message,*) 'start time (yr) for bmlt_float abated nudging  : ', &
-               model%inversion%wean_bmlt_float_tstart
+       if (model%inversion%babc_velo_scale > 0.0d0) then
+          write(message,*) 'velocity scale (m/yr) for C_p inversion      : ', &
+               model%inversion%babc_velo_scale
           call write_log(message)
-          write(message,*) 'end time (yr) for bmlt_float abated nudging    : ', &
-               model%inversion%wean_bmlt_float_tend
-          call write_log(message)
-          write(message,*) 'time scale (yr) for bmlt_float abated nudging  : ', &
-               model%inversion%wean_bmlt_float_timescale
-          call write_log(message)
-          write(message,*) 'min nudging factor for bmlt_float              : ', &
-               model%inversion%nudging_factor_min
-          call write_log(message)
-          if (model%inversion%wean_bmlt_float_tend < model%inversion%wean_bmlt_float_tstart) then
-             call write_log('Error, must have wean_bmlt_float_tend >= wean_bmlt_float_tstart', GM_FATAL)
-          endif
-          if (model%inversion%wean_bmlt_float_tend == 0.0d0) then
-             call write_log('bmlt_float will not be nudged, since wean_bmlt_float_tend = 0')
-          endif
        endif
-    endif   ! which_ho_bmlt_inversion
+    endif   ! which_ho_powerlaw_c
 
-    if (model%options%which_ho_bmlt_basin_inversion == HO_BMLT_BASIN_INVERSION_COMPUTE) then
-       write(message,*) 'timescale (yr) for adjusting deltaT_basin    : ', model%inversion%bmlt_basin_timescale
+    if (model%options%which_ho_coulomb_c == HO_COULOMB_C_INVERSION) then
+       write(message,*) 'coulomb_c max                                : ', &
+            model%basal_physics%coulomb_c_max
+       call write_log(message)
+       write(message,*) 'coulomb_c min                                : ', &
+            model%basal_physics%coulomb_c_min
+       call write_log(message)
+       write(message,*) 'thickness scale (m) for C_c inversion        : ', &
+            model%inversion%babc_thck_scale
+       call write_log(message)
+       write(message,*) 'timescale (yr) for C_c inversion             : ', &
+            model%inversion%babc_timescale
+       call write_log(message)
+       write(message,*) 'relaxation factor for C_c inversion          : ', &
+            model%inversion%babc_relax_factor
+       call write_log(message)
+       if (model%inversion%babc_velo_scale > 0.0d0) then
+          write(message,*) 'velocity scale (m/yr) for C_c inversion       : ', &
+               model%inversion%babc_velo_scale
+          call write_log(message)
+       endif
+       if (model%options%which_ho_coulomb_c_relax == HO_COULOMB_C_RELAX_CONSTANT) then
+          write(message,*) 'coulomb_c_relax constant                     : ',model%basal_physics%coulomb_c_const
+          call write_log(message)
+       elseif (model%options%which_ho_coulomb_c_relax == HO_COULOMB_C_RELAX_ELEVATION) then
+          write(message,*) 'coulomb_c_relax max target                   : ',model%basal_physics%coulomb_c_relax_max
+          call write_log(message)
+          write(message,*) 'coulomb_c_relax min target                   : ',model%basal_physics%coulomb_c_relax_min
+          call write_log(message)
+          write(message,*) 'coulomb_c_bedmax (m)                         : ',model%basal_physics%coulomb_c_bedmax
+          call write_log(message)
+          write(message,*) 'coulomb_c_bedmin (m)                         : ',model%basal_physics%coulomb_c_bedmin
+          call write_log(message)
+       endif
+    endif   ! which_ho_coulomb_c
+
+    if (model%options%which_ho_deltaT_ocn == HO_DELTAT_OCN_INVERSION) then
+       write(message,*) 'thickness scale (m) for dT_ocn inversion     : ', &
+            model%inversion%deltaT_ocn_thck_scale
+       call write_log(message)
+       write(message,*) 'timescale (yr) for dT_ocn inversion          : ', &
+            model%inversion%deltaT_ocn_timescale
+       call write_log(message)
+       write(message,*) 'temperature scale (degC) for dT_ocn inversion: ', &
+            model%inversion%deltaT_ocn_temp_scale
+       call write_log(message)
+    endif
+
+    ! basin inversion options
+    if (model%options%which_ho_bmlt_basin == HO_BMLT_BASIN_INVERSION) then
+
+       write(message,*) 'timescale (yr) to adjust deltaT_ocn in basins: ', model%inversion%bmlt_basin_timescale
        call write_log(message)
        write(message,*) 'dbmlt/dtemp scale (m/yr/deg C)               : ', model%inversion%dbmlt_dtemp_scale
        call write_log(message)
-       write(message,*) 'Flotation threshold (m) for bmlt_basin inversion: ', &
-            model%inversion%bmlt_basin_flotation_threshold
+       write(message,*) 'Flotation threshold (m) for basin inversion  : ', &
+            model%inversion%basin_flotation_threshold
        call write_log(message)
-       if (abs(model%inversion%bmlt_basin_mass_correction) > 0.0d0 .and. &
-            model%inversion%bmlt_basin_number_mass_correction > 0) then
+
+       if (abs(model%inversion%basin_mass_correction) > 0.0d0 .and. &
+               model%inversion%basin_number_mass_correction > 0) then
           write(message,*) 'Inversion mass correction applied to basin # :', &
-               model%inversion%bmlt_basin_number_mass_correction
+               model%inversion%basin_number_mass_correction
           call write_log(message)
           write(message,*) 'Mass correction (Gt)                         :', &
-               model%inversion%bmlt_basin_mass_correction
+               model%inversion%basin_mass_correction
           call write_log(message)
        endif
-    endif
+
+    endif   ! bmlt_basin inversion
 
     if (model%basal_physics%beta_powerlaw_umax > 0.0d0) then
        write(message,*) 'max ice speed (m/yr) when evaluating beta(u) : ', model%basal_physics%beta_powerlaw_umax
@@ -2608,32 +2854,41 @@ contains
        call write_log(message)
     endif
 
+    ! effective pressure parameters
+
     if (model%options%which_ho_effecpress == HO_EFFECPRESS_BPMP) then
        write(message,*) 'effective pressure delta      : ', model%basal_physics%effecpress_delta
        call write_log(message)
        write(message,*) 'effecpress bpmp threshold (K) : ', model%basal_physics%effecpress_bpmp_threshold
        call write_log(message)
-    elseif (model%options%which_ho_effecpress == HO_EFFECPRESS_BMLT) then
-       write(message,*) 'effective pressure delta      : ', model%basal_physics%effecpress_delta
-       call write_log(message)
-       write(message,*) 'effecpress bmlt threshold (m) : ', model%basal_physics%effecpress_bmlt_threshold
-       call write_log(message)
     elseif (model%options%which_ho_effecpress == HO_EFFECPRESS_BWAT) then
        write(message,*) 'effective pressure delta      : ', model%basal_physics%effecpress_delta
        call write_log(message)
-    elseif (model%options%which_ho_effecpress == HO_EFFECPRESS_OCEAN_PENETRATION) then
-       write(message,*) 'p_ocean_penetration           : ', model%basal_physics%p_ocean_penetration
+       write(message,*) 'effecpress bwat threshold (m) : ', model%basal_physics%effecpress_bwat_threshold
+       call write_log(message)
+    elseif (model%options%which_ho_effecpress == HO_EFFECPRESS_BWATFLX) then
+       write(message,*) 'effecpress bwatflx threshold (m/yr) : ', model%basal_physics%effecpress_bwatflx_threshold
+       call write_log(message)
+       write(message,*) 'effecpress timescale (yr)     : ', model%basal_physics%effecpress_timescale
+       call write_log(message)
+       write(message,*) 'effective pressure delta      : ', model%basal_physics%effecpress_delta
+       call write_log(message)
+    elseif (model%options%which_ho_effecpress == HO_EFFECPRESS_BWAT_BVP) then
+       write(message,*) 'effective pressure delta      : ', model%basal_physics%effecpress_delta
+       call write_log(message)
+       write(message,*) 'effecpress bwat threshold (m) : ', model%basal_physics%effecpress_bwat_threshold
        call write_log(message)
     endif
 
-    if (model%options%which_ho_bwat == HO_BWAT_CONSTANT) then
-       write(message,*) 'constant basal water depth (m): ', model%basal_physics%const_bwat
+    if (model%basal_physics%p_ocean_penetration > 0.0d0) then
+       write(message,*) 'Apply ocean connection to reduce effective pressure'
        call write_log(message)
-    elseif (model%options%which_ho_bwat == HO_BWAT_LOCAL_TILL) then
-       write(message,*) 'maximum till water depth (m)  : ', model%basal_physics%bwat_till_max
+       write(message,*) 'p_ocean_penetration           : ', model%basal_physics%p_ocean_penetration
        call write_log(message)
-       write(message,*) 'till drainage rate (m/yr)     : ', model%basal_physics%c_drainage
-       call write_log(message)
+       if (model%basal_physics%ocean_p_timescale > 0.0d0) then
+          write(message,*) 'ocean_p relaxation time (yr)  : ', model%basal_physics%ocean_p_timescale
+          call write_log(message)
+       endif
     endif
 
     if (model%numerics%idiag < 1 .or. model%numerics%idiag > model%general%ewn     &
@@ -2655,7 +2910,9 @@ contains
 
     ! initMIP parameters
     if (model%climate%acab_anomaly_timescale > 0.0d0) then
-       write(message,*) 'acab_anomaly_timescale (yr): ', model%climate%acab_anomaly_timescale
+       write(message,*) 'acab_anomaly start time (yr): ', model%climate%acab_anomaly_tstart
+       call write_log(message)
+       write(message,*) 'acab_anomaly_timescale (yr) : ', model%climate%acab_anomaly_timescale
        call write_log(message)
     endif
 
@@ -2669,12 +2926,28 @@ contains
     endif
 
     ! parameters for artm anomaly option
-    if (model%climate%artm_anomaly_timescale > 0.0d0) then
-       write(message,*) 'artm_anomaly_timescale (yr): ', model%climate%artm_anomaly_timescale
+    if (model%options%enable_artm_anomaly) then
+       if (model%climate%artm_anomaly_const /= 0.0d0) then
+          write(message,*) 'artm_anomaly_const (degC): ', model%climate%artm_anomaly_const
+          call write_log(message)
+       endif
+       if (model%climate%artm_anomaly_timescale > 0.0d0) then
+          write(message,*) 'artm_anomaly start time (yr): ', model%climate%artm_anomaly_tstart
+          call write_log(message)
+          write(message,*) 'artm_anomaly_timescale (yr): ', model%climate%artm_anomaly_timescale
+          call write_log(message)
+       endif
+    endif
+
+    ! lapse rate
+    if (model%options%artm_input_function == ARTM_INPUT_FUNCTION_XY_LAPSE) then
+       write(message,*) 'artm lapse rate (deg/m) : ', model%climate%t_lapse
        call write_log(message)
     endif
 
     if (model%basal_melt%bmlt_anomaly_timescale > 0.0d0) then
+       write(message,*) 'bmlt_anomaly start time (yr): ', model%basal_melt%bmlt_anomaly_tstart
+       call write_log(message)
        write(message,*) 'bmlt_anomaly_timescale (yr): ', model%basal_melt%bmlt_anomaly_timescale
        call write_log(message)
     endif
@@ -2733,7 +3006,7 @@ contains
        write(message,*) 'gammaS (nondimensional)  :  ', model%plume%gammaS
        call write_log(message)
     elseif (model%options%whichbmlt_float == BMLT_FLOAT_THERMAL_FORCING) then
-       write(message,*) 'gamma0 (nondimensional)  :  ', model%ocean_data%gamma0
+       write(message,*) 'gamma0 (m/yr)            :  ', model%ocean_data%gamma0
        call write_log(message)
        if (model%ocean_data%thermal_forcing_anomaly /= 0.0d0) then
           write(message,*) 'thermal forcing anomaly (C) :', model%ocean_data%thermal_forcing_anomaly
@@ -2933,76 +3206,208 @@ contains
 
 !--------------------------------------------------------------------------------
 
-! These options are disabled for now.
+  subroutine handle_glaciers(section, model)
 
-!!  subroutine handle_till_options(section,model)
-!!    !Till options
-!!    use glimmer_config
-!!    use glide_types
-!!    implicit none
-!!    type(ConfigSection), pointer :: section
-!!    type(glide_global_type) :: model
+    use glimmer_config
+    use glide_types
+    implicit none
 
-!!    if (model%options%which_bproc==1) then
-!!        call GetValue(section, 'fric',  model%basalproc%fric)
-!!        call GetValue(section, 'etillo',  model%basalproc%etillo)
-!!        call GetValue(section, 'No',  model%basalproc%No)
-!!        call GetValue(section, 'Comp',  model%basalproc%Comp)
-!!        call GetValue(section, 'Cv',  model%basalproc%Cv)
-!!        call GetValue(section, 'Kh',  model%basalproc%Kh)
-!!    else if (model%options%which_bproc==2) then
-!!        call GetValue(section, 'aconst',  model%basalproc%aconst)
-!!        call GetValue(section, 'bconst',  model%basalproc%bconst)
-!!    end if
-!!    if (model%options%which_bproc > 0) then
-!!        call GetValue(section, 'Zs',  model%basalproc%Zs)
-!!        call GetValue(section, 'tnodes',  model%basalproc%tnodes)
-!!        call GetValue(section, 'till_hot', model%basalproc%till_hot)
-!!    end if  
-!!  end subroutine handle_till_options    
+    type(ConfigSection), pointer :: section
+    type(glide_global_type)  :: model
 
-!!  subroutine print_till_options(model)
-!!    use glide_types
-!!    use glimmer_log
-!!    implicit none
-!!    type(glide_global_type)  :: model
-!!    character(len=100) :: message
+    call GetValue(section,'set_mu_star',             model%glacier%set_mu_star)
+    call GetValue(section,'set_alpha_snow',          model%glacier%set_alpha_snow)
+    call GetValue(section,'set_powerlaw_c',          model%glacier%set_powerlaw_c)
+    call GetValue(section,'snow_calc',               model%glacier%snow_calc)
+    call GetValue(section,'scale_area',              model%glacier%scale_area)
+    call GetValue(section,'length_scale_factor',     model%glacier%length_scale_factor)
+    call GetValue(section,'tmlt',                    model%glacier%tmlt)
+    call GetValue(section,'mu_star_const',           model%glacier%mu_star_const)
+    call GetValue(section,'mu_star_min',             model%glacier%mu_star_min)
+    call GetValue(section,'mu_star_max',             model%glacier%mu_star_max)
+    call GetValue(section,'alpha_snow_const',        model%glacier%alpha_snow_const)
+    call GetValue(section,'alpha_snow_min',          model%glacier%alpha_snow_min)
+    call GetValue(section,'alpha_snow_max',          model%glacier%alpha_snow_max)
+    call GetValue(section,'beta_artm_max',           model%glacier%beta_artm_max)
+    call GetValue(section,'beta_artm_increment',     model%glacier%beta_artm_increment)
+    call GetValue(section,'snow_threshold_min',      model%glacier%snow_threshold_min)
+    call GetValue(section,'snow_threshold_max',      model%glacier%snow_threshold_max)
+    call GetValue(section,'baseline_date',           model%glacier%baseline_date)
+    call GetValue(section,'rgi_date',                model%glacier%rgi_date)
+    call GetValue(section,'recent_date',             model%glacier%recent_date)
+    call GetValue(section,'diagnostic_minthck',      model%glacier%diagnostic_minthck)
+    call GetValue(section,'redistribute_advanced_ice',  model%glacier%redistribute_advanced_ice)
+    call GetValue(section,'thinning_rate_advanced_ice', model%glacier%thinning_rate_advanced_ice)
+    call GetValue(section,'smb_weight_advanced_ice', model%glacier%smb_weight_advanced_ice)
 
-!!    if (model%options%which_bproc > 0) then 
-!!        call write_log('Till options')
-!!        call write_log('----------')
-!!        if (model%options%which_bproc==1) then
-!!            write(message,*) 'Internal friction           : ',model%basalproc%fric
-!!            call write_log(message)
-!!            write(message,*) 'Reference void ratio        : ',model%basalproc%etillo
-!!            call write_log(message)
-!!            write(message,*) 'Reference effective Stress  : ',model%basalproc%No
-!!            call write_log(message)
-!!            write(message,*) 'Compressibility             : ',model%basalproc%Comp
-!!            call write_log(message)
-!!            write(message,*) 'Diffusivity                 : ',model%basalproc%Cv
-!!            call write_log(message)
-!!            write(message,*) 'Hyd. conductivity           : ',model%basalproc%Kh
-!!            call write_log(message)
-!!        end if
-!!        if (model%options%which_bproc==2) then
-!!            write(message,*) 'aconst  : ',model%basalproc%aconst
-!!            call write_log(message)
-!!            write(message,*) 'bconst  : ',model%basalproc%aconst
-!!            call write_log(message)
-!!        end if
-!!        write(message,*) 'Solid till thickness : ',model%basalproc%Zs
-!!        call write_log(message)
-!!        write(message,*) 'Till nodes number : ',model%basalproc%tnodes
-!!        call write_log(message)
-!!        write(message,*) 'till_hot  :',model%basalproc%till_hot
-!!        call write_log(message)
-!!    end if
-!!  end subroutine print_till_options
+  end subroutine handle_glaciers
 
 !--------------------------------------------------------------------------------
 
-  subroutine define_glide_restart_variables(options, model_id)
+  subroutine print_glaciers(model)
+
+    use glide_types
+    use glimmer_log
+
+    implicit none
+    type(glide_global_type)  :: model
+    character(len=100) :: message
+
+    ! glacier options
+
+    character(len=*), dimension(0:2), parameter :: glacier_set_mu_star = (/ &
+         'spatially uniform glacier parameter mu_star', &
+         'glacier-specific mu_star found by inversion', &
+         'glacier-specific mu_star read from file    ' /)
+
+    character(len=*), dimension(0:2), parameter :: glacier_set_alpha_snow = (/ &
+         'spatially uniform glacier parameter alpha_snow', &
+         'glacier-specific alpha_snow found by inversion', &
+         'glacier-specific alpha_snow read from file    ' /)
+
+    character(len=*), dimension(0:2), parameter :: glacier_set_powerlaw_c = (/ &
+         'spatially uniform glacier parameter Cp', &
+         'glacier-specific Cp found by inversion', &
+         'glacier-specific Cp read from file    ' /)
+
+    character(len=*), dimension(0:1), parameter :: glacier_snow_calc = (/ &
+         'read in snowfall rate directly            ', &
+         'compute snowfall rate from precip and artm' /)
+
+    if (model%options%enable_glaciers) then
+
+       call write_log(' ')
+       call write_log('Glaciers')
+       call write_log('--------')
+
+       call write_log('Glacier tracking and tuning is enabled')
+
+       write(message,*) 'set_mu_star               : ', model%glacier%set_mu_star, &
+            glacier_set_mu_star(model%glacier%set_mu_star)
+       call write_log(message)
+       if (model%glacier%set_mu_star < 0 .or. &
+           model%glacier%set_mu_star >= size(glacier_set_mu_star)) then
+          call write_log('Error, glacier_set_mu_star option out of range', GM_FATAL)
+       end if
+
+       write(message,*) 'set_alpha_snow            : ', model%glacier%set_alpha_snow, &
+            glacier_set_alpha_snow(model%glacier%set_alpha_snow)
+       call write_log(message)
+       if (model%glacier%set_alpha_snow < 0 .or. &
+           model%glacier%set_alpha_snow >= size(glacier_set_alpha_snow)) then
+          call write_log('Error, glacier_set_alpha_snow option out of range', GM_FATAL)
+       end if
+
+       write(message,*) 'set_powerlaw_c            : ', model%glacier%set_powerlaw_c, &
+            glacier_set_powerlaw_c(model%glacier%set_powerlaw_c)
+       call write_log(message)
+       if (model%glacier%set_powerlaw_c < 0 .or. &
+           model%glacier%set_powerlaw_c >= size(glacier_set_powerlaw_c)) then
+          call write_log('Error, glacier_set_powerlaw_c option out of range', GM_FATAL)
+       end if
+
+       write(message,*) 'snow_calc                 : ', model%glacier%snow_calc, &
+            glacier_snow_calc(model%glacier%snow_calc)
+       call write_log(message)
+       if (model%glacier%snow_calc < 0 .or. &
+           model%glacier%snow_calc >= size(glacier_snow_calc)) then
+          call write_log('Error, glacier_snow_calc option out of range', GM_FATAL)
+       end if
+
+       if (model%glacier%snow_calc == GLACIER_SNOW_CALC_PRECIP_ARTM) then
+          write(message,*) 'snow_threshold_min (deg C)  : ', model%glacier%snow_threshold_min
+          call write_log(message)
+          write(message,*) 'snow_threshold_max (deg C)  : ', model%glacier%snow_threshold_max
+          call write_log(message)
+       endif
+
+       write(message,*) 'glc tmlt (deg C)            :  ', model%glacier%tmlt
+       call write_log(message)
+
+       if (model%glacier%scale_area) then
+          call write_log ('Glacier area will be scaled based on latitude')
+       endif
+
+       if (model%glacier%length_scale_factor /= 1.0d0) then
+          if (model%glacier%scale_area) then
+             write(message,*) 'dew and dns will be scaled by a factor of ', &
+                  model%glacier%length_scale_factor
+             call write_log(message)
+          else
+             model%glacier%length_scale_factor = 1.0d0
+             write(message,*) 'length_scale_factor will be ignored since glacier%scale_area = F'
+             write(message,*) 'Setting length_scale_factor = 1.0'
+          endif
+       endif
+
+       write(message,*) 'glc diagnostic minthck (m)  :  ', model%glacier%diagnostic_minthck
+       call write_log(message)
+
+       if (model%glacier%redistribute_advanced_ice) then
+          call write_log('Advanced ice in the accumulation zone will be redistributed')
+          write(message,*) '  thinning rate (m/yr)      : ', model%glacier%thinning_rate_advanced_ice
+          call write_log(message)
+       endif
+
+       ! Inversion options
+
+       if (model%glacier%set_mu_star /= GLACIER_MU_STAR_INVERSION) then
+          if (model%glacier%set_alpha_snow == GLACIER_ALPHA_SNOW_INVERSION) then
+             call write_log('Error, must invert for mu_star if inverting for alpha_snow', GM_FATAL)
+          elseif (model%glacier%set_powerlaw_c == GLACIER_POWERLAW_C_INVERSION) then
+             call write_log('Error, must invert for mu_star if inverting for powerlaw_c', GM_FATAL)
+          endif
+       endif
+
+       if (model%glacier%set_mu_star == GLACIER_MU_STAR_INVERSION) then
+
+          write(message,*) 'smb_weight, advanced ablation zone:  ', model%glacier%smb_weight_advanced_ice
+          call write_log(message)
+          write(message,*) 'mu_star_const (mm/yr/degC)  :  ', model%glacier%mu_star_const
+          call write_log(message)
+          write(message,*) 'mu_star_min (mm/yr/degC)    :  ', model%glacier%mu_star_min
+          call write_log(message)
+          write(message,*) 'mu_star_max (mm/yr/degC)    :  ', model%glacier%mu_star_max
+          call write_log(message)
+
+          if (model%glacier%set_alpha_snow == GLACIER_ALPHA_SNOW_INVERSION) then
+             write(message,*) 'alpha_snow_const            :  ', model%glacier%alpha_snow_const
+             call write_log(message)
+             write(message,*) 'alpha_snow_min              :  ', model%glacier%alpha_snow_min
+             call write_log(message)
+             write(message,*) 'alpha_snow_max              :  ', model%glacier%alpha_snow_max
+             call write_log(message)
+             write(message,*) 'beta_artm_max (degC)        :  ', model%glacier%beta_artm_max
+             call write_log(message)
+             write(message,*) 'beta_artm_increment (degC)  :  ', model%glacier%beta_artm_increment
+             call write_log(message)
+             write(message,*) 'baseline date for inversion :  ', model%glacier%baseline_date
+             call write_log(message)
+             write(message,*) 'RGI date for inversion      :  ', model%glacier%rgi_date
+             call write_log(message)
+             write(message,*) 'recent date for inversion   :  ', model%glacier%recent_date
+             call write_log(message)
+          endif
+
+       endif
+
+       if (model%glacier%set_powerlaw_c == GLACIER_POWERLAW_C_INVERSION) then
+          write(message,*) 'powerlaw_c_timescale        :  ', model%inversion%babc_timescale
+          call write_log(message)
+          write(message,*) 'powerlaw_c_thck_scale       :  ', model%inversion%babc_thck_scale
+          call write_log(message)
+          write(message,*) 'powerlaw_c_relax_factor     :  ', model%inversion%babc_relax_factor
+          call write_log(message)
+       endif
+
+    endif   ! enable_glaciers
+
+  end subroutine print_glaciers
+
+!--------------------------------------------------------------------------------
+
+  subroutine define_glide_restart_variables(model, model_id)
+
     !> This subroutine analyzes the glide/glissade options input by the user in the config file
     !> and determines which variables are necessary for an exact restart.  MJH 1/11/2013
 
@@ -3018,12 +3423,20 @@ contains
     !------------------------------------------------------------------------------------
     ! Subroutine arguments
     !------------------------------------------------------------------------------------
-    type(glide_options), intent (in) :: options  !> Derived type holding all model options
+    type(glide_global_type), intent (in) :: model  !> Derived type holding all model info
+
     integer, intent(in) :: model_id  !> identifier of this ice sheet instance (1 - N, where N is the total number of ice sheet models in this run)
 
     !------------------------------------------------------------------------------------
     ! Internal variables
     !------------------------------------------------------------------------------------
+    type(glide_options) :: options  !> Derived type holding all model options
+
+    ! Copy model%options to options to save typing below
+    ! Note: Originally, only model%options was passed in, but passing in the full model derived type
+    !       allows the restart logic to be based on parameter values also.
+
+    options = model%options
 
     !------------------------------------------------------------------------------------
 
@@ -3071,7 +3484,7 @@ contains
              call glide_add_to_restart_variable_list('smb_gradz', model_id)
           end select
 
-          call glide_add_to_restart_variable_list('smb_reference_usrf', model_id)
+          call glide_add_to_restart_variable_list('usrf_ref', model_id)
 
        case(SMB_INPUT_FUNCTION_XYZ)
 
@@ -3087,7 +3500,7 @@ contains
     end select  ! smb_input_function
 
     ! Similarly for surface temperature (artm), based on options%artm_input
-    ! Note: These options share smb_reference_usrf and smb_levels with the SMB options above.
+    ! Note: These options share usrf_ref and smb_levels with the SMB options above.
 
     select case(options%artm_input_function)
 
@@ -3095,9 +3508,9 @@ contains
           call glide_add_to_restart_variable_list('artm_ref', model_id)
           call glide_add_to_restart_variable_list('artm_gradz', model_id)
           if (options%smb_input_function == SMB_INPUT_FUNCTION_XY_GRADZ) then
-             ! smb_reference_usrf was added to restart above; nothing to do here
+             ! usrf_ref was added to restart above; nothing to do here
           else
-             call glide_add_to_restart_variable_list('smb_reference_usrf', model_id)
+             call glide_add_to_restart_variable_list('usrf_ref', model_id)
           endif
 
        case(ARTM_INPUT_FUNCTION_XYZ)
@@ -3108,9 +3521,21 @@ contains
              call glide_add_to_restart_variable_list('smb_levels', model_id)
           endif
 
+       case(ARTM_INPUT_FUNCTION_XY_LAPSE)
+          call glide_add_to_restart_variable_list('artm_ref', model_id)
+          ! Note: Instead of artm_gradz, there is a uniform lapse rate
+          if (options%smb_input_function == SMB_INPUT_FUNCTION_XY_GRADZ) then
+             ! usrf_ref was added to restart above; nothing to do here
+          else
+             call glide_add_to_restart_variable_list('usrf_ref', model_id)
+          endif
+
     end select  ! artm_input_function
 
     ! Add anomaly forcing variables
+    ! Note: If enable_acab_dthck_dt_correction = T, then dthck_dt_obs is needed for restart.
+    !       Should be in restart file based on which_ho_deltaT_ocn /= 0
+    !TODO - Remove these? Anomaly forcing is typically in a forcing file, not the main input file.
 
     if (options%enable_acab_anomaly) then
        select case (options%smb_input)
@@ -3145,33 +3570,23 @@ contains
           call glide_add_to_restart_variable_list('warm_ocean_mask', model_id)
 
        case (BMLT_FLOAT_THERMAL_FORCING)
-
           ! Need the latest value of the thermal forcing field.
           ! This could be either the baseline value (if not updating during runtime), or a value read from a forcing file.
           ! If the latter, this field may not be needed, but include to be on the safe side, in case the forcing file
           !  is not read at restart.
           call glide_add_to_restart_variable_list('thermal_forcing', model_id)
 
-          ! If applying bmlt_float from inversion, then we may be adding an anomaly to the value obtained from inversion.
-          ! In this case we need the baseline melt rate to compute the anomaly.
-          if (options%which_ho_bmlt_inversion == HO_BMLT_INVERSION_APPLY) then
-             call glide_add_to_restart_variable_list('bmlt_float_baseline', model_id)
-          endif
-
-          ! If using an ISMIP6 melt parameterization (either local or nonlocal),
-          !  we need basin numbers and deltaT values for the parameterization.
-          if (options%bmlt_float_thermal_forcing_param == BMLT_FLOAT_TF_ISMIP6_LOCAL .or.  &
-              options%bmlt_float_thermal_forcing_param == BMLT_FLOAT_TF_ISMIP6_NONLOCAL .or. &
-              options%bmlt_float_thermal_forcing_param == BMLT_FLOAT_TF_ISMIP6_NONLOCAL_SLOPE) then
-             call glide_add_to_restart_variable_list('basin_number', model_id)
-             ! Input file might include several deltaT_basin fields for different forcing paramaterizations and magnitudes.
-             ! Only need one of these for restart (since param and magnitude will not change during the run).
-             ! Similarly for gamma0 (a scalar).
-             call glide_add_to_restart_variable_list('deltaT_basin', model_id)
-             call glide_add_to_restart_variable_list('gamma0', model_id)
-          endif
-
     end select  ! whichbmlt_float
+
+    ! If using an ISMIP6 basin-based melt parameterization, and/or inverting for
+    !  basin-scale quantities, we need a 2D field of basin numbers.
+    ! Not strictly needed for the ISMIP6_LOCAL option, but included for diagnostics
+    if (options%bmlt_float_thermal_forcing_param == BMLT_FLOAT_TF_ISMIP6_LOCAL .or.  &
+        options%bmlt_float_thermal_forcing_param == BMLT_FLOAT_TF_ISMIP6_NONLOCAL .or. &
+        options%bmlt_float_thermal_forcing_param == BMLT_FLOAT_TF_ISMIP6_NONLOCAL_SLOPE .or. &
+        options%which_ho_bmlt_basin /= HO_BMLT_BASIN_NONE) then
+       call glide_add_to_restart_variable_list('basin_number', model_id)
+    endif
 
     ! add dycore specific restart variables
     select case (options%whichdycore)
@@ -3303,16 +3718,28 @@ contains
            call glide_add_to_restart_variable_list('calving_mask', model_id)
         endif
 
-        if (options%whichcalving == CALVING_THCK_THRESHOLD) then
-           call glide_add_to_restart_variable_list('thck_calving_threshold', model_id)
+        !WHL - debug - Can be useful to compute a calving mask for testing subgrid CF schemes
+        !TODO - Remove if not needed permanently
+        if (options%which_ho_calving_front == HO_CALVING_FRONT_SUBGRID) then
+           call glide_add_to_restart_variable_list('calving_mask', model_id)
         endif
 
-        ! The eigencalving calculation requires the product of eigenvalues of the horizontal strain rate tensor,
+           ! The eigencalving calculation requires the product of eigenvalues of the horizontal strain rate tensor,
         !  which depends on the stress tensor, which is computed by the HO solver.
         ! On restart, the correct stress and strain rate tensors are not available, so we read in the eigenproduct.
-        if (options%whichcalving == EIGENCALVING .or. options%whichcalving == CALVING_DAMAGE) then
+        if (options%whichcalving == EIGEN_CALVING .or. options%whichcalving == CALVING_DAMAGE) then
+           call glide_add_to_restart_variable_list('eps_eigen1', model_id)
+           call glide_add_to_restart_variable_list('eps_eigen2', model_id)
+        elseif (options%whichcalving == CALVING_STRESS) then
            call glide_add_to_restart_variable_list('tau_eigen1', model_id)
            call glide_add_to_restart_variable_list('tau_eigen2', model_id)
+        endif
+
+        if (options%whichcalving == CF_ADVANCE_RETREAT_RATE) then
+           ! Note: The calving mask is not strictly needed for this option.
+           ! But some CalvingMIP experiments start with prescribed retreat and then switch to masked advance,
+           ! in which case it is useful to have calving_mask in the restart file.
+           call glide_add_to_restart_variable_list('calving_mask', model_id)
         endif
 
         ! If forcing ice retreat, then we need ice_fraction_retreat_mask (which specifies the cells where retreat is forced)
@@ -3325,7 +3752,7 @@ contains
         ! other Glissade options
 
         ! If overwriting acab in certain grid cells, than overwrite_acab_mask needs to be in the restart file.
-        ! This mask is set at model initialization based on the input acab or ice thickness.
+        ! This mask is read in at model initialization, or is set based on the input acab or ice thickness.
         if (options%overwrite_acab /= 0) then
            call glide_add_to_restart_variable_list('overwrite_acab_mask', model_id)
         endif
@@ -3364,28 +3791,92 @@ contains
          call glide_add_to_restart_variable_list('beta', model_id)
     end select
 
-    ! basal inversion options
+    ! basal friction inversion options
+    ! Note: The fields coulomb_c_relax and powerlaw_c_relax are not needed.
+    !       If inverting for coulomb_c or powerlaw_c, the relaxation targets are recomputed at runtime.
 
-    if (options%which_ho_cp_inversion == HO_CP_INVERSION_COMPUTE) then
-       call glide_add_to_restart_variable_list('usrf_obs', model_id)
-       call glide_add_to_restart_variable_list('powerlaw_c_inversion', model_id)
-       call glide_add_to_restart_variable_list('dthck_dt', model_id)
-    elseif (options%which_ho_cp_inversion == HO_CP_INVERSION_APPLY) then
-       call glide_add_to_restart_variable_list('powerlaw_c_inversion', model_id)
+    if (options%which_ho_powerlaw_c /= HO_POWERLAW_C_CONSTANT) then
+       call glide_add_to_restart_variable_list('powerlaw_c', model_id)
     endif
 
-    if (options%which_ho_bmlt_inversion == HO_BMLT_INVERSION_COMPUTE) then
-       call glide_add_to_restart_variable_list('usrf_obs', model_id)
-       call glide_add_to_restart_variable_list('bmlt_float_inversion', model_id)
-       call glide_add_to_restart_variable_list('thck_inversion_save', model_id)
-    elseif (options%which_ho_bmlt_inversion == HO_BMLT_INVERSION_APPLY) then
-       call glide_add_to_restart_variable_list('bmlt_float_inversion', model_id)
+    if (options%which_ho_coulomb_c /= HO_COULOMB_C_CONSTANT) then
+       call glide_add_to_restart_variable_list('coulomb_c', model_id)
     endif
 
-    ! The bmlt_basin inversion option needs a thickness target for floating ice
-    ! Note: deltaT_basin is added to the restart file above.
-    if (options%which_ho_bmlt_basin_inversion == HO_BMLT_BASIN_INVERSION_COMPUTE) then
+    ! inversion options for ocean temperature corrections
+    if (options%which_ho_bmlt_basin /= HO_BMLT_BASIN_NONE .or.  &
+        options%which_ho_deltaT_ocn /= HO_DELTAT_OCN_NONE) then
+       call glide_add_to_restart_variable_list('deltaT_ocn', model_id)
+    endif
+
+    ! inversion options for the flow enhancement factor
+    if (options%which_ho_flow_enhancement_factor /= HO_FLOW_ENHANCEMENT_FACTOR_CONSTANT) then
+       call glide_add_to_restart_variable_list('flow_enhancement_factor', model_id)
+    endif
+
+    ! If using a basin-scale inversion option, we need a target thickness for floating ice
+    if (options%which_ho_bmlt_basin == HO_BMLT_BASIN_INVERSION) then
        call glide_add_to_restart_variable_list('floating_thck_target', model_id)
+    endif
+
+    ! fields needed for inversion options that try to match local thickness or upper surface elevation
+    ! Note: If usrf_obs is supplied, thck_obs will be computed at initialization
+    if (options%which_ho_powerlaw_c == HO_POWERLAW_C_INVERSION .or. &
+        options%which_ho_coulomb_c  == HO_COULOMB_C_INVERSION  .or. &
+        options%which_ho_deltaT_ocn == HO_DELTAT_OCN_INVERSION) then
+       call glide_add_to_restart_variable_list('usrf_obs', model_id)
+       !WHL - velo_sfc_obs is not strictly needed unless inverting for surface velo,
+       !      but is handy for diagnostics
+       call glide_add_to_restart_variable_list('velo_sfc_obs', model_id)
+    endif
+
+    ! fields needed for inversion options that try to match local dthck_dt
+    ! Note: This is not strictly needed for all options, but still is a useful diagnostic.
+    if (options%which_ho_deltaT_ocn /= HO_DELTAT_OCN_NONE) then
+       call glide_add_to_restart_variable_list('dthck_dt_obs', model_id)
+       call glide_add_to_restart_variable_list('dthck_dt_obs_basin', model_id)
+    endif
+
+    ! effective pressure options
+    ! f_effecpress_bwat represents the reduction of overburden pressure from bwatflx
+    if (options%which_ho_effecpress == HO_EFFECPRESS_BWATFLX) then
+       call glide_add_to_restart_variable_list('f_effecpress_bwat', model_id)
+    endif
+
+    ! f_effecpress_ocean_p represents the reduction of overburden pressure when ocean_p > 0
+    ! Needs to be saved in case this fraction is relaxed over time toward (1 - Hf/H)^p
+    if (model%basal_physics%p_ocean_penetration > 0.0d0) then
+       call glide_add_to_restart_variable_list('f_effecpress_ocean_p', model_id)
+    endif
+
+    ! fields needed for inversion options that try to match local thickness or upper surface elevation
+    ! Note: If usrf_obs is supplied, thck_obs will be computed at initialization
+    if (options%which_ho_powerlaw_c == HO_POWERLAW_C_INVERSION .or. &
+        options%which_ho_coulomb_c  == HO_COULOMB_C_INVERSION  .or. &
+        options%which_ho_deltaT_ocn == HO_DELTAT_OCN_INVERSION) then
+       call glide_add_to_restart_variable_list('usrf_obs', model_id)
+       !WHL - velo_sfc_obs is not strictly needed unless inverting for surface velo,
+       !      but is handy for diagnostics
+       call glide_add_to_restart_variable_list('velo_sfc_obs', model_id)
+    endif
+
+    ! fields needed for inversion options that try to match local dthck_dt
+    ! Note: This is not strictly needed for all options, but still is a useful diagnostic.
+    if (options%which_ho_deltaT_ocn /= HO_DELTAT_OCN_NONE) then
+       call glide_add_to_restart_variable_list('dthck_dt_obs', model_id)
+       call glide_add_to_restart_variable_list('dthck_dt_obs_basin', model_id)
+    endif
+
+    ! effective pressure options
+    ! f_effecpress_bwat represents the reduction of overburden pressure from bwatflx
+    if (options%which_ho_effecpress == HO_EFFECPRESS_BWATFLX) then
+       call glide_add_to_restart_variable_list('f_effecpress_bwat', model_id)
+    endif
+
+    ! f_effecpress_ocean_p represents the reduction of overburden pressure when ocean_p > 0
+    ! Needs to be saved in case this fraction is relaxed over time toward (1 - Hf/H)^p
+    if (model%basal_physics%p_ocean_penetration > 0.0d0) then
+       call glide_add_to_restart_variable_list('f_effecpress_ocean_p', model_id)
     endif
 
     ! geothermal heat flux option
@@ -3422,7 +3913,37 @@ contains
        case default
           ! no restart variables needed
     end select
-    !
+
+    if (model%options%enable_glaciers) then
+       ! some fields related to glacier indexing
+       !TODO - Do we need all the SMB masks?
+       call glide_add_to_restart_variable_list('rgi_glacier_id', model_id)
+       call glide_add_to_restart_variable_list('cism_glacier_id', model_id)
+       call glide_add_to_restart_variable_list('cism_glacier_id_init', model_id)
+       call glide_add_to_restart_variable_list('cism_glacier_id_baseline', model_id)
+       call glide_add_to_restart_variable_list('smb_glacier_id', model_id)
+       call glide_add_to_restart_variable_list('smb_glacier_id_init', model_id)
+       call glide_add_to_restart_variable_list('smb_glacier_id_baseline', model_id)
+       call glide_add_to_restart_variable_list('cism_to_rgi_glacier_id', model_id)
+       ! SMB is computed at the end of each year to apply during the next year
+       call glide_add_to_restart_variable_list('smb', model_id)
+       call glide_add_to_restart_variable_list('smb_rgi', model_id)
+       call glide_add_to_restart_variable_list('smb_recent', model_id)
+       ! mu_star, alpha_snow, and beta_artm are inversion parameters
+       call glide_add_to_restart_variable_list('glacier_mu_star', model_id)
+       call glide_add_to_restart_variable_list('glacier_alpha_snow', model_id)
+       call glide_add_to_restart_variable_list('glacier_beta_artm', model_id)
+       ! smb_obs and usrf_obs are used to invert for mu_star
+       call glide_add_to_restart_variable_list('glacier_smb_obs', model_id)
+       call glide_add_to_restart_variable_list('usrf_obs', model_id)
+       ! powerlaw_c is used for power law sliding
+       call glide_add_to_restart_variable_list('powerlaw_c', model_id)
+       !TODO: Are area_init and volume_init needed in the restart file?
+       !      These could be computed based on cism_glacier_id_init and usrf_obs.
+       call glide_add_to_restart_variable_list('glacier_volume_init', model_id)
+       call glide_add_to_restart_variable_list('glacier_area_init', model_id)
+    endif
+
     ! basal processes module - requires tauf for a restart
 !!    if (options%which_bproc /= BAS_PROC_DISABLED ) then
 !!        call glide_add_to_restart_variable_list('tauf', model_id)
@@ -3441,6 +3962,107 @@ contains
     ! Need to add logic that will add it only when those drivers are used.
 
   end subroutine define_glide_restart_variables
+
+!--------------------------------------------------------------------------------
+
+! The following subroutines check an input field for fill values.
+! By default, the fill value is given by netcdf_fill_value in glimmer_paramets,
+!  and fill values are replaced by zeroes.
+! Optionally, the user can pass in a different fill value and replacement value.
+
+  subroutine check_fill_values_real8_2d(&
+       field,                     &
+       fill_value_in,             &
+       replacement_value_in,      &
+       scale_factor_in)
+
+    use glimmer_paramets, only: netcdf_fill_value
+
+    ! input-output arguments
+
+    real(dp), dimension(:,:), intent(inout) :: field
+    real(dp), intent(in), optional :: fill_value_in
+    real(dp), intent(in), optional :: replacement_value_in
+
+    ! A scale factor should be passed in, for instance, if the netCDF data have units
+    ! of 1/yr, but there is a scale factor of scyr converting the data to units of 1/s.
+    real(dp), intent(in), optional :: scale_factor_in
+
+    ! local variables
+    real(dp) :: fill_value, replacement_value, scale_factor
+
+    if (present(fill_value_in)) then
+       fill_value = fill_value_in
+    else
+       fill_value = netcdf_fill_value
+    endif
+
+    if (present(replacement_value_in)) then
+       replacement_value = replacement_value_in
+    else
+       replacement_value = 0.0d0
+    endif
+
+    if (present(scale_factor_in)) then
+       scale_factor = scale_factor_in
+    else
+       scale_factor = 1.0d0
+    endif
+
+    ! Overwrite any values whose magnitude is similar to or greater than fill_value.
+    where (abs(field)*scale_factor > 0.99d0 * fill_value)
+       field = replacement_value
+    endwhere
+
+  end subroutine check_fill_values_real8_2d
+
+!--------------------------------------------------------------------------------
+
+  subroutine check_fill_values_real8_3d(&
+       field,                   &
+       fill_value_in,           &
+       replacement_value_in,    &
+       scale_factor_in)
+
+    use glimmer_paramets, only: netcdf_fill_value
+
+    ! input-output arguments
+
+    real(dp), dimension(:,:,:), intent(inout) :: field
+    real(dp), intent(in), optional :: fill_value_in
+    real(dp), intent(in), optional :: replacement_value_in
+
+    ! A scale factor should be passed in, for instance, if the netCDF data have units
+    ! of 1/yr, but there is a scale factor of scyr converting the data to units of 1/s.
+    real(dp), intent(in), optional :: scale_factor_in
+
+    ! local variables
+    real(dp) :: fill_value, replacement_value, scale_factor
+
+    if (present(fill_value_in)) then
+       fill_value = fill_value_in
+    else
+       fill_value = netcdf_fill_value
+    endif
+
+    if (present(replacement_value_in)) then
+       replacement_value = replacement_value_in
+    else
+       replacement_value = 0.0d0
+    endif
+
+    if (present(scale_factor_in)) then
+       scale_factor = scale_factor_in
+    else
+       scale_factor = 1.0d0
+    endif
+
+    ! Overwrite any values whose magnitude is similar to or greater than fill_value.
+    where (abs(field)*scale_factor > 0.99d0 * fill_value)
+       field = replacement_value
+    endwhere
+
+  end subroutine check_fill_values_real8_3d
 
 !--------------------------------------------------------------------------------
 

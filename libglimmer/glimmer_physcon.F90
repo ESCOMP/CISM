@@ -79,11 +79,17 @@ module glimmer_physcon
 !  real(dp) :: trpt = 273.16d0                     !< Triple point of water (K)
 #endif
 
+  ! The Glen flow-law exponent, n_glen, is used in Glissade.
+  ! It is not a parameter, because the default can be overridden in the config file.
+  ! TODO: Allow setting n_glen independently for each ice sheet instance?
+  ! Note: Earlier code used an integer parameter, gn = 3, for all flow-law calculations.
+  !       For backward compatiblity, gn = 3 is retained for Glide.
+  real(dp) :: n_glen = 3.0d0                     !< Exponent in Glen's flow law; user-configurable real(dp) in Glissade
+  integer, parameter :: gn = 3                   !< Exponent in Glen's flow law; fixed integer parameter in Glide
   real(dp),parameter :: celsius_to_kelvin = 273.15d0  !< Note: Not quite equal to trpt
   real(dp),parameter :: scyr = 31536000.d0       !< Number of seconds in a year of exactly 365 days
   real(dp),parameter :: rhom = 3300.0d0          !< The density of magma(?) (kg m<SUP>-3</SUP>) 
   real(dp),parameter :: rhos = 2600.0d0          !< The density of solid till (kg m$^{-3}$) 
-  integer, parameter :: gn = 3                   !< The power dependency of Glen's flow law.
   real(dp),parameter :: actenh = 139.0d3         !< Activation energy in Glen's flow law for \f$T^{*}\geq263\f$K. (J mol<SUP>-1</SUP>)
   real(dp),parameter :: actenl = 60.0d3          !< Activation energy in Glen's flow law for \f$T^{*}<263\f$K. (J mol<SUP>-1</SUP>)  
   real(dp),parameter :: arrmlh = 1.733d3         !< Constant of proportionality in Arrhenius relation

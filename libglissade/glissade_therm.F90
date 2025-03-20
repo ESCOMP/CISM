@@ -181,7 +181,7 @@ module glissade_therm
     ! Method (3) may be optimal for reducing spinup time in the interior of large ice sheets.
     ! Option (4) requires that temperature is present in the input file.
 
-    if (is_restart == RESTART_TRUE) then
+    if (is_restart == STANDARD_RESTART .or. is_restart == HYBRID_RESTART) then
 
        ! Temperature has already been initialized from a restart file.
        ! (Temperature is always a restart variable.)
@@ -1115,11 +1115,18 @@ module glissade_therm
              dissipcol(ew,ns) = dissipcol(ew,ns) * thck(ew,ns)*rhoi*shci
 
              ! Verify that the net input of energy into the column is equal to the change in
-             ! internal energy.  
+             ! internal energy.
 
              delta_e = (ucondflx(ew,ns) - lcondflx(ew,ns) + dissipcol(ew,ns)) * dttem
 
-             if (abs((efinal-einit-delta_e)/dttem) > 1.0d-8) then
+             if (abs((efinal-einit-delta_e)/dttem) > 1.0d-7) then
+             ! WHL: For stability tests with a very short time step (e.g., < 1.d-6 year),
+             !      the energy-conservation error can be triggered by machine roundoff.
+             !      For the slab tests in Robinson et al. (2021), I replaced the line above
+             !      with the line below, which compares the error to the total energy.
+             !      The latter criterion is less likely to give false positives,
+             !       but might be more likely to give false negatives.
+!!             if (abs((efinal-einit-delta_e)/(efinal)) > 1.0d-8) then
 
                 if (verbose_column) then
                    print*, 'Ice thickness:', thck(ew,ns)
@@ -1259,6 +1266,14 @@ module glissade_therm
     ! Note: It is possible in principle to have internal melting in floating ice;
     !       if so, it is combined with bmlt_ground
     ! TODO: Treat melt_internal as a separate field in glissade_tstep?
+
+    ! WHL - debug
+    if (verbose_therm .and. this_rank == rtest) then
+       ew = itest
+       ns = jtest
+       print*, 'bmlt_ground (m/yr) w/out internal melt:', bmlt_ground(ew,ns)*scyr
+       print*, 'Internal melt (m/yr):', melt_internal(ew,ns)*scyr
+    endif
 
     bmlt_ground(:,:) = bmlt_ground(:,:) + melt_internal(:,:)
 
@@ -1640,10 +1655,11 @@ module glissade_therm
     ! At each temperature point, compute the temperature part of the enthalpy.
     ! enth_T = enth for cold ice, enth_T < enth for temperate ice
 
-    enth_T(0) = rhoi*shci*temp(0)  !WHL - not sure enth_T(0) is needed
-    do up = 1, upn
+    do up = 1, upn-1
        enth_T(up) = (1.d0 - waterfrac(up)) * rhoi*shci*temp(up)
     enddo
+    enth_T(0) = rhoi*shci*temp(0)
+    enth_T(up) = rhoi*shci*temp(up)
 
 !WHL - debug
     if (verbose_column) then
@@ -2250,8 +2266,7 @@ module glissade_therm
     ! Compute the dissipation source term associated with strain heating,
     ! based on the shallow-ice approximation.
     
-    use glimmer_physcon, only : gn   ! Glen's n
-    use glimmer_physcon, only: rhoi, shci, grav
+    use glimmer_physcon, only: rhoi, shci, grav, n_glen
 
     integer, intent(in) :: ewn, nsn, upn   ! grid dimensions
 
@@ -2267,11 +2282,13 @@ module glissade_therm
     real(dp), dimension(:,:,:), intent(out) ::  &
          dissip       ! interior heat dissipation (deg/s)
     
-    integer, parameter :: p1 = gn + 1  
-
     integer :: ew, ns
     real(dp), dimension(upn-1) :: sia_dissip_fact  ! factor in SIA dissipation calculation
     real(dp) :: geom_fact         ! geometric factor
+
+    real(dp) :: p1                ! exponent = n_glen + 1
+
+    p1 = n_glen + 1.0d0
 
     ! Two methods of doing this calculation: 
     ! 1. find dissipation at u-pts and then average
@@ -2367,18 +2384,22 @@ module glissade_therm
   !TODO - For damage-based calving, try multiplying flwa by a damage factor, (1 - damage)
   !TODO - Pass in nx and ny, to avoid allocations within the subroutine.
 
-  subroutine glissade_flow_factor(whichflwa,               whichtemp,  &
-                                  stagsigma,                           &
-                                  thck,                                &
-                                  temp,                                &
-                                  flwa,                                &
-                                  default_flwa,                        &
-                                  flow_enhancement_factor,             &
-                                  flow_enhancement_factor_float,       &
-                                  which_ho_ground,                     &
-                                  floating_mask,                       &
-                                  f_ground_cell,                       &
-                                  waterfrac)
+  subroutine glissade_flow_factor(whichflwa,            whichtemp,  &
+                                  stagsigma,                        &
+                                  thck,                             &
+                                  temp,                             &
+                                  flwa,                             &
+                                  default_flwa,                     &
+                                  which_ho_flow_enhancement_factor, &
+                                  flow_enhancement_factor,          &
+                                  flow_enhancement_factor_ground,   &
+                                  flow_enhancement_factor_float,    &
+                                  which_ho_ground,                  &
+                                  floating_mask,                    &
+                                  f_ground_cell,                    &
+                                  waterfrac,                           &
+                                  damage,                              &
+                                  damage_flwa_feedback)
 
     ! Calculate Glen's $A$ over the 3D domain, using one of three possible methods.
     !
@@ -2414,18 +2435,31 @@ module glissade_therm
 
     integer,                   intent(in)    :: whichflwa !> which method of calculating A
     integer,                   intent(in)    :: whichtemp !> which method of calculating temperature;
-                                                           !> include waterfrac in calculation if using enthalpy method
+                                                          !> include waterfrac in calculation if using enthalpy method
     real(dp),dimension(:),     intent(in)    :: stagsigma !> vertical coordinate at layer midpoints
     real(dp),dimension(:,:),   intent(in)    :: thck      !> ice thickness (m)
     real(dp),dimension(:,:,:), intent(in)    :: temp      !> 3D temperature field (deg C)
     real(dp),dimension(:,:,:), intent(inout) :: flwa      !> output $A$, in units of Pa^{-n} s^{-1}, allow input for data option
-    real(dp),                  intent(in)    :: default_flwa  !> Glen's A to use in isothermal case, Pa^{-n} s^{-1} 
-    real(dp),                  intent(in)    :: flow_enhancement_factor       !> flow enhancement factor in Arrhenius relationship
-    real(dp),                  intent(in)    :: flow_enhancement_factor_float !> flow enhancement factor for floating ice
+    real(dp),                  intent(in)    :: default_flwa        !> Glen's A to use in isothermal case, Pa^{-n} s^{-1}
+
+    !Note: For option 0, flow_enhancement_factor is computed here using one parameter for grounded ice, another for floating ice.
+    !      For option 1 or 2, flow_enhancement_factor is computed elsewhere and passed in.
+
+    integer,                   intent(in)    :: &
+         which_ho_flow_enhancement_factor           !> option for flow enhancement factor
+
+    real(dp),dimension(:,:),   intent(inout) :: &
+         flow_enhancement_factor                    !> flow enhancement factor, unitless
+    real(dp),                  intent(in)    :: &
+         flow_enhancement_factor_ground,        &   !> flow enhancement factor for grounded ice
+         flow_enhancement_factor_float              !> flow enhancement factor for floating ice
+
     integer,                   intent(in)    :: which_ho_ground     !> option for applying a GLP
-    integer, dimension(:,:),   intent(in)    :: floating_mask !> = 1 for floating ice
-    real(dp),dimension(:,:),   intent(in)    :: f_ground_cell !> grounded ice fraction in cell, 0 to 1
-    real(dp),dimension(:,:,:), intent(in), optional :: waterfrac     !> internal water content fraction, 0 to 1
+    integer, dimension(:,:),   intent(in)    :: floating_mask       !> = 1 for floating ice
+    real(dp),dimension(:,:),   intent(in)    :: f_ground_cell       !> grounded ice fraction in cell, 0 to 1
+    real(dp),dimension(:,:,:), intent(in), optional :: waterfrac    !> internal water content fraction, 0 to 1
+    real(dp),dimension(:,:,:), intent(in), optional :: damage      !> damage tracer, 0 to 1
+    logical, intent(in), optional :: damage_flwa_feedback     !> if true, let flwa increase with damage
 
     !> \begin{description}
     !> \item[0] Set to prescribed constant value.
@@ -2440,9 +2474,6 @@ module glissade_therm
     integer :: ew, ns, up, ewn, nsn, nlayers
     real(dp), dimension(size(stagsigma)) :: pmptemp   ! pressure melting point temperature
 
-    real(dp), dimension(:,:), allocatable :: &
-         enhancement_factor      ! flow enhancement factor in Arrhenius relationship
-
     real(dp) :: tempcor                 ! temperature relative to pressure melting point
 
     real(dp),dimension(4), parameter ::  &
@@ -2454,30 +2485,41 @@ module glissade_therm
     real(dp), parameter :: const_temp = -5.0d0   ! deg C
     real(dp), parameter :: flwa_waterfrac_enhance_factor = 181.25d0
 
+    real(dp), parameter :: flwa_damage_max = 0.95d0   ! max damage value used to enhance flwa
+    real(dp), parameter :: nexp_damage = 1.0d0        ! exponent in damage-flwa relation
+!!    real(dp), parameter :: nexp_damage = 3.0d0      ! exponent in damage-flwa relation
+
     !------------------------------------------------------------------------------------
    
     nlayers = size(flwa,1)   ! upn - 1
     ewn = size(flwa,2)
     nsn = size(flwa,3)
 
-    allocate(enhancement_factor(ewn,nsn))
+    if (which_ho_flow_enhancement_factor == HO_FLOW_ENHANCEMENT_FACTOR_CONSTANT) then
 
-    if (which_ho_ground == HO_GROUND_GLP_DELUXE) then  ! using a GLP for f_ground_cell
+       ! Use one parameter for grounded ice, another parameter for floating ice,
+       ! and optionally a weighted average for partly floating cells.
 
-       ! set enhancement factor based on f_ground_cell, giving a weighted mean in partly floating cells
+       if (which_ho_ground == HO_GROUND_GLP_DELUXE) then  ! using a GLP for f_ground_cell
 
-       enhancement_factor(:,:) = flow_enhancement_factor * f_ground_cell(:,:) &
-                               + flow_enhancement_factor_float * (1.0d0 - f_ground_cell(:,:))
+          ! set flow_enhancement factor based on f_ground_cell, giving a weighted mean in partly floating cells
+          flow_enhancement_factor(:,:) = flow_enhancement_factor_ground * f_ground_cell(:,:) &
+                                       + flow_enhancement_factor_float * (1.0d0 - f_ground_cell(:,:))
+
+       else
+
+          ! set enhancement factor in floating cells based on floating_mask
+          where (floating_mask == 1)
+             flow_enhancement_factor = flow_enhancement_factor_float
+          elsewhere
+             flow_enhancement_factor = flow_enhancement_factor_ground
+          endwhere
+
+       endif
 
     else
 
-       ! set enhancement factor in floating cells based on floating_mask
-
-       where (floating_mask == 1)
-          enhancement_factor = flow_enhancement_factor_float
-       elsewhere
-          enhancement_factor = flow_enhancement_factor
-       endwhere
+       ! do nothing; use the input value of flow_enhancement_factor
 
     endif
 
@@ -2488,17 +2530,16 @@ module glissade_therm
     endif
 
     ! Multiply the default rate factor by the enhancement factor if applicable
-    ! Note: Here, default_flwa is assumed to have units of Pa^{-n} s^{-1},
+    ! Note: Here, the input default_flwa is assumed to have units of Pa^{-n} s^{-1},
     !       whereas model%paramets%default_flwa has units of Pa^{-n} yr^{-1}.
 
     ! initialize
-    if (whichflwa /= FLWA_INPUT) then
-       do ns = 1, nsn
-          do ew = 1, ewn
-             flwa(:,ew,ns) = enhancement_factor(ew,ns) * default_flwa
-          enddo
+    !TODO - Move the next few lines inside the select case construct.
+    do ns = 1, nsn
+       do ew = 1, ewn
+          flwa(:,ew,ns) = flow_enhancement_factor(ew,ns) * default_flwa
        enddo
-    endif
+    enddo
 
     select case(whichflwa)
 
@@ -2520,9 +2561,9 @@ module glissade_therm
                ! Calculate Glen's A (including flow enhancement factor)
 
                if (tempcor >= -10.d0) then
-                  flwa(up,ew,ns) = enhancement_factor(ew,ns) * arrfact(1) * exp(arrfact(3)/(tempcor + celsius_to_kelvin))
+                  flwa(up,ew,ns) = flow_enhancement_factor(ew,ns) * arrfact(1) * exp(arrfact(3)/(tempcor + celsius_to_kelvin))
                else
-                  flwa(up,ew,ns) = enhancement_factor(ew,ns) * arrfact(2) * exp(arrfact(4)/(tempcor + celsius_to_kelvin))
+                  flwa(up,ew,ns) = flow_enhancement_factor(ew,ns) * arrfact(2) * exp(arrfact(4)/(tempcor + celsius_to_kelvin))
                endif
 
                ! BDM added correction for a liquid water fraction
@@ -2549,9 +2590,9 @@ module glissade_therm
             ! Calculate Glen's A with a fixed temperature (including flow enhancement factor)
 
             if (const_temp >= -10.d0) then
-               flwa(:,ew,ns) = enhancement_factor(ew,ns) * arrfact(1) * exp(arrfact(3)/(const_temp + celsius_to_kelvin))
+               flwa(:,ew,ns) = flow_enhancement_factor(ew,ns) * arrfact(1) * exp(arrfact(3)/(const_temp + celsius_to_kelvin))
             else
-               flwa(:,ew,ns) = enhancement_factor(ew,ns) * arrfact(2) * exp(arrfact(4)/(const_temp + celsius_to_kelvin))
+               flwa(:,ew,ns) = flow_enhancement_factor(ew,ns) * arrfact(2) * exp(arrfact(4)/(const_temp + celsius_to_kelvin))
             endif
 
          end do
@@ -2559,22 +2600,26 @@ module glissade_therm
 
     case(FLWA_CONST_FLWA)
 
-       ! do nothing (flwa is initialized to default_flwa above)
-
-    case(FLWA_INPUT)
-      ! do nothing - use flwa from input or forcing file
-      print *, 'FLWA', minval(flwa), maxval(flwa)
+       ! do nothing (flwa is set above, with units Pa^{-n} s^{-1})
 
     end select
 
-    ! This logic assumes that the input flwa is already in dimensionless model units.
-    ! TODO: Make a different assumption about input units?
-    if (whichflwa /= FLWA_INPUT) then
-       ! Change flwa to model units (glissade_flow_factor assumes SI units of Pa{-n} s^{-1})
-       flwa(:,:,:) = flwa(:,:,:) / vis0
+    ! Optionally, increase flwa (i.e., make the ice softer) where damage > 0
+    ! Note: Sun et al. (2017) increase flwa by a factor of 1/(1 - d)^gn, where gn is the Glen exponent.
+    !       For simplicity, we assume a linear relationship here.
+
+    if (present(damage) .and. present(damage_flwa_feedback)) then
+       if (damage_flwa_feedback) then
+          where (damage < flwa_damage_max)
+             flwa = flwa / (1.0d0 - damage)**nexp_damage
+          elsewhere
+             flwa = flwa / (1.0d0 - flwa_damage_max)**nexp_damage
+          endwhere
+       endif
     endif
 
-    deallocate(enhancement_factor)
+    ! Change flwa to model units (glissade_flow_factor assumes SI units of Pa{-n} s^{-1})
+    flwa(:,:,:) = flwa(:,:,:) / vis0
 
   end subroutine glissade_flow_factor
 

@@ -38,8 +38,12 @@ module glissade_utils
   implicit none
 
   private
-  public :: glissade_adjust_thickness, glissade_smooth_topography, glissade_adjust_topography
-  public :: glissade_stdev, verbose_stdev
+  public :: glissade_adjust_thickness, glissade_smooth_usrf, &
+       glissade_smooth_topography, glissade_adjust_topography, &
+       glissade_basin_sum, glissade_basin_average, &
+       glissade_usrf_to_thck, glissade_thck_to_usrf, &
+       glissade_stdev, verbose_stdev, &
+       glissade_edge_fluxes, glissade_input_fluxes
 
   logical, parameter :: verbose_stdev = .true.
 
@@ -215,6 +219,187 @@ contains
     endif   ! usrf_max > tiny
 
   end subroutine glissade_adjust_thickness
+
+!****************************************************************************
+
+  subroutine glissade_smooth_usrf(model, nsmooth)
+
+    ! Use a Laplacian smoother to smooth the upper surface elevation,
+    !  and compute a thickness consistent with this new elevation.
+    ! This can be useful if the input thickness and topography are inconsistent,
+    !  such that their sum has large gradients.
+
+    use glimmer_paramets, only: thk0
+    use glide_thck, only: glide_calclsrf
+    use glissade_masks, only: glissade_get_masks
+    use glissade_grid_operators, only: glissade_laplacian_smoother
+    use cism_parallel, only: parallel_halo
+
+    !----------------------------------------------------------------
+    ! Input-output arguments
+    !----------------------------------------------------------------
+
+    type(glide_global_type), intent(inout) :: model   ! derived type holding ice-sheet info
+
+    integer, intent(in), optional :: nsmooth     ! number of smoothing passes
+
+    ! local variables
+
+    real(dp), dimension(model%general%ewn, model%general%nsn) :: &
+         topg,               &  ! bed topography (m)
+         thck,               &  ! thickness (m)
+         usrf,               &  ! surface elevation (m)
+         usrf_smoothed          ! surface elevation after smoothing
+
+    integer, dimension(model%general%ewn, model%general%nsn) :: &
+         ice_mask,           &  ! = 1 if ice is present (thck > 0, else = 0
+         floating_mask,      &  ! = 1 if ice is present (thck > 0) and floating, else = 0
+         ocean_mask             ! = 1 if topg < 0 and ice is absent, else = 0
+
+    integer :: n_smoothing_passes   ! local version of nsmooth
+    integer :: i, j, n
+    integer :: nx, ny
+    integer :: itest, jtest, rtest
+
+!    logical, parameter :: verbose_smooth_usrf = .false.
+    logical, parameter :: verbose_smooth_usrf = .true.
+
+    ! Initialize
+
+    if (present(nsmooth)) then
+       n_smoothing_passes = nsmooth
+    else
+       n_smoothing_passes = 1
+    endif
+
+    ! Copy some model variables to local variables
+
+    nx = model%general%ewn
+    ny = model%general%nsn
+
+    rtest = -999
+    itest = 1
+    jtest = 1
+    if (this_rank == model%numerics%rdiag_local) then
+       rtest = model%numerics%rdiag_local
+       itest = model%numerics%idiag_local
+       jtest = model%numerics%jdiag_local
+    endif
+
+    ! compute the initial upper surface elevation
+    call glide_calclsrf(model%geometry%thck, model%geometry%topg, model%climate%eus, model%geometry%lsrf)
+    model%geometry%usrf = max(0.d0, model%geometry%thck + model%geometry%lsrf)
+
+    ! Save input fields
+    topg = (model%geometry%topg - model%climate%eus) * thk0
+    thck = model%geometry%thck * thk0
+    usrf = model%geometry%usrf * thk0
+
+    if (verbose_smooth_usrf .and. this_rank == rtest) then
+       i = itest
+       j = jtest
+       print*, ' '
+       print*, 'itest, jtest, rank =', itest, jtest, rtest
+       print*, ' '
+       print*, 'Before Laplacian smoother, topg (m):'
+       do j = jtest+3, jtest-3, -1
+          do i = itest-3, itest+3
+             write(6,'(f10.3)',advance='no') topg(i,j)
+          enddo
+          write(6,*) ' '
+       enddo
+       print*, ' '
+       print*, 'Before Laplacian smoother, usrf (m):'
+       do j = jtest+3, jtest-3, -1
+          do i = itest-3, itest+3
+             write(6,'(f10.3)',advance='no') usrf(i,j)
+          enddo
+          write(6,*) ' '
+       enddo
+       print*, ' '
+       print*, 'Before Laplacian smoother, thck (m):'
+       do j = jtest+3, jtest-3, -1
+          do i = itest-3, itest+3
+             write(6,'(f10.3)',advance='no') thck(i,j)
+          enddo
+          write(6,*) ' '
+       enddo
+    endif
+
+    ! compute initial masks
+    call glissade_get_masks(nx,                  ny,                    &
+                            model%parallel,                             &
+                            model%geometry%thck, model%geometry%topg,   &
+                            model%climate%eus,   0.0d0,                 &  ! thklim = 0
+                            ice_mask,                                   &
+                            floating_mask = floating_mask,              &
+                            ocean_mask = ocean_mask)
+
+    do n = 1, n_smoothing_passes
+
+       call glissade_laplacian_smoother(nx,     ny,              &
+                                        usrf,   usrf_smoothed,   &
+                                        npoints_stencil = 9)
+
+       ! Force usrf = topg on ice-free land
+       where (topg > 0.0d0 .and. ice_mask == 0) usrf_smoothed = topg
+
+       ! Force usrf = unsmoothed value for floating ice and ice-free ocean, to avoid advancing the calving front
+       where (floating_mask == 1 .or. ocean_mask == 1)
+          usrf_smoothed = usrf
+       endwhere
+
+       ! Force usrf >= topg
+       usrf_smoothed = max(usrf_smoothed, topg)
+
+       usrf = usrf_smoothed
+       call parallel_halo(usrf, model%parallel)
+
+    enddo
+
+    ! Given the smoothed usrf, adjust the input thickness such that topg is unchanged.
+    ! Do this only where ice is present.  Elsewhere, usrf = topg.
+
+    where (usrf > topg)     ! ice is present
+       where (topg < 0.0d0)    ! marine-based ice
+          where (topg*(1.0d0 - rhoo/rhoi) > usrf)  ! ice is floating
+             thck = usrf / (1.0d0 - rhoi/rhoo)
+          elsewhere   ! ice is grounded
+             thck = usrf - topg
+          endwhere
+       elsewhere   ! land-based ice
+          thck = usrf - topg
+       endwhere
+    endwhere
+
+    ! Copy the new thickness and usrf to the model derived type
+    model%geometry%thck = thck/thk0
+    model%geometry%usrf = usrf/thk0
+
+    if (verbose_smooth_usrf .and. this_rank == rtest) then
+       i = itest
+       j = jtest
+       print*, ' '
+       print*, 'itest, jtest, rank =', itest, jtest, rtest
+       print*, ' '
+       print*, 'After Laplacian smoother, usrf (m):'
+       do j = jtest+3, jtest-3, -1
+          do i = itest-3, itest+3
+             write(6,'(f10.3)',advance='no') usrf(i,j)
+          enddo
+          write(6,*) ' '
+       enddo
+       print*, ' '
+       print*, 'After Laplacian smoother, thck (m):'
+       do j = jtest+3, jtest-3, -1
+          do i = itest-3, itest+3
+             write(6,'(f10.3)',advance='no') thck(i,j)
+          enddo
+          write(6,*) ' '
+       enddo
+    endif
+
+  end subroutine glissade_smooth_usrf
 
 !****************************************************************************
 
@@ -612,6 +797,136 @@ contains
 
   end subroutine glissade_adjust_topography
 
+!****************************************************
+
+  subroutine glissade_basin_sum(&
+       nx,           ny,            &
+       nbasin,       basin_number,  &
+       rmask,                       &
+       field_2d,                    &
+       field_basin_sum)
+
+    ! For a given 2D input field, compute the sum over a basin.
+    ! The sum is taken over grid cells with mask = 1.
+    ! All cells are weighted equally.
+
+    use cism_parallel, only: parallel_reduce_sum, nhalo
+
+    integer, intent(in) :: &
+         nx, ny                    !> number of grid cells in each dimension
+
+    integer, intent(in) :: &
+         nbasin                    !> number of basins
+
+    integer, dimension(nx,ny), intent(in) :: &
+         basin_number              !> basin ID for each grid cell
+
+    real(dp), dimension(nx,ny), intent(in) :: &
+         rmask,                 &  !> real mask for weighting the input field
+         field_2d                  !> input field to be averaged over basins
+
+    real(dp), dimension(nbasin), intent(out) :: &
+         field_basin_sum           !> basin-sum output field
+
+    ! local variables
+
+    integer :: i, j, nb
+
+    !TODO - Replace sumcell with sumarea, and pass in cell area.
+    !       Current algorithm assumes all cells with mask = 1 have equal weight.
+
+    real(dp), dimension(nbasin) ::  &
+         sumfield_local     ! sum of field on local task
+
+    sumfield_local(:) = 0.0d0
+
+    ! loop over locally owned cells only
+    do j = nhalo+1, ny-nhalo
+       do i = nhalo+1, nx-nhalo
+          nb = basin_number(i,j)
+          if (nb >= 1) then
+             sumfield_local(nb) = sumfield_local(nb) + rmask(i,j)*field_2d(i,j)
+          endif
+       enddo
+    enddo
+
+    field_basin_sum(:) =  parallel_reduce_sum(sumfield_local(:))
+
+  end subroutine glissade_basin_sum
+
+!****************************************************
+
+  subroutine glissade_basin_average(&
+       nx,           ny,            &
+       nbasin,       basin_number,  &
+       rmask,                       &
+       field_2d,                    &
+       field_basin_avg)
+
+    ! For a given 2D input field, compute the average over a basin.
+    ! The average is taken over grid cells with mask = 1.
+    ! All cells are weighted equally.
+
+    use cism_parallel, only: parallel_reduce_sum, nhalo
+
+    integer, intent(in) :: &
+         nx, ny                    !> number of grid cells in each dimension
+
+    integer, intent(in) :: &
+         nbasin                    !> number of basins
+
+    integer, dimension(nx,ny), intent(in) :: &
+         basin_number              !> basin ID for each grid cell
+
+    real(dp), dimension(nx,ny), intent(in) :: &
+         rmask                     !> real mask for weighting the value in each cell
+
+    real(dp), dimension(nx,ny), intent(in) :: &
+         field_2d                  !> input field to be averaged over basins
+
+    real(dp), dimension(nbasin), intent(out) :: &
+         field_basin_avg           !> basin-average output field
+
+    ! local variables
+
+    integer :: i, j, nb
+
+    !TODO - Replace sumcell with sumarea, and pass in cell area.
+    !       Current algorithm assumes all cells with mask = 1 have equal weight.
+
+    real(dp), dimension(nbasin) ::  &
+         summask_local,          & ! sum of mask in each basin on local task
+         summask_global,         & ! sum of mask in each basin on full domain
+         sumfield_local,         & ! sum of field on local task
+         sumfield_global           ! sum of field over full domain
+
+    summask_local(:) = 0.0d0
+    sumfield_local(:) = 0.0d0
+
+    ! loop over locally owned cells only
+    do j = nhalo+1, ny-nhalo
+       do i = nhalo+1, nx-nhalo
+          nb = basin_number(i,j)
+          if (nb >= 1) then
+             summask_local(nb) = summask_local(nb) + rmask(i,j)
+             sumfield_local(nb) = sumfield_local(nb) + rmask(i,j)*field_2d(i,j)
+          endif
+       enddo
+    enddo
+
+    summask_global(:)  =  parallel_reduce_sum(summask_local(:))
+    sumfield_global(:) =  parallel_reduce_sum(sumfield_local(:))
+
+    do nb = 1, nbasin
+       if (summask_global(nb) > tiny(0.0d0)) then
+          field_basin_avg(nb) = sumfield_global(nb)/summask_global(nb)
+       else
+          field_basin_avg(nb) = 0.0d0
+       endif
+    enddo
+
+  end subroutine glissade_basin_average
+
 !****************************************************************************
 
   subroutine glissade_stdev(&
@@ -717,6 +1032,279 @@ contains
 
   end subroutine glissade_stdev
 
+!***********************************************************************
+
+  subroutine glissade_usrf_to_thck(usrf, topg, eus, thck)
+
+    ! Given the bed topography and upper ice surface elevation, compute the ice thickness.
+    ! The ice is assumed to satisfy a flotation condition.
+    ! That is, if topg - eus < 0 (marine-based ice), and if the upper surface is too close
+    !  to sea level to ground the ice, then the ice thickness is chosen to satisfy
+    !  rhoi*H = -rhoo*(topg-eus).
+    ! Note: usrf, topg, eus and thck must all have the same units (often but not necessarily meters).
+
+    use glimmer_physcon, only : rhoo, rhoi
+
+    real(dp), dimension(:,:), intent(in) :: &
+         usrf,           & ! ice upper surface elevation
+         topg              ! elevation of bedrock topography
+
+    real(dp), intent(in) :: &
+         eus               ! eustatic sea level
+
+    real(dp), dimension(:,:), intent(out) :: &
+         thck              ! ice thickness
+
+    ! initialize
+    thck(:,:) = 0.0d0
+
+    where (usrf > (topg - eus))   ! ice is present, thck > 0
+       where (topg - eus < 0.0d0)   ! marine-based ice
+          where ((topg - eus) * (1.0d0 - rhoo/rhoi) > usrf)  ! ice is floating
+             thck = usrf / (1.0d0 - rhoi/rhoo)
+          elsewhere   ! ice is grounded
+             thck = usrf - (topg - eus)
+          endwhere
+       elsewhere   ! land-based ice
+          thck = usrf - (topg - eus)
+       endwhere
+    endwhere
+
+  end subroutine glissade_usrf_to_thck
+
+!***********************************************************************
+
+  subroutine glissade_thck_to_usrf(thck, topg, eus, usrf)
+
+    ! Given the bed topography and ice thickness, compute the upper surface elevation.
+    ! The ice is assumed to satisfy a flotation condition.
+    ! That is, if topg - eus < 0 (marine-based ice), and if the ice is too thin to be grounded,
+    !  then the upper surface is chosen to satisfy rhoi*H = rhoo*(H - usrf),
+    !  or equivalently usrf = (1 - rhoi/rhoo)*H.
+    ! Note: usrf, topg, eus and thck must all have the same units (often but not necessarily meters).
+
+    use glimmer_physcon, only : rhoo, rhoi
+
+    real(dp), dimension(:,:), intent(in) :: &
+         thck,           & ! ice thickness
+         topg              ! elevation of bedrock topography
+
+    real(dp), intent(in) :: &
+         eus               ! eustatic sea level
+
+    real(dp), dimension(:,:), intent(out) :: &
+         usrf              ! ice upper surface elevation
+
+    where ((topg - eus) < -(rhoi/rhoo)*thck)
+       usrf = (1.0d0 - rhoi/rhoo)*thck   ! ice is floating
+    elsewhere   ! ice is grounded
+       usrf = (topg - eus) + thck
+    endwhere
+
+  end subroutine glissade_thck_to_usrf
+
+!***********************************************************************
+
+  subroutine glissade_edge_fluxes(&
+        nx,        ny,        &
+        dew,       dns,       &
+        itest,     jtest,  rtest, &
+        thck,                 &
+        uvel,      vvel,      &
+        flux_e,    flux_n)
+
+    use cism_parallel, only: nhalo
+
+    ! Compute ice volume fluxes across each cell edge
+
+    ! input/output arguments
+
+    integer, intent(in) :: &
+         nx, ny,                & ! number of cells in x and y direction on input grid (global)
+         itest, jtest, rtest
+
+    real(dp), intent(in) :: &
+         dew, dns                 ! cell edge lengths in EW and NS directions (m)
+
+    real(dp), dimension(nx,ny), intent(in) :: &
+         thck                     ! ice thickness (m) at cell centers
+
+    real(dp), dimension(nx-1,ny-1), intent(in) :: &
+         uvel, vvel               ! vertical mean velocity (m/s) at cell corners
+
+    real(dp), dimension(nx,ny), intent(out) :: &
+         flux_e, flux_n           ! ice volume fluxes (m^3/yr) at cell edges
+
+    ! local variables
+
+    integer :: i, j
+    real(dp) :: thck_edge, u_edge, v_edge
+    logical, parameter :: verbose_edge_fluxes = .false.
+
+    ! loop over locally owned edges
+    do j = nhalo+1, ny-nhalo
+       do i = nhalo+1, nx-nhalo
+
+          ! east edge volume flux
+          thck_edge = 0.5d0 * (thck(i,j) + thck(i+1,j))
+          u_edge = 0.5d0 * (uvel(i,j-1) + uvel(i,j))
+          flux_e(i,j) = thck_edge * u_edge * dns  ! m^3/yr
+
+          ! north edge volume flux
+          thck_edge = 0.5d0 * (thck(i,j) + thck(i,j+1))
+          v_edge = 0.5d0 * (vvel(i-1,j) + vvel(i,j))
+          flux_n(i,j) = thck_edge * v_edge * dew  ! m^3/yr
+
+          if (verbose_edge_fluxes .and. this_rank == rtest .and. i==itest .and. j==jtest) then
+             print*, 'East  flux: rank, i, j, H, u, flx =', &
+                  rtest, itest, jtest, thck_edge, u_edge, flux_e(i,j)
+             print*, 'North flux: rank, i, j, H, v, flx =', &
+                  rtest, itest, jtest, thck_edge, v_edge, flux_n(i,j)
+          endif
+
+       enddo
+    enddo
+
+  end subroutine glissade_edge_fluxes
+
+!***********************************************************************
+
+  subroutine glissade_input_fluxes(&
+        nx,      ny,            &
+        dew,     dns,           &
+        itest,   jtest,  rtest, &
+        thck,                   &
+        uvel,    vvel,          &
+        flux_in,                &
+        parallel)
+
+    use glimmer_physcon, only: scyr
+    use cism_parallel, only: nhalo, parallel_halo, staggered_parallel_halo
+
+    ! Compute ice volume fluxes into a cell from each neighboring cell
+
+    ! input/output arguments
+
+    integer, intent(in) :: &
+         nx, ny,                & ! number of cells in x and y direction on input grid (global)
+         itest, jtest, rtest
+
+    real(dp), intent(in) :: &
+         dew, dns                 ! cell edge lengths in EW and NS directions (m)
+
+    real(dp), dimension(nx,ny), intent(in) :: &
+         thck                     ! ice thickness (m) at cell centers
+
+    real(dp), dimension(nx-1,ny-1), intent(in) :: &
+         uvel, vvel               ! vertical mean velocity (m/s) at cell corners
+
+    real(dp), dimension(-1:1,-1:1,nx,ny), intent(out) :: &
+         flux_in                  ! ice volume fluxes (m^3/yr) into cell from each neighbor cell
+
+    type(parallel_type), intent(in) :: parallel   ! info for parallel communication
+
+    ! local variables
+
+    integer :: i, j, ii, jj
+
+    real(dp) :: &
+         u_sw, u_se, u_ne, u_nw,    & ! u velocity components at each vertex
+         v_sw, v_se, v_ne, v_nw       ! u velocity components at each vertex
+
+    real(dp) :: &
+         area_w, area_s, area_e, area_n,   & ! area flux from each neighbor cell
+         area_sw, area_se, area_ne, area_nw
+
+    logical, parameter :: verbose_input_fluxes = .false.
+
+    ! halo updates for thickness and velocity
+
+    call parallel_halo(thck, parallel)
+    call staggered_parallel_halo(uvel, parallel)
+    call staggered_parallel_halo(vvel, parallel)
+
+    ! initialize
+    flux_in(:,:,:,:) = 0.0d0
+
+    ! Estimate the ice volume flux into each cell from each neighbor.
+    ! Note: flux_in(0,0,:,:) = 0 since there is no flux from a cell into itself.
+    ! The loop includes one row of halo cells.
+
+    do j = nhalo+1, ny-nhalo
+       do i = nhalo+1, nx-nhalo
+
+          ! Compute the upwind velocity components at each vertex
+          ! Convert from m/s to m/yr for diagnostics
+          u_sw = max( uvel(i-1,j-1), 0.0d0)*scyr
+          v_sw = max( vvel(i-1,j-1), 0.0d0)*scyr
+          u_se = max(-uvel(i,j-1),   0.0d0)*scyr
+          v_se = max( vvel(i,j-1),   0.0d0)*scyr
+          u_ne = max(-uvel(i,j),     0.0d0)*scyr
+          v_ne = max(-vvel(i,j),     0.0d0)*scyr
+          u_nw = max( uvel(i-1,j),   0.0d0)*scyr
+          v_nw = max(-vvel(i-1,j),   0.0d0)*scyr
+
+          ! Estimate the area fluxes from each edge neighbor
+          area_w = 0.5d0*(u_nw + u_sw)*dns - 0.5d0*(u_nw*v_nw + u_sw*v_sw)
+          area_s = 0.5d0*(v_sw + v_se)*dew - 0.5d0*(u_sw*v_sw + u_se*v_se)
+          area_e = 0.5d0*(u_se + u_ne)*dns - 0.5d0*(u_se*v_se + u_ne*v_ne)
+          area_n = 0.5d0*(v_ne + v_nw)*dew - 0.5d0*(u_ne*v_ne + u_nw*v_nw)
+
+          ! Estimate the area fluxes from each diagonal neighbor
+          ! Note: The sum is equal to the sum of the terms subtracted from the edge areas above
+          area_sw = u_sw*v_sw
+          area_se = u_se*v_se
+          area_ne = u_ne*v_ne
+          area_nw = u_nw*v_nw
+
+          ! Estimate the volume fluxes from each edge neighbor
+          flux_in(-1, 0,i,j) = area_w * thck(i-1,j)
+          flux_in( 0,-1,i,j) = area_s * thck(i,j-1)
+          flux_in( 1, 0,i,j) = area_e * thck(i+1,j)
+          flux_in( 0, 1,i,j) = area_n * thck(i,j+1)
+
+          ! Estimate the volume fluxes from each diagonal neighbor
+          flux_in(-1,-1,i,j) = area_sw * thck(i-1,j-1)
+          flux_in( 1,-1,i,j) = area_se * thck(i+1,j-1)
+          flux_in( 1, 1,i,j) = area_ne * thck(i+1,j+1)
+          flux_in(-1, 1,i,j) = area_nw * thck(i-1,j+1)
+
+          if (verbose_input_fluxes .and. this_rank == rtest .and. i==itest .and. j==jtest) then
+             print*, ' '
+             print*, 'upstream u (m/yr), this_rank, i, j:'
+             write(6,'(3e12.4)') u_nw, u_ne
+             write(6,'(3e12.4)') u_sw, u_se
+             print*, ' '
+             print*, 'upstream v (m/yr):'
+             write(6,'(3e12.4)') v_nw, v_ne
+             write(6,'(3e12.4)') v_sw, v_se
+             print*, ' '
+             print*, 'Input area fluxes (m^2/yr):'
+             write(6,'(3e12.4)') area_nw, area_n, area_ne
+             write(6,'(3e12.4)') area_w,  0.0d0, area_e
+             write(6,'(3e12.4)') area_sw, area_s, area_se
+             print*, ' '
+             print*, 'Input ice volume fluxes (m^3/yr):'
+             do jj = 1,-1,-1
+                do ii = -1,1
+                   write(6,'(e12.4)',advance='no') flux_in(ii,jj,i,j)
+                enddo
+                print*, ' '
+             enddo
+          endif
+
+       enddo   ! i
+    enddo   ! j
+
+    do j = -1, 1
+       do i = -1, 1
+          call parallel_halo(flux_in, parallel)
+       enddo
+    enddo
+
+  end subroutine glissade_input_fluxes
+
+!****************************************************************************
 
 !TODO - Other utility subroutines to add here?
 !       E.g., tridiag; calclsrf; subroutines to zero out tracers

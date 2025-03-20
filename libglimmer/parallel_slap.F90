@@ -254,12 +254,19 @@ module cism_parallel
      module procedure parallel_get_var_real8_2d
   end interface
 
+  interface parallel_global_sum
+     module procedure parallel_global_sum_integer_2d
+     module procedure parallel_global_sum_real4_2d
+     module procedure parallel_global_sum_real8_2d
+  end interface
+
   interface parallel_halo
      module procedure parallel_halo_integer_2d
      module procedure parallel_halo_logical_2d
      module procedure parallel_halo_real4_2d
      module procedure parallel_halo_real8_2d
      module procedure parallel_halo_real8_3d
+     module procedure parallel_halo_real8_4d
   end interface
 
   interface parallel_halo_extrapolate
@@ -295,6 +302,7 @@ module cism_parallel
 
   interface parallel_put_var
      module procedure parallel_put_var_integer
+     module procedure parallel_put_var_integer_1d
      module procedure parallel_put_var_real4
      module procedure parallel_put_var_real8
      module procedure parallel_put_var_real8_1d
@@ -304,6 +312,7 @@ module cism_parallel
      module procedure parallel_reduce_max_integer
      module procedure parallel_reduce_max_real4
      module procedure parallel_reduce_max_real8
+     module procedure parallel_reduce_max_real8_1d
   end interface
 
   ! This reduce interface determines the global min value and the processor on which it occurs
@@ -317,6 +326,7 @@ module cism_parallel
      module procedure parallel_reduce_min_integer
      module procedure parallel_reduce_min_real4
      module procedure parallel_reduce_min_real8
+     module procedure parallel_reduce_min_real8_1d
   end interface
 
   ! This reduce interface determines the global min value and the processor on which it occurs
@@ -2112,7 +2122,6 @@ contains
 
   subroutine parallel_create_comm_row(comm, parallel)
 
-    use mpi_mod
     implicit none
     integer, intent(in) :: comm          ! global communicator
     type(parallel_type) :: parallel
@@ -2130,7 +2139,6 @@ contains
 
   subroutine parallel_create_comm_col(comm, parallel)
 
-    use mpi_mod
     implicit none
     integer, intent(in) :: comm          ! global communicator
     type(parallel_type) :: parallel
@@ -2396,6 +2404,42 @@ contains
 
 !=======================================================================
 
+  subroutine parallel_global_edge_mask(global_edge_mask, parallel)
+
+    ! Create a mask = 1 in locally owned cells at the edge of the global domain,
+    ! = 0 elsewhere
+
+    integer, dimension(:,:), intent(out) :: global_edge_mask
+    type(parallel_type) :: parallel
+
+    associate(  &
+         local_ewn   => parallel%local_ewn,    &
+         local_nsn   => parallel%local_nsn)
+
+    ! Check array dimensions
+
+    ! unknown grid
+    if (size(global_edge_mask,1)/=local_ewn .or. size(global_edge_mask,2)/=local_nsn) then
+       write(*,*) "Unknown Grid: Size a=(", size(global_edge_mask,1), ",", size(global_edge_mask,2), &
+            ") and local_ewn and local_nsn = ", local_ewn, ",", local_nsn
+       call parallel_stop(__FILE__,__LINE__)
+    endif
+
+    ! Identify cells at the edge of the global domain
+
+    global_edge_mask = 0
+
+    global_edge_mask(lhalo+1,:) = 1
+    global_edge_mask(local_ewn-uhalo,:) = 1
+    global_edge_mask(:,lhalo+1) = 1
+    global_edge_mask(:,local_nsn-uhalo) = 1
+
+    end associate
+
+  end subroutine parallel_global_edge_mask
+
+!=======================================================================
+
   !TODO - Is function parallel_globalID still needed? No longer called except from glissade_test_halo.
 
   function parallel_globalID(locns, locew, upstride, parallel)
@@ -2467,6 +2511,91 @@ contains
     end associate
 
   end function parallel_globalID_scalar
+
+!=======================================================================
+
+  function parallel_global_sum_integer_2d(a, parallel)
+
+    ! Calculates the global sum of a 2D integer field
+
+    integer,dimension(:,:),intent(in) :: a
+    type(parallel_type) :: parallel
+
+    integer :: i, j
+    integer :: local_sum
+    integer :: parallel_global_sum_integer_2d
+
+    associate(  &
+         local_ewn   => parallel%local_ewn,    &
+         local_nsn   => parallel%local_nsn)
+
+    local_sum = 0
+    do j = nhalo+1, local_nsn-nhalo
+       do i = nhalo+1, local_ewn-nhalo
+          local_sum = local_sum + a(i,j)
+       enddo
+    enddo
+    parallel_global_sum_integer_2d = local_sum
+
+    end associate
+
+  end function parallel_global_sum_integer_2d
+
+
+  function parallel_global_sum_real4_2d(a, parallel)
+
+    ! Calculates the global sum of a 2D single-precision field
+
+    real(sp),dimension(:,:),intent(in) :: a
+    type(parallel_type) :: parallel
+
+    integer :: i, j
+    real(sp) :: local_sum
+    real(sp) :: parallel_global_sum_real4_2d
+
+    associate(  &
+         local_ewn   => parallel%local_ewn,    &
+         local_nsn   => parallel%local_nsn)
+
+    local_sum = 0.
+    do j = nhalo+1, local_nsn-nhalo
+       do i = nhalo+1, local_ewn-nhalo
+          local_sum = local_sum + a(i,j)
+       enddo
+    enddo
+    parallel_global_sum_real4_2d = local_sum
+
+    end associate
+
+  end function parallel_global_sum_real4_2d
+
+
+  function parallel_global_sum_real8_2d(a, parallel)
+
+    ! Calculates the global sum of a 2D integer field
+
+    real(dp),dimension(:,:),intent(in) :: a
+    type(parallel_type) :: parallel
+
+    integer :: i, j
+    real(dp) :: local_sum
+    real(dp) :: parallel_global_sum_real8_2d
+
+    associate(  &
+         local_ewn   => parallel%local_ewn,    &
+         local_nsn   => parallel%local_nsn)
+
+    local_sum = 0.0d0
+    do j = nhalo+1, local_nsn-nhalo
+       do i = nhalo+1, local_ewn-nhalo
+          local_sum = local_sum + a(i,j)
+       enddo
+    enddo
+    parallel_global_sum_real8_2d = local_sum
+
+    end associate
+
+  end function parallel_global_sum_real8_2d
 
 !=======================================================================
 
@@ -2851,6 +2980,68 @@ contains
     end associate
 
   end subroutine parallel_halo_real8_3d
+
+
+  subroutine parallel_halo_real8_4d(a, parallel)
+
+    implicit none
+    real(dp),dimension(:,:,:,:) :: a
+    type(parallel_type) :: parallel
+
+    real(dp),dimension(size(a,1),size(a,2),lhalo,parallel%local_nsn-lhalo-uhalo) :: ecopy
+    real(dp),dimension(size(a,1),size(a,2),uhalo,parallel%local_nsn-lhalo-uhalo) :: wcopy
+    real(dp),dimension(size(a,1),size(a,2),parallel%local_ewn,lhalo) :: ncopy
+    real(dp),dimension(size(a,1),size(a,2),parallel%local_ewn,uhalo) :: scopy
+
+    ! begin
+
+    associate(  &
+         outflow_bc  => parallel%outflow_bc,   &
+         no_ice_bc   => parallel%no_ice_bc,    &
+         local_ewn   => parallel%local_ewn,    &
+         local_nsn   => parallel%local_nsn)
+
+    ! staggered grid
+    if (size(a,3)==local_ewn-1 .and. size(a,4)==local_nsn-1) return
+
+    ! unknown grid
+    if (size(a,3)/=local_ewn .or. size(a,4)/=local_nsn) then
+       write(*,*) "Unknown Grid: Size a=(", size(a,2), ",", size(a,3), ",", size(a,4), ") &
+            &and local_ewn and local_nsn = ", local_ewn, ",", local_nsn
+         call parallel_stop(__FILE__,__LINE__)
+    endif
+
+    if (outflow_bc) then
+
+       a(:,:,:lhalo,1+lhalo:local_nsn-uhalo) = 0.d0
+       a(:,:,local_ewn-uhalo+1:,1+lhalo:local_nsn-uhalo) = 0.d0
+       a(:,:,:,:lhalo) = 0.d0
+       a(:,:,:,local_nsn-uhalo+1:) = 0.d0
+
+    elseif (no_ice_bc) then
+
+       a(:,:,:lhalo+1,1+lhalo:local_nsn-uhalo) = 0.d0
+       a(:,:,local_ewn-uhalo:,1+lhalo:local_nsn-uhalo) = 0.d0
+       a(:,:,:,:lhalo+1) = 0.d0
+       a(:,:,:,local_nsn-uhalo:) = 0.d0
+
+    else    ! periodic BC
+
+       ecopy(:,:,:,:) = a(:,:,local_ewn-uhalo-lhalo+1:local_ewn-uhalo,1+lhalo:local_nsn-uhalo)
+       wcopy(:,:,:,:) = a(:,:,1+lhalo:1+lhalo+uhalo-1,1+lhalo:local_nsn-uhalo)
+       a(:,:,:lhalo,1+lhalo:local_nsn-uhalo) = ecopy(:,:,:,:)
+       a(:,:,local_ewn-uhalo+1:,1+lhalo:local_nsn-uhalo) = wcopy(:,:,:,:)
+
+       ncopy(:,:,:,:) = a(:,:,:,local_nsn-uhalo-lhalo+1:local_nsn-uhalo)
+       scopy(:,:,:,:) = a(:,:,:,1+lhalo:1+lhalo+uhalo-1)
+       a(:,:,:,:lhalo) = ncopy(:,:,:,:)
+       a(:,:,:,local_nsn-uhalo+1:) = scopy(:,:,:,:)
+
+    endif
+
+    end associate
+
+  end subroutine parallel_halo_real8_4d
 
 !=======================================================================
 
@@ -3447,7 +3638,7 @@ contains
 
     implicit none
     integer :: ncid,parallel_put_var_integer,varid
-    integer,dimension(:) :: start
+    integer,dimension(:),optional :: start
     integer :: values
 
     ! begin
@@ -3458,11 +3649,31 @@ contains
   end function parallel_put_var_integer
 
 
+  function parallel_put_var_integer_1d(ncid, varid, values, start)
+
+    implicit none
+    integer :: ncid,parallel_put_var_integer_1d,varid
+    integer,dimension(:),optional :: start
+    integer,dimension(:) :: values
+
+    ! begin
+    if (main_task) then
+       if (present(start)) then
+          parallel_put_var_integer_1d = nf90_put_var(ncid,varid,values,start)
+       else
+          parallel_put_var_integer_1d = nf90_put_var(ncid,varid,values)
+       end if
+    end if
+    call broadcast(parallel_put_var_integer_1d)
+
+  end function parallel_put_var_integer_1d
+
+
   function parallel_put_var_real4(ncid, varid, values, start)
 
     implicit none
     integer :: ncid,parallel_put_var_real4,varid
-    integer,dimension(:) :: start
+    integer,dimension(:),optional :: start
     real(sp) :: values
 
     ! begin
@@ -3477,7 +3688,7 @@ contains
 
     implicit none
     integer :: ncid,parallel_put_var_real8,varid
-    integer,dimension(:) :: start
+    integer,dimension(:),optional :: start
     real(dp) :: values
 
     ! begin
@@ -3558,6 +3769,19 @@ contains
     parallel_reduce_max_real8 = x
 
   end function parallel_reduce_max_real8
+
+
+  function parallel_reduce_max_real8_1d(x)
+
+    ! Max x across all of the nodes.
+    ! In parallel_slap mode just return x.
+    implicit none
+    real(dp), dimension(:) :: x
+    real(dp), dimension(size(x)) :: parallel_reduce_max_real8_1d
+
+    parallel_reduce_max_real8_1d = x
+
+  end function parallel_reduce_max_real8_1d
 
 !=======================================================================
 
@@ -3646,6 +3870,19 @@ contains
 
   end function parallel_reduce_min_real8
 
+  
+  function parallel_reduce_min_real8_1d(x)
+
+    ! Min x across all of the nodes.
+    ! In parallel_slap mode just return x.
+    implicit none
+    real(dp), dimension(:) :: x
+    real(dp), dimension(size(x)) :: parallel_reduce_min_real8_1d
+
+    parallel_reduce_min_real8_1d = x
+
+  end function parallel_reduce_min_real8_1d
+
 !=======================================================================
 
   ! subroutines belonging to the parallel_reduce_minloc interface
@@ -3693,6 +3930,31 @@ contains
     xprocout = this_rank
 
   end subroutine parallel_reduce_minloc_real8
+
+!=======================================================================
+
+  ! functions for parallel reduction of logical variables
+  ! * parallel_reduce_log_or returns 'true' iff x = 'true' on at least one processor
+  ! * parallel_reduce_log_and returns 'true' iff x = 'true' on all processors
+
+  function parallel_reduce_log_or(x)
+
+    implicit none
+    logical :: x, parallel_reduce_log_or
+
+    parallel_reduce_log_or = x
+
+  end function parallel_reduce_log_or
+
+
+  function parallel_reduce_log_and(x)
+
+    implicit none
+    logical :: x, parallel_reduce_log_and
+
+    parallel_reduce_log_and = x
+
+  end function parallel_reduce_log_and
 
 !=======================================================================
 
@@ -3798,6 +4060,21 @@ contains
     call broadcast(parallel_sync)
 
   end function parallel_sync
+
+!=======================================================================
+
+  subroutine parallel_test_comm_row_col(parallel)
+
+    ! Test the communicators for rows and columns of processors.
+    ! Row and column communicators are not supported for serial code.
+    ! Write an error message and abort.
+
+    type(parallel_type), intent(in) :: parallel
+
+    write(*,*) 'Error: Row and column communicators are not supported for serial code.'
+    call parallel_stop(__FILE__, __LINE__)
+
+  end subroutine parallel_test_comm_row_col
 
 !=======================================================================
 

@@ -287,12 +287,19 @@ module cism_parallel
      module procedure parallel_get_var_real8_2d
   end interface
 
+  interface parallel_global_sum
+     module procedure parallel_global_sum_integer_2d
+     module procedure parallel_global_sum_real4_2d
+     module procedure parallel_global_sum_real8_2d
+  end interface
+
   interface parallel_halo
      module procedure parallel_halo_integer_2d
      module procedure parallel_halo_logical_2d
      module procedure parallel_halo_real4_2d
      module procedure parallel_halo_real8_2d
      module procedure parallel_halo_real8_3d
+     module procedure parallel_halo_real8_4d
   end interface
 
   interface parallel_halo_extrapolate
@@ -328,6 +335,7 @@ module cism_parallel
 
   interface parallel_put_var
      module procedure parallel_put_var_integer
+     module procedure parallel_put_var_integer_1d
      module procedure parallel_put_var_real4
      module procedure parallel_put_var_real8
      module procedure parallel_put_var_real8_1d
@@ -337,6 +345,7 @@ module cism_parallel
      module procedure parallel_reduce_max_integer
      module procedure parallel_reduce_max_real4
      module procedure parallel_reduce_max_real8
+     module procedure parallel_reduce_max_real8_1d
   end interface
 
   ! This reduce interface determines the global max value and the processor on which it occurs
@@ -350,6 +359,7 @@ module cism_parallel
      module procedure parallel_reduce_min_integer
      module procedure parallel_reduce_min_real4
      module procedure parallel_reduce_min_real8
+     module procedure parallel_reduce_min_real8_1d
   end interface
 
   ! This reduce interface determines the global min value and the processor on which it occurs
@@ -687,6 +697,7 @@ contains
        allocate(recvcounts(1))
        allocate(recvbuf(1))
     end if
+
     allocate(sendbuf(d_gs_mybounds(1):d_gs_mybounds(2),&
                      d_gs_mybounds(3):d_gs_mybounds(4)))
     sendbuf(:,:) = values(1+lhalo:local_ewn-uhalo,1+lhalo:local_nsn-uhalo)
@@ -2576,7 +2587,7 @@ contains
     !  of the global domain, so staggered_ilo = staggered_jlo = staggered_lhalo on
     !  processors that include these rows.
     ! Note: For no_ice BC, we assume (uvel,vvel) = 0 along the global boundary.
-    !       In this case, vertices along the southern and western rows of the global boundary
+    !       In this case, vertices along the southern and western edges of the global boundary
     !        are not considered to be locally owned by any task.
 
     if (outflow_bc .and. this_rank <= west) then  ! on west edge of global domain
@@ -2712,7 +2723,7 @@ contains
     integer, dimension(:), allocatable ::  &
          task_to_block                ! block associated with each task
 
-    logical, parameter :: verbose_active_blocks = .true.
+    logical :: verbose_active_blocks = .false.
 
     associate(  &
          periodic_bc => parallel%periodic_bc,  &
@@ -2754,6 +2765,7 @@ contains
 
     if (present(inquire_only)) then
        only_inquire = inquire_only
+       if (only_inquire) verbose_active_blocks = .true.
     else
        only_inquire = .false.
     endif
@@ -4216,6 +4228,8 @@ contains
     ! values = local portion of distributed variable
     ! global_values = reference to allocateable array into which the main_task holds the variable.
     ! global_values is deallocated at the end.
+    ! This subroutine expects global_values to be allocated on all tasks.
+    ! It can be allocated with zero size on tasks other than main_task.
     use mpi_mod
     implicit none
     integer,dimension(:,:),intent(inout) :: values  ! populated from values on main_task
@@ -4261,7 +4275,6 @@ contains
     call fc_gather_int(d_gs_mybounds,4,mpi_integer,d_gs_bounds,4,&
          mpi_integer,main_rank,comm)
 
-
     if (main_task) then
        allocate(displs(tasks+1))
        allocate(sendcounts(tasks))
@@ -4272,7 +4285,6 @@ contains
           displs(i+1) = displs(i)+sendcounts(i)
        end do
        allocate(sendbuf(displs(tasks+1)))
-
        do i = 1,tasks
           sendbuf(displs(i)+1:displs(i+1)) = &
              reshape(global_values(d_gs_bounds(1,i):d_gs_bounds(2,i),&
@@ -4284,6 +4296,7 @@ contains
        allocate(sendcounts(1))
        allocate(sendbuf(1))
     end if
+
     allocate(recvbuf(d_gs_mybounds(1):d_gs_mybounds(2),&
                      d_gs_mybounds(3):d_gs_mybounds(4)))
     call mpi_scatterv(sendbuf,sendcounts,displs,mpi_integer,&
@@ -4303,6 +4316,8 @@ contains
     ! values = local portion of distributed variable
     ! global_values = reference to allocateable array into which the main_task holds the variable.
     ! global_values is deallocated at the end.
+    ! This subroutine expects global_values to be allocated on all tasks.
+    ! It can be allocated with zero size on tasks other than main_task.
     use mpi_mod
     implicit none
     logical,dimension(:,:),intent(inout) :: values  ! populated from values on main_task
@@ -4389,6 +4404,8 @@ contains
     ! values = local portion of distributed variable
     ! global_values = reference to allocateable array into which the main_task holds the variable.
     ! global_values is deallocated at the end.
+    ! This subroutine expects global_values to be allocated on all tasks.
+    ! It can be allocated with zero size on tasks other than main_task.
     use mpi_mod
     implicit none
     real(sp),dimension(:,:),intent(inout) :: values  ! populated from values on main_task
@@ -4475,6 +4492,8 @@ contains
     ! values = local portion of distributed variable
     ! global_values = reference to allocateable array into which the main_task holds the variable.
     ! global_values is deallocated at the end.
+    ! This subroutine expects global_values to be allocated on all tasks.
+    ! It can be allocated with zero size on tasks other than main_task.
     use mpi_mod
     implicit none
     real(sp),dimension(:,:,:),intent(inout) :: values  ! populated from values on main_task
@@ -4563,6 +4582,8 @@ contains
     ! values = local portion of distributed variable
     ! global_values = reference to allocateable array into which the main_task holds the variable.
     ! global_values is deallocated at the end.
+    ! This subroutine expects global_values to be allocated on all tasks.
+    ! It can be allocated with zero size on tasks other than main_task.
     use mpi_mod
     implicit none
     real(dp),dimension(:,:),intent(inout) :: values  ! populated from values on main_task
@@ -4649,6 +4670,8 @@ contains
     ! values = local portion of distributed variable
     ! global_values = reference to allocateable array into which the main_task holds the variable.
     ! global_values is deallocated at the end.
+    ! This subroutine expects global_values to be allocated on all tasks.
+    ! It can be allocated with zero size on tasks other than main_task.
     use mpi_mod
     implicit none
     real(dp),dimension(:,:,:),intent(inout) :: values  ! populated from values on main_task
@@ -5670,6 +5693,59 @@ contains
 
 !=======================================================================
 
+  subroutine parallel_global_edge_mask(global_edge_mask, parallel)
+
+    ! Create a mask = 1 in locally owned cells at the edge of the global domain,
+    ! = 0 elsewhere
+
+    integer, dimension(:,:), intent(out) :: global_edge_mask
+    type(parallel_type) :: parallel
+
+    associate(  &
+         local_ewn   => parallel%local_ewn,    &
+         local_nsn   => parallel%local_nsn,    &
+         east        => parallel%east,         &
+         west        => parallel%west,         &
+         north       => parallel%north,        &
+         south       => parallel%south)
+
+    ! Check array dimensions
+
+    ! unknown grid
+    if (size(global_edge_mask,1)/=local_ewn .or. size(global_edge_mask,2)/=local_nsn) then
+       write(*,*) "Unknown Grid: Size a=(", size(global_edge_mask,1), ",", size(global_edge_mask,2), &
+            ") and local_ewn and local_nsn = ", local_ewn, ",", local_nsn
+       call parallel_stop(__FILE__,__LINE__)
+    endif
+
+    ! Identify cells at the edge of the global domain
+
+    global_edge_mask = 0
+
+    if (this_rank >= east) then  ! at east edge of global domain
+       global_edge_mask(local_ewn-uhalo,:) = 1
+    endif
+
+    if (this_rank <= west) then  ! at west edge of global domain
+       global_edge_mask(lhalo+1,:) = 1
+    endif
+
+    if (this_rank >= north) then  ! at north edge of global domain
+       global_edge_mask(:,local_nsn-uhalo) = 1
+    endif
+
+    if (this_rank <= south) then  ! at south edge of global domain
+       global_edge_mask(:,lhalo+1) = 1
+    endif
+
+    call parallel_halo(global_edge_mask, parallel)
+
+    end associate
+
+  end subroutine parallel_global_edge_mask
+
+!=======================================================================
+
   !TODO - Is function parallel_globalID still needed?  No longer called except from glissade_test_halo.
 
   function parallel_globalID(locns, locew, upstride, parallel)
@@ -5814,6 +5890,93 @@ contains
     end associate
 
   end subroutine parallel_globalindex
+
+!=======================================================================
+
+  function parallel_global_sum_integer_2d(a, parallel)
+
+    ! Calculates the global sum of a 2D integer field
+
+    integer,dimension(:,:),intent(in) :: a
+    type(parallel_type) :: parallel
+
+    integer :: i, j
+    integer :: local_sum
+    integer :: parallel_global_sum_integer_2d
+
+    associate(  &
+         local_ewn   => parallel%local_ewn,    &
+         local_nsn   => parallel%local_nsn)
+
+    local_sum = 0
+    do j = nhalo+1, local_nsn-nhalo
+       do i = nhalo+1, local_ewn-nhalo
+          local_sum = local_sum + a(i,j)
+       enddo
+    enddo
+    parallel_global_sum_integer_2d = parallel_reduce_sum(local_sum)
+
+    end associate
+
+  end function parallel_global_sum_integer_2d
+
+!=======================================================================
+
+  function parallel_global_sum_real4_2d(a, parallel)
+
+    ! Calculates the global sum of a 2D single-precision field
+
+    real(sp),dimension(:,:),intent(in) :: a
+    type(parallel_type) :: parallel
+
+    integer :: i, j
+    real(sp) :: local_sum
+    real(sp) :: parallel_global_sum_real4_2d
+
+    associate(  &
+         local_ewn   => parallel%local_ewn,    &
+         local_nsn   => parallel%local_nsn)
+
+    local_sum = 0.0
+    do j = nhalo+1, local_nsn-nhalo
+       do i = nhalo+1, local_ewn-nhalo
+          local_sum = local_sum + a(i,j)
+       enddo
+    enddo
+    parallel_global_sum_real4_2d = parallel_reduce_sum(local_sum)
+
+    end associate
+
+  end function parallel_global_sum_real4_2d
+
+!=======================================================================
+
+  function parallel_global_sum_real8_2d(a, parallel)
+
+    ! Calculates the global sum of a 2D double-precision field
+
+    real(dp),dimension(:,:),intent(in) :: a
+    type(parallel_type) :: parallel
+
+    integer :: i, j
+    real(dp) :: local_sum
+    real(dp) :: parallel_global_sum_real8_2d
+
+    associate(  &
+         local_ewn   => parallel%local_ewn,    &
+         local_nsn   => parallel%local_nsn)
+
+    local_sum = 0.0d0
+    do j = nhalo+1, local_nsn-nhalo
+       do i = nhalo+1, local_ewn-nhalo
+          local_sum = local_sum + a(i,j)
+       enddo
+    enddo
+    parallel_global_sum_real8_2d = parallel_reduce_sum(local_sum)
+
+    end associate
+
+  end function parallel_global_sum_real8_2d
 
 !=======================================================================
 
@@ -6518,6 +6681,130 @@ contains
     end associate
 
   end subroutine parallel_halo_real8_3d
+
+
+  subroutine parallel_halo_real8_4d(a, parallel)
+
+    use mpi_mod
+    implicit none
+    real(dp),dimension(:,:,:,:) :: a
+    type(parallel_type) :: parallel
+
+    integer :: erequest,ierror,one,nrequest,srequest,wrequest
+    real(dp),dimension(size(a,1), size(a,2), lhalo, parallel%local_nsn-lhalo-uhalo) :: esend,wrecv
+    real(dp),dimension(size(a,1), size(a,2), uhalo, parallel%local_nsn-lhalo-uhalo) :: erecv,wsend
+    real(dp),dimension(size(a,1), size(a,2), parallel%local_ewn, lhalo) :: nsend,srecv
+    real(dp),dimension(size(a,1), size(a,2), parallel%local_ewn, uhalo) :: nrecv,ssend
+
+    ! begin
+    associate(  &
+         outflow_bc  => parallel%outflow_bc,   &
+         no_ice_bc   => parallel%no_ice_bc,    &
+         local_ewn   => parallel%local_ewn,    &
+         local_nsn   => parallel%local_nsn,    &
+         east        => parallel%east,         &
+         west        => parallel%west,         &
+         north       => parallel%north,        &
+         south       => parallel%south,        &
+         southwest_corner  => parallel%southwest_corner,   &
+         southeast_corner  => parallel%southeast_corner,   &
+         northeast_corner  => parallel%northeast_corner,   &
+         northwest_corner  => parallel%northwest_corner    &
+         )
+
+    ! staggered grid
+    if (size(a,3)==local_ewn-1.and.size(a,4)==local_nsn-1) return
+
+    ! unknown grid
+    if (size(a,3)/=local_ewn.or.size(a,4)/=local_nsn) then
+         write(*,*) "Unknown Grid: Size a=(", size(a,1), ",", size(a,2), ",", size(a,3), ",", size(a,4), ") &
+                 &and local_ewn and local_nsn = ", local_ewn, ",", local_nsn
+         call parallel_stop(__FILE__,__LINE__)
+    endif
+
+    ! unstaggered grid
+    call mpi_irecv(wrecv,size(wrecv),mpi_real8,west,west,&
+         comm,wrequest,ierror)
+    call mpi_irecv(erecv,size(erecv),mpi_real8,east,east,&
+         comm,erequest,ierror)
+    call mpi_irecv(srecv,size(srecv),mpi_real8,south,south,&
+         comm,srequest,ierror)
+    call mpi_irecv(nrecv,size(nrecv),mpi_real8,north,north,&
+         comm,nrequest,ierror)
+
+    esend(:,:,:,:) = &
+         a(:,:,local_ewn-uhalo-lhalo+1:local_ewn-uhalo,1+lhalo:local_nsn-uhalo)
+    call mpi_send(esend,size(esend),mpi_real8,east,this_rank,comm,ierror)
+    wsend(:,:,:,:) = a(:,:,1+lhalo:1+lhalo+uhalo-1,1+lhalo:local_nsn-uhalo)
+    call mpi_send(wsend,size(wsend),mpi_real8,west,this_rank,comm,ierror)
+
+    call mpi_wait(wrequest,mpi_status_ignore,ierror)
+    a(:,:,:lhalo,1+lhalo:local_nsn-uhalo) = wrecv(:,:,:,:)
+    call mpi_wait(erequest,mpi_status_ignore,ierror)
+    a(:,:,local_ewn-uhalo+1:,1+lhalo:local_nsn-uhalo) = erecv(:,:,:,:)
+
+    nsend(:,:,:,:) = a(:,:,:,local_nsn-uhalo-lhalo+1:local_nsn-uhalo)
+    call mpi_send(nsend,size(nsend),mpi_real8,north,this_rank,comm,ierror)
+    ssend(:,:,:,:) = a(:,:,:,1+lhalo:1+lhalo+uhalo-1)
+    call mpi_send(ssend,size(ssend),mpi_real8,south,this_rank,comm,ierror)
+
+    call mpi_wait(srequest,mpi_status_ignore,ierror)
+    a(:,:,:,:lhalo) = srecv(:,:,:,:)
+    call mpi_wait(nrequest,mpi_status_ignore,ierror)
+    a(:,:,:,local_nsn-uhalo+1:) = nrecv(:,:,:,:)
+
+    if (outflow_bc) then   ! set values in global halo to zero
+                           ! interior halo cells should not be affected
+
+       if (this_rank >= east) then  ! at east edge of global domain
+          a(:,:,local_ewn-uhalo+1:,:) = 0.d0
+       endif
+
+       if (this_rank <= west) then  ! at west edge of global domain
+          a(:,:,:lhalo,:) = 0.d0
+       endif
+
+       if (this_rank >= north) then  ! at north edge of global domain
+          a(:,:,:,local_nsn-uhalo+1:) = 0.d0
+       endif
+
+       if (this_rank <= south) then  ! at south edge of global domain
+          a(:,:,:,:lhalo) = 0.d0
+       endif
+
+    elseif (no_ice_bc) then
+
+       ! Set values to zero in cells adjacent to the global boundary;
+       ! includes halo cells and one row of locally owned cells
+
+       if (this_rank >= east) then  ! at east edge of global domain
+          a(:,:,local_ewn-uhalo:,:) = 0.d0
+       endif
+
+       if (this_rank <= west) then  ! at west edge of global domain
+          a(:,:,:lhalo+1,:) = 0.d0
+       endif
+
+       if (this_rank >= north) then  ! at north edge of global domain
+          a(:,:,:,local_nsn-uhalo:) = 0.d0
+       endif
+
+       if (this_rank <= south) then  ! at south edge of global domain
+          a(:,:,:,:lhalo+1) = 0.d0
+       endif
+
+       ! Some interior blocks have a single cell at a corner of the global boundary.
+       ! Set values in corner cells to zero, along with adjacent halo cells.
+       if (southwest_corner) a(:,:,:lhalo+1,:lhalo+1) = 0.d0
+       if (southeast_corner) a(:,:,local_ewn-lhalo:,:lhalo+1) = 0.d0
+       if (northeast_corner) a(:,:,local_ewn-lhalo:,local_nsn-lhalo:) = 0.d0
+       if (northwest_corner) a(:,:,:lhalo+1,local_nsn-lhalo:) = 0.d0
+
+    endif   ! outflow or no_ice bc
+
+    end associate
+
+  end subroutine parallel_halo_real8_4d
 
 !=======================================================================
 
@@ -7575,6 +7862,26 @@ contains
   end function parallel_put_var_integer
 
 
+  function parallel_put_var_integer_1d(ncid, varid, values, start)
+
+    implicit none
+    integer :: ncid,parallel_put_var_integer_1d,varid
+    integer,dimension(:) :: values
+    integer,dimension(:),optional :: start
+
+    ! begin
+    if (main_task) then
+       if (present(start)) then
+          parallel_put_var_integer_1d = nf90_put_var(ncid,varid,values,start)
+       else
+          parallel_put_var_integer_1d = nf90_put_var(ncid,varid,values)
+       endif
+    endif
+    call broadcast(parallel_put_var_integer_1d)
+
+  end function parallel_put_var_integer_1d
+
+
   function parallel_put_var_real4(ncid, varid, values, start)
 
     implicit none
@@ -7646,6 +7953,44 @@ contains
     call broadcast(parallel_redef)
 
   end function parallel_redef
+
+!=======================================================================
+
+  ! functions for parallel reduction of logical variables
+  ! * parallel_reduce_log_or returns 'true' iff x = 'true' on at least one processor
+  ! * parallel_reduce_log_and returns 'true' iff x = 'true' on all processors
+
+  function parallel_reduce_log_or(x)
+
+    use mpi_mod
+    implicit none
+    logical :: x
+
+    integer :: ierror
+    logical :: recvbuf,sendbuf, parallel_reduce_log_or
+
+    ! begin
+    sendbuf = x
+    call mpi_allreduce(sendbuf,recvbuf,1,mpi_logical,mpi_lor,comm,ierror)
+    parallel_reduce_log_or = recvbuf
+
+  end function parallel_reduce_log_or
+
+  function parallel_reduce_log_and(x)
+
+    use mpi_mod
+    implicit none
+    logical :: x
+
+    integer :: ierror
+    logical :: recvbuf,sendbuf, parallel_reduce_log_and
+
+    ! begin
+    sendbuf = x
+    call mpi_allreduce(sendbuf,recvbuf,1,mpi_logical,mpi_land,comm,ierror)
+    parallel_reduce_log_and = recvbuf
+
+  end function parallel_reduce_log_and
 
 !=======================================================================
 
@@ -7791,6 +8136,22 @@ contains
 
   end function parallel_reduce_max_real8
 
+  function parallel_reduce_max_real8_1d(x)
+
+    use mpi_mod
+    implicit none
+    real(dp), dimension(:) :: x
+
+    integer :: ierror
+    real(dp), dimension(size(x)) :: recvbuf,sendbuf, parallel_reduce_max_real8_1d
+
+    ! begin
+    sendbuf = x
+    call mpi_allreduce(sendbuf,recvbuf,size(x),mpi_real8,mpi_max,comm,ierror)
+    parallel_reduce_max_real8_1d = recvbuf
+
+  end function parallel_reduce_max_real8_1d
+
 !=======================================================================
 
   ! functions belonging to the parallel_reduce_maxloc interface
@@ -7912,6 +8273,23 @@ contains
 
   end function parallel_reduce_min_real8
 
+
+  function parallel_reduce_min_real8_1d(x)
+
+    use mpi_mod
+    implicit none
+    real(dp), dimension(:) :: x
+
+    integer :: ierror
+    real(dp), dimension(size(x)) :: recvbuf,sendbuf, parallel_reduce_min_real8_1d
+
+    ! begin
+    sendbuf = x
+    call mpi_allreduce(sendbuf,recvbuf,size(x),mpi_real8,mpi_min,comm,ierror)
+    parallel_reduce_min_real8_1d = recvbuf
+
+  end function parallel_reduce_min_real8_1d
+
 !=======================================================================
 
   ! subroutines belonging to the parallel_reduce_minloc interface
@@ -8031,6 +8409,136 @@ contains
     call broadcast(parallel_sync)
 
   end function parallel_sync
+
+!=======================================================================
+
+  subroutine parallel_test_comm_row_col(parallel)
+
+    ! Test the communicators for rows and columns of processors.
+    ! Optionally, these communicators can be used when solving a 1D system of equations
+    !  along a single row or column of the domain.
+
+    use mpi_mod
+
+    type(parallel_type), intent(in) :: parallel
+
+    integer :: i, j, ierror
+    real(dp), dimension(:,:), allocatable :: test_array
+    real(dp), dimension(:,:), allocatable :: global_test_array
+
+    ! Test the row and column communicators
+
+    ! row gather/scatter
+
+    ! mpi barriers not strictly needed, but can make print statements cleaner
+    call mpi_barrier(parallel%comm_row,ierror)
+    call mpi_barrier(parallel%comm_col,ierror)
+
+    allocate(test_array(2,parallel%own_nsn))
+
+    do j = 1, parallel%own_nsn
+       do i = 1, 2
+          test_array(i,j) = (this_rank + 2) * real(i*j, dp)
+       enddo
+    enddo
+
+    if (this_rank == 0 .or. this_rank == 1) then
+       print*, ' '
+       do i = 1, 2
+          print*, 'test_array, i, this_rank =', i, this_rank
+          do j = 1, parallel%own_nsn
+             write(6,'(f6.0)',advance='no') test_array(i,j)
+          enddo
+          print*, ' '
+          print*, ' '
+       enddo
+    endif   ! this_rank
+
+    call distributed_gather_var_row(test_array, global_test_array, parallel)
+
+!!    if (parallel%main_task_row) then
+    if (parallel%main_task_row .and. this_rank == 0) then
+       do i = 1, 2*parallel%tasks_row
+          print*, 'Gathered row test_array, this_rank, i =', this_rank, i
+          do j = 1, size(global_test_array,2)
+             write(6,'(f6.0)',advance='no') global_test_array(i,j)
+          enddo
+          print*, ' '
+       enddo
+       print*, ' '
+    endif
+
+    call distributed_scatter_var_row(test_array, global_test_array, parallel)
+
+    if (this_rank == 0) then
+       print*, ' '
+       do i = 1, 2
+          print*, 'Scattered test_array, i, this_rank =', i, this_rank
+          do j = 1, parallel%own_nsn
+             write(6,'(f6.0)',advance='no') test_array(i,j)
+          enddo
+          print*, ' '
+          print*, ' '
+       enddo
+    endif   ! this_rank
+
+    deallocate(test_array)
+
+    ! column gather/scatter
+
+    call mpi_barrier(parallel%comm_row,ierror)
+    call mpi_barrier(parallel%comm_col,ierror)
+
+    allocate(test_array(2,parallel%own_ewn))
+    do j = 1, 2
+       do i = 1, parallel%own_ewn
+          test_array(j,i) = (this_rank + 2) * real(j*i, dp)
+       enddo
+    enddo
+
+    if (this_rank == 0 .or. this_rank == 2) then
+       print*, ' '
+       do j = 1, 2
+          print*, 'test_array: j, this_rank =', j, this_rank
+          do i = 1, parallel%own_ewn
+             write(6,'(f6.0)',advance='no') test_array(j,i)
+          enddo
+          print*, ' '
+          print*, ' '
+       enddo
+    endif   ! this_rank
+
+    call distributed_gather_var_col(test_array, global_test_array, parallel)
+
+!!    if (parallel%main_task_col) then
+    if (parallel%main_task_col .and. this_rank == 0) then
+       do j = 1, 2*parallel%tasks_col
+          print*, 'Gathered column test_array, this_rank, j =', this_rank, j
+          do i = 1, size(global_test_array,2)
+             write(6,'(f6.0)',advance='no') global_test_array(j,i)
+          enddo
+          print*, ' '
+       enddo
+       print*, ' '
+    endif
+
+    call distributed_scatter_var_col(test_array, global_test_array, parallel)
+
+    if (this_rank == 0) then
+       print*, ' '
+       do j = 1, 2
+          print*, 'Scattered test_array, j, this_rank =', j, this_rank
+          do i = 1, parallel%own_ewn
+             write(6,'(f6.0)',advance='no') test_array(j,i)
+          enddo
+          print*, ' '
+          print*, ' '
+       enddo
+    endif   ! this_rank
+
+    deallocate(test_array)
+
+  end subroutine parallel_test_comm_row_col
 
 !=======================================================================
 
@@ -9296,7 +9804,7 @@ contains
          gather_block_size = min(max(1,flow_cntl),max_gather_block_size)
          fc_gather = .true.
       else
-        fc_gather = .false.
+         fc_gather = .false.
       endif
    else
       gather_block_size = max(1,max_gather_block_size)
@@ -9352,7 +9860,7 @@ contains
                             comm, ier )
          end if
 
-     endif
+      endif
 
    else
  
