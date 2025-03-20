@@ -2529,8 +2529,14 @@ module glissade_therm
        do ew = 1, ewn
           if (f_ground_cell(ew,ns) > 0.0d0 .or. floating_mask(ew,ns) == 1) then  ! ice-filled
              if (flow_enhancement_factor(ew,ns) == 0.0d0) then
-                write(message,*) 'glissade_flow_factor, E = 0 in cell with ice, rank, i, j =', this_rank, ew, ns
-                call write_log(trim(message), GM_FATAL)
+!!                write(message,*) 'glissade_flow_factor, E = 0 in cell with ice, rank, i, j =', this_rank, ew, ns
+!!                call write_log(trim(message), GM_FATAL)
+                !WHL - Assign the default value
+                if (floating_mask(ew,ns) == 1) then
+                   flow_enhancement_factor(ew,ns) = flow_enhancement_factor_float
+                else
+                   flow_enhancement_factor(ew,ns) = flow_enhancement_factor_ground
+                endif
              endif
           endif
        enddo

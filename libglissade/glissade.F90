@@ -4173,10 +4173,13 @@ contains
           call glissade_inversion_deltaT_ocn(&
                model%numerics%dt * tim0,              &  ! s
                ewn,           nsn,                    &
+               model%numerics%dew*len0,               &   ! m
+               model%numerics%dns*len0,               &   ! m
                itest, jtest,  rtest,                  &
                model%inversion%deltaT_ocn_thck_scale, &  ! m
                model%inversion%deltaT_ocn_timescale,  &  ! s
                model%inversion%deltaT_ocn_temp_scale, &  ! degC
+               model%inversion%deltaT_ocn_length_scale,& ! m
                model%inversion%deltaT_ocn_relax,      &  ! degC
                model%inversion%thck_error_exponent,   &
                model%geometry%f_ground_cell,          &
@@ -4282,6 +4285,8 @@ contains
           call glissade_inversion_flow_enhancement_factor(&
                model%numerics%dt * tim0,                         &
                ewn, nsn,                                         &
+               model%numerics%dew*len0,                          &  ! m
+               model%numerics%dns*len0,                          &  ! m
                itest, jtest, rtest,                              &
                model%velocity%velo_sfc * vel0,                   &  ! m/s
                model%velocity%velo_sfc_obs * vel0,               &  ! m/s
@@ -4294,6 +4299,7 @@ contains
                model%inversion%flow_enhancement_velo_scale,      &  ! m/s
                model%inversion%flow_enhancement_timescale,       &  ! s
                model%inversion%flow_enhancement_thck_scale,      &  ! m
+               model%inversion%flow_enhancement_length_scale,    &  ! m
                model%inversion%flow_enhancement_relax_factor,    &
                model%temper%flow_enhancement_factor)
 

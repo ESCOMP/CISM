@@ -2306,10 +2306,12 @@ contains
 
     call GetValue(section, 'inversion_babc_timescale', model%inversion%babc_timescale)
     call GetValue(section, 'inversion_babc_thck_scale', model%inversion%babc_thck_scale)
+    call GetValue(section, 'inversion_babc_length_scale', model%inversion%babc_length_scale)
     call GetValue(section, 'inversion_babc_relax_factor', model%inversion%babc_relax_factor)
 
     call GetValue(section, 'inversion_deltaT_ocn_timescale', model%inversion%deltaT_ocn_timescale)
     call GetValue(section, 'inversion_deltaT_ocn_thck_scale', model%inversion%deltaT_ocn_thck_scale)
+    call GetValue(section, 'inversion_deltaT_ocn_length_scale', model%inversion%deltaT_ocn_length_scale)
     call GetValue(section, 'inversion_deltaT_ocn_temp_scale', model%inversion%deltaT_ocn_temp_scale)
     call GetValue(section, 'inversion_deltaT_ocn_relax', model%inversion%deltaT_ocn_relax)
     call GetValue(section, 'inversion_basin_flotation_threshold', &
@@ -2321,6 +2323,8 @@ contains
          model%inversion%flow_enhancement_velo_scale)
     call GetValue(section, 'inversion_flow_enhancement_thck_scale', &
          model%inversion%flow_enhancement_thck_scale)
+    call GetValue(section, 'inversion_flow_enhancement_length_scale', &
+         model%inversion%flow_enhancement_length_scale)
     call GetValue(section, 'inversion_flow_enhancement_relax_factor', &
          model%inversion%flow_enhancement_relax_factor)
 
@@ -2784,6 +2788,9 @@ contains
        write(message,*) 'timescale (yr) for C_p inversion             : ', &
             model%inversion%babc_timescale
        call write_log(message)
+       write(message,*) 'diffusion length scale (m) for C_p inversion : ', &
+            model%inversion%babc_length_scale
+       call write_log(message)
        write(message,*) 'relaxation factor for C_p inversion          : ', &
             model%inversion%babc_relax_factor
        call write_log(message)
@@ -2801,6 +2808,9 @@ contains
        call write_log(message)
        write(message,*) 'timescale (yr) for C_c inversion             : ', &
             model%inversion%babc_timescale
+       call write_log(message)
+       write(message,*) 'diffusion length scale (m) for C_c inversion : ', &
+            model%inversion%babc_length_scale
        call write_log(message)
        write(message,*) 'relaxation factor for C_c inversion          : ', &
             model%inversion%babc_relax_factor
@@ -2849,6 +2859,10 @@ contains
                   model%inversion%basin_mass_correction
              call write_log(message)
           endif
+       else   ! deltaT_ocn_inversion
+          write(message,*) 'length scale (m) for dT_ocn inversion       : ', &
+            model%inversion%babc_length_scale
+          call write_log(message)
        endif   ! deltaT_basin inversion
     endif   ! deltaT_ocn or deltaT_basin inversion
 
@@ -2869,6 +2883,9 @@ contains
        call write_log(message)
        write(message,*) 'timescale (yr) for flow factor inversion       : ', &
             model%inversion%flow_enhancement_timescale
+       call write_log(message)
+       write(message,*) 'length scale (m) for flow factor inversion     : ', &
+            model%inversion%flow_enhancement_length_scale
        call write_log(message)
        write(message,*) 'relaxation factor for flow factor inversion    : ', &
             model%inversion%flow_enhancement_relax_factor
@@ -3423,11 +3440,13 @@ contains
        endif
 
        if (model%glacier%set_powerlaw_c == GLACIER_POWERLAW_C_INVERSION) then
-          write(message,*) 'powerlaw_c_timescale        :  ', model%inversion%babc_timescale
+          write(message,*) 'powerlaw_c_timescale (yr)       :  ', model%inversion%babc_timescale
           call write_log(message)
-          write(message,*) 'powerlaw_c_thck_scale       :  ', model%inversion%babc_thck_scale
+          write(message,*) 'powerlaw_c_thickness scale (m)  :  ', model%inversion%babc_thck_scale
           call write_log(message)
-          write(message,*) 'powerlaw_c_relax_factor     :  ', model%inversion%babc_relax_factor
+          write(message,*) 'powerlaw_c length scale (m)     :  ', model%inversion%babc_length_scale
+          call write_log(message)
+          write(message,*) 'powerlaw_c_relax_factor         :  ', model%inversion%babc_relax_factor
           call write_log(message)
        endif
 

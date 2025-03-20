@@ -1726,14 +1726,16 @@ module glide_types
      real(dp) ::  &
           babc_timescale  = 200.d0,            & !> inversion timescale (yr); must be > 0
           babc_thck_scale = 100.d0,            & !> thickness inversion scale (m)
+          babc_length_scale = 0.0d0,           & !> diffusive length scale (m) for inversion
           babc_relax_factor = 0.05d0             !> controls strength of relaxation to default values (unitless)
 
      ! parameters for local deltaT_ocn inversion
      ! Note: deltaT_ocn is in the ocean_data type
      real(dp) ::  &
-          deltaT_ocn_thck_scale = 100.0d0,     & !> thickness scale (m) for adjusting deltaT_ocn
-          deltaT_ocn_timescale = 100.0d0,      & !> timescale (yr) for adjusting deltaT_ocn
-          deltaT_ocn_temp_scale = 2.0d0,       & !> temperature scale (degC) for adjusting deltaT_ocn
+          deltaT_ocn_timescale = 200.0d0,      & !> inversion timescale (yr)
+          deltaT_ocn_thck_scale = 100.0d0,     & !> inversion thickness scale (m)
+          deltaT_ocn_temp_scale = 2.0d0,       & !> inversion temperature scale (degC)
+          deltaT_ocn_length_scale = 0.d0,      & !> diffusive length scale (m) for inversion
           deltaT_ocn_relax = 0.0d0               !> deltaT_ocn toward which we relax (deg C);
                                                  !> typically = 0 since we prefer a correction as small as possible
 
@@ -1749,9 +1751,10 @@ module glide_types
 
      ! parameters for flow_enhancement_factor inversion
      real(dp) ::  &
-          flow_enhancement_velo_scale = 100.d0, & !> velocity scale (m/yr) for adjusting flow_enhancement_factor
-          flow_enhancement_thck_scale = 100.d0, & !> thickness scale (m) for adjusting flow_enhancement_factor
-          flow_enhancement_timescale = 200.d0,  & !> timescale (yr) for adjusting flow_enhancement_factor
+          flow_enhancement_timescale = 200.d0,  & !> inversion timescale (yr)
+          flow_enhancement_velo_scale = 100.d0, & !> inversion velocity scale (m/yr)
+          flow_enhancement_thck_scale = 100.d0, & !> inversion thickness scale (m)
+          flow_enhancement_length_scale = 0.d0, & !> diffusive length scale (m) for inversion
           flow_enhancement_relax_factor = 1.0d0   !> controls strength of relaxation to default values (unitless)
 
   end type glide_inversion
