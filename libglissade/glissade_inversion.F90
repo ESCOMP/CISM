@@ -552,17 +552,17 @@ contains
 !          print*, 'Moeten we de dx nog schalen: ',  model%numerics%dew*thk0*100
 
           call glissade_gradient(ewn-1,nsn-1,   &
-                                model%numerics%dew*thk0, model%numerics%dns*thk0*100,       &
+                                model%numerics%dew, model%numerics%dns,       &
                                 model%basal_physics%coulomb_c,&
                                 dC_dx, dC_dy)
 
           call glissade_gradient(ewn-1,nsn-1,   &
-                                model%numerics%dew*thk0, model%numerics%dns*thk0*100,       &
+                                model%numerics%dew, model%numerics%dns,       &
                                 dC_dx,&
                                 dC2_dx, dC_dxdy)
 
           call glissade_gradient(ewn-1,nsn-1,   &
-                                model%numerics%dew*thk0, model%numerics%dns*thk0*100,       &
+                                model%numerics%dew, model%numerics%dns,       &
                                 dC_dy,&
                                 dC_dxdy, dC2_dy)
 
@@ -1112,8 +1112,8 @@ contains
              ! Add a laplacian smoothing term to the dfriction term
              if (laplacian_time_scale > 0.d0 ) then
                     term_laplacian = (dC2_dx(i,j) + dC2_dy(i,j))*((laplacian_length_scale**2)/laplacian_time_scale) 
- !                   print*, 'Pinguin, term_laplacian, dC2_dx, dC2_dy, length_scale, laplacian_time_scale'
- !                   print*,  term_laplacian, dC2_dx(i,j), dC2_dy(i,j), laplacian_length_scale, laplacian_time_scale                    
+                    print*, 'Pinguin, term_laplacian, dC2_dx, dC2_dy, length_scale, laplacian_time_scale'
+                    print*,  term_laplacian, dC2_dx(i,j), dC2_dy(i,j), laplacian_length_scale, laplacian_time_scale                    
                     
              else  
                     term_laplacian = 0.0d0
