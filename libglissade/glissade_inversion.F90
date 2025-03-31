@@ -896,7 +896,7 @@ contains
     ! Note: For grounded ice with fixed topography, inversion based on thck is equivalent to inversion based on usrf.
     !       But for ice that is partly floating, it seems better to invert based on thck, because thck errors
     !        are greater in magnitude than usrf errors, and we do not want to underweight the errors.
-
+    use glissade_grid_operators only glissade_laplacian_stagvar
     real(dp), intent(in) ::  dt  ! time step (s)
 
     integer, intent(in) :: &
@@ -960,6 +960,13 @@ contains
     ! Note: Where the target cell is ice-free, stag_dthck will be > 0, to encourage thinning.
     !       Where the target speed = 0 (because of missing data, or because the target
     !        is ice-free), there is no nudging toward a target speed.
+
+    !Bills laplacian, as alternative to my own (probably crude working) laplacian
+
+    glissade_laplacian_stagvar(&
+        nx,    ny              &
+        
+
 
     stag_dthck(:,:) = stag_thck(:,:) - stag_thck_obs(:,:)
 

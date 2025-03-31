@@ -52,6 +52,8 @@ module glissade_grid_operators
               glissade_average_to_edges,            &
               glissade_surface_elevation_gradient,  &
               glissade_slope_angle,                 &
+              glissade_laplacian,                   &
+              glissade_laplacian_stagvar,           &
               glissade_laplacian_smoother,          &
               glissade_vertical_average,            &
               glissade_vertical_interpolate,        &
@@ -1459,6 +1461,81 @@ contains
   end subroutine glissade_laplacian
 
 !*****************************************************************************************
+  subroutine glissade_laplacian_stagvar(&
+       nx,        ny,          &
+       dx,        dy,          &
+       field,     del2_field,  &
+       del2_mask)
+
+    integer, intent(in) ::      &
+         nx, ny                   ! horizontal grid dimensions
+
+    real(dp), intent(in) ::      &
+         dx, dy                   ! grid cell length (m)
+
+    real(dp), dimension(nx-1,ny-1), intent(in) ::       &
+         field                    ! scalar field, defined at cell centers
+
+    real(dp), dimension(nx-1,ny-1), intent(out) ::    &
+         del2_field               ! Laplacian of the input field
+
+    integer, dimension(nx-1,ny-1), intent(in), optional ::        &
+         del2_mask                ! = 1 for cells to be included in the Laplacian, else = 0
+
+    ! Local variables
+
+    integer :: i, j
+
+    real(dp) :: &
+         df_dx_p, df_dx_m,  &     ! x-derivative terms in the Laplacian
+         df_dy_p, df_dy_m         ! y-derivative terms in the Laplacian
+
+    integer, dimension(nx-1,ny-1) :: &
+         mask                     ! = input mask if present, else defaults to 1 everywhere
+
+    if (present(del2_mask)) then
+       mask = del2_mask
+    else
+       mask = 1
+    endif
+
+    del2_field = 0.0d0
+
+    do j = 2, ny-2
+       do i = 2, nx-2
+
+          ! x derivative terms
+          if (mask(i+1,j) == 1 .and. mask(i,j) == 1) then
+             df_dx_p = (field(i+1,j) - field(i,j)) / dx
+          else
+             df_dx_p = 0.0d0
+          endif
+          if (mask(i-1,j) == 1 .and. mask(i,j) == 1) then
+             df_dx_m = (field(i,j) - field(i-1,j)) / dx
+          else
+             df_dx_m = 0.0d0
+          endif
+
+          ! y derivative terms
+          if (mask(i,j+1) == 1 .and. mask(i,j) == 1) then
+             df_dy_p = (field(i,j+1) - field(i,j)) / dy
+          else
+             df_dy_p = 0.0d0
+          endif
+          if (mask(i,j-1) == 1 .and. mask(i,j) == 1) then
+             df_dy_m = (field(i,j) - field(i,j-1)) / dy
+          else
+             df_dy_m = 0.0d0
+          endif
+
+          ! Laplacian
+          del2_field(i,j) = (df_dx_p - df_dx_m)/dx + (df_dy_p - df_dy_m)/dy
+
+       enddo
+    enddo
+
+  end subroutine glissade_laplacian_stagvar
+!**********************************
 
   subroutine glissade_laplacian_smoother(nx,         ny,            &
                                          var,        var_smooth,    &
