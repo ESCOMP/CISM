@@ -1110,7 +1110,7 @@ contains
              endif
              
              ! Add a laplacian smoothing term to the dfriction term
-             if (laplacian_time_scale > 0.d0 .and. dC2_dx(i,j) > 0.d0 ) then
+             if (laplacian_time_scale > 0.d0 ) then
                     term_laplacian = (dC2_dx(i,j) + dC2_dy(i,j))*((laplacian_length_scale**2)/laplacian_time_scale) 
  !                   print*, 'Pinguin, term_laplacian, dC2_dx, dC2_dy, length_scale, laplacian_time_scale'
  !                   print*,  term_laplacian, dC2_dx(i,j), dC2_dy(i,j), laplacian_length_scale, laplacian_time_scale                    
@@ -1120,7 +1120,11 @@ contains
              endif
                   
              dfriction_c(i,j) = friction_c(i,j) * dt &
-                  * (term_thck + term_dHdt + term_thck2 + term_velo + term_relax + term_laplacian)
+                  * (term_thck + term_dHdt + term_thck2 + term_velo + term_relax) + term_laplacian*dt
+!             print*,'term_thck, term_relax, term_laplacian, pinguin'
+!             print*, term_thck*friction_c(i,j) * dt, term_relax*friction_c(i,j) * dt, term_laplacian*dt
+ 
+
 
              ! Limit to prevent a large relative change in one step
              if (abs(dfriction_c(i,j)) > 0.05d0 * friction_c(i,j)) then
