@@ -552,17 +552,17 @@ contains
 !          print*, 'Moeten we de dx nog schalen: ',  model%numerics%dew*thk0*100
 
           call glissade_gradient(ewn-1,nsn-1,   &
-                                model%numerics%dew, model%numerics%dns,       &
+                                model%numerics%dew*len0, model%numerics%dns*len0,       &
                                 model%basal_physics%coulomb_c,&
                                 dC_dx, dC_dy)
 
           call glissade_gradient(ewn-1,nsn-1,   &
-                                model%numerics%dew, model%numerics%dns,       &
+                                model%numerics%dew*len0, model%numerics%dns*len0,       &
                                 dC_dx,&
                                 dC2_dx, dC_dxdy)
 
           call glissade_gradient(ewn-1,nsn-1,   &
-                                model%numerics%dew, model%numerics%dns,       &
+                                model%numerics%dew*len0, model%numerics%dns*len0,       &
                                 dC_dy,&
                                 dC_dxdy, dC2_dy)
 
@@ -647,6 +647,8 @@ contains
 
           call invert_basal_friction(model%numerics%dt*tim0,                   &  ! s
                                      ewn,               nsn,                   &
+                                     model%numerics%dew*len0,                  &
+                                     model%numerics%dns*len0,                  &
                                      itest,    jtest,   rtest,                 &
                                      model%inversion%babc_thck_scale,          &  ! m
                                      model%inversion%babc_timescale,           &  ! s
@@ -773,6 +775,8 @@ contains
 
           call invert_basal_friction(model%numerics%dt*tim0,                   &  ! s
                                      ewn,               nsn,                   &
+                                     model%numerics%dew*len0,                  &
+                                     model%numerics%dns*len0,                  &
                                      itest,    jtest,   rtest,                 &
                                      model%inversion%babc_thck_scale,          &  ! m
                                      model%inversion%babc_timescale,           &  ! s
@@ -862,6 +866,7 @@ contains
 
   subroutine invert_basal_friction(dt,                       &
                                    nx,            ny,        &
+                                   dx,            dy,        &
                                    itest, jtest,  rtest,     &
                                    babc_thck_scale,          &
                                    babc_timescale,           &
@@ -896,8 +901,8 @@ contains
     ! Note: For grounded ice with fixed topography, inversion based on thck is equivalent to inversion based on usrf.
     !       But for ice that is partly floating, it seems better to invert based on thck, because thck errors
     !        are greater in magnitude than usrf errors, and we do not want to underweight the errors.
-    use glissade_grid_operators only glissade_laplacian_stagvar
-    real(dp), intent(in) ::  dt  ! time step (s)
+    use glissade_grid_operators, only: glissade_laplacian_stagvar
+    real(dp), intent(in) ::  dt,dx,dy  ! time step (s)
 
     integer, intent(in) :: &
          nx, ny                  ! grid dimensions
@@ -939,7 +944,12 @@ contains
     real(dp), dimension(nx-1,ny-1) ::  &
          stag_dthck,           & ! stag_thck - stag_thck_obs
          dvelo_sfc,            & ! velo_sfc - velo_sfc_obs
-         dfriction_c             ! change in friction_c
+         dfriction_c,          & ! change in friction_c
+         del2_frictionc
+
+    integer, dimension(nx-1,ny-1) :: &
+        del2_mask
+         
 
     real(dp) ::  &
          term_thck, term_dHdt, term_thck2,  & ! tendency terms based on thickness target
@@ -963,9 +973,17 @@ contains
 
     !Bills laplacian, as alternative to my own (probably crude working) laplacian
 
-    glissade_laplacian_stagvar(&
-        nx,    ny              &
-        
+    where (f_ground > 0.d0)
+         del2_mask = 1
+    elsewhere
+         del2_mask = 0
+    endwhere
+
+    call glissade_laplacian_stagvar(&
+             nx,    ny,              &
+             dx,    dy,              &
+             friction_c, del2_frictionc, &
+             del2_mask)
 
 
     stag_dthck(:,:) = stag_thck(:,:) - stag_thck_obs(:,:)
@@ -1118,9 +1136,10 @@ contains
              
              ! Add a laplacian smoothing term to the dfriction term
              if (laplacian_time_scale > 0.d0 ) then
-                    term_laplacian = (dC2_dx(i,j) + dC2_dy(i,j))*((laplacian_length_scale**2)/laplacian_time_scale) 
-                    print*, 'Pinguin, term_laplacian, dC2_dx, dC2_dy, length_scale, laplacian_time_scale'
-                    print*,  term_laplacian, dC2_dx(i,j), dC2_dy(i,j), laplacian_length_scale, laplacian_time_scale                    
+!                    term_laplacian = (dC2_dx(i,j) + dC2_dy(i,j))*((laplacian_length_scale**2)/laplacian_time_scale) 
+                    term_laplacian = (del2_frictionc(i,j)) * ((laplacian_length_scale**2)/laplacian_time_scale)
+                  !  print*, 'Pinguin, term_laplacian, dC2_dx, dC2_dy, del2_frctionc, length_scale, laplacian_time_scale'
+                  !  print*,  term_laplacian, dC2_dx(i,j), dC2_dy(i,j), del2_frictionc(i,j), laplacian_length_scale, laplacian_time_scale                    
                     
              else  
                     term_laplacian = 0.0d0
