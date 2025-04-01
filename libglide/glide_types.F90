@@ -292,6 +292,9 @@ module glide_types
   integer, parameter :: HO_COULOMB_C_ERROR_NONE=0
   integer, parameter :: HO_COULOMB_C_ERROR_OBS = 1
 
+  integer, parameter :: HO_FRICTION_C_LINEAR = 0
+  integer, parameter :: HO_FRICTION_C_LOGARITHMIC = 1
+
   !TODO - Remove option 3?
   integer, parameter :: HO_DELTAT_OCN_NONE = 0
   integer, parameter :: HO_DELTAT_OCN_INVERSION = 1
@@ -940,6 +943,9 @@ module glide_types
     !> \item[2] coulomb_c_relax = function of bed elevation
     !> \end{description}
 
+    integer :: which_ho_friction_c = 0
+    ! 0 to treat it linear in the inversion procedure
+    ! 1 to treat it as logarithmic in the inversion procedure
 
     integer :: which_ho_coulomb_c_error = 0
     !> Flag for basal coulomb_c relax target at ice that is floating but should not be according to observations

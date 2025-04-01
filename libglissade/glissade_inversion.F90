@@ -650,6 +650,7 @@ contains
                                      model%numerics%dew*len0,                  &
                                      model%numerics%dns*len0,                  &
                                      itest,    jtest,   rtest,                 &
+                                     model%options%which_ho_friction_c,        &
                                      model%inversion%babc_thck_scale,          &  ! m
                                      model%inversion%babc_timescale,           &  ! s
                                      model%inversion%babc_relax_factor,        &
@@ -778,6 +779,7 @@ contains
                                      model%numerics%dew*len0,                  &
                                      model%numerics%dns*len0,                  &
                                      itest,    jtest,   rtest,                 &
+                                     model%options%which_ho_friction_c,        &
                                      model%inversion%babc_thck_scale,          &  ! m
                                      model%inversion%babc_timescale,           &  ! s
                                      model%inversion%babc_relax_factor,        &
@@ -868,6 +870,7 @@ contains
                                    nx,            ny,        &
                                    dx,            dy,        &
                                    itest, jtest,  rtest,     &
+                                   which_ho_friction_c,      &
                                    babc_thck_scale,          &
                                    babc_timescale,           &
                                    babc_relax_factor,        &
@@ -903,6 +906,8 @@ contains
     !        are greater in magnitude than usrf errors, and we do not want to underweight the errors.
     use glissade_grid_operators, only: glissade_laplacian_stagvar
     real(dp), intent(in) ::  dt,dx,dy  ! time step (s)
+
+    integer, intent(in) :: which_ho_friction_c !to treat coulomb c logarithmicly
 
     integer, intent(in) :: &
          nx, ny                  ! grid dimensions
@@ -945,11 +950,16 @@ contains
          stag_dthck,           & ! stag_thck - stag_thck_obs
          dvelo_sfc,            & ! velo_sfc - velo_sfc_obs
          dfriction_c,          & ! change in friction_c
-         del2_frictionc
+         del2_frictionc,       & 
+         logC,                 & !Logarithmic value of Coulomb C
+         LogC_relax,           & !Logarithmic value of coulomb C relaxation target
+         dLogC,                & !Logarithmic difference in coulomb c
+         del2_LogC
 
     integer, dimension(nx-1,ny-1) :: &
         del2_mask
          
+    real(dp) :: logmin
 
     real(dp) ::  &
          term_thck, term_dHdt, term_thck2,  & ! tendency terms based on thickness target
@@ -965,6 +975,7 @@ contains
 
     ! Initialize
     dfriction_c(:,:) = 0.0d0
+    logmin = -99.0d0
 
     ! Compute difference between current and target thickness and surface speed
     ! Note: Where the target cell is ice-free, stag_dthck will be > 0, to encourage thinning.
@@ -978,6 +989,23 @@ contains
     elsewhere
          del2_mask = 0
     endwhere
+
+    if (which_ho_friction_c == HO_FRICTION_C_LOGARITHMIC) then
+       where (friction_c > 0.d0)
+             logC=log10(friction_c)
+       elsewhere
+             logC=logmin
+       endwhere
+       LogC_relax = log10(friction_c_relax)
+
+       call glissade_laplacian_stagvar(&
+            nx,     ny,                &
+            dx,     dy,                & 
+            logC,   del2_LogC,         &
+            del2_mask)
+
+
+    endif !which_ho_friction_c
 
     call glissade_laplacian_stagvar(&
              nx,    ny,              &
@@ -1130,6 +1158,9 @@ contains
              !TvdA: I've added a plus something to the log to prevent logs of zero, that result in NaN
              if (friction_c_relax(i,j) > 0.0d0) then
                      term_relax = -babc_relax_factor * log((friction_c(i,j)+0.00001)/friction_c_relax(i,j)) / babc_timescale
+                if (which_ho_friction_c == HO_FRICTION_C_LOGARITHMIC) then
+                     term_relax = -babc_relax_factor *(LogC(i,j)/LogC_relax(i,j))   /babc_timescale
+                endif
              else 
                      term_relax = 0.0d0
              endif
@@ -1140,7 +1171,12 @@ contains
                     term_laplacian = (del2_frictionc(i,j)) * ((laplacian_length_scale**2)/laplacian_time_scale)
                   !  print*, 'Pinguin, term_laplacian, dC2_dx, dC2_dy, del2_frctionc, length_scale, laplacian_time_scale'
                   !  print*,  term_laplacian, dC2_dx(i,j), dC2_dy(i,j), del2_frictionc(i,j), laplacian_length_scale, laplacian_time_scale                    
-                    
+                 if (which_ho_friction_c == HO_FRICTION_C_LOGARITHMIC) then
+                
+                   term_laplacian = (del2_LogC(i,j)) * ((laplacian_length_scale**2)/laplacian_time_scale)
+                  !  print*, 'Pinguin, term_laplacian, dC2_dx, dC2_dy, del2_frctionc, length_scale, laplacian_time_scale'
+                  !  print*,  term_laplacian, dC2_dx(i,j), dC2_dy(i,j), del2_frictionc(i,j), laplacian_length_scale, laplacian_
+                 endif   
              else  
                     term_laplacian = 0.0d0
              endif
@@ -1149,7 +1185,10 @@ contains
                   * (term_thck + term_dHdt + term_thck2 + term_velo + term_relax) + term_laplacian*dt
 !             print*,'term_thck, term_relax, term_laplacian, pinguin'
 !             print*, term_thck*friction_c(i,j) * dt, term_relax*friction_c(i,j) * dt, term_laplacian*dt
- 
+             if (which_ho_friction_c == HO_FRICTION_C_LOGARITHMIC) then
+                dfriction_c(i,j) = friction_c(i,j)*dt*(term_thck + term_dHdt + term_thck2 + term_velo) +  &
+                     dt * (10**(term_laplacian) + 10**(term_relax))
+             endif
 
 
              ! Limit to prevent a large relative change in one step

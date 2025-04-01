@@ -792,6 +792,7 @@ contains
     call GetValue(section, 'which_ho_beta_limit',         model%options%which_ho_beta_limit)
     call GetValue(section, 'which_ho_powerlaw_c',         model%options%which_ho_powerlaw_c)
     call GetValue(section, 'which_ho_coulomb_c',          model%options%which_ho_coulomb_c)
+    call GetValue(section, 'which_ho_friction_c',         model%options%which_ho_friction_c)
     call GetValue(section, 'which_ho_coulomb_c_relax',    model%options%which_ho_coulomb_c_relax)
     call GetValue(section, 'which_ho_coulomb_c_error',    model%options%which_ho_coulomb_c_error)
     call GetValue(section, 'which_ho_bmlt_basin',         model%options%which_ho_bmlt_basin)
