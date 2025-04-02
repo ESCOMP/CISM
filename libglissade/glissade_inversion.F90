@@ -307,7 +307,6 @@ contains
              ! Set coulomb_c_relax based on bed elevation, and set coulomb_c = coulomb_c_relax.
              ! Note: If the bed topography is fixed, coulomb_c_relax could be set once and for all.
              !       If isostasy is on, coulomb_c_relax needs to be reset as the bed evolves.
-             ! TODO: Set coulomb_c to a lower value in ocean and floating cells?
 
              call set_coulomb_c_elevation(&
                   ewn,                nsn,                   &
@@ -442,6 +441,11 @@ contains
     real(dp), dimension(model%general%ewn,model%general%nsn) :: thck_unscaled
 
     logical :: &
+         inversion_relax_everywhere  ! if true, then nudge inversion parameters toward relaxed values everywhere
+                                     ! if false, then keep values from previous rounds of inversion in regions where
+                                     !  inversion is currently inactive (i.e., floating and ice-free cells)
+
+    logical :: &
          f_ground_weight = .false.  ! if true, then weigh ice thickness by f_ground_cell for staggered interpolation
                                     ! 3/19/25: Reverted to false
 
@@ -486,6 +490,17 @@ contains
             model%geometry%topg,      &
             model%climate%eus,        &
             thck_obs)
+
+       ! Set inversion_relax_everywhere
+       ! If true, CISM will compute powerlaw_c or coulomb_c in floating and ice-free cells
+       !  to give a smooth transition in values across the grounding line.
+       ! If toggling inversion on and off, set to false so as not to overwrite values
+       !  in cells that were previously grounded.
+       if (model%inversion%toggle_frequency > 0.0d0) then
+          inversion_relax_everywhere = .false.
+       else
+          inversion_relax_everywhere = .true.
+       endif
 
        ! Interpolate the thickness fields to the staggered grid
        !WHL - As of 3/19/25: Set f_ground_weight = .false., which replaces the calls to
@@ -562,6 +577,7 @@ contains
                                      model%inversion%thck_error_exponent,      &
                                      model%basal_physics%powerlaw_c_max,       &
                                      model%basal_physics%powerlaw_c_min,       &
+                                     inversion_relax_everywhere,               &
                                      model%geometry%f_ground,                  &
                                      stag_thck*thk0,                           &  ! m
                                      stag_thck_obs*thk0,                       &  ! m
@@ -639,6 +655,7 @@ contains
                                      model%inversion%thck_error_exponent,      &
                                      model%basal_physics%coulomb_c_max,        &
                                      model%basal_physics%coulomb_c_min,        &
+                                     inversion_relax_everywhere,               &
                                      model%geometry%f_ground,                  &
                                      stag_thck*thk0,                           &  ! m
                                      stag_thck_obs*thk0,                       &  ! m
@@ -666,7 +683,7 @@ contains
     endif   ! invert_powerlaw_c or invert_coulomb_c
 
     ! Replace zeroes (if any) with small nonzero values to avoid divzeroes.
-    ! Note: The current algorithm initializes Cc to a nonzero value everywhere and never sets Cc = 0;
+    ! Note: The current algorithm initializes Cc to a nonzero value everywhere and never sets Cp = 0;
     !       this code is just to be on the safe side.
 
     if (model%options%which_ho_powerlaw_c /= HO_POWERLAW_C_CONSTANT) then
@@ -685,23 +702,25 @@ contains
 
 !***********************************************************************
 
-  subroutine invert_basal_friction(dt,                       &
-                                   nx,            ny,        &
-                                   dx,            dy,        &
-                                   itest, jtest,  rtest,     &
-                                   babc_thck_scale,          &
-                                   babc_timescale,           &
-                                   babc_length_scale,        &
-                                   babc_relax_factor,        &
-                                   thck_error_exponent,      &
-                                   friction_c_max,           &
-                                   friction_c_min,           &
-                                   f_ground,                 &
-                                   stag_thck,                &
-                                   stag_thck_obs,            &
-                                   stag_dthck_dt,            &
-                                   friction_c_relax,         &
-                                   friction_c)
+  subroutine invert_basal_friction(&
+       dt,                        &
+       nx,            ny,         &
+       dx,            dy,         &
+       itest, jtest,  rtest,      &
+       babc_thck_scale,           &
+       babc_timescale,            &
+       babc_length_scale,         &
+       babc_relax_factor,         &
+       thck_error_exponent,       &
+       friction_c_max,            &
+       friction_c_min,            &
+       inversion_relax_everywhere,&
+       f_ground,                  &
+       stag_thck,                 &
+       stag_thck_obs,             &
+       stag_dthck_dt,             &
+       friction_c_relax,          &
+       friction_c)
 
     use glissade_grid_operators, only: glissade_laplacian_stagvar
 
@@ -736,6 +755,11 @@ contains
          thck_error_exponent,  & ! exponent for the thickness error inversion term
          friction_c_max,       & ! upper bound for friction_c (units correspond to powerlaw_c or coulomb_c)
          friction_c_min          ! lower bound for friction_c
+
+    logical, intent(in) :: &
+         inversion_relax_everywhere  ! if true, then nudge inversion parameters toward relaxed values everywhere
+                                     ! if false, then keep values from previous rounds of inversion in regions where
+                                     !  inversion is currently inactive (i.e., floating and ice-free cells)
 
     real(dp), dimension(nx-1,ny-1), intent(in) ::  &
          f_ground,             & ! grounded fraction at vertices, 0 to 1
@@ -792,12 +816,8 @@ contains
     stag_dthck(:,:) = stag_thck(:,:) - stag_thck_obs(:,:)
 
     ! Compute the Laplacian of logc.
-    ! Ignore values in floating and ice-free cells.
-    where (f_ground > 0.0d0)
-       del2_mask = 1
-    elsewhere
-       del2_mask = 0
-    endwhere
+    ! Do this for all cells, including floating and ice-free cells.
+    del2_mask = 1
 
     call glissade_laplacian_stagvar(&
          nx,           ny,          &
@@ -805,29 +825,36 @@ contains
          logC,         del2_logC,   &
          del2_mask)
 
-    ! Loop over vertices where f_ground > 0
+    ! Loop over vertices
     ! Note: f_ground should be computed before transport. Thus, if a vertex is grounded
     !       before transport and is fully floating afterward, friction_c is computed here.
 
+    ! Compute the rate of change of log(C).
+    ! For a thickness target H_obs, the rate is given by
+    !     d(logC)/dt = (H - H_obs)/(H0*tau0) + (dH/dt)*2/H0 + del2(C)*L0^2/tau0 - r*(log(C) - log(Cr))/tau0,
+    ! where tau0 = babc_timescale, H0 = babc_thck_scale, r = babc_relax_factor,
+    !  C_r is a relaxation target, and L0 is a diffusive length scale.
+    
+    ! Without the relaxation and smoothing terms, this equation is similar to that of a damped harmonic oscillator:
+    !     m * d2x/dt2 = -k*x - c*dx/dt
+    ! where m is the mass, k is a spring constant, and c is a damping term.
+    ! A harmonic oscillator is critically damped when c = 2*sqrt(m*k).
+    !  In this case the system reaches equilibrium as quickly as possible without oscillating.
+    ! Assuming unit mass (m = 1) and critical damping with k = 1/(tau^2), we obtain
+    !   d2x/dt2 = -1/tau * (x/tau - 2*dx/dt)
+    ! If we identify (H - H_obs)/(H0*tau) with x/tau; (2/H0)*dH/dt with 2*dx/dt; and (1/C)*dC/dt with d2x/dt2,
+    !  we obtain the equation similiar to the one solved here.
+    
     do j = 1, ny-1
        do i = 1, nx-1
 
-          if (f_ground(i,j) > 0.0d0) then  ! ice is at least partly grounded
+          ! initialize terms
+          term_thck = 0.0d0
+          term_dHdt = 0.0d0
+          term_relax = 0.0d0
+          term_laplacian = 0.0d0
 
-             ! Compute the rate of change of log(C).
-             ! For a thickness target H_obs, the rate is given by
-             !     dC/dt = [(H - H_obs)/(H0*tau0) + (dH/dt)*2/H0 + del2(C)*L0^2/tau0] - r*ln(C/C_r)/tau0,
-             ! where tau0 = babc_timescale, H0 = babc_thck_scale, r = babc_relax_factor,
-             !  C_r is a relaxation target, and L0 is a diffusive length scale.
-             ! Without the relaxation and smoothing terms, this equation is similar to that of a damped harmonic oscillator:
-             !     m * d2x/dt2 = -k*x - c*dx/dt
-             ! where m is the mass, k is a spring constant, and c is a damping term.
-             ! A harmonic oscillator is critically damped when c = 2*sqrt(m*k).
-             !  In this case the system reaches equilibrium as quickly as possible without oscillating.
-             ! Assuming unit mass (m = 1) and critical damping with k = 1/(tau^2), we obtain
-             !   d2x/dt2 = -1/tau * (x/tau - 2*dx/dt)
-             ! If we identify (H - H_obs)/(H0*tau) with x/tau; (2/H0)*dH/dt with 2*dx/dt; and (1/C)*dC/dt with d2x/dt2,
-             !  we obtain the equation similiar to the one solved here.
+          if (f_ground(i,j) > 0.0d0) then  ! ice is at least partly grounded
 
              ! Compute tendency terms based on the thickness target
              !TODO - Test whether a nonzero exponent improves results; if not, then set exponent = 1.
@@ -840,72 +867,67 @@ contains
                 term_dHdt = -stag_dthck_dt(i,j) * 2.0d0 / babc_thck_scale
              endif
 
+          endif  ! f_ground > 0
+
+          if (f_ground(i,j) > 0.0d0 .or. inversion_relax_everywhere) then
+
+             ! Note: If the ice is fully floating, there is no reason to compute term_thck and term_dHdt,
+             !       since the ice thickness is unrelated to friction.
+             !       However, we still compute Laplacian and relax terms, unless inversion_relax_everywhere = F.
+
              ! Add a Laplacian smoothing term, which will discourage large curvature and make the field more linear.
              ! del2(logC) < 0 for peaks, which are lowered by this term, and del2(logC) > 0 for valleys, which are raised.
              term_laplacian = del2_logC(i,j) * babc_length_scale**2 / babc_timescale
 
              ! Add a term to relax C toward a target value, friction_c_relax
-             ! The log term below ensures the following:
-             ! * When C /= C_r, it will relax toward C_r.
-             ! * When C = C_r, there is no further relaxation.
-             ! * In steady state (dC/dt = 0, dH/dt = 0), we have dthck/thck_scale = -k * ln(C/C_r),
-             !    or C = C_r * exp(-dthck/(k*thck_scale)), where k is a prescribed constant.
              if (logC(i,j) > logmin) then
                 term_relax = -babc_relax_factor * (logC(i,j) - logC_relax(i,j)) / babc_timescale
              else
                 term_relax = 0.0d0
              endif
 
-             ! Sum the terms
-             dlogC(i,j) = (term_thck + term_dHdt + term_laplacian + term_relax) * dt
+          endif
 
-             ! Limit to prevent a large change in one step
-             if (abs(dlogC(i,j)) > 0.1d0 * dt/scyr) then
-                if (dlogC(i,j) > 0.0d0) then
-                   dlogC(i,j) =  0.1d0 * dt/scyr
-                else
-                   dlogC(i,j) = -0.1d0 * dt/scyr
-                endif
-             endif
+          ! The remaining logic applied whether or not the cell is grounded
 
-             ! Update log(C)
-             logC(i,j) = logC(i,j) + dlogC(i,j)
+          ! Sum the terms
+          dlogC(i,j) = (term_thck + term_dHdt + term_laplacian + term_relax) * dt
 
-             ! Convert log(C) back to C
-             if (logC(i,j) > logmin) then
-                friction_c(i,j) = 10.d0**(logC(i,j))
+          ! Limit to prevent a large change in one step
+          if (abs(dlogC(i,j)) > 0.1d0 * dt/scyr) then
+             if (dlogC(i,j) > 0.0d0) then
+                dlogC(i,j) =  0.1d0 * dt/scyr
              else
-                friction_c(i,j) = 0.0d0
+                dlogC(i,j) = -0.1d0 * dt/scyr
              endif
+          endif
 
-             ! Limit to a physically reasonable range
-             friction_c(i,j) = min(friction_c(i,j), friction_c_max)
-             friction_c(i,j) = max(friction_c(i,j), friction_c_min)
+          ! Update log(C)
+          logC(i,j) = logC(i,j) + dlogC(i,j)
 
-             !WHL - debug
-             if (verbose_inversion .and. this_rank == rtest .and. i==itest .and. j==jtest) then
-                print*, ' '
-                print*, 'Increment friction_c: rank, i, j =', rtest, itest, jtest
-                print*, 'dx, dy, length_scale (m)=', dx, dy, babc_length_scale
-                print*, 'thck (m), thck_obs, dthck, dthck_dt (m/yr):', &
-                     stag_thck(i,j), stag_thck_obs(i,j), stag_dthck(i,j), stag_dthck_dt(i,j)*scyr
-                print*, 'dH term, dH/dt term, laplacian term, relax term, sum =', &
-                     term_thck*dt, term_dHdt*dt, term_laplacian*dt, term_relax*dt, &
-                     (term_thck + term_dHdt + term_laplacian + term_relax)*dt
-                print*, 'dlogC, new friction_c =', dlogc(i,j), friction_c(i,j)
-             endif
+          ! Convert log(C) back to C
+          if (logC(i,j) > logmin) then
+             friction_c(i,j) = 10.d0**(logC(i,j))
+          else
+             friction_c(i,j) = 0.0d0
+          endif
 
-          else   ! no ice present; relax friction_c to the default value
+          ! Limit to a physically reasonable range
+          friction_c(i,j) = min(friction_c(i,j), friction_c_max)
+          friction_c(i,j) = max(friction_c(i,j), friction_c_min)
 
-             if (friction_c(i,j) > 0.0d0) then
-                term_relax = -babc_relax_factor * log(friction_c(i,j)/friction_c_relax(i,j)) / babc_timescale
-             else
-                term_relax = 0.0d0
-             endif
-
-             friction_c(i,j) = friction_c(i,j) * (1.0d0 + term_relax*dt)
-
-          endif  ! ice_mask = 1
+          !WHL - debug
+          if (verbose_inversion .and. this_rank == rtest .and. i==itest .and. j==jtest) then
+             print*, ' '
+             print*, 'Increment friction_c: rank, i, j =', rtest, itest, jtest
+             print*, 'dx, dy, length_scale (m)=', dx, dy, babc_length_scale
+             print*, 'thck (m), thck_obs, dthck, dthck_dt (m/yr):', &
+                  stag_thck(i,j), stag_thck_obs(i,j), stag_dthck(i,j), stag_dthck_dt(i,j)*scyr
+             print*, 'dH term, dH/dt term, laplacian term, relax term, sum =', &
+                  term_thck*dt, term_dHdt*dt, term_laplacian*dt, term_relax*dt, &
+                  (term_thck + term_dHdt + term_laplacian + term_relax)*dt
+             print*, 'dlogC, new friction_c =', dlogc(i,j), friction_c(i,j)
+          endif
 
        enddo  ! i
     enddo  ! j
@@ -937,7 +959,7 @@ contains
        deltaT_ocn_thck_scale,       &
        deltaT_ocn_timescale,        &
        deltaT_ocn_temp_scale,       &
-       deltaT_ocn_relax,            &
+       deltaT_basin_relax,          &
        thck_error_exponent,         &
        basin_mass_correction,       &
        basin_number_mass_correction,&
@@ -986,7 +1008,7 @@ contains
          deltaT_ocn_thck_scale,& ! inversion thickness scale (m); must be > 0
          deltaT_ocn_timescale, & ! inversion timescale (s); must be > 0
          deltaT_ocn_temp_scale,& ! inversion temperature scale (degC)
-         deltaT_ocn_relax,     & ! deltaT_ocn field toward which we relax
+         deltaT_basin_relax,   & ! value toward which we relax each basin (degC)
          thck_error_exponent,  & ! exponent for the thickness error inversion term
          basin_mass_correction   ! optional mass correction (Gt) for a selected basin
 
@@ -1068,7 +1090,7 @@ contains
           term_thck = -(-dthck/deltaT_ocn_thck_scale)**thck_error_exponent * (deltaT_ocn_temp_scale/deltaT_ocn_timescale)
        endif
        term_dHdt = deltaT_ocn_temp_scale * floating_dthck_dt_basin(nb) * 2.0d0 / deltaT_ocn_thck_scale
-       term_relax = -(deltaT_basin(nb) - deltaT_ocn_relax) / deltaT_ocn_timescale
+       term_relax = -(deltaT_basin(nb) - deltaT_basin_relax) / deltaT_ocn_timescale
        dT_basin_dt(nb) = term_thck + term_dHdt + term_relax
 
        ! Limit dT_basin/dt to a prescribed range
@@ -1112,8 +1134,9 @@ contains
        deltaT_ocn_timescale,     &
        deltaT_ocn_temp_scale,    &
        deltaT_ocn_length_scale,  &
-       deltaT_ocn_relax,         &
        thck_error_exponent,      &
+       inversion_relax_everywhere,&
+       deltaT_ocn_relax,         &
        f_ground_cell,            &
        thck,                     &
        thck_obs,                 &
@@ -1124,9 +1147,8 @@ contains
     ! Adjustments are made in floating grid cells, typically based on a thickness target:
     !    Where thck > thck_obs, deltaT_ocn is increased to increase basal melting.
     !    Where thck < thck_obs, deltaT_ocn is reduced to reduce basal melting.
-    ! Note: deltaT_ocn is constrained to lie within a prescribed range.
-
-    !, [deltaT_ocn_min, deltaT_ocn_max].
+    ! Note: deltaT_ocn is constrained to lie within a prescribed range,
+    ! [deltaT_ocn_min, deltaT_ocn_max].
 
     use glissade_grid_operators, only: glissade_laplacian
 
@@ -1146,14 +1168,19 @@ contains
          deltaT_ocn_timescale, &   ! inversion timescale (s); must be > 0
          deltaT_ocn_temp_scale,&   ! inversion temperature scale (degC)
          deltaT_ocn_length_scale,& ! diffusive length scale (m) for inversion
-         deltaT_ocn_relax,     &   ! deltaT_ocn field toward which we relax
          thck_error_exponent       ! exponent for the thickness error inversion term
 
+    logical, intent(in) :: &
+         inversion_relax_everywhere  ! if true, then nudge inversion parameters toward default values everywhere
+                                     ! if false, then keep values from previous rounds of inversion in regions where
+                                     !  inversion is currently inactive (i.e., grounded and ice-free cells)
+
     real(dp), dimension(nx,ny), intent(in) ::  &
-         f_ground_cell,        & ! grounded fraction at cell centers, 0 to 1
-         thck,                 & ! ice thickness (m)
-         thck_obs,             & ! observed ice thickness (m)
-         dthck_dt                ! rate of change of ice thickness (m/s)
+         deltaT_ocn_relax,     &   ! deltaT_ocn field toward which we relax
+         f_ground_cell,        &   ! grounded fraction at cell centers, 0 to 1
+         thck,                 &   ! ice thickness (m)
+         thck_obs,             &   ! observed ice thickness (m)
+         dthck_dt                  ! rate of change of ice thickness (m/s)
 
     real(dp), dimension(nx,ny), intent(inout) ::  &
          deltaT_ocn              ! temperature correction factor (degC)
@@ -1196,8 +1223,10 @@ contains
     dthck(:,:) = thck(:,:) - thck_obs(:,:)
 
     ! Compute the Laplacian of deltaT_ocn.
-    ! Ignore values in fully grounded cells.
-    where (f_ground_cell < 1.0d0)
+    ! Note: Grounded cells are included in the mask. In these cells, we relax deltaT_ocean
+    !       toward the basin average, with Laplacian smoothing to give a smooth transition
+    !       between grounded and floating cells.
+    where (thck > 0.0d0)
        del2_mask = 1
     elsewhere
        del2_mask = 0
@@ -1216,18 +1245,24 @@ contains
     do j = 1, ny
        do i = 1, nx
 
-          if (f_ground_cell(i,j) < 1.0d0) then  ! ice is at least partly floating
+          ! Compute the rate of change of deltaT_ocn.
+          ! For a thickness target H_obs, the rate is given by
+          !     dTc/dt = -T0 * [(H - H_obs)/(H0]^n / tau0 + (dH/dt)*2/H0 + del2(dTc)*L0^2/tau0 + (T_r - T)/tau0]
+          ! where Tc = deltaT_ocn, tau0 = deltaT_ocn_timescale, H0 = deltaT_ocn_thck_scale,
+          !  T0 = deltaT_ocn_temp_scale, L0 = deltaT_ocn_length_scale, T_r is a relaxation target,
+          !  and n is an exponent.
+          ! T0 should be similar in magnitude to the max deltaT_ocn we will accept when dthck ~ H0.
+          ! T0 plays a role similar to relax_factor in the inversions for Cc, Cp and E;
+          !  it controls the size of the dH and dH/dt terms compared to the relaxation term.
+          ! Increasing T0 makes the relaxation relatively weaker.
 
-             ! Compute the rate of change of deltaT_ocn.
-             ! For a thickness target H_obs, the rate is given by
-             !     dTc/dt = -T0 * [(H - H_obs)/(H0]^n / tau0 + (dH/dt)*2/H0 + del2(dTc)*L0^2/tau0 + (T_r - T)/tau0]
-             ! where Tc = deltaT_ocn, tau0 = deltaT_ocn_timescale, H0 = deltaT_ocn_thck_scale,
-             !  T0 = deltaT_ocn_temp_scale, L0 = deltaT_ocn_length_scale, T_r is a relaxation target,
-             !  and n is an exponent.
-             ! T0 should be similar in magnitude to the max deltaT_ocn we will accept when dthck ~ H0.
-             ! T0 plays a role similar to relax_factor in the inversions for Cc, Cp and E;
-             !  it controls the size of the dH and dH/dt terms compared to the relaxation term.
-             ! Increasing T0 makes the relaxation relatively weaker.
+          ! initialize terms
+          term_thck = 0.0d0
+          term_dHdt = 0.0d0
+          term_relax = 0.0d0
+          term_laplacian = 0.0d0
+          
+          if (thck(i,j) > 0.0d0 .and. f_ground_cell(i,j) < 1.0d0) then  ! ice is present and at least partly floating
 
              if (dthck(i,j) >= 0.0d0) then
                 term_thck = (dthck(i,j)/deltaT_ocn_thck_scale)**thck_error_exponent &
@@ -1238,43 +1273,39 @@ contains
              endif
              term_dHdt = deltaT_ocn_temp_scale * dthck_dt(i,j) * 2.0d0 / deltaT_ocn_thck_scale
 
+          endif
+          
+          if ((thck(i,j) > 0.0d0 .and. f_ground_cell(i,j) < 1.0d0) .or. inversion_relax_everywhere) then
+
              ! Compute a Laplacian smoothing term, which will make the field more linear.
              ! del2(dT_ocn) < 0 for peaks, which are lowered by this term, and del2(dT_ocn) > 0 for valleys, which are raised.
              term_laplacian = del2_deltaT_ocn(i,j) * deltaT_ocn_length_scale**2 / deltaT_ocn_timescale
 
              ! Compute a term to relax C toward a target value, deltaT_ocn_relax
              ! Typically, deltaT_ocn_relax = 0
-             term_relax = (deltaT_ocn_relax - deltaT_ocn(i,j)) / deltaT_ocn_timescale
+             term_relax = (deltaT_ocn_relax(i,j) - deltaT_ocn(i,j)) / deltaT_ocn_timescale
 
-             ! Sum the terms
-             term_sum = (term_thck + term_dHdt + term_laplacian + term_relax) * dt
+          endif
 
-             ! Update deltatT_ocn
-             deltaT_ocn(i,j) = deltaT_ocn(i,j) + term_sum
+          ! Update deltatT_ocn
+          deltaT_ocn(i,j) = deltaT_ocn(i,j) + (term_thck + term_dHdt + term_laplacian + term_relax) * dt
 
-             ! Limit to a physically reasonable range
-             deltaT_ocn(i,j) = min(deltaT_ocn(i,j),  deltaT_ocn_maxval)
-             deltaT_ocn(i,j) = max(deltaT_ocn(i,j), -deltaT_ocn_maxval)
+          ! Limit to a physically reasonable range
+          deltaT_ocn(i,j) = min(deltaT_ocn(i,j),  deltaT_ocn_maxval)
+          deltaT_ocn(i,j) = max(deltaT_ocn(i,j), -deltaT_ocn_maxval)
 
-             if (verbose_inversion .and. this_rank == rtest .and. i==itest .and. j==jtest) then
-                print*, ' '
-                print*, 'Increment deltaT_ocn: rank, i, j =', rtest, itest, jtest
-                print*, 'thck scale (m), temp scale (degC), timescale (yr):', &
-                     deltaT_ocn_thck_scale, deltaT_ocn_temp_scale, deltaT_ocn_timescale/scyr
-                print*, 'thck, thck_obs, err thck (m), dthck_dt (m/yr):', &
-                     thck(i,j), thck_obs(i,j), dthck(i,j), dthck_dt(i,j)*scyr
-                print*, 'term_thck, term_dHdt, term_laplacian, term_relax:', &
-                     term_thck*dt, term_dHdt*dt, term_laplacian*dt, term_relax*dt
-                print*, 'term_sum, new dT_ocn:', term_sum*dt, deltaT_ocn(i,j)
-             endif
-
-          else   ! f_ground_cell = 1
-
-             ! relax toward the default value
-             term_relax = (deltaT_ocn_relax - deltaT_ocn(i,j)) / deltaT_ocn_timescale
-             deltaT_ocn(i,j) = deltaT_ocn(i,j) + term_relax * dt
-
-          endif  ! f_ground_cell < 1
+          if (verbose_inversion .and. this_rank == rtest .and. i==itest .and. j==jtest) then
+             print*, ' '
+             print*, 'Increment deltaT_ocn: rank, i, j =', rtest, itest, jtest
+             print*, 'thck scale (m), temp scale (degC), timescale (yr):', &
+                  deltaT_ocn_thck_scale, deltaT_ocn_temp_scale, deltaT_ocn_timescale/scyr
+             print*, 'thck, thck_obs, err thck (m), dthck_dt (m/yr):', &
+                  thck(i,j), thck_obs(i,j), dthck(i,j), dthck_dt(i,j)*scyr
+             print*, 'term_thck, term_dHdt, term_laplacian, term_relax:', &
+                  term_thck*dt, term_dHdt*dt, term_laplacian*dt, term_relax*dt
+             print*, 'term_sum, new dT_ocn:', &
+                  (term_thck + term_dHdt + term_laplacian + term_relax)*dt, deltaT_ocn(i,j)
+          endif
 
        enddo  ! i
     enddo  ! j
@@ -1305,6 +1336,7 @@ contains
        f_ground_cell_obs,                  &
        flow_enhancement_factor_ground,     &
        flow_enhancement_factor_float,      &
+       inversion_relax_everywhere,         &
        flow_enhancement_velo_scale,        &
        flow_enhancement_timescale,         &
        flow_enhancement_thck_scale,        &
@@ -1347,6 +1379,11 @@ contains
 
     integer, dimension(nx,ny), intent(in) ::  &
          ice_mask                ! = 1 where ice is present, else = 0
+
+    logical, intent(in) :: &
+         inversion_relax_everywhere  ! if true, then nudge inversion parameters toward default values everywhere
+                                     ! if false, then keep values from previous rounds of inversion in regions where
+                                     !  inversion is currently inactive (i.e., ice-free cells)
 
     real(dp), intent(in) :: &
          flow_enhancement_factor_ground,      & ! default flow_enhancement_factor for grounded ice
@@ -1398,11 +1435,15 @@ contains
     ! A value E = 0 is problematic if the cell later becomes ice-filled (e.g., after turning off inversion)
     ! because it leads to flwa = 0, giving NaNs in the velocity solver.
 
-    where (ice_mask == 1 .and. flow_enhancement_factor == 0.0d0)
-       flow_enhancement_factor = f_ground_cell  * flow_enhancement_factor_ground  &
-                      + (1.0d0 - f_ground_cell) * flow_enhancement_factor_float
-    elsewhere (ice_mask == 0)
-       flow_enhancement_factor = flow_enhancement_factor_ground
+    where (flow_enhancement_factor == 0.0d0)
+       where (ice_mask == 1)
+          flow_enhancement_factor = f_ground_cell  * flow_enhancement_factor_ground  &
+                         + (1.0d0 - f_ground_cell) * flow_enhancement_factor_float
+       elsewhere (f_ground_cell_obs > 0.0d0)
+          flow_enhancement_factor = flow_enhancement_factor_ground
+       elsewhere   ! f_ground_cell_obs = 0; likely floating or ice-free ocean
+          flow_enhancement_factor = flow_enhancement_factor_float
+       endwhere
     endwhere
 
     ! Compute the log (base 10) of the current flow_enhancement_factor field E.
@@ -1417,7 +1458,8 @@ contains
     dlogE(:,:) = 0.0d0
 
     ! Initialize the relaxation target
-    ! This is the value we would ideally choose, depending on whether the ice is grounded or floating
+    ! This is the value we would ideally choose, depending on whether the ice is grounded or floating.
+    ! Note: Relax toward the floating value for observed ice-free ocean as well as observed floating ice.
     !TODO - Make sure f_ground_cell_obs > 0 for ice-free land.
     E_relax(:,:) = f_ground_cell_obs  * flow_enhancement_factor_ground  &
         + (1.0d0 - f_ground_cell_obs) * flow_enhancement_factor_float
@@ -1464,26 +1506,28 @@ contains
     ! Loop over cells where ice is present
     do j = 1, ny
        do i = 1, nx
+
+          ! Compute the rate of change of log(E).
+          ! In general, positive speed errors drive a decrease in E (so the ice becomes more viscous).
+          ! For a speed target v_obs, the rate is given by
+          !     dlogE/dt =  (v - v_obs)/(V0*tau0) + (dH/dt)*2/H0 + del2(logE)*L0^2/tau0 - r*ln(E/E_r)/tau0
+          ! where tau = flow_enhancement_timescale, V0 = flow_enhancement_velo_scale,
+          !  H0 = flow_enhancement_thck_scale, dH/dt = thickness tendency,
+          !  r = flow_enhancement_relax_factor, L0 = flow_enhancement_length_scale, and E_r is a relaxation target.
+          ! It may seem more natural for the second term in brackets to be (dv/dt)*2/V0.
+          !  However, this leads to oscillations, since the velocity is very sensitive to E.
+          ! Using dH/dt instead allows a balance between term_velo and the other terms as the flow
+          !  approaches a steady state.
+          ! Note: Could add a velo_error_exponent (analogous to thck_error_exponent) to penalize
+          !       large departures from observations. For now, assume an exponent of 1.
+
+          ! initialize terms
+          term_velo = 0.0d0
+          term_dHdt = 0.0d0
+          term_relax = 0.0d0
+          term_laplacian = 0.0d0
+
           if (ice_mask(i,j) == 1) then
-
-             ! Compute the rate of change of log(E).
-             ! In general, positive speed errors drive a decrease in E (so the ice becomes more viscous).
-             ! For a speed target v_obs, the rate is given by
-             !     dlogE/dt =  (v - v_obs)/(V0*tau0) + (dH/dt)*2/H0 + del2(logE)*L0^2/tau0 - r*ln(E/E_r)/tau0
-             ! where tau = flow_enhancement_timescale, V0 = flow_enhancement_velo_scale,
-             !  H0 = flow_enhancement_thck_scale, dH/dt = thickness tendency,
-             !  r = flow_enhancement_relax_factor, L0 = flow_enhancement_length_scale, and E_r is a relaxation target.
-             ! It may seem more natural for the second term in brackets to be (dv/dt)*2/V0.
-             !  However, this leads to oscillations, since the velocity is very sensitive to E.
-             ! Using dH/dt instead allows a balance between term_velo and the other terms as the flow
-             !  approaches a steady state.
-             ! Note: Could add a velo_error_exponent (analogous to thck_error_exponent) to penalize
-             !       large departures from observations. For now, assume an exponent of 1.
-
-             term_velo = 0.0d0
-             term_dhdt = 0.0d0
-             term_laplacian = 0.0d0
-             term_relax = 0.0d0
 
              if (flow_enhancement_thck_scale > 0.0d0) then
                 if (flow_enhancement_velo_scale > 0.0d0) then
@@ -1491,6 +1535,10 @@ contains
                 endif
                 term_dHdt = dthck_dt(i,j) * 2.0d0 / flow_enhancement_thck_scale
              endif
+
+          endif
+
+          if (ice_mask(i,j) == 1 .or. inversion_relax_everywhere) then
 
              ! Compute a Laplacian smoothing term, which will discourage large curvature and make the field more linear.
              ! del2(logE) < 0 for peaks, which are lowered by this term, and del2(logE) > 0 for valleys, which are raised.
@@ -1505,59 +1553,49 @@ contains
                 term_relax = flow_enhancement_relax_factor * (logE_relax(i,j) - logE(i,j)) / flow_enhancement_timescale
              endif
 
-             ! Sum the terms
-             dlogE(i,j) = (term_velo + term_dHdt + term_laplacian + term_relax) * dt
+          endif
 
-             ! Limit to prevent a large change in one step
-             if (abs(dlogE(i,j)) > 0.1d0 * dt/scyr) then
-                if (dlogE(i,j) > 0.0d0) then
-                   dlogE(i,j) =  0.1d0 * dt/scyr
-                else
-                   dlogE(i,j) = -0.1d0 * dt/scyr
-                endif
-             endif
+          ! Sum the terms
+          dlogE(i,j) = (term_velo + term_dHdt + term_laplacian + term_relax) * dt
 
-             ! Update log(E)
-             logE(i,j) = logE(i,j) + dlogE(i,j)
-
-             ! Convert log(E) back to E
-             if (logE(i,j) > logmin) then
-                flow_enhancement_factor(i,j) = 10.d0**(logE(i,j))
+          ! Limit to prevent a large change in one step
+          if (abs(dlogE(i,j)) > 0.1d0 * dt/scyr) then
+             if (dlogE(i,j) > 0.0d0) then
+                dlogE(i,j) =  0.1d0 * dt/scyr
              else
-                flow_enhancement_factor(i,j) = 0.0d0
+                dlogE(i,j) = -0.1d0 * dt/scyr
              endif
+          endif
 
-             ! Limit to a physically reasonable range
-             flow_enhancement_factor(i,j) = min(flow_enhancement_factor(i,j), flow_enhancement_factor_max)
-             flow_enhancement_factor(i,j) = max(flow_enhancement_factor(i,j), flow_enhancement_factor_min)
+          ! Update log(E)
+          logE(i,j) = logE(i,j) + dlogE(i,j)
 
-             if (verbose_inversion .and. this_rank == rtest .and. i==itest .and. j==jtest) then
-                print*, ' '
-                print*, 'Increment flow_enhancement_factor: rank, i, j =', rtest, itest, jtest
-                print*, 'dx, dy, length_scale =', dx, dy, flow_enhancement_length_scale
-                print*, 'velo scale (m/yr), timescale (yr):', &
-                     flow_enhancement_velo_scale*scyr, flow_enhancement_timescale/scyr
-                print*, 'velo_sfc (m/yr), velo_sfc_obs, dvelo, dH_dt (m/yr):', &
-                     velo_sfc(i,j)*scyr, velo_sfc_obs(i,j)*scyr, dvelo(i,j)*scyr, dthck_dt(i,j)*scyr
-                print*, 'init flow enhancement factor =', flow_enhancement_factor(i,j)
-                print*, 'dvelo term, dthck/dt term, laplacian term, relax term, sum =', &
-                     term_velo*dt, term_dHdt*dt, term_laplacian*dt, term_relax*dt, &
-                     (term_velo + term_dHdt + term_laplacian + term_relax)*dt
-                print*, 'dlogE, new E =', dlogE(i,j), flow_enhancement_factor(i,j)
-             endif
+          ! Convert log(E) back to E
+          if (logE(i,j) > logmin) then
+             flow_enhancement_factor(i,j) = 10.d0**(logE(i,j))
+          else
+             flow_enhancement_factor(i,j) = 0.0d0
+          endif
 
-          else   ! ice_mask = 0
+          ! Limit to a physically reasonable range
+          flow_enhancement_factor(i,j) = min(flow_enhancement_factor(i,j), flow_enhancement_factor_max)
+          flow_enhancement_factor(i,j) = max(flow_enhancement_factor(i,j), flow_enhancement_factor_min)
 
-             ! relax toward the target value
-             if (flow_enhancement_factor(i,j) > 0.0d0) then
-                term_relax = -flow_enhancement_relax_factor * log(flow_enhancement_factor(i,j)/E_relax(i,j)) &
-                     / flow_enhancement_timescale
-             else
-                term_relax = 0.0d0
-             endif
-             flow_enhancement_factor(i,j) = flow_enhancement_factor(i,j) * (1.0d0 + term_relax*dt)
+          if (verbose_inversion .and. this_rank == rtest .and. i==itest .and. j==jtest) then
+             print*, ' '
+             print*, 'Increment flow_enhancement_factor: rank, i, j =', rtest, itest, jtest
+             print*, 'dx, dy, length_scale =', dx, dy, flow_enhancement_length_scale
+             print*, 'velo scale (m/yr), timescale (yr):', &
+                  flow_enhancement_velo_scale*scyr, flow_enhancement_timescale/scyr
+             print*, 'velo_sfc (m/yr), velo_sfc_obs, dvelo, dH_dt (m/yr):', &
+                  velo_sfc(i,j)*scyr, velo_sfc_obs(i,j)*scyr, dvelo(i,j)*scyr, dthck_dt(i,j)*scyr
+             print*, 'init flow enhancement factor =', flow_enhancement_factor(i,j)
+             print*, 'dvelo term, dthck/dt term, laplacian term, relax term, sum =', &
+                  term_velo*dt, term_dHdt*dt, term_laplacian*dt, term_relax*dt, &
+                  (term_velo + term_dHdt + term_laplacian + term_relax)*dt
+             print*, 'dlogE, new E =', dlogE(i,j), flow_enhancement_factor(i,j)
+          endif
 
-          endif  ! ice_mask
        enddo  ! i
     enddo  ! j
 

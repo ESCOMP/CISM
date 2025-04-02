@@ -1872,6 +1872,14 @@ contains
           call write_log('Cannot invert for deltaT_ocn both locally and at basin scale', GM_FATAL)
        endif
 
+       ! Note: If inversion is toggled, all modes of inversion (e.g., coulomb_c, deltaT_ocn, flow_enhancement_factor)
+       !       are toggled on or off at the same time.
+       if (model%inversion%toggle_frequency > 0.0d0) then
+          write(message,*) ('Inversion toggled at frequency (yr):', &
+               model%inversion%toggle_frequency)
+          call write_log(message)
+       endif
+
        ! basal water options
 
        write(message,*) 'ho_whichbwat            : ',model%options%which_ho_bwat,  &
@@ -2303,6 +2311,7 @@ contains
     call GetValue(section, 'inversion_thck_error_exponent', model%inversion%thck_error_exponent)
     call GetValue(section, 'inversion_thck_flotation_buffer', model%inversion%thck_flotation_buffer)
     call GetValue(section, 'inversion_thck_threshold', model%inversion%thck_threshold)
+    call GetValue(section, 'inversion_toggle_frequency', model%inversion%toggle_frequency)
 
     call GetValue(section, 'inversion_babc_timescale', model%inversion%babc_timescale)
     call GetValue(section, 'inversion_babc_thck_scale', model%inversion%babc_thck_scale)
@@ -2313,7 +2322,7 @@ contains
     call GetValue(section, 'inversion_deltaT_ocn_thck_scale', model%inversion%deltaT_ocn_thck_scale)
     call GetValue(section, 'inversion_deltaT_ocn_length_scale', model%inversion%deltaT_ocn_length_scale)
     call GetValue(section, 'inversion_deltaT_ocn_temp_scale', model%inversion%deltaT_ocn_temp_scale)
-    call GetValue(section, 'inversion_deltaT_ocn_relax', model%inversion%deltaT_ocn_relax)
+    call GetValue(section, 'inversion_deltaT_basin_relax', model%inversion%deltaT_basin_relax)
     call GetValue(section, 'inversion_basin_flotation_threshold', &
          model%inversion%basin_flotation_threshold)
 
@@ -2841,15 +2850,15 @@ contains
        write(message,*) 'temperature scale (degC) for dT_ocn inversion: ', &
             model%inversion%deltaT_ocn_temp_scale
        call write_log(message)
-       if (model%inversion%deltaT_ocn_relax /= 0.0d0) then
-          write(message,*) 'relaxation value (degC) for dT_ocn inversion: ', &
-               model%inversion%deltaT_ocn_relax
-          call write_log(message)
-       endif
        if (model%options%which_ho_deltaT_basin == HO_DELTAT_BASIN_INVERSION) then
           write(message,*) 'Flotation threshold (m) for basin-scale inversion  : ', &
                model%inversion%basin_flotation_threshold
           call write_log(message)
+          if (model%inversion%deltaT_basin_relax /= 0.0d0) then
+             write(message,*) 'Relaxation value (degC) for basin-scale inversion  : ', &
+                  model%inversion%deltaT_basin_relax
+             call write_log(message)
+          endif
           if (abs(model%inversion%basin_mass_correction) > 0.0d0 .and. &
                   model%inversion%basin_number_mass_correction > 0) then
              write(message,*) 'Inversion mass correction applied to basin # :', &
@@ -2861,7 +2870,7 @@ contains
           endif
        else   ! deltaT_ocn_inversion
           write(message,*) 'length scale (m) for dT_ocn inversion       : ', &
-            model%inversion%babc_length_scale
+            model%inversion%deltaT_ocn_length_scale
           call write_log(message)
        endif   ! deltaT_basin inversion
     endif   ! deltaT_ocn or deltaT_basin inversion

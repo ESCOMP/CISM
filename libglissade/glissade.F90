@@ -3832,7 +3832,7 @@ contains
     use glissade_inversion, only: verbose_inversion, glissade_inversion_basal_friction,  &
          glissade_inversion_deltaT_basin, glissade_inversion_deltaT_ocn, &
          glissade_inversion_flow_enhancement_factor
-    use glissade_utils, only: glissade_usrf_to_thck
+    use glissade_utils, only: glissade_usrf_to_thck, glissade_basin_average
     use glissade_glacier, only: glissade_glacier_update
 
     implicit none
@@ -3841,7 +3841,7 @@ contains
 
     ! Local variables
 
-    integer :: i, j, k, n, ng
+    integer :: i, j, k, n, nb, ng
     integer :: itest, jtest, rtest
 
     integer, dimension(model%general%ewn, model%general%nsn) :: &
@@ -3861,29 +3861,30 @@ contains
 
     real(dp), dimension(model%general%ewn, model%general%nsn) ::  &
          flow_enhancement_factor_float,  & ! flow enhancement factor for floating ice
-         thck_effective,     & ! effective thickness (m) for calving
-         tau1, tau2,         & ! same as model%calving%tau_eigen1 and tau_eigen2
-         eps1, eps2            ! same as model%calving%tau_eigen1 and tau_eigen2
+         thck_effective        ! effective thickness (m) for calving
 
     ! used for damage-based calving
     integer, dimension(model%general%ewn, model%general%nsn) :: &
          partial_cf_mask, full_mask
 
-    real(dp) :: &
-         dsigma,                   & ! layer thickness in sigma coordinates
-         tau_xx, tau_yy, tau_xy,   & ! stress tensor components
-         eps_xx, eps_yy, eps_xy      ! strain rate tensor components
- 
-    real(dp) :: &
-         a, b, c, root,   & ! terms in quadratic formula
-         lambda1, lambda2   ! eigenvalues of horizontal strain rate tensor
-
-    real(dp) :: nudging_factor      ! factor in range [0,1], used for inversion of powerlaw_c
-    real(dp) :: weaning_time        ! time since the start of weaning (numerics%time - inversion%wean_tstart)
-
     type(parallel_type) :: parallel   ! info for parallel communication
 
     integer :: ewn, nsn, upn
+
+    real(dp) :: freq                    ! inversion toggle frequency
+    real(dp) :: time                    ! model time (yr)
+    logical :: &
+         toggle_skip_inversion,       & ! if true, then skip inversion at the current time
+                                        ! if false, then do inversion as otherwise prescribed
+         inversion_relax_everywhere     ! if true, then nudge inversion parameters toward default values everywhere
+                                        ! if false, then keep values from previous rounds of inversion in regions where
+                                        !  inversion is currently inactive (e.g., floating cells if inverting for coulomb_c)
+
+    real(dp), dimension(model%ocean_data%nbasin) :: &
+         deltaT_ocn_basin_avg                  ! basin average of deltaT_ocn (degC)
+
+    real(dp), dimension(model%general%ewn, model%general%nsn) ::  &
+         deltaT_ocn_relax                      ! relax deltaT_ocn toward this value
 
     !WHL - debug
     integer :: iglobal, jglobal, ii, jj
@@ -4094,31 +4095,73 @@ contains
     !       in order to have f_ground_cell up to date.
     ! If running with glaciers, inversion for powerlaw_c is done elsewhere,
     !  in subroutine glissade_glacier_update.
-    !TODO: Call when the inversion options are set, not the external options.
-    !      Currently, the only thing done for the external options is to remove
-    !       zero values.
+
+    ! If inversion is being toggled, then set inversion_relax_everywhere = F.
+    ! This means we will *not* nudge toward relaxed values in regions where inversion is inactive
+    ! (e.g., floating ice if inverting for powerlaw_c/coulomb_c, or grounded ice if inverting
+    ! for deltaT_ocn). Instead, we will save values from previous rounds of inversion.
+
+    if (model%inversion%toggle_frequency > 0.0d0) then
+       inversion_relax_everywhere = .false.
+    else
+       inversion_relax_everywhere = .true.
+    endif
+
+    ! If inversion is being toggled, then check whether it's turned off at the current time.
+    ! If toggled off, then skip the subsequent inversion calls.
+    ! Toggling works as follows: Suppose we have freq = 1000 yr.
+    ! Then we do inversion over these time intervals: [0,1000], (2000,3000], (4000,5000], etc.
+    ! Inversion is turned off at other times.
+
+    toggle_skip_inversion = .false.
+
+    if (model%inversion%toggle_frequency > 0.0d0) then
+       if (model%numerics%time > 0.0d0) then
+          time = model%numerics%time - eps08  ! subtract a small term to guard against rounding error
+          freq = model%inversion%toggle_frequency
+          if (mod(time,2.0d0*freq) > freq) then
+             toggle_skip_inversion = .true.
+          endif  ! time > 0
+       endif
+    endif
 
     if ( model%options%which_ho_powerlaw_c == HO_POWERLAW_C_INVERSION .or. &
-         model%options%which_ho_powerlaw_c == HO_POWERLAW_C_EXTERNAL  .or. &
-         model%options%which_ho_coulomb_c  == HO_COULOMB_C_INVERSION  .or. &
-         model%options%which_ho_coulomb_c  == HO_COULOMB_C_EXTERNAL ) then
+         model%options%which_ho_coulomb_c  == HO_COULOMB_C_INVERSION) then
 
        if ( (model%options%is_restart == STANDARD_RESTART .or. model%options%is_restart == HYBRID_RESTART) &
             .and. (model%numerics%time == model%numerics%tstart) ) then
           ! first call after a restart; do not update powerlaw_c or coulomb_c
        else
-          call glissade_inversion_basal_friction(model)
+          if (.not.toggle_skip_inversion) then
+             call glissade_inversion_basal_friction(model)
+          endif
+       endif
+
+       ! Replace zeroes (if any) with small nonzero values to avoid divzeroes.
+       ! Note: The current algorithm initializes Cc to a nonzero value everywhere and never sets Cc = 0;
+       !       this code is just to be on the safe side.
+
+       if (model%options%which_ho_powerlaw_c /= HO_POWERLAW_C_CONSTANT) then
+          where (model%basal_physics%powerlaw_c == 0.0d0)
+             model%basal_physics%powerlaw_c = model%basal_physics%powerlaw_c_min
+          endwhere
+       endif
+
+       if (model%options%which_ho_coulomb_c /= HO_COULOMB_C_CONSTANT) then
+          where (model%basal_physics%coulomb_c == 0.0d0)
+             model%basal_physics%coulomb_c = model%basal_physics%coulomb_c_min
+          endwhere
        endif
 
     endif   ! which_ho_powerlaw_c/coulomb_c
 
     ! If inverting for deltaT_ocn at the basin level, then update it here
 
-    if ( model%options%which_ho_deltaT_basin == HO_DELTAT_BASIN_INVERSION) then
+    if ( model%options%which_ho_deltaT_basin == HO_DELTAT_BASIN_INVERSION .and. &
+         .not.toggle_skip_inversion) then
 
        if ( (model%options%is_restart == STANDARD_RESTART .or. model%options%is_restart == HYBRID_RESTART) &
             .and. (model%numerics%time == model%numerics%tstart) ) then
-
           ! first call after a restart; do not update basin-scale melting parameters
 
        else
@@ -4136,12 +4179,10 @@ contains
                                              model%inversion%deltaT_ocn_thck_scale,     &  ! m
                                              model%inversion%deltaT_ocn_timescale,      &  ! s
                                              model%inversion%deltaT_ocn_temp_scale,     &  ! degC
-                                             model%inversion%deltaT_ocn_relax,          &  ! degC
+                                             model%inversion%deltaT_basin_relax,        &  ! degC
                                              model%inversion%thck_error_exponent,       &
                                              model%inversion%basin_mass_correction,     &
                                              model%inversion%basin_number_mass_correction, &
-!                                             model%inversion%dbmlt_dtemp_scale,         &  ! (m/s)/degC
-!                                             model%inversion%bmlt_basin_timescale,      &  ! s
                                              model%ocean_data%deltaT_ocn)
 
        endif  ! first call after a restart
@@ -4150,7 +4191,8 @@ contains
 
     ! If inverting for deltaT_ocn based on observed ice thickness, then update it here.
 
-    if ( model%options%which_ho_deltaT_ocn == HO_DELTAT_OCN_INVERSION) then
+    if ( model%options%which_ho_deltaT_ocn == HO_DELTAT_OCN_INVERSION .and. &
+         .not.toggle_skip_inversion) then
 
        if ( (model%options%is_restart == STANDARD_RESTART .or. model%options%is_restart == HYBRID_RESTART) &
             .and. (model%numerics%time == model%numerics%tstart) ) then
@@ -4168,6 +4210,29 @@ contains
                model%climate%eus,        &
                thck_obs)
 
+          ! Compute the basin-average deltaT_ocn for floating cells.
+          ! This is used as a relaxation value for cells without floating ice.
+          ! Set to 0 if not running with multiple basins.
+
+          deltaT_ocn_relax(:,:) = 0.0d0
+
+          if (model%ocean_data%nbasin > 1) then
+             call glissade_basin_average(&
+                  model%general%ewn, model%general%nsn,  &
+                  model%ocean_data%nbasin,               &
+                  model%ocean_data%basin_number,         &
+                  floating_mask * 1.0d0,                 &   ! real mask
+                  model%ocean_data%deltaT_ocn,           &
+                  deltaT_ocn_basin_avg)
+          endif
+
+          do j = nhalo+1, nsn-nhalo
+             do i = nhalo+1, ewn-nhalo
+                nb = model%ocean_data%basin_number(i,j)
+                deltaT_ocn_relax(i,j) = deltaT_ocn_basin_avg(nb)
+             enddo
+          enddo
+
           ! Given the thickness target, invert for deltaT_ocn
 
           call glissade_inversion_deltaT_ocn(&
@@ -4180,13 +4245,16 @@ contains
                model%inversion%deltaT_ocn_timescale,  &  ! s
                model%inversion%deltaT_ocn_temp_scale, &  ! degC
                model%inversion%deltaT_ocn_length_scale,& ! m
-               model%inversion%deltaT_ocn_relax,      &  ! degC
                model%inversion%thck_error_exponent,   &
+               inversion_relax_everywhere,            &
+               deltaT_ocn_relax,                      &  ! degC
                model%geometry%f_ground_cell,          &
                model%geometry%thck * thk0,            &  ! m
                thck_obs * thk0,                       &  ! m
                model%geometry%dthck_dt,               &  ! m/s
                model%ocean_data%deltaT_ocn)              ! degC
+
+          call parallel_halo(model%ocean_data%deltaT_ocn, parallel)
 
        endif  ! first call after a restart
 
@@ -4238,7 +4306,8 @@ contains
 
     ! If inverting for flow_enhancement_factor, then update it here
 
-    if ( model%options%which_ho_flow_enhancement_factor == HO_FLOW_ENHANCEMENT_FACTOR_INVERSION) then
+    if ( model%options%which_ho_flow_enhancement_factor == HO_FLOW_ENHANCEMENT_FACTOR_INVERSION .and. &
+         .not.toggle_skip_inversion) then
 
        if ( (model%options%is_restart == STANDARD_RESTART .or. model%options%is_restart == HYBRID_RESTART) &
             .and. (model%numerics%time == model%numerics%tstart) ) then
@@ -4296,6 +4365,7 @@ contains
                f_ground_cell_obs,                                &
                model%paramets%flow_enhancement_factor_ground,    &
                model%paramets%flow_enhancement_factor_float,     &
+               inversion_relax_everywhere,                       &
                model%inversion%flow_enhancement_velo_scale,      &  ! m/s
                model%inversion%flow_enhancement_timescale,       &  ! s
                model%inversion%flow_enhancement_thck_scale,      &  ! m

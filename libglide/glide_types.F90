@@ -1708,6 +1708,9 @@ module glide_types
 
      !TODO - Break into different derived types for each kind of inversion?
 
+     real(dp) :: toggle_frequency = 0.0d0    !> if nonzero, then toggle inversion at this frequency (yr)
+                                             !> if zero, then do not toggle
+
      ! parameters for initializing inversion fields
      real(dp) :: &
           thck_threshold = 0.0d0,          & !> ice thinner than this threshold (m) is removed at initialization
@@ -1735,17 +1738,17 @@ module glide_types
           deltaT_ocn_timescale = 200.0d0,      & !> inversion timescale (yr)
           deltaT_ocn_thck_scale = 100.0d0,     & !> inversion thickness scale (m)
           deltaT_ocn_temp_scale = 2.0d0,       & !> inversion temperature scale (degC)
-          deltaT_ocn_length_scale = 0.d0,      & !> diffusive length scale (m) for inversion
-          deltaT_ocn_relax = 0.0d0               !> deltaT_ocn toward which we relax (deg C);
-                                                 !> typically = 0 since we prefer a correction as small as possible
+          deltaT_ocn_length_scale = 0.d0         !> diffusive length scale (m) for inversion
 
      ! fields and parameters for basin-scale deltaT_ocn inversion
      real(dp), dimension(:,:), pointer ::  &
           floating_thck_target => null()         !> Observational target for floating ice thickness
-     real(dp) ::  &
-          basin_flotation_threshold = 200.d0     !> threshold (m) for counting ice as lightly floating/grounded
+
      real(dp) :: &
+          deltaT_basin_relax = 0.0d0,          & !> relax the basin correction toward this value
+          basin_flotation_threshold = 200.d0,  & !> threshold (m) for counting ice as lightly floating/grounded
           basin_mass_correction = 0.0d0          !> optional mass correction (Gt) for a selected basin
+
      integer ::  &
           basin_number_mass_correction = 0       !> integer ID for the basin receiving the correction
 
