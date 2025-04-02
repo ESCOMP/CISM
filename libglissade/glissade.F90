@@ -4180,7 +4180,6 @@ contains
                                              model%inversion%deltaT_ocn_timescale,      &  ! s
                                              model%inversion%deltaT_ocn_temp_scale,     &  ! degC
                                              model%inversion%deltaT_basin_relax,        &  ! degC
-                                             model%inversion%thck_error_exponent,       &
                                              model%inversion%basin_mass_correction,     &
                                              model%inversion%basin_number_mass_correction, &
                                              model%ocean_data%deltaT_ocn)
@@ -4245,7 +4244,6 @@ contains
                model%inversion%deltaT_ocn_timescale,  &  ! s
                model%inversion%deltaT_ocn_temp_scale, &  ! degC
                model%inversion%deltaT_ocn_length_scale,& ! m
-               model%inversion%thck_error_exponent,   &
                inversion_relax_everywhere,            &
                deltaT_ocn_relax,                      &  ! degC
                model%geometry%f_ground_cell,          &

@@ -2308,7 +2308,6 @@ contains
 
     ! inversion parameters
     !TODO - Put inversion parameters in a separate section
-    call GetValue(section, 'inversion_thck_error_exponent', model%inversion%thck_error_exponent)
     call GetValue(section, 'inversion_thck_flotation_buffer', model%inversion%thck_flotation_buffer)
     call GetValue(section, 'inversion_thck_threshold', model%inversion%thck_threshold)
     call GetValue(section, 'inversion_toggle_frequency', model%inversion%toggle_frequency)
@@ -2773,9 +2772,6 @@ contains
         model%options%which_ho_deltaT_basin == HO_DELTAT_BASIN_INVERSION) then
        ! write parameters common to inversion schemes with a thickness target
        !TODO - thickness threshold and flotation buffer also?
-       write(message,*) 'inversion exponent for thickness errors      : ', &
-            model%inversion%thck_error_exponent
-       call write_log(message)
     endif
 
     if (model%options%which_ho_powerlaw_c == HO_POWERLAW_C_INVERSION) then

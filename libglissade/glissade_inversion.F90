@@ -574,7 +574,6 @@ contains
                                      model%inversion%babc_timescale,           &  ! s
                                      model%inversion%babc_length_scale,        &  ! m
                                      model%inversion%babc_relax_factor,        &
-                                     model%inversion%thck_error_exponent,      &
                                      model%basal_physics%powerlaw_c_max,       &
                                      model%basal_physics%powerlaw_c_min,       &
                                      inversion_relax_everywhere,               &
@@ -652,7 +651,6 @@ contains
                                      model%inversion%babc_timescale,           &  ! s
                                      model%inversion%babc_length_scale,        &  ! m
                                      model%inversion%babc_relax_factor,        &
-                                     model%inversion%thck_error_exponent,      &
                                      model%basal_physics%coulomb_c_max,        &
                                      model%basal_physics%coulomb_c_min,        &
                                      inversion_relax_everywhere,               &
@@ -711,7 +709,6 @@ contains
        babc_timescale,            &
        babc_length_scale,         &
        babc_relax_factor,         &
-       thck_error_exponent,       &
        friction_c_max,            &
        friction_c_min,            &
        inversion_relax_everywhere,&
@@ -752,7 +749,6 @@ contains
          babc_timescale,       & ! inversion timescale (s); must be > 0
          babc_length_scale,    & ! diffusive length scale (m) for inversion
          babc_relax_factor,    & ! controls strength of relaxation to default values
-         thck_error_exponent,  & ! exponent for the thickness error inversion term
          friction_c_max,       & ! upper bound for friction_c (units correspond to powerlaw_c or coulomb_c)
          friction_c_min          ! lower bound for friction_c
 
@@ -859,11 +855,7 @@ contains
              ! Compute tendency terms based on the thickness target
              !TODO - Test whether a nonzero exponent improves results; if not, then set exponent = 1.
              if (babc_thck_scale > 0.0d0) then
-                if (stag_dthck(i,j) >= 0.0d0) then
-                   term_thck = -((stag_dthck(i,j)/babc_thck_scale)**thck_error_exponent) / babc_timescale
-                else
-                   term_thck = ((-stag_dthck(i,j)/babc_thck_scale)**thck_error_exponent) / babc_timescale
-                endif
+                term_thck = -stag_dthck(i,j) / (babc_thck_scale*babc_timescale)
                 term_dHdt = -stag_dthck_dt(i,j) * 2.0d0 / babc_thck_scale
              endif
 
@@ -960,7 +952,6 @@ contains
        deltaT_ocn_timescale,        &
        deltaT_ocn_temp_scale,       &
        deltaT_basin_relax,          &
-       thck_error_exponent,         &
        basin_mass_correction,       &
        basin_number_mass_correction,&
        deltaT_ocn)
@@ -1009,7 +1000,6 @@ contains
          deltaT_ocn_timescale, & ! inversion timescale (s); must be > 0
          deltaT_ocn_temp_scale,& ! inversion temperature scale (degC)
          deltaT_basin_relax,   & ! value toward which we relax each basin (degC)
-         thck_error_exponent,  & ! exponent for the thickness error inversion term
          basin_mass_correction   ! optional mass correction (Gt) for a selected basin
 
     integer, intent(in) :: &
@@ -1084,11 +1074,7 @@ contains
 
        ! Compute d/dt(T_basin)
        dthck = floating_thck_basin(nb) - floating_thck_target_basin(nb)
-       if (dthck >= 0.0d0) then
-          term_thck = (dthck/deltaT_ocn_thck_scale)**thck_error_exponent * (deltaT_ocn_temp_scale/deltaT_ocn_timescale)
-       else
-          term_thck = -(-dthck/deltaT_ocn_thck_scale)**thck_error_exponent * (deltaT_ocn_temp_scale/deltaT_ocn_timescale)
-       endif
+       term_thck = (dthck/deltaT_ocn_thck_scale) * (deltaT_ocn_temp_scale/deltaT_ocn_timescale)
        term_dHdt = deltaT_ocn_temp_scale * floating_dthck_dt_basin(nb) * 2.0d0 / deltaT_ocn_thck_scale
        term_relax = -(deltaT_basin(nb) - deltaT_basin_relax) / deltaT_ocn_timescale
        dT_basin_dt(nb) = term_thck + term_dHdt + term_relax
@@ -1134,7 +1120,6 @@ contains
        deltaT_ocn_timescale,     &
        deltaT_ocn_temp_scale,    &
        deltaT_ocn_length_scale,  &
-       thck_error_exponent,      &
        inversion_relax_everywhere,&
        deltaT_ocn_relax,         &
        f_ground_cell,            &
@@ -1167,8 +1152,7 @@ contains
          deltaT_ocn_thck_scale,&   ! inversion thickness scale (m); must be > 0
          deltaT_ocn_timescale, &   ! inversion timescale (s); must be > 0
          deltaT_ocn_temp_scale,&   ! inversion temperature scale (degC)
-         deltaT_ocn_length_scale,& ! diffusive length scale (m) for inversion
-         thck_error_exponent       ! exponent for the thickness error inversion term
+         deltaT_ocn_length_scale   ! diffusive length scale (m) for inversion
 
     logical, intent(in) :: &
          inversion_relax_everywhere  ! if true, then nudge inversion parameters toward default values everywhere
@@ -1264,13 +1248,7 @@ contains
           
           if (thck(i,j) > 0.0d0 .and. f_ground_cell(i,j) < 1.0d0) then  ! ice is present and at least partly floating
 
-             if (dthck(i,j) >= 0.0d0) then
-                term_thck = (dthck(i,j)/deltaT_ocn_thck_scale)**thck_error_exponent &
-                     * (deltaT_ocn_temp_scale/deltaT_ocn_timescale)
-             else
-                term_thck = -(-dthck(i,j)/deltaT_ocn_thck_scale)**thck_error_exponent &
-                     * (deltaT_ocn_temp_scale/deltaT_ocn_timescale)
-             endif
+             term_thck = (dthck(i,j)/deltaT_ocn_thck_scale) * (deltaT_ocn_temp_scale/deltaT_ocn_timescale)
              term_dHdt = deltaT_ocn_temp_scale * dthck_dt(i,j) * 2.0d0 / deltaT_ocn_thck_scale
 
           endif
@@ -1518,8 +1496,6 @@ contains
           !  However, this leads to oscillations, since the velocity is very sensitive to E.
           ! Using dH/dt instead allows a balance between term_velo and the other terms as the flow
           !  approaches a steady state.
-          ! Note: Could add a velo_error_exponent (analogous to thck_error_exponent) to penalize
-          !       large departures from observations. For now, assume an exponent of 1.
 
           ! initialize terms
           term_velo = 0.0d0

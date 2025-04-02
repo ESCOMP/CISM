@@ -1714,11 +1714,8 @@ module glide_types
      ! parameters for initializing inversion fields
      real(dp) :: &
           thck_threshold = 0.0d0,          & !> ice thinner than this threshold (m) is removed at initialization
-          thck_flotation_buffer = 1.0d0,   & !> if usrf_obs implies thck near the flotation thickness,
+          thck_flotation_buffer = 1.0d0      !> if usrf_obs implies thck near the flotation thickness,
                                              !> set to thck_flotation +/- thck_flotation_buffer (m)
-          thck_error_exponent = 1.0d0        !> exponent for term of the form dH/H0,
-                                             !> where dH = H - H_target and H0 = thickness scale
-                                             !> values > 1 will tend to penalize large errors but tolerate small errors
 
      ! fields and parameters for powerlaw_c and coulomb_c inversion
      ! Note: powerlaw_c and coulomb_c are in the basal_physics type
