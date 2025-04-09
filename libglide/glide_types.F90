@@ -191,6 +191,7 @@ module glide_types
   integer, parameter :: EIGEN_CALVING = 9
   integer, parameter :: CALVING_DAMAGE = 10
   integer, parameter :: CALVING_HUYBRECHTS = 11
+  integer, parameter :: CALVING_STRAIN = 12
 
   integer, parameter :: CALVING_INIT_OFF = 0
   integer, parameter :: CALVING_INIT_ON = 1

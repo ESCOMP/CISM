@@ -671,6 +671,44 @@ contains
                calving%calving_counter_maxrate_exceeded, & 
                calving_dthck)                        ! m
 
+       elseif (which_calving == CALVING_STRAIN) then
+          !this one is the same logic as the stress based calving Bill built in
+
+          call extrapolate_to_calving_front(&
+               nx,                 ny,     &
+               partial_cf_mask,            &
+               full_mask,                  &
+               calving%effective_areafrac, &
+               speed)
+
+          call extrapolate_to_calving_front(&
+               nx,                 ny,     &
+               partial_cf_mask,            &
+               full_mask,                  &
+               calving%effective_areafrac, &
+               calving%eps_eigen1,         &
+               calving%eps_eigen2)
+
+          call strain_based_calving(&
+               nx,                 ny,            &
+               dx,                 dy,            &  ! m
+               dt,                                &  ! s
+               itest,   jtest,     rtest,         &
+               calving_front_mask,                &
+               speed,                             &  ! m/s
+               cf_length,                         &  ! m
+               calving%thck_effective,            &  ! m
+               calving%eps_eigen1,                &  ! Pa
+               calving%eps_eigen2,                &  ! Pa
+               calving%tau_eigenconstant1,        &
+               calving%tau_eigenconstant2,        &
+               calving%stress_threshold,          &  ! Pa
+               calving%calving_minrate,           &  ! m/yr
+               calving%calving_constant_velocity, &  ! m/yr
+               calving%calving_stress_thickness_scale, & ! m
+               calving%calving_counter_maxrate_exceeded, & 
+               calving_dthck)                        ! m
+
        elseif (which_calving == EIGEN_CALVING) then
 
 !!Is an elseif missing?
@@ -1590,6 +1628,159 @@ contains
     endif
 
   end subroutine stress_based_calving
+
+!---------------------------------------------------------------------------
+
+!---------------------------------------------------------------------------
+
+  subroutine strain_based_calving(&
+       nx,                 ny,            &
+       dx,                 dy,            &  ! m
+       dt,                                &  ! s
+       itest,   jtest,     rtest,         &
+       calving_front_mask,                &
+       speed,                             &  ! m/s
+       cf_length,                         &  ! m
+       thck_effective,                    &  ! m
+       eps_eigen1,    eps_eigen2,         &  ! Pa
+       tau_eigenconstant1,                &
+       tau_eigenconstant2,                &
+       stress_threshold,                  &  ! Pa
+       calving_minrate,                   &  ! m/yr
+       calving_constant_velocity,         &  ! m/yr
+       calving_stress_thickness_scale,    &  ! m
+       calving_counter_maxrate_exceeded,  &
+       calving_dthck)                        ! m
+
+    ! Calve ice based on the eigenvalues of the 2D horizontal stress tensor near the calving front.
+    ! When the effective stress is above a certain threshold, the CF advances.
+    ! Below the threshold, the CF retreats.
+
+    use glide_diagnostics, only: point_diag
+
+    ! input/output arguments
+
+    integer, intent(in) :: &
+         nx, ny,                 & ! grid dimensions
+         itest, jtest, rtest       ! coordinates of diagnostic point
+
+    real(dp), intent(in) :: &
+         dx, dy,                 & ! grid cell size (m)
+         dt                        ! time step (s)
+
+    integer, dimension(nx,ny), intent(in) ::  &
+         calving_front_mask        ! = 1 where ice is floating and borders at least one ocean cell, else = 0
+
+    real(dp), dimension(nx,ny), intent(in) :: &
+         speed,                  & ! mean ice speed averaged to cell centers (m/s)
+         cf_length,              & ! length of calving front in each grid cell (m)
+         thck_effective,         & ! effective thickness for calving (m)
+         eps_eigen1, eps_eigen2    ! eigenvalues of the horizontal strain tensor (1/year))
+
+    real(dp), intent(in) :: &
+         tau_eigenconstant1,     & ! multiplier for eps_eigen1 (unitless)
+         tau_eigenconstant2,     & ! multiplier for eps_eigen2 (unitless)
+         stress_threshold,       &   ! stress threshold for calving front retreat
+         calving_minrate,        & !maximum calving rate allowed, I called it min for some reason unknown.. if not zero, it is applied
+         calving_constant_velocity, & ! constant velocity in the stress based calving. It is used if it is not zero (which it is by default)
+         calving_stress_thickness_scale
+
+     real(dp), intent(inout):: &
+         calving_counter_maxrate_exceeded !how many cells do we have to cap at calving_minrate?
+ 
+ ! thickness scale of the extra term added to multiply the rate with to enhance dthck on thin shelves. This can create a feedback effect, thin shelves below the limit will be thinner next timestep where they'll receive an ever increasing enhancement. This is not neccesary a bad thing but something to keep in mind in case unstabilities arise. 
+
+
+    real(dp), dimension(nx,ny), intent(inout) :: &
+         calving_dthck             ! thickness lost due to calving (m)
+
+    ! local variables
+
+    integer :: i, j
+
+    real(dp), dimension(nx,ny) :: &
+         effec_strain,           & ! effective strain (1/yr)
+         lateral_rate              ! lateral calving rate (m/s)
+    real(dp) :: &
+         multiply_velocity,      & !either the ice velocities or a constant velocity depending on calving_constant_velocity
+         thickness_fraction,    &
+         calving_counter_total !> how many calving grid cells are there?
+                                   !either 1 or based on calving_stress_thickness_scale/thck_effective. I will limit this to be 1, so that it cannot
+                                   !ever decrease the calving rate for thick ice shelves. I.e. we assume for now that stress based calving works 
+                                   ! for thick ice shelves and that it for now is only a way to deal with thinner shelves. 
+
+    ! Compute thinning in calving-front cells based on the principal eigenvalues of the
+    ! horizontal stress tensor, in relation to a stress threshold.
+    !
+    ! The lateral calving rate Cr is given by
+    !
+    !   Cr = |v| * effec_stress / stress_threshold
+    !   where effec_stress = k1*max(tau_eigen1,0.0) + k2*max(tau_eigen2,0.0)
+    !        |v| = ice speed (>=0) at the calving front
+    !
+    ! In other words:
+    ! * Cr = 0 where effec_stress = 0; no calving
+    ! * Cr < |v| where effec_stress < stress_threhold
+    ! * Cr > |v| where effec_stress > stress_threhold
+    ! * Cr = |v| where effec_stress = stress_threhold
+    !
+    ! The lateral calving rate is converted to a thinning rate dH using
+    !
+    !   dH = Cr * dt * H_eff * cf_length/ (dx*dy),
+    !
+    ! The RHS is equal to the ice volume removed per unit grid cell area during one time step
+
+    lateral_rate = 0.0d0
+    calving_dthck = 0.0d0
+    effec_strain = 0.0d0
+    thickness_fraction = 1.0d0
+    multiply_velocity  = 1.0d0
+    calving_counter_total  = sum(calving_front_mask)
+
+
+    do j = nhalo+1, ny-nhalo
+       do i = nhalo+1, nx-nhalo
+
+          effec_strain(i,j) = tau_eigenconstant1 * abs(eps_eigen1(i,j))   &
+                            + tau_eigenconstant2 * abs(eps_eigen2(i,j))
+          effec_strain(i,j) = effec_strain(i,j)*scyr !!now in m/yr so it matches with the threshold
+          if (calving_front_mask(i,j) == 1) then
+             !!set the two values for the fractional thickness and the velocity
+             if (calving_constant_velocity > 0.d0) then
+                multiply_velocity = calving_constant_velocity/scyr  !now in m/s
+             else
+                multiply_velocity = speed(i,j)
+             endif
+
+             if (calving_stress_thickness_scale > 0.d0) then
+                thickness_fraction = calving_stress_thickness_scale/thck_effective(i,j)
+                thickness_fraction = max(thickness_fraction,1.0d0)  !limited to not go below 1, for thick ice shelves
+             endif           
+
+             lateral_rate(i,j) = thickness_fraction*multiply_velocity * effec_strain(i,j) / stress_threshold
+             if (calving_minrate > 0.d0) then
+                lateral_rate(i,j) = min(lateral_rate(i,j), calving_minrate/scyr)  !calving_minrate is in m/yr, lateral_rate in m/s
+                calving_counter_maxrate_exceeded = calving_counter_maxrate_exceeded + 1
+             endif          
+   
+             calving_dthck(i,j) = lateral_rate(i,j) * dt * thck_effective(i,j) * cf_length(i,j) / (dx*dy)
+          endif   ! CF mask
+
+       enddo   ! i
+    enddo   ! j
+
+    if (verbose_calving) then
+       call point_diag(speed*scyr, 'Stress-based calving, ice speed (m/yr)', itest, jtest, rtest, 7, 7)
+       call point_diag(eps_eigen1, 'eps_eigen1 (Pa)', itest, jtest, rtest, 7, 7, '(f10.0)')
+       call point_diag(eps_eigen2, 'eps_eigen2 (Pa)', itest, jtest, rtest, 7, 7, '(f10.0)')
+       call point_diag(effec_strain, 'eff_strain (Pa)', itest, jtest, rtest, 7, 7, '(f10.0)')
+       call point_diag(lateral_rate*scyr, 'lateral calving rate (m/yr)', itest, jtest, rtest, 7, 7)
+       call point_diag(calving_dthck, 'calving_dthck (m)', itest, jtest, rtest, 7, 7)
+       call point_diag(calving_front_mask, 'calving_front_mask', itest, jtest, rtest, 7,7)
+
+    endif
+
+  end subroutine strain_based_calving
 
 !---------------------------------------------------------------------------
 

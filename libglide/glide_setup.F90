@@ -990,7 +990,7 @@ contains
          'compute isostasy with model     ' /)
 
     !TODO - Change 'marine_margin' to 'calving'?  Would have to modify many config files
-    character(len=*), dimension(0:11), parameter :: marine_margin = (/ &
+    character(len=*), dimension(0:12), parameter :: marine_margin = (/ &
          'no calving law                   ', &
          'remove all floating ice          ', &
          'remove fraction of floating ice  ', &
@@ -1002,7 +1002,8 @@ contains
          'stress threshold                 ', &
          'strain-rate (eigencalving)       ', &
          'damage-based calving scheme      ', &
-         'Huybrechts calving               '/)
+         'Huybrechts calving               ', &
+         'strain-rate based calving        '/)
 
     character(len=*), dimension(0:1), parameter :: init_calving = (/ &
          'no calving at initialization    ', &
