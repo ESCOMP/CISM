@@ -962,7 +962,7 @@ contains
     real(dp) :: logmin
 
     real(dp) ::  &
-         term_thck, term_dHdt, term_thck2,  & ! tendency terms based on thickness target
+         term_thck, term_dHdt,  & ! tendency terms based on thickness target
          term_velo,                         & ! tendency term based on surface speed target
          term_relax,                        & ! tendency term based on relaxation to default value
          term_laplacian
@@ -984,11 +984,6 @@ contains
 
     !Bills laplacian, as alternative to my own (probably crude working) laplacian
 
-    where (f_ground > 0.d0)
-         del2_mask = 1
-    elsewhere
-         del2_mask = 0
-    endwhere
 
     if (which_ho_friction_c == HO_FRICTION_C_LOGARITHMIC) then
        where (friction_c > 0.d0)
@@ -996,7 +991,14 @@ contains
        elsewhere
              logC=logmin
        endwhere
-       LogC_relax = log10(friction_c_relax)
+       
+       del2_mask(:,:) = 1
+              
+       where (friction_c_relax > 0.d0)
+              LogC_relax = log10(friction_c_relax)
+       elsewhere
+              LogC_relax = 0.d0
+       endwhere
 
        call glissade_laplacian_stagvar(&
             nx,     ny,                &
@@ -1005,14 +1007,18 @@ contains
             del2_mask)
 
 
+    !we need and got logarithmic terms right now, logarithmic of C, and of the relaxation target
+
     endif !which_ho_friction_c
 
-    call glissade_laplacian_stagvar(&
-             nx,    ny,              &
-             dx,    dy,              &
-             friction_c, del2_frictionc, &
-             del2_mask)
+    !we still migtht the laplacian smoothing terms in the linear equation
 
+
+       call glissade_laplacian_stagvar(&
+            nx,     ny,                &
+            dx,     dy,                & 
+            friction_c,   del2_frictionc,         &
+            del2_mask)
 
     stag_dthck(:,:) = stag_thck(:,:) - stag_thck_obs(:,:)
 
@@ -1021,60 +1027,6 @@ contains
     elsewhere
        dvelo_sfc = 0.0d0
     endwhere
-
-    ! optional diagnostics
-    if (verbose_inversion .and. this_rank == rtest) then
-       i = itest
-       j = jtest
-       print*, ' '
-       print*, 'stag_thck - stag_thck_obs:'
-       do j = jtest+3, jtest-3, -1
-          do i = itest-3, itest+3
-             write(6,'(f10.3)',advance='no') stag_dthck(i,j)
-          enddo
-          print*, ' '
-       enddo
-       print*, ' '
-       print*, 'stag_dthck_dt (m/yr):'
-       do j = jtest+3, jtest-3, -1
-          do i = itest-3, itest+3
-             write(6,'(f10.3)',advance='no') stag_dthck_dt(i,j)*scyr
-          enddo
-          print*, ' '
-       enddo
-       print*, ' '
-       print*, 'velo_sfc (m/yr):'
-       do j = jtest+3, jtest-3, -1
-          do i = itest-3, itest+3
-             write(6,'(f10.3)',advance='no') velo_sfc(i,j)
-          enddo
-          print*, ' '
-       enddo
-       print*, ' '
-       print*, 'velo_sfc_obs (m/yr):'
-       do j = jtest+3, jtest-3, -1
-          do i = itest-3, itest+3
-             write(6,'(f10.3)',advance='no') velo_sfc_obs(i,j)
-          enddo
-          print*, ' '
-       enddo
-       print*, ' '
-       print*, 'velo_sfc - velo_sfc_obs (m/yr):'
-       do j = jtest+3, jtest-3, -1
-          do i = itest-3, itest+3
-             write(6,'(f10.3)',advance='no') dvelo_sfc(i,j)
-          enddo
-          print*, ' '
-       enddo
-       print*, ' '
-       print*, 'f_ground'
-       do j = jtest+3, jtest-3, -1
-          do i = itest-3, itest+3
-             write(6,'(f10.3)',advance='no') f_ground(i,j)
-          enddo
-          print*, ' '
-       enddo
-    endif
 
     ! Loop over vertices where f_ground > 0
     ! Note: f_ground should be computed before transport, so that if a vertex is grounded
@@ -1123,31 +1075,6 @@ contains
              !  by reducing the chance of overshooting the GL.  In practice, it may only delay
              !  the onset of instability, if the thickness target is an unstable state.
 
-             if (present(p_ocean)) then
-                if (stag_thck(i,j) > 0.0d0 .and. &
-                     stag_thck(i,j) > stag_thck_flotation(i,j)) then
-                   term_thck2 = -stag_dthck_dt(i,j) *  &
-                        ( (1.0d0 - p_ocean)/stag_thck(i,j) &
-                        + p_ocean / (stag_thck(i,j) - stag_thck_flotation(i,j)) )
-                endif
-             endif
-             !WHL - leave out this term for now
-             !TODO: Remove this term?
-             term_thck2 = 0.0d0
-
-             ! Compute tendency terms based on the surface speed target
-             !TODO: Remove this term?  I haven't gotten it to work well in conjuction with thickness-based inversion.
-
-             if (fixed_velo_scale) then
-                if (babc_velo_scale > 0.0d0) then
-                   term_velo = dvelo_sfc(i,j) / (babc_velo_scale * babc_timescale)
-                endif
-             else   ! velo_scale based on local obs
-                if (babc_velo_scale > 0.0d0) then
-                   velo_target = max(velo_sfc_obs(i,j), babc_velo_scale)
-                   term_velo = dvelo_sfc(i,j) / (velo_target * babc_timescale)
-                endif
-             endif
 
              ! Add a term to relax C = friction_c toward a target value, friction_c_relax
              ! The log term below ensures the following:
@@ -1159,7 +1086,7 @@ contains
              if (friction_c_relax(i,j) > 0.0d0) then
                      term_relax = -babc_relax_factor * log((friction_c(i,j)+0.00001)/friction_c_relax(i,j)) / babc_timescale
                 if (which_ho_friction_c == HO_FRICTION_C_LOGARITHMIC) then
-                     term_relax = -babc_relax_factor *(LogC(i,j)/LogC_relax(i,j))   /babc_timescale
+                     term_relax = -babc_relax_factor *(LogC(i,j)-LogC_relax(i,j))   /babc_timescale
                 endif
              else 
                      term_relax = 0.0d0
@@ -1167,41 +1094,56 @@ contains
              
              ! Add a laplacian smoothing term to the dfriction term
              if (laplacian_time_scale > 0.d0 ) then
-!                    term_laplacian = (dC2_dx(i,j) + dC2_dy(i,j))*((laplacian_length_scale**2)/laplacian_time_scale) 
                     term_laplacian = (del2_frictionc(i,j)) * ((laplacian_length_scale**2)/laplacian_time_scale)
-                  !  print*, 'Pinguin, term_laplacian, dC2_dx, dC2_dy, del2_frctionc, length_scale, laplacian_time_scale'
-                  !  print*,  term_laplacian, dC2_dx(i,j), dC2_dy(i,j), del2_frictionc(i,j), laplacian_length_scale, laplacian_time_scale                    
                  if (which_ho_friction_c == HO_FRICTION_C_LOGARITHMIC) then
                 
                    term_laplacian = (del2_LogC(i,j)) * ((laplacian_length_scale**2)/laplacian_time_scale)
-                  !  print*, 'Pinguin, term_laplacian, dC2_dx, dC2_dy, del2_frctionc, length_scale, laplacian_time_scale'
-                  !  print*,  term_laplacian, dC2_dx(i,j), dC2_dy(i,j), del2_frictionc(i,j), laplacian_length_scale, laplacian_
                  endif   
              else  
                     term_laplacian = 0.0d0
              endif
                   
              dfriction_c(i,j) = friction_c(i,j) * dt &
-                  * (term_thck + term_dHdt + term_thck2 + term_velo + term_relax) + term_laplacian*dt
-!             print*,'term_thck, term_relax, term_laplacian, pinguin'
-!             print*, term_thck*friction_c(i,j) * dt, term_relax*friction_c(i,j) * dt, term_laplacian*dt
+                  * (term_thck + term_dHdt + term_velo + term_relax) + term_laplacian*dt
              if (which_ho_friction_c == HO_FRICTION_C_LOGARITHMIC) then
-                dfriction_c(i,j) = friction_c(i,j)*dt*(term_thck + term_dHdt + term_thck2 + term_velo) +  &
-                     dt * (10**(term_laplacian) + 10**(term_relax))
+                dfriction_c(i,j) = dt*(term_thck + term_dHdt + term_laplacian + term_relax)
              endif
 
 
              ! Limit to prevent a large relative change in one step
-             if (abs(dfriction_c(i,j)) > 0.05d0 * friction_c(i,j)) then
-                if (dfriction_c(i,j) > 0.0d0) then
-                   dfriction_c(i,j) =  0.05d0 * friction_c(i,j)
-                else
-                   dfriction_c(i,j) = -0.05d0 * friction_c(i,j)
+             if (which_ho_friction_c == HO_FRICTION_C_LINEAR) then
+                 if (abs(dfriction_c(i,j)) > 0.05d0 * friction_c(i,j)) then
+                     if (dfriction_c(i,j) > 0.0d0) then
+                         dfriction_c(i,j) =  0.05d0 * friction_c(i,j)
+                     else
+                         dfriction_c(i,j) = -0.05d0 * friction_c(i,j)
+                     endif
+                  endif
+             endif
+
+             if (which_ho_friction_c == HO_FRICTION_C_LOGARITHMIC) then
+                if (abs(dfriction_c(i,j)) > 0.1d0*dt/scyr) then
+                    if (dfriction_c(i,j) > 0.d0) then
+                        dfriction_c(i,j) = 0.1d0*dt/scyr
+                    else
+                        dfriction_c(i,j) = -0.1d0*dt/scyr
+                    endif
                 endif
              endif
 
              ! Update friction_c
-             friction_c(i,j) = friction_c(i,j) + dfriction_c(i,j)
+             if (which_ho_friction_c == HO_FRICTION_C_LINEAR) then 
+                 friction_c(i,j) = friction_c(i,j) + dfriction_c(i,j)
+             endif
+             
+             if (which_ho_friction_c == HO_FRICTION_C_LOGARITHMIC ) then
+                logC(i,j) = logC(i,j) + dfriction_c(i,j)
+                if (logC(i,j) > logmin) then
+                    friction_c(i,j) = 10.0d0**logC(i,j)
+                else 
+                    friction_c(i,j) = 0.d0
+                endif
+             endif 
 
              ! Limit to a physically reasonable range
              friction_c(i,j) = min(friction_c(i,j), friction_c_max)
@@ -1217,7 +1159,6 @@ contains
                 print*, 'dH term, dH/dt term, sum =', &
                      term_thck*dt, term_dHdt*dt, (term_thck + term_dHdt)*dt
                 if (babc_velo_scale > 0.0d0) print*, 'dv term =', term_velo*dt
-                if (present(p_ocean)) print*, 'dN/dH term:', term_thck2*dt
                 print*, 'relax term =', term_relax*dt
                 print*, 'dfriction_c, new friction_c =', dfriction_c(i,j), friction_c(i,j)
              endif
