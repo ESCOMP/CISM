@@ -1879,7 +1879,8 @@ module glide_types
      real(dp) ::  &
           deltaT_ocn_thck_scale = 100.0d0,     & !> thickness scale (m) for adjusting deltaT_ocn
           deltaT_ocn_timescale = 100.0d0,      & !> timescale (yr) for adjusting deltaT_ocn
-          deltaT_ocn_temp_scale = 2.0d0          !> temperature scale (degC) for adjusting deltaT_ocn
+          deltaT_ocn_temp_scale = 2.0d0,       & !> temperature scale (degC) for adjusting deltaT_ocn
+          deltaT_ocn_length_scale = 0.d0
 
      ! fields and parameters for basin-scale deltaT_ocn inversion
 

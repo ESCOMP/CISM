@@ -4552,10 +4552,13 @@ contains
           call glissade_inversion_deltaT_ocn(&
                model%numerics%dt * tim0,              &  ! s
                ewn,           nsn,                    &
+               model%numerics%dew*len0,               &  ! m 
+               model%numerics%dns*len0,               &  ! m
                itest, jtest,  rtest,                  &
                model%inversion%deltaT_ocn_thck_scale, &  ! m
                model%inversion%deltaT_ocn_timescale,  &  ! s
                model%inversion%deltaT_ocn_temp_scale, &  ! degC
+               model%inversion%deltaT_ocn_length_scale, &
                model%geometry%f_ground_cell,          &
                model%geometry%thck * thk0,            &  ! m
                thck_obs * thk0,                       &  ! m

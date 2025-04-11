@@ -2380,6 +2380,7 @@ contains
     call GetValue(section, 'inversion_deltaT_ocn_timescale', model%inversion%deltaT_ocn_timescale)
     call GetValue(section, 'inversion_deltaT_ocn_thck_scale', model%inversion%deltaT_ocn_thck_scale)
     call GetValue(section, 'inversion_deltaT_ocn_temp_scale', model%inversion%deltaT_ocn_temp_scale)
+    call GetValue(section, 'deltaT_ocn_length_scale', model%inversion%deltaT_ocn_length_scale)
 
     call GetValue(section, 'inversion_flow_enhancement_timescale', &
          model%inversion%flow_enhancement_factor_timescale)

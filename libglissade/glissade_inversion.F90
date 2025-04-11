@@ -1165,18 +1165,42 @@ contains
 
 
           else   !ice is not grounded; relax friction_c to the default value
-                 !TvdA: if ice is not grounded and if it should be grounded in the observations
-                 !we do not want coulomb c to go down to the relax target, but we want to keep it at the last, possibly
-                 !high value. So we need to check if in observations the ice was grounded, so we need and f_ground_obs
-             if (friction_c_relax(i,j) > 0.0d0) then
-                   term_relax = -babc_relax_factor * log(friction_c(i,j)/friction_c_relax(i,j)) / babc_timescale
-                   friction_c(i,j) = friction_c(i,j) * (1.0d0 + term_relax*dt)
-             else
+                 !if we are chosing the linear, old inversion, this should just be a simple relaxation
+                 !if we are doing the logarithmic inversion, we should do this with the simplified differential equation (term_thck, term_dHdt are zero)
+                 !to prevent sudden switches between grounded and floating ice
+             if (which_ho_friction_c == HO_FRICTION_C_LINEAR) then
+                   if (friction_c_relax(i,j) > 0.0d0) then
+                         term_relax = -babc_relax_factor * log(friction_c(i,j)/friction_c_relax(i,j)) / babc_timescale
+                         friction_c(i,j) = friction_c(i,j) * (1.0d0 + term_relax*dt)
+                   else
                    
-                   term_relax = -babc_relax_factor * log(friction_c(i,j)/friction_c_min) / babc_timescale
-                   friction_c(i,j) = friction_c(i,j) * (1.0d0 + term_relax*dt)
-             endif
+                         term_relax = -babc_relax_factor * log(friction_c(i,j)/friction_c_min) / babc_timescale
+                         friction_c(i,j) = friction_c(i,j) * (1.0d0 + term_relax*dt)
+                   endif
+             endif ! which_ho_friction_c
+             if (which_ho_friction_c == HO_FRICTION_C_LOGARITHMIC) then
+                
+                     term_relax = -babc_relax_factor *(LogC(i,j)-LogC_relax(i,j))   /babc_timescale          
+                     term_laplacian = (del2_LogC(i,j)) * ((laplacian_length_scale**2)/laplacian_time_scale)
+                     dfriction_c(i,j) = dt*(term_laplacian + term_relax)
 
+                     if (abs(dfriction_c(i,j)) > 0.1d0*dt/scyr) then
+                         if (dfriction_c(i,j) > 0.d0) then
+                             dfriction_c(i,j) = 0.1d0*dt/scyr
+                         else
+                             dfriction_c(i,j) = -0.1d0*dt/scyr
+                         endif
+                     endif
+
+                     logC(i,j) = logC(i,j) + dfriction_c(i,j)
+                     if (logC(i,j) > logmin) then
+                         friction_c(i,j) = 10.0d0**logC(i,j)
+                     else 
+                         friction_c(i,j) = 0.d0
+                     endif
+
+
+             endif !which_ho_friction_c
           endif  ! ice_mask = 1
 
        enddo  ! i
@@ -1382,10 +1406,12 @@ contains
   subroutine glissade_inversion_deltaT_ocn(&
        dt,                       &
        nx,            ny,        &
+       dx,            dy,        &
        itest, jtest,  rtest,     &
        deltaT_ocn_thck_scale,    &
        deltaT_ocn_timescale,     &
        deltaT_ocn_temp_scale,    &
+       deltaT_ocn_length_scale,  &
        f_ground_cell,            &
        thck_in,                  &
        thck_obs_in,              &
@@ -1400,12 +1426,15 @@ contains
     !    Where thck < thck_obs, deltaT_ocn is reduced to reduce basal melting.
     ! Note: deltaT_ocn is constrained to lie within a prescribed range, [deltaT_ocn_min, deltaT_ocn_max].
 
-    use glissade_grid_operators, only: glissade_laplacian_smoother
+    use glissade_grid_operators, only: glissade_laplacian, glissade_laplacian_smoother
 
     real(dp), intent(in) ::  dt  ! time step (s)
 
     integer, intent(in) :: &
          nx, ny                  ! grid dimensions
+
+    real(dp), intent(in) :: &
+         dx, dy                  ! grid cell lengths
 
     integer, intent(in) :: &
          itest, jtest, rtest     ! coordinates of diagnostic point
@@ -1413,7 +1442,8 @@ contains
     real(dp), intent(in) :: &
          deltaT_ocn_thck_scale,& ! inversion thickness scale (m); must be > 0
          deltaT_ocn_timescale, & ! inversion timescale (s); must be > 0
-         deltaT_ocn_temp_scale   ! inversion temperature scale (degC)
+         deltaT_ocn_temp_scale,& ! inversion temperature scale (degC)
+         deltaT_ocn_length_scale
 
     real(dp), dimension(nx,ny), intent(in) ::  &
          f_ground_cell,        & ! grounded fraction at cell centers, 0 to 1
@@ -1431,13 +1461,17 @@ contains
          thck,                 & ! ice thickness (m), optionally smoothed
          thck_obs,             & ! observed ice thickness (m), optionally smoothed
          dthck_dt,             & ! rate of change of ice thickness (m/s), optionally smoothed
-         dthck                   ! thck - thck_obs
-
+         dthck,                &   ! thck - thck_obs
+         del2_deltaT_ocn       ! Laplacian term of the deltaT
+     
+    integer, dimension(nx,ny) :: del2_mask ! mask for the laplacian smoothing
+             
     real(dp) ::  &
          term_thck,            & ! tendency term based on thickness target
          term_dHdt,            & ! tendency term based on dH/dt
          term_relax,           & ! term that relaxes deltaT_ocn toward base value
-         term_sum                ! sum of the terms above
+         term_sum,              &  ! sum of the terms above
+         term_laplacian
 
     real(dp) , intent(in) :: deltaT_ocn_maxval !maximum value as a config parameter
 
@@ -1484,6 +1518,21 @@ contains
 
     endif
 
+
+    !prepare the laplacian of deltaT_ocn
+    where (thck > 0.d0)
+        del2_mask = 1
+    elsewhere
+        del2_mask = 0
+    endwhere
+
+    call glissade_laplacian(&
+         nx, ny,            &
+         dx, dy,            &
+         deltaT_ocn, del2_deltaT_ocn, &
+         del2_mask)
+          
+
     ! Compute difference between current and target value
     ! Note: For ice-covered cells with ice-free targets, dthck will be > 0 to encourage thinning.
     dthck(:,:) = thck(:,:) - thck_obs(:,:)
@@ -1494,6 +1543,13 @@ contains
 
     do j = 1, ny
        do i = 1, nx
+          
+
+          if (thck(i,j) > 0.d0) then
+             term_laplacian = del2_deltaT_ocn(i,j) * deltaT_ocn_length_scale**2 / deltaT_ocn_timescale 
+             else
+             term_laplacian = 0.0d0 
+          endif
 
           if (f_ground_cell(i,j) < 1.0d0) then  ! ice is at least partly floating
 
@@ -1511,7 +1567,7 @@ contains
              term_thck = deltaT_ocn_temp_scale * dthck(i,j) / (deltaT_ocn_thck_scale * deltaT_ocn_timescale)
              term_dHdt = deltaT_ocn_temp_scale * dthck_dt(i,j) * 2.0d0 / deltaT_ocn_thck_scale
              term_relax = (deltaT_ocn_relax(i,j) - deltaT_ocn(i,j)) / deltaT_ocn_timescale
-             term_sum = term_thck + term_dHdt + term_relax
+             term_sum = term_thck + term_dHdt + term_relax + term_laplacian
 
              if (verbose_inversion .and. this_rank == rtest .and. i==itest .and. j==jtest) then
                 print*, ' '
@@ -1536,7 +1592,7 @@ contains
 
              ! relax toward the default value
              term_relax = (deltaT_ocn_relax(i,j) - deltaT_ocn(i,j)) / deltaT_ocn_timescale
-             deltaT_ocn(i,j) = deltaT_ocn(i,j) + term_relax * dt
+             deltaT_ocn(i,j) = deltaT_ocn(i,j) + (term_relax + term_laplacian) * dt
 
           endif  ! f_ground_cell < 1
 
