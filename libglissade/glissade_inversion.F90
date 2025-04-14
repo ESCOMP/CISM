@@ -792,13 +792,18 @@ contains
                                      stag_dthck_dt,                            &  ! m/s
                                      velo_sfc*(vel0*scyr),                     &  ! m/yr
                                      model%velocity%velo_sfc_obs*(vel0*scyr),  &  ! m/yr
-                                     model%inversion%babc_laplacian_time_scale, &
+                                     model%inversion%babc_laplacian_time_scale*scyr, & !s
                                      model%inversion%babc_laplacian_length_scale, & !m
                                      model%basal_physics%coulomb_c_relax,      &
                                      model%basal_physics%coulomb_c,            &
                                      dC2_dx = dC2_dx, dC2_dy = dC2_dy,         &
                                      stag_thck_flotation = stag_thck_flotation, &
                                      p_ocean = model%basal_physics%p_ocean_penetration)
+
+          ! halo update, forgotten this one before making the logarithmic
+          if (model%inversion%babc_laplacian_length_scale > 0.d0) then
+              call staggered_parallel_halo(model%basal_physics%coulomb_c, parallel)
+          endif
 
           if (verbose_inversion .and. this_rank == rtest) then
              i = itest
@@ -954,7 +959,8 @@ contains
          logC,                 & !Logarithmic value of Coulomb C
          LogC_relax,           & !Logarithmic value of coulomb C relaxation target
          dLogC,                & !Logarithmic difference in coulomb c
-         del2_LogC
+         del2_LogC,            & !laplacian of logarithmic difference in coulomb c
+         friction_c_old         ! to store the old friction_c
 
     integer, dimension(nx-1,ny-1) :: &
         del2_mask
@@ -985,6 +991,9 @@ contains
     !Bills laplacian, as alternative to my own (probably crude working) laplacian
 
 
+             !store old friction c for diagnostics
+    friction_c_old(:,:)=friction_c(:,:)
+
     if (which_ho_friction_c == HO_FRICTION_C_LOGARITHMIC) then
        where (friction_c > 0.d0)
              logC=log10(friction_c)
@@ -997,7 +1006,7 @@ contains
        where (friction_c_relax > 0.d0)
               LogC_relax = log10(friction_c_relax)
        elsewhere
-              LogC_relax = 0.d0
+              LogC_relax = logmin
        endwhere
 
        call glissade_laplacian_stagvar(&
@@ -1086,6 +1095,7 @@ contains
              if (friction_c_relax(i,j) > 0.0d0) then
                      term_relax = -babc_relax_factor * log((friction_c(i,j)+0.00001)/friction_c_relax(i,j)) / babc_timescale
                 if (which_ho_friction_c == HO_FRICTION_C_LOGARITHMIC) then
+                     !print*, 'Pinguin, term relax is logarithmisch'
                      term_relax = -babc_relax_factor *(LogC(i,j)-LogC_relax(i,j))   /babc_timescale
                 endif
              else 
@@ -1096,7 +1106,7 @@ contains
              if (laplacian_time_scale > 0.d0 ) then
                     term_laplacian = (del2_frictionc(i,j)) * ((laplacian_length_scale**2)/laplacian_time_scale)
                  if (which_ho_friction_c == HO_FRICTION_C_LOGARITHMIC) then
-                
+                   !print*, 'Pinguin, de laplaciaan is logarithmisch'
                    term_laplacian = (del2_LogC(i,j)) * ((laplacian_length_scale**2)/laplacian_time_scale)
                  endif   
              else  
@@ -1106,6 +1116,7 @@ contains
              dfriction_c(i,j) = friction_c(i,j) * dt &
                   * (term_thck + term_dHdt + term_velo + term_relax) + term_laplacian*dt
              if (which_ho_friction_c == HO_FRICTION_C_LOGARITHMIC) then
+                !print*,'Pinguin, de optelsom van de coulomb c is logarithmisch'
                 dfriction_c(i,j) = dt*(term_thck + term_dHdt + term_laplacian + term_relax)
              endif
 
@@ -1130,7 +1141,9 @@ contains
                     endif
                 endif
              endif
-
+             
+             !store old friction c for diagnostics
+             
              ! Update friction_c
              if (which_ho_friction_c == HO_FRICTION_C_LINEAR) then 
                  friction_c(i,j) = friction_c(i,j) + dfriction_c(i,j)
@@ -1151,15 +1164,16 @@ contains
 
              !WHL - debug
              if (verbose_inversion .and. this_rank == rtest .and. i==itest .and. j==jtest) then
-                print*, ' '
                 print*, 'Increment friction_c: rank, i, j =', rtest, itest, jtest
+                print*, 'Old friction c: ' , friction_c_old(i,j) 
                 print*, 'thck, thck_obs, dthck, dthck_dt:', &
                      stag_thck(i,j), stag_thck_obs(i,j), stag_dthck(i,j), stag_dthck_dt(i,j)*scyr
-                print*, 'velo_sfc, velo_sfc_obs, dvelo_sfc:', velo_sfc(i,j), velo_sfc_obs(i,j), dvelo_sfc(i,j)
-                print*, 'dH term, dH/dt term, sum =', &
+                print*, 'dH term, dH/dt term, sum of thck and dh/dt terms =', &
                      term_thck*dt, term_dHdt*dt, (term_thck + term_dHdt)*dt
-                if (babc_velo_scale > 0.0d0) print*, 'dv term =', term_velo*dt
                 print*, 'relax term =', term_relax*dt
+                print*, 'laplacian_length_scale, laplacian_time_scale, dt: , ', laplacian_length_scale, &
+                         laplacian_time_scale, dt
+                print*, 'Laplacian of C, Laplacian term =', del2_LogC(i,j) ,term_laplacian*dt
                 print*, 'dfriction_c, new friction_c =', dfriction_c(i,j), friction_c(i,j)
              endif
 

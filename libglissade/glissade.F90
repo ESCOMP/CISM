@@ -4567,6 +4567,12 @@ contains
                model%ocean_data%deltaT_ocn,           &  ! degC
                model%inversion%deltaT_ocn_maxval)
 
+          !TvdA, I am adding a paralell update on the deltaT ocn as well, since there is a nonlocal effect of the laplacian
+          !in the inversion
+          if (model%inversion%deltaT_ocn_length_scale > 0.d0) then
+             call parallel_halo(model%ocean_data%deltaT_ocn, parallel)
+          endif 
+
           !we are done inverting for deltaT ocn, this should be the appropriate place to limit deltaT ocn to the 
           !-thermal forcing of the lower surface. This is now double with the call in the subroutine ismip6 
           ! it does also happen at the calculation step of the basal melt rates, but over there it does not change the array
