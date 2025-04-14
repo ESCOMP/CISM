@@ -890,6 +890,7 @@ module glissade_bmlt_float
 
     ! Set thermal_forcing_mask
     ! This mask identifies cells where we could have basal melting and need valid TF data.
+    !where (ice_mask == 1 .and. f_ground_cell < 1.0d0 .and. marine_connection_mask == 1)
     where (ice_mask == 1 .and. f_ground_cell < 1.0d0 .and. marine_connection_mask == 1)
        thermal_forcing_mask = 1
     elsewhere
@@ -998,6 +999,9 @@ module glissade_bmlt_float
             topg,                              &  ! m
             thermal_forcing_mask,              &
             marine_connection_mask,            &
+            ice_mask,                          &
+            ocean_mask,                       &
+            f_ground_cell,                     &
             unphys_val,                        &  ! identifies unfilled cells on input
             unphys_val,                       &  ! default value given to unfilled cells on output
             ocean_data%thermal_forcing)
@@ -1457,7 +1461,8 @@ module glissade_bmlt_float
        nzocn,           zocn,                  &
        lsrf,            topg,                  &
        thermal_forcing_mask,                   &
-       marine_connection_mask,                 &
+       marine_connection_mask, ice_mask,       &
+       ocean_mask, f_ground_cell,              &
        unphys_val,      default_val,           &
        thermal_forcing)
 
@@ -1497,12 +1502,14 @@ module glissade_bmlt_float
     !TODO - Pass in eus as well as topg?
     real(dp), dimension(nx,ny), intent(in) ::  &
          lsrf,                 & ! lower ice surface elevation (m)
-         topg                    ! bed elevation (m)
+         topg,                 &    ! bed elevation (m)
+         f_ground_cell
 
     integer, dimension(nx,ny), intent(in) ::  &
-         thermal_forcing_mask, & ! = 1 where thermal forcing and bmlt_float are potentially nonzero, else = 0
-         marine_connection_mask  ! = 1 for cells with marine connection to the ocean, else = 0
-                                 ! Note: marine_connection_mask includes paths through grounded marine-based cells
+         thermal_forcing_mask, &   ! = 1 where thermal forcing and bmlt_float are potentially nonzero, else = 0
+         marine_connection_mask, & ! = 1 for cells with marine connection to the ocean, else = 0
+         ice_mask,               & ! Note: marine_connection_mask includes paths through grounded marine-based cells
+         ocean_mask             
 
    real(dp), intent(in) :: &
          unphys_val,           & ! unphysical value given to cells/levels not yet filled
@@ -1521,7 +1528,7 @@ module glissade_bmlt_float
          phi1                       ! another copy
 
     integer, dimension(nzocn,nx,ny) :: &
-         mask, &                    ! = 1 for filled cells/levels, = 0 for unfilled cells/levels
+         mask, mask_local, &                    ! = 1 for filled cells/levels, = 0 for unfilled cells/levels
          unphys_mask                ! To select neighbour gridcells to smooth over, Michele
  
     ! Note: This range ought to cover all regions where ice is present, but could be modified if desired.
@@ -1541,24 +1548,53 @@ module glissade_bmlt_float
        
     integer :: &
          max_iter,             & ! max(nx,ny) * max(ewtasks, nxtasks)
+         min_iter,             & ! used to start extrapolation in points far from grounded ice or land
          local_count,          & ! local counter for filled values
          global_count,         & ! global counter for filled values
          global_count_save       ! global counter for filled values from previous iteration
   
-    integer :: i, j, k, iter
+    integer :: i, j, k, iter, kk, imin, imax, jmin, jmax, start1, end1, dir1, start2, end2, dir2, idx1, idx2
+    integer :: iter_horiz, iter_up, iter_down, global_count_horiz, global_count_up, global_count_down
+    integer :: global_count_horiz_save, global_count_up_save, global_count_down_save
     integer :: iglobal, jglobal
     integer :: kw, ke, ks, kn           ! ocean level in neighbor cells
     real(dp) :: phiw, phie, phin, phis  ! field value in neighbor cells
     character(len=128) :: message
-    logical :: filled                   ! true if filled with a valid value
-
+    logical :: filled, first_is_i                   ! true if filled with a valid value
+    real :: rand_order, rand_dir_i, rand_dir_j
     logical, parameter :: verbose_extrapolate = .false.  ! set to T to follow progress of each iteration
 
     ! Note: If thermal forcing is close to but not quite equal to unphys_val (e.g., because of roundoff error),
     !       it is interpreted as equal to unphys_val.
     real(dp), parameter :: tf_roundoff_threshold = 1.0d0  ! roundoff error threshold for thermal_forcing (deg K)
 
+    integer :: ii, jj          ! loop offsets for neighborhood
+    integer :: i_n, j_n        ! neighbor indices
+    integer :: radius          ! Gaussian kernel radius
+    integer :: num_valid_neighbors
+    real(dp) :: sigma2         ! variance of the Gaussian kernel
+    real(dp) :: dist2          ! squared distance from center
+    real(dp) :: weight         ! computed Gaussian weight
+    real(dp) :: sum_weight     ! total sum of weights
+
     ! Count the number of filled levels/cells with valid values in the input thermal_forcing.
+
+   !Michele: I have realised that the remapped ocean is taking values where it shouldn't - points that are ice 
+   !shelves in CISM and should not have ocean values - this could be the reason for weird patterns of remapped
+   !ocean fields. So the idea could be, before starting to counting unphys_val, to set to unphys val all points 
+   !that are ice covered. 
+
+   do j = 1+nhalo, ny-nhalo
+       do i = 1+nhalo,  nx-nhalo
+       imin = max(i-5,1+nhalo)
+       imax = min(i+5,nx-nhalo)
+       jmin = max(j-5,1+nhalo)
+       jmax = min(j+5,ny-nhalo)   !Taking some margin
+             if( any(ice_mask(imin:imax,jmin:jmax) == 1) .or. any(ocean_mask(imin:imax,jmin:jmax) == 0)) then
+                thermal_forcing(:,i,j) = unphys_val
+             end if
+       end do
+   end do
 
     local_count = 0
     do j = 1+nhalo, ny-nhalo
@@ -1574,6 +1610,9 @@ module glissade_bmlt_float
     enddo
 
     global_count_save = parallel_reduce_sum(local_count)
+    global_count_horiz_save = parallel_reduce_sum(local_count)
+    global_count_down_save = parallel_reduce_sum(local_count)
+    global_count_up_save = parallel_reduce_sum(local_count)
 
     ! For each marine-connected cell, compute the top and bottom layers where we need ocean data
     ! (either in the original input field, or extrapolated).
@@ -1585,8 +1624,8 @@ module glissade_bmlt_float
     kbot(:,:) = 0
 
     do j = 1+nhalo, ny-nhalo
-       do i = 1+nhalo,  nx-nhalo
-          if (marine_connection_mask(i,j) == 1) then   ! there is a marine path to the ocean
+       do i = 1+nhalo,  nx-nhalo    
+          if (marine_connection_mask(i,j) == 1 ) then   ! there is a marine path to the ocean
 
              ! ktop is the layer just above lsrf
              if (lsrf(i,j) <= zocn(nzocn)) then ! lsrf lies at or below the bottom ocean layer
@@ -1649,18 +1688,24 @@ module glissade_bmlt_float
 
     max_iter = max(parallel%ewtasks, parallel%nstasks) * max(nx-2*nhalo, ny-2*nhalo)
 
-    ! Extrapolate the data horizontally.
-
+    write(message,*) 'Max number of iteration is', max_iter
+    call write_log(message)
+    
     do iter = 1, max_iter
+   
+    write(message,*) 'Iteration number ', iter
+    call write_log(message)
 
        ! Create a mask, = 1 for filled cells/levels and = 0 for unfilled cells/levels
 
        where (thermal_forcing == unphys_val)
+          unphys_mask = 0
           mask = 0
        elsewhere
+          unphys_mask = 1
           mask = 1
        endwhere
-
+      
        if (verbose_extrapolate .and. this_rank == rtest) then
           print*, ' ' 
           print*, 'Iteration =', iter
@@ -1675,155 +1720,174 @@ module glissade_bmlt_float
              enddo
           enddo
        endif
-
-       ! Create a temporary copy of the TF field.
-       phi(:,:,:) = thermal_forcing(:,:,:)
-            
+ 
        ! Loop through all locally owned cells, filling levels ktop:kbot in unfilled cells
        !  that have one or more filled neighbors at the corresponding levels.
        ! In the end, all cells connected to the ocean via a path through cell edges should
        !  have levels filled between lsrf and topg.  Disconnected inland lakes will not be filled.
-       ! Can think of the extrapolation as a crude version of circulation in a C-grid ocean model.
+       ! Can think of the extrapolation as a crude version of circulation in a C-grid ocean model. 
+       do iter_horiz = 1, max_iter
+ 
+        where (thermal_forcing == unphys_val)
+          unphys_mask = 0
+          mask = 0
+        elsewhere
+          unphys_mask = 1
+          mask = 1
+        endwhere
+  
+       ! Michele attempt to vary extrapolation directions: every iteration, random i,j order/direction
 
-       do j = 1+nhalo, ny-nhalo
+       !comb = mod(iter-1, 8)  ! iter starts at 1, so subtract 1 to get 0-based index
+
+       ! Determine loop order:
+       ! If even (0,2,4,6) -> loop over i first, then j
+       ! If odd  (1,3,5,7) -> loop over j first, then i
+       !if (mod(comb, 2) == 0) then
+       !  first_is_i = .true.
+       !else
+       !  first_is_i = .false.
+       !end if
+
+       ! Determine direction for i:
+       ! If comb/2 is even -> go forward (left to right)
+       ! If comb/2 is odd  -> go backward (right to left)
+       !if (mod(comb/2, 2) == 0) then
+       !  start1 = 1 + nhalo       ! starting index for i
+       !  end1   = nx - nhalo      ! ending index for i
+       !  dir1   = 1               ! forward direction
+       !else
+       !  start1 = nx - nhalo
+       !  end1   = 1 + nhalo
+       !  dir1   = -1              ! backward direction
+       !end if
+
+       ! Determine direction for j:
+       ! If comb/4 is even -> go forward (top to bottom)
+       ! If comb/4 is odd  -> go backward (bottom to top)
+       !if (mod(comb/4, 2) == 0) then
+       !  start2 = 1 + nhalo
+       !  end2   = ny - nhalo
+       !  dir2   = 1
+       !else
+       !  start2 = ny - nhalo
+       !  end2   = 1 + nhalo
+       !  dir2   = -1
+       !end if
+       !        do idx1=start1,end1,dir1
+       !        do idx2=start2,end2,dir2
+       !        if(first_is_i) then
+       !               i=idx1
+       !               j=idx2
+       !        else
+       !              i=idx2
+       !              j=idx1
+       !       end if 
+
+         do j = 1+nhalo, ny-nhalo
           do i = 1+nhalo,  nx-nhalo
-             if (marine_connection_mask(i,j) == 1) then   ! there is a marine path to the ocean
 
+          if (marine_connection_mask(i,j) == 1) then   ! there is a marine path to the ocean
+                      
                 do k = ktop(i,j), kbot(i,j)
-                   if (mask(k,i,j) == 0) then   ! not yet filled
-
+                   if (unphys_mask(k,i,j) == 0) then   ! not yet filled
+       
                       filled = .false.
+    
+                      sum_mask = &
+                        1*unphys_mask(k,i-2,j-2) + 1*unphys_mask(k,i-2,j+2) + 1*unphys_mask(k,i+2,j-2) + 1*unphys_mask(k,i+2,j+2) + &
+                        4*unphys_mask(k,i-1,j-2) + 4*unphys_mask(k,i-2,j-1) + &
+                        4*unphys_mask(k,i+1,j-2) + 4*unphys_mask(k,i+2,j-1) + &
+                        4*unphys_mask(k,i+1,j+2) + 4*unphys_mask(k,i+2,j+1) + &
+                        4*unphys_mask(k,i-1,j+2) + 4*unphys_mask(k,i-2,j+1) + &
+                        7*unphys_mask(k,i-2,j) + 7*unphys_mask(k,i+2,j) + 7*unphys_mask(k,i,j-2) + 7*unphys_mask(k,i,j-2) + &
+                       16*unphys_mask(k,i-1,j-1) + 16*unphys_mask(k,i-1,j+1) + 16*unphys_mask(k,i+1,j-1) + 16*unphys_mask(k,i+1,j+1) + &
+                       26*unphys_mask(k,i-1,j) + 26*unphys_mask(k,i+1,j) + 26*unphys_mask(k,i,j-1) + 26*unphys_mask(k,i,j+1) + &  
+                       41*unphys_mask(k,i,j)       
+        
+                   if (sum_mask > 0) then         
+                   
+                     sum_phi = 1*unphys_mask(k,i-2,j-2)*thermal_forcing(k,i-2,j-2)  +&
+                               1*unphys_mask(k,i-2,j+2)*thermal_forcing(k,i-2,j+2)  +&
+                               1*unphys_mask(k,i+2,j-2)*thermal_forcing(k,i+2,j-2)  +&
+                               1*unphys_mask(k,i+2,j+2)*thermal_forcing(k,i+2,j+2)  +&
+                               4*unphys_mask(k,i-1,j-2)*thermal_forcing(k,i-1,j-2)  +&
+                               4*unphys_mask(k,i-2,j-1)*thermal_forcing(k,i-2,j-1)  +&
+                               4*unphys_mask(k,i+1,j-2)*thermal_forcing(k,i+1,j-2)  +&
+                               4*unphys_mask(k,i+2,j-1)*thermal_forcing(k,i+2,j-1)  +&
+                               4*unphys_mask(k,i+1,j+2)*thermal_forcing(k,i+1,j+2)  +&
+                               4*unphys_mask(k,i+2,j+1)*thermal_forcing(k,i+2,j+1)  +&
+                               4*unphys_mask(k,i-1,j+2)*thermal_forcing(k,i-1,j+2)  +&
+                               4*unphys_mask(k,i-2,j+1)*thermal_forcing(k,i-2,j+1)  +&
+                               7*unphys_mask(k,i-2,j)*thermal_forcing(k,i-2,j)      +&
+                               7*unphys_mask(k,i+2,j)*thermal_forcing(k,i+2,j)      +&
+                               7*unphys_mask(k,i,j-2)*thermal_forcing(k,i,j-2)      +&
+                               7*unphys_mask(k,i,j-2)*thermal_forcing(k,i,j-2)      +&
+                               16*unphys_mask(k,i-1,j-1)*thermal_forcing(k,i-1,j-1) +&  
+                               16*unphys_mask(k,i-1,j+1)*thermal_forcing(k,i-1,j+1) +&
+                               16*unphys_mask(k,i+1,j-1)*thermal_forcing(k,i+1,j-1) +&
+                               16*unphys_mask(k,i+1,j+1)*thermal_forcing(k,i+1,j+1) +&
+                               26*unphys_mask(k,i-1,j)*thermal_forcing(k,i-1,j)     +&
+                               26*unphys_mask(k,i+1,j)*thermal_forcing(k,i+1,j)     +&
+                               26*unphys_mask(k,i,j-1)*thermal_forcing(k,i,j-1)     +&
+                               26*unphys_mask(k,i,j+1)*thermal_forcing(k,i,j+1)     +&
+                               41*unphys_mask(k,i,j)*thermal_forcing(k,i,j)                         
 
-                      ! Set thermal_forcing(k,i,j) to the mean value in filled neighbors at the same level
+                      thermal_forcing(k,i,j) = sum_phi / real(sum_mask,dp)
+                      filled = .true.
 
-                      if (k == ktop(i,j)) then
-
-                         ! Need extra logic to allow spreading of values downward to greater depth,
-                         !  in case kbot in a neighbor cell lies above ktop in this cell
-                         ! Note: Thermal forcing is corrected for the elevation difference,
-                         !       assuming linear dependence of Tf on zocn.
-
-                         if (kbot(i-1,j) > 0 .and. kbot(i-1,j) < k) then  ! kbot in west neighbor lies above k in this cell
-                            kw = kbot(i-1,j)
-                            phiw = phi(kw,i-1,j) - dtocnfrz_dz * (zocn(kw) - zocn(k))
-                         else
-                            kw = k
-                            phiw = phi(k,i-1,j)
-                         endif
-
-                         if (kbot(i+1,j) > 0 .and. kbot(i+1,j) < k) then  ! kbot in east neighbor lies above k in this cell
-                            ke = kbot(i+1,j)
-                            phie = phi(ke,i+1,j) - dtocnfrz_dz * (zocn(ke) - zocn(k))
-                         else
-                            ke = k
-                            phie = phi(k,i+1,j)
-                         endif
-
-                         if (kbot(i,j-1) > 0 .and. kbot(i,j-1) < k) then  ! kbot in south neighbor lies above k in this cell
-                            ks = kbot(i,j-1)
-                            phis = phi(ks,i,j-1) - dtocnfrz_dz * (zocn(ks) - zocn(k))
-                         else
-                            ks = k
-                            phis = phi(k,i,j-1)
-                         endif
-
-                         if (kbot(i,j+1) > 0 .and. kbot(i,j+1) < k) then  ! kbot in north neighbor lies above k in this cell
-                            kn = kbot(i,j+1)
-                            phin = phi(kn,i,j+1) - dtocnfrz_dz * (zocn(kn) - zocn(k))
-                         else
-                            kn = k
-                            phin = phi(k,i,j+1)
-                         endif
-
-                         sum_mask = mask(kw,i-1,j) + mask(ke,i+1,j) + mask(ks,i,j-1) + mask(kn,i,j+1)
-
-                         if (sum_mask > 0) then
-                            sum_phi = mask(kw,i-1,j)*phiw + mask(ke,i+1,j)*phie &
-                                    + mask(ks,i,j-1)*phis + mask(kn,i,j+1)*phin
-                            thermal_forcing(k,i,j) = sum_phi / real(sum_mask, dp)
-                            filled = .true.
-                         endif
-
-                      endif   ! k = ktop and mask = 0
-
-                      ! Note: In the case k = ktop = kbot, we allow for both upward and downward spreading.
-                      !       If there is no downward spreading to ktop (handled by the logic above,
-                      !        then we look for upward spreading to kbot (handled by the logic below).
-
-                      if (k == kbot(i,j) .and. .not.filled) then
-
-                         ! need extra logic to allow spreading of values upward to shallower depth,
-                         ! in case ktop in a neighbor cell lies below kbot in this cell
-
-                         if (ktop(i-1,j) > k) then  ! ktop in west neighbor lies below k in this cell
-                            kw = ktop(i-1,j)
-                            phiw = phi(kw,i-1,j) - dtocnfrz_dz * (zocn(kw) - zocn(k))
-                         else
-                            kw = k
-                            phiw = phi(k,i-1,j)
-                         endif
-
-                         if (ktop(i+1,j) > k) then  ! ktop in east neighbor lies below k in this cell
-                            ke = ktop(i+1,j)
-                            phie = phi(ke,i+1,j) - dtocnfrz_dz * (zocn(ke) - zocn(k))
-                         else
-                            ke = k
-                            phie = phi(k,i+1,j)
-                         endif
-
-                         if (ktop(i,j-1) > k) then  ! ktop in south neighbor lies below k in this cell
-                            ks = ktop(i,j-1)
-                            phis = phi(ks,i,j-1) - dtocnfrz_dz * (zocn(ks) - zocn(k))
-                         else
-                            ks = k
-                            phis = phi(k,i,j-1)
-                         endif
-
-                         if (ktop(i,j+1) > k) then  ! ktop in north neighbor lies below k in this cell
-                            kn = ktop(i,j+1)
-                            phin = phi(kn,i,j+1) - dtocnfrz_dz * (zocn(kn) - zocn(k))
-                         else
-                            kn = k
-                            phin = phi(k,i,j+1)
-                         endif
-
-                         sum_mask = mask(kw,i-1,j) + mask(ke,i+1,j) + mask(ks,i,j-1) + mask(kn,i,j+1)
-
-                         if (sum_mask > 0) then
-                            sum_phi = mask(kw,i-1,j)*phiw + mask(ke,i+1,j)*phie &
-                                    + mask(ks,i,j-1)*phis + mask(kn,i,j+1)*phin
-                            thermal_forcing(k,i,j) = sum_phi / real(sum_mask, dp)
-                            filled = .true.
-                         endif
-
-                      endif   ! k = kbot and mask = 0
-
-                      if (k /= ktop(i,j) .and. k /= kbot(i,j) .and. .not.filled) then
-
-                         ! simpler case; look only at neighbor levels with the same k value
-
-                         sum_mask = mask(k,i-1,j) + mask(k,i+1,j) + mask(k,i,j-1) + mask(k,i,j+1)
-
-                         if (sum_mask > 0) then
-                            sum_phi = mask(k,i-1,j)*phi(k,i-1,j) + mask(k,i+1,j)*phi(k,i+1,j)   &
-                                    + mask(k,i,j-1)*phi(k,i,j-1) + mask(k,i,j+1)*phi(k,i,j+1)
-                            thermal_forcing(k,i,j) = sum_phi / real(sum_mask, dp)
-                            filled = .true.
-                         endif
-
-                      endif
-
+                      end if !sum_mask
                    endif   ! mask(k,i,j) = 0
+                 enddo   ! k 
 
-                enddo   ! k
-             endif   ! ktop >=1, kbot >= 1
+           endif   ! marine_conn mask
           enddo   ! i
-       enddo  ! j
+         enddo  ! j
 
+       call parallel_halo(thermal_forcing, parallel)
+
+       call parallel_boundary_value(thermal_forcing, unphys_val, parallel)
+
+       ! Check after iterations 1, 2, and 5, then after 10, 20, etc.
+       if (iter_horiz == 1 .or. iter_horiz == 2 .or. iter_horiz == 5 .or. mod(iter_horiz, 10) == 0) then
+          local_count = 0
+          do j = 1+nhalo, ny-nhalo
+          do i = 1+nhalo,  nx-nhalo !Michele try to do extrapolation on floating cells only
+                if (marine_connection_mask(i,j) == 1) then   ! there is a marine path to the ocean
+                   do k = ktop(i,j), kbot(i,j)
+                      if (thermal_forcing(k,i,j) /= unphys_val) local_count = local_count + 1
+                   enddo
+                endif
+             enddo
+          enddo
+
+          global_count_horiz = parallel_reduce_sum(local_count)
+
+          if (global_count_horiz == global_count_horiz_save) then
+             !if (verbose_bmlt_float .and. this_rank == rtest) &
+                  write(message,*) 'Horizontal extrapolation converged: iter, global_count =', &
+                  iter_horiz, global_count_horiz
+                  call write_log(message)
+             exit
+          else
+             !if (verbose_bmlt_float .and. this_rank == rtest) &
+                  write(message,*) 'Horizontal extrapolation convergence check: iter, global_count =', &
+                  iter_horiz, global_count_horiz
+                  call write_log(message)
+             global_count_horiz_save = global_count_horiz
+          endif
+
+       endif   ! time for a convergence check
+
+       end do !do iter_horiz
+
+       
        ! Extend TF downward in columns that contain unfilled cells below filled cells.
+       
+       do iter_down = 1, max_iter
 
        do j = 1+nhalo, ny-nhalo
-          do i = 1+nhalo,  nx-nhalo
+       do i = 1+nhalo,  nx-nhalo  !Michele try to do the extrapolation on floating cells only
              if (marine_connection_mask(i,j) == 1) then   ! there is a marine path to the ocean
                 do k = ktop(i,j)+1, kbot(i,j)
                    if (thermal_forcing(k,i,j) == unphys_val .and. thermal_forcing(k-1,i,j) /= unphys_val) then
@@ -1833,12 +1897,90 @@ module glissade_bmlt_float
              endif   ! ktop >=1, kbot >= 1
           enddo   ! i
        enddo  ! j
+  
+       call parallel_halo(thermal_forcing, parallel)
+
+       call parallel_boundary_value(thermal_forcing, unphys_val, parallel)
+
+       if (iter_down == 1 .or. iter_down == 2 .or. iter_down == 5 .or. mod(iter_down, 10) == 0) then
+          local_count = 0
+          do j = 1+nhalo, ny-nhalo
+          do i = 1+nhalo,  nx-nhalo !Michele try to do extrapolation on floating cells only
+                if (marine_connection_mask(i,j) == 1) then   ! there is a marine path to the ocean
+                   do k = ktop(i,j), kbot(i,j)
+                      if (thermal_forcing(k,i,j) /= unphys_val) local_count = local_count + 1
+                   enddo
+                endif
+             enddo
+          enddo
+
+          global_count_down = parallel_reduce_sum(local_count)
+
+          if (global_count_down == global_count_down_save) then
+             !if (verbose_bmlt_float .and. this_rank == rtest) &
+             write(message,*) 'Downward extrapolation converged: iter, global_count =', &
+                  iter_down, global_count_down
+                  call write_log(message)
+             exit
+          else
+             !if (verbose_bmlt_float .and. this_rank == rtest) &
+             write(message,*) 'Downward extrapolation convergence check: iter, global_count =', &
+                  iter_down, global_count_down
+                  call write_log(message)
+             global_count_down_save = global_count_down
+          endif
+
+       endif   ! time for a convergence check
+
+       end do !Downward extrapolation iteration
+       
+       !Michele is this check really needed? 
+        ! Check after iterations 1, 2, and 5, then after 10, 20, etc.
+!       if (iter == 1 .or. iter == 2 .or. iter == 5 .or. mod(iter, 10) == 0) then
+!          local_count = 0
+!          do j = 1+nhalo, ny-nhalo
+!          do i = 1+nhalo,  nx-nhalo !Michele try to do extrapolation on floating cells only
+!                if (marine_connection_mask(i,j) == 1) then   ! there is a marine path to the ocean
+!                   do k = ktop(i,j), kbot(i,j)
+!                      if (thermal_forcing(k,i,j) /= unphys_val) local_count = local_count + 1
+!                   enddo
+!                endif
+!             enddo
+!          enddo
+!
+!          global_count = parallel_reduce_sum(local_count)
+!
+!          if (global_count == global_count_save) then
+!             !if (verbose_bmlt_float .and. this_rank == rtest) &
+!                 write(message,*) 'Extrapolation converged: iter, global_count =', &
+!                  iter, global_count
+!                  call write_log(message)
+!             exit
+!          else
+!             !if (verbose_bmlt_float .and. this_rank == rtest) &
+!                  write(message,*) 'Extrapolation convergence check: iter, global_count =', &
+!                  iter, global_count
+!                  call write_log(message)
+!             global_count_save = global_count
+!          endif
+
+!      endif   ! time for a convergence check
+!
+!       if (iter == max_iter) then
+!          print*, 'iter = max_iter:', max_iter
+!          call write_log('Ocean extrapolation error; number of filled cells has not plateaued', GM_FATAL)
+!       endif
+
+!    enddo   ! max_iter
+
 
        ! Extend TF upward in columns that contain unfilled cells above filled cells.
        ! This is less common than having unfilled cells below filled cells, but it happens occasionally.
 
+!       do iter=1,max_iter
+
        do j = 1+nhalo, ny-nhalo
-          do i = 1+nhalo,  nx-nhalo
+       do i = 1+nhalo,  nx-nhalo !Michele try to do the extrapolation on floating cells only
              if (marine_connection_mask(i,j) == 1) then   ! there is a marine path to the ocean
                 do k = kbot(i,j)-1, ktop(i,j), -1
                    if (thermal_forcing(k,i,j) == unphys_val .and. thermal_forcing(k+1,i,j) /= unphys_val) then
@@ -1870,7 +2012,7 @@ module glissade_bmlt_float
        if (iter == 1 .or. iter == 2 .or. iter == 5 .or. mod(iter, 10) == 0) then
           local_count = 0
           do j = 1+nhalo, ny-nhalo
-             do i = 1+nhalo,  nx-nhalo
+          do i = 1+nhalo,  nx-nhalo !Michele try to do extrapolation on floating cells only
                 if (marine_connection_mask(i,j) == 1) then   ! there is a marine path to the ocean
                    do k = ktop(i,j), kbot(i,j)
                       if (thermal_forcing(k,i,j) /= unphys_val) local_count = local_count + 1
@@ -1882,12 +2024,16 @@ module glissade_bmlt_float
           global_count = parallel_reduce_sum(local_count)
 
           if (global_count == global_count_save) then
-             if (verbose_bmlt_float .and. this_rank == rtest) &
-                  print*, 'Extrapolation converged: iter, global_count =', iter, global_count
+             !if (verbose_bmlt_float .and. this_rank == rtest) &
+                  write(message,*) 'Extrapolation converged: iter, global_count =', & 
+                  iter, global_count
+                  call write_log(message)
              exit
           else
-             if (verbose_bmlt_float .and. this_rank == rtest) &
-                  print*, 'Extrapolation convergence check: iter, global_count =', iter, global_count
+             !if (verbose_bmlt_float .and. this_rank == rtest) &
+                  write(message,*) 'Extrapolation convergence check: iter, global_count =', &
+                  iter, global_count
+                  call write_log(message)
              global_count_save = global_count
           endif
           
@@ -1904,15 +2050,17 @@ module glissade_bmlt_float
     ! Make sure all levels from ktop to kbot are filled in cells with thermal_forcing_mask = 1.
 
     do j = 1, ny
-       do i = 1, nx
+    do i = 1, nx !Michele try to do the extrapolation on floating cells only
           if (thermal_forcing_mask(i,j) == 1) then
              do k = ktop(i,j), kbot(i,j)
                 if (thermal_forcing(k,i,j) == unphys_val) then
                    call parallel_globalindex(i, j, iglobal, jglobal, parallel)
-                   print*, 'i, j, ktop, kbot =', i, j, ktop(i,j), kbot(i,j)
+                   print*, 'Check i, j, ktop, kbot =', i, j, ktop(i,j), kbot(i,j)
                    write(message,*) 'Ocean data extrapolation error: unphys value in level k, i, j:', &
                         k, iglobal, jglobal, thermal_forcing(k,i,j)
-                   call write_log(message, GM_FATAL)
+                   !;call write_log(message, GM_FATAL)
+                   call write_log(message)
+                   thermal_forcing(k,i,j) = 0.
                 endif
              enddo   ! k
           endif   ! thermal_forcing_mask
@@ -1937,22 +2085,23 @@ module glissade_bmlt_float
       call write_log('Smoothing of extrapolated ocean data.')
         
     where(thermal_forcing > thermal_forcing_max .OR. thermal_forcing < thermal_forcing_min)
-            unphys_mask = 0
-    elsewhere
             unphys_mask = 1
+    elsewhere
+            unphys_mask = 0
     endwhere 
     
-    call write_log('Number of iterations is ',model%options%smoothiter)
-
     phi1 = thermal_forcing
 
     do iter = 1, model%options%smoothiter
+    
+    write(message,*) 'Iteration', iter, 'of ', model%options%smoothiter 
+    call write_log(message)
 
     do j = nhalo+1, ny-nhalo
          do i = nhalo+1, nx-nhalo
             if (thermal_forcing_mask(i,j) == 1) then
                do k = ktop(i,j), kbot(i,j)
-                  if(unphys_mask(k,i,j) == 1) then
+                  if(unphys_mask(k,i,j) == 0) then
                     
                      !Gaussian smoothing
 
