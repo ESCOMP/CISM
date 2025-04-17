@@ -21,9 +21,8 @@ from argparse import ArgumentParser
 # Constants #
 #############
 
-
-xDomain = 640000.0     # domain x-dimension (m)
-yDomain = 80000.0      # domain y-dimension (m)
+xDomain = 640000
+yDomain = 80000
 xCalve  = 640000.      # calving front location (m)
 initThickness = 100.   # initial uniform ice thikcness (m)
 accum = 0.3            # uniform accumulation rate (m/yr)
@@ -37,7 +36,7 @@ restartfreqSpinup = 1000.    # frequency at which restart file is written (yr)
 
 
 #This function computes the MISMIP+ bed according to Asay-Davis et al. (2016).
-def computeBed(x,y):
+def computeBed(x,y,Ly):
     x  = x/1.e3     # km
     y  = y/1.e3     # km
     X  = np.size(x)
@@ -53,7 +52,6 @@ def computeBed(x,y):
     dc = 500.      # m
     fc = 4.        # km
     wc = 24.       # km
-    Ly = 80.       # km
     
     Bmax = -720.   # m
     B_x  = B0 + B2*x_tilde**2 + B4*x_tilde**4 + B6*x_tilde**6
@@ -61,7 +59,6 @@ def computeBed(x,y):
     Bsum = B_x + B_y
     B    = np.maximum(Bsum, Bmax)  # B >= Bmax
     return B
-
 
 
 ########
@@ -80,8 +77,16 @@ parser.add_argument('-v', '--vlevel', dest='vertlevels',    type=int,    default
 parser.add_argument('-a', '--approx', dest='approximation', type=str, default= 'DIVA',  help="Stokes approximation (SSA, DIVA, BP)")
 parser.add_argument('-b', '--basal',  dest='basalFriction', type=str, default='Schoof', help="basal friction law (Schoof, Tsai, powerlaw)")
 parser.add_argument('-y', '--year',   dest='yearsSpinup',   type=int,    default= 20000,   help="length of spinup run (yr)")
+parser.add_argument('-g', '--gbc',    dest='global_bc',     type=int, default=0, help="global boundary condition")
 
 options = parser.parse_args()
+
+"""
+for option in parser.option_list:
+    if option.default != ("NO", "DEFAULT"):
+        option.help += (" " if option.help else "") + "[default: %default]"
+options, args = parser.parse_args()
+"""
 
 if options.experiment == 'all':
     experiments = ['Spinup', 'Ice0', 'Ice1r', 'Ice1ra', 'Ice1rr', 'Ice1rax', 'Ice1rrx', 'Ice2r', 'Ice2ra', 'Ice2rr', 'Ice2rax', 'Ice2rrx']
@@ -167,6 +172,7 @@ config.set('grid', 'nsn', str(ny))
 config.set('grid', 'upn', str(nz))
 config.set('grid', 'dew', str(dx))
 config.set('grid', 'dns', str(dy))
+config.set('grid', 'global_bc', str(options.global_bc))
 
 # Set Stokes approximation in config file.
 if options.approximation == 'SSA':
@@ -261,7 +267,7 @@ kinbcmask = ncfile.createVariable('kinbcmask', 'i4', ('time','y0','x0'))
 #           This assumes that kinbcmask = 1 at the first vertex from the left.
 #           Thus the left edge of the grid has x = -3*dx/2.
 #       (2) The y origin is placed at the bottom edge of the CISM grid.
-#           The line of central symmetry runs along cell edges at y = 40 km.
+#           The line of central symmetry is located at y = Ly/2.
 
 x = dx * np.arange(nx,dtype='float32')   # x = 0, dx, 2*dx, etc.
 y = dy * np.arange(ny,dtype='float32')   # y = 0, dy, 2*dy, etc.
@@ -280,30 +286,50 @@ for i in range(nx):
 
 
 # Set bed topography.
+Ly = yDomain / 1.e3  # m to km
 for i in range(nx):
     for j in range(ny):
-        topg[:,j,i] = computeBed(x1[i], y1[j])
+        topg[:,j,i] = computeBed(x1[i], y1[j], Ly)
 
 # Set the surface mass balance.
 # Uniform accumulation, but prescribe a large negative rate beyond the calving front.
-# WHL - The large negative rate may not be needed, but setting it just in case.
 acab[:,:,:] = accum
-for i in range(nx):
-    if x1[i] > xCalve:
-        acab[:,:,i] = -100.   # m/yr
 
 # Set initial velocity to zero.
-#WHL- Probably not necessary.
 uvel[:,:,:,:] = 0.
 vvel[:,:,:,:] = 0.
 
 # Set kinematic velocity mask.
 # Where kinbcmask = 1, the velocity is fixed at its initial value.
-# Note: Although there is no ice on the RHS of the domain, we need kinbcmask =1 there 
-#       to preserve symmetry with the LHS (since east-west BCs are formally periodic).
+# For all BCs, we set uvel = vvel = 0 for the left-most column.
 kinbcmask[:,:,:]  = 0   # initialize to 0 everywhere
 kinbcmask[:,:,0]  = 1   # mask out left-most column
-kinbcmask[:,:,-1] = 1   # mask out right-most column
+
+# For periodic BCs, set kinbcmask = 1 for the right-most column.
+#    Although there is no ice on the RHS of the domain, we need kinbcmask = 1 there
+#    to avoid flow into or out of the LHS.
+# For outflow BCs, set uvel = vvel = 0 along the top and bottow rows where topg > B0.
+#    B0 is hardwired to -150 m above in computeBed.
+#    Then the land cells will effectively have a no-slip BC at the N/S boundary,
+#    whereas ocean cells will have an outflow BC.
+# For outflow BC, also zero out accumulation in motionless cells,
+#    to prevent these cells from thickening indefinitely.
+
+if options.global_bc == 0:     # periodic
+    kinbcmask[:,:,-1] = 1      # mask out right-most column
+elif options.global_bc == 1:   # outflow
+    # Zero out the velocity at vertices one cell away from the global boundary.
+    B0 = -150.                     # same as the value in computeBed
+    j = 0                          # bottom row of vertices
+    for i in range(nx-1):
+        if topg[0,j,i] > B0:
+            kinbcmask[0,j,i] = 1   # bottom row of vertices
+            acab[0,j,i] = 0.       # bottom row of cells
+    j = ny-2                       # top row of vertices
+    for i in range(nx-1):
+        if topg[0,j+1,i] > B0:
+            kinbcmask[0,j,i] = 1   # top row of vertices
+            acab[0,j+1,i] = 0.     # top row of cells
 
 ncfile.close()
 

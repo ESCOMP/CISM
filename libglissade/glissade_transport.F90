@@ -253,21 +253,6 @@
          do k = 1, nlyr
             model%calving%damage(k,:,:) = model%geometry%tracers(:,:,nt,k) 
          enddo
-
-         !WHL - debug
-!         print*, 'finish transport: new damage tracer'
-!         do k = 1, nlyr, nlyr-1
-!            print*, 'k =', k
-!!            do j = ny, 1, -1
-!            do j = ny-4, ny-12, -1
-!               write(6,'(i6)',advance='no') j
-!               do i = 4, nx/4
-!                  write(6,'(f10.6)',advance='no') model%geometry%tracers(i,j,nt,k)
-!               enddo
-!               write(6,*) ' '
-!            enddo
-!         enddo
-
       endif
 
       ! ice age parameter
@@ -562,7 +547,6 @@
                                          tracers_usrf, tracers_lsrf, &
                                          vert_remap_accuracy,        &
                                          upwind_transport_in)
-
 
       ! This subroutine solves the transport equations for one timestep
       ! using the conservative remapping scheme developed by John Dukowicz
@@ -1094,7 +1078,7 @@
       endif
       indices_adv(2:3) = indices_adv(2:3) + staggered_lhalo  ! want the i,j coordinates WITH the halo present -
                                                              ! we got indices into the slice of owned cells
-      ! Finally, determine maximum allowable time step based on advectice CFL condition.
+      ! Finally, determine maximum allowable time step based on advective CFL condition.
       my_allowable_dt_adv = dew / (maxvel + 1.0d-20)
 
       ! ------------------------------------------------------------------------
@@ -1174,6 +1158,11 @@
              if (deltat > 10.d0 * allowable_dt_adv) then
                 print*, 'deltat, allowable_dt_adv, ratio =', deltat, allowable_dt_adv, deltat/allowable_dt_adv
                 call write_log('Aborting with CFL violation', GM_FATAL)
+             endif
+             !WHL - debug
+             if (deltat > allowable_dt_adv) then
+                print*, 'deltat, allowable_dt_adv, ratio =', deltat, allowable_dt_adv, deltat/allowable_dt_adv
+                print*, '  Limited by position', indices_adv_global(2), indices_adv_global(3)
              endif
           endif
 
@@ -1520,19 +1509,27 @@
 
                sfc_ablat = -acab(i,j)*dt   ! positive by definition
 
-               acab_applied(i,j) = acab_applied(i,j) - sfc_ablat*effective_areafrac(i,j)
+               if (ocean_mask(i,j) == 1) then     ! no accumulation in open ocean
 
-               do k = 1, nlyr
-                  if (sfc_ablat > thck_layer(i,j,k)) then
-                     sfc_ablat = sfc_ablat - thck_layer(i,j,k)
-                     thck_layer(i,j,k) = 0.d0
-                     tracer(i,j,:,k) = 0.d0
-                  else
-                     thck_layer(i,j,k) = thck_layer(i,j,k) - sfc_ablat
-                     sfc_ablat = 0.d0
-                     exit
-                  endif
-               enddo
+                  ! do nothing
+
+               else  ! not ocean; melt ice
+
+                  acab_applied(i,j) = acab_applied(i,j) - sfc_ablat*effective_areafrac(i,j)
+
+                  do k = 1, nlyr
+                     if (sfc_ablat > thck_layer(i,j,k)) then
+                        sfc_ablat = sfc_ablat - thck_layer(i,j,k)
+                        thck_layer(i,j,k) = 0.d0
+                        tracer(i,j,:,k) = 0.d0
+                     else
+                        thck_layer(i,j,k) = thck_layer(i,j,k) - sfc_ablat
+                        sfc_ablat = 0.d0
+                        exit
+                     endif
+                  enddo
+
+               endif   ! ocean_mask = 1
 
                ! Adjust acab_applied if energy is still available for melting
                ! Also accumulate the remaining melt energy 
@@ -1595,20 +1592,28 @@
 
                bed_ablat = bmlt(i,j)*dt   ! positive by definition
 
-               bmlt_applied(i,j) = bmlt_applied(i,j) + bed_ablat*effective_areafrac(i,j)
+               if (ocean_mask(i,j) == 1) then     ! no accumulation in open ocean
 
-               do k = nlyr, 1, -1
-                  if (bed_ablat > thck_layer(i,j,k)) then
-                     bed_ablat = bed_ablat - thck_layer(i,j,k)
-                     thck_layer(i,j,k) = 0.d0
-                     tracer(i,j,:,k) = 0.d0
-                  else
-                     thck_layer(i,j,k) = thck_layer(i,j,k) - bed_ablat
-                     bed_ablat = 0.d0
-                     exit
-                  endif
-               enddo
-  
+                  ! do nothing
+
+               else  ! not ocean; melt ice
+
+                  bmlt_applied(i,j) = bmlt_applied(i,j) + bed_ablat*effective_areafrac(i,j)
+
+                  do k = nlyr, 1, -1
+                     if (bed_ablat > thck_layer(i,j,k)) then
+                        bed_ablat = bed_ablat - thck_layer(i,j,k)
+                        thck_layer(i,j,k) = 0.d0
+                        tracer(i,j,:,k) = 0.d0
+                     else
+                        thck_layer(i,j,k) = thck_layer(i,j,k) - bed_ablat
+                        bed_ablat = 0.d0
+                        exit
+                     endif
+                  enddo
+
+               endif   ! ocean_mask = 1
+
                ! Adjust bmlt_applied if energy is still available for melting
                ! Also accumulate the remaining melt energy 
 
@@ -1789,6 +1794,7 @@
 
   subroutine glissade_add_2d_anomaly(var2d,                    &
                                      var2d_anomaly,            &
+                                     anomaly_tstart,           &
                                      anomaly_timescale,        &
                                      time)
 
@@ -1802,6 +1808,7 @@
          var2d_anomaly       !> anomalous field to be added to the var2d input value
 
     real(dp), intent(in) ::  &
+         anomaly_tstart,   & !> time to begin applying the anomaly (yr)
          anomaly_timescale   !> number of years over which the anomaly is phased in linearly
 
     real(dp), intent(in) :: &
@@ -1816,30 +1823,27 @@
     nsn = size(var2d,2)
 
     ! Given the model time, compute the fraction of the anomaly to be applied now.
-    ! Note: The anomaly is applied in annual step functions starting at the end of the first year.
-    !       Add a small value to the time to avoid rounding errors when time is close to an integer value.
+    ! Add a small value to the time to avoid rounding errors when time is close to an integer value.
 
-    ! GL 06-26-19: note: Do we need the restriction of annual anomaly application?
-    ! WHL: The anomaly can now be applied as a smooth linear ramp (instead of yearly step changes)
-    !      by uncommenting one line below, when computing anomaly_fraction..
-
-    if (time + eps08 > anomaly_timescale .or. anomaly_timescale == 0.0d0) then
+    if (time + eps08 > anomaly_tstart + anomaly_timescale .or. anomaly_timescale == 0.0d0) then
 
        ! apply the full anomaly
        anomaly_fraction = 1.0d0
 
-    else
+    elseif (time + eps08 > anomaly_tstart) then
 
-       ! truncate the number of years and divide by the timescale
-       anomaly_fraction = floor((time + eps08), dp) / anomaly_timescale
+       ! apply an increasing fraction of the anomaly
+       anomaly_fraction = (time - anomaly_tstart) / anomaly_timescale
 
        ! Note: For initMIP, the anomaly is applied in annual step functions
        !        starting at the end of the first year.
        !       Comment out the line above and uncomment the following line
-       !        to apply a linear ramp throughout the anomaly run.
-!!       anomaly_fraction = real(time,dp) / anomaly_timescale
-!!       print*, 'time, anomaly_timescale, fraction:', time, anomaly_timescale, anomaly_fraction
+       !        to increase the anomaly once a year.
+!       anomaly_fraction = floor(time + eps08 - anomaly_tstart, dp) / anomaly_timescale
 
+    else
+       ! no anomaly to apply
+       anomaly_fraction = 0.0d0
     endif
 
     ! apply the anomaly
@@ -1855,6 +1859,7 @@
 
   subroutine glissade_add_3d_anomaly(var3d,                 &
                                      var3d_anomaly,         &
+                                     anomaly_tstart,        &
                                      anomaly_timescale,     &
                                      time)
 
@@ -1868,6 +1873,7 @@
          var3d_anomaly       !> anomaly to be added to the input value
 
     real(dp), intent(in) ::  &
+         anomaly_tstart,   & !> time to begin applying the anomaly (yr)
          anomaly_timescale   !> number of years over which the anomaly is phased in linearly
 
     real(dp), intent(in) :: &
@@ -1882,26 +1888,27 @@
     nsn = size(var3d,3)
 
     ! Given the model time, compute the fraction of the anomaly to be applied now.
-    ! Note: The anomaly is applied in annual step functions starting at the end of the first year.
-    !       Add a small value to the time to avoid rounding errors when time is close to an integer value.
+    ! Add a small value to the time to avoid rounding errors when time is close to an integer value.
 
-    if (time + eps08 > anomaly_timescale .or. anomaly_timescale == 0.0d0) then
+    if (time + eps08 > anomaly_tstart + anomaly_timescale .or. anomaly_timescale == 0.0d0) then
 
        ! apply the full anomaly
        anomaly_fraction = 1.0d0
 
-    else
+    elseif (time + eps08 > anomaly_tstart) then
 
-       ! truncate the number of years and divide by the timescale
-       anomaly_fraction = floor((time + eps08), dp) / anomaly_timescale
+       ! apply an increasing fraction of the anomaly
+       anomaly_fraction = (time - anomaly_tstart) / anomaly_timescale
 
        ! Note: For initMIP, the anomaly is applied in annual step functions
        !        starting at the end of the first year.
        !       Comment out the line above and uncomment the following line
-       !        to apply a linear ramp throughout the anomaly run.
-!!       anomaly_fraction = real(time,dp) / anomaly_timescale
-!!       print*, 'time, anomaly_timescale, fraction:', time, anomaly_timescale, anomaly_fraction
-
+       !        to increase the anomaly once a year.
+!       anomaly_fraction = floor(time + eps08 - anomaly_tstart, dp) / anomaly_timescale
+!
+    else
+       ! no anomaly to apply
+       anomaly_fraction = 0.0d0
     endif
 
     ! apply the anomaly

@@ -335,6 +335,7 @@ module cism_parallel
 
   interface parallel_put_var
      module procedure parallel_put_var_integer
+     module procedure parallel_put_var_integer_1d
      module procedure parallel_put_var_real4
      module procedure parallel_put_var_real8
      module procedure parallel_put_var_real8_1d
@@ -344,6 +345,7 @@ module cism_parallel
      module procedure parallel_reduce_max_integer
      module procedure parallel_reduce_max_real4
      module procedure parallel_reduce_max_real8
+     module procedure parallel_reduce_max_real8_1d
   end interface
 
   ! This reduce interface determines the global max value and the processor on which it occurs
@@ -357,6 +359,7 @@ module cism_parallel
      module procedure parallel_reduce_min_integer
      module procedure parallel_reduce_min_real4
      module procedure parallel_reduce_min_real8
+     module procedure parallel_reduce_min_real8_1d
   end interface
 
   ! This reduce interface determines the global min value and the processor on which it occurs
@@ -694,6 +697,7 @@ contains
        allocate(recvcounts(1))
        allocate(recvbuf(1))
     end if
+
     allocate(sendbuf(d_gs_mybounds(1):d_gs_mybounds(2),&
                      d_gs_mybounds(3):d_gs_mybounds(4)))
     sendbuf(:,:) = values(1+lhalo:local_ewn-uhalo,1+lhalo:local_nsn-uhalo)
@@ -2719,7 +2723,7 @@ contains
     integer, dimension(:), allocatable ::  &
          task_to_block                ! block associated with each task
 
-    logical, parameter :: verbose_active_blocks = .true.
+    logical :: verbose_active_blocks = .false.
 
     associate(  &
          periodic_bc => parallel%periodic_bc,  &
@@ -2761,6 +2765,7 @@ contains
 
     if (present(inquire_only)) then
        only_inquire = inquire_only
+       if (only_inquire) verbose_active_blocks = .true.
     else
        only_inquire = .false.
     endif
@@ -4223,6 +4228,8 @@ contains
     ! values = local portion of distributed variable
     ! global_values = reference to allocateable array into which the main_task holds the variable.
     ! global_values is deallocated at the end.
+    ! This subroutine expects global_values to be allocated on all tasks.
+    ! It can be allocated with zero size on tasks other than main_task.
     use mpi_mod
     implicit none
     integer,dimension(:,:),intent(inout) :: values  ! populated from values on main_task
@@ -4268,7 +4275,6 @@ contains
     call fc_gather_int(d_gs_mybounds,4,mpi_integer,d_gs_bounds,4,&
          mpi_integer,main_rank,comm)
 
-
     if (main_task) then
        allocate(displs(tasks+1))
        allocate(sendcounts(tasks))
@@ -4279,7 +4285,6 @@ contains
           displs(i+1) = displs(i)+sendcounts(i)
        end do
        allocate(sendbuf(displs(tasks+1)))
-
        do i = 1,tasks
           sendbuf(displs(i)+1:displs(i+1)) = &
              reshape(global_values(d_gs_bounds(1,i):d_gs_bounds(2,i),&
@@ -4291,6 +4296,7 @@ contains
        allocate(sendcounts(1))
        allocate(sendbuf(1))
     end if
+
     allocate(recvbuf(d_gs_mybounds(1):d_gs_mybounds(2),&
                      d_gs_mybounds(3):d_gs_mybounds(4)))
     call mpi_scatterv(sendbuf,sendcounts,displs,mpi_integer,&
@@ -4310,6 +4316,8 @@ contains
     ! values = local portion of distributed variable
     ! global_values = reference to allocateable array into which the main_task holds the variable.
     ! global_values is deallocated at the end.
+    ! This subroutine expects global_values to be allocated on all tasks.
+    ! It can be allocated with zero size on tasks other than main_task.
     use mpi_mod
     implicit none
     logical,dimension(:,:),intent(inout) :: values  ! populated from values on main_task
@@ -4396,6 +4404,8 @@ contains
     ! values = local portion of distributed variable
     ! global_values = reference to allocateable array into which the main_task holds the variable.
     ! global_values is deallocated at the end.
+    ! This subroutine expects global_values to be allocated on all tasks.
+    ! It can be allocated with zero size on tasks other than main_task.
     use mpi_mod
     implicit none
     real(sp),dimension(:,:),intent(inout) :: values  ! populated from values on main_task
@@ -4482,6 +4492,8 @@ contains
     ! values = local portion of distributed variable
     ! global_values = reference to allocateable array into which the main_task holds the variable.
     ! global_values is deallocated at the end.
+    ! This subroutine expects global_values to be allocated on all tasks.
+    ! It can be allocated with zero size on tasks other than main_task.
     use mpi_mod
     implicit none
     real(sp),dimension(:,:,:),intent(inout) :: values  ! populated from values on main_task
@@ -4570,6 +4582,8 @@ contains
     ! values = local portion of distributed variable
     ! global_values = reference to allocateable array into which the main_task holds the variable.
     ! global_values is deallocated at the end.
+    ! This subroutine expects global_values to be allocated on all tasks.
+    ! It can be allocated with zero size on tasks other than main_task.
     use mpi_mod
     implicit none
     real(dp),dimension(:,:),intent(inout) :: values  ! populated from values on main_task
@@ -4656,6 +4670,8 @@ contains
     ! values = local portion of distributed variable
     ! global_values = reference to allocateable array into which the main_task holds the variable.
     ! global_values is deallocated at the end.
+    ! This subroutine expects global_values to be allocated on all tasks.
+    ! It can be allocated with zero size on tasks other than main_task.
     use mpi_mod
     implicit none
     real(dp),dimension(:,:,:),intent(inout) :: values  ! populated from values on main_task
@@ -7846,6 +7862,26 @@ contains
   end function parallel_put_var_integer
 
 
+  function parallel_put_var_integer_1d(ncid, varid, values, start)
+
+    implicit none
+    integer :: ncid,parallel_put_var_integer_1d,varid
+    integer,dimension(:) :: values
+    integer,dimension(:),optional :: start
+
+    ! begin
+    if (main_task) then
+       if (present(start)) then
+          parallel_put_var_integer_1d = nf90_put_var(ncid,varid,values,start)
+       else
+          parallel_put_var_integer_1d = nf90_put_var(ncid,varid,values)
+       endif
+    endif
+    call broadcast(parallel_put_var_integer_1d)
+
+  end function parallel_put_var_integer_1d
+
+
   function parallel_put_var_real4(ncid, varid, values, start)
 
     implicit none
@@ -7917,6 +7953,44 @@ contains
     call broadcast(parallel_redef)
 
   end function parallel_redef
+
+!=======================================================================
+
+  ! functions for parallel reduction of logical variables
+  ! * parallel_reduce_log_or returns 'true' iff x = 'true' on at least one processor
+  ! * parallel_reduce_log_and returns 'true' iff x = 'true' on all processors
+
+  function parallel_reduce_log_or(x)
+
+    use mpi_mod
+    implicit none
+    logical :: x
+
+    integer :: ierror
+    logical :: recvbuf,sendbuf, parallel_reduce_log_or
+
+    ! begin
+    sendbuf = x
+    call mpi_allreduce(sendbuf,recvbuf,1,mpi_logical,mpi_lor,comm,ierror)
+    parallel_reduce_log_or = recvbuf
+
+  end function parallel_reduce_log_or
+
+  function parallel_reduce_log_and(x)
+
+    use mpi_mod
+    implicit none
+    logical :: x
+
+    integer :: ierror
+    logical :: recvbuf,sendbuf, parallel_reduce_log_and
+
+    ! begin
+    sendbuf = x
+    call mpi_allreduce(sendbuf,recvbuf,1,mpi_logical,mpi_land,comm,ierror)
+    parallel_reduce_log_and = recvbuf
+
+  end function parallel_reduce_log_and
 
 !=======================================================================
 
@@ -8062,6 +8136,22 @@ contains
 
   end function parallel_reduce_max_real8
 
+  function parallel_reduce_max_real8_1d(x)
+
+    use mpi_mod
+    implicit none
+    real(dp), dimension(:) :: x
+
+    integer :: ierror
+    real(dp), dimension(size(x)) :: recvbuf,sendbuf, parallel_reduce_max_real8_1d
+
+    ! begin
+    sendbuf = x
+    call mpi_allreduce(sendbuf,recvbuf,size(x),mpi_real8,mpi_max,comm,ierror)
+    parallel_reduce_max_real8_1d = recvbuf
+
+  end function parallel_reduce_max_real8_1d
+
 !=======================================================================
 
   ! functions belonging to the parallel_reduce_maxloc interface
@@ -8183,6 +8273,23 @@ contains
 
   end function parallel_reduce_min_real8
 
+
+  function parallel_reduce_min_real8_1d(x)
+
+    use mpi_mod
+    implicit none
+    real(dp), dimension(:) :: x
+
+    integer :: ierror
+    real(dp), dimension(size(x)) :: recvbuf,sendbuf, parallel_reduce_min_real8_1d
+
+    ! begin
+    sendbuf = x
+    call mpi_allreduce(sendbuf,recvbuf,size(x),mpi_real8,mpi_min,comm,ierror)
+    parallel_reduce_min_real8_1d = recvbuf
+
+  end function parallel_reduce_min_real8_1d
+
 !=======================================================================
 
   ! subroutines belonging to the parallel_reduce_minloc interface
@@ -8302,6 +8409,136 @@ contains
     call broadcast(parallel_sync)
 
   end function parallel_sync
+
+!=======================================================================
+
+  subroutine parallel_test_comm_row_col(parallel)
+
+    ! Test the communicators for rows and columns of processors.
+    ! Optionally, these communicators can be used when solving a 1D system of equations
+    !  along a single row or column of the domain.
+
+    use mpi_mod
+
+    type(parallel_type), intent(in) :: parallel
+
+    integer :: i, j, ierror
+    real(dp), dimension(:,:), allocatable :: test_array
+    real(dp), dimension(:,:), allocatable :: global_test_array
+
+    ! Test the row and column communicators
+
+    ! row gather/scatter
+
+    ! mpi barriers not strictly needed, but can make print statements cleaner
+    call mpi_barrier(parallel%comm_row,ierror)
+    call mpi_barrier(parallel%comm_col,ierror)
+
+    allocate(test_array(2,parallel%own_nsn))
+
+    do j = 1, parallel%own_nsn
+       do i = 1, 2
+          test_array(i,j) = (this_rank + 2) * real(i*j, dp)
+       enddo
+    enddo
+
+    if (this_rank == 0 .or. this_rank == 1) then
+       print*, ' '
+       do i = 1, 2
+          print*, 'test_array, i, this_rank =', i, this_rank
+          do j = 1, parallel%own_nsn
+             write(6,'(f6.0)',advance='no') test_array(i,j)
+          enddo
+          print*, ' '
+          print*, ' '
+       enddo
+    endif   ! this_rank
+
+    call distributed_gather_var_row(test_array, global_test_array, parallel)
+
+!!    if (parallel%main_task_row) then
+    if (parallel%main_task_row .and. this_rank == 0) then
+       do i = 1, 2*parallel%tasks_row
+          print*, 'Gathered row test_array, this_rank, i =', this_rank, i
+          do j = 1, size(global_test_array,2)
+             write(6,'(f6.0)',advance='no') global_test_array(i,j)
+          enddo
+          print*, ' '
+       enddo
+       print*, ' '
+    endif
+
+    call distributed_scatter_var_row(test_array, global_test_array, parallel)
+
+    if (this_rank == 0) then
+       print*, ' '
+       do i = 1, 2
+          print*, 'Scattered test_array, i, this_rank =', i, this_rank
+          do j = 1, parallel%own_nsn
+             write(6,'(f6.0)',advance='no') test_array(i,j)
+          enddo
+          print*, ' '
+          print*, ' '
+       enddo
+    endif   ! this_rank
+
+    deallocate(test_array)
+
+    ! column gather/scatter
+
+    call mpi_barrier(parallel%comm_row,ierror)
+    call mpi_barrier(parallel%comm_col,ierror)
+
+    allocate(test_array(2,parallel%own_ewn))
+    do j = 1, 2
+       do i = 1, parallel%own_ewn
+          test_array(j,i) = (this_rank + 2) * real(j*i, dp)
+       enddo
+    enddo
+
+    if (this_rank == 0 .or. this_rank == 2) then
+       print*, ' '
+       do j = 1, 2
+          print*, 'test_array: j, this_rank =', j, this_rank
+          do i = 1, parallel%own_ewn
+             write(6,'(f6.0)',advance='no') test_array(j,i)
+          enddo
+          print*, ' '
+          print*, ' '
+       enddo
+    endif   ! this_rank
+
+    call distributed_gather_var_col(test_array, global_test_array, parallel)
+
+!!    if (parallel%main_task_col) then
+    if (parallel%main_task_col .and. this_rank == 0) then
+       do j = 1, 2*parallel%tasks_col
+          print*, 'Gathered column test_array, this_rank, j =', this_rank, j
+          do i = 1, size(global_test_array,2)
+             write(6,'(f6.0)',advance='no') global_test_array(j,i)
+          enddo
+          print*, ' '
+       enddo
+       print*, ' '
+    endif
+
+    call distributed_scatter_var_col(test_array, global_test_array, parallel)
+
+    if (this_rank == 0) then
+       print*, ' '
+       do j = 1, 2
+          print*, 'Scattered test_array, j, this_rank =', j, this_rank
+          do i = 1, parallel%own_ewn
+             write(6,'(f6.0)',advance='no') test_array(j,i)
+          enddo
+          print*, ' '
+          print*, ' '
+       enddo
+    endif   ! this_rank
+
+    deallocate(test_array)
+
+  end subroutine parallel_test_comm_row_col
 
 !=======================================================================
 
@@ -9567,7 +9804,7 @@ contains
          gather_block_size = min(max(1,flow_cntl),max_gather_block_size)
          fc_gather = .true.
       else
-        fc_gather = .false.
+         fc_gather = .false.
       endif
    else
       gather_block_size = max(1,max_gather_block_size)
@@ -9623,7 +9860,7 @@ contains
                             comm, ier )
          end if
 
-     endif
+      endif
 
    else
  
