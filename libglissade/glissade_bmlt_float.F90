@@ -703,7 +703,6 @@ module glissade_bmlt_float
   subroutine glissade_bmlt_float_thermal_forcing(&
        bmlt_float_thermal_forcing_param, &
        ocean_data_extrapolate,    &
-       deltaT_ocn_extrapolate,    &
        parallel,                  &
        nx,        ny,             &
        dew,       dns,            &
@@ -733,9 +732,6 @@ module glissade_bmlt_float
          bmlt_float_thermal_forcing_param, & !> melting parameterization used to derive melt rate from thermal forcing;
                                              !> current options are quadratic and ISMIP6 local, nonlocal and nonlocal_slope
          ocean_data_extrapolate              !> = 1 if TF is to be extrapolated to sub-shelf cavities, else = 0
-
-    logical, intent(in) :: &
-         deltaT_ocn_extrapolate              !> T if deltaT_ocn is to be extrapolated to non-floating cells, else = F
 
     type(parallel_type), intent(in) :: &
          parallel                            !> info for parallel communication
@@ -1163,39 +1159,6 @@ module glissade_bmlt_float
              print*, nb, deltaT_basin_avg(nb)
           enddo
        endif
-
-       ! Optionally, set deltaT_ocn = deltaT_basin_avg in cells where thermal_forcing_mask = 0.
-       ! Note: During the inversion, the value of deltaT_ocn in non-floating cells does not matter much;
-       !        this simply becomes the initial value if/when the cell becomes afloat.
-       !       During a forward run with GL retreat, however, it matters a lot.  The basin-average values
-       !        written to non-floating cells during the inversion are applied to any cells
-       !        that become afloat during GL retreat.
-       ! Note: This should be done during the inversion only.
-       !       During the forward run, deltaT_ocn_extrapolate = F.  This is set automatically if the user forgets.
-
-       if (deltaT_ocn_extrapolate) then
-
-          do j = 1, ny
-             do i = 1, nx
-                nb = ocean_data%basin_number(i,j)
-                if (thermal_forcing_mask(i,j) == 0) then
-                   ocean_data%deltaT_ocn(i,j) = deltaT_basin_avg(nb)
-                endif
-             enddo
-          enddo
-
-          if (verbose_bmlt_float .and. this_rank==rtest) then
-             print*, ' '
-             print*, 'deltaT_ocn (degC) after extrapolation:'
-             do j = jtest+3, jtest-3, -1
-                do i = itest-3, itest+3
-                   write(6,'(f10.3)',advance='no') ocean_data%deltaT_ocn(i,j)
-                enddo
-                write(6,*) ' '
-             enddo
-          endif
-
-       endif   ! deltaT_ocn_extrapolate
 
        ! Compute the angle between the lower ice shelf surface and the horizontal.
        ! This option can be used to concentrate basal melting near the grounding line,

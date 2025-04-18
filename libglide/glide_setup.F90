@@ -786,7 +786,6 @@ contains
     call GetValue(section, 'which_ho_coulomb_c_relax',    model%options%which_ho_coulomb_c_relax)
     call GetValue(section, 'which_ho_deltaT_basin',       model%options%which_ho_deltaT_basin)
     call GetValue(section, 'which_ho_deltaT_ocn',         model%options%which_ho_deltaT_ocn)
-    call GetValue(section, 'deltaT_ocn_extrapolate',      model%options%deltaT_ocn_extrapolate)
     call GetValue(section, 'which_ho_flow_enhancement_factor', model%options%which_ho_flow_enhancement_factor)
     call GetValue(section, 'which_ho_bwat',               model%options%which_ho_bwat)
     call GetValue(section, 'ho_flux_routing_scheme',      model%options%ho_flux_routing_scheme)
@@ -1826,20 +1825,6 @@ contains
              call write_log('User setting will be ignored')
           endif
 
-          if (model%options%deltaT_ocn_extrapolate) then
-             if (model%options%which_ho_deltaT_ocn == HO_DELTAT_OCN_INVERSION) then
-                call write_log('deltaT_ocn will be extrapolated to non-floating cells during inversion')
-             else
-                model%options%deltaT_ocn_extrapolate = .false.
-                write(message,*) 'Setting deltaT_ocn_extrapolate = F for which_ho_deltaT_ocn =', &
-                     model%options%which_ho_deltaT_ocn
-                call write_log(message)
-                write(message,*) 'deltaT_ocn_extrapolate = T is appropriate for which_ho_deltaT_ocn =', &
-                    HO_DELTAT_OCN_INVERSION
-                call write_log(message)
-             endif
-          endif
-
           if (model%options%which_ho_deltaT_ocn == HO_DELTAT_OCN_DTHCK_DT) then
              if (model%options%bmlt_float_thermal_forcing_param /= BMLT_FLOAT_TF_ISMIP6_LOCAL .and. &
                  model%options%bmlt_float_thermal_forcing_param /= BMLT_FLOAT_TF_ISMIP6_NONLOCAL .and. &
@@ -1875,8 +1860,13 @@ contains
        ! Note: If inversion is toggled, all modes of inversion (e.g., coulomb_c, deltaT_ocn, flow_enhancement_factor)
        !       are toggled on or off at the same time.
        if (model%inversion%toggle_frequency > 0.0d0) then
-          write(message,*) ('Inversion toggled at frequency (yr):', &
-               model%inversion%toggle_frequency)
+          write(message,*) ('Inversion toggled at frequency (yr):', model%inversion%toggle_frequency)
+          call write_log(message)
+       endif
+
+       ! Note: If phaseout_timescale > 0, then all inversion timescales are increased exponentially over this period
+       if (model%inversion%phaseout_timescale > 0.0d0) then
+          write(message,*) ('Inversion phaseout timescale (yr):', model%inversion%phaseout_timescale)
           call write_log(message)
        endif
 
@@ -2311,6 +2301,7 @@ contains
     call GetValue(section, 'inversion_thck_flotation_buffer', model%inversion%thck_flotation_buffer)
     call GetValue(section, 'inversion_thck_threshold', model%inversion%thck_threshold)
     call GetValue(section, 'inversion_toggle_frequency', model%inversion%toggle_frequency)
+    call GetValue(section, 'inversion_phaseout_timescale', model%inversion%phaseout_timescale)
 
     call GetValue(section, 'inversion_babc_timescale', model%inversion%babc_timescale)
     call GetValue(section, 'inversion_babc_thck_scale', model%inversion%babc_thck_scale)

@@ -897,9 +897,6 @@ module glide_types
     !> \item[3] set deltaT_ocn to match dH/dt target
     !> \end{description}
 
-    logical :: deltaT_ocn_extrapolate = .false.
-    !> if true, extrapolate the basin-average deltaT_ocn to cells not floating
-
     integer :: which_ho_flow_enhancement_factor = 0
     !> Flag for flow enhancement factor E
     !> \begin{description}
@@ -1711,6 +1708,9 @@ module glide_types
      real(dp) :: toggle_frequency = 0.0d0    !> if nonzero, then toggle inversion at this frequency (yr)
                                              !> if zero, then do not toggle
 
+     real(dp) :: phaseout_timescale = 0.0d0  !> if nonzero, then increase the inversion timescales (babc_timescale, etc.)
+                                             !> by a factor of e over this timescale (yr)
+
      ! parameters for initializing inversion fields
      real(dp) :: &
           thck_threshold = 0.0d0,          & !> ice thinner than this threshold (m) is removed at initialization
@@ -1738,6 +1738,7 @@ module glide_types
           deltaT_ocn_length_scale = 0.d0         !> diffusive length scale (m) for inversion
 
      ! fields and parameters for basin-scale deltaT_ocn inversion
+
      real(dp), dimension(:,:), pointer ::  &
           floating_thck_target => null()         !> Observational target for floating ice thickness
 

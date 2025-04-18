@@ -115,7 +115,7 @@ contains
     use glissade_velo_higher, only: glissade_velo_higher_init
     use glide_diagnostics, only: glide_init_diag
     use glissade_calving, only: glissade_calving_mask_init, verbose_calving
-    use glissade_inversion, only: glissade_init_inversion, verbose_inversion
+    use glissade_inversion, only: glissade_inversion_init, verbose_inversion
     use glissade_basal_traction, only: glissade_init_effective_pressure
     use glissade_bmlt_float, only: glissade_bmlt_float_thermal_forcing_init, verbose_bmlt_float
     use glissade_grounding_line, only: glissade_grounded_fraction
@@ -949,7 +949,7 @@ contains
         model%options%which_ho_deltaT_basin == HO_DELTAT_BASIN_INVERSION .or.  &
         model%options%which_ho_flow_enhancement_factor == HO_FLOW_ENHANCEMENT_FACTOR_INVERSION) then
 
-       call glissade_init_inversion(model)
+       call glissade_inversion_init(model)
 
     endif  ! inversion for Cp, Cc or bmlt
 
@@ -1589,7 +1589,6 @@ contains
        call glissade_bmlt_float_thermal_forcing(&
             model%options%bmlt_float_thermal_forcing_param, &
             model%options%ocean_data_extrapolate,  &
-            model%options%deltaT_ocn_extrapolate,  &
             parallel,                              &
             ewn,                nsn,               &
             dew*len0,           dns*len0,          & ! m
@@ -2521,7 +2520,7 @@ contains
        ! (1) SMB(x,y) + dSMB/dz(x,y) * dz; SMB depends on input field at reference elevation, plus vertical correction
        ! (2) SMB(x,y,z); SMB obtained by linear interpolation between values prescribed at adjacent vertical levels
        ! For options (1) and (2), the elevation-dependent SMB is computed here.
-       ! Note: These conversion must be done at each time step (and not just once at initialization)
+       ! Note: These conversions must be done at each time step (and not just once at initialization)
        !       if reading SMB or acab from a time-dependent forcing file.
 
        if (model%options%smb_input_function == SMB_INPUT_FUNCTION_XY) then
@@ -3864,9 +3863,8 @@ contains
     logical :: &
          toggle_skip_inversion        ! if true, then skip inversion at the current time
                                       ! if false, then do inversion as otherwise prescribed
-
-    real(dp) :: freq                    ! inversion toggle frequency
-    real(dp) :: time                    ! model time (yr)
+    real(dp) :: freq                  ! inversion toggle frequency
+    real(dp) :: time                  ! model time (yr)
 
     integer :: ewn, nsn, upn
 
@@ -4065,13 +4063,14 @@ contains
     endif
 
     ! If inverting for powerlaw_c, coulomb_c, deltaT_ocn, or flow_enhancement_factor,
-    ! do the inversion here.
+    !  do the inversion now.
     ! But do not invert on the first timestep after a restart, or if inversion is toggled off.
 
     if ( (model%options%is_restart == STANDARD_RESTART .or. model%options%is_restart == HYBRID_RESTART) &
          .and. (model%numerics%time == model%numerics%tstart) ) then
        ! first call after a restart; skip the inversion
     else
+
        ! If inversion is being toggled, then check whether it's turned off at the current time.
        ! If toggled off, then skip the subsequent inversion calls.
        ! Toggling works as follows: Suppose we have freq = 1000 yr.
@@ -4079,22 +4078,21 @@ contains
        ! Inversion is turned off at other times.
 
        toggle_skip_inversion = .false.
+       time = model%numerics%time
+       freq = model%inversion%toggle_frequency
 
-       if (model%inversion%toggle_frequency > 0.0d0) then
-          if (model%numerics%time > 0.0d0) then
-             time = model%numerics%time - eps08  ! subtract a small term to guard against rounding error
-             freq = model%inversion%toggle_frequency
-             if (mod(time,2.0d0*freq) > freq) then
-                toggle_skip_inversion = .true.
-                !WHL - debug
-                if (verbose_inversion .and. this_rank == rtest) then
-                   print*, 'Toggling, skip inversion, time =', model%numerics%time
-                endif
-             endif
-          endif  ! time > 0
+       if (freq > 0.0d0 .and. time > 0.0d0) then
+          ! Subtract a small term from the currrent time to guard against rounding error
+          if (mod(time - eps08, 2.0d0*freq) > freq) then
+             toggle_skip_inversion = .true.
+          endif
        endif
 
-       if (.not.toggle_skip_inversion) then
+       if (toggle_skip_inversion) then
+          if (verbose_inversion .and. this_rank == rtest) then
+             print*, 'Toggling, skip inversion, time =', model%numerics%time
+          endif
+       else
           call glissade_inversion_solve(model)
        endif
 
