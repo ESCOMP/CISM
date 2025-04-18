@@ -70,13 +70,14 @@ module glissade
 
   integer, private, parameter :: dummyunit=99
   logical, parameter :: verbose_glissade = .false.
-!!  logical, parameter :: verbose_glissade = .true.
+  logical, parameter :: verbose_retreat = .false.
 
   ! Change any of the following logical parameters to true to carry out simple tests
   logical, parameter :: test_transport = .false.    ! if true, call test_transport subroutine
   real(dp), parameter :: thk_init = 500.d0          ! initial thickness (m) for test_transport
   logical, parameter :: test_halo = .false.         ! if true, call test_halo subroutine
   logical, parameter :: test_comm_row_col = .false. ! if true, test the row and column communicators
+
 
 contains
 
@@ -991,27 +992,10 @@ contains
           call write_log('Initial ice_fraction_retreat_mask = 0 everywhere')
        endif
 
-       !WHL - debug
-       if (this_rank == rtest) then
-          i = itest
-          j = jtest
-          print*, 'force_retreat option =', model%options%force_retreat
-          print*, ' '
-          print*, 'reference_thck (m):'
-          do j = jtest+3, jtest-3, -1
-             do i = itest-3, itest+3
-                write(6,'(f10.3)',advance='no') model%geometry%reference_thck(i,j)*thk0
-             enddo
-             write(6,*) ' '
-          enddo
-          print*, ' '
-          print*, 'ice_fraction_retreat_mask:'
-          do j = jtest+3, jtest-3, -1
-             do i = itest-3, itest+3
-                write(6,'(f10.3)',advance='no') model%geometry%ice_fraction_retreat_mask(i,j)
-             enddo
-             write(6,*) ' '
-          enddo
+       if (verbose_retreat) then
+          if (this_rank == rtest) write(6,*) 'force_retreat option =', model%options%force_retreat
+          call point_diag(model%geometry%reference_thck*thk0, 'reference_thck (m)', itest, jtest, rtest, 7, 7)
+          call point_diag(model%geometry%ice_fraction_retreat_mask, 'ice_fraction_retreat_mask', itest, jtest, rtest, 7, 7)
        endif
 
     endif   ! force_retreat
@@ -1043,8 +1027,7 @@ contains
             model%calving%calving_mask)
 
        if (verbose_calving) then
-          call point_diag(model%calving%calving_mask, 'Initial calving mask:', &
-               itest, jtest, rtest, 7, 7)
+          call point_diag(model%calving%calving_mask, 'Initial calving mask:', itest, jtest, rtest, 7, 7)
        endif
 
     endif   ! calving grid mask
@@ -1320,33 +1303,10 @@ contains
 
     model%basal_melt%bmlt(:,:) = model%basal_melt%bmlt_ground(:,:) + model%basal_melt%bmlt_float(:,:)
 
-    if (verbose_glissade .and. this_rank == rtest) then
-       i = itest
-       j = jtest
-       print*, ' '
-       print*, 'Before thickness solver, thck (m):'
-       do j = jtest+3, jtest-3, -1
-          do i = itest-3, itest+3
-             write(6,'(f10.3)',advance='no') model%geometry%thck(i,j)*thk0
-          enddo
-          write(6,*) ' '
-       enddo
-       print*, ' '
-       print*, 'bmlt_ground (m/yr):'
-       do j = jtest+3, jtest-3, -1
-          do i = itest-3, itest+3
-             write(6,'(f10.3)',advance='no') model%basal_melt%bmlt_ground(i,j)*scyr
-          enddo
-          write(6,*) ' '
-       enddo
-       print*, ' '
-       print*, 'bmlt_float (m/yr):'
-       do j = jtest+3, jtest-3, -1
-          do i = itest-3, itest+3
-             write(6,'(f10.3)',advance='no') model%basal_melt%bmlt_float(i,j)*scyr
-          enddo
-          write(6,*) ' '
-       enddo
+    if (verbose_glissade) then
+       call point_diag(model%geometry%thck*thk0, 'Before thickness solver, thck (m)', itest, jtest, rtest, 7, 7)
+       call point_diag(model%basal_melt%bmlt_ground*scyr, 'bmlt_ground (m/yr):', itest, jtest, rtest, 7, 7)
+       call point_diag(model%basal_melt%bmlt_float*scyr, 'bmlt_float (m/yr):', itest, jtest, rtest, 7, 7)
     endif
 
     ! ------------------------------------------------------------------------ 
@@ -1435,7 +1395,6 @@ contains
 
     use glimmer_paramets, only: eps08, eps11, tim0, thk0, len0
     use glimmer_physcon, only: scyr
-    use glide_diagnostics, only: point_diag
     use glissade_bmlt_float, only: glissade_basal_melting_float, &
          glissade_bmlt_float_thermal_forcing, verbose_bmlt_float
     use glissade_transport, only: glissade_add_2d_anomaly
@@ -1727,8 +1686,7 @@ contains
 
        if (verbose_bmlt_float) then
           if (this_rank == rtest) then
-             print*, ' '
-             print*, 'Reduce bmlt_float in shallow cavities, bmlt_cavity_h0 (m) =', &
+             write(6,*) 'Reduce bmlt_float in shallow cavities, bmlt_cavity_h0 (m) =', &
                   model%basal_melt%bmlt_cavity_h0
           endif
           call point_diag(model%basal_melt%bmlt_float*thk0*scyr/tim0, 'original bmlt_float (m/yr)', &
@@ -1752,12 +1710,11 @@ contains
 
     if (verbose_bmlt_float) then
        if (this_rank == rtest) then
-          print*, ' '
-          print*, 'After glissade_bmlt_float_solve, which_ho_ground_bmlt =', model%options%which_ho_ground_bmlt
+          write(6,*) ' '
+          write(6,*) 'After glissade_bmlt_float_solve, which_ho_ground_bmlt =', model%options%which_ho_ground_bmlt
        endif
        if (model%options%which_ho_ground == HO_GROUND_GLP_DELUXE) then
-          call point_diag(1.0d0 - model%geometry%f_ground_cell, '1 - f_ground_cell', &
-               itest, jtest, rtest, 7, 7)
+          call point_diag(1.0d0 - model%geometry%f_ground_cell, '1 - f_ground_cell', itest, jtest, rtest, 7, 7)
        else
           call point_diag(floating_mask, 'floating_mask', itest, jtest, rtest, 7, 7)
        endif
@@ -2580,146 +2537,36 @@ contains
           endif
        endif
 
-       if (verbose_smb .and. this_rank == rtest) then
+       if (verbose_smb) then
 
-          i = itest
-          j = jtest
-          write(6,*) 'Computing runtime acab with smb_input_function =', model%options%smb_input_function
-          write(6,*) 'r, i, j =', this_rank, i, j
-          write(6,*) ' '
-          print*, 'usrf (m)'
-          do j = jtest+3, jtest-3, -1
-             write(6,'(i6)',advance='no') j
-             do i = itest-3, itest+3
-                write(6,'(f10.3)',advance='no') model%geometry%usrf(i,j) * thk0
-             enddo
-             write(6,*) ' '
-          enddo
+          if (this_rank == rtest) then
+             write(6,*) 'Computing runtime acab with smb_input_function =', model%options%smb_input_function
+          endif
+          call point_diag(model%geometry%usrf*thk0, 'usrf (m)', itest, jtest, rtest, 7, 7)
 
           if (model%options%smb_input_function == SMB_INPUT_FUNCTION_XY_GRADZ) then
-             write(6,*) ' '
-             write(6,*) 'usrf - usrf_ref'
-             do j = jtest+3, jtest-3, -1
-                write(6,'(i6)',advance='no') j
-                do i = itest-3, itest+3
-                   write(6,'(f10.3)',advance='no') &
-                        (model%geometry%usrf(i,j)*thk0 - model%climate%usrf_ref(i,j))
-                enddo
-                write(6,*) ' '
-             enddo
-             write(6,*) ' '
-             write(6,*) 'reference acab (m/yr ice)'
-             do j = jtest+3, jtest-3, -1
-                write(6,'(i6)',advance='no') j
-                do i = itest-3, itest+3
-                   write(6,'(f10.3)',advance='no') model%climate%acab_ref(i,j) * scale_acab
-                enddo
-                write(6,*) ' '
-             enddo
-             write(6,*) ' '
-             write(6,*) 'smb_gradz (mm/yr per m)'
-             do j = jtest+3, jtest-3, -1
-                write(6,'(i6)',advance='no') j
-                do i = itest-3, itest+3
-                   write(6,'(f10.3)',advance='no') model%climate%smb_gradz(i,j) / thk0
-                enddo
-                write(6,*) ' '
-             enddo
-             write(6,*) ' '
-             write(6,*) 'acab_gradz (m/yr per km)'
-             do j = jtest+3, jtest-3, -1
-                write(6,'(i6)',advance='no') j
-                do i = itest-3, itest+3
-                   write(6,'(f10.3)',advance='no') model%climate%acab_gradz(i,j) * scale_acab/thk0 * 1000.d0
-                enddo
-                write(6,*) ' '
-             enddo
-             write(6,*) ' '
-             write(6,*) 'adjusted acab (m/yr ice)'
-             do j = jtest+3, jtest-3, -1
-                write(6,'(i6)',advance='no') j
-                do i = itest-3, itest+3
-                   write(6,'(f10.3)',advance='no') model%climate%acab(i,j) * scale_acab
-                enddo
-                write(6,*) ' '
-             enddo
-
+             call point_diag(model%geometry%usrf*thk0 - model%climate%usrf_ref, 'usrf - usrf_ref (m)', &
+                  itest, jtest, rtest, 7, 7)
+             call point_diag(model%climate%acab_ref*scale_acab, 'reference acab (m/yr ice)', itest, jtest, rtest, 7, 7)
+             call point_diag(model%climate%smb_gradz/thk0, 'smb_gradz (mm/yr per m)', itest, jtest, rtest, 7, 7)
+             call point_diag(model%climate%acab_gradz*scale_acab*1000.d0/thk0, 'acab_gradz (m/yr per km)', itest, jtest, rtest, 7, 7)
+             call point_diag(model%climate%acab*scale_acab, 'adjusted acab (m/yr ice)', itest, jtest, rtest, 7, 7)
           elseif (model%options%smb_input_function == SMB_INPUT_FUNCTION_XYZ) then
-
              k = model%climate%nlev_smb/2 + 1  ! arbitrary k
-             write(6,*) 'Diagnostic level k, usrf =', k, model%climate%smb_levels(k)*thk0
-             write(6,*) ' '
-             write(6,*) '3d acab(k) (m/yr ice)'
-             do j = jtest+3, jtest-3, -1
-                write(6,'(i6)',advance='no') j
-                do i = itest-3, itest+3
-                   write(6,'(f10.3)',advance='no') model%climate%acab_3d(k,i,j) * scale_acab
-                enddo
-                write(6,*) ' '
-             enddo
-             write(6,*) ' '
-             write(6,*) 'adjusted acab (m/yr ice)'
-             do j = jtest+3, jtest-3, -1
-                write(6,'(i6)',advance='no') j
-                do i = itest-3, itest+3
-                   write(6,'(f10.3)',advance='no') model%climate%acab(i,j) * scale_acab
-                enddo
-                write(6,*) ' '
-             enddo
-
+             if (this_rank == rtest) write(6,*) 'Diagnostic level k, level (m) =', k, model%climate%smb_levels(k)*thk0
+             call point_diag(model%climate%acab_3d(k,:,:)*scale_acab, '3d acab (m/yr ice)', itest, jtest, rtest, 7, 7)
+             call point_diag(model%climate%acab*scale_acab, 'adjusted acab (m/yr ice)', itest, jtest, rtest, 7, 7)
           endif  ! smb_input_function
 
           if (model%options%artm_input_function == ARTM_INPUT_FUNCTION_XY_GRADZ) then
-
-             write(6,*) ' '
-             write(6,*) 'reference artm (deg C)'
-             do j = jtest+3, jtest-3, -1
-                write(6,'(i6)',advance='no') j
-                do i = itest-3, itest+3
-                   write(6,'(f10.3)',advance='no') model%climate%artm_ref(i,j)
-                enddo
-                write(6,*) ' '
-             enddo
-             write(6,*) ' '
-             write(6,*) 'artm_gradz (deg C per km)'
-             do j = jtest+3, jtest-3, -1
-                write(6,'(i6)',advance='no') j
-                do i = itest-3, itest+3
-                   write(6,'(f10.3)',advance='no') model%climate%artm_gradz(i,j)/thk0 * 1000.d0
-                enddo
-                write(6,*) ' '
-             enddo
-             write(6,*) ' '
-             write(6,*) 'adjusted artm (deg C)'
-             do j = jtest+3, jtest-3, -1
-                write(6,'(i6)',advance='no') j
-                do i = itest-3, itest+3
-                   write(6,'(f10.3)',advance='no') model%climate%artm(i,j)
-                enddo
-                write(6,*) ' '
-             enddo
-
+             call point_diag(model%climate%artm_ref, 'reference artm (deg C)', itest, jtest, rtest, 7, 7)
+             call point_diag(model%climate%artm_gradz*1000.d0/thk0, 'artm_gradz (deg C per km)', itest, jtest, rtest, 7, 7)
+             call point_diag(model%climate%artm, 'adjusted artm (deg C)', itest, jtest, rtest, 7, 7)
           elseif (model%options%artm_input_function == ARTM_INPUT_FUNCTION_XYZ) then
-
-             write(6,*) ' '
-             write(6,*) '3d artm(k) (deg C)'
-             do j = jtest+3, jtest-3, -1
-                write(6,'(i6)',advance='no') j
-                do i = itest-3, itest+3
-                   write(6,'(f10.3)',advance='no') model%climate%artm_3d(k,i,j)
-                enddo
-                write(6,*) ' '
-             enddo
-             write(6,*) ' '
-             write(6,*) 'adjusted artm (deg C)'
-             do j = jtest+3, jtest-3, -1
-                write(6,'(i6)',advance='no') j
-                do i = itest-3, itest+3
-                   write(6,'(f10.3)',advance='no') model%climate%artm(i,j)
-                enddo
-                write(6,*) ' '
-             enddo
-
+             k = model%climate%nlev_smb/2 + 1  ! arbitrary k
+             if (this_rank == rtest) write(6,*) 'Diagnostic level k, level (m) =', k, model%climate%smb_levels(k)*thk0
+             call point_diag(model%climate%artm_3d(k,:,:), '3d artm (deg C)', itest, jtest, rtest, 7, 7)
+             call point_diag(model%climate%artm, 'adjusted artm (deg C)', itest, jtest, rtest, 7, 7)
           endif   ! artm_input_function
 
        endif  ! verbose_smb and this_rank
@@ -2837,16 +2684,8 @@ contains
 
        if (model%options%enable_acab_dthck_dt_correction) then
 
-          if (verbose_smb .and. this_rank == rtest) then
-             write(6,*) ' '
-             write(6,*) 'uncorrected acab (m/yr)'
-             do j = jtest+3, jtest-3, -1
-                write(6,'(i6)',advance='no') j
-                do i = itest-3, itest+3
-                   write(6,'(f10.3)',advance='no') acab_unscaled(i,j) * scyr
-                enddo
-                write(6,*) ' '
-             enddo
+          if (verbose_smb) then
+             call point_diag(acab_unscaled*scyr, 'uncorrected acab (m/yr)', itest, jtest, rtest, 7, 7)
           endif
 
           where (model%geometry%f_ground_cell < 1.0d0 .and. model%geometry%dthck_dt_obs_basin < 0.0d0)
@@ -2856,27 +2695,9 @@ contains
                   - (1.0d0 - model%geometry%f_ground_cell) * (model%geometry%dthck_dt_obs_basin/scyr)
           endwhere
 
-          if (verbose_smb .and. this_rank == rtest) then
-             write(6,*) ' '
-             write(6,*) 'dthck_dt_obs correction (m/yr)'
-             do j = jtest+3, jtest-3, -1
-                write(6,'(i6)',advance='no') j
-                do i = itest-3, itest+3
-                   write(6,'(f10.3)',advance='no') -model%geometry%dthck_dt_obs_basin(i,j)
-                enddo
-                write(6,*) ' '
-             enddo
-
-             write(6,*) ' '
-             write(6,*) 'new acab (m/yr)'
-             do j = jtest+3, jtest-3, -1
-                write(6,'(i6)',advance='no') j
-                do i = itest-3, itest+3
-                   write(6,'(f10.3)',advance='no') acab_unscaled(i,j) * scyr
-                enddo
-                write(6,*) ' '
-             enddo
-
+          if (verbose_smb) then
+             call point_diag(-model%geometry%dthck_dt_obs_basin, 'dthck_dt_obs correction (m/yr)', itest, jtest, rtest, 7, 7)
+             call point_diag(acab_unscaled*scyr, 'new acab (m/yr)', itest, jtest, rtest, 7, 7)
           endif
 
        endif   ! enable_acab_dthck_dt_correction
@@ -3011,44 +2832,12 @@ contains
          
        endif    ! TEMP_ENTHALPY
 
-       if (this_rank==rtest .and. verbose_glissade) then
-          print*, ' '
-          print*, 'After glissade_transport_driver:'
-          print*, 'max, min thck (m)=', maxval(model%geometry%thck)*thk0, minval(model%geometry%thck)*thk0
-          print*, 'max, min acab (m/yr) =', &
-                  maxval(model%climate%acab_corrected)*scale_acab, &
-                  minval(model%climate%acab_corrected)*scale_acab
-          print*, 'thklim =', model%numerics%thklim * thk0
-          print*, 'max, min temp =', maxval(model%temper%temp), minval(model%temper%temp)
-          print*, ' '
-          print*, 'thck:'
-          write(6,'(a6)',advance='no') '      '
-          do i = itest-5, itest+5
-             write(6,'(i14)',advance='no') i
-          enddo
-          write(6,*) ' '
-          do j = jtest+3, jtest-3, -1
-             write(6,'(i6)',advance='no') j
-             do i = itest-3, itest+3
-                write(6,'(f10.3)',advance='no') model%geometry%thck(i,j) * thk0
-             enddo
-             write(6,*) ' '
-          enddo
-          print*, ' '
+       if (verbose_glissade) then
+          call point_diag(model%geometry%thck*thk0, 'After glissade_transport_driver, thck', &
+               itest, jtest, rtest, 7, 7)
           k = upn
-          print*, 'temp, k =', k
-          write(6,'(a6)',advance='no') '      '
-          do i = itest-3, itest+3
-             write(6,'(i10)',advance='no') i
-          enddo
-          write(6,*) ' '
-          do j = jtest+3, jtest-3, -1
-             write(6,'(i6)',advance='no') j
-             do i = itest-3, itest+3
-                write(6,'(f10.3)',advance='no') model%temper%temp(k,i,j)
-             enddo
-             write(6,*) ' '
-          enddo
+          if (this_rank == rtest) write(6,*) 'k =', k
+          call point_diag(model%temper%temp(k,:,:), 'temp', itest, jtest, rtest, 7, 7)
        endif
 
        call t_stopf('glissade_transport_driver')
@@ -3075,25 +2864,10 @@ contains
 
     model%geometry%usrf(:,:) = max(0.d0, model%geometry%thck(:,:) + model%geometry%lsrf(:,:))
 
-    if (verbose_inversion .and. this_rank == rtest) then
-       i = itest
-       j = jtest
-       print*, ' '
-       print*, 'After mass balance, thck (m):'
-       do j = jtest+3, jtest-3, -1
-          do i = itest-3, itest+3
-             write(6,'(f10.3)',advance='no') model%geometry%thck(i,j)*thk0
-          enddo
-          write(6,*) ' '
-       enddo
-       print*, ' '
-       print*, 'bmlt_applied (m/yr):'
-       do j = jtest+3, jtest-3, -1
-          do i = itest-3, itest+3
-             write(6,'(f10.3)',advance='no') model%basal_melt%bmlt_applied(i,j)*(thk0/tim0)*scyr
-          enddo
-          write(6,*) ' '
-       enddo
+    if (verbose_inversion) then
+       call point_diag(model%geometry%thck*thk0, 'After mass balance, thck (m)', itest, jtest, rtest, 7, 7)
+       call point_diag(model%basal_melt%bmlt_applied*(thk0/tim0)*scyr, 'bmlt_applied (m/yr)', &
+            itest, jtest, rtest, 7, 7)
     endif   ! verbose_inversion
     
   end subroutine glissade_thickness_tracer_solve
@@ -3161,8 +2935,6 @@ contains
 
     type(parallel_type) :: parallel   ! info for parallel communication
 
-    logical, parameter :: verbose_retreat = .true.
-
     integer, dimension(model%general%ewn, model%general%nsn) :: &
          calving_front_mask,      & !
          partial_cf_mask,         & ! = 1 for partially filled CF cells (thck < thck_effective), else = 0
@@ -3204,34 +2976,12 @@ contains
           print*, 'Forcing retreat using ice_fraction_retreat_mask, time =', model%numerics%time
        endif
 
-       if (verbose_retreat .and. this_rank == rtest) then
-          i = itest
-          j = jtest
-          print*, ' '
-          print*, 'Before forced retreat, thck (m):'
-          do j = jtest+3, jtest-3, -1
-             do i = itest-3, itest+3
-                write(6,'(f10.3)',advance='no') model%geometry%thck(i,j)*thk0
-             enddo
-             write(6,*) ' '
-          enddo
-          print*, ' '
-          print*, 'ice_fraction_retreat_mask:'
-          do j = jtest+3, jtest-3, -1
-             do i = itest-3, itest+3
-                write(6,'(f10.3)',advance='no') model%geometry%ice_fraction_retreat_mask(i,j)
-             enddo
-             write(6,*) ' '
-          enddo
-          print*, ' '
-          print*, 'maxthck (m):'
-          do j = jtest+3, jtest-3, -1
-             do i = itest-3, itest+3
-                write(6,'(f10.3)',advance='no') model%geometry%reference_thck(i,j)*thk0 &
-                     * (1.0d0 - model%geometry%ice_fraction_retreat_mask(i,j))
-             enddo
-             write(6,*) ' '
-          enddo
+       if (verbose_retreat) then
+          call point_diag(model%geometry%thck*thk0, 'Before forced retreat, thck (m)', itest, jtest, rtest, 7, 7)
+          call point_diag(model%geometry%ice_fraction_retreat_mask, 'ice_fraction_retreat_mask', &
+               itest, jtest, rtest, 7, 7)
+          call point_diag(model%geometry%reference_thck*thk0 * (1.0d0 - model%geometry%ice_fraction_retreat_mask), &
+               'maxthck (m)', itest, jtest, rtest, 7, 7)
        endif
 
        do j = 1, model%general%nsn
@@ -3246,17 +2996,9 @@ contains
           enddo
        enddo
 
-       if (verbose_retreat .and. this_rank == rtest) then
-          i = itest
-          j = jtest
-          print*, ' '
-          print*, 'After forced retreat, thck (m):'
-          do j = jtest+3, jtest-3, -1
-             do i = itest-3, itest+3
-                write(6,'(f10.3)',advance='no') model%geometry%thck(i,j)*thk0
-             enddo
-             write(6,*) ' '
-          enddo
+       if (verbose_retreat) then
+          call point_diag(model%geometry%thck*thk0, 'After forced retreat, thck (m)', &
+               itest, jtest, rtest, 7, 7)
        endif
 
     endif   ! force_retreat_all_ice
@@ -3333,8 +3075,7 @@ contains
        endif   ! init_calving and expand_calving_mask
 
        if (verbose_calving) then
-          call point_diag(thck_unscaled, 'Limit CF advance, thck (m)', &
-               itest, jtest, rtest, 7, 7)
+          call point_diag(thck_unscaled, 'Limit CF advance, thck (m)', itest, jtest, rtest, 7, 7)
           call point_diag(floating_mask, 'floating_mask', itest, jtest, rtest, 7, 7)
           call point_diag(model%calving%calving_mask, 'calving_mask',  itest, jtest, rtest, 7, 7)
        endif
@@ -3388,8 +3129,7 @@ contains
           endif
 
           if (verbose_calving) then
-             call point_diag(model%calving%calving_thck, 'calving_thck (m)', &
-                  itest, jtest, rtest, 7, 7)
+             call point_diag(model%calving%calving_thck, 'calving_thck (m)', itest, jtest, rtest, 7, 7)
              call point_diag(thck_unscaled, 'New thck (m)', itest, jtest, rtest, 7, 7)
           endif
 
@@ -4040,11 +3780,8 @@ contains
                                     model%geometry%f_ground_cell,  &
                                     model%geometry%topg_raised*thk0)
 
-    !WHL - debug
-    if (this_rank == rtest .and. verbose_glp) then
-       print*, ' '
-       print*, 'Called GLP subroutine, which_ho_ground =', model%options%which_ho_ground
-       print*, ' '
+    if (verbose_glp) then
+       if (this_rank == rtest) write(6,*) 'Called GLP subroutine, which_ho_ground =', model%options%which_ho_ground
        call point_diag(model%geometry%f_flotation, 'f_flotation', itest, jtest, rtest, 7, 7, '(f10.5)')
        call point_diag(model%geometry%f_ground, 'f_ground at vertex', itest, jtest, rtest, 7, 7, '(f10.5)')
        call point_diag(model%geometry%f_ground_cell, 'f_ground_cell', itest, jtest, rtest, 7, 7, '(f10.5)')
@@ -4347,46 +4084,12 @@ contains
     endif     ! is_restart
 
     if (this_rank==rtest .and. verbose_glissade) then
-       i = itest
-       j = jtest
-       print*, 'itest, jtest =', i, j
-       print*, 'k, dissip (deg/yr):'
-       do k = 1, upn-1
-          print*, k, model%temper%dissip(k,i,j)*scyr
-       enddo
-       print*, 'ubas, vbas =', model%velocity%uvel(upn,i,j), model%velocity%vvel(upn,i,j)
-       print*, 'btraction =',  model%velocity%btraction(:,i,j)
-       print*, 'bfricflx =', model%temper%bfricflx(i,j)
-       print*, ' '
-       print*, 'After glissade velocity solve (or restart): uvel, k = 1:'
-       write(6,'(a8)',advance='no') '          '
-       do i = itest-5, itest+5
-          write(6,'(i12)',advance='no') i
-       enddo
-       print*, ' '
-       do j = jtest+2, jtest-2, -1
-          write(6,'(i8)',advance='no') j
-          do i = itest-5, itest+5
-             write(6,'(f12.3)',advance='no') model%velocity%uvel(1,i,j) * (vel0*scyr)
-          enddo
-          print*, ' '
-       enddo
-       print*, ' '
-       print*, 'After glissade velocity solve (or restart): vvel, k = 1:'
-       write(6,'(a8)',advance='no') '          '
-       do i = itest-5, itest+5
-          write(6,'(i12)',advance='no') i
-       enddo
-       print*, ' '
-       do j = jtest+2, jtest-2, -1
-          write(6,'(i8)',advance='no') j
-          do i = itest-5, itest+5
-             write(6,'(f12.3)',advance='no') model%velocity%vvel(1,i,j) * (vel0*scyr)
-          enddo
-          print*, ' '
-       enddo
-       
-    endif  ! this_rank = rtest & verbose_glissade
+       k = 1
+       if (this_rank == rtest) write(6,*) 'After glissade_velocity_solve (or restart), k =', k
+       call point_diag(model%temper%dissip(k,:,:)*scyr, 'dissip (deg/yr)', itest, jtest, rtest, 7, 7)
+       call point_diag(model%velocity%uvel(k,:,:)*(vel0/scyr), 'uvel(m/yr)', itest, jtest, rtest, 7, 7, '(f12.3)')
+       call point_diag(model%velocity%vvel(k,:,:)*(vel0/scyr), 'vvel(m/yr)', itest, jtest, rtest, 7, 7, '(f12.3)')
+    endif
 
     ! ------------------------------------------------------------------------ 
     ! ------------------------------------------------------------------------ 
