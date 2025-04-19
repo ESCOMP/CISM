@@ -102,7 +102,9 @@ contains
     use glimmer_ncio, only: openall_in, openall_out, glimmer_nc_get_var, glimmer_nc_get_dimlength
     use glide_velo, only: init_velo  !TODO - Remove call to init_velo?
     use glissade_therm, only: glissade_init_therm
-    use glissade_transport, only: glissade_overwrite_acab_mask, glissade_add_2d_anomaly
+!!    use glissade_transport, only: glissade_overwrite_acab_mask, glissade_add_2d_anomaly
+    use glissade_transport, only: glissade_add_2d_anomaly
+    use glissade_mass_balance, only: glissade_mass_balance_init, glissade_mass_balance_solve
     use glissade_basal_water, only: glissade_basal_water_init
     use glissade_masks, only: glissade_get_masks, glissade_marine_connection_mask
     use glimmer_scales
@@ -644,37 +646,10 @@ contains
     ! Initialize basal hydrology, if needed
     call glissade_basal_water_init(model)
 
-    ! Initialize acab, if SMB (with different units) was read in
-    if (model%options%smb_input == SMB_INPUT_MMYR_WE) then
-       ! Convert units from mm/yr w.e. to m/yr ice, then convert to model units
-       model%climate%acab(:,:) = (model%climate%smb(:,:) * (rhow/rhoi)/1000.d0) / scale_acab
-    endif
-
-    ! Initialize artm_corrected.  This is equal to artm, plus any prescribed temperature anomaly.
-    model%climate%artm_corrected(:,:) = model%climate%artm(:,:)
-
-    if (model%options%enable_artm_anomaly) then
-       ! Check whether artm_anomaly was read from an external file.
-       ! If so, then use this field as the anomaly.
-       ! If not, then set artm_anomaly = artm_anomaly_constant everywhere.
-       ! Note: The artm_anomaly field does not change during the run,
-       !       but it is possible to ramp up the anomaly using artm_anomaly_timescale.
-       ! TODO - Write a short utility function to compute global_maxval of any field.
-
-       local_maxval = maxval(abs(model%climate%artm_anomaly))
-       global_maxval = parallel_reduce_max(local_maxval)
-       if (global_maxval < eps11) then
-          model%climate%artm_anomaly = model%climate%artm_anomaly_const
-          write(message,*) &
-               'Setting artm_anomaly = constant value (degC):', model%climate%artm_anomaly_const
-          call write_log(trim(message))
-       else
-          if (model%options%is_restart == NO_RESTART) then
-             call write_log('Setting artm_anomaly from external file')
-          endif
-       endif
-    endif
-    !TODO - Repeat for snow and precip anomalies
+    ! Initialize some mass balance fields
+    ! Note: This subroutine converts the input smb (mm/yr w.e.) to acab (m/yr ice), if needed.
+    !       Most subsequent calculations work with acab, converting back to smb at the end.
+    call glissade_mass_balance_init(model)
 
     ! Initialize the temperature profile in each column
     call glissade_init_therm(model%options%temp_init,    model%options%is_restart,  &
@@ -812,31 +787,6 @@ contains
        model%basal_physics%c_space_factor_stag(:,:) = 1.0d0
 
     endif  ! use_c_space_factor
-
-    ! Note: The basal process option is currently disabled.
-    ! initialize basal process module
-!!    if (model%options%which_bmod == BAS_PROC_FULLCALC .or. &
-!!        model%options%which_bmod == BAS_PROC_FASTCALC) then        
-!!        call Basal_Proc_init (model%general%ewn, model%general%nsn,model%basalproc,     &
-!!                              model%numerics%dttem)
-!!    end if      
-
-    ! If acab is to be overwritten for some cells, then set overwrite_acab_mask = 1 for these cells.
-    ! We can overwrite the input acab with a fixed value (typically negative) where
-    ! (1) the input acab = 0 at initialization, or
-    ! (2) the input thck <= overwrite_acab_minthck at initialization
-    ! Note: This option is designed for standalone runs, and should be used only with caution for coupled runs.
-    !       On restart, overwrite_acab_mask is read from the restart file.
-
-    if (model%climate%overwrite_acab_value /= 0 .and. model%options%is_restart == NO_RESTART) then
-
-       call glissade_overwrite_acab_mask(model%options%overwrite_acab,          &
-                                         model%climate%acab,                    &
-                                         model%geometry%thck,                   &
-                                         model%climate%overwrite_acab_minthck,  &
-                                         model%climate%overwrite_acab_mask)
-
-    endif
 
     ! calculate mask
     ! Note: This call includes a halo update for thkmask
