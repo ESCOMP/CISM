@@ -1943,7 +1943,7 @@ module glissade_bmlt_float
 
     !Michele: simple attent to smooth extrapolated fields 
      
-    if(model%options%smooth_extrapocean  == .true.) then
+    if(model%options%smooth_extrapocean) then
       call write_log('Smoothing of extrapolated ocean data.')
         
     where(thermal_forcing > thermal_forcing_max .OR. thermal_forcing < thermal_forcing_min)
@@ -1952,7 +1952,8 @@ module glissade_bmlt_float
             unphys_mask = 1
     endwhere 
     
-    call write_log('Number of iterations is ',model%options%smoothiter)
+    write(message,*) 'Number of iterations is ',model%options%smoothiter
+    call write_log(message)
 
     phi1 = thermal_forcing
 

@@ -2094,7 +2094,7 @@ contains
              endif
           endif
 
-          if (model%options%smooth_extrapocean == .true.) then
+          if (model%options%smooth_extrapocean) then
              write(message,*) 'Additional smoothing for ocean fields extrapolated in cavities'
              call write_log(message)
           end if
