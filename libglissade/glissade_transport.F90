@@ -51,10 +51,10 @@
     save
     private
 
-    public :: glissade_mass_balance_driver, glissade_transport_driver, glissade_check_cfl, &
-              glissade_transport_setup_tracers, glissade_transport_finish_tracers,  &
-              glissade_overwrite_acab_mask, glissade_overwrite_acab,  &
-              glissade_add_2d_anomaly, glissade_add_3d_anomaly
+    public :: glissade_transport_driver, glissade_check_cfl, &
+              glissade_transport_setup_tracers, glissade_transport_finish_tracers
+
+    public :: glissade_global_conservation, glissade_sum_mass_and_tracers, glissade_vertical_remap
 
     logical, parameter ::  &
          prescribed_area = .false.  ! if true, prescribe the area fluxed across each edge
@@ -143,7 +143,8 @@
 
          ! start with temperature/enthalpy
          ! Note: temp/enthalpy values at upper surface (k=0) and lower surface (k=upn) are not transported,
-         !       but these values are applied to new accumulation at either surface (in glissade_add_smb)
+         !       but these values are applied to new accumulation at either surface
+         !       (in subroutine add_surface_and_basal_mass_balance)
          ! TODO: Set tracers_usrf to min(artm, 0.0) instead of temp(0) for the case that a cell
          !       is currently ice-free with temp(0) = 0?
 
@@ -268,279 +269,6 @@
       ! add more tracers here, if desired
 
     end subroutine glissade_transport_finish_tracers
-
-!=======================================================================
-
-    subroutine glissade_mass_balance_driver(dt,                         &
-                                            dx,           dy,           &
-                                            nx,           ny,           &
-                                            nlyr,         sigma,        &
-                                            parallel,                   &
-                                            itest, jtest, rtest,        &
-                                            thck,                       &
-                                            acab,         bmlt,         &
-                                            acab_applied, bmlt_applied, &
-                                            ocean_mask,                 &
-                                            effective_areafrac,         &
-                                            ntracers,     tracers,      &
-                                            tracers_usrf, tracers_lsrf, &
-                                            vert_remap_accuracy)
-
-      ! This subroutine applies the surface and basal mass balance to each grid cell,
-      !  keeping track of the total mass balance applied at each surface.
-      !
-      ! Note: The SMB and BMB are not applied to ocean cells.
-      !       For cells with an effective area less than 1 (e.g., calving-front cells),
-      !        the SMB and BMB are applied only to the ice-covered part of the cell.
-      !
-      ! author William H. Lipscomb, LANL
-      !
-      ! input/output arguments
-
-      real(dp), intent(in) ::  &
-         dt,                   &! time step (s)
-         dx, dy                 ! gridcell dimensions (m)
-                                ! (cells assumed to be rectangular)
-
-      integer, intent(in) ::   &
-         nx, ny,               &! horizontal array size
-         nlyr                   ! number of vertical layers
-
-      real(dp), dimension(nlyr+1), intent(in) ::  &
-         sigma                  ! layer interfaces in sigma coordinates
-                                ! top sfc = 0, bottom sfc = 1
-
-      type(parallel_type), intent(in) :: &
-         parallel               ! info for parallel communication
-
-      integer, intent(in) ::  &
-         itest, jtest, rtest    ! coordinates of diagnostic point
-
-      real(dp), dimension(nx,ny), intent(in) ::  &
-         effective_areafrac     ! effective fractional area, in range [0,1]
-                                ! Calving_front cells can have values between 0 and 1
-
-      real(dp), dimension(nx,ny), intent(inout) ::  &
-         thck                   ! ice thickness (m), defined at horiz cell centers
-
-      real(dp), dimension(nx,ny), intent(in) ::  &
-         acab,    &             ! surface mass balance (m/s)
-                                ! (defined at horiz cell centers)
-         bmlt                   ! basal melt rate (m/s); positive for melting, negative for freeze-on
-                                ! includes melting for both grounded and floating ice
-                                ! (defined at horiz cell centers)
-
-      ! Note: These fields are accumulated in units of meters, then converted to m/s.
-      real(dp), dimension(nx,ny), intent(inout) ::  &
-         acab_applied,    &     ! surface mass balance applied to ice (m)
-                                ! = 0 for ice-free cells where acab < 0
-         bmlt_applied           ! basal melt rate applied to ice (m)
-                                ! = 0 for ice-free cells where bmlt > 0
-
-      integer, dimension(nx,ny), intent(in) :: &
-         ocean_mask             ! = 1 if topg is below sea level and thk <= thklim, else = 0
-
-      integer, intent(in) ::  &
-         ntracers               ! number of tracers to be transported
-      
-      !TODO - Make the tracer arrays optional arguments?
-      real(dp), dimension(nx,ny,ntracers,nlyr), intent(inout) ::  &
-         tracers                ! set of 3D tracer arrays, packed into a 4D array
-
-      real(dp), dimension(nx,ny,ntracers), intent(in) :: &
-         tracers_usrf,         &! tracer values associated with accumulation at upper surface
-         tracers_lsrf           ! tracer values associated with freeze-on at lower surface
-
-      integer, intent(in) ::  &
-         vert_remap_accuracy    ! order of accuracy for vertical remapping
-                                ! HO_VERTICAL_REMAP_FIRST_ORDER or HO_VERTICAL_REMAP_SECOMD_ORDER
-
-      ! local variables
-
-      integer ::     &
-         i, j, k         ,&! cell indices
-         ilo,ihi,jlo,jhi ,&! beginning and end of physical domain
-         nt                ! tracer index
-
-      real(dp), dimension (nx,ny,nlyr) ::     &
-         thck_layer        ! ice layer thickness (m)
-
-      integer ::     &
-         icells            ! number of cells with ice
-
-      integer, dimension(nx*ny) ::     &
-         indxi, indxj      ! compressed i/j indices
-
-      real(dp) ::        &
-         sum_acab,       & ! global sum of applied accumulation/ablation
-         sum_bmlt          ! global sum of applied basal melting
-
-      real(dp) ::     &
-         msum_init,      &! initial global ice mass
-         msum_final       ! final global ice mass
-
-      !TODO - Delete these?
-      real(dp), dimension(ntracers) ::     &
-         mtsum_init,     &! initial global ice mass*tracer
-         mtsum_final      ! final global ice mass*tracer
-
-      real(dp), dimension(nx,ny) :: &
-         melt_potential   ! total thickness (m) of additional ice that could be melted
-                          ! by available acab/bmlt in columns that are completely melted
-
-      real(dp) :: sum_melt_potential  ! global sum of melt potential
-
-      logical ::     &
-         errflag          ! true if energy is not conserved
-
-      character(len=100) :: message
-
-      real(dp) ::  &
-         max_acab, max_bmlt  ! max magnitudes of acab and bmlt
-
-      !-------------------------------------------------------------------
-      ! Initialize
-      !-------------------------------------------------------------------
-
-      errflag = .false.
-      melt_potential(:,:) = 0.d0
-
-      !-------------------------------------------------------------------
-      ! Fill layer thickness array.
-      !-------------------------------------------------------------------
-
-      do k = 1, nlyr
-         thck_layer(:,:,k) = thck(:,:) * (sigma(k+1) - sigma(k))
-      enddo
-
-      !-------------------------------------------------------------------
-      ! Compute initial values of globally conserved quantities (optional)
-      !-------------------------------------------------------------------
-
-      if (conservation_check) then
-
-         call sum_mass_and_tracers(nx,                ny,              &
-                                   nlyr,              ntracers,        &
-                                   thck_layer(:,:,:), msum_init,       &
-                                   tracers(:,:,:,:),  mtsum_init(:))
-      endif
-
-      !-------------------------------------------------------------------
-      ! Add the mass balance at the surface and bed.
-      ! Note: This used to be done after horizontal transport.
-      !       Now it is done before horizontal transport, so that the ocean_mask
-      !        and areafrac arrays are the same as at the end of the previous timestep,
-      !        before being modified by horizontal transport.
-      !
-      ! Assume that new ice arrives at the surface with the current surface temperature.
-      ! TODO: Make sure this assumption is consistent with energy
-      !       conservation for coupled simulations.
-      ! TODO: Pass the melt potential back to the climate model as a heat flux?
-      !-------------------------------------------------------------------
-
-      max_acab = max(maxval(acab), -1.d0*minval(acab))
-      max_bmlt = max(maxval(bmlt), -1.d0*minval(bmlt))
-
-      max_acab = parallel_reduce_max(max_acab)
-      max_bmlt = parallel_reduce_max(max_bmlt)
-
-      if (max_acab > 0.0d0 .or. max_bmlt > 0.0d0) then
-
-         call glissade_add_smb(nx,       ny,          &
-                               nlyr,     ntracers,    &
-                               dt,       parallel,    &
-                               ocean_mask,            &
-                               effective_areafrac,    &
-                               thck_layer(:,:,:),     &
-                               tracers(:,:,:,:),      &
-                               tracers_usrf(:,:,:),   &
-                               tracers_lsrf(:,:,:),   &
-                               acab(:,:),             &
-                               bmlt(:,:),             &
-                               acab_applied(:,:),     &
-                               bmlt_applied(:,:),     &
-                               melt_potential(:,:))
-
-         !-------------------------------------------------------------------
-         ! Interpolate tracers back to sigma coordinates
-         !-------------------------------------------------------------------
-
-         call glissade_vertical_remap(&
-              nx,             ny,       &
-              nlyr,           ntracers, &
-              parallel,                 &
-              itest,  jtest,  rtest,    &
-              sigma(:),                 &
-              thck_layer(:,:,:),        &
-              tracers(:,:,:,:),         &
-              tracers_usrf(:,:,:),      &
-              tracers_lsrf(:,:,:),      &
-              vert_remap_accuracy)
-
-         !-------------------------------------------------------------------
-         ! Check that mass is conserved, allowing for mass gain/loss due to acab/bmlt
-         !  and for any unused melt potential.
-         !
-         ! Note: There is no tracer conservation check here, because there is no
-         !       easy way to correct initial mass*tracer values for acab and bmlt.
-         !-------------------------------------------------------------------
-
-         if (conservation_check) then
-
-            ! Correct initial global mass for acab and bmlt
-            sum_acab = 0.0d0
-            sum_bmlt = 0.0d0
-            sum_melt_potential = 0.0d0
-
-            ! loop over locally owned cells, with correction for fractional coverage
-            do j = 1+lhalo, ny-uhalo
-               do i = 1+lhalo, nx-uhalo
-                  sum_acab = sum_acab + acab(i,j)*effective_areafrac(i,j)
-                  sum_bmlt = sum_bmlt + bmlt(i,j)*effective_areafrac(i,j)
-                  sum_melt_potential = sum_melt_potential + melt_potential(i,j)
-               enddo
-            enddo
-
-            sum_acab = parallel_reduce_sum(sum_acab)
-            sum_bmlt = parallel_reduce_sum(sum_bmlt)
-            sum_melt_potential = parallel_reduce_sum(sum_melt_potential)
-
-            msum_init = msum_init + (sum_acab - sum_bmlt)*dt
-
-            ! Compute new global mass and mass*tracer
-
-            call sum_mass_and_tracers(nx,                ny,              &
-                                      nlyr,              ntracers,        &
-                                      thck_layer(:,:,:), msum_final,      &
-                                      tracers(:,:,:,:),  mtsum_final(:))
-
-            ! Check mass conservation
-            !TODO - Add melt_potential to msum_final before calling subroutine?
-
-            if (main_task) then
-
-               call global_conservation (msum_init,     msum_final,      &
-                                         errflag,       sum_melt_potential)
-
-               if (errflag) then
-                  write(message,*) 'WARNING: Conservation error in glissade_add_smb'
-!                  call write_log(message,GM_FATAL)      ! uncomment to make conservation errors fatal
-                  call write_log(message,GM_DIAGNOSTIC)  ! uncomment for debugging
-               endif
-
-            endif   ! main_task
-
-         endif      ! conservation_check
-
-         ! Recompute thickness
-         thck(:,:) = 0.d0
-         do k = 1, nlyr
-            thck(:,:) = thck(:,:) + thck_layer(:,:,k)
-         enddo
-
-      endif  ! max_acab > 0 or max_bmlt > 0
-
-    end subroutine glissade_mass_balance_driver
 
 !=======================================================================
 
@@ -713,10 +441,11 @@
 
       if (conservation_check) then
 
-         call sum_mass_and_tracers(nx,                ny,              &
-                                   nlyr,              ntracers,        &
-                                   thck_layer(:,:,:), msum_init,       &
-                                   tracers(:,:,:,:),  mtsum_init(:))
+         call glissade_sum_mass_and_tracers(&
+              nx,                ny,              &
+              nlyr,              ntracers,        &
+              thck_layer(:,:,:), msum_init,       &
+              tracers(:,:,:,:),  mtsum_init(:))
       endif
 
       !-------------------------------------------------------------------
@@ -879,19 +608,21 @@
          ! Compute new values of globally conserved quantities.
          ! Assume gridcells of equal area, ice of uniform density.
 
-         call sum_mass_and_tracers(nx,                ny,              &
-                                   nlyr,              ntracers,        &
-                                   thck_layer(:,:,:), msum_final,      &
-                                   tracers(:,:,:,:),  mtsum_final(:))
+         call glissade_sum_mass_and_tracers(&
+              nx,                ny,              &
+              nlyr,              ntracers,        &
+              thck_layer(:,:,:), msum_final,      &
+              tracers(:,:,:,:),  mtsum_final(:))
 
          ! Check conservation
 
          if (main_task) then
 
-            call global_conservation (msum_init,     msum_final,      &
-                                      errflag,       0.0d0,           & ! melt_potential = 0 for this check
-                                      ntracers,                       &
-                                      mtsum_init,    mtsum_final)
+            call glissade_global_conservation(&
+                 msum_init,     msum_final,      &
+                 errflag,       0.0d0,           & ! melt_potential = 0 for this check
+                 ntracers,                       &
+                 mtsum_init,    mtsum_final)
 
             if (errflag) then
                write(message,*) 'WARNING: Conservation error in glissade_horizontal_remap'
@@ -935,19 +666,21 @@
          ! Compute new values of globally conserved quantities.
          ! Assume gridcells of equal area, ice of uniform density.
 
-         call sum_mass_and_tracers(nx,                ny,              &
-                                   nlyr,              ntracers,        &
-                                   thck_layer(:,:,:), msum_final,      &
-                                   tracers(:,:,:,:),  mtsum_final(:))
+         call glissade_sum_mass_and_tracers(&
+              nx,                ny,              &
+              nlyr,              ntracers,        &
+              thck_layer(:,:,:), msum_final,      &
+              tracers(:,:,:,:),  mtsum_final(:))
 
          ! Check conservation
 
          if (main_task) then
 
-            call global_conservation (msum_init,     msum_final,  &
-                                      errflag,       0.0d0,       &  ! melt potential = 0 for this check
-                                      ntracers,                   &
-                                      mtsum_init,    mtsum_final)
+            call glissade_global_conservation(&
+                 msum_init,     msum_final,  &
+                 errflag,       0.0d0,       &  ! melt potential = 0 for this check
+                 ntracers,                   &
+                 mtsum_init,    mtsum_final)
 
             if (errflag) then
                write(message,*) 'WARNING: Conservation error in glissade_vertical_remap'
@@ -1222,10 +955,11 @@
 
 !=======================================================================
 
-    subroutine sum_mass_and_tracers(nx,         ny,        &
-                                    nlyr,       ntracer,   &
-                                    thck_layer, msum,      &
-                                    tracer,     mtsum)
+    subroutine glissade_sum_mass_and_tracers(&
+         nx,         ny,        &
+         nlyr,       ntracer,   &
+         thck_layer, msum,      &
+         tracer,     mtsum)
 
       ! Compute values of globally conserved quantities.
       ! Assume gridcells of equal area (dx*dy), ice of uniform density.
@@ -1276,15 +1010,16 @@
       msum = parallel_reduce_sum(msum)
       if (present(mtsum)) mtsum = parallel_reduce_sum(mtsum)
 
-    end subroutine sum_mass_and_tracers
+    end subroutine glissade_sum_mass_and_tracers
 
 !=======================================================================
 !
-    subroutine global_conservation (msum_init,  msum_final,         &
-                                    errflag,    melt_potential_in,  &
-                                    ntracer,                        &
-                                    mtsum_init, mtsum_final)
-      !
+    subroutine glissade_global_conservation(&
+         msum_init,  msum_final,         &
+         errflag,    melt_potential_in,  &
+         ntracer,                        &
+         mtsum_init, mtsum_final)
+
       ! Check whether values of conserved quantities have changed.
       ! An error probably means that ghost cells are treated incorrectly.
       !
@@ -1369,572 +1104,7 @@
          enddo
       endif                     ! present(mtsum_init)
 
-    end subroutine global_conservation
-
-!----------------------------------------------------------------------
-
-    subroutine glissade_add_smb(nx,           ny,          &
-                                nlyr,         ntracer,     &
-                                dt,           parallel,    &
-                                ocean_mask,                &
-                                effective_areafrac,        &
-                                thck_layer,   tracer,      &
-                                tracer_usrf,  tracer_lsrf, &
-                                acab,         bmlt,        &
-                                acab_applied, bmlt_applied,&
-                                melt_potential)
-
-      ! Adjust the layer thickness based on the surface and basal mass balance
-
-      ! Input/output arguments
-
-      integer, intent(in) ::   &
-         nx, ny,               &! horizontal array size
-         nlyr,                 &! number of vertical layers
-         ntracer                ! number of tracers
-
-      real(dp), intent(in) ::   &
-         dt                     ! time step (s)
-
-      type(parallel_type), intent(in) :: &
-         parallel               ! info for parallel communication
-
-      !TODO - Could remove ocean_mask argument, if acab and bmlt have already been set to 0 for ice-free ocean cells.
-      integer, dimension(nx,ny), intent(in) :: &
-         ocean_mask             ! = 1 if topg is below sea level and thk <= thklim, else = 0
-
-      real(dp), dimension (nx,ny), intent(in) ::     &
-         effective_areafrac     ! effective fractional area for calving_front cells, in range [0,1]
-
-      real(dp), dimension (nx,ny,nlyr), intent(inout) ::     &
-         thck_layer             ! ice layer thickness
-
-      real(dp), dimension (nx,ny,ntracer,nlyr), intent(inout) ::     &
-         tracer                 ! 3D tracer values
-
-      real(dp), dimension (nx,ny,ntracer), intent(in) ::     &
-         tracer_usrf,          &! tracer values associated with accumulation at upper surface
-         tracer_lsrf            ! tracer values associated with freeze-on at lower surface
-
-      real(dp), intent(in), dimension(nx,ny) :: &
-         acab                   ! surface mass balance (m/s)
-
-      real(dp), intent(in), dimension(nx,ny) :: &
-         bmlt                   ! basal melt rate (m/s)
-                                ! > 0 for melting, < 0 for freeze-on
-
-      real(dp), intent(inout), dimension(nx,ny) :: &
-         acab_applied           ! surface mass balance applied to ice (m/s)
-                                ! = 0 in ice-free regions where acab < 0
-
-      real(dp), intent(inout), dimension(nx,ny) :: &
-         bmlt_applied           ! basal melt rate applied to ice (m/s)
-                                ! = 0 in ice-free regions where bmlt > 0
-
-      real(dp), intent(out), dimension(nx,ny) :: &
-         melt_potential   ! total thickness (m) of additional ice that could be melted
-                          ! by available acab/bmlt in columns that are completely melted
-
-      ! Local variables
-
-      real(dp), dimension(nx,ny,ntracer,nlyr) ::  &
-         thck_tracer       ! thck_layer * tracer
-
-      real(dp), dimension(nx,ny) :: &
-         thck_init,      & ! initial ice thickness
-         thck_final        ! final ice thickness
-
-      real(dp) :: sfc_accum, sfc_ablat  ! surface accumulation/ablation, from acab
-      real(dp) :: bed_accum, bed_ablat  ! bed accumulation/ablation, from bmlt
-      real(dp) :: dthck                 ! thickness change
-
-      integer :: i, j, k, nt, iglobal, jglobal
-
-      character(len=100) :: message
-
-      ! Temporarily, convert the applied mass balance (intent inout) from m/s to m.
-      ! It is converted back to m/s for output.
-      acab_applied(:,:) = acab_applied(:,:) * dt
-      bmlt_applied(:,:) = bmlt_applied(:,:) * dt
-
-      ! Initialize the melt potential.
-      ! These terms are adjusted below if energy is available for melting
-      !  when no ice is present.
-
-      melt_potential(:,:) = 0.0d0
-
-      if (conservation_check) then
-         do j = 1+nhalo, ny-nhalo
-            do i = 1+nhalo, nx-nhalo
-               thck_init(i,j) = sum(thck_layer(i,j,:))
-            enddo
-         enddo
-      endif
-
-      do j = 1+nhalo, ny-nhalo
-         do i = 1+nhalo, nx-nhalo
-
-            ! Temporarily adjust the layer thickness to account for partial ice converage.
-            ! This prevents excessive thickening and thinning in partly filled calving front cells.
-            if (effective_areafrac(i,j) > 0.0d0 .and. effective_areafrac(i,j) < 1.0d0) then
-               thck_layer(i,j,:) = thck_layer(i,j,:) / effective_areafrac(i,j)
-            endif
-
-            ! initialize accumulation/ablation terms
-            sfc_accum = 0.d0
-            sfc_ablat = 0.d0
-            bed_accum = 0.d0
-            bed_ablat = 0.d0
-            
-            ! Add surface accumulation/ablation to ice thickness
-            ! Also modify tracers conservatively.
-
-            if (acab(i,j) > 0.d0) then       ! accumulation, added to layer 1
-
-               sfc_accum = acab(i,j)*dt
-
-               if (ocean_mask(i,j) == 1) then     ! no accumulation in open ocean
-
-                  ! do nothing
-
-               else  ! not ocean; accumulate ice
-
-                  acab_applied(i,j) = acab_applied(i,j) + sfc_accum*effective_areafrac(i,j)
-
-                  ! adjust mass-tracer product for the top layer
-
-                  do nt = 1, ntracer  !TODO - Put this loop on the outside for speedup?
-
-                     thck_tracer(i,j,nt,1) = thck_layer(i,j,1) * tracer(i,j,nt,1)  &
-                                           + sfc_accum * tracer_usrf(i,j,nt)
-
-                  enddo  ! ntracer
-
-                  ! new top layer thickess
-                  thck_layer(i,j,1) = thck_layer(i,j,1) + sfc_accum
-
-                  ! new tracer values in top layer
-                  tracer(i,j,:,1) = thck_tracer(i,j,:,1) / thck_layer(i,j,1)
-
-               endif   ! ocean_mask = 1
-
-            elseif (acab(i,j) < 0.d0) then   ! ablation in one or more layers            
-
-               ! reduce ice thickness (tracer values will not change)
-
-               sfc_ablat = -acab(i,j)*dt   ! positive by definition
-
-               if (ocean_mask(i,j) == 1) then     ! no accumulation in open ocean
-
-                  ! do nothing
-
-               else  ! not ocean; melt ice
-
-                  acab_applied(i,j) = acab_applied(i,j) - sfc_ablat*effective_areafrac(i,j)
-
-                  do k = 1, nlyr
-                     if (sfc_ablat > thck_layer(i,j,k)) then
-                        sfc_ablat = sfc_ablat - thck_layer(i,j,k)
-                        thck_layer(i,j,k) = 0.d0
-                        tracer(i,j,:,k) = 0.d0
-                     else
-                        thck_layer(i,j,k) = thck_layer(i,j,k) - sfc_ablat
-                        sfc_ablat = 0.d0
-                        exit
-                     endif
-                  enddo
-
-               endif   ! ocean_mask = 1
-
-               ! Adjust acab_applied if energy is still available for melting
-               ! Also accumulate the remaining melt energy 
-
-               if (sfc_ablat > 0.d0) then
-                  acab_applied(i,j) = acab_applied(i,j) + sfc_ablat*effective_areafrac(i,j)  ! make a negative value less negative
-                  melt_potential(i,j) = melt_potential(i,j) + sfc_ablat
-               endif
-
-            !TODO - Figure out how to handle excess energy given by melt_potential.
-            !       Include in the heat flux passed back to CLM?
-
-            endif  ! acab > 0
-
-            ! Note: It is possible that we could have residual energy remaining for surface ablation
-            !       while ice is freezing on at the bed, in which case the surface ablation should
-            !       be subtracted from the bed accumulation.  We ignore this possibility for now.
-
-            ! Note: Freeze-on (bmlt < 0) is allowed only in ice-covered cells, not ice-free ocean.
-            !       Allowing freeze-on in ice-free ocean would introduce mass conservation errors,
-            !        given the current logic with effective_areafrac.
-            !       If it is desired to implement a field of frazil ice formation that could grow ice
-            !        in open ocean as well as sub-shelf cavities and open ocean, this field could be passed
-            !        into glissade_mass_balance_driver in a separate call (i.e., independent of the standard
-            !        acab and bmlt fields) with ocean_mask = 0 and effective_areafrac = 1 everywhere.
-            !        Then the following code would allow frazil growth, as desired.
-
-            if (bmlt(i,j) < 0.d0) then       ! freeze-on, added to lowest layer
-
-               bed_accum = -bmlt(i,j)*dt
-
-               if (ocean_mask(i,j) == 1) then     ! no accumulation in open ocean
-
-                  ! do nothing
-
-               else  ! not ocean; accumulate ice
-
-                  bmlt_applied(i,j) = bmlt_applied(i,j) - bed_accum*effective_areafrac(i,j)  ! bmlt_applied < 0 for freeze-on
-
-                  ! adjust mass-tracer product for the bottom layer
-
-                  do nt = 1, ntracer  !TODO - Put this loop on the outside for speedup?
-
-                     thck_tracer(i,j,nt,nlyr) = thck_layer(i,j,nlyr) * tracer(i,j,nt,nlyr)  &
-                                              + bed_accum * tracer_lsrf(i,j,nt)
-
-                  enddo  ! ntracer
-
-                  ! new bottom layer thickess
-                  thck_layer(i,j,nlyr) = thck_layer(i,j,nlyr) + bed_accum
-
-                  ! new tracer values in bottom layer
-                  tracer(i,j,:,nlyr) = thck_tracer(i,j,:,nlyr) / thck_layer(i,j,nlyr)
-
-               endif   ! ocean_mask = 1
-
-            elseif (bmlt(i,j) > 0.d0) then   ! basal melting in one or more layers            
-
-               ! reduce ice thickness (tracer values will not change)
-
-               bed_ablat = bmlt(i,j)*dt   ! positive by definition
-
-               if (ocean_mask(i,j) == 1) then     ! no accumulation in open ocean
-
-                  ! do nothing
-
-               else  ! not ocean; melt ice
-
-                  bmlt_applied(i,j) = bmlt_applied(i,j) + bed_ablat*effective_areafrac(i,j)
-
-                  do k = nlyr, 1, -1
-                     if (bed_ablat > thck_layer(i,j,k)) then
-                        bed_ablat = bed_ablat - thck_layer(i,j,k)
-                        thck_layer(i,j,k) = 0.d0
-                        tracer(i,j,:,k) = 0.d0
-                     else
-                        thck_layer(i,j,k) = thck_layer(i,j,k) - bed_ablat
-                        bed_ablat = 0.d0
-                        exit
-                     endif
-                  enddo
-
-               endif   ! ocean_mask = 1
-
-               ! Adjust bmlt_applied if energy is still available for melting
-               ! Also accumulate the remaining melt energy 
-
-               if (bed_ablat > 0.d0) then
-                  ! bmlt_applied is less than input bmlt
-                  bmlt_applied(i,j) = bmlt_applied(i,j) - bed_ablat*effective_areafrac(i,j)
-                  melt_potential(i,j) = melt_potential(i,j) + bed_ablat
-               endif
-
-            endif  ! bmlt < 0
-
-            ! Weight the melt potential by the effective area fraction
-            melt_potential(i,j) = melt_potential(i,j) * effective_areafrac(i,j)
-
-            ! Convert thck_layer back to the mean volume per unit area in partly covered cells
-            if (effective_areafrac(i,j) > 0.0d0 .and. effective_areafrac(i,j) < 1.0d0) then
-               thck_layer(i,j,:) = thck_layer(i,j,:) * effective_areafrac(i,j)
-            endif
-
-         enddo   ! i
-      enddo      ! j
-
-      ! Check mass conservation in each column
-
-      if (conservation_check) then
-         do j = 1+nhalo, ny-nhalo
-            do i = 1+nhalo, nx-nhalo
-               thck_final(i,j) = sum(thck_layer(i,j,:))
-               dthck = (acab(i,j) - bmlt(i,j))*dt*effective_areafrac(i,j)
-               if (abs(thck_init(i,j) + dthck - thck_final(i,j) + melt_potential(i,j)) > 1.d-8) then
-                  call parallel_globalindex(i, j, iglobal, jglobal, parallel)
-                  print*, ' '
-                  print*, 'ERROR: Column conservation check, r, i, j, iglobal, jglobal, err =', &
-                       this_rank, i, j, iglobal, jglobal, thck_init(i,j) + dthck - thck_final(i,j)
-                  print*, 'thck_init, dthck, thck_final:', thck_init(i,j), dthck, thck_final(i,j)
-                  print*, 'acab*dt, bmlt*dt, areafrac, melt_potential:', &
-                       acab(i,j)*dt, bmlt(i,j)*dt, effective_areafrac(i,j), melt_potential(i,j)
-                  write(message,*) 'WARNING: Column conservation error in glissade_add_smb, i, j =', i, j
-!                  call write_log(message,GM_FATAL)      ! uncomment to make conservation errors fatal
-                  call write_log(message,GM_DIAGNOSTIC)  ! uncomment for debugging
-               endif
-            enddo
-         enddo
-      endif
-
-      ! convert applied mass balance from m to m/s
-      acab_applied(:,:) = acab_applied(:,:) / dt
-      bmlt_applied(:,:) = bmlt_applied(:,:) / dt
-
-    end subroutine glissade_add_smb
-
-!----------------------------------------------------------------------
-
-  subroutine glissade_overwrite_acab_mask(overwrite_acab,         &
-                                          acab,                   &
-                                          thck,                   &
-                                          overwrite_acab_minthck, &
-                                          overwrite_acab_mask)
-
-    use glide_types
-
-    ! If overwrite_acab /=0 , then set overwrite_acab_mask = 1 for grid cells
-    !  where acab is to be overwritten.  Currently, three options are supported:
-    ! (1) Overwrite acab where the input acab = 0 at initialization
-    ! (2) Overwrite acab where the input thck <= overwrite_acab_minthck at initialization
-    ! (3) Overwrite acab based on an input mask
-    !
-    ! Note: This subroutine should be called only on initialization, not on restart.
-
-    integer, intent(in) ::  &
-         overwrite_acab           !> option for overwriting acab
-
-    real(dp), dimension(:,:), intent(in) ::  &
-         acab,                  & !> ice surface mass balance (model units)
-         thck                     !> ice thickness (model units)
-
-    real(dp), intent(in) ::  &
-         overwrite_acab_minthck   !> overwrite acab where thck <= overwrite_acab_minthck (model units)
-
-    integer, dimension(:,:), intent(out) ::  &
-         overwrite_acab_mask      !> = 1 where acab is overwritten, else = 0
-
-    integer :: ewn, nsn
-    integer :: i, j
-    integer :: max_mask_local, max_mask_global
-
-    ewn = size(overwrite_acab_mask,1)
-    nsn = size(overwrite_acab_mask,2)
-
-    if (overwrite_acab == OVERWRITE_ACAB_ZERO_ACAB) then
-
-       do j = 1, nsn
-          do i = 1, ewn
-
-             if (acab(i,j) == 0.0d0) then
-                overwrite_acab_mask(i,j) = 1
-             else
-                overwrite_acab_mask(i,j) = 0
-             endif
-
-          enddo
-       enddo
-
-    elseif (overwrite_acab == OVERWRITE_ACAB_THCKMIN) then
-
-       do j = 1, nsn
-          do i = 1, ewn
-
-             ! Note the '<='.  If overwrite_acab_minthck = 0.d0, only ice-free cells are overwritten.
-             if (thck(i,j) <= overwrite_acab_minthck) then
-                overwrite_acab_mask(i,j) = 1
-             else
-                overwrite_acab_mask(i,j) = 0
-             endif
-
-          enddo
-       enddo
-
-    elseif (overwrite_acab == OVERWRITE_ACAB_INPUT_MASK) then
-
-       ! Make sure a mask was read in with some nonzero values
-       ! If not, then write a warning
-
-       max_mask_local = maxval(overwrite_acab_mask)
-       max_mask_global = parallel_reduce_max(max_mask_local)
-       if (main_task) then
-          print*, 'rank, max_mask_local, max_mask_global:', &
-               this_rank, max_mask_local, max_mask_global
-       endif
-       if (max_mask_global == 1) then
-          ! continue
-       elseif (max_mask_global == 0) then
-          call write_log('Using overwrite_acab_mask without any values > 0', GM_WARNING)
-       else
-          call write_log('Using overwrite_acab_mask with values other than 0 and 1', GM_FATAL)
-       endif
-
-    endif  ! overwrite_acab
-
-  end subroutine glissade_overwrite_acab_mask
-
-!----------------------------------------------------------------------
-
-  subroutine glissade_overwrite_acab(overwrite_acab_mask,  &
-                                     overwrite_acab_value, &
-                                     acab)
-
-    integer, dimension(:,:), intent(in) ::  &
-         overwrite_acab_mask     !> mask = 1 where acab is overwritten value, else = 0
-
-    real(dp), intent(in) ::  &
-         overwrite_acab_value    !> acab value applied where overwrite_acab_mask = 1
-
-    real(dp), dimension(:,:), intent(inout) ::  &
-         acab           !> unadjusted acab (model units) on input
-                        !> overwritten acab on output
-
-    integer :: ewn, nsn
-    integer :: i, j
-
-    ewn = size(acab,1)
-    nsn = size(acab,2)
-
-    do j = 1, nsn
-       do i = 1, ewn
-
-          if (overwrite_acab_mask(i,j) == 1) then
-             acab(i,j) = overwrite_acab_value
-          endif
-
-       enddo
-    enddo
-
-  end subroutine glissade_overwrite_acab
-
-!----------------------------------------------------------------------
-!TODO - Move this utility subroutine to another module?
-
-  subroutine glissade_add_2d_anomaly(var2d,                    &
-                                     var2d_anomaly,            &
-                                     anomaly_tstart,           &
-                                     anomaly_timescale,        &
-                                     time)
-
-    use glimmer_paramets, only: eps08
-
-    real(dp), dimension(:,:), intent(inout) ::  &
-         var2d               !> 2D field (uncorrected)
-                             !> uncorrrected on input, corrected on output
-
-    real(dp), dimension(:,:), intent(in) ::   &
-         var2d_anomaly       !> anomalous field to be added to the var2d input value
-
-    real(dp), intent(in) ::  &
-         anomaly_tstart,   & !> time to begin applying the anomaly (yr)
-         anomaly_timescale   !> number of years over which the anomaly is phased in linearly
-
-    real(dp), intent(in) :: &
-         time                !> model time in years
-                             !> Note: Should be the time at the start of the time step, not the end
-
-    integer :: ewn, nsn
-    integer :: i, j
-    real(dp) :: anomaly_fraction
-
-    ewn = size(var2d,1)
-    nsn = size(var2d,2)
-
-    ! Given the model time, compute the fraction of the anomaly to be applied now.
-    ! Add a small value to the time to avoid rounding errors when time is close to an integer value.
-
-    if (time + eps08 > anomaly_tstart + anomaly_timescale .or. anomaly_timescale == 0.0d0) then
-
-       ! apply the full anomaly
-       anomaly_fraction = 1.0d0
-
-    elseif (time + eps08 > anomaly_tstart) then
-
-       ! apply an increasing fraction of the anomaly
-       anomaly_fraction = (time - anomaly_tstart) / anomaly_timescale
-
-       ! Note: For initMIP, the anomaly is applied in annual step functions
-       !        starting at the end of the first year.
-       !       Comment out the line above and uncomment the following line
-       !        to increase the anomaly once a year.
-!       anomaly_fraction = floor(time + eps08 - anomaly_tstart, dp) / anomaly_timescale
-
-    else
-       ! no anomaly to apply
-       anomaly_fraction = 0.0d0
-    endif
-
-    ! apply the anomaly
-    do j = 1, nsn
-       do i = 1, ewn
-          var2d(i,j) = var2d(i,j) + anomaly_fraction*var2d_anomaly(i,j)
-       enddo
-    enddo
-
-  end subroutine glissade_add_2d_anomaly
-
-!----------------------------------------------------------------------
-
-  subroutine glissade_add_3d_anomaly(var3d,                 &
-                                     var3d_anomaly,         &
-                                     anomaly_tstart,        &
-                                     anomaly_timescale,     &
-                                     time)
-
-    use glimmer_paramets, only : eps08
-
-    real(dp), dimension(:,:,:), intent(inout) ::  &
-         var3d               !> input 3d field; vertical index in first slot
-                             !> uncorrrected on input; anomaly added on output
-
-    real(dp), dimension(:,:,:), intent(in) ::   &
-         var3d_anomaly       !> anomaly to be added to the input value
-
-    real(dp), intent(in) ::  &
-         anomaly_tstart,   & !> time to begin applying the anomaly (yr)
-         anomaly_timescale   !> number of years over which the anomaly is phased in linearly
-
-    real(dp), intent(in) :: &
-         time                     !> model time in years
-                                  !> Note: Should be the time at the start of the time step, not the end
-
-    integer :: ewn, nsn
-    integer :: i, j
-    real(dp) :: anomaly_fraction
-
-    ewn = size(var3d,2)
-    nsn = size(var3d,3)
-
-    ! Given the model time, compute the fraction of the anomaly to be applied now.
-    ! Add a small value to the time to avoid rounding errors when time is close to an integer value.
-
-    if (time + eps08 > anomaly_tstart + anomaly_timescale .or. anomaly_timescale == 0.0d0) then
-
-       ! apply the full anomaly
-       anomaly_fraction = 1.0d0
-
-    elseif (time + eps08 > anomaly_tstart) then
-
-       ! apply an increasing fraction of the anomaly
-       anomaly_fraction = (time - anomaly_tstart) / anomaly_timescale
-
-       ! Note: For initMIP, the anomaly is applied in annual step functions
-       !        starting at the end of the first year.
-       !       Comment out the line above and uncomment the following line
-       !        to increase the anomaly once a year.
-!       anomaly_fraction = floor(time + eps08 - anomaly_tstart, dp) / anomaly_timescale
-!
-    else
-       ! no anomaly to apply
-       anomaly_fraction = 0.0d0
-    endif
-
-    ! apply the anomaly
-
-    do j = 1, nsn
-       do i = 1, ewn
-          var3d(:,i,j) = var3d(:,i,j) + anomaly_fraction*var3d_anomaly(:,i,j)
-       enddo
-    enddo
-
-  end subroutine glissade_add_3d_anomaly
+    end subroutine glissade_global_conservation
 
 !----------------------------------------------------------------------
 
