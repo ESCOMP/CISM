@@ -729,7 +729,7 @@ contains
     call GetValue(section,'smb_input_function',model%options%smb_input_function)
     call GetValue(section,'artm_input_function',model%options%artm_input_function)
     call GetValue(section,'nlev_smb',model%climate%nlev_smb)
-    call GetValue(section,'enable_acab_anomaly',model%options%enable_acab_anomaly)
+    call GetValue(section,'enable_smb_anomaly',model%options%enable_smb_anomaly)
     call GetValue(section,'enable_artm_anomaly',model%options%enable_artm_anomaly)
     call GetValue(section,'enable_snow_anomaly',model%options%enable_snow_anomaly)
     call GetValue(section,'enable_precip_anomaly',model%options%enable_precip_anomaly)
@@ -1565,10 +1565,20 @@ contains
 
     write(message,*) 'smb input units         : ',model%options%smb_input,smb_input(model%options%smb_input)
     call write_log(message)
-
     if (model%options%smb_input_function < 0 .or. model%options%smb_input_function >= size(smb_input_function)) then
        call write_log('Error, smb_input_function option out of range',GM_FATAL)
     end if
+
+    if (model%options%smb_input == SMB_INPUT_MYR_ICE) then
+       if (model%options%smb_input_function == SMB_INPUT_FUNCTION_XY_GRADZ .or. &
+           model%options%smb_input_function == SMB_INPUT_FUNCTION_XYZ .or. &
+           model%climate%smb_factor /= 1.0d0 .or. &
+           model%options%enable_smb_anomaly .or. &
+           model%options%enable_glaciers) then
+          write(message,*) 'Error, input SMB must have units of mm/yr w.e., smb_input =', SMB_INPUT_MMYR_WE
+          call write_log(message, GM_FATAL)
+       endif
+    endif
 
     write(message,*) 'smb input function      : ', &
          model%options%smb_input_function, smb_input_function(model%options%smb_input_function)
@@ -1596,8 +1606,8 @@ contains
        endif
     endif
 
-    if (model%options%enable_acab_anomaly) then
-       call write_log('acab/SMB anomaly forcing is enabled')
+    if (model%options%enable_smb_anomaly) then
+       call write_log('SMB anomaly forcing is enabled')
     endif
 
     if (model%options%enable_artm_anomaly) then
@@ -2187,7 +2197,7 @@ contains
 
     ! parameters to adjust external forcing
     call GetValue(section,'t_lapse',            model%climate%t_lapse)
-    call GetValue(section,'acab_factor',        model%climate%acab_factor)
+    call GetValue(section,'smb_factor',         model%climate%smb_factor)
     call GetValue(section,'bmlt_float_factor',  model%basal_melt%bmlt_float_factor)
 
     ! calving parameters
@@ -2337,8 +2347,8 @@ contains
     call GetValue(section,'periodic_offset_ns',model%numerics%periodic_offset_ns)
 
     ! parameters for acab/artm anomaly and overwrite options
-    call GetValue(section,'acab_anomaly_tstart',    model%climate%acab_anomaly_tstart)
-    call GetValue(section,'acab_anomaly_timescale', model%climate%acab_anomaly_timescale)
+    call GetValue(section,'smb_anomaly_tstart',    model%climate%smb_anomaly_tstart)
+    call GetValue(section,'smb_anomaly_timescale', model%climate%smb_anomaly_timescale)
     call GetValue(section,'overwrite_acab_value',   model%climate%overwrite_acab_value)
     call GetValue(section,'overwrite_acab_minthck', model%climate%overwrite_acab_minthck)
     call GetValue(section,'artm_anomaly_const',     model%climate%artm_anomaly_const)
@@ -2425,8 +2435,8 @@ contains
        call write_log(message)
     endif
 
-    if (model%climate%acab_factor /= 1.0d0) then
-       write(message,*) 'Input acab multiplied by      :', model%climate%acab_factor
+    if (model%climate%smb_factor /= 1.0d0) then
+       write(message,*) 'Input smb multiplied by      :', model%climate%smb_factor
        call write_log(message)
     endif
 
@@ -2953,10 +2963,10 @@ contains
     endif
 
     ! initMIP parameters
-    if (model%climate%acab_anomaly_timescale > 0.0d0) then
-       write(message,*) 'acab_anomaly start time (yr): ', model%climate%acab_anomaly_tstart
+    if (model%climate%smb_anomaly_timescale > 0.0d0) then
+       write(message,*) 'smb_anomaly start time (yr): ', model%climate%smb_anomaly_tstart
        call write_log(message)
-       write(message,*) 'acab_anomaly_timescale (yr) : ', model%climate%acab_anomaly_timescale
+       write(message,*) 'smb_anomaly_timescale (yr) : ', model%climate%smb_anomaly_timescale
        call write_log(message)
     endif
 
@@ -3520,27 +3530,12 @@ contains
           end select  ! smb_input
 
        case(SMB_INPUT_FUNCTION_XY_GRADZ)
-
-          select case (options%smb_input)
-          case (SMB_INPUT_MYR_ICE)
-             call glide_add_to_restart_variable_list('acab_ref', model_id)
-             call glide_add_to_restart_variable_list('acab_gradz', model_id)
-          case (SMB_INPUT_MMYR_WE)
-             call glide_add_to_restart_variable_list('smb_ref', model_id)
-             call glide_add_to_restart_variable_list('smb_gradz', model_id)
-          end select
-
+          call glide_add_to_restart_variable_list('smb_ref', model_id)
+          call glide_add_to_restart_variable_list('smb_gradz', model_id)
           call glide_add_to_restart_variable_list('usrf_ref', model_id)
 
        case(SMB_INPUT_FUNCTION_XYZ)
-
-          select case (options%smb_input)
-          case (SMB_INPUT_MYR_ICE)
-             call glide_add_to_restart_variable_list('acab_3d', model_id)
-          case (SMB_INPUT_MMYR_WE)
-             call glide_add_to_restart_variable_list('smb_3d', model_id)
-          end select
-
+          call glide_add_to_restart_variable_list('smb_3d', model_id)
           call glide_add_to_restart_variable_list('smb_levels', model_id)
 
     end select  ! smb_input_function
@@ -3583,13 +3578,8 @@ contains
     !       Should be in restart file based on which_ho_deltaT_ocn /= 0
     !TODO - Remove these? Anomaly forcing is typically in a forcing file, not the main input file.
 
-    if (options%enable_acab_anomaly) then
-       select case (options%smb_input)
-       case (SMB_INPUT_MYR_ICE)
-          call glide_add_to_restart_variable_list('acab_anomaly', model_id)
-       case (SMB_INPUT_MMYR_WE)
+    if (options%enable_smb_anomaly) then
           call glide_add_to_restart_variable_list('smb_anomaly', model_id)
-       end select
     endif
 
     if (options%enable_artm_anomaly) then

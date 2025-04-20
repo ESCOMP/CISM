@@ -610,8 +610,8 @@ module glide_types
     !> \item[3] artm(x,y) + tlapse * dz; input artm and uniform lapse rate
     !> \end{description}
 
-    logical :: enable_acab_anomaly = .false.
-    !> if true, then apply a prescribed anomaly to smb/acab
+    logical :: enable_smb_anomaly = .false.
+    !> if true, then apply a prescribed anomaly to smb
 
     logical :: enable_artm_anomaly = .false.
     !> if true, then apply a prescribed anomaly to artm
@@ -1446,35 +1446,34 @@ module glide_types
 
   !++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 
-!TODO - Make eus a config file parameter.
-!TODO - Rename acab in glide_climate type to avoid confusion over units?
-!       Here, acab has units of m/y ice, whereas in Glint, acab has units of m/y water equiv.
+  !TODO - Make eus a config file parameter.
+  ! Note: smb and acab are both SMB variables, but they have different units.
+  !       smb has units of kg/m^2/yr w.e. = mm/yr w.e.
+  !       acab has units of m/yr ice for I/O, and SI units in most of the code.
+  !       Terms with a prefix 'smb_' or 'acab_' follow the same units convention.
 
   ! Note on acab_tavg: This is the average value of acab over an output interval.
   !                    If 'average = 1' in the acab entry of glide_vars.def, then acab_tavg is automatically
   !                     accumulated and averaged during runtime, without any additional code needed.
   !                    Other variables with a '_tavg' suffix are handled similarly.
   !
-  ! Note on acab_corrected: Optionally, acab can be supplemented with a flux correction or an anomaly.
-  !                         The background field, acab, does not include the corrections.
-  !                         Write acab_corrected to the output file to see the modified SMB field.
+  ! Note on smb_corrected: Optionally, smb can be supplemented with an anomaly.
+  !                        The background field, smb, does not include the anomaly.
+  !                        Write smb_corrected to the output file to see the modified SMB field.
   ! Note on artm_corrected: Optionally, artm can be supplemented with an anomaly.
-  !                         The background field, artm, does not include the corrections.
+  !                         The background field, artm, does not include the anomaly.
   !                         Write artm_corrected to the output file to see the modified artm field.
 
   type glide_climate
      !> Holds fields used to drive the model
-     real(dp),dimension(:,:),pointer :: acab            => null() !> Surface mass balance (m/yr ice)
+     real(dp),dimension(:,:),pointer :: acab            => null() !> Surface mass balance (m/yr ice for I/O, m/s ice in code)
      real(dp),dimension(:,:),pointer :: acab_tavg       => null() !> Surface mass balance (time average).
-     real(dp),dimension(:,:),pointer :: acab_anomaly    => null() !> Surface mass balance anomaly (m/yr ice)
-     real(dp),dimension(:,:),pointer :: smb_anomaly     => null() !> Surface mass balance anomaly (mm/yr water equivalent)
-     real(dp),dimension(:,:),pointer :: acab_corrected  => null() !> Surface mass balance with flux or anomaly corrections (m/yr ice)
      real(dp),dimension(:,:),pointer :: acab_applied    => null() !> Surface mass balance applied to ice (m/yr ice)
                                                                   !>    = 0 for ice-free cells with acab < 0
      real(dp),dimension(:,:),pointer :: acab_applied_tavg => null() !> Surface mass balance applied to ice (m/yr ice, time average)
      real(dp),dimension(:,:),pointer :: smb             => null() !> Surface mass balance (mm/yr water equivalent)
-                                                                  !> Note: acab (m/y ice) is used internally by dycore, 
-                                                                  !>       but can use smb (mm/yr w.e.) for I/O
+     real(dp),dimension(:,:),pointer :: smb_anomaly     => null() !> Surface mass balance anomaly (mm/yr w.e.)
+     real(dp),dimension(:,:),pointer :: smb_corrected  => null()  !> Surface mass balance with flux or anomaly corrections (mm/yr w.e.)
      real(dp),dimension(:,:),pointer :: artm            => null() !> Annual mean air temperature (degC)
      real(dp),dimension(:,:),pointer :: artm_anomaly    => null() !> Annual mean air temperature anomaly (degC)
      real(dp),dimension(:,:),pointer :: artm_corrected  => null() !> Annual mean air temperature with anomaly corrections (degC)
@@ -1493,8 +1492,6 @@ module glide_types
      ! Next several fields used for SMB_INPUT_FUNCTION_GRADZ, ARTM_INPUT_FUNCTION_GRADZ, ARTM_INPUT_FUNCTION_LAPSE
      ! Note: If both smb and artm are input in this format, they share the array usrf_ref.
      !       Sign convention for gradz is positive up, so artm_gradz is usually negative.
-     real(dp),dimension(:,:),pointer :: acab_ref => null()        !> SMB at reference elevation (m/yr ice)
-     real(dp),dimension(:,:),pointer :: acab_gradz => null()      !> vertical gradient of acab (m/yr ice per m), positive up
      real(dp),dimension(:,:),pointer :: smb_ref  => null()        !> SMB at reference elevation (mm/yr w.e.)
      real(dp),dimension(:,:),pointer :: smb_gradz  => null()      !> vertical gradient of SMB (mm/yr w.e. per m), positive up
      real(dp),dimension(:,:),pointer :: artm_ref => null()        !> artm at reference elevation (deg C)
@@ -1503,11 +1500,10 @@ module glide_types
 
      ! Next several fields used for SMB_INPUT_FUNCTION_XYZ, ARTM_INPUT_FUNCTION_XYZ
      ! Note: If both smb and artm are input in this format, they share the array smb_levels(nlev_smb).
-     real(dp),dimension(:,:,:),pointer :: acab_3d       => null() !> SMB at multiple vertical levels (m/yr ice)
      real(dp),dimension(:,:,:),pointer :: smb_3d        => null() !> SMB at multiple vertical levels (mm/yr w.e.)
+     real(dp),dimension(:,:,:),pointer :: artm_3d       => null() !> artm at multiple vertical levels (m/yr ice)
      real(dp),dimension(:)    ,pointer :: smb_levels    => null() !> Reference vertical levels for SMB (m)
      integer :: nlev_smb = 1                                      !> number of vertical levels at which SMB is provided
-     real(dp),dimension(:,:,:),pointer :: artm_3d       => null() !> artm at multiple vertical levels (m/yr ice)
 
      ! The next several fields are used for the 'read_once' forcing option.
      ! E.g., if we want to read in all time slices of precip at once, we would set 'read_once' = .true. in the config file.
@@ -1524,12 +1520,14 @@ module glide_types
           precip_anomaly_read_once => null()        !> anomaly precip field, read_once version
 
      real(dp) :: eus = 0.d0                         !> eustatic sea level
-     real(dp) :: acab_factor = 1.0d0                !> adjustment factor for external acab field (unitless)
-     real(dp) :: acab_anomaly_tstart = 0.0d0        !> time to start applying the anomaly (yr)
-     real(dp) :: acab_anomaly_timescale = 0.0d0     !> number of years over which the acab/smb anomaly is phased in linearly
+
+     real(dp) :: smb_factor = 1.0d0                 !> multiplicative factor for external smb field (unitless)
+     real(dp) :: smb_anomaly_tstart = 0.0d0         !> time to start applying the anomaly (yr)
+     real(dp) :: smb_anomaly_timescale = 0.0d0      !> number of years over which the smb anomaly is phased in linearly
                                                     !> If set to zero, then the anomaly is applied immediately.
                                                     !> The initMIP value is 40 yr.
      real(dp) :: overwrite_acab_value = 0.0d0       !> acab value to apply in grid cells where overwrite_acab_mask = 1
+                                                    !> input as m/yr ice, converted to model units
      real(dp) :: overwrite_acab_minthck = 0.0d0     !> overwrite acab where thck <= overwrite_acab_minthck
      real(dp) :: artm_anomaly_const = 0.0d0         !> spatially uniform value of artm_anomaly (degC)
      real(dp) :: artm_anomaly_tstart = 0.0d0        !> time to start applying the anomaly (yr)
@@ -3160,10 +3158,12 @@ contains
     ! climate arrays
     call coordsystem_allocate(model%general%ice_grid, model%climate%acab)
     call coordsystem_allocate(model%general%ice_grid, model%climate%acab_tavg)
-    call coordsystem_allocate(model%general%ice_grid, model%climate%acab_anomaly)
-    call coordsystem_allocate(model%general%ice_grid, model%climate%acab_corrected)
     call coordsystem_allocate(model%general%ice_grid, model%climate%acab_applied)
     call coordsystem_allocate(model%general%ice_grid, model%climate%acab_applied_tavg)
+    call coordsystem_allocate(model%general%ice_grid, model%climate%smb)
+    call coordsystem_allocate(model%general%ice_grid, model%climate%smb_anomaly)
+    call coordsystem_allocate(model%general%ice_grid, model%climate%smb_corrected)
+    call coordsystem_allocate(model%general%ice_grid, model%climate%smb_obs)
     call coordsystem_allocate(model%general%ice_grid, model%climate%artm)
     call coordsystem_allocate(model%general%ice_grid, model%climate%artm_anomaly)
     call coordsystem_allocate(model%general%ice_grid, model%climate%artm_corrected)
@@ -3173,25 +3173,19 @@ contains
     call coordsystem_allocate(model%general%ice_grid, model%climate%precip)
     call coordsystem_allocate(model%general%ice_grid, model%climate%precip_anomaly)
     call coordsystem_allocate(model%general%ice_grid, model%climate%precip_corrected)
-    call coordsystem_allocate(model%general%ice_grid, model%climate%smb)
-    call coordsystem_allocate(model%general%ice_grid, model%climate%smb_anomaly)
-    call coordsystem_allocate(model%general%ice_grid, model%climate%smb_obs)
     call coordsystem_allocate(model%general%ice_grid, model%climate%overwrite_acab_mask)
 
     if (model%options%smb_input_function == SMB_INPUT_FUNCTION_XY_GRADZ) then
-       call coordsystem_allocate(model%general%ice_grid, model%climate%acab_ref)
-       call coordsystem_allocate(model%general%ice_grid, model%climate%acab_gradz)
        call coordsystem_allocate(model%general%ice_grid, model%climate%smb_ref)
        call coordsystem_allocate(model%general%ice_grid, model%climate%smb_gradz)
        if (.not.associated(model%climate%usrf_ref)) &
             call coordsystem_allocate(model%general%ice_grid, model%climate%usrf_ref)
     elseif (model%options%smb_input_function == SMB_INPUT_FUNCTION_XYZ) then
-       call coordsystem_allocate(model%general%ice_grid, model%climate%nlev_smb, model%climate%acab_3d)
        call coordsystem_allocate(model%general%ice_grid, model%climate%nlev_smb, model%climate%smb_3d)
        allocate(model%climate%smb_levels(model%climate%nlev_smb))
     endif
 
-    ! Note: Typically, smb_input_function and acab_input_function will have the same value.
+    ! Note: Typically, smb_input_function and artm_input_function will have the same value.
     !       If both use a lapse rate, they will share the array usrf_ref
     !       If both are 3d, they will share the array smb_levels.
     if (model%options%artm_input_function == ARTM_INPUT_FUNCTION_XY_GRADZ) then
@@ -3789,10 +3783,6 @@ contains
         deallocate(model%climate%acab)
     if (associated(model%climate%acab_tavg)) &
         deallocate(model%climate%acab_tavg)
-    if (associated(model%climate%acab_anomaly)) &
-        deallocate(model%climate%acab_anomaly)
-    if (associated(model%climate%acab_corrected)) &
-        deallocate(model%climate%acab_corrected)
     if (associated(model%climate%acab_applied)) &
         deallocate(model%climate%acab_applied)
     if (associated(model%climate%acab_applied_tavg)) &
@@ -3801,6 +3791,8 @@ contains
         deallocate(model%climate%smb)
     if (associated(model%climate%smb_anomaly)) &
         deallocate(model%climate%smb_anomaly)
+    if (associated(model%climate%smb_corrected)) &
+        deallocate(model%climate%smb_corrected)
     if (associated(model%climate%artm)) &
         deallocate(model%climate%artm)
     if (associated(model%climate%artm_anomaly)) &
@@ -3821,10 +3813,6 @@ contains
         deallocate(model%climate%precip_corrected)
     if (associated(model%climate%overwrite_acab_mask)) &
         deallocate(model%climate%overwrite_acab_mask)
-    if (associated(model%climate%acab_ref)) &
-        deallocate(model%climate%acab_ref)
-    if (associated(model%climate%acab_gradz)) &
-        deallocate(model%climate%acab_gradz)
     if (associated(model%climate%smb_ref)) &
         deallocate(model%climate%smb_ref)
     if (associated(model%climate%smb_gradz)) &
@@ -3835,8 +3823,6 @@ contains
         deallocate(model%climate%artm_ref)
     if (associated(model%climate%artm_gradz)) &
         deallocate(model%climate%artm_gradz)
-    if (associated(model%climate%acab_3d)) &
-        deallocate(model%climate%acab_3d)
     if (associated(model%climate%smb_3d)) &
         deallocate(model%climate%smb_3d)
     if (associated(model%climate%artm_3d)) &

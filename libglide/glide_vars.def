@@ -750,39 +750,39 @@ long_name:     real mask for forced ice retreat
 data:          data%geometry%ice_fraction_retreat_mask
 load:          1
 
-[smb]
-dimensions:    time, y1, x1
-units:         mm/year water equivalent
-long_name:     surface mass balance
-data:          data%climate%smb
-factor:        1.0
-standard_name: land_ice_surface_specific_mass_balance
-load:          1
-
-[snow]
-dimensions:    time, y1, x1
-units:         mm/year water equivalent
-long_name:     snowfall rate
-data:          data%climate%snow
-factor:        1.0
-load:          1
-read_once:     1
-
-[precip]
-dimensions:    time, y1, x1
-units:         mm/year water equivalent
-long_name:     precipitation rate
-data:          data%climate%precip
-factor:        1.0
-load:          1
-read_once:     1
-
 [acab]
 dimensions:    time, y1, x1
 units:         meter/year ice
 long_name:     accumulation, ablation rate
 data:          data%climate%acab
 factor:        scale_acab
+standard_name: land_ice_surface_specific_mass_balance
+load:          1
+
+[acab_applied]
+dimensions:    time, y1, x1
+units:         meter/year
+long_name:     applied accumulation, ablation rate
+data:          data%climate%acab_applied
+factor:        scale_acab
+standard_name: land_ice_surface_specific_mass_balance_applied
+average:       1
+
+[overwrite_acab_mask]
+dimensions:    time, y1, x1
+units:         1
+long_name:     cells where acab is overwritten
+data:          data%climate%overwrite_acab_mask
+standard_name: land_ice_overwrite_acab_mask
+type:          int
+load:          1
+
+[smb]
+dimensions:    time, y1, x1
+units:         mm/year water equivalent
+long_name:     surface mass balance
+data:          data%climate%smb
+factor:        1.0
 standard_name: land_ice_surface_specific_mass_balance
 load:          1
 
@@ -806,90 +806,19 @@ load:          1
 [smb_anomaly]
 dimensions:    time, y1, x1
 units:         mm/year water equivalent
-long_name:     accumulation, ablation rate anomaly
+long_name:     surface mass balance anomaly
 data:          data%climate%smb_anomaly
 factor:        1.0
 standard_name: land_ice_surface_specific_mass_balance_anomaly
 load:          1
 
-[acab_ref]
-dimensions:    time, y1, x1
-units:         meter/year ice
-long_name:     accumulation, ablation rate
-data:          data%climate%acab_ref
-factor:        scale_acab
-standard_name: land_ice_surface_specific_mass_balance_reference
-load:          1
-
-[acab_gradz]
-dimensions:    time, y1, x1
-units:         m/year ice per m
-long_name:     surface mass balance vertical gradient
-data:          data%climate%acab_gradz
-factor:        scale_acab
-standard_name: land_ice_surface_specific_mass_balance_vertical_gradient
-load:          1
-
-[acab_anomaly]
-dimensions:    time, y1, x1
-units:         meter/year
-long_name:     accumulation, ablation rate anomaly
-data:          data%climate%acab_anomaly
-factor:        scale_acab
-standard_name: land_ice_surface_specific_mass_balance_anomaly
-load:          1
-
-[artm_ref]
-dimensions:    time, y1, x1
-units:         deg Celsius
-long_name:     surface temperature at reference elevation
-data:          data%climate%artm_ref
-standard_name: land_ice_reference_surface_temperature
-load:          1
-read_once:     1
-
-[artm_gradz]
-dimensions:    time, y1, x1
-units:         deg Celsius per m
-long_name:     surface temperature vertical gradient
-data:          data%climate%artm_gradz
-standard_name: land_ice_surface_temperature_vertical_gradient
-load:          1
-
-[usrf_ref]
-dimensions:    time, y1, x1
-units:         m
-long_name:     reference upper surface elevation for input forcing
-data:          data%climate%usrf_ref
-standard_name: land_ice_reference_surface_elevation
-load:          1
-
-[artm_anomaly]
-dimensions:    time, y1, x1
-units:         deg Celsius
-long_name:     surface temperature anomaly
-data:          data%climate%artm_anomaly
-standard_name: land_ice_surface_temperature_anomaly
-load:          1
-read_once:     1
-
-[snow_anomaly]
+[smb_corrected]
 dimensions:    time, y1, x1
 units:         mm/year water equivalent
-long_name:     anomaly snowfall rate
-data:          data%climate%snow_anomaly
-factor:        1.0
-load:          1
-read_once:     1
-
-[precip_anomaly]
-dimensions:    time, y1, x1
-units:         mm/year water equivalent
-long_name:     anomaly precipitation rate
-data:          data%climate%precip_anomaly
-factor:        1.0
-load:          1
-read_once:     1
+long_name:     corrected surface mass balance
+data:          data%climate%smb_corrected
+factor:        scale_acab
+standard_name: land_ice_surface_specific_mass_balance_corrected
 
 [smb_3d]
 dimensions:    time, nlev_smb, y1, x1
@@ -898,58 +827,6 @@ long_name:     3D surface mass balance
 data:          data%climate%smb_3d(up,:,:)
 factor:        1.0
 standard_name: land_ice_surface_specific_mass_balance_3d
-load:          1
-
-[acab_3d]
-dimensions:    time, nlev_smb, y1, x1
-units:         m/year ice
-long_name:     3D surface mass balance
-data:          data%climate%acab_3d(up,:,:)
-factor:        scale_acab
-standard_name: land_ice_surface_specific_mass_balance_3d
-load:          1
-
-[artm_3d]
-dimensions:    time, nlev_smb, y1, x1
-units:         deg Celsius
-long_name:     3D surface temperature
-data:          data%climate%artm_3d(up,:,:)
-standard_name: land_ice_surface_temperature_3d
-load:          1
-
-[smb_levels]
-dimensions:    time, nlev_smb
-units:         m
-long_name:     surface mass balance reference levels
-data:          data%climate%smb_levels
-factor:        thk0
-standard_name: land_ice_surface_specific_mass_balance_reference_levels
-load:          1
-
-[acab_corrected]
-dimensions:    time, y1, x1
-units:         meter/year
-long_name:     corrected accumulation, ablation rate
-data:          data%climate%acab_corrected
-factor:        scale_acab
-standard_name: land_ice_surface_specific_mass_balance_corrected
-
-[acab_applied]
-dimensions:    time, y1, x1
-units:         meter/year
-long_name:     applied accumulation, ablation rate
-data:          data%climate%acab_applied
-factor:        scale_acab
-standard_name: land_ice_surface_specific_mass_balance_applied
-average:       1
-
-[overwrite_acab_mask]
-dimensions:    time, y1, x1
-units:         1
-long_name:     cells where acab is overwritten
-data:          data%climate%overwrite_acab_mask
-standard_name: land_ice_overwrite_acab_mask
-type:          int
 load:          1
 
 [smb_obs]
@@ -970,9 +847,96 @@ load:          1
 [smb_recent]
 dimensions:    time, y1, x1
 units:         mm/year water equivalent
-long_name:     surface mass balance, recent date
+long_name:     surface mass balance at recent date
 data:          data%glacier%smb_recent
 factor:        1.0
+load:          1
+
+[artm_ref]
+dimensions:    time, y1, x1
+units:         deg Celsius
+long_name:     surface temperature at reference elevation
+data:          data%climate%artm_ref
+standard_name: land_ice_reference_surface_temperature
+load:          1
+read_once:     1
+
+[artm_gradz]
+dimensions:    time, y1, x1
+units:         deg Celsius per m
+long_name:     surface temperature vertical gradient
+data:          data%climate%artm_gradz
+standard_name: land_ice_surface_temperature_vertical_gradient
+load:          1
+
+[artm_anomaly]
+dimensions:    time, y1, x1
+units:         deg Celsius
+long_name:     surface temperature anomaly
+data:          data%climate%artm_anomaly
+standard_name: land_ice_surface_temperature_anomaly
+load:          1
+read_once:     1
+
+[artm_3d]
+dimensions:    time, nlev_smb, y1, x1
+units:         deg Celsius
+long_name:     3D surface temperature
+data:          data%climate%artm_3d(up,:,:)
+standard_name: land_ice_surface_temperature_3d
+load:          1
+
+[snow]
+dimensions:    time, y1, x1
+units:         mm/year water equivalent
+long_name:     snowfall rate
+data:          data%climate%snow
+factor:        1.0
+load:          1
+read_once:     1
+
+[snow_anomaly]
+dimensions:    time, y1, x1
+units:         mm/year water equivalent
+long_name:     anomaly snowfall rate
+data:          data%climate%snow_anomaly
+factor:        1.0
+load:          1
+read_once:     1
+
+[precip]
+dimensions:    time, y1, x1
+units:         mm/year water equivalent
+long_name:     precipitation rate
+data:          data%climate%precip
+factor:        1.0
+load:          1
+read_once:     1
+
+[precip_anomaly]
+dimensions:    time, y1, x1
+units:         mm/year water equivalent
+long_name:     anomaly precipitation rate
+data:          data%climate%precip_anomaly
+factor:        1.0
+load:          1
+read_once:     1
+
+[usrf_ref]
+dimensions:    time, y1, x1
+units:         m
+long_name:     reference upper surface elevation for input forcing
+data:          data%climate%usrf_ref
+standard_name: land_ice_reference_surface_elevation
+load:          1
+
+[smb_levels]
+dimensions:    time, nlev_smb
+units:         m
+long_name:     surface mass balance reference levels
+data:          data%climate%smb_levels
+factor:        thk0
+standard_name: land_ice_surface_specific_mass_balance_reference_levels
 load:          1
 
 [thck_target]

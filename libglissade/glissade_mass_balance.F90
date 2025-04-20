@@ -51,7 +51,8 @@
          glissade_mass_balance_driver, glissade_add_2d_anomaly, glissade_add_3d_anomaly
     public :: verbose_smb
 
-    logical, parameter :: verbose_smb = .false.
+!!    logical, parameter :: verbose_smb = .false.
+    logical, parameter :: verbose_smb = .true.
 
     logical, parameter ::     &
          conservation_check = .true. ! if true, check global conservation
@@ -148,6 +149,7 @@
     use glimmer_paramets, only: thk0, tim0, len0, eps11
     use glimmer_physcon, only: rhow, rhoi, scyr
     use glimmer_scales, only: scale_acab
+    use glide_diagnostics, only: point_diag
     use glissade_grid_operators, only: glissade_vertical_interpolate
     use glissade_masks, only: glissade_get_masks, glissade_extend_mask
     use glissade_calving, only: verbose_calving
@@ -158,10 +160,10 @@
 
     !TODO - Fix scaling so that these are in the model derived type
     real(dp), dimension(model%general%ewn,model%general%nsn), intent(inout) ::   &
-       thck_unscaled        ! ice thickness (m)
+         thck_unscaled        ! ice thickness (m)
 
     real(dp), dimension(model%general%ewn,model%general%nsn), intent(in) ::   &
-       topg_unscaled        ! bedrock topography (m)
+         topg_unscaled        ! bedrock topography (m)
 
     ! local variables
 
@@ -211,17 +213,13 @@
     !-------------------------------------------------------------------------
     ! Some notes on SMB fields and units:
     !
-    ! Most of the calculations in Glissade are based on the field model%climate%acab,
-    !  defined as the sum of accumulation and ablation at the upper ice surface.
-    ! Not all of acab is necessarily applied; for instance, the applied SMB is zero
-    !  for ice-free cells. The applied SMB is stored in model%climate%acab_applied
-    !  and can be written to output.
-    ! Both acab and acab_applied have units of m/s ice. They must be multiplied
-    !  by rhoi/rhow to convert to units of m/s w.e.
+    ! Most of the SMB calculations in Glissade are based on model%climate%acab,
+    !  defined as the net forcing (accumulation minus ablation) at the upper ice surface.
+    ! Not all of this SMB is necessarily applied; for instance, a negative SMB cannot
+    !  be applied to ice-free cells. The applied SMB is stored in model%climate%acab_applied.
     !
-    ! If acab is supplied in an input netCDF file, it is assumed to have units of m/yr ice.
-    ! With a scale factor of scyr, this field is written to model%climate%acab with
-    !  units of m/s ice.
+    ! Both acab and acab_applied have units of m/yr ice in I/O, and m/s ice in the code.
+    ! They must be multiplied by rhoi/rhow to convert to m/s w.e.
     !
     ! If the SMB is passed from CESM, then it arrives in Glad with units of kg/m^2/s w.e.,
     !  and Glad does the conversions needed to compute model%climate%acab in units of m/s ice.
@@ -233,9 +231,9 @@
     !  In other runs, the SMB may be suppied as a baseline field to which an anomaly is added.
     !
     ! Subroutine glissade_apply_smb handles these various cases, if applicable.
-    ! It assumes that smb and related fields (smb_gradz, etc.) have units of mm w.e./yr.
-    ! After doing the desired adjustments, we have a field called smb_adjusted.
-    ! This field is multiplied by (rhoi/rhow)/scyr to compute model%climate%acab,
+    ! It assumes that smb and related fields (smb_anomaly, etc.) have units of mm w.e./yr.
+    ! After doing the desired adjustments, we have a field called smb_corrected.
+    ! This field is multiplied by (rhow/rhoi)/scyr to compute model%climate%acab,
     !  which is passed to the main mass balance driver.
     !-------------------------------------------------------------------------
 
@@ -245,66 +243,44 @@
     ! (0) SMB(x,y); no dependence on surface elevation
     ! (1) SMB(x,y) + dSMB/dz(x,y) * dz; SMB depends on input field at reference elevation, plus vertical correction
     ! (2) SMB(x,y,z); SMB obtained by linear interpolation between values prescribed at adjacent vertical levels
-    ! For options (1) and (2), the elevation-dependent SMB is computed here.
+    !
+    ! Options (1) and (2) require input fields with SMB units of mm/yr w.e. (SMB_INPUT_MMYR_WE)
+    ! For these options, the elevation-dependent SMB is computed here.
     ! ------------------------------------------------------------------------
 
-    !TODO - Separate into (1) downscaling followed by (2) unit conversion
-    !       Then can eliminate acab_ref, acab_gradz, and acab_3d
+    if (model%options%smb_input_function == SMB_INPUT_FUNCTION_XY_GRADZ) then
 
-    if (model%options%smb_input_function == SMB_INPUT_FUNCTION_XY) then
-
-       if (model%options%smb_input == SMB_INPUT_MMYR_WE) then
-          ! Convert units from mm/yr w.e. to m/yr ice, then convert to model units
-          model%climate%acab(:,:) = (model%climate%smb(:,:) * (rhow/rhoi)/1000.d0) / scale_acab
-       endif
-
-    elseif (model%options%smb_input_function == SMB_INPUT_FUNCTION_XY_GRADZ) then
-
-       if (model%options%smb_input == SMB_INPUT_MMYR_WE) then
-          ! Convert smb_ref from mm/yr w.e. to model acab units.
-          ! Convert smb_gradz to model acab_gradz units.
-          ! Note: smb_gradz already includes a scale factor of thk0 in glide_vars.def
-          model%climate%acab_ref(:,:) = (model%climate%smb_ref(:,:) * (rhow/rhoi)/1000.d0) / scale_acab
-          model%climate%acab_gradz(:,:) = (model%climate%smb_gradz(:,:) * (rhow/rhoi)/1000.d0) / scale_acab
-       endif
-
-       ! compute acab by a lapse-rate correction to the reference value
-       model%climate%acab(:,:) = model%climate%acab_ref(:,:) + &
-            (model%geometry%usrf(:,:)*thk0 - model%climate%usrf_ref(:,:)) * model%climate%acab_gradz(:,:)
+       ! downscale SMB to the local surface elevation
+       model%climate%smb(:,:) = model%climate%smb_ref(:,:) + &
+            (model%geometry%usrf(:,:)*thk0 - model%climate%usrf_ref(:,:)) * model%climate%smb_gradz(:,:)
 
     elseif (model%options%smb_input_function == SMB_INPUT_FUNCTION_XYZ) then
 
-       if (model%options%smb_input == SMB_INPUT_MMYR_WE) then
-          ! Convert units from mm/yr w.e. to m/yr ice, then convert to model units
-          model%climate%acab_3d(:,:,:) = (model%climate%smb_3d(:,:,:) * (rhow/rhoi)/1000.d0) / scale_acab
-       endif
-
-       ! downscale SMB to the local surface elevation (includes a halo update)
+       ! downscale SMB to the local surface elevation
        ! Note: With linear_extrapolate_in = F, the values at top and bottom levels are simply extended upward and downward.
-       !       For SMB, this is safer than linear extrapolation (especially when extrapolating upward)
+       !       For SMB, this is safer than linear extrapolation (especially when extrapolating upward).
 
        call glissade_vertical_interpolate(&
             ewn,       nsn,                       &
             nlev_smb,  model%climate%smb_levels,  &
             model%geometry%usrf,                  &
-            model%climate%acab_3d,                &
-            model%climate%acab,                   &
+            model%climate%smb_3d,                 &
+            model%climate%smb,                    &
             linear_extrapolate_in = .false.)
 
     endif   ! smb_input_function
 
-    ! For the non-default smb_input_function options, make sure that model%climate%acab is nonzero somewhere; else abort.
+    ! For the non-default smb_input_function options, make sure that model%climate%smb is nonzero somewhere; else abort.
     ! For the default option, do not abort, since idealized tests often have a zero SMB.
 
-    call parallel_halo(model%climate%acab, parallel)
+    call parallel_halo(model%climate%smb, parallel)
 
     if (model%options%smb_input_function == SMB_INPUT_FUNCTION_XY_GRADZ .or. &
         model%options%smb_input_function == SMB_INPUT_FUNCTION_XYZ) then
-       local_maxval = maxval(abs(model%climate%acab))
+       local_maxval = maxval(abs(model%climate%smb))
        global_maxval = parallel_reduce_max(local_maxval)
        if (global_maxval < eps11) then
-          write(message,*) 'Error: acab = 0 everywhere with smb_input_function =', &
-               model%options%smb_input_function
+          write(message,*) 'Error: smb = 0 everywhere with smb_input_function =', model%options%smb_input_function
           call write_log(trim(message), GM_FATAL)
        endif
     endif
@@ -312,110 +288,93 @@
     if (verbose_smb) then
 
        if (this_rank == rtest) then
-          write(6,*) 'Computing runtime acab with smb_input_function =', model%options%smb_input_function
+          write(6,*) 'Computing runtime smb with smb_input_function =', model%options%smb_input_function
        endif
        call point_diag(model%geometry%usrf*thk0, 'usrf (m)', itest, jtest, rtest, 7, 7)
 
        if (model%options%smb_input_function == SMB_INPUT_FUNCTION_XY_GRADZ) then
           call point_diag(model%geometry%usrf*thk0 - model%climate%usrf_ref, 'usrf - usrf_ref (m)', &
                itest, jtest, rtest, 7, 7)
-          call point_diag(model%climate%acab_ref*scale_acab, 'reference acab (m/yr ice)', itest, jtest, rtest, 7, 7)
-          call point_diag(model%climate%smb_gradz/thk0, 'smb_gradz (mm/yr per m)', itest, jtest, rtest, 7, 7)
-          call point_diag(model%climate%acab_gradz*scale_acab*1000.d0/thk0, 'acab_gradz (m/yr per km)', itest, jtest, rtest, 7, 7)
-          call point_diag(model%climate%acab*scale_acab, 'adjusted acab (m/yr ice)', itest, jtest, rtest, 7, 7)
+          call point_diag(model%climate%smb_ref, 'reference smb (mm/yr)', itest, jtest, rtest, 7, 7)
+          call point_diag(model%climate%smb_gradz, 'smb_gradz (mm/yr per m)', itest, jtest, rtest, 7, 7)
+          call point_diag(model%climate%smb, 'downscaled smb (mm/yr)', itest, jtest, rtest, 7, 7)
        elseif (model%options%smb_input_function == SMB_INPUT_FUNCTION_XYZ) then
           k = model%climate%nlev_smb/2 + 1  ! arbitrary k
           if (this_rank == rtest) write(6,*) 'Diagnostic level k, level (m) =', k, model%climate%smb_levels(k)*thk0
-          call point_diag(model%climate%acab_3d(k,:,:)*scale_acab, '3d acab (m/yr ice)', itest, jtest, rtest, 7, 7)
-          call point_diag(model%climate%acab*scale_acab, 'adjusted acab (m/yr ice)', itest, jtest, rtest, 7, 7)
+          call point_diag(model%climate%smb_3d(k,:,:)*scale_acab, '3d acab (m/yr ice)', itest, jtest, rtest, 7, 7)
+          call point_diag(model%climate%smb, 'downscaled smb (mm/yr ice)', itest, jtest, rtest, 7, 7)
        endif  ! smb_input_function
 
        if (model%options%artm_input_function == ARTM_INPUT_FUNCTION_XY_GRADZ) then
           call point_diag(model%climate%artm_ref, 'reference artm (deg C)', itest, jtest, rtest, 7, 7)
           call point_diag(model%climate%artm_gradz*1000.d0/thk0, 'artm_gradz (deg C per km)', itest, jtest, rtest, 7, 7)
-          call point_diag(model%climate%artm, 'adjusted artm (deg C)', itest, jtest, rtest, 7, 7)
+          call point_diag(model%climate%artm, 'downscaled artm (deg C)', itest, jtest, rtest, 7, 7)
        elseif (model%options%artm_input_function == ARTM_INPUT_FUNCTION_XYZ) then
           k = model%climate%nlev_smb/2 + 1  ! arbitrary k
           if (this_rank == rtest) write(6,*) 'Diagnostic level k, level (m) =', k, model%climate%smb_levels(k)*thk0
           call point_diag(model%climate%artm_3d(k,:,:), '3d artm (deg C)', itest, jtest, rtest, 7, 7)
-          call point_diag(model%climate%artm, 'adjusted artm (deg C)', itest, jtest, rtest, 7, 7)
+          call point_diag(model%climate%artm, 'downsacled artm (deg C)', itest, jtest, rtest, 7, 7)
        endif   ! artm_input_function
 
     endif  ! verbose_smb
 
-    ! If using a glacier-specific SMB index method, then convert the annual mean SMB to acab
-    !Note: In an earlier code version, glacier SMB was computed here during each dynamic timestep.
-    !      In the current version, temperature and snowfall are accumulated during each call to
-    !       glissade_glacier_update. The annual mean SMB is computed at the end of the year
-    !       and applied uniformly during the following year.
-    !      Thus, the only thing to do here is to convert SMB (as computed by the glacier module, in mm/yr w.e.)
-    !       to acab (m/yr ice).
-
-    !TODO - require units of mm/yr w.e for glacier input?
-    if (model%options%enable_glaciers) then
-
-       ! Convert SMB (mm/yr w.e.) to acab (CISM model units)
-       model%climate%acab(:,:) = (model%climate%smb(:,:) * (rhow/rhoi)/1000.d0) / scale_acab
-       call parallel_halo(model%climate%acab, parallel)
-
-    endif   ! enable_glaciers
-
-    ! Compute a corrected acab field that includes any prescribed anomalies.
-    ! Typically, acab_corrected = acab, but sometimes (e.g., for initMIP) it includes a time-dependent anomaly.
-    ! Note: The following code does not change model%climate%acab.
+    ! Compute a corrected smb field that includes any anomalies or correction factors.
 
     ! initialize
-    model%climate%acab_corrected(:,:) = model%climate%acab(:,:)
+    model%climate%smb_corrected(:,:) = model%climate%smb(:,:)
 
-    ! Optionally, multiply acab by a scalar adjustment factor
-    if (model%climate%acab_factor /= 1.0d0) then
-       model%climate%acab_corrected(:,:) = model%climate%acab_corrected(:,:) * model%climate%acab_factor
+    ! Optionally, multiply smb by a scalar adjustment factor
+    if (model%climate%smb_factor /= 1.0d0) then
+       model%climate%smb_corrected(:,:) = model%climate%smb_corrected(:,:) * model%climate%smb_factor
     endif
 
-    if (model%options%enable_acab_anomaly) then
+    ! Optionally, add an anomaly field
+    ! Note: If enable_artm_anomaly = T, then artm_anomaly is computed above, before calling glissade_therm_driver.
 
-       if (model%options%smb_input == SMB_INPUT_MMYR_WE) then
-          ! Convert units from mm/yr w.e. to m/yr ice, then convert to model units.
-          !Note: If smb_anomaly is read from the input file, we could do this conversion once at initialization.
-          !      But if read from a time-dependent forcing file, the conversion must be done repeatedly.
-          model%climate%acab_anomaly(:,:) = (model%climate%smb_anomaly(:,:) * (rhow/rhoi) / 1000.d0) / scale_acab
-       endif
+    if (model%options%enable_smb_anomaly) then
 
-       call parallel_halo(model%climate%acab_anomaly, parallel)
+       call parallel_halo(model%climate%smb_anomaly, parallel)
 
        ! Note: When being ramped up, the anomaly is not incremented until after the final time step of the year.
        !       This is the reason for passing the previous time to the subroutine.
        previous_time = model%numerics%time - model%numerics%dt * tim0/scyr
 
-       !TODO - Change acab to smb here
        call glissade_add_2d_anomaly(&
-            model%climate%acab_corrected,          &   ! scaled model units
-            model%climate%acab_anomaly,            &   ! scaled model units
-            model%climate%acab_anomaly_tstart,     &   ! yr
-            model%climate%acab_anomaly_timescale,  &   ! yr
+            model%climate%smb_corrected,           &   ! scaled model units
+            model%climate%smb_anomaly,             &   ! mm/yr w.e.
+            model%climate%smb_anomaly_tstart,      &   ! yr
+            model%climate%smb_anomaly_timescale,   &   ! yr
             previous_time)                             ! yr
 
        if (verbose_smb .and. this_rank==rtest) then
           i = itest
           j = jtest
-          write(6,*) 'i, j, previous_time, input acab, acab anomaly, corrected acab (m/yr):', &
-               i, j, previous_time, model%climate%acab(i,j)*thk0*scyr/tim0,  &
-               model%climate%acab_anomaly(i,j)*thk0*scyr/tim0,  &
-               model%climate%acab_corrected(i,j)*thk0*scyr/tim0
+          write(6,*) 'i, j, previous_time, input smb, smb anomaly, corrected smb (mm/yr):', &
+               i, j, previous_time, model%climate%smb(i,j), model%climate%smb_anomaly(i,j), model%climate%smb_corrected(i,j)
        endif
 
     endif
 
-    ! Note: If enable_artm_anomaly = T, then artm_anomaly is computed above, before calling glissade_therm_driver.
+    ! Note on glacier SMB calculations
+    ! Glaciers require smb_input = SMB_INPUT_MMYR_EW and compute SMB as follows:
+    ! * Temperature and snowfall are accumulated during each call to glissade_glacier_update.
+    ! * The annual mean SMB is computed at the end of the year in units of mm/yr w.e.
+    !   and copied to model%climate%smb,
+    ! * The SMB is then applied uniformly during the following year.
+    ! Thus, the only thing to do here is to convert SMB (mm/yr w.e.) to acab (m/s ice).
 
-    ! Optionally, overwrite acab_corrected where overwrite_acab_mask = 1.
+    ! Convert units from mm/yr w.e. to acab units, if needed.
+    if (model%options%smb_input == SMB_INPUT_MMYR_WE) then
+       model%climate%acab(:,:) = (model%climate%smb_corrected(:,:) * (rhow/rhoi)/1000.d0) / scale_acab
+    endif
 
-    !TODO - Change to SMB units
+    ! Optionally, overwrite acab where overwrite_acab_mask = 1.
+    ! Note: overwrite_acab_value has scaled model units for now
     if (model%options%overwrite_acab /= 0) then
        call overwrite_acab(&
             model%climate%overwrite_acab_mask,  &
             model%climate%overwrite_acab_value, &
-            model%climate%acab_corrected)
+            model%climate%acab)
     endif
 
     !TODO - Compute ice_sheet_mask here?
@@ -441,14 +400,14 @@
        ! Note: This code allows cells outside the ice sheet to melt.
 
        where (extended_ice_sheet_mask == 0)
-          model%climate%acab_corrected = min(model%climate%acab_corrected, 0.0d0)
+          model%climate%acab = min(model%climate%acab, 0.0d0)
        endwhere
 
     endif
 
     ! Convert acab_corrected to a temporary array in SI units (m/s)
-    !TODO - Let acab and acab_corrected have units of m/s hereafter?
-    acab_unscaled(:,:) = model%climate%acab_corrected(:,:) * thk0/tim0
+    !TODO - Change units and use model%climate%acab below
+    acab_unscaled(:,:) = model%climate%acab(:,:) * thk0/tim0
 
     ! Optionally, correct acab by adding (-dthck_dt_obs_basin) where ice is floating.
     ! During inversions for deltaT_ocn, this will generally force a positive ocean melt rate
