@@ -427,6 +427,13 @@ contains
     allocate(land_mask(model%general%ewn, model%general%nsn))
     allocate(ocean_mask(model%general%ewn, model%general%nsn))
 
+    ! If model%numerics%thklim > 0, then decrease it slightly. The reasoning is as follows:
+    ! The requirement for ice_mask = 1 is thck > thklim. We want '>' rather than '>=' in case thklim = 0.
+    ! But suppose thklim = 1.0 m, and many cells in the input file have thck = 1.0 m.
+    ! We would like these cells to have ice_mask = 1. This will be the case if we reduce thklim slightly.
+
+    model%numerics%thklim = max(model%numerics%thklim - eps11, 0.0d0)
+
     ! Compute grid cell areas
     ! Note: cell_area is used for diagnostics only. It is set to dew*dns by default but can be corrected below.
     !       For the purposes of CISM dynamics, all grid cells are rectangles of dimension dew*dns.

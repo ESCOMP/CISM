@@ -33,6 +33,7 @@ module glide_diagnostics
   ! Author: William Lipscomb, LANL 
  
   use glimmer_global, only: dp
+  use glimmer_paramets, only: eps11
   use glimmer_log
   use glide_types
   use cism_parallel, only: this_rank, main_task, lhalo, uhalo, nhalo, &
@@ -292,8 +293,7 @@ contains
          cell_area     ! grid cell areas (scaled model units); diagnostic only
 
     real(dp), parameter ::   &
-       eps = 1.0d-11,         & ! small number
-       eps_thck = 1.0d-11       ! threshold thickness (m) for writing diagnostics
+         eps = eps11             ! small threshold for diagnostics
 
     type(parallel_type) :: parallel       ! info for parallel communication
 
@@ -327,8 +327,12 @@ contains
 
     ! Set the minimum ice thickness for including cells in diagnostics
     if (model%options%diag_minthck == DIAG_MINTHCK_ZERO) then
-       minthck = eps_thck  ! slightly > 0
+       minthck = eps  ! slightly > 0
     elseif (model%options%diag_minthck == DIAG_MINTHCK_THKLIM) then
+       ! Note: If the user specifies model%numerics%thklim = 1.0 m in the config file,
+       !       then thklim is reset at initialization to a number slightly less than 1.0.
+       !       This protects the diagnostics below against rounding errors for cells
+       !       with thck very close to minthck.
        minthck = model%numerics%thklim*thk0
     endif
 
