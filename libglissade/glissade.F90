@@ -107,7 +107,7 @@ contains
     use glissade_masks, only: glissade_get_masks, glissade_marine_connection_mask
     use glimmer_scales
 !!    use glimmer_paramets, only: eps11, thk0, len0, tim0, vel0, scyr
-    use glimmer_paramets, only: eps11, thk0, len0, vel0, scyr
+    use glimmer_paramets, only: eps11, thk0, vel0, scyr
     use glimmer_physcon, only: rhow, rhoi
     use glide_mask
     use isostasy, only: init_isostasy, isos_relaxed
@@ -449,8 +449,10 @@ contains
        call glimmap_stere_area_factor(model%projection%stere,  &
                                       model%general%ewn,       &
                                       model%general%nsn,       &
-                                      model%numerics%dew*len0, &
-                                      model%numerics%dns*len0, &
+!!                                      model%numerics%dew*len0, &
+!!                                      model%numerics%dns*len0, &
+                                      model%numerics%dew,      &
+                                      model%numerics%dns,      &
                                       parallel)
 
        ! Given the stereographic area correction factors, correct the diagnostic grid cell areas.
@@ -963,11 +965,12 @@ contains
        !       If usfc_obs and vsfc_obs have been read in, then the mask will be set to 0 in ice-free ocean cells
        !        where the observed velocity is nonzero.  Ice-free cells can have nonzero velocity
        !        if the input velocity comes from a different data source than the input thickness.
-       ! Note: calving_front_x and calving_front_y already have units of m, so do not require multiplying by len0.
+!!       ! Note: calving_front_x and calving_front_y already have units of m, so do not require multiplying by len0.
        ! On restart, calving_mask is read from the restart file.
 
        call glissade_calving_mask_init(&
-            model%numerics%dew*len0,           model%numerics%dns*len0,           &
+!!            model%numerics%dew*len0,           model%numerics%dns*len0,           &
+            model%numerics%dew,                model%numerics%dns,                &
             parallel,                                                             &
             model%geometry%thck*thk0,          model%geometry%topg*thk0,          &  ! m
             model%climate%eus*thk0,            model%numerics%thklim*thk0,        &  ! m
@@ -1097,7 +1100,7 @@ contains
     use cism_parallel, only:  parallel_type, not_parallel
 
 !!    use glimmer_paramets, only: tim0, len0, thk0
-    use glimmer_paramets, only: len0, thk0
+    use glimmer_paramets, only: thk0
     use glimmer_physcon, only: scyr
     use glide_mask, only: glide_set_mask, calc_iareaf_iareag
 
@@ -1351,7 +1354,7 @@ contains
     ! Solve for basal melting beneath floating ice.
 
 !!    use glimmer_paramets, only: eps08, eps11, tim0, thk0, len0
-    use glimmer_paramets, only: eps08, eps11, thk0, len0
+    use glimmer_paramets, only: eps08, eps11, thk0
     use glimmer_physcon, only: scyr
     use glissade_bmlt_float, only: glissade_basal_melting_float, &
          glissade_bmlt_float_thermal_forcing, verbose_bmlt_float
@@ -1508,7 +1511,8 @@ contains
             model%options%ocean_data_extrapolate,  &
             parallel,                              &
             ewn,                nsn,               &
-            dew*len0,           dns*len0,          & ! m
+!!            dew*len0,           dns*len0,          & ! m
+            dew,                dns,               & ! m
             itest,     jtest,   rtest,             &
             ice_mask,                              &
             ocean_mask,                            &
@@ -1529,7 +1533,8 @@ contains
        call glissade_basal_melting_float(model%options%whichbmlt_float,                         &
                                          parallel,                                              &
                                          ewn,                        nsn,                       &
-                                         model%numerics%dew*len0,    model%numerics%dns*len0,   &
+!!                                         model%numerics%dew*len0,    model%numerics%dns*len0,   &
+                                         model%numerics%dew,         model%numerics%dns,        &
                                          itest,                      jtest,                     &
                                          rtest,                                                 &
                                          model%general%x1,                                      & ! m
@@ -1688,7 +1693,7 @@ contains
     use cism_parallel, only: parallel_type, parallel_halo
 
 !!    use glimmer_paramets, only: tim0, thk0, len0
-    use glimmer_paramets, only: thk0, len0
+    use glimmer_paramets, only: thk0
     use glimmer_physcon, only: rhow, rhoi, scyr
     use glissade_therm, only: glissade_therm_driver
     use glissade_basal_water, only: glissade_calcbwat, glissade_bwat_flux_routing
@@ -1980,7 +1985,7 @@ contains
 
        call glissade_bwat_flux_routing(&
             model%general%ewn,       model%general%nsn,       &
-            model%numerics%dew*len0, model%numerics%dns*len0, &  ! m
+            model%numerics%dew,      model%numerics%dns,      &  ! m
             model%parallel,                                   &
             itest, jtest, rtest,                              &
             model%options%ho_flux_routing_scheme,             &
@@ -2048,7 +2053,7 @@ contains
     use cism_parallel, only: parallel_type, parallel_halo, parallel_halo_tracers,  &
          staggered_parallel_halo, parallel_reduce_max
 !!    use glimmer_paramets, only: eps11, eps08, tim0, thk0, vel0, len0
-    use glimmer_paramets, only: eps11, eps08, thk0, vel0, len0
+    use glimmer_paramets, only: eps11, eps08, thk0, vel0
     use glimmer_physcon, only: rhow, rhoi, scyr
     use glide_diagnostics, only: glide_init_diag
     use glissade_therm, only: glissade_temp2enth, glissade_enth2temp
@@ -2195,8 +2200,10 @@ contains
             ocean_mask,             land_mask,        &
             calving_front_mask,                       &
             dthck_dx_cf = model%calving%dthck_dx_cf,  &
-            dx = model%numerics%dew*len0,             &
-            dy = model%numerics%dns*len0,             &
+!!            dx = model%numerics%dew*len0,             &
+!!            dy = model%numerics%dns*len0,             &
+            dx = model%numerics%dew,                  &
+            dy = model%numerics%dns,                  &
             thck_effective = model%calving%thck_effective, &
             thck_effective_min = model%calving%thck_effective_min,  &
             partial_cf_mask = partial_cf_mask,        &
@@ -2299,11 +2306,13 @@ contains
        !       be equal to dt (which is the case by default).
        !TODO - Remove the dt_transport option and simply rely on adaptive subcycling as needed?
 
-       call glissade_check_cfl(ewn,                       nsn,                       upn-1,                    &
-                               model%numerics%dew * len0, model%numerics%dns * len0, model%numerics%sigma,     &
+       call glissade_check_cfl(ewn,                nsn,                upn-1,                    &
+!!                               model%numerics%dew * len0, model%numerics%dns * len0, model%numerics%sigma,     &
+                               model%numerics%dew, model%numerics%dns, model%numerics%sigma,             &
                                parallel,                                                                       &
                                model%geomderv%stagthck * thk0,                                                 &
-                               model%geomderv%dusrfdew*thk0/len0, model%geomderv%dusrfdns*thk0/len0,           &
+!!                               model%geomderv%dusrfdew*thk0/len0, model%geomderv%dusrfdns*thk0/len0,           &
+                               model%geomderv%dusrfdew*thk0, model%geomderv%dusrfdns*thk0,                     &
                                model%velocity%uvel * scyr * vel0, model%velocity%vvel * scyr * vel0,           &
 !!                               model%numerics%dt_transport * tim0 / scyr,                                      &
                                model%numerics%dt_transport / scyr,                                             &
@@ -2387,7 +2396,8 @@ contains
           !       for vertical remapping. They are intent(in).
 
           call glissade_transport_driver(dt_transport,                                         &  ! s
-                                         model%numerics%dew * len0, model%numerics%dns * len0, &
+!!                                         model%numerics%dew * len0, model%numerics%dns * len0, &
+                                         model%numerics%dew,         model%numerics%dns,       &
                                          ewn,          nsn,         upn-1,                     &
                                          model%numerics%sigma,                                 &
                                          parallel,                                             &
@@ -2514,7 +2524,7 @@ contains
     use cism_parallel, only: parallel_type, parallel_halo
 
 !!    use glimmer_paramets, only: thk0, tim0, len0, vel0
-    use glimmer_paramets, only: thk0, len0, vel0
+    use glimmer_paramets, only: thk0, vel0
     use glimmer_physcon, only: scyr
     use glissade_calving, only: glissade_calve_ice, verbose_calving, &
          glissade_remove_icebergs, glissade_remove_isthmuses, glissade_limit_cliffs
@@ -2794,8 +2804,10 @@ contains
 !!            model%numerics%dt*tim0,            &        ! s
             model%numerics%dt,                 &        ! s
             model%numerics%time*scyr,          &        ! s
-            model%numerics%dew*len0,           &        ! m
-            model%numerics%dns*len0,           &        ! m
+!!            model%numerics%dew*len0,           &        ! m
+!!            model%numerics%dns*len0,           &        ! m
+            model%numerics%dew,                &        ! m
+            model%numerics%dns,                &        ! m
             model%general%x0,                  &        ! m
             model%general%y0,                  &        ! m
             model%general%x1,                  &        ! m
@@ -3001,8 +3013,10 @@ contains
                ice_mask,            floating_mask,         &
                ocean_mask,          land_mask,             &
                calving_front_mask,                         &
-               dx = model%numerics%dew*len0,               &
-               dy = model%numerics%dns*len0,               &
+!!               dx = model%numerics%dew*len0,               &
+!!               dy = model%numerics%dns*len0,               &
+               dx = model%numerics%dew,                    &
+               dy = model%numerics%dns,                    &
                dthck_dx_cf = model%calving%dthck_dx_cf,    &
                thck_effective = model%calving%thck_effective,  &
                thck_effective_min = model%calving%thck_effective_min,  &
@@ -3187,7 +3201,7 @@ contains
          parallel_reduce_max, parallel_reduce_min, parallel_globalindex
 
 !!    use glimmer_paramets, only: eps08, tim0, len0, vel0, thk0, vis0, tau0, evs0
-    use glimmer_paramets, only: eps08, len0, vel0, thk0, vis0, tau0, evs0
+    use glimmer_paramets, only: eps08, vel0, thk0, vis0, tau0, evs0
     use glimmer_physcon, only: rhow, rhoi, scyr
     use glimmer_scales, only: scale_acab
     use glide_thck, only: glide_calclsrf
@@ -3374,8 +3388,10 @@ contains
                                      ice_mask,            floating_mask,         &
                                      ocean_mask,          land_mask,             &
                                      calving_front_mask,                         &
-                                     dx = model%numerics%dew*len0,               &
-                                     dy = model%numerics%dns*len0,               &
+!!                                     dx = model%numerics%dew*len0,               &
+!!                                     dy = model%numerics%dns*len0,               &
+                                     dx = model%numerics%dew,                    &
+                                     dy = model%numerics%dns,                    &
                                      dthck_dx_cf = model%calving%dthck_dx_cf,    &
                                      thck_effective = model%calving%thck_effective,  &
                                      thck_effective_min = model%calving%thck_effective_min,  &
@@ -3707,8 +3723,10 @@ contains
                                                  ice_mask,                       &
                                                  model%geomderv%stagthck * thk0, & ! scale to m
                                                  model%temper%flwa * vis0,       & ! scale to Pa^{-n} s^{-1}
-                                                 model%geomderv%dusrfdew * thk0/len0, & ! scale to m/m
-                                                 model%geomderv%dusrfdns * thk0/len0, & ! scale to m/m
+!!                                                 model%geomderv%dusrfdew * thk0/len0, & ! scale to m/m
+!!                                                 model%geomderv%dusrfdns * thk0/len0, & ! scale to m/m
+                                                 model%geomderv%dusrfdew * thk0, & ! scale to m/m
+                                                 model%geomderv%dusrfdns * thk0, & ! scale to m/m
                                                  model%temper%dissip)
           
        else    ! first-order dissipation                                                                                                                                                               

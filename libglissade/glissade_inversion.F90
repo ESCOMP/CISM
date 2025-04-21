@@ -28,7 +28,7 @@ module glissade_inversion
 
   use glimmer_physcon, only: scyr, grav
 !!  use glimmer_paramets, only: eps08, tim0, len0, vel0, thk0
-  use glimmer_paramets, only: eps08, len0, vel0, thk0
+  use glimmer_paramets, only: eps08, vel0, thk0
   use glimmer_log
   use glide_types
   use glide_thck, only: glide_calclsrf
@@ -547,8 +547,10 @@ contains
 !!               model%numerics%dt*tim0,                   &  ! s
                model%numerics%dt,                        &  ! s
                ewn,               nsn,                   &
-               model%numerics%dew*len0,                  &  ! m
-               model%numerics%dns*len0,                  &  ! m
+!!               model%numerics%dew*len0,                  &  ! m
+!!               model%numerics%dns*len0,                  &  ! m
+               model%numerics%dew,                       &  ! m
+               model%numerics%dns,                       &  ! m
                itest,    jtest,   rtest,                 &
                model%inversion%babc_thck_scale,          &  ! m
                babc_timescale,                           &  ! s
@@ -612,8 +614,10 @@ contains
 !!               model%numerics%dt*tim0,                   &  ! s
                model%numerics%dt,                        &  ! s
                ewn,               nsn,                   &
-               model%numerics%dew*len0,                  &  ! m
-               model%numerics%dns*len0,                  &  ! m
+!!               model%numerics%dew*len0,                  &  ! m
+!!               model%numerics%dns*len0,                  &  ! m
+               model%numerics%dew,                       &  ! m
+               model%numerics%dns,                       &  ! m
                itest,    jtest,   rtest,                 &
                model%inversion%babc_thck_scale,          &  ! m
                babc_timescale,                           &  ! s
@@ -672,8 +676,10 @@ contains
 !!            model%numerics%dt * tim0,                  &  ! s
             model%numerics%dt,                         &  ! s
             ewn, nsn,                                  &
-            model%numerics%dew * len0,                 &  ! m
-            model%numerics%dns * len0,                 &  ! m
+!!            model%numerics%dew * len0,                 &  ! m
+!!            model%numerics%dns * len0,                 &  ! m
+            model%numerics%dew,                        &  ! m
+            model%numerics%dns,                        &  ! m
             itest, jtest, rtest,                       &
             model%ocean_data%nbasin,                   &
             model%ocean_data%basin_number,             &
@@ -732,8 +738,10 @@ contains
 !!            model%numerics%dt * tim0,              &  ! s
             model%numerics%dt,                     &  ! s
             ewn,           nsn,                    &
-            model%numerics%dew*len0,               &   ! m
-            model%numerics%dns*len0,               &   ! m
+!!            model%numerics%dew*len0,               &   ! m
+!!            model%numerics%dns*len0,               &   ! m
+            model%numerics%dew,                    &   ! m
+            model%numerics%dns,                    &   ! m
             itest, jtest,  rtest,                  &
             model%inversion%deltaT_ocn_thck_scale, &  ! m
             deltaT_ocn_timescale,                  &  ! s
@@ -766,8 +774,10 @@ contains
             model%options%ocean_data_extrapolate,     &
             parallel,                                 &
             ewn,       nsn,                           &
-            model%numerics%dew*len0,                  &   ! m
-            model%numerics%dns*len0,                  &   ! m
+!!            model%numerics%dew*len0,                  &   ! m
+!!            model%numerics%dns*len0,                  &   ! m
+            model%numerics%dew,                       &   ! m
+            model%numerics%dns,                       &   ! m
             itest,     jtest,   rtest,                &
             ice_mask,                                 &
             ocean_mask,                               &
@@ -833,8 +843,10 @@ contains
 !!            model%numerics%dt * tim0,                         &
             model%numerics%dt,                                &  ! s
             ewn, nsn,                                         &
-            model%numerics%dew*len0,                          &  ! m
-            model%numerics%dns*len0,                          &  ! m
+!!            model%numerics%dew*len0,                          &  ! m
+!!            model%numerics%dns*len0,                          &  ! m
+            model%numerics%dew,                               &  ! m
+            model%numerics%dns,                               &  ! m
             itest, jtest, rtest,                              &
             model%velocity%velo_sfc * vel0,                   &  ! m/s
             model%velocity%velo_sfc_obs * vel0,               &  ! m/s

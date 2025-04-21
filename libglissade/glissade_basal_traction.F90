@@ -89,7 +89,6 @@ contains
   ! and were rescaled in this routine.  Now the input arguments are
   ! assumed to have the units given below.
      
-  use glimmer_paramets, only: len0
   use glimmer_physcon, only: gn, pi
   use glissade_grid_operators, only: glissade_stagger
 

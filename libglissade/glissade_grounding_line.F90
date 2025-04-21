@@ -1100,7 +1100,7 @@
     !        match the fluxes computed by the transport scheme.
     !       Also, the GL fluxes do not include thinning/calving of grounded marine cliffs.
 
-    use glimmer_paramets, only: thk0, vel0, len0
+    use glimmer_paramets, only: thk0, vel0
 
     implicit none
 

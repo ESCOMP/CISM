@@ -1222,8 +1222,8 @@ module glide_types
     real(dp),dimension(:,:),pointer :: dthck_dt_obs => null()       !> observed rate of change of ice thickness (m/s)
     real(dp),dimension(:,:),pointer :: dthck_dt_obs_basin => null() !> basin_average of dthck_dt_obs (m/s)
 
-    real(dp),dimension(:,:),pointer :: cell_area => null()
-    !> The cell area of the grid, divided by \texttt{len0*len0}.
+    real(dp),dimension(:,:),pointer :: cell_area => null()          !> cell area of the grid
+!!    !> The cell area of the grid, divided by \texttt{len0*len0}.
 
     integer :: ntracers
     !> number of tracers to be transported
@@ -3923,22 +3923,24 @@ contains
   ! some accessor functions
   function get_dew(model)
     !> return scaled x node spacing
-    use glimmer_paramets, only : len0
+!!    use glimmer_paramets, only : len0
     implicit none
     real(dp) :: get_dew
     type(glide_global_type) :: model
 
-    get_dew = model%numerics%dew * len0
+!!    get_dew = model%numerics%dew * len0
+    get_dew = model%numerics%dew
   end function get_dew
 
   function get_dns(model)
     !> return scaled y node spacing
-    use glimmer_paramets, only : len0
+!!    use glimmer_paramets, only : len0
     implicit none
     real(dp) :: get_dns
     type(glide_global_type) :: model
 
-    get_dns = model%numerics%dns * len0
+!!    get_dns = model%numerics%dns * len0
+    get_dns = model%numerics%dns
   end function get_dns
 
   function get_tstart(model)

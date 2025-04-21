@@ -37,7 +37,8 @@ module glide_velo
   use glide_types
   use glimmer_global, only : dp
   use glimmer_physcon, only : rhoi, grav, gn
-  use glimmer_paramets, only : thk0, len0, vis0, vel0
+!!  use glimmer_paramets, only : thk0, len0, vis0, vel0
+  use glimmer_paramets, only : thk0, vis0, vel0
 
   implicit none
 
@@ -114,7 +115,8 @@ contains
 
     ! Note: cflow < 0 is used in several equations below.
     !       Signs in this module can be tricky, so comments are added to help keep track.
-    cflow = -2.0d0*vis0*(rhoi*grav)**gn*thk0**p3/(8.0d0*vel0*len0**gn)
+!!    cflow = -2.0d0*vis0*(rhoi*grav)**gn*thk0**p3/(8.0d0*vel0*len0**gn)
+    cflow = -2.0d0*vis0*(rhoi*grav)**gn*thk0**p3/(8.0d0*vel0)
 
   end subroutine init_velo
 
@@ -1020,7 +1022,8 @@ contains
     !> Calculate the value of $B$ used for basal sliding calculations.
 
     use glimmer_physcon, only : rhoo, rhoi
-    use glimmer_paramets, only : len0, thk0, scyr, vel0
+!!    use glimmer_paramets, only : len0, thk0, scyr, vel0
+    use glimmer_paramets, only : thk0, scyr, vel0
     implicit none
 
     type(glide_global_type) :: model        !> model instance
@@ -1039,7 +1042,8 @@ contains
     real(dp) :: tau  !basal shear stress
 
     !scaling
-    real(dp) :: tau_factor = 1.d-3*thk0*thk0/len0
+!!    real(dp) :: tau_factor = 1.d-3*thk0*thk0/len0
+    real(dp) :: tau_factor = 1.d-3*thk0*thk0
     !real(dp) :: tau_factor = 1.0d0
     !------------------------------------------------------------------------------------
 

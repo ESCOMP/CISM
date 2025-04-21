@@ -58,7 +58,8 @@
 
     use glimmer_global, only: dp
     use glimmer_physcon, only: n_glen, rhoi, rhoo, grav, scyr, pi
-    use glimmer_paramets, only: eps08, eps10, thk0, len0, tau0, vel0, vis0, evs0
+!!    use glimmer_paramets, only: eps08, eps10, thk0, len0, tau0, vel0, vis0, evs0
+    use glimmer_paramets, only: eps08, eps10, thk0, tau0, vel0, vis0, evs0
     use glimmer_paramets, only: vel_scale, len_scale   ! used for whichefvs = HO_EFVS_FLOWFACT
     use glimmer_log
     use glimmer_sparse_type
@@ -4398,8 +4399,8 @@
        uvel, vvel              ! components of 3D velocity (m/yr)
 
     ! grid cell dimensions: rescale from dimensionless to m
-    dx = dx * len0
-    dy = dy * len0
+!!    dx = dx * len0
+!!    dy = dy * len0
 
     ! ice geometry: rescale from dimensionless to m
 
@@ -4505,10 +4506,14 @@
     vvel_2d = vvel_2d / (vel0*scyr)
 
     ! Convert residual and rhs from Pa/m to dimensionless units
-    resid_u = resid_u / (tau0/len0)
-    resid_v = resid_v / (tau0/len0)
-    bu = bu / (tau0/len0)
-    bv = bv / (tau0/len0)
+!!    resid_u = resid_u / (tau0/len0)
+!!    resid_v = resid_v / (tau0/len0)
+    resid_u = resid_u / tau0
+    resid_v = resid_v / tau0
+!!    bu = bu / (tau0/len0)
+!!    bv = bv / (tau0/len0)
+    bu = bu / tau0
+    bv = bv / tau0
 
     ! Convert stresses from Pa to dimensionless units
     btractx = btractx/tau0

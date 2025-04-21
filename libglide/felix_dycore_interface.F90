@@ -147,7 +147,8 @@ contains
 
       use glimmer_global, only : dp
       use glimmer_physcon, only: scyr
-      use glimmer_paramets, only: thk0, len0, vel0, vis0
+!!      use glimmer_paramets, only: thk0, len0, vel0, vis0
+      use glimmer_paramets, only: thk0, vel0, vis0
       use glimmer_log
       use glide_types
       use glide_mask
@@ -177,8 +178,10 @@ contains
                                                  model%general%upn, &
                                                  model%numerics%sigma, &
                                                  model%parallel,       &
-                                                 len0 * model%numerics%dew, &
-                                                 len0 * model%numerics%dns, &
+!!                                                 len0 * model%numerics%dew, &
+!!                                                 len0 * model%numerics%dns, &
+                                                 model%numerics%dew, &
+                                                 model%numerics%dns, &
                                                  thk0 * model%geometry%thck, &
                                                  thk0 * model%geometry%usrf, &
                                                  thk0 * model%geometry%topg,&

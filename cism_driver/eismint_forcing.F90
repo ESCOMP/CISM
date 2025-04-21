@@ -295,7 +295,8 @@ contains
 
     use glimmer_global, only : dp
     use glide_types
-    use glimmer_paramets, only : len0, acc0, scyr
+!!    use glimmer_paramets, only : len0, acc0, scyr
+    use glimmer_paramets, only : acc0, scyr
     use glimmer_physcon, only : pi
     use glimmer_scales, only : scale_acab
     use cism_parallel, only: parallel_globalindex
@@ -314,7 +315,8 @@ contains
     ewct = (model%parallel%global_ewn + 1.d0) / 2.d0
     nsct = (model%parallel%global_nsn + 1.d0) / 2.d0
 
-    grid = real(model%numerics%dew,dp) * len0
+!!    grid = real(model%numerics%dew,dp) * len0
+    grid = real(model%numerics%dew,dp)
 
     if (model%options%periodic_ew) then
         periodic = 0.d0
@@ -374,7 +376,7 @@ contains
 
     use glide_types
     use glimmer_global, only: dp
-    use glimmer_paramets, only : len0
+!!    use glimmer_paramets, only : len0
     use glimmer_physcon, only : pi
     use cism_parallel, only: parallel_globalindex
 
@@ -391,7 +393,8 @@ contains
 
     ewct = (model%parallel%global_ewn + 1.d0) / 2.d0
     nsct = (model%parallel%global_nsn + 1.d0) / 2.d0
-    grid = real(model%numerics%dew,dp) * len0
+!!    grid = real(model%numerics%dew,dp) * len0
+    grid = real(model%numerics%dew,dp)
 
     if (model%options%periodic_ew) then
         periodic = 0.d0

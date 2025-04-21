@@ -144,7 +144,7 @@ contains
     use glimmer_coordinates, only: coordsystem_new
     use glide_diagnostics, only: glide_init_diag
     use glide_bwater
-    use glimmer_paramets, only: len0
+!!    use glimmer_paramets, only: len0
     use glimmer_physcon, only: rhoi, rhow
     use cism_parallel, only: distributed_grid
 
@@ -233,8 +233,10 @@ contains
        call glimmap_stere_area_factor(model%projection%stere,  &
                                       model%general%ewn,       &
                                       model%general%nsn,       &
-                                      model%numerics%dew*len0, &
-                                      model%numerics%dns*len0)
+!!                                      model%numerics%dew*len0, &
+!!                                      model%numerics%dns*len0)
+                                      model%numerics%dew,      &
+                                      model%numerics%dns)
 
        ! Given the stereographic area correction factors, correct the diagnostic grid cell areas.
        ! Note: area_factor is actually a length correction factor k; must divide by k^2 to adjust areas.
@@ -717,7 +719,8 @@ contains
           do j = model%general%nsn-1, 1, -1
              write(6,'(i3)',advance='no') j
              do i = 1, model%general%ewn-1
-                write(6,'(f8.0)',advance='no') -model%velocity%diffu(i,j) * vel0*len0*scyr
+!!                write(6,'(f8.0)',advance='no') -model%velocity%diffu(i,j) * vel0*len0*scyr
+                write(6,'(f8.0)',advance='no') -model%velocity%diffu(i,j) * vel0*scyr
              enddo
              print*, ' '
           enddo

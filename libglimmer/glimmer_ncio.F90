@@ -520,7 +520,7 @@ contains
     use glimmer_map_CFproj
     use glimmer_map_types
     use glimmer_log
-    use glimmer_paramets, only: len0
+!!    use glimmer_paramets, only: len0
     use glimmer_filenames
 
     implicit none
@@ -609,9 +609,10 @@ contains
 
 !WHL - mod to prevent code from crashing due to small roundoff error
 !    if (abs(delta(2)-delta(1) - model%numerics%dew*len0) > small) then
-    if (abs( (delta(2)-delta(1) - model%numerics%dew*len0) / (model%numerics%dew*len0) ) > small) then
+    if (abs( (delta(2)-delta(1) - model%numerics%dew) / (model%numerics%dew) ) > small) then
        write(message,*) 'deltax1 of file '//trim(process_path(NCI%filename))// &
-            ' does not match with config deltax: ', delta(2)-delta(1),model%numerics%dew*len0
+!!            ' does not match with config deltax: ', delta(2)-delta(1),model%numerics%dew*len0
+            ' does not match with config deltax: ', delta(2)-delta(1),model%numerics%dew
        call write_log(message,type=GM_FATAL)
     end if
 
@@ -629,9 +630,9 @@ contains
     !call nc_errorhandle(__FILE__,__LINE__,status)
     !status = nf90_get_var(NCI%id,varid,delta)
     !call nc_errorhandle(__FILE__,__LINE__,status)
-    !if (abs(delta(2)-delta(1) - model%numerics%dew*len0) > small) then
+    !if (abs(delta(2)-delta(1) - model%numerics%dew) > small) then
     !   write(message,*) 'deltax0 of file '//trim(process_path(NCI%filename))//' does not match with config deltax: ', &
-    !        delta(2)-delta(1),model%numerics%dew*len0
+    !        delta(2)-delta(1),model%numerics%dew
     !   call write_log(message,type=GM_FATAL)
     !end if
 
@@ -653,9 +654,10 @@ contains
 
 !WHL - mod to prevent code from crashing due to small roundoff error
 !    if (abs(delta(2)-delta(1) - model%numerics%dns*len0) > small) then
-    if (abs( (delta(2)-delta(1) - model%numerics%dns*len0) / (model%numerics%dns*len0) ) > small) then
+    if (abs( (delta(2)-delta(1) - model%numerics%dns) / (model%numerics%dns) ) > small) then
        write(message,*) 'deltay1 of file '//trim(process_path(NCI%filename))// &
-            ' does not match with config deltay: ', delta(2)-delta(1),model%numerics%dns*len0
+!!            ' does not match with config deltay: ', delta(2)-delta(1),model%numerics%dns*len0
+            ' does not match with config deltay: ', delta(2)-delta(1),model%numerics%dns
        call write_log(message,type=GM_FATAL)
     end if
     
@@ -673,9 +675,9 @@ contains
     !call nc_errorhandle(__FILE__,__LINE__,status)
     !status = nf90_get_var(NCI%id,varid,delta)
     !call nc_errorhandle(__FILE__,__LINE__,status)
-    !if (abs(delta(2)-delta(1) - model%numerics%dns*len0) > small) then
+    !if (abs(delta(2)-delta(1) - model%numerics%dns) > small) then
     !   write(message,*) 'deltay0 of file '//trim(process_path(NCI%filename))//' does not match with config deltay: ',&
-    !        delta(2)-delta(1),model%numerics%dns*len0
+    !        delta(2)-delta(1),model%numerics%dns
     !   call write_log(message,type=GM_FATAL)
     !end if
   

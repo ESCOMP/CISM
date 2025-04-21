@@ -82,7 +82,7 @@ contains
     !> initialise temperature module
     use glimmer_physcon, only : rhoi, shci, coni, scyr, grav, gn, lhci, rhow, trpt
 !!    use glimmer_paramets, only : tim0, thk0, acc0, len0, vis0, vel0
-    use glimmer_paramets, only : thk0, acc0, len0, vis0, vel0
+    use glimmer_paramets, only : thk0, acc0, vis0, vel0
     use cism_parallel, only: lhalo, uhalo
 
     type(glide_global_type), intent(inout) :: model       ! model instance
@@ -150,8 +150,9 @@ contains
          0.d0 /)   !WHL - last term no longer needed
          !*sfp* added last term to vector above for use in HO & SSA dissip. cacl
 
-    model%tempwk%c1 = STRAIN_HEAT *(model%numerics%sigma * rhoi * grav * thk0**2 / len0)**p1 * &
+!!    model%tempwk%c1 = STRAIN_HEAT *(model%numerics%sigma * rhoi * grav * thk0**2 / len0)**p1 * &
 !!         2.0d0 * vis0 * model%numerics%dttem * tim0 / (16.0d0 * rhoi * shci)
+    model%tempwk%c1 = STRAIN_HEAT *(model%numerics%sigma * rhoi * grav * thk0**2)**p1 * &
          2.0d0 * vis0 * model%numerics%dttem / (16.0d0 * rhoi * shci)
 
     model%tempwk%dupc = (/ (model%numerics%sigma(2) - model%numerics%sigma(1)) / 2.0d0, &
@@ -179,7 +180,7 @@ contains
     model%tempwk%f = (/ coni / (thk0**2 * lhci * rhoi), &
          1.d0 / (thk0 * lhci * rhoi), &
          1.d0 * thk0 * rhoi * shci /  (thk0 * model%numerics%dttem * lhci * rhoi), &
-         1.d0 * thk0**2 * vel0 * grav * rhoi / (4.0d0 * thk0 * len0 * rhoi * lhci), &
+         1.d0 * thk0**2 * vel0 * grav * rhoi / (4.0d0 * thk0 * rhoi * lhci), &
          0.d0 /)   !WHL - last term no longer needed
          !*sfp* added the last term in the vect above for HO and SSA dissip. calc. 
 

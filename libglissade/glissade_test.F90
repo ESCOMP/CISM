@@ -625,7 +625,8 @@ contains
 
     use glissade_transport, only: glissade_transport_driver, &
          glissade_transport_setup_tracers, glissade_transport_finish_tracers
-    use glimmer_paramets, only: len0, thk0
+!!    use glimmer_paramets, only: len0, thk0
+    use glimmer_paramets, only: thk0
     use glimmer_physcon, only: pi, scyr
 
     !-------------------------------------------------------------------
@@ -698,8 +699,10 @@ contains
 
     ! Initialize
 
-    dx = model%numerics%dew * len0
-    dy = model%numerics%dns * len0
+!!    dx = model%numerics%dew * len0
+!!    dy = model%numerics%dns * len0
+    dx = model%numerics%dew
+    dy = model%numerics%dns
 
     nx = model%general%ewn
     ny = model%general%nsn

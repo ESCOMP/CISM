@@ -30,7 +30,7 @@ module glissade_glacier
 
     use glimmer_global 
 !!    use glimmer_paramets, only: thk0, len0, tim0, vel0, eps08
-    use glimmer_paramets, only: thk0, len0, vel0, eps08
+    use glimmer_paramets, only: thk0, vel0, eps08
     use glimmer_physcon, only: scyr, pi, rhow, rhoi
     use glide_types
     use glimmer_log
@@ -139,8 +139,8 @@ contains
     global_nsn = parallel%global_nsn
     ewn = model%general%ewn
     nsn = model%general%nsn
-    dew = model%numerics%dew * len0   ! convert dew and dns to m
-    dns = model%numerics%dns * len0
+    dew = model%numerics%dew
+    dns = model%numerics%dns
     rtest = model%numerics%rdiag_local
     itest = model%numerics%idiag_local
     jtest = model%numerics%jdiag_local
@@ -187,9 +187,11 @@ contains
           i = itest; j = jtest
           theta_rad = model%general%lat(i,j) * pi/180.d0
           print*, 'Scale dew and dns: factor, new dew, dns =', &
-               glacier%length_scale_factor, dew*len0, dns*len0
+!!               glacier%length_scale_factor, dew*len0, dns*len0
+               glacier%length_scale_factor, dew, dns
           print*, 'Scale cell area: i, j, lat, cos(lat), cell_area =', &
-               i, j, model%general%lat(i,j), cos(theta_rad), model%geometry%cell_area(i,j)*len0**2
+!!               i, j, model%general%lat(i,j), cos(theta_rad), model%geometry%cell_area(i,j)*len0**2
+               i, j, model%general%lat(i,j), cos(theta_rad), model%geometry%cell_area(i,j)
        endif
 
     endif   ! scale_area
@@ -447,7 +449,8 @@ contains
             ewn,           nsn,               &
             nglacier,                         &
             glacier%cism_glacier_id_init,     &
-            model%geometry%cell_area*len0**2, &  ! m^2
+!!            model%geometry%cell_area*len0**2, &  ! m^2
+            model%geometry%cell_area,         &  ! m^2
             model%geometry%thck*thk0,         &  ! m
             glacier%diagnostic_minthck,       &  ! m
             glacier%area_init,                &  ! m^2
@@ -629,7 +632,8 @@ contains
             ewn,           nsn,               &
             nglacier,                         &
             glacier%cism_glacier_id,          &
-            model%geometry%cell_area*len0**2, &  ! m^2
+!!            model%geometry%cell_area*len0**2, &  ! m^2
+            model%geometry%cell_area,         &  ! m^2
             model%geometry%thck*thk0,         &  ! m
             glacier%diagnostic_minthck,       &  ! m
             glacier%area,                     &  ! m^2
@@ -641,7 +645,8 @@ contains
             ewn,           nsn,               &
             nglacier,                         &
             glacier%cism_glacier_id_init,     &
-            model%geometry%cell_area*len0**2, &  ! m^2
+!!            model%geometry%cell_area*len0**2, &  ! m^2
+            model%geometry%cell_area,         &  ! m^2
             model%geometry%thck*thk0,         &  ! m
             glacier%diagnostic_minthck,       &  ! m
             glacier%area_init_extent,         &  ! m^2
@@ -890,8 +895,10 @@ contains
 
     ewn = model%general%ewn
     nsn = model%general%nsn
-    dew = model%numerics%dew * len0         ! convert to m
-    dns = model%numerics%dns * len0         ! convert to m
+!!    dew = model%numerics%dew * len0         ! convert to m
+!!    dns = model%numerics%dns * len0         ! convert to m
+    dew = model%numerics%dew                  ! convert to m
+    dns = model%numerics%dns                  ! convert to m
     rtest = model%numerics%rdiag_local
     itest = model%numerics%idiag_local
     jtest = model%numerics%jdiag_local
@@ -904,7 +911,8 @@ contains
     dt = model%numerics%dt /scyr                    ! s to yr
     thck = model%geometry%thck * thk0               ! model units to m
     dthck_dt = model%geometry%dthck_dt * scyr       ! m/s to m/yr
-    cell_area = model%geometry%cell_area * len0**2  ! model units to m^2
+!!    cell_area = model%geometry%cell_area * len0**2  ! model units to m^2
+    cell_area = model%geometry%cell_area            ! model units to m^2
 
     ! Accumulate the 2D fields used for mu_star and alpha_snow inversion: snow and Tpos.
     ! Also accumulate dthck_dt, which is used for powerlaw_c inversion.
@@ -1828,7 +1836,8 @@ contains
                ewn,           nsn,               &
                nglacier,                         &
                glacier%cism_glacier_id_init,     &
-               model%geometry%cell_area*len0**2, &  ! m^2
+!!               model%geometry%cell_area*len0**2, &  ! m^2
+               model%geometry%cell_area,         &  ! m^2
                glacier%thck_target,              &  ! m
                glacier%diagnostic_minthck,       &  ! m
                glacier%area_target,              &  ! m^2

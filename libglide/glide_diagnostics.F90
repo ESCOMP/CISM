@@ -171,7 +171,8 @@ contains
     ! Write global diagnostics
     ! Also write local diagnostics for a selected grid cell
  
-    use glimmer_paramets, only: thk0, len0, vel0, unphys_val
+!!    use glimmer_paramets, only: thk0, len0, vel0, unphys_val
+    use glimmer_paramets, only: thk0, vel0, unphys_val
     use glimmer_physcon, only: scyr, rhoi, shci
     use glissade_utils, only: glissade_usrf_to_thck, glissade_rms_error
 
@@ -379,13 +380,13 @@ contains
        enddo
     enddo
 
-    tot_area = tot_area * len0**2
+!!    tot_area = tot_area * len0**2
     tot_area = parallel_reduce_sum(tot_area)
 
-    tot_area_ground = tot_area_ground * len0**2
+!!    tot_area_ground = tot_area_ground * len0**2
     tot_area_ground = parallel_reduce_sum(tot_area_ground)
 
-    tot_area_float = tot_area_float * len0**2
+!!    tot_area_float = tot_area_float * len0**2
     tot_area_float = parallel_reduce_sum(tot_area_float)
 
     ! total ice volume (m^3)
@@ -398,7 +399,8 @@ contains
           endif
        enddo
     enddo
-    tot_volume = tot_volume * thk0 * len0**2
+!!    tot_volume = tot_volume * thk0 * len0**2
+    tot_volume = tot_volume * thk0
     tot_volume = parallel_reduce_sum(tot_volume)
 
     ! total ice mass (kg)
@@ -425,7 +427,8 @@ contains
        enddo
     enddo
 
-    tot_mass_above_flotation = tot_mass_above_flotation * thk0 * len0**2  ! convert to m^3
+!!    tot_mass_above_flotation = tot_mass_above_flotation * thk0 * len0**2  ! convert to m^3
+    tot_mass_above_flotation = tot_mass_above_flotation * thk0            ! convert to m^3
     tot_mass_above_flotation = tot_mass_above_flotation * rhoi            ! convert from m^3 to kg
     tot_mass_above_flotation = parallel_reduce_sum(tot_mass_above_flotation)
 
@@ -467,7 +470,8 @@ contains
        enddo
     endif
 
-    tot_energy = tot_energy * thk0 * len0**2 * rhoi * shci
+!!    tot_energy = tot_energy * thk0 * len0**2 * rhoi * shci
+    tot_energy = tot_energy * thk0 * rhoi * shci
     tot_energy = parallel_reduce_sum(tot_energy)
 
     ! mean thickness
@@ -509,7 +513,8 @@ contains
           enddo
        enddo
 
-       tot_acab = tot_acab * scyr * len0**2   ! convert to m^3/yr
+!!       tot_acab = tot_acab * scyr * len0**2   ! convert to m^3/yr
+       tot_acab = tot_acab * scyr               ! convert to m^3/yr
        tot_acab = parallel_reduce_sum(tot_acab)
 
        ! total surface mass balance flux (kg/s)
@@ -531,7 +536,8 @@ contains
           enddo
        enddo
 
-       tot_bmlt = tot_bmlt * scyr * len0**2   ! convert to m^3/yr
+!!       tot_bmlt = tot_bmlt * scyr * len0**2   ! convert to m^3/yr
+       tot_bmlt = tot_bmlt * scyr               ! convert to m^3/yr
        tot_bmlt = parallel_reduce_sum(tot_bmlt)
 
        ! total basal mass balance (kg/s, positive for freeze-on, negative for melt)
@@ -551,7 +557,8 @@ contains
        tot_calving = 0.d0
        do j = lhalo+1, nsn-uhalo
           do i = lhalo+1, ewn-uhalo
-             tot_calving = tot_calving + model%calving%calving_rate(i,j) * (cell_area(i,j)*len0**2)  ! m^3/yr ice
+!!             tot_calving = tot_calving + model%calving%calving_rate(i,j) * (cell_area(i,j)*len0**2)  ! m^3/yr ice
+             tot_calving = tot_calving + model%calving%calving_rate(i,j) * cell_area(i,j)  ! m^3/yr ice
           enddo
        enddo
        tot_calving = parallel_reduce_sum(tot_calving)
@@ -574,8 +581,10 @@ contains
        tot_gl_flux = 0.d0
        do j = lhalo+1, nsn-uhalo
           do i = lhalo+1, ewn-uhalo
-             tot_gl_flux = tot_gl_flux - abs(model%geometry%gl_flux_east(i,j)) * model%numerics%dns*len0 &
-                                       - abs(model%geometry%gl_flux_north(i,j)) * model%numerics%dew*len0
+!!             tot_gl_flux = tot_gl_flux - abs(model%geometry%gl_flux_east(i,j)) * model%numerics%dns*len0 &
+!!                                       - abs(model%geometry%gl_flux_north(i,j)) * model%numerics%dew*len0
+             tot_gl_flux = tot_gl_flux - abs(model%geometry%gl_flux_east(i,j))  * model%numerics%dns &
+                                       - abs(model%geometry%gl_flux_north(i,j)) * model%numerics%dew
           enddo
        enddo
        tot_gl_flux = parallel_reduce_sum(tot_gl_flux)
@@ -592,7 +601,8 @@ contains
              tot_dmass_dt = tot_dmass_dt + model%geometry%dthck_dt(i,j) * cell_area(i,j)
           enddo
        enddo
-       tot_dmass_dt = tot_dmass_dt * rhoi * len0**2  ! convert to kg/s
+!!       tot_dmass_dt = tot_dmass_dt * rhoi * len0**2  ! convert to kg/s
+       tot_dmass_dt = tot_dmass_dt * rhoi              ! convert to kg/s
        tot_dmass_dt = parallel_reduce_sum(tot_dmass_dt)
 
        ! mass conservation error

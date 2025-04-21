@@ -219,7 +219,8 @@ contains
 
   subroutine get_area_vol(thck, dew, dns, thklim, iarea, ivol, exec_serial)
 
-    use glimmer_paramets, only : len0, thk0
+!!    use glimmer_paramets, only : len0, thk0
+    use glimmer_paramets, only : thk0
 
     implicit none
     real(dp), dimension(:,:) :: thck
@@ -250,14 +251,15 @@ contains
     endif
 
     ! convert from model units to SI units
-    iarea = iarea*len0*len0
-    ivol = ivol*len0*len0*thk0
+!!    iarea = iarea*len0*len0
+!!    ivol = ivol*len0*len0*thk0
+    ivol = ivol*thk0
 
   end subroutine get_area_vol
  
   subroutine calc_iareaf_iareag(dew, dns, mask, iareaf, iareag, exec_serial)
     
-    use glimmer_paramets, only : len0 
+!!    use glimmer_paramets, only : len0 
     implicit none
     real(dp), intent(in) :: dew, dns
     real(dp), intent(out) :: iareaf, iareag
@@ -299,8 +301,8 @@ contains
     endif
 
     ! convert from model units to SI units (m^2)
-    iareag = iareag*len0*len0
-    iareaf = iareaf*len0*len0
+!!    iareag = iareag*len0*len0
+!!    iareaf = iareaf*len0*len0
 
   end subroutine calc_iareaf_iareag
 

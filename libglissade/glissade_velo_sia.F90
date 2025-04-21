@@ -56,7 +56,8 @@
 
     use glimmer_global, only: dp
     use glimmer_physcon, only: n_glen, rhoi, grav, scyr
-    use glimmer_paramets, only: thk0, len0, vel0, vis0, tau0
+!!    use glimmer_paramets, only: thk0, len0, vel0, vis0, tau0
+    use glimmer_paramets, only: thk0, vel0, vis0, tau0
 !    use glimmer_log, only: write_log
 
     use glide_types
@@ -590,8 +591,8 @@
        uvel, vvel              ! velocity components (m/yr)
 
     ! grid cell dimensions: rescale from dimensionless to m
-    dx = dx * len0
-    dy = dy * len0
+!!    dx = dx * len0
+!!    dy = dy * len0
 
     ! ice geometry: rescale from dimensionless to m
     thck = thck * thk0
@@ -608,7 +609,7 @@
 
     ! btrc: rescale from dimensionless to (m/yr)/Pa
 !    btrc_const = btrc_const * (vel0*scyr) / tau0
-    btrc_const = btrc_const * (vel0*scyr) * len0 / thk0**2
+    btrc_const = btrc_const * (vel0*scyr) / thk0**2
 
     ! ice velocity: rescale from dimensionless to m/yr
     uvel = uvel * (vel0*scyr)
