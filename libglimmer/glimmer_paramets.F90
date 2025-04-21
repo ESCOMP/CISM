@@ -83,21 +83,21 @@ module glimmer_paramets
 
   ! scaling parameters
 
-  ! The fundamental scaling parameters are thk0, len0, and vel0. The others are derived from these.
+!!  ! The fundamental scaling parameters are thk0, len0, and vel0. The others are derived from these.
 
-!SCALING - DFM, 2, Oct 2012 - made scaled vs. unscaled values for thk0, len0, 
+!!  !SCALING - DFM, 2, Oct 2012 - made scaled vs. unscaled values for thk0, len0, 
 ! and vel0 switchable by the reconstituted NO_RESCALE compilation flag. 
 ! (necessary to be compatible with alternate dycores) 
 
 #ifndef NO_RESCALE
 ! The following are the old Glimmer scaling parameters.
-  real(dp), parameter :: thk0 = 2000.0d0        ! m 
+!!  real(dp), parameter :: thk0 = 2000.0d0        ! m 
 !!  real(dp), parameter :: len0 = 200.0d3         ! m 
   real(dp), parameter :: vel0 = 500.d0 / scyr   ! m yr^{-1} converted to S.I. units
 !!  real(dp), parameter :: vis0 = 5.70d-18 / scyr  ! yr^{-1} Pa^{-3} converted to S.I. units
 #else
 ! (no rescaling)
-  real(dp), parameter :: thk0 = 1.d0        ! no scaling of thickness
+!!  real(dp), parameter :: thk0 = 1.d0        ! no scaling of thickness
 !!  real(dp), parameter :: len0 = 1.d0        ! no scaling of length
   real(dp), parameter :: vel0 = 1.d0 / scyr !   
 ! end (no rescaling)
@@ -107,7 +107,7 @@ module glimmer_paramets
   !      With the revised scaling, tim0 = scyr.
 !!  real(dp), parameter :: tim0 = len0 / vel0          ! s
 !!  real(dp), parameter :: acc0 = thk0 * vel0 / len0   ! m s^{-1}
-  real(dp), parameter :: acc0 = thk0 * vel0            ! m s^{-1}
+  real(dp), parameter :: acc0 = vel0                   ! m s^{-1}
 
 !Note - With thk0 = 1, can replace tau0 by rhoi*grav in code and remove stress scaling.
 !       Similarly can redefine vis0 and evs0
@@ -121,7 +121,8 @@ module glimmer_paramets
 
   ! GLAM scaling parameters; units are correct if thk0 has units of meters
   integer, parameter :: gn = 3                              ! Glen flow exponent; fixed at 3 for purposes of setting vis0
-  real(dp), parameter :: tau0 = rhoi_glam*grav_glam*thk0    ! stress scale in GLAM ( Pa )  
+!!  real(dp), parameter :: tau0 = rhoi_glam*grav_glam*thk0    ! stress scale in GLAM ( Pa )  
+  real(dp), parameter :: tau0 = rhoi_glam*grav_glam         ! stress scale in GLAM ( Pa )  
 !!  real(dp), parameter :: evs0 = tau0 / (vel0/len0)          ! eff. visc. scale in GLAM ( Pa s )
   real(dp), parameter :: evs0 = tau0 / vel0                 ! eff. visc. scale in GLAM ( Pa s )
 !!  real(dp), parameter :: vis0 = tau0**(-gn) * (vel0/len0)   ! rate factor scale in GLAM ( Pa^-3 s^-1 )

@@ -1100,7 +1100,8 @@
     !        match the fluxes computed by the transport scheme.
     !       Also, the GL fluxes do not include thinning/calving of grounded marine cliffs.
 
-    use glimmer_paramets, only: thk0, vel0
+!!    use glimmer_paramets, only: thk0, vel0
+    use glimmer_paramets, only: vel0
 
     implicit none
 
@@ -1238,9 +1239,12 @@
     enddo   ! j
 
     ! Convert from model units to kg/m/s
-    gl_flux_east  = gl_flux_east  * rhoi*thk0*vel0
-    gl_flux_north = gl_flux_north * rhoi*thk0*vel0
-    gl_flux       = gl_flux       * rhoi*thk0*vel0
+!!    gl_flux_east  = gl_flux_east  * rhoi*thk0*vel0
+!!    gl_flux_north = gl_flux_north * rhoi*thk0*vel0
+!!    gl_flux       = gl_flux       * rhoi*thk0*vel0
+    gl_flux_east  = gl_flux_east  * rhoi*vel0
+    gl_flux_north = gl_flux_north * rhoi*vel0
+    gl_flux       = gl_flux       * rhoi*vel0
 
     deallocate(uavg, vavg)
 

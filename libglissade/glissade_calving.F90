@@ -36,7 +36,8 @@ module glissade_calving
        parallel_halo, parallel_globalindex, &
        parallel_reduce_sum, parallel_reduce_max, parallel_reduce_log_or
 
-  use glimmer_paramets, only: eps11, thk0
+!!  use glimmer_paramets, only: eps11, thk0
+  use glimmer_paramets, only: eps11
   use glimmer_physcon, only: rhoi, rhoo, grav, scyr
   use glide_diagnostics, only: point_diag
 
@@ -978,7 +979,8 @@ contains
           !WHL - The Glide version of CALVING_RELX_THRESHOLD calves ice wherever the relaxed bedrock criterion is met.
           !      Must set calving_domain = CALVING_DOMAIN_EVERYWHERE to match the Glide behavior.
           ! Note: calving%marine_limit (a holdover from Glide) has scaled model units
-          where (relx <= calving%marine_limit*thk0 + eus)   ! convert marine_limit from scaled units to m
+!!          where (relx <= calving%marine_limit*thk0 + eus)   ! convert marine_limit from scaled units to m
+          where (relx <= calving%marine_limit + eus)
              calving_law_mask = .true.
           elsewhere
              calving_law_mask = .false.
@@ -986,7 +988,8 @@ contains
 
        case(CALVING_TOPG_THRESHOLD)   ! set thickness to zero if present bedrock is below a given level
 
-          where (topg < calving%marine_limit*thk0 + eus)    ! convert marine_limit from scaled units to m
+!!          where (topg < calving%marine_limit*thk0 + eus)    ! convert marine_limit from scaled units to m
+          where (topg < calving%marine_limit + eus)
              calving_law_mask = .true.
           elsewhere
              calving_law_mask = .false.

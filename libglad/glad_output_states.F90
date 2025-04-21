@@ -34,7 +34,7 @@ module glad_output_states
   ! to a climate model.
 
   use glimmer_global, only : dp
-  use glimmer_paramets, only : thk0
+!!  use glimmer_paramets, only : thk0
   use glide_types, only : glide_global_type, glide_geometry
   
   implicit none
@@ -89,7 +89,8 @@ contains
              ! Note that we use the same method for computing topo whether this point is
              ! ice-covered or ice-free. This is in contrast to the method for computing
              ! ice-free topo in glint_upscaling_gcm.
-             topo(i,j) = thk0 * instance%model%geometry%usrf(i,j)
+!!             topo(i,j) = thk0 * instance%model%geometry%usrf(i,j)
+             topo(i,j) = instance%model%geometry%usrf(i,j)
              
           else
              ! Note that this logic implies that if (in theory) we had an ice-covered
@@ -122,7 +123,8 @@ contains
     !
     ! (2021-09-01) See also https://github.com/ESCOMP/CISM/issues/41
 
-    usrf = thk0 * geometry%usrf(i,j)
+!!    usrf = thk0 * geometry%usrf(i,j)
+    usrf = geometry%usrf(i,j)
 
     if (usrf > 0.d0) then
        ! points not at sea level are assumed to be land or ice sheet
@@ -148,7 +150,8 @@ contains
     ! TODO(wjs, 2015-03-18) The logic here should probably be replaced by the use of some
     ! existing mask. For now I am simply re-implementing the logic that was in glint.
 
-    thck = thk0 * geometry%thck(i,j)
+!!    thck = thk0 * geometry%thck(i,j)
+    thck = geometry%thck(i,j)
 
     if (thck > min_thck) then
        is_ice_covered = .true.

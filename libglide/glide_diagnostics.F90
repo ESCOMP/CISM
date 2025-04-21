@@ -173,7 +173,8 @@ contains
     ! Also write local diagnostics for a selected grid cell
  
 !!    use glimmer_paramets, only: thk0, len0, vel0, unphys_val
-    use glimmer_paramets, only: thk0, vel0, unphys_val
+!!    use glimmer_paramets, only: thk0, vel0, unphys_val
+    use glimmer_paramets, only: vel0, unphys_val
     use glimmer_physcon, only: scyr, rhoi, shci
     use glissade_utils, only: glissade_usrf_to_thck, glissade_rms_error
 
@@ -333,7 +334,7 @@ contains
        !       then thklim is reset at initialization to a number slightly less than 1.0.
        !       This protects the diagnostics below against rounding errors for cells
        !       with thck very close to minthck.
-       minthck = model%numerics%thklim*thk0
+       minthck = model%numerics%thklim
     endif
 
     !-----------------------------------------------------------------
@@ -342,7 +343,8 @@ contains
 
     do j = 1, nsn
        do i = 1, ewn
-          if (model%geometry%thck(i,j)*thk0 > minthck) then
+!!          if (model%geometry%thck(i,j)*thk0 > minthck) then
+          if (model%geometry%thck(i,j) > minthck) then
              ice_mask(i,j) = 1
              if (model%geometry%topg(i,j) - model%climate%eus < (-rhoi/rhoo)*model%geometry%thck(i,j)) then
                 floating_mask(i,j) = 1
@@ -404,7 +406,6 @@ contains
        enddo
     enddo
 !!    tot_volume = tot_volume * thk0 * len0**2
-    tot_volume = tot_volume * thk0
     tot_volume = parallel_reduce_sum(tot_volume)
 
     ! total ice mass (kg)
@@ -432,7 +433,6 @@ contains
     enddo
 
 !!    tot_mass_above_flotation = tot_mass_above_flotation * thk0 * len0**2  ! convert to m^3
-    tot_mass_above_flotation = tot_mass_above_flotation * thk0            ! convert to m^3
     tot_mass_above_flotation = tot_mass_above_flotation * rhoi            ! convert from m^3 to kg
     tot_mass_above_flotation = parallel_reduce_sum(tot_mass_above_flotation)
 
@@ -475,7 +475,7 @@ contains
     endif
 
 !!    tot_energy = tot_energy * thk0 * len0**2 * rhoi * shci
-    tot_energy = tot_energy * thk0 * rhoi * shci
+    tot_energy = tot_energy * rhoi * shci
     tot_energy = parallel_reduce_sum(tot_energy)
 
     ! mean thickness
@@ -770,7 +770,8 @@ contains
     jmax_global = parallel_reduce_max(jmax_global)
 
     write(message,'(a25,f24.16,2i6)') 'Max thickness (m), i, j  ',   &
-                                       max_thck_global*thk0, imax_global, jmax_global
+!!                                       max_thck_global*thk0, imax_global, jmax_global
+                                       max_thck_global, imax_global, jmax_global
     call write_log(trim(message), type = GM_DIAGNOSTIC)
 
     ! max temperature
@@ -906,7 +907,8 @@ contains
        do i = lhalo+1, velo_ew_ubound
           spd = sqrt(model%velocity%uvel(1,i,j)**2   &
                    + model%velocity%vvel(1,i,j)**2)
-          if (model%geomderv%stagthck(i,j)*thk0 > minthck .and. spd > max_spd_sfc) then
+!!          if (model%geomderv%stagthck(i,j)*thk0 > minthck .and. spd > max_spd_sfc) then
+          if (model%geomderv%stagthck(i,j) > minthck .and. spd > max_spd_sfc) then
              max_spd_sfc = spd
              imax = i
              jmax = j
@@ -932,7 +934,8 @@ contains
        do i = lhalo+1, velo_ew_ubound
           spd = sqrt(model%velocity%uvel(upn,i,j)**2   &
                    + model%velocity%vvel(upn,i,j)**2)
-          if (model%geomderv%stagthck(i,j)*thk0 > minthck  .and. spd > max_spd_bas) then
+!!          if (model%geomderv%stagthck(i,j)*thk0 > minthck  .and. spd > max_spd_bas) then
+          if (model%geomderv%stagthck(i,j) > minthck  .and. spd > max_spd_bas) then
              max_spd_bas = spd
              imax = i
              jmax = j
@@ -967,8 +970,10 @@ contains
             ewn,            nsn,          &
             ice_mask,                     &
             parallel,                     &
-            model%geometry%thck*thk0,     &  ! m
-            thck_obs*thk0,                &  ! m
+!!            model%geometry%thck*thk0,     &  ! m
+            model%geometry%thck,          &  ! m
+!!            thck_obs*thk0,                &  ! m
+            thck_obs,                     &  ! m
             rmse_thck)
 
        write(message,'(a25,f24.16)') 'rms error, thickness (m) ', rmse_thck
@@ -1024,17 +1029,23 @@ contains
 
           i = model%numerics%idiag_local
           j = model%numerics%jdiag_local
-          usrf_diag = model%geometry%usrf(i,j)*thk0
-          thck_diag = model%geometry%thck(i,j)*thk0
-          topg_diag = model%geometry%topg(i,j)*thk0
+!!          usrf_diag = model%geometry%usrf(i,j)*thk0
+!!          thck_diag = model%geometry%thck(i,j)*thk0
+!!          topg_diag = model%geometry%topg(i,j)*thk0
+          usrf_diag = model%geometry%usrf(i,j)
+          thck_diag = model%geometry%thck(i,j)
+          topg_diag = model%geometry%topg(i,j)
           if (model%options%isostasy == ISOSTASY_COMPUTE) then
-             relx_diag = model%isostasy%relx(i,j)*thk0
-             load_diag = model%isostasy%load(i,j)*thk0
+!!             relx_diag = model%isostasy%relx(i,j)*thk0
+!!             load_diag = model%isostasy%load(i,j)*thk0
+             relx_diag = model%isostasy%relx(i,j)
+             load_diag = model%isostasy%load(i,j)
           endif
           artm_diag = model%climate%artm_corrected(i,j)  ! artm_corrected = artm + artm_anomaly
           acab_diag = model%climate%acab_applied(i,j) * scyr
           bmlt_diag = model%basal_melt%bmlt_applied(i,j) * scyr
-          bwat_diag = model%basal_hydro%bwat(i,j) * thk0
+!!          bwat_diag = model%basal_hydro%bwat(i,j) * thk0
+          bwat_diag = model%basal_hydro%bwat(i,j)
           bheatflx_diag = model%temper%bheatflx(i,j)
           top_age_diag = model%geometry%ice_age(1,i,j)       ! age of top ice layer
           bot_age_diag = model%geometry%ice_age(upn-1,i,j)   ! age of bottom ice layer
@@ -1287,7 +1298,8 @@ contains
                 if (ng > 0) then
                    nglc_cells = nglc_cells + 1
                    sum_sqr_err = sum_sqr_err &
-                        + (model%geometry%thck(i,j)*thk0 - model%glacier%thck_target(i,j))**2
+!!                        + (model%geometry%thck(i,j)*thk0 - model%glacier%thck_target(i,j))**2
+                        + (model%geometry%thck(i,j) - model%glacier%thck_target(i,j))**2
                 endif
              enddo
           enddo
@@ -1304,7 +1316,8 @@ contains
                 if (ng > 0) then
                    nglc_cells = nglc_cells + 1
                    sum_sqr_err = sum_sqr_err &
-                        + (model%geometry%thck(i,j)*thk0 - model%glacier%thck_target(i,j))**2
+!!                        + (model%geometry%thck(i,j)*thk0 - model%glacier%thck_target(i,j))**2
+                        + (model%geometry%thck(i,j) - model%glacier%thck_target(i,j))**2
                 endif
              enddo
           enddo

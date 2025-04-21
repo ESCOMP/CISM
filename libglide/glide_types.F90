@@ -1187,23 +1187,29 @@ module glide_types
     !> geometry of the ice sheet and bedrock.
 
     real(dp),dimension(:,:),pointer :: thck => null()
-    !> The thickness of the ice, divided by \texttt{thk0}.
+!!    !> The thickness of the ice, divided by \texttt{thk0}.
+    !> ice thickness (m)
 
     real(dp),dimension(:,:),pointer :: usrf => null()
-    !> The elevation of the upper ice surface, divided by \texttt{thk0}.
+!!    !> The elevation of the upper ice surface, divided by \texttt{thk0}.
+    ! elevation of the upper ice surface (m)
 
     real(dp),dimension(:,:),pointer :: lsrf => null() 
-    !> The elevation of the lower ice surface, divided by \texttt{thk0}.
+!!    !> The elevation of the lower ice surface, divided by \texttt{thk0}.
+    ! elevation of the lower ice surface (m)
 
     real(dp),dimension(:,:),pointer :: topg => null() 
-    !> The elevation of the topography, divided by \texttt{thk0}.
+!!    !> The elevation of the topography, divided by \texttt{thk0}.
+    !> elevation of the bed topography (m)
 
     real(dp),dimension(:,:),pointer :: topg_raised => null()
-    !> Raised version of the topography, divided by \texttt{thk0}.
+!!    !> Raised version of the topography, divided by \texttt{thk0}.
+    !> raised version of the topography (m)
     !> Used to resolve pinning points for one of the GLP options
 
     real(dp),dimension(:,:),pointer :: usrf_obs => null()
-    !> Observed upper surface elevation, divided by \texttt{thk0}.
+!!    !> Observed upper surface elevation, divided by \texttt{thk0}.
+    !> observed upper surface elevation (m)
 
     real(dp),dimension(:,:),pointer :: f_flotation => null() 
     !> flotation function, > 0 for floating ice and <= 0 for grounded ice
@@ -1217,7 +1223,8 @@ module glide_types
     real(dp),dimension(:,:,:),pointer :: ice_age => null()
     !> The age of a given ice layer; units are s internally, yr for I/O
 
-    real(dp),dimension(:,:),pointer :: thck_old => null()           !> old ice thickness, divided by \texttt{thk0}
+!!    real(dp),dimension(:,:),pointer :: thck_old => null()           !> old ice thickness, divided by \texttt{thk0}
+    real(dp),dimension(:,:),pointer :: thck_old => null()           !> old ice thickness (m)
     real(dp),dimension(:,:),pointer :: dthck_dt => null()           !> ice thickness tendency (m/s)
     real(dp),dimension(:,:),pointer :: dthck_dt_obs => null()       !> observed rate of change of ice thickness (m/s)
     real(dp),dimension(:,:),pointer :: dthck_dt_obs_basin => null() !> basin_average of dthck_dt_obs (m/s)
@@ -1543,7 +1550,7 @@ module glide_types
   type glide_calving
      !> holds fields and parameters related to calving
      real(dp),dimension(:,:),  pointer :: calving_thck => null()   !> thickness loss in grid cell due to calving
-                                                                   !> scaled by thk0 like mass balance, thickness, etc.
+!!                                                                   !> scaled by thk0 like mass balance, thickness, etc.
      real(dp),dimension(:,:),  pointer :: calving_rate => null()   !> rate of ice loss due to calving (m/yr ice)
      real(dp),dimension(:,:),  pointer :: calving_rate_tavg => null()  !> rate of ice loss due to calving (m/yr ice, time average)
      integer, dimension(:,:),  pointer :: calving_mask => null()   !> calve floating ice where the mask = 1 (whichcalving = CALVING_GRID_MASK)
@@ -2328,8 +2335,10 @@ module glide_types
      logical :: new_load = .false.            ! set to true if there is a new surface load
      type(isos_elastic) :: rbel               ! structure holding elastic lithosphere setup
 
-     real(dp),dimension(:,:),pointer :: relx => null()  ! elevation of relaxed topography, m/thk0
-     real(dp),dimension(:,:),pointer :: load => null()  ! deflection due to applied load on lithosphere, m/thk0
+!!     real(dp),dimension(:,:),pointer :: relx => null()  ! elevation of relaxed topography, m/thk0
+     real(dp),dimension(:,:),pointer :: relx => null()  ! elevation of relaxed topography (m)
+!!     real(dp),dimension(:,:),pointer :: load => null()  ! deflection due to applied load on lithosphere, m/thk0
+     real(dp),dimension(:,:),pointer :: load => null()  ! deflection due to applied load on lithosphere (m)
                                                         ! defined as positive for downward deflection
      real(dp),dimension(:,:),pointer :: load_factors => null() ! temporary used for load calculation
 

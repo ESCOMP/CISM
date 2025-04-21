@@ -86,7 +86,7 @@ contains
     ! Driver for updating basal hydrology
     !TODO - Upgrade calcbwat for Glissade?  Currently this subroutine is a mix of old Glide and newer Glissade code.
 
-    use glimmer_paramets, only : thk0
+!!    use glimmer_paramets, only : thk0
     use glide_grid_operators, only: stagvarb
     use glissade_grid_operators, only: glissade_stagger
 
@@ -101,7 +101,8 @@ contains
     real(dp), dimension(:,:), intent(inout), pointer :: wphi
 
     real(dp), dimension(2), parameter :: &
-         blim = (/ 0.00001 / thk0, 0.001 / thk0 /)
+!!         blim = (/ 0.00001 / thk0, 0.001 / thk0 /)
+         blim = (/ 0.00001, 0.001 /)
 
     integer :: t_wat,ns,ew
 
@@ -185,7 +186,8 @@ contains
 
        ! Use a constant water thickness where ice is present, to force Tbed = Tpmp
        where (thck > model%numerics%thklim)
-          bwat(:,:) = const_bwat / thk0
+!!          bwat(:,:) = const_bwat / thk0
+          bwat(:,:) = const_bwat
        elsewhere
           bwat(:,:) = 0.0d0
        endwhere

@@ -59,7 +59,7 @@
     use glimmer_global, only: dp
     use glimmer_physcon, only: n_glen, rhoi, rhoo, grav, scyr, pi
 !!    use glimmer_paramets, only: eps08, eps10, thk0, len0, tau0, vel0, vis0, evs0
-    use glimmer_paramets, only: eps08, eps10, thk0, tau0, vel0, vis0, evs0
+    use glimmer_paramets, only: eps08, eps10, tau0, vel0, vis0, evs0
     use glimmer_paramets, only: vel_scale, len_scale   ! used for whichefvs = HO_EFVS_FLOWFACT
     use glimmer_log
     use glimmer_sparse_type
@@ -4407,12 +4407,12 @@
     ! Note: The following is a kluge. It is needed because thck can point to either
     !       geometry%thck or calving%thck_effective, which have different units.
     !       To be removed when scaling goes away.
-    if (whichcalving_front == HO_CALVING_FRONT_NO_SUBGRID) thck = thck * thk0
+!!    if (whichcalving_front == HO_CALVING_FRONT_NO_SUBGRID) thck = thck * thk0
 
-    topg = topg * thk0
-    eus  = eus  * thk0
-    thklim = thklim * thk0
-    thck_gradient_ramp = thck_gradient_ramp * thk0
+!!    topg = topg * thk0
+!!    eus  = eus  * thk0
+!!    thklim = thklim * thk0
+!!    thck_gradient_ramp = thck_gradient_ramp * thk0
 
     ! rate factor: rescale from dimensionless to Pa^(-n) yr^(-1)
     flwa = flwa * (vis0*scyr)
@@ -4487,8 +4487,8 @@
     ! Note: The following is a kluge. It is needed because thck can point to either
     !       geometry%thck or calving%thck_effective, which have different units.
     !       To be removed when scaling goes away.
-    if (whichcalving_front == HO_CALVING_FRONT_NO_SUBGRID) thck = thck / thk0
-    topg = topg / thk0
+!!    if (whichcalving_front == HO_CALVING_FRONT_NO_SUBGRID) thck = thck / thk0
+!!    topg = topg / thk0
 
     ! Convert flow factor from Pa^(-n) yr^(-1) to dimensionless units
     flwa = flwa / (vis0*scyr)

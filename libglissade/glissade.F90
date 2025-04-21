@@ -107,7 +107,7 @@ contains
     use glissade_masks, only: glissade_get_masks, glissade_marine_connection_mask
     use glimmer_scales
 !!    use glimmer_paramets, only: eps11, thk0, len0, tim0, vel0, scyr
-    use glimmer_paramets, only: eps11, thk0, vel0, scyr
+    use glimmer_paramets, only: eps11, vel0, scyr
     use glimmer_physcon, only: rhow, rhoi
     use glide_mask
     use isostasy, only: init_isostasy, isos_relaxed
@@ -667,7 +667,8 @@ contains
                              model%numerics%rdiag_local,                            &
                              model%numerics%sigma,       model%numerics%stagsigma,  &
                              model%numerics%dups,                                   &
-                             model%geometry%thck*thk0,                              & ! m
+!!                             model%geometry%thck*thk0,                              & ! m
+                             model%geometry%thck,                                   & ! m
                              model%climate%artm_corrected,                          & ! deg C
                              model%climate%acab,                                    & ! m/s
                              model%temper%bheatflx,                                 & ! W/m^2, positive down
@@ -708,7 +709,7 @@ contains
     if (make_ice_domain_mask) then
 
        where (model%geometry%thck > 0.0d0 .or. model%geometry%topg > 0.0d0)
-!!       where (model%geometry%thck > 0.0d0 .or. model%geometry%topg*thk0 > -1000.0d0)
+!!       where (model%geometry%thck > 0.0d0 .or. model%geometry%topg > -1000.0d0)
 !!       where (model%geometry%thck > 0.0d0)  ! uncomment for terrestrial margins
           model%general%ice_domain_mask = 1
        elsewhere
@@ -827,7 +828,8 @@ contains
      
     if (test_transport) then
        where (model%geometry%thck > model%numerics%thklim)
-          model%geometry%thck = thk_init/thk0
+!!          model%geometry%thck = thk_init/thk0
+          model%geometry%thck = thk_init
        elsewhere
           model%geometry%thck = 0.d0
        endwhere
@@ -846,8 +848,10 @@ contains
          parallel,                                               &
          model%numerics%idiag_local, model%numerics%jdiag_local, &
          model%numerics%rdiag_local,                             &
-         model%geometry%thck * thk0, model%geometry%topg * thk0, &
-         model%climate%eus * thk0,   0.0d0,                      &  ! thklim = 0
+!!         model%geometry%thck * thk0, model%geometry%topg * thk0, &
+!!         model%climate%eus * thk0,   0.0d0,                      &  ! thklim = 0
+         model%geometry%thck,        model%geometry%topg,        &
+         model%climate%eus,          0.0d0,                      &  ! thklim = 0
          model%geometry%marine_connection_mask)
 
     ! TODO: Move calving-related initialization to a separate subroutine.
@@ -952,7 +956,8 @@ contains
 
        if (verbose_retreat) then
           if (this_rank == rtest) write(6,*) 'force_retreat option =', model%options%force_retreat
-          call point_diag(model%geometry%reference_thck*thk0, 'reference_thck (m)', itest, jtest, rtest, 7, 7)
+!!          call point_diag(model%geometry%reference_thck*thk0, 'reference_thck (m)', itest, jtest, rtest, 7, 7)
+          call point_diag(model%geometry%reference_thck, 'reference_thck (m)', itest, jtest, rtest, 7, 7)
           call point_diag(model%geometry%ice_fraction_retreat_mask, 'ice_fraction_retreat_mask', itest, jtest, rtest, 7, 7)
        endif
 
@@ -979,8 +984,10 @@ contains
 !!            model%numerics%dew*len0,           model%numerics%dns*len0,           &
             model%numerics%dew,                model%numerics%dns,                &
             parallel,                                                             &
-            model%geometry%thck*thk0,          model%geometry%topg*thk0,          &  ! m
-            model%climate%eus*thk0,            model%numerics%thklim*thk0,        &  ! m
+!!            model%geometry%thck*thk0,          model%geometry%topg*thk0,          &  ! m
+!!            model%climate%eus*thk0,            model%numerics%thklim*thk0,        &  ! m
+            model%geometry%thck,               model%geometry%topg,               &  ! m
+            model%climate%eus,                 model%numerics%thklim,             &  ! m
             model%velocity%usfc_obs*vel0*scyr, model%velocity%vsfc_obs*vel0*scyr, &  ! m/yr
             model%calving%calving_front_x,     model%calving%calving_front_y,     &
             model%calving%calving_mask)
@@ -1028,9 +1035,12 @@ contains
                                        model%general%nsn,             &
                                        parallel,                      &
                                        itest, jtest, rtest,           &  ! diagnostic only
-                                       model%geometry%thck*thk0,      &
-                                       model%geometry%topg*thk0,      &
-                                       model%climate%eus*thk0,        &
+!!                                       model%geometry%thck*thk0,      &
+!!                                       model%geometry%topg*thk0,      &
+!!                                       model%climate%eus*thk0,        &
+                                       model%geometry%thck,           &
+                                       model%geometry%topg,           &
+                                       model%climate%eus,             &
                                        ice_mask,                      &
                                        floating_mask,                 &
                                        land_mask,                     &
@@ -1040,7 +1050,8 @@ contains
                                        model%geometry%f_flotation,    &
                                        model%geometry%f_ground,       &
                                        model%geometry%f_ground_cell,  &
-                                       model%geometry%topg_raised*thk0)
+!!                                       model%geometry%topg_raised*thk0)
+                                       model%geometry%topg_raised)
 
        call glissade_bmlt_float_thermal_forcing_init(model, model%ocean_data)
 
@@ -1107,7 +1118,6 @@ contains
     use cism_parallel, only:  parallel_type, not_parallel
 
 !!    use glimmer_paramets, only: tim0, len0, thk0
-    use glimmer_paramets, only: thk0
     use glimmer_physcon, only: scyr
     use glide_mask, only: glide_set_mask, calc_iareaf_iareag
 
@@ -1268,7 +1278,8 @@ contains
     model%basal_melt%bmlt(:,:) = model%basal_melt%bmlt_ground(:,:) + model%basal_melt%bmlt_float(:,:)
 
     if (verbose_glissade) then
-       call point_diag(model%geometry%thck*thk0, 'Before thickness solver, thck (m)', itest, jtest, rtest, 7, 7)
+!!       call point_diag(model%geometry%thck*thk0, 'Before thickness solver, thck (m)', itest, jtest, rtest, 7, 7)
+       call point_diag(model%geometry%thck, 'Before thickness solver, thck (m)', itest, jtest, rtest, 7, 7)
        call point_diag(model%basal_melt%bmlt_ground*scyr, 'bmlt_ground (m/yr):', itest, jtest, rtest, 7, 7)
        call point_diag(model%basal_melt%bmlt_float*scyr, 'bmlt_float (m/yr):', itest, jtest, rtest, 7, 7)
     endif
@@ -1361,7 +1372,7 @@ contains
     ! Solve for basal melting beneath floating ice.
 
 !!    use glimmer_paramets, only: eps08, eps11, tim0, thk0, len0
-    use glimmer_paramets, only: eps08, eps11, thk0
+    use glimmer_paramets, only: eps08, eps11
     use glimmer_physcon, only: scyr
     use glissade_bmlt_float, only: glissade_basal_melting_float, &
          glissade_bmlt_float_thermal_forcing, verbose_bmlt_float
@@ -1525,9 +1536,12 @@ contains
             ocean_mask,                            &
             model%geometry%marine_connection_mask, &
             model%geometry%f_ground_cell,          &
-            model%geometry%thck*thk0,              & ! m
-            model%geometry%lsrf*thk0,              & ! m
-            model%geometry%topg*thk0,              & ! m
+!!            model%geometry%thck*thk0,              & ! m
+!!            model%geometry%lsrf*thk0,              & ! m
+!!            model%geometry%topg*thk0,              & ! m
+            model%geometry%thck,                   & ! m
+            model%geometry%lsrf,                   & ! m
+            model%geometry%topg,                   & ! m
             model%ocean_data,                      &
             model%basal_melt%bmlt_float,           &
             tf_anomaly_in = tf_anomaly,            & ! deg C
@@ -1545,10 +1559,14 @@ contains
                                          itest,                      jtest,                     &
                                          rtest,                                                 &
                                          model%general%x1,                                      & ! m
-                                         model%geometry%thck*thk0,                              & ! m
-                                         model%geometry%lsrf*thk0,                              & ! m
-                                         model%geometry%topg*thk0,                              & ! m
-                                         model%climate%eus*thk0,                                & ! m
+!!                                         model%geometry%thck*thk0,                              & ! m
+!!                                         model%geometry%lsrf*thk0,                              & ! m
+!!                                         model%geometry%topg*thk0,                              & ! m
+!!                                         model%climate%eus*thk0,                                & ! m
+                                         model%geometry%thck,                                   & ! m
+                                         model%geometry%lsrf,                                   & ! m
+                                         model%geometry%topg,                                   & ! m
+                                         model%climate%eus,                                     & ! m
                                          model%basal_melt,                                      & ! bmlt_float in m/s
                                          model%ocean_data)
 
@@ -1648,7 +1666,8 @@ contains
 
        ! TODO: Make sure lsrf is up to date. Add eus term.
 
-       h_cavity = max(model%geometry%lsrf - model%geometry%topg, 0.0d0) * thk0  ! cavity thickness (m)
+!!       h_cavity = max(model%geometry%lsrf - model%geometry%topg, 0.0d0) * thk0  ! cavity thickness (m)
+       h_cavity = max(model%geometry%lsrf - model%geometry%topg, 0.0d0)  ! cavity thickness (m)
 
        if (verbose_bmlt_float) then
           if (this_rank == rtest) then
@@ -1700,7 +1719,6 @@ contains
     use cism_parallel, only: parallel_type, parallel_halo
 
 !!    use glimmer_paramets, only: tim0, thk0, len0
-    use glimmer_paramets, only: thk0
     use glimmer_physcon, only: rhow, rhoi, scyr
     use glissade_therm, only: glissade_therm_driver
     use glissade_basal_water, only: glissade_calcbwat, glissade_bwat_flux_routing
@@ -1765,7 +1783,8 @@ contains
 
        ! compute artm by a lapse-rate correction to the reference value
        model%climate%artm(:,:) = model%climate%artm_ref(:,:) + &
-            (model%geometry%usrf(:,:)*thk0 - model%climate%usrf_ref(:,:)) * model%climate%artm_gradz(:,:)
+!!            (model%geometry%usrf(:,:)*thk0 - model%climate%usrf_ref(:,:)) * model%climate%artm_gradz(:,:)
+            (model%geometry%usrf(:,:) - model%climate%usrf_ref(:,:)) * model%climate%artm_gradz(:,:)
 
     elseif (model%options%artm_input_function == ARTM_INPUT_FUNCTION_XYZ) then
 
@@ -1789,13 +1808,14 @@ contains
        ! Note: This option is currently used for glaciers lapse rate adjustments
 
        model%climate%artm(:,:) = model%climate%artm_ref(:,:) - &
-            (model%geometry%usrf(:,:)*thk0 - model%climate%usrf_ref(:,:)) * model%climate%t_lapse
+!!            (model%geometry%usrf(:,:)*thk0 - model%climate%usrf_ref(:,:)) * model%climate%t_lapse
+            (model%geometry%usrf(:,:) - model%climate%usrf_ref(:,:)) * model%climate%t_lapse
        if (verbose_glacier .and. this_rank == rtest) then
           i = itest; j = jtest
 !          print*, ' '
 !          print*, 'rank, i, j, usrf_ref, usrf, dz:', this_rank, i, j, &
-!               model%climate%usrf_ref(i,j), model%geometry%usrf(i,j)*thk0, &
-!               model%geometry%usrf(i,j)*thk0 - model%climate%usrf_ref(i,j)
+!               model%climate%usrf_ref(i,j), model%geometry%usrf(i,j), &
+!               model%geometry%usrf(i,j) - model%climate%usrf_ref(i,j)
 !          print*, '   artm_ref, artm:', model%climate%artm_ref(i,j), model%climate%artm(i,j)
        endif
 
@@ -1894,18 +1914,24 @@ contains
                                 model%numerics%rdiag_local,                                   &
                                 model%numerics%sigma,       model%numerics%stagsigma,         &
                                 model%numerics%dups,                                          &
-                                model%numerics%thklim_temp*thk0,                              & ! m
-                                model%geometry%thck*thk0,                                     & ! m
-                                model%geometry%topg*thk0,                                     & ! m
-                                model%geometry%lsrf*thk0,                                     & ! m
-                                model%climate%eus*thk0,                                       & ! m
+!!                                model%numerics%thklim_temp*thk0,                              & ! m
+!!                                model%geometry%thck*thk0,                                     & ! m
+!!                                model%geometry%topg*thk0,                                     & ! m
+!!                                model%geometry%lsrf*thk0,                                     & ! m
+!!                                model%climate%eus*thk0,                                       & ! m
+                                model%numerics%thklim_temp,                                   & ! m
+                                model%geometry%thck,                                          & ! m
+                                model%geometry%topg,                                          & ! m
+                                model%geometry%lsrf,                                          & ! m
+                                model%climate%eus,                                            & ! m
                                 model%climate%artm_corrected,                                 & ! deg C
                                 model%options%which_ho_ground,                                &
                                 model%geometry%f_ground_cell,                                 & ! [0,1]
                                 model%temper%bheatflx,      model%temper%bfricflx,            & ! W/m2
                                 model%temper%dissip,                                          & ! deg/s
                                 model%temper%pmp_threshold,                                   & ! deg C
-                                model%basal_hydro%bwat*thk0,                                  & ! m
+!!                                model%basal_hydro%bwat*thk0,                                  & ! m
+                                model%basal_hydro%bwat,                                       & ! m
                                 model%temper%temp,                                            & ! deg C
                                 model%temper%waterfrac,                                       & ! unitless
                                 model%temper%bpmp,                                            & ! deg C
@@ -1919,7 +1945,8 @@ contains
     if (main_task .and. verbose_glissade) print*, 'Call glissade_calcbwat'
 
     ! convert bwat to SI units for input to glissade_calcbwat
-    bwat_unscaled(:,:) = model%basal_hydro%bwat(:,:) * thk0
+!!    bwat_unscaled(:,:) = model%basal_hydro%bwat(:,:) * thk0
+    bwat_unscaled(:,:) = model%basal_hydro%bwat(:,:)
 
     !TODO - Move the following calls to a new basal hydrology solver?
 
@@ -1927,7 +1954,7 @@ contains
 
        !WHL - Temporary code for debugging: Make up a simple basal melt field.
 !       model%basal_hydro%head(:,:) = &
-!            model%geometry%thck(:,:)*thk0 + (rhow/rhoi)*model%geometry%topg(:,:)*thk0
+!            model%geometry%thck(:,:) + (rhow/rhoi)*model%geometry%topg(:,:)
 !       head_max = maxval(model%basal_hydro%head)  ! max on local processor
 !       head_max = parallel_reduce_max(head_max)   ! global max
 !       do j = 1, model%general%nsn
@@ -1996,9 +2023,12 @@ contains
             model%parallel,                                   &
             itest, jtest, rtest,                              &
             model%options%ho_flux_routing_scheme,             &
-            model%geometry%thck*thk0,                         &  ! m
-            model%geometry%topg*thk0,                         &  ! m
-            model%numerics%thklim_temp*thk0,                  &  ! m
+!!            model%geometry%thck*thk0,                         &  ! m
+!!            model%geometry%topg*thk0,                         &  ! m
+!!            model%numerics%thklim_temp*thk0,                  &  ! m
+            model%geometry%thck,                             &  ! m
+            model%geometry%topg,                              &  ! m
+            model%numerics%thklim_temp,                       &  ! m
             bwat_mask,                                        &
             floating_mask,                                    &
             model%basal_melt%bmlt_ground,                     &  ! m/s
@@ -2010,15 +2040,19 @@ contains
        call glissade_calcbwat(model%options%which_ho_bwat,      &
                               model%basal_hydro,                &
                               dt,                               &  ! s
-                              model%geometry%thck*thk0,         &  ! m
-                              model%numerics%thklim_temp*thk0,  &  ! m
+!!                              model%geometry%thck*thk0,         &  ! m
+!!                              model%numerics%thklim_temp*thk0,  &  ! m
+                              model%geometry%thck,              &  ! m
+                              model%numerics%thklim_temp,       &  ! m
                               model%basal_melt%bmlt_ground,     &  ! m/s
                               bwat_unscaled)                       ! m
 
     endif
 
     ! convert bmlt and bwat from SI units (m/s and m) to scaled model units
-    model%basal_hydro%bwat(:,:) = bwat_unscaled(:,:) / thk0
+    !TODO - Remove bwat_unscaled, work with model%basal_hydro%bwat
+!!    model%basal_hydro%bwat(:,:) = bwat_unscaled(:,:) / thk0
+    model%basal_hydro%bwat(:,:) = bwat_unscaled(:,:)
 
     ! Update tempunstag as sigma weighted interpolation from temp to layer interfaces
     do up = 2, model%general%upn-1
@@ -2060,7 +2094,7 @@ contains
     use cism_parallel, only: parallel_type, parallel_halo, parallel_halo_tracers,  &
          staggered_parallel_halo, parallel_reduce_max
 !!    use glimmer_paramets, only: eps11, eps08, tim0, thk0, vel0, len0
-    use glimmer_paramets, only: eps11, eps08, thk0, vel0
+    use glimmer_paramets, only: eps11, eps08, vel0
     use glimmer_physcon, only: rhow, rhoi, scyr
     use glide_diagnostics, only: glide_init_diag
     use glissade_therm, only: glissade_temp2enth, glissade_enth2temp
@@ -2173,7 +2207,8 @@ contains
        call t_startf('glissade_transport_driver')
 
        if (verbose_inversion .or. verbose_glissade .or. verbose_calving) then
-          call point_diag(model%geometry%thck*thk0, 'Before glissade_transport_driver, thck (m)', &
+!!          call point_diag(model%geometry%thck*thk0, 'Before glissade_transport_driver, thck (m)', &
+          call point_diag(model%geometry%thck, 'Before glissade_transport_driver, thck (m)', &
                itest, jtest, rtest, 7, 7, '(f10.3)')
        endif
 
@@ -2184,10 +2219,14 @@ contains
        call glissade_get_masks(&
             ewn,              nsn,              &
             parallel,                           &
-            model%geometry%thck*thk0,           &   ! m
-            model%geometry%topg*thk0,           &   ! m
-            model%climate%eus*thk0,             &   ! m
-            model%numerics%thklim*thk0,         &   ! m
+!!            model%geometry%thck*thk0,           &   ! m
+!!            model%geometry%topg*thk0,           &   ! m
+!!            model%climate%eus*thk0,             &   ! m
+!!            model%numerics%thklim*thk0,         &   ! m
+            model%geometry%thck,                &   ! m
+            model%geometry%topg,                &   ! m
+            model%climate%eus,                  &   ! m
+            model%numerics%thklim,              &   ! m
             ice_mask,                           &
             floating_mask = floating_mask,      &
             ocean_mask = ocean_mask,            &
@@ -2200,9 +2239,12 @@ contains
             ewn,                    nsn,              &
             model%options%which_ho_calving_front,     &
             parallel,                                 &
-            model%geometry%thck*thk0,                 &   ! m
-            model%geometry%topg*thk0,                 &   ! m
-            model%climate%eus*thk0,                   &   ! m
+!!            model%geometry%thck*thk0,                 &   ! m
+!!            model%geometry%topg*thk0,                 &   ! m
+!!            model%climate%eus*thk0,                   &   ! m
+            model%geometry%thck,                      &   ! m
+            model%geometry%topg,                      &   ! m
+            model%climate%eus,                        &   ! m
             ice_mask,               floating_mask,    &
             ocean_mask,             land_mask,        &
             calving_front_mask,                       &
@@ -2272,7 +2314,8 @@ contains
              do i = 1, ewn
                 call glissade_temp2enth (model%numerics%stagsigma(1:upn-1),        &
                                          model%temper%temp(0:upn,i,j),     model%temper%waterfrac(1:upn-1,i,j),   &
-                                         model%geometry%thck(i,j)*thk0,    model%temper%enthalpy(0:upn,i,j))
+!!                                         model%geometry%thck(i,j)*thk0,    model%temper%enthalpy(0:upn,i,j))
+                                         model%geometry%thck(i,j),         model%temper%enthalpy(0:upn,i,j))
              enddo
           enddo
        endif    ! TEMP_ENTHALPY
@@ -2286,8 +2329,10 @@ contains
        call glissade_transport_setup_tracers (model)
 
        ! temporary in/out arrays in SI units
-       thck_unscaled(:,:) = model%geometry%thck(:,:) * thk0
-       topg_unscaled(:,:) = model%geometry%topg(:,:) * thk0
+!!       thck_unscaled(:,:) = model%geometry%thck(:,:) * thk0
+!!       topg_unscaled(:,:) = model%geometry%topg(:,:) * thk0
+       thck_unscaled(:,:) = model%geometry%thck(:,:)
+       topg_unscaled(:,:) = model%geometry%topg(:,:)
 
        ! pre-transport halo updates for thickness and tracers
        call parallel_halo(thck_unscaled, parallel)
@@ -2317,9 +2362,10 @@ contains
 !!                               model%numerics%dew * len0, model%numerics%dns * len0, model%numerics%sigma,     &
                                model%numerics%dew, model%numerics%dns, model%numerics%sigma,             &
                                parallel,                                                                       &
-                               model%geomderv%stagthck * thk0,                                                 &
+!!                               model%geomderv%stagthck * thk0,                                                 &
+                               model%geomderv%stagthck,                                                        &
 !!                               model%geomderv%dusrfdew*thk0/len0, model%geomderv%dusrfdns*thk0/len0,           &
-                               model%geomderv%dusrfdew*thk0, model%geomderv%dusrfdns*thk0,                     &
+                               model%geomderv%dusrfdew,           model%geomderv%dusrfdns,                     &
                                model%velocity%uvel * scyr * vel0, model%velocity%vvel * scyr * vel0,           &
 !!                               model%numerics%dt_transport * tim0 / scyr,                                      &
                                model%numerics%dt_transport / scyr,                                             &
@@ -2459,9 +2505,11 @@ contains
                itest, jtest, rtest, 7, 7, '(f10.5)')
        endif
 
+       !TODO - Remove thck_unscaled, work with model%geometry%thck
        ! convert thck back to scaled units
        ! (acab_unscaled is intent(in) above, so no need to scale it back)
-       model%geometry%thck(:,:) = thck_unscaled(:,:) / thk0
+!!       model%geometry%thck(:,:) = thck_unscaled(:,:) / thk0
+       model%geometry%thck(:,:) = thck_unscaled(:,:)
 
        ! For the enthalpy option, convert enthalpy back to temperature/waterfrac.
 
@@ -2471,7 +2519,8 @@ contains
           do j = 1, nsn
              do i = 1, ewn
                 call glissade_enth2temp(model%numerics%stagsigma(1:upn-1),                                    &
-                                        model%geometry%thck(i,j)*thk0,    model%temper%enthalpy(0:upn,i,j),   &
+!!                                        model%geometry%thck(i,j)*thk0,    model%temper%enthalpy(0:upn,i,j),   &
+                                        model%geometry%thck(i,j),         model%temper%enthalpy(0:upn,i,j),   &
                                         model%temper%temp(0:upn,i,j),     model%temper%waterfrac(1:upn-1,i,j))
              enddo
           enddo
@@ -2479,7 +2528,8 @@ contains
        endif    ! TEMP_ENTHALPY
 
        if (verbose_glissade) then
-          call point_diag(model%geometry%thck*thk0, 'After glissade_transport_driver, thck', &
+!!          call point_diag(model%geometry%thck*thk0, 'After glissade_transport_driver, thck', &
+          call point_diag(model%geometry%thck, 'After glissade_transport_driver, thck', &
                itest, jtest, rtest, 7, 7)
           k = upn
           if (this_rank == rtest) write(6,*) 'k =', k
@@ -2511,7 +2561,8 @@ contains
     model%geometry%usrf(:,:) = max(0.d0, model%geometry%thck(:,:) + model%geometry%lsrf(:,:))
 
     if (verbose_inversion) then
-       call point_diag(model%geometry%thck*thk0, 'After mass balance, thck (m)', itest, jtest, rtest, 7, 7)
+!!       call point_diag(model%geometry%thck*thk0, 'After mass balance, thck (m)', itest, jtest, rtest, 7, 7)
+       call point_diag(model%geometry%thck, 'After mass balance, thck (m)', itest, jtest, rtest, 7, 7)
        call point_diag(model%basal_melt%bmlt_applied*scyr, 'bmlt_applied (m/yr)', &
             itest, jtest, rtest, 7, 7)
     endif   ! verbose_inversion
@@ -2531,7 +2582,7 @@ contains
     use cism_parallel, only: parallel_type, parallel_halo
 
 !!    use glimmer_paramets, only: thk0, tim0, len0, vel0
-    use glimmer_paramets, only: thk0, vel0
+    use glimmer_paramets, only: vel0
     use glimmer_physcon, only: scyr
     use glissade_calving, only: glissade_calve_ice, verbose_calving, &
          glissade_remove_icebergs, glissade_remove_isthmuses, glissade_limit_cliffs
@@ -2626,10 +2677,12 @@ contains
        endif
 
        if (verbose_retreat) then
-          call point_diag(model%geometry%thck*thk0, 'Before forced retreat, thck (m)', itest, jtest, rtest, 7, 7)
+!!          call point_diag(model%geometry%thck*thk0, 'Before forced retreat, thck (m)', itest, jtest, rtest, 7, 7)
+          call point_diag(model%geometry%thck, 'Before forced retreat, thck (m)', itest, jtest, rtest, 7, 7)
           call point_diag(model%geometry%ice_fraction_retreat_mask, 'ice_fraction_retreat_mask', &
                itest, jtest, rtest, 7, 7)
-          call point_diag(model%geometry%reference_thck*thk0 * (1.0d0 - model%geometry%ice_fraction_retreat_mask), &
+!!          call point_diag(model%geometry%reference_thck*thk0 * (1.0d0 - model%geometry%ice_fraction_retreat_mask), &
+          call point_diag(model%geometry%reference_thck * (1.0d0 - model%geometry%ice_fraction_retreat_mask), &
                'maxthck (m)', itest, jtest, rtest, 7, 7)
        endif
 
@@ -2646,7 +2699,8 @@ contains
        enddo
 
        if (verbose_retreat) then
-          call point_diag(model%geometry%thck*thk0, 'After forced retreat, thck (m)', &
+!!          call point_diag(model%geometry%thck*thk0, 'After forced retreat, thck (m)', &
+          call point_diag(model%geometry%thck, 'After forced retreat, thck (m)', &
                itest, jtest, rtest, 7, 7)
        endif
 
@@ -2655,8 +2709,9 @@ contains
     !TODO - Make sure no additional halo updates are needed before glissade_calve_ice
 
     ! Set thickness to SI units (m)
-    thck_unscaled(:,:) = model%geometry%thck(:,:)*thk0
-    model%calving%calving_thck(:,:) = model%calving%calving_thck(:,:) * thk0
+!!    thck_unscaled(:,:) = model%geometry%thck(:,:)*thk0
+    thck_unscaled(:,:) = model%geometry%thck(:,:)
+!!    model%calving%calving_thck(:,:) = model%calving%calving_thck(:,:) * thk0
 
     ! Note: We set model%calving%calving_thck = 0 at the start of the time step.
     !       Thus, calving_thck can be nonzero at the start of the calving solve,
@@ -2680,8 +2735,10 @@ contains
        call glissade_get_masks(&
             nx,                       ny,                         &
             parallel,                                             &
-            model%geometry%thck*thk0, model%geometry%topg*thk0,   &
-            model%climate%eus*thk0,   0.0d0,                      &  ! thklim = 0
+!!            model%geometry%thck*thk0, model%geometry%topg*thk0,   &
+!!            model%climate%eus*thk0,   0.0d0,                      &  ! thklim = 0
+            model%geometry%thck,      model%geometry%topg,        &
+            model%climate%eus,        0.0d0,                      &  ! thklim = 0
             ice_mask,                                             &
             floating_mask = floating_mask,                        &
             land_mask = land_mask)
@@ -2820,14 +2877,19 @@ contains
             model%general%x1,                  &        ! m
             model%general%y1,                  &        ! m
             model%numerics%sigma,              &
-            model%numerics%thklim*thk0,        &        ! m
+!!            model%numerics%thklim*thk0,        &        ! m
+            model%numerics%thklim,             &        ! m
             model%velocity%uvel_2d*vel0,       &        ! m/s
             model%velocity%vvel_2d*vel0,       &        ! m/s
-            model%geometry%thck_old*thk0,      &        ! m
+!!            model%geometry%thck_old*thk0,      &        ! m
+            model%geometry%thck_old,           &        ! m
             thck_unscaled,                     &        ! m
-            model%isostasy%relx*thk0,          &        ! m
-            model%geometry%topg*thk0,          &        ! m
-            model%climate%eus*thk0)                     ! m
+!!            model%isostasy%relx*thk0,          &        ! m
+!!            model%geometry%topg*thk0,          &        ! m
+!!            model%climate%eus*thk0)                     ! m
+            model%isostasy%relx,               &        ! m
+            model%geometry%topg,               &        ! m
+            model%climate%eus)                          ! m
 
     endif
 
@@ -2848,8 +2910,10 @@ contains
        call glissade_get_masks(&
             nx,                     ny,                         &
             parallel,                                           &
-            thck_unscaled,          model%geometry%topg*thk0,   &
-            model%climate%eus*thk0, model%numerics%thklim*thk0, &
+!!            thck_unscaled,          model%geometry%topg*thk0,   &
+!!            model%climate%eus*thk0, model%numerics%thklim*thk0, &
+            thck_unscaled,          model%geometry%topg,        &
+            model%climate%eus,      model%numerics%thklim,      &
             ice_mask,                                           &
             floating_mask = floating_mask,                      &
             ocean_mask = ocean_mask,                            &
@@ -2861,8 +2925,10 @@ contains
                                        parallel,                      &
                                        itest, jtest, rtest,           &  ! diagnostic only
                                        thck_unscaled,                 &
-                                       model%geometry%topg*thk0,      &
-                                       model%climate%eus*thk0,        &
+!!                                       model%geometry%topg*thk0,      &
+!!                                       model%climate%eus*thk0,        &
+                                       model%geometry%topg,           &
+                                       model%climate%eus,             &
                                        ice_mask,                      &
                                        floating_mask,                 &
                                        land_mask,                     &
@@ -2872,7 +2938,8 @@ contains
                                        model%geometry%f_flotation,    &
                                        model%geometry%f_ground,       &
                                        model%geometry%f_ground_cell,  &
-                                       model%geometry%topg_raised*thk0)
+!!                                       model%geometry%topg_raised*thk0)
+                                       model%geometry%topg_raised)
 
        ! Identify floating or weakly grounded cells with ice_fraction_retreat_mask exceeding a prescribed threshold.
        ! Note: f_ground_threshold is also used to identify weakly grounded cells in the algorithms
@@ -2928,8 +2995,10 @@ contains
        call glissade_get_masks(&
             nx,                     ny,                         &
             parallel,                                           &
-            thck_unscaled,          model%geometry%topg*thk0,   &
-            model%climate%eus*thk0, model%numerics%thklim*thk0, &
+!!            thck_unscaled,          model%geometry%topg*thk0,   &
+!!            model%climate%eus*thk0, model%numerics%thklim*thk0, &
+            thck_unscaled,          model%geometry%topg,        &
+            model%climate%eus,      model%numerics%thklim,      &
             ice_mask,                                           &
             floating_mask = floating_mask,                      &
             ocean_mask = ocean_mask,                            &
@@ -2942,8 +3011,10 @@ contains
             parallel,                      &
             itest, jtest, rtest,           &  ! diagnostic only
             thck_unscaled,                 &
-            model%geometry%topg*thk0,      &
-            model%climate%eus*thk0,        &
+!!            model%geometry%topg*thk0,      &
+!!            model%climate%eus*thk0,        &
+            model%geometry%topg,           &
+            model%climate%eus,             &
             ice_mask,                      &
             floating_mask,                 &
             land_mask,                     &
@@ -2953,7 +3024,8 @@ contains
             model%geometry%f_flotation,    &
             model%geometry%f_ground,       &
             model%geometry%f_ground_cell,  &
-            model%geometry%topg_raised*thk0)
+!!            model%geometry%topg_raised*thk0)
+            model%geometry%topg_raised)
 
        call glissade_remove_isthmuses(&
             nx,           ny,              &
@@ -2981,8 +3053,10 @@ contains
        call glissade_get_masks(&
             nx,                     ny,                            &
             parallel,                                              &
-            thck_unscaled,          model%geometry%topg*thk0,      &
-            model%climate%eus*thk0, model%numerics%thklim*thk0,    &
+!!            thck_unscaled,          model%geometry%topg*thk0,      &
+!!            model%climate%eus*thk0, model%numerics%thklim*thk0,    &
+            thck_unscaled,          model%geometry%topg,           &
+            model%climate%eus,      model%numerics%thklim,         &
             ice_mask,               floating_mask = floating_mask, &
             land_mask = land_mask,  ocean_mask = ocean_mask)
 
@@ -2993,8 +3067,10 @@ contains
             parallel,                      &
             itest, jtest, rtest,           &  ! diagnostic only
             thck_unscaled,                 &
-            model%geometry%topg*thk0,      &
-            model%climate%eus*thk0,        &
+!!            model%geometry%topg*thk0,      &
+!!            model%climate%eus*thk0,        &
+            model%geometry%topg,           &
+            model%climate%eus,             &
             ice_mask,                      &
             floating_mask,                 &
             land_mask,                     &
@@ -3004,7 +3080,8 @@ contains
             model%geometry%f_flotation,    &
             model%geometry%f_ground,       &
             model%geometry%f_ground_cell,  &
-            model%geometry%topg_raised*thk0)
+!!            model%geometry%topg_raised*thk0)
+            model%geometry%topg_raised)
 
        if (model%options%which_ho_calving_front == HO_CALVING_FRONT_SUBGRID) then
 
@@ -3014,9 +3091,12 @@ contains
                nx,          ny,     &
                model%options%which_ho_calving_front,       &
                parallel,                                   &
-               model%geometry%thck*thk0,                   &
-               model%geometry%topg*thk0,                   &
-               model%climate%eus*thk0,                     &
+!!               model%geometry%thck*thk0,                   &
+!!               model%geometry%topg*thk0,                   &
+!!               model%climate%eus*thk0,                     &
+               model%geometry%thck,                        &
+               model%geometry%topg,                        &
+               model%climate%eus,                          &
                ice_mask,            floating_mask,         &
                ocean_mask,          land_mask,             &
                calving_front_mask,                         &
@@ -3067,16 +3147,20 @@ contains
             model%calving%taumax_cliff,    &     ! Pa
             model%calving%cliff_timescale, &     ! s
             thck_unscaled,              &        ! m
-            model%geometry%topg*thk0,   &        ! m
-            model%climate%eus*thk0,     &        ! m
-            model%numerics%thklim*thk0, &        ! m
+!!            model%geometry%topg*thk0,   &        ! m
+!!            model%climate%eus*thk0,     &        ! m
+!!            model%numerics%thklim*thk0, &        ! m
+            model%geometry%topg,           &     ! m
+            model%climate%eus,             &     ! m
+            model%numerics%thklim,         &     ! m
             model%calving%calving_thck)          ! m
 
     endif
 
     ! Convert geometry%thck and calving%calving_thck to scaled model units
-    model%geometry%thck(:,:) = thck_unscaled(:,:)/thk0
-    model%calving%calving_thck(:,:) = model%calving%calving_thck(:,:)/thk0
+!!    model%geometry%thck(:,:) = thck_unscaled(:,:)/thk0
+    model%geometry%thck(:,:) = thck_unscaled(:,:)
+!!    model%calving%calving_thck(:,:) = model%calving%calving_thck(:,:)/thk0
 
     !TODO: Are any other halo updates needed after calving?
     ! halo updates
@@ -3089,14 +3173,14 @@ contains
     model%geometry%usrf(:,:) = max(0.d0, model%geometry%thck(:,:) + model%geometry%lsrf(:,:))
 
     if (verbose_calving) then
-       call point_diag(model%calving%calving_thck*thk0, 'Final calving thck (m)', &
-            itest, jtest, rtest, 7, 7)
-       call point_diag(model%geometry%thck*thk0, 'Final thck (m)', &
-            itest, jtest, rtest, 7, 7)
-       call point_diag(model%geometry%topg*thk0, 'topg (m)', &
-            itest, jtest, rtest, 7, 7)
-       call point_diag(model%geometry%usrf*thk0, 'usrf (m)', &
-            itest, jtest, rtest, 7, 7)
+!!       call point_diag(model%calving%calving_thck*thk0, 'Final calving thck (m)', &
+       call point_diag(model%calving%calving_thck, 'Final calving thck (m)', itest, jtest, rtest, 7, 7)
+!!       call point_diag(model%geometry%thck*thk0, 'Final thck (m)', &
+       call point_diag(model%geometry%thck, 'Final thck (m)', itest, jtest, rtest, 7, 7)
+!!       call point_diag(model%geometry%topg*thk0, 'topg (m)', &
+       call point_diag(model%geometry%topg, 'topg (m)', itest, jtest, rtest, 7, 7)
+!!       call point_diag(model%geometry%usrf*thk0, 'usrf (m)', &
+       call point_diag(model%geometry%usrf, 'usrf (m)', itest, jtest, rtest, 7, 7)
     endif
 
   end subroutine glissade_calving_solve
@@ -3112,7 +3196,7 @@ contains
     use cism_parallel, only: parallel_type, parallel_halo, parallel_halo_extrapolate
 
     use isostasy, only: isos_compute, isos_icewaterload
-    use glimmer_paramets, only: thk0
+!!    use glimmer_paramets, only: thk0
     use glissade_masks, only: glissade_marine_connection_mask
 
     implicit none
@@ -3187,8 +3271,10 @@ contains
             parallel,                                               &
             model%numerics%idiag_local, model%numerics%jdiag_local, &
             model%numerics%rdiag_local,                             &
-            model%geometry%thck * thk0, model%geometry%topg * thk0, &
-            model%climate%eus * thk0,   0.0d0,                      &  ! thklim = 0
+!!            model%geometry%thck * thk0, model%geometry%topg * thk0, &
+!!            model%climate%eus * thk0,   0.0d0,                      &  ! thklim = 0
+            model%geometry%thck,        model%geometry%topg,        &
+            model%climate%eus,          0.0d0,                      &  ! thklim = 0
             model%geometry%marine_connection_mask)
 
     end if
@@ -3208,7 +3294,7 @@ contains
          parallel_reduce_max, parallel_reduce_min, parallel_globalindex
 
 !!    use glimmer_paramets, only: eps08, tim0, len0, vel0, thk0, vis0, tau0, evs0
-    use glimmer_paramets, only: eps08, vel0, thk0, vis0, tau0, evs0
+    use glimmer_paramets, only: eps08, vel0, vis0, tau0, evs0
     use glimmer_physcon, only: rhow, rhoi, scyr
     use glimmer_scales, only: scale_acab
     use glide_thck, only: glide_calclsrf
@@ -3344,7 +3430,8 @@ contains
                                  parallel,                      &
                                  itest,    jtest,   rtest,      &
                                  ice_mask,                      &
-                                 model%geometry%thck*thk0,      &
+!!                                 model%geometry%thck*thk0,      &
+                                 model%geometry%thck,           &
                                  model%geometry%ice_sheet_mask, &
                                  model%geometry%ice_cap_mask)
 
@@ -3389,9 +3476,12 @@ contains
     call glissade_calving_front_mask(ewn,                 nsn,     &
                                      model%options%which_ho_calving_front,       &
                                      parallel,                                   &
-                                     model%geometry%thck*thk0,                   &
-                                     model%geometry%topg*thk0,                   &
-                                     model%climate%eus*thk0,                     &
+!!                                     model%geometry%thck*thk0,                   &
+!!                                     model%geometry%topg*thk0,                   &
+!!                                     model%climate%eus*thk0,                     &
+                                     model%geometry%thck,                        &
+                                     model%geometry%topg,                        &
+                                     model%climate%eus,                          &
                                      ice_mask,            floating_mask,         &
                                      ocean_mask,          land_mask,             &
                                      calving_front_mask,                         &
@@ -3426,9 +3516,12 @@ contains
     call glissade_grounded_fraction(ewn,          nsn,             &
                                     parallel,                      &
                                     itest, jtest, rtest,           &  ! diagnostic only
-                                    model%geometry%thck*thk0,      &
-                                    model%geometry%topg*thk0,      &
-                                    model%climate%eus*thk0,        &
+!!                                    model%geometry%thck*thk0,      &
+!!                                    model%geometry%topg*thk0,      &
+!!                                    model%climate%eus*thk0,        &
+                                    model%geometry%thck,           &
+                                    model%geometry%topg,           &
+                                    model%climate%eus,             &
                                     ice_mask,                      &
                                     floating_mask,                 &
                                     land_mask,                     &
@@ -3438,7 +3531,8 @@ contains
                                     model%geometry%f_flotation,    &
                                     model%geometry%f_ground,       &
                                     model%geometry%f_ground_cell,  &
-                                    model%geometry%topg_raised*thk0)
+!!                                    model%geometry%topg_raised*thk0)
+                                    model%geometry%topg_raised)
 
     if (verbose_glp) then
        if (this_rank == rtest) write(6,*) 'Called GLP subroutine, which_ho_ground =', model%options%which_ho_ground
@@ -3455,8 +3549,9 @@ contains
          .and. (model%numerics%time == model%numerics%tstart) ) then
        ! first call after a restart
     else
-       model%geometry%dthck_dt(:,:) = (model%geometry%thck(:,:) - model%geometry%thck_old(:,:)) * thk0 &
+!!       model%geometry%dthck_dt(:,:) = (model%geometry%thck(:,:) - model%geometry%thck_old(:,:)) * thk0 &
 !!                                    / (model%numerics%dt * tim0)
+       model%geometry%dthck_dt(:,:) = (model%geometry%thck(:,:) - model%geometry%thck_old(:,:)) &
                                      / model%numerics%dt
     endif
 
@@ -3529,7 +3624,8 @@ contains
     call glissade_flow_factor(model%options%whichflwa,            &
                               model%options%whichtemp,            &
                               model%numerics%stagsigma,           &
-                              model%geometry%thck * thk0,         &  ! scale to m
+!!                              model%geometry%thck * thk0,         &  ! scale to m
+                              model%geometry%thck,                &  ! m
                               model%temper%temp(1:upn-1,:,:),     &
                               model%temper%flwa,                  &  ! Pa^{-n} s^{-1}
                               model%paramets%default_flwa / scyr, &  ! scale to Pa^{-n} s^{-1}
@@ -3561,7 +3657,8 @@ contains
 
        do j = 1, nsn
           do i = 1, ewn
-             call glissade_pressure_melting_point(model%geometry%thck(i,j) * thk0, &
+!!             call glissade_pressure_melting_point(model%geometry%thck(i,j) * thk0, &
+             call glissade_pressure_melting_point(model%geometry%thck(i,j), &
                                                   model%temper%bpmp(i,j))
           enddo
        enddo
@@ -3666,11 +3763,15 @@ contains
                                     model%basal_physics,               &
                                     model%basal_hydro,                 &
                                     ice_mask,      floating_mask,      &
-                                    model%geometry%thck * thk0,        &
-                                    model%geometry%topg * thk0,        &
-                                    model%climate%eus * thk0,          &
+!!                                    model%geometry%thck * thk0,        &
+!!                                    model%geometry%topg * thk0,        &
+!!                                    model%climate%eus * thk0,          &
+                                    model%geometry%thck,               &
+                                    model%geometry%topg,               &
+                                    model%climate%eus,                 &
                                     model%temper%bpmp(:,:) - model%temper%temp(upn,:,:), &
-                                    model%basal_hydro%bwat * thk0,     &   ! m
+!!                                    model%basal_hydro%bwat * thk0,     &   ! m
+                                    model%basal_hydro%bwat,            &   ! m
                                     model%basal_hydro%bwatflx,         &   ! m/yr
 !!                                    model%numerics%dt * tim0/scyr,     &   ! yr
                                     model%numerics%dt/scyr,            &   ! yr
@@ -3728,12 +3829,13 @@ contains
           call glissade_interior_dissipation_sia(ewn,  nsn,    upn,              &
                                                  model%numerics%stagsigma(:),    &
                                                  ice_mask,                       &
-                                                 model%geomderv%stagthck * thk0, & ! scale to m
+!!                                                 model%geomderv%stagthck * thk0, & ! scale to m
+                                                 model%geomderv%stagthck,        & ! scale to m
                                                  model%temper%flwa * vis0,       & ! scale to Pa^{-n} s^{-1}
 !!                                                 model%geomderv%dusrfdew * thk0/len0, & ! scale to m/m
 !!                                                 model%geomderv%dusrfdns * thk0/len0, & ! scale to m/m
-                                                 model%geomderv%dusrfdew * thk0, & ! scale to m/m
-                                                 model%geomderv%dusrfdns * thk0, & ! scale to m/m
+                                                 model%geomderv%dusrfdew,        & ! scale to m/m
+                                                 model%geomderv%dusrfdns,        & ! scale to m/m
                                                  model%temper%dissip)
           
        else    ! first-order dissipation                                                                                                                                                               
@@ -3972,13 +4074,11 @@ contains
     !  based on a thickness target.  In this case, it is better to think of the melt as part of the calving.
     ! Note: Both calving_thck and bmlt_applied have dimensionless model units;
     !       calving_thck = calving thickness per timestep, while bmlt_applied = melt per unit time
-    !WHL, 4/21/25 - With tim0/thk0 removed from melt terms, bmlt_applied has units of m/s, so bmlt_applied has units of m;
-    !               must divide by thk0 to match units of calving_thck.
-    !               We will soon remove the thk0.
+
     if (model%options%whichcalving == CALVING_GRID_MASK .or. model%options%apply_calving_mask) then
        where (calving_front_mask == 1)
-          model%calving%calving_thck = model%calving%calving_thck + &
-               (model%basal_melt%bmlt_applied * model%numerics%dt)/thk0
+          model%calving%calving_thck = model%calving%calving_thck + model%basal_melt%bmlt_applied * model%numerics%dt
+!!               (model%basal_melt%bmlt_applied * model%numerics%dt)/thk0
           model%basal_melt%bmlt_applied = 0.0d0
        endwhere
     endif
@@ -3988,11 +4088,11 @@ contains
     model%geometry%sfc_mbal_flux(:,:) = rhoi * model%climate%acab_applied(:,:)
     model%geometry%basal_mbal_flux(:,:) = rhoi * (-model%basal_melt%bmlt_applied(:,:))
 !!    model%geometry%calving_flux(:,:) = rhoi * (-model%calving%calving_thck(:,:)*thk0) / (model%numerics%dt*tim0)
-    model%geometry%calving_flux(:,:) = rhoi * (-model%calving%calving_thck(:,:)*thk0) / model%numerics%dt
+    model%geometry%calving_flux(:,:) = rhoi * (-model%calving%calving_thck(:,:)) / model%numerics%dt
 
     ! calving rate (m/yr ice; positive for calving)
 !!    model%calving%calving_rate(:,:) = (model%calving%calving_thck(:,:)*thk0) / (model%numerics%dt*tim0/scyr)
-    model%calving%calving_rate(:,:) = (model%calving%calving_thck(:,:)*thk0) / (model%numerics%dt/scyr)
+    model%calving%calving_rate(:,:) = model%calving%calving_thck(:,:) / (model%numerics%dt/scyr)
 
     ! save old masks for diagnostics
     floating_mask_old = model%geometry%floating_mask

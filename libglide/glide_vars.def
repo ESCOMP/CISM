@@ -131,7 +131,7 @@ dimensions:    time, y1, x1
 units:         meter
 long_name:     relaxed bedrock topography
 data:          data%isostasy%relx
-factor:        thk0
+#factor:        thk0
 load:          1
 
 [load]
@@ -139,7 +139,7 @@ dimensions:    time, y1, x1
 units:         meter
 long_name:     bedrock deflection from applied load
 data:          data%isostasy%load
-factor:        thk0
+#factor:        thk0
 load:          1
 
 [eus]
@@ -147,7 +147,7 @@ dimensions:    time
 units:         meter
 long_name:     global average sea level
 data:          data%climate%eus
-factor:        thk0
+#factor:        thk0
 standard_name: global_average_sea_level_change
 
 [uflx]
@@ -446,7 +446,7 @@ units:         kilopascal
 long_name:     basal shear stress in x direction (NOTE: Glide only)
 data:          data%velocity%tau_x
 #factor:        1e-3*thk0*thk0/len0
-factor:        1e-3*thk0*thk0
+factor:        1e-3
 
 [tauy]
 dimensions:    time, y0, x0
@@ -454,7 +454,7 @@ units:         kilopascal
 long_name:     basal shear stress in y direction
 data:          data%velocity%tau_y
 #factor:        1e-3*thk0*thk0/len0
-factor:        1e-3*thk0*thk0
+factor:        1e-3
 
 [tau_c]
 dimensions:    time, y0, x0
@@ -468,7 +468,7 @@ dimensions:    time, y1, x1
 units:         meter
 long_name:     ice thickness
 data:          data%geometry%thck
-factor:        thk0
+#factor:        thk0
 load:          1
 standard_name: land_ice_thickness
 
@@ -477,7 +477,7 @@ dimensions:    time, y0, x0
 units:         meter
 long_name:     staggered ice thickness
 data:          data%geomderv%stagthck
-factor:        thk0
+#factor:        thk0
 standard_name: stag_land_ice_thickness
 load:          0
 
@@ -486,7 +486,7 @@ dimensions:    time, y1, x1
 units:         meter
 long_name:     reference ice thickness
 data:          data%geometry%reference_thck
-factor:        thk0
+#factor:        thk0
 load:          1
 
 [usrf_obs]
@@ -494,7 +494,7 @@ dimensions:    time, y1, x1
 units:         meter
 long_name:     observed surface elevation
 data:          data%geometry%usrf_obs
-factor:        thk0
+#factor:        thk0
 load:          1
 
 [dthck_dt_obs]
@@ -523,7 +523,7 @@ dimensions:    time, y1, x1
 units:         meter
 long_name:     target thickness for floating ice
 data:          data%inversion%floating_thck_target
-factor:        thk0
+#factor:        thk0
 load:          1
 
 [calving_thck]
@@ -531,7 +531,7 @@ dimensions:    time, y1, x1
 units:         meter
 long_name:     thickness of calving ice
 data:          data%calving%calving_thck
-factor:        thk0
+#factor:        thk0
 
 [calving_rate]
 dimensions:    time, y1, x1
@@ -644,7 +644,7 @@ dimensions:    time, y1, x1
 units:         meter
 long_name:     ice upper surface elevation
 data:          data%geometry%usrf
-factor:        thk0
+#factor:        thk0
 load:          1
 standard_name: surface_altitude
 
@@ -653,14 +653,14 @@ dimensions:    time, y1, x1
 units:         meter
 long_name:     ice lower surface elevation
 data:          data%geometry%lsrf
-factor:        thk0
+#factor:        thk0
 
 [topg]
 dimensions:    time, y1, x1
 units:         meter
 long_name:     bedrock topography
 data:          data%geometry%topg
-factor:        thk0
+#factor:        thk0
 load:          1
 standard_name: bedrock_altitude
 
@@ -669,7 +669,7 @@ dimensions:    time, y1, x1
 units:         meter
 long_name:     raised version of bedrock topography
 data:          data%geometry%topg_raised
-factor:        thk0
+#factor:        thk0
 load:          1
 standard_name: bedrock_altitude_raised
 
@@ -937,7 +937,7 @@ dimensions:    time, nlev_smb
 units:         m
 long_name:     surface mass balance reference levels
 data:          data%climate%smb_levels
-factor:        thk0
+#factor:        thk0
 standard_name: land_ice_surface_specific_mass_balance_reference_levels
 load:          1
 
@@ -994,7 +994,7 @@ dimensions:    time, y1, x1
 units:         meter
 long_name:     basal water depth
 data:          data%basal_hydro%bwat
-factor:        thk0
+#factor:        thk0
 load:          1
 
 [bwatflx]

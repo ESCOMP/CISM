@@ -408,8 +408,10 @@ contains
 
 !WHL - debug
 !    print*, 'After glide_initialise:'
-!    print*, 'max, min thck (m)=', maxval(model%geometry%thck)*thk0, minval(model%geometry%thck)*thk0
-!    print*, 'max, min usrf (m)=', maxval(model%geometry%usrf)*thk0, minval(model%geometry%usrf)*thk0
+!! !    print*, 'max, min thck (m)=', maxval(model%geometry%thck)*thk0, minval(model%geometry%thck)*thk0
+!! !    print*, 'max, min usrf (m)=', maxval(model%geometry%usrf)*thk0, minval(model%geometry%usrf)*thk0
+!    print*, 'max, min thck (m)=', maxval(model%geometry%thck), minval(model%geometry%thck)
+!    print*, 'max, min usrf (m)=', maxval(model%geometry%usrf), minval(model%geometry%usrf)
 !    print*, 'max, min artm =', maxval(model%climate%artm), minval(model%climate%artm)
 !    print*, 'max, min temp =', maxval(model%temper%temp), minval(model%temper%temp)
 !    print*, 'max, min flwa =', maxval(model%temper%flwa), minval(model%temper%flwa)
@@ -417,7 +419,8 @@ contains
 !    print*, ' '
 !    print*, 'thck:'
 !    do j = model%general%nsn, 1, -1
-!       write(6,'(30f5.0)') thk0 * model%geometry%thck(:,j)
+!! !       write(6,'(30f5.0)') thk0 * model%geometry%thck(:,j)
+!       write(6,'(30f5.0)') model%geometry%thck(:,j)
 !    enddo
 !    print*, ' '
 !    print*, 'temp, k = 2:'
@@ -644,7 +647,8 @@ contains
 
        do j = 1, model%general%nsn-1
           do i = 1, model%general%ewn-1
-             if (model%geomderv%stagthck(i,j)*thk0 < 1000.d0) then
+!!             if (model%geomderv%stagthck(i,j)*thk0 < 1000.d0) then
+             if (model%geomderv%stagthck(i,j) < 1000.d0) then
                 model%temper%stagbtemp(i,j) = model%temper%stagbpmp(i,j)
              else
                 model%temper%stagbtemp(i,j) = -20.d0
@@ -705,7 +709,8 @@ contains
           do j = model%general%nsn-1, 1, -1
              write(6,'(i3)',advance='no') j
              do i = 1, model%general%ewn-1
-                write(6,'(f7.2)',advance='no') model%geomderv%stagthck(i,j)*thk0
+!!                write(6,'(f7.2)',advance='no') model%geomderv%stagthck(i,j)*thk0
+                write(6,'(f7.2)',advance='no') model%geomderv%stagthck(i,j)
              enddo 
              print*, ' '
           enddo
@@ -1046,15 +1051,17 @@ contains
     !WHL - debug
 !    print*, ' '
 !    print*, 'After tstep_p2:'
-!    print*, 'max, min thck (m)=', maxval(model%geometry%thck)*thk0, minval(model%geometry%thck)*thk0
-!    print*, 'max, min usrf (m)=', maxval(model%geometry%usrf)*thk0, minval(model%geometry%usrf)*thk0
+!! !    print*, 'max, min thck (m)=', maxval(model%geometry%thck)*thk0, minval(model%geometry%thck)*thk0
+!! !    print*, 'max, min usrf (m)=', maxval(model%geometry%usrf)*thk0, minval(model%geometry%usrf)*thk0
+!    print*, 'max, min thck (m)=', maxval(model%geometry%thck), minval(model%geometry%thck)
+!    print*, 'max, min usrf (m)=', maxval(model%geometry%usrf), minval(model%geometry%usrf)
 !    print*, 'max uvel, vvel =', maxval(model%velocity%uvel), maxval(model%velocity%vvel)
 
 !    print*, ' '
 !    print*, 'thck:'
 !    do j = model%general%nsn, 1, -1
-!       write(6,'(14f12.7)') thk0 * model%geometry%thck(3:16,j)
-!!       write(6,'(14e12.5)') thk0 * model%geometry%thck(3:16,j)
+!! !       write(6,'(14f12.7)') thk0 * model%geometry%thck(3:16,j)
+!       write(6,'(14f12.7)') model%geometry%thck(3:16,j)
 !    enddo
 !    print*, ' '
 !    print*, 'btemp:'

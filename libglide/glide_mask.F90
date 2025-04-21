@@ -220,7 +220,6 @@ contains
   subroutine get_area_vol(thck, dew, dns, thklim, iarea, ivol, exec_serial)
 
 !!    use glimmer_paramets, only : len0, thk0
-    use glimmer_paramets, only : thk0
 
     implicit none
     real(dp), dimension(:,:) :: thck
@@ -250,10 +249,9 @@ contains
        ivol  = sum(2)
     endif
 
-    ! convert from model units to SI units
+!!    ! convert from model units to SI units
 !!    iarea = iarea*len0*len0
 !!    ivol = ivol*len0*len0*thk0
-    ivol = ivol*thk0
 
   end subroutine get_area_vol
  

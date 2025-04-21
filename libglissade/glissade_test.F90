@@ -626,7 +626,6 @@ contains
     use glissade_transport, only: glissade_transport_driver, &
          glissade_transport_setup_tracers, glissade_transport_finish_tracers
 !!    use glimmer_paramets, only: len0, thk0
-    use glimmer_paramets, only: thk0
     use glimmer_physcon, only: pi, scyr
 
     !-------------------------------------------------------------------
@@ -763,7 +762,8 @@ contains
        write(6,*) ' '
        write(6,*) 'Initial thck'
        do j = ny, 1, -1
-          write(6,'(19f7.2)') model%geometry%thck(1:19,j) * thk0
+!!          write(6,'(19f7.2)') model%geometry%thck(1:19,j) * thk0
+          write(6,'(19f7.2)') model%geometry%thck(1:19,j)
        enddo
     endif
 
@@ -818,7 +818,8 @@ contains
           write(6,*) ' '
           write(6,*) 'New thck, n =', n
           do j = ny, 1, -1
-             write(6,'(19f7.2)') model%geometry%thck(1:19,j) * thk0
+!!             write(6,'(19f7.2)') model%geometry%thck(1:19,j) * thk0
+             write(6,'(19f7.2)') model%geometry%thck(1:19,j)
           enddo
        endif
 

@@ -92,7 +92,7 @@ contains
                              instance%model%geometry%usrf, &
                              orog,    &
                              instance%out_mask)
-    orog=thk0*orog
+!!    orog=thk0*orog
 
     call coordsystem_allocate(instance%lgrid,temp)
 
@@ -122,7 +122,8 @@ contains
                              instance%out_mask)
 
     ! Veg-with-snow fraction (if ice <10m thick)
-    where (instance%mbal_accum%snowd > 0.d0 .and. instance%model%geometry%thck <= (10.d0/thk0))
+!!    where (instance%mbal_accum%snowd > 0.d0 .and. instance%model%geometry%thck <= (10.d0/thk0))
+    where (instance%mbal_accum%snowd > 0.d0 .and. instance%model%geometry%thck <= (10.d0))
        temp = 1.d0
     elsewhere
        temp = 0.d0
@@ -175,7 +176,8 @@ contains
     ! If instance%zero_gcm_fluxes is true, then the upscaled versions of grofi, grofl and
     ! ghflx are zeroed out
 
-    use glimmer_paramets, only: thk0, GLC_DEBUG
+!!    use glimmer_paramets, only: thk0, GLC_DEBUG
+    use glimmer_paramets, only: GLC_DEBUG
     use glimmer_log
     use cism_parallel, only: tasks, main_task
 
@@ -310,9 +312,12 @@ contains
     do j = 1, nyl
       do i = 1, nxl
 
-         usrf = thk0 * instance%model%geometry%usrf(i,j)
-         thck = thk0 * instance%model%geometry%thck(i,j)
-         topg = thk0 * instance%model%geometry%topg(i,j)
+!!         usrf = thk0 * instance%model%geometry%usrf(i,j)
+!!         thck = thk0 * instance%model%geometry%thck(i,j)
+!!         topg = thk0 * instance%model%geometry%topg(i,j)
+         usrf = instance%model%geometry%usrf(i,j)
+         thck = instance%model%geometry%thck(i,j)
+         topg = instance%model%geometry%topg(i,j)
          
          if (usrf > 0.d0) then   ! if not at sea level (assume a land point)...
             if (thck <= min_thck) then ! and is not ice-covered...
@@ -478,7 +483,6 @@ contains
     ! accumulate contributions to the rofi, rofl, and hflx fields to be sent to the coupler.
 
 !!    use glimmer_paramets, only: thk0, tim0
-    use glimmer_paramets, only: thk0
 
     use glimmer_scales, only: scale_acab  ! for testing
 
@@ -510,15 +514,14 @@ contains
     ! Accumulate solid runoff (calving)
     !--------------------------------------------------------------------
                        
-    ! Note on units: model%calving%calving_thck has dimensionless ice thickness units
-    !                Multiply by thk0 to convert to meters of ice
+    ! Note on units: model%calving%calving_thck has units of m of ice
     !                Multiply by rhoi to convert to kg/m^2 water equiv.
     !                Divide by dt to convert to kg/m^2/s
 
     ! Convert to kg/m^2/s
     rofi_tavg(:,:) = rofi_tavg(:,:)  &
 !!                   + model%calving%calving_thck(:,:) * thk0 * rhoi / (model%numerics%dt * tim0)
-                   + model%calving%calving_thck(:,:) * thk0 * rhoi / model%numerics%dt
+                   + model%calving%calving_thck(:,:) * rhoi / model%numerics%dt
 
     !--------------------------------------------------------------------
     ! Accumulate liquid runoff (basal melting)

@@ -82,7 +82,7 @@ contains
     !> initialise temperature module
     use glimmer_physcon, only : rhoi, shci, coni, scyr, grav, gn, lhci, rhow, trpt
 !!    use glimmer_paramets, only : tim0, thk0, acc0, len0, vis0, vel0
-    use glimmer_paramets, only : thk0, acc0, vis0, vel0
+    use glimmer_paramets, only : acc0, vis0, vel0
     use cism_parallel, only: lhalo, uhalo
 
     type(glide_global_type), intent(inout) :: model       ! model instance
@@ -128,31 +128,32 @@ contains
        model%tempwk%dups(up,3) = 1.d0/(model%numerics%sigma(up+1)  - model%numerics%sigma(up-1))
     end do
 
-    model%tempwk%zbed = 1.0d0 / thk0
+!!    model%tempwk%zbed = 1.0d0 / thk0
+    model%tempwk%zbed = 1.0d0
     model%tempwk%dupn = model%numerics%sigma(model%general%upn) - model%numerics%sigma(model%general%upn-1)
 
 !WHL - Removing scales; took out tim0
-! In dimensional units, wmax = thk0 / (tim0/scyr) = 2000 m / 400 yr = 5 m/yr
-! In nondimensional units, wmax = 5 m/yr / (thk0*scyr/tim0) = 1.0
-! If we remove scaling, then tim0 = thk0 = 1, and wmax = 5 m/yr / scyr.  
-! The following expression is correct if scaling is removed.
+!! ! In dimensional units, wmax = thk0 / (tim0/scyr) = 2000 m / 400 yr = 5 m/yr
+!! ! In nondimensional units, wmax = 5 m/yr / (thk0*scyr/tim0) = 1.0
+!! ! If we remove scaling, then tim0 = thk0 = 1, and wmax = 5 m/yr / scyr.  
+!! ! The following expression is correct if scaling is removed.
 
 !!    model%tempwk%wmax = 5.0d0 * tim0 / (scyr * thk0)
-    model%tempwk%wmax = 5.0d0 / (scyr * thk0)
+    model%tempwk%wmax = 5.0d0 / scyr
 
 !!    model%tempwk%cons = (/ 2.0d0 * tim0 * model%numerics%dttem * coni / (2.0d0 * rhoi * shci * thk0**2), &
-    model%tempwk%cons = (/ 2.0d0 * model%numerics%dttem * coni / (2.0d0 * rhoi * shci * thk0**2), &
+    model%tempwk%cons = (/ 2.0d0 * model%numerics%dttem * coni / (2.0d0 * rhoi * shci), &
          model%numerics%dttem / 2.0d0, &
 !!         VERT_DIFF*2.0d0 * tim0 * model%numerics%dttem / (thk0 * rhoi * shci), &
 !!         VERT_ADV*tim0 * acc0 * model%numerics%dttem / coni, &
-         VERT_DIFF*2.0d0 * model%numerics%dttem / (thk0 * rhoi * shci), &
+         VERT_DIFF*2.0d0 * model%numerics%dttem / (rhoi * shci), &
          VERT_ADV * acc0 * model%numerics%dttem / coni, &
          0.d0 /)   !WHL - last term no longer needed
          !*sfp* added last term to vector above for use in HO & SSA dissip. cacl
 
 !!    model%tempwk%c1 = STRAIN_HEAT *(model%numerics%sigma * rhoi * grav * thk0**2 / len0)**p1 * &
 !!         2.0d0 * vis0 * model%numerics%dttem * tim0 / (16.0d0 * rhoi * shci)
-    model%tempwk%c1 = STRAIN_HEAT *(model%numerics%sigma * rhoi * grav * thk0**2)**p1 * &
+    model%tempwk%c1 = STRAIN_HEAT *(model%numerics%sigma * rhoi * grav)**p1 * &
          2.0d0 * vis0 * model%numerics%dttem / (16.0d0 * rhoi * shci)
 
     model%tempwk%dupc = (/ (model%numerics%sigma(2) - model%numerics%sigma(1)) / 2.0d0, &
@@ -177,16 +178,18 @@ contains
 !!         tim0 * thk0 * rhoi * shci /  (thk0 * tim0 * model%numerics%dttem * lhci * rhoi), &
 !!         tim0 * thk0**2 * vel0 * grav * rhoi / (4.0d0 * thk0 * len0 * rhoi * lhci), &
 !!         0.d0 /)   !WHL - last term no longer needed
-    model%tempwk%f = (/ coni / (thk0**2 * lhci * rhoi), &
-         1.d0 / (thk0 * lhci * rhoi), &
-         1.d0 * thk0 * rhoi * shci /  (thk0 * model%numerics%dttem * lhci * rhoi), &
-         1.d0 * thk0**2 * vel0 * grav * rhoi / (4.0d0 * thk0 * rhoi * lhci), &
+    model%tempwk%f = (/ coni / (lhci * rhoi), &
+         1.d0 / (lhci * rhoi), &
+         1.d0 * rhoi * shci /  (model%numerics%dttem * lhci * rhoi), &
+         1.d0 * vel0 * grav * rhoi / (4.0d0 * rhoi * lhci), &
          0.d0 /)   !WHL - last term no longer needed
          !*sfp* added the last term in the vect above for HO and SSA dissip. calc. 
 
     ! setting up some factors for sliding contrib to basal heat flux
-    model%tempwk%slide_f = (/ VERT_DIFF * grav * thk0 * model%numerics%dttem/ shci, & ! vert diffusion
-         VERT_ADV * rhoi*grav*acc0*thk0*thk0*model%numerics%dttem/coni /)             ! vert advection
+!!    model%tempwk%slide_f = (/ VERT_DIFF * grav * thk0 * model%numerics%dttem/ shci, & ! vert diffusion
+!!         VERT_ADV * rhoi*grav*acc0*thk0*thk0*model%numerics%dttem/coni /)             ! vert advection
+    model%tempwk%slide_f = (/ VERT_DIFF * grav * model%numerics%dttem/ shci, & ! vert diffusion
+         VERT_ADV * rhoi*grav*acc0*model%numerics%dttem/coni /)             ! vert advection
 
 
 
@@ -403,7 +406,7 @@ contains
 
     use glimmer_utils, only: tridiag
 !!    use glimmer_paramets, only : thk0, tim0, GLC_DEBUG
-    use glimmer_paramets, only : thk0, GLC_DEBUG
+    use glimmer_paramets, only : GLC_DEBUG
     use glide_grid_operators, only: stagvarb
 
     !------------------------------------------------------------------------------------
@@ -425,7 +428,8 @@ contains
     integer :: iter
     integer :: ew,ns
 
-    real(dp),parameter :: tempthres = 0.001d0, floatlim = 10.0d0 / thk0
+!!    real(dp),parameter :: tempthres = 0.001d0, floatlim = 10.0d0 / thk0
+    real(dp),parameter :: tempthres = 0.001d0, floatlim = 10.0d0
     integer, parameter :: mxit = 100
     integer, parameter :: ewbc = 1, nsbc = 1 
 
@@ -582,7 +586,8 @@ contains
                    ! This is computed in case it needs to be upscaled and passed back to a GCM.
 
                    dTtop = model%temper%temp(2,ew,ns) - model%temper%temp(1,ew,ns)
-                   dthck = model%geometry%thck(ew,ns)*thk0 * (model%numerics%sigma(2) - model%numerics%sigma(1))
+!!                   dthck = model%geometry%thck(ew,ns)*thk0 * (model%numerics%sigma(2) - model%numerics%sigma(1))
+                   dthck = model%geometry%thck(ew,ns) * (model%numerics%sigma(2) - model%numerics%sigma(1))
                    model%temper%ucondflx(ew,ns) = -coni * dTtop / dthck
 
                    ! Check whether the temperature has converged everywhere
@@ -831,8 +836,9 @@ contains
     real(dp) :: fact(2)
 
 ! These constants are precomputed:
-!!! model%tempwk%cons(1) = 2.0d0 * tim0 * model%numerics%dttem * coni / (2.0d0 * rhoi * shci * thk0**2)
-! model%tempwk%cons(1) = 2.0d0 * model%numerics%dttem * coni / (2.0d0 * rhoi * shci * thk0**2)
+!! !!! model%tempwk%cons(1) = 2.0d0 * tim0 * model%numerics%dttem * coni / (2.0d0 * rhoi * shci * thk0**2)
+!! ! model%tempwk%cons(1) = 2.0d0 * model%numerics%dttem * coni / (2.0d0 * rhoi * shci * thk0**2)
+! model%tempwk%cons(1) = 2.0d0 * model%numerics%dttem * coni / (2.0d0 * rhoi * shci)
 ! model%tempwk%cons(2) = model%numerics%dttem / 2.0d0 
 
     fact(1) = VERT_DIFF*model%tempwk%cons(1) / model%geometry%thck(ew,ns)**2
@@ -1162,13 +1168,14 @@ contains
   subroutine calcpmpt(pmptemp,thck,sigma)
 
     use glimmer_physcon, only : rhoi, grav, pmlt 
-    use glimmer_paramets, only : thk0
+!!    use glimmer_paramets, only : thk0
 
     real(dp), dimension(:), intent(out) :: pmptemp
     real(dp), intent(in) :: thck
     real(dp),intent(in),dimension(:) :: sigma
 
-    pmptemp(:) = - grav * rhoi * pmlt * thk0 * thck * sigma(:)
+!!    pmptemp(:) = - grav * rhoi * pmlt * thk0 * thck * sigma(:)
+    pmptemp(:) = - grav * rhoi * pmlt * thck * sigma(:)
 
   end subroutine calcpmpt
 
@@ -1199,12 +1206,13 @@ contains
   subroutine calcpmptb(pmptemp,thck)
 
     use glimmer_physcon, only : rhoi, grav, pmlt 
-    use glimmer_paramets, only : thk0
+!!    use glimmer_paramets, only : thk0
 
     real(dp), intent(out) :: pmptemp
     real(dp), intent(in) :: thck
 
-    pmptemp = - grav * rhoi * pmlt * thk0 * thck 
+!!    pmptemp = - grav * rhoi * pmlt * thk0 * thck 
+    pmptemp = - grav * rhoi * pmlt * thck 
 
   end subroutine calcpmptb
 
@@ -1216,7 +1224,8 @@ contains
     !> using one of three possible methods.
 
     use glimmer_physcon
-    use glimmer_paramets, only : thk0, vis0
+!!    use glimmer_paramets, only : thk0, vis0
+    use glimmer_paramets, only : vis0
 
     !------------------------------------------------------------------------------------
     ! Subroutine arguments
@@ -1259,7 +1268,8 @@ contains
    
 !      Some notes:
 !      vis0 = 1.39e-032 Pa-3 s-1
-!           = tau0**(-gn) * (vel0/len0) where tau0 = rhoi*grav*thk0
+!! !           = tau0**(-gn) * (vel0/len0) where tau0 = rhoi*grav*thk0
+!           = tau0**(-gn) * (vel0) where tau0 = rhoi*grav
 !      vis0*scyr = 4.39e-025 Pa-2 yr-1
 !      default_flwa_arg = 1.0d-16 Pa-3 yr-1 by default
 !      Result is default_flwa =   227657117 (unitless) if flow factor = 1
@@ -1291,7 +1301,8 @@ contains
             ! Calculate the corrected temperature
 
             do up = 1, upn
-              tempcor(up) = min(0.0d0, temp(up,ew,ns) + thck(ew,ns) * grav * rhoi * pmlt * thk0 * sigma(up))
+!!              tempcor(up) = min(0.0d0, temp(up,ew,ns) + thck(ew,ns) * grav * rhoi * pmlt * thk0 * sigma(up))
+              tempcor(up) = min(0.0d0, temp(up,ew,ns) + thck(ew,ns) * grav * rhoi * pmlt * sigma(up))
               tempcor(up) = max(-50.0d0, tempcor(up))
             enddo
 

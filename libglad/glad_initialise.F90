@@ -57,7 +57,8 @@ contains
 
     ! Initialise a GLAD ice model instance for GCM coupling
 
-    use glimmer_paramets, only: GLC_DEBUG, thk0
+!!    use glimmer_paramets, only: GLC_DEBUG, thk0
+    use glimmer_paramets, only: GLC_DEBUG
     use glimmer_log
     use glimmer_config
     use glimmer_coordinates, only : coordsystem_new

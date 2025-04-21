@@ -38,7 +38,7 @@ module glide_velo
   use glimmer_global, only : dp
   use glimmer_physcon, only : rhoi, grav, gn
 !!  use glimmer_paramets, only : thk0, len0, vis0, vel0
-  use glimmer_paramets, only : thk0, vis0, vel0
+  use glimmer_paramets, only : vis0, vel0
 
   implicit none
 
@@ -110,13 +110,14 @@ contains
     model%velowk%trcmin = model%velowk%trcmin / model%velowk%trc0  
     model%velowk%c(1)   = (model%velowk%trcmax + model%velowk%trcmin) / 2.0d0 
     model%velowk%c(2)   = (model%velowk%trcmax - model%velowk%trcmin) / 2.0d0
-    model%velowk%c(3)   = (thk0 * pi) / model%velowk%watwd  
+!!    model%velowk%c(3)   = (thk0 * pi) / model%velowk%watwd  
+    model%velowk%c(3)   = pi / model%velowk%watwd  
     model%velowk%c(4)   = pi*(model%velowk%watct / model%velowk%watwd)
 
     ! Note: cflow < 0 is used in several equations below.
     !       Signs in this module can be tricky, so comments are added to help keep track.
 !!    cflow = -2.0d0*vis0*(rhoi*grav)**gn*thk0**p3/(8.0d0*vel0*len0**gn)
-    cflow = -2.0d0*vis0*(rhoi*grav)**gn*thk0**p3/(8.0d0*vel0)
+    cflow = -2.0d0*vis0*(rhoi*grav)**gn/(8.0d0*vel0)
 
   end subroutine init_velo
 
@@ -733,9 +734,9 @@ contains
 
     real(dp),dimension(:),    intent(in)  :: sigma     !> Array holding values of sigma
                                                        !> at each vertical level
-    real(dp),                 intent(in)  :: thklim    !> Minimum thickness to be considered
+    real(dp),                 intent(in)  :: thklim    !> Minimum thickness (m) to be considered
                                                        !> when calculating the grid velocity.
-                                                       !> This is in m, divided by \texttt{thk0}.
+!!                                                       !> This is in m, divided by \texttt{thk0}.
     real(dp),dimension(:,:,:),intent(in)  :: uvel      !> The $x$-velocity field (scaled). Velocity
                                                        !> is on the staggered grid
     real(dp),dimension(:,:,:),intent(in)  :: vvel      !> The $y$-velocity field (scaled). Velocity
@@ -744,8 +745,8 @@ contains
                                                        !> and horizontal derivatives of
                                                        !> ice-sheet thickness and upper
                                                        !> surface elevation
-    real(dp),dimension(:,:),  intent(in)  :: thck      !> Ice-sheet thickness (divided by 
-                                                       !> \texttt{thk0})
+    real(dp),dimension(:,:),  intent(in)  :: thck      !> Ice-sheet thickness (m) 
+!!                                                       !> (divided by \texttt{thk0})
     real(dp),dimension(:,:,:),intent(out) :: wgrd      !> The grid velocity at each point. This
                                                        !> is the output.
 
@@ -804,8 +805,8 @@ contains
                                                           !> staggered grid (scaled)
     real(dp),dimension(:,:,:), intent(in)    :: vvel      !> The $y$-velocity on the
                                                           !> staggered grid (scaled)
-    real(dp),dimension(:,:),   intent(in)    :: thck      !> The ice thickness, divided
-                                                          !> by \texttt{thk0}
+    real(dp),dimension(:,:),   intent(in)    :: thck      !> The ice thickness (m)
+!!                                                          !> (divided by \texttt{thk0}
     type(glide_geomderv),    intent(in)    :: geomderv  !> Derived type holding the
                                                           !> horizontal and temporal derivatives
                                                           !> of the thickness and upper surface
@@ -1023,7 +1024,7 @@ contains
 
     use glimmer_physcon, only : rhoo, rhoi
 !!    use glimmer_paramets, only : len0, thk0, scyr, vel0
-    use glimmer_paramets, only : thk0, scyr, vel0
+    use glimmer_paramets, only : scyr, vel0
     implicit none
 
     type(glide_global_type) :: model        !> model instance
@@ -1043,7 +1044,7 @@ contains
 
     !scaling
 !!    real(dp) :: tau_factor = 1.d-3*thk0*thk0/len0
-    real(dp) :: tau_factor = 1.d-3*thk0*thk0
+    real(dp) :: tau_factor = 1.d-3
     !real(dp) :: tau_factor = 1.0d0
     !------------------------------------------------------------------------------------
 

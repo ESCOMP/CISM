@@ -117,7 +117,8 @@ contains
                                     qsmb_g,     tsfc_g,  &
                                     topo_g,     gmask)
  
-    use glimmer_paramets, only: thk0, GLC_DEBUG
+!!    use glimmer_paramets, only: thk0, GLC_DEBUG
+    use glimmer_paramets, only: GLC_DEBUG
     use glad_constants, only: lapse
     use glint_type
     use glint_interp, only: interp_to_local, copy_to_local
@@ -206,8 +207,10 @@ contains
     do j = 1, nyl
        do i = 1, nxl
 
-          usrf = instance%model%geometry%usrf(i,j) * thk0
-          thck = instance%model%geometry%thck(i,j) * thk0
+!!          usrf = instance%model%geometry%usrf(i,j) * thk0
+!!          thck = instance%model%geometry%thck(i,j) * thk0
+          usrf = instance%model%geometry%usrf(i,j)
+          thck = instance%model%geometry%thck(i,j)
 
           if (thck <= min_thck) then ! if ice-free...
 

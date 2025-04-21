@@ -49,7 +49,7 @@ contains
 
     ! Calve ice according to one of several alternative methods
  
-    use glimmer_paramets, only: thk0
+!!    use glimmer_paramets, only: thk0
 
     implicit none
 
@@ -135,13 +135,17 @@ contains
 !             thck = 0.0d0
 !          end where
 !       end if
-       if (eus*thk0 > -80.d0) then
-          where (relx*thk0 <= 2.d0*eus*thk0)
+!!       if (eus*thk0 > -80.d0) then
+!!          where (relx*thk0 <= 2.d0*eus*thk0)
+       if (eus > -80.d0) then
+          where (relx <= 2.d0*eus)
              calving_thck = thck
              thck = 0.0d0
           end where
-       elseif (eus*thk0 <= -80.d0) then
-          where (relx*thk0 <= (2.d0*eus*thk0 - 0.25d0*(eus*thk0 + 80.d0)**2.d0))
+!!       elseif (eus*thk0 <= -80.d0) then
+!!          where (relx*thk0 <= (2.d0*eus*thk0 - 0.25d0*(eus*thk0 + 80.d0)**2.d0))
+       elseif (eus <= -80.d0) then
+          where (relx <= (2.d0*eus - 0.25d0*(eus + 80.d0)**2.d0))
              calving_thck = thck
              thck = 0.0d0
           end where

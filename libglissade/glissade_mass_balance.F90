@@ -147,7 +147,7 @@
     ! Then apply the SMB at the upper and lower surfaces, and recompute tracer values.
 
 !!    use glimmer_paramets, only: thk0, tim0, len0, eps11
-    use glimmer_paramets, only: thk0, eps11
+    use glimmer_paramets, only: eps11
     use glimmer_physcon, only: rhow, rhoi, scyr
     use glimmer_scales, only: scale_acab
     use glide_diagnostics, only: point_diag
@@ -253,7 +253,8 @@
 
        ! downscale SMB to the local surface elevation
        model%climate%smb(:,:) = model%climate%smb_ref(:,:) + &
-            (model%geometry%usrf(:,:)*thk0 - model%climate%usrf_ref(:,:)) * model%climate%smb_gradz(:,:)
+!!            (model%geometry%usrf(:,:)*thk0 - model%climate%usrf_ref(:,:)) * model%climate%smb_gradz(:,:)
+            (model%geometry%usrf(:,:) - model%climate%usrf_ref(:,:)) * model%climate%smb_gradz(:,:)
 
     elseif (model%options%smb_input_function == SMB_INPUT_FUNCTION_XYZ) then
 
@@ -291,28 +292,33 @@
        if (this_rank == rtest) then
           write(6,*) 'Computing runtime smb with smb_input_function =', model%options%smb_input_function
        endif
-       call point_diag(model%geometry%usrf*thk0, 'usrf (m)', itest, jtest, rtest, 7, 7)
+!!       call point_diag(model%geometry%usrf*thk0, 'usrf (m)', itest, jtest, rtest, 7, 7)
+       call point_diag(model%geometry%usrf, 'usrf (m)', itest, jtest, rtest, 7, 7)
 
        if (model%options%smb_input_function == SMB_INPUT_FUNCTION_XY_GRADZ) then
-          call point_diag(model%geometry%usrf*thk0 - model%climate%usrf_ref, 'usrf - usrf_ref (m)', &
+!!          call point_diag(model%geometry%usrf*thk0 - model%climate%usrf_ref, 'usrf - usrf_ref (m)', &
+          call point_diag(model%geometry%usrf - model%climate%usrf_ref, 'usrf - usrf_ref (m)', &
                itest, jtest, rtest, 7, 7)
           call point_diag(model%climate%smb_ref, 'reference smb (mm/yr)', itest, jtest, rtest, 7, 7)
           call point_diag(model%climate%smb_gradz, 'smb_gradz (mm/yr per m)', itest, jtest, rtest, 7, 7)
           call point_diag(model%climate%smb, 'downscaled smb (mm/yr)', itest, jtest, rtest, 7, 7)
        elseif (model%options%smb_input_function == SMB_INPUT_FUNCTION_XYZ) then
           k = model%climate%nlev_smb/2 + 1  ! arbitrary k
-          if (this_rank == rtest) write(6,*) 'Diagnostic level k, level (m) =', k, model%climate%smb_levels(k)*thk0
+!!          if (this_rank == rtest) write(6,*) 'Diagnostic level k, level (m) =', k, model%climate%smb_levels(k)*thk0
+          if (this_rank == rtest) write(6,*) 'Diagnostic level k, level (m) =', k, model%climate%smb_levels(k)
           call point_diag(model%climate%smb_3d(k,:,:), '3d smb (mm/yr ice)', itest, jtest, rtest, 7, 7)
           call point_diag(model%climate%smb, 'downscaled smb (mm/yr ice)', itest, jtest, rtest, 7, 7)
        endif  ! smb_input_function
 
        if (model%options%artm_input_function == ARTM_INPUT_FUNCTION_XY_GRADZ) then
           call point_diag(model%climate%artm_ref, 'reference artm (deg C)', itest, jtest, rtest, 7, 7)
-          call point_diag(model%climate%artm_gradz*1000.d0/thk0, 'artm_gradz (deg C per km)', itest, jtest, rtest, 7, 7)
+!!          call point_diag(model%climate%artm_gradz*1000.d0/thk0, 'artm_gradz (deg C per km)', itest, jtest, rtest, 7, 7)
+          call point_diag(model%climate%artm_gradz*1000.d0, 'artm_gradz (deg C per km)', itest, jtest, rtest, 7, 7)
           call point_diag(model%climate%artm, 'downscaled artm (deg C)', itest, jtest, rtest, 7, 7)
        elseif (model%options%artm_input_function == ARTM_INPUT_FUNCTION_XYZ) then
           k = model%climate%nlev_smb/2 + 1  ! arbitrary k
-          if (this_rank == rtest) write(6,*) 'Diagnostic level k, level (m) =', k, model%climate%smb_levels(k)*thk0
+!!          if (this_rank == rtest) write(6,*) 'Diagnostic level k, level (m) =', k, model%climate%smb_levels(k)*thk0
+          if (this_rank == rtest) write(6,*) 'Diagnostic level k, level (m) =', k, model%climate%smb_levels(k)
           call point_diag(model%climate%artm_3d(k,:,:), '3d artm (deg C)', itest, jtest, rtest, 7, 7)
           call point_diag(model%climate%artm, 'downsacled artm (deg C)', itest, jtest, rtest, 7, 7)
        endif   ! artm_input_function
@@ -476,7 +482,8 @@
             parallel,                           &
             thck_unscaled,                      &   ! m
             topg_unscaled,                      &   ! m
-            model%climate%eus*thk0,             &   ! m
+!!            model%climate%eus*thk0,             &   ! m
+            model%climate%eus,                  &   ! m
             0.0d0,                              &   ! thklim = 0
             ice_mask,                           &
             floating_mask = floating_mask,      &

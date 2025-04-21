@@ -169,7 +169,7 @@ contains
     use glide_types
     use glimmer_physcon,  only: scyr
 !!    use glimmer_paramets, only: thk0, tim0, len0, vel0, vis0, acc0, tau0
-    use glimmer_paramets, only: thk0, vel0, vis0, acc0, tau0
+    use glimmer_paramets, only: vel0, vis0, acc0, tau0
 
     implicit none
 
@@ -187,25 +187,25 @@ contains
     ! allow for subcycling of ice transport
     model%numerics%dt_transport = model%numerics%dt / real(model%numerics%subcyc, dp)
 
-    model%numerics%thklim = model%numerics%thklim / thk0
-    model%numerics%thklim_temp = model%numerics%thklim_temp / thk0
-    model%numerics%thck_gradient_ramp = model%numerics%thck_gradient_ramp / thk0
+!!    model%numerics%thklim = model%numerics%thklim / thk0
+!!    model%numerics%thklim_temp = model%numerics%thklim_temp / thk0
+!!    model%numerics%thck_gradient_ramp = model%numerics%thck_gradient_ramp / thk0
 
 !!    model%numerics%dew = model%numerics%dew / len0
 !!    model%numerics%dns = model%numerics%dns / len0
 
     ! scale calving parameters
-    model%calving%marine_limit = model%calving%marine_limit / thk0
+!!    model%calving%marine_limit = model%calving%marine_limit / thk0
     model%calving%timescale = model%calving%timescale * scyr                ! convert from yr to s
     model%calving%cliff_timescale = model%calving%cliff_timescale * scyr    ! convert from yr to s
 
     ! scale periodic offsets for ISMIP-HOM
-    model%numerics%periodic_offset_ew = model%numerics%periodic_offset_ew / thk0
-    model%numerics%periodic_offset_ns = model%numerics%periodic_offset_ns / thk0
+!!    model%numerics%periodic_offset_ew = model%numerics%periodic_offset_ew / thk0
+!!    model%numerics%periodic_offset_ns = model%numerics%periodic_offset_ns / thk0
 
     ! scale glide basal traction parameters
 !!    model%velowk%trc0   = vel0 * len0 / (thk0**2)
-    model%velowk%trc0   = vel0 / (thk0**2)
+    model%velowk%trc0   = vel0
     model%velowk%btrac_const = model%paramets%btrac_const/model%velowk%trc0/scyr
     model%velowk%btrac_max   = model%paramets%btrac_max / model%velowk%trc0/scyr    
     model%velowk%btrac_slope = model%paramets%btrac_slope*acc0/model%velowk%trc0
@@ -222,12 +222,12 @@ contains
     model%inversion%deltaT_ocn_timescale = model%inversion%deltaT_ocn_timescale * scyr   ! yr to s
     model%inversion%flow_enhancement_velo_scale = model%inversion%flow_enhancement_velo_scale / scyr  ! m/yr to m/s
     model%inversion%flow_enhancement_timescale = model%inversion%flow_enhancement_timescale * scyr  ! yr to s
-    model%inversion%thck_threshold = model%inversion%thck_threshold / thk0
-    model%inversion%thck_flotation_buffer = model%inversion%thck_flotation_buffer / thk0
+!!    model%inversion%thck_threshold = model%inversion%thck_threshold / thk0
+!!    model%inversion%thck_flotation_buffer = model%inversion%thck_flotation_buffer / thk0
 
-    ! scale SMB/acab parameters
+    ! scale SMB/acab parameterss
     model%climate%overwrite_acab_value = model%climate%overwrite_acab_value/scyr
-    model%climate%overwrite_acab_minthck = model%climate%overwrite_acab_minthck / thk0
+!!    model%climate%overwrite_acab_minthck = model%climate%overwrite_acab_minthck / thk0
 
   end subroutine glide_scale_params
 
@@ -2808,6 +2808,11 @@ contains
     endif   ! which_ho_powerlaw_c
 
     if (model%options%which_ho_coulomb_c == HO_COULOMB_C_INVERSION) then
+       write(message,*) 'inversion flotation thickness buffer (m)     : ', &
+            model%inversion%thck_flotation_buffer
+       call write_log(message)
+       write(message,*) 'inversion thickness threshold (m)            : ', &
+            model%inversion%thck_threshold
        write(message,*) 'coulomb_c max                                : ', &
             model%basal_physics%coulomb_c_max
        call write_log(message)
