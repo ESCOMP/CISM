@@ -523,13 +523,11 @@ contains
     !--------------------------------------------------------------------
     !TODO - Add internal melting for enthalpy case
                        
-    ! Note on units: model%basal_melt%bmlt has dimensionless units of ice thickness per unit time
-    !                Multiply by thk0/tim0 to convert to meters ice per second
+    ! Note on units: model%basal_melt%bmlt has units of m/s ice
     !                Multiply by rhoi to convert to kg/m^2/s water equiv.
 
     ! Convert to kg/m^2/s
-    rofl_tavg(:,:) = rofl_tavg(:,:)  &
-                   + model%basal_melt%bmlt(:,:) * thk0/tim0 * rhoi
+    rofl_tavg(:,:) = rofl_tavg(:,:)  + model%basal_melt%bmlt(:,:) * rhoi
 
     !--------------------------------------------------------------------
     ! Accumulate basal heat flux

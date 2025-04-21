@@ -106,7 +106,6 @@ module glissade_bmlt_float
                                           basal_melt,  ocean_data)
 
     use glissade_masks, only: glissade_get_masks
-    use glimmer_paramets, only: tim0, thk0
 
     ! Compute the rate of basal melting for floating ice by one of several methods.
 
@@ -498,7 +497,7 @@ module glissade_bmlt_float
 
   subroutine glissade_bmlt_float_thermal_forcing_init(model, ocean_data)
 
-    use glimmer_paramets, only: thk0, len0, tim0, unphys_val
+    use glimmer_paramets, only: unphys_val
     use glissade_masks, only : glissade_get_masks
 
     ! Initialization for basal melting based on ocean thermal forcing
@@ -721,7 +720,7 @@ module glissade_bmlt_float
        which_ho_deltaT_ocn,       &
        dthck_dt_obs)
 
-    use glimmer_paramets, only: thk0, unphys_val
+    use glimmer_paramets, only: unphys_val
     use glissade_grid_operators, only: glissade_slope_angle
     use glissade_utils, only: glissade_basin_average
 

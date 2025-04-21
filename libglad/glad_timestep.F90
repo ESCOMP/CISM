@@ -191,8 +191,8 @@ contains
           ! Put climate inputs in the appropriate places, with conversion ----------
 
           ! Note on units:
-          ! For subroutine glide_set_acab, input acab is in m/yr ice; this value is multiplied 
-          !  by tim0/(scyr*thk0) and copied to data%climate%acab.
+          ! For subroutine glide_set_acab, input acab is in m/yr ice; this value is divided
+          !  by scyr and copied to data%climate%acab.
           ! Input artm is in deg C; this value is copied to data%climate%artm (no unit conversion).
 
           !TODO - It is confusing to have units of m/yr w.e. for instance%acab, compared to units m/yr ice for Glide. 

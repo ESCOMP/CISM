@@ -645,8 +645,8 @@ contains
     call glissade_basal_water_init(model)
 
     ! Initialize some mass balance fields
-    ! Note: This subroutine converts the input smb (mm/yr w.e.) to acab (m/yr ice), if needed.
-    !       Most subsequent calculations work with acab, converting back to smb at the end.
+    ! Note: This subroutine converts the input smb (mm/yr w.e.) to acab (m/s ice), if needed.
+    !       Subsequent calculations work with acab, converting back to smb at the end.
     call glissade_mass_balance_init(model)
 
     ! Initialize the temperature profile in each column
@@ -659,7 +659,7 @@ contains
                              model%numerics%dups,                                   &
                              model%geometry%thck*thk0,                              & ! m
                              model%climate%artm_corrected,                          & ! deg C
-                             model%climate%acab*thk0/tim0,                          & ! m/s
+                             model%climate%acab,                                    & ! m/s
                              model%temper%bheatflx,                                 & ! W/m^2, positive down
                              model%temper%pmp_offset,                               & ! deg C
                              model%temper%temp,                                     & ! deg C
@@ -1512,9 +1512,6 @@ contains
             tf_anomaly_in = tf_anomaly,            & ! deg C
             tf_anomaly_basin_in = tf_anomaly_basin)
 
-       ! Convert bmlt_float from SI units (m/s) to scaled model units
-       model%basal_melt%bmlt_float(:,:) = model%basal_melt%bmlt_float(:,:) * tim0/thk0
-
     else  ! other options include BMLT_FLOAT_CONSTANT, BMLT_FLOAT_MISMIP, &
           !  BMLT_FLOAT_DEPTH, and BMLT_FLOAT_MISOMIP
           !TODO - Call separate subroutines for each of these options?
@@ -1532,9 +1529,6 @@ contains
                                          model%climate%eus*thk0,                                & ! m
                                          model%basal_melt,                                      & ! bmlt_float in m/s
                                          model%ocean_data)
-
-       ! Convert bmlt_float from SI units (m/s) to scaled model units
-       model%basal_melt%bmlt_float(:,:) = model%basal_melt%bmlt_float(:,:) * tim0/thk0
 
     endif  ! whichbmlt_float
 
@@ -1638,7 +1632,7 @@ contains
              write(6,*) 'Reduce bmlt_float in shallow cavities, bmlt_cavity_h0 (m) =', &
                   model%basal_melt%bmlt_cavity_h0
           endif
-          call point_diag(model%basal_melt%bmlt_float*thk0*scyr/tim0, 'original bmlt_float (m/yr)', &
+          call point_diag(model%basal_melt%bmlt_float*scyr, 'original bmlt_float (m/yr)', &
                itest, jtest, rtest, 7, 7)
           call point_diag(h_cavity, 'h_cavity (m)', itest, jtest, rtest, 7, 7)
           call point_diag(min(h_cavity/model%basal_melt%bmlt_cavity_h0, 1.0d0), 'fractional reduction', &
@@ -1667,7 +1661,7 @@ contains
        else
           call point_diag(floating_mask, 'floating_mask', itest, jtest, rtest, 7, 7)
        endif
-       call point_diag(model%basal_melt%bmlt_float*thk0*scyr/tim0, 'Final bmlt_float (m/yr)', &
+       call point_diag(model%basal_melt%bmlt_float*scyr, 'Final bmlt_float (m/yr)', &
             itest, jtest, rtest, 7, 7)
     endif  ! verbose_bmlt_float
 
@@ -1698,10 +1692,10 @@ contains
     type(glide_global_type), intent(inout) :: model   ! model instance
 
     real(dp), intent(in) :: dt   ! time step (s)
-    
+
+    !TODO - Remove when bwat is in m
     ! unscaled model parameters (SI units)
-    real(dp), dimension(model%general%ewn,model%general%nsn) ::   &
-       bmlt_ground_unscaled,   & ! basal melt rate for grounded ice (m/s)
+   real(dp), dimension(model%general%ewn,model%general%nsn) ::   &
        bwat_unscaled             ! basal water thickness (m)
 
     real(dp) :: previous_time       ! time (yr) at the start of this time step
@@ -1890,7 +1884,7 @@ contains
                                 model%temper%bpmp,                                            & ! deg C
                                 model%temper%btemp_ground,                                    & ! deg C
                                 model%temper%btemp_float,                                     & ! deg C
-                                bmlt_ground_unscaled)                                           ! m/s
+                                model%basal_melt%bmlt_ground)                                   ! m/s
 
     ! Update basal hydrology, if needed
     ! Note: glissade_calcbwat uses SI units
@@ -1913,9 +1907,9 @@ contains
 !          do i = 1, model%general%ewn
 !             if (head_max - model%basal_hydro%head(i,j) < 1000.d0) then
 !!             if (head_max - model%basal_hydro%head(i,j) < 200.d0) then
-!                bmlt_ground_unscaled(i,j) = 1.0d0/scyr    ! units are m/s
+!                model%basal_melt%bmlt_ground(i,j) = 1.0d0/scyr    ! units are m/s
 !             else
-!                bmlt_ground_unscaled(i,j) = 0.0d0
+!                model%basal_melt%bmlt_ground(i,j) = 0.0d0
 !             endif
 !          enddo
 !       enddo
@@ -1980,7 +1974,7 @@ contains
             model%numerics%thklim_temp*thk0,                  &  ! m
             bwat_mask,                                        &
             floating_mask,                                    &
-            bmlt_ground_unscaled,                             &  ! m/s
+            model%basal_melt%bmlt_ground,                     &  ! m/s
             model%basal_hydro%bwatflx,                        &  ! m^3/s
             model%basal_hydro%head)                              ! m
 
@@ -1991,13 +1985,12 @@ contains
                               dt,                               &  ! s
                               model%geometry%thck*thk0,         &  ! m
                               model%numerics%thklim_temp*thk0,  &  ! m
-                              bmlt_ground_unscaled,             &  ! m/s
+                              model%basal_melt%bmlt_ground,     &  ! m/s
                               bwat_unscaled)                       ! m
 
     endif
 
     ! convert bmlt and bwat from SI units (m/s and m) to scaled model units
-    model%basal_melt%bmlt_ground(:,:) = bmlt_ground_unscaled(:,:) * tim0/thk0
     model%basal_hydro%bwat(:,:) = bwat_unscaled(:,:) / thk0
 
     ! Update tempunstag as sigma weighted interpolation from temp to layer interfaces
@@ -2041,7 +2034,6 @@ contains
          staggered_parallel_halo, parallel_reduce_max
     use glimmer_paramets, only: eps11, eps08, tim0, thk0, vel0, len0
     use glimmer_physcon, only: rhow, rhoi, scyr
-    use glimmer_scales, only: scale_acab
     use glide_diagnostics, only: glide_init_diag
     use glissade_therm, only: glissade_temp2enth, glissade_enth2temp
     use glissade_transport, only: glissade_transport_driver, glissade_check_cfl,  &
@@ -2068,10 +2060,6 @@ contains
     real(dp), dimension(model%general%ewn,model%general%nsn) ::   &
        thck_unscaled,     & ! ice thickness (m)
        topg_unscaled        ! bedrock topography (m)
-
-!    real(dp), dimension(model%general%ewn,model%general%nsn) ::   &
-!       acab_unscaled,     & ! surface mass balance (m/s)
-!       bmlt_unscaled        ! = bmlt (m/s) if basal mass balance is included in continuity equation, else = 0
 
     ! masks
     integer, dimension(model%general%ewn, model%general%nsn) ::   &
@@ -2432,10 +2420,6 @@ contains
                itest, jtest, rtest, 7, 7, '(f10.5)')
        endif
 
-       ! convert applied mass balance from m/s back to scaled model units
-       model%climate%acab_applied(:,:) = model%climate%acab_applied(:,:)/thk0 * tim0
-       model%basal_melt%bmlt_applied(:,:) = model%basal_melt%bmlt_applied(:,:)/thk0 * tim0
-
        ! convert thck back to scaled units
        ! (acab_unscaled is intent(in) above, so no need to scale it back)
        model%geometry%thck(:,:) = thck_unscaled(:,:) / thk0
@@ -2489,7 +2473,7 @@ contains
 
     if (verbose_inversion) then
        call point_diag(model%geometry%thck*thk0, 'After mass balance, thck (m)', itest, jtest, rtest, 7, 7)
-       call point_diag(model%basal_melt%bmlt_applied*(thk0/tim0)*scyr, 'bmlt_applied (m/yr)', &
+       call point_diag(model%basal_melt%bmlt_applied*scyr, 'bmlt_applied (m/yr)', &
             itest, jtest, rtest, 7, 7)
     endif   ! verbose_inversion
 
@@ -3944,8 +3928,8 @@ contains
 
     ! surface, basal and calving mass fluxes (kg/m^2/s)
     ! positive for mass gain, negative for mass loss
-    model%geometry%sfc_mbal_flux(:,:) = rhoi * model%climate%acab_applied(:,:)*thk0/tim0
-    model%geometry%basal_mbal_flux(:,:) = rhoi * (-model%basal_melt%bmlt_applied(:,:)) * thk0/tim0
+    model%geometry%sfc_mbal_flux(:,:) = rhoi * model%climate%acab_applied(:,:)
+    model%geometry%basal_mbal_flux(:,:) = rhoi * (-model%basal_melt%bmlt_applied(:,:))
     model%geometry%calving_flux(:,:) = rhoi * (-model%calving%calving_thck(:,:)*thk0) / (model%numerics%dt*tim0)
 
     ! calving rate (m/yr ice; positive for calving)

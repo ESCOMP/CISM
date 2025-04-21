@@ -221,7 +221,7 @@ contains
     model%inversion%thck_flotation_buffer = model%inversion%thck_flotation_buffer / thk0
 
     ! scale SMB/acab parameters
-    model%climate%overwrite_acab_value = model%climate%overwrite_acab_value*tim0/(scyr*thk0)
+    model%climate%overwrite_acab_value = model%climate%overwrite_acab_value/scyr
     model%climate%overwrite_acab_minthck = model%climate%overwrite_acab_minthck / thk0
 
   end subroutine glide_scale_params

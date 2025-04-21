@@ -112,13 +112,11 @@ contains
     !       In these cases, we will need to be careful that heat and water are conserved.
     !--------------------------------------------------------------------
                        
-    ! Note on units: model%temper%bmlt has dimensionless units of ice thickness per unit time
-    !                Multiply by thk0/tim0 to convert to meters ice per second
+    ! Note on units: model%temper%bmlt has dimensionless units of m/s ice
     !                Multiply by rhoi to convert to kg/m^2/s water equiv.
 
     ! Convert to kg/m^2/s
-    output_fluxes%rofl_sum(:,:) = output_fluxes%rofl_sum(:,:)  &
-         + model%basal_melt%bmlt(:,:) * thk0/tim0 * rhoi
+    output_fluxes%rofl_sum(:,:) = output_fluxes%rofl_sum(:,:) + model%basal_melt%bmlt(:,:) * rhoi
 
     !--------------------------------------------------------------------
     ! Accumulate basal heat flux

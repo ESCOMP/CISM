@@ -69,7 +69,7 @@
 
     use glimmer_paramets, only: eps11
     use glimmer_physcon, only: rhow, rhoi
-    use glimmer_scales, only: scale_acab
+    use glimmer_scales, only: scale_acab    ! scale_acab = scyr, so acab has units m/s
 
     ! input/output arguments
 
@@ -168,8 +168,8 @@
     ! local variables
 
     real(dp), dimension(model%general%ewn,model%general%nsn) ::   &
-         acab_unscaled,        & ! surface mass balance (m/s)
-         bmlt_unscaled           ! = bmlt (m/s) if basal mass balance is included in continuity equation, else = 0
+         acab,              & ! surface mass balance (m/s), possibly adjusted based on dH/dt
+         bmlt                 ! = bmlt (m/s) if basal mass balance is included in continuity equation, else = 0
 
     ! masks
     integer, dimension(model%general%ewn, model%general%nsn) ::   &
@@ -301,7 +301,7 @@
        elseif (model%options%smb_input_function == SMB_INPUT_FUNCTION_XYZ) then
           k = model%climate%nlev_smb/2 + 1  ! arbitrary k
           if (this_rank == rtest) write(6,*) 'Diagnostic level k, level (m) =', k, model%climate%smb_levels(k)*thk0
-          call point_diag(model%climate%smb_3d(k,:,:)*scale_acab, '3d acab (m/yr ice)', itest, jtest, rtest, 7, 7)
+          call point_diag(model%climate%smb_3d(k,:,:), '3d smb (mm/yr ice)', itest, jtest, rtest, 7, 7)
           call point_diag(model%climate%smb, 'downscaled smb (mm/yr ice)', itest, jtest, rtest, 7, 7)
        endif  ! smb_input_function
 
@@ -405,11 +405,11 @@
 
     endif
 
-    ! Convert acab_corrected to a temporary array in SI units (m/s)
-    !TODO - Change units and use model%climate%acab below
-    acab_unscaled(:,:) = model%climate%acab(:,:) * thk0/tim0
+    ! Copy model%climate%acab to a local array
+    acab = model%climate%acab
 
     ! Optionally, correct acab by adding (-dthck_dt_obs_basin) where ice is floating.
+    ! (Note: model%climate%acab does not change.)
     ! During inversions for deltaT_ocn, this will generally force a positive ocean melt rate
     !  where the ice is thinning, preventing large negative values of deltaT_ocn during spin-up.
     ! When the correction is removed, the ice should melt and thin in agreement with observations.
@@ -423,19 +423,18 @@
     if (model%options%enable_acab_dthck_dt_correction) then
 
        if (verbose_smb) then
-          call point_diag(acab_unscaled*scyr, 'uncorrected acab (m/yr)', itest, jtest, rtest, 7, 7)
+          call point_diag(acab*scyr, 'acab (m/yr)', itest, jtest, rtest, 7, 7)
        endif
 
        where (model%geometry%f_ground_cell < 1.0d0 .and. model%geometry%dthck_dt_obs_basin < 0.0d0)
           ! floating ice is thinning in obs; apply a positive correction to acab
           ! Note: dthck_dt_obs_basin has units of m/yr; convert to m/s
-          acab_unscaled = acab_unscaled &
-               - (1.0d0 - model%geometry%f_ground_cell) * (model%geometry%dthck_dt_obs_basin/scyr)
+          acab = acab - (1.0d0 - model%geometry%f_ground_cell) * (model%geometry%dthck_dt_obs_basin/scyr)
        endwhere
 
        if (verbose_smb) then
           call point_diag(-model%geometry%dthck_dt_obs_basin, 'dthck_dt_obs correction (m/yr)', itest, jtest, rtest, 7, 7)
-          call point_diag(acab_unscaled*scyr, 'new acab (m/yr)', itest, jtest, rtest, 7, 7)
+          call point_diag(acab*scyr, 'new acab (m/yr)', itest, jtest, rtest, 7, 7)
        endif
 
     endif   ! enable_acab_dthck_dt_correction
@@ -445,10 +444,11 @@
     !       (computed in glissade_bmlt_float_solve).
     ! Note: bmlt can be turned off by setting options%basal_mbal = BASAL_MBAL_NO_CONTINUITY
 
+    !TODO - Change name to just 'bmlt'?
     if (model%options%basal_mbal == BASAL_MBAL_CONTINUITY) then    ! include bmlt in continuity equation
-       bmlt_unscaled(:,:) = model%basal_melt%bmlt(:,:) * thk0/tim0
+       bmlt(:,:) = model%basal_melt%bmlt(:,:)
     else                                                           ! do not include bmlt in continuity equation
-       bmlt_unscaled(:,:) = 0.0d0
+       bmlt = 0.0d0
     endif
 
     ! ------------------------------------------------------------------------
@@ -497,7 +497,7 @@
 
     endif  ! which_ho_calving_front
 
-    ! TODO: Zero out acab_unscaled and bmlt_unscaled in cells that are ice-free ocean after transport?
+    ! TODO: Zero out acab and bmlt in cells that are ice-free ocean after transport?
     !       Then it would not be necessary to pass ocean_mask to glissade_mass_balance_driver.
 
     ! Initialize the applied acab and bmlt.
@@ -525,8 +525,8 @@
          parallel,                                             &
          itest,       jtest,        rtest,                     &
          thck_unscaled(:,:),                                   &  ! m
-         acab_unscaled(:,:),                                   &  ! m/s
-         bmlt_unscaled(:,:),                                   &  ! m/s
+         acab(:,:),                                            &  ! m/s
+         bmlt(:,:),                                            &  ! m/s
          model%climate%acab_applied(:,:),                      &  ! m/s
          model%basal_melt%bmlt_applied(:,:),                   &  ! m/s
          ocean_mask(:,:),                                      &

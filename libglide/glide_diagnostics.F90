@@ -509,7 +509,7 @@ contains
           enddo
        enddo
 
-       tot_acab = tot_acab * scyr * thk0 / tim0 * len0**2   ! convert to m^3/yr
+       tot_acab = tot_acab * scyr * len0**2   ! convert to m^3/yr
        tot_acab = parallel_reduce_sum(tot_acab)
 
        ! total surface mass balance flux (kg/s)
@@ -531,7 +531,7 @@ contains
           enddo
        enddo
 
-       tot_bmlt = tot_bmlt * scyr * thk0 / tim0 * len0**2   ! convert to m^3/yr
+       tot_bmlt = tot_bmlt * scyr * len0**2   ! convert to m^3/yr
        tot_bmlt = parallel_reduce_sum(tot_bmlt)
 
        ! total basal mass balance (kg/s, positive for freeze-on, negative for melt)
@@ -849,9 +849,9 @@ contains
 
     ! Write to diagnostics only if nonzero
 
-    if (abs(max_bmlt_global*thk0*scyr/tim0) > eps) then
+    if (abs(max_bmlt_global*scyr) > eps) then
        write(message,'(a25,f24.16,2i6)') 'Max bmlt (m/y), i, j     ',   &
-            max_bmlt_global*thk0*scyr/tim0, imax_global, jmax_global
+            max_bmlt_global*scyr, imax_global, jmax_global
        call write_log(trim(message), type = GM_DIAGNOSTIC)
     endif
 
@@ -877,9 +877,9 @@ contains
 
     ! Write to diagnostics only if nonzero
 
-    if (abs(max_bmlt_global*thk0*scyr/tim0) > eps) then
+    if (abs(max_bmlt_global*scyr) > eps) then
        write(message,'(a25,f24.16,2i6)') 'Max bmlt grnd (m/y), i, j',   &
-            max_bmlt_ground_global*thk0*scyr/tim0, imax_global, jmax_global
+            max_bmlt_ground_global*scyr, imax_global, jmax_global
        call write_log(trim(message), type = GM_DIAGNOSTIC)
     endif
 
@@ -1018,8 +1018,8 @@ contains
              load_diag = model%isostasy%load(i,j)*thk0
           endif
           artm_diag = model%climate%artm_corrected(i,j)  ! artm_corrected = artm + artm_anomaly
-          acab_diag = model%climate%acab_applied(i,j) * thk0*scyr/tim0
-          bmlt_diag = model%basal_melt%bmlt_applied(i,j) * thk0*scyr/tim0
+          acab_diag = model%climate%acab_applied(i,j) * scyr
+          bmlt_diag = model%basal_melt%bmlt_applied(i,j) * scyr
           bwat_diag = model%basal_hydro%bwat(i,j) * thk0
           bheatflx_diag = model%temper%bheatflx(i,j)
           top_age_diag = model%geometry%ice_age(1,i,j)       ! age of top ice layer

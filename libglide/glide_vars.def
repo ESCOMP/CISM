@@ -817,7 +817,7 @@ dimensions:    time, y1, x1
 units:         mm/year water equivalent
 long_name:     corrected surface mass balance
 data:          data%climate%smb_corrected
-factor:        scale_acab
+factor:        1.0
 standard_name: land_ice_surface_specific_mass_balance_corrected
 
 [smb_3d]

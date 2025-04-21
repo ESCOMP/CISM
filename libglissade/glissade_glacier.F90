@@ -1050,8 +1050,8 @@ contains
        print*, ' '
        ! Convert acab_applied from m/yr ice to mm/yr w.e.
        write(6,'(a32,2f10.3)') '     acab_applied, smb_applied: ', &
-            model%climate%acab_applied(i,j)*scyr*thk0/tim0, &  ! m/yr ice
-            model%climate%acab_applied(i,j)*scyr*thk0/tim0 * 1000.d0*(rhoi/rhow)  ! mm/yr w.e.
+            model%climate%acab_applied(i,j)*scyr, &  ! m/yr ice
+            model%climate%acab_applied(i,j)*scyr * 1000.d0*(rhoi/rhow)  ! mm/yr w.e.
        write(6,'(a32,4f10.3)') 'artm_ref, usrf_ref, usrf, diff: ', &
             model%climate%artm_ref(i,j), &
             model%climate%usrf_ref(i,j), model%geometry%usrf(i,j)*thk0, &
@@ -1143,7 +1143,7 @@ contains
     glacier%snow_annmean = glacier%snow_annmean + snow * dt
     glacier%Tpos_annmean = glacier%Tpos_annmean + Tpos * dt
     glacier%smb_applied_annmean = glacier%smb_applied_annmean  &
-         + model%climate%acab_applied*(scyr*thk0/tim0) * 1000.d0*(rhoi/rhow) * dt
+         + model%climate%acab_applied*scyr * 1000.d0*(rhoi/rhow) * dt
 
     if (glacier%set_mu_star == GLACIER_MU_STAR_INVERSION .and. &
         glacier%set_alpha_snow == GLACIER_ALPHA_SNOW_INVERSION) then
