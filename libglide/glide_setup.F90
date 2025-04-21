@@ -168,7 +168,8 @@ contains
     !> scale parameters
     use glide_types
     use glimmer_physcon,  only: scyr
-    use glimmer_paramets, only: thk0, tim0, len0, vel0, vis0, acc0, tau0
+!!    use glimmer_paramets, only: thk0, tim0, len0, vel0, vis0, acc0, tau0
+    use glimmer_paramets, only: thk0, len0, vel0, vis0, acc0, tau0
 
     implicit none
 
@@ -176,9 +177,12 @@ contains
 
     model%numerics%dttem = model%numerics%ntem * model%numerics%tinc   
 
-    ! convert dt and dttem from yr to scaled time units
-    model%numerics%dt     = model%numerics%tinc * scyr / tim0   
-    model%numerics%dttem  = model%numerics%dttem * scyr / tim0   
+!!    ! convert dt and dttem from yr to scaled time units
+!!    model%numerics%dt     = model%numerics%tinc * scyr / tim0   
+!!    model%numerics%dttem  = model%numerics%dttem * scyr / tim0
+!!    ! convert dt and dttem from yr to s
+    model%numerics%dt     = model%numerics%tinc * scyr
+    model%numerics%dttem  = model%numerics%dttem * scyr
 
     ! allow for subcycling of ice transport
     model%numerics%dt_transport = model%numerics%dt / real(model%numerics%subcyc, dp)

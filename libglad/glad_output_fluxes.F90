@@ -78,7 +78,8 @@ contains
     ! Given the calving, basal melting, and conductive heat flux fields from the dycore,
     ! accumulate contributions to the rofi, rofl, and hflx fields to be sent to the coupler.
 
-    use glimmer_paramets, only: thk0, tim0
+!!    use glimmer_paramets, only: thk0, tim0
+    use glimmer_paramets, only: thk0
     use glimmer_physcon, only : rhoi
     use glide_types, only : glide_global_type
 
@@ -94,11 +95,12 @@ contains
     ! Note on units: model%calving%calving_thck has dimensionless ice thickness units
     !                Multiply by thk0 to convert to meters of ice
     !                Multiply by rhoi to convert to kg/m^2 water equiv.
-    !                Divide by (dt*tim0) to convert to kg/m^2/s
+    !                Divide by dt to convert to kg/m^2/s
 
     ! Convert to kg/m^2/s
     output_fluxes%rofi_sum(:,:) = output_fluxes%rofi_sum(:,:)  &
-         + model%calving%calving_thck(:,:) * thk0 * rhoi / (model%numerics%dt * tim0)
+!!         + model%calving%calving_thck(:,:) * thk0 * rhoi / (model%numerics%dt * tim0)
+         + model%calving%calving_thck(:,:) * thk0 * rhoi / model%numerics%dt
 
     !--------------------------------------------------------------------
     ! Accumulate liquid runoff (basal melting)

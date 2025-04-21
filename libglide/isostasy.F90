@@ -108,7 +108,7 @@ contains
     !> initialise isostasy calculations
     use glide_types
     use glimmer_physcon,  only: scyr
-    use glimmer_paramets, only: tim0
+!!    use glimmer_paramets, only: tim0
     use isostasy_elastic, only: init_elastic
 
     implicit none
@@ -135,7 +135,8 @@ contains
        model%isostasy%nlith = 0  ! never update
     endif
 
-    model%isostasy%relaxed_tau = model%isostasy%relaxed_tau * scyr / tim0
+!!    model%isostasy%relaxed_tau = model%isostasy%relaxed_tau * scyr / tim0
+    model%isostasy%relaxed_tau = model%isostasy%relaxed_tau * scyr
 
   end subroutine init_isostasy
 

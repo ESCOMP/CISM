@@ -444,7 +444,7 @@ contains
     use glide_thck
     use glide_velo
     use glide_mask
-    use glimmer_paramets, only: tim0
+!!    use glimmer_paramets, only: tim0
     use glimmer_physcon, only: scyr, rhoi, rhow
     use glide_ground, only: glide_calve_ice
     use glide_bwater, only: calcbwat
@@ -793,7 +793,7 @@ contains
     use glide_velo
     use glide_temp
     use glide_mask
-    use glimmer_paramets, only: tim0
+!!    use glimmer_paramets, only: tim0
     use glimmer_physcon, only: scyr
     use glide_grid_operators
     use glide_bwater
@@ -806,7 +806,8 @@ contains
     model%numerics%tstep_count = model%numerics%tstep_count + 1
     model%temper%newtemps = .false.
 
-    model%thckwk%oldtime = model%numerics%time - (model%numerics%dt * tim0/scyr)
+!!    model%thckwk%oldtime = model%numerics%time - (model%numerics%dt * tim0/scyr)
+    model%thckwk%oldtime = model%numerics%time - (model%numerics%dt/scyr)
 
     call glide_prof_start(model,model%glide_prof%geomderv)
 
@@ -843,9 +844,10 @@ contains
     ! ------------------------------------------------------------------------ 
 
     ! Note: These times have units of years.
-    !       dttem has scaled units, so multiply by tim0/scyr to convert to years
+    !       dttem has scaled units, so multiply by 1/scyr to convert to years
 
-    if ( model%numerics%tinc >  mod(model%numerics%time,model%numerics%dttem*tim0/scyr)) then
+!!    if ( model%numerics%tinc >  mod(model%numerics%time,model%numerics%dttem*tim0/scyr)) then
+    if ( model%numerics%tinc >  mod(model%numerics%time,model%numerics%dttem/scyr)) then
 
        call glide_prof_start(model,model%glide_prof%temperature)
 

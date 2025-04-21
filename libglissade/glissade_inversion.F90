@@ -27,7 +27,8 @@
 module glissade_inversion
 
   use glimmer_physcon, only: scyr, grav
-  use glimmer_paramets, only: eps08, tim0, len0, vel0, thk0
+!!  use glimmer_paramets, only: eps08, tim0, len0, vel0, thk0
+  use glimmer_paramets, only: eps08, len0, vel0, thk0
   use glimmer_log
   use glide_types
   use glide_thck, only: glide_calclsrf
@@ -543,7 +544,8 @@ contains
           model%basal_physics%powerlaw_c_relax = model%basal_physics%powerlaw_c_const
 
           call invert_basal_friction(&
-               model%numerics%dt*tim0,                   &  ! s
+!!               model%numerics%dt*tim0,                   &  ! s
+               model%numerics%dt,                        &  ! s
                ewn,               nsn,                   &
                model%numerics%dew*len0,                  &  ! m
                model%numerics%dns*len0,                  &  ! m
@@ -607,7 +609,8 @@ contains
           endif
 
           call invert_basal_friction(&
-               model%numerics%dt*tim0,                   &  ! s
+!!               model%numerics%dt*tim0,                   &  ! s
+               model%numerics%dt,                        &  ! s
                ewn,               nsn,                   &
                model%numerics%dew*len0,                  &  ! m
                model%numerics%dns*len0,                  &  ! m
@@ -666,7 +669,8 @@ contains
     if ( model%options%which_ho_deltaT_basin == HO_DELTAT_BASIN_INVERSION) then
 
        call glissade_inversion_deltaT_basin(&
-            model%numerics%dt * tim0,                  &  ! s
+!!            model%numerics%dt * tim0,                  &  ! s
+            model%numerics%dt,                         &  ! s
             ewn, nsn,                                  &
             model%numerics%dew * len0,                 &  ! m
             model%numerics%dns * len0,                 &  ! m
@@ -725,7 +729,8 @@ contains
        ! Given the thickness target, invert for deltaT_ocn
 
        call glissade_inversion_deltaT_ocn(&
-            model%numerics%dt * tim0,              &  ! s
+!!            model%numerics%dt * tim0,              &  ! s
+            model%numerics%dt,                     &  ! s
             ewn,           nsn,                    &
             model%numerics%dew*len0,               &   ! m
             model%numerics%dns*len0,               &   ! m
@@ -825,7 +830,8 @@ contains
             f_ground_cell_obs)
 
        call glissade_inversion_flow_enhancement_factor(&
-            model%numerics%dt * tim0,                         &
+!!            model%numerics%dt * tim0,                         &
+            model%numerics%dt,                                &  ! s
             ewn, nsn,                                         &
             model%numerics%dew*len0,                          &  ! m
             model%numerics%dns*len0,                          &  ! m

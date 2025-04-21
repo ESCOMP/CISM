@@ -673,7 +673,7 @@ contains
     !> Calculates the time-derivative of a field. This subroutine is used by 
     !> the Glimmer temperature solver only.
 
-    use glimmer_paramets, only : tim0
+!!    use glimmer_paramets, only : tim0
     use glimmer_physcon, only: scyr
 
     implicit none 
@@ -693,7 +693,8 @@ contains
     else
        factor = 1.d0/factor
        where (mask /= 0)
-          opvr = (tim0/scyr) * (ipvr - thckwk%olds(:,:,which)) * factor
+!!          opvr = (tim0/scyr) * (ipvr - thckwk%olds(:,:,which)) * factor
+          opvr = (1.0d0/scyr) * (ipvr - thckwk%olds(:,:,which)) * factor
        elsewhere
           opvr = 0.0d0
        end where

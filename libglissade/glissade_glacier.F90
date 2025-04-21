@@ -29,7 +29,8 @@ module glissade_glacier
     ! Subroutines for glacier tuning and tracking
 
     use glimmer_global 
-    use glimmer_paramets, only: thk0, len0, tim0, vel0, eps08
+!!    use glimmer_paramets, only: thk0, len0, tim0, vel0, eps08
+    use glimmer_paramets, only: thk0, len0, vel0, eps08
     use glimmer_physcon, only: scyr, pi, rhow, rhoi
     use glide_types
     use glimmer_log
@@ -899,7 +900,8 @@ contains
     ngdiag = glacier%ngdiag
 
     ! some unit conversions
-    dt = model%numerics%dt * tim0/scyr              ! model units to yr
+!!    dt = model%numerics%dt * tim0/scyr              ! model units to yr
+    dt = model%numerics%dt /scyr                    ! s to yr
     thck = model%geometry%thck * thk0               ! model units to m
     dthck_dt = model%geometry%dthck_dt * scyr       ! m/s to m/yr
     cell_area = model%geometry%cell_area * len0**2  ! model units to m^2

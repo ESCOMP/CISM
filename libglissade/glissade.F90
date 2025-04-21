@@ -106,7 +106,8 @@ contains
     use glissade_basal_water, only: glissade_basal_water_init
     use glissade_masks, only: glissade_get_masks, glissade_marine_connection_mask
     use glimmer_scales
-    use glimmer_paramets, only: eps11, thk0, len0, tim0, vel0, scyr
+!!    use glimmer_paramets, only: eps11, thk0, len0, tim0, vel0, scyr
+    use glimmer_paramets, only: eps11, thk0, len0, vel0, scyr
     use glimmer_physcon, only: rhow, rhoi
     use glide_mask
     use isostasy, only: init_isostasy, isos_relaxed
@@ -1095,7 +1096,8 @@ contains
 
     use cism_parallel, only:  parallel_type, not_parallel
 
-    use glimmer_paramets, only: tim0, len0, thk0
+!!    use glimmer_paramets, only: tim0, len0, thk0
+    use glimmer_paramets, only: len0, thk0
     use glimmer_physcon, only: scyr
     use glide_mask, only: glide_set_mask, calc_iareaf_iareag
 
@@ -1208,22 +1210,26 @@ contains
     ! Do the vertical thermal solve if it is time to do so.
     ! Vertical diffusion and strain heating only; no temperature advection.
     ! Note: model%numerics%tinc and model%numerics%time have units of years.
-    !       dttem has scaled units, so multiply by tim0/scyr to convert to years.
+!!    !       dttem has scaled units, so multiply by tim0/scyr to convert to years.
+    !       dttem has units of s, so divide by scyr to convert to years.
     ! ------------------------------------------------------------------------ 
 
-    if ( model%numerics%tinc > mod(model%numerics%time, model%numerics%dttem*tim0/scyr)) then
+!!    if ( model%numerics%tinc > mod(model%numerics%time, model%numerics%dttem*tim0/scyr)) then
+    if ( model%numerics%tinc > mod(model%numerics%time, model%numerics%dttem/scyr)) then
 
        if (model%options%which_ho_thermal_timestep == HO_THERMAL_BEFORE_TRANSPORT) then
 
           ! vertical thermal solve before transport
           call glissade_thermal_solve(model,  &
-                                      model%numerics%dttem*tim0)   ! convert dt from model units to s
+!!                                      model%numerics%dttem*tim0)   ! convert dt from model units to s
+                                      model%numerics%dttem)
 
        elseif (model%options%which_ho_thermal_timestep == HO_THERMAL_SPLIT_TIMESTEP) then
 
           ! vertical thermal solve split into two parts, before and after transport
           call glissade_thermal_solve(model,  &
-                                      model%numerics%dttem*tim0/2.0d0)
+!!                                      model%numerics%dttem*tim0/2.0d0)
+                                      model%numerics%dttem/2.0d0)
 
        endif
 
@@ -1307,19 +1313,22 @@ contains
     !       and pmp temperature after transport and before the velocity solve.
     ! ------------------------------------------------------------------------
 
-    if ( model%numerics%tinc > mod(model%numerics%time, model%numerics%dttem*tim0/scyr)) then
+!!    if ( model%numerics%tinc > mod(model%numerics%time, model%numerics%dttem*tim0/scyr)) then
+    if ( model%numerics%tinc > mod(model%numerics%time, model%numerics%dttem/scyr)) then
 
        if (model%options%which_ho_thermal_timestep == HO_THERMAL_AFTER_TRANSPORT) then
 
           ! vertical thermal solve after transport
           call glissade_thermal_solve(model,  &
-                                      model%numerics%dttem*tim0)   ! convert dt from model units to s
+!!                                      model%numerics%dttem*tim0)   ! convert dt from model units to s
+                                      model%numerics%dttem)
 
        elseif (model%options%which_ho_thermal_timestep == HO_THERMAL_SPLIT_TIMESTEP) then
 
           ! vertical thermal solve split into two parts, before and after transport
           call glissade_thermal_solve(model,  &
-                                      model%numerics%dttem*tim0/2.0d0)
+!!                                      model%numerics%dttem*tim0/2.0d0)
+                                      model%numerics%dttem/2.0d0)
 
        endif
 
@@ -1341,7 +1350,8 @@ contains
 
     ! Solve for basal melting beneath floating ice.
 
-    use glimmer_paramets, only: eps08, eps11, tim0, thk0, len0
+!!    use glimmer_paramets, only: eps08, eps11, tim0, thk0, len0
+    use glimmer_paramets, only: eps08, eps11, thk0, len0
     use glimmer_physcon, only: scyr
     use glissade_bmlt_float, only: glissade_basal_melting_float, &
          glissade_bmlt_float_thermal_forcing, verbose_bmlt_float
@@ -1541,7 +1551,8 @@ contains
        ! Compute the previous time
        ! Note: When being ramped up, the anomaly is not incremented until after the final time step of the year.
        !       This is the reason for passing the previous time to the subroutine.
-       previous_time = model%numerics%time - model%numerics%dt * tim0/scyr
+!!       previous_time = model%numerics%time - model%numerics%dt * tim0/scyr
+       previous_time = model%numerics%time - model%numerics%dt/scyr
 
        ! Add the bmlt_float anomaly where ice is present and floating
        call glissade_add_2d_anomaly(&
@@ -1676,7 +1687,8 @@ contains
     ! and then update the basal water.
     use cism_parallel, only: parallel_type, parallel_halo
 
-    use glimmer_paramets, only: tim0, thk0, len0
+!!    use glimmer_paramets, only: tim0, thk0, len0
+    use glimmer_paramets, only: thk0, len0
     use glimmer_physcon, only: rhow, rhoi, scyr
     use glissade_therm, only: glissade_therm_driver
     use glissade_basal_water, only: glissade_calcbwat, glissade_bwat_flux_routing
@@ -1790,7 +1802,8 @@ contains
 
        ! Note: When being ramped up, the anomaly is not incremented until after the final time step of the year.
        !       This is the reason for passing the previous time to the subroutine.
-       previous_time = model%numerics%time - model%numerics%dt * tim0/scyr
+!!       previous_time = model%numerics%time - model%numerics%dt * tim0/scyr
+       previous_time = model%numerics%time - model%numerics%dt/scyr
 
        call glissade_add_2d_anomaly(&
             model%climate%artm_corrected,          &   ! degC
@@ -1810,7 +1823,8 @@ contains
 
     if (model%options%enable_snow_anomaly) then
 
-       previous_time = model%numerics%time - model%numerics%dt * tim0/scyr
+!!       previous_time = model%numerics%time - model%numerics%dt * tim0/scyr
+       previous_time = model%numerics%time - model%numerics%dt/scyr
 
        call glissade_add_2d_anomaly(&
             model%climate%snow_corrected,          &   ! mm/yr w.e.
@@ -1824,7 +1838,8 @@ contains
 
     if (model%options%enable_precip_anomaly) then
 
-       previous_time = model%numerics%time - model%numerics%dt * tim0/scyr
+!!       previous_time = model%numerics%time - model%numerics%dt * tim0/scyr
+       previous_time = model%numerics%time - model%numerics%dt/scyr
 
        call glissade_add_2d_anomaly(&
             model%climate%precip_corrected,        &   ! mm/yr w.e.
@@ -2032,7 +2047,8 @@ contains
 
     use cism_parallel, only: parallel_type, parallel_halo, parallel_halo_tracers,  &
          staggered_parallel_halo, parallel_reduce_max
-    use glimmer_paramets, only: eps11, eps08, tim0, thk0, vel0, len0
+!!    use glimmer_paramets, only: eps11, eps08, tim0, thk0, vel0, len0
+    use glimmer_paramets, only: eps11, eps08, thk0, vel0, len0
     use glimmer_physcon, only: rhow, rhoi, scyr
     use glide_diagnostics, only: glide_init_diag
     use glissade_therm, only: glissade_temp2enth, glissade_enth2temp
@@ -2071,7 +2087,8 @@ contains
 
     real(dp) :: advective_cfl       ! advective CFL number
                                     ! If advective_cfl > 1, the model is unstable without subcycling
-    real(dp) :: dt_transport        ! time step (s) for transport; = model%numerics%dt*tim0 by default
+!!    real(dp) :: dt_transport        ! time step (s) for transport; = model%numerics%dt*tim0 by default
+    real(dp) :: dt_transport        ! time step (s) for transport; = model%numerics%dt by default
 
     integer :: nsubcyc              ! number of times to subcycle advection
 
@@ -2288,7 +2305,8 @@ contains
                                model%geomderv%stagthck * thk0,                                                 &
                                model%geomderv%dusrfdew*thk0/len0, model%geomderv%dusrfdns*thk0/len0,           &
                                model%velocity%uvel * scyr * vel0, model%velocity%vvel * scyr * vel0,           &
-                               model%numerics%dt_transport * tim0 / scyr,                                      &
+!!                               model%numerics%dt_transport * tim0 / scyr,                                      &
+                               model%numerics%dt_transport / scyr,                                             &
                                model%numerics%adaptive_cfl_threshold,                                          &
                                model%numerics%adv_cfl_dt,         model%numerics%diff_cfl_dt)
 
@@ -2298,11 +2316,12 @@ contains
        !WHL - debug
 !      if (main_task) then
 !         print*, 'Checked advective CFL threshold'
-!         print*, 'model dt (yr) =', model%numerics%dt * tim0/scyr
+!         print*, 'model dt (yr) =', model%numerics%dt/scyr
 !         print*, 'adv_cfl_dt    =', model%numerics%adv_cfl_dt
 !      endif
 
-       advective_cfl = model%numerics%dt*(tim0/scyr) / model%numerics%adv_cfl_dt
+!!       advective_cfl = model%numerics%dt*(tim0/scyr) / model%numerics%adv_cfl_dt
+       advective_cfl = (model%numerics%dt/scyr) / model%numerics%adv_cfl_dt
 
        if (model%numerics%adaptive_cfl_threshold > 0.0d0) then
 
@@ -2324,11 +2343,13 @@ contains
           else
              nsubcyc = 1
           endif
-          dt_transport = model%numerics%dt * tim0 / real(nsubcyc,dp)   ! convert to s
+!!          dt_transport = model%numerics%dt * tim0 / real(nsubcyc,dp)   ! convert to s
+          dt_transport = model%numerics%dt / real(nsubcyc,dp)
 
        else  ! no adaptive subcycling
 
-          advective_cfl = model%numerics%dt*(tim0/scyr) / model%numerics%adv_cfl_dt
+!!          advective_cfl = model%numerics%dt*(tim0/scyr) / model%numerics%adv_cfl_dt
+          advective_cfl = (model%numerics%dt/scyr) / model%numerics%adv_cfl_dt
 
           ! If advective_cfl exceeds 1.0, then abort cleanly.  Otherwise, set dt_transport and proceed.
           ! Note: Usually, it would be enough to write a fatal abort message.
@@ -2340,7 +2361,8 @@ contains
              stop
           else
              nsubcyc = model%numerics%subcyc
-             dt_transport = model%numerics%dt_transport * tim0  ! convert to s
+!!             dt_transport = model%numerics%dt_transport * tim0  ! convert to s
+             dt_transport = model%numerics%dt_transport
           endif
 
        endif
@@ -2491,7 +2513,8 @@ contains
 
     use cism_parallel, only: parallel_type, parallel_halo
 
-    use glimmer_paramets, only: thk0, tim0, len0, vel0
+!!    use glimmer_paramets, only: thk0, tim0, len0, vel0
+    use glimmer_paramets, only: thk0, len0, vel0
     use glimmer_physcon, only: scyr
     use glissade_calving, only: glissade_calve_ice, verbose_calving, &
          glissade_remove_icebergs, glissade_remove_isthmuses, glissade_limit_cliffs
@@ -2717,7 +2740,8 @@ contains
           do j = 1, ny
              do i = 1, nx
                 if (floating_mask(i,j) == 1 .and. model%calving%calving_mask(i,j) == 1) then
-                   dthck = model%numerics%dt*tim0  &  ! dt in seconds
+!!                   dthck = model%numerics%dt*tim0  &  ! dt in seconds
+                   dthck = model%numerics%dt  &
                         * max(thck_unscaled(i,j), model%calving%minthck) / model%calving%timescale
                    if (thck_unscaled(i,j) > dthck) then
                       model%calving%calving_thck(i,j) = model%calving%calving_thck(i,j) + dthck
@@ -2733,7 +2757,8 @@ contains
           if (verbose_calving .and. this_rank==rtest) then
              write(6,*) ' '
              write(6,*) 'Relaxed calving, timescale (yr) =', model%calving%timescale/scyr
-             write(6,*) 'dt (yr) =', model%numerics%dt * tim0/scyr
+!!             write(6,*) 'dt (yr) =', model%numerics%dt * tim0/scyr
+             write(6,*) 'dt (yr) =', model%numerics%dt/scyr
              write(6,*) 'calving_minthck (m) =', model%calving%minthck
           endif
 
@@ -2766,7 +2791,8 @@ contains
             parallel,                          &
             model%calving,                     &        ! calving object; includes calving_thck (m)
             itest, jtest, rtest,               &
-            model%numerics%dt*tim0,            &        ! s
+!!            model%numerics%dt*tim0,            &        ! s
+            model%numerics%dt,                 &        ! s
             model%numerics%time*scyr,          &        ! s
             model%numerics%dew*len0,           &        ! m
             model%numerics%dns*len0,           &        ! m
@@ -3015,7 +3041,8 @@ contains
             nx,             ny,            &
             parallel,                      &
             itest,  jtest,  rtest,         &
-            model%numerics%dt*tim0,        &     ! s
+!!            model%numerics%dt*tim0,        &     ! s
+            model%numerics%dt,             &     ! s
             model%calving%taumax_cliff,    &     ! Pa
             model%calving%cliff_timescale, &     ! s
             thck_unscaled,              &        ! m
@@ -3159,7 +3186,8 @@ contains
          staggered_parallel_halo, staggered_parallel_halo_extrapolate, &
          parallel_reduce_max, parallel_reduce_min, parallel_globalindex
 
-    use glimmer_paramets, only: eps08, tim0, len0, vel0, thk0, vis0, tau0, evs0
+!!    use glimmer_paramets, only: eps08, tim0, len0, vel0, thk0, vis0, tau0, evs0
+    use glimmer_paramets, only: eps08, len0, vel0, thk0, vis0, tau0, evs0
     use glimmer_physcon, only: rhow, rhoi, scyr
     use glimmer_scales, only: scale_acab
     use glide_thck, only: glide_calclsrf
@@ -3405,7 +3433,8 @@ contains
        ! first call after a restart
     else
        model%geometry%dthck_dt(:,:) = (model%geometry%thck(:,:) - model%geometry%thck_old(:,:)) * thk0 &
-                                    / (model%numerics%dt * tim0)
+!!                                    / (model%numerics%dt * tim0)
+                                     / model%numerics%dt
     endif
 
     ! If inverting for powerlaw_c, coulomb_c, deltaT_ocn, or flow_enhancement_factor,
@@ -3620,7 +3649,8 @@ contains
                                     model%temper%bpmp(:,:) - model%temper%temp(upn,:,:), &
                                     model%basal_hydro%bwat * thk0,     &   ! m
                                     model%basal_hydro%bwatflx,         &   ! m/yr
-                                    model%numerics%dt * tim0/scyr,     &   ! yr
+!!                                    model%numerics%dt * tim0/scyr,     &   ! yr
+                                    model%numerics%dt/scyr,            &   ! yr
                                     itest, jtest,  rtest)
 
        if ( (model%numerics%time == model%numerics%tstart) .and. &
@@ -3917,11 +3947,13 @@ contains
     !  based on a thickness target.  In this case, it is better to think of the melt as part of the calving.
     ! Note: Both calving_thck and bmlt_applied have dimensionless model units;
     !       calving_thck = calving thickness per timestep, while bmlt_applied = melt per unit time
-
+    !WHL, 4/21/25 - With tim0/thk0 removed from melt terms, bmlt_applied has units of m/s, so bmlt_applied has units of m;
+    !               must divide by thk0 to match units of calving_thck.
+    !               We will soon remove the thk0.
     if (model%options%whichcalving == CALVING_GRID_MASK .or. model%options%apply_calving_mask) then
        where (calving_front_mask == 1)
           model%calving%calving_thck = model%calving%calving_thck + &
-               model%basal_melt%bmlt_applied * model%numerics%dt
+               (model%basal_melt%bmlt_applied * model%numerics%dt)/thk0
           model%basal_melt%bmlt_applied = 0.0d0
        endwhere
     endif
@@ -3930,10 +3962,12 @@ contains
     ! positive for mass gain, negative for mass loss
     model%geometry%sfc_mbal_flux(:,:) = rhoi * model%climate%acab_applied(:,:)
     model%geometry%basal_mbal_flux(:,:) = rhoi * (-model%basal_melt%bmlt_applied(:,:))
-    model%geometry%calving_flux(:,:) = rhoi * (-model%calving%calving_thck(:,:)*thk0) / (model%numerics%dt*tim0)
+!!    model%geometry%calving_flux(:,:) = rhoi * (-model%calving%calving_thck(:,:)*thk0) / (model%numerics%dt*tim0)
+    model%geometry%calving_flux(:,:) = rhoi * (-model%calving%calving_thck(:,:)*thk0) / model%numerics%dt
 
     ! calving rate (m/yr ice; positive for calving)
-    model%calving%calving_rate(:,:) = (model%calving%calving_thck(:,:)*thk0) / (model%numerics%dt*tim0/scyr)
+!!    model%calving%calving_rate(:,:) = (model%calving%calving_thck(:,:)*thk0) / (model%numerics%dt*tim0/scyr)
+    model%calving%calving_rate(:,:) = (model%calving%calving_thck(:,:)*thk0) / (model%numerics%dt/scyr)
 
     ! save old masks for diagnostics
     floating_mask_old = model%geometry%floating_mask

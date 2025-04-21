@@ -58,7 +58,7 @@
 
     use glimmer_global, only: dp
     use glimmer_physcon, only: n_glen, rhoi, rhoo, grav, scyr, pi
-    use glimmer_paramets, only: eps08, eps10, thk0, len0, tim0, tau0, vel0, vis0, evs0
+    use glimmer_paramets, only: eps08, eps10, thk0, len0, tau0, vel0, vis0, evs0
     use glimmer_paramets, only: vel_scale, len_scale   ! used for whichefvs = HO_EFVS_FLOWFACT
     use glimmer_log
     use glimmer_sparse_type

@@ -81,7 +81,8 @@ contains
 
     !> initialise temperature module
     use glimmer_physcon, only : rhoi, shci, coni, scyr, grav, gn, lhci, rhow, trpt
-    use glimmer_paramets, only : tim0, thk0, acc0, len0, vis0, vel0
+!!    use glimmer_paramets, only : tim0, thk0, acc0, len0, vis0, vel0
+    use glimmer_paramets, only : thk0, acc0, len0, vis0, vel0
     use cism_parallel, only: lhalo, uhalo
 
     type(glide_global_type), intent(inout) :: model       ! model instance
@@ -130,22 +131,28 @@ contains
     model%tempwk%zbed = 1.0d0 / thk0
     model%tempwk%dupn = model%numerics%sigma(model%general%upn) - model%numerics%sigma(model%general%upn-1)
 
+!WHL - Removing scales; took out tim0
 ! In dimensional units, wmax = thk0 / (tim0/scyr) = 2000 m / 400 yr = 5 m/yr
 ! In nondimensional units, wmax = 5 m/yr / (thk0*scyr/tim0) = 1.0
 ! If we remove scaling, then tim0 = thk0 = 1, and wmax = 5 m/yr / scyr.  
 ! The following expression is correct if scaling is removed.
 
-    model%tempwk%wmax = 5.0d0 * tim0 / (scyr * thk0)
+!!    model%tempwk%wmax = 5.0d0 * tim0 / (scyr * thk0)
+    model%tempwk%wmax = 5.0d0 / (scyr * thk0)
 
-    model%tempwk%cons = (/ 2.0d0 * tim0 * model%numerics%dttem * coni / (2.0d0 * rhoi * shci * thk0**2), &
+!!    model%tempwk%cons = (/ 2.0d0 * tim0 * model%numerics%dttem * coni / (2.0d0 * rhoi * shci * thk0**2), &
+    model%tempwk%cons = (/ 2.0d0 * model%numerics%dttem * coni / (2.0d0 * rhoi * shci * thk0**2), &
          model%numerics%dttem / 2.0d0, &
-         VERT_DIFF*2.0d0 * tim0 * model%numerics%dttem / (thk0 * rhoi * shci), &
-         VERT_ADV*tim0 * acc0 * model%numerics%dttem / coni, &
+!!         VERT_DIFF*2.0d0 * tim0 * model%numerics%dttem / (thk0 * rhoi * shci), &
+!!         VERT_ADV*tim0 * acc0 * model%numerics%dttem / coni, &
+         VERT_DIFF*2.0d0 * model%numerics%dttem / (thk0 * rhoi * shci), &
+         VERT_ADV * acc0 * model%numerics%dttem / coni, &
          0.d0 /)   !WHL - last term no longer needed
          !*sfp* added last term to vector above for use in HO & SSA dissip. cacl
 
     model%tempwk%c1 = STRAIN_HEAT *(model%numerics%sigma * rhoi * grav * thk0**2 / len0)**p1 * &
-         2.0d0 * vis0 * model%numerics%dttem * tim0 / (16.0d0 * rhoi * shci)
+!!         2.0d0 * vis0 * model%numerics%dttem * tim0 / (16.0d0 * rhoi * shci)
+         2.0d0 * vis0 * model%numerics%dttem / (16.0d0 * rhoi * shci)
 
     model%tempwk%dupc = (/ (model%numerics%sigma(2) - model%numerics%sigma(1)) / 2.0d0, &
          ((model%numerics%sigma(up+1) - model%numerics%sigma(up-1)) / 2.0d0, &
@@ -164,10 +171,15 @@ contains
          (model%numerics%sigma(up-1) - model%numerics%sigma(up))), &
          up=3,model%general%upn)  /)
     
-    model%tempwk%f = (/ tim0 * coni / (thk0**2 * lhci * rhoi), &
-         tim0 / (thk0 * lhci * rhoi), &
-         tim0 * thk0 * rhoi * shci /  (thk0 * tim0 * model%numerics%dttem * lhci * rhoi), &
-         tim0 * thk0**2 * vel0 * grav * rhoi / (4.0d0 * thk0 * len0 * rhoi * lhci), &
+!!    model%tempwk%f = (/ tim0 * coni / (thk0**2 * lhci * rhoi), &
+!!         tim0 / (thk0 * lhci * rhoi), &
+!!         tim0 * thk0 * rhoi * shci /  (thk0 * tim0 * model%numerics%dttem * lhci * rhoi), &
+!!         tim0 * thk0**2 * vel0 * grav * rhoi / (4.0d0 * thk0 * len0 * rhoi * lhci), &
+!!         0.d0 /)   !WHL - last term no longer needed
+    model%tempwk%f = (/ coni / (thk0**2 * lhci * rhoi), &
+         1.d0 / (thk0 * lhci * rhoi), &
+         1.d0 * thk0 * rhoi * shci /  (thk0 * model%numerics%dttem * lhci * rhoi), &
+         1.d0 * thk0**2 * vel0 * grav * rhoi / (4.0d0 * thk0 * len0 * rhoi * lhci), &
          0.d0 /)   !WHL - last term no longer needed
          !*sfp* added the last term in the vect above for HO and SSA dissip. calc. 
 
@@ -389,7 +401,8 @@ contains
     !> of several alternative methods.
 
     use glimmer_utils, only: tridiag
-    use glimmer_paramets, only : thk0, tim0, GLC_DEBUG
+!!    use glimmer_paramets, only : thk0, tim0, GLC_DEBUG
+    use glimmer_paramets, only : thk0, GLC_DEBUG
     use glide_grid_operators, only: stagvarb
 
     !------------------------------------------------------------------------------------
@@ -685,7 +698,8 @@ contains
 
     ! Rescale dissipation term to deg C/s (instead of deg C)
     !WHL - Treat dissip above as a rate (deg C/s) instead of deg 
-    model%temper%dissip(:,:,:) =  model%temper%dissip(:,:,:) /  (model%numerics%dttem*tim0)
+!!    model%temper%dissip(:,:,:) =  model%temper%dissip(:,:,:) /  (model%numerics%dttem*tim0)
+    model%temper%dissip(:,:,:) =  model%temper%dissip(:,:,:) /  model%numerics%dttem
 
     ! Calculate Glen's A --------------------------------------------------------
 
@@ -816,7 +830,8 @@ contains
     real(dp) :: fact(2)
 
 ! These constants are precomputed:
-! model%tempwk%cons(1) = 2.0d0 * tim0 * model%numerics%dttem * coni / (2.0d0 * rhoi * shci * thk0**2)
+!!! model%tempwk%cons(1) = 2.0d0 * tim0 * model%numerics%dttem * coni / (2.0d0 * rhoi * shci * thk0**2)
+! model%tempwk%cons(1) = 2.0d0 * model%numerics%dttem * coni / (2.0d0 * rhoi * shci * thk0**2)
 ! model%tempwk%cons(2) = model%numerics%dttem / 2.0d0 
 
     fact(1) = VERT_DIFF*model%tempwk%cons(1) / model%geometry%thck(ew,ns)**2
@@ -968,7 +983,7 @@ contains
     type(glide_global_type) :: model
     real(dp), dimension(:,0:,0:), intent(in) :: temp
     real(dp), dimension(:,:), intent(in) :: thck,  stagthck, dusrfdew, dusrfdns, ubas, vbas  
-    real(dp), dimension(:,:), intent(inout) :: bmlt          ! scaled basal rate, m/s * tim0/thk0
+    real(dp), dimension(:,:), intent(inout) :: bmlt          ! scaled basal rate, m/s
                                                              ! > 0 for melting, < 0 for freeze-on
     logical, dimension(:,:), intent(in) :: floater
 

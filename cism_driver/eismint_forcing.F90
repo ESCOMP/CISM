@@ -58,7 +58,8 @@ contains
     ! initialise eismint_climate model
 
     use glimmer_global, only: dp
-    use glimmer_paramets, only: thk0, scyr, tim0
+!!    use glimmer_paramets, only: thk0, scyr, tim0
+    use glimmer_paramets, only: thk0, scyr
     use glimmer_physcon, only: scyr
     use glimmer_config
     use glide_types
@@ -67,8 +68,10 @@ contains
     type(eismint_climate_type) :: eismint_climate         ! structure holding climate info
     type(ConfigSection), pointer :: config  ! structure holding sections of configuration file   
 
+!      TODO - Revise when tim0 and thk0 have been removed from the code
 !WHL - The old scaling looked like this: eismint_climate%nmsb(1) = eismint_climate%nmsb(1) / (acc0 * scyr)
 !       where acc0 = thk0*vel0/len0.
+!      I replaced (acc0 * scyr) with acab_scale = scyr*thk0/tim0, where tim0 = len0/vel0.  
 !      I replaced (acc0 * scyr) with acab_scale = scyr*thk0/tim0, where tim0 = len0/vel0.  
 !      This is the scaling used in other parts of the code, including Glint.
 !      It can be shown (but is not immediately obvious) that acab_scale = acc0 * scyr.
@@ -77,7 +80,8 @@ contains
 !      Note: We should not use the parameter scale_acab in glimmer_scales because
 !            it may not have been initialized yet.
 
-    real(dp), parameter :: acab_scale = scyr*thk0/tim0
+!!    real(dp), parameter :: acab_scale = scyr*thk0/tim0
+    real(dp), parameter :: acab_scale = scyr*thk0
 
     call eismint_readconfig(eismint_climate,config)
     call eismint_printconfig(eismint_climate)

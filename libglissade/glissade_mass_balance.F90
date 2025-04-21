@@ -146,7 +146,8 @@
 
     ! Then apply the SMB at the upper and lower surfaces, and recompute tracer values.
 
-    use glimmer_paramets, only: thk0, tim0, len0, eps11
+!!    use glimmer_paramets, only: thk0, tim0, len0, eps11
+    use glimmer_paramets, only: thk0, len0, eps11
     use glimmer_physcon, only: rhow, rhoi, scyr
     use glimmer_scales, only: scale_acab
     use glide_diagnostics, only: point_diag
@@ -337,7 +338,8 @@
 
        ! Note: When being ramped up, the anomaly is not incremented until after the final time step of the year.
        !       This is the reason for passing the previous time to the subroutine.
-       previous_time = model%numerics%time - model%numerics%dt * tim0/scyr
+!!       previous_time = model%numerics%time - model%numerics%dt * tim0/scyr
+       previous_time = model%numerics%time - model%numerics%dt/scyr
 
        call glissade_add_2d_anomaly(&
             model%climate%smb_corrected,           &   ! scaled model units
@@ -518,7 +520,8 @@
 
     !TODO - Inline some of the code in this subroutine?
     call glissade_mass_balance_driver(&
-         model%numerics%dt * tim0,                             &  ! s
+!!         model%numerics%dt * tim0,                             &  ! s
+         model%numerics%dt,                                    &  ! s
          model%numerics%dew * len0, model%numerics%dns * len0, &  ! m
          ewn,         nsn,          upn-1,                     &
          model%numerics%sigma,                                 &

@@ -105,7 +105,7 @@ module glimmer_paramets
 
   !Note: Both the SIA and HO solvers fail unless tim0 = len0/vel0. Not sure if this can be changed.
   !      With the revised scaling, tim0 = scyr.
-  real(dp), parameter :: tim0 = len0 / vel0          ! s
+!!  real(dp), parameter :: tim0 = len0 / vel0          ! s
   real(dp), parameter :: acc0 = thk0 * vel0 / len0   ! m s^{-1}
 
 !Note - With thk0 = 1, can replace tau0 by rhoi*grav in code and remove stress scaling.

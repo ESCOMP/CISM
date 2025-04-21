@@ -1215,7 +1215,7 @@ module glide_types
     !> The fractional area in each cell which is grounded
 
     real(dp),dimension(:,:,:),pointer :: ice_age => null()
-    !> The age of a given ice layer, divided by \texttt{tim0}.
+    !> The age of a given ice layer; units are s internally, yr for I/O
 
     real(dp),dimension(:,:),pointer :: thck_old => null()           !> old ice thickness, divided by \texttt{thk0}
     real(dp),dimension(:,:),pointer :: dthck_dt => null()           !> ice thickness tendency (m/s)

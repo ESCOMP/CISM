@@ -1483,7 +1483,7 @@ units:         year
 long_name:     ice age
 data:          data%geometry%ice_age(up,:,:)
 standard_name: land_ice_age
-factor:        tim0/scyr
+factor:        1/scyr
 load:          1
 
 [f_flotation]

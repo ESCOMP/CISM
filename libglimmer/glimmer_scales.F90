@@ -46,7 +46,8 @@ contains
     ! set scale factors for I/O (can't have non-integer powers)
 
     use glimmer_physcon, only : scyr
-    use glimmer_paramets, only : thk0, tim0, vel0, vis0, len0, acc0, tau0, evs0
+!!    use glimmer_paramets, only : thk0, tim0, vel0, vis0, len0, acc0, tau0, evs0
+    use glimmer_paramets, only : thk0, vel0, vis0, len0, acc0, tau0, evs0
     implicit none
 
     !WHL - Reset these scales such that 'scyr' is the only scaling factor; remove thk0, vel0, etc.
@@ -55,7 +56,8 @@ contains
     scale_uflx  = scyr * vel0 * thk0              ! uflx, vflx
     scale_diffu = scyr * vel0 * len0              ! diffu
     scale_acab  = scyr                            ! acab, bmlt
-    scale_wvel  = scyr * thk0 / tim0              ! wvel, wgrd
+!!    scale_wvel  = scyr * thk0 / tim0              ! wvel, wgrd
+    scale_wvel  = scyr * thk0                     ! wvel, wgrd
     scale_btrc  = scyr * vel0 * len0 / (thk0**2)  ! btrc, soft
     
     scale_beta  = tau0 / vel0 / scyr              ! units: Pa * sec/m * yr/sec = Pa * yr/m 

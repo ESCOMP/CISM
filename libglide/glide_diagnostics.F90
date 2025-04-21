@@ -171,7 +171,7 @@ contains
     ! Write global diagnostics
     ! Also write local diagnostics for a selected grid cell
  
-    use glimmer_paramets, only: thk0, len0, vel0, tim0, unphys_val
+    use glimmer_paramets, only: thk0, len0, vel0, unphys_val
     use glimmer_physcon, only: scyr, rhoi, shci
     use glissade_utils, only: glissade_usrf_to_thck, glissade_rms_error
 
@@ -1029,7 +1029,7 @@ contains
           spd_diag(:) = sqrt(model%velocity%uvel(1:upn,i,j)**2   &
                            + model%velocity%vvel(1:upn,i,j)**2) * vel0*scyr
           if (model%options%which_ho_ice_age == HO_ICE_AGE_COMPUTE) &
-               age_diag(:) = model%geometry%ice_age(:,i,j) * tim0/scyr
+               age_diag(:) = model%geometry%ice_age(:,i,j)/scyr
           if (model%options%gthf == GTHF_COMPUTE) &
                lithtemp_diag(:) = model%lithot%temp(i,j,:)
        endif
@@ -1101,9 +1101,9 @@ contains
 
        ! Commented out, since we are writing the age in every column below
 !       if (model%options%which_ho_ice_age == HO_ICE_AGE_COMPUTE) then
-!          write(message,'(a25,f24.16)') 'Age of top layer (yr)    ', top_age_diag*tim0/scyr
+!          write(message,'(a25,f24.16)') 'Age of top layer (yr)    ', top_age_diag/scyr
 !          call write_log(trim(message), type = GM_DIAGNOSTIC)
-!          write(message,'(a25,f24.16)') 'Age of bottom layer (yr) ', bot_age_diag*tim0/scyr
+!          write(message,'(a25,f24.16)') 'Age of bottom layer (yr) ', bot_age_diag/scyr
 !          call write_log(trim(message), type = GM_DIAGNOSTIC)
 !       endif
 
