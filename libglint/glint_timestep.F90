@@ -248,7 +248,7 @@ contains
 
           ! Note on units: 
           ! For this subroutine, input acab is in m/yr; this value is divided 
-          !  by scale_acab = scyr and copied to data%climate%acab.
+          !  by scyr and copied to data%climate%acab.
           ! Input artm is in deg C; this value is copied to data%climate%artm (no unit conversion).
 
           call glide_set_acab(instance%model, instance%acab * rhow/rhoi)

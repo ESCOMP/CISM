@@ -60,7 +60,7 @@ contains
     !
     use glimmer_paramets
     use glimmer_physcon, only: rhow, rhoi
-    use glimmer_scales, only: scale_acab
+!!    use glimmer_scales, only: scale_acab
     use glimmer_log
     use glimmer_coordinates, only: coordsystem_allocate
     use glide
@@ -267,11 +267,12 @@ contains
              instance%model%numerics%tstep_count = instance%model%numerics%tstep_count + 1
 
              ! Given acab, compute the surface mass balance in units of mm/yr w.e.
-             ! (model%climate%acab * scale_acab) has units of m/yr of ice
+             ! Note: model%climate%acab has units of m/s of ice; multiply by scyr to convert to m/yr of ice.
              !TODO - Instead of converting the SMB from the coupler to acab and converting back here,
              !       simply compute SMB here based on the SMB from the coupler.
              !       Could pass the SMB (in water equivalent units) to the dycore and let the dycore convert to acab.
-             instance%model%climate%smb(:,:) = (instance%model%climate%acab(:,:) * scale_acab) * (1000.d0 * rhoi/rhow)
+!!             instance%model%climate%smb(:,:) = (instance%model%climate%acab(:,:) * scale_acab) * (1000.d0 * rhoi/rhow)
+             instance%model%climate%smb(:,:) = (instance%model%climate%acab(:,:) * scyr) * (1000.d0 * rhoi/rhow)
 
           endif  ! evolve_ice
 

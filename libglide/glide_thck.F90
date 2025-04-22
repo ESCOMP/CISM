@@ -218,7 +218,6 @@ contains
     use glide_velo
     use glide_setup
     use glide_nonlin !For unstable manifold correction
-!!    use glimmer_paramets, only: thk0, thk_scale, GLC_DEBUG
     use glimmer_paramets, only: thk_scale, GLC_DEBUG
     use glide_grid_operators, only: glide_geometry_derivs
 

@@ -296,7 +296,7 @@ contains
 !!    use glimmer_paramets, only : len0, acc0, scyr
     use glimmer_paramets, only : scyr
     use glimmer_physcon, only : pi
-    use glimmer_scales, only : scale_acab
+!!    use glimmer_scales, only : scale_acab
     use cism_parallel, only: parallel_globalindex
 
     implicit none

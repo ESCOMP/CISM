@@ -484,7 +484,7 @@ contains
 
 !!    use glimmer_paramets, only: thk0, tim0
 
-    use glimmer_scales, only: scale_acab  ! for testing
+!!    use glimmer_scales, only: scale_acab  ! for testing
 
     type(glide_global_type), intent(in)  :: model
 

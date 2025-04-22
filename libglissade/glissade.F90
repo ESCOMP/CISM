@@ -3300,7 +3300,7 @@ contains
 !!    use glimmer_paramets, only: eps08, tim0, len0, vel0, thk0, vis0, tau0, evs0
     use glimmer_paramets, only: eps08
     use glimmer_physcon, only: rhow, rhoi, scyr
-    use glimmer_scales, only: scale_acab
+!!    use glimmer_scales, only: scale_acab
     use glide_thck, only: glide_calclsrf
     use glissade_velo, only: glissade_velo_driver
     use glide_velo, only: wvelintg
@@ -4072,10 +4072,11 @@ contains
     enddo
 
     ! surface mass balance in units of mm/yr w.e.
-    ! (model%climate%acab * scale_acab) has units of m/yr of ice
+    ! (model%climate%acab has units of m/s of ice
     ! Note: This is not necessary (and can destroy exact restart) if the SMB was already input in units of mm/yr
     if (model%options%smb_input /= SMB_INPUT_MMYR_WE) then
-       model%climate%smb(:,:) = (model%climate%acab(:,:) * scale_acab) * (1000.d0 * rhoi/rhow)
+!!       model%climate%smb(:,:) = (model%climate%acab(:,:) * scale_acab) * (1000.d0 * rhoi/rhow)
+       model%climate%smb(:,:) = (model%climate%acab(:,:) * scyr) * (1000.d0 * rhoi/rhow)
     endif
 
     ! Corrections for basal melt at the calving front; convert basal melt to calving in CF cells.

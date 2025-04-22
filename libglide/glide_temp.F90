@@ -886,7 +886,8 @@ contains
   subroutine findvtri_init(model,ew,ns,subd,diag,supd,weff,temp,thck,float)
     !> called during first iteration to set inittemp
 
-    use glimmer_paramets, only: vel_scale
+    use glimmer_paramets, only: velo_scale
+    use glimmer_physcon, only: scyr
 
     type(glide_global_type) :: model
     integer, intent(in) :: ew, ns
@@ -921,15 +922,15 @@ contains
        do nsp = ns-1,ns
           do ewp = ew-1,ew
 
-!SCALING - WHL: Multiply ubas by vel0/vel_scale so we get the same result in these two cases:
-!           (1) Old Glimmer with scaling:         vel0 = vel_scale = 500/scyr, and ubas is non-dimensional.
+!SCALING - WHL: Multiply ubas by vel0/velo_scale so we get the same result in these two cases:
+!           (1) Old Glimmer with scaling:    vel0 = vel_scale = 500/scyr, and ubas is non-dimensional.
 !! !           (2) New CISM without scaling: vel0 = 1/scyr, vel_scale = 500/scyr, and ubas is in m/yr.
-!           (2) New CISM without scaling: vel0 = 1.0; I think vel_scale still has the same value.
+!           (2) New CISM without scaling: vel0 = 1.0; I think vel_scale still has the same value; ubas in m/s.
 !           
 !!!             if ( abs(model%velocity%ubas(ewp,nsp)) > 0.000001 .or. &
 !!!                  abs(model%velocity%vbas(ewp,nsp)) > 0.000001 ) then
-             if ( abs(model%velocity%ubas(ewp,nsp)) * (1.0d0/vel_scale) > 1.d-6 .or. &
-                  abs(model%velocity%vbas(ewp,nsp)) * (1.0d0/vel_scale) > 1.d-6) then
+             if ( abs(model%velocity%ubas(ewp,nsp)) * (1.0d0/velo_scale) > 1.d-6 .or. &
+                  abs(model%velocity%vbas(ewp,nsp)) * (1.0d0/velo_scale) > 1.d-6) then
 
                 slide_count = slide_count + 1
                 slterm = slterm + (&

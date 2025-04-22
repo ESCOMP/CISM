@@ -68,8 +68,8 @@
     ! Initialize some fields related to the surface mass balance
 
     use glimmer_paramets, only: eps11
-    use glimmer_physcon, only: rhow, rhoi
-    use glimmer_scales, only: scale_acab    ! scale_acab = scyr, so acab has units m/s
+    use glimmer_physcon, only: rhow, rhoi, scyr
+!!    use glimmer_scales, only: scale_acab    ! scale_acab = scyr, so acab has units m/s
 
     ! input/output arguments
 
@@ -82,8 +82,10 @@
       
     ! Initialize acab, if SMB (with different units) was read in
     if (model%options%smb_input == SMB_INPUT_MMYR_WE) then
-       ! Convert units from mm/yr w.e. to m/yr ice, then convert to model units
-       model%climate%acab(:,:) = (model%climate%smb(:,:) * (rhow/rhoi)/1000.d0) / scale_acab
+!!       ! Convert units from mm/yr w.e. to m/yr ice, then convert to model units
+!!       model%climate%acab(:,:) = (model%climate%smb(:,:) * (rhow/rhoi)/1000.d0) / scale_acab
+       ! Convert units from mm/yr w.e. to m/s ice
+       model%climate%acab(:,:) = (model%climate%smb(:,:) * (rhow/rhoi)/1000.d0) / scyr
        !WHL - debug
        if (main_task) write(6,*) 'Setting acab, m/yr ice'
     endif
@@ -149,7 +151,7 @@
 !!    use glimmer_paramets, only: thk0, tim0, len0, eps11
     use glimmer_paramets, only: eps11
     use glimmer_physcon, only: rhow, rhoi, scyr
-    use glimmer_scales, only: scale_acab
+!!    use glimmer_scales, only: scale_acab
     use glide_diagnostics, only: point_diag
     use glissade_grid_operators, only: glissade_vertical_interpolate
     use glissade_masks, only: glissade_get_masks, glissade_extend_mask
@@ -371,9 +373,10 @@
     ! * The SMB is then applied uniformly during the following year.
     ! Thus, the only thing to do here is to convert SMB (mm/yr w.e.) to acab (m/s ice).
 
-    ! Convert units from mm/yr w.e. to acab units, if needed.
+    ! Convert units from mm/yr w.e. to acab units of m/s ice, if needed.
     if (model%options%smb_input == SMB_INPUT_MMYR_WE) then
-       model%climate%acab(:,:) = (model%climate%smb_corrected(:,:) * (rhow/rhoi)/1000.d0) / scale_acab
+!!       model%climate%acab(:,:) = (model%climate%smb_corrected(:,:) * (rhow/rhoi)/1000.d0) / scale_acab
+       model%climate%acab(:,:) = (model%climate%smb_corrected(:,:) * (rhow/rhoi)/1000.d0) / scyr
     endif
 
     ! Optionally, overwrite acab where overwrite_acab_mask = 1.

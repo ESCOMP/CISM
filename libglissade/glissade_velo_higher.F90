@@ -60,7 +60,7 @@
     use glimmer_physcon, only: n_glen, rhoi, rhoo, grav, scyr, pi
 !!    use glimmer_paramets, only: eps08, eps10, thk0, len0, tau0, vel0, vis0, evs0
     use glimmer_paramets, only: eps08, eps10
-    use glimmer_paramets, only: vel_scale, len_scale   ! used for whichefvs = HO_EFVS_FLOWFACT
+    use glimmer_paramets, only: velo_scale, len_scale   ! used for whichefvs = HO_EFVS_FLOWFACT
     use glimmer_log
     use glimmer_sparse_type
     use glimmer_sparse
@@ -7733,7 +7733,7 @@
  
        !TODO - Test HO_EFVS_FLOWFACT option and make sure the units and scales are OK
 
-       effstrain = vel_scale/len_scale * scyr  ! typical strain rate, yr^{-1}
+       effstrain = velo_scale/len_scale * scyr  ! typical strain rate, yr^{-1}
        efvs = flwafact * effstrain**p_effstr  
 
        if (verbose_efvs .and. this_rank==rtest .and. i==itest .and. j==jtest .and. k==ktest) then
@@ -7945,7 +7945,7 @@
        !                 = -2/3 for n=3
        ! Thus efvs has units Pa yr
    
-       effstrain = vel_scale/len_scale * scyr  ! typical strain rate, yr^{-1}
+       effstrain = velo_scale/len_scale * scyr  ! typical strain rate, yr^{-1}
        efvs(:) = flwafact(:) * effstrain**p_effstr  
 
        if (verbose_efvs .and. this_rank==rtest .and. i==itest .and. j==jtest) then
@@ -8195,7 +8195,7 @@
        !                 = -2/3 for n=3
        ! Thus efvs has units Pa yr
    
-       effstrain = vel_scale/len_scale * scyr  ! typical strain rate, yr^{-1}
+       effstrain = velo_scale/len_scale * scyr  ! typical strain rate, yr^{-1}
        efvs(:) = flwafact(:) * effstrain**p_effstr  
 
        if (verbose_efvs .and. this_rank==rtest .and. i==itest .and. j==jtest) then

@@ -263,11 +263,13 @@ contains
           call write_log(trim(message), GM_FATAL)
        endif
 
-       ! Convert units from mm/yr w.e. to m/yr ice
-       model%climate%acab(:,:) = model%climate%smb(:,:) * (rhow/rhoi) / 1000.d0
+!!       ! Convert units from mm/yr w.e. to m/yr ice
+!!       model%climate%acab(:,:) = model%climate%smb(:,:) * (rhow/rhoi) / 1000.d0
+       ! Convert units from mm/yr w.e. to m/s ice
+       model%climate%acab(:,:) = model%climate%smb(:,:) * (rhow/rhoi) / 1000.d0 / scyr
 
-       ! Convert acab from m/yr ice to model units
-       model%climate%acab(:,:) = model%climate%acab(:,:) / scale_acab
+!!       ! Convert acab from m/yr ice to model units
+!!       model%climate%acab(:,:) = model%climate%acab(:,:) / scale_acab
 
     else
        ! assume acab was read in with units of m/yr ice; do nothing
@@ -1087,7 +1089,7 @@ contains
     ! calculate isostatic adjustment and upper and lower ice surface
 
     use isostasy, only: isos_compute
-    use glimmer_scales, only: scale_acab
+!!    use glimmer_scales, only: scale_acab
     use glimmer_physcon, only: rhoi, rhow
     use glide_setup
     use glide_velo, only: glide_velo_vertical
@@ -1118,10 +1120,11 @@ contains
     model%geometry%usrf = max(0.d0,model%geometry%thck + model%geometry%lsrf)
 
     ! surface mass balance in units of mm/yr w.e.
-    ! (model%climate%acab * scale_acab) has units of m/yr of ice
+    ! model%climate%acab  has units of m/s of ice
     ! Note: This is not necessary (and can destroy exact restart) if the SMB was already input in units of mm/yr
     if (model%options%smb_input /= SMB_INPUT_MMYR_WE) then
-       model%climate%smb(:,:) = (model%climate%acab(:,:) * scale_acab) * (1000.d0 * rhoi/rhow)
+!!       model%climate%smb(:,:) = (model%climate%acab(:,:) * scale_acab) * (1000.d0 * rhoi/rhow)
+       model%climate%smb(:,:) = (model%climate%acab(:,:) * scyr) * (1000.d0 * rhoi/rhow)
     endif
 
     !Note: The time step counter used to be updated here; now it is updated at the start

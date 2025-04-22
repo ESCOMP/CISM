@@ -38,7 +38,10 @@ module glimmer_paramets
   implicit none
   save
 
-!WHL - logical parameter for code testing
+  !TODO - Clean up and remove most of the parameters.
+  !       Maybe put the rest in a single module, cism_constants.
+
+  !WHL - logical parameter for code testing
 !      If oldglide = T, the glide dycore will reproduce
 !      (within roundoff error) the results
 !      of Glimmer 1.0.18 for the dome and EISMINT-2 test cases.
@@ -118,11 +121,11 @@ module glimmer_paramets
 !        tau0, evs0 and vis0 depend on them.
 !       The values of rhoi and grav used elsewhere in the code are declared in glimmer_physcon but are
 !        not parameters, because they can be overridden by the user in the config file.
-  real(dp), parameter :: rhoi_glam = 910.0d0          ! kg m^{-3}
-  real(dp), parameter :: grav_glam = 9.81d0           ! m s^{-2}
+!!  real(dp), parameter :: rhoi_glam = 910.0d0          ! kg m^{-3}
+!!  real(dp), parameter :: grav_glam = 9.81d0           ! m s^{-2}
 
   ! GLAM scaling parameters; units are correct if thk0 has units of meters
-  integer, parameter :: gn = 3                              ! Glen flow exponent; fixed at 3 for purposes of setting vis0
+!!  integer, parameter :: gn = 3                              ! Glen flow exponent; fixed at 3 for purposes of setting vis0
 !!  real(dp), parameter :: tau0 = rhoi_glam*grav_glam*thk0    ! stress scale in GLAM ( Pa )  
 !!  real(dp), parameter :: evs0 = tau0 / (vel0/len0)          ! eff. visc. scale in GLAM ( Pa s )
 !!  real(dp), parameter :: vis0 = tau0**(-gn) * (vel0/len0)   ! rate factor scale in GLAM ( Pa^-3 s^-1 )
@@ -152,9 +155,9 @@ module glimmer_paramets
 
   real(dp), parameter :: thk_scale = 2000.0d0        ! m
   real(dp), parameter :: len_scale = 200.0d3         ! m
-  real(dp), parameter :: vel_scale = 500.0 / scyr    ! m yr^{-1} converted to S.I. units
-  real(dp), parameter :: tau_scale = rhoi_glam*grav_glam*thk_scale       ! stress scale in GLAM ( Pa )  
-  real(dp), parameter :: vis_scale = tau_scale**(-gn) * (vel_scale/len_scale)  ! rate factor scale in GLAM ( Pa^-3 s^-1 )
-  real(dp), parameter :: evs_scale = tau_scale / (vel_scale/len_scale)   ! eff. visc. scale in GLAM ( Pa s )
+  real(dp), parameter :: velo_scale = 500.0 / scyr    ! m yr^{-1} converted to S.I. units
+!!  real(dp), parameter :: tau_scale = rhoi_glam*grav_glam*thk_scale       ! stress scale in GLAM ( Pa )  
+!!  real(dp), parameter :: vis_scale = tau_scale**(-gn) * (vel_scale/len_scale)  ! rate factor scale in GLAM ( Pa^-3 s^-1 )
+!!  real(dp), parameter :: evs_scale = tau_scale / (vel_scale/len_scale)   ! eff. visc. scale in GLAM ( Pa s )
 
 end module glimmer_paramets
