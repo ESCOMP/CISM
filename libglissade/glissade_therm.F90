@@ -72,7 +72,7 @@ module glissade_therm
          mintemp_threshold = -100.d0
 
     ! local parameter for debugging
-    logical, parameter:: verbose_therm = .false.  ! set to true for diagnostic column output
+    logical, parameter:: verbose_therm = .true.  ! set to true for diagnostic column output
 
   contains
 
@@ -725,6 +725,9 @@ module glissade_therm
     ! Also compute a mask of cells with grounded ice.
     !  For which_ho_ground = HO_GROUND_GLP_DELUXE, this includes cells where the ice is partly grounded.
 
+    !TvdA_CFL: the rare NaN values in the vertical remapping subroutine originate from the temperature
+    !it could very well be caused by a f_ground_cell that is anomaly low, but not entirely sure
+
     if (which_ho_ground == HO_GROUND_GLP_DELUXE) then  ! use f_ground_cell to set grounded_mask, btemp_ground, btemp_float
 
        do ns = 1, nsn
@@ -813,13 +816,13 @@ module glissade_therm
        ! loop over cells
        do ns = 1, nsn
        do ew = 1, ewn
-
+!          print*,'verbose_therm: ',verbose_therm
           if (verbose_therm .and. this_rank==rtest .and. ew==itest .and. ns==jtest) then
              verbose_column = .true.
           else
-             verbose_column = .false.
+             verbose_column = .false. 
           endif
-
+!          print*,'Verbose column: ', verbose_column
           if (ice_mask(ew,ns) == 1) then   ! thck > thklim_temp
 
              ! Set surface temperature
@@ -953,7 +956,7 @@ module glissade_therm
                 efinal = efinal * thck(ew,ns)
 
              else   ! whichtemp = TEMP_PROGNOSTIC
-
+!                print*,'Pinguin, verbose column: ' , verbose_column
                 if (verbose_column) then
                    print*, ' '
                    print*, 'Before prognostic temp, i, j =', ew, ns

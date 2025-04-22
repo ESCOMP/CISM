@@ -1981,7 +1981,7 @@
 
     ! local variables
  
-    integer :: i, j, k, k1, k2
+    integer :: i, j, k, k1, k2, ki
     integer :: iglobal, jglobal
 
     real(dp), dimension(nlyr+1) ::  &
@@ -2012,7 +2012,7 @@
 
     real(dp) :: zlo, zhi, dz, zav, hovlp
 
-    character(len=256) :: message
+    character(len=256) :: message, message1
 
     !WHL - debug
     integer :: nt
@@ -2029,6 +2029,8 @@
           ! Compute total thickness
           !-----------------------------------------------------------------
           
+          !Tim, should I include a check here if the lsrf and usrf contain NaNs
+
           thck = 0.d0
           do k = 1, nlyr
              thck = thck + hlyr(i,j,k)
@@ -2039,7 +2041,10 @@
           ! WHL - Use tiny instead of 0.0d0 to avoid a rare divzero error.
           !-----------------------------------------------------------------
 
-          if (thck > tiny(0.0d0)) then
+          !TvdA, I am going to increase this threshold from tiny(0.0d0) to 10**-1 
+          !Update, this did not prevent the issue
+
+          if (thck > tiny(0.d0)) then
 
              !-----------------------------------------------------------------
              ! Determine vertical coordinate z1, given input layer thicknesses.
@@ -2195,8 +2200,15 @@
              ! Note: Since thck > tiny, we should have hlyr > tiny for all k.
              !       To be safe, however, allow for the possibility that thck > tiny but hlyr is not.
 
+             !TvdA: this loop does not fish out all trcrc = NaN cases. I've found out that these sitations occur
+             !for ice cells in the peninsula with a very small thickness. In my case, trcr becomes NaN, because of a value
+             !trcr_usrf that is smaller than FortRans tiny() function
+             !this likely happened during an earlier timestep than the one in which the error occurs.
+             !I've added extra checks in the above code to stop htsum from becoming incredibly small
+             !and checks with  
+
              do k = 1, nlyr
-                if (hlyr(i,j,k) > tiny(0.0d0)) then
+                if (hlyr(i,j,k) > tiny(0.0d0))  then
                    trcr(i,j,:,k) = htsum(:,k) / hlyr(i,j,k)
                 else
                    trcr(i,j,:,k) = 0.0d0
@@ -2219,10 +2231,16 @@
           do j = 1, ny
              do i = 1, nx
                 if (trcr(i,j,nt,k) /= trcr(i,j,nt,k)) then
+                   !calculate ad-hoc thickness to see what the thickness of the cell is
+                   
+                   thck = 0.d0
+                   do ki = 1, nlyr
+                      thck = thck + hlyr(i,j,ki)
+                   enddo
                    call parallel_globalindex(i, j, iglobal, jglobal, parallel)
-                   write(message,*) 'ERROR: Vertical remap, iglobal, jglobal, k, hlyr, trcr, trctr_usrf, trcr_lsrf:', &
-                        iglobal, jglobal, k, hlyr(i,j,k),trcr(i,j,nt,k), trcr_usrf(i,j,k), trcr_lsrf(i,j,k)
-                   call write_log(trim(message), GM_FATAL) 
+                   write(message,*) 'ERROR: Vertical remap, i, j, k, hlyr, trcr, trctr_usrf, trcr_lsrf, thck: '&
+                        ,iglobal, jglobal, k, hlyr(i,j,k), trcr(i,j,nt,k), trcr_usrf(i,j,k), trcr_lsrf(i,j,k), thck
+                   call write_log(trim(message),GM_FATAL)  !this used to be GM_fatal to remove NaNs 
                 endif
              enddo
           enddo

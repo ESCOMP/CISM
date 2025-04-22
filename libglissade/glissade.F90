@@ -5275,9 +5275,10 @@ contains
     ! This is the same as temp(upn,:,:), the lowest-level of the prognostic temperature array.
     ! However, it is set to zero for ice-free columns (unlike temp(upn) = min(artm,0.0) for ice-free columns)
     ! TODO - Make btemp a prognostic array, and limit the 3D temp array to internal layer temperatures?
+    ! TvdA: I added a tiny here to prevent very small temperatures
     do j = 1, nsn
        do i = 1, ewn
-          if (model%geometry%thck(i,j) > 0.0d0) then
+          if (model%geometry%thck(i,j) > tiny(0.0d0)) then
              model%temper%btemp(i,j) = model%temper%temp(upn,i,j)
           else
              model%temper%btemp(i,j) = 0.0d0
