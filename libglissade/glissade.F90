@@ -3298,7 +3298,7 @@ contains
          parallel_reduce_max, parallel_reduce_min, parallel_globalindex
 
 !!    use glimmer_paramets, only: eps08, tim0, len0, vel0, thk0, vis0, tau0, evs0
-    use glimmer_paramets, only: eps08, vis0, tau0, evs0
+    use glimmer_paramets, only: eps08
     use glimmer_physcon, only: rhow, rhoi, scyr
     use glimmer_scales, only: scale_acab
     use glide_thck, only: glide_calclsrf
@@ -3834,19 +3834,22 @@ contains
                                                  model%numerics%stagsigma(:),    &
                                                  ice_mask,                       &
 !!                                                 model%geomderv%stagthck * thk0, & ! scale to m
-                                                 model%geomderv%stagthck,        & ! scale to m
-                                                 model%temper%flwa * vis0,       & ! scale to Pa^{-n} s^{-1}
+                                                 model%geomderv%stagthck,        & ! m
+!!                                                 model%temper%flwa * vis0,       & ! scale to Pa^{-n} s^{-1}
+                                                 model%temper%flwa,              & ! Pa^{-n} s^{-1}
 !!                                                 model%geomderv%dusrfdew * thk0/len0, & ! scale to m/m
 !!                                                 model%geomderv%dusrfdns * thk0/len0, & ! scale to m/m
-                                                 model%geomderv%dusrfdew,        & ! scale to m/m
-                                                 model%geomderv%dusrfdns,        & ! scale to m/m
+                                                 model%geomderv%dusrfdew,        & ! m/m
+                                                 model%geomderv%dusrfdns,        & ! m/m
                                                  model%temper%dissip)
           
        else    ! first-order dissipation                                                                                                                                                               
           call glissade_interior_dissipation_first_order(ewn,  nsn,    upn,          &
                                                          ice_mask,                   &
-                                                         model%stress%tau%scalar * tau0,  &  ! scale to Pa
-                                                         model%stress%efvs * evs0,   &  ! scale to Pa s
+!!                                                         model%stress%tau%scalar * tau0,  &  ! scale to Pa
+                                                         model%stress%tau%scalar,    &  ! Pa 
+!!                                                         model%stress%efvs * evs0,   &  ! scale to Pa s
+                                                         model%stress%efvs,          &  ! Pa s
                                                          model%temper%dissip)
           
        endif    ! which_ho_disp

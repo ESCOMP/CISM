@@ -5,6 +5,12 @@
 #data:          
 #factor:        
 
+# Note on scales: CISM uses SI units (m, kg, s) for most calculations.
+# For velocity, melt rates, and similar quantities, units of yr^(-1) are more intuitive than s^(-1).
+# Thus, many I/O variables have a time unit of yr^(-1) or yr.
+# The units are converted to s in the code by using scyr or 1/scyr as a scale factor.
+# Previous code versions used scale factors thk0, len0, tim0, and len0, but these have been removed.
+
 # setup for code generator
 [VARSET]
 # prefix of the generated module

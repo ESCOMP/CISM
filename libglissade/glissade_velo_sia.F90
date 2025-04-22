@@ -57,7 +57,6 @@
     use glimmer_global, only: dp
     use glimmer_physcon, only: n_glen, rhoi, grav, scyr
 !!    use glimmer_paramets, only: thk0, len0, vel0, vis0, tau0
-    use glimmer_paramets, only: vis0, tau0
 !    use glimmer_log, only: write_log
 
     use glide_types
@@ -602,16 +601,17 @@
 !!    thklim = thklim * thk0
 
     ! rate factor: rescale from dimensionless to Pa^(-n) yr^(-1)
-    flwa = flwa * (vis0*scyr)
+!!    flwa = flwa * (vis0*scyr)
+    flwa = flwa * scyr
 
     ! bwat: rescale from dimensionless to m
 !!    bwat = bwat * thk0
 
+!TODO - Switch to m/s later
 !!    ! btrc: rescale from dimensionless to (m/yr)/Pa
     ! btrc: rescale from (m/s)/Pa to (m/yr)/Pa
-!TODO - Switch to m/s later
-    !    btrc_const = btrc_const * (vel0*scyr) / tau0
-    btrc_const = btrc_const * (scyr/tau0)
+!!    !    btrc_const = btrc_const * (vel0*scyr) / tau0
+    btrc_const = btrc_const * scyr
 
     ! ice velocity: rescale from dimensionless to m/yr
 !!    uvel = uvel * (vel0*scyr)
@@ -654,7 +654,8 @@
 !!    topg = topg / thk0
 
     ! Convert flow factor from Pa^(-n) yr^(-1) to dimensionless units
-    flwa = flwa / (vis0*scyr)
+!!    flwa = flwa / (vis0*scyr)
+    flwa = flwa / scyr
 
     ! Convert bwat from m to dimensionless units
 !!    bwat = bwat / thk0
@@ -662,7 +663,7 @@
 !!    ! Convert btrc from (m/yr)/Pa to dimensionless units
     ! Convert btrc from (m/yr)/Pa to (m/s)/Pa
 !!    btrc = btrc / ((vel0*scyr)/tau0)
-    btrc = btrc / (scyr/tau0)
+    btrc = btrc / scyr
 
     ! Convert velocity from m/yr to dimensionless units
 !!    uvel = uvel / (vel0*scyr)

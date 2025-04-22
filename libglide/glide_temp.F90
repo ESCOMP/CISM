@@ -82,7 +82,6 @@ contains
     !> initialise temperature module
     use glimmer_physcon, only : rhoi, shci, coni, scyr, grav, gn, lhci, rhow, trpt
 !!    use glimmer_paramets, only : tim0, thk0, acc0, len0, vis0, vel0
-    use glimmer_paramets, only : vis0
     use cism_parallel, only: lhalo, uhalo
 
     type(glide_global_type), intent(inout) :: model       ! model instance
@@ -154,7 +153,8 @@ contains
 !!    model%tempwk%c1 = STRAIN_HEAT *(model%numerics%sigma * rhoi * grav * thk0**2 / len0)**p1 * &
 !!         2.0d0 * vis0 * model%numerics%dttem * tim0 / (16.0d0 * rhoi * shci)
     model%tempwk%c1 = STRAIN_HEAT *(model%numerics%sigma * rhoi * grav)**p1 * &
-         2.0d0 * vis0 * model%numerics%dttem / (16.0d0 * rhoi * shci)
+!!         2.0d0 * vis0 * model%numerics%dttem / (16.0d0 * rhoi * shci)
+         2.0d0 * model%numerics%dttem / (16.0d0 * rhoi * shci)
 
     model%tempwk%dupc = (/ (model%numerics%sigma(2) - model%numerics%sigma(1)) / 2.0d0, &
          ((model%numerics%sigma(up+1) - model%numerics%sigma(up-1)) / 2.0d0, &
@@ -1226,7 +1226,6 @@ contains
 
     use glimmer_physcon
 !!    use glimmer_paramets, only : thk0, vis0
-    use glimmer_paramets, only : vis0
 
     !------------------------------------------------------------------------------------
     ! Subroutine arguments
@@ -1269,8 +1268,7 @@ contains
    
 !      Some notes:
 !      vis0 = 1.39e-032 Pa-3 s-1
-!! !           = tau0**(-gn) * (vel0/len0) where tau0 = rhoi*grav*thk0
-!           = tau0**(-gn)  where tau0 = rhoi*grav
+!           = tau0**(-gn) * (vel0/len0) where tau0 = rhoi*grav*thk0
 !      vis0*scyr = 4.39e-025 Pa-2 yr-1
 !      default_flwa_arg = 1.0d-16 Pa-3 yr-1 by default
 !      Result is default_flwa =   227657117 (unitless) if flow factor = 1
@@ -1279,14 +1277,17 @@ contains
 !         vis0 = 3.17E-024 Pa-3 s-1 for old glide dycore = 1d-16 Pa-3 yr-1 / scyr
 !
 
-    default_flwa = flow_enhancement_factor * default_flwa_arg / (vis0*scyr) 
+!!    default_flwa = flow_enhancement_factor * default_flwa_arg / (vis0*scyr) 
+    default_flwa = flow_enhancement_factor * default_flwa_arg / scyr 
 
     !write(*,*)"Default flwa = ",default_flwa
 
     upn=size(flwa,1) ; ewn=size(flwa,2) ; nsn=size(flwa,3)
 
-    arrfact = (/ flow_enhancement_factor * arrmlh / vis0, &   ! Value of a when T* is above -263K
-                 flow_enhancement_factor * arrmll / vis0, &   ! Value of a when T* is below -263K
+!!    arrfact = (/ flow_enhancement_factor * arrmlh / vis0, &   ! Value of a when T* is above -263K
+!!                 flow_enhancement_factor * arrmll / vis0, &   ! Value of a when T* is below -263K
+    arrfact = (/ flow_enhancement_factor * arrmlh,    &   ! Value of a when T* is above -263K
+                 flow_enhancement_factor * arrmll,    &   ! Value of a when T* is below -263K
                  -actenh / gascon,        &       ! Value of -Q/R when T* is above -263K
                  -actenl / gascon/)               ! Value of -Q/R when T* is below -263K
 
@@ -1384,10 +1385,10 @@ contains
 
     !------------------------------------------------------------------------------------
 
-!       arrfact = (/ flow_enhancement_factor * arrmlh / vis0, &   ! Value of a when T* is above -263K
-!                    flow_enhancement_factor * arrmll / vis0, &   ! Value of a when T* is below -263K
-!                    -actenh / gascon,        &       ! Value of -Q/R when T* is above -263K
-!                    -actenl / gascon/)               ! Value of -Q/R when T* is below -263K
+!       arrfact = (/ flow_enhancement_factor * arrmlh, &   ! Value of a when T* is above -263K
+!                    flow_enhancement_factor * arrmll, &   ! Value of a when T* is below -263K
+!                    -actenh / gascon,                 &   ! Value of -Q/R when T* is above -263K
+!                    -actenl / gascon/)                    ! Value of -Q/R when T* is below -263K
 !       
 !       where arrmlh = 1.733d3 Pa-3 s-1
 !             arrmll = 3.613d-13 Pa-3 s-1

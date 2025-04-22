@@ -3192,7 +3192,7 @@ contains
     ! Compute the eigenvalues of the 2D horizontal stress tensor.
     ! These are used for eigencalving and damage-based calving.
 
-    use glimmer_paramets, only: tau0
+!!    use glimmer_paramets, only: tau0
 
     ! input/output arguments
 
@@ -3227,9 +3227,12 @@ contains
 
           do k = 1, nz-1
              dsigma = sigma(k+1) - sigma(k)
-             tau_xx = tau_xx + tau0 * tau%xx(k,i,j) * dsigma
-             tau_yy = tau_yy + tau0 * tau%yy(k,i,j) * dsigma
-             tau_xy = tau_xy + tau0 * tau%xy(k,i,j) * dsigma
+!!             tau_xx = tau_xx + tau0 * tau%xx(k,i,j) * dsigma
+!!             tau_yy = tau_yy + tau0 * tau%yy(k,i,j) * dsigma
+!!             tau_xy = tau_xy + tau0 * tau%xy(k,i,j) * dsigma
+             tau_xx = tau_xx + tau%xx(k,i,j) * dsigma
+             tau_yy = tau_yy + tau%yy(k,i,j) * dsigma
+             tau_xy = tau_xy + tau%xy(k,i,j) * dsigma
           enddo
 
           ! compute the eigenvalues of the vertically integrated stress tensor
@@ -3271,7 +3274,7 @@ contains
     ! (2) Pass in the stress tensor as an optional argument, compute the strain rate tensor
     !     from the stress tensor and effective viscosity, and then compute the eigenvalues.
 
-    use glimmer_paramets, only: evs0, tau0
+!!    use glimmer_paramets, only: evs0, tau0
 
     ! input/output arguments
 
@@ -3309,12 +3312,18 @@ contains
     if (present(tau) .and. present(efvs)) then
 
        where (efvs > 0.0d0)
-          strain_rate%scalar = tau0 * tau%scalar / (2.d0 * evs0 * efvs)
-          strain_rate%xz = tau0 * tau%xz / (2.d0 * evs0 * efvs)
-          strain_rate%yz = tau0 * tau%yz / (2.d0 * evs0 * efvs)
-          strain_rate%xx = tau0 * tau%xx / (2.d0 * evs0 * efvs)
-          strain_rate%yy = tau0 * tau%yy / (2.d0 * evs0 * efvs)
-          strain_rate%xy = tau0 * tau%xy / (2.d0 * evs0 * efvs)
+!!          strain_rate%scalar = tau0 * tau%scalar / (2.d0 * evs0 * efvs)
+!!          strain_rate%xz = tau0 * tau%xz / (2.d0 * evs0 * efvs)
+!!          strain_rate%yz = tau0 * tau%yz / (2.d0 * evs0 * efvs)
+!!          strain_rate%xx = tau0 * tau%xx / (2.d0 * evs0 * efvs)
+!!          strain_rate%yy = tau0 * tau%yy / (2.d0 * evs0 * efvs)
+!!          strain_rate%xy = tau0 * tau%xy / (2.d0 * evs0 * efvs)
+          strain_rate%scalar = tau%scalar / (2.d0 * efvs)
+          strain_rate%xz = tau%xz / (2.d0 * efvs)
+          strain_rate%yz = tau%yz / (2.d0 * efvs)
+          strain_rate%xx = tau%xx / (2.d0 * efvs)
+          strain_rate%yy = tau%yy / (2.d0 * efvs)
+          strain_rate%xy = tau%xy / (2.d0 * efvs)
        elsewhere
           strain_rate%scalar = 0.0d0
           strain_rate%xz = 0.0d0

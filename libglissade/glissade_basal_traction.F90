@@ -48,7 +48,6 @@
   use glimmer_paramets, only : dp
   use glimmer_physcon,  only : scyr
 !!  use glimmer_paramets, only : vel0, tau0
-  use glimmer_paramets, only : tau0
   use glimmer_log
   use glide_types
   use cism_parallel, only : this_rank, main_task, parallel_type, &
@@ -314,7 +313,8 @@ contains
       !!!       Currently, to enable sliding over plastic till, simply specify the value of "beta" as 
       !!!       if it were the till yield stress (in units of Pascals).
       
-      beta(:,:) = basal_physics%mintauf(:,:)*tau0 &                                      ! plastic yield stress (converted to Pa)
+!!      beta(:,:) = basal_physics%mintauf(:,:)*tau0 &                                      ! plastic yield stress (converted to Pa)
+       beta(:,:) = basal_physics%mintauf(:,:) &                                          ! plastic yield stress (Pa)
                          / dsqrt( thisvel(:,:)**2 + othervel(:,:)**2 + (smallnum)**2 )   ! velocity components (m/yr)
 
       !!! since beta is updated here, communicate that info to halos

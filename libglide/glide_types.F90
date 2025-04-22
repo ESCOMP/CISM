@@ -1583,7 +1583,7 @@ module glide_types
      real(dp) :: tau_eigenconstant2 = 1.0d0      !> constant that multiplies the tau_eigen2 term in stress-based calving (unitless)
      real(dp) :: stress_threshold = 6.0e4        !> stress threshold for CF retreat with stress-based calving (Pa)
      real(dp) :: lateral_rate_min = 0.0d0        !> minimum lateral retreat rate at CF (m/yr)
-     real(dp) :: effec_stress_min = 0.0d0        !> minimum effective stress for calving at CF (m/yr)
+     real(dp) :: effec_stress_min = 0.0d0        !> minimum effective stress for calving at CF (Pa)
      real(dp) :: length_scale = 4000.d0          !> length scale (m) for calving events (CALVING_STRESS_STOCHASTIC)
      real(dp) :: damage_threshold = 0.0d0        !> threshold at which ice column is sufficiently damaged to calve
                                                  !> 0 = no damage, 1 = total damage (whichcalving = CALVING_DAMAGE)
@@ -1785,10 +1785,10 @@ module glide_types
 
      real(dp), dimension(:,:), pointer :: &
           bmlt => null(),                         & !> basal melt rate (> 0 for melt, < 0 for freeze-on)
-                                                    !> bmlt = bmlt_ground + bmlt_float
-          bmlt_applied => null(),                 & !> basal melt rate applied to ice (m/yr)
+                                                    !> bmlt = bmlt_ground + bmlt_float (m/s)
+          bmlt_applied => null(),                 & !> basal melt rate applied to ice (m/s)
                                                     !>    = 0 for ice-free cells with bmlt > 0
-          bmlt_applied_tavg => null(),            & !> basal melt rate applied to ice (m/yr, time average)
+          bmlt_applied_tavg => null(),            & !> basal melt rate applied to ice (m/s, time average)
           bmlt_ground => null(),                  & !> basal melt rate for grounded ice
           bmlt_float => null(),                   & !> basal melt rate for floating ice
           bmlt_float_external => null(),          & !> external basal melt rate field
@@ -2429,7 +2429,7 @@ module glide_types
     real(dp),dimension(4) :: c = 0.d0
     real(dp) :: watwd  = 3.0d0
     real(dp) :: watct  = 10.0d0
-    real(dp) :: trc0   = 0.d0
+!!    real(dp) :: trc0   = 0.d0
     real(dp) :: trcmin = 0.0d0
     real(dp) :: marine = 1.0d0
     real(dp) :: trcmax = 10.0d0

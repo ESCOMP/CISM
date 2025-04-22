@@ -59,7 +59,7 @@
     use glimmer_global, only: dp
     use glimmer_physcon, only: n_glen, rhoi, rhoo, grav, scyr, pi
 !!    use glimmer_paramets, only: eps08, eps10, thk0, len0, tau0, vel0, vis0, evs0
-    use glimmer_paramets, only: eps08, eps10, tau0, vis0, evs0
+    use glimmer_paramets, only: eps08, eps10
     use glimmer_paramets, only: vel_scale, len_scale   ! used for whichefvs = HO_EFVS_FLOWFACT
     use glimmer_log
     use glimmer_sparse_type
@@ -2772,7 +2772,7 @@
                          land_mask,                        &
                          f_ground,                         &
 !!                         beta*tau0/(vel0*scyr),            &  ! external beta (intent in)
-                         beta*tau0/scyr,                   &  ! external beta (intent in)
+                         beta*scyr,                        &  ! external beta (intent in)
                          beta_internal,                    &  ! beta weighted by f_ground (intent inout)
                          whichbeta_limit,                  &
                          which_ho_coulomb_c  = which_coulomb_c,   &
@@ -3599,7 +3599,8 @@
              do j = ny-1, 1, -1
                 write(6,'(i6)',advance='no') j
                 do i = 1, nx-1
-                   write(6,'(e10.3)',advance='no') model%basal_physics%mintauf(i,j) * tau0
+!!                   write(6,'(e10.3)',advance='no') model%basal_physics%mintauf(i,j) * tau0
+                   write(6,'(e10.3)',advance='no') model%basal_physics%mintauf(i,j)
                 enddo
                 write(6,*) ' '
              enddo
@@ -4416,14 +4417,15 @@
 !!    thck_gradient_ramp = thck_gradient_ramp * thk0
 
     ! rate factor: rescale from dimensionless to Pa^(-n) yr^(-1)
-    flwa = flwa * (vis0*scyr)
+!!    flwa = flwa * (vis0*scyr)
+    flwa = flwa * scyr
 
     ! effective viscosity: rescale from dimensionless to Pa yr
-    efvs = efvs * (evs0/scyr)
+    efvs = efvs / scyr
 
     ! basal traction: rescale from dimensionless to Pa
-    btractx = btractx * tau0
-    btracty = btracty * tau0
+!!    btractx = btractx * tau0
+!!    btracty = btracty * tau0
 
 !!    ! ice velocity: rescale from dimensionless to m/yr
     ! ice velocity: rescale from m/s to m/yr
@@ -4498,15 +4500,17 @@
 !!    topg = topg / thk0
 
     ! Convert flow factor from Pa^(-n) yr^(-1) to dimensionless units
-    flwa = flwa / (vis0*scyr)
+!!    flwa = flwa / (vis0*scyr)
+    flwa = flwa / scyr
 
     ! Convert effective viscosity from Pa yr to dimensionless units
-    efvs = efvs / (evs0/scyr)
+!!    efvs = efvs / (evs0/scyr)
+    efvs = efvs * scyr
 
 !!    ! Convert beta_internal from Pa/(m/yr) to dimensionless units
     ! Convert beta_internal from Pa/(m/yr) to Pa/(m/s)
 !!    beta_internal = beta_internal / (tau0/scyr)
-    beta_internal = beta_internal / (tau0/scyr)
+    beta_internal = beta_internal * scyr
 
     ! Convert velocity from m/yr to dimensionless units
 !!    uvel = uvel / (vel0*scyr)
@@ -4521,24 +4525,20 @@
     ! Convert residual and rhs from Pa/m to dimensionless units
 !!    resid_u = resid_u / (tau0/len0)
 !!    resid_v = resid_v / (tau0/len0)
-    resid_u = resid_u / tau0
-    resid_v = resid_v / tau0
 !!    bu = bu / (tau0/len0)
 !!    bv = bv / (tau0/len0)
-    bu = bu / tau0
-    bv = bv / tau0
 
     ! Convert stresses from Pa to dimensionless units
-    btractx = btractx/tau0
-    btracty = btracty/tau0
-    taudx   = taudx/tau0
-    taudy   = taudy/tau0
-    tau_xz  = tau_xz/tau0
-    tau_yz  = tau_yz/tau0
-    tau_xx  = tau_xx/tau0
-    tau_yy  = tau_yy/tau0
-    tau_xy  = tau_xy/tau0
-    tau_eff = tau_eff/tau0
+!!    btractx = btractx/tau0
+!!    btracty = btracty/tau0
+!!    taudx   = taudx/tau0
+!!    taudy   = taudy/tau0
+!!    tau_xz  = tau_xz/tau0
+!!    tau_yz  = tau_yz/tau0
+!!    tau_xx  = tau_xx/tau0
+!!    tau_yy  = tau_yy/tau0
+!!    tau_xy  = tau_xy/tau0
+!!    tau_eff = tau_eff/tau0
 
   end subroutine glissade_velo_higher_scale_output
 

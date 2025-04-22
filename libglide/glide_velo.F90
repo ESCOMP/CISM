@@ -38,7 +38,6 @@ module glide_velo
   use glimmer_global, only : dp
   use glimmer_physcon, only : rhoi, grav, gn
 !!  use glimmer_paramets, only : thk0, len0, vis0, vel0
-  use glimmer_paramets, only : vis0
 
   implicit none
 
@@ -96,18 +95,20 @@ contains
 
     model%velowk%depthw = (/ ((model%numerics%sigma(up+1)+model%numerics%sigma(up)) / 2.0d0, up=1,upn-1), 0.0d0 /)
 
-    model%velowk%fact = (/ model%paramets%flow_enhancement_factor_ground * arrmlh / vis0, &   ! Value of a when T* is above -263K
-                           model%paramets%flow_enhancement_factor_ground * arrmll / vis0, &   ! Value of a when T* is below -263K
-                          -actenh / gascon,        &                                          ! Value of -Q/R when T* is above -263K
-                          -actenl / gascon/)                                                  ! Value of -Q/R when T* is below -263K
+!!    model%velowk%fact = (/ model%paramets%flow_enhancement_factor_ground * arrmlh / vis0, &   ! Value of a when T* is above -263K
+!!                           model%paramets%flow_enhancement_factor_ground * arrmll / vis0, &   ! Value of a when T* is below -263K
+    model%velowk%fact = (/ model%paramets%flow_enhancement_factor_ground * arrmlh, &   ! Value of a when T* is above -263K
+                           model%paramets%flow_enhancement_factor_ground * arrmll, &   ! Value of a when T* is below -263K
+                          -actenh / gascon,        &                                   ! Value of -Q/R when T* is above -263K
+                          -actenl / gascon/)                                           ! Value of -Q/R when T* is below -263K
 
     model%velowk%watwd  = model%paramets%bpar(1)
     model%velowk%watct  = model%paramets%bpar(2)
     model%velowk%trcmin = model%paramets%bpar(3) / scyr
     model%velowk%trcmax = model%paramets%bpar(4) / scyr
     model%velowk%marine = model%paramets%bpar(5)
-    model%velowk%trcmax = model%velowk%trcmax / model%velowk%trc0
-    model%velowk%trcmin = model%velowk%trcmin / model%velowk%trc0  
+!!    model%velowk%trcmax = model%velowk%trcmax / model%velowk%trc0
+!!    model%velowk%trcmin = model%velowk%trcmin / model%velowk%trc0  
     model%velowk%c(1)   = (model%velowk%trcmax + model%velowk%trcmin) / 2.0d0 
     model%velowk%c(2)   = (model%velowk%trcmax - model%velowk%trcmin) / 2.0d0
 !!    model%velowk%c(3)   = (thk0 * pi) / model%velowk%watwd  
@@ -117,7 +118,7 @@ contains
     ! Note: cflow < 0 is used in several equations below.
     !       Signs in this module can be tricky, so comments are added to help keep track.
 !!    cflow = -2.0d0*vis0*(rhoi*grav)**gn*thk0**p3/(8.0d0*vel0*len0**gn)
-    cflow = -2.0d0*vis0*(rhoi*grav)**gn / (8.0d0/scyr)
+    cflow = -2.0d0*(rhoi*grav)**gn / (8.0d0/scyr)
 
   end subroutine init_velo
 

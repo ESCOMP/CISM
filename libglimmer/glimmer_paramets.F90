@@ -124,11 +124,8 @@ module glimmer_paramets
   ! GLAM scaling parameters; units are correct if thk0 has units of meters
   integer, parameter :: gn = 3                              ! Glen flow exponent; fixed at 3 for purposes of setting vis0
 !!  real(dp), parameter :: tau0 = rhoi_glam*grav_glam*thk0    ! stress scale in GLAM ( Pa )  
-  real(dp), parameter :: tau0 = rhoi_glam*grav_glam         ! stress scale in GLAM ( Pa )  
 !!  real(dp), parameter :: evs0 = tau0 / (vel0/len0)          ! eff. visc. scale in GLAM ( Pa s )
-  real(dp), parameter :: evs0 = tau0                          ! eff. visc. scale in GLAM ( Pa s )
 !!  real(dp), parameter :: vis0 = tau0**(-gn) * (vel0/len0)   ! rate factor scale in GLAM ( Pa^-3 s^-1 )
-  real(dp), parameter :: vis0 = tau0**(-gn)                   ! rate factor scale in GLAM ( Pa^-3 s^-1 )
 
 !SCALING - This is the scaling we would use if we had velocity in m/yr and thk0 = len0 = 1.
 !  real(dp), parameter :: thk0 = 1.d0
