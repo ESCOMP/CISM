@@ -173,8 +173,7 @@ contains
     ! Also write local diagnostics for a selected grid cell
  
 !!    use glimmer_paramets, only: thk0, len0, vel0, unphys_val
-!!    use glimmer_paramets, only: thk0, vel0, unphys_val
-    use glimmer_paramets, only: vel0, unphys_val
+    use glimmer_paramets, only: unphys_val
     use glimmer_physcon, only: scyr, rhoi, shci
     use glissade_utils, only: glissade_usrf_to_thck, glissade_rms_error
 
@@ -922,7 +921,8 @@ contains
     call broadcast(jmax_global, proc = procnum)
 
     write(message,'(a25,f24.16,2i6)') 'Max sfc spd (m/y), i, j  ',   &
-                    max_spd_sfc_global*vel0*scyr, imax_global, jmax_global
+!!                    max_spd_sfc_global*vel0*scyr, imax_global, jmax_global
+                    max_spd_sfc_global*scyr, imax_global, jmax_global
     call write_log(trim(message), type = GM_DIAGNOSTIC)
 
     ! max basal speed
@@ -948,7 +948,8 @@ contains
     call broadcast(imax_global, proc = procnum)
     call broadcast(jmax_global, proc = procnum)
     write(message,'(a25,f24.16,2i6)') 'Max base spd (m/y), i, j ',   &
-                    max_spd_bas_global*vel0*scyr, imax_global, jmax_global
+!!                    max_spd_bas_global*vel0*scyr, imax_global, jmax_global
+                    max_spd_bas_global*scyr, imax_global, jmax_global
     call write_log(trim(message), type = GM_DIAGNOSTIC)
 
     !-----------------------------------------------------------------
@@ -987,11 +988,13 @@ contains
                      + model%velocity%vvel(1,:,:)**2)
 
        call glissade_rms_error(&
-            ewn,            nsn,          &
-            ice_mask,                     &
-            parallel,                     &
-            velo_sfc * (vel0*scyr),       &  ! m/yr
-            model%velocity%velo_sfc_obs * (vel0*scyr), &  ! m/yr
+            ewn,            nsn,                &
+            ice_mask,                           &
+            parallel,                           &
+!!            velo_sfc * (vel0*scyr),       &  ! m/yr
+!!            model%velocity%velo_sfc_obs * (vel0*scyr), &  ! m/yr
+            velo_sfc * scyr,                    &  ! m/yr
+            model%velocity%velo_sfc_obs * scyr, &  ! m/yr
             rmse_velo)
 
        write(message,'(a25,f24.16)') 'rms error, sfc spd (m/y) ', rmse_velo
@@ -1052,7 +1055,8 @@ contains
        
           temp_diag(:) = model%temper%temp(1:upn,i,j)          
           spd_diag(:) = sqrt(model%velocity%uvel(1:upn,i,j)**2   &
-                           + model%velocity%vvel(1:upn,i,j)**2) * vel0*scyr
+!!                           + model%velocity%vvel(1:upn,i,j)**2) * vel0*scyr
+                           + model%velocity%vvel(1:upn,i,j)**2) * scyr
           if (model%options%which_ho_ice_age == HO_ICE_AGE_COMPUTE) &
                age_diag(:) = model%geometry%ice_age(:,i,j)/scyr
           if (model%options%gthf == GTHF_COMPUTE) &

@@ -30,7 +30,7 @@ module glissade_glacier
 
     use glimmer_global 
 !!    use glimmer_paramets, only: thk0, len0, tim0, vel0, eps08
-    use glimmer_paramets, only: vel0, eps08
+    use glimmer_paramets, only: eps08
     use glimmer_physcon, only: scyr, pi, rhow, rhoi
     use glide_types
     use glimmer_log

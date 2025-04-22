@@ -59,7 +59,7 @@
     use glimmer_global, only: dp
     use glimmer_physcon, only: n_glen, rhoi, rhoo, grav, scyr, pi
 !!    use glimmer_paramets, only: eps08, eps10, thk0, len0, tau0, vel0, vis0, evs0
-    use glimmer_paramets, only: eps08, eps10, tau0, vel0, vis0, evs0
+    use glimmer_paramets, only: eps08, eps10, tau0, vis0, evs0
     use glimmer_paramets, only: vel_scale, len_scale   ! used for whichefvs = HO_EFVS_FLOWFACT
     use glimmer_log
     use glimmer_sparse_type
@@ -225,8 +225,8 @@
 !    logical :: verbose_bfric = .true.
     logical :: verbose_trilinos = .false.
 !    logical :: verbose_trilinos = .true.
-    logical :: verbose_beta = .false.
-!    logical :: verbose_beta = .true.
+!    logical :: verbose_beta = .false.
+    logical :: verbose_beta = .true.
     logical :: verbose_efvs = .false.
 !    logical :: verbose_efvs = .true.
     logical :: verbose_tau = .false.
@@ -2771,7 +2771,8 @@
                          ice_mask,                         &
                          land_mask,                        &
                          f_ground,                         &
-                         beta*tau0/(vel0*scyr),            &  ! external beta (intent in)
+!!                         beta*tau0/(vel0*scyr),            &  ! external beta (intent in)
+                         beta*tau0/scyr,                   &  ! external beta (intent in)
                          beta_internal,                    &  ! beta weighted by f_ground (intent inout)
                          whichbeta_limit,                  &
                          which_ho_coulomb_c  = which_coulomb_c,   &
@@ -4424,11 +4425,17 @@
     btractx = btractx * tau0
     btracty = btracty * tau0
 
+!!    ! ice velocity: rescale from dimensionless to m/yr
+    ! ice velocity: rescale from m/s to m/yr
     ! ice velocity: rescale from dimensionless to m/yr
-    uvel = uvel * (vel0*scyr)
-    vvel = vvel * (vel0*scyr)
-    uvel_2d = uvel_2d * (vel0*scyr)
-    vvel_2d = vvel_2d * (vel0*scyr)
+!!    uvel = uvel * (vel0*scyr)
+!!    vvel = vvel * (vel0*scyr)
+    uvel = uvel * scyr
+    vvel = vvel * scyr
+!!    uvel_2d = uvel_2d * (vel0*scyr)
+!!    vvel_2d = vvel_2d * (vel0*scyr)
+    uvel_2d = uvel_2d * scyr
+    vvel_2d = vvel_2d * scyr
 
   end subroutine glissade_velo_higher_scale_input
 
@@ -4496,14 +4503,20 @@
     ! Convert effective viscosity from Pa yr to dimensionless units
     efvs = efvs / (evs0/scyr)
 
-    ! Convert beta_internal from Pa/(m/yr) to dimensionless units
-    beta_internal = beta_internal / (tau0/(vel0*scyr))
+!!    ! Convert beta_internal from Pa/(m/yr) to dimensionless units
+    ! Convert beta_internal from Pa/(m/yr) to Pa/(m/s)
+!!    beta_internal = beta_internal / (tau0/scyr)
+    beta_internal = beta_internal / (tau0/scyr)
 
     ! Convert velocity from m/yr to dimensionless units
-    uvel = uvel / (vel0*scyr)
-    vvel = vvel / (vel0*scyr)
-    uvel_2d = uvel_2d / (vel0*scyr)
-    vvel_2d = vvel_2d / (vel0*scyr)
+!!    uvel = uvel / (vel0*scyr)
+!!    vvel = vvel / (vel0*scyr)
+    uvel = uvel / scyr
+    vvel = vvel / scyr
+!!    uvel_2d = uvel_2d / (vel0*scyr)
+!!    vvel_2d = vvel_2d / (vel0*scyr)
+    uvel_2d = uvel_2d / scyr
+    vvel_2d = vvel_2d / scyr
 
     ! Convert residual and rhs from Pa/m to dimensionless units
 !!    resid_u = resid_u / (tau0/len0)

@@ -28,7 +28,7 @@ module glissade_inversion
 
   use glimmer_physcon, only: scyr, grav
 !!  use glimmer_paramets, only: eps08, tim0, len0, vel0, thk0
-  use glimmer_paramets, only: eps08, vel0
+  use glimmer_paramets, only: eps08
   use glimmer_log
   use glide_types
   use glide_thck, only: glide_calclsrf
@@ -879,8 +879,10 @@ contains
             model%numerics%dew,                               &  ! m
             model%numerics%dns,                               &  ! m
             itest, jtest, rtest,                              &
-            model%velocity%velo_sfc * vel0,                   &  ! m/s
-            model%velocity%velo_sfc_obs * vel0,               &  ! m/s
+!!            model%velocity%velo_sfc * vel0,                   &  ! m/s
+!!            model%velocity%velo_sfc_obs * vel0,               &  ! m/s
+            model%velocity%velo_sfc,                          &  ! m/s
+            model%velocity%velo_sfc_obs,                      &  ! m/s
             model%geometry%dthck_dt,                          &  ! m/s
             ice_mask,                                         &
             model%geometry%f_ground_cell,                     &

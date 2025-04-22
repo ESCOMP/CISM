@@ -107,7 +107,7 @@ contains
     use glissade_masks, only: glissade_get_masks, glissade_marine_connection_mask
     use glimmer_scales
 !!    use glimmer_paramets, only: eps11, thk0, len0, tim0, vel0, scyr
-    use glimmer_paramets, only: eps11, vel0, scyr
+    use glimmer_paramets, only: eps11, scyr
     use glimmer_physcon, only: rhow, rhoi
     use glide_mask
     use isostasy, only: init_isostasy, isos_relaxed
@@ -988,7 +988,8 @@ contains
 !!            model%climate%eus*thk0,            model%numerics%thklim*thk0,        &  ! m
             model%geometry%thck,               model%geometry%topg,               &  ! m
             model%climate%eus,                 model%numerics%thklim,             &  ! m
-            model%velocity%usfc_obs*vel0*scyr, model%velocity%vsfc_obs*vel0*scyr, &  ! m/yr
+!!            model%velocity%usfc_obs*vel0*scyr, model%velocity%vsfc_obs*vel0*scyr, &  ! m/yr
+            model%velocity%usfc_obs*scyr,      model%velocity%vsfc_obs*scyr,      &  ! m/yr
             model%calving%calving_front_x,     model%calving%calving_front_y,     &
             model%calving%calving_mask)
 
@@ -2094,7 +2095,6 @@ contains
     use cism_parallel, only: parallel_type, parallel_halo, parallel_halo_tracers,  &
          staggered_parallel_halo, parallel_reduce_max
 !!    use glimmer_paramets, only: eps11, eps08, tim0, thk0, vel0, len0
-    use glimmer_paramets, only: eps11, eps08, vel0
     use glimmer_physcon, only: rhow, rhoi, scyr
     use glide_diagnostics, only: glide_init_diag
     use glissade_therm, only: glissade_temp2enth, glissade_enth2temp
@@ -2366,9 +2366,10 @@ contains
                                model%geomderv%stagthck,                                                        &
 !!                               model%geomderv%dusrfdew*thk0/len0, model%geomderv%dusrfdns*thk0/len0,           &
                                model%geomderv%dusrfdew,           model%geomderv%dusrfdns,                     &
-                               model%velocity%uvel * scyr * vel0, model%velocity%vvel * scyr * vel0,           &
+!!                               model%velocity%uvel * scyr * vel0, model%velocity%vvel * scyr * vel0,           &
+                               model%velocity%uvel * scyr,        model%velocity%vvel * scyr,                  & ! m/yr
 !!                               model%numerics%dt_transport * tim0 / scyr,                                      &
-                               model%numerics%dt_transport / scyr,                                             &
+                               model%numerics%dt_transport / scyr,                                             & ! yr
                                model%numerics%adaptive_cfl_threshold,                                          &
                                model%numerics%adv_cfl_dt,         model%numerics%diff_cfl_dt)
 
@@ -2455,8 +2456,10 @@ contains
                                          model%numerics%sigma,                                 &
                                          parallel,                                             &
                                          itest,        jtest,       rtest,                     &
-                                         model%velocity%uvel(:,:,:) * vel0,                    &  ! m/s
-                                         model%velocity%vvel(:,:,:) * vel0,                    &  ! m/s
+!!                                         model%velocity%uvel(:,:,:) * vel0,                    &  ! m/s
+!!                                         model%velocity%vvel(:,:,:) * vel0,                    &  ! m/s
+                                         model%velocity%uvel(:,:,:),                           &  ! m/s
+                                         model%velocity%vvel(:,:,:),                           &  ! m/s
                                          thck_unscaled(:,:),                                   &  ! m
                                          model%geometry%ntracers,                              &
                                          model%geometry%tracers(:,:,:,:),                      &
@@ -2582,7 +2585,6 @@ contains
     use cism_parallel, only: parallel_type, parallel_halo
 
 !!    use glimmer_paramets, only: thk0, tim0, len0, vel0
-    use glimmer_paramets, only: vel0
     use glimmer_physcon, only: scyr
     use glissade_calving, only: glissade_calve_ice, verbose_calving, &
          glissade_remove_icebergs, glissade_remove_isthmuses, glissade_limit_cliffs
@@ -2879,8 +2881,10 @@ contains
             model%numerics%sigma,              &
 !!            model%numerics%thklim*thk0,        &        ! m
             model%numerics%thklim,             &        ! m
-            model%velocity%uvel_2d*vel0,       &        ! m/s
-            model%velocity%vvel_2d*vel0,       &        ! m/s
+!!            model%velocity%uvel_2d*vel0,       &        ! m/s
+!!            model%velocity%vvel_2d*vel0,       &        ! m/s
+            model%velocity%uvel_2d,            &        ! m/s
+            model%velocity%vvel_2d,            &        ! m/s
 !!            model%geometry%thck_old*thk0,      &        ! m
             model%geometry%thck_old,           &        ! m
             thck_unscaled,                     &        ! m
@@ -3294,7 +3298,7 @@ contains
          parallel_reduce_max, parallel_reduce_min, parallel_globalindex
 
 !!    use glimmer_paramets, only: eps08, tim0, len0, vel0, thk0, vis0, tau0, evs0
-    use glimmer_paramets, only: eps08, vel0, vis0, tau0, evs0
+    use glimmer_paramets, only: eps08, vis0, tau0, evs0
     use glimmer_physcon, only: rhow, rhoi, scyr
     use glimmer_scales, only: scale_acab
     use glide_thck, only: glide_calclsrf
@@ -3853,8 +3857,10 @@ contains
        k = 1
        if (this_rank == rtest) write(6,*) 'After glissade_velocity_solve (or restart), k =', k
        call point_diag(model%temper%dissip(k,:,:)*scyr, 'dissip (deg/yr)', itest, jtest, rtest, 7, 7)
-       call point_diag(model%velocity%uvel(k,:,:)*(vel0/scyr), 'uvel(m/yr)', itest, jtest, rtest, 7, 7, '(f12.3)')
-       call point_diag(model%velocity%vvel(k,:,:)*(vel0/scyr), 'vvel(m/yr)', itest, jtest, rtest, 7, 7, '(f12.3)')
+!!       call point_diag(model%velocity%uvel(k,:,:)*(vel0/scyr), 'uvel(m/yr)', itest, jtest, rtest, 7, 7, '(f12.3)')
+!!       call point_diag(model%velocity%vvel(k,:,:)*(vel0/scyr), 'vvel(m/yr)', itest, jtest, rtest, 7, 7, '(f12.3)')
+       call point_diag(model%velocity%uvel(k,:,:)*scyr, 'uvel(m/yr)', itest, jtest, rtest, 7, 7, '(f12.3)')
+       call point_diag(model%velocity%vvel(k,:,:)*scyr, 'vvel(m/yr)', itest, jtest, rtest, 7, 7, '(f12.3)')
     endif
 
     ! ------------------------------------------------------------------------ 

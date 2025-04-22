@@ -82,7 +82,7 @@ contains
     !> initialise temperature module
     use glimmer_physcon, only : rhoi, shci, coni, scyr, grav, gn, lhci, rhow, trpt
 !!    use glimmer_paramets, only : tim0, thk0, acc0, len0, vis0, vel0
-    use glimmer_paramets, only : acc0, vis0, vel0
+    use glimmer_paramets, only : acc0, vis0
     use cism_parallel, only: lhalo, uhalo
 
     type(glide_global_type), intent(inout) :: model       ! model instance
@@ -180,8 +180,8 @@ contains
 !!         0.d0 /)   !WHL - last term no longer needed
     model%tempwk%f = (/ coni / (lhci * rhoi), &
          1.d0 / (lhci * rhoi), &
-         1.d0 * rhoi * shci /  (model%numerics%dttem * lhci * rhoi), &
-         1.d0 * vel0 * grav * rhoi / (4.0d0 * rhoi * lhci), &
+         rhoi * shci /  (model%numerics%dttem * lhci * rhoi), &
+         grav * rhoi / (4.0d0 * rhoi * lhci), &
          0.d0 /)   !WHL - last term no longer needed
          !*sfp* added the last term in the vect above for HO and SSA dissip. calc. 
 
@@ -886,7 +886,7 @@ contains
   subroutine findvtri_init(model,ew,ns,subd,diag,supd,weff,temp,thck,float)
     !> called during first iteration to set inittemp
 
-    use glimmer_paramets, only: vel0, vel_scale
+    use glimmer_paramets, only: vel_scale
 
     type(glide_global_type) :: model
     integer, intent(in) :: ew, ns
@@ -923,12 +923,13 @@ contains
 
 !SCALING - WHL: Multiply ubas by vel0/vel_scale so we get the same result in these two cases:
 !           (1) Old Glimmer with scaling:         vel0 = vel_scale = 500/scyr, and ubas is non-dimensional.
-!           (2) New CISM without scaling: vel0 = 1/scyr, vel_scale = 500/scyr, and ubas is in m/yr.
-
+!! !           (2) New CISM without scaling: vel0 = 1/scyr, vel_scale = 500/scyr, and ubas is in m/yr.
+!           (2) New CISM without scaling: vel0 = 1.0; I think vel_scale still has the same value.
+!           
 !!!             if ( abs(model%velocity%ubas(ewp,nsp)) > 0.000001 .or. &
 !!!                  abs(model%velocity%vbas(ewp,nsp)) > 0.000001 ) then
-             if ( abs(model%velocity%ubas(ewp,nsp))*(vel0/vel_scale) > 1.d-6 .or. &
-                  abs(model%velocity%vbas(ewp,nsp))*(vel0/vel_scale) > 1.d-6 ) then
+             if ( abs(model%velocity%ubas(ewp,nsp)) * (1.0d0/vel_scale) > 1.d-6 .or. &
+                  abs(model%velocity%vbas(ewp,nsp)) * (1.0d0/vel_scale) > 1.d-6) then
 
                 slide_count = slide_count + 1
                 slterm = slterm + (&
@@ -1269,7 +1270,7 @@ contains
 !      Some notes:
 !      vis0 = 1.39e-032 Pa-3 s-1
 !! !           = tau0**(-gn) * (vel0/len0) where tau0 = rhoi*grav*thk0
-!           = tau0**(-gn) * (vel0) where tau0 = rhoi*grav
+!           = tau0**(-gn)  where tau0 = rhoi*grav
 !      vis0*scyr = 4.39e-025 Pa-2 yr-1
 !      default_flwa_arg = 1.0d-16 Pa-3 yr-1 by default
 !      Result is default_flwa =   227657117 (unitless) if flow factor = 1

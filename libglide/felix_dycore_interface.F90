@@ -28,7 +28,7 @@
 module felix_dycore_interface
 
    use glimmer_physcon,  only : scyr
-   use glimmer_paramets, only : vel0, tau0, vis0
+   use glimmer_paramets, only : tau0, vis0
    use glide_types
    use glimmer_log
    use glissade_grid_operators, only: glissade_stagger 
@@ -148,7 +148,7 @@ contains
       use glimmer_global, only : dp
       use glimmer_physcon, only: scyr
 !!      use glimmer_paramets, only: thk0, len0, vel0, vis0
-      use glimmer_paramets, only: vel0, vis0
+      use glimmer_paramets, only: vis0
       use glimmer_log
       use glide_types
       use glide_mask
@@ -190,7 +190,8 @@ contains
                                                  model%geometry%usrf, &
                                                  model%geometry%topg,&
                                                  model%numerics%thklim, &
-                                                 (tau0 / vel0 / scyr) *model%velocity%beta, &
+!!                                                 (tau0 / vel0 / scyr) *model%velocity%beta, &
+                                                 (tau0 / scyr) *model%velocity%beta, &
                                                  (vis0*scyr) *model%temper%flwa)
 
 

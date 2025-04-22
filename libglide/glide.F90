@@ -725,7 +725,7 @@ contains
              write(6,'(i3)',advance='no') j
              do i = 1, model%general%ewn-1
 !!                write(6,'(f8.0)',advance='no') -model%velocity%diffu(i,j) * vel0*len0*scyr
-                write(6,'(f8.0)',advance='no') -model%velocity%diffu(i,j) * vel0*scyr
+                write(6,'(f8.0)',advance='no') -model%velocity%diffu(i,j) * scyr
              enddo
              print*, ' '
           enddo
@@ -739,7 +739,7 @@ contains
           do j = model%general%nsn-1, 1, -1
              write(6,'(i4)',advance='no') j
              do i = 1, model%general%ewn-1
-                write(6,'(f7.2)',advance='no') model%velocity%uvel(model%general%upn,i,j)*(vel0*scyr)
+                write(6,'(f7.2)',advance='no') model%velocity%uvel(model%general%upn,i,j) * scyr
              enddo
              print*, ' '
           enddo
@@ -753,7 +753,7 @@ contains
           do j = model%general%nsn-1, 1, -1
              write(6,'(i4)',advance='no') j
              do i = 1, model%general%ewn-1
-                write(6,'(f7.2)',advance='no') model%velocity%vvel(model%general%upn,i,j)*(vel0*scyr)
+                write(6,'(f7.2)',advance='no') model%velocity%vvel(model%general%upn,i,j) * scyr
              enddo
              print*, ' '
           enddo
@@ -767,7 +767,7 @@ contains
           do j = model%general%nsn-1, 1, -1
              write(6,'(i4)',advance='no') j
              do i = 1, model%general%ewn-1
-                write(6,'(f8.2)',advance='no') model%velocity%uvel(1,i,j) * (vel0*scyr)
+                write(6,'(f8.2)',advance='no') model%velocity%uvel(1,i,j) * scyr
              enddo 
              print*, ' '
           enddo
@@ -781,7 +781,7 @@ contains
           do j = model%general%nsn-1, 1, -1
              write(6,'(i4)',advance='no') j
              do i = 1, model%general%ewn-1
-                write(6,'(f8.2)',advance='no') model%velocity%vvel(1,i,j) * (vel0*scyr)
+                write(6,'(f8.2)',advance='no') model%velocity%vvel(1,i,j) * scyr
              enddo 
              print*, ' '
           enddo

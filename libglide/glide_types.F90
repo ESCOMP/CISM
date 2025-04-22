@@ -1381,11 +1381,13 @@ module glide_types
     real(dp),dimension(:,:)  ,pointer :: total_diffu => null() !> total diffusivity
 
     ! Note: DIVA solves for uvel_2d and vvel_2d; these are typically (but not necessarily) the vertical average
-    ! Velocities are currently scaled to model units; multiply by vel0 to convert to m/s
-    real(dp),dimension(:,:)  ,pointer :: uvel_2d  => null()   !> 2D $x$-velocity; typically the vertical average
-    real(dp),dimension(:,:)  ,pointer :: vvel_2d  => null()   !> 2D $y$-velocity; typically the vertical average
+!!    ! Velocities are currently scaled to model units; multiply by vel0 to convert to m/s
+    ! All velocities have units of m/s within the code.
+    ! For I/O, velocities have units of m/yr, with a scale factor of 1/scyr
+    real(dp),dimension(:,:)  ,pointer :: uvel_2d  => null()   !> 2D $x$-velocity (m/s); typically the vertical average
+    real(dp),dimension(:,:)  ,pointer :: vvel_2d  => null()   !> 2D $y$-velocity (m/s); typically the vertical average
     real(dp),dimension(:,:)  ,pointer :: uvel_mean  => null() !> vertical mean $x$-velocity
-    real(dp),dimension(:,:)  ,pointer :: vvel_mean  => null() !> vertical mean $y$-velocity
+    real(dp),dimension(:,:)  ,pointer :: vvel_mean  => null() !> vertical mean $y$-velocity 
     real(dp),dimension(:,:)  ,pointer :: velnorm_mean  => null() !> vertical mean ice speed
 
     real(dp),dimension(:,:)  ,pointer :: usfc_obs => null()     !> observed surface $x$-velocity

@@ -71,7 +71,6 @@ contains
 !WHL - The old scaling looked like this: eismint_climate%nmsb(1) = eismint_climate%nmsb(1) / (acc0 * scyr)
 !       where acc0 = thk0*vel0/len0.
 !      I replaced (acc0 * scyr) with acab_scale = scyr*thk0/tim0, where tim0 = len0/vel0.  
-!      I replaced (acc0 * scyr) with acab_scale = scyr*thk0/tim0, where tim0 = len0/vel0.  
 !      This is the scaling used in other parts of the code, including Glint.
 !      It can be shown (but is not immediately obvious) that acab_scale = acc0 * scyr.
 !      This scale factor assumes that the input mass balance has units of m/yr.

@@ -57,7 +57,7 @@
     use glimmer_global, only: dp
     use glimmer_physcon, only: n_glen, rhoi, grav, scyr
 !!    use glimmer_paramets, only: thk0, len0, vel0, vis0, tau0
-    use glimmer_paramets, only: vel0, vis0, tau0
+    use glimmer_paramets, only: vis0, tau0
 !    use glimmer_log, only: write_log
 
     use glide_types
@@ -607,13 +607,17 @@
     ! bwat: rescale from dimensionless to m
 !!    bwat = bwat * thk0
 
-    ! btrc: rescale from dimensionless to (m/yr)/Pa
-!    btrc_const = btrc_const * (vel0*scyr) / tau0
-    btrc_const = btrc_const * (vel0*scyr)
+!!    ! btrc: rescale from dimensionless to (m/yr)/Pa
+    ! btrc: rescale from (m/s)/Pa to (m/yr)/Pa
+!TODO - Switch to m/s later
+    !    btrc_const = btrc_const * (vel0*scyr) / tau0
+    btrc_const = btrc_const * (scyr/tau0)
 
     ! ice velocity: rescale from dimensionless to m/yr
-    uvel = uvel * (vel0*scyr)
-    vvel = vvel * (vel0*scyr)
+!!    uvel = uvel * (vel0*scyr)
+!!    vvel = vvel * (vel0*scyr)
+    uvel = uvel * scyr
+    vvel = vvel * scyr
 
     end subroutine glissade_velo_sia_scale_input
 
@@ -655,12 +659,16 @@
     ! Convert bwat from m to dimensionless units
 !!    bwat = bwat / thk0
 
-    ! Convert btrc from (m/yr)/Pa to dimensionless units
-    btrc = btrc / ((vel0*scyr)/tau0)
+!!    ! Convert btrc from (m/yr)/Pa to dimensionless units
+    ! Convert btrc from (m/yr)/Pa to (m/s)/Pa
+!!    btrc = btrc / ((vel0*scyr)/tau0)
+    btrc = btrc / (scyr/tau0)
 
     ! Convert velocity from m/yr to dimensionless units
-    uvel = uvel / (vel0*scyr)
-    vvel = vvel / (vel0*scyr)
+!!    uvel = uvel / (vel0*scyr)
+!!    vvel = vvel / (vel0*scyr)
+    uvel = uvel / scyr
+    vvel = vvel / scyr
 
   end subroutine glissade_velo_sia_scale_output
 

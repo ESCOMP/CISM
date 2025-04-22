@@ -38,7 +38,7 @@ module glide_velo
   use glimmer_global, only : dp
   use glimmer_physcon, only : rhoi, grav, gn
 !!  use glimmer_paramets, only : thk0, len0, vis0, vel0
-  use glimmer_paramets, only : vis0, vel0
+  use glimmer_paramets, only : vis0
 
   implicit none
 
@@ -117,7 +117,7 @@ contains
     ! Note: cflow < 0 is used in several equations below.
     !       Signs in this module can be tricky, so comments are added to help keep track.
 !!    cflow = -2.0d0*vis0*(rhoi*grav)**gn*thk0**p3/(8.0d0*vel0*len0**gn)
-    cflow = -2.0d0*vis0*(rhoi*grav)**gn/(8.0d0*vel0)
+    cflow = -2.0d0*vis0*(rhoi*grav)**gn / (8.0d0/scyr)
 
   end subroutine init_velo
 
@@ -1024,7 +1024,6 @@ contains
 
     use glimmer_physcon, only : rhoo, rhoi
 !!    use glimmer_paramets, only : len0, thk0, scyr, vel0
-    use glimmer_paramets, only : scyr, vel0
     implicit none
 
     type(glide_global_type) :: model        !> model instance

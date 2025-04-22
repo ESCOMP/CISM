@@ -47,25 +47,29 @@ contains
 
     use glimmer_physcon, only : scyr
 !!    use glimmer_paramets, only : thk0, tim0, vel0, vis0, len0, acc0, tau0, evs0
-    use glimmer_paramets, only : vel0, vis0, acc0, tau0, evs0
+    use glimmer_paramets, only : vis0, acc0, tau0, evs0
     implicit none
 
-    !WHL - Reset these scales such that 'scyr' is the only scaling factor; remove thk0, vel0, etc.
+!!  !WHL - Reset these scales such that 'scyr' is the only scaling factor; remove thk0, vel0, etc.
+    !      With this scaling, velocity has units of m/yr in I/O, but m/s in the code,
+    !      and similarly for other variables
 #ifndef NO_RESCALE
-    scale_uvel  = scyr * vel0                     ! uvel, vvel, ubas, vbas, etc.
+!!    scale_uvel  = scyr * vel0                     ! uvel, vvel, ubas, vbas, etc.
+    scale_uvel  = scyr                               ! uvel, vvel, ubas, vbas, etc.
 !!    scale_uflx  = scyr * vel0 * thk0              ! uflx, vflx
-    scale_uflx  = scyr * vel0                     ! uflx, vflx
+    scale_uflx  = scyr                             ! uflx, vflx
 !!    scale_diffu = scyr * vel0 * len0              ! diffu
-    scale_diffu = scyr * vel0                     ! diffu
+    scale_diffu = scyr                           ! diffu
+!!    scale_acab = scyr * thk0 / tim0
     scale_acab  = scyr                            ! acab, bmlt
 !!    scale_wvel  = scyr * thk0 / tim0              ! wvel, wgrd
     scale_wvel  = scyr                            ! wvel, wgrd
 !!    scale_btrc  = scyr * vel0 * len0 / (thk0**2)  ! btrc, soft
-!!    scale_btrc  = scyr * vel0 / (thk0**2)         ! btrc, soft
-    scale_btrc  = scyr * vel0                     ! btrc, soft
+    scale_btrc  = scyr                           ! btrc, soft
     
-    scale_beta  = tau0 / vel0 / scyr              ! units: Pa * sec/m * yr/sec = Pa * yr/m 
-                                                  ! NOTE: on i/o, beta has units of Pa yr/m. Since vel0 has units of m/s, 
+!!    scale_beta  = tau0 / vel0 / scyr              ! units: Pa * sec/m * yr/sec = Pa * yr/m 
+    scale_beta  = tau0 / scyr                     ! units: Pa * sec/m * yr/sec = Pa * yr/m 
+!!                                                ! NOTE: on i/o, beta has units of Pa yr/m. Since vel0 has units of m/s, 
                                                   ! the first two terms on the RHS have units of Pa s/m. Thus, the final 
                                                   ! division by scyr here converts s/m to yr/m. All together, the 3 terms 
                                                   ! on the RHS scale on i/o by Pa yr/m (thus, making dimensionless on input, 
@@ -77,7 +81,7 @@ contains
 !!    scale_resid=  tau0 / len0                     ! resid_u, resid_v
     scale_resid=  tau0                            ! resid_u, resid_v
 #else
-! (no rescaling)
+! (no rescaling)  !WHL - These would apply if we wanted to compute velocities in m/yr instead of m/s
     scale_uvel  = 1.0d0              ! uvel, vvel, ubas, vbas, etc.
     scale_uflx  = 1.0d0              ! uflx, vflx
     scale_diffu = 1.0d0              ! diffu

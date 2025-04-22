@@ -169,7 +169,7 @@ contains
     use glide_types
     use glimmer_physcon,  only: scyr
 !!    use glimmer_paramets, only: thk0, tim0, len0, vel0, vis0, acc0, tau0
-    use glimmer_paramets, only: vel0, vis0, acc0, tau0
+    use glimmer_paramets, only: vis0, acc0, tau0
 
     implicit none
 
@@ -205,7 +205,7 @@ contains
 
     ! scale glide basal traction parameters
 !!    model%velowk%trc0   = vel0 * len0 / (thk0**2)
-    model%velowk%trc0   = vel0
+    model%velowk%trc0   = 1.0d0
     model%velowk%btrac_const = model%paramets%btrac_const/model%velowk%trc0/scyr
     model%velowk%btrac_max   = model%paramets%btrac_max / model%velowk%trc0/scyr    
     model%velowk%btrac_slope = model%paramets%btrac_slope*acc0/model%velowk%trc0

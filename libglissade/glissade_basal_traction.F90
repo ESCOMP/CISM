@@ -47,7 +47,8 @@
 
   use glimmer_paramets, only : dp
   use glimmer_physcon,  only : scyr
-  use glimmer_paramets, only : vel0, tau0
+!!  use glimmer_paramets, only : vel0, tau0
+  use glimmer_paramets, only : tau0
   use glimmer_log
   use glide_types
   use cism_parallel, only : this_rank, main_task, parallel_type, &
