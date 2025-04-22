@@ -109,7 +109,7 @@ module glimmer_paramets
   !      With the revised scaling, tim0 = scyr.
 !!  real(dp), parameter :: tim0 = len0 / vel0          ! s
 !!  real(dp), parameter :: acc0 = thk0 * vel0 / len0   ! m s^{-1}
-  real(dp), parameter :: acc0 = 1.0d0                  ! m s^{-1}
+!!  real(dp), parameter :: acc0 = 1.0d0                  ! m s^{-1}
 
 !Note - With thk0 = 1, can replace tau0 by rhoi*grav in code and remove stress scaling.
 !       Similarly can redefine vis0 and evs0

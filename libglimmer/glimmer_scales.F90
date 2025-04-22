@@ -47,7 +47,7 @@ contains
 
     use glimmer_physcon, only : scyr
 !!    use glimmer_paramets, only : thk0, tim0, vel0, vis0, len0, acc0, tau0, evs0
-    use glimmer_paramets, only : vis0, acc0, tau0, evs0
+    use glimmer_paramets, only : vis0, tau0, evs0
     implicit none
 
 !!  !WHL - Reset these scales such that 'scyr' is the only scaling factor; remove thk0, vel0, etc.

@@ -82,7 +82,7 @@ contains
     !> initialise temperature module
     use glimmer_physcon, only : rhoi, shci, coni, scyr, grav, gn, lhci, rhow, trpt
 !!    use glimmer_paramets, only : tim0, thk0, acc0, len0, vis0, vel0
-    use glimmer_paramets, only : acc0, vis0
+    use glimmer_paramets, only : vis0
     use cism_parallel, only: lhalo, uhalo
 
     type(glide_global_type), intent(inout) :: model       ! model instance
@@ -147,7 +147,7 @@ contains
 !!         VERT_DIFF*2.0d0 * tim0 * model%numerics%dttem / (thk0 * rhoi * shci), &
 !!         VERT_ADV*tim0 * acc0 * model%numerics%dttem / coni, &
          VERT_DIFF*2.0d0 * model%numerics%dttem / (rhoi * shci), &
-         VERT_ADV * acc0 * model%numerics%dttem / coni, &
+         VERT_ADV * model%numerics%dttem / coni, &
          0.d0 /)   !WHL - last term no longer needed
          !*sfp* added last term to vector above for use in HO & SSA dissip. cacl
 
@@ -189,7 +189,7 @@ contains
 !!    model%tempwk%slide_f = (/ VERT_DIFF * grav * thk0 * model%numerics%dttem/ shci, & ! vert diffusion
 !!         VERT_ADV * rhoi*grav*acc0*thk0*thk0*model%numerics%dttem/coni /)             ! vert advection
     model%tempwk%slide_f = (/ VERT_DIFF * grav * model%numerics%dttem/ shci, & ! vert diffusion
-         VERT_ADV * rhoi*grav*acc0*model%numerics%dttem/coni /)             ! vert advection
+         VERT_ADV * rhoi*grav*model%numerics%dttem/coni /)             ! vert advection
 
 
 

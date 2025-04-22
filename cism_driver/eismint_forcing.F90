@@ -67,16 +67,16 @@ contains
     type(eismint_climate_type) :: eismint_climate         ! structure holding climate info
     type(ConfigSection), pointer :: config  ! structure holding sections of configuration file   
 
-!      TODO - Revise when tim0, thk0 and acc0 have been removed from the code
-!WHL - The old scaling looked like this: eismint_climate%nmsb(1) = eismint_climate%nmsb(1) / (acc0 * scyr)
-!       where acc0 = thk0*vel0/len0.
-!      I replaced (acc0 * scyr) with acab_scale = scyr*thk0/tim0, where tim0 = len0/vel0.  
-!      This is the scaling used in other parts of the code, including Glint.
-!      It can be shown (but is not immediately obvious) that acab_scale = acc0 * scyr.
-!      This scale factor assumes that the input mass balance has units of m/yr.
+!! !      TODO - Revise when tim0, thk0 and acc0 have been removed from the code
+!! !WHL - The old scaling looked like this: eismint_climate%nmsb(1) = eismint_climate%nmsb(1) / (acc0 * scyr)
+!! !       where acc0 = thk0*vel0/len0.
+!! !      I replaced (acc0 * scyr) with acab_scale = scyr*thk0/tim0, where tim0 = len0/vel0.
+!! !      This is the scaling used in other parts of the code, including Glint.
+!! !      It can be shown (but is not immediately obvious) that acab_scale = acc0 * scyr.
+!! !      This scale factor assumes that the input mass balance has units of m/yr.
 !
-!      Note: We should not use the parameter scale_acab in glimmer_scales because
-!            it may not have been initialized yet.
+!! !      Note: We should not use the parameter scale_acab in glimmer_scales because
+!! !            it may not have been initialized yet.
 
 !!    real(dp), parameter :: acab_scale = scyr*thk0/tim0
     real(dp), parameter :: acab_scale = scyr
@@ -294,7 +294,7 @@ contains
     use glimmer_global, only : dp
     use glide_types
 !!    use glimmer_paramets, only : len0, acc0, scyr
-    use glimmer_paramets, only : acc0, scyr
+    use glimmer_paramets, only : scyr
     use glimmer_physcon, only : pi
     use glimmer_scales, only : scale_acab
     use cism_parallel, only: parallel_globalindex
@@ -329,7 +329,8 @@ contains
        model%climate%acab(:,:) = eismint_climate%nmsb(1)
        if (eismint_climate%period .ne. 0.d0) then
           model%climate%acab(:,:) = model%climate%acab(:,:) + eismint_climate%mb_amplitude * &
-               sin(2.d0*pi*time/eismint_climate%period)/ (acc0 * scyr)
+!!               sin(2.d0*pi*time/eismint_climate%period)/ (acc0 * scyr)
+               sin(2.d0*pi*time/eismint_climate%period)/ scyr
        end if
 
     case(2)
