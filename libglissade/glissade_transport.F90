@@ -651,7 +651,7 @@
       logical ::     &
          errflag          ! true if energy is not conserved
 
-      character(len=100) :: message
+      character(len=256) :: message
 
       real(dp), dimension (:,:,:), allocatable :: &
          worku            ! work array
@@ -840,6 +840,36 @@
          ! Main remapping routine: Step ice thickness and tracers forward in time.
          !-------------------------------------------------------------------
 
+         !TvdA: wrap this function in check statements to find out if this is the place where the NaNs start to appear
+         
+       do nt = 1, ntracers
+          do j = 1, ny
+             do i = 1, nx
+                if (tracers(i,j,nt,k) /= tracers(i,j,nt,k)) then
+                   !calculate ad-hoc thickness to see what the thickness of the cell is
+                   write(message,*) 'ERROR: Before horizontal remap, i, j, k,trcr: '&
+                        ,i,j,k, tracers(i,j,nt,k)
+                   call write_log(trim(message),GM_FATAL)  !this used to be GM_fatal to remove NaNs 
+                endif
+             enddo
+          enddo
+       enddo
+
+
+            !there are some cases I suspect where thck can have a small non-zero value,
+            !and thck_layer an even smaller one, where the former is within machine precision and the latter is not
+            !therefore, we should recompute the masks used for remapping based on the layer thicknesses as well
+            !to prevent NaNs from happening
+
+
+            call make_remap_mask (nx,           ny,                 &
+                               ilo, ihi,     jlo, jhi,           &
+                               nhalo,        icells,             &
+                               indxi(:),     indxj(:),           &
+                               thck_layer(:,:,k),    thck_mask(:,:))
+            
+
+
             call glissade_horizontal_remap (dt,                                  &
                                             dx,                dy,               &
                                             nx,                ny,               &
@@ -851,7 +881,20 @@
                                             thck_layer(:,:,k), tracers(:,:,:,k), &
                                             edgearea_e(:,:),   edgearea_n(:,:))
 
-         enddo    ! nlyr
+
+       do nt = 1, ntracers
+          do j = 1, ny
+             do i = 1, nx
+                if (tracers(i,j,nt,k) /= tracers(i,j,nt,k)) then
+                   !calculate ad-hoc thickness to see what the thickness of the cell is
+                   write(message,*) 'ERROR: after horiz remap, i, j, k,trcr, thck,thck_layer, mask: '&
+                        ,i,j,k, tracers(i,j,nt,k), thck_layer(i,j,k), thck(i,j), thck_mask(i,j)
+                   call write_log(trim(message),GM_FATAL)  !this used to be GM_fatal to remove NaNs 
+                endif
+             enddo
+          enddo
+       enddo
+      enddo !nlyr  
 
       endif       ! remapping v. upwind transport
 
@@ -2022,6 +2065,31 @@
 !    print*, 'vert_remap_accuracy =', vert_remap_accuracy
 !    print*, 'HO_VERTICAL_REMAP_SECOND_ORDER =', HO_VERTICAL_REMAP_SECOND_ORDER
 
+    do k = 1, nlyr
+       do nt = 1, ntracer
+          do j = 1, ny
+             do i = 1, nx
+                if (trcr(i,j,nt,k) /= trcr(i,j,nt,k)) then
+                   !calculate ad-hoc thickness to see what the thickness of the cell is
+
+                   thck = 0.d0
+                   do ki = 1, nlyr
+                      thck = thck + hlyr(i,j,ki)
+                   enddo
+                   call parallel_globalindex(i, j, iglobal, jglobal, parallel)
+                   write(message1,*) 'INPUT ERROR: Vertical remap, i, j, k, hlyr, trcr, thck, htsum: '&
+                        ,iglobal, jglobal, k, hlyr(i,j,k), trcr(i,j,nt,k), thck, htsum(nt,k)
+                   call write_log(trim(message1),GM_FATAL)  !this used to be GM_fatal to remove NaNs 
+                endif
+             enddo
+          enddo
+       enddo
+    enddo
+
+
+    !TvdA: trcr can contain a NaN, before this loop is called. This is likely due to the temperature tracer it is used for
+    !this means that, in the previous timestep, trcr may not be NaN but gets a NaN in the follow up. 
+
     do j = 1+nhalo, ny-nhalo
        do i = 1+nhalo, nx-nhalo
 
@@ -2043,8 +2111,13 @@
 
           !TvdA, I am going to increase this threshold from tiny(0.0d0) to 10**-1 
           !Update, this did not prevent the issue
+          
+          !Another try: the inputfiles trcr_usurf can contain 10**-308 values and mess up these calculations
+          ! to make tiny(0.d0)
 
-          if (thck > tiny(0.d0)) then
+          !Last update, trcr has a NaN value as soon as it it loaded in, so it is not caused by this subroutine
+
+          if (thck > tiny(0.d0)  ) then
 
              !-----------------------------------------------------------------
              ! Determine vertical coordinate z1, given input layer thicknesses.
@@ -2238,8 +2311,8 @@
                       thck = thck + hlyr(i,j,ki)
                    enddo
                    call parallel_globalindex(i, j, iglobal, jglobal, parallel)
-                   write(message,*) 'ERROR: Vertical remap, i, j, k, hlyr, trcr, trctr_usrf, trcr_lsrf, thck: '&
-                        ,iglobal, jglobal, k, hlyr(i,j,k), trcr(i,j,nt,k), trcr_usrf(i,j,k), trcr_lsrf(i,j,k), thck
+                   write(message,*) 'ERROR: Vertical remap, i, j, k, hlyr, trcr, thck, htsum: '&
+                        ,iglobal, jglobal, k, hlyr(i,j,k), trcr(i,j,nt,k), thck, htsum(nt,k)
                    call write_log(trim(message),GM_FATAL)  !this used to be GM_fatal to remove NaNs 
                 endif
              enddo

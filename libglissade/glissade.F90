@@ -2812,6 +2812,8 @@ contains
           !      keep track of the mass of ice removed, and incorporate it into the global mass balance.
           call parallel_halo(thck_unscaled, parallel)
           call parallel_halo_tracers(model%geometry%tracers, parallel)
+          !TvdA: I added a parallel halo call for the temperatures, it is mentioned in glissade_transport_driver but not done
+          !check which parallel_halo should be used, a 3D parallel halo?
 
        enddo     ! subcycling of transport
 

@@ -823,7 +823,7 @@ module glissade_therm
              verbose_column = .false. 
           endif
 !          print*,'Verbose column: ', verbose_column
-          if (ice_mask(ew,ns) == 1) then   ! thck > thklim_temp
+          if (ice_mask(ew,ns) == 1) then   ! thck > thklim_temp , this can still introduce NaN
 
              ! Set surface temperature
 
@@ -1018,7 +1018,10 @@ module glissade_therm
                 endif
 
                 prevtemp(:) = temp(:,ew,ns)
-
+                
+                !prevtemp(:) does not contain NaNs, but the temp develop them from after here
+                !can start to develop
+                
                 ! solve the tridiagonal system
 
                 ! Note: Temperature is indexed from 0 to upn, with indices 1 to upn-1 colocated
@@ -1308,9 +1311,20 @@ module glissade_therm
                   this_rank, ew, ns, ew_global, ns_global, mintemp
              call write_log(message,GM_FATAL)
           endif
-          
+   
+       !add an extra check, to see if the temp contains NaNs
+       do k = 1, upn
+          if (temp(k,ew,ns) /= temp(k,ew,ns)) then
+             write(message, *) 'NaN found in the temperature array, i,j,k,temp=',&
+                  ew,ns,k,temp(k,ew,ns)
+             call write_log(message, GM_FATAL)
+          endif
+       enddo
+       
        enddo
     enddo
+
+   
 
   end subroutine glissade_therm_driver
 
@@ -1383,7 +1397,14 @@ module glissade_therm
     ! ice interior, layers 1:upn-1  (matrix elements 2:upn)
     ! Note: The calculation is fully implicit in time.
     !       Crank-Nicolson timestepping was once supported, but was found to be unstable for thin ice.
-
+    
+    !TvdA, I identified this as a potential point where the thickness can get to a tiny value and the NaN can be introduced
+    if (thck**2 > tiny(0.d0)) then
+        fact= dttem *coni / (rhoi*shci) /thck**2
+    else
+        fact=0
+    endif
+    
     fact = dttem * coni / (rhoi*shci) / thck**2
     subd(2:upn) = -fact * dups(1:upn-1,1)
     supd(2:upn) = -fact * dups(1:upn-1,2)

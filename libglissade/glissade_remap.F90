@@ -420,6 +420,8 @@ module glissade_remap
       !  e.g. Ellesmere Island for a Greenland ice sheet simulation.
 
       domain_mask(:,:) = 1.d0
+      
+      !TvdA: I can exclude cells with a thickness smaller than a threshold, either tiny or a user threshold
 
       ! Assume gridcells are rectangular, in which case dxt = dxu = htn
       !  and dyt = dyu = hte.
@@ -650,6 +652,8 @@ module glissade_remap
 
     end subroutine glissade_horizontal_remap
 
+      
+      !TvdA: I can exclude cells with a thickness smaller than a threshold, either tiny or a user threshold
 !=======================================================================
 !
     subroutine make_remap_mask (nx_block, ny_block,           &
@@ -698,10 +702,13 @@ module glissade_remap
 
       !WHL - Changed this condition from 'mass(i,j) < puny' to 'mass(i,j) < 0.d0'
       !      to preserve monotonicity in grid cells with very small thickness
+      !TvdA - also change it to tiny(0.d0) to remove incredibly small values
+
       do j = 1, ny_block
       do i = 1, nx_block
 !!         if (mass(i,j) > puny) then
-         if (mass(i,j) > 0.d0) then
+!!         if (mass(i,j)> 0.d0) then
+         if (mass(i,j) > tiny(0.d0)) then
             mmask(i,j) = 1.d0
          else
             mmask(i,j) = 0.d0
@@ -726,7 +733,8 @@ module glissade_remap
          !WHL - Changed this condition from 'mass(i,j) > puny' to 'mass(i,j) > 0.d0'
          !      to preserve monotonicity in grid cells with very small thickness
 !!         if (mass(i,j) > puny) then
-         if (mass(i,j) > 0.d0) then
+!!       TvdA I changed this to tiny to remove cells with small thickness
+         if (mass(i,j) > tiny(0.d0)) then
             icells = icells + 1
             ij = icells
             indxi(ij) = i
@@ -3135,7 +3143,7 @@ module glissade_remap
 
       do j = jlo, jhi
          do i = ilo, ihi
-
+!TvdA, should I include a tiny  statement here to prevent mass from being updated?
             w1 = mflxe(i,j) - mflxe(i-1,j)   &
                + mflxn(i,j) - mflxn(i,j-1)
             mass(i,j) = mass(i,j) - w1*tarear
@@ -3193,7 +3201,7 @@ module glissade_remap
          icells = 0
          do j = jlo, jhi
          do i = ilo, ihi
-            if (mass(i,j) > 0.d0) then ! grid cells with positive areas
+            if (mass(i,j) > tiny(0.d0)) then ! grid cells with positive areas, TvdA: I added a tiny here as well
                icells = icells + 1
                indxi(icells) = i
                indxj(icells) = j
