@@ -1012,7 +1012,6 @@
     real(dp) :: L2_norm_alpha_sav     ! value of L2 norm of residual, given the previous alpha_accel
     logical :: assembly_is_done       ! true when the final assembled matrix is formed, based on the best value of alpha_accel
 
-
     real(dp), parameter :: &
          gamma_accel = 0.40d0         ! how much to increase alpha_accel for each attempt to extend the solution vector
 
@@ -1093,6 +1092,7 @@
      !       instead of a full cell with unrealistically thin ice.
      !      Instead of pointing to model%geometry%usrf, compute a local value of usrf
      !       that is consistent with the local value of thck.
+
      if (model%options%which_ho_calving_front == HO_CALVING_FRONT_SUBGRID) then
         thck  => model%calving%thck_effective(:,:)
      else
@@ -4487,7 +4487,6 @@
     !       geometry%thck or calving%thck_effective, which have different units.
     !       To be removed when scaling goes away.
     if (whichcalving_front == HO_CALVING_FRONT_NO_SUBGRID) thck = thck / thk0
-
     topg = topg / thk0
 
     ! Convert flow factor from Pa^(-n) yr^(-1) to dimensionless units
