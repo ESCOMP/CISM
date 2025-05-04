@@ -27,7 +27,6 @@
 module glissade_inversion
 
   use glimmer_physcon, only: scyr, grav
-!!  use glimmer_paramets, only: eps08, tim0, len0, vel0, thk0
   use glimmer_paramets, only: eps08
   use glimmer_log
   use glide_types
@@ -161,11 +160,8 @@ contains
                 if (thck_obs(i,j) > 0.0d0 .and.  &
                      model%geometry%topg(i,j) - model%climate%eus < 0.0d0) then   ! marine-based ice
                    ! convert to meters (can skip the conversion when code scaling is removed)
-!!                   h_obs = thck_obs(i,j) * thk0
                    h_obs = thck_obs(i,j)
-!!                   h_flotation = -(rhoo/rhoi) * (model%geometry%topg(i,j) - model%climate%eus) * thk0
                    h_flotation = -(rhoo/rhoi) * (model%geometry%topg(i,j) - model%climate%eus)
-!!                   h_buff = model%inversion%thck_flotation_buffer * thk0
                    h_buff = model%inversion%thck_flotation_buffer
                    dh = h_obs - h_flotation
                    if (abs(dh) < h_buff) then
@@ -176,7 +172,6 @@ contains
                          dh_decimal = ceiling(dh) - dh
                          h_obs = h_flotation - h_buff - dh_decimal
                       endif
-!!                      thck_obs(i,j) = h_obs / thk0
                       thck_obs(i,j) = h_obs
                    endif
                 endif
@@ -194,7 +189,6 @@ contains
                 if (verbose_inversion .and. thck_obs(i,j) > 0.0d0 .and. &
                      thck_obs(i,j) + eps08 < model%inversion%thck_threshold) then
                    !WHL - debug
-!!                   ! write(6,*) 'thck_obs < threshold, rank, i, j, thck:', this_rank, i, j, thck_obs(i,j)*thk0
                    ! write(6,*) 'thck_obs < threshold, rank, i, j, thck:', this_rank, i, j, thck_obs(i,j)
                 endif
              enddo
@@ -316,8 +310,6 @@ contains
 
              call set_coulomb_c_elevation(&
                   ewn,                nsn,                   &
-!!                  model%geometry%topg*thk0,                  &  ! m
-!!                  model%climate%eus*thk0,                    &  ! m
                   model%geometry%topg,                       &  ! m
                   model%climate%eus,                         &  ! m
                   model%basal_physics%coulomb_c_relax_min,   &
@@ -382,7 +374,6 @@ contains
           do j = 1, nsn
              do i = 1, ewn
                 f_flotation(i,j) = (-(model%geometry%topg(i,j) - model%climate%eus)  &
-!!                              - (rhoi/rhoo)*model%geometry%thck(i,j)) * thk0    ! f_flotation < 0 for grounded ice
                               - (rhoi/rhoo)*model%geometry%thck(i,j))            ! f_flotation < 0 for grounded ice
                 if (model%geometry%thck(i,j) > 0.0d0 .and. &
                     model%geometry%marine_connection_mask(i,j) == 1 .and. &
@@ -395,10 +386,8 @@ contains
           enddo
 
           if (verbose_inversion) then
-!!             call point_diag(model%inversion%floating_thck_target*thk0, &
              call point_diag(model%inversion%floating_thck_target, &
                   'After init_inversion, floating_thck_target', itest, jtest, rtest, 7, 7)
-!!             call point_diag(model%geometry%thck*thk0, 'thck', itest, jtest, rtest, 7, 7)
              call point_diag(model%geometry%thck, 'thck', itest, jtest, rtest, 7, 7)
              call point_diag(f_flotation, 'f_flotation (m)', itest, jtest, rtest, 7, 7)
           endif   ! verbose
@@ -410,10 +399,7 @@ contains
     endif  ! which_ho_deltaT_basin_inversion
 
     if (verbose_inversion) then
-!!       call point_diag(model%geometry%usrf_obs*thk0, &
-       call point_diag(model%geometry%usrf_obs, &
-            'After init_inversion, usrf_obs  (m)', itest, jtest, rtest, 7, 7)
-!!       call point_diag(thck_obs*thk0, 'thck_obs  (m)', itest, jtest, rtest, 7, 7)
+       call point_diag(model%geometry%usrf_obs, 'After init_inversion, usrf_obs  (m)', itest, jtest, rtest, 7, 7)
        call point_diag(thck_obs, 'thck_obs  (m)', itest, jtest, rtest, 7, 7)
     endif
 
@@ -558,11 +544,8 @@ contains
           model%basal_physics%powerlaw_c_relax = model%basal_physics%powerlaw_c_const
 
           call invert_basal_friction(&
-!!               model%numerics%dt*tim0,                   &  ! s
                model%numerics%dt,                        &  ! s
                ewn,               nsn,                   &
-!!               model%numerics%dew*len0,                  &  ! m
-!!               model%numerics%dns*len0,                  &  ! m
                model%numerics%dew,                       &  ! m
                model%numerics%dns,                       &  ! m
                itest,    jtest,   rtest,                 &
@@ -573,8 +556,6 @@ contains
                model%basal_physics%powerlaw_c_max,       &
                model%basal_physics%powerlaw_c_min,       &
                model%geometry%f_ground,                  &
-!!               stag_thck*thk0,                           &  ! m
-!!               stag_thck_obs*thk0,                       &  ! m
                stag_thck,                                &  ! m
                stag_thck_obs,                            &  ! m
                stag_dthck_dt,                            &  ! m/s
@@ -602,8 +583,6 @@ contains
 
              call set_coulomb_c_elevation(&
                   ewn,                nsn,                   &
-!!                  model%geometry%topg*thk0,                  &  ! m
-!!                  model%climate%eus*thk0,                    &  ! m
                   model%geometry%topg,                       &  ! m
                   model%climate%eus,                         &  ! m
                   model%basal_physics%coulomb_c_relax_min,   &
@@ -621,20 +600,14 @@ contains
           if (verbose_inversion) then
              call point_diag(model%basal_physics%coulomb_c, 'Old coulomb_c', itest, jtest, rtest, 7, 7, '(f10.5)')
              call point_diag(model%basal_physics%effecpress_stag, 'effecpress_stag', itest, jtest, rtest, 7, 7, '(f10.1)')
-!!             call point_diag(rhoi*grav*stag_thck*thk0, 'overburden', itest, jtest, rtest, 7, 7, '(f10.1)')
-!!             call point_diag((model%geometry%thck - thck_obs)*thk0, 'thck - thck_obs (m)', &
-!!                  itest, jtest, rtest, 7, 7)
              call point_diag(rhoi*grav*stag_thck, 'overburden', itest, jtest, rtest, 7, 7, '(f10.1)')
              call point_diag((model%geometry%thck - thck_obs), 'thck - thck_obs (m)', itest, jtest, rtest, 7, 7)
              call point_diag(model%basal_physics%coulomb_c_relax, 'coulomb_c_relax', itest, jtest, rtest, 7, 7, '(f10.5)')
           endif
 
           call invert_basal_friction(&
-!!               model%numerics%dt*tim0,                   &  ! s
                model%numerics%dt,                        &  ! s
                ewn,               nsn,                   &
-!!               model%numerics%dew*len0,                  &  ! m
-!!               model%numerics%dns*len0,                  &  ! m
                model%numerics%dew,                       &  ! m
                model%numerics%dns,                       &  ! m
                itest,    jtest,   rtest,                 &
@@ -645,8 +618,6 @@ contains
                model%basal_physics%coulomb_c_max,        &
                model%basal_physics%coulomb_c_min,        &
                model%geometry%f_ground,                  &
-!!               stag_thck*thk0,                           &  ! m
-!!               stag_thck_obs*thk0,                       &  ! m
                stag_thck,                                &  ! m
                stag_thck_obs,                            &  ! m
                stag_dthck_dt,                            &  ! m/s
@@ -694,20 +665,15 @@ contains
     if ( model%options%which_ho_deltaT_basin == HO_DELTAT_BASIN_INVERSION) then
 
        call glissade_inversion_deltaT_basin(&
-!!            model%numerics%dt * tim0,                  &  ! s
             model%numerics%dt,                         &  ! s
             ewn, nsn,                                  &
-!!            model%numerics%dew * len0,                 &  ! m
-!!            model%numerics%dns * len0,                 &  ! m
             model%numerics%dew,                        &  ! m
             model%numerics%dns,                        &  ! m
             itest, jtest, rtest,                       &
             model%ocean_data%nbasin,                   &
             model%ocean_data%basin_number,             &
-!!            model%geometry%thck*thk0,                  &  ! m
             model%geometry%thck,                       &  ! m
             model%geometry%dthck_dt,                   &  ! m/s
-!!            model%inversion%floating_thck_target*thk0, &  ! m
             model%inversion%floating_thck_target,      &  ! m
             model%inversion%deltaT_ocn_thck_scale,     &  ! m
             deltaT_ocn_timescale,                      &  ! s
@@ -758,11 +724,8 @@ contains
        ! Given the thickness target, invert for deltaT_ocn
 
        call glissade_inversion_deltaT_ocn(&
-!!            model%numerics%dt * tim0,              &  ! s
             model%numerics%dt,                     &  ! s
             ewn,           nsn,                    &
-!!            model%numerics%dew*len0,               &   ! m
-!!            model%numerics%dns*len0,               &   ! m
             model%numerics%dew,                    &   ! m
             model%numerics%dns,                    &   ! m
             itest, jtest,  rtest,                  &
@@ -772,8 +735,6 @@ contains
             model%inversion%deltaT_ocn_length_scale,& ! m
             deltaT_ocn_relax,                      &  ! degC
             model%geometry%f_ground_cell,          &
-!!            model%geometry%thck * thk0,            &  ! m
-!!            thck_obs * thk0,                       &  ! m
             model%geometry%thck,                   &  ! m
             thck_obs,                              &  ! m
             model%geometry%dthck_dt,               &  ! m/s
@@ -799,8 +760,6 @@ contains
             model%options%ocean_data_extrapolate,     &
             parallel,                                 &
             ewn,       nsn,                           &
-!!            model%numerics%dew*len0,                  &   ! m
-!!            model%numerics%dns*len0,                  &   ! m
             model%numerics%dew,                       &   ! m
             model%numerics%dns,                       &   ! m
             itest,     jtest,   rtest,                &
@@ -808,9 +767,6 @@ contains
             ocean_mask,                               &
             model%geometry%marine_connection_mask,    &
             model%geometry%f_ground_cell,             &
-!!            model%geometry%thck*thk0,                 &   ! m
-!!            model%geometry%lsrf*thk0,                 &   ! m
-!!            model%geometry%topg*thk0,                 &   ! m
             model%geometry%thck,                      &   ! m
             model%geometry%lsrf,                      &   ! m
             model%geometry%topg,                      &   ! m
@@ -854,9 +810,6 @@ contains
             ewn,          nsn,             &
             parallel,                      &
             itest, jtest, rtest,           &  ! diagnostic only
-!!            thck_obs*thk0,                 &
-!!            model%geometry%topg*thk0,      &
-!!            model%climate%eus*thk0,        &
             thck_obs,                      &
             model%geometry%topg,           &
             model%climate%eus,             &
@@ -871,16 +824,11 @@ contains
             f_ground_cell_obs)
 
        call glissade_inversion_flow_enhancement_factor(&
-!!            model%numerics%dt * tim0,                         &
             model%numerics%dt,                                &  ! s
             ewn, nsn,                                         &
-!!            model%numerics%dew*len0,                          &  ! m
-!!            model%numerics%dns*len0,                          &  ! m
             model%numerics%dew,                               &  ! m
             model%numerics%dns,                               &  ! m
             itest, jtest, rtest,                              &
-!!            model%velocity%velo_sfc * vel0,                   &  ! m/s
-!!            model%velocity%velo_sfc_obs * vel0,               &  ! m/s
             model%velocity%velo_sfc,                          &  ! m/s
             model%velocity%velo_sfc_obs,                      &  ! m/s
             model%geometry%dthck_dt,                          &  ! m/s

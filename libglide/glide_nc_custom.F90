@@ -73,7 +73,6 @@ contains
 
     use glide_types
     use glimmer_ncdf
-!!    use glimmer_paramets, only : len0
     use cism_parallel, only: parallel_inq_varid, parallel_put_var, parallel_enddef
 
     implicit none
@@ -153,7 +152,6 @@ contains
 
        status = parallel_inq_varid(NCO%id,'x0',varid)
        do i = 1, global_ewn-1
-!!          x0_global(i) = (real(i,dp)-0.5d0)*model%numerics%dew*len0
           x0_global(i) = (real(i,dp)-0.5d0)*model%numerics%dew
        end do
        status = parallel_put_var(NCO%id,varid,x0_global)
@@ -161,7 +159,6 @@ contains
 
        status = parallel_inq_varid(NCO%id,'y0',varid)
        do i = 1, global_nsn-1
-!!          y0_global(i) = (real(i,dp)-0.5d0)*model%numerics%dns*len0
           y0_global(i) = (real(i,dp)-0.5d0)*model%numerics%dns
        end do
        status = parallel_put_var(NCO%id,varid,y0_global)
@@ -169,7 +166,6 @@ contains
 
        status = parallel_inq_varid(NCO%id,'x1',varid)
        do i = 1, global_ewn
-!!          x1_global(i) = (real(i,dp)-1.0d0)*model%numerics%dew*len0
           x1_global(i) = (real(i,dp)-1.0d0)*model%numerics%dew
        end do
        status = parallel_put_var(NCO%id,varid,x1_global)
@@ -177,7 +173,6 @@ contains
 
        status = parallel_inq_varid(NCO%id,'y1',varid)
        do i = 1, global_nsn
-!!          y1_global(i) = (real(i,dp)-1.0d0)*model%numerics%dns*len0
           y1_global(i) = (real(i,dp)-1.0d0)*model%numerics%dns
        end do
        status = parallel_put_var(NCO%id,varid,y1_global)

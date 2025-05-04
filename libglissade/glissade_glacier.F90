@@ -29,7 +29,6 @@ module glissade_glacier
     ! Subroutines for glacier tuning and tracking
 
     use glimmer_global 
-!!    use glimmer_paramets, only: thk0, len0, tim0, vel0, eps08
     use glimmer_paramets, only: eps08
     use glimmer_physcon, only: scyr, pi, rhow, rhoi
     use glide_types
@@ -187,10 +186,8 @@ contains
           i = itest; j = jtest
           theta_rad = model%general%lat(i,j) * pi/180.d0
           print*, 'Scale dew and dns: factor, new dew, dns =', &
-!!               glacier%length_scale_factor, dew*len0, dns*len0
                glacier%length_scale_factor, dew, dns
           print*, 'Scale cell area: i, j, lat, cos(lat), cell_area =', &
-!!               i, j, model%general%lat(i,j), cos(theta_rad), model%geometry%cell_area(i,j)*len0**2
                i, j, model%general%lat(i,j), cos(theta_rad), model%geometry%cell_area(i,j)
        endif
 
@@ -449,9 +446,7 @@ contains
             ewn,           nsn,               &
             nglacier,                         &
             glacier%cism_glacier_id_init,     &
-!!            model%geometry%cell_area*len0**2, &  ! m^2
             model%geometry%cell_area,         &  ! m^2
-!!            model%geometry%thck*thk0,         &  ! m
             model%geometry%thck,              &  ! m
             glacier%diagnostic_minthck,       &  ! m
             glacier%area_init,                &  ! m^2
@@ -507,7 +502,6 @@ contains
        !  thck_target is not a restart field but is updated annually during the inversion.
        if (glacier%set_powerlaw_c == GLACIER_POWERLAW_C_INVERSION) then
           model%basal_physics%powerlaw_c(:,:) = model%basal_physics%powerlaw_c_const
-!!          glacier%thck_target = model%geometry%thck*thk0
           glacier%thck_target = model%geometry%thck
        endif
 
@@ -535,11 +529,9 @@ contains
        do j = nhalo+1, nsn-nhalo
           do i = nhalo+1, ewn-nhalo
              ng = glacier%cism_glacier_id_init(i,j)
-!!             if (ng == 0 .and. model%geometry%thck(i,j)*thk0 > 1.0d0) then
              if (ng == 0 .and. model%geometry%thck(i,j) > 1.0d0) then
                 call parallel_globalindex(i, j, iglobal, jglobal, parallel)
                 print*, 'Warning, ng = 0 but H > 0: Init rank, i, j, ig, jg, thck:', &
-!!                     this_rank, i, j, iglobal, jglobal, model%geometry%thck(i,j) * thk0
                      this_rank, i, j, iglobal, jglobal, model%geometry%thck(i,j)
              endif
           enddo
@@ -636,9 +628,7 @@ contains
             ewn,           nsn,               &
             nglacier,                         &
             glacier%cism_glacier_id,          &
-!!            model%geometry%cell_area*len0**2, &  ! m^2
             model%geometry%cell_area,         &  ! m^2
-!!            model%geometry%thck*thk0,         &  ! m
             model%geometry%thck,              &  ! m
             glacier%diagnostic_minthck,       &  ! m
             glacier%area,                     &  ! m^2
@@ -650,9 +640,7 @@ contains
             ewn,           nsn,               &
             nglacier,                         &
             glacier%cism_glacier_id_init,     &
-!!            model%geometry%cell_area*len0**2, &  ! m^2
             model%geometry%cell_area,         &  ! m^2
-!!            model%geometry%thck*thk0,         &  ! m
             model%geometry%thck,              &  ! m
             glacier%diagnostic_minthck,       &  ! m
             glacier%area_init_extent,         &  ! m^2
@@ -678,7 +666,6 @@ contains
     ! Thus, any ice that is not part of a glacier is dynamically inactive,
     !  but could receive a glacier ID and become active with thickening.
 
-!!    glacier%minthck = model%numerics%thklim*thk0 - eps08
     glacier%minthck = model%numerics%thklim - eps08
 
     ! Set the relaxation value for powerlaw_c
@@ -902,8 +889,6 @@ contains
 
     ewn = model%general%ewn
     nsn = model%general%nsn
-!!    dew = model%numerics%dew * len0         ! convert to m
-!!    dns = model%numerics%dns * len0         ! convert to m
     dew = model%numerics%dew                  ! convert to m
     dns = model%numerics%dns                  ! convert to m
     rtest = model%numerics%rdiag_local
@@ -914,12 +899,11 @@ contains
     ngdiag = glacier%ngdiag
 
     ! some unit conversions
-!!    dt = model%numerics%dt * tim0/scyr              ! model units to yr
+    !TODO - Use model%geometry%thck without a copy.
+    !       Skip these conversion and use SI units (s instead of yr) in the code.
     dt = model%numerics%dt /scyr                      ! s to yr
-!!    thck = model%geometry%thck * thk0               ! model units to m
     thck = model%geometry%thck
     dthck_dt = model%geometry%dthck_dt * scyr       ! m/s to m/yr
-!!    cell_area = model%geometry%cell_area * len0**2  ! model units to m^2
     cell_area = model%geometry%cell_area            ! model units to m^2
 
     ! Accumulate the 2D fields used for mu_star and alpha_snow inversion: snow and Tpos.
@@ -975,12 +959,10 @@ contains
           !  usrf_obs (the RGI target) when a forward run starting from the baseline date reaches the RGI date.
           !TODO - How to set usrf_target if not inverting for mu_star? Set to usrf_obs?
 
-!!          glacier%usrf_target(:,:) = model%geometry%usrf_obs(:,:)*thk0 - glacier%delta_usrf_rgi(:,:)
           glacier%usrf_target(:,:) = model%geometry%usrf_obs(:,:) - glacier%delta_usrf_rgi(:,:)
 
           ! Make sure the target is not below the topography
           glacier%usrf_target = &
-!!               max(glacier%usrf_target, (model%geometry%topg + model%climate%eus)*thk0)
                max(glacier%usrf_target, (model%geometry%topg + model%climate%eus))
 
           if (verbose_glacier .and. this_rank == rtest) then
@@ -989,7 +971,6 @@ contains
              print*, 'RGI usrf correction, delta_smb:', &
                   glacier%delta_usrf_rgi(i,j), delta_smb_rgi(i,j)
              print*,    'usrf RGI obs, new usrf_target baseline =', &
-!!                  model%geometry%usrf_obs(i,j)*thk0, glacier%usrf_target(i,j)
                   model%geometry%usrf_obs(i,j), glacier%usrf_target(i,j)
              print*, 'Recent usrf correction, delta_smb:', &
                   glacier%delta_usrf_recent(i,j), delta_smb_recent(i,j)
@@ -1075,8 +1056,6 @@ contains
             model%climate%acab_applied(i,j)*scyr * 1000.d0*(rhoi/rhow)  ! mm/yr w.e.
        write(6,'(a32,4f10.3)') 'artm_ref, usrf_ref, usrf, diff: ', &
             model%climate%artm_ref(i,j), &
-!!            model%climate%usrf_ref(i,j), model%geometry%usrf(i,j)*thk0, &
-!!            model%geometry%usrf(i,j)*thk0 - model%climate%usrf_ref(i,j)
             model%climate%usrf_ref(i,j), model%geometry%usrf(i,j), &
             model%geometry%usrf(i,j) - model%climate%usrf_ref(i,j)
        write(6,'(a32,3f10.3)') '              artm, Tpos, snow: ', artm(i,j), Tpos(i,j), snow(i,j)
@@ -1416,8 +1395,6 @@ contains
 
           call glissade_usrf_to_thck(&
                glacier%usrf_target,             &
-!!               model%geometry%topg * thk0,      &
-!!               model%climate%eus * thk0,        &
                model%geometry%topg,             &
                model%climate%eus,               &
                glacier%thck_target)
@@ -1485,7 +1462,6 @@ contains
           print*, 'topg:'
           do j = jtest+3, jtest-3, -1
              do i = itest-3, itest+3
-!!                write(6,'(f10.3)',advance='no') model%geometry%topg(i,j)*thk0
                 write(6,'(f10.3)',advance='no') model%geometry%topg(i,j)
              enddo
              write(6,*) ' '
@@ -1852,7 +1828,6 @@ contains
                ewn,           nsn,               &
                nglacier,                         &
                glacier%cism_glacier_id_init,     &
-!!               model%geometry%cell_area*len0**2, &  ! m^2
                model%geometry%cell_area,         &  ! m^2
                glacier%thck_target,              &  ! m
                glacier%diagnostic_minthck,       &  ! m
@@ -1902,8 +1877,7 @@ contains
 
     endif   ! glacier_update_inverval
 
-!!    ! Convert fields back to dimensionless units as needed
-!!    model%geometry%thck = thck/thk0
+    ! Copy fields back to model derived type
     model%geometry%thck = thck
 
   end subroutine glissade_glacier_update

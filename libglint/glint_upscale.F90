@@ -92,8 +92,6 @@ contains
                              instance%model%geometry%usrf, &
                              orog,    &
                              instance%out_mask)
-!!    orog=thk0*orog
-
     call coordsystem_allocate(instance%lgrid,temp)
 
     ! Ice-no-snow fraction
@@ -122,7 +120,6 @@ contains
                              instance%out_mask)
 
     ! Veg-with-snow fraction (if ice <10m thick)
-!!    where (instance%mbal_accum%snowd > 0.d0 .and. instance%model%geometry%thck <= (10.d0/thk0))
     where (instance%mbal_accum%snowd > 0.d0 .and. instance%model%geometry%thck <= (10.d0))
        temp = 1.d0
     elsewhere
@@ -176,7 +173,6 @@ contains
     ! If instance%zero_gcm_fluxes is true, then the upscaled versions of grofi, grofl and
     ! ghflx are zeroed out
 
-!!    use glimmer_paramets, only: thk0, GLC_DEBUG
     use glimmer_paramets, only: GLC_DEBUG
     use glimmer_log
     use cism_parallel, only: tasks, main_task
@@ -312,9 +308,6 @@ contains
     do j = 1, nyl
       do i = 1, nxl
 
-!!         usrf = thk0 * instance%model%geometry%usrf(i,j)
-!!         thck = thk0 * instance%model%geometry%thck(i,j)
-!!         topg = thk0 * instance%model%geometry%topg(i,j)
          usrf = instance%model%geometry%usrf(i,j)
          thck = instance%model%geometry%thck(i,j)
          topg = instance%model%geometry%topg(i,j)
@@ -482,10 +475,6 @@ contains
     ! Given the calving, basal melting, and conductive heat flux fields from the dycore,
     ! accumulate contributions to the rofi, rofl, and hflx fields to be sent to the coupler.
 
-!!    use glimmer_paramets, only: thk0, tim0
-
-!!    use glimmer_scales, only: scale_acab  ! for testing
-
     type(glide_global_type), intent(in)  :: model
 
     integer,  intent(inout) :: av_count_output     ! step counter 
@@ -520,7 +509,6 @@ contains
 
     ! Convert to kg/m^2/s
     rofi_tavg(:,:) = rofi_tavg(:,:)  &
-!!                   + model%calving%calving_thck(:,:) * thk0 * rhoi / (model%numerics%dt * tim0)
                    + model%calving%calving_thck(:,:) * rhoi / model%numerics%dt
 
     !--------------------------------------------------------------------

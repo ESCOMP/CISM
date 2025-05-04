@@ -48,7 +48,6 @@ contains
   subroutine init_lithot3d(model)
 
     use glide_types
-!!    use glimmer_paramets, only: len0,tim0
     use glimmer_sparse_type, only: new_sparse_matrix, copy_sparse_matrix, sparse_insert_val
     implicit none
     type(glide_global_type),intent(inout) :: model       ! model instance
@@ -75,8 +74,6 @@ contains
     allocate(model%lithot%iwork(model%lithot%mxnelt))
 
     ! set up factors for horizontal finite differences
-!!    model%lithot%xfactor = 0.5*model%lithot%diffu*tim0*model%numerics%dt / (model%numerics%dew*len0)**2
-!!    model%lithot%yfactor = 0.5*model%lithot%diffu*tim0*model%numerics%dt / (model%numerics%dns*len0)**2
     model%lithot%xfactor = 0.5*model%lithot%diffu*model%numerics%dt / (model%numerics%dew)**2
     model%lithot%yfactor = 0.5*model%lithot%diffu*model%numerics%dt / (model%numerics%dns)**2
 

@@ -69,7 +69,6 @@
 
     use glimmer_paramets, only: eps11
     use glimmer_physcon, only: rhow, rhoi, scyr
-!!    use glimmer_scales, only: scale_acab    ! scale_acab = scyr, so acab has units m/s
 
     ! input/output arguments
 
@@ -82,8 +81,6 @@
       
     ! Initialize acab, if SMB (with different units) was read in
     if (model%options%smb_input == SMB_INPUT_MMYR_WE) then
-!!       ! Convert units from mm/yr w.e. to m/yr ice, then convert to model units
-!!       model%climate%acab(:,:) = (model%climate%smb(:,:) * (rhow/rhoi)/1000.d0) / scale_acab
        ! Convert units from mm/yr w.e. to m/s ice
        model%climate%acab(:,:) = (model%climate%smb(:,:) * (rhow/rhoi)/1000.d0) / scyr
        !WHL - debug
@@ -148,10 +145,8 @@
 
     ! Then apply the SMB at the upper and lower surfaces, and recompute tracer values.
 
-!!    use glimmer_paramets, only: thk0, tim0, len0, eps11
     use glimmer_paramets, only: eps11
     use glimmer_physcon, only: rhow, rhoi, scyr
-!!    use glimmer_scales, only: scale_acab
     use glide_diagnostics, only: point_diag
     use glissade_grid_operators, only: glissade_vertical_interpolate
     use glissade_masks, only: glissade_get_masks, glissade_extend_mask
@@ -255,7 +250,6 @@
 
        ! downscale SMB to the local surface elevation
        model%climate%smb(:,:) = model%climate%smb_ref(:,:) + &
-!!            (model%geometry%usrf(:,:)*thk0 - model%climate%usrf_ref(:,:)) * model%climate%smb_gradz(:,:)
             (model%geometry%usrf(:,:) - model%climate%usrf_ref(:,:)) * model%climate%smb_gradz(:,:)
 
     elseif (model%options%smb_input_function == SMB_INPUT_FUNCTION_XYZ) then
@@ -294,11 +288,9 @@
        if (this_rank == rtest) then
           write(6,*) 'Computing runtime smb with smb_input_function =', model%options%smb_input_function
        endif
-!!       call point_diag(model%geometry%usrf*thk0, 'usrf (m)', itest, jtest, rtest, 7, 7)
        call point_diag(model%geometry%usrf, 'usrf (m)', itest, jtest, rtest, 7, 7)
 
        if (model%options%smb_input_function == SMB_INPUT_FUNCTION_XY_GRADZ) then
-!!          call point_diag(model%geometry%usrf*thk0 - model%climate%usrf_ref, 'usrf - usrf_ref (m)', &
           call point_diag(model%geometry%usrf - model%climate%usrf_ref, 'usrf - usrf_ref (m)', &
                itest, jtest, rtest, 7, 7)
           call point_diag(model%climate%smb_ref, 'reference smb (mm/yr)', itest, jtest, rtest, 7, 7)
@@ -306,7 +298,6 @@
           call point_diag(model%climate%smb, 'downscaled smb (mm/yr)', itest, jtest, rtest, 7, 7)
        elseif (model%options%smb_input_function == SMB_INPUT_FUNCTION_XYZ) then
           k = model%climate%nlev_smb/2 + 1  ! arbitrary k
-!!          if (this_rank == rtest) write(6,*) 'Diagnostic level k, level (m) =', k, model%climate%smb_levels(k)*thk0
           if (this_rank == rtest) write(6,*) 'Diagnostic level k, level (m) =', k, model%climate%smb_levels(k)
           call point_diag(model%climate%smb_3d(k,:,:), '3d smb (mm/yr ice)', itest, jtest, rtest, 7, 7)
           call point_diag(model%climate%smb, 'downscaled smb (mm/yr ice)', itest, jtest, rtest, 7, 7)
@@ -314,12 +305,10 @@
 
        if (model%options%artm_input_function == ARTM_INPUT_FUNCTION_XY_GRADZ) then
           call point_diag(model%climate%artm_ref, 'reference artm (deg C)', itest, jtest, rtest, 7, 7)
-!!          call point_diag(model%climate%artm_gradz*1000.d0/thk0, 'artm_gradz (deg C per km)', itest, jtest, rtest, 7, 7)
           call point_diag(model%climate%artm_gradz*1000.d0, 'artm_gradz (deg C per km)', itest, jtest, rtest, 7, 7)
           call point_diag(model%climate%artm, 'downscaled artm (deg C)', itest, jtest, rtest, 7, 7)
        elseif (model%options%artm_input_function == ARTM_INPUT_FUNCTION_XYZ) then
           k = model%climate%nlev_smb/2 + 1  ! arbitrary k
-!!          if (this_rank == rtest) write(6,*) 'Diagnostic level k, level (m) =', k, model%climate%smb_levels(k)*thk0
           if (this_rank == rtest) write(6,*) 'Diagnostic level k, level (m) =', k, model%climate%smb_levels(k)
           call point_diag(model%climate%artm_3d(k,:,:), '3d artm (deg C)', itest, jtest, rtest, 7, 7)
           call point_diag(model%climate%artm, 'downsacled artm (deg C)', itest, jtest, rtest, 7, 7)
@@ -346,7 +335,6 @@
 
        ! Note: When being ramped up, the anomaly is not incremented until after the final time step of the year.
        !       This is the reason for passing the previous time to the subroutine.
-!!       previous_time = model%numerics%time - model%numerics%dt * tim0/scyr
        previous_time = model%numerics%time - model%numerics%dt/scyr
 
        call glissade_add_2d_anomaly(&
@@ -375,7 +363,6 @@
 
     ! Convert units from mm/yr w.e. to acab units of m/s ice, if needed.
     if (model%options%smb_input == SMB_INPUT_MMYR_WE) then
-!!       model%climate%acab(:,:) = (model%climate%smb_corrected(:,:) * (rhow/rhoi)/1000.d0) / scale_acab
        model%climate%acab(:,:) = (model%climate%smb_corrected(:,:) * (rhow/rhoi)/1000.d0) / scyr
     endif
 
@@ -485,7 +472,6 @@
             parallel,                           &
             thck_unscaled,                      &   ! m
             topg_unscaled,                      &   ! m
-!!            model%climate%eus*thk0,             &   ! m
             model%climate%eus,                  &   ! m
             0.0d0,                              &   ! thklim = 0
             ice_mask,                           &
@@ -530,9 +516,7 @@
 
     !TODO - Inline some of the code in this subroutine?
     call glissade_mass_balance_driver(&
-!!         model%numerics%dt * tim0,                             &  ! s
          model%numerics%dt,                                    &  ! s
-!!         model%numerics%dew * len0, model%numerics%dns * len0, &  ! m
          model%numerics%dew,       model%numerics%dns,     &  ! m
          ewn,         nsn,         upn-1,                  &
          model%numerics%sigma,                             &

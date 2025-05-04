@@ -144,7 +144,6 @@ contains
     use glimmer_coordinates, only: coordsystem_new
     use glide_diagnostics, only: glide_init_diag
     use glide_bwater
-!!    use glimmer_paramets, only: len0
     use glimmer_physcon, only: rhoi, rhow
     use cism_parallel, only: distributed_grid
 
@@ -233,8 +232,6 @@ contains
        call glimmap_stere_area_factor(model%projection%stere,  &
                                       model%general%ewn,       &
                                       model%general%nsn,       &
-!!                                      model%numerics%dew*len0, &
-!!                                      model%numerics%dns*len0)
                                       model%numerics%dew,      &
                                       model%numerics%dns)
 
@@ -263,13 +260,8 @@ contains
           call write_log(trim(message), GM_FATAL)
        endif
 
-!!       ! Convert units from mm/yr w.e. to m/yr ice
-!!       model%climate%acab(:,:) = model%climate%smb(:,:) * (rhow/rhoi) / 1000.d0
        ! Convert units from mm/yr w.e. to m/s ice
        model%climate%acab(:,:) = model%climate%smb(:,:) * (rhow/rhoi) / 1000.d0 / scyr
-
-!!       ! Convert acab from m/yr ice to model units
-!!       model%climate%acab(:,:) = model%climate%acab(:,:) / scale_acab
 
     else
        ! assume acab was read in with units of m/yr ice; do nothing
@@ -410,8 +402,6 @@ contains
 
 !WHL - debug
 !    print*, 'After glide_initialise:'
-!! !    print*, 'max, min thck (m)=', maxval(model%geometry%thck)*thk0, minval(model%geometry%thck)*thk0
-!! !    print*, 'max, min usrf (m)=', maxval(model%geometry%usrf)*thk0, minval(model%geometry%usrf)*thk0
 !    print*, 'max, min thck (m)=', maxval(model%geometry%thck), minval(model%geometry%thck)
 !    print*, 'max, min usrf (m)=', maxval(model%geometry%usrf), minval(model%geometry%usrf)
 !    print*, 'max, min artm =', maxval(model%climate%artm), minval(model%climate%artm)
@@ -421,7 +411,6 @@ contains
 !    print*, ' '
 !    print*, 'thck:'
 !    do j = model%general%nsn, 1, -1
-!! !       write(6,'(30f5.0)') thk0 * model%geometry%thck(:,j)
 !       write(6,'(30f5.0)') model%geometry%thck(:,j)
 !    enddo
 !    print*, ' '
@@ -451,7 +440,6 @@ contains
     use glide_thck
     use glide_velo
     use glide_mask
-!!    use glimmer_paramets, only: tim0
     use glimmer_physcon, only: scyr, rhoi, rhow
     use glide_ground, only: glide_calve_ice
     use glide_bwater, only: calcbwat
@@ -649,7 +637,6 @@ contains
 
        do j = 1, model%general%nsn-1
           do i = 1, model%general%ewn-1
-!!             if (model%geomderv%stagthck(i,j)*thk0 < 1000.d0) then
              if (model%geomderv%stagthck(i,j) < 1000.d0) then
                 model%temper%stagbtemp(i,j) = model%temper%stagbpmp(i,j)
              else
@@ -711,7 +698,6 @@ contains
           do j = model%general%nsn-1, 1, -1
              write(6,'(i3)',advance='no') j
              do i = 1, model%general%ewn-1
-!!                write(6,'(f7.2)',advance='no') model%geomderv%stagthck(i,j)*thk0
                 write(6,'(f7.2)',advance='no') model%geomderv%stagthck(i,j)
              enddo 
              print*, ' '
@@ -726,7 +712,6 @@ contains
           do j = model%general%nsn-1, 1, -1
              write(6,'(i3)',advance='no') j
              do i = 1, model%general%ewn-1
-!!                write(6,'(f8.0)',advance='no') -model%velocity%diffu(i,j) * vel0*len0*scyr
                 write(6,'(f8.0)',advance='no') -model%velocity%diffu(i,j) * scyr
              enddo
              print*, ' '
@@ -803,7 +788,6 @@ contains
     use glide_velo
     use glide_temp
     use glide_mask
-!!    use glimmer_paramets, only: tim0
     use glimmer_physcon, only: scyr
     use glide_grid_operators
     use glide_bwater
@@ -816,7 +800,6 @@ contains
     model%numerics%tstep_count = model%numerics%tstep_count + 1
     model%temper%newtemps = .false.
 
-!!    model%thckwk%oldtime = model%numerics%time - (model%numerics%dt * tim0/scyr)
     model%thckwk%oldtime = model%numerics%time - (model%numerics%dt/scyr)
 
     call glide_prof_start(model,model%glide_prof%geomderv)
@@ -856,7 +839,6 @@ contains
     ! Note: These times have units of years.
     !       dttem has scaled units, so multiply by 1/scyr to convert to years
 
-!!    if ( model%numerics%tinc >  mod(model%numerics%time,model%numerics%dttem*tim0/scyr)) then
     if ( model%numerics%tinc >  mod(model%numerics%time,model%numerics%dttem/scyr)) then
 
        call glide_prof_start(model,model%glide_prof%temperature)
@@ -1053,8 +1035,6 @@ contains
     !WHL - debug
 !    print*, ' '
 !    print*, 'After tstep_p2:'
-!! !    print*, 'max, min thck (m)=', maxval(model%geometry%thck)*thk0, minval(model%geometry%thck)*thk0
-!! !    print*, 'max, min usrf (m)=', maxval(model%geometry%usrf)*thk0, minval(model%geometry%usrf)*thk0
 !    print*, 'max, min thck (m)=', maxval(model%geometry%thck), minval(model%geometry%thck)
 !    print*, 'max, min usrf (m)=', maxval(model%geometry%usrf), minval(model%geometry%usrf)
 !    print*, 'max uvel, vvel =', maxval(model%velocity%uvel), maxval(model%velocity%vvel)
@@ -1062,7 +1042,6 @@ contains
 !    print*, ' '
 !    print*, 'thck:'
 !    do j = model%general%nsn, 1, -1
-!! !       write(6,'(14f12.7)') thk0 * model%geometry%thck(3:16,j)
 !       write(6,'(14f12.7)') model%geometry%thck(3:16,j)
 !    enddo
 !    print*, ' '
@@ -1089,7 +1068,6 @@ contains
     ! calculate isostatic adjustment and upper and lower ice surface
 
     use isostasy, only: isos_compute
-!!    use glimmer_scales, only: scale_acab
     use glimmer_physcon, only: rhoi, rhow
     use glide_setup
     use glide_velo, only: glide_velo_vertical
@@ -1123,7 +1101,6 @@ contains
     ! model%climate%acab  has units of m/s of ice
     ! Note: This is not necessary (and can destroy exact restart) if the SMB was already input in units of mm/yr
     if (model%options%smb_input /= SMB_INPUT_MMYR_WE) then
-!!       model%climate%smb(:,:) = (model%climate%acab(:,:) * scale_acab) * (1000.d0 * rhoi/rhow)
        model%climate%smb(:,:) = (model%climate%acab(:,:) * scyr) * (1000.d0 * rhoi/rhow)
     endif
 

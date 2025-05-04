@@ -119,9 +119,6 @@ contains
     close(1)
 #endif
 
-!!    !rbel%w=rbel%w/len0
-    !rbel%w=rbel%w
-
   end subroutine init_elastic
 
 !-------------------------------------------------------------------------
@@ -249,7 +246,6 @@ contains
   subroutine init_rbel(rbel, a)
 
     !> initialise elastic lithosphere calculations
-!!    use glimmer_paramets, only: len0
     use glimmer_physcon, only: rhom,grav
     use isostasy_kelvin
     implicit none
@@ -260,7 +256,6 @@ contains
 
     call set_kelvin(1.d-10,40)
 
-!!    rbel%lr = ((rbel%d/(rhom*grav))**0.25d0)/len0
     rbel%lr = (rbel%d/(rhom*grav))**0.25d0
     rbel%a  = a
 

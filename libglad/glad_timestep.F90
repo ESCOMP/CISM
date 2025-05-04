@@ -60,7 +60,6 @@ contains
     !
     use glimmer_paramets
     use glimmer_physcon, only: rhow, rhoi
-!!    use glimmer_scales, only: scale_acab
     use glimmer_log
     use glimmer_coordinates, only: coordsystem_allocate
     use glide
@@ -271,7 +270,6 @@ contains
              !TODO - Instead of converting the SMB from the coupler to acab and converting back here,
              !       simply compute SMB here based on the SMB from the coupler.
              !       Could pass the SMB (in water equivalent units) to the dycore and let the dycore convert to acab.
-!!             instance%model%climate%smb(:,:) = (instance%model%climate%acab(:,:) * scale_acab) * (1000.d0 * rhoi/rhow)
              instance%model%climate%smb(:,:) = (instance%model%climate%acab(:,:) * scyr) * (1000.d0 * rhoi/rhow)
 
           endif  ! evolve_ice

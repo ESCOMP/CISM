@@ -56,7 +56,6 @@
 
     use glimmer_global, only: dp
     use glimmer_physcon, only: n_glen, rhoi, grav, scyr
-!!    use glimmer_paramets, only: thk0, len0, vel0, vis0, tau0
 !    use glimmer_log, only: write_log
 
     use glide_types
@@ -589,33 +588,17 @@
     real(dp), dimension(:,:,:), intent(inout) ::  &
        uvel, vvel              ! velocity components (m/yr)
 
-    ! grid cell dimensions: rescale from dimensionless to m
-!!    dx = dx * len0
-!!    dy = dy * len0
+    !TODO - Keep flwa in units of Pa^(-n) s^(-1)
+    !TODO - Keep btrc in units of (m/s)/Pa
+    !TODO - Keep uvel and vvel in units of (m/s)
 
-    ! ice geometry: rescale from dimensionless to m
-!!    thck = thck * thk0
-!!    usrf = usrf * thk0
-!!    topg = topg * thk0
-!!    eus  = eus  * thk0
-!!    thklim = thklim * thk0
-
-    ! rate factor: rescale from dimensionless to Pa^(-n) yr^(-1)
-!!    flwa = flwa * (vis0*scyr)
+    ! rate factor: rescale to Pa^(-n) yr^(-1)
     flwa = flwa * scyr
 
-    ! bwat: rescale from dimensionless to m
-!!    bwat = bwat * thk0
-
-!TODO - Switch to m/s later
-!!    ! btrc: rescale from dimensionless to (m/yr)/Pa
     ! btrc: rescale from (m/s)/Pa to (m/yr)/Pa
-!!    !    btrc_const = btrc_const * (vel0*scyr) / tau0
     btrc_const = btrc_const * scyr
 
     ! ice velocity: rescale from dimensionless to m/yr
-!!    uvel = uvel * (vel0*scyr)
-!!    vvel = vvel * (vel0*scyr)
     uvel = uvel * scyr
     vvel = vvel * scyr
 
@@ -648,26 +631,15 @@
     real(dp), dimension(:,:,:), intent(inout) ::  &
        uvel, vvel               ! velocity components (m/yr)
 
-    ! Convert geometry variables from m to dimensionless units
-!!    thck = thck / thk0
-!!    usrf = usrf / thk0
-!!    topg = topg / thk0
+    !TODO - Remove the input and output scaling of flwa, btrc, uvel, and vvel.
 
     ! Convert flow factor from Pa^(-n) yr^(-1) to dimensionless units
-!!    flwa = flwa / (vis0*scyr)
     flwa = flwa / scyr
 
-    ! Convert bwat from m to dimensionless units
-!!    bwat = bwat / thk0
-
-!!    ! Convert btrc from (m/yr)/Pa to dimensionless units
     ! Convert btrc from (m/yr)/Pa to (m/s)/Pa
-!!    btrc = btrc / ((vel0*scyr)/tau0)
     btrc = btrc / scyr
 
     ! Convert velocity from m/yr to dimensionless units
-!!    uvel = uvel / (vel0*scyr)
-!!    vvel = vvel / (vel0*scyr)
     uvel = uvel / scyr
     vvel = vvel / scyr
 

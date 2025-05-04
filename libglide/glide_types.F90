@@ -1187,28 +1187,22 @@ module glide_types
     !> geometry of the ice sheet and bedrock.
 
     real(dp),dimension(:,:),pointer :: thck => null()
-!!    !> The thickness of the ice, divided by \texttt{thk0}.
     !> ice thickness (m)
 
     real(dp),dimension(:,:),pointer :: usrf => null()
-!!    !> The elevation of the upper ice surface, divided by \texttt{thk0}.
     ! elevation of the upper ice surface (m)
 
     real(dp),dimension(:,:),pointer :: lsrf => null() 
-!!    !> The elevation of the lower ice surface, divided by \texttt{thk0}.
     ! elevation of the lower ice surface (m)
 
     real(dp),dimension(:,:),pointer :: topg => null() 
-!!    !> The elevation of the topography, divided by \texttt{thk0}.
     !> elevation of the bed topography (m)
 
     real(dp),dimension(:,:),pointer :: topg_raised => null()
-!!    !> Raised version of the topography, divided by \texttt{thk0}.
     !> raised version of the topography (m)
     !> Used to resolve pinning points for one of the GLP options
 
     real(dp),dimension(:,:),pointer :: usrf_obs => null()
-!!    !> Observed upper surface elevation, divided by \texttt{thk0}.
     !> observed upper surface elevation (m)
 
     real(dp),dimension(:,:),pointer :: f_flotation => null() 
@@ -1223,14 +1217,12 @@ module glide_types
     real(dp),dimension(:,:,:),pointer :: ice_age => null()
     !> The age of a given ice layer; units are s internally, yr for I/O
 
-!!    real(dp),dimension(:,:),pointer :: thck_old => null()           !> old ice thickness, divided by \texttt{thk0}
     real(dp),dimension(:,:),pointer :: thck_old => null()           !> old ice thickness (m)
     real(dp),dimension(:,:),pointer :: dthck_dt => null()           !> ice thickness tendency (m/s)
     real(dp),dimension(:,:),pointer :: dthck_dt_obs => null()       !> observed rate of change of ice thickness (m/s)
     real(dp),dimension(:,:),pointer :: dthck_dt_obs_basin => null() !> basin_average of dthck_dt_obs (m/s)
 
-    real(dp),dimension(:,:),pointer :: cell_area => null()          !> cell area of the grid
-!!    !> The cell area of the grid, divided by \texttt{len0*len0}.
+    real(dp),dimension(:,:),pointer :: cell_area => null()          !> grid cell area (m^2)
 
     integer :: ntracers
     !> number of tracers to be transported
@@ -1381,8 +1373,7 @@ module glide_types
     real(dp),dimension(:,:)  ,pointer :: total_diffu => null() !> total diffusivity
 
     ! Note: DIVA solves for uvel_2d and vvel_2d; these are typically (but not necessarily) the vertical average
-!!    ! Velocities are currently scaled to model units; multiply by vel0 to convert to m/s
-    ! All velocities have units of m/s within the code.
+    !       Velocities have units of m/s within the code.
     ! For I/O, velocities have units of m/yr, with a scale factor of 1/scyr
     real(dp),dimension(:,:)  ,pointer :: uvel_2d  => null()   !> 2D $x$-velocity (m/s); typically the vertical average
     real(dp),dimension(:,:)  ,pointer :: vvel_2d  => null()   !> 2D $y$-velocity (m/s); typically the vertical average
@@ -1551,8 +1542,7 @@ module glide_types
 
   type glide_calving
      !> holds fields and parameters related to calving
-     real(dp),dimension(:,:),  pointer :: calving_thck => null()   !> thickness loss in grid cell due to calving
-!!                                                                   !> scaled by thk0 like mass balance, thickness, etc.
+     real(dp),dimension(:,:),  pointer :: calving_thck => null()   !> thickness loss in grid cell due to calving during one time step (m)
      real(dp),dimension(:,:),  pointer :: calving_rate => null()   !> rate of ice loss due to calving (m/yr ice)
      real(dp),dimension(:,:),  pointer :: calving_rate_tavg => null()  !> rate of ice loss due to calving (m/yr ice, time average)
      integer, dimension(:,:),  pointer :: calving_mask => null()   !> calve floating ice where the mask = 1 (whichcalving = CALVING_GRID_MASK)
@@ -2337,9 +2327,7 @@ module glide_types
      logical :: new_load = .false.            ! set to true if there is a new surface load
      type(isos_elastic) :: rbel               ! structure holding elastic lithosphere setup
 
-!!     real(dp),dimension(:,:),pointer :: relx => null()  ! elevation of relaxed topography, m/thk0
      real(dp),dimension(:,:),pointer :: relx => null()  ! elevation of relaxed topography (m)
-!!     real(dp),dimension(:,:),pointer :: load => null()  ! deflection due to applied load on lithosphere, m/thk0
      real(dp),dimension(:,:),pointer :: load => null()  ! deflection due to applied load on lithosphere (m)
                                                         ! defined as positive for downward deflection
      real(dp),dimension(:,:),pointer :: load_factors => null() ! temporary used for load calculation
@@ -3934,23 +3922,19 @@ contains
   ! some accessor functions
   function get_dew(model)
     !> return scaled x node spacing
-!!    use glimmer_paramets, only : len0
     implicit none
     real(dp) :: get_dew
     type(glide_global_type) :: model
 
-!!    get_dew = model%numerics%dew * len0
     get_dew = model%numerics%dew
   end function get_dew
 
   function get_dns(model)
     !> return scaled y node spacing
-!!    use glimmer_paramets, only : len0
     implicit none
     real(dp) :: get_dns
     type(glide_global_type) :: model
 
-!!    get_dns = model%numerics%dns * len0
     get_dns = model%numerics%dns
   end function get_dns
 

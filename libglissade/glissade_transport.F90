@@ -1119,7 +1119,6 @@
        vert_remap_accuracy)
 
     use cism_parallel, only: parallel_reduce_max, parallel_reduce_min
-!!    use glimmer_paramets, only: tim0
     use glimmer_physcon, only: scyr
 
     ! Conservative remapping of tracer fields from one set of vertical 
@@ -1280,7 +1279,6 @@
                 write(6,*) 'Column age, r, i, j =', rtest, i, j
                 write(6,*) 'k, z1, dz, init ice_age (yr):'
                 do k = 1,nlyr
-!!                   write(6,'(i4,3f14.8)') k, z1(k), hlyr(i,j,k), trcr(i,j,nt_ice_age,k)*tim0/scyr
                    write(6,'(i4,3f14.8)') k, z1(k), hlyr(i,j,k), trcr(i,j,nt_ice_age,k)/scyr
                 enddo
              endif
@@ -1446,7 +1444,6 @@
        write(6,*) ' '
        write(6,*) 'k, z2, hlyr, remapped ice_age (yr):'
        do k = 1, nlyr
-!!          write(6,'(i4,3f14.8)') k, z2(k), hlyr(i,j,k), trcr(i,j,nt_ice_age,k)*tim0/scyr
           write(6,'(i4,3f14.8)') k, z2(k), hlyr(i,j,k), trcr(i,j,nt_ice_age,k)/scyr
        enddo
     endif

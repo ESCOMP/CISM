@@ -51,7 +51,6 @@ contains
 
           allocate(model%tempwk%smth(model%general%ewn,model%general%nsn))
 
-!!          model%paramets%hydtim = tim0 / (model%paramets%hydtim * scyr)
           model%paramets%hydtim = 1.0d0 / (model%paramets%hydtim * scyr)
           estimate = 0.2d0 / model%paramets%hydtim
           !EIB! following not in lanl glide_temp
@@ -66,7 +65,6 @@ contains
 
           allocate(model%tempwk%wphi(model%general%ewn,model%general%nsn))
 
-!!          model%tempwk%watvel = model%paramets%hydtim * tim0 / (scyr * len0)
           model%tempwk%watvel = model%paramets%hydtim / scyr
           estimate = (0.2d0 * model%tempwk%watvel) / min(model%numerics%dew,model%numerics%dns)
           call find_dt_wat(model%numerics%dttem,estimate,model%tempwk%dt_wat,model%tempwk%nwat) 
@@ -86,7 +84,6 @@ contains
     ! Driver for updating basal hydrology
     !TODO - Upgrade calcbwat for Glissade?  Currently this subroutine is a mix of old Glide and newer Glissade code.
 
-!!    use glimmer_paramets, only : thk0
     use glide_grid_operators, only: stagvarb
     use glissade_grid_operators, only: glissade_stagger
 
@@ -101,7 +98,6 @@ contains
     real(dp), dimension(:,:), intent(inout), pointer :: wphi
 
     real(dp), dimension(2), parameter :: &
-!!         blim = (/ 0.00001 / thk0, 0.001 / thk0 /)
          blim = (/ 0.00001, 0.001 /)
 
     integer :: t_wat,ns,ew
@@ -186,7 +182,6 @@ contains
 
        ! Use a constant water thickness where ice is present, to force Tbed = Tpmp
        where (thck > model%numerics%thklim)
-!!          bwat(:,:) = const_bwat / thk0
           bwat(:,:) = const_bwat
        elsewhere
           bwat(:,:) = 0.0d0

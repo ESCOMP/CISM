@@ -328,12 +328,7 @@ contains
             exit
           end if
 #else
-!! !SCALING - Multiply thickness residual by thk0/thk_scale so we get the same result in these two cases:
-!! !           (1) Old Glimmer with scaling:         thk0 = thk_scale = 2000 m, and thck is non-dimensional
-!! !           (2) New CISM without scaling: thk0 = 1, thk_scale = 2000 m, and thck is in true meters.
-
-!!!!          residual = maxval(abs(model%geometry%thck-model%thckwk%oldthck2))
-!!          residual = maxval( abs(model%geometry%thck-model%thckwk%oldthck2) * (thk0/thk_scale) )
+          ! thk_scale = 2000 m (= thk0 in old Glimmer); this term scales the residual
           residual = maxval( abs(model%geometry%thck-model%thckwk%oldthck2) * (1.0d0/thk_scale) )
 
           if (residual <= tol) then
@@ -415,7 +410,6 @@ contains
     !> this routine does not override the old thickness distribution
 
     use glimmer_log
-!!    use glimmer_paramets, only: vel0, thk0, GLC_DEBUG
     use glimmer_paramets, only: GLC_DEBUG
 
     implicit none
@@ -581,9 +575,7 @@ contains
 
     if (GLC_DEBUG) then
        print *, "* thck ", model%numerics%time, linit, model%geometry%totpts, &
-!!            real(thk0 * new_thck(model%general%ewn/2+1,model%general%nsn/2+1)), &
             real(new_thck(model%general%ewn/2+1,model%general%nsn/2+1)), &
-!!            real(vel0 * maxval(abs(model%velocity%ubas))), real(vel0*maxval(abs(model%velocity%vbas))) 
             real(maxval(abs(model%velocity%ubas))), real(maxval(abs(model%velocity%vbas))) 
     end if
 

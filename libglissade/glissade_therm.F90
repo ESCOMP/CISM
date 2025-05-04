@@ -2421,7 +2421,6 @@ module glissade_therm
     ! $\Phi$ is the (constant) rate of change of melting point temperature with pressure.
 
     use glimmer_physcon, only: scyr, arrmlh, arrmll, actenh, actenl, gascon, celsius_to_kelvin
-!!    use glimmer_paramets, only: vis0
 
     !------------------------------------------------------------------------------------
     ! Subroutine arguments
@@ -2636,9 +2635,6 @@ module glissade_therm
           endwhere
        endif
     endif
-
-!!    ! Change flwa to model units (glissade_flow_factor assumes SI units of Pa{-n} s^{-1})
-!!    flwa(:,:,:) = flwa(:,:,:) / vis0
 
   end subroutine glissade_flow_factor
 

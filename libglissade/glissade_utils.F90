@@ -61,7 +61,6 @@ contains
     !
     !TODO: In this and the next two subroutines, we could pass in thck, topg, etc. instead of the model derived type.
 
-!!    use glimmer_paramets, only: thk0
     use cism_parallel, only: parallel_reduce_max
 
     !----------------------------------------------------------------
@@ -121,7 +120,6 @@ contains
           print*, 'Before thck adjustment, usrf (m):'
           do j = jtest_p3, jtest_m3, -1
              do i = itest_m3, itest_p3
-!!                write(6,'(f10.3)',advance='no') model%geometry%usrf(i,j)*thk0
                 write(6,'(f10.3)',advance='no') model%geometry%usrf(i,j)
              enddo
              write(6,*) ' '
@@ -130,7 +128,6 @@ contains
           print*, 'Before thck adjustment, thck (m):'
           do j = jtest_p3, jtest_m3, -1
              do i = itest_m3, itest_p3
-!!                write(6,'(f10.3)',advance='no') model%geometry%thck(i,j)*thk0
                 write(6,'(f10.3)',advance='no') model%geometry%thck(i,j)
              enddo
              write(6,*) ' '
@@ -139,7 +136,6 @@ contains
           print*, 'Before thck adjustment, topg (m):'
           do j = jtest_p3, jtest_m3, -1
              do i = itest_m3, itest_p3
-!!                write(6,'(f10.3)',advance='no') model%geometry%topg(i,j)*thk0
                 write(6,'(f10.3)',advance='no') model%geometry%topg(i,j)
              enddo
              write(6,*) ' '
@@ -149,7 +145,6 @@ contains
           do j = jtest_p3, jtest_m3, -1
              do i = itest_m3, itest_p3
                 write(6,'(f10.3)',advance='no') (model%geometry%usrf(i,j) - model%geometry%thck(i,j)  &
-!!                     - model%geometry%topg(i,j)) * thk0
                      - model%geometry%topg(i,j))
              enddo
              write(6,*) ' '
@@ -183,7 +178,6 @@ contains
           print*, 'After thck adjustment, usrf (m):'
           do j = jtest_p3, jtest_m3, -1
              do i = itest_m3, itest_p3
-!!                write(6,'(f10.3)',advance='no') model%geometry%usrf(i,j)*thk0
                 write(6,'(f10.3)',advance='no') model%geometry%usrf(i,j)
              enddo
              write(6,*) ' '
@@ -192,7 +186,6 @@ contains
           print*, 'After thck adjustment, thck (m):'
           do j = jtest_p3, jtest_m3, -1
              do i = itest_m3, itest_p3
-!!                write(6,'(f10.3)',advance='no') model%geometry%thck(i,j)*thk0
                 write(6,'(f10.3)',advance='no') model%geometry%thck(i,j)
              enddo
              write(6,*) ' '
@@ -201,7 +194,6 @@ contains
           print*, 'After thck adjustment, topg (m):'
           do j = jtest_p3, jtest_m3, -1
              do i = itest_m3, itest_p3
-!!                write(6,'(f10.3)',advance='no') model%geometry%topg(i,j)*thk0
                 write(6,'(f10.3)',advance='no') model%geometry%topg(i,j)
              enddo
              write(6,*) ' '
@@ -211,7 +203,6 @@ contains
           do j = jtest_p3, jtest_m3, -1
              do i = itest_m3, itest_p3
                 write(6,'(f10.3)',advance='no') (model%geometry%usrf(i,j) - model%geometry%thck(i,j)  &
-!!                     - model%geometry%topg(i,j)) * thk0
                      - model%geometry%topg(i,j))
              enddo
              write(6,*) ' '
@@ -235,7 +226,6 @@ contains
     ! This can be useful if the input thickness and topography are inconsistent,
     !  such that their sum has large gradients.
 
-!!    use glimmer_paramets, only: thk0
     use glide_thck, only: glide_calclsrf
     use glissade_masks, only: glissade_get_masks
     use glissade_grid_operators, only: glissade_laplacian_smoother
@@ -297,11 +287,8 @@ contains
     model%geometry%usrf = max(0.d0, model%geometry%thck + model%geometry%lsrf)
 
     ! Save input fields
-!!    topg = (model%geometry%topg - model%climate%eus) * thk0
     topg = (model%geometry%topg - model%climate%eus)
-!!    thck = model%geometry%thck * thk0
     thck = model%geometry%thck
-!!    usrf = model%geometry%usrf * thk0
     usrf = model%geometry%usrf
 
     if (verbose_smooth_usrf .and. this_rank == rtest) then
@@ -382,8 +369,6 @@ contains
     endwhere
 
     ! Copy the new thickness and usrf to the model derived type
-!!    model%geometry%thck = thck/thk0
-!!    model%geometry%usrf = usrf/thk0
     model%geometry%thck = thck
     model%geometry%usrf = usrf
 
@@ -422,7 +407,6 @@ contains
     !        when the topography is smoothed. Is it better to preserve thickness, or to
     !        increase thickness to keep the ice grounded?
 
-!!    use glimmer_paramets, only: thk0
     use glide_thck, only: glide_calclsrf
     use glissade_masks, only: glissade_get_masks
     use glissade_grid_operators, only: glissade_laplacian_smoother
@@ -492,7 +476,6 @@ contains
        print*, 'Before Laplacian smoother, topg (m):'
        do j = jtest_p3, jtest_m3, -1
           do i = itest_m3, itest_p3
-!!             write(6,'(f10.3)',advance='no') model%geometry%topg(i,j)*thk0
              write(6,'(f10.3)',advance='no') model%geometry%topg(i,j)
           enddo
           write(6,*) ' '
@@ -501,7 +484,6 @@ contains
        print*, 'Before Laplacian smoother, usrf (m):'
        do j = jtest_p3, jtest_m3, -1
           do i = itest_m3, itest_p3
-!!             write(6,'(f10.3)',advance='no') model%geometry%usrf(i,j)*thk0
              write(6,'(f10.3)',advance='no') model%geometry%usrf(i,j)
           enddo
           write(6,*) ' '
@@ -510,7 +492,6 @@ contains
        print*, 'Before Laplacian smoother, thck (m):'
        do j = jtest_p3, jtest_m3, -1
           do i = itest_m3, itest_p3
-!!             write(6,'(f10.3)',advance='no') model%geometry%thck(i,j)*thk0
              write(6,'(f10.3)',advance='no') model%geometry%thck(i,j)
           enddo
           write(6,*) ' '
@@ -553,7 +534,6 @@ contains
        print*, 'After Laplacian smoother, topg (m):'
        do j = jtest_p3, jtest_m3, -1
           do i = itest_m3, itest_p3
-!!             write(6,'(f10.3)',advance='no') model%geometry%topg(i,j)*thk0
              write(6,'(f10.3)',advance='no') model%geometry%topg(i,j)
           enddo
           write(6,*) ' '
@@ -562,7 +542,6 @@ contains
        print*, 'After Laplacian smoother, usrf (m):'
        do j = jtest_p3, jtest_m3, -1
           do i = itest_m3, itest_p3
-!!             write(6,'(f10.3)',advance='no') model%geometry%usrf(i,j)*thk0
              write(6,'(f10.3)',advance='no') model%geometry%usrf(i,j)
           enddo
           write(6,*) ' '
@@ -571,7 +550,6 @@ contains
        print*, 'After Laplacian smoother, thck (m):'
        do j = jtest_p3, jtest_m3, -1
           do i = itest_m3, itest_p3
-!!             write(6,'(f10.3)',advance='no') model%geometry%thck(i,j)*thk0
              write(6,'(f10.3)',advance='no') model%geometry%thck(i,j)
           enddo
           write(6,*) ' '
@@ -590,7 +568,6 @@ contains
     ! Note: So far, this subroutine has been used to raise eastern Thwaites topography.
     !       It has not been used to lower topography.
 
-!!    use glimmer_paramets, only: thk0
     use glide_thck, only: glide_calclsrf  ! TODO - Make this a glissade subroutine (e.g., in this module)
 
     !----------------------------------------------------------------
@@ -663,7 +640,6 @@ contains
        print*, ' '
        print*, 'Adjust input topography, diag point: r, i ,j =', rtest, itest, jtest
        print*, 'x1, y1 =', model%general%x1(i), model%general%y1(j)
-!!       print*, 'thck, topg =', model%geometry%thck(i,j)*thk0, model%geometry%topg(i,j)*thk0
        print*, 'thck, topg =', model%geometry%thck(i,j), model%geometry%topg(i,j)
        print*, 'xmin, xmax =', xmin, xmax
        print*, 'ymin, ymax =', ymin, ymax
@@ -682,7 +658,6 @@ contains
        do j = jtest_p3, jtest_m3, -1
           write(6,'(a10)',advance='no') '          '
           do i = itest_m3, itest_p3
-!!             write(6,'(f10.3)',advance='no') model%geometry%usrf(i,j)*thk0
              write(6,'(f10.3)',advance='no') model%geometry%usrf(i,j)
           enddo
           write(6,*) ' '
@@ -693,7 +668,6 @@ contains
        do j = jtest_p3, jtest_m3, -1
           write(6,'(a10)',advance='no') '          '
           do i = itest_m3, itest_p3
-!!             write(6,'(f10.3)',advance='no') model%geometry%thck(i,j)*thk0
              write(6,'(f10.3)',advance='no') model%geometry%thck(i,j)
           enddo
           write(6,*) ' '
@@ -704,7 +678,6 @@ contains
        do j = jtest_p3, jtest_m3, -1
           write(6,'(a10)',advance='no') '          '
           do i = itest_m3, itest_p3
-!!             write(6,'(f10.3)',advance='no') model%geometry%lsrf(i,j)*thk0
              write(6,'(f10.3)',advance='no') model%geometry%lsrf(i,j)
           enddo
           write(6,*) ' '
@@ -723,7 +696,6 @@ contains
        do j = jtest_p3, jtest_m3, -1
           write(6,'(f10.0)',advance='no') model%general%y1(j)
           do i = itest_m3, itest_p3
-!!             write(6,'(f10.3)',advance='no') model%geometry%topg(i,j)*thk0
              write(6,'(f10.3)',advance='no') model%geometry%topg(i,j)
           enddo
           write(6,*) ' '
@@ -732,7 +704,6 @@ contains
 
     !TODO - Use model%geometry%topg - model%climate%eus?
     allocate(topg(model%general%ewn, model%general%nsn))
-!!    topg = model%geometry%topg * thk0
     topg = model%geometry%topg
 
     ! Apply the topographic correction.
@@ -777,7 +748,6 @@ contains
 
     endif
 
-!!    model%geometry%topg = topg / thk0
     model%geometry%topg = topg
     deallocate(topg)
 
@@ -793,7 +763,6 @@ contains
        do j = jtest_p3, jtest_m3, -1
           write(6,'(f10.0)',advance='no') model%general%y1(j)
           do i = itest_m3, itest_p3
-!!             write(6,'(f10.3)',advance='no') model%geometry%topg(i,j)*thk0
              write(6,'(f10.3)',advance='no') model%geometry%topg(i,j)
           enddo
           write(6,*) ' '
@@ -814,7 +783,6 @@ contains
        do j = jtest_p3, jtest_m3, -1
           write(6,'(a10)',advance='no') '          '
           do i = itest_m3, itest_p3
-!!             write(6,'(f10.3)',advance='no') model%geometry%thck(i,j)*thk0
              write(6,'(f10.3)',advance='no') model%geometry%thck(i,j)
           enddo
           write(6,*) ' '

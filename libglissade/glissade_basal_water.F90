@@ -48,8 +48,6 @@ contains
 
   subroutine glissade_basal_water_init(model)
 
-!!    use glimmer_paramets, only: thk0
-
     type(glide_global_type) :: model
 
     select case (model%options%which_ho_bwat)
@@ -63,7 +61,6 @@ contains
 
        ! Set a constant water thickness where ice is present
        where (model%geometry%thck > model%numerics%thklim)
-!!          model%basal_hydro%bwat(:,:) = model%basal_hydro%const_bwat / thk0
           model%basal_hydro%bwat(:,:) = model%basal_hydro%const_bwat
        elsewhere
           model%basal_hydro%bwat(:,:) = 0.0d0

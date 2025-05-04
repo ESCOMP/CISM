@@ -44,7 +44,6 @@ contains
       ! Glissade higher-order velocity driver
 
       use glimmer_log
-!!      use glimmer_paramets, only: vel0
       use glimmer_physcon, only: scyr
       use glide_types
       use glissade_velo_higher, only: glissade_velo_higher_solve
@@ -117,8 +116,6 @@ contains
             print*, 'SIA part of uvel, vvel (m/yr): r, i, j =', rtest, itest, jtest
             print*, ' '
             do k = 1, upn
-!!               print*, k, model%velocity%uvel(k,i,j)*(vel0*scyr), &
-!!                          model%velocity%vvel(k,i,j)*(vel0*scyr)
                print*, k, model%velocity%uvel(k,i,j)*scyr, &
                           model%velocity%vvel(k,i,j)*scyr
             enddo
@@ -151,8 +148,6 @@ contains
             print*, 'SSA part of uvel, vvel (m/yr): r, i, j =', rtest, itest, jtest
             print*, ' '
             do k = 1, upn
-!!               print*, k, model%velocity%uvel(k,i,j)*(vel0*scyr), &
-!!                          model%velocity%vvel(k,i,j)*(vel0*scyr)
                print*, k, model%velocity%uvel(k,i,j)*scyr, &
                           model%velocity%vvel(k,i,j)*scyr
             enddo
@@ -204,8 +199,6 @@ contains
          print*, 'uvel, vvel (m/yr): r, i, j =', rtest, itest, jtest
          print*, ' '
          do k = 1, upn
-!!            print*, k, model%velocity%uvel(k,i,j)*(vel0*scyr), &
-!!                       model%velocity%vvel(k,i,j)*(vel0*scyr)
             print*, k, model%velocity%uvel(k,i,j)*scyr, &
                        model%velocity%vvel(k,i,j)*scyr
          enddo

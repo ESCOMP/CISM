@@ -36,7 +36,6 @@ module glissade_calving
        parallel_halo, parallel_globalindex, &
        parallel_reduce_sum, parallel_reduce_max, parallel_reduce_log_or
 
-!!  use glimmer_paramets, only: eps11, thk0
   use glimmer_paramets, only: eps11
   use glimmer_physcon, only: rhoi, rhoo, grav, scyr
   use glide_diagnostics, only: point_diag
@@ -979,7 +978,6 @@ contains
           !WHL - The Glide version of CALVING_RELX_THRESHOLD calves ice wherever the relaxed bedrock criterion is met.
           !      Must set calving_domain = CALVING_DOMAIN_EVERYWHERE to match the Glide behavior.
           ! Note: calving%marine_limit (a holdover from Glide) has scaled model units
-!!          where (relx <= calving%marine_limit*thk0 + eus)   ! convert marine_limit from scaled units to m
           where (relx <= calving%marine_limit + eus)
              calving_law_mask = .true.
           elsewhere
@@ -988,7 +986,6 @@ contains
 
        case(CALVING_TOPG_THRESHOLD)   ! set thickness to zero if present bedrock is below a given level
 
-!!          where (topg < calving%marine_limit*thk0 + eus)    ! convert marine_limit from scaled units to m
           where (topg < calving%marine_limit + eus)
              calving_law_mask = .true.
           elsewhere
@@ -3192,8 +3189,6 @@ contains
     ! Compute the eigenvalues of the 2D horizontal stress tensor.
     ! These are used for eigencalving and damage-based calving.
 
-!!    use glimmer_paramets, only: tau0
-
     ! input/output arguments
 
     integer, intent(in) :: &
@@ -3227,9 +3222,6 @@ contains
 
           do k = 1, nz-1
              dsigma = sigma(k+1) - sigma(k)
-!!             tau_xx = tau_xx + tau0 * tau%xx(k,i,j) * dsigma
-!!             tau_yy = tau_yy + tau0 * tau%yy(k,i,j) * dsigma
-!!             tau_xy = tau_xy + tau0 * tau%xy(k,i,j) * dsigma
              tau_xx = tau_xx + tau%xx(k,i,j) * dsigma
              tau_yy = tau_yy + tau%yy(k,i,j) * dsigma
              tau_xy = tau_xy + tau%xy(k,i,j) * dsigma
@@ -3274,8 +3266,6 @@ contains
     ! (2) Pass in the stress tensor as an optional argument, compute the strain rate tensor
     !     from the stress tensor and effective viscosity, and then compute the eigenvalues.
 
-!!    use glimmer_paramets, only: evs0, tau0
-
     ! input/output arguments
 
     integer, intent(in) :: &
@@ -3312,12 +3302,6 @@ contains
     if (present(tau) .and. present(efvs)) then
 
        where (efvs > 0.0d0)
-!!          strain_rate%scalar = tau0 * tau%scalar / (2.d0 * evs0 * efvs)
-!!          strain_rate%xz = tau0 * tau%xz / (2.d0 * evs0 * efvs)
-!!          strain_rate%yz = tau0 * tau%yz / (2.d0 * evs0 * efvs)
-!!          strain_rate%xx = tau0 * tau%xx / (2.d0 * evs0 * efvs)
-!!          strain_rate%yy = tau0 * tau%yy / (2.d0 * evs0 * efvs)
-!!          strain_rate%xy = tau0 * tau%xy / (2.d0 * evs0 * efvs)
           strain_rate%scalar = tau%scalar / (2.d0 * efvs)
           strain_rate%xz = tau%xz / (2.d0 * efvs)
           strain_rate%yz = tau%yz / (2.d0 * efvs)
