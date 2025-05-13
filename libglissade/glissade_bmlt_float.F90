@@ -594,7 +594,7 @@ module glissade_bmlt_float
              !        but for now a new compile is needed to use the PIGL numbers.
              if (model%options%bmlt_float_thermal_forcing_param == BMLT_FLOAT_TF_ISMIP6_LOCAL) then
 
-                ! MeanAnt
+                !MeanAnt
                 deltaT_basin_ismip6 = (/ 0.68,  0.15,  0.62,  0.87,  0.36,  0.05, -0.11,  0.51,  &
                                          1.28, -0.13, -0.95, -0.13, -0.17, -0.05,  0.12, -0.34 /)
 
@@ -616,7 +616,7 @@ module glissade_bmlt_float
 
                 if (main_task) print*, '   Assign nonlocal-slope values'
 
-                ! MeanAnt
+                ! MeanAnt ;Michele slightly changing this over Ross?
                 deltaT_basin_ismip6 = (/ 0.36, -0.03,  0.45,  0.05,  0.02, -0.22, -0.01,  0.37,  &
                                          0.64, -0.03, -0.58, -0.10, -0.11, -0.01,  0.14, -0.15 /)
 
