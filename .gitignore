@@ -43,3 +43,25 @@ P75R
 P75S
 Stnd
 mismip+Ice0
+
+#Ignore compiled topography files
+bin_to_cube/bin_to_cube
+bin_to_cube/bin_to_cube.o
+bin_to_cube/shr_kind_mod.mod
+bin_to_cube/shr_kind_mod.o
+cube_to_target/cube_to_target
+cube_to_target/cube_to_target.o
+cube_to_target/reconstruct.mod
+cube_to_target/reconstruct.o
+cube_to_target/remap.mod
+cube_to_target/remap.o
+cube_to_target/ridge_ana.mod
+cube_to_target/ridge_ana.o
+cube_to_target/rot.o
+cube_to_target/rotation.mod
+cube_to_target/shared_vars.mod
+cube_to_target/shared_vars.o
+cube_to_target/shr_kind_mod.mod
+cube_to_target/shr_kind_mod.o
+cube_to_target/smooth_topo_cube.o
+cube_to_target/smooth_topo_cube_sph.mod

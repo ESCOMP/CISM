@@ -46,7 +46,6 @@ module glimmer_ncio
 
   integer,parameter,private :: msglen=512
   
-  ! WHL - added subroutines for reading single fields at initialization
   interface glimmer_nc_get_var
      module procedure glimmer_nc_get_var_integer_2d
      module procedure glimmer_nc_get_var_real8_2d
@@ -85,7 +84,7 @@ contains
 
           call glimmer_nc_openappend(oc,model)
 
-       elseif (model%options%is_restart == RESTART_TRUE) then   ! reopen the file if it exists
+       elseif (model%options%is_restart == STANDARD_RESTART) then   ! reopen the file if it exists
 
           status = parallel_open(process_path(oc%nc%filename),NF90_WRITE,oc%nc%id)
 
@@ -101,6 +100,7 @@ contains
           endif
 
        else  ! assume the file does not exist; create it
+             ! Note: For hybrid restarts, the file is created at initialization
 
           call glimmer_nc_createfile(oc, model)
 
@@ -209,6 +209,9 @@ contains
 
     ! WHL - adding a vertical coordinate for ocean data
     NCO%nzocn = model%ocean_data%nzocn
+
+    ! WHL - adding a vertical coordinate for glacier data
+    NCO%nglacier = model%glacier%nglacier
 
   end subroutine glimmer_nc_openappend
 
@@ -344,6 +347,9 @@ contains
 
     ! WHL - adding a vertical coordinate for ocean data
     NCO%nzocn = model%ocean_data%nzocn
+
+    ! WHL - adding a vertical coordinate for glacier data
+    NCO%nglacier = model%glacier%nglacier
 
   end subroutine glimmer_nc_createfile
 
@@ -582,6 +588,9 @@ contains
     ! WHL - adding a vertical coordinate for ocean data
     NCI%nzocn = model%ocean_data%nzocn
 
+    ! WHL - adding a vertical coordinate for glacier data
+    NCI%nglacier = model%glacier%nglacier
+
     ! checking if dimensions and grid spacing are the same as in the configuration file
     ! x1
     status = parallel_inq_dimid(NCI%id,'x1',dimid)
@@ -706,7 +715,7 @@ contains
 
     implicit none
 
-    type(glimmer_nc_input), pointer :: infile  !> structure containg output netCDF descriptor
+    type(glimmer_nc_input), pointer :: infile  !> structure containing output netCDF descriptor
     type(glide_global_type) :: model    !> the model instance
     real(dp),optional :: time           !> Optional alternative time
 
@@ -741,21 +750,36 @@ contains
 
           if (pos /= 0 .or. pos_cesm /= 0) then   ! get the start time based on the current time slice
 
-             restart_time = infile%times(infile%current_time)      ! years
-             model%numerics%tstart = restart_time
-             model%numerics%time = restart_time
+             if (model%options%is_restart == STANDARD_RESTART) then
 
-             if (infile%tstep_counts_read) then
-                model%numerics%tstep_count = infile%tstep_counts(infile%current_time)
-             else
-                ! BACKWARDS_COMPATIBILITY(wjs, 2017-05-17) Older files may not have
-                ! 'tstep_count', so compute it ourselves here. We don't want to use this
-                ! formulation in general because it is prone to roundoff errors.
-                model%numerics%tstep_count = nint(model%numerics%time/model%numerics%tinc)
-             end if
+                restart_time = infile%times(infile%current_time)      ! years
+                model%numerics%tstart = restart_time
+                model%numerics%time = restart_time
 
-             write(message,*) 'Restart: New tstart, tstep_count =', model%numerics%tstart, model%numerics%tstep_count
-             call write_log(message)
+                if (infile%tstep_counts_read) then
+                   model%numerics%tstep_count = infile%tstep_counts(infile%current_time)
+                else
+                   ! BACKWARDS_COMPATIBILITY(wjs, 2017-05-17) Older files may not have
+                   ! 'tstep_count', so compute it ourselves here. We don't want to use this
+                   ! formulation in general because it is prone to roundoff errors.
+                   model%numerics%tstep_count = nint(model%numerics%time/model%numerics%tinc)
+                end if
+
+                write(message,*) 'Standard restart: New tstart, tstep_count =', &
+                     model%numerics%tstart, model%numerics%tstep_count
+                call write_log(message)
+
+             elseif (model%options%is_restart == HYBRID_RESTART) then
+
+                ! Use tstart from the config file, not the time from the restart file
+                model%numerics%time = model%numerics%tstart  ! years
+                model%numerics%tstep_count = 0
+
+                write(message,*) 'Hybrid restart: New tstart, tstep_count =', &
+                     model%numerics%tstart, model%numerics%tstep_count
+                call write_log(message)
+
+             endif   ! is_restart
 
           endif  ! pos/=0 or pos_cesm/=0
 
@@ -775,6 +799,11 @@ contains
           NCI%just_processed = .FALSE.
        end if
     end if
+
+    ! For read_once files, suppress the call to glide_io_read by setting just_processed = false
+    if (infile%read_once) then
+       NCI%just_processed = .FALSE.
+    endif
 
   contains
 
@@ -890,6 +919,56 @@ contains
       nc%vars_copy = nc%vars
 
   end subroutine check_for_tempstag
+
+  !------------------------------------------------------------------------------
+
+  subroutine glimmer_nc_get_dimlength(infile, dimname, dimlength)
+
+    !WHL, Feb. 2022:
+    ! This is a custom subroutine that opens an input file, finds the length
+    ! of a specific dimension, and closes the file.
+    ! It is useful for getting array dimension whose size is not known in advance.
+    ! Currently, it is called from glissade_initialise to get the length of the
+    ! glacierid dimension, without having to put 'nglacier' in the config file by hand.
+
+    use glimmer_ncdf
+    use glimmer_log
+    use glimmer_filenames, only: process_path
+
+    type(glimmer_nc_input), pointer :: infile  !> structure containg input netCDF descriptor
+    character(len=*), intent(in) :: dimname
+    integer, intent(out) :: dimlength
+
+    ! local variables
+    integer :: status, dimid
+
+    ! Open the file
+    status = parallel_open(process_path(infile%nc%filename), NF90_NOWRITE, infile%nc%id)
+    if (status /= NF90_NOERR) then
+       call write_log('Error opening file '//trim(process_path(infile%nc%filename))//': '//nf90_strerror(status),&
+            type=GM_FATAL, file=__FILE__,line=__LINE__)
+    end if
+    call write_log('Opening file '//trim(process_path(infile%nc%filename))//' for input')
+
+    ! get the dimension length
+    status = parallel_inq_dimid(infile%nc%id, trim(dimname), dimid)
+    if (status .eq. nf90_noerr) then
+       call write_log('Getting length of dimension'//trim(dimname)//' ')
+       status = parallel_inquire_dimension(infile%nc%id, dimid, len=dimlength)
+       if (status /= nf90_noerr) then
+          call write_log('Error getting dimlength '//trim(dimname)//':'//nf90_strerror(status),&
+               type=GM_FATAL, file=__FILE__,line=__LINE__)
+       endif
+    else
+       call write_log('Error getting dimension '//trim(dimname)//':'//nf90_strerror(status),&
+            type=GM_FATAL, file=__FILE__,line=__LINE__)
+    endif
+
+    ! close the file
+    status = nf90_close(infile%nc%id)
+    call write_log('Closing file '//trim(infile%nc%filename)//' ')
+
+  end subroutine glimmer_nc_get_dimlength
 
   !------------------------------------------------------------------------------
 

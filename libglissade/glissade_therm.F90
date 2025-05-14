@@ -181,7 +181,7 @@ module glissade_therm
     ! Method (3) may be optimal for reducing spinup time in the interior of large ice sheets.
     ! Option (4) requires that temperature is present in the input file.
 
-    if (is_restart == RESTART_TRUE) then
+    if (is_restart == STANDARD_RESTART .or. is_restart == HYBRID_RESTART) then
 
        ! Temperature has already been initialized from a restart file.
        ! (Temperature is always a restart variable.)
@@ -1122,7 +1122,7 @@ module glissade_therm
              if (abs((efinal-einit-delta_e)/dttem) > 1.0d-7) then
              ! WHL: For stability tests with a very short time step (e.g., < 1.d-6 year),
              !      the energy-conservation error can be triggered by machine roundoff.
-             !      For the tests in Robinson et al. (2021), I replaced the line above
+             !      For the slab tests in Robinson et al. (2021), I replaced the line above
              !      with the line below, which compares the error to the total energy.
              !      The latter criterion is less likely to give false positives,
              !       but might be more likely to give false negatives.
@@ -1266,6 +1266,14 @@ module glissade_therm
     ! Note: It is possible in principle to have internal melting in floating ice;
     !       if so, it is combined with bmlt_ground
     ! TODO: Treat melt_internal as a separate field in glissade_tstep?
+
+    ! WHL - debug
+    if (verbose_therm .and. this_rank == rtest) then
+       ew = itest
+       ns = jtest
+       print*, 'bmlt_ground (m/yr) w/out internal melt:', bmlt_ground(ew,ns)*scyr
+       print*, 'Internal melt (m/yr):', melt_internal(ew,ns)*scyr
+    endif
 
     bmlt_ground(:,:) = bmlt_ground(:,:) + melt_internal(:,:)
 
@@ -2389,7 +2397,9 @@ module glissade_therm
                                   which_ho_ground,                  &
                                   floating_mask,                    &
                                   f_ground_cell,                    &
-                                  waterfrac)
+                                  waterfrac,                           &
+                                  damage,                              &
+                                  damage_flwa_feedback)
 
     ! Calculate Glen's $A$ over the 3D domain, using one of three possible methods.
     !
@@ -2448,6 +2458,8 @@ module glissade_therm
     integer, dimension(:,:),   intent(in)    :: floating_mask       !> = 1 for floating ice
     real(dp),dimension(:,:),   intent(in)    :: f_ground_cell       !> grounded ice fraction in cell, 0 to 1
     real(dp),dimension(:,:,:), intent(in), optional :: waterfrac    !> internal water content fraction, 0 to 1
+    real(dp),dimension(:,:,:), intent(in), optional :: damage      !> damage tracer, 0 to 1
+    logical, intent(in), optional :: damage_flwa_feedback     !> if true, let flwa increase with damage
 
     !> \begin{description}
     !> \item[0] Set to prescribed constant value.
@@ -2472,6 +2484,10 @@ module glissade_therm
     
     real(dp), parameter :: const_temp = -5.0d0   ! deg C
     real(dp), parameter :: flwa_waterfrac_enhance_factor = 181.25d0
+
+    real(dp), parameter :: flwa_damage_max = 0.95d0   ! max damage value used to enhance flwa
+    real(dp), parameter :: nexp_damage = 1.0d0        ! exponent in damage-flwa relation
+!!    real(dp), parameter :: nexp_damage = 3.0d0      ! exponent in damage-flwa relation
 
     !------------------------------------------------------------------------------------
    
@@ -2587,6 +2603,20 @@ module glissade_therm
        ! do nothing (flwa is set above, with units Pa^{-n} s^{-1})
 
     end select
+
+    ! Optionally, increase flwa (i.e., make the ice softer) where damage > 0
+    ! Note: Sun et al. (2017) increase flwa by a factor of 1/(1 - d)^gn, where gn is the Glen exponent.
+    !       For simplicity, we assume a linear relationship here.
+
+    if (present(damage) .and. present(damage_flwa_feedback)) then
+       if (damage_flwa_feedback) then
+          where (damage < flwa_damage_max)
+             flwa = flwa / (1.0d0 - damage)**nexp_damage
+          elsewhere
+             flwa = flwa / (1.0d0 - flwa_damage_max)**nexp_damage
+          endwhere
+       endif
+    endif
 
     ! Change flwa to model units (glissade_flow_factor assumes SI units of Pa{-n} s^{-1})
     flwa(:,:,:) = flwa(:,:,:) / vis0
