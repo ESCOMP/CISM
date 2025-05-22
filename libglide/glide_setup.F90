@@ -974,7 +974,7 @@ contains
 
     !TODO - Change 'marine_margin' to 'calving'?  Would have to modify many config files
     character(len=*), dimension(0:12), parameter :: marine_margin = (/ &
-         'no calving law                     ', &
+         'no calving law                    ', &
          'remove all floating ice           ', &
          'remove fraction of floating ice   ', &
          'relaxed bedrock threshold         ', &
