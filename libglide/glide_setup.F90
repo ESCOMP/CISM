@@ -794,6 +794,7 @@ contains
     call GetValue(section, 'which_ho_nonlinear',          model%options%which_ho_nonlinear)
     call GetValue(section, 'which_ho_sparse',             model%options%which_ho_sparse)
     call GetValue(section, 'which_ho_approx',             model%options%which_ho_approx)
+    call GetValue(section, 'diva_slope_correction',       model%options%diva_slope_correction)
     call GetValue(section, 'which_ho_precond',            model%options%which_ho_precond)
     call GetValue(section, 'which_ho_gradient',           model%options%which_ho_gradient)
     call GetValue(section, 'which_ho_gradient_margin',    model%options%which_ho_gradient_margin)
@@ -1295,6 +1296,12 @@ contains
           endif
 
        endif  ! Glissade local SIA solver
+
+       if (model%options%which_ho_approx == HO_APPROX_DIVA) then
+          if (model%options%diva_slope_correction) then
+             call write_log('DIVA solver includes a correction for steep slopes')
+          endif
+       endif
 
     endif
 
@@ -3311,8 +3318,8 @@ contains
 
     character(len=*), dimension(0:2), parameter :: glacier_set_powerlaw_c = (/ &
          'spatially uniform glacier parameter Cp', &
-         'glacier-specific Cp found by inversion', &
-         'glacier-specific Cp read from file    ' /)
+         'Cp for glaciers found by inversion    ', &
+         'Cp for glaciers read from file        ' /)
 
     character(len=*), dimension(0:1), parameter :: glacier_snow_calc = (/ &
          'read in snowfall rate directly            ', &
