@@ -9377,7 +9377,7 @@
        call parallel_halo(theta_basal_slope_x, parallel)
        call parallel_halo(theta_basal_slope_y, parallel)
 
-       if ((verbose_basal .or. verbose_beta) .and. this_rank==rtest) then
+       if (verbose_basal .and. this_rank==rtest) then
           print*, ' '
           print*, 'theta_basal_slope_x (deg):'
           do j = jtest+2, jtest-2, -1

@@ -70,7 +70,6 @@ module glissade
 
   integer, private, parameter :: dummyunit=99
   logical, parameter :: verbose_glissade = .false.
-!!  logical, parameter :: verbose_glissade = .true.
 
   ! Change any of the following logical parameters to true to carry out simple tests
   logical, parameter :: test_transport = .false.    ! if true, call test_transport subroutine
@@ -1336,22 +1335,23 @@ contains
           enddo
           write(6,*) ' '
        enddo
-       print*, ' '
-       print*, 'bmlt_ground (m/yr):'
-       do j = jtest+3, jtest-3, -1
-          do i = itest-3, itest+3
-             write(6,'(f10.3)',advance='no') model%basal_melt%bmlt_ground(i,j)*scyr
-          enddo
-          write(6,*) ' '
-       enddo
-       print*, ' '
-       print*, 'bmlt_float (m/yr):'
-       do j = jtest+3, jtest-3, -1
-          do i = itest-3, itest+3
-             write(6,'(f10.3)',advance='no') model%basal_melt%bmlt_float(i,j)*scyr
-          enddo
-          write(6,*) ' '
-       enddo
+       !TODO - Not sure units are correct for the bmlt fields
+!       print*, ' '
+!       print*, 'bmlt_ground (m/yr):'
+!       do j = jtest+3, jtest-3, -1
+!          do i = itest-3, itest+3
+!             write(6,'(f10.3)',advance='no') model%basal_melt%bmlt_ground(i,j)*scyr
+!          enddo
+!          write(6,*) ' '
+!       enddo
+!       print*, ' '
+!       print*, 'bmlt_float (m/yr):'
+!       do j = jtest+3, jtest-3, -1
+!          do i = itest-3, itest+3
+!             write(6,'(f10.3)',advance='no') model%basal_melt%bmlt_float(i,j)*scyr
+!          enddo
+!          write(6,*) ' '
+!       enddo
     endif
 
     ! ------------------------------------------------------------------------ 
@@ -1466,7 +1466,6 @@ contains
     real(dp), dimension(model%general%ewn, model%general%nsn) ::   &
          bmlt_float_transient     ! basal melt rate for ISMIP6 thermal forcing (m/s)
 
-    real(dp) :: previous_time     ! time (yr) at the end of the previous timestep
     real(dp) :: time_from_start   ! time (yr) since the start of applying the anomaly
     real(dp) :: anomaly_fraction  ! fraction of full anomaly to apply
     real(dp) :: tf_anomaly        ! uniform thermal forcing anomaly (deg C), applied everywhere
@@ -1642,17 +1641,12 @@ contains
 
     if (model%options%enable_bmlt_anomaly) then
 
-       ! Compute the previous time
-       ! Note: When being ramped up, the anomaly is not incremented until after the final time step of the year.
-       !       This is the reason for passing the previous time to the subroutine.
-       previous_time = model%numerics%time - model%numerics%dt * tim0/scyr
-
        ! Add the bmlt_float anomaly where ice is present and floating
        call glissade_add_2d_anomaly(model%basal_melt%bmlt_float,              &   ! scaled model units
                                     model%basal_melt%bmlt_float_anomaly,      &   ! scaled model units
                                     model%basal_melt%bmlt_anomaly_tstart,     &   ! yr
                                     model%basal_melt%bmlt_anomaly_timescale,  &   ! yr
-                                    previous_time)                                ! yr
+                                    model%numerics%time)                          ! yr
 
     endif
 
@@ -1803,9 +1797,6 @@ contains
        bmlt_ground_unscaled,   & ! basal melt rate for grounded ice (m/s)
        bwat_unscaled             ! basal water thickness (m)
 
-    real(dp) :: previous_time       ! time (yr) at the start of this time step
-                                    ! (model%numerics%time is the time at the end of the step.)
-
     integer :: i, j, up
     integer :: itest, jtest, rtest
 
@@ -1893,15 +1884,11 @@ contains
 
     if (model%options%enable_artm_anomaly) then
 
-       ! Note: When being ramped up, the anomaly is not incremented until after the final time step of the year.
-       !       This is the reason for passing the previous time to the subroutine.
-       previous_time = model%numerics%time - model%numerics%dt * tim0/scyr
-
        call glissade_add_2d_anomaly(model%climate%artm_corrected,          &   ! degC
                                     model%climate%artm_anomaly,            &   ! degC
                                     model%climate%artm_anomaly_tstart,     &   ! yr
                                     model%climate%artm_anomaly_timescale,  &   ! yr
-                                    previous_time)                             ! yr
+                                    model%numerics%time)                       ! yr
     endif
 
     ! Similar calculations for snow and precip anomalies
@@ -1913,34 +1900,30 @@ contains
 
     if (model%options%enable_snow_anomaly) then
 
-       previous_time = model%numerics%time - model%numerics%dt * tim0/scyr
-
        call glissade_add_2d_anomaly(model%climate%snow_corrected,          &   ! mm/yr w.e.
                                     model%climate%snow_anomaly,            &   ! mm/yr w.e.
                                     model%climate%artm_anomaly_tstart,     &   ! yr
                                     model%climate%artm_anomaly_timescale,  &   ! yr
-                                    previous_time)                             ! yr
+                                    model%numerics%time)                       ! yr
     endif
 
     model%climate%precip_corrected(:,:) = model%climate%precip(:,:)
 
     if (model%options%enable_precip_anomaly) then
 
-       previous_time = model%numerics%time - model%numerics%dt * tim0/scyr
-
        call glissade_add_2d_anomaly(model%climate%precip_corrected,        &   ! mm/yr w.e.
                                     model%climate%precip_anomaly,          &   ! mm/yr w.e.
                                     model%climate%artm_anomaly_tstart,     &   ! yr
                                     model%climate%artm_anomaly_timescale,  &   ! yr
-                                    previous_time)                             ! yr
+                                    model%numerics%time)                       ! yr
     endif
 
     if (verbose_glissade .and. this_rank==rtest) then
        if (model%options%enable_artm_anomaly) then
           i = itest
           j = jtest
-          print*, 'rank, i, j, previous_time, current time, anomaly timescale (yr):', &
-               this_rank, i, j, previous_time, model%numerics%time, model%climate%artm_anomaly_timescale
+          print*, 'rank, i, j, time, anomaly timescale (yr):', &
+               this_rank, i, j, model%numerics%time, model%climate%artm_anomaly_timescale
           print*, '   artm, artm anomaly, corrected artm (deg C):', model%climate%artm(i,j), &
                model%climate%artm_anomaly(i,j), model%climate%artm_corrected(i,j)
           if (model%options%enable_snow_anomaly) then
@@ -2183,9 +2166,6 @@ contains
     real(dp), dimension(model%general%ewn, model%general%nsn) ::  &
        thck_flotation          ! thickness at which ice is exactly floating
 
-    real(dp) :: previous_time       ! time (yr) at the start of this time step
-                                    ! (model%numerics%time is the time at the end of the step.)
-
     real(dp) :: advective_cfl       ! advective CFL number
                                     ! If advective_cfl > 1, the model is unstable without subcycling
     real(dp) :: dt_transport        ! time step (s) for transport; = model%numerics%dt*tim0 by default
@@ -2214,7 +2194,6 @@ contains
     character(len=100) :: message
 
     logical, parameter :: verbose_smb = .false.
-!!    logical, parameter :: verbose_smb = .true.
 
     rtest = -999
     itest = 1
@@ -2768,21 +2747,17 @@ contains
 
           call parallel_halo(model%climate%acab_anomaly, parallel)
 
-          ! Note: When being ramped up, the anomaly is not incremented until after the final time step of the year.
-          !       This is the reason for passing the previous time to the subroutine.
-          previous_time = model%numerics%time - model%numerics%dt * tim0/scyr
-
           call glissade_add_2d_anomaly(model%climate%acab_corrected,          &   ! scaled model units
                                        model%climate%acab_anomaly,            &   ! scaled model units
                                        model%climate%acab_anomaly_tstart,     &   ! yr
                                        model%climate%acab_anomaly_timescale,  &   ! yr
-                                       previous_time)                             ! yr
+                                       model%numerics%time)                       ! yr
 
           if (verbose_smb .and. this_rank==rtest) then
              i = itest
              j = jtest
-             print*, 'i, j, previous_time, input acab, acab anomaly, corrected acab (m/yr):', &
-                  i, j, previous_time, model%climate%acab(i,j)*thk0*scyr/tim0,  &
+             print*, 'i, j, time, input acab, acab anomaly, corrected acab (m/yr):', &
+                  i, j, model%numerics%time, model%climate%acab(i,j)*thk0*scyr/tim0,  &
                   model%climate%acab_anomaly(i,j)*thk0*scyr/tim0,  &
                   model%climate%acab_corrected(i,j)*thk0*scyr/tim0
           endif

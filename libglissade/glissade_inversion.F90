@@ -1026,7 +1026,7 @@ contains
              term_relax = 0.0d0
           endif
 
-          ! The remaining logic applied whether or not the cell is grounded
+          ! The remaining logic applies whether or not the cell is grounded
 
           ! Sum the terms
           dlogC(i,j) = (term_thck + term_dHdt + term_laplacian + term_relax) * dt
