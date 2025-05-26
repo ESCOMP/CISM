@@ -47,8 +47,8 @@
     save
     private
 
-    public :: glissade_mass_balance_init, glissade_apply_smb, &
-         glissade_mass_balance_driver, glissade_add_2d_anomaly, glissade_add_3d_anomaly
+    public :: glissade_mass_balance_init, glissade_prepare_climate_forcing,  &
+         glissade_apply_smb, glissade_add_2d_anomaly, glissade_add_3d_anomaly
     public :: verbose_smb
 
 !!    logical, parameter :: verbose_smb = .false.
@@ -135,54 +135,27 @@
 
 !=======================================================================
 
-  subroutine glissade_apply_smb(model, thck_unscaled, topg_unscaled)
+  subroutine glissade_prepare_climate_forcing(model)
 
-    !TODO - Let this subroutine work with smb units mostly, and then convert to acab at the end?
+    ! Given the climate input fields (some combination of artm, acab, snow and precip)
+    !  and the SMB input options (2D, 2D with vertical gradient, or 3D), compute the current SMB,
+    !  downscaling to the current surface elevation if needed.
+    ! Also add anomaly terms, if needed, and do any required unit conversions.
 
-    ! Given the climate input fields (some combination of acab, artm, and precip)
-    ! and the SMB input options (2D, 2D with vertical gradient, or 3D), compute the current SMB,
-    ! downscaling to the current surface elevation if needed.
-
-    ! Then apply the SMB at the upper and lower surfaces, and recompute tracer values.
-
-    use glimmer_paramets, only: eps11
     use glimmer_physcon, only: rhow, rhoi, scyr
     use glide_diagnostics, only: point_diag
     use glissade_grid_operators, only: glissade_vertical_interpolate
-    use glissade_masks, only: glissade_get_masks, glissade_extend_mask
-    use glissade_calving, only: verbose_calving
+    use glissade_masks, only: glissade_extend_mask
+    use cism_parallel, only: parallel_is_nonzero
 
     ! input/output arguments
 
     type(glide_global_type), intent(inout) :: model   ! model instance
 
-    !TODO - Fix scaling so that these are in the model derived type
-    real(dp), dimension(model%general%ewn,model%general%nsn), intent(inout) ::   &
-         thck_unscaled        ! ice thickness (m)
-
-    real(dp), dimension(model%general%ewn,model%general%nsn), intent(in) ::   &
-         topg_unscaled        ! bedrock topography (m)
-
     ! local variables
 
-    real(dp), dimension(model%general%ewn,model%general%nsn) ::   &
-         acab,              & ! surface mass balance (m/s), possibly adjusted based on dH/dt
-         bmlt                 ! = bmlt (m/s) if basal mass balance is included in continuity equation, else = 0
-
-    ! masks
     integer, dimension(model%general%ewn, model%general%nsn) ::   &
-       ice_mask,               & ! = 1 if thck > 0, else = 0
-       floating_mask,          & ! = 1 where ice is present and floating, else = 0
-       ocean_mask,             & ! = 1 if topg is below sea level and thck = 0, else = 0
-       land_mask,              & ! = 1 if topg is at or above sea level, else = 0
-       calving_front_mask,     & ! = 1 where ice is floating and borders an ocean cell, else = 0
        extended_ice_sheet_mask   ! extension of ice_sheet_mask to include neighbor cells
-
-    character(len=100) :: message
-    real(dp) :: local_maxval, global_maxval
-
-    real(dp) :: previous_time           ! time (yr) at the start of this time step
-                                        ! (model%numerics%time is the time at the end of the step.)
 
     integer :: itest, jtest, rtest      ! coordinates of diagnostic cell
     integer :: i, j, k
@@ -190,6 +163,10 @@
     integer :: nlev_smb                 ! number of levels at which the 3D SMB is computed
 
     type(parallel_type) :: parallel     ! info for parallel communication
+
+    character(len=100) :: message
+
+    ! initialize
 
     rtest = -999
     itest = 1
@@ -207,7 +184,115 @@
 
     parallel = model%parallel
 
-    !TODO: Make the code changes described in the notes below.
+    ! Downscale artm to the current surface elevation if needed.
+    ! The downscaling options are:
+    ! (0) artm(x,y); no dependence on surface elevation
+    ! (1) artm(x,y) + d(artm)/dz(x,y) * dz; artm depends on input field at reference elevation, plus vertical correction
+    ! (2) artm(x,y,z); artm obtained by linear interpolation between values prescribed at adjacent vertical levels
+    ! (3) artm(x,y) adjusted with a uniform lapse rate
+    ! For options (1) - (3), the elevation-dependent artm is computed here.
+
+    if (model%options%artm_input_function == ARTM_INPUT_FUNCTION_XY_GRADZ) then
+
+       ! compute artm by a lapse-rate correction to the reference value
+       model%climate%artm(:,:) = model%climate%artm_ref(:,:) + &
+            (model%geometry%usrf(:,:) - model%climate%usrf_ref(:,:)) * model%climate%artm_gradz(:,:)
+
+    elseif (model%options%artm_input_function == ARTM_INPUT_FUNCTION_XYZ) then
+
+       ! Note: With linear_extrapolate_in = T, the values outside the range are obtained by linear extrapolation
+       !        from the top two or bottom two values.
+       !       For temperature, which varies roughly linearly with elevation, this is more accurate
+       !        than simply extending the top and bottom values.
+       !       This call includes a halo update.
+
+       call glissade_vertical_interpolate(ewn,                   nsn,                       &
+                                          nlev_smb,              model%climate%smb_levels,  &
+                                          model%geometry%usrf,                              &
+                                          model%climate%artm_3d,                            &
+                                          model%climate%artm,                               &
+                                          linear_extrapolate_in = .true.)
+
+    elseif (model%options%artm_input_function == ARTM_INPUT_FUNCTION_XY_LAPSE) then
+
+       ! compute artm by a lapse-rate correction to artm_ref
+       ! T_lapse is defined as positive for T decreasing with height
+
+       model%climate%artm(:,:) = model%climate%artm_ref(:,:) - &
+            (model%geometry%usrf(:,:) - model%climate%usrf_ref(:,:)) * model%climate%t_lapse
+
+    endif   ! artm_input_function
+
+    call parallel_halo(model%climate%artm, parallel)
+
+    ! Optionally, add an anomaly to the surface air temperature
+    ! Typically, artm_corrected = artm, but sometimes (e.g., for ISMIP6 forcing experiments),
+    !  it includes a time-dependent anomaly.
+    ! Note that artm itself does not change in time, unless it is elevation-dependent.
+
+    model%climate%artm_corrected(:,:) = model%climate%artm(:,:)
+
+    if (model%options%enable_artm_anomaly) then
+
+       call glissade_add_2d_anomaly(&
+            model%climate%artm_corrected,          &   ! degC
+            model%climate%artm_anomaly,            &   ! degC
+            model%climate%artm_anomaly_tstart,     &   ! yr
+            model%climate%artm_anomaly_timescale,  &   ! yr
+            model%numerics%time)                       ! yr
+
+    endif
+
+    ! Similar calculations for snow and precip anomalies
+    ! Note: These variables are currently used only to compute glacier SMB.
+    !       There are assumed to have the same timescale as artm_anomaly.
+    ! TODO: Define a single anomaly timescale for all anomaly forcing?
+
+    model%climate%snow_corrected(:,:) = model%climate%snow(:,:)
+
+    if (model%options%enable_snow_anomaly) then
+
+       call glissade_add_2d_anomaly(&
+            model%climate%snow_corrected,          &   ! mm/yr w.e.
+            model%climate%snow_anomaly,            &   ! mm/yr w.e.
+            model%climate%artm_anomaly_tstart,     &   ! yr
+            model%climate%artm_anomaly_timescale,  &   ! yr
+            model%numerics%time)                       ! yr
+
+    endif
+
+    model%climate%precip_corrected(:,:) = model%climate%precip(:,:)
+
+    if (model%options%enable_precip_anomaly) then
+
+       call glissade_add_2d_anomaly(&
+            model%climate%precip_corrected,        &   ! mm/yr w.e.
+            model%climate%precip_anomaly,          &   ! mm/yr w.e.
+            model%climate%artm_anomaly_tstart,     &   ! yr
+            model%climate%artm_anomaly_timescale,  &   ! yr
+            model%numerics%time)                       ! yr
+
+    endif
+
+    if (verbose_smb .and. this_rank==rtest) then
+       if (model%options%enable_artm_anomaly) then
+          i = itest
+          j = jtest
+          write(6,*) 'rank, i, j, time, anomaly timescale (yr):', &
+               this_rank, i, j, model%numerics%time, model%climate%artm_anomaly_timescale
+          write(6,*) '   artm, artm anomaly, corrected artm (deg C):', model%climate%artm(i,j), &
+               model%climate%artm_anomaly(i,j), model%climate%artm_corrected(i,j)
+          if (model%options%enable_snow_anomaly) then
+             write(6,*) '   snow, snow anomaly, corrected snow (mm/yr):', model%climate%snow(i,j), &
+                  model%climate%snow_anomaly(i,j), model%climate%snow_corrected(i,j)
+          endif
+          if (model%options%enable_precip_anomaly) then
+             write(6,*) '   prcp, prcp anomaly, corrected prcp (mm/yr):', model%climate%precip(i,j), &
+                  model%climate%precip_anomaly(i,j), model%climate%precip_corrected(i,j)
+          endif
+       endif   ! enable_artm_anomaly
+    endif   ! verbose
+
     !-------------------------------------------------------------------------
     ! Some notes on SMB fields and units:
     !
@@ -275,14 +360,15 @@
 
     if (model%options%smb_input_function == SMB_INPUT_FUNCTION_XY_GRADZ .or. &
         model%options%smb_input_function == SMB_INPUT_FUNCTION_XYZ) then
-       local_maxval = maxval(abs(model%climate%smb))
-       global_maxval = parallel_reduce_max(local_maxval)
-       if (global_maxval < eps11) then
+       if (parallel_is_nonzero(model%climate%smb)) then
+          ! all is well
+       else
           write(message,*) 'Error: smb = 0 everywhere with smb_input_function =', model%options%smb_input_function
           call write_log(trim(message), GM_FATAL)
        endif
     endif
 
+    ! optional diagnostics
     if (verbose_smb) then
 
        if (this_rank == rtest) then
@@ -333,28 +419,24 @@
 
        call parallel_halo(model%climate%smb_anomaly, parallel)
 
-       ! Note: When being ramped up, the anomaly is not incremented until after the final time step of the year.
-       !       This is the reason for passing the previous time to the subroutine.
-       previous_time = model%numerics%time - model%numerics%dt/scyr
-
        call glissade_add_2d_anomaly(&
             model%climate%smb_corrected,           &   ! scaled model units
             model%climate%smb_anomaly,             &   ! mm/yr w.e.
             model%climate%smb_anomaly_tstart,      &   ! yr
             model%climate%smb_anomaly_timescale,   &   ! yr
-            previous_time)                             ! yr
+            model%numerics%time)                       ! yr
 
        if (verbose_smb .and. this_rank==rtest) then
           i = itest
           j = jtest
-          write(6,*) 'i, j, previous_time, input smb, smb anomaly, corrected smb (mm/yr):', &
-               i, j, previous_time, model%climate%smb(i,j), model%climate%smb_anomaly(i,j), model%climate%smb_corrected(i,j)
+          write(6,*) 'i, j, time, input smb, smb anomaly, corrected smb (mm/yr):', &
+               i, j, model%numerics%time, model%climate%smb(i,j), model%climate%smb_anomaly(i,j), model%climate%smb_corrected(i,j)
        endif
 
     endif
 
     ! Note on glacier SMB calculations
-    ! Glaciers require smb_input = SMB_INPUT_MMYR_EW and compute SMB as follows:
+    ! Glaciers require smb_input = SMB_INPUT_MMYR_WE and compute SMB as follows:
     ! * Temperature and snowfall are accumulated during each call to glissade_glacier_update.
     ! * The annual mean SMB is computed at the end of the year in units of mm/yr w.e.
     !   and copied to model%climate%smb,
@@ -403,9 +485,6 @@
 
     endif
 
-    ! Copy model%climate%acab to a local array
-    acab = model%climate%acab
-
     ! Optionally, correct acab by adding (-dthck_dt_obs_basin) where ice is floating.
     ! (Note: model%climate%acab does not change.)
     ! During inversions for deltaT_ocn, this will generally force a positive ocean melt rate
@@ -421,28 +500,84 @@
     if (model%options%enable_acab_dthck_dt_correction) then
 
        if (verbose_smb) then
-          call point_diag(acab*scyr, 'acab (m/yr)', itest, jtest, rtest, 7, 7)
+          call point_diag(model%climate%acab*scyr, 'acab (m/yr)', itest, jtest, rtest, 7, 7)
        endif
 
        where (model%geometry%f_ground_cell < 1.0d0 .and. model%geometry%dthck_dt_obs_basin < 0.0d0)
           ! floating ice is thinning in obs; apply a positive correction to acab
           ! Note: dthck_dt_obs_basin has units of m/yr; convert to m/s
-          acab = acab - (1.0d0 - model%geometry%f_ground_cell) * (model%geometry%dthck_dt_obs_basin/scyr)
+          model%climate%acab = model%climate%acab &
+               - (1.0d0 - model%geometry%f_ground_cell) * (model%geometry%dthck_dt_obs_basin/scyr)
        endwhere
 
        if (verbose_smb) then
           call point_diag(-model%geometry%dthck_dt_obs_basin, 'dthck_dt_obs correction (m/yr)', itest, jtest, rtest, 7, 7)
-          call point_diag(acab*scyr, 'new acab (m/yr)', itest, jtest, rtest, 7, 7)
+          call point_diag(model%climate%acab*scyr, 'new acab (m/yr)', itest, jtest, rtest, 7, 7)
        endif
 
     endif   ! enable_acab_dthck_dt_correction
+
+  end subroutine glissade_prepare_climate_forcing
+
+!=======================================================================
+
+  subroutine glissade_apply_smb(model)
+
+    ! Apply the SMB at the upper and lower surfaces, and recompute tracer values.
+
+    use glimmer_paramets, only: eps11
+    use glimmer_physcon, only: rhow, rhoi, scyr
+    use glide_diagnostics, only: point_diag
+    use glissade_masks, only: glissade_get_masks
+    use glissade_calving, only: verbose_calving
+
+    ! input/output arguments
+
+    type(glide_global_type), intent(inout) :: model   ! model instance
+
+    ! local variables
+
+    real(dp), dimension(model%general%ewn,model%general%nsn) ::   &
+         bmlt                 ! = model%basal_melt%bmlt (m/s) if basal mass balance is included in continuity equation, else = 0
+
+    ! masks
+    integer, dimension(model%general%ewn, model%general%nsn) ::   &
+         ice_mask,               & ! = 1 if thck > 0, else = 0
+         floating_mask,          & ! = 1 where ice is present and floating, else = 0
+         ocean_mask,             & ! = 1 if topg is below sea level and thck = 0, else = 0
+         land_mask,              & ! = 1 if topg is at or above sea level, else = 0
+         calving_front_mask        ! = 1 where ice is floating and borders an ocean cell, else = 0
+
+    character(len=100) :: message
+
+    integer :: itest, jtest, rtest      ! coordinates of diagnostic cell
+    integer :: i, j, k
+    integer :: ewn, nsn, upn
+    integer :: nlev_smb                 ! number of levels at which the 3D SMB is computed
+
+    type(parallel_type) :: parallel     ! info for parallel communication
+
+    rtest = -999
+    itest = 1
+    jtest = 1
+    if (this_rank == model%numerics%rdiag_local) then
+       rtest = model%numerics%rdiag_local
+       itest = model%numerics%idiag_local
+       jtest = model%numerics%jdiag_local
+    endif
+
+    ewn = model%general%ewn
+    nsn = model%general%nsn
+    upn = model%general%upn
+    nlev_smb = model%climate%nlev_smb
+
+    parallel = model%parallel
 
     ! Convert bmlt to SI units (m/s)
     ! Note: bmlt is the sum of bmlt_ground (computed in glissade_thermal_solve) and bmlt_float
     !       (computed in glissade_bmlt_float_solve).
     ! Note: bmlt can be turned off by setting options%basal_mbal = BASAL_MBAL_NO_CONTINUITY
 
-    !TODO - Change name to just 'bmlt'?
     if (model%options%basal_mbal == BASAL_MBAL_CONTINUITY) then    ! include bmlt in continuity equation
        bmlt(:,:) = model%basal_melt%bmlt(:,:)
     else                                                           ! do not include bmlt in continuity equation
@@ -460,7 +595,7 @@
     ! ------------------------------------------------------------------------
 
     !Note: If not using the subgrid CF, then we should recompute effective_areafrac before
-    !       the call to glissade_mass_balance_driver. This allows us to remove small thin ice
+    !       the call to mass_balance_driver. This allows us to remove small thin ice
     !       from marine cells with negative acab or positive bmlt.
     !      If using the subgrid CF, use the pre-transport masks. Thin ice in ocean cells
     !       will be removed with different logic based on protected_mask.
@@ -470,8 +605,8 @@
        call glissade_get_masks(&
             ewn,              nsn,              &
             parallel,                           &
-            thck_unscaled,                      &   ! m
-            topg_unscaled,                      &   ! m
+            model%geometry%thck,                &   ! m
+            model%geometry%topg,                &   ! m
             model%climate%eus,                  &   ! m
             0.0d0,                              &   ! thklim = 0
             ice_mask,                           &
@@ -496,7 +631,7 @@
     endif  ! which_ho_calving_front
 
     ! TODO: Zero out acab and bmlt in cells that are ice-free ocean after transport?
-    !       Then it would not be necessary to pass ocean_mask to glissade_mass_balance_driver.
+    !       Then it would not be necessary to pass ocean_mask to mass_balance_driver.
 
     ! Initialize the applied acab and bmlt.
     ! Note: These are smaller in magnitude than the input acab and bmlt for cells where either
@@ -515,15 +650,17 @@
     ! ------------------------------------------------------------------------
 
     !TODO - Inline some of the code in this subroutine?
-    call glissade_mass_balance_driver(&
+    !       As it is, this subroutine does very little other than call mass_balance_driver.
+
+    call mass_balance_driver(&
          model%numerics%dt,                                    &  ! s
          model%numerics%dew,       model%numerics%dns,     &  ! m
          ewn,         nsn,         upn-1,                  &
          model%numerics%sigma,                             &
          parallel,                                         &
          itest,       jtest,       rtest,                  &
-         thck_unscaled(:,:),                               &  ! m
-         acab(:,:),                                        &  ! m/s
+         model%geometry%thck(:,:),                         &  ! m
+         model%climate%acab(:,:),                          &  ! m/s
          bmlt(:,:),                                        &  ! m/s
          model%climate%acab_applied(:,:),                  &  ! m/s
          model%basal_melt%bmlt_applied(:,:),               &  ! m/s
@@ -536,13 +673,12 @@
          model%options%which_ho_vertical_remap)
 
     !       End of mass balance code
-    ! Note: Need to return thck, acab, and bmlt in model units?
 
   end subroutine glissade_apply_smb
 
 !=======================================================================
 
-  subroutine glissade_mass_balance_driver(&
+  subroutine mass_balance_driver(&
        dt,                         &
        dx,           dy,           &
        nx,           ny,           &
@@ -817,7 +953,7 @@
 
     endif  ! max_acab > 0 or max_bmlt > 0
 
-  end subroutine glissade_mass_balance_driver
+  end subroutine mass_balance_driver
 
 !=======================================================================
 
