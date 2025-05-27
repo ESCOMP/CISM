@@ -1001,7 +1001,7 @@ module glide_types
     !> \item[5]  Hybrid solver combining an SSA basal solve with a local vertical SIA solve
     !> \end{description}
 
-    logical :: diva_slope_correction = .false.
+    logical :: diva_slope_correction = .true.
     !> Flag that indicates whether the DIVA solver includes a correction for steep slopes
 
     integer :: which_ho_precond = 2    
