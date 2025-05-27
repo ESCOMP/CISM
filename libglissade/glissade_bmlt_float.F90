@@ -980,7 +980,7 @@ module glissade_bmlt_float
             topg,                              &  ! m
             thermal_forcing_mask,              &
             marine_connection_mask,            &
-            ice_mask, ocean_mask,              & !
+            ice_mask, ocean_mask, f_ground_cell, & !
             unphys_val,                        &  ! identifies unfilled cells on input
             unphys_val,                       &  ! default value given to unfilled cells on output
             ocean_data%thermal_forcing)
@@ -1441,7 +1441,7 @@ module glissade_bmlt_float
        lsrf,            topg,                  &
        thermal_forcing_mask,                   &
        marine_connection_mask,                 &
-       ice_mask, ocean_mask,                   &
+       ice_mask, ocean_mask, f_ground_cell,    &
        unphys_val,      default_val,           &
        thermal_forcing)
 
@@ -1992,89 +1992,12 @@ module glissade_bmlt_float
  
        call parallel_halo(thermal_forcing, parallel)
 
-    !Michele: simple attent to smooth extrapolated fields 
-     
-    if(model%options%smooth_extrapocean) then
-      call write_log('Smoothing of extrapolated ocean data.')
-        
-    where(thermal_forcing > thermal_forcing_max .OR. thermal_forcing < thermal_forcing_min)
-            unphys_mask = 0
-    elsewhere
-            unphys_mask = 1
-    endwhere 
-    
-    write(message,*) 'Number of iterations is ',model%options%smoothiter
-    call write_log(message)
+       ! Insert an unphysical value at the global boundary.
+       ! This is done to handle the case that global_bc = no_ice,
+       !  which puts zeroes in global boundary cells.
+       ! We do not want these zeroes to be interpreted as realistic thermal_forcing values.
+       call parallel_boundary_value(thermal_forcing, unphys_val, parallel)
 
-    phi1 = thermal_forcing
-
-    do iter = 1, model%options%smoothiter
-
-    write(message,*) 'Iteration', iter, 'of ', model%options%smoothiter
-    call write_log(message)
-
-    do j = nhalo+1, ny-nhalo
-         do i = nhalo+1, nx-nhalo
-            if (thermal_forcing_mask(i,j) == 1) then
-               do k = ktop(i,j), kbot(i,j)
-                  if(unphys_mask(k,i,j) == 1) then
-                    
-                     !Gaussian smoothing
-
-                     sum_mask = &
-                        1*unphys_mask(k,i-2,j-2) + 1*unphys_mask(k,i-2,j+2) + 1*unphys_mask(k,i+2,j-2) + 1*unphys_mask(k,i+2,j+2) + &
-                        4*unphys_mask(k,i-1,j-2) + 4*unphys_mask(k,i-2,j-1) + &
-                        4*unphys_mask(k,i+1,j-2) + 4*unphys_mask(k,i+2,j-1) + &
-                        4*unphys_mask(k,i+1,j+2) + 4*unphys_mask(k,i+2,j+1) + &
-                        4*unphys_mask(k,i-1,j+2) + 4*unphys_mask(k,i-2,j+1) + &
-                        7*unphys_mask(k,i-2,j) + 7*unphys_mask(k,i+2,j) + 7*unphys_mask(k,i,j-2) + 7*unphys_mask(k,i,j-2) + &
-                       16*unphys_mask(k,i-1,j-1) + 16*unphys_mask(k,i-1,j+1) + 16*unphys_mask(k,i+1,j-1) + 16*unphys_mask(k,i+1,j+1) + &
-                       26*unphys_mask(k,i-1,j) + 26*unphys_mask(k,i+1,j) + 26*unphys_mask(k,i,j-1) + 26*unphys_mask(k,i,j+1) + &  
-                       41*unphys_mask(k,i,j)       
-                
-                     sum_phi = 1*unphys_mask(k,i-2,j-2)*thermal_forcing(k,i-2,j-2)  +&
-                               1*unphys_mask(k,i-2,j+2)*thermal_forcing(k,i-2,j+2)  +&
-                               1*unphys_mask(k,i+2,j-2)*thermal_forcing(k,i+2,j-2)  +&
-                               1*unphys_mask(k,i+2,j+2)*thermal_forcing(k,i+2,j+2)  +&
-                               4*unphys_mask(k,i-1,j-2)*thermal_forcing(k,i-1,j-2)  +&
-                               4*unphys_mask(k,i-2,j-1)*thermal_forcing(k,i-2,j-1)  +&
-                               4*unphys_mask(k,i+1,j-2)*thermal_forcing(k,i+1,j-2)  +&
-                               4*unphys_mask(k,i+2,j-1)*thermal_forcing(k,i+2,j-1)  +&
-                               4*unphys_mask(k,i+1,j+2)*thermal_forcing(k,i+1,j+2)  +&
-                               4*unphys_mask(k,i+2,j+1)*thermal_forcing(k,i+2,j+1)  +&
-                               4*unphys_mask(k,i-1,j+2)*thermal_forcing(k,i-1,j+2)  +&
-                               4*unphys_mask(k,i-2,j+1)*thermal_forcing(k,i-2,j+1)  +&
-                               7*unphys_mask(k,i-2,j)*thermal_forcing(k,i-2,j)      +&
-                               7*unphys_mask(k,i+2,j)*thermal_forcing(k,i+2,j)      +&
-                               7*unphys_mask(k,i,j-2)*thermal_forcing(k,i,j-2)      +&
-                               7*unphys_mask(k,i,j-2)*thermal_forcing(k,i,j-2)      +&
-                               16*unphys_mask(k,i-1,j-1)*thermal_forcing(k,i-1,j-1) +&  
-                               16*unphys_mask(k,i-1,j+1)*thermal_forcing(k,i-1,j+1) +&
-                               16*unphys_mask(k,i+1,j-1)*thermal_forcing(k,i+1,j-1) +&
-                               16*unphys_mask(k,i+1,j+1)*thermal_forcing(k,i+1,j+1) +&
-                               26*unphys_mask(k,i-1,j)*thermal_forcing(k,i-1,j)     +&
-                               26*unphys_mask(k,i+1,j)*thermal_forcing(k,i+1,j)     +&
-                               26*unphys_mask(k,i,j-1)*thermal_forcing(k,i,j-1)     +&
-                               26*unphys_mask(k,i,j+1)*thermal_forcing(k,i,j+1)     +&
-                               41*unphys_mask(k,i,j)*thermal_forcing(k,i,j)                         
-
-                     phi1(k,i,j) = sum_phi / real(sum_mask,dp)
-               
-                  end if !mask(k,j,i) == 1
-               end do ! k
-            end if !thermal_forcing_mask == 1
-         end do ! i
-      end do ! j
-
-      call parallel_halo(thermal_forcing, parallel)
-  
-      thermal_forcing = phi1
-
-      end do !iter 
-      else
-          call write_log('No smoothing of extrapolated ocean data.' // &
-                  'Double check this is the behaviour wanted.')
-      end if !model%options%smooth_extrapocean == .true.
 
     ! Set the thermal forcing to a default value in the remaining unfilled cell/levels.
     ! For example, we might set thermal_forcing = 0 to get cleaner diagnostics.
