@@ -4,6 +4,7 @@ Note: For setting up the experiments in an NCAR computing environment,
 follow the steps in the README.NCAR_HPC file in the tests directory.
 
 See this wiki for details on MISMIP+:
+https://github.com/JRowanJordan/CalvingMIP/wiki
 
 There are two experimental domains for CalvingMIP:
 * a circular domain, which is radially symmetric
@@ -16,6 +17,9 @@ Experiment2   1000 years on the circular domain with a prescribed rate of retrea
 Experiment3   1000 years on the Thule domain with a fixed calving front
 Experiment4   1000 years on the Thule domain with a prescribed rate of retreat and advance
 Experiment5   1000 years with a thickness-based calving front
+
+Most groups ran the first four experiments. There were some issues with Experiment 5,
+so it wasn't included in the model intercomparison.
 
 To initialize these experiments, we also need a long spin-up on each domain.
 
@@ -31,10 +35,10 @@ for the different config files.
 
 These setup files are located in directory ../tests/calvingMIP.
 You might want to keep this directory clean and set up your tests in a duplicate directory.
-For example, from ../tests/calvingMIP:
+For example, from ../tests/ (i.e., one directory up from calvingMIP):
 
-> cp -rf calvingMIP ../calvingMIP.test
-> cd ../calvingMIP.test
+> cp -rf calvingMIP calvingMIP.test
+> cd calvingMIP.test
 
 The following instructions are for running calvingMIP on derecho:
 
@@ -78,18 +82,23 @@ Notes on optional arguments:
 - If the resolution is relatively high (e.g., 5000 m or finer), it may take several minutes
   to create the input files.
 
+To write output more frequently (e.g., annual output for Experiments 1 to 4),
+you can set outputfreqhi and outputfreqmd when running the setup script::
+
+> python calvingMIP.Setup.py -fm 1. -fh 1.
+
 The config template file includes sensible default values for other parameters. 
-To change any of these parameters, you need to edit the template file.
+To change any of these parameters, you will need to edit the template file.
 
 After setup, you should first run the SpinupCircular and SpinupThule experiments.
 To do this, you will need a run script in each directory. The test directory does not include a run script,
-but the following is a sample run script for Derecho with a Land Ice Working Group account code:
+The following is a sample run script for Derecho with a Land Ice Working Group account code:
 
 *****
 #!/bin/bash
 #
 #PBS -N calvingMIP
-#PBS -A P93300601
+#PBS -A P93300301
 #PBS -l walltime=01:00:00
 #PBS -q main
 #PBS -l job_priority=regular
@@ -101,11 +110,11 @@ but the following is a sample run script for Derecho with a Land Ice Working Gro
 
 . derecho-intel-modules
 
-mpiexec -n 128 -ppn 128 ./cism_driver calvingMIP.SpinupCircular.config > cism.out.$PBS_JOBID 2>&1
+mpiexec -n 128 -ppn 128 ./cism_driver calvingMIP.ExperimentName.config > cism.out.$PBS_JOBID 2>&1
 *****
 
 On 128 Derecho cores, the required walltime is typically about 30 minutes for a 10kyr spin-up,
-and less than 5 minutes for the 1kry experiments.
+and less than 5 minutes for the 1kyr experiments.
 
 You can launch the job by typing
 
