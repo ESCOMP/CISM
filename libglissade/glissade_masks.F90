@@ -361,24 +361,25 @@
     ! and floating interior cells (floating cells not at the calving front).
     do j = 2, ny-1
        do i = 2, nx-1
-          if (floating_mask(i,j) == 1) then
+          !if (floating_mask(i,j) == 1) then ! HG< commented to allow calving at grounded cells
+          if (topg(i,j) < 0) then ! HG< allow calving at cells grounded below sea-level
              if (ocean_mask(i-1,j) == 1 .or. ocean_mask(i+1,j) == 1 .or. &
                  ocean_mask(i,j-1) == 1 .or. ocean_mask(i,j+1) == 1) then
                 calving_front_mask(i,j) = 1
               ! Note - The following logic adds some CF cells in regions with thin floating ice.
               ! Commmented out for now because it changes CalvingMIP answers.
-             elseif (thck(i,j) < thck_effective_min) then
-                ! If two adjacent floating cells have very thin ice, we can think of them as sharing a CF
-                if ( (floating_mask(i-1,j) == 1 .and. thck(i-1,j) < thck_effective_min) .or. &
-                     (floating_mask(i+1,j) == 1 .and. thck(i+1,j) < thck_effective_min) .or. &
-                     (floating_mask(i,j-1) == 1 .and. thck(i,j-1) < thck_effective_min) .or. &
-                     (floating_mask(i,j+1) == 1 .and. thck(i,j+1) < thck_effective_min) ) then
-                   calving_front_mask(i,j) = 1
-                endif
+             !elseif (thck(i,j) < thck_effective_min) then
+             !   ! If two adjacent floating cells have very thin ice, we can think of them as sharing a CF
+             !   if ( (floating_mask(i-1,j) == 1 .and. thck(i-1,j) < thck_effective_min) .or. &
+             !        (floating_mask(i+1,j) == 1 .and. thck(i+1,j) < thck_effective_min) .or. &
+             !        (floating_mask(i,j-1) == 1 .and. thck(i,j-1) < thck_effective_min) .or. &
+             !        (floating_mask(i,j+1) == 1 .and. thck(i,j+1) < thck_effective_min) ) then
+             !      calving_front_mask(i,j) = 1
+             !   endif
              else
                 interior_mask(i,j) = 1
              endif
-          endif   ! floating
+          endif   ! floating ! HG< allow calving at grounded cells for GrIS
        enddo
     enddo
 
@@ -402,7 +403,8 @@
        ! to the thickness of CF neighbors.
 
        thck_flotation = max(-(rhoo/rhoi) * (topg - eus), 0.0d0)
-       capped_thck = min(thck, thck_flotation)
+       !HG<capped_thck = min(thck, thck_flotation)
+       capped_thck = thck ! don't cap for GrIS
 
        do j = 2, ny-1
           do i = 2, nx-1
@@ -450,7 +452,7 @@
 
        ! Limit thck_effective at the CF so as not to exceed the flotation thickness
        where (calving_front_mask == 1)
-          thck_effective = min(thck_effective, thck_flotation)
+          !HG<thck_effective = min(thck_effective, thck_flotation)
        endwhere
 
        ! Set a lower limit for thck_effective

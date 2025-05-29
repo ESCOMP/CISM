@@ -293,6 +293,8 @@ contains
 !    real(dp), dimension(:,:), intent(in)     :: tau_eigen2          !> second eigenvalue of 2D horizontal stress tensor (Pa)
 !    real(dp), dimension(:,:), intent(in)     :: eps_eigen1          !> first eigenvalue of 2D horizontal strain-rate tensor (1/s)
 !    real(dp), dimension(:,:), intent(in)     :: eps_eigen2          !> second eigenvalue of 2D horizontal strain-rate tensor (1/s)
+!    real(dp), dimension(:,:), intent(in)     :: thermal_forcing_applied,& ! thermal_forcing applied (degC)
+!    real(dp), dimension(:,:), intent(in)     :: runoff_applied      ! runoff_applied (kg/s/m2) ISMIP6 standard, divide by 1000 to get m/s
 !    real(dp), dimension(:,:,:), intent(inout):: damage              !> 3D scalar damage parameter
 !    real(dp), intent(in)                     :: damage_threshold    !> threshold value where ice is sufficiently damaged to calve
 !    real(dp), intent(in)                     :: damage_constant     !> rate of change of damage (1/s) per unit stress (Pa)
@@ -547,7 +549,9 @@ contains
 
        ! Compute the effective length of the calving front in each grid cell
 
-       if (which_calving == CF_ADVANCE_RETREAT_RATE) then
+!HG<       if (which_calving == CF_ADVANCE_RETREAT_RATE) then
+       !if (which_calving == CF_ADVANCE_RETREAT_RATE .or. which_calving == CF_ARR_FLOAT_ZERO) then
+       if (which_calving == CF_ADVANCE_RETREAT_RATE .or. which_calving == CF_ARR_FLOAT_ZERO .or. which_calving == CF_MELTRATE .or. which_calving == CF_MR_FLOAT_ZERO .or. which_calving == CF_SLATER .or. which_calving == CF_SLATER_MR .or. which_calving == CF_SLATER_MR_FLOAT_ZERO) then
 
           ! compute the CF length as a function of a cell's location on the unit circle
           ! surrounding the origin (assuming a radially symmetric calving rate).
@@ -598,7 +602,8 @@ contains
        ! Depending on the calving method, compute the calving rate for each grid cell
        ! and convert to an equivalent thinning rate.
 
-       if (which_calving == CF_ADVANCE_RETREAT_RATE) then
+!HG<       if (which_calving == CF_ADVANCE_RETREAT_RATE) then
+       if (which_calving == CF_ADVANCE_RETREAT_RATE .or. which_calving == CF_ARR_FLOAT_ZERO) then
 
           call calving_front_advance_retreat(&
                nx,                 ny,                    &
@@ -607,6 +612,60 @@ contains
                itest,   jtest,     rtest,                 &
                calving_front_mask,                        &
                thck_pre_transport,                        &  ! m
+               thck,                                      &  ! m
+               cf_length,                                 &  ! m
+               calving%thck_effective,                    &  ! m
+               calving%cf_advance_retreat_amplitude/scyr, &  ! m/s
+               calving%cf_advance_retreat_period*scyr,    &  ! s
+               calving_dthck)                                ! m
+
+       elseif (which_calving == CF_MELTRATE .or. which_calving == CF_MR_FLOAT_ZERO) then
+
+          
+          call calving_front_meltrate(&
+               nx,                 ny,                    &
+               dx,                 dy,                    &
+               dt,                 time,                  &  ! s
+               itest,   jtest,     rtest,                 &
+               calving_front_mask,                        &
+               thck_pre_transport,                        &  ! m
+               thck,                                      &  ! m
+               cf_length,                                 &  ! m
+               calving%thck_effective,                    &  ! m
+               calving%cf_advance_retreat_amplitude/scyr, &  ! m/s
+               calving%cf_advance_retreat_period*scyr,    &  ! s
+               calving_dthck)                                ! m
+
+       elseif (which_calving == CF_SLATER) then
+
+          
+          call slater_calving_meltrate(&
+               nx,                 ny,                    &
+               dx,                 dy,                    &
+               dt,                 time,                  &  ! s
+               itest,   jtest,     rtest,                 &
+               calving_front_mask,                        &
+               thck_pre_transport,                        &  ! m
+               calving%thermal_forcing_applied,           &  ! degC
+               calving%runoff_applied/1000.,              &  ! m/s; (read in kg/m2/s) 
+               thck,                                      &  ! m
+               cf_length,                                 &  ! m
+               calving%thck_effective,                    &  ! m
+               calving%cf_advance_retreat_amplitude/scyr, &  ! m/s
+               calving%cf_advance_retreat_period*scyr,    &  ! s
+               calving_dthck)                                ! m
+
+       elseif (which_calving == CF_SLATER_MR .or. which_calving == CF_SLATER_MR_FLOAT_ZERO) then
+
+          call slater_meltrate(&
+               nx,                 ny,                    &
+               dx,                 dy,                    &
+               dt,                 time,                  &  ! s
+               itest,   jtest,     rtest,                 &
+               calving_front_mask,                        &
+               thck_pre_transport,                        &  ! m
+               calving%thermal_forcing_applied,           &  ! degC
+               calving%runoff_applied/1000.,              &  ! m/s; (read in kg/m2/s) 
                thck,                                      &  ! m
                cf_length,                                 &  ! m
                calving%thck_effective,                    &  ! m
@@ -835,7 +894,10 @@ contains
             full_mask,                     &
             calving%effective_areafrac)
 
-       if (which_calving == CF_ADVANCE_RETREAT_RATE) then
+!HG<       if (which_calving == CF_ADVANCE_RETREAT_RATE) then
+       !if (which_calving == CF_ADVANCE_RETREAT_RATE .or. which_calving == CF_ARR_FLOAT_ZERO) then
+       !if (which_calving == CF_ADVANCE_RETREAT_RATE .or. which_calving == CF_ARR_FLOAT_ZERO .or. which_calving == CF_MELTRATE .or. which_calving == CF_MR_FLOAT_ZERO .or. which_calving == CF_SLATER) then
+       if (which_calving == CF_ADVANCE_RETREAT_RATE .or. which_calving == CF_ARR_FLOAT_ZERO .or. which_calving == CF_MELTRATE .or. which_calving == CF_MR_FLOAT_ZERO .or. which_calving == CF_SLATER .or. which_calving == CF_SLATER_MR .or. which_calving == CF_SLATER_MR_FLOAT_ZERO) then
 
           ! Compute some CalvingMIP diagnostics.
           ! Note: If running with a prescribed advance/retreat rate on a grid other than
@@ -1046,7 +1108,95 @@ contains
           enddo
        enddo
 
-    endif   ! which_calving
+    endif   ! which_ho_calving_front
+
+    ! Combine CALVING_FLOAT_ZERO with other (subgrid CF options) here CF_ADVANCE_RETREAT_RATE
+    if (which_calving == CF_ARR_FLOAT_ZERO .or. which_calving == CF_MR_FLOAT_ZERO .or. which_calving == CF_SLATER_MR_FLOAT_ZERO) then
+
+       call parallel_halo(thck, parallel)
+
+       ! Get masks.
+       ! Use thickness limit of 0.0 instead of thklim so as to remove ice from any cell
+       !  that meets the calving criteria, not just dynamically active ice.
+
+       call glissade_get_masks(&
+            nx,            ny,             &
+            parallel,                      &
+            thck,          topg,           &
+            eus,           0.0d0,          &   ! thklim = 0.0
+            ice_mask,                      &
+            floating_mask = floating_mask, &
+            ocean_mask = ocean_mask)
+
+       ! set the calving-law mask
+       ! Note: Cells that meet the calving-law criteria will be calved provided they also lie in the calving domain,
+       !       as determined below.
+
+       !case(CALVING_FLOAT_ZERO, CALVING_FLOAT_FRACTION)     ! calve ice that is floating
+
+       do j = 1, ny
+          do i = 1, nx
+             if (floating_mask(i,j) == 1) then
+                calving_law_mask(i,j) = .true.
+             else
+                calving_law_mask(i,j) = .false.
+             endif
+          enddo
+       enddo
+
+       ! halo update (may not be necessary if thck, damage, etc. are correct in halos, but including to be safe)
+       call parallel_halo(calving_law_mask, parallel)
+
+       ! set the calving domain mask
+
+       if (calving_domain == CALVING_DOMAIN_OCEAN_EDGE) then  ! calving domain includes floating cells at margin only
+                                                              !WHL - Could modify to include grounded marine cells at margin
+          do j = 2, ny-1
+             do i = 2, nx-1
+
+                if (verbose_calving .and. i==itest .and. j==jtest .and. this_rank==rtest) then
+                   write(6,*) 'task, i, j, ice_mask, floating_mask:',  &
+                        this_rank, i, j, ice_mask(i,j), floating_mask(i,j)
+                endif
+
+                if ( floating_mask(i,j) == 1 .and.   &
+                     (ocean_mask(i-1,j)==1 .or. ocean_mask(i+1,j)==1 .or. ocean_mask(i,j-1)==1 .or. ocean_mask(i,j+1)==1) ) then
+                   calving_domain_mask(i,j) = .true.
+                else
+                   calving_domain_mask(i,j) = .false.
+                endif
+             enddo
+          enddo
+
+          ! halo update (since the loop above misses some halo cells)
+          call parallel_halo(calving_domain_mask, parallel)
+
+          if (verbose_calving) then
+             call point_diag(calving_domain_mask, 'calving_domain_mask', itest, jtest, rtest, 7, 7)
+          endif
+
+       elseif (calving_domain == CALVING_DOMAIN_EVERYWHERE) then  ! calving domain includes all cells
+
+          calving_domain_mask(:,:) = .true.
+
+       endif   ! calving_domain
+
+       ! Calve ice where calving_law_mask = T and calving_domain_mask = T
+       do j = 1, ny
+          do i = 1, nx
+             if (calving_law_mask(i,j) .and. calving_domain_mask(i,j)) then
+
+                if (verbose_calving .and. this_rank==rtest .and. thck(i,j) > 0.0d0) then
+!!                   write(6,*) 'Helo Calve ice: task, i, j, calving_thck =', this_rank, i, j, float_fraction_calve * thck(i,j)
+                endif
+
+                calving%calving_thck(i,j) = calving%calving_thck(i,j) + float_fraction_calve * thck(i,j)
+                thck(i,j) = thck(i,j) - float_fraction_calve * thck(i,j)
+            endif
+          enddo
+       enddo
+       
+    endif ! which_calving == CF_ARR_FLOAT_ZERO .or. which_calving == CF_MR_FLOAT_ZERO for combination
 
     if (verbose_calving) then
        call point_diag(thck, 'After calving, new thck (m)', itest, jtest, rtest, 7, 7)
@@ -2524,6 +2674,443 @@ contains
     enddo   ! j
 
   end subroutine calving_front_advance_retreat
+
+!HG<---------------------------------------------------------------------------
+
+  subroutine calving_front_meltrate(&
+       nx,                 ny,             &
+       dx,                 dy,             &
+       dt,                 time,           &  ! s
+       itest,   jtest,     rtest,          &
+       calving_front_mask,                 &
+       thck_pre_transport,                 &  ! m
+       thck,                               &  ! m
+       cf_length,                          &  ! m
+       thck_effective,                     &  ! m
+       cf_advance_retreat_amplitude,       &  ! m/s
+       cf_advance_retreat_period,          &  ! s
+       calving_dthck)                         ! m
+
+    ! Melt ice "horizontally" based on a prescribed melt rate of equvivalent calving front retreat.
+    ! This option requires a subgrid calving front scheme.
+
+    use glimmer_physcon, only: pi
+    use glide_diagnostics, only: point_diag
+
+    ! input/output arguments
+
+    integer, intent(in) :: &
+         nx, ny,                 & ! grid dimensions
+         itest, jtest, rtest       ! coordinates of diagnostic point
+
+    real(dp), intent(in) :: &
+         dx, dy,                 & ! grid cell size (m)
+         dt,                     & ! time step (s)
+         time                      ! elapsed time (s) of model run
+
+    integer, dimension(nx,ny), intent(in)  ::  &
+         calving_front_mask        ! = 1 where ice is floating and borders at least one ocean cell, else = 0
+
+    real(dp), dimension(nx,ny), intent(in) :: &
+         thck_pre_transport        ! ice thickness (m) before doing transport, SMB, and BMB;
+                                   ! determines the calving needed to keep the CF stationary
+
+    real(dp), intent(in) :: &
+         cf_advance_retreat_amplitude, & ! prescribed amplitude (m/s) for calving front advance or retreat
+                                         ! positive for sin(2*pi*t/period), negative for -sin(2*pi*t/period)
+                                         ! should be *negative* for CalvingMIP Experiments 2 and 4
+         cf_advance_retreat_period       ! period (s) for an advance/retreat cycle
+                                         ! period = 0 => constant amplitude
+
+
+    real(dp), dimension(nx,ny), intent(inout) :: &
+         thck,                   & ! ice thickness (m)
+         cf_length,              & ! length of calving front in each grid cell (m)
+         thck_effective            ! effective thickness for calving (m)
+
+    real(dp), dimension(nx,ny), intent(out) :: &
+         calving_dthck             ! thickness (m) to be added to the calving flux
+
+    ! local variables
+
+    integer :: i, j
+
+    real(dp), dimension(nx,ny) :: &
+         dthck_dt_transport        ! rate of thickness change from transport, SMB and BMB
+
+    real(dp) :: &
+         cf_advance_retreat_rate,& ! prescribed rate of CF advance or retreat (m/s); positive for advance
+         cf_net_advance            ! total advance (or if negative, retreat) since time 0
+
+    ! Set the calving front advance/retreat rate
+    if (cf_advance_retreat_period > 0.0d0) then
+       cf_advance_retreat_rate = &
+            cf_advance_retreat_amplitude * sin(2.d0*pi*time / cf_advance_retreat_period)
+       cf_net_advance = cf_advance_retreat_amplitude * (cf_advance_retreat_period/(2.d0*pi)) &
+            * (1.d0 - cos(2.d0*pi*time/cf_advance_retreat_period))
+    else
+       cf_advance_retreat_rate = cf_advance_retreat_amplitude ! > 0 for advance, < 0 for retreat
+    endif
+
+    dthck_dt_transport = (thck - thck_pre_transport) / dt
+    calving_dthck = 0.0d0
+
+    if (verbose_calving) then
+       call point_diag(dthck_dt_transport*scyr, 'dH/dt transport (m/yr)', itest, jtest, rtest, 7, 7)
+    endif
+
+    if (verbose_calving .and. this_rank==rtest) then
+       write(6,*) ' '
+       write(6,*) 'Time (yr)', time/scyr
+       write(6,*) 'CF meltrate (m/yr) =', cf_advance_retreat_rate*scyr
+       write(6,*) 'Net CF advance (km):', cf_net_advance / 1000.d0
+       write(6,*) 'Prescribed radius (km):', 750.d0 + cf_net_advance/1000.d0
+       write(6,*) 'Prescribed circumference (km):', 2.d0*pi*(750.d0 + cf_net_advance/1000.d0)
+    endif
+
+    ! Loop over locally owned cells
+    ! Calving occurs only in CF cells: ice-filled cells with one or more ocean neighbors.
+
+    do j = nhalo+1, ny-nhalo
+       do i = nhalo+1, nx-nhalo
+
+          if (calving_front_mask(i,j) == 1) then
+
+!HG< commented to apply an absolute “horizontal” melt rate - i.e., the melt rate perpendicular to the face of an approximately vertical calving front             
+!             ! First, compute the calving needed to compensate for the thickness increase in partial CF cells.
+!             ! This step should hold the calving front stationary by balancing transport/SMB/BMB with calving.
+!             ! Note the sign: calving_dthck > 0 for a positive calving flux, with thinning in cell (i,j).
+!
+!             calving_dthck(i,j) = max(dthck_dt_transport(i,j), 0.0d0) * dt
+
+             ! If the CF is supposed to retreat, then increase the calving (negative increment for dthck).
+             ! If the CF is supposed to advance, then reduce the calving (positive increment for dthck).
+             ! Note: Some calving might already have been done in an unprotected cell just past the current CF.
+             !       If so, it is possible to undo this calving so the CF can advance.
+
+             ! Decrease the calving if the CF is advancing, increase if the CF is retreating
+
+             calving_dthck(i,j) = calving_dthck(i,j) - &
+                  (cf_advance_retreat_rate*dt * thck_effective(i,j) * cf_length(i,j)) / (dx*dy)
+
+             ! Make sure dthck >= 0. This prevents unphysical CF advance via negative calving
+             calving_dthck(i,j) = max(calving_dthck(i,j), 0.0d0)
+
+          endif   ! calving_front cell
+       enddo   ! i
+    enddo   ! j
+
+  end subroutine calving_front_meltrate
+
+!HG<---------------------------------------------------------------------------
+
+  subroutine slater_calving_meltrate(&
+       nx,                 ny,             &
+       dx,                 dy,             &
+       dt,                 time,           &  ! s
+       itest,   jtest,     rtest,          &
+       calving_front_mask,                 &
+       thck_pre_transport,                 &  ! m
+       thermal_forcing_applied,            &  ! degC
+       runoff_applied,                     &  ! m/s
+       thck,                               &  ! m
+       cf_length,                          &  ! m
+       thck_effective,                     &  ! m
+       cf_advance_retreat_amplitude,       &  ! m/s
+       cf_advance_retreat_period,          &  ! s
+       calving_dthck)                         ! m
+
+    ! This rounte does two things 
+    ! 1. Calving based on Slater/Rahlves c = alpha * Heff^beta
+    ! 2. Melt ice "horizontally" based on a prescribed melt rate of equvivalent calving front retreat.
+    ! Melt parameterised as a function of runoff and thermal_forcing, both 2d fields
+    ! This option requires a subgrid calving front scheme.
+
+    use glimmer_physcon, only: pi
+    use glide_diagnostics, only: point_diag
+
+    ! input/output arguments
+
+    integer, intent(in) :: &
+         nx, ny,                 & ! grid dimensions
+         itest, jtest, rtest       ! coordinates of diagnostic point
+
+    real(dp), intent(in) :: &
+         dx, dy,                 & ! grid cell size (m)
+         dt,                     & ! time step (s)
+         time                      ! elapsed time (s) of model run
+
+    integer, dimension(nx,ny), intent(in)  ::  &
+         calving_front_mask        ! = 1 where ice is floating and borders at least one ocean cell, else = 0
+
+    real(dp), dimension(nx,ny), intent(in) :: &
+         thck_pre_transport        ! ice thickness (m) before doing transport, SMB, and BMB;
+                                   ! determines the calving needed to keep the CF stationary
+    real(dp), dimension(nx,ny), intent(in) :: &
+         thermal_forcing_applied,& ! thermal_forcing applied (degC)
+         runoff_applied            ! runoff_applied (m/s)
+    
+    real(dp), intent(in) :: &
+         cf_advance_retreat_amplitude, & ! prescribed amplitude (m/s) for calving front advance or retreat
+                                         ! positive for sin(2*pi*t/period), negative for -sin(2*pi*t/period)
+                                         ! should be *negative* for CalvingMIP Experiments 2 and 4
+         cf_advance_retreat_period       ! period (s) for an advance/retreat cycle
+                                         ! period = 0 => constant amplitude
+
+
+    real(dp), dimension(nx,ny), intent(inout) :: &
+         thck,                   & ! ice thickness (m)
+         cf_length,              & ! length of calving front in each grid cell (m)
+         thck_effective            ! effective thickness for calving (m)
+
+    real(dp), dimension(nx,ny), intent(out) :: &
+         calving_dthck             ! thickness (m) to be added to the calving flux
+
+    ! local variables
+
+    integer :: i, j
+
+    real(dp), dimension(nx,ny) :: &
+         dthck_dt_transport        ! rate of thickness change from transport, SMB and BMB
+
+    real(dp) :: &
+         alpha_sr, beta_sr,&       ! parameters in Slater/Rahlves calving law
+         c_sr,&                    ! calving rate in m/yr calculated from Slater/Rahlves law
+         q_sr,&                    ! runoff in Rignot calculation in m/d.  
+         tf_sr,&                   ! thermal forcing in deg C
+         m_sr,&                    ! melting rate in m/yr calculated from Slater ISMIP6 melt approach
+         cf_advance_retreat_rate,& ! prescribed rate of CF advance or retreat (m/s); positive for advance
+         cf_net_advance            ! total advance (or if negative, retreat) since time 0
+
+    ! Set the calving front advance/retreat rate
+    if (cf_advance_retreat_period > 0.0d0) then
+       cf_advance_retreat_rate = &
+            cf_advance_retreat_amplitude * sin(2.d0*pi*time / cf_advance_retreat_period)
+       cf_net_advance = cf_advance_retreat_amplitude * (cf_advance_retreat_period/(2.d0*pi)) &
+            * (1.d0 - cos(2.d0*pi*time/cf_advance_retreat_period))
+    else
+       cf_advance_retreat_rate = cf_advance_retreat_amplitude ! > 0 for advance, < 0 for retreat
+    endif
+
+    dthck_dt_transport = (thck - thck_pre_transport) / dt
+    calving_dthck = 0.0d0
+
+    if (verbose_calving) then
+       call point_diag(dthck_dt_transport*scyr, 'dH/dt transport (m/yr)', itest, jtest, rtest, 7, 7)
+    endif
+
+    if (verbose_calving .and. this_rank==rtest) then
+       write(6,*) ' '
+       write(6,*) 'Time (yr)', time/scyr
+       write(6,*) 'CF meltrate (m/yr) =', cf_advance_retreat_rate*scyr
+       write(6,*) 'Net CF advance (km):', cf_net_advance / 1000.d0
+       write(6,*) 'Prescribed radius (km):', 750.d0 + cf_net_advance/1000.d0
+       write(6,*) 'Prescribed circumference (km):', 2.d0*pi*(750.d0 + cf_net_advance/1000.d0)
+    endif
+
+    ! Loop over locally owned cells
+    ! Calving occurs only in CF cells: ice-filled cells with one or more ocean neighbors.
+
+    do j = nhalo+1, ny-nhalo
+       do i = nhalo+1, nx-nhalo
+
+          if (calving_front_mask(i,j) == 1) then
+
+             ! 1. Apply Slater/Rahlves calving law c = alpha * Heff^beta, assuming beta=3 and alpha=1.5e-5
+             ! For a 700 m calving front, this should give a calving front retreat rate of ~ 5000 m/yr
+
+             alpha_sr = 0.5e-5
+             beta_sr = 3.0
+             c_sr = -alpha_sr * thck_effective(i,j)**beta_sr/scyr ! m/s
+             
+             ! Increase the 'calving' if the CF is retreating/melting
+             calving_dthck(i,j) = calving_dthck(i,j) - &
+                  (c_sr*dt * thck_effective(i,j) * cf_length(i,j)) / (dx*dy)
+
+             if (verbose_calving .and. thck(i,j) > 0.1) then
+                print*, 'slater calving'
+                print*, i, j, thck_effective(i,j), thck(i,j), alpha_sr, beta_sr, c_sr, calving_dthck(i,j)
+             endif
+
+             ! 2. Apply an absolute “horizontal” melt rate - i.e., the melt rate perpendicular to the face of an approximately vertical calving front             
+
+             ! Implemented as a global melt rate using negative values for config parameter cf_advance_retreat_amplitude
+             ! Increase the 'calving' if the CF is retreating/melting
+
+             !calving_dthck(i,j) = calving_dthck(i,j) - &
+             !     (cf_advance_retreat_rate*dt * thck_effective(i,j) * cf_length(i,j)) / (dx*dy)
+
+             ! Or parametersing melt as function of runoff, thermal forcing and effective thickness
+             ! See Rignot et al. 2016 or ISMIP6 melt forcing approach.
+
+             !tf_sr = 2.0 ! hard coding a cold cavity thermal forcing of 2 degC
+             !q_sr = 10.0 ! hard coding a runoff of 400 m3/s multiplied by s/day and divided by cross-sectional area of 700m*5000m [m/day] 
+             
+             tf_sr = thermal_forcing_applied(i,j) ! 2d thermal forcing [degC]
+             q_sr = runoff_applied(i,j) * 86400.  ! runoff_applied passed in m/s; for Rignot equation convert to [m/d] 
+
+             m_sr = -(3.0 * 1.0e-4 * thck_effective(i,j) * q_sr**0.39 + 0.15) * tf_sr**1.18 * 365./scyr ! Rignot et al. 2016; formulted in m/d, converted to m/s
+             
+             calving_dthck(i,j) = calving_dthck(i,j) - &
+                  (m_sr*dt * thck_effective(i,j) * cf_length(i,j)) / (dx*dy)
+
+             if (verbose_calving .and. thck(i,j) > 0.1) then
+                print*, 'slater melting'
+                print*, i, j, thck_effective(i,j), thck(i,j), tf_sr, q_sr, m_sr, calving_dthck(i,j)
+             endif
+             ! Make sure dthck >= 0. This prevents unphysical CF advance via negative calving
+             calving_dthck(i,j) = max(calving_dthck(i,j), 0.0d0)
+
+          endif   ! calving_front cell
+       enddo   ! i
+    enddo   ! j
+
+  end subroutine slater_calving_meltrate
+
+!HG<---------------------------------------------------------------------------
+
+  subroutine slater_meltrate(&
+       nx,                 ny,             &
+       dx,                 dy,             &
+       dt,                 time,           &  ! s
+       itest,   jtest,     rtest,          &
+       calving_front_mask,                 &
+       thck_pre_transport,                 &  ! m
+       thermal_forcing_applied,            &  ! degC
+       runoff_applied,                     &  ! m/s
+       thck,                               &  ! m
+       cf_length,                          &  ! m
+       thck_effective,                     &  ! m
+       cf_advance_retreat_amplitude,       &  ! m/s
+       cf_advance_retreat_period,          &  ! s
+       calving_dthck)                         ! m
+
+    ! Melt ice "horizontally" based on a prescribed melt rate of equvivalent calving front retreat.
+    ! Melt parameterised as a function of runoff and thermal_forcing, both 2d fields
+    ! This option requires a subgrid calving front scheme.
+
+    use glimmer_physcon, only: pi
+    use glide_diagnostics, only: point_diag
+
+    ! input/output arguments
+
+    integer, intent(in) :: &
+         nx, ny,                 & ! grid dimensions
+         itest, jtest, rtest       ! coordinates of diagnostic point
+
+    real(dp), intent(in) :: &
+         dx, dy,                 & ! grid cell size (m)
+         dt,                     & ! time step (s)
+         time                      ! elapsed time (s) of model run
+
+    integer, dimension(nx,ny), intent(in)  ::  &
+         calving_front_mask        ! = 1 where ice is floating and borders at least one ocean cell, else = 0
+
+    real(dp), dimension(nx,ny), intent(in) :: &
+         thck_pre_transport        ! ice thickness (m) before doing transport, SMB, and BMB;
+                                   ! determines the calving needed to keep the CF stationary
+    real(dp), dimension(nx,ny), intent(in) :: &
+         thermal_forcing_applied,& ! thermal_forcing applied (degC)
+         runoff_applied            ! runoff_applied (m/s)
+    
+    real(dp), intent(in) :: &
+         cf_advance_retreat_amplitude, & ! prescribed amplitude (m/s) for calving front advance or retreat
+                                         ! positive for sin(2*pi*t/period), negative for -sin(2*pi*t/period)
+                                         ! should be *negative* for CalvingMIP Experiments 2 and 4
+         cf_advance_retreat_period       ! period (s) for an advance/retreat cycle
+                                         ! period = 0 => constant amplitude
+
+
+    real(dp), dimension(nx,ny), intent(inout) :: &
+         thck,                   & ! ice thickness (m)
+         cf_length,              & ! length of calving front in each grid cell (m)
+         thck_effective            ! effective thickness for calving (m)
+
+    real(dp), dimension(nx,ny), intent(out) :: &
+         calving_dthck             ! thickness (m) to be added to the calving flux
+
+    ! local variables
+
+    integer :: i, j
+
+    real(dp), dimension(nx,ny) :: &
+         dthck_dt_transport        ! rate of thickness change from transport, SMB and BMB
+
+    real(dp) :: &
+         q_sr,&                    ! runoff in Rignot calculation in m/d.  
+         tf_sr,&                   ! thermal forcing in deg C
+         m_sr,&                    ! melting rate in m/yr calculated from Slater ISMIP6 melt approach
+         cf_advance_retreat_rate,& ! prescribed rate of CF advance or retreat (m/s); positive for advance
+         cf_net_advance            ! total advance (or if negative, retreat) since time 0
+
+    ! Set the calving front advance/retreat rate
+    if (cf_advance_retreat_period > 0.0d0) then
+       cf_advance_retreat_rate = &
+            cf_advance_retreat_amplitude * sin(2.d0*pi*time / cf_advance_retreat_period)
+       cf_net_advance = cf_advance_retreat_amplitude * (cf_advance_retreat_period/(2.d0*pi)) &
+            * (1.d0 - cos(2.d0*pi*time/cf_advance_retreat_period))
+    else
+       cf_advance_retreat_rate = cf_advance_retreat_amplitude ! > 0 for advance, < 0 for retreat
+    endif
+
+    dthck_dt_transport = (thck - thck_pre_transport) / dt
+    calving_dthck = 0.0d0
+
+    if (verbose_calving) then
+       call point_diag(dthck_dt_transport*scyr, 'dH/dt transport (m/yr)', itest, jtest, rtest, 7, 7)
+    endif
+
+    if (verbose_calving .and. this_rank==rtest) then
+       write(6,*) ' '
+       write(6,*) 'Time (yr)', time/scyr
+       write(6,*) 'CF meltrate (m/yr) =', cf_advance_retreat_rate*scyr
+       write(6,*) 'Net CF advance (km):', cf_net_advance / 1000.d0
+       write(6,*) 'Prescribed radius (km):', 750.d0 + cf_net_advance/1000.d0
+       write(6,*) 'Prescribed circumference (km):', 2.d0*pi*(750.d0 + cf_net_advance/1000.d0)
+    endif
+
+    ! Loop over locally owned cells
+    ! Calving occurs only in CF cells: ice-filled cells with one or more ocean neighbors.
+
+    do j = nhalo+1, ny-nhalo
+       do i = nhalo+1, nx-nhalo
+
+          if (calving_front_mask(i,j) == 1) then
+
+             ! Apply an absolute “horizontal” melt rate - i.e., the melt rate perpendicular to the face of an approximately vertical calving front             
+
+             ! Could be implemented as a global melt rate using negative values for config parameter cf_advance_retreat_amplitude
+             ! Increase the 'calving' if the CF is retreating/melting
+
+             !calving_dthck(i,j) = calving_dthck(i,j) - &
+             !     (cf_advance_retreat_rate*dt * thck_effective(i,j) * cf_length(i,j)) / (dx*dy)
+
+             ! Here parametersing melt as function of runoff, thermal forcing and effective thickness
+             ! See Rignot et al. 2016 or ISMIP6 melt forcing approach.
+
+             !tf_sr = 2.0 ! hard coding a cold cavity thermal forcing of 2 degC
+             !q_sr = 10.0 ! hard coding a runoff of 400 m3/s multiplied by s/day and divided by cross-sectional area of 700m*5000m [m/day] 
+             
+             tf_sr = thermal_forcing_applied(i,j) ! 2d thermal forcing [degC]
+             q_sr = runoff_applied(i,j) * 86400.  ! runoff_applied passed in m/s; for Rignot equation convert to [m/d] 
+
+             m_sr = -(3.0 * 1.0e-4 * thck_effective(i,j) * q_sr**0.39 + 0.15) * tf_sr**1.18 * 365./scyr ! Rignot et al. 2016; formulted in m/d, converted to m/s
+             
+             calving_dthck(i,j) = calving_dthck(i,j) - &
+                  (m_sr*dt * thck_effective(i,j) * cf_length(i,j)) / (dx*dy)
+
+             if (verbose_calving .and. thck(i,j) > 0.1) then
+                print*, 'slater melting'
+                print*, i, j, thck_effective(i,j), thck(i,j), tf_sr, q_sr, m_sr, calving_dthck(i,j)
+             endif
+             ! Make sure dthck >= 0. This prevents unphysical CF advance via negative calving
+             calving_dthck(i,j) = max(calving_dthck(i,j), 0.0d0)
+
+          endif   ! calving_front cell
+       enddo   ! i
+    enddo   ! j
+
+  end subroutine slater_meltrate
 
 !---------------------------------------------------------------------------
 

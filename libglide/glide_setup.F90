@@ -973,7 +973,7 @@ contains
          'compute isostasy with model     ' /)
 
     !TODO - Change 'marine_margin' to 'calving'?  Would have to modify many config files
-    character(len=*), dimension(0:12), parameter :: marine_margin = (/ &
+    character(len=*), dimension(0:18), parameter :: marine_margin = (/ &
          'no calving law                    ', &
          'remove all floating ice           ', &
          'remove fraction of floating ice   ', &
@@ -986,7 +986,13 @@ contains
          'stochastic stress-based calving   ', &
          'damage-based calving scheme       ', &
          'strain-rate (eigencalving)        ', &
-         'Huybrechts calving                '/)
+         'Huybrechts calving                ', &
+         'prescribe CF arr(6)+ float kill(1)', &
+         'prescribe meltrate                ', &
+         'prescribe CF mr(14)+ float kill(1)', &
+         'slater calving                    ', &
+         'slater melt                       ', &
+         'slater melt(17)+ float kill(1)    '/)
 
     character(len=*), dimension(0:1), parameter :: init_calving = (/ &
          'no calving at initialization    ', &
@@ -1456,7 +1462,14 @@ contains
            model%options%whichcalving == CALVING_STRESS .or. &
            model%options%whichcalving == EIGEN_CALVING .or. &
            model%options%whichcalving == CALVING_STRESS_STOCHASTIC .or. &
+
+           model%options%whichcalving == CF_ARR_FLOAT_ZERO .or. &
+           model%options%whichcalving == CF_MELTRATE .or. &
+           model%options%whichcalving == CF_MR_FLOAT_ZERO .or. &
+           model%options%whichcalving == CF_SLATER .or. &
+
            model%options%whichcalving == CALVING_DAMAGE) then
+          
           call write_log('Error, this calving option is supported for Glissade dycore only', GM_FATAL)
        endif
 
@@ -2446,6 +2459,12 @@ contains
         model%options%whichcalving == CALVING_STRESS             .or.  &
         model%options%whichcalving == CALVING_STRESS_STOCHASTIC  .or.  &
         model%options%whichcalving == EIGEN_CALVING              .or.  &
+
+        model%options%whichcalving == CF_ARR_FLOAT_ZERO .or. &
+        model%options%whichcalving == CF_MELTRATE .or. &
+        model%options%whichcalving == CF_MR_FLOAT_ZERO .or. &
+        model%options%whichcalving == CF_SLATER .or. &
+
         model%options%whichcalving == CALVING_DAMAGE) then
 
        if (model%options%which_ho_calving_front == HO_CALVING_FRONT_NO_SUBGRID) then
@@ -2494,6 +2513,27 @@ contains
           write(message,*) 'damage-flwa feedback          : ', model%options%damage_flwa_feedback
           call write_log(message)
        elseif (model%options%whichcalving == CF_ADVANCE_RETREAT_RATE) then
+          write(message,*) 'CF advance/retreat amplitude (m/yr): ', model%calving%cf_advance_retreat_amplitude
+          call write_log(message)
+          write(message,*) 'CF advance/retreat period (yr)     : ', model%calving%cf_advance_retreat_period
+          call write_log(message)
+
+       elseif (model%options%whichcalving == CF_ARR_FLOAT_ZERO) then
+          write(message,*) 'CF advance/retreat amplitude (m/yr): ', model%calving%cf_advance_retreat_amplitude
+          call write_log(message)
+          write(message,*) 'CF advance/retreat period (yr)     : ', model%calving%cf_advance_retreat_period
+          call write_log(message)
+       elseif (model%options%whichcalving == CF_MELTRATE) then
+          write(message,*) 'CF advance/retreat amplitude (m/yr): ', model%calving%cf_advance_retreat_amplitude
+          call write_log(message)
+          write(message,*) 'CF advance/retreat period (yr)     : ', model%calving%cf_advance_retreat_period
+          call write_log(message)
+       elseif (model%options%whichcalving == CF_MR_FLOAT_ZERO) then
+          write(message,*) 'CF advance/retreat amplitude (m/yr): ', model%calving%cf_advance_retreat_amplitude
+          call write_log(message)
+          write(message,*) 'CF advance/retreat period (yr)     : ', model%calving%cf_advance_retreat_period
+          call write_log(message)
+       elseif (model%options%whichcalving == CF_SLATER) then
           write(message,*) 'CF advance/retreat amplitude (m/yr): ', model%calving%cf_advance_retreat_amplitude
           call write_log(message)
           write(message,*) 'CF advance/retreat period (yr)     : ', model%calving%cf_advance_retreat_period
@@ -3753,6 +3793,30 @@ contains
            ! Note: The calving mask is not strictly needed for this option.
            ! But some CalvingMIP experiments start with prescribed retreat and then switch to masked advance,
            ! in which case it is useful to have calving_mask in the restart file.
+           call glide_add_to_restart_variable_list('calving_mask', model_id)
+        endif
+
+        if (options%whichcalving == CF_ARR_FLOAT_ZERO) then
+           ! Note: The calving mask is not strictly needed for this option.
+           ! But it is useful to have calving_mask in the restart file.
+           call glide_add_to_restart_variable_list('calving_mask', model_id)
+        endif
+
+        if (options%whichcalving == CF_MELTRATE) then
+           ! Note: The calving mask is not strictly needed for this option.
+           ! But it is useful to have calving_mask in the restart file.
+           call glide_add_to_restart_variable_list('calving_mask', model_id)
+        endif
+
+        if (options%whichcalving == CF_MR_FLOAT_ZERO) then
+           ! Note: The calving mask is not strictly needed for this option.
+           ! But it is useful to have calving_mask in the restart file.
+           call glide_add_to_restart_variable_list('calving_mask', model_id)
+        endif
+
+        if (options%whichcalving == CF_SLATER) then
+           ! Note: The calving mask is not strictly needed for this option.
+           ! But it is useful to have calving_mask in the restart file.
            call glide_add_to_restart_variable_list('calving_mask', model_id)
         endif
 

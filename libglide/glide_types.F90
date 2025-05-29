@@ -188,6 +188,12 @@ module glide_types
   integer, parameter :: CALVING_DAMAGE = 10
   integer, parameter :: EIGEN_CALVING = 11
   integer, parameter :: CALVING_HUYBRECHTS = 12
+  integer, parameter :: CF_ARR_FLOAT_ZERO = 13
+  integer, parameter :: CF_MELTRATE = 14
+  integer, parameter :: CF_MR_FLOAT_ZERO = 15
+  integer, parameter :: CF_SLATER = 16
+  integer, parameter :: CF_SLATER_MR = 17
+  integer, parameter :: CF_SLATER_MR_FLOAT_ZERO  = 18
 
   integer, parameter :: CALVING_INIT_OFF = 0
   integer, parameter :: CALVING_INIT_ON = 1
@@ -1559,6 +1565,8 @@ module glide_types
      real(dp),dimension(:,:),  pointer :: tau_eigen2 => null()     !> second eigenvalue of 2D horizontal stress tensor (Pa)
      real(dp),dimension(:,:),  pointer :: eps_eigen1 => null()     !> first eigenvalue of 2D horizontal strain rate tensor (s^-1)
      real(dp),dimension(:,:),  pointer :: eps_eigen2 => null()     !> second eigenvalue of 2D horizontal strain rate tensor (s^-1)
+     real(dp),dimension(:,:),  pointer :: runoff_applied => null() !> applied runoff for GrIS calving (kg/m2/s)
+     real(dp),dimension(:,:),  pointer :: thermal_forcing_applied => null()     !> applied 2d thermal forcing for GrIS calving
      real(dp),dimension(:,:,:),pointer :: damage => null()         !> 3D damage tracer, 0 > damage < 1 (whichcalving = CALVING_DAMAGE)
   
      real(dp) :: marine_limit =  -200.d0         !> value of topg/relx at which floating ice calves (m)
@@ -3234,6 +3242,8 @@ contains
     call coordsystem_allocate(model%general%ice_grid, model%calving%tau_eigen2)
     call coordsystem_allocate(model%general%ice_grid, model%calving%eps_eigen1)
     call coordsystem_allocate(model%general%ice_grid, model%calving%eps_eigen2)
+    call coordsystem_allocate(model%general%ice_grid, model%calving%runoff_applied)
+    call coordsystem_allocate(model%general%ice_grid, model%calving%thermal_forcing_applied)
     if (model%options%whichcalving == CALVING_DAMAGE) then
        call coordsystem_allocate(model%general%ice_grid, upn-1, model%calving%damage)
     else
@@ -3872,6 +3882,10 @@ contains
         deallocate(model%calving%effective_areafrac)
     if (associated(model%calving%lateral_rate)) &
         deallocate(model%calving%lateral_rate)
+    if (associated(model%calving%runoff_applied)) &
+        deallocate(model%calving%runoff_applied)
+    if (associated(model%calving%thermal_forcing_applied)) &
+        deallocate(model%calving%thermal_forcing_applied)
     if (associated(model%calving%tau_eigen1)) &
         deallocate(model%calving%tau_eigen1)
     if (associated(model%calving%tau_eigen2)) &

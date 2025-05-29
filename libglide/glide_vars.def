@@ -1361,6 +1361,22 @@ data:       data%calving%eps_eigen2
 factor:     scyr
 load:       1
 
+[runoff_applied]
+dimensions:    time, y1, x1
+units:         kg/m2/s
+long_name:     applied surface runoff
+data:          data%calving%runoff_applied
+factor:        1.0
+load:          1
+
+[thermal_forcing_applied]
+dimensions:    time, y1, x1
+units:         degrees K
+long_name:     applied thermal forcing
+data:          data%calving%thermal_forcing_applied
+factor:        1.0
+load:          1
+
 [tau_eff]
 dimensions: time, staglevel, y1, x1
 units:      Pa
