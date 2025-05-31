@@ -6525,8 +6525,13 @@
           if (active_vertex(i,j)) then
 
              ! basal velocity (Goldberg eq. 34)
-             uvel(nz,i,j) = uvel_2d(i,j) - btractx(i,j)*stag_integral(i,j)
-             vvel(nz,i,j) = vvel_2d(i,j) - btracty(i,j)*stag_integral(i,j)
+             if (beta(i,j) > 0.0d0) then
+                uvel(nz,i,j) = uvel_2d(i,j) * beta_eff_x(i,j)/beta(i,j)
+                vvel(nz,i,j) = vvel_2d(i,j) * beta_eff_y(i,j)/beta(i,j)
+             else
+                uvel(nz,i,j) = uvel_2d(i,j)
+                vvel(nz,i,j) = vvel_2d(i,j)
+             endif
 
              ! vertical velocity profile (Goldberg eq. 32, with slope correction added))
              ! Note: slope_correction = 1 if diva_slope_correction = F
