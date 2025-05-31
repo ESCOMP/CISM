@@ -39,6 +39,7 @@
 module glissade_grid_operators
 
     use glimmer_global, only: dp
+    use glimmer_physcon, only: pi
     use glimmer_log
     use glide_types
     use cism_parallel, only: this_rank, main_task, nhalo, &
@@ -53,7 +54,7 @@ module glissade_grid_operators
               glissade_surface_elevation_gradient,  &
               glissade_laplacian, glissade_laplacian_stagvar, &
               glissade_laplacian_smoother,          &
-              glissade_slope_angle,                 &
+              glissade_slope_angle, glissade_slope_angle_staggered, &
               glissade_vertical_average,            &
               glissade_vertical_interpolate,        &
               glissade_scalar_extrapolate
@@ -985,6 +986,10 @@ contains
 
     real(dp) :: sum1, sum2        ! temporary sums
 
+    logical, parameter :: count_max_slope = .false.
+!!    logical, parameter :: count_max_slope = .true.
+    integer :: max_slope_count, total_count
+
     ! initialize
 
     ds_dx_edge(:,:) = 0.0d0
@@ -1226,10 +1231,41 @@ contains
 
     endif   ! ho_gradient
 
-
     ! Optionally, limit ds/dx and ds/dy
 
     if (present(max_slope)) then
+
+       if (count_max_slope) then
+
+          max_slope_count = 0
+          total_count = 0
+
+          do j = nhalo+1, ny-nhalo
+             do i = nhalo+1, nx-nhalo
+                if (ice_mask(i,j) == 1 .and. ice_mask(i+1,j) == 1) then
+                   total_count = total_count + 1
+                   if (abs(ds_dx(i,j)) > max_slope) then
+                      max_slope_count = max_slope_count + 1
+                   endif
+                endif
+                if (ice_mask(i,j) == 1 .and. ice_mask(i,j+1) == 1) then
+                   total_count = total_count + 1
+                   if (abs(ds_dy(i,j)) > max_slope) then
+                      max_slope_count = max_slope_count + 1
+                   endif
+                endif
+             enddo
+          enddo
+
+          max_slope_count = parallel_reduce_sum(max_slope_count)
+          total_count = parallel_reduce_sum(total_count)
+
+          if (main_task) then
+             write(6,*) '   max_slope_count, total_count =', max_slope_count, total_count
+             write(6,*) '   cell fraction with slope limiting =', real(max_slope_count)/real(total_count)
+          endif
+
+       endif   ! count_max_slope
 
        do j = 1, ny-1
           do i = 1, nx-1
@@ -1302,13 +1338,18 @@ contains
 
 !****************************************************************************
 
-  subroutine glissade_slope_angle(nx,         ny,      &
-                                  dx,         dy,      &
-                                  zsfc,                &
-                                  theta_slope,         &
-                                  slope_mask_in)
+  subroutine glissade_slope_angle(&
+       nx,         ny,      &
+       dx,         dy,      &
+       zsfc,                &
+       theta_slope,         &
+       theta_slope_x,       &
+       theta_slope_y,       &
+       phi_slope,           &
+       slope_mask_in)
 
     ! Compute the slope angle between a surface of elevation zsfc and the horizontal.
+    ! Optionally, compute the angle (in the xy plane) of the direction of steepest descent.
 
     !----------------------------------------------------------------
     ! Input-output arguments
@@ -1325,7 +1366,14 @@ contains
          zsfc                     ! elevation of the surface whose slope is to be computed
 
     real(dp), dimension(nx,ny), intent(out) ::       &
-         theta_slope              ! angle formed by the surface with the horizontal (x-y) direction
+         theta_slope              ! surface elevation angle (radians, 0 to pi/2) relative to the horizontal plane
+
+    real(dp), dimension(nx,ny), intent(out), optional ::       &
+         theta_slope_x,         & ! surface elevation angle in the x direction
+         theta_slope_y            ! surface elevation angle in the x direction
+
+    real(dp), dimension(nx,ny), intent(out), optional ::       &
+         phi_slope                ! direction of steepest descent (radians, 0 to 2*pi), relative to the x axis
 
     integer, dimension(nx,ny), intent(in), optional ::  &
          slope_mask_in            ! = 1 for the part of the surface whose slope is computed, else = 0
@@ -1335,14 +1383,18 @@ contains
     !----------------------------------------------------------------
 
     integer, dimension(nx,ny) ::  &
-         slope_mask                 ! local version of slope_mask
+         slope_mask               ! local version of slope_mask
 
     real(dp), dimension(nx-1,ny-1) ::    &
-         dz_dx, dz_dy,         &  ! gradient components of zsfc, defined at cell vertices
-         stag_slope               ! slope (= magnitude of gradient) at cell vertices
+         stag_dz_dx, stag_dz_dy   ! gradient components of zsfc, defined at cell vertices
 
     real(dp), dimension(nx,ny) ::    &
-         slope                    ! stag_slope interpolated to cell centers
+         dz_dx, dz_dy,           &! gradient components of zsfc, defined at cell centers
+         slope
+
+    integer :: i, j
+    real(dp) :: vector_x, vector_y
+    character(len=200) :: message
 
     ! initialize
 
@@ -1354,7 +1406,150 @@ contains
 
     theta_slope = 0.0d0
 
-    ! Compute the x and y components of the surface gradient
+    ! Compute the x and y components of the surface gradient at vertices
+    ! Note: With gradient_margin_in = 1, edge gradients are computed only for edges
+    !        with slope_mask = 1 on either side.
+    !       For instance, if slope_mask = 1 for floating cells only, then dz_dx = dz_dy = 0
+    !        for grounded regions.
+
+    call glissade_gradient(nx,         ny,          &
+                           dx,         dy,          &
+                           zsfc,                    &
+                           stag_dz_dx, stag_dz_dy,  &
+                           slope_mask,              &
+                           gradient_margin_in = 1)
+
+    ! Interpolate the gradient components to cell centers
+
+    call glissade_unstagger(nx,          ny,        &
+                            stag_dz_dx,  dz_dx)
+    call glissade_unstagger(nx,          ny,        &
+                            stag_dz_dy,  dz_dy)
+
+    ! Compute the magnitude of the gradient
+    slope = sqrt(dz_dx**2 + dz_dy**2)
+
+    ! Compute the slope angle on the staggered grid
+    ! Since slope is non-negative, theta_slope is in the range [0,pi/2)
+    where (slope >= 0.0d0)
+       theta_slope = atan(slope)
+    elsewhere
+       theta_slope = 0.0d0
+    endwhere
+
+    ! Compute slopes in the x and y directions
+    if (present(theta_slope_x)) theta_slope_x = atan(abs(dz_dx))
+    if (present(theta_slope_y)) theta_slope_y = atan(abs(dz_dy))
+
+    ! Optionally, compute the direction of steepest descent
+    if (present(phi_slope)) then
+       phi_slope = 0.0d0
+       do j = 1, ny-1
+          do i = 1, nx-1
+             if (slope(i,j) > 0.0d0) then
+                vector_x = -dz_dx(i,j)
+                vector_y = -dz_dy(i,j)
+                if (abs(vector_x) > 0.0d0) then
+                   phi_slope(i,j) = atan(vector_y/vector_x)
+                elseif (abs(vector_y) > 0.0d0) then
+                   if (vector_y > 0.0d0) then
+                      phi_slope(i,j) =  pi/2.0d0
+                   else
+                      phi_slope(i,j) = 3.0d0*pi/2.0d0
+                   endif
+                endif
+             else   ! vector of zero length; default to phi = 0 for flat surfaces
+                phi_slope(i,j) = 0.0d0
+             endif
+             ! The range of atan is (-pi/2, pi/2)
+             ! Add pi if the vector lies in quadrant 2 or 3
+             if (vector_x < 0.0) phi_slope(i,j) = phi_slope(i,j) + pi
+             ! Make sure phi is in the range [0,360)
+             if (phi_slope(i,j) < 0.0d0) phi_slope(i,j) = phi_slope(i,j) + 2.0d0*pi
+             if (phi_slope(i,j) > 2.0d0*pi) phi_slope(i,j) = phi_slope(i,j) - 2.0d0*pi
+             ! bug check
+             if (phi_slope(i,j) < 0.0d0 .or. phi_slope(i,j) >= 2.0d0*pi) then
+                write(message,*) 'Error, glissade_slope_angle, phi out of range, i, j, phi =', &
+                     i, j, phi_slope(i,j), phi_slope(i,j)/pi
+                call write_log(message)
+             endif
+          enddo   ! i
+       enddo   ! j
+    endif   ! present(phi_slope)
+
+    ! Note: Halo updates of theta_slope and phi_slope moved to higher level
+
+  end subroutine glissade_slope_angle
+
+!****************************************************************************
+
+  subroutine glissade_slope_angle_staggered(&
+       nx,         ny,      &
+       dx,         dy,      &
+       zsfc,                &
+       theta_slope,         &
+       theta_slope_x,       &
+       theta_slope_y,       &
+       phi_slope,           &
+       slope_mask_in)
+
+    ! Compute the slope angle between a surface of elevation zsfc and the horizontal.
+    ! Optionally, compute the angle (in the xy plane) of the direction of steepest descent.
+
+    ! This is like the previous subroutine, except that given an elevation field on the
+    !  unstaggered grid, it computes theta_slope on the staggered grid.
+
+    !----------------------------------------------------------------
+    ! Input-output arguments
+    !----------------------------------------------------------------
+
+    integer, intent(in) ::      &
+         nx, ny                   ! horizontal grid dimensions
+
+    real(dp), intent(in) ::     &
+         dx, dy                   ! grid cell length and width
+                                  ! assumed to have the same value for each grid cell
+
+    real(dp), dimension(nx,ny), intent(in) ::       &
+         zsfc                     ! elevation of the surface whose slope is to be computed
+
+    real(dp), dimension(nx-1,ny-1), intent(out) ::  &
+         theta_slope              ! surface elevation angle (radians, 0 to pi/2) relative to the horizontal (x-y) plane
+
+    real(dp), dimension(nx-1,ny-1), intent(out), optional :: &
+         theta_slope_x,         & ! surface elevation angle in the x direction
+         theta_slope_y            ! surface elevation angle in the x direction
+
+    real(dp), dimension(nx-1,ny-1), intent(out), optional ::  &
+         phi_slope                ! direction of steepest descent (radians, 0 to 2*pi)), relative to phi = 0 along the x axis
+
+    integer, dimension(nx,ny), intent(in), optional ::  &
+         slope_mask_in            ! = 1 for the part of the surface whose slope is computed, else = 0
+
+    !----------------------------------------------------------------
+    ! Local variables
+    !----------------------------------------------------------------
+
+    integer, dimension(nx,ny) ::  &
+         slope_mask               ! local version of slope_mask
+
+    real(dp), dimension(nx-1,ny-1) ::    &
+         dz_dx, dz_dy,         &  ! gradient components of zsfc, defined at cell vertices
+         slope                    ! slope (= magnitude of gradient) at cell vertices
+
+    integer :: i, j
+    real(dp) :: vector_x, vector_y
+    character(len=200) :: message
+
+    ! initialize
+
+    if (present(slope_mask_in)) then
+       slope_mask = slope_mask_in
+    else
+       slope_mask = 1    ! default is to compute the slope everywhere
+    endif
+
+    ! Compute the x and y components of the surface gradient at cell vertices.
     ! Note: With gradient_margin_in = 1, edge gradients are computed only for edges
     !        with slope_mask = 1 on either side.
     !       For instance, if slope_mask = 1 for floating cells only, then dz_dx = dz_dy = 0
@@ -1367,20 +1562,61 @@ contains
                            slope_mask,              &
                            gradient_margin_in = 1)
 
-    ! Compute the magnitude of the gradient.  This is the scalar slope, on the staggered grid.
-    stag_slope = sqrt(dz_dx**2 + dz_dy**2)
+    ! Compute the magnitude of the gradient
+    slope = sqrt(dz_dx**2 + dz_dy**2)
 
-    ! Interpolate the slope to cell centers
+    ! Compute the slope angle at vertices
+    ! Since slope is non-negative, theta_slope is in the range [0,pi/2)
+    where (slope >= 0.0d0)
+       theta_slope = atan(slope)
+    elsewhere
+       theta_slope = 0.0d0
+    endwhere
 
-    call glissade_unstagger(nx,          ny,        &
-                            stag_slope,  slope)
+    ! Compute slopes in the x and y directions
+    if (present(theta_slope_x)) theta_slope_x = atan(abs(dz_dx))
+    if (present(theta_slope_y)) theta_slope_y = atan(abs(dz_dy))
 
-    ! Compute the slope angle
-    theta_slope = atan(slope)
 
-    ! Note: Halo update of theta_slope moved to higher level
+    ! Optionally, compute the direction of steepest descent
+    if (present(phi_slope)) then
+       phi_slope = 0.0d0
+       do j = 1, ny-1
+          do i = 1, nx-1
+             if (slope(i,j) > 0.0d0) then
+                vector_x = -dz_dx(i,j)
+                vector_y = -dz_dy(i,j)
+                if (abs(vector_x) > 0.0d0) then
+                   phi_slope(i,j) = atan(vector_y/vector_x)
+                elseif (abs(vector_y) > 0.0d0) then
+                   if (vector_y > 0.0d0) then
+                      phi_slope(i,j) =  pi/2.0d0
+                   else
+                      phi_slope(i,j) = 3.0d0*pi/2.0d0
+                   endif
+                endif
+             else   ! vector of zero length; default to phi = 0 for flat surfaces
+                phi_slope(i,j) = 0.0d0
+             endif
+             ! The range of atan is (-pi/2, pi/2)
+             ! Add pi if the vector lies in quadrants 2 or 3
+             if (vector_x < 0.0) phi_slope(i,j) = phi_slope(i,j) + pi
+             ! Make sure phi is in the range [0,360)
+             if (phi_slope(i,j) < 0.0) phi_slope(i,j) = phi_slope(i,j) + 2.0d0*pi
+             if (phi_slope(i,j) >= 2.0d0*pi) phi_slope(i,j) = phi_slope(i,j) - 2.0d0*pi
+             ! bug check
+             if (phi_slope(i,j) < 0.0d0 .or. phi_slope(i,j) >= 2.0d0*pi) then
+                write(message,*) 'Error, glissade_slope_angle, phi out of range, i, j, phi =', &
+                     i, j, phi_slope(i,j), phi_slope(i,j)/pi
+                call write_log(message)
+             endif
+          enddo
+       enddo
+    endif   ! present(phi_slope)
 
-  end subroutine glissade_slope_angle
+    ! Note: Halo update of theta_slope and phi_slope moved to higher level
+
+  end subroutine glissade_slope_angle_staggered
 
 !****************************************************************************
 
@@ -1898,7 +2134,7 @@ contains
     real(dp) :: &
          phi_unfilled            ! set to unfilled_value, else defaults to 0.0
 
-    character(len=100) :: message
+    character(len=200) :: message
 
 !    logical, parameter :: verbose_extrapolate = .false.
     logical, parameter :: verbose_extrapolate = .true.

@@ -2470,10 +2470,10 @@ contains
 
     ! Given the current ice thickness, rate of thickness change, and target thickness,
     ! invert for the parameter powerlaw_c in the relationship for basal sliding.
-    ! Note: This subroutine is similar to subroutine invert_basal_friction
-    !       in the glissade_inversion_module.  It is separate so that we can experiment
-    !       with glacier inversion parameters without changing the standard ice sheet inversion.
-    !       The glacier inversion parameters are currently declared at the top of this module.
+    ! Note: This subroutine is similar to subroutine invert_basal_friction in glissade_inversion.F90.
+    !       The main difference is that it does not include a smoothing term.
+    !       In cells that become ice-free, Cp will relax back toward its default value.
+    ! TODO: Call subroutine invert_basal_friction instead?
 
     ! input/output arguments
 
@@ -2512,21 +2512,14 @@ contains
          term_thck, term_dHdt,        & ! tendency terms for powerlaw_c based on thickness target
          term_relax                     ! tendency terms based on relaxation to default value
 
-    ! The inversion works as follows:
-    ! The change in C_p is proportional to the current value of C_p and to the relative error,
-    !  err_H = (H - H_target)/H_scale, where H is a thickness scale.
-    ! If err_H > 0, we reduce C_p to make the ice flow faster and thin.
-    ! If err_H < 0, we increase C_p to make the ice flow slower and thicken.
-    ! This is done with a characteristic timescale tau.
-    ! We also include a term proportional to dH/dt so that ideally, C_p smoothly approaches
-    !  the value needed to attain a steady-state H, without oscillating about the desired value.
-    ! In addition, we include a relaxation term proportional to the ratio of C_p to a default value.
-    ! See the comments in module glissade_inversion, subroutine invert_basal_friction.
-    !
-    ! Here is the prognostic equation:
-    ! dC/dt = -C * [(H - H_target)/(H0*tau) + dH/dt * 2/H0 - r * ln(C/C_r) / tau],
-    !   where tau = glacier_powerlaw_c_timescale, H0 = glacier_powerlaw_c_thck_scale,
-    !         r = glacier_powerlaw_c_relax_factor, and C_r = powerlaw_c_relax.
+    !WHL - debug
+    real(dp), dimension(ewn-1,nsn-1) ::  &
+         logC,                 & ! log_10(friction_c)
+         dlogC,                & ! change in log_10(friction_c)
+         logC_relax              ! log_10(friction_c_relax)
+
+    real(dp), parameter :: logmin = -99.d0   ! arbitrary negative value;
+                                             ! values of log(c) below logmin are considered non-physical
 
     if (verbose_glacier .and. this_rank == rtest) then
        print*, ' '
@@ -2537,63 +2530,75 @@ contains
 
        stag_dthck(:,:) = stag_thck(:,:) - stag_thck_target(:,:)
 
-       ! Loop over vertices
+       ! Compute the log (base 10) of the current Cp.
+       ! We work with log(C) instead of C itself, because the physical effects of changing C
+       ! by an amount dC are much greater at low C than at high C.
+       where (powerlaw_c > 0.0d0)
+          logC = log10(powerlaw_c)
+       elsewhere
+          logC = logmin
+       endwhere
 
+       ! initialize
+       dlogC = 0.0d0
+       where (powerlaw_c_relax > 0.0d0)
+          logc_relax = log10(powerlaw_c_relax)
+       elsewhere
+          logc_relax = logmin
+       endwhere
+
+       ! Loop over vertices
        do j = 1, nsn-1
           do i = 1, ewn-1
 
-             if (stag_thck(i,j) > 0.0d0) then
+             ! Compute and sum the three tendency terms
+             term_thck = -stag_dthck(i,j) / (babc_thck_scale*babc_timescale)
+             term_dHdt = -stag_dthck_dt(i,j) * 2.0d0 / babc_thck_scale
 
-                term_thck = -stag_dthck(i,j) / (babc_thck_scale * babc_timescale)
-                term_dHdt = -stag_dthck_dt(i,j) * 2.0d0 / babc_thck_scale
+             if (logC(i,j) > logmin) then
+                term_relax = -babc_relax_factor * (logC(i,j) - logC_relax(i,j)) / babc_timescale
+             else
+                term_relax = 0.0d0
+             endif
 
-                ! Add a term to relax C = powerlaw_c toward a target value, C_r = powerlaw_c_relax
-                ! The log term below ensures the following:
-                ! * When C /= C_r, it will relax toward C_r.
-                ! * When C = C_r, there is no further relaxation.
-                ! * In steady state (dC/dt = 0, dH/dt = 0), we have dthck/thck_scale = -k * ln(C/C_r),
-                !    or C = C_r * exp(-dthck/(k*thck_scale)), where k is a prescribed constant
+             dlogC(i,j) = (term_thck + term_dHdt + term_relax) * glacier_update_interval
 
-                term_relax = -babc_relax_factor * log(powerlaw_c(i,j)/powerlaw_c_relax(i,j)) &
-                     / babc_timescale
-
-                dpowerlaw_c = powerlaw_c(i,j) * (term_thck + term_dHdt + term_relax) * glacier_update_interval
-
-                ! Limit to prevent a large relative change in one step
-                !TODO - Maybe this should be a limit on the change per unit time, not per timestep.
-                if (abs(dpowerlaw_c) > 0.05d0 * powerlaw_c(i,j)) then
-                   if (dpowerlaw_c > 0.0d0) then
-                      dpowerlaw_c =  0.05d0 * powerlaw_c(i,j)
-                   else
-                      dpowerlaw_c = -0.05d0 * powerlaw_c(i,j)
-                   endif
+             ! Limit to prevent a large change in one step
+             ! Note: glacier_update_interval has units of yr.
+             if (abs(dlogC(i,j)) > 0.1d0 * glacier_update_interval) then
+                if (dlogC(i,j) > 0.0d0) then
+                   dlogC(i,j) =  0.1d0 * glacier_update_interval
+                else
+                   dlogC(i,j) = -0.1d0 * glacier_update_interval
                 endif
+             endif
 
-                ! Update powerlaw_c
-                powerlaw_c(i,j) = powerlaw_c(i,j) + dpowerlaw_c
+             ! Update log(C)
+             logC(i,j) = logC(i,j) + dlogC(i,j)
 
-                ! Limit to a physically reasonable range
-                powerlaw_c(i,j) = min(powerlaw_c(i,j), powerlaw_c_max)
-                powerlaw_c(i,j) = max(powerlaw_c(i,j), powerlaw_c_min)
+             ! Convert log(C) back to C
+             if (logC(i,j) > logmin) then
+                powerlaw_c(i,j) = 10.d0**(logC(i,j))
+             else
+                powerlaw_c(i,j) = 0.0d0
+             endif
 
-                if (verbose_glacier .and. this_rank == rtest .and. i == itest .and. j == jtest) then
-                   print*, ' '
-                   print*, 'Invert for powerlaw_c: rank, i, j =', this_rank, i, j
-                   print*, 'H, H_target (m)', stag_thck(i,j), stag_thck_target(i,j)
-                   print*, 'dH_dt (m/yr):', stag_dthck_dt(i,j)
-                   print*, 'dt (yr), term_thck*dt, term_dHdt*dt:', glacier_update_interval, &
-                        term_thck*glacier_update_interval, term_dHdt*glacier_update_interval
-                   print*, 'relax term:', term_relax*glacier_update_interval
-                   print*, 'dpowerlaw_c, new powerlaw_c:', dpowerlaw_c, powerlaw_c(i,j)
-                endif
+             ! Limit to a physically reasonable range
+             powerlaw_c(i,j) = min(powerlaw_c(i,j), powerlaw_c_max)
+             powerlaw_c(i,j) = max(powerlaw_c(i,j), powerlaw_c_min)
 
-             else   ! stag_thck = 0
+             if (verbose_glacier .and. this_rank == rtest .and. i == itest .and. j == jtest) then
+                print*, ' '
+                print*, 'Invert for powerlaw_c: rank, i, j =', this_rank, i, j
+                print*, 'H, H_target (m)', stag_thck(i,j), stag_thck_target(i,j)
+                print*, 'dH_dt (m/yr):', stag_dthck_dt(i,j)
+                print*, 'dt (yr), term_thck*dt, term_dHdt*dt:', glacier_update_interval, &
+                     term_thck*glacier_update_interval, term_dHdt*glacier_update_interval
+                print*, 'relax term:', term_relax*glacier_update_interval
+                print*, 'dlogC, new powerlaw_c:', dlogC(i,j), powerlaw_c(i,j)
+             endif
 
-                ! do nothing; keep the current value
-
-             endif  ! stag_thck > 0
-
-          enddo   ! i
+          enddo  ! i
        enddo   ! j
 
     else   ! thck_scale or timescale = 0

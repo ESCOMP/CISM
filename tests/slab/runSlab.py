@@ -89,6 +89,8 @@ parser.add_argument('-r','--resolution', default=100.0,
         help="Grid resolution (m)")
 parser.add_argument('-theta','--theta', default=5.0,
         help="Slope angle (deg)")
+parser.add_argument('-phi','--phi', default=0.0,
+        help="Slab orientation (deg); should be 0, 90, 180, 0r 270")
 parser.add_argument('-thk','--thickness', default=1000.0,
         help="Ice thickness (m)")
 
@@ -224,6 +226,11 @@ def main():
     theta = float(args.theta)
     theta_rad = theta * pi/180.0   # convert to radians
 
+    # compass orientation = direction of steepest descent
+    # ideally could be any angle between 0 and 360 deg,
+    # but the periodic BCs only support the four cardinal directions
+    phi = float(args.phi)
+
     # flow law exponent
     # Any value n >= 1 is supported.
     gn = float(args.glen_exponent)
@@ -286,8 +293,19 @@ def main():
     # This is diagnostic only; not used directly by CISM
     eta = (beta * thickness / mu_n**gn) * (rhoi * grav * thickness)**(gn-1)
 
-    # periodic offset; depends on theta and dx
-    offset = 1.0 * float(nx)*dx * tan(theta_rad)
+    # periodic offset; depends on theta, phi, and dx
+    if phi == 0.:
+        offset =  1.0 * float(nx)*dx * tan(theta_rad)
+        config_parser.set('parameters', 'periodic_offset_ew', str(offset))
+    elif phi == 90.:
+        offset =  1.0 * float(ny)*dy * tan(theta_rad)
+        config_parser.set('parameters', 'periodic_offset_ns', str(offset))
+    elif phi == 180.:
+        offset = -1.0 * float(nx)*dx * tan(theta_rad)
+        config_parser.set('parameters', 'periodic_offset_ew', str(offset))
+    elif phi == 270.:
+        offset = -1.0 * float(ny)*dy * tan(theta_rad)
+        config_parser.set('parameters', 'periodic_offset_ns', str(offset))
 
     # Print some values
     print('nx   = ' + str(nx))
@@ -304,11 +322,11 @@ def main():
     print('flwa = ' + str(flwa))
     print('eta  = ' + str(eta))
     print('theta   = ' + str(theta))
+    print('phi     = ' + str(phi))
     print('offset  = ' + str(offset))
 
     # Write some options and parameters to the config file
 
-    config_parser.set('parameters', 'periodic_offset_ew', str(offset))
     config_parser.set('parameters', 'rhoi', str(rhoi))
     config_parser.set('parameters', 'grav', str(grav))
     config_parser.set('parameters', 'n_glen', str(gn))
@@ -380,12 +398,31 @@ def main():
     #      Do we need unstagbeta instead of beta?  Compare to ISMIP-HOM tests.
 
     thk[:] = thickness / cos(theta_rad)
-    xmax = x[:].max()
-    for i in range(nx):
-        topg[0,:,i] = (xmax - x[i]) * tan(theta_rad) + baseElevation
+
+    if phi == 0.0:
+        xmax = x[:].max()
+        for i in range(nx):
+            topg[0,:,i] = (xmax - x[i]) * tan(theta_rad) + baseElevation
+    elif phi == 90.0:
+        ymax = y[:].max()
+        for j in range(ny):
+            topg[0,j,:] = (ymax - y[j]) * tan(theta_rad) + baseElevation
+    elif phi == 180.0:
+        xmin = x[:].min()
+        for i in range(nx):
+            topg[0,:,i] = (x[i] - xmin) * tan(theta_rad) + baseElevation
+    elif phi == 270.0:
+        ymin = y[:].min()
+        for j in range(ny):
+            topg[0,j,:] = (y[j] - ymin) * tan(theta_rad) + baseElevation
+    else:
+        print("\nMust set phi = 0, 90, 180 or 270")
+        sys.exit(1)
+
     unstagbeta[:] = beta
 
     # Optionally, add a small perturbation to the thickness field
+    # Note: May not work for phi other than 0 or 180
 
     if args.delta_thck:
         dh = float(args.delta_thck)

@@ -183,14 +183,6 @@ def main():
     # This expression is derived in the comments on flwa in runSlab.py.
     mu_n = 1.0 / (2.0**((1.0+gn)/(2.0*gn)) * flwa**(1.0/gn))
 
-    # Get the ice thickness from the output file.
-    # If thickness = constant (i.e., the optional perturbation dh = 0), it does not matter where we sample.
-    # Note: In general, this thickness will differ from the baseline 'thk' that is used in runSlab.py
-    #        to create the input file.
-    #       This is because the baseline value is measured perpendicular to the sloped bed,
-    #        whereas the CISM value is in the vertical direction, which is not perpendicular to the bed.
-    thickness = thk[0,yp,xp]
-
     # Get beta from the output file.
     # Since beta = constant, it does not matter where we sample.
     beta = beta_2d[0,yp,xp]
@@ -200,6 +192,17 @@ def main():
     slope = (topg[0,yp,xp] - topg[0,yp,xp+1]) / (x0[xp+1] - x0[xp])
     thetar = atan(slope)
     theta = thetar * 180.0/pi
+
+    # Get the ice thickness from the output file.
+    # If thickness = constant (i.e., the optional perturbation dh = 0), it does not matter where we sample.
+    # Note: In general, this thickness will differ from the baseline 'thk' that is used in runSlab.py
+    #        to create the input file.
+    #       This is because the baseline value is measured perpendicular to the sloped bed,
+    #        whereas the CISM value is in the vertical direction, which is not perpendicular to the bed.
+    thickness = thk[0,yp,xp]
+
+    # Multiply by cos(theta) to get the thickness in the zprime direction (perpendicular to the bed).
+    thickness = thickness * cos(thetar)
 
     # Compute the dimensionless parameter eta and the velocity scale,
     # which appear in the scaled velocity solution.

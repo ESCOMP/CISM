@@ -236,8 +236,9 @@ contains
          factor                              ! unit conversion factor
 
     integer, dimension(model%general%ewn,model%general%nsn) ::  &
-         ice_mask,     &! = 1 where ice is present with thck > minthck, else = 0
-         floating_mask  ! = 1 where ice is present and floating, else = 0
+         ice_mask,                 & ! = 1 where ice is present with thck > minthck, else = 0
+         floating_mask,            & ! = 1 where ice is present and floating, else = 0
+         glacier_ice_mask            ! = 1 where glacier ice is present, initially and/or currently
 
     real(dp), dimension(model%general%upn) ::  &
          temp_diag,                     &    ! Note: sfc temp not included if temps are staggered
@@ -258,12 +259,10 @@ contains
          tot_glc_volume_init_extent,          & ! glacier volume summed over the initial extent (km^3)
          tot_glc_area_target,                 & ! target glacier area for inversion (km^2)
          tot_glc_volume_target,               & ! target glacier volume for inversion (km^3)
-         sum_sqr_err,                         & ! sum-squared error
          glc_rmse_thck,                       & ! root mean square value of thck - thck_target
          glc_rmse_thck_init_extent              ! as above, but within initial extent
 
     integer :: &
-         nglc_cells,                          & ! number of glacier grid cells
          count_area, count_volume               ! number of glaciers with nonzero area and volume
 
     integer :: &
@@ -1258,42 +1257,37 @@ contains
              tot_glc_volume_target = tot_glc_volume_target + model%glacier%volume_target(ng)
           enddo
 
-          ! Compute the root-mean-square error (thck - thck_target), including cells
+          ! Compute the root-mean-square error of (thck - thck_target), including cells
           !  with cism_glacier_id > 0 or cism_glacier_id_init > 0
-          !TODO - Call an rmse subroutine (with a mask for glacier cells)
-          nglc_cells = 0
-          sum_sqr_err = 0.0d0
-          do j = nhalo+1, nsn-nhalo
-             do i = nhalo+1, ewn-nhalo
-                ng = max(model%glacier%cism_glacier_id(i,j), &
-                         model%glacier%cism_glacier_id_init(i,j))
-                if (ng > 0) then
-                   nglc_cells = nglc_cells + 1
-                   sum_sqr_err = sum_sqr_err &
-                        + (model%geometry%thck(i,j) - model%glacier%thck_target(i,j))**2
-                endif
-             enddo
-          enddo
-          nglc_cells = parallel_reduce_sum(nglc_cells)
-          sum_sqr_err = parallel_reduce_sum(sum_sqr_err)
-          glc_rmse_thck = sqrt(sum_sqr_err/nglc_cells)
+          where (model%glacier%cism_glacier_id_init > 0 .or. model%glacier%cism_glacier_id > 0)
+             glacier_ice_mask = 1
+          elsewhere
+             glacier_ice_mask = 0
+          endwhere
+
+          call glissade_rms_error(&
+               ewn,            nsn,          &
+               glacier_ice_mask,             &
+               parallel,                     &
+               model%geometry%thck,          &
+               model%glacier%thck_target,    &
+               glc_rmse_thck)
 
           ! Repeat, including only cells within the initial glacier extent
-          nglc_cells = 0
-          sum_sqr_err = 0.0d0
-          do j = nhalo+1, nsn-nhalo
-             do i = nhalo+1, ewn-nhalo
-                ng = model%glacier%cism_glacier_id_init(i,j)
-                if (ng > 0) then
-                   nglc_cells = nglc_cells + 1
-                   sum_sqr_err = sum_sqr_err &
-                        + (model%geometry%thck(i,j) - model%glacier%thck_target(i,j))**2
-                endif
-             enddo
-          enddo
-          nglc_cells = parallel_reduce_sum(nglc_cells)
-          sum_sqr_err = parallel_reduce_sum(sum_sqr_err)
-          glc_rmse_thck_init_extent = sqrt(sum_sqr_err/nglc_cells)
+
+          where (model%glacier%cism_glacier_id_init > 0)
+             glacier_ice_mask = 1.0d0
+          elsewhere
+             glacier_ice_mask = 0.0d0
+          endwhere
+
+          call glissade_rms_error(&
+               ewn,            nsn,          &
+               glacier_ice_mask,             &
+               parallel,                     &
+               model%geometry%thck,          &
+               model%glacier%thck_target,    &
+               glc_rmse_thck_init_extent)
 
           write(message,'(a35,f14.6)') 'Total area target (km^2)           ', &
                tot_glc_area_target / 1.0d6

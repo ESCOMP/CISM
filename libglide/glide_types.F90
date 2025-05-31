@@ -1001,6 +1001,9 @@ module glide_types
     !> \item[5]  Hybrid solver combining an SSA basal solve with a local vertical SIA solve
     !> \end{description}
 
+    logical :: diva_slope_correction = .true.
+    !> Flag that indicates whether the DIVA solver includes a correction for steep slopes
+
     integer :: which_ho_precond = 2    
     !> Flag that indicates which Stokes preconditioner to use in the glissade dycore.
     !> Not valid for other dycores 
@@ -1991,8 +1994,6 @@ module glide_types
           glacierid => null()                 !> glacier ID dimension variable, used for I/O
 
      ! The following will be allocated with size nglacier, once nglacier is known.
-     ! Note: mu_star and powerlaw_c have the suffix 'glc' to avoid confusion with the 2D fields
-     !       glacier%mu_star and basal_physics%powerlaw_c
 
      integer, dimension(:), pointer :: &
           cism_to_rgi_glacier_id => null()    !> maps CISM glacier IDs (1:nglacier) to input RGI glacier IDs

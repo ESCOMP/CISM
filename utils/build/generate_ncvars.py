@@ -561,8 +561,8 @@ class PrintNC_template(PrintVars):
                 #WHL: Call parallel_get_var to read scalars and 1D arrays without horizontal dimensions
                 #     Otherwise, call distributed_get_var
                 if dimstring == 'infile%current_time' or dimstring == '1,infile%current_time':
-                    self.stream.write("%s       status = parallel_get_var(NCI%%id, varid, &\n%s            %s)\n"%(spaces,
-                                                                                                                   spaces,var['data']))
+                    self.stream.write("%s       status = parallel_get_var(NCI%%id, varid, &\n%s            %s, (/%s/))\n"%(spaces,
+                                                                                                                   spaces,var['data'], dimstring))
                 else:
                     self.stream.write("%s       status = distributed_get_var(NCI%%id, varid, &\n%s            %s, parallel, (/%s/))\n"%(spaces,
                                                                                       spaces,var['data'], dimstring))

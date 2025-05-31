@@ -58,7 +58,7 @@
 
     use glimmer_global, only: dp
     use glimmer_physcon, only: n_glen, rhoi, rhoo, grav, scyr, pi
-    use glimmer_paramets, only: eps08, eps10
+    use glimmer_paramets, only: eps08, eps10, eps11
     use glimmer_paramets, only: velo_scale, len_scale   ! used for whichefvs = HO_EFVS_FLOWFACT
     use glimmer_log
     use glimmer_sparse_type
@@ -258,7 +258,7 @@
        dphi_dyr_3d_vav,    &! vertical avg of dphi_dyr_3d
        dphi_dzr_3d_vav      ! vertical avg of dphi_dzr_3d
 
-    contains
+  contains
 
 !****************************************************************************
 
@@ -546,9 +546,9 @@
        phi_2d(3,p) = (1.d0 + xqp_2d(p)) * (1.d0 + yqp_2d(p)) / 4.d0 
        phi_2d(4,p) = (1.d0 - xqp_2d(p)) * (1.d0 + yqp_2d(p)) / 4.d0
 
-       dphi_dxr_2d(1,p) = -(1.d0 - yqp_2d(p)) / 4.d0 
-       dphi_dxr_2d(2,p) =  (1.d0 - yqp_2d(p)) / 4.d0 
-       dphi_dxr_2d(3,p) =  (1.d0 + yqp_2d(p)) / 4.d0 
+       dphi_dxr_2d(1,p) = -(1.d0 - yqp_2d(p)) / 4.d0
+       dphi_dxr_2d(2,p) =  (1.d0 - yqp_2d(p)) / 4.d0
+       dphi_dxr_2d(3,p) =  (1.d0 + yqp_2d(p)) / 4.d0
        dphi_dxr_2d(4,p) = -(1.d0 + yqp_2d(p)) / 4.d0
 
        dphi_dyr_2d(1,p) = -(1.d0 - xqp_2d(p)) / 4.d0 
@@ -778,6 +778,7 @@
        whichapprox, &           ! option for which Stokes approximation to use
                                 ! 0 = SIA, 1 = SSA, 2 = Blatter-Pattyn HO, 3 = L1L2
                                 ! default = 2
+       diva_slope_correction, & ! if true, include a slope correction for the DIVA solver
        whichprecond, &          ! option for which preconditioner to use with 
                                 !  structured PCG solver
                                 ! 0 = none, 1 = diag, 2 = SIA-based
@@ -970,11 +971,13 @@
        Afill_2d           ! true wherever the matrix value is potentially nonzero
                           ! 2D Trilinos only
 
-    ! The following are used for the depth-integrated viscosity solve
+    ! The following are used for the depth-integrated viscosity solve.
+    ! Note: To support slope corrections, DIVA now has two version of beta_eff:
+    !       one in the x direction and one in the y direction
     real(dp), dimension(:,:), allocatable :: &
-       beta_eff,            &! effective beta, defined by Goldberg (2011) eq. 41
-                             ! beta*u_b = beta_eff*u_av
-       omega,               &! double integral, defined by Goldberg (2011) eq. 35
+       beta_eff_x,         & ! effective beta, defined by Goldberg (2011) eq. 41
+       beta_eff_y,         & ! beta*u_b = beta_eff*u_av
+       omega,              & ! double integral, defined by Goldberg (2011) eq. 35
                              ! Note: omega here is equal to Goldberg's omega/H
        stag_omega            ! omega interpolated to staggered grid
 
@@ -989,6 +992,23 @@
        diva_level_index = 0  ! level for which the DIVA scheme finds the 2D velocity
                              ! 0 = mean, 1 = upper surface
                              ! Results are not very sensitive to this choice                     
+
+    real(dp), dimension(nx,ny) ::   &
+       z_mean,             & ! mean of surface and basal elevation (m)
+       theta_slope,        & ! slope angle (radians) based on surface and bed slopes
+       theta_slope_x,      & ! slope angle (radians) in x direction based on surface and bed slopes
+       theta_slope_y,      & ! slope angle (radians) in y direction based on surface and bed slopes
+       diva_slope_factor_x,& ! correction factor for DIVA, based on theta_slope_x
+       diva_slope_factor_y   ! correction factor for DIVA, based on theta_slope_y
+
+    ! staggered versions of the fields above
+    real(dp), dimension(nx-1,ny-1) ::  &
+         stag_theta_slope, &
+         stag_theta_slope_x, &
+         stag_theta_slope_y, &
+         stag_diva_slope_factor_x, &
+         stag_diva_slope_factor_y
+
     real(dp) :: dsigma
     real(dp) :: maxbeta, minbeta
     integer :: i, j, k, m, n, p, r
@@ -1156,6 +1176,7 @@
      whichsparse          = model%options%which_ho_sparse
      whichnonlinear       = model%options%which_ho_nonlinear
      whichapprox          = model%options%which_ho_approx
+     diva_slope_correction= model%options%diva_slope_correction
      whichprecond         = model%options%which_ho_precond
      maxiter_nonlinear    = model%options%glissade_maxiter
      linear_solve_ncheck  = model%options%linear_solve_ncheck
@@ -1282,13 +1303,15 @@
 
     if (whichapprox == HO_APPROX_DIVA) then
 !!       call parallel_halo(efvs, parallel)   ! efvs halo update is in glissade_diagnostic_variable_solve
-       allocate(beta_eff(nx-1,ny-1))
+       allocate(beta_eff_x(nx-1,ny-1))
+       allocate(beta_eff_y(nx-1,ny-1))
        allocate(omega(nx,ny))
        allocate(omega_k(nz,nx,ny))
        allocate(stag_omega(nx-1,ny-1))
        allocate(stag_omega_k(nz,nx-1,ny-1))
        allocate(efvs_qp_3d(nz-1,nQuadPoints_2d,nx,ny))
-       beta_eff(:,:) = 0.d0
+       beta_eff_x(:,:) = 0.d0
+       beta_eff_y(:,:) = 0.d0
        omega(:,:) = 0.d0
        omega_k(:,:,:) = 0.d0
        stag_omega(:,:) = 0.d0
@@ -2413,6 +2436,122 @@
        
     endif   ! verbose
     
+    ! Optional slope correction factor for DIVA
+
+    ! Initialize to values appropriate for small slopes
+    ! Modified below if diva_slope_correction = T
+    theta_slope = 0.0d0
+    theta_slope_x = 0.0d0
+    theta_slope_y = 0.0d0
+    stag_theta_slope_x = 0.0d0
+    stag_theta_slope_y = 0.0d0
+    stag_theta_slope = 0.0d0
+    diva_slope_factor_x = 1.0d0
+    diva_slope_factor_y = 1.0d0
+    stag_diva_slope_factor_x = 1.0d0
+    stag_diva_slope_factor_y = 1.0d0
+
+    if (whichapprox==HO_APPROX_DIVA) then
+       if (diva_slope_correction) then
+
+          ! Compute the slope angle at each cell center.
+          ! Note: Results will differ based on whether we use the slope of usrf, lsrf, or an average
+          !       (e.g. for ISMIP-HOM Test A, which has steep lsrf and gentler usrf).
+          ! Note: theta_slope is a required output argument but is not used.
+
+!!          z_mean = usrf
+!!          z_mean = lsrf
+          z_mean = 0.5d0 * (usrf + lsrf)
+
+          call glissade_slope_angle(&
+               nx,         ny,     &
+               dx,         dy,     &  ! m
+               z_mean,             &  ! m
+               theta_slope,        &  ! radians
+               theta_slope_x,      &
+               theta_slope_y)
+
+          call parallel_halo(theta_slope_x, parallel)
+          call parallel_halo(theta_slope_y, parallel)
+
+          ! Repeat for vertices.
+          ! We do separate calls for centers and vertices to avoid issues with angle interpolation.
+          ! Note: stag_theta_slope is a required output argument but is not used.
+          call glissade_slope_angle_staggered(&
+               nx,         ny,     &
+               dx,         dy,     &  ! m
+               z_mean,             &  ! m
+               stag_theta_slope,   &  ! radians
+               stag_theta_slope_x,      &
+               stag_theta_slope_y)
+
+          call parallel_halo(stag_theta_slope_x, parallel)
+          call parallel_halo(stag_theta_slope_y, parallel)
+
+          ! Compute the slope factors used to correct vertical derivatives (du/dz) and (dv/dz)
+          diva_slope_factor_x = cos(theta_slope_x)**2 + 4.d0*sin(theta_slope_x)**2
+          diva_slope_factor_y = cos(theta_slope_y)**2 + 4.d0*sin(theta_slope_y)**2
+          stag_diva_slope_factor_x = cos(stag_theta_slope_x)**2 + 4.d0*sin(stag_theta_slope_x)**2
+          stag_diva_slope_factor_y = cos(stag_theta_slope_y)**2 + 4.d0*sin(stag_theta_slope_y)**2
+
+          if (verbose_diva .and. this_rank == rtest) then
+
+             print*, ' '
+             print*, 'z_mean:'
+             do j = jtest+3, jtest-3, -1
+                do i = itest-3, itest+3
+                   write(6,'(f10.3)',advance='no') z_mean(i,j)
+                enddo
+                write(6,*) ' '
+             enddo
+
+             print*, ' '
+             print*, 'theta_slope_x (deg):'
+             do j = jtest+3, jtest-3, -1
+                do i = itest-3, itest+3
+                   write(6,'(f10.5)',advance='no') theta_slope_x(i,j)*180.d0/pi
+                enddo
+                write(6,*) ' '
+             enddo
+
+             print*, ' '
+             print*, 'theta_slope_y (deg):'
+             do j = jtest+3, jtest-3, -1
+                do i = itest-3, itest+3
+                   write(6,'(f10.5)',advance='no') theta_slope_y(i,j)*180.d0/pi
+                enddo
+                write(6,*) ' '
+             enddo
+
+             print*, ' '
+             print*, 'DIVA slope_factor_x:'
+             do j = jtest+3, jtest-3, -1
+                do i = itest-3, itest+3
+                   write(6,'(f10.3)',advance='no') diva_slope_factor_x(i,j)
+                enddo
+                write(6,*) ' '
+             enddo
+
+             print*, ' '
+             print*, 'DIVA slope_factor_y:'
+             do j = jtest+3, jtest-3, -1
+                do i = itest-3, itest+3
+                   write(6,'(f10.3)',advance='no') diva_slope_factor_y(i,j)
+                enddo
+                write(6,*) ' '
+             enddo
+
+             i = itest
+             j = jtest
+             print*, ' '
+             print*, 'i, j, uvel_2d, vvel_2d, beta_eff_x, beta_eff_y, btractx, btracty:',  &
+                  i, j, uvel_2d(i,j), vvel_2d(i,j), beta_eff_x(i,j), beta_eff_y(i,j), btractx(i,j), btracty(i,j)
+
+          endif   ! verbose
+
+       endif   ! diva_slope_correction
+
+    endif   ! DIVA
 
     !------------------------------------------------------------------------------
     ! Main outer loop: Iterate to solve the nonlinear problem
@@ -2467,16 +2606,21 @@
                    !       along with btractx and btracty (for effective viscosity).
                    !       We do not need velocity at all levels, but it is simplest just to call compute_3d_velocity_diva.
 
-                   call compute_3d_velocity_diva(nx,              ny,                   &
-                                                 nz,              sigma,                &
-                                                 itest,  jtest,   rtest,                &
-                                                 active_vertex,   diva_level_index,     &
-                                                 ice_plus_land_mask,                    &
-                                                 stag_omega,      omega_k,              &
-                                                 beta_eff,                              &
-                                                 uvel_2d,         vvel_2d,              &
-                                                 btractx,         btracty,              &
-                                                 uvel,            vvel)
+                   call compute_3d_velocity_diva(&
+                        nx,                 ny,                   &
+                        nz,                 sigma,                &
+                        itest,   jtest,     rtest,                &
+                        active_vertex,      diva_level_index,     &
+                        ice_plus_land_mask,                       &
+                        stag_omega,         omega_k,              &
+                        beta_internal,                            &
+                        beta_eff_x,         beta_eff_y,           &
+                        stag_theta_slope_x, stag_theta_slope_y,   &
+                        stag_diva_slope_factor_x,                 &
+                        stag_diva_slope_factor_y,                 &
+                        uvel_2d,            vvel_2d,              &
+                        btractx,            btracty,              &
+                        uvel,               vvel)
 
                 endif   ! DIVA
 
@@ -2803,14 +2947,6 @@
              usav_2d(:,:) = uvel_2d(:,:)
              vsav_2d(:,:) = vvel_2d(:,:)
 
-             if (whichapprox==HO_APPROX_DIVA .and. verbose_diva .and. this_rank==rtest) then
-                i = itest
-                j = jtest
-                print*, ' '
-                print*, 'i, j, uvel_2d, vvel_2d, beta_eff, btractx, btracty:',  &
-                         i, j, uvel_2d(i,j), vvel_2d(i,j), beta_eff(i,j), btractx(i,j), btracty(i,j)
-             endif
-
              ! Assemble the matrix
 
              call assemble_stiffness_matrix_2d(nx,               ny,              &
@@ -2824,6 +2960,7 @@
                                                stagusrf,         stagthck,        &
                                                flwa,             flwafact,        &
                                                whichapprox,                       &
+                                               diva_slope_factor_x, diva_slope_factor_y,  &
                                                whichefvs,        efvs,            &
                                                efvs_constant,    effstrain_min,   &
                                                Auu_2d,           Auv_2d,          &
@@ -2883,22 +3020,51 @@
                 !                = omega_k for k = 1
                 !
                 ! To implement a no-slip basal BC, set beta_eff = 1/omega
+                !
+                ! May 2025: Added some slope correction terms.
+                !           As a result, there is one version of beta_eff for the x direction
+                !            and another for the y direction.
                 !--------------------------------------------------------------------
 
-                beta_eff(:,:) = 0.d0
+                beta_eff_x(:,:) = 0.d0
+                beta_eff_y(:,:) = 0.d0
 
-                if (whichbabc == HO_BABC_NO_SLIP) then
-                   where (stag_omega > 0.d0) beta_eff = 1.d0 / stag_omega
-                else   ! slip allowed at bed
-                   beta_eff(:,:) = beta_internal(:,:) / (1.d0 + beta_internal(:,:)*stag_omega(:,:))
+                !Note: The 'if' is not strictly needed, since the corrected beta_eff is equal
+                !      to the uncorrected beta_eff whe slope_factor = 1.0 and theta_slope = 0.0
+                if (diva_slope_correction) then  ! compute a larger beta_eff at each vertex based on the slope
+
+                   if (whichbabc == HO_BABC_NO_SLIP) then
+                      where(stag_omega > 0.0d0)
+                         beta_eff_x = stag_diva_slope_factor_x / (stag_omega*cos(stag_theta_slope_x))
+                         beta_eff_y = stag_diva_slope_factor_y / (stag_omega*cos(stag_theta_slope_y))
+                      endwhere
+                   else
+                      beta_eff_x = (stag_diva_slope_factor_x*beta_internal)  &
+                        / (stag_diva_slope_factor_x + beta_internal*stag_omega*cos(stag_theta_slope_x))
+                      beta_eff_y = (stag_diva_slope_factor_y*beta_internal)  &
+                        / (stag_diva_slope_factor_y + beta_internal*stag_omega*cos(stag_theta_slope_y))
+                   endif
+
+                else   ! no slope correction
+
+                   if (whichbabc == HO_BABC_NO_SLIP) then
+                      where (stag_omega > 0.d0)
+                         beta_eff_x = 1.d0 / stag_omega
+                         beta_eff_y = 1.d0 / stag_omega
+                      endwhere
+                   else   ! slip allowed at bed
+                      beta_eff_x = beta_internal(:,:) / (1.d0 + beta_internal*stag_omega)
+                      beta_eff_y = beta_internal(:,:) / (1.d0 + beta_internal*stag_omega)
+                   endif
+
                 endif
 
                 if (verbose_diva .and. this_rank==rtest) then
                    i = itest
                    j = jtest
                    print*, ' '
-                   print*, 'uvel, F2, beta_eff, btractx:', uvel_2d(i,j), stag_omega(i,j), beta_eff(i,j), btractx(i,j)
-                   print*, 'vvel, btracty:', vvel_2d(i,j), btracty(i,j)
+                   print*, 'uvel, beta_eff_x, btractx:', uvel_2d(i,j), beta_eff_x(i,j), btractx(i,j)
+                   print*, 'vvel, beta_eff_y, btracty:', vvel_2d(i,j), beta_eff_y(i,j), btracty(i,j)
                    print*, ' '
                    print*, 'omega:'
                    do j = jtest+3, jtest-3, -1
@@ -2916,40 +3082,77 @@
                       write(6,*) ' '
                    enddo
                    print*, ' '
-                   print*, 'beta_eff:'
+                   print*, 'beta_eff_x:'
                    do j = jtest+3, jtest-3, -1
                       do i = itest-3, itest+3
-                         write(6,'(e10.3)',advance='no') beta_eff(i,j)
+                         write(6,'(e10.3)',advance='no') beta_eff_x(i,j)
+                      enddo
+                      write(6,*) ' '
+                   enddo
+                   print*, ' '
+                   print*, 'beta_eff_y:'
+                   do j = jtest+3, jtest-3, -1
+                      do i = itest-3, itest+3
+                         write(6,'(e10.3)',advance='no') beta_eff_y(i,j)
                       enddo
                       write(6,*) ' '
                    enddo
                 endif
 
-                ! Incorporate basal sliding boundary conditions, based on beta_eff
+                if (diva_slope_correction) then
 
-                call basal_sliding_bc_2d(nx,                ny,              &
-                                      nNodeNeighbors_2d, nhalo,           &
-                                      dx,                dy,              &
-                                      itest,   jtest,    rtest,           &
-                                      active_cell,       active_vertex,   &
-                                      beta_eff,                           &
-                                      xVertex,           yVertex,         &
-                                      whichassemble_beta,                 &
-                                      Auu_2d,            Avv_2d)
+                   ! Incorporate basal sliding boundary conditions with basal curvature,
+                   ! based on beta_eff_x and beta_eff_y
+
+                   call basal_sliding_bc_2d_diva(&
+                        nx,                ny,              &
+                        nNodeNeighbors_2d, nhalo,           &
+                        parallel,                           &
+                        dx,                dy,              &
+                        itest,   jtest,    rtest,           &
+                        active_cell,       active_vertex,   &
+                        beta_eff_x,        beta_eff_y,      &
+                        lsrf,                               &
+                        xVertex,           yVertex,         &
+                        whichassemble_beta,                 &
+                        Auu_2d,            Avv_2d)
+
+                else
+
+                   ! Incorporate basal sliding boundary conditions based on beta_eff,
+                   !  but without basal curvature
+
+                   call basal_sliding_bc_2d(&
+                        nx,                ny,              &
+                        nNodeNeighbors_2d, nhalo,           &
+                        parallel,                           &
+                        dx,                dy,              &
+                        itest,   jtest,    rtest,           &
+                        active_cell,       active_vertex,   &
+                        beta_eff_x,                         &  ! same as beta_eff_y
+                        lsrf,                               &
+                        xVertex,           yVertex,         &
+                        whichassemble_beta,                 &
+                        Auu_2d,            Avv_2d)
+
+                endif   ! diva_slope_correction
 
              else    ! L1L2, SSA
 
                 ! Incorporate basal sliding boundary conditions, based on beta_internal
 
-                call basal_sliding_bc_2d(nx,                ny,              &
-                                      nNodeNeighbors_2d, nhalo,           &
-                                      dx,                dy,              &
-                                      itest,   jtest,    rtest,           &
-                                      active_cell,       active_vertex,   &
-                                      beta_internal,                      &
-                                      xVertex,           yVertex,         &
-                                      whichassemble_beta,                 &
-                                      Auu_2d,            Avv_2d)
+                call basal_sliding_bc_2d(&
+                     nx,                ny,              &
+                     nNodeNeighbors_2d, nhalo,           &
+                     parallel,                           &
+                     dx,                dy,              &
+                     itest,   jtest,    rtest,           &
+                     active_cell,       active_vertex,   &
+                     beta_internal,                      &
+                     lsrf,                               &
+                     xVertex,           yVertex,         &
+                     whichassemble_beta,                 &
+                     Auu_2d,            Avv_2d)
 
              endif    ! whichapprox (SSA, L1L2, DIVA)
 
@@ -3127,15 +3330,17 @@
 
              if (whichbabc /= HO_BABC_NO_SLIP) then
 
-                call basal_sliding_bc(nx,                  ny,              &
-                                      nNodeNeighbors_3d,   nhalo,           &
-                                      dx,                  dy,              &
-                                      itest,    jtest,     rtest,           &
-                                      active_cell,         active_vertex,   &
-                                      beta_internal,                        &
-                                      xVertex,             yVertex,         &
-                                      whichassemble_beta,                   &
-                                      Auu(:,nz,:,:),       Avv(:,nz,:,:))
+                call basal_sliding_bc_3d(&
+                     nx,                  ny,              &
+                     nNodeNeighbors_3d,   nhalo,           &
+                     parallel,                             &
+                     dx,                  dy,              &
+                     itest,    jtest,     rtest,           &
+                     active_cell,         active_vertex,   &
+                     beta_internal,       lsrf,            &
+                     xVertex,             yVertex,         &
+                     whichassemble_beta,                   &
+                     Auu(:,nz,:,:),       Avv(:,nz,:,:))
 
              endif   ! whichbabc
 
@@ -3266,6 +3471,7 @@
                    print*, ' '
                    write(6,'(a4, i4, 4f16.8)') 'Auu:', i, Auu(m,k,i,j), maxval(Auu(:,k,i,j)), minval(Auu(:,k,i,j)), sum(Auu(:,k,i,j))
                    write(6,'(a4, i4, 4f16.8)') 'Auv:', i, Auv(m,k,i,j), maxval(Auv(:,k,i,j)), minval(Auv(:,k,i,j)), sum(Auv(:,k,i,j))
+                   write(6,'(a4, i4, 4f16.8)') 'Avv:', i, Avv(m,k,i,j), maxval(Avv(:,k,i,j)), minval(Avv(:,k,i,j)), sum(Avv(:,k,i,j))
                 enddo
              
              endif  ! verbose_matrix
@@ -3380,7 +3586,6 @@
                    ! proceed to the matrix solution
                    assembly_is_done = .true.
 
-                   !WHL - debug
                    if (verbose_picard .and. main_task) then
                       print*, 'nonlinear counter = 1; continue to matrix solver'
                    endif
@@ -3987,17 +4192,21 @@
 
           if (whichapprox == HO_APPROX_DIVA) then
 
-             call compute_3d_velocity_diva(nx,              ny,                   &
-                                           nz,              sigma,                &
-                                           itest,  jtest,   rtest,                &
-                                           active_vertex,   diva_level_index,     &
-                                           ice_plus_land_mask,                    &
-                                           stag_omega,      omega_k,              &
-                                           beta_eff,                              &
-                                           uvel_2d,         vvel_2d,              &
-                                           btractx,         btracty,              &
-                                           uvel,            vvel)
-
+             call compute_3d_velocity_diva(&
+                  nx,                 ny,                   &
+                  nz,                 sigma,                &
+                  itest,   jtest,     rtest,                &
+                  active_vertex,      diva_level_index,     &
+                  ice_plus_land_mask,                       &
+                  stag_omega,         omega_k,              &
+                  beta_internal,                            &
+                  beta_eff_x,         beta_eff_y,           &
+                  stag_theta_slope_x, stag_theta_slope_y,   &
+                  stag_diva_slope_factor_x,                 &
+                  stag_diva_slope_factor_y,                 &
+                  uvel_2d,            vvel_2d,              &
+                  btractx,            btracty,              &
+                  uvel,               vvel)
 
              call staggered_parallel_halo(uvel, parallel)
              call staggered_parallel_halo(vvel, parallel)
@@ -4091,8 +4300,6 @@
 !!       if (verbose .and. main_task) then
        if (main_task) then
           print*, 'Glissade solution has NOT converged: counter, err =', counter, L2_norm
-          !WHL - debug
-!!          stop
        endif
     endif
 
@@ -4166,10 +4373,37 @@
           i = itest
           j = jtest
           print*, ' '
-          print*, 'i, j, beta, beta_eff:', i, j, beta_internal(i,j), beta_eff(i,j)
+          print*, 'i, j, beta, beta_eff_x, beta_eff_y:', &
+               i, j, beta_internal(i,j), beta_eff_x(i,j), beta_eff_y(i,j)
+          print*, ' '
+          i = itest
+          j = jtest
+          print*, 'Computed 3D velocities, i, j =', i, j
+          print*, 'k, uvel, vvel:'
+          do k = 1, nz
+             print*, k, uvel(k,i,j), vvel(k,i,j)
+          enddo
+          print*, ' '
+          print*, 'Mean velocity =', uvel_2d(i,j), vvel_2d(i,j)
        endif
 
     endif   ! whichapprox
+
+    !WHL - debug
+    !TODO - One diagnostic to write out column velocities for any approximation
+    if (whichapprox == HO_APPROX_BP .and. this_rank==rtest) then
+       print*, ' '
+       i = itest
+       j = jtest
+       print*, 'Computed 3D BP velocities, i, j =', i, j
+       print*, 'k, uvel, vvel:'
+       do k = 1, nz
+          print*, k, uvel(k,i,j), vvel(k,i,j)
+       enddo
+       print*, ' '
+       !TODO - Make this more exact (based on sigma layers)
+       print*, 'Rough mean velocity =', sum(uvel(:,i,j))/nz, sum(vvel(:,i,j))/nz
+    endif
 
     !------------------------------------------------------------------------------
     ! Compute the components of the 3D stress tensor.
@@ -4321,7 +4555,8 @@
     endif
 
     if (whichapprox == HO_APPROX_DIVA) then
-       deallocate(beta_eff)
+       deallocate(beta_eff_x)
+       deallocate(beta_eff_y)
        deallocate(omega)
        deallocate(omega_k)
        deallocate(stag_omega)
@@ -5634,6 +5869,7 @@
                                           stagusrf,         stagthck,        &
                                           flwa,             flwafact,        &
                                           whichapprox,                       &
+                                          diva_slope_factor_x, diva_slope_factor_y, &
                                           whichefvs,        efvs,            &
                                           efvs_constant,    effstrain_min,   &
                                           Auu,              Auv,             &
@@ -5695,6 +5931,10 @@
     integer, intent(in) ::   &
        whichapprox,     & ! option for Stokes approximation (BP, L1L2, SSA, SIA)
        whichefvs          ! option for effective viscosity calculation 
+
+    real(dp), dimension(nx,ny), intent(in) ::   &
+       diva_slope_factor_x, &  ! correction factor for DIVA in x direction, based on theta_slope_x
+       diva_slope_factor_y     ! correction factor for DIVA in y direction, based on theta_slope_y
 
     real(dp), dimension(nz-1,nx,ny), intent(out) ::  &
        efvs               ! effective viscosity (Pa yr)
@@ -5871,14 +6111,13 @@
 
              ! Evaluate the derivatives of the element basis functions at this quadrature point.
 
-             !WHL - Pass in i, j and p to the following subroutines for debugging
-
              call get_basis_function_derivatives_2d(x(:),             y(:),          &
                                                     dphi_dxr_2d(:,p), dphi_dyr_2d(:,p), &
                                                     dphi_dx_2d(:),    dphi_dy_2d(:),    &
                                                     detJ(p),                            &
                                                     itest, jtest, rtest,                &
                                                     i, j, p)
+
              dphi_dz_2d(:) = 0.d0
 
              if (whichapprox == HO_APPROX_L1L2) then
@@ -5918,6 +6157,8 @@
                                                       dphi_dx_2d(:),        dphi_dy_2d(:),     &
                                                       u(:),                 v(:),              & 
                                                       bx(:),                by(:),             &
+                                                      diva_slope_factor_x(i,j),                &
+                                                      diva_slope_factor_y(i,j),                &
                                                       h(:),                                    &
                                                       flwa(:,i,j),          flwafact(:,i,j),   &
                                                       efvs_qp(:,p),                            &
@@ -5940,6 +6181,7 @@
              else     ! SSA
 
                 ! Compute vertically averaged effective viscosity at this quadrature point
+                !TODO - Why do we pass in dphi_dz_2d here and not elsewhere?
                 call compute_effective_viscosity(whichefvs,        whichapprox,                       &
                                                  efvs_constant,    effstrain_min,                     &
                                                  nNodesPerElement_2d,                                 &
@@ -6103,7 +6345,6 @@
     do p = 1, nQuadPoints_2d
        omega_kp(nz,p) = 0.d0
        do k = nz-1, 1, -1
-!!          depth = 0.5d0*(sigma(k)+sigma(k+1))/thck
           depth = 0.5d0*(sigma(k)+sigma(k+1))   ! depth/thck
           dz = (sigma(k+1)-sigma(k)) * thck
           omega_kp(k,p) = omega_kp(k+1,p) + depth/efvs_qp(k,p) * dz
@@ -6119,7 +6360,6 @@
     omega = 0.d0
     do k = 1, nz-1
        layer_avg = 0.5d0*(omega_k(k) + omega_k(k+1))
-!!       dz = (sigma(k+1)-sigma(k)) * thck 
        dz = sigma(k+1)-sigma(k)  ! dz/thck
        omega = omega + layer_avg * dz
     enddo
@@ -6136,11 +6376,10 @@
 
     !TODO - Test results further with this integral
     !Note - The following code computes the integral Arthern-style.
-    !       The resulting omega can vary by ~50%, but code answers change little.
 
     do p = 1, nQuadPoints_2d
        omega_kp(nz,p) = 0.d0
-       do k = 1, nz-1
+       do k = nz-1, 1, -1
           depth = 0.5d0*(sigma(k)+sigma(k+1))   ! depth/thck
           dz = (sigma(k+1)-sigma(k)) * thck
           omega_kp(k,p) = omega_kp(k+1,p) + depth**2/efvs_qp(k,p) * dz
@@ -6153,30 +6392,35 @@
     enddo
 !!    omega = fact_k(1)  ! Uncomment to use Arthern value of omega
     
-!    if (verbose_diva .and. this_rank==rtest .and. i==itest .and. j==jtest) then
-!       print*, ' '
-!       print*, 'Arthern integrals, i, j =', i, j
-!       print*, 'k, fact_k:'
-!       do k = 1, nz
-!          print*, k, fact_k(k)
-!       enddo
-!       print*, 'omega =', omega
-!    endif
+    if (verbose_diva .and. this_rank==rtest .and. i==itest .and. j==jtest) then
+       print*, ' '
+       print*, 'Arthern integrals, i, j =', i, j
+       print*, 'k, fact_k:'
+       do k = 1, nz
+          print*, k, fact_k(k)
+       enddo
+       print*, 'omega =', fact_k(1)
+    endif
 
   end subroutine compute_integrals_diva
 
 !****************************************************************************
 
-  subroutine compute_3d_velocity_diva(nx,               ny,                 &
-                                      nz,               sigma,              &
-                                      itest,   jtest,   rtest,              &
-                                      active_vertex,    diva_level_index,   &  
-                                      ice_plus_land_mask,                   &
-                                      stag_omega,       omega_k,            &
-                                      beta_eff,                             &
-                                      uvel_2d,          vvel_2d,            &
-                                      btractx,          btracty,            &
-                                      uvel,             vvel)
+  subroutine compute_3d_velocity_diva(&
+       nx,                  ny,                 &
+       nz,                  sigma,              &
+       itest,    jtest,     rtest,              &
+       active_vertex,       diva_level_index,   &
+       ice_plus_land_mask,                      &
+       stag_omega,          omega_k,            &
+       beta,                                    &
+       beta_eff_x,          beta_eff_y,         &
+       stag_theta_slope_x,  stag_theta_slope_y, &
+       stag_diva_slope_factor_x,                &
+       stag_diva_slope_factor_y,                &
+       uvel_2d,             vvel_2d,            &
+       btractx,             btracty,            &
+       uvel,                vvel)
     
     !----------------------------------------------------------------
     ! Compute the 3D velocity field for the DIVA scheme,
@@ -6212,13 +6456,18 @@
                           ! interpolated to staggered grid below
 
     real(dp), dimension(nx-1,ny-1), intent(in) ::  &
-       beta_eff,        & ! effective beta, defined by Goldberg (2011) eq. 41
-                          ! beta*u_b = beta_eff*u_av
+       beta,            & ! basal friction coefficient (Pa/(m/yr))
+       beta_eff_x,      & ! effective beta, defined by Goldberg (2011) eq. 41
+       beta_eff_y,      & ! beta*u_b = beta_eff_x*u_av, beta*v_b = beta_eff_y*v_av
+       stag_theta_slope_x, & ! slope angle (radians) in x direction at vertices
+       stag_theta_slope_y, & ! slope angle (radians) in y direction at vertices
+       stag_diva_slope_factor_x, & ! slope correction factor in x direction
+       stag_diva_slope_factor_y, & ! slope correction factor in y direction
        stag_omega,      & ! double integral, defined by Goldberg eq. 35 (m^2/(Pa yr))
                           ! already interpolated to staggered grid
                           ! Note: omega here = Goldberg's omega/H
        uvel_2d, vvel_2d   ! depth-integrated mean velocity; solution of 2D velocity solve (m/yr)
-                            
+
     real(dp), dimension(nx-1,ny-1), intent(out) ::  &
        btractx, btracty   ! components of basal traction (Pa); btractx = beta_eff * uvel
 
@@ -6234,16 +6483,20 @@
                             ! interpolated to staggered grid
 
     real(dp), dimension(nx-1,ny-1) ::  &
-         stag_integral      ! integral that relates bed velocity to uvel_2d/vvel_2d
+         stag_integral      ! integral that relates bed velocity to uvel_2d and vvel_2d
                             ! = stag_omega for diva_level_index = 0
                             ! = stag_omega_k(k,:,:) for other values of diva_level_index
 
 
+    real(dp) ::  &
+         slope_correction_x, & ! slope-based correction for vertical shear in x direction
+         slope_correction_y    ! slope-based correction for vertical shear in y direction
+
     ! Compute the components of basal traction, based on Goldberg (2011) eq. 38-39.
     ! These are needed to compute the effective viscosity on the next nonlinear iteration.
 
-    btractx(:,:) = beta_eff(:,:) * uvel_2d(:,:)
-    btracty(:,:) = beta_eff(:,:) * vvel_2d(:,:)
+    btractx(:,:) = beta_eff_x(:,:) * uvel_2d(:,:)
+    btracty(:,:) = beta_eff_y(:,:) * vvel_2d(:,:)
 
     ! Interpolate omega_k to the staggered grid
     !TODO - Remove ice_plus_land_mask and do a standard staggering?
@@ -6265,8 +6518,6 @@
 
     !----------------------------------------------------------------
     ! Compute the 3D velocity field
-    ! TODO: Try computing u_b from beta*u_b = beta_eff*u_av.
-    !       Will the answer be much different? Will convergence be faster?
     !----------------------------------------------------------------
 
     do j = 1, ny-1
@@ -6274,31 +6525,22 @@
           if (active_vertex(i,j)) then
 
              ! basal velocity (Goldberg eq. 34)
-             uvel(nz,i,j) = uvel_2d(i,j) - btractx(i,j)*stag_integral(i,j) 
-             vvel(nz,i,j) = vvel_2d(i,j) - btracty(i,j)*stag_integral(i,j) 
-         
-             ! vertical velocity profile (Goldberg eq. 32)
+             uvel(nz,i,j) = uvel_2d(i,j) - btractx(i,j)*stag_integral(i,j)
+             vvel(nz,i,j) = vvel_2d(i,j) - btracty(i,j)*stag_integral(i,j)
+
+             ! vertical velocity profile (Goldberg eq. 32, with slope correction added))
+             ! Note: slope_correction = 1 if diva_slope_correction = F
+             slope_correction_x = cos(stag_theta_slope_x(i,j)) / stag_diva_slope_factor_x(i,j)
+             slope_correction_y = cos(stag_theta_slope_y(i,j)) / stag_diva_slope_factor_y(i,j)
              do k = 1, nz-1
-                uvel(k,i,j) = uvel(nz,i,j) + btractx(i,j)*stag_omega_k(k,i,j)
-                vvel(k,i,j) = vvel(nz,i,j) + btracty(i,j)*stag_omega_k(k,i,j)
+                uvel(k,i,j) = uvel(nz,i,j) + btractx(i,j)*stag_omega_k(k,i,j)*slope_correction_x
+                vvel(k,i,j) = vvel(nz,i,j) + btracty(i,j)*stag_omega_k(k,i,j)*slope_correction_y
              enddo
 
           endif   ! active_vertex
        enddo      ! i
     enddo         ! j
 
-    if (verbose_diva .and. this_rank==rtest) then
-       print*, ' '
-       i = itest
-       j = jtest
-       print*, 'Computed 3D velocities, i, j =', i, j
-       print*, 'k, uvel, vvel:'
-       do k = 1, nz
-          print*, k, uvel(k,i,j), vvel(k,i,j)
-       enddo
-       print*, ' '
-    endif
-       
   end subroutine compute_3d_velocity_diva
 
 !****************************************************************************
@@ -7002,7 +7244,7 @@
 
     Jac(:,:) = 0.d0
 
-    if (verbose_Jac .and. this_rank==rtest .and. i==itest .and. j==jtest) then
+    if ((verbose_Jac .or. verbose_diva) .and. this_rank==rtest .and. i==itest .and. j==jtest) then
        print*, ' '
        print*, 'In get_basis_function_derivatives_2d: i, j, p =', i, j, p
     endif
@@ -7096,6 +7338,12 @@
                                      + Jinv(2,2)*dphi_dyr_2d(n)
     enddo
 
+    if (verbose_Jac .and. this_rank==rtest .and. i==itest .and. j==jtest) then
+       print*, ' '
+       print*, 'dphi_dx_2d:', dphi_dx_2d(:)
+       print*, 'dphi_dy_2d:', dphi_dy_2d(:)
+    endif
+
     if (Jac_bug_check) then
 
        ! Check that the sum of dphi_dx, etc. is close to zero  
@@ -7119,6 +7367,101 @@
 
 !****************************************************************************
 
+  subroutine get_area_scale_factor_curved_2d(&
+       xNode,       yNode,       zNode,      &
+       dphi_dxr_2d, dphi_dyr_2d,             &
+       itest, jtest, rtest,                  &
+       i, j, p,                              &
+       area_scale_factor)
+
+    !------------------------------------------------------------------
+    ! Compute a scaling factor for area transformation between flat 2D coordinates
+    ! and a curved 2D surface (e.g., the base of an ice sheet) embedded in 3D space.
+    !
+    ! This subroutine should work for any 2D element with any number of nodes.
+    !------------------------------------------------------------------
+
+    real(dp), dimension(nNodesPerElement_2d), intent(in) :: &
+         xNode, yNode, zNode,           & ! nodal coordinates
+         dphi_dxr_2d, dphi_dyr_2d         ! derivatives of basis functions at quad pt
+                                          !  wrt x and y in reference element
+
+    integer, intent(in) :: &
+       itest, jtest, rtest              ! coordinates of diagnostic point
+
+    integer, intent(in) :: i, j, p
+
+    real(dp), intent(out) :: &
+         area_scale_factor   ! area scaling factor for transformations between a flat 2D surface
+                             ! and a curved 2D surface in 3D space;
+
+    ! Local variables
+
+    real(dp), dimension(2,3) ::  &
+         Jac               ! Jacobian matrix J
+
+    integer :: n
+    real(dp) :: term1, term2, term3
+
+    !------------------------------------------------------------------
+    ! Compute the Jacobian for the transformation from the reference coordinates (in R2)
+    ! to the 3D true coordinates (in R3):
+    !
+    !              |                                                                           |
+    !              | sum_n{dphi_n/dxr * xn}   sum_n{dphi_n/dxr * yn}   sum_n{dphi_n/dxr * zn}  |
+    !   J(xr,yr) = |                                                                           |
+    !              | sum_n{dphi_n/dyr * xn}   sum_n{dphi_n/dyr * yn}   sum_n{dphi_n/dyr * zn}  |
+    !              |                                                                           |
+    !
+    ! where (xn,yn,zn) are the true Cartesian nodal coordinates,
+    !       (xr,yr) are the coordinates of the quad point in the reference element,
+    !       and sum_n denotes a sum over nodes.
+    !------------------------------------------------------------------
+
+    if ((verbose_Jac .or. verbose_diva) .and. this_rank==rtest .and. i==itest .and. j==jtest) then
+       print*, ' '
+       print*, 'In get_area_scale_factor_curved_2d: i, j, p =', i, j, p
+    endif
+
+    Jac(:,:) = 0.d0
+
+    do n = 1, nNodesPerElement_2d
+       if (verbose_Jac .and. this_rank==rtest .and. i==itest .and. j==jtest) then
+          print*, ' '
+          print*, 'n, x, y, z:', n, xNode(n), yNode(n), zNode(n)
+          print*, 'dphi_dxr_2d, dphi_dyr_2d:', dphi_dxr_2d(n), dphi_dyr_2d(n)
+       endif
+       Jac(1,1) = Jac(1,1) + dphi_dxr_2d(n) * xNode(n)
+       Jac(1,2) = Jac(1,2) + dphi_dxr_2d(n) * yNode(n)
+       Jac(1,3) = Jac(1,3) + dphi_dxr_2d(n) * zNode(n)
+       Jac(2,1) = Jac(2,1) + dphi_dyr_2d(n) * xNode(n)
+       Jac(2,2) = Jac(2,2) + dphi_dyr_2d(n) * yNode(n)
+       Jac(2,3) = Jac(2,3) + dphi_dyr_2d(n) * zNode(n)
+    enddo
+
+    if (verbose_Jac .and. this_rank==rtest .and. i==itest .and. j==jtest) then
+       print*, ' '
+       print*, '2x3 Jacobian matrix:'
+       print*, Jac(1,:)
+       print*, Jac(2,:)
+    endif
+
+    !------------------------------------------------------------------
+    ! Compute the area scaling factor for this transformation.
+    ! For a square matrix, this would be det(J).
+    ! For non-square J, the following formula works. It is similar to
+    !  computing a cross product of the vectors joining the nodes.
+    !------------------------------------------------------------------
+
+    term1 =  (Jac(1,1)*Jac(2,2) - Jac(1,2)*Jac(2,1))
+    term2 = -(Jac(1,1)*Jac(2,3) - Jac(1,3)*Jac(2,1))
+    term3 =  (Jac(1,2)*Jac(2,3) - Jac(1,3)*Jac(2,2))
+    area_scale_factor = sqrt(term1**2 + term2**2 + term3**2)
+
+  end subroutine get_area_scale_factor_curved_2d
+
+!****************************************************************************
+
   subroutine compute_basal_friction_heatflx(nx,            ny,            &
                                             nhalo,                        &
                                             itest, jtest,  rtest,         &
@@ -7136,7 +7479,7 @@
     !   tau_x = -beta*u
     !   tau_y = -beta*v
     ! where beta and (u,v) are defined at vertices.
-    ! 
+    !
     ! The frictional heat flux (W/m^2) is given by q_b = tau_b * u_b,
     ! where tau_b and u_b are the magnitudes of the basal stress
     ! and velocity (e.g., Cuffey & Paterson, p. 418).
@@ -7148,7 +7491,7 @@
     !       However, it can lead to inaccurate and hugely excessive frictional fluxes where
     !        the flow transitions steeply from high beta/low velo to low beta/high velo
     !        (e.g., at the edge of fjords). In this case there are QPs with relatively
-    !        high velocity combined with large beta. 
+    !        high velocity combined with large beta.
     !       To choose method (1), set which_ho_assemble_bfric = 1 in the config file.
     !----------------------------------------------------------------
 
@@ -7217,7 +7560,7 @@
        ! Loop over locally owned cells
        do j = nhalo+1, ny-nhalo
           do i = nhalo+1, nx-nhalo
-       
+
              if (active_cell(i,j)) then   ! ice is present
 
                 ! Load x and y coordinates, basal velocity, and beta at cell vertices
@@ -7648,7 +7991,7 @@
        p_effstr                 ! exponent (1-n)/n in effective viscosity relation
 
     real(dp), parameter :: p2 = -1.d0/3.d0
-  
+
     ! Set exponent that depends on Glen's exponent
     p_effstr  = (1.d0 - n_glen)/n_glen
 
@@ -8025,6 +8368,7 @@
                                               dphi_dx,          dphi_dy,            &
                                               uvel,             vvel,               &
                                               btractx,          btracty,            &
+                                              diva_slope_factor_x, diva_slope_factor_y, &
                                               stagthck,                             &
                                               flwa,             flwafact,           &
                                               efvs,                                 &
@@ -8069,6 +8413,10 @@
        uvel, vvel,       &! current guess for depth_integrated mean velocity at cell vertices (m/yr)
        btractx, btracty, &! components of basal traction (Pa)
        stagthck           ! ice thickness at vertices
+
+    real(dp), intent(in) :: &
+         diva_slope_factor_x, &  ! slope factor in x direction for this vertex
+         diva_slope_factor_y     ! slope factor in y direction for this vertex
 
     real(dp), dimension(nz-1), intent(in) ::  &
        flwa,             &! temperature-based flow factor A at each layer of this cell column
@@ -8178,6 +8526,7 @@
        if (verbose_efvs .and. this_rank==rtest .and. i==itest .and. j==jtest .and. p==ptest) then
           print*, ' '
           print*, 'i, j, p, effstrain (yr-1):', i, j, p, sqrt(effstrainsq)
+          print*, 'p_effstr =', p_effstr
           print*, 'du_dx, du_dy =', du_dx, du_dy
           print*, 'dv_dx, dv_dy =', dv_dx, dv_dy
           print*, 'btractx, btracty =',  btractx, btracty
@@ -8194,8 +8543,8 @@
        !       u_z = tau_x*(s-z) / (H*efvs)
        !       v_z = tau_y*(s-z) / (H*efvs)
        !
-       !       tau_x = beta*u_b = beta_eff*u
-       !       tau_y = beta*v_b = beta_eff*v
+       !       tau_x = beta*u_b = beta_eff_x*u
+       !       tau_y = beta*v_b = beta_eff_y*v
        !
        !       (u,v) is the depth-averaged mean velocity
        !
@@ -8247,16 +8596,31 @@
 
     else  ! solve for efvs, using the old value of efvs to estimate the vertical strain rates
 
+       !Notes: taux is based on basal traction; it is a sum over btractx = beta_eff*uvel_2d from the last iteration
+       !       Optionally, the (du/dz) and (dv/dz) terms in the effective strain rate are multiplied
+       !        by a slope correction factor to enhance the viscosity.
+       !       (The cubic scheme above does not include this correction.)
+
        do k = 1, nz-1   ! loop over layers
           if (efvs(k)==0.d0) then
              efvs(k) = flwafact(k) * effstrain_min**p_effstr  ! efvs associated with minimum strain rate
           endif
-          du_dz = taux * stagsigma(k) / efvs(k)   ! old value of efvs on RHS
-          dv_dz = tauy * stagsigma(k) / efvs(k)
+          du_dz = taux * stagsigma(k) / (efvs(k)*diva_slope_factor_x)   ! old value of efvs on RHS
+          dv_dz = tauy * stagsigma(k) / (efvs(k)*diva_slope_factor_y)
           effstrainsq = effstrain_min**2          &
                       + du_dx**2 + dv_dy**2 + du_dx*dv_dy + 0.25d0*(dv_dx + du_dy)**2  &
-                      + 0.25d0 * (du_dz**2 + dv_dz**2)
+                      + 0.25d0 * du_dz**2 * diva_slope_factor_x   &
+                      + 0.25d0 * dv_dz**2 * diva_slope_factor_y
           efvs(k) = flwafact(k) * effstrainsq**(p_effstr/2.d0)
+
+          if (verbose_efvs .and. this_rank==rtest .and. i==itest .and. j==jtest .and. p==ptest) then
+             print*, ' '
+             print*, 'i, j, k, p, effstrain (yr-1):', i, j, k, p, sqrt(effstrainsq)
+             print*, 'p_effstr =', p_effstr
+             print*, 'du_dx, du_dy, du_dz =', du_dx, du_dy, du_dz
+             print*, 'dv_dx, dv_dy, dv_dz =', dv_dx, dv_dy, dv_dz
+             print*, 'flwafact, efvs (Pa yr)=', flwafact(k), efvs(k)
+          endif
 
        enddo
 
@@ -8536,17 +8900,28 @@
   end subroutine element_to_global_matrix_2d
 
 !****************************************************************************
+    !WHL, May 2025:
+    ! Note: There are two subroutines that assemble matrix elements for sliding for 2D solvers:
+    !        basal_sliding_bc_2d and basal_sliding_bc_2d_diva.
+    !        The latter is used with DIVA when diva_slope_correction = T
+    !        The former is used with DIVA when diva_slope_correction = F,
+    !        and with other 2D solvers (L1L2 and SSA).
+    !       Set diva_slope_correction = F to reproduce older results.
+
   !TODO - Call this subroutine for both 2D and 3D solvers.
   !       First need to switch the index order for 3D matrices.
   subroutine basal_sliding_bc_2d(nx,               ny,              &
                                  nNeighbors,       nhalo,           &
+                                 parallel,                          &
                                  dx,               dy,              &
                                  itest,  jtest,    rtest,           &
                                  active_cell,      active_vertex,   &
                                  beta,                              &
+                                 lsrf,                              &
                                  xVertex,          yVertex,         &
                                  whichassemble_beta,                &
                                  Auu,              Avv)
+
 
     !------------------------------------------------------------------------
     ! Increment the Auu and Avv matrices with basal traction terms.
@@ -8565,11 +8940,16 @@
     !       have less than its full value for partially floating ice (0 < f_ground < 1).
     !------------------------------------------------------------------------
 
+    use glissade_grid_operators, only: glissade_stagger, glissade_slope_angle
+
     integer, intent(in) ::      &
        nx, ny,                  &    ! horizontal grid dimensions
        nNeighbors,              &    ! number of neighbors of each node (used for last dimension of Auu/Avv)
                                      ! = 27 for 3D solve, = 9 for 2D solve
        nhalo                         ! number of halo layers
+
+    type(parallel_type), intent(in) :: &
+       parallel                      ! info for parallel communication
 
     real(dp), intent(in) ::     &
        dx, dy                        ! grid cell length and width
@@ -8586,7 +8966,9 @@
     real(dp), dimension(nx-1,ny-1), intent(in) ::    &
        beta                          ! basal traction field (Pa/(m/yr)) at cell vertices
                                      ! typically = beta_internal (beta weighted by f_ground)
-                                     ! = beta_eff for DIVA
+
+    real(dp), dimension(nx,ny), intent(in) ::    &
+       lsrf                          ! lower ice surface elevation (m)
 
     real(dp), dimension(nx-1,ny-1), intent(in) ::   &
        xVertex, yVertex     ! x and y coordinates of vertices
@@ -8605,12 +8987,12 @@
     integer :: i, j, n, p, nr, nc, iA, jA, m, ii, jj
 
     real(dp), dimension(nNodesPerElement_2d) ::   &
-       x, y,        & ! Cartesian coordinates of basal nodes
+       x, y, z,     & ! Cartesian coordinates of basal nodes
        b              ! beta at basal nodes
 
     !TODO - These are not currently used except as dummy arguments
     real(dp), dimension(nNodesPerElement_2d) ::   &
-       dphi_dx_2d, dphi_dy_2d    ! derivatives of basis functions, evaluated at quad pts
+       dphi_dx_2d, dphi_dy_2d, dphi_dz_2d  ! derivatives of basis functions, evaluated at quad pts
 
     real(dp) ::   &
        beta_qp,     & ! beta evaluated at quadrature point
@@ -8692,12 +9074,13 @@
                 ! For now, pass in i, j, k, p for debugging
                 !TODO - Modify this subroutine so that the output derivatives are optional?
 
-                call get_basis_function_derivatives_2d(x(:),             y(:),               &
-                                                       dphi_dxr_2d(:,p), dphi_dyr_2d(:,p),   &
-                                                       dphi_dx_2d(:),    dphi_dy_2d(:),      &
-                                                       detJ,                                 &
-                                                       itest, jtest, rtest,                  &
-                                                       i, j, p)
+                call get_basis_function_derivatives_2d(&
+                     x(:),             y(:),               &
+                     dphi_dxr_2d(:,p), dphi_dyr_2d(:,p),   &
+                     dphi_dx_2d(:),    dphi_dy_2d(:),      &
+                     detJ,                                 &
+                     itest, jtest, rtest,                  &
+                     i, j, p)
 
                 ! Evaluate beta at this quadrature point, taking a phi-weighted sum over neighboring vertices.
                 beta_qp = 0.d0
@@ -8804,12 +9187,343 @@
 
 !****************************************************************************
 
-  subroutine basal_sliding_bc(nx,               ny,              &
+  subroutine basal_sliding_bc_2d_diva(&
+       nx,               ny,              &
+       nNeighbors,       nhalo,           &
+       parallel,                          &
+       dx,               dy,              &
+       itest,  jtest,    rtest,           &
+       active_cell,      active_vertex,   &
+       beta_eff_x,       beta_eff_y,      &
+       lsrf,                              &
+       xVertex,          yVertex,         &
+       whichassemble_beta,                &
+       Auu,              Avv)
+
+    !------------------------------------------------------------------------
+    ! Increment the Auu and Avv matrices with basal traction terms.
+    ! Do a surface integral over all basal faces that contain at least one node with a stress BC.
+    ! (Not Dirichlet or free-slip)
+    ! Note: Basal Dirichlet BCs are enforced after matrix assembly.
+    !
+    ! This subroutine differs from the one above in that it includes terms
+    !  to improve accuracy in regions of steep slopes.
+    ! For example, there are two values of beta_eff: one depending on the slope
+    !  in the x direction and the other on the slope in the y direction.
+    !
+    ! Assume a sliding law of the form:
+    !   tau_x = -beta*u
+    !   tau_y = -beta*v
+    ! where beta is defined at vertices (and may depend on the velocity from a previous iteration).
+    !
+    ! Note: The input beta field should already have been weighted by f_ground. We should have
+    !       beta = 0 for floating ice (f_ground = 0). If using a GLP, then beta will
+    !       have less than its full value for partially floating ice (0 < f_ground < 1).
+    !------------------------------------------------------------------------
+
+    use glissade_grid_operators, only: glissade_stagger, glissade_slope_angle
+
+    integer, intent(in) ::      &
+         nx, ny,                  &    ! horizontal grid dimensions
+         nNeighbors,              &    ! number of neighbors of each node (used for last dimension of Auu/Avv)
+                                       ! = 27 for 3D solve, = 9 for 2D solve
+         nhalo                         ! number of halo layers
+
+    type(parallel_type), intent(in) :: &
+         parallel                      ! info for parallel communication
+
+    real(dp), intent(in) ::     &
+         dx, dy                        ! grid cell length and width
+
+    integer, intent(in) :: &
+         itest, jtest, rtest         ! coordinates of diagnostic point
+
+    logical, dimension(nx,ny), intent(in) ::  &
+         active_cell                   ! true if cell contains ice and borders a locally owned vertex
+
+    logical, dimension(nx-1,ny-1), intent(in) ::  &
+         active_vertex                 ! true for vertices of active cells
+
+    real(dp), dimension(nx-1,ny-1), intent(in) ::  &
+         beta_eff_x, beta_eff_y        ! basal traction coefficients(Pa/(m/yr)) at cell vertices
+                                       ! defined such that beta_eff*umean = beta*ub
+
+    real(dp), dimension(nx,ny), intent(in) ::    &
+         lsrf                          ! lower ice surface elevation (m)
+
+    real(dp), dimension(nx-1,ny-1), intent(in) ::   &
+         xVertex, yVertex     ! x and y coordinates of vertices
+
+    integer, intent(in) :: &
+         whichassemble_beta   ! = 0 for standard finite element computation of basal forcing terms
+                              ! = 1 for computation that uses only the local value of beta at each node
+
+    real(dp), dimension(nx-1,ny-1,nNeighbors), intent(inout) ::  &
+         Auu, Avv             ! parts of stiffness matrix (basal layer only)
+
+    !----------------------------------------------------------------
+    ! Local variables
+    !----------------------------------------------------------------
+
+    integer :: i, j, n, p, nr, nc, iA, jA, m, ii, jj
+
+    real(dp), dimension(nNodesPerElement_2d) ::   &
+         x, y, z,     & ! Cartesian coordinates of basal nodes
+         bx, by         ! beta_eff_x and beta_eff_y at basal nodes
+
+    real(dp) ::   &
+         beta_qpx,    & ! beta_eff_x evaluated at quadrature point
+         beta_qpy,    & ! beta_eff_y evaluated at quadrature point
+         detJ           ! determinant of Jacobian for the transformation
+                        !  between the reference element and true element
+
+    real(dp), dimension(nNodesPerElement_2d, nNodesPerElement_2d) ::   &
+         Kuu, Kvv       ! components of element matrix associated with basal sliding
+
+    real(dp), dimension(nx-1,ny-1) ::   &
+         staglsrf       ! lsrf interpolated to the staggered grid
+
+    real(dp), dimension(nx-1,ny-1) ::   &
+         theta_basal_slope,   & ! basal slope angle (radians)
+         theta_basal_slope_x, & ! basal slope angle in x direction
+         theta_basal_slope_y    ! basal slope angle in y direction
+
+    if (verbose_basal .and. this_rank==rtest) then
+       print*, 'In basal_sliding_bc_2d_diva: itest, jtest, rank =', itest, jtest, rtest
+       print*, ' '
+       print*, 'beta_eff_x:'
+       do j = jtest+3, jtest-3, -1
+          write(6,'(i6)',advance='no') j
+          do i = itest-3, itest+3
+             write(6,'(f10.0)',advance='no') beta_eff_x(i,j)
+          enddo
+          write(6,*) ' '
+       enddo
+       print*, ' '
+       print*, 'beta_eff_y:'
+       do j = jtest+3, jtest-3, -1
+          write(6,'(i6)',advance='no') j
+          do i = itest-3, itest+3
+             write(6,'(f10.0)',advance='no') beta_eff_y(i,j)
+          enddo
+          write(6,*) ' '
+       enddo
+    endif
+
+    if (whichassemble_beta == HO_ASSEMBLE_BETA_LOCAL) then
+
+       if (nNeighbors == nNodeNeighbors_3d) then  ! 3D problem
+          m = indxA_3d(0,0,0)
+       else  ! 2D problem
+          m = indxA_2d(0,0)
+       endif
+
+       ! Average the lower ice surface elevation to vertices
+       call glissade_stagger(&
+            nx,       ny,         &
+            lsrf,     staglsrf)
+
+       ! Compute the angle between the lower ice surface and the horizontal.
+       !TODO - Make sure this doesn't give bad values in ice-free regions.
+       call glissade_slope_angle(&
+            nx-1,     ny-1,       &
+            dx,       dy,         &  ! m
+            staglsrf,             &  ! m
+            theta_basal_slope,    &  ! radians
+            theta_basal_slope_x,  &
+            theta_basal_slope_y)
+
+       call parallel_halo(theta_basal_slope_x, parallel)
+       call parallel_halo(theta_basal_slope_y, parallel)
+
+       if (verbose_basal .and. this_rank==rtest) then
+          print*, ' '
+          print*, 'theta_basal_slope_x (deg):'
+          do j = jtest+2, jtest-2, -1
+             write(6,'(i6)',advance='no') j
+             do i = itest-2, itest+2
+                write(6,'(f10.0)',advance='no') theta_basal_slope_x(i,j) * 180.d0/pi
+             enddo
+             write(6,*) ' '
+          enddo
+          print*, ' '
+          print*, 'theta_basal_slope_y (deg):'
+          do j = jtest+2, jtest-2, -1
+             write(6,'(i6)',advance='no') j
+             do i = itest-2, itest+2
+                write(6,'(f10.0)',advance='no') theta_basal_slope_y(i,j) * 180.d0/pi
+             enddo
+             write(6,*) ' '
+          enddo
+       endif
+
+       ! Sum over active vertices
+       do j = 1, ny-1
+          do i = 1, nx-1
+             if (active_vertex(i,j)) then
+                Auu(i,j,m) = Auu(i,j,m) + dx*dy/vol0 * beta_eff_x(i,j) / cos(theta_basal_slope_x(i,j))
+                Avv(i,j,m) = Avv(i,j,m) + dx*dy/vol0 * beta_eff_y(i,j) / cos(theta_basal_slope_y(i,j))
+             endif   ! active_vertex
+          enddo   ! i
+       enddo   ! j
+
+    else   ! standard assembly
+
+       ! Average the lower ice surface elevation to vertices
+       call glissade_stagger(&
+            nx,       ny,         &
+            lsrf,     staglsrf)
+
+       ! Sum over elements in active cells
+       ! Loop over all cells that contain locally owned vertices
+       do j = nhalo+1, ny-nhalo+1
+       do i = nhalo+1, nx-nhalo+1
+
+          !TODO - Should we exclude cells that have Dirichlet basal BCs for all vertices?
+
+          if (active_cell(i,j)) then
+
+             ! Set x and y for each node
+
+             !     4-----3       y
+             !     |     |       ^
+             !     |     |       |
+             !     1-----2       ---> x
+
+             x(1) = xVertex(i-1,j-1)
+             x(2) = xVertex(i,j-1)
+             x(3) = xVertex(i,j)
+             x(4) = xVertex(i-1,j)
+
+             y(1) = yVertex(i-1,j-1)
+             y(2) = yVertex(i,j-1)
+             y(3) = yVertex(i,j)
+             y(4) = yVertex(i-1,j)
+
+             z(1) = staglsrf(i-1,j-1)
+             z(2) = staglsrf(i,j-1)
+             z(3) = staglsrf(i,j)
+             z(4) = staglsrf(i-1,j)
+
+             bx(1) = beta_eff_x(i-1,j-1)
+             bx(2) = beta_eff_x(i,j-1)
+             bx(3) = beta_eff_x(i,j)
+             bx(4) = beta_eff_x(i-1,j)
+
+             by(1) = beta_eff_y(i-1,j-1)
+             by(2) = beta_eff_y(i,j-1)
+             by(3) = beta_eff_y(i,j)
+             by(4) = beta_eff_y(i-1,j)
+
+             ! loop over quadrature points
+
+             do p = 1, nQuadPoints_2d
+
+                ! Compute an area scale factor for this quadrature point
+
+                call get_area_scale_factor_curved_2d(&
+                     x(:),             y(:),             z(:),  &
+                     dphi_dxr_2d(:,p), dphi_dyr_2d(:,p),        &
+                     itest, jtest, rtest,                       &
+                     i,     j,     p,                           &
+                     detJ)
+
+                beta_qpx = 0.d0
+                beta_qpy = 0.d0
+                do n = 1, nNodesPerElement_2d
+                   beta_qpx = beta_qpx + phi_2d(n,p) * bx(n)
+                   beta_qpy = beta_qpy + phi_2d(n,p) * by(n)
+                enddo
+
+                if (verbose_basal .and. this_rank==rtest .and. i==itest .and. j==jtest) then
+                   print*, ' '
+                   print*, 'Increment basal traction, i, j, p =', i, j, p
+                   print*, 'beta_qpx, beta_qpy, detJ/vol0 =', beta_qpx, beta_qpy, detJ/vol0
+                endif
+
+                ! Compute the element matrix for this quadrature point
+                ! (Note volume scaling)
+                !TODO - Replace detJ/vol0 with dx*dy?
+
+                Kuu(:,:) = 0.d0
+                Kvv(:,:) = 0.d0
+
+                do nc = 1, nNodesPerElement_2d      ! columns of K
+                   do nr = 1, nNodesPerElement_2d   ! rows of K
+                      Kuu(nr,nc) = Kuu(nr,nc) + beta_qpx * wqp_2d(p) * detJ/vol0 * phi_2d(nr,p)*phi_2d(nc,p)
+                      Kvv(nr,nc) = Kvv(nr,nc) + beta_qpy * wqp_2d(p) * detJ/vol0 * phi_2d(nr,p)*phi_2d(nc,p)
+                   enddo  ! m (rows)
+                enddo  ! n (columns)
+
+                ! Insert terms of basal element matrices into global matrices Auu and Avv
+
+                do nr = 1, nNodesPerElement_2d     ! rows of K
+
+                   ! Determine (i,j) for this node
+                   ! The reason for the '3' is that node 3, in the NE corner of the cell, has horizontal indices (i,j).
+                   ! Indices for other nodes are computed relative to this node.
+
+                   ii = i + ishift(3,nr)
+                   jj = j + jshift(3,nr)
+
+                   do nc = 1, nNodesPerElement_2d ! columns of K
+
+                      iA = ishift(nr,nc)          ! iA index of A into which K(nr,nc) is summed
+                      jA = jshift(nr,nc)          ! similarly for jA
+
+                      if (nNeighbors == nNodeNeighbors_3d) then  ! 3D problem
+                         m = indxA_3d(iA,jA,0)
+                      else  ! 2D problem
+                         m = indxA_2d(iA,jA)
+                      endif
+
+                      Auu(ii,jj,m) = Auu(ii,jj,m) + Kuu(nr,nc)
+                      Avv(ii,jj,m) = Avv(ii,jj,m) + Kvv(nr,nc)
+
+                      if (verbose_basal .and. this_rank==rtest .and. ii==itest .and. jj==jtest .and. m==5) then
+                         ! m = 5 gives the influence of beta at vertex(i,j) on velocity at vertex(ii,jj).
+                         ! For local assembly, Auu and Avv get nonzero increments only for m = 5.
+                         print*, 'Basal increment for Auu and Avv: source (i,j), Kuu, new Auu, ii, jj, m =', &
+                              i, j, Kuu(nr,nc), Auu(ii,jj,m), ii, jj, m
+                      endif
+
+                   enddo     ! nc
+                enddo        ! nr
+
+             enddo   ! nQuadPoints_2d
+
+          endif      ! active_cell
+
+       enddo         ! i
+       enddo         ! j
+
+    endif   ! whichassemble_beta
+
+    if (verbose_basal .and. this_rank==rtest) then
+       i = itest
+       j = jtest
+       if (nNeighbors == nNodeNeighbors_3d) then  ! 3D problem
+          m = indxA_3d(0,0,0)
+       else
+          m = indxA_2d(0,0)
+       endif
+       print*, ' '
+       print*, 'Basal BC: i, j, diagonal index =', i, j, m
+       print*, 'New Auu diagonal:', Auu(i,j,m)
+       print*, 'New Avv diagonal:', Avv(i,j,m)
+    endif
+
+  end subroutine basal_sliding_bc_2d_diva
+
+!****************************************************************************
+
+  subroutine basal_sliding_bc_3d(nx,               ny,              &
                               nNeighbors,       nhalo,           &
+                              parallel,                          &
                               dx,               dy,              &
                               itest,  jtest,    rtest,           &
                               active_cell,      active_vertex,   &
-                              beta,                              &
+                              beta,             lsrf,            &
                               xVertex,          yVertex,         &
                               whichassemble_beta,                &
                               Auu,              Avv)
@@ -8831,11 +9545,16 @@
     !       have less than its full value for partially floating ice (0 < f_ground < 1). 
     !------------------------------------------------------------------------
 
+    use glissade_grid_operators, only: glissade_stagger, glissade_slope_angle
+
     integer, intent(in) ::      &
        nx, ny,                  &    ! horizontal grid dimensions
        nNeighbors,              &    ! number of neighbors of each node (used for first dimension of Auu/Avv)
                                      ! = 27 for 3D solve, = 9 for 2D solve
        nhalo                         ! number of halo layers
+
+    type(parallel_type), intent(in) :: &
+       parallel                      ! info for parallel communication
 
     real(dp), intent(in) ::     &
        dx, dy                        ! grid cell length and width
@@ -8852,7 +9571,9 @@
     real(dp), dimension(nx-1,ny-1), intent(in) ::    &
        beta                          ! basal traction field (Pa/(m/yr)) at cell vertices
                                      ! typically = beta_internal (beta weighted by f_ground)
-                                     ! = beta_eff for DIVA
+
+    real(dp), dimension(nx,ny), intent(in) ::    &
+       lsrf                          ! lower ice surface elevation (m)
 
     real(dp), dimension(nx-1,ny-1), intent(in) ::   &
        xVertex, yVertex     ! x and y coordinates of vertices
@@ -8871,12 +9592,12 @@
     integer :: i, j, n, p, nr, nc, iA, jA, m, ii, jj
 
     real(dp), dimension(nNodesPerElement_2d) ::   &
-       x, y,        & ! Cartesian coordinates of basal nodes
+       x, y, z,     & ! Cartesian coordinates of basal nodes
        b              ! beta at basal nodes
 
-    !TODO - These are not currently used except as dummy arguments
+    ! Note: These are not currently used except as dummy arguments
     real(dp), dimension(nNodesPerElement_2d) ::   &
-       dphi_dx_2d, dphi_dy_2d    ! derivatives of basis functions, evaluated at quad pts
+       dphi_dx_2d, dphi_dy_2d, dphi_dz_2d  ! derivatives of basis functions, evaluated at quad pts
 
     real(dp) ::   &
        beta_qp,     & ! beta evaluated at quadrature point
@@ -8885,6 +9606,18 @@
 
     real(dp), dimension(nNodesPerElement_2d, nNodesPerElement_2d) ::   &
        Kuu, Kvv       ! components of element matrix associated with basal sliding
+
+    real(dp), dimension(nx-1,ny-1) ::   &
+       staglsrf       ! lsrf interpolated to the staggered grid
+
+    real(dp), dimension(nx-1,ny-1) ::   &
+       theta_basal_slope    ! basal slope angle (radians)
+
+    !WHL, May 2025:
+    ! Set this parameter to true for more accurate basal sliding on steep slopes.
+    ! Set to false for back compatiblity.
+    logical, parameter :: curved_2d_basal_jacobian = .true.
+!    logical, parameter :: curved_2d_basal_jacobian = .false.
 
     if (verbose_basal .and. this_rank==rtest) then
        print*, 'In basal_sliding_bc: itest, jtest, rank =', itest, jtest, rtest
@@ -8907,17 +9640,37 @@
           m = indxA_2d(0,0)
        endif
        
+       ! Average the lower ice surface elevation to vertices
+       call glissade_stagger(&
+            nx,       ny,         &
+            lsrf,     staglsrf)
+
+       ! Compute the angle between the lower ice surface and the horizontal.
+       !TODO - Make sure this doesn't give bad values in ice-free regions.
+       call glissade_slope_angle(&
+            nx-1,     ny-1,   &
+            dx,       dy,     &  ! m
+            staglsrf,         &  ! m
+            theta_basal_slope)         ! radians
+
+       call parallel_halo(theta_basal_slope, parallel)
+
        ! Sum over active vertices
        do j = 1, ny-1
           do i = 1, nx-1
              if (active_vertex(i,j)) then
-                Auu(m,i,j) = Auu(m,i,j) + dx*dy/vol0 * beta(i,j)
-                Avv(m,i,j) = Avv(m,i,j) + dx*dy/vol0 * beta(i,j)
+                Auu(m,i,j) = Auu(m,i,j) + dx*dy/vol0 * beta(i,j) / cos(theta_basal_slope(i,j))
+                Avv(m,i,j) = Avv(m,i,j) + dx*dy/vol0 * beta(i,j) / cos(theta_basal_slope(i,j))
              endif   ! active_vertex
           enddo   ! i
        enddo   ! j
 
     else   ! standard assembly
+
+       ! Average the lower ice surface elevation to vertices
+       call glissade_stagger(&
+            nx,       ny,         &
+            lsrf,     staglsrf)
 
        ! Sum over elements in active cells
        ! Loop over all cells that contain locally owned vertices
@@ -8928,7 +9681,7 @@
 
           if (active_cell(i,j)) then
 
-             ! Set x and y for each node
+             ! Set (x,y,z) for each node
 
              !     4-----3       y
              !     |     |       ^
@@ -8945,6 +9698,11 @@
              y(3) = yVertex(i,j)
              y(4) = yVertex(i-1,j)
 
+             z(1) = staglsrf(i-1,j-1)
+             z(2) = staglsrf(i,j-1)
+             z(3) = staglsrf(i,j)
+             z(4) = staglsrf(i-1,j)
+
              b(1) = beta(i-1,j-1)
              b(2) = beta(i,j-1)
              b(3) = beta(i,j)
@@ -8958,12 +9716,26 @@
                 ! For now, pass in i, j, k, p for debugging
                 !TODO - Modify this subroutine so that the output derivatives are optional?
 
-                call get_basis_function_derivatives_2d(x(:),             y(:),               &
+                if (curved_2d_basal_jacobian) then
+
+                   ! Compute an area scale factor for this quadrature point
+
+                   call get_area_scale_factor_curved_2d(&
+                        x(:),             y(:),             z(:),  &
+                        dphi_dxr_2d(:,p), dphi_dyr_2d(:,p),        &
+                        itest, jtest, rtest,                       &
+                        i,     j,     p,                           &
+                        detJ)
+
+                else   ! old calculation with detJ based on a flat bed
+
+                   call get_basis_function_derivatives_2d(x(:),             y(:),               &
                                                        dphi_dxr_2d(:,p), dphi_dyr_2d(:,p),   &
                                                        dphi_dx_2d(:),    dphi_dy_2d(:),      &
                                                        detJ,                                 &
                                                        itest, jtest, rtest,                  &
                                                        i, j, p)
+                endif
 
                 ! Evaluate beta at this quadrature point, taking a phi-weighted sum over neighboring vertices.
                 beta_qp = 0.d0
@@ -9066,7 +9838,7 @@
        print*, 'New Avv diagonal:', Avv(m,i,j)
     endif
 
-  end subroutine basal_sliding_bc
+  end subroutine basal_sliding_bc_3d
 
 !****************************************************************************
 

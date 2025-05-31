@@ -1439,13 +1439,23 @@
     elseif (time + eps08 > anomaly_tstart) then
 
        ! apply an increasing fraction of the anomaly
-       anomaly_fraction = (time - anomaly_tstart) / anomaly_timescale
+       ! Note: There are three options:
+       ! (1) Apply the anomaly in proportion to the elapsed time since anomaly_start
+       ! (2) Apply the anomaly in one-year chunks, starting one year after anomaly_start.
+       !     This is the convention for initMIP.
+       ! (3) Apply the anomaly in one-year chunks, starting immediately after anomaly_start.
+       !     That is, the one-year anomaly is applied throughout the first year.
+       ! For now, option (3) is the default.
 
-       ! Note: For initMIP, the anomaly is applied in annual step functions
-       !        starting at the end of the first year.
-       !       Comment out the line above and uncomment the following line
-       !        to increase the anomaly once a year.
+!       anomaly_fraction = (time - anomaly_tstart) / anomaly_timescale
 !       anomaly_fraction = floor(time + eps08 - anomaly_tstart, dp) / anomaly_timescale
+
+       ! Subtract a small number from the time, given that model%numerics%time is the time
+       ! at the end of the timestep, so e.g. the December time at the end of 1983 would be
+       ! close to 1984.0, and we don't want to jump to the following year due to rounding error.
+
+       anomaly_fraction = ceiling(time - eps08 - anomaly_tstart, dp) / anomaly_timescale
+!!       if (main_task) print*, 'In add_2d_anomaly: time, frac =', time, anomaly_fraction         
 
     else
        ! no anomaly to apply
@@ -1463,6 +1473,7 @@
 
 !=======================================================================
 
+  !TODO - Make the logic consistent with the 2d subroutine above
   subroutine glissade_add_3d_anomaly(var3d,                 &
                                      var3d_anomaly,         &
                                      anomaly_tstart,        &

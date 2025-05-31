@@ -632,7 +632,8 @@ contains
        call parallel_halo_extrapolate(model%geometry%topg, parallel)
     else  ! other global BCs, including periodic
        call parallel_halo(model%geometry%topg, parallel, &
-                          periodic_offset_ew = model%numerics%periodic_offset_ew)
+                          periodic_offset_ew = model%numerics%periodic_offset_ew, &
+                          periodic_offset_ns = model%numerics%periodic_offset_ns)
     endif
 
     if (model%options%whichtemp == TEMP_ENTHALPY) &
@@ -855,14 +856,6 @@ contains
          model%options%calving_init == CALVING_INIT_ON .and. &
          model%options%is_restart == NO_RESTART) then
 
-       ! ------------------------------------------------------------------------
-       ! Note: The initial calving solve is treated differently from the runtime calving solve.
-       !       In particular, calving-front culling is done at initialization only.
-       !       Culling may also be used to remove a row of thin cells (~1 m)
-       !        at the calving front, as present in some input data sets.
-       !       But we do not want to remove calving_front cells every timestep.
-       ! ------------------------------------------------------------------------
-
        call glissade_calving_solve(model, .true.)   ! init_calving = .true.
 
        ! The mask needs to be recalculated after calving.
@@ -887,10 +880,22 @@ contains
     ! Initialize powerlaw_c and coulomb_c.
     ! Note: This can set powerlaw_c and coulomb_c to nonzero values when they are never used,
     !       but is simpler than checking all possible basal friction options.
+    ! Note: When running with glaciers, there is an independent glacier option,
+    !        set_powerlaw_c, that controls glacier inversion.
+    !       We can have model%options%which_ho_powerlaw_c = HO_POWERLAW_C_CONSTANT,
+    !        while model%glacier%set_powerlaw_c = GLACIER_POWERLAW_C_INVERSION.
+    !       In that case, we do *not* want to reset powerlaw_c.
+    !TODO:  Have a single option that is applied with or without glaciers enabled?
 
     if (model%options%which_ho_powerlaw_c == HO_POWERLAW_C_CONSTANT) then
-       model%basal_physics%powerlaw_c = model%basal_physics%powerlaw_c_const
+       if (model%options%enable_glaciers .and. &
+            model%glacier%set_powerlaw_c /= GLACIER_POWERLAW_C_CONSTANT) then
+          ! do nothing; see note above
+       else
+          model%basal_physics%powerlaw_c = model%basal_physics%powerlaw_c_const
+       endif
     endif
+
     if (model%options%which_ho_coulomb_c == HO_COULOMB_C_CONSTANT) then
        model%basal_physics%coulomb_c = model%basal_physics%coulomb_c_const
     endif
@@ -1556,8 +1561,8 @@ contains
 
        ! Add the bmlt_float anomaly where ice is present and floating
        call glissade_add_2d_anomaly(&
-            model%basal_melt%bmlt_float,              &   ! scaled model units
-            model%basal_melt%bmlt_float_anomaly,      &   ! scaled model units
+            model%basal_melt%bmlt_float,              &   !
+            model%basal_melt%bmlt_float_anomaly,      &   !
             model%basal_melt%bmlt_anomaly_tstart,     &   ! yr
             model%basal_melt%bmlt_anomaly_timescale,  &   ! yr
             model%numerics%time)                          ! yr
