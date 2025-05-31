@@ -973,7 +973,7 @@ contains
 
     !TODO - Change 'marine_margin' to 'calving'?  Would have to modify many config files
     character(len=*), dimension(0:12), parameter :: marine_margin = (/ &
-         'no calving law                     ', &
+         'no calving law                    ', &
          'remove all floating ice           ', &
          'remove fraction of floating ice   ', &
          'relaxed bedrock threshold         ', &
@@ -1169,7 +1169,7 @@ contains
     character(len=*), dimension(0:2), parameter :: ho_calvingmip_domain = (/ &
          'none       ', &
          'circular   ', &
-         'Thule'  /)
+         'Thule      '  /)
 
     character(len=*), dimension(0:2), parameter :: ho_whichground = (/ &
          'f_ground = 0 or 1; no GLP  (glissade dycore)               ', &
