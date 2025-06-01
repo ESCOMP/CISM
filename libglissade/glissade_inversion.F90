@@ -373,7 +373,7 @@ contains
           do j = 1, nsn
              do i = 1, ewn
                 f_flotation(i,j) = (-(model%geometry%topg(i,j) - model%climate%eus)  &
-                              - (rhoi/rhoo)*model%geometry%thck(i,j))            ! f_flotation < 0 for grounded ice
+                     - (rhoi/rhoo)*model%geometry%thck(i,j))            ! f_flotation < 0 for grounded ice
                 if (model%geometry%thck(i,j) > 0.0d0 .and. &
                     model%geometry%marine_connection_mask(i,j) == 1 .and. &
                     f_flotation(i,j) > -model%inversion%basin_flotation_threshold) then
@@ -515,7 +515,6 @@ contains
              call point_diag(model%basal_physics%powerlaw_c, 'powerlaw_c', itest, jtest, rtest, 7, 7)
           endif
 
-          !TODO - Add an option to set based on elevation, like coulomb_c?
           model%basal_physics%powerlaw_c_relax = model%basal_physics%powerlaw_c_const
 
           call invert_basal_friction(&
@@ -658,6 +657,8 @@ contains
             model%inversion%basin_number_mass_correction, &
             model%ocean_data%deltaT_ocn)
 
+       call parallel_halo(model%ocean_data%deltaT_ocn, parallel)
+
     endif   ! which_ho_deltaT_basin
 
     ! If inverting for deltaT_ocn based on observed ice thickness, then update it here.
@@ -754,7 +755,8 @@ contains
 
     !WHL - debug
     ! For testing subgrid CF schemes: Do not invert for deltaT_ocn where calving_mask = 1,
-    ! because this will prevent CF advance. In these cells, set deltaT_ocn = 0.
+    ! because then the ocean will warm to prevent CF advance (which would be cheating).
+    ! In these cells, set deltaT_ocn = 0.
     if (model%options%which_ho_calving_front == HO_CALVING_FRONT_SUBGRID .and. &
         model%options%whichbmlt_float == BMLT_FLOAT_THERMAL_FORCING) then
        where (model%calving%calving_mask == 1) model%ocean_data%deltaT_ocn = 0.0d0
@@ -857,7 +859,7 @@ contains
     ! Note: For grounded ice with fixed bed topography, inversion based on thck is equivalent to inversion based on usrf.
     !       But for ice that is partly floating, it seems better to invert based on thck, because thck errors
     !        for shelves are much larger than usrf errors, and we do not want to underweight the errors.
-    ! Note, March 2025: Rewriting the math in terms of d(logC)/dt instead of dC/dt.
+    ! Note, March 2025: Rewrote the equations in terms of d(logC)/dt instead of dC/dt.
 
     real(dp), intent(in) ::  dt  ! time step (s)
 
@@ -912,6 +914,16 @@ contains
     real(dp), parameter :: logmin = -99.d0   ! arbitrary negative value;
                                              ! values of log(c) below logmin are considered non-physical
 
+    ! Check for positive scales
+
+    if (babc_thck_scale <= 0.0d0) then
+       call write_log('Error, babc_thck_scale must be > 0', GM_FATAL)
+    endif
+
+    if (babc_timescale <= 0.0d0) then
+       call write_log('Error, babc_timescale must be > 0', GM_FATAL)
+    endif
+
     !TODO - Make sure logmin is not entering any calculations
 
     ! Compute the log (base 10) of the current friction_c field.
@@ -963,7 +975,7 @@ contains
     ! Assuming unit mass (m = 1) and critical damping with k = 1/(tau^2), we obtain
     !   d2x/dt2 = -1/tau * (x/tau - 2*dx/dt)
     ! If we identify (H - H_obs)/(H0*tau) with x/tau; (2/H0)*dH/dt with 2*dx/dt; and (1/C)*dC/dt with d2x/dt2,
-    !  we obtain the equation similiar to the one solved here.
+    !  we obtain an equation similiar to the one solved here.
     
     do j = 1, ny-1
        do i = 1, nx-1
@@ -977,18 +989,16 @@ contains
           if (f_ground(i,j) > 0.0d0) then  ! ice is at least partly grounded
 
              ! Compute tendency terms based on the thickness target
-             if (babc_thck_scale > 0.0d0) then
-                term_thck = -stag_dthck(i,j) / (babc_thck_scale*babc_timescale)
-                term_dHdt = -stag_dthck_dt(i,j) * 2.0d0 / babc_thck_scale
-             endif
+             term_thck = -stag_dthck(i,j) / (babc_thck_scale*babc_timescale)
+             term_dHdt = -stag_dthck_dt(i,j) * 2.0d0 / babc_thck_scale
 
           endif  ! f_ground > 0
 
           ! Note: If the ice is fully floating, there is no reason to compute term_thck and term_dHdt,
           !       since the ice thickness is unrelated to friction.
           !       However, we still compute Laplacian and relax terms, to give a smooth transition
-          !        between grounded and floating cells. This makes the inversion more robust under
-          !        grounding-line migration.
+          !        between grounded and floating cells. The goal is to make the inversion more robust
+          !        under grounding-line migration.
 
           ! Add a Laplacian smoothing term, which will discourage large curvature and make the field more linear.
           ! del2(logC) < 0 for peaks, which are lowered by this term, and del2(logC) > 0 for valleys, which are raised.
@@ -997,11 +1007,7 @@ contains
           ! Add a term to relax C toward a target value, friction_c_relax
           if (logC(i,j) > logmin) then
              term_relax = -babc_relax_factor * (logC(i,j) - logC_relax(i,j)) / babc_timescale
-          else
-             term_relax = 0.0d0
           endif
-
-          ! The remaining logic applies whether or not the cell is grounded
 
           ! Sum the terms
           dlogC(i,j) = (term_thck + term_dHdt + term_laplacian + term_relax) * dt
@@ -1252,8 +1258,7 @@ contains
     ! Adjustments are made in floating grid cells, typically based on a thickness target:
     !    Where thck > thck_obs, deltaT_ocn is increased to increase basal melting.
     !    Where thck < thck_obs, deltaT_ocn is reduced to reduce basal melting.
-    ! Note: deltaT_ocn is constrained to lie within a prescribed range,
-    ! [deltaT_ocn_min, deltaT_ocn_max].
+    ! Note: deltaT_ocn is constrained to have a magnitude no greater than deltaT_ocn_maxval.
 
     use glissade_grid_operators, only: glissade_laplacian
 
@@ -1341,6 +1346,12 @@ contains
     do j = 1, ny
        do i = 1, nx
 
+          ! initialize terms
+          term_thck = 0.0d0
+          term_dHdt = 0.0d0
+          term_relax = 0.0d0
+          term_laplacian = 0.0d0
+
           ! Compute the rate of change of deltaT_ocn.
           ! For a thickness target H_obs, the rate is given by
           !     dTc/dt = -T0 * [(H - H_obs)/(H0]^n / tau0 + (dH/dt)*2/H0 + del2(dTc)*L0^2/tau0 + (T_r - T)/tau0]
@@ -1352,12 +1363,6 @@ contains
           !  it controls the size of the dH and dH/dt terms compared to the relaxation term.
           ! Increasing T0 makes the relaxation relatively weaker.
 
-          ! initialize terms
-          term_thck = 0.0d0
-          term_dHdt = 0.0d0
-          term_relax = 0.0d0
-          term_laplacian = 0.0d0
-          
           if (thck(i,j) > 0.0d0 .and. f_ground_cell(i,j) < 1.0d0) then  ! ice is present and at least partly floating
 
              term_thck = (dthck(i,j)/deltaT_ocn_thck_scale) * (deltaT_ocn_temp_scale/deltaT_ocn_timescale)
@@ -1368,7 +1373,7 @@ contains
           ! Note: If the ice is fully grounded, there is no reason to compute term_thck and term_dHdt,
           !       since the ice thickness is unrelated to ocean temperature.
           !       However, we still compute Laplacian and relax terms, to give a smooth transition
-          !        between grounded and floating cells. This makes the inversion more robust under
+          !        between grounded and floating cells. The goal is to make the inversion more robust under
           !        grounding-line migration.
 
           ! Compute a Laplacian smoothing term, which will make the field more linear.
@@ -1515,11 +1520,25 @@ contains
     real(dp), parameter :: logmin = -99.d0   ! arbitrary negative value;
                                              ! values of log(E) below logmin are considered non-physical
 
+    ! Check for positive scales
+
+    if (flow_enhancement_thck_scale <= 0.0d0) then
+       call write_log('Error, flow_enhancement_thck_scale must be > 0', GM_FATAL)
+    endif
+
+    if (flow_enhancement_velo_scale <= 0.0d0) then
+       call write_log('Error, flow_enhancement_velo_scale must be > 0', GM_FATAL)
+    endif
+
+    if (flow_enhancement_timescale <= 0.0d0) then
+       call write_log('Error, flow_enhancement_timescale must be > 0', GM_FATAL)
+    endif
+
     ! Make sure E has a nonzero value in all ice-covered cells.
     ! This is needed for cells that have filled with ice since the previous call.
-    ! Also, set E to a default value of flow_enhancement_factor_ground in ice-free cells.
     ! A value E = 0 is problematic if the cell later becomes ice-filled (e.g., after turning off inversion)
     ! because it leads to flwa = 0, giving NaNs in the velocity solver.
+    ! Note: f_ground_cell_obs = 1 for ice-free land cells.
 
     where (flow_enhancement_factor == 0.0d0)
        where (ice_mask == 1)
@@ -1613,25 +1632,19 @@ contains
 
           if (ice_mask(i,j) == 1) then
 
-             if (flow_enhancement_thck_scale > 0.0d0) then
-                if (flow_enhancement_velo_scale > 0.0d0) then
-                   term_velo = -dvelo(i,j) / (flow_enhancement_velo_scale * flow_enhancement_timescale)
-                endif
-                term_dHdt = dthck_dt(i,j) * 2.0d0 / flow_enhancement_thck_scale
-             endif
+             term_velo = -dvelo(i,j) / (flow_enhancement_velo_scale * flow_enhancement_timescale)
+             term_dHdt = dthck_dt(i,j) * 2.0d0 / flow_enhancement_thck_scale
 
           endif
 
           ! Compute a Laplacian smoothing term, which will discourage large curvature and make the field more linear.
           ! del2(logE) < 0 for peaks, which are lowered by this term, and del2(logE) > 0 for valleys, which are raised.
-          if (flow_enhancement_timescale > 0.0d0) then
-             term_laplacian = del2_logE(i,j) * flow_enhancement_length_scale**2 / flow_enhancement_timescale
-          endif
+          term_laplacian = del2_logE(i,j) * flow_enhancement_length_scale**2 / flow_enhancement_timescale
 
           ! Compute a relaxation term that nudges flow_enhancement_factor toward a target value.
           ! With flow_enhancement_relax_factor = 1, we have term_relax = -1 (or 1) when the factor is within
           !  a factor of e (or 1/e) of its target.
-          if (flow_enhancement_timescale > 0.0d0 .and. logE(i,j) > logmin) then
+          if (logE(i,j) > logmin) then
              term_relax = flow_enhancement_relax_factor * (logE_relax(i,j) - logE(i,j)) / flow_enhancement_timescale
           endif
 

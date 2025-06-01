@@ -962,14 +962,13 @@ contains
 
     !Note: Compute calving_mask not only for the CALVING_GRID_MASK option, but also for the
     !      subgrid CF options. With the subgrid CF options, we can use calving_mask to disable
-    !      inversion procedures that might inhibit CF advance/retreat (since this would be cheating).
+    !      inversion procedures that would tend to fix the CF location (since this would be cheating).
     if ( (model%options%whichcalving == CALVING_GRID_MASK .or. model%options%apply_calving_mask .or.  &
           model%options%which_ho_calving_front == HO_CALVING_FRONT_SUBGRID)  &
          .and. model%options%is_restart == NO_RESTART) then
 
        ! Initialize the no-advance calving_mask
-       ! Note: This is done after initial calving, which may include iceberg removal or calving-front culling.
-       !       The calving front that exists after initial culling is the one that is held fixed during the simulation.
+       ! Note: This is done after initial calving, which may include iceberg removal.
        ! Note: Typically, the calving mask is set to 1 (i.e., force calving) in all ice-free ocean cells.
        !       If usfc_obs and vsfc_obs have been read in, then the mask will be set to 0 in ice-free ocean cells
        !        where the observed velocity is nonzero.  Ice-free cells can have nonzero velocity
