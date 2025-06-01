@@ -520,29 +520,6 @@
       else    ! remapping transport
 
       !-------------------------------------------------------------------
-      ! Define a mask: = 1 where ice is present (thck > 0), = 0 otherwise         
-      ! The mask is used to prevent tracer values in cells without ice from
-      !  being used to compute tracer gradients.
-      !-------------------------------------------------------------------
-
-         call make_remap_mask (nx,           ny,                 &
-                               ilo, ihi,     jlo, jhi,           &
-                               nhalo,        icells,             &
-                               indxi(:),     indxj(:),           &
-                               thck(:,:),    thck_mask(:,:))
-
-      !WHL - debug
-!      k = 2
-!      write(6,*) 'Before remapping, tracer, k =', k
-!      do j = ny, 1, -1
-!         write(6,'(i6)',advance='no') j
-!         do i = 5, nx-5
-!            write(6,'(f8.3)',advance='no') tracers(i,j,1,k)
-!         enddo
-!         write(6,*) ' '
-!      enddo
-
-      !-------------------------------------------------------------------
       ! Remap ice thickness and tracers; loop over layers
       !-------------------------------------------------------------------
 
@@ -577,20 +554,34 @@
 
             endif
 
-         !-------------------------------------------------------------------
-         ! Main remapping routine: Step ice thickness and tracers forward in time.
-         !-------------------------------------------------------------------
+            !-------------------------------------------------------------------
+            ! Define a mask: = 1 where ice is present (thck > 0), = 0 otherwise.
+            ! The mask is used to prevent tracer values in cells without ice from
+            !  being used to compute tracer gradients.
+            !-------------------------------------------------------------------
 
-            call glissade_horizontal_remap (dt,                                  &
-                                            dx,                dy,               &
-                                            nx,                ny,               &
-                                            ntracers,          nhalo,            &
-                                            parallel,                            &
-                                            thck_mask(:,:),    icells,           &
-                                            indxi(:),          indxj(:),         &
-                                            uvel_layer(:,:),   vvel_layer(:,:),  &
-                                            thck_layer(:,:,k), tracers(:,:,:,k), &
-                                            edgearea_e(:,:),   edgearea_n(:,:))
+            call make_remap_mask(&
+                 nx,                ny,                 &
+                 ilo, ihi,          jlo, jhi,           &
+                 nhalo,             icells,             &
+                 indxi(:),          indxj(:),           &
+                 thck_layer(:,:,k), thck_mask(:,:))
+
+            !-------------------------------------------------------------------
+            ! Main remapping routine: Step ice thickness and tracers forward in time.
+            !-------------------------------------------------------------------
+
+            call glissade_horizontal_remap(&
+                 dt,                                  &
+                 dx,                dy,               &
+                 nx,                ny,               &
+                 ntracers,          nhalo,            &
+                 parallel,                            &
+                 thck_mask(:,:),    icells,           &
+                 indxi(:),          indxj(:),         &
+                 uvel_layer(:,:),   vvel_layer(:,:),  &
+                 thck_layer(:,:,k), tracers(:,:,:,k), &
+                 edgearea_e(:,:),   edgearea_n(:,:))
 
          enddo    ! nlyr
 
