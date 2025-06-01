@@ -3048,12 +3048,6 @@ contains
 
     type(parallel_type) :: parallel   ! info for parallel communication
 
-    logical :: &
-         toggle_skip_inversion        ! if true, then skip inversion at the current time
-                                      ! if false, then do inversion as otherwise prescribed
-    real(dp) :: freq                  ! inversion toggle frequency
-    real(dp) :: time                  ! model time (yr)
-
     integer :: ewn, nsn, upn
 
     rtest = -999
@@ -3249,38 +3243,14 @@ contains
 
     ! If inverting for powerlaw_c, coulomb_c, deltaT_ocn, or flow_enhancement_factor,
     !  do the inversion now.
-    ! But do not invert on the first timestep after a restart, or if inversion is toggled off.
+    !TODO - Move the inversion to the end of glissade_tstep? Doesn't need to be done during initialization.
+    ! But do not invert on the first timestep after a restart.
 
     if ( (model%options%is_restart == STANDARD_RESTART .or. model%options%is_restart == HYBRID_RESTART) &
          .and. (model%numerics%time == model%numerics%tstart) ) then
-       ! first call after a restart; skip the inversion
+            ! first call after a restart; skip the inversion
     else
-
-       ! If inversion is being toggled, then check whether it's turned off at the current time.
-       ! If toggled off, then skip the subsequent inversion calls.
-       ! Toggling works as follows: Suppose we have freq = 1000 yr.
-       ! Then we do inversion over these time intervals: [0,1000], (2000,3000], (4000,5000], etc.
-       ! Inversion is turned off at other times.
-
-       toggle_skip_inversion = .false.
-       time = model%numerics%time
-       freq = model%inversion%toggle_frequency
-
-       if (freq > 0.0d0 .and. time > 0.0d0) then
-          ! Subtract a small term from the currrent time to guard against rounding error
-          if (mod(time - eps08, 2.0d0*freq) > freq) then
-             toggle_skip_inversion = .true.
-          endif
-       endif
-
-       if (toggle_skip_inversion) then
-          if (verbose_inversion .and. this_rank == rtest) then
-             print*, 'Toggling, skip inversion, time =', model%numerics%time
-          endif
-       else
-          call glissade_inversion_solve(model)
-       endif
-
+       call glissade_inversion_solve(model)
     endif   ! not a restart
 
     ! If glaciers are enabled, then do various updates:

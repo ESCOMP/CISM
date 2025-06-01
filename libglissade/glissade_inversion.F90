@@ -452,9 +452,6 @@ contains
     integer :: itest, jtest, rtest   ! local diagnostic point
     integer :: i, j, nb
 
-    real(dp) :: phaseout_factor      ! multiplying factor for inversion timescales
-    real(dp) :: babc_timescale, deltaT_ocn_timescale, flow_enhancement_timescale  ! copies of model parameters
-
     rtest = -999
     itest = 1
     jtest = 1
@@ -477,27 +474,6 @@ contains
                             floating_mask = floating_mask,              &
                             ocean_mask = ocean_mask,                    &
                             land_mask = land_mask)
-
-    ! Make copies of the inversion timescales
-    babc_timescale = model%inversion%babc_timescale
-    deltaT_ocn_timescale = model%inversion%deltaT_ocn_timescale
-    flow_enhancement_timescale = model%inversion%flow_enhancement_timescale
-
-    ! Optionally, increase the timescales so that the inversion is phased out over time.
-    ! Note: The terms proportional to dH/dt do not depend on this timescale, so the
-    !       inversion will keep acting to prevent the thickness from changing further.
-
-    if (model%inversion%phaseout_timescale > 0.0d0) then
-
-       ! Increase the timescales
-       phaseout_factor = exp(model%numerics%time/model%inversion%phaseout_timescale)
-       babc_timescale = babc_timescale * phaseout_factor
-       deltaT_ocn_timescale = deltaT_ocn_timescale * phaseout_factor
-       flow_enhancement_timescale = flow_enhancement_timescale * phaseout_factor
-       if (verbose_inversion .and. this_rank == rtest) then
-          print*, 'Inversion phaseout factor, babc_timescale (yr)=', phaseout_factor, babc_timescale/scyr
-       endif
-    endif
 
     ! If inverting for Cp = powerlaw_c or Cc = coulomb_c, then update it here.
     ! If running with glaciers, inversion for powerlaw_c is done elsewhere,
@@ -549,7 +525,7 @@ contains
                model%numerics%dns,                       &  ! m
                itest,    jtest,   rtest,                 &
                model%inversion%babc_thck_scale,          &  ! m
-               babc_timescale,                           &  ! s
+               model%inversion%babc_timescale,           &  ! s
                model%inversion%babc_length_scale,        &  ! m
                model%inversion%babc_relax_factor,        &
                model%basal_physics%powerlaw_c_max,       &
@@ -611,7 +587,7 @@ contains
                model%numerics%dns,                       &  ! m
                itest,    jtest,   rtest,                 &
                model%inversion%babc_thck_scale,          &  ! m
-               babc_timescale,                           &  ! s
+               model%inversion%babc_timescale,           &  ! s
                model%inversion%babc_length_scale,        &  ! m
                model%inversion%babc_relax_factor,        &
                model%basal_physics%coulomb_c_max,        &
@@ -675,7 +651,7 @@ contains
             model%geometry%dthck_dt,                   &  ! m/s
             model%inversion%floating_thck_target,      &  ! m
             model%inversion%deltaT_ocn_thck_scale,     &  ! m
-            deltaT_ocn_timescale,                      &  ! s
+            model%inversion%deltaT_ocn_timescale,      &  ! s
             model%inversion%deltaT_ocn_temp_scale,     &  ! degC
             model%inversion%deltaT_basin_relax,        &  ! degC
             model%inversion%basin_mass_correction,     &
@@ -729,7 +705,7 @@ contains
             model%numerics%dns,                    &   ! m
             itest, jtest,  rtest,                  &
             model%inversion%deltaT_ocn_thck_scale, &  ! m
-            deltaT_ocn_timescale,                  &  ! s
+            model%inversion%deltaT_ocn_timescale,  &  ! s
             model%inversion%deltaT_ocn_temp_scale, &  ! degC
             model%inversion%deltaT_ocn_length_scale,& ! m
             deltaT_ocn_relax,                      &  ! degC
@@ -837,7 +813,7 @@ contains
             model%paramets%flow_enhancement_factor_ground,    &
             model%paramets%flow_enhancement_factor_float,     &
             model%inversion%flow_enhancement_velo_scale,      &  ! m/s
-            flow_enhancement_timescale,                       &  ! s
+            model%inversion%flow_enhancement_timescale,       &  ! s
             model%inversion%flow_enhancement_thck_scale,      &  ! m
             model%inversion%flow_enhancement_length_scale,    &  ! m
             model%inversion%flow_enhancement_relax_factor,    &

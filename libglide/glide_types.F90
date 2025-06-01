@@ -1705,12 +1705,6 @@ module glide_types
 
      !TODO - Break into different derived types for each kind of inversion?
 
-     real(dp) :: toggle_frequency = 0.0d0    !> if nonzero, then toggle inversion at this frequency (yr)
-                                             !> if zero, then do not toggle
-
-     real(dp) :: phaseout_timescale = 0.0d0  !> if nonzero, then increase the inversion timescales (babc_timescale, etc.)
-                                             !> by a factor of e over this timescale (yr)
-
      ! parameters for initializing inversion fields
      real(dp) :: &
           thck_threshold = 0.0d0,          & !> ice thinner than this threshold (m) is removed at initialization

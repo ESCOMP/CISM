@@ -1856,19 +1856,6 @@ contains
           call write_log('Cannot invert for deltaT_ocn both locally and at basin scale', GM_FATAL)
        endif
 
-       ! Note: If inversion is toggled, all modes of inversion (e.g., coulomb_c, deltaT_ocn, flow_enhancement_factor)
-       !       are toggled on or off at the same time.
-       if (model%inversion%toggle_frequency > 0.0d0) then
-          write(message,*) ('Inversion toggled at frequency (yr):', model%inversion%toggle_frequency)
-          call write_log(message)
-       endif
-
-       ! Note: If phaseout_timescale > 0, then all inversion timescales are increased exponentially over this period
-       if (model%inversion%phaseout_timescale > 0.0d0) then
-          write(message,*) ('Inversion phaseout timescale (yr):', model%inversion%phaseout_timescale)
-          call write_log(message)
-       endif
-
        ! basal water options
 
        write(message,*) 'ho_whichbwat            : ',model%options%which_ho_bwat,  &
@@ -2299,8 +2286,6 @@ contains
     !TODO - Put inversion parameters in a separate section
     call GetValue(section, 'inversion_thck_flotation_buffer', model%inversion%thck_flotation_buffer)
     call GetValue(section, 'inversion_thck_threshold', model%inversion%thck_threshold)
-    call GetValue(section, 'inversion_toggle_frequency', model%inversion%toggle_frequency)
-    call GetValue(section, 'inversion_phaseout_timescale', model%inversion%phaseout_timescale)
 
     call GetValue(section, 'inversion_babc_timescale', model%inversion%babc_timescale)
     call GetValue(section, 'inversion_babc_thck_scale', model%inversion%babc_thck_scale)
