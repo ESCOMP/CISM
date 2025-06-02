@@ -568,6 +568,7 @@ module glissade_bmlt_float
 
     endif  ! simple_init
 
+    !Michele attempt for ERS test mismatch
     if (model%options%is_restart == NO_RESTART) then
 
        if (model%options%bmlt_float_thermal_forcing_param == BMLT_FLOAT_TF_ISMIP6_LOCAL .or.  &
@@ -1550,7 +1551,7 @@ module glissade_bmlt_float
    !shelves in CISM and should not have ocean values - this could be the reason for weird patterns of remapped
    !ocean fields. So the idea could be, before starting to counting unphys_val, to set to unphys val all points 
    !that are ice covered. 
-
+   
    do j = 1+nhalo, ny-nhalo
        do i = 1+nhalo,  nx-nhalo
              if (ice_mask(i,j) == 1 .or. ocean_mask(i,j) == 0) then
@@ -1559,15 +1560,13 @@ module glissade_bmlt_float
        end do
    end do
 
-
-
-    ! Count the number of filled levels/cells with valid values in the input thermal_forcing.
+   !Count the number of filled levels/cells with valid values in the input thermal_forcing.
 
    !Michele: I have realised that the remapped ocean is taking values where it shouldn't - points that are ice 
    !shelves in CISM and should not have ocean values - this could be the reason for weird patterns of remapped
    !ocean fields. So the idea could be, before starting to counting unphys_val, to set to unphys val all points 
    !that are ice covered. 
-
+   
    do j = 1+nhalo, ny-nhalo
        do i = 1+nhalo,  nx-nhalo
        imin = max(i-5,1+nhalo)

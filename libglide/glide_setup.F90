@@ -816,8 +816,6 @@ contains
     call GetValue(section, 'block_inception',             model%options%block_inception)
     call GetValue(section, 'remove_ice_caps',             model%options%remove_ice_caps)
     call GetValue(section, 'force_retreat',               model%options%force_retreat)
-    call GetValue(section, 'smooth_extrapocean',          model%options%smooth_extrapocean)
-    call GetValue(section, 'smoothiter',                  model%options%smoothiter)
     call GetValue(section, 'which_ho_ice_age',            model%options%which_ho_ice_age)
     call GetValue(section, 'enable_glaciers',             model%options%enable_glaciers)
     call GetValue(section, 'glissade_maxiter',            model%options%glissade_maxiter)

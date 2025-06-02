@@ -1137,16 +1137,6 @@ module glide_types
     !> item[1] force retreat of all ice identified by a retreat mask
     !> item[2] force retreat of floating or weakly grounded ice identified by a retreat mask
 
-    logical :: smooth_extrapocean = .true.
-    !> Flag that indicates whether or not smoothing ocean fields extrapolated in ice shelf cavities. 
-    !> For now ocean thermal forcing only, we will add later ocean temperature and salinity to 
-    !> force plume models or non-ISMIP params.
-
-    integer :: smoothiter = 10
-    !> Number of iterations in the smoothing algorithm for ocean fiels
-    !> extrapolated in ice shelf cavities. Default value of 10 yielded 
-    !> a good result, but might change in the future after more testing. 
-
     integer :: which_ho_ice_age = 1
     !> Flag that indicates whether to compute a 3d ice age tracer
     !> \begin{description}
