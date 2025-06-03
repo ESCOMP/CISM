@@ -546,6 +546,44 @@ data:          data%calving%calving_mask
 load:          1
 type:          int
 
+[melt_front_mask]
+dimensions:    time, y1, x1
+units:         1
+long_name:     marine melt front mask
+data:          data%calving%melt_front_mask
+load:          1
+type:          int
+
+[protected_mask]
+dimensions:    time, y1, x1
+units:         1
+long_name:     protected mask
+data:          data%calving%protected_mask
+load:          1
+type:          int
+
+[calving_front_mask]
+dimensions:    time, y1, x1
+units:         1
+long_name:     calving front mask
+data:          data%calving%calving_front_mask
+load:          1
+type:          int
+
+[thck_effective]
+dimensions:    time, y1, x1
+units:         meter
+long_name:     effective subgrid thickness
+data:          data%calving%thck_effective
+
+[marine_cliff_mask]
+dimensions:    time, y1, x1
+units:         1
+long_name:     marine cliff mask
+data:          data%calving%marine_cliff_mask
+load:          1
+type:          int
+
 [calving_lateral]
 dimensions:    time, y1, x1
 units:         meter/year

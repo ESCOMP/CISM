@@ -1469,7 +1469,6 @@ contains
            model%options%whichcalving == CF_SLATER .or. &
 
            model%options%whichcalving == CALVING_DAMAGE) then
-          
           call write_log('Error, this calving option is supported for Glissade dycore only', GM_FATAL)
        endif
 

@@ -252,7 +252,9 @@ contains
     ! Calve ice according to one of several methods.
     ! Note: This subroutine uses SI units.
 
-    use glissade_masks, only: glissade_get_masks, glissade_calving_front_mask
+    !use glissade_masks, only: glissade_get_masks, glissade_calving_front_mask
+    use glissade_masks, only: glissade_get_masks, glissade_marine_cliff_mask, glissade_marine_grounded_mask, &
+         glissade_grounded_calving_front_mask, glissade_secondary_floating_mask
     use glissade_utils, only: glissade_input_fluxes
     use glissade_grid_operators, only: glissade_unstagger
 
@@ -340,7 +342,9 @@ contains
          floating_mask,          & ! = 1 where ice is present (thck > thklim) and floating, else = 0
          ocean_mask,             & ! = 1 where topg is below sea level and ice is absent, else = 0
          land_mask,              & ! = 1 where topg is at or above sea level, else = 0
-         calving_front_mask        ! = 1 where ice is floating with at least one ocean edge neighbor, else = 0
+         marine_grounded_mask,   & ! = 1 where ice is grounded and marine-based 
+         calving_front_mask,     & ! = 1 where ice is floating with at least one ocean edge neighbor, else = 0
+         secondary_floating_mask   ! = 1 where ice is floating and not connected to marine grounded ice, else = 0
 
     ! Note: Calving occurs in a cell if and only if (1) the calving law permits calving, 
     !       and (2) the cell is in the calving domain, as specified by the calving_domain option.
@@ -430,6 +434,143 @@ contains
        
     ! Do the calving based on the value of which_calving
 
+    ! Combine CALVING_FLOAT_ZERO with other (subgrid CF) options, here CF_ADVANCE_RETREAT_RATE and similar
+    !   The idea is to remove flaoting ice first and then apply calving processes to the marine grounded ice
+    !   and, in the subgrid case, partial cells adjacent to those
+    ! TODO: How does this work together with subgrid protected cells?
+    !       Is it more agressive to float kill first, like done here?
+    
+    if (which_calving == CF_ARR_FLOAT_ZERO .or. which_calving == CF_MR_FLOAT_ZERO .or. which_calving == CF_SLATER_MR_FLOAT_ZERO) then
+
+       call parallel_halo(thck, parallel)
+
+       ! Get masks.
+       ! Use thickness limit of 0.0 instead of thklim so as to remove ice from any cell
+       !  that meets the calving criteria, not just dynamically active ice.
+
+       call glissade_get_masks(&
+            nx,            ny,             &
+            parallel,                      &
+            thck,          topg,           &
+            eus,           0.0d0,          &   ! thklim = 0.0
+            ice_mask,                      &
+            floating_mask = floating_mask, &
+            ocean_mask = ocean_mask)
+
+       ! Only for diagnostic here
+       call glissade_marine_cliff_mask(&
+            nx,            ny,                &
+            ice_mask,      floating_mask,     &
+            land_mask,     ocean_mask,        &
+            calving%marine_cliff_mask)
+       
+       call parallel_halo(calving%marine_cliff_mask, parallel)    
+       
+       ! set the calving-law mask
+       ! Note: Cells that meet the calving-law criteria will be calved provided they also lie in the calving domain,
+       !       as determined below.
+   
+       if (which_ho_calving_front == HO_CALVING_FRONT_SUBGRID) then
+          
+          ! In the subgrid case, remove secondary floating ice only when not protected
+          ! Rely on protected cell mechanism       
+          call glissade_marine_grounded_mask(&
+               nx,            ny,             &
+               ice_mask,      floating_mask,  &
+               land_mask,                     &
+               marine_grounded_mask)
+   
+          call parallel_halo(marine_grounded_mask, parallel)    
+   
+          call glissade_secondary_floating_mask(&
+               nx,            ny,             &
+               floating_mask,                 &
+               marine_grounded_mask,          &
+               secondary_floating_mask)
+          
+          call parallel_halo(secondary_floating_mask, parallel)    
+   
+          do j = 1, ny
+             do i = 1, nx
+                ! removing only floating ice that is not connected to a marine grounded cell,
+                !  keeping cells that become subgrid calving front cells
+                if (secondary_floating_mask(i,j) == 1) then
+                   calving_law_mask(i,j) = .true.
+                else
+                   calving_law_mask(i,j) = .false.
+                endif
+             enddo
+          enddo
+   
+       else ! other calving options (no subgrid calving front)
+
+          do j = 1, ny
+             do i = 1, nx
+                ! Remove all floating ice
+                if (floating_mask(i,j) == 1) then
+                   calving_law_mask(i,j) = .true.
+                else
+                   calving_law_mask(i,j) = .false.
+                endif
+             enddo
+          enddo
+   
+       endif ! which_ho_calving_front
+
+       
+       ! set the calving domain mask
+
+       if (calving_domain == CALVING_DOMAIN_OCEAN_EDGE) then  ! calving domain includes floating cells at margin only
+                                                              !WHL - Could modify to include grounded marine cells at margin
+          do j = 2, ny-1
+             do i = 2, nx-1
+
+                if (verbose_calving .and. i==itest .and. j==jtest .and. this_rank==rtest) then
+                   write(6,*) 'task, i, j, ice_mask, floating_mask:',  &
+                        this_rank, i, j, ice_mask(i,j), floating_mask(i,j)
+                endif
+
+                if ( floating_mask(i,j) == 1 .and.   &
+                     (ocean_mask(i-1,j)==1 .or. ocean_mask(i+1,j)==1 .or. ocean_mask(i,j-1)==1 .or. ocean_mask(i,j+1)==1) ) then
+                   calving_domain_mask(i,j) = .true.
+                else
+                   calving_domain_mask(i,j) = .false.
+                endif
+             enddo
+          enddo
+
+          ! halo update (since the loop above misses some halo cells)
+          call parallel_halo(calving_domain_mask, parallel)
+
+          if (verbose_calving) then
+             call point_diag(calving_domain_mask, 'calving_domain_mask', itest, jtest, rtest, 7, 7)
+          endif
+
+       elseif (calving_domain == CALVING_DOMAIN_EVERYWHERE) then  ! calving domain includes all cells
+
+          calving_domain_mask(:,:) = .true.
+
+       endif   ! calving_domain
+
+       ! Calve ice where calving_law_mask = T and calving_domain_mask = T
+       do j = 1, ny
+          do i = 1, nx
+             if (calving_law_mask(i,j) .and. calving_domain_mask(i,j)) then
+
+                if (verbose_calving .and. this_rank==rtest .and. thck(i,j) > 0.0d0) then
+!!                   write(6,*) 'Helo Calve ice: task, i, j, calving_thck =', this_rank, i, j, float_fraction_calve * thck(i,j)
+                endif
+
+                calving%calving_thck(i,j) = calving%calving_thck(i,j) + float_fraction_calve * thck(i,j)
+                thck(i,j) = thck(i,j) - float_fraction_calve * thck(i,j)
+            endif
+          enddo
+       enddo
+       
+    endif ! which_calving == CF_ARR_FLOAT_ZERO .or. which_calving == CF_MR_FLOAT_ZERO for combination
+    
+    ! On with physical calving options
+    
     ! Calving schemes with a subgrid calving front:
     
     if (which_ho_calving_front == HO_CALVING_FRONT_SUBGRID) then
@@ -522,14 +663,32 @@ contains
             ocean_mask = ocean_mask,       &
             land_mask = land_mask)
 
-       call glissade_calving_front_mask(&
-            nx,            ny,             &
+! commented to use the grounded calving front instead       
+!       call glissade_calving_front_mask(&
+!            nx,            ny,             &
+!            which_ho_calving_front,        &
+!            parallel,                      &
+!            thck,          topg,           &
+!            eus,                           &
+!            ice_mask,      floating_mask,  &
+!            ocean_mask,    land_mask,      &
+!            calving_front_mask,            &
+!            calving%dthck_dx_cf,           &
+!            dx,            dy,             &
+!            calving%thck_effective,        &
+!            calving%thck_effective_min,    &
+!            partial_cf_mask,               &
+!            full_mask,                     &
+!            calving%effective_areafrac)
+
+       call glissade_grounded_calving_front_mask(&
+            nx,                     ny,    &
             which_ho_calving_front,        &
             parallel,                      &
-            thck,          topg,           &
+            thck,                   topg,  &
             eus,                           &
             ice_mask,      floating_mask,  &
-            ocean_mask,    land_mask,      &
+            ocean_mask,        land_mask,  &
             calving_front_mask,            &
             calving%dthck_dx_cf,           &
             dx,            dy,             &
@@ -549,9 +708,7 @@ contains
 
        ! Compute the effective length of the calving front in each grid cell
 
-!HG<       if (which_calving == CF_ADVANCE_RETREAT_RATE) then
-       !if (which_calving == CF_ADVANCE_RETREAT_RATE .or. which_calving == CF_ARR_FLOAT_ZERO) then
-       if (which_calving == CF_ADVANCE_RETREAT_RATE .or. which_calving == CF_ARR_FLOAT_ZERO .or. which_calving == CF_MELTRATE .or. which_calving == CF_MR_FLOAT_ZERO .or. which_calving == CF_SLATER .or. which_calving == CF_SLATER_MR .or. which_calving == CF_SLATER_MR_FLOAT_ZERO) then
+       if (which_calving == CF_ADVANCE_RETREAT_RATE) then
 
           ! compute the CF length as a function of a cell's location on the unit circle
           ! surrounding the origin (assuming a radially symmetric calving rate).
@@ -621,7 +778,6 @@ contains
 
        elseif (which_calving == CF_MELTRATE .or. which_calving == CF_MR_FLOAT_ZERO) then
 
-          
           call calving_front_meltrate(&
                nx,                 ny,                    &
                dx,                 dy,                    &
@@ -637,7 +793,6 @@ contains
                calving_dthck)                                ! m
 
        elseif (which_calving == CF_SLATER) then
-
           
           call slater_calving_meltrate(&
                nx,                 ny,                    &
@@ -845,11 +1000,24 @@ contains
 
        else
 
-          call apply_calving_dthck(&
+!          call apply_calving_dthck(&
+!               nx,           ny,        &
+!               itest, jtest, rtest,     &
+!               parallel,                &
+!               calving_front_mask,      &
+!               floating_mask,           &
+!               full_mask,               &
+!               flux_in,                 &
+!               calving_dthck,           &
+!               thck,                    &
+!               calving%calving_thck)
+
+          call apply_grounded_calving_dthck(&
                nx,           ny,        &
                itest, jtest, rtest,     &
                parallel,                &
-               calving_front_mask,      &
+               calving_front_mask, &
+               ice_mask,                &
                floating_mask,           &
                full_mask,               &
                flux_in,                 &
@@ -877,14 +1045,31 @@ contains
             ocean_mask = ocean_mask,       &
             land_mask = land_mask)
 
-       call glissade_calving_front_mask(&
-            nx,            ny,             &
+!       call glissade_calving_front_mask(&
+!            nx,            ny,             &
+!            which_ho_calving_front,        &
+!            parallel,                      &
+!            thck,          topg,           &
+!            eus,                           &
+!            ice_mask,      floating_mask,  &
+!            ocean_mask,    land_mask,      &
+!            calving_front_mask,            &
+!            calving%dthck_dx_cf,           &
+!            dx,            dy,             &
+!            calving%thck_effective,        &
+!            calving%thck_effective_min,    &
+!            partial_cf_mask,               &
+!            full_mask,                     &
+!            calving%effective_areafrac)
+
+       call glissade_grounded_calving_front_mask(&
+            nx,                     ny,    &
             which_ho_calving_front,        &
             parallel,                      &
-            thck,          topg,           &
+            thck,                   topg,  &
             eus,                           &
             ice_mask,      floating_mask,  &
-            ocean_mask,    land_mask,      &
+            ocean_mask,        land_mask,  &
             calving_front_mask,            &
             calving%dthck_dx_cf,           &
             dx,            dy,             &
@@ -894,10 +1079,7 @@ contains
             full_mask,                     &
             calving%effective_areafrac)
 
-!HG<       if (which_calving == CF_ADVANCE_RETREAT_RATE) then
-       !if (which_calving == CF_ADVANCE_RETREAT_RATE .or. which_calving == CF_ARR_FLOAT_ZERO) then
-       !if (which_calving == CF_ADVANCE_RETREAT_RATE .or. which_calving == CF_ARR_FLOAT_ZERO .or. which_calving == CF_MELTRATE .or. which_calving == CF_MR_FLOAT_ZERO .or. which_calving == CF_SLATER) then
-       if (which_calving == CF_ADVANCE_RETREAT_RATE .or. which_calving == CF_ARR_FLOAT_ZERO .or. which_calving == CF_MELTRATE .or. which_calving == CF_MR_FLOAT_ZERO .or. which_calving == CF_SLATER .or. which_calving == CF_SLATER_MR .or. which_calving == CF_SLATER_MR_FLOAT_ZERO) then
+       if (which_calving == CF_ADVANCE_RETREAT_RATE) then
 
           ! Compute some CalvingMIP diagnostics.
           ! Note: If running with a prescribed advance/retreat rate on a grid other than
@@ -977,14 +1159,31 @@ contains
                ocean_mask = ocean_mask,       &
                land_mask = land_mask)
 
-          call glissade_calving_front_mask(&
-               nx,            ny,             &
+!          call glissade_calving_front_mask(&
+!               nx,            ny,             &
+!               which_ho_calving_front,        &
+!               parallel,                      &
+!               thck,          topg,           &
+!               eus,                           &
+!               ice_mask,      floating_mask,  &
+!               ocean_mask,    land_mask,      &
+!               calving_front_mask,            &
+!               calving%dthck_dx_cf,           &
+!               dx,            dy,             &
+!               calving%thck_effective,        &
+!               calving%thck_effective_min,    &
+!               partial_cf_mask,               &
+!               full_mask,                     &
+!               calving%effective_areafrac)
+
+          call glissade_grounded_calving_front_mask(&
+               nx,                     ny,    &
                which_ho_calving_front,        &
                parallel,                      &
-               thck,          topg,           &
+               thck,                   topg,  &
                eus,                           &
                ice_mask,      floating_mask,  &
-               ocean_mask,    land_mask,      &
+               ocean_mask,        land_mask,  &
                calving_front_mask,            &
                calving%dthck_dx_cf,           &
                dx,            dy,             &
@@ -993,7 +1192,7 @@ contains
                partial_cf_mask,               &
                full_mask,                     &
                calving%effective_areafrac)
-
+       
        endif
 
     else   ! other calving options (no subgrid calving front)
@@ -1110,93 +1309,6 @@ contains
 
     endif   ! which_ho_calving_front
 
-    ! Combine CALVING_FLOAT_ZERO with other (subgrid CF options) here CF_ADVANCE_RETREAT_RATE
-    if (which_calving == CF_ARR_FLOAT_ZERO .or. which_calving == CF_MR_FLOAT_ZERO .or. which_calving == CF_SLATER_MR_FLOAT_ZERO) then
-
-       call parallel_halo(thck, parallel)
-
-       ! Get masks.
-       ! Use thickness limit of 0.0 instead of thklim so as to remove ice from any cell
-       !  that meets the calving criteria, not just dynamically active ice.
-
-       call glissade_get_masks(&
-            nx,            ny,             &
-            parallel,                      &
-            thck,          topg,           &
-            eus,           0.0d0,          &   ! thklim = 0.0
-            ice_mask,                      &
-            floating_mask = floating_mask, &
-            ocean_mask = ocean_mask)
-
-       ! set the calving-law mask
-       ! Note: Cells that meet the calving-law criteria will be calved provided they also lie in the calving domain,
-       !       as determined below.
-
-       !case(CALVING_FLOAT_ZERO, CALVING_FLOAT_FRACTION)     ! calve ice that is floating
-
-       do j = 1, ny
-          do i = 1, nx
-             if (floating_mask(i,j) == 1) then
-                calving_law_mask(i,j) = .true.
-             else
-                calving_law_mask(i,j) = .false.
-             endif
-          enddo
-       enddo
-
-       ! halo update (may not be necessary if thck, damage, etc. are correct in halos, but including to be safe)
-       call parallel_halo(calving_law_mask, parallel)
-
-       ! set the calving domain mask
-
-       if (calving_domain == CALVING_DOMAIN_OCEAN_EDGE) then  ! calving domain includes floating cells at margin only
-                                                              !WHL - Could modify to include grounded marine cells at margin
-          do j = 2, ny-1
-             do i = 2, nx-1
-
-                if (verbose_calving .and. i==itest .and. j==jtest .and. this_rank==rtest) then
-                   write(6,*) 'task, i, j, ice_mask, floating_mask:',  &
-                        this_rank, i, j, ice_mask(i,j), floating_mask(i,j)
-                endif
-
-                if ( floating_mask(i,j) == 1 .and.   &
-                     (ocean_mask(i-1,j)==1 .or. ocean_mask(i+1,j)==1 .or. ocean_mask(i,j-1)==1 .or. ocean_mask(i,j+1)==1) ) then
-                   calving_domain_mask(i,j) = .true.
-                else
-                   calving_domain_mask(i,j) = .false.
-                endif
-             enddo
-          enddo
-
-          ! halo update (since the loop above misses some halo cells)
-          call parallel_halo(calving_domain_mask, parallel)
-
-          if (verbose_calving) then
-             call point_diag(calving_domain_mask, 'calving_domain_mask', itest, jtest, rtest, 7, 7)
-          endif
-
-       elseif (calving_domain == CALVING_DOMAIN_EVERYWHERE) then  ! calving domain includes all cells
-
-          calving_domain_mask(:,:) = .true.
-
-       endif   ! calving_domain
-
-       ! Calve ice where calving_law_mask = T and calving_domain_mask = T
-       do j = 1, ny
-          do i = 1, nx
-             if (calving_law_mask(i,j) .and. calving_domain_mask(i,j)) then
-
-                if (verbose_calving .and. this_rank==rtest .and. thck(i,j) > 0.0d0) then
-!!                   write(6,*) 'Helo Calve ice: task, i, j, calving_thck =', this_rank, i, j, float_fraction_calve * thck(i,j)
-                endif
-
-                calving%calving_thck(i,j) = calving%calving_thck(i,j) + float_fraction_calve * thck(i,j)
-                thck(i,j) = thck(i,j) - float_fraction_calve * thck(i,j)
-            endif
-          enddo
-       enddo
-       
-    endif ! which_calving == CF_ARR_FLOAT_ZERO .or. which_calving == CF_MR_FLOAT_ZERO for combination
 
     if (verbose_calving) then
        call point_diag(thck, 'After calving, new thck (m)', itest, jtest, rtest, 7, 7)
@@ -2795,6 +2907,12 @@ contains
 
              ! Make sure dthck >= 0. This prevents unphysical CF advance via negative calving
              calving_dthck(i,j) = max(calving_dthck(i,j), 0.0d0)
+             
+             if (verbose_calving) then
+                write(6,*) ' '
+                write(6,*) 'Time (yr)', time/scyr
+                write(6,*) 'applied melt as calving_dthck (m) =', i,j, calving_dthck(i,j), thck(i,j), thck_effective(i,j), cf_length(i,j)
+             endif
 
           endif   ! calving_front cell
        enddo   ! i
@@ -2820,7 +2938,7 @@ contains
        cf_advance_retreat_period,          &  ! s
        calving_dthck)                         ! m
 
-    ! This rounte does two things 
+    ! This routine does two things 
     ! 1. Calving based on Slater/Rahlves c = alpha * Heff^beta
     ! 2. Melt ice "horizontally" based on a prescribed melt rate of equvivalent calving front retreat.
     ! Melt parameterised as a function of runoff and thermal_forcing, both 2d fields
@@ -3239,6 +3357,137 @@ contains
     enddo   ! j
 
   end subroutine apply_calving_dthck
+
+!---------------------------------------------------------------------------
+
+  subroutine apply_grounded_calving_dthck(&
+       nx,           ny,       &
+       itest, jtest, rtest,    &
+       parallel,               &
+       calving_front_mask,     &
+       ice_mask,               &
+       floating_mask,          &
+       full_mask,              &
+       flux_in,                &
+       calving_dthck,          &
+       thck,                   &
+       calving_thck)
+
+    ! Apply calving_dthck as computed from a given calving law.
+    ! This is the thinning rate that will give the desired lateral calving rate.
+
+    ! input/output arguments
+
+    integer, intent(in) :: &
+         nx, ny,                 & ! grid dimensions
+         itest, jtest, rtest       ! coordinates of diagnostic point
+
+    type(parallel_type), intent(in) :: &
+         parallel                  ! info for parallel communication
+
+    integer, dimension(nx,ny), intent(in)  ::  &
+         calving_front_mask,     & ! = 1 where ice is floating and borders at least one ocean cell, else = 0
+         ice_mask,               & ! = 1 where ice is present, else = 0
+         floating_mask,          & ! = 1 where ice is present and floating, else = 0
+         full_mask                 ! = 1 for ice-filled cells that are not partial_cf cells, else = 0
+
+    real(dp), dimension(-1:1,-1:1,nx,ny), intent(in) :: &
+         flux_in                   ! ice volume fluxes (m^3/s) into cell from each neighbor cell
+
+    real(dp), dimension(nx,ny), intent(inout) :: &
+         calving_dthck,          & ! thickness (m) to be added to the calving flux
+         thck,                   & ! ice thickness (m)
+         calving_thck              ! thickness lost due to calving (m)
+
+    ! local variables
+
+    integer :: i, j, ii, jj, iup, jup
+    integer :: count
+    real(dp) :: total_flux, total_dthck, my_dthck
+
+    ! Apply calving_dthck to calving-front cells
+
+    do j = nhalo+1, ny-nhalo
+       do i = nhalo+1, nx-nhalo
+          if (calving_front_mask(i,j) == 1) then
+
+             my_dthck = calving_dthck(i,j)
+             if (my_dthck > thck(i,j)) then
+                ! calve the full column and compute the remainder available for upstream calving
+                calving_dthck(i,j) = calving_dthck(i,j) - thck(i,j)
+                calving_thck(i,j) = calving_thck(i,j) + thck(i,j)
+                thck(i,j) = 0.0d0
+             else
+                ! calve part of the column
+                thck(i,j) = thck(i,j) - my_dthck
+                calving_thck(i,j) = calving_thck(i,j) + my_dthck
+                calving_dthck(i,j) = 0.0d0
+             endif
+
+          endif   ! CF mask
+       enddo   ! i
+    enddo   ! j
+
+    call parallel_halo(thck, parallel)
+    call parallel_halo(calving_dthck, parallel)
+
+    ! If calving_dthck > 0 after a full column is calved, apply further calving to upstream neighbors.
+    ! The thinning in each neighbor is proportional to that cell's contribution to the downstream flux.
+    ! Loop includes halo cells so each local cell can be thinned by all its downstream neighbors.
+
+    do j = 2, ny-1
+       do i = 2, nx-1
+          if (calving_dthck(i,j) > 0.0d0) then
+
+             ! Given flux_in (ice flux in m^3/s entering the cell from each upstream neighbor),
+             ! compute the fraction of the thinning to be applied to each upstream neighbor.
+             count = 0
+             total_flux = 0.0d0
+             do jj = -1, 1
+                do ii = -1, 1
+                   iup = i + ii; jup = j + jj
+                   !TODO - Is this logic correct? Both grounded and full?
+                   if (flux_in(ii,jj,i,j) > 0.0d0 .and. ice_mask(iup,jup) == 1 &
+                        .and. floating_mask(iup,jup) == 0 .and. full_mask(iup,jup) == 1) then
+                      count = count + 1
+                      total_flux = total_flux + flux_in(ii,jj,i,j)
+                   endif
+                enddo
+             enddo
+
+             !WHL - debug
+             if (verbose_calving .and. i==itest .and. j==jtest .and. this_rank==rtest) then
+                print*, 'Calve upstream: dthck, input flux (m^3/yr)=', calving_dthck(i,j), total_flux*scyr
+                print*, '   No. of upstream cells =', count
+             endif
+
+             ! Calve ice in the upstream neighbors
+             if (total_flux > 0.0d0) then
+                total_dthck = calving_dthck(i,j)
+                do jj = -1, 1
+                   do ii = -1, 1
+                      iup = i + ii; jup = j + jj
+                      !TODO - Is this logic correct? Both grounded and full?
+                      if (flux_in(ii,jj,i,j) > 0.0d0 .and. ice_mask(iup,jup) == 1 &
+                           .and. floating_mask(iup,jup) == 0 .and. full_mask(iup,jup) == 1) then
+                         my_dthck = total_dthck * flux_in(ii,jj,i,j)/total_flux
+                         thck(iup,jup) = thck(iup,jup) - my_dthck
+                         calving_thck(iup,jup) = calving_thck(iup,jup) + my_dthck
+                         calving_dthck(i,j) = calving_dthck(i,j) - my_dthck
+                         if (verbose_calving .and. i==itest .and. j==jtest .and. this_rank==rtest) then
+                            print*, '   Upstream ii, jj, frac, remaining calving_dthck:', &
+                                 ii, jj, flux_in(ii,jj,i,j)/total_flux, calving_dthck(i,j)
+                         endif
+                      endif
+                   enddo
+                enddo
+             endif
+
+          endif   ! calving_dthck > 0
+       enddo   ! i
+    enddo   ! j
+
+  end subroutine apply_grounded_calving_dthck
 
 !---------------------------------------------------------------------------
 

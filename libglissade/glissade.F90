@@ -2260,7 +2260,7 @@ contains
                                   glissade_overwrite_acab,  &
                                   glissade_add_2d_anomaly
     use glissade_masks, only: glissade_get_masks, glissade_extend_mask, &
-                              glissade_calving_front_mask
+                              glissade_calving_front_mask, glissade_grounded_calving_front_mask
     use glissade_inversion, only: verbose_inversion
     use glissade_bmlt_float, only: verbose_bmlt_float
     use glissade_calving, only: verbose_calving
@@ -2290,7 +2290,7 @@ contains
        floating_mask,        & ! = 1 where ice is present and floating, else = 0
        ocean_mask,           & ! = 1 if topg is below sea level and thck = 0, else = 0
        land_mask,            & ! = 1 if topg is at or above sea level, else = 0
-       calving_front_mask,   & ! = 1 where ice is floating and borders an ocean cell, else = 0
+       !calving_front_mask,   & ! = 1 where ice is floating and borders an ocean cell, else = 0
        extended_ice_sheet_mask ! extension of ice_sheet_mask to include neighbor cells
 
     real(dp), dimension(model%general%ewn, model%general%nsn) ::  &
@@ -2400,7 +2400,26 @@ contains
        ! Near the calving front, distinguish full cells from partial cells.
        ! effective_areafrac is used later to apply SMB and BMB.
 
-       call glissade_calving_front_mask(&
+!       call glissade_calving_front_mask(&
+!            ewn,                    nsn,              &
+!            model%options%which_ho_calving_front,     &
+!            parallel,                                 &
+!            model%geometry%thck*thk0,                 &   ! m
+!            model%geometry%topg*thk0,                 &   ! m
+!            model%climate%eus*thk0,                   &   ! m
+!            ice_mask,               floating_mask,    &
+!            ocean_mask,             land_mask,        &
+!            calving_front_mask,                       &
+!            dthck_dx_cf = model%calving%dthck_dx_cf,  &
+!            dx = model%numerics%dew*len0,             &
+!            dy = model%numerics%dns*len0,             &
+!            thck_effective = model%calving%thck_effective, &
+!            thck_effective_min = model%calving%thck_effective_min,  &
+!            partial_cf_mask = partial_cf_mask,        &
+!            full_mask = full_mask,                    &
+!            effective_areafrac = model%calving%effective_areafrac)
+
+       call glissade_grounded_calving_front_mask(&
             ewn,                    nsn,              &
             model%options%which_ho_calving_front,     &
             parallel,                                 &
@@ -2409,7 +2428,7 @@ contains
             model%climate%eus*thk0,                   &   ! m
             ice_mask,               floating_mask,    &
             ocean_mask,             land_mask,        &
-            calving_front_mask,                       &
+            grounded_calving_front_mask = model%calving%calving_front_mask, &
             dthck_dx_cf = model%calving%dthck_dx_cf,  &
             dx = model%numerics%dew*len0,             &
             dy = model%numerics%dns*len0,             &
@@ -2420,7 +2439,7 @@ contains
             effective_areafrac = model%calving%effective_areafrac)
 
        if (verbose_calving) then
-          call point_diag(calving_front_mask, 'calving_front_mask', itest, jtest, rtest, 7, 7)
+          call point_diag(model%calving%calving_front_mask, 'calving_front_mask', itest, jtest, rtest, 7, 7)
           call point_diag(partial_cf_mask, 'partial_cf_mask', itest, jtest, rtest, 7, 7)
           call point_diag(full_mask, 'full_mask', itest, jtest, rtest, 7, 7)
 !          call point_diag(ocean_mask, 'ocean_mask', itest, jtest, rtest, 7, 7)
@@ -3229,7 +3248,7 @@ contains
     use glissade_calving, only: glissade_calve_ice, verbose_calving, &
          glissade_remove_icebergs, glissade_remove_isthmuses, glissade_limit_cliffs
     use glissade_masks, only: glissade_get_masks, glissade_ocean_connection_mask, &
-         glissade_calving_front_mask
+         glissade_calving_front_mask, glissade_grounded_calving_front_mask
     use glissade_grounding_line, only: glissade_grounded_fraction
     implicit none
 
@@ -3280,7 +3299,7 @@ contains
     logical, parameter :: verbose_retreat = .true.
 
     integer, dimension(model%general%ewn, model%general%nsn) :: &
-         calving_front_mask,      & !
+         !calving_front_mask,      & !
          partial_cf_mask,         & ! = 1 for partially filled CF cells (thck < thck_effective), else = 0
          full_mask                  ! = 1 for ice-filled cells that are not partial_cf cells, else = 0
 
@@ -3732,7 +3751,26 @@ contains
 
           ! Compute partial_cf_mask and full-mask.
           ! This is to prevent partial CF cells from spreading the fill.
-          call glissade_calving_front_mask(&
+!          call glissade_calving_front_mask(&
+!               nx,          ny,     &
+!               model%options%which_ho_calving_front,       &
+!               parallel,                                   &
+!               model%geometry%thck*thk0,                   &
+!               model%geometry%topg*thk0,                   &
+!               model%climate%eus*thk0,                     &
+!               ice_mask,            floating_mask,         &
+!               ocean_mask,          land_mask,             &
+!               calving_front_mask,                         &
+!               dx = model%numerics%dew*len0,               &
+!               dy = model%numerics%dns*len0,               &
+!               dthck_dx_cf = model%calving%dthck_dx_cf,    &
+!               thck_effective = model%calving%thck_effective,  &
+!               thck_effective_min = model%calving%thck_effective_min,  &
+!               partial_cf_mask = partial_cf_mask,          &
+!               full_mask = full_mask,                      &
+!               effective_areafrac = model%calving%effective_areafrac)
+
+          call glissade_grounded_calving_front_mask(&
                nx,          ny,     &
                model%options%which_ho_calving_front,       &
                parallel,                                   &
@@ -3741,7 +3779,7 @@ contains
                model%climate%eus*thk0,                     &
                ice_mask,            floating_mask,         &
                ocean_mask,          land_mask,             &
-               calving_front_mask,                         &
+               grounded_calving_front_mask = model%calving%calving_front_mask, &
                dx = model%numerics%dew*len0,               &
                dy = model%numerics%dns*len0,               &
                dthck_dx_cf = model%calving%dthck_dx_cf,    &
@@ -3932,7 +3970,7 @@ contains
     use glide_thck, only: glide_calclsrf
     use glissade_velo, only: glissade_velo_driver
     use glide_velo, only: wvelintg
-    use glissade_masks, only: glissade_get_masks, glissade_ice_sheet_mask, glissade_calving_front_mask
+    use glissade_masks, only: glissade_get_masks, glissade_ice_sheet_mask, glissade_calving_front_mask, glissade_grounded_calving_front_mask 
     use glissade_grid_operators, only: glissade_stagger, glissade_gradient, glissade_laplacian_smoother
     use glissade_grounding_line, only: glissade_grounded_fraction, glissade_grounding_line_flux, verbose_glp
     use glissade_therm, only: glissade_interior_dissipation_sia,  &
@@ -3963,8 +4001,8 @@ contains
          ice_mask,           & ! = 1 where thck > thklim, else = 0
          floating_mask,      & ! = 1 where ice is present and floating, else = 0
          ocean_mask,         & ! = 1 where topg is below sea level and ice is absent
-         land_mask,          & ! = 1 where topg is at or above sea level
-         calving_front_mask    ! = 1 where ice is floating and borders an ocean cell, else = 0
+         land_mask             ! = 1 where topg is at or above sea level
+         !calving_front_mask    ! = 1 where ice is floating and borders an ocean cell, else = 0
 
     ! Note: f_flotation_obs and f_ground_obs are used only as dummy output arguments
     !       for the subroutine that computes f_ground_cell_obs.
@@ -4127,7 +4165,25 @@ contains
     ! Note: If running with the subgrid CF scheme, then the velocity solver
     !        uses model%calving%thck_effective in place of model%geometry%thck.
     !       In partial_cf cells, thck_effective > thck.
-    call glissade_calving_front_mask(ewn,                 nsn,     &
+!    call glissade_calving_front_mask(ewn,                 nsn,     &
+!                                     model%options%which_ho_calving_front,       &
+!                                     parallel,                                   &
+!                                     model%geometry%thck*thk0,                   &
+!                                     model%geometry%topg*thk0,                   &
+!                                     model%climate%eus*thk0,                     &
+!                                     ice_mask,            floating_mask,         &
+!                                     ocean_mask,          land_mask,             &
+!                                     calving_front_mask,                         &
+!                                     dx = model%numerics%dew*len0,               &
+!                                     dy = model%numerics%dns*len0,               &
+!                                     dthck_dx_cf = model%calving%dthck_dx_cf,    &
+!                                     thck_effective = model%calving%thck_effective,  &
+!                                     thck_effective_min = model%calving%thck_effective_min,  &
+!                                     partial_cf_mask = partial_cf_mask,          &
+!                                     full_mask = full_mask,                      &
+!                                     effective_areafrac = model%calving%effective_areafrac)
+
+    call glissade_grounded_calving_front_mask(ewn,                 nsn,     &
                                      model%options%which_ho_calving_front,       &
                                      parallel,                                   &
                                      model%geometry%thck*thk0,                   &
@@ -4135,7 +4191,7 @@ contains
                                      model%climate%eus*thk0,                     &
                                      ice_mask,            floating_mask,         &
                                      ocean_mask,          land_mask,             &
-                                     calving_front_mask,                         &
+                                     grounded_calving_front_mask = model%calving%calving_front_mask, &
                                      dx = model%numerics%dew*len0,               &
                                      dy = model%numerics%dns*len0,               &
                                      dthck_dx_cf = model%calving%dthck_dx_cf,    &
@@ -4937,7 +4993,7 @@ contains
     !       calving_thck = calving thickness per timestep, while bmlt_applied = melt per unit time
 
     if (model%options%whichcalving == CALVING_GRID_MASK .or. model%options%apply_calving_mask) then
-       where (calving_front_mask == 1)
+       where (model%calving%calving_front_mask == 1)
           model%calving%calving_thck = model%calving%calving_thck + &
                model%basal_melt%bmlt_applied * model%numerics%dt
           model%basal_melt%bmlt_applied = 0.0d0

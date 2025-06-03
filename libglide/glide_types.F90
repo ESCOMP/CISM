@@ -1558,6 +1558,9 @@ module glide_types
      real(dp),dimension(:,:),  pointer :: calving_rate_tavg => null()  !> rate of ice loss due to calving (m/yr ice, time average)
      integer, dimension(:,:),  pointer :: calving_mask => null()   !> calve floating ice where the mask = 1 (whichcalving = CALVING_GRID_MASK)
      integer, dimension(:,:),  pointer :: protected_mask => null() !> mask of cells protected from calving when using the subgrid CF scheme
+     integer, dimension(:,:),  pointer :: melt_front_mask => null() !> mask of cells where subgrid CF melting can take place
+     integer, dimension(:,:),  pointer :: calving_front_mask => null() !> mask of calving front cells 
+     integer, dimension(:,:),  pointer :: marine_cliff_mask => null() !> mask of marine calving cliff cells 
      real(dp),dimension(:,:),  pointer :: thck_effective => null() !> effective thickness for calving (m)
      real(dp),dimension(:,:),  pointer :: effective_areafrac => null() !> effective fractional area, < 1 for partial CF cells (m)
      real(dp),dimension(:,:),  pointer :: lateral_rate => null()   !> lateral calving rate (m/yr, not scaled)
@@ -3234,6 +3237,9 @@ contains
     call coordsystem_allocate(model%general%ice_grid, model%calving%calving_rate)
     call coordsystem_allocate(model%general%ice_grid, model%calving%calving_rate_tavg)
     call coordsystem_allocate(model%general%ice_grid, model%calving%calving_mask)
+    call coordsystem_allocate(model%general%ice_grid, model%calving%calving_front_mask)
+    call coordsystem_allocate(model%general%ice_grid, model%calving%melt_front_mask)
+    call coordsystem_allocate(model%general%ice_grid, model%calving%marine_cliff_mask)
     call coordsystem_allocate(model%general%ice_grid, model%calving%protected_mask)
     call coordsystem_allocate(model%general%ice_grid, model%calving%thck_effective)
     call coordsystem_allocate(model%general%ice_grid, model%calving%effective_areafrac)
@@ -3874,6 +3880,12 @@ contains
         deallocate(model%calving%calving_rate_tavg)
     if (associated(model%calving%calving_mask)) &
         deallocate(model%calving%calving_mask)
+    if (associated(model%calving%calving_front_mask)) &
+        deallocate(model%calving%calving_front_mask)
+    if (associated(model%calving%melt_front_mask)) &
+        deallocate(model%calving%melt_front_mask)
+    if (associated(model%calving%marine_cliff_mask)) &
+        deallocate(model%calving%marine_cliff_mask)
     if (associated(model%calving%protected_mask)) &
         deallocate(model%calving%protected_mask)
     if (associated(model%calving%thck_effective)) &
