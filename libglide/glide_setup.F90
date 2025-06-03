@@ -2090,11 +2090,6 @@ contains
              endif
           endif
 
-          if (model%options%smooth_extrapocean) then
-             write(message,*) 'Additional smoothing for ocean fields extrapolated in cavities'
-             call write_log(message)
-          end if
-
           write(message,*) 'ho_whichice_age         : ',model%options%which_ho_ice_age,  &
                             ho_whichice_age(model%options%which_ho_ice_age)
           call write_log(message)
