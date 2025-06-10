@@ -1258,20 +1258,24 @@ contains
 
     !if needed loop over the basins to find which basins need a multiplier
     if (model%options%which_ho_bmlt_basin_correction == HO_BMLT_BASIN_CORRECTION) then
-       print*, 'zakje'
-       print*, model%basal_melt%basin_correctionfactor
-       print*, model%basal_melt%maxnbasin_correction
-       print*, model%basal_melt%minnbasin_correction
-       do j = 1,model%general%ewn 
-          do i = 1, model%general%nsn
-             if (model%basal_melt%minnbasin_correction < model%ocean_data%basin_number(i,j) &
-                .and. model%ocean_data%basin_number(i,j) < model%basal_melt%maxnbasin_correction) then
-                model%basal_melt%basin_multiplier_array(i,j)=model%basal_melt%basin_correctionfactor
+!       print*, 'zakje'
+!       print*, model%ocean_data%basin_correctionfactor
+!       print*, model%ocean_data%maxnbasin_correction
+!       print*, model%ocean_data%minnbasin_correction
+        call parallel_halo(model%ocean_data%basin_number, parallel)
+        call parallel_halo(model%ocean_data%basin_multiplier_array, parallel)
+
+       do j = 1,model%general%nsn 
+          do i = 1, model%general%ewn
+             if (model%ocean_data%minnbasin_correction < model%ocean_data%basin_number(i,j) &
+                .and. model%ocean_data%basin_number(i,j) < model%ocean_data%maxnbasin_correction) then
+                model%ocean_data%basin_multiplier_array(i,j)=model%ocean_data%basin_correctionfactor
              else
-                model%basal_melt%basin_multiplier_array(i,j)=1.0d0
+                model%ocean_data%basin_multiplier_array(i,j)=0.0d0
              endif
           enddo
        enddo
+       call parallel_halo(model%ocean_data%basin_multiplier_array,  parallel)
     endif
 
     if (main_task) print*, 'Done in glissade_initialise'
@@ -1430,6 +1434,9 @@ contains
    
     !TvdA: here is where the capping of deltaT ocn happens when we use the deltaT ismip6 option
 
+    !TvdA: I added here the computation of the multiplication array because for some reason the array 
+    !the parallelization goes wrong
+
     call glissade_bmlt_float_solve(model)
 
     ! Add bmlt_float to bmlt_ground to determine the total bmlt
@@ -1468,11 +1475,6 @@ contains
 
     endif
 
-
-    if (model%options%which_ho_bmlt_basin_correction == HO_BMLT_BASIN_CORRECTION) then
-          
-         model%basal_melt%bmlt(:,:) = model%basal_melt%bmlt_ground(:,:) + model%basal_melt%bmlt_float(:,:)*model%basal_melt%basin_multiplier_array(:,:)
-    endif
 
     !prevent a MICI-prone cliff from receiving melt from the ocean, because in a single timestep, the MICI calving can 
     !let an MICI receiving become afloat, and then the cell can be removed because of high basal melt rates typically 

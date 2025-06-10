@@ -1998,11 +1998,6 @@ module glide_types
      real(dp) :: bmlt_anomaly_tstart = 0.0d0        !> time to start applying the anomaly (yr)
      real(dp) :: bmlt_anomaly_timescale = 0.0d0     !> number of years over which the bmlt_float anomaly is phased in linearly
                                                     !> If set to zero, then the anomaly is applied immediately.
-     !parameters and fields for a basin based correction on the basal melt
-     real(dp) :: maxnbasin_correction = 27.0d0      !> maximum basin number to apply correction to
-     real(dp) :: minnbasin_correction = 0.0d0       !> minimum basin number to apply correction to
-     real(dp) :: basin_correctionfactor =1.0d0      !> the factor to multiply the 
-     real(dp),  dimension(:,:), pointer :: basin_multiplier_array => null()     
 
   end type glide_basal_melt
 
@@ -2038,6 +2033,12 @@ module glide_types
      real(dp), dimension(:,:), pointer :: &
           deltaT_ocn => null(),   &                 !> deltaT_ocn in each grid cell (deg C)
           deltaT_ocn_relax => null()                !> deltaT_ocn toward which we relax (deg C)
+
+
+     real(dp) :: maxnbasin_correction = 27.0d0      !> maximum basin number to apply correction to
+     real(dp) :: minnbasin_correction = 0.0d0       !> minimum basin number to apply correction to
+     real(dp) :: basin_correctionfactor =1.0d0      !> the factor to multiply the 
+     real(dp),  dimension(:,:), pointer :: basin_multiplier_array => null()     
 
      real(dp) :: &
           thermal_forcing_anomaly = 0.0d0,  &       !> thermal forcing anomaly (deg C), applied everywhere
@@ -3266,7 +3267,7 @@ contains
     call coordsystem_allocate(model%general%ice_grid,  model%basal_melt%bmlt_applied)
     call coordsystem_allocate(model%general%ice_grid,  model%basal_melt%bmlt_applied_tavg)
     call coordsystem_allocate(model%general%ice_grid,  model%basal_melt%bmlt_ground)
-    call coordsystem_allocate(model%general%ice_grid,  model%basal_melt%basin_multiplier_array)    
+    call coordsystem_allocate(model%general%ice_grid,  model%ocean_data%basin_multiplier_array)    
 
     !WHL - debug
     call coordsystem_allocate(model%general%ice_grid,  model%basal_melt%bmlt_applied_old)
@@ -3772,8 +3773,8 @@ contains
 
     if (associated(model%basal_melt%bmlt)) &
         deallocate(model%basal_melt%bmlt)
-    if(associated(model%basal_melt%basin_multiplier_array))&
-        deallocate(model%basal_melt%basin_multiplier_array)
+    if(associated(model%ocean_data%basin_multiplier_array))&
+        deallocate(model%ocean_data%basin_multiplier_array)
     if (associated(model%basal_melt%bmlt_applied)) &
         deallocate(model%basal_melt%bmlt_applied)
     if (associated(model%basal_melt%bmlt_applied_tavg)) &

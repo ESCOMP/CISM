@@ -2231,9 +2231,9 @@ contains
     call GetValue(section,'bmlt_float_factor',  model%basal_melt%bmlt_float_factor)
 
    ! parameters related to the basal melting adjustment per basin
-    call GetValue(section, 'maxnbasin_correction', model%basal_melt%maxnbasin_correction)
-    call GetValue(section, 'minnbasin_correction', model%basal_melt%minnbasin_correction)
-    call GetValue(section, 'basin_correctionfactor', model%basal_melt%basin_correctionfactor) 
+    call GetValue(section, 'maxnbasin_correction', model%ocean_data%maxnbasin_correction)
+    call GetValue(section, 'minnbasin_correction', model%ocean_data%minnbasin_correction)
+    call GetValue(section, 'basin_correctionfactor', model%ocean_data%basin_correctionfactor) 
 
     ! calving parameters
     call GetValue(section,'marine_limit',       model%calving%marine_limit)

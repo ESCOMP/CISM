@@ -817,7 +817,7 @@ load:          1
 dimensions:    time, y1, x1
 units:         1
 long_name:     multiplier on a basin scale for the basal melting
-data:          data%basal_melt%basin_multiplier_array
+data:          data%ocean_data%basin_multiplier_array
 load:          1
 
 

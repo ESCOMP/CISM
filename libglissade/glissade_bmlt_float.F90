@@ -781,6 +781,7 @@ module glissade_bmlt_float
                             !> basin_number = integer assigned to each basin
                             !> gamma0 = basal melt rate coefficient for ISMIP6 melt parameterization
                             !> deltaT_ocn = ocean temperature corrections for ISMIP6 melt parameterization
+                            !> basin_multiplier_array = an array containing a number in Kelvin to increase ocean temperatures with (note: multiplier is not correct, it is an addition, but for hasty reasons I (TvdA) did not change the name. This array can be added to the sum of thermal forcing and deltaT_ocn
 
     real(dp), dimension(:,:), intent(out) :: &
          bmlt_float         !> basal melt rate for floating ice (m/s)
@@ -1435,6 +1436,7 @@ module glissade_bmlt_float
             ocean_data%gamma0,                &
             ocean_data%thermal_forcing_lsrf,  &
             ocean_data%deltaT_ocn,            &
+            ocean_data%basin_multiplier_array,&
             theta_slope,                      &
             thermal_forcing_basin,            &
             thermal_forcing_mask,             &
@@ -2059,6 +2061,7 @@ module glissade_bmlt_float
        gamma0,                    &
        thermal_forcing_lsrf,      &
        deltaT_ocn,                &
+       basin_multiplier_array,    &
        theta_slope,               &
        thermal_forcing_basin,     &
        thermal_forcing_mask,      &
@@ -2093,7 +2096,8 @@ module glissade_bmlt_float
          theta_slope              !> sub-shelf slope angle (radians)
 
     real(dp), dimension(nx,ny), intent(inout) :: &
-         deltaT_ocn               !> thermal forcing correction factor (deg C)
+         deltaT_ocn,            &   !> thermal forcing correction factor (deg C)
+         basin_multiplier_array     !> potential addition to the thermal forcing (deg C)
 
     real(dp), dimension(nbasin), intent(in) :: &
          thermal_forcing_basin    !> thermal forcing averaged over each basin (deg C)
@@ -2167,7 +2171,7 @@ module glissade_bmlt_float
 !                        this_rank, i, j, basin_number(i,j), thermal_forcing_lsrf(i,j), deltaT_ocn(i,j)
 !                endif
 
-                eff_thermal_forcing = max(0.0d0, thermal_forcing_lsrf(i,j) + deltaT_ocn(i,j))
+                eff_thermal_forcing = max(0.0d0, thermal_forcing_lsrf(i,j) + deltaT_ocn(i,j) + basin_multiplier_array(i,j))
                 bmlt_float(i,j) = coeff * eff_thermal_forcing**2
 !             endif
           enddo
@@ -2183,7 +2187,7 @@ module glissade_bmlt_float
              nb = basin_number(i,j)
              if (thermal_forcing_mask(i,j) == 1) then
                 ! Note: Can have bmlt_float < 0 where thermal_forcing_lsrf + deltaT_ocn < 0
-                eff_thermal_forcing = thermal_forcing_lsrf(i,j) + deltaT_ocn(i,j)
+                eff_thermal_forcing = thermal_forcing_lsrf(i,j) + deltaT_ocn(i,j) + basin_multiplier_array(i,j)
                 eff_thermal_forcing_basin = max(0.0d0, thermal_forcing_basin(nb))
                 bmlt_float(i,j) = coeff * eff_thermal_forcing * eff_thermal_forcing_basin
 
@@ -2210,7 +2214,7 @@ module glissade_bmlt_float
              nb = basin_number(i,j)
              if (thermal_forcing_mask(i,j) == 1) then
                 ! Note: Can have bmlt_float < 0 where thermal_forcing_lsrf + deltaT_ocn < 0
-                eff_thermal_forcing = thermal_forcing_lsrf(i,j) + deltaT_ocn(i,j)
+                eff_thermal_forcing = thermal_forcing_lsrf(i,j) + deltaT_ocn(i,j) + basin_multiplier_array(i,j)
                 eff_thermal_forcing_basin = max(0.0d0, thermal_forcing_basin(nb))
                 bmlt_float(i,j) = coeff * sin(theta_slope(i,j)) * eff_thermal_forcing * eff_thermal_forcing_basin
              endif
