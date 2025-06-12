@@ -568,6 +568,7 @@ module glissade_bmlt_float
 
     endif  ! simple_init
 
+    !Michele attempt for ERS test mismatch
     if (model%options%is_restart == NO_RESTART) then
 
        if (model%options%bmlt_float_thermal_forcing_param == BMLT_FLOAT_TF_ISMIP6_LOCAL .or.  &
@@ -969,6 +970,7 @@ module glissade_bmlt_float
        ! Extrapolate the 3D thermal forcing field to sub-shelf cavities.
        ! Note: For now, unfilled cells retain values of unphys_val.
        ! TODO: Replace unphys_val with an integer mask?
+ 
        call glissade_thermal_forcing_extrapolate(&
             nx,        ny,                     &
             parallel,  model,                  &
@@ -983,7 +985,7 @@ module glissade_bmlt_float
             unphys_val,                        &  ! identifies unfilled cells on input
             unphys_val,                       &  ! default value given to unfilled cells on output
             ocean_data%thermal_forcing)
-       
+
        if (verbose_bmlt_float .and. this_rank == rtest) then
           print*, ' '
           print*, 'TF after extrapolating, rank, i, j =', rtest, itest, jtest
@@ -1545,11 +1547,11 @@ module glissade_bmlt_float
     real(dp), parameter :: tf_roundoff_threshold = 1.0d0  ! roundoff error threshold for thermal_forcing (deg K)
    
   
-   !Michele: I have realised that the remapped ocean is taking values where it shouldn't - points that are ice 
+    !Michele: I have realised that the remapped ocean is taking values where it shouldn't - points that are ice 
    !shelves in CISM and should not have ocean values - this could be the reason for weird patterns of remapped
    !ocean fields. So the idea could be, before starting to counting unphys_val, to set to unphys val all points 
    !that are ice covered. 
-  
+   
    do j = 1+nhalo, ny-nhalo
        do i = 1+nhalo,  nx-nhalo
              if (ice_mask(i,j) == 1 .or. ocean_mask(i,j) == 0) then
@@ -1565,6 +1567,18 @@ module glissade_bmlt_float
    !ocean fields. So the idea could be, before starting to counting unphys_val, to set to unphys val all points 
    !that are ice covered. 
    
+   do j = 1+nhalo, ny-nhalo
+       do i = 1+nhalo,  nx-nhalo
+       imin = max(i-5,1+nhalo)
+       imax = min(i+5,nx-nhalo)
+       jmin = max(j-5,1+nhalo)
+       jmax = min(j+5,ny-nhalo)   !Taking some margin
+             if( any(ice_mask(imin:imax,jmin:jmax) == 1) .or. any(ocean_mask(imin:imax,jmin:jmax) == 0)) then
+                thermal_forcing(:,i,j) = unphys_val
+             end if
+       end do
+   end do
+
     local_count = 0
     do j = 1+nhalo, ny-nhalo
        do i = 1+nhalo,  nx-nhalo
