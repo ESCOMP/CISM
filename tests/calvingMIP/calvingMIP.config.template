@@ -1,10 +1,11 @@
 [grid]
 upn = 5
-ewn = 321
-nsn = 321
+ewn = 320
+nsn = 320
 dew = 5000
 dns = 5000
 global_bc = 1     # 1 = outflow BCs
+
 [time]
 tstart = 0.
 tend = 1000.0
@@ -61,7 +62,7 @@ powerlaw_m = 3.                 # exponent for the power law stress
 geothermal = 0.
 beta_grounded_min = 1.
 thck_effective_min = 50.
-dthck_dx_cf = 0.
+dthck_dx_cf = 0.0005            # surface slope at the CF
 cf_advance_retreat_amplitude = 0.
 cf_advance_retreat_period = 0.
 
@@ -75,13 +76,13 @@ time = 1
 
 [CF output]
 variables = thk topg usurf uvel vvel beta_internal effecpress f_ground f_flotation floating_mask grounded_mask usfc vsfc ubas vbas uvel_mean vvel_mean stagthk ivol imass_above_flotation iareag calving_thck calving_mask
-frequency = 1000
+frequency = 1000.0
 name = calvingMIP.out.nc
 
 [CF restart]
 variables = restart
 xtype = double
-frequency = 1000
+frequency = 1000.0
 name = calvingMIP.restart.nc
 write_init = F
 
