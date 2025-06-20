@@ -335,7 +335,7 @@ contains
        !       m   = powerlaw exponent
        !Note: We have added the option to cap N at a value of N_max.
        !      By default, N_max is large enough that there will be no limiting,
-       !       but N_max can be set to a smaller value in the config file..
+       !       but N_max can be set to a smaller value in the config file.
 
        m = basal_physics%powerlaw_m
 

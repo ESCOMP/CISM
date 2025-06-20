@@ -33,6 +33,7 @@ module glissade_glacier
     use glimmer_physcon, only: scyr, pi, rhow, rhoi
     use glide_types
     use glimmer_log
+    use glide_diagnostics, only: point_diag
     use cism_parallel, only: main_task, this_rank, nhalo
 
     implicit none
@@ -144,20 +145,9 @@ contains
     itest = model%numerics%idiag_local
     jtest = model%numerics%jdiag_local
 
-    if (verbose_glacier .and. this_rank == rtest) then
-       print*, ' '
-       print*, 'In glissade_glacier_init'
-       print*, ' '
-       i = itest
-       j = jtest
-       print*, 'RGI glacier ID, rtest, itest, jtest:', rtest, itest, jtest
-       do j = jtest+3, jtest-3, -1
-          write(6,'(i6)',advance='no') j
-          do i = itest-3, itest+3
-             write(6,'(i10)',advance='no') glacier%rgi_glacier_id(i,j)
-          enddo
-          write(6,*) ' '
-       enddo
+    if (verbose_glacier) then
+       if (this_rank == rtest) write(6,*) 'In glissade_glacier_init'
+       call point_diag(glacier%rgi_glacier_id, 'RGI glacier ID', itest, jtest, rtest, 7, 7)
     endif
 
     if (glacier%scale_area) then
@@ -719,31 +709,23 @@ contains
 
     call staggered_parallel_halo(glacier%boundary_mask, parallel)
 
-    if (verbose_glacier .and. this_rank == rtest) then
-       print*, ' '
-       print*, 'Create glacier boundary_mask:'
-       do j = jtest+3, jtest-3, -1
-          do i = itest-3, itest+3
-             write(6,'(i10)',advance='no') &
-                  glacier%boundary_mask(i,j)
-          enddo
-          print*, ' '
-       enddo
+    if (verbose_glacier) then
+       call point_diag(glacier%boundary_mask, 'Glacier boundary mask', itest, jtest, rtest, 7, 7)
     endif
 
     ! Write some values for the diagnostic glacier
     if (verbose_glacier .and. this_rank == rtest) then
        i = itest; j = jtest
        ng = glacier%ngdiag
-       print*, ' '
-       print*, 'Glacier ID for diagnostic cell: r, i, j, ng =', rtest, itest, jtest, ng
+       write(6,*) ' '
+       write(6,*) 'Glacier ID for diagnostic cell: r, i, j, ng =', rtest, itest, jtest, ng
        if (ng > 0) then
-          print*, 'area_init (km^2) =', glacier%area_init(ng) / 1.0d6
-          print*, 'volume_init (km^3) =', glacier%volume_init(ng) / 1.0d9
-          print*, 'powerlaw_c (Pa (m/yr)^(-1/3)) =', model%basal_physics%powerlaw_c(i,j)
-          print*, 'smb_obs (mm/yr w.e.) =', glacier%smb_obs(ng)
-          print*, 'mu_star (mm/yr w.e./deg) =', glacier%mu_star(ng)
-          print*, 'Done in glissade_glacier_init'
+          write(6,*) 'area_init (km^2) =', glacier%area_init(ng) / 1.0d6
+          write(6,*) 'volume_init (km^3) =', glacier%volume_init(ng) / 1.0d9
+          write(6,*) 'powerlaw_c (Pa (m/yr)^(-1/3)) =', model%basal_physics%powerlaw_c(i,j)
+          write(6,*) 'smb_obs (mm/yr w.e.) =', glacier%smb_obs(ng)
+          write(6,*) 'mu_star (mm/yr w.e./deg) =', glacier%mu_star(ng)
+          write(6,*) 'Done in glissade_glacier_init'
        endif
     endif
 
@@ -1457,24 +1439,9 @@ contains
        ! Update glacier IDs based on advance and retreat since the last update.
        !-------------------------------------------------------------------------
 
-       if (verbose_glacier .and. this_rank == rtest) then
-          print*, ' '
-          print*, 'topg:'
-          do j = jtest+3, jtest-3, -1
-             do i = itest-3, itest+3
-                write(6,'(f10.3)',advance='no') model%geometry%topg(i,j)
-             enddo
-             write(6,*) ' '
-          enddo
-          print*, ' '
-          print*, 'Before advance_retreat, thck, itest, jtest, rank =', itest, jtest, rtest
-          do j = jtest+3, jtest-3, -1
-             write(6,'(i4)',advance='no') j
-             do i = itest-3, itest+3
-                write(6,'(f10.3)',advance='no') thck(i,j)
-             enddo
-             write(6,*) ' '
-          enddo
+       if (verbose_glacier) then
+          call point_diag(model%geometry%topg, 'topg', itest, jtest, rtest, 7, 7)
+          call point_diag(thck, 'Before advance_retreat, thck', itest, jtest, rtest, 7, 7)
        endif
 
        ! Assign nonzero IDs in grid cells where ice has reached the minimum glacier thickness.
@@ -1598,108 +1565,23 @@ contains
 
        endif   ! set_mu_star
 
-       if (verbose_glacier .and. this_rank == rtest) then
-          print*, ' '
-          print*, 'After advance_retreat, thck, itest, jtest, rank =', itest, jtest, rtest
-          do j = jtest+3, jtest-3, -1
-             write(6,'(i4)',advance='no') j
-             do i = itest-3, itest+3
-                write(6,'(f10.3)',advance='no') thck(i,j)
-             enddo
-             write(6,*) ' '
-          enddo
-          print*, ' '
-          print*, 'cism_glacier_id_init:'
-          do j = jtest+3, jtest-3, -1
-             do i = itest-3, itest+3
-                write(6,'(i11)',advance='no') glacier%cism_glacier_id_init(i,j)
-             enddo
-             print*, ' '
-          enddo
-          print*, ' '
-          print*, 'smb_glacier_id_init:'
-          do j = jtest+3, jtest-3, -1
-             do i = itest-3, itest+3
-                write(6,'(i11)',advance='no') glacier%smb_glacier_id_init(i,j)
-             enddo
-             print*, ' '
-          enddo
-          print*, ' '
-          print*, 'New cism_glacier_id:'
-          do j = jtest+3, jtest-3, -1
-             do i = itest-3, itest+3
-                write(6,'(i11)',advance='no') glacier%cism_glacier_id(i,j)
-             enddo
-             print*, ' '
-          enddo
-          print*, ' '
-          print*, 'New smb_glacier_id:'
-          do j = jtest+3, jtest-3, -1
-             do i = itest-3, itest+3
-                write(6,'(i11)',advance='no') glacier%smb_glacier_id(i,j)
-             enddo
-             print*, ' '
-          enddo
-          print*, ' '
-          print*, 'smb_applied_annmean (previous year):'
-          do j = jtest+3, jtest-3, -1
-             do i = itest-3, itest+3
-                write(6,'(f11.3)',advance='no') glacier%smb_applied_annmean(i,j)
-             enddo
-             print*, ' '
-          enddo
-          print*, ' '
-          print*, 'smb_weight_init (previous year):'
-          do j = jtest+3, jtest-3, -1
-             do i = itest-3, itest+3
-                write(6,'(f11.3)',advance='no') smb_weight_init(i,j)
-             enddo
-             print*, ' '
-          enddo
-          print*, ' '
-          print*, 'Tpos_annmean:'
-          do j = jtest+3, jtest-3, -1
-             do i = itest-3, itest+3
-                write(6,'(f11.3)',advance='no') glacier%Tpos_annmean(i,j)
-             enddo
-             print*, ' '
-          enddo
-          print*, ' '
-          print*, 'snow_annmean:'
-          do j = jtest+3, jtest-3, -1
-             do i = itest-3, itest+3
-                write(6,'(f11.3)',advance='no') glacier%snow_annmean(i,j)
-             enddo
-             print*, ' '
-          enddo
-          print*, ' '
-          print*, 'model%climate%smb:'
-          do j = jtest+3, jtest-3, -1
-             do i = itest-3, itest+3
-                write(6,'(f11.3)',advance='no') model%climate%smb(i,j)
-             enddo
-             print*, ' '
-          enddo
+       if (verbose_glacier) then
+          call point_diag(thck, 'After advance_retreat, thck', itest, jtest, rtest, 7, 7)
+          call point_diag(glacier%cism_glacier_id_init, 'cism_glacier_id_init', itest, jtest, rtest, 7, 7)
+          call point_diag(glacier%smb_glacier_id_init, 'smb_glacier_id_init', itest, jtest, rtest, 7, 7)
+          call point_diag(glacier%cism_glacier_id, 'New cism_glacier_id', itest, jtest, rtest, 7, 7)
+          call point_diag(glacier%smb_glacier_id, 'New smb_glacier_id', itest, jtest, rtest, 7, 7)
+          call point_diag(glacier%smb_applied_annmean, 'smb_applied_annmean, previous yr', itest, jtest, rtest, 7, 7)
+          call point_diag(smb_weight_init, 'smb_weight_init, previous yr', itest, jtest, rtest, 7, 7)
+          call point_diag(glacier%Tpos_annmean, 'Tpos_annmean', itest, jtest, rtest, 7, 7)
+          call point_diag(glacier%snow_annmean, 'snow_annmean', itest, jtest, rtest, 7, 7)
+          call point_diag(model%climate%smb, 'climate%smb', itest, jtest, rtest, 7, 7)
           if (glacier%set_mu_star == GLACIER_MU_STAR_INVERSION .and. &
               glacier%set_alpha_snow == GLACIER_ALPHA_SNOW_INVERSION) then
-             print*, ' '
-             print*, 'smb_rgi:'
-             do j = jtest+3, jtest-3, -1
-                do i = itest-3, itest+3
-                   write(6,'(f11.3)',advance='no') glacier%smb_rgi(i,j)
-                enddo
-                print*, ' '
-             enddo
-             print*, ' '
-             print*, 'smb_recent:'
-             do j = jtest+3, jtest-3, -1
-                do i = itest-3, itest+3
-                   write(6,'(f11.3)',advance='no') glacier%smb_recent(i,j)
-                enddo
-                print*, ' '
-             enddo
+             call point_diag(glacier%smb_rgi, 'smb_rgi', itest, jtest, rtest, 7, 7)
+             call point_diag(glacier%smb_recent, 'smb_recent', itest, jtest, rtest, 7, 7)
           endif   ! set_mu_star
-       endif   ! verbose
+       endif
 
        ! Find the minimum and maximum SMB for each glacier in the baseline climate.
        ! Note: Include only cells that are part of the initial glacier extent.
@@ -2608,39 +2490,11 @@ contains
 
     endif
 
-    if (verbose_glacier .and. this_rank == rtest) then
-       print*, ' '
-       print*, 'stag_thck (m):'
-       do j = jtest+3, jtest-3, -1
-          do i = itest-3, itest+3
-             write(6,'(f10.3)',advance='no') stag_thck(i,j)
-          enddo
-          print*, ' '
-       enddo
-       print*, ' '
-       print*, 'stag_thck - stag_thck_target (m):'
-       do j = jtest+3, jtest-3, -1
-          do i = itest-3, itest+3
-             write(6,'(f10.3)',advance='no') stag_dthck(i,j)
-          enddo
-          print*, ' '
-       enddo
-       print*, ' '
-       print*, 'stag_dthck_dt (m/yr):'
-       do j = jtest+3, jtest-3, -1
-          do i = itest-3, itest+3
-             write(6,'(f10.3)',advance='no') stag_dthck_dt(i,j)
-          enddo
-          print*, ' '
-       enddo
-       print*, ' '
-       print*, 'new powerlaw_c:'
-       do j = jtest+3, jtest-3, -1
-          do i = itest-3, itest+3
-             write(6,'(f10.0)',advance='no') powerlaw_c(i,j)
-          enddo
-          print*, ' '
-       enddo
+    if (verbose_glacier) then
+       call point_diag(stag_thck, 'stag_thck (m)', itest, jtest, rtest, 7, 7)
+       call point_diag(stag_dthck, 'stag_thck - stag_thck_target (m)', itest, jtest, rtest, 7, 7)
+       call point_diag(stag_dthck_dt, 'stag_dthck_dt (m/yr)', itest, jtest, rtest, 7, 7)
+       call point_diag(powerlaw_c, 'new powerlaw_c', itest, jtest, rtest, 7, 7)
     endif   ! verbose_glacier
 
   end subroutine glacier_invert_powerlaw_c

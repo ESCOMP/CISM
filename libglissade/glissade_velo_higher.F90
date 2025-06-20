@@ -60,6 +60,7 @@
     use glimmer_physcon, only: n_glen, rhoi, rhoo, grav, scyr, pi
     use glimmer_paramets, only: eps08, eps10, eps11
     use glimmer_paramets, only: velo_scale, len_scale   ! used for whichefvs = HO_EFVS_FLOWFACT
+    use glide_diagnostics, only: point_diag
     use glimmer_log
     use glimmer_sparse_type
     use glimmer_sparse
@@ -200,12 +201,12 @@
 !    logical :: verbose = .true.  
     logical :: verbose_init = .false.   
 !    logical :: verbose_init = .true.   
-    logical :: verbose_solver = .false.
-!    logical :: verbose_solver = .true.
+!    logical :: verbose_solver = .false.
+    logical :: verbose_solver = .true.
     logical :: verbose_Jac = .false.
 !    logical :: verbose_Jac = .true.
-    logical :: verbose_residual = .false.
-!    logical :: verbose_residual = .true.
+!    logical :: verbose_residual = .false.
+    logical :: verbose_residual = .true.
     logical :: verbose_state = .false.
 !    logical :: verbose_state = .true.
     logical :: verbose_velo = .false.
@@ -1363,73 +1364,23 @@
        maxusrf = parallel_reduce_max(maxusrf)
 
        if (this_rank==rtest) then
-
-          print*, ' '
-          print*, 'nx, ny, nz:', nx, ny, nz
-          print*, 'vol0:', vol0
-          print*, 'thklim:', thklim
-          print*, 'max thck, usrf:', maxthck, maxusrf
-          
-          print*, 'sigma coordinate:'
+          write(6,*) ' '
+          write(6,*) 'nx, ny, nz:', nx, ny, nz
+          write(6,*) 'vol0:', vol0
+          write(6,*) 'thklim:', thklim
+          write(6,*) 'max thck, usrf:', maxthck, maxusrf
+          write(6,*) 'sigma coordinate:'
           do k = 1, nz
-             print*, k, sigma(k)
+             write(6,*) k, sigma(k)
           enddo
-          
-          print*, ' '
-          print*, 'Upper surface field, rank =', rtest
-          do j = jtest+3, jtest-3, -1
-             do i = itest-3, itest+3
-                write(6,'(f10.3)',advance='no') usrf(i,j)
-             enddo
-             write(6,*) ' '
-          enddo
-          
-          print*, ' '
-          print*, 'Thickness field, rank =', rtest
-          do j = jtest+3, jtest-3, -1
-             do i = itest-3, itest+3
-                write(6,'(f10.3)',advance='no') thck(i,j)
-             enddo
-             write(6,*) ' '
-          enddo
-          
-          print*, ' '
-          print*, 'Topography field, rank =', rtest
-          do j = jtest+3, jtest-3, -1
-             do i = itest-3, itest+3
-                write(6,'(f10.3)',advance='no') topg(i,j)
-             enddo
-             write(6,*) ' '
-          enddo
+       endif
 
-          print*, ' '
-          print*, 'Surface uvel, rank =', rtest
-          do j = jtest+3, jtest-3, -1
-             do i = itest-3, itest+3
-                write(6,'(f10.3)',advance='no') uvel(1,i,j)
-             enddo
-             write(6,*) ' '
-          enddo
-
-          print*, ' '
-          print*, 'Surface vvel, rank =', rtest
-          do j = jtest+3, jtest-3, -1
-             do i = itest-3, itest+3
-                write(6,'(f10.3)',advance='no') vvel(1,i,j)
-             enddo
-             write(6,*) ' '
-          enddo
-          
-          print*, ' '
-          print*, 'flwa (Pa-3 yr-1), k = 1, rank =', rtest
-          do j = jtest+3, jtest-3, -1
-             do i = itest-3, itest+3
-                write(6,'(e12.5)',advance='no') flwa(1,i,j)
-             enddo
-             write(6,*) ' '
-          enddo
-
-       endif   ! this_rank
+       call point_diag(usrf, 'usrf (m)', itest, jtest, rtest, 7, 7)
+       call point_diag(thck, 'thck (m)', itest, jtest, rtest, 7, 7)
+       call point_diag(topg, 'topg (m)', itest, jtest, rtest, 7, 7)
+       call point_diag(uvel(1,:,:), 'sfc uvel (m/yr)', itest, jtest, rtest, 7, 7)
+       call point_diag(vvel(1,:,:), 'sfc vvel (m/yr)', itest, jtest, rtest, 7, 7)
+       call point_diag(flwa(1,:,:), 'flwa (Pa-3 yr_1), k = 1', itest, jtest, rtest, 7, 7, '(e12.5)')
     endif      ! verbose_state
  
     !------------------------------------------------------------------------------
@@ -1499,117 +1450,14 @@
 !    call staggered_parallel_halo(umask_dirichlet, parallel)
 !    call staggered_parallel_halo(vmask_dirichlet, parallel)
 
-    if (verbose_dirichlet .and. this_rank==rtest) then
-
-       print*, ' '
-       print*, 'kinbcmask:'
-       write(6,'(a6)',advance='no')'        '
-       do i = 1, xmax_print
-          write(6,'(i6)',advance='no') i
-       enddo
-       write(6,*) ' '
-       do j = ny-1, 1, -1
-          write(6,'(i6)',advance='no') j
-          do i = 1, xmax_print
-             write(6,'(i6)',advance='no') kinbcmask(i,j)
-          enddo
-          write(6,*) ' '
-       enddo
-
-       print*, ' '
-       print*, 'umask_no_penetration:'
-       write(6,'(a6)',advance='no')'        '
-       do i = 1, xmax_print
-          write(6,'(i6)',advance='no') i
-       enddo
-       write(6,*) ' '
-       do j = ny-1, 1, -1
-          write(6,'(i6)',advance='no') j
-          do i = 1, xmax_print
-             write(6,'(i6)',advance='no') umask_no_penetration(i,j)
-          enddo
-          write(6,*) ' '
-       enddo
-
-       print*, ' '
-       print*, 'vmask_no_penetration:'
-       write(6,'(a6)',advance='no')'        '
-       do i = 1, xmax_print
-          write(6,'(i6)',advance='no') i
-       enddo
-       write(6,*) ' '
-       do j = ny-1, 1, -1
-          write(6,'(i6)',advance='no') j
-          do i = 1, xmax_print
-             write(6,'(i6)',advance='no') vmask_no_penetration(i,j)
-          enddo
-          write(6,*) ' '
-       enddo
-
-       print*, ' '
-       print*, 'umask_dirichlet, k = 1:'
-       write(6,'(a6)',advance='no') '        '
-       do i = 1, xmax_print
-          write(6,'(i6)',advance='no') i
-       enddo
-       write(6,*) ' '
-       do j = ny-1, 1, -1
-          write(6,'(i6)',advance='no') j
-          do i = 1, xmax_print
-             write(6,'(i6)',advance='no') umask_dirichlet(1,i,j)
-          enddo
-          write(6,*) ' '
-       enddo
-
-       print*, ' '
-       print*, 'vmask_dirichlet, k = 1:'
-       write(6,'(a6)',advance='no') '        '
-       do i = 1, xmax_print
-          write(6,'(i6)',advance='no') i
-       enddo
-       write(6,*) ' '
-       do j = ny-1, 1, -1
-          write(6,'(i6)',advance='no') j
-          do i = 1, xmax_print
-             write(6,'(i6)',advance='no') vmask_dirichlet(1,i,j)
-          enddo
-          write(6,*) ' '
-       enddo
-
-       print*, ' '
-       print*, 'uvel, k = 1:'
-       write(6,'(a10)',advance='no') '          '
-!!       do i = 1, xmax_print
-       do i = itest-3, itest+3
-          write(6,'(i10)',advance='no') i
-       enddo
-       write(6,*) ' '
-       do j = ny-1, 1, -1
-          write(6,'(i10)',advance='no') j
-!!       do i = 1, xmax_print
-          do i = itest-3, itest+3
-             write(6,'(f10.3)',advance='no') uvel(1,i,j)
-          enddo
-          write(6,*) ' '
-       enddo
-
-       print*, ' '
-       print*, 'vvel, k = 1:'
-       write(6,'(a10)',advance='no') '          '
-!!       do i = 1, xmax_print
-       do i = itest-3, itest+3
-          write(6,'(i10)',advance='no') i
-       enddo
-       write(6,*) ' '
-       do j = ny-1, 1, -1
-          write(6,'(i10)',advance='no') j
-!!       do i = 1, xmax_print
-          do i = itest-3, itest+3
-             write(6,'(f10.3)',advance='no') vvel(1,i,j)
-          enddo
-          write(6,*) ' '
-       enddo
-
+    if (verbose_dirichlet) then
+       call point_diag(kinbcmask, 'kinbcmask', itest, jtest, rtest, 7, 7, 'i6')
+       call point_diag(umask_no_penetration, 'umask_no_pen', itest, jtest, rtest, 7, 7, 'i6')
+       call point_diag(vmask_no_penetration, 'vmask_no_pen', itest, jtest, rtest, 7, 7, 'i6')
+       call point_diag(umask_dirichlet(1,:,:), 'umask_dirichlet', itest, jtest, rtest, 7, 7, 'i6')
+       call point_diag(vmask_dirichlet(1,:,:), 'vmask_dirichlet', itest, jtest, rtest, 7, 7, 'i6')
+       call point_diag(uvel(1,:,:), 'uvel (m/yr)', itest, jtest, rtest, 7, 7)
+       call point_diag(uvel(1,:,:), 'vvel (m/yr)', itest, jtest, rtest, 7, 7)
     endif   ! verbose_dirichlet
 
     !------------------------------------------------------------------------------
@@ -1650,25 +1498,9 @@
                           usrf,         stagusrf)
 
 
-    if (verbose_gridop .and. this_rank == rtest) then
-       print*, ' '
-       print*, 'thck, itest, jtest, rank =', itest, jtest, rtest
-       do j = jtest+3, jtest-3, -1
-          write(6,'(i6)',advance='no') j
-          do i = itest-3, itest+3
-             write(6,'(f10.3)',advance='no') thck(i,j)
-          enddo
-          write(6,*) ' '
-       enddo
-       print*, ' '
-       print*, 'stagthck, itest, jtest, rank =', itest, jtest, rtest
-       do j = jtest+3, jtest-3, -1
-          write(6,'(i6)',advance='no') j
-          do i = itest-3, itest+3
-             write(6,'(f10.3)',advance='no') stagthck(i,j)
-          enddo
-          write(6,*) ' '
-       enddo
+    if (verbose_gridop) then
+       call point_diag(thck, 'thck (m)', itest, jtest, rtest, 7, 7)
+       call point_diag(stagthck, 'stagthck (m)', itest, jtest, rtest, 7, 7)
     endif
 
     !------------------------------------------------------------------------------
@@ -1728,111 +1560,22 @@
 
 !pw call t_stopf('glissade_gradient')
 
-    if (verbose_glp .and. this_rank==rtest) then
-       print*, 'effecpress_stag, rank =', rtest
-       do j = jtest+1, jtest-1, -1
-          write(6,'(a5)',advance='no') '    '
-          do i = itest-3, itest+3
-             write(6,'(f10.0)',advance='no') model%basal_physics%effecpress_stag(i,j)
-          enddo
-          print*, ' '
-       enddo       
-       print*, ' '
-       print*, 'usrf, rank =', rtest
-       do j = jtest+1, jtest-1, -1
-          do i = itest-3, itest+3
-             write(6,'(f10.2)',advance='no') usrf(i,j)
-          enddo
-          print*, ' '
-       enddo       
-       print*, ' '
-       print*, 'thck, rank =', rtest
-       do j = jtest+1, jtest-1, -1
-          do i = itest-3, itest+3
-             write(6,'(f10.2)',advance='no') thck(i,j)
-          enddo
-          print*, ' '
-       enddo       
-       print*, ' '
-       print*, 'f_flotation, rank =', rtest
-       do j = jtest+1, jtest-1, -1
-          do i = itest-3, itest+3
-             write(6,'(f10.4)',advance='no') f_flotation(i,j)
-          enddo
-          print*, ' '
-       enddo       
-       print*, ' '
-       print*, 'f_ground_cell, rank =', rtest
-       do j = jtest+1, jtest-1, -1
-          write(6,'(a5)',advance='no') '    '
-          do i = itest-3, itest+3
-             write(6,'(f10.4)',advance='no') f_ground_cell(i,j)
-          enddo
-          print*, ' '
-       enddo
-       print*, ' '
-       print*, 'f_ground at vertices, rank =', rtest
-       do j = jtest+1, jtest-1, -1
-          write(6,'(a5)',advance='no') '    '
-          do i = itest-3, itest+3
-             write(6,'(f10.4)',advance='no') f_ground(i,j)
-          enddo
-          print*, ' '
-       enddo
-       print*, ' '
-       print*, 'dusrf_dx, rank =', rtest
-       do j = jtest+1, jtest-1, -1
-          write(6,'(a5)',advance='no') '    '
-          do i = itest-3, itest+3
-             write(6,'(f10.4)',advance='no') dusrf_dx(i,j)
-          enddo
-          print*, ' '
-       enddo       
+    if (verbose_glp) then
+       call point_diag(model%basal_physics%effecpress_stag, 'N_stag', itest, jtest, rtest, 7, 7, 'f10.0')
+       call point_diag(usrf, 'usrf (m)', itest, jtest, rtest, 7, 7)
+       call point_diag(thck, 'thck (m)', itest, jtest, rtest, 7, 7)
+       call point_diag(f_flotation, 'f_flotation (m)', itest, jtest, rtest, 7, 7)
+       call point_diag(f_ground_cell, 'f_ground_cell', itest, jtest, rtest, 7, 7)
+       call point_diag(f_ground, 'f_ground at vertices', itest, jtest, rtest, 7, 7)
+       call point_diag(dusrf_dx, 'dusrf_dx', itest, jtest, rtest, 7, 7)
     endif
 
-    if (verbose_gridop .and. this_rank==rtest) then
-       print*, ' '
-       print*, 'thck:'
-       do j = jtest+3, jtest-3, -1
-          write(6,'(i6)',advance='no') j
-          do i = itest-3, itest+3
-             write(6,'(f7.0)',advance='no') thck(i,j)
-          enddo
-          print*, ' '
-       enddo
-       print*, ' '
-       print*, 'stagthck, rank =',rtest
-       do j = jtest+3, jtest-3, -1
-          do i = itest-3, itest+3
-             write(6,'(f7.0)',advance='no') stagthck(i,j)
-          enddo
-          print*, ' '
-       enddo
-       print*, ' '
-       print*, 'usrf:'
-       do j = jtest+3, jtest-3, -1
-          do i = itest-3, itest+3
-             write(6,'(f7.0)',advance='no') usrf(i,j)
-          enddo
-          print*, ' '
-       enddo
-       print*, ' '
-       print*, 'dusrf_dx:'
-       do j = jtest+3, jtest-3, -1
-          do i = itest-3, itest+3
-             write(6,'(f7.3)',advance='no') dusrf_dx(i,j)
-          enddo
-          print*, ' '
-       enddo
-       print*, ' '
-       print*, 'dusrf_dy:'
-       do j = jtest+3, jtest-3, -1
-          do i = itest-3, itest+3
-             write(6,'(f7.3)',advance='no') dusrf_dy(i,j)
-          enddo
-          print*, ' '
-       enddo
-
+    if (verbose_gridop) then
+       call point_diag(thck, 'thck (m)', itest, jtest, rtest, 7, 7)
+       call point_diag(stagthck, 'stagthck (m)', itest, jtest, rtest, 7, 7)
+       call point_diag(usrf, 'usrf (m)', itest, jtest, rtest, 7, 7)
+       call point_diag(dusrf_dx, 'dusrf_dx', itest, jtest, rtest, 7, 7)
+       call point_diag(dusrf_dy, 'dusrf_dy', itest, jtest, rtest, 7, 7)
     endif  ! verbose_gridop
 
     !------------------------------------------------------------------------------
@@ -1881,23 +1624,9 @@
     call staggered_parallel_halo(vertexID, parallel)
     call t_stopf('glissade_halo_nodeID')
 
-    if (verbose_id .and. this_rank==rtest) then
-       print*, ' '
-       print*, 'vertexID before after halo update:'
-       do j = ny-1, 1, -1
-          do i = 1, nx-1
-             write(6,'(i5)',advance='no') vertexID(i,j)
-          enddo
-          print*, ' '
-       enddo
-       print*, ' '
-       print*, 'nodeID after halo update, k = 1:'
-       do j = ny-1, 1, -1
-          do i = 1, nx-1
-             write(6,'(i5)',advance='no') nodeID(1,i,j)
-          enddo
-          print*, ' '
-       enddo
+    if (verbose_id) then
+       call point_diag(vertexID, 'vertexID', itest, jtest, rtest, 7, 7, '(i5)')
+       call point_diag(nodeID(1,:,:), 'nodeID, k = 1', itest, jtest, rtest, 7, 7, '(i5)')
     endif
 
     ! Initialization for the Trilinos solver
@@ -2086,16 +1815,8 @@
        enddo
     enddo
 
-    if (verbose_efvs .and. this_rank == rtest) then
-       print*, ' '
-       print*, 'flwafact (k=1), itest, jtest, rank =', itest, jtest, rtest
-       do j = jtest+3, jtest-3, -1
-          write(6,'(i6)',advance='no') j
-          do i = itest-3, itest+3
-             write(6,'(f10.0)',advance='no') flwafact(1,i,j)
-          enddo
-          write(6,*) ' '
-       enddo
+    if (verbose_efvs) then
+       call point_diag(flwafact(1,:,:), 'flwafact, k = 1', itest, jtest, rtest, 7, 7, '(f10.0)')
     endif
 
     !------------------------------------------------------------------------------
@@ -2224,40 +1945,15 @@
     taudx(:,:) = taudx(:,:) * vol0/(dx*dy)  ! convert from model units to Pa
     taudy(:,:) = taudy(:,:) * vol0/(dx*dy)
 
-    if (verbose_load .and. this_rank==rtest) then
+    if (verbose_load) then
        ! Note: The first of these quantities is the load vector on the rhs of the matrix.
        !       The second is the value that would go on the rhs by simply taking rho*g*H*ds/dx.
        !       These will not agree exactly because of the way H is handled in FE assembly,
        !        but they should be close if which_ho_assemble_taud = HO_ASSEMBLE_TAUD_LOCAL.
        !       If which_ho_assemble_taud = HO_ASSEMBLE_TAUD_STANDARD, they can differ substantially.
-
-       print*, ' '
-       print*, 'vert sum of grav load vector, rank =', rtest
-       do j = jtest+1, jtest-1, -1
-          write(6,'(a5)',advance='no') '    '
-          do i = itest-3, itest+3
-             write(6,'(f10.0)',advance='no') taudx(i,j)
-          enddo
-          print*, ' '
-       enddo
-       print*, ' '
-       print*, 'rho*g*H*ds/dx, rank =', rtest
-       do j = jtest+1, jtest-1, -1
-          write(6,'(a5)',advance='no') '    '
-          do i = itest-3, itest+3
-             write(6,'(f10.0)',advance='no') -rhoi*grav*stagthck(i,j)*dusrf_dx(i,j)
-          enddo
-          print*, ' '
-       enddo
-       print*, ' '
-       print*, 'Starting uvel_2d, rank =', rtest
-       do j = jtest+1, jtest-1, -1
-          write(6,'(a5)',advance='no') '    '
-          do i = itest-3, itest+3
-             write(6,'(f10.2)',advance='no') uvel_2d(i,j)
-          enddo
-          print*, ' '
-       enddo       
+       call point_diag(taudx, 'vert sum of grav load vector', itest, jtest, rtest, 7, 7, '(f10.0)')
+       call point_diag(-rhoi*grav*stagthck(i,j)*dusrf_dx, 'rhoi*g*H*ds/dx', itest, jtest, rtest, 7, 7, '(f10.0)')
+       call point_diag(uvel_2d, 'Starting uvel_2d (m/yr)', itest, jtest, rtest, 7, 7)
     endif
 
     !------------------------------------------------------------------------------
@@ -2330,111 +2026,23 @@
 
     endif
 
-    if (verbose_load .and. this_rank==rtest) then
-
-       print*, ' '
-       print*, 'stagthck field, itest, jtest, rank =', itest, jtest, rtest
-!!          do j = ny-1, 1, -1
-       do j = jtest+3, jtest-3, -1
-          write(6,'(i6)',advance='no') j
-!!             do i = 1, nx-1
-          do i = itest-3, itest+3
-             write(6,'(f10.3)',advance='no') stagthck(i,j)
-          enddo
-          write(6,*) ' '
-       enddo
-
-       print*, ' '
-       print*, 'stagusrf field, itest, jtest, rank =', itest, jtest, rtest
-!!          do j = ny-1, 1, -1
-       do j = jtest+3, jtest-3, -1
-          write(6,'(i6)',advance='no') j
-!!             do i = 1, nx-1
-          do i = itest-3, itest+3
-             write(6,'(f10.3)',advance='no') stagusrf(i,j)
-          enddo
-          write(6,*) ' '
-       enddo
-
-       print*, ' '
-       print*, 'loadu_2d (taudx term only), itest, jtest, rank =', itest, jtest, rtest
-       do j = jtest+3, jtest-3, -1
-          write(6,'(i6)',advance='no') j
-          do i = itest-3, itest+3
-             write(6,'(f10.2)',advance='no') taudx(i,j) *dx*dy/vol0
-          enddo
-          write(6,*) ' '
-       enddo
-
-       print*, ' '
-       print*, 'loadv_2d (taudy term only), itest, jtest, rank =', itest, jtest, rtest
-       do j = jtest+3, jtest-3, -1
-          write(6,'(i6)',advance='no') j
-          do i = itest-3, itest+3
-             write(6,'(f10.2)',advance='no') taudy(i,j) *dx*dy/vol0
-          enddo
-          write(6,*) ' '
-       enddo
-
+    if (verbose_load) then
+       call point_diag(stagthck, 'stagthck (m)', itest, jtest, rtest, 7, 7)
+       call point_diag(stagusrf, 'stagusrf (m)', itest, jtest, rtest, 7, 7)
+       call point_diag(taudx*dx*dy/vol0, 'loadu_2d (taudx term)', itest, jtest, rtest, 7, 7)
+       call point_diag(taudy*dx*dy/vol0, 'loadu_2d (taudy term)', itest, jtest, rtest, 7, 7)
        if (solve_2d) then
-
-          print*, ' '
-          print*, 'loadu_2d (lateral term only), itest, jtest, rank =', itest, jtest, rtest
-          do j = jtest+3, jtest-3, -1
-             write(6,'(i6)',advance='no') j
-             do i = itest-3, itest+3
-                write(6,'(f10.2)',advance='no') loadu_2d(i,j) - taudx(i,j) *dx*dy/vol0
-             enddo
-             write(6,*) ' '
-          enddo
-
-          print*, ' '
-          print*, 'loadv_2d (lateral term only), itest, jtest, rank =', itest, jtest, rtest
-          do j = jtest+3, jtest-3, -1
-             write(6,'(i6)',advance='no') j
-             do i = itest-3, itest+3
-                write(6,'(f10.2)',advance='no') loadv_2d(i,j) - taudy(i,j) *dx*dy/vol0
-             enddo
-             write(6,*) ' '
-          enddo
-
-          print*, ' '
-          print*, 'loadu_2d, itest, jtest, rank =', itest, jtest, rtest
-          do j = jtest+3, jtest-3, -1
-             write(6,'(i6)',advance='no') j
-             do i = itest-3, itest+3
-                write(6,'(f10.2)',advance='no') loadu_2d(i,j)
-             enddo
-             write(6,*) ' '
-          enddo
-          
-          print*, ' '
-          print*, 'loadv_2d, itest, jtest, rank =', itest, jtest, rtest
-          do j = jtest+3, jtest-3, -1
-             write(6,'(i6)',advance='no') j
-             do i = itest-3, itest+3
-                write(6,'(f10.2)',advance='no') loadv_2d(i,j)
-             enddo
-             write(6,*) ' '
-          enddo
-
-       else   ! 3D solve
-
+          call point_diag(loadu_2d - taudx*dx*dy/vol0, 'loadu_2d (lateral term)', itest, jtest, rtest, 7, 7)
+          call point_diag(loadv_2d - taudy*dx*dy/vol0, 'loadv_2d (lateral term)', itest, jtest, rtest, 7, 7)
+          call point_diag(loadu_2d, 'loadu_2d', itest, jtest, rtest, 7, 7)
+          call point_diag(loadv_2d, 'loadv_2d', itest, jtest, rtest, 7, 7)
+       else   ! 3d
           do k = 1, nz
-             print*, ' '
-             print*, 'loadu_3d, itest, jtest, rank, k =', itest, jtest, rtest, k
-             do j = jtest+3, jtest-3, -1
-                write(6,'(i6)',advance='no') j
-                do i = itest-3, itest+3
-                   write(6,'(f10.2)',advance='no') loadu(k,i,j)
-                enddo
-                write(6,*) ' '
-             enddo
+             call point_diag(loadu(k,:,:), 'loadu_3d', itest, jtest, rtest, 7, 7)
+             call point_diag(loadv(k,:,:), 'loadv_3d', itest, jtest, rtest, 7, 7)
           enddo
-
-       endif   ! solve_2D
-       
-    endif   ! verbose
+       endif
+    endif
     
     ! Optional slope correction factor for DIVA
 
@@ -2494,60 +2102,20 @@
           stag_diva_slope_factor_x = cos(stag_theta_slope_x)**2 + 4.d0*sin(stag_theta_slope_x)**2
           stag_diva_slope_factor_y = cos(stag_theta_slope_y)**2 + 4.d0*sin(stag_theta_slope_y)**2
 
-          if (verbose_diva .and. this_rank == rtest) then
-
-             print*, ' '
-             print*, 'z_mean:'
-             do j = jtest+3, jtest-3, -1
-                do i = itest-3, itest+3
-                   write(6,'(f10.3)',advance='no') z_mean(i,j)
-                enddo
+          if (verbose_diva) then
+             call point_diag(z_mean, 'z_mean (m)', itest, jtest, rtest, 7, 7)
+             call point_diag(theta_slope_x*180.d0/pi, 'theta_slope_x (deg)', itest, jtest, rtest, 7, 7)
+             call point_diag(theta_slope_y*180.d0/pi, 'theta_slope_y (deg)', itest, jtest, rtest, 7, 7)
+             call point_diag(diva_slope_factor_x, 'diva_slope_factor_x', itest, jtest, rtest, 7, 7)
+             call point_diag(diva_slope_factor_y, 'diva_slope_factor_y', itest, jtest, rtest, 7, 7)
+             if (this_rank == rtest) then
+                i = itest
+                j = jtest
                 write(6,*) ' '
-             enddo
-
-             print*, ' '
-             print*, 'theta_slope_x (deg):'
-             do j = jtest+3, jtest-3, -1
-                do i = itest-3, itest+3
-                   write(6,'(f10.5)',advance='no') theta_slope_x(i,j)*180.d0/pi
-                enddo
-                write(6,*) ' '
-             enddo
-
-             print*, ' '
-             print*, 'theta_slope_y (deg):'
-             do j = jtest+3, jtest-3, -1
-                do i = itest-3, itest+3
-                   write(6,'(f10.5)',advance='no') theta_slope_y(i,j)*180.d0/pi
-                enddo
-                write(6,*) ' '
-             enddo
-
-             print*, ' '
-             print*, 'DIVA slope_factor_x:'
-             do j = jtest+3, jtest-3, -1
-                do i = itest-3, itest+3
-                   write(6,'(f10.3)',advance='no') diva_slope_factor_x(i,j)
-                enddo
-                write(6,*) ' '
-             enddo
-
-             print*, ' '
-             print*, 'DIVA slope_factor_y:'
-             do j = jtest+3, jtest-3, -1
-                do i = itest-3, itest+3
-                   write(6,'(f10.3)',advance='no') diva_slope_factor_y(i,j)
-                enddo
-                write(6,*) ' '
-             enddo
-
-             i = itest
-             j = jtest
-             print*, ' '
-             print*, 'i, j, uvel_2d, vvel_2d, beta_eff_x, beta_eff_y, btractx, btracty:',  &
-                  i, j, uvel_2d(i,j), vvel_2d(i,j), beta_eff_x(i,j), beta_eff_y(i,j), btractx(i,j), btracty(i,j)
-
-          endif   ! verbose
+                write(6,*) 'i, j, uvel_2d, vvel_2d, beta_eff_x, beta_eff_y, btractx, btracty:',  &
+                     i, j, uvel_2d(i,j), vvel_2d(i,j), beta_eff_x(i,j), beta_eff_y(i,j), btractx(i,j), btracty(i,j)
+             endif
+          endif
 
        endif   ! diva_slope_correction
 
@@ -2694,212 +2262,23 @@
              vbas(:,:) = vvel(nz,:,:)
           endif
 
-!!       if (verbose_beta .and. this_rank==rtest) then
-          if (verbose_beta .and. this_rank==rtest .and. counter==1) then
-
-             print*, ' '
-             print*, 'Before calcbeta, counter =', counter
-             print*, ' '
-
-             print*, 'usrf field, itest, jtest, rank =', itest, jtest, rtest
-             do j = jtest+3, jtest-3, -1
-                write(6,'(i6)',advance='no') j
-                do i = itest-3, itest+3
-                   write(6,'(f10.3)',advance='no') usrf(i,j)
-                enddo
-                write(6,*) ' '
-             enddo
-
-             print*, ' '
-             print*, 'thck field, itest, jtest, rank =', itest, jtest, rtest
-             do j = jtest+3, jtest-3, -1
-                write(6,'(i6)',advance='no') j
-                do i = itest-3, itest+3
-                   write(6,'(f10.3)',advance='no') thck(i,j)
-                enddo
-                write(6,*) ' '
-             enddo
-
-             print*, ' '
-             print*, 'topg field, itest, jtest, rank =', itest, jtest, rtest
-             do j = jtest+3, jtest-3, -1
-                write(6,'(i6)',advance='no') j
-                do i = itest-3, itest+3
-                   write(6,'(f10.3)',advance='no') topg(i,j)
-                enddo
-                write(6,*) ' '
-             enddo
-
-             print*, ' '
-             print*, 'ice_mask, itest, jtest, rank =', itest, jtest, rtest
-             do j = jtest+3, jtest-3, -1
-                write(6,'(i6)',advance='no') j
-                do i = itest-3, itest+3
-                   write(6,'(i10)',advance='no') ice_mask(i,j)
-                enddo
-                write(6,*) ' '
-             enddo
-
-             print*, ' '
-             print*, 'floating_mask, itest, jtest, rank =', itest, jtest, rtest
-             do j = jtest+3, jtest-3, -1
-                write(6,'(i6)',advance='no') j
-                do i = itest-3, itest+3
-                   write(6,'(i10)',advance='no') floating_mask(i,j)
-                enddo
-                write(6,*) ' '
-             enddo
-
-             print*, ' '
-             print*, 'f_flotation, itest, jtest, rank =', itest, jtest, rtest
-             do j = jtest+3, jtest-3, -1
-                write(6,'(i6)',advance='no') j
-                do i = itest-3, itest+3
-                   write(6,'(f10.4)',advance='no') f_flotation(i,j)
-                enddo
-                write(6,*) ' '
-             enddo
-
-             print*, ' '
-             print*, 'f_ground_cell, itest, jtest, rank =', itest, jtest, rtest
-             do j = jtest+3, jtest-3, -1
-                write(6,'(i6)',advance='no') j
-                do i = itest-3, itest+3
-                   write(6,'(f10.5)',advance='no') f_ground_cell(i,j)
-                enddo
-                write(6,*) ' '
-             enddo
-
-             print*, ' '
-             print*, 'f_ground at vertices, itest, jtest, rank =', itest, jtest, rtest
-             do j = jtest+3, jtest-3, -1
-                write(6,'(i6)',advance='no') j
-                do i = itest-3, itest+3
-                   write(6,'(f10.5)',advance='no') f_ground(i,j)
-                enddo
-                write(6,*) ' '
-             enddo
-
-             !WHL - debug - Skip the next few fields for now
-             go to 500
-
-             print*, ' '
-             print*, 'ocean_mask, itest, jtest, rank =', itest, jtest, rtest
-             do j = jtest+3, jtest-3, -1
-                write(6,'(i6)',advance='no') j
-                do i = itest-3, itest+3
-                   write(6,'(i10)',advance='no') ocean_mask(i,j)
-                enddo
-                write(6,*) ' '
-             enddo
-
-             print*, ' '
-             print*, '-dusrf_dx field, itest, jtest, rank =', itest, jtest, rtest
-             do j = jtest+3, jtest-3, -1
-                write(6,'(i6)',advance='no') j
-                do i = itest-3, itest+3
-                   write(6,'(f10.5)',advance='no') -dusrf_dx(i,j)
-                enddo
-                write(6,*) ' '
-             enddo
-
-             print*, ' '
-             print*, '-dusrf_dy field, itest, jtest, rank =', itest, jtest, rtest
-             do j = jtest+3, jtest-3, -1
-                write(6,'(i6)',advance='no') j
-                do i = itest-3, itest+3
-                   write(6,'(f10.5)',advance='no') -dusrf_dy(i,j)
-                enddo
-                write(6,*) ' '
-             enddo
-
-             print*, ' '
-             print*, 'taudx field, itest, jtest, rank =', itest, jtest, rtest
-             do j = jtest+3, jtest-3, -1
-                write(6,'(i6)',advance='no') j
-                do i = itest-3, itest+3
-                   write(6,'(f10.1)',advance='no') taudx(i,j)
-                enddo
-                write(6,*) ' '
-             enddo
-
-             print*, ' '
-             print*, 'taudy field, itest, jtest, rank =', itest, jtest, rtest
-             do j = jtest+3, jtest-3, -1
-                write(6,'(i6)',advance='no') j
-                do i = itest-3, itest+3
-                   write(6,'(f10.1)',advance='no') taudy(i,j)
-                enddo
-                write(6,*) ' '
-             enddo
-
-             print*, ' '
-             print*, 'bpmp field, itest, jtest, rank =', itest, jtest, rtest
-             do j = jtest+3, jtest-3, -1
-                write(6,'(i6)',advance='no') j
-                do i = itest-3, itest+3
-                   write(6,'(f10.3)',advance='no') bpmp(i,j)
-                enddo
-                write(6,*) ' '
-             enddo
-
-             print*, ' '
-             print*, 'btemp field, itest, jtest, rank =', itest, jtest, rtest
-             do j = jtest+3, jtest-3, -1
-                write(6,'(i6)',advance='no') j
-                do i = itest-3, itest+3
-                   write(6,'(f10.3)',advance='no') temp(nz,i,j)
-                enddo
-                write(6,*) ' '
-             enddo
-
-             print*, ' '
-             print*, 'bpmp - btemp field, itest, jtest, rank =', itest, jtest, rtest
-             do j = jtest+3, jtest-3, -1
-                write(6,'(i6)',advance='no') j
-                do i = itest-3, itest+3
-                   write(6,'(f10.3)',advance='no') bpmp(i,j) - temp(nz,i,j)
-                enddo
-                write(6,*) ' '
-             enddo
-
-             print*, ' '
-             print*, 'effecpress field, itest, jtest, rank =', itest, jtest, rtest
-             do j = jtest+3, jtest-3, -1
-                write(6,'(i6)',advance='no') j
-                do i = itest-3, itest+3
-                   write(6,'(f10.0)',advance='no') model%basal_physics%effecpress(i,j)
-                enddo
-                write(6,*) ' '
-             enddo
-
-             print*, ' '
-             print*, 'effecpress/overburden, itest, jtest, rank =', itest, jtest, rtest
-             do j = jtest+3, jtest-3, -1
-                write(6,'(i6)',advance='no') j
-                do i = itest-3, itest+3
-                   if (thck(i,j) > 0.0d0) then
-                      write(6,'(f10.5)',advance='no') &
-                           model%basal_physics%effecpress(i,j) / (rhoi*grav*thck(i,j))
-                   else
-                      write(6,'(f10.5)',advance='no') 0.0d0
-                   endif
-                enddo
-                write(6,*) ' '
-             enddo
-
-             print*, ' '
-             print*, 'effecpress_stag field, itest, jtest, rank =', itest, jtest, rtest
-             do j = jtest+3, jtest-3, -1
-                write(6,'(i6)',advance='no') j
-                do i = itest-3, itest+3
-                   write(6,'(f10.0)',advance='no') model%basal_physics%effecpress_stag(i,j)
-                enddo
-                write(6,*) ' '
-             enddo
-
-500          continue
-
+!!       if (verbose_beta) then
+          if (verbose_beta .and. counter==1) then
+             if (this_rank == rtest) write(6,*) 'Before calcbeta, counter =', counter
+             call point_diag(usrf, 'usrf (m)', itest, jtest, rtest, 7, 7)
+             call point_diag(thck, 'thck (m)', itest, jtest, rtest, 7, 7)
+             call point_diag(topg, 'topg (m)', itest, jtest, rtest, 7, 7)
+             call point_diag(ice_mask, 'ice_mask', itest, jtest, rtest, 7, 7)
+             call point_diag(floating_mask, 'floating_mask', itest, jtest, rtest, 7, 7)
+             call point_diag(f_flotation, 'f_flotation (m)', itest, jtest, rtest, 7, 7)
+             call point_diag(f_ground_cell, 'f_ground_cell', itest, jtest, rtest, 7, 7)
+             call point_diag(f_ground, 'f_ground at vertices', itest, jtest, rtest, 7, 7)
+!             call point_diag(ocean_mask, 'ocean_mask', itest, jtest, rtest, 7, 7)
+!             call point_diag(bpmp, 'bpmp', itest, jtest, rtest, 7, 7)
+!             call point_diag(btemp, 'btemp', itest, jtest, rtest, 7, 7)
+!             call point_diag(bpmp - btemp, 'bpmp - btemp', itest, jtest, rtest, 7, 7)
+!             call point_diag(model%basal_physics%effecpress, 'effecpress (Pa)', itest, jtest, rtest, 7, 7, 'f10.0')
+!             call point_diag(model%basal_physics%effecpress_stag, 'effecpress_stag (Pa)', itest, jtest, rtest, 7, 7, 'f10.0')
           endif  ! verbose_beta
 
           call calcbeta (whichbabc,                        &
@@ -3059,44 +2438,17 @@
 
                 endif
 
-                if (verbose_diva .and. this_rank==rtest) then
-                   i = itest
-                   j = jtest
-                   print*, ' '
-                   print*, 'uvel, beta_eff_x, btractx:', uvel_2d(i,j), beta_eff_x(i,j), btractx(i,j)
-                   print*, 'vvel, beta_eff_y, btracty:', vvel_2d(i,j), beta_eff_y(i,j), btracty(i,j)
-                   print*, ' '
-                   print*, 'omega:'
-                   do j = jtest+3, jtest-3, -1
-                      do i = itest-3, itest+3
-                         write(6,'(e10.3)',advance='no') omega(i,j)
-                      enddo
+                if (verbose_diva) then
+                   if (this_rank == rtest) then
+                      i = itest
+                      j = jtest
                       write(6,*) ' '
-                   enddo
-                   print*, ' '
-                   print*, 'stag_omega:'
-                   do j = jtest+3, jtest-3, -1
-                      do i = itest-3, itest+3
-                         write(6,'(e10.3)',advance='no') stag_omega(i,j)
-                      enddo
-                      write(6,*) ' '
-                   enddo
-                   print*, ' '
-                   print*, 'beta_eff_x:'
-                   do j = jtest+3, jtest-3, -1
-                      do i = itest-3, itest+3
-                         write(6,'(e10.3)',advance='no') beta_eff_x(i,j)
-                      enddo
-                      write(6,*) ' '
-                   enddo
-                   print*, ' '
-                   print*, 'beta_eff_y:'
-                   do j = jtest+3, jtest-3, -1
-                      do i = itest-3, itest+3
-                         write(6,'(e10.3)',advance='no') beta_eff_y(i,j)
-                      enddo
-                      write(6,*) ' '
-                   enddo
+                      write(6,*) 'uvel, beta_eff_x, btractx:', uvel_2d(i,j), beta_eff_x(i,j), btractx(i,j)
+                   endif
+                   call point_diag(omega, 'omega', itest, jtest, rtest, 7, 7, '(e10.3)')
+                   call point_diag(stag_omega, 'stag_omega', itest, jtest, rtest, 7, 7, '(e10.3)')
+                   call point_diag(beta_eff_x, 'beta_eff_x', itest, jtest, rtest, 7, 7, '(e10.3)')
+                   call point_diag(beta_eff_y, 'beta_eff_y', itest, jtest, rtest, 7, 7, '(e10.3)')
                 endif
 
                 if (diva_slope_correction) then
@@ -3542,25 +2894,13 @@
              call t_startf('glissade_accel_picard')
              if (accel_picard) then
 
-                if (verbose_picard .and. this_rank == rtest) then
-                   print*, ' '
-                   print*, 'Saved L2 norm, new L2 norm:', L2_norm_alpha_sav, L2_norm
-                   print*, ' '
-                   print*, 'resid_u_2d, rank =', rtest
-                   do j = ny/2+1, 6, -1
-                      do i = 6, nx/2+1
-                         write(6,'(e14.7)',advance='no') resid_u_2d(i,j)
-                      enddo
-                      print*, ' '
-                   enddo
-                   print*, ' '
-                   print*, 'uvel_2d, rank =', rtest
-                   do j = ny/2+1, 6, -1
-                      do i = 6, nx/2+1
-                         write(6,'(f14.9)',advance='no') uvel_2d(i,j)
-                      enddo
-                      print*, ' '
-                   enddo
+                if (verbose_picard) then
+                   if (this_rank == rtest) then
+                      write(6,*) ' '
+                      write(6,*) 'Saved L2 norm, new L2 norm:', L2_norm_alpha_sav, L2_norm
+                   endif
+                   call point_diag(resid_u_2d, 'resid_u_2d', itest, jtest, rtest, 7, 7, '(e10.3)')
+                   call point_diag(uvel_2d, 'uvel_2d', itest, jtest, rtest, 7, 7, '(f14.9)')
                 endif
 
                 if (counter >= 2) then
@@ -3618,25 +2958,13 @@
              call t_startf('glissade_accel_picard')
              if (accel_picard) then
 
-                if (verbose_picard .and. this_rank == rtest) then
-                   print*, ' '
-                   print*, 'Saved L2 norm, new L2 norm:', L2_norm_alpha_sav, L2_norm
-                   print*, ' '
-                   print*, 'resid_u, k = 1, rank =', rtest
-                   do j = ny/2+1, 6, -1
-                      do i = 6, nx/2+1
-                         write(6,'(e14.7)',advance='no') resid_u(1,i,j)
-                      enddo
-                      print*, ' '
-                   enddo
-                   print*, ' '
-                   print*, 'uvel, k = 1, rank =', rtest
-                   do j = ny/2+1, 6, -1
-                      do i = 6, nx/2+1
-                         write(6,'(f14.9)',advance='no') uvel(1,i,j)
-                      enddo
-                      print*, ' '
-                   enddo
+                if (verbose_picard) then
+                   if (this_rank == rtest) then
+                      write(6,*) ' '
+                      write(6,*) 'Saved L2 norm, new L2 norm:', L2_norm_alpha_sav, L2_norm
+                   endif
+                   call point_diag(resid_u(1,:,:), 'resid_u, k = 1', itest, jtest, rtest, 7, 7, '(e10.3)')
+                   call point_diag(uvel(1,:,:), 'uvel', itest, jtest, rtest, 7, 7, '(f14.9)')
                 endif
 
                 if (counter >= 2) then
@@ -3682,130 +3010,28 @@
 
        ! Optional diagnostics
 
-       if (verbose_beta .and. this_rank==rtest .and. counter > 1 .and. mod(counter-1,12)==0) then
-          print*, ' '
-          print*, 'log_beta, itest, jtest, rank =', itest, jtest, rtest
-          do j = jtest+3, jtest-3, -1
-             write(6,'(i6)',advance='no') j
-             do i = itest-3, itest+3
-                if (beta_internal(i,j) > 0.0d0) then
-                   write(6,'(f10.5)',advance='no') log10(beta_internal(i,j))
-                else
-                   write(6,'(f10.5)',advance='no') -99.0d0
-                endif
-             enddo
-             write(6,*) ' '
-          enddo
+       if (verbose_beta .and. counter > 1 .and. mod(counter-1,12)==0) then
+!!       if (verbose_beta) then
 
+          call point_diag(log10(max(beta_internal,1.d-99)), 'log_beta', itest, jtest, rtest, 7, 7, '(f10.5)')
           if (solve_2d) then
-
-             print*, ' '
-             print*, 'Mean uvel field, itest, jtest, rank =', itest, jtest, rtest
-             do j = jtest+3, jtest-3, -1
-                write(6,'(i6)',advance='no') j
-                do i = itest-3, itest+3
-                   write(6,'(f10.3)',advance='no') uvel_2d(i,j)
-                enddo
-                write(6,*) ' '
-             enddo
-             print*, ' '
-             print*, 'Mean vvel field, itest, jtest, rank =', itest, jtest, rtest
-             do j = jtest+3, jtest-3, -1
-                write(6,'(i6)',advance='no') j
-                do i = itest-3, itest+3
-                   write(6,'(f10.3)',advance='no') vvel_2d(i,j)
-                enddo
-                write(6,*) ' '
-             enddo
-
+             call point_diag(uvel_2d, 'Mean uvel (m/yr)', itest, jtest, rtest, 7, 7)
+             call point_diag(vvel_2d, 'Mean vvel (m/yr)', itest, jtest, rtest, 7, 7)
           else	 ! 3D velocity solve
-
-             print*, ' '
-             print*, 'Basal uvel field, itest, jtest, rank =', itest, jtest, rtest
-             do j = jtest+3, jtest-3, -1
-                write(6,'(i6)',advance='no') j
-                do i = itest-3, itest+3
-                   write(6,'(f12.4)',advance='no') uvel(nz,i,j)
-                enddo
-                write(6,*) ' '
-             enddo
-
-             print*, ' '
-             print*, 'Basal vvel field, itest, jtest, rank =', itest, jtest, rtest
-             do j = jtest+3, jtest-3, -1
-                write(6,'(i6)',advance='no') j
-                do i = itest-3, itest+3
-                   write(6,'(f12.4)',advance='no') vvel(nz,i,j)
-                enddo
-                write(6,*) ' '
-             enddo
-
-             print*, ' '
-             print*, 'Sfc uvel field, itest, jtest, rank =', itest, jtest, rtest
-             do j = jtest+3, jtest-3, -1
-                write(6,'(i6)',advance='no') j
-                do i = itest-3, itest+3
-                   write(6,'(f12.4)',advance='no') uvel(1,i,j)
-                enddo
-                write(6,*) ' '
-             enddo
-
-             print*, ' '
-             print*, 'Sfc vvel field, itest, jtest, rank =', itest, jtest, rtest
-             do j = jtest+3, jtest-3, -1
-                write(6,'(i6)',advance='no') j
-                do i = itest-3, itest+3
-                   write(6,'(f12.4)',advance='no') vvel(1,i,j)
-                enddo
-                write(6,*) ' '
-             enddo
-
-          endif  ! solve_2d
+             call point_diag(uvel(nz,:,:), 'Basal uvel (m/yr)', itest, jtest, rtest, 7, 7)
+             call point_diag(vvel(nz,:,:), 'Basal vvel (m/yr)', itest, jtest, rtest, 7, 7)
+             call point_diag(uvel(1,:,:), 'Sfc uvel (m/yr)', itest, jtest, rtest, 7, 7)
+             call point_diag(vvel(1,:,:), 'Sfc vvel (m/yr)', itest, jtest, rtest, 7, 7)
+          endif
 
           if (whichbabc == HO_BABC_BETA_BPMP) then
-
-             print*, ' '
-             print*, 'staggered bed temp, itest, jtest, rank =', itest, jtest, rtest
-             do j = jtest+3, jtest-3, -1
-                write(6,'(i6)',advance='no') j
-                do i = itest-3, itest+3
-                   write(6,'(f10.5)',advance='no') stagbedtemp(i,j)
-                enddo
-                write(6,*) ' '
-             enddo
-
-             print*, ' '
-             print*, 'staggered bed pmp, itest, jtest, rank =', itest, jtest, rtest
-             do j = jtest+3, jtest-3, -1
-                write(6,'(i6)',advance='no') j
-                do i = itest-3, itest+3
-                   write(6,'(f10.5)',advance='no') stagbedpmp(i,j)
-                enddo
-                write(6,*) ' '
-             enddo
-
-             print*, ' '
-             print*, 'bpmp_mask, itest, jtest, rank =', itest, jtest, rtest
-             do j = jtest+3, jtest-3, -1
-                write(6,'(i6)',advance='no') j
-                do i = itest-3, itest+3
-                   write(6,'(i10)',advance='no') model%basal_physics%bpmp_mask(i,j)
-                enddo
-                write(6,*) ' '
-             enddo
-
+             call point_diag(stagbedtemp, 'staggered bed temp', itest, jtest, rtest, 7, 7, '(f10.5)')
+             call point_diag(stagbedpmp, 'staggered bed pmp', itest, jtest, rtest, 7, 7, '(f10.5)')
+             call point_diag(model%basal_physics%bpmp_mask, 'bpmp mask', itest, jtest, rtest, 7, 7)
           endif  ! HO_BABC_BETA_BPMP
 
           if (whichbabc == HO_BABC_YIELD_PICARD) then
-             print*, ' '
-             print*, 'mintauf field, rank =', rtest
-             do j = ny-1, 1, -1
-                write(6,'(i6)',advance='no') j
-                do i = 1, nx-1
-                   write(6,'(e10.3)',advance='no') model%basal_physics%mintauf(i,j)
-                enddo
-                write(6,*) ' '
-             enddo
+             call point_diag(model%basal_physics%mintauf, 'mintauf', itest, jtest, rtest, 7, 7, '(e10.3)')
           endif
 
        endif   ! verbose_beta
@@ -4159,24 +3385,6 @@
                                             resid_velo)
           call t_stopf('glissade_resid_vec2')
 
-          !WHL - debug
-!          if (this_rank == rtest) then
-!             i = itest
-!             j = jtest
-!             print*, ' '
-!             print*, 'Solution, rank, i, j =', rtest, i, j
-!             print*, '   new uvel_2d, vvel_2d:', uvel_2d(i,j), vvel_2d(i,j)
-!             print*, '   resid_velo =', resid_velo
-!             print*, ' '
-!             print*, 'Solved uvel_2d:'
-!             do j = ny/2+1, 6, -1
-!                do i = 6, nx/2+1
-!                   write(6,'(f9.3)',advance='no') uvel_2d(i,j)
-!                enddo
-!                print*, ' '
-!             enddo
-!          endif
-
           if (accel_picard) then
              ! Compute the velocity difference (du,dv).
              ! For the next nonlinear iteration, we will see if extending the difference vector
@@ -4303,15 +3511,8 @@
        endif
     endif
 
-    if (verbose_glp .and. this_rank==rtest) then 
-       print*, ' '
-       print*, 'beta_internal, rank =', rtest
-       do j = jtest+1, jtest-1, -1
-          do i = itest-3, itest+3
-             write(6,'(f10.2)',advance='no') beta_internal(i,j)
-          enddo
-          print*, ' '
-       enddo       
+    if (verbose_glp) then
+       call point_diag(beta_internal, 'beta_internal', itest, jtest, rtest, 7, 7)
     endif
 
     !------------------------------------------------------------------------------
@@ -4440,16 +3641,8 @@
 
     call parallel_halo(bfricflx, parallel)
 
-    if (verbose_bfric .and. this_rank==rtest) then
-       print*, ' '
-       print*, 'Basal friction (W/m2), itest, jtest, rank =', itest, jtest, rtest
-       do j = jtest+3, jtest-3, -1
-          write(6,'(i6)',advance='no') j
-          do i = itest-3, itest+3
-             write(6,'(e10.3)',advance='no') bfricflx(i,j)
-          enddo
-          write(6,*) ' '
-       enddo
+    if (verbose_bfric) then
+       call point_diag(bfricflx, 'basal friction heat flux (W/m2)', itest, jtest, rtest, 7, 7, '(e10.3)')
     endif
 
     !------------------------------------------------------------------------------
@@ -4459,52 +3652,21 @@
     btractx(:,:) = beta_internal(:,:) * uvel(nz,:,:)
     btracty(:,:) = beta_internal(:,:) * vvel(nz,:,:)
 
-    ! Debug prints
-    if (verbose_velo .and. this_rank==rtest) then
-       i = itest
-       j = jtest
-       print*, ' '
-       print*, 'uvel, k=1 (m/yr):'
-       do j = jtest+3, jtest-3, -1
-          do i = itest-3, itest+3
-             write(6,'(f10.3)',advance='no') uvel(1,i,j)
+    if (verbose_velo) then
+       call point_diag(uvel(1,:,:), 'uvel, k = 1', itest, jtest, rtest, 7, 7)
+       call point_diag(vvel(1,:,:), 'vvel, k = 1', itest, jtest, rtest, 7, 7)
+       call point_diag(uvel(nz,:,:), 'uvel, k = nz', itest, jtest, rtest, 7, 7)
+       call point_diag(vvel(nz,:,:), 'vvel, k = nz', itest, jtest, rtest, 7, 7)
+       if (this_rank == rtest) then
+          i = itest
+          j = jtest
+          write(6,*) 'max(uvel, vvel) =', maxval(uvel), maxval(vvel)
+          write(6,*) 'New velocity: rank, i, j =', this_rank, i, j
+          do k = 1, nz
+             write(6,*) k, uvel(k,i,j), vvel(k,i,j)
           enddo
-          print*, ' '
-       enddo
-       print*, ' '
-       print*, 'vvel, k=1 (m/yr):'
-       do j = jtest+3, jtest-3, -1
-          do i = itest-3, itest+3
-             write(6,'(f10.3)',advance='no') vvel(1,i,j)
-          enddo
-          print*, ' '
-       enddo
-       print*, ' '
-       print*, 'uvel, k=nz (m/yr):'
-       do j = jtest+3, jtest-3, -1
-          do i = itest-3, itest+3
-             write(6,'(f10.3)',advance='no') uvel(nz,i,j)
-          enddo
-          print*, ' '
-       enddo
-       print*, ' '
-       print*, 'vvel, k=nz (m/yr):'
-       do j = jtest+3, jtest-3, -1
-          do i = itest-3, itest+3
-             write(6,'(f10.3)',advance='no') vvel(1,i,j)
-          enddo
-          print*, ' '
-       enddo
-       print*, ' '
-       print*, 'max(uvel, vvel) =', maxval(uvel), maxval(vvel)
-       print*, ' '
-       print*, 'New velocity: rank, i, j =', this_rank, i, j    
-       print*, 'k, uvel, vvel:'
-       do k = 1, nz
-          print*, k, uvel(k,i,j), vvel(k,i,j)
-       enddo
-       if (solve_2d) print*, '2D velo:', uvel_2d(i,j), vvel_2d(i,j)
-
+          if (solve_2d) write(6,*) '2D velo:', uvel_2d(i,j), vvel_2d(i,j)
+       endif
     endif  ! verbose_velo
 
     !------------------------------------------------------------------------------
@@ -9007,17 +8169,8 @@
     real(dp), dimension(nNodesPerElement_2d, nNodesPerElement_2d) ::   &
        Kuu, Kvv       ! components of element matrix associated with basal sliding
 
-    if (verbose_basal .and. this_rank==rtest) then
-       print*, 'In basal_sliding_bc: itest, jtest, rank =', itest, jtest, rtest
-       print*, ' '
-       print*, 'beta:'
-       do j = jtest+3, jtest-3, -1
-          write(6,'(i6)',advance='no') j
-          do i = itest-3, itest+3
-             write(6,'(f10.0)',advance='no') beta(i,j)
-          enddo
-          write(6,*) ' '
-       enddo
+    if (verbose_basal) then
+       call point_diag(beta, 'beta', itest, jtest, rtest, 7, 7, '(f10.0)')
     endif
 
     if (whichassemble_beta == HO_ASSEMBLE_BETA_LOCAL) then
@@ -9293,26 +8446,9 @@
          theta_basal_slope_x, & ! basal slope angle in x direction
          theta_basal_slope_y    ! basal slope angle in y direction
 
-    if (verbose_basal .and. this_rank==rtest) then
-       print*, 'In basal_sliding_bc_2d_diva: itest, jtest, rank =', itest, jtest, rtest
-       print*, ' '
-       print*, 'beta_eff_x:'
-       do j = jtest+3, jtest-3, -1
-          write(6,'(i6)',advance='no') j
-          do i = itest-3, itest+3
-             write(6,'(f10.0)',advance='no') beta_eff_x(i,j)
-          enddo
-          write(6,*) ' '
-       enddo
-       print*, ' '
-       print*, 'beta_eff_y:'
-       do j = jtest+3, jtest-3, -1
-          write(6,'(i6)',advance='no') j
-          do i = itest-3, itest+3
-             write(6,'(f10.0)',advance='no') beta_eff_y(i,j)
-          enddo
-          write(6,*) ' '
-       enddo
+    if (verbose_basal) then
+       call point_diag(beta_eff_x, 'DIVA beta_eff_x', itest, jtest, rtest, 7, 7, '(f10.0)')
+       call point_diag(beta_eff_y, 'DIVA beta_eff_y', itest, jtest, rtest, 7, 7, '(f10.0)')
     endif
 
     if (whichassemble_beta == HO_ASSEMBLE_BETA_LOCAL) then
@@ -9341,25 +8477,9 @@
        call parallel_halo(theta_basal_slope_x, parallel)
        call parallel_halo(theta_basal_slope_y, parallel)
 
-       if (verbose_basal .and. this_rank==rtest) then
-          print*, ' '
-          print*, 'theta_basal_slope_x (deg):'
-          do j = jtest+2, jtest-2, -1
-             write(6,'(i6)',advance='no') j
-             do i = itest-2, itest+2
-                write(6,'(f10.0)',advance='no') theta_basal_slope_x(i,j) * 180.d0/pi
-             enddo
-             write(6,*) ' '
-          enddo
-          print*, ' '
-          print*, 'theta_basal_slope_y (deg):'
-          do j = jtest+2, jtest-2, -1
-             write(6,'(i6)',advance='no') j
-             do i = itest-2, itest+2
-                write(6,'(f10.0)',advance='no') theta_basal_slope_y(i,j) * 180.d0/pi
-             enddo
-             write(6,*) ' '
-          enddo
+       if (verbose_basal) then
+          call point_diag(theta_basal_slope_x*180.d0/pi, 'theta_basal_slope_x (deg)', itest, jtest, rtest, 7, 7, '(f10.0)')
+          call point_diag(theta_basal_slope_y*180.d0/pi, 'theta_basal_slope_y (deg)', itest, jtest, rtest, 7, 7, '(f10.0)')
        endif
 
        ! Sum over active vertices
@@ -9624,17 +8744,8 @@
     logical, parameter :: curved_2d_basal_jacobian = .true.
 !    logical, parameter :: curved_2d_basal_jacobian = .false.
 
-    if (verbose_basal .and. this_rank==rtest) then
-       print*, 'In basal_sliding_bc: itest, jtest, rank =', itest, jtest, rtest
-       print*, ' '
-       print*, 'beta:'
-       do j = jtest+3, jtest-3, -1
-          write(6,'(i6)',advance='no') j
-          do i = itest-3, itest+3
-             write(6,'(f10.0)',advance='no') beta(i,j)
-          enddo
-          write(6,*) ' '
-       enddo
+    if (verbose_basal) then
+       call point_diag(beta, 'beta', itest, jtest, rtest, 7, 7, '(f10.0)')
     endif
 
     if (whichassemble_beta == HO_ASSEMBLE_BETA_LOCAL) then
