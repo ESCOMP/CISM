@@ -51,6 +51,7 @@
     public :: glissade_get_masks, glissade_calving_front_mask,      &
               glissade_grounded_calving_front_mask,                 &
               glissade_marine_grounded_mask,                        &
+              glissade_melt_front_mask,                             &
               glissade_secondary_floating_mask,                     &
               glissade_marine_cliff_mask, glissade_ice_sheet_mask,  &
               glissade_ocean_connection_mask,                       &
@@ -584,6 +585,52 @@
     ! Note: parallel halo update not needed 
 
   end subroutine glissade_marine_grounded_mask
+
+  !****************************************************************************
+  
+  subroutine glissade_melt_front_mask(&
+       nx,                     ny,                   &
+       ice_mask,               floating_mask,        &
+       land_mask,              ocean_mask,           & 
+       melt_front_mask)
+
+    ! Compute a mask to identify cells exposed to frontal melt
+    ! These are defined as ice covered cells with bed below sea-level that border open ocean.
+
+    integer, intent(in) ::   &
+         nx,  ny                  ! number of grid cells in each direction
+
+    integer, dimension(nx,ny), intent(in) ::  &
+         ice_mask,              & ! = 1 if thck > thklim, else = 0
+         floating_mask,         & ! = 1 if thck > thklim and ice is floating, else = 0
+         land_mask,             & ! = 1 if topg is at or above sea level, else = 0
+         ocean_mask               ! = 1 if topg is below sea level and thk <= thklim, else = 0
+
+    integer, dimension(nx,ny), intent(out) ::  &
+         melt_front_mask          ! = 1 if ice is marine-based 
+
+    !----------------------------------------------------------------
+    ! Local arguments
+    !----------------------------------------------------------------
+
+    integer :: i, j
+
+    melt_front_mask(:,:) = 0
+
+    do j = 2, ny-1
+       do i = 2, nx-1
+          if (ice_mask(i,j) == 1 .and. land_mask(i,j) == 0) then ! ice with bed below sealevel
+             if (ocean_mask(i-1,j) == 1 .or. ocean_mask(i+1,j) == 1 .or. &
+                 ocean_mask(i,j-1) == 1 .or. ocean_mask(i,j+1) == 1) then
+                melt_front_mask(i,j) = 1
+             endif   ! adjacent to ocean
+          endif  ! ice with bed below sealevel
+       enddo  ! i
+    enddo   ! j
+
+    ! Note: parallel halo update needed at the higher level
+
+  end subroutine glissade_melt_front_mask
 
 !****************************************************************************
 

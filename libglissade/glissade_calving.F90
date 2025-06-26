@@ -254,7 +254,7 @@ contains
 
     !use glissade_masks, only: glissade_get_masks, glissade_calving_front_mask
     use glissade_masks, only: glissade_get_masks, glissade_marine_cliff_mask, glissade_marine_grounded_mask, &
-         glissade_grounded_calving_front_mask, glissade_secondary_floating_mask
+         glissade_melt_front_mask, glissade_grounded_calving_front_mask, glissade_secondary_floating_mask
     use glissade_utils, only: glissade_input_fluxes
     use glissade_grid_operators, only: glissade_unstagger
 
@@ -284,7 +284,7 @@ contains
                                                                      !> Note: marine_limit (shared by Glide) has scaled model units
 !    real(dp), intent(in)                     :: calving_fraction    !> fraction of ice lost at marine edge when calving; 
                                                                      !> used with CALVING_FLOAT_FRACTION
-!    real(dp), intent(in)                     :: timescale           !> timescale (s) for calving; calving_thck = thck * max(dt/timescale, 1)
+!    real(dp), intent(in)                     :: timescale           !> timescale (s) for calving; calving_thck = thck * min(dt/timescale, 1)
                                                                      !> if timescale = 0, then calving_thck = thck
 !    real(dp), intent(in)                     :: minthck             !> min thickness for ice at the calving front (m)
 !    real(dp), intent(in)                     :: dthck_dx_cf         !> assumed max thickness gradient (m/m) at the subgrid CF
@@ -406,6 +406,8 @@ contains
        write(6,*) ' '
        write(6,*) 'In glissade_calve_ice, which_calving =', which_calving
        write(6,*) 'calving_domain =', calving_domain
+       
+       write(6,*) 'calving%timescale =', calving%timescale, min(dt/calving%timescale, 1.0d0)
     endif
 
     !WHL - Not sure if this update is needed
@@ -1211,13 +1213,54 @@ contains
             floating_mask = floating_mask, &
             ocean_mask = ocean_mask)
 
+       ! Helo: adding a fullgrid melt implementation
+       if (which_calving == CF_SLATER_FG_MELT) then
+       
+          ! define a mask of melt front cells
+          call glissade_melt_front_mask(&
+               nx,                     ny,                   &
+               ice_mask,               floating_mask,        &
+               land_mask,              ocean_mask,           &
+               calving%melt_front_mask)
+          
+          call parallel_halo(calving%melt_front_mask, parallel)
+
+          ! estimate the length of the melt front
+          call compute_calving_front_length(&
+               nx,           ny,             &
+               dx,           dy,             &
+               itest, jtest, rtest,          &
+               calving%melt_front_mask,              &
+               ocean_mask,                   &
+               cf_length)
+
+          call parallel_halo(cf_length, parallel)
+          
+          ! Apply melt at the melt front based on a parameterisation
+          call fullgrid_marine_meltrate(&
+               nx,                 ny,                    &
+               dx,                 dy,                    &
+               dt,                 time,                  &  ! s
+               itest,   jtest,     rtest,                 &
+               calving%melt_front_mask,                   &
+               calving%thermal_forcing_applied,           &  ! degC
+               calving%runoff_applied/1000.,              &  ! m/s; (read in kg/m2/s) 
+               thck,                                      &  ! m
+               topg,                                      &  ! m
+               eus,                                       &  ! m
+               cf_length,                                 &  ! m
+               calving%melt_thck)                            ! m
+
+       endif
+       ! Helo end
+       
        ! set the calving-law mask
        ! Note: Cells that meet the calving-law criteria will be calved provided they also lie in the calving domain,
        !       as determined below.
-
+       
        select case (which_calving)
 
-       case(CALVING_FLOAT_ZERO, CALVING_FLOAT_FRACTION)     ! calve ice that is floating
+       case(CALVING_FLOAT_ZERO, CALVING_FLOAT_FRACTION, CF_SLATER_FG_MELT)     ! calve ice that is floating
 
           do j = 1, ny
              do i = 1, nx
@@ -2906,7 +2949,7 @@ contains
                   (cf_advance_retreat_rate*dt * thck_effective(i,j) * cf_length(i,j)) / (dx*dy)
 
              ! Make sure dthck >= 0. This prevents unphysical CF advance via negative calving
-             calving_dthck(i,j) = max(calving_dthck(i,j), 0.0d0)
+             !calving_dthck(i,j) = max(calving_dthck(i,j), 0.0d0)
              
              if (verbose_calving) then
                 write(6,*) ' '
@@ -3229,6 +3272,119 @@ contains
     enddo   ! j
 
   end subroutine slater_meltrate
+
+!---------------------------------------------------------------------------
+! Helo
+  subroutine fullgrid_marine_meltrate(&
+       nx,                 ny,             &
+       dx,                 dy,             &
+       dt,                 time,           &  ! s
+       itest,   jtest,     rtest,          &
+       melt_front_mask,                    &
+       thermal_forcing_applied,            &  ! degC
+       runoff_applied,                     &  ! m/s
+       thck,                               &  ! m
+       topg,                               &  ! m
+       eus,                                &  ! m
+       cf_length,                          &  ! m
+       melt_thck)                             ! m
+
+    ! Melt ice applied "horizontally" based on a prescribed melt rate of equvivalent calving front retreat.
+    ! Melt parameterised as a function of runoff and thermal_forcing, both 2d fields
+
+    use glimmer_physcon, only: pi
+    use glide_diagnostics, only: point_diag
+
+    ! input/output arguments
+
+    integer, intent(in) :: &
+         nx, ny,                 & ! grid dimensions
+         itest, jtest, rtest       ! coordinates of diagnostic point
+
+    real(dp), intent(in) :: &
+         dx, dy,                 & ! grid cell size (m)
+         dt,                     & ! time step (s)
+         time                      ! elapsed time (s) of model run
+
+    integer, dimension(nx,ny), intent(in)  ::  &
+         melt_front_mask           ! = 1 where ice is grounded below sealevel or floating and borders at least one ocean cell, else = 0
+
+    real(dp), dimension(nx,ny), intent(in) :: &
+         thermal_forcing_applied,& ! thermal_forcing applied (degC)
+         runoff_applied,         & ! runoff_applied (m/s)
+         topg,                   & ! bedrock elevation (m)
+         cf_length                 ! length of calving front in each grid cell (m)
+    
+    real(dp), dimension(nx,ny), intent(inout) :: &
+         thck                      ! ice thickness (m)
+
+    real(dp), intent(in) :: eus    !> eustatic sea level (m)
+
+    real(dp), dimension(nx,ny), intent(out) :: &
+         melt_thck                 ! thickness (m) to be used melt flux
+
+    ! local variables
+
+    integer :: i, j
+
+    real(dp) :: &
+         q_sr,&                    ! runoff in Rignot calculation in m/d.  
+         tf_sr,&                   ! thermal forcing in deg C
+         m_sr                      ! melting rate in m/yr calculated from Slater ISMIP6 melt approach
+
+    real(dp), dimension(nx,ny) :: &
+         thck_effective            ! effective thickness for calving (m)
+
+    melt_thck = 0.0d0
+    !thck_effective = thck * 0.9    ! rough estimate, assuming calving front is close to flotation
+    thck_effective = min(thck*(rhoi/rhoo), max(eus-topg,0.))   ! submerged thickness: flotation thickness capped by ground below water
+
+    if (verbose_calving .and. this_rank==rtest) then
+       write(6,*) ' '
+       write(6,*) 'Time (yr)' 
+    endif
+
+    ! Loop over locally owned cells
+    ! Melt occurs only in CF cells: marine grounded ice-filled cells with one or more ocean neighbors.
+
+    do j = nhalo+1, ny-nhalo
+       do i = nhalo+1, nx-nhalo
+
+          if (melt_front_mask(i,j) == 1) then
+
+             ! Apply an absolute “horizontal” melt rate - i.e., the melt rate perpendicular to the face of an approximately vertical calving front             
+
+             ! Here parametersing melt as function of runoff, thermal forcing and effective thickness
+             ! See Rignot et al. 2016 or ISMIP6 melt forcing approach.
+
+             ! For testing
+             !tf_sr = 2.0 ! hard coding a cold cavity thermal forcing of 2 degC
+             !q_sr = 10.0 ! hard coding a runoff of 400 m3/s multiplied by s/day and divided by cross-sectional area of 700m*5000m [m/day] 
+             
+             tf_sr = thermal_forcing_applied(i,j) ! 2d thermal forcing [degC]
+             q_sr = runoff_applied(i,j) * 86400.  ! runoff_applied passed in m/s; for Rignot equation convert to [m/d] 
+
+             m_sr = (3.0 * 1.0e-4 * thck_effective(i,j) * q_sr**0.39 + 0.15) * tf_sr**1.18 * 365./scyr ! Rignot et al. 2016; formulted in m/d, converted to m/s
+
+             ! calculate applied thickness change and limit by local thickness
+             melt_thck(i,j) = min((m_sr*dt * thck_effective(i,j) * cf_length(i,j)) / (dx*dy), thck(i,j))
+
+             ! Update thickness 
+             thck(i,j) = thck(i,j) - melt_thck(i,j)
+
+             ! Add melt to calving flux 
+             !calving_thck(i,j) = calving_thck(i,j) + melt_thck(i,j)
+             
+             if (verbose_calving .and. thck(i,j) > 0.1) then
+                print*, 'fullgrid melting'
+                print*, i, j, thck_effective(i,j), thck(i,j), cf_length(i,j), dt, tf_sr, q_sr, m_sr, melt_thck(i,j)
+             endif
+
+          endif   ! calving_front cell
+       enddo   ! i
+    enddo   ! j
+
+  end subroutine fullgrid_marine_meltrate
 
 !---------------------------------------------------------------------------
 

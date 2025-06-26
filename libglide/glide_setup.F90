@@ -973,7 +973,7 @@ contains
          'compute isostasy with model     ' /)
 
     !TODO - Change 'marine_margin' to 'calving'?  Would have to modify many config files
-    character(len=*), dimension(0:18), parameter :: marine_margin = (/ &
+    character(len=*), dimension(0:19), parameter :: marine_margin = (/ &
          'no calving law                    ', &
          'remove all floating ice           ', &
          'remove fraction of floating ice   ', &
@@ -991,8 +991,9 @@ contains
          'prescribe meltrate                ', &
          'prescribe CF mr(14)+ float kill(1)', &
          'slater calving                    ', &
-         'slater melt                       ', &
-         'slater melt(17)+ float kill(1)    '/)
+         'slater melt subgrid               ', &
+         'slater melt(17)+ float kill(1)    ', &
+         'slater melt fullgrid              '/)
 
     character(len=*), dimension(0:1), parameter :: init_calving = (/ &
          'no calving at initialization    ', &

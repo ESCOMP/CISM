@@ -194,6 +194,7 @@ module glide_types
   integer, parameter :: CF_SLATER = 16
   integer, parameter :: CF_SLATER_MR = 17
   integer, parameter :: CF_SLATER_MR_FLOAT_ZERO  = 18
+  integer, parameter :: CF_SLATER_FG_MELT = 19
 
   integer, parameter :: CALVING_INIT_OFF = 0
   integer, parameter :: CALVING_INIT_ON = 1
@@ -1558,7 +1559,11 @@ module glide_types
      real(dp),dimension(:,:),  pointer :: calving_rate_tavg => null()  !> rate of ice loss due to calving (m/yr ice, time average)
      integer, dimension(:,:),  pointer :: calving_mask => null()   !> calve floating ice where the mask = 1 (whichcalving = CALVING_GRID_MASK)
      integer, dimension(:,:),  pointer :: protected_mask => null() !> mask of cells protected from calving when using the subgrid CF scheme
-     integer, dimension(:,:),  pointer :: melt_front_mask => null() !> mask of cells where subgrid CF melting can take place
+     real(dp),dimension(:,:),  pointer :: melt_thck => null()      !> thickness loss in grid cell due to frontal melt
+                                                                   !> scaled by thk0 like mass balance, thickness, etc.
+     real(dp),dimension(:,:),  pointer :: melt_rate => null()      !> rate of ice loss due to calving (m/yr ice)
+     real(dp),dimension(:,:),  pointer :: melt_rate_tavg => null() !> rate of ice loss due to calving (m/yr ice, time average)
+     integer, dimension(:,:),  pointer :: melt_front_mask => null()!> mask of cells where subgrid CF melting can take place
      integer, dimension(:,:),  pointer :: calving_front_mask => null() !> mask of calving front cells 
      integer, dimension(:,:),  pointer :: marine_cliff_mask => null() !> mask of marine calving cliff cells 
      real(dp),dimension(:,:),  pointer :: thck_effective => null() !> effective thickness for calving (m)
@@ -1577,7 +1582,7 @@ module glide_types
      real(dp) :: calving_fraction = 0.2d0        !> fractional thickness of floating ice that calves
                                                  !> (whichcalving = CALVING_FLOAT_FRACTION)
                                                  !> WHL - previously defined as the fraction of floating ice that does not calve
-     real(dp) :: timescale = 0.0d0               !> timescale (yr) for calving (Glissade only); calving_thck = thck*max(dt/calving_timescale,1)
+     real(dp) :: timescale = 0.0d0               !> timescale (yr) for calving (Glissade only); calving_thck = thck*min(dt/calving_timescale,1)
                                                  !> if calving_timescale = 0, then the full column calves at once
      real(dp) :: minthck = 0.d0                  !> minimum thickness (m) of floating ice at marine edge before it calves;
                                                  !> if used, must be set to a nonzero value in the config file
@@ -3238,6 +3243,9 @@ contains
     call coordsystem_allocate(model%general%ice_grid, model%calving%calving_rate_tavg)
     call coordsystem_allocate(model%general%ice_grid, model%calving%calving_mask)
     call coordsystem_allocate(model%general%ice_grid, model%calving%calving_front_mask)
+    call coordsystem_allocate(model%general%ice_grid, model%calving%melt_thck)
+    call coordsystem_allocate(model%general%ice_grid, model%calving%melt_rate)
+    call coordsystem_allocate(model%general%ice_grid, model%calving%melt_rate_tavg)
     call coordsystem_allocate(model%general%ice_grid, model%calving%melt_front_mask)
     call coordsystem_allocate(model%general%ice_grid, model%calving%marine_cliff_mask)
     call coordsystem_allocate(model%general%ice_grid, model%calving%protected_mask)
@@ -3882,6 +3890,12 @@ contains
         deallocate(model%calving%calving_mask)
     if (associated(model%calving%calving_front_mask)) &
         deallocate(model%calving%calving_front_mask)
+    if (associated(model%calving%melt_thck)) &
+        deallocate(model%calving%melt_thck)
+    if (associated(model%calving%melt_rate)) &
+        deallocate(model%calving%melt_rate)
+    if (associated(model%calving%melt_rate_tavg)) &
+        deallocate(model%calving%melt_rate_tavg)
     if (associated(model%calving%melt_front_mask)) &
         deallocate(model%calving%melt_front_mask)
     if (associated(model%calving%marine_cliff_mask)) &

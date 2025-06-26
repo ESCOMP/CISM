@@ -554,6 +554,20 @@ data:          data%calving%melt_front_mask
 load:          1
 type:          int
 
+[melt_thck]
+dimensions:    time, y1, x1
+units:         meter
+long_name:     thickness of melting ice
+data:          data%calving%melt_thck
+factor:        thk0
+
+[melt_rate]
+dimensions:    time, y1, x1
+units:         meter/year
+long_name:     rate of mass loss by frontal melt
+data:          data%calving%melt_rate
+average:       1
+
 [protected_mask]
 dimensions:    time, y1, x1
 units:         1

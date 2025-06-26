@@ -3835,6 +3835,8 @@ contains
     model%geometry%thck(:,:) = thck_unscaled(:,:)/thk0
     model%calving%calving_thck(:,:) = model%calving%calving_thck(:,:)/thk0
 
+    model%calving%melt_thck(:,:) = model%calving%melt_thck(:,:)/thk0
+    
     !TODO: Are any other halo updates needed after calving?
     ! halo updates
     call parallel_halo(model%geometry%thck, parallel)   ! Updated halo values of thck are needed below in calclsrf
@@ -5008,6 +5010,9 @@ contains
 
     ! calving rate (m/yr ice; positive for calving)
     model%calving%calving_rate(:,:) = (model%calving%calving_thck(:,:)*thk0) / (model%numerics%dt*tim0/scyr)
+    
+    ! melt rate (m/yr ice; positive for melt)
+    model%calving%melt_rate(:,:) = (model%calving%melt_thck(:,:)*thk0) / (model%numerics%dt*tim0/scyr)
 
     ! save old masks for diagnostics
     floating_mask_old = model%geometry%floating_mask
