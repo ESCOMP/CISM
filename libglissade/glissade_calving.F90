@@ -1211,11 +1211,14 @@ contains
             eus,           0.0d0,          &   ! thklim = 0.0
             ice_mask,                      &
             floating_mask = floating_mask, &
-            ocean_mask = ocean_mask)
+            ocean_mask = ocean_mask,       &
+            land_mask = land_mask)
 
        ! Helo: adding a fullgrid melt implementation
        if (which_calving == CF_SLATER_FG_MELT) then
        
+          call parallel_halo(ocean_mask, parallel)
+
           ! define a mask of melt front cells
           call glissade_melt_front_mask(&
                nx,                     ny,                   &
@@ -1230,7 +1233,7 @@ contains
                nx,           ny,             &
                dx,           dy,             &
                itest, jtest, rtest,          &
-               calving%melt_front_mask,              &
+               calving%melt_front_mask,      &
                ocean_mask,                   &
                cf_length)
 
@@ -3377,7 +3380,8 @@ contains
              
              if (verbose_calving .and. thck(i,j) > 0.1) then
                 print*, 'fullgrid melting'
-                print*, i, j, thck_effective(i,j), thck(i,j), cf_length(i,j), dt, tf_sr, q_sr, m_sr, melt_thck(i,j)
+                print*, i, j, thck_effective(i,j), thck(i,j), topg(i,j), max(eus-topg(i,j),0.), cf_length(i,j), dt, tf_sr, q_sr, m_sr, melt_thck(i,j)
+
              endif
 
           endif   ! calving_front cell
