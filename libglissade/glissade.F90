@@ -114,7 +114,7 @@ contains
     use glissade_grid_operators, only: glissade_stagger, glissade_laplacian_smoother
     use glissade_velo_higher, only: glissade_velo_higher_init
     use glide_diagnostics, only: glide_init_diag
-    use glissade_calving, only: glissade_calving_mask_init, verbose_calving
+    use glissade_calving, only: glissade_calving_mask_init, verbose_calving, average_thermal_forcing
     use glissade_inversion, only: glissade_init_inversion, verbose_inversion
     use glissade_basal_traction, only: glissade_init_effective_pressure
     use glissade_bmlt_float, only: glissade_bmlt_float_thermal_forcing_init, verbose_bmlt_float
@@ -3542,9 +3542,10 @@ contains
     if (main_task .and. verbose_calving) print*, 'Call glissade_calve_ice'
 
     if (model%options%whichcalving /= CALVING_GRID_MASK) then
-
+       ! Helo
        call glissade_calve_ice(&
             nx,           ny,                  &
+            model%options%whichsmmelt,         &
             model%options%whichcalving,        &
             model%options%calving_domain,      &
             model%options%which_ho_calving_front,     &
@@ -3568,8 +3569,10 @@ contains
             thck_unscaled,                     &        ! m
             model%isostasy%relx*thk0,          &        ! m
             model%geometry%topg*thk0,          &        ! m
-            model%climate%eus*thk0)                     ! m
-
+            model%climate%eus*thk0,            &        ! m
+            model%ocean_data%nzocn,&
+            model%ocean_data%zocn,&
+            model%ocean_data%thermal_forcing)
     endif
 
     if (model%options%force_retreat == FORCE_RETREAT_FLOATING_ICE) then

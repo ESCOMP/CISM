@@ -738,6 +738,7 @@ contains
     call GetValue(section,'enable_acab_dthck_dt_correction',model%options%enable_acab_dthck_dt_correction)
     call GetValue(section,'gthf',model%options%gthf)
     call GetValue(section,'isostasy',model%options%isostasy)
+    call GetValue(section,'submarine_melt',model%options%whichsmmelt)
     call GetValue(section,'marine_margin',model%options%whichcalving)
     call GetValue(section,'calving_init',model%options%calving_init)
     call GetValue(section,'calving_domain',model%options%calving_domain)
@@ -972,8 +973,14 @@ contains
          'no isostasy calculation         ', &
          'compute isostasy with model     ' /)
 
+    ! TODO - implement subgrid options
+    character(len=*), dimension(0:2), parameter :: submarine_melt = (/ &
+         'no submarine melt                 ', &
+         'constant horizontal meltrate      ', &
+         'ISMIP6 submarine mmelt (fullgrid) '/)
+
     !TODO - Change 'marine_margin' to 'calving'?  Would have to modify many config files
-    character(len=*), dimension(0:19), parameter :: marine_margin = (/ &
+    character(len=*), dimension(0:18), parameter :: marine_margin = (/ &
          'no calving law                    ', &
          'remove all floating ice           ', &
          'remove fraction of floating ice   ', &
@@ -992,8 +999,7 @@ contains
          'prescribe CF mr(14)+ float kill(1)', &
          'slater calving                    ', &
          'slater melt subgrid               ', &
-         'slater melt(17)+ float kill(1)    ', &
-         'slater melt fullgrid              '/)
+         'slater melt(17)+ float kill(1)    '/)
 
     character(len=*), dimension(0:1), parameter :: init_calving = (/ &
          'no calving at initialization    ', &
@@ -1366,6 +1372,12 @@ contains
            &USE AT YOUR OWN RISK.', GM_WARNING)
     endif
 
+    if (model%options%whichsmmelt < 0 .or. model%options%whichsmmelt >= size(submarine_melt)) then
+       call write_log('Error, submarine_melt out of range',GM_FATAL)
+    end if
+    write(message,*) 'submarine_melt           : ', model%options%whichsmmelt, submarine_melt(model%options%whichsmmelt)
+    call write_log(message)
+
     if (model%options%whichcalving < 0 .or. model%options%whichcalving >= size(marine_margin)) then
        call write_log('Error, marine_margin out of range',GM_FATAL)
     end if
@@ -1457,6 +1469,11 @@ contains
 
     else   ! not Glissade
 
+       if (model%options%whichsmmelt == SMMELT_RATE .or. &
+           model%options%whichsmmelt == SMMELT_ISMIP6) then
+          call write_log('Error, this submarine melt option is supported for Glissade dycore only', GM_FATAL)
+       endif
+       
        if (model%options%whichcalving == CALVING_GRID_MASK .or. &
            model%options%whichcalving == CALVING_THCK_THRESHOLD .or. &
            model%options%whichcalving == CF_ADVANCE_RETREAT_RATE .or. &
@@ -2230,6 +2247,7 @@ contains
     call GetValue(section,'f_ground_threshold', model%calving%f_ground_threshold)
     call GetValue(section,'cf_advance_retreat_amplitude', model%calving%cf_advance_retreat_amplitude)
     call GetValue(section,'cf_advance_retreat_period',    model%calving%cf_advance_retreat_period)
+    call GetValue(section,'frontal_melt_rate',  model%calving%frontal_melt_rate)
 
     ! NOTE: bpar is used only for BTRC_TANH_BWAT
     !       btrac_max and btrac_slope are used (with btrac_const) for BTRC_LINEAR_BMLT

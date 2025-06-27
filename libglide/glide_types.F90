@@ -175,6 +175,10 @@ module glide_types
   integer, parameter :: ASTHENOSPHERE_FLUID = 0
   integer, parameter :: ASTHENOSPHERE_RELAXING = 1
 
+  integer, parameter :: SMMELT_NONE = 0
+  integer, parameter :: SMMELT_RATE = 1
+  integer, parameter :: SMMELT_ISMIP6 = 2
+
   integer, parameter :: CALVING_NONE = 0
   integer, parameter :: CALVING_FLOAT_ZERO = 1
   integer, parameter :: CALVING_FLOAT_FRACTION = 2
@@ -194,7 +198,6 @@ module glide_types
   integer, parameter :: CF_SLATER = 16
   integer, parameter :: CF_SLATER_MR = 17
   integer, parameter :: CF_SLATER_MR_FLOAT_ZERO  = 18
-  integer, parameter :: CF_SLATER_FG_MELT = 19
 
   integer, parameter :: CALVING_INIT_OFF = 0
   integer, parameter :: CALVING_INIT_ON = 1
@@ -660,6 +663,13 @@ module glide_types
     !> \item[1] compute isostatic adjustment using lithosphere/asthenosphere model
     !> \end{description}
 
+    integer :: whichsmmelt = 0
+    !> Submarine melt: 
+    !> \begin{description} 
+    !> \item[0] No submarine melt
+    !> \item[1] Constant horizontal melt 
+    !> \item[2] ISMIP6 submarine melt
+    
     integer :: whichcalving = 1
 
     !> Calving: 
@@ -1561,8 +1571,8 @@ module glide_types
      integer, dimension(:,:),  pointer :: protected_mask => null() !> mask of cells protected from calving when using the subgrid CF scheme
      real(dp),dimension(:,:),  pointer :: melt_thck => null()      !> thickness loss in grid cell due to frontal melt
                                                                    !> scaled by thk0 like mass balance, thickness, etc.
-     real(dp),dimension(:,:),  pointer :: melt_rate => null()      !> rate of ice loss due to calving (m/yr ice)
-     real(dp),dimension(:,:),  pointer :: melt_rate_tavg => null() !> rate of ice loss due to calving (m/yr ice, time average)
+     real(dp),dimension(:,:),  pointer :: melt_rate => null()      !> rate of ice loss due to frontal melt (m/yr ice)
+     real(dp),dimension(:,:),  pointer :: melt_rate_tavg => null() !> rate of ice loss due to frontal melt (m/yr ice, time average)
      integer, dimension(:,:),  pointer :: melt_front_mask => null()!> mask of cells where subgrid CF melting can take place
      integer, dimension(:,:),  pointer :: calving_front_mask => null() !> mask of calving front cells 
      integer, dimension(:,:),  pointer :: marine_cliff_mask => null() !> mask of marine calving cliff cells 
@@ -1614,6 +1624,8 @@ module glide_types
                                                  !> should be negative for CalvingMIP Experiments 2 and 4
           cf_advance_retreat_period = 0.0d0      !> period (yr) for an advance/retreat cycle
                                                  !> period = 0 => constant amplitude
+     real(dp) :: &
+          frontal_melt_rate = 0.0d0              !> frontal submarine melt rate, like lateral retreat rate at MF (m/yr)
 
   end type glide_calving
 
@@ -3265,6 +3277,16 @@ contains
        allocate(model%calving%damage(1,1,1))
     endif
 
+    if (model%options%whichsmmelt == SMMELT_ISMIP6) then
+       ! Note: nzocn and nbasin should be set in the [grid_ocn] section of the config file
+       if (model%ocean_data%nzocn < 1) then
+          call write_log('Must set nzocn >= 1 for this bmlt_float option', GM_FATAL)
+       endif
+       call coordsystem_allocate(model%general%ice_grid, model%ocean_data%nzocn, &
+            model%ocean_data%thermal_forcing)
+       call coordsystem_allocate(model%general%ice_grid, model%ocean_data%basin_number)      
+    endif
+    
     ! matrix solver arrays
 
     allocate (model%solver_data%rhsd(ewn*nsn))
