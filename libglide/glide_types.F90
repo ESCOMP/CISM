@@ -178,6 +178,7 @@ module glide_types
   integer, parameter :: SMMELT_NONE = 0
   integer, parameter :: SMMELT_RATE = 1
   integer, parameter :: SMMELT_ISMIP6 = 2
+  integer, parameter :: SMMELT_COUPLED = 3
 
   integer, parameter :: CALVING_NONE = 0
   integer, parameter :: CALVING_FLOAT_ZERO = 1
@@ -192,12 +193,6 @@ module glide_types
   integer, parameter :: CALVING_DAMAGE = 10
   integer, parameter :: EIGEN_CALVING = 11
   integer, parameter :: CALVING_HUYBRECHTS = 12
-  integer, parameter :: CF_ARR_FLOAT_ZERO = 13
-  integer, parameter :: CF_MELTRATE = 14
-  integer, parameter :: CF_MR_FLOAT_ZERO = 15
-  integer, parameter :: CF_SLATER = 16
-  integer, parameter :: CF_SLATER_MR = 17
-  integer, parameter :: CF_SLATER_MR_FLOAT_ZERO  = 18
 
   integer, parameter :: CALVING_INIT_OFF = 0
   integer, parameter :: CALVING_INIT_ON = 1
@@ -669,6 +664,7 @@ module glide_types
     !> \item[0] No submarine melt
     !> \item[1] Constant horizontal melt 
     !> \item[2] ISMIP6 submarine melt
+    !> \item[3] ISMIP6 submarine melt for coupled setup
     
     integer :: whichcalving = 1
 
@@ -3279,7 +3275,7 @@ contains
        allocate(model%calving%damage(1,1,1))
     endif
 
-    if (model%options%whichsmmelt == SMMELT_ISMIP6) then
+    if (model%options%whichsmmelt == SMMELT_ISMIP6 .or. model%options%whichsmmelt == SMMELT_COUPLED) then
        ! Note: nzocn and nbasin should be set in the [grid_ocn] section of the config file
        if (model%ocean_data%nzocn < 1) then
           call write_log('Must set nzocn >= 1 for this bmlt_float option', GM_FATAL)
