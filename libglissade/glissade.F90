@@ -3570,10 +3570,15 @@ contains
             model%isostasy%relx*thk0,          &        ! m
             model%geometry%topg*thk0,          &        ! m
             model%climate%eus*thk0,            &        ! m
+            model%ocean_data%nbasin,&
             model%ocean_data%nzocn,&
             model%ocean_data%zocn,&
-            model%ocean_data%thermal_forcing)
+            model%ocean_data%thermal_forcing,&
+            model%climate%acab*scale_acab*(rhoi/rhow)/scyr*(-1),&      ! m/s, using acab as workaround for runoff 
+            model%ocean_data%basin_number)
     endif
+
+    !print*, 'Helo acab: ', model%climate%acab(1,1)*scale_acab*(rhoi/rhow)/scyr*(-1)
 
     if (model%options%force_retreat == FORCE_RETREAT_FLOATING_ICE) then
 

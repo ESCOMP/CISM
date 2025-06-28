@@ -250,16 +250,19 @@ contains
                                 thck_pre_transport,      &  ! m
                                 thck,           relx,    &  ! m
                                 topg,           eus,     &  ! m
+                                nbasin,&
                                 nzocn,&
                                 zocn,&
-                                thermal_forcing)
+                                thermal_forcing,&
+                                runoff,&
+                                basin_number)
     ! Calve ice according to one of several methods.
     ! Note: This subroutine uses SI units.
 
     !use glissade_masks, only: glissade_get_masks, glissade_calving_front_mask
     use glissade_masks, only: glissade_get_masks, glissade_marine_cliff_mask, glissade_marine_grounded_mask, &
          glissade_melt_front_mask, glissade_grounded_calving_front_mask, glissade_secondary_floating_mask
-    use glissade_utils, only: glissade_input_fluxes
+    use glissade_utils, only: glissade_input_fluxes, glissade_basin_sum
     use glissade_grid_operators, only: glissade_unstagger
 
     implicit none
@@ -301,7 +304,7 @@ contains
 !    real(dp), dimension(:,:), intent(in)     :: eps_eigen1          !> first eigenvalue of 2D horizontal strain-rate tensor (1/s)
 !    real(dp), dimension(:,:), intent(in)     :: eps_eigen2          !> second eigenvalue of 2D horizontal strain-rate tensor (1/s)
 !    real(dp), dimension(:,:), intent(in)     :: thermal_forcing_applied,& ! thermal_forcing applied (degC)
-!    real(dp), dimension(:,:), intent(in)     :: runoff_applied      ! runoff_applied (kg/s/m2) ISMIP6 standard, divide by 1000 to get m/s
+!    real(dp), dimension(:,:), intent(in)     :: runoff_applied      ! runoff_applied (kg/s/m2) ISMIP6 standard, divide by 1000 to get m/s = m3/s/m2
 !    real(dp), dimension(:,:,:), intent(inout):: damage              !> 3D scalar damage parameter
 !    real(dp), intent(in)                     :: damage_threshold    !> threshold value where ice is sufficiently damaged to calve
 !    real(dp), intent(in)                     :: damage_constant     !> rate of change of damage (1/s) per unit stress (Pa)
@@ -329,16 +332,19 @@ contains
     real(dp), dimension(nx,ny), intent(in)    :: topg              !> present bedrock topography (m)
     real(dp), intent(in)                      :: thklim            !> minimum thickness for dynamically active grounded ice (m)
     real(dp), intent(in)                      :: eus               !> eustatic sea level (m)
+    integer, intent(in)                       :: nbasin            !> number of basins for runoff forcing 
     integer, intent(in)                       :: nzocn             !> number of ocean levels
     real(dp), dimension(nzocn), intent(in)    :: zocn              !> ocean levels (m) where forcing is provided, negative below sea level
     real(dp), dimension(nzocn,nx,ny), intent(in) :: &
          thermal_forcing           !> thermal forcing field at ocean levels
+    real(dp), dimension(nx,ny), intent(in)    :: runoff            !> runoff (m/s) 
+    integer, dimension(nx,ny), intent(in)     :: basin_number      !> basin ids for runoff forcing 
 
     ! local variables
 
     integer :: nz          ! number of vertical levels
                            ! Note: number of ice layers = nz-1
-    integer :: i, j, k, n, ig, jg
+    integer :: i, j, k, n, ig, jg, nb
     integer :: ii, jj
 
     real(dp), dimension(nx,ny) ::  &
@@ -395,6 +401,15 @@ contains
          cf_location             ! x and y components of calving front location
                                  ! first index is (x,y); second corresponds to 8 CalvingMIP axes
 
+    real(dp), dimension(nbasin) :: &
+         runoff_sum_basin, &     ! runoff summed over basins
+         cf_length_sum_basin, &  ! cf length summed over basins
+         area_sub_sum_basin      ! submerged area 
+
+    real(dp), dimension(nx,ny)  :: &
+         runoff_pos,               & !> runoff, strictly positive m/s 
+         thck_effective              !> submerged thickness
+    
     ! some optional diagnostics
     real(dp) :: &
          total_ice_area,       & ! total effective ice area (with weighting by effective_areafrac)
@@ -1392,7 +1407,7 @@ contains
        endif
     
        if (which_smmelt == SMMELT_ISMIP6) then
-
+          !Helo
           ! average 3d thermal forcing to 2d.
           call average_thermal_forcing(&
                nx,                 ny,                    &
@@ -1402,9 +1417,58 @@ contains
                calving%thermal_forcing_applied)
  
           !print*, calving%thermal_forcing_applied(2,2)
-      
 
-          !Helo
+          ! integrate runoff per (masked) basin
+          runoff_pos = max(runoff,0.0d0) ! m/s runoff should already be defined positive. But since we are passing -acab as a replacement, mask to positive  
+          !print*, 'Helo runoff ', runoff_pos
+          call glissade_basin_sum(&
+               nx,         ny,                &
+               nbasin,     basin_number,      &
+               ice_mask*dx*dy,                &
+               runoff_pos,                    & ! m/s
+               runoff_sum_basin) ! integrated to m3/s
+          !print*, 'Helo mask: ', ice_mask*dx*dy
+          !print*, 'Helo RUsum: ', runoff_sum_basin 
+
+          !! Estimate calving front length per basin
+          !call glissade_basin_sum(&
+          !     nx,         ny,                &
+          !     nbasin,     basin_number,      &
+          !     ice_mask*0.0d0+1,              & ! unmasked
+          !     cf_length,                     &
+          !     cf_length_sum_basin)
+          !print*, 'Helo CFLsum: ', cf_length_sum_basin
+
+          ! Estimate submerged area
+          do j = 1, ny
+             do i = 1, nx
+                thck_effective = min(thck(i,j)*(rhoi/rhoo), max(eus-topg,0.))
+             enddo   ! i
+          enddo   ! j
+
+          ! Estimate submerged area per basin
+          call glissade_basin_sum(&
+               nx,         ny,                &
+               nbasin,     basin_number,      &
+               ice_mask*0.0d0+1,              & ! unmasked
+               cf_length*thck_effective,      &
+               area_sub_sum_basin)
+          !print*, 'Helo SMAsum: ', area_sub_sum_basin
+
+          ! Assign runoff to entire basins, weighted by CF length
+          do j = 1, ny
+             do i = 1, nx
+                calving%runoff_applied(i,j) = 0.0d0
+                nb = basin_number(i,j)
+                if (nb >= 1) then
+                   if (cf_length_sum_basin(nb) > 0.0d0) then
+                      ! Divide basin runoff (m3/s) by basin wide submerged area (m2) and multiply by 1000 to match the ISMIP6 input file units
+                      calving%runoff_applied(i,j) = runoff_sum_basin(nb) / area_sub_sum_basin(nb) * 1000.0d0 ! kg/m2/s 
+                   endif
+                endif
+             enddo   ! i
+          enddo   ! j
+          
           ! Apply melt based on a parameterisation
           call fullgrid_ismip6_submarine_melt(&
                nx,                 ny,                    &
@@ -1413,7 +1477,7 @@ contains
                itest,   jtest,     rtest,                 &
                calving%melt_front_mask,                   &
                calving%thermal_forcing_applied,           &  ! degC
-               calving%runoff_applied/1000.,              &  ! m/s; (read in kg/m2/s) 
+               calving%runoff_applied/1000.,              &  ! m/s; (read from file in kg/m2/s) 
                thck,                                      &  ! m
                topg,                                      &  ! m
                eus,                                       &  ! m

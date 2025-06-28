@@ -1583,7 +1583,9 @@ module glide_types
      real(dp),dimension(:,:),  pointer :: tau_eigen2 => null()     !> second eigenvalue of 2D horizontal stress tensor (Pa)
      real(dp),dimension(:,:),  pointer :: eps_eigen1 => null()     !> first eigenvalue of 2D horizontal strain rate tensor (s^-1)
      real(dp),dimension(:,:),  pointer :: eps_eigen2 => null()     !> second eigenvalue of 2D horizontal strain rate tensor (s^-1)
-     real(dp),dimension(:,:),  pointer :: runoff_applied => null() !> applied runoff for GrIS calving (kg/m2/s)
+     real(dp),dimension(:,:),  pointer :: runoff_applied => null() !> applied runoff for GrIS calving (kg/m2/s). This is basin wide
+                                                                   !>  integrated runoff (m3/s), divided by the submerged area (m2) of the
+                                                                   !>  calving front times 1000
      real(dp),dimension(:,:),  pointer :: thermal_forcing_applied => null()     !> applied 2d thermal forcing for GrIS calving
      real(dp),dimension(:,:,:),pointer :: damage => null()         !> 3D damage tracer, 0 > damage < 1 (whichcalving = CALVING_DAMAGE)
   
