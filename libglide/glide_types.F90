@@ -3279,15 +3279,20 @@ contains
        allocate(model%calving%damage(1,1,1))
     endif
 
+    ! TDOD allocate thermal_forcing only when needed in SMMELT_COUPLED
+    ! Currently always allocating 
     if (model%options%whichsmmelt == SMMELT_ISMIP6) then
        ! Note: nzocn and nbasin should be set in the [grid_ocn] section of the config file
        if (model%ocean_data%nzocn < 1) then
           call write_log('Must set nzocn >= 1 for this bmlt_float option', GM_FATAL)
        endif
-       call coordsystem_allocate(model%general%ice_grid, model%ocean_data%nzocn, &
-            model%ocean_data%thermal_forcing)
-       call coordsystem_allocate(model%general%ice_grid, model%ocean_data%basin_number)      
+       !call coordsystem_allocate(model%general%ice_grid, model%ocean_data%nzocn, &
+       !     model%ocean_data%thermal_forcing)
+       !call coordsystem_allocate(model%general%ice_grid, model%ocean_data%basin_number)      
     endif
+    call coordsystem_allocate(model%general%ice_grid, model%ocean_data%nzocn, &
+         model%ocean_data%thermal_forcing)
+    call coordsystem_allocate(model%general%ice_grid, model%ocean_data%basin_number)      
     
     ! matrix solver arrays
 
