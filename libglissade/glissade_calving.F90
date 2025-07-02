@@ -1226,14 +1226,15 @@ contains
                 calving%runoff_applied(i,j) = 0.0d0
                 nb = basin_number(i,j)
                 if (nb >= 1) then
-                   if (cf_length_sum_basin(nb) > 0.0d0) then
+                   if (area_sub_sum_basin(nb) > 0.0d0) then
                       ! Divide basin runoff (m3/s) by basin wide submerged area (m2) and multiply by 1000 to match the ISMIP6 input file units
                       calving%runoff_applied(i,j) = runoff_sum_basin(nb) / area_sub_sum_basin(nb) * 1000.0d0 ! kg/m2/s 
                    endif
                 endif
              enddo   ! i
           enddo   ! j
-          
+
+          !print*, 'Helo RUA: ', calving%runoff_applied
           ! Apply melt based on a parameterisation
           call fullgrid_ismip6_submarine_melt(&
                nx,                 ny,                    &
