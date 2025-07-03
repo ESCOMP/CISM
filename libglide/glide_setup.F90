@@ -1092,10 +1092,11 @@ contains
          'read deltaT_ocn from external file     ', &
          'invert for deltaT_ocn based on dthck_dt' /)
 
-    character(len=*), dimension(0:2), parameter :: ho_flow_enhancement_factor = (/ &
+    character(len=*), dimension(0:3), parameter :: ho_flow_enhancement_factor = (/ &
          'uniform flow enhancement factors               ', &
          'invert for flow_enhancement_factor             ', &
-         'read flow_enhancment_factor from external file ' /)
+         'read flow_enhancment_factor from external file ', &
+         'Flow enhancement factor dependent on the strain rates' /)
 
     character(len=*), dimension(0:3), parameter :: ho_whichbwat = (/ &
          'zero basal water depth                          ', &
@@ -2217,6 +2218,7 @@ contains
     call GetValue(section,'flow_enhancement_factor_thck_scale',  model%inversion%flow_enhancement_factor_thck_scale)
     call GetValue(section,'flow_enhancement_factor_timescale',  model%inversion%flow_enhancement_factor_timescale)
     call GetValue(section,'flow_enhancement_relax_factor',  model%inversion%flow_enhancement_relax_factor)
+    call GetValue(section, 'flow_enhancement_factor_strain_rate', model%inversion%flow_enhancement_factor_strain_rate)
  
    !TODO - Change default_flwa to flwa_constant?  Would have to change config files.
     call GetValue(section,'default_flwa',       model%paramets%default_flwa)

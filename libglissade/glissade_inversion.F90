@@ -353,7 +353,8 @@ contains
     ! computations specific to flow_enhancement_factor inversion
     !----------------------------------------------------------------------
 
-    if (model%options%which_ho_flow_enhancement_factor == HO_FLOW_ENHANCEMENT_FACTOR_INVERSION) then
+    if (model%options%which_ho_flow_enhancement_factor == HO_FLOW_ENHANCEMENT_FACTOR_INVERSION .or. &
+        model%options%which_ho_flow_enhancement_factor == HO_FLOW_ENHANCEMENT_FACTOR_STRAIN_RATES) then
 
        ! initialize flow_enhancement_factor, if not already read in
        var_maxval = maxval(model%temper%flow_enhancement_factor)
@@ -1674,7 +1675,7 @@ contains
 
   subroutine glissade_inversion_flow_enhancement_factor(&
        dt,                                 &
-       nx,            ny,                  &
+       nx,            ny, nz,              &
        itest, jtest,  rtest,               &
        thck_in,                            &
        dthck_dt_in,                        &
@@ -1682,6 +1683,9 @@ contains
        ice_mask,                           &
        f_ground_cell,                      &
        f_ground_cell_obs,                  &
+       which_ho_flow_enhancement_factor,   &   
+       sigma,                              &
+       strain_rate,                        &
        flow_enhancement_factor_ground,     &
        flow_enhancement_factor_float,      &
        flow_enhancement_thck_scale,        &
@@ -1689,7 +1693,8 @@ contains
        flow_enhancement_relax_factor,      &
        flow_enhancement_factor,            &
        flow_enhancement_velo_scale,        &
-       velo_sfc_unstag,                           &
+       strain_factor,                      &
+       velo_sfc_unstag,                    &
        velo_sfc_obs_unstag,                &
        flow_enhancement_factor_minvalue,   &
        flow_enhancement_factor_maxvalue,   &
@@ -1726,12 +1731,22 @@ contains
     use glissade_grid_operators, only: glissade_laplacian_smoother
 
     real(dp), intent(in) ::  dt  ! time step (s)
+    
+    real(dp), dimension(nz), intent(in) :: &
+        sigma                    ! sigma coordinates
+
 
     integer, intent(in) :: &
-         nx, ny                  ! grid dimensions
+         nx, ny, nz                  ! grid dimensions
 
     integer, intent(in) :: &
          itest, jtest, rtest     ! coordinates of diagnostic point
+
+    integer, intent(in) :: &     ! option for including the strain rates
+         which_ho_flow_enhancement_factor
+
+    type(glide_tensor), intent(in) :: &
+         strain_rate           ! 3D strain rate tensor
 
     real(dp), dimension(nx,ny), intent(in) ::  &
          thck_in,              & ! ice thickness (m)
@@ -1754,6 +1769,7 @@ contains
          flow_enhancement_timescale,          & ! timescale for adjusting flow_enhancement_factor (s)
          flow_enhancement_relax_factor,       & ! controls strength of relaxation (unitless)
          flow_enhancement_velo_scale,         & ! controls strength of the velocity terms 
+         strain_factor,                       &
          flow_enhancement_factor_minvalue,    & ! minimum values now used as config parameter
          flow_enhancement_factor_maxvalue,    & !
          vel_error_limit,                     & !
@@ -1769,7 +1785,7 @@ contains
          term_relax_array
     ! local variables
 
-    integer :: i, j
+    integer :: i, j, k
 
     real(dp), dimension(nx,ny) ::  &
          thck,                 & ! ice thickness (m), optionally smoothed
@@ -1779,13 +1795,19 @@ contains
          relax_target,         & ! value toward which E is relaxed
          dvelo
 
+    real(dp), dimension(nx,ny) :: &
+         eps_xy                            ! absolute value of the strain rates
+
     real(dp) ::  &
          term_thck,            & ! tendency term based on thickness target
          term_dHdt,            & ! tendency term based on dH/dt
          term_relax,           & ! term that relaxes E toward a default value
          term_velo,            &  ! term that depends on the velocity mismatch
-         tendency_term           !what we would like to add to the flow factor
-     
+         tendency_term,       &  !what we would like to add to the flow factor
+         term_strain,         &  !what we would like to add for the strain rates
+         dsigma
+
+
     logical, parameter :: &
          smooth_thck = .false.    ! if true, apply laplacian smoothing to input thickness fields
 
@@ -1836,6 +1858,20 @@ contains
     relax_target(:,:) = f_ground_cell_obs  * flow_enhancement_factor_ground  &
              + (1.0d0 - f_ground_cell_obs) * flow_enhancement_factor_float
 
+
+    !compute the shear stresses and the strain rates based on the surface velocity of the model
+    ! here I make the silent assumption that the strain rates at the surface are a good precursor for the whole collumn
+    ! this is defendable since the top sigma layer is the thickest, and that the flow properties on a 4 km grid are not so different
+    ! between adjacent grid cells.
+
+    eps_xy(:,:) = 0.0d0
+
+    do k = 1, nz-1
+       dsigma = sigma(k+1) - sigma(k)
+       eps_xy(:,:) = eps_xy(:,:) + strain_rate%xy(k,:,:) * dsigma
+    enddo    
+    
+
     ! Loop over cells where ice is present.
     do j = 1, ny
        do i = 1, nx
@@ -1866,6 +1902,15 @@ contains
                   term_relax = 0.d0
              endif
              
+             if (which_ho_flow_enhancement_factor == HO_FLOW_ENHANCEMENT_FACTOR_STRAIN_RATES) then
+                 !this term should increase the flow enhancement factor in areas with large strain rates
+                 !for this we use the absolute values of the strain rates, and since the units are already made,
+                 ! I've included 
+                 term_strain = abs(eps_xy(i,j)) * strain_factor
+             else
+                 term_strain = 0.0d0
+             endif        
+     
              ! Update arrays for troubleshooting
              term_thk_array(i,j)=term_thck
              term_dhdt_array(i,j)=term_dHdt
@@ -1880,7 +1925,7 @@ contains
 
                  !now compute the tendency
                  tendency_term = flow_enhancement_factor(i,j) &
-                       * (1.0d0 + (term_thck - term_velo + term_dHdt + term_relax)*dt)-flow_enhancement_factor(i,j)
+                       * (1.0d0 + (term_thck - term_velo + term_dHdt + term_relax + term_strain)*dt)-flow_enhancement_factor(i,j)
                  !make checks to prevent interference with the basal friction inversion
                  !first, if coulomb_c is maximized, stop the flow factor from increasing
                  if (coulomb_c_unstag(i,j)==coulomb_c_max .and. tendency_term > 0.d0) then
@@ -1900,7 +1945,8 @@ contains
                      thck(i,j), thck_obs(i,j), dthck(i,j), dthck_dt(i,j)*scyr
                 print*, 'dH term, dH/dt term =', term_thck*dt, term_dHdt*dt
                 print*, 'relax_target, term_relax =', relax_target(i,j), term_relax*dt
-                print*, 'Tendency sum:', (term_thck + term_dHdt + term_relax) * dt
+                print*, 'strain_term = ', term_strain*dt
+                print*, 'Tendency sum:', (term_thck + term_dHdt + term_relax + term_strain) * dt
                 print*, 'new flow_enhancement_factor =', flow_enhancement_factor(i,j)
              endif
 

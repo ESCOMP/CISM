@@ -997,7 +997,8 @@ contains
         model%options%which_ho_coulomb_c  == HO_COULOMB_C_INVERSION  .or.  &
         model%options%which_ho_deltaT_ocn == HO_DELTAT_OCN_INVERSION .or.  &
         model%options%which_ho_bmlt_basin == HO_BMLT_BASIN_INVERSION .or.  &
-        model%options%which_ho_flow_enhancement_factor == HO_FLOW_ENHANCEMENT_FACTOR_INVERSION) then
+        model%options%which_ho_flow_enhancement_factor == HO_FLOW_ENHANCEMENT_FACTOR_INVERSION .or. &
+        model%options%which_ho_flow_enhancement_factor == HO_FLOW_ENHANCEMENT_FACTOR_STRAIN_RATES) then
 !       print*, 'TvdA tracer: initializing inversion'
        call glissade_init_inversion(model)
 
@@ -3793,6 +3794,7 @@ contains
             model%options%which_ho_calvingmip_domain, &
             parallel,                          &
             model%calving,                     &        ! calving object; includes calving_thck (m)
+            model%ocean_data,                  &
             itest, jtest, rtest,               &
             model%numerics%dt*tim0,            &        ! s
             model%numerics%time*scyr,          &        ! s
@@ -4669,7 +4671,8 @@ contains
 
     ! If inverting for flow_enhancement_factor, then update it here
 
-    if ( model%options%which_ho_flow_enhancement_factor == HO_FLOW_ENHANCEMENT_FACTOR_INVERSION) then
+    if ( model%options%which_ho_flow_enhancement_factor == HO_FLOW_ENHANCEMENT_FACTOR_INVERSION .or. &
+         model%options%which_ho_flow_enhancement_factor    == HO_FLOW_ENHANCEMENT_FACTOR_STRAIN_RATES) then
 
        if ( (model%options%is_restart == STANDARD_RESTART .or. model%options%is_restart == HYBRID_RESTART) &
             .and. (model%numerics%time == model%numerics%tstart) ) then
@@ -4732,7 +4735,7 @@ contains
 
           call glissade_inversion_flow_enhancement_factor(&
                model%numerics%dt * tim0,                         &
-               ewn, nsn,                                         &
+               ewn, nsn, upn,                                    &
                itest, jtest, rtest,                              &
                model%geometry%thck * thk0,                       &  ! m
                model%geometry%dthck_dt,                          &  ! m/s
@@ -4740,6 +4743,9 @@ contains
                ice_mask,                                         &
                model%geometry%f_ground_cell,                     &
                model%geometry%f_ground_cell_obs,                                &
+               model%options%which_ho_flow_enhancement_factor,   &
+               model%numerics%sigma,                             &
+               model%velocity%strain_rate,                       &
                model%paramets%flow_enhancement_factor_ground,    &
                model%paramets%flow_enhancement_factor_float,     &
                model%inversion%flow_enhancement_factor_thck_scale,      &  ! m
@@ -4747,6 +4753,7 @@ contains
                model%inversion%flow_enhancement_relax_factor,    &
                model%temper%flow_enhancement_factor,             &
                model%inversion%flow_enhancement_factor_velo_scale, &
+               model%inversion%flow_enhancement_factor_strain_rate, &
                model%velocity%velo_sfc_unstag*vel0*scyr,                        &
                model%velocity%velo_sfc_obs_unstag*vel0*scyr,                    &
                model%inversion%flow_enhancement_factor_minvalue, &

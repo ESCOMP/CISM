@@ -308,6 +308,7 @@ module glide_types
   integer, parameter :: HO_FLOW_ENHANCEMENT_FACTOR_CONSTANT = 0
   integer, parameter :: HO_FLOW_ENHANCEMENT_FACTOR_INVERSION = 1
   integer, parameter :: HO_FLOW_ENHANCEMENT_FACTOR_EXTERNAL = 2
+  integer, parameter :: HO_FLOW_ENHANCEMENT_FACTOR_STRAIN_RATES = 3
 
   integer, parameter :: HO_BMLT_BASIN_NONE = 0
   integer, parameter :: HO_BMLT_BASIN_INVERSION = 1
@@ -1900,6 +1901,7 @@ module glide_types
           flow_enhancement_factor_timescale = 500.d0,  & !> timescale (yr) for adjusting flow_enhancement_factor
           flow_enhancement_relax_factor = 0.5d0, &  !> controls strength of relaxation to default values (unitless)
           flow_enhancement_factor_velo_scale = 0.d0, & !> when its larger than 0, flow enhancement factor 
+          flow_enhancement_factor_strain_rate = 1.0d0, &
           flow_enhancement_factor_minvalue = 0.01d0, & !> unitless, arbitrary
           flow_enhancement_factor_maxvalue = 100.d0, & !> same
           vel_error_limit                  = 100.d0    !> the limit of the velocity we accept in the flow factor inversion

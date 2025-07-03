@@ -237,6 +237,7 @@ contains
                                 which_ho_calvingmip_domain, &
                                 parallel,                &
                                 calving,                 &  ! calving derived type
+                                ocean_data,              &  !ocean data derived type
                                 itest,  jtest,  rtest,   &
                                 dt,             time,    &  ! s
                                 dx,             dy,      &  ! m
@@ -276,6 +277,7 @@ contains
 
     type(parallel_type), intent(in) :: parallel    !> info for parallel communication
     type(glide_calving), intent(inout) :: calving  !> calving object
+    type(glide_ocean_data), intent(in) :: ocean_data !> ocean data object
 
 !    Note: The calving object includes the following fields and parameters used in this subroutine:
 !    real(dp), intent(in)                     :: marine_limit        !> lower limit on topography elevation at marine edge before ice calves
@@ -930,6 +932,23 @@ contains
                 endif
              enddo
           enddo
+
+          !make the option to remove ice only in the basins targeted by maxnbasin_correction, minnbasin_correction, and the 
+          !basin specified perturbation. This allows us to do only ABUMIP in the specific basins (e.g. only Thwaites)
+          ! I use ocean_data%minnbasin_correction and maxnbasin_correction
+          if (ocean_data%minnbasin_correction > 0 .and. ocean_data%maxnbasin_correction < 27) then
+             do j = 1,ny
+                do i = 1, nx
+                   if (ocean_data%minnbasin_correction < ocean_data%basin_number(i,j) &
+                      .and. ocean_data%basin_number(i,j) < ocean_data%maxnbasin_correction .and. floating_mask(i,j) == 1) then
+                      calving_law_mask(i,j) = .true.
+                    else
+                      calving_law_mask(i,j) = .false.
+                   endif
+                 enddo
+               enddo
+          endif          
+
 
           !NOTE: The Glide version of CALVING_FLOAT_ZERO calves all floating ice.
           !      Glissade calves floating ice only in the calving domain, which is CALVING_DOMAIN_OCEAN_EDGE by default.
