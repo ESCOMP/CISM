@@ -298,25 +298,9 @@ module glissade_bmlt_float
           enddo
        enddo
 
-       !WHL - debug
-       if (verbose_bmlt_float .and. this_rank == rtest) then
-          print*, 'itest, jtest, rtest =', itest, jtest, rtest
-          print*, ' '
-          print*, 'thck (m):'
-          do j = jtest+3, jtest-3, -1
-             do i = itest-3, itest+3
-                write(6,'(f10.2)',advance='no') thck(i,j)
-             enddo
-             write(6,*) ' '
-          enddo
-          print*, ' '
-          print*, 'bmlt_float (m/yr), rank =', rtest
-          do j = jtest+3, jtest-3, -1
-             do i = itest-3, itest+3
-                write(6,'(f10.2)',advance='no') bmlt_float(i,j)*scyr
-             enddo
-             write(6,*) ' '
-          enddo
+       if (verbose_bmlt_float) then
+          call point_diag(thck, 'thck (m)', itest, jtest, rtest, 7, 7)
+          call point_diag(bmlt_float*scyr, 'bmlt_float (m/yr)', itest, jtest, rtest, 7, 7)
        endif
 
     elseif (whichbmlt_float == BMLT_FLOAT_DEPTH) then
@@ -397,49 +381,12 @@ module glissade_bmlt_float
           enddo
        enddo
 
-       !debug
-       if (verbose_bmlt_float .and. this_rank == rtest) then
-          print*, 'itest, jtest, rtest =', itest, jtest, rtest
-          print*, ' '
-          print*, 'topg (m):'
-          do j = jtest+3, jtest-3, -1
-             do i = itest-3, itest+3
-                write(6,'(f10.2)',advance='no') topg(i,j)
-             enddo
-             write(6,*) ' '
-          enddo
-          print*, ' '
-          print*, 'thck (m):'
-          do j = jtest+3, jtest-3, -1
-             do i = itest-3, itest+3
-                write(6,'(f10.2)',advance='no') thck(i,j)
-             enddo
-             write(6,*) ' '
-          enddo
-          print*, ' '
-          print*, 'z_draft (m):'
-          do j = jtest+3, jtest-3, -1
-             do i = itest-3, itest+3
-                write(6,'(f10.2)',advance='no') min(lsrf(i,j) - eus, 0.0d0)
-             enddo
-             write(6,*) ' '
-          enddo
-          print*, ' '
-          print*, 'h_cavity (m):'
-          do j = jtest+3, jtest-3, -1
-             do i = itest-3, itest+3
-                write(6,'(f10.2)',advance='no') max(lsrf(i,j) - topg(i,j), 0.0d0)
-             enddo
-             write(6,*) ' '
-          enddo
-          print*, ' '
-          print*, 'bmlt_float (m/yr), rank =', rtest
-          do j = jtest+3, jtest-3, -1
-             do i = itest-3, itest+3
-                write(6,'(f10.2)',advance='no') bmlt_float(i,j)*scyr
-             enddo
-             write(6,*) ' '
-          enddo
+       if (verbose_bmlt_float) then
+          call point_diag(topg, 'topg (m)', itest, jtest, rtest, 7, 7)
+          call point_diag(thck, 'thck (m)', itest, jtest, rtest, 7, 7)
+          call point_diag(min(lsrf-eus, 0.0d0), 'z_draft (m)', itest, jtest, rtest, 7, 7)
+          call point_diag(max(lsrf-topg, 0.0d0), 'h_cavity (m)', itest, jtest, rtest, 7, 7)
+          call point_diag(bmlt_float*scyr, 'bmlt_float (m/yr)', itest, jtest, rtest, 7, 7)
        endif
 
     elseif (whichbmlt_float == BMLT_FLOAT_MISOMIP) then
@@ -902,62 +849,17 @@ module glissade_bmlt_float
 
     if (ocean_data_extrapolate == OCEAN_DATA_EXTRAPOLATE_TRUE) then
 
-       if (verbose_bmlt_float .and. this_rank == rtest) then
-          print*, ' '
-          print*, 'Extrapolating TF data beneath ice shelves: rank, i, j =', rtest, itest, jtest
-          print*, ' '
-          print*, 'thermal_forcing_mask:'
-          do j = jtest+3, jtest-3, -1
-             do i = itest-3, itest+3
-                write(6,'(i10)',advance='no') thermal_forcing_mask(i,j)
-             enddo
-             write(6,*) ' '
-          enddo
-          print*, ' '
-          print*, 'marine_connection_mask:'
-          do j = jtest+3, jtest-3, -1
-             do i = itest-3, itest+3
-                write(6,'(i10)',advance='no') marine_connection_mask(i,j)
-             enddo
-             write(6,*) ' '
-          enddo
-          print*, ' '
-          print*, 'ocean mask:'
-          do j = jtest+3, jtest-3, -1
-             do i = itest-3, itest+3
-                write(6,'(i10)',advance='no') ocean_mask(i,j)
-             enddo
-             write(6,*) ' '
-          enddo
-          print*, ' '
-          print*, 'lsrf:'
-          do j = jtest+3, jtest-3, -1
-             do i = itest-3, itest+3
-                write(6,'(f10.3)',advance='no') lsrf(i,j)
-             enddo
-             write(6,*) ' '
-          enddo
-          print*, ' '
-          print*, 'topg:'
-          do j = jtest+3, jtest-3, -1
-             do i = itest-3, itest+3
-                write(6,'(f10.3)',advance='no') topg(i,j)
-             enddo
-             write(6,*) ' '
-          enddo
-          print*, ' '
-          print*, 'TF before extrapolating:'
+       if (verbose_bmlt_float) then
+          if (this_rank == rtest) write(6,*) 'Extrapolating TF data beneath ice shelves'
+          call point_diag(thermal_forcing_mask, 'thermal_forcing_mask', itest, jtest, rtest, 7, 7)
+          call point_diag(marine_connection_mask, 'marine_connection_mask', itest, jtest, rtest, 7, 7)
+          call point_diag(ocean_mask, 'ocean_mask', itest, jtest, rtest, 7, 7)
+          call point_diag(lsrf, 'lsrf (m)', itest, jtest, rtest, 7, 7)
+          call point_diag(topg, 'topg (m)', itest, jtest, rtest, 7, 7)
           do k = kmin_diag, kmax_diag
-             print*, ' '
-             print*, 'kocn =', k
-             do j = jtest+3, jtest-3, -1
-                do i = itest-3, itest+3
-                   write(6,'(f10.3)',advance='no') ocean_data%thermal_forcing(k,i,j)
-                enddo
-                write(6,*) ' '
-             enddo
+             call point_diag(ocean_data%thermal_forcing(k,:,:), 'TF before extrapolating', itest, jtest, rtest, 7, 7)
           enddo
-       endif  ! verbose_bmlt_float
+       endif
 
        ! Extrapolate the 3D thermal forcing field to sub-shelf cavities.
        ! Note: For now, unfilled cells retain values of unphys_val.
@@ -977,30 +879,19 @@ module glissade_bmlt_float
             unphys_val,                        &  ! default value given to unfilled cells on output
             ocean_data%thermal_forcing)
 
-       if (verbose_bmlt_float .and. this_rank == rtest) then
-          print*, ' '
-          print*, 'TF after extrapolating, rank, i, j =', rtest, itest, jtest
+       if (verbose_bmlt_float) then
           do k = kmin_diag, kmax_diag
-             print*, ' '
-             print*, 'kocn =', k
-             do j = jtest+3, jtest-3, -1
-                do i = itest-3, itest+3
-                   write(6,'(f10.3)',advance='no') ocean_data%thermal_forcing(k,i,j)
-                enddo
-                write(6,*) ' '
-             enddo
+             call point_diag(ocean_data%thermal_forcing(k,:,:), 'TF after extrapolating', &
+                  itest, jtest, rtest, 7, 7)
           enddo
        endif
 
     else    ! ocean data are already given everywhere; do not extrapolate
 
-       if (verbose_bmlt_float .and. this_rank == rtest) then
-          print*, ' '
-          print*, 'TF to interpolate to lsrf, rank, i, j =', rtest, itest, jtest
+       if (verbose_bmlt_float) then
           do k = kmin_diag, kmax_diag
-             print*, ' '
-             print*, 'k =', k
-             call point_diag(ocean_data%thermal_forcing(k,:,:), 'thermal_forcing', itest, jtest, rtest, 7, 7)
+             call point_diag(ocean_data%thermal_forcing(k,:,:), 'TF to interpolate to lsrf', &
+                  itest, jtest, rtest, 7, 7)
           enddo
        endif
 
@@ -1095,32 +986,10 @@ module glissade_bmlt_float
           endwhere
        endif
 
-       if (verbose_bmlt_float .and. this_rank == rtest) then
-          print*, ' '
-          print*, 'thermal_forcing_mask:'
-          do j = jtest+3, jtest-3, -1
-             do i = itest-3, itest+3
-                write(6,'(i10)',advance='no') thermal_forcing_mask(i,j)
-             enddo
-             write(6,*) ' '
-          enddo
-          print*, ' '
-          print*, 'f_float'
-          do j = jtest+3, jtest-3, -1
-             write(6,'(i6)',advance='no') j
-             do i = itest-3, itest+3
-                write(6,'(f10.3)',advance='no') f_float(i,j)
-             enddo
-             write(6,*) ' '
-          enddo
-          print*, ' '
-          print*, 'thermal_forcing_mask * f_float:'
-          do j = jtest+3, jtest-3, -1
-             do i = itest-3, itest+3
-                write(6,'(f10.3)',advance='no') thermal_forcing_mask(i,j) * f_float(i,j)
-             enddo
-             write(6,*) ' '
-          enddo
+       if (verbose_bmlt_float) then
+          call point_diag(thermal_forcing_mask, 'thermal_forcing_mask', itest, jtest, rtest, 7, 7)
+          call point_diag(f_float, 'f_float', itest, jtest, rtest, 7, 7)
+          call point_diag(thermal_forcing_mask*f_float, 'TF mask*f_float', itest, jtest, rtest, 7, 7)
        endif
 
        ! Compute the average thermal forcing for each basin.
@@ -1166,24 +1035,17 @@ module glissade_bmlt_float
        ! Note: The slope is currently used only for the nonlocal-slope scheme.
 
        call glissade_slope_angle(&
-            nx,       ny,     &
-            dew,      dns,    &  ! m
-            lsrf,             &  ! m
-            theta_slope,      &  ! radians
+            nx,           ny,    &
+            dew,          dns,   &  ! m
+            itest, jtest, rtest, &
+            lsrf,                &  ! m
+            theta_slope,         &  ! radians
             slope_mask_in = ice_mask)
 
        call parallel_halo(theta_slope, parallel)
 
-       if (verbose_bmlt_float .and. this_rank==rtest) then
-          print*, ' '
-          print*, 'sin(theta_slope)'
-          do j = jtest+3, jtest-3, -1
-             write(6,'(i6)',advance='no') j
-             do i = itest-3, itest+3
-                write(6,'(f10.5)',advance='no') sin(theta_slope(i,j))
-             enddo
-             write(6,*) ' '
-          enddo
+       if (verbose_bmlt_float) then
+          call point_diag(sin(theta_slope), 'sin(theta_slope)', itest, jtest, rtest, 7, 7, '(f10.5)')
        endif
 
     endif   ! ISMIP6 melt schemes
@@ -1314,16 +1176,9 @@ module glissade_bmlt_float
 
     endif   ! bmlt_float_thermal_forcing_param
 
-    if (verbose_bmlt_float .and. this_rank==rtest) then
-       print*, ' '
-       print*, 'bmlt_float (m/yr), before thin ice adjustment'
-       do j = jtest+3, jtest-3, -1
-          write(6,'(i6)',advance='no') j
-          do i = itest-3, itest+3
-             write(6,'(f10.3)',advance='no') bmlt_float(i,j)
-          enddo
-          write(6,*) ' '
-       enddo
+    if (verbose_bmlt_float) then
+       call point_diag(bmlt_float, 'bmlt_float (m/yr), before thin ice adjustment', &
+            itest, jtest, rtest, 7, 7)
     endif
 
     ! Reduce the melt rate in cells with thin floating ice,
@@ -1338,16 +1193,9 @@ module glissade_bmlt_float
        endwhere
     endif
 
-    if (verbose_bmlt_float .and. this_rank==rtest) then
-       print*, ' '
-       print*, 'bmlt_float (m/yr), end of glissade_bmlt_float_thermal_forcing:'
-       do j = jtest+3, jtest-3, -1
-          write(6,'(i6)',advance='no') j
-          do i = itest-3, itest+3
-             write(6,'(f10.3)',advance='no') bmlt_float(i,j)
-          enddo
-          write(6,*) ' '
-       enddo
+    if (verbose_bmlt_float) then
+       call point_diag(bmlt_float, 'bmlt_float (m/yr), end of glissade_bmlt_float_thermal_forcing', &
+            itest, jtest, rtest, 7, 7)
     endif
 
     ! Convert from m/yr to m/s for output.
@@ -1518,23 +1366,9 @@ module glissade_bmlt_float
     call parallel_halo(ktop, parallel)
     call parallel_halo(kbot, parallel)
 
-    if (verbose_bmlt_float .and. this_rank == rtest) then
-       print*, ' ' 
-       print*, 'ktop: itest, jtest, rtest =', itest, jtest, rtest
-       do j = jtest+3, jtest-3, -1
-          do i = itest-3, itest+3
-             write(6,'(i10)',advance='no') ktop(i,j)
-          enddo
-          write(6,*) ' '
-       enddo
-       print*, ' ' 
-       print*, 'kbot: itest, jtest, rtest =', itest, jtest, rtest
-       do j = jtest+3, jtest-3, -1
-          do i = itest-3, itest+3
-             write(6,'(i10)',advance='no') kbot(i,j)
-          enddo
-          write(6,*) ' '
-       enddo
+    if (verbose_bmlt_float) then
+       call point_diag(ktop, 'ktop', itest, jtest, rtest, 7, 7)
+       call point_diag(kbot, 'kbot', itest, jtest, rtest, 7, 7)
     endif
     
     ! Compute the maximum number of iterations.
@@ -1559,18 +1393,11 @@ module glissade_bmlt_float
           mask = 1
        endwhere
 
-       if (verbose_extrapolate .and. this_rank == rtest) then
-          print*, ' ' 
-          print*, 'Iteration =', iter
+       if (verbose_extrapolate) then
+          if (main_task) write(6,*) 'Iteration =', iter
           do k = kmin_diag, kmax_diag
-             print*, ' '
-             print*, 'thermal_forcing: k, zocn =', k, zocn(k)
-             do j = jtest+3, jtest-3, -1
-                do i = itest-3, itest+3
-                   write(6,'(f10.2)',advance='no') thermal_forcing(k,i,j)
-                enddo
-                write(6,*) ' '
-             enddo
+             if (main_task) write(6,*) 'k, zocn =', k, zocn(k)
+             call point_diag(thermal_forcing(k,:,:), 'thermal_forcing', itest, jtest, rtest, 7, 7)
           enddo
        endif
 

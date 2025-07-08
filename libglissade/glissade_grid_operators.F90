@@ -44,6 +44,7 @@ module glissade_grid_operators
     use glide_types
     use cism_parallel, only: this_rank, main_task, nhalo, &
          parallel_type, parallel_halo, parallel_reduce_sum, parallel_globalindex
+    use glide_diagnostics, only: point_diag
 
     implicit none
 
@@ -307,6 +308,7 @@ contains
 
   subroutine glissade_gradient(nx,           ny,        &
                                dx,           dy,        &
+                               itest, jtest, rtest,     &
                                field,                   &
                                df_dx,        df_dy,     &
                                ice_mask,                &
@@ -335,6 +337,9 @@ contains
     real(dp), intent(in) ::     &
        dx, dy                   ! grid cell length and width
                                 ! assumed to have the same value for each grid cell
+
+    integer, intent(in) ::      &
+       itest, jtest, rtest      ! coordinates of diagnostic point
 
     real(dp), dimension(nx,ny), intent(in) ::       &
        field                    ! input scalar field, defined at cell centers
@@ -460,28 +465,9 @@ contains
        enddo  ! i
     enddo     ! j
 
-    if (verbose_gradient .and. main_task) then
-       print*, ' '
-       print*, 'Centered gradient:'
-       print*, ' '
-       print*, 'df_dx:'
-       do j = ny-1, 1, -1
-!!          do i = 1, nx-1
-          do i = 1, nx/2
-             write(6,'(f9.6)',advance='no') df_dx(i,j)
-          enddo
-          print*, ' '
-       enddo
-
-       print*, ' '
-       print*, 'df_dy:'
-       do j = ny-1, 1, -1
-!!          do i = 1, nx-1
-          do i = 1, nx/2
-             write(6,'(f9.6)',advance='no') df_dy(i,j)
-          enddo
-          print*, ' '
-       enddo
+    if (verbose_gradient) then
+       call point_diag(df_dx, 'Centered gradient, df/dx', itest, jtest, rtest, 7, 7)
+       call point_diag(df_dy, 'Centered gradient, df/dy', itest, jtest, rtest, 7, 7)
     endif
 
   end subroutine glissade_gradient
@@ -490,6 +476,7 @@ contains
 
   subroutine glissade_gradient_at_edges(nx,           ny,        &
                                         dx,           dy,        &
+                                        itest, jtest, rtest,     &
                                         field,                   &
                                         df_dx,        df_dy,     &
                                         ice_mask,                &
@@ -517,6 +504,9 @@ contains
     real(dp), intent(in) ::     &
        dx, dy                   ! grid cell length and width                                           
                                 ! assumed to have the same value for each grid cell  
+
+    integer, intent(in) ::      &
+       itest, jtest, rtest      ! coordinates of diagnostic point
 
     real(dp), dimension(nx,ny), intent(in) ::       &
        field                    ! scalar field, defined at cell centers
@@ -688,25 +678,9 @@ contains
 
     endif  ! present(max_slope)
 
-    if (verbose_gradient .and. main_task) then
-       print*, ' '
-       print*, 'Edge gradient:'
-       print*, ' '
-       print*, 'df_dx:'
-       do j = ny-1, 1, -1
-          do i = 1, nx
-             write(6,'(f8.4)',advance='no') df_dx(i,j)
-          enddo
-          print*, ' '
-       enddo
-       print*, ' '
-       print*, 'df_dy:'
-       do j = ny, 1, -1
-          do i = 1, nx-1
-             write(6,'(f8.4)',advance='no') df_dy(i,j)
-          enddo
-          print*, ' '
-       enddo
+    if (verbose_gradient) then
+       call point_diag(df_dx, 'edge gradient, df/dx', itest, jtest, rtest, 7, 7)
+       call point_diag(df_dy, 'edge gradient, df/dy', itest, jtest, rtest, 7, 7)
     endif
 
   end subroutine glissade_gradient_at_edges
@@ -1289,45 +1263,11 @@ contains
 
     endif   ! present(max_slope)
 
-    if (verbose_gradient .and. this_rank==rtest) then
-       print*, ' '
-       print*, 'Hybrid gradient, i, j, task =', itest, jtest, rtest
-       print*, ' '
-       print*, 'ds_dx_edge:'
-       do j = jtest+3, jtest-3, -1
-          write(6,'(i6)',advance='no') j
-          do i = itest-3, itest+3
-             write(6,'(f9.6)',advance='no') ds_dx_edge(i,j)
-          enddo
-          print*, ' '
-       enddo
-       print*, ' '
-       print*, 'ds_dy_edge:'
-       do j = jtest+3, jtest-3, -1
-          write(6,'(i6)',advance='no') j
-          do i = itest-3, itest+3
-             write(6,'(f9.6)',advance='no') ds_dy_edge(i,j)
-          enddo
-          print*, ' '
-       enddo
-       print*, ' '
-       print*, 'ds_dx:'
-       do j = jtest+3, jtest-3, -1
-          write(6,'(i6)',advance='no') j
-          do i = itest-3, itest+3
-             write(6,'(f9.6)',advance='no') ds_dx(i,j)
-          enddo
-          print*, ' '
-       enddo
-       print*, ' '
-       print*, 'ds_dy:'
-       do j = jtest+3, jtest-3, -1
-          write(6,'(i6)',advance='no') j
-          do i = itest-3, itest+3
-             write(6,'(f9.6)',advance='no') ds_dy(i,j)
-          enddo
-          print*, ' '
-       enddo
+    if (verbose_gradient) then
+       call point_diag(ds_dx_edge, 'Hybrid gradient, ds/dx', itest, jtest, rtest, 7, 7, '(f10.6)')
+       call point_diag(ds_dy_edge, 'ds/dy', itest, jtest, rtest, 7, 7, '(f10.6)')
+       call point_diag(ds_dx, 'ds/dx', itest, jtest, rtest, 7, 7, '(f10.6)')
+       call point_diag(ds_dy, 'ds/dy', itest, jtest, rtest, 7, 7, '(f10.6)')
     endif
 
     ! Note: Halo updates moved to higher level
@@ -1339,8 +1279,9 @@ contains
 !****************************************************************************
 
   subroutine glissade_slope_angle(&
-       nx,         ny,      &
-       dx,         dy,      &
+       nx,           ny,    &
+       dx,           dy,    &
+       itest, jtest, rtest, &
        zsfc,                &
        theta_slope,         &
        theta_slope_x,       &
@@ -1361,6 +1302,9 @@ contains
     real(dp), intent(in) ::     &
          dx, dy                   ! grid cell length and width
                                   ! assumed to have the same value for each grid cell
+
+    integer, intent(in) ::      &
+         itest, jtest, rtest      ! coordinates of diagnostic point
 
     real(dp), dimension(nx,ny), intent(in) ::       &
          zsfc                     ! elevation of the surface whose slope is to be computed
@@ -1412,11 +1356,12 @@ contains
     !       For instance, if slope_mask = 1 for floating cells only, then dz_dx = dz_dy = 0
     !        for grounded regions.
 
-    call glissade_gradient(nx,         ny,          &
-                           dx,         dy,          &
-                           zsfc,                    &
-                           stag_dz_dx, stag_dz_dy,  &
-                           slope_mask,              &
+    call glissade_gradient(nx,           ny,          &
+                           dx,           dy,          &
+                           itest, jtest, rtest,       &
+                           zsfc,                      &
+                           stag_dz_dx,   stag_dz_dy,  &
+                           slope_mask,                &
                            gradient_margin_in = 1)
 
     ! Interpolate the gradient components to cell centers
@@ -1484,8 +1429,9 @@ contains
 !****************************************************************************
 
   subroutine glissade_slope_angle_staggered(&
-       nx,         ny,      &
-       dx,         dy,      &
+       nx,           ny,    &
+       dx,           dy,    &
+       itest, jtest, rtest, &
        zsfc,                &
        theta_slope,         &
        theta_slope_x,       &
@@ -1509,6 +1455,9 @@ contains
     real(dp), intent(in) ::     &
          dx, dy                   ! grid cell length and width
                                   ! assumed to have the same value for each grid cell
+
+    integer, intent(in) ::      &
+         itest, jtest, rtest      ! coordinates of diagnostic point
 
     real(dp), dimension(nx,ny), intent(in) ::       &
          zsfc                     ! elevation of the surface whose slope is to be computed
@@ -1555,11 +1504,12 @@ contains
     !       For instance, if slope_mask = 1 for floating cells only, then dz_dx = dz_dy = 0
     !        for grounded regions.
 
-    call glissade_gradient(nx,         ny,          &
-                           dx,         dy,          &
-                           zsfc,                    &
-                           dz_dx,      dz_dy,       &
-                           slope_mask,              &
+    call glissade_gradient(nx,           ny,          &
+                           dx,           dy,          &
+                           itest, jtest, rtest,       &
+                           zsfc,                      &
+                           dz_dx,        dz_dy,       &
+                           slope_mask,                &
                            gradient_margin_in = 1)
 
     ! Compute the magnitude of the gradient
@@ -2057,6 +2007,7 @@ contains
 !-------------------------------------------------------------------------------
 
   subroutine glissade_scalar_extrapolate(nx,    ny,             &
+                                         itest, jtest, rtest,   &
                                          parallel,              &
                                          input_mask,            &
                                          phi_in,                &
@@ -2064,8 +2015,7 @@ contains
                                          phi_out,               &
                                          npoints_stencil,       &
                                          apply_smoother,        &
-                                         unfilled_value,        &
-                                         itest, jtest, rtest)
+                                         unfilled_value)
 
     ! Extrapolate an input field phi_in (e.g., ice thickness) from cells with input_mask = 1,
     !  obtaining the filled phi_out in cells with output_mask = 1.
@@ -2080,6 +2030,9 @@ contains
     ! Input/output arguments
 
     integer, intent(in) :: nx, ny                  !> horizontal grid dimensions
+
+    integer, intent(in) :: &
+         itest, jtest, rtest                       !> coordinates of diagnostic point
 
     type(parallel_type), intent(in) :: parallel    !> info for parallel communication
 
@@ -2101,9 +2054,6 @@ contains
 
     real(dp), intent(in), optional :: &
          unfilled_value           !> value of phi in unfilled cells, to be replaced where possible by an extrapolated value
-
-    integer, intent(in), optional :: &
-         itest, jtest, rtest                   !> coordinates of diagnostic point
 
     ! Local arguments
 
@@ -2190,18 +2140,9 @@ contains
 
     do iter = 1, max_iter
 
-       if (present(rtest)) then
-          if (verbose_extrapolate .and. this_rank == rtest) then
-             print*, ' '
-             print*, 'glissade_scalar_extrapolate, iteration =', iter
-             print*, 'Current phi_out (m):'
-             do j = jtest+3, jtest-3, -1
-                do i = itest-3, itest+3
-                   write(6,'(f10.3)',advance='no') phi_out(i,j)
-                enddo
-                write(6,*) ' '
-             enddo
-          endif
+       if (verbose_extrapolate) then
+          if (this_rank == rtest) write(6,*) 'glissade_scalar_extrapolate, iteration =', iter
+          call point_diag(phi_out, 'Current phi_out (m)', itest, jtest, rtest, 7, 7)
        endif
 
        ! Make a copy of the current output field

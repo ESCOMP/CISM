@@ -32,6 +32,7 @@ module glissade_basal_water
    use glimmer_log
    use glide_types
    use cism_parallel, only: main_task, this_rank, nhalo, parallel_type, parallel_halo
+   use glide_diagnostics, only: point_diag
 
    implicit none
 
@@ -350,75 +351,13 @@ contains
 
     p = pdiag
 
-    if (verbose_bwat .and. this_rank == rtest) then
-       print*, ' '
-       print*, 'thck (m):'
-       write(6,'(a3)',advance='no') '   '
-       do i = itest-p, itest+p
-          write(6,'(i10)',advance='no') i
-       enddo
-       write(6,*) ' '
-       do j = jtest+p, jtest-p, -1
-          write(6,'(i6)',advance='no') j
-          do i = itest-p, itest+p
-             write(6,'(f10.3)',advance='no') thck(i,j)
-          enddo
-          write(6,*) ' '
-       enddo
-       print*, ' '
-       print*, 'topg (m):'
-       write(6,'(a3)',advance='no') '   '
-       do i = itest-p, itest+p
-          write(6,'(i10)',advance='no') i
-       enddo
-       write(6,*) ' '
-       do j = jtest+p, jtest-p, -1
-          write(6,'(i6)',advance='no') j
-          do i = itest-p, itest+p
-             write(6,'(f10.3)',advance='no') topg(i,j)
-          enddo
-          write(6,*) ' '
-       enddo
-!       print*, ' '
-!       print*, 'effecpress (Pa):'
-!       write(6,*) ' '
-!       do j = jtest+p, jtest-p, -1
-!          write(6,'(i6)',advance='no') j
-!          do i = itest-p, itest+p
-!             write(6,'(f10.3)',advance='no') effecpress(i,j)
-!          enddo
-!          write(6,*) ' '
-!       enddo
-       print*, ' '
-       print*, 'bmlt (m/yr):'
-       write(6,*) ' '
-       do j = jtest+p, jtest-p, -1
-          write(6,'(i6)',advance='no') j
-          do i = itest-p, itest+p
-             write(6,'(f10.3)',advance='no') bmlt(i,j) * scyr
-          enddo
-          write(6,*) ' '
-       enddo
-       print*, ' '
-       print*, 'bwat_mask:'
-       write(6,*) ' '
-       do j = jtest+p, jtest-p, -1
-          write(6,'(i6)',advance='no') j
-          do i = itest-p, itest+p
-             write(6,'(i10)',advance='no') bwat_mask(i,j)
-          enddo
-          write(6,*) ' '
-       enddo
-       print*, ' '
-       print*, 'Before fill: head (m):'
-       write(6,*) ' '
-       do j = jtest+p, jtest-p, -1
-          write(6,'(i6)',advance='no') j
-          do i = itest-p, itest+p
-             write(6,'(f10.3)',advance='no') head(i,j)
-          enddo
-          write(6,*) ' '
-       enddo
+    if (verbose_bwat) then
+       call point_diag(thck, 'thck (m)', itest, jtest, rtest, 7, 7)
+       call point_diag(topg, 'topg (m)', itest, jtest, rtest, 7, 7)
+       call point_diag(effecpress, 'effecpress (Pa)', itest, jtest, rtest, 7, 7, '(f10.0)')
+       call point_diag(bmlt*scyr, 'bmlt (m/yr)', itest, jtest, rtest, 7, 7)
+       call point_diag(bwat_mask, 'bwat_mask', itest, jtest, rtest, 7, 7)
+       call point_diag(head, 'Before file: head (m)', itest, jtest, rtest, 7, 7)
     endif
 
     ! Route basal water down the gradient of hydraulic head, giving a water flux
@@ -463,30 +402,9 @@ contains
     ! Convert bwatflx units to m/yr for output
     bwatflx(:,:) = bwatflx(:,:) * scyr/(dx*dy)
 
-    if (verbose_bwat .and. this_rank == rtest) then
-       print*, ' '
-       write(6,*) 'Final bwatflx (m/yr):'
-       do i = itest-p, itest+p
-          write(6,'(i10)',advance='no') i
-       enddo
-       write(6,*) ' '
-       do j = jtest+p, jtest-p, -1
-          write(6,'(i6)',advance='no') j
-          do i = itest-p, itest+p
-             write(6,'(f10.5)',advance='no') bwatflx(i,j)
-          enddo
-          write(6,*) ' '
-       enddo
-       print*, ' '
-       print*, 'Diagnosed bwat (mm):'
-       write(6,*) ' '
-       do j = jtest+p, jtest-p, -1
-          write(6,'(i6)',advance='no') j
-          do i = itest-p, itest+p
-             write(6,'(f10.5)',advance='no') bwat(i,j) * 1000.d0
-          enddo
-          write(6,*) ' '
-       enddo
+    if (verbose_bwat) then
+       call point_diag(bwatflx, 'Final bwatflx (m/yr)', itest, jtest, rtest, 7, 7, '(f10.5)')
+       call point_diag(bwat*1000.d0, 'Diagnosed bwat (mm)', itest, jtest, rtest, 7, 7, '(f10.5)')
     endif
 
   end subroutine glissade_bwat_flux_routing
@@ -707,32 +625,9 @@ contains
     ! Update head with the filled values
     head = head_filled
 
-    p = pdiag
-    if (verbose_bwat .and. this_rank == rtest) then
-       print*, ' '
-       print*, 'After fill: head (m):'
-       write(6,'(a3)',advance='no') '   '
-       do i = itest-p, itest+p
-          write(6,'(i10)',advance='no') i
-       enddo
-       write(6,*) ' '
-       do j = jtest+p, jtest-p, -1
-          write(6,'(i6)',advance='no') j
-          do i = itest-p, itest+p
-             write(6,'(f10.3)',advance='no') head(i,j)
-          enddo
-          write(6,*) ' '
-       enddo
-       print*, ' '
-       print*, 'lakes (m):'
-       write(6,*) ' '
-       do j = jtest+p, jtest-p, -1
-          write(6,'(i6)',advance='no') j
-          do i = itest-p, itest+p
-             write(6,'(f10.3)',advance='no') lakes(i,j)
-          enddo
-          write(6,*) ' '
-       enddo
+    if (verbose_bwat) then
+       call point_diag(head, 'After fill, head (m)', itest, jtest, rtest, 7, 7)
+       call point_diag(lakes, 'lakes (m)', itest, jtest, rtest, 7, 7)
     endif
 
     ! Sort heights.
@@ -884,24 +779,13 @@ contains
        enddo
        global_flux_sum = parallel_global_sum(sum_bwatflx_halo, parallel)
 
-       if (verbose_bwat .and. this_rank == rtest .and. count <= 2) then
-          print*, ' '
-          print*, 'Before halo update, sum of bwatflx_halo:', global_flux_sum
-          print*, ' '
-          print*, 'sum_bwatflx_halo:'
-          write(6,*) ' '
-          do j = jtest+p, jtest-p, -1
-             write(6,'(i6)',advance='no') j
-             do i = itest-p, itest+p
-                write(6,'(e10.3)',advance='no') sum_bwatflx_halo(i,j)
-             enddo
-             write(6,*) ' '
-          enddo
-          print*, ' '
-          print*, 'rank, i, j, bwatflx_halo:'
-          i = itest
-          j = jtest
-          write(6, '(3i5,9e10.3)') this_rank, i, j, bwatflx_halo(:,:,i,j)
+       if (verbose_bwat .and. count <= 2) then
+          if (main_task) write(6,*) 'Before halo update, sum of bwatflx_halo:', global_flux_sum
+          call point_diag(sum_bwatflx_halo, 'sum_bwatflx_halo', itest, jtest, rtest, 7, 7, '(e10.3)')
+          if (this_rank == rtest) then
+             i = itest; j = jtest
+             write(6,'(3i5,9e10.3)') this_rank, i, j, bwatflx_halo(:,:,i,j)
+          endif
        endif
 
        if (global_flux_sum > eps11) then
@@ -1066,11 +950,12 @@ contains
     ! HO_GRADIENT_MARGIN_LAND: Use all field values when computing the gradient, including values in ice-free cells.
 
     call glissade_gradient_at_edges(&
-         nx,       ny,       &
-         dx,       dy,       &
-         head,               &
-         dhead_dx, dhead_dy, &
-         ice_mask,           &
+         nx,       ny,        &
+         dx,       dy,        &
+         itest, jtest, rtest, &
+         head,                &
+         dhead_dx, dhead_dy,  &
+         ice_mask,            &
          gradient_margin_in = HO_GRADIENT_MARGIN_LAND)
 
     grad_head = 0.0d0  ! will remain 0 in outer row of halo cells
@@ -1085,23 +970,8 @@ contains
     !TODO - If a halo update is needed for grad_head, then pass in 'parallel'.  But may not be needed.
 !!    call parallel_halo(grad_head, parallel)
 
-    !WHL - debug
-    p = pdiag
-    if (verbose_bwat .and. this_rank == rtest) then
-       print*, ' '
-       print*, 'grad_head:'
-       write(6,'(a3)',advance='no') '   '
-       do i = itest-p, itest+p
-          write(6,'(i10)',advance='no') i
-       enddo
-       write(6,*) ' '
-       do j = jtest+p, jtest-p, -1
-          write(6,'(i6)',advance='no') j
-          do i = itest-p, itest+p
-             write(6,'(f10.5)',advance='no') grad_head(i,j)
-          enddo
-          write(6,*) ' '
-       enddo
+    if (verbose_bwat) then
+       call point_diag(grad_head, 'grad_head', itest, jtest, rtest, 7, 7, '(f10.5)')
     endif
 
     p_exponent = 1.d0 / (p_flux_to_depth + 1.d0)
@@ -1264,16 +1134,8 @@ contains
 
     p = pdiag
 
-    if (verbose_depression .and. this_rank == rtest) then
-       print*, ' '
-       print*, 'Initial phi:'
-       do j = jtest+p, jtest-p, -1
-          write(6,'(i6)',advance='no') j
-          do i = itest-p, itest+p
-             write(6,'(e11.4)',advance='no') phi(i,j)
-          enddo
-          write(6,*) ' '
-       enddo
+    if (verbose_depression) then
+       call point_diag(phi, 'Initial phi', itest, jtest, rtest, 7, 7, '(e11.4)')
     endif
 
     count = 0
@@ -1286,7 +1148,7 @@ contains
 
        if (verbose_depression .and. this_rank == rtest) then
           write(6,*) ' '
-          print*, 'fill_depressions, count =', count
+          write(6,*) 'fill_depressions, count =', count
        endif
 
        ! Loop through cells
@@ -1379,16 +1241,8 @@ contains
           end do   ! i
        end do   ! j
 
-       if (verbose_depression .and. this_rank == rtest) then
-          print*, ' '
-          print*, 'New phi:'
-          do j = jtest+p, jtest-p, -1
-             write(6,'(i6)',advance='no') j
-             do i = itest-p, itest+p
-                write(6,'(f11.4)',advance='no') phi(i,j)
-             enddo
-             write(6,*) ' '
-          enddo
+       if (verbose_depression) then
+          call point_diag(phi, 'New phi', itest, jtest, rtest, 7, 7, '(e11.4)')
        endif
 
        ! If one or more cells was lowered, then repeat; else exit the local loop.
@@ -1398,12 +1252,12 @@ contains
        if (global_lowered == 0) then
           finished = .true.
           if (verbose_depression .and. this_rank == rtest) then
-             print*, 'finished lowering'
+             write(6,*) 'finished lowering'
           endif
        else
           finished = .false.
           if (verbose_depression .and. this_rank == rtest) then
-             print*, 'cells lowered on this iteration:', global_lowered
+             write(6,*) 'cells lowered on this iteration:', global_lowered
           endif
           call parallel_halo(phi, parallel)
        endif
@@ -1415,7 +1269,7 @@ contains
     enddo  ! finished
 
     if (verbose_bwat .and. this_rank == rtest) then
-       print*, 'Filled depressions, count =', count
+       write(6,*) 'Filled depressions, count =', count
     endif
 
   end subroutine fill_depressions
@@ -1494,34 +1348,9 @@ contains
 !    call parallel_halo(phi, parallel)
 !    call parallel_halo(phi_mask, parallel)
 
-    p = pdiag
-
-    if (verbose_bwat .and. this_rank == rtest) then
-       print*, ' '
-       print*, 'In fix_flats, rtest, itest, jtest =', rtest, itest, jtest
-       print*, ' '
-       print*, 'input phi:'
-       write(6,'(a3)',advance='no') '   '
-       do i = itest-p, itest+p
-          write(6,'(i10)',advance='no') i
-       enddo
-       write(6,*) ' '
-       do j = jtest+p, jtest-p, -1
-          write(6,'(i6)',advance='no') j
-          do i = itest-p, itest+p
-             write(6,'(f10.3)',advance='no') phi(i,j)
-          enddo
-          write(6,*) ' '
-       enddo
-       write(6,*) ' '
-       print*, 'phi_mask:'
-       do j = jtest+p, jtest-p, -1
-          write(6,'(i6)',advance='no') j
-          do i = itest-p, itest+p
-             write(6,'(i10)',advance='no') phi_mask(i,j)
-          enddo
-          write(6,*) ' '
-       enddo
+    if (verbose_bwat) then
+       call point_diag(phi, 'In fix_flats: input phi', itest, jtest, rtest, 7, 7)
+       call point_diag(phi_mask, 'phi_mask', itest, jtest, rtest, 7, 7)
     endif
 
     ! initialize
@@ -1567,34 +1396,10 @@ contains
          phi_mask,            &
          flat_mask_input)
 
-    if (verbose_bwat .and. this_rank == rtest) then
-       print*, ' '
-       print*, 'n_uphill:'
-       do j = jtest+p, jtest-p, -1
-          write(6,'(i6)',advance='no') j
-          do i = itest-p, itest+p
-             write(6,'(i10)',advance='no') n_uphill(i,j)
-          enddo
-          write(6,*) ' '
-       enddo
-       print*, ' '
-       print*, 'n_downhill:'
-       do j = jtest+p, jtest-p, -1
-          write(6,'(i6)',advance='no') j
-          do i = itest-p, itest+p
-             write(6,'(i10)',advance='no') n_downhill(i,j)
-          enddo
-          write(6,*) ' '
-       enddo
-       print*, ' '
-       print*, 'input flat_mask:'
-       do j = jtest+p, jtest-p, -1
-          write(6,'(i6)',advance='no') j
-          do i = itest-p, itest+p
-             write(6,'(i10)',advance='no') flat_mask_input(i,j)
-          enddo
-          write(6,*) ' '
-       enddo
+    if (verbose_bwat) then
+       call point_diag(n_uphill, 'n_uphill', itest, jtest, rtest, 7, 7)
+       call point_diag(n_downhill, 'n_downhill', itest, jtest, rtest, 7, 7)
+       call point_diag(flat_mask_input, 'input flat_mask', itest, jtest, rtest, 7, 7)
     endif
 
     ! Step 1: Gradient toward lower terrain
@@ -1633,25 +1438,9 @@ contains
             flat_mask_input,       &
             flat_mask)
 
-       if (verbose_bwat .and. this_rank == rtest) then
-          print*, ' '
-          print*, 'Updated dphi1/phi_increment:'
-          do j = jtest+p, jtest-p, -1
-             write(6,'(i6)',advance='no') j
-             do i = itest-p, itest+p
-                write(6,'(f10.1)',advance='no') dphi1(i,j)/ phi_increment
-             enddo
-             write(6,*) ' '
-          enddo
-          print*, ' '
-          print*, 'Updated flat_mask:'
-          do j = jtest+p, jtest-p, -1
-             write(6,'(i6)',advance='no') j
-             do i = itest-p, itest+p
-                write(6,'(i10)',advance='no') flat_mask(i,j)
-             enddo
-             write(6,*) ' '
-          enddo
+       if (verbose_bwat) then
+          call point_diag(dphi1/phi_increment, 'Updated dphi1/phi_increment', itest, jtest, rtest, 7, 7, '(f10.1)')
+          call point_diag(flat_mask, 'Updated flat_mask', itest, jtest, rtest, 7, 7, '(f10.1)')
        endif
 
        ! Compute the number of cells in the remaining flat regions on the global grid.
@@ -1701,25 +1490,9 @@ contains
     call parallel_halo(dphi2, parallel)
     call parallel_halo(incremented_mask, parallel)
 
-    if (verbose_bwat .and. this_rank == rtest) then
-       print*, ' '
-       print*, 'step 2, input flat_mask:'
-       do j = jtest+p, jtest-p, -1
-          write(6,'(i6)',advance='no') j
-          do i = itest-p, itest+p
-             write(6,'(i10)',advance='no') flat_mask_input(i,j)
-          enddo
-          write(6,*) ' '
-       enddo
-       print*, ' '
-       print*, 'Updated dphi2/phi_increment'
-       do j = jtest+p, jtest-p, -1
-          write(6,'(i6)',advance='no') j
-          do i = itest-p, itest+p
-             write(6,'(f10.1)',advance='no') dphi2(i,j)/phi_increment
-          enddo
-          write(6,*) ' '
-       enddo
+    if (verbose_bwat) then
+       call point_diag(flat_mask_input, 'step 2, input flat_mask', itest, jtest, rtest, 7, 7)
+       call point_diag(dphi2/phi_increment, 'Updated dphi2/phi_increment', itest, jtest, rtest, 7, 7)
     endif
 
     ! Compute the number of cells incremented in the first pass.
@@ -1730,8 +1503,8 @@ contains
 
     if (global_sum == 0) then
        if (verbose_bwat .and. this_rank == rtest) then
-          print*, ' '
-          print*, 'No cells to increment; skip step 2'
+          write(6,*) ' '
+          write(6,*) 'No cells to increment; skip step 2'
        endif
        finished = .true.
     endif
@@ -1794,24 +1567,9 @@ contains
        call parallel_halo(dphi2, parallel)
        call parallel_halo(incremented_mask, parallel)
 
-       if (verbose_bwat .and. this_rank == rtest) then
-          print*, ' '
-          print*, 'incremented_neighbor_mask:'
-          do j = jtest+p, jtest-p, -1
-             write(6,'(i6)',advance='no') j
-             do i = itest-p, itest+p
-                write(6,'(i10)',advance='no') incremented_neighbor_mask(i,j)
-             enddo
-             write(6,*) ' '
-          enddo
-          print*, 'Updated dphi2/phi_increment'
-          do j = jtest+p, jtest-p, -1
-             write(6,'(i6)',advance='no') j
-             do i = itest-p, itest+p
-                write(6,'(f10.1)',advance='no') dphi2(i,j)/phi_increment
-             enddo
-             write(6,*) ' '
-          enddo
+       if (verbose_bwat) then
+          call point_diag(incremented_neighbor_mask, 'incremented_neighbor_mask', itest, jtest, rtest, 7, 7)
+          call point_diag(dphi2/phi_increment, 'Updated dphi2/phi_increment', itest, jtest, rtest, 7, 7)
        endif
 
        ! Compute the number of cells in the input flat region that have not been incremented.
@@ -1901,16 +1659,8 @@ contains
 
     enddo   ! step 3 finished
 
-    if (verbose_bwat .and. this_rank == rtest) then
-       print*, ' '
-       print*, 'Final phi:'
-       do j = jtest+p, jtest-p, -1
-          write(6,'(i6)',advance='no') j
-          do i = itest-p, itest+p
-             write(6,'(f10.3)',advance='no') phi(i,j)
-          enddo
-          write(6,*) ' '
-       enddo
+    if (verbose_bwat) then
+       call point_diag(phi, 'Final phi', itest, jtest, rtest, 7, 7)
     endif
 
   end subroutine fix_flats

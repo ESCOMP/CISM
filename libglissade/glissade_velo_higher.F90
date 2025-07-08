@@ -779,7 +779,6 @@
        whichapprox, &           ! option for which Stokes approximation to use
                                 ! 0 = SIA, 1 = SSA, 2 = Blatter-Pattyn HO, 3 = L1L2
                                 ! default = 2
-       diva_slope_correction, & ! if true, include a slope correction for the DIVA solver
        whichprecond, &          ! option for which preconditioner to use with 
                                 !  structured PCG solver
                                 ! 0 = none, 1 = diag, 2 = SIA-based
@@ -803,6 +802,9 @@
        maxiter_nonlinear,    &  ! maximum number of nonlinear iterations
        linear_solve_ncheck,  &  ! number of iterations between convergence checks in the linear solver
        linear_maxiters          ! max number of linear iterations before quitting
+
+    logical ::   &
+         diva_slope_correction    ! if true, include a slope correction for the DIVA solver
 
     real(dp) ::  &
          linear_tolerance       ! tolerance for linear solver
@@ -2072,11 +2074,12 @@
           z_mean = 0.5d0 * (usrf + lsrf)
 
           call glissade_slope_angle(&
-               nx,         ny,     &
-               dx,         dy,     &  ! m
-               z_mean,             &  ! m
-               theta_slope,        &  ! radians
-               theta_slope_x,      &
+               nx,           ny,     &
+               dx,           dy,     &  ! m
+               itest, jtest, rtest,  &
+               z_mean,               &  ! m
+               theta_slope,          &  ! radians
+               theta_slope_x,        &
                theta_slope_y)
 
           call parallel_halo(theta_slope_x, parallel)
@@ -2086,11 +2089,12 @@
           ! We do separate calls for centers and vertices to avoid issues with angle interpolation.
           ! Note: stag_theta_slope is a required output argument but is not used.
           call glissade_slope_angle_staggered(&
-               nx,         ny,     &
-               dx,         dy,     &  ! m
-               z_mean,             &  ! m
-               stag_theta_slope,   &  ! radians
-               stag_theta_slope_x,      &
+               nx,           ny,     &
+               dx,           dy,     &  ! m
+               itest, jtest, rtest,  &
+               z_mean,               &  ! m
+               stag_theta_slope,     &  ! radians
+               stag_theta_slope_x,   &
                stag_theta_slope_y)
 
           call parallel_halo(stag_theta_slope_x, parallel)
@@ -6016,25 +6020,28 @@
        ! With gradient_margin_in = 1, only ice-covered cells are included in the gradient.
        ! This is the appropriate setting, since efvs and strain rates have no meaning in ice-free cells.
        
-       call glissade_gradient(nx,               ny,         &
-                              dx,               dy,         &
-                              work1,                        &
-                              dwork1_dx,        dwork1_dy,  &
-                              ice_mask,                     &
+       call glissade_gradient(nx,           ny,         &
+                              dx,           dy,         &
+                              itest, jtest, rtest,      &
+                              work1,                    &
+                              dwork1_dx,    dwork1_dy,  &
+                              ice_mask,                 &
                               gradient_margin_in = 1)
 
-       call glissade_gradient(nx,               ny,         &
-                              dx,               dy,         &
-                              work2,                        &
-                              dwork2_dx,        dwork2_dy,  &
-                              ice_mask,                     &
+       call glissade_gradient(nx,           ny,         &
+                              dx,           dy,         &
+                              itest, jtest, rtest,      &
+                              work2,                    &
+                              dwork2_dx,    dwork2_dy,  &
+                              ice_mask,                 &
                               gradient_margin_in = 1)
 
-       call glissade_gradient(nx,               ny,         &
-                              dx,               dy,         &
-                              work3,                        &
-                              dwork3_dx,        dwork3_dy,  &
-                              ice_mask,                     &
+       call glissade_gradient(nx,           ny,         &
+                              dx,           dy,         &
+                              itest, jtest, rtest,      &
+                              work3,                    &
+                              dwork3_dx,    dwork3_dy,  &
+                              ice_mask,                 &
                               gradient_margin_in = 1)
 
        ! loop over locally owned active vertices
@@ -8107,7 +8114,7 @@
     !       have less than its full value for partially floating ice (0 < f_ground < 1).
     !------------------------------------------------------------------------
 
-    use glissade_grid_operators, only: glissade_stagger, glissade_slope_angle
+    use glissade_grid_operators, only: glissade_stagger
 
     integer, intent(in) ::      &
        nx, ny,                  &    ! horizontal grid dimensions
@@ -8467,8 +8474,9 @@
        ! Compute the angle between the lower ice surface and the horizontal.
        !TODO - Make sure this doesn't give bad values in ice-free regions.
        call glissade_slope_angle(&
-            nx-1,     ny-1,       &
-            dx,       dy,         &  ! m
+            nx-1,         ny-1,   &
+            dx,           dy,     &  ! m
+            itest, jtest, rtest,  &
             staglsrf,             &  ! m
             theta_basal_slope,    &  ! radians
             theta_basal_slope_x,  &
@@ -8764,9 +8772,10 @@
        ! Compute the angle between the lower ice surface and the horizontal.
        !TODO - Make sure this doesn't give bad values in ice-free regions.
        call glissade_slope_angle(&
-            nx-1,     ny-1,   &
-            dx,       dy,     &  ! m
-            staglsrf,         &  ! m
+            nx-1,         ny-1,   &
+            dx,           dy,     &  ! m
+            itest, jtest, rtest,  &
+            staglsrf,             &  ! m
             theta_basal_slope)         ! radians
 
        call parallel_halo(theta_basal_slope, parallel)

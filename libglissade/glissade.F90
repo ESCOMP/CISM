@@ -3107,6 +3107,7 @@ contains
 
     call glissade_gradient(ewn,                     nsn,       &
                            model%numerics%dew,      model%numerics%dns,      &
+                           itest, jtest, rtest,                              &
                            model%geometry%usrf,                              &
                            model%geomderv%dusrfdew, model%geomderv%dusrfdns)
 
@@ -3416,20 +3417,21 @@ contains
        !------------------------------------------------------------------------------
 
        !TODO - Use btemp_ground instead of temp(upn)?
-       call calc_effective_pressure(model%options%which_ho_effecpress, &
-                                    parallel,                          &
-                                    ewn,           nsn,                &
-                                    model%basal_physics,               &
-                                    model%basal_hydro,                 &
-                                    ice_mask,      floating_mask,      &
-                                    model%geometry%thck,               &
-                                    model%geometry%topg,               &
-                                    model%climate%eus,                 &
-                                    model%temper%bpmp(:,:) - model%temper%temp(upn,:,:), &
-                                    model%basal_hydro%bwat,            &   ! m
-                                    model%basal_hydro%bwatflx,         &   ! m/yr
-                                    model%numerics%dt/scyr,            &   ! yr
-                                    itest, jtest,  rtest)
+       call calc_effective_pressure(&
+            model%options%which_ho_effecpress, &
+            parallel,                          &
+            ewn,           nsn,                &
+            itest, jtest,  rtest,              &
+            model%basal_physics,               &
+            model%basal_hydro,                 &
+            ice_mask,      floating_mask,      &
+            model%geometry%thck,               &
+            model%geometry%topg,               &
+            model%climate%eus,                 &
+            model%temper%bpmp(:,:) - model%temper%temp(upn,:,:), &
+            model%basal_hydro%bwat,            &   ! m
+            model%basal_hydro%bwatflx,         &   ! m/yr
+            model%numerics%dt/scyr)                ! yr
 
        if ( (model%numerics%time == model%numerics%tstart) .and. &
          ( (maxval(abs(model%velocity%uvel)) /= 0.0d0) .or. & 

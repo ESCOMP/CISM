@@ -51,6 +51,7 @@
   use glide_types
   use cism_parallel, only : this_rank, main_task, parallel_type, &
        parallel_halo, staggered_parallel_halo, parallel_globalindex, distributed_scatter_var
+  use glide_diagnostics, only: point_diag
 
   implicit none
 
@@ -785,17 +786,18 @@ contains
 
 !***********************************************************************
 
-  subroutine calc_effective_pressure (which_effecpress,             &
-                                      parallel,                     &
-                                      ewn,           nsn,           &
-                                      basal_physics, basal_hydro,   &
-                                      ice_mask,      floating_mask, &
-                                      thck,          topg,          &
-                                      eus,                          &
-                                      delta_bpmp,                   &
-                                      bwat,          bwatflx,       &
-                                      dt,                           &
-                                      itest, jtest,  rtest)
+  subroutine calc_effective_pressure(&
+       which_effecpress,             &
+       parallel,                     &
+       ewn,           nsn,           &
+       itest, jtest,  rtest,         &
+       basal_physics, basal_hydro,   &
+       ice_mask,      floating_mask, &
+       thck,          topg,          &
+       eus,                          &
+       delta_bpmp,                   &
+       bwat,          bwatflx,       &
+       dt)
 
     ! Calculate the effective pressure N at the bed.
     ! By default, N is equal to the overburden pressure, rhoi*g*H.
@@ -819,6 +821,8 @@ contains
 
     integer, intent(in) :: &
          ewn, nsn            ! grid dimensions
+
+    integer, intent(in) :: itest, jtest, rtest     ! coordinates of diagnostic point
 
     type(glide_basal_physics), intent(inout) :: &
          basal_physics       ! basal physics object
@@ -848,8 +852,6 @@ contains
 
     real(dp), intent(in), optional :: dt                     ! time step (yr)
 
-    integer, intent(in), optional :: itest, jtest, rtest     ! coordinates of diagnostic point
-
     ! Local variables
 
     real(dp) :: &
@@ -859,6 +861,7 @@ contains
 
     real(dp), dimension(ewn,nsn) ::  &
          overburden,            & ! overburden pressure, rhoi*g*H
+         N_overburden_ratio,    & ! N/overburden
          f_pattyn_2d,           & ! rhoo*(eus-topg)/(rhoi*thck)
                                   ! = 1 at grounding line, < 1 for grounded ice, > 1 for floating ice
          f_ocean_p_target         ! target value for (1 - Hf/H)^p
@@ -983,20 +986,10 @@ contains
              enddo
           enddo
 
-          if (verbose_effecpress .and. this_rank == rtest) then
-             print*, ' '
-             print*, 'After bwatflx, f_effecpress_bwat, itest, jtest, rank =', itest, jtest, rtest
-             do j = jtest+3, jtest-3, -1
-                write(6,'(i6)',advance='no') j
-                do i = itest-3, itest+3
-                   if (thck(i,j) > 0.0d0) then
-                      write(6,'(f10.5)',advance='no') basal_physics%f_effecpress_bwat(i,j)
-                   else
-                      write(6,'(f10.5)',advance='no') 0.0d0
-                   endif
-                enddo
-                write(6,*) ' '
-             enddo
+          if (verbose_effecpress) then
+             !TODO - Define tempvar, set = 0 where thck = 0?
+             call point_diag(basal_physics%f_effecpress_bwat, 'After bwatflx, f_effecpress_bwat', &
+                  itest, jtest, rtest, 7, 7)
           endif
 
        endif   ! present(bwatflx)
@@ -1108,44 +1101,28 @@ contains
        ! Note: f_effecpress_ocean_p is initialized to 1, and is reduced near marine margins only if ocean_p > 0.
        basal_physics%effecpress(:,:) = basal_physics%effecpress(:,:) * basal_physics%f_effecpress_ocean_p(:,:)
 
-       if (present(itest) .and. present(jtest) .and. present(rtest)) then
-          if (this_rank == rtest .and. verbose_effecpress) then
+       if (verbose_effecpress) then
 
-             ! Compute f_pattyn as a 2D field for diagnostics.
-             do j = 1, nsn
-                do i = 1, ewn
-                   if (thck(i,j) > 0.0d0) then
-                      f_pattyn_2d(i,j) = rhoo*(eus-topg(i,j)) / (rhoi*thck(i,j))    ! > 1 for floating, < 1 for grounded
-                   else  ! no ice
-                      if (topg(i,j) - eus >= 0.0d0) then  ! ice-free land
-                         f_pattyn_2d(i,j) = 0.0d0
-                      else  ! ice-free ocean
-                         f_pattyn_2d(i,j) = 1.0d0
-                      endif
+          ! Compute f_pattyn as a 2D field for diagnostics
+          do j = 1, nsn
+             do i = 1, ewn
+                if (thck(i,j) > 0.0d0) then
+                   f_pattyn_2d(i,j) = rhoo*(eus-topg(i,j)) / (rhoi*thck(i,j))    ! > 1 for floating, < 1 for grounded
+                else  ! no ice
+                   if (topg(i,j) - eus >= 0.0d0) then  ! ice-free land
+                      f_pattyn_2d(i,j) = 0.0d0
+                   else  ! ice-free ocean
+                      f_pattyn_2d(i,j) = 1.0d0
                    endif
-                enddo
+                endif
              enddo
+          enddo
 
-             print*, ' '
-             print*, 'f_pattyn, itest, jtest, rank =', itest, jtest, rtest
-             do j = jtest+3, jtest-3, -1
-                write(6,'(i6)',advance='no') j
-                do i = itest-3, itest+3
-                   write(6,'(f10.4)',advance='no') f_pattyn_2d(i,j)
-                enddo
-                write(6,*) ' '
-             enddo
-             print*, ' '
-             print*, 'f_effecpress_ocean_p, itest, jtest, rank =', itest, jtest, rtest
-             do j = jtest+3, jtest-3, -1
-                write(6,'(i6)',advance='no') j
-                do i = itest-3, itest+3
-                   write(6,'(f10.5)',advance='no') basal_physics%f_effecpress_ocean_p(i,j)
-                enddo
-                write(6,*) ' '
-             enddo
-          endif   ! verbose_effecpress
-       endif   ! present(itest,jtest,rtest)
+          call point_diag(f_pattyn_2d, 'f_pattyn', itest, jtest, rtest, 7, 7)
+          call point_diag(basal_physics%f_effecpress_ocean_p, 'f_effecpress_ocean_p', &
+               itest, jtest, rtest, 7, 7)
+
+       endif   ! verbose_effecpress
 
     else   ! ocean_p = 0
 
@@ -1154,7 +1131,8 @@ contains
        ! Note(WHL): If ocean_p = 0, then we have N = rhoi*grav*H for floating ice (f_pattyn_capped = 1).
        !            Equivalently, we are defining 0^0 = 1 for purposes of the Leguy et al. effective pressure parameterization.
        !            This is OK for the Schoof basal friction law provided that the resulting beta is multiplied by f_ground,
-       !             where f_ground is the fraction of floating ice at a vertex, with f_ground = 0 if all four neighbor cells are floating.
+       !             where f_ground is the fraction of floating ice at a vertex, with f_ground = 0
+       !             if all four neighbor cells are floating.
        !            If we were to set N = 0 where f_pattyn_capped = 1 (i.e., defining 0^0 = 0), then we would have a
        !             sudden sharp increase in N_stag (the effective pressure at the vertex) when f_pattyn_capped at a cell center
        !             falls from 1 to a value slightly below 1.  This sudden increase would occur despite the use of a GLP.
@@ -1182,29 +1160,14 @@ contains
                           basal_physics%effecpress,  basal_physics%effecpress_stag,   &
                           ice_mask,                  stagger_margin_in = 0)
 
-    if (verbose_effecpress .and. this_rank == rtest) then
-       print*, ' '
-       print*, 'Final N/overburden, itest, jtest, rank =', itest, jtest, rtest
-       do j = jtest+3, jtest-3, -1
-          write(6,'(i6)',advance='no') j
-         do i = itest-3, itest+3
-             if (overburden(i,j) > 0.0d0) then
-                write(6,'(f10.5)',advance='no') basal_physics%effecpress(i,j) / overburden(i,j)
-             else
-                write(6,'(f10.5)',advance='no') 0.0d0
-             endif
-          enddo
-          write(6,*) ' '
-       enddo
-       print*, ' '
-       print*, 'effecpress_stag:'
-       do j = jtest+3, jtest-3, -1
-          write(6,'(i6)',advance='no') j
-          do i = itest-3, itest+3
-            write(6,'(f10.0)',advance='no') basal_physics%effecpress_stag(i,j)
-          enddo
-          write(6,*) ' '
-       enddo
+    if (verbose_effecpress) then
+       where(overburden > 0.0d0)
+          N_overburden_ratio = basal_physics%effecpress(i,j) / overburden(i,j)
+       elsewhere
+          N_overburden_ratio = 0.0d0
+       endwhere
+       call point_diag(N_overburden_ratio, 'Final N/overburden', itest, jtest, rtest, 7, 7, '(f10.5)')
+       call point_diag(basal_physics%effecpress_stag, 'effecpress_stag', itest, jtest, rtest, 7, 7, '(f10.0)')
     endif
 
   end subroutine calc_effective_pressure

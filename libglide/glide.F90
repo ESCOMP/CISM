@@ -444,12 +444,14 @@ contains
     use glide_ground, only: glide_calve_ice
     use glide_bwater, only: calcbwat
     use glide_temp, only: glide_calcbmlt, glide_calcbpmp
+    use glide_diagnostics, only: point_diag
     use glide_grid_operators
 
     type(glide_global_type), intent(inout) :: model     ! model instance
     logical, intent(in), optional :: evolve_ice         ! whether ice evolution is turned on (if not present, assumed true)
 
     integer :: i, j
+    integer :: itest, jtest, rtest, upn
     logical :: l_evolve_ice  ! local version of evolve_ice
 
     if (present(evolve_ice)) then
@@ -686,94 +688,18 @@ contains
     ! velocity norm
     model%velocity%velnorm = sqrt(model%velocity%uvel**2 + model%velocity%vvel**2)
 
-!WHL - debug
-       if (verbose_glide) then
-
-          print*, ' '
-          print*, 'stagthck:'
-          do i = 1, model%general%ewn-1
-             write(6,'(i7)',advance='no') i
-          enddo
-          print*, ' '
-          do j = model%general%nsn-1, 1, -1
-             write(6,'(i3)',advance='no') j
-             do i = 1, model%general%ewn-1
-                write(6,'(f7.2)',advance='no') model%geomderv%stagthck(i,j)
-             enddo 
-             print*, ' '
-          enddo
-
-          print*, ' '
-          print*, 'diffu (m^2/yr):'
-          do i = 1, model%general%ewn-1
-             write(6,'(i8)',advance='no') i
-          enddo
-          print*, ' '
-          do j = model%general%nsn-1, 1, -1
-             write(6,'(i3)',advance='no') j
-             do i = 1, model%general%ewn-1
-                write(6,'(f8.0)',advance='no') -model%velocity%diffu(i,j) * scyr
-             enddo
-             print*, ' '
-          enddo
-
-          print*, ' '
-          print*, 'ubas:'
-          do i = 1, model%general%ewn-1
-             write(6,'(i7)',advance='no') i
-          enddo
-          print*, ' '
-          do j = model%general%nsn-1, 1, -1
-             write(6,'(i4)',advance='no') j
-             do i = 1, model%general%ewn-1
-                write(6,'(f7.2)',advance='no') model%velocity%uvel(model%general%upn,i,j) * scyr
-             enddo
-             print*, ' '
-          enddo
-
-          print*, ' '
-          print*, 'vbas:'
-          do i = 1, model%general%ewn-1
-             write(6,'(i7)',advance='no') i
-          enddo
-          print*, ' '
-          do j = model%general%nsn-1, 1, -1
-             write(6,'(i4)',advance='no') j
-             do i = 1, model%general%ewn-1
-                write(6,'(f7.2)',advance='no') model%velocity%vvel(model%general%upn,i,j) * scyr
-             enddo
-             print*, ' '
-          enddo
-          
-          print*, ' '
-          print*, 'uvel, k = 1:'
-          do i = 1, model%general%ewn-1
-             write(6,'(i8)',advance='no') i
-          enddo
-          print*, ' '
-          do j = model%general%nsn-1, 1, -1
-             write(6,'(i4)',advance='no') j
-             do i = 1, model%general%ewn-1
-                write(6,'(f8.2)',advance='no') model%velocity%uvel(1,i,j) * scyr
-             enddo 
-             print*, ' '
-          enddo
-
-          print*, ' '
-          print*, 'u=vvel, k = 1:'
-          do i = 1, model%general%ewn-1
-             write(6,'(i8)',advance='no') i
-          enddo
-          print*, ' '
-          do j = model%general%nsn-1, 1, -1
-             write(6,'(i4)',advance='no') j
-             do i = 1, model%general%ewn-1
-                write(6,'(f8.2)',advance='no') model%velocity%vvel(1,i,j) * scyr
-             enddo 
-             print*, ' '
-          enddo
-
-       endif  ! verbose_glide
+    if (verbose_glide) then
+       upn = model%general%upn
+       itest = model%numerics%idiag_local
+       jtest = model%numerics%jdiag_local
+       rtest = model%numerics%rdiag_local
+       call point_diag(model%geomderv%stagthck, 'stagthck (m)', itest, jtest, rtest, 7, 7)
+       call point_diag(model%velocity%diffu*scyr, 'diffu (m^2/yr)', itest, jtest, rtest, 7, 7, '(f10.0)')
+       call point_diag(model%velocity%uvel(upn,:,:)*scyr, 'ubas (m/yr)', itest, jtest, rtest, 7, 7, '(f10.0)')
+       call point_diag(model%velocity%vvel(upn,:,:)*scyr, 'vbas (m/yr)', itest, jtest, rtest, 7, 7, '(f10.0)')
+       call point_diag(model%velocity%uvel(1,:,:)*scyr, 'usfc (m/yr)', itest, jtest, rtest, 7, 7, '(f10.0)')
+       call point_diag(model%velocity%vvel(1,:,:)*scyr, 'vsfc (m/yr)', itest, jtest, rtest, 7, 7, '(f10.0)')
+    endif  ! verbose_glide
 
   end subroutine glide_init_state_diagnostic
 

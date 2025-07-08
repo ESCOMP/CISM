@@ -44,6 +44,7 @@
     use glide_types
     use cism_parallel, only: this_rank, main_task, nhalo, parallel_globalindex, &
          parallel_type, parallel_halo, parallel_reduce_sum
+    use glide_diagnostics, only: point_diag
 
     implicit none
 
@@ -1008,18 +1009,8 @@
        color = boundary_color
     endwhere
 
-    if (verbose_marine_connection .and. this_rank == rtest) then
-       print*, ' '
-       print*, 'In glissade_marine_connection_mask, itest, jtest, rank =', itest, jtest, rtest
-       print*, ' '
-       print*, 'marine_mask'
-       do j = jtest+3, jtest-3, -1
-          write(6,'(i6)',advance='no') j
-          do i = itest-3, itest+3
-             write(6,'(i10)',advance='no') marine_mask(i,j)
-          enddo
-          write(6,*) ' '
-       enddo
+    if (verbose_marine_connection) then
+       call point_diag(marine_mask, 'marine_mask', itest, jtest, rtest, 7, 7)
     endif
 
     ! Loop through cells, identifying marine-based cells that border the ocean.
@@ -1143,25 +1134,9 @@
 
     call parallel_halo(marine_connection_mask, parallel)
 
-    if (verbose_marine_connection .and. this_rank == rtest) then
-       print*, ' '
-       print*, 'color, rank =', this_rank
-       do j = jtest+3, jtest-3, -1
-          write(6,'(i6)',advance='no') j
-          do i = itest-3, itest+3
-             write(6,'(i10)',advance='no') color(i,j)
-          enddo
-          write(6,*) ' '
-       enddo
-       print*, ' '
-       print*, 'marine_connection_mask, rank =', this_rank
-       do j = jtest+3, jtest-3, -1
-          write(6,'(i6)',advance='no') j
-          do i = itest-3, itest+3
-             write(6,'(i10)',advance='no') marine_connection_mask(i,j)
-          enddo
-          write(6,*) ' '
-       enddo
+    if (verbose_marine_connection) then
+       call point_diag(color, 'color', itest, jtest, rtest, 7, 7)
+       call point_diag(marine_connection_mask, 'marine_connection_mask', itest, jtest, rtest, 7, 7)
     endif
 
   end subroutine glissade_marine_connection_mask
@@ -1223,18 +1198,8 @@
 
     integer :: ig, jg
 
-    if (verbose_lake .and. this_rank == rtest) then
-       print*, ' '
-       print*, 'In glissade_lake_mask, itest, jtest, rank =', itest, jtest, rtest
-       print*, ' '
-       print*, 'floating_mask'
-       do j = jtest+3, jtest-3, -1
-          write(6,'(i6)',advance='no') j
-          do i = itest-3, itest+3
-             write(6,'(i10)',advance='no') floating_mask(i,j)
-          enddo
-          write(6,*) ' '
-       enddo
+    if (verbose_lake) then
+       call point_diag(floating_mask, 'floating_mask', itest, jtest, rtest, 7, 7)
     endif
 
     ! initialize
@@ -1376,16 +1341,8 @@
 
     call parallel_halo(lake_mask, parallel)
 
-    if (verbose_lake .and. this_rank == rtest) then
-       print*, ' '
-       print*, 'lake_mask, rank =', this_rank
-       do j = jtest+3, jtest-3, -1
-          write(6,'(i6)',advance='no') j
-          do i = itest-3, itest+3
-             write(6,'(i10)',advance='no') lake_mask(i,j)
-          enddo
-          write(6,*) ' '
-       enddo
+    if (verbose_lake) then
+       call point_diag(lake_mask, 'lake_mask', itest, jtest, rtest, 7, 7)
     endif
 
     if (present(ocean_connection_mask)) then
@@ -1407,25 +1364,9 @@
        !TODO: Is this halo call needed?
        call parallel_halo(ocean_connection_mask, parallel)
 
-       if (verbose_lake .and. this_rank == rtest) then
-          print*, ' '
-          print*, 'color, rank =', this_rank
-          do j = jtest+3, jtest-3, -1
-             write(6,'(i6)',advance='no') j
-             do i = itest-3, itest+3
-                write(6,'(i10)',advance='no') color(i,j)
-             enddo
-             write(6,*) ' '
-          enddo
-          print*, ' '
-          print*, 'ocean_connection_mask, rank =', this_rank
-          do j = jtest+3, jtest-3, -1
-             write(6,'(i6)',advance='no') j
-             do i = itest-3, itest+3
-                write(6,'(i10)',advance='no') ocean_connection_mask(i,j)
-             enddo
-             write(6,*) ' '
-          enddo
+       if (verbose_lake) then
+          call point_diag(color, 'color', itest, jtest, rtest, 7, 7)
+          call point_diag(ocean_connection_mask, 'ocean_connection_mask', itest, jtest, rtest, 7, 7)
        endif
 
     endif  ! present(ocean_connection_mask)
