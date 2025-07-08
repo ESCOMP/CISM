@@ -160,7 +160,7 @@ contains
 
     integer,intent(in) :: ncerr
 
-    print*,nf90_strerror(ncerr)
+    write(6,*) nf90_strerror(ncerr)
     stop
 
   end subroutine ncerr_handle

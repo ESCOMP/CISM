@@ -69,7 +69,7 @@ contains
           estimate = (0.2d0 * model%tempwk%watvel) / min(model%numerics%dew,model%numerics%dns)
           call find_dt_wat(model%numerics%dttem,estimate,model%tempwk%dt_wat,model%tempwk%nwat) 
 
-          !print *, model%numerics%dttem/scyr, model%tempwk%dt_wat/scyr, model%tempwk%nwat
+          !write(6,*) model%numerics%dttem/scyr, model%tempwk%dt_wat/scyr, model%tempwk%nwat
 
           model%tempwk%c = (/ rhow * grav, rhoi * grav, 2.0d0 * model%numerics%dew, 2.0d0 * model%numerics%dns, &
                0.25d0 * model%tempwk%dt_wat / model%numerics%dew, 0.25d0 * model%tempwk%dt_wat / model%numerics%dns, &
@@ -546,7 +546,7 @@ contains
     allocate(vect(nn),ind(nn)) 
 
     if (nn/=nx*ny.or.size(sorted,2) /= 2) then
-      print*,'Wrong dimensions'
+      write(6,*) 'Wrong dimensions'
       stop
     endif
 

@@ -565,7 +565,7 @@ contains
              !WHL - debug
              if (verbose_beta .and. present(rtest) .and. present(itest) .and. present(jtest)) then
                 if (this_rank == rtest .and. ew == itest .and. ns == jtest) then
-                   print*, ' '
+                   write(6,*) ' '
                    write(6,*) 'r, i, j, Cp, denom_u, denom_N, speed, beta, taub:', &
                         rtest, ew, ns, basal_physics%powerlaw_c(ew,ns), &
                         (basal_physics%powerlaw_c(ew,ns)**m * speed(ew,ns))**(1.d0/m), &

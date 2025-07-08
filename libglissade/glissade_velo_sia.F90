@@ -418,8 +418,8 @@
     if (verbose_bfric .and. this_rank==rtest) then
        i = itest
        j = jtest
-       print*, ' '
-       print*, 'i, j, bfricflx:', i, j, bfricflx(i,j)
+       write(6,*) ' '
+       write(6,*) 'i, j, bfricflx:', i, j, bfricflx(i,j)
     endif
 
     ! Convert back to dimensionless units before returning
@@ -769,11 +769,11 @@
     if (verbose_interior .and. this_rank==rtest) then
        i = itest
        j = jtest
-       print*, ' '
-       print*, 'i, j =', itest, jtest
-       print*, 'k, vintfact, stagthck, dusrf_dx:'
+       write(6,*) ' '
+       write(6,*) 'i, j =', itest, jtest
+       write(6,*) 'k, vintfact, stagthck, dusrf_dx:'
        do k = nz-1, 1, -1
-          print*, k, vintfact(k,i,j), stagthck(i,j), dusrf_dx(i,j)
+          write(6,*) k, vintfact(k,i,j), stagthck(i,j), dusrf_dx(i,j)
        enddo
     endif
 
@@ -921,15 +921,15 @@
     if (verbose_bfric .and. this_rank==rtest) then
        i = itest
        j = jtest
-       print*, 'i, j:', i, j
-       print*, ' '
-       print*, 'speed:'
+       write(6,*) 'i, j:', i, j
+       write(6,*) ' '
+       write(6,*) 'speed:'
        do j = jtest+1, jtest, -1
-          print*, j, sqrt(uvel(i:i+1,j)**2 + vvel(i:i+1,j)**2)
+          write(6,*) j, sqrt(uvel(i:i+1,j)**2 + vvel(i:i+1,j)**2)
        enddo
-       print*, 'stagbfricflx:'
+       write(6,*) 'stagbfricflx:'
        do j = jtest+1, jtest, -1
-          print*, j, stagbfricflx(i:i+1,j)
+          write(6,*) j, stagbfricflx(i:i+1,j)
        enddo
     endif
 

@@ -268,17 +268,17 @@ contains
     enddo ! j
 
     if (GLC_DEBUG .and. main_task) then
-       print*, 'glint_downscaling_gcm, max/min qsmb_g, this_rank =', this_rank
+       write(6,*) 'glint_downscaling_gcm, max/min qsmb_g, this_rank =', this_rank
        do n = 0, nec
-          print*, n, maxval(qsmb_g(:,:,n)), minval(qsmb_g(:,:,n))
+          write(6,*) n, maxval(qsmb_g(:,:,n)), minval(qsmb_g(:,:,n))
        enddo
-       print*, ' '
-       print*, 'glint_downscaling_gcm, max/min qsmb_l, this_rank =', this_rank
+       write(6,*) ' '
+       write(6,*) 'glint_downscaling_gcm, max/min qsmb_l, this_rank =', this_rank
        do n = 0, nec
-          print*, n, maxval(qsmb_l(:,:,n)), minval(qsmb_l(:,:,n))
+          write(6,*) n, maxval(qsmb_l(:,:,n)), minval(qsmb_l(:,:,n))
        enddo
-       print*, ' '
-       print*, 'glint_downscaling_gcm, this_rank, max/min acab:', this_rank, maxval(instance%acab), minval(instance%acab)
+       write(6,*) ' '
+       write(6,*) 'glint_downscaling_gcm, this_rank, max/min acab:', this_rank, maxval(instance%acab), minval(instance%acab)
     endif
 
     deallocate(qsmb_l, tsfc_l, topo_l)

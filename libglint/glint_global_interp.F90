@@ -159,7 +159,7 @@ contains
          jl/=in_grid%ny.or. &
          idlo/=out_grid%nx.or. &
          jlo/=out_grid%ny) then
-       print*,'Array size mismatch in global_interp'
+       write(6,*)'Array size mismatch in global_interp'
        stop
     end if
 

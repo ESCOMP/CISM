@@ -321,7 +321,7 @@ contains
 
     !WHL - debug
 !    if (main_task) &
-!         print*, 'In interp_to_local, local nx, ny =', lgrid_fulldomain%size%pt(1), lgrid_fulldomain%size%pt(2)
+!         write(6,*) 'In interp_to_local, local nx, ny =', lgrid_fulldomain%size%pt(1), lgrid_fulldomain%size%pt(2)
 
     ! Do main interpolation work, just on main task
 

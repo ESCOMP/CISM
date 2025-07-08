@@ -1037,15 +1037,15 @@ contains
 
           !WHL - debug
           if (verbose_inversion .and. this_rank == rtest .and. i==itest .and. j==jtest) then
-             print*, ' '
-             print*, 'Increment friction_c: rank, i, j =', rtest, itest, jtest
-             print*, 'dx, dy, length_scale (m)=', dx, dy, babc_length_scale
-             print*, 'thck (m), thck_obs, dthck, dthck_dt (m/yr):', &
+             write(6,*) ' '
+             write(6,*) 'Increment friction_c: rank, i, j =', rtest, itest, jtest
+             write(6,*) 'dx, dy, length_scale (m)=', dx, dy, babc_length_scale
+             write(6,*) 'thck (m), thck_obs, dthck, dthck_dt (m/yr):', &
                   stag_thck(i,j), stag_thck_obs(i,j), stag_dthck(i,j), stag_dthck_dt(i,j)*scyr
-             print*, 'dH term, dH/dt term, laplacian term, relax term, sum =', &
+             write(6,*) 'dH term, dH/dt term, laplacian term, relax term, sum =', &
                   term_thck*dt, term_dHdt*dt, term_laplacian*dt, term_relax*dt, &
                   (term_thck + term_dHdt + term_laplacian + term_relax)*dt
-             print*, 'dlogC, new friction_c =', dlogc(i,j), friction_c(i,j)
+             write(6,*) 'dlogC, new friction_c =', dlogc(i,j), friction_c(i,j)
           endif
 
        enddo  ! i
@@ -1189,8 +1189,8 @@ contains
 
     ! header for optional diagnostics
     if (verbose_inversion .and. this_rank == rtest) then
-       print*, ' '
-       print*, 'basin, term_thck*dt, term_dHdt*dt, term_relx*dt, new deltaT_basin:'
+       write(6,*) ' '
+       write(6,*) 'basin, term_thck*dt, term_dHdt*dt, term_relx*dt, new deltaT_basin:'
     endif
 
     ! Warm the basin where the ice is too thick, and cool where the ice is too thin.
@@ -1392,15 +1392,15 @@ contains
           deltaT_ocn(i,j) = max(deltaT_ocn(i,j), -deltaT_ocn_maxval)
 
           if (verbose_inversion .and. this_rank == rtest .and. i==itest .and. j==jtest) then
-             print*, ' '
-             print*, 'Increment deltaT_ocn: rank, i, j =', rtest, itest, jtest
-             print*, 'thck scale (m), temp scale (degC), timescale (yr):', &
+             write(6,*) ' '
+             write(6,*) 'Increment deltaT_ocn: rank, i, j =', rtest, itest, jtest
+             write(6,*) 'thck scale (m), temp scale (degC), timescale (yr):', &
                   deltaT_ocn_thck_scale, deltaT_ocn_temp_scale, deltaT_ocn_timescale/scyr
-             print*, 'thck, thck_obs, err thck (m), dthck_dt (m/yr):', &
+             write(6,*) 'thck, thck_obs, err thck (m), dthck_dt (m/yr):', &
                   thck(i,j), thck_obs(i,j), dthck(i,j), dthck_dt(i,j)*scyr
-             print*, 'term_thck, term_dHdt, term_laplacian, term_relax:', &
+             write(6,*) 'term_thck, term_dHdt, term_laplacian, term_relax:', &
                   term_thck*dt, term_dHdt*dt, term_laplacian*dt, term_relax*dt
-             print*, 'term_sum, new dT_ocn:', &
+             write(6,*) 'term_sum, new dT_ocn:', &
                   (term_thck + term_dHdt + term_laplacian + term_relax)*dt, deltaT_ocn(i,j)
           endif
 
@@ -1675,18 +1675,18 @@ contains
           flow_enhancement_factor(i,j) = max(flow_enhancement_factor(i,j), flow_enhancement_factor_min)
 
           if (verbose_inversion .and. this_rank == rtest .and. i==itest .and. j==jtest) then
-             print*, ' '
-             print*, 'Increment flow_enhancement_factor: rank, i, j =', rtest, itest, jtest
-             print*, 'dx, dy, length_scale =', dx, dy, flow_enhancement_length_scale
-             print*, 'velo scale (m/yr), timescale (yr):', &
+             write(6,*) ' '
+             write(6,*) 'Increment flow_enhancement_factor: rank, i, j =', rtest, itest, jtest
+             write(6,*) 'dx, dy, length_scale =', dx, dy, flow_enhancement_length_scale
+             write(6,*) 'velo scale (m/yr), timescale (yr):', &
                   flow_enhancement_velo_scale*scyr, flow_enhancement_timescale/scyr
-             print*, 'velo_sfc_cell, velo_sfc_obs, dvelo, dH_dt (m/yr):', &
+             write(6,*) 'velo_sfc_cell, velo_sfc_obs, dvelo, dH_dt (m/yr):', &
                   velo_sfc_cell(i,j)*scyr, velo_sfc_obs_cell(i,j)*scyr, dvelo(i,j)*scyr, dthck_dt(i,j)*scyr
-             print*, 'init flow enhancement factor =', flow_enhancement_factor(i,j)
-             print*, 'dvelo term, dthck/dt term, laplacian term, relax term, sum =', &
+             write(6,*) 'init flow enhancement factor =', flow_enhancement_factor(i,j)
+             write(6,*) 'dvelo term, dthck/dt term, laplacian term, relax term, sum =', &
                   term_velo*dt, term_dHdt*dt, term_laplacian*dt, term_relax*dt, &
                   (term_velo + term_dHdt + term_laplacian + term_relax)*dt
-             print*, 'dlogE, new E =', dlogE(i,j), flow_enhancement_factor(i,j)
+             write(6,*) 'dlogE, new E =', dlogE(i,j), flow_enhancement_factor(i,j)
           endif
 
        enddo  ! i
@@ -1830,11 +1830,11 @@ contains
        floating_volume_target_basin(nb) = floating_volume_target_basin(nb) + &
             basin_mass_correction * (1.0d12/rhoi)   ! Gt converted to m^3
        if (verbose_inversion .and. main_task) then
-          print*, ' '
-          print*, 'Basin with mass correction:', basin_number_mass_correction
-          print*, 'mass correction (Gt)     =', basin_mass_correction
-          print*, 'volume correction (km^3) =', basin_mass_correction * (1.0d3/rhoi)
-          print*, 'New volume target (km^3) =', floating_volume_target_basin(nb) / 1.0d9
+          write(6,*) ' '
+          write(6,*) 'Basin with mass correction:', basin_number_mass_correction
+          write(6,*) 'mass correction (Gt)     =', basin_mass_correction
+          write(6,*) 'volume correction (km^3) =', basin_mass_correction * (1.0d3/rhoi)
+          write(6,*) 'New volume target (km^3) =', floating_volume_target_basin(nb) / 1.0d9
        endif
     endif   ! basin_mass correction
 
@@ -1850,14 +1850,14 @@ contains
     endwhere
 
     if (verbose_inversion .and. main_task) then
-       print*, ' '
-       print*, 'basin, area target (km^2), vol target (km^3), mean H target (m):'
+       write(6,*) ' '
+       write(6,*) 'basin, area target (km^2), vol target (km^3), mean H target (m):'
        do nb = 1, nbasin
           write(6,'(i6,3f12.3)') nb, floating_area_target_basin(nb)/1.d6, &
                floating_volume_target_basin(nb)/1.d9, floating_thck_target_basin(nb)
        enddo
-       print*, ' '
-       print*, 'basin, mean thickness (m), thickness diff (m), dthck_dt (m/yr):'
+       write(6,*) ' '
+       write(6,*) 'basin, mean thickness (m), thickness diff (m), dthck_dt (m/yr):'
        do nb = 1, nbasin
           write(6,'(i6,3f12.3)') nb, floating_thck_basin(nb), &
                (floating_thck_basin(nb) - floating_thck_target_basin(nb)), &

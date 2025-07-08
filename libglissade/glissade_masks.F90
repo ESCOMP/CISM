@@ -702,11 +702,11 @@
 
        if (global_count == global_count_save) then
           if (verbose_ice_sheet_mask .and. main_task) &
-               print*, 'Fill converged: iter, global_count =', iter, global_count
+               write(6,*) 'Fill converged: iter, global_count =', iter, global_count
           exit
        else
           if (verbose_ice_sheet_mask .and. main_task) &
-               print*, 'Convergence check: iter, global_count =', iter, global_count
+               write(6,*) 'Convergence check: iter, global_count =', iter, global_count
           global_count_save = global_count
        endif
 
@@ -887,11 +887,11 @@
 
        if (global_count == global_count_save) then
           if (verbose_ocean_connection_mask .and. main_task) &
-               print*, 'ocean_connection_mask, fill converged: iter, global_count =', iter, global_count
+               write(6,*) 'ocean_connection_mask, fill converged: iter, global_count =', iter, global_count
           exit
        else
           if (verbose_ocean_connection_mask .and. main_task) &
-               print*, 'ocean_connection_mask, convergence check: iter, global_count =', iter, global_count
+               write(6,*) 'ocean_connection_mask, convergence check: iter, global_count =', iter, global_count
           global_count_save = global_count
        endif
 
@@ -1106,11 +1106,11 @@
 
        if (global_count == global_count_save) then
           if (verbose_marine_connection .and. main_task) &
-               print*, 'Fill converged: iter, global_count =', iter, global_count
+               write(6,*) 'Fill converged: iter, global_count =', iter, global_count
           exit
        else
           if (verbose_marine_connection .and. main_task) &
-               print*, 'Convergence check: iter, global_count =', iter, global_count
+               write(6,*) 'Convergence check: iter, global_count =', iter, global_count
           global_count_save = global_count
        endif
 
@@ -1309,11 +1309,11 @@
 
        if (global_count == global_count_save) then
           if (verbose_lake .and. main_task) &
-               print*, 'Fill converged: iter, global_count =', iter, global_count
+               write(6,*) 'Fill converged: iter, global_count =', iter, global_count
           exit
        else
           if (verbose_lake .and. main_task) &
-               print*, 'Convergence check: iter, global_count =', iter, global_count
+               write(6,*) 'Convergence check: iter, global_count =', iter, global_count
           global_count_save = global_count
        endif
 
@@ -1332,7 +1332,7 @@
 
              if (verbose_lake .and. this_rank == rtest) then
                 call parallel_globalindex(i, j, ig, jg, parallel)
-                print*, 'Lake cell: task, i, j, ig, jg =', this_rank, i, j, ig, jg
+                write(6,*) 'Lake cell: task, i, j, ig, jg =', this_rank, i, j, ig, jg
              endif
 
           endif

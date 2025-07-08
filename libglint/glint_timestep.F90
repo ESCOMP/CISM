@@ -529,7 +529,7 @@ contains
     integer :: i, il, jl
 
     if (GLC_DEBUG .and. main_task) then
-       print*, 'In glint_i_tstep_gcm'
+       write(6,*) 'In glint_i_tstep_gcm'
     endif
 
     ice_tstep = .false.

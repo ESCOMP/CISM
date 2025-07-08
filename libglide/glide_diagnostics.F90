@@ -74,12 +74,12 @@ contains
 
     ! debug
     if (main_task .and. verbose_diagnostics) then
-       print*, '	'
-       print*, 'In glide_write_diagnostics'
-       print*, 'time =', time
-       print*, 'dt_diag =', model%numerics%dt_diag
-       print*, 'ndiag =', model%numerics%ndiag
-       print*, 'tstep_count =', tstep_count
+       write(6,*) '	'
+       write(6,*) 'In glide_write_diagnostics'
+       write(6,*) 'time =', time
+       write(6,*) 'dt_diag =', model%numerics%dt_diag
+       write(6,*) 'ndiag =', model%numerics%ndiag
+       write(6,*) 'tstep_count =', tstep_count
     endif
 
     if (model%numerics%ndiag > 0) then
@@ -1401,10 +1401,10 @@ contains
 
        if (present(fmt_str)) then
           fmtstr = trim(fmt_str)
-!          print*, 'In point_diag, fmtstr = ', trim(fmtstr)
+!          write(6,*) 'In point_diag, fmtstr = ', trim(fmtstr)
        else
           fmtstr = '(i10)'
-!          print*, 'In point_diag, fmtstr = ', trim(fmtstr)
+!          write(6,*) 'In point_diag, fmtstr = ', trim(fmtstr)
        endif
 
        if (mod(irange,2) == 0) then  ! even number
@@ -1483,10 +1483,10 @@ contains
 
        if (present(fmt_str)) then
           fmtstr = trim(fmt_str)
-!          print*, 'In point_diag, fmtstr = ', trim(fmtstr)
+!          write(6,*) 'In point_diag, fmtstr = ', trim(fmtstr)
        else
           fmtstr = '(L10)'
-!          print*, 'In point_diag, fmtstr = ', trim(fmtstr)
+!          write(6,*) 'In point_diag, fmtstr = ', trim(fmtstr)
        endif
 
        if (mod(irange,2) == 0) then  ! even number
@@ -1568,7 +1568,7 @@ contains
           fmtstr = '(f10.3)'
        endif
 
-!       print*, 'In point_diag, fmtstr = ', trim(fmtstr)
+!       write(6,*) 'In point_diag, fmtstr = ', trim(fmtstr)
 
        if (mod(irange,2) == 0) then  ! even number
           ilo = ipt - irange/2

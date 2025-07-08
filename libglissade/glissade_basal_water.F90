@@ -41,8 +41,6 @@ module glissade_basal_water
 
    logical, parameter :: verbose_bwat = .false.
 
-   integer, parameter :: pdiag = 3  ! range for diagnostic prints
-
 contains
 
 !==============================================================
@@ -316,7 +314,7 @@ contains
     endif
 
     if (verbose_bwat .and. this_rank == rtest) then
-       print*, 'In glissade_bwat_flux_routing: rtest, itest, jtest =', rtest, itest, jtest
+       write(6,*) 'In glissade_bwat_flux_routing: rtest, itest, jtest =', rtest, itest, jtest
     endif
 
     ! Uncomment if the following fields are not already up to date in halo cells
@@ -348,8 +346,6 @@ contains
          thklim,        &
          floating_mask, &
          head)
-
-    p = pdiag
 
     if (verbose_bwat) then
        call point_diag(thck, 'thck (m)', itest, jtest, rtest, 7, 7)
@@ -639,12 +635,12 @@ contains
          head,  sorted_ij)
 
     if (verbose_bwat .and. this_rank == rtest) then
-       print*, ' '
-       print*, 'sorted, from the top:'
+       write(6,*) ' '
+       write(6,*) 'sorted, from the top:'
        do k = nlocal, nlocal-10, -1
           i = sorted_ij(k,1)
           j = sorted_ij(k,2)
-          print*, k, i, j, head(i,j)
+          write(6,*) k, i, j, head(i,j)
        enddo
     endif
 
@@ -691,8 +687,8 @@ contains
     total_flux_in = parallel_global_sum(bwatflx, parallel)
 
     if (verbose_bwat .and. this_rank == rtest) then
-       print*, ' '
-       print*, 'Total input basal melt flux (m^3/s):', total_flux_in
+       write(6,*) ' '
+       write(6,*) 'Total input basal melt flux (m^3/s):', total_flux_in
     endif
 
     ! Loop over locally owned cells, from highest to lowest.
@@ -716,7 +712,7 @@ contains
 
        count = count + 1
        if (verbose_bwat .and. this_rank == rtest) then
-          print*, 'flux routing, count =', count
+          write(6,*) 'flux routing, count =', count
        endif
 
        do k = nlocal, 1, -1
@@ -735,7 +731,7 @@ contains
                       if (halo_mask(ip,jp) == 1) then
                          bwatflx_halo(ii,jj,i,j) = bwatflx(i,j)*flux_fraction(ii,jj,i,j)
                          if (verbose_bwat .and. this_rank==rtest .and. i==itest .and. j==jtest .and. count <= 2) then
-                            print*, 'Flux to halo, i, j, ii, jj, flux:', &
+                            write(6,*) 'Flux to halo, i, j, ii, jj, flux:', &
                                  i, j, ii, jj, bwatflx(i,j)*flux_fraction(ii,jj,i,j)
                          endif
                       elseif (local_mask(ip,jp) == 1) then
@@ -757,7 +753,7 @@ contains
        if (verbose_bwat .and. this_rank == rtest .and. count <= 2) then
           i = itest
           j = jtest
-          print*, 'i, j, bwatflx_accum:', i, j, bwatflx_accum(i,j)
+          write(6,*) 'i, j, bwatflx_accum:', i, j, bwatflx_accum(i,j)
        endif
 
        ! If bwatflx_halo = 0 everywhere, then we are done.
@@ -770,10 +766,10 @@ contains
           do i = 1, nx
              sum_bwatflx_halo(i,j) = sum(bwatflx_halo(:,:,i,j))
 !             if (verbose_bwat .and. sum_bwatflx_halo(i,j) > eps11 .and. count > 50) then
-!               print*, 'Nonzero bwatflx_halo, count, rank, i, j, sum_bwatflx_halo:', &
+!               write(6,*) 'Nonzero bwatflx_halo, count, rank, i, j, sum_bwatflx_halo:', &
 !                     count, this_rank, i, j, sum_bwatflx_halo(i,j)
 !               call parallel_globalindex(i, j, iglobal, jglobal, parallel)
-!               print*, '     iglobal, jglobal:', iglobal, jglobal
+!               write(6,*) '     iglobal, jglobal:', iglobal, jglobal
 !             endif
           enddo
        enddo
@@ -811,7 +807,7 @@ contains
                                bwatflx(ip,jp) = bwatflx(ip,jp) + bwatflx_halo(ii,jj,i,j)
                                if (verbose_bwat .and. ip==itest .and. jp==jtest .and. this_rank==rtest &
                                     .and. count <= 2) then
-                                  print*, 'Nonzero bwatflx from halo, rank, i, j:', &
+                                  write(6,*) 'Nonzero bwatflx from halo, rank, i, j:', &
                                        this_rank, ip, jp, bwatflx_halo(ii,jj,i,j)
                                endif
                             endif
@@ -828,12 +824,12 @@ contains
           global_flux_sum = parallel_global_sum(bwatflx, parallel)
           if (verbose_bwat .and. this_rank == rtest .and. count <= 2) then
              ! Should be equal to the global sum of bwatflx_halo computed above
-             print*, 'After halo update, sum(bwatflx from halo) =', global_flux_sum
-             print*, ' '
+             write(6,*) 'After halo update, sum(bwatflx from halo) =', global_flux_sum
+             write(6,*) ' '
           endif
 
        else   ! bwatflx_halo = 0 everywhere; no fluxes to route to adjacent processors
-          if (verbose_bwat .and. this_rank == rtest) print*, 'Done routing fluxes'
+          if (verbose_bwat .and. this_rank == rtest) write(6,*) 'Done routing fluxes'
           finished = .true.
           bwatflx = bwatflx_accum
        endif
@@ -856,8 +852,8 @@ contains
     total_flux_out = parallel_global_sum(bwatflx*margin_mask, parallel)
 
     if (verbose_bwat .and. this_rank == rtest) then
-       print*, 'Total output basal melt flux (m^3/s):', total_flux_out
-       print*, 'Difference between input and output =', total_flux_in - total_flux_out
+       write(6,*) 'Total output basal melt flux (m^3/s):', total_flux_out
+       write(6,*) 'Difference between input and output =', total_flux_in - total_flux_out
     endif
 
     ! Not sure if a threshold of eps11 is large enough.  Increase if needed.
@@ -1132,8 +1128,6 @@ contains
 
     call parallel_halo(phi, parallel)
 
-    p = pdiag
-
     if (verbose_depression) then
        call point_diag(phi, 'Initial phi', itest, jtest, rtest, 7, 7, '(e11.4)')
     endif
@@ -1209,11 +1203,11 @@ contains
                    !WHL - debug
                    if (verbose_depression .and. count >= 20) then
                       call parallel_globalindex(i, j, iglobal, jglobal, parallel)
-                      print*, ' '
-                      print*, 'rank, i, j, ig, jg:', this_rank, i, j, iglobal, jglobal
-                      print*, '   phi_in, phi:', phi_in(i,j), phi(i,j)
-                      print*, '   phi_min8 =', phi_min8
-                      print*, '   new phi = phi_in'
+                      write(6,*) ' '
+                      write(6,*) 'rank, i, j, ig, jg:', this_rank, i, j, iglobal, jglobal
+                      write(6,*) '   phi_in, phi:', phi_in(i,j), phi(i,j)
+                      write(6,*) '   phi_min8 =', phi_min8
+                      write(6,*) '   new phi = phi_in'
                    endif
 
                    phi(i,j) = phi_in(i,j)
@@ -1225,11 +1219,11 @@ contains
                    !WHL - debug
                    if (verbose_depression .and. count >= 20) then
                       call parallel_globalindex(i, j, iglobal, jglobal, parallel)
-                      print*, ' '
-                      print*, 'rank, i, j, ig, jg:', this_rank, i, j, iglobal, jglobal
-                      print*, '   phi_in, phi:', phi_in(i,j), phi(i,j)
-                      print*, '   phi_min8 =', phi_min8
-                      print*, '   new phi = phi_min8'
+                      write(6,*) ' '
+                      write(6,*) 'rank, i, j, ig, jg:', this_rank, i, j, iglobal, jglobal
+                      write(6,*) '   phi_in, phi:', phi_in(i,j), phi(i,j)
+                      write(6,*) '   phi_min8 =', phi_min8
+                      write(6,*) '   new phi = phi_min8'
                    endif
 
                    phi(i,j) = phi_min8 + epsilon
@@ -1416,8 +1410,8 @@ contains
 
        count = count + 1
        if (verbose_bwat .and. this_rank == rtest) then
-          print*, ' '
-          print*, 'step 1, count =', count
+          write(6,*) ' '
+          write(6,*) 'step 1, count =', count
        endif
 
        where (flat_mask == 1)
@@ -1449,7 +1443,7 @@ contains
        global_sum = parallel_global_sum(flat_mask, parallel)
 
        if (verbose_bwat .and. this_rank == rtest) then
-          print*, 'global sum of flat_mask =', global_sum
+          write(6,*) 'global sum of flat_mask =', global_sum
        endif
 
        if (global_sum > 0) then
@@ -1521,8 +1515,8 @@ contains
 
        count = count + 1
        if (verbose_bwat .and. this_rank == rtest) then
-          print*, ' '
-          print*, 'step 2, count =', count
+          write(6,*) ' '
+          write(6,*) 'step 2, count =', count
        endif
 
        ! Identify cells that have not been incremented, but are adjacent to incremented cells
@@ -1585,7 +1579,7 @@ contains
 
        if (global_sum > 0) then
           if (verbose_bwat .and. this_rank == rtest) then
-             print*, 'number of flat cells not yet incremented =', global_sum
+             write(6,*) 'number of flat cells not yet incremented =', global_sum
           endif
           finished = .false.
        else
@@ -1617,8 +1611,8 @@ contains
 
        count = count + 1
        if (verbose_bwat .and. this_rank == rtest) then
-          print*, ' '
-          print*, 'step 3, count =', count
+          write(6,*) ' '
+          write(6,*) 'step 3, count =', count
        endif
 
        ! Identify cells without downslope neighbors.
@@ -1644,7 +1638,7 @@ contains
        global_sum = parallel_global_sum(flat_mask, parallel)
 
        if (verbose_bwat .and. this_rank == rtest) then
-          print*, 'global sum of flat_mask =', global_sum
+          write(6,*) 'global sum of flat_mask =', global_sum
        endif
 
        if (global_sum > 0) then
@@ -1789,13 +1783,13 @@ contains
     call indexx(vect, ind)
 
     if (verbose_bwat .and. this_rank == rtest) then
-       print*, ' '
-       print*, 'Sort from low to high, nlocal =', nlocal
-       print*, 'k, local i and j, ind(k), phi:'
+       write(6,*) ' '
+       write(6,*) 'Sort from low to high, nlocal =', nlocal
+       write(6,*) 'k, local i and j, ind(k), phi:'
        do k = nlocal, nlocal-10, -1
           i = floor(real(ind(k)-1)/real(ny_local)) + 1 + nhalo
           j = mod(ind(k)-1,ny_local) + 1 + nhalo
-          print*, k, i, j, ind(k), phi(i,j)
+          write(6,*) k, i, j, ind(k), phi(i,j)
        enddo
     endif
 
@@ -1918,12 +1912,12 @@ contains
           sum_slope = sum(slope)
 
           if (verbose_bwat .and. this_rank == rtest .and. i == itest .and. j == jtest) then
-             print*, ' '
-             print*, 'slope: task, i, j =', rtest, i, j
-             print*, slope(:,1)
-             print*, slope(:,0)
-             print*, slope(:,-1)
-             print*, 'sum(slope) =', sum(slope)
+             write(6,*) ' '
+             write(6,*) 'slope: task, i, j =', rtest, i, j
+             write(6,*) slope(:,1)
+             write(6,*) slope(:,0)
+             write(6,*) slope(:,-1)
+             write(6,*) 'sum(slope) =', sum(slope)
           endif
 
           ! Distribute the downslope flux according to the flux-routing scheme:
@@ -1958,11 +1952,11 @@ contains
                 flux_fraction(ii,jj,i,j) = 1.0d0   ! route the entire flux to one downhill cell
              else
                 ! Do a fatal abort?
-                print*, 'Warning: Cell with no downhill neighbors, i, j =', i, j
+                write(6,*) 'Warning: Cell with no downhill neighbors, i, j =', i, j
              endif
 
              if (verbose_bwat .and. this_rank == rtest .and. i == itest .and. j == jtest) then
-                print*, 'i1, j1, slope1 =', i1, j1, slope1
+                write(6,*) 'i1, j1, slope1 =', i1, j1, slope1
              endif
 
           elseif (flux_routing_scheme == HO_FLUX_ROUTING_DINF) then
@@ -2007,19 +2001,19 @@ contains
                    flux_fraction(ii,jj,i,j) = slope2/sum_slope
                 endif
              else
-                print*, 'Warning: Cell with no downhill neighbors, i, j =', i, j
+                write(6,*) 'Warning: Cell with no downhill neighbors, i, j =', i, j
              endif
 
              if (verbose_bwat .and. this_rank == rtest .and. i == itest .and. j == jtest) then
-                print*, 'i1, j1, slope1:', i1, j1, slope1
-                print*, 'i2, j2, slope2:', i2, j2, slope2
-                print*, 'sum_slope:', sum_slope
-                print*, 'slope(:, 1):', slope(:, 1)
-                print*, 'slope(:, 0):', slope(:, 0)
-                print*, 'slope(:,-1):', slope(:,-1)
-                print*, 'flux_fraction(:, 1,i,j):', flux_fraction(:, 1,i,j)
-                print*, 'flux_fraction(:, 0,i,j):', flux_fraction(:, 0,i,j)
-                print*, 'flux_fraction(:,-1,i,j):', flux_fraction(:,-1,i,j)
+                write(6,*) 'i1, j1, slope1:', i1, j1, slope1
+                write(6,*) 'i2, j2, slope2:', i2, j2, slope2
+                write(6,*) 'sum_slope:', sum_slope
+                write(6,*) 'slope(:, 1):', slope(:, 1)
+                write(6,*) 'slope(:, 0):', slope(:, 0)
+                write(6,*) 'slope(:,-1):', slope(:,-1)
+                write(6,*) 'flux_fraction(:, 1,i,j):', flux_fraction(:, 1,i,j)
+                write(6,*) 'flux_fraction(:, 0,i,j):', flux_fraction(:, 0,i,j)
+                write(6,*) 'flux_fraction(:,-1,i,j):', flux_fraction(:,-1,i,j)
              endif
 
              !WHL - bug check - make sure fractions add to 1
@@ -2030,7 +2024,7 @@ contains
                 enddo
              enddo
              if (abs(sum_frac - 1.0d0) > eps11) then
-!!                print*, 'sum_frac error: r, i, j, sum:', this_rank, i, j, sum_frac
+!!                write(6,*) 'sum_frac error: r, i, j, sum:', this_rank, i, j, sum_frac
              endif
 
           elseif (flux_routing_scheme == HO_FLUX_ROUTING_FD8) then
@@ -2049,15 +2043,15 @@ contains
              endif  ! sum(slope) > 0
 
              if (verbose_bwat .and. this_rank == rtest .and. i == itest .and. j == jtest) then
-                print*, 'i1, j1, slope1:', i1, j1, slope1
-                print*, 'i2, j2, slope2:', i2, j2, slope2
-                print*, 'sum_slope:', sum_slope
-                print*, 'slope(:, 1):', slope(:, 1)
-                print*, 'slope(:, 0):', slope(:, 0)
-                print*, 'slope(:,-1):', slope(:,-1)
-                print*, 'flux_fraction(:, 1,i,j):', flux_fraction(:, 1,i,j)
-                print*, 'flux_fraction(:, 0,i,j):', flux_fraction(:, 0,i,j)
-                print*, 'flux_fraction(:,-1,i,j):', flux_fraction(:,-1,i,j)
+                write(6,*) 'i1, j1, slope1:', i1, j1, slope1
+                write(6,*) 'i2, j2, slope2:', i2, j2, slope2
+                write(6,*) 'sum_slope:', sum_slope
+                write(6,*) 'slope(:, 1):', slope(:, 1)
+                write(6,*) 'slope(:, 0):', slope(:, 0)
+                write(6,*) 'slope(:,-1):', slope(:,-1)
+                write(6,*) 'flux_fraction(:, 1,i,j):', flux_fraction(:, 1,i,j)
+                write(6,*) 'flux_fraction(:, 0,i,j):', flux_fraction(:, 0,i,j)
+                write(6,*) 'flux_fraction(:,-1,i,j):', flux_fraction(:,-1,i,j)
              endif
           endif   ! flux_routing_scheme: D8, Dinf, FD8
 

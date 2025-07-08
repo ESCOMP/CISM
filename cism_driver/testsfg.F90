@@ -88,7 +88,7 @@ contains
       real(kind) I4H, divQ, Ht, nut, dTt, Tr, Tz, Tzz
 
       if (r<=0 .or. r>=L) then
-         print *,'code and derivation assume 0<r<L'
+         write(6,*) 'code and derivation assume 0<r<L'
          stop
       end if
 
@@ -120,7 +120,7 @@ contains
       end if
       Hr = Hconst * pow * lamhat**(pow-1) * lamhatr + goft*fr   ! chain rule
       if (Hr>0) then
-         print *,'code and derivation assume H_r negative for all 0<r<L'
+         write(6,*) 'code and derivation assume H_r negative for all 0<r<L'
          stop
       end if
       mu = Q/(Rgas*Ts*(nu+H))
@@ -197,7 +197,7 @@ contains
       real Cp, H
 
       if (r<=0 .or. r>=L) then
-         print *,'code and derivation assume 0<r<L'
+         write(6,*) 'code and derivation assume 0<r<L'
          stop
       end if
       H = Hh
@@ -235,7 +235,7 @@ contains
       end if
       Hr = Hconst * pow * lamhat**(pow-1) * lamhatr + goft*fr   ! chain rule
       if (Hr>0) then
-         print *,'code and derivation assume H_r negative for all 0<r<L'
+         write(6,*) 'code and derivation assume H_r negative for all 0<r<L'
          stop
       end if
       mu = Q/(Rgas*Ts*(nu+H))

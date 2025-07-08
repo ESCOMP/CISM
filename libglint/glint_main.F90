@@ -469,7 +469,7 @@ contains
     ! Check time-steps divide into one another appropriately.
 
     if (.not.(mod(params%tstep_mbal,params%time_step)==0)) then
-       print*,params%tstep_mbal,params%time_step
+       write(6,*)params%tstep_mbal,params%time_step
        call write_log('The mass-balance timestep must be an integer multiple of the forcing time-step', &
             GM_FATAL,__FILE__,__LINE__)
     end if
@@ -886,7 +886,7 @@ contains
        ! Upscale the output fields for this instance
 
        if (GLC_DEBUG .and. main_task) then
-          print*, 'Do initial upscaling, i =', i
+          write(6,*) 'Do initial upscaling, i =', i
        endif
 
        call glint_upscaling_gcm(params%instances(i), params%g_grid%nec, &
@@ -907,7 +907,7 @@ contains
        ! Splice together with the global output
 
        if (GLC_DEBUG .and. main_task) then
-          print*, 'Spliced, i =', i
+          write(6,*) 'Spliced, i =', i
        endif
 
        call splice_fields_gcm(gfrac_temp, gtopo_temp,    &

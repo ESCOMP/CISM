@@ -2237,18 +2237,18 @@ contains
 
           if (global_count == global_count_save) then
              if (verbose_extrapolate .and. main_task) &
-                  print*, 'Extrapolation converged: iter, global_count =', iter, global_count
+                  write(6,*) 'Extrapolation converged: iter, global_count =', iter, global_count
              exit
           else
              if (verbose_extrapolate .and. main_task) &
-                  print*, 'Extrapolation convergence check: iter, global_count =', iter, global_count
+                  write(6,*) 'Extrapolation convergence check: iter, global_count =', iter, global_count
              global_count_save = global_count
           endif
 
        endif   ! time for a convergence check
 
        if (iter == max_iter) then
-          print*, 'iter = max_iter:', max_iter
+          write(6,*) 'iter = max_iter:', max_iter
           call write_log('Extrapolation error; number of filled cells has not plateaued', GM_FATAL)
        endif
 
@@ -2260,7 +2260,7 @@ contains
        do i = 1, nx
           if (output_mask(i,j) == 1 .and. filled_mask(i,j) == 0) then
              call parallel_globalindex(i, j, iglobal, jglobal, parallel)
-!!             print*, 'i, j, iglobal, jglobal:', i, j, iglobal, jglobal
+!!             write(6,*) 'i, j, iglobal, jglobal:', i, j, iglobal, jglobal
              write(message,*) &
                   'Extrapolation warning: did not fill cell i, j =', iglobal, jglobal
 !!             call write_log(message, GM_FATAL)

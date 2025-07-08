@@ -183,9 +183,9 @@ subroutine g2c_glint_init(g2c)
 
   call system_clock(g2c%clock,g2c%clock_rate)  
   g2c%t1 = real(g2c%clock,kind=dp)/real(g2c%clock_rate,kind=dp)
-  !print *,"g2c%clock, g2c%clock_rate, t1",g2c%clock,g2c%clock_rate,g2c%t1
+  !write(6,*) "g2c%clock, g2c%clock_rate, t1",g2c%clock,g2c%clock_rate,g2c%t1
 
-  if (verbose_glint .and. main_task) print*, 'call glex_clim_init'
+  if (verbose_glint .and. main_task) write(6,*) 'call glex_clim_init'
 
   ! Initialise climate
 
@@ -196,20 +196,20 @@ subroutine g2c_glint_init(g2c)
   call get_grid_dims(g2c%climate%clim_grid, g2c%nx, g2c%ny) ! Normal global grid
   g2c%nxo=200 ; g2c%nyo=100                          ! Example grid used for orographic output
 
-!print *,"g2c% nxo, nyo, nx, ny: ",g2c%nxo,g2c%nyo,g2c%nx,g2c%ny,nxo,nyo
+!write(6,*) "g2c% nxo, nyo, nx, ny: ",g2c%nxo,g2c%nyo,g2c%nx,g2c%ny,nxo,nyo
 
   ! start logging
 !  call open_log(unit=101, fname=logname(g2c%commandline_configname))  
 
   if (verbose_glint .and. main_task) then
-     print*, ' '
-     print*, 'Initializing glint_example, number of ice sheet instances =', num_icesheet_config
+     write(6,*) ' '
+     write(6,*) 'Initializing glint_example, number of ice sheet instances =', num_icesheet_config
      do i = 1, num_icesheet_config
-        print*, i, 'icesheet configname = ', trim(g2c%commandline_configname(i))
+        write(6,*) i, 'icesheet configname = ', trim(g2c%commandline_configname(i))
      enddo
-     print*, 'climate configname = ', trim(g2c%commandline_climate_fname)
-     print*, 'climate%gcm_smb:', g2c%climate%gcm_smb
-     print*, ' '
+     write(6,*) 'climate configname = ', trim(g2c%commandline_climate_fname)
+     write(6,*) 'climate%gcm_smb:', g2c%climate%gcm_smb
+     write(6,*) ' '
   endif
 
   ! Allocate global arrays
@@ -331,7 +331,7 @@ subroutine g2c_glint_init(g2c)
 
   g2c%time = g2c%climate%climate_tstep     ! time in integer hours
                                  
-!  if (main_task) print*, 'Done in g2c_glint_init'
+!  if (main_task) write(6,*) 'Done in g2c_glint_init'
 
 end subroutine g2c_glint_init
 
@@ -398,7 +398,7 @@ subroutine g2c_glint_run(g2c)
 
   if (GLC_DEBUG) then
      ! Print time so as to have something to watch while the code runs
-     if (mod(real(g2c%time,dp),8760.d0) < 0.01) print*, 'time (yr) =', real(g2c%time,dp)/8760.d0
+     if (mod(real(g2c%time,dp),8760.d0) < 0.01) write(6,*) 'time (yr) =', real(g2c%time,dp)/8760.d0
   end if
 end subroutine g2c_glint_run
 

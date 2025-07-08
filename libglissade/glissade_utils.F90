@@ -482,14 +482,14 @@ contains
     if (verbose_adjust_topg .and. this_rank == rtest) then
        i = itest
        j = jtest
-       print*, ' '
-       print*, 'Adjust input topography, diag point: r, i ,j =', rtest, itest, jtest
-       print*, 'x1, y1 =', model%general%x1(i), model%general%y1(j)
-       print*, 'thck, topg =', model%geometry%thck(i,j), model%geometry%topg(i,j)
-       print*, 'xmin, xmax =', xmin, xmax
-       print*, 'ymin, ymax =', ymin, ymax
-       print*, 'topg_no_adjust, topg_max_adjust (m) =', topg_no_adjust, topg_max_adjust
-       print*, 'topg_delta =', topg_delta
+       write(6,*) ' '
+       write(6,*) 'Adjust input topography, diag point: r, i ,j =', rtest, itest, jtest
+       write(6,*) 'x1, y1 =', model%general%x1(i), model%general%y1(j)
+       write(6,*) 'thck, topg =', model%geometry%thck(i,j), model%geometry%topg(i,j)
+       write(6,*) 'xmin, xmax =', xmin, xmax
+       write(6,*) 'ymin, ymax =', ymin, ymax
+       write(6,*) 'topg_no_adjust, topg_max_adjust (m) =', topg_no_adjust, topg_max_adjust
+       write(6,*) 'topg_delta =', topg_delta
     endif
 
     ! Compute the lower and upper ice surface before the adjustment
@@ -877,9 +877,9 @@ contains
           flux_n(i,j) = thck_edge * v_edge * dew  ! m^3/yr
 
           if (verbose_edge_fluxes .and. this_rank == rtest .and. i==itest .and. j==jtest) then
-             print*, 'East  flux: rank, i, j, H, u, flx =', &
+             write(6,*) 'East  flux: rank, i, j, H, u, flx =', &
                   rtest, itest, jtest, thck_edge, u_edge, flux_e(i,j)
-             print*, 'North flux: rank, i, j, H, v, flx =', &
+             write(6,*) 'North flux: rank, i, j, H, v, flx =', &
                   rtest, itest, jtest, thck_edge, v_edge, flux_n(i,j)
           endif
 
@@ -991,26 +991,26 @@ contains
           flux_in(-1, 1,i,j) = area_nw * thck(i-1,j+1)
 
           if (verbose_input_fluxes .and. this_rank == rtest .and. i==itest .and. j==jtest) then
-             print*, ' '
-             print*, 'upstream u (m/yr), this_rank, i, j:'
+             write(6,*) ' '
+             write(6,*) 'upstream u (m/yr), this_rank, i, j:'
              write(6,'(3e12.4)') u_nw, u_ne
              write(6,'(3e12.4)') u_sw, u_se
-             print*, ' '
-             print*, 'upstream v (m/yr):'
+             write(6,*) ' '
+             write(6,*) 'upstream v (m/yr):'
              write(6,'(3e12.4)') v_nw, v_ne
              write(6,'(3e12.4)') v_sw, v_se
-             print*, ' '
-             print*, 'Input area fluxes (m^2/yr):'
+             write(6,*) ' '
+             write(6,*) 'Input area fluxes (m^2/yr):'
              write(6,'(3e12.4)') area_nw, area_n, area_ne
              write(6,'(3e12.4)') area_w,  0.0d0, area_e
              write(6,'(3e12.4)') area_sw, area_s, area_se
-             print*, ' '
-             print*, 'Input ice volume fluxes (m^3/yr):'
+             write(6,*) ' '
+             write(6,*) 'Input ice volume fluxes (m^3/yr):'
              do jj = 1,-1,-1
                 do ii = -1,1
                    write(6,'(e12.4)',advance='no') flux_in(ii,jj,i,j)
                 enddo
-                print*, ' '
+                write(6,*) ' '
              enddo
           endif
 

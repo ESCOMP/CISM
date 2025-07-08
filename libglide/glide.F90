@@ -297,9 +297,9 @@ contains
     call glide_io_createall(model, model)
 
 !WHL - debug
-!    print*, ' '
-!    print*, 'Created Glide variables'
-!    print*, 'max, min bheatflx (W/m2)=', maxval(model%temper%bheatflx), minval(model%temper%bheatflx)
+!    write(6,*) ' '
+!    write(6,*) 'Created Glide variables'
+!    write(6,*) 'max, min bheatflx (W/m2)=', maxval(model%temper%bheatflx), minval(model%temper%bheatflx)
 
     ! If a 2D bheatflx field is present in the input file, it will have been written 
     !  to model%temper%bheatflx.  For the case model%options%gthf = 0, we want to use
@@ -401,24 +401,24 @@ contains
     call glide_init_diag(model)
 
 !WHL - debug
-!    print*, 'After glide_initialise:'
-!    print*, 'max, min thck (m)=', maxval(model%geometry%thck), minval(model%geometry%thck)
-!    print*, 'max, min usrf (m)=', maxval(model%geometry%usrf), minval(model%geometry%usrf)
-!    print*, 'max, min artm =', maxval(model%climate%artm), minval(model%climate%artm)
-!    print*, 'max, min temp =', maxval(model%temper%temp), minval(model%temper%temp)
-!    print*, 'max, min flwa =', maxval(model%temper%flwa), minval(model%temper%flwa)
+!    write(6,*) 'After glide_initialise:'
+!    write(6,*) 'max, min thck (m)=', maxval(model%geometry%thck), minval(model%geometry%thck)
+!    write(6,*) 'max, min usrf (m)=', maxval(model%geometry%usrf), minval(model%geometry%usrf)
+!    write(6,*) 'max, min artm =', maxval(model%climate%artm), minval(model%climate%artm)
+!    write(6,*) 'max, min temp =', maxval(model%temper%temp), minval(model%temper%temp)
+!    write(6,*) 'max, min flwa =', maxval(model%temper%flwa), minval(model%temper%flwa)
 
-!    print*, ' '
-!    print*, 'thck:'
+!    write(6,*) ' '
+!    write(6,*) 'thck:'
 !    do j = model%general%nsn, 1, -1
 !       write(6,'(30f5.0)') model%geometry%thck(:,j)
 !    enddo
-!    print*, ' '
-!    print*, 'temp, k = 2:'
+!    write(6,*) ' '
+!    write(6,*) 'temp, k = 2:'
 !    do j = model%general%nsn+1, 0, -1
 !       write(6,'(32f5.0)') model%temper%temp(2,:,j)
 !    enddo
-!    print*, 'basal temp:'
+!    write(6,*) 'basal temp:'
 !    do j = model%general%nsn+1, 0, -1
 !       write(6,'(32f5.0)') model%temper%temp(model%general%upn,:,j)
 !    enddo
@@ -477,7 +477,7 @@ contains
        if (l_evolve_ice .and. model%options%calving_init == CALVING_INIT_ON) then
 
           !WHL - debug
-          print*, 'Calving at initialization, whichcalving =', model%options%whichcalving
+          write(6,*) 'Calving at initialization, whichcalving =', model%options%whichcalving
 
           ! ------------------------------------------------------------------------ 
           ! Remove ice which should calve, depending on the value of whichcalving
@@ -807,17 +807,17 @@ contains
                    model%velocity%btrc)
 
 !WHL - debug
-!    print*, ' '
-!    print*, 'After glide_tstep_p1:'
-!    print*, 'max, min temp =', maxval(model%temper%temp), minval(model%temper%temp)
-!    print*, 'max, min flwa =', maxval(model%temper%flwa), minval(model%temper%flwa)
+!    write(6,*) ' '
+!    write(6,*) 'After glide_tstep_p1:'
+!    write(6,*) 'max, min temp =', maxval(model%temper%temp), minval(model%temper%temp)
+!    write(6,*) 'max, min flwa =', maxval(model%temper%flwa), minval(model%temper%flwa)
 
-!    print*, ' '
-!    print*, 'temp, k = 2:'
+!    write(6,*) ' '
+!    write(6,*) 'temp, k = 2:'
 !    do j = model%general%nsn+1, 0, -1
 !       write(6,'(14f12.7)') model%temper%temp(2,3:16,j)
 !    enddo
-!    print*, 'basal temp:'
+!    write(6,*) 'basal temp:'
 !    do j = model%general%nsn+1, 0, -1
 !       write(6,'(14f12.7)') model%temper%temp(model%general%upn,3:16,j)
 !    enddo
@@ -959,27 +959,27 @@ contains
     model%velocity%velnorm = sqrt(model%velocity%uvel**2 + model%velocity%vvel**2)
 
     !WHL - debug
-!    print*, ' '
-!    print*, 'After tstep_p2:'
-!    print*, 'max, min thck (m)=', maxval(model%geometry%thck), minval(model%geometry%thck)
-!    print*, 'max, min usrf (m)=', maxval(model%geometry%usrf), minval(model%geometry%usrf)
-!    print*, 'max uvel, vvel =', maxval(model%velocity%uvel), maxval(model%velocity%vvel)
+!    write(6,*) ' '
+!    write(6,*) 'After tstep_p2:'
+!    write(6,*) 'max, min thck (m)=', maxval(model%geometry%thck), minval(model%geometry%thck)
+!    write(6,*) 'max, min usrf (m)=', maxval(model%geometry%usrf), minval(model%geometry%usrf)
+!    write(6,*) 'max uvel, vvel =', maxval(model%velocity%uvel), maxval(model%velocity%vvel)
 
-!    print*, ' '
-!    print*, 'thck:'
+!    write(6,*) ' '
+!    write(6,*) 'thck:'
 !    do j = model%general%nsn, 1, -1
 !       write(6,'(14f12.7)') model%geometry%thck(3:16,j)
 !    enddo
-!    print*, ' '
-!    print*, 'btemp:'
+!    write(6,*) ' '
+!    write(6,*) 'btemp:'
 !    do j = model%general%nsn, 1, -1
 !       write(6,'(14f12.7)') model%temper%btemp(3:16,j)
 !    enddo
-!    print*, 'sfc uvel:'
+!    write(6,*) 'sfc uvel:'
 !    do j = model%general%nsn-1, 1, -1
 !       write(6,'(14f12.7)') model%velocity%uvel(1,3:16,j)
 !    enddo
-!    print*, 'sfc vvel:'
+!    write(6,*) 'sfc vvel:'
 !    do j = model%general%nsn-1, 1, -1
 !       write(6,'(14f12.7)') model%velocity%vvel(1,3:16,j)
 !    enddo

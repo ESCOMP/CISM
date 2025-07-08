@@ -123,7 +123,7 @@ contains
 
        model%geometry%thck = dmax1(0.0d0, model%geometry%thck + model%climate%acab * model%numerics%dt)
        if (GLC_DEBUG) then
-          print *, "* thck empty - net accumulation added", model%numerics%time
+          write(6,*) "* thck empty - net accumulation added", model%numerics%time
        end if
     else
 
@@ -251,7 +251,7 @@ contains
 
        model%geometry%thck = dmax1(0.0d0, model%geometry%thck + model%climate%acab * model%numerics%dt)
        if (GLC_DEBUG) then
-          print *, "* thck empty - net accumulation added", model%numerics%time
+          write(6,*) "* thck empty - net accumulation added", model%numerics%time
        end if
     else
 
@@ -574,7 +574,7 @@ contains
     new_thck = max(0.0d0, new_thck)
 
     if (GLC_DEBUG) then
-       print *, "* thck ", model%numerics%time, linit, model%geometry%totpts, &
+       write(6,*) "* thck ", model%numerics%time, linit, model%geometry%totpts, &
             real(new_thck(model%general%ewn/2+1,model%general%nsn/2+1)), &
             real(maxval(abs(model%velocity%ubas))), real(maxval(abs(model%velocity%vbas))) 
     end if
@@ -854,7 +854,7 @@ contains
 
        model%geometry%thck = dmax1(0.0d0, model%geometry%thck + model%climate%acab * model%numerics%dt)
        if (GLC_DEBUG) then
-          print *, "* thck empty - net accumulation added", model%numerics%time
+          write(6,*) "* thck empty - net accumulation added", model%numerics%time
        end if
 
     else
@@ -1111,7 +1111,7 @@ contains
     end do
 
     thck(3:ewn-2,3:nsn-2) = smth(3:ewn-2,3:nsn-2)
-    print *, count
+    write(6,*) count
 
     deallocate(smth)            
 

@@ -94,8 +94,8 @@ contains
 
     integer :: itest, jtest, rtest
 
-    print*, ' '
-    print*, 'In glissade_test_halo, this_rank =', this_rank
+    write(6,*) ' '
+    write(6,*) 'In glissade_test_halo, this_rank =', this_rank
 
     nx = model%general%ewn
     ny = model%general%nsn

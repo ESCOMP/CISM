@@ -1245,11 +1245,11 @@
              dthck = (acab(i,j) - bmlt(i,j))*dt*effective_areafrac(i,j)
              if (abs(thck_init(i,j) + dthck - thck_final(i,j) + melt_potential(i,j)) > 1.d-8) then
                 call parallel_globalindex(i, j, iglobal, jglobal, parallel)
-                print*, ' '
-                print*, 'ERROR: Column conservation check, r, i, j, iglobal, jglobal, err =', &
+                write(6,*) ' '
+                write(6,*) 'ERROR: Column conservation check, r, i, j, iglobal, jglobal, err =', &
                      this_rank, i, j, iglobal, jglobal, thck_init(i,j) + dthck - thck_final(i,j)
-                print*, 'thck_init, dthck, thck_final:', thck_init(i,j), dthck, thck_final(i,j)
-                print*, 'acab*dt, bmlt*dt, areafrac, melt_potential:', &
+                write(6,*) 'thck_init, dthck, thck_final:', thck_init(i,j), dthck, thck_final(i,j)
+                write(6,*) 'acab*dt, bmlt*dt, areafrac, melt_potential:', &
                      acab(i,j)*dt, bmlt(i,j)*dt, effective_areafrac(i,j), melt_potential(i,j)
                 write(message,*) &
                      'WARNING: Column conservation error in add_surface_and_basal_mass_balance, i, j =', i, j
@@ -1342,7 +1342,7 @@
        max_mask_local = maxval(overwrite_acab_mask)
        max_mask_global = parallel_reduce_max(max_mask_local)
        if (main_task) then
-          print*, 'rank, max_mask_local, max_mask_global:', &
+          write(6,*) 'rank, max_mask_local, max_mask_global:', &
                this_rank, max_mask_local, max_mask_global
        endif
        if (max_mask_global == 1) then
@@ -1455,7 +1455,7 @@
        ! close to 1984.0, and we don't want to jump to the following year due to rounding error.
 
        anomaly_fraction = ceiling(time - eps08 - anomaly_tstart, dp) / anomaly_timescale
-!!       if (main_task) print*, 'In add_2d_anomaly: time, frac =', time, anomaly_fraction         
+!!       if (main_task) write(6,*) 'In add_2d_anomaly: time, frac =', time, anomaly_fraction         
 
     else
        ! no anomaly to apply

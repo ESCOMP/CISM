@@ -437,14 +437,14 @@ contains
     ic=>model%funits%frc_first
     do while(associated(ic))
 
-!       if (main_task .and. verbose_read_forcing) print *, 'possible forcing times', ic%times
+!       if (main_task .and. verbose_read_forcing) write(6,*) 'possible forcing times', ic%times
 
        if (ic%read_once) then  ! read once at initialization; do not re-read at runtime
 
           ic%nc%just_processed = .true.  ! prevent the file from being read
           if (main_task .and. verbose_read_forcing) then
-             print*, ' '
-             print*, 'In NAME_read_forcing; will not re-read the read_once file ', trim(ic%nc%filename)
+             write(6,*) ' '
+             write(6,*) 'In NAME_read_forcing; will not re-read the read_once file ', trim(ic%nc%filename)
           endif
 
        else  ! not a read_once file
@@ -464,11 +464,11 @@ contains
           endif
 
           if (main_task .and. verbose_read_forcing) then
-             print*, ' '
-             print*, 'In NAME_read_forcing, model time + eps =', model%numerics%time + eps
-             print*, 'Forcing file nt, time_offset =', ic%nt, ic%time_offset
-             print*, 'time_start_cycle, nyear_cycle:', ic%time_start_cycle, ic%nyear_cycle
-             print*, 'current forcing time =', current_forcing_time
+             write(6,*) ' '
+             write(6,*) 'In NAME_read_forcing, model time + eps =', model%numerics%time + eps
+             write(6,*) 'Forcing file nt, time_offset =', ic%nt, ic%time_offset
+             write(6,*) 'time_start_cycle, nyear_cycle:', ic%time_start_cycle, ic%nyear_cycle
+             write(6,*) 'current forcing time =', current_forcing_time
           endif
 
           ! Find the time index associated with the previous model time step
@@ -476,7 +476,7 @@ contains
           do t = ic%nt, 1, -1  ! look through the time array backwards
              if (ic%times(t) <= current_forcing_time - model%numerics%tinc) then
                 t_prev = t
-                if (main_task .and. verbose_read_forcing) print*, 'Previous time index =', t_prev
+                if (main_task .and. verbose_read_forcing) write(6,*) 'Previous time index =', t_prev
                 exit
              end if
           enddo
@@ -486,7 +486,7 @@ contains
              if ( ic%times(t) <= current_forcing_time) then
                 ! use the largest time that is smaller or equal to the current time (stepwise forcing)
                 if (main_task .and. verbose_read_forcing) &
-                     print*, 'Largest time less than current forcing time: t, times(t):', t, ic%times(t)
+                     write(6,*) 'Largest time less than current forcing time: t, times(t):', t, ic%times(t)
 
                 ! If this time index (t) is larger than the previous index (t_prev), then read a new time slice.
                 ! Otherwise, we already have the current slice, and there is nothing new to read.
@@ -494,7 +494,7 @@ contains
                    ! Set the desired time to be read
                    ic%current_time = t
                    ic%nc%just_processed = .false.  ! set this to false so file will be read.
-                   if (main_task .and. verbose_read_forcing) print*, 'Read new forcing slice: t, times(t) =', t, ic%times(t)
+                   if (main_task .and. verbose_read_forcing) write(6,*) 'Read new forcing slice: t, times(t) =', t, ic%times(t)
                 endif ! t > t_prev
 
                 exit  ! once we find the time, exit the loop
@@ -548,10 +548,10 @@ contains
        if (ic%read_once) then
 
           if (main_task .and. verbose_read_forcing) then
-             print*, ' '
-             print*, 'In NAME_read_forcing_once'
-             print*, 'Filename =', trim(ic%nc%filename)
-             print*, 'Number of slices =', ic%nt
+             write(6,*) ' '
+             write(6,*) 'In NAME_read_forcing_once'
+             write(6,*) 'Filename =', trim(ic%nc%filename)
+             write(6,*) 'Number of slices =', ic%nt
           endif
 
           write(message,*) 'Reading', ic%nt, 'slices of file ', trim(ic%nc%filename), ' just once at initialization'
@@ -568,7 +568,7 @@ contains
           do t = 1, ic%nt
 
              if (main_task .and. verbose_read_forcing) then
-                print*, 'Read new forcing slice: t index, times(t) =', t, ic%times(t)
+                write(6,*) 'Read new forcing slice: t index, times(t) =', t, ic%times(t)
              endif
 
              ! Set the desired time to be read
@@ -588,7 +588,7 @@ contains
        endif  ! read_once
 
        if (main_task .and. verbose_read_forcing) then
-          print*, 'Final ic%nc%vars = ', trim(ic%nc%vars)
+          write(6,*) 'Final ic%nc%vars = ', trim(ic%nc%vars)
        endif
 
        ic=>ic%next
@@ -650,13 +650,13 @@ contains
           endif
 
           if (main_task .and. verbose_read_forcing) then
-             print*, ' '
-             print*, 'In NAME_retrieve_forcing, model time + eps =', model%numerics%time + eps
-             print*, 'Filename = ', trim(ic%nc%filename)
-             print*, 'Forcing file nt, time_offset =', ic%nt, ic%time_offset
-             print*, 'time_start_cycle, nyear_cycle:', ic%time_start_cycle, ic%nyear_cycle
-             print*, 'current forcing time =', current_forcing_time
-             print*, 'variable list:', trim(ic%nc%vars)
+             write(6,*) ' '
+             write(6,*) 'In NAME_retrieve_forcing, model time + eps =', model%numerics%time + eps
+             write(6,*) 'Filename = ', trim(ic%nc%filename)
+             write(6,*) 'Forcing file nt, time_offset =', ic%nt, ic%time_offset
+             write(6,*) 'time_start_cycle, nyear_cycle:', ic%time_start_cycle, ic%nyear_cycle
+             write(6,*) 'current forcing time =', current_forcing_time
+             write(6,*) 'variable list:', trim(ic%nc%vars)
           endif
 
           ! Optionally, associate the current forcing time with a different date in the forcing file.
@@ -669,8 +669,8 @@ contains
              open(unit=11, file=trim(ic%shuffle_file), status='old')
              this_year = int(current_forcing_time - model%numerics%tstart)
              if (main_task .and. verbose_read_forcing) then
-                print*, 'shuffle_file = ', trim(ic%shuffle_file)
-                print*, 'tstart, this_year =', model%numerics%tstart, this_year
+                write(6,*) 'shuffle_file = ', trim(ic%shuffle_file)
+                write(6,*) 'tstart, this_year =', model%numerics%tstart, this_year
              endif
              forcing_year = 0
              do while (forcing_year == 0)
@@ -684,11 +684,11 @@ contains
              decimal_year = current_forcing_time - floor(current_forcing_time)
              current_forcing_time = real(forcing_year,dp) + decimal_year
              if (main_task .and. verbose_read_forcing) then
-                print*, 'forcing_year, decimal =', forcing_year, decimal_year
-                print*, 'shuffled forcing_time =', current_forcing_time
+                write(6,*) 'forcing_year, decimal =', forcing_year, decimal_year
+                write(6,*) 'shuffled forcing_time =', current_forcing_time
              endif
           else
-             if (main_task .and. verbose_read_forcing) print*, 'no shuffle_file'
+             if (main_task .and. verbose_read_forcing) write(6,*) 'no shuffle_file'
           endif  ! shuffle_file exists
 
           ! Find the time index associated with the previous model time step
@@ -696,7 +696,7 @@ contains
           do t = ic%nt, 1, -1  ! look through the time array backwards
              if (ic%times(t) <= current_forcing_time - model%numerics%tinc) then
                 t_prev = t
-                if (main_task .and. verbose_read_forcing) print*, 'Previous time index =', t_prev
+                if (main_task .and. verbose_read_forcing) write(6,*) 'Previous time index =', t_prev
                 exit
              end if
           enddo
@@ -706,14 +706,14 @@ contains
              if ( ic%times(t) <= current_forcing_time) then
                 ! use the largest time that is smaller or equal to the current time (stepwise forcing)
                 if (main_task .and. verbose_read_forcing) &
-                     print*, 'Largest time less than current forcing time: t, times(t):', t, ic%times(t)
+                     write(6,*) 'Largest time less than current forcing time: t, times(t):', t, ic%times(t)
                 ! If this time index (t) is larger than the previous index (t_prev), then retrieve a new time slice.
                 ! Otherwise, we already have the current slice, and there is nothing new to read.
                 if (t > t_prev) then
                    ! Set the desired time to be read
                    ic%current_time = t
                    retrieve_new_slice = .true.
-                   if (main_task .and. verbose_read_forcing) print*, 'Retrieve new forcing slice'
+                   if (main_task .and. verbose_read_forcing) write(6,*) 'Retrieve new forcing slice'
                    write(message,*) &
                         'Retrieve slice', t, 'at forcing time', ic%times(t), 'from file ', trim(ic%nc%filename)
                    call write_log(message)

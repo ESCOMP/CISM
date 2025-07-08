@@ -204,7 +204,7 @@ contains
 !                   calving_mask(i,j) = 0
 !                   call parallel_globalindex(i, j, iglobal, jglobal, parallel)
 !                   if (verbose_calving) then   ! debug
-!                      print*, 'ocean cell with uobs, vobs > 0: ig, jg =', iglobal, jglobal
+!                      write(6,*) 'ocean cell with uobs, vobs > 0: ig, jg =', iglobal, jglobal
 !                   endif
 !                else
 !                   calving_mask(i,j) = 1   ! calve ice in this cell
@@ -591,7 +591,7 @@ contains
           enddo
           total_cf_length =  parallel_reduce_sum(total_cf_length)
           if (this_rank == rtest) then
-             print*, 'Total CF length (km)', total_cf_length/1000.d0
+             write(6,*) 'Total CF length (km)', total_cf_length/1000.d0
           endif
        endif
 
@@ -878,8 +878,8 @@ contains
           enddo
           total_ice_area = parallel_reduce_sum(total_ice_area)
           if (this_rank == rtest) then
-             print*, 'Total ice area (km^2)=', total_ice_area/1.0d6
-             print*, 'Quadrant area (km^2)=', total_ice_area/4.0d6
+             write(6,*) 'Total ice area (km^2)=', total_ice_area/1.0d6
+             write(6,*) 'Quadrant area (km^2)=', total_ice_area/4.0d6
           endif
 
           if (verbose_calving) then
@@ -1136,7 +1136,7 @@ contains
                          thck(iup,jup) = thck(iup,jup) + dthck
                          thck(i,j) = thck(i,j) - dthck
 !                         if (verbose_calving .and. i==itest .and. j==jtest .and. this_rank==rtest) then
-!                            print*, '   Upstream ii, jj, frac:', ii, jj, flux_in(ii,jj,i,j)/total_flux
+!                            write(6,*) '   Upstream ii, jj, frac:', ii, jj, flux_in(ii,jj,i,j)/total_flux
 !                         endif
                       endif
                    enddo
@@ -2390,7 +2390,7 @@ contains
 
     if (verbose_calving) then
 !       if (main_task) then
-!          print*, 'boundary_color, initial color, fill color:', &
+!          write(6,*) 'boundary_color, initial color, fill color:', &
 !               boundary_color, initial_color, fill_color
 !       endif
        call point_diag(color, 'After damage, color', itest, jtest, rtest, 9, 9, '(i8)')
@@ -2622,8 +2622,8 @@ contains
 
              !WHL - debug
              if (verbose_calving .and. i==itest .and. j==jtest .and. this_rank==rtest) then
-                print*, 'Calve upstream: dthck, input flux (m^3/yr)=', calving_dthck(i,j), total_flux*scyr
-                print*, '   No. of upstream cells =', count
+                write(6,*) 'Calve upstream: dthck, input flux (m^3/yr)=', calving_dthck(i,j), total_flux*scyr
+                write(6,*) '   No. of upstream cells =', count
              endif
 
              ! Calve ice in the upstream neighbors
@@ -2639,7 +2639,7 @@ contains
                          calving_thck(iup,jup) = calving_thck(iup,jup) + my_dthck
                          calving_dthck(i,j) = calving_dthck(i,j) - my_dthck
 !                         if (verbose_calving .and. i==itest .and. j==jtest .and. this_rank==rtest) then
-!                            print*, '   Upstream ii, jj, frac, remaining calving_dthck:', &
+!                            write(6,*) '   Upstream ii, jj, frac, remaining calving_dthck:', &
 !                                 ii, jj, flux_in(ii,jj,i,j)/total_flux, calving_dthck(i,j)
 !                         endif
                       endif
@@ -2719,10 +2719,10 @@ contains
              enddo
 
              if (verbose_calving .and. abs(i-itest)<=1 .and. abs(j-jtest)<=1 .and. this_rank==rtest) then
-                print*, ' '
-                print*, 'Excess ice: rank, i, j, dthck, downstream flux (m^3/s)=', &
+                write(6,*) ' '
+                write(6,*) 'Excess ice: rank, i, j, dthck, downstream flux (m^3/s)=', &
                      this_rank, i, j, thck(i,j) - thck_effective(i,j), total_flux
-                print*, '   No. of downstream cells =', count
+                write(6,*) '   No. of downstream cells =', count
              endif
 
              ! Move ice to its downstream ocean neighbors
@@ -2736,7 +2736,7 @@ contains
                          thck(idn,jdn) = thck(idn,jdn) + my_dthck
                          thck(i,j) = thck(i,j) - my_dthck
                          if (verbose_calving .and. abs(i-itest)<=1 .and. abs(j-jtest)<=1 .and. this_rank==rtest) then
-                            print*, '   Downstream ii, jj, frac:', ii, jj, flux_in(-ii,-jj,idn,jdn)/total_flux
+                            write(6,*) '   Downstream ii, jj, frac:', ii, jj, flux_in(-ii,-jj,idn,jdn)/total_flux
                          endif
                       endif
                    enddo
@@ -3501,7 +3501,7 @@ contains
     ! The code assumes a circular domain with center at (0,0).
     ! The logic depends on whether the N, S, E and W axes pass through cell centers or edges.
 
-    if (this_rank == rtest) print*, 'Locate_calving_front for calvingMIP, rtest =', rtest
+    if (this_rank == rtest) write(6,*) 'Locate_calving_front for calvingMIP, rtest =', rtest
 
     ! Determine whether the x and y axes passes through cell centers, or through cell edges.
     ! They should pass through one or the other.
@@ -3534,16 +3534,16 @@ contains
     enddo
 
 !    if (x_axis_thru_centers) then
-!       print*, this_rank, 'x_axis_thru_centers', x_axis_thru_centers
+!       write(6,*) this_rank, 'x_axis_thru_centers', x_axis_thru_centers
 !    endif
 !    if (y_axis_thru_centers) then
-!       print*, this_rank, 'y_axis_thru_centers', y_axis_thru_centers
+!       write(6,*) this_rank, 'y_axis_thru_centers', y_axis_thru_centers
 !    endif
 !    if (x_axis_thru_edges) then
-!       print*, this_rank, 'x_axis_thru_edges', x_axis_thru_edges
+!       write(6,*) this_rank, 'x_axis_thru_edges', x_axis_thru_edges
 !    endif
 !    if (y_axis_thru_edges) then
-!       print*, this_rank, 'y_axis_thru_edges', y_axis_thru_edges
+!       write(6,*) this_rank, 'y_axis_thru_edges', y_axis_thru_edges
 !    endif
 
     cf_location(:,:) = 0.0d0
@@ -3801,8 +3801,8 @@ contains
     call broadcast(cf_location(:,axis), proc=procnum)
 
     if (verbose_calving .and. main_task) then
-       print*, ' '
-       print*, 'Circular domain: axis, CF location, radius (km)'
+       write(6,*) ' '
+       write(6,*) 'Circular domain: axis, CF location, radius (km)'
        do axis = 1, 8
           radius = sqrt(cf_location(1,axis)**2 + cf_location(2,axis)**2)
           write(6,'(i4,3f10.3)') axis, cf_location(:,axis)/1000.d0, radius/1000.d0
@@ -4046,7 +4046,7 @@ contains
     enddo
 
     if (verbose_calving .and. this_rank ==rtest) then
-!       print*, 'Caprona B intersection points: i, x, y, areafrac'
+!       write(6,*) 'Caprona B intersection points: i, x, y, areafrac'
 !       do i = nhalo+1, nx-nhalo
 !          if (y_int(i) /= 0.0d0) then
 !             write(6,'(i4,3f10.3)'), i, x1(i)/1000.d0, y_int(i)/1000.d0, areafrac_int(i)
@@ -4062,11 +4062,11 @@ contains
           cf_location(1,axis) = x1(i) + frac_dist*dx
           cf_location(2,axis) = y_int(i) + frac_dist*dist_y
           if (verbose_calving .and. this_rank == rtest) then
-!             print*, '1st IP: x, y, a_eff =', x1(i)/1000.d0, y_int(i)/1000.d0, areafrac_int(i)
-!             print*, '2nd IP: x, y, a_eff =', x1(i+1)/1000.d0, y_int(i+1)/1000.d0, areafrac_int(i+1)
-!             print*, 'dist_y, frac_dist =', dist_y/1000.d0, frac_dist
-!             print*, 'CF location =', cf_location(1,axis)/1000.d0, cf_location(2,axis)/1000.d0
-!             print*, 'residual y - (mx + b):', cf_location(2,axis) - slope*cf_location(1,axis) - y_intercept
+!             write(6,*) '1st IP: x, y, a_eff =', x1(i)/1000.d0, y_int(i)/1000.d0, areafrac_int(i)
+!             write(6,*) '2nd IP: x, y, a_eff =', x1(i+1)/1000.d0, y_int(i+1)/1000.d0, areafrac_int(i+1)
+!             write(6,*) 'dist_y, frac_dist =', dist_y/1000.d0, frac_dist
+!             write(6,*) 'CF location =', cf_location(1,axis)/1000.d0, cf_location(2,axis)/1000.d0
+!             write(6,*) 'residual y - (mx + b):', cf_location(2,axis) - slope*cf_location(1,axis) - y_intercept
           endif
           exit
        endif
@@ -4160,8 +4160,8 @@ contains
     call broadcast(cf_location(:,axis), proc=procnum)
 
     if (verbose_calving .and. main_task) then
-       print*, ' '
-       print*, 'Thule domain: axis, CF location, radius (km)'
+       write(6,*) ' '
+       write(6,*) 'Thule domain: axis, CF location, radius (km)'
        do axis = 1, 8
           radius = sqrt(cf_location(1,axis)**2 + cf_location(2,axis)**2)
           write(6,'(i4,3f10.3)') axis, cf_location(:,axis)/1000.d0, radius/1000.d0

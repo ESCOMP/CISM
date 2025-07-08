@@ -107,7 +107,7 @@ contains
       !-----------------------------------------------------------------
 
 
-      if (this_rank == 0) print *, 'DEBUG: Inside felix_velo_init.'
+      if (this_rank == 0) write(6,*) 'DEBUG: Inside felix_velo_init.'
 
       ! === First do any preparations needed on the CISM side (if any)
 
@@ -204,7 +204,7 @@ contains
       !-----------------------------------------------------------------
 
 
-      if (this_rank == 0) print *, 'DEBUG: Inside felix_velo_driver.'
+      if (this_rank == 0) write(6,*) 'DEBUG: Inside felix_velo_driver.'
 
       ! === First do any preparations needed on the CISM side
 
@@ -518,18 +518,18 @@ contains
      !--------------------------------------------------------------------
 
      !IK, 9/9/13: printing for debug 
-     !print *, 'In glissade_velo_higher_data! IK'
-     !print *, 'Proc #: ', this_rank
-     !print *, 'nx: ', nx 
-     !print *, 'ny: ', ny
-     !print *, 'dx: ', dx 
-     !print *, 'dy: ', dy
-     !print *, 'ewlb: ', ewlb
-     !print *, 'nslb: ', nslb
-     !print *, 'global_ewn:', global_ewn
-     !print *, 'global_nsn:', global_nsn
-     !print *, 'nhalo:', nhalo
-     !print *, 'nz:', nz
+     !write(6,*) 'In glissade_velo_higher_data! IK'
+     !write(6,*) 'Proc #: ', this_rank
+     !write(6,*) 'nx: ', nx
+     !write(6,*) 'ny: ', ny
+     !write(6,*) 'dx: ', dx
+     !write(6,*) 'dy: ', dy
+     !write(6,*) 'ewlb: ', ewlb
+     !write(6,*) 'nslb: ', nslb
+     !write(6,*) 'global_ewn:', global_ewn
+     !write(6,*) 'global_nsn:', global_nsn
+     !write(6,*) 'nhalo:', nhalo
+     !write(6,*) 'nz:', nz
 
      !---------------------------------------------------------------------------------------
      ! Creation of global node numbering of vertices/nodes (IK, 9/8/13)
@@ -611,10 +611,10 @@ contains
      !numbering/coordinates 
      if (this_rank == 0) then
        do l=1, (nx-2*nhalo+1)*(ny-2*nhalo+1)*nz
-         print *, 'x, y, z: ',  xyz_at_nodes(l,1), xyz_at_nodes(l,2), xyz_at_nodes(l,3)
-         print *, 'global node: ', global_node_id_owned_map(l)
-         print *, 'sh: ', surf_height_at_nodes(l)
-         print *, 'beta: ', beta_at_nodes(l)
+         write(6,*) 'x, y, z: ',  xyz_at_nodes(l,1), xyz_at_nodes(l,2), xyz_at_nodes(l,3)
+         write(6,*) 'global node: ', global_node_id_owned_map(l)
+         write(6,*) 'sh: ', surf_height_at_nodes(l)
+         write(6,*) 'beta: ', beta_at_nodes(l)
        enddo
       endif
 
@@ -738,17 +738,17 @@ contains
     !IK, 9/12/13: printing output for debugging/checking element numbering 
     if (this_rank == 0) then
      do l=1, nCellsActive*(nz-1)
-       print *, 'element connectivity active: ', global_element_conn_active(l,1:8)
-       print *, 'global element #: ', global_element_id_active_owned_map(l,1)
-       print *, 'flwa: ', flwa_at_active_cells(l,1)
+       write(6,*) 'element connectivity active: ', global_element_conn_active(l,1:8)
+       write(6,*) 'global element #: ', global_element_id_active_owned_map(l,1)
+       write(6,*) 'flwa: ', flwa_at_active_cells(l,1)
      enddo
      endif
 
     !IK, 9/12/13: printing output for debugging/checking basal face numbering 
     if (this_rank == 0) then
     do l=1, nCellsActive
-      print *, 'face connectivity active: ', global_basal_face_conn_active(l,1:5)
-      print *, 'global face #: ', global_basal_face_id_active_owned_map(l,1)
+      write(6,*) 'face connectivity active: ', global_basal_face_conn_active(l,1:5)
+      write(6,*) 'global face #: ', global_basal_face_id_active_owned_map(l,1)
     enddo
     endif
 

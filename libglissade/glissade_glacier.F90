@@ -175,9 +175,9 @@ contains
        if (verbose_glacier .and. this_rank == rtest) then
           i = itest; j = jtest
           theta_rad = model%general%lat(i,j) * pi/180.d0
-          print*, 'Scale dew and dns: factor, new dew, dns =', &
+          write(6,*) 'Scale dew and dns: factor, new dew, dns =', &
                glacier%length_scale_factor, dew, dns
-          print*, 'Scale cell area: i, j, lat, cos(lat), cell_area =', &
+          write(6,*) 'Scale cell area: i, j, lat, cos(lat), cell_area =', &
                i, j, model%general%lat(i,j), cos(theta_rad), model%geometry%cell_area(i,j)
        endif
 
@@ -250,11 +250,11 @@ contains
        cism_glacier_id_global(:,:) = 0.0d0
 
        if (verbose_glacier .and. main_task) then
-          print*, ' '
-          print*, 'Gathered RGI glacier IDs to main task'
-          print*, 'size(rgi_glacier_id) =', &
+          write(6,*) ' '
+          write(6,*) 'Gathered RGI glacier IDs to main task'
+          write(6,*) 'size(rgi_glacier_id) =', &
                size(glacier%rgi_glacier_id,1), size(glacier%rgi_glacier_id,2)
-          print*, 'size(rgi_glacier_id_global) =', &
+          write(6,*) 'size(rgi_glacier_id_global) =', &
                size(rgi_glacier_id_global,1), size(rgi_glacier_id_global,2)
        endif
 
@@ -264,9 +264,9 @@ contains
           gid_maxval = maxval(rgi_glacier_id_global)
 
           if (verbose_glacier) then
-             print*, 'Total ncells   =', global_ewn * global_nsn
-             print*, 'ncells_glacier =', ncells_glacier
-             print*, 'glacier_id minval, maxval =', gid_minval, gid_maxval
+             write(6,*) 'Total ncells   =', global_ewn * global_nsn
+             write(6,*) 'ncells_glacier =', ncells_glacier
+             write(6,*) 'glacier_id minval, maxval =', gid_minval, gid_maxval
           endif
 
           ! Create an unsorted list of glacier IDs, with associated i and j indices.
@@ -302,29 +302,29 @@ contains
           call glacier_quicksort(glacier_list, 1, ncells_glacier)
 
           if (verbose_glacier) then
-             print*, 'Sorted glacier IDs in ascending order'
-             print*, ' '
-             print*, 'icell, i, j, ID for a few cells:'
+             write(6,*) 'Sorted glacier IDs in ascending order'
+             write(6,*) ' '
+             write(6,*) 'icell, i, j, ID for a few cells:'
              do i = 1, 10
-                print*, i, glacier_list(i)%indxi, glacier_list(i)%indxj, glacier_list(i)%id
+                write(6,*) i, glacier_list(i)%indxi, glacier_list(i)%indxj, glacier_list(i)%id
              enddo
              do i = ncells_glacier-9, ncells_glacier
-                print*, i, glacier_list(i)%indxi, glacier_list(i)%indxj, glacier_list(i)%id
+                write(6,*) i, glacier_list(i)%indxi, glacier_list(i)%indxj, glacier_list(i)%id
              enddo
           endif
 
 !       WHL - Short list to test quicksort for integer arrays
-!       print*, ' '
-!       print*, 'Unsorted list:'
+!       write(6,*) ' '
+!       write(6,*) 'Unsorted list:'
 !       nlist = 20
 !       allocate(test_list(nlist))
 !       do i = 1, nlist
 !          call random_number(random)
 !          test_list(i) = int(random*nlist) + 1
-!          print*, i, random, test_list(i)
+!          write(6,*) i, random, test_list(i)
 !       enddo
 !       call quicksort(test_list, 1, nlist)
-!       print*, 'Sorted list:', test_list(:)
+!       write(6,*) 'Sorted list:', test_list(:)
 
           ! Now that the glacier IDs are sorted from low to high, count the glaciers
 
@@ -349,12 +349,12 @@ contains
           glacier%cism_to_rgi_glacier_id(:) = 0
 
           if (verbose_glacier) then
-             print*, ' '
-             print*, 'Counted glaciers: nglacier =', nglacier
-             print*, ' '
+             write(6,*) ' '
+             write(6,*) 'Counted glaciers: nglacier =', nglacier
+             write(6,*) ' '
              ng = nglacier/2
-             print*, 'Random cism_glacier_id:', ng
-             print*, 'icell, i, j, cism_glacier_id_global(i,j), cism_to_rgi_glacier_id(ng)'
+             write(6,*) 'Random cism_glacier_id:', ng
+             write(6,*) 'icell, i, j, cism_glacier_id_global(i,j), cism_to_rgi_glacier_id(ng)'
           endif
 
           ng = 0
@@ -369,7 +369,7 @@ contains
              j = glacier_list(nc)%indxj
              cism_glacier_id_global(i,j) = ng
              if (ng == nglacier/2) then   ! random glacier
-                print*, nc, i, j, cism_glacier_id_global(i,j), glacier%cism_to_rgi_glacier_id(ng)
+                write(6,*) nc, i, j, cism_glacier_id_global(i,j), glacier%cism_to_rgi_glacier_id(ng)
              endif
              if (ng > nglacier) then
                 write(message,*) 'CISM glacier ID > nglacier, i, j , ng =', i, j, ng
@@ -380,8 +380,8 @@ contains
           deallocate(glacier_list)
 
           if (verbose_glacier) then
-             print*, 'maxval(cism_to_rgi_glacier_id) =', maxval(glacier%cism_to_rgi_glacier_id)
-             print*, 'maxval(cism_glacier_id_global) =', maxval(cism_glacier_id_global)
+             write(6,*) 'maxval(cism_to_rgi_glacier_id) =', maxval(glacier%cism_to_rgi_glacier_id)
+             write(6,*) 'maxval(cism_glacier_id_global) =', maxval(cism_glacier_id_global)
           endif
 
        endif   ! main_task
@@ -521,7 +521,7 @@ contains
              ng = glacier%cism_glacier_id_init(i,j)
              if (ng == 0 .and. model%geometry%thck(i,j) > 1.0d0) then
                 call parallel_globalindex(i, j, iglobal, jglobal, parallel)
-                print*, 'Warning, ng = 0 but H > 0: Init rank, i, j, ig, jg, thck:', &
+                write(6,*) 'Warning, ng = 0 but H > 0: Init rank, i, j, ig, jg, thck:', &
                      this_rank, i, j, iglobal, jglobal, model%geometry%thck(i,j)
              endif
           enddo
@@ -949,12 +949,12 @@ contains
 
           if (verbose_glacier .and. this_rank == rtest) then
              i = itest; j = jtest
-             print*, ' '
-             print*, 'RGI usrf correction, delta_smb:', &
+             write(6,*) ' '
+             write(6,*) 'RGI usrf correction, delta_smb:', &
                   glacier%delta_usrf_rgi(i,j), delta_smb_rgi(i,j)
-             print*,    'usrf RGI obs, new usrf_target baseline =', &
+             write(6,*)    'usrf RGI obs, new usrf_target baseline =', &
                   model%geometry%usrf_obs(i,j), glacier%usrf_target(i,j)
-             print*, 'Recent usrf correction, delta_smb:', &
+             write(6,*) 'Recent usrf correction, delta_smb:', &
                   glacier%delta_usrf_recent(i,j), delta_smb_recent(i,j)
           endif
 
@@ -1029,9 +1029,9 @@ contains
 
     if (verbose_glacier .and. this_rank == rtest) then
        i = itest; j = jtest
-       print*, ' '
-       print*, 'glissade_glacier_update, diag cell (r, i, j) =', rtest, itest, jtest
-       print*, ' '
+       write(6,*) ' '
+       write(6,*) 'glissade_glacier_update, diag cell (r, i, j) =', rtest, itest, jtest
+       write(6,*) ' '
        ! Convert acab_applied from m/yr ice to mm/yr w.e.
        write(6,'(a32,2f10.3)') '     acab_applied, smb_applied: ', &
             model%climate%acab_applied(i,j)*scyr, &  ! m/yr ice
@@ -1169,20 +1169,20 @@ contains
 
        if (verbose_glacier .and. this_rank == rtest) then
           i = itest; j = jtest
-          print*, ' '
-          print*, 'Annual averages, r, i, j:', rtest, itest, jtest
-          print*, '   snow (mm/yr)       =', glacier%snow_annmean(i,j)
-          print*, '   Tpos (deg C)       =', glacier%Tpos_annmean(i,j)
-          print*, '   smb_applied (mm/yr)=', glacier%smb_applied_annmean(i,j)
+          write(6,*) ' '
+          write(6,*) 'Annual averages, r, i, j:', rtest, itest, jtest
+          write(6,*) '   snow (mm/yr)       =', glacier%snow_annmean(i,j)
+          write(6,*) '   Tpos (deg C)       =', glacier%Tpos_annmean(i,j)
+          write(6,*) '   smb_applied (mm/yr)=', glacier%smb_applied_annmean(i,j)
           if (glacier%set_mu_star == GLACIER_MU_STAR_INVERSION .and. &
               glacier%set_alpha_snow == GLACIER_ALPHA_SNOW_INVERSION) then
-             print*, '   snow_rgi (mm/yr)   =', glacier%snow_rgi_annmean(i,j)
-             print*, '   Tpos_rgi (deg C)   =', glacier%Tpos_rgi_annmean(i,j)
-             print*, '   snow_rec (mm/yr)   =', glacier%snow_recent_annmean(i,j)
-             print*, '   Tpos_rec (deg C)   =', glacier%Tpos_recent_annmean(i,j)
+             write(6,*) '   snow_rgi (mm/yr)   =', glacier%snow_rgi_annmean(i,j)
+             write(6,*) '   Tpos_rgi (deg C)   =', glacier%Tpos_rgi_annmean(i,j)
+             write(6,*) '   snow_rec (mm/yr)   =', glacier%snow_recent_annmean(i,j)
+             write(6,*) '   Tpos_rec (deg C)   =', glacier%Tpos_recent_annmean(i,j)
           endif
           if (glacier%set_powerlaw_c == GLACIER_POWERLAW_C_INVERSION) then
-             print*, '   dthck_dt (m/yr)    =', glacier%dthck_dt_annmean(i,j)
+             write(6,*) '   dthck_dt (m/yr)    =', glacier%dthck_dt_annmean(i,j)
           endif
        endif
 
@@ -1338,8 +1338,8 @@ contains
             area_retreat)
 
        if (verbose_glacier .and. this_rank == rtest) then
-          print*, ' '
-          print*, 'Selected big glaciers:'
+          write(6,*) ' '
+          write(6,*) 'Selected big glaciers:'
           write(6,'(a101)') &
                '  ng,   Ainit,     A,     Vinit,     V,   smb_iniA, smb_curA, mu_star, alpha_snow, beta_artm, smb_obs'
           do ng = 1, nglacier
@@ -1353,9 +1353,9 @@ contains
        endif
 
        if (verbose_glacier .and. this_rank == rtest) then
-          print*, ' '
-          print*, 'Advance/retreat diagnostics'
-          print*, '  ng  A_initial A_advance A_retreat A_current'
+          write(6,*) ' '
+          write(6,*) 'Advance/retreat diagnostics'
+          write(6,*) '  ng  A_initial A_advance A_retreat A_current'
           do ng = 1, nglacier
              if (glacier%volume_init(ng) > 1.0d9 .or. ng == ngdiag) then  ! big glacier, > 1 km^3
                 write(6,'(i6,6f10.3)') ng, area_initial(ng)/1.e6, area_advance(ng)/1.e6, &
@@ -1612,9 +1612,9 @@ contains
             aar)
 
        if (verbose_glacier .and. this_rank == rtest) then
-          print*, ' '
-          print*, 'Glacier SMB and AAR:'
-          print*, '    ng     smb_min   smb_max   AAR_initA     AAR'
+          write(6,*) ' '
+          write(6,*) 'Glacier SMB and AAR:'
+          write(6,*) '    ng     smb_min   smb_max   AAR_initA     AAR'
           do ng = 1, nglacier
              if (glacier%volume_init(ng) > diagnostic_volume_threshold .or. ng == ngdiag) then  ! big glacier
                 write(6,'(i10, 2f10.1, 2f10.4 )') ng, smb_min(ng), smb_max(ng), aar_init(ng), aar(ng)
@@ -1651,9 +1651,9 @@ contains
                aar_recent)
 
           if (verbose_glacier .and. this_rank == rtest) then
-             print*, ' '
-             print*, 'Recent SMB and AAR:'
-             print*, '    ng     smb_min   smb_max   AAR_initA     AAR'
+             write(6,*) ' '
+             write(6,*) 'Recent SMB and AAR:'
+             write(6,*) '    ng     smb_min   smb_max   AAR_initA     AAR'
              do ng = 1, nglacier
                 if (glacier%volume_init(ng) > diagnostic_volume_threshold .or. ng == ngdiag) then  ! big glacier
                    write(6,'(i10, 2f10.1, 2f10.4 )') ng, smb_min_recent(ng), smb_max_recent(ng), &
@@ -1690,15 +1690,15 @@ contains
             glacier%volume_init_extent)          ! m^3
 
        if (verbose_glacier .and. this_rank == rtest) then
-          print*, ' '
-          print*, 'Update area (km^2) and volume (km^3) for glacier:', ngdiag
-          print*, ' Initial area and volume:', &
+          write(6,*) ' '
+          write(6,*) 'Update area (km^2) and volume (km^3) for glacier:', ngdiag
+          write(6,*) ' Initial area and volume:', &
                glacier%area_init(ngdiag)/1.0d6, glacier%volume_init(ngdiag)/1.0d9
-          print*, ' Current area and volume:', &
+          write(6,*) ' Current area and volume:', &
                glacier%area(ngdiag)/1.0d6, glacier%volume(ngdiag)/1.0d9
-          print*, 'A and V over init extent:', &
+          write(6,*) 'A and V over init extent:', &
                glacier%area_init_extent(ngdiag)/1.0d6, glacier%volume_init_extent(ngdiag)/1.0d9
-          print*, 'A and V over init extent:', &
+          write(6,*) 'A and V over init extent:', &
                glacier%area_init_extent(ngdiag)/1.0d6, glacier%volume_init_extent(ngdiag)/1.0d9
        endif
 
@@ -1717,7 +1717,7 @@ contains
                glacier%volume_target)               ! m^3
 
           if (verbose_glacier .and. this_rank == rtest) then
-             print*, ' Target area and volume:', &
+             write(6,*) ' Target area and volume:', &
                   glacier%area_target(ngdiag)/1.0d6, glacier%volume_target(ngdiag)/1.0d9
           endif
 
@@ -1749,10 +1749,10 @@ contains
           count_sgi  = parallel_reduce_sum(count_sgi)
 
           if (this_rank == rtest) then
-             print*, ' '
-             print*, 'Mask count, ng =', ngdiag
-             print*, 'count_cgii, count_cgi =', count_cgii, count_cgi
-             print*, 'count_sgii, count_sgi =', count_sgii, count_sgi
+             write(6,*) ' '
+             write(6,*) 'Mask count, ng =', ngdiag
+             write(6,*) 'count_cgii, count_cgi =', count_cgii, count_cgi
+             write(6,*) 'count_sgii, count_sgi =', count_sgii, count_sgi
           endif
 
        endif   ! verbose
@@ -1861,8 +1861,8 @@ contains
     !     throughout the inversion.  It changes slightly as surface elevation changes.
 
     if (verbose_glacier .and. this_rank == rtest) then
-       print*, ' '
-       print*, 'In glacier_invert_mu_star'
+       write(6,*) ' '
+       write(6,*) 'In glacier_invert_mu_star'
     endif
 
     ! Compute weighted averages of Tpos and snow over each glacier
@@ -1883,8 +1883,8 @@ contains
 
     if (verbose_glacier .and. this_rank == rtest) then
        ng = ngdiag
-       print*, ' '
-       print*, 'ng, snow and Tpos with weighting =', ng, glacier_snow(ng), glacier_Tpos(ng)
+       write(6,*) ' '
+       write(6,*) 'ng, snow and Tpos with weighting =', ng, glacier_snow(ng), glacier_Tpos(ng)
     endif
 
     ! For each glacier, compute the new mu_star. Adjust beta_artm if necessary.
@@ -1894,7 +1894,7 @@ contains
        if (glacier_snow(ng) == 0.0d0) then
 
           if (verbose_glacier .and. this_rank == rtest) then
-             print*, 'WARNING: snow = 0 for glacier', ng
+             write(6,*) 'WARNING: snow = 0 for glacier', ng
              !TODO - Throw a fatal error?
           endif
 
@@ -1944,7 +1944,7 @@ contains
 
        if (mu_star(ng) < mu_star_min .or. mu_star(ng) > mu_star_max) then
           if (this_rank == rtest) then
-             print*, 'WARNING, mu out of range: ng, mu =', ng, mu_star(ng)
+             write(6,*) 'WARNING, mu out of range: ng, mu =', ng, mu_star(ng)
           endif
        endif
 
@@ -1982,12 +1982,12 @@ contains
     enddo  ! ng
 
     if (verbose_glacier .and. this_rank == rtest) then
-       print*, ' '
-       print*, 'Violations of Eq. 1 (SMB = 0, baseline climate):', count_violate_1
-       print*, '   Total area, volume =', area_violate_1/1.0d6, volume_violate_1/1.0d9
-       print*, ' '
+       write(6,*) ' '
+       write(6,*) 'Violations of Eq. 1 (SMB = 0, baseline climate):', count_violate_1
+       write(6,*) '   Total area, volume =', area_violate_1/1.0d6, volume_violate_1/1.0d9
+       write(6,*) ' '
        ng = ngdiag
-       print*, 'Balance solution, ng =', ng
+       write(6,*) 'Balance solution, ng =', ng
        write(6,'(a30,3f12.4)') '   mu_star, alpha_snow, beta: ', &
             mu_star(ng), alpha_snow(ng), beta_artm(ng)
        write(6,'(a30,3f12.4)') '   Baseline snow, Tpos, SMB : ', &
@@ -2113,8 +2113,8 @@ contains
     !     TODO: Modify for marine-terminating glaciers.
 
     if (verbose_glacier .and. this_rank == rtest) then
-       print*, ' '
-       print*, 'In glacier_invert_mu_star_alpha_snow'
+       write(6,*) ' '
+       write(6,*) 'In glacier_invert_mu_star_alpha_snow'
     endif
 
     ! Compute weighted averages of Tpos and snow over each glacier
@@ -2149,9 +2149,9 @@ contains
 
     if (verbose_glacier .and. this_rank == rtest) then
        ng = ngdiag
-       print*, ' '
-       print*, 'ng, snow and Tpos with weighting =', ng, glacier_snow(ng), glacier_Tpos(ng)
-       print*, 'recent snow and Tpos with weighting =', glacier_snow_recent(ng), glacier_Tpos_recent(ng)
+       write(6,*) ' '
+       write(6,*) 'ng, snow and Tpos with weighting =', ng, glacier_snow(ng), glacier_Tpos(ng)
+       write(6,*) 'recent snow and Tpos with weighting =', glacier_snow_recent(ng), glacier_Tpos_recent(ng)
     endif
 
     ! For each glacier, compute the new mu_star and alpha_snow
@@ -2161,7 +2161,7 @@ contains
        if (glacier_snow(ng) == 0.0d0) then
 
           if (verbose_glacier .and. this_rank == rtest) then
-             print*, 'WARNING: snow = 0 for glacier', ng
+             write(6,*) 'WARNING: snow = 0 for glacier', ng
              !TODO - Throw a fatal error?
           endif
 
@@ -2255,19 +2255,19 @@ contains
 
        if (mu_star(ng) < mu_star_min .or. mu_star(ng) > mu_star_max) then
           if (this_rank == rtest) then
-             print*, 'WARNING, mu out of range: ng, mu =', ng, mu_star(ng)
+             write(6,*) 'WARNING, mu out of range: ng, mu =', ng, mu_star(ng)
           endif
        endif
 
        if (alpha_snow(ng) < alpha_snow_min .or. alpha_snow(ng) > alpha_snow_max) then
           if (this_rank == rtest) then
-             print*, 'WARNING, alpha out of range: ng, alpha =', ng, alpha_snow(ng)
+             write(6,*) 'WARNING, alpha out of range: ng, alpha =', ng, alpha_snow(ng)
           endif
        endif
 
 !       if (abs(beta_artm(ng)) > beta_artm_max) then
 !          if (this_rank == rtest) then
-!             print*, 'WARNING, beta out of range: ng, beta =', ng, beta_artm(ng)
+!             write(6,*) 'WARNING, beta out of range: ng, beta =', ng, beta_artm(ng)
 !          endif
 !       endif
 
@@ -2309,7 +2309,7 @@ contains
              volume_violate_1 = volume_violate_1 + glacier_volume_init(ng)
           endif
           if (abs(smb_recent_diff(ng)) > eps08) then
-!!             print*, '   Violation of Eq. 2: ng, smb_recent_diff =', ng, smb_recent_diff(ng)
+!!             write(6,*) '   Violation of Eq. 2: ng, smb_recent_diff =', ng, smb_recent_diff(ng)
              count_violate_2 = count_violate_2 + 1
              area_violate_2 = area_violate_2 + glacier_area_init(ng)
              volume_violate_2 = volume_violate_2 + glacier_volume_init(ng)
@@ -2319,14 +2319,14 @@ contains
     enddo  ! ng
 
     if (verbose_glacier .and. this_rank == rtest) then
-       print*, ' '
-       print*, 'Violations of Eq. 1 (SMB = 0, baseline climate):', count_violate_1
-       print*, '   Total area, volume =', area_violate_1/1.0d6, volume_violate_1/1.0d9
-       print*, 'Violations of Eq. 2 (SMB = SMB_obs, recent climate):', count_violate_2
-       print*, '   Total area, volume =', area_violate_2/1.0d6, volume_violate_2/1.0d9
-       print*, ' '
+       write(6,*) ' '
+       write(6,*) 'Violations of Eq. 1 (SMB = 0, baseline climate):', count_violate_1
+       write(6,*) '   Total area, volume =', area_violate_1/1.0d6, volume_violate_1/1.0d9
+       write(6,*) 'Violations of Eq. 2 (SMB = SMB_obs, recent climate):', count_violate_2
+       write(6,*) '   Total area, volume =', area_violate_2/1.0d6, volume_violate_2/1.0d9
+       write(6,*) ' '
        ng = ngdiag
-       print*, 'Balance solution, ng =', ng
+       write(6,*) 'Balance solution, ng =', ng
        write(6,'(a30,3f12.4)') '   mu_star, alpha_snow, beta: ', &
             mu_star(ng), alpha_snow(ng), beta_artm(ng)
        write(6,'(a30,3f12.4)') '   Baseline snow, Tpos, SMB : ', &
@@ -2404,8 +2404,8 @@ contains
                                              ! values of log(c) below logmin are considered non-physical
 
     if (verbose_glacier .and. this_rank == rtest) then
-       print*, ' '
-       print*, 'In glacier_invert_powerlaw_c'
+       write(6,*) ' '
+       write(6,*) 'In glacier_invert_powerlaw_c'
     endif
 
     if (babc_thck_scale > 0.0d0 .and. babc_timescale > 0.0d0) then
@@ -2470,14 +2470,14 @@ contains
              powerlaw_c(i,j) = max(powerlaw_c(i,j), powerlaw_c_min)
 
              if (verbose_glacier .and. this_rank == rtest .and. i == itest .and. j == jtest) then
-                print*, ' '
-                print*, 'Invert for powerlaw_c: rank, i, j =', this_rank, i, j
-                print*, 'H, H_target (m)', stag_thck(i,j), stag_thck_target(i,j)
-                print*, 'dH_dt (m/yr):', stag_dthck_dt(i,j)
-                print*, 'dt (yr), term_thck*dt, term_dHdt*dt:', glacier_update_interval, &
+                write(6,*) ' '
+                write(6,*) 'Invert for powerlaw_c: rank, i, j =', this_rank, i, j
+                write(6,*) 'H, H_target (m)', stag_thck(i,j), stag_thck_target(i,j)
+                write(6,*) 'dH_dt (m/yr):', stag_dthck_dt(i,j)
+                write(6,*) 'dt (yr), term_thck*dt, term_dHdt*dt:', glacier_update_interval, &
                      term_thck*glacier_update_interval, term_dHdt*glacier_update_interval
-                print*, 'relax term:', term_relax*glacier_update_interval
-                print*, 'dlogC, new powerlaw_c:', dlogC(i,j), powerlaw_c(i,j)
+                write(6,*) 'relax term:', term_relax*glacier_update_interval
+                write(6,*) 'dlogC, new powerlaw_c:', dlogC(i,j), powerlaw_c(i,j)
              endif
 
           enddo  ! i
@@ -2776,8 +2776,8 @@ contains
     real(dp), parameter :: big_number = 1.d+20   ! arbitrary large value
 
     if (verbose_glacier .and. this_rank == rtest) then
-       print*, ' '
-       print*, 'In glacier_advance_retreat'
+       write(6,*) ' '
+       write(6,*) 'In glacier_advance_retreat'
     endif
 
     ! Check for retreat: cells with cism_glacier_id > 0 but H < glacier_minthck
@@ -2789,7 +2789,7 @@ contains
           if (ng > 0 .and. thck(i,j) <= glacier_minthck) then
              if (verbose_glacier .and. this_rank==rtest) then
                 call parallel_globalindex(i, j, iglobal, jglobal, parallel)
-                print*, 'Set ID = 0: ig, jg, old ID, thck =', &
+                write(6,*) 'Set ID = 0: ig, jg, old ID, thck =', &
                      iglobal, jglobal, ng, thck(i,j)
              endif
              cism_glacier_id(i,j) = 0
@@ -2815,7 +2815,7 @@ contains
                 cism_glacier_id(i,j) = ng_init
                 if (verbose_glacier .and. this_rank == rtest) then
                    call parallel_globalindex(i, j, iglobal, jglobal, parallel)
-                   print*, 'Set ID = init ID: ig, jg, new ID, thck =',&
+                   write(6,*) 'Set ID = init ID: ig, jg, new ID, thck =',&
                         iglobal, jglobal, cism_glacier_id(i,j), thck(i,j)
                 endif
              else  ! assign the ID of an adjacent glaciated cell, if possible
@@ -2824,7 +2824,7 @@ contains
                 ng_min = 0
                 if (verbose_glacier .and. this_rank == rtest) then
                    call parallel_globalindex(i, j, iglobal, jglobal, parallel)
-                   print*, 'Look for glaciated neighbor: ig, jg =', iglobal, jglobal
+                   write(6,*) 'Look for glaciated neighbor: ig, jg =', iglobal, jglobal
                 endif
                 do jj = -1, 1
                    do ii = -1, 1
@@ -2850,13 +2850,13 @@ contains
                    cism_glacier_id(i,j) = ng_min  ! glacier with the most negative SMB
                    if (verbose_glacier .and. this_rank == rtest) then
                       call parallel_globalindex(i, j, iglobal, jglobal, parallel)
-                      print*, '  Set ID = neighbor ID, ig, jg, ID, H, smb =', &
+                      write(6,*) '  Set ID = neighbor ID, ig, jg, ID, H, smb =', &
                            iglobal, jglobal, cism_glacier_id(i,j), thck(i,j), smb_min
                    endif
                 else  ! no adjacent glacier cell
                    call parallel_globalindex(i, j, iglobal, jglobal, parallel)
-                   print*, '  Warning, did not find neighbor, ig, jg =', iglobal, jglobal
-                   print*, '  Setting H = 0'
+                   write(6,*) '  Warning, did not find neighbor, ig, jg =', iglobal, jglobal
+                   write(6,*) '  Setting H = 0'
                    thck(i,j) = 0.0d0  !TODO - anything else to zero out?
                 endif   ! found_neighbor
 
@@ -2914,7 +2914,7 @@ contains
                 cism_glacier_id(i,j) = ng_min
                 if (verbose_glacier .and. this_rank == rtest) then
                    call parallel_globalindex(i, j, iglobal, jglobal, parallel)
-                   print*, '   Transfer to adjacent glacier, old and new IDs =', &
+                   write(6,*) '   Transfer to adjacent glacier, old and new IDs =', &
                         cism_glacier_id_old(i,j), cism_glacier_id(i,j)
                 endif
              endif
@@ -3032,7 +3032,7 @@ contains
                 smb_glacier_id(i,j) = ng_min
 !                if (verbose_glacier .and. this_rank == rtest) then
 !                   call parallel_globalindex(i, j, iglobal, jglobal, parallel)
-!                   print*, 'Set smb_glacier_id = neighbor ID: ig, jg, smb_min, neighbor ID =', &
+!                   write(6,*) 'Set smb_glacier_id = neighbor ID: ig, jg, smb_min, neighbor ID =', &
 !                        iglobal, jglobal, smb_min, smb_glacier_id(i,j)
 !                endif
              endif
@@ -3379,9 +3379,9 @@ contains
     ! bug check
     do ng = 1, nglacier
        if (area_initial(ng) + area_advance(ng) - area_retreat(ng) /= area_current(ng)) then
-          print*, ' '
-          print*, 'WARNING: area mismatch in glacier_area_advance_retreat'
-          print*, '   ng, initial, advance, retreat, current:', ng, area_initial(ng)/1.d6, &
+          write(6,*) ' '
+          write(6,*) 'WARNING: area mismatch in glacier_area_advance_retreat'
+          write(6,*) '   ng, initial, advance, retreat, current:', ng, area_initial(ng)/1.d6, &
                area_advance(ng)/1.d6, area_retreat(ng)/1.d6, area_current(ng)/1.d6
        endif
     enddo

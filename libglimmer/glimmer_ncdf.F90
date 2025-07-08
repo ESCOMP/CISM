@@ -357,13 +357,13 @@ contains
     type(glimmer_nc_output),pointer :: output
 
     if (.not.associated(output)) then
-       print*,'*** Output section not associated'
+       write(6,*) '*** Output section not associated'
        return
     end if
 
     call nc_print_stat(output%nc)
-    print*,'freq:       ', output%freq
-    print*,'timecounter:', output%timecounter
+    write(6,*) 'freq:       ', output%freq
+    write(6,*) 'timecounter:', output%timecounter
 
     if (associated(output%next)) call nc_print_output(output%next)
     
@@ -373,21 +373,21 @@ contains
 
     type(glimmer_nc_stat) :: stat
 
-    print*,'define_mode:     ',stat%define_mode
-    print*,'just_processed:  ',stat%just_processed
-    print*,'processsed_time: ',stat%processsed_time
-    print*,'filename:        ',stat%filename
-    print*,'id:              ',stat%id
-    print*,'nlevel:          ',stat%nlevel
-    print*,'nstaglevel:      ',stat%nstaglevel
-    print*,'nstagwbndlevel:  ',stat%nstagwbndlevel
-    print*,'nzocn:           ',stat%nzocn
-    print*,'nglacier:        ',stat%nglacier
-    print*,'timedim:         ',stat%timedim
-    print*,'internal_timevar:',stat%internal_timevar
-    print*,'timevar:         ',stat%timevar
-    print*,'tstep_count_var: ',stat%tstep_count_var
-    print*,'vars:            ',trim(stat%vars)
+    write(6,*) 'define_mode:     ',stat%define_mode
+    write(6,*) 'just_processed:  ',stat%just_processed
+    write(6,*) 'processsed_time: ',stat%processsed_time
+    write(6,*) 'filename:        ',stat%filename
+    write(6,*) 'id:              ',stat%id
+    write(6,*) 'nlevel:          ',stat%nlevel
+    write(6,*) 'nstaglevel:      ',stat%nstaglevel
+    write(6,*) 'nstagwbndlevel:  ',stat%nstagwbndlevel
+    write(6,*) 'nzocn:           ',stat%nzocn
+    write(6,*) 'nglacier:        ',stat%nglacier
+    write(6,*) 'timedim:         ',stat%timedim
+    write(6,*) 'internal_timevar:',stat%internal_timevar
+    write(6,*) 'timevar:         ',stat%timevar
+    write(6,*) 'tstep_count_var: ',stat%tstep_count_var
+    write(6,*) 'vars:            ',trim(stat%vars)
 
   end subroutine nc_print_stat
 

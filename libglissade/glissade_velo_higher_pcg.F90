@@ -218,8 +218,8 @@
        Muu, Mvv            ! simplified SIA matrices for preconditioning
 
     if (verbose_pcg .and. main_task) then
-       print*, 'Using native PCG solver (standard)'
-       print*, 'tolerance, maxiters, precond =', tolerance, maxiters, precond
+       write(6,*) 'Using native PCG solver (standard)'
+       write(6,*) 'tolerance, maxiters, precond =', tolerance, maxiters, precond
     endif
 
     ! Set up matrices for preconditioning
@@ -238,9 +238,9 @@
        if (verbose_pcg .and. this_rank == rtest) then
           i = itest
           j = jtest
-          print*, 'i, j, r =', i, j, this_rank
-          print*, 'Auu diag =', Adiagu(:,i,j)
-          print*, 'Avu diag =', Adiagv(:,i,j)
+          write(6,*) 'i, j, r =', i, j, this_rank
+          write(6,*) 'Auu diag =', Adiagu(:,i,j)
+          write(6,*) 'Avu diag =', Adiagv(:,i,j)
        endif
 
        !TODO - Create a separate setup for tridiag_local
@@ -259,7 +259,7 @@
     else    ! no preconditioner
 
        if (verbose_pcg .and. main_task) then
-          print*, 'Using no preconditioner'
+          write(6,*) 'Using no preconditioner'
        endif
 
     endif   ! precond
@@ -532,8 +532,8 @@
           err = L2_resid/L2_rhs
 
           if (verbose_pcg .and. main_task) then
-!             print*, ' '
-!             print*, 'iter, L2_resid, error =', iter, L2_resid, err
+!             write(6,*) ' '
+!             write(6,*) 'iter, L2_resid, error =', iter, L2_resid, err
           endif
 
           if (err < tolerance) then
@@ -549,8 +549,8 @@
  
     if (niters == maxiters) then
        if (verbose_pcg .and. main_task) then
-          print*, 'Glissade PCG solver not converged'
-          print*, 'niters, err, tolerance:', niters, err, tolerance
+          write(6,*) 'Glissade PCG solver not converged'
+          write(6,*) 'niters, err, tolerance:', niters, err, tolerance
        endif
     endif
 
@@ -678,8 +678,8 @@
                            ! solver converges when L2_resid/L2_rhs < tolerance
 
     if (verbose_pcg .and. main_task) then
-       print*, 'Using native PCG solver (standard)'
-       print*, 'tolerance, maxiters, precond =', tolerance, maxiters, precond
+       write(6,*) 'Using native PCG solver (standard)'
+       write(6,*) 'tolerance, maxiters, precond =', tolerance, maxiters, precond
     endif
 
     ! Set up matrices for preconditioning
@@ -687,7 +687,7 @@
     !TODO - Add tridiagonal option
 
     if (verbose_pcg .and. main_task) then
-       print*, 'Using diagonal matrix for preconditioning'
+       write(6,*) 'Using diagonal matrix for preconditioning'
     endif  ! verbose_pcg
 
     call t_startf("pcg_precond_init")
@@ -768,7 +768,7 @@
     iter_loop: do iter = 1, maxiters
 
        if (verbose_pcg .and. main_task) then
-          print*, 'iter =', iter
+          write(6,*) 'iter =', iter
        endif
 
        call t_startf("pcg_precond")
@@ -967,8 +967,8 @@
  
     if (niters == maxiters) then
        if (verbose_pcg .and. main_task) then
-          print*, 'Glissade PCG solver not converged'
-          print*, 'niters, err, tolerance:', niters, err, tolerance
+          write(6,*) 'Glissade PCG solver not converged'
+          write(6,*) 'niters, err, tolerance:', niters, err, tolerance
        endif
     endif
 
@@ -1259,8 +1259,8 @@
 !!    endif
 
     if (verbose_pcg .and. this_rank == rtest) then
-       print*, 'Using native PCG solver (Chronopoulos-Gear)'
-       print*, 'tolerance, maxiters, precond =', tolerance, maxiters_chrongear, precond
+       write(6,*) 'Using native PCG solver (Chronopoulos-Gear)'
+       write(6,*) 'tolerance, maxiters, precond =', tolerance, maxiters_chrongear, precond
     endif
 
     ! Compute array sizes for locally owned vertices
@@ -1269,8 +1269,8 @@
 
     !WHL - debug
     if (verbose_pcg .and. this_rank == rtest) then
-       print*, 'stag_ihi, stag_ilo, ilocal:', staggered_ihi, staggered_ilo, ilocal
-       print*, 'stag_jhi, stag_jlo, jlocal:', staggered_jhi, staggered_jlo, jlocal
+       write(6,*) 'stag_ihi, stag_ilo, ilocal:', staggered_ihi, staggered_ilo, ilocal
+       write(6,*) 'stag_jhi, stag_jlo, jlocal:', staggered_jhi, staggered_jlo, jlocal
     endif
 
     !---- Set up matrices for preconditioning
@@ -1280,7 +1280,7 @@
     if (precond == HO_PRECOND_NONE) then    ! no preconditioner
 
        if (verbose_pcg .and. this_rank == rtest) then
-          print*, 'Using no preconditioner'
+          write(6,*) 'Using no preconditioner'
        endif
 
     elseif (precond == HO_PRECOND_DIAG) then
@@ -1294,9 +1294,9 @@
        if (verbose_pcg .and. this_rank == rtest) then
           i = itest
           j = jtest
-          print*, 'i, j, r =', i, j, this_rank
-          print*, 'Auu diag =', Adiagu(:,i,j)
-          print*, 'Avu diag =', Adiagv(:,i,j)
+          write(6,*) 'i, j, r =', i, j, this_rank
+          write(6,*) 'Auu diag =', Adiagu(:,i,j)
+          write(6,*) 'Avu diag =', Adiagv(:,i,j)
        endif
 
     elseif (precond == HO_PRECOND_SIA) then
@@ -1308,10 +1308,10 @@
 
        if (verbose_pcg .and. this_rank == rtest) then
           j = jtest
-          print*, ' '
-          print*, 'i, k, Muu_sia, Mvv_sia:'
+          write(6,*) ' '
+          write(6,*) 'i, k, Muu_sia, Mvv_sia:'
           do i = staggered_ihi, staggered_ilo, -1
-             print*, ' '
+             write(6,*) ' '
              do k = 1, nz
                 write(6,'(2i4, 6e13.5)') i, k, Muu(:,k,i,j), Mvv(:,k,i,j)
              enddo
@@ -1524,19 +1524,19 @@
        !WHL - debug
        if (verbose_pcg .and. this_rank == rtest) then
           j = jtest
-          print*, 'Standard SIA PC:'
-          print*, ' '
-          print*, 'i, zu_sia(1), zu_sia(nz):'
+          write(6,*) 'Standard SIA PC:'
+          write(6,*) ' '
+          write(6,*) 'i, zu_sia(1), zu_sia(nz):'
           do i = itest-3, itest+3
-             print*, ' '
+             write(6,*) ' '
              do k = 1, nz
                 write(6,'(i4, 2f16.10)') i, zu(1,i,j), zu(nz,i,j)
              enddo
           enddo  ! i
-          print*, ' '
-          print*, 'i, zv_sia(1), zv_sia(nz):'
+          write(6,*) ' '
+          write(6,*) 'i, zv_sia(1), zv_sia(nz):'
           do i = itest-3, itest+3
-             print*, ' '
+             write(6,*) ' '
              do k = 1, nz
                 write(6,'(i4, 2f16.10)') i, zv(1,i,j), zv(nz,i,j)
              enddo
@@ -1663,12 +1663,12 @@
     !WHL - debug
     if (verbose_pcg .and. this_rank == rtest) then
        j = jtest
-       print*, ' '
-       print*, 'alpha =', alpha
-       print*, 'iter = 1: i, k, xu, xv, ru, rv:'
+       write(6,*) ' '
+       write(6,*) 'alpha =', alpha
+       write(6,*) 'iter = 1: i, k, xu, xv, ru, rv:'
        do i = staggered_ilo, staggered_ihi
 !!       do i = itest-3, itest+3
-          print*, ' '
+          write(6,*) ' '
           do k = 1, nz
              write(6,'(2i4, 4f16.10)') i, k, xu(k,i,j), xv(k,i,j), ru(k,i,j), rv(k,i,j)
           enddo
@@ -1682,8 +1682,8 @@
     iter_loop: do iter = 2, maxiters_chrongear  ! first iteration done above
 
        if (verbose_pcg .and. this_rank == rtest) then
-          print*, ' '
-          print*, 'iter =', iter
+          write(6,*) ' '
+          write(6,*) 'iter =', iter
        endif
 
        !---- Compute PC(r) = solution z of Mz = r
@@ -1770,7 +1770,7 @@
        endif    ! precond
 
     !WHL - debug
-    if (verbose_pcg .and. this_rank == rtest) print*, 'L1'
+    if (verbose_pcg .and. this_rank == rtest) write(6,*) 'L1'
 
        call t_stopf("pcg_precond_iter")
 
@@ -1860,10 +1860,10 @@
 
        if (verbose_pcg .and. this_rank == rtest) then
           j = jtest
-          print*, ' '
-          print*, 'i, k, xu, xv, ru, rv:'
+          write(6,*) ' '
+          write(6,*) 'i, k, xu, xv, ru, rv:'
           do i = itest-3, itest+3
-             print*, ' '
+             write(6,*) ' '
              do k = 1, nz
                 write(6,'(i4, 4f16.10)') i, xu(k,i,j), xv(k,i,j), ru(k,i,j), rv(k,i,j)
              enddo
@@ -1879,8 +1879,8 @@
        if (mod(iter, linear_solve_ncheck) == 0 .or. iter == 5) then
 
           if (verbose_pcg .and. this_rank == rtest) then
-             print*, ' '
-             print*, 'Check convergence, iter =', iter
+             write(6,*) ' '
+             write(6,*) 'Check convergence, iter =', iter
           endif
 
           !---- Compute z = A*x  (use z as a temp vector for A*x)
@@ -1921,7 +1921,7 @@
           err = L2_resid/L2_rhs        ! normalized error
 
           if (verbose_pcg .and. this_rank == rtest) then
-             print*, 'iter, L2_resid, L2_rhs, error =', iter, L2_resid, L2_rhs, err
+             write(6,*) 'iter, L2_resid, L2_rhs, error =', iter, L2_resid, L2_rhs, err
           endif
 
           if (verbose_pcg .and. this_rank == rtest) then
@@ -1943,8 +1943,8 @@
                    endif
                 enddo
              enddo
-             print*, 'r, i, j, ru_max:', this_rank, iu_max, ju_max, ru_max
-             print*, 'r, i, j, rv_max:', this_rank, iv_max, jv_max, rv_max
+             write(6,*) 'r, i, j, ru_max:', this_rank, iu_max, ju_max, ru_max
+             write(6,*) 'r, i, j, rv_max:', this_rank, iv_max, jv_max, rv_max
           endif
 
           ! If converged, then exit the loop.
@@ -1954,15 +1954,15 @@
           if (err < tolerance) then
              niters = iter
              if (verbose_pcg .and. this_rank == rtest) then
-                print*, 'Glissade PCG solver has converged, iter =', niters
-                print*, ' '
+                write(6,*) 'Glissade PCG solver has converged, iter =', niters
+                write(6,*) ' '
              endif
              exit iter_loop
           elseif (niters == maxiters_chrongear) then
              if (verbose_pcg .and. this_rank == rtest) then
-                print*, 'Glissade PCG solver not converged'
-                print*, 'niters, err, tolerance:', niters, err, tolerance
-                print*, ' '
+                write(6,*) 'Glissade PCG solver not converged'
+                write(6,*) 'niters, err, tolerance:', niters, err, tolerance
+                write(6,*) ' '
              endif
           endif
 
@@ -2184,8 +2184,8 @@
     endif
 
     if (verbose_pcg .and. this_rank == rtest) then
-       print*, 'Using native PCG solver (Chronopoulos-Gear)'
-       print*, 'tolerance, maxiters, precond =', tolerance, maxiters_chrongear, precond
+       write(6,*) 'Using native PCG solver (Chronopoulos-Gear)'
+       write(6,*) 'tolerance, maxiters, precond =', tolerance, maxiters_chrongear, precond
     endif
 
     ! Compute array sizes for locally owned vertices
@@ -2199,7 +2199,7 @@
     if (precond == HO_PRECOND_NONE) then    ! no preconditioner
 
        if (verbose_pcg .and. this_rank == rtest) then
-          print*, 'Using no preconditioner'
+          write(6,*) 'Using no preconditioner'
        endif
 
     elseif (precond == HO_PRECOND_DIAG) then
@@ -2213,9 +2213,9 @@
        if (verbose_pcg .and. this_rank == rtest) then
           i = itest
           j = jtest
-          print*, 'i, j, r =', i, j, this_rank
-          print*, 'Au diag =', Adiagu(i,j)
-          print*, 'Av diag =', Adiagv(i,j)
+          write(6,*) 'i, j, r =', i, j, this_rank
+          write(6,*) 'Au diag =', Adiagu(i,j)
+          write(6,*) 'Av diag =', Adiagv(i,j)
        endif
 
     elseif (precond == HO_PRECOND_TRIDIAG_LOCAL) then
@@ -2224,10 +2224,10 @@
           if (verbose_tridiag .and. this_rank==rtest) then
              i = itest
              j = jtest
-             print*, ' '
-             print*, 'r, i, j =', this_rank, i, j
-             print*, 'Auu =', Auu(i,j,:)
-             print*, 'Avv =', Avv(i,j,:)
+             write(6,*) ' '
+             write(6,*) 'r, i, j =', this_rank, i, j
+             write(6,*) 'Auu =', Auu(i,j,:)
+             write(6,*) 'Avv =', Avv(i,j,:)
           endif
 
        allocate(Adiag_u   (nx-1,ny-1))
@@ -2331,7 +2331,7 @@
     endif   ! precond
 
     !WHL - debug
-    if (verbose_pcg .and. this_rank == rtest) print*, 'Done in PC setup'
+    if (verbose_pcg .and. this_rank == rtest) write(6,*) 'Done in PC setup'
 
     call t_stopf("pcg_precond_init")
 
@@ -2450,9 +2450,9 @@
        !WHL - debug
        if (verbose_pcg .and. this_rank == rtest) then
           i = itest
-!          print*, ' '
-!          print*, 'zv solve with diagonal precond, this_rank, i =', this_rank, i
-!          print*, 'j, active, Adiagv, rv, zv, xv:'
+!          write(6,*) ' '
+!          write(6,*) 'zv solve with diagonal precond, this_rank, i =', this_rank, i
+!          write(6,*) 'j, active, Adiagv, rv, zv, xv:'
 !          do j = staggered_jhi, staggered_jlo, -1
 !             write(6,'(i4, l4, 2f12.3, e12.3, f12.3)') j, active_vertex(i,j), Adiagv(i,j), rv(i,j), zv(i,j), xv(i,j)
 !          enddo
@@ -2463,19 +2463,19 @@
        if (verbose_tridiag .and. this_rank == rtest) then
           i = itest
           j = jtest
-          print*, 'Residual:'
-          print*, 'r, i, j, ru:', this_rank, i, j, ru(i,j)
-          print*, 'r, i, j, rv:', this_rank, i, j, rv(i,j)
-          print*, ' '
-          print*, 'jtest =', jtest
-          print*, 'i, ru, rv:'
+          write(6,*) 'Residual:'
+          write(6,*) 'r, i, j, ru:', this_rank, i, j, ru(i,j)
+          write(6,*) 'r, i, j, rv:', this_rank, i, j, rv(i,j)
+          write(6,*) ' '
+          write(6,*) 'jtest =', jtest
+          write(6,*) 'i, ru, rv:'
           do i = itest-3, itest+3
              write(6,'(i4, 2f15.10)') i, ru(i,j), rv(i,j)
           enddo
        endif
 
        if (verbose_pcg .and. this_rank == rtest) then
-          print*, 'call tridiag_solver_local_2d'
+          write(6,*) 'call tridiag_solver_local_2d'
        endif
 
        ! Solve M*z = r, where M is a local tridiagonal matrix (one matrix per task)
@@ -2497,8 +2497,8 @@
        !WHL - debug
           if (verbose_pcg .and. this_rank == rtest) then
              j = jtest
-             print*, ' '
-             print*, 'tridiag solve: i, ru, rv, zu, zv:'
+             write(6,*) ' '
+             write(6,*) 'tridiag solve: i, ru, rv, zu, zv:'
              do i = itest-3, itest+3
                 write(6,'(i4, 4f16.10)') i, ru(i,j), rv(i,j), zu(i,j), zv(i,j)
              enddo
@@ -2633,7 +2633,7 @@
     vsum_global = parallel_reduce_sum(vsum)
 
     if (verbose_pcg .and. this_rank == rtest) then
-!!       print*, 'Prep: sum(qu), sum(qv) =', usum_global, vsum_global
+!!       write(6,*) 'Prep: sum(qu), sum(qv) =', usum_global, vsum_global
     endif
 
     !---- Compute intermediate result for dot product (d,q) = (d,Ad)
@@ -2654,7 +2654,7 @@
     call t_stopf("pcg_glbsum_iter")
 
     if (verbose_pcg .and. this_rank == rtest) then
-!!       print*, 'Prep: gsum(1), gsum(2) =', gsum(1), gsum(2)
+!!       write(6,*) 'Prep: gsum(1), gsum(2) =', gsum(1), gsum(2)
     endif
 
     !---- Halo update for q
@@ -2688,8 +2688,8 @@
        !WHL - debug
        if (verbose_pcg .and. this_rank == rtest) then
           j = jtest
-          print*, ' '
-          print*, 'iter = 1: i, xu, xv, ru, rv:'
+          write(6,*) ' '
+          write(6,*) 'iter = 1: i, xu, xv, ru, rv:'
 !!          do i = itest-3, itest+3
           do i = staggered_ilo, staggered_ihi
              write(6,'(i4, 4f16.10)') i, xu(i,j), xv(i,j), ru(i,j), rv(i,j)
@@ -2703,8 +2703,8 @@
     iter_loop: do iter = 2, maxiters_chrongear  ! first iteration done above
 
        if (verbose_pcg .and. this_rank == rtest) then
-          print*, ' '
-          print*, 'iter =', iter
+          write(6,*) ' '
+          write(6,*) 'iter =', iter
        endif
 
        !---- Compute PC(r) = solution z of Mz = r
@@ -2745,12 +2745,12 @@
           if (verbose_tridiag .and. this_rank == rtest) then
              i = itest
              j = jtest
-!             print*, 'Residual:'
-!             print*, 'r, i, j, ru:', this_rank, i, j, ru(i,j)
-!             print*, 'r, i, j, rv:', this_rank, i, j, rv(i,j)
-!             print*, ' '
-!             print*, 'jtest =', jtest
-!             print*, 'i, ru, rv:'
+!             write(6,*) 'Residual:'
+!             write(6,*) 'r, i, j, ru:', this_rank, i, j, ru(i,j)
+!             write(6,*) 'r, i, j, rv:', this_rank, i, j, rv(i,j)
+!             write(6,*) ' '
+!             write(6,*) 'jtest =', jtest
+!             write(6,*) 'i, ru, rv:'
 !             do i = staggered_ihi, staggered_ilo, -1
 !                write(6,'(i4, 2f15.10)') i, ru(i,j), rv(i,j)
 !             enddo
@@ -2759,7 +2759,7 @@
 
           !WHL - debug
           if (verbose_pcg .and. this_rank == rtest) then
-             print*, '   call tridiag_solver_local_2d'
+             write(6,*) '   call tridiag_solver_local_2d'
           endif
 
           call tridiag_solver_local_2d(nx,            ny,            &
@@ -2780,8 +2780,8 @@
 
           if (verbose_pcg .and. this_rank == rtest) then
              j = jtest
-             print*, ' '
-             print*, 'tridiag solve: i, ru, rv, zu, zv:'
+             write(6,*) ' '
+             write(6,*) 'tridiag solve: i, ru, rv, zu, zv:'
              do i = itest-3, itest+3
                 write(6,'(i4, 4f16.10)') i, ru(i,j), rv(i,j), zu(i,j), zv(i,j)
              enddo
@@ -2792,9 +2792,9 @@
           !WHL - debug
           if (verbose_tridiag .and. this_rank == rtest) then
              j = jtest
-             print*, ' '
-             print*, 'jtest =', jtest
-             print*, 'i, ru, rv:'
+             write(6,*) ' '
+             write(6,*) 'jtest =', jtest
+             write(6,*) 'i, ru, rv:'
              do i = itest-3, itest+3
                 write(6,'(i4, 2f15.10)') i, ru(i,j), rv(i,j)
              enddo
@@ -2813,10 +2813,10 @@
           !WHL - debug
     if (verbose_pcg .and. this_rank == rtest) then
        j = jtest
-       print*, ' '
-       print*, 'Before global tridiag PC u solve, r, j =', rtest, jtest
-       print*, ' '
-       print*, 'i, Adiag_u, Asubdiag_u, Asupdiag_u, b_u:'
+       write(6,*) ' '
+       write(6,*) 'Before global tridiag PC u solve, r, j =', rtest, jtest
+       write(6,*) ' '
+       write(6,*) 'i, Adiag_u, Asubdiag_u, Asupdiag_u, b_u:'
        do i = itest-3, itest+3
           write(6,'(i4, 4e16.8)') i, Adiag_u(i,j), Asubdiag_u(i,j), Asupdiag_u(i,j), b_u(i,j)
        enddo
@@ -2860,10 +2860,10 @@
 
     if (verbose_pcg .and. this_rank == rtest) then
        j = jtest
-       print*, ' '
-       print*, 'Before global tridiag PC v solve, r, j =', rtest, jtest
-       print*, ' '
-       print*, 'i, Adiag_v, Asubdiag_v, Asupdiag_v, b_v:'
+       write(6,*) ' '
+       write(6,*) 'Before global tridiag PC v solve, r, j =', rtest, jtest
+       write(6,*) ' '
+       write(6,*) 'i, Adiag_v, Asubdiag_v, Asupdiag_v, b_v:'
        do i = itest-3, itest+3
           write(6,'(i4, 4e16.8)') i, Adiag_v(i,j), Asubdiag_v(i,j), Asupdiag_v(i,j), b_v(i,j)
        enddo
@@ -2989,7 +2989,7 @@
        !WHL - debug
        if (verbose_pcg .and. this_rank == rtest) then
           j = jtest
-          print*, 'i, xu, xv, ru, rv:'
+          write(6,*) 'i, xu, xv, ru, rv:'
 !!             do i = staggered_ihi, staggered_ilo, -1
           do i = itest-3, itest+3
              write(6,'(i4, 4f16.10)') i, xu(i,j), xv(i,j), ru(i,j), rv(i,j)
@@ -3006,8 +3006,8 @@
 !!       if (mod(iter, linear_solve_ncheck) == 0 .or. iter == linear_solve_ncheck/2) then
 
           if (verbose_pcg .and. this_rank == rtest) then
-             print*, ' '
-             print*, '   check convergence, iter =', iter
+             write(6,*) ' '
+             write(6,*) '   check convergence, iter =', iter
           endif
 
           !---- Compute z = A*x  (use z as a temp vector for A*x)
@@ -3048,7 +3048,7 @@
           err = L2_resid/L2_rhs        ! normalized error
 
           if (verbose_pcg .and. this_rank == rtest) then
-             print*, 'iter, L2_resid, L2_rhs, error =', iter, L2_resid, L2_rhs, err
+             write(6,*) 'iter, L2_resid, L2_rhs, error =', iter, L2_resid, L2_rhs, err
           endif
 
           if (verbose_pcg .and. this_rank == rtest) then
@@ -3070,8 +3070,8 @@
                    endif
                 enddo
              enddo
-             print*, 'r, i, j, ru_max:', this_rank, iu_max, ju_max, ru_max
-             print*, 'r, i, j, rv_max:', this_rank, iv_max, jv_max, rv_max
+             write(6,*) 'r, i, j, ru_max:', this_rank, iu_max, ju_max, ru_max
+             write(6,*) 'r, i, j, rv_max:', this_rank, iv_max, jv_max, rv_max
           endif
 
           ! If converged, then exit the loop.
@@ -3081,13 +3081,13 @@
           if (err < tolerance) then
              niters = iter
              if (verbose_pcg .and. this_rank == rtest) then
-                print*, 'Glissade PCG solver has converged, iter =', niters
+                write(6,*) 'Glissade PCG solver has converged, iter =', niters
              endif
              exit iter_loop
           elseif (niters == maxiters_chrongear) then
              if (verbose_pcg .and. this_rank == rtest) then
-                print*, 'Glissade PCG solver not converged'
-                print*, 'niters, err, tolerance:', niters, err, tolerance
+                write(6,*) 'Glissade PCG solver not converged'
+                write(6,*) 'niters, err, tolerance:', niters, err, tolerance
              endif
           endif
 
@@ -3157,7 +3157,7 @@
     ! Form diagonal matrix for preconditioning
 
     if (verbose_pcg .and. main_task) then
-       print*, 'Setting up diagonal preconditioner'
+       write(6,*) 'Setting up diagonal preconditioner'
     endif  ! verbose_pcg
 
     m = indxA_3d(0,0,0)
@@ -3211,7 +3211,7 @@
     Mvv (:,:,:,:) = 0.d0    
 
     if (verbose_pcg .and. main_task) then
-       print*, 'Setting up shallow-ice preconditioner'
+       write(6,*) 'Setting up shallow-ice preconditioner'
     endif  ! verbose_pcg
 
     do j = 1, ny-1
@@ -3251,7 +3251,7 @@
     enddo
 
     if (verbose_pcg .and. main_task) then
-       print*, 'Done in shallow-ice preconditioner'
+       write(6,*) 'Done in shallow-ice preconditioner'
     endif  ! verbose_pcg
 
   end subroutine setup_preconditioner_sia_3d
@@ -3324,7 +3324,7 @@
          Auu_vsum, Avv_vsum          ! arrays to hold vertical sums of matrix elements
 
     if (verbose_pcg .and. main_task) then
-       print*, 'Setting up local tridiagonal preconditioner'
+       write(6,*) 'Setting up local tridiagonal preconditioner'
     endif  ! verbose_pcg
 
     ! Construct arrays consisting of vertical sums of matrix elements.
@@ -3368,29 +3368,29 @@
     if (verbose_pcg .and. this_rank==rtest) then
        i = itest
        j = jtest
-       print*, ' '
-       print*, 'r, i, j =', this_rank, i, j
-       print*, 'Auu(nz, 1: 9) =', Auu(1:9,nz,i,j)
-       print*, 'Auu(nz,10:18) =', Auu(10:18,nz,i,j)
-       print*, 'Auu(nz,19:27) =', Auu(19:27,nz,i,j)
-       print*, ' '
-       print*, 'm, Auu_vsum(i,j,m), Avv_vsum(i,j,m):'
+       write(6,*) ' '
+       write(6,*) 'r, i, j =', this_rank, i, j
+       write(6,*) 'Auu(nz, 1: 9) =', Auu(1:9,nz,i,j)
+       write(6,*) 'Auu(nz,10:18) =', Auu(10:18,nz,i,j)
+       write(6,*) 'Auu(nz,19:27) =', Auu(19:27,nz,i,j)
+       write(6,*) ' '
+       write(6,*) 'm, Auu_vsum(i,j,m), Avv_vsum(i,j,m):'
        do m = 1,9
-          print*, m, Auu_vsum(i,j,m), Avv_vsum(i,j,m)
+          write(6,*) m, Auu_vsum(i,j,m), Avv_vsum(i,j,m)
        enddo
     endif
 
     if (verbose_pcg .and. this_rank == rtest) then
        j = jtest
-       print*, ' '
-       print*, 'Before global tridiag PC setup, r, j =', rtest, jtest
-       print*, ' '
-       print*, 'i, Auu_vsum(1), Auu_sum(5), Auu_sum(9):'
+       write(6,*) ' '
+       write(6,*) 'Before global tridiag PC setup, r, j =', rtest, jtest
+       write(6,*) ' '
+       write(6,*) 'i, Auu_vsum(1), Auu_sum(5), Auu_sum(9):'
        do i = itest-3, itest+3
           write(6,'(i4, 3f15.7)') i, Auu_vsum(i,j,1), Auu_vsum(i,j,5), Auu_vsum(i,j,9)
        enddo
-       print*, ' '
-       print*, 'i, Adiag_u, Asubdiag_u, Asupdiag_u, active'
+       write(6,*) ' '
+       write(6,*) 'i, Adiag_u, Asubdiag_u, Asupdiag_u, active'
        do i = itest-3, itest+3
           write(6,'(i4, 3f15.7, l4)') &
                i, Adiag_u(i,j), Asubdiag_u(i,j), Asupdiag_u(i,j), active_vertex(i,j)
@@ -3410,16 +3410,16 @@
 
     if (verbose_pcg .and. this_rank == rtest) then
        j = jtest
-       print*, ' '
-       print*, 'After local tridiag PC setup, r, j =', rtest, jtest
-       print*, ' '
-       print*, 'i, Adiag_u, Asubdiag_u, Asupdiag_u, omega_u, denom_u:'
+       write(6,*) ' '
+       write(6,*) 'After local tridiag PC setup, r, j =', rtest, jtest
+       write(6,*) ' '
+       write(6,*) 'i, Adiag_u, Asubdiag_u, Asupdiag_u, omega_u, denom_u:'
        do i = itest-3, itest+3
           write(6,'(i4, 5f15.7)') &
                i, Adiag_u(i,j), Asubdiag_u(i,j), Asupdiag_u(i,j), omega_u(i,j), denom_u(i,j)
        enddo
-       print*, ' '
-       print*, 'i, Adiag_v, Asubdiag_v, Asupdiag_v, omega_v, denom_v:'
+       write(6,*) ' '
+       write(6,*) 'i, Adiag_v, Asubdiag_v, Asupdiag_v, omega_v, denom_v:'
        do i = itest-3, itest+3
           write(6,'(i4, 5f15.7)') &
                i, Adiag_v(i,j), Asubdiag_v(i,j), Asupdiag_v(i,j), omega_v(i,j), denom_v(i,j)
@@ -3436,11 +3436,11 @@
 
     if (verbose_pcg .and. this_rank == rtest) then
        j = jtest
-       print*, 'SIA PC with tridiag:'
-       print*, ' '
-       print*, 'i, k, Muu_sia, Mvv_sia:'
+       write(6,*) 'SIA PC with tridiag:'
+       write(6,*) ' '
+       write(6,*) 'i, k, Muu_sia, Mvv_sia:'
        do i = itest-3, itest+3
-          print*, ' '
+          write(6,*) ' '
           do k = 1, nz
              write(6,'(2i4, 6e13.5)') i, k, Muu(:,k,i,j), Mvv(:,k,i,j)
           enddo
@@ -3539,7 +3539,7 @@
     staggered_jhi = parallel%staggered_jhi
 
     if (verbose_pcg .and. main_task) then
-       print*, 'Setting up global tridiagonal preconditioner'
+       write(6,*) 'Setting up global tridiagonal preconditioner'
     endif  ! verbose_pcg
 
     ! Construct arrays consisting of vertical sums of matrix elements.
@@ -3586,15 +3586,15 @@
     if (verbose_pcg .and. this_rank==rtest) then
        i = itest
        j = jtest
-       print*, ' '
-       print*, 'r, i, j =', this_rank, i, j
-       print*, 'Auu(nz, 1: 9) =', Auu(1:9,nz,i,j)
-       print*, 'Auu(nz,10:18) =', Auu(10:18,nz,i,j)
-       print*, 'Auu(nz,19:27) =', Auu(19:27,nz,i,j)
-       print*, ' '
-       print*, 'm, Auu_vsum(i,j,m), Avv_vsum(i,j,m):'
+       write(6,*) ' '
+       write(6,*) 'r, i, j =', this_rank, i, j
+       write(6,*) 'Auu(nz, 1: 9) =', Auu(1:9,nz,i,j)
+       write(6,*) 'Auu(nz,10:18) =', Auu(10:18,nz,i,j)
+       write(6,*) 'Auu(nz,19:27) =', Auu(19:27,nz,i,j)
+       write(6,*) ' '
+       write(6,*) 'm, Auu_vsum(i,j,m), Avv_vsum(i,j,m):'
        do m = 1,9
-          print*, m, Auu_vsum(i,j,m), Avv_vsum(i,j,m)
+          write(6,*) m, Auu_vsum(i,j,m), Avv_vsum(i,j,m)
        enddo
     endif
 
@@ -3611,15 +3611,15 @@
 
     if (verbose_pcg .and. this_rank == rtest) then
        j = jtest
-       print*, ' '
-       print*, 'Before global tridiag PC setup, r, j =', rtest, jtest
-       print*, ' '
-       print*, 'i, Auu_vsum(1), Auu_sum(5), Auu_sum(9):'
+       write(6,*) ' '
+       write(6,*) 'Before global tridiag PC setup, r, j =', rtest, jtest
+       write(6,*) ' '
+       write(6,*) 'i, Auu_vsum(1), Auu_sum(5), Auu_sum(9):'
        do i = itest-5, itest+5
           write(6,'(i4, 3f15.7)') i, Auu_vsum(i,j,1), Auu_vsum(i,j,5), Auu_vsum(i,j,9)
        enddo
-       print*, ' '
-       print*, 'i, Adiag_u, Asubdiag_u, Asupdiag_u, active'
+       write(6,*) ' '
+       write(6,*) 'i, Adiag_u, Asubdiag_u, Asupdiag_u, active'
        do i = itest-3, itest+3
           write(6,'(i4, 3f15.7, l4)') &
                i, Adiag_u(i,j), Asubdiag_u(i,j), Asupdiag_u(i,j), active_vertex(i,j)
@@ -3651,10 +3651,10 @@
 
     if (verbose_pcg .and. this_rank == rtest) then
        j = jtest
-       print*, ' '
-       print*, 'Before global tridiag PC setup, r, j =', rtest, jtest
-       print*, ' '
-       print*, 'i, Adiag_v, Asubdiag_v, Asupdiag_v, active'
+       write(6,*) ' '
+       write(6,*) 'Before global tridiag PC setup, r, j =', rtest, jtest
+       write(6,*) ' '
+       write(6,*) 'i, Adiag_v, Asubdiag_v, Asupdiag_v, active'
        do i = itest-3, itest+3
           write(6,'(i4, 3f15.7, l4)') &
                i, Adiag_v(i,j), Asubdiag_v(i,j), Asupdiag_v(i,j), active_vertex(i,j)
@@ -3677,17 +3677,17 @@
 
     if (verbose_pcg .and. this_rank == rtest) then
        j = jtest
-       print*, ' '
-       print*, 'After global tridiag PC setup, r, j =', rtest, jtest
-       print*, ' '
-       print*, 'i, Adiag_u, Asubdiag_u, Asupdiag_u, omega_u, denom_u, xuh_u, xlh_u, active_vertex:'
+       write(6,*) ' '
+       write(6,*) 'After global tridiag PC setup, r, j =', rtest, jtest
+       write(6,*) ' '
+       write(6,*) 'i, Adiag_u, Asubdiag_u, Asupdiag_u, omega_u, denom_u, xuh_u, xlh_u, active_vertex:'
        do i = itest-3, itest+3
           write(6,'(i4, 7f15.7, l4)') &
                i, Adiag_u(i,j), Asubdiag_u(i,j), Asupdiag_u(i,j), &
                omega_u(i,j), denom_u(i,j), xuh_u(i,j), xlh_u(i,j), active_vertex(i,j)
        enddo
-       print*, ' '
-       print*, 'i, Adiag_v, Asubdiag_v, Asupdiag_v, omega_v, denom_v, xuh_v, xlh_v::'
+       write(6,*) ' '
+       write(6,*) 'i, Adiag_v, Asubdiag_v, Asupdiag_v, omega_v, denom_v, xuh_v, xlh_v::'
        do i = itest-3, itest+3
           write(6,'(i4, 7f15.7)') &
                i, Adiag_v(i,j), Asubdiag_v(i,j), Asupdiag_v(i,j), &
@@ -3705,11 +3705,11 @@
 
     if (verbose_pcg .and. this_rank == rtest) then
        j = jtest
-       print*, 'SIA PC with tridiag:'
-       print*, ' '
-       print*, 'i, k, Muu_sia, Mvv_sia:'
+       write(6,*) 'SIA PC with tridiag:'
+       write(6,*) ' '
+       write(6,*) 'i, k, Muu_sia, Mvv_sia:'
        do i = itest-3, itest+3
-          print*, ' '
+          write(6,*) ' '
           do k = 1, nz
              write(6,'(2i4, 6e13.5)') i, k, Muu(:,k,i,j), Mvv(:,k,i,j)
           enddo
@@ -3757,7 +3757,7 @@
     ! Form diagonal matrix for preconditioning
 
     if (verbose_pcg .and. main_task) then
-       print*, 'Using diagonal matrix for preconditioning'
+       write(6,*) 'Using diagonal matrix for preconditioning'
     endif  ! verbose_pcg
 
     m = indxA_2d(0,0)
@@ -3825,7 +3825,7 @@
     staggered_jhi = parallel%staggered_jhi
 
     if (verbose_pcg .and. main_task) then
-       print*, 'Using local tridiagonal matrix for preconditioning'
+       write(6,*) 'Using local tridiagonal matrix for preconditioning'
     endif  ! verbose_pcg
 
     ! Compute arrays that will be used repeatedly for solving Au*xu = bu over rows of the grid
@@ -3956,7 +3956,7 @@
 
     !WHL - debug
     if (verbose_tridiag .and. this_rank == rtest) then
-       print*, 'In setup_preconditioner_tridiag_global_2d: itest, jtest, rtest =', itest, jtest, rtest
+       write(6,*) 'In setup_preconditioner_tridiag_global_2d: itest, jtest, rtest =', itest, jtest, rtest
     endif
 
     ! Notes on array dimensions ilocal and jlocal:
@@ -4025,11 +4025,11 @@
 
        !WHL - debug
        if (verbose_tridiag .and. this_rank == rtest .and. j == 10) then
-          print*, ' '
-          print*, 'j =', j
-          print*, 'i, Adiag, Asupdiag, Asubdiag, omega, denom, xlh, xuh:'
+          write(6,*) ' '
+          write(6,*) 'j =', j
+          write(6,*) 'i, Adiag, Asupdiag, Asubdiag, omega, denom, xlh, xuh:'
           do i = 1, ilocal
-             print*, i, Adiag(i,j), Asubdiag(i,j), Asupdiag(i,j), omega(i,j), denom(i,j), xlh(i,j), xuh(i,j)
+             write(6,*) i, Adiag(i,j), Asubdiag(i,j), Asupdiag(i,j), omega(i,j), denom(i,j), xlh(i,j), xuh(i,j)
           enddo
        endif
 
@@ -4107,7 +4107,7 @@
          zu_vsum, zv_vsum        ! solution of vertically summed problem
 
     if (verbose_pcg .and. main_task) then
-       print*, 'Applying local tridiagonal preconditioner'
+       write(6,*) 'Applying local tridiagonal preconditioner'
     endif
 
     do j = 1, ny-1
@@ -4119,9 +4119,9 @@
 
     if (verbose_tridiag .and. this_rank == rtest) then
        j = jtest
-       print*, ' '
-       print*, 'jtest =', jtest
-       print*, 'i, ru_vsum, rv_vsum:'
+       write(6,*) ' '
+       write(6,*) 'jtest =', jtest
+       write(6,*) 'i, ru_vsum, rv_vsum:'
        do i = itest-3, itest+3
           write(6,'(i4, 2f15.10)') i, ru_vsum(i,j), rv_vsum(i,j)
        enddo
@@ -4158,13 +4158,13 @@
     !WHL - debug
     if (verbose_pcg .and. this_rank == rtest) then
        j = jtest
-       print*, ' '
-       print*, 'i, zu_ssa, zu_sia(1), zu_sia(nz), zu_sum(1):'
+       write(6,*) ' '
+       write(6,*) 'i, zu_ssa, zu_sia(1), zu_sia(nz), zu_sum(1):'
        do i = itest-3, itest+3
           write(6,'(i4, 4e16.8)') i, zu_vsum(i,j), zu(1,i,j), zu(nz,i,j), zu_vsum(i,j) + zu(1,i,j)
        enddo  ! i
-       print*, ' '
-       print*, 'i, zv_ssa, zv_sia(1), zv_sia(nz), zv_sum(1):'
+       write(6,*) ' '
+       write(6,*) 'i, zv_ssa, zv_sia(1), zv_sia(nz), zv_sum(1):'
        do i = itest-3, itest+3
           write(6,'(i4, 4e16.8)') i, zv_vsum(i,j), zv(1,i,j), zv(nz,i,j), zv_vsum(i,j) + zv(1,i,j)
        enddo
@@ -4283,7 +4283,7 @@
     staggered_jhi = parallel%staggered_jhi
 
     if (verbose_pcg .and. main_task) then
-       print*, 'Applying global tridiagonal preconditioner'
+       write(6,*) 'Applying global tridiagonal preconditioner'
     endif
 
     ! Compute vertical sums of ru and rv
@@ -4296,9 +4296,9 @@
 
     if (verbose_tridiag .and. this_rank == rtest) then
        j = jtest
-       print*, ' '
-       print*, 'jtest =', jtest
-       print*, 'i, ru_vsum, rv_vsum:'
+       write(6,*) ' '
+       write(6,*) 'jtest =', jtest
+       write(6,*) 'i, ru_vsum, rv_vsum:'
        do i = itest-3, itest+3
           write(6,'(i4, 2f15.10)') i, ru_vsum(i,j), rv_vsum(i,j)
        enddo
@@ -4317,10 +4317,10 @@
 
     if (verbose_pcg .and. this_rank == rtest) then
        j = jtest
-       print*, ' '
-       print*, 'Before global tridiag PC u solve, r, j =', rtest, jtest
-       print*, ' '
-       print*, 'i, Adiag_u, Asubdiag_u, Asupdiag_u, b_u:'
+       write(6,*) ' '
+       write(6,*) 'Before global tridiag PC u solve, r, j =', rtest, jtest
+       write(6,*) ' '
+       write(6,*) 'i, Adiag_u, Asubdiag_u, Asupdiag_u, b_u:'
        do i = itest-3, itest+3
           write(6,'(i4, 4e16.8)') i, Adiag_u(i,j), Asubdiag_u(i,j), Asupdiag_u(i,j), b_u(i,j)
        enddo
@@ -4360,10 +4360,10 @@
 
     if (verbose_pcg .and. this_rank == rtest) then
        j = jtest
-       print*, ' '
-       print*, 'Before global tridiag PC v solve, r, j =', rtest, jtest
-       print*, ' '
-       print*, 'i, Adiag_v, Asubdiag_v, Asupdiag_v, b_v:'
+       write(6,*) ' '
+       write(6,*) 'Before global tridiag PC v solve, r, j =', rtest, jtest
+       write(6,*) ' '
+       write(6,*) 'i, Adiag_v, Asubdiag_v, Asupdiag_v, b_v:'
        do i = itest-3, itest+3
           write(6,'(i4, 4e16.8)') i, Adiag_v(i,j), Asubdiag_v(i,j), Asupdiag_v(i,j), b_v(i,j)
        enddo
@@ -4410,13 +4410,13 @@
     !WHL - debug
     if (verbose_pcg .and. this_rank == rtest) then
        j = jtest
-       print*, ' '
-       print*, 'i, zu_ssa, zu_sia(1), zu_sia(nz), zu_sum(1):'
+       write(6,*) ' '
+       write(6,*) 'i, zu_ssa, zu_sia(1), zu_sia(nz), zu_sum(1):'
        do i = itest-3, itest+3
           write(6,'(i4, 4e16.8)') i, zu_vsum(i,j), zu(1,i,j), zu(nz,i,j), zu_vsum(i,j) + zu(1,i,j)
        enddo  ! i
-       print*, ' '
-       print*, 'i, zv_ssa, zv_sia(1), zv_sia(nz), zv_sum(1):'
+       write(6,*) ' '
+       write(6,*) 'i, zv_ssa, zv_sia(1), zv_sia(nz), zv_sum(1):'
        do i = itest-3, itest+3
           write(6,'(i4, 4e16.8)') i, zv_vsum(i,j), zv(1,i,j), zv(nz,i,j), zv_vsum(i,j) + zv(1,i,j)
        enddo
@@ -4431,7 +4431,7 @@
     enddo
 
     !WHL - debug
-    if (verbose_pcg .and. this_rank == rtest) print*, 'Done in tridiag_solver_global_3d'
+    if (verbose_pcg .and. this_rank == rtest) write(6,*) 'Done in tridiag_solver_global_3d'
 
   end subroutine tridiag_solver_global_3d
 
@@ -4512,8 +4512,8 @@
 
     !WHL - debug
     if (verbose_tridiag .and. this_rank == rtest) then
-       print*, ' '
-       print*, 'In tridiag_solver_local_2d: itest, jtest, rtest =', itest, jtest, rtest
+       write(6,*) ' '
+       write(6,*) 'In tridiag_solver_local_2d: itest, jtest, rtest =', itest, jtest, rtest
     endif
 
     !-------------------------------------------------------------------------------------
@@ -4549,9 +4549,9 @@
 
        !WHL - debug
        if (verbose_tridiag .and. this_rank == rtest .and. j == jtest) then
-          print*, ' '
-          print*, 'jtest =', jtest
-          print*, 'After forward substitution, i, omega, gamma, denom, bu, xu:'
+          write(6,*) ' '
+          write(6,*) 'jtest =', jtest
+          write(6,*) 'After forward substitution, i, omega, gamma, denom, bu, xu:'
           do i = staggered_ihi, staggered_ilo, -1
              write(6,'(i4, 5e15.7)') i, omega_u(i,j), gamma_u(i,j), denom_u(i,j), bu(i,j), xu(i,j)
           enddo
@@ -4562,11 +4562,11 @@
     !WHL - debug
     if (verbose_tridiag .and. this_rank == rtest) then
        j = jtest
-       print*, ' '
-       print*, 'xu tridiag solve, this_rank, j =', this_rank, j
-       print*, 'i, xu:'
+       write(6,*) ' '
+       write(6,*) 'xu tridiag solve, this_rank, j =', this_rank, j
+       write(6,*) 'i, xu:'
        do i = staggered_ihi, staggered_ilo, -1
-          print*, i, xu(i,j)
+          write(6,*) i, xu(i,j)
        enddo
     endif   ! verbose_tridiag
 
@@ -4599,9 +4599,9 @@
        enddo
 
        if (verbose_tridiag .and. this_rank == rtest .and. i == itest) then
-          print*, ' '
-          print*, 'itest =', itest
-          print*, 'After forward substitution, j, omega, gamma, denom, bv, xv:'
+          write(6,*) ' '
+          write(6,*) 'itest =', itest
+          write(6,*) 'After forward substitution, j, omega, gamma, denom, bv, xv:'
           do j = staggered_jhi, staggered_jlo, -1
              write(6,'(i4, 5e15.7)') j, omega_v(i,j), gamma_v(i,j), denom_v(i,j), bv(i,j), xv(i,j)
           enddo
@@ -4612,11 +4612,11 @@
     !WHL - debug
     if (verbose_tridiag .and. this_rank == rtest) then
        i = itest
-       print*, ' '
-       print*, 'xv tridiag solve, this_rank, i =', this_rank, i
-       print*, 'j, xv:'
+       write(6,*) ' '
+       write(6,*) 'xv tridiag solve, this_rank, i =', this_rank, i
+       write(6,*) 'j, xv:'
        do j = staggered_jhi, staggered_jlo, -1
-          print*, j, xv(i,j)
+          write(6,*) j, xv(i,j)
        enddo
     endif   ! verbose_tridiag
 
@@ -4738,12 +4738,12 @@
 
     !WHL - debug
     if (verbose_tridiag .and. main_task) then
-       print*, ' '
-       print*, 'In tridiag_solver_global_2d: itest, jtest, rtest =', itest, jtest, rtest
+       write(6,*) ' '
+       write(6,*) 'In tridiag_solver_global_2d: itest, jtest, rtest =', itest, jtest, rtest
        if (tridiag_solver_flag == 'row') then
-          print*, 'Solving a tridiag problem for each matrix row'
+          write(6,*) 'Solving a tridiag problem for each matrix row'
        elseif (tridiag_solver_flag == 'col') then
-          print*, 'Solving a tridiag problem for each matrix column'
+          write(6,*) 'Solving a tridiag problem for each matrix column'
        else
           call write_log('ERROR: Invalid value for tridiag_solver flag; should be "row" or "col"', GM_FATAL)
        endif
@@ -4775,7 +4775,7 @@
     endif
 
     if (verbose_tridiag .and. main_task) then
-       print*, 'tasks_rc, main_task_rc =', tasks_rc, main_task_rc
+       write(6,*) 'tasks_rc, main_task_rc =', tasks_rc, main_task_rc
        call flush(6)
     endif
 
@@ -4831,22 +4831,22 @@
 
        !WHL - debug
        if (verbose_tridiag .and. this_rank == rtest .and. j == jtest) then
-          print*, ' '
+          write(6,*) ' '
           if (tridiag_solver_flag == 'row') then
-             print*, 'jtest =', jtest
-             print*, 'After forward substitution, i, omega, gamma, denom, bu, xr, xuh, xlh:'
+             write(6,*) 'jtest =', jtest
+             write(6,*) 'After forward substitution, i, omega, gamma, denom, bu, xr, xuh, xlh:'
              do i = ilocal, 1, -1
                 write(6,'(i4, 7e15.7)') i, omega(i,j), gamma(i,j), denom(i,j), bu(i,j), xr(i,j), xuh(i,j), xlh(i,j)
              enddo
           elseif (tridiag_solver_flag == 'col') then
-             print*, 'itest =', jtest   ! for columns, what we call jtest in the subroutine is really itest
-             print*, 'After forward substitution, j, omega, gamma, denom, bv, xr, xuh, xlh:'
+             write(6,*) 'itest =', jtest   ! for columns, what we call jtest in the subroutine is really itest
+             write(6,*) 'After forward substitution, j, omega, gamma, denom, bv, xr, xuh, xlh:'
              do i = jlocal, 1, -1
                 write(6,'(i4, 7e15.7)') i, omega(i,j), gamma(i,j), denom(i,j), bu(i,j), xr(i,j), xuh(i,j), xlh(i,j)
              enddo
           endif
-          print*, ' '
-          print*, 'outdata(1:8)'
+          write(6,*) ' '
+          write(6,*) 'outdata(1:8)'
           write(6,'(8e12.3)') outdata(1:8,j)
        endif
 
@@ -4965,9 +4965,9 @@
 
              global_coeffs(2:2*tasks_rc-1,j) = coeffs(:)
              if (verbose_tridiag .and. j==jtest) then
-                print*, ' '
-                print*, 'Solved global tridiag problem'
-                print*, 'subdiag, diag, supdiag, rhs, coeffs:'
+                write(6,*) ' '
+                write(6,*) 'Solved global tridiag problem'
+                write(6,*) 'subdiag, diag, supdiag, rhs, coeffs:'
                 do m = 1, 2*tasks_rc-2
                    write(6,'(5e12.3)') subdiag(m), diag(m), supdiag(m), rhs(m), coeffs(m)
                 enddo
@@ -5032,16 +5032,16 @@
     !WHL - debug
     if (verbose_tridiag .and. this_rank == rtest) then
        j = jtest
-       print*, ' '
+       write(6,*) ' '
        if (tridiag_solver_flag == 'row') then
-          print*, 'xu tridiag solve, this_rank, j =', this_rank, j
-          print*, 'i, xu:'
+          write(6,*) 'xu tridiag solve, this_rank, j =', this_rank, j
+          write(6,*) 'i, xu:'
        elseif (tridiag_solver_flag == 'col') then
-          print*, 'xv tridiag solve, this_rank, i =', this_rank, j
-          print*, 'j, xv:'
+          write(6,*) 'xv tridiag solve, this_rank, i =', this_rank, j
+          write(6,*) 'j, xv:'
        endif
        do i = ilocal, 1, -1
-          print*, i, xu(i,j)
+          write(6,*) i, xu(i,j)
        enddo
     endif   ! verbose_tridiag
 

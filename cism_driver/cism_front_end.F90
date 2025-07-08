@@ -70,7 +70,7 @@ subroutine cism_init_dycore(model)
   integer :: wd
   logical :: do_glide_init
 
-  !  print *,'Entering cism_init_dycore'
+  !  write(6,*) 'Entering cism_init_dycore'
 
   !TODO - call this only for parallel runs?
   ! call parallel_initialise     
@@ -304,7 +304,7 @@ subroutine cism_run_dycore(model)
         time = time + model%numerics%tinc
         model%numerics%time = time  ! TODO This is redundant with what is happening in glide/glissade, but this is needed for forcing to work properly.
       endif
-! print *,"external_dycore_type: ",model%options%external_dycore_type
+! write(6,*) "external_dycore_type: ",model%options%external_dycore_type
 
       !if (model%options%external_dycore_type .EQ. 0) then      ! NO_EXTERNAL_DYCORE) then
       !  if (model%options%whichdycore == DYCORE_GLIDE) then
@@ -331,7 +331,7 @@ subroutine cism_run_dycore(model)
           call glissade_tstep(model,time)
 
         case (DYCORE_BISICLES)
-          ! print *,'Using External Dycore'
+          ! write(6,*) 'Using External Dycore'
           ! The time variable gets incremented within this call:
           dt = model%numerics%tinc
         
@@ -347,7 +347,7 @@ subroutine cism_run_dycore(model)
       call t_stopf('tstep')
       !endif
 
-!      print*, 'Current time, tstep_count =', model%numerics%time, model%numerics%tstep_count
+!      write(6,*) 'Current time, tstep_count =', model%numerics%time, model%numerics%tstep_count
 
       ! write ice sheet diagnostics to log file at desired interval (model%numerics%dt_diag)
 

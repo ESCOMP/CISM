@@ -1195,12 +1195,12 @@ module glissade_remap
              dpy(i,j) < -hte(i,j) .or. dpy(i,j) > hte(i,j+1)) then
 
             !WHL - debug
-!             print*, ' '
-!             print*, 'dt =', dt
-!             print*, 'i, j =', i, j
-!             print*, 'dpx, dpy =', dpx(i,j), dpy(i,j)
-!             print*, 'hte, htn =', hte(i,j), htn(i,j)
-!             print*, 'bad departure points'
+!             write(6,*) ' '
+!             write(6,*) 'dt =', dt
+!             write(6,*) 'i, j =', i, j
+!             write(6,*) 'dpx, dpy =', dpx(i,j), dpy(i,j)
+!             write(6,*) 'hte, htn =', hte(i,j), htn(i,j)
+!             write(6,*) 'bad departure points'
 
             l_stop = .true.
             istop = i
@@ -2629,17 +2629,17 @@ module glissade_remap
             i = indxid(ij)
             j = indxjd(ij)
             if (abs(areasum(i,j) - edgearea(i,j)) > 1.e-13*areafac_c(i,j)) then
-               print*, ''
-               print*, 'Areas do not add up: i, j, edge =',   &
+               write(6,*) ''
+               write(6,*) 'Areas do not add up: i, j, edge =',   &
                         i, j, trim(edge)
-               print*, 'edgearea =', edgearea(i,j)
-               print*, 'areasum =', areasum(i,j)
-               print*, 'areafac_c =', areafac_c(i,j)
-               print*, ''
-               print*, 'Triangle areas:'
+               write(6,*) 'edgearea =', edgearea(i,j)
+               write(6,*) 'areasum =', areasum(i,j)
+               write(6,*) 'areafac_c =', areafac_c(i,j)
+               write(6,*) ''
+               write(6,*) 'Triangle areas:'
                do ng = 1, ngroups   
                   if (abs(triarea(i,j,ng)) > 1.e-16*abs(areafact(i,j,ng))) then
-                     print*, ng, triarea(i,j,ng)
+                     write(6,*) ng, triarea(i,j,ng)
                   endif
                enddo
             endif
@@ -2696,33 +2696,33 @@ module glissade_remap
             do i = ib, ie
                if (abs(triarea(i,j,ng)) > puny) then
                   if (abs(xp(i,j,nv,ng)) > 0.5d0+puny) then
-                     print*, ''
-                     print*, 'WARNING: xp =', xp(i,j,nv,ng)
-                     print*, 'i, j, ng, nv =', i, j, ng, nv
+                     write(6,*) ''
+                     write(6,*) 'WARNING: xp =', xp(i,j,nv,ng)
+                     write(6,*) 'i, j, ng, nv =', i, j, ng, nv
                      !debug
-!                     print*, 'edge =', trim(edge)
-!                     print*, 'yil, xdl, xcl, ydl=',yil, xdl, xcl, ydl
-!                     print*, 'yir, xdr, xcr, ydr=',yir, xdr, xcr, ydr
-!                     print*, 'Point 1:', xp(i,j,1,ng), yp(i,j,1,ng)
-!                     print*, 'Point 2:', xp(i,j,2,ng), yp(i,j,2,ng)
-!                     print*, 'Point 3:', xp(i,j,3,ng), yp(i,j,3,ng)
-!                     print*, 'DP(i,j):', dx(i,j), dy(i,j)
-!                     print*, 'DP(i-1,j):', dx(i-1,j), dy(i-1,j)
+!                     write(6,*) 'edge =', trim(edge)
+!                     write(6,*) 'yil, xdl, xcl, ydl=',yil, xdl, xcl, ydl
+!                     write(6,*) 'yir, xdr, xcr, ydr=',yir, xdr, xcr, ydr
+!                     write(6,*) 'Point 1:', xp(i,j,1,ng), yp(i,j,1,ng)
+!                     write(6,*) 'Point 2:', xp(i,j,2,ng), yp(i,j,2,ng)
+!                     write(6,*) 'Point 3:', xp(i,j,3,ng), yp(i,j,3,ng)
+!                     write(6,*) 'DP(i,j):', dx(i,j), dy(i,j)
+!                     write(6,*) 'DP(i-1,j):', dx(i-1,j), dy(i-1,j)
 !                     stop
                   endif
                   if (abs(yp(i,j,nv,ng)) > 0.5d0+puny) then
-                     print*, ''
-                     print*, 'WARNING: yp =', yp(i,j,nv,ng)
-                     print*, 'i, j, ng, nv =', i, j, ng, nv
+                     write(6,*) ''
+                     write(6,*) 'WARNING: yp =', yp(i,j,nv,ng)
+                     write(6,*) 'i, j, ng, nv =', i, j, ng, nv
                      !debug
-!                     print*, 'edge =', trim(edge)
-!                     print*, 'yil, xdl, xcl, ydl=',yil, xdl, xcl, ydl
-!                     print*, 'yir, xdr, xcr, ydr=',yir, xdr, xcr, ydr
-!                     print*, 'Point 1:', xp(i,j,1,ng), yp(i,j,1,ng)
-!                     print*, 'Point 2:', xp(i,j,2,ng), yp(i,j,2,ng)
-!                     print*, 'Point 3:', xp(i,j,3,ng), yp(i,j,3,ng)
-!                     print*, 'DP(i,j):', dx(i,j), dy(i,j)
-!                     print*, 'DP(i-1,j):', dx(i-1,j), dy(i-1,j)
+!                     write(6,*) 'edge =', trim(edge)
+!                     write(6,*) 'yil, xdl, xcl, ydl=',yil, xdl, xcl, ydl
+!                     write(6,*) 'yir, xdr, xcr, ydr=',yir, xdr, xcr, ydr
+!                     write(6,*) 'Point 1:', xp(i,j,1,ng), yp(i,j,1,ng)
+!                     write(6,*) 'Point 2:', xp(i,j,2,ng), yp(i,j,2,ng)
+!                     write(6,*) 'Point 3:', xp(i,j,3,ng), yp(i,j,3,ng)
+!                     write(6,*) 'DP(i,j):', dx(i,j), dy(i,j)
+!                     write(6,*) 'DP(i-1,j):', dx(i-1,j), dy(i-1,j)
 !                      stop
                   endif
                endif   ! triarea

@@ -198,8 +198,8 @@ contains
          model%lithot%rwork, model%lithot%mxnelt, model%lithot%iwork, model%lithot%mxnelt)
 
     if (ierr /= 0) then
-      print *, 'pcg error ', ierr, itmax, iter
-      write(*,*) model%numerics%time
+      write(6,*) 'pcg error ', ierr, itmax, iter
+      write(6,*) model%numerics%time
       call glide_finalise(model,.true.)
       call close_log
       stop

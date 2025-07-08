@@ -169,7 +169,7 @@ contains
 
     real(dp), dimension(:), allocatable :: dthck_dt_basin  ! basin average of dthck_dt_obs
 
-    if (main_task) print*, 'In glissade_initialise'
+    if (main_task) write(6,*) 'In glissade_initialise'
 
     if (present(evolve_ice)) then
        l_evolve_ice = evolve_ice
@@ -1066,7 +1066,7 @@ contains
              write(6,*) ' '
              write(6,*) 'nb, dthck_dt_basin'
              do nb = 1, model%ocean_data%nbasin
-                print*, nb, dthck_dt_basin(nb)
+                write(6,*) nb, dthck_dt_basin(nb)
              enddo
           endif
 
@@ -1093,7 +1093,7 @@ contains
     deallocate(land_mask)
     deallocate(ocean_mask)
 
-    if (main_task) print*, 'Done in glissade_initialise'
+    if (main_task) write(6,*) 'Done in glissade_initialise'
 
   end subroutine glissade_initialise
   
@@ -1424,7 +1424,7 @@ contains
 
     !WHL - Put other simple options in this subroutine instead of glissade_basal_melting_float?
 
-    if (main_task .and. verbose_glissade) print*, 'Call glissade_bmlt_float_solve'
+    if (main_task .and. verbose_glissade) write(6,*) 'Call glissade_bmlt_float_solve'
 
     ! Compute masks:
     ! Note: The '0.0d0' argument is thklim. Any ice with thck > 0 gets ice_mask = 1.
@@ -1459,8 +1459,8 @@ contains
     elseif (model%options%whichbmlt_float == BMLT_FLOAT_THERMAL_FORCING) then
 
        if (this_rank == rtest .and. verbose_bmlt_float) then
-          print*, ' '
-          print*, 'Compute bmlt_float at runtime from current thermal forcing'
+          write(6,*) ' '
+          write(6,*) 'Compute bmlt_float at runtime from current thermal forcing'
        endif
 
        !Note: Currently, there is no difference between ocean_data_domain = 0
@@ -1499,13 +1499,13 @@ contains
           tf_anomaly = anomaly_fraction * model%ocean_data%thermal_forcing_anomaly
           tf_anomaly_basin = model%ocean_data%thermal_forcing_anomaly_basin
           if (this_rank == rtest .and. verbose_bmlt_float) then
-             print*, 'time_from_start (yr):', time_from_start
-             print*, 'ocean_data%thermal forcing anomaly  (deg):', model%ocean_data%thermal_forcing_anomaly
-             print*, 'timescale (yr):', model%ocean_data%thermal_forcing_anomaly_timescale
-             print*, 'fraction:', anomaly_fraction
-             print*, 'current TF anomaly (deg):', tf_anomaly
+             write(6,*) 'time_from_start (yr):', time_from_start
+             write(6,*) 'ocean_data%thermal forcing anomaly  (deg):', model%ocean_data%thermal_forcing_anomaly
+             write(6,*) 'timescale (yr):', model%ocean_data%thermal_forcing_anomaly_timescale
+             write(6,*) 'fraction:', anomaly_fraction
+             write(6,*) 'current TF anomaly (deg):', tf_anomaly
              if (model%ocean_data%thermal_forcing_anomaly_timescale /= 0.0d0) then
-                print*, 'anomaly applied to basin number', model%ocean_data%thermal_forcing_anomaly_basin
+                write(6,*) 'anomaly applied to basin number', model%ocean_data%thermal_forcing_anomaly_basin
              endif
           endif
        else
@@ -1734,7 +1734,7 @@ contains
     ! Note: There used to be code here for downscaling artm and related fields.
     !       This code is now in subroutine glissade_prepare_climate_forcing.
 
-    if (main_task .and. verbose_glissade) print*, 'Call glissade_therm_driver'
+    if (main_task .and. verbose_glissade) write(6,*) 'Call glissade_therm_driver'
 
     ! Note: glissade_therm_driver uses SI units
     !       Output arguments are temp, waterfrac, bpmp and bmlt_ground
@@ -1770,7 +1770,7 @@ contains
     ! Update basal hydrology, if needed
     ! Note: glissade_calcbwat uses SI units
 
-    if (main_task .and. verbose_glissade) print*, 'Call glissade_calcbwat'
+    if (main_task .and. verbose_glissade) write(6,*) 'Call glissade_calcbwat'
 
     !TODO - Move the following calls to a new basal hydrology solver?
 
@@ -2162,9 +2162,9 @@ contains
 
        !WHL - debug
 !      if (main_task) then
-!         print*, 'Checked advective CFL threshold'
-!         print*, 'model dt (yr) =', model%numerics%dt/scyr
-!         print*, 'adv_cfl_dt    =', model%numerics%adv_cfl_dt
+!         write(6,*) 'Checked advective CFL threshold'
+!         write(6,*) 'model dt (yr) =', model%numerics%dt/scyr
+!         write(6,*) 'adv_cfl_dt    =', model%numerics%adv_cfl_dt
 !      endif
 
        advective_cfl = (model%numerics%dt/scyr) / model%numerics%adv_cfl_dt
@@ -2181,9 +2181,9 @@ contains
              nsubcyc = ceiling(advective_cfl / model%numerics%adaptive_cfl_threshold)
 
              if (main_task) then
-                print*, 'WARNING: adv_cfl_dt exceeds threshold; CFL =', advective_cfl
-                print*, 'Ratio =', advective_cfl / model%numerics%adaptive_cfl_threshold
-                print*, 'nsubcyc =', nsubcyc
+                write(6,*) 'WARNING: adv_cfl_dt exceeds threshold; CFL =', advective_cfl
+                write(6,*) 'Ratio =', advective_cfl / model%numerics%adaptive_cfl_threshold
+                write(6,*) 'nsubcyc =', nsubcyc
              endif
 
           else
@@ -2200,7 +2200,7 @@ contains
           !       The call to glide_finalise was added to allow CISM to finish cleanly when running
           !        a suite of automated stability tests, e.g. with the stabilitySlab.py script.
           if (advective_cfl > 1.0d0) then
-             if (main_task) print*, 'advective CFL violation; call glide_finalise and exit cleanly'
+             if (main_task) write(6,*) 'advective CFL violation; call glide_finalise and exit cleanly'
              call glide_finalise(model, forcewrite_arg=.true.)
              stop
           else
@@ -2433,7 +2433,7 @@ contains
 
     if (model%options%force_retreat == FORCE_RETREAT_ALL_ICE .and. .not.init_calving) then
        if (this_rank == rtest) then
-          print*, 'Forcing retreat using ice_fraction_retreat_mask, time =', model%numerics%time
+          write(6,*) 'Forcing retreat using ice_fraction_retreat_mask, time =', model%numerics%time
        endif
 
        if (verbose_retreat) then
@@ -2600,7 +2600,7 @@ contains
     !       Replace with calls to multiple subroutines based on whichcalving?
     ! ------------------------------------------------------------------------
 
-    if (main_task .and. verbose_calving) print*, 'Call glissade_calve_ice'
+    if (main_task .and. verbose_calving) write(6,*) 'Call glissade_calve_ice'
 
     if (model%options%whichcalving /= CALVING_GRID_MASK) then
 
@@ -2933,7 +2933,7 @@ contains
        if (model%isostasy%nlith > 0) then
           if (mod(model%numerics%tstep_count-1, model%isostasy%nlith) == 0) then
              if (main_task) then
-                print*, 'Update lithospheric load: tstep_count, nlith =', &
+                write(6,*) 'Update lithospheric load: tstep_count, nlith =', &
                      model%numerics%tstep_count, model%isostasy%nlith
              endif
              call isos_icewaterload(model)
@@ -3065,7 +3065,7 @@ contains
     upn = model%general%upn
 
     if (verbose_glissade .and. main_task) then
-       print*, 'In glissade_diagnostic_variable_solve'
+       write(6,*) 'In glissade_diagnostic_variable_solve'
     endif
 
     ! ------------------------------------------------------------------------ 
@@ -3445,8 +3445,8 @@ contains
        endif
 
        if (main_task) then
-          print *, ' '
-          print *, 'Compute ice velocities, time =', model%numerics%time
+          write(6,*) ' '
+          write(6,*) 'Compute ice velocities, time =', model%numerics%time
        endif
 
        !! extrapolate value of mintauf into halos to enforce periodic lateral bcs (only if field covers entire domain)
@@ -3859,7 +3859,7 @@ contains
     model%geometry%usrf(:,:) = max(0.d0, model%geometry%thck(:,:) + model%geometry%lsrf(:,:))
 
     if (verbose_glissade .and. main_task) then
-       print*, 'Done in glissade_diagnostic_variable_solve'
+       write(6,*) 'Done in glissade_diagnostic_variable_solve'
     endif
   end subroutine glissade_diagnostic_variable_solve
 

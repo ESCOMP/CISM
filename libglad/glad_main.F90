@@ -684,10 +684,10 @@ contains
        if (this_rank == rtest) then
           i = itest
           j = jtest
-          print*, 'r, i, j, nzocn =', this_rank, i, j, nzocn
-          print*, 'k, zocn:'
+          write(6,*) 'r, i, j, nzocn =', this_rank, i, j, nzocn
+          write(6,*) 'k, zocn:'
           do k = 1, nzocn
-             print*, k, zocn(k)
+             write(6,*) k, zocn(k)
           enddo
        endif
 
@@ -723,8 +723,8 @@ contains
        if (verbose_glad .and. this_rank == rtest) then
           i = itest
           j = jtest
-          print*, 'r, i, j =', this_rank, i, j
-          print*, 'k, zocn, temperature, salinity, thermal forcing:'
+          write(6,*) 'r, i, j =', this_rank, i, j
+          write(6,*) 'k, zocn, temperature, salinity, thermal forcing:'
           do k = 1, nzocn
              write(6,'(i4, 4f11.3)') k, zocn(k), &
                   tocn_haloed(k,i,j), salinity_haloed(k,i,j), thermal_forcing_haloed(k,i,j)
@@ -806,7 +806,7 @@ contains
           if (verbose_glad .and. this_rank == rtest) then
              i = itest
              j = jtest
-             print*, 'Before calling glad_i_tstep_gcm, k, zocn, average thermal forcing:'
+             write(6,*) 'Before calling glad_i_tstep_gcm, k, zocn, average thermal forcing:'
              do k = 1, nzocn
                 write(6,'(i4, 2f11.3)') k, zocn(k), params%instances(instance_index)%thermal_forcing(k,i,j)
              enddo

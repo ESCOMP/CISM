@@ -112,12 +112,12 @@ contains
          if (verbose_velo .and. this_rank == rtest) then
             i = itest
             j = jtest
-            print*, ' '
-            print*, 'SIA part of uvel, vvel (m/yr): r, i, j =', rtest, itest, jtest
-            print*, ' '
+            write(6,*) ' '
+            write(6,*) 'SIA part of uvel, vvel (m/yr): r, i, j =', rtest, itest, jtest
+            write(6,*) ' '
             do k = 1, upn
-               print*, k, model%velocity%uvel(k,i,j)*scyr, &
-                          model%velocity%vvel(k,i,j)*scyr
+               write(6,*) k, model%velocity%uvel(k,i,j)*scyr, &
+                             model%velocity%vvel(k,i,j)*scyr
             enddo
          endif
 
@@ -144,12 +144,12 @@ contains
          if (verbose_velo .and. this_rank == rtest) then
             i = itest
             j = jtest
-            print*, ' '
-            print*, 'SSA part of uvel, vvel (m/yr): r, i, j =', rtest, itest, jtest
-            print*, ' '
+            write(6,*) ' '
+            write(6,*) 'SSA part of uvel, vvel (m/yr): r, i, j =', rtest, itest, jtest
+            write(6,*) ' '
             do k = 1, upn
-               print*, k, model%velocity%uvel(k,i,j)*scyr, &
-                          model%velocity%vvel(k,i,j)*scyr
+               write(6,*) k, model%velocity%uvel(k,i,j)*scyr, &
+                             model%velocity%vvel(k,i,j)*scyr
             enddo
          endif
 
@@ -195,12 +195,12 @@ contains
       if (verbose_velo .and. this_rank == rtest) then
          i = itest
          j = jtest
-         print*, ' '
-         print*, 'uvel, vvel (m/yr): r, i, j =', rtest, itest, jtest
-         print*, ' '
+         write(6,*) ' '
+         write(6,*) 'uvel, vvel (m/yr): r, i, j =', rtest, itest, jtest
+         write(6,*) ' '
          do k = 1, upn
-            print*, k, model%velocity%uvel(k,i,j)*scyr, &
-                       model%velocity%vvel(k,i,j)*scyr
+            write(6,*) k, model%velocity%uvel(k,i,j)*scyr, &
+                          model%velocity%vvel(k,i,j)*scyr
          enddo
       endif
 

@@ -247,7 +247,7 @@ contains
     allocate(vect(nn),ind(nn)) 
 
     if (nn/=nx*ny.or.size(sorted,2) /= 2) then
-      print*,'Wrong dimensions'
+      write(6,*)'Wrong dimensions'
       stop
     endif
 

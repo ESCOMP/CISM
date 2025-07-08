@@ -310,25 +310,24 @@ contains
        ng=.false.
     end if
 
-    print*,'Grid parameters:'
-    print*,'----------------'
-    print*
-    print*,'nx=', grid%nx
-    print*,'ny=', grid%ny
-    print*,'nec=',grid%nec
+    write(6,*)'Grid parameters:'
+    write(6,*)'----------------'
+    write(6,*)'nx=', grid%nx
+    write(6,*)'ny=', grid%ny
+    write(6,*)'nec=',grid%nec
     if (.not.ng) then
-       print*
-       print*,'longitudes:'
-       print*,grid%lons
-       print*
-       print*,'latitudes:'
-       print*,grid%lats
-       print*
-       print*,'longitude boundaries:'
-       print*,grid%lon_bound
-       print*
-       print*,'latitude boundaries:'
-       print*,grid%lat_bound
+       write(6,*)' '
+       write(6,*)'longitudes:'
+       write(6,*)grid%lons
+       write(6,*)' '
+       write(6,*)'latitudes:'
+       write(6,*)grid%lats
+       write(6,*)' '
+       write(6,*)'longitude boundaries:'
+       write(6,*)grid%lon_bound
+       write(6,*)' '
+       write(6,*)'latitude boundaries:'
+       write(6,*)grid%lat_bound
     end if
 
   end subroutine print_grid

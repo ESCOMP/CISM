@@ -174,9 +174,9 @@ contains
     load(:,:) = 0.0d0
 
     if (verbose_isostasy .and. main_task) then
-       print*, 'ISOSTASY: calc_elastic'
-       print*, 'local ewn/nsn =', ewn, nsn
-       print*, 'global_ewn/nsn =', global_ewn, global_nsn
+       write(6,*) 'ISOSTASY: calc_elastic'
+       write(6,*) 'local ewn/nsn =', ewn, nsn
+       write(6,*) 'global_ewn/nsn =', global_ewn, global_nsn
     endif
 
     ! Gather the local arrays onto the main task
@@ -188,7 +188,7 @@ contains
        do j = 1, global_nsn
 
           if (verbose_isostasy .and. main_task) then
-             if (mod(j,100) == 0) print*, 'j =', j   ! to see how fast the calculation is going
+             if (mod(j,100) == 0) write(6,*) 'j =', j   ! to see how fast the calculation is going
           endif
           
           do i = 1, global_ewn
@@ -220,7 +220,7 @@ contains
        if (this_rank==rdiag_local) then
           i = idiag_local
           j = jdiag_local
-          print*, 'ISOSTASY: r, i, j, load:', rdiag_local, i, j, load(i,j)
+          write(6,*) 'ISOSTASY: r, i, j, load:', rdiag_local, i, j, load(i,j)
        endif
 
     endif  ! verbose_isostasy

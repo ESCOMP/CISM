@@ -326,16 +326,16 @@ contains
         endif
  
         if (verbose_slap) then
-           print*, ' '
-           print*, 'In sparse_easy_solve'
-           print*, 'method (0=BiCG, 1=GMRES, 2=PCG_INCH) =', method
-           print*, 'matrix%order =', matrix%order
-           print*, 'matrix%nonzeros =', matrix%nonzeros
-           print*, 'size(rhs) =', size(rhs)
-           print*, 'size(answer) =', size(answer)
-           print*, 'size(row) =', size(matrix%row)
-           print*, 'size(col) =', size(matrix%col)
-           print*, 'size(val) =', size(matrix%val)
+           write(6,*) ' '
+           write(6,*) 'In sparse_easy_solve'
+           write(6,*) 'method (0=BiCG, 1=GMRES, 2=PCG_INCH) =', method
+           write(6,*) 'matrix%order =', matrix%order
+           write(6,*) 'matrix%nonzeros =', matrix%nonzeros
+           write(6,*) 'size(rhs) =', size(rhs)
+           write(6,*) 'size(answer) =', size(answer)
+           write(6,*) 'size(row) =', size(matrix%row)
+           write(6,*) 'size(col) =', size(matrix%col)
+           write(6,*) 'size(val) =', size(matrix%val)
         endif
 
         call sparse_solver_default_options(method, opt)
@@ -347,8 +347,8 @@ contains
         ierr = sparse_solve(matrix, rhs, answer, opt, wk, err, iter, .false.)
 
        if (verbose_slap) then
-          print*, ' '
-          print*, 'Called sparse_solve: iter, err =', iter, err
+          write(6,*) ' '
+          write(6,*) 'Called sparse_solve: iter, err =', iter, err
        endif
        
         call sparse_solver_postprocess(matrix, opt, wk)
