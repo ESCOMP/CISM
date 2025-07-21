@@ -289,8 +289,10 @@ module cism_parallel
 
   interface parallel_global_sum
      module procedure parallel_global_sum_integer_2d
+     module procedure parallel_global_sum_integer_3d
      module procedure parallel_global_sum_real4_2d
      module procedure parallel_global_sum_real8_2d
+     module procedure parallel_global_sum_real8_3d
   end interface
 
   interface parallel_global_sum_staggered
@@ -302,6 +304,7 @@ module cism_parallel
 
   interface parallel_halo
      module procedure parallel_halo_integer_2d
+     module procedure parallel_halo_integer_3d
      module procedure parallel_halo_logical_2d
      module procedure parallel_halo_real4_2d
      module procedure parallel_halo_real8_2d
@@ -5988,16 +5991,16 @@ contains
 
   ! functions belonging to the parallel_global_sum interface
 
-  function parallel_global_sum_integer_2d(a, parallel, mask)
+  function parallel_global_sum_integer_2d(a, parallel, mask_2d)
 
     ! Calculates the global sum of a 2D integer field
 
     integer,dimension(:,:),intent(in) :: a
     type(parallel_type) :: parallel
-    integer, dimension(:,:), intent(in), optional :: mask
+    integer, dimension(:,:), intent(in), optional :: mask_2d
 
     integer :: i, j
-    integer, dimension(parallel%local_ewn,parallel%local_nsn) :: sum_mask
+    integer, dimension(parallel%local_ewn,parallel%local_nsn) :: mask
     integer :: local_sum
     integer :: parallel_global_sum_integer_2d
 
@@ -6005,16 +6008,16 @@ contains
          local_ewn   => parallel%local_ewn,    &
          local_nsn   => parallel%local_nsn)
 
-    if (present(mask)) then
-       sum_mask = mask
+    if (present(mask_2d)) then
+       mask = mask_2d
     else
-       sum_mask = 1
+       mask = 1
     endif
 
     local_sum = 0
     do j = nhalo+1, local_nsn-nhalo
        do i = nhalo+1, local_ewn-nhalo
-          if (sum_mask(i,j) == 1) then
+          if (mask(i,j) == 1) then
              local_sum = local_sum + a(i,j)
           endif
        enddo
@@ -6027,16 +6030,61 @@ contains
 
 !=======================================================================
 
-  function parallel_global_sum_real4_2d(a, parallel, mask)
+  function parallel_global_sum_integer_3d(a, parallel, mask_3d)
+
+    ! Calculates the global sum of a 3D integer field
+    ! Note: The vertical dimension should be the first dimension of the input field.
+
+    integer,dimension(:,:,:),intent(in) :: a
+    type(parallel_type) :: parallel
+    integer, dimension(:,:,:), intent(in), optional :: mask_3d
+
+    integer :: i, j, k
+    integer :: kmax
+    integer, dimension(size(a,1),parallel%local_ewn,parallel%local_nsn) :: mask
+    integer :: local_sum
+    integer :: parallel_global_sum_integer_3d
+
+    associate(  &
+         local_ewn   => parallel%local_ewn,    &
+         local_nsn   => parallel%local_nsn)
+
+    kmax = size(a,1)
+
+    if (present(mask_3d)) then
+       mask = mask_3d
+    else
+       mask = 1
+    endif
+
+    local_sum = 0
+    do j = nhalo+1, local_nsn-nhalo
+       do i = nhalo+1, local_ewn-nhalo
+          do k = 1, kmax
+             if (mask(k,i,j) == 1) then
+                local_sum = local_sum + a(k,i,j)
+             endif
+          enddo
+       enddo
+    enddo
+    parallel_global_sum_integer_3d = parallel_reduce_sum(local_sum)
+
+    end associate
+
+  end function parallel_global_sum_integer_3d
+
+!=======================================================================
+
+  function parallel_global_sum_real4_2d(a, parallel, mask_2d)
 
     ! Calculates the global sum of a 2D single-precision field
 
     real(sp),dimension(:,:),intent(in) :: a
     type(parallel_type) :: parallel
-    integer, dimension(:,:), intent(in), optional :: mask
+    integer, dimension(:,:), intent(in), optional :: mask_2d
 
     integer :: i, j
-    integer, dimension(parallel%local_ewn,parallel%local_nsn) :: sum_mask
+    integer, dimension(parallel%local_ewn,parallel%local_nsn) :: mask
     real(sp) :: local_sum
     real(sp) :: parallel_global_sum_real4_2d
 
@@ -6044,16 +6092,16 @@ contains
          local_ewn   => parallel%local_ewn,    &
          local_nsn   => parallel%local_nsn)
 
-    if (present(mask)) then
-       sum_mask = mask
+    if (present(mask_2d)) then
+       mask = mask_2d
     else
-       sum_mask = 1
+       mask = 1
     endif
 
     local_sum = 0.0
     do j = nhalo+1, local_nsn-nhalo
        do i = nhalo+1, local_ewn-nhalo
-          if (sum_mask(i,j) == 1) then
+          if (mask(i,j) == 1) then
              local_sum = local_sum + a(i,j)
           endif
        enddo
@@ -6066,16 +6114,16 @@ contains
 
 !=======================================================================
 
-  function parallel_global_sum_real8_2d(a, parallel, mask)
+  function parallel_global_sum_real8_2d(a, parallel, mask_2d)
 
     ! Calculates the global sum of a 2D double-precision field
 
     real(dp), dimension(:,:), intent(in) :: a
     type(parallel_type) :: parallel
-    integer, dimension(:,:), intent(in), optional :: mask
+    integer, dimension(:,:), intent(in), optional :: mask_2d
 
     integer :: i, j
-    integer, dimension(parallel%local_ewn,parallel%local_nsn) :: sum_mask
+    integer, dimension(parallel%local_ewn,parallel%local_nsn) :: mask
     real(dp) :: local_sum
     real(dp) :: parallel_global_sum_real8_2d
 
@@ -6083,16 +6131,16 @@ contains
          local_ewn   => parallel%local_ewn,    &
          local_nsn   => parallel%local_nsn)
 
-    if (present(mask)) then
-       sum_mask = mask
+    if (present(mask_2d)) then
+       mask = mask_2d
     else
-       sum_mask = 1
+       mask = 1
     endif
 
     local_sum = 0.0d0
     do j = nhalo+1, local_nsn-nhalo
        do i = nhalo+1, local_ewn-nhalo
-          if (sum_mask(i,j) == 1) then
+          if (mask(i,j) == 1) then
              local_sum = local_sum + a(i,j)
           endif
        enddo
@@ -6102,6 +6150,51 @@ contains
     end associate
 
   end function parallel_global_sum_real8_2d
+
+!=======================================================================
+
+  function parallel_global_sum_real8_3d(a, parallel, mask_3d)
+
+    ! Calculates the global sum of a 3D double-precision field
+    ! Note: The vertical dimension should be the first dimension of the input field.
+
+    real(dp), dimension(:,:,:),intent(in) :: a
+    type(parallel_type) :: parallel
+    integer, dimension(:,:,:), intent(in), optional :: mask_3d
+
+    integer :: i, j, k
+    integer :: kmax
+    integer, dimension(size(a,1),parallel%local_ewn,parallel%local_nsn) :: mask
+    real(dp) :: local_sum
+    real(dp) :: parallel_global_sum_real8_3d
+
+    associate(  &
+         local_ewn   => parallel%local_ewn,    &
+         local_nsn   => parallel%local_nsn)
+
+    kmax = size(a,1)
+
+    if (present(mask_3d)) then
+       mask = mask_3d
+    else
+       mask = 1
+    endif
+
+    local_sum = 0
+    do j = nhalo+1, local_nsn-nhalo
+       do i = nhalo+1, local_ewn-nhalo
+          do k = 1, kmax
+             if (mask(k,i,j) == 1) then
+                local_sum = local_sum + a(k,i,j)
+             endif
+          enddo
+       enddo
+    enddo
+    parallel_global_sum_real8_3d = parallel_reduce_sum(local_sum)
+
+    end associate
+
+  end function parallel_global_sum_real8_3d
 
 !=======================================================================
 
@@ -6553,6 +6646,130 @@ contains
     end associate
 
   end subroutine parallel_halo_integer_2d
+
+
+  subroutine parallel_halo_integer_3d(a, parallel)
+
+    use mpi_mod
+    implicit none
+    integer,dimension(:,:,:) :: a
+    type(parallel_type) :: parallel
+
+    integer :: erequest,ierror,one,nrequest,srequest,wrequest
+    integer,dimension(size(a,1), lhalo, parallel%local_nsn-lhalo-uhalo) :: esend,wrecv
+    integer,dimension(size(a,1), uhalo, parallel%local_nsn-lhalo-uhalo) :: erecv,wsend
+    integer,dimension(size(a,1), parallel%local_ewn, lhalo) :: nsend,srecv
+    integer,dimension(size(a,1), parallel%local_ewn, uhalo) :: nrecv,ssend
+
+    ! begin
+    associate(  &
+         outflow_bc  => parallel%outflow_bc,   &
+         no_ice_bc   => parallel%no_ice_bc,    &
+         local_ewn   => parallel%local_ewn,    &
+         local_nsn   => parallel%local_nsn,    &
+         east        => parallel%east,         &
+         west        => parallel%west,         &
+         north       => parallel%north,        &
+         south       => parallel%south,        &
+         southwest_corner  => parallel%southwest_corner,   &
+         southeast_corner  => parallel%southeast_corner,   &
+         northeast_corner  => parallel%northeast_corner,   &
+         northwest_corner  => parallel%northwest_corner    &
+         )
+
+    ! staggered grid
+    if (size(a,2)==local_ewn-1.and.size(a,3)==local_nsn-1) return
+
+    ! unknown grid
+    if (size(a,2)/=local_ewn.or.size(a,3)/=local_nsn) then
+         write(6,*) "Unknown Grid: Size a=(", size(a,1), ",", size(a,2), ",", size(a,3), ") &
+                 &and local_ewn and local_nsn = ", local_ewn, ",", local_nsn
+         call parallel_stop(__FILE__,__LINE__)
+    endif
+
+    ! unstaggered grid
+    call mpi_irecv(wrecv,size(wrecv),mpi_real8,west,west,&
+         comm,wrequest,ierror)
+    call mpi_irecv(erecv,size(erecv),mpi_real8,east,east,&
+         comm,erequest,ierror)
+    call mpi_irecv(srecv,size(srecv),mpi_real8,south,south,&
+         comm,srequest,ierror)
+    call mpi_irecv(nrecv,size(nrecv),mpi_real8,north,north,&
+         comm,nrequest,ierror)
+
+    esend(:,:,:) = &
+         a(:,local_ewn-uhalo-lhalo+1:local_ewn-uhalo,1+lhalo:local_nsn-uhalo)
+    call mpi_send(esend,size(esend),mpi_real8,east,this_rank,comm,ierror)
+    wsend(:,:,:) = a(:,1+lhalo:1+lhalo+uhalo-1,1+lhalo:local_nsn-uhalo)
+    call mpi_send(wsend,size(wsend),mpi_real8,west,this_rank,comm,ierror)
+
+    call mpi_wait(wrequest,mpi_status_ignore,ierror)
+    a(:,:lhalo,1+lhalo:local_nsn-uhalo) = wrecv(:,:,:)
+    call mpi_wait(erequest,mpi_status_ignore,ierror)
+    a(:,local_ewn-uhalo+1:,1+lhalo:local_nsn-uhalo) = erecv(:,:,:)
+
+    nsend(:,:,:) = a(:,:,local_nsn-uhalo-lhalo+1:local_nsn-uhalo)
+    call mpi_send(nsend,size(nsend),mpi_real8,north,this_rank,comm,ierror)
+    ssend(:,:,:) = a(:,:,1+lhalo:1+lhalo+uhalo-1)
+    call mpi_send(ssend,size(ssend),mpi_real8,south,this_rank,comm,ierror)
+
+    call mpi_wait(srequest,mpi_status_ignore,ierror)
+    a(:,:,:lhalo) = srecv(:,:,:)
+    call mpi_wait(nrequest,mpi_status_ignore,ierror)
+    a(:,:,local_nsn-uhalo+1:) = nrecv(:,:,:)
+
+    if (outflow_bc) then   ! set values in global halo to zero
+                           ! interior halo cells should not be affected
+
+       if (this_rank >= east) then  ! at east edge of global domain
+          a(:,local_ewn-uhalo+1:,:) = 0
+       endif
+
+       if (this_rank <= west) then  ! at west edge of global domain
+          a(:,:lhalo,:) = 0
+       endif
+
+       if (this_rank >= north) then  ! at north edge of global domain
+          a(:,:,local_nsn-uhalo+1:) = 0
+       endif
+
+       if (this_rank <= south) then  ! at south edge of global domain
+          a(:,:,:lhalo) = 0
+       endif
+
+    elseif (no_ice_bc) then
+
+       ! Set values to zero in cells adjacent to the global boundary;
+       ! includes halo cells and one row of locally owned cells
+
+       if (this_rank >= east) then  ! at east edge of global domain
+          a(:,local_ewn-uhalo:,:) = 0
+       endif
+
+       if (this_rank <= west) then  ! at west edge of global domain
+          a(:,:lhalo+1,:) = 0
+       endif
+
+       if (this_rank >= north) then  ! at north edge of global domain
+          a(:,:,local_nsn-uhalo:) = 0
+       endif
+
+       if (this_rank <= south) then  ! at south edge of global domain
+          a(:,:,:lhalo+1) = 0
+       endif
+
+       ! Some interior blocks have a single cell at a corner of the global boundary.
+       ! Set values in corner cells to zero, along with adjacent halo cells.
+       if (southwest_corner) a(:,:lhalo+1,:lhalo+1) = 0
+       if (southeast_corner) a(:,local_ewn-lhalo:,:lhalo+1) = 0
+       if (northeast_corner) a(:,local_ewn-lhalo:,local_nsn-lhalo:) = 0
+       if (northwest_corner) a(:,:lhalo+1,local_nsn-lhalo:) = 0
+
+    endif   ! outflow or no_ice bc
+
+    end associate
+
+  end subroutine parallel_halo_integer_3d
 
 
   subroutine parallel_halo_logical_2d(a, parallel)

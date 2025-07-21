@@ -1746,13 +1746,16 @@ contains
 
 !****************************************************************************
 
-  subroutine glissade_laplacian_smoother(nx,         ny,            &
-                                         var,        var_smooth,    &
-                                         smoother_mask,             &
-                                         npoints_stencil)
+  subroutine glissade_laplacian_smoother(&
+       nx,         ny,            &
+       var,        var_smooth,    &
+       smoother_mask,             &
+       npoints_stencil)
 
     !----------------------------------------------------------------
-    ! Given a 2D field on the ice grid, smooth the field using a 9-point Laplacian stencil.
+    ! Given a 2D field on the ice grid, smooth the field using a Laplacian stencil.
+    ! Uses a 9-point stencil by default, but optionally can use a 5-point
+    !  or 25-point stencil.
     !----------------------------------------------------------------
 
     !----------------------------------------------------------------
@@ -1791,8 +1794,8 @@ contains
 
     if (present(npoints_stencil)) then
        npoints = npoints_stencil
-       if (.not.(npoints == 5 .or. npoints == 9)) then
-          call write_log('ERROR, glissade_laplacian_smoother: Must choose 5 or 9 points for the stencil', GM_FATAL)
+       if (.not.(npoints == 5 .or. npoints == 9 .or. npoints == 25)) then
+          call write_log('ERROR, glissade_laplacian_smoother: Must choose 5, 9 or 25 points for the stencil', GM_FATAL)
        endif
     else
        npoints = 9
@@ -1800,6 +1803,7 @@ contains
 
     sum_mask = 0.0d0
 
+    !TODO - Remove the rmask > 0 logic for n = 5 and 9?
     if (npoints == 5) then
 
        do j = 2, ny-1
@@ -1844,6 +1848,42 @@ contains
                 endif
 
              endif   ! rmask > 0
+          enddo   ! i
+       enddo   ! j
+
+    elseif (npoints == 25) then
+
+       !Note: not yet tested
+       do j = 3, ny-2
+          do i = 3, nx-2
+
+             sum_mask =  1.d0 * (rmask(i-2,j-2) + rmask(i-2,j+2) + rmask(i+2,j-2) + rmask(i+2,j+2))  &
+                       + 4.d0 * (rmask(i-1,j-2) + rmask(i-2,j-1) + rmask(i-1,j+2) + rmask(i-2,j+1)  &
+                               + rmask(i+2,j-1) + rmask(i+1,j-2) + rmask(i+1,j+2) + rmask(i+2,j+1)) &
+                       + 6.d0 * (rmask(i-2,j)   + rmask(i,j-2)   + rmask(i+2,j)   + rmask(i,j+2))   &
+                       + 16.d0 * (rmask(i-1,j-1) + rmask(i-1,j+1) + rmask(i+1,j-1) + rmask(i+1,j+1)) &
+                       + 24.d0 * (rmask(i,j-1)   + rmask(i-1,j)   + rmask(i,j+1)   + rmask(i+1,j))   &
+                       + 26.d0 *  rmask(i,j)
+
+             if (sum_mask > 0.0d0) then
+                var_smooth(i,j) = (1.d0/sum_mask) * &
+                    (1.d0 * (rmask(i-2,j-2)*var(i-2,j-2) + rmask(i-2,j+2)*var(i+2,j+2)   &
+                           + rmask(i+2,j-2)*var(i+2,j-2) + rmask(i+2,j+2)*var(i+2,j+2))  &
+                   + 4.d0 * (rmask(i-1,j-2)*var(i-1,j-2) + rmask(i-2,j-1)*var(i-2,j-1)   &
+                           + rmask(i-1,j+2)*var(i-1,j+2) + rmask(i-2,j+1)*var(i-2,j+1)   &
+                           + rmask(i+2,j-1)*var(i+2,j-1) + rmask(i+1,j-2)*var(i+1,j-2)   &
+                           + rmask(i+1,j+2)*var(i+1,j+2) + rmask(i+2,j+1)*var(i+2,j+1))  &
+                   + 6.d0 * (rmask(i-2,j)*var(i-2,j)     + rmask(i,j-2)*var(i,j-2)       &
+                           + rmask(i+2,j)*var(i+2,j)     + rmask(i,j+2)*var(i,j+2))      &
+                  + 16.d0 * (rmask(i-1,j-1)*var(i-1,j-1) + rmask(i-1,j+1)*var(i-1,j+1)   &
+                           + rmask(i+1,j-1)*var(i+1,j-1) + rmask(i+1,j+1)*var(i+1,j+1))  &
+                  + 24.d0 * (rmask(i,j-1)*var(i,j-1)     + rmask(i-1,j)*var(i-1,j)       &
+                           + rmask(i,j+1)*var(i,j+1)     + rmask(i+1,j)*var(i+1,j))      &
+                  + 36.d0 *  rmask(i,j)*var(i,j))
+             else
+                var_smooth(i,j) = var(i,j)
+             endif
+
           enddo   ! i
        enddo   ! j
 

@@ -201,12 +201,12 @@
 !    logical :: verbose = .true.  
     logical :: verbose_init = .false.   
 !    logical :: verbose_init = .true.   
-!    logical :: verbose_solver = .false.
-    logical :: verbose_solver = .true.
+    logical :: verbose_solver = .false.
+!    logical :: verbose_solver = .true.
     logical :: verbose_Jac = .false.
 !    logical :: verbose_Jac = .true.
-!    logical :: verbose_residual = .false.
-    logical :: verbose_residual = .true.
+    logical :: verbose_residual = .false.
+!    logical :: verbose_residual = .true.
     logical :: verbose_state = .false.
 !    logical :: verbose_state = .true.
     logical :: verbose_velo = .false.
@@ -225,8 +225,8 @@
 !    logical :: verbose_bfric = .true.
     logical :: verbose_trilinos = .false.
 !    logical :: verbose_trilinos = .true.
-!    logical :: verbose_beta = .false.
-    logical :: verbose_beta = .true.
+    logical :: verbose_beta = .false.
+!    logical :: verbose_beta = .true.
     logical :: verbose_efvs = .false.
 !    logical :: verbose_efvs = .true.
     logical :: verbose_tau = .false.

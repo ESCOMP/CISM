@@ -567,8 +567,8 @@ module glide_types
 
     integer :: ocean_data_extrapolate = 0
     !> \begin{description}
-    !> \item[0] ocean data not extrapolated to shelf cavities
-    !> \item[1] ocean data extrapolated to shelf cavities
+    !> \item[0] CISM will not extrapolate ocean data into cavities
+    !> \item[1] CISM will extrapolate off-shelf ocean data into shelf cavities
     !> \end{description}
 
     logical :: enable_bmlt_anomaly = .false.
