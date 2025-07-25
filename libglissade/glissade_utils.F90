@@ -33,8 +33,11 @@ module glissade_utils
   use glimmer_global, only: dp
   use glimmer_log
   use glide_types
-  use glide_diagnostics, only: point_diag
   use cism_parallel, only: this_rank, main_task
+  ! Note: Using the glide_diagnostics module creates a circularity.
+  !       For that reason, point_diag should be called from a higher level, not inside utility subroutines
+  ! TODO: Remove the circularity by moving point_diag to this module?
+  !!  use glide_diagnostics, only: point_diag
 
   implicit none
 
@@ -112,14 +115,6 @@ contains
 
     if (usrf_max > tiny(0.0d0)) then
 
-       if (verbose_adjust_thickness) then
-          call point_diag(model%geometry%usrf, 'Before thck_adjustment, usrf (m)', itest, jtest, rtest, 7, 7)
-          call point_diag(model%geometry%thck, 'thck (m)', itest, jtest, rtest, 7, 7)
-          call point_diag(model%geometry%topg, 'topg (m)', itest, jtest, rtest, 7, 7)
-          call point_diag(model%geometry%usrf - model%geometry%thck - model%geometry%topg, 'cavity thickness', &
-               itest, jtest, rtest, 7, 7)
-       endif   ! verbose
-
        do j = 1, ny
           do i = 1, nx
              topg = model%geometry%topg(i,j) - model%climate%eus  ! shorthand for relative bed topography
@@ -137,14 +132,6 @@ contains
              endif
           enddo
        enddo
-
-       if (verbose_adjust_thickness) then
-          call point_diag(model%geometry%usrf, 'After thck_adjustment, usrf (m)', itest, jtest, rtest, 7, 7)
-          call point_diag(model%geometry%thck, 'thck (m)', itest, jtest, rtest, 7, 7)
-          call point_diag(model%geometry%topg, 'topg (m)', itest, jtest, rtest, 7, 7)
-          call point_diag(model%geometry%usrf - model%geometry%thck - model%geometry%topg, 'cavity thickness', &
-               itest, jtest, rtest, 7, 7)
-       endif
 
     else   ! usrf_max < tiny
 
@@ -228,12 +215,6 @@ contains
     thck = model%geometry%thck
     usrf = model%geometry%usrf
 
-    if (verbose_smooth_usrf) then
-       call point_diag(topg, 'Before Laplacian smoother, topg (m)', itest, jtest, rtest, 7, 7)
-       call point_diag(thck, 'thck (m)', itest, jtest, rtest, 7, 7)
-       call point_diag(usrf, 'usrf (m)', itest, jtest, rtest, 7, 7)
-    endif
-
     ! compute initial masks
     call glissade_get_masks(nx,                  ny,                    &
                             model%parallel,                             &
@@ -283,12 +264,6 @@ contains
     ! Copy the new thickness and usrf to the model derived type
     model%geometry%thck = thck
     model%geometry%usrf = usrf
-
-    if (verbose_smooth_usrf) then
-       call point_diag(topg, 'After Laplacian smoother, topg (m)', itest, jtest, rtest, 7, 7)
-       call point_diag(thck, 'thck (m)', itest, jtest, rtest, 7, 7)
-       call point_diag(usrf, 'usrf (m)', itest, jtest, rtest, 7, 7)
-    endif
 
   end subroutine glissade_smooth_usrf
 
@@ -362,12 +337,6 @@ contains
                             ice_mask,                                   &
                             floating_mask = floating_mask)
 
-    if (verbose_smooth_topg) then
-       call point_diag(model%geometry%topg, 'Before Laplacian smoother, topg (m)', itest, jtest, rtest, 7, 7)
-       call point_diag(model%geometry%thck, 'thck (m)', itest, jtest, rtest, 7, 7)
-       call point_diag(model%geometry%usrf, 'usrf (m)', itest, jtest, rtest, 7, 7)
-    endif
-
     call glissade_laplacian_smoother(model%general%ewn, model%general%nsn,  &
                                      model%geometry%topg, topg_smoothed,    &
                                      npoints_stencil = 5)
@@ -394,12 +363,6 @@ contains
     !WHL - usrf for debugging only
     call glide_calclsrf(model%geometry%thck, model%geometry%topg, model%climate%eus, model%geometry%lsrf)
     model%geometry%usrf = max(0.d0, model%geometry%thck + model%geometry%lsrf)
-
-    if (verbose_smooth_topg) then
-       call point_diag(model%geometry%topg, 'After Laplacian smoother, topg (m)', itest, jtest, rtest, 7, 7)
-       call point_diag(model%geometry%thck, 'thck (m)', itest, jtest, rtest, 7, 7)
-       call point_diag(model%geometry%usrf, 'usrf (m)', itest, jtest, rtest, 7, 7)
-    endif
 
   end subroutine glissade_smooth_topography
 
@@ -496,13 +459,6 @@ contains
     call glide_calclsrf(model%geometry%thck, model%geometry%topg, model%climate%eus, model%geometry%lsrf)
     model%geometry%usrf = max(0.d0, model%geometry%thck + model%geometry%lsrf)
 
-    if (verbose_adjust_topg) then
-       call point_diag(model%geometry%usrf, 'Before adjusting topography, usrf (m)', itest, jtest, rtest, 7, 7)
-       call point_diag(model%geometry%thck, 'thck (m)', itest, jtest, rtest, 7, 7)
-       call point_diag(model%geometry%lsrf, 'lsrf (m)', itest, jtest, rtest, 7, 7)
-       call point_diag(model%geometry%topg, 'topg (m)', itest, jtest, rtest, 7, 7)
-    endif
-
     !TODO - Use model%geometry%topg - model%climate%eus?
     allocate(topg(model%general%ewn, model%general%nsn))
     topg = model%geometry%topg
@@ -552,20 +508,12 @@ contains
     model%geometry%topg = topg
     deallocate(topg)
 
-    if (verbose_adjust_topg) then
-       call point_diag(model%geometry%topg, 'Adjusted topg (m)', itest, jtest, rtest, 7, 7)
-    endif
-
     ! In some cells, the new lower surface (usrf - thck) may lie below the topography.
     ! In these cells, reduce the ice thickness such that lsrf = topg, preserving the input value of usrf.
 
     where (model%geometry%usrf - model%geometry%thck < model%geometry%topg)
        model%geometry%thck = model%geometry%usrf - model%geometry%topg
     endwhere
-
-    if (verbose_adjust_topg) then
-       call point_diag(model%geometry%topg, 'Corrected topg (m)', itest, jtest, rtest, 7, 7)
-    endif
 
   end subroutine glissade_adjust_topography
 

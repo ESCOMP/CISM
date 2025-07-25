@@ -1906,7 +1906,7 @@ module glissade_bmlt_float
                       enddo
                       if(sum_mask > 0) then
                          thermal_forcing(k,i,j) = sum_thermal_forcing / real(sum_mask,dp)
-                         if (verbose_extrapolate) write(6,*), '   Assigned value is ', thermal_forcing(k,i,j)
+                         if (verbose_extrapolate) write(6,*) '   Assigned value is ', thermal_forcing(k,i,j)
                       endif
                    endif   ! unphys_val
                 enddo   ! k

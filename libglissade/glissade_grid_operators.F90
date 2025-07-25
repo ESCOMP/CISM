@@ -44,7 +44,9 @@ module glissade_grid_operators
     use glide_types
     use cism_parallel, only: this_rank, main_task, nhalo, &
          parallel_type, parallel_halo, parallel_reduce_sum, parallel_globalindex
-    use glide_diagnostics, only: point_diag
+  ! Note: Using the glide_diagnostics module creates a circularity.
+  !       For that reason, point_diag should be called from a higher level, not from inside this module.
+!!    use glide_diagnostics, only: point_diag
 
     implicit none
 
@@ -465,11 +467,6 @@ contains
        enddo  ! i
     enddo     ! j
 
-    if (verbose_gradient) then
-       call point_diag(df_dx, 'Centered gradient, df/dx', itest, jtest, rtest, 7, 7)
-       call point_diag(df_dy, 'Centered gradient, df/dy', itest, jtest, rtest, 7, 7)
-    endif
-
   end subroutine glissade_gradient
 
 !****************************************************************************
@@ -677,11 +674,6 @@ contains
        enddo
 
     endif  ! present(max_slope)
-
-    if (verbose_gradient) then
-       call point_diag(df_dx, 'edge gradient, df/dx', itest, jtest, rtest, 7, 7)
-       call point_diag(df_dy, 'edge gradient, df/dy', itest, jtest, rtest, 7, 7)
-    endif
 
   end subroutine glissade_gradient_at_edges
 
@@ -1262,13 +1254,6 @@ contains
        enddo
 
     endif   ! present(max_slope)
-
-    if (verbose_gradient) then
-       call point_diag(ds_dx_edge, 'Hybrid gradient, ds/dx', itest, jtest, rtest, 7, 7, '(f10.6)')
-       call point_diag(ds_dy_edge, 'ds/dy', itest, jtest, rtest, 7, 7, '(f10.6)')
-       call point_diag(ds_dx, 'ds/dx', itest, jtest, rtest, 7, 7, '(f10.6)')
-       call point_diag(ds_dy, 'ds/dy', itest, jtest, rtest, 7, 7, '(f10.6)')
-    endif
 
     ! Note: Halo updates moved to higher level
 !    call staggered_parallel_halo(ds_dx)
@@ -2182,7 +2167,6 @@ contains
 
        if (verbose_extrapolate) then
           if (this_rank == rtest) write(6,*) 'glissade_scalar_extrapolate, iteration =', iter
-          call point_diag(phi_out, 'Current phi_out (m)', itest, jtest, rtest, 7, 7)
        endif
 
        ! Make a copy of the current output field

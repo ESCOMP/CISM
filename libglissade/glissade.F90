@@ -477,7 +477,25 @@ contains
     ! In these grid cells, we set thck = usrf - topg, preserving the input usrf and removing the lakes.
 
     if (model%options%adjust_input_thickness .and. model%options%is_restart == NO_RESTART) then
+
+       if (verbose_glissade) then
+          call point_diag(model%geometry%usrf, 'Before thck_adjustment, usrf (m)', itest, jtest, rtest, 7, 7)
+          call point_diag(model%geometry%thck, 'thck (m)', itest, jtest, rtest, 7, 7)
+          call point_diag(model%geometry%topg, 'topg (m)', itest, jtest, rtest, 7, 7)
+          call point_diag(model%geometry%usrf - model%geometry%thck - model%geometry%topg, 'cavity thickness', &
+               itest, jtest, rtest, 7, 7)
+       endif
+
        call glissade_adjust_thickness(model)
+
+       if (verbose_glissade) then
+          call point_diag(model%geometry%usrf, 'After thck_adjustment, usrf (m)', itest, jtest, rtest, 7, 7)
+          call point_diag(model%geometry%thck, 'thck (m)', itest, jtest, rtest, 7, 7)
+          call point_diag(model%geometry%topg, 'topg (m)', itest, jtest, rtest, 7, 7)
+          call point_diag(model%geometry%usrf - model%geometry%thck - model%geometry%topg, 'cavity thickness', &
+               itest, jtest, rtest, 7, 7)
+       endif
+
     endif
 
     ! Optionally, smooth the input surface elevation with a Laplacian smoother.
