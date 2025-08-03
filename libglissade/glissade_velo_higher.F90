@@ -2904,7 +2904,7 @@
                       write(6,*) 'Saved L2 norm, new L2 norm:', L2_norm_alpha_sav, L2_norm
                    endif
                    call point_diag(resid_u_2d, 'resid_u_2d', itest, jtest, rtest, 7, 7, '(e10.3)')
-                   call point_diag(uvel_2d, 'uvel_2d', itest, jtest, rtest, 7, 7, '(f14.9)')
+                   call point_diag(uvel_2d, 'uvel_2d', itest, jtest, rtest, 7, 7, '(f10.3)')
                 endif
 
                 if (counter >= 2) then
@@ -9833,17 +9833,17 @@
        uvel_old = uvel
        vvel_old = vvel
 
+       if (verbose_picard .and. main_task) then
+          write(6,*) 'Back up to alpha =', alpha_accel - gamma_accel
+          write(6,*) 'Continue to matrix solver'
+       endif
+
        ! Reset alpha_accel and L2_norm_alpha_sav for the next nonlinear iteration
        alpha_accel = 1.0d0
        L2_norm_alpha_sav = L2_norm_large
 
        ! proceed to the matrix solution
        assembly_is_done = .true.
-
-       if (verbose_picard .and. main_task) then
-          write(6,*) 'Back up to alpha =', alpha_accel - gamma_accel
-          write(6,*) 'Continue to matrix solver'
-       endif
 
     endif  ! L2_norm of residual has reduced
 
@@ -9963,17 +9963,17 @@
        uvel_2d_old = uvel_2d
        vvel_2d_old = vvel_2d
 
+       if (verbose_picard .and. main_task) then
+          write(6,*) 'Back up to alpha =', alpha_accel - gamma_accel
+          write(6,*) 'Continue to matrix solver'
+       endif
+
        ! Reset alpha_accel and L2_norm_alpha_sav for the next nonlinear iteration
        alpha_accel = 1.0d0
        L2_norm_alpha_sav = L2_norm_large
 
        ! proceed to the matrix solution
        assembly_is_done = .true.
-
-       if (verbose_picard .and. main_task) then
-          write(6,*) 'Back up to alpha =', alpha_accel - gamma_accel
-          write(6,*) 'Continue to matrix solver'
-       endif
 
     endif  ! L2_norm of residual has reduced
 

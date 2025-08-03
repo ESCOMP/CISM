@@ -949,6 +949,7 @@ contains
     ! Compute the Laplacian of logc.
     ! Do this for all cells, including floating and ice-free cells,
     ! to get a smooth transition at the ice margin.
+
     del2_mask = 1
 
     call glissade_laplacian_stagvar(&
@@ -992,19 +993,21 @@ contains
              term_thck = -stag_dthck(i,j) / (babc_thck_scale*babc_timescale)
              term_dHdt = -stag_dthck_dt(i,j) * 2.0d0 / babc_thck_scale
 
+             ! Note: There is no Laplacian smoothing term for grounded cells.
+             !       I found that including this term in AIS spin-ups can impair nonlinear convergence
+             !       and significantly slow the code.
+
+          else
+
+             ! Note: There is no reason to compute term_thck and term_dHdt for floating cells,
+             !        since the ice thickness is unrelated to friction.
+             !       Adding a Laplacian term, however, gives a smoother transition at grounding lines.
+
+             term_laplacian = del2_logC(i,j) * babc_length_scale**2 / babc_timescale
+
           endif  ! f_ground > 0
 
-          ! Note: If the ice is fully floating, there is no reason to compute term_thck and term_dHdt,
-          !       since the ice thickness is unrelated to friction.
-          !       However, we still compute Laplacian and relax terms, to give a smooth transition
-          !        between grounded and floating cells. The goal is to make the inversion more robust
-          !        under grounding-line migration.
-
-          ! Add a Laplacian smoothing term, which will discourage large curvature and make the field more linear.
-          ! del2(logC) < 0 for peaks, which are lowered by this term, and del2(logC) > 0 for valleys, which are raised.
-          term_laplacian = del2_logC(i,j) * babc_length_scale**2 / babc_timescale
-
-          ! Add a term to relax C toward a target value, friction_c_relax
+          ! At all locations, add a term to relax C toward a target value, friction_c_relax
           if (logC(i,j) > logmin) then
              term_relax = -babc_relax_factor * (logC(i,j) - logC_relax(i,j)) / babc_timescale
           endif
@@ -1327,6 +1330,7 @@ contains
     ! Note: Grounded cells are included in the mask. In these cells, we relax deltaT_ocean
     !       toward the basin average, with Laplacian smoothing to give a smooth transition
     !       between grounded and floating cells.
+
     where (thck > 0.0d0)
        del2_mask = 1
     elsewhere
@@ -1410,6 +1414,7 @@ contains
     ! optional diagnostics
     if (verbose_inversion) then
        call point_diag(f_ground_cell, 'f_ground_cell', itest, jtest, rtest, 7, 7)
+       call point_diag(del2_mask, 'del2_mask', itest, jtest, rtest, 7, 7)
        call point_diag(thck, 'thck (m)', itest, jtest, rtest, 7, 7)
        call point_diag(dthck, 'err thck (m)', itest, jtest, rtest, 7, 7)
        call point_diag(dthck_dt*scyr, 'dthck/dt (m/yr)', itest, jtest, rtest, 7, 7)
