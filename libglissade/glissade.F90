@@ -914,7 +914,14 @@ contains
        endif
     endif
 
-    if (model%options%which_ho_coulomb_c == HO_COULOMB_C_CONSTANT) then
+    ! Old logic was to set coulomb_c = coulomb_c_constant if which_ho_coulomb_c == HO_COULOMB_C_CONSTANT.
+    ! This is still true, provided which_ho_coulomb_c_basin = HO_COULOMB_C_BASIN_NONE.
+    ! If which_ho_coulomb_c_basin = HO_COULOMB_C_BASIN_INVERSION, we start the run
+    !  by setting coulomb_c = coulomb_c_constant; then on restart we read in the saved coulomb_c field.
+    if ( (model%options%which_ho_coulomb_c == HO_COULOMB_C_CONSTANT .and. &
+          model%options%which_ho_coulomb_c_basin == HO_COULOMB_C_BASIN_NONE) .or. &
+         (model%options%which_ho_coulomb_c_basin == HO_COULOMB_C_BASIN_INVERSION .and. &
+          model%options%is_restart == NO_RESTART) ) then
        model%basal_physics%coulomb_c = model%basal_physics%coulomb_c_const
     endif
 
@@ -922,10 +929,11 @@ contains
     ! At the start of the run (but not on restart), this might lead to further thickness adjustments,
     !  so it should be called before computing the calving mask.
 
-    if (model%options%which_ho_powerlaw_c   == HO_POWERLAW_C_INVERSION .or.  &
-        model%options%which_ho_coulomb_c    == HO_COULOMB_C_INVERSION  .or.  &
-        model%options%which_ho_deltaT_ocn   == HO_DELTAT_OCN_INVERSION .or.  &
-        model%options%which_ho_deltaT_basin == HO_DELTAT_BASIN_INVERSION .or.  &
+    if (model%options%which_ho_powerlaw_c      == HO_POWERLAW_C_INVERSION      .or.  &
+        model%options%which_ho_coulomb_c       == HO_COULOMB_C_INVERSION       .or.  &
+        model%options%which_ho_coulomb_c_basin == HO_COULOMB_C_BASIN_INVERSION .or.  &
+        model%options%which_ho_deltaT_ocn      == HO_DELTAT_OCN_INVERSION      .or.  &
+        model%options%which_ho_deltaT_basin    == HO_DELTAT_BASIN_INVERSION    .or.  &
         model%options%which_ho_flow_enhancement_factor == HO_FLOW_ENHANCEMENT_FACTOR_INVERSION) then
 
        call glissade_inversion_init(model)

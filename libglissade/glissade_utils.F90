@@ -541,7 +541,8 @@ contains
     integer, dimension(nx,ny), intent(in) :: &
          basin_number              !> basin ID for each grid cell
 
-    real(dp), dimension(nx,ny), intent(in) :: &
+    ! Note: For the next two fields, the dimension can be either (nx,ny) or (nx-1,ny-1)
+    real(dp), dimension(:,:), intent(in) :: &
          rmask,                 &  !> real mask for weighting the input field
          field_2d                  !> input field to be averaged over basins
 
@@ -560,7 +561,7 @@ contains
 
     sumfield_local(:) = 0.0d0
 
-    ! loop over locally owned cells only
+    ! loop over locally owned cells
     do j = nhalo+1, ny-nhalo
        do i = nhalo+1, nx-nhalo
           nb = basin_number(i,j)
@@ -586,6 +587,7 @@ contains
     ! For a given 2D input field, compute the average over a basin.
     ! The average is taken over grid cells with mask = 1.
     ! All cells are weighted equally.
+    ! Note: This subroutine assumes an input field located at cell centers
 
     use cism_parallel, only: parallel_reduce_sum, nhalo
 
@@ -598,10 +600,9 @@ contains
     integer, dimension(nx,ny), intent(in) :: &
          basin_number              !> basin ID for each grid cell
 
-    real(dp), dimension(nx,ny), intent(in) :: &
-         rmask                     !> real mask for weighting the value in each cell
-
-    real(dp), dimension(nx,ny), intent(in) :: &
+    ! Note: For the next two fields, the dimension can be either (nx,ny) or (nx-1,ny-1)
+    real(dp), dimension(:,:), intent(in) :: &
+         rmask,                  & !> real mask for weighting the value in each cell
          field_2d                  !> input field to be averaged over basins
 
     real(dp), dimension(nbasin), intent(out) :: &

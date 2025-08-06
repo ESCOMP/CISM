@@ -277,6 +277,10 @@ module glide_types
   integer, parameter :: HO_COULOMB_C_EXTERNAL = 2
   integer, parameter :: HO_COULOMB_C_ELEVATION = 3
 
+  integer, parameter :: HO_COULOMB_C_BASIN_NONE = 0
+  integer, parameter :: HO_COULOMB_C_BASIN_INVERSION = 1
+  integer, parameter :: HO_COULOMB_C_BASIN_EXTERNAL = 2
+
   integer, parameter :: HO_COULOMB_C_RELAX_NONE = 0
   integer, parameter :: HO_COULOMB_C_RELAX_CONSTANT = 1
   integer, parameter :: HO_COULOMB_C_RELAX_ELEVATION = 2
@@ -287,14 +291,14 @@ module glide_types
   integer, parameter :: HO_DELTAT_OCN_EXTERNAL = 2
   integer, parameter :: HO_DELTAT_OCN_DTHCK_DT = 3
 
-  integer, parameter :: HO_FLOW_ENHANCEMENT_FACTOR_CONSTANT = 0
-  integer, parameter :: HO_FLOW_ENHANCEMENT_FACTOR_INVERSION = 1
-  integer, parameter :: HO_FLOW_ENHANCEMENT_FACTOR_EXTERNAL = 2
-
   integer, parameter :: HO_DELTAT_BASIN_NONE = 0
   integer, parameter :: HO_DELTAT_BASIN_INVERSION = 1
   integer, parameter :: HO_DELTAT_BASIN_EXTERNAL = 2
   integer, parameter :: HO_DELTAT_BASIN_ISMIP6 = 3
+
+  integer, parameter :: HO_FLOW_ENHANCEMENT_FACTOR_CONSTANT = 0
+  integer, parameter :: HO_FLOW_ENHANCEMENT_FACTOR_INVERSION = 1
+  integer, parameter :: HO_FLOW_ENHANCEMENT_FACTOR_EXTERNAL = 2
 
   integer, parameter :: HO_BWAT_NONE = 0
   integer, parameter :: HO_BWAT_CONSTANT = 1
@@ -888,6 +892,14 @@ module glide_types
     !> \item[2] coulomb_c_relax = function of bed elevation
     !> \end{description}
 
+    integer :: which_ho_coulomb_c_basin = 0
+    !> Flag for basin-based coulomb_c options
+    !> \begin{description}
+    !> \item[0] no basin-based coulomb_c
+    !> \item[1] invert for a single value of coulomb_c in each basin
+    !> \item[2] read coulomb_c from external file for each basin
+    !> \end{description}
+
     integer :: which_ho_deltaT_ocn = 0
     !> Flag for local ocean temperature corrections
     !> \begin{description}
@@ -897,14 +909,7 @@ module glide_types
     !> \item[3] set deltaT_ocn to match dH/dt target
     !> \end{description}
 
-    integer :: which_ho_flow_enhancement_factor = 0
-    !> Flag for flow enhancement factor E
-    !> \begin{description}
-    !> \item[0] flow enhancement factor E = constant (typically lower for floating ice)
-    !> \item[1] invert for flow_enhancement factor E
-    !> \item[2] read flow_enhancement factor E from external file
-
-    integer :: which_ho_deltat_basin = 0
+    integer :: which_ho_deltaT_basin = 0
     !> Flag for basin-based temperature corrections (previously called which_ho_bmlt_basin)
     !> \begin{description}
     !> \item[0] deltaT_ocn = 0 in each basin
@@ -912,6 +917,13 @@ module glide_types
     !> \item[2] read deltaT_ocn from external file for each basin
     !> \item[3] prescribe deltaT_ocn in each basin using ISMIP6 values
     !> \end{description}
+
+    integer :: which_ho_flow_enhancement_factor = 0
+    !> Flag for flow enhancement factor E
+    !> \begin{description}
+    !> \item[0] flow enhancement factor E = constant (typically lower for floating ice)
+    !> \item[1] invert for flow_enhancement factor E
+    !> \item[2] read flow_enhancement factor E from external file
 
     integer :: which_ho_bwat = 0
     !> Basal water depth:
@@ -1723,6 +1735,10 @@ module glide_types
           babc_length_scale = 0.0d0,           & !> diffusive length scale (m) for inversion
           babc_relax_factor = 0.05d0             !> controls strength of relaxation to default values (unitless)
 
+     ! fields and parameters for basin-scale coulomb_c inversion
+     real(dp), dimension(:,:), pointer ::  &
+          grounded_thck_target => null()         !> Observational target for floating ice thickness
+
      ! parameters for local deltaT_ocn inversion
      ! Note: deltaT_ocn is in the ocean_data type
      real(dp) ::  &
@@ -2216,6 +2232,7 @@ module glide_types
      real(dp) :: coulomb_c_bedmin = -300.d0      !> bed elevation (m) below which coulomb_c = coulomb_c_min
      real(dp) :: coulomb_c_relax_max = 0.40d0    !> upper relaxation target for coulomb_c, at high elevation
      real(dp) :: coulomb_c_relax_min = 0.10d0    !> lower relaxation target for coulomb_c, at low elevation
+     real(dp) :: coulomb_c_basin_relax           !> relax the basin-scale coulomb_c toward this value
 
      ! parameters for older form of Coulomb friction sliding law (default values from Pimentel et al. 2010)
      ! Pimentel et al. have coulomb_c = 0.84*m_max, where m_max = coulomb_bump_max_slope
@@ -3142,6 +3159,13 @@ contains
     call coordsystem_allocate(model%general%velo_grid,model%basal_physics%coulomb_c)
     call coordsystem_allocate(model%general%velo_grid,model%basal_physics%coulomb_c_relax)
 
+    if (model%options%which_ho_coulomb_c_basin /= HO_COULOMB_C_BASIN_NONE) then
+       if (model%ocean_data%nbasin < 1) then
+          call write_log ('Must set nbasin >= 1 for the coulomb_c_basin options', GM_FATAL)
+       endif
+       call coordsystem_allocate(model%general%ice_grid, model%inversion%grounded_thck_target)
+    endif
+
     if (model%options%which_ho_deltaT_basin /= HO_DELTAT_BASIN_NONE) then
        if (model%ocean_data%nbasin < 1) then
           call write_log ('Must set nbasin >= 1 for the deltaT_basin options', GM_FATAL)
@@ -3640,6 +3664,8 @@ contains
         deallocate(model%basal_physics%coulomb_c_relax)
     if (associated(model%inversion%floating_thck_target)) &
         deallocate(model%inversion%floating_thck_target)
+    if (associated(model%inversion%grounded_thck_target)) &
+        deallocate(model%inversion%grounded_thck_target)
 
     ! MISOMIP arrays
     if (associated(model%plume%T_ambient)) &

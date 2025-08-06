@@ -766,8 +766,9 @@ contains
     call GetValue(section, 'which_ho_powerlaw_c',         model%options%which_ho_powerlaw_c)
     call GetValue(section, 'which_ho_coulomb_c',          model%options%which_ho_coulomb_c)
     call GetValue(section, 'which_ho_coulomb_c_relax',    model%options%which_ho_coulomb_c_relax)
-    call GetValue(section, 'which_ho_deltaT_basin',       model%options%which_ho_deltaT_basin)
+    call GetValue(section, 'which_ho_coulomb_c_basin',    model%options%which_ho_coulomb_c_basin)
     call GetValue(section, 'which_ho_deltaT_ocn',         model%options%which_ho_deltaT_ocn)
+    call GetValue(section, 'which_ho_deltaT_basin',       model%options%which_ho_deltaT_basin)
     call GetValue(section, 'which_ho_flow_enhancement_factor', model%options%which_ho_flow_enhancement_factor)
     call GetValue(section, 'which_ho_bwat',               model%options%which_ho_bwat)
     call GetValue(section, 'ho_flux_routing_scheme',      model%options%ho_flux_routing_scheme)
@@ -1044,17 +1045,22 @@ contains
          'spatially uniform Cc_relax              ', &
          'Cc_relax is a function of bed elevation ' /)
 
-    character(len=*), dimension(0:3), parameter :: ho_deltaT_basin = (/ &
-         'no basin-scale deltaT_ocn correction            ', &
-         'invert for uniform deltaT_ocn in each basin     ', &
-         'read deltaT_ocn in each basin from external file', &
-         'prescribe deltaT_ocn in each basin from ISMIP6  ' /)
+    character(len=*), dimension(0:2), parameter :: ho_coulomb_c_basin = (/ &
+         'no basin-scale coulomb_c correction            ', &
+         'invert for uniform coulomb_c in each basin     ', &
+         'read coulomb_c in each basin from external file' /)
 
     character(len=*), dimension(0:3), parameter :: ho_deltaT_ocn = (/ &
          'deltaT_ocn = 0                         ', &
          'invert for deltaT_ocn based on thck    ', &
          'read deltaT_ocn from external file     ', &
          'invert for deltaT_ocn based on dthck_dt' /)
+
+    character(len=*), dimension(0:3), parameter :: ho_deltaT_basin = (/ &
+         'no basin-scale deltaT_ocn correction            ', &
+         'invert for uniform deltaT_ocn in each basin     ', &
+         'read deltaT_ocn in each basin from external file', &
+         'prescribe deltaT_ocn in each basin from ISMIP6  ' /)
 
     character(len=*), dimension(0:2), parameter :: ho_flow_enhancement_factor = (/ &
          'uniform flow enhancement factors               ', &
@@ -1794,6 +1800,30 @@ contains
 
        endif
 
+       if (model%options%which_ho_coulomb_c_basin /= HO_COULOMB_C_BASIN_NONE) then
+          if (model%options%which_ho_babc == HO_BABC_ZOET_IVERSON) then
+             ! inversion for Cc is supported
+          else
+             call write_log('Error, Cc inversion is not supported for this basal BC option')
+             write(message,*) 'Cc inversion is supported only for these options: ', HO_BABC_ZOET_IVERSON
+             call write_log(message, GM_FATAL)
+          endif
+          write(message,*) 'ho_coulomb_c_basin      : ',model%options%which_ho_coulomb_c_basin,  &
+                            ho_coulomb_c_basin(model%options%which_ho_coulomb_c_basin)
+          call write_log(message)
+       endif
+
+       if (model%options%which_ho_coulomb_c_basin < 0 .or. &
+            model%options%which_ho_coulomb_c_basin >= size(ho_coulomb_c_basin)) then
+          call write_log('Error, ho_coulomb_c_basin out of range', GM_FATAL)
+       end if
+
+       ! Make sure we don't have too many non-default inversion options selected
+       if (model%options%which_ho_coulomb_c /= HO_COULOMB_C_CONSTANT .and. &
+           model%options%which_ho_coulomb_c_basin /= HO_COULOMB_C_BASIN_NONE) then
+          call write_log('Please set which_ho_coulomb_c = 0 or which_ho_coulomb_c_basin = 0', GM_FATAL)
+       endif
+
        if (model%options%which_ho_deltaT_basin /= HO_DELTAT_BASIN_NONE) then
           write(message,*) 'ho_deltaT_basin           : ',model%options%which_ho_deltaT_basin,  &
                             ho_deltaT_basin(model%options%which_ho_deltaT_basin)
@@ -1839,6 +1869,12 @@ contains
           call write_log('Error, ho_deltaT_ocn out of range', GM_FATAL)
        end if
 
+       ! Make sure we don't have too many non-default inversion options selected
+       if (model%options%which_ho_deltaT_ocn /= HO_DELTAT_OCN_NONE .and. &
+           model%options%which_ho_deltaT_basin /= HO_DELTAT_BASIN_NONE) then
+          call write_log('Please set which_ho_deltaT_ocn = 0 or which_ho_deltaT_basin = 0', GM_FATAL)
+       endif
+
        if (model%options%which_ho_flow_enhancement_factor /= HO_FLOW_ENHANCEMENT_FACTOR_CONSTANT) then
           write(message,*) 'ho_flow_enhancement_factor: ',model%options%which_ho_flow_enhancement_factor,  &
                             ho_flow_enhancement_factor(model%options%which_ho_flow_enhancement_factor)
@@ -1849,12 +1885,6 @@ contains
             model%options%which_ho_flow_enhancement_factor >= size(ho_flow_enhancement_factor)) then
           call write_log('Error, ho_flow_enhancement_factor out of range', GM_FATAL)
        end if
-
-       ! Make sure no more than one of the following inversion options is selected
-       if (model%options%which_ho_deltaT_basin == HO_DELTAT_BASIN_INVERSION .and.  &
-           model%options%which_ho_deltaT_ocn == HO_DELTAT_OCN_INVERSION) then
-          call write_log('Cannot invert for deltaT_ocn both locally and at basin scale', GM_FATAL)
-       endif
 
        ! basal water options
 
@@ -2741,14 +2771,17 @@ contains
     endif
 
     ! inversion parameters
-    if (model%options%which_ho_powerlaw_c   == HO_POWERLAW_C_INVERSION   .or. &
-        model%options%which_ho_coulomb_c    == HO_COULOMB_C_INVERSION    .or. &
-        model%options%which_ho_deltaT_ocn   == HO_DELTAT_OCN_INVERSION   .or. &
-        model%options%which_ho_deltaT_basin == HO_DELTAT_BASIN_INVERSION) then
-       ! write parameters common to inversion schemes with a thickness target
+    if (model%options%which_ho_powerlaw_c      == HO_POWERLAW_C_INVERSION      .or. &
+        model%options%which_ho_coulomb_c       == HO_COULOMB_C_INVERSION       .or. &
+        model%options%which_ho_coulomb_c_basin == HO_COULOMB_C_BASIN_INVERSION .or. &
+        model%options%which_ho_deltaT_ocn      == HO_DELTAT_OCN_INVERSION      .or. &
+        model%options%which_ho_deltaT_basin    == HO_DELTAT_BASIN_INVERSION) then
+       !TODO -  write parameters common to inversion schemes with a thickness target
        !TODO - thickness threshold and flotation buffer also?
     endif
 
+    ! Note: When inverting for C_p and C_c, the inversion length scale
+    !       applies only to inactive vertices (f_ground = 0)
     if (model%options%which_ho_powerlaw_c == HO_POWERLAW_C_INVERSION) then
        write(message,*) 'inversion flotation thickness buffer (m)     : ', &
             model%inversion%thck_flotation_buffer
@@ -2768,7 +2801,7 @@ contains
        write(message,*) 'timescale (yr) for C_p inversion             : ', &
             model%inversion%babc_timescale
        call write_log(message)
-       write(message,*) 'diffusion length scale (m) for C_p inversion : ', &
+       write(message,*) 'diffusion length scale (m), inactive only    : ', &
             model%inversion%babc_length_scale
        call write_log(message)
        write(message,*) 'relaxation factor for C_p inversion          : ', &
@@ -2776,7 +2809,8 @@ contains
        call write_log(message)
     endif   ! which_ho_powerlaw_c
 
-    if (model%options%which_ho_coulomb_c == HO_COULOMB_C_INVERSION) then
+    if (model%options%which_ho_coulomb_c == HO_COULOMB_C_INVERSION .or. &
+        model%options%which_ho_coulomb_c_basin == HO_COULOMB_C_BASIN_INVERSION) then
        write(message,*) 'inversion flotation thickness buffer (m)     : ', &
             model%inversion%thck_flotation_buffer
        call write_log(message)
@@ -2794,7 +2828,7 @@ contains
        write(message,*) 'timescale (yr) for C_c inversion             : ', &
             model%inversion%babc_timescale
        call write_log(message)
-       write(message,*) 'diffusion length scale (m) for C_c inversion : ', &
+       write(message,*) 'diffusion length scale (m), inactive only    : ', &
             model%inversion%babc_length_scale
        call write_log(message)
        write(message,*) 'relaxation factor for C_c inversion          : ', &
@@ -2813,7 +2847,7 @@ contains
           write(message,*) 'coulomb_c_bedmin (m)                         : ',model%basal_physics%coulomb_c_bedmin
           call write_log(message)
        endif
-    endif   ! which_ho_coulomb_c
+    endif   ! coulomb_c or coulomb_c_basin inversion
 
     if (model%options%which_ho_deltaT_ocn   == HO_DELTAT_OCN_INVERSION .or. &
         model%options%which_ho_deltaT_basin == HO_DELTAT_BASIN_INVERSION) then
@@ -3816,17 +3850,23 @@ contains
        call glide_add_to_restart_variable_list('powerlaw_c', model_id)
     endif
 
-    if (options%which_ho_coulomb_c /= HO_COULOMB_C_CONSTANT) then
+    if (options%which_ho_coulomb_c /= HO_COULOMB_C_CONSTANT .or. &
+        options%which_ho_coulomb_c_basin /= HO_COULOMB_C_BASIN_NONE) then
        call glide_add_to_restart_variable_list('coulomb_c', model_id)
     endif
 
+    ! If using the basin-scale inversion option for coulomb_c, we need a target thickness for grounded ice
+    if (options%which_ho_coulomb_c_basin == HO_COULOMB_C_BASIN_INVERSION) then
+       call glide_add_to_restart_variable_list('grounded_thck_target', model_id)
+    endif
+
     ! inversion options for ocean temperature corrections
-    if (options%which_ho_deltaT_basin /= HO_DELTAT_BASIN_NONE .or.  &
-        options%which_ho_deltaT_ocn   /= HO_DELTAT_OCN_NONE) then
+    if (options%which_ho_deltaT_ocn   /= HO_DELTAT_OCN_NONE .or. &
+        options%which_ho_deltaT_basin /= HO_DELTAT_BASIN_NONE) then
        call glide_add_to_restart_variable_list('deltaT_ocn', model_id)
     endif
 
-    ! If using the basin-scale inversion option, we also need a target thickness for floating ice
+    ! If using the basin-scale inversion option for deltaT_ocn, we need a target thickness for floating ice
     if (options%which_ho_deltaT_basin == HO_DELTAT_BASIN_INVERSION) then
        call glide_add_to_restart_variable_list('floating_thck_target', model_id)
     endif

@@ -515,6 +515,13 @@ long_name:     target thickness for floating ice
 data:          data%inversion%floating_thck_target
 load:          1
 
+[grounded_thck_target]
+dimensions:    time, y1, x1
+units:         meter
+long_name:     target thickness for grounded ice
+data:          data%inversion%grounded_thck_target
+load:          1
+
 [calving_thck]
 dimensions:    time, y1, x1
 units:         meter

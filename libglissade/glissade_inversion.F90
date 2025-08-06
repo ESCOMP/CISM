@@ -47,7 +47,8 @@ module glissade_inversion
   ! a target ice thickness field.
   !-----------------------------------------------------------------------------
 
-    logical, parameter :: verbose_inversion = .false.
+!!    logical, parameter :: verbose_inversion = .false.
+    logical, parameter :: verbose_inversion = .true.
 
 !***********************************************************************
 
@@ -356,6 +357,34 @@ contains
     endif   ! flow_enhancement_factor inversion
 
     !----------------------------------------------------------------------
+    ! computations specific to basin-scale coulomb_c inversion
+    !----------------------------------------------------------------------
+
+    if (model%options%which_ho_coulomb_c_basin == HO_COULOMB_C_BASIN_INVERSION) then
+
+       if (model%options%is_restart == NO_RESTART) then
+
+          ! Set grounded_thck_target for grounded ice.
+          ! The inversion will nudge the basin-mean grounded ice thickness toward this target.
+
+          where (ice_mask == 1 .and. floating_mask == 0)   ! grounded ice
+             model%inversion%grounded_thck_target = model%geometry%thck
+          elsewhere
+             model%inversion%grounded_thck_target = 0.0d0
+          endwhere
+
+          if (verbose_inversion) then
+             call point_diag(model%inversion%grounded_thck_target, &
+                  'After init_inversion, grounded_thck_target', itest, jtest, rtest, 7, 7)
+          endif   ! verbose
+
+       endif   ! not a restart
+
+       call parallel_halo(model%inversion%grounded_thck_target, parallel)
+
+    endif  ! coulomb_c_basin inversion
+
+    !----------------------------------------------------------------------
     ! computations specific to basin-scale ocean temperature inversion
     !----------------------------------------------------------------------
 
@@ -366,7 +395,7 @@ contains
           ! Set floating_thck_target for floating ice and lightly grounded ice.
           ! Here, "lightly grounded" means that the magnitude of f_flotation = (-topg - eus) - (rhoi/rhoo)*thck
           !  is less than a prescribed threshold.  (Recall f_flotation < 0 for grounded ice.)
-          ! The inversion will nudge the ice thickness toward this target in a basin-average sense.
+          ! The inversion will nudge the basin-mean ice thickness toward this target.
           ! Positive volume biases will be corrected with ocean warming or ice softening,
           !  and negative biases with ocean cooling or ice stiffening.
 
@@ -387,7 +416,6 @@ contains
           if (verbose_inversion) then
              call point_diag(model%inversion%floating_thck_target, &
                   'After init_inversion, floating_thck_target', itest, jtest, rtest, 7, 7)
-             call point_diag(model%geometry%thck, 'thck', itest, jtest, rtest, 7, 7)
              call point_diag(f_flotation, 'f_flotation (m)', itest, jtest, rtest, 7, 7)
           endif   ! verbose
 
@@ -395,7 +423,7 @@ contains
 
        call parallel_halo(model%inversion%floating_thck_target, parallel)
 
-    endif  ! which_ho_deltaT_basin_inversion
+    endif  ! deltaT_basin inversion
 
     if (verbose_inversion) then
        call point_diag(model%geometry%usrf_obs, 'After init_inversion, usrf_obs  (m)', itest, jtest, rtest, 7, 7)
@@ -415,7 +443,7 @@ contains
     use glissade_bmlt_float, only: glissade_bmlt_float_thermal_forcing
     use glissade_grounding_line, only: glissade_grounded_fraction
     use glissade_utils, only: glissade_usrf_to_thck, glissade_basin_average
-    use glissade_grid_operators, only: glissade_stagger
+    use glissade_grid_operators, only: glissade_stagger, glissade_stagger_real_mask, glissade_unstagger
     use glissade_basal_traction, only: set_coulomb_c_elevation
 
     type(glide_global_type), intent(inout) :: model   ! model instance
@@ -437,13 +465,18 @@ contains
     real(dp), dimension(model%general%ewn-1,model%general%nsn-1) ::   &
          stag_thck,          & ! ice thickness on staggered grid
          stag_dthck_dt,      & ! dthck_dt on staggered grid
-         stag_thck_obs         ! thck_obs on staggered grid
+         stag_thck_obs,      & ! thck_obs on staggered grid
+         stag_thck_target      ! target thickness on staggered grid
 
     real(dp), dimension(model%general%ewn, model%general%nsn) ::  &
-         deltaT_ocn_relax                      ! relax deltaT_ocn toward this value
+         coulomb_c_cell,     & ! coulomb_c averaged to cell centeres
+         deltaT_ocn_relax      ! relax deltaT_ocn toward this value
 
     real(dp), dimension(model%ocean_data%nbasin) :: &
-         deltaT_ocn_basin_avg                  ! basin average of deltaT_ocn (degC)
+         deltaT_ocn_basin_avg  ! basin average of deltaT_ocn (degC)
+
+    real(dp), dimension(model%general%ewn, model%general%nsn) ::  &
+         stagger_rmask         ! = 1.0 where grounded_thck_target > 0, else = 0
 
     logical :: invert_coulomb_c, invert_powerlaw_c
 
@@ -545,7 +578,7 @@ contains
 
        elseif ( model%options%which_ho_coulomb_c == HO_COULOMB_C_INVERSION) then
 
-          ! Set the relaxation target, coulomb_c_relax
+          ! Set the relaxation target for coulomb_c
 
           if (model%options%which_ho_coulomb_c_relax == HO_COULOMB_C_RELAX_CONSTANT) then
 
@@ -617,6 +650,70 @@ contains
 
     endif   ! invert for powerlaw_c or coulomb_c
 
+
+    ! If inverting for coulomb_c at the basin scale, then update it here
+
+    if (model%options%which_ho_coulomb_c_basin == HO_COULOMB_C_BASIN_INVERSION) then
+
+       ! Set the relaxation target to coulomb_c_const
+       model%basal_physics%coulomb_c_basin_relax = model%basal_physics%coulomb_c_const
+
+       ! Interpolate some fields to the staggered grid
+       ! For the interpolation, mask out cells where grounded_thck_target = 0
+       ! (Note: grounded_thck_target is defined at cell centers)
+
+       where (model%inversion%grounded_thck_target > 0.0d0)
+          stagger_rmask = 1.0d0
+       elsewhere
+          stagger_rmask = 0.0d0
+       endwhere
+
+       call glissade_stagger_real_mask(&
+            ewn,                     nsn,             &
+            model%geometry%thck,     stag_thck,       &
+            stagger_rmask)
+
+       call glissade_stagger_real_mask(&
+            ewn,                     nsn,             &
+            model%geometry%dthck_dt, stag_dthck_dt,   &
+            stagger_rmask)
+
+       call glissade_stagger_real_mask(&
+            ewn,                     nsn,             &
+            model%inversion%grounded_thck_target,     &
+            stag_thck_target,                         &
+            stagger_rmask)
+
+       call staggered_parallel_halo(stag_thck, parallel)
+       call staggered_parallel_halo(stag_dthck_dt, parallel)
+       call staggered_parallel_halo(stag_thck_target, parallel)
+
+       ! Do the inversion
+
+       call invert_basal_friction_basin(&
+            model%numerics%dt,                         &  ! s
+            ewn, nsn,                                  &
+            model%numerics%dew,                        &  ! m
+            model%numerics%dns,                        &  ! m
+            itest, jtest, rtest,                       &
+            model%ocean_data%nbasin,                   &
+            model%ocean_data%basin_number,             &
+            stag_thck,                                 &  ! m
+            stag_dthck_dt,                             &  ! m/s
+            stag_thck_target,                          &  ! m
+            model%geometry%f_ground,                   &  ! at vertices
+            model%inversion%babc_thck_scale,           &  ! m
+            model%inversion%babc_timescale,            &  ! s
+            model%inversion%babc_relax_factor,         &
+            model%basal_physics%coulomb_c_max,         &
+            model%basal_physics%coulomb_c_min,         &
+            model%basal_physics%coulomb_c_basin_relax, &
+            model%basal_physics%coulomb_c)
+
+       call parallel_halo(model%basal_physics%coulomb_c, parallel)
+
+    endif  ! invert for coulomb_c in basins
+
     ! Replace zeroes (if any) with small nonzero values to avoid divzeroes.
     ! Note: The current algorithm initializes Cc to a nonzero value everywhere and never sets Cp = 0;
     !       this code is just to be on the safe side.
@@ -634,11 +731,11 @@ contains
     endif
 
 
-    ! If inverting for deltaT_ocn at the basin level, then update it here
+    ! If inverting for deltaT_ocn at the basin scale, then update it here
 
     if ( model%options%which_ho_deltaT_basin == HO_DELTAT_BASIN_INVERSION) then
 
-       call glissade_inversion_deltaT_basin(&
+       call invert_deltaT_basin(&
             model%numerics%dt,                         &  ! s
             ewn, nsn,                                  &
             model%numerics%dew,                        &  ! m
@@ -699,7 +796,7 @@ contains
 
        ! Given the thickness target, invert for deltaT_ocn
 
-       call glissade_inversion_deltaT_ocn(&
+       call invert_deltaT_ocn(&
             model%numerics%dt,                     &  ! s
             ewn,           nsn,                    &
             model%numerics%dew,                    &   ! m
@@ -800,7 +897,7 @@ contains
             f_ground_obs,                  &
             f_ground_cell_obs)
 
-       call glissade_inversion_flow_enhancement_factor(&
+       call invert_flow_enhancement_factor(&
             model%numerics%dt,                                &  ! s
             ewn, nsn,                                         &
             model%numerics%dew,                               &  ! m
@@ -1068,7 +1165,168 @@ contains
 
 !***********************************************************************
 
-  subroutine glissade_inversion_deltaT_basin(&
+  subroutine invert_basal_friction_basin(&
+       dt,                          &
+       nx,            ny,           &
+       dx,            dy,           &
+       itest, jtest,  rtest,        &
+       nbasin,                      &
+       basin_number,                &
+       stag_thck,                   &
+       stag_dthck_dt,               &
+       stag_thck_target,            &
+       f_ground,                    &
+       babc_thck_scale,             &
+       babc_timescale,              &
+       babc_relax_factor,           &
+       friction_c_max,              &
+       friction_c_min,              &
+       friction_c_relax,            &
+       friction_c)
+
+    use glissade_utils, only: glissade_basin_average
+
+    ! Nudge the basin-scale values of the basal friction field.
+    ! Here, the field has the generic name 'friction_c', which could be either powerlaw_c or coulomb_c.
+    ! (As of Aug. 2025, only coulomb_c is supported.)
+    ! In each basin, we compute the mean thickness of grounded ice and compare to a target thickness
+    ! (usually based on observations).
+    ! In basins where grounded ice is too thick, friction_c decreases uniformly across the basin.
+    !  and where grounded ice is too thin, friction_c increases.
+    ! The resulting friction_c is constrained to lie within a prescribed range, [friction_c_min, friction_c_max].
+
+    real(dp), intent(in) ::  dt  ! time step (s)
+
+    integer, intent(in) :: &
+         nx, ny                  ! grid dimensions
+
+    real(dp), intent(in) :: &
+         dx, dy                  ! grid cell size in each direction (m)
+
+    integer, intent(in) :: &
+         itest, jtest, rtest     ! coordinates of diagnostic point
+
+    integer, intent(in) :: &
+         nbasin                  ! number of basins
+
+    integer, dimension(nx,ny), intent(in) :: &
+         basin_number            ! basin ID for each grid cell
+
+    real(dp), dimension(nx-1,ny-1), intent(in) ::  &
+         stag_thck,            & ! ice thickness (m) on staggered grid
+         stag_dthck_dt,        & ! dH/dt (m/s) on staggered grid
+         stag_thck_target,     & ! target thickness for grounded ice (m)
+         f_ground                ! grounded fraction at each vertex
+
+    real(dp), intent(in) :: &
+         babc_thck_scale,      & ! inversion thickness scale (m); must be > 0
+         babc_timescale,       & ! inversion timescale (s); must be > 0
+         babc_relax_factor,    & ! factor controlling strength of relaxation
+         friction_c_max,       & ! max value of friction_c
+         friction_c_min,       & ! min value of friction_c
+         friction_c_relax        ! value toward which friction_c is relaxed
+
+    real(dp), dimension(nx-1,ny-1), intent(inout) ::  &
+         friction_c              ! basal friction coefficient, uniform across each basin
+
+    ! local variables
+
+    real(dp), dimension(nbasin) :: &
+         thck_target_basin,      &   ! mean thickness target for grounded ice in each basin (m)
+         thck_basin,             &   ! current mean grounded ice thickness in each basin (m)
+         dthck_dt_basin,         &   ! rate of change of basin mean grounded ice thickness (m/s)
+         friction_c_basin            ! basin-scale values of friction_c
+
+    integer :: i, j
+    integer :: nb      ! basin number
+    real(dp) :: dthck  ! difference between modeled and observed mean thickness
+    real(dp) :: term_thck, term_dHdt, term_relax  ! terms in prognostic equation for friction_c_basin
+    real(dp) :: logC, logC_relax, dlogC           ! logarithm terms
+    real(dp), dimension(nx-1,ny-1) :: mask        ! temporary mask
+
+    ! For each basin, compute the current and target mean ice thickness for the target region.
+    ! Also compute the current rate of mean thickness change.
+
+    call get_basin_targets(&
+         nx,           ny,                  &
+         dx,           dy,                  &
+         nbasin,       basin_number,        &
+         itest, jtest, rtest,               &
+         stag_thck,    stag_dthck_dt,       &
+         stag_thck_target,                  &
+         thck_target_basin,                 &
+         thck_basin,                        &
+         dthck_dt_basin)
+
+    ! Compute the current friction_c in each basin
+    where (f_ground > 0.0d0)
+       mask = 1.0d0
+    elsewhere
+       mask = 0.0d0
+    endwhere
+
+    call glissade_basin_average(&
+         nx,          ny,                   &
+         nbasin,      basin_number,         &
+         mask,                              &
+         friction_c,  friction_c_basin)
+
+    ! header for optional diagnostics
+    if (verbose_inversion .and. this_rank == rtest) then
+       write(6,*) ' '
+       write(6,*) 'basin, term_thck*dt, term_dHdt*dt, term_relx*dt, new friction_c_basin:'
+    endif
+
+    ! Decrease friction_c where the ice is too thick, and increase where the ice is too thin.
+    ! The calculation is similar to that for local friction_c inversion,
+    !  but with basin-average thickness replacing local thickness.
+
+    do nb = 1, nbasin
+
+       ! Convert to a log scale
+       logC = log10(friction_c_basin(nb))
+       logC_relax = log10(friction_c_relax)
+
+       ! Compute and add the tendency terms
+       dthck = thck_basin(nb) - thck_target_basin(nb)
+       term_thck = -dthck / (babc_thck_scale * babc_timescale)
+       term_dHdt = -dthck_dt_basin(nb) * 2.0d0 / babc_thck_scale
+       term_relax = -babc_relax_factor * (logC - logC_relax) / babc_timescale
+
+       dlogC = (term_thck + term_dHdt + term_relax) * dt
+       logC = logC + dlogC
+
+       ! Compute the new value
+       friction_c_basin(nb) = 10.d0**logC
+
+       ! Limit to a prescribed range
+       friction_c_basin(nb) = min(friction_c_basin(nb), friction_c_max)
+       friction_c_basin(nb) = max(friction_c_basin(nb), friction_c_min)
+
+       ! Diagnostics
+       if (verbose_inversion .and. this_rank == rtest) then
+          write(6,'(i6,5f15.7)') nb, term_thck*dt, term_dHdt*dt, term_relax*dt, friction_c_basin(nb)
+       endif
+
+    enddo
+
+    ! Increment friction_c at each vertex
+    ! Note: friction_c is a 2D field, but here its value is uniform in each basin.
+    !       Vertex (i,j) belongs to basin nb iff cell (i,j) belongs to that basin.
+    do j = 1, ny-1
+       do i = 1, nx-1
+          nb = basin_number(i,j)
+          if (nb >= 1 .and. nb <= nbasin) then
+             friction_c(i,j) = friction_c_basin(nb)
+          endif
+       enddo
+    enddo
+
+  end subroutine invert_basal_friction_basin
+
+!***********************************************************************
+
+  subroutine invert_deltaT_basin(&
        dt,                          &
        nx,            ny,           &
        dx,            dy,           &
@@ -1141,7 +1399,7 @@ contains
     ! local variables
 
     real(dp), dimension(nbasin) :: &
-         floating_thck_target_basin,      &   ! floating mean thickness target in each basin (m^3)
+         floating_thck_target_basin,      &   ! floating mean thickness target in each basin (m)
          floating_thck_basin,             &   ! current mean ice thickness in each basin (m)
          floating_dthck_dt_basin,         &   ! rate of change of basin mean ice thickness (m/s)
          dT_basin_dt,                     &   ! rate of change of deltaT_basin in each basin (degC/s)
@@ -1151,7 +1409,7 @@ contains
     integer :: nb      ! basin number
     real(dp) :: dthck  ! difference between modeled and observed mean thickness
     real(dp) :: term_thck, term_dHdt, term_relax  ! terms in prognostic equation for deltaT_basin
-    real(dp), dimension(nx,ny) :: mask        ! temporary mask, = 1 everywhere
+    real(dp), dimension(nx,ny) :: mask            ! temporary mask, = 1 everywhere
 
     ! Note: In some basins, the floating ice volume may be too small no matter how much we lower deltaT_ocn,
     !        since the basal melt rate drops to zero and can go no lower.
@@ -1167,22 +1425,23 @@ contains
     ! Also compute the current rate of mean thickness change.
 
     call get_basin_targets(&
-         nx,          ny,                     &
-         dx,          dy,                     &
-         nbasin,      basin_number,           &
-         thck,        dthck_dt,               &
-         floating_thck_target,                &
-         basin_number_mass_correction,        &
-         basin_mass_correction,               &
-         floating_thck_target_basin,          &
-         floating_thck_basin,                 &
-         floating_dthck_dt_basin)
+         nx,           ny,                  &
+         dx,           dy,                  &
+         nbasin,       basin_number,        &
+         itest, jtest, rtest,               &
+         thck,         dthck_dt,            &
+         floating_thck_target,              &
+         floating_thck_target_basin,        &
+         floating_thck_basin,               &
+         floating_dthck_dt_basin,           &
+         basin_number_mass_correction,      &
+         basin_mass_correction)
 
     ! Compute the current deltaT in each basin.
     ! Since deltaT_basin(nb) = deltaT_ocn for all cells in a given basin,
     !  it suffices to compute the average value of deltaT_ocn.
 
-    mask = 1  ! do not mask out any points
+    mask = 1.0d0  ! do not mask out any points
 
     call glissade_basin_average(&
          nx,          ny,                   &
@@ -1237,11 +1496,11 @@ contains
        enddo
     enddo
 
-  end subroutine glissade_inversion_deltaT_basin
+  end subroutine invert_deltaT_basin
 
 !***********************************************************************
 
-  subroutine glissade_inversion_deltaT_ocn(&
+  subroutine invert_deltaT_ocn(&
        dt,                       &
        nx,            ny,        &
        dx,            dy,        &
@@ -1421,11 +1680,11 @@ contains
        call point_diag(deltaT_ocn, 'New deltaT_ocn (deg)', itest, jtest, rtest, 7, 7, '(f10.5)')
     endif
 
-  end subroutine glissade_inversion_deltaT_ocn
+  end subroutine invert_deltaT_ocn
 
 !***********************************************************************
 
-  subroutine glissade_inversion_flow_enhancement_factor(&
+  subroutine invert_flow_enhancement_factor(&
        dt,                                 &
        nx,            ny,                  &
        dx,            dy,                  &
@@ -1711,24 +1970,26 @@ contains
        call point_diag(flow_enhancement_factor, 'New flow_enhancement_factor E', itest, jtest, rtest, 7, 7)
     endif
 
-  end subroutine glissade_inversion_flow_enhancement_factor
+  end subroutine invert_flow_enhancement_factor
 
 !***********************************************************************
 
   subroutine get_basin_targets(&
-         nx,          ny,                     &
-         dx,          dy,                     &
-         nbasin,      basin_number,           &
-         thck,        dthck_dt,               &
-         floating_thck_target,                &
-         basin_number_mass_correction,        &
-         basin_mass_correction,               &
-         floating_thck_target_basin,          &
-         floating_thck_basin,                 &
-         floating_dthck_dt_basin)
+       nx,           ny,                &
+       dx,           dy,                &
+       nbasin,       basin_number,      &
+       itest, jtest, rtest,             &
+       thck,         dthck_dt,          &
+       thck_target,                     &
+       thck_target_basin,               &
+       thck_basin,                      &
+       dthck_dt_basin,                  &
+       basin_number_mass_correction,    &
+       basin_mass_correction)
 
     ! For each basin, compute the current ice area and volume and the target ice area and volume
-    ! of cells included in the floating thickness target.
+    ! of cells included in the thickness target. The target could be based on grounded ice,
+    ! floating ice, or a combination.
     ! Derive the current and target mean ice thickness for each basin, along with the
     ! current rate of change.
     ! Optionally, the volume target in a single basin can be adjusted relative to observations.
@@ -1747,126 +2008,131 @@ contains
     integer, dimension(nx,ny), intent(in) :: &
          basin_number            ! basin ID for each grid cell
 
-    real(dp), dimension(nx,ny), intent(in) ::  &
-         thck,             &     ! ice thickness (m)
-         dthck_dt,         &     ! dH/dt (m/s)
-         floating_thck_target    ! target thickness for floating ice (m)
-
-    real(dp), intent(in) :: &
-         basin_mass_correction   ! optional mass correction (Gt) for a selected basin
-
     integer, intent(in) :: &
-         basin_number_mass_correction ! integer ID for the basin receiving the correction
+         itest, jtest, rtest     ! local diagnostic point
+
+    ! Note: For the next three fields, the dimension can be either (nx,ny) or (nx-1,ny-1)
+    real(dp), dimension(:,:), intent(in) ::  &
+         thck,                 & ! ice thickness (m)
+         dthck_dt,             & ! dH/dt (m/s)
+         thck_target             ! target ice thickness (m)
 
     real(dp), dimension(nbasin), intent(out) :: &
-         floating_thck_target_basin,      & ! floating mean thickness target in each basin (m^3)
-         floating_thck_basin,             & ! current mean ice thickness in each basin (m)
-         floating_dthck_dt_basin            ! rate of change of basin mean ice thickness (m/s)
+         thck_target_basin,    & ! mean thickness target in each basin (m^3)
+         thck_basin,           & ! current mean ice thickness in each basin (m)
+         dthck_dt_basin          ! rate of change of basin mean ice thickness (m/s)
 
+    real(dp), intent(in), optional :: &
+         basin_mass_correction   ! optional mass correction (Gt) for a selected basin
+
+    integer, intent(in), optional :: &
+         basin_number_mass_correction ! integer ID for the basin receiving the correction
 
     ! local variables
 
     real(dp), dimension(nbasin) :: &
-         floating_area_target_basin,      & ! floating ice area target in each basin (m^3)
-         floating_volume_target_basin,    & ! floating ice volume target in each basin (m^3)
-         floating_volume_basin,           & ! current floating ice volume in each basin (m^3)
-         floating_dvolume_dt_basin          ! rate of change of basin volume (m^3/s)
+         area_target_basin,    & ! ice area target in each basin (m^3)
+         volume_target_basin,  & ! ice volume target in each basin (m^3)
+         volume_basin,         & ! current ice volume in each basin (m^3)
+         dvolume_dt_basin        ! rate of change of basin volume (m^3/s)
 
-    real(dp), dimension(nx,ny) ::  &
-         floating_target_rmask,            &! real mask, = 1.0 where floating_thck_target > 0, else = 0.0
-         cell_area                          ! area of grid cells (m^2)
+    real(dp), dimension(size(thck,1),size(thck,2)) ::  &
+         target_rmask,         & ! real mask, = 1.0 where thck_target > 0, else = 0.0
+         cell_area               ! area of grid cells (m^2)
 
     integer :: nb
 
     cell_area(:,:) = dx*dy
 
-    ! Compute a mask for cells with a nonzero floating ice target
+    ! Compute a mask for cells with a nonzero ice target
 
-    where (floating_thck_target > 0.0d0)
-       floating_target_rmask = 1.0d0
+    where (thck_target > 0.0d0)
+       target_rmask = 1.0d0
     elsewhere
-       floating_target_rmask = 0.0d0
+       target_rmask = 0.0d0
     endwhere
 
-    ! For each basin, compute the area of the cells with floating_target_rmask = 1.
+    ! For each basin, compute the area of the cells with target_rmask = 1.
 
-    call glissade_basin_sum(nx,         ny,                &
+    call glissade_basin_sum(&
+         nx,         ny,                &
          nbasin,     basin_number,      &
-         floating_target_rmask,         &
+         target_rmask,                  &
          cell_area,                     &
-         floating_area_target_basin)
+         area_target_basin)
 
-    ! For each basin, compute the target total ice volume in cells with floating_target_rmask = 1.
-    ! Note: We could compute floating_volume_target_basin just once and write it to restart,
+    ! For each basin, compute the target total ice volume in cells with target_rmask = 1.
+    ! Note: We could compute volume_target_basin just once and write it to restart,
     !       but it is easy enough to recompute here.
 
     call glissade_basin_sum(&
          nx,         ny,                &
          nbasin,     basin_number,      &
-         floating_target_rmask,         &
-         floating_thck_target*dx*dy,    &
-         floating_volume_target_basin)
+         target_rmask,                  &
+         thck_target*dx*dy,             &
+         volume_target_basin)
 
-    ! For each basin, compute the current total ice volume in cells with floating_target_rmask = 1.
+    ! For each basin, compute the current total ice volume in cells with target_rmask = 1.
 
     call glissade_basin_sum(&
          nx,         ny,                &
          nbasin,     basin_number,      &
-         floating_target_rmask,         &
+         target_rmask,                  &
          thck*dx*dy,                    &
-         floating_volume_basin)
+         volume_basin)
 
-    ! For each basin, compute the rate of change of the current volume in cells with floating_target_rmask = 1.
+    ! For each basin, compute the rate of change of the current volume in cells with target_rmask = 1.
 
     call glissade_basin_sum(&
          nx,         ny,                &
          nbasin,     basin_number,      &
-         floating_target_rmask,         &
+         target_rmask,                  &
          dthck_dt*dx*dy,                &
-         floating_dvolume_dt_basin)
+         dvolume_dt_basin)
 
     ! Optionally, apply a correction to the ice volume target in a selected basin.
     ! Note: This option could in principle be applied to multiple basins, but currently is supported for one basin only.
     !       In practice, this basin is likely to be the Amundsen Sea Embayment (ISMIP6 basin #9).
 
-    if (abs(basin_mass_correction) > 0.0d0 .and. basin_number_mass_correction > 0) then
+    if (present(basin_mass_correction) .and. present(basin_number_mass_correction)) then
 
-       nb = basin_number_mass_correction
-       floating_volume_target_basin(nb) = floating_volume_target_basin(nb) + &
-            basin_mass_correction * (1.0d12/rhoi)   ! Gt converted to m^3
-       if (verbose_inversion .and. main_task) then
-          write(6,*) ' '
-          write(6,*) 'Basin with mass correction:', basin_number_mass_correction
-          write(6,*) 'mass correction (Gt)     =', basin_mass_correction
-          write(6,*) 'volume correction (km^3) =', basin_mass_correction * (1.0d3/rhoi)
-          write(6,*) 'New volume target (km^3) =', floating_volume_target_basin(nb) / 1.0d9
-       endif
-    endif   ! basin_mass correction
+       if (abs(basin_mass_correction) > 0.0d0 .and. basin_number_mass_correction > 0) then
+
+          nb = basin_number_mass_correction
+          volume_target_basin(nb) = volume_target_basin(nb) + &
+               basin_mass_correction * (1.0d12/rhoi)   ! Gt converted to m^3
+          if (verbose_inversion .and. main_task) then
+             write(6,*) ' '
+             write(6,*) 'Basin with mass correction:', basin_number_mass_correction
+             write(6,*) 'mass correction (Gt)     =', basin_mass_correction
+             write(6,*) 'volume correction (km^3) =', basin_mass_correction * (1.0d3/rhoi)
+             write(6,*) 'New volume target (km^3) =', volume_target_basin(nb) / 1.0d9
+          endif
+       endif   ! basin_mass correction
+    endif   ! present
 
     ! For each basin, compute the current and target mean ice thickness, and the rate of change of mean ice thickness.
-    where (floating_area_target_basin > 0.0d0)
-       floating_thck_target_basin = floating_volume_target_basin / floating_area_target_basin
-       floating_thck_basin = floating_volume_basin / floating_area_target_basin
-       floating_dthck_dt_basin = floating_dvolume_dt_basin / floating_area_target_basin
+    where (area_target_basin > 0.0d0)
+       thck_target_basin = volume_target_basin / area_target_basin
+       thck_basin = volume_basin / area_target_basin
+       dthck_dt_basin = dvolume_dt_basin / area_target_basin
     elsewhere
-       floating_thck_target_basin = 0.0d0
-       floating_thck_basin = 0.0d0
-       floating_dthck_dt_basin = 0.0d0
+       thck_target_basin = 0.0d0
+       thck_basin = 0.0d0
+       dthck_dt_basin = 0.0d0
     endwhere
 
-    if (verbose_inversion .and. main_task) then
+    if (verbose_inversion .and. this_rank == rtest) then
        write(6,*) ' '
        write(6,*) 'basin, area target (km^2), vol target (km^3), mean H target (m):'
        do nb = 1, nbasin
-          write(6,'(i6,3f12.3)') nb, floating_area_target_basin(nb)/1.d6, &
-               floating_volume_target_basin(nb)/1.d9, floating_thck_target_basin(nb)
+          write(6,'(i6,3f12.3)') nb, area_target_basin(nb)/1.d6, volume_target_basin(nb)/1.d9, thck_target_basin(nb)
        enddo
        write(6,*) ' '
        write(6,*) 'basin, mean thickness (m), thickness diff (m), dthck_dt (m/yr):'
        do nb = 1, nbasin
-          write(6,'(i6,3f12.3)') nb, floating_thck_basin(nb), &
-               (floating_thck_basin(nb) - floating_thck_target_basin(nb)), &
-               floating_dthck_dt_basin(nb)*scyr
+          write(6,'(i6,3f12.3)') nb, thck_basin(nb), (thck_basin(nb) - thck_target_basin(nb)), &
+               dthck_dt_basin(nb)*scyr
        enddo
     endif
 
