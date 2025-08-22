@@ -530,70 +530,7 @@ module glissade_bmlt_float
            model%options%bmlt_float_thermal_forcing_param == BMLT_FLOAT_TF_ISMIP6_NONLOCAL .or. &
            model%options%bmlt_float_thermal_forcing_param == BMLT_FLOAT_TF_ISMIP6_NONLOCAL_SLOPE) then
 
-          ! Initialize deltaT_ocn based on deltaT_basin_ismip6, if needed for the ISMIP6 option
-          ! For other options, deltaT_ocn(:,:) = 0 initially or has already been read in
-
-          if (model%options%which_ho_deltaT_basin == HO_DELTAT_BASIN_ISMIP6) then
-
-             if (main_task) then
-                write(6,*) 'Assign deltaT_basin from ismip6'
-             endif
-
-             ! Note: For now, these values are hardwired for the standard 16 ISMIP6 basins
-             if (ocean_data%nbasin /= 16) then
-                call write_log('Error, ISMIP6 deltaT_basin values are set for exactly 16 Antarctic basins', GM_FATAL)
-             endif
-
-             ! Set values computed by Nico Jourdain to match observed basin-scale mean melt.
-             ! See Jourdain et al. (2019) and Lipscomb et al. (2021).
-             ! Note: Uncommented values are for the MeanAnt calibration; commented values are for PIGL.
-             !       It would be possible to make MeanAnt v. PIGL a config option,
-             !        but for now a new compile is needed to use the PIGL numbers.
-             if (model%options%bmlt_float_thermal_forcing_param == BMLT_FLOAT_TF_ISMIP6_LOCAL) then
-
-                ! MeanAnt
-                deltaT_basin_ismip6 = (/ 0.68,  0.15,  0.62,  0.87,  0.36,  0.05, -0.11,  0.51,  &
-                                         1.28, -0.13, -0.95, -0.13, -0.17, -0.05,  0.12, -0.34 /)
-
-                ! PIGL
-!                deltaT_basin_ismip6 = (/-0.04, -0.24,  0.06, -0.13, -0.17, -0.56, -0.27, -0.34, &
-!                                        -0.14, -1.17, -2.01, -0.74, -0.38, -0.27, -0.11, -1.04 /)
-
-             elseif (model%options%bmlt_float_thermal_forcing_param== BMLT_FLOAT_TF_ISMIP6_NONLOCAL) then
-
-                ! MeanAnt
-                deltaT_basin_ismip6 = (/ 0.57,  0.13,  0.51,  0.70,  0.27,  0.08, -0.12,  0.43,  &
-                                         1.07, -0.01, -0.66, -0.06, -0.12, -0.06,  0.10, -0.16 /)
-
-                ! PIGL
-!                deltaT_basin_ismip6 = (/-0.19, -0.22, -0.10, -0.39, -0.30, -0.39, -0.28, -0.39,  &
-!                                        -0.43, -0.70, -1.43, -0.37, -0.27, -0.27, -0.12, -0.46 /)
-
-             elseif (model%options%bmlt_float_thermal_forcing_param== BMLT_FLOAT_TF_ISMIP6_NONLOCAL_SLOPE) then
-
-                if (main_task) write(6,*) '   Assign nonlocal-slope values'
-
-                ! MeanAnt
-                deltaT_basin_ismip6 = (/ 0.36, -0.03,  0.45,  0.05,  0.02, -0.22, -0.01,  0.37,  &
-                                         0.64, -0.03, -0.58, -0.10, -0.11, -0.01,  0.14, -0.15 /)
-
-                ! PIGL
-!                deltaT_basin_ismip6 = (/ 0.03, -0.18,  0.13, -0.31, -0.21, -0.37, -0.14, -0.05,  &
-!                                        -0.03, -0.42, -1.02, -0.27, -0.19, -0.15,  0.00, -0.32 /)
-
-             endif
-
-             ! Assign the numbers above to each grid cell, given its basin number
-             do j = 1, nsn
-                do i = 1, ewn
-                   nb = ocean_data%basin_number(i,j)
-                   if (nb >= 1) then
-                      ocean_data%deltaT_ocn(i,j) = deltaT_basin_ismip6(nb)
-                   endif
-                enddo
-             enddo
-
-          endif   ! ho_deltaT_basin_ismip6
+          !WHL - Removed the HO_DELTAT_BASIN_ISMIP6 option that used to be here
 
           !WHL - In earlier code, nonzero values of gamma0 could either be set in the config file,
           !       read from the input file, or assigned here based on the ISMIP6 parameterization.

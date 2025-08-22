@@ -117,7 +117,7 @@ contains
     endif
 
     !----------------------------------------------------------------------
-    ! If inverting for Cp or Cc, then set the target elevation, usrf_obs.
+    ! If inverting locally for Cp or Cc, then set the target elevation, usrf_obs.
     !----------------------------------------------------------------------
 
     if (model%options%which_ho_powerlaw_c == HO_POWERLAW_C_INVERSION .or.  &
@@ -357,10 +357,11 @@ contains
     endif   ! flow_enhancement_factor inversion
 
     !----------------------------------------------------------------------
-    ! computations specific to basin-scale coulomb_c inversion
+    ! computations specific to basin-scale coulomb_c or powerlaw_c inversion
     !----------------------------------------------------------------------
 
-    if (model%options%which_ho_coulomb_c_basin == HO_COULOMB_C_BASIN_INVERSION) then
+    if (model%options%which_ho_coulomb_c == HO_COULOMB_C_INVERSION_BASIN .or. &
+        model%options%which_ho_powerlaw_c == HO_POWERLAW_C_INVERSION_BASIN) then
 
        if (model%options%is_restart == NO_RESTART) then
 
@@ -382,13 +383,13 @@ contains
 
        call parallel_halo(model%inversion%grounded_thck_target, parallel)
 
-    endif  ! coulomb_c_basin inversion
+    endif  ! basin-scale coulomb_c inversion
 
     !----------------------------------------------------------------------
     ! computations specific to basin-scale ocean temperature inversion
     !----------------------------------------------------------------------
 
-    if (model%options%which_ho_deltaT_basin == HO_DELTAT_BASIN_INVERSION) then
+    if (model%options%which_ho_deltaT_ocn == HO_DELTAT_OCN_INVERSION_BASIN) then
 
        if (model%options%is_restart == NO_RESTART) then
 
@@ -477,8 +478,6 @@ contains
 
     real(dp), dimension(model%general%ewn, model%general%nsn) ::  &
          stagger_rmask         ! = 1.0 where grounded_thck_target > 0, else = 0
-
-    logical :: invert_coulomb_c, invert_powerlaw_c
 
     type(parallel_type) :: parallel  ! info for parallel communication
     integer :: ewn, nsn
@@ -651,12 +650,10 @@ contains
     endif   ! invert for powerlaw_c or coulomb_c
 
 
-    ! If inverting for coulomb_c at the basin scale, then update it here
+    ! If inverting for powerlaw_c or coulomb_c at the basin scale, then update it here
 
-    if (model%options%which_ho_coulomb_c_basin == HO_COULOMB_C_BASIN_INVERSION) then
-
-       ! Set the relaxation target to coulomb_c_const
-       model%basal_physics%coulomb_c_basin_relax = model%basal_physics%coulomb_c_const
+    if (model%options%which_ho_powerlaw_c == HO_POWERLAW_C_INVERSION_BASIN .or. &
+        model%options%which_ho_coulomb_c == HO_COULOMB_C_INVERSION_BASIN) then
 
        ! Interpolate some fields to the staggered grid
        ! For the interpolation, mask out cells where grounded_thck_target = 0
@@ -688,6 +685,42 @@ contains
        call staggered_parallel_halo(stag_dthck_dt, parallel)
        call staggered_parallel_halo(stag_thck_target, parallel)
 
+    endif   ! invert for basin-scale powerlaw_c or coulomb_c
+
+    if (model%options%which_ho_powerlaw_c == HO_POWERLAW_C_INVERSION_BASIN) then
+
+       ! Set the relaxation target to powerlaw_c_const
+       model%basal_physics%powerlaw_c_basin_relax = model%basal_physics%powerlaw_c_const
+
+       ! Do the inversion
+
+       call invert_basal_friction_basin(&
+            model%numerics%dt,                         &  ! s
+            ewn, nsn,                                  &
+            model%numerics%dew,                        &  ! m
+            model%numerics%dns,                        &  ! m
+            itest, jtest, rtest,                       &
+            model%ocean_data%nbasin,                   &
+            model%ocean_data%basin_number,             &
+            stag_thck,                                 &  ! m
+            stag_dthck_dt,                             &  ! m/s
+            stag_thck_target,                          &  ! m
+            model%geometry%f_ground,                   &  ! at vertices
+            model%inversion%babc_thck_scale,           &  ! m
+            model%inversion%babc_timescale,            &  ! s
+            model%inversion%babc_relax_factor,         &
+            model%basal_physics%powerlaw_c_max,         &
+            model%basal_physics%powerlaw_c_min,         &
+            model%basal_physics%powerlaw_c_basin_relax, &
+            model%basal_physics%powerlaw_c)
+
+       call parallel_halo(model%basal_physics%powerlaw_c, parallel)
+
+    elseif (model%options%which_ho_coulomb_c == HO_COULOMB_C_INVERSION_BASIN) then
+
+       ! Set the relaxation target to coulomb_c_const
+       model%basal_physics%coulomb_c_basin_relax = model%basal_physics%coulomb_c_const
+
        ! Do the inversion
 
        call invert_basal_friction_basin(&
@@ -712,7 +745,7 @@ contains
 
        call parallel_halo(model%basal_physics%coulomb_c, parallel)
 
-    endif  ! invert for coulomb_c in basins
+    endif  ! invert for basin-scale powerlaw_c or coulomb_c
 
     ! Replace zeroes (if any) with small nonzero values to avoid divzeroes.
     ! Note: The current algorithm initializes Cc to a nonzero value everywhere and never sets Cp = 0;
@@ -733,9 +766,9 @@ contains
 
     ! If inverting for deltaT_ocn at the basin scale, then update it here
 
-    if ( model%options%which_ho_deltaT_basin == HO_DELTAT_BASIN_INVERSION) then
+    if ( model%options%which_ho_deltaT_ocn == HO_DELTAT_OCN_INVERSION_BASIN) then
 
-       call invert_deltaT_basin(&
+       call invert_deltaT_ocn_basin(&
             model%numerics%dt,                         &  ! s
             ewn, nsn,                                  &
             model%numerics%dew,                        &  ! m
@@ -756,11 +789,9 @@ contains
 
        call parallel_halo(model%ocean_data%deltaT_ocn, parallel)
 
-    endif   ! which_ho_deltaT_basin
+    elseif ( model%options%which_ho_deltaT_ocn == HO_DELTAT_OCN_INVERSION) then
 
-    ! If inverting for deltaT_ocn based on observed ice thickness, then update it here.
-
-    if ( model%options%which_ho_deltaT_ocn == HO_DELTAT_OCN_INVERSION) then
+       ! Inverting for deltaT_ocn based on observed ice thickness; update it here.
 
        ! Given the surface elevation target, compute the thickness target.
        ! This can change in time if the bed topography is dynamic.
@@ -1326,7 +1357,7 @@ contains
 
 !***********************************************************************
 
-  subroutine invert_deltaT_basin(&
+  subroutine invert_deltaT_ocn_basin(&
        dt,                          &
        nx,            ny,           &
        dx,            dy,           &
@@ -1496,7 +1527,7 @@ contains
        enddo
     enddo
 
-  end subroutine invert_deltaT_basin
+  end subroutine invert_deltaT_ocn_basin
 
 !***********************************************************************
 

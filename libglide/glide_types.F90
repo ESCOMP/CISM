@@ -272,39 +272,27 @@ module glide_types
   integer, parameter :: HO_POWERLAW_C_CONSTANT = 0
   integer, parameter :: HO_POWERLAW_C_INVERSION = 1
   integer, parameter :: HO_POWERLAW_C_EXTERNAL = 2
+  integer, parameter :: HO_POWERLAW_C_INVERSION_BASIN = 3
 
   integer, parameter :: HO_COULOMB_C_CONSTANT = 0
   integer, parameter :: HO_COULOMB_C_INVERSION = 1
   integer, parameter :: HO_COULOMB_C_EXTERNAL = 2
-  integer, parameter :: HO_COULOMB_C_ELEVATION = 3
-
-  integer, parameter :: HO_COULOMB_C_BASIN_NONE = 0
-  integer, parameter :: HO_COULOMB_C_BASIN_INVERSION = 1
-  integer, parameter :: HO_COULOMB_C_BASIN_EXTERNAL = 2
+  integer, parameter :: HO_COULOMB_C_INVERSION_BASIN = 3
+  integer, parameter :: HO_COULOMB_C_ELEVATION = 4
 
   integer, parameter :: HO_COULOMB_C_RELAX_NONE = 0
   integer, parameter :: HO_COULOMB_C_RELAX_CONSTANT = 1
   integer, parameter :: HO_COULOMB_C_RELAX_ELEVATION = 2
 
-  !TODO - Remove option 3?
   integer, parameter :: HO_DELTAT_OCN_NONE = 0
   integer, parameter :: HO_DELTAT_OCN_INVERSION = 1
   integer, parameter :: HO_DELTAT_OCN_EXTERNAL = 2
-  integer, parameter :: HO_DELTAT_OCN_DTHCK_DT = 3
-
-  integer, parameter :: HO_DELTAT_BASIN_NONE = 0
-  integer, parameter :: HO_DELTAT_BASIN_INVERSION = 1
-  integer, parameter :: HO_DELTAT_BASIN_EXTERNAL = 2
-  integer, parameter :: HO_DELTAT_BASIN_ISMIP6 = 3
+  integer, parameter :: HO_DELTAT_OCN_INVERSION_BASIN = 3
+  integer, parameter :: HO_DELTAT_OCN_DTHCK_DT = 4
 
   integer, parameter :: HO_FLOW_ENHANCEMENT_FACTOR_CONSTANT = 0
   integer, parameter :: HO_FLOW_ENHANCEMENT_FACTOR_INVERSION = 1
   integer, parameter :: HO_FLOW_ENHANCEMENT_FACTOR_EXTERNAL = 2
-
-  integer, parameter :: HO_BMLT_BASIN_NONE = 0
-  integer, parameter :: HO_BMLT_BASIN_INVERSION = 1
-  integer, parameter :: HO_BMLT_BASIN_EXTERNAL = 2
-  integer, parameter :: HO_BMLT_BASIN_ISMIP6 = 3
 
   integer, parameter :: HO_BWAT_NONE = 0
   integer, parameter :: HO_BWAT_CONSTANT = 1
@@ -888,6 +876,7 @@ module glide_types
     !> \item[0] powerlaw_c = spatially uniform constant
     !> \item[1] invert for 2D powerlaw_c
     !> \item[2] read 2D powerlaw_c from external file
+    !> \item[3] invert for basin-scale powerlaw_c
     !> \end{description}
 
     integer :: which_ho_coulomb_c = 0
@@ -896,7 +885,8 @@ module glide_types
     !> \item[0] coulomb_c = spatially uniform constant
     !> \item[1] invert for 2D coulomb_c
     !> \item[2] read 2D coulomb_c from external file
-    !> \item[3] coulomb_c = function of bed elevation
+    !> \item[3] invert for basin-scale coulomb_c
+    !> \item[4] coulomb_c = function of bed elevation
     !> \end{description}
 
     integer :: which_ho_coulomb_c_relax = 0
@@ -907,30 +897,14 @@ module glide_types
     !> \item[2] coulomb_c_relax = function of bed elevation
     !> \end{description}
 
-    integer :: which_ho_coulomb_c_basin = 0
-    !> Flag for basin-based coulomb_c options
-    !> \begin{description}
-    !> \item[0] no basin-based coulomb_c
-    !> \item[1] invert for a single value of coulomb_c in each basin
-    !> \item[2] read coulomb_c from external file for each basin
-    !> \end{description}
-
     integer :: which_ho_deltaT_ocn = 0
     !> Flag for local ocean temperature corrections
     !> \begin{description}
     !> \item[0] deltaT_ocn = 0
-    !> \item[1] invert for deltaT_ocn to match thickness target
+    !> \item[1] invert for 2D deltaT_ocn to match thickness target
     !> \item[2] read deltaT_ocn from external file
-    !> \item[3] set deltaT_ocn to match dH/dt target
-    !> \end{description}
-
-    integer :: which_ho_deltaT_basin = 0
-    !> Flag for basin-based temperature corrections (previously called which_ho_bmlt_basin)
-    !> \begin{description}
-    !> \item[0] deltaT_ocn = 0 in each basin
-    !> \item[1] invert for a single value of deltaT_ocn in each basin
-    !> \item[2] read deltaT_ocn from external file for each basin
-    !> \item[3] prescribe deltaT_ocn in each basin using ISMIP6 values
+    !> \item[3] invert for basin-scale deltaT_ocn
+    !> \item[4] set deltaT_ocn to match dH/dt target
     !> \end{description}
 
     integer :: which_ho_flow_enhancement_factor = 0
@@ -2266,6 +2240,7 @@ module glide_types
      real(dp) :: powerlaw_m = 3.d0               !> exponent in power law (unitless)
      real(dp) :: powerlaw_c_max = 1.0d5          !> max value of powerlaw_c, Pa (m/yr)^(-1/3)
      real(dp) :: powerlaw_c_min = 1.0d2          !> min value of powerlaw_c, Pa (m/yr)^(-1/3)
+     real(dp) :: powerlaw_c_basin_relax          !> relax the basin-scale powerlaw_c toward this value
 
      ! parameters for Coulomb friction law
      !TODO - Change default coulomb_c_const?
@@ -3220,16 +3195,17 @@ contains
     call coordsystem_allocate(model%general%velo_grid,model%basal_physics%coulomb_c)
     call coordsystem_allocate(model%general%velo_grid,model%basal_physics%coulomb_c_relax)
 
-    if (model%options%which_ho_coulomb_c_basin /= HO_COULOMB_C_BASIN_NONE) then
+    if (model%options%which_ho_coulomb_c == HO_COULOMB_C_INVERSION_BASIN .or. &
+        model%options%which_ho_powerlaw_c == HO_POWERLAW_C_INVERSION_BASIN) then
        if (model%ocean_data%nbasin < 1) then
-          call write_log ('Must set nbasin >= 1 for the coulomb_c_basin options', GM_FATAL)
+          call write_log ('Must set nbasin >= 1 for basin-scale inversion of C_c or C_p', GM_FATAL)
        endif
        call coordsystem_allocate(model%general%ice_grid, model%inversion%grounded_thck_target)
     endif
 
-    if (model%options%which_ho_deltaT_basin /= HO_DELTAT_BASIN_NONE) then
+    if (model%options%which_ho_deltaT_ocn == HO_DELTAT_OCN_INVERSION_BASIN) then
        if (model%ocean_data%nbasin < 1) then
-          call write_log ('Must set nbasin >= 1 for the deltaT_basin options', GM_FATAL)
+          call write_log ('Must set nbasin >= 1 for basin-scale deltaT_ocn inversion', GM_FATAL)
        endif
        call coordsystem_allocate(model%general%ice_grid, model%inversion%floating_thck_target)
     endif

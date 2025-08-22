@@ -898,6 +898,8 @@ contains
     endif
 
     ! Initialize powerlaw_c and coulomb_c.
+    ! If inverting for either field, we read in the saved field on restart.
+
     ! Note: This can set powerlaw_c and coulomb_c to nonzero values when they are never used,
     !       but is simpler than checking all possible basal friction options.
     ! Note: When running with glaciers, there is an independent glacier option,
@@ -907,7 +909,8 @@ contains
     !       In that case, we do *not* want to reset powerlaw_c.
     !TODO:  Have a single option that is applied with or without glaciers enabled?
 
-    if (model%options%which_ho_powerlaw_c == HO_POWERLAW_C_CONSTANT) then
+    if (model%options%which_ho_powerlaw_c == HO_POWERLAW_C_CONSTANT .or. &
+        model%options%is_restart == NO_RESTART) then
        if (model%options%enable_glaciers .and. &
             model%glacier%set_powerlaw_c /= GLACIER_POWERLAW_C_CONSTANT) then
           ! do nothing; see note above
@@ -916,14 +919,10 @@ contains
        endif
     endif
 
-    ! Old logic was to set coulomb_c = coulomb_c_constant if which_ho_coulomb_c == HO_COULOMB_C_CONSTANT.
-    ! This is still true, provided which_ho_coulomb_c_basin = HO_COULOMB_C_BASIN_NONE.
-    ! If which_ho_coulomb_c_basin = HO_COULOMB_C_BASIN_INVERSION, we start the run
-    !  by setting coulomb_c = coulomb_c_constant; then on restart we read in the saved coulomb_c field.
-    if ( (model%options%which_ho_coulomb_c == HO_COULOMB_C_CONSTANT .and. &
-          model%options%which_ho_coulomb_c_basin == HO_COULOMB_C_BASIN_NONE) .or. &
-         (model%options%which_ho_coulomb_c_basin == HO_COULOMB_C_BASIN_INVERSION .and. &
-          model%options%is_restart == NO_RESTART) ) then
+    ! Initialize coulomb_c = coulomb_c constant.
+    ! If inverting for coulomb_c, we read in the saved coulomb_c field on restart.
+    if (model%options%which_ho_coulomb_c == HO_COULOMB_C_CONSTANT .or. &
+        model%options%is_restart == NO_RESTART) then
        model%basal_physics%coulomb_c = model%basal_physics%coulomb_c_const
     endif
 
@@ -931,11 +930,12 @@ contains
     ! At the start of the run (but not on restart), this might lead to further thickness adjustments,
     !  so it should be called before computing the calving mask.
 
-    if (model%options%which_ho_powerlaw_c      == HO_POWERLAW_C_INVERSION      .or.  &
-        model%options%which_ho_coulomb_c       == HO_COULOMB_C_INVERSION       .or.  &
-        model%options%which_ho_coulomb_c_basin == HO_COULOMB_C_BASIN_INVERSION .or.  &
-        model%options%which_ho_deltaT_ocn      == HO_DELTAT_OCN_INVERSION      .or.  &
-        model%options%which_ho_deltaT_basin    == HO_DELTAT_BASIN_INVERSION    .or.  &
+    if (model%options%which_ho_powerlaw_c == HO_POWERLAW_C_INVERSION       .or.  &
+        model%options%which_ho_powerlaw_c == HO_POWERLAW_C_INVERSION_BASIN .or.  &
+        model%options%which_ho_coulomb_c  == HO_COULOMB_C_INVERSION        .or.  &
+        model%options%which_ho_coulomb_c  == HO_COULOMB_C_INVERSION_BASIN  .or.  &
+        model%options%which_ho_deltaT_ocn == HO_DELTAT_OCN_INVERSION       .or.  &
+        model%options%which_ho_deltaT_ocn == HO_DELTAT_OCN_INVERSION_BASIN .or.  &
         model%options%which_ho_flow_enhancement_factor == HO_FLOW_ENHANCEMENT_FACTOR_INVERSION) then
 
        call glissade_inversion_init(model)
