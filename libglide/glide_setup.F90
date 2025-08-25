@@ -935,10 +935,11 @@ contains
          'SMB input in units of m/yr ice  ', &
          'SMB input in units of mm/yr w.e.' /)
 
-    character(len=*), dimension(0:2), parameter :: smb_input_function = (/ &
+    character(len=*), dimension(0:3), parameter :: smb_input_function = (/ &
          'SMB input as function of (x,y)              ', &
          'SMB and d(SMB)/dz input as function of (x,y)', &
-         'SMB input as function of (x,y,z)            ' /)
+         'SMB input as function of (x,y,z)            ', &
+         'SMB computed with positive-degree scheme    ' /)
 
     character(len=*), dimension(0:3), parameter :: artm_input_function = (/ &
          'artm input as function of (x,y)               ', &
@@ -1588,6 +1589,15 @@ contains
        if (model%climate%nlev_smb < 2) then
           call write_log('Error, must have nlev_smb >= 2 for this input function', GM_FATAL)
        endif
+    elseif (model%options%smb_input_function == SMB_INPUT_FUNCTION_PDD) then
+       write(message,*) 'Degree factor (mm/yr/deg C) : ', model%climate%degree_factor
+       call write_log(message)
+       write(message,*) 'Melt threshold (deg C)      : ', model%climate%tmlt
+       call write_log(message)
+       write(message,*) 'Min snow threshold (deg C)  : ', model%climate%snow_threshold_min
+       call write_log(message)
+       write(message,*) 'Max snow threshold (deg C)  : ', model%climate%snow_threshold_max
+       call write_log(message)
     endif
 
     if (model%options%artm_input_function < 0 .or. model%options%artm_input_function >= size(artm_input_function)) then
@@ -1603,6 +1613,9 @@ contains
        if (model%climate%nlev_smb < 2) then
           call write_log('Error, must have nlev_smb >= 2 for this input function', GM_FATAL)
        endif
+    elseif (model%options%artm_input_function == ARTM_INPUT_FUNCTION_XY_LAPSE) then
+       write(message,*) 'artm lapse rate (deg C/m)   : ', model%climate%t_lapse
+       call write_log(message)
     endif
 
     if (model%options%enable_smb_anomaly) then
@@ -2162,8 +2175,12 @@ contains
     call GetValue(section,'hydro_time',         model%paramets%hydtim)
     call GetValue(section,'max_slope',          model%paramets%max_slope)
 
-    ! parameters to adjust external forcing
+    ! SMB and BMB parameters
     call GetValue(section,'t_lapse',            model%climate%t_lapse)
+    call GetValue(section,'degree_factor',      model%climate%degree_factor)
+    call GetValue(section,'tmlt',               model%climate%tmlt)
+    call GetValue(section,'snow_threshold_min', model%climate%snow_threshold_min)
+    call GetValue(section,'snow_threshold_max', model%climate%snow_threshold_max)
     call GetValue(section,'smb_factor',         model%climate%smb_factor)
     call GetValue(section,'bmlt_float_factor',  model%basal_melt%bmlt_float_factor)
 
@@ -2931,12 +2948,6 @@ contains
        endif
     endif
 
-    ! lapse rate
-    if (model%options%artm_input_function == ARTM_INPUT_FUNCTION_XY_LAPSE) then
-       write(message,*) 'artm lapse rate (deg/m) : ', model%climate%t_lapse
-       call write_log(message)
-    endif
-
     if (model%basal_melt%bmlt_anomaly_timescale > 0.0d0) then
        write(message,*) 'bmlt_anomaly start time (yr): ', model%basal_melt%bmlt_anomaly_tstart
        call write_log(message)
@@ -3630,6 +3641,9 @@ contains
        case(SMB_INPUT_FUNCTION_XYZ)
           call glide_add_to_restart_variable_list('smb_3d', model_id)
           call glide_add_to_restart_variable_list('smb_levels', model_id)
+
+       ! Note: For SMB_INPUT_FUNCTION_PDD, precip and artm are read in as forcing
+       !       and are not needed for exact restart
 
     end select  ! smb_input_function
 

@@ -184,6 +184,30 @@
 
     parallel = model%parallel
 
+    !-------------------------------------------------------
+    !WHL - Notes for Ishraque
+    ! This could be a good place to call your paleo interpolation subroutine.
+    ! For now, you could trigger the call based on model%climate%input_function == SMB_INPUT_FUNCTION_PDD,
+    !  although in the long run the paleo interpolation should be a separate option.
+    !
+    ! Inputs:
+    !   climate index, a scalar which will have been read from a forcing file and updated based on the current time
+    !   artm_ref for each of the three climates, based on the current time of year
+    !
+    ! Outputs:
+    !   model%climate%artm_ref for the current time, obtained by paleo interpolation
+    !   model%climate%artm_gradz if artm_input_function = ARTM_INPUT_FUNCTION_XY_GRADZ = 1, obtained by paleo interpolation
+    !     (not needed if artm_input_function = ARTM_INPUT_FUNCTION_XY_LAPSE = 3)
+    !   model%climate%precip for the current time, based on artm_ref and Clausius-Clapeyron
+    !
+    ! Maybe there are other fields I've forgotten?
+    ! I think you will read model%climate%usrf_ref at initialization.
+    !
+    ! The parameters degree_factor, tmlt, snow_threshold_min, snow_threshold_max and t_lapse will be set in the config file.
+    !
+    ! Downscaling of artm_ref to artm (at the ice surface) happens below, followed by the SMB calculation.
+    !-------------------------------------------------------
+
     ! Downscale artm to the current surface elevation if needed.
     ! The downscaling options are:
     ! (0) artm(x,y); no dependence on surface elevation
@@ -326,6 +350,7 @@
     ! (0) SMB(x,y); no dependence on surface elevation
     ! (1) SMB(x,y) + dSMB/dz(x,y) * dz; SMB depends on input field at reference elevation, plus vertical correction
     ! (2) SMB(x,y,z); SMB obtained by linear interpolation between values prescribed at adjacent vertical levels
+    ! (3) SMB obtained from precip and artm using a positive-degree scheme
     !
     ! Options (1) and (2) require input fields with SMB units of mm/yr w.e. (SMB_INPUT_MMYR_WE)
     ! For these options, the elevation-dependent SMB is computed here.
@@ -351,6 +376,39 @@
             model%climate%smb,                    &
             linear_extrapolate_in = .false.)
 
+    elseif  (model%options%smb_input_function == SMB_INPUT_FUNCTION_PDD) then
+
+       ! Compute SMB using a simple PDD scheme:
+       ! (1) Partition precip as rain or snow based on the downscaled artm
+       ! (2) Compute ablation based on artm and a degree factor
+       ! Assume that artm has already been downscaled, if needed, based on artm_input_function.
+
+       ! Note: This is similar to the SMB calculation for glaciers, but that calculation is done in the glacier module.
+       ! TODO: Put the glacier values of snow_threshold_min and snow_threshold_max in the climate derived type.
+
+       ! compute snow accumulation (mm/yr w.e.)
+       where (model%climate%artm > model%climate%snow_threshold_max)
+          model%climate%snow = 0.0d0   ! all precip falls as rain
+       elsewhere (model%climate%artm < model%climate%snow_threshold_min)
+          model%climate%snow = model%climate%precip   ! all precip falls as snow
+       elsewhere (model%climate%artm > model%climate%snow_threshold_min)
+          model%climate%snow = model%climate%precip * (model%climate%snow_threshold_max - model%climate%artm)  &
+               / (model%climate%snow_threshold_max - model%climate%snow_threshold_min)
+       endwhere
+
+       ! compute ablation (mm/yr w.e.)
+       ! Note: degree_factor has units of mm/yr w.e./degC to be consistent with other mass-balance variables.
+       !       It is like mu_star for glaciers.
+       model%climate%ablation = model%climate%degree_factor * max(model%climate%artm - model%climate%tmlt, 0.0d0)
+
+       ! compute smb (mm/yr w.e.)
+       model%climate%smb = model%climate%snow - model%climate%ablation
+
+       ! set smb = 0 for open ocean
+       where (model%geometry%thck == 0.0d0 .and. (model%geometry%topg - model%climate%eus) < 0.0d0)
+          model%climate%smb = 0.0d0
+       endwhere
+
     endif   ! smb_input_function
 
     ! For the non-default smb_input_function options, make sure that model%climate%smb is nonzero somewhere; else abort.
@@ -359,7 +417,8 @@
     call parallel_halo(model%climate%smb, parallel)
 
     if (model%options%smb_input_function == SMB_INPUT_FUNCTION_XY_GRADZ .or. &
-        model%options%smb_input_function == SMB_INPUT_FUNCTION_XYZ) then
+        model%options%smb_input_function == SMB_INPUT_FUNCTION_XYZ .or. &
+        model%options%smb_input_function == SMB_INPUT_FUNCTION_PDD) then
        if (parallel_is_nonzero(model%climate%smb)) then
           ! all is well
        else
@@ -385,8 +444,14 @@
        elseif (model%options%smb_input_function == SMB_INPUT_FUNCTION_XYZ) then
           k = model%climate%nlev_smb/2 + 1  ! arbitrary k
           if (this_rank == rtest) write(6,*) 'Diagnostic level k, level (m) =', k, model%climate%smb_levels(k)
-          call point_diag(model%climate%smb_3d(k,:,:), '3d smb (mm/yr ice)', itest, jtest, rtest, 7, 7)
-          call point_diag(model%climate%smb, 'downscaled smb (mm/yr ice)', itest, jtest, rtest, 7, 7)
+          call point_diag(model%climate%smb_3d(k,:,:), '3d smb (mm/yr)', itest, jtest, rtest, 7, 7)
+          call point_diag(model%climate%smb, 'downscaled smb (mm/yr)', itest, jtest, rtest, 7, 7)
+       elseif (model%options%smb_input_function == SMB_INPUT_FUNCTION_PDD) then
+          call point_diag(model%climate%artm, 'artm (deg C)', itest, jtest, rtest, 7, 7)
+          call point_diag(model%climate%precip, 'precip (mm/yr)', itest, jtest, rtest, 7, 7)
+          call point_diag(model%climate%snow, 'snow (mm/yr)', itest, jtest, rtest, 7, 7)
+          call point_diag(model%climate%ablation, 'ablation (mm/yr)', itest, jtest, rtest, 7, 7)
+          call point_diag(model%climate%smb,'smb (mm/yr)', itest, jtest, rtest, 7, 7)
        endif  ! smb_input_function
 
        if (model%options%artm_input_function == ARTM_INPUT_FUNCTION_XY_GRADZ) then
@@ -397,7 +462,10 @@
           k = model%climate%nlev_smb/2 + 1  ! arbitrary k
           if (this_rank == rtest) write(6,*) 'Diagnostic level k, level (m) =', k, model%climate%smb_levels(k)
           call point_diag(model%climate%artm_3d(k,:,:), '3d artm (deg C)', itest, jtest, rtest, 7, 7)
-          call point_diag(model%climate%artm, 'downsacled artm (deg C)', itest, jtest, rtest, 7, 7)
+          call point_diag(model%climate%artm, 'downscaled artm (deg C)', itest, jtest, rtest, 7, 7)
+       elseif (model%options%artm_input_function == ARTM_INPUT_FUNCTION_XY_LAPSE) then
+          call point_diag(model%climate%artm_ref, 'reference artm (deg C)', itest, jtest, rtest, 7, 7)
+          call point_diag(model%climate%artm, 'downscaled artm (deg C)', itest, jtest, rtest, 7, 7)
        endif   ! artm_input_function
 
     endif  ! verbose_smb

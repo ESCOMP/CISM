@@ -2745,7 +2745,7 @@ contains
 
     real(dp), dimension(ewn,nsn), intent(in) ::  &
          snow,                        & ! annual mean snowfall (mm/yr w.e.)
-         Tpos                           ! annual mean Tpos = min(T - Tmlt, 0)
+         Tpos                           ! annual mean Tpos = max(T - Tmlt, 0)
 
     real(dp), dimension(nglacier), intent(in) :: &
          mu_star,                     & ! glacier-specific SMB tuning parameter (mm/yr w.e./deg)
@@ -2966,7 +2966,7 @@ contains
 
     real(dp), dimension(ewn,nsn), intent(in) ::  &
          snow,                        & ! annual mean snowfall (mm/yr w.e.)
-         Tpos                           ! annual mean Tpos = min(T - Tmlt, 0)
+         Tpos                           ! annual mean Tpos = max(T - Tmlt, 0)
 
     real(dp), dimension(nglacier), intent(in) :: &
          mu_star,                     & ! glacier-specific SMB tuning parameter (mm/yr w.e./deg)

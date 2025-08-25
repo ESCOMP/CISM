@@ -147,6 +147,7 @@ module glide_types
   integer, parameter :: SMB_INPUT_FUNCTION_XY = 0
   integer, parameter :: SMB_INPUT_FUNCTION_XY_GRADZ = 1
   integer, parameter :: SMB_INPUT_FUNCTION_XYZ = 2
+  integer, parameter :: SMB_INPUT_FUNCTION_PDD = 3
 
   integer, parameter :: ARTM_INPUT_FUNCTION_XY = 0
   integer, parameter :: ARTM_INPUT_FUNCTION_XY_GRADZ = 1
@@ -605,6 +606,7 @@ module glide_types
     !> \item[0] SMB(x,y); input as a function of horizontal location only
     !> \item[1] SMB(x,y) + dSMB/dz(x,y) * dz; input SMB and its vertical gradient
     !> \item[2] SMB(x,y,z); input SMB at multiple elevations
+    !> \item[3] SMB computed with a positive-degree scheme
     !> \end{description}
 
     integer :: artm_input_function = 0
@@ -1501,6 +1503,9 @@ module glide_types
      real(dp),dimension(:)    ,pointer :: smb_levels    => null() !> Reference vertical levels for SMB (m)
      integer :: nlev_smb = 1                                      !> number of vertical levels at which SMB is provided
 
+     ! Ablation is computed independent of accumulation for SMB_INPUT_FUNCTION_PDD
+     real(dp),dimension(:,:),pointer :: ablation => null()        !> surface ablation (mm/yr w.e.)
+
      ! The next several fields are used for the 'read_once' forcing option.
      ! E.g., if we want to read in all time slices of precip at once, we would set 'read_once' = .true. in the config file.
      ! All time slices are then stored in the precip_read_once array, where the third dimension is the number of time slices.
@@ -1531,6 +1536,12 @@ module glide_types
                                                     !> If set to zero, then the anomaly is applied immediately.
                                                     !> Snow and precip anomalies are assumed to have the same timescale
      real(dp) :: t_lapse = 0.0d0                    !> air temp lapse rate (deg/m); positive for T decreasing with height
+     real(dp) :: degree_factor = 1000.d0            !> ablation rate as a function of temperature above tmlt (mm/yr w.e./deg C)
+                                                    !> Divide by 365 to convert to mm/day
+     real(dp) :: tmlt = -1.d0                       !> spatially uniform temperature threshold for melting (deg C)
+     real(dp) :: snow_threshold_min = 0.0d0         !> air temperature (deg C) below which all precip falls as snow
+     real(dp) :: snow_threshold_max = 2.0d0         !> air temperature (deg C) above which all precip falls as rain
+     !TODO - Remove the equivalent glacier variables
 
   end type glide_climate
 
@@ -3238,6 +3249,8 @@ contains
     elseif (model%options%smb_input_function == SMB_INPUT_FUNCTION_XYZ) then
        call coordsystem_allocate(model%general%ice_grid, model%climate%nlev_smb, model%climate%smb_3d)
        allocate(model%climate%smb_levels(model%climate%nlev_smb))
+    elseif (model%options%smb_input_function == SMB_INPUT_FUNCTION_PDD) then
+       call coordsystem_allocate(model%general%ice_grid, model%climate%ablation)
     endif
 
     ! Note: Typically, smb_input_function and artm_input_function will have the same value.
@@ -3890,6 +3903,8 @@ contains
         deallocate(model%climate%artm_3d)
     if (associated(model%climate%smb_obs)) &
         deallocate(model%climate%smb_obs)
+    if (associated(model%climate%ablation)) &
+        deallocate(model%climate%ablation)
 
     ! calving arrays
     if (associated(model%calving%calving_thck)) &

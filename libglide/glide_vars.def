@@ -896,6 +896,12 @@ data:          data%climate%usrf_ref
 standard_name: land_ice_reference_surface_elevation
 load:          1
 
+[ablation]
+dimensions:    time, y1, x1
+units:         mm/year water equivalent
+long_name:     ablation rate
+data:          data%climate%ablation
+
 [smb_levels]
 dimensions:    time, nlev_smb
 units:         m
