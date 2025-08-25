@@ -938,8 +938,13 @@ contains
           do i = 1, ewn
              if (basal_hydro%bwat_diag(i,j) > 0.0d0) then
 
+                !WHL Aug. 2025: The following formulation seems to be unstable, even with gamma = 1.
+!                relative_bwat = &
+!                     min( (basal_hydro%bwat_diag(i,j)/basal_hydro%bwat_threshold)**basal_hydro%bwat_gamma, 1.0d0 )
+
+                ! The following alternative asymptotes gradually to relative_bwat = 1. It seems to be stable.
                 relative_bwat = &
-                     min( (basal_hydro%bwat_diag(i,j)/basal_hydro%bwat_threshold)**basal_hydro%bwat_gamma, 1.0d0 )
+                     basal_hydro%bwat_diag(i,j) / (basal_hydro%bwat_diag(i,j) + basal_hydro%bwat_threshold)
 
                 basal_physics%effecpress(i,j) = overburden(i,j) * &
                      (basal_hydro%effecpress_delta + (1.0d0 - relative_bwat) * (1.0d0 - basal_hydro%effecpress_delta))
@@ -1085,7 +1090,6 @@ contains
     end select   ! which_effecpress
 
     !TODO - Do this calculation in a separate subroutine.
-    !       Then use a min statement to merge the two calculations.
 
     ! Optionally, compute N for grounded marine ice based on the connectivity of subglacial water to the ocean.
     ! N is weighted by the factor (1 - Hf/H)^p, where Hf is the flotation thickness, and 0 <= p <= 1.
@@ -1093,6 +1097,7 @@ contains
     ! 0 < p < 1 => partial connectivity
     ! p = 0 => no connectivity; water pressure p_w = 0
 
+    !TODO - Remove the timescale
     ! The adjustment of N to N*(1 - Hf/H)^p can either be instantaneous, or else over a prescribed timescale.
     ! A relaxation timescale may be appropriate for a spin-up in the following situation:
     !  Marine-based ice is initialized to a transient state in which (1 - Hf/H)^p is small, and a result
@@ -1102,7 +1107,7 @@ contains
     !
     ! Note: This calculation is independent of the computation above based on which_ho_effecpress.
     !       In general, we will compute two different values for N in each location, and we take the minimum.
-    !       If which_ho_effecpres = 0 (i.e., N = overburden), then the ocean_p calculation with p > 0
+    !       If which_ho_effecpress = 0 (i.e., N = overburden), then the ocean_p calculation with p > 0
     !        will reduce N wherever the topography is below sea level.
 
     ocean_p = basal_physics%p_ocean_penetration
@@ -1126,6 +1131,7 @@ contains
           enddo
        enddo
 
+       !TODO - remove the timescale
        if (basal_physics%ocean_p_timescale > 0.0d0) then
           ! relax f_ocean_p toward the target value computed above
           ! Note: dt and f_ocean_p_timescale have units of yr
@@ -1136,16 +1142,11 @@ contains
           basal_physics%f_effecpress_ocean_p(:,:) = f_ocean_p_target(:,:)
        endif
 
-       !TODO - Swap the next line with the commented-out line below:
-       ! Reduce the effective pressure where f_effecpress_ocean_p < 1.
-       ! Note: f_effecpress_ocean_p is initialized to 1, and is reduced near marine margins only if ocean_p > 0.
-       basal_physics%effecpress(:,:) = basal_physics%effecpress(:,:) * basal_physics%f_effecpress_ocean_p(:,:)
+       ! The effective pressure based on ocean_p is given by f_effecpress_ocean_p * overburden.
+       ! Use the lesser of this value and the value computed earlier (under the which_ho_effecpress options).
 
-       ! If this value is lower than the value computed above (under the which_ho_effecpress options),
-       !  then replace that value with the ocean_p value just computed.
-       !TODO - Make sure this is done correctly, then uncomment in a future commit.
-!!!       basal_physics%effecpress(:,:) = &
-!!!            min(basal_physics%effecpress(:,:), overburden(:,:)*basal_physics%f_effecpress_ocean_p(:,:))
+       basal_physics%effecpress(:,:) = &
+            min(basal_physics%effecpress(:,:), basal_physics%f_effecpress_ocean_p(:,:)*overburden(:,:))
 
        if (verbose_effecpress) then
 
