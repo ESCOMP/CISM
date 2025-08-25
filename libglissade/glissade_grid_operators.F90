@@ -44,9 +44,6 @@ module glissade_grid_operators
     use glide_types
     use cism_parallel, only: this_rank, main_task, nhalo, &
          parallel_type, parallel_halo, parallel_reduce_sum, parallel_globalindex
-  ! Note: Using the glide_diagnostics module creates a circularity.
-  !       For that reason, point_diag should be called from a higher level, not from inside this module.
-!!    use glide_diagnostics, only: point_diag
 
     implicit none
 

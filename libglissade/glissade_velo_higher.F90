@@ -60,7 +60,7 @@
     use glimmer_physcon, only: n_glen, rhoi, rhoo, grav, scyr, pi
     use glimmer_paramets, only: eps08, eps10, eps11
     use glimmer_paramets, only: velo_scale, len_scale   ! used for whichefvs = HO_EFVS_FLOWFACT
-    use glide_diagnostics, only: point_diag
+    use glimmer_utils, only: point_diag
     use glimmer_log
     use glimmer_sparse_type
     use glimmer_sparse

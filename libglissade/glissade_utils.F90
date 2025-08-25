@@ -34,10 +34,6 @@ module glissade_utils
   use glimmer_log
   use glide_types
   use cism_parallel, only: this_rank, main_task
-  ! Note: Using the glide_diagnostics module creates a circularity.
-  !       For that reason, point_diag should be called from a higher level, not inside utility subroutines
-  ! TODO: Remove the circularity by moving point_diag to this module?
-  !!  use glide_diagnostics, only: point_diag
 
   implicit none
 

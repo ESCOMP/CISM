@@ -39,6 +39,7 @@
 
     use glimmer_global, only: dp
     use glimmer_log
+    use glimmer_utils, only: point_diag
     use glide_types
     use cism_parallel, only: this_rank, main_task, nhalo, lhalo, uhalo, &
          parallel_halo, parallel_reduce_max, parallel_reduce_sum, parallel_globalindex
@@ -143,7 +144,6 @@
     ! Also add anomaly terms, if needed, and do any required unit conversions.
 
     use glimmer_physcon, only: rhow, rhoi, scyr
-    use glide_diagnostics, only: point_diag
     use glissade_grid_operators, only: glissade_vertical_interpolate
     use glissade_masks, only: glissade_extend_mask
     use cism_parallel, only: parallel_is_nonzero
@@ -527,7 +527,6 @@
 
     use glimmer_paramets, only: eps11
     use glimmer_physcon, only: rhow, rhoi, scyr
-    use glide_diagnostics, only: point_diag
     use glissade_masks, only: glissade_get_masks
     use glissade_calving, only: verbose_calving
 

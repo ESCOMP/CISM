@@ -30,17 +30,17 @@ module glissade_basal_water
    use glimmer_paramets, only: eps11, eps08
    use glimmer_physcon, only: rhoi, rhow, grav, scyr
    use glimmer_log
+   use glimmer_utils, only: point_diag
    use glide_types
-   use glide_diagnostics, only: point_diag
    use cism_parallel, only: main_task, this_rank, nhalo, parallel_type, parallel_halo
-   use glide_diagnostics, only: point_diag
 
    implicit none
 
    private
    public :: glissade_basal_water_init, glissade_calcbwat, glissade_bwat_flux_routing
 
-   logical, parameter :: verbose_bwat = .false.
+!!   logical, parameter :: verbose_bwat = .false.
+   logical, parameter :: verbose_bwat = .true.
 
  contains
 

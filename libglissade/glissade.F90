@@ -56,7 +56,7 @@ module glissade
   use glimmer_global, only: dp
   use glimmer_log
   use glide_types
-  use glide_diagnostics, only: point_diag
+  use glimmer_utils, only: point_diag
   use glide_io
   use glide_lithot
   use glimmer_config
@@ -1951,7 +1951,6 @@ contains
     use cism_parallel, only: parallel_type, parallel_halo, parallel_halo_tracers,  &
          staggered_parallel_halo, parallel_reduce_max
     use glimmer_physcon, only: rhow, rhoi, scyr
-    use glide_diagnostics, only: glide_init_diag
     use glissade_therm, only: glissade_temp2enth, glissade_enth2temp
     use glissade_transport, only: glissade_transport_driver, glissade_check_cfl,  &
          glissade_transport_setup_tracers, glissade_transport_finish_tracers

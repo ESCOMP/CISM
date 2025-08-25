@@ -38,7 +38,7 @@ module glissade_calving
 
   use glimmer_paramets, only: eps11
   use glimmer_physcon, only: rhoi, rhoo, grav, scyr
-  use glide_diagnostics, only: point_diag
+  use glimmer_utils, only: point_diag
 
   implicit none
 
@@ -1066,8 +1066,6 @@ contains
        thck,                      &
        calving_thck)
 
-    use glide_diagnostics, only: point_diag
-
     ! input/output arguments
 
     integer, intent(in) :: &
@@ -1434,8 +1432,6 @@ contains
     !  but on the effective calving thickness (thck_effective = H_eff),
     !  which depends on the max thickness of the edge-adjacent floating cells.
 
-    use glide_diagnostics, only: point_diag
-
     ! input/output arguments
 
     integer, intent(in) :: &
@@ -1535,8 +1531,6 @@ contains
     ! Calve ice based on the eigenvalues of the 2D horizontal stress tensor near the calving front.
     ! When the effective stress is above a certain threshold, the CF advances.
     ! Below the threshold, the CF retreats.
-
-    use glide_diagnostics, only: point_diag
 
     ! input/output arguments
 
@@ -1666,7 +1660,6 @@ contains
     ! Still under construction.
 
     use glissade_masks, only: glissade_fill, initial_color, fill_color, boundary_color
-    use glide_diagnostics, only: point_diag
 
     ! input/output arguments
 
@@ -1809,8 +1802,6 @@ contains
     ! Here, eigenconstant corresponds to the Levermann K, but with different units because
     !  it multiplies the geometric mean of strain rates rather than the product.
 
-    use glide_diagnostics, only: point_diag
-
     ! input/output arguments
 
     integer, intent(in) :: &
@@ -1911,8 +1902,6 @@ contains
     ! Calve ice based on accumulated damage.
     ! This is similar to stress-based calving, except that stresses contribute to damage
     ! instead of directly determining the lateral calving rate.
-
-    use glide_diagnostics, only: point_diag
 
     ! input/output arguments
 
@@ -2092,7 +2081,6 @@ contains
     ! This is similar to stress-based calving, except that stresses contribute to damage
     ! instead of directly determining the lateral calving rate.
 
-    use glide_diagnostics, only: point_diag
     use glissade_masks, only: glissade_fill, initial_color, fill_color, boundary_color
 
     ! input/output arguments
@@ -2419,7 +2407,6 @@ contains
     ! This option requires a subgrid calving front scheme.
 
     use glimmer_physcon, only: pi
-    use glide_diagnostics, only: point_diag
 
     ! input/output arguments
 
@@ -3448,7 +3435,6 @@ contains
 
     use cism_parallel, only: parallel_reduce_maxloc, parallel_reduce_minloc, broadcast
     use glissade_grid_operators, only: glissade_stagger
-    use glide_diagnostics, only: point_diag
 
     ! Find the calving front location along eight profiles on the circular domain.
     ! These profiles are the four cardinal directions (N, S, E, W) along with the diagonals
@@ -3825,7 +3811,6 @@ contains
 
     use cism_parallel, only: parallel_reduce_maxloc, parallel_reduce_minloc, broadcast
     use glissade_grid_operators, only: glissade_stagger
-    use glide_diagnostics, only: point_diag
 
     ! Find the calving front location along eight profiles on the Thule domain.
     ! These profiles are defined as follows:

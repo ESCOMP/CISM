@@ -57,7 +57,7 @@
     use glimmer_global, only: dp
     use glimmer_physcon, only: n_glen, rhoi, grav, scyr
 !    use glimmer_log, only: write_log
-    use glide_diagnostics, only: point_diag
+    use glimmer_utils, only: point_diag
     use glide_types
     use glissade_grid_operators, only: glissade_stagger, glissade_gradient, &
                                        glissade_gradient_at_edges

@@ -33,7 +33,7 @@ module glissade_glacier
     use glimmer_physcon, only: scyr, pi, rhow, rhoi
     use glide_types
     use glimmer_log
-    use glide_diagnostics, only: point_diag
+    use glimmer_utils, only: point_diag
     use cism_parallel, only: main_task, this_rank, nhalo
 
     implicit none

@@ -39,8 +39,8 @@ module glissade_test
 
   use glimmer_global, only: dp
   use glimmer_log
+  use glimmer_utils, only: point_diag
   use glide_types
-  use glide_diagnostics, only: point_diag
 
   implicit none
 

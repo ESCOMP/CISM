@@ -441,10 +441,10 @@ contains
     use glide_velo
     use glide_mask
     use glimmer_physcon, only: scyr, rhoi, rhow
+    use glimmer_utils, only: point_diag
     use glide_ground, only: glide_calve_ice
     use glide_bwater, only: calcbwat
     use glide_temp, only: glide_calcbmlt, glide_calcbpmp
-    use glide_diagnostics, only: point_diag
     use glide_grid_operators
 
     type(glide_global_type), intent(inout) :: model     ! model instance
