@@ -56,8 +56,8 @@
   implicit none
 
   private
-  public :: calcbeta, glissade_init_effecpress, glissade_calc_effecpress, &
-       set_coulomb_c_elevation
+  public :: glissade_calcbeta, glissade_init_effecpress, glissade_calc_effecpress, &
+       glissade_elevation_based_coulomb_c
 
 !***********************************************************************
 
@@ -65,22 +65,22 @@ contains
 
 !***********************************************************************
 
-  subroutine calcbeta (whichbabc,                    &
-                       parallel,                     &
-                       dew,           dns,           &
-                       ewn,           nsn,           &
-                       thisvel,       othervel,      &
-                       basal_physics,                &
-                       flwa_basal,    thck,          &
-                       topg,          eus,           &
-                       ice_mask,                     &
-                       land_mask,                    &
-                       f_ground,                     &
-                       beta_external,                &
-                       beta,                         &
-                       which_ho_beta_limit,          &
-                       which_ho_coulomb_c,           &
-                       itest, jtest,  rtest)
+  subroutine glissade_calcbeta (&
+       whichbabc,                    &
+       parallel,                     &
+       dew,           dns,           &
+       ewn,           nsn,           &
+       thisvel,       othervel,      &
+       basal_physics,                &
+       flwa_basal,    thck,          &
+       topg,          eus,           &
+       ice_mask,                     &
+       land_mask,                    &
+       f_ground,                     &
+       beta_external,                &
+       beta,                         &
+       which_ho_beta_limit,          &
+       itest, jtest,  rtest)
 
   ! subroutine to calculate map of beta sliding parameter, based on 
   ! user input ("whichbabc" flag, from config file as "which_ho_babc").
@@ -121,7 +121,6 @@ contains
 
   integer, intent(in) :: which_ho_beta_limit                    ! option to limit beta for grounded ice
                                                                 ! 0 = absolute based on beta_grounded_min; 1 = weighted by f_ground
-  integer, intent(in) :: which_ho_coulomb_c                     ! basal frection option for Cc
   integer, intent(in), optional :: itest, jtest, rtest          ! coordinates of diagnostic point
 
   ! Local variables
@@ -143,7 +142,7 @@ contains
   real(dp) :: powerlaw_p, powerlaw_q
 
   ! variables for Coulomb friction law
-  real(dp) :: coulomb_c   ! Coulomb law friction coefficient (unitless)
+  real(dp) :: coulomb_c         ! Coulomb law friction coefficient (unitless)
   real(dp) :: powerlaw_c_const  ! power law friction coefficient (Pa m^{-1/3} yr^{1/3})
   real(dp) :: lambda_max        ! wavelength of bedrock bumps at subgrid scale (m)
   real(dp) :: m_max             ! maximum bed obstacle slope (unitless)
@@ -191,26 +190,6 @@ contains
   !       It helps make the model more stable.
   if (basal_physics%beta_powerlaw_umax > 0.0d0) then
      speed(:,:) = min(speed(:,:), basal_physics%beta_powerlaw_umax)
-  endif
-
-  ! Compute coulomb_c if needed.
-  ! Note: This calculation could be done once and for all for fixed topography,
-  !        but is done here in case topg or eus is evolving.
-  !       For other options (HO_COULOMB_C_CONSTANT, *_INVERSION, *_EXTERNAL),
-  !        coulomb_c is initialized or computed elsewhere.
-  ! Note: powerlaw_c is always initialized or computed elsewhere.
-
-  if (which_ho_coulomb_c == HO_COULOMB_C_ELEVATION) then
-
-     ! set coulomb_c based on bed elevation
-     call set_coulomb_c_elevation(ewn,        nsn,   &
-                                  topg,       eus,   &
-                                  basal_physics%coulomb_c_min,     &
-                                  basal_physics%coulomb_c_max,     &
-                                  basal_physics%coulomb_c_bedmin,  &
-                                  basal_physics%coulomb_c_bedmax,  &
-                                  basal_physics%coulomb_c)
-
   endif
 
   ! Compute beta based on whichbabc
@@ -715,7 +694,7 @@ contains
       endif
    endif
 
-  end subroutine calcbeta
+  end subroutine glissade_calcbeta
 
 !***********************************************************************
 
@@ -947,6 +926,12 @@ contains
 
                 basal_physics%effecpress(i,j) = overburden(i,j) * &
                      (basal_hydro%effecpress_delta + (1.0d0 - relative_bwat) * (1.0d0 - basal_hydro%effecpress_delta))
+
+                !TODO - Simplify the formula, using the delta as a min only.
+                !WHL - Exponential formula yields smaller N where bwat > bwat_threshold
+
+!!!                basal_physics%effecpress(i,j) = overburden(i,j) * &
+!!!                     max(basal_hydro%effecpress_delta, exp(-basal_hydro%bwat_diag(i,j)/basal_hydro%bwat_threshold))
 
              endif
           enddo
@@ -1224,36 +1209,50 @@ contains
 
 !***********************************************************************
 
-  subroutine set_coulomb_c_elevation(ewn,              nsn,             &
-                                     topg,             eus,             &
-                                     coulomb_c_min,    coulomb_c_max,   &
-                                     bedmin,           bedmax,          &
-                                     coulomb_c)
+  subroutine glissade_elevation_based_coulomb_c(&
+       ewn,             nsn,            &
+       itest,  jtest,   rtest,          &
+       topg,            eus,            &
+       coulomb_c_lo,    coulomb_c_hi,   &
+       bed_lo,          bed_hi,         &
+       coulomb_c)
 
     ! Compute coulomb_c as a function of bed elevation.
-    ! Assume a linear ramp between the max value at elevation bedmax and the min value at bedmin.
 
     use glissade_grid_operators, only: glissade_stagger
 
+    ! Input/output arguments
     integer, intent(in) :: &
-         ewn, nsn            ! grid dimensions
+         ewn, nsn                 ! grid dimensions
 
-    real(dp), dimension(ewn,nsn), intent(in)      :: topg            ! bed topography (m)
+    integer, intent(in) :: &
+         itest, jtest, rtest      ! coordinates of diagnostic point
+
+    real(dp), dimension(ewn,nsn), intent(in) :: &
+         topg                     ! bed topography (m)
+
+    !Note: Currently, coulomb_c_lo can be spatially varying, but coulomb_c_hi is uniform
+    real(dp), dimension(ewn-1,nsn-1), intent(in) :: &
+         coulomb_c_lo,          & ! coulomb_c values at low bed elevation (topg <= bed_lo)
+         coulomb_c_hi             ! coulomb_c values at high bed elevation (topg >= bed_hi)
 
     real(dp), intent(in) ::  &
          eus,                   & ! eustatic sea level (m) relative to z = 0
-         coulomb_c_min,         & ! min and max values of coulomb_c (unitless);
-         coulomb_c_max,         & !  analogous to tan(phimin) and tan(phimax)
-         bedmin,                & ! bed elevations (m) below which coulomb_c = coulomb_c_min
-         bedmax                   !  and above which coulomb_c = coulomb_c_max
+         bed_lo,                & ! bed elevation (m) below which coulomb_c = coulomb_c_lo
+         bed_hi                   ! bed elevation (m) above which coulomb_c = coulomb_c_hi
 
-    real(dp), dimension(ewn-1,nsn-1), intent(out) :: coulomb_c       ! 2D field of coulomb_c
+    real(dp), dimension(ewn-1,nsn-1), intent(out) :: &
+         coulomb_c                ! 2D field of coulomb_c
+
+    ! Local variables
 
     real(dp), dimension(ewn-1,nsn-1) :: &
-         stagtopg                             ! topg (m) on the staggered grid
+         stagtopg,              & ! topg (m) on the staggered grid
+         logC                     ! log(coulomb_c)
 
-    real(dp) :: bed                           ! bed elevation (m)
-    integer :: ew, ns
+    real(dp) :: bed               ! bed elevation (m)
+    integer :: i, j
+    logical, parameter :: verbose_cc = .false.
 
     ! Interpolate topg to the staggered grid
     ! stagger_margin_in = 0: Interpolate using values in all cells, including ice-free cells
@@ -1262,22 +1261,29 @@ contains
                           topg,        stagtopg,    &
                           stagger_margin_in = 0)
 
-    ! Compute coulomb_c based on bed elevation
-    do ns = 1, nsn-1
-       do ew = 1, ewn-1
-          bed = stagtopg(ew,ns) - eus
-          if (bed <= bedmin) then
-             coulomb_c(ew,ns) = coulomb_c_min
-          elseif (bed >= bedmax) then
-             coulomb_c(ew,ns) = coulomb_c_max
-          else   ! bed elevation is between bedmin and bedmax
-             coulomb_c(ew,ns) = coulomb_c_min + &
-                  ((bed - bedmin)/(bedmax - bedmin)) * (coulomb_c_max - coulomb_c_min)
+    ! Compute log(coulomb_c) based on bed elevation
+    do j = 1, nsn-1
+       do i = 1, ewn-1
+          bed = stagtopg(i,j) - eus
+          if (bed <= bed_lo) then
+             logC(i,j) = log10(coulomb_c_lo(i,j))
+          elseif (bed >= bed_hi) then
+             logC(i,j) = log10(coulomb_c_hi(i,j))
+          else   ! linearly interpolate logC between bed_lo and bed_hi
+             logC(i,j) = log10(coulomb_c_lo(i,j)) + &
+                  ((bed - bed_lo)/(bed_hi - bed_lo)) * (log10(coulomb_c_hi(i,j)) - log10(coulomb_c_lo(i,j)))
           endif
+          coulomb_c(i,j) = 10.d0**(logC(i,j))
        enddo
     enddo
 
-  end subroutine set_coulomb_c_elevation
+    if (verbose_cc) then
+       call point_diag(stagtopg, 'stagtopg', itest, jtest, rtest, 7, 7)
+       call point_diag(coulomb_c_lo, 'Cc_lo', itest, jtest, rtest, 7, 7)
+       call point_diag(coulomb_c, 'New Cc', itest, jtest, rtest, 7, 7)
+    endif
+
+  end subroutine glissade_elevation_based_coulomb_c
 
 !=======================================================================
 

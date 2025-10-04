@@ -778,7 +778,7 @@ contains
     call GetValue(section, 'which_ho_beta_limit',         model%options%which_ho_beta_limit)
     call GetValue(section, 'which_ho_powerlaw_c',         model%options%which_ho_powerlaw_c)
     call GetValue(section, 'which_ho_coulomb_c',          model%options%which_ho_coulomb_c)
-    call GetValue(section, 'which_ho_coulomb_c_relax',    model%options%which_ho_coulomb_c_relax)
+    call GetValue(section, 'elevation_based_coulomb_c',   model%options%elevation_based_coulomb_c)
     call GetValue(section, 'which_ho_deltaT_ocn',         model%options%which_ho_deltaT_ocn)
     call GetValue(section, 'which_ho_flow_enhancement_factor', model%options%which_ho_flow_enhancement_factor)
     call GetValue(section, 'which_ho_bwat',               model%options%which_ho_bwat)
@@ -1051,13 +1051,8 @@ contains
          'spatially uniform friction parameter Cc     ', &
          'invert for 2D friction parameter Cc         ', &
          'friction parameter Cc read from file        ', &
-         'invert for basin-scale friction parameter Cc', &
-         'Cc is a function of bed elevation           ' /)
-
-    character(len=*), dimension(0:2), parameter :: ho_coulomb_c_relax = (/ &
-         'no Cc_relax target                      ', &
-         'spatially uniform Cc_relax              ', &
-         'Cc_relax is a function of bed elevation ' /)
+         'invert for basin-scale coulomb_c_lo         ', &
+         'basin-scale coulomb_c_lo read from file     ' /)
 
     character(len=*), dimension(0:4), parameter :: ho_deltaT_ocn = (/ &
          'deltaT_ocn = 0                         ', &
@@ -1775,8 +1770,24 @@ contains
                          ho_coulomb_c(model%options%which_ho_coulomb_c)
        call write_log(message)
        if (model%options%which_ho_coulomb_c < 0 .or. model%options%which_ho_coulomb_c >= size(ho_coulomb_c)) then
-          call write_log('Error, HO coulomb_c input out of range', GM_FATAL)
+          call write_log('Error, which_ho_coulomb_c input out of range', GM_FATAL)
        end if
+
+       ! elevation-based coulomb_c; must be compatible with inversion options
+       if (model%options%elevation_based_coulomb_c) then
+          call write_log('coulomb_c is a function of bed elevation')
+          if (model%options%which_ho_coulomb_c == HO_COULOMB_C_INVERSION) then
+             call write_log('Error, local Cc inversion requires elevation_based_coulomb_c = F', GM_FATAL)
+          elseif (model%options%which_ho_coulomb_c == HO_COULOMB_C_EXTERNAL) then
+             call write_log('Error, using local Cc requires elevation_based_coulomb_c = F', GM_FATAL)
+          endif
+       else
+          if (model%options%which_ho_coulomb_c == HO_COULOMB_C_INVERSION_BASIN) then
+             call write_log('Error, basin-scale Cc inversion requires elevation_based_coulomb_c = T', GM_FATAL)
+          elseif (model%options%which_ho_coulomb_c == HO_COULOMB_C_EXTERNAL_BASIN) then
+             call write_log('Error, using basin-scale Cc requires elevation_based_coulomb_c = T', GM_FATAL)
+          endif
+       endif
 
        ! Inversion options
 
@@ -1790,35 +1801,25 @@ contains
              ! inversion for Cp is supported
           else
              call write_log('Error, Cp inversion is not supported for this basal BC option')
-             write(message,*) 'Cp inversion is supported only for these options: ', &
+             write(message,*) 'Cp inversion is supported for these options: ', &
                   HO_BABC_COULOMB_POWERLAW_SCHOOF, HO_BABC_COULOMB_POWERLAW_TSAI, HO_BABC_POWERLAW
              call write_log(message, GM_FATAL)
           endif
        endif
 
-       ! Note: Inversion for Cc is currently supported only for the Zoet-Iverson law
+       ! Note: Inversion for Cc is currently supported for the Zoet-Iverson law and pseudoplastic law
        if (model%options%which_ho_coulomb_c == HO_COULOMB_C_INVERSION .or. &
            model%options%which_ho_coulomb_c == HO_COULOMB_C_INVERSION_BASIN) then
 
-          !TODO - Add support for pseudoplastic
-          if (model%options%which_ho_babc == HO_BABC_ZOET_IVERSON) then
+          if (model%options%which_ho_babc == HO_BABC_ZOET_IVERSON .or. &
+              model%options%which_ho_babc == HO_BABC_PSEUDO_PLASTIC) then
              ! inversion for Cc is supported
           else
              call write_log('Error, Cc inversion is not supported for this basal BC option')
-             write(message,*) 'Cc inversion is supported only for these options: ', &
-                  HO_BABC_ZOET_IVERSON
+             write(message,*) 'Cc inversion is supported for these options: ', &
+                  HO_BABC_ZOET_IVERSON, HO_BABC_PSEUDO_PLASTIC
              call write_log(message, GM_FATAL)
           endif
-
-          ! If inverting for Cc, there may be a relaxation target
-          if (model%options%which_ho_coulomb_c_relax < 0 .or. &
-              model%options%which_ho_coulomb_c_relax >= size(ho_coulomb_c_relax)) then
-             call write_log('Error, HO coulomb_c_relax input out of range', GM_FATAL)
-          end if
-          write(message,*) 'ho_coulomb_c_relax      : ',model%options%which_ho_coulomb_c_relax,  &
-                            ho_coulomb_c_relax(model%options%which_ho_coulomb_c_relax)
-          call write_log(message)
-
        endif
 
        if (model%options%which_ho_deltaT_ocn /= HO_DELTAT_OCN_NONE) then
@@ -2238,10 +2239,10 @@ contains
     call GetValue(section, 'coulomb_c_const', model%basal_physics%coulomb_c_const)
     call GetValue(section, 'coulomb_c_max', model%basal_physics%coulomb_c_max)
     call GetValue(section, 'coulomb_c_min', model%basal_physics%coulomb_c_min)
-    call GetValue(section, 'coulomb_c_bedmax', model%basal_physics%coulomb_c_bedmax)
-    call GetValue(section, 'coulomb_c_bedmin', model%basal_physics%coulomb_c_bedmin)
-    call GetValue(section, 'coulomb_c_relax_max', model%basal_physics%coulomb_c_relax_max)
-    call GetValue(section, 'coulomb_c_relax_min', model%basal_physics%coulomb_c_relax_min)
+    call GetValue(section, 'coulomb_c_const_hi', model%basal_physics%coulomb_c_const_hi)
+    call GetValue(section, 'coulomb_c_const_lo', model%basal_physics%coulomb_c_const_lo)
+    call GetValue(section, 'coulomb_c_bed_hi', model%basal_physics%coulomb_c_bed_hi)
+    call GetValue(section, 'coulomb_c_bed_lo', model%basal_physics%coulomb_c_bed_lo)
     call GetValue(section, 'beta_powerlaw_umax', model%basal_physics%beta_powerlaw_umax)
     call GetValue(section, 'zoet_iversion_ut', model%basal_physics%zoet_iverson_ut)
     call GetValue(section, 'zoet_iversion_nmax', model%basal_physics%zoet_iverson_nmax)
@@ -2258,7 +2259,7 @@ contains
     ! pseudo-plastic parameters
     call GetValue(section, 'pseudo_plastic_q', model%basal_physics%pseudo_plastic_q)
     call GetValue(section, 'pseudo_plastic_u0', model%basal_physics%pseudo_plastic_u0)
-    !TODO - next four to be removed in favor of coulomb_c_min, etc.
+    !TODO - next four to be removed in favor of coulomb_c_const_hi, coulomb_c_bed_hi, etc.
     call GetValue(section, 'pseudo_plastic_phimin', model%basal_physics%pseudo_plastic_phimin)
     call GetValue(section, 'pseudo_plastic_phimax', model%basal_physics%pseudo_plastic_phimax)
     call GetValue(section, 'pseudo_plastic_bedmin', model%basal_physics%pseudo_plastic_bedmin)
@@ -2627,7 +2628,6 @@ contains
           write(message,*) 'pseudo-plastic bed max (m)    : ',model%basal_physics%pseudo_plastic_bedmax
           call write_log(message)
        endif
-       ! Note: For the new Coulomb_C elevation option, phimin/phimax/bedmin/bedmax are written below.
        if (model%options%which_ho_assemble_beta == HO_ASSEMBLE_BETA_STANDARD) then
           call write_log('WARNING: local beta assembly is recommended for the pseudo-plastic sliding law')
           write(message,*) 'Set which_ho_assemble_beta =', HO_ASSEMBLE_BETA_LOCAL
@@ -2647,13 +2647,13 @@ contains
     elseif (model%options%which_ho_babc == HO_BABC_ZOET_IVERSON) then
        ! Note: The Zoet-Iverson law typically uses a spatially variable coulomb_c.
        !       If so, the value written here is just the initial value.
-       write(message,*) 'Cc for Zoet-Iversion law                     : ', model%basal_physics%coulomb_c_const
+       write(message,*) 'coulomb_c_const for Zoet-Iversion law: ', model%basal_physics%coulomb_c_const
        call write_log(message)
-       write(message,*) 'm exponent for Zoet-Iverson law              : ', model%basal_physics%powerlaw_m
+       write(message,*) 'm exponent for ZI law                : ', model%basal_physics%powerlaw_m
        call write_log(message)
-       write(message,*) 'threshold speed for Zoet-Iverson law (m/yr)  : ', model%basal_physics%zoet_iverson_ut
+       write(message,*) 'threshold speed for ZI law (m/yr)    : ', model%basal_physics%zoet_iverson_ut
        call write_log(message)
-       write(message,*) 'max effecpress for Zoet-Iverson law (Pa)     : ', model%basal_physics%zoet_iverson_nmax
+       write(message,*) 'max effecpress for ZI law (Pa)       : ', model%basal_physics%zoet_iverson_nmax
        call write_log(message)
     elseif (model%options%which_ho_babc == HO_BABC_ISHOMC) then
        if (model%general%ewn /= model%general%nsn) then
@@ -2710,14 +2710,17 @@ contains
     endif
 
     ! Coulomb elevation parameters
-    if (model%options%which_ho_coulomb_c == HO_COULOMB_C_ELEVATION) then
-       write(message,*) 'coulomb_c_max                                : ',model%basal_physics%coulomb_c_max
+    ! Note: If inverting for coulomb_c_lo, then its initial value is coulomb_c_const_lo
+    if (model%options%elevation_based_coulomb_c) then
+       write(message,*) 'coulomb_c_const                              : ',model%basal_physics%coulomb_c_const
        call write_log(message)
-       write(message,*) 'coulomb_c_min                                : ',model%basal_physics%coulomb_c_min
+       write(message,*) 'coulomb_c_const_hi                           : ',model%basal_physics%coulomb_c_const_hi
        call write_log(message)
-       write(message,*) 'coulomb_c_bedmax (m)                         : ',model%basal_physics%coulomb_c_bedmax
+       write(message,*) 'coulomb_c_const_lo                           : ',model%basal_physics%coulomb_c_const_lo
        call write_log(message)
-       write(message,*) 'coulomb_c_bedmin (m)                         : ',model%basal_physics%coulomb_c_bedmin
+       write(message,*) 'coulomb_c_bed_hi (m)                         : ',model%basal_physics%coulomb_c_bed_hi
+       call write_log(message)
+       write(message,*) 'coulomb_c_bed_lo (m)                         : ',model%basal_physics%coulomb_c_bed_lo
        call write_log(message)
     endif
 
@@ -2799,19 +2802,6 @@ contains
        write(message,*) 'relaxation factor for C_c inversion          : ', &
             model%inversion%babc_relax_factor
        call write_log(message)
-       if (model%options%which_ho_coulomb_c_relax == HO_COULOMB_C_RELAX_CONSTANT) then
-          write(message,*) 'coulomb_c_relax constant                     : ',model%basal_physics%coulomb_c_const
-          call write_log(message)
-       elseif (model%options%which_ho_coulomb_c_relax == HO_COULOMB_C_RELAX_ELEVATION) then
-          write(message,*) 'coulomb_c_relax max target                   : ',model%basal_physics%coulomb_c_relax_max
-          call write_log(message)
-          write(message,*) 'coulomb_c_relax min target                   : ',model%basal_physics%coulomb_c_relax_min
-          call write_log(message)
-          write(message,*) 'coulomb_c_bedmax (m)                         : ',model%basal_physics%coulomb_c_bedmax
-          call write_log(message)
-          write(message,*) 'coulomb_c_bedmin (m)                         : ',model%basal_physics%coulomb_c_bedmin
-          call write_log(message)
-       endif
     endif   ! coulomb_c inversion
 
     if (model%options%which_ho_deltaT_ocn == HO_DELTAT_OCN_INVERSION .or. &
@@ -3232,7 +3222,6 @@ contains
     ! effective pressure options and parameters
     call GetValue(section, 'effecpress_delta',   model%basal_hydro%effecpress_delta)
     call GetValue(section, 'bwat_threshold', model%basal_hydro%bwat_threshold)
-    call GetValue(section, 'bwat_gamma',   model%basal_hydro%bwat_gamma)
     call GetValue(section, 'cavity_open_slide', model%basal_hydro%cavity_open_slide)
     call GetValue(section, 'cavity_open_melt', model%basal_hydro%cavity_open_melt)
     call GetValue(section, 'bump_height', model%basal_hydro%bump_height)
@@ -3316,8 +3305,6 @@ contains
           write(message,*) 'effective pressure delta      : ', model%basal_hydro%effecpress_delta
           call write_log(message)
           write(message,*) 'bwat threshold (m)            : ', model%basal_hydro%bwat_threshold
-          call write_log(message)
-          write(message,*) 'bwat gamma                    : ', model%basal_hydro%bwat_gamma
           call write_log(message)
        elseif (model%options%which_ho_effecpress == HO_EFFECPRESS_CAVITY_SHEET) then
           if (model%basal_hydro%cavity_open_slide < 0 .or. &
@@ -3681,8 +3668,6 @@ contains
     end select  ! artm_input_function
 
     ! Add anomaly forcing variables
-    ! Note: If enable_acab_dthck_dt_correction = T, then dthck_dt_obs is needed for restart.
-    !       Should be in restart file based on which_ho_deltaT_ocn /= 0
     !TODO - Remove these? Anomaly forcing is typically in a forcing file, not the main input file.
 
     if (options%enable_smb_anomaly) then
@@ -3937,20 +3922,24 @@ contains
     end select
 
     ! basal friction inversion options
-    ! Note: The fields coulomb_c_relax and powerlaw_c_relax are not needed.
-    !       If inverting for coulomb_c or powerlaw_c, the relaxation targets are recomputed at runtime.
 
     if (options%which_ho_powerlaw_c /= HO_POWERLAW_C_CONSTANT) then
        call glide_add_to_restart_variable_list('powerlaw_c', model_id)
     endif
 
     if (options%which_ho_coulomb_c /= HO_COULOMB_C_CONSTANT) then
-       call glide_add_to_restart_variable_list('coulomb_c', model_id)
+       if (options%elevation_based_coulomb_c) then
+          call glide_add_to_restart_variable_list('coulomb_c_lo', model_id)
+       else
+          call glide_add_to_restart_variable_list('coulomb_c', model_id)
+       endif
     endif
 
     ! If using the basin-scale inversion option for powerlaw_c or coulomb_c, we need a target thickness for grounded ice
     if (options%which_ho_powerlaw_c == HO_POWERLAW_C_INVERSION_BASIN .or. &
         options%which_ho_coulomb_c == HO_COULOMB_C_INVERSION_BASIN) then
+       ! Note: usrf_obs and velo_sfc_obs are not needed as targets on restart, but can be useful diagnostics
+       ! Note: By default, only marine-grounded ice is included in the coulomb_c target
        call glide_add_to_restart_variable_list('grounded_thck_target', model_id)
     endif
 
@@ -3964,20 +3953,26 @@ contains
        call glide_add_to_restart_variable_list('floating_thck_target', model_id)
     endif
 
-    ! fields needed for inversion options that try to match local thickness or upper surface elevation
-    ! Note: If usrf_obs is supplied, thck_obs will be computed at initialization
+    ! fields needed for inversion options that try to match local thickness, elevation, and/or surface speed
+    ! Note: If usrf_obs is supplied, thck_obs will be computed at initialization.
+    ! Note: Some options do not need usrf_obs and/or velo_sfc_obs as targets,
+    !       but they can still be useful diagnostics.
     if (options%which_ho_powerlaw_c == HO_POWERLAW_C_INVERSION .or. &
         options%which_ho_coulomb_c  == HO_COULOMB_C_INVERSION  .or. &
-        options%which_ho_deltaT_ocn == HO_DELTAT_OCN_INVERSION) then
+        options%which_ho_deltaT_ocn == HO_DELTAT_OCN_INVERSION .or. &
+        options%which_ho_powerlaw_c == HO_POWERLAW_C_INVERSION_BASIN .or. &
+        options%which_ho_coulomb_c  == HO_COULOMB_C_INVERSION_BASIN  .or. &
+        options%which_ho_deltaT_ocn == HO_DELTAT_OCN_INVERSION_BASIN .or. &
+        options%which_ho_flow_enhancement_factor == HO_FLOW_ENHANCEMENT_FACTOR_INVERSION) then
        call glide_add_to_restart_variable_list('usrf_obs', model_id)
+       call glide_add_to_restart_variable_list('velo_sfc_obs', model_id)
     endif
 
-    ! fields needed for inversion options that try to match local dthck_dt
-    ! Note: This is not strictly needed for all options, but still is a useful diagnostic.
-    !TODO: Add an option to match basin-scale dthck_dt?
-    if (options%which_ho_deltaT_ocn /= HO_DELTAT_OCN_NONE) then
-       call glide_add_to_restart_variable_list('dthck_dt_obs', model_id)
-       call glide_add_to_restart_variable_list('dthck_dt_obs_basin', model_id)
+    ! fields needed for inversion optionS that try to match observed dthck_dt
+    if (options%which_ho_deltaT_ocn == HO_DELTAT_OCN_DTHCK_DT .or. &
+        options%enable_acab_dthck_dt_correction) then
+       call glide_add_to_restart_variable_list('dthk_dt_obs', model_id)
+       call glide_add_to_restart_variable_list('dthk_dt_obs_basin', model_id)
     endif
 
     ! inversion options for the flow enhancement factor E
@@ -3988,7 +3983,6 @@ contains
     ! if inverting for E, we need the modeled and observed surface speed
     if (options%which_ho_flow_enhancement_factor == HO_FLOW_ENHANCEMENT_FACTOR_INVERSION) then
        call glide_add_to_restart_variable_list('velo_sfc', model_id)
-       call glide_add_to_restart_variable_list('velo_sfc_obs', model_id)
     endif
 
     ! effective pressure options

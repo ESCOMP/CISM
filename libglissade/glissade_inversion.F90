@@ -34,7 +34,7 @@ module glissade_inversion
   use glide_thck, only: glide_calclsrf
   use cism_parallel, only: this_rank, main_task, nhalo, &
        parallel_type, parallel_halo, staggered_parallel_halo, &
-       parallel_reduce_min, parallel_reduce_max
+       parallel_reduce_min, parallel_reduce_max, parallel_is_zero
 
   implicit none
 
@@ -63,7 +63,6 @@ contains
 
     use glissade_masks, only: glissade_get_masks
     use glissade_grid_operators, only: glissade_stagger
-    use glissade_basal_traction, only: set_coulomb_c_elevation
     use glissade_utils, only: glissade_usrf_to_thck, glissade_thck_to_usrf
 
     type(glide_global_type), intent(inout) :: model   ! model instance
@@ -117,22 +116,20 @@ contains
     endif
 
     !----------------------------------------------------------------------
-    ! If inverting locally for Cp or Cc, then set the target elevation, usrf_obs.
+    ! If inverting for Cp, Cc, and/or deltaT_ocn, then set the target elevation, usrf_obs.
+    ! Also set velo_sfc_obs, which usually is not an inversion target but is still of interest.
     !----------------------------------------------------------------------
 
     if (model%options%which_ho_powerlaw_c == HO_POWERLAW_C_INVERSION .or.  &
+        model%options%which_ho_powerlaw_c == HO_POWERLAW_C_INVERSION_BASIN .or.  &
         model%options%which_ho_coulomb_c  == HO_COULOMB_C_INVERSION  .or.  &
-        model%options%which_ho_deltaT_ocn == HO_DELTAT_OCN_INVERSION) then
+        model%options%which_ho_coulomb_c  == HO_COULOMB_C_INVERSION_BASIN  .or.  &
+        model%options%which_ho_deltaT_ocn == HO_DELTAT_OCN_INVERSION .or.  &
+        model%options%which_ho_deltaT_ocn == HO_DELTAT_OCN_INVERSION_BASIN) then
 
        ! We are likely trying to match usrf_obs, so check whether it has been read in already.
        ! If not, set it to the initial usrf field.
-
-       var_maxval = maxval(model%geometry%usrf_obs)
-       var_maxval = parallel_reduce_max(var_maxval)
-       if (var_maxval > 0.0d0) then
-          ! do nothing
-       else
-          ! initialize to the initial upper surface elevation
+       if (parallel_is_zero(model%geometry%usrf_obs)) then
           model%geometry%usrf_obs(:,:) = model%geometry%usrf(:,:)
        endif
 
@@ -215,42 +212,31 @@ contains
        call parallel_halo(model%geometry%usrf_obs, parallel)
        call parallel_halo(thck_obs, parallel)
 
+       ! If velo_sfc_obs or its components were read in, then save for error calculations.
+
+       if (.not.parallel_is_zero(model%velocity%velo_sfc_obs)) then
+          ! velo_sfc_obs has been read in and will be used for error calculations
+       elseif (.not.parallel_is_zero(model%velocity%usfc_obs) .and. .not.parallel_is_zero(model%velocity%vsfc_obs)) then
+          ! components usfc_obs and vsfc_obs were read in; compute velo_sfc_obs
+          model%velocity%velo_sfc_obs(:,:) = &
+               sqrt(model%velocity%usfc_obs(:,:)**2 + model%velocity%vsfc_obs(:,:)**2)
+       endif
+
     endif  ! inversion for Cp, Cc or deltaT_ocn
 
+
     !----------------------------------------------------------------------
-    ! If inverting for the flow enhancement factor E, then set the target
-    ! surface ice speed, velo_sfc_obs.
+    ! If inverting for E, then make sure there is a target surface speed, velo_sfc_obs.
     !----------------------------------------------------------------------
 
     if (model%options%which_ho_flow_enhancement_factor == HO_FLOW_ENHANCEMENT_FACTOR_INVERSION) then
-
-       ! Make sure that either (1) usfc_obs and vsfc_obs were read in
-       ! or (2) velo_sfc_obs was read in
-       var_maxval = maxval(model%velocity%velo_sfc_obs)
-       var_maxval = parallel_reduce_max(var_maxval)
-
-       var1_maxval = maxval(model%velocity%usfc_obs)
-       var1_maxval = parallel_reduce_max(var1_maxval)
-
-       var2_maxval = maxval(model%velocity%vsfc_obs)
-       var2_maxval = parallel_reduce_max(var2_maxval)
-
-       if (var_maxval > 0.0d0) then
-          ! velo_sfc_obs was read in; do nothing
-
-       elseif (var1_maxval > 0.0d0 .and. var2_maxval > 0.0d0) then
-          ! usfc_obs and vsfc_obs were read in; compute velo_sfc_obs
-          model%velocity%velo_sfc_obs(:,:) = &
-               sqrt(model%velocity%usfc_obs(:,:)**2 + model%velocity%vsfc_obs(:,:)**2)
-
-       else ! abort
+       if (parallel_is_zero(model%velocity%velo_sfc_obs)) then
           call write_log('Error, must read in velo_sfc_obs, usfc_obs and/or vsfc_obs to invert for E', GM_FATAL)
        endif
-
-    endif   ! flow enhancement factor inversion
-
-    if (verbose_inversion) then
-       call point_diag(model%temper%flow_enhancement_factor, 'init_inversion: flow_enhancement E =', itest, jtest, rtest, 7, 7)
+       if (verbose_inversion) then
+          call point_diag(model%temper%flow_enhancement_factor, &
+               'init_inversion: flow_enhancement E =', itest, jtest, rtest, 7, 7)
+       endif
     endif
 
     ! Set masks that are used below
@@ -268,17 +254,13 @@ contains
     ! computations specific to powerlaw_c (Cp) and coulomb_c (Cc) inversion
     !----------------------------------------------------------------------
 
-    if (model%options%which_ho_powerlaw_c == HO_POWERLAW_C_INVERSION) then
+    if (model%options%which_ho_powerlaw_c == HO_POWERLAW_C_INVERSION .or.  &
+        model%options%which_ho_powerlaw_c == HO_POWERLAW_C_INVERSION_BASIN) then
 
-       ! initialize powerlaw_c, if not already read in
-       var_maxval = maxval(model%basal_physics%powerlaw_c)
-       var_maxval = parallel_reduce_max(var_maxval)
-       if (var_maxval > 0.0d0) then
-          ! do nothing; powerlaw_c has been read in already (e.g., when restarting)
-       else
-          ! initialize to a uniform value (which can be set in the config file)
+       if (parallel_is_zero(model%basal_physics%powerlaw_c)) then
+          ! initialize powerlaw_c
           model%basal_physics%powerlaw_c(:,:) = model%basal_physics%powerlaw_c_const
-       endif  ! var_maxval > 0
+       endif
 
        if (verbose_inversion) then
           call point_diag(model%basal_physics%powerlaw_c, 'init_inversion for powerlaw_c', itest, jtest, rtest, 7, 7)
@@ -286,49 +268,27 @@ contains
 
     elseif (model%options%which_ho_coulomb_c == HO_COULOMB_C_INVERSION) then
 
-       ! initialize coulomb_c, if not already read in
-       var_maxval = maxval(model%basal_physics%coulomb_c)
-       var_maxval = parallel_reduce_max(var_maxval)
-       if (var_maxval > 0.0d0) then
-          ! do nothing; coulomb_c has been read in already (e.g., when restarting)
-       else
-
-          if (model%options%which_ho_coulomb_c_relax == HO_COULOMB_C_RELAX_NONE .or.  &
-              model%options%which_ho_coulomb_c_relax == HO_COULOMB_C_RELAX_CONSTANT) then
-
-             !Note: The initial value used to depend on whether cells were floating or grounded.
-             !      Now, we initialize coulomb_c to the same value everywhere.
-
-             model%basal_physics%coulomb_c = model%basal_physics%coulomb_c_const
-             model%basal_physics%coulomb_c_relax = model%basal_physics%coulomb_c_const
-
-          elseif (model%options%which_ho_coulomb_c_relax == HO_COULOMB_C_RELAX_ELEVATION) then
-
-             ! Set coulomb_c_relax based on bed elevation, and set coulomb_c = coulomb_c_relax.
-             ! Note: If the bed topography is fixed, coulomb_c_relax could be set once and for all.
-             !       If isostasy is on, coulomb_c_relax needs to be reset as the bed evolves.
-
-             call set_coulomb_c_elevation(&
-                  ewn,                nsn,                   &
-                  model%geometry%topg,                       &  ! m
-                  model%climate%eus,                         &  ! m
-                  model%basal_physics%coulomb_c_relax_min,   &
-                  model%basal_physics%coulomb_c_relax_max,   &
-                  model%basal_physics%coulomb_c_bedmin,      &  ! m
-                  model%basal_physics%coulomb_c_bedmax,      &  ! m
-                  model%basal_physics%coulomb_c)
-
-             model%basal_physics%coulomb_c_relax = model%basal_physics%coulomb_c
-
-          endif
-
-       endif  ! var_maxval > 0
+       if (parallel_is_zero(model%basal_physics%coulomb_c)) then
+          ! initialize coulomb_c (for which we will invert)
+          model%basal_physics%coulomb_c = model%basal_physics%coulomb_c_const
+       endif
 
        if (verbose_inversion) then
           call point_diag(model%basal_physics%coulomb_c, 'init_inversion for coulomb_c', itest, jtest, rtest, 7, 7)
        endif
 
-    endif   ! Cp or Cc inversion
+    elseif (model%options%which_ho_coulomb_c == HO_COULOMB_C_INVERSION_BASIN) then
+
+       if (parallel_is_zero(model%basal_physics%coulomb_c_lo)) then
+          ! initialize coulomb_c_lo (for which we will invert)
+          model%basal_physics%coulomb_c_lo = model%basal_physics%coulomb_c_const_lo
+       endif
+
+       if (verbose_inversion) then
+          call point_diag(model%basal_physics%coulomb_c, 'init_inversion for coulomb_c_lo in basins', itest, jtest, rtest, 7, 7)
+       endif
+
+    endif
 
     !----------------------------------------------------------------------
     ! computations specific to flow_enhancement_factor inversion
@@ -358,10 +318,34 @@ contains
 
     !----------------------------------------------------------------------
     ! computations specific to basin-scale coulomb_c or powerlaw_c inversion
+    ! Note: For Cp inversion, the thickness target includes all grounded ice in the basin.
+    !       For Cc inversion, the target includes only marine-grounded ice
+    !        (since we are inverting for coulomb_c_lo, which mainly affects marine ice).
     !----------------------------------------------------------------------
 
-    if (model%options%which_ho_coulomb_c == HO_COULOMB_C_INVERSION_BASIN .or. &
-        model%options%which_ho_powerlaw_c == HO_POWERLAW_C_INVERSION_BASIN) then
+    if (model%options%which_ho_coulomb_c == HO_COULOMB_C_INVERSION_BASIN) then
+
+       if (model%options%is_restart == NO_RESTART) then
+
+          ! Set grounded_thck_target for marine-grounded ice.
+          ! The inversion will nudge the basin-mean grounded ice thickness toward this target.
+
+          where (ice_mask == 1 .and. land_mask == 0 .and. floating_mask == 0)   ! marine-grounded ice
+             model%inversion%grounded_thck_target = model%geometry%thck
+          elsewhere
+             model%inversion%grounded_thck_target = 0.0d0
+          endwhere
+
+          if (verbose_inversion) then
+             call point_diag(model%inversion%grounded_thck_target, &
+                  'After init_inversion, grounded_thck_target', itest, jtest, rtest, 7, 7)
+          endif   ! verbose
+
+       endif   ! not a restart
+
+       call parallel_halo(model%inversion%grounded_thck_target, parallel)
+
+    elseif (model%options%which_ho_powerlaw_c == HO_POWERLAW_C_INVERSION_BASIN) then
 
        if (model%options%is_restart == NO_RESTART) then
 
@@ -383,7 +367,7 @@ contains
 
        call parallel_halo(model%inversion%grounded_thck_target, parallel)
 
-    endif  ! basin-scale coulomb_c inversion
+    endif  ! basin-scale Cc or Cp inversion
 
     !----------------------------------------------------------------------
     ! computations specific to basin-scale ocean temperature inversion
@@ -445,7 +429,6 @@ contains
     use glissade_grounding_line, only: glissade_grounded_fraction
     use glissade_utils, only: glissade_usrf_to_thck, glissade_basin_average
     use glissade_grid_operators, only: glissade_stagger, glissade_stagger_real_mask, glissade_unstagger
-    use glissade_basal_traction, only: set_coulomb_c_elevation
 
     type(glide_global_type), intent(inout) :: model   ! model instance
 
@@ -464,13 +447,14 @@ contains
          f_flotation_obs       ! f_flotation_obs as a function of thck_obs (instead of current thck)
 
     real(dp), dimension(model%general%ewn-1,model%general%nsn-1) ::   &
-         stag_thck,          & ! ice thickness on staggered grid
-         stag_dthck_dt,      & ! dthck_dt on staggered grid
-         stag_thck_obs,      & ! thck_obs on staggered grid
-         stag_thck_target      ! target thickness on staggered grid
+         stag_thck,          & ! ice thickness on staggered grid (m)
+         stag_topg,          & ! bed topography on staggered grid (m)
+         stag_dthck_dt,      & ! dthck_dt on staggered grid (m/s)
+         stag_thck_obs,      & ! thck_obs on staggered grid (m)
+         stag_thck_target      ! target thickness on staggered grid (m)
 
     real(dp), dimension(model%general%ewn, model%general%nsn) ::  &
-         coulomb_c_cell,     & ! coulomb_c averaged to cell centeres
+         coulomb_c_cell,     & ! coulomb_c averaged to cell centers
          deltaT_ocn_relax      ! relax deltaT_ocn toward this value
 
     real(dp), dimension(model%ocean_data%nbasin) :: &
@@ -479,7 +463,11 @@ contains
     real(dp), dimension(model%general%ewn, model%general%nsn) ::  &
          stagger_rmask         ! = 1.0 where grounded_thck_target > 0, else = 0
 
+    real(dp), dimension(model%general%ewn-1,model%general%nsn-1) ::   &
+         rmask                 ! = 1.0 where Cp or Cc_lo is physically meaningful, else = 0
+
     type(parallel_type) :: parallel  ! info for parallel communication
+    real(dp) :: bed_lo, bed_hi, logC_lo, logC_hi, logC
     integer :: ewn, nsn
     integer :: itest, jtest, rtest   ! local diagnostic point
     integer :: i, j, nb
@@ -547,8 +535,6 @@ contains
              call point_diag(model%basal_physics%powerlaw_c, 'powerlaw_c', itest, jtest, rtest, 7, 7)
           endif
 
-          model%basal_physics%powerlaw_c_relax = model%basal_physics%powerlaw_c_const
-
           call invert_basal_friction(&
                model%numerics%dt,                        &  ! s
                ewn,               nsn,                   &
@@ -565,7 +551,7 @@ contains
                stag_thck,                                &  ! m
                stag_thck_obs,                            &  ! m
                stag_dthck_dt,                            &  ! m/s
-               model%basal_physics%powerlaw_c_relax,     &
+               model%basal_physics%powerlaw_c_const,     &  ! relax to this value
                model%basal_physics%powerlaw_c)
 
           ! halo update
@@ -577,38 +563,11 @@ contains
 
        elseif ( model%options%which_ho_coulomb_c == HO_COULOMB_C_INVERSION) then
 
-          ! Set the relaxation target for coulomb_c
-
-          if (model%options%which_ho_coulomb_c_relax == HO_COULOMB_C_RELAX_CONSTANT) then
-
-             model%basal_physics%coulomb_c_relax = model%basal_physics%coulomb_c_const
-
-          elseif (model%options%which_ho_coulomb_c_relax == HO_COULOMB_C_RELAX_ELEVATION) then
-             ! set coulomb_c_relax based on bed elevation
-             ! Note: Could be called once at initialization, if the bed topography is fixed
-
-             call set_coulomb_c_elevation(&
-                  ewn,                nsn,                   &
-                  model%geometry%topg,                       &  ! m
-                  model%climate%eus,                         &  ! m
-                  model%basal_physics%coulomb_c_relax_min,   &
-                  model%basal_physics%coulomb_c_relax_max,   &
-                  model%basal_physics%coulomb_c_bedmin,      &  ! m
-                  model%basal_physics%coulomb_c_bedmax,      &  ! m
-                  model%basal_physics%coulomb_c_relax)
-
-          else
-
-             model%basal_physics%coulomb_c_relax = 0.0d0  ! no relaxation
-
-          endif
-
           if (verbose_inversion) then
              call point_diag(model%basal_physics%coulomb_c, 'Old coulomb_c', itest, jtest, rtest, 7, 7, '(f10.5)')
              call point_diag(model%basal_physics%effecpress_stag, 'effecpress_stag', itest, jtest, rtest, 7, 7, '(f10.1)')
              call point_diag(rhoi*grav*stag_thck, 'overburden', itest, jtest, rtest, 7, 7, '(f10.1)')
              call point_diag((model%geometry%thck - thck_obs), 'thck - thck_obs (m)', itest, jtest, rtest, 7, 7)
-             call point_diag(model%basal_physics%coulomb_c_relax, 'coulomb_c_relax', itest, jtest, rtest, 7, 7, '(f10.5)')
           endif
 
           call invert_basal_friction(&
@@ -627,7 +586,7 @@ contains
                stag_thck,                                &  ! m
                stag_thck_obs,                            &  ! m
                stag_dthck_dt,                            &  ! m/s
-               model%basal_physics%coulomb_c_relax,      &
+               model%basal_physics%coulomb_c_const,      &  ! relax to this value
                model%basal_physics%coulomb_c)
 
           ! halo update
@@ -689,8 +648,12 @@ contains
 
     if (model%options%which_ho_powerlaw_c == HO_POWERLAW_C_INVERSION_BASIN) then
 
-       ! Set the relaxation target to powerlaw_c_const
-       model%basal_physics%powerlaw_c_basin_relax = model%basal_physics%powerlaw_c_const
+       ! Compute a mask of grounded vertices
+       where (model%geometry%f_ground > 0.0d0)
+          rmask = 1.0d0
+       elsewhere
+          rmask = 0.0d0
+       endwhere
 
        ! Do the inversion
 
@@ -705,23 +668,38 @@ contains
             stag_thck,                                 &  ! m
             stag_dthck_dt,                             &  ! m/s
             stag_thck_target,                          &  ! m
-            model%geometry%f_ground,                   &  ! at vertices
+            rmask,                                     &
             model%inversion%babc_thck_scale,           &  ! m
             model%inversion%babc_timescale,            &  ! s
             model%inversion%babc_relax_factor,         &
-            model%basal_physics%powerlaw_c_max,         &
-            model%basal_physics%powerlaw_c_min,         &
-            model%basal_physics%powerlaw_c_basin_relax, &
+            model%basal_physics%powerlaw_c_max,        &
+            model%basal_physics%powerlaw_c_min,        &
+            model%basal_physics%powerlaw_c_const,      &  ! relax to this value
             model%basal_physics%powerlaw_c)
 
        call parallel_halo(model%basal_physics%powerlaw_c, parallel)
 
     elseif (model%options%which_ho_coulomb_c == HO_COULOMB_C_INVERSION_BASIN) then
 
-       ! Set the relaxation target to coulomb_c_const
-       model%basal_physics%coulomb_c_basin_relax = model%basal_physics%coulomb_c_const
+       ! Compute a mask of marine-grounded vertices
+       call glissade_stagger_real_mask(&
+            ewn,                     nsn,             &
+            model%geometry%topg - model%climate%eus,  &
+            stag_topg,                                &
+            stagger_rmask)
 
-       ! Do the inversion
+       call staggered_parallel_halo(stag_topg, parallel)
+
+       where (model%geometry%f_ground > 0.0d0 .and. stag_topg < 0.0d0)
+          rmask = 1.0d0
+       elsewhere
+          rmask = 0.0d0
+       endwhere
+
+       ! Invert for coulomb_c_lo in each basin.
+       ! The inversion aims to minimize the thickness error for marine-grounded ice.
+       ! We invert for coulomb_c_lo because the ice thickness is sensitive to Cc
+       !  where Cc is small (i.e., at low bed elevation), but less so where Cc is large.
 
        call invert_basal_friction_basin(&
             model%numerics%dt,                         &  ! s
@@ -734,22 +712,22 @@ contains
             stag_thck,                                 &  ! m
             stag_dthck_dt,                             &  ! m/s
             stag_thck_target,                          &  ! m
-            model%geometry%f_ground,                   &  ! at vertices
+            rmask,                                     &
             model%inversion%babc_thck_scale,           &  ! m
             model%inversion%babc_timescale,            &  ! s
             model%inversion%babc_relax_factor,         &
-            model%basal_physics%coulomb_c_max,         &
-            model%basal_physics%coulomb_c_min,         &
-            model%basal_physics%coulomb_c_basin_relax, &
-            model%basal_physics%coulomb_c)
+            model%basal_physics%coulomb_c_const_hi,    &  ! max value for coulomb_c_lo
+            model%basal_physics%coulomb_c_min,         &  ! min value for coulomb_c_lo
+            model%basal_physics%coulomb_c_const_lo,    &  ! relax to this value
+            model%basal_physics%coulomb_c_lo)
 
-       call parallel_halo(model%basal_physics%coulomb_c, parallel)
+       call parallel_halo(model%basal_physics%coulomb_c_lo, parallel)
 
     endif  ! invert for basin-scale powerlaw_c or coulomb_c
 
     ! Replace zeroes (if any) with small nonzero values to avoid divzeroes.
-    ! Note: The current algorithm initializes Cc to a nonzero value everywhere and never sets Cp = 0;
-    !       this code is just to be on the safe side.
+    ! Note: The current algorithm initializes Cc to a nonzero value everywhere and never sets Cp = 0.
+    !       However, some BCs will set these values to zero near global boundaries.
 
     if (model%options%which_ho_powerlaw_c /= HO_POWERLAW_C_CONSTANT) then
        where (model%basal_physics%powerlaw_c == 0.0d0)
@@ -760,6 +738,9 @@ contains
     if (model%options%which_ho_coulomb_c /= HO_COULOMB_C_CONSTANT) then
        where (model%basal_physics%coulomb_c == 0.0d0)
           model%basal_physics%coulomb_c = model%basal_physics%coulomb_c_min
+       endwhere
+       where (model%basal_physics%coulomb_c_lo == 0.0d0)
+          model%basal_physics%coulomb_c_lo = model%basal_physics%coulomb_c_min
        endwhere
     endif
 
@@ -849,7 +830,6 @@ contains
     endif   ! which_ho_deltaT_ocn
 
     ! If setting deltaT_ocn based on observed dthck_dt, then do so here.
-    ! TODO - Deprecate this option?
     if (model%options%which_ho_deltat_ocn == HO_DELTAT_OCN_DTHCK_DT) then
 
        ! Set deltaT_ocn based on dthck_dt_obs.
@@ -1006,14 +986,14 @@ contains
          babc_length_scale,    & ! diffusive length scale (m) for inversion
          babc_relax_factor,    & ! controls strength of relaxation to default values
          friction_c_max,       & ! upper bound for friction_c (units correspond to powerlaw_c or coulomb_c)
-         friction_c_min          ! lower bound for friction_c
+         friction_c_min,       & ! lower bound for friction_c
+         friction_c_relax        ! friction_c value to which we (optionally) relax
 
     real(dp), dimension(nx-1,ny-1), intent(in) ::  &
          f_ground,             & ! grounded fraction at vertices, 0 to 1
          stag_thck,            & ! ice thickness at vertices (m)
          stag_thck_obs,        & ! observed ice thickness at vertices (m)
-         stag_dthck_dt,        & ! rate of change of ice thickness at vertices (m/s)
-         friction_c_relax        ! basal friction field to which we (optionally) relax
+         stag_dthck_dt           ! rate of change of ice thickness at vertices (m/s)
 
     real(dp), dimension(nx-1,ny-1), intent(inout) ::  &
          friction_c              ! basal friction field to be adjusted (powerlaw_c or coulomb_c)
@@ -1024,13 +1004,13 @@ contains
          stag_dthck,           & ! stag_thck - stag_thck_obs
          logC,                 & ! log_10(friction_c)
          dlogC,                & ! change in log_10(friction_c)
-         logC_relax,           & ! log_10(friction_c_relax)
          del2_logC               ! Laplacian term, d2(logC)/dx2 + d2(logC)/dy2
 
     integer, dimension(nx-1,ny-1) :: &
          del2_mask               ! mask for Laplacian smoothing
 
     real(dp) ::  &
+         logC_relax,           & ! log_10(friction_c_relax)
          thck_target,          & ! local target for ice thickness (m)
          term_thck,            & ! tendency term based on thickness error
          term_dHdt,            & ! tendency term based on dH/dt
@@ -1040,7 +1020,7 @@ contains
     integer :: i, j
 
     real(dp), parameter :: logmin = -99.d0   ! arbitrary negative value;
-                                             ! values of log(c) below logmin are considered non-physical
+                                             ! log(C) values of logmin or less are considered non-physical
 
     ! Check for positive scales
 
@@ -1065,11 +1045,7 @@ contains
 
     ! initialize
     dlogC(:,:) = 0.0d0
-    where (friction_c_relax > 0.0d0)
-       logc_relax = log10(friction_c_relax)
-    elsewhere
-       logc_relax = logmin
-    endwhere
+    logc_relax = log10(friction_c_relax)
 
     ! Compute the difference between the current and target thickness
     stag_dthck(:,:) = stag_thck(:,:) - stag_thck_obs(:,:)
@@ -1137,7 +1113,7 @@ contains
 
           ! At all locations, add a term to relax C toward a target value, friction_c_relax
           if (logC(i,j) > logmin) then
-             term_relax = -babc_relax_factor * (logC(i,j) - logC_relax(i,j)) / babc_timescale
+             term_relax = -babc_relax_factor * (logC(i,j) - logC_relax) / babc_timescale
           endif
 
           ! Sum the terms
@@ -1206,7 +1182,7 @@ contains
        stag_thck,                   &
        stag_dthck_dt,               &
        stag_thck_target,            &
-       f_ground,                    &
+       rmask,                       &
        babc_thck_scale,             &
        babc_timescale,              &
        babc_relax_factor,           &
@@ -1219,10 +1195,12 @@ contains
 
     ! Nudge the basin-scale values of the basal friction field.
     ! Here, the field has the generic name 'friction_c', which could be either powerlaw_c or coulomb_c.
-    ! (As of Aug. 2025, only coulomb_c is supported.)
+    ! As of Oct. 2025, the Cc-related field is coulomb_c_lo, i.e. the value at low elevation.
+    ! This is because inverting for a single value of Cc in an entire basin usually gives too-low values
+    !  where the bed elevation is high and/or too-high values where the bed elevation is low.
     ! In each basin, we compute the mean thickness of grounded ice and compare to a target thickness
-    ! (usually based on observations).
-    ! In basins where grounded ice is too thick, friction_c decreases uniformly across the basin.
+    !  (usually based on observations).
+    ! In basins where grounded ice is too thick, friction_c decreases across the basin.
     !  and where grounded ice is too thin, friction_c increases.
     ! The resulting friction_c is constrained to lie within a prescribed range, [friction_c_min, friction_c_max].
 
@@ -1247,7 +1225,7 @@ contains
          stag_thck,            & ! ice thickness (m) on staggered grid
          stag_dthck_dt,        & ! dH/dt (m/s) on staggered grid
          stag_thck_target,     & ! target thickness for grounded ice (m)
-         f_ground                ! grounded fraction at each vertex
+         rmask                   ! real-valued mask, = 1.0 where friction_c values are physically significant
 
     real(dp), intent(in) :: &
          babc_thck_scale,      & ! inversion thickness scale (m); must be > 0
@@ -1273,7 +1251,6 @@ contains
     real(dp) :: dthck  ! difference between modeled and observed mean thickness
     real(dp) :: term_thck, term_dHdt, term_relax  ! terms in prognostic equation for friction_c_basin
     real(dp) :: logC, logC_relax, dlogC           ! logarithm terms
-    real(dp), dimension(nx-1,ny-1) :: mask        ! temporary mask
 
     ! For each basin, compute the current and target mean ice thickness for the target region.
     ! Also compute the current rate of mean thickness change.
@@ -1290,16 +1267,11 @@ contains
          dthck_dt_basin)
 
     ! Compute the current friction_c in each basin
-    where (f_ground > 0.0d0)
-       mask = 1.0d0
-    elsewhere
-       mask = 0.0d0
-    endwhere
 
     call glissade_basin_average(&
          nx,          ny,                   &
          nbasin,      basin_number,         &
-         mask,                              &
+         rmask,                             &
          friction_c,  friction_c_basin)
 
     ! header for optional diagnostics
@@ -1342,13 +1314,15 @@ contains
     enddo
 
     ! Increment friction_c at each vertex
-    ! Note: friction_c is a 2D field, but here its value is uniform in each basin.
+    ! Note: friction_c is a 2D field, but its value is uniform within each basin.
     !       Vertex (i,j) belongs to basin nb iff cell (i,j) belongs to that basin.
     do j = 1, ny-1
        do i = 1, nx-1
           nb = basin_number(i,j)
           if (nb >= 1 .and. nb <= nbasin) then
              friction_c(i,j) = friction_c_basin(nb)
+          else
+             friction_c(i,j) = 0.0d0
           endif
        enddo
     enddo
@@ -1573,7 +1547,7 @@ contains
          deltaT_ocn_length_scale   ! diffusive length scale (m) for inversion
 
     real(dp), dimension(nx,ny), intent(in) ::  &
-         deltaT_ocn_relax,     &   ! deltaT_ocn field toward which we relax
+         deltaT_ocn_relax,     &   ! deltaT_ocn field toward which we relax     !TODO - Make this a scalar?
          f_ground_cell,        &   ! grounded fraction at cell centers, 0 to 1
          thck,                 &   ! ice thickness (m)
          thck_obs,             &   ! observed ice thickness (m)
@@ -1813,7 +1787,7 @@ contains
          flow_enhancement_factor_min = 0.10d0    ! min allowed value of flow_enhancement_factor (unitless)
 
     real(dp), parameter :: logmin = -99.d0   ! arbitrary negative value;
-                                             ! values of log(E) below logmin are considered non-physical
+                                             ! log(E) values of logmin or less are considered non-physical
 
     ! Check for positive scales
 

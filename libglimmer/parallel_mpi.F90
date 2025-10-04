@@ -328,6 +328,12 @@ module cism_parallel
      module procedure parallel_halo_verify_real8_3d
   end interface
 
+  interface parallel_is_zero
+     module procedure parallel_is_zero_integer_2d
+     module procedure parallel_is_zero_real8_2d
+     module procedure parallel_is_zero_real8_3d
+  end interface
+
   interface parallel_print
      module procedure parallel_print_integer_2d
      module procedure parallel_print_real8_2d
@@ -6452,26 +6458,68 @@ contains
 
 !=======================================================================
 
-  !TODO - make this an interface with 2d and 3d versions
+  ! functions belonging to the parallel_is_zero interface
 
-  function parallel_is_nonzero(a)
+  function parallel_is_zero_integer_2d(a)
 
-    ! returns .true. if the field has any nonzero values, else returns false
+    ! returns .true. if the field has all zero values, else returns .false.
+
+    integer, dimension(:,:), intent(in) :: a
+    logical :: parallel_is_zero_integer_2d
+
+    real(dp) :: maxval_a
+
+    maxval_a = maxval(abs(a))
+    maxval_a = parallel_reduce_max(maxval_a)
+    if (maxval_a > 0) then
+       parallel_is_zero_integer_2d = .false.
+    else
+       parallel_is_zero_integer_2d = .true.
+    endif
+
+  end function parallel_is_zero_integer_2d
+
+!=======================================================================
+
+  function parallel_is_zero_real8_2d(a)
+
+    ! returns .true. if the field has all zero values, else returns .false.
 
     real(dp), dimension(:,:), intent(in) :: a
-    logical :: parallel_is_nonzero
+    logical :: parallel_is_zero_real8_2d
 
     real(dp) :: maxval_a
 
     maxval_a = maxval(abs(a))
     maxval_a = parallel_reduce_max(maxval_a)
     if (maxval_a > 0.0d0) then
-       parallel_is_nonzero = .true.
+       parallel_is_zero_real8_2d = .false.
     else
-       parallel_is_nonzero = .false.
+       parallel_is_zero_real8_2d = .true.
     endif
 
-  end function parallel_is_nonzero
+  end function parallel_is_zero_real8_2d
+
+!=======================================================================
+
+  function parallel_is_zero_real8_3d(a)
+
+    ! returns .true. if the field has all zero values, else returns .false.
+
+    real(dp), dimension(:,:,:), intent(in) :: a
+    logical :: parallel_is_zero_real8_3d
+
+    real(dp) :: maxval_a
+
+    maxval_a = maxval(abs(a))
+    maxval_a = parallel_reduce_max(maxval_a)
+    if (maxval_a > 0.0d0) then
+       parallel_is_zero_real8_3d = .false.
+    else
+       parallel_is_zero_real8_3d = .true.
+    endif
+
+  end function parallel_is_zero_real8_3d
 
 !=======================================================================
 

@@ -96,7 +96,8 @@ contains
          distributed_grid, distributed_grid_active_blocks,  parallel_global_edge_mask, &
          parallel_halo, parallel_halo_extrapolate, parallel_reduce_max, &
          staggered_parallel_halo_extrapolate, staggered_no_penetration_mask, &
-         parallel_create_comm_row, parallel_create_comm_col, not_parallel
+         parallel_create_comm_row, parallel_create_comm_col, &
+         parallel_is_zero, not_parallel
 
     use glide_setup
     use glimmer_ncio, only: openall_in, openall_out, glimmer_nc_get_var, glimmer_nc_get_dimlength
@@ -117,7 +118,7 @@ contains
     use glide_diagnostics, only: glide_init_diag
     use glissade_calving, only: glissade_calving_mask_init, verbose_calving
     use glissade_inversion, only: glissade_inversion_init, verbose_inversion
-    use glissade_basal_traction, only: glissade_init_effecpress
+    use glissade_basal_traction, only: glissade_init_effecpress, glissade_elevation_based_coulomb_c
     use glissade_bmlt_float, only: glissade_bmlt_float_thermal_forcing_init, verbose_bmlt_float
     use glissade_grounding_line, only: glissade_grounded_fraction
     use glissade_glacier, only: glissade_glacier_init
@@ -356,19 +357,15 @@ contains
     ! Check that lat and lon fields were read in, if desired
     !TODO - Use the parallel_is_nonzero function instead, here and below
     if (model%options%read_lat_lon) then
-       local_maxval = maxval(abs(model%general%lat))
-       global_maxval = parallel_reduce_max(local_maxval)
-       if (global_maxval < eps11) then
+       if (parallel_is_zero(model%general%lat)) then
           call write_log('Failed to read latitude (lat) field from input file', GM_FATAL)
        endif
-       local_maxval = maxval(abs(model%general%lon))
-       global_maxval = parallel_reduce_max(local_maxval)
-       if (global_maxval < eps11) then
-          call write_log('Failed to read longitude (lon) field from input file', GM_FATAL)
+       if (parallel_is_zero(model%general%lon)) then
+          call write_log('Failed to read longitude (lat) field from input file', GM_FATAL)
        endif
-       call parallel_halo(model%general%lat, parallel)
-       call parallel_halo(model%general%lon, parallel)
     endif
+    call parallel_halo(model%general%lat, parallel)
+    call parallel_halo(model%general%lon, parallel)
 
     ! Some input fields may have a netCDF fill value, typically a very large positive number.
     ! If present, convert these values to zero (or optionally, another suitable value).
@@ -390,34 +387,15 @@ contains
        call check_fill_values(model%ocean_data%thermal_forcing)
     endif
 
+    ! Note: dthck_dt_ocn has a scale value of scyr (m/yr in the netcdf file, m/s in the code).
+    !       The factor should be passed in to identify the fill values.
     if (model%options%which_ho_deltaT_ocn == HO_DELTAT_OCN_DTHCK_DT .or.  &
         model%options%enable_acab_dthck_dt_correction) then
-       call check_fill_values(model%geometry%dthck_dt_obs)
-    endif
-
-    ! Some input fields may have a netCDF fill value, typically a very large positive number.
-    ! If present, convert these values to zero (or optionally, another suitable value).
-    ! Note: Optionally, can pass a user-specified fill value and replacement value,
-    !        and return a mask of grid cells where values are replaced.
-    !       Depending on the input dataset, might have fill values in other fields (e.g., artm, topg)
-
-    if (model%options%smb_input == SMB_INPUT_MMYR_WE) then
-       call check_fill_values(model%climate%smb)
-    else
-       call check_fill_values(model%climate%acab)
-    endif
-
-    if (model%options%gthf == GTHF_PRESCRIBED_2D) then
-       call check_fill_values(model%temper%bheatflx)
-    endif
-
-    if (associated(model%ocean_data%thermal_forcing)) then
-       call check_fill_values(model%ocean_data%thermal_forcing)
-    endif
-
-    if (model%options%which_ho_deltaT_ocn == HO_DELTAT_OCN_DTHCK_DT .or.  &
-        model%options%enable_acab_dthck_dt_correction) then
-       call check_fill_values(model%geometry%dthck_dt_obs)
+       call check_fill_values(model%geometry%dthck_dt_obs, scale_factor_in = scyr)
+       if (verbose_bmlt_float .and. this_rank == rtest) then
+          write(6,*) 'check_fill_values, dthck_dt_obs'
+          write(6,*) 'max val (m/yr) =', maxval(abs(model%geometry%dthck_dt_obs))*scyr
+       endif
     endif
 
     ! Allocate mask arrays in case they are needed below
@@ -785,24 +763,20 @@ contains
     ! If this factor is not present in the input file, then set it to 1 everywhere.
     if (model%options%use_c_space_factor) then
 
-       if (maxval(model%basal_physics%c_space_factor) > tiny(0.d0)) then  ! c_space_factor was read in
-
+       if (parallel_is_zero(model%basal_physics%c_space_factor)) then
+          ! c_space_factor was not read in; set to 1 everywhere, so it will be ignored when computing beta
+          ! Note: It would be possible here to set c_space_factor to values different from 1,
+          !       if not reading it from the input file.
+          model%basal_physics%c_space_factor(:,:) = 1.0d0
+          model%basal_physics%c_space_factor_stag(:,:) = 1.0d0
+       else
           ! do a halo update and interpolate to the staggered grid
           ! Note: stagger_margin_in = 0 => use all values in the staggering, including where ice is absent
           call parallel_halo(model%basal_physics%c_space_factor, parallel)
           call glissade_stagger(model%general%ewn,                  model%general%nsn,                       &
                                 model%basal_physics%c_space_factor, model%basal_physics%c_space_factor_stag, &
                                 stagger_margin_in = 0)
-
-       else  ! c_space_factor was not read in; set to 1 everywhere, so it will be ignored when computing beta
-             ! With this value, it will be ignored when computing beta
-
-          ! Note: It would be possible here to set c_space_factor to values different from 1,
-          !       if not reading it from the input file.
-          model%basal_physics%c_space_factor(:,:) = 1.0d0
-          model%basal_physics%c_space_factor_stag(:,:) = 1.0d0
-
-       endif  ! maxval(c_space_factor) > 0
+       endif  ! c_space_factor = 0
 
     else   ! use_c_space_factor = F
 
@@ -919,11 +893,34 @@ contains
        endif
     endif
 
-    ! Initialize coulomb_c = coulomb_c constant.
+    ! Initialize coulomb_c
     ! If inverting for coulomb_c, we read in the saved coulomb_c field on restart.
     if (model%options%which_ho_coulomb_c == HO_COULOMB_C_CONSTANT .or. &
         model%options%is_restart == NO_RESTART) then
-       model%basal_physics%coulomb_c = model%basal_physics%coulomb_c_const
+
+       if (model%options%elevation_based_coulomb_c) then
+
+          model%basal_physics%coulomb_c_hi = model%basal_physics%coulomb_c_const_hi
+          model%basal_physics%coulomb_c_lo = model%basal_physics%coulomb_c_const_lo
+
+          call glissade_elevation_based_coulomb_c(&
+               model%general%ewn,   model%general%nsn,   &
+               itest,   jtest,      rtest,               &
+               model%geometry%topg, model%climate%eus,   &
+               model%basal_physics%coulomb_c_lo,         &
+               model%basal_physics%coulomb_c_hi,         &
+               model%basal_physics%coulomb_c_bed_lo,     &
+               model%basal_physics%coulomb_c_bed_hi,     &
+               model%basal_physics%coulomb_c)
+
+          call parallel_halo(model%basal_physics%coulomb_c, parallel)
+
+          call point_diag(model%basal_physics%coulomb_c, 'Initial coulomb_c', itest, jtest, rtest, 7, 7)
+
+       else
+          model%basal_physics%coulomb_c = model%basal_physics%coulomb_c_const
+       endif
+
     endif
 
     ! Optionally, do initial calculations for inversion
@@ -946,11 +943,8 @@ contains
 
     if (model%options%which_ho_deltat_ocn == HO_DELTAT_OCN_DTHCK_DT .or. &
         model%options%enable_acab_dthck_dt_correction) then
-       local_maxval = maxval(abs(model%geometry%dthck_dt_obs))
-       global_maxval = parallel_reduce_max(local_maxval)
-       if (global_maxval == 0.0d0) then   ! dthck_dt_obs was not read in; abort
+       if (parallel_is_zero(model%geometry%dthck_dt_obs)) then
           call write_log ('Error: Trying to match dthck_dt, but dthck_dt_obs = 0', GM_FATAL)
-          call write_log(message)
        endif
     endif
 
@@ -960,23 +954,17 @@ contains
 
        ! Set reference_thck
        ! This field is loaded if present in the input file.  Otherwise, reference_thck is set to the initial thickness.
-       local_maxval = maxval(model%geometry%reference_thck)
-       global_maxval = parallel_reduce_max(local_maxval)
-       if (global_maxval < eps11) then
-          write(message,*) 'Setting reference_thck to the initial ice thickness'
-          call write_log(trim(message))
+       if (parallel_is_zero(model%geometry%reference_thck)) then
+          call write_log('Setting reference_thck to the initial ice thickness')
           model%geometry%reference_thck = model%geometry%thck
        else
-          write(message,*) 'reference_thck was read from the input/restart file'
-          call write_log(trim(message))
+          call write_log('reference_thck was read from the input/restart file')
        endif
 
        ! Check whether a nonzero retreat mask has been read in. If not, then write a message.
        ! Note: This is not necessarily an error.  If reading the retreat mask from a forcing file,
        !       the first nonzero mask may not be read until the model time is greater than tstart.
-       local_maxval = maxval(model%geometry%ice_fraction_retreat_mask)
-       global_maxval = parallel_reduce_max(local_maxval)
-       if (global_maxval < eps11) then
+       if (parallel_is_zero(model%geometry%ice_fraction_retreat_mask)) then
           call write_log('Initial ice_fraction_retreat_mask = 0 everywhere')
        endif
 
@@ -1073,7 +1061,7 @@ contains
 
        ! Optionally, compute the basin average of dthck_dt_obs, the observed rate of thickening/thinning.
        ! When inverting for deltaT_ocn, we can correct acab by applying (-dthck_dt_obs_basin).
-       ! This induces an ocean melt rate that will drive thinning when the correction is removed.
+       ! This induces a basal melt rate that will drive thinning when the correction is removed.
        ! On restart, dthck_dt_obs_basin is read from the restart file.
        !TODO: Is dthck_dt_obs needed in the restart file after dthck_dt_obs_basin is computed?
 
@@ -1081,6 +1069,10 @@ contains
            model%options%is_restart == NO_RESTART) then
 
           allocate(dthck_dt_basin(model%ocean_data%nbasin))
+
+          call point_diag(model%ocean_data%basin_number, 'basin_number', itest, jtest, rtest, 7, 7)
+          call point_diag(floating_mask, 'floating_mask', itest, jtest, rtest, 7, 7)
+          call point_diag(model%geometry%dthck_dt_obs*scyr, 'dthck_dt_obs (m/yr)', itest, jtest, rtest, 7, 7)
 
           call glissade_basin_average(&
                model%general%ewn, model%general%nsn,   &
@@ -1092,9 +1084,9 @@ contains
 
           if (main_task) then
              write(6,*) ' '
-             write(6,*) 'nb, dthck_dt_basin'
+             write(6,*) 'nb, dthck_dt_basin (m/yr)'
              do nb = 1, model%ocean_data%nbasin
-                write(6,*) nb, dthck_dt_basin(nb)
+                write(6,*) nb, dthck_dt_basin(nb)*scyr
              enddo
           endif
 
@@ -1396,7 +1388,7 @@ contains
          glissade_bmlt_float_thermal_forcing, verbose_bmlt_float
     use glissade_mass_balance, only: glissade_add_2d_anomaly
     use glissade_masks, only: glissade_get_masks
-    use cism_parallel, only:  parallel_reduce_max
+    use cism_parallel, only:  parallel_reduce_max, parallel_is_zero
 
     implicit none
 
@@ -1504,10 +1496,8 @@ contains
        ! If whichbmlt_float = BMLT_FLOAT_THERMAL_FORCING, but there are no positive values,
        !  something is probably wrong.
 
-       local_maxval = maxval(model%ocean_data%thermal_forcing)
-       global_maxval = parallel_reduce_max(local_maxval)
-       if (global_maxval <= eps11) then
-          call write_log('thermal forcing <= 0 everywhere, GM_WARNING')
+       if (parallel_is_zero(model%ocean_data%thermal_forcing)) then
+          call write_log('thermal forcing = 0 everywhere, GM_WARNING')
        endif
 
        !-----------------------------------------------
@@ -3056,7 +3046,7 @@ contains
          glissade_stress_tensor_eigenvalues, glissade_strain_rate_tensor_eigenvalues
     use felix_dycore_interface, only: felix_velo_driver
     use glissade_inversion, only: verbose_inversion, glissade_inversion_solve
-    use glissade_basal_traction, only: glissade_calc_effecpress
+    use glissade_basal_traction, only: glissade_calc_effecpress, glissade_elevation_based_coulomb_c
     use glissade_glacier, only: glissade_glacier_update
 
     implicit none
@@ -3310,6 +3300,31 @@ contains
        endif   ! time = tstart
 
     endif   ! enable_glaciers
+
+    ! ------------------------------------------------------------------------
+    ! If coulomb_c is a function of bed elevation, then update it now.
+    ! Note: There is currently no option to compute powerlaw_c based on elevation.
+    ! ------------------------------------------------------------------------
+
+    if (model%options%elevation_based_coulomb_c) then
+
+       call glissade_elevation_based_coulomb_c(&
+            ewn,                 nsn,                 &
+            itest,   jtest,      rtest,               &
+            model%geometry%topg, model%climate%eus,   &
+            model%basal_physics%coulomb_c_lo,         &  ! 2d
+            model%basal_physics%coulomb_c_hi,         &  ! 2d
+            model%basal_physics%coulomb_c_bed_lo,     &  ! scalar
+            model%basal_physics%coulomb_c_bed_hi,     &  ! scalar
+            model%basal_physics%coulomb_c)               ! 2d
+
+       call parallel_halo(model%basal_physics%coulomb_c, parallel)
+
+       if (verbose_inversion) then
+          call point_diag(model%basal_physics%coulomb_c, 'New coulomb_c', itest, jtest, rtest, 7, 7)
+       endif
+
+    endif
 
     ! ------------------------------------------------------------------------ 
     ! Calculate Glen's A

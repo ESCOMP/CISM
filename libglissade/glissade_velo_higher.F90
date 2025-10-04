@@ -664,7 +664,7 @@
     !       the local SIA solver (HO_APPROX_LOCAL_SIA) in glissade_velo_sia.F90.
     !----------------------------------------------------------------
 
-    use glissade_basal_traction, only: calcbeta
+    use glissade_basal_traction, only: glissade_calcbeta
     use glissade_therm, only: glissade_pressure_melting_point
     use glide_thck, only: glide_calclsrf
     use profile, only: t_startf, t_stopf
@@ -767,7 +767,6 @@
     integer ::   &
        whichbabc, &             ! option for basal boundary condition
        whichbeta_limit, &       ! option to limit beta for grounded ice
-       which_coulomb_c, &       ! option for coulomb friction parameter Cc
        whichefvs, &             ! option for effective viscosity calculation 
                                 ! (calculate it or make it uniform)
        whichresid, &            ! option for method of calculating residual
@@ -803,7 +802,7 @@
        linear_maxiters          ! max number of linear iterations before quitting
 
     logical ::   &
-         diva_slope_correction    ! if true, include a slope correction for the DIVA solver
+         diva_slope_correction  ! if true, include a slope correction for the DIVA solver
 
     real(dp) ::  &
          linear_tolerance       ! tolerance for linear solver
@@ -1172,13 +1171,11 @@
 
      whichbabc            = model%options%which_ho_babc
      whichbeta_limit      = model%options%which_ho_beta_limit
-     which_coulomb_c      = model%options%which_ho_coulomb_c
      whichefvs            = model%options%which_ho_efvs
      whichresid           = model%options%which_ho_resid
      whichsparse          = model%options%which_ho_sparse
      whichnonlinear       = model%options%which_ho_nonlinear
      whichapprox          = model%options%which_ho_approx
-     diva_slope_correction= model%options%diva_slope_correction
      whichprecond         = model%options%which_ho_precond
      maxiter_nonlinear    = model%options%glissade_maxiter
      linear_solve_ncheck  = model%options%linear_solve_ncheck
@@ -1193,6 +1190,7 @@
      whichcalving_front   = model%options%which_ho_calving_front
      whichground          = model%options%which_ho_ground
      whichflotation_function = model%options%which_ho_flotation_function
+     diva_slope_correction= model%options%diva_slope_correction
 
     !--------------------------------------------------------
     ! Convert input variables to appropriate units for this solver.
@@ -2284,23 +2282,23 @@
 !             call point_diag(model%basal_physics%effecpress_stag, 'effecpress_stag (Pa)', itest, jtest, rtest, 7, 7, 'f10.0')
           endif  ! verbose_beta
 
-          call calcbeta (whichbabc,                        &
-                         parallel,                         &
-                         dx,            dy,                &
-                         nx,            ny,                &
-                         ubas,          vbas,              &
-                         model%basal_physics,              &
-                         flwa(nz-1,:,:),                   &  ! basal flwa layer
-                         thck,                             &
-                         topg,          eus,               &
-                         ice_mask,                         &
-                         land_mask,                        &
-                         f_ground,                         &
-                         beta*scyr,                        &  ! external beta (intent in)
-                         beta_internal,                    &  ! beta weighted by f_ground (intent inout)
-                         whichbeta_limit,                  &
-                         which_ho_coulomb_c  = which_coulomb_c,   &
-                         itest = itest, jtest = jtest, rtest = rtest)
+          call glissade_calcbeta(&
+               whichbabc,                        &
+               parallel,                         &
+               dx,            dy,                &
+               nx,            ny,                &
+               ubas,          vbas,              &
+               model%basal_physics,              &
+               flwa(nz-1,:,:),                   &  ! basal flwa layer
+               thck,                             &
+               topg,          eus,               &
+               ice_mask,                         &
+               land_mask,                        &
+               f_ground,                         &
+               beta*scyr,                        &  ! external beta (intent in)
+               beta_internal,                    &  ! beta weighted by f_ground (intent inout)
+               whichbeta_limit,                  &
+               itest = itest, jtest = jtest, rtest = rtest)
 
 !          if (verbose_beta) then
 !             maxbeta = maxval(beta_internal(:,:))

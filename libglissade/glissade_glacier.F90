@@ -75,7 +75,7 @@ contains
     ! The CISM input file contains the RGI IDs.
 
     use cism_parallel, only: distributed_gather_var, distributed_scatter_var, &
-         parallel_reduce_sum, parallel_reduce_max, parallel_reduce_min, &
+         parallel_reduce_sum, parallel_reduce_max, parallel_reduce_min, parallel_is_zero, &
          broadcast, parallel_halo, staggered_parallel_halo, parallel_globalindex
 
     type(glide_global_type),intent(inout) :: model
@@ -529,11 +529,8 @@ contains
 
        if (glacier%set_mu_star == GLACIER_MU_STAR_INVERSION .and. &
            glacier%set_alpha_snow == GLACIER_ALPHA_SNOW_INVERSION) then
-          !TODO - here and elsewhere, use the parallel_is_nonzero function
           ! Make sure a nonzero smb_obs field was read in
-          max_glcval = maxval(abs(model%climate%smb_obs))
-          max_glcval = parallel_reduce_max(max_glcval)
-          if (max_glcval == 0.0d0) then
+          if (parallel_is_zero(model%climate%smb_obs)) then
              call write_log ('Error, no nonzero values for smb_obs', GM_FATAL)
           endif
        else
@@ -568,6 +565,7 @@ contains
 
        ! Check that some glacier arrays which are read from the restart file have nonzero values.
        ! Note: These arrays are read on all processors.
+       ! TODO: Use the parallel_is_zero interface.
 
        max_id = maxval(glacier%cism_glacier_id)
        max_id = parallel_reduce_max(max_id)
@@ -657,11 +655,6 @@ contains
     !  but could receive a glacier ID and become active with thickening.
 
     glacier%minthck = model%numerics%thklim - eps08
-
-    ! Set the relaxation value for powerlaw_c
-    if (glacier%set_powerlaw_c == GLACIER_POWERLAW_C_INVERSION) then
-       model%basal_physics%powerlaw_c_relax(:,:) = model%basal_physics%powerlaw_c_const
-    endif
 
     ! Set the index of the diagnostic glacier, using the CISM glacier ID for the diagnostic point
     if (this_rank == rtest) then
@@ -1423,7 +1416,7 @@ contains
                model%inversion%babc_relax_factor,       &
                stag_thck,          stag_thck_target,    &
                stag_dthck_dt,                           &
-               model%basal_physics%powerlaw_c_relax,    &
+               model%basal_physics%powerlaw_c_const,    &  ! relax to this value
                model%basal_physics%powerlaw_c)
 
           ! Set Cp to a large value at glacier boundaries, to minimize flow from one glacier to another.
@@ -2376,8 +2369,8 @@ contains
          stag_thck_target,            & ! target ice thickness at vertices (m)
          stag_dthck_dt                  ! rate of change of ice thickness at vertices (m/yr)
 
-    real(dp), dimension(ewn-1,nsn-1), intent(in) :: &
-         powerlaw_c_relax               ! powerlaw_c field to which we relax
+    real(dp), intent(in) :: &
+         powerlaw_c_relax               ! powerlaw_c value to which we relax; must be > 0
 
     real(dp), dimension(ewn-1,nsn-1), intent(inout) :: &
          powerlaw_c                     ! basal friction field to be adjusted (Pa (m/yr)^(-1/3))
@@ -2396,9 +2389,10 @@ contains
 
     !WHL - debug
     real(dp), dimension(ewn-1,nsn-1) ::  &
-         logC,                 & ! log_10(friction_c)
-         dlogC,                & ! change in log_10(friction_c)
-         logC_relax              ! log_10(friction_c_relax)
+         logC,                        & ! log_10(powerlaw_c)
+         dlogC                          ! change in log_10(powerlaw_c)
+
+    real(dp) :: logC_relax              ! log_10(powerlaw_c_relax)
 
     real(dp), parameter :: logmin = -99.d0   ! arbitrary negative value;
                                              ! values of log(c) below logmin are considered non-physical
@@ -2423,11 +2417,7 @@ contains
 
        ! initialize
        dlogC = 0.0d0
-       where (powerlaw_c_relax > 0.0d0)
-          logc_relax = log10(powerlaw_c_relax)
-       elsewhere
-          logc_relax = logmin
-       endwhere
+       logC_relax = log10(powerlaw_c_relax)
 
        ! Loop over vertices
        do j = 1, nsn-1
@@ -2438,7 +2428,7 @@ contains
              term_dHdt = -stag_dthck_dt(i,j) * 2.0d0 / babc_thck_scale
 
              if (logC(i,j) > logmin) then
-                term_relax = -babc_relax_factor * (logC(i,j) - logC_relax(i,j)) / babc_timescale
+                term_relax = -babc_relax_factor * (logC(i,j) - logC_relax) / babc_timescale
              else
                 term_relax = 0.0d0
              endif

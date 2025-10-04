@@ -279,11 +279,7 @@ module glide_types
   integer, parameter :: HO_COULOMB_C_INVERSION = 1
   integer, parameter :: HO_COULOMB_C_EXTERNAL = 2
   integer, parameter :: HO_COULOMB_C_INVERSION_BASIN = 3
-  integer, parameter :: HO_COULOMB_C_ELEVATION = 4
-
-  integer, parameter :: HO_COULOMB_C_RELAX_NONE = 0
-  integer, parameter :: HO_COULOMB_C_RELAX_CONSTANT = 1
-  integer, parameter :: HO_COULOMB_C_RELAX_ELEVATION = 2
+  integer, parameter :: HO_COULOMB_C_EXTERNAL_BASIN = 4
 
   integer, parameter :: HO_DELTAT_OCN_NONE = 0
   integer, parameter :: HO_DELTAT_OCN_INVERSION = 1
@@ -887,17 +883,13 @@ module glide_types
     !> \item[0] coulomb_c = spatially uniform constant
     !> \item[1] invert for 2D coulomb_c
     !> \item[2] read 2D coulomb_c from external file
-    !> \item[3] invert for basin-scale coulomb_c
-    !> \item[4] coulomb_c = function of bed elevation
+    !> \item[3] invert for basin-scale coulomb_c_lo
+    !> \item[4] read basin-scale coulomb_c_lo from external file
     !> \end{description}
 
-    integer :: which_ho_coulomb_c_relax = 0
-    !> Flag for basal coulomb_c options
-    !> \begin{description}
-    !> \item[0] No coulomb_c_relaxation target
-    !> \item[1] coulomb_c_relax = spatially uniform constant
-    !> \item[2] coulomb_c_relax = function of bed elevation
-    !> \end{description}
+    logical :: elevation_based_coulomb_c = .false.
+    !> Flag that indicates whether coulomb_c depends on elevation
+    !> (coulomb_c_hi for high bed, coulomb_c_lo for low bed, interpolated in between)
 
     integer :: which_ho_deltaT_ocn = 0
     !> Flag for local ocean temperature corrections
@@ -2157,10 +2149,8 @@ module glide_types
      !TODO - Add visc_water and omega_hydro? Currently set in glissade_basal_water module
 
      ! parameters for macroporous sheet
-     real(dp) :: bwat_threshold = 0.1d0          !> bwat range over which N ramps down from overburden to a small value (m);
-                                                 !> Flowers & Clarke (2002): 0.1 m (Table 2)
-     real(dp) :: bwat_gamma = 3.5d0              !> exponent in the expression (bwat/bwat_threshold)^bwat_gamma;
-                                                 !> Flowers & Clarke (2002): 7/2 (Eq. 30)
+     real(dp) :: bwat_threshold = 1.0d-3         !> scale over which N ramps down from overburden to a small value (m)
+
      ! parameters for cavity-sheet
      real(dp) :: bump_height = 0.1d0             !> height scale for bedrock bumps (m);
                                                  !> de Fleurian et al. (2018): 0.1 m (Table 3)
@@ -2236,9 +2226,9 @@ module glide_types
      ! Note: powerlaw_c has units of Pa (m/yr)^(-1/powerlaw_m); default value assumes powerlaw_m = 3
      real(dp), dimension(:,:), pointer :: &
           powerlaw_c => null(), &                !> powerlaw_c on staggered grid, Pa (m/yr)^(-1/m)
-          powerlaw_c_relax => null(), &          !> powerlaw_c relaxation target
           coulomb_c => null(),  &                !> coulomb_c on staggered grid, unitless in range [0,1]
-          coulomb_c_relax => null()              !> coulomb_c relaxation target
+          coulomb_c_hi => null(),  &             !> coulomb_c value at high bed elevation, topg >= bed_hi
+          coulomb_c_lo => null()                 !> coulomb_c value at low bed elevation, topg <= bed_lo
 
      ! parameters for power law, taub_b = C * u_b^(1/m); used for HO_BABC_COULOMB_POWERLAW_TSAI/SCHOOF
      ! The default values are from Asay-Davis et al. (2016).
@@ -2257,15 +2247,15 @@ module glide_types
      !TODO - Change default coulomb_c_const?
      ! Notes: coulomb_c_max = 1.0 to cap effecpress at overburden
      !        The appropriate value of coulomb_c_min can depend on how much N is reduced below overburden.
-     !        With an elevation-based relaxation target, coulomb_c_bedmax/bedmin determine the transition elevations.
      real(dp) :: coulomb_c_const = 0.42d0        !> basal stress constant; unitless in range [0,1]
      real(dp) :: coulomb_c_max = 1.0d0           !> max value of coulomb_c, unitless
      real(dp) :: coulomb_c_min = 1.0d-3          !> min value of coulomb_c, unitless
-     real(dp) :: coulomb_c_bedmax =  700.d0      !> bed elevation (m) above which coulomb_c = coulomb_c_max
-     real(dp) :: coulomb_c_bedmin = -300.d0      !> bed elevation (m) below which coulomb_c = coulomb_c_min
-     real(dp) :: coulomb_c_relax_max = 0.40d0    !> upper relaxation target for coulomb_c, at high elevation
-     real(dp) :: coulomb_c_relax_min = 0.10d0    !> lower relaxation target for coulomb_c, at low elevation
-     real(dp) :: coulomb_c_basin_relax           !> relax the basin-scale coulomb_c toward this value
+
+     ! The next four parameters apply when elevation_based_coulomb_c = .true.
+     real(dp) :: coulomb_c_const_hi =  0.50d0    !> constant coulomb_c value at high bed elevation, topg >= bed_hi
+     real(dp) :: coulomb_c_const_lo =  0.10d0    !> constant coulomb_c value at low bed elevation, topg <= bed_lo
+     real(dp) :: coulomb_c_bed_hi =    0.d0      !> bed elevation (m) above which coulomb_c = coulomb_c_hi
+     real(dp) :: coulomb_c_bed_lo = -500.d0      !> bed elevation (m) below which coulomb_c = coulomb_c_lo
 
      ! parameters for older form of Coulomb friction sliding law (default values from Pimentel et al. 2010)
      ! Pimentel et al. have coulomb_c = 0.84*m_max, where m_max = coulomb_bump_max_slope
@@ -2740,9 +2730,9 @@ contains
     !> In \texttt{model\%basal_physics}:
     !> \begin{itemize}
     !> \item \texttt{powerlaw_c(ewn-1,nsn-1)}
-    !> \item \texttt{powerlaw_c_relax(ewn-1,nsn-1)}
     !> \item \texttt{coulomb_c(ewn-1,nsn-1)}
-    !> \item \texttt{coulomb_c_relax(ewn-1,nsn-1)}
+    !> \item \texttt{coulomb_c_hi(ewn-1,nsn-1)}
+    !> \item \texttt{coulomb_c_lo(ewn-1,nsn-1)}
     !> \end{itemize}
 
     !> In \texttt{model\%plume}:
@@ -3202,9 +3192,9 @@ contains
 
     ! inversion and basal physics arrays (Glissade only)
     call coordsystem_allocate(model%general%velo_grid,model%basal_physics%powerlaw_c)
-    call coordsystem_allocate(model%general%velo_grid,model%basal_physics%powerlaw_c_relax)
     call coordsystem_allocate(model%general%velo_grid,model%basal_physics%coulomb_c)
-    call coordsystem_allocate(model%general%velo_grid,model%basal_physics%coulomb_c_relax)
+    call coordsystem_allocate(model%general%velo_grid,model%basal_physics%coulomb_c_hi)
+    call coordsystem_allocate(model%general%velo_grid,model%basal_physics%coulomb_c_lo)
 
     if (model%options%which_ho_coulomb_c == HO_COULOMB_C_INVERSION_BASIN .or. &
         model%options%which_ho_powerlaw_c == HO_POWERLAW_C_INVERSION_BASIN) then
@@ -3710,12 +3700,12 @@ contains
     ! inversion arrays
     if (associated(model%basal_physics%powerlaw_c)) &
         deallocate(model%basal_physics%powerlaw_c)
-    if (associated(model%basal_physics%powerlaw_c_relax)) &
-        deallocate(model%basal_physics%powerlaw_c_relax)
     if (associated(model%basal_physics%coulomb_c)) &
         deallocate(model%basal_physics%coulomb_c)
-    if (associated(model%basal_physics%coulomb_c_relax)) &
-        deallocate(model%basal_physics%coulomb_c_relax)
+    if (associated(model%basal_physics%coulomb_c_hi)) &
+        deallocate(model%basal_physics%coulomb_c_hi)
+    if (associated(model%basal_physics%coulomb_c_lo)) &
+        deallocate(model%basal_physics%coulomb_c_lo)
     if (associated(model%inversion%floating_thck_target)) &
         deallocate(model%inversion%floating_thck_target)
     if (associated(model%inversion%grounded_thck_target)) &

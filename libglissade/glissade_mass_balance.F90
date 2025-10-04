@@ -146,7 +146,7 @@
     use glimmer_physcon, only: rhow, rhoi, scyr
     use glissade_grid_operators, only: glissade_vertical_interpolate
     use glissade_masks, only: glissade_extend_mask
-    use cism_parallel, only: parallel_is_nonzero
+    use cism_parallel, only: parallel_is_zero
 
     ! input/output arguments
 
@@ -419,9 +419,7 @@
     if (model%options%smb_input_function == SMB_INPUT_FUNCTION_XY_GRADZ .or. &
         model%options%smb_input_function == SMB_INPUT_FUNCTION_XYZ .or. &
         model%options%smb_input_function == SMB_INPUT_FUNCTION_PDD) then
-       if (parallel_is_nonzero(model%climate%smb)) then
-          ! all is well
-       else
+       if (parallel_is_zero(model%climate%smb)) then
           write(message,*) 'Error: smb = 0 everywhere with smb_input_function =', model%options%smb_input_function
           call write_log(trim(message), GM_FATAL)
        endif
@@ -562,8 +560,8 @@
     ! (1) For each basin, compute the average of dthck_dt_obs over floating ice.
     !     Include all floating cells in the average.
     ! (2) For all cells in each basin, set dthck_dt_obs_basin to this average.
-    !     Limit so that dthck_dt_obs_basin <= 0.
-    ! (3) At runtime, add (-dthck_dt_obs_basin) to acab for each floating cell.
+    !     Apply the correction only if dthck_dt_obs_basin <= 0.
+    ! (3) At runtime, add (-dthck_dt_obs_basin) to acab for each floating cell in the basin.
 
     if (model%options%enable_acab_dthck_dt_correction) then
 
@@ -573,13 +571,13 @@
 
        where (model%geometry%f_ground_cell < 1.0d0 .and. model%geometry%dthck_dt_obs_basin < 0.0d0)
           ! floating ice is thinning in obs; apply a positive correction to acab
-          ! Note: dthck_dt_obs_basin has units of m/yr; convert to m/s
+          ! Note: Both acab anddthck_dt_obs_basin have units of m/s
           model%climate%acab = model%climate%acab &
-               - (1.0d0 - model%geometry%f_ground_cell) * (model%geometry%dthck_dt_obs_basin/scyr)
+               - (1.0d0 - model%geometry%f_ground_cell) * (model%geometry%dthck_dt_obs_basin)
        endwhere
 
        if (verbose_smb) then
-          call point_diag(-model%geometry%dthck_dt_obs_basin, 'dthck_dt_obs correction (m/yr)', itest, jtest, rtest, 7, 7)
+          call point_diag(-model%geometry%dthck_dt_obs_basin*scyr, 'dthck_dt_obs_basin (m/yr)', itest, jtest, rtest, 7, 7)
           call point_diag(model%climate%acab*scyr, 'new acab (m/yr)', itest, jtest, rtest, 7, 7)
        endif
 

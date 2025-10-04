@@ -170,7 +170,7 @@ module glissade_therm
     !     A parameter (pmpt_offset) controls how far below Tpmp the initial bed temp is set.
     ! (3) Set up a temperature profile based on advective-diffusive balance, with T = artm
     !     at the surface and dT/dz = -F_geo/k at the bed (TEMP_INIT_ADVECTIVE_DIFFUSIVE).
-    !     The temperature at each level is capped at the value computed by method (3).
+    !     The temperature at each level is capped at the value computed by method (2).
     ! (4) Read ice temperature from external file (TEMP_INIT_EXTERNAL).
     !   (4a) If variable tempstag is present: Set ice temperature to tempstag from input file.
     !   (4b) If variable tempunstag is present (and tempstag is not): interpolate tempunstag

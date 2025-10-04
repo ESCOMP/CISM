@@ -41,7 +41,7 @@ module glide_diagnostics
        parallel_localindex, parallel_globalindex, &
        parallel_reduce_sum, parallel_reduce_max, &
        parallel_reduce_maxloc, parallel_reduce_minloc, &
-       parallel_is_nonzero
+       parallel_is_zero
 
   implicit none
 
@@ -931,7 +931,7 @@ contains
     !        which are ice-free in the model but ice-covered in observations
     !-----------------------------------------------------------------
 
-    if (parallel_is_nonzero(model%geometry%usrf_obs)) then
+    if (.not.parallel_is_zero(model%geometry%usrf_obs)) then
 
        call glissade_usrf_to_thck(&
             model%geometry%usrf_obs,      &
@@ -952,7 +952,7 @@ contains
 
     endif
 
-    if (parallel_is_nonzero(model%velocity%velo_sfc_obs)) then
+    if (.not.parallel_is_zero(model%velocity%velo_sfc_obs)) then
 
        velo_sfc = sqrt(model%velocity%uvel(1,:,:)**2   &
                      + model%velocity%vvel(1,:,:)**2)
