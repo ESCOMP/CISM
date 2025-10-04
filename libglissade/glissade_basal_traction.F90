@@ -920,18 +920,13 @@ contains
 !                relative_bwat = &
 !                     min( (basal_hydro%bwat_diag(i,j)/basal_hydro%bwat_threshold)**basal_hydro%bwat_gamma, 1.0d0 )
 
-                ! The following alternative asymptotes gradually to relative_bwat = 1. It seems to be stable.
-                relative_bwat = &
-                     basal_hydro%bwat_diag(i,j) / (basal_hydro%bwat_diag(i,j) + basal_hydro%bwat_threshold)
+                ! Note: A negative exponential seems to work well because it allows N to be very low when
+                !        bwat is 3 or 4 times the e-folding scale.
+                !       At the same time, this function is stable because the decrease from overburden
+                !        to a small fraction of overburden is not too sudden.
 
                 basal_physics%effecpress(i,j) = overburden(i,j) * &
-                     (basal_hydro%effecpress_delta + (1.0d0 - relative_bwat) * (1.0d0 - basal_hydro%effecpress_delta))
-
-                !TODO - Simplify the formula, using the delta as a min only.
-                !WHL - Exponential formula yields smaller N where bwat > bwat_threshold
-
-!!!                basal_physics%effecpress(i,j) = overburden(i,j) * &
-!!!                     max(basal_hydro%effecpress_delta, exp(-basal_hydro%bwat_diag(i,j)/basal_hydro%bwat_threshold))
+                     max(basal_hydro%effecpress_delta, exp(-basal_hydro%bwat_diag(i,j)/basal_hydro%bwat_threshold))
 
              endif
           enddo
