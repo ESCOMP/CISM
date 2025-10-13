@@ -90,17 +90,19 @@ data:          data%ocean_data%zocn
 positive:      up
 dimlen:        model%ocean_data%nzocn
 
+[zatm]
+dimensions:    zatm
+units:         meter
+long_name:     atmosphere_z_coordinate
+data:          data%climate%zatm
+positive:      up
+dimlen:        model%climate%nzatm
+
 [glacierid]
 dimensions:    glacierid
 units:         1
 long_name:     glacier_id_coordinate
 dimlen:        model%glacier%nglacier
-
-[nlev_smb]
-dimensions:    nlev_smb
-units:         1
-long_name:     vertical level for SMB forcing
-dimlen:        model%climate%nlev_smb
 
 [lithoz]
 dimensions:    lithoz
@@ -794,7 +796,7 @@ data:          data%climate%smb_corrected
 standard_name: land_ice_surface_specific_mass_balance_corrected
 
 [smb_3d]
-dimensions:    time, nlev_smb, y1, x1
+dimensions:    time, zatm, y1, x1
 units:         mm/year water equivalent
 long_name:     3D surface mass balance
 data:          data%climate%smb_3d(up,:,:)
@@ -849,7 +851,7 @@ load:          1
 read_once:     1
 
 [artm_3d]
-dimensions:    time, nlev_smb, y1, x1
+dimensions:    time, zatm, y1, x1
 units:         deg Celsius
 long_name:     3D surface temperature
 data:          data%climate%artm_3d(up,:,:)
@@ -901,14 +903,6 @@ dimensions:    time, y1, x1
 units:         mm/year water equivalent
 long_name:     ablation rate
 data:          data%climate%ablation
-
-[smb_levels]
-dimensions:    time, nlev_smb
-units:         m
-long_name:     surface mass balance reference levels
-data:          data%climate%smb_levels
-standard_name: land_ice_surface_specific_mass_balance_reference_levels
-load:          1
 
 [thck_target]
 dimensions:    time, y1, x1

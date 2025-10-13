@@ -83,6 +83,8 @@ module glimmer_ncdf
      integer :: nstagwbndlevel = 0
      !WHL - added to handle ocean vertical coordinate
      integer :: nzocn = 0
+     !WHL - added to handle atmosphere vertical coordinate
+     integer :: nzatm = 0
      !WHL - added to handle glacier coordinate
      integer :: nglacier = 0
 
@@ -382,6 +384,7 @@ contains
     write(6,*) 'nstaglevel:      ',stat%nstaglevel
     write(6,*) 'nstagwbndlevel:  ',stat%nstagwbndlevel
     write(6,*) 'nzocn:           ',stat%nzocn
+    write(6,*) 'nzatm:           ',stat%nzatm
     write(6,*) 'nglacier:        ',stat%nglacier
     write(6,*) 'timedim:         ',stat%timedim
     write(6,*) 'internal_timevar:',stat%internal_timevar

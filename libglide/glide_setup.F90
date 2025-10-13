@@ -40,8 +40,8 @@ module glide_setup
 
   private
   public :: glide_readconfig, glide_printconfig, glide_scale_params, &
-            glide_load_sigma, glide_read_sigma, glide_calc_sigma, glide_get_zocn, &
-            check_fill_values
+            glide_load_sigma, glide_read_sigma, glide_calc_sigma, &
+            glide_get_zocn, glide_get_zatm, check_fill_values
 
   interface check_fill_values
      module procedure check_fill_values_real8_2d
@@ -429,9 +429,9 @@ contains
             allocate(model%ocean_data%zocn(model%ocean_data%nzocn))
 
        if ( size(model%ocean_data%zocn) /= model%ocean_data%nzocn )then
-          write(message,*) 'size of zocn : ',size(model%ocean_data%zocn)
+          write(message,*) 'size of zocn : ', size(model%ocean_data%zocn)
           call write_log(trim(message))
-          call write_log (' zocn is allocated to be too small', GM_FATAL)
+          call write_log ( 'zocn has the wrong size; must equal nzocn', GM_FATAL)
        end if
 
        ! There are two ways to get zocn levels:
@@ -450,7 +450,7 @@ contains
           enddo
        else
           call write_log (' Reading zocn levels from config file')
-          call GetValue(section,'zocn',model%ocean_data%zocn, model%ocean_data%nzocn)
+          call GetValue(section, 'zocn', model%ocean_data%zocn, model%ocean_data%nzocn)
           do k = 2, model%ocean_data%nzocn
              if (model%ocean_data%zocn(k-1) - model%ocean_data%zocn(k) < 1.0d0) then
                 write(message,*) 'nzocn, zocn =', model%ocean_data%nzocn, model%ocean_data%zocn(:)
@@ -500,6 +500,102 @@ contains
     endif   ! associated(section)
 
   end subroutine glide_get_zocn
+
+!--------------------------------------------------------------------------------
+
+  subroutine glide_get_zatm(model,config)
+
+    ! Read atmosphere grid information, if present, from the config file.
+    ! Called after glide_readconfig
+
+    use glide_types
+    use glimmer_config
+    use glimmer_log
+    use cism_parallel, only: main_task
+
+    implicit none
+
+    type(glide_global_type) :: model        !> model instance
+    type(ConfigSection), pointer :: config  !> structure holding sections of configuration file
+
+    ! local variables
+    type(ConfigSection), pointer :: section
+    character(len=512) :: message
+    character(len=16) :: message_tmp
+    integer :: k
+
+    ! Check for section [grid_atm]
+    call GetSection(config,section,'grid_atm')
+
+    if (associated(section)) then
+
+       call GetValue(section,'nzatm',model%climate%nzatm)
+
+       call write_log(' ')
+       write(message,*) 'number of atmosphere levels   : ',model%climate%nzatm
+       call write_log(trim(message))
+
+       if (.not.associated(model%climate%zatm)) allocate(model%climate%zatm(model%climate%nzatm))
+
+       if (size(model%climate%zatm) /= model%climate%nzatm) then
+          write(message,*) 'size of zatm : ', size(model%climate%zatm)
+          call write_log(trim(message))
+          call write_log ( 'zatm has the wrong size; must equal nzatm', GM_FATAL)
+       end if
+
+       ! Load the zatm levels from the config file.
+       ! For example, the config file could have a section like this:
+       ! [grid_atm]
+       ! nzatm = 10
+       ! zatm = 100., 300., 550., 850., 1150., 1450., 1800., 2250., 2750., 3500.
+
+       ! TODO: Is it possible to get the levels from the netCDF file instead?
+       ! Note: By convention, zatm increases with increasing k.
+       !       If the input zatm levels do not satisfy this criterion, the code aborts.
+       call write_log (' Reading zocn levels from config file')
+       call GetValue(section, 'zatm', model%climate%zatm, model%climate%nzatm)
+       do k = 2, model%climate%nzatm
+          if (model%climate%zatm(k) - model%climate%zatm(k-1) < 1.0d0) then
+             write(message,*) 'nzatm, zatm =', model%climate%nzatm, model%climate%zatm(:)
+             call write_log(trim(message))
+             write(message,*) 'Must have zatm increasing with increasing k in the [grid_atm] section'
+             call write_log(message, GM_FATAL)
+          endif
+       enddo
+
+    elseif (model%options%smb_input_function == SMB_INPUT_FUNCTION_XYZ .or. &
+            model%options%artm_input_function == ARTM_INPUT_FUNCTION_XYZ) then
+
+       ! Allocate and initialize model%climate%zatm using the standard CESM elevation classes.
+       model%climate%nzatm = 10
+       if (associated(model%climate%zatm)) deallocate(model%climate%zatm)
+       allocate(model%climate%zatm(model%climate%nzatm))
+       model%climate%zatm(:) = &
+            (/ 100.d0, 300.d0, 550.d0, 850.d0, 1150.d0, 1450.d0, 1800.d0, 2250.d0, 2750.d0, 3500.d0 /)
+
+    else   ! zatm not needed, but allocate and initialize to be safe
+
+       model%climate%nzatm = 1
+       if (associated(model%climate%zatm)) deallocate(model%climate%zatm)
+       allocate(model%climate%zatm(model%climate%nzatm))
+       model%climate%zatm(:) = (/ 0.0d0 /)
+
+    endif   ! associated(section)
+
+    if (model%climate%nzatm > 1) then
+       call write_log('')
+       call write_log('zatm levels (m):')
+       call write_log('------------------')
+       message = ''
+       do k = 1, model%climate%nzatm
+          write(message_tmp,'(f8.1)') model%climate%zatm(k)
+          message = trim(message)//trim(message_tmp)
+       enddo
+       call write_log(trim(message))
+       call write_log('')
+    endif
+
+  end subroutine glide_get_zatm
 
 !--------------------------------------------------------------------------------
 
@@ -723,7 +819,6 @@ contains
     call GetValue(section,'smb_input',model%options%smb_input)
     call GetValue(section,'smb_input_function',model%options%smb_input_function)
     call GetValue(section,'artm_input_function',model%options%artm_input_function)
-    call GetValue(section,'nlev_smb',model%climate%nlev_smb)
     call GetValue(section,'enable_smb_anomaly',model%options%enable_smb_anomaly)
     call GetValue(section,'enable_artm_anomaly',model%options%enable_artm_anomaly)
     call GetValue(section,'enable_snow_anomaly',model%options%enable_snow_anomaly)
@@ -1579,11 +1674,8 @@ contains
          model%options%smb_input_function, smb_input_function(model%options%smb_input_function)
     call write_log(message)
     if (model%options%smb_input_function == SMB_INPUT_FUNCTION_XYZ) then
-       write(message,*) 'number of SMB levels    : ', model%climate%nlev_smb
+       write(message,*) 'number of atmosphere levels : ', model%climate%nzatm
        call write_log(message)
-       if (model%climate%nlev_smb < 2) then
-          call write_log('Error, must have nlev_smb >= 2 for this input function', GM_FATAL)
-       endif
     elseif (model%options%smb_input_function == SMB_INPUT_FUNCTION_PDD) then
        write(message,*) 'Degree factor (mm/yr/deg C) : ', model%climate%degree_factor
        call write_log(message)
@@ -1602,13 +1694,7 @@ contains
     write(message,*) 'artm input function     : ', &
          model%options%artm_input_function, artm_input_function(model%options%artm_input_function)
     call write_log(message)
-    if (model%options%artm_input_function == ARTM_INPUT_FUNCTION_XYZ) then
-       write(message,*) 'number of artm levels   : ', model%climate%nlev_smb
-       call write_log(message)
-       if (model%climate%nlev_smb < 2) then
-          call write_log('Error, must have nlev_smb >= 2 for this input function', GM_FATAL)
-       endif
-    elseif (model%options%artm_input_function == ARTM_INPUT_FUNCTION_XY_LAPSE) then
+    if (model%options%artm_input_function == ARTM_INPUT_FUNCTION_XY_LAPSE) then
        write(message,*) 'artm lapse rate (deg C/m)   : ', model%climate%t_lapse
        call write_log(message)
     endif
@@ -3627,7 +3713,6 @@ contains
 
        case(SMB_INPUT_FUNCTION_XYZ)
           call glide_add_to_restart_variable_list('smb_3d', model_id)
-          call glide_add_to_restart_variable_list('smb_levels', model_id)
 
        ! Note: For SMB_INPUT_FUNCTION_PDD, precip and artm are read in as forcing
        !       and are not needed for exact restart
@@ -3635,7 +3720,7 @@ contains
     end select  ! smb_input_function
 
     ! Similarly for surface temperature (artm), based on options%artm_input
-    ! Note: These options share usrf_ref and smb_levels with the SMB options above.
+    ! Note: These options share usrf_ref and zatm with the SMB options above.
 
     select case(options%artm_input_function)
 

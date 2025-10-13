@@ -922,9 +922,9 @@ module glide_types
     !> \begin{description}
     !> \item[0] N = overburden pressure, rhoi*grav*thck
     !> \item[1] N is reduced where the bed is at or near the pressure melting point
-    !> \item[2] N is reduced where basal water is present, with a ramp function
-    !> \item[3] N is reduced where there is a nonzero water flux at the bed
-    !> \item[4] N is reduced where basal water is present, following Bueler/van Pelt
+    !> \item[2] N is reduced based on basal water thickness from active hydrology
+    !> \item[3] N depends on cavity opening and closing
+    !> \item[4] N is reduced based on basal water thickness, following Bueler/van Pelt
     !> \end{description}
 
     integer :: which_ho_nonlinear = 0
@@ -1489,11 +1489,15 @@ module glide_types
      real(dp),dimension(:,:),pointer :: usrf_ref => null()        !> reference upper surface elevation before lapse rate correction (m)
 
      ! Next several fields used for SMB_INPUT_FUNCTION_XYZ, ARTM_INPUT_FUNCTION_XYZ
-     ! Note: If both smb and artm are input in this format, they share the array smb_levels(nlev_smb).
+     ! Note: If both smb and artm are input in this format, they share the array zatm(nzatm).
+     integer  :: nzatm = 1                          !> number of atmosphere levels at which smb and other fields are provided
+!     real(dp) :: dzatm = 0.d0                       !> could be used for evenly spaced layers; not currently used
+     real(dp), dimension(:), pointer :: &
+          zatm => null()                            !> atmosphere levels (m) where forcing is provided; positive up
+
+     !Note: The first index is the vertical dimension; the second and third are the horizontal dimensions
      real(dp),dimension(:,:,:),pointer :: smb_3d        => null() !> SMB at multiple vertical levels (mm/yr w.e.)
      real(dp),dimension(:,:,:),pointer :: artm_3d       => null() !> artm at multiple vertical levels (m/yr ice)
-     real(dp),dimension(:)    ,pointer :: smb_levels    => null() !> Reference vertical levels for SMB (m)
-     integer :: nlev_smb = 1                                      !> number of vertical levels at which SMB is provided
 
      ! Ablation is computed independent of accumulation for SMB_INPUT_FUNCTION_PDD
      real(dp),dimension(:,:),pointer :: ablation => null()        !> surface ablation (mm/yr w.e.)
@@ -2282,6 +2286,7 @@ module glide_types
      real(dp), dimension(:,:), pointer :: f_effecpress_ocean_p => null()!> fractional effecpress due to ocean_p > 0; in range [0,1]
 
      ! parameters for reducing the effective pressure where the bed is connected to the ocean
+     !TODO - Remove ocean_p_timescale
      real(dp) :: p_ocean_penetration = 0.0d0           !> p-exponent for ocean penetration; N weighted by (1-Hf/H)^p (0 <= p <= 1)
      real(dp) :: ocean_p_timescale = 0.0d0             !> timescale (yr) for relaxing N/overburden to (1-Hf/H)^p
 
@@ -3237,8 +3242,8 @@ contains
        if (.not.associated(model%climate%usrf_ref)) &
             call coordsystem_allocate(model%general%ice_grid, model%climate%usrf_ref)
     elseif (model%options%smb_input_function == SMB_INPUT_FUNCTION_XYZ) then
-       call coordsystem_allocate(model%general%ice_grid, model%climate%nlev_smb, model%climate%smb_3d)
-       allocate(model%climate%smb_levels(model%climate%nlev_smb))
+       call coordsystem_allocate(model%general%ice_grid, model%climate%nzatm, model%climate%smb_3d)
+       if (.not.associated(model%climate%zatm)) allocate(model%climate%zatm(model%climate%nzatm))
     elseif (model%options%smb_input_function == SMB_INPUT_FUNCTION_PDD) then
        call coordsystem_allocate(model%general%ice_grid, model%climate%ablation)
     endif
@@ -3253,10 +3258,8 @@ contains
           call coordsystem_allocate(model%general%ice_grid, model%climate%usrf_ref)
        endif
     elseif (model%options%smb_input_function == ARTM_INPUT_FUNCTION_XYZ) then
-       call coordsystem_allocate(model%general%ice_grid, model%climate%nlev_smb, model%climate%artm_3d)
-       if (.not.associated(model%climate%smb_levels)) then
-          allocate(model%climate%smb_levels(model%climate%nlev_smb))
-       endif
+       call coordsystem_allocate(model%general%ice_grid, model%climate%nzatm, model%climate%artm_3d)
+       if (.not.associated(model%climate%zatm)) allocate(model%climate%zatm(model%climate%nzatm))
     elseif (model%options%artm_input_function == ARTM_INPUT_FUNCTION_XY_LAPSE) then
        call coordsystem_allocate(model%general%ice_grid, model%climate%artm_ref)
        if (.not.associated(model%climate%usrf_ref)) then
@@ -4058,6 +4061,15 @@ contains
 
     get_nzocn = model%ocean_data%nzocn
   end function get_nzocn
+
+  function get_nzatm(model)
+    !> get number of atmosphere layers
+    implicit none
+    integer get_nzatm
+    type(glide_global_type) :: model
+
+    get_nzatm = model%climate%nzatm
+  end function get_nzatm
 
   subroutine set_time(model,time)
     !> Set the model time counter --- useful for

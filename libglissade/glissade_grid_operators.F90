@@ -1946,11 +1946,12 @@ contains
 
 !****************************************************************************
 
-  subroutine glissade_vertical_interpolate(nx,       ny,           &
-                                           nz,       vert_levels,  &
-                                           usrf,                   &
-                                           field_3d, field,        &
-                                           linear_extrapolate_in)
+  subroutine glissade_vertical_interpolate(&
+       nx,           ny,           &
+       nz,           vert_levels,  &
+       usrf,                       &
+       field_3d,     field,        &
+       linear_extrapolate_in)
 
 
     ! Given an input field (e.g., surface mass balance), supplied at various vertical levels,
@@ -1963,6 +1964,7 @@ contains
        nz                       ! number of vertical levels
 
     real(dp), dimension(nz), intent(in) :: vert_levels       ! vertical levels at which input data is supplied
+
     real(dp), dimension(nx,ny), intent(in) :: usrf           ! upper surface elevation
     real(dp), dimension(nz,nx,ny), intent(in) :: field_3d    ! input field supplied at vertical levels
     real(dp), dimension(nx,ny), intent(out) :: field         ! output field downscaled to elevation usrf
@@ -2012,6 +2014,7 @@ contains
                 if (usrf(i,j) < vert_levels(k)) then
                    field_grad = (field_3d(k,i,j) - field_3d(k-1,i,j)) / (vert_levels(k) - vert_levels(k-1))
                    field(i,j) = field_3d(k-1,i,j) + field_grad * (usrf(i,j) - vert_levels(k-1))
+                   exit
                 endif
 
              enddo  ! k

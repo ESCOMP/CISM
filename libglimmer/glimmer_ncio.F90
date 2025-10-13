@@ -210,7 +210,10 @@ contains
     ! WHL - adding a vertical coordinate for ocean data
     NCO%nzocn = model%ocean_data%nzocn
 
-    ! WHL - adding a vertical coordinate for glacier data
+    ! WHL - adding a vertical coordinate for atmosphere data
+    NCO%nzatm = model%climate%nzatm
+
+    ! WHL - adding a glacier ID coordinate for glacier data
     NCO%nglacier = model%glacier%nglacier
 
   end subroutine glimmer_nc_openappend
@@ -348,7 +351,10 @@ contains
     ! WHL - adding a vertical coordinate for ocean data
     NCO%nzocn = model%ocean_data%nzocn
 
-    ! WHL - adding a vertical coordinate for glacier data
+    ! WHL - adding a vertical coordinate for ocean data
+    NCO%nzatm = model%climate%nzatm
+
+    ! WHL - adding a glacier ID coordinate for glacier data
     NCO%nglacier = model%glacier%nglacier
 
   end subroutine glimmer_nc_createfile
@@ -588,7 +594,10 @@ contains
     ! WHL - adding a vertical coordinate for ocean data
     NCI%nzocn = model%ocean_data%nzocn
 
-    ! WHL - adding a vertical coordinate for glacier data
+    ! WHL - adding a vertical coordinate for ocean data
+    NCI%nzatm = model%climate%nzatm
+
+    ! WHL - adding a glacier ID coordinate for glacier data
     NCI%nglacier = model%glacier%nglacier
 
     ! checking if dimensions and grid spacing are the same as in the configuration file

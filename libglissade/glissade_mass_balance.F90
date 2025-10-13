@@ -160,7 +160,7 @@
     integer :: itest, jtest, rtest      ! coordinates of diagnostic cell
     integer :: i, j, k
     integer :: ewn, nsn, upn
-    integer :: nlev_smb                 ! number of levels at which the 3D SMB is computed
+    integer :: nzatm                    ! number of atmosphere levels at which smb_3d and artm_3d are provided
 
     type(parallel_type) :: parallel     ! info for parallel communication
 
@@ -180,7 +180,7 @@
     ewn = model%general%ewn
     nsn = model%general%nsn
     upn = model%general%upn
-    nlev_smb = model%climate%nlev_smb
+    nzatm = model%climate%nzatm
 
     parallel = model%parallel
 
@@ -224,18 +224,24 @@
 
     elseif (model%options%artm_input_function == ARTM_INPUT_FUNCTION_XYZ) then
 
+       if (parallel_is_zero(model%climate%artm_3d)) then
+          write(message,*) 'Error: artm_3d = 0 everywhere with artm_input_function =', model%options%artm_input_function
+          call write_log(trim(message), GM_FATAL)
+       endif
+
        ! Note: With linear_extrapolate_in = T, the values outside the range are obtained by linear extrapolation
        !        from the top two or bottom two values.
        !       For temperature, which varies roughly linearly with elevation, this is more accurate
        !        than simply extending the top and bottom values.
        !       This call includes a halo update.
 
-       call glissade_vertical_interpolate(ewn,                   nsn,                       &
-                                          nlev_smb,              model%climate%smb_levels,  &
-                                          model%geometry%usrf,                              &
-                                          model%climate%artm_3d,                            &
-                                          model%climate%artm,                               &
-                                          linear_extrapolate_in = .true.)
+       call glissade_vertical_interpolate(&
+            ewn,                   nsn,                 &
+            nzatm,                 model%climate%zatm,  &
+            model%geometry%usrf,                        &
+            model%climate%artm_3d,                      &
+            model%climate%artm,                         &
+            linear_extrapolate_in = .true.)
 
     elseif (model%options%artm_input_function == ARTM_INPUT_FUNCTION_XY_LAPSE) then
 
@@ -368,12 +374,17 @@
        ! Note: With linear_extrapolate_in = F, the values at top and bottom levels are simply extended upward and downward.
        !       For SMB, this is safer than linear extrapolation (especially when extrapolating upward).
 
+       if (parallel_is_zero(model%climate%smb_3d)) then
+          write(message,*) 'Error: smb_3d = 0 everywhere with smb_input_function =', model%options%smb_input_function
+          call write_log(trim(message), GM_FATAL)
+       endif
+
        call glissade_vertical_interpolate(&
-            ewn,       nsn,                       &
-            nlev_smb,  model%climate%smb_levels,  &
-            model%geometry%usrf,                  &
-            model%climate%smb_3d,                 &
-            model%climate%smb,                    &
+            ewn,                   nsn,                 &
+            nzatm,                 model%climate%zatm,  &
+            model%geometry%usrf,                        &
+            model%climate%smb_3d,                       &
+            model%climate%smb,                          &
             linear_extrapolate_in = .false.)
 
     elseif  (model%options%smb_input_function == SMB_INPUT_FUNCTION_PDD) then
@@ -440,9 +451,17 @@
           call point_diag(model%climate%smb_gradz, 'smb_gradz (mm/yr per m)', itest, jtest, rtest, 7, 7)
           call point_diag(model%climate%smb, 'downscaled smb (mm/yr)', itest, jtest, rtest, 7, 7)
        elseif (model%options%smb_input_function == SMB_INPUT_FUNCTION_XYZ) then
-          k = model%climate%nlev_smb/2 + 1  ! arbitrary k
-          if (this_rank == rtest) write(6,*) 'Diagnostic level k, level (m) =', k, model%climate%smb_levels(k)
-          call point_diag(model%climate%smb_3d(k,:,:), '3d smb (mm/yr)', itest, jtest, rtest, 7, 7)
+          if (this_rank == rtest) then
+             write(6,*) ' '
+             write(6,*) 'smb_3d at each level:'
+          endif
+          do k = 1, nzatm
+             if (this_rank == rtest) then
+                write(6,*) ' '
+                write(6,*) 'k =', k
+             endif
+             call point_diag(model%climate%smb_3d(k,:,:), 'smb_3d (mm/yr)', itest, jtest, rtest, 7, 7)
+          enddo
           call point_diag(model%climate%smb, 'downscaled smb (mm/yr)', itest, jtest, rtest, 7, 7)
        elseif (model%options%smb_input_function == SMB_INPUT_FUNCTION_PDD) then
           call point_diag(model%climate%artm, 'artm (deg C)', itest, jtest, rtest, 7, 7)
@@ -457,9 +476,17 @@
           call point_diag(model%climate%artm_gradz*1000.d0, 'artm_gradz (deg C per km)', itest, jtest, rtest, 7, 7)
           call point_diag(model%climate%artm, 'downscaled artm (deg C)', itest, jtest, rtest, 7, 7)
        elseif (model%options%artm_input_function == ARTM_INPUT_FUNCTION_XYZ) then
-          k = model%climate%nlev_smb/2 + 1  ! arbitrary k
-          if (this_rank == rtest) write(6,*) 'Diagnostic level k, level (m) =', k, model%climate%smb_levels(k)
-          call point_diag(model%climate%artm_3d(k,:,:), '3d artm (deg C)', itest, jtest, rtest, 7, 7)
+          if (this_rank == rtest) then
+             write(6,*) ' '
+             write(6,*) 'artm_3d at each level:'
+          endif
+          do k = 1, nzatm
+             if (this_rank == rtest) then
+                write(6,*) ' '
+                write(6,*) 'k =', k
+             endif
+             call point_diag(model%climate%artm_3d(k,:,:), 'artm_3d (deg C)', itest, jtest, rtest, 7, 7)
+          enddo
           call point_diag(model%climate%artm, 'downscaled artm (deg C)', itest, jtest, rtest, 7, 7)
        elseif (model%options%artm_input_function == ARTM_INPUT_FUNCTION_XY_LAPSE) then
           call point_diag(model%climate%artm_ref, 'reference artm (deg C)', itest, jtest, rtest, 7, 7)
@@ -618,7 +645,7 @@
     integer :: itest, jtest, rtest      ! coordinates of diagnostic cell
     integer :: i, j, k
     integer :: ewn, nsn, upn
-    integer :: nlev_smb                 ! number of levels at which the 3D SMB is computed
+    integer :: nzatm                    ! number of atmosphere levels at which smb_3d and artm_3d are provided
 
     type(parallel_type) :: parallel     ! info for parallel communication
 
@@ -634,7 +661,7 @@
     ewn = model%general%ewn
     nsn = model%general%nsn
     upn = model%general%upn
-    nlev_smb = model%climate%nlev_smb
+    nzatm = model%climate%nzatm
 
     parallel = model%parallel
 

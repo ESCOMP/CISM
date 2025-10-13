@@ -100,6 +100,9 @@ contains
     ! optionally, read zocn levels from config file, if present, or compute them from dzocn
     call glide_get_zocn(model,config)
 
+    ! optionally, read zatm levels from config file, if present
+    call glide_get_zatm(model,config)
+
     !WHL - Moved isostasy configuration to glide_setup
 !    call isos_readconfig(model%isos,config)
 !    call isos_printconfig(model%isos)

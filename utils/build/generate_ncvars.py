@@ -440,6 +440,8 @@ class PrintNC_template(PrintVars):
                 #*WHL* added to deal w/ writing of vars associated w/ ocean vert coord
                 elif dims[i] == 'zocn':
                     dimstring = dimstring + 'up'
+                elif dims[i] == 'zatm':
+                    dimstring = dimstring + 'up'
                 else:
                     dimstring = dimstring + '1'
 
@@ -465,6 +467,12 @@ class PrintNC_template(PrintVars):
                 # handle 3D fields
                 spaces = ' '*3
                 self.stream.write("       do up=1,NCO%nzocn\n")
+
+            #*WHL* added to handle writing of vars associated w/ ocean vert coord
+            if  'zatm' in dims:
+                # handle 3D fields
+                spaces = ' '*3
+                self.stream.write("       do up=1,NCO%nzatm\n")
 
             data = var['data']
             if 'avg_factor' in var:
@@ -493,6 +501,10 @@ class PrintNC_template(PrintVars):
 
             #*WHL* added to handle writing of vars associated w/ ocean vert coord
             if  'zocn' in dims:
+                self.stream.write("       end do\n")
+
+            #*WHL* added to handle writing of vars associated w/ atm vert coord
+            if  'zatm' in dims:
                 self.stream.write("       end do\n")
 
             # remove self since it's not time dependent
@@ -532,6 +544,9 @@ class PrintNC_template(PrintVars):
                     #*WHL* added to deal w/ writing of vars associated w/ ocean vert coord
                     elif dims[i] == 'zocn':
                         dimstring = dimstring + 'up'
+                    #*WHL* added to deal w/ writing of vars associated w/ atm vert coord
+                    elif dims[i] == 'zatm':
+                        dimstring = dimstring + 'up'
                     else:
                         dimstring = dimstring + '1'
 
@@ -557,6 +572,12 @@ class PrintNC_template(PrintVars):
                     # handle 3D fields
                     spaces = ' '*3
                     self.stream.write("       do up=1,NCI%nzocn\n")
+
+                #*WHL* added to handle writing of vars associated w/ atm vert coord
+                if  'zatm' in dims:
+                    # handle 3D fields
+                    spaces = ' '*3
+                    self.stream.write("       do up=1,NCI%nzatm\n")
 
                 #WHL: Call parallel_get_var to read scalars and 1D arrays without horizontal dimensions
                 #     Otherwise, call distributed_get_var
@@ -610,6 +631,10 @@ class PrintNC_template(PrintVars):
 
                 #*WHL* added to handle writing of vars associated w/ ocean vert coord
                 if  'zocn' in dims:
+                    self.stream.write("       end do\n")
+
+                #*WHL* added to handle writing of vars associated w/ atm vert coord
+                if  'zatm' in dims:
                     self.stream.write("       end do\n")
 
                 self.stream.write("    else\n") # MJH 10/21/13

@@ -213,6 +213,12 @@ contains
 !    status= parallel_put_var(NCO%id,varid,model%ocean_data%zocn)
 !    call nc_errorhandle(__FILE__,__LINE__,status)
 
+    !TODO - Uncomment to add an atm level dimension
+    ! atm level dimension
+!    status = parallel_inq_varid(NCO%id,'zatm',varid)
+!    status= parallel_put_var(NCO%id,varid,model%climate%zatm)
+!    call nc_errorhandle(__FILE__,__LINE__,status)
+
     ! glacier dimension
 
     if (model%options%enable_glaciers) then

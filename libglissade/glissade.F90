@@ -374,7 +374,13 @@ contains
     !       Depending on the input dataset, might have fill values in other fields (e.g., artm, topg)
 
     if (model%options%smb_input == SMB_INPUT_MMYR_WE) then
-       call check_fill_values(model%climate%smb)
+       if (model%options%smb_input_function == SMB_INPUT_FUNCTION_XYZ) then
+          !TODO - Replace the next two lines with the commented lines, once we have the correct fill value
+          call check_fill_values(model%climate%smb_3d)
+          call check_fill_values(model%climate%artm_3d)
+       else
+          call check_fill_values(model%climate%smb)
+       endif
     else
        call check_fill_values(model%climate%acab)
     endif
@@ -1950,7 +1956,6 @@ contains
     use glissade_inversion, only: verbose_inversion
     use glissade_bmlt_float, only: verbose_bmlt_float
     use glissade_calving, only: verbose_calving
-    use glissade_grid_operators, only: glissade_vertical_interpolate
     use glissade_glacier, only: verbose_glacier
     use glide_stop, only: glide_finalise
 
