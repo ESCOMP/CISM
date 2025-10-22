@@ -526,27 +526,26 @@ module glissade_therm
 
 !=======================================================================
 
-  subroutine glissade_therm_driver(whichtemp,                         &
-                                   temp_init,                         &
-                                   dttem,                             &
-                                   parallel,                          &
-                                   ewn,             nsn,       upn,   &
-                                   itest,           jtest,     rtest, &
-                                   sigma,           stagsigma, dups,  &
-                                   thklim_temp,                       &
-                                   thck,            topg,             &
-                                   lsrf,            eus,              &
-                                   artm,                              &
-                                   which_ho_ground,                   &
-                                   f_ground_cell,                     &
-                                   bheatflx,        bfricflx,         &
-                                   dissip,                            &
-                                   pmp_threshold,                     &
-                                   bwat,                              &
-                                   temp,            waterfrac,        &
-                                   bpmp,                              &
-                                   btemp_ground,    btemp_float,      &
-                                   bmlt_ground)
+  subroutine glissade_therm_driver(&
+       whichtemp,                         &
+       temp_init,                         &
+       dttem,                             &
+       parallel,                          &
+       ewn,             nsn,       upn,   &
+       itest,           jtest,     rtest, &
+       sigma,           stagsigma, dups,  &
+       thklim_temp,                       &
+       thck,            topg,             &
+       lsrf,            eus,              &
+       artm,                              &
+       which_ho_ground, f_ground_cell,    &
+       bheatflx,        bfricflx,         &
+       bhydroflx,       dissip,           &
+       pmp_threshold,   bwat,             &
+       temp,            waterfrac,        &
+       bpmp,                              &
+       btemp_ground,    btemp_float,      &
+       bmlt_ground)
 
     ! Calculate the new ice temperature by one of several methods:
     ! (0) set to surface air temperature
@@ -596,11 +595,7 @@ module glissade_therm
          thck,            &! ice thickness (m)
          topg,            &! elevation of basal topography (m)
          lsrf,            &! elevation of lower ice surface (m)
-         artm,            &! surface air temperature (deg C)
-         f_ground_cell,   &! fraction of a cell which is grounded, in range [0,1]
-         bwat,            &! basal water depth (m)
-         bheatflx,        &! geothermal flux (W m-2), positive down
-         bfricflx          ! basal friction heat flux (W m-2), >= 0
+         artm              ! surface air temperature (deg C)
 
     ! Note: For which_ho_ground = 2, cells with 0 < f_ground_cell < 1 are deemed to be partly grounded and partly floating.
     !       For these cells we compute two different basal temperatures, one with a grounded BC and one with a floating BC.
@@ -611,6 +606,14 @@ module glissade_therm
 
     integer, intent(in) ::   &
          which_ho_ground   ! = 0 for no GLP, 1 for basic GLP, 2 for GLP including f_ground_cell
+
+    real(dp), dimension(:,:), intent(in) ::  &
+         f_ground_cell,   &! fraction of a cell which is grounded, in range [0,1]
+         bwat,            &! basal water depth (m)
+         bheatflx,        &! geothermal flux (W m-2), positive down
+         bfricflx,        &! basal friction heat flux (W m-2), >= 0
+         bhydroflx         ! basal heat flux (W m-2) from refreezing meltwater
+                           ! (if using the flux routing scheme)
 
     real(dp), dimension(:,:,:), intent(in) ::  &
          dissip            ! interior heat dissipation (deg/s)
@@ -860,7 +863,6 @@ module glissade_therm
                 einit = einit * thck(ew,ns)
 
                 ! compute matrix elements using enthalpy gradient method
-
                 call glissade_enthalpy_matrix_elements(dttem,                     &
                                                        upn,         stagsigma,    &
                                                        subd,        diag,         &
@@ -875,6 +877,7 @@ module glissade_therm
                                                        dissip(:,ew,ns),           &
                                                        bheatflx(ew,ns),           &
                                                        bfricflx(ew,ns),           &
+                                                       bhydroflx(ew,ns),          &
                                                        bwat(ew,ns),               &
                                                        pmp_threshold,             &
                                                        alpha_enth,                &
@@ -959,6 +962,7 @@ module glissade_therm
                    write(6,*) 'Before prognostic temp, i, j =', ew, ns
                    write(6,*) ' '
                    write(6,*) 'bfricflx =', bfricflx(ew,ns)
+                   write(6,*) 'bhydroflx =', bhydroflx(ew,ns)
                    write(6,*) 'dissip (deg/yr):'
                    do k = 1, upn-1
                       write(6,*) k, dissip(k,ew,ns)*scyr
@@ -985,7 +989,7 @@ module glissade_therm
                    einit = einit + temp(up,ew,ns) * (sigma(up+1) - sigma(up))
                 enddo
                 einit = einit * rhoi * shci * thck(ew,ns)
-                
+
                 ! compute matrix elements
                 call glissade_temperature_matrix_elements(dttem,                 &
                                                           upn,     stagsigma,    &
@@ -1003,6 +1007,7 @@ module glissade_therm
                                                           dissip(:,ew,ns),       &
                                                           bheatflx(ew,ns),       &
                                                           bfricflx(ew,ns),       &
+                                                          bhydroflx(ew,ns),      &
                                                           bwat(ew,ns),           &
                                                           pmp_threshold)
                 
@@ -1148,7 +1153,9 @@ module glissade_therm
                    write(6,*) 'Basal fluxes:'
                    write(6,*) 'bfricflx =', bfricflx(ew,ns)
                    write(6,*) 'bheatflx =', -bheatflx(ew,ns)
-                   write(6,*) 'flux for bottom melting =', bfricflx(ew,ns) - bheatflx(ew,ns) + lcondflx(ew,ns)
+                   write(6,*) 'bhydroflx =', bhydroflx(ew,ns)
+                   write(6,*) 'flux for bottom melting =', &
+                        bfricflx(ew,ns) + bhydroflx(ew,ns) - bheatflx(ew,ns) + lcondflx(ew,ns)
                 endif   ! verbose_column
 
                 lstop = .true.
@@ -1206,9 +1213,9 @@ module glissade_therm
                                        btemp_ground,     bpmp,            &
                                        pmp_threshold,                     &
                                        temp,             enthalpy,        &
-                                       bfricflx,         bheatflx,        &
-                                       lcondflx_ground,  bwat,            &
-                                       bmlt_ground)
+                                       bheatflx,         bfricflx,        &
+                                       bhydroflx,        lcondflx_ground, &
+                                       bwat,             bmlt_ground)
 
     ! Reset the basal temperature, temp(upn), in case btemp_ground has changed.
     ! Weigh bmlt_ground by f_ground_cell in partly grounded cells.
@@ -1325,7 +1332,8 @@ module glissade_therm
                                                   btemp_ground, btemp_float,    &
                                                   temp,         dissip,         &
                                                   bheatflx,     bfricflx,       &
-                                                  bwat,         pmp_threshold)
+                                                  bhydroflx,    bwat,           &
+                                                  pmp_threshold)
 
     ! compute matrix elements for the tridiagonal solve
 
@@ -1356,9 +1364,10 @@ module glissade_therm
 
     real(dp), dimension(0:upn), intent(in) :: temp       ! ice temperature (deg C)
     real(dp), dimension(upn-1), intent(in) :: dissip     ! interior heat dissipation (deg/s)
-    real(dp), intent(in) :: bheatflx    ! geothermal flux (W m-2), positive down
-    real(dp), intent(in) :: bfricflx    ! basal friction heat flux (W m-2), >= 0
-    real(dp), intent(in) :: bwat        ! basal water thickness (m)
+    real(dp), intent(in) :: bheatflx          ! geothermal flux (W m-2), positive down
+    real(dp), intent(in) :: bfricflx          ! basal friction heat flux (W m-2), >= 0
+    real(dp), intent(in) :: bhydroflx         ! basal heat flux (W m-2) from refreezing meltwater
+    real(dp), intent(in) :: bwat              ! basal water thickness (m)
 
     real(dp), intent(in) :: &
          pmp_threshold       ! bed is assumed thawed where Tbed >= pmptemp - pmp_threshold (deg C)
@@ -1442,7 +1451,8 @@ module glissade_therm
 
              ! =====Backward Euler flux basal boundary condition=====
              subd(upn+1) = supd(upn+1) - f_ground_cell
-             rhsd(upn+1) = rhsd(upn+1) + f_ground_cell * (bfricflx - bheatflx) * dsigbot*thck / coni
+             rhsd(upn+1) = rhsd(upn+1) &
+                  + f_ground_cell * (bfricflx + bhydroflx - bheatflx) * dsigbot*thck / coni
 
           endif   ! thawed or frozen
 
@@ -1484,7 +1494,7 @@ module glissade_therm
              subd(upn+1) = -1.0d0
              supd(upn+1) =  0.0d0
              diag(upn+1) =  1.0d0
-             rhsd(upn+1) = (bfricflx - bheatflx) * dsigbot*thck / coni
+             rhsd(upn+1) = (bfricflx + bhydroflx - bheatflx) * dsigbot*thck / coni
 
           endif   ! thawed or frozen
 
@@ -1507,7 +1517,8 @@ module glissade_therm
                                                temp,      waterfrac,        &
                                                enthalpy,  dissip,           &
                                                bheatflx,  bfricflx,         &
-                                               bwat,      pmp_threshold,    &
+                                               bhydroflx, bwat,             &
+                                               pmp_threshold,               &
                                                alpha_enth,                  &
                                                verbose_column_in)
 
@@ -1539,6 +1550,7 @@ module glissade_therm
 
     real(dp), intent(in) :: bheatflx   ! geothermal flux (W m-2), positive down
     real(dp), intent(in) :: bfricflx   ! basal friction heat flux (W m-2), >= 0
+    real(dp), intent(in) :: bhydroflx  ! basal heat flux (W m-2) from refreezing meltwater, >= 0
     real(dp), intent(in) :: bwat       ! basal water thickness (m)
 
     real(dp), intent(in) :: &
@@ -1784,9 +1796,10 @@ module glissade_therm
           ! frozen at bed
           ! maintain balance of heat sources and sinks
           ! (conductive flux, geothermal flux, and basal friction)
-          ! Note: Heat fluxes are positive down, so slterm <= 0 and bheatflx <= 0.
-          
-          ! Note: The heat source due to basal sliding (bfricflx) is computed in subroutine calcbfric.
+          ! Notes: Heat fluxes are positive down, so slterm <= 0 and bheatflx <= 0.
+          !        The heat source due to basal sliding (bfricflx) is computed in subroutine calcbfric.
+          !        The heat flux due to refreezing meltwater (bhydroflx) is computed in the flux-routing scheme,
+          !         or else = 0.
           ! Also note that bheatflx is generally <= 0, since defined as positive down.
           
           ! calculate dsigma for the bottom layer between the basal boundary and the temp. point above
@@ -1796,7 +1809,7 @@ module glissade_therm
           subd(upn+1) = -1.0d0
           supd(upn+1) =  0.0d0 
           diag(upn+1) = 1.0d0 
-          rhsd(upn+1) = (bfricflx - bheatflx) * dsigbot*thck * rhoi*shci/coni
+          rhsd(upn+1) = (bfricflx + bhydroflx - bheatflx) * dsigbot*thck * rhoi*shci/coni
           ! BDM temp approach should work out to be dT/dsigma, so enthalpy approach
           ! should just need dT/dsigma * rhoi * shci for correct units
 
@@ -1816,9 +1829,9 @@ module glissade_therm
                                            btemp_ground,     bpmp,            &
                                            pmp_threshold,                     &
                                            temp,             enthalpy,        &
-                                           bfricflx,         bheatflx,        &
-                                           lcondflx_ground,  bwat,            &
-                                           bmlt_ground)
+                                           bheatflx,         bfricflx,        &
+                                           bhydroflx,        lcondflx_ground, &
+                                           bwat,             bmlt_ground)
 
     ! Compute the rate of basal melting for grounded ice.
     !
@@ -1849,8 +1862,9 @@ module glissade_therm
     !       This subroutine uses the grounded value, not the cell average value.
     real(dp), dimension(:,:),    intent(in) :: &
          bpmp,                 & ! basal pressure melting point temperature (deg C)
-         bfricflx,             & ! basal frictional heating flux (W m-2), >= 0
          bheatflx,             & ! geothermal heating flux (W m-2), positive down
+         bfricflx,             & ! basal frictional heating flux (W m-2), >= 0
+         bhydroflx,            & ! heating flux (W m-2) from refreezing meltwater, >= 0
          lcondflx_ground,      & ! heat conducted from ice interior to bed (W m-2), positive down
          bwat                    ! depth of basal water (m)
 
@@ -1880,8 +1894,10 @@ module glissade_therm
     ! Compute the heat flux available to melt grounded ice
     ! The basal friction term is computed above in subroutine glissade_calcbfric,
     !  or in the Glissade velocity solver.
+    ! The basal hydro term is computed in the flux routing scheme from the meltwater
+    !  that flows into cells with a frozen bed.
     ! Note: bflx_mlt > 0 for melting, < 0 for freeze-on
-    !       bfricflx >= 0 by definition
+    !       bfricflx >= 0 and bhydroflx > = 0 by definition
     !       bheatflx is positive down, so usually bheatflx < 0 (with negative values contributing to melt)
     !       lcondflx is positive down, so lcondflx < 0 for heat flowing from the bed toward the surface
     !
@@ -1890,7 +1906,7 @@ module glissade_therm
     !       But freeze-on requires a local water supply, bwat > 0.
     !       When bwat = 0, we reset the bed temperature to a value slightly below the melting point.
 
-    bflx_mlt(:,:) = bfricflx(:,:) + lcondflx_ground(:,:) - bheatflx(:,:)  ! W/m^2
+    bflx_mlt(:,:) = bfricflx(:,:) + bhydroflx(:,:) + lcondflx_ground(:,:) - bheatflx(:,:)  ! W/m^2
     
     ! bflx_mlt might be slightly different from zero because of rounding errors; if so, then zero out
     where (abs(bflx_mlt) < eps11)
@@ -1954,6 +1970,10 @@ module glissade_therm
              !        (Unless pmp_threshold ~ 0, in which case we subtract a small positive constant)
              ! Note: Energy conservation is not violated here, because no energy is associated with
              !       the infinitesimally thin layer at the bed.
+             ! Note: When running with flux-routing hydrology, bwat = 0 here, since water is not accumulating
+             !       at the bed; it's just passing through in steady state, and is immediately refrozen if it
+             !       flows into a cell with a frozen bed.
+             !       In that case, bwat_diag (not bwat) holds the diagnosed basal water depth.
 
              if (verbose_therm .and. ew == itest .and. ns == jtest .and. this_rank == rtest) then
                 write(6,*) ' '

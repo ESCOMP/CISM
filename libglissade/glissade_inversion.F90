@@ -64,6 +64,7 @@ contains
     use glissade_masks, only: glissade_get_masks
     use glissade_grid_operators, only: glissade_stagger
     use glissade_utils, only: glissade_usrf_to_thck, glissade_thck_to_usrf
+    use glissade_basal_traction, only: glissade_elevation_based_coulomb_c
 
     type(glide_global_type), intent(inout) :: model   ! model instance
 
@@ -274,18 +275,36 @@ contains
        endif
 
        if (verbose_inversion) then
-          call point_diag(model%basal_physics%coulomb_c, 'init_inversion for coulomb_c', itest, jtest, rtest, 7, 7)
+          call point_diag(model%basal_physics%coulomb_c, &
+               'init_inversion for coulomb_c', itest, jtest, rtest, 7, 7)
        endif
 
     elseif (model%options%which_ho_coulomb_c == HO_COULOMB_C_INVERSION_BASIN) then
 
+       !TODO - Can this calculation be done elsewhere in glissade_initialise?
        if (parallel_is_zero(model%basal_physics%coulomb_c_lo)) then
           ! initialize coulomb_c_lo (for which we will invert)
           model%basal_physics%coulomb_c_lo = model%basal_physics%coulomb_c_const_lo
        endif
 
+       model%basal_physics%coulomb_c_hi = model%basal_physics%coulomb_c_const_hi
+
+       call glissade_elevation_based_coulomb_c(&
+            ewn,             nsn,                 &
+            itest,  jtest,   rtest,               &
+            model%geometry%topg,                  &
+            model%climate%eus,                    &
+            model%basal_physics%coulomb_c_lo,     &
+            model%basal_physics%coulomb_c_hi,     &
+            model%basal_physics%coulomb_c_bed_lo, &
+            model%basal_physics%coulomb_c_bed_hi, &
+            model%basal_physics%coulomb_c)
+
+       call parallel_halo(model%basal_physics%coulomb_c, parallel)
+
        if (verbose_inversion) then
-          call point_diag(model%basal_physics%coulomb_c, 'init_inversion for coulomb_c_lo in basins', itest, jtest, rtest, 7, 7)
+          call point_diag(model%basal_physics%coulomb_c, &
+               'init_inversion for coulomb_c_lo in basins', itest, jtest, rtest, 7, 7)
        endif
 
     endif

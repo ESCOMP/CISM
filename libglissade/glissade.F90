@@ -1762,34 +1762,37 @@ contains
 
     ! Note: glissade_therm_driver uses SI units
     !       Output arguments are temp, waterfrac, bpmp and bmlt_ground
-    call glissade_therm_driver (model%options%whichtemp,                                      &
-                                model%options%temp_init,                                      &
-                                dt,                                                           & ! s
-                                model%parallel,                                               &
-                                model%general%ewn,          model%general%nsn,                &
-                                model%general%upn,                                            &
-                                model%numerics%idiag_local, model%numerics%jdiag_local,       &
-                                model%numerics%rdiag_local,                                   &
-                                model%numerics%sigma,       model%numerics%stagsigma,         &
-                                model%numerics%dups,                                          &
-                                model%numerics%thklim_temp,                                   & ! m
-                                model%geometry%thck,                                          & ! m
-                                model%geometry%topg,                                          & ! m
-                                model%geometry%lsrf,                                          & ! m
-                                model%climate%eus,                                            & ! m
-                                model%climate%artm_corrected,                                 & ! deg C
-                                model%options%which_ho_ground,                                &
-                                model%geometry%f_ground_cell,                                 & ! [0,1]
-                                model%temper%bheatflx,      model%temper%bfricflx,            & ! W/m2
-                                model%temper%dissip,                                          & ! deg/s
-                                model%temper%pmp_threshold,                                   & ! deg C
-                                model%basal_hydro%bwat,                                       & ! m
-                                model%temper%temp,                                            & ! deg C
-                                model%temper%waterfrac,                                       & ! unitless
-                                model%temper%bpmp,                                            & ! deg C
-                                model%temper%btemp_ground,                                    & ! deg C
-                                model%temper%btemp_float,                                     & ! deg C
-                                model%basal_melt%bmlt_ground)                                   ! m/s
+    call glissade_therm_driver (&
+         model%options%whichtemp,                                      &
+         model%options%temp_init,                                      &
+         dt,                                                           & ! s
+         model%parallel,                                               &
+         model%general%ewn,          model%general%nsn,                &
+         model%general%upn,                                            &
+         model%numerics%idiag_local, model%numerics%jdiag_local,       &
+         model%numerics%rdiag_local,                                   &
+         model%numerics%sigma,       model%numerics%stagsigma,         &
+         model%numerics%dups,                                          &
+         model%numerics%thklim_temp,                                   & ! m
+         model%geometry%thck,                                          & ! m
+         model%geometry%topg,                                          & ! m
+         model%geometry%lsrf,                                          & ! m
+         model%climate%eus,                                            & ! m
+         model%climate%artm_corrected,                                 & ! deg C
+         model%options%which_ho_ground,                                &
+         model%geometry%f_ground_cell,                                 & ! [0,1]
+         model%temper%bheatflx,                                        & ! W/m2
+         model%temper%bfricflx,                                        & ! W/m2
+         model%temper%bhydroflx,                                       & ! W/m2
+         model%temper%dissip,                                          & ! deg/s
+         model%temper%pmp_threshold,                                   & ! deg C
+         model%basal_hydro%bwat,                                       & ! m
+         model%temper%temp,                                            & ! deg C
+         model%temper%waterfrac,                                       & ! unitless
+         model%temper%bpmp,                                            & ! deg C
+         model%temper%btemp_ground,                                    & ! deg C
+         model%temper%btemp_float,                                     & ! deg C
+         model%basal_melt%bmlt_ground)                                   ! m/s
 
     ! Update basal hydrology, if needed
     ! Note: glissade_calcbwat uses SI units
@@ -1870,9 +1873,20 @@ contains
        !TODO - Optionally, use the constant value only, ignoring bmlt_ground?
        where (bwat_mask == 1)
           model%basal_hydro%bmlt_hydro = model%basal_melt%bmlt_ground + model%basal_hydro%const_source/scyr
+          ! Do not pass in negative values
+          model%basal_hydro%bmlt_hydro = max(model%basal_hydro%bmlt_hydro, 0.0d0)
        elsewhere
           model%basal_hydro%bmlt_hydro = 0.0d0
        endwhere
+
+       call glissade_calcbwat(&
+            model%options%which_ho_bwat,      &
+            model%basal_hydro,                &
+            dt,                               &  ! s
+            model%geometry%thck,              &  ! m
+            model%numerics%thklim_temp,       &  ! m
+            model%basal_melt%bmlt_ground,     &  ! m/s
+            model%basal_hydro%bwat)              ! m
 
        ! Compute the steady-state basal water flux based on a flux-routing scheme
 
@@ -1888,14 +1902,18 @@ contains
             bwat_mask,                                        &
             floating_mask,                                    &
             model%basal_hydro%bmlt_hydro,                     &  ! m/s
-            model%basal_hydro%bwatflx,                        &  ! m/yr
+            model%temper%bpmp - model%temper%btemp_ground,    &  ! degC
+            model%basal_hydro%btemp_scale,                    &  ! degC
+            model%basal_hydro%bwatflx,                        &  ! m/s
             model%basal_hydro%bwat_diag,                      &  ! m
+            model%temper%bhydroflx,                           &  ! W/m2
             model%basal_hydro%head,                           &  ! m
             model%basal_hydro%grad_head)                         ! m/m
 
        ! halo updates (not sure if all are needed)
        call parallel_halo(model%basal_hydro%bwatflx, parallel)
        call parallel_halo(model%basal_hydro%bwat_diag, parallel)
+       call parallel_halo(model%temper%bhydroflx, parallel)
        call parallel_halo(model%basal_hydro%grad_head, parallel)
 
     else  ! simpler basal water options

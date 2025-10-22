@@ -1656,7 +1656,7 @@ module glide_types
     !
     !      bheatflx, ucondflx, and lcondflx are defined as positive down,
     !       so they will often be < 0.  
-    !      However, bfricflx and dissipcol are defined to be >= 0.
+    !      However, bfricflx, bhydroflx and dissipcol are defined to be >= 0.
     !
     !      If bheatflx is read from a data file, be careful about the sign!
     !      In input data, the geothermal heat flux may be defined as positive upward,
@@ -1675,6 +1675,7 @@ module glide_types
     real(dp),dimension(:,:),  pointer :: bpmp => null()      !> Basal pressure melting point temperature
     real(dp),dimension(:,:),  pointer :: stagbpmp => null()  !> Basal pressure melting point temperature on velo grid
     real(dp),dimension(:,:),  pointer :: bfricflx => null()  !> basal heat flux (W/m^2) from friction (>= 0)
+    real(dp),dimension(:,:),  pointer :: bhydroflx => null() !> basal heat flux (W/m^2) from refreezing meltwater (>= 0)
     real(dp),dimension(:,:,:),pointer :: waterfrac => null() !> fractional water content in layer (0 <= waterfrac <= 1)
     real(dp),dimension(:,:,:),pointer :: enthalpy => null()  !> specific enthalpy in layer (J m-3)
                                                              !> = rhoi * Ci * T for cold ice
@@ -2148,10 +2149,11 @@ module glide_types
                                                  !> Note: The ratio (e_0/C_c) is the key parameter
 
      ! parameters for steady-state flux-routing model
+     !TODO - Add visc_water and omega_hydro? Currently set in glissade_basal_water module
      real(dp) :: const_source = 0.0d0            !> constant melt source at the bed (m/yr)
                                                  !> could be used to represent an englacial or surface source
-     !TODO - Add visc_water and omega_hydro? Currently set in glissade_basal_water module
-
+     real(dp) :: btemp_scale = 0.0d0             !> temperature scale (degC) for transition between thawed and frozen bed
+                                                 !> btemp_scale = 0 => temperature-independent flow
      ! parameters for macroporous sheet
      real(dp) :: bwat_threshold = 1.0d-3         !> scale over which N ramps down from overburden to a small value (m)
 
@@ -2700,6 +2702,7 @@ contains
     !> \item \texttt{flwa(upn,ewn,nsn)}           !WHL - 2 choices
     !> \item \texttt{dissip(upn,ewn,nsn)}         !WHL - 2 choices
     !> \item \texttt{bfricflx(ewn,nsn)}
+    !> \item \texttt{bhydroflx(ewn,nsn)}
     !> \item \texttt{ucondflx(ewn,nsn)}
     !> \item \texttt{lcondflx(ewn,nsn)}
     !> \item \texttt{dissipcol(ewn,nsn)}
@@ -2933,6 +2936,7 @@ contains
 
     if (model%options%whichdycore == DYCORE_GLISSADE) then   ! glissade only
        call coordsystem_allocate(model%general%ice_grid, model%temper%bfricflx)
+       call coordsystem_allocate(model%general%ice_grid, model%temper%bhydroflx)
        call coordsystem_allocate(model%general%ice_grid, model%temper%lcondflx)
        call coordsystem_allocate(model%general%ice_grid, model%temper%dissipcol)
        ! water fraction and enthalpy live at the midpoint of each layer (with temp and flwa)
@@ -3404,6 +3408,8 @@ contains
         deallocate(model%temper%stagbtemp)
     if (associated(model%temper%bfricflx)) &
         deallocate(model%temper%bfricflx)
+    if (associated(model%temper%bhydroflx)) &
+        deallocate(model%temper%bhydroflx)
     if (associated(model%temper%ucondflx)) &
         deallocate(model%temper%ucondflx)
     if (associated(model%temper%lcondflx)) &

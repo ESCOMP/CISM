@@ -951,6 +951,13 @@ long_name:     basal friction heat flux
 data:          data%temper%bfricflx
 load:          1
 
+[bhydroflx]
+dimensions:    time, y1, x1
+units:         watt/meter2
+long_name:     basal heat flux from refreezing meltwater
+data:          data%temper%bhydroflx
+load:          1
+
 [bwat]
 dimensions:    time, y1, x1
 units:         meter
@@ -969,6 +976,7 @@ load:          1
 dimensions:    time, y1, x1
 units:         meter/year
 long_name:     basal water flux
+factor:        scyr
 data:          data%basal_hydro%bwatflx
 
 [head]

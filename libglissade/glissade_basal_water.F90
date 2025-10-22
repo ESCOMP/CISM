@@ -28,7 +28,7 @@ module glissade_basal_water
 
    use glimmer_global, only: dp
    use glimmer_paramets, only: eps11, eps08
-   use glimmer_physcon, only: rhoi, rhow, grav, scyr
+   use glimmer_physcon, only: rhoi, rhow, lhci, grav, scyr
    use glimmer_log
    use glimmer_utils, only: point_diag
    use glide_types
@@ -173,7 +173,9 @@ module glissade_basal_water
        thklim,                       &
        bwat_mask,     floating_mask, &
        bmlt_hydro,                   &
+       delta_Tb,      btemp_scale,   &
        bwatflx,       bwat_diag,     &
+       bhydroflx,                    &
        head,          grad_head)
 
     ! Compute the subglacial water flux and water depth using a steady-state flux routing scheme.
@@ -203,11 +205,13 @@ module glissade_basal_water
     real(dp), dimension(nx,ny), intent(in) ::  &
          thck,                    & ! ice thickness (m)
          topg,                    & ! bed topography (m)
-         bmlt_hydro                 ! meltwater input rate (m/s); can include an englacial or surface source
+         bmlt_hydro,              & ! meltwater input rate (m/s); can include an englacial or surface source
+         delta_Tb                   ! difference T_pmp - T_bed (degC)
 
     real(dp), intent(in) ::  &
-         thklim                     ! minimum ice thickness for basal melt and hydropotential calculations (m)
+         thklim,                  & ! minimum ice thickness for basal melt and hydropotential calculations (m)
                                     ! Note: This is typically model%geometry%thklim_temp
+         btemp_scale                ! temperature scale for transition from frozen to thawed bed (degC)
 
     integer, dimension(nx,ny), intent(in) ::  &
          bwat_mask,               & ! mask to identify cells through which basal water is routed;
@@ -224,8 +228,9 @@ module glissade_basal_water
     !       We follow Sommers et al. (2018) in using 'head', which has convenient units of meters.
 
     real(dp), dimension(nx,ny), intent(out) ::  &
-         bwatflx,                 & ! basal water flux (m/s)
+         bwatflx,                 & ! basal water flux through each grid cell (m/s)
          bwat_diag,               & ! diagnosed basal water depth (m)
+         bhydroflx,               & ! basal heat flux from refreezing meltwater (W/m2); enters thermal solve later
          head,                    & ! hydraulic head (m)
          grad_head                  ! gradient of hydraulic head (m/m), averaged to cell centers
 
@@ -233,7 +238,8 @@ module glissade_basal_water
 
     integer :: i, j, p
 
-    real(dp), dimension(nx, ny) ::  &
+    real(dp), dimension(nx,ny) :: &
+         bwatflx_refreeze,        & ! water flux held for refreezing (m^3/s)
          lakes                      ! difference between filled head and original head (m)
 
     ! parameters related to subglacial fluxes
@@ -314,8 +320,11 @@ module glissade_basal_water
          flux_routing_scheme,    &
          head,                   &
          bmlt_hydro,             &
+         delta_Tb,               &
+         btemp_scale,            &
          bwat_mask,              &
          bwatflx,                &
+         bwatflx_refreeze,       &
          lakes)
 
     call parallel_halo(bwatflx, parallel)
@@ -350,11 +359,17 @@ module glissade_basal_water
     call parallel_halo(bwat_diag, parallel)
     call parallel_halo(grad_head, parallel)
 
-    ! Convert bwatflx units from m^3/s to m/s for output
+    ! Convert bwatflx from m^3/s to m/s for output
     bwatflx(:,:) = bwatflx(:,:) / (dx*dy)
+
+    ! Given bwatflx_refreeze in m^3/s, compute bhydroflx in W/m2.
+    ! This is the heat flux needed to refreeze the meltwater held in each cell
+    bhydroflx(:,:) = bwatflx_refreeze(:,:) * rhoi * lhci / (dx*dy)
 
     if (verbose_bwat) then
        call point_diag(bwatflx*scyr, 'Final bwatflx (m/yr)', itest, jtest, rtest, 7, 7)
+       call point_diag(bwatflx_refreeze*scyr/(dx*dy), 'bwatflx_refreeze (m/yr)', itest, jtest, rtest, 7, 7)
+       call point_diag(bhydroflx, 'bhydroflx (W/m2)', itest, jtest, rtest, 7, 7, '(f10.6)')
        call point_diag(bwat_diag, 'Diagnosed bwat (m)',  itest, jtest, rtest, 7, 7, '(f10.6)')
     endif
 
@@ -424,8 +439,11 @@ module glissade_basal_water
          flux_routing_scheme,    &
          head,                   &
          bmlt_hydro,             &
+         delta_Tb,               &
+         btemp_scale,            &
          bwat_mask,              &
          bwatflx,                &
+         bwatflx_refreeze,       &
          lakes)
 
     ! Route water from the basal melt field to its destination, recording the water flux along the way.
@@ -460,7 +478,12 @@ module glissade_basal_water
          flux_routing_scheme     ! flux routing scheme: D8, Dinf or FD8
 
     real(dp), dimension(nx,ny), intent(in)  ::  &
-         bmlt_hydro              ! meltwater input rate (m/s)
+         bmlt_hydro,           & ! meltwater input rate (m/s)
+         delta_Tb                ! difference T_pmp - T_bed (degC)
+
+    real(dp), intent(in) :: &
+         btemp_scale             ! temperature scale for transition from frozen to thawed bed (degC)
+                                 ! If btemp_scale = 0, assume no temperature dependence
 
     real(dp), dimension(nx,ny), intent(inout)  ::  &
          head                    ! hydraulic head (m)
@@ -472,6 +495,7 @@ module glissade_basal_water
 
     real(dp), dimension(nx,ny), intent(out) ::  &
          bwatflx,             &  ! water flux through a grid cell (m^3/s)
+         bwatflx_refreeze,    &  ! water flux held for refreezing (m^3/s)
          lakes                   ! lakes field, difference between filled and original head
 
     ! Local variables
@@ -479,7 +503,7 @@ module glissade_basal_water
     integer :: nlocal            ! number of locally owned cells
     integer :: count, count_max  ! iteration counters
     integer :: i, j, k, ii, jj, ip, jp, p
-    integer :: i1, j1, i2, j2, itmp, jtmp
+    integer :: i1, j1, i2, j2, itmp, jtmp, iglobal, jglobal
 
     logical :: finished    ! true when an iterative loop has finished
 
@@ -491,26 +515,27 @@ module glissade_basal_water
          bwatflx_halo      ! water flux (m^3/s) routed to a neighboring halo cell; routed further in next iteration
 
     real(dp), dimension(nx,ny) ::  &
-         head_filled,   &  ! head after depressions are filled (m)
-         bwatflx_accum, &  ! water flux (m^3/s) accumulated over multiple iterations
-         sum_bwatflx_halo  ! bwatflx summed over the first 2 dimensions in each grid cell
+         head_filled,           & ! head after depressions are filled (m)
+         bwatflx_accum,         & ! water flux through the cell (m^3/s) accumulated over multiple iterations
+         bwatflx_refreeze_accum,& ! water flux (m^3/s) refreezing in place, accumulated over multiple iterations
+         sum_bwatflx_halo,      & ! bwatflx summed over the first 2 dimensions in each grid cell
+         btemp_weight             ! temperature-dependent weighting factor (linear ramp), favoring flow where the bed is thawed
 
     integer, dimension(nx,ny) ::  &
-         local_mask,     & ! = 1 for cells owned by the local processor, else = 0
-         halo_mask,      & ! = 1 for the layer of halo cells adjacent to locally owned cells, else = 0
-         margin_mask       ! = 1 for cells at the grounded ice margin, as defined by bwat_mask, else = 0
+         local_mask,            & ! = 1 for cells owned by the local processor, else = 0
+         halo_mask,             & ! = 1 for the layer of halo cells adjacent to locally owned cells, else = 0
+         margin_mask              ! = 1 for cells at the grounded ice margin, as defined by bwat_mask, else = 0
 
     real(dp) :: &
-         total_flux_in,  & ! total input flux (m^3/s), computed as sum of bmlt_hydro*dx*dy
-         total_flux_out, & ! total output flux (m^3/s), computed as sum of bwatflx at ice margin
-         err,            & ! water conservation error
-         global_flux_sum   ! flux sum over all cells in global domain
+         total_flux_in,         & ! total input flux (m^3/s), computed as sum of bmlt_hydro*dx*dy
+         total_flux_margin,     & ! total output flux (m^3/s) at the ice margin
+         total_flux_refreeze,   & ! total flux (m^3/s) to refreeze internally
+         total_flux_out,        & ! sum of total_bwatflx_margin and total_bwatflx_refreeze
+         err,                   & ! water conservation error
+         global_flux_sum          ! flux sum over all cells in global domain
 
     character(len=100) :: message
 
-    !WHL - debug
-    real(dp) :: bmlt_max, bmlt_max_global
-    integer :: imax, jmax, rmax, iglobal, jglobal
     ! Allocate the sorted_ij array
 
     nlocal = parallel%own_ewn * parallel%own_nsn
@@ -570,6 +595,22 @@ module glissade_basal_water
        enddo
     endif
 
+    ! Make sure bmlt_hydro >= 0 everywhere
+    do j = 1, ny
+       do i = 1, nx
+          if (bmlt_hydro(i,j) < 0.0d0) then
+             call parallel_globalindex(i, j, iglobal, jglobal, parallel)
+!             write(6,*) 'Hydrology error: bmlt_hydro < 0, iglobal, jglobal, bmlt_hydro =', &
+!                     iglobal, jglobal, bmlt_hydro(i,j)
+             write(message,*) 'Hydrology error: bmlt_hydro < 0, iglobal, jglobal, bmlt_hydro =', &
+                  iglobal, jglobal, bmlt_hydro(i,j)
+             call write_log(message, GM_FATAL)
+          endif
+       enddo
+    enddo
+
+    ! Compute the fraction of the incoming flux sent to each downstream neighbor.
+
     call get_flux_fraction(&
          nx,    ny,    nlocal,  &
          dx,    dy,             &
@@ -580,34 +621,46 @@ module glissade_basal_water
          bwat_mask,             &
          flux_fraction)
 
+    ! Compute a temperature-dependent weighting factor for flux routing.
+    ! If btemp_weight = 1, the entire flux is routed downstream.
+    ! If 0 < delta_Tb < btemp_scale, part of the flux is refrozen in place.
+    ! If delta_Tb > btemp_scale, all the flux is refrozen in place.
+
+    btemp_weight = 1.0d0
+
+    if (btemp_scale > 0.0d0) then
+       where (bwat_mask == 1)
+          where (delta_Tb > btemp_scale)
+             btemp_weight = 0.0d0
+          elsewhere (delta_Tb > 0.0d0)
+             btemp_weight = 1.0d0 - delta_Tb/btemp_scale
+          endwhere
+       endwhere
+       call point_diag(delta_Tb, 'Deficit delta_Tb', itest, jtest, rtest, 7, 7)
+       call point_diag(btemp_weight, 'btemp_weight', itest, jtest, rtest, 7, 7)
+    endif
+
     ! Initialize bwatflx in locally owned cells with the basal melt, which will be routed downslope.
     ! Multiply by area, so units are m^3/s.
     ! The halo water flux, bwatflx_halo, holds water routed to halo cells;
-    !  it will be routed downhill on the next iteration.
+    !  it will be routed downhill during the next iteration.
     ! The accumulated flux, bwatflx_accum, holds the total flux over multiple iterations.
-    ! Note: This subroutine conserves water only if bmlt_hydro >= 0 everywhere.
-    !       One way to account for refreezing would be to do the thermal calculation after
-    !        computing bwat in this subroutine.  At that point, refreezing would take away
-    !        from the bwat computed here.  In the next time step, positive values of bmlt_hydro
-    !        would provide a new source for bwat.
-    ! In other words, the sequence would be:
-    ! (1) Ice transport and calving
-    ! (2) Basal water routing: apply bmlt_hydro and diagnose bwat
-    ! (3) Vertical heat flow:
-    !     (a) compute bmlt_hydro
-    !     (b) use bmlt_hydro < 0 to reduce bwat
-    !     (c) save bmlt_hydro > 0 for the next time step (and write to restart)
-    ! (4) Diagnose velocity
+    ! Some or all of the water entering a frozen cell can be refrozen in place.
+    !  The heat flux associated with refreezing is passed to the next thermal solve.
+    !  If this heat flux is enough to thaw the cell, some of the meltwater is returned later.
 
     bwatflx = 0.0d0
     do j = nhalo+1, ny-nhalo
        do i = nhalo+1, nx-nhalo
           bwatflx(i,j) = bmlt_hydro(i,j) * dx * dy
-          bwatflx(i,j) = max(bwatflx(i,j), 0.0d0)   ! not conservative unless refreezing is handled elsewhere
        enddo
     enddo
+
+    ! Initialize other fluxes
     bwatflx_halo = 0.0d0
+    bwatflx_refreeze = 0.0d0
     bwatflx_accum = 0.0d0
+    bwatflx_refreeze_accum = 0.0d0
 
     ! Compute total input of meltwater (m^3/s)
     total_flux_in = parallel_global_sum(bwatflx, parallel)
@@ -644,38 +697,44 @@ module glissade_basal_water
 
        do k = nlocal, 1, -1
 
-          ! Get i and j indices of current point
+          ! Get i and j indices of current cell
           i = sorted_ij(k,1)
           j = sorted_ij(k,2)
 
-          ! Apportion the flux among downslope neighbors
+          ! Route the flux
           if (bwat_mask(i,j) == 1 .and. bwatflx(i,j) > 0.0d0) then
+
+             ! Distribute the flux to downslope neighbors.
+             ! If the bed is frozen, all or part of the flux is refrozen in place instead of being routed downstream.
              do jj = -1,1
                 do ii = -1,1
                    ip = i + ii
                    jp = j + jj
                    if (flux_fraction(ii,jj,i,j) > 0.0d0) then
                       if (halo_mask(ip,jp) == 1) then
-                         bwatflx_halo(ii,jj,i,j) = bwatflx(i,j)*flux_fraction(ii,jj,i,j)
+                         bwatflx_halo(ii,jj,i,j) = bwatflx(i,j)*flux_fraction(ii,jj,i,j)*btemp_weight(i,j)
+                         bwatflx_refreeze(i,j) = bwatflx_refreeze(i,j) &
+                              + bwatflx(i,j)*flux_fraction(ii,jj,i,j)*(1.0d0 - btemp_weight(i,j))
                          if (verbose_bwat .and. this_rank==rtest .and. i==itest .and. j==jtest .and. count <= 2) then
                             write(6,*) 'Flux to halo, i, j, ii, jj, flux:', &
                                  i, j, ii, jj, bwatflx(i,j)*flux_fraction(ii,jj,i,j)
                          endif
                       elseif (local_mask(ip,jp) == 1) then
-                         bwatflx(ip,jp) = bwatflx(ip,jp) + bwatflx(i,j)*flux_fraction(ii,jj,i,j)
+                         bwatflx(ip,jp) = bwatflx(ip,jp) + bwatflx(i,j)*flux_fraction(ii,jj,i,j)*btemp_weight(i,j)
+                         bwatflx_refreeze(i,j) = bwatflx_refreeze(i,j) &
+                              + bwatflx(i,j)*flux_fraction(ii,jj,i,j)*(1.0d0 - btemp_weight(i,j))
                       endif
                    endif   ! flux_fraction > 0
                 enddo
              enddo
-          endif
-
+          endif  ! bwat_mask = 1, bwatflx > 0
        enddo  ! loop from high to low
 
-       ! Accumulate bwatflx from the latest iteration.
-       ! Reset to zero for the next iteration, if needed.
-
+       ! Accumulate bwatflx from the latest iteration, then reset to zero for the next iteration.
        bwatflx_accum = bwatflx_accum + bwatflx
+       bwatflx_refreeze_accum = bwatflx_refreeze_accum + bwatflx_refreeze
        bwatflx = 0.0d0
+       bwatflx_refreeze = 0.0d0
 
        if (verbose_bwat .and. this_rank == rtest .and. count <= 2) then
           i = itest
@@ -757,6 +816,7 @@ module glissade_basal_water
           if (verbose_bwat .and. this_rank == rtest) write(6,*) 'Done routing fluxes'
           finished = .true.
           bwatflx = bwatflx_accum
+          bwatflx_refreeze = bwatflx_refreeze_accum
        endif
 
        if (count > count_max) then
@@ -773,13 +833,17 @@ module glissade_basal_water
     endwhere
 
     ! Compute total output of meltwater (m^3/s) and check that input = output, within roundoff.
-
-    total_flux_out = parallel_global_sum(bwatflx*margin_mask, parallel)
+    total_flux_margin   = parallel_global_sum(bwatflx*margin_mask, parallel)
+    total_flux_refreeze = parallel_global_sum(bwatflx_refreeze*(1.0d0 - margin_mask), parallel)
+    total_flux_out = total_flux_margin + total_flux_refreeze
 
     if (verbose_bwat .and. this_rank == rtest) then
-       write(6,*) 'Total output basal melt flux (m^3/s):', total_flux_out
-       write(6,*) 'Difference between input and output =', total_flux_in - total_flux_out
+       write(6,*) 'Total bwatflx at margin (m^3/s):', total_flux_margin
+       write(6,*) 'Total bwatflx_refreeze (m^3/s)=', total_flux_refreeze
+       write(6,*) 'Total bwatflx (m^3/s)=', total_flux_out
+       write(6,*) 'Difference between output and input =', total_flux_out - total_flux_in
     endif
+
 
     ! Not sure if a threshold of eps11 is large enough.  Increase if needed.
     if (total_flux_in > 0.0d0) then
@@ -1021,8 +1085,8 @@ module glissade_basal_water
     !WHL - Typically, it takes ~10 iterations to fill all depressions on a large domain.
     integer, parameter :: count_max = 100
 
-!!    logical, parameter :: verbose_depression = .false.
-    logical, parameter :: verbose_depression = .true.
+    logical, parameter :: verbose_depression = .false.
+!!    logical, parameter :: verbose_depression = .true.
 
     ! Initial halo updates, in case phi_in and phi_mask are not up to date in halo cells
     call parallel_halo(phi_in, parallel)
@@ -1277,7 +1341,8 @@ module glissade_basal_water
        flux_fraction)
 
     ! For each cell, compute the flux fraction sent to each of the 8 neighbors,
-    ! based on the chosen flux routing scheme (D8, Dinf or FD8).
+    !  based on the chosen flux routing scheme (D8, Dinf or FD8).
+    ! The flux fraction is proportional to grad(head).
 
     ! Input/output arguments
 
@@ -1313,16 +1378,15 @@ module glissade_basal_water
     integer :: i, j, k, ii, jj, ip, jp, i1, i2, j1, j2, itmp, jtmp
 
     real(dp), dimension(-1:1,-1:1) ::  &
-         dists,         &  ! distance (m) to adjacent grid cell
-         slope             ! slope of head between adjacent grid cells, positive downward
+         dists,              & ! distance (m) to adjacent grid cell
+         slope                 ! slope of head between adjacent grid cells, positive downward
 
     real(dp) ::  &
-         slope1,        &  ! largest value of slope array
-         slope2,        &  ! second largest value of slope array
-         sum_slope,     &  ! sum of positive downward slopes
-         slope_tmp         ! temporary slope value
+         slope1,             & ! largest value of slope array
+         slope2,             & ! second largest value of slope array
+         sum_slope,          & ! sum of positive downward slopes
+         slope_tmp             ! temporary slope value
 
-    !WHL - debug
     real(dp) :: sum_frac
 
     ! Compute distances to adjacent grid cells for slope determination
@@ -1347,7 +1411,6 @@ module glissade_basal_water
 
           ! Compute the slope between this cell and each neighbor.
           ! Slopes are defined as positive for downhill neighbors, and zero otherwise.
-
           slope = 0.0d0
 
           ! Loop over adjacent points and calculate slope
@@ -1356,7 +1419,7 @@ module glissade_basal_water
                 ! If this is the centre point, ignore
                 if (ii == 0 .and. jj == 0) then
                    continue
-                else  ! compute slope
+                else  ! compute the hydropotential slope
                    ip = i + ii
                    jp = j + jj
                    if (ip >= 1 .and. ip <= nx .and. jp > 1 .and. jp <= ny) then
@@ -1388,7 +1451,7 @@ module glissade_basal_water
 
           if (flux_routing_scheme == HO_FLUX_ROUTING_D8) then
 
-             ! route to the adjacent cell with the lowest elevation
+             ! route to the lowest-lying adjacent cell
              slope1 = 0.0d0
              if (sum_slope > 0.d0) then
                 i1 = 0; j1 = 0
@@ -1420,7 +1483,7 @@ module glissade_basal_water
 
           elseif (flux_routing_scheme == HO_FLUX_ROUTING_DINF) then
 
-             ! route to the two adjacent cells with the lowest elevation
+             ! route to the two lowest-lying adjacent cells
              i1 = 0; j1 = 0
              i2 = 0; j2 = 0
              slope1 = 0.0d0
@@ -1488,7 +1551,7 @@ module glissade_basal_water
 
           elseif (flux_routing_scheme == HO_FLUX_ROUTING_FD8) then
 
-             ! route to all adjacent downhill cells in proportion to grad(head)
+             ! route to all adjacent downhill cells in proportion to the slope
              if (sum_slope > 0.d0) then
                 do jj = -1,1
                    do ii = -1,1
@@ -1512,6 +1575,7 @@ module glissade_basal_water
                 write(6,*) 'flux_fraction(:, 0,i,j):', flux_fraction(:, 0,i,j)
                 write(6,*) 'flux_fraction(:,-1,i,j):', flux_fraction(:,-1,i,j)
              endif
+
           endif   ! flux_routing_scheme: D8, Dinf, FD8
 
        endif  ! bwat_mask = 1

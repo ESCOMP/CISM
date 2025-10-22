@@ -444,7 +444,9 @@
        endif
        call point_diag(model%geometry%usrf, 'usrf (m)', itest, jtest, rtest, 7, 7)
 
-       if (model%options%smb_input_function == SMB_INPUT_FUNCTION_XY_GRADZ) then
+       if (model%options%smb_input_function == SMB_INPUT_FUNCTION_XY) then
+          call point_diag(model%climate%smb, 'smb (mm/yr)', itest, jtest, rtest, 7, 7)
+       elseif (model%options%smb_input_function == SMB_INPUT_FUNCTION_XY_GRADZ) then
           call point_diag(model%geometry%usrf - model%climate%usrf_ref, 'usrf - usrf_ref (m)', &
                itest, jtest, rtest, 7, 7)
           call point_diag(model%climate%smb_ref, 'reference smb (mm/yr)', itest, jtest, rtest, 7, 7)
@@ -471,7 +473,9 @@
           call point_diag(model%climate%smb,'smb (mm/yr)', itest, jtest, rtest, 7, 7)
        endif  ! smb_input_function
 
-       if (model%options%artm_input_function == ARTM_INPUT_FUNCTION_XY_GRADZ) then
+       if (model%options%artm_input_function == ARTM_INPUT_FUNCTION_XY) then
+          call point_diag(model%climate%artm, 'artm (deg C)', itest, jtest, rtest, 7, 7)
+       elseif (model%options%artm_input_function == ARTM_INPUT_FUNCTION_XY_GRADZ) then
           call point_diag(model%climate%artm_ref, 'reference artm (deg C)', itest, jtest, rtest, 7, 7)
           call point_diag(model%climate%artm_gradz*1000.d0, 'artm_gradz (deg C per km)', itest, jtest, rtest, 7, 7)
           call point_diag(model%climate%artm, 'downscaled artm (deg C)', itest, jtest, rtest, 7, 7)

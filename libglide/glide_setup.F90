@@ -3304,6 +3304,7 @@ contains
     ! flux routing
     call GetValue(section, 'ho_flux_routing_scheme', model%basal_hydro%ho_flux_routing_scheme)
     call GetValue(section, 'const_source', model%basal_hydro%const_source)
+    call GetValue(section, 'btemp_scale', model%basal_hydro%btemp_scale)
 
     ! effective pressure options and parameters
     call GetValue(section, 'effecpress_delta',   model%basal_hydro%effecpress_delta)
@@ -3385,6 +3386,10 @@ contains
        call write_log(message)
        if (model%basal_hydro%const_source > 0.0d0) then
           write(message,*) 'constant melt source at the bed (m/yr): ', model%basal_hydro%const_source
+          call write_log(message)
+       endif
+       if (model%basal_hydro%btemp_scale > 0.0d0) then
+          write(message,*) 'temp scale (deg C) for frz/thaw transition: ', model%basal_hydro%btemp_scale
           call write_log(message)
        endif
        if (model%options%which_ho_effecpress == HO_EFFECPRESS_BWAT) then
@@ -3913,6 +3918,9 @@ contains
         select case (options%which_ho_bwat)
         case (HO_BWAT_NONE, HO_BWAT_CONSTANT)
            ! no restart variables needed
+        case (HO_BWAT_FLUX_ROUTING)
+           ! need to know the heat flux associated with refreezing meltwater
+           call glide_add_to_restart_variable_list('bhydroflx', model_id)
         case default
            ! restart needs to know bwat value
            call glide_add_to_restart_variable_list('bwat', model_id)
