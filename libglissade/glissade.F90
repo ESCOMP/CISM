@@ -904,6 +904,7 @@ contains
     if (model%options%which_ho_coulomb_c == HO_COULOMB_C_CONSTANT .or. &
         model%options%is_restart == NO_RESTART) then
 
+       !TODO - Make sure the initialization is correct when reading from an external file in a restart.
        if (model%options%elevation_based_coulomb_c) then
 
           model%basal_physics%coulomb_c_hi = model%basal_physics%coulomb_c_const_hi

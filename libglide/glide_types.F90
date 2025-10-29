@@ -1724,9 +1724,11 @@ module glide_types
           babc_length_scale = 0.0d0,           & !> diffusive length scale (m) for inversion
           babc_relax_factor = 0.05d0             !> controls strength of relaxation to default values (unitless)
 
-     ! fields and parameters for basin-scale coulomb_c inversion
+     ! fields and parameters for basin-scale coulomb_c or powerlaw_c inversion
      real(dp), dimension(:,:), pointer ::  &
-          grounded_thck_target => null()         !> Observational target for floating ice thickness
+          grounded_thck_target => null(),      & !> Observational target for grounded ice thickness
+          land_thck_target => null(),          & !> Observational target for land-grounded ice thickness
+          marine_thck_target => null()           !> Observational target for marine-grounded ice thickness
 
      ! parameters for local deltaT_ocn inversion
      ! Note: deltaT_ocn is in the ocean_data type
@@ -3211,6 +3213,8 @@ contains
           call write_log ('Must set nbasin >= 1 for basin-scale inversion of C_c or C_p', GM_FATAL)
        endif
        call coordsystem_allocate(model%general%ice_grid, model%inversion%grounded_thck_target)
+       call coordsystem_allocate(model%general%ice_grid, model%inversion%land_thck_target)
+       call coordsystem_allocate(model%general%ice_grid, model%inversion%marine_thck_target)
     endif
 
     if (model%options%which_ho_deltaT_ocn == HO_DELTAT_OCN_INVERSION_BASIN) then
@@ -3719,6 +3723,10 @@ contains
         deallocate(model%inversion%floating_thck_target)
     if (associated(model%inversion%grounded_thck_target)) &
         deallocate(model%inversion%grounded_thck_target)
+    if (associated(model%inversion%land_thck_target)) &
+        deallocate(model%inversion%land_thck_target)
+    if (associated(model%inversion%marine_thck_target)) &
+        deallocate(model%inversion%marine_thck_target)
 
     ! MISOMIP arrays
     if (associated(model%plume%T_ambient)) &

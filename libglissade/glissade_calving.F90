@@ -1231,7 +1231,7 @@ contains
 
     ! This is an alternate method of computing the calving front length in idealized problems
     ! (e.g., CalvingMIP) in which the calving rate has radial symmetry.
-    ! For this method, the CF length for a given gridcell has a minimum value = dx) when a line drawn
+    ! For this method, the CF length for a given gridcell has a minimum value of dx when a line drawn
     !  from the origin to the cell center is parallel to the x or y axis.
     ! The CF length has a maximum value when a line drawn from the origin to the cell center
     !  makes an angle of pi/4 = 45 degrees with the x and y axes.

@@ -519,7 +519,7 @@ module glissade_basal_water
          bwatflx_accum,         & ! water flux through the cell (m^3/s) accumulated over multiple iterations
          bwatflx_refreeze_accum,& ! water flux (m^3/s) refreezing in place, accumulated over multiple iterations
          sum_bwatflx_halo,      & ! bwatflx summed over the first 2 dimensions in each grid cell
-         btemp_weight             ! temperature-dependent weighting factor (linear ramp), favoring flow where the bed is thawed
+         btemp_weight             ! temperature-dependent weighting factor, favoring flow where the bed is thawed
 
     integer, dimension(nx,ny) ::  &
          local_mask,            & ! = 1 for cells owned by the local processor, else = 0
@@ -609,6 +609,26 @@ module glissade_basal_water
        enddo
     enddo
 
+    ! Compute a temperature-dependent weighting factor for flux routing.
+    ! This is used in two parts of the code:
+    ! (1) In subroutine get_flux_fraction, btemp_weight is used to weight potential downstream paths.
+    !     A small value of btemp_weight means that a cell is less likely to receive water from upstream.
+    ! (2) When water enters a frozen cell (delta_Tb > 0), btemp_weight is used to determine
+    !     how much of the flux is refrozen in place rather than passing through.
+    !     A low value of btemp_weight means that less water passes through.
+
+    btemp_weight = 1.0d0
+
+    if (btemp_scale > 0.0d0) then
+       where (bwat_mask == 1)
+          where (delta_Tb > 0.0d0)
+             btemp_weight = exp(-delta_Tb/btemp_scale)
+          endwhere
+       endwhere
+       call point_diag(delta_Tb, 'Tpmp - Tb', itest, jtest, rtest, 7, 7)
+       call point_diag(btemp_weight, 'btemp_weight', itest, jtest, rtest, 7, 7)
+    endif
+
     ! Compute the fraction of the incoming flux sent to each downstream neighbor.
 
     call get_flux_fraction(&
@@ -618,27 +638,9 @@ module glissade_basal_water
          flux_routing_scheme,   &
          sorted_ij,             &
          head,                  &
+         btemp_weight,          &
          bwat_mask,             &
          flux_fraction)
-
-    ! Compute a temperature-dependent weighting factor for flux routing.
-    ! If btemp_weight = 1, the entire flux is routed downstream.
-    ! If 0 < delta_Tb < btemp_scale, part of the flux is refrozen in place.
-    ! If delta_Tb > btemp_scale, all the flux is refrozen in place.
-
-    btemp_weight = 1.0d0
-
-    if (btemp_scale > 0.0d0) then
-       where (bwat_mask == 1)
-          where (delta_Tb > btemp_scale)
-             btemp_weight = 0.0d0
-          elsewhere (delta_Tb > 0.0d0)
-             btemp_weight = 1.0d0 - delta_Tb/btemp_scale
-          endwhere
-       endwhere
-       call point_diag(delta_Tb, 'Deficit delta_Tb', itest, jtest, rtest, 7, 7)
-       call point_diag(btemp_weight, 'btemp_weight', itest, jtest, rtest, 7, 7)
-    endif
 
     ! Initialize bwatflx in locally owned cells with the basal melt, which will be routed downslope.
     ! Multiply by area, so units are m^3/s.
@@ -705,7 +707,7 @@ module glissade_basal_water
           if (bwat_mask(i,j) == 1 .and. bwatflx(i,j) > 0.0d0) then
 
              ! Distribute the flux to downslope neighbors.
-             ! If the bed is frozen, all or part of the flux is refrozen in place instead of being routed downstream.
+             ! Where the bed is frozen, all or part of the flux is refrozen in place instead of being routed downstream.
              do jj = -1,1
                 do ii = -1,1
                    ip = i + ii
@@ -1337,6 +1339,7 @@ module glissade_basal_water
        flux_routing_scheme,   &
        sorted_ij,             &
        head,                  &
+       btemp_weight,          &
        bwat_mask,             &
        flux_fraction)
 
@@ -1365,7 +1368,8 @@ module glissade_basal_water
          sorted_ij               ! i and j indices of each cell, sorted from from low phi to high phi
 
     real(dp), dimension(nx,ny), intent(in) :: &
-         head                    ! hydraulic head (m)
+         head,                 & ! hydraulic head (m)
+         btemp_weight            ! temperature-dependent weighting factor, favoring flow where the bed is thawed
 
     integer, dimension(nx,ny), intent(in) :: &
          bwat_mask               ! = 1 for cells in the region where basal water fluxes can be nonzero
@@ -1419,12 +1423,12 @@ module glissade_basal_water
                 ! If this is the centre point, ignore
                 if (ii == 0 .and. jj == 0) then
                    continue
-                else  ! compute the hydropotential slope
+                else  ! compute the hydropotential slope, weighted based on downstream bed temperature
                    ip = i + ii
                    jp = j + jj
                    if (ip >= 1 .and. ip <= nx .and. jp > 1 .and. jp <= ny) then
                       if (head(ip,jp) < head(i,j)) then
-                         slope(ii,jj) = (head(i,j) - head(ip,jp)) / dists(ii,jj)
+                         slope(ii,jj) = btemp_weight(ip,jp) * (head(i,j) - head(ip,jp)) / dists(ii,jj)
                       endif
                    endif
                 endif

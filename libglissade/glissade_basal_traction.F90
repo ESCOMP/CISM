@@ -1226,7 +1226,6 @@ contains
     real(dp), dimension(ewn,nsn), intent(in) :: &
          topg                     ! bed topography (m)
 
-    !Note: Currently, coulomb_c_lo can be spatially varying, but coulomb_c_hi is uniform
     real(dp), dimension(ewn-1,nsn-1), intent(in) :: &
          coulomb_c_lo,          & ! coulomb_c values at low bed elevation (topg <= bed_lo)
          coulomb_c_hi             ! coulomb_c values at high bed elevation (topg >= bed_hi)

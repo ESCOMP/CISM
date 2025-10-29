@@ -1143,18 +1143,18 @@ contains
          'invert for basin-scale friction parameter Cp' /)
 
     character(len=*), dimension(0:4), parameter :: ho_coulomb_c = (/ &
-         'spatially uniform friction parameter Cc     ', &
-         'invert for 2D friction parameter Cc         ', &
-         'friction parameter Cc read from file        ', &
-         'invert for basin-scale coulomb_c_lo         ', &
-         'basin-scale coulomb_c_lo read from file     ' /)
+         'spatially uniform friction parameter Cc   ', &
+         'invert for 2D friction parameter Cc       ', &
+         'read friction parameter Cc from file      ', &
+         'invert for basin-scale coulomb_c_hi/lo    ', &
+         'read basin-scale coulomb_c_hi/lo from file' /)
 
     character(len=*), dimension(0:4), parameter :: ho_deltaT_ocn = (/ &
-         'deltaT_ocn = 0                         ', &
-         'invert for 2D deltaT_ocn based on thck ', &
-         'read deltaT_ocn from external file     ', &
-         'invert for basin-scale deltaT_ocn      ', &
-         'invert for deltaT_ocn based on dthck_dt' /)
+         'deltaT_ocn = 0                          ', &
+         'invert for 2D deltaT_ocn based on thck  ', &
+         'read deltaT_ocn from external file      ', &
+         'invert for basin-scale deltaT_ocn       ', &
+         'invert for deltaT_ocn based on dthck_dt ' /)
 
     character(len=*), dimension(0:2), parameter :: ho_flow_enhancement_factor = (/ &
          'uniform flow enhancement factors               ', &
@@ -2796,7 +2796,7 @@ contains
     endif
 
     ! Coulomb elevation parameters
-    ! Note: If inverting for coulomb_c_lo, then its initial value is coulomb_c_const_lo
+    ! Note: If inverting for coulomb_c_hi and coulomb_c_lo, the initial values are coulomb_c_const_hi and coulomb_c_const_lo
     if (model%options%elevation_based_coulomb_c) then
        write(message,*) 'coulomb_c_const                              : ',model%basal_physics%coulomb_c_const
        call write_log(message)
@@ -4022,6 +4022,7 @@ contains
 
     if (options%which_ho_coulomb_c /= HO_COULOMB_C_CONSTANT) then
        if (options%elevation_based_coulomb_c) then
+          call glide_add_to_restart_variable_list('coulomb_c_hi', model_id)
           call glide_add_to_restart_variable_list('coulomb_c_lo', model_id)
        else
           call glide_add_to_restart_variable_list('coulomb_c', model_id)
@@ -4029,11 +4030,11 @@ contains
     endif
 
     ! If using the basin-scale inversion option for powerlaw_c or coulomb_c, we need a target thickness for grounded ice
-    if (options%which_ho_powerlaw_c == HO_POWERLAW_C_INVERSION_BASIN .or. &
-        options%which_ho_coulomb_c == HO_COULOMB_C_INVERSION_BASIN) then
-       ! Note: usrf_obs and velo_sfc_obs are not needed as targets on restart, but can be useful diagnostics
-       ! Note: By default, only marine-grounded ice is included in the coulomb_c target
+    if (options%which_ho_powerlaw_c == HO_POWERLAW_C_INVERSION_BASIN) then
        call glide_add_to_restart_variable_list('grounded_thck_target', model_id)
+    elseif (options%which_ho_coulomb_c == HO_COULOMB_C_INVERSION_BASIN) then
+       call glide_add_to_restart_variable_list('land_thck_target', model_id)
+       call glide_add_to_restart_variable_list('marine_thck_target', model_id)
     endif
 
     ! inversion options for ocean temperature corrections
