@@ -239,7 +239,7 @@ contains
                                              !       (use artm instead)
          spd_diag                            ! speed (m/yr)
 
-    real(dp), dimension(model%general%upn) ::  &
+    real(dp), dimension(model%general%upn-1) ::  &
          age_diag                            ! ice age (yr)
 
     real(dp), dimension(model%lithot%nlayer) ::  &
