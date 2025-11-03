@@ -28,6 +28,7 @@ module cism_parallel
 
   use netcdf
   use glimmer_global, only : dp, sp
+  use glimmer_paramets, only : iulog
   implicit none
 
   ! integers associated with the main global communicator (for communication among all tasks)
@@ -559,7 +560,7 @@ contains
        d1u = size(values,1)
     endif
     if (size(values,1) /= d1u-d1l+1) then
-       write(6,*) "size(values,1) .ne. d1u-d1l+1 in gather call"
+       write(iulog,*) "size(values,1) .ne. d1u-d1l+1 in gather call"
        call parallel_stop(__FILE__, __LINE__)
     endif
 
@@ -639,7 +640,7 @@ contains
        d1u = size(values,1)
     endif
     if (size(values,1) /= d1u-d1l+1) then
-       write(6,*) "size(values,1) .ne. d1u-d1l+1 in gather call"
+       write(iulog,*) "size(values,1) .ne. d1u-d1l+1 in gather call"
        call parallel_stop(__FILE__, __LINE__)
     endif
 
@@ -667,8 +668,8 @@ contains
     ! The row gather option is not supported for serial code.
     ! Write an error message and abort.
 
-    write(6,*) 'Error: The row gather option is not supported for serial code.'
-    write(6,*) 'Please resubmit without global tridiagonal preconditioning.'
+    write(iulog,*) 'Error: The row gather option is not supported for serial code.'
+    write(iulog,*) 'Please resubmit without global tridiagonal preconditioning.'
     call parallel_stop(__FILE__, __LINE__)
 
   end subroutine distributed_gather_var_row_real8_2d
@@ -688,8 +689,8 @@ contains
     ! The row gather option is not supported for serial code.
     ! Write an error message and abort.
 
-    write(6,*) 'Error: The row gather option is not supported for serial code.'
-    write(6,*) 'Please resubmit without global tridiagonal preconditioning.'
+    write(iulog,*) 'Error: The row gather option is not supported for serial code.'
+    write(iulog,*) 'Please resubmit without global tridiagonal preconditioning.'
     call parallel_stop(__FILE__, __LINE__)
 
   end subroutine distributed_gather_all_var_row_real8_2d
@@ -709,8 +710,8 @@ contains
     ! The column gather option is not supported for serial code.
     ! Write an error message and abort.
 
-    write(6,*) 'Error: The row gather option is not supported for serial code.'
-    write(6,*) 'Please resubmit without global tridiagonal preconditioning.'
+    write(iulog,*) 'Error: The row gather option is not supported for serial code.'
+    write(iulog,*) 'Please resubmit without global tridiagonal preconditioning.'
     call parallel_stop(__FILE__, __LINE__)
 
   end subroutine distributed_gather_var_col_real8_2d
@@ -730,8 +731,8 @@ contains
     ! The row gather option is not supported for serial code.
     ! Write an error message and abort.
 
-    write(6,*) 'Error: The row gather option is not supported for serial code.'
-    write(6,*) 'Please resubmit without global tridiagonal preconditioning.'
+    write(iulog,*) 'Error: The row gather option is not supported for serial code.'
+    write(iulog,*) 'Please resubmit without global tridiagonal preconditioning.'
     call parallel_stop(__FILE__, __LINE__)
 
   end subroutine distributed_gather_all_var_col_real8_2d
@@ -1045,24 +1046,24 @@ contains
           periodic_bc = .true.
           outflow_bc = .false.
           no_ice_bc = .false.
-          if (main_task) write(6,*) 'Setting periodic boundary conditions'
+          if (main_task) write(iulog,*) 'Setting periodic boundary conditions'
        elseif (trim(global_bc_in) == 'outflow') then
           periodic_bc = .false.
           outflow_bc = .true.
           no_ice_bc = .false.
-          if (main_task) write(6,*) 'Setting outflow boundary conditions'
+          if (main_task) write(iulog,*) 'Setting outflow boundary conditions'
        elseif (trim(global_bc_in) == 'no_penetration') then
           periodic_bc = .true.   ! Currently use the same halo logic for no_penetration and periodic
           outflow_bc = .false.
           no_ice_bc = .false.
-          if (main_task) write(6,*) 'Setting no_penetration boundary conditions'
+          if (main_task) write(iulog,*) 'Setting no_penetration boundary conditions'
        elseif (trim(global_bc_in) == 'no_ice') then
           periodic_bc = .false.
           outflow_bc = .false.
           no_ice_bc = .true.
-          if (main_task) write(6,*) 'Setting no_ice boundary conditions'
+          if (main_task) write(iulog,*) 'Setting no_ice boundary conditions'
        else
-          if (main_task) write(6,*) 'Error: Invalid global_bc option for distributed_grid subroutine'
+          if (main_task) write(iulog,*) 'Error: Invalid global_bc option for distributed_grid subroutine'
           call parallel_stop(__FILE__, __LINE__)
        endif
     else   ! default to periodic
@@ -1079,9 +1080,9 @@ contains
 
     if (present(nhalo_in)) then
        if (main_task) then
-          write(6,*) 'Setting halo values: nhalo =', nhalo_in
+          write(iulog,*) 'Setting halo values: nhalo =', nhalo_in
           if (nhalo_in < 0) then
-             write(6,*) 'ERROR: nhalo must be >= 0'
+             write(iulog,*) 'ERROR: nhalo must be >= 0'
              call parallel_stop(__FILE__, __LINE__)
           endif
        endif
@@ -1157,15 +1158,15 @@ contains
     staggered_jhi = nsn - 1 - staggered_uhalo
 
     ! Print grid geometry
-    write(6,*) "Process ", this_rank, " Total = ", tasks, " ewtasks = ", ewtasks, " nstasks = ", nstasks
-    write(6,*) "Process ", this_rank, " ewrank = ", ewrank, " nsrank = ", nsrank
-    write(6,*) "Process ", this_rank, " l_ewn = ", local_ewn, " o_ewn = ", own_ewn
-    write(6,*) "Process ", this_rank, " l_nsn = ", local_nsn, " o_nsn = ", own_nsn
-    write(6,*) "Process ", this_rank, " ewlb = ", ewlb, " ewub = ", ewub
-    write(6,*) "Process ", this_rank, " nslb = ", nslb, " nsub = ", nsub
-    write(6,*) "Process ", this_rank, " east = ", east, " west = ", west
-    write(6,*) "Process ", this_rank, " north = ", north, " south = ", south
-    write(6,*) "Process ", this_rank, " ew_vars = ", own_ewn, " ns_vars = ", own_nsn
+    write(iulog,*) "Process ", this_rank, " Total = ", tasks, " ewtasks = ", ewtasks, " nstasks = ", nstasks
+    write(iulog,*) "Process ", this_rank, " ewrank = ", ewrank, " nsrank = ", nsrank
+    write(iulog,*) "Process ", this_rank, " l_ewn = ", local_ewn, " o_ewn = ", own_ewn
+    write(iulog,*) "Process ", this_rank, " l_nsn = ", local_nsn, " o_nsn = ", own_nsn
+    write(iulog,*) "Process ", this_rank, " ewlb = ", ewlb, " ewub = ", ewub
+    write(iulog,*) "Process ", this_rank, " nslb = ", nslb, " nsub = ", nsub
+    write(iulog,*) "Process ", this_rank, " east = ", east, " west = ", west
+    write(iulog,*) "Process ", this_rank, " north = ", north, " south = ", south
+    write(iulog,*) "Process ", this_rank, " ew_vars = ", own_ewn, " ns_vars = ", own_nsn
 
     end associate
 
@@ -1190,8 +1191,8 @@ contains
     ! The active_blocks option is not supported for serial code.
     ! Write an error message and abort.
 
-    write(6,*) 'Error: The active_blocks option is not supported for serial code.'
-    write(6,*) 'Please resubmit with compute_blocks = 0.'
+    write(iulog,*) 'Error: The active_blocks option is not supported for serial code.'
+    write(iulog,*) 'Please resubmit with compute_blocks = 0.'
     call parallel_stop(__FILE__, __LINE__)
 
   end subroutine distributed_grid_active_blocks
@@ -1803,8 +1804,8 @@ contains
     ! The row scatter option is not supported for serial code.
     ! Write an error message and abort.
 
-    write(6,*) 'Error: The row scatter option is not supported for serial code.'
-    write(6,*) 'Please resubmit without global tridiagonal preconditioning.'
+    write(iulog,*) 'Error: The row scatter option is not supported for serial code.'
+    write(iulog,*) 'Please resubmit without global tridiagonal preconditioning.'
     call parallel_stop(__FILE__, __LINE__)
 
   end subroutine distributed_scatter_var_row_real8_2d
@@ -1823,8 +1824,8 @@ contains
     ! The column scatter option is not supported for serial code.
     ! Write an error message and abort.
 
-    write(6,*) 'Error: The column scatter option is not supported for serial code.'
-    write(6,*) 'Please resubmit without global tridiagonal preconditioning.'
+    write(iulog,*) 'Error: The column scatter option is not supported for serial code.'
+    write(iulog,*) 'Please resubmit without global tridiagonal preconditioning.'
     call parallel_stop(__FILE__, __LINE__)
 
   end subroutine distributed_scatter_var_col_real8_2d
@@ -1968,16 +1969,16 @@ contains
          own_nsn     => parallel%own_nsn)
 
     if (size(input_with_halo,1) /= local_ewn .or. size(input_with_halo,2) /= local_nsn) then
-       write(6,*) "Unexpected size for input_with_halo: ", &
+       write(iulog,*) "Unexpected size for input_with_halo: ", &
             size(input_with_halo,1), size(input_with_halo,2)
-       write(6,*) "Expected size is: ", local_ewn, local_nsn
+       write(iulog,*) "Expected size is: ", local_ewn, local_nsn
        call parallel_stop(__FILE__, __LINE__)
     end if
 
     if (size(output_no_halo,1) /= own_ewn .or. size(output_no_halo,2) /= own_nsn) then
-       write(6,*) "Unexpected size for output_no_halo: ", &
+       write(iulog,*) "Unexpected size for output_no_halo: ", &
             size(output_no_halo,1), size(output_no_halo,2)
-       write(6,*) "Expected size is: ", own_ewn, own_nsn
+       write(iulog,*) "Expected size is: ", own_ewn, own_nsn
        call parallel_stop(__FILE__, __LINE__)
     end if
 
@@ -2003,16 +2004,16 @@ contains
          own_nsn     => parallel%own_nsn)
 
     if (size(input_with_halo,1) /= local_ewn .or. size(input_with_halo,2) /= local_nsn) then
-       write(6,*) "Unexpected size for input_with_halo: ", &
+       write(iulog,*) "Unexpected size for input_with_halo: ", &
             size(input_with_halo,1), size(input_with_halo,2)
-       write(6,*) "Expected size is: ", local_ewn, local_nsn
+       write(iulog,*) "Expected size is: ", local_ewn, local_nsn
        call parallel_stop(__FILE__, __LINE__)
     end if
 
     if (size(output_no_halo,1) /= own_ewn .or. size(output_no_halo,2) /= own_nsn) then
-       write(6,*) "Unexpected size for output_no_halo: ", &
+       write(iulog,*) "Unexpected size for output_no_halo: ", &
             size(output_no_halo,1), size(output_no_halo,2)
-       write(6,*) "Expected size is: ", own_ewn, own_nsn
+       write(iulog,*) "Expected size is: ", own_ewn, own_nsn
        call parallel_stop(__FILE__, __LINE__)
     end if
 
@@ -2041,16 +2042,16 @@ contains
          own_nsn     => parallel%own_nsn)
     
     if (size(input_no_halo,1) /= own_ewn .or. size(input_no_halo,2) /= own_nsn) then
-       write(6,*) "Unexpected size for input_no_halo: ", &
+       write(iulog,*) "Unexpected size for input_no_halo: ", &
             size(input_no_halo,1), size(input_no_halo,2)
-       write(6,*) "Expected size is: ", own_ewn, own_nsn
+       write(iulog,*) "Expected size is: ", own_ewn, own_nsn
        call parallel_stop(__FILE__, __LINE__)
     end if
 
     if (size(output_with_halo,1) /= local_ewn .or. size(output_with_halo,2) /= local_nsn) then
-       write(6,*) "Unexpected size for output_with_halo: ", &
+       write(iulog,*) "Unexpected size for output_with_halo: ", &
             size(output_with_halo,1), size(output_with_halo,2)
-       write(6,*) "Expected size is: ", local_ewn, local_nsn
+       write(iulog,*) "Expected size is: ", local_ewn, local_nsn
        call parallel_stop(__FILE__, __LINE__)
     end if
 
@@ -2078,16 +2079,16 @@ contains
          own_nsn     => parallel%own_nsn)
     
     if (size(input_no_halo,1) /= own_ewn .or. size(input_no_halo,2) /= own_nsn) then
-       write(6,*) "Unexpected size for input_no_halo: ", &
+       write(iulog,*) "Unexpected size for input_no_halo: ", &
             size(input_no_halo,1), size(input_no_halo,2)
-       write(6,*) "Expected size is: ", own_ewn, own_nsn
+       write(iulog,*) "Expected size is: ", own_ewn, own_nsn
        call parallel_stop(__FILE__, __LINE__)
     end if
 
     if (size(output_with_halo,1) /= local_ewn .or. size(output_with_halo,2) /= local_nsn) then
-       write(6,*) "Unexpected size for output_with_halo: ", &
+       write(iulog,*) "Unexpected size for output_with_halo: ", &
             size(output_with_halo,1), size(output_with_halo,2)
-       write(6,*) "Expected size is: ", local_ewn, local_nsn
+       write(iulog,*) "Expected size is: ", local_ewn, local_nsn
        call parallel_stop(__FILE__, __LINE__)
     end if
 
@@ -2129,8 +2130,8 @@ contains
     ! A row communicator is not supported for serial code.
     ! Write an error message and abort.
 
-    write(6,*) 'Error: A row communicator is not supported for serial code.'
-    write(6,*) 'Please resubmit without global tridiagonal preconditioning.'
+    write(iulog,*) 'Error: A row communicator is not supported for serial code.'
+    write(iulog,*) 'Please resubmit without global tridiagonal preconditioning.'
     call parallel_stop(__FILE__, __LINE__)
 
   end subroutine parallel_create_comm_row
@@ -2146,8 +2147,8 @@ contains
     ! A column communicator is not supported for serial code.
     ! Write an error message and abort.
 
-    write(6,*) 'Error: A column communicator is not supported for serial code.'
-    write(6,*) 'Please resubmit without global tridiagonal preconditioning.'
+    write(iulog,*) 'Error: A column communicator is not supported for serial code.'
+    write(iulog,*) 'Please resubmit without global tridiagonal preconditioning.'
     call parallel_stop(__FILE__, __LINE__)
 
   end subroutine parallel_create_comm_col
@@ -2420,7 +2421,7 @@ contains
 
     ! unknown grid
     if (size(global_edge_mask,1)/=local_ewn .or. size(global_edge_mask,2)/=local_nsn) then
-       write(6,*) "Unknown Grid: Size a=(", size(global_edge_mask,1), ",", size(global_edge_mask,2), &
+       write(iulog,*) "Unknown Grid: Size a=(", size(global_edge_mask,1), ",", size(global_edge_mask,2), &
             ") and local_ewn and local_nsn = ", local_ewn, ",", local_nsn
        call parallel_stop(__FILE__,__LINE__)
     endif
@@ -2636,7 +2637,7 @@ contains
          ! global indices are valid
     else ! global indices are invalid 
        if (main_task) then
-          write(6,*) 'Invalid global indices: iglobal, jglobal =', iglobal, jglobal
+          write(iulog,*) 'Invalid global indices: iglobal, jglobal =', iglobal, jglobal
           call parallel_stop(__FILE__,__LINE__)
        endif
     endif
@@ -2673,7 +2674,7 @@ contains
 
     ! unknown grid
     if (size(a,1)/=local_ewn .or. size(a,2)/=local_nsn) then
-       write(6,*) "Unknown Grid: Size a=(", size(a,1), ",", size(a,2), ") and local_ewn and local_nsn = ", &
+       write(iulog,*) "Unknown Grid: Size a=(", size(a,1), ",", size(a,2), ") and local_ewn and local_nsn = ", &
             local_ewn, ",", local_nsn
        call parallel_stop(__FILE__,__LINE__)
     endif
@@ -2735,7 +2736,7 @@ contains
 
     ! unknown grid
     if (size(a,1)/=local_ewn .or. size(a,2)/=local_nsn) then
-       write(6,*) "Unknown Grid: Size a=(", size(a,1), ",", size(a,2), ") and local_ewn and local_nsn = ", &
+       write(iulog,*) "Unknown Grid: Size a=(", size(a,1), ",", size(a,2), ") and local_ewn and local_nsn = ", &
             local_ewn, ",", local_nsn
        call parallel_stop(__FILE__,__LINE__)
     endif
@@ -2797,7 +2798,7 @@ contains
 
     ! unknown grid
     if (size(a,1)/=local_ewn .or. size(a,2)/=local_nsn) then
-       write(6,*) "Unknown Grid: Size a=(", size(a,1), ",", size(a,2), ") and local_ewn and local_nsn = ", &
+       write(iulog,*) "Unknown Grid: Size a=(", size(a,1), ",", size(a,2), ") and local_ewn and local_nsn = ", &
             local_ewn, ",", local_nsn
        call parallel_stop(__FILE__,__LINE__)
     endif
@@ -2866,7 +2867,7 @@ contains
 
     ! unknown grid
     if (size(a,1)/=local_ewn .or. size(a,2)/=local_nsn) then
-       write(6,*) "Unknown Grid: Size a=(", size(a,1), ",", size(a,2), ") and local_ewn and local_nsn = ", &
+       write(iulog,*) "Unknown Grid: Size a=(", size(a,1), ",", size(a,2), ") and local_ewn and local_nsn = ", &
             local_ewn, ",", local_nsn
          call parallel_stop(__FILE__,__LINE__)
     endif
@@ -2944,7 +2945,7 @@ contains
 
     ! unknown grid
     if (size(a,2)/=local_ewn .or. size(a,3)/=local_nsn) then
-       write(6,*) "Unknown Grid: Size a=(", size(a,2), ",", size(a,3), ") and local_ewn and local_nsn = ", &
+       write(iulog,*) "Unknown Grid: Size a=(", size(a,2), ",", size(a,3), ") and local_ewn and local_nsn = ", &
             local_ewn, ",", local_nsn
          call parallel_stop(__FILE__,__LINE__)
     endif
@@ -3006,7 +3007,7 @@ contains
 
     ! unknown grid
     if (size(a,3)/=local_ewn .or. size(a,4)/=local_nsn) then
-       write(6,*) "Unknown Grid: Size a=(", size(a,2), ",", size(a,3), ",", size(a,4), ") &
+       write(iulog,*) "Unknown Grid: Size a=(", size(a,2), ",", size(a,3), ",", size(a,4), ") &
             &and local_ewn and local_nsn = ", local_ewn, ",", local_nsn
          call parallel_stop(__FILE__,__LINE__)
     endif
@@ -3138,7 +3139,7 @@ contains
 
     ! unknown grid
     if (size(a,1)/=local_ewn .or. size(a,2)/=local_nsn) then
-       write(6,*) "Unknown Grid: Size a=(", size(a,1), ",", size(a,2), ",", size(a,3), ") and local_ewn and local_nsn = ", &
+       write(iulog,*) "Unknown Grid: Size a=(", size(a,1), ",", size(a,2), ",", size(a,3), ") and local_ewn and local_nsn = ", &
             local_ewn, ",", local_nsn
          call parallel_stop(__FILE__,__LINE__)
     endif
@@ -3200,7 +3201,7 @@ contains
 
     ! unknown grid
     if (size(a,1)/=local_ewn .or. size(a,2)/=local_nsn) then
-       write(6,*) "Unknown Grid: Size a=(", size(a,1), ",", size(a,2), ",", size(a,3), &
+       write(iulog,*) "Unknown Grid: Size a=(", size(a,1), ",", size(a,2), ",", size(a,3), &
             ",", size(a,4), ") and local_ewn and local_nsn = ", &
             local_ewn, ",", local_nsn
          call parallel_stop(__FILE__,__LINE__)
@@ -4030,7 +4031,7 @@ contains
     real(dp),dimension(:,:,:) :: values
 
     ! begin
-    write(6,*) label,minval(values),maxval(values)
+    write(iulog,*) label,minval(values),maxval(values)
 
   end subroutine parallel_show_minmax
 
@@ -4071,7 +4072,7 @@ contains
 
     type(parallel_type), intent(in) :: parallel
 
-    write(6,*) 'Error: Row and column communicators are not supported for serial code.'
+    write(iulog,*) 'Error: Row and column communicators are not supported for serial code.'
     call parallel_stop(__FILE__, __LINE__)
 
   end subroutine parallel_test_comm_row_col
@@ -4136,7 +4137,7 @@ contains
 
     ! Confirm staggered array
     if (size(a,1)/=local_ewn-1 .or. size(a,2)/=local_nsn-1) then
-         write(6,*) "staggered_parallel_halo() requires staggered arrays."
+         write(iulog,*) "staggered_parallel_halo() requires staggered arrays."
          call parallel_stop(__FILE__,__LINE__)
     endif
 
@@ -4202,7 +4203,7 @@ contains
 
     ! Confirm staggered array
     if (size(a,2)/=local_ewn-1 .or. size(a,3)/=local_nsn-1) then
-         write(6,*) "staggered_parallel_halo() requires staggered arrays."
+         write(iulog,*) "staggered_parallel_halo() requires staggered arrays."
          call parallel_stop(__FILE__,__LINE__)
     endif
 
@@ -4266,7 +4267,7 @@ contains
 
     ! Confirm staggered array
     if (size(a,1)/=local_ewn-1 .or. size(a,2)/=local_nsn-1) then
-         write(6,*) "staggered_parallel_halo() requires staggered arrays."
+         write(iulog,*) "staggered_parallel_halo() requires staggered arrays."
          call parallel_stop(__FILE__,__LINE__)
     endif
 
@@ -4332,7 +4333,7 @@ contains
 
     ! Confirm staggered array
     if (size(a,2)/=local_ewn-1 .or. size(a,3)/=local_nsn-1) then
-         write(6,*) "staggered_parallel_halo() requires staggered arrays."
+         write(iulog,*) "staggered_parallel_halo() requires staggered arrays."
          call parallel_stop(__FILE__,__LINE__)
     endif
 
@@ -4405,7 +4406,7 @@ contains
 
     ! Confirm staggered array
     if (size(a,3)/=local_ewn-1 .or. size(a,4)/=local_nsn-1) then
-         write(6,*) "staggered_parallel_halo() requires staggered arrays."
+         write(iulog,*) "staggered_parallel_halo() requires staggered arrays."
          call parallel_stop(__FILE__,__LINE__)
     endif
 
@@ -4468,7 +4469,7 @@ contains
 
     ! Confirm staggered array
     if (size(a,1)/=local_ewn-1 .or. size(a,2)/=local_nsn-1) then
-         write(6,*) "staggered_parallel_halo() requires staggered arrays."
+         write(iulog,*) "staggered_parallel_halo() requires staggered arrays."
          call parallel_stop(__FILE__,__LINE__)
     endif
 
@@ -4518,7 +4519,7 @@ contains
 
     ! Confirm staggered array
     if (size(a,1)/=local_ewn-1 .or. size(a,2)/=local_nsn-1) then
-         write(6,*) "staggered_parallel_halo() requires staggered arrays."
+         write(iulog,*) "staggered_parallel_halo() requires staggered arrays."
          call parallel_stop(__FILE__,__LINE__)
     endif
 

@@ -58,7 +58,9 @@ module glimmer_paramets
 !           May want to delete this later (and declare stdout in glc_constants 
 !            for CESM runs).
 
-  integer :: stdout = 6
+  !WHL - Changing to iulog, following CTSM
+!!  integer :: stdout = 6
+  integer :: iulog = 6
 
 ! logical flag to turn on special DEBUG output (related to test points), false by default
 

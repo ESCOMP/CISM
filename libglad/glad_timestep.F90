@@ -58,7 +58,7 @@ contains
     ! Input quantities here are accumulated/average totals since the last call.
     ! Global output arrays are only valid on the main task.
     !
-    use glimmer_paramets
+    use glimmer_paramets, only: iulog, GLC_DEBUG
     use glimmer_physcon, only: rhow, rhoi
     use glimmer_log
     use glimmer_coordinates, only: coordsystem_allocate
@@ -121,17 +121,17 @@ contains
                                    instance%thermal_forcing)
 
     if (GLC_DEBUG .and. main_task) then
-       write(stdout,*) ' '
-       write(stdout,*) 'In glad_i_tstep_gcm, time =', time
-       write(stdout,*) 'next_time =', instance%next_time
-       write(stdout,*) 'Check for ice dynamics timestep'
-       write(stdout,*) 'time =', time
-       write(stdout,*) 'start_time =', instance%mbal_accum%start_time
-       write(stdout,*) 'mbal_step =', instance%mbal_tstep
-       write(stdout,*) 'mbal_accum_time =', instance%mbal_accum_time
-       write(stdout,*) 'time-start_time+mbal_tstep =', time - instance%mbal_accum%start_time + instance%mbal_tstep
-       write(stdout,*) 'ice_tstep =', instance%ice_tstep
-       write(stdout,*) 'n_icetstep =', instance%n_icetstep
+       write(iulog,*) ' '
+       write(iulog,*) 'In glad_i_tstep_gcm, time =', time
+       write(iulog,*) 'next_time =', instance%next_time
+       write(iulog,*) 'Check for ice dynamics timestep'
+       write(iulog,*) 'time =', time
+       write(iulog,*) 'start_time =', instance%mbal_accum%start_time
+       write(iulog,*) 'mbal_step =', instance%mbal_tstep
+       write(iulog,*) 'mbal_accum_time =', instance%mbal_accum_time
+       write(iulog,*) 'time-start_time+mbal_tstep =', time - instance%mbal_accum%start_time + instance%mbal_tstep
+       write(iulog,*) 'ice_tstep =', instance%ice_tstep
+       write(iulog,*) 'n_icetstep =', instance%n_icetstep
     end if
 
     ! ------------------------------------------------------------------------  
@@ -155,7 +155,7 @@ contains
        do iter = 1, instance%n_icetstep
 
           if (GLC_DEBUG .and. main_task) then
-             write (stdout,*) 'Ice sheet timestep, iteration =', iter
+             write (iulog,*) 'Ice sheet timestep, iteration =', iter
           end if
 
           ! Get average values of acab and artm and 7 layers of POP thermal forcings 
@@ -223,9 +223,9 @@ contains
           if (GLC_DEBUG .and. tasks==1) then
              il = instance%model%numerics%idiag
              jl = instance%model%numerics%jdiag
-             write (stdout,*) ' '
-             write (stdout,*) 'After glide_set_acab, glide_set_artm, glide_set_thermal_forcing: i, j =', il, jl
-             write (stdout,*) 'acab (m/y), artm (C), thermal_forcing (K) =', &
+             write (iulog,*) ' '
+             write (iulog,*) 'After glide_set_acab, glide_set_artm, glide_set_thermal_forcing: i, j =', il, jl
+             write (iulog,*) 'acab (m/y), artm (C), thermal_forcing (K) =', &
                   instance%acab(il,jl)*rhow/rhoi, instance%artm(il,jl), instance%thermal_forcing(:,il,jl)
           end if
 
@@ -307,7 +307,7 @@ contains
     endif
 
     if (GLC_DEBUG .and. main_task) then
-       write(stdout,*) 'Done in glad_i_tstep_gcm'
+       write(iulog,*) 'Done in glad_i_tstep_gcm'
     endif
 
   end subroutine glad_i_tstep_gcm

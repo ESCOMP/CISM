@@ -49,7 +49,7 @@ module glad_input_averages
   ! write a restart file by calling averages_okay_to_restart.
 
   use glimmer_global, only : dp
-  use glimmer_paramets, only: GLC_DEBUG, stdout
+  use glimmer_paramets, only: GLC_DEBUG, iulog
   use glimmer_log
   use cism_parallel, only : main_task
   

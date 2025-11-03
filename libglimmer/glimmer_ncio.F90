@@ -871,7 +871,7 @@ contains
       ! the parser ignores duplicate entries in the varlist.  
       ! (The check for the existence of variables looks like:    pos = index(NCO%vars,' acab ')  )
 
-      !write(6,*) "Original varstring:", varstring
+      !write(iulog,*) "Original varstring:", varstring
 
       if (whichdycore/=DYCORE_GLIDE) then 
           ! We want temp to become tempstag

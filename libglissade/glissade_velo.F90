@@ -44,6 +44,7 @@ contains
       ! Glissade higher-order velocity driver
 
       use glimmer_log
+      use glimmer_paramets, only: iulog
       use glimmer_physcon, only: scyr
       use glide_types
       use glissade_velo_higher, only: glissade_velo_higher_solve
@@ -112,11 +113,11 @@ contains
          if (verbose_velo .and. this_rank == rtest) then
             i = itest
             j = jtest
-            write(6,*) ' '
-            write(6,*) 'SIA part of uvel, vvel (m/yr): r, i, j =', rtest, itest, jtest
-            write(6,*) ' '
+            write(iulog,*) ' '
+            write(iulog,*) 'SIA part of uvel, vvel (m/yr): r, i, j =', rtest, itest, jtest
+            write(iulog,*) ' '
             do k = 1, upn
-               write(6,*) k, model%velocity%uvel(k,i,j)*scyr, &
+               write(iulog,*) k, model%velocity%uvel(k,i,j)*scyr, &
                              model%velocity%vvel(k,i,j)*scyr
             enddo
          endif
@@ -144,11 +145,11 @@ contains
          if (verbose_velo .and. this_rank == rtest) then
             i = itest
             j = jtest
-            write(6,*) ' '
-            write(6,*) 'SSA part of uvel, vvel (m/yr): r, i, j =', rtest, itest, jtest
-            write(6,*) ' '
+            write(iulog,*) ' '
+            write(iulog,*) 'SSA part of uvel, vvel (m/yr): r, i, j =', rtest, itest, jtest
+            write(iulog,*) ' '
             do k = 1, upn
-               write(6,*) k, model%velocity%uvel(k,i,j)*scyr, &
+               write(iulog,*) k, model%velocity%uvel(k,i,j)*scyr, &
                              model%velocity%vvel(k,i,j)*scyr
             enddo
          endif
@@ -195,11 +196,11 @@ contains
       if (verbose_velo .and. this_rank == rtest) then
          i = itest
          j = jtest
-         write(6,*) ' '
-         write(6,*) 'uvel, vvel (m/yr): r, i, j =', rtest, itest, jtest
-         write(6,*) ' '
+         write(iulog,*) ' '
+         write(iulog,*) 'uvel, vvel (m/yr): r, i, j =', rtest, itest, jtest
+         write(iulog,*) ' '
          do k = 1, upn
-            write(6,*) k, model%velocity%uvel(k,i,j)*scyr, &
+            write(iulog,*) k, model%velocity%uvel(k,i,j)*scyr, &
                           model%velocity%vvel(k,i,j)*scyr
          enddo
       endif

@@ -38,6 +38,7 @@
   module glissade_mass_balance
 
     use glimmer_global, only: dp
+    use glimmer_paramets, only: iulog
     use glimmer_log
     use glimmer_utils, only: point_diag
     use glide_types
@@ -85,7 +86,7 @@
        ! Convert units from mm/yr w.e. to m/s ice
        model%climate%acab(:,:) = (model%climate%smb(:,:) * (rhow/rhoi)/1000.d0) / scyr
        !WHL - debug
-       if (main_task) write(6,*) 'Setting acab, m/yr ice'
+       if (main_task) write(iulog,*) 'Setting acab, m/yr ice'
     endif
 
     ! Initialize artm_corrected.  This is equal to artm, plus any prescribed temperature anomaly.
@@ -308,16 +309,16 @@
        if (model%options%enable_artm_anomaly) then
           i = itest
           j = jtest
-          write(6,*) 'rank, i, j, time, anomaly timescale (yr):', &
+          write(iulog,*) 'rank, i, j, time, anomaly timescale (yr):', &
                this_rank, i, j, model%numerics%time, model%climate%artm_anomaly_timescale
-          write(6,*) '   artm, artm anomaly, corrected artm (deg C):', model%climate%artm(i,j), &
+          write(iulog,*) '   artm, artm anomaly, corrected artm (deg C):', model%climate%artm(i,j), &
                model%climate%artm_anomaly(i,j), model%climate%artm_corrected(i,j)
           if (model%options%enable_snow_anomaly) then
-             write(6,*) '   snow, snow anomaly, corrected snow (mm/yr):', model%climate%snow(i,j), &
+             write(iulog,*) '   snow, snow anomaly, corrected snow (mm/yr):', model%climate%snow(i,j), &
                   model%climate%snow_anomaly(i,j), model%climate%snow_corrected(i,j)
           endif
           if (model%options%enable_precip_anomaly) then
-             write(6,*) '   prcp, prcp anomaly, corrected prcp (mm/yr):', model%climate%precip(i,j), &
+             write(iulog,*) '   prcp, prcp anomaly, corrected prcp (mm/yr):', model%climate%precip(i,j), &
                   model%climate%precip_anomaly(i,j), model%climate%precip_corrected(i,j)
           endif
        endif   ! enable_artm_anomaly
@@ -440,7 +441,7 @@
     if (verbose_smb) then
 
        if (this_rank == rtest) then
-          write(6,*) 'Computing runtime smb with smb_input_function =', model%options%smb_input_function
+          write(iulog,*) 'Computing runtime smb with smb_input_function =', model%options%smb_input_function
        endif
        call point_diag(model%geometry%usrf, 'usrf (m)', itest, jtest, rtest, 7, 7)
 
@@ -454,13 +455,13 @@
           call point_diag(model%climate%smb, 'downscaled smb (mm/yr)', itest, jtest, rtest, 7, 7)
        elseif (model%options%smb_input_function == SMB_INPUT_FUNCTION_XYZ) then
           if (this_rank == rtest) then
-             write(6,*) ' '
-             write(6,*) 'smb_3d at each level:'
+             write(iulog,*) ' '
+             write(iulog,*) 'smb_3d at each level:'
           endif
           do k = 1, nzatm
              if (this_rank == rtest) then
-                write(6,*) ' '
-                write(6,*) 'k =', k
+                write(iulog,*) ' '
+                write(iulog,*) 'k =', k
              endif
              call point_diag(model%climate%smb_3d(k,:,:), 'smb_3d (mm/yr)', itest, jtest, rtest, 7, 7)
           enddo
@@ -481,13 +482,13 @@
           call point_diag(model%climate%artm, 'downscaled artm (deg C)', itest, jtest, rtest, 7, 7)
        elseif (model%options%artm_input_function == ARTM_INPUT_FUNCTION_XYZ) then
           if (this_rank == rtest) then
-             write(6,*) ' '
-             write(6,*) 'artm_3d at each level:'
+             write(iulog,*) ' '
+             write(iulog,*) 'artm_3d at each level:'
           endif
           do k = 1, nzatm
              if (this_rank == rtest) then
-                write(6,*) ' '
-                write(6,*) 'k =', k
+                write(iulog,*) ' '
+                write(iulog,*) 'k =', k
              endif
              call point_diag(model%climate%artm_3d(k,:,:), 'artm_3d (deg C)', itest, jtest, rtest, 7, 7)
           enddo
@@ -526,7 +527,7 @@
        if (verbose_smb .and. this_rank==rtest) then
           i = itest
           j = jtest
-          write(6,*) 'i, j, time, input smb, smb anomaly, corrected smb (mm/yr):', &
+          write(iulog,*) 'i, j, time, input smb, smb anomaly, corrected smb (mm/yr):', &
                i, j, model%numerics%time, model%climate%smb(i,j), model%climate%smb_anomaly(i,j), model%climate%smb_corrected(i,j)
        endif
 
@@ -1341,11 +1342,11 @@
              dthck = (acab(i,j) - bmlt(i,j))*dt*effective_areafrac(i,j)
              if (abs(thck_init(i,j) + dthck - thck_final(i,j) + melt_potential(i,j)) > 1.d-8) then
                 call parallel_globalindex(i, j, iglobal, jglobal, parallel)
-                write(6,*) ' '
-                write(6,*) 'ERROR: Column conservation check, r, i, j, iglobal, jglobal, err =', &
+                write(iulog,*) ' '
+                write(iulog,*) 'ERROR: Column conservation check, r, i, j, iglobal, jglobal, err =', &
                      this_rank, i, j, iglobal, jglobal, thck_init(i,j) + dthck - thck_final(i,j)
-                write(6,*) 'thck_init, dthck, thck_final:', thck_init(i,j), dthck, thck_final(i,j)
-                write(6,*) 'acab*dt, bmlt*dt, areafrac, melt_potential:', &
+                write(iulog,*) 'thck_init, dthck, thck_final:', thck_init(i,j), dthck, thck_final(i,j)
+                write(iulog,*) 'acab*dt, bmlt*dt, areafrac, melt_potential:', &
                      acab(i,j)*dt, bmlt(i,j)*dt, effective_areafrac(i,j), melt_potential(i,j)
                 write(message,*) &
                      'WARNING: Column conservation error in add_surface_and_basal_mass_balance, i, j =', i, j
@@ -1438,7 +1439,7 @@
        max_mask_local = maxval(overwrite_acab_mask)
        max_mask_global = parallel_reduce_max(max_mask_local)
        if (main_task) then
-          write(6,*) 'rank, max_mask_local, max_mask_global:', &
+          write(iulog,*) 'rank, max_mask_local, max_mask_global:', &
                this_rank, max_mask_local, max_mask_global
        endif
        if (max_mask_global == 1) then
@@ -1551,7 +1552,7 @@
        ! close to 1984.0, and we don't want to jump to the following year due to rounding error.
 
        anomaly_fraction = ceiling(time - eps08 - anomaly_tstart, dp) / anomaly_timescale
-!!       if (main_task) write(6,*) 'In add_2d_anomaly: time, frac =', time, anomaly_fraction         
+!!       if (main_task) write(iulog,*) 'In add_2d_anomaly: time, frac =', time, anomaly_fraction         
 
     else
        ! no anomaly to apply

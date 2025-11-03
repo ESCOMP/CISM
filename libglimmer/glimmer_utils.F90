@@ -35,6 +35,7 @@
 module glimmer_utils
 
   use glimmer_global, only: dp
+  use glimmer_paramets, only: iulog
 
   implicit none
 
@@ -379,10 +380,10 @@ contains
 
        if (present(fmt_str)) then
           fmtstr = trim(fmt_str)
-!          write(6,*) 'In point_diag, fmtstr = ', trim(fmtstr)
+!          write(iulog,*) 'In point_diag, fmtstr = ', trim(fmtstr)
        else
           fmtstr = '(i10)'
-!          write(6,*) 'In point_diag, fmtstr = ', trim(fmtstr)
+!          write(iulog,*) 'In point_diag, fmtstr = ', trim(fmtstr)
        endif
 
        if (mod(irange,2) == 0) then  ! even number
@@ -409,13 +410,13 @@ contains
 
        ! Write to stdout
 
-       write(6,*) ' '
-       write(6,*) trim(field_string), ': i, j, rank =', ipt, jpt, rpt
+       write(iulog,*) ' '
+       write(iulog,*) trim(field_string), ': i, j, rank =', ipt, jpt, rpt
        do j = jhi, jlo, -1    ! top to bottom
           do i = ilo, ihi     ! left to right
-             write(6,fmtstr,advance='no') field(i,j)
+             write(iulog,fmtstr,advance='no') field(i,j)
           enddo
-          write(6,*) ' '
+          write(iulog,*) ' '
        enddo
 
     endif  ! this_rank = rtest
@@ -463,10 +464,10 @@ contains
 
        if (present(fmt_str)) then
           fmtstr = trim(fmt_str)
-!          write(6,*) 'In point_diag, fmtstr = ', trim(fmtstr)
+!          write(iulog,*) 'In point_diag, fmtstr = ', trim(fmtstr)
        else
           fmtstr = '(L10)'
-!          write(6,*) 'In point_diag, fmtstr = ', trim(fmtstr)
+!          write(iulog,*) 'In point_diag, fmtstr = ', trim(fmtstr)
        endif
 
        if (mod(irange,2) == 0) then  ! even number
@@ -493,13 +494,13 @@ contains
 
        ! Write to stdout
 
-       write(6,*) ' '
-       write(6,*) trim(field_string), ': i, j, rank =', ipt, jpt, rpt
+       write(iulog,*) ' '
+       write(iulog,*) trim(field_string), ': i, j, rank =', ipt, jpt, rpt
        do j = jhi, jlo, -1    ! top to bottom
           do i = ilo, ihi     ! left to right
-             write(6,fmtstr,advance='no') field(i,j)
+             write(iulog,fmtstr,advance='no') field(i,j)
           enddo
-          write(6,*) ' '
+          write(iulog,*) ' '
        enddo
 
     endif  ! this_rank = rtest
@@ -550,7 +551,7 @@ contains
           fmtstr = '(f10.3)'
        endif
 
-!       write(6,*) 'In point_diag, fmtstr = ', trim(fmtstr)
+!       write(iulog,*) 'In point_diag, fmtstr = ', trim(fmtstr)
 
        if (mod(irange,2) == 0) then  ! even number
           ilo = ipt - irange/2
@@ -575,13 +576,13 @@ contains
        jhi = min(jhi,size(field,2))
 
        ! Write to stdout
-       write(6,*) ' '
-       write(6,*) trim(field_string), ': i, j, rank =', ipt, jpt, rpt
+       write(iulog,*) ' '
+       write(iulog,*) trim(field_string), ': i, j, rank =', ipt, jpt, rpt
        do j = jhi, jlo, -1    ! top to bottom
           do i = ilo, ihi     ! left to right
-             write(6,fmtstr,advance='no') field(i,j)
+             write(iulog,fmtstr,advance='no') field(i,j)
           enddo
-          write(6,*) ' '
+          write(iulog,*) ' '
        enddo
 
     endif  ! this_rank = rpt

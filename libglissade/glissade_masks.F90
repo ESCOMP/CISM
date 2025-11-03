@@ -39,8 +39,9 @@
   module glissade_masks
 
     use glimmer_global, only: dp
-    use glimmer_log
+    use glimmer_paramets, only: iulog
     use glimmer_physcon, only: rhoi, rhoo
+    use glimmer_log
     use glimmer_utils, only: point_diag
     use glide_types
     use cism_parallel, only: this_rank, main_task, nhalo, parallel_globalindex, &
@@ -436,8 +437,8 @@
                          thck_effective(i,j) = max_neighbor_thck - dthck_dx_cf*distance
                       endif
 !!                         call parallel_globalindex(i, j, ig, jg, parallel)
-!!                         write(6,*) 'No interior neighbor:', ig, jg, thck(i,j)
-!!                         write(6,*) '   New H_eff:', thck_effective(i,j)
+!!                         write(iulog,*) 'No interior neighbor:', ig, jg, thck(i,j)
+!!                         write(iulog,*) '   New H_eff:', thck_effective(i,j)
                    endif   ! max_neighbor_thck > 0
 
                 else   ! not a CF cell; thck_effective = thck
@@ -702,11 +703,11 @@
 
        if (global_count == global_count_save) then
           if (verbose_ice_sheet_mask .and. main_task) &
-               write(6,*) 'Fill converged: iter, global_count =', iter, global_count
+               write(iulog,*) 'Fill converged: iter, global_count =', iter, global_count
           exit
        else
           if (verbose_ice_sheet_mask .and. main_task) &
-               write(6,*) 'Convergence check: iter, global_count =', iter, global_count
+               write(iulog,*) 'Convergence check: iter, global_count =', iter, global_count
           global_count_save = global_count
        endif
 
@@ -887,11 +888,11 @@
 
        if (global_count == global_count_save) then
           if (verbose_ocean_connection_mask .and. main_task) &
-               write(6,*) 'ocean_connection_mask, fill converged: iter, global_count =', iter, global_count
+               write(iulog,*) 'ocean_connection_mask, fill converged: iter, global_count =', iter, global_count
           exit
        else
           if (verbose_ocean_connection_mask .and. main_task) &
-               write(6,*) 'ocean_connection_mask, convergence check: iter, global_count =', iter, global_count
+               write(iulog,*) 'ocean_connection_mask, convergence check: iter, global_count =', iter, global_count
           global_count_save = global_count
        endif
 
@@ -1106,11 +1107,11 @@
 
        if (global_count == global_count_save) then
           if (verbose_marine_connection .and. main_task) &
-               write(6,*) 'Fill converged: iter, global_count =', iter, global_count
+               write(iulog,*) 'Fill converged: iter, global_count =', iter, global_count
           exit
        else
           if (verbose_marine_connection .and. main_task) &
-               write(6,*) 'Convergence check: iter, global_count =', iter, global_count
+               write(iulog,*) 'Convergence check: iter, global_count =', iter, global_count
           global_count_save = global_count
        endif
 
@@ -1309,11 +1310,11 @@
 
        if (global_count == global_count_save) then
           if (verbose_lake .and. main_task) &
-               write(6,*) 'Fill converged: iter, global_count =', iter, global_count
+               write(iulog,*) 'Fill converged: iter, global_count =', iter, global_count
           exit
        else
           if (verbose_lake .and. main_task) &
-               write(6,*) 'Convergence check: iter, global_count =', iter, global_count
+               write(iulog,*) 'Convergence check: iter, global_count =', iter, global_count
           global_count_save = global_count
        endif
 
@@ -1332,7 +1333,7 @@
 
              if (verbose_lake .and. this_rank == rtest) then
                 call parallel_globalindex(i, j, ig, jg, parallel)
-                write(6,*) 'Lake cell: task, i, j, ig, jg =', this_rank, i, j, ig, jg
+                write(iulog,*) 'Lake cell: task, i, j, ig, jg =', this_rank, i, j, ig, jg
              endif
 
           endif

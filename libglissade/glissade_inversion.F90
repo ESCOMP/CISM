@@ -27,7 +27,7 @@
 module glissade_inversion
 
   use glimmer_physcon, only: scyr, grav
-  use glimmer_paramets, only: eps08
+  use glimmer_paramets, only: iulog, eps08
   use glimmer_log
   use glimmer_utils, only: point_diag
   use glide_types
@@ -187,7 +187,7 @@ contains
                 if (verbose_inversion .and. thck_obs(i,j) > 0.0d0 .and. &
                      thck_obs(i,j) + eps08 < model%inversion%thck_threshold) then
                    !WHL - debug
-                   ! write(6,*) 'thck_obs < threshold, rank, i, j, thck:', this_rank, i, j, thck_obs(i,j)
+                   ! write(iulog,*) 'thck_obs < threshold, rank, i, j, thck:', this_rank, i, j, thck_obs(i,j)
                 endif
              enddo
           enddo
@@ -562,8 +562,8 @@ contains
        if ( model%options%which_ho_powerlaw_c == HO_POWERLAW_C_INVERSION) then
 
           if (verbose_inversion .and. this_rank == rtest) then
-             write(6,*) ' '
-             write(6,*) 'Invert for local powerlaw_c'
+             write(iulog,*) ' '
+             write(iulog,*) 'Invert for local powerlaw_c'
           endif
 
           call invert_basal_friction(&
@@ -595,8 +595,8 @@ contains
        elseif ( model%options%which_ho_coulomb_c == HO_COULOMB_C_INVERSION) then
 
           if (verbose_inversion .and. this_rank == rtest) then
-             write(6,*) ' '
-             write(6,*) 'Invert for local coulomb_c'
+             write(iulog,*) ' '
+             write(iulog,*) 'Invert for local coulomb_c'
           endif
 
           call invert_basal_friction(&
@@ -689,8 +689,8 @@ contains
        ! Do the inversion
 
        if (verbose_inversion .and. this_rank == rtest) then
-          write(6,*) ' '
-          write(6,*) 'Invert for basin-scale powerlaw_c'
+          write(iulog,*) ' '
+          write(iulog,*) 'Invert for basin-scale powerlaw_c'
        endif
 
        call invert_basal_friction_basin(&
@@ -770,8 +770,8 @@ contains
        ! Do the inversion
 
        if (verbose_inversion .and. this_rank == rtest) then
-          write(6,*) ' '
-          write(6,*) 'Invert for basin-scale coulomb_c_lo'
+          write(iulog,*) ' '
+          write(iulog,*) 'Invert for basin-scale coulomb_c_lo'
        endif
 
        call invert_basal_friction_basin(&
@@ -843,8 +843,8 @@ contains
        ! Do the inversion
 
        if (verbose_inversion .and. this_rank == rtest) then
-          write(6,*) ' '
-          write(6,*) 'Invert for basin-scale coulomb_c_hi'
+          write(iulog,*) ' '
+          write(iulog,*) 'Invert for basin-scale coulomb_c_hi'
        endif
 
        call invert_basal_friction_basin(&
@@ -896,8 +896,8 @@ contains
     if ( model%options%which_ho_deltaT_ocn == HO_DELTAT_OCN_INVERSION_BASIN) then
 
        if (verbose_inversion .and. this_rank == rtest) then
-          write(6,*) ' '
-          write(6,*) 'Invert for basin-scale deltaT_ocn'
+          write(iulog,*) ' '
+          write(iulog,*) 'Invert for basin-scale deltaT_ocn'
        endif
 
        call invert_deltaT_ocn_basin(&
@@ -960,8 +960,8 @@ contains
        ! Given the thickness target, invert for deltaT_ocn
 
        if (verbose_inversion .and. this_rank == rtest) then
-          write(6,*) ' '
-          write(6,*) 'Invert for local deltaT_ocn'
+          write(iulog,*) ' '
+          write(iulog,*) 'Invert for local deltaT_ocn'
        endif
 
        call invert_deltaT_ocn(&
@@ -1065,8 +1065,8 @@ contains
             f_ground_cell_obs)
 
        if (verbose_inversion .and. this_rank == rtest) then
-          write(6,*) ' '
-          write(6,*) 'Invert for local flow enhancement factor'
+          write(iulog,*) ' '
+          write(iulog,*) 'Invert for local flow enhancement factor'
        endif
 
        call invert_flow_enhancement_factor(&
@@ -1305,15 +1305,15 @@ contains
 
           !WHL - debug
           if (verbose_inversion .and. this_rank == rtest .and. i==itest .and. j==jtest) then
-             write(6,*) ' '
-             write(6,*) 'Increment friction_c: rank, i, j =', rtest, itest, jtest
-             write(6,*) 'dx, dy, length_scale (m)=', dx, dy, babc_length_scale
-             write(6,*) 'thck (m), thck_obs, dthck, dthck_dt (m/yr):', &
+             write(iulog,*) ' '
+             write(iulog,*) 'Increment friction_c: rank, i, j =', rtest, itest, jtest
+             write(iulog,*) 'dx, dy, length_scale (m)=', dx, dy, babc_length_scale
+             write(iulog,*) 'thck (m), thck_obs, dthck, dthck_dt (m/yr):', &
                   stag_thck(i,j), stag_thck_obs(i,j), stag_dthck(i,j), stag_dthck_dt(i,j)*scyr
-             write(6,*) 'dH term, dH/dt term, laplacian term, relax term, sum =', &
+             write(iulog,*) 'dH term, dH/dt term, laplacian term, relax term, sum =', &
                   term_thck*dt, term_dHdt*dt, term_laplacian*dt, term_relax*dt, &
                   (term_thck + term_dHdt + term_laplacian + term_relax)*dt
-             write(6,*) 'dlogC, new friction_c =', dlogc(i,j), friction_c(i,j)
+             write(iulog,*) 'dlogC, new friction_c =', dlogc(i,j), friction_c(i,j)
           endif
 
        enddo  ! i
@@ -1435,8 +1435,8 @@ contains
 
     ! header for optional diagnostics
     if (verbose_inversion .and. this_rank == rtest) then
-       write(6,*) ' '
-       write(6,*) 'basin, term_thck*dt, term_dHdt*dt, term_relx*dt, new friction_c_basin:'
+       write(iulog,*) ' '
+       write(iulog,*) 'basin, term_thck*dt, term_dHdt*dt, term_relx*dt, new friction_c_basin:'
     endif
 
     ! Decrease friction_c where the ice is too thick, and increase where the ice is too thin.
@@ -1463,7 +1463,7 @@ contains
 
        ! Diagnostics
        if (verbose_inversion .and. this_rank == rtest) then
-          write(6,'(i6,5f15.7)') nb, term_thck*dt, term_dHdt*dt, term_relax*dt, friction_c_basin(nb)
+          write(iulog,'(i6,5f15.7)') nb, term_thck*dt, term_dHdt*dt, term_relax*dt, friction_c_basin(nb)
        endif
 
     enddo
@@ -1615,8 +1615,8 @@ contains
 
     ! header for optional diagnostics
     if (verbose_inversion .and. this_rank == rtest) then
-       write(6,*) ' '
-       write(6,*) 'basin, term_thck*dt, term_dHdt*dt, term_relx*dt, new deltaT_basin:'
+       write(iulog,*) ' '
+       write(iulog,*) 'basin, term_thck*dt, term_dHdt*dt, term_relx*dt, new deltaT_basin:'
     endif
 
     ! Warm the basin where the ice is too thick, and cool where the ice is too thin.
@@ -1644,7 +1644,7 @@ contains
 
        ! deltaT_basin diagnostics
        if (verbose_inversion .and. this_rank == rtest) then
-          write(6,'(i6,4f14.7)') nb, term_thck*dt, term_dHdt*dt, term_relax*dt, deltaT_basin(nb)
+          write(iulog,'(i6,4f14.7)') nb, term_thck*dt, term_dHdt*dt, term_relax*dt, deltaT_basin(nb)
        endif
 
     enddo
@@ -1819,15 +1819,15 @@ contains
           deltaT_ocn(i,j) = max(deltaT_ocn(i,j), -deltaT_ocn_maxval)
 
           if (verbose_inversion .and. this_rank == rtest .and. i==itest .and. j==jtest) then
-             write(6,*) ' '
-             write(6,*) 'Increment deltaT_ocn: rank, i, j =', rtest, itest, jtest
-             write(6,*) 'thck scale (m), temp scale (degC), timescale (yr):', &
+             write(iulog,*) ' '
+             write(iulog,*) 'Increment deltaT_ocn: rank, i, j =', rtest, itest, jtest
+             write(iulog,*) 'thck scale (m), temp scale (degC), timescale (yr):', &
                   deltaT_ocn_thck_scale, deltaT_ocn_temp_scale, deltaT_ocn_timescale/scyr
-             write(6,*) 'thck, thck_obs, err thck (m), dthck_dt (m/yr):', &
+             write(iulog,*) 'thck, thck_obs, err thck (m), dthck_dt (m/yr):', &
                   thck(i,j), thck_obs(i,j), dthck(i,j), dthck_dt(i,j)*scyr
-             write(6,*) 'term_thck, term_dHdt, term_laplacian, term_relax:', &
+             write(iulog,*) 'term_thck, term_dHdt, term_laplacian, term_relax:', &
                   term_thck*dt, term_dHdt*dt, term_laplacian*dt, term_relax*dt
-             write(6,*) 'term_sum, new dT_ocn:', &
+             write(iulog,*) 'term_sum, new dT_ocn:', &
                   (term_thck + term_dHdt + term_laplacian + term_relax)*dt, deltaT_ocn(i,j)
           endif
 
@@ -2103,18 +2103,18 @@ contains
           flow_enhancement_factor(i,j) = max(flow_enhancement_factor(i,j), flow_enhancement_factor_min)
 
           if (verbose_inversion .and. this_rank == rtest .and. i==itest .and. j==jtest) then
-             write(6,*) ' '
-             write(6,*) 'Increment flow_enhancement_factor: rank, i, j =', rtest, itest, jtest
-             write(6,*) 'dx, dy, length_scale =', dx, dy, flow_enhancement_length_scale
-             write(6,*) 'velo scale (m/yr), timescale (yr):', &
+             write(iulog,*) ' '
+             write(iulog,*) 'Increment flow_enhancement_factor: rank, i, j =', rtest, itest, jtest
+             write(iulog,*) 'dx, dy, length_scale =', dx, dy, flow_enhancement_length_scale
+             write(iulog,*) 'velo scale (m/yr), timescale (yr):', &
                   flow_enhancement_velo_scale*scyr, flow_enhancement_timescale/scyr
-             write(6,*) 'velo_sfc_cell, velo_sfc_obs, dvelo, dH_dt (m/yr):', &
+             write(iulog,*) 'velo_sfc_cell, velo_sfc_obs, dvelo, dH_dt (m/yr):', &
                   velo_sfc_cell(i,j)*scyr, velo_sfc_obs_cell(i,j)*scyr, dvelo(i,j)*scyr, dthck_dt(i,j)*scyr
-             write(6,*) 'init flow enhancement factor =', flow_enhancement_factor(i,j)
-             write(6,*) 'dvelo term, dthck/dt term, laplacian term, relax term, sum =', &
+             write(iulog,*) 'init flow enhancement factor =', flow_enhancement_factor(i,j)
+             write(iulog,*) 'dvelo term, dthck/dt term, laplacian term, relax term, sum =', &
                   term_velo*dt, term_dHdt*dt, term_laplacian*dt, term_relax*dt, &
                   (term_velo + term_dHdt + term_laplacian + term_relax)*dt
-             write(6,*) 'dlogE, new E =', dlogE(i,j), flow_enhancement_factor(i,j)
+             write(iulog,*) 'dlogE, new E =', dlogE(i,j), flow_enhancement_factor(i,j)
           endif
 
        enddo  ! i
@@ -2266,11 +2266,11 @@ contains
           volume_target_basin(nb) = volume_target_basin(nb) + &
                basin_mass_correction * (1.0d12/rhoi)   ! Gt converted to m^3
           if (verbose_inversion .and. main_task) then
-             write(6,*) ' '
-             write(6,*) 'Basin with mass correction:', basin_number_mass_correction
-             write(6,*) 'mass correction (Gt)     =', basin_mass_correction
-             write(6,*) 'volume correction (km^3) =', basin_mass_correction * (1.0d3/rhoi)
-             write(6,*) 'New volume target (km^3) =', volume_target_basin(nb) / 1.0d9
+             write(iulog,*) ' '
+             write(iulog,*) 'Basin with mass correction:', basin_number_mass_correction
+             write(iulog,*) 'mass correction (Gt)     =', basin_mass_correction
+             write(iulog,*) 'volume correction (km^3) =', basin_mass_correction * (1.0d3/rhoi)
+             write(iulog,*) 'New volume target (km^3) =', volume_target_basin(nb) / 1.0d9
           endif
        endif   ! basin_mass correction
     endif   ! present
@@ -2287,11 +2287,11 @@ contains
     endwhere
 
     if (verbose_inversion .and. this_rank == rtest) then
-       write(6,*) ' '
-       write(6,*) &
+       write(iulog,*) ' '
+       write(iulog,*) &
             'basin A_tgt(km2) V_tgt(km3) H_tgt(m) H_avg(m)  H_err(m) dH/dt(m/yr)'
        do nb = 1, nbasin
-          write(6,'(i6,2f10.0, 4f10.3)') nb, area_target_basin(nb)/1.d6, volume_target_basin(nb)/1.d9, &
+          write(iulog,'(i6,2f10.0, 4f10.3)') nb, area_target_basin(nb)/1.d6, volume_target_basin(nb)/1.d9, &
                thck_target_basin(nb), thck_basin(nb), (thck_basin(nb) - thck_target_basin(nb)), &
                dthck_dt_basin(nb)*scyr
        enddo

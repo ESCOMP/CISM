@@ -31,6 +31,7 @@ module glimmer_sparse_slap
     
     use glimmer_sparse_type
     use glimmer_global, only: dp, size_t
+    use glimmer_paramets, only: iulog
     use glimmer_log
     implicit none
 
@@ -274,20 +275,20 @@ contains
             call slap_solver_preprocess(matrix, options, workspace)
 
             if (verbose_slap) then
-               write(6,*) ' '
-               write(6,*) 'In slap_solve'
-               write(6,*) 'method =', options%base%method
-               write(6,*) 'order =', matrix%order
-               write(6,*) 'nonzeros =', matrix%nonzeros
-               write(6,*) 'isym =', isym
-               write(6,*) 'itol =', options%itol
-               write(6,*) 'tolerance =', options%base%tolerance
-               write(6,*) 'maxiters =', options%base%maxiters
-               write(6,*) 'size(row) = ', size(matrix%row)
-               write(6,*) 'size(col) = ', size(matrix%col)
-               write(6,*) 'size(val) = ', size(matrix%val)
-               write(6,*) 'size(rwork) =', size(workspace%rwork)
-               write(6,*) 'size(iwork) =', size(workspace%iwork)
+               write(iulog,*) ' '
+               write(iulog,*) 'In slap_solve'
+               write(iulog,*) 'method =', options%base%method
+               write(iulog,*) 'order =', matrix%order
+               write(iulog,*) 'nonzeros =', matrix%nonzeros
+               write(iulog,*) 'isym =', isym
+               write(iulog,*) 'itol =', options%itol
+               write(iulog,*) 'tolerance =', options%base%tolerance
+               write(iulog,*) 'maxiters =', options%base%maxiters
+               write(iulog,*) 'size(row) = ', size(matrix%row)
+               write(iulog,*) 'size(col) = ', size(matrix%col)
+               write(iulog,*) 'size(val) = ', size(matrix%val)
+               write(iulog,*) 'size(rwork) =', size(workspace%rwork)
+               write(iulog,*) 'size(iwork) =', size(workspace%iwork)
             endif
   
         ! Make a local copy of the nonzero matrix entries.
@@ -305,7 +306,7 @@ contains
         !  in the glissade velo solver.
 
         if (check_symmetry) then
-           write(6,*) 'Check symmetry...could take a while'
+           write(iulog,*) 'Check symmetry...could take a while'
            do n = 1, matrix%nonzeros
               i = matrix_row(n)
               j = matrix_col(n)
@@ -321,9 +322,9 @@ contains
                           matrix_val(n) = avg_val
                           sym_partner = .true.
                        else
-                          write(6,*) ' '
-                          write(6,*) 'Entry (i,j) not equal to (j,i)'
-                          write(6,*) 'i, j, val(i,j), val(j,i):', i, j, matrix%val(n), matrix%val(m)
+                          write(iulog,*) ' '
+                          write(iulog,*) 'Entry (i,j) not equal to (j,i)'
+                          write(iulog,*) 'i, j, val(i,j), val(j,i):', i, j, matrix%val(n), matrix%val(m)
 !!                          stop
                        endif
                     endif
@@ -331,8 +332,8 @@ contains
                  endif
               enddo
               if (.not. sym_partner) then
-                 write(6,*) ' '
-                 write(6,*) 'Entry (i,j) has no corresponding (j,i): n, i, j, val =', n, i, j, matrix%val(n)
+                 write(iulog,*) ' '
+                 write(iulog,*) 'Entry (i,j) has no corresponding (j,i): n, i, j, val =', n, i, j, matrix%val(n)
               endif
 100           continue
            enddo
@@ -348,8 +349,8 @@ contains
                case(HO_SPARSE_GMRES)   ! GMRES
 
                   if (verbose_slap) then
-                     write(6,*) 'Call dslugm (GMRES)'
-                     write(6,*)  'maxiters, tolerance =', options%base%maxiters, options%base%tolerance
+                     write(iulog,*) 'Call dslugm (GMRES)'
+                     write(iulog,*)  'maxiters, tolerance =', options%base%maxiters, options%base%tolerance
                   endif
 
                    call dslugm(matrix%order, rhs, solution, matrix%nonzeros, &
@@ -359,12 +360,12 @@ contains
                                niters, err, ierr, iunit, &
                                workspace%rwork, size(workspace%rwork), workspace%iwork, size(workspace%iwork))
 
-                  if (verbose_slap) write(6,*) 'GMRES: iters, err =', niters, err
+                  if (verbose_slap) write(iulog,*) 'GMRES: iters, err =', niters, err
 
                 case(HO_SPARSE_PCG_STANDARD)  ! PCG with incomplete Cholesky preconditioner 
 
                   if (verbose_slap) then
-                     write(6,*) 'Call dsiccg (PCG, incomplete Cholesky)'
+                     write(iulog,*) 'Call dsiccg (PCG, incomplete Cholesky)'
                   endif
 
                    !TODO - Pass in just half the matrix?
@@ -377,13 +378,13 @@ contains
                                niters, err, ierr, iunit, &
                                workspace%rwork, size(workspace%rwork), workspace%iwork, size(workspace%iwork))
 
-                  if (verbose_slap) write(6,*) 'PCG_inch: iters, err =', niters, err
+                  if (verbose_slap) write(iulog,*) 'PCG_inch: iters, err =', niters, err
 
                case (HO_SPARSE_BICG)   ! Biconjugate gradient
 
                   if (verbose_slap) then
-                     write(6,*) 'Call dslucs (biconjugate gradient)'
-                     write(6,*)  'maxiters, tolerance =', options%base%maxiters, options%base%tolerance
+                     write(iulog,*) 'Call dslucs (biconjugate gradient)'
+                     write(iulog,*)  'maxiters, tolerance =', options%base%maxiters, options%base%tolerance
                   endif
 
                   call dslucs(matrix%order, rhs, solution, matrix%nonzeros, &
@@ -392,7 +393,7 @@ contains
                               niters, err, ierr, iunit, &
                               workspace%rwork, size(workspace%rwork), workspace%iwork, size(workspace%iwork))
 
-                  if (verbose_slap) write(6,*) 'BiCG: iters, err =', niters, err
+                  if (verbose_slap) write(iulog,*) 'BiCG: iters, err =', niters, err
 
                case default
                   call write_log('Unknown method passed to SLAP solver', GM_FATAL)

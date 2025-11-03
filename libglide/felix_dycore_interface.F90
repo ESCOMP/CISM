@@ -27,6 +27,8 @@
 
 module felix_dycore_interface
 
+   use glimmer_global, only : dp
+   use glimmer_paramets, only: iulog
    use glimmer_physcon,  only : scyr
    use glide_types
    use glimmer_log
@@ -107,7 +109,7 @@ contains
       !-----------------------------------------------------------------
 
 
-      if (this_rank == 0) write(6,*) 'DEBUG: Inside felix_velo_init.'
+      if (this_rank == 0) write(iulog,*) 'DEBUG: Inside felix_velo_init.'
 
       ! === First do any preparations needed on the CISM side (if any)
 
@@ -144,8 +146,6 @@ contains
 
    subroutine felix_velo_driver(model)
 
-      use glimmer_global, only : dp
-      use glimmer_physcon, only: scyr
       use glimmer_log
       use glide_types
       use glide_mask
@@ -204,7 +204,7 @@ contains
       !-----------------------------------------------------------------
 
 
-      if (this_rank == 0) write(6,*) 'DEBUG: Inside felix_velo_driver.'
+      if (this_rank == 0) write(iulog,*) 'DEBUG: Inside felix_velo_driver.'
 
       ! === First do any preparations needed on the CISM side
 
@@ -518,18 +518,18 @@ contains
      !--------------------------------------------------------------------
 
      !IK, 9/9/13: printing for debug 
-     !write(6,*) 'In glissade_velo_higher_data! IK'
-     !write(6,*) 'Proc #: ', this_rank
-     !write(6,*) 'nx: ', nx
-     !write(6,*) 'ny: ', ny
-     !write(6,*) 'dx: ', dx
-     !write(6,*) 'dy: ', dy
-     !write(6,*) 'ewlb: ', ewlb
-     !write(6,*) 'nslb: ', nslb
-     !write(6,*) 'global_ewn:', global_ewn
-     !write(6,*) 'global_nsn:', global_nsn
-     !write(6,*) 'nhalo:', nhalo
-     !write(6,*) 'nz:', nz
+     !write(iulog,*) 'In glissade_velo_higher_data! IK'
+     !write(iulog,*) 'Proc #: ', this_rank
+     !write(iulog,*) 'nx: ', nx
+     !write(iulog,*) 'ny: ', ny
+     !write(iulog,*) 'dx: ', dx
+     !write(iulog,*) 'dy: ', dy
+     !write(iulog,*) 'ewlb: ', ewlb
+     !write(iulog,*) 'nslb: ', nslb
+     !write(iulog,*) 'global_ewn:', global_ewn
+     !write(iulog,*) 'global_nsn:', global_nsn
+     !write(iulog,*) 'nhalo:', nhalo
+     !write(iulog,*) 'nz:', nz
 
      !---------------------------------------------------------------------------------------
      ! Creation of global node numbering of vertices/nodes (IK, 9/8/13)
@@ -611,10 +611,10 @@ contains
      !numbering/coordinates 
      if (this_rank == 0) then
        do l=1, (nx-2*nhalo+1)*(ny-2*nhalo+1)*nz
-         write(6,*) 'x, y, z: ',  xyz_at_nodes(l,1), xyz_at_nodes(l,2), xyz_at_nodes(l,3)
-         write(6,*) 'global node: ', global_node_id_owned_map(l)
-         write(6,*) 'sh: ', surf_height_at_nodes(l)
-         write(6,*) 'beta: ', beta_at_nodes(l)
+         write(iulog,*) 'x, y, z: ',  xyz_at_nodes(l,1), xyz_at_nodes(l,2), xyz_at_nodes(l,3)
+         write(iulog,*) 'global node: ', global_node_id_owned_map(l)
+         write(iulog,*) 'sh: ', surf_height_at_nodes(l)
+         write(iulog,*) 'beta: ', beta_at_nodes(l)
        enddo
       endif
 
@@ -738,17 +738,17 @@ contains
     !IK, 9/12/13: printing output for debugging/checking element numbering 
     if (this_rank == 0) then
      do l=1, nCellsActive*(nz-1)
-       write(6,*) 'element connectivity active: ', global_element_conn_active(l,1:8)
-       write(6,*) 'global element #: ', global_element_id_active_owned_map(l,1)
-       write(6,*) 'flwa: ', flwa_at_active_cells(l,1)
+       write(iulog,*) 'element connectivity active: ', global_element_conn_active(l,1:8)
+       write(iulog,*) 'global element #: ', global_element_id_active_owned_map(l,1)
+       write(iulog,*) 'flwa: ', flwa_at_active_cells(l,1)
      enddo
      endif
 
     !IK, 9/12/13: printing output for debugging/checking basal face numbering 
     if (this_rank == 0) then
     do l=1, nCellsActive
-      write(6,*) 'face connectivity active: ', global_basal_face_conn_active(l,1:5)
-      write(6,*) 'global face #: ', global_basal_face_id_active_owned_map(l,1)
+      write(iulog,*) 'face connectivity active: ', global_basal_face_conn_active(l,1:5)
+      write(iulog,*) 'global face #: ', global_basal_face_id_active_owned_map(l,1)
     enddo
     endif
 

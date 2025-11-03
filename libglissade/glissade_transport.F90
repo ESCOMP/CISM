@@ -41,6 +41,7 @@
   module glissade_transport
 
     use glimmer_global, only: dp
+    use glimmer_paramets, only: iulog
     use glimmer_log
     use glissade_remap, only: glissade_horizontal_remap, make_remap_mask, puny
     use cism_parallel, only: this_rank, main_task, nhalo, lhalo, uhalo, staggered_lhalo, staggered_uhalo, &
@@ -807,11 +808,11 @@
       maxvvel = maxval(abs(vvel_layer(:,xs:xe,ys:ye)))
       ! Determine in which direction the max velocity is - Assuming dx=dy here!
       if (maxuvel > maxvvel) then
-!         write(6,*) 'max vel is in uvel'
+!         write(iulog,*) 'max vel is in uvel'
          maxvel = maxuvel
          indices_adv = maxloc(abs(uvel_layer(:,xs:xe,ys:ye)))
       else
-!         write(6,*) 'max vel is in vvel'
+!         write(iulog,*) 'max vel is in vvel'
          maxvel = maxvvel
          indices_adv = maxloc(abs(vvel_layer(:,xs:xe,ys:ye)))
       endif
@@ -856,11 +857,11 @@
       enddo
 
       ! Determine location limiting the DCFL
-!      write(6,*) 'diffu dt', my_allowable_dt_diff, indices_diff(1), indices_diff(2)
+!      write(iulog,*) 'diffu dt', my_allowable_dt_diff, indices_diff(1), indices_diff(2)
 
       ! Optional print of local limiting dt on each procesor
-      !write(6,*)'LOCAL ADV DT, POSITION', my_allowable_dt_adv, indices_adv(2), indices_adv(3)
-      !write(6,*)'LOCAL DIFF DT, POSITION', my_allowable_dt_diff, indices_diff(1), indices_diff(2)
+      !write(iulog,*)'LOCAL ADV DT, POSITION', my_allowable_dt_adv, indices_adv(2), indices_adv(3)
+      !write(iulog,*)'LOCAL DIFF DT, POSITION', my_allowable_dt_diff, indices_diff(1), indices_diff(2)
 
       ! ------------------------------------------------------------------------
       ! Now check for errors
@@ -895,13 +896,13 @@
 
           if (main_task .and. adaptive_cfl_threshold > 0.0d0) then
              if (deltat > 10.d0 * allowable_dt_adv) then
-                write(6,*) 'deltat, allowable_dt_adv, ratio =', deltat, allowable_dt_adv, deltat/allowable_dt_adv
+                write(iulog,*) 'deltat, allowable_dt_adv, ratio =', deltat, allowable_dt_adv, deltat/allowable_dt_adv
                 call write_log('Aborting with CFL violation', GM_FATAL)
              endif
              !WHL - debug
              if (deltat > allowable_dt_adv) then
-                write(6,*) 'deltat, allowable_dt_adv, ratio =', deltat, allowable_dt_adv, deltat/allowable_dt_adv
-                write(6,*) '  Limited by position', indices_adv_global(2), indices_adv_global(3)
+                write(iulog,*) 'deltat, allowable_dt_adv, ratio =', deltat, allowable_dt_adv, deltat/allowable_dt_adv
+                write(iulog,*) '  Limited by position', indices_adv_global(2), indices_adv_global(3)
              endif
           endif
 
@@ -1206,8 +1207,8 @@
        local_max = maxval(trcr(:,:,nt_ice_age,:))
        global_max = parallel_reduce_max(local_max)
        if (this_rank == rtest) then
-          write(6,*) 'Vertical remap, accuracy =', vert_remap_accuracy
-          write(6,*) 'max, min(ice_age):', global_max, global_min
+          write(iulog,*) 'Vertical remap, accuracy =', vert_remap_accuracy
+          write(iulog,*) 'max, min(ice_age):', global_max, global_min
        endif
     endif
 
@@ -1266,11 +1267,11 @@
              z2(nlyr+1) = 1.d0
 
              if (verbose_ice_age .and. i == itest .and. j == jtest .and. this_rank == rtest) then
-                write(6,*) ' '
-                write(6,*) 'Column age, r, i, j =', rtest, i, j
-                write(6,*) 'k, z1, dz, init ice_age (yr):'
+                write(iulog,*) ' '
+                write(iulog,*) 'Column age, r, i, j =', rtest, i, j
+                write(iulog,*) 'k, z1, dz, init ice_age (yr):'
                 do k = 1,nlyr
-                   write(6,'(i4,3f14.8)') k, z1(k), hlyr(i,j,k), trcr(i,j,nt_ice_age,k)/scyr
+                   write(iulog,'(i4,3f14.8)') k, z1(k), hlyr(i,j,k), trcr(i,j,nt_ice_age,k)/scyr
                 enddo
              endif
 
@@ -1432,10 +1433,10 @@
        ! print column diagnostics
        i = itest
        j = jtest
-       write(6,*) ' '
-       write(6,*) 'k, z2, hlyr, remapped ice_age (yr):'
+       write(iulog,*) ' '
+       write(iulog,*) 'k, z2, hlyr, remapped ice_age (yr):'
        do k = 1, nlyr
-          write(6,'(i4,3f14.8)') k, z2(k), hlyr(i,j,k), trcr(i,j,nt_ice_age,k)/scyr
+          write(iulog,'(i4,3f14.8)') k, z2(k), hlyr(i,j,k), trcr(i,j,nt_ice_age,k)/scyr
        enddo
     endif
 

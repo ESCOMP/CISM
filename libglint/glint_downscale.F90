@@ -117,7 +117,7 @@ contains
                                     qsmb_g,     tsfc_g,  &
                                     topo_g,     gmask)
  
-    use glimmer_paramets, only: GLC_DEBUG
+    use glimmer_paramets, only: iulog, GLC_DEBUG
     use glad_constants, only: lapse
     use glint_type
     use glint_interp, only: interp_to_local, copy_to_local
@@ -218,12 +218,12 @@ contains
                 instance%artm(i,j) = tsfc_l(i,j,0)
 
                 if (instance%acab(i,j) < 0.d0) then
-                   write (stdout,*)'ERROR: SMB is negative over bare-land point'
-                   write (stdout,*)'i, j, instance%acab(i,j) = ', i, j, instance%acab(i,j)
-                   write (stdout,*)'instance%artm(i,j) = ', instance%artm(i,j)          
-                   write (stdout,*)'qsmb_l(i,j,0) = ', qsmb_l(i,j,0)
-                   write (stdout,*)'usrf=', usrf
-                   write (stdout,*)'thck=', thck
+                   write (iulog,*)'ERROR: SMB is negative over bare-land point'
+                   write (iulog,*)'i, j, instance%acab(i,j) = ', i, j, instance%acab(i,j)
+                   write (iulog,*)'instance%artm(i,j) = ', instance%artm(i,j)          
+                   write (iulog,*)'qsmb_l(i,j,0) = ', qsmb_l(i,j,0)
+                   write (iulog,*)'usrf=', usrf
+                   write (iulog,*)'thck=', thck
                    call write_log('ERROR: SMB is negative over bare-land point',GM_FATAL,__FILE__,__LINE__)
                 endif
 
@@ -268,17 +268,17 @@ contains
     enddo ! j
 
     if (GLC_DEBUG .and. main_task) then
-       write(6,*) 'glint_downscaling_gcm, max/min qsmb_g, this_rank =', this_rank
+       write(iulog,*) 'glint_downscaling_gcm, max/min qsmb_g, this_rank =', this_rank
        do n = 0, nec
-          write(6,*) n, maxval(qsmb_g(:,:,n)), minval(qsmb_g(:,:,n))
+          write(iulog,*) n, maxval(qsmb_g(:,:,n)), minval(qsmb_g(:,:,n))
        enddo
-       write(6,*) ' '
-       write(6,*) 'glint_downscaling_gcm, max/min qsmb_l, this_rank =', this_rank
+       write(iulog,*) ' '
+       write(iulog,*) 'glint_downscaling_gcm, max/min qsmb_l, this_rank =', this_rank
        do n = 0, nec
-          write(6,*) n, maxval(qsmb_l(:,:,n)), minval(qsmb_l(:,:,n))
+          write(iulog,*) n, maxval(qsmb_l(:,:,n)), minval(qsmb_l(:,:,n))
        enddo
-       write(6,*) ' '
-       write(6,*) 'glint_downscaling_gcm, this_rank, max/min acab:', this_rank, maxval(instance%acab), minval(instance%acab)
+       write(iulog,*) ' '
+       write(iulog,*) 'glint_downscaling_gcm, this_rank, max/min acab:', this_rank, maxval(instance%acab), minval(instance%acab)
     endif
 
     deallocate(qsmb_l, tsfc_l, topo_l)

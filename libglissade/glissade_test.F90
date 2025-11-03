@@ -38,6 +38,7 @@
 module glissade_test
 
   use glimmer_global, only: dp
+  use glimmer_paramets, only: iulog
   use glimmer_log
   use glimmer_utils, only: point_diag
   use glide_types
@@ -94,8 +95,8 @@ contains
 
     integer :: itest, jtest, rtest
 
-    write(6,*) ' '
-    write(6,*) 'In glissade_test_halo, this_rank =', this_rank
+    write(iulog,*) ' '
+    write(iulog,*) 'In glissade_test_halo, this_rank =', this_rank
 
     nx = model%general%ewn
     ny = model%general%nsn
@@ -126,14 +127,14 @@ contains
     allocate(pgIDstagr3(nz,nx-1,ny-1))
 
     if (main_task) then
-       write(6,*) ' '
-       write(6,*) 'nx, ny, nz =', nx, ny, nz
-       write(6,*) 'uhalo, lhalo =', uhalo, lhalo
-       write(6,*) 'global_ewn, global_nsn =', parallel%global_ewn, parallel%global_nsn
-       write(6,*) ' '
+       write(iulog,*) ' '
+       write(iulog,*) 'nx, ny, nz =', nx, ny, nz
+       write(iulog,*) 'uhalo, lhalo =', uhalo, lhalo
+       write(iulog,*) 'global_ewn, global_nsn =', parallel%global_ewn, parallel%global_nsn
+       write(iulog,*) ' '
     endif
 
-    write(6,*) 'this_rank, global_row/col offset =', &
+    write(iulog,*) 'this_rank, global_row/col offset =', &
          this_rank, parallel%global_row_offset, parallel%global_col_offset
 
     ! Test some standard parallel_halo routines for scalars: logical_2d, integer_2d, real4_2d, real8_2d, real8_3d
@@ -498,21 +499,21 @@ contains
     adv_cfl = max (dt*umag*cos(theta)/dx, dt*umag*sin(theta)/dy)
     
     if (adv_cfl >= 1.d0) then
-       write(6,*) 'dt is too big for advective CFL; increase ntstep to', ntstep * adv_cfl
+       write(iulog,*) 'dt is too big for advective CFL; increase ntstep to', ntstep * adv_cfl
        stop
     endif
 
     ! Print some diagnostics
 
     if (main_task) then
-       write(6,*) ' '
-       write(6,*) 'In glissade_test_transport'
-       write(6,*) 'nx, ny, nz =', nx, ny, nz
-       write(6,*) 'len_path =', len_path
-       write(6,*) 'umag (m/yr) =', umag
-       write(6,*) 'dt (yr) =', dt
-       write(6,*) 'ntstep =', ntstep
-       write(6,*) 'theta (deg) =', theta * 180.d0/pi
+       write(iulog,*) ' '
+       write(iulog,*) 'In glissade_test_transport'
+       write(iulog,*) 'nx, ny, nz =', nx, ny, nz
+       write(iulog,*) 'len_path =', len_path
+       write(iulog,*) 'umag (m/yr) =', umag
+       write(iulog,*) 'dt (yr) =', dt
+       write(iulog,*) 'ntstep =', ntstep
+       write(iulog,*) 'theta (deg) =', theta * 180.d0/pi
     endif
 
     call point_diag(model%geometry%thck, 'Initial thck', itest, jtest, rtest, 7, 7)
@@ -568,7 +569,7 @@ contains
 
     enddo  ! ntstep
 
-    if (main_task) write(6,*) 'Done in glissade_test_transport'
+    if (main_task) write(iulog,*) 'Done in glissade_test_transport'
 
     deallocate(uvel)
     deallocate(vvel)

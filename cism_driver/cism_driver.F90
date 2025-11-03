@@ -27,6 +27,7 @@ program cism_driver
 
 !  use glimmer_commandline
 !  use glide
+  use glimmer_paramets, only: iulog
   use gcm_cism_interface
   use cism_parallel, only: parallel_initialise, parallel_finalise
 
@@ -34,11 +35,11 @@ program cism_driver
   type(gcm_to_cism_type) :: g2c
 
   if (command_argument_count() == 0) then
-     write(6,*) ""
-     write(6,*) "Call cism_driver with either 1 or 2 arguments. Examples:"
-     write(6,*) "cism_driver ice_sheet.config"
-     write(6,*) "cism_driver ice_sheet.config climate.config"
-     write(6,*) ""
+     write(iulog,*) ""
+     write(iulog,*) "Call cism_driver with either 1 or 2 arguments. Examples:"
+     write(iulog,*) "cism_driver ice_sheet.config"
+     write(iulog,*) "cism_driver ice_sheet.config climate.config"
+     write(iulog,*) ""
      stop
   end if
 

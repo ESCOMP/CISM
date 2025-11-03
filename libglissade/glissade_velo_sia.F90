@@ -55,6 +55,7 @@
   module glissade_velo_sia
 
     use glimmer_global, only: dp
+    use glimmer_paramets, only: iulog
     use glimmer_physcon, only: n_glen, rhoi, grav, scyr
 !    use glimmer_log, only: write_log
     use glimmer_utils, only: point_diag
@@ -223,8 +224,8 @@
     endif
 
     if (verbose_sia .and. this_rank==rtest) then
-       write(6,*) 'In glissade_velo_sia_solve'
-       write(6,*) 'rank, itest, jtest =', rtest, itest, jtest
+       write(iulog,*) 'In glissade_velo_sia_solve'
+       write(iulog,*) 'rank, itest, jtest =', rtest, itest, jtest
     endif
 
     !--------------------------------------------------------
@@ -340,8 +341,8 @@
                            gradient_margin_in = whichgradient_margin)
 
     if (verbose_sia .and. main_task) then
-       write(6,*) ' '
-       write(6,*) 'In glissade_velo_sia_solve'
+       write(iulog,*) ' '
+       write(iulog,*) 'In glissade_velo_sia_solve'
     endif
 
     if (verbose_geom) then
@@ -393,13 +394,13 @@
     endif
 
     if (verbose_interior .and. this_rank == rtest) then
-       write(6,*) 'Computed new velocity'
+       write(iulog,*) 'Computed new velocity'
        i = itest
        j = jtest
-       write(6,*) 'rank, i, j =', rtest, i, j
-       write(6,*) 'k, uvel, vvel:'
+       write(iulog,*) 'rank, i, j =', rtest, i, j
+       write(iulog,*) 'k, uvel, vvel:'
        do k = 1, nz
-          write(6,*) k, uvel(k,i,j), vvel(k,i,j)
+          write(iulog,*) k, uvel(k,i,j), vvel(k,i,j)
        enddo
     endif   ! verbose_interior
 
@@ -418,8 +419,8 @@
     if (verbose_bfric .and. this_rank==rtest) then
        i = itest
        j = jtest
-       write(6,*) ' '
-       write(6,*) 'i, j, bfricflx:', i, j, bfricflx(i,j)
+       write(iulog,*) ' '
+       write(iulog,*) 'i, j, bfricflx:', i, j, bfricflx(i,j)
     endif
 
     ! Convert back to dimensionless units before returning
@@ -769,11 +770,11 @@
     if (verbose_interior .and. this_rank==rtest) then
        i = itest
        j = jtest
-       write(6,*) ' '
-       write(6,*) 'i, j =', itest, jtest
-       write(6,*) 'k, vintfact, stagthck, dusrf_dx:'
+       write(iulog,*) ' '
+       write(iulog,*) 'i, j =', itest, jtest
+       write(iulog,*) 'k, vintfact, stagthck, dusrf_dx:'
        do k = nz-1, 1, -1
-          write(6,*) k, vintfact(k,i,j), stagthck(i,j), dusrf_dx(i,j)
+          write(iulog,*) k, vintfact(k,i,j), stagthck(i,j), dusrf_dx(i,j)
        enddo
     endif
 
@@ -921,15 +922,15 @@
     if (verbose_bfric .and. this_rank==rtest) then
        i = itest
        j = jtest
-       write(6,*) 'i, j:', i, j
-       write(6,*) ' '
-       write(6,*) 'speed:'
+       write(iulog,*) 'i, j:', i, j
+       write(iulog,*) ' '
+       write(iulog,*) 'speed:'
        do j = jtest+1, jtest, -1
-          write(6,*) j, sqrt(uvel(i:i+1,j)**2 + vvel(i:i+1,j)**2)
+          write(iulog,*) j, sqrt(uvel(i:i+1,j)**2 + vvel(i:i+1,j)**2)
        enddo
-       write(6,*) 'stagbfricflx:'
+       write(iulog,*) 'stagbfricflx:'
        do j = jtest+1, jtest, -1
-          write(6,*) j, stagbfricflx(i:i+1,j)
+          write(iulog,*) j, stagbfricflx(i:i+1,j)
        enddo
     endif
 

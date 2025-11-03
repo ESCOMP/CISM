@@ -164,16 +164,16 @@ contains
     g_water_out = 0.d0 ; g_water_in = 0.d0
 
     if (GLC_DEBUG .and. main_task) then
-       write(stdout,*) ' '
-       write(stdout,*) 'In glint_i_tstep, time =', time
-       write(stdout,*) 'next_time =', instance%next_time
-       write(stdout,*) 'Check for ice dynamics timestep'
-       write(stdout,*) 'start_time =', instance%mbal_accum%start_time
-       write(stdout,*) 'mbal_step =', instance%mbal_tstep
-       write(stdout,*) 'mbal_accum_time =', instance%mbal_accum_time
-       write(stdout,*) 'time-start_time+mbal_tstep =', time - instance%mbal_accum%start_time + instance%mbal_tstep
-       write(stdout,*) 'ice_tstep =', instance%ice_tstep
-       write(stdout,*) 'n_icetstep =', instance%n_icetstep
+       write(iulog,*) ' '
+       write(iulog,*) 'In glint_i_tstep, time =', time
+       write(iulog,*) 'next_time =', instance%next_time
+       write(iulog,*) 'Check for ice dynamics timestep'
+       write(iulog,*) 'start_time =', instance%mbal_accum%start_time
+       write(iulog,*) 'mbal_step =', instance%mbal_tstep
+       write(iulog,*) 'mbal_accum_time =', instance%mbal_accum_time
+       write(iulog,*) 'time-start_time+mbal_tstep =', time - instance%mbal_accum%start_time + instance%mbal_tstep
+       write(iulog,*) 'ice_tstep =', instance%ice_tstep
+       write(iulog,*) 'n_icetstep =', instance%n_icetstep
     end if
 
     ! ------------------------------------------------------------------------  
@@ -212,7 +212,7 @@ contains
        do i = 1, instance%n_icetstep
 
           if (GLC_DEBUG .and. main_task) then
-             write (stdout,*) 'Ice sheet timestep, iteration =', i
+             write (iulog,*) 'Ice sheet timestep, iteration =', i
           end if
 
           ! Calculate the initial ice volume (scaled and converted to water equivalent)
@@ -258,9 +258,9 @@ contains
           if (GLC_DEBUG .and. tasks==1) then
              il = instance%model%numerics%idiag
              jl = instance%model%numerics%jdiag
-             write (stdout,*) ' '
-             write (stdout,*) 'After glide_set_acab, glide_set_artm: i, j =', il, jl
-             write (stdout,*) 'acab (m/y), artm (C) =', instance%acab(il,jl)*rhow/rhoi, instance%artm(il,jl)
+             write (iulog,*) ' '
+             write (iulog,*) 'After glide_set_acab, glide_set_artm: i, j =', il, jl
+             write (iulog,*) 'acab (m/y), artm (C) =', instance%acab(il,jl)*rhow/rhoi, instance%artm(il,jl)
           end if
 
           ! Adjust glint acab and ablt for output
@@ -497,7 +497,7 @@ contains
     ! Input quantities here are accumulated/average totals since the last call.
     ! Global output arrays are only valid on the main task.
     !
-    use glimmer_paramets
+    use glimmer_paramets, only: iulog, GLC_DEBUG
     use glimmer_physcon, only: rhow, rhoi
     use glimmer_log
     use glimmer_coordinates, only: coordsystem_allocate
@@ -529,7 +529,7 @@ contains
     integer :: i, il, jl
 
     if (GLC_DEBUG .and. main_task) then
-       write(6,*) 'In glint_i_tstep_gcm'
+       write(iulog,*) 'In glint_i_tstep_gcm'
     endif
 
     ice_tstep = .false.
@@ -559,17 +559,17 @@ contains
 
 
     if (GLC_DEBUG .and. main_task) then
-       write(stdout,*) ' '
-       write(stdout,*) 'In glint_i_tstep_gcm, time =', time
-       write(stdout,*) 'next_time =', instance%next_time
-       write(stdout,*) 'Check for ice dynamics timestep'
-       write(stdout,*) 'time =', time
-       write(stdout,*) 'start_time =', instance%mbal_accum%start_time
-       write(stdout,*) 'mbal_step =', instance%mbal_tstep
-       write(stdout,*) 'mbal_accum_time =', instance%mbal_accum_time
-       write(stdout,*) 'time-start_time+mbal_tstep =', time - instance%mbal_accum%start_time + instance%mbal_tstep
-       write(stdout,*) 'ice_tstep =', instance%ice_tstep
-       write(stdout,*) 'n_icetstep =', instance%n_icetstep
+       write(iulog,*) ' '
+       write(iulog,*) 'In glint_i_tstep_gcm, time =', time
+       write(iulog,*) 'next_time =', instance%next_time
+       write(iulog,*) 'Check for ice dynamics timestep'
+       write(iulog,*) 'time =', time
+       write(iulog,*) 'start_time =', instance%mbal_accum%start_time
+       write(iulog,*) 'mbal_step =', instance%mbal_tstep
+       write(iulog,*) 'mbal_accum_time =', instance%mbal_accum_time
+       write(iulog,*) 'time-start_time+mbal_tstep =', time - instance%mbal_accum%start_time + instance%mbal_tstep
+       write(iulog,*) 'ice_tstep =', instance%ice_tstep
+       write(iulog,*) 'n_icetstep =', instance%n_icetstep
     end if
 
     ! ------------------------------------------------------------------------  
@@ -591,7 +591,7 @@ contains
        do i = 1, instance%n_icetstep
 
           if (GLC_DEBUG .and. main_task) then
-             write (stdout,*) 'Ice sheet timestep, iteration =', i
+             write (iulog,*) 'Ice sheet timestep, iteration =', i
           end if
 
           ! Get average values of acab and artm during mbal_accum_time
@@ -638,9 +638,9 @@ contains
           if (GLC_DEBUG .and. tasks==1) then
              il = instance%model%numerics%idiag
              jl = instance%model%numerics%jdiag
-             write (stdout,*) ' '
-             write (stdout,*) 'After glide_set_acab, glide_set_artm: i, j =', il, jl
-             write (stdout,*) 'acab (m/y), artm (C) =', instance%acab(il,jl)*rhow/rhoi, instance%artm(il,jl)
+             write (iulog,*) ' '
+             write (iulog,*) 'After glide_set_acab, glide_set_artm: i, j =', il, jl
+             write (iulog,*) 'acab (m/y), artm (C) =', instance%acab(il,jl)*rhow/rhoi, instance%artm(il,jl)
           end if
 
           ! Adjust glint acab and ablt for output
@@ -709,7 +709,7 @@ contains
     endif
 
     if (GLC_DEBUG .and. main_task) then
-       write(stdout,*) 'Done in glint_i_tstep_gcm'
+       write(iulog,*) 'Done in glint_i_tstep_gcm'
     endif
 
   end subroutine glint_i_tstep_gcm

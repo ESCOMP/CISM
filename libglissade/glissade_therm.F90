@@ -55,6 +55,7 @@
 module glissade_therm
 
     use glimmer_global, only : dp 
+    use glimmer_paramets, only: iulog
     use glide_types
     use glimmer_log
     use cism_parallel, only: this_rank, broadcast, parallel_globalindex
@@ -280,8 +281,8 @@ module glissade_therm
 
              if (verbose_therm .and. this_rank==rtest .and. ew==itest .and. ns==jtest) then
                 verbose_column = .true.
-                write(6,*) ' '
-                write(6,*) 'Initial temperature diagnostics: rank, i, j =', this_rank, ew, ns
+                write(iulog,*) ' '
+                write(iulog,*) 'Initial temperature diagnostics: rank, i, j =', this_rank, ew, ns
              else
                 verbose_column = .false.
              endif
@@ -480,11 +481,11 @@ module glissade_therm
        endif  ! thck > 0
 
        if (verbose_column) then
-          write(6,*) 'thck (m), acab (m/yr), artm(deg C) =', thck, acab*scyr, artm
-          write(6,*) ' '
-          write(6,*) 'Initial temperature profile: k, temperature:'
+          write(iulog,*) 'thck (m), acab (m/yr), artm(deg C) =', thck, acab*scyr, artm
+          write(iulog,*) ' '
+          write(iulog,*) 'Initial temperature profile: k, temperature:'
           do k = 0, upn
-             write(6,*) k, temp(k)
+             write(iulog,*) k, temp(k)
           enddo
        endif
 
@@ -842,17 +843,17 @@ module glissade_therm
                                         thck(ew,ns),        enthalpy(0:upn,ew,ns))
 
                 if (verbose_column) then
-                   write(6,*) ' '
-                   write(6,*) 'Before prognostic enthalpy, i, j =', ew, ns
-                   write(6,*) 'thck =', thck(ew,ns)
-                   write(6,*) 'Temp, waterfrac, enthalpy/(rhoi*shci):'
+                   write(iulog,*) ' '
+                   write(iulog,*) 'Before prognostic enthalpy, i, j =', ew, ns
+                   write(iulog,*) 'thck =', thck(ew,ns)
+                   write(iulog,*) 'Temp, waterfrac, enthalpy/(rhoi*shci):'
                    k = 0
-                   write(6,*) k, temp(k,ew,ns), 0.d0, enthalpy(k,ew,ns)/(rhoi*shci)
+                   write(iulog,*) k, temp(k,ew,ns), 0.d0, enthalpy(k,ew,ns)/(rhoi*shci)
                    do k = 1, upn-1
-                      write(6,*) k, temp(k,ew,ns), waterfrac(k,ew,ns), enthalpy(k,ew,ns)/(rhoi*shci)
+                      write(iulog,*) k, temp(k,ew,ns), waterfrac(k,ew,ns), enthalpy(k,ew,ns)/(rhoi*shci)
                    enddo
                    k = upn
-                   write(6,*) k, temp(k,ew,ns), 0.d0, enthalpy(k,ew,ns)/(rhoi*shci)
+                   write(iulog,*) k, temp(k,ew,ns), 0.d0, enthalpy(k,ew,ns)/(rhoi*shci)
                 endif
 
                 ! compute initial internal energy in column (for energy conservation check)
@@ -885,11 +886,11 @@ module glissade_therm
                 
                 !WHL - debug
                 if (verbose_column) then
-                   write(6,*) ' '
-                   write(6,*) 'After matrix elements, i, j =', ew, ns
-                   write(6,*) 'k, subd, diag, supd, rhs/(rhoi*ci):'
+                   write(iulog,*) ' '
+                   write(iulog,*) 'After matrix elements, i, j =', ew, ns
+                   write(iulog,*) 'k, subd, diag, supd, rhs/(rhoi*ci):'
                    do k = 1, upn+1
-                      write(6,*) k-1, subd(k), diag(k), supd(k), rhsd(k)/(rhoi*shci)
+                      write(iulog,*) k-1, subd(k), diag(k), supd(k), rhsd(k)/(rhoi*shci)
                    enddo
                 endif
 
@@ -934,17 +935,17 @@ module glissade_therm
                 endif
 
                 if (verbose_column) then
-                   write(6,*) ' '
-                   write(6,*) 'After prognostic enthalpy, i, j =', ew, ns
-                   write(6,*) 'thck =', thck(ew,ns)
-                   write(6,*) 'Temp, waterfrac, enthalpy/(rhoi*shci):'
+                   write(iulog,*) ' '
+                   write(iulog,*) 'After prognostic enthalpy, i, j =', ew, ns
+                   write(iulog,*) 'thck =', thck(ew,ns)
+                   write(iulog,*) 'Temp, waterfrac, enthalpy/(rhoi*shci):'
                    k = 0
-                   write(6,*) k, temp(k,ew,ns), 0.d0, enthalpy(k,ew,ns)/(rhoi*shci)
+                   write(iulog,*) k, temp(k,ew,ns), 0.d0, enthalpy(k,ew,ns)/(rhoi*shci)
                    do k = 1, upn-1
-                      write(6,*) k, temp(k,ew,ns), waterfrac(k,ew,ns), enthalpy(k,ew,ns)/(rhoi*shci)
+                      write(iulog,*) k, temp(k,ew,ns), waterfrac(k,ew,ns), enthalpy(k,ew,ns)/(rhoi*shci)
                    enddo
                    k = upn
-                   write(6,*) k, temp(k,ew,ns), 0.d0, enthalpy(k,ew,ns)/(rhoi*shci)
+                   write(iulog,*) k, temp(k,ew,ns), 0.d0, enthalpy(k,ew,ns)/(rhoi*shci)
                 endif
                 
                 ! compute the final internal energy
@@ -958,27 +959,27 @@ module glissade_therm
              else   ! whichtemp = TEMP_PROGNOSTIC
 
                 if (verbose_column) then
-                   write(6,*) ' '
-                   write(6,*) 'Before prognostic temp, i, j =', ew, ns
-                   write(6,*) ' '
-                   write(6,*) 'bfricflx =', bfricflx(ew,ns)
-                   write(6,*) 'bhydroflx =', bhydroflx(ew,ns)
-                   write(6,*) 'dissip (deg/yr):'
+                   write(iulog,*) ' '
+                   write(iulog,*) 'Before prognostic temp, i, j =', ew, ns
+                   write(iulog,*) ' '
+                   write(iulog,*) 'bfricflx =', bfricflx(ew,ns)
+                   write(iulog,*) 'bhydroflx =', bhydroflx(ew,ns)
+                   write(iulog,*) 'dissip (deg/yr):'
                    do k = 1, upn-1
-                      write(6,*) k, dissip(k,ew,ns)*scyr
+                      write(iulog,*) k, dissip(k,ew,ns)*scyr
                    enddo
-                   write(6,*) ' '
-                   write(6,*) 'thck =', thck(ew,ns)
-                   write(6,*) 'Temp:'
+                   write(iulog,*) ' '
+                   write(iulog,*) 'thck =', thck(ew,ns)
+                   write(iulog,*) 'Temp:'
                    do k = 0, upn
-                      write(6,*) k, temp(k,ew,ns)
+                      write(iulog,*) k, temp(k,ew,ns)
                    enddo
-                   write(6,*) ' '
-                   write(6,*) 'bpmp =', bpmp(ew,ns)
-                   write(6,*) 'bpmp - btemp_ground =', bpmp(ew,ns) - btemp_ground(ew,ns)
+                   write(iulog,*) ' '
+                   write(iulog,*) 'bpmp =', bpmp(ew,ns)
+                   write(iulog,*) 'bpmp - btemp_ground =', bpmp(ew,ns) - btemp_ground(ew,ns)
                    if (which_ho_ground == HO_GROUND_GLP_DELUXE) then
-                      write(6,*) ' '
-                      write(6,*) 'f_ground_cell, btemp_ground, btemp_float =', &
+                      write(iulog,*) ' '
+                      write(iulog,*) 'f_ground_cell, btemp_ground, btemp_float =', &
                            f_ground_cell(ew,ns), btemp_ground(ew,ns), btemp_float(ew,ns)
                    endif
                 endif
@@ -1012,10 +1013,10 @@ module glissade_therm
                                                           pmp_threshold)
                 
                 if (verbose_column) then
-                   write(6,*) 'After matrix elements, i, j =', ew,ns
-                   write(6,*) 'k, subd, diag, supd, rhsd:'
+                   write(iulog,*) 'After matrix elements, i, j =', ew,ns
+                   write(iulog,*) 'k, subd, diag, supd, rhsd:'
                    do k = 1, upn+1
-                      write(6,*) k, subd(k), diag(k), supd(k), rhsd(k)
+                      write(iulog,*) k, subd(k), diag(k), supd(k), rhsd(k)
                    enddo
                 endif
 
@@ -1086,19 +1087,19 @@ module glissade_therm
                 endif   ! which_ho_ground
 
                 if (verbose_column) then
-                   write(6,*) ' '
-                   write(6,*) 'After prognostic temp, i, j =', ew, ns
-                   write(6,*) 'Temp:'
+                   write(iulog,*) ' '
+                   write(iulog,*) 'After prognostic temp, i, j =', ew, ns
+                   write(iulog,*) 'Temp:'
                    do k = 0, upn
-                      write(6,*) k, temp(k,ew,ns)
+                      write(iulog,*) k, temp(k,ew,ns)
                    enddo
-                   write(6,*) ' '
-                   write(6,*) 'bpmp - btemp_ground =', bpmp(ew,ns) - btemp_ground(ew,ns)
-                   write(6,*) ' '
-                   write(6,*) 'dTbot(ground) =', btemp_ground(ew,ns) - temp(upn-1,ew,ns)
-                   write(6,*) 'dTbot(float) =', btemp_float(ew,ns) - temp(upn-1,ew,ns)
-                   write(6,*) 'lcondflx_ground, lcondflx_float:', lcondflx_ground(ew,ns), lcondflx_float(ew,ns)
-                   write(6,*) 'lcondflx:', lcondflx(ew,ns)
+                   write(iulog,*) ' '
+                   write(iulog,*) 'bpmp - btemp_ground =', bpmp(ew,ns) - btemp_ground(ew,ns)
+                   write(iulog,*) ' '
+                   write(iulog,*) 'dTbot(ground) =', btemp_ground(ew,ns) - temp(upn-1,ew,ns)
+                   write(iulog,*) 'dTbot(float) =', btemp_float(ew,ns) - temp(upn-1,ew,ns)
+                   write(iulog,*) 'lcondflx_ground, lcondflx_float:', lcondflx_ground(ew,ns), lcondflx_float(ew,ns)
+                   write(iulog,*) 'lcondflx:', lcondflx(ew,ns)
                 endif
                 
                 ! compute the final internal energy
@@ -1134,27 +1135,27 @@ module glissade_therm
 !!             if (abs((efinal-einit-delta_e)/(efinal)) > 1.0d-8) then
 
                 if (verbose_column) then
-                   write(6,*) 'Ice thickness:', thck(ew,ns)
-                   write(6,*) 'thklim_temp:', thklim_temp
-                   write(6,*) ' '
-                   write(6,*) 'Interior fluxes:'
-                   write(6,*) 'ftop (pos up)=', -ucondflx(ew,ns) 
-                   write(6,*) 'fbot (pos up)=', -lcondflx(ew,ns)
-                   write(6,*) 'fdissip =',       dissipcol(ew,ns)
-                   write(6,*) 'Net flux =', delta_e/dttem
-                   write(6,*) ' '
-                   write(6,*) 'delta_e =', delta_e
-                   write(6,*) 'einit =',  einit
-                   write(6,*) 'efinal =', efinal
-                   write(6,*) 'einit + delta_e =', einit + delta_e
-                   write(6,*) ' '
-                   write(6,*) 'Energy imbalance =', efinal - einit - delta_e
-                   write(6,*) ' '
-                   write(6,*) 'Basal fluxes:'
-                   write(6,*) 'bfricflx =', bfricflx(ew,ns)
-                   write(6,*) 'bheatflx =', -bheatflx(ew,ns)
-                   write(6,*) 'bhydroflx =', bhydroflx(ew,ns)
-                   write(6,*) 'flux for bottom melting =', &
+                   write(iulog,*) 'Ice thickness:', thck(ew,ns)
+                   write(iulog,*) 'thklim_temp:', thklim_temp
+                   write(iulog,*) ' '
+                   write(iulog,*) 'Interior fluxes:'
+                   write(iulog,*) 'ftop (pos up)=', -ucondflx(ew,ns) 
+                   write(iulog,*) 'fbot (pos up)=', -lcondflx(ew,ns)
+                   write(iulog,*) 'fdissip =',       dissipcol(ew,ns)
+                   write(iulog,*) 'Net flux =', delta_e/dttem
+                   write(iulog,*) ' '
+                   write(iulog,*) 'delta_e =', delta_e
+                   write(iulog,*) 'einit =',  einit
+                   write(iulog,*) 'efinal =', efinal
+                   write(iulog,*) 'einit + delta_e =', einit + delta_e
+                   write(iulog,*) ' '
+                   write(iulog,*) 'Energy imbalance =', efinal - einit - delta_e
+                   write(iulog,*) ' '
+                   write(iulog,*) 'Basal fluxes:'
+                   write(iulog,*) 'bfricflx =', bfricflx(ew,ns)
+                   write(iulog,*) 'bheatflx =', -bheatflx(ew,ns)
+                   write(iulog,*) 'bhydroflx =', bhydroflx(ew,ns)
+                   write(iulog,*) 'flux for bottom melting =', &
                         bfricflx(ew,ns) + bhydroflx(ew,ns) - bheatflx(ew,ns) + lcondflx(ew,ns)
                 endif   ! verbose_column
 
@@ -1172,8 +1173,8 @@ module glissade_therm
           call parallel_globalindex(istop, jstop, istop_global, jstop_global, parallel)
           call broadcast(istop_global, proc=this_rank)
           call broadcast(istop_global, proc=this_rank)
-          write(6,*) 'ERROR: Energy not conserved in glissade_therm, rank, i, j =', this_rank, istop, jstop
-          write(6,*) 'Global i, j:', istop_global, jstop_global
+          write(iulog,*) 'ERROR: Energy not conserved in glissade_therm, rank, i, j =', this_rank, istop, jstop
+          write(iulog,*) 'Global i, j:', istop_global, jstop_global
           write(message,*) 'ERROR: Energy not conserved in glissade_therm' //  &
                ' (could be caused by a CFL violation), global i, j =', istop_global, jstop_global
           call write_log(message,GM_FATAL)
@@ -1249,14 +1250,14 @@ module glissade_therm
     if (verbose_therm .and. this_rank == rtest) then
        ew = itest
        ns = jtest
-       write(6,*) ' '
-       write(6,*) 'After basal melting, i, j =', ew, ns
-       write(6,*) 'Temp:'
+       write(iulog,*) ' '
+       write(iulog,*) 'After basal melting, i, j =', ew, ns
+       write(iulog,*) 'Temp:'
        do k = 0, upn
-          write(6,*) k, temp(k,ew,ns)
+          write(iulog,*) k, temp(k,ew,ns)
        enddo
-       write(6,*) ' '
-       write(6,*) 'bpmp - btemp =', bpmp(ew,ns) - temp(upn,ew,ns) 
+       write(iulog,*) ' '
+       write(iulog,*) 'bpmp - btemp =', bpmp(ew,ns) - temp(upn,ew,ns) 
     endif
 
     ! Calculate internal melting for layers with T > Tpmp
@@ -1278,8 +1279,8 @@ module glissade_therm
     if (verbose_therm .and. this_rank == rtest) then
        ew = itest
        ns = jtest
-       write(6,*) 'bmlt_ground (m/yr) w/out internal melt:', bmlt_ground(ew,ns)*scyr
-       write(6,*) 'Internal melt (m/yr):', melt_internal(ew,ns)*scyr
+       write(iulog,*) 'bmlt_ground (m/yr) w/out internal melt:', bmlt_ground(ew,ns)*scyr
+       write(iulog,*) 'Internal melt (m/yr):', melt_internal(ew,ns)*scyr
     endif
 
     bmlt_ground(:,:) = bmlt_ground(:,:) + melt_internal(:,:)
@@ -1302,10 +1303,10 @@ module glissade_therm
           
           if (mintemp < mintemp_threshold) then
              !uncommment these lines to get more info
-!             write(6,*) 'thck =', thck(ew,ns)
-!             write(6,*) 'temp:'
+!             write(iulog,*) 'thck =', thck(ew,ns)
+!             write(iulog,*) 'temp:'
 !             do k = 1, upn
-!                write(6,*) k, temp(k,ew,ns)
+!                write(iulog,*) k, temp(k,ew,ns)
 !             enddo
              call parallel_globalindex(ew, ns, ew_global, ns_global, parallel)
              write(message,*) 'mintemp < mintemp_threshold: this_rank, i, j, i_global, j_global, mintemp =', &
@@ -1594,17 +1595,17 @@ module glissade_therm
 
     !WHL - debug                                                                                                                       
     if (verbose_column) then
-       write(6,*) ' '
-       write(6,*) 'Computing enthalpy matrix elements'
-       write(6,*) 'k, temp, wfrac, enthalpy/(rhoi*ci), pmpt:'
+       write(iulog,*) ' '
+       write(iulog,*) 'Computing enthalpy matrix elements'
+       write(iulog,*) 'k, temp, wfrac, enthalpy/(rhoi*ci), pmpt:'
        up = 0
-       write(6,*) up, temp(up), 0.d0, enthalpy(up)/(rhoi*shci)
+       write(iulog,*) up, temp(up), 0.d0, enthalpy(up)/(rhoi*shci)
        do up = 1, upn-1
-          write(6,*) up, temp(up), waterfrac(up), &
+          write(iulog,*) up, temp(up), waterfrac(up), &
                enthalpy(up)/(rhoi*shci), pmptemp(up)
        enddo
        up = upn
-       write(6,*) up, temp(up), 0.d0, enthalpy(up)/(rhoi*shci), bpmp
+       write(iulog,*) up, temp(up), 0.d0, enthalpy(up)/(rhoi*shci), bpmp
     endif
 
     !WHL - Commenting out the following and replacing it with a new way of computing alpha.
@@ -1675,8 +1676,8 @@ module glissade_therm
 
 !WHL - debug
     if (verbose_column) then
-       write(6,*) ' '
-       write(6,*) 'k, denth_T/(rhoi*shci), denth/(rhoi*shci), alpha_fact, alpha_enth(up):'
+       write(iulog,*) ' '
+       write(iulog,*) 'k, denth_T/(rhoi*shci), denth/(rhoi*shci), alpha_fact, alpha_enth(up):'
     endif
 
     ! Compute factors relating the temperature gradient to the total enthalpy gradient.
@@ -1702,7 +1703,7 @@ module glissade_therm
 
 !WHL - debug
        if (verbose_column) then
-          write(6,*) up, denth_T/(rhoi*shci), denth/(rhoi*shci), alpha_fact, alpha_enth(up)
+          write(iulog,*) up, denth_T/(rhoi*shci), denth/(rhoi*shci), alpha_fact, alpha_enth(up)
        endif
 
     end do
@@ -1751,9 +1752,9 @@ module glissade_therm
        !WHL - debug
        if (verbose_column) then
           up = upn-1
-          write(6,*) 'temp(upn-1), pmptemp(upn-1):', temp(up), pmptemp(up)
+          write(iulog,*) 'temp(upn-1), pmptemp(upn-1):', temp(up), pmptemp(up)
           up = upn
-          write(6,*) 'temp(upn), pmptemp(upn):', temp(up), bpmp
+          write(iulog,*) 'temp(upn), pmptemp(upn):', temp(up), bpmp
        endif
 
     ! Positive-Thickness Basal Temperate Boundary Layer
@@ -1769,7 +1770,7 @@ module glissade_therm
 
           !WHL - debug
           if (verbose_column) then
-             write(6,*) 'basal BC: branch 1 (finite-thck BL)'
+             write(iulog,*) 'basal BC: branch 1 (finite-thck BL)'
           endif
 
        !Zero-Thickness Basal Temperate Boundary Layer
@@ -1783,14 +1784,14 @@ module glissade_therm
           
           !WHL - debug
           if (verbose_column) then
-             write(6,*) 'basal BC: branch 2 (zero-thck BL)'
+             write(iulog,*) 'basal BC: branch 2 (zero-thck BL)'
           endif
           
        else
           
           !WHL - debug
           if (verbose_column) then
-             write(6,*) 'basal BC: branch 3 (cold ice)'
+             write(iulog,*) 'basal BC: branch 3 (cold ice)'
           endif
           
           ! frozen at bed
@@ -1976,11 +1977,11 @@ module glissade_therm
              !       In that case, bwat_diag (not bwat) holds the diagnosed basal water depth.
 
              if (verbose_therm .and. ew == itest .and. ns == jtest .and. this_rank == rtest) then
-                write(6,*) ' '
-                write(6,*) 'In glissade_basal_melting_ground, r, i, j, =', rtest, itest, jtest
-                write(6,*) 'bmlt_ground (m/yr):', bmlt_ground(ew,ns)*scyr
-                write(6,*) 'btemp_ground:', btemp_ground(ew,ns)
-                write(6,*) 'bpmp - btemp_ground:', bpmp(ew,ns) - btemp_ground(ew,ns)
+                write(iulog,*) ' '
+                write(iulog,*) 'In glissade_basal_melting_ground, r, i, j, =', rtest, itest, jtest
+                write(iulog,*) 'bmlt_ground (m/yr):', bmlt_ground(ew,ns)*scyr
+                write(iulog,*) 'btemp_ground:', btemp_ground(ew,ns)
+                write(iulog,*) 'bpmp - btemp_ground:', bpmp(ew,ns) - btemp_ground(ew,ns)
              endif
 
              if (bmlt_ground(ew,ns) < 0.0d0 .and. bwat(ew,ns) == 0.0d0 .and. &
@@ -1991,9 +1992,9 @@ module glissade_therm
                 bmlt_ground(ew,ns) = 0.0d0   ! Set freeze-on to zero since no water is present
 
                 if (verbose_therm .and. ew == itest .and. ns == jtest .and. this_rank == rtest) then
-                   write(6,*) 'bmlt_ground < 0; set bmlt_ground = 0 and reduce btemp_ground:'
-                   write(6,*) 'New btemp_ground:', btemp_ground(ew,ns)
-                   write(6,*) 'New bpmp - btemp_ground:', bpmp(ew,ns) - btemp_ground(ew,ns)
+                   write(iulog,*) 'bmlt_ground < 0; set bmlt_ground = 0 and reduce btemp_ground:'
+                   write(iulog,*) 'New btemp_ground:', btemp_ground(ew,ns)
+                   write(iulog,*) 'New bpmp - btemp_ground:', bpmp(ew,ns) - btemp_ground(ew,ns)
                 endif
 
              endif

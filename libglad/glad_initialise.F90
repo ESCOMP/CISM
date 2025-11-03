@@ -231,10 +231,10 @@ contains
     instance%next_time = force_start - force_dt + instance%mbal_tstep
 
     if (GLC_DEBUG .and. main_task) then
-       write (6,*) 'Called glad_mbc_init'
-       write (6,*) 'mbal tstep =', instance%mbal_tstep
-       write (6,*) 'next_time =', instance%next_time
-       write (6,*) 'start_time =', instance%mbal_accum%start_time
+       write(iulog,*) 'Called glad_mbc_init'
+       write(iulog,*) 'mbal tstep =', instance%mbal_tstep
+       write(iulog,*) 'next_time =', instance%next_time
+       write(iulog,*) 'start_time =', instance%mbal_accum%start_time
     end if
 
     ! Mass-balance accumulation length

@@ -39,6 +39,7 @@
 module glissade_grid_operators
 
     use glimmer_global, only: dp
+    use glimmer_paramets, only: iulog
     use glimmer_physcon, only: pi
     use glimmer_log
     use glide_types
@@ -1224,8 +1225,8 @@ contains
           total_count = parallel_reduce_sum(total_count)
 
           if (main_task) then
-             write(6,*) '   max_slope_count, total_count =', max_slope_count, total_count
-             write(6,*) '   cell fraction with slope limiting =', real(max_slope_count)/real(total_count)
+             write(iulog,*) '   max_slope_count, total_count =', max_slope_count, total_count
+             write(iulog,*) '   cell fraction with slope limiting =', real(max_slope_count)/real(total_count)
           endif
 
        endif   ! count_max_slope
@@ -2166,7 +2167,7 @@ contains
     do iter = 1, max_iter
 
        if (verbose_extrapolate) then
-          if (this_rank == rtest) write(6,*) 'glissade_scalar_extrapolate, iteration =', iter
+          if (this_rank == rtest) write(iulog,*) 'glissade_scalar_extrapolate, iteration =', iter
        endif
 
        ! Make a copy of the current output field
@@ -2261,18 +2262,18 @@ contains
 
           if (global_count == global_count_save) then
              if (verbose_extrapolate .and. main_task) &
-                  write(6,*) 'Extrapolation converged: iter, global_count =', iter, global_count
+                  write(iulog,*) 'Extrapolation converged: iter, global_count =', iter, global_count
              exit
           else
              if (verbose_extrapolate .and. main_task) &
-                  write(6,*) 'Extrapolation convergence check: iter, global_count =', iter, global_count
+                  write(iulog,*) 'Extrapolation convergence check: iter, global_count =', iter, global_count
              global_count_save = global_count
           endif
 
        endif   ! time for a convergence check
 
        if (iter == max_iter) then
-          write(6,*) 'iter = max_iter:', max_iter
+          write(iulog,*) 'iter = max_iter:', max_iter
           call write_log('Extrapolation error; number of filled cells has not plateaued', GM_FATAL)
        endif
 
@@ -2284,7 +2285,7 @@ contains
        do i = 1, nx
           if (output_mask(i,j) == 1 .and. filled_mask(i,j) == 0) then
              call parallel_globalindex(i, j, iglobal, jglobal, parallel)
-!!             write(6,*) 'i, j, iglobal, jglobal:', i, j, iglobal, jglobal
+!!             write(iulog,*) 'i, j, iglobal, jglobal:', i, j, iglobal, jglobal
              write(message,*) &
                   'Extrapolation warning: did not fill cell i, j =', iglobal, jglobal
 !!             call write_log(message, GM_FATAL)

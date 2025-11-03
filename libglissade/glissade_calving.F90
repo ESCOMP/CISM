@@ -31,14 +31,15 @@ module glissade_calving
 
   use glide_types
   use glimmer_global, only: dp
+  use glimmer_paramets, only: iulog, eps11
+  use glimmer_physcon, only: rhoi, rhoo, grav, scyr
   use glimmer_log
+  use glimmer_utils, only: point_diag
+
   use cism_parallel, only: this_rank, main_task, nhalo, &
        parallel_halo, parallel_globalindex, &
        parallel_reduce_sum, parallel_reduce_max, parallel_reduce_log_or
 
-  use glimmer_paramets, only: eps11
-  use glimmer_physcon, only: rhoi, rhoo, grav, scyr
-  use glimmer_utils, only: point_diag
 
   implicit none
 
@@ -107,11 +108,11 @@ contains
 
        ! calving_mask was read from the input file; do not need to compute a mask here
 
-       if (main_task) write(6,*) 'Calving_mask was read from the input file'
+       if (main_task) write(iulog,*) 'Calving_mask was read from the input file'
 
     elseif (calving_front_x > 0.0d0 .or. calving_front_y > 0.0d0) then
 
-       if (main_task) write(6,*) 'Computing calving_mask based on calving_front_x/y'
+       if (main_task) write(iulog,*) 'Computing calving_mask based on calving_front_x/y'
 
        ! initialize
        calving_mask(:,:) = 0   ! no calving by default
@@ -166,7 +167,7 @@ contains
     else  ! compute the calving mask based on the initial ice extent
  
        if (main_task) then
-          write(6,*) 'Computing calving_mask based on initial ice extent'
+          write(iulog,*) 'Computing calving_mask based on initial ice extent'
        endif
 
        ! initialize
@@ -204,7 +205,7 @@ contains
 !                   calving_mask(i,j) = 0
 !                   call parallel_globalindex(i, j, iglobal, jglobal, parallel)
 !                   if (verbose_calving) then   ! debug
-!                      write(6,*) 'ocean cell with uobs, vobs > 0: ig, jg =', iglobal, jglobal
+!                      write(iulog,*) 'ocean cell with uobs, vobs > 0: ig, jg =', iglobal, jglobal
 !                   endif
 !                else
 !                   calving_mask(i,j) = 1   ! calve ice in this cell
@@ -392,14 +393,14 @@ contains
     nz = size(sigma)
 
     if (which_calving == CALVING_NONE) then   ! do nothing
-       if (verbose_calving .and. main_task) write(6,*) 'No calving'
+       if (verbose_calving .and. main_task) write(iulog,*) 'No calving'
        return
     endif
 
     if (verbose_calving .and. main_task) then
-       write(6,*) ' '
-       write(6,*) 'In glissade_calve_ice, which_calving =', which_calving
-       write(6,*) 'calving_domain =', calving_domain
+       write(iulog,*) ' '
+       write(iulog,*) 'In glissade_calve_ice, which_calving =', which_calving
+       write(iulog,*) 'calving_domain =', calving_domain
     endif
 
     !WHL - Not sure if this update is needed
@@ -591,7 +592,7 @@ contains
           enddo
           total_cf_length =  parallel_reduce_sum(total_cf_length)
           if (this_rank == rtest) then
-             write(6,*) 'Total CF length (km)', total_cf_length/1000.d0
+             write(iulog,*) 'Total CF length (km)', total_cf_length/1000.d0
           endif
        endif
 
@@ -878,8 +879,8 @@ contains
           enddo
           total_ice_area = parallel_reduce_sum(total_ice_area)
           if (this_rank == rtest) then
-             write(6,*) 'Total ice area (km^2)=', total_ice_area/1.0d6
-             write(6,*) 'Quadrant area (km^2)=', total_ice_area/4.0d6
+             write(iulog,*) 'Total ice area (km^2)=', total_ice_area/1.0d6
+             write(iulog,*) 'Quadrant area (km^2)=', total_ice_area/4.0d6
           endif
 
           if (verbose_calving) then
@@ -1005,7 +1006,7 @@ contains
              do i = 2, nx-1
 
                 if (verbose_calving .and. i==itest .and. j==jtest .and. this_rank==rtest) then
-                   write(6,*) 'task, i, j, ice_mask, floating_mask:',  &
+                   write(iulog,*) 'task, i, j, ice_mask, floating_mask:',  &
                         this_rank, i, j, ice_mask(i,j), floating_mask(i,j)
                 endif
 
@@ -1037,7 +1038,7 @@ contains
              if (calving_law_mask(i,j) .and. calving_domain_mask(i,j)) then
 
                 if (verbose_calving .and. this_rank==rtest .and. thck(i,j) > 0.0d0) then
-!!                   write(6,*) 'Calve ice: task, i, j, calving_thck =', this_rank, i, j, float_fraction_calve * thck(i,j)
+!!                   write(iulog,*) 'Calve ice: task, i, j, calving_thck =', this_rank, i, j, float_fraction_calve * thck(i,j)
                 endif
 
                 calving%calving_thck(i,j) = calving%calving_thck(i,j) + float_fraction_calve * thck(i,j)
@@ -1134,7 +1135,7 @@ contains
                          thck(iup,jup) = thck(iup,jup) + dthck
                          thck(i,j) = thck(i,j) - dthck
 !                         if (verbose_calving .and. i==itest .and. j==jtest .and. this_rank==rtest) then
-!                            write(6,*) '   Upstream ii, jj, frac:', ii, jj, flux_in(ii,jj,i,j)/total_flux
+!                            write(iulog,*) '   Upstream ii, jj, frac:', ii, jj, flux_in(ii,jj,i,j)/total_flux
 !                         endif
                       endif
                    enddo
@@ -1264,7 +1265,7 @@ contains
     real(dp) :: theta               ! angle relative to x or y axis
 
     if (abs(dx - dy) > eps11) then
-       write(6,*) 'Error, compute_calving_front_length_radial, this_rank, i, j,', this_rank, i, j
+       write(iulog,*) 'Error, compute_calving_front_length_radial, this_rank, i, j,', this_rank, i, j
        call write_log('Must have dx = dy for the cf_length method', GM_FATAL)
     endif
 
@@ -1281,7 +1282,7 @@ contains
              absx = abs(x1(i))
              absy = abs(y1(j))
              if (absx == 0.0d0 .and. absy == 0.0d0) then
-                write(6,*) 'Error, compute_calving_front_length_radial, this_rank, i, j,', this_rank, i, j
+                write(iulog,*) 'Error, compute_calving_front_length_radial, this_rank, i, j,', this_rank, i, j
                 call write_log('Cannot compute angle for CF cell at the origin', GM_FATAL)
              else
                 if (absx >= absy) then
@@ -2355,11 +2356,11 @@ contains
 
        if (count == count_save) then
 !!          if (verbose_calving .and. main_task) &
-!!               write(6,*) 'Fill converged: iter, global_count =', iter, global_count
+!!               write(iulog,*) 'Fill converged: iter, global_count =', iter, global_count
           exit
        else
 !!          if (verbose_calving .and. main_task) &
-!!               write(6,*) 'Convergence check: iter, global_count =', iter, global_count
+!!               write(iulog,*) 'Convergence check: iter, global_count =', iter, global_count
           count_save = count
        endif
 
@@ -2378,7 +2379,7 @@ contains
 
     if (verbose_calving) then
 !       if (main_task) then
-!          write(6,*) 'boundary_color, initial color, fill color:', &
+!          write(iulog,*) 'boundary_color, initial color, fill color:', &
 !               boundary_color, initial_color, fill_color
 !       endif
        call point_diag(color, 'After damage, color', itest, jtest, rtest, 9, 9, '(i8)')
@@ -2471,12 +2472,12 @@ contains
     endif
 
     if (verbose_calving .and. this_rank==rtest) then
-       write(6,*) ' '
-       write(6,*) 'Time (yr)', time/scyr
-       write(6,*) 'CF advance_retreat_rate (m/yr) =', cf_advance_retreat_rate*scyr
-       write(6,*) 'Net CF advance (km):', cf_net_advance / 1000.d0
-       write(6,*) 'Prescribed radius (km):', 750.d0 + cf_net_advance/1000.d0
-       write(6,*) 'Prescribed circumference (km):', 2.d0*pi*(750.d0 + cf_net_advance/1000.d0)
+       write(iulog,*) ' '
+       write(iulog,*) 'Time (yr)', time/scyr
+       write(iulog,*) 'CF advance_retreat_rate (m/yr) =', cf_advance_retreat_rate*scyr
+       write(iulog,*) 'Net CF advance (km):', cf_net_advance / 1000.d0
+       write(iulog,*) 'Prescribed radius (km):', 750.d0 + cf_net_advance/1000.d0
+       write(iulog,*) 'Prescribed circumference (km):', 2.d0*pi*(750.d0 + cf_net_advance/1000.d0)
     endif
 
     ! Loop over locally owned cells
@@ -2609,8 +2610,8 @@ contains
 
              !WHL - debug
              if (verbose_calving .and. i==itest .and. j==jtest .and. this_rank==rtest) then
-                write(6,*) 'Calve upstream: dthck, input flux (m^3/yr)=', calving_dthck(i,j), total_flux*scyr
-                write(6,*) '   No. of upstream cells =', count
+                write(iulog,*) 'Calve upstream: dthck, input flux (m^3/yr)=', calving_dthck(i,j), total_flux*scyr
+                write(iulog,*) '   No. of upstream cells =', count
              endif
 
              ! Calve ice in the upstream neighbors
@@ -2626,7 +2627,7 @@ contains
                          calving_thck(iup,jup) = calving_thck(iup,jup) + my_dthck
                          calving_dthck(i,j) = calving_dthck(i,j) - my_dthck
 !                         if (verbose_calving .and. i==itest .and. j==jtest .and. this_rank==rtest) then
-!                            write(6,*) '   Upstream ii, jj, frac, remaining calving_dthck:', &
+!                            write(iulog,*) '   Upstream ii, jj, frac, remaining calving_dthck:', &
 !                                 ii, jj, flux_in(ii,jj,i,j)/total_flux, calving_dthck(i,j)
 !                         endif
                       endif
@@ -2706,10 +2707,10 @@ contains
              enddo
 
              if (verbose_calving .and. abs(i-itest)<=1 .and. abs(j-jtest)<=1 .and. this_rank==rtest) then
-                write(6,*) ' '
-                write(6,*) 'Excess ice: rank, i, j, dthck, downstream flux (m^3/s)=', &
+                write(iulog,*) ' '
+                write(iulog,*) 'Excess ice: rank, i, j, dthck, downstream flux (m^3/s)=', &
                      this_rank, i, j, thck(i,j) - thck_effective(i,j), total_flux
-                write(6,*) '   No. of downstream cells =', count
+                write(iulog,*) '   No. of downstream cells =', count
              endif
 
              ! Move ice to its downstream ocean neighbors
@@ -2723,7 +2724,7 @@ contains
                          thck(idn,jdn) = thck(idn,jdn) + my_dthck
                          thck(i,j) = thck(i,j) - my_dthck
                          if (verbose_calving .and. abs(i-itest)<=1 .and. abs(j-jtest)<=1 .and. this_rank==rtest) then
-                            write(6,*) '   Downstream ii, jj, frac:', ii, jj, flux_in(-ii,-jj,idn,jdn)/total_flux
+                            write(iulog,*) '   Downstream ii, jj, frac:', ii, jj, flux_in(-ii,-jj,idn,jdn)/total_flux
                          endif
                       endif
                    enddo
@@ -2924,11 +2925,11 @@ contains
 
        if (global_count == global_count_save) then
 !!          if (verbose_calving .and. main_task) &
-!!               write(6,*) 'Fill converged: iter, global_count =', iter, global_count
+!!               write(iulog,*) 'Fill converged: iter, global_count =', iter, global_count
           exit
        else
 !!          if (verbose_calving .and. main_task) &
-!!               write(6,*) 'Convergence check: iter, global_count =', iter, global_count
+!!               write(iulog,*) 'Convergence check: iter, global_count =', iter, global_count
           global_count_save = global_count
        endif
 
@@ -3487,7 +3488,7 @@ contains
     ! The code assumes a circular domain with center at (0,0).
     ! The logic depends on whether the N, S, E and W axes pass through cell centers or edges.
 
-    if (this_rank == rtest) write(6,*) 'Locate_calving_front for calvingMIP, rtest =', rtest
+    if (this_rank == rtest) write(iulog,*) 'Locate_calving_front for calvingMIP, rtest =', rtest
 
     ! Determine whether the x and y axes passes through cell centers, or through cell edges.
     ! They should pass through one or the other.
@@ -3520,16 +3521,16 @@ contains
     enddo
 
 !    if (x_axis_thru_centers) then
-!       write(6,*) this_rank, 'x_axis_thru_centers', x_axis_thru_centers
+!       write(iulog,*) this_rank, 'x_axis_thru_centers', x_axis_thru_centers
 !    endif
 !    if (y_axis_thru_centers) then
-!       write(6,*) this_rank, 'y_axis_thru_centers', y_axis_thru_centers
+!       write(iulog,*) this_rank, 'y_axis_thru_centers', y_axis_thru_centers
 !    endif
 !    if (x_axis_thru_edges) then
-!       write(6,*) this_rank, 'x_axis_thru_edges', x_axis_thru_edges
+!       write(iulog,*) this_rank, 'x_axis_thru_edges', x_axis_thru_edges
 !    endif
 !    if (y_axis_thru_edges) then
-!       write(6,*) this_rank, 'y_axis_thru_edges', y_axis_thru_edges
+!       write(iulog,*) this_rank, 'y_axis_thru_edges', y_axis_thru_edges
 !    endif
 
     cf_location(:,:) = 0.0d0
@@ -3787,11 +3788,11 @@ contains
     call broadcast(cf_location(:,axis), proc=procnum)
 
     if (verbose_calving .and. main_task) then
-       write(6,*) ' '
-       write(6,*) 'Circular domain: axis, CF location, radius (km)'
+       write(iulog,*) ' '
+       write(iulog,*) 'Circular domain: axis, CF location, radius (km)'
        do axis = 1, 8
           radius = sqrt(cf_location(1,axis)**2 + cf_location(2,axis)**2)
-          write(6,'(i4,3f10.3)') axis, cf_location(:,axis)/1000.d0, radius/1000.d0
+          write(iulog,'(i4,3f10.3)') axis, cf_location(:,axis)/1000.d0, radius/1000.d0
        enddo
     endif
 
@@ -4031,10 +4032,10 @@ contains
     enddo
 
     if (verbose_calving .and. this_rank ==rtest) then
-!       write(6,*) 'Caprona B intersection points: i, x, y, areafrac'
+!       write(iulog,*) 'Caprona B intersection points: i, x, y, areafrac'
 !       do i = nhalo+1, nx-nhalo
 !          if (y_int(i) /= 0.0d0) then
-!             write(6,'(i4,3f10.3)'), i, x1(i)/1000.d0, y_int(i)/1000.d0, areafrac_int(i)
+!             write(iulog,'(i4,3f10.3)'), i, x1(i)/1000.d0, y_int(i)/1000.d0, areafrac_int(i)
 !          endif
 !       enddo
     endif
@@ -4047,11 +4048,11 @@ contains
           cf_location(1,axis) = x1(i) + frac_dist*dx
           cf_location(2,axis) = y_int(i) + frac_dist*dist_y
           if (verbose_calving .and. this_rank == rtest) then
-!             write(6,*) '1st IP: x, y, a_eff =', x1(i)/1000.d0, y_int(i)/1000.d0, areafrac_int(i)
-!             write(6,*) '2nd IP: x, y, a_eff =', x1(i+1)/1000.d0, y_int(i+1)/1000.d0, areafrac_int(i+1)
-!             write(6,*) 'dist_y, frac_dist =', dist_y/1000.d0, frac_dist
-!             write(6,*) 'CF location =', cf_location(1,axis)/1000.d0, cf_location(2,axis)/1000.d0
-!             write(6,*) 'residual y - (mx + b):', cf_location(2,axis) - slope*cf_location(1,axis) - y_intercept
+!             write(iulog,*) '1st IP: x, y, a_eff =', x1(i)/1000.d0, y_int(i)/1000.d0, areafrac_int(i)
+!             write(iulog,*) '2nd IP: x, y, a_eff =', x1(i+1)/1000.d0, y_int(i+1)/1000.d0, areafrac_int(i+1)
+!             write(iulog,*) 'dist_y, frac_dist =', dist_y/1000.d0, frac_dist
+!             write(iulog,*) 'CF location =', cf_location(1,axis)/1000.d0, cf_location(2,axis)/1000.d0
+!             write(iulog,*) 'residual y - (mx + b):', cf_location(2,axis) - slope*cf_location(1,axis) - y_intercept
           endif
           exit
        endif
@@ -4145,11 +4146,11 @@ contains
     call broadcast(cf_location(:,axis), proc=procnum)
 
     if (verbose_calving .and. main_task) then
-       write(6,*) ' '
-       write(6,*) 'Thule domain: axis, CF location, radius (km)'
+       write(iulog,*) ' '
+       write(iulog,*) 'Thule domain: axis, CF location, radius (km)'
        do axis = 1, 8
           radius = sqrt(cf_location(1,axis)**2 + cf_location(2,axis)**2)
-          write(6,'(i4,3f10.3)') axis, cf_location(:,axis)/1000.d0, radius/1000.d0
+          write(iulog,'(i4,3f10.3)') axis, cf_location(:,axis)/1000.d0, radius/1000.d0
        enddo
     endif
 

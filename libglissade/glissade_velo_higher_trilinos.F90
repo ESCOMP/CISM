@@ -39,6 +39,7 @@
   module glissade_velo_higher_trilinos
 
     use glimmer_global, only: dp
+    use glimmer_paramets, only: iulog
     use cism_parallel, only: this_rank, main_task, nhalo, staggered_parallel_halo
 
     implicit none
@@ -471,9 +472,9 @@
        global_row = 2*global_node_id(k,i,j) - 1
 
 !WHL - debug
-!       write(6,*) ' '
-!       write(6,*) 'n, i, j, k', n, i, j, k
-!       write(6,*) 'global_node_id, global_row:', global_node_id(k,i,j), global_row
+!       write(iulog,*) ' '
+!       write(iulog,*) 'n, i, j, k', n, i, j, k
+!       write(iulog,*) 'global_node_id, global_row:', global_node_id(k,i,j), global_row
       
        ncol = 0
        global_column(:) = 0
@@ -928,8 +929,8 @@
        velocityResult     ! velocity solution vector from Trilinos
 
     if (main_task) then
-       write(6,*) ' '
-       write(6,*) 'Solve trilinos test matrix, tasks =', tasks
+       write(iulog,*) ' '
+       write(iulog,*) 'Solve trilinos test matrix, tasks =', tasks
     endif
 
     if (tasks == 1) then
@@ -943,7 +944,7 @@
        nNodesSolve = 1
        allocate(active_owned_unknown_map(2*nNodesSolve))
        active_owned_unknown_map(:) = (/ 1,2 /)
-       write(6,*) 'initializetgs, rank =', this_rank
+       write(iulog,*) 'initializetgs, rank =', this_rank
        call initializetgs(2*nNodesSolve, active_owned_unknown_map, comm)
 
        ! insert rows
@@ -957,7 +958,7 @@
        global_column(:) = (/ 1,2 /)
        matrix_value(:)  = (/ 1,2 /)
        rhs_value = 3
-       write(6,*) 'insertrowtgs, rank, row =', this_rank, global_row
+       write(iulog,*) 'insertrowtgs, rank, row =', this_rank, global_row
        call insertrowtgs(global_row, ncol, global_column, matrix_value, rhs_value)
 
        ! row 2 (global ID = 2)
@@ -966,16 +967,16 @@
        global_column(:) = (/ 1,2 /)
        matrix_value(:)  = (/ 3,4 /)
        rhs_value = 7
-       write(6,*) 'insertrowtgs, rank, row =', this_rank, global_row
+       write(iulog,*) 'insertrowtgs, rank, row =', this_rank, global_row
        call insertrowtgs(global_row, ncol, global_column, matrix_value, rhs_value)
 
        ! solve
        allocate(velocityResult(2*nNodesSolve))
-       write(6,*) 'solvevelocitytgs, rank =', this_rank
+       write(iulog,*) 'solvevelocitytgs, rank =', this_rank
        call solvevelocitytgs(velocityResult)
 
        ! print solution
-       write(6,*) 'rank, solution:', this_rank, velocityResult(:)
+       write(iulog,*) 'rank, solution:', this_rank, velocityResult(:)
 
     elseif (tasks == 2) then
 
@@ -1000,7 +1001,7 @@
        elseif (this_rank==1) then
           active_owned_unknown_map(:) = (/ 4,6 /)
        endif
-       write(6,*) 'initializetgs, rank =', this_rank
+       write(iulog,*) 'initializetgs, rank =', this_rank
        call initializetgs(2*nNodesSolve, active_owned_unknown_map, comm)
 
        ! insert rows
@@ -1013,7 +1014,7 @@
           global_column(:) = (/ 1,3,6,0 /)
           matrix_value(:)  = (/ 1,2,3,0 /)
           rhs_value = 7
-          write(6,*) 'insertrowtgs, rank, row =', this_rank, global_row
+          write(iulog,*) 'insertrowtgs, rank, row =', this_rank, global_row
           call insertrowtgs(global_row, ncol, global_column, matrix_value, rhs_value)
        
           ! row 2 (global ID = 3)
@@ -1022,7 +1023,7 @@
           global_column(:) = (/ 1,3,4,0 /)
           matrix_value(:)  = (/ 4,5,6,0 /)
           rhs_value = 10
-          write(6,*) 'insertrowtgs, rank, row =', this_rank, global_row
+          write(iulog,*) 'insertrowtgs, rank, row =', this_rank, global_row
           call insertrowtgs(global_row, ncol, global_column, matrix_value, rhs_value)
 
        elseif (this_rank==1) then
@@ -1033,7 +1034,7 @@
           global_column(:) = (/ 1,3,4,6 /)
           matrix_value(:)  = (/ 7,8,9,10 /)
           rhs_value = 36
-          write(6,*) 'insertrowtgs, rank, row =', this_rank, global_row
+          write(iulog,*) 'insertrowtgs, rank, row =', this_rank, global_row
           call insertrowtgs(global_row, ncol, global_column, matrix_value, rhs_value)
 
           ! row 2 (global ID = 6)
@@ -1042,18 +1043,18 @@
           global_column(:) = (/ 3,4,6,0 /)
           matrix_value(:)  = (/ 11,12,13,0 /)
           rhs_value = 38
-          write(6,*) 'insertrowtgs, rank, row =', this_rank, global_row
+          write(iulog,*) 'insertrowtgs, rank, row =', this_rank, global_row
           call insertrowtgs(global_row, ncol, global_column, matrix_value, rhs_value)
 
        endif
 
        ! solve
        allocate(velocityResult(2*nNodesSolve))
-       write(6,*) 'solvevelocitytgs, rank =', this_rank
+       write(iulog,*) 'solvevelocitytgs, rank =', this_rank
        call solvevelocitytgs(velocityResult)
 
        ! print solution
-       write(6,*) 'rank, solution:', this_rank, velocityResult(:)
+       write(iulog,*) 'rank, solution:', this_rank, velocityResult(:)
 
        deallocate(active_owned_unknown_map)
        deallocate(velocityResult)
@@ -1076,7 +1077,7 @@
        elseif (this_rank==1) then
           active_owned_unknown_map(:) = (/ 4,6 /)
        endif
-       write(6,*) 'initializetgs, rank =', this_rank
+       write(iulog,*) 'initializetgs, rank =', this_rank
        call initializetgs(2*nNodesSolve, active_owned_unknown_map, comm)
 
        ! insert rows
@@ -1089,7 +1090,7 @@
           global_column(:) = (/ 1,3,4,0 /)
           matrix_value(:)  = (/ 1,2,3,0 /)
           rhs_value = 4
-          write(6,*) 'insertrowtgs, rank, row =', this_rank, global_row
+          write(iulog,*) 'insertrowtgs, rank, row =', this_rank, global_row
           call insertrowtgs(global_row, ncol, global_column, matrix_value, rhs_value)
        
           ! row 2 (global ID = 3)
@@ -1098,7 +1099,7 @@
           global_column(:) = (/ 3,4,6,0 /)
           matrix_value(:)  = (/ 4,5,6,0 /)
           rhs_value = 17
-          write(6,*) 'insertrowtgs, rank, row =', this_rank, global_row
+          write(iulog,*) 'insertrowtgs, rank, row =', this_rank, global_row
           call insertrowtgs(global_row, ncol, global_column, matrix_value, rhs_value)
 
        elseif (this_rank==1) then
@@ -1109,7 +1110,7 @@
           global_column(:) = (/ 1,3,4,0 /)
           matrix_value(:)  = (/ 7,8,9,0 /)
           rhs_value = 16
-          write(6,*) 'insertrowtgs, rank, row =', this_rank, global_row
+          write(iulog,*) 'insertrowtgs, rank, row =', this_rank, global_row
           call insertrowtgs(global_row, ncol, global_column, matrix_value, rhs_value)
 
           ! row 2 (global ID = 6)
@@ -1118,24 +1119,24 @@
           global_column(:) = (/ 3,4,6,0 /)
           matrix_value(:)  = (/ 10,11,12,0 /)
           rhs_value = 35
-          write(6,*) 'insertrowtgs, rank, row =', this_rank, global_row
+          write(iulog,*) 'insertrowtgs, rank, row =', this_rank, global_row
           call insertrowtgs(global_row, ncol, global_column, matrix_value, rhs_value)
 
        endif
 
        ! solve
        allocate(velocityResult(2*nNodesSolve))
-       write(6,*) 'solvevelocitytgs, rank =', this_rank
+       write(iulog,*) 'solvevelocitytgs, rank =', this_rank
        call solvevelocitytgs(velocityResult)
 
        ! print solution
-       write(6,*) 'rank, solution:', this_rank, velocityResult(:)
+       write(iulog,*) 'rank, solution:', this_rank, velocityResult(:)
 
        deallocate(active_owned_unknown_map)
        deallocate(velocityResult)
 
     else
-       write(6,*) 'Error: Trilinos test requires 1 or 2 processors'
+       write(iulog,*) 'Error: Trilinos test requires 1 or 2 processors'
        stop
     endif
 

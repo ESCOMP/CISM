@@ -34,6 +34,7 @@ module glimmer_sparse
   ! These have been removed, and now it is just a wrapper for the slap solver.
 
   use glimmer_global, only: dp
+  use glimmer_paramets, only: iulog
   use glimmer_sparse_type
   use glimmer_sparse_slap
   use glide_types
@@ -326,16 +327,16 @@ contains
         endif
  
         if (verbose_slap) then
-           write(6,*) ' '
-           write(6,*) 'In sparse_easy_solve'
-           write(6,*) 'method (0=BiCG, 1=GMRES, 2=PCG_INCH) =', method
-           write(6,*) 'matrix%order =', matrix%order
-           write(6,*) 'matrix%nonzeros =', matrix%nonzeros
-           write(6,*) 'size(rhs) =', size(rhs)
-           write(6,*) 'size(answer) =', size(answer)
-           write(6,*) 'size(row) =', size(matrix%row)
-           write(6,*) 'size(col) =', size(matrix%col)
-           write(6,*) 'size(val) =', size(matrix%val)
+           write(iulog,*) ' '
+           write(iulog,*) 'In sparse_easy_solve'
+           write(iulog,*) 'method (0=BiCG, 1=GMRES, 2=PCG_INCH) =', method
+           write(iulog,*) 'matrix%order =', matrix%order
+           write(iulog,*) 'matrix%nonzeros =', matrix%nonzeros
+           write(iulog,*) 'size(rhs) =', size(rhs)
+           write(iulog,*) 'size(answer) =', size(answer)
+           write(iulog,*) 'size(row) =', size(matrix%row)
+           write(iulog,*) 'size(col) =', size(matrix%col)
+           write(iulog,*) 'size(val) =', size(matrix%val)
         endif
 
         call sparse_solver_default_options(method, opt)
@@ -347,8 +348,8 @@ contains
         ierr = sparse_solve(matrix, rhs, answer, opt, wk, err, iter, .false.)
 
        if (verbose_slap) then
-          write(6,*) ' '
-          write(6,*) 'Called sparse_solve: iter, err =', iter, err
+          write(iulog,*) ' '
+          write(iulog,*) 'Called sparse_solve: iter, err =', iter, err
        endif
        
         call sparse_solver_postprocess(matrix, opt, wk)

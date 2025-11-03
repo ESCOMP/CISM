@@ -41,6 +41,8 @@ module gcm_cism_interface
   use glint_main
   use gcm_to_cism_glint
 
+  use glimmer_paramets, only: iulog
+
   ! Note: Options 0 and 1 used to be called GCM_MINIMAL_MODEL AND GCM_DATA_MODEL.
   !       'BASIC' refers to standalone CISM with a single input data file.
   !       'GLINT' refers to runs with the Glint interface, with a climate config file
@@ -98,7 +100,7 @@ subroutine gci_init_interface(which_gcm,g2c)
   call ConfigRead(commandline_configname(1),config)
   call GetSection(config,section,'options')
   call GetValue(section,'dycore',whichdycore)
-  if (main_task) write(6,*) 'CISM dycore type (0=Glide, 1=Glam, 2=Glissade, 3=AlbanyFelix, 4 = BISICLES) = ', whichdycore  
+  if (main_task) write(iulog,*) 'CISM dycore type (0=Glide, 1=Glam, 2=Glissade, 3=AlbanyFelix, 4 = BISICLES) = ', whichdycore  
 
   ! Check to see if running basic GCM or glint GCM.  Still need to add CESM GCM:
   call GetSection(config,section,'GLINT climate')
@@ -108,15 +110,15 @@ subroutine gci_init_interface(which_gcm,g2c)
   else 
      g2c%which_gcm = GCM_BASIC_MODEL
   end if
-  if (main_task) write(6,*) 'g2c%which_gcm (0 = basic, 1 = Glint) = ', g2c%which_gcm
+  if (main_task) write(iulog,*) 'g2c%which_gcm (0 = basic, 1 = Glint) = ', g2c%which_gcm
 
   select case (g2c%which_gcm)
     case (GCM_BASIC_MODEL)
-      if (main_task) write(6,*) 'call cism_init_dycore'
+      if (main_task) write(iulog,*) 'call cism_init_dycore'
       call cism_init_dycore(g2c%glide_model)
  
     case (GCM_GLINT_MODEL)
-      if (main_task) write(6,*) 'call g2c_glint_init'
+      if (main_task) write(iulog,*) 'call g2c_glint_init'
       call g2c_glint_init(g2c)
 
     case (GCM_CESM)
@@ -124,7 +126,7 @@ subroutine gci_init_interface(which_gcm,g2c)
       ! call g2c_glint_init(g2c) 
 
     case default
-      if (main_task) write(6,*) "Error -- unknown GCM type."
+      if (main_task) write(iulog,*) "Error -- unknown GCM type."
   end select
 
 end subroutine gci_init_interface   
@@ -139,11 +141,11 @@ subroutine gci_run_model(g2c)
     select case (g2c%which_gcm)
       case (GCM_BASIC_MODEL)
         ! call gcm_update_model(gcm_model,cism_model)
-!        if (main_task) write(6,*) "In gci_run_model, calling cism_run_dycore"
+!        if (main_task) write(iulog,*) "In gci_run_model, calling cism_run_dycore"
         call cism_run_dycore(g2c%glide_model)
 
       case (GCM_GLINT_MODEL,GCM_CESM)
-!        if (main_task) write(6,*) "In gci_run_model, calling g2c_glint_run"
+!        if (main_task) write(iulog,*) "In gci_run_model, calling g2c_glint_run"
         call g2c_glint_run(g2c)
         call g2c_glint_climate_time_step(g2c)
       case default
@@ -167,7 +169,7 @@ function gci_finished(g2c) result(finished)
       call g2c_glint_check_finished(g2c,finished)
     case default
   end select
-  !if (main_task) write(6,*) "In gci_finished, finished = ",finished  
+  !if (main_task) write(iulog,*) "In gci_finished, finished = ",finished  
 
 end function gci_finished
 

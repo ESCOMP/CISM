@@ -45,7 +45,8 @@
   !
   !-----------------------------------------------------------------------------
 
-  use glimmer_paramets, only : dp
+  use glimmer_global, only: dp
+  use glimmer_paramets, only : iulog
   use glimmer_physcon,  only : scyr
   use glimmer_log
   use glimmer_utils, only: point_diag
@@ -234,7 +235,7 @@ contains
              !WHL - debug
              if (verbose_beta .and. present(rtest) .and. present(itest) .and. present(jtest)) then
                 if (this_rank == rtest .and. ew == itest .and. ns == jtest) then
-                   write(6,*) 'i, j, bed, coulomb_c, tau_c, speed, beta:', &
+                   write(iulog,*) 'i, j, bed, coulomb_c, tau_c, speed, beta:', &
                         ew, ns, bed, phi, basal_physics%coulomb_c(ew,ns), tau_c, speed(ew,ns), beta(ew,ns)
                 endif
              endif
@@ -277,7 +278,7 @@ contains
              !WHL - debug
              if (verbose_beta .and. present(rtest) .and. present(itest) .and. present(jtest)) then
                 if (this_rank == rtest .and. ew == itest .and. ns == jtest) then
-                   write(6,*) 'i, j, bed, tanphi, tau_c, speed, beta:', &
+                   write(iulog,*) 'i, j, bed, tanphi, tau_c, speed, beta:', &
                         ew, ns, bed, tanphi, tau_c, speed(ew,ns), beta(ew,ns)
                 endif
              endif
@@ -330,7 +331,7 @@ contains
              !WHL - debug
              if (verbose_beta .and. present(rtest) .and. present(itest) .and. present(jtest) .and. &
                   this_rank == rtest .and. ew == itest .and. ns == jtest) then
-                write(6,*) 'Cc, N, speed, beta =', basal_physics%coulomb_c(ew,ns), &
+                write(iulog,*) 'Cc, N, speed, beta =', basal_physics%coulomb_c(ew,ns), &
                      basal_physics%effecpress_stag(ew,ns), speed(ew,ns), beta(ew,ns)
              endif
 
@@ -422,7 +423,7 @@ contains
              !WHL - debug
              if (verbose_beta .and. present(rtest) .and. present(itest) .and. present(jtest)) then
                 if (this_rank == rtest .and. ew == itest .and. ns == jtest) then
-                   write(6,*) 'r, i, j, Cp, speed, beta:', &
+                   write(iulog,*) 'r, i, j, Cp, speed, beta:', &
                         rtest, itest, jtest, basal_physics%powerlaw_c(ew,ns), speed(ew,ns), beta(ew,ns)
                 endif
              endif
@@ -544,8 +545,8 @@ contains
              !WHL - debug
              if (verbose_beta .and. present(rtest) .and. present(itest) .and. present(jtest)) then
                 if (this_rank == rtest .and. ew == itest .and. ns == jtest) then
-                   write(6,*) ' '
-                   write(6,*) 'r, i, j, Cp, denom_u, denom_N, speed, beta, taub:', &
+                   write(iulog,*) ' '
+                   write(iulog,*) 'r, i, j, Cp, denom_u, denom_N, speed, beta, taub:', &
                         rtest, ew, ns, basal_physics%powerlaw_c(ew,ns), &
                         (basal_physics%powerlaw_c(ew,ns)**m * speed(ew,ns))**(1.d0/m), &
                         (basal_physics%coulomb_c(ew,ns) * basal_physics%effecpress_stag(ew,ns)), &
@@ -568,11 +569,11 @@ contains
        end where
 
        !WHL - debug - Write values along a flowline
-!      write(6,*) ' '
-!      write(6,*) 'Apply Coulomb friction: i, j, speed, N_stag, beta, taub:'
+!      write(iulog,*) ' '
+!      write(iulog,*) 'Apply Coulomb friction: i, j, speed, N_stag, beta, taub:'
 !      ns = jtest
 !      do ew = itest, itest+15
-!         write(6,*) ew, ns, speed(ew,ns), basal_physics%effecpress_stag(ew,ns), beta(ew,ns), beta(ew,ns)*speed(ew,ns)
+!         write(iulog,*) ew, ns, speed(ew,ns), basal_physics%effecpress_stag(ew,ns), beta(ew,ns), beta(ew,ns)*speed(ew,ns)
 !      enddo
 
     case(HO_BABC_COULOMB_POWERLAW_TSAI)
@@ -689,7 +690,7 @@ contains
    if (verbose_beta .and. present(rtest) .and. present(itest) .and. present(jtest)) then
       if (this_rank == rtest) then
          ew = itest; ns = jtest
-         write(6,*) 'End of calcbeta, r, i, j, speed, f_ground, beta:', &
+         write(iulog,*) 'End of calcbeta, r, i, j, speed, f_ground, beta:', &
               rtest, ew, ns, speed(ew,ns), f_ground(ew,ns), beta(ew,ns)
       endif
    endif

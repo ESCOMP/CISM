@@ -33,7 +33,7 @@ module glide_diagnostics
   ! Author: William Lipscomb, LANL 
  
   use glimmer_global, only: dp
-  use glimmer_paramets, only: eps11
+  use glimmer_paramets, only: iulog, eps11
   use glimmer_log
   use glide_types
   use cism_parallel, only: this_rank, main_task, lhalo, uhalo, nhalo, &
@@ -68,12 +68,12 @@ contains
 
     ! debug
     if (main_task .and. verbose_diagnostics) then
-       write(6,*) '	'
-       write(6,*) 'In glide_write_diagnostics'
-       write(6,*) 'time =', time
-       write(6,*) 'dt_diag =', model%numerics%dt_diag
-       write(6,*) 'ndiag =', model%numerics%ndiag
-       write(6,*) 'tstep_count =', tstep_count
+       write(iulog,*) '	'
+       write(iulog,*) 'In glide_write_diagnostics'
+       write(iulog,*) 'time =', time
+       write(iulog,*) 'dt_diag =', model%numerics%dt_diag
+       write(iulog,*) 'ndiag =', model%numerics%ndiag
+       write(iulog,*) 'tstep_count =', tstep_count
     endif
 
     if (model%numerics%ndiag > 0) then
@@ -129,9 +129,9 @@ contains
 
     !WHL - debug
     if (main_task) then
-       write(6,'(a25,2i6)') 'Global idiag, jdiag:     ',   &
+       write(iulog,'(a25,2i6)') 'Global idiag, jdiag:     ',   &
                              model%numerics%idiag, model%numerics%jdiag
-       write(6,'(a25,3i6)') 'Local idiag, jdiag, task:',   &
+       write(iulog,'(a25,3i6)') 'Local idiag, jdiag, task:',   &
                              model%numerics%idiag_local,  &
                              model%numerics%jdiag_local,  &
                              model%numerics%rdiag_local

@@ -221,10 +221,10 @@ contains
     instance%next_time = force_start - force_dt + instance%mbal_tstep
 
     if (GLC_DEBUG .and. main_task) then
-       write (6,*) 'Called glint_mbc_init'
-       write (6,*) 'mbal tstep =', mbts
-       write (6,*) 'next_time =', instance%next_time
-       write (6,*) 'start_time =', instance%mbal_accum%start_time
+       write(iulog,*) 'Called glint_mbc_init'
+       write(iulog,*) 'mbal tstep =', mbts
+       write(iulog,*) 'next_time =', instance%next_time
+       write(iulog,*) 'start_time =', instance%mbal_accum%start_time
     end if
 
 
@@ -495,10 +495,10 @@ contains
     instance%next_time = force_start - force_dt + instance%mbal_tstep
 
     if (GLC_DEBUG .and. main_task) then
-       write (6,*) 'Called glint_mbc_init'
-       write (6,*) 'mbal tstep =', mbts
-       write (6,*) 'next_time =', instance%next_time
-       write (6,*) 'start_time =', instance%mbal_accum%start_time
+       write(iulog,*) 'Called glint_mbc_init'
+       write(iulog,*) 'mbal tstep =', mbts
+       write(iulog,*) 'next_time =', instance%next_time
+       write(iulog,*) 'start_time =', instance%mbal_accum%start_time
     end if
 
     ! Mass-balance accumulation length

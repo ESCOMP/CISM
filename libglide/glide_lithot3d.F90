@@ -37,6 +37,9 @@
 
 module glide_lithot3d
 
+  use glimmer_global, only: dp
+  use glimmer_paramets, only: iulog
+
   implicit none
 
   private
@@ -198,8 +201,8 @@ contains
          model%lithot%rwork, model%lithot%mxnelt, model%lithot%iwork, model%lithot%mxnelt)
 
     if (ierr /= 0) then
-      write(6,*) 'pcg error ', ierr, itmax, iter
-      write(6,*) model%numerics%time
+      write(iulog,*) 'pcg error ', ierr, itmax, iter
+      write(iulog,*) model%numerics%time
       call glide_finalise(model,.true.)
       call close_log
       stop

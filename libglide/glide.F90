@@ -53,7 +53,7 @@ module glide
   use glimmer_config
   use glimmer_global, only: dp
 
-  use glimmer_paramets, only: oldglide
+  use glimmer_paramets, only: iulog, oldglide
 
   implicit none
 
@@ -300,9 +300,9 @@ contains
     call glide_io_createall(model, model)
 
 !WHL - debug
-!    write(6,*) ' '
-!    write(6,*) 'Created Glide variables'
-!    write(6,*) 'max, min bheatflx (W/m2)=', maxval(model%temper%bheatflx), minval(model%temper%bheatflx)
+!    write(iulog,*) ' '
+!    write(iulog,*) 'Created Glide variables'
+!    write(iulog,*) 'max, min bheatflx (W/m2)=', maxval(model%temper%bheatflx), minval(model%temper%bheatflx)
 
     ! If a 2D bheatflx field is present in the input file, it will have been written 
     !  to model%temper%bheatflx.  For the case model%options%gthf = 0, we want to use
@@ -404,26 +404,26 @@ contains
     call glide_init_diag(model)
 
 !WHL - debug
-!    write(6,*) 'After glide_initialise:'
-!    write(6,*) 'max, min thck (m)=', maxval(model%geometry%thck), minval(model%geometry%thck)
-!    write(6,*) 'max, min usrf (m)=', maxval(model%geometry%usrf), minval(model%geometry%usrf)
-!    write(6,*) 'max, min artm =', maxval(model%climate%artm), minval(model%climate%artm)
-!    write(6,*) 'max, min temp =', maxval(model%temper%temp), minval(model%temper%temp)
-!    write(6,*) 'max, min flwa =', maxval(model%temper%flwa), minval(model%temper%flwa)
+!    write(iulog,*) 'After glide_initialise:'
+!    write(iulog,*) 'max, min thck (m)=', maxval(model%geometry%thck), minval(model%geometry%thck)
+!    write(iulog,*) 'max, min usrf (m)=', maxval(model%geometry%usrf), minval(model%geometry%usrf)
+!    write(iulog,*) 'max, min artm =', maxval(model%climate%artm), minval(model%climate%artm)
+!    write(iulog,*) 'max, min temp =', maxval(model%temper%temp), minval(model%temper%temp)
+!    write(iulog,*) 'max, min flwa =', maxval(model%temper%flwa), minval(model%temper%flwa)
 
-!    write(6,*) ' '
-!    write(6,*) 'thck:'
+!    write(iulog,*) ' '
+!    write(iulog,*) 'thck:'
 !    do j = model%general%nsn, 1, -1
-!       write(6,'(30f5.0)') model%geometry%thck(:,j)
+!       write(iulog,'(30f5.0)') model%geometry%thck(:,j)
 !    enddo
-!    write(6,*) ' '
-!    write(6,*) 'temp, k = 2:'
+!    write(iulog,*) ' '
+!    write(iulog,*) 'temp, k = 2:'
 !    do j = model%general%nsn+1, 0, -1
-!       write(6,'(32f5.0)') model%temper%temp(2,:,j)
+!       write(iulog,'(32f5.0)') model%temper%temp(2,:,j)
 !    enddo
-!    write(6,*) 'basal temp:'
+!    write(iulog,*) 'basal temp:'
 !    do j = model%general%nsn+1, 0, -1
-!       write(6,'(32f5.0)') model%temper%temp(model%general%upn,:,j)
+!       write(iulog,'(32f5.0)') model%temper%temp(model%general%upn,:,j)
 !    enddo
 
   end subroutine glide_initialise
@@ -480,7 +480,7 @@ contains
        if (l_evolve_ice .and. model%options%calving_init == CALVING_INIT_ON) then
 
           !WHL - debug
-          write(6,*) 'Calving at initialization, whichcalving =', model%options%whichcalving
+          write(iulog,*) 'Calving at initialization, whichcalving =', model%options%whichcalving
 
           ! ------------------------------------------------------------------------ 
           ! Remove ice which should calve, depending on the value of whichcalving
@@ -810,19 +810,19 @@ contains
                    model%velocity%btrc)
 
 !WHL - debug
-!    write(6,*) ' '
-!    write(6,*) 'After glide_tstep_p1:'
-!    write(6,*) 'max, min temp =', maxval(model%temper%temp), minval(model%temper%temp)
-!    write(6,*) 'max, min flwa =', maxval(model%temper%flwa), minval(model%temper%flwa)
+!    write(iulog,*) ' '
+!    write(iulog,*) 'After glide_tstep_p1:'
+!    write(iulog,*) 'max, min temp =', maxval(model%temper%temp), minval(model%temper%temp)
+!    write(iulog,*) 'max, min flwa =', maxval(model%temper%flwa), minval(model%temper%flwa)
 
-!    write(6,*) ' '
-!    write(6,*) 'temp, k = 2:'
+!    write(iulog,*) ' '
+!    write(iulog,*) 'temp, k = 2:'
 !    do j = model%general%nsn+1, 0, -1
-!       write(6,'(14f12.7)') model%temper%temp(2,3:16,j)
+!       write(iulog,'(14f12.7)') model%temper%temp(2,3:16,j)
 !    enddo
-!    write(6,*) 'basal temp:'
+!    write(iulog,*) 'basal temp:'
 !    do j = model%general%nsn+1, 0, -1
-!       write(6,'(14f12.7)') model%temper%temp(model%general%upn,3:16,j)
+!       write(iulog,'(14f12.7)') model%temper%temp(model%general%upn,3:16,j)
 !    enddo
 
   end subroutine glide_tstep_p1
@@ -962,29 +962,29 @@ contains
     model%velocity%velnorm = sqrt(model%velocity%uvel**2 + model%velocity%vvel**2)
 
     !WHL - debug
-!    write(6,*) ' '
-!    write(6,*) 'After tstep_p2:'
-!    write(6,*) 'max, min thck (m)=', maxval(model%geometry%thck), minval(model%geometry%thck)
-!    write(6,*) 'max, min usrf (m)=', maxval(model%geometry%usrf), minval(model%geometry%usrf)
-!    write(6,*) 'max uvel, vvel =', maxval(model%velocity%uvel), maxval(model%velocity%vvel)
+!    write(iulog,*) ' '
+!    write(iulog,*) 'After tstep_p2:'
+!    write(iulog,*) 'max, min thck (m)=', maxval(model%geometry%thck), minval(model%geometry%thck)
+!    write(iulog,*) 'max, min usrf (m)=', maxval(model%geometry%usrf), minval(model%geometry%usrf)
+!    write(iulog,*) 'max uvel, vvel =', maxval(model%velocity%uvel), maxval(model%velocity%vvel)
 
-!    write(6,*) ' '
-!    write(6,*) 'thck:'
+!    write(iulog,*) ' '
+!    write(iulog,*) 'thck:'
 !    do j = model%general%nsn, 1, -1
-!       write(6,'(14f12.7)') model%geometry%thck(3:16,j)
+!       write(iulog,'(14f12.7)') model%geometry%thck(3:16,j)
 !    enddo
-!    write(6,*) ' '
-!    write(6,*) 'btemp:'
+!    write(iulog,*) ' '
+!    write(iulog,*) 'btemp:'
 !    do j = model%general%nsn, 1, -1
-!       write(6,'(14f12.7)') model%temper%btemp(3:16,j)
+!       write(iulog,'(14f12.7)') model%temper%btemp(3:16,j)
 !    enddo
-!    write(6,*) 'sfc uvel:'
+!    write(iulog,*) 'sfc uvel:'
 !    do j = model%general%nsn-1, 1, -1
-!       write(6,'(14f12.7)') model%velocity%uvel(1,3:16,j)
+!       write(iulog,'(14f12.7)') model%velocity%uvel(1,3:16,j)
 !    enddo
-!    write(6,*) 'sfc vvel:'
+!    write(iulog,*) 'sfc vvel:'
 !    do j = model%general%nsn-1, 1, -1
-!       write(6,'(14f12.7)') model%velocity%vvel(1,3:16,j)
+!       write(iulog,'(14f12.7)') model%velocity%vvel(1,3:16,j)
 !    enddo
 
   end subroutine glide_tstep_p2

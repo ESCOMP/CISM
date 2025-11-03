@@ -63,6 +63,7 @@ module glide_temp
 
   use glide_types
   use glimmer_global, only : dp 
+  use glimmer_paramets, only: iulog
   use glimmer_log
 
   !TODO - Remove 'oldglide' logic when comparisons are complete  
@@ -693,7 +694,7 @@ contains
     ! Output some information ----------------------------------------------------
 
     if (GLC_DEBUG) then
-       write(6,*) "* temp ", model%numerics%time, iter, model%temper%niter, &
+       write(iulog,*) "* temp ", model%numerics%time, iter, model%temper%niter, &
             real(model%temper%temp(model%general%upn,model%general%ewn/2+1,model%general%nsn/2+1))
     end if
 

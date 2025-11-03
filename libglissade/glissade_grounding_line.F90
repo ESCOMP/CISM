@@ -39,6 +39,7 @@
   module glissade_grounding_line
 
     use glimmer_global, only: dp
+    use glimmer_paramets, only: iulog
     use glimmer_physcon, only: rhoi, rhoo
     use glide_types  ! grounding line options
     use cism_parallel, only: this_rank, nhalo, parallel_type, parallel_halo
@@ -398,7 +399,7 @@
           call point_diag(topg, 'topg (m)', itest, jtest, rtest, 7, 7)
        endif
        call point_diag(f_flotation, 'f_flotation (m)', itest, jtest, rtest, 7, 7)
-       write(6,*) 'f_flotation, rtest, itest, jtest:', rtest, itest, jtest
+       write(iulog,*) 'f_flotation, rtest, itest, jtest:', rtest, itest, jtest
     endif
 
     ! initialize the arrays computed below
@@ -597,13 +598,13 @@
 
                 !WHL - debug
                 if (verbose_glp .and. this_rank == rtest .and. i==itest .and. j==jtest) then
-                   write(6,*) ' '
-                   write(6,*) 'f_ground at vertex, r, i, j =', this_rank, i, j
-                   write(6,*) 'Quadrant 1:', f_ground_quadrant(1,i,j)
-                   write(6,*) 'Quadrant 2:', f_ground_quadrant(2,i,j)
-                   write(6,*) 'Quadrant 3:', f_ground_quadrant(3,i,j)
-                   write(6,*) 'Quadrant 4:', f_ground_quadrant(4,i,j)
-                   write(6,*) 'Average   :', f_ground(i,j)
+                   write(iulog,*) ' '
+                   write(iulog,*) 'f_ground at vertex, r, i, j =', this_rank, i, j
+                   write(iulog,*) 'Quadrant 1:', f_ground_quadrant(1,i,j)
+                   write(iulog,*) 'Quadrant 2:', f_ground_quadrant(2,i,j)
+                   write(iulog,*) 'Quadrant 3:', f_ground_quadrant(3,i,j)
+                   write(iulog,*) 'Quadrant 4:', f_ground_quadrant(4,i,j)
+                   write(iulog,*) 'Average   :', f_ground(i,j)
                 endif
 
              endif        ! vmask = 1
@@ -648,13 +649,13 @@
              f_ground_cell(i,j) = 0.25d0 * f_ground_cell(i,j)
 
              if (verbose_glp .and. this_rank == rtest .and. i==itest .and. j==jtest) then
-                write(6,*) ' '
-                write(6,*) 'f_ground_cell, r, i, j =', this_rank, i, j
-                write(6,*) 'Quadrant 1:', f_ground_quadrant(3,i-1,j-1)
-                write(6,*) 'Quadrant 2:', f_ground_quadrant(4,i,j-1)
-                write(6,*) 'Quadrant 3:', f_ground_quadrant(1,i,j)
-                write(6,*) 'Quadrant 4:', f_ground_quadrant(2,i-1,j)
-                write(6,*) 'Average   :', f_ground_cell(i,j)
+                write(iulog,*) ' '
+                write(iulog,*) 'f_ground_cell, r, i, j =', this_rank, i, j
+                write(iulog,*) 'Quadrant 1:', f_ground_quadrant(3,i-1,j-1)
+                write(iulog,*) 'Quadrant 2:', f_ground_quadrant(4,i,j-1)
+                write(iulog,*) 'Quadrant 3:', f_ground_quadrant(1,i,j)
+                write(iulog,*) 'Quadrant 4:', f_ground_quadrant(2,i-1,j)
+                write(iulog,*) 'Average   :', f_ground_cell(i,j)
              endif
 
           enddo
@@ -754,11 +755,11 @@
 
     !WHL - debug
     if (verbose_glp .and. i == itest .and. j==jtest .and. rank == rtest) then
-       write(6,*) ' '
-       write(6,*) 'rank, i, j =', rank, i, j
-       write(6,*) 'f_flotation(4:3):', f_flotation(4), f_flotation(3)
-       write(6,*) 'f_flotation(1:2):', f_flotation(1), f_flotation(2)
-       write(6,*) 'nfloat =', nfloat
+       write(iulog,*) ' '
+       write(iulog,*) 'rank, i, j =', rank, i, j
+       write(iulog,*) 'f_flotation(4:3):', f_flotation(4), f_flotation(3)
+       write(iulog,*) 'f_flotation(1:2):', f_flotation(1), f_flotation(2)
+       write(iulog,*) 'nfloat =', nfloat
     endif
 
     ! Given nfloat, compute f_ground for each vertex
@@ -842,8 +843,8 @@
 
        !WHL - debug
        if (verbose_glp .and. i==itest .and. j==jtest .and. rank == rtest) then
-          write(6,*) 'f1, f2, f3, f4 =', f1, f2, f3, f4
-          write(6,*) 'a, b, c, d =', a, b, c, d
+          write(iulog,*) 'f1, f2, f3, f4 =', f1, f2, f3, f4
+          write(iulog,*) 'a, b, c, d =', a, b, c, d
        endif
 
        ! Compute the fractional area of the corner region
@@ -879,8 +880,8 @@
 
        !WHL - debug
        if (verbose_glp .and. i==itest .and. j==jtest .and. rank == rtest) then
-          write(6,*) 'f_corner =', f_corner
-          write(6,*) 'f_ground =', f_ground
+          write(iulog,*) 'f_corner =', f_corner
+          write(iulog,*) 'f_ground =', f_ground
        endif
 
     elseif (nfloat == 2) then
@@ -966,9 +967,9 @@
 
        !WHL - debug
        if (verbose_glp .and. i==itest .and. j==jtest .and. rank == rtest) then
-          write(6,*) 'adjacent =', adjacent
-          write(6,*) 'f1, f2, f3, f4 =', f1, f2, f3, f4
-          write(6,*) 'a, b, c, d =', a, b, c, d
+          write(iulog,*) 'adjacent =', adjacent
+          write(iulog,*) 'f1, f2, f3, f4 =', f1, f2, f3, f4
+          write(iulog,*) 'a, b, c, d =', a, b, c, d
        endif
 
        if (adjacent) then
@@ -998,20 +999,20 @@
 
           !WHL - debug
           if (verbose_glp .and. i==itest .and. j==jtest .and. rank == rtest) then
-             write(6,*) 'f_trapezoid =', f_trapezoid
-             write(6,*) 'f_ground =', f_ground
+             write(iulog,*) 'f_trapezoid =', f_trapezoid
+             write(iulog,*) 'f_ground =', f_ground
           endif
 
        else   ! grounded corners are diagonally opposite
 
           ! bug check: make sure some signs are positive as required by the formulas
           if (b*c - a*d < 0.d0) then
-             write(6,*) 'Grounding line error: bc - ad < 0'
-             write(6,*) 'rank, i, j, q =', rank, i, j, q
+             write(iulog,*) 'Grounding line error: bc - ad < 0'
+             write(iulog,*) 'rank, i, j, q =', rank, i, j, q
              stop
           elseif ((b+d)*(c+d) < 0.d0) then
-             write(6,*) 'Grounding line error: (b+d)(c+d) < 0'
-             write(6,*) 'rank, i, j, q =', rank, i, j, q
+             write(iulog,*) 'Grounding line error: (b+d)(c+d) < 0'
+             write(iulog,*) 'rank, i, j, q =', rank, i, j, q
              stop
           endif
 
@@ -1035,7 +1036,7 @@
 
           !WHL - debug
           if (verbose_glp .and. i==itest .and. j==jtest .and. rank == rtest) then
-             write(6,*) 'Pattern 3: i, j, bc - ad =', i, j, b*c - a*d
+             write(iulog,*) 'Pattern 3: i, j, bc - ad =', i, j, b*c - a*d
           endif
 
           if (abs(b*c - a*d) > eps06) then  ! the usual case
@@ -1066,9 +1067,9 @@
 
           !WHL - debug
           if (verbose_glp .and. i==itest .and. j==jtest .and. rank == rtest) then
-             write(6,*) 'f_corner1 =', f_corner1
-             write(6,*) 'f_corner2 =', f_corner2
-             write(6,*) 'f_ground =', f_ground
+             write(iulog,*) 'f_corner1 =', f_corner1
+             write(iulog,*) 'f_corner2 =', f_corner2
+             write(iulog,*) 'f_ground =', f_ground
           endif
 
        endif  ! adjacent or opposite

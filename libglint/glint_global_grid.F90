@@ -31,6 +31,7 @@
 module glint_global_grid
 
   use glimmer_global, only: dp
+  use glimmer_paramets, only: iulog
   use glimmer_physcon, only: pi
 
   implicit none
@@ -310,24 +311,24 @@ contains
        ng=.false.
     end if
 
-    write(6,*)'Grid parameters:'
-    write(6,*)'----------------'
-    write(6,*)'nx=', grid%nx
-    write(6,*)'ny=', grid%ny
-    write(6,*)'nec=',grid%nec
+    write(iulog,*)'Grid parameters:'
+    write(iulog,*)'----------------'
+    write(iulog,*)'nx=', grid%nx
+    write(iulog,*)'ny=', grid%ny
+    write(iulog,*)'nec=',grid%nec
     if (.not.ng) then
-       write(6,*)' '
-       write(6,*)'longitudes:'
-       write(6,*)grid%lons
-       write(6,*)' '
-       write(6,*)'latitudes:'
-       write(6,*)grid%lats
-       write(6,*)' '
-       write(6,*)'longitude boundaries:'
-       write(6,*)grid%lon_bound
-       write(6,*)' '
-       write(6,*)'latitude boundaries:'
-       write(6,*)grid%lat_bound
+       write(iulog,*)' '
+       write(iulog,*)'longitudes:'
+       write(iulog,*)grid%lons
+       write(iulog,*)' '
+       write(iulog,*)'latitudes:'
+       write(iulog,*)grid%lats
+       write(iulog,*)' '
+       write(iulog,*)'longitude boundaries:'
+       write(iulog,*)grid%lon_bound
+       write(iulog,*)' '
+       write(iulog,*)'latitude boundaries:'
+       write(iulog,*)grid%lat_bound
     end if
 
   end subroutine print_grid

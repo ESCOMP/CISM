@@ -35,6 +35,7 @@ module glide_setup
   ! general routines for initialisation, etc, called from top-level glimmer subroutines
 
   use glimmer_global, only: dp
+  use glimmer_paramets, only : iulog
 
   implicit none
 
@@ -924,9 +925,9 @@ contains
     if (model%options%external_dycore_type .eq. 1) model%options%whichdycore = 4 ! DYCORE_BISICLES
     if (model%options%external_dycore_type .eq. 2) model%options%whichdycore = 3 ! DYCORE_ALBANYFELIX
 
-    write(6,*) "In handle_dycore_options, external dycore type, input file = ", &
+    write(iulog,*) "In handle_dycore_options, external dycore type, input file = ", &
              model%options%external_dycore_type,model%options%dycore_input_file 
-    ! write(6,*) "In handle_dycore_options, whichdycore = ",model%options%whichdycore
+    ! write(iulog,*) "In handle_dycore_options, whichdycore = ",model%options%whichdycore
   end subroutine handle_dycore_options
 
 !--------------------------------------------------------------------------------

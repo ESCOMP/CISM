@@ -54,6 +54,7 @@ module glissade
   ! Driver for Glissade (parallel, higher-order) dynamical core
 
   use glimmer_global, only: dp
+  use glimmer_paramets, only: iulog
   use glimmer_log
   use glide_types
   use glimmer_utils, only: point_diag
@@ -107,8 +108,7 @@ contains
     use glissade_basal_water, only: glissade_basal_water_init
     use glissade_masks, only: glissade_get_masks, glissade_marine_connection_mask
     use glimmer_scales
-    use glimmer_paramets, only: eps11, scyr
-    use glimmer_physcon, only: rhow, rhoi
+    use glimmer_physcon, only: rhow, rhoi, scyr
     use glide_mask
     use isostasy, only: init_isostasy, isos_relaxed
     use glimmer_map_init
@@ -170,7 +170,7 @@ contains
 
     real(dp), dimension(:), allocatable :: dthck_dt_basin  ! basin average of dthck_dt_obs
 
-    if (main_task) write(6,*) 'In glissade_initialise'
+    if (main_task) write(iulog,*) 'In glissade_initialise'
 
     if (present(evolve_ice)) then
        l_evolve_ice = evolve_ice
@@ -399,8 +399,8 @@ contains
         model%options%enable_acab_dthck_dt_correction) then
        call check_fill_values(model%geometry%dthck_dt_obs, scale_factor_in = scyr)
        if (verbose_bmlt_float .and. this_rank == rtest) then
-          write(6,*) 'check_fill_values, dthck_dt_obs'
-          write(6,*) 'max val (m/yr) =', maxval(abs(model%geometry%dthck_dt_obs))*scyr
+          write(iulog,*) 'check_fill_values, dthck_dt_obs'
+          write(iulog,*) 'max val (m/yr) =', maxval(abs(model%geometry%dthck_dt_obs))*scyr
        endif
     endif
 
@@ -976,7 +976,7 @@ contains
        endif
 
        if (verbose_retreat) then
-          if (this_rank == rtest) write(6,*) 'force_retreat option =', model%options%force_retreat
+          if (this_rank == rtest) write(iulog,*) 'force_retreat option =', model%options%force_retreat
           call point_diag(model%geometry%reference_thck, 'reference_thck (m)', itest, jtest, rtest, 7, 7)
           call point_diag(model%geometry%ice_fraction_retreat_mask, 'ice_fraction_retreat_mask', itest, jtest, rtest, 7, 7)
        endif
@@ -1090,10 +1090,10 @@ contains
                dthck_dt_basin)
 
           if (main_task) then
-             write(6,*) ' '
-             write(6,*) 'nb, dthck_dt_basin (m/yr)'
+             write(iulog,*) ' '
+             write(iulog,*) 'nb, dthck_dt_basin (m/yr)'
              do nb = 1, model%ocean_data%nbasin
-                write(6,*) nb, dthck_dt_basin(nb)*scyr
+                write(iulog,*) nb, dthck_dt_basin(nb)*scyr
              enddo
           endif
 
@@ -1120,7 +1120,7 @@ contains
     deallocate(land_mask)
     deallocate(ocean_mask)
 
-    if (main_task) write(6,*) 'Done in glissade_initialise'
+    if (main_task) write(iulog,*) 'Done in glissade_initialise'
 
   end subroutine glissade_initialise
   
@@ -1132,6 +1132,7 @@ contains
 
     use cism_parallel, only:  parallel_type, not_parallel
 
+    use glimmer_paramets, only: eps11
     use glimmer_physcon, only: scyr
     use glide_mask, only: glide_set_mask, calc_iareaf_iareag
     use glissade_mass_balance, only: glissade_prepare_climate_forcing
@@ -1157,7 +1158,7 @@ contains
     model%numerics%time = time  
     model%numerics%tstep_count = model%numerics%tstep_count + 1
     if (main_task .and. verbose_glissade) then
-       write(6,*) 'glissade_tstep, tstep_count =', model%numerics%tstep_count
+       write(iulog,*) 'glissade_tstep, tstep_count =', model%numerics%tstep_count
     endif
 
     ! ------------------------------------------------------------------------
@@ -1451,7 +1452,7 @@ contains
 
     !WHL - Put other simple options in this subroutine instead of glissade_basal_melting_float?
 
-    if (main_task .and. verbose_glissade) write(6,*) 'Call glissade_bmlt_float_solve'
+    if (main_task .and. verbose_glissade) write(iulog,*) 'Call glissade_bmlt_float_solve'
 
     ! Compute masks:
     ! Note: The '0.0d0' argument is thklim. Any ice with thck > 0 gets ice_mask = 1.
@@ -1486,8 +1487,8 @@ contains
     elseif (model%options%whichbmlt_float == BMLT_FLOAT_THERMAL_FORCING) then
 
        if (this_rank == rtest .and. verbose_bmlt_float) then
-          write(6,*) ' '
-          write(6,*) 'Compute bmlt_float at runtime from current thermal forcing'
+          write(iulog,*) ' '
+          write(iulog,*) 'Compute bmlt_float at runtime from current thermal forcing'
        endif
 
        !Note: Currently, there is no difference between ocean_data_domain = 0
@@ -1524,13 +1525,13 @@ contains
           tf_anomaly = anomaly_fraction * model%ocean_data%thermal_forcing_anomaly
           tf_anomaly_basin = model%ocean_data%thermal_forcing_anomaly_basin
           if (this_rank == rtest .and. verbose_bmlt_float) then
-             write(6,*) 'time_from_start (yr):', time_from_start
-             write(6,*) 'ocean_data%thermal forcing anomaly  (deg):', model%ocean_data%thermal_forcing_anomaly
-             write(6,*) 'timescale (yr):', model%ocean_data%thermal_forcing_anomaly_timescale
-             write(6,*) 'fraction:', anomaly_fraction
-             write(6,*) 'current TF anomaly (deg):', tf_anomaly
+             write(iulog,*) 'time_from_start (yr):', time_from_start
+             write(iulog,*) 'ocean_data%thermal forcing anomaly  (deg):', model%ocean_data%thermal_forcing_anomaly
+             write(iulog,*) 'timescale (yr):', model%ocean_data%thermal_forcing_anomaly_timescale
+             write(iulog,*) 'fraction:', anomaly_fraction
+             write(iulog,*) 'current TF anomaly (deg):', tf_anomaly
              if (model%ocean_data%thermal_forcing_anomaly_timescale /= 0.0d0) then
-                write(6,*) 'anomaly applied to basin number', model%ocean_data%thermal_forcing_anomaly_basin
+                write(iulog,*) 'anomaly applied to basin number', model%ocean_data%thermal_forcing_anomaly_basin
              endif
           endif
        else
@@ -1669,7 +1670,7 @@ contains
 
        if (verbose_bmlt_float) then
           if (this_rank == rtest) then
-             write(6,*) 'Reduce bmlt_float in shallow cavities, bmlt_cavity_h0 (m) =', &
+             write(iulog,*) 'Reduce bmlt_float in shallow cavities, bmlt_cavity_h0 (m) =', &
                   model%basal_melt%bmlt_cavity_h0
           endif
           call point_diag(model%basal_melt%bmlt_float*scyr, 'original bmlt_float (m/yr)', &
@@ -1693,8 +1694,8 @@ contains
 
     if (verbose_bmlt_float) then
        if (this_rank == rtest) then
-          write(6,*) ' '
-          write(6,*) 'After glissade_bmlt_float_solve, which_ho_ground_bmlt =', model%options%which_ho_ground_bmlt
+          write(iulog,*) ' '
+          write(iulog,*) 'After glissade_bmlt_float_solve, which_ho_ground_bmlt =', model%options%which_ho_ground_bmlt
        endif
        if (model%options%which_ho_ground == HO_GROUND_GLP_DELUXE) then
           call point_diag(1.0d0 - model%geometry%f_ground_cell, '1 - f_ground_cell', itest, jtest, rtest, 7, 7)
@@ -1759,7 +1760,7 @@ contains
     ! Note: There used to be code here for downscaling artm and related fields.
     !       This code is now in subroutine glissade_prepare_climate_forcing.
 
-    if (main_task .and. verbose_glissade) write(6,*) 'Call glissade_therm_driver'
+    if (main_task .and. verbose_glissade) write(iulog,*) 'Call glissade_therm_driver'
 
     ! Note: glissade_therm_driver uses SI units
     !       Output arguments are temp, waterfrac, bpmp and bmlt_ground
@@ -1798,7 +1799,7 @@ contains
     ! Update basal hydrology, if needed
     ! Note: glissade_calcbwat uses SI units
 
-    if (main_task .and. verbose_glissade) write(6,*) 'Call glissade_calcbwat'
+    if (main_task .and. verbose_glissade) write(iulog,*) 'Call glissade_calcbwat'
 
     !TODO - Move the following calls to a new basal hydrology solver?
 
@@ -2218,9 +2219,9 @@ contains
 
        !WHL - debug
 !      if (main_task) then
-!         write(6,*) 'Checked advective CFL threshold'
-!         write(6,*) 'model dt (yr) =', model%numerics%dt/scyr
-!         write(6,*) 'adv_cfl_dt    =', model%numerics%adv_cfl_dt
+!         write(iulog,*) 'Checked advective CFL threshold'
+!         write(iulog,*) 'model dt (yr) =', model%numerics%dt/scyr
+!         write(iulog,*) 'adv_cfl_dt    =', model%numerics%adv_cfl_dt
 !      endif
 
        advective_cfl = (model%numerics%dt/scyr) / model%numerics%adv_cfl_dt
@@ -2237,9 +2238,9 @@ contains
              nsubcyc = ceiling(advective_cfl / model%numerics%adaptive_cfl_threshold)
 
              if (main_task) then
-                write(6,*) 'WARNING: adv_cfl_dt exceeds threshold; CFL =', advective_cfl
-                write(6,*) 'Ratio =', advective_cfl / model%numerics%adaptive_cfl_threshold
-                write(6,*) 'nsubcyc =', nsubcyc
+                write(iulog,*) 'WARNING: adv_cfl_dt exceeds threshold; CFL =', advective_cfl
+                write(iulog,*) 'Ratio =', advective_cfl / model%numerics%adaptive_cfl_threshold
+                write(iulog,*) 'nsubcyc =', nsubcyc
              endif
 
           else
@@ -2256,7 +2257,7 @@ contains
           !       The call to glide_finalise was added to allow CISM to finish cleanly when running
           !        a suite of automated stability tests, e.g. with the stabilitySlab.py script.
           if (advective_cfl > 1.0d0) then
-             if (main_task) write(6,*) 'advective CFL violation; call glide_finalise and exit cleanly'
+             if (main_task) write(iulog,*) 'advective CFL violation; call glide_finalise and exit cleanly'
              call glide_finalise(model, forcewrite_arg=.true.)
              stop
           else
@@ -2354,7 +2355,7 @@ contains
           call point_diag(model%geometry%thck, 'After glissade_transport_driver, thck', &
                itest, jtest, rtest, 7, 7)
           k = upn
-          if (this_rank == rtest) write(6,*) 'k =', k
+          if (this_rank == rtest) write(iulog,*) 'k =', k
           call point_diag(model%temper%temp(k,:,:), 'temp', itest, jtest, rtest, 7, 7)
        endif
 
@@ -2489,7 +2490,7 @@ contains
 
     if (model%options%force_retreat == FORCE_RETREAT_ALL_ICE .and. .not.init_calving) then
        if (this_rank == rtest) then
-          write(6,*) 'Forcing retreat using ice_fraction_retreat_mask, time =', model%numerics%time
+          write(iulog,*) 'Forcing retreat using ice_fraction_retreat_mask, time =', model%numerics%time
        endif
 
        if (verbose_retreat) then
@@ -2559,10 +2560,10 @@ contains
           mask_basin(14) = .false.  ! Filchner-Ronne
 
           if (verbose_calving .and. this_rank==rtest) then
-             write(6,*) 'Expanding the calving mask to ice shelves in select basins'
-             write(6,*) 'basin number, mask_basin:'
+             write(iulog,*) 'Expanding the calving mask to ice shelves in select basins'
+             write(iulog,*) 'basin number, mask_basin:'
              do bn = 1, 16
-                write(6,*) bn, mask_basin(bn)
+                write(iulog,*) bn, mask_basin(bn)
              enddo
           endif
 
@@ -2634,10 +2635,10 @@ contains
           enddo   ! j
 
           if (verbose_calving .and. this_rank==rtest) then
-             write(6,*) ' '
-             write(6,*) 'Relaxed calving, timescale (yr) =', model%calving%timescale/scyr
-             write(6,*) 'dt (yr) =', model%numerics%dt/scyr
-             write(6,*) 'calving_minthck (m) =', model%calving%minthck
+             write(iulog,*) ' '
+             write(iulog,*) 'Relaxed calving, timescale (yr) =', model%calving%timescale/scyr
+             write(iulog,*) 'dt (yr) =', model%numerics%dt/scyr
+             write(iulog,*) 'calving_minthck (m) =', model%calving%minthck
           endif
 
           if (verbose_calving) then
@@ -2656,7 +2657,7 @@ contains
     !       Replace with calls to multiple subroutines based on whichcalving?
     ! ------------------------------------------------------------------------
 
-    if (main_task .and. verbose_calving) write(6,*) 'Call glissade_calve_ice'
+    if (main_task .and. verbose_calving) write(iulog,*) 'Call glissade_calve_ice'
 
     if (model%options%whichcalving /= CALVING_GRID_MASK) then
 
@@ -2989,7 +2990,7 @@ contains
        if (model%isostasy%nlith > 0) then
           if (mod(model%numerics%tstep_count-1, model%isostasy%nlith) == 0) then
              if (main_task) then
-                write(6,*) 'Update lithospheric load: tstep_count, nlith =', &
+                write(iulog,*) 'Update lithospheric load: tstep_count, nlith =', &
                      model%numerics%tstep_count, model%isostasy%nlith
              endif
              call isos_icewaterload(model)
@@ -3121,7 +3122,7 @@ contains
     upn = model%general%upn
 
     if (verbose_glissade .and. main_task) then
-       write(6,*) 'In glissade_diagnostic_variable_solve'
+       write(iulog,*) 'In glissade_diagnostic_variable_solve'
     endif
 
     ! ------------------------------------------------------------------------ 
@@ -3279,7 +3280,7 @@ contains
                                     model%geometry%topg_raised)
 
     if (verbose_glp) then
-       if (this_rank == rtest) write(6,*) 'Called GLP subroutine, which_ho_ground =', model%options%which_ho_ground
+       if (this_rank == rtest) write(iulog,*) 'Called GLP subroutine, which_ho_ground =', model%options%which_ho_ground
        call point_diag(model%geometry%f_flotation, 'f_flotation', itest, jtest, rtest, 7, 7, '(f10.5)')
        call point_diag(model%geometry%f_ground, 'f_ground at vertex', itest, jtest, rtest, 7, 7, '(f10.5)')
        call point_diag(model%geometry%f_ground_cell, 'f_ground_cell', itest, jtest, rtest, 7, 7, '(f10.5)')
@@ -3532,8 +3533,8 @@ contains
        endif
 
        if (main_task) then
-          write(6,*) ' '
-          write(6,*) 'Compute ice velocities, time =', model%numerics%time
+          write(iulog,*) ' '
+          write(iulog,*) 'Compute ice velocities, time =', model%numerics%time
        endif
 
        !! extrapolate value of mintauf into halos to enforce periodic lateral bcs (only if field covers entire domain)
@@ -3591,7 +3592,7 @@ contains
 
     if (this_rank==rtest .and. verbose_glissade) then
        k = 1
-       if (this_rank == rtest) write(6,*) 'After glissade_velocity_solve (or restart), k =', k
+       if (this_rank == rtest) write(iulog,*) 'After glissade_velocity_solve (or restart), k =', k
        call point_diag(model%temper%dissip(k,:,:)*scyr, 'dissip (deg/yr)', itest, jtest, rtest, 7, 7)
        call point_diag(model%velocity%uvel(k,:,:)*scyr, 'uvel(m/yr)', itest, jtest, rtest, 7, 7, '(f12.3)')
        call point_diag(model%velocity%vvel(k,:,:)*scyr, 'vvel(m/yr)', itest, jtest, rtest, 7, 7, '(f12.3)')
@@ -3882,15 +3883,15 @@ contains
                 call parallel_globalindex(i, j, iglobal, jglobal, parallel)
                 if (model%geometry%floating_mask(i,j) == 1) then
                    if (grounded_mask_old(i,j) == 1) then
-                      write(6,*) 'Floating_mask flip, G to F: i, j =', iglobal, jglobal
+                      write(iulog,*) 'Floating_mask flip, G to F: i, j =', iglobal, jglobal
                    else
-                      write(6,*) 'Floating_mask flip, O to F: i, j =', iglobal, jglobal
+                      write(iulog,*) 'Floating_mask flip, O to F: i, j =', iglobal, jglobal
                    endif
                 elseif (floating_mask_old(i,j) == 1) then
                    if (model%geometry%grounded_mask(i,j) == 1) then
-                      write(6,*) 'Floating_mask flip, F to G: i, j =', iglobal, jglobal
+                      write(iulog,*) 'Floating_mask flip, F to G: i, j =', iglobal, jglobal
                    else
-                      write(6,*) 'Floating_mask flip, F to O: i, j =', iglobal, jglobal
+                      write(iulog,*) 'Floating_mask flip, F to O: i, j =', iglobal, jglobal
                    endif
                 endif
              endif
@@ -3946,7 +3947,7 @@ contains
     model%geometry%usrf(:,:) = max(0.d0, model%geometry%thck(:,:) + model%geometry%lsrf(:,:))
 
     if (verbose_glissade .and. main_task) then
-       write(6,*) 'Done in glissade_diagnostic_variable_solve'
+       write(iulog,*) 'Done in glissade_diagnostic_variable_solve'
     endif
   end subroutine glissade_diagnostic_variable_solve
 

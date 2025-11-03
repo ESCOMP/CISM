@@ -37,7 +37,7 @@ module glissade_bmlt_float
 
   use glimmer_global, only: dp
   use glimmer_physcon, only: rhoo, rhow, grav, lhci, scyr, pi
-  use glimmer_paramets, only: unphys_val
+  use glimmer_paramets, only: iulog, unphys_val
   use glimmer_log
   use glide_types
   use glimmer_utils, only: point_diag
@@ -222,7 +222,7 @@ module glissade_bmlt_float
     ! Compute the basal melt rate for floating ice
     !-----------------------------------------------------------------
 
-    if (main_task .and. verbose_bmlt_float) write(6,*) 'Computing bmlt_float, whichbmlt_float =', whichbmlt_float
+    if (main_task .and. verbose_bmlt_float) write(iulog,*) 'Computing bmlt_float, whichbmlt_float =', whichbmlt_float
 
     ! Set bmlt_float pointer and initialize
     bmlt_float  => basal_melt%bmlt_float
@@ -262,7 +262,7 @@ module glissade_bmlt_float
                 !WHL - debug
                 if (j==jtest .and. this_rank==rtest) then
 !!                if (i==itest .and. j==jtest .and. this_rank==rtest) then
-!!                   write(6,*) 'rank, i, j, bmlt_float:', this_rank, i, j, bmlt_float(i,j)
+!!                   write(iulog,*) 'rank, i, j, bmlt_float:', this_rank, i, j, bmlt_float(i,j)
                 endif
                    
              endif   ! ice is present and floating
@@ -298,7 +298,7 @@ module glissade_bmlt_float
 
                 !debug
 !                if (j == jtest .and. verbose_bmlt_float) then
-!                   write(6,*) 'cavity, tanh, thck, draft, melt rate (m/yr):', i, j, h_cavity, &
+!                   write(iulog,*) 'cavity, tanh, thck, draft, melt rate (m/yr):', i, j, h_cavity, &
 !                         tanh(h_cavity/basal_melt%bmlt_float_h0), thck(i,j), z_draft, bmlt_float(i,j)*scyr
 !                endif
 
@@ -495,8 +495,8 @@ module glissade_bmlt_float
     allocate(deltaT_basin_ismip6(ocean_data%nbasin))
 
     if (verbose_bmlt_float .and. main_task) then
-       write(6,*) 'In glissade_bmlt_float_thermal_forcing_init'
-       write(6,*) 'bmlt_float_thermal_forcing_param =', model%options%bmlt_float_thermal_forcing_param
+       write(iulog,*) 'In glissade_bmlt_float_thermal_forcing_init'
+       write(iulog,*) 'bmlt_float_thermal_forcing_param =', model%options%bmlt_float_thermal_forcing_param
     endif
 
     !WHL - debug - some simple initializations for testing
@@ -539,22 +539,22 @@ module glissade_bmlt_float
           !      Now, nonzero values of gamma0 must be set in the config file.
 
           if (verbose_bmlt_float .and. this_rank==rtest) then
-             write(6,*) ' '
-             write(6,*) 'Initialize ISMIP6 sub-shelf melting'
-             write(6,*) ' '
-             write(6,*) 'k, zocn:'
+             write(iulog,*) ' '
+             write(iulog,*) 'Initialize ISMIP6 sub-shelf melting'
+             write(iulog,*) ' '
+             write(iulog,*) 'k, zocn:'
              do k = 1, ocean_data%nzocn
-                write(6,*) k, ocean_data%zocn(k)
+                write(iulog,*) k, ocean_data%zocn(k)
              enddo
-             write(6,*) ' '
-             write(6,*) 'gamma0 =', ocean_data%gamma0
-             write(6,*) ' '
+             write(iulog,*) ' '
+             write(iulog,*) 'gamma0 =', ocean_data%gamma0
+             write(iulog,*) ' '
              call point_diag(ocean_data%basin_number(:,:), 'basin_number', itest, jtest, rtest, 7, 7)
              call point_diag(ocean_data%deltaT_ocn(:,:), 'deltaT_ocn', itest, jtest, rtest, 7, 7)
-             write(6,*) 'associated(thermal_forcing) =', associated(ocean_data%thermal_forcing)
+             write(iulog,*) 'associated(thermal_forcing) =', associated(ocean_data%thermal_forcing)
              do k = kmin_diag, kmax_diag
-                write(6,*) ' '
-                write(6,*) 'thermal_forcing, k =', k
+                write(iulog,*) ' '
+                write(iulog,*) 'thermal_forcing, k =', k
                 call point_diag(ocean_data%thermal_forcing(k,:,:), 'thermal_forcing', itest, jtest, rtest, 7, 7)
              enddo
           endif  ! verbose_bmlt_float
@@ -575,7 +575,7 @@ module glissade_bmlt_float
           if (basin_number_min < 1) then
 
              if (verbose_bmlt_float .and. main_task) then
-                write(6,*) 'Extrapolate basin numbers'
+                write(iulog,*) 'Extrapolate basin numbers'
              endif
 
              call basin_number_extrapolate(&
@@ -638,9 +638,9 @@ module glissade_bmlt_float
           call parallel_halo(ocean_data%thermal_forcing, parallel)
 
           if (verbose_bmlt_float) then
-             if (this_rank ==rtest) write(6,*) 'Set TF = unphys_val in cavities, buffer =', buffer
+             if (this_rank ==rtest) write(iulog,*) 'Set TF = unphys_val in cavities, buffer =', buffer
              do k = kmin_diag, kmax_diag
-                if (this_rank == rtest) write(6,*) 'k =', k
+                if (this_rank == rtest) write(iulog,*) 'k =', k
                 call point_diag(ocean_data%thermal_forcing(k,:,:), 'TF before extrapolating', itest, jtest, rtest, 7, 7)
              enddo
           endif
@@ -788,11 +788,11 @@ module glissade_bmlt_float
     logical, save :: first_call = .true.
 
     if (verbose_bmlt_float .and. main_task) then
-       write(6,*) ' '
-       write(6,*) 'In subroutine glissade_bmlt_float_thermal_forcing'
-       write(6,*) '   bmlt_float_thermal_forcing_param =', bmlt_float_thermal_forcing_param
-       write(6,*) '   ocean_data_extrapolate =', ocean_data_extrapolate
-       write(6,*) '   nbasin =', ocean_data%nbasin
+       write(iulog,*) ' '
+       write(iulog,*) 'In subroutine glissade_bmlt_float_thermal_forcing'
+       write(iulog,*) '   bmlt_float_thermal_forcing_param =', bmlt_float_thermal_forcing_param
+       write(iulog,*) '   ocean_data_extrapolate =', ocean_data_extrapolate
+       write(iulog,*) '   nbasin =', ocean_data%nbasin
     endif
 
     if (present(tf_anomaly_in)) then
@@ -864,14 +864,14 @@ module glissade_bmlt_float
     if (ocean_data_extrapolate == OCEAN_DATA_EXTRAPOLATE_TRUE) then
 
        if (verbose_bmlt_float) then
-          if (this_rank == rtest) write(6,*) 'Extrapolating TF data beneath ice shelves'
+          if (this_rank == rtest) write(iulog,*) 'Extrapolating TF data beneath ice shelves'
           call point_diag(thermal_forcing_mask, 'thermal_forcing_mask', itest, jtest, rtest, 7, 7)
           call point_diag(marine_connection_mask, 'marine_connection_mask', itest, jtest, rtest, 7, 7)
           call point_diag(ocean_mask, 'ocean_mask', itest, jtest, rtest, 7, 7)
           call point_diag(lsrf, 'lsrf (m)', itest, jtest, rtest, 7, 7)
           call point_diag(topg, 'topg (m)', itest, jtest, rtest, 7, 7)
           do k = kmin_diag, kmax_diag
-             if (this_rank == rtest) write(6,*) 'k =', k
+             if (this_rank == rtest) write(iulog,*) 'k =', k
              call point_diag(ocean_data%thermal_forcing(k,:,:), 'TF before extrapolating', itest, jtest, rtest, 7, 7)
           enddo
        endif
@@ -895,7 +895,7 @@ module glissade_bmlt_float
 
        if (verbose_bmlt_float) then
           do k = kmin_diag, kmax_diag
-             if (this_rank == rtest) write(6,*) 'k =', k
+             if (this_rank == rtest) write(iulog,*) 'k =', k
              call point_diag(ocean_data%thermal_forcing(k,:,:), 'TF after extrapolating', &
                   itest, jtest, rtest, 7, 7)
           enddo
@@ -905,7 +905,7 @@ module glissade_bmlt_float
 
        if (verbose_bmlt_float) then
           do k = kmin_diag, kmax_diag
-             if (this_rank == rtest) write(6,*) 'k =', k
+             if (this_rank == rtest) write(iulog,*) 'k =', k
              call point_diag(ocean_data%thermal_forcing(k,:,:), 'TF to interpolate to lsrf', &
                   itest, jtest, rtest, 7, 7)
           enddo
@@ -965,7 +965,7 @@ module glissade_bmlt_float
     enddo
 
     if (verbose_bmlt_float) then
-       if (this_rank == rtest) write(6,*) 'basin number =', ocean_data%basin_number(itest,jtest)
+       if (this_rank == rtest) write(iulog,*) 'basin number =', ocean_data%basin_number(itest,jtest)
        call point_diag(lsrf, 'lsrf (m)', itest, jtest, rtest, 7, 7)
        call point_diag(ocean_data%thermal_forcing_lsrf, 'thermal_forcing_lsrf (degC)', itest, jtest, rtest, 7, 7)
 
@@ -1032,15 +1032,15 @@ module glissade_bmlt_float
             deltaT_basin_avg)
 
        if (verbose_bmlt_float .and. this_rank==rtest) then
-          write(6,*) ' '
-          write(6,*) 'thermal_forcing_basin (including deltaT_ocn corrections):'
+          write(iulog,*) ' '
+          write(iulog,*) 'thermal_forcing_basin (including deltaT_ocn corrections):'
           do nb = 1, ocean_data%nbasin
-             write(6,*) nb, thermal_forcing_basin(nb)
+             write(iulog,*) nb, thermal_forcing_basin(nb)
           enddo
-          write(6,*) ' '
-          write(6,*) 'deltaT_basin_avg:'
+          write(iulog,*) ' '
+          write(iulog,*) 'deltaT_basin_avg:'
           do nb = 1, ocean_data%nbasin
-             write(6,*) nb, deltaT_basin_avg(nb)
+             write(iulog,*) nb, deltaT_basin_avg(nb)
           enddo
        endif
 
@@ -1153,8 +1153,8 @@ module glissade_bmlt_float
     if (bmlt_float_thermal_forcing_param == BMLT_FLOAT_TF_QUADRATIC) then
 
        if (verbose_bmlt_float .and. main_task) then
-          write(6,*) 'Compute basal melt rate from quadratic parameterization'
-          write(6,*) 'rank, i, j:', rtest, itest, jtest
+          write(iulog,*) 'Compute basal melt rate from quadratic parameterization'
+          write(iulog,*) 'rank, i, j:', rtest, itest, jtest
        endif
 
        call quadratic_bmlt_float(&
@@ -1168,8 +1168,8 @@ module glissade_bmlt_float
             bmlt_float_thermal_forcing_param == BMLT_FLOAT_TF_ISMIP6_NONLOCAL_SLOPE) then
 
        if (verbose_bmlt_float .and. this_rank == rtest) then
-          write(6,*) 'Compute basal melt rate from ISMIP6 thermal forcing'
-          write(6,*) 'rank, i, j, basin number:', rtest, itest, jtest, ocean_data%basin_number(itest,jtest)
+          write(iulog,*) 'Compute basal melt rate from ISMIP6 thermal forcing'
+          write(iulog,*) 'rank, i, j, basin number:', rtest, itest, jtest, ocean_data%basin_number(itest,jtest)
        endif
 
        ! Compute the basal melt rate based on an ISMIP6 thermal forcing parameterization.
@@ -1451,8 +1451,8 @@ module glissade_bmlt_float
 
     max_iter = max(parallel%ewtasks, parallel%nstasks) * max(nx-2*nhalo, ny-2*nhalo)
     if (verbose_extrapolate .and. this_rank == rtest) then
-       write(6,*) 'Max number of iterations =', max_iter
-       write(6,*) 'Stencil size =', stencil_size
+       write(iulog,*) 'Max number of iterations =', max_iter
+       write(iulog,*) 'Stencil size =', stencil_size
     endif
 
     ! Extrapolate the data into ice-shelf cavities
@@ -1484,7 +1484,7 @@ module glissade_bmlt_float
 
     do iter = 1, max_iter  ! outer loop
 
-       if (verbose_extrapolate .and. this_rank == rtest) write(6,*) 'Iteration =', iter
+       if (verbose_extrapolate .and. this_rank == rtest) write(iulog,*) 'Iteration =', iter
 
        do iter_horiz = 1, max_iter   ! inner loop
 
@@ -1683,7 +1683,7 @@ module glissade_bmlt_float
 
              if (verbose_extrapolate) then
                 do k = kmin_diag, kmax_diag
-                   if (this_rank == rtest) write(6,*) 'k, zocn =', k, zocn(k)
+                   if (this_rank == rtest) write(iulog,*) 'k, zocn =', k, zocn(k)
                    call point_diag(filled_mask(k,:,:), 'filled_mask', itest, jtest, rtest, 7, 7)
                    call point_diag(thermal_forcing(k,:,:), 'thermal_forcing', itest, jtest, rtest, 7, 7)
                 enddo
@@ -1694,7 +1694,7 @@ module glissade_bmlt_float
              if (global_count_horiz == global_count_horiz_save) then
                 if (verbose_extrapolate) then
                    if (this_rank == rtest) then
-                      write(6,*) 'Horizontal extrapolation converged: iter, global_count =', &
+                      write(iulog,*) 'Horizontal extrapolation converged: iter, global_count =', &
                         iter_horiz, global_count_horiz
                    endif
                    write(message,*) 'Horizontal extrapolation converged: iter, global_count =', &
@@ -1705,7 +1705,7 @@ module glissade_bmlt_float
              else   ! not converged
                 if (verbose_extrapolate) then
                    if (this_rank == rtest) then
-                      write(6,*) 'Horizontal extrapolation convergence check: iter, global_count =', &
+                      write(iulog,*) 'Horizontal extrapolation convergence check: iter, global_count =', &
                            iter_horiz, global_count_horiz
                    endif
                    write(message,*) 'Horizontal extrapolation convergence check: iter, global_count =', &
@@ -1718,7 +1718,7 @@ module glissade_bmlt_float
           endif   ! time for a convergence check
 
           if (iter_horiz == max_iter) then
-             if (this_rank == rtest) write(6,*) 'iter_horiz = max_iter:', max_iter
+             if (this_rank == rtest) write(iulog,*) 'iter_horiz = max_iter:', max_iter
              write(message,*) 'Ocean TF extrapolation error, too many iterations: max_iter =', max_iter
              call write_log(message, GM_FATAL)
           endif
@@ -1758,9 +1758,9 @@ module glissade_bmlt_float
        call parallel_halo(thermal_forcing, parallel)
 
        if (verbose_extrapolate) then
-          if (this_rank == rtest) write(6,*) 'After vertical fill:'
+          if (this_rank == rtest) write(iulog,*) 'After vertical fill:'
           do k = kmin_diag, kmax_diag
-             if (this_rank == rtest) write(6,*) 'k, zocn =', k, zocn(k)
+             if (this_rank == rtest) write(iulog,*) 'k, zocn =', k, zocn(k)
              call point_diag(filled_mask(k,:,:), 'filled_mask', itest, jtest, rtest, 7, 7)
              call point_diag(thermal_forcing(k,:,:), 'thermal_forcing', itest, jtest, rtest, 7, 7)
           enddo
@@ -1782,7 +1782,7 @@ module glissade_bmlt_float
           if (global_count == global_count_save) then
              if (verbose_extrapolate) then
                 if (this_rank == rtest) &
-                  write(6,*) 'Extrapolation converged: iter, global_count =', iter, global_count
+                  write(iulog,*) 'Extrapolation converged: iter, global_count =', iter, global_count
                 write(message,*) 'Extrapolation converged: iter, global_count =', iter, global_count
                 call write_log(message)
              endif
@@ -1790,7 +1790,7 @@ module glissade_bmlt_float
           else
              if (verbose_extrapolate) then
                 if (this_rank == rtest) &
-                  write(6,*) 'Extrapolation convergence check: iter, global_count =', iter, global_count
+                  write(iulog,*) 'Extrapolation convergence check: iter, global_count =', iter, global_count
                 write(message,*) 'Extrapolation convergence check: iter, global_count =', iter, global_count
                 call write_log(message)
              endif
@@ -1800,7 +1800,7 @@ module glissade_bmlt_float
        endif   ! time for a convergence check
 
        if (iter == max_iter) then
-          if (this_rank == rtest) write(6,*) 'iter = max_iter:', max_iter
+          if (this_rank == rtest) write(iulog,*) 'iter = max_iter:', max_iter
           write(message,*) 'Ocean TF extrapolation error, too many iterations: max_iter =', max_iter
           call write_log(message, GM_FATAL)
        endif
@@ -1811,7 +1811,7 @@ module glissade_bmlt_float
     ! If not yet filled, then check for a value in a nearby cell.
     ! If there is no such value, then there should be in a subsequent iteration.
 
-    if (verbose_extrapolate .and. this_rank == rtest) write(6,*) 'Final extrapolation to outlier cells'
+    if (verbose_extrapolate .and. this_rank == rtest) write(iulog,*) 'Final extrapolation to outlier cells'
 
     do iter = 1, max_iter_finish
 
@@ -1822,7 +1822,7 @@ module glissade_bmlt_float
                    if (thermal_forcing(k,i,j) == unphys_val) then
                       call parallel_globalindex(i, j, iglobal, jglobal, parallel)
                       if (verbose_extrapolate) then
-                         write(6,*) 'Ocean data extrapolation issue: unphys value in level k, i, j:', &
+                         write(iulog,*) 'Ocean data extrapolation issue: unphys value in level k, i, j:', &
                               k, iglobal, jglobal, thermal_forcing(k,i,j)
                       endif
                       !Note: no risk of i or j out of bounds, since the loop above is limited to locally owned cells
@@ -1843,7 +1843,7 @@ module glissade_bmlt_float
                       enddo
                       if(sum_mask > 0) then
                          thermal_forcing(k,i,j) = sum_thermal_forcing / real(sum_mask,dp)
-                         if (verbose_extrapolate) write(6,*) '   Assigned value is ', thermal_forcing(k,i,j)
+                         if (verbose_extrapolate) write(iulog,*) '   Assigned value is ', thermal_forcing(k,i,j)
                       endif
                    endif   ! unphys_val
                 enddo   ! k
@@ -1866,7 +1866,7 @@ module glissade_bmlt_float
        if (global_count == global_count_save) then
           if (verbose_extrapolate) then
              if (this_rank == rtest) &
-                  write(6,*) 'Final extrapolation converged: iter, global_count =', iter, global_count
+                  write(iulog,*) 'Final extrapolation converged: iter, global_count =', iter, global_count
              write(message,*) 'Final extrapolation converged: iter, global_count =', iter, global_count
              call write_log(message)
           endif
@@ -1874,7 +1874,7 @@ module glissade_bmlt_float
        else
           if (verbose_extrapolate) then
              if (this_rank == rtest) &
-                  write(6,*) 'Final extrapolation convergence check: iter, global_count =', iter, global_count
+                  write(iulog,*) 'Final extrapolation convergence check: iter, global_count =', iter, global_count
              write(message,*) 'Final extrapolation convergence check: iter, global_count =', iter, global_count
              call write_log(message)
           endif
@@ -1891,7 +1891,7 @@ module glissade_bmlt_float
              do k = ktop(i,j), kbot(i,j)
                 if (thermal_forcing(k,i,j) == unphys_val) then
                    call parallel_globalindex(i, j, iglobal, jglobal, parallel)
-                   write(6,*) 'TF extrapolation error, no neighbours with valid values, k, i, j =',  &
+                   write(iulog,*) 'TF extrapolation error, no neighbours with valid values, k, i, j =',  &
                         k, iglobal, jglobal
                    write(message,*) 'TF extrapolation error, no neighbours with valid values, k, i, j =',  &
                         k, iglobal, jglobal
@@ -2221,13 +2221,13 @@ module glissade_bmlt_float
              endif
 
              if (verbose_bmlt_float .and. this_rank == rtest .and. i==itest .and. j==jtest) then
-                write(6,*) ' '
-                write(6,*) 'In ismip6_set_deltaT_ocn, r, i, j =', rtest, itest, jtest
-                write(6,*) 'dthck_dt_target =', dthck_dt_target(i,j)
-                write(6,*) 'thermal_forcing_lsrf =', thermal_forcing_lsrf(i,j)
-                write(6,*) 'deltaT_ocn_init =', deltaT_ocn_init(i,j)
-                write(6,*) 'dTocn adjustment =', dTocn(i,j)
-                write(6,*) 'deltaT_ocn_new =', deltaT_ocn_init(i,j) + dTocn(i,j)
+                write(iulog,*) ' '
+                write(iulog,*) 'In ismip6_set_deltaT_ocn, r, i, j =', rtest, itest, jtest
+                write(iulog,*) 'dthck_dt_target =', dthck_dt_target(i,j)
+                write(iulog,*) 'thermal_forcing_lsrf =', thermal_forcing_lsrf(i,j)
+                write(iulog,*) 'deltaT_ocn_init =', deltaT_ocn_init(i,j)
+                write(iulog,*) 'dTocn adjustment =', dTocn(i,j)
+                write(iulog,*) 'deltaT_ocn_new =', deltaT_ocn_init(i,j) + dTocn(i,j)
              endif
 
           enddo
@@ -2262,14 +2262,14 @@ module glissade_bmlt_float
              endif
 
              if (verbose_bmlt_float .and. this_rank == rtest .and. i==itest .and. j==jtest) then
-                write(6,*) ' '
-                write(6,*) 'In ismip6_set_deltaT_ocn, r, i, j, nb =', rtest, itest, jtest, nb
-                write(6,*) 'thermal_forcing_lsrf =', thermal_forcing_lsrf(i,j)
-                write(6,*) 'thermal_forcing_basin =', thermal_forcing_basin(nb)
-                write(6,*) 'dthck_dt_target =', dthck_dt_target(i,j)
-                write(6,*) 'deltaT_ocn_init =', deltaT_ocn_init(i,j)
-                write(6,*) 'dTocn adjustment =', dTocn(i,j)
-                write(6,*) 'deltaT_ocn_new =', deltaT_ocn_init(i,j) + dTocn(i,j)
+                write(iulog,*) ' '
+                write(iulog,*) 'In ismip6_set_deltaT_ocn, r, i, j, nb =', rtest, itest, jtest, nb
+                write(iulog,*) 'thermal_forcing_lsrf =', thermal_forcing_lsrf(i,j)
+                write(iulog,*) 'thermal_forcing_basin =', thermal_forcing_basin(nb)
+                write(iulog,*) 'dthck_dt_target =', dthck_dt_target(i,j)
+                write(iulog,*) 'deltaT_ocn_init =', deltaT_ocn_init(i,j)
+                write(iulog,*) 'dTocn adjustment =', dTocn(i,j)
+                write(iulog,*) 'deltaT_ocn_new =', deltaT_ocn_init(i,j) + dTocn(i,j)
              endif
 
           enddo
@@ -2489,9 +2489,9 @@ module glissade_bmlt_float
     max_iter = max(parallel%ewtasks, parallel%nstasks) * max(nx-2*nhalo, ny-2*nhalo)
 
     if (verbose_basin_number .and. main_task) then
-       write(6,*) 'Extrapolating basin numbers to cells with invalid values'
-       write(6,*) 'Initial count of valid values:', global_count_save
-       write(6,*) 'max_iter =', max_iter
+       write(iulog,*) 'Extrapolating basin numbers to cells with invalid values'
+       write(iulog,*) 'Initial count of valid values:', global_count_save
+       write(iulog,*) 'max_iter =', max_iter
     endif
 
     ! Extrapolate the data horizontally
@@ -2538,12 +2538,12 @@ module glissade_bmlt_float
        call parallel_halo(valid_mask, parallel)
 
        if (verbose_basin_number .and. main_task) then
-!!          write(6,*) iter, 'Basin number count =', global_count
+!!          write(iulog,*) iter, 'Basin number count =', global_count
        endif
 
        if (global_count == global_count_save) then
           if (verbose_basin_number .and. main_task) then
-             write(6,*) 'Exiting basin_number_extrapolate, iter =', iter
+             write(iulog,*) 'Exiting basin_number_extrapolate, iter =', iter
           endif
           exit
        else
@@ -2551,7 +2551,7 @@ module glissade_bmlt_float
        endif
 
        if (iter == max_iter) then
-          if (main_task) write(6,*) 'Error: Exiting basin_number_extrapolate, max_iter =', max_iter
+          if (main_task) write(iulog,*) 'Error: Exiting basin_number_extrapolate, max_iter =', max_iter
           call write_log('Error: Exiting basin_number_extrapolate without converging', GM_FATAL)
        endif
 
@@ -2875,8 +2875,8 @@ module glissade_bmlt_float
 
                 ! diagnostic print
                 if (this_rank == rtest .and. i==itest .and. j==jtest) then
-                   write(6,*) ' '
-                   write(6,*) 'Velocity converged: u/v_plume (m/s):', u_plume(i,j), v_plume(i,j)
+                   write(iulog,*) ' '
+                   write(iulog,*) 'Velocity converged: u/v_plume (m/s):', u_plume(i,j), v_plume(i,j)
                 endif
 
              endif
@@ -2903,8 +2903,8 @@ module glissade_bmlt_float
                       v_plume(i,j) = v_plume(i,j) + dv
                       
                    else  ! denom = 0.0
-                      write(6,*) 'Error, glissade_plume: ill-posed Newton solve for velocity, rank, i, j:', this_rank, i, j
-                      write(6,*) 'a_uu, a_vv, a_uv, a_vu =', a_uu, a_vv, a_uv, a_vu
+                      write(iulog,*) 'Error, glissade_plume: ill-posed Newton solve for velocity, rank, i, j:', this_rank, i, j
+                      write(iulog,*) 'a_uu, a_vv, a_uv, a_vu =', a_uu, a_vv, a_uv, a_vu
                       write(message,*) 'Error, glissade_plume: ill-posed Newton solve for velocity, rank, i, j:', this_rank, i, j
                       call write_log(message, GM_FATAL)
                    endif
@@ -2920,16 +2920,16 @@ module glissade_bmlt_float
              endif  ! .not.converged_velo
 
              if (verbose_velo .and. this_rank == rtest .and. i==itest .and. j==jtest) then
-                write(6,*) ' '
-                write(6,*) 'plume_speed (m/s) =', plume_speed
-                write(6,*) 'pgf_x, pgf_y:', pgf_x(i,j), pgf_y(i,j)
-                write(6,*) 'latdrag_x, latdrag_y:', latdrag_x(i,j), latdrag_y(i,j)
-                write(6,*) 'Dfv, -Dfu:', D_plume(i,j) * f_coriolis * v_plume(i,j), &
+                write(iulog,*) ' '
+                write(iulog,*) 'plume_speed (m/s) =', plume_speed
+                write(iulog,*) 'pgf_x, pgf_y:', pgf_x(i,j), pgf_y(i,j)
+                write(iulog,*) 'latdrag_x, latdrag_y:', latdrag_x(i,j), latdrag_y(i,j)
+                write(iulog,*) 'Dfv, -Dfu:', D_plume(i,j) * f_coriolis * v_plume(i,j), &
                                      -D_plume(i,j) * f_coriolis * u_plume(i,j)
-                write(6,*) 'dragu, dragv:', c_drag * plume_speed * u_plume(i,j), &
+                write(iulog,*) 'dragu, dragv:', c_drag * plume_speed * u_plume(i,j), &
                                          c_drag * plume_speed * v_plume(i,j)
-                write(6,*) 'x/y residual:', x_resid, y_resid
-                write(6,*) 'new u/v_plume:', u_plume(i,j), v_plume(i,j)
+                write(iulog,*) 'x/y residual:', x_resid, y_resid
+                write(iulog,*) 'new u/v_plume:', u_plume(i,j), v_plume(i,j)
              endif
 
           endif  ! edge_mask
@@ -3066,8 +3066,8 @@ module glissade_bmlt_float
 !       mc =  162.d0
 !       md = -350.d0
 !       call cubic_solver(ma, mb, mc, md, solution)
-!       write(6,*) 'Trial cubic solution =', solution
-!       write(6,*) 'True solution =', (10.d0 + sqrt(108.d0))**(1.d0/3.d0) - (-10.d0 + sqrt(108.d0))**(1.d0/3.d0) + 5.d0
+!       write(iulog,*) 'Trial cubic solution =', solution
+!       write(iulog,*) 'True solution =', (10.d0 + sqrt(108.d0))**(1.d0/3.d0) - (-10.d0 + sqrt(108.d0))**(1.d0/3.d0) + 5.d0
 
 
     ! Loop over locally owned cells
@@ -3101,16 +3101,16 @@ module glissade_bmlt_float
                   bmlt_float(i,j))
 
              if (verbose_melt .and. this_rank == rtest .and. i==itest .and. j==jtest) then
-                write(6,*) ' '
-                write(6,*) 'Melt rate calc: rank, i, j =', rtest, i, j
-                write(6,*) 'pressure (Pa) =', pressure(i,j)
-                write(6,*) 'T_factor (m/s/deg), S_factor (m/s)=', T_factor, S_factor
-                write(6,*) 'entrainment (m/s) =', entrainment(i,j)
-                write(6,*) 'm1 (m/s/psu) =', m1
-                write(6,*) 'm2 (m/s) =', m2
-                write(6,*) 'denom =', denom
-                write(6,*) 'a, b, c, d =', ma, mb, mc, md
-                write(6,*) 'residual of cubic solve =', ma*bmlt_float(i,j)**3 + mb*bmlt_float(i,j)**2 + mc*bmlt_float(i,j) + md
+                write(iulog,*) ' '
+                write(iulog,*) 'Melt rate calc: rank, i, j =', rtest, i, j
+                write(iulog,*) 'pressure (Pa) =', pressure(i,j)
+                write(iulog,*) 'T_factor (m/s/deg), S_factor (m/s)=', T_factor, S_factor
+                write(iulog,*) 'entrainment (m/s) =', entrainment(i,j)
+                write(iulog,*) 'm1 (m/s/psu) =', m1
+                write(iulog,*) 'm2 (m/s) =', m2
+                write(iulog,*) 'denom =', denom
+                write(iulog,*) 'a, b, c, d =', ma, mb, mc, md
+                write(iulog,*) 'residual of cubic solve =', ma*bmlt_float(i,j)**3 + mb*bmlt_float(i,j)**2 + mc*bmlt_float(i,j) + md
              endif
              
              ! Given the melt rate, compute Sb and Tb
@@ -3127,10 +3127,10 @@ module glissade_bmlt_float
              if (T_plume(i,j) /= T_plume(i,j) .or. S_plume(i,j) /= S_plume(i,j) .or. &
                  T_basal(i,j) /= T_basal(i,j) .or. S_basal(i,j) /= S_basal(i,j) .or. &
                  bmlt_float(i,j) /= bmlt_float(i,j)) then
-                write(6,*) 'Bad values, i, j =', i, j
-                write(6,*) 'T_plume, S_plume:', T_plume(i,j), S_plume(i,j)
-                write(6,*) 'T_basal, S_basal:', T_basal(i,j), S_basal(i,j)
-                write(6,*) 'bmlt_float:', bmlt_float(i,j)
+                write(iulog,*) 'Bad values, i, j =', i, j
+                write(iulog,*) 'T_plume, S_plume:', T_plume(i,j), S_plume(i,j)
+                write(iulog,*) 'T_basal, S_basal:', T_basal(i,j), S_basal(i,j)
+                write(iulog,*) 'bmlt_float:', bmlt_float(i,j)
                 stop
              endif
 
@@ -3220,13 +3220,13 @@ module glissade_bmlt_float
     Delta = (p/3.d0)**3 + (q/2.d0)**2
 
     if (verbose) then
-       write(6,*) 'Delta =', Delta
+       write(iulog,*) 'Delta =', Delta
        if (Delta > 0.d0) then
-          write(6,*) 'One real root, 2 complex conjugate'
+          write(iulog,*) 'One real root, 2 complex conjugate'
        elseif (Delta == 0.d0) then
-          write(6,*) 'Three real roots of which at least two are equal'
+          write(iulog,*) 'Three real roots of which at least two are equal'
        elseif (Delta < 0.d0) then
-          write(6,*) 'Three distinct real roots'
+          write(iulog,*) 'Three distinct real roots'
        endif
     endif
 
@@ -3261,10 +3261,10 @@ module glissade_bmlt_float
        y3_r = -(u-v)*sqrt(3.d0)/2.d0
 
        if (verbose) then
-          write(6,*) 'a, b, c, d:', a, b, c, d
-          write(6,*) 'p, q:', p, q
-          write(6,*) 'y1 =', y1
-          write(6,*) 'x1 =', x1
+          write(iulog,*) 'a, b, c, d:', a, b, c, d
+          write(iulog,*) 'p, q:', p, q
+          write(iulog,*) 'y1 =', y1
+          write(iulog,*) 'x1 =', x1
        endif
 
     else  ! Delta < 0; three distinct real roots
@@ -3279,13 +3279,13 @@ module glissade_bmlt_float
        y3_i =  0.d0
 
        if (verbose) then
-          write(6,*) 'a, b, c, d:', a, b, c, d
-          write(6,*) 'p, q:', p, q
-          write(6,*) 'y1, y2, y3 =', y1, y2_r, y3_r
-          write(6,*) 'b/3a =', b/(3.d0*a)
-          write(6,*) 'x1 =', y1 - b/(3.d0*a)
-          write(6,*) 'x2 =', y2_r - b/(3.d0*a)
-          write(6,*) 'x3 =', y3_r - b/(3.d0*a)
+          write(iulog,*) 'a, b, c, d:', a, b, c, d
+          write(iulog,*) 'p, q:', p, q
+          write(iulog,*) 'y1, y2, y3 =', y1, y2_r, y3_r
+          write(iulog,*) 'b/3a =', b/(3.d0*a)
+          write(iulog,*) 'x1 =', y1 - b/(3.d0*a)
+          write(iulog,*) 'x2 =', y2_r - b/(3.d0*a)
+          write(iulog,*) 'x3 =', y3_r - b/(3.d0*a)
        endif
 
     endif

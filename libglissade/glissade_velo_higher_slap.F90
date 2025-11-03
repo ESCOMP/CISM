@@ -39,6 +39,7 @@
   module glissade_velo_higher_slap
 
     use glimmer_global, only: dp
+    use glimmer_paramets, only: iulog
     use glimmer_sparse_type
     use glimmer_sparse, only: sparse_easy_solve
 
@@ -628,7 +629,7 @@
 
     integer :: i, j, n
 
-    write(6,*) 'Solving test matrix, order =', matrix_order
+    write(iulog,*) 'Solving test matrix, order =', matrix_order
 
     nNonzero_max = matrix_order*matrix_order    ! not sure how big this must be
 
@@ -699,9 +700,9 @@
     endif
 
     if (verbose_test) then
-       write(6,*) ' '
-       write(6,*) 'Atest =', Atest
-       write(6,*) 'rhs =', rhs
+       write(iulog,*) ' '
+       write(iulog,*) 'Atest =', Atest
+       write(iulog,*) 'rhs =', rhs
     endif
 
     ! Put in SLAP triad format (column ascending order)
@@ -722,12 +723,12 @@
     matrix%nonzeros = n
 
     if (verbose_test) then
-       write(6,*) ' '
-       write(6,*) 'row,       col,       val:'
+       write(iulog,*) ' '
+       write(iulog,*) 'row,       col,       val:'
        do n = 1, matrix%nonzeros
-          write(6,*) matrix%row(n), matrix%col(n), matrix%val(n)
+          write(iulog,*) matrix%row(n), matrix%col(n), matrix%val(n)
        enddo
-       write(6,*) 'Call sparse_easy_solve, whichsparse =', whichsparse
+       write(iulog,*) 'Call sparse_easy_solve, whichsparse =', whichsparse
     endif
     
     ! Solve the linear matrix problem
@@ -736,10 +737,10 @@
                            err,    niters, whichsparse)
 
     if (verbose_test) then
-       write(6,*) ' '
-       write(6,*) 'answer =', answer
-       write(6,*) 'err =', err       
-       write(6,*) 'niters =', niters
+       write(iulog,*) ' '
+       write(iulog,*) 'answer =', answer
+       write(iulog,*) 'err =', err       
+       write(iulog,*) 'niters =', niters
     endif
     
     stop

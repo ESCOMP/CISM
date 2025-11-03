@@ -27,7 +27,7 @@
 module glissade_basal_water
 
    use glimmer_global, only: dp
-   use glimmer_paramets, only: eps11, eps08
+   use glimmer_paramets, only: iulog, eps11, eps08
    use glimmer_physcon, only: rhoi, rhow, lhci, grav, scyr
    use glimmer_log
    use glimmer_utils, only: point_diag
@@ -279,7 +279,7 @@ module glissade_basal_water
     integer,  dimension(:,:), allocatable :: mask_test
 
     if (verbose_bwat .and. this_rank == rtest) then
-       write(6,*) 'In glissade_bwat_flux_routing: rtest, itest, jtest =', rtest, itest, jtest
+       write(iulog,*) 'In glissade_bwat_flux_routing: rtest, itest, jtest =', rtest, itest, jtest
     endif
 
     ! Uncomment if the following fields are not already up to date in halo cells
@@ -586,12 +586,12 @@ module glissade_basal_water
          head,  sorted_ij)
 
     if (verbose_bwat .and. this_rank == rtest) then
-       write(6,*) ' '
-       write(6,*) 'sorted, from the top:'
+       write(iulog,*) ' '
+       write(iulog,*) 'sorted, from the top:'
        do k = nlocal, nlocal-10, -1
           i = sorted_ij(k,1)
           j = sorted_ij(k,2)
-          write(6,*) k, i, j, head(i,j)
+          write(iulog,*) k, i, j, head(i,j)
        enddo
     endif
 
@@ -600,7 +600,7 @@ module glissade_basal_water
        do i = 1, nx
           if (bmlt_hydro(i,j) < 0.0d0) then
              call parallel_globalindex(i, j, iglobal, jglobal, parallel)
-!             write(6,*) 'Hydrology error: bmlt_hydro < 0, iglobal, jglobal, bmlt_hydro =', &
+!             write(iulog,*) 'Hydrology error: bmlt_hydro < 0, iglobal, jglobal, bmlt_hydro =', &
 !                     iglobal, jglobal, bmlt_hydro(i,j)
              write(message,*) 'Hydrology error: bmlt_hydro < 0, iglobal, jglobal, bmlt_hydro =', &
                   iglobal, jglobal, bmlt_hydro(i,j)
@@ -668,8 +668,8 @@ module glissade_basal_water
     total_flux_in = parallel_global_sum(bwatflx, parallel)
 
     if (verbose_bwat .and. this_rank == rtest) then
-       write(6,*) ' '
-       write(6,*) 'Total input basal melt flux (m^3/s):', total_flux_in
+       write(iulog,*) ' '
+       write(iulog,*) 'Total input basal melt flux (m^3/s):', total_flux_in
     endif
 
     ! Loop over locally owned cells, from highest to lowest.
@@ -694,7 +694,7 @@ module glissade_basal_water
        count = count + 1
 
        if (verbose_bwat .and. this_rank == rtest) then
-          write(6,*) 'flux routing, count =', count
+          write(iulog,*) 'flux routing, count =', count
        endif
 
        do k = nlocal, 1, -1
@@ -718,7 +718,7 @@ module glissade_basal_water
                          bwatflx_refreeze(i,j) = bwatflx_refreeze(i,j) &
                               + bwatflx(i,j)*flux_fraction(ii,jj,i,j)*(1.0d0 - btemp_weight(i,j))
                          if (verbose_bwat .and. this_rank==rtest .and. i==itest .and. j==jtest .and. count <= 2) then
-                            write(6,*) 'Flux to halo, i, j, ii, jj, flux:', &
+                            write(iulog,*) 'Flux to halo, i, j, ii, jj, flux:', &
                                  i, j, ii, jj, bwatflx(i,j)*flux_fraction(ii,jj,i,j)
                          endif
                       elseif (local_mask(ip,jp) == 1) then
@@ -741,7 +741,7 @@ module glissade_basal_water
        if (verbose_bwat .and. this_rank == rtest .and. count <= 2) then
           i = itest
           j = jtest
-          write(6,*) 'i, j, bwatflx_accum:', i, j, bwatflx_accum(i,j)
+          write(iulog,*) 'i, j, bwatflx_accum:', i, j, bwatflx_accum(i,j)
        endif
 
        ! If bwatflx_halo = 0 everywhere, then we are done.
@@ -754,10 +754,10 @@ module glissade_basal_water
           do i = 1, nx
              sum_bwatflx_halo(i,j) = sum(bwatflx_halo(:,:,i,j))
 !             if (verbose_bwat .and. sum_bwatflx_halo(i,j) > eps11 .and. count > 50) then
-!               write(6,*) 'Nonzero bwatflx_halo, count, rank, i, j, sum_bwatflx_halo:', &
+!               write(iulog,*) 'Nonzero bwatflx_halo, count, rank, i, j, sum_bwatflx_halo:', &
 !                     count, this_rank, i, j, sum_bwatflx_halo(i,j)
 !               call parallel_globalindex(i, j, iglobal, jglobal, parallel)
-!               write(6,*) '     iglobal, jglobal:', iglobal, jglobal
+!               write(iulog,*) '     iglobal, jglobal:', iglobal, jglobal
 !             endif
           enddo
        enddo
@@ -765,7 +765,7 @@ module glissade_basal_water
 
        if (verbose_bwat .and. count <= 2) then
           if (this_rank == rtest) then
-             write(6,*) 'Before halo update, sum of bwatflx_halo:', global_flux_sum
+             write(iulog,*) 'Before halo update, sum of bwatflx_halo:', global_flux_sum
           endif
           call point_diag(sum_bwatflx_halo, 'sum_bwatflx_halo', itest, jtest, rtest, 7, 7)
        endif
@@ -793,7 +793,7 @@ module glissade_basal_water
                                bwatflx(ip,jp) = bwatflx(ip,jp) + bwatflx_halo(ii,jj,i,j)
                                if (verbose_bwat .and. ip==itest .and. jp==jtest .and. this_rank==rtest &
                                     .and. count <= 2) then
-                                  write(6,*) 'Nonzero bwatflx from halo, rank, i, j:', &
+                                  write(iulog,*) 'Nonzero bwatflx from halo, rank, i, j:', &
                                        this_rank, ip, jp, bwatflx_halo(ii,jj,i,j)
                                endif
                             endif
@@ -810,12 +810,12 @@ module glissade_basal_water
           global_flux_sum = parallel_global_sum(bwatflx, parallel)
           if (verbose_bwat .and. this_rank == rtest .and. count <= 2) then
              ! Should be equal to the global sum of bwatflx_halo computed above
-             write(6,*) 'After halo update, sum(bwatflx from halo) =', global_flux_sum
-             write(6,*) ' '
+             write(iulog,*) 'After halo update, sum(bwatflx from halo) =', global_flux_sum
+             write(iulog,*) ' '
           endif
 
        else   ! bwatflx_halo = 0 everywhere; no fluxes to route to adjacent processors
-          if (verbose_bwat .and. this_rank == rtest) write(6,*) 'Done routing fluxes'
+          if (verbose_bwat .and. this_rank == rtest) write(iulog,*) 'Done routing fluxes'
           finished = .true.
           bwatflx = bwatflx_accum
           bwatflx_refreeze = bwatflx_refreeze_accum
@@ -840,10 +840,10 @@ module glissade_basal_water
     total_flux_out = total_flux_margin + total_flux_refreeze
 
     if (verbose_bwat .and. this_rank == rtest) then
-       write(6,*) 'Total bwatflx at margin (m^3/s):', total_flux_margin
-       write(6,*) 'Total bwatflx_refreeze (m^3/s)=', total_flux_refreeze
-       write(6,*) 'Total bwatflx (m^3/s)=', total_flux_out
-       write(6,*) 'Difference between output and input =', total_flux_out - total_flux_in
+       write(iulog,*) 'Total bwatflx at margin (m^3/s):', total_flux_margin
+       write(iulog,*) 'Total bwatflx_refreeze (m^3/s)=', total_flux_refreeze
+       write(iulog,*) 'Total bwatflx (m^3/s)=', total_flux_out
+       write(iulog,*) 'Difference between output and input =', total_flux_out - total_flux_in
     endif
 
 
@@ -1122,8 +1122,8 @@ module glissade_basal_water
        local_lowered = 0
 
        if (verbose_depression .and. this_rank == rtest) then
-          write(6,*) ' '
-          write(6,*) 'fill_depressions, count =', count
+          write(iulog,*) ' '
+          write(iulog,*) 'fill_depressions, count =', count
        endif
 
        ! Loop through cells
@@ -1184,11 +1184,11 @@ module glissade_basal_water
                    !WHL - debug
                    if (verbose_depression .and. count >= 20) then
                       call parallel_globalindex(i, j, iglobal, jglobal, parallel)
-                      write(6,*) ' '
-                      write(6,*) 'rank, i, j, ig, jg:', this_rank, i, j, iglobal, jglobal
-                      write(6,*) '   phi_in, phi:', phi_in(i,j), phi(i,j)
-                      write(6,*) '   phi_min8 =', phi_min8
-                      write(6,*) '   new phi = phi_in'
+                      write(iulog,*) ' '
+                      write(iulog,*) 'rank, i, j, ig, jg:', this_rank, i, j, iglobal, jglobal
+                      write(iulog,*) '   phi_in, phi:', phi_in(i,j), phi(i,j)
+                      write(iulog,*) '   phi_min8 =', phi_min8
+                      write(iulog,*) '   new phi = phi_in'
                    endif
 
                    phi(i,j) = phi_in(i,j)
@@ -1200,11 +1200,11 @@ module glissade_basal_water
                    !WHL - debug
                    if (verbose_depression .and. count >= 20) then
                       call parallel_globalindex(i, j, iglobal, jglobal, parallel)
-                      write(6,*) ' '
-                      write(6,*) 'rank, i, j, ig, jg:', this_rank, i, j, iglobal, jglobal
-                      write(6,*) '   phi_in, phi:', phi_in(i,j), phi(i,j)
-                      write(6,*) '   phi_min8 =', phi_min8
-                      write(6,*) '   new phi = phi_min8'
+                      write(iulog,*) ' '
+                      write(iulog,*) 'rank, i, j, ig, jg:', this_rank, i, j, iglobal, jglobal
+                      write(iulog,*) '   phi_in, phi:', phi_in(i,j), phi(i,j)
+                      write(iulog,*) '   phi_min8 =', phi_min8
+                      write(iulog,*) '   new phi = phi_min8'
                    endif
 
                    phi(i,j) = phi_min8 + epsilon
@@ -1227,12 +1227,12 @@ module glissade_basal_water
        if (global_lowered == 0) then
           finished = .true.
           if (verbose_depression .and. this_rank == rtest) then
-             write(6,*) 'finished lowering'
+             write(iulog,*) 'finished lowering'
           endif
        else
           finished = .false.
           if (verbose_depression .and. this_rank == rtest) then
-             write(6,*) 'cells lowered on this iteration:', global_lowered
+             write(iulog,*) 'cells lowered on this iteration:', global_lowered
           endif
           call parallel_halo(phi, parallel)
        endif
@@ -1244,7 +1244,7 @@ module glissade_basal_water
     enddo  ! finished
 
     if (verbose_bwat .and. this_rank == rtest) then
-       write(6,*) 'Filled depressions, count =', count
+       write(iulog,*) 'Filled depressions, count =', count
     endif
 
   end subroutine fill_depressions
@@ -1308,13 +1308,13 @@ module glissade_basal_water
     call indexx(vect, ind)
 
     if (verbose_bwat .and. this_rank == rtest) then
-       write(6,*) ' '
-       write(6,*) 'Sort from low to high, nlocal =', nlocal
-       write(6,*) 'k, local i and j, ind(k), phi:'
+       write(iulog,*) ' '
+       write(iulog,*) 'Sort from low to high, nlocal =', nlocal
+       write(iulog,*) 'k, local i and j, ind(k), phi:'
        do k = nlocal, nlocal-10, -1
           i = floor(real(ind(k)-1)/real(ny_local)) + 1 + nhalo
           j = mod(ind(k)-1,ny_local) + 1 + nhalo
-          write(6,*) k, i, j, ind(k), phi(i,j)
+          write(iulog,*) k, i, j, ind(k), phi(i,j)
        enddo
     endif
 
@@ -1438,12 +1438,12 @@ module glissade_basal_water
           sum_slope = sum(slope)
 
           if (verbose_bwat .and. this_rank == rtest .and. i == itest .and. j == jtest) then
-             write(6,*) ' '
-             write(6,*) 'slope: task, i, j =', rtest, i, j
-             write(6,*) slope(:,1)
-             write(6,*) slope(:,0)
-             write(6,*) slope(:,-1)
-             write(6,*) 'sum(slope) =', sum(slope)
+             write(iulog,*) ' '
+             write(iulog,*) 'slope: task, i, j =', rtest, i, j
+             write(iulog,*) slope(:,1)
+             write(iulog,*) slope(:,0)
+             write(iulog,*) slope(:,-1)
+             write(iulog,*) 'sum(slope) =', sum(slope)
           endif
 
           ! Distribute the downslope flux according to the flux-routing scheme:
@@ -1478,11 +1478,11 @@ module glissade_basal_water
                 flux_fraction(ii,jj,i,j) = 1.0d0   ! route the entire flux to one downhill cell
              else
                 ! Do a fatal abort?
-                write(6,*) 'Warning: Cell with no downhill neighbors, i, j =', i, j
+                write(iulog,*) 'Warning: Cell with no downhill neighbors, i, j =', i, j
              endif
 
              if (verbose_bwat .and. this_rank == rtest .and. i == itest .and. j == jtest) then
-                write(6,*) 'i1, j1, slope1 =', i1, j1, slope1
+                write(iulog,*) 'i1, j1, slope1 =', i1, j1, slope1
              endif
 
           elseif (flux_routing_scheme == HO_FLUX_ROUTING_DINF) then
@@ -1527,19 +1527,19 @@ module glissade_basal_water
                    flux_fraction(ii,jj,i,j) = slope2/sum_slope
                 endif
              else
-                write(6,*) 'Warning: Cell with no downhill neighbors, i, j =', i, j
+                write(iulog,*) 'Warning: Cell with no downhill neighbors, i, j =', i, j
              endif
 
              if (verbose_bwat .and. this_rank == rtest .and. i == itest .and. j == jtest) then
-                write(6,*) 'i1, j1, slope1:', i1, j1, slope1
-                write(6,*) 'i2, j2, slope2:', i2, j2, slope2
-                write(6,*) 'sum_slope:', sum_slope
-                write(6,*) 'slope(:, 1):', slope(:, 1)
-                write(6,*) 'slope(:, 0):', slope(:, 0)
-                write(6,*) 'slope(:,-1):', slope(:,-1)
-                write(6,*) 'flux_fraction(:, 1,i,j):', flux_fraction(:, 1,i,j)
-                write(6,*) 'flux_fraction(:, 0,i,j):', flux_fraction(:, 0,i,j)
-                write(6,*) 'flux_fraction(:,-1,i,j):', flux_fraction(:,-1,i,j)
+                write(iulog,*) 'i1, j1, slope1:', i1, j1, slope1
+                write(iulog,*) 'i2, j2, slope2:', i2, j2, slope2
+                write(iulog,*) 'sum_slope:', sum_slope
+                write(iulog,*) 'slope(:, 1):', slope(:, 1)
+                write(iulog,*) 'slope(:, 0):', slope(:, 0)
+                write(iulog,*) 'slope(:,-1):', slope(:,-1)
+                write(iulog,*) 'flux_fraction(:, 1,i,j):', flux_fraction(:, 1,i,j)
+                write(iulog,*) 'flux_fraction(:, 0,i,j):', flux_fraction(:, 0,i,j)
+                write(iulog,*) 'flux_fraction(:,-1,i,j):', flux_fraction(:,-1,i,j)
              endif
 
              !WHL - bug check - make sure fractions add to 1
@@ -1550,7 +1550,7 @@ module glissade_basal_water
                 enddo
              enddo
              if (abs(sum_frac - 1.0d0) > eps11) then
-!!                write(6,*) 'sum_frac error: r, i, j, sum:', this_rank, i, j, sum_frac
+!!                write(iulog,*) 'sum_frac error: r, i, j, sum:', this_rank, i, j, sum_frac
              endif
 
           elseif (flux_routing_scheme == HO_FLUX_ROUTING_FD8) then
@@ -1569,15 +1569,15 @@ module glissade_basal_water
              endif  ! sum(slope) > 0
 
              if (verbose_bwat .and. this_rank == rtest .and. i == itest .and. j == jtest) then
-                write(6,*) 'i1, j1, slope1:', i1, j1, slope1
-                write(6,*) 'i2, j2, slope2:', i2, j2, slope2
-                write(6,*) 'sum_slope:', sum_slope
-                write(6,*) 'slope(:, 1):', slope(:, 1)
-                write(6,*) 'slope(:, 0):', slope(:, 0)
-                write(6,*) 'slope(:,-1):', slope(:,-1)
-                write(6,*) 'flux_fraction(:, 1,i,j):', flux_fraction(:, 1,i,j)
-                write(6,*) 'flux_fraction(:, 0,i,j):', flux_fraction(:, 0,i,j)
-                write(6,*) 'flux_fraction(:,-1,i,j):', flux_fraction(:,-1,i,j)
+                write(iulog,*) 'i1, j1, slope1:', i1, j1, slope1
+                write(iulog,*) 'i2, j2, slope2:', i2, j2, slope2
+                write(iulog,*) 'sum_slope:', sum_slope
+                write(iulog,*) 'slope(:, 1):', slope(:, 1)
+                write(iulog,*) 'slope(:, 0):', slope(:, 0)
+                write(iulog,*) 'slope(:,-1):', slope(:,-1)
+                write(iulog,*) 'flux_fraction(:, 1,i,j):', flux_fraction(:, 1,i,j)
+                write(iulog,*) 'flux_fraction(:, 0,i,j):', flux_fraction(:, 0,i,j)
+                write(iulog,*) 'flux_fraction(:,-1,i,j):', flux_fraction(:,-1,i,j)
              endif
 
           endif   ! flux_routing_scheme: D8, Dinf, FD8

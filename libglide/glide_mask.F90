@@ -439,17 +439,17 @@ contains
 
         !if( up == 3 )then ! temporary code for debugging
         !  do i = 3,1,-1
-        !  write(6,*) 'thck = ', thck(:,i)
+        !  write(iulog,*) 'thck = ', thck(:,i)
         !  end do
-        !  write(6,*) ' '
+        !  write(iulog,*) ' '
         !
         !  do i = 3,1,-1
-        !      write(6,*) 'thckmask = ', thckmask(:,i)
+        !      write(iulog,*) 'thckmask = ', thckmask(:,i)
         !  end do
-        !  write(6,*) ' '
+        !  write(iulog,*) ' '
         !
-        !  write(6,*) 'testvect =  ', testvect
-        !  write(6,*) ' '
+        !  write(iulog,*) 'testvect =  ', testvect
+        !  write(iulog,*) ' '
         !end if
 
         ! calculate the angle of the normal in cart. (x,y) system w/ 0 deg. at 12 O'clock, 90 deg. at 3 O'clock, etc.
