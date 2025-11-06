@@ -375,7 +375,6 @@ contains
 
     if (model%options%smb_input == SMB_INPUT_MMYR_WE) then
        if (model%options%smb_input_function == SMB_INPUT_FUNCTION_XYZ) then
-          !TODO - Replace the next two lines with the commented lines, once we have the correct fill value
           call check_fill_values(model%climate%smb_3d)
           call check_fill_values(model%climate%artm_3d)
        else
@@ -393,8 +392,26 @@ contains
        call check_fill_values(model%ocean_data%thermal_forcing)
     endif
 
-    ! Note: dthck_dt_ocn has a scale value of scyr (m/yr in the netcdf file, m/s in the code).
-    !       The factor should be passed in to identify the fill values.
+    ! Note: The following variables have a scale value of scyr (m/yr in the netcdf file, m/s in the code).
+    !       The factor should be passed in so that fill values are recognized correctly.
+    ! TODO: Figure out a more robust way to deal with fill values.
+
+    if (associated(model%velocity%usfc_obs)) then
+       call check_fill_values(model%velocity%usfc_obs, scale_factor_in = scyr)
+       if (verbose_inversion .and. this_rank == rtest) then
+          write(iulog,*) 'check_fill_values, usfc_obs'
+          write(iulog,*) 'max val (m/yr) =', maxval(abs(model%velocity%usfc_obs))*scyr
+       endif
+    endif
+
+    if (associated(model%velocity%vsfc_obs)) then
+       call check_fill_values(model%velocity%vsfc_obs, scale_factor_in = scyr)
+       if (verbose_inversion .and. this_rank == rtest) then
+          write(iulog,*) 'check_fill_values, vsfc_obs'
+          write(iulog,*) 'max val (m/yr) =', maxval(abs(model%velocity%vsfc_obs))*scyr
+       endif
+    endif
+
     if (model%options%which_ho_deltaT_ocn == HO_DELTAT_OCN_DTHCK_DT .or.  &
         model%options%enable_acab_dthck_dt_correction) then
        call check_fill_values(model%geometry%dthck_dt_obs, scale_factor_in = scyr)
@@ -922,7 +939,9 @@ contains
 
           call parallel_halo(model%basal_physics%coulomb_c, parallel)
 
-          call point_diag(model%basal_physics%coulomb_c, 'Initial coulomb_c', itest, jtest, rtest, 7, 7)
+          if (verbose_inversion) then
+             call point_diag(model%basal_physics%coulomb_c, 'Initial coulomb_c', itest, jtest, rtest, 7, 7)
+          endif
 
        else
           model%basal_physics%coulomb_c = model%basal_physics%coulomb_c_const
@@ -1077,9 +1096,11 @@ contains
 
           allocate(dthck_dt_basin(model%ocean_data%nbasin))
 
-          call point_diag(model%ocean_data%basin_number, 'basin_number', itest, jtest, rtest, 7, 7)
-          call point_diag(floating_mask, 'floating_mask', itest, jtest, rtest, 7, 7)
-          call point_diag(model%geometry%dthck_dt_obs*scyr, 'dthck_dt_obs (m/yr)', itest, jtest, rtest, 7, 7)
+          if (verbose_inversion) then
+             call point_diag(model%ocean_data%basin_number, 'basin_number', itest, jtest, rtest, 7, 7)
+             call point_diag(floating_mask, 'floating_mask', itest, jtest, rtest, 7, 7)
+             call point_diag(model%geometry%dthck_dt_obs*scyr, 'dthck_dt_obs (m/yr)', itest, jtest, rtest, 7, 7)
+          endif
 
           call glissade_basin_average(&
                model%general%ewn, model%general%nsn,   &
@@ -1089,7 +1110,7 @@ contains
                model%geometry%dthck_dt_obs,            &
                dthck_dt_basin)
 
-          if (main_task) then
+          if (verbose_inversion .and. main_task) then
              write(iulog,*) ' '
              write(iulog,*) 'nb, dthck_dt_basin (m/yr)'
              do nb = 1, model%ocean_data%nbasin

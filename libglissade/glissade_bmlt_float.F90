@@ -52,11 +52,10 @@ module glissade_bmlt_float
        glissade_bmlt_float_thermal_forcing_init, glissade_bmlt_float_thermal_forcing
 
     logical :: verbose_bmlt_float = .false.
-!!    logical :: verbose_bmlt_float = .true.
 
-    logical :: verbose_velo = .true.
-    logical :: verbose_continuity = .true.
-    logical :: verbose_melt = .true.
+    logical :: verbose_velo = .false.
+    logical :: verbose_continuity = .false.
+    logical :: verbose_melt = .false.
 
     !WHL - Should the MISOMIP parameters go elsewhere?
     !      Note: gammaS and gammaT are namelist parameters
@@ -1335,7 +1334,7 @@ module glissade_bmlt_float
     integer, parameter :: &
          max_iter_finish = 10    ! max iterations for the short finishing stage
 
-    logical, parameter :: verbose_extrapolate = .true.  ! set to T to follow progress of each iteration
+    logical, parameter :: verbose_extrapolate = .false.  ! set to T to follow progress of each iteration
 
     ! For each marine-connected cell, compute the top and bottom layers where we need ocean data
     ! (either in the original input field, or extrapolated).
@@ -2459,8 +2458,7 @@ module glissade_bmlt_float
     real(dp), dimension(nx,ny) :: &
          basin_number_new           ! work array for basin number
 
-    logical, parameter ::  &
-         verbose_basin_number = .true.
+    logical, parameter :: verbose_basin_number = .false.
 
     ! Count the number of cells with valid basin numbers
 

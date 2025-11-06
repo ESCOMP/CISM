@@ -108,11 +108,11 @@ contains
 
        ! calving_mask was read from the input file; do not need to compute a mask here
 
-       if (main_task) write(iulog,*) 'Calving_mask was read from the input file'
+       if (verbose_calving .and. main_task) write(iulog,*) 'Calving_mask was read from the input file'
 
     elseif (calving_front_x > 0.0d0 .or. calving_front_y > 0.0d0) then
 
-       if (main_task) write(iulog,*) 'Computing calving_mask based on calving_front_x/y'
+       if (verbose_calving .and. main_task) write(iulog,*) 'Computing calving_mask based on calving_front_x/y'
 
        ! initialize
        calving_mask(:,:) = 0   ! no calving by default
@@ -166,7 +166,7 @@ contains
 
     else  ! compute the calving mask based on the initial ice extent
  
-       if (main_task) then
+       if (verbose_calving .and. main_task) then
           write(iulog,*) 'Computing calving_mask based on initial ice extent'
        endif
 
@@ -878,12 +878,12 @@ contains
              enddo
           enddo
           total_ice_area = parallel_reduce_sum(total_ice_area)
-          if (this_rank == rtest) then
-             write(iulog,*) 'Total ice area (km^2)=', total_ice_area/1.0d6
-             write(iulog,*) 'Quadrant area (km^2)=', total_ice_area/4.0d6
-          endif
 
           if (verbose_calving) then
+             if (this_rank == rtest) then
+                write(iulog,*) 'Total ice area (km^2)=', total_ice_area/1.0d6
+                write(iulog,*) 'Quadrant area (km^2)=', total_ice_area/4.0d6
+             endif
              call point_diag(calving%thck_effective, 'New thck_effective (m)', itest, jtest, rtest, 7, 7)
              call point_diag(calving%effective_areafrac, 'New effective_areafrac', itest, jtest, rtest, 7, 7)
 !!             call point_diag(thck/calving%effective_areafrac, '   CF thickness', itest, jtest, rtest, 7, 7)

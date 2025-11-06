@@ -39,8 +39,7 @@ module glissade_basal_water
    private
    public :: glissade_basal_water_init, glissade_calcbwat, glissade_bwat_flux_routing
 
-!!   logical, parameter :: verbose_bwat = .false.
-   logical, parameter :: verbose_bwat = .true.
+   logical, parameter :: verbose_bwat = .false.
 
  contains
 
@@ -625,8 +624,10 @@ module glissade_basal_water
              btemp_weight = exp(-delta_Tb/btemp_scale)
           endwhere
        endwhere
-       call point_diag(delta_Tb, 'Tpmp - Tb', itest, jtest, rtest, 7, 7)
-       call point_diag(btemp_weight, 'btemp_weight', itest, jtest, rtest, 7, 7)
+       if (verbose_bwat) then
+          call point_diag(delta_Tb, 'Tpmp - Tb', itest, jtest, rtest, 7, 7)
+          call point_diag(btemp_weight, 'btemp_weight', itest, jtest, rtest, 7, 7)
+       endif
     endif
 
     ! Compute the fraction of the incoming flux sent to each downstream neighbor.
@@ -1088,7 +1089,6 @@ module glissade_basal_water
     integer, parameter :: count_max = 100
 
     logical, parameter :: verbose_depression = .false.
-!!    logical, parameter :: verbose_depression = .true.
 
     ! Initial halo updates, in case phi_in and phi_mask are not up to date in halo cells
     call parallel_halo(phi_in, parallel)

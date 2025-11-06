@@ -852,8 +852,7 @@ contains
 
     integer :: i, j
 
-!!    logical, parameter :: verbose_effecpress = .false.
-    logical, parameter :: verbose_effecpress = .true.
+    logical, parameter :: verbose_effecpress = .false.
 
     ! Compute the overburden pressure, and initialize the effective pressure to overburden.
 

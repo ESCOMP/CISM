@@ -3318,8 +3318,6 @@ contains
     call GetValue(section, 'flwa_basal', model%basal_hydro%flwa_basal)
     call GetValue(section, 'c_close', model%basal_hydro%c_close)
 
-    if (main_task) print*, 'handle_basal_hydro done!!!'
-
   end subroutine handle_basal_hydro
 
 !--------------------------------------------------------------------------------

@@ -53,8 +53,7 @@
          glissade_apply_smb, glissade_add_2d_anomaly, glissade_add_3d_anomaly
     public :: verbose_smb
 
-!!    logical, parameter :: verbose_smb = .false.
-    logical, parameter :: verbose_smb = .true.
+    logical, parameter :: verbose_smb = .false.
 
     logical, parameter ::     &
          conservation_check = .true. ! if true, check global conservation
@@ -85,8 +84,6 @@
     if (model%options%smb_input == SMB_INPUT_MMYR_WE) then
        ! Convert units from mm/yr w.e. to m/s ice
        model%climate%acab(:,:) = (model%climate%smb(:,:) * (rhow/rhoi)/1000.d0) / scyr
-       !WHL - debug
-       if (main_task) write(iulog,*) 'Setting acab, m/yr ice'
     endif
 
     ! Initialize artm_corrected.  This is equal to artm, plus any prescribed temperature anomaly.

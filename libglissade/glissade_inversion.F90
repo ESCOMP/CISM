@@ -47,8 +47,7 @@ module glissade_inversion
   ! a target ice thickness field.
   !-----------------------------------------------------------------------------
 
-!!    logical, parameter :: verbose_inversion = .false.
-    logical, parameter :: verbose_inversion = .true.
+    logical, parameter :: verbose_inversion = .false.
 
 !***********************************************************************
 
@@ -221,8 +220,10 @@ contains
           ! components usfc_obs and vsfc_obs were read in; compute velo_sfc_obs
           model%velocity%velo_sfc_obs(:,:) = &
                sqrt(model%velocity%usfc_obs(:,:)**2 + model%velocity%vsfc_obs(:,:)**2)
+          if (verbose_inversion) then
+             call point_diag(model%velocity%velo_sfc_obs, 'velo_sfc_obs', itest, jtest, rtest, 7, 7)
+          endif
        endif
-
     endif  ! inversion for Cp, Cc or deltaT_ocn
 
 

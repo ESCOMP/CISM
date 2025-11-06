@@ -225,8 +225,8 @@
 !    logical :: verbose_bfric = .true.
     logical :: verbose_trilinos = .false.
 !    logical :: verbose_trilinos = .true.
-!    logical :: verbose_beta = .false.
-    logical :: verbose_beta = .true.
+    logical :: verbose_beta = .false.
+!    logical :: verbose_beta = .true.
     logical :: verbose_efvs = .false.
 !    logical :: verbose_efvs = .true.
     logical :: verbose_tau = .false.
@@ -3500,15 +3500,13 @@
 
     if (counter < maxiter_nonlinear) then
        converged_soln = .true.
-!!       if (verbose .and. main_task) then
        if (main_task) then
-          write(iulog,*) 'Glissade solution has converged, outer counter, err =', counter, L2_norm
+          write(iulog,*) 'Solution has converged: counter, err =', counter, L2_norm
        endif
     else
        converged_soln = .false.
-!!       if (verbose .and. main_task) then
        if (main_task) then
-          write(iulog,*) 'Glissade solution has NOT converged: counter, err =', counter, L2_norm
+          write(iulog,*) 'Solution has NOT converged: counter, err =', counter, L2_norm
        endif
     endif
 

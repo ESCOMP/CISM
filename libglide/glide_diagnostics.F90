@@ -127,11 +127,10 @@ contains
                              model%numerics%idiag_local, model%numerics%jdiag_local, &
                              model%numerics%rdiag_local, model%parallel)
 
-    !WHL - debug
     if (main_task) then
-       write(iulog,'(a25,2i6)') 'Global idiag, jdiag:     ',   &
+       write(iulog,'(a26,2i6)') ' Global idiag, jdiag:     ',   &
                              model%numerics%idiag, model%numerics%jdiag
-       write(iulog,'(a25,3i6)') 'Local idiag, jdiag, task:',   &
+       write(iulog,'(a26,3i6)') ' Local idiag, jdiag, task:',   &
                              model%numerics%idiag_local,  &
                              model%numerics%jdiag_local,  &
                              model%numerics%rdiag_local

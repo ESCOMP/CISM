@@ -100,7 +100,7 @@ subroutine gci_init_interface(which_gcm,g2c)
   call ConfigRead(commandline_configname(1),config)
   call GetSection(config,section,'options')
   call GetValue(section,'dycore',whichdycore)
-  if (main_task) write(iulog,*) 'CISM dycore type (0=Glide, 1=Glam, 2=Glissade, 3=AlbanyFelix, 4 = BISICLES) = ', whichdycore  
+  if (main_task) write(iulog,*) 'CISM dycore type (0=Glide, 2=Glissade) = ', whichdycore
 
   ! Check to see if running basic GCM or glint GCM.  Still need to add CESM GCM:
   call GetSection(config,section,'GLINT climate')
