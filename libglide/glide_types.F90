@@ -883,8 +883,8 @@ module glide_types
     !> \item[0] coulomb_c = spatially uniform constant
     !> \item[1] invert for 2D coulomb_c
     !> \item[2] read 2D coulomb_c from external file
-    !> \item[3] invert for basin-scale coulomb_c_lo
-    !> \item[4] read basin-scale coulomb_c_lo from external file
+    !> \item[3] invert for basin-scale coulomb_c_lo/hi
+    !> \item[4] read basin-scale coulomb_c_lo/hi from external file
     !> \end{description}
 
     logical :: elevation_based_coulomb_c = .false.
