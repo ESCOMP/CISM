@@ -72,6 +72,7 @@
 
     use glissade_grid_operators, only : glissade_stagger, glissade_unstagger
     use glimmer_log
+    use glimmer_utils, only: point_diag
 
     !----------------------------------------------------------------
     ! Compute fraction of ice that is grounded, optionally using a grounding line parameterization (GLP).
