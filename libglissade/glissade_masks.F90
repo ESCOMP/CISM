@@ -39,8 +39,10 @@
   module glissade_masks
 
     use glimmer_global, only: dp
-    use glimmer_log
+    use glimmer_paramets, only: iulog
     use glimmer_physcon, only: rhoi, rhoo
+    use glimmer_log
+    use glimmer_utils, only: point_diag
     use glide_types
     use cism_parallel, only: this_rank, main_task, nhalo, parallel_globalindex, &
          parallel_type, parallel_halo, parallel_reduce_sum
@@ -435,8 +437,8 @@
                          thck_effective(i,j) = max_neighbor_thck - dthck_dx_cf*distance
                       endif
 !!                         call parallel_globalindex(i, j, ig, jg, parallel)
-!!                         write(6,*) 'No interior neighbor:', ig, jg, thck(i,j)
-!!                         write(6,*) '   New H_eff:', thck_effective(i,j)
+!!                         write(iulog,*) 'No interior neighbor:', ig, jg, thck(i,j)
+!!                         write(iulog,*) '   New H_eff:', thck_effective(i,j)
                    endif   ! max_neighbor_thck > 0
 
                 else   ! not a CF cell; thck_effective = thck
@@ -701,11 +703,11 @@
 
        if (global_count == global_count_save) then
           if (verbose_ice_sheet_mask .and. main_task) &
-               print*, 'Fill converged: iter, global_count =', iter, global_count
+               write(iulog,*) 'Fill converged: iter, global_count =', iter, global_count
           exit
        else
           if (verbose_ice_sheet_mask .and. main_task) &
-               print*, 'Convergence check: iter, global_count =', iter, global_count
+               write(iulog,*) 'Convergence check: iter, global_count =', iter, global_count
           global_count_save = global_count
        endif
 
@@ -886,11 +888,11 @@
 
        if (global_count == global_count_save) then
           if (verbose_ocean_connection_mask .and. main_task) &
-               print*, 'ocean_connection_mask, fill converged: iter, global_count =', iter, global_count
+               write(iulog,*) 'ocean_connection_mask, fill converged: iter, global_count =', iter, global_count
           exit
        else
           if (verbose_ocean_connection_mask .and. main_task) &
-               print*, 'ocean_connection_mask, convergence check: iter, global_count =', iter, global_count
+               write(iulog,*) 'ocean_connection_mask, convergence check: iter, global_count =', iter, global_count
           global_count_save = global_count
        endif
 
@@ -1008,18 +1010,8 @@
        color = boundary_color
     endwhere
 
-    if (verbose_marine_connection .and. this_rank == rtest) then
-       print*, ' '
-       print*, 'In glissade_marine_connection_mask, itest, jtest, rank =', itest, jtest, rtest
-       print*, ' '
-       print*, 'marine_mask'
-       do j = jtest+3, jtest-3, -1
-          write(6,'(i6)',advance='no') j
-          do i = itest-3, itest+3
-             write(6,'(i10)',advance='no') marine_mask(i,j)
-          enddo
-          write(6,*) ' '
-       enddo
+    if (verbose_marine_connection) then
+       call point_diag(marine_mask, 'marine_mask', itest, jtest, rtest, 7, 7)
     endif
 
     ! Loop through cells, identifying marine-based cells that border the ocean.
@@ -1115,11 +1107,11 @@
 
        if (global_count == global_count_save) then
           if (verbose_marine_connection .and. main_task) &
-               print*, 'Fill converged: iter, global_count =', iter, global_count
+               write(iulog,*) 'Fill converged: iter, global_count =', iter, global_count
           exit
        else
           if (verbose_marine_connection .and. main_task) &
-               print*, 'Convergence check: iter, global_count =', iter, global_count
+               write(iulog,*) 'Convergence check: iter, global_count =', iter, global_count
           global_count_save = global_count
        endif
 
@@ -1143,25 +1135,9 @@
 
     call parallel_halo(marine_connection_mask, parallel)
 
-    if (verbose_marine_connection .and. this_rank == rtest) then
-       print*, ' '
-       print*, 'color, rank =', this_rank
-       do j = jtest+3, jtest-3, -1
-          write(6,'(i6)',advance='no') j
-          do i = itest-3, itest+3
-             write(6,'(i10)',advance='no') color(i,j)
-          enddo
-          write(6,*) ' '
-       enddo
-       print*, ' '
-       print*, 'marine_connection_mask, rank =', this_rank
-       do j = jtest+3, jtest-3, -1
-          write(6,'(i6)',advance='no') j
-          do i = itest-3, itest+3
-             write(6,'(i10)',advance='no') marine_connection_mask(i,j)
-          enddo
-          write(6,*) ' '
-       enddo
+    if (verbose_marine_connection) then
+       call point_diag(color, 'color', itest, jtest, rtest, 7, 7)
+       call point_diag(marine_connection_mask, 'marine_connection_mask', itest, jtest, rtest, 7, 7)
     endif
 
   end subroutine glissade_marine_connection_mask
@@ -1223,18 +1199,8 @@
 
     integer :: ig, jg
 
-    if (verbose_lake .and. this_rank == rtest) then
-       print*, ' '
-       print*, 'In glissade_lake_mask, itest, jtest, rank =', itest, jtest, rtest
-       print*, ' '
-       print*, 'floating_mask'
-       do j = jtest+3, jtest-3, -1
-          write(6,'(i6)',advance='no') j
-          do i = itest-3, itest+3
-             write(6,'(i10)',advance='no') floating_mask(i,j)
-          enddo
-          write(6,*) ' '
-       enddo
+    if (verbose_lake) then
+       call point_diag(floating_mask, 'floating_mask', itest, jtest, rtest, 7, 7)
     endif
 
     ! initialize
@@ -1344,11 +1310,11 @@
 
        if (global_count == global_count_save) then
           if (verbose_lake .and. main_task) &
-               print*, 'Fill converged: iter, global_count =', iter, global_count
+               write(iulog,*) 'Fill converged: iter, global_count =', iter, global_count
           exit
        else
           if (verbose_lake .and. main_task) &
-               print*, 'Convergence check: iter, global_count =', iter, global_count
+               write(iulog,*) 'Convergence check: iter, global_count =', iter, global_count
           global_count_save = global_count
        endif
 
@@ -1367,7 +1333,7 @@
 
              if (verbose_lake .and. this_rank == rtest) then
                 call parallel_globalindex(i, j, ig, jg, parallel)
-                print*, 'Lake cell: task, i, j, ig, jg =', this_rank, i, j, ig, jg
+                write(iulog,*) 'Lake cell: task, i, j, ig, jg =', this_rank, i, j, ig, jg
              endif
 
           endif
@@ -1376,16 +1342,8 @@
 
     call parallel_halo(lake_mask, parallel)
 
-    if (verbose_lake .and. this_rank == rtest) then
-       print*, ' '
-       print*, 'lake_mask, rank =', this_rank
-       do j = jtest+3, jtest-3, -1
-          write(6,'(i6)',advance='no') j
-          do i = itest-3, itest+3
-             write(6,'(i10)',advance='no') lake_mask(i,j)
-          enddo
-          write(6,*) ' '
-       enddo
+    if (verbose_lake) then
+       call point_diag(lake_mask, 'lake_mask', itest, jtest, rtest, 7, 7)
     endif
 
     if (present(ocean_connection_mask)) then
@@ -1407,25 +1365,9 @@
        !TODO: Is this halo call needed?
        call parallel_halo(ocean_connection_mask, parallel)
 
-       if (verbose_lake .and. this_rank == rtest) then
-          print*, ' '
-          print*, 'color, rank =', this_rank
-          do j = jtest+3, jtest-3, -1
-             write(6,'(i6)',advance='no') j
-             do i = itest-3, itest+3
-                write(6,'(i10)',advance='no') color(i,j)
-             enddo
-             write(6,*) ' '
-          enddo
-          print*, ' '
-          print*, 'ocean_connection_mask, rank =', this_rank
-          do j = jtest+3, jtest-3, -1
-             write(6,'(i6)',advance='no') j
-             do i = itest-3, itest+3
-                write(6,'(i10)',advance='no') ocean_connection_mask(i,j)
-             enddo
-             write(6,*) ' '
-          enddo
+       if (verbose_lake) then
+          call point_diag(color, 'color', itest, jtest, rtest, 7, 7)
+          call point_diag(ocean_connection_mask, 'ocean_connection_mask', itest, jtest, rtest, 7, 7)
        endif
 
     endif  ! present(ocean_connection_mask)

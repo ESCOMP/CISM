@@ -42,7 +42,6 @@ contains
   subroutine init_lithot(model)
     use glide_types
     use glide_setup
-    use glimmer_paramets, only: tim0
     use glimmer_log
     use glide_lithot1d
     use glide_lithot3d
@@ -68,15 +67,15 @@ contains
 
     ! set up factors for vertical finite differences
     do k=2,model%lithot%nlayer-1
-       model%lithot%zfactors(1,k) =  model%lithot%diffu*tim0*model%numerics%dt / &
+       model%lithot%zfactors(1,k) =  model%lithot%diffu*model%numerics%dt / &
             ((model%lithot%deltaz(k)-model%lithot%deltaz(k-1)) * (model%lithot%deltaz(k+1)-model%lithot%deltaz(k-1)))
-       model%lithot%zfactors(2,k) = model%lithot%diffu*tim0*model%numerics%dt / &
+       model%lithot%zfactors(2,k) = model%lithot%diffu*model%numerics%dt / &
             ((model%lithot%deltaz(k+1)-model%lithot%deltaz(k)) * (model%lithot%deltaz(k)-model%lithot%deltaz(k-1)))
-       model%lithot%zfactors(3,k) = model%lithot%diffu*tim0*model%numerics%dt / &
+       model%lithot%zfactors(3,k) = model%lithot%diffu*model%numerics%dt / &
             ((model%lithot%deltaz(k+1)-model%lithot%deltaz(k)) * (model%lithot%deltaz(k+1)-model%lithot%deltaz(k-1)))
     end do
     k = model%lithot%nlayer
-    model%lithot%zfactors(:,k) = 0.5*model%lithot%diffu*tim0*model%numerics%dt / &
+    model%lithot%zfactors(:,k) = 0.5*model%lithot%diffu*model%numerics%dt / &
          (model%lithot%deltaz(k)-model%lithot%deltaz(k-1))**2
 
     !TODO - Make sure the sign is correct for the geothermal flux.

@@ -1,4 +1,4 @@
-#!/usr/bin/env python2
+#!/usr/bin/env python
 
 """
 Script to run the Ice Sheet Model Intercomparison Project for Higher-Order

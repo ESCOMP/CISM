@@ -36,6 +36,7 @@ module ncdf_utils
   
   use netcdf
   use glimmer_global, only: sp, dp
+  use glimmer_paramets, only: iulog
 
   implicit none
 
@@ -160,7 +161,7 @@ contains
 
     integer,intent(in) :: ncerr
 
-    print*,nf90_strerror(ncerr)
+    write(iulog,*) nf90_strerror(ncerr)
     stop
 
   end subroutine ncerr_handle

@@ -44,7 +44,7 @@ contains
       ! Glissade higher-order velocity driver
 
       use glimmer_log
-      use glimmer_paramets, only: vel0
+      use glimmer_paramets, only: iulog
       use glimmer_physcon, only: scyr
       use glide_types
       use glissade_velo_higher, only: glissade_velo_higher_solve
@@ -109,15 +109,16 @@ contains
          uvel_sia = model%velocity%uvel
          vvel_sia = model%velocity%vvel
 
+         !WHL: Do uvel and vvel have dimensions of m/s at this point?
          if (verbose_velo .and. this_rank == rtest) then
             i = itest
             j = jtest
-            print*, ' '
-            print*, 'SIA part of uvel, vvel (m/yr): r, i, j =', rtest, itest, jtest
-            print*, ' '
+            write(iulog,*) ' '
+            write(iulog,*) 'SIA part of uvel, vvel (m/yr): r, i, j =', rtest, itest, jtest
+            write(iulog,*) ' '
             do k = 1, upn
-               print*, k, model%velocity%uvel(k,i,j)*(vel0*scyr), &
-                          model%velocity%vvel(k,i,j)*(vel0*scyr)
+               write(iulog,*) k, model%velocity%uvel(k,i,j)*scyr, &
+                             model%velocity%vvel(k,i,j)*scyr
             enddo
          endif
 
@@ -144,12 +145,12 @@ contains
          if (verbose_velo .and. this_rank == rtest) then
             i = itest
             j = jtest
-            print*, ' '
-            print*, 'SSA part of uvel, vvel (m/yr): r, i, j =', rtest, itest, jtest
-            print*, ' '
+            write(iulog,*) ' '
+            write(iulog,*) 'SSA part of uvel, vvel (m/yr): r, i, j =', rtest, itest, jtest
+            write(iulog,*) ' '
             do k = 1, upn
-               print*, k, model%velocity%uvel(k,i,j)*(vel0*scyr), &
-                          model%velocity%vvel(k,i,j)*(vel0*scyr)
+               write(iulog,*) k, model%velocity%uvel(k,i,j)*scyr, &
+                             model%velocity%vvel(k,i,j)*scyr
             enddo
          endif
 
@@ -195,12 +196,12 @@ contains
       if (verbose_velo .and. this_rank == rtest) then
          i = itest
          j = jtest
-         print*, ' '
-         print*, 'uvel, vvel (m/yr): r, i, j =', rtest, itest, jtest
-         print*, ' '
+         write(iulog,*) ' '
+         write(iulog,*) 'uvel, vvel (m/yr): r, i, j =', rtest, itest, jtest
+         write(iulog,*) ' '
          do k = 1, upn
-            print*, k, model%velocity%uvel(k,i,j)*(vel0*scyr), &
-                       model%velocity%vvel(k,i,j)*(vel0*scyr)
+            write(iulog,*) k, model%velocity%uvel(k,i,j)*scyr, &
+                          model%velocity%vvel(k,i,j)*scyr
          enddo
       endif
 

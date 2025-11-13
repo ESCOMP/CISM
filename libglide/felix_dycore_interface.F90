@@ -27,8 +27,9 @@
 
 module felix_dycore_interface
 
+   use glimmer_global, only : dp
+   use glimmer_paramets, only: iulog
    use glimmer_physcon,  only : scyr
-   use glimmer_paramets, only : vel0, tau0, vis0
    use glide_types
    use glimmer_log
    use glissade_grid_operators, only: glissade_stagger 
@@ -108,7 +109,7 @@ contains
       !-----------------------------------------------------------------
 
 
-      if (this_rank == 0) print *, 'DEBUG: Inside felix_velo_init.'
+      if (this_rank == 0) write(iulog,*) 'DEBUG: Inside felix_velo_init.'
 
       ! === First do any preparations needed on the CISM side (if any)
 
@@ -145,9 +146,6 @@ contains
 
    subroutine felix_velo_driver(model)
 
-      use glimmer_global, only : dp
-      use glimmer_physcon, only: scyr
-      use glimmer_paramets, only: thk0, len0, vel0, vis0
       use glimmer_log
       use glide_types
       use glide_mask
@@ -177,14 +175,14 @@ contains
                                                  model%general%upn, &
                                                  model%numerics%sigma, &
                                                  model%parallel,       &
-                                                 len0 * model%numerics%dew, &
-                                                 len0 * model%numerics%dns, &
-                                                 thk0 * model%geometry%thck, &
-                                                 thk0 * model%geometry%usrf, &
-                                                 thk0 * model%geometry%topg,&
-                                                 thk0 * model%numerics%thklim, &
-                                                 (tau0 / vel0 / scyr) *model%velocity%beta, &
-                                                 (vis0*scyr) *model%temper%flwa)
+                                                 model%numerics%dew, &
+                                                 model%numerics%dns, &
+                                                 model%geometry%thck, &
+                                                 model%geometry%usrf, &
+                                                 model%geometry%topg,&
+                                                 model%numerics%thklim, &
+                                                 (1.0d0 / scyr) *model%velocity%beta, &
+                                                 (scyr) *model%temper%flwa)
 
 
       !IK, 10/24/13, notes to self:
@@ -206,7 +204,7 @@ contains
       !-----------------------------------------------------------------
 
 
-      if (this_rank == 0) print *, 'DEBUG: Inside felix_velo_driver.'
+      if (this_rank == 0) write(iulog,*) 'DEBUG: Inside felix_velo_driver.'
 
       ! === First do any preparations needed on the CISM side
 
@@ -520,18 +518,18 @@ contains
      !--------------------------------------------------------------------
 
      !IK, 9/9/13: printing for debug 
-     !print *, 'In glissade_velo_higher_data! IK'
-     !print *, 'Proc #: ', this_rank
-     !print *, 'nx: ', nx 
-     !print *, 'ny: ', ny
-     !print *, 'dx: ', dx 
-     !print *, 'dy: ', dy
-     !print *, 'ewlb: ', ewlb
-     !print *, 'nslb: ', nslb
-     !print *, 'global_ewn:', global_ewn
-     !print *, 'global_nsn:', global_nsn
-     !print *, 'nhalo:', nhalo
-     !print *, 'nz:', nz
+     !write(iulog,*) 'In glissade_velo_higher_data! IK'
+     !write(iulog,*) 'Proc #: ', this_rank
+     !write(iulog,*) 'nx: ', nx
+     !write(iulog,*) 'ny: ', ny
+     !write(iulog,*) 'dx: ', dx
+     !write(iulog,*) 'dy: ', dy
+     !write(iulog,*) 'ewlb: ', ewlb
+     !write(iulog,*) 'nslb: ', nslb
+     !write(iulog,*) 'global_ewn:', global_ewn
+     !write(iulog,*) 'global_nsn:', global_nsn
+     !write(iulog,*) 'nhalo:', nhalo
+     !write(iulog,*) 'nz:', nz
 
      !---------------------------------------------------------------------------------------
      ! Creation of global node numbering of vertices/nodes (IK, 9/8/13)
@@ -613,10 +611,10 @@ contains
      !numbering/coordinates 
      if (this_rank == 0) then
        do l=1, (nx-2*nhalo+1)*(ny-2*nhalo+1)*nz
-         print *, 'x, y, z: ',  xyz_at_nodes(l,1), xyz_at_nodes(l,2), xyz_at_nodes(l,3)
-         print *, 'global node: ', global_node_id_owned_map(l)
-         print *, 'sh: ', surf_height_at_nodes(l)
-         print *, 'beta: ', beta_at_nodes(l)
+         write(iulog,*) 'x, y, z: ',  xyz_at_nodes(l,1), xyz_at_nodes(l,2), xyz_at_nodes(l,3)
+         write(iulog,*) 'global node: ', global_node_id_owned_map(l)
+         write(iulog,*) 'sh: ', surf_height_at_nodes(l)
+         write(iulog,*) 'beta: ', beta_at_nodes(l)
        enddo
       endif
 
@@ -740,17 +738,17 @@ contains
     !IK, 9/12/13: printing output for debugging/checking element numbering 
     if (this_rank == 0) then
      do l=1, nCellsActive*(nz-1)
-       print *, 'element connectivity active: ', global_element_conn_active(l,1:8)
-       print *, 'global element #: ', global_element_id_active_owned_map(l,1)
-       print *, 'flwa: ', flwa_at_active_cells(l,1)
+       write(iulog,*) 'element connectivity active: ', global_element_conn_active(l,1:8)
+       write(iulog,*) 'global element #: ', global_element_id_active_owned_map(l,1)
+       write(iulog,*) 'flwa: ', flwa_at_active_cells(l,1)
      enddo
      endif
 
     !IK, 9/12/13: printing output for debugging/checking basal face numbering 
     if (this_rank == 0) then
     do l=1, nCellsActive
-      print *, 'face connectivity active: ', global_basal_face_conn_active(l,1:5)
-      print *, 'global face #: ', global_basal_face_id_active_owned_map(l,1)
+      write(iulog,*) 'face connectivity active: ', global_basal_face_conn_active(l,1:5)
+      write(iulog,*) 'global face #: ', global_basal_face_id_active_owned_map(l,1)
     enddo
     endif
 

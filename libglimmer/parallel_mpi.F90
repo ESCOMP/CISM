@@ -28,6 +28,7 @@ module cism_parallel
 
   use netcdf
   use glimmer_global, only : dp, sp
+  use glimmer_paramets, only: iulog
 
   implicit none
 
@@ -289,12 +290,22 @@ module cism_parallel
 
   interface parallel_global_sum
      module procedure parallel_global_sum_integer_2d
+     module procedure parallel_global_sum_integer_3d
      module procedure parallel_global_sum_real4_2d
      module procedure parallel_global_sum_real8_2d
+     module procedure parallel_global_sum_real8_3d
   end interface
+
+  interface parallel_global_sum_staggered
+     module procedure parallel_global_sum_staggered_3d_real8
+     module procedure parallel_global_sum_staggered_3d_real8_nvar
+     module procedure parallel_global_sum_staggered_2d_real8
+     module procedure parallel_global_sum_staggered_2d_real8_nvar
+  end interface parallel_global_sum_staggered
 
   interface parallel_halo
      module procedure parallel_halo_integer_2d
+     module procedure parallel_halo_integer_3d
      module procedure parallel_halo_logical_2d
      module procedure parallel_halo_real4_2d
      module procedure parallel_halo_real8_2d
@@ -316,6 +327,12 @@ module cism_parallel
      module procedure parallel_halo_verify_integer_2d
      module procedure parallel_halo_verify_real8_2d
      module procedure parallel_halo_verify_real8_3d
+  end interface
+
+  interface parallel_is_zero
+     module procedure parallel_is_zero_integer_2d
+     module procedure parallel_is_zero_real8_2d
+     module procedure parallel_is_zero_real8_3d
   end interface
 
   interface parallel_print
@@ -1353,14 +1370,14 @@ contains
           new_bounds_row = .true.    ! recompute
           !WHL - debug
 !          if (main_task_row) then
-!             print*, this_rank, 'Recompute d_gs_bounds_row'
-!             print*, '  current size =', (d_gs_bounds_row(2,:) - d_gs_bounds_row(1,:) + 1)
-!             print*, '  size(values,1) =', size(values,1)
+!             write(iulog,*) this_rank, 'Recompute d_gs_bounds_row'
+!             write(iulog,*) '  current size =', (d_gs_bounds_row(2,:) - d_gs_bounds_row(1,:) + 1)
+!             write(iulog,*) '  size(values,1) =', size(values,1)
 !          endif
        endif
     else
        new_bounds_row = .true.
-!       if (main_task_row) print*, this_rank, 'Allocate d_gs_bounds_row'
+!       if (main_task_row) write(iulog,*) this_rank, 'Allocate d_gs_bounds_row'
     endif
 
     !Note: The d_gs_bounds_array is needed only on main_task_col, so memory goes unused on other tasks.
@@ -1495,14 +1512,14 @@ contains
           new_bounds_row = .true.    ! recompute
           !WHL - debug
 !          if (main_task_row) then
-!             print*, this_rank, 'Recompute d_gs_bounds_row'
-!             print*, '  current size =', (d_gs_bounds_row(2,:) - d_gs_bounds_row(1,:) + 1)
-!             print*, '  size(values,1) =', size(values,1)
+!             write(iulog,*) this_rank, 'Recompute d_gs_bounds_row'
+!             write(iulog,*) '  current size =', (d_gs_bounds_row(2,:) - d_gs_bounds_row(1,:) + 1)
+!             write(iulog,*) '  size(values,1) =', size(values,1)
 !          endif
        endif
     else
        new_bounds_row = .true.
-!       if (main_task_row) print*, this_rank, 'Allocate d_gs_bounds_row'
+!       if (main_task_row) write(iulog,*) this_rank, 'Allocate d_gs_bounds_row'
     endif
 
     if (new_bounds_row) then
@@ -1614,14 +1631,14 @@ contains
           new_bounds_col = .true.    ! recompute
           !WHL - debug
 !          if (main_task_col) then
-!             print*, this_rank, 'Recompute d_gs_bounds_col'
-!             print*, '  current size =', (d_gs_bounds_col(2,:) - d_gs_bounds_col(1,:) + 1)
-!             print*, '  size(values,1) =', size(values,1)
+!             write(iulog,*) this_rank, 'Recompute d_gs_bounds_col'
+!             write(iulog,*) '  current size =', (d_gs_bounds_col(2,:) - d_gs_bounds_col(1,:) + 1)
+!             write(iulog,*) '  size(values,1) =', size(values,1)
 !          endif
        endif
     else
        new_bounds_col = .true.
-!       if (main_task_col) print*, this_rank, 'Allocate d_gs_bounds_col'
+!       if (main_task_col) write(iulog,*) this_rank, 'Allocate d_gs_bounds_col'
     endif
 
     !Note: The d_gs_bounds_array is needed only on main_task_col, so memory goes unused on other tasks.
@@ -1754,14 +1771,14 @@ contains
           new_bounds_col = .true.    ! recompute
           !WHL - debug
 !          if (main_task_col) then
-!             print*, this_rank, 'Recompute d_gs_bounds_col'
-!             print*, '  current size =', (d_gs_bounds_col(2,:) - d_gs_bounds_col(1,:) + 1)
-!             print*, '  size(values,1) =', size(values,1)
+!             write(iulog,*) this_rank, 'Recompute d_gs_bounds_col'
+!             write(iulog,*) '  current size =', (d_gs_bounds_col(2,:) - d_gs_bounds_col(1,:) + 1)
+!             write(iulog,*) '  size(values,1) =', size(values,1)
 !          endif
        endif
     else
        new_bounds_col = .true.
-!       if (main_task_col) print*, this_rank, 'Allocate d_gs_bounds_col'
+!       if (main_task_col) write(iulog,*) this_rank, 'Allocate d_gs_bounds_col'
     endif
 
     if (new_bounds_col) then
@@ -2649,19 +2666,19 @@ contains
     endif
 
 !    call parallel_barrier
-!    print*, 'task, west, east, south, north:', this_rank, west, east, south, north
+!    write(iulog,*) 'task, west, east, south, north:', this_rank, west, east, south, north
 
     ! Uncomment to print grid geometry
-!    write(*,*) "Process ", this_rank, " Total = ", tasks, " ewtasks = ", ewtasks, " nstasks = ", nstasks
-!    write(*,*) "Process ", this_rank, " ewrank = ", ewrank, " nsrank = ", nsrank
-!    write(*,*) "Process ", this_rank, " l_ewn = ", local_ewn, " o_ewn = ", own_ewn
-!    write(*,*) "Process ", this_rank, " l_nsn = ", local_nsn, " o_nsn = ", own_nsn
-!    write(*,*) "Process ", this_rank, " ewlb = ", ewlb, " ewub = ", ewub
-!    write(*,*) "Process ", this_rank, " nslb = ", nslb, " nsub = ", nsub
-!    write(*,*) "Process ", this_rank, " east = ", east, " west = ", west
-!    write(*,*) "Process ", this_rank, " north = ", north, " south = ", south
-!    write(*,*) "Process ", this_rank, " ew_vars = ", own_ewn, " ns_vars = ", own_nsn
-!    write(*,*) "Process ", this_rank, " global_col_offset = ", global_col_offset, &
+!    write(iulog,*) "Process ", this_rank, " Total = ", tasks, " ewtasks = ", ewtasks, " nstasks = ", nstasks
+!    write(iulog,*) "Process ", this_rank, " ewrank = ", ewrank, " nsrank = ", nsrank
+!    write(iulog,*) "Process ", this_rank, " l_ewn = ", local_ewn, " o_ewn = ", own_ewn
+!    write(iulog,*) "Process ", this_rank, " l_nsn = ", local_nsn, " o_nsn = ", own_nsn
+!    write(iulog,*) "Process ", this_rank, " ewlb = ", ewlb, " ewub = ", ewub
+!    write(iulog,*) "Process ", this_rank, " nslb = ", nslb, " nsub = ", nsub
+!    write(iulog,*) "Process ", this_rank, " east = ", east, " west = ", west
+!    write(iulog,*) "Process ", this_rank, " north = ", north, " south = ", south
+!    write(iulog,*) "Process ", this_rank, " ew_vars = ", own_ewn, " ns_vars = ", own_nsn
+!    write(iulog,*) "Process ", this_rank, " global_col_offset = ", global_col_offset, &
 !                                      " global_row_offset = ", global_row_offset
 
     call distributed_print_grid(own_ewn, own_nsn)
@@ -2809,7 +2826,7 @@ contains
     outflow_bc = .false.
     periodic_bc = .false.
 
-    if (main_task) write(*,*) 'Setting no_ice boundary conditions, assigning tasks to active blocks only'
+    if (main_task) write(iulog,*) 'Setting no_ice boundary conditions, assigning tasks to active blocks only'
 
     ! Note: There is no option to change nhalo.
     !       The Glissade higher-order dycore requires nhalo = 2, which is set with other halo values at the top of this module.
@@ -2825,7 +2842,7 @@ contains
     !       might not fully span the region defined by (ewtasks,nstasks).
 
     if (nx_block == 0 .or. ny_block == 0) then
-       write(*,*) 'Error: Must have nx_block and ny_block > 0'
+       write(iulog,*) 'Error: Must have nx_block and ny_block > 0'
        call parallel_stop(__FILE__, __LINE__)
     endif
 
@@ -2844,9 +2861,9 @@ contains
     nblocks = ewtasks * nstasks
 
     if (main_task .and. verbose_active_blocks) then
-       print*, 'global_ewn, global_nsn =', global_ewn, global_nsn
-       print*, 'nx_block, ny_block =', nx_block, ny_block
-       print*, 'ewtasks, nstasks, nblocks =', ewtasks, nstasks, nblocks
+       write(iulog,*) 'global_ewn, global_nsn =', global_ewn, global_nsn
+       write(iulog,*) 'nx_block, ny_block =', nx_block, ny_block
+       write(iulog,*) 'ewtasks, nstasks, nblocks =', ewtasks, nstasks, nblocks
     endif
 
     ! Allocate block variables
@@ -2968,10 +2985,10 @@ contains
 
     !WHL - debug
     if (main_task) then
-       print*, 'global_minval_ewlb =', global_minval_ewlb
-       print*, 'global_maxval_ewub =', global_maxval_ewub
-       print*, 'global_minval_nslb =', global_minval_nslb
-       print*, 'global_maxval_nsub =', global_maxval_nsub
+       write(iulog,*) 'global_minval_ewlb =', global_minval_ewlb
+       write(iulog,*) 'global_maxval_ewub =', global_maxval_ewub
+       write(iulog,*) 'global_minval_nslb =', global_minval_nslb
+       write(iulog,*) 'global_maxval_nsub =', global_maxval_nsub
     endif
 
     ! Determine which blocks are active.
@@ -2997,45 +3014,45 @@ contains
        enddo
 
        if (verbose_active_blocks) then
-          print*, 'nblocks, nblocks_active:', nblocks, nblocks_active
-          print*, ' '
-          print*, 'Block layout:'
+          write(iulog,*) 'nblocks, nblocks_active:', nblocks, nblocks_active
+          write(iulog,*) ' '
+          write(iulog,*) 'Block layout:'
           do j = nstasks-1, 0, -1
              do i = 0, ewtasks-1
                 nb = ewtasks*j + i
-                write(6, '(i5)', advance='no') nb
+                write(iulog, '(i5)', advance='no') nb
              enddo
-             print*, ' '
+             write(iulog,*) ' '
           enddo
-          print*, ' '
-          print*, 'block_is_active:'
+          write(iulog,*) ' '
+          write(iulog,*) 'block_is_active:'
           do j = nstasks-1, 0, -1
              do i = 0, ewtasks-1
                 nb = ewtasks*j + i
-                write(6, '(l5)', advance='no') block_is_active(nb)
+                write(iulog, '(l5)', advance='no') block_is_active(nb)
              enddo
-             print*, ' '
+             write(iulog,*) ' '
           enddo
        endif  ! verbose_active_blocks
 
        if (only_inquire) then  ! report the number of active blocks, then abort cleanly
-          write(*,*)
-          write(*,*) 'The number of active blocks with this domain and block layout is ', nblocks_active
-          write(*,*) 'The total number of blocks is ', nblocks
-          write(*,*) 'Please resubmit with nblocks_active <= tasks <= n_blocks'
+          write(iulog,*)
+          write(iulog,*) 'The number of active blocks with this domain and block layout is ', nblocks_active
+          write(iulog,*) 'The total number of blocks is ', nblocks
+          write(iulog,*) 'Please resubmit with nblocks_active <= tasks <= n_blocks'
           call parallel_stop(__FILE__, __LINE__)
        else   ! abort if tasks < nblocks_active or tasks > nblocks; otherwise proceed
           if (tasks < nblocks_active) then
-             write(*,*)
-             write(*,*) 'Fatal error: tasks < nblocks_active'
-             write(*,*) 'Number of tasks =', tasks
-             write(*,*) 'Minimum number of tasks to compute on all active blocks is ', nblocks_active
+             write(iulog,*)
+             write(iulog,*) 'Fatal error: tasks < nblocks_active'
+             write(iulog,*) 'Number of tasks =', tasks
+             write(iulog,*) 'Minimum number of tasks to compute on all active blocks is ', nblocks_active
              call parallel_stop(__FILE__, __LINE__)
           elseif (tasks > nblocks) then
-             write(*,*)
-             write(*,*) 'Fatal error: tasks > nblocks'
-             write(*,*) 'Number of tasks =', tasks
-             write(*,*) 'Maximum number of tasks to compute on all blocks is ', nblocks
+             write(iulog,*)
+             write(iulog,*) 'Fatal error: tasks > nblocks'
+             write(iulog,*) 'Number of tasks =', tasks
+             write(iulog,*) 'Maximum number of tasks to compute on all blocks is ', nblocks
              call parallel_stop(__FILE__, __LINE__)
           endif
        endif   ! only_inquire
@@ -3046,8 +3063,8 @@ contains
        if (nblocks_active < tasks) then
 
           if (verbose_active_blocks) then
-             print*, 'nblocks_active, tasks =', nblocks_active, tasks
-             print*, 'Adding more active blocks:'
+             write(iulog,*) 'nblocks_active, tasks =', nblocks_active, tasks
+             write(iulog,*) 'Adding more active blocks:'
           endif
 
           do while (nblocks_active < tasks)
@@ -3058,7 +3075,7 @@ contains
                 if (.not. block_is_active(nb)) then
                    if (block_is_active(west_block(nb))  .or. block_is_active(east_block(nb)) .or.  &
                        block_is_active(south_block(nb)) .or. block_is_active(north_block(nb))) then
-                      if (verbose_active_blocks) print*, 'Activate block', nb
+                      if (verbose_active_blocks) write(iulog,*) 'Activate block', nb
                       block_is_active_new(nb) = .true.
                       nblocks_active = nblocks_active + 1
                       if (nblocks_active == tasks) exit
@@ -3071,29 +3088,29 @@ contains
           enddo   ! nblocks_active < tasks
 
           if (nblocks_active < tasks) then  ! should not happen, but check just in case
-             write(*,*) 'Error, still have nblocks_active < tasks:', nblocks_active, tasks
+             write(iulog,*) 'Error, still have nblocks_active < tasks:', nblocks_active, tasks
              call parallel_stop(__FILE__, __LINE__)
           endif
 
           if (verbose_active_blocks) then
-             print*, 'After activating more blocks: nblocks, nblocks_active:', nblocks, nblocks_active
-             print*, ' '
-             print*, 'Block layout:'
+             write(iulog,*) 'After activating more blocks: nblocks, nblocks_active:', nblocks, nblocks_active
+             write(iulog,*) ' '
+             write(iulog,*) 'Block layout:'
              do j = nstasks-1, 0, -1
                 do i = 0, ewtasks-1
                    nb = ewtasks*j + i
-                   write(6, '(i5)', advance='no') nb
+                   write(iulog, '(i5)', advance='no') nb
                 enddo
-                print*, ' '
+                write(iulog,*) ' '
              enddo
-             print*, ' '
-             print*, 'block_is_active:'
+             write(iulog,*) ' '
+             write(iulog,*) 'block_is_active:'
              do j = nstasks-1, 0, -1
                 do i = 0, ewtasks-1
                    nb = ewtasks*j + i
-                   write(6, '(l5)', advance='no') block_is_active(nb)
+                   write(iulog, '(l5)', advance='no') block_is_active(nb)
                 enddo
-                print*, ' '
+                write(iulog,*) ' '
              enddo
           endif  ! verbose_active_blocks
 
@@ -3124,14 +3141,14 @@ contains
     enddo
 
     if (main_task .and. verbose_active_blocks) then
-       print*, ' '
-       print*, 'Task layout:'
+       write(iulog,*) ' '
+       write(iulog,*) 'Task layout:'
        do j = nstasks-1, 0, -1
           do i = 0, ewtasks-1
              nb = ewtasks*j + i
-             write(6, '(i5)', advance='no') block_to_task(nb)
+             write(iulog, '(i5)', advance='no') block_to_task(nb)
           enddo
-          print*, ' '
+          write(iulog,*) ' '
        enddo
     endif
 
@@ -3185,10 +3202,10 @@ contains
     endif
 
     if (main_task .and. verbose_active_blocks) then
-       print*, ' '
-       print*, 'this_rank, nb, west(nb), east(nb), south(nb), north(nb):',  &
+       write(iulog,*) ' '
+       write(iulog,*) 'this_rank, nb, west(nb), east(nb), south(nb), north(nb):',  &
                 this_rank, nb, west_block(nb), east_block(nb), south_block(nb), north_block(nb)
-       print*, 'this_rank, nt, west(nt), east(nt), south(nt), north(nt):',  &
+       write(iulog,*) 'this_rank, nt, west(nt), east(nt), south(nt), north(nt):',  &
                 this_rank, nt, west, east, south, north
     endif
 
@@ -3229,10 +3246,10 @@ contains
     endif
 
     if (verbose_active_blocks) then
-!       if (southwest_corner) print*, 'Southwest corner, task =', this_rank
-!       if (southeast_corner) print*, 'Southeast corner, task =', this_rank
-!       if (northeast_corner) print*, 'Northeast corner, task =', this_rank
-!       if (northwest_corner) print*, 'Northwest corner, task =', this_rank
+!       if (southwest_corner) write(iulog,*) 'Southwest corner, task =', this_rank
+!       if (southeast_corner) write(iulog,*) 'Southeast corner, task =', this_rank
+!       if (northeast_corner) write(iulog,*) 'Northeast corner, task =', this_rank
+!       if (northwest_corner) write(iulog,*) 'Northwest corner, task =', this_rank
     endif
 
     ! Set the limits of locally owned vertices on the staggered grid.
@@ -3250,34 +3267,34 @@ contains
     ! Check that we have not split up the problem too much.  We do not want halos overlapping in either dimension.
     ! local_* - lhalo - uhalo is the actual number of non-halo cells on a processor.
     if ((local_nsn - lhalo - uhalo) .lt. (lhalo + uhalo + 1)) then
-        write(*,*) "NS halos overlap on processor ", this_rank
+        write(iulog,*) "NS halos overlap on processor ", this_rank
         call parallel_stop(__FILE__, __LINE__)
     endif
 
     if ((local_ewn  - lhalo - uhalo) .lt. (lhalo + uhalo + 1)) then
-        write(*,*) "EW halos overlap on processor ", this_rank
+        write(iulog,*) "EW halos overlap on processor ", this_rank
         call parallel_stop(__FILE__, __LINE__)
     endif
 
     if (verbose_active_blocks) then
     call parallel_barrier
-!       print*, 'task, west, east, south, north:', this_rank, west, east, south, north
-!       print*, 'task, SW, SE, NE, NW:', this_rank, &
+!       write(iulog,*) 'task, west, east, south, north:', this_rank, west, east, south, north
+!       write(iulog,*) 'task, SW, SE, NE, NW:', this_rank, &
 !            southwest_corner, southeast_corner, northwest_corner, northeast_corner
     endif
 
     ! Uncomment to print grid geometry
-!    write(*,*) " "
-!    write(*,*) "Process ", this_rank, " Total = ", tasks, " ewtasks = ", ewtasks, " nstasks = ", nstasks
-!    write(*,*) "Process ", this_rank, " ewrank = ", ewrank, " nsrank = ", nsrank
-!    write(*,*) "Process ", this_rank, " l_ewn = ", local_ewn, " o_ewn = ", own_ewn
-!    write(*,*) "Process ", this_rank, " l_nsn = ", local_nsn, " o_nsn = ", own_nsn
-!    write(*,*) "Process ", this_rank, " ewlb = ", ewlb, " ewub = ", ewub
-!    write(*,*) "Process ", this_rank, " nslb = ", nslb, " nsub = ", nsub
-!    write(*,*) "Process ", this_rank, " east = ", east, " west = ", west
-!    write(*,*) "Process ", this_rank, " north = ", north, " south = ", south
-!    write(*,*) "Process ", this_rank, " ew_vars = ", own_ewn, " ns_vars = ", own_nsn
-!    write(*,*) "Process ", this_rank, " global_col_offset = ", global_col_offset, &
+!    write(iulog,*) " "
+!    write(iulog,*) "Process ", this_rank, " Total = ", tasks, " ewtasks = ", ewtasks, " nstasks = ", nstasks
+!    write(iulog,*) "Process ", this_rank, " ewrank = ", ewrank, " nsrank = ", nsrank
+!    write(iulog,*) "Process ", this_rank, " l_ewn = ", local_ewn, " o_ewn = ", own_ewn
+!    write(iulog,*) "Process ", this_rank, " l_nsn = ", local_nsn, " o_nsn = ", own_nsn
+!    write(iulog,*) "Process ", this_rank, " ewlb = ", ewlb, " ewub = ", ewub
+!    write(iulog,*) "Process ", this_rank, " nslb = ", nslb, " nsub = ", nsub
+!    write(iulog,*) "Process ", this_rank, " east = ", east, " west = ", west
+!    write(iulog,*) "Process ", this_rank, " north = ", north, " south = ", south
+!    write(iulog,*) "Process ", this_rank, " ew_vars = ", own_ewn, " ns_vars = ", own_nsn
+!    write(iulog,*) "Process ", this_rank, " global_col_offset = ", global_col_offset, &
 !                                      " global_row_offset = ", global_row_offset
 
     call distributed_print_grid(own_ewn, own_nsn)
@@ -3356,7 +3373,7 @@ contains
                    bounds(2,j) = -1
                 endif
              enddo
-             write(*,*) "Layout(EW,NS) = ", bounds(1,i), bounds(2,i), " total procs = ", curr_count
+             write(iulog,*) "Layout(EW,NS) = ", bounds(1,i), bounds(2,i), " total procs = ", curr_count
           endif
        end do
     end if
@@ -3402,8 +3419,8 @@ contains
 
     if (uhalo==0 .and. size(values,1)==local_ewn-1) then
        ! Fixing this would require some generalization as is done for distributed_put_var
-       write(*,*) "distributed_print does not currently work for"
-       write(*,*) "variables on the staggered grid when uhalo=0"
+       write(iulog,*) "distributed_print does not currently work for"
+       write(iulog,*) "variables on the staggered grid when uhalo=0"
        call parallel_stop(__FILE__, __LINE__)
     end if
 
@@ -3509,8 +3526,8 @@ contains
 
     if (uhalo==0 .and. size(values,1)==local_ewn-1) then
        ! Fixing this would require some generalization as is done for distributed_put_var
-       write(*,*) "distributed_print does not currently work for"
-       write(*,*) "variables on the staggered grid when uhalo=0"
+       write(iulog,*) "distributed_print does not currently work for"
+       write(iulog,*) "variables on the staggered grid when uhalo=0"
        call parallel_stop(__FILE__, __LINE__)
     end if
 
@@ -3616,8 +3633,8 @@ contains
 
     if (uhalo==0 .and. size(values,1)==local_ewn-1) then
        ! Fixing this would require some generalization as is done for distributed_put_var
-       write(*,*) "distributed_print does not currently work for"
-       write(*,*) "variables on the staggered grid when uhalo=0"
+       write(iulog,*) "distributed_print does not currently work for"
+       write(iulog,*) "variables on the staggered grid when uhalo=0"
        call parallel_stop(__FILE__, __LINE__)
     end if
 
@@ -4284,8 +4301,8 @@ contains
 
     if (uhalo==0 .and. size(values,1)==local_ewn-1) then
        ! Fixing this would require some generalization as is done for distributed_put_var
-       write(*,*) "distributed_scatter does not currently work for"
-       write(*,*) "variables on the staggered grid when uhalo=0"
+       write(iulog,*) "distributed_scatter does not currently work for"
+       write(iulog,*) "variables on the staggered grid when uhalo=0"
        call parallel_stop(__FILE__, __LINE__)
     end if
 
@@ -4372,8 +4389,8 @@ contains
 
     if (uhalo==0 .and. size(values,1)==local_ewn-1) then
        ! Fixing this would require some generalization as is done for distributed_put_var
-       write(*,*) "distributed_scatter does not currently work for"
-       write(*,*) "variables on the staggered grid when uhalo=0"
+       write(iulog,*) "distributed_scatter does not currently work for"
+       write(iulog,*) "variables on the staggered grid when uhalo=0"
        call parallel_stop(__FILE__, __LINE__)
     end if
 
@@ -4460,8 +4477,8 @@ contains
 
     if (uhalo==0 .and. size(values,1)==local_ewn-1) then
        ! Fixing this would require some generalization as is done for distributed_put_var
-       write(*,*) "distributed_scatter does not currently work for"
-       write(*,*) "variables on the staggered grid when uhalo=0"
+       write(iulog,*) "distributed_scatter does not currently work for"
+       write(iulog,*) "variables on the staggered grid when uhalo=0"
        call parallel_stop(__FILE__, __LINE__)
     end if
 
@@ -4548,8 +4565,8 @@ contains
 
     if (uhalo==0 .and. size(values,1)==local_ewn-1) then
        ! Fixing this would require some generalization as is done for distributed_put_var
-       write(*,*) "distributed_scatter does not currently work for"
-       write(*,*) "variables on the staggered grid when uhalo=0"
+       write(iulog,*) "distributed_scatter does not currently work for"
+       write(iulog,*) "variables on the staggered grid when uhalo=0"
        call parallel_stop(__FILE__, __LINE__)
     end if
 
@@ -4638,8 +4655,8 @@ contains
 
     if (uhalo==0 .and. size(values,1)==local_ewn-1) then
        ! Fixing this would require some generalization as is done for distributed_put_var
-       write(*,*) "distributed_scatter does not currently work for"
-       write(*,*) "variables on the staggered grid when uhalo=0"
+       write(iulog,*) "distributed_scatter does not currently work for"
+       write(iulog,*) "variables on the staggered grid when uhalo=0"
        call parallel_stop(__FILE__, __LINE__)
     end if
 
@@ -4728,8 +4745,8 @@ contains
 
     if (uhalo==0 .and. size(values,1)==local_ewn-1) then
        ! Fixing this would require some generalization as is done for distributed_put_var
-       write(*,*) "distributed_scatter does not currently work for"
-       write(*,*) "variables on the staggered grid when uhalo=0"
+       write(iulog,*) "distributed_scatter does not currently work for"
+       write(iulog,*) "variables on the staggered grid when uhalo=0"
        call parallel_stop(__FILE__, __LINE__)
     end if
 
@@ -4835,7 +4852,7 @@ contains
 
     if (size(values,2) /= own_nsn) then
        ! Note: Removing this restriction would require some recoding below.
-       write(*,*) "ERROR: distributed_scatter_var_row requires N-S array size of own_nsn"
+       write(iulog,*) "ERROR: distributed_scatter_var_row requires N-S array size of own_nsn"
        call parallel_stop(__FILE__, __LINE__)
     end if
 
@@ -4934,7 +4951,7 @@ contains
 
     if (size(values,2) /= own_ewn) then
        ! Note: Removing this restriction would require some recoding below.
-       write(*,*) "ERROR: distributed_scatter_var_col requires E-W array size of own_nsn"
+       write(iulog,*) "ERROR: distributed_scatter_var_col requires E-W array size of own_nsn"
        call parallel_stop(__FILE__, __LINE__)
     end if
 
@@ -5211,16 +5228,16 @@ contains
          )
 
     if (size(input_with_halo,1) /= local_ewn .or. size(input_with_halo,2) /= local_nsn) then
-       write(*,*) "Unexpected size for input_with_halo: ", &
+       write(iulog,*) "Unexpected size for input_with_halo: ", &
             size(input_with_halo,1), size(input_with_halo,2)
-       write(*,*) "Expected size is: ", local_ewn, local_nsn
+       write(iulog,*) "Expected size is: ", local_ewn, local_nsn
        call parallel_stop(__FILE__, __LINE__)
     end if
 
     if (size(output_no_halo,1) /= own_ewn .or. size(output_no_halo,2) /= own_nsn) then
-       write(*,*) "Unexpected size for output_no_halo: ", &
+       write(iulog,*) "Unexpected size for output_no_halo: ", &
             size(output_no_halo,1), size(output_no_halo,2)
-       write(*,*) "Expected size is: ", own_ewn, own_nsn
+       write(iulog,*) "Expected size is: ", own_ewn, own_nsn
        call parallel_stop(__FILE__, __LINE__)
     end if
 
@@ -5247,16 +5264,16 @@ contains
          )
 
     if (size(input_with_halo,1) /= local_ewn .or. size(input_with_halo,2) /= local_nsn) then
-       write(*,*) "Unexpected size for input_with_halo: ", &
+       write(iulog,*) "Unexpected size for input_with_halo: ", &
             size(input_with_halo,1), size(input_with_halo,2)
-       write(*,*) "Expected size is: ", local_ewn, local_nsn
+       write(iulog,*) "Expected size is: ", local_ewn, local_nsn
        call parallel_stop(__FILE__, __LINE__)
     end if
 
     if (size(output_no_halo,1) /= own_ewn .or. size(output_no_halo,2) /= own_nsn) then
-       write(*,*) "Unexpected size for output_no_halo: ", &
+       write(iulog,*) "Unexpected size for output_no_halo: ", &
             size(output_no_halo,1), size(output_no_halo,2)
-       write(*,*) "Expected size is: ", own_ewn, own_nsn
+       write(iulog,*) "Expected size is: ", own_ewn, own_nsn
        call parallel_stop(__FILE__, __LINE__)
     end if
 
@@ -5286,16 +5303,16 @@ contains
          )
 
     if (size(input_no_halo,1) /= own_ewn .or. size(input_no_halo,2) /= own_nsn) then
-       write(*,*) "Unexpected size for input_no_halo: ", &
+       write(iulog,*) "Unexpected size for input_no_halo: ", &
             size(input_no_halo,1), size(input_no_halo,2)
-       write(*,*) "Expected size is: ", own_ewn, own_nsn
+       write(iulog,*) "Expected size is: ", own_ewn, own_nsn
        call parallel_stop(__FILE__, __LINE__)
     end if
 
     if (size(output_with_halo,1) /= local_ewn .or. size(output_with_halo,2) /= local_nsn) then
-       write(*,*) "Unexpected size for output_with_halo: ", &
+       write(iulog,*) "Unexpected size for output_with_halo: ", &
             size(output_with_halo,1), size(output_with_halo,2)
-       write(*,*) "Expected size is: ", local_ewn, local_nsn
+       write(iulog,*) "Expected size is: ", local_ewn, local_nsn
        call parallel_stop(__FILE__, __LINE__)
     end if
 
@@ -5324,16 +5341,16 @@ contains
          )
 
     if (size(input_no_halo,1) /= own_ewn .or. size(input_no_halo,2) /= own_nsn) then
-       write(*,*) "Unexpected size for input_no_halo: ", &
+       write(iulog,*) "Unexpected size for input_no_halo: ", &
             size(input_no_halo,1), size(input_no_halo,2)
-       write(*,*) "Expected size is: ", own_ewn, own_nsn
+       write(iulog,*) "Expected size is: ", own_ewn, own_nsn
        call parallel_stop(__FILE__, __LINE__)
     end if
 
     if (size(output_with_halo,1) /= local_ewn .or. size(output_with_halo,2) /= local_nsn) then
-       write(*,*) "Unexpected size for output_with_halo: ", &
+       write(iulog,*) "Unexpected size for output_with_halo: ", &
             size(output_with_halo,1), size(output_with_halo,2)
-       write(*,*) "Expected size is: ", local_ewn, local_nsn
+       write(iulog,*) "Expected size is: ", local_ewn, local_nsn
        call parallel_stop(__FILE__, __LINE__)
     end if
 
@@ -5396,7 +5413,7 @@ contains
     main_rank_row = my_main_rank_row
     main_task_row = (this_rank_row==main_rank_row)
 
-    if (main_task_row) print*, 'Create comm_row: this_rank, tasks_row, this_rank_row, main_task_row =', &
+    if (main_task_row) write(iulog,*) 'Create comm_row: this_rank, tasks_row, this_rank_row, main_task_row =', &
          this_rank, tasks_row, this_rank_row, main_task_row
 
     end associate
@@ -5433,7 +5450,7 @@ contains
     main_rank_col = my_main_rank_col
     main_task_col = (this_rank_col==main_rank_col)
 
-    if (main_task_col) print*, 'Create comm_col: this_rank, tasks_col, this_rank_col, main_task_col =', &
+    if (main_task_col) write(iulog,*) 'Create comm_col: this_rank, tasks_col, this_rank_col, main_task_col =', &
          this_rank, tasks_col, this_rank_col, main_task_col
 
     end associate
@@ -5604,120 +5621,174 @@ contains
 
   ! functions belonging to the parallel_get_var interface
 
-  !WHL - Added parallel_get_var functions in analogy to parallel_put_var functions.
-  !      Similar to distributed_get_var, but they lack a 'start' argument.
+  !WHL - Added some parallel_get_var functions in analogy to parallel_put_var functions.
   !      The scalar and 1D functions broadcast values from main_task to other tasks.
   !      The 2D functions do not broadcast; they only bring a global array to main_task.
+  !WHL Feb. 2025: Previously, these functions lacked an input 'start' argument.
+  !      As a result, they always read the first time slice in each array.
+  !      The 'start' argument is needed to get the correct time slice for time-varying fields.
+  !      It is optional, since some calls do not need it.
 
-  function parallel_get_var_integer(ncid, varid, values)
+  function parallel_get_var_integer(ncid, varid, values, start)
 
     implicit none
     integer :: ncid, parallel_get_var_integer, varid
     integer :: values
+    integer,dimension(:),optional :: start
 
     ! begin
-    if (main_task) parallel_get_var_integer = nf90_get_var(ncid,varid,values)
+    if (main_task) then
+       if (present(start)) then
+          parallel_get_var_integer = nf90_get_var(ncid,varid,values,start)
+       else
+          parallel_get_var_integer = nf90_get_var(ncid,varid,values)
+       endif
+    endif
     call broadcast(parallel_get_var_integer)
     call broadcast(values)
 
   end function parallel_get_var_integer
 
 
-  function parallel_get_var_real4(ncid, varid, values)
+  function parallel_get_var_real4(ncid, varid, values, start)
 
     implicit none
     integer :: ncid, parallel_get_var_real4, varid
     real(sp) :: values
+    integer,dimension(:),optional :: start
 
     ! begin
-    if (main_task) parallel_get_var_real4 = nf90_get_var(ncid,varid,values)
+    if (main_task) then
+       if (present(start)) then
+          parallel_get_var_real4 = nf90_get_var(ncid,varid,values,start)
+       else
+          parallel_get_var_real4 = nf90_get_var(ncid,varid,values)
+       endif
+    endif
     call broadcast(parallel_get_var_real4)
     call broadcast(values)
 
   end function parallel_get_var_real4
 
 
-  function parallel_get_var_real8(ncid, varid, values)
+  function parallel_get_var_real8(ncid, varid, values, start)
 
     implicit none
     integer :: ncid,parallel_get_var_real8,varid
     real(dp) :: values
+    integer,dimension(:),optional :: start
 
     ! begin
-    if (main_task) parallel_get_var_real8 = nf90_get_var(ncid,varid,values)
+    if (main_task) then
+       if (present(start)) then
+          parallel_get_var_real8 = nf90_get_var(ncid,varid,values,start)
+       else
+          parallel_get_var_real8 = nf90_get_var(ncid,varid,values)
+       endif
+    endif
     call broadcast(parallel_get_var_real8)
     call broadcast(values)
 
   end function parallel_get_var_real8
 
 
-  function parallel_get_var_integer_1d(ncid, varid, values)
+  function parallel_get_var_integer_1d(ncid, varid, values, start)
 
     implicit none
     integer :: ncid,parallel_get_var_integer_1d,varid
     integer,dimension(:) :: values
+    integer,dimension(:),optional :: start
 
     ! begin
-    if (main_task) parallel_get_var_integer_1d = &
-         nf90_get_var(ncid,varid,values)
+    if (main_task) then
+       if (present(start)) then
+          parallel_get_var_integer_1d = nf90_get_var(ncid,varid,values,start)
+       else
+          parallel_get_var_integer_1d = nf90_get_var(ncid,varid,values)
+       endif
+    endif
     call broadcast(parallel_get_var_integer_1d)
     call broadcast(values)
 
   end function parallel_get_var_integer_1d
 
-  function parallel_get_var_real4_1d(ncid, varid, values)
+  function parallel_get_var_real4_1d(ncid, varid, values, start)
 
     implicit none
     integer :: ncid,parallel_get_var_real4_1d,varid
     real(sp),dimension(:) :: values
+    integer,dimension(:),optional :: start
 
     ! begin
-    if (main_task) parallel_get_var_real4_1d = &
-         nf90_get_var(ncid,varid,values)
+    if (main_task) then
+       if (present(start)) then
+          parallel_get_var_real4_1d = nf90_get_var(ncid,varid,values,start)
+       else
+          parallel_get_var_real4_1d = nf90_get_var(ncid,varid,values)
+       endif
+    endif
     call broadcast(parallel_get_var_real4_1d)
     call broadcast(values)
 
   end function parallel_get_var_real4_1d
 
-  function parallel_get_var_real8_1d(ncid, varid, values)
+  function parallel_get_var_real8_1d(ncid, varid, values, start)
 
     implicit none
     integer :: ncid,parallel_get_var_real8_1d,varid
     real(dp),dimension(:) :: values
+    integer,dimension(:),optional :: start
 
     ! begin
-    if (main_task) parallel_get_var_real8_1d = &
-         nf90_get_var(ncid,varid,values)
+    if (main_task) then
+       if (present(start)) then
+          parallel_get_var_real8_1d = nf90_get_var(ncid,varid,values,start)
+       else
+          parallel_get_var_real8_1d = nf90_get_var(ncid,varid,values)
+       endif
+    endif
     call broadcast(parallel_get_var_real8_1d)
     call broadcast(values)
 
   end function parallel_get_var_real8_1d
 
 
-  function parallel_get_var_integer_2d(ncid, varid, values)
+  function parallel_get_var_integer_2d(ncid, varid, values, start)
 
     implicit none
     integer :: ncid,parallel_get_var_integer_2d,varid
     integer,dimension(:,:) :: values
+    integer,dimension(:),optional :: start
 
     ! begin
-    if (main_task) parallel_get_var_integer_2d = &
-         nf90_get_var(ncid,varid,values)
+    if (main_task) then
+       if (present(start)) then
+          parallel_get_var_integer_2d = nf90_get_var(ncid,varid,values,start)
+       else
+          parallel_get_var_integer_2d = nf90_get_var(ncid,varid,values)
+       endif
+    endif
     call broadcast(parallel_get_var_integer_2d)
 !!    call broadcast(values)  ! no broadcast subroutine for 2D arrays
 
   end function parallel_get_var_integer_2d
 
 
-  function parallel_get_var_real8_2d(ncid, varid, values)
+  function parallel_get_var_real8_2d(ncid, varid, values, start)
 
     implicit none
     integer :: ncid,parallel_get_var_real8_2d,varid
     real(dp),dimension(:,:) :: values
+    integer,dimension(:),optional :: start
 
     ! begin
-    if (main_task) parallel_get_var_real8_2d = &
-         nf90_get_var(ncid,varid,values)
+    if (main_task) then
+       if (present(start)) then
+          parallel_get_var_real8_2d = nf90_get_var(ncid,varid,values,start)
+       else
+          parallel_get_var_real8_2d = nf90_get_var(ncid,varid,values)
+       endif
+    endif
     call broadcast(parallel_get_var_real8_2d)
 !!    call broadcast(values)  ! no broadcast subroutine for 2D arrays
 
@@ -5745,7 +5816,7 @@ contains
 
     ! unknown grid
     if (size(global_edge_mask,1)/=local_ewn .or. size(global_edge_mask,2)/=local_nsn) then
-       write(*,*) "Unknown Grid: Size a=(", size(global_edge_mask,1), ",", size(global_edge_mask,2), &
+       write(iulog,*) "Unknown Grid: Size a=(", size(global_edge_mask,1), ",", size(global_edge_mask,2), &
             ") and local_ewn and local_nsn = ", local_ewn, ",", local_nsn
        call parallel_stop(__FILE__,__LINE__)
     endif
@@ -5846,7 +5917,7 @@ contains
 
     ! Testing Code
     ! write(local_coord, "A13,I10.1,A2,I10.1,A1") " (NS, EW) = (", locns, ", ", locew, ")"
-    ! write(*,*) "Processor reference ", this_rank, local_coord, " globalID = ", global_ID
+    ! write(iulog,*) "Processor reference ", this_rank, local_coord, " globalID = ", global_ID
 
     !return value
     parallel_globalID = global_ID
@@ -5889,7 +5960,7 @@ contains
 
     ! Testing Code
     ! write(local_coord, "A13,I10.1,A2,I10.1,A1") " (NS, EW) = (", locns, ", ", locew, ")"
-    ! write(*,*) "Processor reference ", this_rank, local_coord, " globalID = ", global_ID
+    ! write(iulog,*) "Processor reference ", this_rank, local_coord, " globalID = ", global_ID
 
     !return value
     parallel_globalID_scalar = global_ID
@@ -5925,14 +5996,18 @@ contains
 
 !=======================================================================
 
-  function parallel_global_sum_integer_2d(a, parallel)
+  ! functions belonging to the parallel_global_sum interface
+
+  function parallel_global_sum_integer_2d(a, parallel, mask_2d)
 
     ! Calculates the global sum of a 2D integer field
 
     integer,dimension(:,:),intent(in) :: a
     type(parallel_type) :: parallel
+    integer, dimension(:,:), intent(in), optional :: mask_2d
 
     integer :: i, j
+    integer, dimension(parallel%local_ewn,parallel%local_nsn) :: mask
     integer :: local_sum
     integer :: parallel_global_sum_integer_2d
 
@@ -5940,10 +6015,18 @@ contains
          local_ewn   => parallel%local_ewn,    &
          local_nsn   => parallel%local_nsn)
 
+    if (present(mask_2d)) then
+       mask = mask_2d
+    else
+       mask = 1
+    endif
+
     local_sum = 0
     do j = nhalo+1, local_nsn-nhalo
        do i = nhalo+1, local_ewn-nhalo
-          local_sum = local_sum + a(i,j)
+          if (mask(i,j) == 1) then
+             local_sum = local_sum + a(i,j)
+          endif
        enddo
     enddo
     parallel_global_sum_integer_2d = parallel_reduce_sum(local_sum)
@@ -5954,14 +6037,61 @@ contains
 
 !=======================================================================
 
-  function parallel_global_sum_real4_2d(a, parallel)
+  function parallel_global_sum_integer_3d(a, parallel, mask_3d)
+
+    ! Calculates the global sum of a 3D integer field
+    ! Note: The vertical dimension should be the first dimension of the input field.
+
+    integer,dimension(:,:,:),intent(in) :: a
+    type(parallel_type) :: parallel
+    integer, dimension(:,:,:), intent(in), optional :: mask_3d
+
+    integer :: i, j, k
+    integer :: kmax
+    integer, dimension(size(a,1),parallel%local_ewn,parallel%local_nsn) :: mask
+    integer :: local_sum
+    integer :: parallel_global_sum_integer_3d
+
+    associate(  &
+         local_ewn   => parallel%local_ewn,    &
+         local_nsn   => parallel%local_nsn)
+
+    kmax = size(a,1)
+
+    if (present(mask_3d)) then
+       mask = mask_3d
+    else
+       mask = 1
+    endif
+
+    local_sum = 0
+    do j = nhalo+1, local_nsn-nhalo
+       do i = nhalo+1, local_ewn-nhalo
+          do k = 1, kmax
+             if (mask(k,i,j) == 1) then
+                local_sum = local_sum + a(k,i,j)
+             endif
+          enddo
+       enddo
+    enddo
+    parallel_global_sum_integer_3d = parallel_reduce_sum(local_sum)
+
+    end associate
+
+  end function parallel_global_sum_integer_3d
+
+!=======================================================================
+
+  function parallel_global_sum_real4_2d(a, parallel, mask_2d)
 
     ! Calculates the global sum of a 2D single-precision field
 
     real(sp),dimension(:,:),intent(in) :: a
     type(parallel_type) :: parallel
+    integer, dimension(:,:), intent(in), optional :: mask_2d
 
     integer :: i, j
+    integer, dimension(parallel%local_ewn,parallel%local_nsn) :: mask
     real(sp) :: local_sum
     real(sp) :: parallel_global_sum_real4_2d
 
@@ -5969,10 +6099,18 @@ contains
          local_ewn   => parallel%local_ewn,    &
          local_nsn   => parallel%local_nsn)
 
+    if (present(mask_2d)) then
+       mask = mask_2d
+    else
+       mask = 1
+    endif
+
     local_sum = 0.0
     do j = nhalo+1, local_nsn-nhalo
        do i = nhalo+1, local_ewn-nhalo
-          local_sum = local_sum + a(i,j)
+          if (mask(i,j) == 1) then
+             local_sum = local_sum + a(i,j)
+          endif
        enddo
     enddo
     parallel_global_sum_real4_2d = parallel_reduce_sum(local_sum)
@@ -5983,14 +6121,16 @@ contains
 
 !=======================================================================
 
-  function parallel_global_sum_real8_2d(a, parallel)
+  function parallel_global_sum_real8_2d(a, parallel, mask_2d)
 
     ! Calculates the global sum of a 2D double-precision field
 
-    real(dp),dimension(:,:),intent(in) :: a
+    real(dp), dimension(:,:), intent(in) :: a
     type(parallel_type) :: parallel
+    integer, dimension(:,:), intent(in), optional :: mask_2d
 
     integer :: i, j
+    integer, dimension(parallel%local_ewn,parallel%local_nsn) :: mask
     real(dp) :: local_sum
     real(dp) :: parallel_global_sum_real8_2d
 
@@ -5998,10 +6138,18 @@ contains
          local_ewn   => parallel%local_ewn,    &
          local_nsn   => parallel%local_nsn)
 
+    if (present(mask_2d)) then
+       mask = mask_2d
+    else
+       mask = 1
+    endif
+
     local_sum = 0.0d0
     do j = nhalo+1, local_nsn-nhalo
        do i = nhalo+1, local_ewn-nhalo
-          local_sum = local_sum + a(i,j)
+          if (mask(i,j) == 1) then
+             local_sum = local_sum + a(i,j)
+          endif
        enddo
     enddo
     parallel_global_sum_real8_2d = parallel_reduce_sum(local_sum)
@@ -6009,6 +6157,370 @@ contains
     end associate
 
   end function parallel_global_sum_real8_2d
+
+!=======================================================================
+
+  function parallel_global_sum_real8_3d(a, parallel, mask_3d)
+
+    ! Calculates the global sum of a 3D double-precision field
+    ! Note: The vertical dimension should be the first dimension of the input field.
+
+    real(dp), dimension(:,:,:),intent(in) :: a
+    type(parallel_type) :: parallel
+    integer, dimension(:,:,:), intent(in), optional :: mask_3d
+
+    integer :: i, j, k
+    integer :: kmax
+    integer, dimension(size(a,1),parallel%local_ewn,parallel%local_nsn) :: mask
+    real(dp) :: local_sum
+    real(dp) :: parallel_global_sum_real8_3d
+
+    associate(  &
+         local_ewn   => parallel%local_ewn,    &
+         local_nsn   => parallel%local_nsn)
+
+    kmax = size(a,1)
+
+    if (present(mask_3d)) then
+       mask = mask_3d
+    else
+       mask = 1
+    endif
+
+    local_sum = 0
+    do j = nhalo+1, local_nsn-nhalo
+       do i = nhalo+1, local_ewn-nhalo
+          do k = 1, kmax
+             if (mask(k,i,j) == 1) then
+                local_sum = local_sum + a(k,i,j)
+             endif
+          enddo
+       enddo
+    enddo
+    parallel_global_sum_real8_3d = parallel_reduce_sum(local_sum)
+
+    end associate
+
+  end function parallel_global_sum_real8_3d
+
+!=======================================================================
+
+  ! subroutines belonging to the parallel_global_sum_staggered interface
+  !TODO - Turn these into functions, analogous to the parallel_global_sum functions above.
+
+  subroutine parallel_global_sum_staggered_3d_real8(&
+       nx,            ny,         &
+       nz,            parallel,   &
+       global_sum,                &
+       work1,  work2)
+
+    ! Sum one or two local arrays on the staggered grid, then take the global sum.
+
+    integer, intent(in) :: &
+         nx, ny,             &  ! horizontal grid dimensions (for scalars)
+         nz                     ! number of vertical layers at which velocity is computed
+
+    type(parallel_type), intent(in) :: &
+         parallel               ! info for parallel communication
+
+    real(dp), intent(out) :: global_sum   ! global sum
+    real(dp), intent(in), dimension(nz,nx-1,ny-1) :: work1            ! local array
+    real(dp), intent(in), dimension(nz,nx-1,ny-1), optional :: work2  ! local array
+
+    integer :: i, j, k
+    real(dp) :: local_sum
+
+    integer :: &
+         staggered_ilo, staggered_ihi, &  ! bounds of locally owned vertices on staggered grid
+         staggered_jlo, staggered_jhi
+
+    staggered_ilo = parallel%staggered_ilo
+    staggered_ihi = parallel%staggered_ihi
+    staggered_jlo = parallel%staggered_jlo
+    staggered_jhi = parallel%staggered_jhi
+
+    local_sum = 0.d0
+
+    ! sum over locally owned velocity points
+
+    if (present(work2)) then
+       do j = staggered_jlo, staggered_jhi
+          do i = staggered_ilo, staggered_ihi
+             do k = 1, nz
+                local_sum = local_sum + work1(k,i,j) + work2(k,i,j)
+             enddo
+          enddo
+       enddo
+    else
+       do j = staggered_jlo, staggered_jhi
+          do i = staggered_ilo, staggered_ihi
+             do k = 1, nz
+                local_sum = local_sum + work1(k,i,j)
+             enddo
+          enddo
+       enddo
+    endif
+
+    ! take the global sum
+
+    global_sum = parallel_reduce_sum(local_sum)
+
+  end subroutine parallel_global_sum_staggered_3d_real8
+
+!=======================================================================
+
+  subroutine parallel_global_sum_staggered_3d_real8_nvar(&
+       nx,            ny,         &
+       nz,            parallel,   &
+       global_sum,                &
+       work1,  work2)
+
+    ! Sum one or two local arrays on the staggered grid, then take the global sum.
+
+    integer, intent(in) :: &
+         nx, ny,                &  ! horizontal grid dimensions (for scalars)
+         nz                        ! number of vertical layers at which velocity is computed
+
+    type(parallel_type), intent(in) :: &
+         parallel               ! info for parallel communication
+
+    real(dp), intent(out), dimension(:) :: global_sum   ! global sum
+
+    real(dp), intent(in), dimension(nz,nx-1,ny-1,size(global_sum)) :: work1            ! local array
+    real(dp), intent(in), dimension(nz,nx-1,ny-1,size(global_sum)), optional :: work2  ! local array
+
+    integer :: i, j, k, n, nvar
+    real(dp), dimension(size(global_sum)) :: local_sum
+
+    integer :: &
+         staggered_ilo, staggered_ihi, &  ! bounds of locally owned vertices on staggered grid
+         staggered_jlo, staggered_jhi
+
+    staggered_ilo = parallel%staggered_ilo
+    staggered_ihi = parallel%staggered_ihi
+    staggered_jlo = parallel%staggered_jlo
+    staggered_jhi = parallel%staggered_jhi
+
+    nvar = size(global_sum)
+
+    local_sum(:) = 0.d0
+
+    do n = 1, nvar
+
+       ! sum over locally owned velocity points
+
+       if (present(work2)) then
+          do j = staggered_jlo, staggered_jhi
+             do i = staggered_ilo, staggered_ihi
+                do k = 1, nz
+                   local_sum(n) = local_sum(n) + work1(k,i,j,n) + work2(k,i,j,n)
+                enddo
+             enddo
+          enddo
+       else
+          do j = staggered_jlo, staggered_jhi
+             do i = staggered_ilo, staggered_ihi
+                do k = 1, nz
+                   local_sum(n) = local_sum(n) + work1(k,i,j,n)
+                enddo
+             enddo
+          enddo
+       endif
+
+    enddo   ! nvar
+
+    ! take the global sum
+
+    global_sum(:) = parallel_reduce_sum(local_sum(:))
+
+  end subroutine parallel_global_sum_staggered_3d_real8_nvar
+
+!=======================================================================
+
+  subroutine parallel_global_sum_staggered_2d_real8(&
+       nx,            ny,    &
+       parallel,             &
+       global_sum,           &
+       work1,  work2)
+
+    ! Sum one or two local arrays on the staggered grid, then take the global sum.
+
+    integer, intent(in) :: &
+         nx, ny                     ! horizontal grid dimensions (for scalars)
+
+    type(parallel_type), intent(in) :: &
+         parallel               ! info for parallel communication
+
+    real(dp), intent(out) :: global_sum   ! global sum
+
+    real(dp), intent(in), dimension(nx-1,ny-1) :: work1            ! local array
+    real(dp), intent(in), dimension(nx-1,ny-1), optional :: work2  ! local array
+
+    integer :: i, j
+    real(dp) :: local_sum
+
+    integer :: &
+         staggered_ilo, staggered_ihi, &  ! bounds of locally owned vertices on staggered grid
+         staggered_jlo, staggered_jhi
+
+    staggered_ilo = parallel%staggered_ilo
+    staggered_ihi = parallel%staggered_ihi
+    staggered_jlo = parallel%staggered_jlo
+    staggered_jhi = parallel%staggered_jhi
+
+    local_sum = 0.d0
+
+    ! sum over locally owned velocity points
+
+    if (present(work2)) then
+       do j = staggered_jlo, staggered_jhi
+          do i = staggered_ilo, staggered_ihi
+             local_sum = local_sum + work1(i,j) + work2(i,j)
+          enddo
+       enddo
+    else
+       do j = staggered_jlo, staggered_jhi
+          do i = staggered_ilo, staggered_ihi
+             local_sum = local_sum + work1(i,j)
+          enddo
+       enddo
+    endif
+
+    ! take the global sum
+
+    global_sum = parallel_reduce_sum(local_sum)
+
+  end subroutine parallel_global_sum_staggered_2d_real8
+
+!=======================================================================
+
+  subroutine parallel_global_sum_staggered_2d_real8_nvar(&
+       nx,            ny,            &
+       parallel,                     &
+       global_sum,                   &
+       work1,  work2)
+
+    ! Sum one or two local arrays on the staggered grid, then take the global sum.
+
+    integer, intent(in) :: &
+         nx, ny              ! horizontal grid dimensions (for scalars)
+
+    type(parallel_type), intent(in) :: &
+         parallel               ! info for parallel communication
+
+    real(dp), intent(out), dimension(:) :: &
+         global_sum          ! global sum
+
+    real(dp), intent(in), dimension(nx-1,ny-1,size(global_sum)) :: work1            ! local array
+    real(dp), intent(in), dimension(nx-1,ny-1,size(global_sum)), optional :: work2  ! local array
+
+    integer :: i, j, n, nvar
+
+    real(dp), dimension(size(global_sum)) :: local_sum
+
+    integer :: &
+         staggered_ilo, staggered_ihi, &  ! bounds of locally owned vertices on staggered grid
+         staggered_jlo, staggered_jhi
+
+    staggered_ilo = parallel%staggered_ilo
+    staggered_ihi = parallel%staggered_ihi
+    staggered_jlo = parallel%staggered_jlo
+    staggered_jhi = parallel%staggered_jhi
+
+    nvar = size(global_sum)
+
+    local_sum(:) = 0.d0
+
+    do n = 1, nvar
+
+       ! sum over locally owned velocity points
+
+       if (present(work2)) then
+          do j = staggered_jlo, staggered_jhi
+             do i = staggered_ilo, staggered_ihi
+                local_sum(n) = local_sum(n) + work1(i,j,n) + work2(i,j,n)
+             enddo
+          enddo
+       else
+          do j = staggered_jlo, staggered_jhi
+             do i = staggered_ilo, staggered_ihi
+                local_sum(n) = local_sum(n) + work1(i,j,n)
+             enddo
+          enddo
+       endif
+
+    enddo   ! nvar
+
+    ! take the global sum
+
+    global_sum(:) = parallel_reduce_sum(local_sum(:))
+
+  end subroutine parallel_global_sum_staggered_2d_real8_nvar
+
+!=======================================================================
+
+  ! functions belonging to the parallel_is_zero interface
+
+  function parallel_is_zero_integer_2d(a)
+
+    ! returns .true. if the field has all zero values, else returns .false.
+
+    integer, dimension(:,:), intent(in) :: a
+    logical :: parallel_is_zero_integer_2d
+
+    real(dp) :: maxval_a
+
+    maxval_a = maxval(abs(a))
+    maxval_a = parallel_reduce_max(maxval_a)
+    if (maxval_a > 0) then
+       parallel_is_zero_integer_2d = .false.
+    else
+       parallel_is_zero_integer_2d = .true.
+    endif
+
+  end function parallel_is_zero_integer_2d
+
+!=======================================================================
+
+  function parallel_is_zero_real8_2d(a)
+
+    ! returns .true. if the field has all zero values, else returns .false.
+
+    real(dp), dimension(:,:), intent(in) :: a
+    logical :: parallel_is_zero_real8_2d
+
+    real(dp) :: maxval_a
+
+    maxval_a = maxval(abs(a))
+    maxval_a = parallel_reduce_max(maxval_a)
+    if (maxval_a > 0.0d0) then
+       parallel_is_zero_real8_2d = .false.
+    else
+       parallel_is_zero_real8_2d = .true.
+    endif
+
+  end function parallel_is_zero_real8_2d
+
+!=======================================================================
+
+  function parallel_is_zero_real8_3d(a)
+
+    ! returns .true. if the field has all zero values, else returns .false.
+
+    real(dp), dimension(:,:,:), intent(in) :: a
+    logical :: parallel_is_zero_real8_3d
+
+    real(dp) :: maxval_a
+
+    maxval_a = maxval(abs(a))
+    maxval_a = parallel_reduce_max(maxval_a)
+    if (maxval_a > 0.0d0) then
+       parallel_is_zero_real8_3d = .false.
+    else
+       parallel_is_zero_real8_3d = .true.
+    endif
+
+  end function parallel_is_zero_real8_3d
 
 !=======================================================================
 
@@ -6047,7 +6559,7 @@ contains
        call broadcast(jlocal, rlocal)
     else ! global indices are invalid
        if (main_task) then
-          write(*,*) 'Invalid global indices: iglobal, jglobal =', iglobal, jglobal
+          write(iulog,*) 'Invalid global indices: iglobal, jglobal =', iglobal, jglobal
           call parallel_stop(__FILE__,__LINE__)
        endif
     endif
@@ -6095,7 +6607,7 @@ contains
 
     ! unknown grid
     if (size(a,1)/=local_ewn.or.size(a,2)/=local_nsn) then
-       write(*,*) "Unknown Grid: Size a=(", size(a,1), ",", size(a,2), ") and local_ewn and local_nsn = ", &
+       write(iulog,*) "Unknown Grid: Size a=(", size(a,1), ",", size(a,2), ") and local_ewn and local_nsn = ", &
             local_ewn, ",", local_nsn
        call parallel_stop(__FILE__,__LINE__)
     endif
@@ -6185,6 +6697,130 @@ contains
   end subroutine parallel_halo_integer_2d
 
 
+  subroutine parallel_halo_integer_3d(a, parallel)
+
+    use mpi_mod
+    implicit none
+    integer,dimension(:,:,:) :: a
+    type(parallel_type) :: parallel
+
+    integer :: erequest,ierror,one,nrequest,srequest,wrequest
+    integer,dimension(size(a,1), lhalo, parallel%local_nsn-lhalo-uhalo) :: esend,wrecv
+    integer,dimension(size(a,1), uhalo, parallel%local_nsn-lhalo-uhalo) :: erecv,wsend
+    integer,dimension(size(a,1), parallel%local_ewn, lhalo) :: nsend,srecv
+    integer,dimension(size(a,1), parallel%local_ewn, uhalo) :: nrecv,ssend
+
+    ! begin
+    associate(  &
+         outflow_bc  => parallel%outflow_bc,   &
+         no_ice_bc   => parallel%no_ice_bc,    &
+         local_ewn   => parallel%local_ewn,    &
+         local_nsn   => parallel%local_nsn,    &
+         east        => parallel%east,         &
+         west        => parallel%west,         &
+         north       => parallel%north,        &
+         south       => parallel%south,        &
+         southwest_corner  => parallel%southwest_corner,   &
+         southeast_corner  => parallel%southeast_corner,   &
+         northeast_corner  => parallel%northeast_corner,   &
+         northwest_corner  => parallel%northwest_corner    &
+         )
+
+    ! staggered grid
+    if (size(a,2)==local_ewn-1.and.size(a,3)==local_nsn-1) return
+
+    ! unknown grid
+    if (size(a,2)/=local_ewn.or.size(a,3)/=local_nsn) then
+         write(iulog,*) "Unknown Grid: Size a=(", size(a,1), ",", size(a,2), ",", size(a,3), ") &
+                 &and local_ewn and local_nsn = ", local_ewn, ",", local_nsn
+         call parallel_stop(__FILE__,__LINE__)
+    endif
+
+    ! unstaggered grid
+    call mpi_irecv(wrecv,size(wrecv),mpi_real8,west,west,&
+         comm,wrequest,ierror)
+    call mpi_irecv(erecv,size(erecv),mpi_real8,east,east,&
+         comm,erequest,ierror)
+    call mpi_irecv(srecv,size(srecv),mpi_real8,south,south,&
+         comm,srequest,ierror)
+    call mpi_irecv(nrecv,size(nrecv),mpi_real8,north,north,&
+         comm,nrequest,ierror)
+
+    esend(:,:,:) = &
+         a(:,local_ewn-uhalo-lhalo+1:local_ewn-uhalo,1+lhalo:local_nsn-uhalo)
+    call mpi_send(esend,size(esend),mpi_real8,east,this_rank,comm,ierror)
+    wsend(:,:,:) = a(:,1+lhalo:1+lhalo+uhalo-1,1+lhalo:local_nsn-uhalo)
+    call mpi_send(wsend,size(wsend),mpi_real8,west,this_rank,comm,ierror)
+
+    call mpi_wait(wrequest,mpi_status_ignore,ierror)
+    a(:,:lhalo,1+lhalo:local_nsn-uhalo) = wrecv(:,:,:)
+    call mpi_wait(erequest,mpi_status_ignore,ierror)
+    a(:,local_ewn-uhalo+1:,1+lhalo:local_nsn-uhalo) = erecv(:,:,:)
+
+    nsend(:,:,:) = a(:,:,local_nsn-uhalo-lhalo+1:local_nsn-uhalo)
+    call mpi_send(nsend,size(nsend),mpi_real8,north,this_rank,comm,ierror)
+    ssend(:,:,:) = a(:,:,1+lhalo:1+lhalo+uhalo-1)
+    call mpi_send(ssend,size(ssend),mpi_real8,south,this_rank,comm,ierror)
+
+    call mpi_wait(srequest,mpi_status_ignore,ierror)
+    a(:,:,:lhalo) = srecv(:,:,:)
+    call mpi_wait(nrequest,mpi_status_ignore,ierror)
+    a(:,:,local_nsn-uhalo+1:) = nrecv(:,:,:)
+
+    if (outflow_bc) then   ! set values in global halo to zero
+                           ! interior halo cells should not be affected
+
+       if (this_rank >= east) then  ! at east edge of global domain
+          a(:,local_ewn-uhalo+1:,:) = 0
+       endif
+
+       if (this_rank <= west) then  ! at west edge of global domain
+          a(:,:lhalo,:) = 0
+       endif
+
+       if (this_rank >= north) then  ! at north edge of global domain
+          a(:,:,local_nsn-uhalo+1:) = 0
+       endif
+
+       if (this_rank <= south) then  ! at south edge of global domain
+          a(:,:,:lhalo) = 0
+       endif
+
+    elseif (no_ice_bc) then
+
+       ! Set values to zero in cells adjacent to the global boundary;
+       ! includes halo cells and one row of locally owned cells
+
+       if (this_rank >= east) then  ! at east edge of global domain
+          a(:,local_ewn-uhalo:,:) = 0
+       endif
+
+       if (this_rank <= west) then  ! at west edge of global domain
+          a(:,:lhalo+1,:) = 0
+       endif
+
+       if (this_rank >= north) then  ! at north edge of global domain
+          a(:,:,local_nsn-uhalo:) = 0
+       endif
+
+       if (this_rank <= south) then  ! at south edge of global domain
+          a(:,:,:lhalo+1) = 0
+       endif
+
+       ! Some interior blocks have a single cell at a corner of the global boundary.
+       ! Set values in corner cells to zero, along with adjacent halo cells.
+       if (southwest_corner) a(:,:lhalo+1,:lhalo+1) = 0
+       if (southeast_corner) a(:,local_ewn-lhalo:,:lhalo+1) = 0
+       if (northeast_corner) a(:,local_ewn-lhalo:,local_nsn-lhalo:) = 0
+       if (northwest_corner) a(:,:lhalo+1,local_nsn-lhalo:) = 0
+
+    endif   ! outflow or no_ice bc
+
+    end associate
+
+  end subroutine parallel_halo_integer_3d
+
+
   subroutine parallel_halo_logical_2d(a, parallel)
 
     use mpi_mod
@@ -6219,7 +6855,7 @@ contains
 
     ! unknown grid
     if (size(a,1)/=local_ewn.or.size(a,2)/=local_nsn) then
-       write(*,*) "Unknown Grid: Size a=(", size(a,1), ",", size(a,2), ") and local_ewn and local_nsn = ", &
+       write(iulog,*) "Unknown Grid: Size a=(", size(a,1), ",", size(a,2), ") and local_ewn and local_nsn = ", &
             local_ewn, ",", local_nsn
        call parallel_stop(__FILE__,__LINE__)
     endif
@@ -6343,7 +6979,7 @@ contains
 
     ! unknown grid
     if (size(a,1)/=local_ewn.or.size(a,2)/=local_nsn) then
-       write(*,*) "Unknown Grid: Size a=(", size(a,1), ",", size(a,2), ") and local_ewn and local_nsn = ", &
+       write(iulog,*) "Unknown Grid: Size a=(", size(a,1), ",", size(a,2), ") and local_ewn and local_nsn = ", &
             local_ewn, ",", local_nsn
        call parallel_stop(__FILE__,__LINE__)
     endif
@@ -6474,7 +7110,7 @@ contains
 
     ! unknown grid
     if (size(a,1)/=local_ewn.or.size(a,2)/=local_nsn) then
-       write(*,*) "Unknown Grid: Size a=(", size(a,1), ",", size(a,2), ") and local_ewn and local_nsn = ", &
+       write(iulog,*) "Unknown Grid: Size a=(", size(a,1), ",", size(a,2), ") and local_ewn and local_nsn = ", &
             local_ewn, ",", local_nsn
        call parallel_stop(__FILE__,__LINE__)
     endif
@@ -6502,12 +7138,12 @@ contains
     if (present(periodic_offset_ew)) then
        if (periodic_offset_ew /= 0.d0) then
           if (this_rank <= west) then   ! this proc lies at the west edge of the global domain
-!             print*, 'Offset at west edge: this_rank, west =', this_rank, west
+!             write(iulog,*) 'Offset at west edge: this_rank, west =', this_rank, west
              a(:lhalo,1+lhalo:local_nsn-uhalo) =   &
                 a(:lhalo,1+lhalo:local_nsn-uhalo) + periodic_offset_ew
           endif
           if (this_rank >= east) then   ! this proc lies at the east edge of the global domain
-!             print*, 'Offset at east edge: this_rank, east =', this_rank, east
+!             write(iulog,*) 'Offset at east edge: this_rank, east =', this_rank, east
              a(local_ewn-uhalo+1:,1+lhalo:local_nsn-uhalo) =    &
                 a(local_ewn-uhalo+1:,1+lhalo:local_nsn-uhalo) - periodic_offset_ew
           endif
@@ -6527,11 +7163,11 @@ contains
     if (present(periodic_offset_ns)) then
        if (periodic_offset_ns /= 0.d0) then
           if (this_rank <= south) then  ! this proc lies at the south edge of the global domain
-!             print*, 'Offset at south edge: this_rank, south =', this_rank, south
+!             write(iulog,*) 'Offset at south edge: this_rank, south =', this_rank, south
              a(:,:lhalo) = a(:,:lhalo) + periodic_offset_ns
           endif
           if (this_rank >= north) then  ! this proc lies at the north edge of the global domain
-!             print*, 'Offset at north edge: this_rank, north =', this_rank, north
+!             write(iulog,*) 'Offset at north edge: this_rank, north =', this_rank, north
              a(:,local_nsn-uhalo+1:) = a(:,local_nsn-uhalo+1:) - periodic_offset_ns
           endif
        endif
@@ -6625,7 +7261,7 @@ contains
 
     ! unknown grid
     if (size(a,2)/=local_ewn.or.size(a,3)/=local_nsn) then
-         write(*,*) "Unknown Grid: Size a=(", size(a,1), ",", size(a,2), ",", size(a,3), ") &
+         write(iulog,*) "Unknown Grid: Size a=(", size(a,1), ",", size(a,2), ",", size(a,3), ") &
                  &and local_ewn and local_nsn = ", local_ewn, ",", local_nsn
          call parallel_stop(__FILE__,__LINE__)
     endif
@@ -6749,7 +7385,7 @@ contains
 
     ! unknown grid
     if (size(a,3)/=local_ewn.or.size(a,4)/=local_nsn) then
-         write(*,*) "Unknown Grid: Size a=(", size(a,1), ",", size(a,2), ",", size(a,3), ",", size(a,4), ") &
+         write(iulog,*) "Unknown Grid: Size a=(", size(a,1), ",", size(a,2), ",", size(a,3), ",", size(a,4), ") &
                  &and local_ewn and local_nsn = ", local_ewn, ",", local_nsn
          call parallel_stop(__FILE__,__LINE__)
     endif
@@ -6866,7 +7502,7 @@ contains
 ! Useful for debugging small domains (the YYYY is just a tag for grepping the output,
 !  particularly if you prepend the processor number, e.g. "0YYYY")
 !  do j = 1, size(a,2)
-!     write(6, "(i3, 'YYYY BEFORE row ', i3, 1000e9.2)")  this_rank, j, a(:,j)
+!     write(iulog, "(i3, 'YYYY BEFORE row ', i3, 1000e9.2)")  this_rank, j, a(:,j)
 !  enddo
 
     if (this_rank >= east) then  ! at east edge of global domain
@@ -6899,7 +7535,7 @@ contains
 
 ! Useful for debugging small domains
 !  do j = 1, size(a,2)
-!     write(6, "(i3, 'YYYY AFTER  row ', i3, 1000e9.2)")  this_rank, j, a(:,j)
+!     write(iulog, "(i3, 'YYYY AFTER  row ', i3, 1000e9.2)")  this_rank, j, a(:,j)
 !  enddo
 
     end associate
@@ -6931,7 +7567,7 @@ contains
 ! Useful for debugging small domains (the YYYY is just a tag for grepping the output,
 !  particularly if you prepend the processor number, e.g. "0YYYY")
 !  do j = 1, size(a,2)
-!     write(6, "(i3, 'YYYY BEFORE row ', i3, 1000e9.2)")  this_rank, j, a(:,j)
+!     write(iulog, "(i3, 'YYYY BEFORE row ', i3, 1000e9.2)")  this_rank, j, a(:,j)
 !  enddo
 
     if (this_rank >= east) then  ! at east edge of global domain
@@ -6964,7 +7600,7 @@ contains
 
 ! Useful for debugging small domains
 !  do j = 1, size(a,2)
-!     write(6, "(i3, 'YYYY AFTER  row ', i3, 1000e9.2)")  this_rank, j, a(:,j)
+!     write(iulog, "(i3, 'YYYY AFTER  row ', i3, 1000e9.2)")  this_rank, j, a(:,j)
 !  enddo
 
     end associate
@@ -7012,7 +7648,7 @@ contains
 
     ! unknown grid
     if (size(a,1)/=local_ewn .or. size(a,2)/=local_nsn) then
-         write(*,*) "Unknown Grid: Size a=(", size(a,1), ",", size(a,2), ",", size(a,3), ") &
+         write(iulog,*) "Unknown Grid: Size a=(", size(a,1), ",", size(a,2), ",", size(a,3), ") &
                  &and local_ewn and local_nsn = ", local_ewn, ",", local_nsn
          call parallel_stop(__FILE__,__LINE__)
     endif
@@ -7138,7 +7774,7 @@ contains
 
     ! unknown grid
     if (size(a,1)/=local_ewn .or. size(a,2)/=local_nsn) then
-         write(*,*) "Unknown Grid: Size a=(", size(a,1), ",", size(a,2), ",", size(a,3), ",", size(a,4), ") &
+         write(iulog,*) "Unknown Grid: Size a=(", size(a,1), ",", size(a,2), ",", size(a,3), ",", size(a,4), ") &
                  &and local_ewn and local_nsn = ", local_ewn, ",", local_nsn
          call parallel_stop(__FILE__,__LINE__)
     endif
@@ -7301,7 +7937,7 @@ contains
 
     ! if notverify_flag is TRUE, then there was some difference detected
     if (notverify_flag) then
-         write(*,*) "Halo Verify FAILED on processor ", this_rank
+         write(iulog,*) "Halo Verify FAILED on processor ", this_rank
          ! call parallel_stop(__FILE__,__LINE__)
     endif
 
@@ -7379,7 +8015,7 @@ contains
     notverify_flag = notverify_flag .OR. ANY(a(:,local_nsn-uhalo+1:) /= nrecv(:,:))
 
     if (notverify_flag) then
-         write(*,*) "Halo Verify FAILED on processor ", this_rank
+         write(iulog,*) "Halo Verify FAILED on processor ", this_rank
          ! call parallel_stop(__FILE__,__LINE__)
     endif
 
@@ -7457,7 +8093,7 @@ contains
     notverify_flag = notverify_flag .OR. ANY(a(:,:,local_nsn-uhalo+1:) /= nrecv(:,:,:))
 
     if (notverify_flag) then
-         write(*,*) "Halo Verify FAILED on processor ", this_rank
+         write(iulog,*) "Halo Verify FAILED on processor ", this_rank
          ! call parallel_stop(__FILE__,__LINE__)
     endif
 
@@ -8475,14 +9111,14 @@ contains
     enddo
 
     if (this_rank == 0 .or. this_rank == 1) then
-       print*, ' '
+       write(iulog,*) ' '
        do i = 1, 2
-          print*, 'test_array, i, this_rank =', i, this_rank
+          write(iulog,*) 'test_array, i, this_rank =', i, this_rank
           do j = 1, parallel%own_nsn
-             write(6,'(f6.0)',advance='no') test_array(i,j)
+             write(iulog,'(f6.0)',advance='no') test_array(i,j)
           enddo
-          print*, ' '
-          print*, ' '
+          write(iulog,*) ' '
+          write(iulog,*) ' '
        enddo
     endif   ! this_rank
 
@@ -8491,26 +9127,26 @@ contains
 !!    if (parallel%main_task_row) then
     if (parallel%main_task_row .and. this_rank == 0) then
        do i = 1, 2*parallel%tasks_row
-          print*, 'Gathered row test_array, this_rank, i =', this_rank, i
+          write(iulog,*) 'Gathered row test_array, this_rank, i =', this_rank, i
           do j = 1, size(global_test_array,2)
-             write(6,'(f6.0)',advance='no') global_test_array(i,j)
+             write(iulog,'(f6.0)',advance='no') global_test_array(i,j)
           enddo
-          print*, ' '
+          write(iulog,*) ' '
        enddo
-       print*, ' '
+       write(iulog,*) ' '
     endif
 
     call distributed_scatter_var_row(test_array, global_test_array, parallel)
 
     if (this_rank == 0) then
-       print*, ' '
+       write(iulog,*) ' '
        do i = 1, 2
-          print*, 'Scattered test_array, i, this_rank =', i, this_rank
+          write(iulog,*) 'Scattered test_array, i, this_rank =', i, this_rank
           do j = 1, parallel%own_nsn
-             write(6,'(f6.0)',advance='no') test_array(i,j)
+             write(iulog,'(f6.0)',advance='no') test_array(i,j)
           enddo
-          print*, ' '
-          print*, ' '
+          write(iulog,*) ' '
+          write(iulog,*) ' '
        enddo
     endif   ! this_rank
 
@@ -8529,14 +9165,14 @@ contains
     enddo
 
     if (this_rank == 0 .or. this_rank == 2) then
-       print*, ' '
+       write(iulog,*) ' '
        do j = 1, 2
-          print*, 'test_array: j, this_rank =', j, this_rank
+          write(iulog,*) 'test_array: j, this_rank =', j, this_rank
           do i = 1, parallel%own_ewn
-             write(6,'(f6.0)',advance='no') test_array(j,i)
+             write(iulog,'(f6.0)',advance='no') test_array(j,i)
           enddo
-          print*, ' '
-          print*, ' '
+          write(iulog,*) ' '
+          write(iulog,*) ' '
        enddo
     endif   ! this_rank
 
@@ -8545,26 +9181,26 @@ contains
 !!    if (parallel%main_task_col) then
     if (parallel%main_task_col .and. this_rank == 0) then
        do j = 1, 2*parallel%tasks_col
-          print*, 'Gathered column test_array, this_rank, j =', this_rank, j
+          write(iulog,*) 'Gathered column test_array, this_rank, j =', this_rank, j
           do i = 1, size(global_test_array,2)
-             write(6,'(f6.0)',advance='no') global_test_array(j,i)
+             write(iulog,'(f6.0)',advance='no') global_test_array(j,i)
           enddo
-          print*, ' '
+          write(iulog,*) ' '
        enddo
-       print*, ' '
+       write(iulog,*) ' '
     endif
 
     call distributed_scatter_var_col(test_array, global_test_array, parallel)
 
     if (this_rank == 0) then
-       print*, ' '
+       write(iulog,*) ' '
        do j = 1, 2
-          print*, 'Scattered test_array, j, this_rank =', j, this_rank
+          write(iulog,*) 'Scattered test_array, j, this_rank =', j, this_rank
           do i = 1, parallel%own_ewn
-             write(6,'(f6.0)',advance='no') test_array(j,i)
+             write(iulog,'(f6.0)',advance='no') test_array(j,i)
           enddo
-          print*, ' '
-          print*, ' '
+          write(iulog,*) ' '
+          write(iulog,*) ' '
        enddo
     endif   ! this_rank
 
@@ -8709,7 +9345,7 @@ contains
 
     ! Confirm staggered array
     if (size(a,1)/=local_ewn-1 .or. size(a,2)/=local_nsn-1) then
-         write(*,*) "staggered_parallel_halo() requires staggered arrays."
+         write(iulog,*) "staggered_parallel_halo() requires staggered arrays."
          call parallel_stop(__FILE__,__LINE__)
     endif
 
@@ -8873,7 +9509,7 @@ contains
 
     ! Confirm staggered array
     if (size(a,2)/=local_ewn-1.or.size(a,3)/=local_nsn-1) then
-         write(*,*) "staggered_parallel_halo() requires staggered arrays."
+         write(iulog,*) "staggered_parallel_halo() requires staggered arrays."
          call parallel_stop(__FILE__,__LINE__)
     endif
 
@@ -9036,7 +9672,7 @@ contains
 
     ! Confirm staggered array
     if (size(a,1)/=local_ewn-1 .or. size(a,2)/=local_nsn-1) then
-         write(*,*) "staggered_parallel_halo() requires staggered arrays."
+         write(iulog,*) "staggered_parallel_halo() requires staggered arrays."
          call parallel_stop(__FILE__,__LINE__)
     endif
 
@@ -9199,7 +9835,7 @@ contains
 
     ! Confirm staggered array
     if (size(a,2)/=local_ewn-1 .or. size(a,3)/=local_nsn-1) then
-         write(*,*) "staggered_parallel_halo() requires staggered arrays."
+         write(iulog,*) "staggered_parallel_halo() requires staggered arrays."
          call parallel_stop(__FILE__,__LINE__)
     endif
 
@@ -9366,7 +10002,7 @@ contains
 
     ! Confirm staggered array
     if (size(a,3)/=local_ewn-1 .or. size(a,4)/=local_nsn-1) then
-         write(*,*) "staggered_parallel_halo() requires staggered arrays."
+         write(iulog,*) "staggered_parallel_halo() requires staggered arrays."
          call parallel_stop(__FILE__,__LINE__)
     endif
 
@@ -9512,7 +10148,7 @@ contains
 
     ! Confirm staggered array
     if (size(a,1)/=local_ewn-1 .or. size(a,2)/=local_nsn-1) then
-         write(*,*) "staggered_parallel_halo() requires staggered arrays."
+         write(iulog,*) "staggered_parallel_halo() requires staggered arrays."
          call parallel_stop(__FILE__,__LINE__)
     endif
 
@@ -9581,7 +10217,7 @@ contains
 
     ! Confirm staggered array
     if (size(a,1)/=local_ewn-1 .or. size(a,2)/=local_nsn-1) then
-         write(*,*) "staggered_parallel_halo() requires staggered arrays."
+         write(iulog,*) "staggered_parallel_halo() requires staggered arrays."
          call parallel_stop(__FILE__,__LINE__)
     endif
 
@@ -9599,7 +10235,7 @@ contains
 
 ! Useful for debugging small domains (the YYYY is just a tag for grepping the output, particularly if you prepend the processor number, e.g. "0YYYY")
 !  do j = 1, size(a,2)
-!     write(6, "(i3, 'YYYY BEFORE row ', i3, 1000e9.2)")  this_rank, j, a(:,j)
+!     write(iulog, "(i3, 'YYYY BEFORE row ', i3, 1000e9.2)")  this_rank, j, a(:,j)
 !  enddo
 
     if (this_rank >= east) then  ! at east edge of global domain
@@ -9632,7 +10268,7 @@ contains
 
 ! Useful for debugging small domains
 !  do j = 1, size(a,2)
-!     write(6, "(i3, 'YYYY AFTER  row ', i3, 1000e9.2)")  this_rank, j, a(:,j)
+!     write(iulog, "(i3, 'YYYY AFTER  row ', i3, 1000e9.2)")  this_rank, j, a(:,j)
 !  enddo
     end associate
 

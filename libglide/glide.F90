@@ -53,7 +53,7 @@ module glide
   use glimmer_config
   use glimmer_global, only: dp
 
-  use glimmer_paramets, only: oldglide
+  use glimmer_paramets, only: iulog, oldglide
 
   implicit none
 
@@ -100,6 +100,9 @@ contains
     ! optionally, read zocn levels from config file, if present, or compute them from dzocn
     call glide_get_zocn(model,config)
 
+    ! optionally, read zatm levels from config file, if present
+    call glide_get_zatm(model,config)
+
     !WHL - Moved isostasy configuration to glide_setup
 !    call isos_readconfig(model%isos,config)
 !    call isos_printconfig(model%isos)
@@ -144,7 +147,6 @@ contains
     use glimmer_coordinates, only: coordsystem_new
     use glide_diagnostics, only: glide_init_diag
     use glide_bwater
-    use glimmer_paramets, only: len0
     use glimmer_physcon, only: rhoi, rhow
     use cism_parallel, only: distributed_grid
 
@@ -233,8 +235,8 @@ contains
        call glimmap_stere_area_factor(model%projection%stere,  &
                                       model%general%ewn,       &
                                       model%general%nsn,       &
-                                      model%numerics%dew*len0, &
-                                      model%numerics%dns*len0)
+                                      model%numerics%dew,      &
+                                      model%numerics%dns)
 
        ! Given the stereographic area correction factors, correct the diagnostic grid cell areas.
        ! Note: area_factor is actually a length correction factor k; must divide by k^2 to adjust areas.
@@ -261,11 +263,8 @@ contains
           call write_log(trim(message), GM_FATAL)
        endif
 
-       ! Convert units from mm/yr w.e. to m/yr ice
-       model%climate%acab(:,:) = model%climate%smb(:,:) * (rhow/rhoi) / 1000.d0
-
-       ! Convert acab from m/yr ice to model units
-       model%climate%acab(:,:) = model%climate%acab(:,:) / scale_acab
+       ! Convert units from mm/yr w.e. to m/s ice
+       model%climate%acab(:,:) = model%climate%smb(:,:) * (rhow/rhoi) / 1000.d0 / scyr
 
     else
        ! assume acab was read in with units of m/yr ice; do nothing
@@ -301,9 +300,9 @@ contains
     call glide_io_createall(model, model)
 
 !WHL - debug
-!    print*, ' '
-!    print*, 'Created Glide variables'
-!    print*, 'max, min bheatflx (W/m2)=', maxval(model%temper%bheatflx), minval(model%temper%bheatflx)
+!    write(iulog,*) ' '
+!    write(iulog,*) 'Created Glide variables'
+!    write(iulog,*) 'max, min bheatflx (W/m2)=', maxval(model%temper%bheatflx), minval(model%temper%bheatflx)
 
     ! If a 2D bheatflx field is present in the input file, it will have been written 
     !  to model%temper%bheatflx.  For the case model%options%gthf = 0, we want to use
@@ -405,26 +404,26 @@ contains
     call glide_init_diag(model)
 
 !WHL - debug
-!    print*, 'After glide_initialise:'
-!    print*, 'max, min thck (m)=', maxval(model%geometry%thck)*thk0, minval(model%geometry%thck)*thk0
-!    print*, 'max, min usrf (m)=', maxval(model%geometry%usrf)*thk0, minval(model%geometry%usrf)*thk0
-!    print*, 'max, min artm =', maxval(model%climate%artm), minval(model%climate%artm)
-!    print*, 'max, min temp =', maxval(model%temper%temp), minval(model%temper%temp)
-!    print*, 'max, min flwa =', maxval(model%temper%flwa), minval(model%temper%flwa)
+!    write(iulog,*) 'After glide_initialise:'
+!    write(iulog,*) 'max, min thck (m)=', maxval(model%geometry%thck), minval(model%geometry%thck)
+!    write(iulog,*) 'max, min usrf (m)=', maxval(model%geometry%usrf), minval(model%geometry%usrf)
+!    write(iulog,*) 'max, min artm =', maxval(model%climate%artm), minval(model%climate%artm)
+!    write(iulog,*) 'max, min temp =', maxval(model%temper%temp), minval(model%temper%temp)
+!    write(iulog,*) 'max, min flwa =', maxval(model%temper%flwa), minval(model%temper%flwa)
 
-!    print*, ' '
-!    print*, 'thck:'
+!    write(iulog,*) ' '
+!    write(iulog,*) 'thck:'
 !    do j = model%general%nsn, 1, -1
-!       write(6,'(30f5.0)') thk0 * model%geometry%thck(:,j)
+!       write(iulog,'(30f5.0)') model%geometry%thck(:,j)
 !    enddo
-!    print*, ' '
-!    print*, 'temp, k = 2:'
+!    write(iulog,*) ' '
+!    write(iulog,*) 'temp, k = 2:'
 !    do j = model%general%nsn+1, 0, -1
-!       write(6,'(32f5.0)') model%temper%temp(2,:,j)
+!       write(iulog,'(32f5.0)') model%temper%temp(2,:,j)
 !    enddo
-!    print*, 'basal temp:'
+!    write(iulog,*) 'basal temp:'
 !    do j = model%general%nsn+1, 0, -1
-!       write(6,'(32f5.0)') model%temper%temp(model%general%upn,:,j)
+!       write(iulog,'(32f5.0)') model%temper%temp(model%general%upn,:,j)
 !    enddo
 
   end subroutine glide_initialise
@@ -444,8 +443,8 @@ contains
     use glide_thck
     use glide_velo
     use glide_mask
-    use glimmer_paramets, only: tim0
     use glimmer_physcon, only: scyr, rhoi, rhow
+    use glimmer_utils, only: point_diag
     use glide_ground, only: glide_calve_ice
     use glide_bwater, only: calcbwat
     use glide_temp, only: glide_calcbmlt, glide_calcbpmp
@@ -455,6 +454,7 @@ contains
     logical, intent(in), optional :: evolve_ice         ! whether ice evolution is turned on (if not present, assumed true)
 
     integer :: i, j
+    integer :: itest, jtest, rtest, upn
     logical :: l_evolve_ice  ! local version of evolve_ice
 
     if (present(evolve_ice)) then
@@ -480,7 +480,7 @@ contains
        if (l_evolve_ice .and. model%options%calving_init == CALVING_INIT_ON) then
 
           !WHL - debug
-          print*, 'Calving at initialization, whichcalving =', model%options%whichcalving
+          write(iulog,*) 'Calving at initialization, whichcalving =', model%options%whichcalving
 
           ! ------------------------------------------------------------------------ 
           ! Remove ice which should calve, depending on the value of whichcalving
@@ -642,7 +642,7 @@ contains
 
        do j = 1, model%general%nsn-1
           do i = 1, model%general%ewn-1
-             if (model%geomderv%stagthck(i,j)*thk0 < 1000.d0) then
+             if (model%geomderv%stagthck(i,j) < 1000.d0) then
                 model%temper%stagbtemp(i,j) = model%temper%stagbpmp(i,j)
              else
                 model%temper%stagbtemp(i,j) = -20.d0
@@ -691,94 +691,18 @@ contains
     ! velocity norm
     model%velocity%velnorm = sqrt(model%velocity%uvel**2 + model%velocity%vvel**2)
 
-!WHL - debug
-       if (verbose_glide) then
-
-          print*, ' '
-          print*, 'stagthck:'
-          do i = 1, model%general%ewn-1
-             write(6,'(i7)',advance='no') i
-          enddo
-          print*, ' '
-          do j = model%general%nsn-1, 1, -1
-             write(6,'(i3)',advance='no') j
-             do i = 1, model%general%ewn-1
-                write(6,'(f7.2)',advance='no') model%geomderv%stagthck(i,j)*thk0
-             enddo 
-             print*, ' '
-          enddo
-
-          print*, ' '
-          print*, 'diffu (m^2/yr):'
-          do i = 1, model%general%ewn-1
-             write(6,'(i8)',advance='no') i
-          enddo
-          print*, ' '
-          do j = model%general%nsn-1, 1, -1
-             write(6,'(i3)',advance='no') j
-             do i = 1, model%general%ewn-1
-                write(6,'(f8.0)',advance='no') -model%velocity%diffu(i,j) * vel0*len0*scyr
-             enddo
-             print*, ' '
-          enddo
-
-          print*, ' '
-          print*, 'ubas:'
-          do i = 1, model%general%ewn-1
-             write(6,'(i7)',advance='no') i
-          enddo
-          print*, ' '
-          do j = model%general%nsn-1, 1, -1
-             write(6,'(i4)',advance='no') j
-             do i = 1, model%general%ewn-1
-                write(6,'(f7.2)',advance='no') model%velocity%uvel(model%general%upn,i,j)*(vel0*scyr)
-             enddo
-             print*, ' '
-          enddo
-
-          print*, ' '
-          print*, 'vbas:'
-          do i = 1, model%general%ewn-1
-             write(6,'(i7)',advance='no') i
-          enddo
-          print*, ' '
-          do j = model%general%nsn-1, 1, -1
-             write(6,'(i4)',advance='no') j
-             do i = 1, model%general%ewn-1
-                write(6,'(f7.2)',advance='no') model%velocity%vvel(model%general%upn,i,j)*(vel0*scyr)
-             enddo
-             print*, ' '
-          enddo
-          
-          print*, ' '
-          print*, 'uvel, k = 1:'
-          do i = 1, model%general%ewn-1
-             write(6,'(i8)',advance='no') i
-          enddo
-          print*, ' '
-          do j = model%general%nsn-1, 1, -1
-             write(6,'(i4)',advance='no') j
-             do i = 1, model%general%ewn-1
-                write(6,'(f8.2)',advance='no') model%velocity%uvel(1,i,j) * (vel0*scyr)
-             enddo 
-             print*, ' '
-          enddo
-
-          print*, ' '
-          print*, 'u=vvel, k = 1:'
-          do i = 1, model%general%ewn-1
-             write(6,'(i8)',advance='no') i
-          enddo
-          print*, ' '
-          do j = model%general%nsn-1, 1, -1
-             write(6,'(i4)',advance='no') j
-             do i = 1, model%general%ewn-1
-                write(6,'(f8.2)',advance='no') model%velocity%vvel(1,i,j) * (vel0*scyr)
-             enddo 
-             print*, ' '
-          enddo
-
-       endif  ! verbose_glide
+    if (verbose_glide) then
+       upn = model%general%upn
+       itest = model%numerics%idiag_local
+       jtest = model%numerics%jdiag_local
+       rtest = model%numerics%rdiag_local
+       call point_diag(model%geomderv%stagthck, 'stagthck (m)', itest, jtest, rtest, 7, 7)
+       call point_diag(model%velocity%diffu*scyr, 'diffu (m^2/yr)', itest, jtest, rtest, 7, 7, '(f10.0)')
+       call point_diag(model%velocity%uvel(upn,:,:)*scyr, 'ubas (m/yr)', itest, jtest, rtest, 7, 7, '(f10.0)')
+       call point_diag(model%velocity%vvel(upn,:,:)*scyr, 'vbas (m/yr)', itest, jtest, rtest, 7, 7, '(f10.0)')
+       call point_diag(model%velocity%uvel(1,:,:)*scyr, 'usfc (m/yr)', itest, jtest, rtest, 7, 7, '(f10.0)')
+       call point_diag(model%velocity%vvel(1,:,:)*scyr, 'vsfc (m/yr)', itest, jtest, rtest, 7, 7, '(f10.0)')
+    endif  ! verbose_glide
 
   end subroutine glide_init_state_diagnostic
 
@@ -793,7 +717,6 @@ contains
     use glide_velo
     use glide_temp
     use glide_mask
-    use glimmer_paramets, only: tim0
     use glimmer_physcon, only: scyr
     use glide_grid_operators
     use glide_bwater
@@ -806,7 +729,7 @@ contains
     model%numerics%tstep_count = model%numerics%tstep_count + 1
     model%temper%newtemps = .false.
 
-    model%thckwk%oldtime = model%numerics%time - (model%numerics%dt * tim0/scyr)
+    model%thckwk%oldtime = model%numerics%time - (model%numerics%dt/scyr)
 
     call glide_prof_start(model,model%glide_prof%geomderv)
 
@@ -843,9 +766,9 @@ contains
     ! ------------------------------------------------------------------------ 
 
     ! Note: These times have units of years.
-    !       dttem has scaled units, so multiply by tim0/scyr to convert to years
+    !       dttem has scaled units, so multiply by 1/scyr to convert to years
 
-    if ( model%numerics%tinc >  mod(model%numerics%time,model%numerics%dttem*tim0/scyr)) then
+    if ( model%numerics%tinc >  mod(model%numerics%time,model%numerics%dttem/scyr)) then
 
        call glide_prof_start(model,model%glide_prof%temperature)
 
@@ -887,19 +810,19 @@ contains
                    model%velocity%btrc)
 
 !WHL - debug
-!    print*, ' '
-!    print*, 'After glide_tstep_p1:'
-!    print*, 'max, min temp =', maxval(model%temper%temp), minval(model%temper%temp)
-!    print*, 'max, min flwa =', maxval(model%temper%flwa), minval(model%temper%flwa)
+!    write(iulog,*) ' '
+!    write(iulog,*) 'After glide_tstep_p1:'
+!    write(iulog,*) 'max, min temp =', maxval(model%temper%temp), minval(model%temper%temp)
+!    write(iulog,*) 'max, min flwa =', maxval(model%temper%flwa), minval(model%temper%flwa)
 
-!    print*, ' '
-!    print*, 'temp, k = 2:'
+!    write(iulog,*) ' '
+!    write(iulog,*) 'temp, k = 2:'
 !    do j = model%general%nsn+1, 0, -1
-!       write(6,'(14f12.7)') model%temper%temp(2,3:16,j)
+!       write(iulog,'(14f12.7)') model%temper%temp(2,3:16,j)
 !    enddo
-!    print*, 'basal temp:'
+!    write(iulog,*) 'basal temp:'
 !    do j = model%general%nsn+1, 0, -1
-!       write(6,'(14f12.7)') model%temper%temp(model%general%upn,3:16,j)
+!       write(iulog,'(14f12.7)') model%temper%temp(model%general%upn,3:16,j)
 !    enddo
 
   end subroutine glide_tstep_p1
@@ -1039,30 +962,29 @@ contains
     model%velocity%velnorm = sqrt(model%velocity%uvel**2 + model%velocity%vvel**2)
 
     !WHL - debug
-!    print*, ' '
-!    print*, 'After tstep_p2:'
-!    print*, 'max, min thck (m)=', maxval(model%geometry%thck)*thk0, minval(model%geometry%thck)*thk0
-!    print*, 'max, min usrf (m)=', maxval(model%geometry%usrf)*thk0, minval(model%geometry%usrf)*thk0
-!    print*, 'max uvel, vvel =', maxval(model%velocity%uvel), maxval(model%velocity%vvel)
+!    write(iulog,*) ' '
+!    write(iulog,*) 'After tstep_p2:'
+!    write(iulog,*) 'max, min thck (m)=', maxval(model%geometry%thck), minval(model%geometry%thck)
+!    write(iulog,*) 'max, min usrf (m)=', maxval(model%geometry%usrf), minval(model%geometry%usrf)
+!    write(iulog,*) 'max uvel, vvel =', maxval(model%velocity%uvel), maxval(model%velocity%vvel)
 
-!    print*, ' '
-!    print*, 'thck:'
+!    write(iulog,*) ' '
+!    write(iulog,*) 'thck:'
 !    do j = model%general%nsn, 1, -1
-!       write(6,'(14f12.7)') thk0 * model%geometry%thck(3:16,j)
-!!       write(6,'(14e12.5)') thk0 * model%geometry%thck(3:16,j)
+!       write(iulog,'(14f12.7)') model%geometry%thck(3:16,j)
 !    enddo
-!    print*, ' '
-!    print*, 'btemp:'
+!    write(iulog,*) ' '
+!    write(iulog,*) 'btemp:'
 !    do j = model%general%nsn, 1, -1
-!       write(6,'(14f12.7)') model%temper%btemp(3:16,j)
+!       write(iulog,'(14f12.7)') model%temper%btemp(3:16,j)
 !    enddo
-!    print*, 'sfc uvel:'
+!    write(iulog,*) 'sfc uvel:'
 !    do j = model%general%nsn-1, 1, -1
-!       write(6,'(14f12.7)') model%velocity%uvel(1,3:16,j)
+!       write(iulog,'(14f12.7)') model%velocity%uvel(1,3:16,j)
 !    enddo
-!    print*, 'sfc vvel:'
+!    write(iulog,*) 'sfc vvel:'
 !    do j = model%general%nsn-1, 1, -1
-!       write(6,'(14f12.7)') model%velocity%vvel(1,3:16,j)
+!       write(iulog,'(14f12.7)') model%velocity%vvel(1,3:16,j)
 !    enddo
 
   end subroutine glide_tstep_p2
@@ -1075,7 +997,6 @@ contains
     ! calculate isostatic adjustment and upper and lower ice surface
 
     use isostasy, only: isos_compute
-    use glimmer_scales, only: scale_acab
     use glimmer_physcon, only: rhoi, rhow
     use glide_setup
     use glide_velo, only: glide_velo_vertical
@@ -1106,10 +1027,10 @@ contains
     model%geometry%usrf = max(0.d0,model%geometry%thck + model%geometry%lsrf)
 
     ! surface mass balance in units of mm/yr w.e.
-    ! (model%climate%acab * scale_acab) has units of m/yr of ice
+    ! model%climate%acab  has units of m/s of ice
     ! Note: This is not necessary (and can destroy exact restart) if the SMB was already input in units of mm/yr
     if (model%options%smb_input /= SMB_INPUT_MMYR_WE) then
-       model%climate%smb(:,:) = (model%climate%acab(:,:) * scale_acab) * (1000.d0 * rhoi/rhow)
+       model%climate%smb(:,:) = (model%climate%acab(:,:) * scyr) * (1000.d0 * rhoi/rhow)
     endif
 
     !Note: The time step counter used to be updated here; now it is updated at the start

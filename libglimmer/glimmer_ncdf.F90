@@ -38,6 +38,7 @@
 module glimmer_ncdf  
 
   use glimmer_global, only: fname_length, dp
+  use glimmer_paramets, only: iulog
   use netcdf
 
   implicit none
@@ -83,6 +84,8 @@ module glimmer_ncdf
      integer :: nstagwbndlevel = 0
      !WHL - added to handle ocean vertical coordinate
      integer :: nzocn = 0
+     !WHL - added to handle atmosphere vertical coordinate
+     integer :: nzatm = 0
      !WHL - added to handle glacier coordinate
      integer :: nglacier = 0
 
@@ -357,13 +360,13 @@ contains
     type(glimmer_nc_output),pointer :: output
 
     if (.not.associated(output)) then
-       print*,'*** Output section not associated'
+       write(iulog,*) '*** Output section not associated'
        return
     end if
 
     call nc_print_stat(output%nc)
-    print*,'freq:       ', output%freq
-    print*,'timecounter:', output%timecounter
+    write(iulog,*) 'freq:       ', output%freq
+    write(iulog,*) 'timecounter:', output%timecounter
 
     if (associated(output%next)) call nc_print_output(output%next)
     
@@ -373,21 +376,22 @@ contains
 
     type(glimmer_nc_stat) :: stat
 
-    print*,'define_mode:     ',stat%define_mode
-    print*,'just_processed:  ',stat%just_processed
-    print*,'processsed_time: ',stat%processsed_time
-    print*,'filename:        ',stat%filename
-    print*,'id:              ',stat%id
-    print*,'nlevel:          ',stat%nlevel
-    print*,'nstaglevel:      ',stat%nstaglevel
-    print*,'nstagwbndlevel:  ',stat%nstagwbndlevel
-    print*,'nzocn:           ',stat%nzocn
-    print*,'nglacier:        ',stat%nglacier
-    print*,'timedim:         ',stat%timedim
-    print*,'internal_timevar:',stat%internal_timevar
-    print*,'timevar:         ',stat%timevar
-    print*,'tstep_count_var: ',stat%tstep_count_var
-    print*,'vars:            ',trim(stat%vars)
+    write(iulog,*) 'define_mode:     ',stat%define_mode
+    write(iulog,*) 'just_processed:  ',stat%just_processed
+    write(iulog,*) 'processsed_time: ',stat%processsed_time
+    write(iulog,*) 'filename:        ',stat%filename
+    write(iulog,*) 'id:              ',stat%id
+    write(iulog,*) 'nlevel:          ',stat%nlevel
+    write(iulog,*) 'nstaglevel:      ',stat%nstaglevel
+    write(iulog,*) 'nstagwbndlevel:  ',stat%nstagwbndlevel
+    write(iulog,*) 'nzocn:           ',stat%nzocn
+    write(iulog,*) 'nzatm:           ',stat%nzatm
+    write(iulog,*) 'nglacier:        ',stat%nglacier
+    write(iulog,*) 'timedim:         ',stat%timedim
+    write(iulog,*) 'internal_timevar:',stat%internal_timevar
+    write(iulog,*) 'timevar:         ',stat%timevar
+    write(iulog,*) 'tstep_count_var: ',stat%tstep_count_var
+    write(iulog,*) 'vars:            ',trim(stat%vars)
 
   end subroutine nc_print_stat
 
