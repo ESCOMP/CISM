@@ -68,8 +68,8 @@
 
     ! Initialize some fields related to the surface mass balance
 
-    use glimmer_paramets, only: eps11
     use glimmer_physcon, only: rhow, rhoi, scyr
+    use cism_parallel, only: parallel_is_zero
 
     ! input/output arguments
 
@@ -77,9 +77,23 @@
 
     ! local variables
 
-    real(dp) :: local_maxval, global_maxval
     character(len=100) :: message
-      
+
+    ! Initialize artm for the case that we are reading in artm_ref or artm_3d.
+    ! For some temp_init options, this is needed for correct interior temperatures.
+    if (model%options%artm_input_function /= ARTM_INPUT_FUNCTION_XY) then
+       call downscale_artm(model)
+    endif
+
+    ! Initialize smb for the case that we are reading in smb_ref or smb_3d.
+    ! This is not strictly needed, since the SMB will be recomputed before it is used,
+    !  but can be a helpful diagnostic.
+    !TODO - Do this also for the PDD option?
+    if (model%options%smb_input_function == SMB_INPUT_FUNCTION_XY_GRADZ .or. &
+        model%options%smb_input_function == SMB_INPUT_FUNCTION_XYZ) then
+       call downscale_smb(model)
+    endif
+
     ! Initialize acab, if SMB (with different units) was read in
     if (model%options%smb_input == SMB_INPUT_MMYR_WE) then
        ! Convert units from mm/yr w.e. to m/s ice
@@ -87,6 +101,7 @@
     endif
 
     ! Initialize artm_corrected.  This is equal to artm, plus any prescribed temperature anomaly.
+    !TODO - Not sure this is needed
     model%climate%artm_corrected(:,:) = model%climate%artm(:,:)
     
     if (model%options%enable_artm_anomaly) then
@@ -96,9 +111,7 @@
        ! Note: The artm_anomaly field does not change during the run,
        !       but it is possible to ramp up the anomaly using artm_anomaly_timescale.
 
-       local_maxval = maxval(abs(model%climate%artm_anomaly))
-       global_maxval = parallel_reduce_max(local_maxval)
-       if (global_maxval < eps11) then
+       if (parallel_is_zero(model%climate%artm_anomaly)) then
           model%climate%artm_anomaly = model%climate%artm_anomaly_const
           write(message,*) &
                'Setting artm_anomaly = constant value (degC):', model%climate%artm_anomaly_const
@@ -109,7 +122,6 @@
           endif
        endif
     endif
-    !TODO - Write a short utility function to compute global_maxval of any field.
     !TODO - Repeat for snow and precip anomalies
 
     ! If acab is to be overwritten for some cells, then set overwrite_acab_mask = 1 for these cells.
@@ -206,52 +218,9 @@
     ! Downscaling of artm_ref to artm (at the ice surface) happens below, followed by the SMB calculation.
     !-------------------------------------------------------
 
-    ! Downscale artm to the current surface elevation if needed.
-    ! The downscaling options are:
-    ! (0) artm(x,y); no dependence on surface elevation
-    ! (1) artm(x,y) + d(artm)/dz(x,y) * dz; artm depends on input field at reference elevation, plus vertical correction
-    ! (2) artm(x,y,z); artm obtained by linear interpolation between values prescribed at adjacent vertical levels
-    ! (3) artm(x,y) adjusted with a uniform lapse rate
-    ! For options (1) - (3), the elevation-dependent artm is computed here.
-
-    if (model%options%artm_input_function == ARTM_INPUT_FUNCTION_XY_GRADZ) then
-
-       ! compute artm by a lapse-rate correction to the reference value
-       model%climate%artm(:,:) = model%climate%artm_ref(:,:) + &
-            (model%geometry%usrf(:,:) - model%climate%usrf_ref(:,:)) * model%climate%artm_gradz(:,:)
-
-    elseif (model%options%artm_input_function == ARTM_INPUT_FUNCTION_XYZ) then
-
-       if (parallel_is_zero(model%climate%artm_3d)) then
-          write(message,*) 'Error: artm_3d = 0 everywhere with artm_input_function =', model%options%artm_input_function
-          call write_log(trim(message), GM_FATAL)
-       endif
-
-       ! Note: With linear_extrapolate_in = T, the values outside the range are obtained by linear extrapolation
-       !        from the top two or bottom two values.
-       !       For temperature, which varies roughly linearly with elevation, this is more accurate
-       !        than simply extending the top and bottom values.
-       !       This call includes a halo update.
-
-       call glissade_vertical_interpolate(&
-            ewn,                   nsn,                 &
-            nzatm,                 model%climate%zatm,  &
-            model%geometry%usrf,                        &
-            model%climate%artm_3d,                      &
-            model%climate%artm,                         &
-            linear_extrapolate_in = .true.)
-
-    elseif (model%options%artm_input_function == ARTM_INPUT_FUNCTION_XY_LAPSE) then
-
-       ! compute artm by a lapse-rate correction to artm_ref
-       ! T_lapse is defined as positive for T decreasing with height
-
-       model%climate%artm(:,:) = model%climate%artm_ref(:,:) - &
-            (model%geometry%usrf(:,:) - model%climate%usrf_ref(:,:)) * model%climate%t_lapse
-
-    endif   ! artm_input_function
-
-    call parallel_halo(model%climate%artm, parallel)
+    if (model%options%artm_input_function /= ARTM_INPUT_FUNCTION_XY) then
+       call downscale_artm(model)
+    endif
 
     ! Optionally, add an anomaly to the surface air temperature
     ! Typically, artm_corrected = artm, but sometimes (e.g., for ISMIP6 forcing experiments),
@@ -348,154 +317,9 @@
     !  which is passed to the main mass balance driver.
     !-------------------------------------------------------------------------
 
-    ! ------------------------------------------------------------------------
-    ! Depending on the SMB input options, compute model%climate%acab at the ice surface.
-    ! The options are:
-    ! (0) SMB(x,y); no dependence on surface elevation
-    ! (1) SMB(x,y) + dSMB/dz(x,y) * dz; SMB depends on input field at reference elevation, plus vertical correction
-    ! (2) SMB(x,y,z); SMB obtained by linear interpolation between values prescribed at adjacent vertical levels
-    ! (3) SMB obtained from precip and artm using a positive-degree scheme
-    !
-    ! Options (1) and (2) require input fields with SMB units of mm/yr w.e. (SMB_INPUT_MMYR_WE)
-    ! For these options, the elevation-dependent SMB is computed here.
-    ! ------------------------------------------------------------------------
-
-    if (model%options%smb_input_function == SMB_INPUT_FUNCTION_XY_GRADZ) then
-
-       ! downscale SMB to the local surface elevation
-       model%climate%smb(:,:) = model%climate%smb_ref(:,:) + &
-            (model%geometry%usrf(:,:) - model%climate%usrf_ref(:,:)) * model%climate%smb_gradz(:,:)
-
-    elseif (model%options%smb_input_function == SMB_INPUT_FUNCTION_XYZ) then
-
-       ! downscale SMB to the local surface elevation
-       ! Note: With linear_extrapolate_in = F, the values at top and bottom levels are simply extended upward and downward.
-       !       For SMB, this is safer than linear extrapolation (especially when extrapolating upward).
-
-       if (parallel_is_zero(model%climate%smb_3d)) then
-          write(message,*) 'Error: smb_3d = 0 everywhere with smb_input_function =', model%options%smb_input_function
-          call write_log(trim(message), GM_FATAL)
-       endif
-
-       call glissade_vertical_interpolate(&
-            ewn,                   nsn,                 &
-            nzatm,                 model%climate%zatm,  &
-            model%geometry%usrf,                        &
-            model%climate%smb_3d,                       &
-            model%climate%smb,                          &
-            linear_extrapolate_in = .false.)
-
-    elseif  (model%options%smb_input_function == SMB_INPUT_FUNCTION_PDD) then
-
-       ! Compute SMB using a simple PDD scheme:
-       ! (1) Partition precip as rain or snow based on the downscaled artm
-       ! (2) Compute ablation based on artm and a degree factor
-       ! Assume that artm has already been downscaled, if needed, based on artm_input_function.
-
-       ! Note: This is similar to the SMB calculation for glaciers, but that calculation is done in the glacier module.
-       ! TODO: Put the glacier values of snow_threshold_min and snow_threshold_max in the climate derived type.
-
-       ! compute snow accumulation (mm/yr w.e.)
-       where (model%climate%artm > model%climate%snow_threshold_max)
-          model%climate%snow = 0.0d0   ! all precip falls as rain
-       elsewhere (model%climate%artm < model%climate%snow_threshold_min)
-          model%climate%snow = model%climate%precip   ! all precip falls as snow
-       elsewhere (model%climate%artm > model%climate%snow_threshold_min)
-          model%climate%snow = model%climate%precip * (model%climate%snow_threshold_max - model%climate%artm)  &
-               / (model%climate%snow_threshold_max - model%climate%snow_threshold_min)
-       endwhere
-
-       ! compute ablation (mm/yr w.e.)
-       ! Note: degree_factor has units of mm/yr w.e./degC to be consistent with other mass-balance variables.
-       !       It is like mu_star for glaciers.
-       model%climate%ablation = model%climate%degree_factor * max(model%climate%artm - model%climate%tmlt, 0.0d0)
-
-       ! compute smb (mm/yr w.e.)
-       model%climate%smb = model%climate%snow - model%climate%ablation
-
-       ! set smb = 0 for open ocean
-       where (model%geometry%thck == 0.0d0 .and. (model%geometry%topg - model%climate%eus) < 0.0d0)
-          model%climate%smb = 0.0d0
-       endwhere
-
-    endif   ! smb_input_function
-
-    ! For the non-default smb_input_function options, make sure that model%climate%smb is nonzero somewhere; else abort.
-    ! For the default option, do not abort, since idealized tests often have a zero SMB.
-
-    call parallel_halo(model%climate%smb, parallel)
-
-    if (model%options%smb_input_function == SMB_INPUT_FUNCTION_XY_GRADZ .or. &
-        model%options%smb_input_function == SMB_INPUT_FUNCTION_XYZ .or. &
-        model%options%smb_input_function == SMB_INPUT_FUNCTION_PDD) then
-       if (parallel_is_zero(model%climate%smb)) then
-          write(message,*) 'Error: smb = 0 everywhere with smb_input_function =', model%options%smb_input_function
-          call write_log(trim(message), GM_FATAL)
-       endif
+    if (model%options%smb_input_function /= SMB_INPUT_FUNCTION_XY) then
+       call downscale_smb(model)
     endif
-
-    ! optional diagnostics
-    if (verbose_smb) then
-
-       if (this_rank == rtest) then
-          write(iulog,*) 'Computing runtime smb with smb_input_function =', model%options%smb_input_function
-       endif
-       call point_diag(model%geometry%usrf, 'usrf (m)', itest, jtest, rtest, 7, 7)
-
-       if (model%options%smb_input_function == SMB_INPUT_FUNCTION_XY) then
-          call point_diag(model%climate%smb, 'smb (mm/yr)', itest, jtest, rtest, 7, 7)
-       elseif (model%options%smb_input_function == SMB_INPUT_FUNCTION_XY_GRADZ) then
-          call point_diag(model%geometry%usrf - model%climate%usrf_ref, 'usrf - usrf_ref (m)', &
-               itest, jtest, rtest, 7, 7)
-          call point_diag(model%climate%smb_ref, 'reference smb (mm/yr)', itest, jtest, rtest, 7, 7)
-          call point_diag(model%climate%smb_gradz, 'smb_gradz (mm/yr per m)', itest, jtest, rtest, 7, 7)
-          call point_diag(model%climate%smb, 'downscaled smb (mm/yr)', itest, jtest, rtest, 7, 7)
-       elseif (model%options%smb_input_function == SMB_INPUT_FUNCTION_XYZ) then
-          if (this_rank == rtest) then
-             write(iulog,*) ' '
-             write(iulog,*) 'smb_3d at each level:'
-          endif
-          do k = 1, nzatm
-             if (this_rank == rtest) then
-                write(iulog,*) ' '
-                write(iulog,*) 'k =', k
-             endif
-             call point_diag(model%climate%smb_3d(k,:,:), 'smb_3d (mm/yr)', itest, jtest, rtest, 7, 7)
-          enddo
-          call point_diag(model%climate%smb, 'downscaled smb (mm/yr)', itest, jtest, rtest, 7, 7)
-       elseif (model%options%smb_input_function == SMB_INPUT_FUNCTION_PDD) then
-          call point_diag(model%climate%artm, 'artm (deg C)', itest, jtest, rtest, 7, 7)
-          call point_diag(model%climate%precip, 'precip (mm/yr)', itest, jtest, rtest, 7, 7)
-          call point_diag(model%climate%snow, 'snow (mm/yr)', itest, jtest, rtest, 7, 7)
-          call point_diag(model%climate%ablation, 'ablation (mm/yr)', itest, jtest, rtest, 7, 7)
-          call point_diag(model%climate%smb,'smb (mm/yr)', itest, jtest, rtest, 7, 7)
-       endif  ! smb_input_function
-
-       if (model%options%artm_input_function == ARTM_INPUT_FUNCTION_XY) then
-          call point_diag(model%climate%artm, 'artm (deg C)', itest, jtest, rtest, 7, 7)
-       elseif (model%options%artm_input_function == ARTM_INPUT_FUNCTION_XY_GRADZ) then
-          call point_diag(model%climate%artm_ref, 'reference artm (deg C)', itest, jtest, rtest, 7, 7)
-          call point_diag(model%climate%artm_gradz*1000.d0, 'artm_gradz (deg C per km)', itest, jtest, rtest, 7, 7)
-          call point_diag(model%climate%artm, 'downscaled artm (deg C)', itest, jtest, rtest, 7, 7)
-       elseif (model%options%artm_input_function == ARTM_INPUT_FUNCTION_XYZ) then
-          if (this_rank == rtest) then
-             write(iulog,*) ' '
-             write(iulog,*) 'artm_3d at each level:'
-          endif
-          do k = 1, nzatm
-             if (this_rank == rtest) then
-                write(iulog,*) ' '
-                write(iulog,*) 'k =', k
-             endif
-             call point_diag(model%climate%artm_3d(k,:,:), 'artm_3d (deg C)', itest, jtest, rtest, 7, 7)
-          enddo
-          call point_diag(model%climate%artm, 'downscaled artm (deg C)', itest, jtest, rtest, 7, 7)
-       elseif (model%options%artm_input_function == ARTM_INPUT_FUNCTION_XY_LAPSE) then
-          call point_diag(model%climate%artm_ref, 'reference artm (deg C)', itest, jtest, rtest, 7, 7)
-          call point_diag(model%climate%artm, 'downscaled artm (deg C)', itest, jtest, rtest, 7, 7)
-       endif   ! artm_input_function
-
-    endif  ! verbose_smb
 
     ! Compute a corrected smb field that includes any anomalies or correction factors.
 
@@ -616,11 +440,352 @@
 
 !=======================================================================
 
+  subroutine downscale_artm(model)
+
+    use glissade_grid_operators, only: glissade_vertical_interpolate
+    use cism_parallel, only: parallel_is_zero
+
+    ! input/output arguments
+
+    type(glide_global_type), intent(inout) :: model   ! model instance
+
+    ! local variables
+
+    integer :: itest, jtest, rtest      ! coordinates of diagnostic cell
+    integer :: i, j, k
+    integer :: ewn, nsn
+    integer :: nzatm                    ! number of atmosphere levels at which smb_3d and artm_3d are provided
+
+    type(parallel_type) :: parallel     ! info for parallel communication
+
+    character(len=100) :: message
+
+    ! initialize
+
+    rtest = -999
+    itest = 1
+    jtest = 1
+    if (this_rank == model%numerics%rdiag_local) then
+       rtest = model%numerics%rdiag_local
+       itest = model%numerics%idiag_local
+       jtest = model%numerics%jdiag_local
+    endif
+
+    ewn = model%general%ewn
+    nsn = model%general%nsn
+    nzatm = model%climate%nzatm
+    parallel = model%parallel
+
+    ! Downscale artm to the current surface elevation if needed.
+    ! The downscaling options are:
+    ! (0) artm(x,y); no dependence on surface elevation
+    ! (1) artm(x,y) + d(artm)/dz(x,y) * dz; artm depends on input field at reference elevation, plus vertical correction
+    ! (2) artm(x,y,z); artm obtained by linear interpolation between values prescribed at adjacent vertical levels
+    ! (3) artm(x,y) adjusted with a uniform lapse rate
+    ! For options (1) - (3), the elevation-dependent artm is computed here.
+
+    ! Make sure the required input fields are present with nonzero values
+
+    if (model%options%artm_input_function == ARTM_INPUT_FUNCTION_XY_GRADZ) then
+
+       if (parallel_is_zero(model%climate%artm_ref) .or. &
+           parallel_is_zero(model%climate%usrf_ref) .or. &
+           parallel_is_zero(model%climate%artm_gradz)) then
+          write(message,*) &
+               'Error: Must have nonzero artm_ref, artm_gradz and usrf_ref with artm_input_function =', &
+               model%options%artm_input_function
+          call write_log(trim(message), GM_FATAL)
+       endif
+
+    elseif (model%options%artm_input_function == ARTM_INPUT_FUNCTION_XYZ) then
+
+       if (parallel_is_zero(model%climate%artm_3d)) then
+          write(message,*) &
+               'Error: Must have nonzero artm_3d with artm_input_function =', &
+               model%options%artm_input_function
+          call write_log(trim(message), GM_FATAL)
+       endif
+
+    elseif (model%options%artm_input_function == ARTM_INPUT_FUNCTION_XY_LAPSE) then
+
+       if (parallel_is_zero(model%climate%artm_ref) .or. &
+           parallel_is_zero(model%climate%usrf_ref) .or. &
+           model%climate%t_lapse <= 0.0d0) then
+          write(message,*) &
+               'Error: Must have t_lapse > 0 and nonzero artm_ref, usrf_ref with artm_input_function =', &
+               model%options%artm_input_function
+          call write_log(trim(message), GM_FATAL)
+       endif
+
+    endif
+
+    ! Do the downscaling
+
+    if (model%options%artm_input_function == ARTM_INPUT_FUNCTION_XY_GRADZ) then
+
+       ! compute artm by a lapse-rate correction to the reference value
+       model%climate%artm(:,:) = model%climate%artm_ref(:,:) + &
+            (model%geometry%usrf(:,:) - model%climate%usrf_ref(:,:)) * model%climate%artm_gradz(:,:)
+
+    elseif (model%options%artm_input_function == ARTM_INPUT_FUNCTION_XYZ) then
+
+       ! Note: With linear_extrapolate_in = T, the values outside the range are obtained
+       !        by linear extrapolation from the top two or bottom two values.
+       !       For temperature, which varies roughly linearly with elevation, this is more accurate
+       !        than simply extending the top and bottom values.
+
+       call glissade_vertical_interpolate(&
+            ewn,                   nsn,                 &
+            nzatm,                 model%climate%zatm,  &
+            model%geometry%usrf,                        &
+            model%climate%artm_3d,                      &
+            model%climate%artm,                         &
+            linear_extrapolate_in = .true.)
+
+    elseif (model%options%artm_input_function == ARTM_INPUT_FUNCTION_XY_LAPSE) then
+
+       ! compute artm by a lapse-rate correction to artm_ref
+       ! T_lapse is defined as positive for T decreasing with height
+
+       model%climate%artm(:,:) = model%climate%artm_ref(:,:) - &
+            (model%geometry%usrf(:,:) - model%climate%usrf_ref(:,:)) * model%climate%t_lapse
+
+    endif   ! artm_input_function
+
+    call parallel_halo(model%climate%artm, parallel)
+
+    ! optional diagnostics
+
+    if (verbose_smb) then
+       if (model%options%artm_input_function == ARTM_INPUT_FUNCTION_XY) then
+          call point_diag(model%climate%artm, 'artm (deg C)', itest, jtest, rtest, 7, 7)
+       elseif (model%options%artm_input_function == ARTM_INPUT_FUNCTION_XY_GRADZ) then
+          call point_diag(model%climate%artm_ref, 'reference artm (deg C)', itest, jtest, rtest, 7, 7)
+          call point_diag(model%climate%artm_gradz*1000.d0, 'artm_gradz (deg C per km)', itest, jtest, rtest, 7, 7)
+          call point_diag(model%climate%artm, 'downscaled artm (deg C)', itest, jtest, rtest, 7, 7)
+       elseif (model%options%artm_input_function == ARTM_INPUT_FUNCTION_XYZ) then
+          if (this_rank == rtest) then
+             write(iulog,*) ' '
+             write(iulog,*) 'artm_3d at each level:'
+          endif
+          do k = 1, nzatm
+             if (this_rank == rtest) then
+                write(iulog,*) ' '
+                write(iulog,*) 'k =', k
+             endif
+             call point_diag(model%climate%artm_3d(k,:,:), 'artm_3d (deg C)', itest, jtest, rtest, 7, 7)
+          enddo
+          call point_diag(model%climate%artm, 'downscaled artm (deg C)', itest, jtest, rtest, 7, 7)
+       elseif (model%options%artm_input_function == ARTM_INPUT_FUNCTION_XY_LAPSE) then
+          call point_diag(model%climate%artm_ref, 'reference artm (deg C)', itest, jtest, rtest, 7, 7)
+          call point_diag(model%climate%artm, 'downscaled artm (deg C)', itest, jtest, rtest, 7, 7)
+       endif   ! artm_input_function
+    endif
+
+  end subroutine downscale_artm
+
+!=======================================================================
+
+  subroutine downscale_smb(model)
+
+    use glissade_grid_operators, only: glissade_vertical_interpolate
+    use cism_parallel, only: parallel_is_zero
+
+    ! input/output arguments
+
+    type(glide_global_type), intent(inout) :: model   ! model instance
+
+    ! local variables
+
+    integer :: itest, jtest, rtest      ! coordinates of diagnostic cell
+    integer :: i, j, k
+    integer :: ewn, nsn
+    integer :: nzatm                    ! number of atmosphere levels at which smb_3d and artm_3d are provided
+
+    type(parallel_type) :: parallel     ! info for parallel communication
+
+    character(len=100) :: message
+
+    ! initialize
+
+    rtest = -999
+    itest = 1
+    jtest = 1
+    if (this_rank == model%numerics%rdiag_local) then
+       rtest = model%numerics%rdiag_local
+       itest = model%numerics%idiag_local
+       jtest = model%numerics%jdiag_local
+    endif
+
+    ewn = model%general%ewn
+    nsn = model%general%nsn
+    nzatm = model%climate%nzatm
+    parallel = model%parallel
+
+    ! ------------------------------------------------------------------------
+    ! Depending on the SMB input options, compute model%climate%acab at the ice surface.
+    ! The options are:
+    ! (0) SMB(x,y); no dependence on surface elevation
+    ! (1) SMB(x,y) + dSMB/dz(x,y) * dz; SMB depends on input field at reference elevation, plus vertical correction
+    ! (2) SMB(x,y,z); SMB obtained by linear interpolation between values prescribed at adjacent vertical levels
+    ! (3) SMB obtained from precip and artm using a positive-degree scheme
+    !
+    ! Options (1) and (2) require input fields with SMB units of mm/yr w.e. (SMB_INPUT_MMYR_WE)
+    ! For these options, the elevation-dependent SMB is computed here.
+    ! ------------------------------------------------------------------------
+
+    ! Make sure the required input fields are present with nonzero values
+
+    if (model%options%smb_input_function == SMB_INPUT_FUNCTION_XY_GRADZ) then
+
+       if (parallel_is_zero(model%climate%smb_ref) .or. &
+           parallel_is_zero(model%climate%usrf_ref) .or. &
+           parallel_is_zero(model%climate%smb_gradz)) then
+          write(message,*) &
+               'Error: Must have nonzero smb_ref, smb_gradz and usrf_ref with smb_input_function =', &
+               model%options%smb_input_function
+          call write_log(trim(message), GM_FATAL)
+       endif
+
+    elseif (model%options%smb_input_function == SMB_INPUT_FUNCTION_XYZ) then
+
+       if (parallel_is_zero(model%climate%smb_3d)) then
+          write(message,*) &
+               'Error: Must have nonzero smb_3d with smb_input_function =', &
+               model%options%smb_input_function
+          call write_log(trim(message), GM_FATAL)
+       endif
+
+    elseif (model%options%smb_input_function == SMB_INPUT_FUNCTION_PDD) then
+
+       if (parallel_is_zero(model%climate%artm) .or. &
+           parallel_is_zero(model%climate%precip)) then
+          write(message,*) &
+               'Error: Must have nonzero artm and precip with smb_input_function =', &
+               model%options%smb_input_function
+          call write_log(trim(message), GM_FATAL)
+       endif
+
+    endif
+
+    ! Do the downscaling
+
+    if (model%options%smb_input_function == SMB_INPUT_FUNCTION_XY_GRADZ) then
+
+       ! downscale SMB to the local surface elevation
+       model%climate%smb(:,:) = model%climate%smb_ref(:,:) + &
+            (model%geometry%usrf(:,:) - model%climate%usrf_ref(:,:)) * model%climate%smb_gradz(:,:)
+
+    elseif (model%options%smb_input_function == SMB_INPUT_FUNCTION_XYZ) then
+
+       ! downscale SMB to the local surface elevation
+       ! Note: With linear_extrapolate_in = F, the values at top and bottom levels are simply extended upward and downward.
+       !       For SMB, this is safer than linear extrapolation (especially when extrapolating upward).
+
+       call glissade_vertical_interpolate(&
+            ewn,                   nsn,                 &
+            nzatm,                 model%climate%zatm,  &
+            model%geometry%usrf,                        &
+            model%climate%smb_3d,                       &
+            model%climate%smb,                          &
+            linear_extrapolate_in = .false.)
+
+    elseif (model%options%smb_input_function == SMB_INPUT_FUNCTION_PDD) then
+
+       ! Compute SMB using a simple PDD scheme:
+       ! (1) Partition precip as rain or snow based on the downscaled artm
+       ! (2) Compute ablation based on artm and a degree factor
+       ! Assume that artm has already been downscaled, if needed, based on artm_input_function.
+
+       ! Note: This is similar to the SMB calculation for glaciers, but that calculation is done in the glacier module.
+       ! TODO: Put the glacier values of snow_threshold_min and snow_threshold_max in the climate derived type.
+
+       ! compute snow accumulation (mm/yr w.e.)
+       where (model%climate%artm > model%climate%snow_threshold_max)
+          model%climate%snow = 0.0d0   ! all precip falls as rain
+       elsewhere (model%climate%artm < model%climate%snow_threshold_min)
+          model%climate%snow = model%climate%precip   ! all precip falls as snow
+       elsewhere (model%climate%artm > model%climate%snow_threshold_min)
+          model%climate%snow = model%climate%precip * (model%climate%snow_threshold_max - model%climate%artm)  &
+               / (model%climate%snow_threshold_max - model%climate%snow_threshold_min)
+       endwhere
+
+       ! compute ablation (mm/yr w.e.)
+       ! Note: degree_factor has units of mm/yr w.e./degC to be consistent with other mass-balance variables.
+       !       It is like mu_star for glaciers.
+       model%climate%ablation = model%climate%degree_factor * max(model%climate%artm - model%climate%tmlt, 0.0d0)
+
+       ! compute smb (mm/yr w.e.)
+       model%climate%smb = model%climate%snow - model%climate%ablation
+
+       ! set smb = 0 for open ocean
+       where (model%geometry%thck == 0.0d0 .and. (model%geometry%topg - model%climate%eus) < 0.0d0)
+          model%climate%smb = 0.0d0
+       endwhere
+
+    endif   ! smb_input_function
+
+    call parallel_halo(model%climate%smb, parallel)
+
+    ! For the non-default smb_input_function options, make sure the SMB is nonzero somewhere.
+    ! For the default option, do not abort, since idealized tests often have a zero SMB.
+
+    if (model%options%smb_input_function /= SMB_INPUT_FUNCTION_XY) then
+       if (parallel_is_zero(model%climate%smb)) then
+          write(message,*) 'Error: smb = 0 everywhere with smb_input_function =', &
+               model%options%smb_input_function
+          call write_log(trim(message), GM_FATAL)
+       endif
+    endif
+
+    ! optional diagnostics
+
+    if (verbose_smb) then
+
+       if (this_rank == rtest) then
+          write(iulog,*) 'Computing runtime smb with smb_input_function =', model%options%smb_input_function
+       endif
+       call point_diag(model%geometry%usrf, 'usrf (m)', itest, jtest, rtest, 7, 7)
+
+       if (model%options%smb_input_function == SMB_INPUT_FUNCTION_XY) then
+          call point_diag(model%climate%smb, 'smb (mm/yr)', itest, jtest, rtest, 7, 7)
+       elseif (model%options%smb_input_function == SMB_INPUT_FUNCTION_XY_GRADZ) then
+          call point_diag(model%geometry%usrf - model%climate%usrf_ref, 'usrf - usrf_ref (m)', &
+               itest, jtest, rtest, 7, 7)
+          call point_diag(model%climate%smb_ref, 'reference smb (mm/yr)', itest, jtest, rtest, 7, 7)
+          call point_diag(model%climate%smb_gradz, 'smb_gradz (mm/yr per m)', itest, jtest, rtest, 7, 7)
+          call point_diag(model%climate%smb, 'downscaled smb (mm/yr)', itest, jtest, rtest, 7, 7)
+       elseif (model%options%smb_input_function == SMB_INPUT_FUNCTION_XYZ) then
+          if (this_rank == rtest) then
+             write(iulog,*) ' '
+             write(iulog,*) 'smb_3d at each level:'
+          endif
+          do k = 1, nzatm
+             if (this_rank == rtest) then
+                write(iulog,*) ' '
+                write(iulog,*) 'k =', k
+             endif
+             call point_diag(model%climate%smb_3d(k,:,:), 'smb_3d (mm/yr)', itest, jtest, rtest, 7, 7)
+          enddo
+          call point_diag(model%climate%smb, 'downscaled smb (mm/yr)', itest, jtest, rtest, 7, 7)
+       elseif (model%options%smb_input_function == SMB_INPUT_FUNCTION_PDD) then
+          call point_diag(model%climate%artm, 'artm (deg C)', itest, jtest, rtest, 7, 7)
+          call point_diag(model%climate%precip, 'precip (mm/yr)', itest, jtest, rtest, 7, 7)
+          call point_diag(model%climate%snow, 'snow (mm/yr)', itest, jtest, rtest, 7, 7)
+          call point_diag(model%climate%ablation, 'ablation (mm/yr)', itest, jtest, rtest, 7, 7)
+          call point_diag(model%climate%smb,'smb (mm/yr)', itest, jtest, rtest, 7, 7)
+       endif  ! smb_input_function
+
+    endif  ! verbose_smb
+
+  end subroutine downscale_smb
+
+!=======================================================================
+
   subroutine glissade_apply_smb(model)
 
     ! Apply the SMB at the upper and lower surfaces, and recompute tracer values.
 
-    use glimmer_paramets, only: eps11
     use glimmer_physcon, only: rhow, rhoi, scyr
     use glissade_masks, only: glissade_get_masks
     use glissade_calving, only: verbose_calving
