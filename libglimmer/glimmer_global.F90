@@ -30,12 +30,12 @@
 
 module glimmer_global
 
-  !> Module holding global variables for Glimmer. Holds real-type
-  !> kind values, and other global code parameters.
+  !> Module holding global variables for Glimmer.
+  !> Holds real and integer kind values and other global code parameters.
 
   implicit none
 
-  integer,parameter :: sp = kind(1.0) 
+  integer,parameter :: sp = kind(1.0)
 
   !> Single precision --- Fortran single-precision real-type kind 
   !> value. Used internally.
@@ -44,7 +44,7 @@ module glimmer_global
   !> the -r8 flag), then this parameter may need to be set in agreement with 
   !> that.
 
-  integer,parameter :: dp = kind(1.0d0) 
+  integer,parameter :: dp = kind(1.0d0)
   
   !> Double precision --- Fortran double-precision real-type kind 
   !> value. Used internally.
@@ -52,6 +52,12 @@ module glimmer_global
   !> Note that if the code is being compiled with forced typing (e.g. with
   !> the -r8 flag), then this parameter may need to be set in agreement
   !> with that
+
+  ! Integer kinds
+  ! Note: Integers are i4 by default.
+  !       i8 integers can be used to generate reproducible sums
+  integer, parameter :: i4 = kind(1)
+  integer, parameter :: i8 = kind(1_8)
 
 !WHL - Removed rk from the code, so commenting out these declarations
 !!#ifdef GLIMMER_SP

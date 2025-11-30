@@ -699,6 +699,7 @@ contains
             ewn, nsn,                                  &
             model%numerics%dew,                        &  ! m
             model%numerics%dns,                        &  ! m
+            parallel,                                  &
             itest, jtest, rtest,                       &
             model%ocean_data%nbasin,                   &
             model%ocean_data%basin_number,             &
@@ -780,6 +781,7 @@ contains
             ewn, nsn,                                  &
             model%numerics%dew,                        &  ! m
             model%numerics%dns,                        &  ! m
+            parallel,                                  &
             itest, jtest, rtest,                       &
             model%ocean_data%nbasin,                   &
             model%ocean_data%basin_number,             &
@@ -853,6 +855,7 @@ contains
             ewn, nsn,                                  &
             model%numerics%dew,                        &  ! m
             model%numerics%dns,                        &  ! m
+            parallel,                                  &
             itest, jtest, rtest,                       &
             model%ocean_data%nbasin,                   &
             model%ocean_data%basin_number,             &
@@ -906,6 +909,7 @@ contains
             ewn, nsn,                                  &
             model%numerics%dew,                        &  ! m
             model%numerics%dns,                        &  ! m
+            parallel,                                  &
             itest, jtest, rtest,                       &
             model%ocean_data%nbasin,                   &
             model%ocean_data%basin_number,             &
@@ -944,6 +948,7 @@ contains
        if (model%ocean_data%nbasin > 1) then
           call glissade_basin_average(&
                model%general%ewn, model%general%nsn,  &
+               model%parallel,                        &
                model%ocean_data%nbasin,               &
                model%ocean_data%basin_number,         &
                floating_mask * 1.0d0,                 &   ! real mask
@@ -1338,6 +1343,7 @@ contains
        dt,                          &
        nx,            ny,           &
        dx,            dy,           &
+       parallel,                    &
        itest, jtest,  rtest,        &
        nbasin,                      &
        basin_number,                &
@@ -1371,6 +1377,9 @@ contains
 
     real(dp), intent(in) :: &
          dx, dy                  ! grid cell size in each direction (m)
+
+    type(parallel_type), intent(in) :: &
+         parallel                ! info for parallel communication
 
     integer, intent(in) :: &
          itest, jtest, rtest     ! coordinates of diagnostic point
@@ -1418,6 +1427,7 @@ contains
     call get_basin_targets(&
          nx,           ny,                  &
          dx,           dy,                  &
+         parallel,                          &
          nbasin,       basin_number,        &
          itest, jtest, rtest,               &
          stag_thck,    stag_dthck_dt,       &
@@ -1430,6 +1440,7 @@ contains
 
     call glissade_basin_average(&
          nx,          ny,                   &
+         parallel,                          &
          nbasin,      basin_number,         &
          stag_rmask,                        &
          friction_c,  friction_c_basin)
@@ -1495,6 +1506,7 @@ contains
        dt,                          &
        nx,            ny,           &
        dx,            dy,           &
+       parallel,                    &
        itest, jtest,  rtest,        &
        nbasin,                      &
        basin_number,                &
@@ -1533,6 +1545,9 @@ contains
 
     real(dp), intent(in) :: &
          dx, dy                  ! grid cell size in each direction (m)
+
+    type(parallel_type), intent(in) :: &
+         parallel                ! info for parallel communication
 
     integer, intent(in) :: &
          itest, jtest, rtest     ! coordinates of diagnostic point
@@ -1592,6 +1607,7 @@ contains
     call get_basin_targets(&
          nx,           ny,                  &
          dx,           dy,                  &
+         parallel,                          &
          nbasin,       basin_number,        &
          itest, jtest, rtest,               &
          thck,         dthck_dt,            &
@@ -1610,6 +1626,7 @@ contains
 
     call glissade_basin_average(&
          nx,          ny,                   &
+         parallel,                          &
          nbasin,      basin_number,         &
          mask,                              &
          deltaT_ocn,  deltaT_basin)
@@ -2142,6 +2159,7 @@ contains
   subroutine get_basin_targets(&
        nx,           ny,                &
        dx,           dy,                &
+       parallel,                        &
        nbasin,       basin_number,      &
        itest, jtest, rtest,             &
        thck,         dthck_dt,          &
@@ -2166,6 +2184,9 @@ contains
 
     real(dp), intent(in) :: &
          dx, dy                  ! grid cell size in each direction (m)
+
+    type(parallel_type), intent(in) :: &
+         parallel                ! info for parallel communication
 
     integer, intent(in) :: &
          nbasin                  ! number of basins
@@ -2221,6 +2242,7 @@ contains
 
     call glissade_basin_sum(&
          nx,         ny,                &
+         parallel,                      &
          nbasin,     basin_number,      &
          target_rmask,                  &
          cell_area,                     &
@@ -2232,6 +2254,7 @@ contains
 
     call glissade_basin_sum(&
          nx,         ny,                &
+         parallel,                      &
          nbasin,     basin_number,      &
          target_rmask,                  &
          thck_target*dx*dy,             &
@@ -2241,6 +2264,7 @@ contains
 
     call glissade_basin_sum(&
          nx,         ny,                &
+         parallel,                      &
          nbasin,     basin_number,      &
          target_rmask,                  &
          thck*dx*dy,                    &
@@ -2250,6 +2274,7 @@ contains
 
     call glissade_basin_sum(&
          nx,         ny,                &
+         parallel,                      &
          nbasin,     basin_number,      &
          target_rmask,                  &
          dthck_dt*dx*dy,                &

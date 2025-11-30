@@ -239,6 +239,8 @@
 !    logical :: verbose_L1L2 = .true.
     logical :: verbose_diva = .false.
 !    logical :: verbose_diva = .true.
+    logical :: verbose_bp = .false.
+!    logical :: verbose_bp = .true.
     logical :: verbose_glp = .false.
 !    logical :: verbose_glp = .true.
     logical :: verbose_picard = .false.
@@ -3591,7 +3593,7 @@
 
     !WHL - debug
     !TODO - One diagnostic to write out column velocities for any approximation
-    if (whichapprox == HO_APPROX_BP .and. this_rank==rtest) then
+    if (verbose_bp .and. whichapprox == HO_APPROX_BP .and. this_rank==rtest) then
        write(iulog,*) ' '
        i = itest
        j = jtest
@@ -9424,7 +9426,7 @@
                 if ( (k+kA >= 1 .and. k+kA <= nz)      &
                                 .and.                  &
                      (i+iA >= 1 .and. i+iA <= nx-1)    &
-                             .and.                     &
+                                .and.                  &
                      (j+jA >= 1 .and. j+jA <= ny-1) ) then
 
                    m = indxA_3d(iA,jA,kA)
@@ -9474,6 +9476,11 @@
     ! Take global sum, then take square root
     L2_norm = parallel_reduce_sum(L2_norm)
     L2_norm = sqrt(L2_norm)
+
+!!    sum_resid_u_sq = parallel_global_sum(bu*bu, parallel, active_vertex)
+!!    sum_resid_v_sq = parallel_global_sum(bv*bv, parallel, active_vertex)
+!!    L2_norm = parallel_global_sum(resid_sq, parallel)
+!!    L2_norm = sqrt(L2_norm)
 
     if (verbose_residual) then
 

@@ -516,8 +516,10 @@ contains
 
 !****************************************************
 
+  !TODO - Calls to this subroutine could be replaced by inline calls to parallel_global_sum_patch
   subroutine glissade_basin_sum(&
        nx,           ny,            &
+       parallel,                    &
        nbasin,       basin_number,  &
        rmask,                       &
        field_2d,                    &
@@ -527,10 +529,13 @@ contains
     ! The sum is taken over grid cells with mask = 1.
     ! All cells are weighted equally.
 
-    use cism_parallel, only: parallel_reduce_sum, nhalo
+    use cism_parallel, only: parallel_global_sum_patch
 
     integer, intent(in) :: &
          nx, ny                    !> number of grid cells in each dimension
+
+    type(parallel_type), intent(in) :: &
+         parallel                  !> info for parallel communication
 
     integer, intent(in) :: &
          nbasin                    !> number of basins
@@ -546,29 +551,10 @@ contains
     real(dp), dimension(nbasin), intent(out) :: &
          field_basin_sum           !> basin-sum output field
 
-    ! local variables
-
-    integer :: i, j, nb
-
     !TODO - Replace sumcell with sumarea, and pass in cell area.
     !       Current algorithm assumes all cells with mask = 1 have equal weight.
 
-    real(dp), dimension(nbasin) ::  &
-         sumfield_local     ! sum of field on local task
-
-    sumfield_local(:) = 0.0d0
-
-    ! loop over locally owned cells
-    do j = nhalo+1, ny-nhalo
-       do i = nhalo+1, nx-nhalo
-          nb = basin_number(i,j)
-          if (nb >= 1) then
-             sumfield_local(nb) = sumfield_local(nb) + rmask(i,j)*field_2d(i,j)
-          endif
-       enddo
-    enddo
-
-    field_basin_sum(:) =  parallel_reduce_sum(sumfield_local(:))
+    field_basin_sum = parallel_global_sum_patch(rmask*field_2d, nbasin, basin_number, parallel)
 
   end subroutine glissade_basin_sum
 
@@ -576,6 +562,7 @@ contains
 
   subroutine glissade_basin_average(&
        nx,           ny,            &
+       parallel,                    &
        nbasin,       basin_number,  &
        rmask,                       &
        field_2d,                    &
@@ -586,10 +573,13 @@ contains
     ! All cells are weighted equally.
     ! Note: This subroutine assumes an input field located at cell centers
 
-    use cism_parallel, only: parallel_reduce_sum, nhalo
+    use cism_parallel, only: parallel_global_sum_patch
 
     integer, intent(in) :: &
          nx, ny                    !> number of grid cells in each dimension
+
+    type(parallel_type), intent(in) :: &
+         parallel                  !> info for parallel communication
 
     integer, intent(in) :: &
          nbasin                    !> number of basins
@@ -607,33 +597,17 @@ contains
 
     ! local variables
 
-    integer :: i, j, nb
+    integer :: nb
 
     !TODO - Replace sumcell with sumarea, and pass in cell area.
     !       Current algorithm assumes all cells with mask = 1 have equal weight.
 
     real(dp), dimension(nbasin) ::  &
-         summask_local,          & ! sum of mask in each basin on local task
          summask_global,         & ! sum of mask in each basin on full domain
-         sumfield_local,         & ! sum of field on local task
          sumfield_global           ! sum of field over full domain
 
-    summask_local(:) = 0.0d0
-    sumfield_local(:) = 0.0d0
-
-    ! loop over locally owned cells only
-    do j = nhalo+1, ny-nhalo
-       do i = nhalo+1, nx-nhalo
-          nb = basin_number(i,j)
-          if (nb >= 1) then
-             summask_local(nb) = summask_local(nb) + rmask(i,j)
-             sumfield_local(nb) = sumfield_local(nb) + rmask(i,j)*field_2d(i,j)
-          endif
-       enddo
-    enddo
-
-    summask_global(:)  =  parallel_reduce_sum(summask_local(:))
-    sumfield_global(:) =  parallel_reduce_sum(sumfield_local(:))
+    summask_global = parallel_global_sum_patch(rmask, nbasin, basin_number, parallel)
+    sumfield_global = parallel_global_sum_patch(rmask*field_2d, nbasin, basin_number, parallel)
 
     do nb = 1, nbasin
        if (summask_global(nb) > tiny(0.0d0)) then

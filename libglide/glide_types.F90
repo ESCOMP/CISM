@@ -1157,6 +1157,10 @@ module glide_types
     real(dp) :: linear_tolerance = 1.0d-08
     !> error tolerance for linear solver
 
+    logical :: reproducible_sums = .false.
+    !> if true, then compute reproducible global sums
+    !> (independent of the number of tasks)
+
     ! The remaining options are not currently supported
 
     !integer :: which_bproc = 0

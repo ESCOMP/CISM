@@ -1031,8 +1031,7 @@ module glissade_basal_water
     ! Continue until no further lowering of phi is possible.  At that point, phi = phi_out.
     ! Note: Setting eps = 0 would result in flat surfaces that would need to be fixed later.
 
-    use cism_parallel, only: parallel_reduce_sum
-    use cism_parallel, only: parallel_globalindex
+    use cism_parallel, only: parallel_reduce_sum, parallel_globalindex
 
     implicit none
 

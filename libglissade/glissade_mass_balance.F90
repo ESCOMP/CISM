@@ -43,7 +43,7 @@
     use glimmer_utils, only: point_diag
     use glide_types
     use cism_parallel, only: this_rank, main_task, nhalo, lhalo, uhalo, &
-         parallel_halo, parallel_reduce_max, parallel_reduce_sum, parallel_globalindex
+         parallel_halo, parallel_reduce_max, parallel_global_sum, parallel_globalindex
 
     implicit none
     save
@@ -81,17 +81,27 @@
 
     ! Initialize artm for the case that we are reading in artm_ref or artm_3d.
     ! For some temp_init options, this is needed for correct interior temperatures.
+    ! Note: Do not call if glaciers are enabled. When running with glaciers, artm is
+    !       accumulated over year 1 from a forcing file which hasn't been read in yet.
+    ! TODO: Think about how to initialize glacier temperatures. Currently assume artm = 0,
+    !       which isn't realistic.
     if (model%options%artm_input_function /= ARTM_INPUT_FUNCTION_XY) then
-       call downscale_artm(model)
+       if (.not.model%options%enable_glaciers) then
+          call downscale_artm(model)
+       endif
     endif
 
     ! Initialize smb for the case that we are reading in smb_ref or smb_3d.
     ! This is not strictly needed, since the SMB will be recomputed before it is used,
     !  but can be a helpful diagnostic.
-    !TODO - Do this also for the PDD option?
+    ! Note: Do not call if glaciers are enabled. When running with glaciers, smb is
+    !       accumulated over year 1 from a forcing file which hasn't been read in yet.
+    ! TODO - call downscale_smb for the PDD option?
     if (model%options%smb_input_function == SMB_INPUT_FUNCTION_XY_GRADZ .or. &
         model%options%smb_input_function == SMB_INPUT_FUNCTION_XYZ) then
-       call downscale_smb(model)
+       if (.not.model%options%enable_glaciers) then
+          call downscale_smb(model)
+       endif
     endif
 
     ! Initialize acab, if SMB (with different units) was read in
@@ -1093,6 +1103,7 @@
        call glissade_sum_mass_and_tracers(&
             nx,                ny,              &
             nlyr,              ntracers,        &
+            parallel,                           &
             thck_layer(:,:,:), msum_init,       &
             tracers(:,:,:,:),  mtsum_init(:))
 
@@ -1171,9 +1182,9 @@
              enddo
           enddo
 
-          sum_acab = parallel_reduce_sum(sum_acab)
-          sum_bmlt = parallel_reduce_sum(sum_bmlt)
-          sum_melt_potential = parallel_reduce_sum(sum_melt_potential)
+          sum_acab = parallel_global_sum(acab*effective_areafrac, parallel)
+          sum_bmlt = parallel_global_sum(bmlt*effective_areafrac, parallel)
+          sum_melt_potential = parallel_global_sum(melt_potential, parallel)
 
           msum_init = msum_init + (sum_acab - sum_bmlt)*dt
 
@@ -1182,6 +1193,7 @@
           call glissade_sum_mass_and_tracers(&
                nx,                ny,              &
                nlyr,              ntracers,        &
+               parallel,                           &
                thck_layer(:,:,:), msum_final,      &
                tracers(:,:,:,:),  mtsum_final(:))
 

@@ -218,11 +218,12 @@ contains
           ! The subroutine will report how many tasks are needed to compute on all active blocks, and then abort.
           ! The user can then resubmit (on an optimal number of processors) with model%options%compute_blocks = ACTIVE_BLOCKS.
 
-          call distributed_grid_active_blocks(model%general%ewn,      model%general%nsn,      &
-                                              model%general%nx_block, model%general%ny_block, &
-                                              model%general%ice_domain_mask,                  &
-                                              model%parallel,                                 &
-                                              inquire_only = .true.)
+          call distributed_grid_active_blocks(&
+               model%general%ewn,      model%general%nsn,      &
+               model%general%nx_block, model%general%ny_block, &
+               model%general%ice_domain_mask,                  &
+               model%parallel,                                 &
+               inquire_only = .true.)
 
        else  ! compute_blocks = ACTIVE_BLOCKS_ONLY
 
@@ -235,10 +236,12 @@ contains
              model%general%global_bc = GLOBAL_BC_NO_ICE
           endif
 
-          call distributed_grid_active_blocks(model%general%ewn,      model%general%nsn,      &
-                                              model%general%nx_block, model%general%ny_block, &
-                                              model%general%ice_domain_mask,                  &
-                                              model%parallel)
+          call distributed_grid_active_blocks(&
+               model%general%ewn,      model%general%nsn,      &
+               model%general%nx_block, model%general%ny_block, &
+               model%general%ice_domain_mask,                  &
+               model%parallel,                                 &
+               reprosum_in = model%options%reproducible_sums)
 
        endif   ! compute_blocks
 
@@ -247,13 +250,19 @@ contains
 
     elseif (model%general%global_bc == GLOBAL_BC_OUTFLOW) then
 
-       call distributed_grid(model%general%ewn, model%general%nsn, &
-                             model%parallel,    global_bc_in = 'outflow')
+       call distributed_grid(&
+            model%general%ewn,   model%general%nsn,         &
+            model%parallel,                                 &
+            reprosum_in = model%options%reproducible_sums,  &
+            global_bc_in = 'outflow')
 
     elseif (model%general%global_bc == GLOBAL_BC_NO_ICE) then
 
-       call distributed_grid(model%general%ewn, model%general%nsn, &
-                             model%parallel,     global_bc_in = 'no_ice')
+       call distributed_grid(&
+            model%general%ewn,   model%general%nsn,         &
+            model%parallel,                                 &
+            reprosum_in = model%options%reproducible_sums,  &
+            global_bc_in = 'no_ice')
 
     elseif (model%general%global_bc == GLOBAL_BC_NO_PENETRATION) then
 
@@ -261,15 +270,19 @@ contains
        !       The difference is that we also use no-penetration masks for (uvel,vvel) at the global boundary
        !       (computed by calling staggered_no_penetration_mask below).
 
-       call distributed_grid(model%general%ewn, model%general%nsn, &
-                             model%parallel,     global_bc_in = 'no_penetration')
+       call distributed_grid(&
+            model%general%ewn,   model%general%nsn,         &
+            model%parallel,                                 &
+            reprosum_in = model%options%reproducible_sums,  &
+            global_bc_in = 'no_penetration')
 
     else  ! global_bc = GLOBAL_BC_PERIODIC
 
-!       call distributed_grid(model%general%ewn, model%general%nsn, global_bc_in = 'periodic')
-
-       call distributed_grid(model%general%ewn, model%general%nsn, &
-                             model%parallel,  global_bc_in = 'periodic')
+       call distributed_grid(&
+            model%general%ewn,   model%general%nsn,         &
+            model%parallel,                                 &
+            reprosum_in = model%options%reproducible_sums,  &
+            global_bc_in = 'periodic')
 
     endif
 
@@ -815,8 +828,7 @@ contains
     call glide_set_mask(model%numerics,                                &
                         model%geometry%thck,  model%geometry%topg,     &
                         model%general%ewn,    model%general%nsn,       &
-                        model%climate%eus,    model%geometry%thkmask,  &
-                        model%geometry%iarea, model%geometry%ivol)
+                        model%climate%eus,    model%geometry%thkmask)
 
     ! compute halo for relaxed topography
     ! Note: See comments above with regard to the halo update for topg.
@@ -879,8 +891,7 @@ contains
        call glide_set_mask(model%numerics,                                &
                            model%geometry%thck,  model%geometry%topg,     &
                            model%general%ewn,    model%general%nsn,       &
-                           model%climate%eus,    model%geometry%thkmask,  &
-                           model%geometry%iarea, model%geometry%ivol)
+                           model%climate%eus,    model%geometry%thkmask)
 
     endif  ! initial calving
 
@@ -1104,6 +1115,7 @@ contains
 
           call glissade_basin_average(&
                model%general%ewn, model%general%nsn,   &
+               parallel,                               &
                model%ocean_data%nbasin,                &
                model%ocean_data%basin_number,          &
                floating_mask * 1.0d0,                  &   ! real mask
@@ -1155,7 +1167,7 @@ contains
 
     use glimmer_paramets, only: eps11
     use glimmer_physcon, only: scyr
-    use glide_mask, only: glide_set_mask, calc_iareaf_iareag
+    use glide_mask, only: glide_set_mask
     use glissade_mass_balance, only: glissade_prepare_climate_forcing
 
     implicit none
@@ -1360,15 +1372,7 @@ contains
     call glide_set_mask(model%numerics,                                &
                         model%geometry%thck,  model%geometry%topg,     &
                         model%general%ewn,    model%general%nsn,       &
-                        model%climate%eus,    model%geometry%thkmask,  &
-                        model%geometry%iarea, model%geometry%ivol)
-
-    ! --- Calculate global area of ice that is floating and grounded.
-    !TODO  May want to calculate iareaf and iareag in glide_write_diag and remove those calculations here.  
-
-    call calc_iareaf_iareag(model%numerics%dew,    model%numerics%dns,     &
-                            model%geometry%thkmask,                        &
-                            model%geometry%iareaf, model%geometry%iareag)
+                        model%climate%eus,    model%geometry%thkmask)
 
     ! ------------------------------------------------------------------------
     ! Do the vertical thermal solve if it is time to do so.

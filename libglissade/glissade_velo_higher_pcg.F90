@@ -48,8 +48,7 @@
     use glimmer_log
     use profile, only: t_startf, t_stopf
     use cism_parallel, only: this_rank, main_task, &
-         parallel_type, staggered_parallel_halo, parallel_reduce_sum,  &
-         parallel_global_sum_staggered
+         parallel_type, staggered_parallel_halo, parallel_global_sum_stagger
 
     implicit none
     
@@ -60,8 +59,6 @@
 
     logical, parameter :: verbose_pcg = .false.
     logical, parameter :: verbose_tridiag = .false.
-!!    logical, parameter :: verbose_pcg = .true.
-!!    logical, parameter :: verbose_tridiag = .true.
 
   contains
 
@@ -322,11 +319,7 @@
     ! find global sum of the squared L2 norm
 
     call t_startf("pcg_glbsum_init")
-    call parallel_global_sum_staggered(&
-         nx,            ny,          &
-         nz,            parallel,    &
-         L2_rhs,                     &
-         work0u, work0v)
+    L2_rhs = parallel_global_sum_stagger(work0u, parallel, work0v)
     call t_stopf("pcg_glbsum_init")
 
     ! take square root
@@ -387,11 +380,7 @@
        call t_stopf("pcg_dotprod")
 
        call t_startf("pcg_glbsum_iter")
-       call parallel_global_sum_staggered(&
-            nx,            ny,            &
-            nz,            parallel,      &
-            eta1,                         &
-            work0u, work0v)
+       eta1 = parallel_global_sum_stagger(work0u, parallel, work0v)
        call t_stopf("pcg_glbsum_iter")
 
        !WHL - If the SIA solver has failed due to singular matrices,
@@ -447,11 +436,7 @@
        call t_stopf("pcg_dotprod")
 
        call t_startf("pcg_glbsum_iter")
-       call parallel_global_sum_staggered(&
-            nx,            ny,        &
-            nz,            parallel,  &
-            eta2,                     &
-            work0u, work0v)
+       eta2 = parallel_global_sum_stagger(work0u, parallel, work0v)
        call t_stopf("pcg_glbsum_iter")
 
        ! Compute alpha
@@ -519,11 +504,7 @@
           call t_stopf("pcg_dotprod")
 
           call t_startf("pcg_glbsum_resid")
-          call parallel_global_sum_staggered(&
-               nx,            ny,       &
-               nz,            parallel, &
-               L2_resid,                &
-               work0u, work0v)
+          L2_resid = parallel_global_sum_stagger(work0u, parallel, work0v)
           call t_stopf("pcg_glbsum_resid")
 
           ! take square root
@@ -753,11 +734,7 @@
     ! find global sum of the squared L2 norm
 
     call t_startf("pcg_glbsum_init")
-    call parallel_global_sum_staggered(&
-         nx,        ny,       &
-         parallel,            &
-         L2_rhs,              &
-         work0u,    work0v)
+    L2_rhs = parallel_global_sum_stagger(work0u, parallel, work0v)
     call t_stopf("pcg_glbsum_init")
 
     ! take square root
@@ -810,11 +787,7 @@
        call t_stopf("pcg_dotprod")
 
        call t_startf("pcg_glbsum_iter")
-       call parallel_global_sum_staggered(&
-            nx,     ny,     &
-            parallel,       &
-            eta1,           &
-            work0u, work0v)
+       eta1 = parallel_global_sum_stagger(work0u, parallel, work0v)
        call t_stopf("pcg_glbsum_iter")
 
        !WHL - If the SIA solver has failed due to singular matrices,
@@ -870,11 +843,7 @@
        call t_stopf("pcg_dotprod")
 
        call t_startf("pcg_glbsum_iter")
-       call parallel_global_sum_staggered(&
-            nx,     ny,       &
-            parallel,         &
-            eta2,             &
-            work0u, work0v)
+       eta2 = parallel_global_sum_stagger(work0u, parallel, work0v)
        call t_stopf("pcg_glbsum_iter")
 
        ! Compute alpha
@@ -942,11 +911,7 @@
           call t_stopf("pcg_dotprod")
 
           call t_startf("pcg_glbsum_resid")
-          call parallel_global_sum_staggered(&
-               nx,     ny,     &
-               parallel,       &
-               L2_resid,       &
-               work0u, work0v)
+          L2_resid = parallel_global_sum_stagger(work0u, parallel, work0v)
           call t_stopf("pcg_glbsum_resid")
 
           ! take square root
@@ -1428,11 +1393,7 @@
     ! find global sum of the squared L2 norm
 
     call t_startf("pcg_glbsum_init")
-    call parallel_global_sum_staggered(&
-         nx,     ny,         &
-         nz,     parallel,   &
-         bb,                 &
-         worku,  workv)
+    bb = parallel_global_sum_stagger(worku, parallel, workv)
     call t_stopf("pcg_glbsum_init")
 
     ! take square root
@@ -1626,11 +1587,7 @@
     !---- Find global sums of (r,z) and (d,q)
 
     call t_startf("pcg_glbsum_iter")
-    call parallel_global_sum_staggered(&
-         nx,     ny,         &
-         nz,     parallel,   &
-         gsum,               &
-         work2u, work2v)
+    gsum = parallel_global_sum_stagger(work2u, 2, parallel, work2v)
     call t_stopf("pcg_glbsum_iter")
 
     !---- Halo update for q
@@ -1805,11 +1762,7 @@
        ! this is the one MPI global reduction per iteration.
 
        call t_startf("pcg_glbsum_iter")
-       call parallel_global_sum_staggered(&
-            nx,     ny,          &
-            nz,     parallel,    &
-            gsum,                &
-            work2u, work2v)
+       gsum = parallel_global_sum_stagger(work2u, 2, parallel, work2v)
        call t_stopf("pcg_glbsum_iter")
 
        !---- Halo update for Az
@@ -1911,11 +1864,7 @@
           call t_stopf("pcg_dotprod")
 
           call t_startf("pcg_glbsum_resid")
-          call parallel_global_sum_staggered(&
-               nx,     ny,         &
-               nz,     parallel,   &
-               rr,                 &
-               worku,  workv)
+          rr = parallel_global_sum_stagger(worku, parallel, workv)
           call t_stopf("pcg_glbsum_resid")
 
           L2_resid = sqrt(rr)          ! L2 norm of residual
@@ -2255,6 +2204,7 @@
             denom_u,       denom_v)
 
     elseif (precond == HO_PRECOND_TRIDIAG_GLOBAL) then
+       !TODO - Figure out why these calculations depend on the number of cores. Halo bug?
 
        ! Allocate tridiagonal matrices
        ! Note: (i,j) indices are switced for the A_v matrices to reduce striding.
@@ -2365,11 +2315,7 @@
     ! find global sum of the squared L2 norm
 
     call t_startf("pcg_glbsum_init")
-    call parallel_global_sum_staggered(&
-         nx,     ny,   &
-         parallel,     &
-         bb,           &
-         worku,  workv)
+    bb = parallel_global_sum_stagger(worku, parallel, workv)
     call t_stopf("pcg_glbsum_init")
 
     ! take square root
@@ -2450,7 +2396,7 @@
 
        !WHL - debug
        if (verbose_pcg .and. this_rank == rtest) then
-          i = itest
+!          i = itest
 !          write(iulog,*) ' '
 !          write(iulog,*) 'zv solve with diagonal precond, this_rank, i =', this_rank, i
 !          write(iulog,*) 'j, active, Adiagv, rv, zv, xv:'
@@ -2496,14 +2442,14 @@
                                     zu,            zv)               ! solution
 
        !WHL - debug
-          if (verbose_pcg .and. this_rank == rtest) then
-             j = jtest
-             write(iulog,*) ' '
-             write(iulog,*) 'tridiag solve: i, ru, rv, zu, zv:'
-             do i = itest-3, itest+3
-                write(iulog,'(i4, 4f16.10)') i, ru(i,j), rv(i,j), zu(i,j), zv(i,j)
-             enddo
-          endif
+       if (verbose_pcg .and. this_rank == rtest) then
+          j = jtest
+          write(iulog,*) ' '
+          write(iulog,*) 'tridiag solve: i, ru, rv, zu, zv:'
+          do i = itest-3, itest+3
+             write(iulog,'(i4, 4f16.10)') i, ru(i,j), rv(i,j), zu(i,j), zv(i,j)
+          enddo
+       endif
 
        !Note: Need zu and zv in a row of halo cells so that q = A*d is correct in all locally owned cells
        !TODO: See whether tridiag solvers could be modified to provide zu and zv in halo cells?
@@ -2627,16 +2573,6 @@
                                        qu,            qv)
     call t_stopf("pcg_matmult_iter")
 
-    !WHL - debug
-    usum = sum(qu(staggered_ilo:staggered_ihi,staggered_jlo:staggered_jhi))
-    usum_global = parallel_reduce_sum(usum)
-    vsum = sum(qv(staggered_ilo:staggered_ihi,staggered_jlo:staggered_jhi))
-    vsum_global = parallel_reduce_sum(vsum)
-
-    if (verbose_pcg .and. this_rank == rtest) then
-!!       write(iulog,*) 'Prep: sum(qu), sum(qv) =', usum_global, vsum_global
-    endif
-
     !---- Compute intermediate result for dot product (d,q) = (d,Ad)
 
     call t_startf("pcg_dotprod")
@@ -2647,16 +2583,8 @@
     !---- Find global sums of (r,z) and (d,q)
 
     call t_startf("pcg_glbsum_iter")
-    call parallel_global_sum_staggered(&
-         nx,     ny,   &
-         parallel,     &
-         gsum,         &
-         work2u, work2v)
+    gsum = parallel_global_sum_stagger(work2u, 2, parallel, work2v)  ! nflds = 2
     call t_stopf("pcg_glbsum_iter")
-
-    if (verbose_pcg .and. this_rank == rtest) then
-!!       write(iulog,*) 'Prep: gsum(1), gsum(2) =', gsum(1), gsum(2)
-    endif
 
     !---- Halo update for q
 
@@ -2686,16 +2614,16 @@
     rv(:,:) = rv(:,:) - alpha*qv(:,:)
     call t_stopf("pcg_vecupdate")
 
-       !WHL - debug
-       if (verbose_pcg .and. this_rank == rtest) then
-          j = jtest
-          write(iulog,*) ' '
-          write(iulog,*) 'iter = 1: i, xu, xv, ru, rv:'
+    !WHL - debug
+    if (verbose_pcg .and. this_rank == rtest) then
+       j = jtest
+       write(iulog,*) ' '
+       write(iulog,*) 'iter = 1: i, xu, xv, ru, rv:'
 !!          do i = itest-3, itest+3
-          do i = staggered_ilo, staggered_ihi
-             write(iulog,'(i4, 4f16.10)') i, xu(i,j), xv(i,j), ru(i,j), rv(i,j)
-          enddo  ! i
-       endif
+       do i = staggered_ilo, staggered_ihi
+          write(iulog,'(i4, 4f16.10)') i, xu(i,j), xv(i,j), ru(i,j), rv(i,j)
+       enddo  ! i
+    endif
 
     !---------------------------------------------------------------
     ! Iterate to solution
@@ -2934,11 +2862,7 @@
        ! this is the one MPI global reduction per iteration.
 
        call t_startf("pcg_glbsum_iter")
-       call parallel_global_sum_staggered(&
-            nx,      ny,    &
-            parallel,        &
-            gsum,            &
-            work2u,  work2v)
+       gsum = parallel_global_sum_stagger(work2u, 2, parallel, work2v)  ! nflds = 2
        call t_stopf("pcg_glbsum_iter")
 
        !---- Halo update for Az
@@ -3038,11 +2962,7 @@
           call t_stopf("pcg_dotprod")
 
           call t_startf("pcg_glbsum_resid")
-          call parallel_global_sum_staggered(&
-               nx,     ny,    &
-               parallel,      &
-               rr,            &
-               worku,  workv)
+          rr = parallel_global_sum_stagger(worku, parallel, workv)
           call t_stopf("pcg_glbsum_resid")
 
           L2_resid = sqrt(rr)          ! L2 norm of residual

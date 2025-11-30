@@ -30,6 +30,16 @@ module cism_parallel
   use glimmer_global, only : dp, sp
   use glimmer_paramets, only: iulog
 
+!TODO - Not sure setopts is needed
+!TODO - Remove coupled ifdefs and always use the CISM version?
+!TODO - Use cism_reprosum_mod from individual functions
+#ifdef CCSMCOUPLED
+  use shr_reprosum_mod, only: shr_reprosum_setopts, shr_reprosum_calc
+#else
+  use cism_reprosum_mod, only: cism_reprosum_setopts, cism_reprosum_calc
+#endif
+  use cism_reprosum_mod, only: verbose_reprosum
+
   implicit none
 
   ! integers associated with the main global communicator
@@ -143,6 +153,10 @@ module cism_parallel
      integer :: this_rank_col  ! integer ID for the local task in the column
      integer :: main_rank_col  ! integer ID for the master task on the column
      logical :: main_task_col  ! true if this_rank_col = main_rank_col
+
+     ! option to compute reproducible sums
+     logical :: reprosum       ! if true, compute reproducible global sums
+                               ! (interface parallel_reduce_sum)
 
   end type parallel_type
 
@@ -291,17 +305,21 @@ module cism_parallel
   interface parallel_global_sum
      module procedure parallel_global_sum_integer_2d
      module procedure parallel_global_sum_integer_3d
-     module procedure parallel_global_sum_real4_2d
      module procedure parallel_global_sum_real8_2d
      module procedure parallel_global_sum_real8_3d
   end interface
 
-  interface parallel_global_sum_staggered
-     module procedure parallel_global_sum_staggered_3d_real8
-     module procedure parallel_global_sum_staggered_3d_real8_nvar
-     module procedure parallel_global_sum_staggered_2d_real8
-     module procedure parallel_global_sum_staggered_2d_real8_nvar
-  end interface parallel_global_sum_staggered
+  interface parallel_global_sum_patch
+     module procedure parallel_global_sum_patch_integer_2d
+     module procedure parallel_global_sum_patch_real8_2d
+  end interface parallel_global_sum_patch
+
+  interface parallel_global_sum_stagger
+     module procedure parallel_global_sum_stagger_real8_2d
+     module procedure parallel_global_sum_stagger_real8_3d
+     module procedure parallel_global_sum_stagger_real8_2d_nflds
+     module procedure parallel_global_sum_stagger_real8_3d_nflds
+  end interface parallel_global_sum_stagger
 
   interface parallel_halo
      module procedure parallel_halo_integer_2d
@@ -2427,7 +2445,9 @@ contains
 
   subroutine distributed_grid(ewn,      nsn,        &
                               parallel,             &
-                              nhalo_in, global_bc_in)
+                              nhalo_in,             &
+                              global_bc_in,         &
+                              reprosum_in)
 
     ! Divide the global domain into blocks, with one task per block.
     ! Set various grid and domain variables for the local task.
@@ -2437,6 +2457,7 @@ contains
     type(parallel_type), intent(inout) :: parallel      ! info for parallel communication, computed here
     integer, intent(in), optional :: nhalo_in           ! number of rows of halo cells
     character(*), intent(in), optional :: global_bc_in  ! string indicating the global BC option
+    logical, intent(in), optional :: reprosum_in        ! if true, compute reproducible global sums
 
     integer :: best,i,j,metric
     real(dp) :: rewtasks,rnstasks
@@ -2479,7 +2500,8 @@ contains
          staggered_ilo      => parallel%staggered_ilo,      &
          staggered_ihi      => parallel%staggered_ihi,      &
          staggered_jlo      => parallel%staggered_jlo,      &
-         staggered_jhi      => parallel%staggered_jhi       &
+         staggered_jhi      => parallel%staggered_jhi,      &
+         reprosum           => parallel%reprosum            &
          )
 
     ! set the boundary conditions (periodic by default)
@@ -2665,6 +2687,25 @@ contains
         call parallel_stop(__FILE__, __LINE__)
     endif
 
+    if (present(reprosum_in)) then
+       reprosum = reprosum_in
+    else
+       reprosum = .false.
+    endif
+
+    ! If computing reproducible sums, then set some options
+    !TODO - Are these saved from one call to the next?
+    ! Note: For standalone CISM, reprosum = F by default; can set = T in the config file
+    !       For CESM coupled runs, reprosum = T by default
+    if (reprosum) then
+
+#ifdef CCSM_COUPLED
+!!       call shr_reprosum_setops()
+#else
+!!       call cism_reprosum_setops()
+#endif
+    endif  ! reprosum
+
 !    call parallel_barrier
 !    write(iulog,*) 'task, west, east, south, north:', this_rank, west, east, south, north
 
@@ -2693,6 +2734,7 @@ contains
                                             nx_block, ny_block,   &
                                             ice_domain_mask,      &
                                             parallel,             &
+                                            reprosum_in,          &
                                             inquire_only)
 
     ! Divide the global domain into blocks, setting various grid and domain variables
@@ -2731,6 +2773,7 @@ contains
     integer, intent(in), dimension(:,:) :: &
          ice_domain_mask                            ! = 1 where ice is potentially present and active, else = 0
     type(parallel_type), intent(inout) :: parallel  ! info for parallel communication, computed here
+    logical, intent(in), optional :: reprosum_in    ! if true, compute reproducible global sums
     logical, intent(in), optional :: inquire_only   ! if true, then report the number of active blocks and abort
 
     integer :: i, j, nb, nt
@@ -2809,7 +2852,8 @@ contains
          staggered_ilo      => parallel%staggered_ilo,      &
          staggered_ihi      => parallel%staggered_ihi,      &
          staggered_jlo      => parallel%staggered_jlo,      &
-         staggered_jhi      => parallel%staggered_jhi       &
+         staggered_jhi      => parallel%staggered_jhi,      &
+         reprosum           => parallel%reprosum            &
          )
 
     if (present(inquire_only)) then
@@ -3283,7 +3327,28 @@ contains
 !            southwest_corner, southeast_corner, northwest_corner, northeast_corner
     endif
 
-    ! Uncomment to print grid geometry
+    if (present(reprosum_in)) then
+       reprosum = reprosum_in
+    else
+       reprosum = .false.
+    endif
+
+    ! If computing reproducible sums, then set some options
+    !TODO - Are these saved from one call to the next?
+    ! Note: For standalone CISM, reprosum = F by default; can set = T in the config file
+    !       For CESM coupled runs, reprosum = T by default
+
+    if (reprosum) then
+
+#ifdef CCSM_COUPLED
+!!       call shr_reprosum_setops()
+#else
+!!       call cism_reprosum_setops()
+#endif
+
+    endif  ! reprosum
+
+! Uncomment to print grid geometry
 !    write(iulog,*) " "
 !    write(iulog,*) "Process ", this_rank, " Total = ", tasks, " ewtasks = ", ewtasks, " nstasks = ", nstasks
 !    write(iulog,*) "Process ", this_rank, " ewrank = ", ewrank, " nsrank = ", nsrank
@@ -6082,45 +6147,6 @@ contains
 
 !=======================================================================
 
-  function parallel_global_sum_real4_2d(a, parallel, mask_2d)
-
-    ! Calculates the global sum of a 2D single-precision field
-
-    real(sp),dimension(:,:),intent(in) :: a
-    type(parallel_type) :: parallel
-    integer, dimension(:,:), intent(in), optional :: mask_2d
-
-    integer :: i, j
-    integer, dimension(parallel%local_ewn,parallel%local_nsn) :: mask
-    real(sp) :: local_sum
-    real(sp) :: parallel_global_sum_real4_2d
-
-    associate(  &
-         local_ewn   => parallel%local_ewn,    &
-         local_nsn   => parallel%local_nsn)
-
-    if (present(mask_2d)) then
-       mask = mask_2d
-    else
-       mask = 1
-    endif
-
-    local_sum = 0.0
-    do j = nhalo+1, local_nsn-nhalo
-       do i = nhalo+1, local_ewn-nhalo
-          if (mask(i,j) == 1) then
-             local_sum = local_sum + a(i,j)
-          endif
-       enddo
-    enddo
-    parallel_global_sum_real4_2d = parallel_reduce_sum(local_sum)
-
-    end associate
-
-  end function parallel_global_sum_real4_2d
-
-!=======================================================================
-
   function parallel_global_sum_real8_2d(a, parallel, mask_2d)
 
     ! Calculates the global sum of a 2D double-precision field
@@ -6144,15 +6170,26 @@ contains
        mask = 1
     endif
 
-    local_sum = 0.0d0
-    do j = nhalo+1, local_nsn-nhalo
-       do i = nhalo+1, local_ewn-nhalo
-          if (mask(i,j) == 1) then
-             local_sum = local_sum + a(i,j)
-          endif
+    if (parallel%reprosum) then   ! compute using cism_reprosum_calc
+
+       !TODO - Add the code here
+       call parallel_stop(__FILE__,__LINE__)
+
+    else  ! compute using parallel_reduce_sum (not reproducible)
+
+       local_sum = 0.0d0
+       do j = nhalo+1, local_nsn-nhalo
+          do i = nhalo+1, local_ewn-nhalo
+             if (mask(i,j) == 1) then
+                local_sum = local_sum + a(i,j)
+             endif
+          enddo
        enddo
-    enddo
-    parallel_global_sum_real8_2d = parallel_reduce_sum(local_sum)
+
+       ! Compute the global sum
+       parallel_global_sum_real8_2d = parallel_reduce_sum(local_sum)
+
+    endif   ! reprosum
 
     end associate
 
@@ -6160,18 +6197,18 @@ contains
 
 !=======================================================================
 
-  function parallel_global_sum_real8_3d(a, parallel, mask_3d)
+  function parallel_global_sum_real8_3d(a, parallel, mask_2d)
 
     ! Calculates the global sum of a 3D double-precision field
     ! Note: The vertical dimension should be the first dimension of the input field.
 
     real(dp), dimension(:,:,:),intent(in) :: a
     type(parallel_type) :: parallel
-    integer, dimension(:,:,:), intent(in), optional :: mask_3d
+    integer, dimension(:,:), intent(in), optional :: mask_2d
 
     integer :: i, j, k
     integer :: kmax
-    integer, dimension(size(a,1),parallel%local_ewn,parallel%local_nsn) :: mask
+    integer, dimension(parallel%local_ewn,parallel%local_nsn) :: mask
     real(dp) :: local_sum
     real(dp) :: parallel_global_sum_real8_3d
 
@@ -6181,183 +6218,135 @@ contains
 
     kmax = size(a,1)
 
-    if (present(mask_3d)) then
-       mask = mask_3d
+    ! Note: The mask is 2D, since typically all layers in a column are either masked in or masked out
+    if (present(mask_2d)) then
+       mask = mask_2d
     else
        mask = 1
     endif
 
-    local_sum = 0
-    do j = nhalo+1, local_nsn-nhalo
-       do i = nhalo+1, local_ewn-nhalo
-          do k = 1, kmax
-             if (mask(k,i,j) == 1) then
-                local_sum = local_sum + a(k,i,j)
+    if (parallel%reprosum) then   ! compute using cism_reprosum_calc
+
+       !TODO - Add the code here
+       call parallel_stop(__FILE__,__LINE__)
+
+    else  ! compute using parallel_reduce_sum (not reproducible)
+
+       local_sum = 0
+       do j = nhalo+1, local_nsn-nhalo
+          do i = nhalo+1, local_ewn-nhalo
+             if (mask(i,j) == 1) then
+                do k = 1, kmax
+                   local_sum = local_sum + a(k,i,j)
+                enddo
              endif
           enddo
        enddo
-    enddo
-    parallel_global_sum_real8_3d = parallel_reduce_sum(local_sum)
+       parallel_global_sum_real8_3d = parallel_reduce_sum(local_sum)
+
+    endif   ! reprosum
 
     end associate
 
   end function parallel_global_sum_real8_3d
 
 !=======================================================================
+  ! subroutines belonging to the parallel_global_sum_patch interface
 
-  ! subroutines belonging to the parallel_global_sum_staggered interface
-  !TODO - Turn these into functions, analogous to the parallel_global_sum functions above.
+  function parallel_global_sum_patch_integer_2d(a, npatch, patch_id, parallel)
 
-  subroutine parallel_global_sum_staggered_3d_real8(&
-       nx,            ny,         &
-       nz,            parallel,   &
-       global_sum,                &
-       work1,  work2)
+    ! Calculates the global sum of a 2D double-precision field over each
+    !  user-defined patch of the domain.
+    ! The number of patches = npatch.
+    ! Each cell has an integer ID assigning it to at most one patch.
+    ! If a cell has patch_id = 0, it belongs to no patches.
 
-    ! Sum one or two local arrays on the staggered grid, then take the global sum.
+    integer, dimension(:,:), intent(in) :: a
+    integer, intent(in) :: npatch
+    integer, dimension(:,:), intent(in) :: patch_id
+    type(parallel_type) :: parallel
 
-    integer, intent(in) :: &
-         nx, ny,             &  ! horizontal grid dimensions (for scalars)
-         nz                     ! number of vertical layers at which velocity is computed
+    integer :: i, j, np
+    integer, dimension(npatch) :: local_patch_sum
+    integer, dimension(npatch) :: parallel_global_sum_patch_integer_2d
 
-    type(parallel_type), intent(in) :: &
-         parallel               ! info for parallel communication
+    associate(  &
+         local_ewn   => parallel%local_ewn,    &
+         local_nsn   => parallel%local_nsn)
 
-    real(dp), intent(out) :: global_sum   ! global sum
-    real(dp), intent(in), dimension(nz,nx-1,ny-1) :: work1            ! local array
-    real(dp), intent(in), dimension(nz,nx-1,ny-1), optional :: work2  ! local array
+    local_patch_sum = 0
 
-    integer :: i, j, k
-    real(dp) :: local_sum
-
-    integer :: &
-         staggered_ilo, staggered_ihi, &  ! bounds of locally owned vertices on staggered grid
-         staggered_jlo, staggered_jhi
-
-    staggered_ilo = parallel%staggered_ilo
-    staggered_ihi = parallel%staggered_ihi
-    staggered_jlo = parallel%staggered_jlo
-    staggered_jhi = parallel%staggered_jhi
-
-    local_sum = 0.d0
-
-    ! sum over locally owned velocity points
-
-    if (present(work2)) then
-       do j = staggered_jlo, staggered_jhi
-          do i = staggered_ilo, staggered_ihi
-             do k = 1, nz
-                local_sum = local_sum + work1(k,i,j) + work2(k,i,j)
-             enddo
-          enddo
+    do j = nhalo+1, local_nsn-nhalo
+       do i = nhalo+1, local_ewn-nhalo
+          np = patch_id(i,j)
+          if (np > 0) then
+             local_patch_sum(np) = local_patch_sum(np) + a(i,j)
+          endif
        enddo
-    else
-       do j = staggered_jlo, staggered_jhi
-          do i = staggered_ilo, staggered_ihi
-             do k = 1, nz
-                local_sum = local_sum + work1(k,i,j)
-             enddo
-          enddo
-       enddo
-    endif
+    enddo
 
-    ! take the global sum
+    parallel_global_sum_patch_integer_2d = parallel_reduce_sum(local_patch_sum)
 
-    global_sum = parallel_reduce_sum(local_sum)
+    end associate
 
-  end subroutine parallel_global_sum_staggered_3d_real8
+  end function parallel_global_sum_patch_integer_2d
 
 !=======================================================================
 
-  subroutine parallel_global_sum_staggered_3d_real8_nvar(&
-       nx,            ny,         &
-       nz,            parallel,   &
-       global_sum,                &
-       work1,  work2)
+  function parallel_global_sum_patch_real8_2d(a, npatch, patch_id, parallel)
 
-    ! Sum one or two local arrays on the staggered grid, then take the global sum.
+    ! Calculates the global sum of a 2D double-precision field over each
+    !  user-defined patch of the domain.
+    ! The number of patches = npatch.
+    ! Each cell has an integer ID assigning it to at most one patch.
+    ! If a cell has patch_id = 0, it belongs to no patches.
+    !TODO - Add a reprosum option with npatch = nflds
 
-    integer, intent(in) :: &
-         nx, ny,                &  ! horizontal grid dimensions (for scalars)
-         nz                        ! number of vertical layers at which velocity is computed
+    real(dp), dimension(:,:), intent(in) :: a
+    integer, intent(in) :: npatch
+    integer, dimension(:,:), intent(in) :: patch_id
+    type(parallel_type) :: parallel
 
-    type(parallel_type), intent(in) :: &
-         parallel               ! info for parallel communication
+    integer :: i, j, np
+    real(dp), dimension(npatch) :: local_patch_sum
+    real(dp), dimension(npatch) :: parallel_global_sum_patch_real8_2d
 
-    real(dp), intent(out), dimension(:) :: global_sum   ! global sum
+    associate(  &
+         local_ewn   => parallel%local_ewn,    &
+         local_nsn   => parallel%local_nsn)
 
-    real(dp), intent(in), dimension(nz,nx-1,ny-1,size(global_sum)) :: work1            ! local array
-    real(dp), intent(in), dimension(nz,nx-1,ny-1,size(global_sum)), optional :: work2  ! local array
+    local_patch_sum = 0.0d0
 
-    integer :: i, j, k, n, nvar
-    real(dp), dimension(size(global_sum)) :: local_sum
+    do j = nhalo+1, local_nsn-nhalo
+       do i = nhalo+1, local_ewn-nhalo
+          np = patch_id(i,j)
+          if (np > 0) then
+             local_patch_sum(np) = local_patch_sum(np) + a(i,j)
+          endif
+       enddo
+    enddo
 
-    integer :: &
-         staggered_ilo, staggered_ihi, &  ! bounds of locally owned vertices on staggered grid
-         staggered_jlo, staggered_jhi
+    parallel_global_sum_patch_real8_2d = parallel_reduce_sum(local_patch_sum)
 
-    staggered_ilo = parallel%staggered_ilo
-    staggered_ihi = parallel%staggered_ihi
-    staggered_jlo = parallel%staggered_jlo
-    staggered_jhi = parallel%staggered_jhi
+    end associate
 
-    nvar = size(global_sum)
-
-    local_sum(:) = 0.d0
-
-    do n = 1, nvar
-
-       ! sum over locally owned velocity points
-
-       if (present(work2)) then
-          do j = staggered_jlo, staggered_jhi
-             do i = staggered_ilo, staggered_ihi
-                do k = 1, nz
-                   local_sum(n) = local_sum(n) + work1(k,i,j,n) + work2(k,i,j,n)
-                enddo
-             enddo
-          enddo
-       else
-          do j = staggered_jlo, staggered_jhi
-             do i = staggered_ilo, staggered_ihi
-                do k = 1, nz
-                   local_sum(n) = local_sum(n) + work1(k,i,j,n)
-                enddo
-             enddo
-          enddo
-       endif
-
-    enddo   ! nvar
-
-    ! take the global sum
-
-    global_sum(:) = parallel_reduce_sum(local_sum(:))
-
-  end subroutine parallel_global_sum_staggered_3d_real8_nvar
+  end function parallel_global_sum_patch_real8_2d
 
 !=======================================================================
+  ! subroutines belonging to the parallel_global_sum_stagger interface
 
-  subroutine parallel_global_sum_staggered_2d_real8(&
-       nx,            ny,    &
-       parallel,             &
-       global_sum,           &
-       work1,  work2)
+  function parallel_global_sum_stagger_real8_2d(arr1, parallel, arr2)
 
-    ! Sum one or two local arrays on the staggered grid, then take the global sum.
+    ! Calculate the global sum of a 2D double-precision field on the staggered grid
+    ! Similar to unstagged version, except it uses staggered_ilo/ihi/jlo/jhi
 
-    integer, intent(in) :: &
-         nx, ny                     ! horizontal grid dimensions (for scalars)
-
-    type(parallel_type), intent(in) :: &
-         parallel               ! info for parallel communication
-
-    real(dp), intent(out) :: global_sum   ! global sum
-
-    real(dp), intent(in), dimension(nx-1,ny-1) :: work1            ! local array
-    real(dp), intent(in), dimension(nx-1,ny-1), optional :: work2  ! local array
+    real(dp), dimension(:,:), intent(in) :: arr1
+    type(parallel_type) :: parallel
+    real(dp), dimension(:,:), intent(in), optional :: arr2
 
     integer :: i, j
     real(dp) :: local_sum
+    real(dp) :: parallel_global_sum_stagger_real8_2d
 
     integer :: &
          staggered_ilo, staggered_ihi, &  ! bounds of locally owned vertices on staggered grid
@@ -6368,55 +6357,123 @@ contains
     staggered_jlo = parallel%staggered_jlo
     staggered_jhi = parallel%staggered_jhi
 
-    local_sum = 0.d0
+    if (parallel%reprosum) then   ! compute using cism_reprosum_calc
 
-    ! sum over locally owned velocity points
+       !TODO - Add the code here
+       call parallel_stop(__FILE__,__LINE__)
 
-    if (present(work2)) then
-       do j = staggered_jlo, staggered_jhi
-          do i = staggered_ilo, staggered_ihi
-             local_sum = local_sum + work1(i,j) + work2(i,j)
+    else  ! compute using parallel_reduce_sum (not reproducible)
+
+       local_sum = 0.0d0
+
+       if (present(arr2)) then  ! compute global sum of arr1 + arr2
+
+          do j = staggered_jlo, staggered_jhi
+             do i = staggered_ilo, staggered_ihi
+                local_sum = local_sum + arr1(i,j) + arr2(i,j)
+             enddo
           enddo
-       enddo
-    else
-       do j = staggered_jlo, staggered_jhi
-          do i = staggered_ilo, staggered_ihi
-             local_sum = local_sum + work1(i,j)
+
+       else  ! compute global sum of arr1
+
+          do j = staggered_jlo, staggered_jhi
+             do i = staggered_ilo, staggered_ihi
+                local_sum = local_sum + arr1(i,j)
+             enddo
           enddo
-       enddo
-    endif
 
-    ! take the global sum
+       endif
 
-    global_sum = parallel_reduce_sum(local_sum)
+       parallel_global_sum_stagger_real8_2d = parallel_reduce_sum(local_sum)
 
-  end subroutine parallel_global_sum_staggered_2d_real8
+    endif   ! reprosum
+
+  end function parallel_global_sum_stagger_real8_2d
 
 !=======================================================================
 
-  subroutine parallel_global_sum_staggered_2d_real8_nvar(&
-       nx,            ny,            &
-       parallel,                     &
-       global_sum,                   &
-       work1,  work2)
+  function parallel_global_sum_stagger_real8_3d(arr1, parallel, arr2)
+
+    ! Calculate the global sum of a 3D double-precision field on the staggered grid
+    ! Assumes k is the first index, followed by i and j
+
+    real(dp), dimension(:,:,:), intent(in) :: arr1
+    type(parallel_type) :: parallel
+    real(dp), dimension(:,:,:), intent(in), optional :: arr2
+
+    integer :: i, j, k, nz
+    real(dp) :: local_sum
+    real(dp) :: parallel_global_sum_stagger_real8_3d
+
+    integer :: &
+         staggered_ilo, staggered_ihi, &  ! bounds of locally owned vertices on staggered grid
+         staggered_jlo, staggered_jhi
+
+    staggered_ilo = parallel%staggered_ilo
+    staggered_ihi = parallel%staggered_ihi
+    staggered_jlo = parallel%staggered_jlo
+    staggered_jhi = parallel%staggered_jhi
+
+    nz = size(arr1,1)
+
+    if (parallel%reprosum) then   ! compute using cism_reprosum_calc
+
+       !TODO - Add the code here
+       call parallel_stop(__FILE__,__LINE__)
+
+    else  ! compute using parallel_reduce_sum (not reproducible)
+
+       local_sum = 0.0d0
+
+       if (present(arr2)) then  ! compute global sum of arr1 + arr2
+
+          do j = staggered_jlo, staggered_jhi
+             do i = staggered_ilo, staggered_ihi
+                do k = 1, nz
+                   local_sum = local_sum + arr1(k,i,j) + arr2(k,i,j)
+                enddo
+             enddo
+          enddo
+
+       else  ! compute global sum of arr1
+
+          do j = staggered_jlo, staggered_jhi
+             do i = staggered_ilo, staggered_ihi
+                do k = 1, nz
+                   local_sum = local_sum + arr1(k,i,j)
+                enddo
+             enddo
+          enddo
+
+       endif
+
+       parallel_global_sum_stagger_real8_3d = parallel_reduce_sum(local_sum)
+
+    endif   ! reprosum
+
+  end function parallel_global_sum_stagger_real8_3d
+
+!=======================================================================
+
+  function parallel_global_sum_stagger_real8_2d_nflds(arr1, nflds, parallel, arr2)
 
     ! Sum one or two local arrays on the staggered grid, then take the global sum.
+    ! The final index is equal to the number of independent fields to be summed.
 
-    integer, intent(in) :: &
-         nx, ny              ! horizontal grid dimensions (for scalars)
+    real(dp), dimension(:,:,:), intent(in) :: arr1
+
+    integer, intent(in) :: nflds
 
     type(parallel_type), intent(in) :: &
          parallel               ! info for parallel communication
 
-    real(dp), intent(out), dimension(:) :: &
-         global_sum          ! global sum
+    real(dp), dimension(:,:,:), intent(in), optional :: arr2
 
-    real(dp), intent(in), dimension(nx-1,ny-1,size(global_sum)) :: work1            ! local array
-    real(dp), intent(in), dimension(nx-1,ny-1,size(global_sum)), optional :: work2  ! local array
+    real(dp), dimension(size(arr1,3)) :: parallel_global_sum_stagger_real8_2d_nflds
 
-    integer :: i, j, n, nvar
+    integer :: i, j, n
 
-    real(dp), dimension(size(global_sum)) :: local_sum
+    real(dp), dimension(size(arr1,3)) :: local_sum
 
     integer :: &
          staggered_ilo, staggered_ihi, &  ! bounds of locally owned vertices on staggered grid
@@ -6427,38 +6484,117 @@ contains
     staggered_jlo = parallel%staggered_jlo
     staggered_jhi = parallel%staggered_jhi
 
-    nvar = size(global_sum)
+    if (parallel%reprosum) then   ! compute using cism_reprosum_calc
 
-    local_sum(:) = 0.d0
+       !TODO - Add the code here
+       call parallel_stop(__FILE__,__LINE__)
 
-    do n = 1, nvar
+    else  ! compute using parallel_reduce_sum (not reproducible)
 
-       ! sum over locally owned velocity points
+       local_sum(:) = 0.d0
 
-       if (present(work2)) then
-          do j = staggered_jlo, staggered_jhi
-             do i = staggered_ilo, staggered_ihi
-                local_sum(n) = local_sum(n) + work1(i,j,n) + work2(i,j,n)
+       do n = 1, nflds
+
+          ! sum over locally owned velocity points
+
+          if (present(arr2)) then
+             do j = staggered_jlo, staggered_jhi
+                do i = staggered_ilo, staggered_ihi
+                   local_sum(n) = local_sum(n) + arr1(i,j,n) + arr2(i,j,n)
+                enddo
              enddo
-          enddo
-       else
-          do j = staggered_jlo, staggered_jhi
-             do i = staggered_ilo, staggered_ihi
-                local_sum(n) = local_sum(n) + work1(i,j,n)
+          else
+             do j = staggered_jlo, staggered_jhi
+                do i = staggered_ilo, staggered_ihi
+                   local_sum(n) = local_sum(n) + arr1(i,j,n)
+                enddo
              enddo
-          enddo
-       endif
+          endif
 
-    enddo   ! nvar
+       enddo   ! nflds
+
+    endif   ! reprosum
 
     ! take the global sum
+    parallel_global_sum_stagger_real8_2d_nflds = parallel_reduce_sum(local_sum(:))
 
-    global_sum(:) = parallel_reduce_sum(local_sum(:))
-
-  end subroutine parallel_global_sum_staggered_2d_real8_nvar
+  end function parallel_global_sum_stagger_real8_2d_nflds
 
 !=======================================================================
 
+  function parallel_global_sum_stagger_real8_3d_nflds(arr1, nflds, parallel, arr2)
+
+    ! Sum one or two local arrays on the staggered grid, then take the global sum.
+    ! Assumes k is the first index, followed by i and j.
+    ! The final index is equal to the number of independent fields to be summed.
+
+    real(dp), dimension(:,:,:,:), intent(in) :: arr1
+
+    integer, intent(in) :: nflds   ! size of final index; number of global sums to be computed
+
+    type(parallel_type), intent(in) :: &
+         parallel               ! info for parallel communication
+
+    real(dp), dimension(:,:,:,:), intent(in), optional :: arr2
+
+    real(dp), dimension(size(arr1,4)) :: parallel_global_sum_stagger_real8_3d_nflds
+
+    integer :: i, j, k, n, nz
+
+    real(dp), dimension(size(arr1,4)) :: local_sum
+
+    integer :: &
+         staggered_ilo, staggered_ihi, &  ! bounds of locally owned vertices on staggered grid
+         staggered_jlo, staggered_jhi
+
+    staggered_ilo = parallel%staggered_ilo
+    staggered_ihi = parallel%staggered_ihi
+    staggered_jlo = parallel%staggered_jlo
+    staggered_jhi = parallel%staggered_jhi
+
+    nz = size(arr1,1)
+
+    if (parallel%reprosum) then   ! compute using cism_reprosum_calc
+
+       !TODO - Add the code here
+       call parallel_stop(__FILE__,__LINE__)
+
+    else  ! compute using parallel_reduce_sum (not reproducible)
+
+       local_sum(:) = 0.d0
+
+       do n = 1, nflds
+
+          ! sum over locally owned velocity points
+
+          if (present(arr2)) then
+             do j = staggered_jlo, staggered_jhi
+                do i = staggered_ilo, staggered_ihi
+                   do k = 1, nz
+                      local_sum(n) = local_sum(n) + arr1(k,i,j,n) + arr2(k,i,j,n)
+                   enddo
+                enddo
+             enddo
+          else
+             do j = staggered_jlo, staggered_jhi
+                do i = staggered_ilo, staggered_ihi
+                   do k = 1, nz
+                      local_sum(n) = local_sum(n) + arr1(k,i,j,n)
+                   enddo
+                enddo
+             enddo
+          endif
+
+       enddo   ! nflds
+
+    endif   ! reprosum
+
+    ! take the global sum
+    parallel_global_sum_stagger_real8_3d_nflds = parallel_reduce_sum(local_sum(:))
+
+  end function parallel_global_sum_stagger_real8_3d_nflds
+
+!=======================================================================
   ! functions belonging to the parallel_is_zero interface
 
   function parallel_is_zero_integer_2d(a)
@@ -8701,13 +8837,20 @@ contains
   function parallel_reduce_sum_real8(x)
 
     use mpi_mod
+
     implicit none
+
     real(dp) :: x
 
     integer :: ierror
     real(dp) :: recvbuf,sendbuf, parallel_reduce_sum_real8
 
+    ! Input and output arguments for subroutine cism_reprosum_calc
+    real(dp), dimension(:,:), allocatable :: arr       ! array to be summed over processors
+    real(dp), dimension(:), allocatable :: arr_gsum    ! global sum of arr
+
     ! begin
+
     sendbuf = x
     call mpi_allreduce(sendbuf,recvbuf,1,mpi_real8,mpi_sum,comm,ierror)
     parallel_reduce_sum_real8 = recvbuf
@@ -8742,13 +8885,150 @@ contains
     integer :: ierror, nvar
     real(dp), dimension(size(x)) :: recvbuf,sendbuf, parallel_reduce_sum_real8_nvar
 
+    ! Input and output arguments for subroutine cism_reprosum_calc
+    real(dp), dimension(:,:), allocatable :: arr       ! array to be summed over processors
+    real(dp), dimension(:), allocatable :: arr_gsum    ! global sum of arr
+
     ! begin
     nvar = size(x)
+
     sendbuf = x
     call mpi_allreduce(sendbuf,recvbuf,nvar,mpi_real8,mpi_sum,comm,ierror)
     parallel_reduce_sum_real8_nvar = recvbuf
 
   end function parallel_reduce_sum_real8_nvar
+
+!=======================================================================
+
+  subroutine parallel_reduce_reprosum(arr, arr_gsum)
+
+    ! Compute a reproducible global sum for a floating-point variable or array.
+    ! Can be called from parallel_global_sum, parallel_global_sum_patch, or
+    ! parallel_global_sum_stagger.
+    ! Still under construction
+
+    implicit none
+
+    real(dp), dimension(:,:), intent(in) :: arr
+    real(dp), dimension(:), intent(out) :: arr_gsum
+
+    ! Notes on subroutine cism_reprosum_calc:
+    ! The first five arguments are required: arr(dsummands,nflds), arr_gsum(dsummands),
+    !  dsummands, dflds and nsummands. Typically, nsummands = dsummands = number of local values.
+    ! We use the default fixed-precision algorithm (instead of ddpdd, which apparently is less robust).
+    ! We do not allow Inf or NaN values in the input array.
+    ! Typically, the algorithm calls mpi_allreduce twice. By passing in both arr_gbl_max and arr_max_levels,
+    !  it may be possible to call mpi_allreduce just once, improving performance.
+    !  If we don't pass these arguments, then arr_gbl_max and arr_max_levels are computed internally..
+    !  By passing arr_glb_max_out and arr_max_levels_out, we can see the calculated values.
+    ! By passing rel_diff, we can verify that the computed reproducible sum is close
+    !  to the (nonreproducible) floating-point value.
+    !
+!!    !    commid                    ! MPI communicator
+    ! See comments in cism_reprosum_calc for more info
+
+    ! Required arguments
+
+    integer :: dsummands, nflds                      ! dimensions of arr
+    integer :: nsummands                             ! number of processors
+
+    ! Optional arguments
+
+    real(dp), dimension(:), allocatable :: &
+         arr_gbl_max,         & ! upper bound on max(abs(arr))
+         arr_gbl_max_out        ! calculated upper bound on max(abs(arr))
+
+    real(dp), dimension(:,:), allocatable :: &
+         rel_diff               ! relative and absolute differences between fixed and floating point sums
+
+    integer, dimension(:), allocatable :: &
+         arr_max_levels,      & ! maximum number of levels of integer expansion to use
+         arr_max_levels_out     ! output of number of levels of integer expansion to use
+
+    integer :: &
+         gbl_max_nsummands,   & ! maximum of nsummand over all processes
+         gbl_max_nsummands_out  ! calculated maximum nsummands over all processes
+
+    integer, dimension(6) :: &
+         repro_sum_stats(6)     ! increment running totals for
+                                !  (1) one-reduction repro_sum
+                                !  (2) two-reduction repro_sum
+                                !  (3) both types in one call
+                                !  (4) nonrepro_sum
+                                !  (5) global max nsummands reduction
+                                !  (6) global lor 3*nflds reduction
+
+    logical :: &
+         ddpdd_sum,           & ! use ddpdd algorithm instead of fixed-precision algorithm
+         allow_infnan,        & ! if .true., allow INF or NaN input values;
+                                ! if .false. (the default), then abort if INF or NaNs are present
+         repro_sum_validate     ! flag enabling/disabling testing that gmax and max_levels
+                                ! are accurate/sufficient. Default is enabled.
+
+
+    ! Set parameters and allocate arrays
+    dsummands = size(arr,1)
+    nflds = size(arr,2)
+    nsummands = dsummands
+
+    !WHL - debug
+    if (verbose_reprosum .and. main_task) then
+       write(iulog,*) 'In parallel_reduce_reprosum'
+       write(iulog,*) 'dsummands, nflds:', dsummands, nflds
+    endif
+    if (verbose_reprosum) then
+!!       write(iulog,*) 'rank, arr:', this_rank, arr(:,:)
+    endif
+
+    allocate (arr_gbl_max(nflds))
+    allocate (arr_gbl_max_out(nflds))
+    allocate (arr_max_levels(nflds))
+    allocate (arr_max_levels_out(nflds))
+    allocate (rel_diff(2,nflds))
+
+    allow_infnan = .false.
+    ddpdd_sum = .false.
+    repro_sum_validate = .true.
+
+#ifdef CCSMCOUPLED
+
+!!      call shr_reprosum_calc
+
+#else
+
+    ! The following subroutine is adapted from shr_reprosum_calc in CESM shared code.
+
+    call cism_reprosum_calc(&
+         arr,        arr_gsum,                          &
+         nsummands,  dsummands,  nflds,                 &
+         allow_infnan = allow_infnan,                   &
+         ddpdd_sum = ddpdd_sum,                         &
+!            arr_gbl_max = arr_gbl_max,                     &
+         arr_gbl_max_out = arr_gbl_max_out,             &
+!            arr_max_levels = arr_max_levels,               &
+         arr_max_levels_out = arr_max_levels_out,       &
+!            gbl_max_nsummands = gbl_max_nsummands,         &
+         gbl_max_nsummands_out = gbl_max_nsummands_out, &
+         repro_sum_validate = repro_sum_validate,       &
+         repro_sum_stats = repro_sum_stats,             &
+         rel_diff = rel_diff)
+
+#endif
+
+    if (verbose_reprosum .and. main_task) then
+       write(iulog,*) 'arr_gbl_max_out =', arr_gbl_max_out
+       write(iulog,*) 'arr_max_levels_out =', arr_max_levels_out
+       write(iulog,*) 'gbl_max_nsummands_out =', gbl_max_nsummands_out
+       write(iulog,*) 'rel diff =', rel_diff(1,:)
+       write(iulog,*) 'abs diff =', rel_diff(2,:)
+       write(iulog,*) 'stats =', repro_sum_stats(:)
+    endif
+
+    deallocate(arr_gbl_max, arr_gbl_max_out)
+    deallocate(arr_max_levels, arr_max_levels_out)
+    deallocate(rel_diff)
+
+  end subroutine parallel_reduce_reprosum
 
 !=======================================================================
 

@@ -907,6 +907,7 @@ contains
     call GetValue(section, 'linear_solve_ncheck',         model%options%linear_solve_ncheck)
     call GetValue(section, 'linear_maxiters',             model%options%linear_maxiters)
     call GetValue(section, 'linear_tolerance',            model%options%linear_tolerance)
+    call GetValue(section, 'reproducible_sums',           model%options%reproducible_sums)
 
   end subroutine handle_ho_options
 
@@ -2182,6 +2183,10 @@ contains
 
           write(message,*) 'linear_tolerance        : ',model%options%linear_tolerance
           call write_log(message)
+
+          if (model%options%reproducible_sums) then
+             call write_log('Global sums will be reproducible')
+          endif
 
        end if   ! DYCORE_GLISSADE
 
