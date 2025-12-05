@@ -74,7 +74,7 @@ contains
     ! Another array, cism_to_rgi_glacier_id, identifies the RGI ID associated with each CISM ID.
     ! The CISM input file contains the RGI IDs.
 
-    use cism_parallel, only: distributed_gather_var, distributed_scatter_var, &
+    use cism_parallel, only: gather_var, scatter_var, &
          parallel_global_sum, parallel_reduce_max, parallel_reduce_min, parallel_is_zero, &
          broadcast, parallel_halo, staggered_parallel_halo, parallel_globalindex
 
@@ -228,10 +228,10 @@ contains
 
        ! Gather the RGI glacier IDs to the main task
        if (main_task) allocate(rgi_glacier_id_global(global_ewn, global_nsn))
-       call distributed_gather_var(glacier%rgi_glacier_id, rgi_glacier_id_global, parallel)
+       call gather_var(glacier%rgi_glacier_id, rgi_glacier_id_global, parallel)
 
        ! Allocate a global array for the CISM glacier IDs on the main task.
-       ! Allocate a size 0 array on other tasks; distributed_scatter_var wants arrays allocated on all tasks.
+       ! Allocate a size 0 array on other tasks; scatter_var wants arrays allocated on all tasks.
        if (main_task) then
           allocate(cism_glacier_id_global(global_ewn,global_nsn))
        else
@@ -377,8 +377,8 @@ contains
        endif   ! main_task
 
        ! Scatter cism_glacier_id_global to all processors
-       ! Note: This global array is deallocated in the distributed_scatter_var subroutine
-       call distributed_scatter_var(glacier%cism_glacier_id, cism_glacier_id_global, parallel)
+       ! Note: This global array is deallocated in the scatter_var subroutine
+       call scatter_var(glacier%cism_glacier_id, cism_glacier_id_global, parallel)
 
        call parallel_halo(glacier%cism_glacier_id, parallel)
 

@@ -52,7 +52,7 @@
   use glimmer_utils, only: point_diag
   use glide_types
   use cism_parallel, only : this_rank, main_task, parallel_type, &
-       parallel_halo, staggered_parallel_halo, parallel_globalindex, distributed_scatter_var
+       parallel_halo, staggered_parallel_halo, parallel_globalindex, scatter_var
 
   implicit none
 
@@ -347,7 +347,7 @@ contains
        !      The following code sets beta on the full grid as prescribed by Pattyn et al. (2008).
 
        ! Allocate a global array on the main task only.
-       ! On other tasks, allocate a size 0 array, since distributed_scatter_var wants to deallocate on all tasks.
+       ! On other tasks, allocate a size 0 array, since scatter_var wants to deallocate on all tasks.
        if (main_task) then
           allocate(beta_global(parallel%global_ewn, parallel%global_nsn))
        else
@@ -377,9 +377,9 @@ contains
        ! Note: beta_extend has dimensions (ewn,nsn), so it can receive scattered data from beta_global.
        allocate(beta_extend(ewn, nsn))
        beta_extend(:,:) = 0.d0
-       call distributed_scatter_var(beta_extend, beta_global, parallel)
+       call scatter_var(beta_extend, beta_global, parallel)
 
-       ! distributed_scatter_var does not update the halo, so do an update here
+       ! scatter_var does not update the halo, so do an update here
        call parallel_halo(beta_extend, parallel)
 
        ! Copy beta_extend to beta on the local processor.
@@ -391,7 +391,7 @@ contains
           enddo
        enddo
 
-      ! beta_extend is no longer needed (beta_global is deallocated in distributed_scatter_var)
+      ! beta_extend is no longer needed (beta_global is deallocated in scatter_var)
       deallocate(beta_extend)
 
     case(HO_BABC_BETA_EXTERNAL)   ! use beta value from external file

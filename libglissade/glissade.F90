@@ -92,8 +92,7 @@ contains
 
     ! initialise Glissade model instance
 
-    use cism_parallel, only: parallel_type, distributed_gather_var,  &
-         distributed_scatter_var, parallel_finalise, &
+    use cism_parallel, only: parallel_type, parallel_finalise, &
          distributed_grid, distributed_grid_active_blocks,  parallel_global_edge_mask, &
          parallel_halo, parallel_halo_extrapolate, parallel_reduce_max, &
          staggered_parallel_halo_extrapolate, staggered_no_penetration_mask, &

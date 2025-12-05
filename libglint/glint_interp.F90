@@ -248,7 +248,7 @@ contains
     use glimmer_utils
     use glimmer_coordinates
     use glimmer_log
-    use cism_parallel, only : main_task, parallel_type, distributed_scatter_var, parallel_halo
+    use cism_parallel, only : main_task, parallel_type, scatter_var, parallel_halo
 
     !TODO - Not sure we need localsp now that the code is fully double precision 
 
@@ -299,9 +299,9 @@ contains
 
     ! Allocate variables to hold result of interpolation
     ! We allocate size 0 arrays on non-main task (rather than leaving variables
-    ! unallocated there), because distributed_scatter_var tries to do a deallocate on all tasks
+    ! unallocated there), because scatter_var tries to do a deallocate on all tasks
     ! Note that coordsystem_allocate can't be used here because it only works on pointer
-    ! variables, and the *_fulldomain variables are non-pointers (as is required for distributed_scatter_var)
+    ! variables, and the *_fulldomain variables are non-pointers (as is required for scatter_var)
 
     if (present(localsp)) then
        if (main_task) then
@@ -450,25 +450,25 @@ contains
     end if  ! main_task
  
     ! Main task scatters interpolated data from the full domain to the task owning each point
-    ! Note that distributed_scatter_var doesn't set halo values, so we need to do a halo
+    ! Note that scatter_var doesn't set halo values, so we need to do a halo
     !  update if it's important to have correct values in the halo cells.
     ! Although it's not strictly necessary to have the halo values, we compute them just in
     !  case another part of the code (e.g., glissade_temp) assumes they are available.
 
     if (present(localsp)) then
        localsp(:,:) = 0.d0
-       call distributed_scatter_var(localsp, localsp_fulldomain, parallel)
+       call scatter_var(localsp, localsp_fulldomain, parallel)
        call parallel_halo(localsp, parallel)
     endif
 
     if (present(localdp)) then
        localdp(:,:) = 0.d0
-       call distributed_scatter_var(localdp, localdp_fulldomain, parallel)
+       call scatter_var(localdp, localdp_fulldomain, parallel)
        call parallel_halo(localdp, parallel)
     endif
 
     ! We do NOT deallocate the local*_fulldomain variables here, because the
-    ! distributed_scatter_var routines do this deallocation
+    ! scatter_var routines do this deallocation
 
   end subroutine interp_to_local
 
@@ -489,7 +489,7 @@ contains
     ! on the main task.
 
     use glimmer_coordinates
-    use cism_parallel, only : main_task, parallel_type, distributed_scatter_var, parallel_halo
+    use cism_parallel, only : main_task, parallel_type, scatter_var, parallel_halo
 
     ! Argument declarations
 
@@ -524,16 +524,16 @@ contains
     end if
 
     ! Main task scatters interpolated data from the full domain to the task owning each point
-    ! Note that distributed_scatter_var doesn't set halo values, so we need to do a halo
+    ! Note that scatter_var doesn't set halo values, so we need to do a halo
     !  update if it's important to have correct values in the halo cells.
     ! Although it's not strictly necessary to have the halo values, we compute them just in
     !  case another part of the code (e.g., glissade_temp) assumes they are available.
 
     local(:,:) = 0.d0
-    call distributed_scatter_var(local, local_fulldomain, parallel)
+    call scatter_var(local, local_fulldomain, parallel)
     call parallel_halo(local, parallel)
 
-    ! We do NOT deallocate local_fulldomain here, because the distributed_scatter_var
+    ! We do NOT deallocate local_fulldomain here, because the scatter_var
     ! routine does this deallocation
 
   end subroutine copy_to_local
@@ -695,7 +695,7 @@ contains
     !> \texttt{interp\_to\_local} routine.
     !> \end{itemize}
 
-    use cism_parallel, only : main_task, parallel_type, distributed_gather_var
+    use cism_parallel, only : main_task, parallel_type, gather_var
 
     ! Arguments
 
@@ -729,8 +729,8 @@ contains
 
     ! Gather 'local' and 'tempmask' onto main task, which is the only one that does the regridding
 
-    call distributed_gather_var(local, local_fulldomain, parallel)
-    call distributed_gather_var(tempmask, tempmask_fulldomain, parallel)
+    call gather_var(local, local_fulldomain, parallel)
+    call gather_var(tempmask, tempmask_fulldomain, parallel)
 
     ! Main task does regridding
 
@@ -785,7 +785,7 @@ contains
     !> \item \texttt{gboxn} is the same size as \texttt{global}
     !> \end{itemize}
 
-    use cism_parallel, only : main_task, parallel_type, distributed_gather_var
+    use cism_parallel, only : main_task, parallel_type, gather_var
 
     ! Arguments
 
@@ -816,8 +816,8 @@ contains
 
     ! Gather 'local' and 'tempmask' onto main task, which is the only one that does the regridding
 
-    call distributed_gather_var(local, local_fulldomain, parallel)
-    call distributed_gather_var(tempmask, tempmask_fulldomain, parallel)
+    call gather_var(local, local_fulldomain, parallel)
+    call gather_var(tempmask, tempmask_fulldomain, parallel)
 
     ! Main task does regridding
     if (main_task) then
@@ -854,7 +854,7 @@ contains
     !> \item \texttt{gboxn} is the same size as \texttt{global}
     !> \end{itemize}
 
-    use cism_parallel, only : main_task, parallel_type, distributed_gather_var
+    use cism_parallel, only : main_task, parallel_type, gather_var
 
     ! Arguments
 
@@ -885,8 +885,8 @@ contains
 
     ! Gather 'local' and 'tempmask' onto main task, which is the only one that does the regridding
 
-    call distributed_gather_var(local, local_fulldomain, parallel)
-    call distributed_gather_var(tempmask, tempmask_fulldomain, parallel)
+    call gather_var(local, local_fulldomain, parallel)
+    call gather_var(tempmask, tempmask_fulldomain, parallel)
 
     ! Main task does regridding
     if (main_task) then

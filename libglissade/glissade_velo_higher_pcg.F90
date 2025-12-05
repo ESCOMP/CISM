@@ -4557,9 +4557,8 @@
                                       first_time,   gather_data)
 
     use glimmer_utils, only: tridiag
-    use cism_parallel, only: distributed_gather_var_row, distributed_gather_var_col, &
-         distributed_gather_all_var_row, distributed_gather_all_var_col, &
-         distributed_scatter_var_row, distributed_scatter_var_col
+    use cism_parallel, only: gather_var_row, gather_var_col, &
+         gather_all_var_row, gather_all_var_col, scatter_var_row, scatter_var_col
 
     integer, intent(in) :: &
          ilocal, jlocal            ! size of input/output arrays; number of locally owned vertices in each direction
@@ -4784,11 +4783,11 @@
 
           if (tridiag_solver_flag == 'row') then
              call t_startf("pcg_tridiag_gather_row")
-             call distributed_gather_all_var_row(outdata, gather_data2, parallel)
+             call gather_all_var_row(outdata, gather_data2, parallel)
              call t_stopf ("pcg_tridiag_gather_row")
           elseif (tridiag_solver_flag == 'col') then
              call t_startf("pcg_tridiag_gather_col")
-             call distributed_gather_all_var_col(outdata, gather_data2, parallel)
+             call gather_all_var_col(outdata, gather_data2, parallel)
              call t_stopf ("pcg_tridiag_gather_col")
           endif
 
@@ -4799,11 +4798,11 @@
 
           if (tridiag_solver_flag == 'row') then
              call t_startf("pcg_tridiag_gather_row")
-             call distributed_gather_var_row(outdata, gather_data2, parallel)
+             call gather_var_row(outdata, gather_data2, parallel)
              call t_stopf ("pcg_tridiag_gather_row")
           elseif (tridiag_solver_flag == 'col') then
              call t_startf("pcg_tridiag_gather_col")
-             call distributed_gather_var_col(outdata, gather_data2, parallel)
+             call gather_var_col(outdata, gather_data2, parallel)
              call t_stopf ("pcg_tridiag_gather_col")
           endif
 
@@ -4918,11 +4917,11 @@
 
           if (tridiag_solver_flag == 'row') then
              call t_startf("pcg_tridiag_scatter_row")
-             call distributed_scatter_var_row(local_coeffs, global_coeffs, parallel)
+             call scatter_var_row(local_coeffs, global_coeffs, parallel)
              call t_stopf ("pcg_tridiag_scatter_row")
           elseif (tridiag_solver_flag == 'col') then
              call t_startf("pcg_tridiag_scatter_col")
-             call distributed_scatter_var_col(local_coeffs, global_coeffs, parallel)
+             call scatter_var_col(local_coeffs, global_coeffs, parallel)
              call t_stopf ("pcg_tridiag_scatter_col")
           endif
 

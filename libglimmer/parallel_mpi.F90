@@ -196,29 +196,29 @@ module cism_parallel
      module procedure broadcast_real8_1d
   end interface
 
-  interface distributed_gather_var
-     module procedure distributed_gather_var_integer_2d
-     module procedure distributed_gather_var_logical_2d
-     module procedure distributed_gather_var_real4_2d
-     module procedure distributed_gather_var_real4_3d
-     module procedure distributed_gather_var_real8_2d
-     module procedure distributed_gather_var_real8_3d
+  interface gather_var
+     module procedure gather_var_integer_2d
+     module procedure gather_var_logical_2d
+     module procedure gather_var_real4_2d
+     module procedure gather_var_real4_3d
+     module procedure gather_var_real8_2d
+     module procedure gather_var_real8_3d
   end interface
 
-  interface distributed_gather_var_row
-     module procedure distributed_gather_var_row_real8_2d
+  interface gather_var_row
+     module procedure gather_var_row_real8_2d
   end interface
 
-  interface distributed_gather_all_var_row
-     module procedure distributed_gather_all_var_row_real8_2d
+  interface gather_all_var_row
+     module procedure gather_all_var_row_real8_2d
   end interface
 
-  interface distributed_gather_var_col
-     module procedure distributed_gather_var_col_real8_2d
+  interface gather_var_col
+     module procedure gather_var_col_real8_2d
   end interface
 
-  interface distributed_gather_all_var_col
-     module procedure distributed_gather_all_var_col_real8_2d
+  interface gather_all_var_col
+     module procedure gather_all_var_col_real8_2d
   end interface
 
   interface distributed_get_var
@@ -246,21 +246,21 @@ module cism_parallel
      module procedure distributed_put_var_real8_3d
   end interface
 
-  interface distributed_scatter_var
-     module procedure distributed_scatter_var_integer_2d
-     module procedure distributed_scatter_var_logical_2d
-     module procedure distributed_scatter_var_real4_2d
-     module procedure distributed_scatter_var_real4_3d
-     module procedure distributed_scatter_var_real8_2d
-     module procedure distributed_scatter_var_real8_3d
+  interface scatter_var
+     module procedure scatter_var_integer_2d
+     module procedure scatter_var_logical_2d
+     module procedure scatter_var_real4_2d
+     module procedure scatter_var_real4_3d
+     module procedure scatter_var_real8_2d
+     module procedure scatter_var_real8_3d
   end interface
 
-  interface distributed_scatter_var_row
-     module procedure distributed_scatter_var_row_real8_2d
+  interface scatter_var_row
+     module procedure scatter_var_row_real8_2d
   end interface
 
-  interface distributed_scatter_var_col
-     module procedure distributed_scatter_var_col_real8_2d
+  interface scatter_var_col
+     module procedure scatter_var_col_real8_2d
   end interface
 
   interface parallel_boundary_value
@@ -631,10 +631,10 @@ contains
 
 !=======================================================================
 
-  ! subroutines belonging to the distributed_gather_var interface
+  ! subroutines belonging to the gather_var interface
 
   ! WHL, July 2019:
-  ! There is an issue with allocating the global_values array in the distributed_gather_var_*,
+  ! There is an issue with allocating the global_values array in the gather_var_*,
   !  distributed_get_var_*, distributed_print_*, and distributed_put_var_* functions and subroutines
   !  when computing only on active blocks (compute_blocks = 1).
   ! This array is allocated based on the max and min of ewlb, ewub, nslb, and nsub over the global domain.
@@ -646,7 +646,7 @@ contains
   !  global_minval_nslb, and global_maxval_nsub, which are now computed at initialization
   !  based on the bounds in all blocks (including inactive blocks), not just active blocks.
 
-  subroutine distributed_gather_var_integer_2d(values, global_values, parallel)
+  subroutine gather_var_integer_2d(values, global_values, parallel)
 
     ! Gather a distributed variable back to main_task node
     ! values = local portion of distributed variable
@@ -679,7 +679,7 @@ contains
 
     if (uhalo==0 .and. size(values,1)==local_ewn-1) then
        ! Fixing this would require some generalization as is done for distributed_put_var
-       write(*,*) "distributed_gather does not currently work for"
+       write(*,*) "gather does not currently work for"
        write(*,*) "variables on the staggered grid when uhalo=0"
        call parallel_stop(__FILE__, __LINE__)
     end if
@@ -751,10 +751,10 @@ contains
     end associate
     ! automatic deallocation
 
-  end subroutine distributed_gather_var_integer_2d
+  end subroutine gather_var_integer_2d
 
 
-  subroutine distributed_gather_var_logical_2d(values, global_values, parallel)
+  subroutine gather_var_logical_2d(values, global_values, parallel)
 
     ! Gather a distributed variable back to main_task node
     ! values = local portion of distributed variable
@@ -787,7 +787,7 @@ contains
 
     if (uhalo==0 .and. size(values,1)==local_ewn-1) then
        ! Fixing this would require some generalization as is done for distributed_put_var
-       write(*,*) "distributed_gather does not currently work for"
+       write(*,*) "gather does not currently work for"
        write(*,*) "variables on the staggered grid when uhalo=0"
        call parallel_stop(__FILE__, __LINE__)
     end if
@@ -858,10 +858,10 @@ contains
     end associate
     ! automatic deallocation
 
-  end subroutine distributed_gather_var_logical_2d
+  end subroutine gather_var_logical_2d
 
 
-  subroutine distributed_gather_var_real4_2d(values, global_values, parallel)
+  subroutine gather_var_real4_2d(values, global_values, parallel)
 
     ! Gather a distributed variable back to main_task node
     ! values = local portion of distributed variable
@@ -894,7 +894,7 @@ contains
 
     if (uhalo==0 .and. size(values,1)==local_ewn-1) then
        ! Fixing this would require some generalization as is done for distributed_put_var
-       write(*,*) "distributed_gather does not currently work for"
+       write(*,*) "gather does not currently work for"
        write(*,*) "variables on the staggered grid when uhalo=0"
        call parallel_stop(__FILE__, __LINE__)
     end if
@@ -965,10 +965,10 @@ contains
     end associate
     ! automatic deallocation
 
-  end subroutine distributed_gather_var_real4_2d
+  end subroutine gather_var_real4_2d
 
 
-  subroutine distributed_gather_var_real4_3d(values, global_values, parallel, ld1, ud1)
+  subroutine gather_var_real4_3d(values, global_values, parallel, ld1, ud1)
 
     ! Gather a distributed variable back to main_task node
     ! values = local portion of distributed variable
@@ -1002,7 +1002,7 @@ contains
 
     if (uhalo==0 .and. size(values,1)==local_ewn-1) then
        ! Fixing this would require some generalization as is done for distributed_put_var
-       write(*,*) "distributed_gather does not currently work for"
+       write(*,*) "gather does not currently work for"
        write(*,*) "variables on the staggered grid when uhalo=0"
        call parallel_stop(__FILE__, __LINE__)
     end if
@@ -1091,10 +1091,10 @@ contains
     end associate
     ! automatic deallocation
 
-  end subroutine distributed_gather_var_real4_3d
+  end subroutine gather_var_real4_3d
 
 
-  subroutine distributed_gather_var_real8_2d(values, global_values, parallel)
+  subroutine gather_var_real8_2d(values, global_values, parallel)
 
     ! Gather a distributed variable back to main_task node
     ! values = local portion of distributed variable
@@ -1127,7 +1127,7 @@ contains
 
     if (uhalo==0 .and. size(values,1)==local_ewn-1) then
        ! Fixing this would require some generalization as is done for distributed_put_var
-       write(*,*) "distributed_gather does not currently work for"
+       write(*,*) "gather does not currently work for"
        write(*,*) "variables on the staggered grid when uhalo=0"
        call parallel_stop(__FILE__, __LINE__)
     end if
@@ -1199,10 +1199,10 @@ contains
     end associate
     ! automatic deallocation
 
-  end subroutine distributed_gather_var_real8_2d
+  end subroutine gather_var_real8_2d
 
 
-  subroutine distributed_gather_var_real8_3d(values, global_values, parallel, ld1, ud1)
+  subroutine gather_var_real8_3d(values, global_values, parallel, ld1, ud1)
 
     ! Gather a distributed variable back to main_task node
     ! values = local portion of distributed variable
@@ -1236,7 +1236,7 @@ contains
 
     if (uhalo==0 .and. size(values,1)==local_ewn-1) then
        ! Fixing this would require some generalization as is done for distributed_put_var
-       write(*,*) "distributed_gather does not currently work for"
+       write(*,*) "gather does not currently work for"
        write(*,*) "variables on the staggered grid when uhalo=0"
        call parallel_stop(__FILE__, __LINE__)
     end if
@@ -1325,16 +1325,16 @@ contains
     end associate
     ! automatic deallocation
 
-  end subroutine distributed_gather_var_real8_3d
+  end subroutine gather_var_real8_3d
 
 !=======================================================================
 
-  ! subroutines belonging to the distributed_gather_var_row interface
+  ! subroutines belonging to the gather_var_row interface
 
-  subroutine distributed_gather_var_row_real8_2d(values, global_values, parallel)
+  subroutine gather_var_row_real8_2d(values, global_values, parallel)
 
     ! Gather data along a row of tasks onto the main task for that row.
-    ! Based on distributed_gather_var_real8_2d.
+    ! Based on gather_var_real8_2d.
     ! Note: The first index represents a data dimension that is the same on each task,
     !        whose size generally is less than own_ewn.
     !       The second index represents the north-south dimension, and is assumed
@@ -1369,7 +1369,7 @@ contains
 
     if (size(values,2) /= own_nsn) then
        ! Note: Removing this restriction would require some recoding below.
-       write(*,*) "ERROR: distributed_gather_var_row requires N-S array size of own_nsn"
+       write(*,*) "ERROR: gather_var_row requires N-S array size of own_nsn"
        write(*,*) 'rank, own_nsn, size(values,2) =', this_rank, own_nsn, size(values,2)
        call parallel_stop(__FILE__, __LINE__)
     end if
@@ -1464,16 +1464,16 @@ contains
     end associate
     ! automatic deallocation
 
-  end subroutine distributed_gather_var_row_real8_2d
+  end subroutine gather_var_row_real8_2d
 
 !=======================================================================
 
-  ! subroutines belonging to the distributed_gather_all_var_row interface
+  ! subroutines belonging to the gather_all_var_row interface
 
-  subroutine distributed_gather_all_var_row_real8_2d(values, global_values, parallel)
+  subroutine gather_all_var_row_real8_2d(values, global_values, parallel)
 
     ! Gather global data along a row of tasks onto each task for that row.
-    ! Based on distributed_gather_var_real8_2d.
+    ! Based on gather_var_real8_2d.
     ! Note: The first index represents a data dimension that is the same on each task,
     !        whose size generally is less than own_ewn.
     !       The second index represents the north-south dimension, and is assumed
@@ -1511,7 +1511,7 @@ contains
        ! TODO: Do this recoding.  This subroutine currently fails with outflow BC, because
        !       the southern and western rows of tasks have an extra locally owned vertex,
        !       giving size(values,2) = own_nsn + 1
-       write(*,*) "ERROR: distributed_gather_var_row requires N-S array size of own_nsn"
+       write(*,*) "ERROR: gather_var_row requires N-S array size of own_nsn"
        write(*,*) 'rank, own_nsn, size(values,2) =', this_rank, own_nsn, size(values,2)
        call parallel_stop(__FILE__, __LINE__)
     end if
@@ -1586,16 +1586,16 @@ contains
     end associate
     ! automatic deallocation
 
-  end subroutine distributed_gather_all_var_row_real8_2d
+  end subroutine gather_all_var_row_real8_2d
 
 !=======================================================================
 
-  ! subroutines belonging to the distributed_gather_var_col interface
+  ! subroutines belonging to the gather_var_col interface
 
-  subroutine distributed_gather_var_col_real8_2d(values, global_values, parallel)
+  subroutine gather_var_col_real8_2d(values, global_values, parallel)
 
     ! Gather data along a column of tasks onto the main task for that column.
-    ! Based on distributed_gather_var_real8_2d.
+    ! Based on gather_var_real8_2d.
     ! Note: The first index represents a data dimension that is the same on each task,
     !        whose size generally is less than own_nsn.
     !       The second index represents the east-west dimension, and is assumed
@@ -1630,7 +1630,7 @@ contains
 
     if (size(values,2) /= own_ewn) then
        ! Note: Removing this restriction would require some recoding below.
-       write(*,*) "ERROR: distributed_gather_var_row requires E-W array size of own_ewn"
+       write(*,*) "ERROR: gather_var_row requires E-W array size of own_ewn"
        write(*,*) 'rank, own_ewn, size(values,2) =', this_rank, own_ewn, size(values,2)
        call parallel_stop(__FILE__, __LINE__)
     end if
@@ -1726,16 +1726,16 @@ contains
     end associate
     ! automatic deallocation
 
-  end subroutine distributed_gather_var_col_real8_2d
+  end subroutine gather_var_col_real8_2d
 
 !=======================================================================
 
-  ! subroutines belonging to the distributed_gather_all_var_col interface
+  ! subroutines belonging to the gather_all_var_col interface
 
-  subroutine distributed_gather_all_var_col_real8_2d(values, global_values, parallel)
+  subroutine gather_all_var_col_real8_2d(values, global_values, parallel)
 
     ! Gather global data along a column of tasks onto each task for that column.
-    ! Based on distributed_gather_var_real8_2d.
+    ! Based on gather_var_real8_2d.
     ! Note: The first index represents a data dimension that is the same on each task,
     !        whose size generally is less than own_nsn.
     !       The second index represents the east-west dimension, and is assumed
@@ -1770,7 +1770,7 @@ contains
 
     if (size(values,2) /= own_ewn) then
        ! Note: Removing this restriction would require some recoding below.
-       write(*,*) "ERROR: distributed_gather_var_row requires E-W array size of own_ewn"
+       write(*,*) "ERROR: gather_var_row requires E-W array size of own_ewn"
        write(*,*) 'rank, own_ewn, size(values,2) =', this_rank, own_ewn, size(values,2)
        call parallel_stop(__FILE__, __LINE__)
     end if
@@ -1845,7 +1845,7 @@ contains
     end associate
     ! automatic deallocation
 
-  end subroutine distributed_gather_all_var_col_real8_2d
+  end subroutine gather_all_var_col_real8_2d
 
 !=======================================================================
 
@@ -4334,9 +4334,9 @@ contains
 
 !=======================================================================
 
-  ! subroutines belonging to the distributed_scatter_var interface
+  ! subroutines belonging to the scatter_var interface
 
-  subroutine distributed_scatter_var_integer_2d(values, global_values, parallel)
+  subroutine scatter_var_integer_2d(values, global_values, parallel)
 
     ! Scatter a variable on the main_task node back to the distributed
     ! values = local portion of distributed variable
@@ -4366,7 +4366,7 @@ contains
 
     if (uhalo==0 .and. size(values,1)==local_ewn-1) then
        ! Fixing this would require some generalization as is done for distributed_put_var
-       write(iulog,*) "distributed_scatter does not currently work for"
+       write(iulog,*) "scatter does not currently work for"
        write(iulog,*) "variables on the staggered grid when uhalo=0"
        call parallel_stop(__FILE__, __LINE__)
     end if
@@ -4421,10 +4421,10 @@ contains
     deallocate(global_values)   ! TODO - Is this deallocation necessary, here and below?
     ! automatic deallocation
 
-  end subroutine distributed_scatter_var_integer_2d
+  end subroutine scatter_var_integer_2d
 
 
-  subroutine distributed_scatter_var_logical_2d(values, global_values, parallel)
+  subroutine scatter_var_logical_2d(values, global_values, parallel)
 
     ! Scatter a variable on the main_task node back to the distributed
     ! values = local portion of distributed variable
@@ -4454,7 +4454,7 @@ contains
 
     if (uhalo==0 .and. size(values,1)==local_ewn-1) then
        ! Fixing this would require some generalization as is done for distributed_put_var
-       write(iulog,*) "distributed_scatter does not currently work for"
+       write(iulog,*) "scatter does not currently work for"
        write(iulog,*) "variables on the staggered grid when uhalo=0"
        call parallel_stop(__FILE__, __LINE__)
     end if
@@ -4509,10 +4509,10 @@ contains
     deallocate(global_values)
     ! automatic deallocation
 
-  end subroutine distributed_scatter_var_logical_2d
+  end subroutine scatter_var_logical_2d
 
 
-  subroutine distributed_scatter_var_real4_2d(values, global_values, parallel)
+  subroutine scatter_var_real4_2d(values, global_values, parallel)
 
     ! Scatter a variable on the main_task node back to the distributed
     ! values = local portion of distributed variable
@@ -4542,7 +4542,7 @@ contains
 
     if (uhalo==0 .and. size(values,1)==local_ewn-1) then
        ! Fixing this would require some generalization as is done for distributed_put_var
-       write(iulog,*) "distributed_scatter does not currently work for"
+       write(iulog,*) "scatter does not currently work for"
        write(iulog,*) "variables on the staggered grid when uhalo=0"
        call parallel_stop(__FILE__, __LINE__)
     end if
@@ -4597,10 +4597,10 @@ contains
     deallocate(global_values)
     ! automatic deallocation
 
-  end subroutine distributed_scatter_var_real4_2d
+  end subroutine scatter_var_real4_2d
 
 
-  subroutine distributed_scatter_var_real4_3d(values, global_values, parallel)
+  subroutine scatter_var_real4_3d(values, global_values, parallel)
 
     ! Scatter a variable on the main_task node back to the distributed
     ! values = local portion of distributed variable
@@ -4630,7 +4630,7 @@ contains
 
     if (uhalo==0 .and. size(values,1)==local_ewn-1) then
        ! Fixing this would require some generalization as is done for distributed_put_var
-       write(iulog,*) "distributed_scatter does not currently work for"
+       write(iulog,*) "scatter does not currently work for"
        write(iulog,*) "variables on the staggered grid when uhalo=0"
        call parallel_stop(__FILE__, __LINE__)
     end if
@@ -4687,10 +4687,10 @@ contains
     deallocate(global_values)
     ! automatic deallocation
 
-  end subroutine distributed_scatter_var_real4_3d
+  end subroutine scatter_var_real4_3d
 
 
-  subroutine distributed_scatter_var_real8_2d(values, global_values, parallel)
+  subroutine scatter_var_real8_2d(values, global_values, parallel)
 
     ! Scatter a variable on the main_task node back to the distributed
     ! values = local portion of distributed variable
@@ -4720,7 +4720,7 @@ contains
 
     if (uhalo==0 .and. size(values,1)==local_ewn-1) then
        ! Fixing this would require some generalization as is done for distributed_put_var
-       write(iulog,*) "distributed_scatter does not currently work for"
+       write(iulog,*) "scatter does not currently work for"
        write(iulog,*) "variables on the staggered grid when uhalo=0"
        call parallel_stop(__FILE__, __LINE__)
     end if
@@ -4775,10 +4775,10 @@ contains
     deallocate(global_values)
     ! automatic deallocation
 
-  end subroutine distributed_scatter_var_real8_2d
+  end subroutine scatter_var_real8_2d
 
 
-  subroutine distributed_scatter_var_real8_3d(values, global_values, parallel, deallocflag)
+  subroutine scatter_var_real8_3d(values, global_values, parallel, deallocflag)
 
     ! Scatter a variable on the main_task node back to the distributed
     ! values = local portion of distributed variable
@@ -4810,7 +4810,7 @@ contains
 
     if (uhalo==0 .and. size(values,1)==local_ewn-1) then
        ! Fixing this would require some generalization as is done for distributed_put_var
-       write(iulog,*) "distributed_scatter does not currently work for"
+       write(iulog,*) "scatter does not currently work for"
        write(iulog,*) "variables on the staggered grid when uhalo=0"
        call parallel_stop(__FILE__, __LINE__)
     end if
@@ -4874,16 +4874,16 @@ contains
     if (deallocmem) deallocate(global_values)
     ! automatic deallocation
 
-  end subroutine distributed_scatter_var_real8_3d
+  end subroutine scatter_var_real8_3d
 
 !=======================================================================
 
-  ! subroutines belonging to the distributed_scatter_var_row interface
+  ! subroutines belonging to the scatter_var_row interface
 
-  subroutine distributed_scatter_var_row_real8_2d(values, global_values, parallel)
+  subroutine scatter_var_row_real8_2d(values, global_values, parallel)
 
     ! Scatter data to a row of tasks from the main task for that row.
-    ! Based on distributed_scatter_var_real8_2d.
+    ! Based on scatter_var_real8_2d.
     ! Note: The first index represents a data dimension that is the same on each task,
     !        whose size generally is less than own_ewn.
     !       The second index represents the north-south dimension, and is assumed
@@ -4917,7 +4917,7 @@ contains
 
     if (size(values,2) /= own_nsn) then
        ! Note: Removing this restriction would require some recoding below.
-       write(iulog,*) "ERROR: distributed_scatter_var_row requires N-S array size of own_nsn"
+       write(iulog,*) "ERROR: scatter_var_row requires N-S array size of own_nsn"
        call parallel_stop(__FILE__, __LINE__)
     end if
 
@@ -4974,16 +4974,16 @@ contains
     end associate
     ! automatic deallocation
 
-  end subroutine distributed_scatter_var_row_real8_2d
+  end subroutine scatter_var_row_real8_2d
 
 !=======================================================================
 
-  ! subroutines belonging to the distributed_scatter_var_col interface
+  ! subroutines belonging to the scatter_var_col interface
 
-  subroutine distributed_scatter_var_col_real8_2d(values, global_values, parallel)
+  subroutine scatter_var_col_real8_2d(values, global_values, parallel)
 
     ! Scatter data to a column of tasks from the main task for that column
-    ! Based on distributed_scatter_var_real8_2d.
+    ! Based on scatter_var_real8_2d.
     ! Note: The first index represents a data dimension that is the same on each task,
     !        whose size generally is less than own_nsn.
     !       The second index represents the east-west dimension, and is assumed
@@ -5016,7 +5016,7 @@ contains
 
     if (size(values,2) /= own_ewn) then
        ! Note: Removing this restriction would require some recoding below.
-       write(iulog,*) "ERROR: distributed_scatter_var_col requires E-W array size of own_nsn"
+       write(iulog,*) "ERROR: scatter_var_col requires E-W array size of own_nsn"
        call parallel_stop(__FILE__, __LINE__)
     end if
 
@@ -5073,7 +5073,7 @@ contains
     end associate
     ! automatic deallocation
 
-  end subroutine distributed_scatter_var_col_real8_2d
+  end subroutine scatter_var_col_real8_2d
 
 !=======================================================================
 
@@ -9402,7 +9402,7 @@ contains
        enddo
     endif   ! this_rank
 
-    call distributed_gather_var_row(test_array, global_test_array, parallel)
+    call gather_var_row(test_array, global_test_array, parallel)
 
 !!    if (parallel%main_task_row) then
     if (parallel%main_task_row .and. this_rank == 0) then
@@ -9416,7 +9416,7 @@ contains
        write(iulog,*) ' '
     endif
 
-    call distributed_scatter_var_row(test_array, global_test_array, parallel)
+    call scatter_var_row(test_array, global_test_array, parallel)
 
     if (this_rank == 0) then
        write(iulog,*) ' '
@@ -9456,7 +9456,7 @@ contains
        enddo
     endif   ! this_rank
 
-    call distributed_gather_var_col(test_array, global_test_array, parallel)
+    call gather_var_col(test_array, global_test_array, parallel)
 
 !!    if (parallel%main_task_col) then
     if (parallel%main_task_col .and. this_rank == 0) then
@@ -9470,7 +9470,7 @@ contains
        write(iulog,*) ' '
     endif
 
-    call distributed_scatter_var_col(test_array, global_test_array, parallel)
+    call scatter_var_col(test_array, global_test_array, parallel)
 
     if (this_rank == 0) then
        write(iulog,*) ' '
