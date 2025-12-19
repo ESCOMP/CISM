@@ -44,7 +44,12 @@ module glissade_utils
        glissade_basin_sum, glissade_basin_average, &
        glissade_usrf_to_thck, glissade_thck_to_usrf, &
        glissade_edge_fluxes, glissade_input_fluxes, &
-       glissade_rms_error
+       glissade_rms_error, write_array_to_file
+
+  interface write_array_to_file
+     module procedure write_array_to_file_real8_2d
+     module procedure write_array_to_file_real8_3d
+  end interface
 
 contains
 
@@ -945,10 +950,116 @@ contains
 
   end subroutine glissade_input_fluxes
 
+
+  ! subroutines belonging to the write_array_to_file interface
+  subroutine write_array_to_file_real8_2d(arr, fileunit, filename, parallel)
+
+    ! Copy the input array into a global array and write all values to an output file.
+    ! This can be useful for debugging, if we want to find differences between two fields
+    ! (e.g., in two different runs).
+    ! This version writes out 64-bit character strings corresponding to the binary representation
+    ! of each floating-point variable. This can be useful for BFB comparisons.
+    ! Sometimes, two floating-point variables appear to have the same values in base 10,
+    ! when the last few bits actually vary.
+    !TODO - Allow either float or binary output
+
+    use glimmer_utils, only: double_to_binary
+    use cism_parallel, only: gather_var
+
+    real(dp), dimension(:,:), intent(in) :: arr
+    integer, intent(in) :: fileunit
+    character(len=*), intent(in) :: filename
+    type(parallel_type), intent(in) :: parallel
+
+    integer :: i, j
+    character(len=64) :: binary_str
+    real(dp), dimension(:,:), allocatable :: arr_global
+
+    call gather_var(arr, arr_global, parallel)
+    if (main_task) then
+       open(unit=fileunit, file=trim(filename), status='replace', position='append')
+       do j = 1, parallel%global_nsn
+          do i = 1, parallel%global_ewn
+             call double_to_binary(arr_global(i,j), binary_str)
+             write (fileunit, '(2i6,a4,a64)') i, j, '    ', binary_str
+          enddo
+       enddo
+       close(unit=fileunit)
+       deallocate(arr_global)
+    endif
+
+  end subroutine write_array_to_file_real8_2d
+
+
+  subroutine write_array_to_file_real8_3d(arr, fileunit, filename, parallel, cycle_indices)
+
+    ! Copy the input array into a global array and write all values to an output file.
+    ! This can be useful for debugging, if we want to find differences between two fields
+    ! (e.g., in two different runs).
+    ! This version writes out 64-bit character strings corresponding to the binary representation
+    ! of each floating-point variable. This can be useful for BFB comparisons.
+    ! Sometimes, two floating-point variables appear to have the same values in base 10,
+    ! when the last few bits actually vary.
+    !TODO - Allow either float or binary output
+
+    use glimmer_utils, only: double_to_binary
+    use cism_parallel, only: gather_var
+
+    real(dp), dimension(:,:,:), intent(in) :: arr    ! first two indices are i and j
+    integer, intent(in) :: fileunit
+    character(len=*), intent(in) :: filename
+    type(parallel_type), intent(in) :: parallel
+    logical, intent(in), optional :: cycle_indices   ! if true, then index 3->1, 1->2, 2->3
+
+    integer :: i, j, k, kmax
+    character(len=64) :: binary_str
+    real(dp), dimension(:,:,:), allocatable :: arr_global
+    real(dp), dimension(:,:,:), allocatable :: arr_cycle
+    logical :: cycle_ind
+
+    if (present(cycle_indices)) then
+       cycle_ind = cycle_indices
+    else
+       cycle_ind = .false.
+    endif
+
+    if (cycle_ind) then
+       allocate(arr_cycle(size(arr,3), size(arr,1), size(arr,2)))
+       kmax = size(arr,3)
+       do j = 1, size(arr,2)
+          do i = 1, size(arr,1)
+             do k = 1, kmax
+                arr_cycle(k,i,j) = arr(i,j,k)
+             enddo
+          enddo
+       enddo
+       call gather_var(arr_cycle, arr_global, parallel)
+       deallocate(arr_cycle)
+    else
+       kmax = size(arr,1)
+       call gather_var(arr, arr_global, parallel)
+    endif
+
+    if (main_task) then
+       open(unit=fileunit, file=trim(filename), status='unknown')
+       do j = 1, parallel%global_nsn
+          do i = 1, parallel%global_ewn
+             do k = 1, kmax
+                call double_to_binary(arr_global(k,i,j), binary_str)
+                write (fileunit, '(3i6,a4,a64)') i, j, k, '    ', binary_str
+             enddo
+          enddo
+       enddo
+       close(unit=fileunit)
+       deallocate(arr_global)
+    endif
+
+  end subroutine write_array_to_file_real8_3d
+
 !****************************************************************************
 
 !TODO - Other utility subroutines to add here?
-!       E.g., tridiag; calclsrf; subroutines to zero out tracers
+!       E.g., calclsrf; subroutines to zero out tracers
 
 !****************************************************************************
 

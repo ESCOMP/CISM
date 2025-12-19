@@ -34,12 +34,16 @@ module glissade_basal_water
    use glide_types
    use cism_parallel, only: main_task, this_rank, nhalo, parallel_type, parallel_halo
 
+   !WHL - debug
+   use glimmer_utils, only: double_to_binary
+
    implicit none
 
    private
    public :: glissade_basal_water_init, glissade_calcbwat, glissade_bwat_flux_routing
 
    logical, parameter :: verbose_bwat = .false.
+!!   logical, parameter :: verbose_bwat = .true.
 
  contains
 
@@ -535,6 +539,9 @@ module glissade_basal_water
 
     character(len=100) :: message
 
+    !WHL - debug
+    character(len=64) :: binary_str
+
     ! Allocate the sorted_ij array
 
     nlocal = parallel%own_ewn * parallel%own_nsn
@@ -842,8 +849,14 @@ module glissade_basal_water
 
     if (verbose_bwat .and. this_rank == rtest) then
        write(iulog,*) 'Total bwatflx at margin (m^3/s):', total_flux_margin
+       call double_to_binary(total_flux_margin, binary_str)
+       write(iulog,*) '   ', binary_str
        write(iulog,*) 'Total bwatflx_refreeze (m^3/s)=', total_flux_refreeze
+       call double_to_binary(total_flux_refreeze, binary_str)
+       write(iulog,*) '   ', binary_str
        write(iulog,*) 'Total bwatflx (m^3/s)=', total_flux_out
+       call double_to_binary(total_flux_out, binary_str)
+       write(iulog,*) '   ', binary_str
        write(iulog,*) 'Difference between output and input =', total_flux_out - total_flux_in
     endif
 

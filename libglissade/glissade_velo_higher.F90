@@ -56,11 +56,11 @@
 
   module glissade_velo_higher
 
-    use glimmer_global, only: dp
+    use glimmer_global, only: dp, i8
     use glimmer_physcon, only: n_glen, rhoi, rhoo, grav, scyr, pi
-    use glimmer_paramets, only: iulog, eps08, eps10, eps11
+    use glimmer_paramets, only: iulog, eps11, eps10
     use glimmer_paramets, only: velo_scale, len_scale   ! used for whichefvs = HO_EFVS_FLOWFACT
-    use glimmer_utils, only: point_diag
+    use glimmer_utils, only: point_diag, double_to_binary
     use glimmer_log
     use glimmer_sparse_type
     use glimmer_sparse
@@ -92,7 +92,9 @@
     use cism_parallel, only: this_rank, main_task, nhalo, tasks, &
          parallel_type, parallel_halo, staggered_parallel_halo, parallel_globalindex, &
          parallel_reduce_max, parallel_reduce_sum, not_parallel
-
+    !WHL - debug
+    use cism_parallel, only: parallel_global_sum_stagger
+    use cism_reprosum_mod, only: verbose_reprosum
     implicit none
 
     private
@@ -225,8 +227,8 @@
 !    logical :: verbose_bfric = .true.
     logical :: verbose_trilinos = .false.
 !    logical :: verbose_trilinos = .true.
-    logical :: verbose_beta = .false.
-!    logical :: verbose_beta = .true.
+!    logical :: verbose_beta = .false.
+    logical :: verbose_beta = .true.
     logical :: verbose_efvs = .false.
 !    logical :: verbose_efvs = .true.
     logical :: verbose_tau = .false.
@@ -260,6 +262,10 @@
        dphi_dxr_3d_vav,    &! vertical avg of dphi_dxr_3d
        dphi_dyr_3d_vav,    &! vertical avg of dphi_dyr_3d
        dphi_dzr_3d_vav      ! vertical avg of dphi_dzr_3d
+
+    !WHL - debug for reprosum
+    character(len=64) :: binary_str   ! string representation of binary number (chain of 0's and 1's)
+    character(len=64) :: binary_str1, binary_str2
 
   contains
 
@@ -671,6 +677,9 @@
     use glide_thck, only: glide_calclsrf
     use profile, only: t_startf, t_stopf
 
+    !WHL - debug
+    use glissade_utils, only: write_array_to_file
+
     !----------------------------------------------------------------
     ! Input-output arguments
     !----------------------------------------------------------------
@@ -1067,6 +1076,15 @@
 
     integer :: itest, jtest    ! coordinates of diagnostic point
     integer :: rtest           ! task number for processor containing diagnostic point
+
+    !WHL - debug
+    real(dp), dimension(nNodeNeighbors_2d) :: &
+         sum_Auu, sum_Auv, sum_Avu, sum_Avv
+    real(dp) :: sum_uvel, sum_vvel
+    real(dp) :: sum_bu, sum_bv
+    real(dp) :: sum_flwa, sum_flwafact, sum_btrx, sum_btry, sum_stagusrf, sum_stagthck
+    real(dp) :: sum_betax, sum_betay, sum_omega, sum_stag_omega
+    real(dp), dimension(:,:), allocatable :: arr_global  ! temporary global array
 
     call t_startf('glissade_vhs_init')
     rtest = -999
@@ -1587,19 +1605,21 @@
     !  unique local ID to each such node.
     !------------------------------------------------------------------------------
 
-!pw call t_startf('glissade_get_vertex_geom')
-    call get_vertex_geometry(nx,             ny,                   &
-                             nz,             nhalo,                &
-                             parallel,                             &
-                             dx,             dy,                   &
-                             itest,  jtest,  rtest,                &
-                             ice_mask,                      &
-                             xVertex,        yVertex,              &
-                             active_cell,    active_vertex,        &
-                             nNodesSolve,    nVerticesSolve,       &
-                             nodeID,         vertexID,             &
-                             iNodeIndex,     jNodeIndex,  kNodeIndex, &
-                             iVertexIndex,   jVertexIndex)
+    !pw call t_startf('glissade_get_vertex_geom')
+    call get_vertex_geometry(&
+         nx,               ny,                 &
+         nz,               nhalo,              &
+         parallel,                             &
+         model%general%x0, model%general%y0,   &
+         dx,               dy,                 &
+         itest,  jtest,    rtest,              &
+         ice_mask,                             &
+         xVertex,          yVertex,            &
+         active_cell,      active_vertex,      &
+         nNodesSolve,      nVerticesSolve,     &
+         nodeID,           vertexID,           &
+         iNodeIndex,       jNodeIndex,   kNodeIndex, &
+         iVertexIndex,     jVertexIndex)
 !pw call t_stopf('glissade_get_vertex_geom')
 
     ! Zero out the velocity for inactive vertices
@@ -2302,6 +2322,10 @@
                whichbeta_limit,                  &
                itest = itest, jtest = jtest, rtest = rtest)
 
+          if (verbose_basal) then
+             call point_diag(beta_internal, 'After calcbeta, beta', itest, jtest, rtest, 7, 7, '(f12.0)')
+          endif
+
 !          if (verbose_beta) then
 !             maxbeta = maxval(beta_internal(:,:))
 !             maxbeta = parallel_reduce_max(maxbeta)
@@ -2329,6 +2353,36 @@
              usav_2d(:,:) = uvel_2d(:,:)
              vsav_2d(:,:) = vvel_2d(:,:)
 
+             !WHL - debug - BFB check
+             sum_uvel = parallel_global_sum_stagger(uvel_2d, parallel)
+             sum_vvel = parallel_global_sum_stagger(vvel_2d, parallel)
+             sum_flwa = parallel_global_sum_stagger(flwa, parallel)
+             sum_flwafact = parallel_global_sum_stagger(flwafact, parallel)
+             sum_btrx = parallel_global_sum_stagger(btractx, parallel)
+             sum_btry = parallel_global_sum_stagger(btracty, parallel)
+             sum_stagusrf = parallel_global_sum_stagger(stagusrf, parallel)
+             sum_stagthck = parallel_global_sum_stagger(stagthck, parallel)
+!!             if (this_rank == rtest) then
+             if (0 == 1) then
+                write(iulog,*) ' '
+                call double_to_binary(sum_uvel, binary_str)
+                write(iulog,*) 'Before assembly: sum_uvel, binary_str:', sum_uvel, binary_str
+                call double_to_binary(sum_vvel, binary_str)
+                write(iulog,*) 'Before assembly: sum_vvel, binary_str:', sum_vvel, binary_str
+                call double_to_binary(sum_flwa, binary_str)
+                write(iulog,*) 'Before assembly: sum_flwa, binary_str:', sum_flwa, binary_str
+                call double_to_binary(sum_flwafact, binary_str)
+                write(iulog,*) 'Before assembly: sum_flwafact, binary_str:', sum_flwafact, binary_str
+                call double_to_binary(sum_btrx, binary_str)
+                write(iulog,*) 'Before assembly: sum_btrx, binary_str:', sum_btrx, binary_str
+                call double_to_binary(sum_btry, binary_str)
+                write(iulog,*) 'Before assembly: sum_btry, binary_str:', sum_btry, binary_str
+                call double_to_binary(sum_stagusrf, binary_str)
+                write(iulog,*) 'Before assembly: sum_stagusrf, binary_str:', sum_stagusrf, binary_str
+                call double_to_binary(sum_stagthck, binary_str)
+                write(iulog,*) 'Before assembly: sum_stagthck, binary_str:', sum_stagthck, binary_str
+             endif
+
              ! Assemble the matrix
 
              call assemble_stiffness_matrix_2d(nx,               ny,              &
@@ -2352,6 +2406,53 @@
                                                btractx,          btracty,         &
                                                omega_k,          omega,   &
                                                efvs_qp_3d)
+
+             !WHL - debug - BFB check
+             if (0 == 1) then
+!!             if (verbose_reprosum .and. counter == 1) then
+                if (main_task) write(iulog,*) 'Write out matrices after assemble_stiffness_matrix'
+                call write_array_to_file(Auu_2d, 21, 'global_Auu1', parallel, cycle_indices = .true.)
+                call write_array_to_file(Auv_2d, 22, 'global_Auv1', parallel, cycle_indices = .true.)
+                call write_array_to_file(Avu_2d, 23, 'global_Avu1', parallel, cycle_indices = .true.)
+                call write_array_to_file(Avv_2d, 24, 'global_Avv1', parallel, cycle_indices = .true.)
+                call write_array_to_file(bu_2d,  25, 'global_bu1',  parallel)
+                call write_array_to_file(bv_2d,  26, 'global_bv1',  parallel)
+             endif
+
+             !WHL - debug - BFB check
+!!             if (0 == 1) then
+             if (verbose_reprosum) then
+                sum_Auu(:) = parallel_global_sum_stagger(Auu_2d, nNodeNeighbors_2d, parallel)
+                sum_Auv(:) = parallel_global_sum_stagger(Auv_2d, nNodeNeighbors_2d, parallel)
+                sum_Avu(:) = parallel_global_sum_stagger(Avu_2d, nNodeNeighbors_2d, parallel)
+                sum_Avv(:) = parallel_global_sum_stagger(Avv_2d, nNodeNeighbors_2d, parallel)
+                if (main_task) then
+                   write(iulog,*) ' '
+                   write(iulog,*) 'After assembly: n, sum_Auu(n), binary_str:'
+                   do n = 1, nNodeNeighbors_2d
+                      call double_to_binary(sum_Auu(n), binary_str)
+                      write(iulog,*) n, sum_Auu(n), binary_str
+                   enddo
+                   write(iulog,*) ' '
+                   write(iulog,*) 'After assembly: n, sum_Auv(n), binary_str:'
+                   do n = 1, nNodeNeighbors_2d
+                      call double_to_binary(sum_Auv(n), binary_str)
+                      write(iulog,*) n, sum_Auv(n), binary_str
+                   enddo
+                   write(iulog,*) ' '
+                   write(iulog,*) 'After assembly: n, sum_Avu(n), binary_str:'
+                   do n = 1, nNodeNeighbors_2d
+                      call double_to_binary(sum_Avu(n), binary_str)
+                      write(iulog,*) n, sum_Avu(n), binary_str
+                   enddo
+                   write(iulog,*) ' '
+                   write(iulog,*) 'After assembly: n, sum_Avv(n), binary_str:'
+                   do n = 1, nNodeNeighbors_2d
+                      call double_to_binary(sum_Avv(n), binary_str)
+                      write(iulog,*) n, sum_Avv(n), binary_str
+                   enddo
+                endif
+             endif   ! verbose_reprosum
 
              if (whichapprox == HO_APPROX_DIVA) then
 
@@ -2411,8 +2512,8 @@
                 beta_eff_x(:,:) = 0.d0
                 beta_eff_y(:,:) = 0.d0
 
-                !Note: The 'if' is not strictly needed, since the corrected beta_eff is equal
-                !      to the uncorrected beta_eff whe slope_factor = 1.0 and theta_slope = 0.0
+                !Note: The 'if diva_slope_correction' is not strictly needed, since the more complicated
+                !      equations reduce to the simpler ones when slope_factor = 1.0 and theta_slope = 0.0.
                 if (diva_slope_correction) then  ! compute a larger beta_eff at each vertex based on the slope
 
                    if (whichbabc == HO_BABC_NO_SLIP) then
@@ -2435,8 +2536,8 @@
                          beta_eff_y = 1.d0 / stag_omega
                       endwhere
                    else   ! slip allowed at bed
-                      beta_eff_x = beta_internal(:,:) / (1.d0 + beta_internal*stag_omega)
-                      beta_eff_y = beta_internal(:,:) / (1.d0 + beta_internal*stag_omega)
+                      beta_eff_x = beta_internal / (1.d0 + beta_internal*stag_omega)
+                      beta_eff_y = beta_internal / (1.d0 + beta_internal*stag_omega)
                    endif
 
                 endif
@@ -2453,6 +2554,36 @@
                    call point_diag(beta_eff_x, 'beta_eff_x', itest, jtest, rtest, 7, 7, '(e10.3)')
                    call point_diag(beta_eff_y, 'beta_eff_y', itest, jtest, rtest, 7, 7, '(e10.3)')
                 endif
+
+                if (verbose_reprosum) then
+                   sum_omega = parallel_global_sum_stagger(omega, parallel)
+                   sum_stag_omega = parallel_global_sum_stagger(stag_omega, parallel)
+                   sum_betax = parallel_global_sum_stagger(beta_eff_x, parallel)
+                   sum_betay = parallel_global_sum_stagger(beta_eff_y, parallel)
+                   if (main_task) then
+                      call double_to_binary(sum_omega, binary_str)
+                      write(iulog,*) 'Before bc_2d: sum_omega, binary_str:', sum_omega, binary_str
+                      call double_to_binary(sum_stag_omega, binary_str)
+                      write(iulog,*) '              sum_stag_omega, binary_str:', sum_stag_omega, binary_str
+                      call double_to_binary(sum_betax, binary_str)
+                      write(iulog,*) '              sum_betax, binary_str:', sum_betax, binary_str
+                      call double_to_binary(sum_betay, binary_str)
+                      write(iulog,*) '              sum_betay, binary_str:', sum_betay, binary_str
+                   endif
+                   if (this_rank == rtest) then
+                      do j = jtest-2, jtest+2
+                         do i = itest-2, itest+2
+                            if (i >= staggered_ilo .and. i <= staggered_ihi .and. &
+                                j >= staggered_jlo .and. j <= staggered_jhi) then
+                               call double_to_binary(stag_omega(i,j), binary_str)
+                               write(iulog,*) 'i, j, stag_omega:', i, j, binary_str
+                               call double_to_binary(beta_eff_x(i,j), binary_str)
+                               write(iulog,*) '      beta_eff_x:', i, j, binary_str
+                            endif
+                         enddo
+                      enddo
+                   endif
+                endif   ! verbose_reprosum
 
                 if (diva_slope_correction) then
 
@@ -2568,6 +2699,18 @@
              call staggered_parallel_halo(bv_2d(:,:), parallel)
              call t_stopf('glissade_halo_bxxs')
 
+             !WHL - debug - Write all the matrix elements and rhs elements (in binary form) to files
+!!             if (verbose_reprosum .and. counter == 1) then
+             if (0 == 1) then
+                if (main_task) write(iulog,*) 'Write out matrices after adding BC'
+                call write_array_to_file(Auu_2d, 21, 'global_Auu3', parallel, cycle_indices = .true.)
+                call write_array_to_file(Auv_2d, 22, 'global_Auv3', parallel, cycle_indices = .true.)
+                call write_array_to_file(Avu_2d, 23, 'global_Avu3', parallel, cycle_indices = .true.)
+                call write_array_to_file(Avv_2d, 24, 'global_Avv3', parallel, cycle_indices = .true.)
+                call write_array_to_file(bu_2d,  25, 'global_bu3',  parallel)
+                call write_array_to_file(bv_2d,  26, 'global_bv3',  parallel)
+             endif
+
              !---------------------------------------------------------------------------
              ! Check symmetry of assembled matrix
              !
@@ -2597,6 +2740,41 @@
                                     active_vertex,           &
                                     nNonzeros)
 
+             if (verbose_reprosum) then
+                sum_Auu(:) = parallel_global_sum_stagger(Auu_2d, nNodeNeighbors_2d, parallel)
+                sum_Auv(:) = parallel_global_sum_stagger(Auv_2d, nNodeNeighbors_2d, parallel)
+                sum_Avu(:) = parallel_global_sum_stagger(Avu_2d, nNodeNeighbors_2d, parallel)
+                sum_Avv(:) = parallel_global_sum_stagger(Avv_2d, nNodeNeighbors_2d, parallel)
+                sum_bu = parallel_global_sum_stagger(bu_2d, parallel)
+                sum_bv = parallel_global_sum_stagger(bv_2d, parallel)
+                if (main_task) then
+                   write(iulog,*) ' '
+                   write(iulog,*) 'After assembly: n, sum_Auu(n), binary_str:'
+                   do n = 1, nNodeNeighbors_2d
+                      call double_to_binary(sum_Auu(n), binary_str)
+                      write(iulog,*) n, sum_Auu(n), binary_str
+                   enddo
+                   write(iulog,*) ' '
+                   write(iulog,*) 'After assembly: n, sum_Auv(n), binary_str:'
+                   do n = 1, nNodeNeighbors_2d
+                      call double_to_binary(sum_Auv(n), binary_str)
+                      write(iulog,*) n, sum_Auv(n), binary_str
+                   enddo
+                   write(iulog,*) ' '
+                   write(iulog,*) 'After assembly: n, sum_Avu(n), binary_str:'
+                   do n = 1, nNodeNeighbors_2d
+                      call double_to_binary(sum_Avu(n), binary_str)
+                      write(iulog,*) n, sum_Avu(n), binary_str
+                   enddo
+                   write(iulog,*) ' '
+                   write(iulog,*) 'After assembly: n, sum_Avv(n), binary_str:'
+                   do n = 1, nNodeNeighbors_2d
+                      call double_to_binary(sum_Avv(n), binary_str)
+                      write(iulog,*) n, sum_Avv(n), binary_str
+                   enddo
+                endif
+             endif   ! verbose_reprosum
+
              if (write_matrix) then
                 if (counter == 1) then    ! first outer iteration only
                    call t_startf('glissade_wrt_mat')
@@ -2610,7 +2788,7 @@
                 endif
              endif   ! write_matrix
 
-             if (verbose_matrix .and. this_rank==rtest) then
+             if (verbose_matrix .and. main_task) then
                 i = itest
                 j = jtest
                 write(iulog,*) ' '
@@ -3886,6 +4064,7 @@
   subroutine get_vertex_geometry(nx,             ny,                   &
                                  nz,             nhalo,                &
                                  parallel,                             &
+                                 x0,             y0,                   &
                                  dx,             dy,                   &
                                  itest,  jtest,  rtest,                &
                                  ice_mask,                             &
@@ -3916,11 +4095,17 @@
        nhalo                      ! number of halo layers
 
     type(parallel_type), intent(in) :: &
-         parallel                  ! info for parallel communication
+         parallel                 ! info for parallel communication
+
+    real(dp), dimension(nx-1), intent(in) ::  &
+         x0                       ! x coordinates of vertices
+
+    real(dp), dimension(ny-1), intent(in) ::  &
+         y0                       ! y coordinates of vertices
 
     real(dp), intent(in) ::  &
-       dx,  dy                ! grid cell length and width (m)
-                              ! assumed to have the same value for each grid cell
+         dx,  dy                  ! grid cell length and width (m)
+                                  ! assumed to have the same value for each grid cell
 
     integer, intent(in) :: &
        itest, jtest, rtest    ! coordinates of diagnostic point
@@ -3976,13 +4161,11 @@
     ! By convention, vertex (i,j) lies at the NE corner of cell(i,j).
     !----------------------------------------------------------------
 
-    xVertex(:,:) = 0.d0
-    yVertex(:,:) = 0.d0
     do j = 1, ny-1
-    do i = 1, nx-1
-       xVertex(i,j) = dx * i
-       yVertex(i,j) = dy * j
-    enddo
+       do i = 1, nx-1
+          xVertex(i,j) = x0(i)
+          yVertex(i,j) = y0(j)
+       enddo
     enddo
 
     ! Identify the active cells.
@@ -4254,7 +4437,8 @@
                       loadv(kNode,iNode,jNode) = loadv(kNode,iNode,jNode) - &
                            rhoi*grav * wqp_3d(p) * detJ/vol0 * dsdy_qp * phi_3d(n,p)
 
-                      if (verbose_load .and. this_rank==rtest .and. i==itest .and. j==jtest .and. k==ktest .and. p==ptest) then
+                      if (verbose_load .and. this_rank==rtest .and. &
+                           i==itest .and. j==jtest .and. k==ktest .and. p==ptest) then
                          write(iulog,*) ' '
                          write(iulog,*) 'n, phi_3d(n), delta(loadu), delta(loadv):', n, phi_3d(n,p), &
                                   rhoi*grav*wqp_3d(p)*detJ/vol0 * dsdx_qp * phi_3d(n,p), &
@@ -5122,7 +5306,7 @@
        thck               ! ice thickness (m)
 
     real(dp), dimension(nx-1,ny-1), intent(in), optional ::   &
-       btractx, btracty         ! components of basal traction (Pa)
+       btractx, btracty   ! components of basal traction (Pa)
 
     real(dp), dimension(nz,nx,ny), intent(out), optional :: &
        omega_k            ! single integral, defined by Goldberg (2011) eq. 32
@@ -5881,6 +6065,11 @@
     uvel(1:nz-1,:,:) = 0.d0
     vvel(1:nz-1,:,:) = 0.d0
 
+    !WHL - debug
+    call point_diag(xVertex, 'xVertex', itest, jtest, rtest, 7, 7)
+    call point_diag(yVertex, 'yVertex', itest, jtest, rtest, 7, 7)
+    call point_diag(active_cell, 'active_cell', itest, jtest, rtest, 7, 7)
+
     ! Compute viscosity integral and strain rates in elements.
     ! Loop over all cells that border locally owned vertices.
 
@@ -6280,9 +6469,9 @@
        prod = matmul(Jac,Jinv)
        do col = 1, 3
           do row = 1, 3
-             if (abs(prod(row,col) - identity3(row,col)) > 1.d-11) then
-                write(iulog,*) 'stopping, Jac * Jinv /= identity'
-                write(iulog,*) 'i, j, k, p:', i, j, k, p
+             if (abs(prod(row,col) - identity3(row,col)) > eps10) then
+                write(iulog,*) '3d Jacobian, stopping, Jac * Jinv /= identity'
+                write(iulog,*) 'rank, i, j, k, p:', this_rank, i, j, k, p
                 write(iulog,*) 'Jac*Jinv:'
                 write(iulog,*) prod(1,:)
                 write(iulog,*) prod(2,:)
@@ -6478,8 +6667,8 @@
        do col = 1, 2
           do row = 1, 2
              if (abs(prod(row,col) - identity3(row,col)) > 1.d-12) then
-                write(iulog,*) 'stopping, Jac * Jinv /= identity'
-                write(iulog,*) 'i, j, p:', i, j, p
+                write(iulog,*) '2d Jacobian, stopping, Jac * Jinv /= identity'
+                write(iulog,*) 'rank, i, j, p:', this_rank, i, j, p
                 write(iulog,*) 'Jac*Jinv:'
                 write(iulog,*) prod(1,:)
                 write(iulog,*) prod(2,:)
@@ -6936,7 +7125,7 @@
 
     integer :: i, j, k, n, p
     integer :: iNode, jNode, kNode
-   
+
     ! initialize stresses
     tau_xz (:,:,:) = 0.d0
     tau_yz (:,:,:) = 0.d0
@@ -7545,7 +7734,7 @@
                                               efvs,                                 &
                                               itest,  jtest,    rtest,              &
                                               i, j, p )
-    
+
     ! Compute the effective viscosity at each layer of an ice column corresponding
     !  to a particular quadrature point, based on the depth-integrated formulation.
     ! See Goldberg(2011) for details.
@@ -7917,7 +8106,7 @@
                                      (2.d0*dphi_dy(nr)*dphi_dx(nc) + dphi_dx(nr)*dphi_dy(nc))
 
              Kvv(nr,nc) = Kvv(nr,nc) + efvs_factor *                                             &
-                                    ( 4.d0*dphi_dy(nr)*dphi_dy(nc) + dphi_dx(nr)*dphi_dx(nc)        &
+                                    ( 4.d0*dphi_dy(nr)*dphi_dy(nc) + dphi_dx(nr)*dphi_dx(nc)     &
                                     + dphi_dz(nr)*dphi_dz(nc) )
 
           enddo  ! nr (rows)
@@ -8050,7 +8239,7 @@
        do nc = 1, nNodesPerElement_2d    ! columns of K
 
           ! Determine column of A to be incremented
-          iA = ishift(nr,nc)           ! similarly for i and j indices 
+          iA = ishift(nr,nc)           ! similarly for i and j indices
           jA = jshift(nr,nc)           ! these indices can take values -1, 0 and 1
           m = indxA_2d(iA,jA)
 
@@ -8063,6 +8252,8 @@
           if (verbose_matrix .and. this_rank==rtest .and. iElement==itest .and. jElement==jtest) then
              write(iulog,*) 'Increment Auu, element i, j, nr, nc =', iElement, jElement, nr, nc
              write(iulog,*) '     i, j, m, Kuu, new Auu:', i, j, m, Kuu(nr,nc), Auu(i,j,m)
+!!             write(iulog,*) 'Increment Avv, element i, j, nr, nc =', iElement, jElement, nr, nc
+!!             write(iulog,*) '     i, j, m, Kvv, new Avv:', i, j, m, Kvv(nr,nc), Avv(i,j,m)
           endif
 
        enddo     ! nc
@@ -8080,7 +8271,7 @@
     !       Set diva_slope_correction = F to reproduce older results.
 
   !TODO - Call this subroutine for both 2D and 3D solvers.
-  !       First need to switch the index order for 3D matrices.
+  !       First would need to switch the index order for 3D matrices.
   subroutine basal_sliding_bc_2d(nx,               ny,              &
                                  nNeighbors,       nhalo,           &
                                  parallel,                          &
@@ -8092,7 +8283,6 @@
                                  xVertex,          yVertex,         &
                                  whichassemble_beta,                &
                                  Auu,              Avv)
-
 
     !------------------------------------------------------------------------
     ! Increment the Auu and Avv matrices with basal traction terms.
@@ -8166,6 +8356,7 @@
        dphi_dx_2d, dphi_dy_2d, dphi_dz_2d  ! derivatives of basis functions, evaluated at quad pts
 
     real(dp) ::   &
+       increment,   & ! incremental change in matrix element
        beta_qp,     & ! beta evaluated at quadrature point
        detJ           ! determinant of Jacobian for the transformation
                       !  between the reference element and true element
@@ -8173,24 +8364,23 @@
     real(dp), dimension(nNodesPerElement_2d, nNodesPerElement_2d) ::   &
        Kuu, Kvv       ! components of element matrix associated with basal sliding
 
-    if (verbose_basal) then
-       call point_diag(beta, 'beta', itest, jtest, rtest, 7, 7, '(f10.0)')
-    endif
-
     if (whichassemble_beta == HO_ASSEMBLE_BETA_LOCAL) then
 
-       if (nNeighbors == nNodeNeighbors_3d) then  ! 3D problem
-          m = indxA_3d(0,0,0)
-       else  ! 2D problem
-          m = indxA_2d(0,0)
-       endif
-
+       m = indxA_2d(0,0)
        ! Sum over active vertices
+       !WHL, 12/13/25: The following minor change makes the results independent of processor count.
+       !               Without the commented code, the 1-core result differs from the 4-core result
+       !                for some cells near the 4-core processor boundary (i = 211 in a GrIS run).
+       !               The difference is in the last of 64 bits.
+       !               I don't know why the original results differ or why the change fixes it.
        do j = 1, ny-1
           do i = 1, nx-1
              if (active_vertex(i,j)) then
-                Auu(i,j,m) = Auu(i,j,m) + dx*dy/vol0 * beta(i,j)
-                Avv(i,j,m) = Avv(i,j,m) + dx*dy/vol0 * beta(i,j)
+!                Auu(i,j,m) = Auu(i,j,m) + (dx*dy/vol0) * beta(i,j)
+!                Avv(i,j,m) = Avv(i,j,m) + (dx*dy/vol0) * beta(i,j)
+                increment = (dx*dy/vol0) * beta(i,j)
+                Auu(i,j,m) = Auu(i,j,m) + increment
+                Avv(i,j,m) = Avv(i,j,m) + increment
              endif   ! active_vertex
           enddo   ! i
        enddo   ! j
@@ -8330,20 +8520,6 @@
        enddo         ! j
 
     endif   ! whichassemble_beta
-
-    if (verbose_basal .and. this_rank==rtest) then
-       i = itest
-       j = jtest
-       if (nNeighbors == nNodeNeighbors_3d) then  ! 3D problem
-          m = indxA_3d(0,0,0)
-       else
-          m = indxA_2d(0,0)
-       endif
-       write(iulog,*) ' '
-       write(iulog,*) 'Basal BC: i, j, diagonal index =', i, j, m
-       write(iulog,*) 'New Auu diagonal:', Auu(i,j,m)
-       write(iulog,*) 'New Avv diagonal:', Avv(i,j,m)
-    endif
 
   end subroutine basal_sliding_bc_2d
 
@@ -10407,7 +10583,7 @@
 
     do j = 1, nNodesPerElement
        do i = j, nNodesPerElement
-          if (abs(Kuu(i,j) - Kuu(j,i)) > eps10) then
+          if (abs(Kuu(i,j) - Kuu(j,i)) > eps11) then
              write(iulog,*) 'Kuu is not symmetric'
              write(iulog,*) 'i, j, Kuu(i,j), Kuu(j,i):', i, j, Kuu(i,j), Kuu(j,i)
              stop
@@ -10419,7 +10595,7 @@
 
     do j = 1, nNodesPerElement
        do i = j, nNodesPerElement
-          if (abs(Kvv(i,j) - Kvv(j,i)) > eps10) then
+          if (abs(Kvv(i,j) - Kvv(j,i)) > eps11) then
              write(iulog,*) 'Kvv is not symmetric'
              write(iulog,*) 'i, j, Kvv(i,j), Kvv(j,i):', i, j, Kvv(i,j), Kvv(j,i)
              stop
@@ -10431,7 +10607,7 @@
 
     do j = 1, nNodesPerElement
        do i = 1, nNodesPerElement
-          if (abs(Kuv(i,j) - Kvu(j,i)) > eps10) then
+          if (abs(Kuv(i,j) - Kvu(j,i)) > eps11) then
              write(iulog,*) 'Kuv /= (Kvu)^T'
              write(iulog,*) 'i, j, Kuv(i,j), Kvu(j,i):', i, j, Kuv(i,j), Kvu(j,i)
              stop
@@ -10483,11 +10659,13 @@
 
     real(dp) :: val1, val2          ! values of matrix coefficients
 
-    real(dp) :: maxdiff, diag_entry, avg_val
+    real(dp) :: maxdiff, global_maxdiff, diag_entry, avg_val
 
     integer :: &
          staggered_ilo, staggered_ihi, &  ! bounds of locally owned vertices on staggered grid
          staggered_jlo, staggered_jhi
+
+    integer :: rmax, imax, jmax, kmax, mmax
 
     staggered_ilo = parallel%staggered_ilo
     staggered_ihi = parallel%staggered_ihi
@@ -10503,6 +10681,7 @@
     !  and/or aborts.
 
     maxdiff = 0.d0
+    rmax = 0; imax = 0; jmax = 0; kmax = 0; mmax = 0
 
     ! Loop over locally owned vertices.
     ! Each active vertex is associate with 2*nz matrix rows belonging to this processor.
@@ -10541,12 +10720,15 @@
 
                       if (val2 /= val1) then
                           
-                         if (abs(val2 - val1) > maxdiff) maxdiff = abs(val2 - val1)
+                         if (abs(val2 - val1) > maxdiff) then
+                            maxdiff = abs(val2 - val1)
+                            rmax = this_rank; imax = i; jmax = j; kmax = k; mmax = m
+                         endif
 
                          ! if difference is small, then fix the asymmetry by averaging values
                          ! else print a warning and abort
 
-                         if ( abs(val2-val1) < eps08*abs(diag_entry) ) then
+                         if ( abs(val2-val1) < eps11*abs(diag_entry) ) then
                             avg_val = 0.5d0 * (val1 + val2)
                             Auu( m, k,   i,   j   ) = avg_val
                             Auu(mm, k+kA,i+iA,j+jA) = avg_val
@@ -10568,12 +10750,15 @@
 
                       if (val2 /= val1) then
 
-                         if (abs(val2 - val1) > maxdiff) maxdiff = abs(val2 - val1)
+                         if (abs(val2 - val1) > maxdiff) then
+                            maxdiff = abs(val2 - val1)
+                            rmax = this_rank; imax = i; jmax = j; kmax = k; mmax = m
+                         endif
 
                          ! if difference is small, then fix the asymmetry by averaging values
                          ! else print a warning and abort
 
-                         if ( abs(val2-val1) < eps08*abs(diag_entry) ) then
+                         if ( abs(val2-val1) < eps11*abs(diag_entry) ) then
                             avg_val = 0.5d0 * (val1 + val2)
                             Auv( m, k,   i,   j   ) = avg_val
                             Avu(mm, k+kA,i+iA,j+jA) = avg_val
@@ -10623,12 +10808,15 @@
 
                       if (val2 /= val1) then
                           
-                         if (abs(val2 - val1) > maxdiff) maxdiff = abs(val2 - val1)
+                         if (abs(val2 - val1) > maxdiff) then
+                            maxdiff = abs(val2 - val1)
+                            rmax = this_rank; imax = i; jmax = j; kmax = k; mmax = m
+                         endif
 
                          ! if difference is small, then fix the asymmetry by averaging values
                          ! else print a warning and abort
 
-                         if ( abs(val2-val1) < eps08*abs(diag_entry) ) then
+                         if ( abs(val2-val1) < eps11*abs(diag_entry) ) then
                             avg_val = 0.5d0 * (val1 + val2)
                             Avv( m, k,   i,   j   ) = avg_val
                             Avv(mm, k+kA,i+iA,j+jA) = avg_val
@@ -10648,14 +10836,17 @@
                       val1 = Avu( m, k,    i,    j)      ! value of Avu(row,col)
                       val2 = Auv(mm, k+kA, i+iA, j+jA)   ! value of Auv(col,row)
 
-                      if (abs(val2 - val1) > maxdiff) maxdiff = abs(val2 - val1)
+                      if (abs(val2 - val1) > maxdiff) then
+                         maxdiff = abs(val2 - val1)
+                         rmax = this_rank; imax = i; jmax = j; kmax = k; mmax = m
+                      endif
 
                       if (val2 /= val1) then
 
                          ! if difference is small, then fix the asymmetry by averaging values
                          ! else print a warning and abort
 
-                         if ( abs(val2-val1) < eps08*abs(diag_entry) ) then
+                         if ( abs(val2-val1) < eps11*abs(diag_entry) ) then
                             avg_val = 0.5d0 * (val1 + val2)
                             Avu( m, k,   i,   j   ) = avg_val
                             Auv(mm, k+kA,i+iA,j+jA) = avg_val
@@ -10681,11 +10872,14 @@
        enddo           ! i
     enddo              ! j
 
-    if (verbose_matrix) maxdiff = parallel_reduce_max(maxdiff)
-
-    if (verbose_matrix .and. main_task) then
-       write(iulog,*) ' '
-       write(iulog,*) 'Max difference from symmetry =', maxdiff
+    if (verbose_matrix) then
+       global_maxdiff = parallel_reduce_max(maxdiff)
+       if (maxdiff == global_maxdiff) then
+          ! maxdiff is on this processor; compute and broadcast the global index
+          call parallel_globalindex(imax, jmax, iglobal, jglobal, parallel)
+          write(iulog,*) 'Max asymmetry =', global_maxdiff
+          write(iulog,*) '   i, j, ig, jg, k, m =', imax, jmax, iglobal, jglobal, kmax, mmax
+       endif
     endif
 
   end subroutine check_symmetry_assembled_matrix_3d
@@ -10730,7 +10924,9 @@
 
     real(dp) :: val1, val2          ! values of matrix coefficients
 
-    real(dp) :: maxdiff, diag_entry, avg_val
+    real(dp) :: maxdiff, global_maxdiff, diag_entry, avg_val
+
+    integer :: rmax, imax, jmax, mmax
 
     integer :: &
          staggered_ilo, staggered_ihi, &  ! bounds of locally owned vertices on staggered grid
@@ -10750,6 +10946,7 @@
     !  and/or aborts.
 
     maxdiff = 0.d0
+    rmax = 0; imax = 0; jmax = 0; mmax = 0
 
     ! Loop over locally owned vertices.
     ! Each active vertex is associate with 2*nz matrix rows belonging to this processor.
@@ -10778,13 +10975,18 @@
                 val1 = Auu(i,    j,    m )   ! value of Auu(row,col)
                 val2 = Auu(i+iA, j+jA, mm)   ! value of Auu(col,row)
                 if (val2 /= val1) then
-                   if (abs(val2 - val1) > maxdiff) maxdiff = abs(val2 - val1)
+                   if (abs(val2 - val1) > maxdiff) then
+                      maxdiff = abs(val2 - val1)
+                      rmax = this_rank; imax = i; jmax = j; mmax = m
+                   endif
                    ! if difference is small, then fix the asymmetry by averaging values
+                   !WHL - Here and below, I commented out the code to average asymmetric values.
+                   !      The hope is that the asymmetries are too small to matter.
                    ! else print a warning and abort
-                   if ( abs(val2-val1) < eps08*abs(diag_entry) ) then
-                      avg_val = 0.5d0 * (val1 + val2)
-                      Auu(i,    j,    m ) = avg_val
-                      Auu(i+iA, j+jA, mm) = avg_val
+                   if ( abs(val2-val1) < eps11*abs(diag_entry) ) then
+!                      avg_val = 0.5d0 * (val1 + val2)
+!                      Auu(i,    j,    m ) = avg_val
+!                      Auu(i+iA, j+jA, mm) = avg_val
                    else
                       write(iulog,*) 'WARNING: Auu is not symmetric: this_rank, i, j, iA, jA =', this_rank, i, j, iA, jA
                       write(iulog,*) 'Auu(row,col), Auu(col,row), diff/diag:', val1, val2, (val2 - val1)/diag_entry
@@ -10798,13 +11000,16 @@
                 val1 = Auv(i,    j,    m )   ! value of Auv(row,col)
                 val2 = Avu(i+iA, j+jA, mm)   ! value of Avu(col,row)
                 if (val2 /= val1) then
-                   if (abs(val2 - val1) > maxdiff) maxdiff = abs(val2 - val1)
+                   if (abs(val2 - val1) > maxdiff) then
+                      maxdiff = abs(val2 - val1)
+                      rmax = this_rank; imax = i; jmax = j; mmax = m
+                   endif
                    ! if difference is small, then fix the asymmetry by averaging values
                    ! else print a warning and abort
-                   if ( abs(val2-val1) < eps08*abs(diag_entry) ) then
-                      avg_val = 0.5d0 * (val1 + val2)
-                      Auv(i,    j,    m ) = avg_val
-                      Avu(i+iA, j+jA, mm) = avg_val
+                   if ( abs(val2-val1) < eps11*abs(diag_entry) ) then
+!                      avg_val = 0.5d0 * (val1 + val2)
+!                      Auv(i,    j,    m ) = avg_val
+!                      Avu(i+iA, j+jA, mm) = avg_val
                    else
                       write(iulog,*) 'WARNING: Auv is not equal to (Avu)^T, this_rank, i, j, iA, jA =', this_rank, i, j, iA, jA
                       write(iulog,*) 'Auv(row,col), Avu(col,row), diff/diag:', val1, val2, (val2 - val1)/diag_entry
@@ -10822,14 +11027,16 @@
                 val2 = Avv(i+iA, j+jA, mm)   ! value of Avv(col,row)
 
                 if (val2 /= val1) then
-                   if (abs(val2 - val1) > maxdiff) maxdiff = abs(val2 - val1)
-
+                   if (abs(val2 - val1) > maxdiff) then
+                      maxdiff = abs(val2 - val1)
+                      rmax = this_rank; imax = i; jmax = j; mmax = m
+                   endif
                    ! if difference is small, then fix the asymmetry by averaging values
                    ! else print a warning and abort
-                   if ( abs(val2-val1) < eps08*abs(diag_entry) ) then
-                      avg_val = 0.5d0 * (val1 + val2)
-                      Avv(i,    j,    m ) = avg_val
-                      Avv(i+iA, j+jA, mm) = avg_val
+                   if ( abs(val2-val1) < eps11*abs(diag_entry) ) then
+!                      avg_val = 0.5d0 * (val1 + val2)
+!                      Avv(i,    j,    m ) = avg_val
+!                      Avv(i+iA, j+jA, mm) = avg_val
                    else
                       write(iulog,*) 'WARNING: Avv is not symmetric: this_rank, i, j, iA, jA =', this_rank, i, j, iA, jA
                       write(iulog,*) 'Avv(row,col), Avv(col,row), diff/diag:', val1, val2, (val2 - val1)/diag_entry
@@ -10844,16 +11051,17 @@
                 val1 = Avu(i,    j,    m )   ! value of Avu(row,col)
                 val2 = Auv(i+iA, j+jA, mm)   ! value of Auv(col,row)
 
-                if (abs(val2 - val1) > maxdiff) maxdiff = abs(val2 - val1)
-
                 if (val2 /= val1) then
-
+                   if (abs(val2 - val1) > maxdiff) then
+                      maxdiff = abs(val2 - val1)
+                      rmax = this_rank; imax = i; jmax = j; mmax = m
+                   endif
                    ! if difference is small, then fix the asymmetry by averaging values
                    ! else print a warning and abort
-                   if ( abs(val2-val1) < eps08*abs(diag_entry) ) then
-                      avg_val = 0.5d0 * (val1 + val2)
-                      Avu(i,    j,    m ) = avg_val
-                      Auv(i+iA, j+jA, mm) = avg_val
+                   if ( abs(val2-val1) < eps11*abs(diag_entry) ) then
+!                      avg_val = 0.5d0 * (val1 + val2)
+!                      Avu(i,    j,    m ) = avg_val
+!                      Auv(i+iA, j+jA, mm) = avg_val
                    else
                       write(iulog,*) 'WARNING: Avu is not equal to (Auv)^T, this_rank, i, j, iA, jA =', this_rank, i, j, iA, jA
                       write(iulog,*) 'Avu(row,col), Auv(col,row), diff/diag:', val1, val2, (val2 - val1)/diag_entry
@@ -10870,11 +11078,14 @@
     enddo     ! iA
     enddo     ! jA
 
-    if (verbose_matrix) maxdiff = parallel_reduce_max(maxdiff)
-
-    if (verbose_matrix .and. main_task) then
-       write(iulog,*) ' '
-       write(iulog,*) 'Max difference from symmetry =', maxdiff
+    if (verbose_matrix) then
+       global_maxdiff = parallel_reduce_max(maxdiff)
+       if (maxdiff == global_maxdiff) then
+          ! maxdiff is on this processor; compute and broadcast the global index
+          call parallel_globalindex(imax, jmax, iglobal, jglobal, parallel)
+          write(iulog,*) 'Max asymmetry =', global_maxdiff
+          write(iulog,*) '   ig, jg, m =', iglobal, jglobal, mmax
+       endif
     endif
 
   end subroutine check_symmetry_assembled_matrix_2d

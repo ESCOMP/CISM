@@ -531,7 +531,7 @@
  
     if (niters == maxiters) then
        if (verbose_pcg .and. main_task) then
-          write(iulog,*) 'Glissade PCG solver not converged'
+          write(iulog,*) 'Glissade PCG solver not yet converged'
           write(iulog,*) 'niters, err, tolerance:', niters, err, tolerance
        endif
     endif
@@ -746,7 +746,7 @@
     iter_loop: do iter = 1, maxiters
 
        if (verbose_pcg .and. main_task) then
-          write(iulog,*) 'iter =', iter
+!          write(iulog,*) 'iter =', iter
        endif
 
        call t_startf("pcg_precond")
@@ -933,7 +933,7 @@
  
     if (niters == maxiters) then
        if (verbose_pcg .and. main_task) then
-          write(iulog,*) 'Glissade PCG solver not converged'
+          write(iulog,*) 'Glissade PCG solver not yet converged'
           write(iulog,*) 'niters, err, tolerance:', niters, err, tolerance
        endif
     endif
@@ -1233,12 +1233,6 @@
     ilocal = staggered_ihi - staggered_ilo + 1
     jlocal = staggered_jhi - staggered_jlo + 1
 
-    !WHL - debug
-    if (verbose_pcg .and. this_rank == rtest) then
-       write(iulog,*) 'stag_ihi, stag_ilo, ilocal:', staggered_ihi, staggered_ilo, ilocal
-       write(iulog,*) 'stag_jhi, stag_jlo, jlocal:', staggered_jhi, staggered_jlo, jlocal
-    endif
-
     !---- Set up matrices for preconditioning
 
     call t_startf("pcg_precond_init")
@@ -1483,28 +1477,6 @@
                             active_vertex,         &
                             Mvv,  rv,   zv)      ! solve Mvv*zv = rv for zv
 
-       !WHL - debug
-       if (verbose_pcg .and. this_rank == rtest) then
-          j = jtest
-          write(iulog,*) 'Standard SIA PC:'
-          write(iulog,*) ' '
-          write(iulog,*) 'i, zu_sia(1), zu_sia(nz):'
-          do i = itest-3, itest+3
-             write(iulog,*) ' '
-             do k = 1, nz
-                write(iulog,'(i4, 2f16.10)') i, zu(1,i,j), zu(nz,i,j)
-             enddo
-          enddo  ! i
-          write(iulog,*) ' '
-          write(iulog,*) 'i, zv_sia(1), zv_sia(nz):'
-          do i = itest-3, itest+3
-             write(iulog,*) ' '
-             do k = 1, nz
-                write(iulog,'(i4, 2f16.10)') i, zv(1,i,j), zv(nz,i,j)
-             enddo
-          enddo  ! i
-       endif
-
     elseif (precond == HO_PRECOND_TRIDIAG_LOCAL) then
 
        ! Use a local tridiagonal solver to find an approximate solution of A*z = r
@@ -1618,30 +1590,14 @@
     rv(:,:,:) = rv(:,:,:) - alpha*qv(:,:,:)
     call t_stopf("pcg_vecupdate")
 
-    !WHL - debug
-    if (verbose_pcg .and. this_rank == rtest) then
-       j = jtest
-       write(iulog,*) ' '
-       write(iulog,*) 'alpha =', alpha
-       write(iulog,*) 'iter = 1: i, k, xu, xv, ru, rv:'
-       do i = staggered_ilo, staggered_ihi
-!!       do i = itest-3, itest+3
-          write(iulog,*) ' '
-          do k = 1, nz
-             write(iulog,'(2i4, 4f16.10)') i, k, xu(k,i,j), xv(k,i,j), ru(k,i,j), rv(k,i,j)
-          enddo
-       enddo
-    endif
-
     !---------------------------------------------------------------
     ! Iterate to solution
     !---------------------------------------------------------------
 
     iter_loop: do iter = 2, maxiters_chrongear  ! first iteration done above
 
-       if (verbose_pcg .and. this_rank == rtest) then
-          write(iulog,*) ' '
-          write(iulog,*) 'iter =', iter
+       if (verbose_pcg .and. main_task) then
+!          write(iulog,*) 'iter =', iter
        endif
 
        !---- Compute PC(r) = solution z of Mz = r
@@ -1726,9 +1682,6 @@
                zu,              zv)                 ! approximate solution of Az = r
 
        endif    ! precond
-
-    !WHL - debug
-    if (verbose_pcg .and. this_rank == rtest) write(iulog,*) 'L1'
 
        call t_stopf("pcg_precond_iter")
 
@@ -1832,7 +1785,7 @@
 
        if (mod(iter, linear_solve_ncheck) == 0 .or. iter == 5) then
 
-          if (verbose_pcg .and. this_rank == rtest) then
+          if (verbose_pcg .and. main_task) then
              write(iulog,*) ' '
              write(iulog,*) 'Check convergence, iter =', iter
           endif
@@ -1870,7 +1823,7 @@
           L2_resid = sqrt(rr)          ! L2 norm of residual
           err = L2_resid/L2_rhs        ! normalized error
 
-          if (verbose_pcg .and. this_rank == rtest) then
+          if (verbose_pcg .and. main_task) then
              write(iulog,*) 'iter, L2_resid, L2_rhs, error =', iter, L2_resid, L2_rhs, err
           endif
 
@@ -1903,14 +1856,14 @@
 
           if (err < tolerance) then
              niters = iter
-             if (verbose_pcg .and. this_rank == rtest) then
+             if (verbose_pcg .and. main_task) then
                 write(iulog,*) 'Glissade PCG solver has converged, iter =', niters
                 write(iulog,*) ' '
              endif
              exit iter_loop
           elseif (niters == maxiters_chrongear) then
-             if (verbose_pcg .and. this_rank == rtest) then
-                write(iulog,*) 'Glissade PCG solver not converged'
+             if (verbose_pcg .and. main_task) then
+                write(iulog,*) 'Glissade PCG solver not yet converged'
                 write(iulog,*) 'niters, err, tolerance:', niters, err, tolerance
                 write(iulog,*) ' '
              endif
@@ -2114,6 +2067,7 @@
     !WHL - debug
     integer :: iu_max, ju_max, iv_max, jv_max
     real(dp) :: ru_max, rv_max
+    real(dp) :: sum_temp
 
     staggered_ilo = parallel%staggered_ilo
     staggered_ihi = parallel%staggered_ihi
@@ -2133,7 +2087,7 @@
        maxiters_chrongear = maxiters
     endif
 
-    if (verbose_pcg .and. this_rank == rtest) then
+    if (verbose_pcg .and. main_task) then
        write(iulog,*) 'Using native PCG solver (Chronopoulos-Gear)'
        write(iulog,*) 'tolerance, maxiters, precond =', tolerance, maxiters_chrongear, precond
     endif
@@ -2148,7 +2102,7 @@
 
     if (precond == HO_PRECOND_NONE) then    ! no preconditioner
 
-       if (verbose_pcg .and. this_rank == rtest) then
+       if (verbose_pcg .and. main_task) then
           write(iulog,*) 'Using no preconditioner'
        endif
 
@@ -2170,15 +2124,15 @@
 
     elseif (precond == HO_PRECOND_TRIDIAG_LOCAL) then
 
-          !WHL - debug
-          if (verbose_tridiag .and. this_rank==rtest) then
-             i = itest
-             j = jtest
-             write(iulog,*) ' '
-             write(iulog,*) 'r, i, j =', this_rank, i, j
-             write(iulog,*) 'Auu =', Auu(i,j,:)
-             write(iulog,*) 'Avv =', Avv(i,j,:)
-          endif
+       !WHL - debug
+       if (verbose_tridiag .and. this_rank==rtest) then
+          i = itest
+          j = jtest
+          write(iulog,*) ' '
+          write(iulog,*) 'r, i, j =', this_rank, i, j
+          write(iulog,*) 'Auu =', Auu(i,j,:)
+          write(iulog,*) 'Avv =', Avv(i,j,:)
+       endif
 
        allocate(Adiag_u   (nx-1,ny-1))
        allocate(Asubdiag_u(nx-1,ny-1))
@@ -2282,7 +2236,7 @@
     endif   ! precond
 
     !WHL - debug
-    if (verbose_pcg .and. this_rank == rtest) write(iulog,*) 'Done in PC setup'
+    if (verbose_pcg .and. main_task) write(iulog,*) 'Done in PC setup'
 
     call t_stopf("pcg_precond_init")
 
@@ -2421,7 +2375,7 @@
           enddo
        endif
 
-       if (verbose_pcg .and. this_rank == rtest) then
+       if (verbose_pcg .and. main_task) then
           write(iulog,*) 'call tridiag_solver_local_2d'
        endif
 
@@ -2617,11 +2571,10 @@
     !WHL - debug
     if (verbose_pcg .and. this_rank == rtest) then
        j = jtest
-       write(iulog,*) ' '
-       write(iulog,*) 'iter = 1: i, xu, xv, ru, rv:'
-!!          do i = itest-3, itest+3
-       do i = staggered_ilo, staggered_ihi
-          write(iulog,'(i4, 4f16.10)') i, xu(i,j), xv(i,j), ru(i,j), rv(i,j)
+!!       write(iulog,*) ' '
+!!       write(iulog,*) 'iter = 1: i, xu, xv, ru, rv:'
+       do i = itest-3, itest+3
+!!          write(iulog,'(i4, 4f16.10)') i, xu(i,j), xv(i,j), ru(i,j), rv(i,j)
        enddo  ! i
     endif
 
@@ -2631,9 +2584,8 @@
 
     iter_loop: do iter = 2, maxiters_chrongear  ! first iteration done above
 
-       if (verbose_pcg .and. this_rank == rtest) then
-          write(iulog,*) ' '
-          write(iulog,*) 'iter =', iter
+       if (verbose_pcg .and. main_task) then
+!          write(iulog,*) 'iter =', iter
        endif
 
        !---- Compute PC(r) = solution z of Mz = r
@@ -2740,17 +2692,16 @@
           enddo
 
           !WHL - debug
-    if (verbose_pcg .and. this_rank == rtest) then
-       j = jtest
-       write(iulog,*) ' '
-       write(iulog,*) 'Before global tridiag PC u solve, r, j =', rtest, jtest
-       write(iulog,*) ' '
-       write(iulog,*) 'i, Adiag_u, Asubdiag_u, Asupdiag_u, b_u:'
-       do i = itest-3, itest+3
-          write(iulog,'(i4, 4e16.8)') i, Adiag_u(i,j), Asubdiag_u(i,j), Asupdiag_u(i,j), b_u(i,j)
-       enddo
-    endif
-
+          if (verbose_pcg .and. this_rank == rtest) then
+             j = jtest
+             write(iulog,*) ' '
+             write(iulog,*) 'Before global tridiag PC u solve, r, j =', rtest, jtest
+             write(iulog,*) ' '
+             write(iulog,*) 'i, Adiag_u, Asubdiag_u, Asupdiag_u, b_u:'
+             do i = itest-3, itest+3
+                write(iulog,'(i4, 4e16.8)') i, Adiag_u(i,j), Asubdiag_u(i,j), Asupdiag_u(i,j), b_u(i,j)
+             enddo
+          endif
 
           call tridiag_solver_global_2d(ilocal,       jlocal,      &
                                         parallel,     tasks_row,   &
@@ -2786,17 +2737,6 @@
                 b_v(j,i) = rv(ii,jj)
              enddo
           enddo
-
-    if (verbose_pcg .and. this_rank == rtest) then
-       j = jtest
-       write(iulog,*) ' '
-       write(iulog,*) 'Before global tridiag PC v solve, r, j =', rtest, jtest
-       write(iulog,*) ' '
-       write(iulog,*) 'i, Adiag_v, Asubdiag_v, Asupdiag_v, b_v:'
-       do i = itest-3, itest+3
-          write(iulog,'(i4, 4e16.8)') i, Adiag_v(i,j), Asubdiag_v(i,j), Asupdiag_v(i,j), b_v(i,j)
-       enddo
-    endif
 
           call tridiag_solver_global_2d(jlocal,       ilocal,      &
                                         parallel,     tasks_col,   &
@@ -2911,16 +2851,6 @@
 
        call t_stopf("pcg_vecupdate")
 
-       !WHL - debug
-       if (verbose_pcg .and. this_rank == rtest) then
-          j = jtest
-          write(iulog,*) 'i, xu, xv, ru, rv:'
-!!             do i = staggered_ihi, staggered_ilo, -1
-          do i = itest-3, itest+3
-             write(iulog,'(i4, 4f16.10)') i, xu(i,j), xv(i,j), ru(i,j), rv(i,j)
-          enddo
-       endif
-
        ! Check for convergence every linear_solve_ncheck iterations.
        ! Also check at iter = 5, to reduce iterations when the nonlinear solver is close to convergence.
        ! TODO: Check at iter = linear_solve_ncheck/2 instead of 5?  This would be answer-changing.
@@ -2928,15 +2858,18 @@
        ! For convergence check, use r = b - Ax
 
        if (mod(iter, linear_solve_ncheck) == 0 .or. iter == 5) then
-!!       if (mod(iter, linear_solve_ncheck) == 0 .or. iter == linear_solve_ncheck/2) then
 
-          if (verbose_pcg .and. this_rank == rtest) then
+          if (verbose_pcg .and. main_task) then
              write(iulog,*) ' '
              write(iulog,*) '   check convergence, iter =', iter
           endif
 
           !---- Compute z = A*x  (use z as a temp vector for A*x)
            
+          !WHL - debug - don't think this is needed, but try just in case
+!!          call staggered_parallel_halo(xu, parallel)
+!!          call staggered_parallel_halo(xv, parallel)
+
           call t_startf("pcg_matmult_resid")
           call matvec_multiply_structured_2d(nx,            ny,            &
                                              parallel,                     &
@@ -2949,10 +2882,21 @@
 
           !---- Compute residual r = b - A*x
 
+          !WHL - debug - don't think this is needed, but try just in case
+!!          call staggered_parallel_halo(bu, parallel)
+!!          call staggered_parallel_halo(bv, parallel)
+          !WHL - debug - don't think this is needed, but try just in case
+!!          call staggered_parallel_halo(zu, parallel)
+!!          call staggered_parallel_halo(zv, parallel)
+
           call t_startf("pcg_vecupdate")
           ru(:,:) = bu(:,:) - zu(:,:)
           rv(:,:) = bv(:,:) - zv(:,:)
           call t_stopf("pcg_vecupdate")
+
+          !WHL - debug - don't think this is needed, but try just in case
+!!          call staggered_parallel_halo(ru, parallel)
+!!          call staggered_parallel_halo(rv, parallel)
 
           !---- Compute dot product (r, r)
 
@@ -2968,7 +2912,7 @@
           L2_resid = sqrt(rr)          ! L2 norm of residual
           err = L2_resid/L2_rhs        ! normalized error
 
-          if (verbose_pcg .and. this_rank == rtest) then
+          if (verbose_pcg .and. main_task) then
              write(iulog,*) 'iter, L2_resid, L2_rhs, error =', iter, L2_resid, L2_rhs, err
           endif
 
@@ -3001,13 +2945,13 @@
 
           if (err < tolerance) then
              niters = iter
-             if (verbose_pcg .and. this_rank == rtest) then
+             if (verbose_pcg .and. main_task) then
                 write(iulog,*) 'Glissade PCG solver has converged, iter =', niters
              endif
              exit iter_loop
           elseif (niters == maxiters_chrongear) then
-             if (verbose_pcg .and. this_rank == rtest) then
-                write(iulog,*) 'Glissade PCG solver not converged'
+             if (verbose_pcg .and. main_task) then
+                write(iulog,*) 'Glissade PCG solver not yet converged'
                 write(iulog,*) 'niters, err, tolerance:', niters, err, tolerance
              endif
           endif

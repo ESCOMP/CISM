@@ -348,6 +348,8 @@ module cism_parallel
   end interface
 
   interface parallel_is_zero
+     module procedure parallel_is_zero_integer_1d
+     module procedure parallel_is_zero_real8_1d
      module procedure parallel_is_zero_integer_2d
      module procedure parallel_is_zero_real8_2d
      module procedure parallel_is_zero_real8_3d
@@ -703,9 +705,7 @@ contains
          mpi_integer,main_rank,comm)
 
     if (main_task) then
-       if (allocated(global_values)) then
-          deallocate(global_values)
-       endif
+       if (allocated(global_values)) deallocate(global_values)
        !WHL - See comments above on allocating the global_values array
 !!       allocate(global_values(&
 !!                 minval(d_gs_bounds(1,:)):maxval(d_gs_bounds(2,:)),&
@@ -724,9 +724,7 @@ contains
        end do
        allocate(recvbuf(displs(tasks+1)))
     else
-       if (allocated(global_values)) then
-          deallocate(global_values)
-       endif
+       if (allocated(global_values)) deallocate(global_values)
        allocate(global_values(1,1))  ! This prevents a problem with NULL pointers later.
        allocate(displs(1))
        allocate(recvcounts(1))
@@ -811,9 +809,7 @@ contains
          mpi_integer,main_rank,comm)
 
     if (main_task) then
-       if (allocated(global_values)) then
-          deallocate(global_values)
-       endif
+       if (allocated(global_values)) deallocate(global_values)
        !WHL - See comments above on allocating the global_values array
 !!       allocate(global_values(&
 !!                 minval(d_gs_bounds(1,:)):maxval(d_gs_bounds(2,:)),&
@@ -832,9 +828,7 @@ contains
        end do
        allocate(recvbuf(displs(tasks+1)))
     else
-       if (allocated(global_values)) then
-          deallocate(global_values)
-       endif
+       if (allocated(global_values)) deallocate(global_values)
        allocate(global_values(1,1))  ! This prevents a problem with NULL pointers later.
        allocate(displs(1))
        allocate(recvcounts(1))
@@ -918,9 +912,7 @@ contains
          mpi_integer,main_rank,comm)
 
     if (main_task) then
-       if (allocated(global_values)) then
-          deallocate(global_values)
-       endif
+       if (allocated(global_values)) deallocate(global_values)
        !WHL - See comments above on allocating the global_values array
 !!       allocate(global_values(&
 !!                 minval(d_gs_bounds(1,:)):maxval(d_gs_bounds(2,:)),&
@@ -939,9 +931,7 @@ contains
        end do
        allocate(recvbuf(displs(tasks+1)))
     else
-       if (allocated(global_values)) then
-          deallocate(global_values)
-       endif
+       if (allocated(global_values)) deallocate(global_values)
        allocate(global_values(1,1))  ! This prevents a problem with NULL pointers later.
        allocate(displs(1))
        allocate(recvcounts(1))
@@ -1026,9 +1016,7 @@ contains
          mpi_integer,main_rank,comm)
 
     if (main_task) then
-       if (allocated(global_values)) then
-          deallocate(global_values)
-       endif
+       if (allocated(global_values)) deallocate(global_values)
        if (present(ld1)) then
          d1l = ld1
        else
@@ -1062,9 +1050,7 @@ contains
        end do
        allocate(recvbuf(displs(tasks+1)))
     else
-       if (allocated(global_values)) then
-          deallocate(global_values)
-       endif
+       if (allocated(global_values)) deallocate(global_values)
        allocate(global_values(1,1,1))  ! This prevents a problem with NULL pointers later.
        allocate(displs(1))
        allocate(recvcounts(1))
@@ -1151,9 +1137,7 @@ contains
          mpi_integer,main_rank,comm)
 
     if (main_task) then
-       if (allocated(global_values)) then
-          deallocate(global_values)
-       endif
+       if (allocated(global_values)) deallocate(global_values)
        !WHL - See comments above on allocating the global_values array
 !!       allocate(global_values(&
 !!                 minval(d_gs_bounds(1,:)):maxval(d_gs_bounds(2,:)),&
@@ -1172,9 +1156,7 @@ contains
        end do
        allocate(recvbuf(displs(tasks+1)))
     else
-       if (allocated(global_values)) then
-          deallocate(global_values)
-       endif
+       if (allocated(global_values)) deallocate(global_values)
        allocate(global_values(1,1))  ! This prevents a problem with NULL pointers later.
        allocate(displs(1))
        allocate(recvcounts(1))
@@ -1211,7 +1193,7 @@ contains
 
     use mpi_mod
     implicit none
-    real(dp),dimension(:,:,:),intent(in) :: values
+    real(dp),dimension(:,:,:),intent(in) :: values    ! i and j are indices 2 and 3
     real(dp),dimension(:,:,:),allocatable,intent(inout) :: global_values
     integer,optional,intent(in) :: ld1, ud1
     type(parallel_type) :: parallel
@@ -1234,7 +1216,7 @@ contains
          global_maxval_nsub => parallel%global_maxval_nsub   &
     )
 
-    if (uhalo==0 .and. size(values,1)==local_ewn-1) then
+    if (uhalo==0 .and. size(values,2)==local_ewn-1) then
        ! Fixing this would require some generalization as is done for distributed_put_var
        write(*,*) "gather does not currently work for"
        write(*,*) "variables on the staggered grid when uhalo=0"
@@ -1260,9 +1242,7 @@ contains
          mpi_integer,main_rank,comm)
 
     if (main_task) then
-       if (allocated(global_values)) then
-          deallocate(global_values)
-       endif
+       if (allocated(global_values)) deallocate(global_values)
        if (present(ld1)) then
          d1l = ld1
        else
@@ -1296,9 +1276,7 @@ contains
        end do
        allocate(recvbuf(displs(tasks+1)))
     else
-       if (allocated(global_values)) then
-          deallocate(global_values)
-       endif
+       if (allocated(global_values)) deallocate(global_values)
        allocate(global_values(1,1,1))  ! This prevents a problem with NULL pointers later.
        allocate(displs(1))
        allocate(recvcounts(1))
@@ -6112,7 +6090,7 @@ contains
     integer, dimension(:,:,:), intent(in), optional :: mask_3d
 
     integer :: i, j, k
-    integer :: kmax
+    integer :: nz
     integer, dimension(size(a,1),parallel%local_ewn,parallel%local_nsn) :: mask
     integer :: local_sum
     integer :: parallel_global_sum_integer_3d
@@ -6121,7 +6099,7 @@ contains
          local_ewn   => parallel%local_ewn,    &
          local_nsn   => parallel%local_nsn)
 
-    kmax = size(a,1)
+    nz = size(a,1)
 
     if (present(mask_3d)) then
        mask = mask_3d
@@ -6132,7 +6110,7 @@ contains
     local_sum = 0
     do j = nhalo+1, local_nsn-nhalo
        do i = nhalo+1, local_ewn-nhalo
-          do k = 1, kmax
+          do k = 1, nz
              if (mask(k,i,j) == 1) then
                 local_sum = local_sum + a(k,i,j)
              endif
@@ -6160,9 +6138,23 @@ contains
     real(dp) :: local_sum
     real(dp) :: parallel_global_sum_real8_2d
 
+    ! variables for computing reproductible sums
+    integer :: nsummands, nflds      ! dimensions of array passed to parallel_reduce_reprosum
+    integer :: count
+    real(dp), dimension(:,:), allocatable :: arr
+    real(dp), dimension(:), allocatable :: arr_gsum
+
     associate(  &
          local_ewn   => parallel%local_ewn,    &
-         local_nsn   => parallel%local_nsn)
+         local_nsn   => parallel%local_nsn,    &
+         own_ewn     => parallel%own_ewn,      &
+         own_nsn     => parallel%own_nsn)
+
+    !WHL - debug
+    if (verbose_reprosum .and. main_task) then
+!       write(iulog,*) 'In parallel_global_sum_real8_2d, reprosum =', parallel%reprosum
+!       write(iulog,*) 'nhalo, local ewn, local_nsn =', nhalo, local_ewn, local_nsn
+    endif
 
     if (present(mask_2d)) then
        mask = mask_2d
@@ -6170,10 +6162,44 @@ contains
        mask = 1
     endif
 
-    if (parallel%reprosum) then   ! compute using cism_reprosum_calc
+    if (parallel%reprosum) then   ! compute using parallel_reduce_reprosum
 
-       !TODO - Add the code here
-       call parallel_stop(__FILE__,__LINE__)
+       ! Allocate and fill arrays to pass to parallel_reduce_reprosum
+       nsummands = own_ewn*own_nsn
+       nflds = 1
+       allocate(arr(nsummands,nflds))
+       allocate(arr_gsum(nflds))
+
+       count = 0
+       do j = nhalo+1, local_nsn-nhalo
+          do i = nhalo+1, local_ewn-nhalo
+             count = count + 1
+             if (mask(i,j) == 1) then
+                arr(count,1) = a(i,j)
+             else
+                arr(count,1) = 0.0d0
+             endif
+          enddo
+       enddo
+
+       ! bug check
+       if (count /= nsummands) then
+          if (main_task) write(iulog,*) 'Error: count, nsummands =', count, nsummands
+          call parallel_stop(__FILE__,__LINE__)
+       endif
+
+       ! Call parallel_reduce_reprosum
+       call parallel_reduce_reprosum(arr, arr_gsum)
+
+       parallel_global_sum_real8_2d = arr_gsum(1)
+
+       !WHL - debug
+       if (verbose_reprosum .and. main_task) then
+!!          write(iulog,*) 'arr_gsum =', arr_gsum
+       endif
+
+       deallocate(arr)
+       deallocate(arr_gsum)
 
     else  ! compute using parallel_reduce_sum (not reproducible)
 
@@ -6207,16 +6233,24 @@ contains
     integer, dimension(:,:), intent(in), optional :: mask_2d
 
     integer :: i, j, k
-    integer :: kmax
+    integer :: nz
     integer, dimension(parallel%local_ewn,parallel%local_nsn) :: mask
     real(dp) :: local_sum
     real(dp) :: parallel_global_sum_real8_3d
 
+    ! variables for computing reproductible sums
+    integer :: nsummands, nflds      ! dimensions of array passed to parallel_reduce_reprosum
+    integer :: count
+    real(dp), dimension(:,:), allocatable :: arr
+    real(dp), dimension(:), allocatable :: arr_gsum
+
     associate(  &
          local_ewn   => parallel%local_ewn,    &
-         local_nsn   => parallel%local_nsn)
+         local_nsn   => parallel%local_nsn,    &
+         own_ewn     => parallel%own_ewn,      &
+         own_nsn     => parallel%own_nsn)
 
-    kmax = size(a,1)
+    nz = size(a,1)
 
     ! Note: The mask is 2D, since typically all layers in a column are either masked in or masked out
     if (present(mask_2d)) then
@@ -6227,8 +6261,47 @@ contains
 
     if (parallel%reprosum) then   ! compute using cism_reprosum_calc
 
-       !TODO - Add the code here
-       call parallel_stop(__FILE__,__LINE__)
+       ! Allocate and fill arrays to pass to parallel_reduce_reprosum
+       nsummands = own_ewn*own_nsn*nz
+       nflds = 1
+       allocate(arr(nsummands,nflds))
+       allocate(arr_gsum(nflds))
+
+       count = 0
+       do j = nhalo+1, local_nsn-nhalo
+          do i = nhalo+1, local_ewn-nhalo
+             if (mask(i,j) == 1) then
+                do k = 1, nz
+                   count = count + 1
+                   arr(count,1) = a(k,i,j)
+                enddo
+             else
+                do k = 1, nz
+                   count = count + 1
+                   arr(count,1) = 0.0d0
+                enddo
+             endif
+          enddo
+       enddo
+
+       ! bug check
+       if (count /= nsummands) then
+          if (main_task) write(iulog,*) 'Error: count, nsummands =', count, nsummands
+          call parallel_stop(__FILE__,__LINE__)
+       endif
+
+       ! Call parallel_reduce_reprosum
+       call parallel_reduce_reprosum(arr, arr_gsum)
+
+       parallel_global_sum_real8_3d = arr_gsum(1)
+
+       !WHL - debug
+       if (verbose_reprosum .and. main_task) then
+!          write(iulog,*) 'arr_gsum =', arr_gsum
+       endif
+
+       deallocate(arr)
+       deallocate(arr_gsum)
 
     else  ! compute using parallel_reduce_sum (not reproducible)
 
@@ -6236,7 +6309,7 @@ contains
        do j = nhalo+1, local_nsn-nhalo
           do i = nhalo+1, local_ewn-nhalo
              if (mask(i,j) == 1) then
-                do k = 1, kmax
+                do k = 1, nz
                    local_sum = local_sum + a(k,i,j)
                 enddo
              endif
@@ -6311,22 +6384,73 @@ contains
     real(dp), dimension(npatch) :: local_patch_sum
     real(dp), dimension(npatch) :: parallel_global_sum_patch_real8_2d
 
+    ! variables for computing reproductible sums
+    integer :: nsummands, nflds      ! dimensions of array passed to parallel_reduce_reprosum
+    integer :: count
+    real(dp), dimension(:,:), allocatable :: arr
+    real(dp), dimension(:), allocatable :: arr_gsum
+
     associate(  &
          local_ewn   => parallel%local_ewn,    &
-         local_nsn   => parallel%local_nsn)
+         local_nsn   => parallel%local_nsn,    &
+         own_ewn     => parallel%own_ewn,      &
+         own_nsn     => parallel%own_nsn)
 
-    local_patch_sum = 0.0d0
+    if (parallel%reprosum) then   ! compute using cism_reprosum_calc
 
-    do j = nhalo+1, local_nsn-nhalo
-       do i = nhalo+1, local_ewn-nhalo
-          np = patch_id(i,j)
-          if (np > 0) then
-             local_patch_sum(np) = local_patch_sum(np) + a(i,j)
-          endif
+       ! Allocate and fill arrays to pass to parallel_reduce_reprosum
+       nsummands = own_ewn*own_nsn
+       nflds = npatch
+       allocate(arr(nsummands,nflds))
+       allocate(arr_gsum(nflds))
+
+       count = 0
+       arr(:,:) = 0.0d0
+
+       do j = nhalo+1, local_nsn-nhalo
+          do i = nhalo+1, local_ewn-nhalo
+             count = count + 1
+             np = patch_id(i,j)
+             if (np > 0) then
+                arr(count,np) = a(i,j)
+             endif
+          enddo
        enddo
-    enddo
 
-    parallel_global_sum_patch_real8_2d = parallel_reduce_sum(local_patch_sum)
+       ! bug check
+       if (count /= nsummands) then
+          if (main_task) write(iulog,*) 'Error: count, nsummands =', count, nsummands
+          call parallel_stop(__FILE__,__LINE__)
+       endif
+
+       ! Call parallel_reduce_reprosum
+       call parallel_reduce_reprosum(arr, arr_gsum)
+
+       parallel_global_sum_patch_real8_2d(:) = arr_gsum(:)
+
+       if (verbose_reprosum .and. main_task) then
+!!          write(iulog,*) 'arr_gsum =', arr_gsum
+       endif
+
+       deallocate(arr)
+       deallocate(arr_gsum)
+
+    else   ! compute using parallel_reduce_sum (not reproducible)
+
+       local_patch_sum = 0.0d0
+
+       do j = nhalo+1, local_nsn-nhalo
+          do i = nhalo+1, local_ewn-nhalo
+             np = patch_id(i,j)
+             if (np > 0) then
+                local_patch_sum(np) = local_patch_sum(np) + a(i,j)
+             endif
+          enddo
+       enddo
+
+       parallel_global_sum_patch_real8_2d = parallel_reduce_sum(local_patch_sum)
+
+    endif  ! reprosum
 
     end associate
 
@@ -6352,6 +6476,13 @@ contains
          staggered_ilo, staggered_ihi, &  ! bounds of locally owned vertices on staggered grid
          staggered_jlo, staggered_jhi
 
+    ! variables for computing reproductible sums
+    integer :: nsummands, nflds      ! dimensions of array passed to parallel_reduce_reprosum
+    integer :: count
+    real(dp), dimension(:,:), allocatable :: arr
+    real(dp), dimension(:), allocatable :: arr_gsum
+
+    !TODO - associate
     staggered_ilo = parallel%staggered_ilo
     staggered_ihi = parallel%staggered_ihi
     staggered_jlo = parallel%staggered_jlo
@@ -6359,8 +6490,54 @@ contains
 
     if (parallel%reprosum) then   ! compute using cism_reprosum_calc
 
-       !TODO - Add the code here
-       call parallel_stop(__FILE__,__LINE__)
+       ! Allocate and fill arrays to pass to parallel_reduce_reprosum
+       nsummands = (staggered_ihi-staggered_ilo+1) * (staggered_jhi-staggered_jlo+1)
+       nflds = 1
+       allocate(arr(nsummands,nflds))
+       allocate(arr_gsum(nflds))
+
+       arr(:,:) = 0.0d0
+
+       if (present(arr2)) then  ! compute global sum of arr1 + arr2
+
+          count = 0
+          do j = staggered_jlo, staggered_jhi
+             do i = staggered_ilo, staggered_ihi
+                count = count + 1
+                arr(count,1) = arr1(i,j) + arr2(i,j)
+             enddo
+          enddo
+
+       else  ! compute global sum of arr1
+
+          count = 0
+          do j = staggered_jlo, staggered_jhi
+             do i = staggered_ilo, staggered_ihi
+                count = count + 1
+                arr(count,1) = arr1(i,j)
+             enddo
+          enddo
+
+       endif
+
+       ! bug check
+       if (count /= nsummands) then
+          if (main_task) write(iulog,*) 'Error: count, nsummands =', count, nsummands
+          call parallel_stop(__FILE__,__LINE__)
+       endif
+
+       ! Call parallel_reduce_reprosum
+       call parallel_reduce_reprosum(arr, arr_gsum)
+
+       parallel_global_sum_stagger_real8_2d = arr_gsum(1)
+
+       !WHL - debug
+       if (verbose_reprosum .and. main_task) then
+!          write(iulog,*) 'arr_gsum =', arr_gsum
+       endif
+
+       deallocate(arr)
+       deallocate(arr_gsum)
 
     else  ! compute using parallel_reduce_sum (not reproducible)
 
@@ -6405,10 +6582,17 @@ contains
     real(dp) :: local_sum
     real(dp) :: parallel_global_sum_stagger_real8_3d
 
+    ! variables for computing reproductible sums
+    integer :: nsummands, nflds      ! dimensions of array passed to parallel_reduce_reprosum
+    integer :: count
+    real(dp), dimension(:,:), allocatable :: arr
+    real(dp), dimension(:), allocatable :: arr_gsum
+
     integer :: &
          staggered_ilo, staggered_ihi, &  ! bounds of locally owned vertices on staggered grid
          staggered_jlo, staggered_jhi
 
+    !TODO - Associate these variables (and not the ones above)
     staggered_ilo = parallel%staggered_ilo
     staggered_ihi = parallel%staggered_ihi
     staggered_jlo = parallel%staggered_jlo
@@ -6418,8 +6602,58 @@ contains
 
     if (parallel%reprosum) then   ! compute using cism_reprosum_calc
 
-       !TODO - Add the code here
-       call parallel_stop(__FILE__,__LINE__)
+       ! Allocate and fill arrays to pass to parallel_reduce_reprosum
+       nsummands = (staggered_ihi-staggered_ilo+1) * (staggered_jhi-staggered_jlo+1) * nz
+       nflds = 1
+       allocate(arr(nsummands,nflds))
+       allocate(arr_gsum(nflds))
+
+       arr(:,:) = 0.0d0
+
+       if (present(arr2)) then  ! compute global sum of arr1 + arr2
+
+          count = 0
+          do j = staggered_jlo, staggered_jhi
+             do i = staggered_ilo, staggered_ihi
+                do k = 1, nz
+                   count = count + 1
+                   arr(count,1) = arr1(k,i,j) + arr2(k,i,j)
+                enddo
+             enddo
+          enddo
+
+       else  ! compute global sum of arr1
+
+          count = 0
+          do j = staggered_jlo, staggered_jhi
+             do i = staggered_ilo, staggered_ihi
+                do k = 1, nz
+                   count = count + 1
+                   arr(count,1) = arr1(k,i,j)
+                enddo
+             enddo
+          enddo
+
+       endif
+
+       ! bug check
+       if (count /= nsummands) then
+          if (main_task) write(iulog,*) 'Error: count, nsummands =', count, nsummands
+          call parallel_stop(__FILE__,__LINE__)
+       endif
+
+       ! Call parallel_reduce_reprosum
+       call parallel_reduce_reprosum(arr, arr_gsum)
+
+       parallel_global_sum_stagger_real8_3d = arr_gsum(1)
+
+       !WHL - debug
+       if (verbose_reprosum .and. main_task) then
+!          write(iulog,*) 'arr_gsum =', arr_gsum
+       endif
+
+       deallocate(arr)
+       deallocate(arr_gsum)
 
     else  ! compute using parallel_reduce_sum (not reproducible)
 
@@ -6459,6 +6693,7 @@ contains
 
     ! Sum one or two local arrays on the staggered grid, then take the global sum.
     ! The final index is equal to the number of independent fields to be summed.
+    !TODO - Don't have to pass in nflds, since it equals size(a,3)?
 
     real(dp), dimension(:,:,:), intent(in) :: arr1
 
@@ -6479,6 +6714,13 @@ contains
          staggered_ilo, staggered_ihi, &  ! bounds of locally owned vertices on staggered grid
          staggered_jlo, staggered_jhi
 
+    ! variables for computing reproductible sums
+!!    integer :: nsummands, nflds      ! dimensions of array passed to parallel_reduce_reprosum
+    integer :: nsummands               ! dimensions of array passed to parallel_reduce_reprosum
+    integer :: count
+    real(dp), dimension(:,:), allocatable :: arr
+    real(dp), dimension(:), allocatable :: arr_gsum
+
     staggered_ilo = parallel%staggered_ilo
     staggered_ihi = parallel%staggered_ihi
     staggered_jlo = parallel%staggered_jlo
@@ -6486,8 +6728,54 @@ contains
 
     if (parallel%reprosum) then   ! compute using cism_reprosum_calc
 
-       !TODO - Add the code here
-       call parallel_stop(__FILE__,__LINE__)
+       ! Allocate and fill arrays to pass to parallel_reduce_reprosum
+       nsummands = (staggered_ihi-staggered_ilo+1) * (staggered_jhi-staggered_jlo+1)
+!       nflds = size(a,3)
+       allocate(arr(nsummands,nflds))
+       allocate(arr_gsum(nflds))
+
+       arr(:,:) = 0.0d0
+
+       do n = 1, nflds
+
+          if (present(arr2)) then  ! compute global sum of arr1 + arr2
+             count = 0
+             do j = staggered_jlo, staggered_jhi
+                do i = staggered_ilo, staggered_ihi
+                   count = count + 1
+                   arr(count,n) = arr1(i,j,n) + arr2(i,j,n)
+                enddo
+             enddo
+          else  ! compute global sum of arr1
+             count = 0
+             do j = staggered_jlo, staggered_jhi
+                do i = staggered_ilo, staggered_ihi
+                   count = count + 1
+                   arr(count,n) = arr1(i,j,n)
+                enddo
+             enddo
+          endif
+
+       enddo   ! nflds
+
+       ! bug check
+       if (count /= nsummands) then
+          if (main_task) write(iulog,*) 'Error: count, nsummands =', count, nsummands
+          call parallel_stop(__FILE__,__LINE__)
+       endif
+
+       ! Call parallel_reduce_reprosum
+       call parallel_reduce_reprosum(arr, arr_gsum)
+
+       parallel_global_sum_stagger_real8_2d_nflds = arr_gsum(:)
+
+       !WHL - debug
+       if (verbose_reprosum .and. main_task) then
+!          write(iulog,*) 'arr_gsum =', arr_gsum
+       endif
+
+       deallocate(arr)
+       deallocate(arr_gsum)
 
     else  ! compute using parallel_reduce_sum (not reproducible)
 
@@ -6513,10 +6801,10 @@ contains
 
        enddo   ! nflds
 
-    endif   ! reprosum
+       ! take the global sum
+       parallel_global_sum_stagger_real8_2d_nflds = parallel_reduce_sum(local_sum(:))
 
-    ! take the global sum
-    parallel_global_sum_stagger_real8_2d_nflds = parallel_reduce_sum(local_sum(:))
+    endif   ! reprosum
 
   end function parallel_global_sum_stagger_real8_2d_nflds
 
@@ -6547,6 +6835,14 @@ contains
          staggered_ilo, staggered_ihi, &  ! bounds of locally owned vertices on staggered grid
          staggered_jlo, staggered_jhi
 
+    ! variables for computing reproductible sums
+!!    integer :: nsummands, nflds      ! dimensions of array passed to parallel_reduce_reprosum
+    integer :: nsummands               ! dimensions of array passed to parallel_reduce_reprosum
+    integer :: count
+    real(dp), dimension(:,:), allocatable :: arr
+    real(dp), dimension(:), allocatable :: arr_gsum
+
+    !TODO - Associate these variables
     staggered_ilo = parallel%staggered_ilo
     staggered_ihi = parallel%staggered_ihi
     staggered_jlo = parallel%staggered_jlo
@@ -6556,8 +6852,63 @@ contains
 
     if (parallel%reprosum) then   ! compute using cism_reprosum_calc
 
-       !TODO - Add the code here
-       call parallel_stop(__FILE__,__LINE__)
+       !WHL - debug
+       if (verbose_reprosum .and. main_task) then
+          write(iulog,*) '   In global_sum_stagger_real8_3d_nflds'
+       endif
+
+       ! Allocate and fill arrays to pass to parallel_reduce_reprosum
+       nsummands = (staggered_ihi-staggered_ilo+1) * (staggered_jhi-staggered_jlo+1) * nz
+!       nflds = size(a,3)
+       allocate(arr(nsummands,nflds))
+       allocate(arr_gsum(nflds))
+
+       arr(:,:) = 0.0d0
+
+       do n = 1, nflds
+
+          if (present(arr2)) then  ! compute global sum of arr1 + arr2
+             count = 0
+             do j = staggered_jlo, staggered_jhi
+                do i = staggered_ilo, staggered_ihi
+                   do k = 1, nz
+                      count = count + 1
+                      arr(count,n) = arr1(k,i,j,n) + arr2(k,i,j,n)
+                   enddo
+                enddo
+             enddo
+          else  ! compute global sum of arr1
+             count = 0
+             do j = staggered_jlo, staggered_jhi
+                do i = staggered_ilo, staggered_ihi
+                   do k = 1, nz
+                      count = count + 1
+                      arr(count,n) = arr1(k,i,j,n)
+                   enddo
+                enddo
+             enddo
+          endif
+
+       enddo   ! nflds
+
+       ! bug check
+       if (count /= nsummands) then
+          if (main_task) write(iulog,*) 'Error: count, nsummands =', count, nsummands
+          call parallel_stop(__FILE__,__LINE__)
+       endif
+
+       ! Call parallel_reduce_reprosum
+       call parallel_reduce_reprosum(arr, arr_gsum)
+
+       parallel_global_sum_stagger_real8_3d_nflds = arr_gsum(:)
+
+       !WHL - debug
+       if (verbose_reprosum .and. main_task) then
+!          write(iulog,*) 'arr_gsum =', arr_gsum
+       endif
+
+       deallocate(arr)
+       deallocate(arr_gsum)
 
     else  ! compute using parallel_reduce_sum (not reproducible)
 
@@ -6597,6 +6948,48 @@ contains
 !=======================================================================
   ! functions belonging to the parallel_is_zero interface
 
+  function parallel_is_zero_integer_1d(a)
+
+    ! returns .true. if the field has all zero values, else returns .false.
+
+    integer, dimension(:), intent(in) :: a
+    logical :: parallel_is_zero_integer_1d
+
+    integer :: maxval_a
+
+    maxval_a = maxval(abs(a))
+    maxval_a = parallel_reduce_max(maxval_a)
+    if (maxval_a > 0) then
+       parallel_is_zero_integer_1d = .false.
+    else
+       parallel_is_zero_integer_1d = .true.
+    endif
+
+  end function parallel_is_zero_integer_1d
+
+!=======================================================================
+
+  function parallel_is_zero_real8_1d(a)
+
+    ! returns .true. if the field has all zero values, else returns .false.
+
+    real(dp), dimension(:), intent(in) :: a
+    logical :: parallel_is_zero_real8_1d
+
+    real(dp) :: maxval_a
+
+    maxval_a = maxval(abs(a))
+    maxval_a = parallel_reduce_max(maxval_a)
+    if (maxval_a > 0.0d0) then
+       parallel_is_zero_real8_1d = .false.
+    else
+       parallel_is_zero_real8_1d = .true.
+    endif
+
+  end function parallel_is_zero_real8_1d
+
+!=======================================================================
+
   function parallel_is_zero_integer_2d(a)
 
     ! returns .true. if the field has all zero values, else returns .false.
@@ -6604,7 +6997,7 @@ contains
     integer, dimension(:,:), intent(in) :: a
     logical :: parallel_is_zero_integer_2d
 
-    real(dp) :: maxval_a
+    integer :: maxval_a
 
     maxval_a = maxval(abs(a))
     maxval_a = parallel_reduce_max(maxval_a)
@@ -8905,7 +9298,6 @@ contains
     ! Compute a reproducible global sum for a floating-point variable or array.
     ! Can be called from parallel_global_sum, parallel_global_sum_patch, or
     ! parallel_global_sum_stagger.
-    ! Still under construction
 
     implicit none
 
@@ -8965,20 +9357,10 @@ contains
          repro_sum_validate     ! flag enabling/disabling testing that gmax and max_levels
                                 ! are accurate/sufficient. Default is enabled.
 
-
     ! Set parameters and allocate arrays
     dsummands = size(arr,1)
     nflds = size(arr,2)
     nsummands = dsummands
-
-    !WHL - debug
-    if (verbose_reprosum .and. main_task) then
-       write(iulog,*) 'In parallel_reduce_reprosum'
-       write(iulog,*) 'dsummands, nflds:', dsummands, nflds
-    endif
-    if (verbose_reprosum) then
-!!       write(iulog,*) 'rank, arr:', this_rank, arr(:,:)
-    endif
 
     allocate (arr_gbl_max(nflds))
     allocate (arr_gbl_max_out(nflds))
@@ -8989,12 +9371,6 @@ contains
     allow_infnan = .false.
     ddpdd_sum = .false.
     repro_sum_validate = .true.
-
-#ifdef CCSMCOUPLED
-
-!!      call shr_reprosum_calc
-
-#else
 
     ! The following subroutine is adapted from shr_reprosum_calc in CESM shared code.
 
@@ -9013,15 +9389,13 @@ contains
          repro_sum_stats = repro_sum_stats,             &
          rel_diff = rel_diff)
 
-#endif
-
     if (verbose_reprosum .and. main_task) then
-       write(iulog,*) 'arr_gbl_max_out =', arr_gbl_max_out
-       write(iulog,*) 'arr_max_levels_out =', arr_max_levels_out
-       write(iulog,*) 'gbl_max_nsummands_out =', gbl_max_nsummands_out
-       write(iulog,*) 'rel diff =', rel_diff(1,:)
-       write(iulog,*) 'abs diff =', rel_diff(2,:)
-       write(iulog,*) 'stats =', repro_sum_stats(:)
+!       write(iulog,*) 'arr_gbl_max_out =', arr_gbl_max_out
+!       write(iulog,*) 'arr_max_levels_out =', arr_max_levels_out
+!       write(iulog,*) 'gbl_max_nsummands_out =', gbl_max_nsummands_out
+!       write(iulog,*) 'rel diff =', rel_diff(1,:)
+!       write(iulog,*) 'abs diff =', rel_diff(2,:)
+!       write(iulog,*) 'stats =', repro_sum_stats(:)
     endif
 
     deallocate(arr_gbl_max, arr_gbl_max_out)

@@ -42,16 +42,16 @@ module cism_reprosum_mod
    use glimmer_global, only: r8 => dp
    use glimmer_global, only: i8
    use glimmer_paramets, only: iulog
-!!   use cism_parallel, only: main_task
+   use glimmer_utils, only: double_to_binary
 !   use shr_log_mod,   only: s_loglev  => shr_log_Level
 !   use shr_log_mod,   only: s_logunit => shr_log_Unit
 !   use shr_sys_mod,   only: shr_sys_abort
-
    use cism_infnan_mod,only: cism_infnan_inf_type, assignment(=), &
                             cism_infnan_posinf, cism_infnan_neginf, &
                             cism_infnan_nan, &
                             cism_infnan_isnan, cism_infnan_isinf, &
                             cism_infnan_isposinf, cism_infnan_isneginf
+
 #ifdef TIMING
    use perf_mod
 #endif
@@ -456,21 +456,14 @@ module cism_reprosum_mod
       real(r8) :: abs_diff               ! absolute difference between
                                          !  fixed and floating point
                                          !  sums
+      character(len=64) :: binary_str    ! string to represent 64 bits of i8 integer
+      integer :: n
 
 #ifdef _OPENMP
       integer omp_get_max_threads
       external omp_get_max_threads
 #endif
 
-      !WHL - debug
-      logical :: test_sum = .false.
-      real(r8), dimension(dsummands,nflds) :: arr_test
-      arr_test(:,:) = 0.0d0
-      call mpi_comm_rank(MPI_COMM_WORLD, mypid, ierr)
-      if (verbose_reprosum .and. mypid == 0) then
-         write(iulog,*) 'In cism_reprosum_mod'
-      endif
-!
 !-----------------------------------------------------------------------
 !
 ! initialize local statistics variables
@@ -504,10 +497,6 @@ module cism_reprosum_mod
 
       !TODO - Remove the inf_nan option; assume abort_inf_nan = T, as in CICE
       if (abort_inf_nan) then
-
-         if (verbose_reprosum .and. mypid == 0) then
-            write(iulog,*) '   abort_inf_nan check'
-         endif
 
 ! check whether input contains NaNs or INFs, and abort if so
          nan_check = any(cism_infnan_isnan(arr))
@@ -587,9 +576,6 @@ module cism_reprosum_mod
 ! get number of MPI tasks
          call mpi_comm_size(mpi_comm, tasks, ierr)
 
-         if (verbose_reprosum .and. mypid == 0) then
-            write(iulog,*) 'Starting reprosum, tasks =', tasks
-         endif
 ! get number of OpenMP threads
 #ifdef _OPENMP
          omp_nthreads = omp_get_max_threads()
@@ -847,12 +833,6 @@ module cism_reprosum_mod
                enddo
             endif
 
-            if (verbose_reprosum .and. mypid == 0) then
-               write(iulog,*) '   max_nsummands =', max_nsummands
-               write(iulog,*) '   max_levels(1), max_level =', max_levels(1), max_level
-               write(iulog,*) '   call reprosum_int, pid =', mypid
-            endif
-
 ! calculate sum
             validate = .false.
             call cism_reprosum_int(arr, arr_gsum, nsummands, dsummands, &
@@ -944,13 +924,20 @@ module cism_reprosum_mod
          repro_sum_stats(6) = repro_sum_stats(6) + gbl_lor_red
       endif
 
-      !WHL - debug
-      if (verbose_reprosum .and. mypid == 0) then
-         write(iulog,*) 'Exiting cism_reprosum_calc, arr_gsum =', arr_gsum(:)
+      if (verbose_reprosum) then
+         call mpi_comm_rank(MPI_COMM_WORLD, mypid, ierr)
+         if (mypid == 0) then
+            write(iulog,*) 'Exit reprosum, nflds =', nflds
+            write(iulog,*) '   n, arr_gsum, binary_str:'
+!!            do n = 1, nflds
+            do n = 1, min(2,nflds)
+               call double_to_binary(arr_gsum(n), binary_str)
+               write(iulog,*) n, arr_gsum(n), binary_str
+            enddo
+         endif
       endif
 
    end subroutine cism_reprosum_calc
-
 !
 !========================================================================
 !
@@ -1079,13 +1066,6 @@ module cism_reprosum_mod
       !WHL - debug
       integer :: mypid, k
       call mpi_comm_rank(MPI_COMM_WORLD, mypid, ierr)
-
-      if (verbose_reprosum .and. mypid == 0) then
-         write(iulog,*) 'In cism_reprosum_int, pid, arr =', mypid, arr(:,:)
-         write(iulog,*) 'dsummands, nsummands =', dsummands, nsummands
-         write(iulog,*) 'size(arr) =', size(arr,1), size(arr,2)
-      endif
-
 !
 !-----------------------------------------------------------------------
 ! Save radix of i8 variables in an i8 variable
@@ -1108,19 +1088,7 @@ module cism_reprosum_mod
       veclth = offset(nflds) + max_levels(nflds)
 
 ! split summand index range over OpenMP threads
-! WHL - Should this be dsummands instead of nsummands?
-!!      call split_indices(nsummands, omp_nthreads, isum_beg, isum_end)
       call split_indices(dsummands, omp_nthreads, isum_beg, isum_end)
-
-      if (verbose_reprosum .and. mypid == 0) then
-         write(iulog,*) 'pid, i8_radix, voffset, veclth, nflds =', mypid, i8_radix, voffset, veclth, nflds
-         write(iulog,*) '   max_levels =', max_levels(:)
-         write(iulog,*) '   dsummands, omp_nthreads =', dsummands, omp_nthreads
-         write(iulog,*) '   isum_beg/end =', isum_beg, isum_end
-!         write(iulog,*) '   size(i8_arr_lsum_level) = ', size(i8_arr_lsum_level)
-!         write(iulog,*) '   size(i8_arr_gsum_level) = ', size(i8_arr_gsum_level)
-      endif
-
 
 ! convert local summands to vector of integers and sum
 ! (Using scale instead of set_exponent because arr_remainder may not be
@@ -1152,26 +1120,11 @@ module cism_reprosum_mod
 
           do isum=isum_beg(ithread),isum_end(ithread)
 
-            if (verbose_reprosum .and. mypid == 1) then
-               write (iulog,*) '  pid, isum, ifld, arr(isum,ifld) =', mypid, isum, ifld, arr(isum,ifld)
-            endif
-
             arr_remainder = 0.0_r8
-
-            !WHL - debug
-            ! If isum_end > size(arr,1) = dsummands, then the next 'if' will try to access nonexistent memory.
-            ! Adding some logic to exit the do loop first.
-            ! Not necessary if split_indices is called with dsummands
-            !TODO: Check the split_indices logic for isum_end
-!!!!            if (isum > size(arr,1)) exit
 
             if (arr(isum,ifld) .ne. 0.0_r8) then
                arr_exp   = exponent(arr(isum,ifld))
                arr_frac  = fraction(arr(isum,ifld))
-
-               if (verbose_reprosum) then
-!!!                  write(iulog,*) '   pid, isum, arr_exp, arr_frac:', mypid, isum, arr_exp, arr_frac 
-               endif
 
 ! test that global maximum upper bound is an upper bound
                if (arr_exp > arr_gmax_exp(ifld)) then
@@ -1197,10 +1150,6 @@ module cism_reprosum_mod
                   ilevel = 1
                endif
 
-               if (verbose_reprosum .and. mypid == 1) then
-                  write (iulog,*) '  pid, ilevel, max_levels =', mypid, ilevel, max_levels(ifld)
-               endif
-
                if (ilevel .le. max_levels(ifld)) then
 ! apply first shift/truncate, add it to the relevant running
 ! sum, and calculate the remainder.
@@ -1209,29 +1158,16 @@ module cism_reprosum_mod
                   i8_arr_tlsum_level(ilevel,ifld,ithread) = &
                      i8_arr_tlsum_level(ilevel,ifld,ithread) + i8_arr_level
                   arr_remainder = arr_remainder - i8_arr_level
-
-                  if (verbose_reprosum .and. mypid <= 1) then
-                     write(iulog,*) '   pid, arr_old, i8_arr_level, arr_new:', &
-                          mypid, scale(arr_frac,arr_shift), i8_arr_level, arr_remainder
-                  endif
                   
 ! while the remainder is non-zero, continue to shift, truncate,
 ! sum, and calculate new remainder
                   do while ((arr_remainder .ne. 0.0_r8) &
                      .and. (ilevel < max_levels(ifld)))
                      ilevel = ilevel + 1
-                     if (verbose_reprosum .and. mypid <= 1) then
-                        write(iulog,*) '        pid, ilevel, arr_old =', mypid, ilevel, arr_remainder
-                     endif
                      arr_remainder = scale(arr_remainder,arr_max_shift)
                      i8_arr_level = int(arr_remainder,i8)
                      i8_arr_tlsum_level(ilevel,ifld,ithread) = &
                           i8_arr_tlsum_level(ilevel,ifld,ithread) + i8_arr_level
-
-                     if (verbose_reprosum .and. mypid <= 1) then
-                        write(iulog,*) '        pid, arr_scaled, i8_arr_level:', &
-                             mypid, arr_remainder, i8_arr_level
-                     endif
 
                      arr_remainder = arr_remainder - i8_arr_level
 
@@ -1272,22 +1208,12 @@ module cism_reprosum_mod
 ! sum contributions from different threads
       do ifld=1,nflds
 
-         if (verbose_reprosum .and. mypid == 0) then
-!!            write(iulog,*) 'ifld =', ifld
-         endif
-
          ioffset = offset(ifld)
          do ithread = 1,omp_nthreads
             do ilevel = 0,max_levels(ifld)
                i8_arr_lsum_level(ioffset+ilevel) = &
                   i8_arr_lsum_level(ioffset+ilevel) &
                   + i8_arr_tlsum_level(ilevel,ifld,ithread)
-
-               if (verbose_reprosum) then
-!!                  write(iulog,*) '   pid, ilevel, ioffset, i8_arr_lsum_level =', &
-!!                       mypid, ilevel, i8_arr_lsum_level(ioffset+ilevel)
-               endif
-               
             enddo
          enddo
       enddo
@@ -1321,22 +1247,6 @@ module cism_reprosum_mod
 
       call mpi_allreduce (i8_arr_lsum_level, i8_arr_gsum_level, &
                           veclth, MPI_INTEGER8, MPI_SUM, mpi_comm, ierr)
-
-      if (verbose_reprosum .and. mypid < 5) then
-         do k = 1, size(i8_arr_lsum_level)
-            if (i8_arr_lsum_level(k) /= 0) then
-               write(iulog,*) 'pid, k, i8_arr_lsum_level =', mypid, k, i8_arr_lsum_level(k)
-            endif
-         enddo
-      endif
-
-      if (verbose_reprosum .and. mypid == 0) then
-         do k = 1, size(i8_arr_gsum_level)
-            if (i8_arr_gsum_level(k) /= 0) then
-               write(iulog,*) 'pid, k, i8_arr_gsum_level =', mypid, k, i8_arr_gsum_level(k)
-            endif
-         enddo
-      endif
 
 #ifdef TIMING
       call t_stopf("repro_sum_allr_i8")
@@ -1477,10 +1387,6 @@ module cism_reprosum_mod
                arr_gsum(ifld) = scale(RX_8,MINEXPONENT(1._r8))
             endif
 
-            if (verbose_reprosum .and. mypid == 0) then
-               write(iulog,*) '   ifld, arr_gsum =', ifld, arr_gsum(ifld)
-            endif
-
 ! if validate is .true. and some precision lost, test whether 'too much'
 !  was lost, due to too loose an upper bound, too stringent a limit on number
 !  of levels of expansion, cancellation, .... Calculated by comparing lower
@@ -1512,13 +1418,6 @@ module cism_reprosum_mod
          endif
 
       enddo
-
-      if (verbose_reprosum .and. mypid == 0) then
-         write(iulog,*) '   Done in cism_reprosum_int, pid =', mypid
-         k = 1
-         write(iulog,*) '   arr_gsum, exp, frac =', arr_gsum(k), &
-              exponent(arr_gsum(k)), fraction(arr_gsum(k))
-      endif
 
    end subroutine cism_reprosum_int
 

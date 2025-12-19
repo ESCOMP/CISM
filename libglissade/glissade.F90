@@ -85,7 +85,7 @@ contains
 !=======================================================================
 
 ! Note: There is no glissade_config subroutine; glide_config works for all dycores.
-
+!       glide_config is called from cism_init_dycore before glissade_initialise.
 !=======================================================================
 
   subroutine glissade_initialise(model, evolve_ice)
@@ -365,6 +365,32 @@ contains
     rtest = model%numerics%rdiag_local
     itest = model%numerics%idiag_local
     jtest = model%numerics%jdiag_local
+
+    ! Check whether x0 and y0 were read in. If not, then compute them from x1 and y1.
+    if (parallel_is_zero(model%general%x1)) then
+       if (main_task) write(iulog,*) 'Warning: model%general%x1 = 0'
+    else
+!       if (main_task) write(iulog,*) 'x1_global:', model%general%x1_global(:)
+!       if (main_task) write(iulog,*) 'y1_global:', model%general%y1_global(:)
+!       if (main_task) write(iulog,*) 'x1:', model%general%x1(:)
+!       if (main_task) write(iulog,*) 'y1:', model%general%y1(:)
+    endif
+
+    if (parallel_is_zero(model%general%x0)) then
+       if (main_task) write(iulog,*) 'Initialize x0'
+       do i = 1, model%general%ewn-1
+          model%general%x0(i) = 0.5d0 * (model%general%x1(i) + model%general%x1(i+1))
+       enddo
+    endif
+    if (main_task) write(iulog,*) 'x0:', model%general%x0(:)
+
+    if (parallel_is_zero(model%general%y0)) then
+       if (main_task) write(iulog,*) 'Initialize y0'
+       do j = 1, model%general%nsn-1
+          model%general%y0(j) = 0.5d0 * (model%general%y1(j) + model%general%y1(j+1))
+       enddo
+    endif
+    if (main_task) write(iulog,*) 'y0:', model%general%y0(:)
 
     ! Check that lat and lon fields were read in, if desired
     !TODO - Use the parallel_is_nonzero function instead, here and below

@@ -589,6 +589,91 @@ contains
 
   end subroutine point_diag_real8_2d
 
+!--------------------------------------------------------------------------
+
+  subroutine double_to_binary(&
+       x, binary_str, binary_full, binary_sign, binary_exponent, binary_mantissa)
+
+    ! Find the internal binary representation of a double-precision floating point number
+    ! Based on the IEEE-754 standard
+
+    use glimmer_global, only: dp, i8
+    implicit none
+
+    real(dp), intent(in) :: x
+    character(len=64), intent(out) :: binary_str    ! string representation of the binary number
+
+    integer(i8), intent(out), optional :: binary_full      ! 64 bits
+    integer, intent(out), optional :: binary_sign          ! 1 bit
+    integer, intent(out), optional :: binary_exponent      ! 11 bits
+    integer(i8), intent(out), optional :: binary_mantissa  ! 52 bits
+
+    integer :: i
+    character(len=1) :: bin(64)
+    integer (i8) :: binary_number
+    integer :: sign_bit
+    integer :: exponent_bits
+    integer :: mantissa_bits
+
+    logical :: verbose_binary = .false.
+
+    ! Transfer the double value into a 64-bit integer
+    binary_number = transfer(x, binary_number)
+
+    ! Get the sign bit (bit 64)
+    sign_bit = ishft(binary_number, -63) .and. 1
+
+    ! Get the exponent bits (bits 63–53)
+    exponent_bits = ishft(binary_number, -52) .and. Z'7FF'
+
+    ! Extract mantissa (fraction) bits (bits 52–1)
+    mantissa_bits = binary_number .and. Z'FFFFFFFFFFFFF'
+
+    if (present(binary_full)) binary_full = binary_number
+    if (present(binary_sign)) binary_sign = sign_bit
+    if (present(binary_exponent)) binary_exponent = exponent_bits
+    if (present(binary_mantissa)) binary_mantissa = mantissa_bits
+
+    if (verbose_binary) then
+       write(iulog,*) ' '
+       write(iulog,*) 'x =', x
+       write(iulog,*) 'IEEE-754 double precision representation of x:'
+       write(iulog,*) 'Sign bit: ', sign_bit
+       write(iulog,*) 'Exponent (11 bits):', exponent_bits
+       write(iulog,*) 'Mantissa (52 bits):', mantissa_bits
+    endif
+
+    ! Convert full 64-bit integer to a binary string
+    do i = 1, 64
+        if (btest(binary_number, 64 - i)) then
+            bin(i) = '1'
+        else
+            bin(i) = '0'
+        end if
+    end do
+
+    binary_str = concat(bin)
+    if (verbose_binary) then
+       write(iulog,*) 'Full 64-bit binary:'
+       write(iulog,*), ' ', binary_str
+    endif
+
+  end subroutine double_to_binary
+
+
+  pure function concat(arr) result(str)
+    ! Turn a character array into a string
+
+    character(len=*), intent(in) :: arr(:)
+    character(len=size(arr)) :: str
+    integer :: k
+
+    do k = 1, size(arr)
+       str(k:k) = arr(k)
+    end do
+
+  end function concat
+
 !****************************************************************************
 
 end module glimmer_utils

@@ -193,9 +193,9 @@ class PrintVars:
         self.print_warning()
         for l in self.infile.readlines():
             for token in self.handletoken:
-                if l.find(token) is not -1:
+                if l.find(token) != -1:
                     break
-            if l.find(token) is not -1:
+            if l.find(token) != -1:
                 for v in vars.keys():
                     self.handletoken[token](vars[v])
             else:
@@ -267,9 +267,9 @@ class PrintNC_template(PrintVars):
             for k in module.keys():
                 l = l.replace(k.upper(),module[k])
             for token in self.handletoken:
-                if l.find(token) is not -1:
+                if l.find(token) != -1:
                     break
-            if l.find(token) is not -1:
+            if l.find(token) != -1:
                 for v in vars.keys():
                     self.handletoken[token](vars[v])
             elif '!GENVAR_DIMS!' in l:

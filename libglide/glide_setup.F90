@@ -2699,6 +2699,9 @@ contains
     if (model%options%which_ho_babc == HO_BABC_BETA_CONSTANT) then
        write(message,*) 'uniform beta (Pa yr/m)        : ',model%basal_physics%ho_beta_const
        call write_log(message)
+    elseif (model%options%which_ho_babc == HO_BABC_BETA_LARGE) then
+       write(message,*) 'large beta (Pa yr/m) : ',model%basal_physics%ho_beta_large
+       call write_log(message)
     elseif (model%options%which_ho_babc == HO_BABC_BETA_BPMP) then
        write(message,*) 'large (frozen) beta (Pa yr/m) : ',model%basal_physics%ho_beta_large
        call write_log(message)

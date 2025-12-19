@@ -45,6 +45,8 @@ module glide_diagnostics
 
   implicit none
 
+  logical, parameter :: verbose_diagnostics = .false.
+
 contains
 
   subroutine glide_write_diagnostics (model,  time,    &
@@ -63,8 +65,6 @@ contains
     integer,  intent(in) :: tstep_count   ! current timestep
 
     ! local arguments
-
-    logical, parameter :: verbose_diagnostics = .false.
 
     ! debug
     if (main_task .and. verbose_diagnostics) then
@@ -234,6 +234,9 @@ contains
          grounded_mask,            & ! = 1 where ice is present and grounded, else = 0
          glacier_ice_mask            ! = 1 where glacier ice is present, initially and/or currently
 
+    integer, dimension(model%general%ewn-1,model%general%nsn-1) ::  &
+         stag_ice_mask               ! staggered mask; = 1 if ice_mask = 1 for any of the four neighbors
+
     real(dp), dimension(model%general%upn) ::  &
          temp_diag,                     &    ! Note: sfc temp not included if temps are staggered
                                              !       (use artm instead)
@@ -275,8 +278,10 @@ contains
 
     real(dp), dimension(model%general%ewn, model%general%nsn) ::  &
          mass_above_flotation,& ! ice mass above flotation (kg)
-         velo_sfc,            & ! surface ice speed (m/s)
          thck_obs               ! observed ice thickness (m), derived from usrf_obs and topg
+
+    real(dp), dimension(model%general%ewn-1, model%general%nsn-1) ::  &
+         velo_sfc               ! surface ice speed (m/s)
 
     real(dp), dimension(:,:,:), allocatable :: &
          local_energy           ! internal energy (J) per layer in a column
@@ -351,6 +356,17 @@ contains
              ice_mask(i,j) = 0
              floating_mask(i,j) = 0
              grounded_mask(i,j) = 0
+          endif
+       enddo
+    enddo
+
+    do j = 1, nsn-1
+       do i = 1, ewn-1
+          if (ice_mask(i,j+1) == 1 .or. ice_mask(i+1,j+1) == 1 .or.  &
+              ice_mask(i,j)   == 1 .or. ice_mask(i+1,j)   == 1) then
+             stag_ice_mask(i,j) = 1
+          else
+             stag_ice_mask(i,j) = 0
           endif
        enddo
     enddo
@@ -897,8 +913,8 @@ contains
                      + model%velocity%vvel(1,:,:)**2)
 
        call glissade_rms_error(&
-            ewn,            nsn,                &
-            ice_mask,                           &
+            ewn-1,          nsn-1,              &
+            stag_ice_mask,                      &
             parallel,                           &
             velo_sfc * scyr,                    &  ! m/yr
             model%velocity%velo_sfc_obs * scyr, &  ! m/yr
