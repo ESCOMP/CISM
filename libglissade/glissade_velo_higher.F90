@@ -8376,11 +8376,11 @@
        do j = 1, ny-1
           do i = 1, nx-1
              if (active_vertex(i,j)) then
-                Auu(i,j,m) = Auu(i,j,m) + (dx*dy/vol0) * beta(i,j)
-                Avv(i,j,m) = Avv(i,j,m) + (dx*dy/vol0) * beta(i,j)
-!!                increment = (dx*dy/vol0) * beta(i,j)
-!!                Auu(i,j,m) = Auu(i,j,m) + increment
-!!                Avv(i,j,m) = Avv(i,j,m) + increment
+!                Auu(i,j,m) = Auu(i,j,m) + (dx*dy/vol0) * beta(i,j)
+!                Avv(i,j,m) = Avv(i,j,m) + (dx*dy/vol0) * beta(i,j)
+                increment = (dx*dy/vol0) * beta(i,j)
+                Auu(i,j,m) = Auu(i,j,m) + increment
+                Avv(i,j,m) = Avv(i,j,m) + increment
              endif   ! active_vertex
           enddo   ! i
        enddo   ! j
