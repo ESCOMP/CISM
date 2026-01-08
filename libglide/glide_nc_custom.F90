@@ -116,7 +116,8 @@ contains
        ! This does not work, in general, when computing on active blocks only, because the local versions
        !  of model%general%x1 may not span the global domain.
        ! The revised code calls parallel_put_var to write (x0,y0) and (x1,y1) to the output file.
-       ! This assumes that x1_global and y1_global were read from the input file and saved in a global array.
+       ! This assumes that x1_global and y1_global were read from the input file and saved in a global array
+       ! (e.g., in subroutine glide_io_read).
 
        status = parallel_inq_varid(NCO%id,'x1',varid)
        status = parallel_put_var(NCO%id,varid,model%general%x1_global)
@@ -126,8 +127,8 @@ contains
        status = parallel_put_var(NCO%id,varid,model%general%y1_global)
        call nc_errorhandle(__FILE__,__LINE__,status)
 
-       ! create the x0 and y0 grids from x1 and y1
-
+       ! create the x0 and y0 grids from x1 and y1;
+       ! this does not require model%general%x0_global and y0_global to have been filled
        status = parallel_inq_varid(NCO%id,'x0',varid)
        do i = 1, global_ewn-1
           x0_global(i) = (model%general%x1_global(i) + model%general%x1_global(i+1)) / 2.0d0

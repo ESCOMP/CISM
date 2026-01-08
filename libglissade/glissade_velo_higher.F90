@@ -2408,15 +2408,12 @@
                                                efvs_qp_3d)
 
              !WHL - debug - BFB check
-             if (0 == 1) then
-!!             if (verbose_reprosum .and. counter == 1) then
+             if (verbose_reprosum .and. counter == 1) then
                 if (main_task) write(iulog,*) 'Write out matrices after assemble_stiffness_matrix'
-                call write_array_to_file(Auu_2d, 21, 'global_Auu1', parallel, cycle_indices = .true.)
-                call write_array_to_file(Auv_2d, 22, 'global_Auv1', parallel, cycle_indices = .true.)
-                call write_array_to_file(Avu_2d, 23, 'global_Avu1', parallel, cycle_indices = .true.)
-                call write_array_to_file(Avv_2d, 24, 'global_Avv1', parallel, cycle_indices = .true.)
-                call write_array_to_file(bu_2d,  25, 'global_bu1',  parallel)
-                call write_array_to_file(bv_2d,  26, 'global_bv1',  parallel)
+                call write_array_to_file(Auu_2d, 21, 'global_Auu1', parallel, write_binary = .true., cycle_indices = .true.)
+                call write_array_to_file(Auv_2d, 22, 'global_Auv1', parallel, write_binary = .true., cycle_indices = .true.)
+                call write_array_to_file(Avu_2d, 23, 'global_Avu1', parallel, write_binary = .true., cycle_indices = .true.)
+                call write_array_to_file(Avv_2d, 24, 'global_Avv1', parallel, write_binary = .true., cycle_indices = .true.)
              endif
 
              !WHL - debug - BFB check
@@ -2700,15 +2697,15 @@
              call t_stopf('glissade_halo_bxxs')
 
              !WHL - debug - Write all the matrix elements and rhs elements (in binary form) to files
-!!             if (verbose_reprosum .and. counter == 1) then
-             if (0 == 1) then
+             if (verbose_reprosum .and. counter == 1) then
                 if (main_task) write(iulog,*) 'Write out matrices after adding BC'
-                call write_array_to_file(Auu_2d, 21, 'global_Auu3', parallel, cycle_indices = .true.)
-                call write_array_to_file(Auv_2d, 22, 'global_Auv3', parallel, cycle_indices = .true.)
-                call write_array_to_file(Avu_2d, 23, 'global_Avu3', parallel, cycle_indices = .true.)
-                call write_array_to_file(Avv_2d, 24, 'global_Avv3', parallel, cycle_indices = .true.)
-                call write_array_to_file(bu_2d,  25, 'global_bu3',  parallel)
-                call write_array_to_file(bv_2d,  26, 'global_bv3',  parallel)
+!!                call write_array_to_file(Auu_2d(:,:,5), 30, 'global_Auu2', parallel)  ! diagonal terms only
+                call write_array_to_file(Auu_2d, 31, 'global_Auu2', parallel, write_binary = .true., cycle_indices = .true.)
+                call write_array_to_file(Auv_2d, 32, 'global_Auv2', parallel, write_binary = .true., cycle_indices = .true.)
+                call write_array_to_file(Avu_2d, 33, 'global_Avu2', parallel, write_binary = .true., cycle_indices = .true.)
+                call write_array_to_file(Avv_2d, 34, 'global_Avv2', parallel, write_binary = .true., cycle_indices = .true.)
+                call write_array_to_file(bu_2d,  35, 'global_bu2',  parallel, write_binary = .true.)
+                call write_array_to_file(bv_2d,  36, 'global_bv2',  parallel, write_binary = .true.)
              endif
 
              !---------------------------------------------------------------------------
@@ -3192,9 +3189,9 @@
        ! Optional diagnostics
 
        if (verbose_beta .and. counter > 1 .and. mod(counter-1,12)==0) then
-!!       if (verbose_beta) then
 
-          call point_diag(log10(max(beta_internal,1.d-99)), 'log_beta', itest, jtest, rtest, 7, 7, '(f10.5)')
+          if (this_rank == rtest) write(iulog,*) 'Counter =', counter
+          call point_diag(log10(max(beta_internal,1.d-99)), 'log_beta', itest, jtest, rtest, 7, 7)
           if (solve_2d) then
              call point_diag(uvel_2d, 'Mean uvel (m/yr)', itest, jtest, rtest, 7, 7)
              call point_diag(vvel_2d, 'Mean vvel (m/yr)', itest, jtest, rtest, 7, 7)
@@ -4157,7 +4154,7 @@
     staggered_jhi = parallel%staggered_jhi
 
     !----------------------------------------------------------------
-    ! Compute the x and y coordinates of each vertex.
+    ! Copy the x and y coordinates of each vertex from x0 and y0.
     ! By convention, vertex (i,j) lies at the NE corner of cell(i,j).
     !----------------------------------------------------------------
 

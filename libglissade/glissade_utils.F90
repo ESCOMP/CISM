@@ -687,7 +687,7 @@ contains
     ! That is, if topg - eus < 0 (marine-based ice), and if the upper surface is too close
     !  to sea level to ground the ice, then the ice thickness is chosen to satisfy
     !  rhoi*H = -rhoo*(topg-eus).
-    ! Note: usrf, topg, eus and thck must all have the same units (often but not necessarily meters).
+    ! Note: usrf, topg, eus and thck must all have the same units (usually but not necessarily meters).
 
     use glimmer_physcon, only : rhoo, rhoi
 
@@ -952,7 +952,7 @@ contains
 
 
   ! subroutines belonging to the write_array_to_file interface
-  subroutine write_array_to_file_real8_2d(arr, fileunit, filename, parallel)
+  subroutine write_array_to_file_real8_2d(arr, fileunit, filename, parallel, write_binary)
 
     ! Copy the input array into a global array and write all values to an output file.
     ! This can be useful for debugging, if we want to find differences between two fields
@@ -970,20 +970,38 @@ contains
     integer, intent(in) :: fileunit
     character(len=*), intent(in) :: filename
     type(parallel_type), intent(in) :: parallel
+    logical, intent(in), optional :: write_binary
 
     integer :: i, j
     character(len=64) :: binary_str
     real(dp), dimension(:,:), allocatable :: arr_global
+    logical :: binary_output
+
+    if (present(write_binary)) then
+       binary_output = write_binary
+    else
+       binary_output = .false.
+    endif
 
     call gather_var(arr, arr_global, parallel)
     if (main_task) then
        open(unit=fileunit, file=trim(filename), status='replace', position='append')
-       do j = 1, parallel%global_nsn
-          do i = 1, parallel%global_ewn
-             call double_to_binary(arr_global(i,j), binary_str)
-             write (fileunit, '(2i6,a4,a64)') i, j, '    ', binary_str
+
+       if (binary_output) then
+          do j = 1, parallel%global_nsn
+             do i = 1, parallel%global_ewn
+                call double_to_binary(arr_global(i,j), binary_str)
+                write (fileunit, '(2i6,a4,a64)') i, j, '    ', binary_str
+             enddo
           enddo
-       enddo
+       else
+          do j = 1, parallel%global_nsn
+             do i = 1, parallel%global_ewn
+                write (fileunit, '(2i6,a4,f24.16)') i, j, '    ', arr_global(i,j)
+             enddo
+          enddo
+       endif
+
        close(unit=fileunit)
        deallocate(arr_global)
     endif
@@ -991,7 +1009,7 @@ contains
   end subroutine write_array_to_file_real8_2d
 
 
-  subroutine write_array_to_file_real8_3d(arr, fileunit, filename, parallel, cycle_indices)
+  subroutine write_array_to_file_real8_3d(arr, fileunit, filename, parallel, write_binary, cycle_indices)
 
     ! Copy the input array into a global array and write all values to an output file.
     ! This can be useful for debugging, if we want to find differences between two fields
@@ -1009,13 +1027,21 @@ contains
     integer, intent(in) :: fileunit
     character(len=*), intent(in) :: filename
     type(parallel_type), intent(in) :: parallel
+    logical, intent(in), optional :: write_binary
     logical, intent(in), optional :: cycle_indices   ! if true, then index 3->1, 1->2, 2->3
 
     integer :: i, j, k, kmax
     character(len=64) :: binary_str
     real(dp), dimension(:,:,:), allocatable :: arr_global
     real(dp), dimension(:,:,:), allocatable :: arr_cycle
+    logical :: binary_output
     logical :: cycle_ind
+
+    if (present(write_binary)) then
+       binary_output = write_binary
+    else
+       binary_output = .false.
+    endif
 
     if (present(cycle_indices)) then
        cycle_ind = cycle_indices
@@ -1042,14 +1068,26 @@ contains
 
     if (main_task) then
        open(unit=fileunit, file=trim(filename), status='unknown')
-       do j = 1, parallel%global_nsn
-          do i = 1, parallel%global_ewn
-             do k = 1, kmax
-                call double_to_binary(arr_global(k,i,j), binary_str)
-                write (fileunit, '(3i6,a4,a64)') i, j, k, '    ', binary_str
+
+       if (binary_output) then
+          do j = 1, parallel%global_nsn
+             do i = 1, parallel%global_ewn
+                do k = 1, kmax
+                   call double_to_binary(arr_global(k,i,j), binary_str)
+                   write (fileunit, '(3i6,a4,a64)') i, j, k, '    ', binary_str
+                enddo
              enddo
           enddo
-       enddo
+       else
+          do j = 1, parallel%global_nsn
+             do i = 1, parallel%global_ewn
+                do k = 1, kmax
+                   write (fileunit, '(3i6,a4,f24.16)') i, j, k, '    ', arr_global(k,i,j)
+                enddo
+             enddo
+          enddo
+       endif
+
        close(unit=fileunit)
        deallocate(arr_global)
     endif

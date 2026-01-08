@@ -91,7 +91,7 @@ contains
 
     integer :: i, j, nc, ng, count
     integer :: iglobal, jglobal
-    integer :: ng_west, ng_east, ng_south, ng_north
+    integer :: ng_ne, ng_nw, ng_se, ng_sw
     integer :: min_id, max_id
     real(dp) :: max_glcval
     real(dp) :: theta_rad             ! latitude in radians
@@ -155,9 +155,15 @@ contains
 
     if (glacier%scale_area) then
 
-       ! Optionally, rescale the grid cell dimensions dew and dns
+       ! Optionally, rescale the grid cell dimensions and coordinates
        ! This is answer-changing throughout the code.
+       ! Note: The global arrays model%general%x1_global, etc., which are written to output files, are not rescaled.
+       !       These arrays are computed from the input file, which typically ignores the scale factor.
        if (glacier%length_scale_factor /= 1.0d0) then
+          model%general%x0 = model%general%x0 * glacier%length_scale_factor
+          model%general%y0 = model%general%y0 * glacier%length_scale_factor
+          model%general%x1 = model%general%x1 * glacier%length_scale_factor
+          model%general%y1 = model%general%y1 * glacier%length_scale_factor
           model%numerics%dew = model%numerics%dew * glacier%length_scale_factor
           model%numerics%dns = model%numerics%dns * glacier%length_scale_factor
           dew = model%numerics%dew
@@ -661,35 +667,25 @@ contains
     endif
     call broadcast(glacier%ngdiag, rtest)
 
-    ! Define a mask whose value is 1 at vertices along the boundary between two glaciers.
-    ! At runtime, Cp is set to a large value at masked vertices to reduce flow between glaciers.
+    ! Define a mask whose value is 1 at vertices that border two different glaciers.
+    ! At runtime, Cp is set to a large value at these vertices to reduce mass exchange between glaciers.
+    !TODO: Consider removing the mask. This would allow CISM to reduce basal friction to thin the ice if needed.
     glacier%boundary_mask(:,:) = 0
 
-    ! Loop over locally owned cells
-    do j = nhalo, nsn-nhalo
-       do i = nhalo, ewn-nhalo
-          ng = glacier%cism_glacier_id_init(i,j)
-          if (ng > 0) then
-             ng_west  = glacier%cism_glacier_id_init(i-1,j)
-             ng_east  = glacier%cism_glacier_id_init(i+1,j)
-             ng_south = glacier%cism_glacier_id_init(i,j-1)
-             ng_north = glacier%cism_glacier_id_init(i,j+1)
-             if (ng_west > 0 .and. ng_west /= ng) then
-                glacier%boundary_mask(i-1,j-1) = 1
-                glacier%boundary_mask(i-1,j)   = 1
-             endif
-             if (ng_east > 0 .and. ng_east /= ng) then
-                glacier%boundary_mask(i,j-1) = 1
-                glacier%boundary_mask(i,j)   = 1
-             endif
-             if (ng_south > 0 .and. ng_south /= ng) then
-                glacier%boundary_mask(i-1,j-1) = 1
-                glacier%boundary_mask(i,j-1)   = 1
-             endif
-             if (ng_north > 0 .and. ng_north /= ng) then
-                glacier%boundary_mask(i-1,j) = 1
-                glacier%boundary_mask(i,j)   = 1
-             endif
+    ! Loop over locally owned vertices
+    do j = nhalo+1, nsn-nhalo
+       do i = nhalo+1, ewn-nhalo
+          ng_ne = glacier%cism_glacier_id_init(i+1,j+1)
+          ng_nw = glacier%cism_glacier_id_init(i,j+1)
+          ng_se = glacier%cism_glacier_id_init(i+1,j)
+          ng_sw = glacier%cism_glacier_id_init(i,j)
+          if ( (ng_ne > 0 .and. ng_nw > 0 .and. ng_ne /= ng_nw) .or. &
+               (ng_ne > 0 .and. ng_se > 0 .and. ng_ne /= ng_se) .or. &
+               (ng_ne > 0 .and. ng_sw > 0 .and. ng_ne /= ng_sw) .or. &
+               (ng_nw > 0 .and. ng_se > 0 .and. ng_nw /= ng_se) .or. &
+               (ng_nw > 0 .and. ng_sw > 0 .and. ng_nw /= ng_sw) .or. &
+               (ng_se > 0 .and. ng_sw > 0 .and. ng_se /= ng_sw) ) then
+             glacier%boundary_mask(i,j) = 1
           endif
        enddo
     enddo
@@ -697,6 +693,7 @@ contains
     call staggered_parallel_halo(glacier%boundary_mask, parallel)
 
     if (verbose_glacier) then
+       call point_diag(glacier%cism_glacier_id_init, 'cism_glacier_id_init', itest, jtest, rtest, 7, 7)
        call point_diag(glacier%boundary_mask, 'Glacier boundary mask', itest, jtest, rtest, 7, 7)
     endif
 
@@ -1431,8 +1428,7 @@ contains
        !-------------------------------------------------------------------------
 
        if (verbose_glacier) then
-          call point_diag(model%geometry%topg, 'topg', itest, jtest, rtest, 7, 7)
-          call point_diag(thck, 'Before advance_retreat, thck', itest, jtest, rtest, 7, 7)
+          call point_diag(model%geometry%thck, 'Before advance_retreat, thck', itest, jtest, rtest, 7, 7)
        endif
 
        ! Assign nonzero IDs in grid cells where ice has reached the minimum glacier thickness.
@@ -2495,6 +2491,7 @@ contains
 
     if (verbose_glacier) then
        call point_diag(stag_thck, 'stag_thck (m)', itest, jtest, rtest, 7, 7)
+       call point_diag(stag_thck_target, 'stag_thck_target (m)', itest, jtest, rtest, 7, 7)
        call point_diag(stag_dthck, 'stag_thck - stag_thck_target (m)', itest, jtest, rtest, 7, 7)
        call point_diag(stag_dthck_dt, 'stag_dthck_dt (m/yr)', itest, jtest, rtest, 7, 7)
        call point_diag(powerlaw_c, 'new powerlaw_c', itest, jtest, rtest, 7, 7)
@@ -2850,7 +2847,7 @@ contains
     call parallel_halo(cism_glacier_id, parallel)
 
     ! Check advanced cells (beyond the initial extent) for problematic glacier IDs.
-    ! This code protects against glacier 'pirating', which ccan occur when an advanced cell
+    ! This code protects against glacier 'pirating', which can occur when an advanced cell
     !  is adjacent to two different glaciers, call them A and B.
     ! Suppose the cell is fed primarily by glacier A but has the same ID as glacier B,
     !  and has a more positive SMB as a result of belonging to B rather than A.

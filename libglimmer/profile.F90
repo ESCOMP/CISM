@@ -35,8 +35,6 @@ module profile
 
 #if (defined CCSMCOUPLED || defined CESMTIMERS)
   use perf_mod
-  !TODO - Add an 'only' for 'use cism_parallel'?
-  use cism_parallel
 #endif
 
   use glimmer_global, only: dp
@@ -89,16 +87,18 @@ contains
   
   !> register a new series of meassurements
   function profile_register(prof,msg)
-    use glimmer_log
+    use glimmer_paramets, only: iulog
+    use mpi
     implicit none
     type(profile_type) :: prof !< structure storing profile definitions
     character(len=*), intent(in) :: msg !< the message to be associated
     integer profile_register
+    integer :: ierr
 
     prof%nump = prof%nump+1
     if (prof%nump > max_prof) then
-       call write_log('Maximum number of profiles reached',type=GM_FATAL, &
-            file=__FILE__,line=__LINE__)
+       write(iulog,*) ('Maximum number of profiles reached')
+       call mpi_abort(MPI_COMM_WORLD, 1001, ierr)
     end if
     profile_register = prof%nump
     prof%pname(prof%nump) = trim(msg)

@@ -62,7 +62,6 @@ module cism_reprosum_mod
    use glimmer_global, only: r8 => dp
    use glimmer_global, only: i8
    use glimmer_paramets, only: iulog
-   use glimmer_utils, only: double_to_binary
    use cism_infnan_mod,only: cism_infnan_inf_type, assignment(=), &
                              cism_infnan_posinf, cism_infnan_neginf, &
                              cism_infnan_nan, &
@@ -85,6 +84,7 @@ module cism_reprosum_mod
 !------------------------------------------------------------------------
 ! Public interfaces -----------------------------------------------------
 !------------------------------------------------------------------------
+   !WHL  - cism_reprosum_setopts is not currently called
    public :: &
       cism_reprosum_setopts,        &! set runtime options
       cism_reprosum_calc,           &! calculate distributed sum
@@ -98,10 +98,7 @@ module cism_reprosum_mod
 
    real(r8), public    :: cism_reprosum_reldiffmax = -1.0_r8
 
-   !WHL mod
-!!   logical, parameter, public :: verbose_reprosum = .false.
-   logical, parameter, public :: verbose_reprosum = .true.
-   ! end WHL mod
+   logical, parameter, public :: verbose_reprosum = .false.
 
 !------------------------------------------------------------------------
 ! Private interfaces ----------------------------------------------------
@@ -1192,20 +1189,12 @@ module cism_reprosum_mod
          repro_sum_stats(6) = repro_sum_stats(6) + gbl_lor_red
       endif
 
-      !WHL mod: optional diagnostics
       if (verbose_reprosum) then
          call mpi_comm_rank(MPI_COMM_WORLD, mypid, ierr)
           if (mypid == 0) then
-             write(iulog,*) 'Exit reprosum, nflds =', nflds
-             write(iulog,*) '   n, arr_gsum, binary_str:'
-!!            do n = 1, nflds
-             do n = 1, min(2,nflds)
-                call double_to_binary(arr_gsum(n), binary_str)
-                write(iulog,*) n, arr_gsum(n), binary_str
-             enddo
+             write(iulog,*) 'Exit reprosum, nflds, arr_gsum =', nflds, arr_gsum
           endif
        endif
-       ! end WHL mod
 
   end subroutine cism_reprosum_calc
 

@@ -94,10 +94,10 @@ contains
 
     use cism_parallel, only: parallel_type, parallel_finalise, &
          distributed_grid, distributed_grid_active_blocks,  parallel_global_edge_mask, &
-         parallel_halo, parallel_halo_extrapolate, parallel_reduce_max, &
+         parallel_halo, parallel_halo_extrapolate, &
          staggered_parallel_halo_extrapolate, staggered_no_penetration_mask, &
          parallel_create_comm_row, parallel_create_comm_col, &
-         parallel_is_zero, not_parallel
+         parallel_reduce_max, parallel_is_zero, not_parallel
 
     use glide_setup
     use glimmer_ncio, only: openall_in, openall_out, glimmer_nc_get_var, glimmer_nc_get_dimlength
@@ -366,34 +366,47 @@ contains
     itest = model%numerics%idiag_local
     jtest = model%numerics%jdiag_local
 
-    ! Check whether x0 and y0 were read in. If not, then compute them from x1 and y1.
+    ! Make sure the grid coordinates (x1,y1) and (x0,y0) have been read in.
+    ! If (x1,y1) have not been read in, then abort the run.
+    ! If (x0,y0) have not been read in, then compute them from (x1,y1).
+    ! Extrapolate these coordinates to halo cells as needed.
+    ! Note: The extrapolation works only on a regular grid.
+    !TODO - Put the following code in a subroutine.
+
     if (parallel_is_zero(model%general%x1)) then
-       if (main_task) write(iulog,*) 'Warning: model%general%x1 = 0'
-    else
-!       if (main_task) write(iulog,*) 'x1_global:', model%general%x1_global(:)
-!       if (main_task) write(iulog,*) 'y1_global:', model%general%y1_global(:)
-!       if (main_task) write(iulog,*) 'x1:', model%general%x1(:)
-!       if (main_task) write(iulog,*) 'y1:', model%general%y1(:)
+       call write_log('model%general%x1 = 0.0 everywhere', GM_FATAL)
+    else  ! extrapolate x1 to halo cells
+       call parallel_halo_extrapolate(model%general%x1, parallel, model%numerics%dew)
     endif
 
+    if (parallel_is_zero(model%general%y1)) then
+       call write_log('model%general%y1 = 0.0 everywhere', GM_FATAL)
+    else  ! extrapolate y1 to halo cells
+       call parallel_halo_extrapolate(model%general%y1, parallel, model%numerics%dns)
+    endif
+
+    ! Check whether x0 and y0 were read in. If not, then compute them from x1 and y1.
     if (parallel_is_zero(model%general%x0)) then
-       if (main_task) write(iulog,*) 'Initialize x0'
+       if (main_task) write(iulog,*) 'x0 not read in; initialize from x1'
        do i = 1, model%general%ewn-1
           model%general%x0(i) = 0.5d0 * (model%general%x1(i) + model%general%x1(i+1))
        enddo
+    else
+       ! extrapolate x0 to halo cells
+       call parallel_halo_extrapolate(model%general%x0, parallel, model%numerics%dew)
     endif
-    if (main_task) write(iulog,*) 'x0:', model%general%x0(:)
 
     if (parallel_is_zero(model%general%y0)) then
-       if (main_task) write(iulog,*) 'Initialize y0'
+       if (main_task) write(iulog,*) 'y0 not read in; initialize from y1'
        do j = 1, model%general%nsn-1
           model%general%y0(j) = 0.5d0 * (model%general%y1(j) + model%general%y1(j+1))
        enddo
+    else
+       ! extrapolate y0 to halo cells
+       call parallel_halo_extrapolate(model%general%y0, parallel, model%numerics%dns)
     endif
-    if (main_task) write(iulog,*) 'y0:', model%general%y0(:)
 
-    ! Check that lat and lon fields were read in, if desired
-    !TODO - Use the parallel_is_nonzero function instead, here and below
+    ! Check that lat and lon fields were read in
     if (model%options%read_lat_lon) then
        if (parallel_is_zero(model%general%lat)) then
           call write_log('Failed to read latitude (lat) field from input file', GM_FATAL)
@@ -612,33 +625,68 @@ contains
 
     endif  ! geothermal heat flux
 
-    ! If running with glaciers, then process the input glacier data
-    ! On start-up, this subroutine counts the glaciers.  It should be called before glide_io_createall,
-    !  which needs to know nglacier to set up glacier output files with the right dimensions.
-    ! On restart, most of the required glacier arrays are in the restart file, and this subroutine
-    !  computes a few remaining variable.
+    ! Set some variables in halo cells
+    ! Note: We need thck and artm in halo cells so that temperature will be initialized correctly
+    !        (if not read from the input file).
+    !       We do an update here for temp in case temp is read from an input file.
+    !       If temp is computed below in glissade_init_therm (based on the value of options%temp_init),
+    !        then the halos will receive the correct values.
+
+    call parallel_halo(model%geometry%thck, parallel)
+    call parallel_halo(model%climate%artm,  parallel)
+    call parallel_halo(model%temper%temp,   parallel)
+    call parallel_halo(model%temper%tempunstag, parallel)
+    if (model%options%whichtemp == TEMP_ENTHALPY) &
+         call parallel_halo(model%temper%waterfrac, parallel)
+
+    ! Note: For outflow BCs, most fields (thck, usrf, temp, etc.) are set to zero in the global halo,
+    !        to create ice-free conditions. However, we might not want to set topg = 0 in the global halo,
+    !        because then the global halo will be interpreted as ice-free land, whereas we may prefer to
+    !        treat it as ice-free ocean. For this reason, topg is extrapolated from adjacent cells.
+    !       For no_ice BCs, we want to zero out ice state variables adjacent to the global boundary,
+    !        but we do not want to zero out the topography.
+    !       For periodic BCs, there are optional periodic_offset arguments for topg.
+    !        These are for ismip-hom experiments or similar geometries. A positive EW offset means that
+    !        the topography in west halo cells will be raised, and the topography
+    !        in east halo cells will be lowered.  This ensures that the topography
+    !        and upper surface elevation are continuous between halo cells
+    !        and locally owned cells at the edge of the global domain.
+    !       After this call, topg does not need another halo update unless isostasy is active.
+
+    if (model%general%global_bc == GLOBAL_BC_OUTFLOW) then
+       call parallel_halo_extrapolate(model%geometry%topg, parallel)
+    elseif (model%general%global_bc == GLOBAL_BC_NO_ICE) then
+       call parallel_halo(model%geometry%topg, parallel, zero_global_boundary_no_ice_bc = .false.)
+    else  ! other global BCs, including periodic
+       call parallel_halo(model%geometry%topg, parallel, &
+                          periodic_offset_ew = model%numerics%periodic_offset_ew, &
+                          periodic_offset_ns = model%numerics%periodic_offset_ns)
+    endif
+
+    ! calculate the lower and upper ice surface (will be correct in halos following the halo updates above)
+    call glide_calclsrf(model%geometry%thck, model%geometry%topg, model%climate%eus, model%geometry%lsrf)
+    model%geometry%usrf = max(0.d0, model%geometry%thck + model%geometry%lsrf)
+
+    ! halo update for kinbcmask (= 1 where uvel and vvel are prescribed, elsewhere = 0)
+    ! Note: Instead of assuming that kinbcmask is periodic, we extrapolate it into the global halo
+    !       (and also into the north and east rows of the global domain, which are not included 
+    !       on the global staggered grid).
+    call staggered_parallel_halo_extrapolate (model%velocity%kinbcmask, parallel)  ! = 1 for Dirichlet BCs
 
     if (model%options%enable_glaciers) then
 
-       ! Glaciers are run with a no-ice BC to allow removal of inactive regions.
-       ! This can be problematic when running in a sub-region that has glaciers along the global boundary.
-       ! A halo update here for 'thck' will remove ice from cells along the global boundary.
-       ! It is best to do this before initializing glaciers, so that ice that initially exists
-       !  in these cells is removed before computing the area and thickness targets.
-       !TODO - These calls are repeated a few lines below.  Try moving them up, before the call
-       !       to glissade_glacier_init.  I don't think it's possible to move the glissade_glacier_init call
-       !       down, because we need to compute nglacier before setting up output files.
+       ! If running with glaciers, then process the input glacier data and initialize glacier arrays
 
-       call parallel_halo(model%geometry%thck, parallel)
-       ! calculate the lower and upper ice surface
-       call glide_calclsrf(model%geometry%thck, model%geometry%topg, model%climate%eus, model%geometry%lsrf)
-       model%geometry%usrf = max(0.d0, model%geometry%thck + model%geometry%lsrf)
-
-       ! Initialize glaciers
-       ! Note: This subroutine can return modified values of model%numerics%dew, model%numerics%dns,
-       !        and model%geometry%cell_area.
-       !       This is a fix to deal with the fact that actual grid cell dimensions can be different
-       !        from the nominal dimensions on a projected grid.
+       ! Note: On start-up, this subroutine counts the glaciers.  It should be called before glide_io_createall,
+       !       which needs to know nglacier to set up glacier output files with the right dimensions.
+       !       On restart, most of the required glacier arrays are in the restart file, and this subroutine
+       !       computes a few remaining variables.
+       ! Note: Glaciers are usually run with a no-ice BC to allow removal of inactive regions.
+       !       This means that any grid cells adjacent to the global boundary are not handled correctly.
+       !       The preceding halo update for 'thck' removes ice from these grid cells.
+       ! Note: If glacier%length_scale_factor /= 1, This subroutine modifies the values of model%numerics%dew,
+       !       model%numerics%dns, model%geometry%cell_area, and the grid coordinates (x0,y0) and (x1,y1).
+       !       This is done if the true grid cell dimensions differ from the nominal dimensions on a projected grid.
        !       See comments near the top of glissade_glacier_init.
 
        call glissade_glacier_init(model, model%glacier)
@@ -652,55 +700,6 @@ contains
     call glide_io_createall(model, model)
 
     ! initialize glissade components
-
-    ! Set some variables in halo cells
-    ! Note: We need thck and artm in halo cells so that temperature will be initialized correctly
-    !        (if not read from input file).
-    !       We do an update here for temp in case temp is read from an input file.
-    !       If temp is computed below in glissade_init_therm (based on the value of options%temp_init),
-    !        then the halos will receive the correct values.
-
-    call parallel_halo(model%geometry%thck, parallel)
-    call parallel_halo(model%climate%artm,  parallel)
-    call parallel_halo(model%temper%temp,   parallel)
-    call parallel_halo(model%temper%tempunstag, parallel)
-
-    ! calculate the lower and upper ice surface
-    call glide_calclsrf(model%geometry%thck, model%geometry%topg, model%climate%eus, model%geometry%lsrf)
-    model%geometry%usrf = max(0.d0, model%geometry%thck + model%geometry%lsrf)
-
-    ! Note: For outflow BCs, most fields (thck, usrf, temp, etc.) are set to zero in the global halo,
-    !        to create ice-free conditions. However, we might not want to set topg = 0 in the global halo,
-    !        because then the global halo will be interpreted as ice-free land, whereas we may prefer to
-    !        treat it as ice-free ocean. For this reason, topg is extrapolated from adjacent cells.
-    !       Similarly, for no_ice BCs, we want to zero out ice state variables adjacent to the global boundary,
-    !        but we do not want to zero out the topography.
-    ! Note: For periodic BCs, there is an optional argument periodic_offset_ew for topg.
-    !       This is for ismip-hom experiments. A positive EW offset means that
-    !        the topography in west halo cells will be raised, and the topography
-    !        in east halo cells will be lowered.  This ensures that the topography
-    !        and upper surface elevation are continuous between halo cells
-    !        and locally owned cells at the edge of the global domain.
-    !       In other cases (anything but ismip-hom), periodic_offset_ew = periodic_offset_ns = 0,
-    !        and this argument will have no effect.
-
-    if (model%general%global_bc == GLOBAL_BC_OUTFLOW .or.  &
-        model%general%global_bc == GLOBAL_BC_NO_ICE) then
-       call parallel_halo_extrapolate(model%geometry%topg, parallel)
-    else  ! other global BCs, including periodic
-       call parallel_halo(model%geometry%topg, parallel, &
-                          periodic_offset_ew = model%numerics%periodic_offset_ew, &
-                          periodic_offset_ns = model%numerics%periodic_offset_ns)
-    endif
-
-    if (model%options%whichtemp == TEMP_ENTHALPY) &
-         call parallel_halo(model%temper%waterfrac, parallel)
-
-    ! halo update for kinbcmask (= 1 where uvel and vvel are prescribed, elsewhere = 0)
-    ! Note: Instead of assuming that kinbcmask is periodic, we extrapolate it into the global halo
-    !       (and also into the north and east rows of the global domain, which are not included 
-    !       on the global staggered grid).
-    call staggered_parallel_halo_extrapolate (model%velocity%kinbcmask, parallel)  ! = 1 for Dirichlet BCs
 
     !TODO - Remove call to init_velo in glissade_initialise?
     !       Most of what's done in init_velo is needed for SIA only, but still need velowk for call to wvelintg
@@ -861,10 +860,11 @@ contains
     !        adjacent to or beyond the global boundary. This is an appropriate treatment for
     !        ice state variables, but not for bed topography and related fields (like relx).
     !TODO - Is this halo update necessary?
-    if (model%general%global_bc == GLOBAL_BC_OUTFLOW .or. &
-        model%general%global_bc == GLOBAL_BC_NO_ICE) then
+    if (model%general%global_bc == GLOBAL_BC_OUTFLOW) then
        call parallel_halo_extrapolate(model%isostasy%relx, parallel)
-    else
+    elseif (model%general%global_bc == GLOBAL_BC_NO_ICE) then
+       call parallel_halo(model%isostasy%relx, parallel, zero_global_boundary_no_ice_bc = .false.)
+    else  ! other global BCs, including periodic
        call parallel_halo(model%isostasy%relx, parallel)
     endif
 
@@ -2232,7 +2232,6 @@ contains
 
        ! pre-transport halo updates for thickness and tracers
        call parallel_halo(model%geometry%thck, parallel)
-       call parallel_halo(model%geometry%topg, parallel)
        call parallel_halo_tracers(model%geometry%tracers, parallel)
        call parallel_halo_tracers(model%geometry%tracers_usrf, parallel)
        call parallel_halo_tracers(model%geometry%tracers_lsrf, parallel)
@@ -3070,12 +3069,14 @@ contains
        !        but the argument is included to be on the safe side.
        ! TODO: Do we need similar logic for halo updates of relx?
 
-       if (model%general%global_bc == GLOBAL_BC_OUTFLOW .or. &
-           model%general%global_bc == GLOBAL_BC_NO_ICE) then
+       if (model%general%global_bc == GLOBAL_BC_OUTFLOW) then
           call parallel_halo_extrapolate(model%geometry%topg, parallel)
+       elseif (model%general%global_bc == GLOBAL_BC_NO_ICE) then
+          call parallel_halo(model%geometry%topg, parallel, zero_global_boundary_no_ice_bc = .false.)
        else  ! other global BCs, including periodic
           call parallel_halo(model%geometry%topg, parallel, &
-                             periodic_offset_ew = model%numerics%periodic_offset_ew)
+                          periodic_offset_ew = model%numerics%periodic_offset_ew, &
+                          periodic_offset_ns = model%numerics%periodic_offset_ns)
        endif
 
        ! update the marine connection mask, which depends on topg

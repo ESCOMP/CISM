@@ -30,15 +30,7 @@ module cism_parallel
   use glimmer_global, only : dp, sp
   use glimmer_paramets, only: iulog
 
-!TODO - Not sure setopts is needed
-!TODO - Remove coupled ifdefs and always use the CISM version?
-!TODO - Use cism_reprosum_mod from individual functions
-#ifdef CCSMCOUPLED
-  use shr_reprosum_mod, only: shr_reprosum_setopts, shr_reprosum_calc
-#else
-  use cism_reprosum_mod, only: cism_reprosum_setopts, cism_reprosum_calc
-#endif
-  use cism_reprosum_mod, only: verbose_reprosum
+  use cism_reprosum_mod, only: cism_reprosum_calc, verbose_reprosum
 
   implicit none
 
@@ -332,6 +324,7 @@ module cism_parallel
   end interface
 
   interface parallel_halo_extrapolate
+     module procedure parallel_halo_extrapolate_real8_1d
      module procedure parallel_halo_extrapolate_integer_2d
      module procedure parallel_halo_extrapolate_real8_2d
   end interface
@@ -2206,6 +2199,7 @@ contains
        global_values(:) = 0.0d0
        distributed_get_var_real8_1d = &
             nf90_get_var(ncid,varid,global_values(1:myn),start)
+
        allocate(displs(tasks+1))
        allocate(sendcounts(tasks))
        sendcounts(:) = bounds(2,:)-bounds(1,:)+1
@@ -7598,25 +7592,34 @@ contains
   end subroutine parallel_halo_real4_2d
 
 
-  subroutine parallel_halo_real8_2d(a, parallel, periodic_offset_ew, periodic_offset_ns)
+  subroutine parallel_halo_real8_2d(a, parallel, &
+                                    periodic_offset_ew, periodic_offset_ns, zero_global_boundary_no_ice_bc)
 
-    !WHL - added optional arguments for periodic offsets, to support ismip-hom test cases
+    ! Added optional arguments for periodic offsets, to support ismip-hom test cases
+    ! Also added an optional argument related to the no_ice BCs
 
     use mpi_mod
     implicit none
     real(dp),dimension(:,:) :: a
     type(parallel_type) :: parallel
+
     real(dp), intent(in), optional :: &
-       periodic_offset_ew,  &! offset halo values by this amount
-                             ! if positive, the offset is positive for W halo, negative for E halo
-       periodic_offset_ns    ! offset halo values by this amount
-                             ! if positive, the offset is positive for S halo, negative for N halo
+         periodic_offset_ew,     &! offset halo values by this amount
+                                  ! if positive, the offset is positive for W halo, negative for E halo
+         periodic_offset_ns       ! offset halo values by this amount
+                                  ! if positive, the offset is positive for S halo, negative for N halo
     
+    logical, intent(in), optional :: &
+         zero_global_boundary_no_ice_bc  ! if true, then zero out values in grid cells adjacent
+                                         ! to the global boundary when using no_ice BCs
+
     integer :: erequest,ierror,nrequest,srequest,wrequest
     real(dp),dimension(lhalo, parallel%local_nsn-lhalo-uhalo) :: esend,wrecv
     real(dp),dimension(uhalo, parallel%local_nsn-lhalo-uhalo) :: erecv,wsend
     real(dp),dimension(parallel%local_ewn, lhalo) :: nsend,srecv
     real(dp),dimension(parallel%local_ewn, uhalo) :: nrecv,ssend
+
+    logical :: zero_global_boundary_no_ice  ! local version of zero_global_boundary_no_ice_bc
 
     ! begin
     associate(  &
@@ -7633,6 +7636,12 @@ contains
          northeast_corner  => parallel%northeast_corner,   &
          northwest_corner  => parallel%northwest_corner    &
          )
+
+    if (present(zero_global_boundary_no_ice_bc)) then
+       zero_global_boundary_no_ice = zero_global_boundary_no_ice_bc
+    else
+       zero_global_boundary_no_ice = .true.
+    endif
 
     ! staggered grid
     if (size(a,1)==local_ewn-1.and.size(a,2)==local_nsn-1) return
@@ -7723,31 +7732,53 @@ contains
 
     elseif (no_ice_bc) then
 
-       ! Set values to zero in cells adjacent to the global boundary;
-       ! includes halo cells and one row of locally owned cells
+       if (zero_global_boundary_no_ice) then
 
-       if (this_rank >= east) then  ! at east edge of global domain
-          a(local_ewn-uhalo:,:) = 0.d0
-       endif
+          ! Set values to zero in cells adjacent to the global boundary;
+          ! includes halo cells and one row of locally owned cells.
 
-       if (this_rank <= west) then  ! at west edge of global domain
-          a(:lhalo+1,:) = 0.d0
-       endif
+          if (this_rank >= east) then  ! at east edge of global domain
+             a(local_ewn-uhalo:,:) = 0.d0
+          endif
 
-       if (this_rank >= north) then  ! at north edge of global domain
-          a(:,local_nsn-uhalo:) = 0.d0
-       endif
+          if (this_rank <= west) then  ! at west edge of global domain
+             a(:lhalo+1,:) = 0.d0
+          endif
 
-       if (this_rank <= south) then  ! at south edge of global domain
-          a(:,:lhalo+1) = 0.d0
-       endif
+          if (this_rank >= north) then  ! at north edge of global domain
+             a(:,local_nsn-uhalo:) = 0.d0
+          endif
 
-       ! Some interior blocks have a single cell at a corner of the global boundary.
-       ! Set values in corner cells to zero, along with adjacent halo cells.
-       if (southwest_corner) a(:lhalo+1,:lhalo+1) = 0.d0
-       if (southeast_corner) a(local_ewn-lhalo:,:lhalo+1) = 0.d0
-       if (northeast_corner) a(local_ewn-lhalo:,local_nsn-lhalo:) = 0.d0
-       if (northwest_corner) a(:lhalo+1,local_nsn-lhalo:) = 0.d0
+          if (this_rank <= south) then  ! at south edge of global domain
+             a(:,:lhalo+1) = 0.d0
+          endif
+
+          ! Some interior blocks have a single cell at a corner of the global boundary.
+          ! Set values in corner cells to zero, along with adjacent halo cells.
+          if (southwest_corner) a(:lhalo+1,:lhalo+1) = 0.d0
+          if (southeast_corner) a(local_ewn-lhalo:,:lhalo+1) = 0.d0
+          if (northeast_corner) a(local_ewn-lhalo:,local_nsn-lhalo:) = 0.d0
+          if (northwest_corner) a(:lhalo+1,local_nsn-lhalo:) = 0.d0
+
+       else  ! set values to zero in halo cells but not in locally owned cells
+
+          if (this_rank >= east) then  ! at east edge of global domain
+             a(local_ewn-uhalo+1:,:) = 0.d0
+          endif
+
+          if (this_rank <= west) then  ! at west edge of global domain
+             a(:lhalo,:) = 0.d0
+          endif
+
+          if (this_rank >= north) then  ! at north edge of global domain
+             a(:,local_nsn-uhalo+1:) = 0.d0
+          endif
+
+          if (this_rank <= south) then  ! at south edge of global domain
+             a(:,:lhalo) = 0.d0
+          endif
+
+       endif   ! zero_global_boundary_no_ice
 
     endif   ! outflow or no_ice bc
 
@@ -8002,6 +8033,41 @@ contains
     end associate
 
   end subroutine parallel_halo_real8_4d
+
+!=======================================================================
+
+  ! subroutines for 1D halo updates
+
+  subroutine parallel_halo_extrapolate_real8_1d(a, parallel, interval_in)
+
+    !Note: Extrapolate a 1D real8 variable into halo cells to the east and west.
+    !      Currently used only to compute halo values for grid cell coordinates.
+
+    use mpi_mod
+    implicit none
+    real(dp),dimension(:) :: a
+    type(parallel_type) :: parallel
+    real(dp),intent(in), optional :: &
+         interval_in  ! uniform difference between adjacent values, e.g. grid cell size dew or dns
+
+    integer :: i
+    real(dp) :: interval  ! local version of interval_in
+
+    if (present(interval_in)) then
+       interval = interval_in
+    else
+       interval = 0.0d0
+    endif
+
+    do i = 1, lhalo
+       a(i) = a(lhalo+1) - interval*(lhalo+1-i)
+    enddo
+
+    do i = size(a)-uhalo+1, size(a)
+       a(i) = a(size(a)-uhalo) + interval*(uhalo+i-size(a))
+    enddo
+
+  end subroutine parallel_halo_extrapolate_real8_1d
 
 !=======================================================================
 

@@ -1266,48 +1266,57 @@ contains
 
        ng = model%glacier%ngdiag
 
-       write(message,'(a35,i14)') 'Diagnostic glacier index (RGI)     ', &
-            model%glacier%cism_to_rgi_glacier_id(ng)
-       call write_log(trim(message), type = GM_DIAGNOSTIC)
+       if (ng > 0) then
 
-       write(message,'(a35,i14)') 'Diagnostic glacier index (CISM)    ', ng
-       call write_log(trim(message), type = GM_DIAGNOSTIC)
+          write(message,'(a35,i14)') 'Diagnostic glacier index (RGI)     ', &
+               model%glacier%cism_to_rgi_glacier_id(ng)
+          call write_log(trim(message), type = GM_DIAGNOSTIC)
 
-       write(message,'(a35,f14.6)') 'Glacier area_init (km^2)           ', &
-            model%glacier%area_init(ng) / 1.0d6
-       call write_log(trim(message), type = GM_DIAGNOSTIC)
+          write(message,'(a35,i14)') 'Diagnostic glacier index (CISM)    ', ng
+          call write_log(trim(message), type = GM_DIAGNOSTIC)
 
-       write(message,'(a35,f14.6)') 'Glacier area (km^2)                ', &
-            model%glacier%area(ng) / 1.0d6
-       call write_log(trim(message), type = GM_DIAGNOSTIC)
+          write(message,'(a35,f14.6)') 'Glacier area_init (km^2)           ', &
+               model%glacier%area_init(ng) / 1.0d6
+          call write_log(trim(message), type = GM_DIAGNOSTIC)
 
-       write(message,'(a35,f14.6)') 'Glacier area_init_extent (km^2)    ', &
-            model%glacier%area_init_extent(ng) / 1.0d6
-       call write_log(trim(message), type = GM_DIAGNOSTIC)
+          write(message,'(a35,f14.6)') 'Glacier area (km^2)                ', &
+               model%glacier%area(ng) / 1.0d6
+          call write_log(trim(message), type = GM_DIAGNOSTIC)
 
-       write(message,'(a35,f14.6)') 'Glacier volume (km^3)              ', &
-            model%glacier%volume(ng) / 1.0d9
-       call write_log(trim(message), type = GM_DIAGNOSTIC)
+          write(message,'(a35,f14.6)') 'Glacier area_init_extent (km^2)    ', &
+               model%glacier%area_init_extent(ng) / 1.0d6
+          call write_log(trim(message), type = GM_DIAGNOSTIC)
 
-       write(message,'(a35,f14.6)') 'Glacier volume_init (km^3)         ', &
-            model%glacier%volume_init(ng) / 1.0d9
-       call write_log(trim(message), type = GM_DIAGNOSTIC)
+          write(message,'(a35,f14.6)') 'Glacier volume (km^3)              ', &
+               model%glacier%volume(ng) / 1.0d9
+          call write_log(trim(message), type = GM_DIAGNOSTIC)
 
-       write(message,'(a35,f14.6)') 'Glacier volume_init_extent (km^3)  ', &
-            model%glacier%volume_init_extent(ng) / 1.0d9
-       call write_log(trim(message), type = GM_DIAGNOSTIC)
+          write(message,'(a35,f14.6)') 'Glacier volume_init (km^3)         ', &
+               model%glacier%volume_init(ng) / 1.0d9
+          call write_log(trim(message), type = GM_DIAGNOSTIC)
 
-       write(message,'(a35,f14.6)') 'mu_star (mm/yr w.e./deg C)         ', &
-            model%glacier%mu_star(ng)
-       call write_log(trim(message), type = GM_DIAGNOSTIC)
+          write(message,'(a35,f14.6)') 'Glacier volume_init_extent (km^3)  ', &
+               model%glacier%volume_init_extent(ng) / 1.0d9
+          call write_log(trim(message), type = GM_DIAGNOSTIC)
 
-       write(message,'(a35,f14.6)') 'alpha_snow                         ', &
-            model%glacier%alpha_snow(ng)
-       call write_log(trim(message), type = GM_DIAGNOSTIC)
+          write(message,'(a35,f14.6)') 'mu_star (mm/yr w.e./deg C)         ', &
+               model%glacier%mu_star(ng)
+          call write_log(trim(message), type = GM_DIAGNOSTIC)
 
-       write(message,'(a35,f14.6)') 'beta_artm (deg C)                  ', &
-            model%glacier%beta_artm(ng)
-       call write_log(trim(message), type = GM_DIAGNOSTIC)
+          write(message,'(a35,f14.6)') 'alpha_snow                         ', &
+               model%glacier%alpha_snow(ng)
+          call write_log(trim(message), type = GM_DIAGNOSTIC)
+
+          write(message,'(a35,f14.6)') 'beta_artm (deg C)                  ', &
+               model%glacier%beta_artm(ng)
+          call write_log(trim(message), type = GM_DIAGNOSTIC)
+
+       else   ! glacier ID = 0
+
+          write(message,'(a35,i14)') 'Diagnostic glacier index (CISM)    ', ng
+          call write_log(trim(message), type = GM_DIAGNOSTIC)
+
+       endif
 
        call write_log(' ')
 
