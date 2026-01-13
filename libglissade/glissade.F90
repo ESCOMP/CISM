@@ -1773,6 +1773,7 @@ contains
     use glissade_masks, only: glissade_get_masks
     !WHL - debug
     use cism_parallel, only: parallel_reduce_max
+    use glissade_utils, only: write_array_to_file
 
     implicit none
 
@@ -1911,12 +1912,6 @@ contains
           endwhere
        endif
 
-       !WHL - debug - Set mask = 0 where thck = 0 for dome test
-       ! An alternative would be to identify cells that have a path through land to the domain edge
-       where (model%geometry%thck == 0)
-          bwat_mask = 0
-       endwhere
-
        call parallel_halo(bwat_mask, parallel)
 
        ! Set the meltwater source for the basal hydrology scheme.
@@ -1930,15 +1925,6 @@ contains
        elsewhere
           model%basal_hydro%bmlt_hydro = 0.0d0
        endwhere
-
-       call glissade_calcbwat(&
-            model%options%which_ho_bwat,      &
-            model%basal_hydro,                &
-            dt,                               &  ! s
-            model%geometry%thck,              &  ! m
-            model%numerics%thklim_temp,       &  ! m
-            model%basal_melt%bmlt_ground,     &  ! m/s
-            model%basal_hydro%bwat)              ! m
 
        ! Compute the steady-state basal water flux based on a flux-routing scheme
 
@@ -1960,7 +1946,8 @@ contains
             model%basal_hydro%bwat_diag,                      &  ! m
             model%temper%bhydroflx,                           &  ! W/m2
             model%basal_hydro%head,                           &  ! m
-            model%basal_hydro%grad_head)                         ! m/m
+            model%basal_hydro%grad_head,                      &  ! m/m
+            reprosum_in = model%options%reproducible_sums)
 
        ! halo updates (not sure if all are needed)
        call parallel_halo(model%basal_hydro%bwatflx, parallel)

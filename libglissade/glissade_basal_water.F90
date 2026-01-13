@@ -26,13 +26,14 @@
 
 module glissade_basal_water
 
-   use glimmer_global, only: dp
+   use glimmer_global, only: dp, i8
    use glimmer_paramets, only: iulog, eps11, eps08
    use glimmer_physcon, only: rhoi, rhow, lhci, grav, scyr
    use glimmer_log
    use glimmer_utils, only: point_diag
    use glide_types
-   use cism_parallel, only: main_task, this_rank, nhalo, parallel_type, parallel_halo
+   use cism_parallel, only: main_task, this_rank, nhalo, parallel_type, &
+        parallel_halo, parallel_global_sum
 
    !WHL - debug
    use glimmer_utils, only: double_to_binary
@@ -42,8 +43,16 @@ module glissade_basal_water
    private
    public :: glissade_basal_water_init, glissade_calcbwat, glissade_bwat_flux_routing
 
-   logical, parameter :: verbose_bwat = .false.
-!!   logical, parameter :: verbose_bwat = .true.
+!!   logical, parameter :: verbose_bwat = .false.
+   logical, parameter :: verbose_bwat = .true.
+
+   character(len=64) :: binary_str
+
+   ! two versions of this subroutine; the second supports reproducible sums
+   interface route_flux_to_margin_or_halo
+      module procedure route_flux_to_margin_or_halo_real8
+      module procedure route_flux_to_margin_or_halo_integer8
+   end interface
 
  contains
 
@@ -179,7 +188,8 @@ module glissade_basal_water
        delta_Tb,      btemp_scale,   &
        bwatflx,       bwat_diag,     &
        bhydroflx,                    &
-       head,          grad_head)
+       head,          grad_head,     &
+       reprosum_in)
 
     ! Compute the subglacial water flux and water depth using a steady-state flux routing scheme.
     ! Water is routed down the hydropotential. For routing purposes, assume p_w = p_i (i.e., N = 0).
@@ -218,7 +228,7 @@ module glissade_basal_water
 
     integer, dimension(nx,ny), intent(in) ::  &
          bwat_mask,               & ! mask to identify cells through which basal water is routed;
-                                    ! = 0 for floating and ocean cells; cells at global domain edge;
+                                    ! = 0 for floating and ocean cells, cells at global domain edge,
                                     !  and cells with thck = 0 and forced negative SMB
          floating_mask              ! = 1 if ice is present (thck > thklim) and floating, else = 0
 
@@ -236,6 +246,11 @@ module glissade_basal_water
          bhydroflx,               & ! basal heat flux from refreezing meltwater (W/m2); enters thermal solve later
          head,                    & ! hydraulic head (m)
          grad_head                  ! gradient of hydraulic head (m/m), averaged to cell centers
+
+    ! Note: The reprosum option requires (1) D8 routing (each cell routes its flux to one downstream neighbor only)
+    !       and (2) no temperature-weighted refreezing.
+    logical, intent(in), optional :: &
+         reprosum_in                ! if true, then do a computation independent of the number of tasks
 
     ! Local variables
 
@@ -277,6 +292,8 @@ module glissade_basal_water
     real(dp) :: c_flux_to_depth              ! proportionality coefficient in Sommers et al., Eq. 6
     real(dp) :: Reynolds                     ! Reynolds number (unitless), = 0 for pure laminar flow
 
+    logical :: reprosum                      ! local version of reprosum_in
+
     integer :: nx_test, ny_test
     real(dp), dimension(:,:), allocatable :: phi_test
     integer,  dimension(:,:), allocatable :: mask_test
@@ -285,12 +302,16 @@ module glissade_basal_water
        write(iulog,*) 'In glissade_bwat_flux_routing: rtest, itest, jtest =', rtest, itest, jtest
     endif
 
+    if (present(reprosum_in)) then
+       reprosum = reprosum_in
+    else
+       reprosum = .false.
+    endif
+
     ! Uncomment if the following fields are not already up to date in halo cells
 !    call parallel_halo(thk,  parallel)
 !    call parallel_halo(topg, parallel)
     call parallel_halo(bmlt_hydro, parallel)
-    !TODO - Add bfrz?
-
 
     ! Compute the hydraulic head
     ! For purposes of flux routing, assume N = 0.
@@ -313,7 +334,6 @@ module glissade_basal_water
     endif
 
     ! Route basal water down the gradient of hydraulic head, giving a water flux
-    ! TODO - Pass in bfrz_pot, return bfrz?
 
     call route_basal_water(&
          nx,      ny,            &
@@ -328,7 +348,8 @@ module glissade_basal_water
          bwat_mask,              &
          bwatflx,                &
          bwatflx_refreeze,       &
-         lakes)
+         lakes,                  &
+         reprosum)
 
     call parallel_halo(bwatflx, parallel)
 
@@ -366,7 +387,11 @@ module glissade_basal_water
     bwatflx(:,:) = bwatflx(:,:) / (dx*dy)
 
     ! Given bwatflx_refreeze in m^3/s, compute bhydroflx in W/m2.
-    ! This is the heat flux needed to refreeze the meltwater held in each cell
+    ! This is the heat flux needed to refreeze the meltwater held in each cell.
+    ! This heat flux is supplied at the bed during the next thermal solve.
+    ! If there is more than enough heat to thaw the bed, some meltwater will be returned later
+    !  instead of refrozen.
+
     bhydroflx(:,:) = bwatflx_refreeze(:,:) * rhoi * lhci / (dx*dy)
 
     if (verbose_bwat) then
@@ -447,7 +472,8 @@ module glissade_basal_water
          bwat_mask,              &
          bwatflx,                &
          bwatflx_refreeze,       &
-         lakes)
+         lakes,                  &
+         reprosum_in)
 
     ! Route water from the basal melt field to its destination, recording the water flux along the way.
     ! Water flow direction is determined according to the gradient of the hydraulic head.
@@ -456,11 +482,7 @@ module glissade_basal_water
     ! This results in the lakes field, which is the difference between the filled head and the original head.
     !  The method used is by Quinn et. al. (1991).
     !
-    ! Based on code by Jesse Johnson (2005), adapted from the glimmer_routing file by Ian Rutt.
-
-    ! TODO - Pass in bfrz_pot, return bfrz.
-
-    use cism_parallel, only: parallel_global_sum
+    ! Originally based on code by Jesse Johnson and Ian Rutt in the Glimmer model
 
     !WHL - debug
     use cism_parallel, only: parallel_globalindex, parallel_reduce_max
@@ -494,19 +516,22 @@ module glissade_basal_water
 
     integer, dimension(nx,ny), intent(in)  ::  &
          bwat_mask               ! mask to identify cells through which basal water is routed;
-                                 ! = 1 where ice is present and not floating
+                                 ! excludes floating and ocean cells
 
     real(dp), dimension(nx,ny), intent(out) ::  &
          bwatflx,             &  ! water flux through a grid cell (m^3/s)
          bwatflx_refreeze,    &  ! water flux held for refreezing (m^3/s)
          lakes                   ! lakes field, difference between filled and original head
 
+    logical, intent(in), optional :: &
+         reprosum_in             ! if true, then do a computation independent of the number of tasks
+
     ! Local variables
 
     integer :: nlocal            ! number of locally owned cells
     integer :: count, count_max  ! iteration counters
-    integer :: i, j, k, ii, jj, ip, jp, p
-    integer :: i1, j1, i2, j2, itmp, jtmp, iglobal, jglobal
+    integer :: i, j, k, iglobal, jglobal
+    integer :: ii, jj, imax, jmax
 
     logical :: finished    ! true when an iterative loop has finished
 
@@ -514,15 +539,13 @@ module glissade_basal_water
          sorted_ij         ! i and j indices of all cells, sorted from low to high values of head
 
     real(dp), dimension(-1:1,-1:1,nx,ny) ::  &
-         flux_fraction, &  ! fraction of flux from each cell that flows downhill to each of 8 neighbors
-         bwatflx_halo      ! water flux (m^3/s) routed to a neighboring halo cell; routed further in next iteration
+         flux_fraction     ! fraction of flux from each cell that flows downhill to each of 8 neighbors
 
     real(dp), dimension(nx,ny) ::  &
          head_filled,           & ! head after depressions are filled (m)
+         btemp_weight,          & ! temperature-dependent weighting factor, favoring flow where the bed is thawed
          bwatflx_accum,         & ! water flux through the cell (m^3/s) accumulated over multiple iterations
-         bwatflx_refreeze_accum,& ! water flux (m^3/s) refreezing in place, accumulated over multiple iterations
-         sum_bwatflx_halo,      & ! bwatflx summed over the first 2 dimensions in each grid cell
-         btemp_weight             ! temperature-dependent weighting factor, favoring flow where the bed is thawed
+         bwatflx_refreeze_accum   ! water flux (m^3/s) refreezing in place, accumulated over multiple iterations
 
     integer, dimension(nx,ny) ::  &
          local_mask,            & ! = 1 for cells owned by the local processor, else = 0
@@ -537,10 +560,32 @@ module glissade_basal_water
          err,                   & ! water conservation error
          global_flux_sum          ! flux sum over all cells in global domain
 
+    ! The following i8 variables are for computing reproducible sums
+    integer(i8), dimension(nx,ny) ::  &
+         bwatflx_int,               & ! water flux through a grid cell (m^3/s)
+         btemp_weight_int,          & ! temperature-dependent weighting factor, favoring flow where the bed is thawed
+         bwatflx_accum_int,         & ! water flux through the cell (m^3/s) accumulated over multiple iterations
+         bwatflx_refreeze_accum_int   ! water flux (m^3/s) refreezing in place, accumulated over multiple iterations
+
+    integer(i8), dimension(-1:1,-1:1,nx,ny) ::  &
+         flux_fraction_int            ! fraction of flux from each cell that flows downhill to each of 8 neighbors
+
+    real(dp), parameter :: &
+         factor_bwatflx = 1.d16       ! factor for converting between bwatflx and bwatflx_int;
+                                      ! large value desired for water mass conservation
+
+    logical :: reprosum               ! local version of reprosum_in
+
     character(len=100) :: message
 
     !WHL - debug
     character(len=64) :: binary_str
+
+    if (present(reprosum_in)) then
+       reprosum = reprosum_in
+    else
+       reprosum = .false.
+    endif
 
     ! Allocate the sorted_ij array
 
@@ -622,19 +667,23 @@ module glissade_basal_water
     ! (2) When water enters a frozen cell (delta_Tb > 0), btemp_weight is used to determine
     !     how much of the flux is refrozen in place rather than passing through.
     !     A low value of btemp_weight means that less water passes through.
+    ! Note: For reproducible sums, refreezing is not supported; must have btemp_weight = 1 everywhere.
 
     btemp_weight = 1.0d0
 
     if (btemp_scale > 0.0d0) then
-       where (bwat_mask == 1)
-          where (delta_Tb > 0.0d0)
-             btemp_weight = exp(-delta_Tb/btemp_scale)
+       if (.not. reprosum) then
+          where (bwat_mask == 1)
+             where (delta_Tb > 0.0d0)
+                btemp_weight = exp(-delta_Tb/btemp_scale)
+             endwhere
           endwhere
-       endwhere
-       if (verbose_bwat) then
-          call point_diag(delta_Tb, 'Tpmp - Tb', itest, jtest, rtest, 7, 7)
-          call point_diag(btemp_weight, 'btemp_weight', itest, jtest, rtest, 7, 7)
        endif
+    endif
+
+    if (verbose_bwat) then
+       call point_diag(delta_Tb, 'Tpmp - Tb', itest, jtest, rtest, 7, 7)
+       call point_diag(btemp_weight, 'btemp_weight', itest, jtest, rtest, 7, 7)
     endif
 
     ! Compute the fraction of the incoming flux sent to each downstream neighbor.
@@ -650,14 +699,8 @@ module glissade_basal_water
          bwat_mask,             &
          flux_fraction)
 
-    ! Initialize bwatflx in locally owned cells with the basal melt, which will be routed downslope.
-    ! Multiply by area, so units are m^3/s.
-    ! The halo water flux, bwatflx_halo, holds water routed to halo cells;
-    !  it will be routed downhill during the next iteration.
-    ! The accumulated flux, bwatflx_accum, holds the total flux over multiple iterations.
-    ! Some or all of the water entering a frozen cell can be refrozen in place.
-    !  The heat flux associated with refreezing is passed to the next thermal solve.
-    !  If this heat flux is enough to thaw the cell, some of the meltwater is returned later.
+    ! Initialize bwatflx in locally owned cells.
+    ! Set to the local melt rate, multiplied by area (so the units are m^3/s).
 
     bwatflx = 0.0d0
     do j = nhalo+1, ny-nhalo
@@ -666,174 +709,132 @@ module glissade_basal_water
        enddo
     enddo
 
-    ! Initialize other fluxes
-    bwatflx_halo = 0.0d0
-    bwatflx_refreeze = 0.0d0
-    bwatflx_accum = 0.0d0
-    bwatflx_refreeze_accum = 0.0d0
-
     ! Compute total input of meltwater (m^3/s)
     total_flux_in = parallel_global_sum(bwatflx, parallel)
-
     if (verbose_bwat .and. this_rank == rtest) then
-       write(iulog,*) ' '
        write(iulog,*) 'Total input basal melt flux (m^3/s):', total_flux_in
+!!       call double_to_binary(total_flux_in, binary_str)
+!!       write(iulog,*) '   Binary string', binary_str
     endif
 
-    ! Loop over locally owned cells, from highest to lowest.
-    ! During each iteration, there are two possible outcomes for routing:
-    ! (1) Routed to the ice sheet margin, to a cell with bwat_mask = 0.
-    !     In this case, the routing of that flux is done.
-    ! (2) Routed to a halo cell, i.e. a downslope cell on a neighboring processor.
-    !     In this case, the flux will be routed further downhill on the next iteration.
-    ! When all the water has been routed to the margin, we are done.
+    ! Route the water downstream, keeping track of the steady-state flux through each cell.
+    ! The loop goes from highest to lowest values of head on the local processor.
+    ! At the end of the loop, all the incoming flux has either been
+    ! (1) routed to the ice sheet margin,
+    ! (2) set aside for later refreezing, or
+    ! (3) routed to a halo cell, from which it will continue downstream on the next iteration.
+    ! When all the water has been routed to the margin or set aside for refreezing, we are done.
 
-    count = 0
     ! Note: It is hard to predict how many iterations will be sufficient.
-    !       With Dinf or FD8, we can have flow back and forth across processor boundaries,
+    !       With Dinf or FD8 we can have flow back and forth across processor boundaries,
     !        requiring many iterations to reach the margin.
     !       For Greenland 4 km, Dinf requires ~20 iterations on 4 cores, and FD8 can require > 40.
     !       For Antarctica 8 km, FD8 can require > 50.
+
+    ! Initialize the cumulative fluxes
+    bwatflx_accum = 0.0d0
+    bwatflx_refreeze_accum = 0.0d0
+
+    if (reprosum) then
+
+       ! Convert bwatflx to a scaled i8 array
+       bwatflx_int(:,:) = nint(bwatflx(:,:)*factor_bwatflx, i8)
+
+       ! Convert flux_fraction to i8
+       ! Note: This will work only for the D8 scheme, where all the flux goes downstream
+       !       to a single cell.
+       flux_fraction_int(:,:,:,:) = nint(flux_fraction(:,:,:,:), i8)
+
+       ! Convert btemp_weight to i8
+       btemp_weight_int(:,:) = 1
+       ! Note: Can round up to 1 and down to 0 by uncommenting the following line.
+       !       However, a mix of 1's and 0's leads to oscillations in basal temperature,
+       !        so it is safer to turn off refreezing by setting btemp_weight = 1 everywhere.
+!       btemp_weight_int(:,:) = nint(btemp_weight(:,:), i8)
+
+       ! Initialize other arrays
+       bwatflx_accum_int = 0
+       bwatflx_refreeze_accum_int = 0
+
+    endif   ! reprosum
+
+    count = 0
     count_max = 100
     finished = .false.
 
     do while (.not.finished)
 
        count = count + 1
-
-       if (verbose_bwat .and. this_rank == rtest) then
-          write(iulog,*) 'flux routing, count =', count
-       endif
-
-       do k = nlocal, 1, -1
-
-          ! Get i and j indices of current cell
-          i = sorted_ij(k,1)
-          j = sorted_ij(k,2)
-
-          ! Route the flux
-          if (bwat_mask(i,j) == 1 .and. bwatflx(i,j) > 0.0d0) then
-
-             ! Distribute the flux to downslope neighbors.
-             ! Where the bed is frozen, all or part of the flux is refrozen in place instead of being routed downstream.
-             do jj = -1,1
-                do ii = -1,1
-                   ip = i + ii
-                   jp = j + jj
-                   if (flux_fraction(ii,jj,i,j) > 0.0d0) then
-                      if (halo_mask(ip,jp) == 1) then
-                         bwatflx_halo(ii,jj,i,j) = bwatflx(i,j)*flux_fraction(ii,jj,i,j)*btemp_weight(i,j)
-                         bwatflx_refreeze(i,j) = bwatflx_refreeze(i,j) &
-                              + bwatflx(i,j)*flux_fraction(ii,jj,i,j)*(1.0d0 - btemp_weight(i,j))
-                         if (verbose_bwat .and. this_rank==rtest .and. i==itest .and. j==jtest .and. count <= 2) then
-                            write(iulog,*) 'Flux to halo, i, j, ii, jj, flux:', &
-                                 i, j, ii, jj, bwatflx(i,j)*flux_fraction(ii,jj,i,j)
-                         endif
-                      elseif (local_mask(ip,jp) == 1) then
-                         bwatflx(ip,jp) = bwatflx(ip,jp) + bwatflx(i,j)*flux_fraction(ii,jj,i,j)*btemp_weight(i,j)
-                         bwatflx_refreeze(i,j) = bwatflx_refreeze(i,j) &
-                              + bwatflx(i,j)*flux_fraction(ii,jj,i,j)*(1.0d0 - btemp_weight(i,j))
-                      endif
-                   endif   ! flux_fraction > 0
-                enddo
-             enddo
-          endif  ! bwat_mask = 1, bwatflx > 0
-       enddo  ! loop from high to low
-
-       ! Accumulate bwatflx from the latest iteration, then reset to zero for the next iteration.
-       bwatflx_accum = bwatflx_accum + bwatflx
-       bwatflx_refreeze_accum = bwatflx_refreeze_accum + bwatflx_refreeze
-       bwatflx = 0.0d0
-       bwatflx_refreeze = 0.0d0
-
-       if (verbose_bwat .and. this_rank == rtest .and. count <= 2) then
-          i = itest
-          j = jtest
-          write(iulog,*) 'i, j, bwatflx_accum:', i, j, bwatflx_accum(i,j)
-       endif
-
-       ! If bwatflx_halo = 0 everywhere, then we are done.
-       ! (If the remaining flux is very small (< eps11), discard it to avoid
-       !  unnecessary extra iterations.)
-       ! If bwatflx_halo remains, then communicate it to neighboring tasks and
-       !  continue routing on the next iteration.
-
-       do j = 1, ny
-          do i = 1, nx
-             sum_bwatflx_halo(i,j) = sum(bwatflx_halo(:,:,i,j))
-!             if (verbose_bwat .and. sum_bwatflx_halo(i,j) > eps11 .and. count > 50) then
-!               write(iulog,*) 'Nonzero bwatflx_halo, count, rank, i, j, sum_bwatflx_halo:', &
-!                     count, this_rank, i, j, sum_bwatflx_halo(i,j)
-!               call parallel_globalindex(i, j, iglobal, jglobal, parallel)
-!               write(iulog,*) '     iglobal, jglobal:', iglobal, jglobal
-!             endif
-          enddo
-       enddo
-       global_flux_sum = parallel_global_sum(sum_bwatflx_halo, parallel)
-
-       if (verbose_bwat .and. count <= 2) then
-          if (this_rank == rtest) then
-             write(iulog,*) 'Before halo update, sum of bwatflx_halo:', global_flux_sum
-          endif
-          call point_diag(sum_bwatflx_halo, 'sum_bwatflx_halo', itest, jtest, rtest, 7, 7)
-       endif
-
-       if (global_flux_sum > eps11) then
-
-          finished = .false.
-
-          ! Communicate bmltflx_halo to the halo cells of neighboring processors
-          call parallel_halo(bwatflx_halo(:,:,:,:), parallel)
-
-          ! bmltflx_halo is now available in the halo cells of the local processor.
-          ! Route downslope to the adjacent locally owned cells.
-          ! These fluxes will be routed further downslope during the next iteration.
-
-          do j = 2, ny-1
-             do i = 2, nx-1
-                if (halo_mask(i,j) == 1 .and. sum(bwatflx_halo(:,:,i,j)) > 0.0d0) then
-                   do jj = -1,1
-                      do ii = -1,1
-                         if (bwatflx_halo(ii,jj,i,j) > 0.0d0) then
-                            ip = i + ii
-                            jp = j + jj
-                            if (local_mask(ip,jp) == 1) then
-                               bwatflx(ip,jp) = bwatflx(ip,jp) + bwatflx_halo(ii,jj,i,j)
-                               if (verbose_bwat .and. ip==itest .and. jp==jtest .and. this_rank==rtest &
-                                    .and. count <= 2) then
-                                  write(iulog,*) 'Nonzero bwatflx from halo, rank, i, j:', &
-                                       this_rank, ip, jp, bwatflx_halo(ii,jj,i,j)
-                               endif
-                            endif
-                         endif   !  bwatflx_halo > 0 to a local cell
-                      enddo   ! ii
-                   enddo   ! jj
-                endif   ! bwatflx_halo > 0 from this halo cell
-             enddo   ! i
-          enddo   ! j
-
-          ! Reset bwatflx_halo for the next iteration
-          bwatflx_halo = 0.0d0
-
-          global_flux_sum = parallel_global_sum(bwatflx, parallel)
-          if (verbose_bwat .and. this_rank == rtest .and. count <= 2) then
-             ! Should be equal to the global sum of bwatflx_halo computed above
-             write(iulog,*) 'After halo update, sum(bwatflx from halo) =', global_flux_sum
-             write(iulog,*) ' '
-          endif
-
-       else   ! bwatflx_halo = 0 everywhere; no fluxes to route to adjacent processors
-          if (verbose_bwat .and. this_rank == rtest) write(iulog,*) 'Done routing fluxes'
-          finished = .true.
-          bwatflx = bwatflx_accum
-          bwatflx_refreeze = bwatflx_refreeze_accum
-       endif
-
+       if (verbose_bwat .and. this_rank == rtest) write(iulog,*) 'flux routing, count =', count
        if (count > count_max) then
           call write_log('Hydrology error: too many iterations in route_basal_water', GM_FATAL)
        endif
 
-    enddo  ! finished routing
+       if (reprosum) then
+
+          ! route downstream
+          ! Note: The fluxes are scaled by factor_bwatflx
+
+          call route_flux_to_margin_or_halo(&
+            nx, ny, nlocal,      &
+            itest, jtest, rtest, count, &
+            parallel,            &
+            sorted_ij,           &
+            local_mask,          &
+            halo_mask,           &
+            bwat_mask,           &
+            flux_fraction_int,   &
+            btemp_weight_int,    &
+            bwatflx_int,         &
+            bwatflx_accum_int,   &
+            bwatflx_refreeze_accum_int, &
+            finished)
+
+          if (verbose_bwat .and. this_rank == rtest .and. count <= 2) then
+             i = itest; j = jtest
+             write(iulog,*) 'count, rank i, j, bwatflx_accum (m/yr), bwatflx_refreeze_accum:', &
+                  count, rtest, i, j, real(bwatflx_accum_int(i,j),dp)/factor_bwatflx, &
+                  real(bwatflx_refreeze_accum_int(i,j),dp)/factor_bwatflx
+          endif
+
+       else   ! non-reproducible sums
+
+          call route_flux_to_margin_or_halo(&
+            nx, ny, nlocal,      &
+            itest, jtest, rtest, count, &
+            parallel,            &
+            sorted_ij,           &
+            local_mask,          &
+            halo_mask,           &
+            bwat_mask,           &
+            flux_fraction,       &
+            btemp_weight,        &
+            bwatflx,             &
+            bwatflx_accum,       &
+            bwatflx_refreeze_accum, &
+            finished)
+
+          if (verbose_bwat .and. this_rank == rtest .and. count <= 2) then
+             i = itest; j = jtest
+             write(iulog,*) 'count, rank i, j, bwatflx_accum(m/yr), bwatflx_refreeze_accum:', &
+                  count, rtest, i, j, bwatflx_accum(i,j) * scyr/(dx*dy), &
+                  bwatflx_refreeze_accum(i,j) * scyr/(dx*dy)
+          endif
+
+       endif   ! reprosum
+
+    enddo   ! finished
+
+    if (reprosum) then
+       ! Convert fluxes back to real(dp)
+       bwatflx_accum = real(bwatflx_accum_int, dp) / factor_bwatflx
+       bwatflx_refreeze_accum = real(bwatflx_refreeze_accum_int, dp) / factor_bwatflx
+    endif
+
+    ! Copy the accumulated values to the output arrays bwatflx and bwatflx_refreeze
+    bwatflx = bwatflx_accum
+    bwatflx_refreeze = bwatflx_refreeze_accum
+    if (verbose_bwat .and. this_rank == rtest) write(iulog,*) 'Done routing fluxes'
 
     ! Identify cells just beyond the ice sheet margin, which can receive from upstream but not send downstream
     where (bwat_mask == 0 .and. bwatflx > 0.0d0)
@@ -849,17 +850,10 @@ module glissade_basal_water
 
     if (verbose_bwat .and. this_rank == rtest) then
        write(iulog,*) 'Total bwatflx at margin (m^3/s):', total_flux_margin
-       call double_to_binary(total_flux_margin, binary_str)
-       write(iulog,*) '   ', binary_str
        write(iulog,*) 'Total bwatflx_refreeze (m^3/s)=', total_flux_refreeze
-       call double_to_binary(total_flux_refreeze, binary_str)
-       write(iulog,*) '   ', binary_str
        write(iulog,*) 'Total bwatflx (m^3/s)=', total_flux_out
-       call double_to_binary(total_flux_out, binary_str)
-       write(iulog,*) '   ', binary_str
        write(iulog,*) 'Difference between output and input =', total_flux_out - total_flux_in
     endif
-
 
     ! Not sure if a threshold of eps11 is large enough.  Increase if needed.
     if (total_flux_in > 0.0d0) then
@@ -1066,7 +1060,7 @@ module glissade_basal_water
     real(dp), dimension(nx,ny), intent(out) :: &
          phi                 ! output field with depressions filled
 
-    ! Local variables --------------------------------------
+    ! Local variables
 
     logical, dimension(nx,ny) ::  &
          known               ! = true for cells where the final phi(i,j) is known
@@ -1276,7 +1270,7 @@ module glissade_basal_water
     integer, intent(in) ::  &
          nx, ny,               & ! number of grid cells in each direction
          nlocal,               & ! number of locally owned cells
-         itest, jtest, rtest     ! coordinates of diagnostic point
+         itest, jtest, rtest     ! coordinates of diagnostic point  !! not currently used
 
     real(dp), dimension(nx,ny), intent(in) :: &
          phi                     ! input field, to be sorted from low to high
@@ -1318,17 +1312,6 @@ module glissade_basal_water
     !       because of too much recursion.
 
     call indexx(vect, ind)
-
-    if (verbose_bwat .and. this_rank == rtest) then
-       write(iulog,*) ' '
-       write(iulog,*) 'Sort from low to high, nlocal =', nlocal
-       write(iulog,*) 'k, local i and j, ind(k), phi:'
-       do k = nlocal, nlocal-10, -1
-          i = floor(real(ind(k)-1)/real(ny_local)) + 1 + nhalo
-          j = mod(ind(k)-1,ny_local) + 1 + nhalo
-          write(iulog,*) k, i, j, ind(k), phi(i,j)
-       enddo
-    endif
 
     ! Fill the sorted_ij array with the i and j values of each cell.
     ! Note: These are the i and j values we would have if there were no halo cells.
@@ -1602,14 +1585,399 @@ module glissade_basal_water
 
 !==============================================================
 
+  subroutine route_flux_to_margin_or_halo_real8(&
+       nx, ny, nlocal,      &
+       itest, jtest, rtest, count, &
+       parallel,            &
+       sorted_ij,           &
+       local_mask,          &
+       halo_mask,           &
+       bwat_mask,           &
+       flux_fraction,       &
+       btemp_weight,        &
+       bwatflx,             &
+       bwatflx_accum,       &
+       bwatflx_refreeze_accum, &
+       finished)
+
+    ! Given the input bwatflx, route the water downstream, keeping track of fluxes along the way.
+    ! The loop goes from highest to lowest values of 'head' on the local processor.
+    ! At the end of the loop, all the incoming flux has either been
+    ! (1) routed to the ice sheet margin;
+    ! (2) set aside for later refreezing; or
+    ! (3) routed to a halo cell, from which it continues downstream the next time the subroutine is called.
+    ! The subroutine is called iteratively until all no water remains in halo cells.
+
+    implicit none
+
+    ! Input/output variables
+
+    integer, intent(in) :: &
+         nx, ny,               & ! number of cells in each direction
+         nlocal,               & ! number of locally owned grid cells on the processor
+         itest, jtest, rtest,  & ! coordinates of diagnostic point
+         count                   ! iteration count (diagnostic only)
+
+    type(parallel_type), intent(in) ::  &
+         parallel                ! info for parallel communication
+
+    integer, dimension(nlocal,2), intent(in)  :: &
+         sorted_ij               ! i and j indices of each local cell, sorted low to high
+
+    integer, dimension(nx,ny), intent(in) :: &
+         local_mask,           & ! = 1 for cells owned by the local processor, else = 0
+         halo_mask,            & ! = 1 for the layer of halo cells adjacent to locally owned cells, else = 0
+         bwat_mask               ! = 1 for cells through which basal water is routed; excludes floating and ocean cells
+
+    real(dp), dimension(-1:1,-1:1,nx,ny), intent(in) ::  &
+         flux_fraction           ! fraction of flux from a cell that flows downhill to each of 8 neighbors
+                                 ! last two indices identify the source cell;
+                                 ! 1st two indices give relative location of receiving cell
+
+    real(dp), dimension(nx,ny), intent(in) :: &
+         btemp_weight            ! temperature-dependent weighting factor, favoring flow where the bed is thawed
+
+    real(dp), dimension(nx,ny), intent(inout) :: &
+         bwatflx,              & ! on input: water flux (m^3/s) to be routed to the margin or halo
+                                 ! on output: flux routed to halo, to be routed further next time
+         bwatflx_accum,        & ! cumulative bwatflx (m/3/s) over multiple iterations
+         bwatflx_refreeze_accum  ! cumulative bwatflx_refreeze (m^s/s) over multiple iterations
+
+    logical, intent(inout) :: &
+         finished                ! initially F; set to T when all water has been routed as far as it can go
+
+    ! Local variables
+
+    integer :: i, j, k
+    integer :: ii, jj, ip, jp
+
+    real(dp), dimension(-1:1,-1:1,nx,ny)::  &
+         bwatflx_halo            ! flux routed to halo cells
+                                 ! last two indices identify the source cell;
+                                 ! 1st two indices give relative location of receiving cell
+
+    real(dp), dimension(nx,ny) :: &
+         bwatflx_refreeze,     & ! flux (m^3/s) saved for later refreezing; not routed further downstream
+         sum_bwatflx_halo        ! bwatflx_halo summed over the first 2 indices
+
+    real(dp) :: &
+         flx_thru,             & ! flux (m^3/s) that continues downstream
+         global_halo_sum         ! global sum of water flux in halo cells
+
+    ! Initialize fluxes
+    bwatflx_refreeze = 0.0d0
+    bwatflx_halo = 0.0d0
+
+    ! loop from high to low values on the local processor
+    do k = nlocal, 1, -1
+
+       ! Get i and j indices of current cell
+       i = sorted_ij(k,1)
+       j = sorted_ij(k,2)
+
+       if (bwat_mask(i,j) == 1 .and. bwatflx(i,j) > 0.0d0) then
+
+          ! Distribute the flux to downstream neighbors.
+          ! Based on the temperature-dependent weighting factor btemp_weight, all or part of the flux
+          !  is refrozen in place instead of being routed downstream.
+          flx_thru = bwatflx(i,j) * btemp_weight(i,j)
+          bwatflx_refreeze(i,j) = bwatflx(i,j) * (1.0d0 - btemp_weight(i,j))
+          do jj = -1,1
+             do ii = -1,1
+                ip = i + ii
+                jp = j + jj
+                if (flux_fraction(ii,jj,i,j) > 0.0d0) then
+                   if (halo_mask(ip,jp) == 1) then
+                      bwatflx_halo(ii,jj,i,j) = flx_thru*flux_fraction(ii,jj,i,j)
+                      if (verbose_bwat .and. this_rank==rtest .and. i==itest .and. j==jtest .and. count <= 2) then
+                         write(iulog,*) 'Flux to halo, i, j, ii, jj, flux:', &
+                              i, j, ii, jj, flx_thru*flux_fraction(ii,jj,i,j)
+                      endif
+                   elseif (local_mask(ip,jp) == 1) then
+                      bwatflx(ip,jp) = bwatflx(ip,jp) + flx_thru*flux_fraction(ii,jj,i,j)
+                      if (verbose_bwat .and. this_rank==rtest .and. i==itest .and. j==jtest .and. count <= 2) then
+                         write(iulog,*) 'Flux to neighbor, i, j, ii, jj, flux:', &
+                              i, j, ii, jj, flx_thru*flux_fraction(ii,jj,i,j)
+                      endif
+                   endif
+                endif   ! flux_fraction > 0
+             enddo  ! ii
+          enddo  ! jj
+       endif  ! bwat_mask = 1, bwatflx > 0
+    enddo  ! loop from high to low
+
+    ! Accumulate the fluxes in the output arrays
+    bwatflx_accum = bwatflx_accum + bwatflx
+    bwatflx_refreeze_accum = bwatflx_refreeze_accum + bwatflx_refreeze
+
+    ! Compute the total bwatflx in halo cells
+    do j = 1, ny
+       do i = 1, nx
+          sum_bwatflx_halo(i,j) = sum(bwatflx_halo(:,:,i,j))
+       enddo
+    enddo
+    global_halo_sum = parallel_global_sum(sum_bwatflx_halo, parallel)
+
+    ! If bwatflx_halo = 0 everywhere, then we are done.
+    ! Where bwatflx_halo is nonzero, communicate it to the neighboring task.
+    ! It will be routed further downstream the next time this subroutine is called.
+
+    if (global_halo_sum > 0.0d0) then
+
+       if (verbose_bwat .and. count <= 2) then
+          if (this_rank == rtest) write(iulog,*) 'Before halo update, global_halo_sum:', global_halo_sum
+          call point_diag(sum_bwatflx_halo, 'sum_bwatflx_halo', itest, jtest, rtest, 7, 7)
+       endif
+
+       ! Reset bwatflx to zero for the halo transfer
+       bwatflx = 0.0d0
+
+       ! Communicate bmltflx_halo to the halo cells of neighboring processors
+       call parallel_halo(bwatflx_halo(:,:,:,:), parallel)
+
+       ! bmltflx_halo is now available in the halo cells of the local processor.
+       ! Route downslope to the adjacent locally owned cells.
+       ! These fluxes will be routed further downstream during the next iteration.
+
+       do j = 2, ny-1
+          do i = 2, nx-1
+             if (halo_mask(i,j) == 1 .and. sum(bwatflx_halo(:,:,i,j)) > 0.0d0) then
+                do jj = -1,1
+                   do ii = -1,1
+                      if (bwatflx_halo(ii,jj,i,j) > 0.0d0) then
+                         ip = i + ii
+                         jp = j + jj
+                         if (local_mask(ip,jp) == 1) then
+                            bwatflx(ip,jp) = bwatflx(ip,jp) + bwatflx_halo(ii,jj,i,j)
+                            if (verbose_bwat .and. ip==itest .and. jp==jtest .and. this_rank==rtest .and. count <= 2) then
+                               write(iulog,*) 'Nonzero bwatflx from halo, rank, i, j:', &
+                                    this_rank, ip, jp, bwatflx_halo(ii,jj,i,j)
+                            endif
+                         endif
+                      endif   !  bwatflx_halo > 0 to a local cell
+                   enddo   ! ii
+                enddo   ! jj
+             endif   ! bwatflx_halo > 0 from this halo cell
+          enddo   ! i
+       enddo   ! j
+
+    else
+
+       finished = .true.   ! no water in halo cells to route further
+
+    endif  ! global_halo_sum > 0
+
+  end subroutine route_flux_to_margin_or_halo_real8
+
+!==============================================================
+
+  subroutine route_flux_to_margin_or_halo_integer8(&
+       nx, ny, nlocal,      &
+       itest, jtest, rtest, count, &
+       parallel,            &
+       sorted_ij,           &
+       local_mask,          &
+       halo_mask,           &
+       bwat_mask,           &
+       flux_fraction,       &
+       btemp_weight,        &
+       bwatflx,             &
+       bwatflx_accum,       &
+       bwatflx_refreeze_accum, &
+       finished)
+
+    ! Given the input bwatflx, route the water downstream, keeping track of fluxes along the way.
+    ! The loop goes from highest to lowest values of 'head' on the local processor.
+    ! At the end of the loop, all the incoming flux has either been
+    ! (1) routed to the ice sheet margin;
+    ! (2) set aside for later refreezing; or
+    ! (3) routed to a halo cell, from which it continues downstream the next time the subroutine is called.
+    ! The subroutine is called iteratively until all no water remains in halo cells.
+
+    implicit none
+
+    ! Input/output variables
+
+    integer, intent(in) :: &
+         nx, ny,               & ! number of cells in each direction
+         nlocal,               & ! number of locally owned grid cells on the processor
+         itest, jtest, rtest,  & ! coordinates of diagnostic point
+         count                   ! iteration count (diagnostic only)
+
+    type(parallel_type), intent(in) ::  &
+         parallel                ! info for parallel communication
+
+    integer, dimension(nlocal,2), intent(in)  :: &
+         sorted_ij               ! i and j indices of each local cell, sorted low to high
+
+    integer, dimension(nx,ny), intent(in) :: &
+         local_mask,           & ! = 1 for cells owned by the local processor, else = 0
+         halo_mask,            & ! = 1 for the layer of halo cells adjacent to locally owned cells, else = 0
+         bwat_mask               ! = 1 for cells through which basal water is routed; excludes floating and ocean cells
+
+    ! Note: Both flux_fraction and btemp_weight are constrained to be 0 or 1.
+    !       This means that the routing is limited to D8 (all the flux goes to one downstream cell),
+    !        and partial refreezing is not allowed (i.e., btemp_weight = 1 everywhere).
+    !       Thus, btemp_weight is not needed, but I kept it to keep the code similar to the subroutine above.
+    !       We could make refreezing all-or-nothing (i.e., weights of either 0 or 1), but this leads to
+    !        oscillations in bed temperature.
+    !       I thought of rescaling flux_fraction and btemp_weight to largish i8 integers (e.g., 1000)
+    !        to keep everything BFB, and then scaling back at the end. The problem is that this subroutine
+    !        may need to be called repeatedly, and each scaling would lead to larger and larger integers
+    !        that eventually exceed the i8 limit on integer size, ~10^(19).
+
+    integer(i8), dimension(-1:1,-1:1,nx,ny), intent(in) ::  &
+         flux_fraction           ! fraction of flux from a cell that flows downhill to each of 8 neighbors
+                                 ! last two indices identify the source cell;
+                                 ! 1st two indices give relative location of receiving cell
+
+    integer(i8), dimension(nx,ny), intent(in) :: &
+         btemp_weight            ! temperature-dependent weighting factor, favoring flow where the bed is thawed
+
+    integer(i8), dimension(nx,ny), intent(inout) :: &
+         bwatflx,              & ! on input: water flux (m^3/s * factor_bwatflx) to be routed to the margin or halo
+                                 ! on output: flux routed to halo, to be routed further next time
+         bwatflx_accum,        & ! cumulative bwatflx (m^3/s * factor_bwatflx) over multiple iterations
+         bwatflx_refreeze_accum  ! cumulative bwatflx_refreeze (m^3/s * factor_bwatflx) over multiple iterations
+
+    logical, intent(inout) :: &
+         finished                ! initially F; set to T when all water has been routed as far as it can go
+
+    ! Local variables
+
+    integer :: i, j, k
+    integer :: ii, jj, ip, jp
+
+    ! Note: Some of the local variables are scaled by products of all three scale factors above.
+    integer(i8), dimension(-1:1,-1:1,nx,ny)::  &
+         bwatflx_halo            ! flux routed to halo cells
+                                 ! last two indices identify the source cell;
+                                 ! 1st two indices give relative location of receiving cell
+
+    integer(i8), dimension(nx,ny) :: &
+         bwatflx_refreeze,     & ! flux  saved for later refreezing; not routed further downstream
+         sum_bwatflx_halo        ! bwatflx_halo summed over the first 2 indices
+
+    integer(i8) :: &
+         flx_thru,             & ! flux (m^3/s) that continues downstream
+         global_halo_sum         ! global sum of water flux in halo cells
+
+    real(dp), dimension(nx,ny)::  &
+         bwatflx_dp, bwatflx_halo_dp, bwatflx_refreeze_dp  ! temporary dp versions of i8 arrays
+
+    ! Initialize fluxes
+    bwatflx_halo = 0
+    bwatflx_refreeze = 0
+
+    ! loop from high to low values on the local processor
+    do k = nlocal, 1, -1
+
+       ! Get i and j indices of current cell
+       i = sorted_ij(k,1)
+       j = sorted_ij(k,2)
+
+       if (bwat_mask(i,j) == 1 .and. bwatflx(i,j) > 0.0d0) then
+
+          ! Distribute the flux to downstream neighbors.
+          ! Note: If btemp_weight = 1 everwhere, there is no refreezing.
+          flx_thru = bwatflx(i,j) * btemp_weight(i,j)
+          bwatflx_refreeze(i,j) = bwatflx(i,j) * (1 - btemp_weight(i,j))
+          do jj = -1,1
+             do ii = -1,1
+                ip = i + ii
+                jp = j + jj
+                if (flux_fraction(ii,jj,i,j) > 0) then
+                   if (halo_mask(ip,jp) == 1) then
+                      bwatflx_halo(ii,jj,i,j) = flx_thru*flux_fraction(ii,jj,i,j)
+                      if (verbose_bwat .and. this_rank==rtest .and. i==itest .and. j==jtest .and. count <= 2) then
+                         write(iulog,*) 'Flux to halo, i, j, ii, jj, flux:', &
+                              i, j, ii, jj, flx_thru*flux_fraction(ii,jj,i,j)
+                      endif
+                   elseif (local_mask(ip,jp) == 1) then
+                      bwatflx(ip,jp) = bwatflx(ip,jp) + flx_thru*flux_fraction(ii,jj,i,j)
+                      if (verbose_bwat .and. this_rank==rtest .and. i==itest .and. j==jtest .and. count <= 2) then
+                         write(iulog,*) 'Flux to neighbor, i, j, ii, jj, flux:', &
+                              i, j, ii, jj, flx_thru*flux_fraction(ii,jj,i,j)
+                      endif
+                   endif
+                endif   ! flux_fraction > 0
+             enddo  ! ii
+          enddo  ! jj
+       endif  ! bwat_mask = 1, bwatflx > 0
+    enddo  ! loop from high to low
+
+    ! Accumulate the fluxes in the output arrays
+    bwatflx_accum = bwatflx_accum + bwatflx
+    bwatflx_refreeze_accum = bwatflx_refreeze_accum + bwatflx_refreeze
+
+    ! Compute the total bwatflx in halo cells
+    do j = 1, ny
+       do i = 1, nx
+          sum_bwatflx_halo(i,j) = sum(bwatflx_halo(:,:,i,j))
+       enddo
+    enddo
+    global_halo_sum = parallel_global_sum(sum_bwatflx_halo, parallel)
+
+    ! If bwatflx_halo = 0 everywhere, then we are done.
+    ! Where bwatflx_halo is nonzero, communicate it to the neighboring task.
+    ! It will be routed further downstream the next time this subroutine is called.
+
+    if (global_halo_sum > 0) then
+
+       if (verbose_bwat .and. count <= 2) then
+          if (this_rank == rtest) write(iulog,*) 'Before halo update, global_halo_sum (m^3/s):', global_halo_sum
+       endif
+
+       ! Reset bwatflx to zero for the halo transfer
+       bwatflx = 0
+
+       ! Communicate bmltflx_halo to the halo cells of neighboring processors
+       call parallel_halo(bwatflx_halo(:,:,:,:), parallel)
+
+       ! bmltflx_halo is now available in the halo cells of the local processor.
+       ! Route downslope to the adjacent locally owned cells.
+       ! These fluxes will be routed further downstream during the next iteration.
+       ! Note: This calculation does not use flux_fraction or btemp_weight, so no rescaling is needed at the end.
+       do j = 2, ny-1
+          do i = 2, nx-1
+             if (halo_mask(i,j) == 1 .and. sum(bwatflx_halo(:,:,i,j)) > 0) then
+                do jj = -1,1
+                   do ii = -1,1
+                      if (bwatflx_halo(ii,jj,i,j) > 0) then
+                         ip = i + ii
+                         jp = j + jj
+                         if (local_mask(ip,jp) == 1) then
+                            bwatflx(ip,jp) = bwatflx(ip,jp) + bwatflx_halo(ii,jj,i,j)
+                            if (verbose_bwat .and. ip==itest .and. jp==jtest .and. this_rank==rtest .and. count <= 2) then
+                               write(iulog,*) 'Nonzero bwatflx from halo, rank, i, j:', &
+                                    this_rank, ip, jp, bwatflx_halo(ii,jj,i,j)
+                            endif
+                         endif
+                      endif   !  bwatflx_halo > 0 to a local cell
+                   enddo   ! ii
+                enddo   ! jj
+             endif   ! bwatflx_halo > 0 from this halo cell
+          enddo   ! i
+       enddo   ! j
+
+    else
+
+       finished = .true.   ! no water in halo cells to route further
+
+    endif  ! global_halo_sum > 0
+
+  end subroutine route_flux_to_margin_or_halo_integer8
+
+!==============================================================
+
   !+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
   !
   ! The following two subroutines perform an index-sort of an array.
   ! They are a GPL-licenced replacement for the Numerical Recipes routine indexx.
   ! They are not derived from any NR code, but are based on a quicksort routine by
   ! Michael Lamont (http://linux.wku.edu/~lamonml/kb.html), originally written
-  ! in C, and issued under the GNU General Public License. The conversion to
-  ! Fortran 90, and modification to do an index sort was done by Ian Rutt.
+  ! in C, and issued under the GNU General Public License. Ian Rutt did the conversion
+  ! to Fortran 90 and modified the algorithm to do an index sort.
   !
   !+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 

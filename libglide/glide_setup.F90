@@ -1971,9 +1971,6 @@ contains
                model%basal_hydro%ho_flux_routing_scheme >= size(ho_flux_routing_scheme)) then
              call write_log('Error, HO flux routing scheme out of range', GM_FATAL)
           end if
-          write(message,*) 'ho_flux_routing_scheme  : ',model%basal_hydro%ho_flux_routing_scheme,  &
-               ho_flux_routing_scheme(model%basal_hydro%ho_flux_routing_scheme)
-          call write_log(message)
        endif
 
        write(message,*) 'ho_whicheffecpress      : ',model%options%which_ho_effecpress,  &
@@ -3388,6 +3385,19 @@ contains
             model%basal_hydro%ho_flux_routing_scheme >= size(ho_flux_routing_scheme)) then
           call write_log('Error, HO flux routing scheme out of range', GM_FATAL)
        end if
+       if (model%options%reproducible_sums) then
+          if (model%basal_hydro%ho_flux_routing_scheme /= HO_FLUX_ROUTING_D8) then
+             write(message,*) 'With reproducible sums, only D8 flux-routing is supported; switching to D8'
+             model%basal_hydro%ho_flux_routing_scheme = HO_FLUX_ROUTING_D8
+             call write_log(message)
+          endif
+          if (model%basal_hydro%btemp_scale > 0.0d0) then
+             write(message,*) 'With reproducible sums, the flux-routing does not support refreezing;' // &
+                  'setting btemp_scale = 0'
+             call write_log(message)
+             model%basal_hydro%btemp_scale = 0.0d0
+          endif
+       endif  ! reproducible sums
        write(message,*) 'ho_flux_routing_scheme        : ',model%basal_hydro%ho_flux_routing_scheme,  &
             ho_flux_routing_scheme(model%basal_hydro%ho_flux_routing_scheme)
        call write_log(message)

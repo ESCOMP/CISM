@@ -2285,7 +2285,6 @@
              vbas(:,:) = vvel(nz,:,:)
           endif
 
-!!       if (verbose_beta) then
           if (verbose_beta .and. counter==1) then
              if (this_rank == rtest) write(iulog,*) 'Before calcbeta, counter =', counter
              call point_diag(usrf, 'usrf (m)', itest, jtest, rtest, 7, 7)
@@ -2321,10 +2320,6 @@
                beta_internal,                    &  ! beta weighted by f_ground (intent inout)
                whichbeta_limit,                  &
                itest = itest, jtest = jtest, rtest = rtest)
-
-          if (verbose_basal) then
-             call point_diag(beta_internal, 'After calcbeta, beta', itest, jtest, rtest, 7, 7, '(f12.0)')
-          endif
 
 !          if (verbose_beta) then
 !             maxbeta = maxval(beta_internal(:,:))
@@ -2409,16 +2404,11 @@
 
              !WHL - debug - BFB check
              if (verbose_reprosum .and. counter == 1) then
-                if (main_task) write(iulog,*) 'Write out matrices after assemble_stiffness_matrix'
-                call write_array_to_file(Auu_2d, 21, 'global_Auu1', parallel, write_binary = .true., cycle_indices = .true.)
-                call write_array_to_file(Auv_2d, 22, 'global_Auv1', parallel, write_binary = .true., cycle_indices = .true.)
-                call write_array_to_file(Avu_2d, 23, 'global_Avu1', parallel, write_binary = .true., cycle_indices = .true.)
-                call write_array_to_file(Avv_2d, 24, 'global_Avv1', parallel, write_binary = .true., cycle_indices = .true.)
-             endif
-
-             !WHL - debug - BFB check
-!!             if (0 == 1) then
-             if (verbose_reprosum) then
+!!                if (main_task) write(iulog,*) 'Write out matrices after assemble_stiffness_matrix'
+!!                call write_array_to_file(Auu_2d, 21, 'global_Auu1', parallel, write_binary = .true., cycle_indices = .true.)
+!!                call write_array_to_file(Auv_2d, 22, 'global_Auv1', parallel, write_binary = .true., cycle_indices = .true.)
+!!                call write_array_to_file(Avu_2d, 23, 'global_Avu1', parallel, write_binary = .true., cycle_indices = .true.)
+!!                call write_array_to_file(Avv_2d, 24, 'global_Avv1', parallel, write_binary = .true., cycle_indices = .true.)
                 sum_Auu(:) = parallel_global_sum_stagger(Auu_2d, nNodeNeighbors_2d, parallel)
                 sum_Auv(:) = parallel_global_sum_stagger(Auv_2d, nNodeNeighbors_2d, parallel)
                 sum_Avu(:) = parallel_global_sum_stagger(Avu_2d, nNodeNeighbors_2d, parallel)
@@ -2552,36 +2542,6 @@
                    call point_diag(beta_eff_y, 'beta_eff_y', itest, jtest, rtest, 7, 7, '(e10.3)')
                 endif
 
-                if (verbose_reprosum) then
-                   sum_omega = parallel_global_sum_stagger(omega, parallel)
-                   sum_stag_omega = parallel_global_sum_stagger(stag_omega, parallel)
-                   sum_betax = parallel_global_sum_stagger(beta_eff_x, parallel)
-                   sum_betay = parallel_global_sum_stagger(beta_eff_y, parallel)
-                   if (main_task) then
-                      call double_to_binary(sum_omega, binary_str)
-                      write(iulog,*) 'Before bc_2d: sum_omega, binary_str:', sum_omega, binary_str
-                      call double_to_binary(sum_stag_omega, binary_str)
-                      write(iulog,*) '              sum_stag_omega, binary_str:', sum_stag_omega, binary_str
-                      call double_to_binary(sum_betax, binary_str)
-                      write(iulog,*) '              sum_betax, binary_str:', sum_betax, binary_str
-                      call double_to_binary(sum_betay, binary_str)
-                      write(iulog,*) '              sum_betay, binary_str:', sum_betay, binary_str
-                   endif
-                   if (this_rank == rtest) then
-                      do j = jtest-2, jtest+2
-                         do i = itest-2, itest+2
-                            if (i >= staggered_ilo .and. i <= staggered_ihi .and. &
-                                j >= staggered_jlo .and. j <= staggered_jhi) then
-                               call double_to_binary(stag_omega(i,j), binary_str)
-                               write(iulog,*) 'i, j, stag_omega:', i, j, binary_str
-                               call double_to_binary(beta_eff_x(i,j), binary_str)
-                               write(iulog,*) '      beta_eff_x:', i, j, binary_str
-                            endif
-                         enddo
-                      enddo
-                   endif
-                endif   ! verbose_reprosum
-
                 if (diva_slope_correction) then
 
                    ! Incorporate basal sliding boundary conditions with basal curvature,
@@ -2698,14 +2658,14 @@
 
              !WHL - debug - Write all the matrix elements and rhs elements (in binary form) to files
              if (verbose_reprosum .and. counter == 1) then
-                if (main_task) write(iulog,*) 'Write out matrices after adding BC'
+!!                if (main_task) write(iulog,*) 'Write out matrices after adding BC'
 !!                call write_array_to_file(Auu_2d(:,:,5), 30, 'global_Auu2', parallel)  ! diagonal terms only
-                call write_array_to_file(Auu_2d, 31, 'global_Auu2', parallel, write_binary = .true., cycle_indices = .true.)
-                call write_array_to_file(Auv_2d, 32, 'global_Auv2', parallel, write_binary = .true., cycle_indices = .true.)
-                call write_array_to_file(Avu_2d, 33, 'global_Avu2', parallel, write_binary = .true., cycle_indices = .true.)
-                call write_array_to_file(Avv_2d, 34, 'global_Avv2', parallel, write_binary = .true., cycle_indices = .true.)
-                call write_array_to_file(bu_2d,  35, 'global_bu2',  parallel, write_binary = .true.)
-                call write_array_to_file(bv_2d,  36, 'global_bv2',  parallel, write_binary = .true.)
+!!                call write_array_to_file(Auu_2d, 31, 'global_Auu2', parallel, write_binary = .true., cycle_indices = .true.)
+!!                call write_array_to_file(Auv_2d, 32, 'global_Auv2', parallel, write_binary = .true., cycle_indices = .true.)
+!!                call write_array_to_file(Avu_2d, 33, 'global_Avu2', parallel, write_binary = .true., cycle_indices = .true.)
+!!                call write_array_to_file(Avv_2d, 34, 'global_Avv2', parallel, write_binary = .true., cycle_indices = .true.)
+!!                call write_array_to_file(bu_2d,  35, 'global_bu2',  parallel, write_binary = .true.)
+!!                call write_array_to_file(bv_2d,  36, 'global_bv2',  parallel, write_binary = .true.)
              endif
 
              !---------------------------------------------------------------------------
@@ -8630,11 +8590,7 @@
 
     if (whichassemble_beta == HO_ASSEMBLE_BETA_LOCAL) then
 
-       if (nNeighbors == nNodeNeighbors_3d) then  ! 3D problem
-          m = indxA_3d(0,0,0)
-       else  ! 2D problem
-          m = indxA_2d(0,0)
-       endif
+       m = indxA_2d(0,0)
 
        ! Average the lower ice surface elevation to vertices
        call glissade_stagger(&
@@ -8656,16 +8612,16 @@
        call parallel_halo(theta_basal_slope_y, parallel)
 
        if (verbose_basal) then
-          call point_diag(theta_basal_slope_x*180.d0/pi, 'theta_basal_slope_x (deg)', itest, jtest, rtest, 7, 7, '(f10.0)')
-          call point_diag(theta_basal_slope_y*180.d0/pi, 'theta_basal_slope_y (deg)', itest, jtest, rtest, 7, 7, '(f10.0)')
+          call point_diag(theta_basal_slope_x*180.d0/pi, 'theta_basal_slope_x (deg)', itest, jtest, rtest, 7, 7)
+          call point_diag(theta_basal_slope_y*180.d0/pi, 'theta_basal_slope_y (deg)', itest, jtest, rtest, 7, 7)
        endif
 
        ! Sum over active vertices
        do j = 1, ny-1
           do i = 1, nx-1
              if (active_vertex(i,j)) then
-                Auu(i,j,m) = Auu(i,j,m) + dx*dy/vol0 * beta_eff_x(i,j) / cos(theta_basal_slope_x(i,j))
-                Avv(i,j,m) = Avv(i,j,m) + dx*dy/vol0 * beta_eff_y(i,j) / cos(theta_basal_slope_y(i,j))
+                Auu(i,j,m) = Auu(i,j,m) + (dx*dy/vol0) * beta_eff_x(i,j) / cos(theta_basal_slope_x(i,j))
+                Avv(i,j,m) = Avv(i,j,m) + (dx*dy/vol0) * beta_eff_y(i,j) / cos(theta_basal_slope_y(i,j))
              endif   ! active_vertex
           enddo   ! i
        enddo   ! j
@@ -8801,20 +8757,6 @@
        enddo         ! j
 
     endif   ! whichassemble_beta
-
-    if (verbose_basal .and. this_rank==rtest) then
-       i = itest
-       j = jtest
-       if (nNeighbors == nNodeNeighbors_3d) then  ! 3D problem
-          m = indxA_3d(0,0,0)
-       else
-          m = indxA_2d(0,0)
-       endif
-       write(iulog,*) ' '
-       write(iulog,*) 'Basal BC: i, j, diagonal index =', i, j, m
-       write(iulog,*) 'New Auu diagonal:', Auu(i,j,m)
-       write(iulog,*) 'New Avv diagonal:', Avv(i,j,m)
-    endif
 
   end subroutine basal_sliding_bc_2d_diva
 
@@ -10871,7 +10813,7 @@
 
     if (verbose_matrix) then
        global_maxdiff = parallel_reduce_max(maxdiff)
-       if (maxdiff == global_maxdiff) then
+       if (global_maxdiff > 0.0d0 .and. maxdiff == global_maxdiff) then
           ! maxdiff is on this processor; compute and broadcast the global index
           call parallel_globalindex(imax, jmax, iglobal, jglobal, parallel)
           write(iulog,*) 'Max asymmetry =', global_maxdiff
@@ -11077,7 +11019,7 @@
 
     if (verbose_matrix) then
        global_maxdiff = parallel_reduce_max(maxdiff)
-       if (maxdiff == global_maxdiff) then
+       if (global_maxdiff > 0.0d0 .and. maxdiff == global_maxdiff) then
           ! maxdiff is on this processor; compute and broadcast the global index
           call parallel_globalindex(imax, jmax, iglobal, jglobal, parallel)
           write(iulog,*) 'Max asymmetry =', global_maxdiff
