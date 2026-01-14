@@ -2158,7 +2158,11 @@ module glide_types
      !TODO - Add visc_water and omega_hydro? Currently set in glissade_basal_water module
      real(dp) :: const_source = 0.0d0            !> constant melt source at the bed (m/yr)
                                                  !> could be used to represent an englacial or surface source
-     real(dp) :: btemp_scale = 0.0d0             !> temperature scale (degC) for transition between thawed and frozen bed
+     real(dp) :: btemp_flow_scale = 0.0d0        !> temperature scale (degC) for transition between thawed and frozen bed;
+                                                 !> used to route flow away from cells with a frozen bed;
+                                                 !> btemp_scale = 0 => temperature-independent flow
+     real(dp) :: btemp_freeze_scale = 0.0d0      !> temperature scale (degC) for transition between thawed and frozen bed;
+                                                 !> used to refreeze water beneath cells with a frozen bed;
                                                  !> btemp_scale = 0 => temperature-independent flow
      ! parameters for macroporous sheet
      real(dp) :: bwat_threshold = 1.0d-3         !> scale over which N ramps down from overburden to a small value (m)

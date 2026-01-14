@@ -185,7 +185,9 @@ module glissade_basal_water
        thklim,                       &
        bwat_mask,     floating_mask, &
        bmlt_hydro,                   &
-       delta_Tb,      btemp_scale,   &
+       delta_Tb,                     &
+       btemp_flow_scale,             &
+       btemp_freeze_scale,           &
        bwatflx,       bwat_diag,     &
        bhydroflx,                    &
        head,          grad_head,     &
@@ -222,9 +224,16 @@ module glissade_basal_water
          delta_Tb                   ! difference T_pmp - T_bed (degC)
 
     real(dp), intent(in) ::  &
-         thklim,                  & ! minimum ice thickness for basal melt and hydropotential calculations (m)
+         thklim                     ! minimum ice thickness for basal melt and hydropotential calculations (m)
                                     ! Note: This is typically model%geometry%thklim_temp
-         btemp_scale                ! temperature scale for transition from frozen to thawed bed (degC)
+
+    ! Note: These scales ensure a smooth transition in behavior between frozen and thawed beds.
+    !       Both scales are computed in a similar way, but they apply to different parts of the algorithm.
+    ! TODO: Decide whether to keep both scales. Only the flow scale works for reprosums, so we might want
+    !       to remove the freeze scale.
+    real(dp), intent(in) ::  &
+         btemp_flow_scale,        & ! temperature scale for routing water flow around cells with a frozen bed (deg C)
+         btemp_freeze_scale         ! temperature scale for refreezing water beneath cells with a frozen bed (degC)
 
     integer, dimension(nx,ny), intent(in) ::  &
          bwat_mask,               & ! mask to identify cells through which basal water is routed;
@@ -344,7 +353,8 @@ module glissade_basal_water
          head,                   &
          bmlt_hydro,             &
          delta_Tb,               &
-         btemp_scale,            &
+         btemp_flow_scale,       &
+         btemp_freeze_scale,     &
          bwat_mask,              &
          bwatflx,                &
          bwatflx_refreeze,       &
@@ -468,7 +478,8 @@ module glissade_basal_water
          head,                   &
          bmlt_hydro,             &
          delta_Tb,               &
-         btemp_scale,            &
+         btemp_flow_scale,       &
+         btemp_freeze_scale,     &
          bwat_mask,              &
          bwatflx,                &
          bwatflx_refreeze,       &
@@ -507,8 +518,9 @@ module glissade_basal_water
          delta_Tb                ! difference T_pmp - T_bed (degC)
 
     real(dp), intent(in) :: &
-         btemp_scale             ! temperature scale for transition from frozen to thawed bed (degC)
-                                 ! If btemp_scale = 0, assume no temperature dependence
+         btemp_flow_scale,     & ! temperature scale for routing water flow around cells with a frozen bed (deg C)
+         btemp_freeze_scale      ! temperature scale for refreezing water beneath cells with a frozen bed (degC)
+                                 ! If scale = 0, assume no temperature dependence
 
     real(dp), dimension(nx,ny), intent(inout)  ::  &
          head                    ! hydraulic head (m)
@@ -543,7 +555,8 @@ module glissade_basal_water
 
     real(dp), dimension(nx,ny) ::  &
          head_filled,           & ! head after depressions are filled (m)
-         btemp_weight,          & ! temperature-dependent weighting factor, favoring flow where the bed is thawed
+         btemp_weight_flow,     & ! temp-dependent weighting factor, forcing flow around cells with frozen beds
+         btemp_weight_freeze,   & ! temp-dependent weighting factor, favoring refreezing in cells with frozen beds
          bwatflx_accum,         & ! water flux through the cell (m^3/s) accumulated over multiple iterations
          bwatflx_refreeze_accum   ! water flux (m^3/s) refreezing in place, accumulated over multiple iterations
 
@@ -563,7 +576,7 @@ module glissade_basal_water
     ! The following i8 variables are for computing reproducible sums
     integer(i8), dimension(nx,ny) ::  &
          bwatflx_int,               & ! water flux through a grid cell (m^3/s)
-         btemp_weight_int,          & ! temperature-dependent weighting factor, favoring flow where the bed is thawed
+         btemp_weight_freeze_int,   & ! temp-dependent weighting factor, favoring refreezing in cells with frozen beds
          bwatflx_accum_int,         & ! water flux through the cell (m^3/s) accumulated over multiple iterations
          bwatflx_refreeze_accum_int   ! water flux (m^3/s) refreezing in place, accumulated over multiple iterations
 
@@ -660,22 +673,33 @@ module glissade_basal_water
        enddo
     enddo
 
-    ! Compute a temperature-dependent weighting factor for flux routing.
-    ! This is used in two parts of the code:
-    ! (1) In subroutine get_flux_fraction, btemp_weight is used to weight potential downstream paths.
-    !     A small value of btemp_weight means that a cell is less likely to receive water from upstream.
-    ! (2) When water enters a frozen cell (delta_Tb > 0), btemp_weight is used to determine
-    !     how much of the flux is refrozen in place rather than passing through.
-    !     A low value of btemp_weight means that less water passes through.
-    ! Note: For reproducible sums, refreezing is not supported; must have btemp_weight = 1 everywhere.
+    ! Compute temperature-dependent weighting factors for flux routing.
+    ! There are two scales with related but distinct functions:
+    ! (1) In subroutine get_flux_fraction, btemp_flow_scale is used to weigh potential downstream paths.
+    !     A low value of btemp_weight_flow means that water is less likely to pass through.
+    ! (2) When water enters a frozen cell (delta_Tb > 0), btemp_freeze_scale determines
+    !     how much of the flux refreezes in place rather than passing through.
+    !     A small value of btemp_weight_freeze means that more water refreezes, and less passes through.
+    ! Note: For reproducible sums, refreezing is not supported; must have btemp_weight_freeze = 1 everywhere.
+    ! TODO: Possibly remove btemp_freeze_scale and just keep btemp_flow_scale.
 
-    btemp_weight = 1.0d0
-
-    if (btemp_scale > 0.0d0) then
+    btemp_weight_flow = 1.0d0
+    if (btemp_flow_scale > 0.0d0) then
        if (.not. reprosum) then
           where (bwat_mask == 1)
              where (delta_Tb > 0.0d0)
-                btemp_weight = exp(-delta_Tb/btemp_scale)
+                btemp_weight_flow = exp(-delta_Tb/btemp_flow_scale)
+             endwhere
+          endwhere
+       endif
+    endif
+
+    btemp_weight_freeze = 1.0d0
+    if (btemp_freeze_scale > 0.0d0) then
+       if (.not. reprosum) then
+          where (bwat_mask == 1)
+             where (delta_Tb > 0.0d0)
+                btemp_weight_freeze = exp(-delta_Tb/btemp_freeze_scale)
              endwhere
           endwhere
        endif
@@ -683,7 +707,8 @@ module glissade_basal_water
 
     if (verbose_bwat) then
        call point_diag(delta_Tb, 'Tpmp - Tb', itest, jtest, rtest, 7, 7)
-       call point_diag(btemp_weight, 'btemp_weight', itest, jtest, rtest, 7, 7)
+       call point_diag(btemp_weight_flow, 'btemp_weight_flow', itest, jtest, rtest, 7, 7)
+       call point_diag(btemp_weight_freeze, 'btemp_weight_freeze', itest, jtest, rtest, 7, 7)
     endif
 
     ! Compute the fraction of the incoming flux sent to each downstream neighbor.
@@ -695,7 +720,7 @@ module glissade_basal_water
          flux_routing_scheme,   &
          sorted_ij,             &
          head,                  &
-         btemp_weight,          &
+         btemp_weight_flow,     &
          bwat_mask,             &
          flux_fraction)
 
@@ -745,12 +770,12 @@ module glissade_basal_water
        !       to a single cell.
        flux_fraction_int(:,:,:,:) = nint(flux_fraction(:,:,:,:), i8)
 
-       ! Convert btemp_weight to i8
-       btemp_weight_int(:,:) = 1
+       ! Convert btemp_weight_freeze to i8
+       btemp_weight_freeze_int(:,:) = 1
        ! Note: Can round up to 1 and down to 0 by uncommenting the following line.
        !       However, a mix of 1's and 0's leads to oscillations in basal temperature,
-       !        so it is safer to turn off refreezing by setting btemp_weight = 1 everywhere.
-!       btemp_weight_int(:,:) = nint(btemp_weight(:,:), i8)
+       !        so it is safer to turn off refreezing by setting btemp_weight_freeze = 1 everywhere.
+!       btemp_weight_freeze_int(:,:) = nint(btemp_weight_freeze(:,:), i8)
 
        ! Initialize other arrays
        bwatflx_accum_int = 0
@@ -776,17 +801,17 @@ module glissade_basal_water
           ! Note: The fluxes are scaled by factor_bwatflx
 
           call route_flux_to_margin_or_halo(&
-            nx, ny, nlocal,      &
+            nx, ny, nlocal,             &
             itest, jtest, rtest, count, &
-            parallel,            &
-            sorted_ij,           &
-            local_mask,          &
-            halo_mask,           &
-            bwat_mask,           &
-            flux_fraction_int,   &
-            btemp_weight_int,    &
-            bwatflx_int,         &
-            bwatflx_accum_int,   &
+            parallel,                   &
+            sorted_ij,                  &
+            local_mask,                 &
+            halo_mask,                  &
+            bwat_mask,                  &
+            flux_fraction_int,          &
+            btemp_weight_freeze_int,    &
+            bwatflx_int,                &
+            bwatflx_accum_int,          &
             bwatflx_refreeze_accum_int, &
             finished)
 
@@ -808,7 +833,7 @@ module glissade_basal_water
             halo_mask,           &
             bwat_mask,           &
             flux_fraction,       &
-            btemp_weight,        &
+            btemp_weight_freeze, &
             bwatflx,             &
             bwatflx_accum,       &
             bwatflx_refreeze_accum, &
@@ -1334,7 +1359,7 @@ module glissade_basal_water
        flux_routing_scheme,   &
        sorted_ij,             &
        head,                  &
-       btemp_weight,          &
+       btemp_weight_flow,     &
        bwat_mask,             &
        flux_fraction)
 
@@ -1364,7 +1389,7 @@ module glissade_basal_water
 
     real(dp), dimension(nx,ny), intent(in) :: &
          head,                 & ! hydraulic head (m)
-         btemp_weight            ! temperature-dependent weighting factor, favoring flow where the bed is thawed
+         btemp_weight_flow       ! temperature-dependent weighting factor, forcing flow around cells with frozen beds
 
     integer, dimension(nx,ny), intent(in) :: &
          bwat_mask               ! = 1 for cells in the region where basal water fluxes can be nonzero
@@ -1423,7 +1448,7 @@ module glissade_basal_water
                    jp = j + jj
                    if (ip >= 1 .and. ip <= nx .and. jp > 1 .and. jp <= ny) then
                       if (head(ip,jp) < head(i,j)) then
-                         slope(ii,jj) = btemp_weight(ip,jp) * (head(i,j) - head(ip,jp)) / dists(ii,jj)
+                         slope(ii,jj) = btemp_weight_flow(ip,jp) * (head(i,j) - head(ip,jp)) / dists(ii,jj)
                       endif
                    endif
                 endif
@@ -1594,7 +1619,7 @@ module glissade_basal_water
        halo_mask,           &
        bwat_mask,           &
        flux_fraction,       &
-       btemp_weight,        &
+       btemp_weight_freeze, &
        bwatflx,             &
        bwatflx_accum,       &
        bwatflx_refreeze_accum, &
@@ -1635,7 +1660,7 @@ module glissade_basal_water
                                  ! 1st two indices give relative location of receiving cell
 
     real(dp), dimension(nx,ny), intent(in) :: &
-         btemp_weight            ! temperature-dependent weighting factor, favoring flow where the bed is thawed
+         btemp_weight_freeze     ! temperature-dependent weighting factor, favoring refreezing at frozen beds
 
     real(dp), dimension(nx,ny), intent(inout) :: &
          bwatflx,              & ! on input: water flux (m^3/s) to be routed to the margin or halo
@@ -1678,10 +1703,10 @@ module glissade_basal_water
        if (bwat_mask(i,j) == 1 .and. bwatflx(i,j) > 0.0d0) then
 
           ! Distribute the flux to downstream neighbors.
-          ! Based on the temperature-dependent weighting factor btemp_weight, all or part of the flux
+          ! Based on the temperature-dependent weighting factor btemp_weight_freeze, all or part of the flux
           !  is refrozen in place instead of being routed downstream.
-          flx_thru = bwatflx(i,j) * btemp_weight(i,j)
-          bwatflx_refreeze(i,j) = bwatflx(i,j) * (1.0d0 - btemp_weight(i,j))
+          flx_thru = bwatflx(i,j) * btemp_weight_freeze(i,j)
+          bwatflx_refreeze(i,j) = bwatflx(i,j) * (1.0d0 - btemp_weight_freeze(i,j))
           do jj = -1,1
              do ii = -1,1
                 ip = i + ii
@@ -1772,18 +1797,18 @@ module glissade_basal_water
 !==============================================================
 
   subroutine route_flux_to_margin_or_halo_integer8(&
-       nx, ny, nlocal,      &
+       nx, ny, nlocal,             &
        itest, jtest, rtest, count, &
-       parallel,            &
-       sorted_ij,           &
-       local_mask,          &
-       halo_mask,           &
-       bwat_mask,           &
-       flux_fraction,       &
-       btemp_weight,        &
-       bwatflx,             &
-       bwatflx_accum,       &
-       bwatflx_refreeze_accum, &
+       parallel,                   &
+       sorted_ij,                  &
+       local_mask,                 &
+       halo_mask,                  &
+       bwat_mask,                  &
+       flux_fraction,              &
+       btemp_weight_freeze,        &
+       bwatflx,                    &
+       bwatflx_accum,              &
+       bwatflx_refreeze_accum,     &
        finished)
 
     ! Given the input bwatflx, route the water downstream, keeping track of fluxes along the way.
@@ -1815,13 +1840,13 @@ module glissade_basal_water
          halo_mask,            & ! = 1 for the layer of halo cells adjacent to locally owned cells, else = 0
          bwat_mask               ! = 1 for cells through which basal water is routed; excludes floating and ocean cells
 
-    ! Note: Both flux_fraction and btemp_weight are constrained to be 0 or 1.
+    ! Note: Both flux_fraction and btemp_weight_freeze are constrained to be 0 or 1.
     !       This means that the routing is limited to D8 (all the flux goes to one downstream cell),
-    !        and partial refreezing is not allowed (i.e., btemp_weight = 1 everywhere).
-    !       Thus, btemp_weight is not needed, but I kept it to keep the code similar to the subroutine above.
+    !        and partial refreezing is not allowed (i.e., btemp_weight_freeze = 1 everywhere).
+    !       Thus, btemp_weight_freeze is not needed, but I kept it to keep the code similar to the subroutine above.
     !       We could make refreezing all-or-nothing (i.e., weights of either 0 or 1), but this leads to
     !        oscillations in bed temperature.
-    !       I thought of rescaling flux_fraction and btemp_weight to largish i8 integers (e.g., 1000)
+    !       I thought of rescaling flux_fraction and btemp_weight_freeze to largish i8 integers (e.g., 1000)
     !        to keep everything BFB, and then scaling back at the end. The problem is that this subroutine
     !        may need to be called repeatedly, and each scaling would lead to larger and larger integers
     !        that eventually exceed the i8 limit on integer size, ~10^(19).
@@ -1832,7 +1857,7 @@ module glissade_basal_water
                                  ! 1st two indices give relative location of receiving cell
 
     integer(i8), dimension(nx,ny), intent(in) :: &
-         btemp_weight            ! temperature-dependent weighting factor, favoring flow where the bed is thawed
+         btemp_weight_freeze     ! temperature-dependent weighting factor, favoring refreezing at frozen beds
 
     integer(i8), dimension(nx,ny), intent(inout) :: &
          bwatflx,              & ! on input: water flux (m^3/s * factor_bwatflx) to be routed to the margin or halo
@@ -1879,9 +1904,9 @@ module glissade_basal_water
        if (bwat_mask(i,j) == 1 .and. bwatflx(i,j) > 0.0d0) then
 
           ! Distribute the flux to downstream neighbors.
-          ! Note: If btemp_weight = 1 everwhere, there is no refreezing.
-          flx_thru = bwatflx(i,j) * btemp_weight(i,j)
-          bwatflx_refreeze(i,j) = bwatflx(i,j) * (1 - btemp_weight(i,j))
+          ! Note: If btemp_weight_freeze = 1 everwhere, there is no refreezing.
+          flx_thru = bwatflx(i,j) * btemp_weight_freeze(i,j)
+          bwatflx_refreeze(i,j) = bwatflx(i,j) * (1 - btemp_weight_freeze(i,j))
           do jj = -1,1
              do ii = -1,1
                 ip = i + ii
@@ -1937,7 +1962,6 @@ module glissade_basal_water
        ! bmltflx_halo is now available in the halo cells of the local processor.
        ! Route downslope to the adjacent locally owned cells.
        ! These fluxes will be routed further downstream during the next iteration.
-       ! Note: This calculation does not use flux_fraction or btemp_weight, so no rescaling is needed at the end.
        do j = 2, ny-1
           do i = 2, nx-1
              if (halo_mask(i,j) == 1 .and. sum(bwatflx_halo(:,:,i,j)) > 0) then

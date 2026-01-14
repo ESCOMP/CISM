@@ -3310,7 +3310,8 @@ contains
     ! flux routing
     call GetValue(section, 'ho_flux_routing_scheme', model%basal_hydro%ho_flux_routing_scheme)
     call GetValue(section, 'const_source', model%basal_hydro%const_source)
-    call GetValue(section, 'btemp_scale', model%basal_hydro%btemp_scale)
+    call GetValue(section, 'btemp_flow_scale', model%basal_hydro%btemp_flow_scale)
+    call GetValue(section, 'btemp_freeze_scale', model%basal_hydro%btemp_freeze_scale)
 
     ! effective pressure options and parameters
     call GetValue(section, 'effecpress_delta',   model%basal_hydro%effecpress_delta)
@@ -3391,11 +3392,11 @@ contains
              model%basal_hydro%ho_flux_routing_scheme = HO_FLUX_ROUTING_D8
              call write_log(message)
           endif
-          if (model%basal_hydro%btemp_scale > 0.0d0) then
+          if (model%basal_hydro%btemp_freeze_scale > 0.0d0) then
              write(message,*) 'With reproducible sums, the flux-routing does not support refreezing;' // &
-                  'setting btemp_scale = 0'
+                  ' setting btemp_freeze_scale = 0'
              call write_log(message)
-             model%basal_hydro%btemp_scale = 0.0d0
+             model%basal_hydro%btemp_freeze_scale = 0.0d0
           endif
        endif  ! reproducible sums
        write(message,*) 'ho_flux_routing_scheme        : ',model%basal_hydro%ho_flux_routing_scheme,  &
@@ -3405,8 +3406,14 @@ contains
           write(message,*) 'constant melt source at the bed (m/yr): ', model%basal_hydro%const_source
           call write_log(message)
        endif
-       if (model%basal_hydro%btemp_scale > 0.0d0) then
-          write(message,*) 'temp scale (deg C) for frz/thaw transition: ', model%basal_hydro%btemp_scale
+       if (model%basal_hydro%btemp_flow_scale > 0.0d0) then
+          write(message,*) 'temp scale (deg C) for flow around frozen bed: ', &
+               model%basal_hydro%btemp_flow_scale
+          call write_log(message)
+       endif
+       if (model%basal_hydro%btemp_freeze_scale > 0.0d0) then
+          write(message,*) 'temp scale (deg C) for refreezing at the bed: ', &
+               model%basal_hydro%btemp_freeze_scale
           call write_log(message)
        endif
        if (model%options%which_ho_effecpress == HO_EFFECPRESS_BWAT) then

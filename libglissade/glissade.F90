@@ -1941,7 +1941,8 @@ contains
             floating_mask,                                    &
             model%basal_hydro%bmlt_hydro,                     &  ! m/s
             model%temper%bpmp - model%temper%btemp_ground,    &  ! degC
-            model%basal_hydro%btemp_scale,                    &  ! degC
+            model%basal_hydro%btemp_flow_scale,               &  ! degC
+            model%basal_hydro%btemp_freeze_scale,             &  ! degC
             model%basal_hydro%bwatflx,                        &  ! m/s
             model%basal_hydro%bwat_diag,                      &  ! m
             model%temper%bhydroflx,                           &  ! W/m2
