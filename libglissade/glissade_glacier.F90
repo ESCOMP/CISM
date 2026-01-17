@@ -3362,20 +3362,20 @@ contains
     ! Note: Grid cells with SMB = 0 are not counted in either zone.
 
     where (cism_glacier_id > 0 .and. smb > 0.0d0)
-       glacier_id = 1
+       glacier_id = cism_glacier_id
     elsewhere
        glacier_id = 0
     endwhere
 
-    accum_area = parallel_global_sum_patch(cell_area, nglacier, cism_glacier_id, parallel)
+    accum_area = parallel_global_sum_patch(cell_area, nglacier, glacier_id, parallel)
 
     where (cism_glacier_id > 0 .and. smb < 0.0d0)
-       glacier_id = 1
+       glacier_id = cism_glacier_id
     elsewhere
        glacier_id = 0
     endwhere
 
-    ablat_area = parallel_global_sum_patch(cell_area, nglacier, cism_glacier_id, parallel)
+    ablat_area = parallel_global_sum_patch(cell_area, nglacier, glacier_id, parallel)
 
     ! Compute the AAR for each glacier
 

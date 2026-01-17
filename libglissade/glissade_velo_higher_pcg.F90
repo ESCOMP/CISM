@@ -2341,7 +2341,7 @@
              zu(i,j) = 0.d0
           endif
           if (Adiagv(i,j) /= 0.d0) then
-             zv(i,j) = rv(i,j) / Adiagv(i,j)  
+             zv(i,j) = rv(i,j) / Adiagv(i,j)
           else                                        
              zv(i,j) = 0.d0
           endif
@@ -3821,6 +3821,7 @@
 
     !WHL - debug
     if (verbose_tridiag .and. this_rank == rtest) then
+       write(iulog,*)
        write(iulog,*) 'In setup_preconditioner_tridiag_global_2d: itest, jtest, rtest =', itest, jtest, rtest
     endif
 

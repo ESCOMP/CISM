@@ -2197,8 +2197,15 @@ contains
        if (model%options%whichdycore == DYCORE_GLISSADE .and.   &
            (model%options%which_ho_sparse == HO_SPARSE_PCG_STANDARD .or.  &
             model%options%which_ho_sparse == HO_SPARSE_PCG_CHRONGEAR) ) then 
+          if (model%options%reproducible_sums) then
+             if (model%options%which_ho_precond == HO_PRECOND_TRIDIAG_LOCAL .or. &
+                 model%options%which_ho_precond == HO_PRECOND_TRIDIAG_GLOBAL) then
+                call write_log ('Tridiagonal preconditioners are not supported with reproducible sums.')
+                call write_log ('Please choose a different preconditioner (e.g., diagonal)', GM_FATAL)
+             endif
+          endif
           write(message,*) 'ho_whichprecond         : ',model%options%which_ho_precond,  &
-                            ho_whichprecond(model%options%which_ho_precond)
+               ho_whichprecond(model%options%which_ho_precond)
           call write_log(message)
           if (model%options%which_ho_precond < 0 .or. model%options%which_ho_precond >= size(ho_whichprecond)) then
              call write_log('Error, glissade preconditioner out of range', GM_FATAL)
