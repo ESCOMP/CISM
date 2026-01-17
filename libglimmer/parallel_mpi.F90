@@ -9601,8 +9601,6 @@ contains
 
     logical :: &
          ddpdd_sum,           & ! use ddpdd algorithm instead of fixed-precision algorithm
-         allow_infnan,        & ! if .true., allow INF or NaN input values;
-                                ! if .false. (the default), then abort if INF or NaNs are present
          repro_sum_validate     ! flag enabling/disabling testing that gmax and max_levels
                                 ! are accurate/sufficient. Default is enabled.
 
@@ -9617,7 +9615,6 @@ contains
     allocate (arr_max_levels_out(nflds))
     allocate (rel_diff(2,nflds))
 
-    allow_infnan = .false.
     ddpdd_sum = .false.
     repro_sum_validate = .true.
 
@@ -9626,7 +9623,6 @@ contains
     call cism_reprosum_calc(&
          arr,        arr_gsum,                          &
          nsummands,  dsummands,  nflds,                 &
-         allow_infnan = allow_infnan,                   &
          ddpdd_sum = ddpdd_sum,                         &
 !            arr_gbl_max = arr_gbl_max,                     &
          arr_gbl_max_out = arr_gbl_max_out,             &

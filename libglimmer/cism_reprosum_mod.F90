@@ -36,6 +36,10 @@ module cism_reprosum_mod
 ! I started from a version that includes some logic fixes and code cleanup
 !  done by Pat Worley in 2023. Pat's revised version differs from the code
 !  in the CESM repo as of Jan. 2026.
+! See here for information on Pat's mods:
+! * https://github.com/E3SM-Project/E3SM/pull/5534
+! * https://github.com/E3SM-Project/E3SM/pull/5549
+! * https://github.com/E3SM-Project/E3SM/pull/5560
 !------------------------------------------------------------------------
 
 !------------------------------------------------------------------------
@@ -62,11 +66,6 @@ module cism_reprosum_mod
    use glimmer_global, only: r8 => dp
    use glimmer_global, only: i8
    use glimmer_paramets, only: iulog
-   use cism_infnan_mod,only: cism_infnan_inf_type, assignment(=), &
-                             cism_infnan_posinf, cism_infnan_neginf, &
-                             cism_infnan_nan, &
-                             cism_infnan_isnan, cism_infnan_isinf, &
-                             cism_infnan_isposinf, cism_infnan_isneginf
    use profile, only: t_startf, t_stopf  !WHL - replace with perf_mod?
    ! end WHL mods
 
@@ -116,8 +115,6 @@ module cism_reprosum_mod
    !---------------------------------------------------------------------
    logical            :: repro_sum_use_ddpdd = .false.
 
-   logical            :: repro_sum_allow_infnan = .false.
-
    !WHL - Should this code be declared?
    !      Not sure what EAMXX_STANDALONE means
 #ifdef EAMXX_STANDALONE
@@ -143,7 +140,6 @@ module cism_reprosum_mod
 !========================================================================
 !
    subroutine cism_reprosum_setopts(repro_sum_use_ddpdd_in,    &
-                                   repro_sum_allow_infnan_in, &
                                    repro_sum_rel_diff_max_in, &
                                    repro_sum_recompute_in,    &
                                    repro_sum_master,          &
@@ -156,10 +152,6 @@ module cism_reprosum_mod
 !------------------------------Arguments---------------------------------
       ! Use DDPDD algorithm instead of integer vector algorithm
       logical, intent(in), optional :: repro_sum_use_ddpdd_in
-      ! Allow INF or NaN in summands
-      logical, intent(in), optional :: repro_sum_allow_infnan_in
-      ! maximum permissible difference between reproducible and
-      ! nonreproducible sums
       real(r8), intent(in), optional :: repro_sum_rel_diff_max_in
       ! recompute using different algorithm when difference between
       ! reproducible and nonreproducible sums is too great
@@ -202,9 +194,6 @@ module cism_reprosum_mod
       if ( present(repro_sum_use_ddpdd_in) ) then
          repro_sum_use_ddpdd = repro_sum_use_ddpdd_in
       endif
-      if ( present(repro_sum_allow_infnan_in) ) then
-         repro_sum_allow_infnan = repro_sum_allow_infnan_in
-      endif
       if ( present(repro_sum_rel_diff_max_in) ) then
          cism_reprosum_reldiffmax = repro_sum_rel_diff_max_in
       endif
@@ -220,14 +209,6 @@ module cism_reprosum_mod
             write(logunit,*) 'cism_REPROSUM_SETOPTS: ',&
               'Using integer-vector-based (scalable) reproducible ', &
               'distributed sum algorithm'
-         endif
-
-         if ( repro_sum_allow_infnan ) then
-            write(logunit,*) 'cism_REPROSUM_SETOPTS: ',&
-              'Will calculate sum when INF or NaN are included in summands'
-         else
-            write(logunit,*) 'cism_REPROSUM_SETOPTS: ',&
-              'Will abort if INF or NaN are included in summands'
          endif
 
          if (cism_reprosum_reldiffmax >= 0.0_r8) then
@@ -256,7 +237,7 @@ module cism_reprosum_mod
 !
 
    subroutine cism_reprosum_calc(arr, arr_gsum, nsummands, dsummands,     &
-                                 nflds, allow_infnan, ddpdd_sum,          &
+                                 nflds, ddpdd_sum,                        &
                                  arr_gbl_max, arr_gbl_max_out,            &
                                  arr_max_levels, arr_max_levels_out,      &
                                  gbl_max_nsummands, gbl_max_nsummands_out,&
@@ -505,10 +486,6 @@ module cism_reprosum_mod
                                          ! use ddpdd algorithm instead
                                          ! of integer vector algorithm
 
-      logical,  intent(in),    optional :: allow_infnan
-         ! if .true., allow INF or NaN input values.
-         ! if .false. (the default), then abort.
-
       real(r8), intent(in),    optional :: arr_gbl_max(nflds)
                                          ! upper bound on max(abs(arr))
 
@@ -561,8 +538,6 @@ module cism_reprosum_mod
 !
 ! Local workspace
 !
-      logical :: abort_inf_nan           ! flag indicating whether to
-                                         !  abort if INF or NaN found in input
       logical :: use_ddpdd_sum           ! flag indicating whether to
                                          !  use cism_reprosum_ddpdd or not
       logical :: recompute               ! flag indicating need to
@@ -571,17 +546,6 @@ module cism_reprosum_mod
       logical :: validate                ! flag indicating need to
                                          !  verify gmax and max_levels
                                          !  are accurate/sufficient
-      logical :: nan_check, inf_check    ! flag on whether there are
-                                         !  NaNs and INFs in input array
-      logical :: inf_nan_lchecks(3,nflds)! flags on whether there are
-                                         !  NaNs, positive INFs, or negative INFs
-                                         !  for each input field locally
-      logical :: inf_nan_gchecks(3,nflds)! flags on whether there are
-                                         !  NaNs, positive INFs, or negative INFs
-                                         !  for each input field
-      logical :: arr_gsum_infnan(nflds)  ! flag on whether field sum is a
-                                         !  NaN or INF
-
       integer :: gbl_lor_red             ! global lor reduction? (0/1)
       integer :: gbl_max_red             ! global max reduction? (0/1)
       integer :: repro_sum_fast          ! 1 reduction repro_sum? (0/1)
@@ -589,8 +553,6 @@ module cism_reprosum_mod
       integer :: repro_sum_both          ! both fast and slow? (0/1)
       integer :: nonrepro_sum            ! nonrepro_sum? (0/1)
 
-      integer :: nan_count, inf_count    ! local count of NaNs and INFs in
-                                         !  input array
       integer :: omp_nthreads            ! number of OpenMP threads
       integer :: mpi_comm                ! MPI subcommunicator
       integer :: mypid                   ! MPI task ID (COMM_WORLD)
@@ -662,85 +624,6 @@ module cism_reprosum_mod
 #ifndef EAMXX_STANDALONE
 !WHL - commented out since the profile mod does not include tbarrier_f
 !      call t_barrierf('sync_repro_sum',mpi_comm)
-#endif
-
-! Check whether should abort if input contains NaNs or INFs
-      abort_inf_nan = .not. repro_sum_allow_infnan
-      if ( present(allow_infnan) ) then
-         abort_inf_nan = .not. allow_infnan
-      endif
-
-! With Fujitsu always abort on NaNs or INFs in input
-#ifdef CPRFJ
-      abort_inf_nan = .true.
-#endif
-
-#ifndef EAMXX_STANDALONE
-      call t_startf('cism_reprosum_INF_NaN_Chk')
-#endif
-
-! Initialize flags to indicate that no NaNs or INFs are present in the input data
-      inf_nan_gchecks = .false.
-      arr_gsum_infnan = .false.
-
-      !TODO - Remove the inf_nan option; assume abort_inf_nan = T, as in CICE
-      if (abort_inf_nan) then
-
-! Check whether input contains NaNs or INFs, and abort if so
-         nan_check = any(cism_infnan_isnan(arr))
-         inf_check = any(cism_infnan_isinf(arr))
-
-         if (nan_check .or. inf_check) then
-
-            nan_count = count(cism_infnan_isnan(arr))
-            inf_count = count(cism_infnan_isinf(arr))
-
-            if ((nan_count > 0) .or. (inf_count > 0)) then
-               call mpi_comm_rank(MPI_COMM_WORLD, mypid, ierr)
-!               write(s_logunit,37) real(nan_count,r8), real(inf_count,r8), mypid
-               write(iulog,37) real(nan_count,r8), real(inf_count,r8), mypid
-37 format("cism_REPROSUM_CALC: Input contains ",e12.5, &
-          " NaNs and ", e12.5, " INFs on MPI task ", i7)
-               !WHL mod
-!               call shr_sys_abort("shr_reprosum_calc ERROR: NaNs or INFs in input")
-               write(iulog,*) 'cism_reprosum_calc ERROR: NaNs or INFs in input'
-               call mpi_abort(MPI_COMM_WORLD, 1001, ierr)
-               !end WHL mod
-            endif
-
-         endif
-
-#ifndef CPRFJ
-      else
-
-! Determine whether any fields contain NaNs or INFs, and avoid processing them
-! via integer expansions
-         inf_nan_lchecks = .false.
-
-         do ifld=1,nflds
-            inf_nan_lchecks(1,ifld) = any(cism_infnan_isnan(arr(:,ifld)))
-            inf_nan_lchecks(2,ifld) = any(cism_infnan_isposinf(arr(:,ifld)))
-            inf_nan_lchecks(3,ifld) = any(cism_infnan_isneginf(arr(:,ifld)))
-         end do
-#ifndef EAMXX_STANDALONE
-         call t_startf("repro_sum_allr_lor")
-#endif
-         call mpi_allreduce (inf_nan_lchecks, inf_nan_gchecks, 3*nflds, &
-                             MPI_LOGICAL, MPI_LOR, mpi_comm, ierr)
-         gbl_lor_red = 1
-#ifndef EAMXX_STANDALONE
-         call t_stopf("repro_sum_allr_lor")
-#endif
-
-         do ifld=1,nflds
-            arr_gsum_infnan(ifld) = any(inf_nan_gchecks(:,ifld))
-         enddo
-#endif
-
-      endif
-
-#ifndef EAMXX_STANDALONE
-      call t_stopf('cism_reprosum_INF_NaN_Chk')
 #endif
 
 ! Check whether should use cism_reprosum_ddpdd algorithm
@@ -891,7 +774,7 @@ module cism_reprosum_mod
                call cism_reprosum_int(arr, arr_gsum, nsummands, dsummands, &
                                      nflds, arr_max_shift, arr_gmax_exp, &
                                      arr_max_levels, max_level, extra_levels, &
-                                     arr_gsum_infnan, validate, recompute, &
+                                     validate, recompute, &
                                      omp_nthreads, mpi_comm)
 
 ! Record statistics, etc.
@@ -943,15 +826,13 @@ module cism_reprosum_mod
                do ifld=1,nflds
                   arr_exp_tlmin = MAXEXPONENT(1.0_r8)
                   arr_exp_tlmax = MINEXPONENT(1.0_r8)
-                  if (.not. arr_gsum_infnan(ifld)) then
-                     do isum=isum_beg(ithread),isum_end(ithread)
-                        if (arr(isum,ifld) /= 0.0_r8) then
-                           arr_exp = exponent(arr(isum,ifld))
-                           arr_exp_tlmin = min(arr_exp,arr_exp_tlmin)
-                           arr_exp_tlmax = max(arr_exp,arr_exp_tlmax)
-                        endif
-                     end do
-                  endif
+                  do isum=isum_beg(ithread),isum_end(ithread)
+                     if (arr(isum,ifld) /= 0.0_r8) then
+                        arr_exp = exponent(arr(isum,ifld))
+                        arr_exp_tlmin = min(arr_exp,arr_exp_tlmin)
+                        arr_exp_tlmax = max(arr_exp,arr_exp_tlmax)
+                     endif
+                  end do
                   arr_tlmin_exp(ifld,ithread) = arr_exp_tlmin
                   arr_tlmax_exp(ifld,ithread) = arr_exp_tlmax
                end do
@@ -981,8 +862,8 @@ module cism_reprosum_mod
             arr_gmax_exp(:) = -arr_gextremes(1:nflds,1)
             arr_gmin_exp(:) =  arr_gextremes(1:nflds,2)
 
-! If a field is identically zero or contains INFs or NaNs, arr_gmin_exp
-! still equals MAXEXPONENT and arr_gmax_exp still equals MINEXPONENT.
+! If a field is identically zero, arr_gmin_exp still equals MAXEXPONENT
+!  and arr_gmax_exp still equals MINEXPONENT.
 ! In this case, set arr_gmin_exp = arr_gmax_exp = MINEXPONENT
             do ifld=1,nflds
                arr_gmin_exp(ifld) = min(arr_gmax_exp(ifld),arr_gmin_exp(ifld))
@@ -1093,7 +974,7 @@ module cism_reprosum_mod
             call cism_reprosum_int(arr, arr_gsum, nsummands, dsummands, &
                                   nflds, arr_max_shift, arr_gmax_exp, &
                                   max_levels, max_level, extra_levels, &
-                                  arr_gsum_infnan, validate, recompute, &
+                                  validate, recompute, &
                                   omp_nthreads, mpi_comm)
 
          endif
@@ -1122,11 +1003,9 @@ module cism_reprosum_mod
 !$omp default(shared)  &
 !$omp private(ifld, isum)
             do ifld=1,nflds
-               if (.not. arr_gsum_infnan(ifld)) then
-                  do isum=1,nsummands
-                     arr_lsum(ifld) = arr(isum,ifld) + arr_lsum(ifld)
-                  end do
-               endif
+               do isum=1,nsummands
+                  arr_lsum(ifld) = arr(isum,ifld) + arr_lsum(ifld)
+               end do
             end do
 
 #ifndef EAMXX_STANDALONE
@@ -1160,25 +1039,6 @@ module cism_reprosum_mod
          endif
       endif
 
-! Set field sums to NaN and INF, as needed
-      do ifld=1,nflds
-         if (arr_gsum_infnan(ifld)) then
-            if (inf_nan_gchecks(1,ifld)) then
-               ! NaN => NaN
-               arr_gsum(ifld) = cism_infnan_nan
-            else if (inf_nan_gchecks(2,ifld) .and. inf_nan_gchecks(3,ifld)) then
-               ! posINF and negINF => NaN
-               arr_gsum(ifld) = cism_infnan_nan
-            else if (inf_nan_gchecks(2,ifld)) then
-               ! posINF only => posINF
-               arr_gsum(ifld) = cism_infnan_posinf
-            else if (inf_nan_gchecks(3,ifld)) then
-               ! negINF only => negINF
-               arr_gsum(ifld) = cism_infnan_neginf
-            endif
-         endif
-      end do
-
 ! Return statistics
       if ( present(repro_sum_stats) ) then
          repro_sum_stats(1) = repro_sum_stats(1) + repro_sum_fast
@@ -1204,7 +1064,8 @@ module cism_reprosum_mod
 
    subroutine cism_reprosum_int(arr, arr_gsum, nsummands, dsummands, nflds, &
                                 arr_max_shift, arr_gmax_exp, max_levels,    &
-                                max_level, extra_levels, skip_field,        &
+!                                max_level, extra_levels, skip_field,        &
+                                max_level, extra_levels,                    &
                                 validate, recompute, omp_nthreads, mpi_comm )
 !------------------------------------------------------------------------
 !
@@ -1244,11 +1105,6 @@ module cism_reprosum_mod
 
       real(r8), intent(in) :: arr(dsummands,nflds)
                                             ! input array
-
-      logical,  intent(in) :: skip_field(nflds)
-         ! flag indicating whether the sum for this field should be
-         ! computed or not (used to skip over fields containing
-         ! NaN or INF summands)
 
       logical,  intent(in) :: validate
          ! flag indicating that accuracy of solution generated from
@@ -1398,8 +1254,6 @@ module cism_reprosum_mod
           max_error(ifld,ithread) = 0
           not_exact(ifld,ithread) = 0
           i8_arr_tlsum_level(:,ifld,ithread) = 0_i8
-
-          if (skip_field(ifld)) cycle
 
           do isum=isum_beg(ithread),isum_end(ithread)
             arr_remainder = 0.0_r8
