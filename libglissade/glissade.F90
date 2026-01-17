@@ -943,7 +943,7 @@ contains
     !TODO:  Have a single option that is applied with or without glaciers enabled?
 
     if (model%options%which_ho_powerlaw_c == HO_POWERLAW_C_CONSTANT .or. &
-        model%options%is_restart == NO_RESTART) then
+        parallel_is_zero(model%basal_physics%powerlaw_c)) then
        if (model%options%enable_glaciers .and. &
             model%glacier%set_powerlaw_c /= GLACIER_POWERLAW_C_CONSTANT) then
           ! do nothing; see note above
@@ -953,15 +953,29 @@ contains
     endif
 
     ! Initialize coulomb_c
-    ! If inverting for coulomb_c, we read in the saved coulomb_c field on restart.
-    if (model%options%which_ho_coulomb_c == HO_COULOMB_C_CONSTANT .or. &
-        model%options%is_restart == NO_RESTART) then
+    ! Note: If inverting for coulomb_c, then coulomb_c is initialized here.
+    !       On restart, however, the saved coulomb_c (or alternatively,
+    !        coulomb_c_hi and coulomb_c_lo, for the elevation-based option)
+    !        should have been read from the restart file and is not reset here.
 
-       !TODO - Make sure the initialization is correct when reading from an external file in a restart.
-       if (model%options%elevation_based_coulomb_c) then
+    if (model%options%which_ho_coulomb_c == HO_COULOMB_C_CONSTANT) then
 
-          model%basal_physics%coulomb_c_hi = model%basal_physics%coulomb_c_const_hi
-          model%basal_physics%coulomb_c_lo = model%basal_physics%coulomb_c_const_lo
+       model%basal_physics%coulomb_c = model%basal_physics%coulomb_c_const
+
+    else   ! either inverting for coulomb_c or reading values from an input file
+
+       if (model%options%elevation_based_coulomb_c) then  ! need coulomb_c_hi and coulomb_c_lo
+
+          if (parallel_is_zero(model%basal_physics%coulomb_c_hi) .or. &
+              parallel_is_zero(model%basal_physics%coulomb_c_lo)) then
+
+             ! initialize to constants
+             model%basal_physics%coulomb_c_hi = model%basal_physics%coulomb_c_const_hi
+             model%basal_physics%coulomb_c_lo = model%basal_physics%coulomb_c_const_lo
+
+          endif
+
+          ! Given coulomb_c_hi and coulomb_c_lo, compute coulomb_c based on elevation
 
           call glissade_elevation_based_coulomb_c(&
                model%general%ewn,   model%general%nsn,   &
@@ -973,17 +987,24 @@ contains
                model%basal_physics%coulomb_c_bed_hi,     &
                model%basal_physics%coulomb_c)
 
-          call parallel_halo(model%basal_physics%coulomb_c, parallel)
+       else   ! coulomb_c not elevation-based
 
-          if (verbose_inversion) then
-             call point_diag(model%basal_physics%coulomb_c, 'Initial coulomb_c', itest, jtest, rtest, 7, 7)
+          if (parallel_is_zero(model%basal_physics%coulomb_c)) then
+
+             ! initialize to constant
+             model%basal_physics%coulomb_c = model%basal_physics%coulomb_c_const
+
           endif
 
-       else
-          model%basal_physics%coulomb_c = model%basal_physics%coulomb_c_const
+       endif   ! elevation-based
+
+       call parallel_halo(model%basal_physics%coulomb_c, parallel)
+
+       if (verbose_inversion) then
+          call point_diag(model%basal_physics%coulomb_c, 'Initial coulomb_c', itest, jtest, rtest, 7, 7)
        endif
 
-    endif
+    endif   ! coulomb_c options
 
     ! Optionally, do initial calculations for inversion
     ! At the start of the run (but not on restart), this might lead to further thickness adjustments,
@@ -1771,9 +1792,6 @@ contains
     use glissade_therm, only: glissade_therm_driver
     use glissade_basal_water, only: glissade_calcbwat, glissade_bwat_flux_routing
     use glissade_masks, only: glissade_get_masks
-    !WHL - debug
-    use cism_parallel, only: parallel_reduce_max
-    use glissade_utils, only: write_array_to_file
 
     implicit none
 
@@ -2446,6 +2464,7 @@ contains
     use glissade_masks, only: glissade_get_masks, glissade_ocean_connection_mask, &
          glissade_calving_front_mask
     use glissade_grounding_line, only: glissade_grounded_fraction
+
     implicit none
 
     type(glide_global_type), intent(inout) :: model   ! model instance
