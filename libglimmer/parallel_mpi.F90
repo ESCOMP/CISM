@@ -6186,12 +6186,6 @@ contains
          own_ewn     => parallel%own_ewn,      &
          own_nsn     => parallel%own_nsn)
 
-    !WHL - debug
-    if (verbose_reprosum .and. main_task) then
-!       write(iulog,*) 'In parallel_global_sum_real8_2d, reprosum =', parallel%reprosum
-!       write(iulog,*) 'nhalo, local ewn, local_nsn =', nhalo, local_ewn, local_nsn
-    endif
-
     if (present(mask_2d)) then
        mask = mask_2d
     else
@@ -6229,9 +6223,8 @@ contains
 
        parallel_global_sum_real8_2d = arr_gsum(1)
 
-       !WHL - debug
        if (verbose_reprosum .and. main_task) then
-!!          write(iulog,*) 'arr_gsum =', arr_gsum
+!          write(iulog,*) 'arr_gsum =', arr_gsum
        endif
 
        deallocate(arr)
@@ -6331,7 +6324,6 @@ contains
 
        parallel_global_sum_real8_3d = arr_gsum(1)
 
-       !WHL - debug
        if (verbose_reprosum .and. main_task) then
 !          write(iulog,*) 'arr_gsum =', arr_gsum
        endif
@@ -6465,7 +6457,7 @@ contains
        parallel_global_sum_patch_real8_2d(:) = arr_gsum(:)
 
        if (verbose_reprosum .and. main_task) then
-!!          write(iulog,*) 'arr_gsum =', arr_gsum
+!          write(iulog,*) 'arr_gsum =', arr_gsum
        endif
 
        deallocate(arr)
@@ -6567,7 +6559,6 @@ contains
 
        parallel_global_sum_stagger_real8_2d = arr_gsum(1)
 
-       !WHL - debug
        if (verbose_reprosum .and. main_task) then
 !          write(iulog,*) 'arr_gsum =', arr_gsum
        endif
@@ -6683,7 +6674,6 @@ contains
 
        parallel_global_sum_stagger_real8_3d = arr_gsum(1)
 
-       !WHL - debug
        if (verbose_reprosum .and. main_task) then
 !          write(iulog,*) 'arr_gsum =', arr_gsum
        endif
@@ -6751,7 +6741,6 @@ contains
          staggered_jlo, staggered_jhi
 
     ! variables for computing reproductible sums
-!!    integer :: nsummands, nflds      ! dimensions of array passed to parallel_reduce_reprosum
     integer :: nsummands               ! dimensions of array passed to parallel_reduce_reprosum
     integer :: count
     real(dp), dimension(:,:), allocatable :: arr
@@ -6766,7 +6755,6 @@ contains
 
        ! Allocate and fill arrays to pass to parallel_reduce_reprosum
        nsummands = (staggered_ihi-staggered_ilo+1) * (staggered_jhi-staggered_jlo+1)
-!       nflds = size(a,3)
        allocate(arr(nsummands,nflds))
        allocate(arr_gsum(nflds))
 
@@ -6805,7 +6793,6 @@ contains
 
        parallel_global_sum_stagger_real8_2d_nflds = arr_gsum(:)
 
-       !WHL - debug
        if (verbose_reprosum .and. main_task) then
 !          write(iulog,*) 'arr_gsum =', arr_gsum
        endif
@@ -6837,7 +6824,6 @@ contains
 
        enddo   ! nflds
 
-       ! take the global sum
        parallel_global_sum_stagger_real8_2d_nflds = parallel_reduce_sum(local_sum(:))
 
     endif   ! reprosum
@@ -6872,7 +6858,6 @@ contains
          staggered_jlo, staggered_jhi
 
     ! variables for computing reproductible sums
-!!    integer :: nsummands, nflds      ! dimensions of array passed to parallel_reduce_reprosum
     integer :: nsummands               ! dimensions of array passed to parallel_reduce_reprosum
     integer :: count
     real(dp), dimension(:,:), allocatable :: arr
@@ -6888,14 +6873,8 @@ contains
 
     if (parallel%reprosum) then   ! compute using cism_reprosum_calc
 
-       !WHL - debug
-       if (verbose_reprosum .and. main_task) then
-          write(iulog,*) '   In global_sum_stagger_real8_3d_nflds'
-       endif
-
        ! Allocate and fill arrays to pass to parallel_reduce_reprosum
        nsummands = (staggered_ihi-staggered_ilo+1) * (staggered_jhi-staggered_jlo+1) * nz
-!       nflds = size(a,3)
        allocate(arr(nsummands,nflds))
        allocate(arr_gsum(nflds))
 
@@ -6938,7 +6917,6 @@ contains
 
        parallel_global_sum_stagger_real8_3d_nflds = arr_gsum(:)
 
-       !WHL - debug
        if (verbose_reprosum .and. main_task) then
 !          write(iulog,*) 'arr_gsum =', arr_gsum
        endif
@@ -6974,10 +6952,9 @@ contains
 
        enddo   ! nflds
 
-    endif   ! reprosum
+       parallel_global_sum_stagger_real8_3d_nflds = parallel_reduce_sum(local_sum(:))
 
-    ! take the global sum
-    parallel_global_sum_stagger_real8_3d_nflds = parallel_reduce_sum(local_sum(:))
+    endif   ! reprosum
 
   end function parallel_global_sum_stagger_real8_3d_nflds
 
