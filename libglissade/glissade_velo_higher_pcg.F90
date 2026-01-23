@@ -66,7 +66,8 @@
 
   subroutine pcg_solver_standard_3d(nx,        ny,            &
                                     nz,        parallel,      &
-                                    indxA_3d,  active_vertex, &
+                                    indxA_2d,  indxA_3d,      &
+                                    active_vertex,            &
                                     Auu,       Auv,           &
                                     Avu,       Avv,           &
                                     bu,        bv,            &
@@ -137,7 +138,10 @@
        nz                       ! number of vertical levels where velocity is computed
 
     type(parallel_type), intent(in) :: &
-         parallel             ! info for parallel communication
+       parallel               ! info for parallel communication
+
+    integer, dimension(-1:1,-1:1), intent(in) :: &
+       indxA_2d               ! maps relative (x,y) coordinates to an index between 1 and 9
 
     integer, dimension(-1:1,-1:1,-1:1), intent(in) :: &
        indxA_3d               ! maps relative (x,y,z) coordinates to an index between 1 and 27
@@ -188,10 +192,11 @@
     ! Local variables and parameters   
     !---------------------------------------------------------------
 
-    integer ::  i, j, k      ! grid indices
-    integer ::  iA, jA, kA   ! grid offsets ranging from -1 to 1
-    integer ::  m            ! matrix element index
-    integer ::  iter         ! iteration counter
+    integer :: i, j, k        ! grid indices
+    integer :: iA, jA, kA     ! grid offsets ranging from -1 to 1
+    integer :: m              ! matrix element index
+    integer :: ilocal, jlocal ! number of locally owned vertices in each direction
+    integer :: iter           ! iteration counter
 
     real(dp) ::           &
        eta0, eta1, eta2,  &! scalar inner product results
@@ -215,6 +220,36 @@
     real(dp), dimension(-1:1,nz,nx-1,ny-1) ::  &
        Muu, Mvv            ! simplified SIA matrices for preconditioning
 
+    ! arrays for tridiagonal preconditioning
+    ! Note: 2D diagonal entries are Adiag_u and Adiag_v; distinct from 3D Adiagu and Adiagv above
+    real(dp), dimension(:,:), allocatable :: &
+         Asubdiag_u, Adiag_u, Asupdiag_u,  &  ! matrix entries from Auu for tridiagonal preconditioning
+         Asubdiag_v, Adiag_v, Asupdiag_v      ! matrix entries from Avv for tridiagonal preconditioning
+
+    real(dp), dimension(:,:), allocatable :: &
+         omega_u, omega_v,         & ! work arrays for tridiagonal solve
+	 denom_u, denom_v,         &
+         xuh_u,   xuh_v,           &
+         xlh_u,   xlh_v
+
+    ! Note: These two matrices are global in the EW and NS dimensions, respectively.
+    !       Each holds 8 pieces of information for each task on each row or column.
+    !       Since only 2 of these 8 pieces of information change from one iteration to the next,
+    !        it is more efficient to gather the remaining information once and pass the arrays
+    !        with intent(inout), than to declare the arrays in subroutine tridiag_solver_global_2d
+    !        and gather all the information every time the subroutine is called.
+    ! TODO: Revisit this. Is the efficiency gain large enough to justify the extra complexity?
+
+    real(dp), dimension(:,:), allocatable :: &
+         gather_data_row,   &   ! arrays for gathering data from every task on a row or column
+         gather_data_col
+
+    integer :: &
+         tasks_row,         &   ! number of tasks per row and column for tridiagonal solve
+         tasks_col
+
+    logical :: first_time       ! true on the first subroutine call (iter = 1), false thereafter
+
     integer :: &
          staggered_ilo, staggered_ihi, &  ! bounds of locally owned vertices on staggered grid
          staggered_jlo, staggered_jhi
@@ -228,17 +263,29 @@
     staggered_jlo = parallel%staggered_jlo
     staggered_jhi = parallel%staggered_jhi
 
+    tasks_row = parallel%tasks_row
+    tasks_col = parallel%tasks_col
+
     if (verbose_pcg .and. main_task) then
        write(iulog,*) 'Using native PCG solver (standard)'
        write(iulog,*) 'tolerance, maxiters, precond =', tolerance, maxiters, precond
     endif
 
+    ! Compute array sizes for locally owned vertices
+    ilocal = staggered_ihi - staggered_ilo + 1
+    jlocal = staggered_jhi - staggered_jlo + 1
+
     ! Set up matrices for preconditioning
-    !TODO - Add tridiagonal options
 
     call t_startf("pcg_precond_init")
 
-    if (precond == HO_PRECOND_DIAG) then
+    if (precond == HO_PRECOND_NONE) then    ! no preconditioner
+
+       if (verbose_pcg .and. this_rank == rtest) then
+          write(iulog,*) 'Using no preconditioner'
+       endif
+
+    elseif (precond == HO_PRECOND_DIAG) then
 
        call setup_preconditioner_diag_3d(nx,       ny,         &
                                          nz,       indxA_3d,   &
@@ -253,12 +300,6 @@
           write(iulog,*) 'Auu diag =', Adiagu(:,i,j)
           write(iulog,*) 'Avv diag =', Adiagv(:,i,j)
        endif
-
-       !TODO - Create a separate setup for tridiag_local
-       !       For this setup: Pass in Auu and Avv
-       !       Return Adiag/subdiag/supdiag for u and v in halo
-       !       Return omega and denom in halo
-       !       Then M*z = r can compute z in halo
 
     elseif (precond == HO_PRECOND_SIA) then
 
@@ -279,11 +320,79 @@
           enddo  ! i
        endif
 
-    else    ! no preconditioner
+    elseif (precond == HO_PRECOND_TRIDIAG_LOCAL) then
 
-       if (verbose_pcg .and. main_task) then
-          write(iulog,*) 'Using no preconditioner'
-       endif
+       ! Allocate tridiagonal preconditioning matrices
+       allocate(Adiag_u   (nx-1,ny-1))
+       allocate(Asubdiag_u(nx-1,ny-1))
+       allocate(Asupdiag_u(nx-1,ny-1))
+       allocate(omega_u   (nx-1,ny-1))
+       allocate(denom_u   (nx-1,ny-1))
+
+       allocate(Adiag_v   (nx-1,ny-1))
+       allocate(Asubdiag_v(nx-1,ny-1))
+       allocate(Asupdiag_v(nx-1,ny-1))
+       allocate(omega_v   (nx-1,ny-1))
+       allocate(denom_v   (nx-1,ny-1))
+
+       ! Compute arrays for tridiagonal preconditioning
+
+       call setup_preconditioner_tridiag_local_3d(&
+            nx,            ny,            &
+            nz,            parallel,      &
+            active_vertex,                &
+            indxA_2d,      indxA_3d,      &
+            itest, jtest,  rtest,         &
+            Auu,           Avv,           &
+            Muu,           Mvv,           &
+            Adiag_u,       Adiag_v,       &
+            Asubdiag_u,    Asubdiag_v,    &
+            Asupdiag_u,    Asupdiag_v,    &
+            omega_u,       omega_v,       &
+            denom_u,       denom_v)
+
+    elseif (precond == HO_PRECOND_TRIDIAG_GLOBAL) then
+
+       ! Allocate tridiagonal preconditioning matrices
+       ! Note: (i,j) indices are switched for the A_v matrices to reduce striding.
+       allocate(Adiag_u   (ilocal,jlocal))
+       allocate(Asubdiag_u(ilocal,jlocal))
+       allocate(Asupdiag_u(ilocal,jlocal))
+       allocate(omega_u(ilocal,jlocal))
+       allocate(denom_u(ilocal,jlocal))
+       allocate(xuh_u(ilocal,jlocal))
+       allocate(xlh_u(ilocal,jlocal))
+
+       allocate(Adiag_v   (jlocal,ilocal))
+       allocate(Asubdiag_v(jlocal,ilocal))
+       allocate(Asupdiag_v(jlocal,ilocal))
+       allocate(omega_v(jlocal,ilocal))
+       allocate(denom_v(jlocal,ilocal))
+       allocate(xuh_v(jlocal,ilocal))
+       allocate(xlh_v(jlocal,ilocal))
+
+       ! These two matrices are for gathering data from all tasks on a given row or column.
+       allocate(gather_data_row(8*tasks_row,jlocal))
+       allocate(gather_data_col(8*tasks_col,ilocal))
+       gather_data_row = 0.0d0
+       gather_data_col = 0.0d0
+
+       call setup_preconditioner_tridiag_global_3d(&
+            nx,            ny,            &
+            nz,            parallel,      &
+            active_vertex,                &
+            indxA_2d,      indxA_3d,      &
+            ilocal,        jlocal,        &
+            itest, jtest,  rtest,         &
+            Auu,           Avv,           &
+            Muu,           Mvv,           &
+            Adiag_u,       Adiag_v,       &
+            Asubdiag_u,    Asubdiag_v,    &
+            Asupdiag_u,    Asupdiag_v,    &
+            omega_u,       omega_v,       &
+            denom_u,       denom_v,       &
+            xuh_u,         xuh_v,         &
+            xlh_u,         xlh_v)
 
     endif   ! precond
 
@@ -392,6 +501,54 @@
           call easy_sia_solver(nx,   ny,   nz,        &
                                active_vertex,         &
                                Mvv,  rv,   zv)      ! solve Mvv*zv = rv for zv
+
+       elseif (precond == HO_PRECOND_TRIDIAG_LOCAL) then
+
+          ! Use a local tridiagonal solver to find an approximate solution of A*z = r
+
+          call tridiag_solver_local_3d(&
+               nx,            ny,            &
+               nz,            parallel,      &
+               active_vertex,                &
+               itest, jtest,  rtest,         &
+               Adiag_u,       Adiag_v,       &  ! entries of 2D preconditioning matrix
+               Asubdiag_u,    Asubdiag_v,    &
+               Asupdiag_u,    Asupdiag_v,    &
+               omega_u,       omega_v,       &
+               denom_u,       denom_v,       &
+               Muu,           Mvv,           &  ! entries of SIA matrix
+               ru,            rv,            &  ! 3D residual
+               zu,            zv)               ! approximate solution of Az = r
+
+       elseif (precond == HO_PRECOND_TRIDIAG_GLOBAL) then
+
+          ! Use a global tridiagonal solver to find an approximate solution of A*z = r
+
+          if (iter == 1) then
+             first_time = .true.
+          else
+             first_time = .false.
+          endif
+
+          call tridiag_solver_global_3d(&
+               nx,              ny,              &
+               nz,              parallel,        &
+               active_vertex,                    &
+               ilocal,          jlocal,          &
+               tasks_row,       tasks_col,       &
+               itest,  jtest,   rtest,           &
+               Adiag_u,         Adiag_v,         &  ! entries of 2D preconditioning matrix
+               Asubdiag_u,      Asubdiag_v,      &
+               Asupdiag_u,      Asupdiag_v,      &
+               omega_u,         omega_v,         &
+               denom_u,         denom_v,         &
+               xuh_u,           xuh_v,           &
+               xlh_u,           xlh_v,           &
+               Muu,             Mvv,             &  ! entries of SIA matrix
+               gather_data_row, gather_data_col, &
+               first_time,                       &
+               ru,              rv,              &  ! 3D residual
+               zu,              zv)                 ! approximate solution of Az = r
 
        endif    ! precond
 
@@ -606,6 +763,17 @@
 
     enddo iter_loop
 
+    ! Clean up
+    if (allocated(Adiag_u))    deallocate(Adiag_u, Adiag_v)
+    if (allocated(Asubdiag_u)) deallocate(Asubdiag_u, Asubdiag_v)
+    if (allocated(Asupdiag_u)) deallocate(Asupdiag_u, Asupdiag_v)
+    if (allocated(omega_u))    deallocate(omega_u, omega_v)
+    if (allocated(denom_u))    deallocate(denom_u, denom_v)
+    if (allocated(xuh_u))      deallocate(xuh_u, xuh_v)
+    if (allocated(xlh_u))      deallocate(xlh_u, xlh_v)
+    if (allocated(gather_data_row)) deallocate(gather_data_row)
+    if (allocated(gather_data_col)) deallocate(gather_data_col)
+
   end subroutine pcg_solver_standard_3d
 
 !****************************************************************************
@@ -707,7 +875,7 @@
     ! Local variables and parameters   
     !---------------------------------------------------------------
 
-    integer ::  i, j         ! grid indices
+    integer ::  i, j, ii, jj ! grid indices
     integer ::  iter         ! iteration counter
 
     real(dp) ::           &
@@ -729,9 +897,40 @@
        L2_rhs              ! L2 norm of rhs vector b
                            ! solver converges when L2_resid/L2_rhs < tolerance
 
+    ! tridiagonal matrix elements
+    real(dp), dimension(:,:), allocatable :: &
+         Asubdiag_u, Adiag_u, Asupdiag_u,  &  ! matrix entries from Auu for tridiagonal preconditioning
+         Asubdiag_v, Adiag_v, Asupdiag_v      ! matrix entries from Avv for tridiagonal preconditioning
+    
+    real(dp), dimension(:,:), allocatable :: &
+         omega_u, omega_v,         & ! work arrays for tridiagonal solve
+         denom_u, denom_v,         &
+         xuh_u,   xuh_v,           &
+         xlh_u,   xlh_v
+
+    real(dp), dimension(:,:), allocatable :: &
+         b_u, b_v, x_u, x_v
+
+    real(dp), dimension(:,:), allocatable :: &
+         gather_data_row,   &   ! arrays for gathering data from every task on a row or column
+         gather_data_col
+
+    integer :: ilocal, jlocal   ! number of locally owned vertices in each direction   
+
+    integer :: &
+         tasks_row,         &   ! number of tasks per row and column for tridiagonal solve
+         tasks_col
+
+    logical :: first_time       ! true on the first subroutine call (iter = 1), false thereafter
+
     integer :: &
          staggered_ilo, staggered_ihi, &  ! bounds of locally owned vertices on staggered grid
          staggered_jlo, staggered_jhi
+
+    !TODO - Apply the following for tridiag PCs?
+!    integer, parameter :: &
+!         maxiters_tridiag = 100 ! max number of linear iterations for tridiagonal preconditioning,
+!                                ! which generally leads to faster convergence than diagonal preconditioning 
 
     !WHL - debug
     integer :: iu_max, ju_max, iv_max, jv_max
@@ -742,24 +941,160 @@
     staggered_jlo = parallel%staggered_jlo
     staggered_jhi = parallel%staggered_jhi
 
+    tasks_row = parallel%tasks_row
+    tasks_col = parallel%tasks_col
+
     if (verbose_pcg .and. main_task) then
        write(iulog,*) 'Using native PCG solver (standard)'
        write(iulog,*) 'tolerance, maxiters, precond =', tolerance, maxiters, precond
     endif
 
+    ! Compute array sizes for locally owned vertices
+    ilocal = staggered_ihi - staggered_ilo + 1
+    jlocal = staggered_jhi - staggered_jlo + 1
+
     ! Set up matrices for preconditioning
 
-    !TODO - Add tridiagonal option
-
-    if (verbose_pcg .and. main_task) then
-       write(iulog,*) 'Using diagonal matrix for preconditioning'
-    endif  ! verbose_pcg
-
     call t_startf("pcg_precond_init")
-    call setup_preconditioner_diag_2d(nx,         ny,       &
-                                      indxA_2d,             &
-                                      Auu,        Avv,      &
-                                      Adiagu,     Adiagv)
+
+    if (precond == HO_PRECOND_NONE) then    ! no preconditioner
+
+       if (verbose_pcg .and. main_task) then
+          write(iulog,*) 'Using no preconditioner'
+       endif
+
+    elseif (precond == HO_PRECOND_DIAG) then
+
+       if (verbose_pcg .and. main_task) then
+          write(iulog,*) 'Using diagonal matrix for preconditioning'
+       endif  ! verbose_pcg
+
+       call setup_preconditioner_diag_2d(nx,         ny,       &
+                                         indxA_2d,             &
+                                         Auu,        Avv,      &
+                                         Adiagu,     Adiagv)
+
+    elseif (precond == HO_PRECOND_TRIDIAG_LOCAL) then
+
+       !WHL - debug
+       if (verbose_tridiag .and. this_rank==rtest) then
+          i = itest
+          j = jtest
+          write(iulog,*) ' '
+          write(iulog,*) 'r, i, j =', this_rank, i, j
+          write(iulog,*) 'Auu =', Auu(i,j,:)
+          write(iulog,*) 'Avv =', Avv(i,j,:)
+       endif
+
+       allocate(Adiag_u   (nx-1,ny-1))
+       allocate(Asubdiag_u(nx-1,ny-1))
+       allocate(Asupdiag_u(nx-1,ny-1))
+       allocate(omega_u   (nx-1,ny-1))
+       allocate(denom_u   (nx-1,ny-1))
+
+       allocate(Adiag_v   (nx-1,ny-1))
+       allocate(Asubdiag_v(nx-1,ny-1))
+       allocate(Asupdiag_v(nx-1,ny-1))
+       allocate(omega_v   (nx-1,ny-1))
+       allocate(denom_v   (nx-1,ny-1))
+
+       call setup_preconditioner_tridiag_local_2d(&
+            nx,            ny,             &
+            parallel,      indxA_2d,       &
+            itest,         jtest,  rtest,  &
+            Auu,           Avv,            &
+            Adiag_u,       Adiag_v,        &
+            Asubdiag_u,    Asubdiag_v,     &
+            Asupdiag_u,    Asupdiag_v,     &
+            omega_u,       omega_v,        &
+            denom_u,       denom_v)
+
+    elseif (precond == HO_PRECOND_TRIDIAG_GLOBAL) then
+
+       ! Allocate tridiagonal matrices
+       ! Note: (i,j) indices are switced for the A_v matrices to reduce striding.
+
+       allocate(Adiag_u   (ilocal,jlocal))
+       allocate(Asubdiag_u(ilocal,jlocal))
+       allocate(Asupdiag_u(ilocal,jlocal))
+       allocate(omega_u(ilocal,jlocal))
+       allocate(denom_u(ilocal,jlocal))
+       allocate(xuh_u(ilocal,jlocal))
+       allocate(xlh_u(ilocal,jlocal))
+       allocate(b_u(ilocal,jlocal))
+       allocate(x_u(ilocal,jlocal))
+
+       allocate(Adiag_v   (jlocal,ilocal))
+       allocate(Asubdiag_v(jlocal,ilocal))
+       allocate(Asupdiag_v(jlocal,ilocal))
+       allocate(omega_v(jlocal,ilocal))
+       allocate(denom_v(jlocal,ilocal))
+       allocate(xuh_v(jlocal,ilocal))
+       allocate(xlh_v(jlocal,ilocal))
+       allocate(b_v(jlocal,ilocal))
+       allocate(x_v(jlocal,ilocal))
+
+       ! These two matrices are for gathering data from all tasks on a given row or column.
+       allocate(gather_data_row(8*tasks_row,jlocal))
+       allocate(gather_data_col(8*tasks_col,ilocal))
+       gather_data_row = 0.0d0
+       gather_data_col = 0.0d0
+
+       ! Compute the entries of the tridiagonal matrices
+
+       ! Extract tridiagonal matrix entries from Auu
+       do j = 1, jlocal
+          jj = j + staggered_jlo - 1
+          do i = 1, ilocal
+             ii = i + staggered_ilo - 1
+             Asubdiag_u(i,j) = Auu(ii,jj,indxA_2d(-1,0))   ! subdiagonal elements
+             Adiag_u   (i,j) = Auu(ii,jj,indxA_2d( 0,0))   ! diagonal elements
+             Asupdiag_u(i,j) = Auu(ii,jj,indxA_2d( 1,0))   ! superdiagonal elements
+          enddo
+       enddo
+
+       ! compute work arrays for the u solve in each matrix row
+       call setup_preconditioner_tridiag_global_2d(&
+            ilocal,       jlocal,      &
+!!          itest, jtest, rtest,       &
+            itest - staggered_ilo + 1, &  ! itest referenced to (ilocal,jlocal) coordinates
+            jtest - staggered_jlo + 1, &  ! jtest referenced to (ilocal,jlocal) coordinates
+            rtest,                     &
+            Adiag_u,                   &
+            Asubdiag_u,   Asupdiag_u,  &
+            omega_u,      denom_u,     &
+            xuh_u,        xlh_u)
+
+       ! Extract tridiagonal matrix entries from Avv
+
+       do i = 1, ilocal
+          ii = i + staggered_ilo - 1
+          do j = 1, jlocal
+             jj = j + staggered_jlo - 1
+             Asubdiag_v(j,i) = Avv(ii,jj,indxA_2d(0,-1))   ! subdiagonal elements
+             Adiag_v   (j,i) = Avv(ii,jj,indxA_2d(0, 0))   ! diagonal elements
+             Asupdiag_v(j,i) = Avv(ii,jj,indxA_2d(0, 1))   ! superdiagonal elements
+          enddo
+       enddo
+
+       ! compute work arrays for the v solve in each matrix column
+       ! Note: The *_v arrays have dimensions (jlocal,ilocal) to reduce strides
+          
+       call setup_preconditioner_tridiag_global_2d(&
+            jlocal,       ilocal,      &
+!!          itest, jtest, rtest,       &
+            jtest - staggered_jlo + 1, &  ! jtest referenced to (jlocal,ilocal) coordinates
+            itest - staggered_ilo + 1, &  ! itest referenced to (jlocal,ilocal) coordinates
+            rtest,                     &
+            Adiag_v,                   &
+            Asubdiag_v,   Asupdiag_v,  &
+            omega_v,      denom_v,     &
+            xuh_v,        xlh_v)
+
+    endif   ! precond
+
+    if (verbose_pcg .and. main_task) write(iulog,*) 'Done in PC setup'
+
     call t_stopf("pcg_precond_init")
 
     ! Compute initial residual and initialize the direction vector d
@@ -858,6 +1193,143 @@
           enddo    ! i
           enddo    ! j
 
+       elseif(precond == HO_PRECOND_TRIDIAG_LOCAL) then  ! local
+
+          if (verbose_tridiag .and. this_rank == rtest) then
+             i = itest
+             j = jtest
+             write(iulog,*) 'Residual:'
+             write(iulog,*) 'r, i, j, ru:', this_rank, i, j, ru(i,j)
+             write(iulog,*) 'r, i, j, rv:', this_rank, i, j, rv(i,j)
+             write(iulog,*) ' '
+             write(iulog,*) 'jtest =', jtest
+             write(iulog,*) 'i, ru, rv:'
+             do i = itest-3, itest+3
+                write(iulog,'(i4, 2f15.10)') i, ru(i,j), rv(i,j)
+             enddo
+          endif
+
+          if (verbose_pcg .and. main_task) then
+             write(iulog,*) 'call tridiag_solver_local_2d'
+          endif
+
+          ! Solve M*z = r, where M is a local tridiagonal matrix (one matrix per task)
+          !TODO - Test a local solver that can compute zu and zv in the halo
+          !       (to avoid the halo update below)
+
+          call tridiag_solver_local_2d(&
+               nx,            ny,            &
+               parallel,                     &
+               itest, jtest,  rtest,         &
+               Adiag_u,       Adiag_v,       &  ! entries of preconditioning matrix
+               Asubdiag_u,    Asubdiag_v,    &
+               Asupdiag_u,    Asupdiag_v,    &
+               omega_u,       omega_v,       &
+               denom_u,       denom_v,       &
+               ru,            rv,            &  ! right hand side
+               zu,            zv)               ! solution
+       
+          !WHL - debug
+          if (verbose_pcg .and. this_rank == rtest) then
+             j = jtest
+             write(iulog,*) ' '
+             write(iulog,*) 'tridiag solve: i, ru, rv, zu, zv:'
+             do i = itest-3, itest+3
+                write(iulog,'(i4, 4f16.10)') i, ru(i,j), rv(i,j), zu(i,j), zv(i,j)
+             enddo
+          endif
+
+          !Note: Need zu and zv in a row of halo cells so that q = A*d is correct in all locally owned cells
+          !TODO: See whether tridiag solvers could be modified to provide zu and zv in halo cells?
+          call staggered_parallel_halo(zu, parallel)
+          call staggered_parallel_halo(zv, parallel)
+
+       elseif (precond == HO_PRECOND_TRIDIAG_GLOBAL) then   ! tridiagonal preconditioning with global solve
+
+          ! Use a global tridiagonal solver to find an approximate solution of A*z = r
+          if (iter == 1) then
+             first_time = .true.
+          else
+             first_time = .false.
+          endif
+
+          ! convert ru(nx-1,ny-1) to b_u(ilocal,jlocal)
+          do j = 1, jlocal
+             jj = j + staggered_jlo - 1
+             do i = 1, ilocal
+                ii = i + staggered_ilo - 1
+                b_u(i,j) = ru(ii,jj)
+             enddo
+          enddo
+
+          ! Solve M*z = r, where M is a global tridiagonal matrix
+
+          call tridiag_solver_global_2d(&
+               ilocal,       jlocal,      &
+               parallel,     tasks_row,   &
+               'row',                     &  ! tridiagonal solve for each row
+!!                                          itest, jtest, rtest,      &
+               itest - staggered_ilo + 1, &  ! itest referenced to (ilocal,jlocal) coordinates                                  
+               jtest - staggered_jlo + 1, &  ! jtest referenced to (ilocal,jlocal) coordinates
+               rtest,                     &
+               Adiag_u,                   &
+               Asubdiag_u,   Asupdiag_u,  &
+               omega_u,      denom_u,     &
+               xuh_u,        xlh_u,       &
+               b_u,          x_u,         &
+               first_time,                &
+               gather_data_row)
+
+          ! convert x_u(ilocal,jlocal) to zu(nx-1,ny-1)
+          zu(:,:) = 0.0d0
+          do j = 1, jlocal
+             jj = j + staggered_jlo - 1
+             do i = 1, ilocal
+                ii = i + staggered_ilo - 1
+                zu(ii,jj) = x_u(i,j)
+             enddo
+          enddo
+
+          ! convert rv(nx-1,ny-1) to b_v(jlocal,ilocal)
+          do i = 1, ilocal
+             ii = i + staggered_ilo - 1
+             do j = 1, jlocal
+                jj = j + staggered_jlo - 1
+                b_v(j,i) = rv(ii,jj)
+             enddo
+          enddo
+
+          call tridiag_solver_global_2d(&
+               jlocal,       ilocal,      &
+               parallel,     tasks_col,   &
+               'col',                     &  ! tridiagonal solve for each column
+               !!                                          itest, jtest, rtest,      &
+               jtest - staggered_jlo + 1, &  ! jtest referenced to (jlocal,ilocal) coordinates
+               itest - staggered_ilo + 1, &  ! itest referenced to (jlocal,ilocal) coordinates
+               rtest,                     &
+               Adiag_v,                   &
+               Asubdiag_v,   Asupdiag_v,  &
+               omega_v,      denom_v,     &
+               xuh_v,        xlh_v,       &
+               b_v,          x_v,         &
+               first_time,                &
+               gather_data_col)
+
+          ! convert x_v(jlocal,ilocal) to zv(nx-1,ny-1)
+          zv(:,:) = 0.0d0
+          do i = 1, ilocal
+             ii = i + staggered_ilo - 1
+             do j = 1, jlocal
+                jj = j + staggered_jlo - 1
+                zv(ii,jj) = x_v(j,i)
+             enddo
+          enddo
+
+          !Note: Need zu and zv in a row of halo cells so that q = A*d is correct in all locally owned cells
+          !TODO: See whether tridiag_solver_local_2d could be modified to provide zu and zv in halo cells?
+          call staggered_parallel_halo(zu, parallel)
+          call staggered_parallel_halo(zv, parallel)
+          
        endif    ! precond
 
        call t_stopf("pcg_precond")
@@ -1049,6 +1521,19 @@
 
     enddo iter_loop
 
+    ! Clean up
+    if (allocated(Adiag_u))    deallocate(Adiag_u, Adiag_v)
+    if (allocated(Asubdiag_u)) deallocate(Asubdiag_u, Asubdiag_v)
+    if (allocated(Asupdiag_u)) deallocate(Asupdiag_u, Asupdiag_v)
+    if (allocated(omega_u))    deallocate(omega_u, omega_v)
+    if (allocated(denom_u))    deallocate(denom_u, denom_v)
+    if (allocated(xuh_u))      deallocate(xuh_u, xuh_v)
+    if (allocated(xlh_u))      deallocate(xlh_u, xlh_v)
+    if (allocated(b_u))        deallocate(b_u, b_v)
+    if (allocated(x_u))        deallocate(x_u, x_v)
+    if (allocated(gather_data_row)) deallocate(gather_data_row)
+    if (allocated(gather_data_col)) deallocate(gather_data_col)
+
   end subroutine pcg_solver_standard_2d
 
 !****************************************************************************
@@ -1178,7 +1663,7 @@
        nz                               ! number of vertical levels where velocity is computed
 
     type(parallel_type), intent(in) :: &
-         parallel             ! info for parallel communication
+       parallel               ! info for parallel communication
 
     integer, dimension(-1:1,-1:1), intent(in) :: &
        indxA_2d               ! maps relative (x,y) coordinates to an index between 1 and 9
@@ -1284,9 +1769,6 @@
          denom_u, denom_v,         &
          xuh_u,   xuh_v,           &
          xlh_u,   xlh_v
-
-    real(dp), dimension(:,:), allocatable :: &
-         b_u, b_v, x_u, x_v
 
     ! Note: These two matrices are global in the EW and NS dimensions, respectively.
     !       Each holds 8 pieces of information for each task on each row or column.
@@ -2015,6 +2497,8 @@
     if (allocated(denom_u))    deallocate(denom_u, denom_v)
     if (allocated(xuh_u))      deallocate(xuh_u, xuh_v)
     if (allocated(xlh_u))      deallocate(xlh_u, xlh_v)
+    if (allocated(gather_data_row)) deallocate(gather_data_row)
+    if (allocated(gather_data_col)) deallocate(gather_data_col)
 
   end subroutine pcg_solver_chrongear_3d
 
@@ -2115,7 +2599,7 @@
     ! Local variables and parameters   
     !---------------------------------------------------------------
 
-    integer ::  i, j         ! grid indices
+    integer ::  i, j, ii, jj ! grid indices
     integer ::  m            ! matrix element index
     integer ::  iter         ! iteration counter
 
@@ -2130,24 +2614,6 @@
     real(dp), dimension(2) ::   &
        gsum                ! result of global sum for dot products
    
-    ! diagonal matrix elements
-    real(dp), dimension(nx-1,ny-1) ::  &
-       Adiagu, Adiagv      ! diagonal terms of matrices Auu and Avv
-
-    ! tridiagonal matrix elements
-    real(dp), dimension(:,:), allocatable :: &
-         Asubdiag_u, Adiag_u, Asupdiag_u,  &  ! matrix entries from Auu for tridiagonal preconditioning
-         Asubdiag_v, Adiag_v, Asupdiag_v      ! matrix entries from Avv for tridiagonal preconditioning
-
-    real(dp), dimension(:,:), allocatable :: &
-         omega_u, omega_v,         & ! work arrays for tridiagonal solve
-         denom_u, denom_v,         &
-         xuh_u,   xuh_v,           &
-         xlh_u,   xlh_v
-
-    real(dp), dimension(:,:), allocatable :: &
-         b_u, b_v, x_u, x_v
-
     ! vectors (each of these is split into u and v components)
     real(dp), dimension(nx-1,ny-1) ::  &
        ru, rv,            &! residual vector (b-Ax)
@@ -2167,13 +2633,30 @@
        L2_rhs              ! L2 norm of rhs vector = sqrt(b,b)
                            ! solver is converged when L2_resid/L2_rhs < tolerance
 
+    ! diagonal matrix elements
+    real(dp), dimension(nx-1,ny-1) ::  &
+       Adiagu, Adiagv      ! diagonal terms of matrices Auu and Avv
+
+    ! tridiagonal matrix elements
+    real(dp), dimension(:,:), allocatable :: &
+         Asubdiag_u, Adiag_u, Asupdiag_u,  &  ! matrix entries from Auu for tridiagonal preconditioning
+         Asubdiag_v, Adiag_v, Asupdiag_v      ! matrix entries from Avv for tridiagonal preconditioning
+
+    real(dp), dimension(:,:), allocatable :: &
+         omega_u, omega_v,         & ! work arrays for tridiagonal solve
+         denom_u, denom_v,         &
+         xuh_u,   xuh_v,           &
+         xlh_u,   xlh_v
+
+    real(dp), dimension(:,:), allocatable :: &
+         b_u, b_v, x_u, x_v
+
     real(dp), dimension(:,:), allocatable :: &
          gather_data_row,   &   ! arrays for gathering data from every task on a row or column
          gather_data_col
 
     integer :: ilocal, jlocal   ! number of locally owned vertices in each direction
 
-    integer :: ii, jj
     integer :: maxiters_chrongear  ! max number of linear iterations before quitting
 
     integer :: &
@@ -2285,9 +2768,8 @@
             denom_u,       denom_v)
 
     elseif (precond == HO_PRECOND_TRIDIAG_GLOBAL) then
-       !TODO - Figure out why these calculations depend on the number of cores. Halo bug?
 
-       ! Allocate tridiagonal matrices
+       ! Allocate tridiagonal preconditioning matrices
        ! Note: (i,j) indices are switced for the A_v matrices to reduce striding.
 
        allocate(Adiag_u   (ilocal,jlocal))
@@ -2309,6 +2791,12 @@
        allocate(xlh_v(jlocal,ilocal))
        allocate(b_v(jlocal,ilocal))
        allocate(x_v(jlocal,ilocal))
+
+       ! These two matrices are for gathering data from all tasks on a given row or column.
+       allocate(gather_data_row(8*tasks_row,jlocal))
+       allocate(gather_data_col(8*tasks_col,ilocal))
+       gather_data_row = 0.0d0
+       gather_data_col = 0.0d0
 
        ! Compute the entries of the tridiagonal matrices
 
@@ -2548,10 +3036,6 @@
           enddo
        enddo
 
-       ! Initialize the array for gathering information on each row of tasks
-       allocate(gather_data_row(8*tasks_row,jlocal))
-       gather_data_row = 0.0d0
-
        ! Solve M*z = r, where M is a global tridiagonal matrix
 
        call tridiag_solver_global_2d(ilocal,       jlocal,      &
@@ -2588,10 +3072,6 @@
              b_v(j,i) = rv(ii,jj)
           enddo
        enddo
-
-       ! Initialize the array for gathering information on each column of tasks
-       allocate(gather_data_col(8*tasks_col,ilocal))
-       gather_data_col = 0.0d0
 
        call tridiag_solver_global_2d(jlocal,       ilocal,      &
                                      parallel,     tasks_col,   &

@@ -3274,7 +3274,8 @@
              
                 call pcg_solver_standard_3d(nx,           ny,            &
                                             nz,           parallel,      &
-                                            indxA_3d,     active_vertex, &
+                                            indxA_2d,     indxA_3d,      &
+                                            active_vertex,               &
                                             Auu,          Auv,           &
                                             Avu,          Avv,           &
                                             bu,           bv,            &
