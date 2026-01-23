@@ -9463,6 +9463,10 @@
     ! Compute the residual vector Ax - b and its L2 norm.
     ! This subroutine assumes that the matrix is stored in structured (x/y/z) format.
 
+    !----------------------------------------------------------------
+    ! Input/output variables
+    !----------------------------------------------------------------
+
     integer, intent(in) ::   &
        nx, ny,             &  ! horizontal grid dimensions (for scalars)
        nz                     ! number of vertical levels where velocity is computed
@@ -9502,8 +9506,13 @@
     real(dp), intent(out), optional ::    &
        L2_norm_relative    ! L2 norm of residual vector relative to rhs, |Ax - b| / |b|
 
+    !----------------------------------------------------------------
+    ! Local variables
+    !----------------------------------------------------------------
+
     real(dp), dimension(nz,nx-1,ny-1) ::   &
-       resid_sq        ! resid_u^2 + resid_v^2
+       worku, workv,     & ! work arrays for global sums
+       resid_sq            ! resid_u^2 + resid_v^2
 
     real(dp) :: my_max_resid, global_max_resid
 
@@ -9525,78 +9534,60 @@
     resid_u(:,:,:) = 0.d0
     resid_v(:,:,:) = 0.d0
 
-    !TODO - Replace the following by a call to matvec_multiply_structured_3d
     ! Loop over locally owned vertices
-
     do j = staggered_jlo, staggered_jhi
-    do i = staggered_ilo, staggered_ihi
+       do i = staggered_ilo, staggered_ihi
+          if (active_vertex(i,j)) then
+             do k = 1, nz
+                do kA = -1,1
+                   do jA = -1,1
+                      do iA = -1,1
+                         if ( (k+kA >= 1 .and. k+kA <= nz)      &
+                                         .and.                  &
+                              (i+iA >= 1 .and. i+iA <= nx-1)    &
+                                         .and.                  &
+                              (j+jA >= 1 .and. j+jA <= ny-1) ) then
 
-       if (active_vertex(i,j)) then
+                            m = indxA_3d(iA,jA,kA)
 
-          do k = 1, nz
+                            resid_u(k,i,j) = resid_u(k,i,j)                     &
+                                           + Auu(m,k,i,j)*uvel(k+kA,i+iA,j+jA)  &
+                                           + Auv(m,k,i,j)*vvel(k+kA,i+iA,j+jA)
 
-             do kA = -1,1
-             do jA = -1,1
-             do iA = -1,1
-
-                if ( (k+kA >= 1 .and. k+kA <= nz)      &
-                                .and.                  &
-                     (i+iA >= 1 .and. i+iA <= nx-1)    &
-                                .and.                  &
-                     (j+jA >= 1 .and. j+jA <= ny-1) ) then
-
-                   m = indxA_3d(iA,jA,kA)
-
-                   resid_u(k,i,j) = resid_u(k,i,j)                     & 
-                                  + Auu(m,k,i,j)*uvel(k+kA,i+iA,j+jA)  &
-                                  + Auv(m,k,i,j)*vvel(k+kA,i+iA,j+jA)
-
-                   resid_v(k,i,j) = resid_v(k,i,j)                     &
-                                  + Avu(m,k,i,j)*uvel(k+kA,i+iA,j+jA)  &
-                                  + Avv(m,k,i,j)*vvel(k+kA,i+iA,j+jA)
-
-                endif   ! in bounds
-
-             enddo   ! kA
-             enddo   ! iA
-             enddo   ! jA
-
-          enddo   ! k
-
-       endif   ! active_vertex
-
-    enddo   ! i
+                            resid_v(k,i,j) = resid_v(k,i,j)                     &
+                                           + Avu(m,k,i,j)*uvel(k+kA,i+iA,j+jA)  &
+                                           + Avv(m,k,i,j)*vvel(k+kA,i+iA,j+jA)
+                         endif   ! in bounds
+                      enddo   ! kA
+                   enddo   ! iA
+                enddo   ! jA
+             enddo   ! k
+          endif   ! active_vertex
+       enddo   ! i
     enddo   ! j
 
     ! Subtract b to get A*x - b
-    ! Sum up squared L2 norm as we go
 
-    L2_norm = 0.d0
-    resid_sq(:,:,:) = 0.0d0
+    worku(:,:,:) = 0.0d0
+    workv(:,:,:) = 0.0d0
 
     ! Loop over locally owned vertices
-
     do j = staggered_jlo, staggered_jhi
-    do i = staggered_ilo, staggered_ihi
-       if (active_vertex(i,j)) then
-          do k = 1, nz
-             resid_u(k,i,j) = resid_u(k,i,j) - bu(k,i,j)
-             resid_v(k,i,j) = resid_v(k,i,j) - bv(k,i,j)
-             resid_sq(k,i,j) = resid_u(k,i,j)*resid_u(k,i,j) + resid_v(k,i,j)*resid_v(k,i,j)
-             L2_norm = L2_norm + resid_sq(k,i,j)
-          enddo  ! k
-       endif     ! active vertex
-    enddo        ! i
+       do i = staggered_ilo, staggered_ihi
+          if (active_vertex(i,j)) then
+             do k = 1, nz
+                resid_u(k,i,j) = resid_u(k,i,j) - bu(k,i,j)
+                resid_v(k,i,j) = resid_v(k,i,j) - bv(k,i,j)
+                worku(k,i,j) = resid_u(k,i,j)*resid_u(k,i,j)
+                workv(k,i,j) = resid_v(k,i,j)*resid_v(k,i,j)
+             enddo  ! k
+          endif     ! active vertex
+       enddo        ! i
     enddo        ! j
 
     ! Take global sum, then take square root
-    L2_norm = parallel_reduce_sum(L2_norm)
+    L2_norm = parallel_global_sum_stagger(worku, parallel, workv)
     L2_norm = sqrt(L2_norm)
-
-!!    sum_resid_u_sq = parallel_global_sum(bu*bu, parallel, active_vertex)
-!!    sum_resid_v_sq = parallel_global_sum(bv*bv, parallel, active_vertex)
-!!    L2_norm = parallel_global_sum(resid_sq, parallel)
-!!    L2_norm = sqrt(L2_norm)
 
     if (verbose_residual) then
 
@@ -9633,26 +9624,28 @@
 
     if (present(L2_norm_relative)) then   ! compute L2_norm relative to rhs
 
-       L2_norm_rhs = 0.d0
+       worku(:,:,:) = 0.0d0
+       workv(:,:,:) = 0.0d0
 
        do j = staggered_jlo, staggered_jhi
-       do i = staggered_ilo, staggered_ihi
-          if (active_vertex(i,j)) then
-             do k = 1, nz
-                L2_norm_rhs = L2_norm_rhs + bu(k,i,j)*bu(k,i,j) + bv(k,i,j)*bv(k,i,j)
-             enddo  ! k
-          endif     ! active vertex
-       enddo        ! i
+          do i = staggered_ilo, staggered_ihi
+             if (active_vertex(i,j)) then
+                do k = 1, nz
+                   worku(k,i,j) = bu(k,i,j)*bu(k,i,j)
+                   workv(k,i,j) = bv(k,i,j)*bv(k,i,j)
+                enddo  ! k
+             endif     ! active vertex
+          enddo        ! i
        enddo        ! j
 
        ! Take global sum, then take square root
-       L2_norm_rhs = parallel_reduce_sum(L2_norm_rhs)
+       L2_norm_rhs = parallel_global_sum_stagger(worku, parallel, workv)
        L2_norm_rhs = sqrt(L2_norm_rhs)
 
-       if (L2_norm_rhs > 0.d0) then
+       if (L2_norm_rhs > 0.0d0) then
           L2_norm_relative = L2_norm / L2_norm_rhs
        else
-          L2_norm_relative = 0.d0
+          L2_norm_relative = 0.0d0
        endif
 
     endif
@@ -9674,6 +9667,10 @@
 
     ! Compute the residual vector Ax - b and its L2 norm.
     ! This subroutine assumes that the matrix is stored in structured (x/y/z) format.
+
+    !----------------------------------------------------------------
+    ! Input/output arguments
+    !----------------------------------------------------------------
 
     integer, intent(in) ::   &
        nx, ny                 ! horizontal grid dimensions (for scalars)
@@ -9713,8 +9710,13 @@
     real(dp), intent(out), optional ::    &
        L2_norm_relative    ! L2 norm of residual vector relative to rhs, |Ax - b| / |b|
 
+    !----------------------------------------------------------------
+    ! Local variables
+    !----------------------------------------------------------------
+
     real(dp), dimension(nx-1,ny-1) ::  &
-       resid_sq            ! resid_u^2 + resid_v^2
+         worku, workv,     & ! work arrays for global sums
+         resid_sq            ! resid_u^2 + resid_v^2
 
     real(dp) :: my_max_resid, global_max_resid
 
@@ -9760,27 +9762,23 @@
     enddo      ! jA
 
     ! Subtract b to get A*x - b
-    ! Sum up squared L2 norm as we go
-
-    L2_norm = 0.d0
-    resid_sq(:,:) = 0.0d0
+    worku(:,:) = 0.0d0
+    workv(:,:) = 0.0d0
 
     ! Loop over locally owned vertices
-
     do j = staggered_jlo, staggered_jhi
-    do i = staggered_ilo, staggered_ihi
-       if (active_vertex(i,j)) then
-          resid_u(i,j) = resid_u(i,j) - bu(i,j)
-          resid_v(i,j) = resid_v(i,j) - bv(i,j)
-          resid_sq(i,j) = resid_u(i,j)*resid_u(i,j) + resid_v(i,j)*resid_v(i,j)
-          L2_norm = L2_norm + resid_sq(i,j)
-       endif     ! active vertex
-    enddo        ! i
-    enddo        ! j
+       do i = staggered_ilo, staggered_ihi
+          if (active_vertex(i,j)) then
+             resid_u(i,j) = resid_u(i,j) - bu(i,j)
+             resid_v(i,j) = resid_v(i,j) - bv(i,j)
+             worku(i,j) = resid_u(i,j)*resid_u(i,j)
+             workv(i,j) = resid_v(i,j)*resid_v(i,j)
+          endif     ! active vertex
+       enddo     ! i
+    enddo     ! j
 
     ! Take global sum, then take square root
-
-    L2_norm = parallel_reduce_sum(L2_norm)
+    L2_norm = parallel_global_sum_stagger(worku, parallel, workv)
     L2_norm = sqrt(L2_norm)
 
     if (verbose_residual) then
@@ -9795,6 +9793,7 @@
 
        ! Compute max value of (squared) residual on this task.
        ! If this task owns the vertex with the global max residual, then print a diagnostic message.
+       resid_sq(:,:) = worku(:,:) + workv(:,:)
        my_max_resid = maxval(resid_sq)
        global_max_resid = parallel_reduce_max(my_max_resid)
 
@@ -9815,24 +9814,27 @@
 
     if (present(L2_norm_relative)) then   ! compute L2_norm relative to rhs
 
-       L2_norm_rhs = 0.d0
+       worku(:,:) = 0.0d0
+       workv(:,:) = 0.0d0
 
+       ! Loop over locally owned vertices
        do j = staggered_jlo, staggered_jhi
-       do i = staggered_ilo, staggered_ihi
-          if (active_vertex(i,j)) then
-             L2_norm_rhs = L2_norm_rhs + bu(i,j)*bu(i,j) + bv(i,j)*bv(i,j)
-          endif     ! active vertex
-       enddo        ! i
-       enddo        ! j
+          do i = staggered_ilo, staggered_ihi
+             if (active_vertex(i,j)) then
+                worku(i,j) = bu(i,j)*bu(i,j)
+                workv(i,j) = bv(i,j)*bv(i,j)
+             endif     ! active vertex
+          enddo     ! i
+       enddo     ! j
 
        ! Take global sum, then take square root
-       L2_norm_rhs = parallel_reduce_sum(L2_norm_rhs)
+       L2_norm_rhs = parallel_global_sum_stagger(worku, parallel, workv)
        L2_norm_rhs = sqrt(L2_norm_rhs)
 
-       if (L2_norm_rhs > 0.d0) then
+       if (L2_norm_rhs > 0.0d0) then
           L2_norm_relative = L2_norm / L2_norm_rhs
        else
-          L2_norm_relative = 0.d0
+          L2_norm_relative = 0.0d0
        endif
 
     endif
