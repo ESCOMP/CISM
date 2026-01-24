@@ -227,8 +227,8 @@
 !    logical :: verbose_bfric = .true.
     logical :: verbose_trilinos = .false.
 !    logical :: verbose_trilinos = .true.
-!    logical :: verbose_beta = .false.
-    logical :: verbose_beta = .true.
+    logical :: verbose_beta = .false.
+!    logical :: verbose_beta = .true.
     logical :: verbose_efvs = .false.
 !    logical :: verbose_efvs = .true.
     logical :: verbose_tau = .false.
@@ -6022,11 +6022,6 @@
     ! initialize uvel = vvel = 0 except at bed
     uvel(1:nz-1,:,:) = 0.d0
     vvel(1:nz-1,:,:) = 0.d0
-
-    !WHL - debug
-    call point_diag(xVertex, 'xVertex', itest, jtest, rtest, 7, 7)
-    call point_diag(yVertex, 'yVertex', itest, jtest, rtest, 7, 7)
-    call point_diag(active_cell, 'active_cell', itest, jtest, rtest, 7, 7)
 
     ! Compute viscosity integral and strain rates in elements.
     ! Loop over all cells that border locally owned vertices.
