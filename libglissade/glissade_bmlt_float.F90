@@ -49,7 +49,8 @@ module glissade_bmlt_float
   
   private
   public :: verbose_bmlt_float, glissade_basal_melting_float, &
-       glissade_bmlt_float_thermal_forcing_init, glissade_bmlt_float_thermal_forcing
+       glissade_bmlt_float_thermal_forcing_init, glissade_bmlt_float_thermal_forcing, &
+       glissade_thermal_forcing_extrapolate
 
     logical :: verbose_bmlt_float = .false.
 

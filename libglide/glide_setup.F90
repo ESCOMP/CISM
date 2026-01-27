@@ -828,6 +828,7 @@ contains
     call GetValue(section,'enable_acab_dthck_dt_correction',model%options%enable_acab_dthck_dt_correction)
     call GetValue(section,'gthf',model%options%gthf)
     call GetValue(section,'isostasy',model%options%isostasy)
+    call GetValue(section,'submarine_melt',model%options%whichsmmelt)
     call GetValue(section,'marine_margin',model%options%whichcalving)
     call GetValue(section,'calving_init',model%options%calving_init)
     call GetValue(section,'calving_domain',model%options%calving_domain)
@@ -901,6 +902,7 @@ contains
     call GetValue(section, 'block_inception',             model%options%block_inception)
     call GetValue(section, 'remove_ice_caps',             model%options%remove_ice_caps)
     call GetValue(section, 'force_retreat',               model%options%force_retreat)
+    call GetValue(section, 'use_ec_update',               model%options%use_ec_update)
     call GetValue(section, 'which_ho_ice_age',            model%options%which_ho_ice_age)
     call GetValue(section, 'enable_glaciers',             model%options%enable_glaciers)
     call GetValue(section, 'glissade_maxiter',            model%options%glissade_maxiter)
@@ -1061,6 +1063,13 @@ contains
     character(len=*), dimension(0:1), parameter :: isostasy = (/ &
          'no isostasy calculation         ', &
          'compute isostasy with model     ' /)
+    
+    ! TODO - implement subgrid options
+    character(len=*), dimension(0:3), parameter :: submarine_melt = (/ &
+         'no submarine melt                 ', &
+         'constant horizontal meltrate      ', &
+         'ISMIP6 submarine melt forced     ', &
+         'ISMIP6 submarine melt coupled    '/)
 
     !TODO - Change 'marine_margin' to 'calving'?  Would have to modify many config files
     character(len=*), dimension(0:12), parameter :: marine_margin = (/ &
@@ -1447,6 +1456,12 @@ contains
            &USE AT YOUR OWN RISK.', GM_WARNING)
     endif
 
+    if (model%options%whichsmmelt < 0 .or. model%options%whichsmmelt >= size(submarine_melt)) then
+       call write_log('Error, submarine_melt out of range',GM_FATAL)
+    end if
+    write(message,*) 'submarine_melt           : ', model%options%whichsmmelt, submarine_melt(model%options%whichsmmelt)
+    call write_log(message)
+
     if (model%options%whichcalving < 0 .or. model%options%whichcalving >= size(marine_margin)) then
        call write_log('Error, marine_margin out of range',GM_FATAL)
     end if
@@ -1496,7 +1511,12 @@ contains
              call write_log(message)
           endif
        endif
-       
+      
+       if (model%options%use_ec_update == NO_EC_UPDATE) then
+             write(message,*) 'Elevation Classes are turned off. SMB will be calculared ar reference elevation'
+             call write_log(message)
+       end if
+
        if (model%options%expand_calving_mask) then
           if (model%options%whichcalving == CALVING_GRID_MASK .or. model%options%apply_calving_mask) then
              call write_log(' The calving mask will be expanded to include floating ice in select basins')
@@ -1515,6 +1535,13 @@ contains
           write(message,*) 'WARNING: calving float fraction option deprecated with Glissade_dycore; set calving_timescale instead'
           call write_log(message, GM_WARNING)
        endif
+
+        if ( (model%options%whichsmmelt == SMMELT_RATE .or. &
+           model%options%whichsmmelt == SMMELT_ISMIP6 .or. &
+           model%options%whichsmmelt == SMMELT_COUPLED) .and. &
+           (model%options%whichcalving /= CALVING_FLOAT_ZERO) )  then
+          call write_log('Error, SMMELT options require calving option CALVING_FLOAT_ZERO',GM_FATAL)
+       end if
 
        if (model%options%adjust_input_thickness) then
           write(message,*) ' Input ice thickness will be adjusted based on surface and bed topography'
@@ -1537,6 +1564,13 @@ contains
        endif
 
     else   ! not Glissade
+
+
+       if (model%options%whichsmmelt == SMMELT_RATE .or. &
+           model%options%whichsmmelt == SMMELT_ISMIP6 .or. &
+           model%options%whichsmmelt == SMMELT_COUPLED) then
+          call write_log('Error, this submarine melt option is supported for Glissade dycore only', GM_FATAL)
+       endif
 
        if (model%options%whichcalving == CALVING_GRID_MASK .or. &
            model%options%whichcalving == CALVING_THCK_THRESHOLD .or. &
@@ -2295,6 +2329,7 @@ contains
     call GetValue(section,'f_ground_threshold', model%calving%f_ground_threshold)
     call GetValue(section,'cf_advance_retreat_amplitude', model%calving%cf_advance_retreat_amplitude)
     call GetValue(section,'cf_advance_retreat_period',    model%calving%cf_advance_retreat_period)
+    call GetValue(section,'frontal_melt_rate', model%calving%frontal_melt_rate)
 
     ! NOTE: bpar is used only for BTRC_TANH_BWAT
     !       btrac_max and btrac_slope are used (with btrac_const) for BTRC_LINEAR_BMLT
@@ -3971,6 +4006,9 @@ contains
            call glide_add_to_restart_variable_list('reference_thck', model_id)
         endif
 
+        if (options%use_ec_update /= EC_UPDATE) then
+           call glide_add_to_restart_variable_list('usrf_reff', model_id)
+        endif
         ! other Glissade options
 
         ! If overwriting acab in certain grid cells, than overwrite_acab_mask needs to be in the restart file.

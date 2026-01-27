@@ -559,6 +559,57 @@ data:          data%calving%calving_mask
 load:          1
 type:          int
 
+[melt_front_mask]
+dimensions:    time, y1, x1
+units:         1
+long_name:     marine melt front mask
+data:          data%calving%melt_front_mask
+load:          1
+type:          int
+
+[melt_thck]
+dimensions:    time, y1, x1
+units:         meter
+long_name:     thickness of melting ice
+data:          data%calving%melt_thck
+
+[melt_rate]
+dimensions:    time, y1, x1
+units:         meter/year
+long_name:     rate of mass loss by frontal melt
+data:          data%calving%melt_rate
+average:       1
+
+[protected_mask]
+dimensions:    time, y1, x1
+units:         1
+long_name:     protected mask
+data:          data%calving%protected_mask
+load:          1
+type:          int
+
+[calving_front_mask]
+dimensions:    time, y1, x1
+units:         1
+long_name:     calving front mask
+data:          data%calving%calving_front_mask
+load:          1
+type:          int
+
+[thck_effective]
+dimensions:    time, y1, x1
+units:         meter
+long_name:     effective subgrid thickness
+data:          data%calving%thck_effective
+
+[marine_cliff_mask]
+dimensions:    time, y1, x1
+units:         1
+long_name:     marine cliff mask
+data:          data%calving%marine_cliff_mask
+load:          1
+type:          int
+
 [calving_lateral]
 dimensions:    time, y1, x1
 units:         meter/year
@@ -655,6 +706,15 @@ dimensions:    time, y1, x1
 units:         meter
 long_name:     ice upper surface elevation
 data:          data%geometry%usrf
+load:          1
+standard_name: surface_altitude
+
+
+[usrf_reff]
+dimensions:    time, y1, x1
+units:         meter
+long_name:     Reference ice upper surface elevation (observed or simulated)
+data:          data%geometry%usrf_reff
 load:          1
 standard_name: surface_altitude
 
@@ -1292,6 +1352,22 @@ long_name:  second eigenvalue of horizontal strain rate tensor
 data:       data%calving%eps_eigen2
 factor:     scyr
 load:       1
+
+[runoff_applied]
+dimensions:    time, y1, x1
+units:         kg/m2/s
+long_name:     applied surface runoff
+data:          data%calving%runoff_applied
+factor:        1.0
+load:          1
+
+[thermal_forcing_applied]
+dimensions:    time, y1, x1
+units:         degrees K
+long_name:     applied thermal forcing
+data:          data%calving%thermal_forcing_applied
+factor:        1.0
+load:          1
 
 [tau_eff]
 dimensions: time, staglevel, y1, x1

@@ -176,7 +176,12 @@ module glide_types
 
   integer, parameter :: ASTHENOSPHERE_FLUID = 0
   integer, parameter :: ASTHENOSPHERE_RELAXING = 1
-
+ 
+  integer, parameter :: SMMELT_NONE = 0
+  integer, parameter :: SMMELT_RATE = 1
+  integer, parameter :: SMMELT_ISMIP6 = 2
+  integer, parameter :: SMMELT_COUPLED = 3
+  
   integer, parameter :: CALVING_NONE = 0
   integer, parameter :: CALVING_FLOAT_ZERO = 1
   integer, parameter :: CALVING_FLOAT_FRACTION = 2
@@ -200,6 +205,9 @@ module glide_types
   integer, parameter :: FORCE_RETREAT_NONE = 0
   integer, parameter :: FORCE_RETREAT_ALL_ICE = 1
   integer, parameter :: FORCE_RETREAT_FLOATING_ICE = 2
+
+  integer, parameter :: NO_EC_UPDATE = 0
+  integer, parameter :: EC_UPDATE = 1
 
   integer, parameter :: VERTINT_STANDARD = 0
   integer, parameter :: VERTINT_KINEMATIC_BC = 1
@@ -656,6 +664,14 @@ module glide_types
     !> \item[0] no isostatic adjustment
     !> \item[1] compute isostatic adjustment using lithosphere/asthenosphere model
     !> \end{description}
+
+    integer :: whichsmmelt = 0
+    !> Submarine melt: 
+    !> \begin{description} 
+    !> \item[0] No submarine melt
+    !> \item[1] Constant horizontal melt 
+    !> \item[2] ISMIP6 submarine melt
+    !> \item[3] ISMIP6 submarine melt for coupled setup
 
     integer :: whichcalving = 1
 
@@ -1132,6 +1148,11 @@ module glide_types
     !> item[0] do not force retreat
     !> item[1] force retreat of all ice identified by a retreat mask
     !> item[2] force retreat of floating or weakly grounded ice identified by a retreat mask
+    
+    integer :: use_ec_update = 1
+    !> Flag that indicates whether update smb for elevation class changes in coupled or T-compset mode
+    !> item[0] use ec (default(
+    !> item[1] do not use ec
 
     integer :: which_ho_ice_age = 1
     !> Flag that indicates whether to compute a 3d ice age tracer
@@ -1181,6 +1202,9 @@ module glide_types
 
     real(dp),dimension(:,:),pointer :: usrf => null()
     ! elevation of the upper ice surface (m)
+
+     real(dp),dimension(:,:),pointer :: usrf_reff => null()
+    !> Michele 18/12/22: Reference surface elevation.
 
     real(dp),dimension(:,:),pointer :: lsrf => null() 
     ! elevation of the lower ice surface (m)
@@ -1550,6 +1574,13 @@ module glide_types
      real(dp),dimension(:,:),  pointer :: calving_rate_tavg => null()  !> rate of ice loss due to calving (m/yr ice, time average)
      integer, dimension(:,:),  pointer :: calving_mask => null()   !> calve floating ice where the mask = 1 (whichcalving = CALVING_GRID_MASK)
      integer, dimension(:,:),  pointer :: protected_mask => null() !> mask of cells protected from calving when using the subgrid CF scheme
+     real(dp),dimension(:,:),  pointer :: melt_thck => null()      !> thickness loss in grid cell due to frontal melt
+                                                                   !> scaled by thk0 like mass balance, thickness, etc.
+     real(dp),dimension(:,:),  pointer :: melt_rate => null()      !> rate of ice loss due to frontal melt (m/yr ice)
+     real(dp),dimension(:,:),  pointer :: melt_rate_tavg => null() !> rate of ice loss due to frontal melt (m/yr ice, time average)
+     integer, dimension(:,:),  pointer :: melt_front_mask => null()!> mask of cells where subgrid CF melting can take place
+     integer, dimension(:,:),  pointer :: calving_front_mask => null() !> mask of calving front cells 
+     integer, dimension(:,:),  pointer :: marine_cliff_mask => null() !> mask of marine calving cliff cells 
      real(dp),dimension(:,:),  pointer :: thck_effective => null() !> effective thickness for calving (m)
      real(dp),dimension(:,:),  pointer :: effective_areafrac => null() !> effective fractional area, < 1 for partial CF cells (m)
      real(dp),dimension(:,:),  pointer :: lateral_rate => null()   !> lateral calving rate (m/yr, not scaled)
@@ -1557,6 +1588,10 @@ module glide_types
      real(dp),dimension(:,:),  pointer :: tau_eigen2 => null()     !> second eigenvalue of 2D horizontal stress tensor (Pa)
      real(dp),dimension(:,:),  pointer :: eps_eigen1 => null()     !> first eigenvalue of 2D horizontal strain rate tensor (s^-1)
      real(dp),dimension(:,:),  pointer :: eps_eigen2 => null()     !> second eigenvalue of 2D horizontal strain rate tensor (s^-1)
+     real(dp),dimension(:,:),  pointer :: runoff_applied => null() !> applied runoff for GrIS calving (kg/m2/s). This is basin wide
+                                                                   !>  integrated runoff (m3/s), divided by the submerged area (m2) of the
+                                                                   !>  calving front times 1000
+     real(dp),dimension(:,:),  pointer :: thermal_forcing_applied => null()     !> applied 2d thermal forcing for GrIS calving
      real(dp),dimension(:,:,:),pointer :: damage => null()         !> 3D damage tracer, 0 > damage < 1 (whichcalving = CALVING_DAMAGE)
   
      real(dp) :: marine_limit =  -200.d0         !> value of topg/relx at which floating ice calves (m)
@@ -1564,7 +1599,7 @@ module glide_types
      real(dp) :: calving_fraction = 0.2d0        !> fractional thickness of floating ice that calves
                                                  !> (whichcalving = CALVING_FLOAT_FRACTION)
                                                  !> WHL - previously defined as the fraction of floating ice that does not calve
-     real(dp) :: timescale = 0.0d0               !> timescale (yr) for calving (Glissade only); calving_thck = thck*max(dt/calving_timescale,1)
+     real(dp) :: timescale = 0.0d0 !> timescale (yr) for calving (Glissade only); calving_thck = thck*min(dt/calving_timescale,1)
                                                  !> if calving_timescale = 0, then the full column calves at once
      real(dp) :: minthck = 0.d0                  !> minimum thickness (m) of floating ice at marine edge before it calves;
                                                  !> if used, must be set to a nonzero value in the config file
@@ -1596,6 +1631,8 @@ module glide_types
                                                  !> should be negative for CalvingMIP Experiments 2 and 4
           cf_advance_retreat_period = 0.0d0      !> period (yr) for an advance/retreat cycle
                                                  !> period = 0 => constant amplitude
+     real(dp) :: &
+          frontal_melt_rate = 0.0d0              !> frontal submarine melt rate, like lateral retreat rate at MF (m/yr) 
 
   end type glide_calving
 
@@ -3032,6 +3069,7 @@ contains
     ! geometry arrays
     call coordsystem_allocate(model%general%ice_grid, model%geometry%thck)
     call coordsystem_allocate(model%general%ice_grid, model%geometry%usrf)
+    call coordsystem_allocate(model%general%ice_grid, model%geometry%usrf_reff)
     call coordsystem_allocate(model%general%ice_grid, model%geometry%lsrf)
     call coordsystem_allocate(model%general%ice_grid, model%geometry%topg)
     call coordsystem_allocate(model%general%ice_grid, model%geometry%topg_raised)
@@ -3280,6 +3318,12 @@ contains
     call coordsystem_allocate(model%general%ice_grid, model%calving%calving_rate)
     call coordsystem_allocate(model%general%ice_grid, model%calving%calving_rate_tavg)
     call coordsystem_allocate(model%general%ice_grid, model%calving%calving_mask)
+    call coordsystem_allocate(model%general%ice_grid, model%calving%calving_front_mask)
+    call coordsystem_allocate(model%general%ice_grid, model%calving%melt_thck)
+    call coordsystem_allocate(model%general%ice_grid, model%calving%melt_rate)
+    call coordsystem_allocate(model%general%ice_grid, model%calving%melt_rate_tavg)
+    call coordsystem_allocate(model%general%ice_grid, model%calving%melt_front_mask)
+    call coordsystem_allocate(model%general%ice_grid, model%calving%marine_cliff_mask)
     call coordsystem_allocate(model%general%ice_grid, model%calving%protected_mask)
     call coordsystem_allocate(model%general%ice_grid, model%calving%thck_effective)
     call coordsystem_allocate(model%general%ice_grid, model%calving%effective_areafrac)
@@ -3288,12 +3332,29 @@ contains
     call coordsystem_allocate(model%general%ice_grid, model%calving%tau_eigen2)
     call coordsystem_allocate(model%general%ice_grid, model%calving%eps_eigen1)
     call coordsystem_allocate(model%general%ice_grid, model%calving%eps_eigen2)
+    call coordsystem_allocate(model%general%ice_grid, model%calving%runoff_applied)
+    call coordsystem_allocate(model%general%ice_grid, model%calving%thermal_forcing_applied)
     if (model%options%whichcalving == CALVING_DAMAGE) then
        call coordsystem_allocate(model%general%ice_grid, upn-1, model%calving%damage)
     else
        ! allocate with size 1, since they need to be allocated to be passed to calving subroutine
        allocate(model%calving%damage(1,1,1))
     endif
+
+    ! TDOD allocate thermal_forcing only when needed in SMMELT_COUPLED
+    ! Currently always allocating 
+    if (model%options%whichsmmelt == SMMELT_COUPLED) then
+       ! Note: nzocn and nbasin should be set in the [grid_ocn] section of the config file
+       if (model%ocean_data%nzocn < 1) then
+          call write_log('Must set nzocn >= 1 for this smmelt option', GM_FATAL)
+       endif
+       !call coordsystem_allocate(model%general%ice_grid, model%ocean_data%nzocn, &
+       !     model%ocean_data%thermal_forcing)
+       !call coordsystem_allocate(model%general%ice_grid, model%ocean_data%basin_number)      
+    endif
+    call coordsystem_allocate(model%general%ice_grid, model%ocean_data%nzocn, &
+         model%ocean_data%thermal_forcing)
+    call coordsystem_allocate(model%general%ice_grid, model%ocean_data%basin_number)      
 
     ! matrix solver arrays
 
@@ -3740,6 +3801,8 @@ contains
         deallocate(model%geometry%thck)
     if (associated(model%geometry%usrf)) &
         deallocate(model%geometry%usrf)
+    if (associated(model%geometry%usrf_reff)) &
+        deallocate(model%geometry%usrf_reff)
     if (associated(model%geometry%lsrf)) &
         deallocate(model%geometry%lsrf)
     if (associated(model%geometry%topg)) &
@@ -3922,6 +3985,18 @@ contains
         deallocate(model%calving%calving_rate_tavg)
     if (associated(model%calving%calving_mask)) &
         deallocate(model%calving%calving_mask)
+    if (associated(model%calving%calving_front_mask)) &
+        deallocate(model%calving%calving_front_mask)
+    if (associated(model%calving%melt_thck)) &
+        deallocate(model%calving%melt_thck)
+    if (associated(model%calving%melt_rate)) &
+        deallocate(model%calving%melt_rate)
+    if (associated(model%calving%melt_rate_tavg)) &
+        deallocate(model%calving%melt_rate_tavg)
+    if (associated(model%calving%melt_front_mask)) &
+        deallocate(model%calving%melt_front_mask)
+    if (associated(model%calving%marine_cliff_mask)) &
+        deallocate(model%calving%marine_cliff_mask)
     if (associated(model%calving%protected_mask)) &
         deallocate(model%calving%protected_mask)
     if (associated(model%calving%thck_effective)) &
@@ -3930,6 +4005,10 @@ contains
         deallocate(model%calving%effective_areafrac)
     if (associated(model%calving%lateral_rate)) &
         deallocate(model%calving%lateral_rate)
+    if (associated(model%calving%runoff_applied)) &
+        deallocate(model%calving%runoff_applied)
+    if (associated(model%calving%thermal_forcing_applied)) &
+        deallocate(model%calving%thermal_forcing_applied)
     if (associated(model%calving%tau_eigen1)) &
         deallocate(model%calving%tau_eigen1)
     if (associated(model%calving%tau_eigen2)) &

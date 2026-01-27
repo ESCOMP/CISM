@@ -88,8 +88,12 @@ contains
              ! Note that we use the same method for computing topo whether this point is
              ! ice-covered or ice-free. This is in contrast to the method for computing
              ! ice-free topo in glint_upscaling_gcm.
-             topo(i,j) = instance%model%geometry%usrf(i,j)
-             
+              if(instance%model%options%use_ec_update == 1) then
+                  topo(i,j) = instance%model%geometry%usrf(i,j)
+              else
+                   topo(i,j) = instance%model%geometry%usrf_reff(i,j)
+              end if
+
           else
              ! Note that this logic implies that if (in theory) we had an ice-covered
              ! point outside the "active grid", it will get classified as ice-free for
