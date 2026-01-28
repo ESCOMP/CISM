@@ -1258,8 +1258,8 @@ contains
                 nb = basin_number(i,j)
                 if (nb >= 1) then
                    !if (area_sub_sum_basin(nb) > 0.0d0) then
-                   !mp discard values with very low area_sub_sum_basin
-                   if (area_sub_sum_basin(nb) > 1.0d0) then
+                   !mp discard values with very low area_sub_sum_basin, 2 km x 100 m = 200000 m2 as suggested by Donald?
+                   if (area_sub_sum_basin(nb) > 200000d0) then
                       ! Divide basin runoff (m3/s) by basin wide submerged area (m2) and multiply by 1000 to match the ISMIP6 input file units
                       calving%runoff_applied(i,j) = runoff_sum_basin(nb) / area_sub_sum_basin(nb) * 1000.0d0 ! kg/m2/s
                       if(calving%runoff_applied(i,j) .gt. 10.) then
