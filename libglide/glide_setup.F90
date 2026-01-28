@@ -903,6 +903,7 @@ contains
     call GetValue(section, 'remove_ice_caps',             model%options%remove_ice_caps)
     call GetValue(section, 'force_retreat',               model%options%force_retreat)
     call GetValue(section, 'use_ec_update',               model%options%use_ec_update)
+    call GetValue(section, 'stencil_size',                model%options%stencil_size)
     call GetValue(section, 'which_ho_ice_age',            model%options%which_ho_ice_age)
     call GetValue(section, 'enable_glaciers',             model%options%enable_glaciers)
     call GetValue(section, 'glissade_maxiter',            model%options%glissade_maxiter)

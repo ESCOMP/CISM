@@ -1187,6 +1187,32 @@ contains
           !   variable thermal_forcing and assuming runoff is provided
 
 
+         ! Set thermal_forcing_mask
+    ! This mask identifies cells where we could have basal melting and need valid TF data.
+    where (ice_mask == 1 .and. f_ground_cell < 1.0d0 .and. marine_connection_mask == 1)
+       thermal_forcing_mask = 1
+    elsewhere
+       thermal_forcing_mask = 0
+    endwhere
+
+    ! Extend the mask to include neighboring ice-free ocean cells.
+    ! These cells could be ice-filled (and subject to melting) after transport.
+
+    new_mask = thermal_forcing_mask
+
+    do j = 2, ny-1
+       do i = 2, nx-1
+          if (thermal_forcing_mask(i,j) == 0 .and. ocean_mask(i,j) == 1) then
+             if (thermal_forcing_mask(i-1,j) == 1 .or. thermal_forcing_mask(i+1,j) == 1 .or. &
+                 thermal_forcing_mask(i,j-1) == 1 .or. thermal_forcing_mask(i,j+1) == 1) then
+                new_mask(i,j) = 1
+             endif
+          endif
+       enddo
+    enddo
+
+    thermal_forcing_mask = new_mask
+
          call glissade_thermal_forcing_extrapolate(&
             nx,        ny,                     &
             parallel,                          &

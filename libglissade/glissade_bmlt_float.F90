@@ -1253,7 +1253,6 @@ module glissade_bmlt_float
     ! Note: The input thermal_forcing should be set to unphys_val for cells and levels without valid data.
     ! Note: Cells are filled only if they have a connection to the ocean through marine-based cells.
     !       Interior lakes are not filled.
-
     integer, intent(in) ::  &
          nx, ny,               & ! grid dimensions
          itest, jtest, rtest,  & ! coordinates of diagnostic point
@@ -1262,6 +1261,8 @@ module glissade_bmlt_float
     type(parallel_type), intent(in) :: &
          parallel                ! info for parallel communication
 
+    type(glide_global_type), intent(inout) :: model  
+    
     real(dp), dimension(nzocn), intent(in) :: &
          zocn                    ! ocean levels (m, negative below sea level)
 
@@ -1324,9 +1325,11 @@ module glissade_bmlt_float
     real(dp), parameter :: tf_roundoff_threshold = 1.0d0  ! roundoff error threshold for thermal_forcing (deg K)
 
     ! Note: A stencil size of 27 (3 vertical levels, each 3 x 3) seems to give the best results with the fewest iterations
-!    integer, parameter :: stencil_size = 9
-!    integer, parameter :: stencil_size = 25
-    integer, parameter :: stencil_size = 27
+    ! MP: including stencil_size as model option
+
+    !    integer, parameter :: stencil_size = 9
+    !    integer, parameter :: stencil_size = 25
+    !    integer, parameter :: stencil_size = 27
 
     integer, parameter :: max_count_smoothing = 2    ! how many times to apply the Laplacian smoother at a given cell and level
                                                      ! 1 => initial fill only
@@ -1411,7 +1414,7 @@ module glissade_bmlt_float
 !       end do
 
     ! Check that the stencil size is supported
-    if (.not. (stencil_size==9 .or. stencil_size==25 .or. stencil_size==27)) then
+    if (.not. (model%options%stencil_size==9 .or. model%options%stencil_size==25 .or. model%options%stencil_size==27)) then
        call write_log('Error: Choose a supported stencil size for ocean data smoothing (9, 25, 27)', GM_FATAL)
     endif
 
@@ -1452,7 +1455,7 @@ module glissade_bmlt_float
     max_iter = max(parallel%ewtasks, parallel%nstasks) * max(nx-2*nhalo, ny-2*nhalo)
     if (verbose_extrapolate .and. this_rank == rtest) then
        write(iulog,*) 'Max number of iterations =', max_iter
-       write(iulog,*) 'Stencil size =', stencil_size
+       write(iulog,*) 'Stencil size =', model%options%stencil_size
     endif
 
     ! Extrapolate the data into ice-shelf cavities
@@ -1494,7 +1497,7 @@ module glissade_bmlt_float
                    do k = ktop(i,j), kbot(i,j)
                       if (filled_mask(k,i,j) == 0 .or. count_smoothing(k,i,j) < max_count_smoothing) then
 
-                         if (stencil_size == 9) then  ! 9-point horizontal stencil, 1 vertical level
+                         if (model%options%stencil_size == 9) then  ! 9-point horizontal stencil, 1 vertical level
                             ! Apply 9-point Laplacian smoother
                             imin = i-1; imax = i+1
                             jmin = j-1; jmax = j+1
@@ -1524,7 +1527,7 @@ module glissade_bmlt_float
 
                             endif   ! any are filled
 
-                         elseif (stencil_size == 25) then  ! 5 x 5, single level
+                         elseif (model%options%stencil_size == 25) then  ! 5 x 5, single level
                             ! Apply 25-point Laplacian smoother
                             ! Generated the stencil by starting with a 1D 5 point stencil, row1 = (1 4 6 4 1),
                             !  and building it into a 2x2 matrix, with row5 = row1, row2 = row4 = 4*row1, and row3 = 6*row1
@@ -1581,7 +1584,7 @@ module glissade_bmlt_float
 
                             endif   ! any are filled
 
-                         elseif (stencil_size == 27) then  ! 9-point horizontal stencil, 3 vertical levels
+                         elseif (model%options%stencil_size == 27) then  ! 9-point horizontal stencil, 3 vertical levels
                             ! Apply 27-point Laplacian smoother
                             ! Layers above and below use the 9-point stencil above
                             ! Central layer uses the same stencil, multiplied by 2

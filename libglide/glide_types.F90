@@ -1154,6 +1154,10 @@ module glide_types
     !> item[0] use ec (default(
     !> item[1] do not use ec
 
+    integer :: stencil_size = 27
+    !> Integer that indicates stencil size to be used in thermal_forcing extrapolation routine
+    !> Admissible values are 9 (3x3 horizontal), 25 (5x5 horizontal), 27 (3x3 horizontal + 3 vertical)
+
     integer :: which_ho_ice_age = 1
     !> Flag that indicates whether to compute a 3d ice age tracer
     !> \begin{description}
