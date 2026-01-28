@@ -1215,7 +1215,7 @@ contains
 
          call glissade_thermal_forcing_extrapolate(&
             nx,        ny,                     &
-            parallel,                          &
+            parallel, model,                   &
             itest,     jtest,     rtest,       &
             model%ocean_data%nzocn,                  &
             model%ocean_data%zocn,                   &  ! m

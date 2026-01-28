@@ -1563,7 +1563,7 @@ contains
        call glissade_bmlt_float_thermal_forcing(&
             model%options%bmlt_float_thermal_forcing_param, &
             model%options%ocean_data_extrapolate,  &
-            parallel,                              &
+            parallel, model,                       &
             ewn,                nsn,               &
             dew,                dns,               & ! m
             itest,     jtest,   rtest,             &

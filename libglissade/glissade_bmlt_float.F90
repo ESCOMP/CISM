@@ -656,7 +656,7 @@ module glissade_bmlt_float
   subroutine glissade_bmlt_float_thermal_forcing(&
        bmlt_float_thermal_forcing_param, &
        ocean_data_extrapolate,    &
-       parallel,                  &
+       parallel, model,           &
        nx,        ny,             &
        dew,       dns,            &
        itest,     jtest,   rtest, &
@@ -688,7 +688,9 @@ module glissade_bmlt_float
 
     type(parallel_type), intent(in) :: &
          parallel                            !> info for parallel communication
-
+ 
+    type(glide_global_type), intent(inout) :: model  
+    
     integer, intent(in) :: &
          nx, ny                              !> number of grid cells in each direction
 
@@ -881,7 +883,7 @@ module glissade_bmlt_float
 
        call glissade_thermal_forcing_extrapolate(&
             nx,        ny,                     &
-            parallel,                          &
+            parallel, model,                   &
             itest,     jtest,     rtest,       &
             ocean_data%nzocn,                  &
             ocean_data%zocn,                   &  ! m
@@ -1223,7 +1225,7 @@ module glissade_bmlt_float
 
   subroutine glissade_thermal_forcing_extrapolate(&
        nx,              ny,                    &
-       parallel,                               &
+       parallel, model,                        &
        itest,           jtest,        rtest,   &
        nzocn,           zocn,                  &
        lsrf,            topg,                  &
