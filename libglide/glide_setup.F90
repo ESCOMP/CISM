@@ -3837,7 +3837,10 @@ contains
     if (options%bmlt_float_thermal_forcing_param == BMLT_FLOAT_TF_ISMIP6_LOCAL .or.  &
         options%bmlt_float_thermal_forcing_param == BMLT_FLOAT_TF_ISMIP6_NONLOCAL .or. &
         options%bmlt_float_thermal_forcing_param == BMLT_FLOAT_TF_ISMIP6_NONLOCAL_SLOPE .or. &
-        options%which_ho_deltaT_ocn == HO_DELTAT_OCN_INVERSION_BASIN) then
+        options%which_ho_deltaT_ocn == HO_DELTAT_OCN_INVERSION_BASIN .or. &
+        options%whichsmmelt == SMMELT_RATE .or. options%whichsmmelt == SMMELT_ISMIP6 & 
+        .or. options%whichsmmelt == SMMELT_COUPLED) then
+
        call glide_add_to_restart_variable_list('basin_number', model_id)
     endif
 
