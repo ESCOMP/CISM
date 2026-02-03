@@ -227,8 +227,8 @@
 !    logical :: verbose_bfric = .true.
     logical :: verbose_trilinos = .false.
 !    logical :: verbose_trilinos = .true.
-    logical :: verbose_beta = .false.
-!    logical :: verbose_beta = .true.
+!    logical :: verbose_beta = .false.
+    logical :: verbose_beta = .true.
     logical :: verbose_efvs = .false.
 !    logical :: verbose_efvs = .true.
     logical :: verbose_tau = .false.
@@ -1058,11 +1058,13 @@
          uvel_2d_old, vvel_2d_old,  & ! velocity solution from previous nonlinear iteration
          duvel_2d, dvvel_2d,        & ! difference between current and previous velocity solutions
          uvel_2d_sav, vvel_2d_sav,  & ! current best value for velocity solution (smallest residual)
-         beta_internal_sav            ! beta_internal associated with saved velocity
+         beta_internal_sav,         & ! beta_internal associated with saved velocity
+         beta_eff_x_sav, beta_eff_y_sav
 
     real(dp), dimension(:,:,:), allocatable :: &
          Auu_2d_sav, Auv_2d_sav,    & ! assembled matrices associated with (uvel_2d_sav, vvel_2d_sav)
-         Avu_2d_sav, Avv_2d_sav
+         Avu_2d_sav, Avv_2d_sav,    &
+         omega_k_sav
 
     ! for an accelerated 3D solve:
     real(dp), dimension(:,:,:), allocatable :: &
@@ -1288,7 +1290,15 @@
        allocate(vsav_2d(nx-1,ny-1))
        allocate(resid_u_2d(nx-1,ny-1))
        allocate(resid_v_2d(nx-1,ny-1))
-       if (accel_picard) then
+    else   ! 3d
+       allocate(Auu(nNodeNeighbors_3d,nz,nx-1,ny-1))
+       allocate(Auv(nNodeNeighbors_3d,nz,nx-1,ny-1))
+       allocate(Avu(nNodeNeighbors_3d,nz,nx-1,ny-1))
+       allocate(Avv(nNodeNeighbors_3d,nz,nx-1,ny-1))
+    endif
+
+    if (accel_picard) then
+       if (solve_2d) then
           allocate(uvel_2d_old(nx-1,ny-1))
           allocate(vvel_2d_old(nx-1,ny-1))
           allocate(duvel_2d(nx-1,ny-1))
@@ -1299,14 +1309,7 @@
           allocate(Auv_2d_sav(nx-1,ny-1,nNodeNeighbors_2d))
           allocate(Avu_2d_sav(nx-1,ny-1,nNodeNeighbors_2d))
           allocate(Avv_2d_sav(nx-1,ny-1,nNodeNeighbors_2d))
-          allocate(beta_internal_sav(nx-1,ny-1))
-       endif
-    else
-       allocate(Auu(nNodeNeighbors_3d,nz,nx-1,ny-1))
-       allocate(Auv(nNodeNeighbors_3d,nz,nx-1,ny-1))
-       allocate(Avu(nNodeNeighbors_3d,nz,nx-1,ny-1))
-       allocate(Avv(nNodeNeighbors_3d,nz,nx-1,ny-1))
-       if (accel_picard) then
+       else   ! 3d
           allocate(uvel_old(nz,nx-1,ny-1))
           allocate(vvel_old(nz,nx-1,ny-1))
           allocate(duvel(nz,nx-1,ny-1))
@@ -1317,9 +1320,13 @@
           allocate(Auv_sav(nNodeNeighbors_3d,nz,nx-1,ny-1))
           allocate(Avu_sav(nNodeNeighbors_3d,nz,nx-1,ny-1))
           allocate(Avv_sav(nNodeNeighbors_3d,nz,nx-1,ny-1))
-          allocate(beta_internal_sav(nx-1,ny-1))
        endif
-    endif
+       allocate(beta_internal_sav(nx-1,ny-1))
+       !Note: The next three are used only for DIVA, but it's simpler to allocate them regardless
+       allocate(beta_eff_x_sav(nx-1,ny-1))
+       allocate(beta_eff_y_sav(nx-1,ny-1))
+       allocate(omega_k_sav(nz,nx,ny))
+    endif   ! accel_picard
 
     if (whichapprox == HO_APPROX_DIVA) then
 !!       call parallel_halo(efvs, parallel)   ! efvs halo update is in glissade_diagnostic_variable_solve
@@ -2203,8 +2210,7 @@
                         itest,   jtest,     rtest,                &
                         active_vertex,      diva_level_index,     &
                         ice_plus_land_mask,                       &
-                        stag_omega,         omega_k,              &
-                        beta_internal,                            &
+                        omega_k,            beta_internal,        &
                         beta_eff_x,         beta_eff_y,           &
                         stag_theta_slope_x, stag_theta_slope_y,   &
                         stag_diva_slope_factor_x,                 &
@@ -3016,6 +3022,7 @@
 
           if (solve_2d) then
 
+
              call t_startf('glissade_resid_vec')
              call compute_residual_vector_2d(nx,            ny,            &
                                              parallel,                     &
@@ -3032,41 +3039,40 @@
              call t_startf('glissade_accel_picard')
              if (accel_picard) then
 
-                if (verbose_picard) then
-                   if (this_rank == rtest) then
-                      write(iulog,*) ' '
-                      write(iulog,*) 'Saved L2 norm, new L2 norm:', L2_norm_alpha_sav, L2_norm
-                   endif
-                   call point_diag(resid_u_2d, 'resid_u_2d', itest, jtest, rtest, 7, 7, '(e10.3)')
-                   call point_diag(uvel_2d, 'uvel_2d', itest, jtest, rtest, 7, 7, '(f10.3)')
+                if (verbose_picard .and. this_rank == rtest) then
+                   write(iulog,*) ' '
+                   write(iulog,*) 'Saved L2 norm, new L2 norm:', L2_norm_alpha_sav, L2_norm
                 endif
 
                 if (counter >= 2) then
 
-                   call evaluate_accelerated_picard_2d(nx,            ny,                   &
-                                                       L2_norm,       L2_norm_large,        &
-                                                       L2_norm_alpha_sav,                   &
-                                                       alpha_accel,   alpha_accel_max,      &
-                                                       gamma_accel,   resid_reduction_threshold,  &
-                                                       uvel_2d,       vvel_2d,              &
-                                                       Auu_2d,        Auv_2d,               &
-                                                       Avu_2d,        Avv_2d,               &
-                                                       uvel_2d_old,   vvel_2d_old,          &
-                                                       duvel_2d,      dvvel_2d,             &
-                                                       uvel_2d_sav,   vvel_2d_sav,          &
-                                                       Auu_2d_sav,    Auv_2d_sav,           &
-                                                       Avu_2d_sav,    Avv_2d_sav,           &
-                                                       beta_internal, beta_internal_sav,    &
-                                                       assembly_is_done)
+                   call evaluate_accelerated_picard_2d(&
+                        whichapprox,   rtest,                &
+                        L2_norm,       L2_norm_large,        &
+                        L2_norm_alpha_sav,                   &
+                        alpha_accel,   alpha_accel_max,      &
+                        gamma_accel,   resid_reduction_threshold,  &
+                        uvel_2d,       vvel_2d,              &
+                        Auu_2d,        Auv_2d,               &
+                        Avu_2d,        Avv_2d,               &
+                        uvel_2d_old,   vvel_2d_old,          &
+                        duvel_2d,      dvvel_2d,             &
+                        uvel_2d_sav,   vvel_2d_sav,          &
+                        Auu_2d_sav,    Auv_2d_sav,           &
+                        Avu_2d_sav,    Avv_2d_sav,           &
+                        beta_internal, beta_internal_sav,    &
+                        beta_eff_x,    beta_eff_x_sav,       &
+                        beta_eff_y,    beta_eff_y_sav,       &
+                        omega_k,       omega_k_sav,          &
+                        assembly_is_done)
 
                 else   ! counter = 1
 
                    ! proceed to the matrix solution
                    assembly_is_done = .true.
 
-                   if (verbose_picard .and. main_task) then
-                      write(iulog,*) 'nonlinear counter = 1; continue to matrix solver'
-                   endif
+                   if (verbose_picard .and. this_rank == rtest) &
+                        write(iulog,*) 'nonlinear counter = 1; continue to matrix solver'
 
                 endif  ! counter >= 2
 
@@ -3107,20 +3113,22 @@
 
                 if (counter >= 2) then
 
-                   call evaluate_accelerated_picard_3d(L2_norm,       L2_norm_large,        &
-                                                       L2_norm_alpha_sav,                   &
-                                                       alpha_accel,   alpha_accel_max,      &
-                                                       gamma_accel,   resid_reduction_threshold,  &
-                                                       uvel,          vvel,                 &
-                                                       Auu,           Auv,                  &
-                                                       Avu,           Avv,                  &
-                                                       uvel_old,      vvel_old,             &
-                                                       duvel,         dvvel,                &
-                                                       uvel_sav,      vvel_sav,             &
-                                                       Auu_sav,       Auv_sav,              &
-                                                       Avu_sav,       Avv_sav,              &
-                                                       beta_internal, beta_internal_sav,    &
-                                                       assembly_is_done)
+                   call evaluate_accelerated_picard_3d(&
+                        rtest,                               &
+                        L2_norm,       L2_norm_large,        &
+                        L2_norm_alpha_sav,                   &
+                        alpha_accel,   alpha_accel_max,      &
+                        gamma_accel,   resid_reduction_threshold,  &
+                        uvel,          vvel,                 &
+                        Auu,           Auv,                  &
+                        Avu,           Avv,                  &
+                        uvel_old,      vvel_old,             &
+                        duvel,         dvvel,                &
+                        uvel_sav,      vvel_sav,             &
+                        Auu_sav,       Auv_sav,              &
+                        Avu_sav,       Avv_sav,              &
+                        beta_internal, beta_internal_sav,    &
+                        assembly_is_done)
 
                 else   ! counter = 1
 
@@ -3545,8 +3553,7 @@
                   itest,   jtest,     rtest,                &
                   active_vertex,      diva_level_index,     &
                   ice_plus_land_mask,                       &
-                  stag_omega,         omega_k,              &
-                  beta_internal,                            &
+                  omega_k,            beta_internal,        &
                   beta_eff_x,         beta_eff_y,           &
                   stag_theta_slope_x, stag_theta_slope_y,   &
                   stag_diva_slope_factor_x,                 &
@@ -3840,6 +3847,8 @@
           deallocate(uvel_2d_sav, vvel_2d_sav)
           deallocate(Auu_2d_sav, Auv_2d_sav, Avu_2d_sav, Avv_2d_sav)
           deallocate(beta_internal_sav)
+          deallocate(beta_eff_x_sav, beta_eff_y_sav)
+          deallocate(omega_k_sav)
        endif
     else
        deallocate(Auu, Auv, Avu, Avv)
@@ -5717,8 +5726,7 @@
        itest,    jtest,     rtest,              &
        active_vertex,       diva_level_index,   &
        ice_plus_land_mask,                      &
-       stag_omega,          omega_k,            &
-       beta,                                    &
+       omega_k,             beta,               &
        beta_eff_x,          beta_eff_y,         &
        stag_theta_slope_x,  stag_theta_slope_y, &
        stag_diva_slope_factor_x,                &
@@ -5768,9 +5776,6 @@
        stag_theta_slope_y, & ! slope angle (radians) in y direction at vertices
        stag_diva_slope_factor_x, & ! slope correction factor in x direction
        stag_diva_slope_factor_y, & ! slope correction factor in y direction
-       stag_omega,      & ! double integral, defined by Goldberg eq. 35 (m^2/(Pa yr))
-                          ! already interpolated to staggered grid
-                          ! Note: omega here = Goldberg's omega/H
        uvel_2d, vvel_2d   ! depth-integrated mean velocity; solution of 2D velocity solve (m/yr)
 
     real(dp), dimension(nx-1,ny-1), intent(out) ::  &
@@ -5786,12 +5791,6 @@
     real(dp), dimension(nz,nx-1,ny-1) ::  &
          stag_omega_k       ! single integral, defined by Goldberg eq. 32 (m^2/(Pa yr))
                             ! interpolated to staggered grid
-
-    real(dp), dimension(nx-1,ny-1) ::  &
-         stag_integral      ! integral that relates bed velocity to uvel_2d and vvel_2d
-                            ! = stag_omega for diva_level_index = 0
-                            ! = stag_omega_k(k,:,:) for other values of diva_level_index
-
 
     real(dp) ::  &
          slope_correction_x, & ! slope-based correction for vertical shear in x direction
@@ -5811,15 +5810,6 @@
                              ice_plus_land_mask,                    &
                              stagger_margin_in = 1)
     enddo
-
-    ! Identify the appropriate integral for relating uvel_2d/vvel_2d to the bed velocity
-
-    if (diva_level_index == 0) then  ! solved for mean velocity
-       stag_integral(:,:) = stag_omega(:,:)
-    else
-       k = diva_level_index
-       stag_integral(:,:) = stag_omega_k(k,:,:)
-    endif
 
     !----------------------------------------------------------------
     ! Compute the 3D velocity field
@@ -7967,7 +7957,7 @@
     !----------------------------------------------------------------
 
     integer, intent(in) :: &
-         whichapprox     ! which Stokes approximation to use (BP, SIA, SSA)
+         whichapprox     ! which Stokes approximation to use (SIA, SSA, DIVA, L1L2, BP)
 
     integer, intent(in) :: nNodesPerElement  ! number of nodes per element
 
@@ -9576,9 +9566,11 @@
        if (this_rank==rtest) then
           i = itest
           j = jtest
-          write(iulog,*) 'In compute_residual_vector_2d: task, i, j =', this_rank, i, j
-          write(iulog, '(a16, 2f13.7, 2e13.5)') &
-               '  u, v, ru, rv: ', uvel(i,j), vvel(i,j), resid_u(i,j), resid_v(i,j)
+          call parallel_globalindex(i, j, iglobal, jglobal, parallel)
+          write(iulog,*) ' '
+          write(iulog,*) 'In compute_residual_vector_2d: test ig, jg =', i, j
+          write(iulog, '(a15, 2f12.5, 2e13.5)') &
+               '  u, v, ru, rv:', uvel(i,j), vvel(i,j), resid_u(i,j), resid_v(i,j)
        endif
 
        ! Compute max value of (squared) residual on this task.
@@ -9592,7 +9584,7 @@
              do i = staggered_ilo, staggered_ihi
                 if (abs((resid_sq(i,j) - global_max_resid)/global_max_resid) < 1.0d-6) then
                    call parallel_globalindex(i, j, iglobal, jglobal, parallel)
-                   write(iulog, '(a24, 2i6, 2e13.5, e16.8)') 'ig, jg, ru, rv, rmax:', &
+                   write(iulog, '(a24, 2i6, 2e13.5, e16.8)') 'ig, jg, ru, rv, global rmax:', &
                         iglobal, jglobal, resid_u(i,j), resid_v(i,j), sqrt(global_max_resid)
                    write(iulog,*) ' '
                 endif
@@ -9839,7 +9831,7 @@
 !****************************************************************************
 
   subroutine evaluate_accelerated_picard_2d(&
-       nx,            ny,                   &
+       whichapprox,   rtest,                &
        L2_norm,       L2_norm_large,        &
        L2_norm_alpha_sav,                   &
        alpha_accel,   alpha_accel_max,      &
@@ -9853,10 +9845,14 @@
        Auu_2d_sav,    Auv_2d_sav,           &
        Avu_2d_sav,    Avv_2d_sav,           &
        beta_internal, beta_internal_sav,    &
+       beta_eff_x,    beta_eff_x_sav,       &
+       beta_eff_y,    beta_eff_y_sav,       &
+       omega_k,       omega_k_sav,          &
        assembly_is_done)
 
     integer, intent(in) :: &
-         nx,  ny                    ! number of grid cells in each direction
+         rtest,                  &  ! rank for diagnostic point
+         whichapprox                ! which Stokes approximation to use (SIA, SSA, DIVA, L1L2, BP)
 
     real(dp), intent(in) :: &
          L2_norm,                &  ! latest value of L2 norm of residual
@@ -9869,7 +9865,7 @@
          alpha_accel,            &  ! factor for extending the vector (duvel, dvvel) to reduce the residual
          L2_norm_alpha_sav          ! value of L2 norm of residual, given the previous alpha_accel
 
-    real(dp), dimension(nx-1,ny-1), intent(inout) ::  &
+    real(dp), dimension(:,:), intent(inout) ::  &
          uvel_2d,     vvel_2d,         & ! latest guess for the velocity solution
          uvel_2d_old, vvel_2d_old,     & ! velocity solution from previous nonlinear iteration
          duvel_2d,    dvvel_2d,        & ! difference between old velocity solution and latest solution
@@ -9877,7 +9873,14 @@
          beta_internal,                & ! beta_internal as a function of uvel_2d and vvel_2d
          beta_internal_sav               ! beta_internal as a function of uvel_2d_sav and vvel_2d_sav
 
-    real(dp), dimension(nx-1,ny-1,nNodeNeighbors_2d), intent(inout) ::  &
+    real(dp), dimension(:,:), intent(inout) ::  &
+         beta_eff_x, beta_eff_x_sav, &
+         beta_eff_y, beta_eff_y_sav
+
+    real(dp), dimension(:,:,:), intent(inout) ::  &
+         omega_k, omega_k_sav
+
+    real(dp), dimension(:,:,:), intent(inout) ::  &
          Auu_2d,      Auv_2d,          & ! latest assembled matrices as a function of uvel_2d and vvel_2d
          Avu_2d,      Avv_2d,          &
          Auu_2d_sav,  Auv_2d_sav,      & ! assembled matrices as a function of uvel_2d_sav and vvel_2d_sav
@@ -9886,6 +9889,10 @@
     logical, intent(inout) :: &
          assembly_is_done                ! if true, then accept the current assembled matrices and proceed to solution
 
+    if (verbose_picard .and. this_rank == rtest) then
+       write(iulog,*) 'Evaluate Picard acceleration: L2_norm_sav, L2_norm:', L2_norm_alpha_sav, L2_norm
+    endif
+
     if (L2_norm < resid_reduction_threshold*L2_norm_alpha_sav .and. &
          alpha_accel + gamma_accel <= alpha_accel_max) then
 
@@ -9893,7 +9900,6 @@
        ! ("Substantially" is defined by the factor resid_reduction_threshold < 1.)
 
        ! Save the latest values of the solver inputs
-
        uvel_2d_sav = uvel_2d
        vvel_2d_sav = vvel_2d
        Auu_2d_sav = Auu_2d
@@ -9901,27 +9907,28 @@
        Avu_2d_sav = Avu_2d
        Avv_2d_sav = Avv_2d
        beta_internal_sav = beta_internal
+       if (whichapprox == HO_APPROX_DIVA) then
+          beta_eff_x_sav = beta_eff_x
+          beta_eff_y_sav = beta_eff_y
+          omega_k_sav = omega_k
+       endif
 
        ! Increase alpha_accel and see if the residual keeps getting smaller.
        ! If not, we will back off to the saved values above.
        alpha_accel = alpha_accel + gamma_accel
        L2_norm_alpha_sav = L2_norm
 
-       if (verbose_picard .and. main_task) then
-          write(iulog,*) 'Keep going, alpha =', alpha_accel
+       if (verbose_picard .and. this_rank == rtest) then
+          write(iulog,*) 'Increase alpha to', alpha_accel
        endif
 
        ! Since assembly_is_done = F, we now return to the start of the loop:
-       ! do while (.not.assembly_is_done)
+       !    do while (.not.assembly_is_done)
 
     elseif (L2_norm < L2_norm_alpha_sav) then
 
        ! The residual norm decreased only a little (or we have reached alpha_accel_max).
        ! Call it good and move on to the solver.
-
-       if (verbose_picard .and. main_task) then
-          write(iulog,*) 'Hold, alpha =', alpha_accel
-       endif
 
        ! Save this velocity as the starting point for the next nonlinear iteration
        uvel_2d_old = uvel_2d
@@ -9934,8 +9941,12 @@
        ! proceed to the matrix solution
        assembly_is_done = .true.
 
-    else
+       if (verbose_picard .and. this_rank == rtest) then
+          write(iulog,*) 'Hold alpha at', alpha_accel
+          write(iulog,*) ' Continue to matrix solver'
+       endif
 
+    else
        ! The residual is larger than the previous value.
        ! Switch back to the previously saved velocity and matrix with the lower residual.
        uvel_2d = uvel_2d_sav
@@ -9945,15 +9956,15 @@
        Avu_2d = Avu_2d_sav
        Avv_2d = Avv_2d_sav
        beta_internal = beta_internal_sav
+       if (whichapprox == HO_APPROX_DIVA) then
+          beta_eff_x = beta_eff_x_sav
+          beta_eff_y = beta_eff_y_sav
+          omega_k = omega_k_sav
+       endif
 
        ! Save this velocity as the starting point for the next nonlinear iteration
        uvel_2d_old = uvel_2d
        vvel_2d_old = vvel_2d
-
-       if (verbose_picard .and. main_task) then
-          write(iulog,*) 'Back up to alpha =', alpha_accel - gamma_accel
-          write(iulog,*) 'Continue to matrix solver'
-       endif
 
        ! Reset alpha_accel and L2_norm_alpha_sav for the next nonlinear iteration
        alpha_accel = 1.0d0
@@ -9962,6 +9973,11 @@
        ! proceed to the matrix solution
        assembly_is_done = .true.
 
+       if (verbose_picard .and. this_rank == rtest) then
+          write(iulog,*) 'Reduce alpha to', alpha_accel - gamma_accel
+          write(iulog,*) 'Continue to matrix solver'
+       endif
+
     endif  ! L2_norm of residual has reduced
 
   end subroutine evaluate_accelerated_picard_2d
@@ -9969,6 +9985,7 @@
 !****************************************************************************
 
   subroutine evaluate_accelerated_picard_3d(&
+       rtest,                               &
        L2_norm,       L2_norm_large,        &
        L2_norm_alpha_sav,                   &
        alpha_accel,   alpha_accel_max,      &
@@ -9983,6 +10000,8 @@
        Avu_sav,       Avv_sav,              &
        beta_internal, beta_internal_sav,    &
        assembly_is_done)
+
+    integer, intent(in) :: rtest    ! rank for diagnostic point
 
     real(dp), intent(in) :: &
          L2_norm,                &  ! latest value of L2 norm of residual
@@ -10035,8 +10054,8 @@
        alpha_accel = alpha_accel + gamma_accel
        L2_norm_alpha_sav = L2_norm
 
-       if (verbose_picard .and. main_task) then
-          write(iulog,*) 'Keep going, alpha =', alpha_accel
+       if (verbose_picard .and. this_rank == rtest) then
+          write(iulog,*) 'Increase alpha to', alpha_accel
        endif
 
        ! Since assembly_is_done = F, we now return to the start of the loop:
@@ -10062,6 +10081,11 @@
        ! proceed to the matrix solution
        assembly_is_done = .true.
 
+       if (verbose_picard .and. this_rank == rtest) then
+          write(iulog,*) 'Hold alpha at', alpha_accel
+          write(iulog,*) ' Continue to matrix solver'
+       endif
+
     else
 
        ! The residual is larger than the previous value.
@@ -10078,17 +10102,17 @@
        uvel_old = uvel
        vvel_old = vvel
 
-       if (verbose_picard .and. main_task) then
-          write(iulog,*) 'Back up to alpha =', alpha_accel - gamma_accel
-          write(iulog,*) 'Continue to matrix solver'
-       endif
-
        ! Reset alpha_accel and L2_norm_alpha_sav for the next nonlinear iteration
        alpha_accel = 1.0d0
        L2_norm_alpha_sav = L2_norm_large
 
        ! proceed to the matrix solution
        assembly_is_done = .true.
+
+       if (verbose_picard .and. main_task) then
+          write(iulog,*) 'Back up to alpha =', alpha_accel - gamma_accel
+          write(iulog,*) 'Continue to matrix solver'
+       endif
 
     endif  ! L2_norm of residual has reduced
 
