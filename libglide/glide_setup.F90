@@ -1129,9 +1129,9 @@ contains
          'power law                                        ', &
          'Coulomb friction law w/ effec press              ', &
          'Schoof friction law                              ', &
+         'modified Schoof friction law                     ', &
          'min of Coulomb stress and power-law stress (Tsai)', &
          'power law using effective pressure               ', &
-         'simple pattern of beta                           ', &
          'till yield stress (Picard)                       ' /)
 
     character(len=*), dimension(0:1), parameter :: ho_whichbeta_limit = (/ &
@@ -1829,8 +1829,8 @@ contains
 
        if (model%options%use_c_space_factor) then
           if (model%options%which_ho_babc == HO_BABC_COULOMB_FRICTION .or.  &
-              model%options%which_ho_babc == HO_BABC_COULOMB_POWERLAW_SCHOOF .or. &
-              model%options%which_ho_babc == HO_BABC_COULOMB_POWERLAW_TSAI) then
+              model%options%which_ho_babc == HO_BABC_SCHOOF .or. &
+              model%options%which_ho_babc == HO_BABC_TSAI) then
              write(message,*) 'Multiplying beta by C_space_factor'
              call write_log(message)
           else
@@ -1879,18 +1879,19 @@ contains
 
        ! Inversion options
 
-       ! Note: Inversion for Cp is currently supported for the Schoof sliding law, Tsai law, and basic power law
+       ! Note: Inversion for Cp is supported for the basic power law plus the Schoof and Tsai laws
        if (model%options%which_ho_powerlaw_c == HO_POWERLAW_C_INVERSION .or. &
            model%options%which_ho_powerlaw_c == HO_POWERLAW_C_INVERSION_BASIN) then
 
-          if (model%options%which_ho_babc == HO_BABC_COULOMB_POWERLAW_SCHOOF .or.  &
-              model%options%which_ho_babc == HO_BABC_COULOMB_POWERLAW_TSAI .or.  &
-              model%options%which_ho_babc == HO_BABC_POWERLAW) then
+          if (model%options%which_ho_babc == HO_BABC_POWERLAW .or. &
+              model%options%which_ho_babc == HO_BABC_SCHOOF .or.  &
+              model%options%which_ho_babc == HO_BABC_MODIFIED_SCHOOF .or.  &
+              model%options%which_ho_babc == HO_BABC_TSAI) then
              ! inversion for Cp is supported
           else
              call write_log('Error, Cp inversion is not supported for this basal BC option')
              write(message,*) 'Cp inversion is supported for these options: ', &
-                  HO_BABC_COULOMB_POWERLAW_SCHOOF, HO_BABC_COULOMB_POWERLAW_TSAI, HO_BABC_POWERLAW
+                  HO_BABC_POWERLAW, HO_BABC_SCHOOF, HO_BABC_MODIFIED_SCHOOF, HO_BABC_TSAI
              call write_log(message, GM_FATAL)
           endif
        endif
@@ -1900,12 +1901,13 @@ contains
            model%options%which_ho_coulomb_c == HO_COULOMB_C_INVERSION_BASIN) then
 
           if (model%options%which_ho_babc == HO_BABC_ZOET_IVERSON .or. &
-              model%options%which_ho_babc == HO_BABC_PSEUDO_PLASTIC) then
+              model%options%which_ho_babc == HO_BABC_PSEUDO_PLASTIC .or. &
+              model%options%which_ho_babc == HO_BABC_MODIFIED_SCHOOF) then
              ! inversion for Cc is supported
           else
              call write_log('Error, Cc inversion is not supported for this basal BC option')
              write(message,*) 'Cc inversion is supported for these options: ', &
-                  HO_BABC_ZOET_IVERSON, HO_BABC_PSEUDO_PLASTIC
+                  HO_BABC_ZOET_IVERSON, HO_BABC_PSEUDO_PLASTIC, HO_BABC_MODIFIED_SCHOOF
              call write_log(message, GM_FATAL)
           endif
        endif
@@ -2774,7 +2776,7 @@ contains
        call write_log(message)
        write(message,*) 'bed bump wavelength for Coulomb friction law : ', model%basal_physics%coulomb_bump_wavelength
        call write_log(message)
-    elseif (model%options%which_ho_babc == HO_BABC_COULOMB_POWERLAW_SCHOOF) then
+    elseif (model%options%which_ho_babc == HO_BABC_SCHOOF) then
        ! Note: The Schoof law typically uses a spatially variable powerlaw_c.
        !       If so, the value written here is just the initial value.
        write(message,*) 'Cc for Schoof Coulomb law                    : ', model%basal_physics%coulomb_c_const
@@ -2787,7 +2789,24 @@ contains
        call write_log(message)
        write(message,*) 'm exponent for Schoof power law              : ', model%basal_physics%powerlaw_m
        call write_log(message)
-    elseif (model%options%which_ho_babc == HO_BABC_COULOMB_POWERLAW_TSAI) then
+    elseif (model%options%which_ho_babc == HO_BABC_MODIFIED_SCHOOF) then
+       ! Note: This law supports inversion for both Cc and Cp.
+       !       When inverting, the values here are just the initial values.
+       write(message,*) 'Cc for modified Schoof law                   : ', model%basal_physics%coulomb_c_const
+       call write_log(message)
+       write(message,*) 'Max Cc                                       : ', model%basal_physics%coulomb_c_max
+       call write_log(message)
+       write(message,*) 'Min Cc                                       : ', model%basal_physics%coulomb_c_min
+       call write_log(message)
+       write(message,*) 'Cp for modified Schoof law, Pa (m/yr)^(-1/3) : ', model%basal_physics%powerlaw_c_const
+       call write_log(message)
+       write(message,*) 'Max Cp                                       : ', model%basal_physics%powerlaw_c_max
+       call write_log(message)
+       write(message,*) 'Min Cp                                       : ', model%basal_physics%powerlaw_c_min
+       call write_log(message)
+       write(message,*) 'm exponent for power law                     : ', model%basal_physics%powerlaw_m
+       call write_log(message)
+    elseif (model%options%which_ho_babc == HO_BABC_TSAI) then
        ! Note: The Tsai law typically uses a spatially variable powerlaw_c. 
        !       If so, the value written here is just the initial value.
        write(message,*) 'Cc for Tsai Coulomb law                      : ', model%basal_physics%coulomb_c_const
@@ -2888,6 +2907,9 @@ contains
        call write_log(message)
        write(message,*) 'coulomb_c min                                : ', &
             model%basal_physics%coulomb_c_min
+       call write_log(message)
+       write(message,*) 'coulomb_c const                              : ', &
+            model%basal_physics%coulomb_c_const
        call write_log(message)
        write(message,*) 'thickness scale (m) for C_c inversion        : ', &
             model%inversion%babc_thck_scale
@@ -4027,12 +4049,12 @@ contains
     ! basal sliding option
     select case (options%which_ho_babc)
        !WHL - Removed effecpress as a restart variable; it is recomputed with each velocity solve.
-!!      case (HO_BABC_POWERLAW, HO_BABC_COULOMB_FRICTION, HO_BABC_COULOMB_POWERLAW_SCHOOF)
+!!      case (HO_BABC_POWERLAW, HO_BABC_COULOMB_FRICTION, HO_BABC_SCHOOF)
 !!        ! These friction laws need effective pressure
 !!        call glide_add_to_restart_variable_list('effecpress', model_id)
 !!      case(HO_BABC_COULOMB_POWERLAW_TSAI)
 !!        call glide_add_to_restart_variable_list('effecpress', model_id)
-      case (HO_BABC_COULOMB_FRICTION, HO_BABC_COULOMB_POWERLAW_SCHOOF, HO_BABC_COULOMB_POWERLAW_TSAI)
+      case (HO_BABC_COULOMB_FRICTION, HO_BABC_SCHOOF, HO_BABC_TSAI)
          ! Note: These options compute beta internally, so it does not need to be in the restart file.
          if (options%use_c_space_factor) then
             ! c_space_factor needs to be in the restart file

@@ -249,7 +249,7 @@ module glide_types
   integer, parameter :: HO_THERMAL_AFTER_TRANSPORT = 1
   integer, parameter :: HO_THERMAL_SPLIT_TIMESTEP = 2
   
-  !TODO - Deprecate the last two options? Rarely if ever used.
+  !TODO - Deprecate some little-used options?
   integer, parameter :: HO_BABC_BETA_CONSTANT = 0
   integer, parameter :: HO_BABC_BETA_BPMP = 1
   integer, parameter :: HO_BABC_PSEUDO_PLASTIC = 2
@@ -261,10 +261,10 @@ module glide_types
   integer, parameter :: HO_BABC_ISHOMC = 8
   integer, parameter :: HO_BABC_POWERLAW = 9
   integer, parameter :: HO_BABC_COULOMB_FRICTION = 10
-  integer, parameter :: HO_BABC_COULOMB_POWERLAW_SCHOOF = 11
-  integer, parameter :: HO_BABC_COULOMB_POWERLAW_TSAI = 12
-  integer, parameter :: HO_BABC_POWERLAW_EFFECPRESS = 13
-  integer, parameter :: HO_BABC_SIMPLE = 14
+  integer, parameter :: HO_BABC_SCHOOF = 11
+  integer, parameter :: HO_BABC_MODIFIED_SCHOOF = 12
+  integer, parameter :: HO_BABC_TSAI = 13
+  integer, parameter :: HO_BABC_POWERLAW_EFFECPRESS = 14
   integer, parameter :: HO_BABC_YIELD_PICARD = 15
 
   integer, parameter :: HO_BETA_LIMIT_ABSOLUTE = 0
@@ -851,10 +851,10 @@ module glide_types
     !> \item[8] beta field as prescribed for ISMIP-HOM test C (serial only)
     !> \item[9] power law
     !> \item[10] Coulomb friction law using effective pressure, with flwa from lowest ice layer
-    !> \item[11] Coulomb friction law using effective pressure, with constant basal flwa
-    !> \item[12] basal stress is the minimum of Coulomb and power-law values, as in Tsai et al. (2015)
-    !> \item[13] power law using effective pressure
-    !> \item[14] simple hard-coded pattern (useful for debugging)
+    !> \item[11] Schoof law that blends powerlaw and Coulomb behavior
+    !> \item[12] modified version of the Schoof law
+    !> \item[13] basal stress is the minimum of Coulomb and power-law values, as in Tsai et al. (2015)
+    !> \item[14] power law using effective pressure
     !> \item[15] treat beta value as a till yield stress (in Pa) using Picard iteration
     !> \end{description}
 
@@ -2204,7 +2204,7 @@ module glide_types
                                                                 !> Note: Defined on velocity grid, whereas temp and bpmp are on ice grid
 
 
-     ! Note: c_space_factor supported for which_ho_babc = HO_BABC_COULOMB_FRICTION, *COULOMB_POWERLAW_SCHOOF AND *COULOMB_POWERLAW_TSAI
+     ! Note: c_space_factor supported for which_ho_babc = HO_BABC_COULOMB_FRICTION, *SCHOOF AND *TSAI
      real(dp), dimension(:,:), pointer :: c_space_factor => null()      !> spatial factor for basal shear stress (no dimension)
      real(dp), dimension(:,:), pointer :: c_space_factor_stag => null() !> spatial factor for basal shear stress on staggered grid
 
@@ -2246,7 +2246,7 @@ module glide_types
           coulomb_c_hi => null(),  &             !> coulomb_c value at high bed elevation, topg >= bed_hi
           coulomb_c_lo => null()                 !> coulomb_c value at low bed elevation, topg <= bed_lo
 
-     ! parameters for power law, taub_b = C * u_b^(1/m); used for HO_BABC_COULOMB_POWERLAW_TSAI/SCHOOF
+     ! parameters for power law, taub_b = C * u_b^(1/m); used for HO_BABC_SCHOOF AND *_TSAI
      ! The default values are from Asay-Davis et al. (2016).
      ! The value of powerlaw_c suggested by Tsai et al. (2015) is 7.624d6 Pa m^(-1/3) s^(1/3).
      ! This value can be converted to CISM units by dividing by scyr^(1/3), to obtain 2.413d4 Pa m^(-1/3) yr^(1/3).
