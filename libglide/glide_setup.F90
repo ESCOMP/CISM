@@ -901,7 +901,7 @@ contains
     call GetValue(section, 'which_ho_flotation_function', model%options%which_ho_flotation_function)
     call GetValue(section, 'block_inception',             model%options%block_inception)
     call GetValue(section, 'remove_ice_caps',             model%options%remove_ice_caps)
-    call GetValue(section, 'force_retreat',               model%options%force_retreat)
+    call GetValue(section, 'force_retreat',               model%options%force_retreat)    
     call GetValue(section, 'use_ec_update',               model%options%use_ec_update)
     call GetValue(section, 'stencil_size',                model%options%stencil_size)
     call GetValue(section, 'which_ho_ice_age',            model%options%which_ho_ice_age)
@@ -2197,6 +2197,10 @@ contains
              if (.not.model%options%remove_isthmuses) then
                 call write_log('  Warning: Can be unstable when remove_isthmuses = F')
              endif
+          else
+             write(message,*) 'No force_retreat is being used'
+             write(message,*) 'Force retreat =',model%options%force_retreat
+             call write_log(message)
           endif
 
           write(message,*) 'ho_whichice_age         : ',model%options%which_ho_ice_age,  &

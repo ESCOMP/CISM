@@ -1151,8 +1151,8 @@ module glide_types
     
     integer :: use_ec_update = 1
     !> Flag that indicates whether update smb for elevation class changes in coupled or T-compset mode
-    !> item[0] use ec (default(
-    !> item[1] do not use ec
+    !> item[0] do not use ec 
+    !> item[1] use ec (default)
 
     integer :: stencil_size = 27
     !> Integer that indicates stencil size to be used in thermal_forcing extrapolation routine
