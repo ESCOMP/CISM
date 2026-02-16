@@ -1678,13 +1678,21 @@ contains
        write(message,*) 'number of atmosphere levels : ', model%climate%nzatm
        call write_log(message)
     elseif (model%options%smb_input_function == SMB_INPUT_FUNCTION_PDD) then
-       write(message,*) 'Degree factor (mm/yr/deg C) : ', model%climate%degree_factor
+       !write(message,*) 'Degree factor (mm/yr/deg C) : ', model%climate%degree_factor
+       !call write_log(message)
+       !write(message,*) 'Melt threshold (deg C)      : ', model%climate%tmlt
+       !call write_log(message)
+       !write(message,*) 'Min snow threshold (deg C)  : ', model%climate%snow_threshold_min
+       !call write_log(message)
+       !write(message,*) 'Max snow threshold (deg C)  : ', model%climate%snow_threshold_max
+       !call write_log(message)
+       write(message,*) 'Degree day factor for snow (mm w.e./PDD) : ', model%climate%ddfactor_snow
        call write_log(message)
-       write(message,*) 'Melt threshold (deg C)      : ', model%climate%tmlt
+       write(message,*) 'Degree day factor for ice (mm w.e./PDD) : ', model%climate%ddfactor_ice
        call write_log(message)
-       write(message,*) 'Min snow threshold (deg C)  : ', model%climate%snow_threshold_min
+       write(message,*) 'Sigma in degree day calculation : ', model%climate%ddsigma
        call write_log(message)
-       write(message,*) 'Max snow threshold (deg C)  : ', model%climate%snow_threshold_max
+       write(message,*) 'Rain limit in degree day calculation (deg C) : ', model%climate%ddrain_limit
        call write_log(message)
     endif
 
@@ -2269,6 +2277,10 @@ contains
     call GetValue(section,'tmlt',               model%climate%tmlt)
     call GetValue(section,'snow_threshold_min', model%climate%snow_threshold_min)
     call GetValue(section,'snow_threshold_max', model%climate%snow_threshold_max)
+    call GetValue(section,'ddfactor_snow',      model%climate%ddfactor_snow)
+    call GetValue(section,'ddfactor_ice',       model%climate%ddfactor_ice)
+    call GetValue(section,'ddsigma',            model%climate%ddsigma)
+    call GetValue(section,'ddrain_limit',       model%climate%ddrain_limit)
     call GetValue(section,'smb_factor',         model%climate%smb_factor)
     call GetValue(section,'bmlt_float_factor',  model%basal_melt%bmlt_float_factor)
 

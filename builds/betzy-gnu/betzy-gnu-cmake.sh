@@ -6,11 +6,9 @@
 
 module purge
 module load StdEnv
-# module load GCCcore/12.3.0
-module load CMake/3.26.3-GCCcore-12.3.0
-#module load netCDF/4.9.2-gompi-2023a
-module load netCDF-Fortran/4.6.1-gompi-2023a
-module load OpenBLAS/0.3.23-GCC-12.3.0
+module load netCDF-Fortran/4.6.1-gompi-2023b
+module load CMake/3.27.6-GCCcore-13.2.0
+module load OpenBLAS/0.3.24-GCC-13.2.0
 
 # remove old build data:
 rm -f ./CMakeCache.txt

@@ -904,6 +904,50 @@ data:          data%climate%precip_anomaly
 load:          1
 read_once:     1
 
+# for PDD model
+[tma_pdd]
+dimensions:    time, y1, x1
+units:         degree_Celsius
+long_name:     annual mean air temperature
+data:          data%climate%tma_pdd
+load:          1
+
+[tmj_pdd]
+dimensions:    time, y1, x1
+units:         degree_Celsius
+long_name:     july air temperature
+data:          data%climate%tmj_pdd
+load:          1
+
+[pdd]
+dimensions:    time, y1, x1
+units:         mm/year water equivalent
+long_name:     superimposed ice
+data:          data%climate%pdd
+load:          1
+
+[rfr]
+dimensions:    time, y1, x1
+units:         1
+long_name:     rain fraction
+data:          data%climate%rfr
+load:          1
+
+[rain]
+dimensions:    time, y1, x1
+units:         mm/year water equivalent
+long_name:     rainfall rate
+data:          data%climate%rain
+load:          1
+
+[sir]
+dimensions:    time, y1, x1
+units:         mm/year water equivalent
+long_name:     refreezing
+data:          data%climate%sir
+load:          1
+
+
 [usrf_ref]
 dimensions:    time, y1, x1
 units:         m

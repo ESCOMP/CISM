@@ -1501,6 +1501,13 @@ module glide_types
 
      ! Ablation is computed independent of accumulation for SMB_INPUT_FUNCTION_PDD
      real(dp),dimension(:,:),pointer :: ablation => null()        !> surface ablation (mm/yr w.e.)
+     ! Additional forcing fields for HDW PDD
+     real(dp),dimension(:,:),pointer :: tma_pdd         => null() !> Annual mean air temperature (degC)
+     real(dp),dimension(:,:),pointer :: tmj_pdd         => null() !> July air temperature (degC)
+     real(dp),dimension(:,:),pointer :: pdd         => null() !> positive degree days
+     real(dp),dimension(:,:),pointer :: rfr         => null() !> rain fraction
+     real(dp),dimension(:,:),pointer :: rain         => null() !> rain (mm/yr w.e.)
+     real(dp),dimension(:,:),pointer :: sir         => null() !> refreezing (mm/yr w.e.)
 
      ! The next several fields are used for the 'read_once' forcing option.
      ! E.g., if we want to read in all time slices of precip at once, we would set 'read_once' = .true. in the config file.
@@ -1538,6 +1545,11 @@ module glide_types
      real(dp) :: snow_threshold_min = 0.0d0         !> air temperature (deg C) below which all precip falls as snow
      real(dp) :: snow_threshold_max = 2.0d0         !> air temperature (deg C) above which all precip falls as rain
      !TODO - Remove the equivalent glacier variables
+     ! Added for HDW PDD model
+     real(dp) :: ddfactor_snow = 3.0d0               !> degree day factor for snow (mm w.e./PDD)
+     real(dp) :: ddfactor_ice = 8.0d0                !> degree day factor for ice (mm w.e./PDD)
+     real(dp) :: ddsigma = 4.5d0                    !> sigma in degree day calculation 
+     real(dp) :: ddrain_limit = 1.0d0                !> rain limit in degree day calculation 
 
   end type glide_climate
 
@@ -3254,6 +3266,12 @@ contains
        if (.not.associated(model%climate%zatm)) allocate(model%climate%zatm(model%climate%nzatm))
     elseif (model%options%smb_input_function == SMB_INPUT_FUNCTION_PDD) then
        call coordsystem_allocate(model%general%ice_grid, model%climate%ablation)
+       call coordsystem_allocate(model%general%ice_grid, model%climate%tma_pdd)
+       call coordsystem_allocate(model%general%ice_grid, model%climate%tmj_pdd)
+       call coordsystem_allocate(model%general%ice_grid, model%climate%pdd)
+       call coordsystem_allocate(model%general%ice_grid, model%climate%rfr)
+       call coordsystem_allocate(model%general%ice_grid, model%climate%rain)
+       call coordsystem_allocate(model%general%ice_grid, model%climate%sir)
     endif
 
     ! Note: Typically, smb_input_function and artm_input_function will have the same value.
@@ -3912,6 +3930,18 @@ contains
         deallocate(model%climate%smb_obs)
     if (associated(model%climate%ablation)) &
         deallocate(model%climate%ablation)
+    if (associated(model%climate%tma_pdd)) &
+        deallocate(model%climate%tma_pdd)
+    if (associated(model%climate%tmj_pdd)) &
+        deallocate(model%climate%tmj_pdd)
+    if (associated(model%climate%pdd)) &
+        deallocate(model%climate%pdd)
+    if (associated(model%climate%rfr)) &
+        deallocate(model%climate%rfr)
+    if (associated(model%climate%rain)) &
+        deallocate(model%climate%rain)
+    if (associated(model%climate%sir)) &
+        deallocate(model%climate%sir)
 
     ! calving arrays
     if (associated(model%calving%calving_thck)) &
