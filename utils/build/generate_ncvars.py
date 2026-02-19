@@ -442,6 +442,9 @@ class PrintNC_template(PrintVars):
                     dimstring = dimstring + 'up'
                 elif dims[i] == 'zatm':
                     dimstring = dimstring + 'up'
+                #*HG* added to deal w/ writing of associated w/ month coord
+                elif dims[i] == 'tmon':
+                    dimstring = dimstring + 'up'
                 else:
                     dimstring = dimstring + '1'
 
@@ -474,6 +477,12 @@ class PrintNC_template(PrintVars):
                 spaces = ' '*3
                 self.stream.write("       do up=1,NCO%nzatm\n")
 
+            #*HG* added to handle writing of vars associated w/ month coord
+            if  'tmon' in dims:
+                # handle 3D fields
+                spaces = ' '*3
+                self.stream.write("       do up=1,NCO%ntmon\n")
+
             data = var['data']
             if 'avg_factor' in var:
                 data = '(%s)*(%s)'%(var['avg_factor'],data)
@@ -505,6 +514,10 @@ class PrintNC_template(PrintVars):
 
             #*WHL* added to handle writing of vars associated w/ atm vert coord
             if  'zatm' in dims:
+                self.stream.write("       end do\n")
+
+            #*HG* added to handle writing of vars associated w/ month coord
+            if  'tmon' in dims:
                 self.stream.write("       end do\n")
 
             # remove self since it's not time dependent
@@ -547,6 +560,9 @@ class PrintNC_template(PrintVars):
                     #*WHL* added to deal w/ writing of vars associated w/ atm vert coord
                     elif dims[i] == 'zatm':
                         dimstring = dimstring + 'up'
+                    #*HG* added to deal w/ writing of vars associated w/ month coord
+                    elif dims[i] == 'tmon':
+                        dimstring = dimstring + 'up'
                     else:
                         dimstring = dimstring + '1'
 
@@ -578,6 +594,12 @@ class PrintNC_template(PrintVars):
                     # handle 3D fields
                     spaces = ' '*3
                     self.stream.write("       do up=1,NCI%nzatm\n")
+
+                #*HG* added to handle writing of vars associated w/ month coord
+                if  'tmon' in dims:
+                    # handle 3D fields
+                    spaces = ' '*3
+                    self.stream.write("       do up=1,NCI%ntmon\n")
 
                 #WHL: Call parallel_get_var to read scalars and 1D arrays without horizontal dimensions
                 #     Otherwise, call distributed_get_var
@@ -635,6 +657,10 @@ class PrintNC_template(PrintVars):
 
                 #*WHL* added to handle writing of vars associated w/ atm vert coord
                 if  'zatm' in dims:
+                    self.stream.write("       end do\n")
+
+                #*HG* added to handle writing of vars associated w/ month coord
+                if  'tmon' in dims:
                     self.stream.write("       end do\n")
 
                 self.stream.write("    else\n") # MJH 10/21/13

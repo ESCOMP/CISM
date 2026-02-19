@@ -213,6 +213,9 @@ contains
     ! WHL - adding a vertical coordinate for atmosphere data
     NCO%nzatm = model%climate%nzatm
 
+    ! HG - adding a monthly coordinate for monthly forcing
+    NCO%ntmon = model%climate%ntmon
+
     ! WHL - adding a glacier ID coordinate for glacier data
     NCO%nglacier = model%glacier%nglacier
 
@@ -353,6 +356,9 @@ contains
 
     ! WHL - adding a vertical coordinate for ocean data
     NCO%nzatm = model%climate%nzatm
+
+    ! HG - adding a monthly coordinate for monthly forcing
+    NCO%ntmon = model%climate%ntmon
 
     ! WHL - adding a glacier ID coordinate for glacier data
     NCO%nglacier = model%glacier%nglacier
@@ -596,6 +602,9 @@ contains
 
     ! WHL - adding a vertical coordinate for ocean data
     NCI%nzatm = model%climate%nzatm
+
+    ! HG - adding a monthly coordinate for monthly forcing
+    NCI%ntmon = model%climate%ntmon
 
     ! WHL - adding a glacier ID coordinate for glacier data
     NCI%nglacier = model%glacier%nglacier

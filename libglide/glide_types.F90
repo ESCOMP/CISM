@@ -148,6 +148,7 @@ module glide_types
   integer, parameter :: SMB_INPUT_FUNCTION_XY_GRADZ = 1
   integer, parameter :: SMB_INPUT_FUNCTION_XYZ = 2
   integer, parameter :: SMB_INPUT_FUNCTION_PDD = 3
+  integer, parameter :: SMB_INPUT_FUNCTION_PDDMJ = 4
 
   integer, parameter :: ARTM_INPUT_FUNCTION_XY = 0
   integer, parameter :: ARTM_INPUT_FUNCTION_XY_GRADZ = 1
@@ -603,6 +604,7 @@ module glide_types
     !> \item[1] SMB(x,y) + dSMB/dz(x,y) * dz; input SMB and its vertical gradient
     !> \item[2] SMB(x,y,z); input SMB at multiple elevations
     !> \item[3] SMB computed with a positive-degree scheme
+    !> \item[4] SMB computed with a monthly positive-degree scheme
     !> \end{description}
 
     integer :: artm_input_function = 0
@@ -1499,15 +1501,27 @@ module glide_types
      real(dp),dimension(:,:,:),pointer :: smb_3d        => null() !> SMB at multiple vertical levels (mm/yr w.e.)
      real(dp),dimension(:,:,:),pointer :: artm_3d       => null() !> artm at multiple vertical levels (m/yr ice)
 
-     ! Ablation is computed independent of accumulation for SMB_INPUT_FUNCTION_PDD
+     ! The next several fields are used for PDD forcing 
+     ! Ablation is computed independent of accumulation for SMB_INPUT_FUNCTION_PDD and SMB_INPUT_FUNCTION_PDDMJ
      real(dp),dimension(:,:),pointer :: ablation => null()        !> surface ablation (mm/yr w.e.)
-     ! Additional forcing fields for HDW PDD
-     real(dp),dimension(:,:),pointer :: tma_pdd         => null() !> Annual mean air temperature (degC)
-     real(dp),dimension(:,:),pointer :: tmj_pdd         => null() !> July air temperature (degC)
-     real(dp),dimension(:,:),pointer :: pdd         => null() !> positive degree days
-     real(dp),dimension(:,:),pointer :: rfr         => null() !> rain fraction
-     real(dp),dimension(:,:),pointer :: rain         => null() !> rain (mm/yr w.e.)
-     real(dp),dimension(:,:),pointer :: sir         => null() !> refreezing (mm/yr w.e.)
+     ! Adding monthly temperature for SMB_INPUT_FUNCTION_PDD
+     integer  :: ntmon = 12                                             !> number of entries in month axis
+     real(dp), dimension(:), pointer :: tmon               => null() !> monthly time steps 
+     real(dp),dimension(:,:,:),pointer :: artm12           => null() !> Monthly mean air temperature (degC)
+     real(dp),dimension(:,:,:),pointer :: artm12_ref       => null() !> Monthly mean air temperature at reference elevation (degC)
+     real(dp),dimension(:,:,:),pointer :: artm12_anomaly   => null() !> Monthly mean air temperature anomaly (degC)
+     real(dp),dimension(:,:,:),pointer :: artm12_corrected => null() !> Monthly mean air temperature with anomaly correction (degC)
+     ! Additional diagnostics for SMB_INPUT_FUNCTION_PDD
+     real(dp),dimension(:,:),pointer :: pdd                => null() !> positive degree days
+     real(dp),dimension(:,:),pointer :: rfr                => null() !> rain fraction
+     real(dp),dimension(:,:),pointer :: rain               => null() !> rain (mm/yr w.e.)
+     real(dp),dimension(:,:),pointer :: sir                => null() !> refreezing (mm/yr w.e.)
+     ! Additional forcing fields for seasonal SMB_INPUT_FUNCTION_PDDMJ
+     real(dp),dimension(:,:),pointer :: artj               => null() !> July air temperature (degC)
+     real(dp),dimension(:,:),pointer :: artj_ref           => null()        !> artj at reference elevation (deg C)
+     real(dp),dimension(:,:),pointer :: artj_gradz         => null()      !> vertical gradient of artj (deg C per m), positive up
+     real(dp),dimension(:,:),pointer :: artj_anomaly       => null() !> July air temperature anomaly (degC)
+     real(dp),dimension(:,:),pointer :: artj_corrected     => null() !> July air temperature with anomaly correction (degC)
 
      ! The next several fields are used for the 'read_once' forcing option.
      ! E.g., if we want to read in all time slices of precip at once, we would set 'read_once' = .true. in the config file.
@@ -1548,7 +1562,7 @@ module glide_types
      ! Added for HDW PDD model
      real(dp) :: ddfactor_snow = 3.0d0               !> degree day factor for snow (mm w.e./PDD)
      real(dp) :: ddfactor_ice = 8.0d0                !> degree day factor for ice (mm w.e./PDD)
-     real(dp) :: ddsigma = 4.5d0                    !> sigma in degree day calculation 
+     real(dp) :: ddsigma = 4.5d0                     !> sigma in degree day calculation 
      real(dp) :: ddrain_limit = 1.0d0                !> rain limit in degree day calculation 
 
   end type glide_climate
@@ -2852,6 +2866,7 @@ contains
 
     integer :: ewn,nsn,upn               !> local array dimensions
     integer :: global_ewn, global_nsn    !> global array dimensions
+    character(len=512) :: message
 
     ! for simplicity, copy these values...
     ewn = model%general%ewn
@@ -3265,15 +3280,31 @@ contains
        call coordsystem_allocate(model%general%ice_grid, model%climate%nzatm, model%climate%smb_3d)
        if (.not.associated(model%climate%zatm)) allocate(model%climate%zatm(model%climate%nzatm))
     elseif (model%options%smb_input_function == SMB_INPUT_FUNCTION_PDD) then
-       call coordsystem_allocate(model%general%ice_grid, model%climate%ablation)
-       call coordsystem_allocate(model%general%ice_grid, model%climate%tma_pdd)
-       call coordsystem_allocate(model%general%ice_grid, model%climate%tmj_pdd)
+       if (.not.associated(model%climate%tmon)) allocate(model%climate%tmon(model%climate%ntmon))
+       model%climate%tmon(:) = (/ 1.d0, 2.d0, 3.d0, 4.d0, 5.d0, 6.d0, 7.d0, 8.d0, 9.d0, 10.d0, 11.d0, 12.d0 /)
+       call coordsystem_allocate(model%general%ice_grid, model%climate%ntmon, model%climate%artm12)
+       call coordsystem_allocate(model%general%ice_grid, model%climate%ntmon, model%climate%artm12_ref)
+       call coordsystem_allocate(model%general%ice_grid, model%climate%ntmon, model%climate%artm12_anomaly)
+       call coordsystem_allocate(model%general%ice_grid, model%climate%ntmon, model%climate%artm12_corrected)
        call coordsystem_allocate(model%general%ice_grid, model%climate%pdd)
        call coordsystem_allocate(model%general%ice_grid, model%climate%rfr)
        call coordsystem_allocate(model%general%ice_grid, model%climate%rain)
        call coordsystem_allocate(model%general%ice_grid, model%climate%sir)
+       call coordsystem_allocate(model%general%ice_grid, model%climate%ablation)
+    elseif (model%options%smb_input_function == SMB_INPUT_FUNCTION_PDDMJ) then
+       call coordsystem_allocate(model%general%ice_grid, model%climate%artj)
+       call coordsystem_allocate(model%general%ice_grid, model%climate%artj_ref)
+       call coordsystem_allocate(model%general%ice_grid, model%climate%artj_gradz)
+       call coordsystem_allocate(model%general%ice_grid, model%climate%artj_anomaly)
+       call coordsystem_allocate(model%general%ice_grid, model%climate%artj_corrected)
+       call coordsystem_allocate(model%general%ice_grid, model%climate%pdd)
+       call coordsystem_allocate(model%general%ice_grid, model%climate%rfr)
+       call coordsystem_allocate(model%general%ice_grid, model%climate%rain)
+       call coordsystem_allocate(model%general%ice_grid, model%climate%sir)
+       call coordsystem_allocate(model%general%ice_grid, model%climate%ablation)
     endif
 
+    
     ! Note: Typically, smb_input_function and artm_input_function will have the same value.
     !       If both use a lapse rate, they will share the array usrf_ref
     !       If both are 3d, they will share the array smb_levels.
@@ -3922,6 +3953,14 @@ contains
         deallocate(model%climate%artm_ref)
     if (associated(model%climate%artm_gradz)) &
         deallocate(model%climate%artm_gradz)
+    if (associated(model%climate%artm12)) &
+        deallocate(model%climate%artm12)
+    if (associated(model%climate%artm12_ref)) &
+        deallocate(model%climate%artm12_ref)
+    if (associated(model%climate%artm12_anomaly)) &
+        deallocate(model%climate%artm12_anomaly)
+    if (associated(model%climate%artm12_corrected)) &
+        deallocate(model%climate%artm12_corrected)
     if (associated(model%climate%smb_3d)) &
         deallocate(model%climate%smb_3d)
     if (associated(model%climate%artm_3d)) &
@@ -3930,10 +3969,16 @@ contains
         deallocate(model%climate%smb_obs)
     if (associated(model%climate%ablation)) &
         deallocate(model%climate%ablation)
-    if (associated(model%climate%tma_pdd)) &
-        deallocate(model%climate%tma_pdd)
-    if (associated(model%climate%tmj_pdd)) &
-        deallocate(model%climate%tmj_pdd)
+    if (associated(model%climate%artj)) &
+        deallocate(model%climate%artj)
+    if (associated(model%climate%artj_ref)) &
+        deallocate(model%climate%artj_ref)
+    if (associated(model%climate%artj_gradz)) &
+        deallocate(model%climate%artj_gradz)
+    if (associated(model%climate%artj_anomaly)) &
+        deallocate(model%climate%artj_anomaly)
+    if (associated(model%climate%artj_corrected)) &
+        deallocate(model%climate%artj_corrected)
     if (associated(model%climate%pdd)) &
         deallocate(model%climate%pdd)
     if (associated(model%climate%rfr)) &

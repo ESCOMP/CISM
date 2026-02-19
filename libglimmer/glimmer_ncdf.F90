@@ -86,6 +86,8 @@ module glimmer_ncdf
      integer :: nzocn = 0
      !WHL - added to handle atmosphere vertical coordinate
      integer :: nzatm = 0
+     !HG - added to handle monthly forcing 
+     integer :: ntmon = 0
      !WHL - added to handle glacier coordinate
      integer :: nglacier = 0
 
@@ -386,6 +388,7 @@ contains
     write(iulog,*) 'nstagwbndlevel:  ',stat%nstagwbndlevel
     write(iulog,*) 'nzocn:           ',stat%nzocn
     write(iulog,*) 'nzatm:           ',stat%nzatm
+    write(iulog,*) 'ntmon:           ',stat%ntmon
     write(iulog,*) 'nglacier:        ',stat%nglacier
     write(iulog,*) 'timedim:         ',stat%timedim
     write(iulog,*) 'internal_timevar:',stat%internal_timevar

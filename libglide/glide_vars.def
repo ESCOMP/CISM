@@ -98,6 +98,14 @@ data:          data%climate%zatm
 positive:      up
 dimlen:        model%climate%nzatm
 
+[tmon]
+dimensions:    tmon
+units:         1
+long_name:     monthly time axis
+data:          data%climate%tmon
+positive:      up
+dimlen:        model%climate%ntmon
+
 [glacierid]
 dimensions:    glacierid
 units:         1
@@ -905,18 +913,32 @@ load:          1
 read_once:     1
 
 # for PDD model
-[tma_pdd]
-dimensions:    time, y1, x1
-units:         degree_Celsius
-long_name:     annual mean air temperature
-data:          data%climate%tma_pdd
-load:          1
-
-[tmj_pdd]
+[artj]
 dimensions:    time, y1, x1
 units:         degree_Celsius
 long_name:     july air temperature
-data:          data%climate%tmj_pdd
+data:          data%climate%artj
+load:          1
+
+[artj_ref]
+dimensions:    time, y1, x1
+units:         degree_Celsius
+long_name:     july air temperature at reference elevation
+data:          data%climate%artj_ref
+load:          1
+
+[artj_gradz]
+dimensions:    time, y1, x1
+units:         degree_Celsius per m
+long_name:     july air temperature vertical gradient
+data:          data%climate%artj_gradz
+load:          1
+
+[artj_anomaly]
+dimensions:    time, y1, x1
+units:         degree_Celsius
+long_name:     july air temperature anomaly
+data:          data%climate%artj_anomaly
 load:          1
 
 [pdd]
@@ -945,6 +967,27 @@ dimensions:    time, y1, x1
 units:         mm/year water equivalent
 long_name:     refreezing
 data:          data%climate%sir
+load:          1
+
+[artm12]
+dimensions:    time, tmon, y1, x1
+units:         deg Celsius
+long_name:     monthly surface temperature
+data:          data%climate%artm12(up,:,:)
+load:          1
+
+[artm12_ref]
+dimensions:    time, tmon, y1, x1
+units:         deg Celsius
+long_name:     monthly surface temperature at reference elevation
+data:          data%climate%artm12_ref(up,:,:)
+load:          1
+
+[artm12_anomaly]
+dimensions:    time, tmon, y1, x1
+units:         deg Celsius
+long_name:     monthly surface temperature anomaly
+data:          data%climate%artm12_anomaly(up,:,:)
 load:          1
 
 

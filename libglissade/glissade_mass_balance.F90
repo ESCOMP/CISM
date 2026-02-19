@@ -50,8 +50,7 @@
     private
 
     public :: glissade_mass_balance_init, glissade_prepare_climate_forcing,  &
-         glissade_apply_smb, glissade_add_2d_anomaly, glissade_add_3d_anomaly, &
-         massbalance_hdw_pdd_model_total, calculate_hdw_pdd_monthly
+         glissade_apply_smb, glissade_add_2d_anomaly, glissade_add_3d_anomaly
          
     public :: verbose_smb
 
@@ -367,18 +366,18 @@
        ! downscale SMB to the local surface elevation
        model%climate%smb(:,:) = model%climate%smb_ref(:,:) + &
             (model%geometry%usrf(:,:) - model%climate%usrf_ref(:,:)) * model%climate%smb_gradz(:,:)
-
+       
     elseif (model%options%smb_input_function == SMB_INPUT_FUNCTION_XYZ) then
-
+       
        ! downscale SMB to the local surface elevation
        ! Note: With linear_extrapolate_in = F, the values at top and bottom levels are simply extended upward and downward.
        !       For SMB, this is safer than linear extrapolation (especially when extrapolating upward).
-
+       
        if (parallel_is_zero(model%climate%smb_3d)) then
           write(message,*) 'Error: smb_3d = 0 everywhere with smb_input_function =', model%options%smb_input_function
           call write_log(trim(message), GM_FATAL)
        endif
-
+       
        call glissade_vertical_interpolate(&
             ewn,                   nsn,                 &
             nzatm,                 model%climate%zatm,  &
@@ -386,58 +385,119 @@
             model%climate%smb_3d,                       &
             model%climate%smb,                          &
             linear_extrapolate_in = .false.)
-
-    elseif  (model%options%smb_input_function == SMB_INPUT_FUNCTION_PDD) then
-
-       ! Compute SMB using a simple PDD scheme:
-       ! (1) Partition precip as rain or snow based on the downscaled artm
-       ! (2) Compute ablation based on artm and a degree factor
-       ! Assume that artm has already been downscaled, if needed, based on artm_input_function.
-
-       ! Note: This is similar to the SMB calculation for glaciers, but that calculation is done in the glacier module.
-       ! TODO: Put the glacier values of snow_threshold_min and snow_threshold_max in the climate derived type.
-
-       !! compute snow accumulation (mm/yr w.e.)
-       !where (model%climate%artm > model%climate%snow_threshold_max)
-       !   model%climate%snow = 0.0d0   ! all precip falls as rain
-       !elsewhere (model%climate%artm < model%climate%snow_threshold_min)
-       !   model%climate%snow = model%climate%precip   ! all precip falls as snow
-       !elsewhere (model%climate%artm > model%climate%snow_threshold_min)
-       !   model%climate%snow = model%climate%precip * (model%climate%snow_threshold_max - model%climate%artm)  &
-       !        / (model%climate%snow_threshold_max - model%climate%snow_threshold_min)
-       !endwhere
-       !
-       !! compute ablation (mm/yr w.e.)
-       !! Note: degree_factor has units of mm/yr w.e./degC to be consistent with other mass-balance variables.
-       !!       It is like mu_star for glaciers.
-       !model%climate%ablation = model%climate%degree_factor * max(model%climate%artm - model%climate%tmlt, 0.0d0)
-       !
-       !! compute smb (mm/yr w.e.)
-       !model%climate%smb = model%climate%snow - model%climate%ablation
-       !
-       !! set smb = 0 for open ocean
-       !where (model%geometry%thck == 0.0d0 .and. (model%geometry%topg - model%climate%eus) < 0.0d0)
-       !   model%climate%smb = 0.0d0
-       !endwhere
-
-       ! Use PDD model from Huybrechts and De Wolde 1999
-
-       write(message,*) &
-            'tma:', model%climate%tma_pdd(100,100)
-       call write_log(trim(message))
-       write(message,*) &
-            'tmj:', model%climate%tmj_pdd(100,100)
-       call write_log(trim(message))
-       write(message,*) &
-            'precip:', model%climate%precip(100,100)
-       call write_log(trim(message))
-
        
-       call massbalance_hdw_pdd_model_total(&
+    elseif  (model%options%smb_input_function == SMB_INPUT_FUNCTION_PDD) then
+              
+       ! Use PDD model from Huybrechts and De Wolde 1999 
+       ! Needs input of annual total precipitation and monthly surface air temperature (artm12)
+       
+       ! First lapse-rate correct artm12 similar to artm
+       if (model%options%artm_input_function == ARTM_INPUT_FUNCTION_XY_GRADZ) then
+          
+          ! compute artm12 by a lapse-rate correction to the reference value
+          do k = 1, 12
+             model%climate%artm12(k,:,:) = model%climate%artm12_ref(k,:,:) + &
+                  (model%geometry%usrf(:,:) - model%climate%usrf_ref(:,:)) * model%climate%artm_gradz(:,:)
+          enddo
+          
+       elseif (model%options%artm_input_function == ARTM_INPUT_FUNCTION_XYZ) then
+          
+          write(message,*) 'Error: artm12 3d interpolation not implemented for', model%options%artm_input_function
+          call write_log(trim(message), GM_FATAL)
+          
+       elseif (model%options%artm_input_function == ARTM_INPUT_FUNCTION_XY_LAPSE) then
+          
+          ! compute artm12 by a lapse-rate correction to artm12_ref
+          ! T_lapse is defined as positive for T decreasing with height
+          
+          do k = 1, 12
+             model%climate%artm12(k,:,:) = model%climate%artm12_ref(k,:,:) - &
+                  (model%geometry%usrf(:,:) - model%climate%usrf_ref(:,:)) * model%climate%t_lapse
+          enddo
+          
+       endif   ! artm_input_function
+
+       ! Optionally, add an anomaly to the surface air temperature
+       
+       model%climate%artm12_corrected(:,:,:) = model%climate%artm12(:,:,:)
+
+       if (model%options%enable_artm_anomaly) then
+          
+          call glissade_add_3d_anomaly(&
+               model%climate%artm12_corrected,        &   ! degC
+               model%climate%artm12_anomaly,          &   ! degC
+               model%climate%artm_anomaly_tstart,     &   ! yr
+               model%climate%artm_anomaly_timescale,  &   ! yr
+               model%numerics%time)                       ! yr
+          
+       endif
+       
+       call pdd_model_monthly_total(&
             ewn, nsn,                       &
-            model%climate%precip,           & 
-            model%climate%tma_pdd,          & ! TODO add anomalies and elevation dependence
-            model%climate%tmj_pdd,          & 
+            model%climate%precip_corrected, & 
+            model%climate%artm12_corrected, & 
+            model%climate%ddfactor_snow,    & 
+            model%climate%ddfactor_ice,     &
+            model%climate%ddsigma,          &
+            model%climate%ddrain_limit,     &
+            model%climate%pdd,              &
+            model%climate%rfr,              &
+            model%climate%snow,             &
+            model%climate%rain,             &
+            model%climate%sir,              &
+            model%climate%ablation,         &
+            model%climate%smb)
+
+
+    elseif  (model%options%smb_input_function == SMB_INPUT_FUNCTION_PDDMJ) then
+       
+       ! Use PDD model from Huybrechts and De Wolde 1999
+       ! Needs input of total precipitation, mean surface air temperature and july surface air temperature
+       ! Seasonal cycle is parameterized per contrast between july and mean
+       ! This is close to the original implementation
+       
+       ! First lapse-rate correct artj similar to artm
+       if (model%options%artm_input_function == ARTM_INPUT_FUNCTION_XY_GRADZ) then
+          
+          ! compute artj by a lapse-rate correction to the reference value
+          model%climate%artj(:,:) = model%climate%artj_ref(:,:) + &
+               (model%geometry%usrf(:,:) - model%climate%usrf_ref(:,:)) * model%climate%artj_gradz(:,:)
+          
+       elseif (model%options%artm_input_function == ARTM_INPUT_FUNCTION_XYZ) then
+          
+          write(message,*) 'Error: artj 3d interpolation not implemented for', model%options%artm_input_function
+          call write_log(trim(message), GM_FATAL)
+          
+       elseif (model%options%artm_input_function == ARTM_INPUT_FUNCTION_XY_LAPSE) then
+
+          ! compute artj by a lapse-rate correction to artj_ref
+          ! T_lapse is defined as positive for T decreasing with height
+          
+          model%climate%artj(:,:) = model%climate%artj_ref(:,:) - &
+               (model%geometry%usrf(:,:) - model%climate%usrf_ref(:,:)) * model%climate%t_lapse
+          
+       endif   ! artm_input_function
+
+       ! Optionally, add an anomaly to the july surface air temperature
+       
+       model%climate%artj_corrected(:,:) = model%climate%artj(:,:)
+
+       if (model%options%enable_artm_anomaly) then
+              
+          call glissade_add_2d_anomaly(&
+               model%climate%artj_corrected,          &   ! degC
+               model%climate%artj_anomaly,            &   ! degC
+               model%climate%artm_anomaly_tstart,     &   ! yr
+               model%climate%artm_anomaly_timescale,  &   ! yr
+               model%numerics%time)                       ! yr
+          
+       endif
+       
+       call pddmj_model_total(&
+            ewn, nsn,                       &
+            model%climate%precip_corrected, & 
+            model%climate%artm_corrected,   &
+            model%climate%artj_corrected,   & 
             model%climate%ddfactor_snow,    & 
             model%climate%ddfactor_ice,     &
             model%climate%ddsigma,          &
@@ -453,20 +513,22 @@
 
     endif   ! smb_input_function
 
+    
     ! For the non-default smb_input_function options, make sure that model%climate%smb is nonzero somewhere; else abort.
     ! For the default option, do not abort, since idealized tests often have a zero SMB.
 
     call parallel_halo(model%climate%smb, parallel)
 
     if (model%options%smb_input_function == SMB_INPUT_FUNCTION_XY_GRADZ .or. &
-        model%options%smb_input_function == SMB_INPUT_FUNCTION_XYZ .or. &
-        model%options%smb_input_function == SMB_INPUT_FUNCTION_PDD) then
+         model%options%smb_input_function == SMB_INPUT_FUNCTION_XYZ .or. &
+         model%options%smb_input_function == SMB_INPUT_FUNCTION_PDD .or. &
+         model%options%smb_input_function == SMB_INPUT_FUNCTION_PDDMJ) then
        if (parallel_is_zero(model%climate%smb)) then
           write(message,*) 'Error: smb = 0 everywhere with smb_input_function =', model%options%smb_input_function
           call write_log(trim(message), GM_FATAL)
        endif
     endif
-
+    
     ! optional diagnostics
     if (verbose_smb) then
 
@@ -496,7 +558,7 @@
              call point_diag(model%climate%smb_3d(k,:,:), 'smb_3d (mm/yr)', itest, jtest, rtest, 7, 7)
           enddo
           call point_diag(model%climate%smb, 'downscaled smb (mm/yr)', itest, jtest, rtest, 7, 7)
-       elseif (model%options%smb_input_function == SMB_INPUT_FUNCTION_PDD) then
+       elseif (model%options%smb_input_function == SMB_INPUT_FUNCTION_PDD .or. model%options%smb_input_function == SMB_INPUT_FUNCTION_PDDMJ) then
           call point_diag(model%climate%artm, 'artm (deg C)', itest, jtest, rtest, 7, 7)
           call point_diag(model%climate%precip, 'precip (mm/yr)', itest, jtest, rtest, 7, 7)
           call point_diag(model%climate%snow, 'snow (mm/yr)', itest, jtest, rtest, 7, 7)
@@ -1670,15 +1732,13 @@
     
 !=======================================================================
 
-  !subroutine massbalance_hdw_pdd_model_total(nx, ny, precip, t2m, t2j, &
-  !     ddfactor_snow, ddfactor_ice, &
-  !     acab)
-  subroutine massbalance_hdw_pdd_model_total(nx, ny, precip, t2m, t2j, &
+  subroutine pdd_model_monthly_total(nx, ny, precip, t2m12, &
        ddfactor_snow, ddfactor_ice, ddsigma, ddrain_limit, pdd, rfr, snow, rain, sir, abl, &
-       acab)
+       smb)
     ! positive degree day model, added by Heiko Goelzer, Apr 2020
     ! Implements greenland pdd model of Huybrechts and de Wolde 1999
     ! Forcing with total fields, not anomalies
+    ! Using monthly artm12 forcing
     
     implicit none
     
@@ -1687,17 +1747,16 @@
     ! -----------------------------------------------------------------------
     
     ! input variables:
-    integer,                    intent(in)  :: nx, ny         ! number of cells in EW and NS directions
-    real(dp), dimension(nx,ny), intent(in)  :: precip         ! total yearly precip (mm/yr)
-    real(dp), dimension(nx,ny), intent(in)  :: t2m            ! annual mean 2m temperature (deg)
-    real(dp), dimension(nx,ny), intent(in)  :: t2j            ! july 2m temperature (deg)
+    integer,                    intent(in)  :: nx, ny          ! number of cells in EW and NS directions
+    real(dp), dimension(nx,ny), intent(in)  :: precip          ! total yearly precip (mm/yr)
+    real(dp), dimension(nx,ny), intent(in)  :: t2m12           ! monthly mean 2m temperature (deg)
     real(dp), intent(in)                    :: ddfactor_snow   ! typically 3.0
     real(dp), intent(in)                    :: ddfactor_ice    ! typically 8.0
     real(dp), intent(in)                    :: ddsigma         ! typically 4.5
     real(dp), intent(in)                    :: ddrain_limit    ! typically 1.0
 
     ! output variables: 
-    real(dp), dimension(nx,ny), intent(out) :: acab           ! surface mass balance (mm/yr)
+    real(dp), dimension(nx,ny), intent(out) :: smb           ! surface mass balance (mm/yr)
 
     ! local variables
     real(dp), dimension(nx,ny)              :: pdd
@@ -1715,7 +1774,7 @@
 
 
     ! Determine number of positive degree days per year and rain fraction
-    call calculate_hdw_pdd_monthly(nx, ny, t2m, t2j, ddsigma, ddrain_limit, pdd, rfr)
+    call calculate_pdd_from_monthly(nx, ny, t2m12, ddsigma, ddrain_limit, pdd, rfr)
 
     ! Distinguish rain and snow according to rain fraction
     rain = precip * rfr
@@ -1765,15 +1824,205 @@
        abl = 0
     end where
 
-    acab = (precip - abl - rain) 
+    smb = (precip - abl - rain) 
 
-  end subroutine massbalance_hdw_pdd_model_total
+  end subroutine pdd_model_monthly_total
     
 !=======================================================================
 
-  subroutine calculate_hdw_pdd_monthly(nx, ny, tma, tmj, sigma, rainlimit, pdd, rfr)
+  subroutine calculate_pdd_from_monthly(nx, ny, tmonthly, sigma, rainlimit, pdd, rfr)
     ! Positive degree day model, added by Heiko Goelzer, April 2020
-    ! pdd model from Huybrechts and de Wolde 1999 
+    ! pdd model from Huybrechts and de Wolde 1999
+    ! Uses monthly forcing data 
+
+    use glimmer_physcon, only: pi
+    implicit none
+
+    ! input variables: 
+    integer,                    intent(in)   :: nx, ny         ! number of cells in EW and NS directions
+    real(dp), dimension(12,nx,ny), intent(in):: tmonthly       ! monthly surface air temperature (degree C)
+    real(dp),                   intent(in)   :: sigma          ! standard deviation in PDD calculation 
+    real(dp),                   intent(in)   :: rainlimit      ! rain limit in (degree C)
+
+    ! output variables: 
+    real(dp), dimension(nx,ny), intent(out)  :: pdd, rfr
+
+    ! local variables:
+    logical, save                                :: first_call = .true.
+    integer                                      :: i, j, k
+    real(dp), parameter                          :: valmax = 6.0
+    integer,  parameter                          :: nintx=1200
+    real(dp), dimension(12,nx,ny)                :: pdd12, rfr12
+    real(dp)                                     :: help1, help2, help3, ampl, tempnorm, fac2, ntemp12
+
+    ! pdd
+    real(dp), save                               :: taberf(-nintx:nintx),tabepdd(-nintx:nintx)
+    real(dp)                                     :: deltax,sq2pi,fac1,fdx,help,xi,xj,yi,yj
+
+
+    ! ------------------------------------------------------------------------
+    ! Calculate lookup tables for error function and expected pdd on first call
+    ! Huybrechts and De Wolde 1999 (c10), (c15)
+
+    if(first_call) then
+       taberf(0)=0.0
+       deltax=valmax/nintx
+       sq2pi=(2*pi)**(0.5)
+       fac1=deltax/(2*sq2pi)
+       tabepdd(0)=1./sq2pi
+       xj=0.
+       yj=1.
+       do i=1,nintx
+          xi=xj
+          yi=yj
+          xj=xj+deltax
+          yj=exp(-0.5*xj*xj)
+          fdx=(yi+yj)*fac1
+          taberf(i) =taberf(i-1)+fdx
+          taberf(-i)=-taberf(i)
+          help=yj/sq2pi+xj*taberf(i)
+          tabepdd(i) =help+xj*0.5
+          tabepdd(-i)=help-xj*0.5
+       end do
+       first_call = .false.
+    end if
+
+    ! ------------------------------------------------------------------------
+
+    ! Calculate rain fraction and number of pdds 
+    ! Huybrechts and De Wolde 1999 (c10), (c15)
+    help1=sigma*360./12.
+    fac2=pi/6. 
+    do j=1,nx
+       do i=1,ny
+          pdd(j,i)=0.0
+          rfr(j,i)=0.0
+          ! Seosonal amplitude
+          do k=1,12
+             ! Current temperature
+             ntemp12=tmonthly(k,j,i)
+             ntemp12=ntemp12/sigma
+             help2=nintx*ntemp12/amax1(abs(ntemp12),valmax)
+             ! Monthly pdds
+             pdd12(k,j,i)=help1*amax1(tabepdd(nint(help2)),ntemp12)
+             ! Annual pdds
+             pdd(j,i)=pdd(j,i)+pdd12(k,j,i)  
+             tempnorm=ntemp12-rainlimit/sigma
+             help3=nintx*tempnorm/amax1(abs(tempnorm),valmax)  
+             ! Monthly rain fraction
+             rfr12(k,j,i)=taberf(nint(help3))+0.5
+             ! Annual rain fraction
+             rfr(j,i)=rfr(j,i)+rfr12(k,j,i)/12.  
+          end do
+       end do
+    end do
+
+  end subroutine calculate_pdd_from_monthly
+
+!=======================================================================
+
+  subroutine pddmj_model_total(nx, ny, precip, t2m, t2j, &
+       ddfactor_snow, ddfactor_ice, ddsigma, ddrain_limit, pdd, rfr, snow, rain, sir, abl, &
+       smb)
+    ! positive degree day model, added by Heiko Goelzer, Apr 2020
+    ! Implements greenland pdd model of Huybrechts and de Wolde 1999
+    ! Forcing with total fields (not anomalies) of annual mean and July air temperature
+    
+    implicit none
+    
+    ! ----------------------------------------------------------------------
+    ! declaration of global variables
+    ! -----------------------------------------------------------------------
+    
+    ! input variables:
+    integer,                    intent(in)  :: nx, ny         ! number of cells in EW and NS directions
+    real(dp), dimension(nx,ny), intent(in)  :: precip         ! total yearly precip (mm/yr)
+    real(dp), dimension(nx,ny), intent(in)  :: t2m            ! annual mean 2m temperature (deg)
+    real(dp), dimension(nx,ny), intent(in)  :: t2j            ! july 2m temperature (deg)
+    real(dp), intent(in)                    :: ddfactor_snow   ! typically 3.0
+    real(dp), intent(in)                    :: ddfactor_ice    ! typically 8.0
+    real(dp), intent(in)                    :: ddsigma         ! typically 4.5
+    real(dp), intent(in)                    :: ddrain_limit    ! typically 1.0
+
+    ! output variables: 
+    real(dp), dimension(nx,ny), intent(out) :: smb           ! surface mass balance (mm/yr)
+
+    ! local variables
+    real(dp), dimension(nx,ny)              :: pdd
+    real(dp), dimension(nx,ny)              :: rfr
+    real(dp), dimension(nx,ny)              :: snow
+    real(dp), dimension(nx,ny)              :: rain
+    real(dp), dimension(nx,ny)              :: sir
+    real(dp), dimension(nx,ny)              :: abl           ! runoff (mm/yr)
+
+    real(dp)                                :: pdds, ablv, sifm
+
+    real(dp), parameter                     :: pmax = 0.3 ! see update in janssens and huybrechts 2000
+
+    integer                                 :: i, j
+
+
+    ! Determine number of positive degree days per year and rain fraction
+    call calculate_pddmj(nx, ny, t2m, t2j, ddsigma, ddrain_limit, pdd, rfr)
+
+    ! Distinguish rain and snow according to rain fraction
+    rain = precip * rfr
+    snow = precip - rain
+
+    ! Melt calculation
+    do j=1,nx
+       do i=1,ny
+
+          ! pdd needed for snow melting
+          pdds = snow(j,i)/ddfactor_snow
+          ! potential for refreezing 
+          sifm = pmax*snow(j,i)
+          ! limit potential by total precipitation (precip)
+          if(sifm.gt.precip(j,i)) sifm=precip(j,i)
+
+          ! estimate available melt 
+          if(pdds.le.pdd(j,i)) then
+             ! remainig energy (pdd) used for ice melt
+             ablv = (pdd(j,i)-pdds)*ddfactor_ice+snow(j,i)
+          else
+             ! all energy (pdd) used for snow melt
+             ablv = pdd(j,i)*ddfactor_snow
+          endif
+
+          ! calculate refreezing
+          if(ablv.gt.precip(j,i)+sifm) then
+             ! entire snowpack melted, no refreezing
+             sir(j,i) = 0.
+          elseif(ablv.gt.precip(j,i)) then
+             sir(j,i) = precip(j,i)+sifm-ablv
+          elseif(ablv.gt.sifm) then
+             sir(j,i) = sifm
+          else
+             sir(j,i) = ablv
+          endif
+          abl(j,i) = ablv - sifm
+          ! sanity check
+          if(abl(j,i).lt.0) abl(j,i)=0
+
+       end do
+    end do
+
+    ! No melt where insuffient energy
+    where (pdd.le.0) 
+       sir = 0
+       abl = 0
+    end where
+
+    smb = (precip - abl - rain) 
+
+  end subroutine pddmj_model_total
+    
+!=======================================================================
+
+  subroutine calculate_pddmj(nx, ny, tma, tmj, sigma, rainlimit, pdd, rfr)
+    ! Positive degree day model, added by Heiko Goelzer, April 2020
+    ! pdd model from Huybrechts and de Wolde 1999
+    ! Uses annal mean (tma) and july temperature (tmj) to determine annual cycle
 
     use glimmer_physcon, only: pi
     implicit none
@@ -1859,10 +2108,11 @@
        end do
     end do
 
-  end subroutine calculate_hdw_pdd_monthly
+  end subroutine calculate_pddmj
+    
     
 !=======================================================================
-
+  
   end module glissade_mass_balance
 
 !=======================================================================

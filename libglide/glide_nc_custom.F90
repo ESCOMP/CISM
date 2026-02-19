@@ -219,6 +219,14 @@ contains
 !    status= parallel_put_var(NCO%id,varid,model%climate%zatm)
 !    call nc_errorhandle(__FILE__,__LINE__,status)
 
+    ! monthly time axis
+
+    if (model%options%smb_input_function == SMB_INPUT_FUNCTION_PDD) then
+       status = parallel_inq_varid(NCO%id,'tmon',varid)
+       status= parallel_put_var(NCO%id,varid,model%climate%tmon)
+       call nc_errorhandle(__FILE__,__LINE__,status)
+    end if
+
     ! glacier dimension
 
     if (model%options%enable_glaciers) then

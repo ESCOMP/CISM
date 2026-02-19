@@ -1031,11 +1031,12 @@ contains
          'SMB input in units of m/yr ice  ', &
          'SMB input in units of mm/yr w.e.' /)
 
-    character(len=*), dimension(0:3), parameter :: smb_input_function = (/ &
+    character(len=*), dimension(0:4), parameter :: smb_input_function = (/ &
          'SMB input as function of (x,y)              ', &
          'SMB and d(SMB)/dz input as function of (x,y)', &
          'SMB input as function of (x,y,z)            ', &
-         'SMB computed with positive-degree scheme    ' /)
+         'SMB computed with positive-degree scheme    ', &
+         'SMB computed with seasonal PDDMJ scheme     ' /)
 
     character(len=*), dimension(0:3), parameter :: artm_input_function = (/ &
          'artm input as function of (x,y)               ', &
@@ -1677,7 +1678,7 @@ contains
     if (model%options%smb_input_function == SMB_INPUT_FUNCTION_XYZ) then
        write(message,*) 'number of atmosphere levels : ', model%climate%nzatm
        call write_log(message)
-    elseif (model%options%smb_input_function == SMB_INPUT_FUNCTION_PDD) then
+    elseif (model%options%smb_input_function == SMB_INPUT_FUNCTION_PDD .or. model%options%smb_input_function == SMB_INPUT_FUNCTION_PDDMJ) then
        !write(message,*) 'Degree factor (mm/yr/deg C) : ', model%climate%degree_factor
        !call write_log(message)
        !write(message,*) 'Melt threshold (deg C)      : ', model%climate%tmlt
