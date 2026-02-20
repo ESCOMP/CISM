@@ -44,6 +44,7 @@ module glissade_utils
        glissade_basin_sum, glissade_basin_average, &
        glissade_usrf_to_thck, glissade_thck_to_usrf, &
        glissade_edge_fluxes, glissade_input_fluxes, &
+       glissade_quadrant_sum, glissade_bounding_box, &
        glissade_rms_error, write_array_to_file
 
   interface write_array_to_file
@@ -818,6 +819,7 @@ contains
   subroutine glissade_input_fluxes(&
         nx,      ny,            &
         dew,     dns,           &
+        dt,                     &
         itest,   jtest,  rtest, &
         thck,                   &
         uvel,    vvel,          &
@@ -836,7 +838,8 @@ contains
          itest, jtest, rtest
 
     real(dp), intent(in) :: &
-         dew, dns                 ! cell edge lengths in EW and NS directions (m)
+         dew, dns,              & ! cell edge lengths in EW and NS directions (m)
+         dt                       ! timestep (s)
 
     real(dp), dimension(nx,ny), intent(in) :: &
          thck                     ! ice thickness (m) at cell centers
@@ -845,7 +848,7 @@ contains
          uvel, vvel               ! vertical mean velocity (m/s) at cell corners
 
     real(dp), dimension(-1:1,-1:1,nx,ny), intent(out) :: &
-         flux_in                  ! ice volume fluxes (m^3/yr) into cell from each neighbor cell
+         flux_in                  ! ice volume fluxes (m^3/s) into cell from each neighbor cell
 
     type(parallel_type), intent(in) :: parallel   ! info for parallel communication
 
@@ -880,28 +883,39 @@ contains
        do i = nhalo+1, nx-nhalo
 
           ! Compute the upwind velocity components at each vertex
-          ! Convert from m/s to m/yr for diagnostics
-          u_sw = max( uvel(i-1,j-1), 0.0d0)*scyr
-          v_sw = max( vvel(i-1,j-1), 0.0d0)*scyr
-          u_se = max(-uvel(i,j-1),   0.0d0)*scyr
-          v_se = max( vvel(i,j-1),   0.0d0)*scyr
-          u_ne = max(-uvel(i,j),     0.0d0)*scyr
-          v_ne = max(-vvel(i,j),     0.0d0)*scyr
-          u_nw = max( uvel(i-1,j),   0.0d0)*scyr
-          v_nw = max(-vvel(i-1,j),   0.0d0)*scyr
+          u_sw = uvel(i-1,j-1)
+          v_sw = vvel(i-1,j-1)
+          u_se = uvel(i,j-1)
+          v_se = vvel(i,j-1)
+          u_ne = uvel(i,j)
+          v_ne = vvel(i,j)
+          u_nw = uvel(i-1,j)
+          v_nw = vvel(i-1,j)
 
-          ! Estimate the area fluxes from each edge neighbor
-          area_w = 0.5d0*(u_nw + u_sw)*dns - 0.5d0*(u_nw*v_nw + u_sw*v_sw)
-          area_s = 0.5d0*(v_sw + v_se)*dew - 0.5d0*(u_sw*v_sw + u_se*v_se)
-          area_e = 0.5d0*(u_se + u_ne)*dns - 0.5d0*(u_se*v_se + u_ne*v_ne)
-          area_n = 0.5d0*(v_ne + v_nw)*dew - 0.5d0*(u_ne*v_ne + u_nw*v_nw)
+          ! Estimate the area fluxes (m^2/s) into this cells from each edge neighbor
+          ! Note: The first line on the RHS accounts for the velocity component
+          !        perpendicular to the edge; this is a rectangle area.
+          !       The next two lines are corrections proportional to the velocity
+          !        component parallel to the edge; these are triangle areas.
+          area_w = 0.5d0*(max( u_nw,0.0d0) + max( u_sw,0.0d0))*dns   &
+                 - 0.5d0* max( u_nw,0.0d0) * max( v_nw,0.0d0)*dt     &
+                 - 0.5d0* max( u_sw,0.0d0) * max(-v_sw,0.0d0)*dt
+          area_s = 0.5d0*(max( v_sw,0.0d0) + max( v_se,0.0d0))*dew   &
+                 - 0.5d0* max(-u_sw,0.0d0) * max( v_sw,0.0d0)*dt     &
+                 - 0.5d0* max( u_se,0.0d0) * max( v_se,0.0d0)*dt
+          area_e = 0.5d0*(max(-u_se,0.0d0) + max(-u_ne,0.0d0))*dns   &
+                 - 0.5d0* max(-u_se,0.0d0) * max(-v_se,0.0d0)*dt     &
+                 - 0.5d0* max(-u_ne,0.0d0) * max( v_ne,0.0d0)*dt
+          area_n = 0.5d0*(max(-v_ne,0.0d0) + max(-v_nw,0.0d0))*dew   &
+                 - 0.5d0* max( u_ne,0.0d0) * max(-v_ne,0.0d0)*dt     &
+                 - 0.5d0* max(-u_nw,0.0d0) * max(-v_nw,0.0d0)*dt
 
-          ! Estimate the area fluxes from each diagonal neighbor
-          ! Note: The sum is equal to the sum of the terms subtracted from the edge areas above
-          area_sw = u_sw*v_sw
-          area_se = u_se*v_se
-          area_ne = u_ne*v_ne
-          area_nw = u_nw*v_nw
+          ! Estimate the area fluxes (m^2/s) from each diagonal neighbor.
+          ! These are rectangle areas.
+          area_sw = max( u_sw,0.0d0)*max( v_sw,0.0d0)*dt
+          area_se = max(-u_se,0.0d0)*max( v_se,0.0d0)*dt
+          area_ne = max(-u_ne,0.0d0)*max(-v_ne,0.0d0)*dt
+          area_nw = max( u_nw,0.0d0)*max(-v_nw,0.0d0)*dt
 
           ! Estimate the volume fluxes from each edge neighbor
           flux_in(-1, 0,i,j) = area_w * thck(i-1,j)
@@ -918,22 +932,35 @@ contains
           if (verbose_input_fluxes .and. this_rank == rtest .and. i==itest .and. j==jtest) then
              write(iulog,*) ' '
              write(iulog,*) 'upstream u (m/yr), this_rank, i, j:'
-             write(iulog,'(3e12.4)') u_nw, u_ne
-             write(iulog,'(3e12.4)') u_sw, u_se
+             write(iulog,'(3f18.12)') u_nw*scyr, u_ne*scyr
+             write(iulog,'(3f18.12)') u_sw*scyr, u_se*scyr
              write(iulog,*) ' '
              write(iulog,*) 'upstream v (m/yr):'
-             write(iulog,'(3e12.4)') v_nw, v_ne
-             write(iulog,'(3e12.4)') v_sw, v_se
+             write(iulog,'(3f18.12)') v_nw*scyr, v_ne*scyr
+             write(iulog,'(3f18.12)') v_sw*scyr, v_se*scyr
              write(iulog,*) ' '
-             write(iulog,*) 'Input area fluxes (m^2/yr):'
-             write(iulog,'(3e12.4)') area_nw, area_n, area_ne
-             write(iulog,'(3e12.4)') area_w,  0.0d0, area_e
-             write(iulog,'(3e12.4)') area_sw, area_s, area_se
+             write(iulog,*) 'Input area fluxes (km^2/yr):'
+             write(iulog,'(3f18.12)') area_nw*scyr/1.0d6, area_n*scyr/1.0d6, area_ne*scyr/1.0d6
+             write(iulog,'(3f18.12)') area_w *scyr/1.0d6,       0.0d0,       area_e *scyr/1.0d6
+             write(iulog,'(3f18.12)') area_sw*scyr/1.0d6, area_s*scyr/1.0d6, area_se*scyr/1.0d6
+             write(iulog,*) 'Total =', &
+                  (area_w + area_s + area_e + area_n + area_sw + area_se + area_ne + area_nw)*scyr/1.0d6
              write(iulog,*) ' '
-             write(iulog,*) 'Input ice volume fluxes (m^3/yr):'
+             write(iulog,*) 'Estimated edge area fluxes:'
+             area_w = 0.5d0*(max( u_nw,0.0d0) + max( u_sw,0.0d0))*dns
+             area_s = 0.5d0*(max( v_sw,0.0d0) + max( v_se,0.0d0))*dew
+             area_e = 0.5d0*(max(-u_se,0.0d0) + max(-u_ne,0.0d0))*dns
+             area_n = 0.5d0*(max(-v_ne,0.0d0) + max(-v_nw,0.0d0))*dew
+             write(iulog,*) 'area_w =', area_w*scyr/1.0e6
+             write(iulog,*) 'area_s =', area_s*scyr/1.0e6
+             write(iulog,*) 'area_e =', area_e*scyr/1.0e6
+             write(iulog,*) 'area_n =', area_n*scyr/1.0e6
+             write(iulog,*) 'Total =', (area_w + area_s + area_e + area_n)*scyr/1.0d6
+             write(iulog,*) ' '
+             write(iulog,*) 'Input ice volume fluxes (km^3/yr):'
              do jj = 1,-1,-1
                 do ii = -1,1
-                   write(iulog,'(e12.4)',advance='no') flux_in(ii,jj,i,j)
+                   write(iulog,'(f15.8)',advance='no') flux_in(ii,jj,i,j)*scyr/1.0d9
                 enddo
                 write(iulog,*) ' '
              enddo
@@ -942,14 +969,294 @@ contains
        enddo   ! i
     enddo   ! j
 
-    do j = -1, 1
-       do i = -1, 1
-          call parallel_halo(flux_in, parallel)
+    do jj = -1, 1
+       do ii = -1, 1
+          call parallel_halo(flux_in(ii,jj,:,:), parallel)
        enddo
     enddo
 
   end subroutine glissade_input_fluxes
 
+!***********************************************************************
+
+  subroutine glissade_quadrant_sum(&
+       nx,        ny,          &
+       parallel,               &
+       field,     quadrant_sum)
+
+    ! Integrate a field over each of 4 quadrants.
+    ! This can be useful in idealized experiments like CalvingMIP to check for
+    !  violations of reflectional or rotational symmetry.
+    ! Note: These sums are not independent of processor count
+    ! TODO: Make them reproducible, using quadrant masks?
+
+    use cism_parallel, only: gather_var, broadcast
+
+    ! Input/output arguments
+
+    integer, intent(in) :: &
+         nx, ny                   ! number of local cells in x and y direction on input grid
+
+    type(parallel_type), intent(in) :: parallel   ! info for parallel communication
+
+    real(dp), dimension(nx,ny), intent(in) :: &
+         field                    ! 2D input field
+
+    real(dp), dimension(4), intent(out) :: &
+         quadrant_sum             ! global sum over each of 4 quadrants
+
+    ! Local variables
+
+    integer :: i, j
+    integer :: nxg, nyg           ! dimensions of global domain
+    integer :: nx2, ny2           ! nx/2 and ny/2 (if nx and ny are even)
+                                  ! (nx-1)/2 and (ny-1)/2 (if nx and ny are odd)
+
+    real(dp), dimension(:,:), allocatable :: field_global
+
+    nxg = parallel%global_ewn
+    nyg = parallel%global_nsn
+
+    if (mod(nxg,2) == 0) then   ! global_ewn is even
+       nx2 = nxg/2
+    else   ! nx is odd
+       nx2 = (nxg-1)/2
+    endif
+
+    if (mod(nyg,2) == 0) then   ! global_nsn is even
+       ny2 = nyg/2
+    else   ! ny is odd
+       ny2 = (nyg-1)/2
+    endif
+
+    call gather_var(field, field_global, parallel)
+
+    ! Sum over each quadrant on the main task
+    ! Note: If nx or ny is odd, the middle row or column is excluded from the sum.
+
+    if (main_task) then
+
+       quadrant_sum(:) = 0.0d0
+
+       ! quadrant 1 (NE)
+       do j = ny2+1, nyg
+          do i = nx2+1, nxg
+             quadrant_sum(1) = quadrant_sum(1) + field_global(i,j)
+          enddo
+       enddo
+
+       ! quadrant 2 (NW)
+       do j = ny2+1, nyg
+          do i = 1, nx2
+             quadrant_sum(2) = quadrant_sum(2) + field_global(i,j)
+          enddo
+       enddo
+
+       ! quadrant 3 (SW)
+       do j = 1, ny2
+          do i = 1, nx2
+             quadrant_sum(3) = quadrant_sum(3) + field_global(i,j)
+          enddo
+       enddo
+
+       ! quadrant 4 (SE)
+       do j = 1, ny2
+          do i = nx2+1, nxg
+             quadrant_sum(4) = quadrant_sum(4) + field_global(i,j)
+          enddo
+       enddo
+
+    endif   ! main_task
+
+    ! Broadcast to all tasks
+    call broadcast(quadrant_sum)
+
+  end subroutine glissade_quadrant_sum
+
+!***********************************************************************
+
+  subroutine glissade_bounding_box(&
+       dx,       dy,   &
+       point_coords,   &
+       corner_coords,  &
+       corner_values,  &
+       corner_mask,    &
+       point_value)
+
+    ! Given the values of a field at the four corners of a bounding box,
+    !  make a linear approximation of the field value at a given point
+    !  inside the box.
+    ! This is cruder than a bilinear interpolation. It's intended to give
+    !  an approximate answer, sometimes when cornerss are masked out
+    !  (i.e., valid values are not available at all 4 corners.
+    ! Note: This subroutine works for any distance units as long as units are consistent.
+
+    ! Input/output arguments
+
+    real(dp), intent(in) :: &
+         dx, dy                  ! dimensions of the box
+
+    real(dp), dimension(2), intent(in) :: &
+         point_coords            ! x and y coordinates of the point inside the box
+
+    real(dp), dimension(2,4), intent(in) :: &
+         corner_coords           ! x and y coordinates at each of 4 corners;
+                                 ! ordering is SW, SE, NE, NW
+
+    real(dp), dimension(4), intent(in) :: &
+         corner_values           ! value of field at each corner; SW/SE/NE/NW ordering
+
+    integer, dimension(4), intent(in) :: &
+         corner_mask             ! = 1 for valid values, 0 for not valid
+
+    real(dp), intent(out) :: &
+         point_value             ! estimated field value at the selected point
+
+    ! Local variables
+
+    integer :: i, j
+    real(dp) :: xp, yp                             ! coordinates of the point in the box
+    real(dp) :: dxp, dyp                           ! coordinates of the point relative to a corner
+    real(dp) :: x_sw, x_se, x_ne, x_nw             ! x coordinates for each corner
+    real(dp) :: y_sw, y_se, y_ne, y_nw             ! y coordinates for each corner
+    real(dp) :: f_sw, f_se, f_ne, f_nw             ! field values at each corner
+    real(dp) :: f_e, f_w, f_n, f_s                 ! field values interpolated to edge midpoints
+    real(dp) :: df_dx, df_dy                       ! field derivatives
+    integer :: mask_sw, mask_se, mask_ne, mask_nw  ! mask values for each corner; = 1 for valid values, else 0
+    integer :: mask_e, mask_w, mask_n, mask_s      ! mask values for each edge; = 1 for valid values, else 0
+
+    logical, parameter :: verbose_bounding_box = .false.
+
+    ! Initialize
+    ! These copies aren't strictly necessary, but the compass labels make things easier to visualize.
+
+    xp = point_coords(1)
+    yp = point_coords(2)
+
+    f_sw = corner_values(1)
+    f_se = corner_values(2)
+    f_ne = corner_values(3)
+    f_nw = corner_values(4)
+
+    x_sw = corner_coords(1,1)
+    y_sw = corner_coords(2,1)
+    x_se = corner_coords(1,2)
+    y_se = corner_coords(2,2)
+    x_ne = corner_coords(1,3)
+    y_ne = corner_coords(2,3)
+    x_nw = corner_coords(1,4)
+    y_nw = corner_coords(2,4)
+
+    mask_sw = corner_mask(1)
+    mask_se = corner_mask(2)
+    mask_ne = corner_mask(3)
+    mask_nw = corner_mask(4)
+
+    ! assume edge values are valid unless both corner values are found to be masked out
+    mask_e = 1
+    mask_w = 1
+    mask_s = 1
+    mask_n = 1
+
+    ! Interpolate field values to cell edges
+
+    if (mask_se > 0 .and. mask_ne > 0) then
+       f_e = 0.5d0 * (f_se + f_ne)
+    elseif (mask_se > 0.0d0) then
+       f_e = f_se
+    elseif (mask_ne > 0.0d0) then
+       f_e = f_ne
+    else
+       mask_e = 0
+    endif
+
+    if (mask_sw > 0 .and. mask_nw > 0) then
+       f_w = 0.5d0 * (f_sw + f_nw)
+    elseif (mask_sw > 0.0d0) then
+       f_w = f_sw
+    elseif (mask_nw > 0.0d0) then
+       f_w = f_nw
+    else
+       mask_w = 0
+    endif
+
+    if (mask_nw > 0 .and. mask_ne > 0) then
+       f_n = 0.5d0 * (f_nw + f_ne)
+    elseif (mask_nw > 0.0d0) then
+       f_n = f_nw
+    elseif (mask_ne > 0.0d0) then
+       f_n = f_ne
+    else
+       mask_n = 0
+    endif
+
+    if (mask_sw > 0 .and. mask_se > 0) then
+       f_s = 0.5d0 * (f_sw + f_se)
+    elseif (mask_sw > 0.0d0) then
+       f_s = f_sw
+    elseif (mask_se > 0.0d0) then
+       f_s = f_se
+    else
+       mask_s = 0
+    endif
+
+    ! Estimate the derivatives
+    ! Requires at least one valid value per edge to compute a derivative
+
+    if (mask_e > 0 .and. mask_w > 0) then
+       df_dx = (f_e - f_w)/dx
+    else
+       df_dx = 0
+    endif
+
+    if (mask_n > 0 .and. mask_s > 0) then
+       df_dy = (f_n - f_s)/dy
+    else
+       df_dy = 0
+    endif
+
+    ! Estimate the value at the point inside the box.
+    ! (Still computes a value if the corner is outside the box,
+    !  but there's no guarantee the extrapolation will be accurate.))
+    ! At least one corner must have a valid value.
+
+    if (mask_sw > 0) then
+       dxp = xp - x_sw
+       dyp = yp - y_sw
+       point_value = f_sw + df_dx*dxp + df_dy*dyp
+    elseif (mask_se > 0) then
+       dxp = xp - x_se
+       dyp = yp - y_se
+       point_value = f_se + df_dx*dxp + df_dy*dyp
+    elseif (mask_ne > 0) then
+       dxp = xp - x_ne
+       dyp = yp - y_ne
+       point_value = f_ne + df_dx*dxp + df_dy*dyp
+    elseif (mask_nw > 0) then
+       dxp = xp - x_nw
+       dyp = yp - y_nw
+       point_value = f_nw + df_dx*dxp + df_dy*dyp
+    else
+!       write(6,*) 'In glissade_bounding_box, rank =', this_rank
+!       write(6,*) 'CF location =', xp, yp
+!       write(6,*) 'Corner coordinates, values, mask:'
+!       do i = 1, 4
+!          write(6,*) corner_coords(:,i), corner_values(i), corner_mask(i)
+!       enddo
+       call write_log('glissade_bounding_box_error: no valid values', GM_FATAL)
+    endif
+
+    if (verbose_bounding_box) then
+       write(6,*) 'In glissade_bounding_box, rank =', this_rank
+       write(6,*) 'CF location =', xp, yp
+       write(6,*) 'df/dx, df/dy:', df_dx, df_dy
+       write(6,*) 'dxp, dyp:', dxp, dyp
+       write(6,*) 'point value =', point_value
+    endif
+
+  end subroutine glissade_bounding_box
+
+!***********************************************************************
 
   ! subroutines belonging to the write_array_to_file interface
   subroutine write_array_to_file_real8_2d(arr, fileunit, filename, parallel, write_binary)

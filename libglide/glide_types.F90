@@ -1594,12 +1594,20 @@ module glide_types
                                                  !> NOTE: This option is applied only if calving_front_x or calving_front_y > 0
      real(dp) :: f_ground_threshold = 0.10d0     !> Threshold fraction for grounded cells in iceberg removal algorithm
                                                  !> Also used for isthmus removal
+
+     ! calvingMIP parameters and diagnostics
+     ! Note: For the circular domain, axis 1 is the y-axis and axis 2 is the line y = x in the NE quadrant
+     !       For the Thule domain, axis 1 is the Caprona A axis, and axis 2 is the Halbrane A axis, both in the NW quadrant
      real(dp) :: &
           cf_advance_retreat_amplitude = 0.0d0,& !> prescribed amplitude (m/yr) for calving front advance or retreat
                                                  !> positive for sin(2*pi*t/period), negative for -sin(2*pi*t/period)
                                                  !> should be negative for CalvingMIP Experiments 2 and 4
           cf_advance_retreat_period = 0.0d0      !> period (yr) for an advance/retreat cycle
                                                  !> period = 0 => constant amplitude
+     real(dp) ::  &
+          cf_radius1, cf_radius2,              & !> distance of CF from origin (m) along axes 1 and 2
+          cf_thck1, cf_thck2,                  & !> ice thickness at CF (m) along axes 1 and 2
+          cf_speed1, cf_speed2                   !> mean ice speed at CF (m/s) along axes 1 and 2
 
   end type glide_calving
 

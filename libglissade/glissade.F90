@@ -2127,7 +2127,7 @@ contains
 
        if (verbose_inversion .or. verbose_glissade .or. verbose_calving) then
           call point_diag(model%geometry%thck, 'Before glissade_transport_driver, thck (m)', &
-               itest, jtest, rtest, 7, 7, '(f10.3)')
+               itest, jtest, rtest, 7, 7)
        endif
 
        ! ------------------------------------------------------------------------
@@ -2159,14 +2159,15 @@ contains
             ice_mask,               floating_mask,    &
             ocean_mask,             land_mask,        &
             calving_front_mask,                       &
-            dthck_dx_cf = model%calving%dthck_dx_cf,  &
-            dx = model%numerics%dew,                  &
-            dy = model%numerics%dns,                  &
-            thck_effective = model%calving%thck_effective, &
-            thck_effective_min = model%calving%thck_effective_min,  &
-            partial_cf_mask = partial_cf_mask,        &
-            full_mask = full_mask,                    &
-            effective_areafrac = model%calving%effective_areafrac)
+            model%calving%dthck_dx_cf,                &
+            model%numerics%dew,                       &
+            model%numerics%dns,                       &
+            model%calving%thck_effective,             &
+            model%calving%thck_effective_min,         &
+            partial_cf_mask,                          &
+            full_mask,                                &
+            model%calving%effective_areafrac,         &
+            itest, jtest, rtest)
 
        if (verbose_calving) then
           call point_diag(calving_front_mask, 'calving_front_mask', itest, jtest, rtest, 7, 7)
@@ -2190,13 +2191,20 @@ contains
              model%calving%protected_mask = 1
           endwhere
 
-          ! Protect partial CF and ice-free ocean cells that are adjacent to full cells.
-          ! Protect ice-free ocean cells if adjacent to three partial CF cells.
+          ! Protect the following:
+          ! (1) partial CF and ice-free ocean cells that are adjacent to full cells.
+          ! (2) partial CF cells if adjacent to at least two other partial CF cells.
+          ! (3) ice-free ocean cells if adjacent to three partial CF cells.
           do j = 2, nsn-1
              do i = 2, ewn-1
                 if (full_mask(i-1,j) == 1 .or. full_mask(i+1,j) == 1 .or. &
                     full_mask(i,j-1) == 1 .or. full_mask(i,j+1) == 1) then
                    model%calving%protected_mask(i,j) = 1
+                elseif (partial_cf_mask(i,j) == 1) then
+                   if (partial_cf_mask(i-1,j) + partial_cf_mask(i+1,j) + &
+                       partial_cf_mask(i,j-1) + partial_cf_mask(i,j+1) >= 2) then
+                      model%calving%protected_mask(i,j) = 1
+                   endif
                 elseif (ocean_mask(i,j) == 1) then
                    if (partial_cf_mask(i-1,j) + partial_cf_mask(i+1,j) + &
                        partial_cf_mask(i,j-1) + partial_cf_mask(i,j+1) >= 3) then
@@ -2367,7 +2375,6 @@ contains
           call point_diag(model%geometry%thck, 'After glissade_transport_driver, thck (m)', &
                itest, jtest, rtest, 7, 7, '(f10.3)')
        endif
-       !TODO - End of code for glissade_transport_solve, start of SMB code
 
        !-------------------------------------------------------------------------
        ! If needed, adjust the surface mass balance (e.g., downscale to the current
@@ -2922,33 +2929,6 @@ contains
             model%geometry%f_ground_cell,  &
             model%geometry%topg_raised)
 
-       if (model%options%which_ho_calving_front == HO_CALVING_FRONT_SUBGRID) then
-
-          ! Compute partial_cf_mask and full-mask.
-          ! This is to prevent partial CF cells from spreading the fill.
-          call glissade_calving_front_mask(&
-               nx,          ny,     &
-               model%options%which_ho_calving_front,       &
-               parallel,                                   &
-               model%geometry%thck,                        &
-               model%geometry%topg,                        &
-               model%climate%eus,                          &
-               ice_mask,            floating_mask,         &
-               ocean_mask,          land_mask,             &
-               calving_front_mask,                         &
-               dx = model%numerics%dew,                    &
-               dy = model%numerics%dns,                    &
-               dthck_dx_cf = model%calving%dthck_dx_cf,    &
-               thck_effective = model%calving%thck_effective,  &
-               thck_effective_min = model%calving%thck_effective_min,  &
-               partial_cf_mask = partial_cf_mask,          &
-               full_mask = full_mask,                      &
-               effective_areafrac = model%calving%effective_areafrac)
-
-          ice_mask = full_mask
-
-       endif   ! which_ho_calving_front
-
        ! Remove icebergs.
        ! Icebergs are defined as floating cells that do not have a path through active cells
        !  to grounded cells (i.e., cells where f_ground_cell exceeds a threshold value).
@@ -3285,23 +3265,24 @@ contains
     !        uses model%calving%thck_effective in place of model%geometry%thck.
     !       In partial_cf cells, thck_effective > thck.
 
-    call glissade_calving_front_mask(ewn,                 nsn,     &
-                                     model%options%which_ho_calving_front,       &
-                                     parallel,                                   &
-                                     model%geometry%thck,                        &
-                                     model%geometry%topg,                        &
-                                     model%climate%eus,                          &
-                                     ice_mask,            floating_mask,         &
-                                     ocean_mask,          land_mask,             &
-                                     calving_front_mask,                         &
-                                     dx = model%numerics%dew,                    &
-                                     dy = model%numerics%dns,                    &
-                                     dthck_dx_cf = model%calving%dthck_dx_cf,    &
-                                     thck_effective = model%calving%thck_effective,  &
-                                     thck_effective_min = model%calving%thck_effective_min,  &
-                                     partial_cf_mask = partial_cf_mask,          &
-                                     full_mask = full_mask,                      &
-                                     effective_areafrac = model%calving%effective_areafrac)
+    call glissade_calving_front_mask(&
+         ewn,                 nsn,              &
+         model%options%which_ho_calving_front,  &
+         parallel,                              &
+         model%geometry%thck,                   &
+         model%geometry%topg,                   &
+         model%climate%eus,                     &
+         ice_mask,            floating_mask,    &
+         ocean_mask,          land_mask,        &
+         calving_front_mask,                    &
+         model%numerics%dew,                    &
+         model%numerics%dns,                    &
+         model%calving%dthck_dx_cf,             &
+         model%calving%thck_effective,          &
+         model%calving%thck_effective_min,      &
+         partial_cf_mask,                       &
+         full_mask,                             &
+         model%calving%effective_areafrac)
 
     ! ------------------------------------------------------------------------
     ! Compute the fraction of grounded ice in each cell and at each vertex.

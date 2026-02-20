@@ -283,7 +283,8 @@
        dx,                     dy,                   &
        thck_effective,         thck_effective_min,   &
        partial_cf_mask,        full_mask,            &
-       effective_areafrac)
+       effective_areafrac,                           &
+       itest, jtest, rtest)
 
     ! Compute a calving_front mask, effective calving_front thickness, and related fields.
     ! If using the subgrid calving front scheme, then compute the surface elevation gradient
@@ -333,6 +334,8 @@
          partial_cf_mask,       & ! = 1 for partially filled CF cells (thck < thck_effective), else = 0
          full_mask                ! = 1 for ice-filled cells that are not partial_cf cells, else = 0
 
+    integer, intent(in), optional :: itest, jtest, rtest
+
     !----------------------------------------------------------------
     ! Local arguments
     !----------------------------------------------------------------
@@ -344,7 +347,9 @@
          capped_thck                 ! min(thck, thck_flotation)
 
     real(dp) :: &
-         max_neighbor_thck,        & ! max thickness (m) of the four edge neighbors
+         max_neighbor_thck,        & ! max thickness (m) of the neighbor cells
+         max_edge_neighbor_thck,   & ! max thickness (m) of the four edge neighbors
+         max_corner_neighbor_thck, & ! max thickness (m) of the four corner neighbors
          distance,                 & ! distance between adjacent cell centers
          dthck_dx                    ! dH/dx between adjacent cells near the CF
 
@@ -367,16 +372,15 @@
              if (ocean_mask(i-1,j) == 1 .or. ocean_mask(i+1,j) == 1 .or. &
                  ocean_mask(i,j-1) == 1 .or. ocean_mask(i,j+1) == 1) then
                 calving_front_mask(i,j) = 1
-              ! Note - The following logic adds some CF cells in regions with thin floating ice.
-              ! Commmented out for now because it changes CalvingMIP answers.
-             elseif (thck(i,j) < thck_effective_min) then
-                ! If two adjacent floating cells have very thin ice, we can think of them as sharing a CF
-                if ( (floating_mask(i-1,j) == 1 .and. thck(i-1,j) < thck_effective_min) .or. &
-                     (floating_mask(i+1,j) == 1 .and. thck(i+1,j) < thck_effective_min) .or. &
-                     (floating_mask(i,j-1) == 1 .and. thck(i,j-1) < thck_effective_min) .or. &
-                     (floating_mask(i,j+1) == 1 .and. thck(i,j+1) < thck_effective_min) ) then
-                   calving_front_mask(i,j) = 1
-                endif
+              ! The following logic is commented out for now; not sure it's needed.
+!!             elseif (thck(i,j) < thck_effective_min) then
+!!                ! If two adjacent floating cells have very thin ice, we can think of them as sharing a CF
+!!                if ( (floating_mask(i-1,j) == 1 .and. thck(i-1,j) < thck_effective_min) .or. &
+!!                     (floating_mask(i+1,j) == 1 .and. thck(i+1,j) < thck_effective_min) .or. &
+!!                     (floating_mask(i,j-1) == 1 .and. thck(i,j-1) < thck_effective_min) .or. &
+!!                     (floating_mask(i,j+1) == 1 .and. thck(i,j+1) < thck_effective_min) ) then
+!!                   calving_front_mask(i,j) = 1
+!!                endif
              else
                 interior_mask(i,j) = 1
              endif
@@ -396,49 +400,42 @@
 
        ! Identify full cells and partial CF cells.
        ! All ice-covered cells not at the CF are full cells.
-       ! For CF cells, compute the max thickness of interior neighbors (capped at the flotation thicknes)..
-       ! * If the thickness of the CF cell is close to that of the interior cell,
-       !   mark the CF cell as a full cell.
-       ! * Otherwise, mark the CF cell as a partial CF cell.
-       ! If there are no interior neighbors with nonzero (capped) thickness, then compare
-       ! to the thickness of CF neighbors.
+       ! For CF cells, compute the max thickness of interior neighbors (capped at the flotation thickness).
+       ! * Look at edge neighbors first, then corner neighbors.
+       ! * If the thickness of the CF cell is close to or greater than that of the interior cell,
+       !   mark the CF cell as a full cell. Otherwise, mark it as a partial CF cell.
 
        thck_flotation = max(-(rhoo/rhoi) * (topg - eus), 0.0d0)
        capped_thck = min(thck, thck_flotation)
 
        do j = 2, ny-1
           do i = 2, nx-1
-             if (ice_mask(i,j) == 1) then
+             if (ice_mask(i,j) == 1) then   !TODO - Remove this if?
                 if (calving_front_mask(i,j) == 1) then
+                   ! compute thck_effective from an interior edge neighbor
                    max_neighbor_thck = max(&
                         interior_mask(i-1,j)*capped_thck(i-1,j), interior_mask(i+1,j)*capped_thck(i+1,j), &
                         interior_mask(i,j-1)*capped_thck(i,j-1), interior_mask(i,j+1)*capped_thck(i,j+1))
                    if (max_neighbor_thck > 0.0d0) then
                       distance = sqrt(dx*dy)
+                   else ! no interior edge neighbors; find an interior corner neighbor
+                      max_neighbor_thck = max(&
+                        interior_mask(i-1,j+1)*capped_thck(i-1,j+1), interior_mask(i+1,j+1)*capped_thck(i+1,j+1), &
+                        interior_mask(i-1,j-1)*capped_thck(i-1,j-1), interior_mask(i+1,j-1)*capped_thck(i+1,j-1))
+                      if (max_neighbor_thck > 0.0d0) distance = sqrt(2.0d0) * sqrt(dx*dy)
+                   endif
+                   if (max_neighbor_thck > 0.0d0) then
                       dthck_dx = (max_neighbor_thck - thck(i,j)) / distance
-                      ! If the gradient exceeds a critical value, this is a partial CF cell;
-                      !  set thck_effective based on the critical gradient.
-                      ! If the gradient is at or below the critical valude, this is a full cell with thck_effective = thck.
+                      thck_effective(i,j) = max_neighbor_thck - dthck_dx_cf*distance
+                      ! If the gradient exceeds a critical value, this is a partial CF cell; else it is full.
                       if (dthck_dx > dthck_dx_cf) then
                          partial_cf_mask(i,j) = 1
-                         thck_effective(i,j) = max_neighbor_thck - dthck_dx_cf*distance
                       else
                          full_mask(i,j) = 1
                       endif   ! dthck_dx > dthck_dx_cf
-                   else   ! no floating interior neighbors
-                      ! Mark as a partial cell, and compute thck_effective from a CF neighbor
+                   else  ! no interior neighbors (should be rare); call it a partial CF cell
                       partial_cf_mask(i,j) = 1
-                      max_neighbor_thck = max(&
-                           calving_front_mask(i-1,j)*thck(i-1,j), calving_front_mask(i+1,j)*thck(i+1,j), &
-                           calving_front_mask(i,j-1)*thck(i,j-1), calving_front_mask(i,j+1)*thck(i,j+1))
-                      distance = sqrt(dx*dy)
-                      dthck_dx = (max_neighbor_thck - thck(i,j)) / distance
-                      if (dthck_dx > dthck_dx_cf) then
-                         thck_effective(i,j) = max_neighbor_thck - dthck_dx_cf*distance
-                      endif
-!!                         call parallel_globalindex(i, j, ig, jg, parallel)
-!!                         write(iulog,*) 'No interior neighbor:', ig, jg, thck(i,j)
-!!                         write(iulog,*) '   New H_eff:', thck_effective(i,j)
+                      !TODO - Look at cases with no interior neighbors
                    endif   ! max_neighbor_thck > 0
 
                 else   ! not a CF cell; thck_effective = thck
@@ -465,7 +462,6 @@
        call parallel_halo(partial_cf_mask, parallel)
 
        ! Use the ratio thck/thck_effective to compute effective_areafrac.
-
        do j = 1, ny
           do i = 1, nx
              if (calving_front_mask(i,j) == 1) then
@@ -478,6 +474,9 @@
              endif
           enddo
        enddo
+
+       ! not sure this update is needed
+       call parallel_halo(effective_areafrac, parallel)
 
     else   ! no subgrid calving front scheme
 

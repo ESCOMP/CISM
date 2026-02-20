@@ -642,6 +642,54 @@ long_name:     total calving mass balance flux
 data:          data%geometry%total_calving_flux
 average:       1
 
+#calvingMIP output
+
+[cf_radius1]
+dimensions:    time
+long_name:     calving-front radius, axis 1
+units:         km
+data:          data%calving%cf_radius1
+type:          real
+factor:        0.001
+
+[cf_radius2]
+dimensions:    time
+long_name:     calving-front radius, axis 2
+units:         km
+data:          data%calving%cf_radius2
+type:          real
+factor:        0.001
+
+[cf_thck1]
+dimensions:    time
+long_name:     calving-front thickness, axis 1
+units:         m
+data:          data%calving%cf_thck1
+type:          real
+
+[cf_thck2]
+dimensions:    time
+long_name:     calving-front thickness, axis 2
+units:         m
+data:          data%calving%cf_thck2
+type:          real
+
+[cf_speed1]
+dimensions:    time
+long_name:     calving-front speed, axis 1
+units:         m/year
+data:          data%calving%cf_speed1
+type:          real
+factor:        scyr
+
+[cf_speed2]
+dimensions:    time
+long_name:     calving-front speed, axis 2
+units:         m/year
+data:          data%calving%cf_speed2
+type:          real
+factor:        scyr
+
 [thkmask]
 dimensions:    time, y1, x1
 long_name:     mask

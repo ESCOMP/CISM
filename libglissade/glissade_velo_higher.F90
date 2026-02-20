@@ -2540,7 +2540,8 @@
                       i = itest
                       j = jtest
                       write(iulog,*) ' '
-                      write(iulog,*) 'uvel, beta_eff_x, btractx:', uvel_2d(i,j), beta_eff_x(i,j), btractx(i,j)
+                      write(iulog,*) 'iter, uvel, beta_eff_x, btractx:', &
+                           counter, uvel_2d(i,j), beta_eff_x(i,j), btractx(i,j)
                    endif
                    call point_diag(omega, 'omega', itest, jtest, rtest, 7, 7, '(e10.3)')
                    call point_diag(stag_omega, 'stag_omega', itest, jtest, rtest, 7, 7, '(e10.3)')
@@ -3156,7 +3157,8 @@
 
        ! Optional diagnostics
 
-       if (verbose_beta .and. counter > 1 .and. mod(counter-1,12)==0) then
+!!       if (verbose_beta .and. counter > 1 .and. mod(counter-1,12)==0) then
+       if (verbose_beta .and. counter > 1 .and. mod(counter-1,10)==0) then
 
           if (this_rank == rtest) write(iulog,*) 'Counter =', counter
           call point_diag(log10(max(beta_internal,1.d-99)), 'log_beta', itest, jtest, rtest, 7, 7)
@@ -6319,7 +6321,7 @@
 
     Jac(:,:) = 0.d0
 
-    if ((verbose_Jac .or. verbose_diva) .and. this_rank==rtest .and. i==itest .and. j==jtest) then
+    if (verbose_Jac .and. this_rank==rtest .and. i==itest .and. j==jtest) then
        write(iulog,*) ' '
        write(iulog,*) 'In get_basis_function_derivatives_2d: i, j, p =', i, j, p
     endif
