@@ -110,6 +110,12 @@ units:         meter
 long_name:     vertical coordinate of lithosphere layer
 dimlen:        model%lithot%nlayer
 
+[axis]
+dimensions:    axis
+units:         1
+long_name:     axis coordinate for calvingMIP output
+dimlen:        model%calving%naxis
+
 [lat]
 dimensions:    time, y1, x1
 units:         degreeN
@@ -559,6 +565,13 @@ data:          data%calving%calving_mask
 load:          1
 type:          int
 
+[subgrid_calving_mask]
+dimensions:    time, y1, x1
+units:         1
+long_name:     subgrid calving mask
+data:          data%calving%subgrid_calving_mask
+load:          1
+
 [calving_lateral]
 dimensions:    time, y1, x1
 units:         meter/year
@@ -644,49 +657,26 @@ average:       1
 
 #calvingMIP output
 
-[cf_radius1]
-dimensions:    time
-long_name:     calving-front radius, axis 1
+[cf_radius]
+dimensions:    time, axis
+long_name:     calving-front radius
 units:         km
-data:          data%calving%cf_radius1
+data:          data%calving%cf_radius
 type:          real
 factor:        0.001
 
-[cf_radius2]
-dimensions:    time
-long_name:     calving-front radius, axis 2
-units:         km
-data:          data%calving%cf_radius2
-type:          real
-factor:        0.001
-
-[cf_thck1]
-dimensions:    time
-long_name:     calving-front thickness, axis 1
+[cf_thck]
+dimensions:    time, axis
+long_name:     calving-front thickness
 units:         m
-data:          data%calving%cf_thck1
+data:          data%calving%cf_thck
 type:          real
 
-[cf_thck2]
-dimensions:    time
-long_name:     calving-front thickness, axis 2
-units:         m
-data:          data%calving%cf_thck2
-type:          real
-
-[cf_speed1]
-dimensions:    time
-long_name:     calving-front speed, axis 1
+[cf_speed]
+dimensions:    time, axis
+long_name:     calving-front speed
 units:         m/year
-data:          data%calving%cf_speed1
-type:          real
-factor:        scyr
-
-[cf_speed2]
-dimensions:    time
-long_name:     calving-front speed, axis 2
-units:         m/year
-data:          data%calving%cf_speed2
+data:          data%calving%cf_speed
 type:          real
 factor:        scyr
 

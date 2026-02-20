@@ -197,6 +197,13 @@ module glide_types
   integer, parameter :: CALVING_DOMAIN_OCEAN_EDGE = 0
   integer, parameter :: CALVING_DOMAIN_EVERYWHERE = 1
 
+  integer, parameter :: HO_CALVING_FRONT_NO_SUBGRID = 0
+  integer, parameter :: HO_CALVING_FRONT_SUBGRID = 1
+
+  integer, parameter :: HO_CALVINGMIP_DOMAIN_NONE = 0
+  integer, parameter :: HO_CALVINGMIP_DOMAIN_CIRCULAR = 1
+  integer, parameter :: HO_CALVINGMIP_DOMAIN_THULE = 2
+
   integer, parameter :: FORCE_RETREAT_NONE = 0
   integer, parameter :: FORCE_RETREAT_ALL_ICE = 1
   integer, parameter :: FORCE_RETREAT_FLOATING_ICE = 2
@@ -367,13 +374,6 @@ module glide_types
 
   integer, parameter :: HO_ASSEMBLE_LATERAL_STANDARD = 0
   integer, parameter :: HO_ASSEMBLE_LATERAL_LOCAL = 1
-
-  integer, parameter :: HO_CALVING_FRONT_NO_SUBGRID = 0
-  integer, parameter :: HO_CALVING_FRONT_SUBGRID = 1
-
-  integer, parameter :: HO_CALVINGMIP_DOMAIN_NONE = 0
-  integer, parameter :: HO_CALVINGMIP_DOMAIN_CIRCULAR = 1
-  integer, parameter :: HO_CALVINGMIP_DOMAIN_THULE = 2
 
   integer, parameter :: HO_GROUND_NO_GLP = 0
   integer, parameter :: HO_GROUND_GLP_BASAL_FRICTION = 1
@@ -668,7 +668,8 @@ module glide_types
     !>          certain water depth (variable "marine_limit" in glide_types)  
     !> \item[4] Set thickness to zero if present bedrock topography lies below
     !>          a certain water depth (variable "marine_limit" in glide_types)  
-    !> \item[5] Set thickness to zero based on grid location (field 'calving_mask')
+    !> \item[5] Calve based on grid location using a prescribed mask
+    !>          (field 'calving_mask' or 'subgrid_calving_mask')
     !> \item[6] Prescribe the rate of calving front advance or retreat
     !> \item[7] Calve ice whose thickness is below a given threshold
     !> \item[8] Deterministic calving based on eigenvalues of the horizontal stress tensor
@@ -693,6 +694,21 @@ module glide_types
 
     logical :: apply_calving_mask = .false.
     !> if true, then apply a calving mask to prevent calving-front advance
+
+    integer :: which_ho_calving_front = 0
+    !> Flag that indicates whether to use a subgrid calving front parameterization
+    !> \begin{description}
+    !> \item[0] no subgrid calving front parameterization
+    !> \item[1] subgrid parameterization with partially filled cells at the calving front
+    !> \end{description}
+
+    integer :: which_ho_calvingmip_domain = 0
+    !> Flag that indicates the desired domain for CalvingMIP experiments
+    !> \begin{description}
+    !> \item[0] none
+    !> \item[1] circular (radially symmetric)
+    !> \item[1] Thule (complex topography)
+    !> \end{description}
 
     logical :: remove_icebergs = .true.
     !> if true, then identify and remove icebergs after calving
@@ -1069,21 +1085,6 @@ module glide_types
     !> \begin{description}
     !> \item[0] standard finite-element calculation of thck and usrf at quadrature points
     !> \item[1] apply local cell-center value of thck and usrf on each face
-    !> \end{description}
-
-    integer :: which_ho_calving_front = 0
-    !> Flag that indicates whether to use a subgrid calving front parameterization
-    !> \begin{description}
-    !> \item[0] no subgrid calving front parameterization
-    !> \item[1] subgrid parameterization with partially filled cells at the calving front
-    !> \end{description}
-
-    integer :: which_ho_calvingmip_domain = 0
-    !> Flag that indicates the desired domain for CalvingMIP experiments
-    !> \begin{description}
-    !> \item[0] none
-    !> \item[1] circular (radially symmetric)
-    !> \item[1] Thule (complex topography)
     !> \end{description}
 
     integer :: which_ho_ground = 0
@@ -1552,8 +1553,11 @@ module glide_types
      real(dp),dimension(:,:),  pointer :: calving_thck => null()   !> thickness loss in grid cell due to calving during one time step (m)
      real(dp),dimension(:,:),  pointer :: calving_rate => null()   !> rate of ice loss due to calving (m/yr ice)
      real(dp),dimension(:,:),  pointer :: calving_rate_tavg => null()  !> rate of ice loss due to calving (m/yr ice, time average)
-     integer, dimension(:,:),  pointer :: calving_mask => null()   !> calve floating ice where the mask = 1 (whichcalving = CALVING_GRID_MASK)
-     integer, dimension(:,:),  pointer :: protected_mask => null() !> mask of cells protected from calving when using the subgrid CF scheme
+     integer, dimension(:,:),  pointer :: calving_mask => null()         !> calve floating ice where the mask = 1 (whichcalving = CALVING_GRID_MASK)
+     real(dp),dimension(:,:),  pointer :: subgrid_calving_mask => null() !> calve floating ice where the mask < 1.0 (whichcalving = CALVING_GRID_MASK);
+                                                                         !> real instead of integer for use with subgrid calving parameterization
+     integer, dimension(:,:),  pointer :: beyond_cf_mask => null() !> = 1 for cells beyond the CF when using the subgrid CF scheme;
+                                                                   !> these cells not allowed to fill until upstream neighbors are full
      real(dp),dimension(:,:),  pointer :: thck_effective => null() !> effective thickness for calving (m)
      real(dp),dimension(:,:),  pointer :: effective_areafrac => null() !> effective fractional area, < 1 for partial CF cells (m)
      real(dp),dimension(:,:),  pointer :: lateral_rate => null()   !> lateral calving rate (m/yr, not scaled)
@@ -1589,9 +1593,10 @@ module glide_types
 !     real(dp) :: damage_constant2 = 0.0d0        !> damage constant that multiplies tau_eigen2 (yr^-1)
      real(dp) :: taumax_cliff = 1.0d6            !> yield stress (Pa) for marine-based ice cliffs
      real(dp) :: cliff_timescale = 10.0d0        !> time scale (yr) for limiting marine cliffs (yr)
-     real(dp) :: calving_front_x = 0.0d0         !> for CALVING_GRID_MASK option, calve ice wherever abs(x) > calving_front_x (m)
-     real(dp) :: calving_front_y = 0.0d0         !> for CALVING_GRID_MASK option, calve ice wherever abs(y) > calving_front_y (m)
-                                                 !> NOTE: This option is applied only if calving_front_x or calving_front_y > 0
+     real(dp) :: calving_front_x = 0.0d0         !> for options with a calving mask, calve ice wherever abs(x) > calving_front_x (m)
+     real(dp) :: calving_front_y = 0.0d0         !> for options with a calving mask, calve ice wherever abs(y) > calving_front_y (m)
+     real(dp) :: calving_front_radius = 0.0d0    !> for options with a calving mask, calve ice where the distance from the origin > radius
+                                                 !> NOTE: Applied only if calving_front_x, calving_front_y, or calving_front_radius > 0
      real(dp) :: f_ground_threshold = 0.10d0     !> Threshold fraction for grounded cells in iceberg removal algorithm
                                                  !> Also used for isthmus removal
 
@@ -1604,10 +1609,16 @@ module glide_types
                                                  !> should be negative for CalvingMIP Experiments 2 and 4
           cf_advance_retreat_period = 0.0d0      !> period (yr) for an advance/retreat cycle
                                                  !> period = 0 => constant amplitude
-     real(dp) ::  &
-          cf_radius1, cf_radius2,              & !> distance of CF from origin (m) along axes 1 and 2
-          cf_thck1, cf_thck2,                  & !> ice thickness at CF (m) along axes 1 and 2
-          cf_speed1, cf_speed2                   !> mean ice speed at CF (m/s) along axes 1 and 2
+
+     ! The following are for calvingMIP diagnostics along 8 axes
+     ! Could be generalized for other problems with idealized geometry
+
+     integer :: naxis = 8                        !> number of axes for calvingMIP diagnostics
+     integer, dimension(:), pointer :: axis => null()   !> array holding axis numbers
+
+     real(dp), dimension(:), pointer :: cf_radius => null()  !> distance of calving front from origin (m) along each axis
+     real(dp), dimension(:), pointer :: cf_thck => null()    !> ice thickness at CF (m) along each axis
+     real(dp), dimension(:), pointer :: cf_speed => null()   !> ice speed at CF (m/s) along each axis
 
   end type glide_calving
 
@@ -3295,8 +3306,12 @@ contains
     call coordsystem_allocate(model%general%ice_grid, model%calving%calving_thck)
     call coordsystem_allocate(model%general%ice_grid, model%calving%calving_rate)
     call coordsystem_allocate(model%general%ice_grid, model%calving%calving_rate_tavg)
-    call coordsystem_allocate(model%general%ice_grid, model%calving%calving_mask)
-    call coordsystem_allocate(model%general%ice_grid, model%calving%protected_mask)
+    if (model%options%which_ho_calving_front == HO_CALVING_FRONT_SUBGRID) then
+       call coordsystem_allocate(model%general%ice_grid, model%calving%subgrid_calving_mask)
+    else
+       call coordsystem_allocate(model%general%ice_grid, model%calving%calving_mask)
+    endif
+    call coordsystem_allocate(model%general%ice_grid, model%calving%beyond_cf_mask)
     call coordsystem_allocate(model%general%ice_grid, model%calving%thck_effective)
     call coordsystem_allocate(model%general%ice_grid, model%calving%effective_areafrac)
     call coordsystem_allocate(model%general%ice_grid, model%calving%lateral_rate)
@@ -3310,9 +3325,13 @@ contains
        ! allocate with size 1, since they need to be allocated to be passed to calving subroutine
        allocate(model%calving%damage(1,1,1))
     endif
+    if (model%options%which_ho_calvingmip_domain /= HO_CALVINGMIP_DOMAIN_NONE) then
+       allocate(model%calving%cf_radius(model%calving%naxis))
+       allocate(model%calving%cf_thck(model%calving%naxis))
+       allocate(model%calving%cf_speed(model%calving%naxis))
+    endif
 
     ! matrix solver arrays
-
     allocate (model%solver_data%rhsd(ewn*nsn))
     allocate (model%solver_data%answ(ewn*nsn))
 
@@ -3938,8 +3957,10 @@ contains
         deallocate(model%calving%calving_rate_tavg)
     if (associated(model%calving%calving_mask)) &
         deallocate(model%calving%calving_mask)
-    if (associated(model%calving%protected_mask)) &
-        deallocate(model%calving%protected_mask)
+    if (associated(model%calving%subgrid_calving_mask)) &
+        deallocate(model%calving%subgrid_calving_mask)
+    if (associated(model%calving%beyond_cf_mask)) &
+        deallocate(model%calving%beyond_cf_mask)
     if (associated(model%calving%thck_effective)) &
         deallocate(model%calving%thck_effective)
     if (associated(model%calving%effective_areafrac)) &
@@ -3956,6 +3977,14 @@ contains
         deallocate(model%calving%eps_eigen2)
     if (associated(model%calving%damage)) &
         deallocate(model%calving%damage)
+    if (associated(model%calving%axis)) &
+        deallocate(model%calving%axis)
+    if (associated(model%calving%cf_radius)) &
+        deallocate(model%calving%cf_radius)
+    if (associated(model%calving%cf_thck)) &
+        deallocate(model%calving%cf_thck)
+    if (associated(model%calving%cf_speed)) &
+        deallocate(model%calving%cf_speed)
 
     ! matrix solver arrays
 

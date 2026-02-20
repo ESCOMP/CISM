@@ -2305,8 +2305,6 @@
 !             call point_diag(bpmp, 'bpmp', itest, jtest, rtest, 7, 7)
 !             call point_diag(btemp, 'btemp', itest, jtest, rtest, 7, 7)
 !             call point_diag(bpmp - btemp, 'bpmp - btemp', itest, jtest, rtest, 7, 7)
-!             call point_diag(model%basal_physics%effecpress, 'effecpress (Pa)', itest, jtest, rtest, 7, 7, 'f10.0')
-!             call point_diag(model%basal_physics%effecpress_stag, 'effecpress_stag (Pa)', itest, jtest, rtest, 7, 7, 'f10.0')
           endif  ! verbose_beta
 
           call glissade_calcbeta(&
@@ -3157,7 +3155,6 @@
 
        ! Optional diagnostics
 
-!!       if (verbose_beta .and. counter > 1 .and. mod(counter-1,12)==0) then
        if (verbose_beta .and. counter > 1 .and. mod(counter-1,10)==0) then
 
           if (this_rank == rtest) write(iulog,*) 'Counter =', counter

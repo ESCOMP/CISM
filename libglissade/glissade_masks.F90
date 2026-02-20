@@ -78,6 +78,8 @@
                                 grounding_line_mask)
 
     !TODO: Modify glissade_get_masks so that 'parallel' is not needed
+    !      Make floating, ocean, and land masks required output.
+    !      Pass in a mask derived type?
     !----------------------------------------------------------------
     ! Compute various masks for the Glissade dycore.
     !
@@ -354,7 +356,7 @@
          dthck_dx                    ! dH/dx between adjacent cells near the CF
 
     integer, dimension(nx,ny) :: &
-         interior_mask               ! = 1 for interior cells (grounded or floating) not at the CF
+         interior_mask               ! = 1 for floating cells that do not border the ocean
 
     character(len=100) :: message
 
@@ -391,15 +393,20 @@
     call parallel_halo(calving_front_mask, parallel)
     call parallel_halo(interior_mask, parallel)
 
+
     if (which_ho_calving_front == HO_CALVING_FRONT_SUBGRID) then
 
-       ! Initialize thck_effective and masks
-       thck_effective = thck
+    ! Initialize thck_effective and masks
+       where (ice_mask == 1)
+          thck_effective = thck
+       elsewhere
+          thck_effective = 0.0d0
+       endwhere
        full_mask = 0
        partial_cf_mask = 0
 
        ! Identify full cells and partial CF cells.
-       ! All ice-covered cells not at the CF are full cells.
+       ! All ice-covered cells not at the CF (i.e., without any edges bordering the ocean) are full cells.
        ! For CF cells, compute the max thickness of interior neighbors (capped at the flotation thickness).
        ! * Look at edge neighbors first, then corner neighbors.
        ! * If the thickness of the CF cell is close to or greater than that of the interior cell,
@@ -410,7 +417,7 @@
 
        do j = 2, ny-1
           do i = 2, nx-1
-             if (ice_mask(i,j) == 1) then   !TODO - Remove this if?
+             if (ice_mask(i,j) == 1) then
                 if (calving_front_mask(i,j) == 1) then
                    ! compute thck_effective from an interior edge neighbor
                    max_neighbor_thck = max(&
@@ -438,7 +445,7 @@
                       !TODO - Look at cases with no interior neighbors
                    endif   ! max_neighbor_thck > 0
 
-                else   ! not a CF cell; thck_effective = thck
+                else   ! ice-covered but not a CF cell; thck_effective = thck
 
                    full_mask(i,j) = 1
 
@@ -447,14 +454,16 @@
           enddo   ! i
        enddo   ! j
 
-       ! Limit thck_effective at the CF so as not to exceed the flotation thickness
-       where (calving_front_mask == 1)
-          thck_effective = min(thck_effective, thck_flotation)
+       ! Set a lower limit for thck_effective
+       ! This reflects that most CFs at least a few tens of meters thick.
+       where (floating_mask == 1)
+          thck_effective = max(thck_effective, thck_effective_min)
        endwhere
 
-       ! Set a lower limit for thck_effective
+       ! Limit thck_effective at the CF so as not to exceed the flotation thickness.
+       ! This allows thck_effective < thck_effective_min if that value would ground the ice.
        where (calving_front_mask == 1)
-          thck_effective = max(thck_effective, thck_effective_min)
+          thck_effective = min(thck_effective, thck_flotation)
        endwhere
 
        call parallel_halo(thck_effective, parallel)
@@ -467,10 +476,10 @@
              if (calving_front_mask(i,j) == 1) then
                 effective_areafrac(i,j) = thck(i,j) / thck_effective(i,j)
                 effective_areafrac(i,j) = min(effective_areafrac(i,j), 1.0d0)
-             elseif (ocean_mask(i,j) == 1) then
-                effective_areafrac(i,j) = 0.0d0
-             else  ! non-CF ice-covered cells and/or land cells
+             elseif (ice_mask(i,j) == 1 .or. land_mask(i,j) == 1) then
                 effective_areafrac(i,j) = 1.0d0
+             else  ! ice-free ocean
+                effective_areafrac(i,j) = 0.0d0
              endif
           enddo
        enddo

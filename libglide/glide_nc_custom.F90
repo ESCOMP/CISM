@@ -228,6 +228,14 @@ contains
        call nc_errorhandle(__FILE__,__LINE__,status)
     end if
 
+    ! axis coordinate (used for CalvingMIP output)
+
+    if (model%options%which_ho_calvingmip_domain /= HO_CALVINGMIP_DOMAIN_NONE) then
+       status = parallel_inq_varid(NCO%id,'axis',varid)
+       status= parallel_put_var(NCO%id,varid,model%calving%axis)
+       call nc_errorhandle(__FILE__,__LINE__,status)
+    end if
+
     ! clean up
     deallocate(x0_global, y0_global)
     deallocate(x1_global, y1_global)

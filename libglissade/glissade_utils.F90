@@ -31,7 +31,7 @@
 module glissade_utils
 
   use glimmer_global, only: dp
-  use glimmer_paramets, only: iulog
+  use glimmer_paramets, only: iulog, eps11, eps08
   use glimmer_log
   use glide_types
   use cism_parallel, only: this_rank, main_task
@@ -45,7 +45,8 @@ module glissade_utils
        glissade_usrf_to_thck, glissade_thck_to_usrf, &
        glissade_edge_fluxes, glissade_input_fluxes, &
        glissade_quadrant_sum, glissade_bounding_box, &
-       glissade_rms_error, write_array_to_file
+       glissade_rms_error, write_array_to_file, &
+       glissade_cleanup_tiny_thickness, glissade_cleanup_icefree_cells
 
   interface write_array_to_file
      module procedure write_array_to_file_real8_2d
@@ -980,8 +981,8 @@ contains
 !***********************************************************************
 
   subroutine glissade_quadrant_sum(&
-       nx,        ny,          &
-       parallel,               &
+       nx,        ny,            &
+       parallel,                 &
        field,     quadrant_sum)
 
     ! Integrate a field over each of 4 quadrants.
@@ -990,7 +991,7 @@ contains
     ! Note: These sums are not independent of processor count
     ! TODO: Make them reproducible, using quadrant masks?
 
-    use cism_parallel, only: gather_var, broadcast
+    use cism_parallel, only: nhalo, parallel_global_sum_patch, parallel_globalindex, gather_var
 
     ! Input/output arguments
 
@@ -1005,14 +1006,27 @@ contains
     real(dp), dimension(4), intent(out) :: &
          quadrant_sum             ! global sum over each of 4 quadrants
 
+    logical, parameter :: check_asymmetry = .true.
+
     ! Local variables
 
     integer :: i, j
+    integer :: ig, jg             ! i and j indices on the global grid
     integer :: nxg, nyg           ! dimensions of global domain
     integer :: nx2, ny2           ! nx/2 and ny/2 (if nx and ny are even)
                                   ! (nx-1)/2 and (ny-1)/2 (if nx and ny are odd)
 
+    integer, dimension(nx,ny) :: &
+         quadrant_mask            ! mask assigning each cell to a quadrent (1, 2, 3 or 4)
+
     real(dp), dimension(:,:), allocatable :: field_global
+
+    real(dp) :: meanval, diff
+    real(dp), parameter :: symmetry_tol = 1.0d-5    ! tolerance level for asymmetry
+
+
+    ! Compute a mask that assigns each cell to one of 4 quadrants.
+    ! Note: If nx or ny is odd, the middle row or column is excluded from the quadrant sums.
 
     nxg = parallel%global_ewn
     nyg = parallel%global_nsn
@@ -1029,58 +1043,282 @@ contains
        ny2 = (nyg-1)/2
     endif
 
-    call gather_var(field, field_global, parallel)
+    quadrant_mask(:,:) = 0
 
-    ! Sum over each quadrant on the main task
-    ! Note: If nx or ny is odd, the middle row or column is excluded from the sum.
-
-    if (main_task) then
-
-       quadrant_sum(:) = 0.0d0
-
-       ! quadrant 1 (NE)
-       do j = ny2+1, nyg
-          do i = nx2+1, nxg
-             quadrant_sum(1) = quadrant_sum(1) + field_global(i,j)
-          enddo
+    do j = nhalo+1, ny-nhalo
+       do i = nhalo+1, nx-nhalo
+          call parallel_globalindex(i, j, ig, jg, parallel)
+          if (ig > nx2) then
+             if (jg > ny2) then   ! NE quadrant
+                quadrant_mask(i,j) = 1
+             else   ! jg <= ny2; SE quadrant
+                quadrant_mask(i,j) = 4
+             endif
+          else   ! ig <= nx2
+             if (jg > ny2) then   ! NW quadrant
+                quadrant_mask(i,j) = 2
+             else   ! jg <= ny2; SW quadrant
+                quadrant_mask(i,j) = 3
+             endif
+          endif
        enddo
+    enddo
 
-       ! quadrant 2 (NW)
-       do j = ny2+1, nyg
-          do i = 1, nx2
-             quadrant_sum(2) = quadrant_sum(2) + field_global(i,j)
-          enddo
-       enddo
+    ! Compute the global sums
+    ! Note: These sums are reproducible if reproducible_sums = .true.
+    quadrant_sum(:) = parallel_global_sum_patch(field, 4, quadrant_mask, parallel)
 
-       ! quadrant 3 (SW)
-       do j = 1, ny2
-          do i = 1, nx2
-             quadrant_sum(3) = quadrant_sum(3) + field_global(i,j)
-          enddo
-       enddo
+    if (check_asymmetry) then
 
-       ! quadrant 4 (SE)
-       do j = 1, ny2
-          do i = nx2+1, nxg
-             quadrant_sum(4) = quadrant_sum(4) + field_global(i,j)
-          enddo
-       enddo
+       call gather_var(field, field_global, parallel)
 
-    endif   ! main_task
+       if (main_task) then
 
-    ! Broadcast to all tasks
-    call broadcast(quadrant_sum)
+          ! Identify asymmetries in reflection across the y-axis
+          if (abs(quadrant_sum(1) + quadrant_sum(4) - quadrant_sum(2) - quadrant_sum(3)) > symmetry_tol) then
+             do j = 1, nyg
+                do i = 1, nx2
+                   if (abs(field_global(i,j)) > eps11 .or. abs(field_global(nxg-i+1,j)) > eps11) then
+                      meanval = 0.5d0 * (field_global(i,j) + field_global(nxg-i+1,j))
+                      diff = abs(field_global(i,j) - field_global(nxg-i+1,j))
+                      if (diff > meanval*symmetry_tol) then
+                         write(iulog,*) 'Warning, y-reflection asymmetry: i, j, val(i,j), val(nxg-i+1,j), diff/mean:', &
+                              i, j, field_global(i,j), field_global(nxg-i+1,j), diff/meanval
+                      endif
+                   endif
+                enddo
+             enddo
+          endif
+
+          ! Identify asymmetries in reflection across the x-axis
+          if (abs(quadrant_sum(1) + quadrant_sum(2) - quadrant_sum(3) - quadrant_sum(4)) > symmetry_tol) then
+             do j = 1, nyg
+                do i = 1, nx2
+                   if (abs(field_global(i,j)) > eps11 .or. abs(field_global(i,nyg-j+1)) > eps11) then
+                      meanval = 0.5d0 * (field_global(i,j) + field_global(i,nyg-j+1))
+                      diff = abs(field_global(i,j) - field_global(i,nyg-j+1))
+                      if (diff > meanval*symmetry_tol) then
+                         write(iulog,*) 'Warning, x-reflection asymmetry: i, j, val(i,j), val(i,nyg-j+1), diff/mean:', &
+                              i, j, field_global(i,j), field_global(i,nyg-j+1), diff/meanval
+                      endif
+                   endif
+                enddo
+             enddo
+          endif
+
+          if (allocated(field_global)) deallocate(field_global)
+
+       endif   ! main_task
+    endif   ! check_asymmetry
 
   end subroutine glissade_quadrant_sum
 
 !***********************************************************************
 
   subroutine glissade_bounding_box(&
-       dx,       dy,   &
-       point_coords,   &
-       corner_coords,  &
-       corner_values,  &
-       corner_mask,    &
+       nx,              ny,           &
+       dx,              dy,           &
+       x1,              y1,           &
+       x_point,         y_point,      &
+       field1,                        &
+       field1_at_point,               &
+       field2,                        &
+       field2_at_point)
+
+    ! Input/output arguments
+
+    integer, intent(in) :: nx, ny
+    real(dp), intent(in) :: dx, dy
+    real(dp), dimension(nx), intent(in) :: x1
+    real(dp), dimension(ny), intent(in) :: y1
+    real(dp), intent(in) :: x_point, y_point
+    real(dp), dimension(nx,ny), intent(in) :: field1
+    real(dp), intent(out) :: field1_at_point
+    real(dp), dimension(nx,ny), intent(in), optional :: field2
+    real(dp), intent(out), optional :: field2_at_point
+
+    ! Local variables
+
+    integer :: i, j, ipt, jpt
+
+    real(dp), dimension(2,4) :: box_coords    ! x and y coordinates of 4 box corners
+    real(dp), dimension(4) :: box_field
+    integer, dimension(4) :: box_mask
+
+    logical, parameter :: verbose_bounding_box = .false.
+!!    logical, parameter :: verbose_bounding_box = .true.
+
+    ipt = 0; jpt = 0
+    do i = 1, nx-1
+       if (x1(i) <= x_point .and. x1(i+1) > x_point) then
+          ipt = i   ! i index for SW corner of box
+       endif
+    enddo
+    do j = 1, ny-1
+       if (y1(j) <= y_point .and. y1(j+1) > y_point) then
+          jpt = j   ! j index for SW corner of box
+       endif
+    enddo
+    if (ipt == 0 .or. jpt == 0) then
+       write(iulog,*) 'glissade_bounding_box, bad location: rank, i, j =', this_rank, ipt, jpt
+    endif
+    if (verbose_bounding_box) then
+       write(iulog,*) 'Point coordinates:', x_point, y_point
+       write(iulog,*) '  Point is on rank', this_rank
+       write(iulog,*) '  Point is bounded by i =', ipt, ipt+1
+       write(iulog,*) '  Point is bounded by j =', jpt, jpt+1
+    endif
+
+    ! Copy coordinates into an array
+    ! In arrays with 4 indices, the box corners are ordered (1) SW, (2) SE, (3) NE, (4) NW
+    box_coords(1,1) = x1(ipt)       ! SW cell
+    box_coords(2,1) = y1(jpt)
+    box_coords(1,2) = x1(ipt+1)     ! SE cell
+    box_coords(2,2) = y1(jpt)
+    box_coords(1,3) = x1(ipt+1)     ! NE cell
+    box_coords(2,3) = y1(jpt+1)
+    box_coords(1,4) = x1(ipt)       ! NW cell
+    box_coords(2,4) = y1(jpt+1)
+
+    ! Copy field1 into an array
+    ! Assume that any nonzero values are valid
+    box_field(:) = 0.0d0
+    box_mask(:) = 0
+    if (field1(ipt,jpt) > eps11) then
+       box_field(1) = field1(ipt,jpt)
+       box_mask(1) = 1
+    endif
+    if (field1(ipt+1,jpt) > eps11) then
+       box_field(2) = field1(ipt+1,jpt)
+       box_mask(2) = 1
+    endif
+    if (field1(ipt+1,jpt+1) > eps11) then
+       box_field(3) = field1(ipt+1,jpt+1)
+       box_mask(3) = 1
+    endif
+    if (field1(ipt,jpt+1) > eps11) then
+       box_field(4) = field1(ipt,jpt+1)
+       box_mask(4) = 1
+    endif
+
+    ! Make sure at least one box corner has a nonzero value.
+    ! If not, then extend the box to the south or north.
+    ! A general solution to this problem would require careful logic,
+    ! but the following logic works for the Caprona axes on a 5-km grid.
+
+    if (sum(box_mask) == 0) then
+       if (field1(ipt,jpt-1) > eps11 .or. field1(ipt+1,jpt-1) > eps11) then
+          box_coords(2,1) = y1(jpt-1)  ! new SW cell
+          box_coords(2,2) = y1(jpt-1)  ! new SE cell
+          if (field1(ipt,jpt-1) > eps11) then
+             box_field(1) = field1(ipt,jpt-1)
+             box_mask(1) = 1
+          endif
+          if (field1(ipt+1,jpt-1) > eps11) then
+             box_field(2) = field1(ipt+1,jpt-1)
+             box_mask(2) = 1
+          endif
+       elseif (field1(ipt,jpt+1) > eps11 .or. field1(ipt+1,jpt+11) > eps11) then
+          box_coords(2,1) = y1(jpt+1)  ! new NW cell
+          box_coords(2,2) = y1(jpt+1)  ! new NE cell
+          if (field1(ipt,jpt+1) > eps11) then
+             box_field(1) = field1(ipt,jpt+1)
+             box_mask(1) = 1
+          endif
+          if (field1(ipt+1,jpt+1) > eps11) then
+             box_field(2) = field1(ipt+1,jpt+1)
+             box_mask(2) = 1
+          endif
+       endif
+    endif
+
+    if (sum(box_mask) == 0) then
+       call write_log('Warning, all corners of bounding box have field1 = 0', GM_WARNING)
+    endif
+
+    ! Compute field1 at the point inside the box
+    call bounding_box_interpolate(&
+         dx,              dy,       &
+         x_point,         y_point,  &
+         box_coords(:,:),           &
+         box_field(:),              &
+         box_mask(:),               &
+         field1_at_point)
+
+    ! Repeat for field2, if present
+
+    if (present(field2) .and. present(field2_at_point)) then
+
+       ! Copy field2 into an array
+       ! Assume that any nonzero values are valid
+       box_field(:) = 0.0d0
+       box_mask(:) = 0
+       if (field2(ipt,jpt) /= 0.0d0) then
+          box_field(1) = field2(ipt,jpt)
+          box_mask(1) = 1
+       endif
+       if (field2(ipt+1,jpt) /= 0.0d0) then
+          box_field(2) = field2(ipt+1,jpt)
+          box_mask(2) = 1
+       endif
+       if (field2(ipt+1,jpt+1) /= 0.0d0) then
+          box_field(3) = field2(ipt+1,jpt+1)
+          box_mask(3) = 1
+       endif
+       if (field2(ipt,jpt+1) /= 0.0d0) then
+          box_field(4) = field2(ipt,jpt+1)
+          box_mask(4) = 1
+       endif
+
+       if (sum(box_mask) == 0) then
+          box_coords(2,1) = y1(jpt-1)  ! new SW cell
+          box_coords(2,2) = y1(jpt-1)  ! new SE cell
+          if (field2(ipt,jpt-1) > eps11) then
+             box_field(1) = field2(ipt,jpt-1)
+             box_mask(1) = 1
+          endif
+          if (field2(ipt+1,jpt-1) > eps11) then
+             box_field(2) = field2(ipt+1,jpt-1)
+             box_mask(2) = 1
+          endif
+       elseif (field2(ipt,jpt+1) > eps11 .or. field2(ipt+1,jpt+11) > eps11) then
+          box_coords(2,1) = y1(jpt+1)  ! new NW cell
+          box_coords(2,2) = y1(jpt+1)  ! new NE cell
+          if (field2(ipt,jpt+1) > eps11) then
+             box_field(1) = field2(ipt,jpt+1)
+             box_mask(1) = 1
+          endif
+          if (field2(ipt+1,jpt+1) > eps11) then
+             box_field(2) = field2(ipt+1,jpt+1)
+             box_mask(2) = 1
+          endif
+       endif
+
+       if (sum(box_mask) == 0) then
+          call write_log('Warning, all corners of bounding box have field2 = 0', GM_WARNING)
+       endif
+
+       ! Compute field2 at the point inside the box
+       call bounding_box_interpolate(&
+            dx,              dy,       &
+            x_point,         y_point,  &
+            box_coords(:,:),           &
+            box_field(:),              &
+            box_mask(:),               &
+            field2_at_point)
+
+    endif   ! present(field2)
+
+  end subroutine glissade_bounding_box
+
+!***********************************************************************
+
+  subroutine bounding_box_interpolate(&
+       dx,           dy,      &
+       x_point,      y_point, &
+       corner_coords,         &
+       corner_values,         &
+       corner_mask,           &
        point_value)
 
     ! Given the values of a field at the four corners of a bounding box,
@@ -1096,8 +1334,8 @@ contains
     real(dp), intent(in) :: &
          dx, dy                  ! dimensions of the box
 
-    real(dp), dimension(2), intent(in) :: &
-         point_coords            ! x and y coordinates of the point inside the box
+    real(dp), intent(in) :: &
+         x_point, y_point        ! x and y coordinates of the point inside the box
 
     real(dp), dimension(2,4), intent(in) :: &
          corner_coords           ! x and y coordinates at each of 4 corners;
@@ -1125,13 +1363,13 @@ contains
     integer :: mask_sw, mask_se, mask_ne, mask_nw  ! mask values for each corner; = 1 for valid values, else 0
     integer :: mask_e, mask_w, mask_n, mask_s      ! mask values for each edge; = 1 for valid values, else 0
 
-    logical, parameter :: verbose_bounding_box = .false.
+    logical, parameter :: verbose_bounding_box_interpolate = .false.
 
     ! Initialize
     ! These copies aren't strictly necessary, but the compass labels make things easier to visualize.
 
-    xp = point_coords(1)
-    yp = point_coords(2)
+    xp = x_point
+    yp = y_point
 
     f_sw = corner_values(1)
     f_se = corner_values(2)
@@ -1218,7 +1456,7 @@ contains
     ! Estimate the value at the point inside the box.
     ! (Still computes a value if the corner is outside the box,
     !  but there's no guarantee the extrapolation will be accurate.))
-    ! At least one corner must have a valid value.
+    ! At least one corner should have a valid value.
 
     if (mask_sw > 0) then
        dxp = xp - x_sw
@@ -1237,24 +1475,19 @@ contains
        dyp = yp - y_nw
        point_value = f_nw + df_dx*dxp + df_dy*dyp
     else
-!       write(6,*) 'In glissade_bounding_box, rank =', this_rank
-!       write(6,*) 'CF location =', xp, yp
-!       write(6,*) 'Corner coordinates, values, mask:'
-!       do i = 1, 4
-!          write(6,*) corner_coords(:,i), corner_values(i), corner_mask(i)
-!       enddo
-       call write_log('glissade_bounding_box_error: no valid values', GM_FATAL)
+       point_value = 0.0d0
+       call write_log('Warning, glissade_bounding_box: no valid values', GM_WARNING)
     endif
 
-    if (verbose_bounding_box) then
-       write(6,*) 'In glissade_bounding_box, rank =', this_rank
-       write(6,*) 'CF location =', xp, yp
+    if (verbose_bounding_box_interpolate) then
+       write(6,*) 'In bounding_box_interpolate, rank =', this_rank
+       write(6,*) 'point coordinates =', xp, yp
        write(6,*) 'df/dx, df/dy:', df_dx, df_dy
        write(6,*) 'dxp, dyp:', dxp, dyp
        write(6,*) 'point value =', point_value
     endif
 
-  end subroutine glissade_bounding_box
+  end subroutine bounding_box_interpolate
 
 !***********************************************************************
 
@@ -1400,6 +1633,100 @@ contains
     endif
 
   end subroutine write_array_to_file_real8_3d
+
+!=======================================================================
+
+  subroutine glissade_cleanup_tiny_thickness(model, tiny_thck)
+
+    ! Remove ice from cells with very small thicknesses.
+    ! Add to the calving flux for now, but later put in the cleanup category
+
+    use cism_parallel, only: parallel_halo
+
+    type(glide_global_type), intent(inout) :: model   ! model instance
+    real(dp), intent(in) :: tiny_thck    ! zero out where thck < tiny_thck
+
+    integer :: nx, ny
+    integer :: i, j
+
+    type(parallel_type) :: parallel   ! info for parallel communication
+
+    nx = model%general%ewn
+    ny = model%general%nsn
+
+    parallel = model%parallel
+
+    ! Make sure the ice thickness is updated in halo cells
+    call parallel_halo(model%geometry%thck, parallel)
+
+    where (model%geometry%thck > 0.0d0 .and. model%geometry%thck < tiny_thck)
+       model%calving%calving_thck = model%calving%calving_thck + model%geometry%thck
+       model%geometry%thck = 0.0d0
+    endwhere
+
+  end subroutine glissade_cleanup_tiny_thickness
+
+!=======================================================================
+
+  subroutine glissade_cleanup_icefree_cells(model)
+
+    ! Clean up prognostic variables in ice-free cells.
+    ! This means seting most tracers to zero (or min(artm,0) for the case of temperature).
+
+    use cism_parallel, only: parallel_halo
+
+    type(glide_global_type), intent(inout) :: model   ! model instance
+
+    integer :: nx, ny
+    integer :: i, j
+
+    type(parallel_type) :: parallel   ! info for parallel communication
+
+    nx = model%general%ewn
+    ny = model%general%nsn
+
+    parallel = model%parallel
+
+    ! Make sure the ice thickness is updated in halo cells
+    call parallel_halo(model%geometry%thck, parallel)
+
+    ! Set prognostic variables in ice-free columns to default values (usually zero).
+    do j = 1, ny
+       do i = 1, nx
+
+          if (model%geometry%thck_old(i,j) > 0.0d0 .and. model%geometry%thck(i,j) == 0.0d0) then
+
+             ! basal water
+             model%basal_hydro%bwat(i,j) = 0.0d0
+
+             ! thermal variables
+             if (model%options%whichtemp == TEMP_INIT_ZERO) then
+                model%temper%temp(:,i,j) = 0.0d0
+             else
+                model%temper%temp(:,i,j) = min(model%climate%artm(i,j), 0.0d0)
+             endif
+
+             if (model%options%whichtemp == TEMP_ENTHALPY) then
+                model%temper%waterfrac(:,i,j) = 0.0d0
+             endif
+
+             ! other tracers
+             ! Note: Tracers should be added here as they are added to the model
+
+             if (model%options%whichcalving == CALVING_DAMAGE) then
+                model%calving%damage(:,i,j) = 0.0d0
+             endif
+
+             if (model%options%which_ho_ice_age == HO_ICE_AGE_COMPUTE) then
+                model%geometry%ice_age(:,i,j) = 0.0d0
+             endif
+
+          endif    ! thck = 0
+
+       enddo
+    enddo
+
+  end subroutine glissade_cleanup_icefree_cells
 
 !****************************************************************************
 
