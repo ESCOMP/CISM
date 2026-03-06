@@ -1,0 +1,66 @@
+module First_tests
+
+  use funit
+  use glad_constants, only: glad_set_year_length, days_in_year, years2hours, hours2years
+  use glimmer_global, only: dp
+
+
+  implicit none
+
+  @TestCase
+  type, extends(TestCase) :: Test_First_tests
+
+    real(dp) :: original_days_in_year
+    real(dp) :: original_years2hours
+    real(dp) :: original_hours2years
+
+   contains
+     procedure :: setUp
+     procedure :: tearDown
+  end type Test_First_tests
+
+  real, parameter :: rtol = 1e-13
+
+    contains
+
+    subroutine setUp(this)  
+        class(Test_First_tests), intent(inout) :: this
+
+        this%original_days_in_year = days_in_year
+        this%original_years2hours = years2hours
+        this%original_hours2years = hours2years
+
+    end subroutine setUp
+
+    subroutine tearDown(this)
+        class(Test_First_tests), intent(inout) :: this
+
+        days_in_year = this%original_days_in_year
+        years2hours = this%original_years2hours
+        hours2years = this%original_hours2years
+        
+    end subroutine tearDown
+
+    @Test
+    subroutine test_year_length_366(this)
+        class(Test_First_tests), intent(inout) :: this
+        call glad_set_year_length(366)
+        @assertEqual(366, days_in_year)
+        @assertEqual(8784.d0, years2hours, tolerance=rtol)
+        @assertEqual(1/8784.d0, hours2years, tolerance=rtol)
+    end subroutine test_year_length_366
+
+    @Test
+    subroutine test_year_length_nocalls(this)
+        class(Test_First_tests), intent(inout) :: this
+    
+        @assertEqual(360, days_in_year)
+        @assertEqual(8640.d0, years2hours, tolerance=rtol)
+        @assertEqual(1/8640.d0, hours2years, tolerance=rtol)
+    end subroutine test_year_length_nocalls
+
+
+    
+
+end module First_tests
+
