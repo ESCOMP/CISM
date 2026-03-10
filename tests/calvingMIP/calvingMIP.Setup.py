@@ -39,18 +39,16 @@ Ba_thule = 1100
 
 
 # For initialization
-#WHL - Spinup uses which_ho_calving_front = 0, marine_margin = 5 (calving mask)
-#      CalvingMIP runs use which_ho_calving_front = 1, marine_margin = 6
 initThickness = 0.   # initial uniform ice thickness (m)
-rcalve = 750000.     # radial distance of calving front from center (m)
-restartfreqSpinup = 5000.    # frequency at which restart file is written (yr)
+cf_radius = 750000.     # radial distance of calving front from center (m)
+restartfreqSpinup = 5000.    # frequency at which restart file is written during spin-up (yr)
 
 # Physical constants
 # See here: https://github.com/JRowanJordan/CalvingMIP/wiki/Physical-constants-and-assumptions
 # Notes on units:
 # For the rate factor A:
-# Protocol has A = 10^{-9} kPa^{-3} a^{-1}
-# This translates to 10^{-18} Pa^{-3} a^{-1} in CISM units
+# Protocol has A = 2.9377 x 10^{-9} kPa^{-3} a^{-1}
+# This translates to 2.9377 x 10^{-18} Pa^{-3} a^{-1} in CISM units
 # For basal sliding:
 # Protocol has C = 0.001 m a^{-1} kPa^{-3} in the relation u_b = C * tau_b^m with m = 3
 # CISM powerlaw sliding uses the relation tau^b = beta * u_b^{1/m}
@@ -155,7 +153,7 @@ parser.add_argument('-r', '--resolution',   type=float, default= 5000.,   help="
 parser.add_argument('-v', '--vertlevels',   type=int,   default= 5,       help="no. of vertical levels")
 parser.add_argument('-a', '--approximation',type=str,   default= 'DIVA',  help="Stokes approximation (SSA, DIVA, BP)")
 parser.add_argument('-y', '--yearsSpinup',  type=float, default= 10000.,  help="length of spinup run (yr)")
-parser.add_argument('-fh', '--outputfreqhi',type=float, default= 10.,     help="high output frequency (yr)")
+parser.add_argument('-fh', '--outputfreqhi',type=float, default= 1.,      help="high output frequency (yr)")
 parser.add_argument('-fm', '--outputfreqmd',type=float, default= 100.,    help="medium output frequency (yr)")
 parser.add_argument('-fl', '--outputfreqlo',type=float, default= 1000.,   help="low output frequency (yr)")
 
@@ -242,7 +240,7 @@ config.set('time', 'dt_diag', str(args.timestep))
 # By default, this cell lies just to the right of the x-axis, near the
 # northern boundary of the domain.
 idiag = int(nx/2) + 1
-jdiag = int(nx/2) + int(rcalve/dy)
+jdiag = int(nx/2) + int(cf_radius/dy)
 config.set('time', 'idiag', str(idiag))
 config.set('time', 'jdiag', str(jdiag))
 print('idiag:',idiag)
@@ -327,7 +325,6 @@ y0 = ncfile.createVariable('y0','f4',('y0',))
 thk  = ncfile.createVariable('thk',  'f4', ('time','y1','x1'))
 topg = ncfile.createVariable('topg', 'f4', ('time','y1','x1'))
 acab = ncfile.createVariable('acab', 'f4', ('time','y1','x1'))
-calving_mask = ncfile.createVariable('calving_mask', 'i4', ('time','y1','x1'))
 
 # Compute x and y on each grid.
 # The origin (x = y = 0) is placed at the center of the domain.
@@ -349,26 +346,31 @@ y0[:] = y[:-1] + dy/2.   # x = -R,..., -dy, 0, dy,..., R
 # Set SMB
 acab[:,:,:] = accum
 
-# Set initial thickness and calving mask
+# Set initial thickness
 thk[:,:,:] = 0.
-calving_mask[:,:,:] = 1
 
 for i in range(0,nx):
     for j in range(0,ny):
         # Find the distance d from the origin to the cell center.
-        # If d < rcalve, then put ice in the cell and set calving_mask = 0; if not, then set H = 0 and calving_mask = 1.
+        # If d <= cf_radius, then put ice in the cell with thk = initThickness, else set thk = 0
         d = np.sqrt(x1[i]**2 + y1[j]**2)
-        if d <= rcalve:
+        if d <= cf_radius:
             thk[:,j,i] = initThickness
-            calving_mask[:,j,i] = 0
-
 
 # Set circular bed topography
+#  Enforce symmetry across each axis by setting all values with positive x
+#   equal to the corresponding values with negative x, and similarly for y.
+#  I found that calling computeBedThule for every cell can lead to roundoff differences
+#   (~8th significant digit) between cell pairs on either side of the x- and y-axes,
+#   breaking the exact symmetry of the domain.
+
 topg[:,:,:] = 0.
 for i in range(0,nx):
     for j in range(0,ny):
         topg[:,j,i] = computeBedCircular(x1[i], y1[j], R, Bc_circ, Bl_circ)
-
+        topg[0,j,nx-i-1] = topg[0,j,i]
+        topg[0,ny-j-1,i] = topg[0,j,i]
+        topg[0,ny-j-1,nx-i-1] = topg[0,j,i]
 
 # Close the file 
 ncfile.close()
@@ -383,16 +385,20 @@ createFileFromSource(inputfileCircular, inputfileThule)
 ncfile = Dataset(inputfileThule, 'r+')
 
 # Set Thule bed topography
+# See the note above on enforcing symmetry
 # Note: The commented lines generate an error, but the uncommented lines give the desired result.
 #topg[:,:,:] = 0.
 #for i in range(0,nx):
 #    for j in range(0,ny):
 #        topg[:,j,i] = computeBedThule(x1[i], y1[j], R, Bc_thule, Bl_thule, Ba_thule)
-ncfile['topg'][:,:,:] = 0.
-for i in range(0,nx):
-    for j in range(0,ny):
-        ncfile['topg'][:,j,i] = computeBedThule(ncfile['x1'][i], ncfile['y1'][j], R, Bc_thule, Bl_thule, Ba_thule)
 
+ncfile['topg'][:,:,:] = 0.
+for i in range(0,nx//2):
+    for j in range(0,ny//2):
+        ncfile['topg'][:,j,i] = computeBedThule(ncfile['x1'][i], ncfile['y1'][j], R, Bc_thule, Bl_thule, Ba_thule)
+        ncfile['topg'][0,j,nx-i-1] = ncfile['topg'][0,j,i]
+        ncfile['topg'][0,ny-j-1,i] = ncfile['topg'][0,j,i]
+        ncfile['topg'][0,ny-j-1,nx-i-1] = ncfile['topg'][0,j,i]
 
 # Close the file
 ncfile.close()
@@ -485,8 +491,12 @@ for expt in experiments:
         outputfreq  = args.outputfreqlo
         restartfreq = 1000.
 
-    # Set the prescribed advance/retreat rate for Experiments 2 and 4
-    if expt == 'Experiment2':
+    # Set the advance/retreat rate for several experiments
+    # Note: A large positive amplitude for spin-up allows free advance with no calving.
+    if expt == 'SpinupCircular' or expt == 'SpinupThule':
+        cf_advance_retreat_amplitude = 5000.
+        cf_advance_retreat_period = 0.
+    elif expt == 'Experiment2':
         cf_advance_retreat_amplitude = -300.
         cf_advance_retreat_period = 1000.
     elif expt == 'Experiment4':
@@ -495,15 +505,22 @@ for expt in experiments:
         cf_advance_retreat_period = 1000.
         
     # Set other parameters specific to certain experiments
-    # TODO: Do we need to read in the input temperature? Or do we always want temp_init = 1?
-
     if expt == 'SpinupCircular' or expt == 'SpinupThule':
         config.set('options', 'temp_init', '1')
-        config.set('options', 'marine_margin', '5')
-        config.set('ho_options', 'which_ho_calving_front', '0')
-    elif expt == 'Experiment2' or expt == 'Experiment4':
         config.set('parameters', 'cf_advance_retreat_amplitude', str(cf_advance_retreat_amplitude))
         config.set('parameters', 'cf_advance_retreat_period', str(cf_advance_retreat_period))
+        # Both spin-ups use a calving mask to prevent advance beyond the prescribed radius
+        config.set('options', 'apply_calving_mask', 'True')
+        config.set('parameters', 'calving_front_radius', str(cf_radius))
+    elif expt == 'Experiment2':
+        config.set('parameters', 'cf_advance_retreat_amplitude', str(cf_advance_retreat_amplitude))
+        config.set('parameters', 'cf_advance_retreat_period', str(cf_advance_retreat_period))
+    elif expt == 'Experiment4':
+        config.set('parameters', 'cf_advance_retreat_amplitude', str(cf_advance_retreat_amplitude))
+        config.set('parameters', 'cf_advance_retreat_period', str(cf_advance_retreat_period))
+        # Note: This experiment uses a calving mask to prevent readvance beyond the original CF
+        config.set('options', 'apply_calving_mask', 'True')
+        config.set('parameters', 'calving_front_radius', str(cf_radius))
     elif expt == 'Experiment5':
         config.set('options', 'marine_margin', '7')
         calvingMinthck = 325.
@@ -512,7 +529,7 @@ for expt in experiments:
     # Set the calvingMIP domain (circular or Thule)
     if expt == 'SpinupCircular' or expt == 'Experiment1' or expt == 'Experiment2':
         config.set('ho_options', 'which_ho_calvingmip_domain', '1')
-    elif expt == 'SpinupCircular' or expt == 'Experiment3' or expt == 'Experiment4' or expt == 'Experiment5':
+    elif expt == 'SpinupThule' or expt == 'Experiment3' or expt == 'Experiment4' or expt == 'Experiment5':
         config.set('ho_options', 'which_ho_calvingmip_domain', '2')
 
     # Set the start and end times
@@ -529,8 +546,6 @@ for expt in experiments:
 
     # Set input file and time slice in the section '[CF input]'.
     # Note: This method may not be robust for Spinup runs that start and restart.
-    #       For this reason, the script calvingMIPRun.py makes sure the 'time' entry
-    #       in [CF input] corresponds to the final time slice.
     config.set('CF input', 'name', inputfile)
     config.set('CF input', 'time', str(inputslice))
 #    print('Input file:', inputfile)
@@ -546,7 +561,7 @@ for expt in experiments:
     outputfile = 'calvingMIP.' + expt + '.out.nc'
     config.set('CF output', 'name', outputfile)
     config.set('CF output', 'frequency', str(outputfreq))
-    #    print('Output file:', outputfile)
+#    print('Output file:', outputfile)
 
     # Specify additional output files for CalvingMIP experiments.
     # Use the high output frequency for scalars, but use the frequency set above for 2D fields.
@@ -578,7 +593,10 @@ for expt in experiments:
         outputfile = 'calvingMIP.' + expt + '.out.scalars.nc'
         config.set('CF output3', 'name',      outputfile)
         config.set('CF output3', 'frequency', str(args.outputfreqhi))
-        config.set('CF output3', 'variables', 'iareaf iareag imass imass_above_flotation total_calving_flux total_gl_flux')
+        config.set('CF output3', 'variables', 'iareaf iareag imass imass_above_flotation total_calving_flux total_gl_flux cf_radius cf_thck cf_speed')
+        # Do not write initial output, since scalar output values may not be computed until
+        #  after the first timestep.
+        config.set('CF output3', 'write_init', 'False')
 #        print('Output file:', outputfile)
 
 
@@ -632,7 +650,6 @@ for expt in experiments:
         cf_advance_retreat_period = 0.
 
         config.set('time', 'tend',   str(tend))
-        config.set('options', 'apply_calving_mask', 'True')
         config.set('options', 'restart', '1')
         config.set('parameters', 'cf_advance_retreat_amplitude', str(cf_advance_retreat_amplitude))
         config.set('parameters', 'cf_advance_retreat_period', str(cf_advance_retreat_period))
