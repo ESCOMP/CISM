@@ -135,13 +135,17 @@ For each of the five experiments, the output should include several files, e.g.
 The first file includes 'standard' CISM output. The other three files include the fields needed
 to obtain the fields and scalars specified on the calvingMIP wiki.
 
-CISM contains code to compute and output the following fields on each of 8 axes for each experiment:
-* cf_radius = distance of the calving front from the origin at (0,0)
+CISM contains code to compute and output any or all of these fields on each of 8 axes for each experiment:
+* cf_radius = distance (km) of the calving front from the origin at (0,0)
+* cf_locx = x coordinate of the calving front relative to the origin
+* cf_locy = y coordinate of the calving front relative to the origin
 * cf_thck = ice thickness (m) at the CF
-* cf_speed = ice thickness (m/yr) at the CF.
+* cf_uvel = u component of ice velocity (m/yr) at the CF
+* cf_vvel = v component of ice velocity (m/yr) at the CF
+
 These are strictly diagnostic quantities that are derived from prognostic variables.
 The diagnostics assume that along a given axis, the CF lies at a point where the effective area fraction = 0.5.
 This point is found by interpolating between neighboring points with an area fraction above and below 0.5.
-The values of cf_thck and cf_speed are also found by linear interpolation.
+Other diagnostic values are also found by linear interpolation.
 
 For questions, please contact Gunter Leguy (gunterl@ucar.edu) or William Lipscomb (lipscomb@ucar.edu).

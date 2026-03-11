@@ -657,6 +657,22 @@ average:       1
 
 #calvingMIP output
 
+[cf_locx]
+dimensions:    time, axis
+long_name:     calving-front x location
+units:         km
+data:          data%calving%cf_locx
+type:          real
+factor:        0.001
+
+[cf_locy]
+dimensions:    time, axis
+long_name:     calving-front x location
+units:         km
+data:          data%calving%cf_locy
+type:          real
+factor:        0.001
+
 [cf_radius]
 dimensions:    time, axis
 long_name:     calving-front radius
@@ -672,11 +688,19 @@ units:         m
 data:          data%calving%cf_thck
 type:          real
 
-[cf_speed]
+[cf_uvel]
 dimensions:    time, axis
-long_name:     calving-front speed
+long_name:     calving-front velocity, u component
 units:         m/year
-data:          data%calving%cf_speed
+data:          data%calving%cf_uvel
+type:          real
+factor:        scyr
+
+[cf_vvel]
+dimensions:    time, axis
+long_name:     calving-front velocity, v component
+units:         m/year
+data:          data%calving%cf_vvel
 type:          real
 factor:        scyr
 

@@ -593,7 +593,7 @@ for expt in experiments:
         outputfile = 'calvingMIP.' + expt + '.out.scalars.nc'
         config.set('CF output3', 'name',      outputfile)
         config.set('CF output3', 'frequency', str(args.outputfreqhi))
-        config.set('CF output3', 'variables', 'iareaf iareag imass imass_above_flotation total_calving_flux total_gl_flux cf_radius cf_thck cf_speed')
+        config.set('CF output3', 'variables', 'iareaf iareag imass imass_above_flotation total_calving_flux total_gl_flux cf_locx cf_locy cf_radius cf_thck cf_uvel cf_vvel')
         # Do not write initial output, since scalar output values may not be computed until
         #  after the first timestep.
         config.set('CF output3', 'write_init', 'False')

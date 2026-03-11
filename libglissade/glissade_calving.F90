@@ -537,9 +537,12 @@ contains
 !    integer,  dimension(:,:), intent(in)     :: damage_mask         !> integer mask: = 1 for damaged cells, else = 0
 !    integer,  dimension(:,:), intent(in)     :: calving_mask        !> integer mask: calve ice where calving_mask = 1
 !    real(dp), dimension(:,:), intent(out)    :: calving_thck        !> thickness lost due to calving in each grid cell (m)
+!    real(dp), dimension(:), intent(out)      :: cf_locx             !> calvingMIP output: x location at CF (m/s) along two axes
+!    real(dp), dimension(:), intent(out)      :: cf_locy             !> calvingMIP output: y location at CF (m/s) along two axes
 !    real(dp), dimension(:), intent(out)      :: cf_radius           !> calvingMIP output: radial distance (m) along 8 axes
 !    real(dp), dimension(:), intent(out)      :: cf_thck             !> calvingMIP output: thickness at CF (m) along two axes
-!    real(dp), dimension(:), intent(out)      :: cf_speed            !> calvingMIP output: ice speed at CF (m/s) along two axes
+!    real(dp), dimension(:), intent(out)      :: cf_uvel             !> calvingMIP output: u velocity at CF (m/s) along two axes
+!    real(dp), dimension(:), intent(out)      :: cf_vvel             !> calvingMIP output: v velocity at CF (m/s) along two axes
 
     integer, intent(in) :: itest, jtest, rtest                     !> coordinates of diagnostic point
     real(dp), intent(in)                      :: dt                !> model timestep (s)
@@ -614,11 +617,6 @@ contains
 
     real(dp) :: &
          total_cf_length         ! total length of the calving front
-
-
-    real(dp), dimension(2,8) :: &
-         cf_location             ! x and y components of calving front location
-                                 ! first index is (x,y); second corresponds to 8 CalvingMIP axes
 
     character(len=100) :: message
 
@@ -3192,6 +3190,7 @@ contains
           call point_diag(model%geometry%thck, 'thck (m)', itest, jtest, rtest, 7, 7)
        endif
 
+       !TODO - Replace 0.0 with eps11?
        ! Compute some general masks
        call glissade_get_masks(&
             nx,                       ny,                         &
@@ -4058,17 +4057,14 @@ contains
          full_mask                  ! = 1 for ice-filled cells that are not partial_cf cells, else = 0
 
     real(dp), dimension(model%general%ewn-1,model%general%nsn-1) :: &
-         velnorm_mean            !  mean ice speed at vertices (m/s)
+         velnorm_mean               ! mean ice speed at vertices (m/s)
 
     integer, dimension(model%general%ewn-1,model%general%nsn-1) :: &
-         vmask                   ! = 1 for vertices of active cells
+         vmask                      ! = 1 for vertices of active cells
 
     real(dp), dimension(model%general%ewn,model%general%nsn) :: &
-         speed                   ! 2D ice speed averaged to cell centers (m/s)
-
-    real(dp), dimension(2,8) :: &
-         cf_location             ! x and y components of calving front location
-                                 ! first index is (x,y); second corresponds to 8 CalvingMIP axes
+         uvel,                    & ! uvel_2d averaged to cell centers (m/s)
+         vvel                       ! vvel_2d averaged to cell centers (m/s)
 
     real(dp) :: &
          total_ice_area         ! total effective ice area (with weighting by effective_areafrac)
@@ -4104,15 +4100,21 @@ contains
        vmask = 0
     endwhere
 
-    ! Interpolate the speed from cell vertices to centers.
+    ! Interpolate the velocity from cell vertices to centers.
     ! 'stagger_margin_in = 1' means that masked-out values are not part of the average.
 
     call glissade_unstagger(&
-         nx,            ny,      &
-         velnorm_mean,  speed,   &
-         vmask,         stagger_margin_in = 1)
+         nx,                     ny,      &
+         model%velocity%uvel_2d, uvel,    &
+         vmask,                  stagger_margin_in = 1)
 
-    call parallel_halo(speed, parallel)
+    call glissade_unstagger(&
+         nx,                     ny,      &
+         model%velocity%vvel_2d, vvel,    &
+         vmask,                  stagger_margin_in = 1)
+
+    call parallel_halo(uvel, parallel)
+    call parallel_halo(vvel, parallel)
 
     ! Compute some required masks
 
@@ -4147,7 +4149,6 @@ contains
          model%calving%effective_areafrac)
 
     ! Compute the diagnostics for the chosen domain (circular or Thule)
-
     if (model%options%which_ho_calvingmip_domain == HO_CALVINGMIP_DOMAIN_CIRCULAR .and. &
         model%options%whichcalving == CF_ADVANCE_RETREAT_RATE) then
 
@@ -4159,14 +4160,16 @@ contains
             model%general%x1,                  &  ! m
             model%general%y1,                  &  ! m
             parallel,                          &
-            itest, jtest, rtest,               &
+            itest,   jtest,   rtest,           &
             model%calving%effective_areafrac,  &
             model%calving%thck_effective,      &
-            speed,                             &
+            uvel,           vvel,              &  ! m/s
+            model%calving%cf_locx,             &  ! m
+            model%calving%cf_locy,             &  ! m
             model%calving%cf_radius,           &  ! m
             model%calving%cf_thck,             &  ! m
-            model%calving%cf_speed,            &  ! m/s
-            cf_location)                          ! m
+            model%calving%cf_uvel,             &  ! m/s
+            model%calving%cf_vvel)
 
     elseif (model%options%which_ho_calvingmip_domain == HO_CALVINGMIP_DOMAIN_THULE .and. &
             model%options%whichcalving == CF_ADVANCE_RETREAT_RATE) then
@@ -4179,14 +4182,16 @@ contains
             model%general%x1,                  &  ! m
             model%general%y1,                  &  ! m
             parallel,                          &
-            itest, jtest, rtest,               &
+            itest,   jtest,   rtest,           &
             model%calving%effective_areafrac,  &
             model%calving%thck_effective,      &
-            speed,                             &
+            uvel,           vvel,              &  ! m/s
+            model%calving%cf_locx,             &  ! m
+            model%calving%cf_locy,             &  ! m
             model%calving%cf_radius,           &  ! m
             model%calving%cf_thck,             &  ! m
-            model%calving%cf_speed,            &  ! m/s
-            cf_location)                          ! m
+            model%calving%cf_uvel,             &  ! m/s
+            model%calving%cf_vvel)
 
     endif
 
@@ -4217,18 +4222,18 @@ contains
 !---------------------------------------------------------------------------
 
   subroutine locate_calving_front_circular(&
-       nx,             ny,           &
-       dx,             dy,           &
-       x0,             y0,           &
-       x1,             y1,           &
-       parallel,                     &
-       itest, jtest,   rtest,        &
-       areafrac,                     &
-       thck_effective, speed,        &
-       cf_radius,                    &
-       cf_thck,                      &
-       cf_speed,                     &
-       cf_location)
+       nx,               ny,           &
+       dx,               dy,           &
+       x0,               y0,           &
+       x1,               y1,           &
+       parallel,                       &
+       itest,   jtest,   rtest,        &
+       areafrac,                       &
+       thck_effective,                 &
+       uvel,             vvel,         &
+       cf_locx,          cf_locy,      &
+       cf_radius,        cf_thck,      &
+       cf_uvel,          cf_vvel)
 
     use cism_parallel, only: parallel_reduce_maxloc, parallel_reduce_minloc, broadcast
     use glissade_grid_operators, only: glissade_stagger
@@ -4240,7 +4245,7 @@ contains
     ! Method for finding the CF location along the x or y axis:
     ! (1) Identify the last cell (i,j) with areafrac >= 0.5, followed by the first cell with areafrac < 0.5.
     ! (2) Interpolate linearly between the two cells to find the point where areafrac = 0.5.
-    ! (3) Do a similar interpolation for CF thickness (using thck_effective) and speed.
+    ! (3) Do a similar interpolation for CF thickness (using thck_effective) and velocity components.
     !
     ! The method for diagonal axes is similar, except that we add cell corners to the interpolation.
     ! The CF is located either (1) between a cell center with areafrac >= 0.5 and a corner with areafrac < 0.5,
@@ -4264,26 +4269,26 @@ contains
     real(dp), dimension(nx,ny), intent(in) :: &
          areafrac,                 & ! effective fractional area, in range [0,1]
          thck_effective,           & ! ice thickness (m)
-         speed                       ! ice speed (m/s)
+         uvel, vvel                  ! ice velocity components (m/s)
 
     real(dp), dimension(8), intent(out) :: &
-         cf_radius,                 & ! radial distance of CF (m) from origin along 8 axes
-         cf_thck,                   & ! ice thickness at CF (m) along 8 axes
-         cf_speed                     ! ice speed at CF (m/s) along 8 axes
-
-    real(dp), dimension(2,8), intent(out) :: cf_location
+         cf_locx, cf_locy,         & ! x and y components of CF location (m)
+         cf_radius,                & ! radial distance of CF from origin (m)
+         cf_thck,                  & ! ice thickness at CF (m)
+         cf_uvel, cf_vvel            ! u and v velocity components at CF (m/s)
 
     ! local variables
 
     integer :: i, j, iglobal, jglobal
     integer :: axis
     integer :: procnum
-    real(dp) :: cf_location_xmax, cf_location_ymax, cf_location_xmin, cf_location_ymin, radius
-    real(dp) :: cf_radius_max, cf_thck_max, cf_speed_max
+    real(dp) :: cf_loc_xmax, cf_loc_ymax, cf_loc_xmin, cf_loc_ymin
     real(dp) :: wt_factor
     real(dp) :: this_areafrac, next_areafrac, corner_frac
     real(dp) :: this_thck, next_thck, corner_thck
-    real(dp) :: this_speed, next_speed, corner_speed
+    real(dp) :: this_uvel, next_uvel, corner_uvel
+    real(dp) :: this_vvel, next_vvel, corner_vvel
+    real(dp) :: speed
 
     ! Note: This subroutine assumes that the grid origin (0,0) is located at a cell vertex,
     !       so the x- and y-axes lie along cell edges.
@@ -4324,13 +4329,15 @@ contains
     endif
 
     ! Initialize calvingMIP diagnostics
+    cf_locx = 0.0d0
+    cf_locy = 0.0d0
     cf_radius = 0.0d0
     cf_thck = 0.0d0
-    cf_speed = 0.0d0
-    cf_location = 0.0d0
+    cf_uvel = 0.0d0
+    cf_vvel = 0.0d0
 
     ! Find the CF location along each of 8 axes
-    ! The CF has areafrac = 0.5. To find its location, interpolated linearly between
+    ! The CF has areafrac = 0.5. To find its location, interpolate linearly between
     !  two points, one with areafrac >= 0.5 and one with areafrac < 0.5.
     ! All loops are over locally owned cells
 
@@ -4340,25 +4347,29 @@ contains
     if (y_axis_thru_edges) then
        do i = nhalo+1, nx-nhalo
           if (x0(i) == 0.0d0) then  ! E edge of cell lies on the y-axis
-             cf_location(1,axis) = 0.0d0
+             cf_locx(axis) = 0.0d0
              do j = nhalo+1, ny-nhalo
                 this_areafrac = 0.5d0 * (areafrac(i,j) + areafrac(i+1,j))
                 next_areafrac = 0.5d0 * (areafrac(i,j+1) + areafrac(i+1,j+1))
                 if (this_areafrac >= 0.5d0 .and. next_areafrac < 0.5d0) then
                    ! CF lies between j and j+1
                    wt_factor = (0.5d0 - next_areafrac) / (this_areafrac - next_areafrac)
-                   cf_location(2,axis) = y1(j)*wt_factor + y1(j+1)*(1.0d0 - wt_factor)
-                   cf_radius(axis) = sqrt(cf_location(1,axis)**2 + cf_location(2,axis)**2)
+                   cf_locy(axis) = y1(j)*wt_factor + y1(j+1)*(1.0d0 - wt_factor)
+                   cf_radius(axis) = sqrt(cf_locx(axis)**2 + cf_locy(axis)**2)
                    if (next_areafrac > eps11) then  ! take a weighted average between j and j+1
                       this_thck = 0.5d0 * (thck_effective(i,j) + thck_effective(i+1,j))
                       next_thck = 0.5d0 * (thck_effective(i,j+1) + thck_effective(i+1,j+1))
                       cf_thck(axis) = this_thck*wt_factor + next_thck*(1.0d0 - wt_factor)
-                      this_speed = 0.5d0 * (speed(i,j) + speed(i+1,j))
-                      next_speed = 0.5d0 * (speed(i,j+1) + speed(i+1,j+1))
-                      cf_speed(axis) = this_speed*wt_factor + next_speed*(1.0d0 - wt_factor)
+                      this_uvel = 0.5d0 * (uvel(i,j) + uvel(i+1,j))
+                      next_uvel = 0.5d0 * (uvel(i,j+1) + uvel(i+1,j+1))
+                      cf_uvel(axis) = this_uvel*wt_factor + next_uvel*(1.0d0 - wt_factor)
+                      this_vvel = 0.5d0 * (vvel(i,j) + vvel(i+1,j))
+                      next_vvel = 0.5d0 * (vvel(i,j+1) + vvel(i+1,j+1))
+                      cf_vvel(axis) = this_vvel*wt_factor + next_vvel*(1.0d0 - wt_factor)
                    else  ! use the values from this j
                       cf_thck(axis) = 0.5d0 * (thck_effective(i,j) + thck_effective(i+1,j))
-                      cf_speed(axis) = 0.5d0 * (speed(i,j) + speed(i+1,j))
+                      cf_uvel(axis) = 0.5d0 * (uvel(i,j) + uvel(i+1,j))
+                      cf_vvel(axis) = 0.5d0 * (vvel(i,j) + vvel(i+1,j))
                    endif
                 endif
              enddo
@@ -4367,38 +4378,44 @@ contains
     endif   ! y_axis_thru_edges
 
     ! If this proc has a positive value of y, then broadcast the coordinates to all procs
-    call parallel_reduce_maxloc(xin=cf_location(2,axis), xout=cf_location_ymax, xprocout=procnum)
-    call broadcast(cf_location(:,axis), proc=procnum)
+    call parallel_reduce_maxloc(xin=cf_locy(axis), xout=cf_loc_ymax, xprocout=procnum)
 
     ! Broadcast the calvingMIP axis 1 output
+    call broadcast(cf_locx(axis), proc=procnum)
+    call broadcast(cf_locy(axis), proc=procnum)
     call broadcast(cf_radius(axis), proc=procnum)
     call broadcast(cf_thck(axis), proc=procnum)
-    call broadcast(cf_speed(axis), proc=procnum)
+    call broadcast(cf_uvel(axis), proc=procnum)
+    call broadcast(cf_vvel(axis), proc=procnum)
 
 
     axis = 3  ! index for the positive x-axis (profile C)
     if (x_axis_thru_edges) then
        do j = nhalo+1, ny-nhalo
           if (y0(j) == 0.0d0) then
-             cf_location(2,axis) = 0.0d0
+             cf_locy(axis) = 0.0d0
              do i = nhalo+1, nx-nhalo
                 this_areafrac = 0.5d0 * (areafrac(i,j) + areafrac(i,j+1))
                 next_areafrac = 0.5d0 * (areafrac(i+1,j) + areafrac(i+1,j+1))
                 if (this_areafrac >= 0.5d0 .and. next_areafrac < 0.5d0) then
                    ! CF lies between i and i+1
                    wt_factor = (0.5d0 - next_areafrac) / (this_areafrac - next_areafrac)
-                   cf_location(1,axis) = x1(i)*wt_factor + x1(i+1)*(1.0d0 - wt_factor)
-                   cf_radius(axis) = sqrt(cf_location(1,axis)**2 + cf_location(2,axis)**2)
+                   cf_locx(axis) = x1(i)*wt_factor + x1(i+1)*(1.0d0 - wt_factor)
+                   cf_radius(axis) = sqrt(cf_locx(axis)**2 + cf_locy(axis)**2)
                    if (next_areafrac > eps11) then  ! take a weighted average between i and i+1
                       this_thck = 0.5d0 * (thck_effective(i,j) + thck_effective(i,j+1))
                       next_thck = 0.5d0 * (thck_effective(i+1,j) + thck_effective(i+1,j+1))
                       cf_thck(axis) = this_thck*wt_factor + next_thck*(1.0d0 - wt_factor)
-                      this_speed = 0.5d0 * (speed(i,j) + speed(i,j+1))
-                      next_speed = 0.5d0 * (speed(i+1,j) + speed(i+1,j+1))
-                      cf_speed(axis) = this_speed*wt_factor + next_speed*(1.0d0 - wt_factor)
+                      this_uvel = 0.5d0 * (uvel(i,j) + uvel(i,j+1))
+                      next_uvel = 0.5d0 * (uvel(i+1,j) + uvel(i+1,j+1))
+                      cf_uvel(axis) = this_uvel*wt_factor + next_uvel*(1.0d0 - wt_factor)
+                      this_vvel = 0.5d0 * (vvel(i,j) + vvel(i,j+1))
+                      next_vvel = 0.5d0 * (vvel(i+1,j) + vvel(i+1,j+1))
+                      cf_vvel(axis) = this_vvel*wt_factor + next_vvel*(1.0d0 - wt_factor)
                    else  ! use the values from this i
                       cf_thck(axis) = 0.5d0 * (thck_effective(i,j) + thck_effective(i,j+1))
-                      cf_speed(axis) = 0.5d0 * (speed(i,j) + speed(i,j+1))
+                      cf_uvel(axis) = 0.5d0 * (uvel(i,j) + uvel(i,j+1))
+                      cf_vvel(axis) = 0.5d0 * (vvel(i,j) + vvel(i,j+1))
                    endif
                 endif
              enddo
@@ -4408,38 +4425,44 @@ contains
 
 
     ! If this proc has a positive value of x, then broadcast the coordinates to all procs
-    call parallel_reduce_maxloc(xin=cf_location(1,axis), xout=cf_location_xmax, xprocout=procnum)
-    call broadcast(cf_location(:,axis), proc=procnum)
+    call parallel_reduce_maxloc(xin=cf_locx(axis), xout=cf_loc_xmax, xprocout=procnum)
 
     ! Broadcast the calvingMIP axis 3 output
+    call broadcast(cf_locx(axis), proc=procnum)
+    call broadcast(cf_locy(axis), proc=procnum)
     call broadcast(cf_radius(axis), proc=procnum)
     call broadcast(cf_thck(axis), proc=procnum)
-    call broadcast(cf_speed(axis), proc=procnum)
+    call broadcast(cf_uvel(axis), proc=procnum)
+    call broadcast(cf_vvel(axis), proc=procnum)
 
     
     axis = 5  ! index for the negative y-axis (profile E)
     if (y_axis_thru_edges) then
        do i = nhalo+1, nx-nhalo
           if (x0(i) == 0.0d0) then  ! E edge of cell lies on the y-axis
-             cf_location(1,axis) = 0.0d0
+             cf_locx(axis) = 0.0d0
              do j = ny-nhalo, nhalo+1, -1
                 this_areafrac = 0.5d0 * (areafrac(i,j) + areafrac(i+1,j))
                 next_areafrac = 0.5d0 * (areafrac(i,j-1) + areafrac(i+1,j-1))
                 if (this_areafrac >= 0.5d0 .and. next_areafrac < 0.5d0) then
                    ! CF lies between j and j-1
                    wt_factor = (0.5d0 - next_areafrac) / (this_areafrac - next_areafrac)
-                   cf_location(2,axis) = y1(j)*wt_factor + y1(j-1)*(1.0d0 - wt_factor)
-                   cf_radius(axis) = sqrt(cf_location(1,axis)**2 + cf_location(2,axis)**2)
+                   cf_locy(axis) = y1(j)*wt_factor + y1(j-1)*(1.0d0 - wt_factor)
+                   cf_radius(axis) = sqrt(cf_locx(axis)**2 + cf_locy(axis)**2)
                    if (next_areafrac > eps11) then  ! take a weighted average between j and j-1
                       this_thck = 0.5d0 * (thck_effective(i,j) + thck_effective(i+1,j))
                       next_thck = 0.5d0 * (thck_effective(i,j-1) + thck_effective(i+1,j-1))
                       cf_thck(axis) = this_thck*wt_factor + next_thck*(1.0d0 - wt_factor)
-                      this_speed = 0.5d0 * (speed(i,j) + speed(i+1,j))
-                      next_speed = 0.5d0 * (speed(i,j-1) + speed(i+1,j-1))
-                      cf_speed(axis) = this_speed*wt_factor + next_speed*(1.0d0 - wt_factor)
+                      this_uvel = 0.5d0 * (uvel(i,j) + uvel(i+1,j))
+                      next_uvel = 0.5d0 * (uvel(i,j-1) + uvel(i+1,j-1))
+                      cf_uvel(axis) = this_uvel*wt_factor + next_uvel*(1.0d0 - wt_factor)
+                      this_vvel = 0.5d0 * (vvel(i,j) + vvel(i+1,j))
+                      next_vvel = 0.5d0 * (vvel(i,j-1) + vvel(i+1,j-1))
+                      cf_vvel(axis) = this_vvel*wt_factor + next_vvel*(1.0d0 - wt_factor)
                    else  ! use the values from this j
                       cf_thck(axis) = 0.5d0 * (thck_effective(i,j) + thck_effective(i+1,j))
-                      cf_speed(axis) = 0.5d0 * (speed(i,j) + speed(i+1,j))
+                      cf_uvel(axis) = 0.5d0 * (uvel(i,j) + uvel(i+1,j))
+                      cf_vvel(axis) = 0.5d0 * (vvel(i,j) + vvel(i+1,j))
                    endif
                 endif
              enddo
@@ -4448,38 +4471,44 @@ contains
     endif   ! y_axis_thru_edges
 
     ! If this proc has a negative value of y, then broadcast the coordinates to all procs
-    call parallel_reduce_minloc(xin=cf_location(2,axis), xout=cf_location_ymin, xprocout=procnum)
-    call broadcast(cf_location(:,axis), proc=procnum)
+    call parallel_reduce_minloc(xin=cf_locy(axis), xout=cf_loc_ymin, xprocout=procnum)
 
     ! Broadcast the calvingMIP axis 5 output
+    call broadcast(cf_locx(axis), proc=procnum)
+    call broadcast(cf_locy(axis), proc=procnum)
     call broadcast(cf_radius(axis), proc=procnum)
     call broadcast(cf_thck(axis), proc=procnum)
-    call broadcast(cf_speed(axis), proc=procnum)
+    call broadcast(cf_uvel(axis), proc=procnum)
+    call broadcast(cf_vvel(axis), proc=procnum)
 
 
     axis = 7  ! index for the negative x-axis (profile G)
     if (x_axis_thru_edges) then
        do j = nhalo+1, ny-nhalo
           if (y0(j) == 0.0d0) then
-             cf_location(2,axis) = 0.0d0
+             cf_locy(axis) = 0.0d0
              do i = nx-nhalo, nhalo+1, -1
                 this_areafrac = 0.5d0 * (areafrac(i,j) + areafrac(i,j+1))
                 next_areafrac = 0.5d0 * (areafrac(i-1,j) + areafrac(i-1,j+1))
                 if (this_areafrac >= 0.5d0 .and. next_areafrac < 0.5d0) then
                    ! CF lies between i and i-1
                    wt_factor = (0.5d0 - next_areafrac) / (this_areafrac - next_areafrac)
-                   cf_location(1,axis) = x1(i)*wt_factor + x1(i-1)*(1.0d0 - wt_factor)
-                   cf_radius(axis) = sqrt(cf_location(1,axis)**2 + cf_location(2,axis)**2)
+                   cf_locx(axis) = x1(i)*wt_factor + x1(i-1)*(1.0d0 - wt_factor)
+                   cf_radius(axis) = sqrt(cf_locx(axis)**2 + cf_locy(axis)**2)
                    if (next_areafrac > eps11) then  ! take a weighted average between i and i+1
                       this_thck = 0.5d0 * (thck_effective(i,j) + thck_effective(i,j+1))
                       next_thck = 0.5d0 * (thck_effective(i-1,j) + thck_effective(i-1,j+1))
                       cf_thck(axis) = this_thck*wt_factor + next_thck*(1.0d0 - wt_factor)
-                      this_speed = 0.5d0 * (speed(i,j) + speed(i,j+1))
-                      next_speed = 0.5d0 * (speed(i-1,j) + speed(i-1,j+1))
-                      cf_speed(axis) = this_speed*wt_factor + next_speed*(1.0d0 - wt_factor)
+                      this_uvel = 0.5d0 * (uvel(i,j) + uvel(i,j+1))
+                      next_uvel = 0.5d0 * (uvel(i-1,j) + uvel(i-1,j+1))
+                      cf_uvel(axis) = this_uvel*wt_factor + next_uvel*(1.0d0 - wt_factor)
+                      this_vvel = 0.5d0 * (vvel(i,j) + vvel(i,j+1))
+                      next_vvel = 0.5d0 * (vvel(i-1,j) + vvel(i-1,j+1))
+                      cf_vvel(axis) = this_vvel*wt_factor + next_vvel*(1.0d0 - wt_factor)
                    else  ! use the values from this i
                       cf_thck(axis) = 0.5d0 * (thck_effective(i,j) + thck_effective(i,j+1))
-                      cf_speed(axis) = 0.5d0 * (speed(i,j) + speed(i,j+1))
+                      cf_uvel(axis) = 0.5d0 * (uvel(i,j) + uvel(i,j+1))
+                      cf_vvel(axis) = 0.5d0 * (vvel(i,j) + vvel(i,j+1))
                    endif
                 endif
              enddo
@@ -4488,13 +4517,15 @@ contains
     endif   ! x_axis_thru_edges
 
     ! If this proc has a negative value of x, then broadcast the coordinates to all procs
-    call parallel_reduce_minloc(xin=cf_location(1,axis), xout=cf_location_xmin, xprocout=procnum)
-    call broadcast(cf_location(:,axis), proc=procnum)
+    call parallel_reduce_minloc(xin=cf_locx(axis), xout=cf_loc_xmin, xprocout=procnum)
 
     ! Broadcast the calvingMIP axis 7 output
+    call broadcast(cf_locx(axis), proc=procnum)
+    call broadcast(cf_locy(axis), proc=procnum)
     call broadcast(cf_radius(axis), proc=procnum)
     call broadcast(cf_thck(axis), proc=procnum)
-    call broadcast(cf_speed(axis), proc=procnum)
+    call broadcast(cf_uvel(axis), proc=procnum)
+    call broadcast(cf_vvel(axis), proc=procnum)
 
 
     ! Compute diagnostics for the four profiles along the diagonals (y = x and y = -x)
@@ -4509,34 +4540,40 @@ contains
                 this_areafrac = areafrac(i,j)
                 next_areafrac = corner_frac
                 wt_factor = (0.5d0 - next_areafrac) / (this_areafrac - next_areafrac)
-                cf_location(1,axis) = x1(i)*wt_factor + x0(i)*(1.0d0 - wt_factor)
-                cf_location(2,axis) = y1(j)*wt_factor + y0(j)*(1.0d0 - wt_factor)
-                cf_radius(axis) = sqrt(cf_location(1,axis)**2 + cf_location(2,axis)**2)
+                cf_locx(axis) = x1(i)*wt_factor + x0(i)*(1.0d0 - wt_factor)
+                cf_locy(axis) = y1(j)*wt_factor + y0(j)*(1.0d0 - wt_factor)
+                cf_radius(axis) = sqrt(cf_locx(axis)**2 + cf_locy(axis)**2)
                 if (corner_frac > eps11) then  ! take a weighted average of the center and corner values
                    corner_thck = 0.5d0 * (thck_effective(i,j+1) + thck_effective(i+1,j))
                    cf_thck(axis) = thck_effective(i,j)*wt_factor + corner_thck*(1.0d0 - wt_factor)
-                   corner_speed = 0.5d0 * (speed(i,j+1) + speed(i+1,j))
-                   cf_speed(axis) = speed(i,j)*wt_factor + corner_speed*(1.0d0 - wt_factor)
+                   corner_uvel = 0.5d0 * (uvel(i,j+1) + uvel(i+1,j))
+                   cf_uvel(axis) = uvel(i,j)*wt_factor + corner_uvel*(1.0d0 - wt_factor)
+                   corner_vvel = 0.5d0 * (vvel(i,j+1) + vvel(i+1,j))
+                   cf_vvel(axis) = vvel(i,j)*wt_factor + corner_vvel*(1.0d0 - wt_factor)
                 else  ! use the center values
                    cf_thck(axis) = thck_effective(i,j)
-                   cf_speed(axis) = speed(i,j)
+                   cf_uvel(axis) = uvel(i,j)
+                   cf_vvel(axis) = vvel(i,j)
                 endif
              elseif (corner_frac >= 0.5d0 .and. areafrac(i+1,j+1) < 0.5d0) then
                 ! CF lies in the SW quadrant of cell (i+1,j+1)
                 this_areafrac = corner_frac
                 next_areafrac = areafrac(i+1,j+1)
                 wt_factor = (0.5d0 - next_areafrac) / (this_areafrac - next_areafrac)
-                cf_location(1,axis) = x0(i)*wt_factor + x1(i+1)*(1.0d0 - wt_factor)
-                cf_location(2,axis) = y0(j)*wt_factor + y1(j+1)*(1.0d0 - wt_factor)
-                cf_radius(axis) = sqrt(cf_location(1,axis)**2 + cf_location(2,axis)**2)
+                cf_locx(axis) = x0(i)*wt_factor + x1(i+1)*(1.0d0 - wt_factor)
+                cf_locy(axis) = y0(j)*wt_factor + y1(j+1)*(1.0d0 - wt_factor)
+                cf_radius(axis) = sqrt(cf_locx(axis)**2 + cf_locy(axis)**2)
                 if (areafrac(i+1,j+1) > eps11) then  ! take a weighted average of the corner and center values
                    corner_thck = 0.5d0 * (thck_effective(i,j+1) + thck_effective(i+1,j))
                    cf_thck(axis) = corner_thck*wt_factor + thck_effective(i+1,j+1)*(1.0d0 - wt_factor)
-                   corner_speed = 0.5d0 * (speed(i,j+1) + speed(i+1,j))
-                   cf_speed(axis) = corner_speed*wt_factor + speed(i+1,j+1)*(1.0d0 - wt_factor)
+                   corner_uvel = 0.5d0 * (uvel(i,j+1) + uvel(i+1,j))
+                   cf_uvel(axis) = corner_uvel*wt_factor + uvel(i+1,j+1)*(1.0d0 - wt_factor)
+                   corner_vvel = 0.5d0 * (vvel(i,j+1) + vvel(i+1,j))
+                   cf_vvel(axis) = corner_vvel*wt_factor + vvel(i+1,j+1)*(1.0d0 - wt_factor)
                 else   ! use the corner values
                    cf_thck(axis) = 0.5d0 * (thck_effective(i,j+1) + thck_effective(i+1,j))
-                   cf_speed(axis) = 0.5d0 * (speed(i,j+1) + speed(i+1,j))
+                   cf_uvel(axis) = 0.5d0 * (uvel(i,j+1) + uvel(i+1,j))
+                   cf_vvel(axis) = 0.5d0 * (vvel(i,j+1) + vvel(i+1,j))
                 endif
              endif
           endif   ! on the line y = x
@@ -4544,13 +4581,15 @@ contains
     enddo   ! j
 
     ! If this proc has a positive value of x, then broadcast the coordinates to all procs
-    call parallel_reduce_maxloc(xin=cf_location(1,axis), xout=cf_location_ymax, xprocout=procnum)
-    call broadcast(cf_location(:,axis), proc=procnum)
+    call parallel_reduce_maxloc(xin=cf_locx(axis), xout=cf_loc_xmax, xprocout=procnum)
 
     ! Broadcast the calvingMIP axis 2 output
+    call broadcast(cf_locx(axis), proc=procnum)
+    call broadcast(cf_locy(axis), proc=procnum)
     call broadcast(cf_radius(axis), proc=procnum)
     call broadcast(cf_thck(axis), proc=procnum)
-    call broadcast(cf_speed(axis), proc=procnum)
+    call broadcast(cf_uvel(axis), proc=procnum)
+    call broadcast(cf_vvel(axis), proc=procnum)
 
 
     axis = 4  ! index for the line y = -x in the positive x and negative y direction (profile D)
@@ -4563,34 +4602,40 @@ contains
                 this_areafrac = areafrac(i,j)
                 next_areafrac = corner_frac
                 wt_factor = (0.5d0 - next_areafrac) / (this_areafrac - next_areafrac)
-                cf_location(1,axis) = x1(i)*wt_factor + x0(i)*(1.0d0 - wt_factor)
-                cf_location(2,axis) = y1(j)*wt_factor + y0(j-1)*(1.0d0 - wt_factor)
-                cf_radius(axis) = sqrt(cf_location(1,axis)**2 + cf_location(2,axis)**2)
+                cf_locx(axis) = x1(i)*wt_factor + x0(i)*(1.0d0 - wt_factor)
+                cf_locy(axis) = y1(j)*wt_factor + y0(j-1)*(1.0d0 - wt_factor)
+                cf_radius(axis) = sqrt(cf_locx(axis)**2 + cf_locy(axis)**2)
                 if (corner_frac > eps11) then  ! take a weighted average of the center and corner values
                    corner_thck = 0.5d0 * (thck_effective(i,j-1) + thck_effective(i+1,j))
                    cf_thck(axis) = thck_effective(i,j)*wt_factor + corner_thck*(1.0d0 - wt_factor)
-                   corner_speed = 0.5d0 * (speed(i,j-1) + speed(i+1,j))
-                   cf_speed(axis) = speed(i,j)*wt_factor + corner_speed*(1.0d0 - wt_factor)
+                   corner_uvel = 0.5d0 * (uvel(i,j-1) + uvel(i+1,j))
+                   cf_uvel(axis) = uvel(i,j)*wt_factor + corner_uvel*(1.0d0 - wt_factor)
+                   corner_vvel = 0.5d0 * (vvel(i,j-1) + vvel(i+1,j))
+                   cf_vvel(axis) = vvel(i,j)*wt_factor + corner_vvel*(1.0d0 - wt_factor)
                 else  ! use the center values
                    cf_thck(axis) = thck_effective(i,j)
-                   cf_speed(axis) = speed(i,j)
+                   cf_uvel(axis) = uvel(i,j)
+                   cf_vvel(axis) = vvel(i,j)
                 endif
              elseif (corner_frac >= 0.5d0 .and. areafrac(i+1,j-1) < 0.5d0) then
                 ! CF lies in the NW quadrant of cell (i+1,j-1)
                 this_areafrac = corner_frac
                 next_areafrac = areafrac(i+1,j-1)
                 wt_factor = (0.5d0 - next_areafrac) / (this_areafrac - next_areafrac)
-                cf_location(1,axis) = x0(i)*wt_factor + x1(i+1)*(1.0d0 - wt_factor)
-                cf_location(2,axis) = y0(j-1)*wt_factor + y1(j-1)*(1.0d0 - wt_factor)
-                cf_radius(axis) = sqrt(cf_location(1,axis)**2 + cf_location(2,axis)**2)
+                cf_locx(axis) = x0(i)*wt_factor + x1(i+1)*(1.0d0 - wt_factor)
+                cf_locy(axis) = y0(j-1)*wt_factor + y1(j-1)*(1.0d0 - wt_factor)
+                cf_radius(axis) = sqrt(cf_locx(axis)**2 + cf_locy(axis)**2)
                 if (areafrac(i+1,j-1) > eps11) then  ! take a weighted average of the corner and center values
                    corner_thck = 0.5d0 * (thck_effective(i,j-1) + thck_effective(i+1,j))
                    cf_thck(axis) = corner_thck*wt_factor + thck_effective(i+1,j-1)*(1.0d0 - wt_factor)
-                   corner_speed = 0.5d0 * (speed(i,j-1) + speed(i+1,j))
-                   cf_speed(axis) = corner_speed*wt_factor + speed(i+1,j-1)*(1.0d0 - wt_factor)
+                   corner_uvel = 0.5d0 * (uvel(i,j-1) + uvel(i+1,j))
+                   cf_uvel(axis) = corner_uvel*wt_factor + uvel(i+1,j-1)*(1.0d0 - wt_factor)
+                   corner_vvel = 0.5d0 * (vvel(i,j-1) + vvel(i+1,j))
+                   cf_vvel(axis) = corner_vvel*wt_factor + vvel(i+1,j-1)*(1.0d0 - wt_factor)
                 else   ! use the corner values
                    cf_thck(axis) = 0.5d0 * (thck_effective(i,j-1) + thck_effective(i+1,j))
-                   cf_speed(axis) = 0.5d0 * (speed(i,j-1) + speed(i+1,j))
+                   cf_uvel(axis) = 0.5d0 * (uvel(i,j-1) + uvel(i+1,j))
+                   cf_vvel(axis) = 0.5d0 * (vvel(i,j-1) + vvel(i+1,j))
                 endif
              endif
           endif
@@ -4598,13 +4643,15 @@ contains
     enddo   ! j
 
     ! If this proc has a positive value of x, then broadcast the coordinates to all procs
-    call parallel_reduce_maxloc(xin=cf_location(1,axis), xout=cf_location_ymax, xprocout=procnum)
-    call broadcast(cf_location(:,axis), proc=procnum)
+    call parallel_reduce_maxloc(xin=cf_locx(axis), xout=cf_loc_xmax, xprocout=procnum)
 
     ! Broadcast the calvingMIP axis 4 output
+    call broadcast(cf_locx(axis), proc=procnum)
+    call broadcast(cf_locy(axis), proc=procnum)
     call broadcast(cf_radius(axis), proc=procnum)
     call broadcast(cf_thck(axis), proc=procnum)
-    call broadcast(cf_speed(axis), proc=procnum)
+    call broadcast(cf_uvel(axis), proc=procnum)
+    call broadcast(cf_vvel(axis), proc=procnum)
 
 
     axis = 6  ! index for the line y = x in the negative x and y direction (profile F)
@@ -4617,34 +4664,40 @@ contains
                 this_areafrac = areafrac(i,j)
                 next_areafrac = corner_frac
                 wt_factor = (0.5d0 - next_areafrac) / (this_areafrac - next_areafrac)
-                cf_location(1,axis) = x1(i)*wt_factor + x0(i-1)*(1.0d0 - wt_factor)
-                cf_location(2,axis) = y1(j)*wt_factor + y0(j-1)*(1.0d0 - wt_factor)
-                cf_radius(axis) = sqrt(cf_location(1,axis)**2 + cf_location(2,axis)**2)
+                cf_locx(axis) = x1(i)*wt_factor + x0(i-1)*(1.0d0 - wt_factor)
+                cf_locy(axis) = y1(j)*wt_factor + y0(j-1)*(1.0d0 - wt_factor)
+                cf_radius(axis) = sqrt(cf_locx(axis)**2 + cf_locy(axis)**2)
                 if (corner_frac > eps11) then  ! take a weighted average of the center and corner values
                    corner_thck = 0.5d0 * (thck_effective(i,j-1) + thck_effective(i-1,j))
                    cf_thck(axis) = thck_effective(i,j)*wt_factor + corner_thck*(1.0d0 - wt_factor)
-                   corner_speed = 0.5d0 * (speed(i,j-1) + speed(i-1,j))
-                   cf_speed(axis) = speed(i,j)*wt_factor + corner_speed*(1.0d0 - wt_factor)
+                   corner_uvel = 0.5d0 * (uvel(i,j-1) + uvel(i-1,j))
+                   cf_uvel(axis) = uvel(i,j)*wt_factor + corner_uvel*(1.0d0 - wt_factor)
+                   corner_vvel = 0.5d0 * (vvel(i,j-1) + vvel(i-1,j))
+                   cf_vvel(axis) = vvel(i,j)*wt_factor + corner_vvel*(1.0d0 - wt_factor)
                 else  ! use the center values
                    cf_thck(axis) = thck_effective(i,j)
-                   cf_speed(axis) = speed(i,j)
+                   cf_uvel(axis) = uvel(i,j)
+                   cf_vvel(axis) = vvel(i,j)
                 endif
              elseif (corner_frac >= 0.5d0 .and. areafrac(i-1,j-1) < 0.5d0) then
                 ! CF lies in the NE quadrant of cell (i-1,j-1)
                 this_areafrac = corner_frac
                 next_areafrac = areafrac(i-1,j-1)
                 wt_factor = (0.5d0 - next_areafrac) / (this_areafrac - next_areafrac)
-                cf_location(1,axis) = x0(i-1)*wt_factor + x1(i-1)*(1.0d0 - wt_factor)
-                cf_location(2,axis) = y0(j-1)*wt_factor + y1(j-1)*(1.0d0 - wt_factor)
-                cf_radius(axis) = sqrt(cf_location(1,axis)**2 + cf_location(2,axis)**2)
+                cf_locx(axis) = x0(i-1)*wt_factor + x1(i-1)*(1.0d0 - wt_factor)
+                cf_locy(axis) = y0(j-1)*wt_factor + y1(j-1)*(1.0d0 - wt_factor)
+                cf_radius(axis) = sqrt(cf_locx(axis)**2 + cf_locy(axis)**2)
                 if (areafrac(i-1,j-1) > eps11) then  ! take a weighted average of the corner and center values
                    corner_thck = 0.5d0 * (thck_effective(i,j-1) + thck_effective(i-1,j))
                    cf_thck(axis) = corner_thck*wt_factor + thck_effective(i-1,j-1)*(1.0d0 - wt_factor)
-                   corner_speed = 0.5d0 * (speed(i,j-1) + speed(i-1,j))
-                   cf_speed(axis) = corner_speed*wt_factor + speed(i-1,j-1)*(1.0d0 - wt_factor)
+                   corner_uvel = 0.5d0 * (uvel(i,j-1) + uvel(i-1,j))
+                   cf_uvel(axis) = corner_uvel*wt_factor + uvel(i-1,j-1)*(1.0d0 - wt_factor)
+                   corner_vvel = 0.5d0 * (vvel(i,j-1) + vvel(i-1,j))
+                   cf_vvel(axis) = corner_vvel*wt_factor + vvel(i-1,j-1)*(1.0d0 - wt_factor)
                 else   ! use the corner values
                    cf_thck(axis) = 0.5d0 * (thck_effective(i,j-1) + thck_effective(i-1,j))
-                   cf_speed(axis) = 0.5d0 * (speed(i,j-1) + speed(i-1,j))
+                   cf_uvel(axis) = 0.5d0 * (uvel(i,j-1) + uvel(i-1,j))
+                   cf_vvel(axis) = 0.5d0 * (vvel(i,j-1) + vvel(i-1,j))
                 endif
              endif
           endif
@@ -4652,13 +4705,15 @@ contains
     enddo   ! j
 
     ! If this proc has a negative value of x, then broadcast the coordinates to all procs
-    call parallel_reduce_minloc(xin=cf_location(1,axis), xout=cf_location_ymax, xprocout=procnum)
-    call broadcast(cf_location(:,axis), proc=procnum)
+    call parallel_reduce_minloc(xin=cf_locx(axis), xout=cf_loc_xmin, xprocout=procnum)
 
     ! Broadcast the calvingMIP axis 6 output
+    call broadcast(cf_locx(axis), proc=procnum)
+    call broadcast(cf_locy(axis), proc=procnum)
     call broadcast(cf_radius(axis), proc=procnum)
     call broadcast(cf_thck(axis), proc=procnum)
-    call broadcast(cf_speed(axis), proc=procnum)
+    call broadcast(cf_uvel(axis), proc=procnum)
+    call broadcast(cf_vvel(axis), proc=procnum)
 
 
     axis = 8  ! index for the line y = -x in the negative x and positive y direction (profile H)
@@ -4671,34 +4726,40 @@ contains
                 this_areafrac = areafrac(i,j)
                 next_areafrac = corner_frac
                 wt_factor = (0.5d0 - next_areafrac) / (this_areafrac - next_areafrac)
-                cf_location(1,axis) = x1(i)*wt_factor + x0(i-1)*(1.0d0 - wt_factor)
-                cf_location(2,axis) = y1(j)*wt_factor + y0(j)*(1.0d0 - wt_factor)
-                cf_radius(axis) = sqrt(cf_location(1,axis)**2 + cf_location(2,axis)**2)
+                cf_locx(axis) = x1(i)*wt_factor + x0(i-1)*(1.0d0 - wt_factor)
+                cf_locy(axis) = y1(j)*wt_factor + y0(j)*(1.0d0 - wt_factor)
+                cf_radius(axis) = sqrt(cf_locx(axis)**2 + cf_locy(axis)**2)
                 if (corner_frac > eps11) then  ! take a weighted average of the center and corner values
                    corner_thck = 0.5d0 * (thck_effective(i,j+1) + thck_effective(i-1,j))
                    cf_thck(axis) = thck_effective(i,j)*wt_factor + corner_thck*(1.0d0 - wt_factor)
-                   corner_speed = 0.5d0 * (speed(i,j+1) + speed(i-1,j))
-                   cf_speed(axis) = speed(i,j)*wt_factor + corner_speed*(1.0d0 - wt_factor)
+                   corner_uvel = 0.5d0 * (uvel(i,j+1) + uvel(i-1,j))
+                   cf_uvel(axis) = uvel(i,j)*wt_factor + corner_uvel*(1.0d0 - wt_factor)
+                   corner_vvel = 0.5d0 * (vvel(i,j+1) + vvel(i-1,j))
+                   cf_vvel(axis) = vvel(i,j)*wt_factor + corner_vvel*(1.0d0 - wt_factor)
                 else  ! use the center values
                    cf_thck(axis) = thck_effective(i,j)
-                   cf_speed(axis) = speed(i,j)
+                   cf_uvel(axis) = uvel(i,j)
+                   cf_vvel(axis) = vvel(i,j)
                 endif
              elseif (corner_frac >= 0.5d0 .and. areafrac(i-1,j+1) < 0.5d0) then
                 ! CF lies in the SE quadrant of cell (i-1,j+1)
                 this_areafrac = corner_frac
                 next_areafrac = areafrac(i-1,j+1)
                 wt_factor = (0.5d0 - next_areafrac) / (this_areafrac - next_areafrac)
-                cf_location(1,axis) = x0(i-1)*wt_factor + x1(i-1)*(1.0d0 - wt_factor)
-                cf_location(2,axis) = y0(j)*wt_factor + y1(j+1)*(1.0d0 - wt_factor)
-                cf_radius(axis) = sqrt(cf_location(1,axis)**2 + cf_location(2,axis)**2)
+                cf_locx(axis) = x0(i-1)*wt_factor + x1(i-1)*(1.0d0 - wt_factor)
+                cf_locy(axis) = y0(j)*wt_factor + y1(j+1)*(1.0d0 - wt_factor)
+                cf_radius(axis) = sqrt(cf_locx(axis)**2 + cf_locy(axis)**2)
                 if (areafrac(i-1,j+1) > eps11) then  ! take a weighted average of the corner and center values
                    corner_thck = 0.5d0 * (thck_effective(i,j+1) + thck_effective(i-1,j))
                    cf_thck(axis) = corner_thck*wt_factor + thck_effective(i-1,j+1)*(1.0d0 - wt_factor)
-                   corner_speed = 0.5d0 * (speed(i,j+1) + speed(i-1,j))
-                   cf_speed(axis) = corner_speed*wt_factor + speed(i-1,j+1)*(1.0d0 - wt_factor)
+                   corner_uvel = 0.5d0 * (uvel(i,j+1) + uvel(i-1,j))
+                   cf_uvel(axis) = corner_uvel*wt_factor + uvel(i-1,j+1)*(1.0d0 - wt_factor)
+                   corner_vvel = 0.5d0 * (vvel(i,j+1) + vvel(i-1,j))
+                   cf_vvel(axis) = corner_vvel*wt_factor + vvel(i-1,j+1)*(1.0d0 - wt_factor)
                 else   ! use the corner values
                    cf_thck(axis) = 0.5d0 * (thck_effective(i,j+1) + thck_effective(i-1,j))
-                   cf_speed(axis) = 0.5d0 * (speed(i,j+1) + speed(i-1,j))
+                   cf_uvel(axis) = 0.5d0 * (uvel(i,j+1) + uvel(i-1,j))
+                   cf_vvel(axis) = 0.5d0 * (vvel(i,j+1) + vvel(i-1,j))
                 endif
              endif
           endif
@@ -4706,21 +4767,23 @@ contains
     enddo   ! j
 
     ! If this proc has a negative value of x, then broadcast the coordinates to all procs
-    call parallel_reduce_minloc(xin=cf_location(1,axis), xout=cf_location_ymax, xprocout=procnum)
-    call broadcast(cf_location(:,axis), proc=procnum)
+    call parallel_reduce_minloc(xin=cf_locx(axis), xout=cf_loc_xmin, xprocout=procnum)
 
     ! Broadcast the calvingMIP axis 8 output
+    call broadcast(cf_locx(axis), proc=procnum)
+    call broadcast(cf_locy(axis), proc=procnum)
     call broadcast(cf_radius(axis), proc=procnum)
     call broadcast(cf_thck(axis), proc=procnum)
-    call broadcast(cf_speed(axis), proc=procnum)
+    call broadcast(cf_uvel(axis), proc=procnum)
+    call broadcast(cf_vvel(axis), proc=procnum)
 
     if (verbose_calving .and. main_task) then
        write(iulog,*) ' '
-       write(iulog,*) 'Circular domain: axis, CF location, radius (km), thck (m), speed (m/yr)'
+       write(iulog,*) 'Circular domain: axis, x_cf, y_cf, radius (km), thck (m), uvel, vvel, speed (m/yr)'
        do axis = 1, 8
-          radius = sqrt(cf_location(1,axis)**2 + cf_location(2,axis)**2)
-          write(iulog,'(i4,5f15.8)') axis, cf_location(:,axis)/1000.d0, &
-               radius/1000.d0, cf_thck(axis), cf_speed(axis)*scyr
+          speed = sqrt(cf_uvel(axis)**2 + cf_vvel(axis)**2)
+          write(iulog,'(i4,7f15.8)') axis, cf_locx(axis)/1000.d0, cf_locy(axis)/1000.d0, &
+               cf_radius(axis)/1000.d0, cf_thck(axis), cf_uvel(axis)*scyr, cf_vvel(axis)*scyr, speed*scyr
        enddo
     endif
 
@@ -4729,22 +4792,21 @@ contains
 !---------------------------------------------------------------------------
 
   subroutine locate_calving_front_thule(&
-       nx,             ny,           &
-       dx,             dy,           &
-       x0,             y0,           &
-       x1,             y1,           &
-       parallel,                     &
-       itest, jtest,   rtest,        &
-       areafrac,                     &
-       thck_effective, speed,        &
-       cf_radius,                    &
-       cf_thck,                      &
-       cf_speed,                     &
-       cf_location)
+       nx,               ny,           &
+       dx,               dy,           &
+       x0,               y0,           &
+       x1,               y1,           &
+       parallel,                       &
+       itest,   jtest,   rtest,        &
+       areafrac,                       &
+       thck_effective,                 &
+       uvel,             vvel,         &
+       cf_locx,          cf_locy,      &
+       cf_radius,        cf_thck,      &
+       cf_uvel,          cf_vvel)
 
     use cism_parallel, only: parallel_reduce_maxloc, parallel_reduce_minloc, &
          broadcast, parallel_globalindex
-    use glissade_utils, only: glissade_bounding_box
 
     ! Find the calving front location along eight profiles on the Thule domain.
     ! These profiles are defined as follows:
@@ -4774,52 +4836,49 @@ contains
     real(dp), dimension(ny), intent(in) :: y1  ! y coordinate of cell centers
 
     type(parallel_type), intent(in) :: &
-         parallel                    ! info for parallel communication
+         parallel                     ! info for parallel communication
 
     real(dp), dimension(nx,ny), intent(in) :: &
-         areafrac,                 & ! effective fractional area, in range [0,1]
-         thck_effective,           & ! effective ice thickness (m)
-         speed                       ! ice speed (m/s)
+         areafrac,                  & ! effective fractional area, in range [0,1]
+         thck_effective,            & ! effective ice thickness (m)
+         uvel, vvel                   ! ice velocity components (m/s)
 
     ! Note: Axis 1 is Caprona A and axis 2 is Halbrane A; both are in the upper left (NW) quadrant
     real(dp), dimension(8), intent(out) :: &
-         cf_radius,                 & ! radial distance of CF (m) from origin along axes 1 and 2
-         cf_thck,                   & ! ice thickness at CF (m) along axes 1 and 2
-         cf_speed                     ! ice speed at CF (m/s) along axes 1 and 2
-
-    real(dp), dimension(2,8), intent(out) :: &
-         cf_location      ! x and y locations of CF along the Halbrane and Caprona profiles
-                          ! first index: x and y
-                          ! second index: 1, 3, 5, 7 for Caprona; 2, 4, 6, 8 for Halbrane
+         cf_locx, cf_locy,          & ! x and y components of CF location (m)
+         cf_radius,                 & ! radial distance of CF from origin (m)
+         cf_thck,                   & ! ice thickness at CF (m)
+         cf_uvel, cf_vvel             ! u and v velocity components at CF (m/s)
 
     ! local variables
 
     integer :: i, j, jj, iglobal, jglobal
     integer :: axis
     integer :: procnum
-    real(dp) :: cf_location_xmax, cf_location_ymax, cf_location_xmin, cf_location_ymin, radius
-    real(dp) :: cf_radius_max, cf_thck_max, cf_speed_max
-    real(dp) :: wt_factor
+    real(dp) :: cf_loc_xmax, cf_loc_ymax, cf_loc_xmin, cf_loc_ymin
+    real(dp) :: wt_factor, wt1, wt2
     real(dp) :: this_areafrac, next_areafrac
     real(dp) :: this_thck, next_thck
-    real(dp) :: this_speed, next_speed
+    real(dp) :: this_uvel, next_uvel
+    real(dp) :: this_vvel, next_vvel
     real(dp) :: x_intercept, y_intercept, slope  ! properties of the profile
     real(dp) :: x_lim, y_lim                     ! outer limits of the profile
+    real(dp) :: speed
 
-    real(dp) :: dist_x, frac_dist
     real(dp), dimension(ny) ::  &
          areafrac_yint,          & ! areafrac at the point (x_int(j), y1(j))
-         x_int                    ! x value of profile where it intersects with y1(j)
-
+         x_int                     ! x value of profile where it intersects with y1(j)
 
     ! Find the x and y coordinates of the calving front for the Thule domain
     ! along the different profiles specified in CalvingMIP.
 
     ! Initialize the output arrays
+    cf_locx = 0.0d0
+    cf_locy = 0.0d0
     cf_radius = 0.0d0
     cf_thck = 0.0d0
-    cf_speed = 0.0d0
-    cf_location = 0.0d0
+    cf_uvel = 0.0d0
+    cf_vvel = 0.0d0
 
     ! Find the CF location along the different axes.
     ! The Caprona axes are labeled 1, 3, 5 and 7; Halbrane axes are 2, 4, 6 and 8.
@@ -4828,16 +4887,8 @@ contains
     ! Assume that the x and y axes coincide with cell edges (not cell centers).
 
     ! Compute diagnostics for the four Caprona profiles
-
     ! Note: The Caprona profiles cut across cells without passing through centers or corners.
-    !       As a result, the logic below is more complicated than for the Halbrane profiles,
-    !       and more approximate. Results might be better with offline interpolation of areafrac.
-    ! Note: Adjacent values of y_int, e.g. y_int(i-1) and y_int(i), can be separated by
-    !       a distance of ~2*dy. We need to find a processor that includes both values.
-    !       Generally, this is possible with two rows of halo cells.
-    !       The interpolation might be more accurate if the roles of x and y were exchanged;
-    !       i.e., compute x_int(j) where the profile intersects the y1 grid, instead of
-    !       computing y_int(i) where the profile intersects the x1 grid.
+    !       As a result, the logic below is more complicated than for the Halbrane profiles.
 
     axis = 1  ! index for Caprona A
     x_intercept = -390.d3
@@ -4859,62 +4910,108 @@ contains
           do i = nx, 2, -1
              if (x_int(j) <= x1(i) .and. x_int(j) > x1(i-1)) then
                 ! Interpolate to estimate areafrac at (x_int(j),y1(j))
-                areafrac_yint(j) = areafrac(i,j) - (x1(i) - x_int(j))/dx * (areafrac(i,j) - areafrac(i-1,j))
+                wt_factor = (x1(i) - x_int(j))/dx
+                areafrac_yint(j) = (1.0d0 - wt_factor)*areafrac(i,j) + wt_factor*areafrac(i-1,j)
                 exit
              endif
           enddo
        endif
     enddo
 
-    ! Find a point along the profile where the interpolated areafrac = 0.5
     do j = nhalo, ny-nhalo
        if (areafrac_yint(j) >= 0.5d0 .and. areafrac_yint(j+1) < 0.5d0) then
-          if (x_int(j+1) >= x1(1) .and. x_int(j) >= x1(1) .and. x_int(j) <= x1(nx)) then  ! both intersection points in range on this proc
-             dist_x = x_int(j) - x_int(j+1) ! x distance (> 0) between neighboring intersection points
-             frac_dist = (areafrac_yint(j) - 0.5d0) / (areafrac_yint(j) - areafrac_yint(j+1))
-             cf_location(1,axis) = x_int(j) - frac_dist*dist_x
-             cf_location(2,axis) = y1(j) + frac_dist*dy
-             cf_radius(axis) = sqrt(cf_location(1,axis)**2 + cf_location(2,axis)**2)
-!             write(iulog,*) 'Axis 1, possible CF: rank, i, j', this_rank, i, j
-!             write(iulog,*) '     y1(j), x_int(j), x_int(j+1), areafrac_int(j), areafrac_int(j+1):',  &
-!                  y1(j), x_int(j), x_int(j+1), areafrac_yint(j), areafrac_yint(j+1)
-!             write(iulog,*) '     x_cf, y_cf:', cf_location(1,axis), cf_location(2,axis)
+          ! Find the point along the axis where the interpolated areafrac = 0.5
+          wt_factor = (areafrac_yint(j) - 0.5d0) / (areafrac_yint(j) - areafrac_yint(j+1))
+          cf_locx(axis) = (1.0d0 - wt_factor)*x_int(j) + wt_factor*x_int(j+1)
+          cf_locy(axis) = (1.0d0 - wt_factor)*y1(j) + wt_factor*y1(j+1)
+          cf_radius(axis) = sqrt(cf_locx(axis)**2 + cf_locy(axis)**2)
+
+          ! Estimate thck and other variables at point (x_int(j), y1(j))
+          do i = nx, 2, -1
+             if (x_int(j) <= x1(i) .and. x_int(j) > x1(i-1)) then
+                wt1 = (x1(i) - x_int(j))/dx
+                if (areafrac(i,j) > eps11 .and. areafrac(i-1,j) > eps11) then
+                   this_thck = (1.0d0 - wt1)*thck_effective(i,j) + wt1*thck_effective(i-1,j)
+                   this_uvel = (1.0d0 - wt1)*uvel(i,j) + wt1*uvel(i-1,j)
+                   this_vvel = (1.0d0 - wt1)*vvel(i,j) + wt1*vvel(i-1,j)
+                elseif (areafrac(i,j) > eps11) then
+                   this_thck = thck_effective(i,j)
+                   this_uvel = uvel(i,j)
+                   this_vvel = vvel(i,j)
+                elseif (areafrac(i-1,j) > eps11) then
+                   this_thck = thck_effective(i-1,j)
+                   this_uvel = uvel(i-1,j)
+                   this_vvel = vvel(i-1,j)
+                else   ! this should not happen
+                   this_thck = 0.0d0
+                   this_uvel = 0.0d0
+                   this_vvel = 0.0d0
+                endif
+                exit
+             endif
+          enddo   ! i
+
+          ! Estimate thck and other variables at point (x_int(j+1), y1(j+1))
+          do i = nx, 2, -1
+             if (x_int(j+1) <= x1(i) .and. x_int(j+1) > x1(i-1)) then
+                wt2 = (x1(i) - x_int(j+1))/dx
+                if (areafrac(i,j+1) > eps11 .and. areafrac(i-1,j+1) > eps11) then
+                   next_thck = (1.0d0 - wt2)*thck_effective(i,j+1) + wt2*thck_effective(i-1,j+1)
+                   next_uvel = (1.0d0 - wt2)*uvel(i,j+1) + wt2*uvel(i-1,j+1)
+                   next_vvel = (1.0d0 - wt2)*vvel(i,j+1) + wt2*vvel(i-1,j+1)
+                elseif (areafrac(i,j+1) > eps11) then
+                   next_thck = thck_effective(i,j+1)
+                   next_uvel = uvel(i,j+1)
+                   next_vvel = vvel(i,j+1)
+                elseif (areafrac(i-1,j+1) > eps11) then
+                   next_thck = thck_effective(i-1,j+1)
+                   next_uvel = uvel(i-1,j+1)
+                   next_vvel = vvel(i-1,j+1)
+                else
+                   next_thck = 0.0d0
+                   next_uvel = 0.0d0
+                   next_vvel = 0.0d0
+                endif
+                exit
+             endif
+          enddo   ! i
+
+          !Note: Should have nonzero velocity wherever thck > 0
+          if (this_thck > eps11 .and. next_thck > eps11) then
+             cf_thck(axis) = (1.0d0 - wt_factor)*this_thck + wt_factor*next_thck
+             cf_uvel(axis) = (1.0d0 - wt_factor)*this_uvel + wt_factor*next_uvel
+             cf_vvel(axis) = (1.0d0 - wt_factor)*this_vvel + wt_factor*next_vvel
+          elseif (this_thck > eps11) then
+             cf_thck(axis) = this_thck
+             cf_uvel(axis) = this_uvel
+             cf_vvel(axis) = this_vvel
+          elseif (next_thck > eps11) then
+             cf_thck(axis) = next_thck
+             cf_uvel(axis) = next_uvel
+             cf_vvel(axis) = next_vvel
+          else
+             cf_thck(axis) = 0.0d0
+             cf_uvel(axis) = 0.0d0
+             cf_vvel(axis) = 0.0d0
           endif
-       endif
-    enddo
+          call parallel_globalindex(i, j, iglobal, jglobal, parallel)
+!          write(iulog,*) 'Axis 1, possible CF: rank, i, j, ig, jg:', this_rank, i, j, iglobal, jglobal
+!          write(iulog,*) '     y1(j), x_int(j), x_int(j+1), areafrac_int(j), areafrac_int(j+1):',  &
+!               y1(j), x_int(j), x_int(j+1), areafrac_yint(j), areafrac_yint(j+1)
+!          write(iulog,*) '     x_cf, y_cf:', cf_locx(axis), cf_locy(axis)
+!          write(iulog,*) 'this_thck, next_thck, thck_cf:', this_thck, next_thck, cf_thck(axis)
+       endif  ! areafrac_yint(j) >= 0.5, areafrac_yint(j+1) < 0.5
+    enddo   ! j
 
     ! If this proc has a positive value of y, then broadcast the coordinates to all procs
-    call parallel_reduce_maxloc(xin=cf_location(2,axis), xout=cf_location_ymax, xprocout=procnum)
-    call broadcast(cf_location(:,axis), proc=procnum)
+    call parallel_reduce_maxloc(xin=cf_locy(axis), xout=cf_loc_ymax, xprocout=procnum)
 
-    ! If this is the processor that owns the CF, then estimate cf_thck as follows:
-    ! (1) Identify the four cell centers which form a bounding box around the CF location computed above.
-    ! (2) Estimate dH/dx, dH/dy, du/dx and du/dy for this box (masking out values
-    !     in ice-free cells as needed).
-    ! (3) Interpolate linearly to estimate the value at the CF location.
-    ! These calculations are done in subroutine glissade_bounding_box.
-
-    ! Compute the i and j coordinates of the bounding box
-
-    if (this_rank == procnum) then
-
-       call glissade_bounding_box(&
-            nx,              ny,        &
-            dx,              dy,        &
-            x1,              y1,        &
-            cf_location(1,axis),        &
-            cf_location(2,axis),        &
-            thck_effective,             &
-            cf_thck(axis),              &
-            speed,                      &
-            cf_speed(axis))
-
-    endif   ! this_rank = procnum
-
-    ! Broadcast the calvingMIP axis 1 output
+    call broadcast(cf_locx(axis), proc=procnum)
+    call broadcast(cf_locy(axis), proc=procnum)
     call broadcast(cf_radius(axis), proc=procnum)
     call broadcast(cf_thck(axis), proc=procnum)
-    call broadcast(cf_speed(axis), proc=procnum)
+    call broadcast(cf_uvel(axis), proc=procnum)
+    call broadcast(cf_vvel(axis), proc=procnum)
 
 
     axis = 3  ! index for Caprona B
@@ -4937,49 +5034,102 @@ contains
           do i = 1, nx-1
              if (x_int(j) >= x1(i) .and. x_int(j) < x1(i+1)) then
                 ! Interpolate to estimate areafrac at (x_int(j),y1(j))
-                areafrac_yint(j) = areafrac(i,j) - (x_int(j) - x1(i))/dx * (areafrac(i,j) - areafrac(i+1,j))
+                wt_factor = (x_int(j) - x1(i))/dx
+                areafrac_yint(j) = (1.0d0 - wt_factor)*areafrac(i,j) + wt_factor*areafrac(i+1,j)
                 exit
              endif
           enddo
        endif
     enddo
 
-    ! Find a point along the profile where the interpolated areafrac = 0.5
     do j = nhalo, ny-nhalo
        if (areafrac_yint(j) >= 0.5d0 .and. areafrac_yint(j+1) < 0.5d0) then
-          if (x_int(j) >= x1(1) .and. x_int(j+1) >= x1(1) .and. x_int(j+1) <= x1(nx)) then  ! both intersection points in range on this proc
-             dist_x = x_int(j+1) - x_int(j) ! x distance (> 0) between neighboring intersection points
-             frac_dist = (areafrac_yint(j) - 0.5d0) / (areafrac_yint(j) - areafrac_yint(j+1))
-             cf_location(1,axis) = x_int(j) + frac_dist*dist_x
-             cf_location(2,axis) = y1(j) + frac_dist*dy
-             cf_radius(axis) = sqrt(cf_location(1,axis)**2 + cf_location(2,axis)**2)
+          ! Find the point along the axis where the interpolated areafrac = 0.5
+          wt_factor = (areafrac_yint(j) - 0.5d0) / (areafrac_yint(j) - areafrac_yint(j+1))
+          cf_locx(axis) = (1.0d0 - wt_factor)*x_int(j) + wt_factor*x_int(j+1)
+          cf_locy(axis) = (1.0d0 - wt_factor)*y1(j) + wt_factor*y1(j+1)
+          cf_radius(axis) = sqrt(cf_locx(axis)**2 + cf_locy(axis)**2)
+
+          ! Estimate thck and other variables at point (x_int(j), y1(j))
+          do i = 1, nx-1
+             if (x_int(j) >= x1(i) .and. x_int(j) < x1(i+1)) then
+                wt1 = (x_int(j) - x1(i))/dx
+                if (areafrac(i,j) > eps11 .and. areafrac(i+1,j) > eps11) then
+                   this_thck = (1.0d0 - wt1)*thck_effective(i,j) + wt1*thck_effective(i+1,j)
+                   this_uvel = (1.0d0 - wt1)*uvel(i,j) + wt1*uvel(i+1,j)
+                   this_vvel = (1.0d0 - wt1)*vvel(i,j) + wt1*vvel(i+1,j)
+                elseif (areafrac(i,j) > eps11) then
+                   this_thck = thck_effective(i,j)
+                   this_uvel = uvel(i,j)
+                   this_vvel = vvel(i,j)
+                elseif (areafrac(i+1,j) > eps11) then
+                   this_thck = thck_effective(i+1,j)
+                   this_uvel = uvel(i+1,j)
+                   this_vvel = vvel(i+1,j)
+                else   ! this should not happen
+                   this_thck = 0.0d0
+                   this_uvel = 0.0d0
+                   this_vvel = 0.0d0
+                endif
+                exit
+             endif
+          enddo   ! i
+
+          ! Estimate thck and other variables at point (x_int(j+1), y1(j+1))
+          do i = 1, nx-1
+             if (x_int(j+1) >= x1(i) .and. x_int(j+1) < x1(i+1)) then
+                wt2 = (x_int(j+1) - x1(i))/dx
+                if (areafrac(i,j+1) > eps11 .and. areafrac(i+1,j+1) > eps11) then
+                   next_thck = (1.0d0 - wt2)*thck_effective(i,j+1) + wt2*thck_effective(i+1,j+1)
+                   next_uvel = (1.0d0 - wt2)*uvel(i,j+1) + wt2*uvel(i+1,j+1)
+                   next_vvel = (1.0d0 - wt2)*vvel(i,j+1) + wt2*vvel(i+1,j+1)
+                elseif (areafrac(i,j+1) > eps11) then
+                   next_thck = thck_effective(i,j+1)
+                   next_uvel = uvel(i,j+1)
+                   next_vvel = vvel(i,j+1)
+                elseif (areafrac(i+1,j+1) > eps11) then
+                   next_thck = thck_effective(i+1,j+1)
+                   next_uvel = uvel(i+1,j+1)
+                   next_vvel = vvel(i+1,j+1)
+                else
+                   next_thck = 0.0d0
+                   next_uvel = 0.0d0
+                   next_vvel = 0.0d0
+                endif
+                exit
+             endif
+          enddo   ! i
+
+          !Note: Should have nonzero velocity wherever thck > 0
+          if (this_thck > eps11 .and. next_thck > eps11) then
+             cf_thck(axis) = (1.0d0 - wt_factor)*this_thck + wt_factor*next_thck
+             cf_uvel(axis) = (1.0d0 - wt_factor)*this_uvel + wt_factor*next_uvel
+             cf_vvel(axis) = (1.0d0 - wt_factor)*this_vvel + wt_factor*next_vvel
+          elseif (this_thck > eps11) then
+             cf_thck(axis) = this_thck
+             cf_uvel(axis) = this_uvel
+             cf_vvel(axis) = this_vvel
+          elseif (next_thck > eps11) then
+             cf_thck(axis) = next_thck
+             cf_uvel(axis) = next_uvel
+             cf_vvel(axis) = next_vvel
+          else
+             cf_thck(axis) = 0.0d0
+             cf_uvel(axis) = 0.0d0
+             cf_vvel(axis) = 0.0d0
           endif
-       endif
-    enddo
+       endif  ! areafrac_yint(j) >= 0.5, areafrac_yint(j+1) < 0.5
+    enddo   ! j
 
     ! If this proc has a positive value of y, then broadcast the coordinates to all procs
-    call parallel_reduce_maxloc(xin=cf_location(2,axis), xout=cf_location_ymax, xprocout=procnum)
-    call broadcast(cf_location(:,axis), proc=procnum)
+    call parallel_reduce_maxloc(xin=cf_locy(axis), xout=cf_loc_ymax, xprocout=procnum)
 
-    if (this_rank == procnum) then
-
-       call glissade_bounding_box(&
-            nx,              ny,        &
-            dx,              dy,        &
-            x1,              y1,        &
-            cf_location(1,axis),        &
-            cf_location(2,axis),        &
-            thck_effective,             &
-            cf_thck(axis),              &
-            speed,                      &
-            cf_speed(axis))
-
-    endif
-
-    ! Broadcast the calvingMIP axis 3 output
+    call broadcast(cf_locx(axis), proc=procnum)
+    call broadcast(cf_locy(axis), proc=procnum)
     call broadcast(cf_radius(axis), proc=procnum)
     call broadcast(cf_thck(axis), proc=procnum)
-    call broadcast(cf_speed(axis), proc=procnum)
+    call broadcast(cf_uvel(axis), proc=procnum)
+    call broadcast(cf_vvel(axis), proc=procnum)
 
 
     axis = 5  ! index for Caprona C
@@ -5002,53 +5152,103 @@ contains
           do i = nx, 2, -1
              if (x_int(j) >= x1(i-1) .and.  x_int(j) < x1(i)) then
                 ! Interpolate to estimate areafrac at (x_int(j),y1(j))
-                areafrac_yint(j) = areafrac(i,j) - (x1(i) - x_int(j))/dx * (areafrac(i,j) - areafrac(i-1,j))
+                wt_factor = (x1(i) - x_int(j))/dx
+                areafrac_yint(j) = (1.0d0 - wt_factor)*areafrac(i,j) + wt_factor*areafrac(i-1,j)
                 exit
              endif
           enddo
        endif
     enddo
 
-    ! Find a point along the profile where the interpolated areafrac = 0.5
     do j = ny-nhalo+1, nhalo+1, -1
        if (areafrac_yint(j) >= 0.5d0 .and. areafrac_yint(j-1) < 0.5d0) then
-          if (x_int(j-1) >= x1(1) .and. x_int(j) <= x1(nx)) then  ! both intersection points in range on this proc
-             dist_x = x_int(j) - x_int(j-1)  ! x distance (> 0) between neighboring intersection points
-             frac_dist = (areafrac_yint(j) - 0.5d0) / (areafrac_yint(j) - areafrac_yint(j-1))
-             cf_location(1,axis) = x_int(j) - frac_dist*dist_x
-             cf_location(2,axis) = y1(j) - frac_dist*dy
-             cf_radius(axis) = sqrt(cf_location(1,axis)**2 + cf_location(2,axis)**2)
-!             write(iulog,*) 'Axis 5, possible CF: rank, i, j', this_rank, i, j
-!             write(iulog,*) '     y1(j), x_int(j), x_int(j+1), areafrac_int(j), areafrac_int(j+1):',  &
-!                  y1(j), x_int(j), x_int(j+1), areafrac_yint(j), areafrac_yint(j+1)
-!             write(iulog,*) '     x_cf, y_cf:', cf_location(1,axis), cf_location(2,axis)
+          ! Find the point along the axis where the interpolated areafrac = 0.5
+          wt_factor = (areafrac_yint(j) - 0.5d0) / (areafrac_yint(j) - areafrac_yint(j-1))
+          cf_locx(axis) = (1.0d0 - wt_factor)*x_int(j) + wt_factor*x_int(j-1)
+          cf_locy(axis) = (1.0d0 - wt_factor)*y1(j) + wt_factor*y1(j-1)
+          cf_radius(axis) = sqrt(cf_locx(axis)**2 + cf_locy(axis)**2)
+
+          ! Estimate thck and other variables at point (x_int(j), y1(j))
+          do i = nx, 2, -1
+             if (x_int(j) <= x1(i) .and. x_int(j) > x1(i-1)) then
+                wt1 = (x1(i) - x_int(j))/dx
+                if (areafrac(i,j) > eps11 .and. areafrac(i-1,j) > eps11) then
+                   this_thck = (1.0d0 - wt1)*thck_effective(i,j) + wt1*thck_effective(i-1,j)
+                   this_uvel = (1.0d0 - wt1)*uvel(i,j) + wt1*uvel(i-1,j)
+                   this_vvel = (1.0d0 - wt1)*vvel(i,j) + wt1*vvel(i-1,j)
+                elseif (areafrac(i,j) > eps11) then
+                   this_thck = thck_effective(i,j)
+                   this_uvel = uvel(i,j)
+                   this_vvel = vvel(i,j)
+                elseif (areafrac(i-1,j) > eps11) then
+                   this_thck = thck_effective(i-1,j)
+                   this_uvel = uvel(i-1,j)
+                   this_vvel = vvel(i-1,j)
+                else   ! this should not happen
+                   this_thck = 0.0d0
+                   this_uvel = 0.0d0
+                   this_vvel = 0.0d0
+                endif
+                exit
+             endif
+          enddo   ! i
+
+          ! Estimate thck and other variables at point (x_int(j+1), y1(j-1))
+          do i = nx, 2, -1
+             if (x_int(j-1) <= x1(i) .and. x_int(j-1) > x1(i-1)) then
+                wt2 = (x1(i) - x_int(j-1))/dx
+                if (areafrac(i,j-1) > eps11 .and. areafrac(i-1,j-1) > eps11) then
+                   next_thck = (1.0d0 - wt2)*thck_effective(i,j-1) + wt2*thck_effective(i-1,j-1)
+                   next_uvel = (1.0d0 - wt2)*uvel(i,j-1) + wt2*uvel(i-1,j-1)
+                   next_vvel = (1.0d0 - wt2)*vvel(i,j-1) + wt2*vvel(i-1,j-1)
+                elseif (areafrac(i,j-1) > eps11) then
+                   next_thck = thck_effective(i,j-1)
+                   next_uvel = uvel(i,j-1)
+                   next_vvel = vvel(i,j-1)
+                elseif (areafrac(i-1,j-1) > eps11) then
+                   next_thck = thck_effective(i-1,j-1)
+                   next_uvel = uvel(i-1,j-1)
+                   next_vvel = vvel(i-1,j-1)
+                else
+                   next_thck = 0.0d0
+                   next_uvel = 0.0d0
+                   next_vvel = 0.0d0
+                endif
+                exit
+             endif
+          enddo   ! i
+
+          !Note: Should have nonzero velocity wherever thck > 0
+          if (this_thck > eps11 .and. next_thck > eps11) then
+             cf_thck(axis) = (1.0d0 - wt_factor)*this_thck + wt_factor*next_thck
+             cf_uvel(axis) = (1.0d0 - wt_factor)*this_uvel + wt_factor*next_uvel
+             cf_vvel(axis) = (1.0d0 - wt_factor)*this_vvel + wt_factor*next_vvel
+          elseif (this_thck > eps11) then
+             cf_thck(axis) = this_thck
+             cf_uvel(axis) = this_uvel
+             cf_vvel(axis) = this_vvel
+          elseif (next_thck > eps11) then
+             cf_thck(axis) = next_thck
+             cf_uvel(axis) = next_uvel
+             cf_vvel(axis) = next_vvel
+          else
+             cf_thck(axis) = 0.0d0
+             cf_uvel(axis) = 0.0d0
+             cf_vvel(axis) = 0.0d0
           endif
-       endif
-    enddo
-    
+
+       endif  ! areafrac_yint(j) >= 0.5, areafrac_yint(j-1) < 0.5
+    enddo   ! j
+
     ! If this proc has a negative value of y, then broadcast the coordinates to all procs
-    call parallel_reduce_minloc(xin=cf_location(2,axis), xout=cf_location_ymin, xprocout=procnum)
-    call broadcast(cf_location(:,axis), proc=procnum)
+    call parallel_reduce_minloc(xin=cf_locy(axis), xout=cf_loc_ymin, xprocout=procnum)
 
-    if (this_rank == procnum) then
-
-       call glissade_bounding_box(&
-            nx,              ny,        &
-            dx,              dy,        &
-            x1,              y1,        &
-            cf_location(1,axis),        &
-            cf_location(2,axis),        &
-            thck_effective,             &
-            cf_thck(axis),              &
-            speed,                      &
-            cf_speed(axis))
-
-    endif
-
-    ! Broadcast the calvingMIP axis 5 output
+    call broadcast(cf_locx(axis), proc=procnum)
+    call broadcast(cf_locy(axis), proc=procnum)
     call broadcast(cf_radius(axis), proc=procnum)
     call broadcast(cf_thck(axis), proc=procnum)
-    call broadcast(cf_speed(axis), proc=procnum)
+    call broadcast(cf_uvel(axis), proc=procnum)
+    call broadcast(cf_vvel(axis), proc=procnum)
        
 
     axis = 7  ! index for Caprona D
@@ -5071,100 +5271,157 @@ contains
           do i = 1, nx-1
              if (x_int(j) >= x1(i) .and. x_int(j) < x1(i+1)) then
                 ! Interpolate to estimate areafrac at (x_int(j),y1(j))
-                areafrac_yint(j) = areafrac(i,j) - (x_int(j) - x1(i))/dx * (areafrac(i,j) - areafrac(i+1,j))
+                wt_factor = (x_int(j) - x1(i))/dx
+                areafrac_yint(j) = (1.0d0 - wt_factor)*areafrac(i,j) + wt_factor*areafrac(i+1,j)
                 exit
              endif
           enddo
        endif
     enddo
 
-    ! Find a point along the profile where the interpolated areafrac = 0.5
     do j = ny-nhalo+1, nhalo+1, -1
        if (areafrac_yint(j) >= 0.5d0 .and. areafrac_yint(j-1) < 0.5d0) then
-          if (x_int(j) >= x1(1) .and. x_int(j-1) > x1(1) .and. x_int(j-1) <= x1(nx)) then  ! both intersection points in range on this proc
-             dist_x = x_int(j-1) - x_int(j)  ! x distance (> 0) between neighboring intersection points
-             frac_dist = (areafrac_yint(j) - 0.5d0) / (areafrac_yint(j) - areafrac_yint(j-1))
-             cf_location(1,axis) = x_int(j) + frac_dist*dist_x
-             cf_location(2,axis) = y1(j) - frac_dist*dy
-             cf_radius(axis) = sqrt(cf_location(1,axis)**2 + cf_location(2,axis)**2)
-!             write(iulog,*) 'Axis 7, possible CF: rank, i, j', this_rank, i, j
-!             write(iulog,*) '     y1(j), x_int(j), x_int(j+1), areafrac_int(j), areafrac_int(j+1):',  &
-!                  y1(j), x_int(j), x_int(j+1), areafrac_yint(j), areafrac_yint(j+1)
-!             write(iulog,*) '     x_cf, y_cf:', cf_location(1,axis), cf_location(2,axis)
+          ! Find the point along the axis where the interpolated areafrac = 0.5
+          wt_factor = (areafrac_yint(j) - 0.5d0) / (areafrac_yint(j) - areafrac_yint(j-1))
+          cf_locx(axis) = (1.0d0 - wt_factor)*x_int(j) + wt_factor*x_int(j-1)
+          cf_locy(axis) = (1.0d0 - wt_factor)*y1(j) + wt_factor*y1(j-1)
+          cf_radius(axis) = sqrt(cf_locx(axis)**2 + cf_locy(axis)**2)
+
+          ! Estimate thck and other variables at point (x_int(j), y1(j))
+          do i = 1, nx-1
+             if (x_int(j) >= x1(i) .and. x_int(j) < x1(i+1)) then
+                wt1 = (x_int(j) - x1(i))/dx
+                if (areafrac(i,j) > eps11 .and. areafrac(i+1,j) > eps11) then
+                   this_thck = (1.0d0 - wt1)*thck_effective(i,j) + wt1*thck_effective(i+1,j)
+                   this_uvel = (1.0d0 - wt1)*uvel(i,j) + wt1*uvel(i+1,j)
+                   this_vvel = (1.0d0 - wt1)*vvel(i,j) + wt1*vvel(i+1,j)
+                elseif (areafrac(i,j) > eps11) then
+                   this_thck = thck_effective(i,j)
+                   this_uvel = uvel(i,j)
+                   this_vvel = vvel(i,j)
+                elseif (areafrac(i+1,j) > eps11) then
+                   this_thck = thck_effective(i+1,j)
+                   this_uvel = uvel(i+1,j)
+                   this_vvel = vvel(i+1,j)
+                else   ! this should not happen
+                   this_thck = 0.0d0
+                   this_uvel = 0.0d0
+                   this_vvel = 0.0d0
+                endif
+                exit
+             endif
+          enddo   ! i
+
+          ! Estimate thck and other variables at point (x_int(j+1), y1(j-1))
+          do i = 1, nx-1
+             if (x_int(j-1) >= x1(i) .and. x_int(j-1) < x1(i+1)) then
+                wt2 = (x_int(j-1) - x1(i))/dx
+                if (areafrac(i,j-1) > eps11 .and. areafrac(i+1,j-1) > eps11) then
+                   next_thck = (1.0d0 - wt2)*thck_effective(i,j-1) + wt2*thck_effective(i+1,j-1)
+                   next_uvel = (1.0d0 - wt2)*uvel(i,j-1) + wt2*uvel(i+1,j-1)
+                   next_vvel = (1.0d0 - wt2)*vvel(i,j-1) + wt2*vvel(i+1,j-1)
+                elseif (areafrac(i,j-1) > eps11) then
+                   next_thck = thck_effective(i,j-1)
+                   next_uvel = uvel(i,j-1)
+                   next_vvel = vvel(i,j-1)
+                elseif (areafrac(i+1,j-1) > eps11) then
+                   next_thck = thck_effective(i+1,j-1)
+                   next_uvel = uvel(i+1,j-1)
+                   next_vvel = vvel(i+1,j-1)
+                else
+                   next_thck = 0.0d0
+                   next_uvel = 0.0d0
+                   next_vvel = 0.0d0
+                endif
+                exit
+             endif
+          enddo   ! i
+
+          !Note: Should have nonzero velocity wherever thck > 0
+          if (this_thck > eps11 .and. next_thck > eps11) then
+             cf_thck(axis) = (1.0d0 - wt_factor)*this_thck + wt_factor*next_thck
+             cf_uvel(axis) = (1.0d0 - wt_factor)*this_uvel + wt_factor*next_uvel
+             cf_vvel(axis) = (1.0d0 - wt_factor)*this_vvel + wt_factor*next_vvel
+          elseif (this_thck > eps11) then
+             cf_thck(axis) = this_thck
+             cf_uvel(axis) = this_uvel
+             cf_vvel(axis) = this_vvel
+          elseif (next_thck > eps11) then
+             cf_thck(axis) = next_thck
+             cf_uvel(axis) = next_uvel
+             cf_vvel(axis) = next_vvel
+          else
+             cf_thck(axis) = 0.0d0
+             cf_uvel(axis) = 0.0d0
+             cf_vvel(axis) = 0.0d0
           endif
-       endif
-    enddo
+
+       endif  ! areafrac_yint(j) >= 0.5, areafrac_yint(j-1) < 0.5
+    enddo   ! j
 
     ! If this proc has a negative value of y, then broadcast the coordinates to all procs
-    call parallel_reduce_minloc(xin=cf_location(2,axis), xout=cf_location_ymin, xprocout=procnum)
-    call broadcast(cf_location(:,axis), proc=procnum)
+    call parallel_reduce_minloc(xin=cf_locy(axis), xout=cf_loc_ymin, xprocout=procnum)
 
-    if (this_rank == procnum) then
-
-       call glissade_bounding_box(&
-            nx,              ny,        &
-            dx,              dy,        &
-            x1,              y1,        &
-            cf_location(1,axis),        &
-            cf_location(2,axis),        &
-            thck_effective,             &
-            cf_thck(axis),              &
-            speed,                      &
-            cf_speed(axis))
-
-    endif
-
-    ! Broadcast the calvingMIP axis 7 output
+    call broadcast(cf_locx(axis), proc=procnum)
+    call broadcast(cf_locy(axis), proc=procnum)
     call broadcast(cf_radius(axis), proc=procnum)
     call broadcast(cf_thck(axis), proc=procnum)
-    call broadcast(cf_speed(axis), proc=procnum)
+    call broadcast(cf_uvel(axis), proc=procnum)
+    call broadcast(cf_vvel(axis), proc=procnum)
 
 
     ! Compute diagnostics for the four Halbrane profiles
-
-    ! Find a point along the profile where the interpolated areafrac = 0.5
+    ! Find a point along each profile where the interpolated areafrac = 0.5
 
     axis = 2  ! index for Halbrane A
     x_intercept = -150.d3
 
     do i = nhalo, nx-nhalo
        if (abs(x0(i) - x_intercept) < eps11) then  ! E edge of cell lies on the vertical Halbrane profile
-          cf_location(1,axis) = x_intercept
+          cf_locx(axis) = x_intercept
           do j = nhalo, ny-nhalo
              this_areafrac = 0.5d0 * (areafrac(i,j) + areafrac(i+1,j))
              next_areafrac = 0.5d0 * (areafrac(i,j+1) + areafrac(i+1,j+1))
              if (this_areafrac >= 0.5d0 .and. next_areafrac < 0.5d0) then
                 ! CF lies between j and j+1
                 wt_factor = (0.5d0 - next_areafrac) / (this_areafrac - next_areafrac)
-                cf_location(2,axis) = y1(j)*wt_factor + y1(j+1)*(1.0d0 - wt_factor)
-                cf_radius(axis) = sqrt(cf_location(1,axis)**2 + cf_location(2,axis)**2)
+                cf_locy(axis) = y1(j)*wt_factor + y1(j+1)*(1.0d0 - wt_factor)
+                cf_radius(axis) = sqrt(cf_locx(axis)**2 + cf_locy(axis)**2)
                 ! The following logic allows for the possibility that one of the two neighbor cells is ice-free
                 if (areafrac(i,j) > eps11 .and. areafrac(i+1,j) > eps11) then
                    this_thck = 0.5d0 * (thck_effective(i,j) + thck_effective(i+1,j))
-                   this_speed = 0.5d0 * (speed(i,j) + speed(i+1,j))
+                   this_uvel = 0.5d0 * (uvel(i,j) + uvel(i+1,j))
+                   this_vvel = 0.5d0 * (vvel(i,j) + vvel(i+1,j))
                 elseif (areafrac(i,j) > eps11) then
                    this_thck = thck_effective(i,j)
-                   this_speed = speed(i,j)
+                   this_uvel = uvel(i,j)
+                   this_vvel = vvel(i,j)
                 else
                    this_thck = thck_effective(i+1,j)
-                   this_speed = speed(i+1,j)
+                   this_uvel = uvel(i+1,j)
+                   this_vvel = vvel(i+1,j)
                 endif
                 if (next_areafrac > eps11) then  ! take a weighted average between j and j+1
                    if (areafrac(i,j+1) > eps11 .and. areafrac(i+1,j+1) > eps11) then
                       next_thck = 0.5d0 * (thck_effective(i,j+1) + thck_effective(i+1,j+1))
-                      next_speed = 0.5d0 * (speed(i,j+1) + speed(i+1,j+1))
+                      next_uvel = 0.5d0 * (uvel(i,j+1) + uvel(i+1,j+1))
+                      next_vvel = 0.5d0 * (vvel(i,j+1) + vvel(i+1,j+1))
                    elseif (areafrac(i,j+1) > eps11) then
                       next_thck = thck_effective(i,j+1)
-                      next_speed = speed(i,j+1)
+                      next_uvel = uvel(i,j+1)
+                      next_vvel = vvel(i,j+1)
                    else
                       next_thck = thck_effective(i+1,j+1)
-                      next_speed = speed(i+1,j+1)
+                      next_uvel = uvel(i+1,j+1)
+                      next_vvel = vvel(i+1,j+1)
                    endif
                    cf_thck(axis) = this_thck*wt_factor + next_thck*(1.0d0 - wt_factor)
-                   cf_speed(axis) = this_speed*wt_factor + next_speed*(1.0d0 - wt_factor)
+                   cf_uvel(axis) = this_uvel*wt_factor + next_uvel*(1.0d0 - wt_factor)
+                   cf_vvel(axis) = this_vvel*wt_factor + next_vvel*(1.0d0 - wt_factor)
                 else   ! next_areafrac (at j+1) = 0; use values from this j
                    cf_thck(axis) = this_thck
-                   cf_speed(axis) = this_speed
+                   cf_uvel(axis) = this_uvel
+                   cf_vvel(axis) = this_vvel
                 endif
              endif
           enddo
@@ -5172,20 +5429,15 @@ contains
     enddo
 
     ! If this proc has a positive value of y, then broadcast the coordinates to all procs
-    call parallel_reduce_maxloc(xin=cf_location(2,axis), xout=cf_location_ymax, xprocout=procnum)
-    call broadcast(cf_location(:,axis), proc=procnum)
+    call parallel_reduce_maxloc(xin=cf_locy(axis), xout=cf_loc_ymax, xprocout=procnum)
 
-    ! Broadcast the calvingMIP axis 1 output
-!    call parallel_reduce_maxloc(xin=cf_radius(axis), xout=cf_radius_max, xprocout=procnum)
-!    call broadcast(cf_radius(axis), proc=procnum)
-!    call parallel_reduce_maxloc(xin=cf_thck(axis), xout=cf_thck_max, xprocout=procnum)
-!    call broadcast(cf_thck(axis), proc=procnum)
-!    call parallel_reduce_maxloc(xin=cf_speed(axis), xout=cf_speed_max, xprocout=procnum)
-!    call broadcast(cf_speed(axis), proc=procnum)
     ! Broadcast the calvingMIP axis 2 output
+    call broadcast(cf_locx(axis), proc=procnum)
+    call broadcast(cf_locy(axis), proc=procnum)
     call broadcast(cf_radius(axis), proc=procnum)
     call broadcast(cf_thck(axis), proc=procnum)
-    call broadcast(cf_speed(axis), proc=procnum)
+    call broadcast(cf_uvel(axis), proc=procnum)
+    call broadcast(cf_vvel(axis), proc=procnum)
 
 
     axis = 4  ! index for Halbrane B (same as A except for positive x_intercept)
@@ -5193,42 +5445,50 @@ contains
 
     do i = nhalo, nx-nhalo
        if (abs(x0(i) - x_intercept) < eps11) then  ! E edge of cell lies on the vertical Halbrane profile
-          cf_location(1,axis) = x_intercept
+          cf_locx(axis) = x_intercept
           do j = nhalo, ny-nhalo
              this_areafrac = 0.5d0 * (areafrac(i,j) + areafrac(i+1,j))
              next_areafrac = 0.5d0 * (areafrac(i,j+1) + areafrac(i+1,j+1))
              if (this_areafrac >= 0.5d0 .and. next_areafrac < 0.5d0) then
                 ! CF lies between j and j+1
                 wt_factor = (0.5d0 - next_areafrac) / (this_areafrac - next_areafrac)
-                cf_location(2,axis) = y1(j)*wt_factor + y1(j+1)*(1.0d0 - wt_factor)
-                cf_radius(axis) = sqrt(cf_location(1,axis)**2 + cf_location(2,axis)**2)
+                cf_locy(axis) = y1(j)*wt_factor + y1(j+1)*(1.0d0 - wt_factor)
+                cf_radius(axis) = sqrt(cf_locx(axis)**2 + cf_locy(axis)**2)
                 ! The following logic allows for the possibility that one of the two neighbor cells is ice-free
                 if (areafrac(i,j) > eps11 .and. areafrac(i+1,j) > eps11) then
                    this_thck = 0.5d0 * (thck_effective(i,j) + thck_effective(i+1,j))
-                   this_speed = 0.5d0 * (speed(i,j) + speed(i+1,j))
+                   this_uvel = 0.5d0 * (uvel(i,j) + uvel(i+1,j))
+                   this_vvel = 0.5d0 * (vvel(i,j) + vvel(i+1,j))
                 elseif (areafrac(i,j) > eps11) then
                    this_thck = thck_effective(i,j)
-                   this_speed = speed(i,j)
+                   this_uvel = uvel(i,j)
+                   this_vvel = vvel(i,j)
                 else
                    this_thck = thck_effective(i+1,j)
-                   this_speed = speed(i+1,j)
+                   this_uvel = uvel(i+1,j)
+                   this_vvel = vvel(i+1,j)
                 endif
                 if (next_areafrac > eps11) then  ! take a weighted average between j and j+1
                    if (areafrac(i,j+1) > eps11 .and. areafrac(i+1,j+1) > eps11) then
                       next_thck = 0.5d0 * (thck_effective(i,j+1) + thck_effective(i+1,j+1))
-                      next_speed = 0.5d0 * (speed(i,j+1) + speed(i+1,j+1))
+                      next_uvel = 0.5d0 * (uvel(i,j+1) + uvel(i+1,j+1))
+                      next_vvel = 0.5d0 * (vvel(i,j+1) + vvel(i+1,j+1))
                    elseif (areafrac(i,j+1) > eps11) then
                       next_thck = thck_effective(i,j+1)
-                      next_speed = speed(i,j+1)
+                      next_uvel = uvel(i,j+1)
+                      next_vvel = vvel(i,j+1)
                    else
                       next_thck = thck_effective(i+1,j+1)
-                      next_speed = speed(i+1,j+1)
+                      next_uvel = uvel(i+1,j+1)
+                      next_vvel = vvel(i+1,j+1)
                    endif
                    cf_thck(axis) = this_thck*wt_factor + next_thck*(1.0d0 - wt_factor)
-                   cf_speed(axis) = this_speed*wt_factor + next_speed*(1.0d0 - wt_factor)
+                   cf_uvel(axis) = this_uvel*wt_factor + next_uvel*(1.0d0 - wt_factor)
+                   cf_vvel(axis) = this_vvel*wt_factor + next_vvel*(1.0d0 - wt_factor)
                 else   ! next_areafrac (at j+1) = 0; use values from this j
                    cf_thck(axis) = this_thck
-                   cf_speed(axis) = this_speed
+                   cf_uvel(axis) = this_uvel
+                   cf_vvel(axis) = this_vvel
                 endif
              endif
           enddo
@@ -5236,13 +5496,15 @@ contains
     enddo
 
     ! If this proc has a positive value of y, then broadcast the coordinates to all procs
-    call parallel_reduce_maxloc(xin=cf_location(2,axis), xout=cf_location_ymax, xprocout=procnum)
-    call broadcast(cf_location(:,axis), proc=procnum)
+    call parallel_reduce_maxloc(xin=cf_locy(axis), xout=cf_loc_ymax, xprocout=procnum)
 
     ! Broadcast the calvingMIP axis 4 output
+    call broadcast(cf_locx(axis), proc=procnum)
+    call broadcast(cf_locy(axis), proc=procnum)
     call broadcast(cf_radius(axis), proc=procnum)
     call broadcast(cf_thck(axis), proc=procnum)
-    call broadcast(cf_speed(axis), proc=procnum)
+    call broadcast(cf_uvel(axis), proc=procnum)
+    call broadcast(cf_vvel(axis), proc=procnum)
 
     
     axis = 6  ! index for Halbrane C (same as A except in the negative y direction)
@@ -5250,42 +5512,50 @@ contains
 
     do i = nhalo, nx-nhalo
        if (abs(x0(i) - x_intercept) < eps11) then  ! E edge of cell lies on the vertical Halbrane profile
-          cf_location(1,axis) = x_intercept
+          cf_locx(axis) = x_intercept
           do j = ny-nhalo, nhalo, -1
              this_areafrac = 0.5d0 * (areafrac(i,j) + areafrac(i+1,j))
              next_areafrac = 0.5d0 * (areafrac(i,j-1) + areafrac(i+1,j-1))
              if (this_areafrac >= 0.5d0 .and. next_areafrac < 0.5d0) then
                 ! CF lies between j and j-1
                 wt_factor = (0.5d0 - next_areafrac) / (this_areafrac - next_areafrac)
-                cf_location(2,axis) = y1(j)*wt_factor + y1(j-1)*(1.0d0 - wt_factor)
-                cf_radius(axis) = sqrt(cf_location(1,axis)**2 + cf_location(2,axis)**2)
+                cf_locy(axis) = y1(j)*wt_factor + y1(j-1)*(1.0d0 - wt_factor)
+                cf_radius(axis) = sqrt(cf_locx(axis)**2 + cf_locy(axis)**2)
                 ! The following logic allows for the possibility that one of the two neighbor cells is ice-free
                 if (areafrac(i,j) > eps11 .and. areafrac(i+1,j) > eps11) then
                    this_thck = 0.5d0 * (thck_effective(i,j) + thck_effective(i+1,j))
-                   this_speed = 0.5d0 * (speed(i,j) + speed(i+1,j))
+                   this_uvel = 0.5d0 * (uvel(i,j) + uvel(i+1,j))
+                   this_vvel = 0.5d0 * (vvel(i,j) + vvel(i+1,j))
                 elseif (areafrac(i,j) > eps11) then
                    this_thck = thck_effective(i,j)
-                   this_speed = speed(i,j)
+                   this_uvel = uvel(i,j)
+                   this_vvel = vvel(i,j)
                 else
                    this_thck = thck_effective(i+1,j)
-                   this_speed = speed(i+1,j)
+                   this_uvel = uvel(i+1,j)
+                   this_vvel = vvel(i+1,j)
                 endif
                 if (next_areafrac > eps11) then  ! take a weighted average between j and j-1
                    if (areafrac(i,j-1) > eps11 .and. areafrac(i+1,j-1) > eps11) then
                       next_thck = 0.5d0 * (thck_effective(i,j-1) + thck_effective(i+1,j-1))
-                      next_speed = 0.5d0 * (speed(i,j-1) + speed(i+1,j-1))
+                      next_uvel = 0.5d0 * (uvel(i,j-1) + uvel(i+1,j-1))
+                      next_vvel = 0.5d0 * (vvel(i,j-1) + vvel(i+1,j-1))
                    elseif (areafrac(i,j-1) > eps11) then
                       next_thck = thck_effective(i,j-1)
-                      next_speed = speed(i,j-1)
+                      next_uvel = uvel(i,j-1)
+                      next_vvel = vvel(i,j-1)
                    else
                       next_thck = thck_effective(i+1,j-1)
-                      next_speed = speed(i+1,j-1)
+                      next_uvel = uvel(i+1,j-1)
+                      next_vvel = vvel(i+1,j-1)
                    endif
                    cf_thck(axis) = this_thck*wt_factor + next_thck*(1.0d0 - wt_factor)
-                   cf_speed(axis) = this_speed*wt_factor + next_speed*(1.0d0 - wt_factor)
+                   cf_uvel(axis) = this_uvel*wt_factor + next_uvel*(1.0d0 - wt_factor)
+                   cf_vvel(axis) = this_vvel*wt_factor + next_vvel*(1.0d0 - wt_factor)
                 else   ! next_areafrac (at j-1) = 0; use values from this j
                    cf_thck(axis) = this_thck
-                   cf_speed(axis) = this_speed
+                   cf_uvel(axis) = this_uvel
+                   cf_vvel(axis) = this_vvel
                 endif
              endif
           enddo
@@ -5293,13 +5563,15 @@ contains
     enddo
 
     ! If this proc has a negative value of y, then broadcast the coordinates to all procs
-    call parallel_reduce_minloc(xin=cf_location(2,axis), xout=cf_location_ymin, xprocout=procnum)
-    call broadcast(cf_location(:,axis), proc=procnum)
+    call parallel_reduce_minloc(xin=cf_locy(axis), xout=cf_loc_ymin, xprocout=procnum)
 
     ! Broadcast the calvingMIP axis 6 output
+    call broadcast(cf_locx(axis), proc=procnum)
+    call broadcast(cf_locy(axis), proc=procnum)
     call broadcast(cf_radius(axis), proc=procnum)
     call broadcast(cf_thck(axis), proc=procnum)
-    call broadcast(cf_speed(axis), proc=procnum)
+    call broadcast(cf_uvel(axis), proc=procnum)
+    call broadcast(cf_vvel(axis), proc=procnum)
 
     
     axis = 8  ! index for Halbrane D (same as C except for positive x_intercept)
@@ -5307,42 +5579,50 @@ contains
 
     do i = nhalo, nx-nhalo
        if (abs(x0(i) - x_intercept) < eps11) then  ! E edge of cell lies on the vertical Halbrane profile
-          cf_location(1,axis) = x_intercept
+          cf_locx(axis) = x_intercept
           do j = ny-nhalo, nhalo, -1
              this_areafrac = 0.5d0 * (areafrac(i,j) + areafrac(i+1,j))
              next_areafrac = 0.5d0 * (areafrac(i,j-1) + areafrac(i+1,j-1))
              if (this_areafrac >= 0.5d0 .and. next_areafrac < 0.5d0) then
                 ! CF lies between j and j-1
                 wt_factor = (0.5d0 - next_areafrac) / (this_areafrac - next_areafrac)
-                cf_location(2,axis) = y1(j)*wt_factor + y1(j-1)*(1.0d0 - wt_factor)
-                cf_radius(axis) = sqrt(cf_location(1,axis)**2 + cf_location(2,axis)**2)
+                cf_locy(axis) = y1(j)*wt_factor + y1(j-1)*(1.0d0 - wt_factor)
+                cf_radius(axis) = sqrt(cf_locx(axis)**2 + cf_locy(axis)**2)
                 ! The following logic allows for the possibility that one of the two neighbor cells is ice-free
                 if (areafrac(i,j) > eps11 .and. areafrac(i+1,j) > eps11) then
                    this_thck = 0.5d0 * (thck_effective(i,j) + thck_effective(i+1,j))
-                   this_speed = 0.5d0 * (speed(i,j) + speed(i+1,j))
+                   this_uvel = 0.5d0 * (uvel(i,j) + uvel(i+1,j))
+                   this_vvel = 0.5d0 * (vvel(i,j) + vvel(i+1,j))
                 elseif (areafrac(i,j) > eps11) then
                    this_thck = thck_effective(i,j)
-                   this_speed = speed(i,j)
+                   this_uvel = uvel(i,j)
+                   this_vvel = vvel(i,j)
                 else
                    this_thck = thck_effective(i+1,j)
-                   this_speed = speed(i+1,j)
+                   this_uvel = uvel(i+1,j)
+                   this_vvel = vvel(i+1,j)
                 endif
                 if (next_areafrac > eps11) then  ! take a weighted average between j and j-1
                    if (areafrac(i,j-1) > eps11 .and. areafrac(i+1,j-1) > eps11) then
                       next_thck = 0.5d0 * (thck_effective(i,j-1) + thck_effective(i+1,j-1))
-                      next_speed = 0.5d0 * (speed(i,j-1) + speed(i+1,j-1))
+                      next_uvel = 0.5d0 * (uvel(i,j-1) + uvel(i+1,j-1))
+                      next_vvel = 0.5d0 * (vvel(i,j-1) + vvel(i+1,j-1))
                    elseif (areafrac(i,j-1) > eps11) then
                       next_thck = thck_effective(i,j-1)
-                      next_speed = speed(i,j-1)
+                      next_uvel = uvel(i,j-1)
+                      next_vvel = vvel(i,j-1)
                    else
                       next_thck = thck_effective(i+1,j-1)
-                      next_speed = speed(i+1,j-1)
+                      next_uvel = uvel(i+1,j-1)
+                      next_vvel = vvel(i+1,j-1)
                    endif
                    cf_thck(axis) = this_thck*wt_factor + next_thck*(1.0d0 - wt_factor)
-                   cf_speed(axis) = this_speed*wt_factor + next_speed*(1.0d0 - wt_factor)
+                   cf_uvel(axis) = this_uvel*wt_factor + next_uvel*(1.0d0 - wt_factor)
+                   cf_vvel(axis) = this_vvel*wt_factor + next_vvel*(1.0d0 - wt_factor)
                 else   ! next_areafrac (at j-1) = 0; use values from this j
                    cf_thck(axis) = this_thck
-                   cf_speed(axis) = this_speed
+                   cf_uvel(axis) = this_uvel
+                   cf_vvel(axis) = this_vvel
                 endif
              endif
           enddo
@@ -5350,21 +5630,23 @@ contains
     enddo
 
     ! If this proc has a negative value of y, then broadcast the coordinates to all procs
-    call parallel_reduce_minloc(xin=cf_location(2,axis), xout=cf_location_ymin, xprocout=procnum)
-    call broadcast(cf_location(:,axis), proc=procnum)
+    call parallel_reduce_minloc(xin=cf_locy(axis), xout=cf_loc_ymin, xprocout=procnum)
 
     ! Broadcast the calvingMIP axis 8 output
+    call broadcast(cf_locx(axis), proc=procnum)
+    call broadcast(cf_locy(axis), proc=procnum)
     call broadcast(cf_radius(axis), proc=procnum)
     call broadcast(cf_thck(axis), proc=procnum)
-    call broadcast(cf_speed(axis), proc=procnum)
+    call broadcast(cf_uvel(axis), proc=procnum)
+    call broadcast(cf_vvel(axis), proc=procnum)
 
     if (verbose_calving .and. main_task) then
        write(iulog,*) ' '
-       write(iulog,*) 'Thule domain: axis, CF location, radius (km), thck(m), speed(m/yr)'
+       write(iulog,*) 'Thule domain: axis, CF location, radius (km), thck(m), uvel, vvel, speed (m/yr)'
        do axis = 1, 8
-          radius = sqrt(cf_location(1,axis)**2 + cf_location(2,axis)**2)
-          write(iulog,'(i4,5f15.8)') axis, cf_location(:,axis)/1000.d0, &
-               radius/1000.d0, cf_thck(axis), cf_speed(axis)*scyr
+          speed = sqrt(cf_uvel(axis)**2 + cf_vvel(axis)**2)
+          write(iulog,'(i4,7f15.8)') axis, cf_locx(axis)/1000.d0, cf_locy(axis)/1000.d0, &
+               cf_radius(axis)/1000.d0, cf_thck(axis), cf_uvel(axis)*scyr, cf_vvel(axis)*scyr, speed*scyr
        enddo
     endif
 

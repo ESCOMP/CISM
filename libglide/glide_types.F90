@@ -1616,9 +1616,12 @@ module glide_types
      integer :: naxis = 8                        !> number of axes for calvingMIP diagnostics
      integer, dimension(:), pointer :: axis => null()   !> array holding axis numbers
 
+     real(dp), dimension(:), pointer :: cf_locx => null()    !> CF location, x coordinate (m) along each axis
+     real(dp), dimension(:), pointer :: cf_locy => null()    !> CF location, y coordinate (m) along each axis
      real(dp), dimension(:), pointer :: cf_radius => null()  !> distance of calving front from origin (m) along each axis
      real(dp), dimension(:), pointer :: cf_thck => null()    !> ice thickness at CF (m) along each axis
-     real(dp), dimension(:), pointer :: cf_speed => null()   !> ice speed at CF (m/s) along each axis
+     real(dp), dimension(:), pointer :: cf_uvel => null()    !> ice speed at CF (m/s), u component along each axis
+     real(dp), dimension(:), pointer :: cf_vvel => null()    !> ice speed at CF (m/s), v component along each axis
 
   end type glide_calving
 
@@ -3326,9 +3329,12 @@ contains
        allocate(model%calving%damage(1,1,1))
     endif
     if (model%options%which_ho_calvingmip_domain /= HO_CALVINGMIP_DOMAIN_NONE) then
+       allocate(model%calving%cf_locx(model%calving%naxis))
+       allocate(model%calving%cf_locy(model%calving%naxis))
        allocate(model%calving%cf_radius(model%calving%naxis))
        allocate(model%calving%cf_thck(model%calving%naxis))
-       allocate(model%calving%cf_speed(model%calving%naxis))
+       allocate(model%calving%cf_uvel(model%calving%naxis))
+       allocate(model%calving%cf_vvel(model%calving%naxis))
     endif
 
     ! matrix solver arrays
@@ -3979,12 +3985,18 @@ contains
         deallocate(model%calving%damage)
     if (associated(model%calving%axis)) &
         deallocate(model%calving%axis)
+    if (associated(model%calving%cf_locx)) &
+        deallocate(model%calving%cf_locx)
+    if (associated(model%calving%cf_locy)) &
+        deallocate(model%calving%cf_locy)
     if (associated(model%calving%cf_radius)) &
         deallocate(model%calving%cf_radius)
     if (associated(model%calving%cf_thck)) &
         deallocate(model%calving%cf_thck)
-    if (associated(model%calving%cf_speed)) &
-        deallocate(model%calving%cf_speed)
+    if (associated(model%calving%cf_uvel)) &
+        deallocate(model%calving%cf_uvel)
+    if (associated(model%calving%cf_vvel)) &
+        deallocate(model%calving%cf_vvel)
 
     ! matrix solver arrays
 

@@ -2934,7 +2934,7 @@ contains
          staggered_parallel_halo, staggered_parallel_halo_extrapolate, &
          parallel_reduce_max, parallel_reduce_min, parallel_globalindex
 
-    use glimmer_paramets, only: eps08
+    use glimmer_paramets, only: eps11
     use glimmer_physcon, only: rhow, rhoi, scyr
     use glide_thck, only: glide_calclsrf
     use glissade_velo, only: glissade_velo_driver
@@ -2977,9 +2977,10 @@ contains
     integer, dimension(model%general%ewn, model%general%nsn) :: &
          floating_mask_old, grounded_mask_old   ! masks from previous time steps
 
-    ! used for damage-based calving
     integer, dimension(model%general%ewn, model%general%nsn) :: &
          partial_cf_mask, full_mask
+
+    real(dp) :: this_thklim
 
     type(parallel_type) :: parallel   ! info for parallel communication
 
@@ -3093,10 +3094,16 @@ contains
     ! Update some masks that are used for subsequent calculations
     ! ------------------------------------------------------------------------
 
+    if (model%options%which_ho_calving_front == HO_CALVING_FRONT_SUBGRID) then
+       this_thklim = eps11
+    else
+       this_thklim = model%numerics%thklim
+    endif
+
     call glissade_get_masks(ewn,                 nsn,                   &
                             parallel,                                   &
                             model%geometry%thck, model%geometry%topg,   &
-                            model%climate%eus,   model%numerics%thklim, &
+                            model%climate%eus,   this_thklim,           &
                             ice_mask,                                   &
                             floating_mask = floating_mask,              &
                             ocean_mask = ocean_mask,                    &
@@ -3116,14 +3123,18 @@ contains
          ice_mask,            floating_mask,    &
          ocean_mask,          land_mask,        &
          calving_front_mask,                    &
+         model%calving%dthck_dx_cf,             &
          model%numerics%dew,                    &
          model%numerics%dns,                    &
-         model%calving%dthck_dx_cf,             &
          model%calving%thck_effective,          &
          model%calving%thck_effective_min,      &
          partial_cf_mask,                       &
          full_mask,                             &
          model%calving%effective_areafrac)
+
+    if (verbose_calving) then
+       call point_diag(model%calving%thck_effective, 'Pre velo, thck_effective', itest, jtest, rtest, 7, 7)
+    endif
 
     ! ------------------------------------------------------------------------
     ! Compute the fraction of grounded ice in each cell and at each vertex.
