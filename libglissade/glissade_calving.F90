@@ -597,6 +597,8 @@ contains
 
     real(dp), dimension(nx,ny) :: &
          calving_dthck,        & ! thickness increment (m) to be added to calving%thck
+         alt_calving_dthck,    & ! calving_dthck (m) from an alterate calculation
+                                 ! (used if we want the max value from two different methods)
          cf_length               ! length of calving front within a cell
 
     integer, dimension(nx,ny) :: &
@@ -895,6 +897,28 @@ contains
                calving%lateral_rate_min/scyr,     &  ! m/s
                calving_dthck)                        ! m
 
+          ! If calving%minthck > 0, then also compute a thickness-based calving rate.
+          ! Then apply whichever rate is larger at a given location.
+
+          if (calving%minthck > thklim) then
+
+             call thickness_based_calving(&
+                  nx,                 ny,                    &
+                  dx,                 dy,                    &  ! m
+                  dt,                                        &  ! s
+                  itest,   jtest,     rtest,                 &
+                  calving_front_mask,                        &
+                  speed,                                     &  ! m/s
+                  cf_length,                                 &  ! m
+                  calving%thck_effective,                    &  ! m
+                  calving%minthck,                           &  ! m
+                  alt_calving_dthck)                            ! m
+
+             calving_dthck = max(calving_dthck, alt_calving_dthck)
+             call point_diag(calving_dthck, 'Net calving_dthck', itest, jtest, rtest, 7, 7)
+
+          endif
+
        elseif (which_calving == CALVING_STRESS_STOCHASTIC) then
 
           call extrapolate_to_calving_front(&
@@ -955,6 +979,8 @@ contains
                calving%eps_eigen2,                &  ! 1/s
                calving%eigenconstant,             &  ! m
                calving_dthck)                        ! m
+
+          !TODO: Add thickness-based calving, as for stress-based calving above
 
        elseif (which_calving == CALVING_DAMAGE) then
 

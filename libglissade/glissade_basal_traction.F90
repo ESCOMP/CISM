@@ -223,6 +223,7 @@ contains
        !    u0 = threshold velocity (the velocity at which tau_b = tau_c), default = 100 m/yr
        !    0 < coulomb_c < 1
        ! As in PISM, coulomb_c is allowed to vary with bed elevation.
+       ! It is also possible to invert for coulomb_c everywhere, independent of elevation.
        ! See Aschwanden et al. (2013), The Cryosphere, 7, 1083-1093, Supplement; see also the PISM Users Guide.
 
        q  = basal_physics%pseudo_plastic_q

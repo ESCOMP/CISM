@@ -518,6 +518,7 @@ contains
   end subroutine closeall_in
 
   !------------------------------------------------------------------------------
+  !TODO - Modify so the input file does not have to contain (x1,y1); OK if it just has (x0,y0)
 
   subroutine glimmer_nc_openfile(infile, model)
 
@@ -526,7 +527,6 @@ contains
     use glimmer_map_CFproj
     use glimmer_map_types
     use glimmer_log
-!!    use glimmer_paramets, only: len0
     use glimmer_filenames
 
     implicit none

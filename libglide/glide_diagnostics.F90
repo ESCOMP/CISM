@@ -39,8 +39,8 @@ module glide_diagnostics
   use cism_parallel, only: this_rank, main_task, lhalo, uhalo, nhalo, &
        parallel_type, broadcast, &
        parallel_localindex, parallel_globalindex, &
-       parallel_global_sum, parallel_reduce_max, &
-       parallel_reduce_maxloc, parallel_reduce_minloc, &
+       parallel_global_sum, parallel_global_sum_patch, &
+       parallel_reduce_max, parallel_reduce_maxloc, parallel_reduce_minloc, &
        parallel_is_zero
 
   implicit none
@@ -187,6 +187,7 @@ contains
          tot_area_float,                &    ! total area of floating ice (m^2)
          area_cell,                     &    ! cell area
          tot_volume,                    &    ! total ice volume (m^3)
+         tot_volume_above_flotation,    &    ! total ice volume above flotation (kg)
          tot_mass,                      &    ! total ice mass (kg)
          tot_mass_above_flotation,      &    ! total ice mass above flotation (kg)
          thck_floating,                 &    ! thickness of floating ice
@@ -263,7 +264,7 @@ contains
          count_area, count_volume               ! number of glaciers with nonzero area and volume
 
     integer :: &
-         i, j, k, ng,                       &
+         i, j, k, nb, ng,                   &
          ktop, kbed,                        &
          imax, imin,                        &
          jmax, jmin,                        &
@@ -277,8 +278,8 @@ contains
          velo_ew_ubound, velo_ns_ubound          ! upper bounds for velocity variables
 
     real(dp), dimension(model%general%ewn, model%general%nsn) ::  &
-         mass_above_flotation,& ! ice mass above flotation (kg)
-         thck_obs               ! observed ice thickness (m), derived from usrf_obs and topg
+         volume_above_flotation,& ! ice volue above flotation (m^3)
+         thck_obs                 ! observed ice thickness (m), derived from usrf_obs and topg
 
     real(dp), dimension(model%general%ewn-1, model%general%nsn-1) ::  &
          velo_sfc               ! surface ice speed (m/s)
@@ -392,22 +393,24 @@ contains
     ! total ice mass (kg)
     tot_mass = tot_volume * rhoi
 
-    ! total ice mass above flotation (kg)
-    mass_above_flotation = 0.0d0
+    ! total ice volume above flotation (m^3)
+    volume_above_flotation = 0.0d0
     do j = 1, nsn
        do i = 1, ewn
           if (ice_mask(i,j) == 1 .and. floating_mask(i,j) == 0) then
              if (model%geometry%topg(i,j) - model%climate%eus < 0.0d0) then  ! grounded below sea level
                 thck_floating = (-rhoo/rhoi) * (model%geometry%topg(i,j) - model%climate%eus)  ! exactly floating
-                mass_above_flotation(i,j) = (model%geometry%thck(i,j) - thck_floating) * cell_area(i,j)
+                volume_above_flotation(i,j) = (model%geometry%thck(i,j) - thck_floating) * cell_area(i,j)
              else   ! grounded above sea level
-                mass_above_flotation(i,j) = model%geometry%thck(i,j) * cell_area(i,j)
+                volume_above_flotation(i,j) = model%geometry%thck(i,j) * cell_area(i,j)
              endif
           endif
        enddo
     enddo
-    mass_above_flotation = mass_above_flotation * rhoi
-    tot_mass_above_flotation = parallel_global_sum(mass_above_flotation, parallel)
+    tot_volume_above_flotation = parallel_global_sum(volume_above_flotation, parallel)
+
+    ! total ice mass above flotation (kg)
+    tot_mass_above_flotation = tot_volume_above_flotation * rhoi
 
     ! total ice energy relative to T = 0 deg C (J)
     local_energy = 0.0d0
@@ -471,8 +474,41 @@ contains
     model%geometry%iareag = tot_area_ground
     model%geometry%iareaf = tot_area_float
     model%geometry%ivol   = tot_volume
+    model%geometry%ivol_above_flotation = tot_volume_above_flotation
     model%geometry%imass  = tot_mass
-    model%geometry%imass_above_flotation  = tot_mass_above_flotation
+    model%geometry%imass_above_flotation = tot_mass_above_flotation
+
+    ! Optionally, compute some basin-scale scalars, also written to the geometry derived type
+
+    if (model%ocean_data%nbasin >= 1) then
+       if (main_task) write(iulog,*) 'Compute basin-scale diagnostics'
+       model%geometry%iarea_basin(:)  = &
+            parallel_global_sum_patch(cell_area*ice_mask, model%ocean_data%nbasin, model%ocean_data%basin_number, parallel)
+       model%geometry%iareag_basin(:) = &
+            parallel_global_sum_patch(cell_area*grounded_mask, model%ocean_data%nbasin, model%ocean_data%basin_number, parallel)
+       model%geometry%iareaf_basin(:) = &
+            parallel_global_sum_patch(cell_area*floating_mask, model%ocean_data%nbasin, model%ocean_data%basin_number, parallel)
+       model%geometry%ivol_basin(:)   = &
+            parallel_global_sum_patch(cell_area*ice_mask*model%geometry%thck, model%ocean_data%nbasin, model%ocean_data%basin_number, parallel)
+       model%geometry%ivol_above_flotation_basin(:) = &
+            parallel_global_sum_patch(volume_above_flotation, model%ocean_data%nbasin, model%ocean_data%basin_number, parallel)
+       model%geometry%imass_basin(:) = model%geometry%ivol_basin(:)*rhoi
+       model%geometry%imass_above_flotation_basin(:) = model%geometry%ivol_above_flotation_basin(:)*rhoi
+
+       !WHL - debug
+       if (main_task) then
+          nb = model%ocean_data%thermal_forcing_anomaly_basin
+          write(iulog,*) 'Diagnostics for basin', nb
+          if (nb > 1) then
+             write(iulog,*) 'iarea, iareag, iareaf (km^2):', &
+                  model%geometry%iarea_basin(nb)/1.0d6, model%geometry%iareag_basin(nb)/1.0d6, model%geometry%iareaf_basin(nb)/1.0d6
+             write(iulog,*) 'ivol, ivol_above_flotation (km^3):', &
+                  model%geometry%ivol_basin(nb)/1.0d9, model%geometry%ivol_above_flotation_basin(nb)/1.0d9
+             write(iulog,*) 'imass, imass_above_flotation (Gt):', &
+                  model%geometry%imass_basin(nb)/1.0d12, model%geometry%imass_above_flotation_basin(nb)/1.0d12
+          endif
+       endif
+    endif   ! nbasin > 1
 
     ! For Glissade only, compute a global mass budget and check mass conservation
 

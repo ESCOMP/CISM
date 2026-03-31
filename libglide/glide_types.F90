@@ -1290,6 +1290,7 @@ module glide_types
     real(dp) :: iareag                 ! total grounded ice area (m^2)
     real(dp) :: iareaf                 ! total floating ice area (m^2)
     real(dp) :: ivol                   ! total ice volume (m^3)
+    real(dp) :: ivol_above_flotation   ! total ice volume above flotation (m^3)
     real(dp) :: imass                  ! total ice mass (kg)
     real(dp) :: imass_above_flotation  ! total ice mass above flotation (kg)
     real(dp) :: total_smb_flux         ! total surface mass balance flux (kg/s)
@@ -1300,6 +1301,15 @@ module glide_types
     real(dp) :: total_bmb_flux_tavg    ! total basal mass balance flux (kg/s), time average
     real(dp) :: total_calving_flux_tavg! total calving mass flux (kg/s), time average
     real(dp) :: total_gl_flux_tavg     ! total grounding line mass flux (kg/s), time average
+
+    ! basin-scale scalars
+    real(dp), dimension(:), pointer :: iarea_basin    ! total ice area per basin (m^2)
+    real(dp), dimension(:), pointer :: iareag_basin   ! total grounded ice area per basin (m^2)
+    real(dp), dimension(:), pointer :: iareaf_basin   ! total floating ice area per basin (m^2)
+    real(dp), dimension(:), pointer :: ivol_basin     ! total ice volume per basin (m^3)
+    real(dp), dimension(:), pointer :: ivol_above_flotation_basin   ! total ice volume above flotation per basin (m^3)
+    real(dp), dimension(:), pointer :: imass_basin    ! total ice mass per basin (kg)
+    real(dp), dimension(:), pointer :: imass_above_flotation_basin   ! total ice mass above flotation per basin (kg)
 
   end type glide_geometry
 
@@ -1869,6 +1879,8 @@ module glide_types
 
      ! ocean grid and basin number
      integer  :: nbasin = 0                         !> number of basins (= 16 for IMBIE2)
+     integer, dimension(:), pointer :: basin => null()   !> array holding basin numbers
+
      integer  :: nzocn = 1                          !> number of ocean levels
      real(dp) :: dzocn = 0.d0                       !> thickness of ocean levels; nonzero value set in config file
      real(dp), dimension(:), pointer :: &
@@ -3254,6 +3266,17 @@ contains
        call coordsystem_allocate(model%general%ice_grid, model%inversion%floating_thck_target)
     endif
 
+    ! basin diagnostic arrays
+    if (model%ocean_data%nbasin >= 1) then
+       allocate(model%geometry%iarea_basin(model%ocean_data%nbasin))
+       allocate(model%geometry%iareag_basin(model%ocean_data%nbasin))
+       allocate(model%geometry%iareaf_basin(model%ocean_data%nbasin))
+       allocate(model%geometry%ivol_basin(model%ocean_data%nbasin))
+       allocate(model%geometry%ivol_above_flotation_basin(model%ocean_data%nbasin))
+       allocate(model%geometry%imass_basin(model%ocean_data%nbasin))
+       allocate(model%geometry%imass_above_flotation_basin(model%ocean_data%nbasin))
+    endif
+
     ! climate arrays
     call coordsystem_allocate(model%general%ice_grid, model%climate%acab)
     call coordsystem_allocate(model%general%ice_grid, model%climate%acab_tavg)
@@ -3862,6 +3885,21 @@ contains
        deallocate(model%geometry%lower_cell_loc)
     if (associated(model%geometry%lower_cell_temp)) &
        deallocate(model%geometry%lower_cell_temp)
+
+    if (associated(model%geometry%iarea_basin)) &
+         deallocate(model%geometry%iarea_basin)
+    if (associated(model%geometry%iareag_basin)) &
+         deallocate(model%geometry%iareag_basin)
+    if (associated(model%geometry%iareaf_basin)) &
+         deallocate(model%geometry%iareaf_basin)
+    if (associated(model%geometry%ivol_basin)) &
+         deallocate(model%geometry%ivol_basin)
+    if (associated(model%geometry%ivol_above_flotation_basin)) &
+         deallocate(model%geometry%ivol_above_flotation_basin)
+    if (associated(model%geometry%imass_basin)) &
+         deallocate(model%geometry%imass_basin)
+    if (associated(model%geometry%imass_above_flotation_basin)) &
+         deallocate(model%geometry%imass_above_flotation_basin)
 
     if (associated(model%geometry%thck_index)) &
         deallocate(model%geometry%thck_index)

@@ -98,6 +98,12 @@ data:          data%climate%zatm
 positive:      up
 dimlen:        model%climate%nzatm
 
+[basin]
+dimensions:    basin
+units:         1
+long_name:     ocean basin coordinate
+dimlen:        model%ocean_data%nbasin
+
 [glacierid]
 dimensions:    glacierid
 units:         1
@@ -622,6 +628,12 @@ units:         m3
 long_name:     ice volume
 data:          data%geometry%ivol
 
+[ivol_above_flotation]
+dimensions:    time
+units:         m3
+long_name:     ice volume above flotation
+data:          data%geometry%ivol_above_flotation
+
 [imass]
 dimensions:    time
 units:         kg
@@ -633,6 +645,48 @@ dimensions:    time
 units:         kg
 long_name:     ice mass above flotation
 data:          data%geometry%imass_above_flotation
+
+[iarea_basin]
+dimensions:    time, basin
+units:         m2
+long_name:     area covered by ice per basin
+data:          data%geometry%iarea_basin
+
+[iareag_basin]
+dimensions:    time, basin
+units:         m2
+long_name:     area covered by grounded ice per basin
+data:          data%geometry%iareag_basin
+
+[iareaf_basin]
+dimensions:    time, basin
+units:         m2
+long_name:     area covered by floating ice per basin
+data:          data%geometry%iareaf_basin
+
+[ivol_basin]
+dimensions:    time, basin
+units:         m3
+long_name:     ice volume per basin
+data:          data%geometry%ivol_basin
+
+[ivol_above_flotation_basin]
+dimensions:    time, basin
+units:         m3
+long_name:     ice volume above flotation per basin
+data:          data%geometry%ivol_above_flotation_basin
+
+[imass_basin]
+dimensions:    time, basin
+units:         kg
+long_name:     ice mass per basin
+data:          data%geometry%imass_basin
+
+[imass_above_flotation_basin]
+dimensions:    time, basin
+units:         kg
+long_name:     ice mass above flotation per basin
+data:          data%geometry%imass_above_flotation_basin
 
 [total_smb_flux]
 dimensions:    time

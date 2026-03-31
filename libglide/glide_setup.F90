@@ -3995,7 +3995,8 @@ contains
 
         !TODO: CALVING_GRID_MASK and apply_calving_mask are redundant; remove one option?
         !      The advantage of apply_calving_mask is that it can be combined with other whichcalving options.
-        if (options%whichcalving == CALVING_GRID_MASK .or. options%apply_calving_mask) then
+        if (options%whichcalving == CALVING_GRID_MASK .or. options%apply_calving_mask .or. &
+             options%which_ho_deltaT_ocn == HO_DELTAT_OCN_INVERSION) then
            if (options%which_ho_calving_front == HO_CALVING_FRONT_NO_SUBGRID) then
               call glide_add_to_restart_variable_list('calving_mask', model_id)
            elseif (options%which_ho_calving_front == HO_CALVING_FRONT_SUBGRID) then

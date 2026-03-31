@@ -437,6 +437,7 @@ contains
 
     if (model%options%gthf == GTHF_PRESCRIBED_2D) then
        call check_fill_values(model%temper%bheatflx)
+       !TODO - Pass in model%paramets%geot as the replacement value?
     endif
 
     if (associated(model%ocean_data%thermal_forcing)) then
@@ -1066,9 +1067,14 @@ contains
     !       a real mask in the range (0.0,1.0). For values between 0 and 1, the calving thins the ice
     !       such that the effective area fraction a_eff = H/H_eff = 1 - maskval.
     !      To combine a calving mask with another calving option, the user can set apply_calving_mask = .true.
+    !      Typically the mask is used to calve ice beyond a prescribed calving front, but it can also
+    !       be used to limit the domain of inversion for deltaT_ocn. If applying a physically based calving scheme,
+    !       we typically would not want to invert for deltaT_ocn beyond the observed calving front, because the
+    !       inversion could override the effects (or lack thereof) of the calving scheme.
 
-    if ( (model%options%whichcalving == CALVING_GRID_MASK .or. model%options%apply_calving_mask) .and. &
-          model%options%is_restart == NO_RESTART) then
+    if ( (model%options%whichcalving == CALVING_GRID_MASK .or. model%options%apply_calving_mask .or. &
+          model%options%which_ho_deltaT_ocn == HO_DELTAT_OCN_INVERSION) &
+       .and. model%options%is_restart == NO_RESTART ) then
 
        if (model%options%which_ho_calving_front == HO_CALVING_FRONT_NO_SUBGRID) then
 
@@ -1632,7 +1638,7 @@ contains
              write(iulog,*) 'timescale (yr):', model%ocean_data%thermal_forcing_anomaly_timescale
              write(iulog,*) 'fraction:', anomaly_fraction
              write(iulog,*) 'current TF anomaly (deg):', tf_anomaly
-             if (model%ocean_data%thermal_forcing_anomaly_timescale /= 0.0d0) then
+             if (model%ocean_data%thermal_forcing_anomaly_basin /= 0) then
                 write(iulog,*) 'anomaly applied to basin number', model%ocean_data%thermal_forcing_anomaly_basin
              endif
           endif

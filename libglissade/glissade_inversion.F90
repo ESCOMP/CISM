@@ -27,7 +27,7 @@
 module glissade_inversion
 
   use glimmer_physcon, only: scyr, grav
-  use glimmer_paramets, only: iulog, eps08
+  use glimmer_paramets, only: iulog, eps08, eps11
   use glimmer_log
   use glimmer_utils, only: point_diag
   use glide_types
@@ -47,7 +47,8 @@ module glissade_inversion
   ! a target ice thickness field.
   !-----------------------------------------------------------------------------
 
-  logical, parameter :: verbose_inversion = .false.
+!!  logical, parameter :: verbose_inversion = .false.
+  logical, parameter :: verbose_inversion = .true.
 
 !***********************************************************************
 
@@ -1026,13 +1027,21 @@ contains
 
     endif   ! which_ho_deltaT_ocn
 
-    !WHL - debug
-    ! For testing subgrid CF schemes: Do not invert for deltaT_ocn where calving_mask = 1,
-    ! because then the ocean will warm to prevent CF advance (which would be cheating).
-    ! In these cells, set deltaT_ocn = 0.
-    if (model%options%which_ho_calving_front == HO_CALVING_FRONT_SUBGRID .and. &
-        model%options%whichbmlt_float == BMLT_FLOAT_THERMAL_FORCING) then
-       where (model%calving%calving_mask == 1) model%ocean_data%deltaT_ocn = 0.0d0
+    ! When applying certain calving schemes: We usually do not want to invert for deltaT_ocn
+    !  beyond the observed calving front, because then the ocean will warm to melt ice that
+    !  advances beyond the original CF, overriding the effects of the calving scheme.
+    ! Instead, we compute a calving mask at initialization and set deltaT_ocn = 0 in masked cells.
+    !TODO - Apply the basin average TF in this region?
+    if (model%options%whichbmlt_float == BMLT_FLOAT_THERMAL_FORCING) then
+       if (model%options%which_ho_calving_front == HO_CALVING_FRONT_NO_SUBGRID .and. &
+            .not.parallel_is_zero(model%calving%calving_mask)) then
+          where (model%calving%calving_mask == 1) model%ocean_data%deltaT_ocn = 0.0d0
+       elseif (model%options%which_ho_calving_front == HO_CALVING_FRONT_SUBGRID .and. &
+            .not.parallel_is_zero(model%calving%subgrid_calving_mask)) then
+          where (model%calving%subgrid_calving_mask > eps11) model%ocean_data%deltaT_ocn = 0.0d0
+       endif
+       call point_diag(model%ocean_data%deltaT_ocn, 'deltaT_ocn after calving mask adjustment', &
+            itest, jtest, rtest, 7, 7)
     endif
 
     ! If inverting for flow_enhancement_factor, then update it here
