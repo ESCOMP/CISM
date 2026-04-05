@@ -1585,9 +1585,12 @@
     call staggered_parallel_halo(dusrf_dy, parallel)
 
 !pw call t_stopf('glissade_gradient')
+    if (verbose_beta) then
+       call point_diag(model%basal_physics%effecpress_stag, 'N_stag', itest, jtest, rtest, 7, 7, '(f10.0)')
+    endif
 
     if (verbose_glp) then
-       call point_diag(model%basal_physics%effecpress_stag, 'N_stag', itest, jtest, rtest, 7, 7, 'f10.0')
+       call point_diag(model%basal_physics%effecpress_stag, 'N_stag', itest, jtest, rtest, 7, 7, '(f10.0)')
        call point_diag(usrf, 'usrf (m)', itest, jtest, rtest, 7, 7)
        call point_diag(thck, 'thck (m)', itest, jtest, rtest, 7, 7)
        call point_diag(f_flotation, 'f_flotation (m)', itest, jtest, rtest, 7, 7)
@@ -9567,7 +9570,7 @@
           j = jtest
           call parallel_globalindex(i, j, iglobal, jglobal, parallel)
           write(iulog,*) ' '
-          write(iulog,*) 'In compute_residual_vector_2d: test ig, jg =', i, j
+          write(iulog,*) 'In compute_residual_vector_2d: test ig, jg =', iglobal, jglobal
           write(iulog, '(a15, 2f12.5, 2e13.5)') &
                '  u, v, ru, rv:', uvel(i,j), vvel(i,j), resid_u(i,j), resid_v(i,j)
        endif
@@ -9583,7 +9586,7 @@
              do i = staggered_ilo, staggered_ihi
                 if (abs((resid_sq(i,j) - global_max_resid)/global_max_resid) < 1.0d-6) then
                    call parallel_globalindex(i, j, iglobal, jglobal, parallel)
-                   write(iulog, '(a24, 2i6, 2e13.5, e16.8)') 'ig, jg, ru, rv, global rmax:', &
+                   write(iulog, '(a27, 2i6, 2e13.5, e16.8)') 'ig, jg, ru, rv, global rmax:', &
                         iglobal, jglobal, resid_u(i,j), resid_v(i,j), sqrt(global_max_resid)
                    write(iulog,*) ' '
                 endif

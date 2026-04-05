@@ -50,8 +50,8 @@ module glissade_calving
             glissade_calvingmip_diagnostics
   public :: verbose_calving
 
-!!  logical, parameter :: verbose_calving = .false.
-  logical, parameter :: verbose_calving = .true.
+  logical, parameter :: verbose_calving = .false.
+!!  logical, parameter :: verbose_calving = .true.
 
 contains
 
@@ -222,12 +222,26 @@ contains
 
        call parallel_halo(calving_mask, parallel)
 
+       ! Set calving_mask = 0.0 in cells surrounded by non-masked cells,
+       !  to avoid creating holes in ice shelves.
+       !TODO: Could add logic to check for slightly larger holes.
+
+       do j = 2, ny-1
+          do i = 2, nx-1
+             if (calving_mask(i,j) == 1) then
+                if (calving_mask(i-1,j) == 0 .and. calving_mask(i+1,j) == 0 .and. &
+                    calving_mask(i,j-1) == 0 .and. calving_mask(i,j+1) == 0) then
+                   calving_mask(i,j) = 0
+                endif
+             endif
+          enddo
+       enddo
+
        deallocate(ice_mask)
        deallocate(ocean_mask)
 
     endif  ! mask_maxval > 0
 
-    ! halo update moved to higher level
     call parallel_halo(calving_mask, parallel)
 
   end subroutine glissade_calving_mask_init
@@ -450,6 +464,20 @@ contains
        enddo
 
        call parallel_halo(subgrid_calving_mask, parallel)
+
+       ! Set calving_mask = 0.0 in cells surrounded by non-masked cells,
+       !  to avoid creating holes in ice shelves.
+
+       do j = 2, ny-1
+          do i = 2, nx-1
+             if (subgrid_calving_mask(i,j) > 0.0d0) then
+                if (subgrid_calving_mask(i-1,j) == 0.0d0 .and. subgrid_calving_mask(i+1,j) == 0.0d0 .and. &
+                    subgrid_calving_mask(i,j-1) == 0.0d0 .and. subgrid_calving_mask(i,j+1) == 0.0d0) then
+                   subgrid_calving_mask(i,j) = 0.0d0
+                endif
+             endif
+          enddo
+       enddo
 
        deallocate(ice_mask)
        deallocate(ocean_mask)

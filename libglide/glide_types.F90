@@ -269,10 +269,9 @@ module glide_types
   integer, parameter :: HO_BABC_POWERLAW = 9
   integer, parameter :: HO_BABC_COULOMB_FRICTION = 10
   integer, parameter :: HO_BABC_SCHOOF = 11
-  integer, parameter :: HO_BABC_MODIFIED_SCHOOF = 12
-  integer, parameter :: HO_BABC_TSAI = 13
-  integer, parameter :: HO_BABC_POWERLAW_EFFECPRESS = 14
-  integer, parameter :: HO_BABC_YIELD_PICARD = 15
+  integer, parameter :: HO_BABC_TSAI = 12
+  integer, parameter :: HO_BABC_POWERLAW_EFFECPRESS = 13
+  integer, parameter :: HO_BABC_YIELD_PICARD = 14
 
   integer, parameter :: HO_BETA_LIMIT_ABSOLUTE = 0
   integer, parameter :: HO_BETA_LIMIT_FLOATING_FRAC = 1
@@ -281,12 +280,12 @@ module glide_types
   integer, parameter :: HO_POWERLAW_C_INVERSION = 1
   integer, parameter :: HO_POWERLAW_C_EXTERNAL = 2
   integer, parameter :: HO_POWERLAW_C_INVERSION_BASIN = 3
+  integer, parameter :: HO_POWERLAW_C_FUNCTION_COULOMB_C = 4
 
   integer, parameter :: HO_COULOMB_C_CONSTANT = 0
   integer, parameter :: HO_COULOMB_C_INVERSION = 1
   integer, parameter :: HO_COULOMB_C_EXTERNAL = 2
   integer, parameter :: HO_COULOMB_C_INVERSION_BASIN = 3
-  integer, parameter :: HO_COULOMB_C_EXTERNAL_BASIN = 4
 
   integer, parameter :: HO_DELTAT_OCN_NONE = 0
   integer, parameter :: HO_DELTAT_OCN_INVERSION = 1
@@ -868,10 +867,9 @@ module glide_types
     !> \item[9] power law
     !> \item[10] Coulomb friction law using effective pressure, with flwa from lowest ice layer
     !> \item[11] Schoof law that blends powerlaw and Coulomb behavior
-    !> \item[12] modified version of the Schoof law
-    !> \item[13] basal stress is the minimum of Coulomb and power-law values, as in Tsai et al. (2015)
-    !> \item[14] power law using effective pressure
-    !> \item[15] treat beta value as a till yield stress (in Pa) using Picard iteration
+    !> \item[12] basal stress is the minimum of Coulomb and power-law values, as in Tsai et al. (2015)
+    !> \item[13] power law using effective pressure
+    !> \item[14] treat beta value as a till yield stress (in Pa) using Picard iteration
     !> \end{description}
 
     logical :: use_c_space_factor = .false.
@@ -891,6 +889,7 @@ module glide_types
     !> \item[1] invert for 2D powerlaw_c
     !> \item[2] read 2D powerlaw_c from external file
     !> \item[3] invert for basin-scale powerlaw_c
+    !> \item[4] relate to coulomb_c: Cp = gamma*Cc^p
     !> \end{description}
 
     integer :: which_ho_coulomb_c = 0
@@ -899,13 +898,11 @@ module glide_types
     !> \item[0] coulomb_c = spatially uniform constant
     !> \item[1] invert for 2D coulomb_c
     !> \item[2] read 2D coulomb_c from external file
-    !> \item[3] invert for basin-scale coulomb_c_lo/hi
-    !> \item[4] read basin-scale coulomb_c_lo/hi from external file
+    !> \item[3] invert for basin-scale coulomb_c
     !> \end{description}
 
     logical :: elevation_based_coulomb_c = .false.
     !> Flag that indicates whether coulomb_c depends on elevation
-    !> (coulomb_c_hi for high bed, coulomb_c_lo for low bed, interpolated in between)
 
     integer :: which_ho_deltaT_ocn = 0
     !> Flag for local ocean temperature corrections
@@ -937,10 +934,11 @@ module glide_types
     !> Flag that describes effective pressure calculation for HO dyn core: 
     !> \begin{description}
     !> \item[0] N = overburden pressure, rhoi*grav*thck
-    !> \item[1] N is reduced where the bed is at or near the pressure melting point
+    !> \item[1] N is proportional to height above flotation
     !> \item[2] N is reduced based on basal water thickness from active hydrology
     !> \item[3] N depends on cavity opening and closing
     !> \item[4] N is reduced based on basal water thickness, following Bueler/van Pelt
+    !> \item[5] N is reduced where the bed is at or near the pressure melting point
     !> \end{description}
 
     integer :: which_ho_nonlinear = 0
@@ -1761,11 +1759,9 @@ module glide_types
           babc_length_scale = 0.0d0,           & !> diffusive length scale (m) for inversion
           babc_relax_factor = 0.05d0             !> controls strength of relaxation to default values (unitless)
 
-     ! fields and parameters for basin-scale coulomb_c or powerlaw_c inversion
+     ! fields for basin-scale coulomb_c or powerlaw_c inversion
      real(dp), dimension(:,:), pointer ::  &
-          grounded_thck_target => null(),      & !> Observational target for grounded ice thickness
-          land_thck_target => null(),          & !> Observational target for land-grounded ice thickness
-          marine_thck_target => null()           !> Observational target for marine-grounded ice thickness
+          grounded_thck_target => null()         !> Observational target for grounded ice thickness
 
      ! parameters for local deltaT_ocn inversion
      ! Note: deltaT_ocn is in the ocean_data type
@@ -2219,6 +2215,7 @@ module glide_types
      ! other parameters for effective pressure
      real(dp) :: effecpress_delta = 0.02d0       !> min value for effecpress N relative to overburden (unitless)
      real(dp) :: bpmp_threshold = 0.1d0          !> temperature range over which N ramps up from a small value to overburden (deg C)
+     real(dp) :: haf_threshold = 500.d0          !> thickness at which height above flotation is capped (m)
 
   end type glide_basal_hydro
 
@@ -2279,11 +2276,9 @@ module glide_types
      ! Note: powerlaw_c has units of Pa (m/yr)^(-1/powerlaw_m); default value assumes powerlaw_m = 3
      real(dp), dimension(:,:), pointer :: &
           powerlaw_c => null(), &                !> powerlaw_c on staggered grid, Pa (m/yr)^(-1/m)
-          coulomb_c => null(),  &                !> coulomb_c on staggered grid, unitless in range [0,1]
-          coulomb_c_hi => null(),  &             !> coulomb_c value at high bed elevation, topg >= bed_hi
-          coulomb_c_lo => null()                 !> coulomb_c value at low bed elevation, topg <= bed_lo
+          coulomb_c => null()                    !> coulomb_c on staggered grid, unitless in range [0,1]
 
-     ! parameters for power law, taub_b = C * u_b^(1/m); used for HO_BABC_SCHOOF AND *_TSAI
+     ! parameters for Weertman-type power law, taub_b = C * u_b^(1/m); used for HO_BABC_SCHOOF AND *_TSAI
      ! The default values are from Asay-Davis et al. (2016).
      ! The value of powerlaw_c suggested by Tsai et al. (2015) is 7.624d6 Pa m^(-1/3) s^(1/3).
      ! This value can be converted to CISM units by dividing by scyr^(1/3), to obtain 2.413d4 Pa m^(-1/3) yr^(1/3).
@@ -2296,19 +2291,30 @@ module glide_types
      real(dp) :: powerlaw_c_min = 1.0d2          !> min value of powerlaw_c, Pa (m/yr)^(-1/3)
      real(dp) :: powerlaw_c_basin_relax          !> relax the basin-scale powerlaw_c toward this value
 
-     ! parameters for Coulomb friction law
-     !TODO - Change default coulomb_c_const?
+     ! parameters for Coulomb basal friction law
      ! Notes: coulomb_c_max = 1.0 to cap effecpress at overburden
      !        The appropriate value of coulomb_c_min can depend on how much N is reduced below overburden.
+     ! TODO: Reduce coulomb_c_const to 0.1?
      real(dp) :: coulomb_c_const = 0.42d0        !> basal stress constant; unitless in range [0,1]
      real(dp) :: coulomb_c_max = 1.0d0           !> max value of coulomb_c, unitless
      real(dp) :: coulomb_c_min = 1.0d-3          !> min value of coulomb_c, unitless
 
+     ! parameter for Schoof basal friction law
+     ! This is the parameter n from Schoof (2005), Eq. 6.2.
+     ! Typically it has the same value as powerlaw_m, but this is not required.
+     ! The parameters gamma and p are not in Schoof (2005) but can be used to relate Cc and Cp during inversion,
+     !  with either the Schoof law or the Tsai law, if which_ho_powerlaw_c = HO_POWERLAW_C_FUNCTION_COULOMB_C.
+     real(dp) :: schoof_n = 3.0d0                !> exponent in the Schoof basal friction law;
+                                                 !> modulates the transition between powerlaw and coulomb behavior
+     ! The following default values are consistent with Cc_max = 1.0, Cp_max = 1.e5, Cc_const = 1.0, Cp_const ~ 2.e4
+     real(dp) :: schoof_gamma = 1.0d5            !> parameters in the relation Cp = gamma * Cc^p;
+     real(dp) :: schoof_p = 0.7d0                !> only used if nonzero values are set in the config file
+
      ! The next four parameters apply when elevation_based_coulomb_c = .true.
-     real(dp) :: coulomb_c_const_hi =  0.50d0    !> constant coulomb_c value at high bed elevation, topg >= bed_hi
-     real(dp) :: coulomb_c_const_lo =  0.10d0    !> constant coulomb_c value at low bed elevation, topg <= bed_lo
-     real(dp) :: coulomb_c_bed_hi =    0.d0      !> bed elevation (m) above which coulomb_c = coulomb_c_hi
-     real(dp) :: coulomb_c_bed_lo = -500.d0      !> bed elevation (m) below which coulomb_c = coulomb_c_lo
+     real(dp) :: coulomb_c_hi =  0.50d0          !> coulomb_c value at high bed elevation, topg >= bed_hi
+     real(dp) :: coulomb_c_lo =  0.05d0          !> coulomb_c value at low bed elevation, topg <= bed_lo
+     real(dp) :: coulomb_c_bed_hi =    0.d0      !> bed elevation (m) above which coulomb_c = coulomb_c_const_hi
+     real(dp) :: coulomb_c_bed_lo = -500.d0      !> bed elevation (m) below which coulomb_c = coulomb_c_const_lo
 
      ! parameters for older form of Coulomb friction sliding law (default values from Pimentel et al. 2010)
      ! Pimentel et al. have coulomb_c = 0.84*m_max, where m_max = coulomb_bump_max_slope
@@ -2332,12 +2338,11 @@ module glide_types
      ! fields related to the effective pressure
      real(dp), dimension(:,:), pointer :: effecpress => null()          !> effective pressure (Pa)
      real(dp), dimension(:,:), pointer :: effecpress_stag => null()     !> effective pressure on staggered grid (Pa)
-     real(dp), dimension(:,:), pointer :: f_effecpress_ocean_p => null()!> fractional effecpress due to ocean_p > 0; in range [0,1]
+     real(dp), dimension(:,:), pointer :: effecpress_ocean_p => null()  !> effecpress due to ocean_p > 0; capped at overburden
 
      ! parameters for reducing the effective pressure where the bed is connected to the ocean
      !TODO - Remove ocean_p_timescale
      real(dp) :: p_ocean_penetration = 0.0d0           !> p-exponent for ocean penetration; N weighted by (1-Hf/H)^p (0 <= p <= 1)
-     real(dp) :: ocean_p_timescale = 0.0d0             !> timescale (yr) for relaxing N/overburden to (1-Hf/H)^p
 
   end type glide_basal_physics
 
@@ -2786,8 +2791,6 @@ contains
     !> \begin{itemize}
     !> \item \texttt{powerlaw_c(ewn-1,nsn-1)}
     !> \item \texttt{coulomb_c(ewn-1,nsn-1)}
-    !> \item \texttt{coulomb_c_hi(ewn-1,nsn-1)}
-    !> \item \texttt{coulomb_c_lo(ewn-1,nsn-1)}
     !> \end{itemize}
 
     !> In \texttt{model\%plume}:
@@ -3152,7 +3155,7 @@ contains
        call coordsystem_allocate(model%general%velo_grid, model%basal_physics%bpmp_mask)
        call coordsystem_allocate(model%general%ice_grid, model%basal_physics%effecpress)
        call coordsystem_allocate(model%general%velo_grid, model%basal_physics%effecpress_stag)
-       call coordsystem_allocate(model%general%ice_grid, model%basal_physics%f_effecpress_ocean_p)
+       call coordsystem_allocate(model%general%ice_grid, model%basal_physics%effecpress_ocean_p)
        call coordsystem_allocate(model%general%velo_grid, model%basal_physics%tau_c)
        call coordsystem_allocate(model%general%ice_grid, model%basal_physics%c_space_factor)
        call coordsystem_allocate(model%general%velo_grid, model%basal_physics%c_space_factor_stag)
@@ -3249,8 +3252,6 @@ contains
     ! inversion and basal physics arrays (Glissade only)
     call coordsystem_allocate(model%general%velo_grid,model%basal_physics%powerlaw_c)
     call coordsystem_allocate(model%general%velo_grid,model%basal_physics%coulomb_c)
-    call coordsystem_allocate(model%general%velo_grid,model%basal_physics%coulomb_c_hi)
-    call coordsystem_allocate(model%general%velo_grid,model%basal_physics%coulomb_c_lo)
 
     if (model%options%which_ho_coulomb_c == HO_COULOMB_C_INVERSION_BASIN .or. &
         model%options%which_ho_powerlaw_c == HO_POWERLAW_C_INVERSION_BASIN) then
@@ -3258,8 +3259,6 @@ contains
           call write_log ('Must set nbasin >= 1 for basin-scale inversion of C_c or C_p', GM_FATAL)
        endif
        call coordsystem_allocate(model%general%ice_grid, model%inversion%grounded_thck_target)
-       call coordsystem_allocate(model%general%ice_grid, model%inversion%land_thck_target)
-       call coordsystem_allocate(model%general%ice_grid, model%inversion%marine_thck_target)
     endif
 
     if (model%options%which_ho_deltaT_ocn == HO_DELTAT_OCN_INVERSION_BASIN) then
@@ -3659,8 +3658,8 @@ contains
         deallocate(model%basal_physics%effecpress)
     if (associated(model%basal_physics%effecpress_stag)) &
         deallocate(model%basal_physics%effecpress_stag)
-    if (associated(model%basal_physics%f_effecpress_ocean_p)) &
-        deallocate(model%basal_physics%f_effecpress_ocean_p)
+    if (associated(model%basal_physics%effecpress_ocean_p)) &
+        deallocate(model%basal_physics%effecpress_ocean_p)
     if (associated(model%basal_physics%tau_c)) &
         deallocate(model%basal_physics%tau_c)
     if (associated(model%basal_physics%c_space_factor)) &
@@ -3782,18 +3781,10 @@ contains
         deallocate(model%basal_physics%powerlaw_c)
     if (associated(model%basal_physics%coulomb_c)) &
         deallocate(model%basal_physics%coulomb_c)
-    if (associated(model%basal_physics%coulomb_c_hi)) &
-        deallocate(model%basal_physics%coulomb_c_hi)
-    if (associated(model%basal_physics%coulomb_c_lo)) &
-        deallocate(model%basal_physics%coulomb_c_lo)
     if (associated(model%inversion%floating_thck_target)) &
         deallocate(model%inversion%floating_thck_target)
     if (associated(model%inversion%grounded_thck_target)) &
         deallocate(model%inversion%grounded_thck_target)
-    if (associated(model%inversion%land_thck_target)) &
-        deallocate(model%inversion%land_thck_target)
-    if (associated(model%inversion%marine_thck_target)) &
-        deallocate(model%inversion%marine_thck_target)
 
     ! MISOMIP arrays
     if (associated(model%plume%T_ambient)) &

@@ -94,7 +94,7 @@ contains
 
     use cism_parallel, only: parallel_type, parallel_finalise, &
          distributed_grid, distributed_grid_active_blocks,  parallel_global_edge_mask, &
-         parallel_halo, parallel_halo_extrapolate, &
+         parallel_halo, parallel_halo_extrapolate, parallel_globalindex, &
          staggered_parallel_halo_extrapolate, staggered_no_penetration_mask, &
          parallel_create_comm_row, parallel_create_comm_col, &
          parallel_reduce_max, parallel_is_zero, not_parallel
@@ -117,7 +117,7 @@ contains
     use glide_diagnostics, only: glide_init_diag
     use glissade_calving, only: glissade_calving_mask_init, glissade_subgrid_calving_mask_init, verbose_calving
     use glissade_inversion, only: glissade_inversion_init, verbose_inversion
-    use glissade_basal_traction, only: glissade_init_effecpress, glissade_elevation_based_coulomb_c
+    use glissade_basal_traction, only: glissade_elevation_based_coulomb_c
     use glissade_bmlt_float, only: glissade_bmlt_float_thermal_forcing_init, verbose_bmlt_float
     use glissade_grounding_line, only: glissade_grounded_fraction
     use glissade_glacier, only: glissade_glacier_init
@@ -921,43 +921,15 @@ contains
 
     endif  ! initial calving
 
-    ! Initialize the effective pressure calculation
-
-    if (model%options%is_restart == NO_RESTART) then
-
-       call glissade_init_effecpress(&
-            model%options%which_ho_effecpress,  &
-            model%basal_physics)
-
-    endif
-
     ! Initialize powerlaw_c and coulomb_c.
     ! If inverting for either field, we read in the saved field on restart.
 
     ! Note: This can set powerlaw_c and coulomb_c to nonzero values when they are never used,
     !       but is simpler than checking all possible basal friction options.
-    ! Note: When running with glaciers, there is an independent glacier option,
-    !        set_powerlaw_c, that controls glacier inversion.
-    !       We can have model%options%which_ho_powerlaw_c = HO_POWERLAW_C_CONSTANT,
-    !        while model%glacier%set_powerlaw_c = GLACIER_POWERLAW_C_INVERSION.
-    !       In that case, we do *not* want to reset powerlaw_c.
-    !TODO:  Have a single option that is applied with or without glaciers enabled?
-
-    if (model%options%which_ho_powerlaw_c == HO_POWERLAW_C_CONSTANT .or. &
-        parallel_is_zero(model%basal_physics%powerlaw_c)) then
-       if (model%options%enable_glaciers .and. &
-            model%glacier%set_powerlaw_c /= GLACIER_POWERLAW_C_CONSTANT) then
-          ! do nothing; see note above
-       else
-          model%basal_physics%powerlaw_c = model%basal_physics%powerlaw_c_const
-       endif
-    endif
 
     ! Initialize coulomb_c
     ! Note: If inverting for coulomb_c, then coulomb_c is initialized here.
-    !       On restart, however, the saved coulomb_c (or alternatively,
-    !        coulomb_c_hi and coulomb_c_lo, for the elevation-based option)
-    !        should have been read from the restart file and is not reset here.
+    !       On restart, the saved coulomb_c is read from the restart file and is not reset here.
 
     if (model%options%which_ho_coulomb_c == HO_COULOMB_C_CONSTANT) then
 
@@ -965,16 +937,7 @@ contains
 
     else   ! either inverting for coulomb_c or reading values from an input file
 
-       if (model%options%elevation_based_coulomb_c) then  ! need coulomb_c_hi and coulomb_c_lo
-
-          if (parallel_is_zero(model%basal_physics%coulomb_c_hi) .or. &
-              parallel_is_zero(model%basal_physics%coulomb_c_lo)) then
-
-             ! initialize to constants
-             model%basal_physics%coulomb_c_hi = model%basal_physics%coulomb_c_const_hi
-             model%basal_physics%coulomb_c_lo = model%basal_physics%coulomb_c_const_lo
-
-          endif
+       if (model%options%elevation_based_coulomb_c) then
 
           ! Given coulomb_c_hi and coulomb_c_lo, compute coulomb_c based on elevation
 
@@ -988,13 +951,10 @@ contains
                model%basal_physics%coulomb_c_bed_hi,     &
                model%basal_physics%coulomb_c)
 
-       else   ! coulomb_c not elevation-based
+       else   ! coulomb_c not elevation-based; initialize to constant
 
           if (parallel_is_zero(model%basal_physics%coulomb_c)) then
-
-             ! initialize to constant
              model%basal_physics%coulomb_c = model%basal_physics%coulomb_c_const
-
           endif
 
        endif   ! elevation-based
@@ -1006,6 +966,28 @@ contains
        endif
 
     endif   ! coulomb_c options
+
+    ! initialize powerlaw_c
+
+    ! Note: When running with glaciers, there is an independent glacier option,
+    !        set_powerlaw_c, that controls glacier inversion.
+    !       We can have model%options%which_ho_powerlaw_c = HO_POWERLAW_C_CONSTANT,
+    !        while model%glacier%set_powerlaw_c = GLACIER_POWERLAW_C_INVERSION.
+    !       In that case, we do *not* want to reset powerlaw_c.
+    !TODO:  Have a single option that is applied with or without glaciers enabled?
+
+    if (model%options%which_ho_powerlaw_c == HO_POWERLAW_C_FUNCTION_COULOMB_C) then
+       model%basal_physics%powerlaw_c = model%basal_physics%schoof_gamma * &
+            model%basal_physics%coulomb_c**model%basal_physics%schoof_p
+    elseif (model%options%which_ho_powerlaw_c == HO_POWERLAW_C_CONSTANT .or. &
+        parallel_is_zero(model%basal_physics%powerlaw_c)) then
+       if (model%options%enable_glaciers .and. &
+            model%glacier%set_powerlaw_c /= GLACIER_POWERLAW_C_CONSTANT) then
+          ! do nothing; see note above
+       else
+          model%basal_physics%powerlaw_c = model%basal_physics%powerlaw_c_const
+       endif
+    endif   ! powerlaw_c options
 
     ! Optionally, do initial calculations for inversion
     ! At the start of the run (but not on restart), this might lead to further thickness adjustments,

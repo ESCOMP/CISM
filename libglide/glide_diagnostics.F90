@@ -493,18 +493,18 @@ contains
             parallel_global_sum_patch(volume_above_flotation, model%ocean_data%nbasin, model%ocean_data%basin_number, parallel)
        model%geometry%imass_basin(:) = model%geometry%ivol_basin(:)*rhoi
        model%geometry%imass_above_flotation_basin(:) = model%geometry%ivol_above_flotation_basin(:)*rhoi
-!       if (main_task) then
-!          nb = model%ocean_data%thermal_forcing_anomaly_basin
-!          if (nb >= 1) then
-!             write(iulog,*) 'Diagnostics for basin', nb
-!             write(iulog,*) 'iarea, iareag, iareaf (km^2):', &
-!                  model%geometry%iarea_basin(nb)/1.0d6, model%geometry%iareag_basin(nb)/1.0d6, model%geometry%iareaf_basin(nb)/1.0d6
-!             write(iulog,*) 'ivol, ivol_above_flotation (km^3):', &
-!                  model%geometry%ivol_basin(nb)/1.0d9, model%geometry%ivol_above_flotation_basin(nb)/1.0d9
-!             write(iulog,*) 'imass, imass_above_flotation (Gt):', &
-!                  model%geometry%imass_basin(nb)/1.0d12, model%geometry%imass_above_flotation_basin(nb)/1.0d12
-!          endif
-!       endif
+       if (main_task) then
+          nb = model%ocean_data%thermal_forcing_anomaly_basin
+          if (nb > 1) then
+             write(iulog,*) 'Diagnostics for basin', nb
+             write(iulog,*) 'iarea, iareag, iareaf (km^2):', &
+                  model%geometry%iarea_basin(nb)/1.0d6, model%geometry%iareag_basin(nb)/1.0d6, model%geometry%iareaf_basin(nb)/1.0d6
+             write(iulog,*) 'ivol, ivol_above_flotation (km^3):', &
+                  model%geometry%ivol_basin(nb)/1.0d9, model%geometry%ivol_above_flotation_basin(nb)/1.0d9
+             write(iulog,*) 'imass, imass_above_flotation (Gt):', &
+                  model%geometry%imass_basin(nb)/1.0d12, model%geometry%imass_above_flotation_basin(nb)/1.0d12
+          endif
+       endif
     endif   ! nbasin > 1
 
     ! For Glissade only, compute a global mass budget and check mass conservation
