@@ -47,7 +47,7 @@ module glide_types
 !       For example, we could replace some work types (tempwk, velowk) with local arrays and parameters.
 
   use glimmer_global, only: sp, dp, fname_length
-  use glimmer_physcon, only: rhoi, rhoo, coni
+  use glimmer_physcon, only: rhoi, rhoo, coni, scyr
   use glimmer_paramets, only: unphys_val
   use glimmer_ncdf, only: glimmer_nc_input, glimmer_nc_output
   use profile, only: profile_type
@@ -140,6 +140,17 @@ module glide_types
 
   integer, parameter :: BASAL_MBAL_NO_CONTINUITY = 0
   integer, parameter :: BASAL_MBAL_CONTINUITY = 1
+
+  integer, parameter :: PDD_SMB_SCHEME_ICE_ONLY = 0
+  integer, parameter :: PDD_SMB_SCHEME_SNOW_FIRN = 1
+  integer, parameter :: PDD_SMB_SCHEME_FIRN_DENSE = 2
+
+  integer, parameter :: PDD_TSERIES_SINUSOID = 0 ! When only annual avg climatology provided
+  integer, parameter :: PDD_TSERIES_MONTHLY = 1 ! When monthly fields are provided
+
+  integer, parameter :: PDD_DOMAIN_GENERAL = 0
+  integer, parameter :: PDD_DOMAIN_GREENLAND = 1
+  integer, parameter :: PDD_DOMAIN_ANTARCTICA = 2
 
   integer, parameter :: SMB_INPUT_MYR_ICE = 0     ! use 'acab' for input
   integer, parameter :: SMB_INPUT_MMYR_WE = 1     ! use 'smb' for input
@@ -604,6 +615,34 @@ module glide_types
     !> \item[2] SMB(x,y,z); input SMB at multiple elevations
     !> \item[3] SMB computed with a positive-degree scheme
     !> \end{description}
+
+    integer :: pdd_smb_scheme = 0
+
+    !> the type of pdd smb schemes used:
+    !> \begin{description}
+    !> \item[0] pdd surface mass balance only considers ice; any snow deposited contributes to acab 
+    !> \item[1] pdd surface mass balance considers both snow and firn; but no firn compaction [NOT IMPLEMENTED]
+    !> \item[2] pdd surface mass balance considers both snow and firn; uses firn compaction [NOT IMPLEMENTED]
+    !> \end{description}
+
+    integer :: pdd_tseries_option = 0
+
+    !> method of pdd timeseries construction:
+    !> \begin{description}
+    !> \item[0] annual average fields are provided; generates a sinusoid timeseries for temperature based on location
+    !> \item[1] monthly fields are provided; uses the monhtly fields to compute pdd
+    !> \end{description}
+
+    integer :: pdd_domain = 0
+    !> choice of sinusoid generation method when only annual average fields are provided:
+    !> \begin{description}
+    !> \item[0] general domain; per-gridpoint phase adjustment (checks NH or SH); amplitude is based on pdd.std * sqrt(2)
+    !> \item[1] greenland domain; uses the July temperature parameterization from Fausto et al (2009); includes longitude variations
+    !> \item[2] antarctica domain; uses a latitude depenedent amplitude parameterization for sinusoid [NEEDS TESTING]
+    !> \end{description}
+
+    logical :: pdd_refreeze_ice_melt = .false.
+    !> Whether ice melt can also refreeze (in addition to snow/firn melt)
 
     integer :: artm_input_function = 0
 
@@ -1544,6 +1583,49 @@ module glide_types
      !TODO - Remove the equivalent glacier variables
 
   end type glide_climate
+
+  !++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+
+  type glide_pdd
+    !> Holds fields used to drive the pdd model
+    real(dp) :: ddf_snow = 3.d0 !> degree day factor for snow (mm w.e. /day /deg C)
+    real(dp) :: ddf_ice = 8.d0 !> degree day factor for ice (mm w.e. /day /deg C)
+
+    real(dp) :: melt_refreeze_frac = 0.6d0 !> fraction of melt that refreezes
+    
+    real(dp) :: T_threshold = 0.d0 !> T above which PDDs counted (deg C)
+    real(dp) :: std = 5.d0 !> standard deviation of daily temp variation (deg C)
+    integer  :: n_series = 52 !> sub-annual integration points (52=weekly)
+
+    real(dp) :: T_min = -1.d0 !> all-snow below this T (deg C)
+    real(dp) :: T_max = 2.d0 !> all-rain above this T (deg C)
+
+    !>--- Firn densification scheme only (PDD_SMB_SCHEME_FIRN_DENSE) --------------------------------
+    !> Herron-Langway (1980) densification parameters.
+    !> Ported from Glint glimmer_daily_pdd.F90.
+    real(dp) :: constC = 0.0165d0        !> density profile decay (m^-1)
+    real(dp) :: snowdensity = 300.d0     !> fresh snow density (kg/m^3)
+    real(dp) :: firnbound = 0.872d0      !> ice/firn density boundary as frac of rhoi (~793 kg/m^3)
+    real(dp) :: tau0 = 10.0d0 * scyr     !> densification timescale (s)
+    !> Precomputed relaxation coefficients from tau0 (set in init): ! TODO: should move this to firn densification model
+    !>   firn_a1 = scyr/tau0      (weight toward equilibrium)
+    !>   firn_a2 = 1 - firn_a1/2  (weight on current depth)
+    !>   firn_a3 = 1 + firn_a1/2  (normalization)
+    !> real(dp) :: firn_a1, firn_a2, firn_a3
+
+    real(dp) :: time_of_last_pdd_run = -999.0d0  !> decimal year; sentinel -999 = never run
+
+    !> Only for precomputed sinusoid tseries from annual average fields
+    real(dp),dimension(:,:),pointer :: amplitude(:,:)    => null() !> seasonal amplitude (deg C)
+    real(dp),dimension(:,:),pointer :: phase_offset(:,:) => null() !> phase (rad): pi=NH, 0=SH
+
+    !>--- Persistent firn column fields (PDD_SMB_SCHEME_SNOW_FIRN and PDD_SMB_SCHEME_FIRN_DENSE only) ---------
+    !> Both in actual metres (NOT ice-equivalent).
+    !> firn column = snow_depth + sice_depth
+    real(dp),dimension(:,:),pointer :: snow_depth(:,:)   => null()  !> fresh snow (m)
+    real(dp),dimension(:,:),pointer :: sice_depth(:,:)   => null()   !> superimposed ice (m)
+
+  end type glide_pdd
 
   !++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 

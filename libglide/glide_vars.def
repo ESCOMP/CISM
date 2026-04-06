@@ -918,6 +918,35 @@ units:         mm/year water equivalent
 long_name:     ablation rate
 data:          data%climate%ablation
 
+[amplitude]
+dimensions:   time, y1, x1
+units:        deg c
+long_name:    seasonal amplitude for sinusoid tseries (pdd)
+data:         data%pdd%amplitude
+load:          1
+
+[phase_offset]
+dimensions:   time, y1, x1
+units:        rad
+long_name:    phase offset (pi=NH, 0=SH) for sinusoid tseries (pdd)
+data:         data%pdd%phase_offset
+load:          1
+
+[snow_depth]
+dimensions:   time, y1, x1
+units:        m
+long_name:    depth of fresh snow layer
+data:         data%pdd%snow_depth
+load:          1
+
+[sice_depth]
+dimensions:   time, y1, x1
+units:        m
+long_name:    depth of superimposed ice layer
+data:         data%pdd%sice_depth
+load:          1
+
+
 [thck_target]
 dimensions:    time, y1, x1
 units:         m

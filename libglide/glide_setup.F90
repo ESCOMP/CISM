@@ -2283,6 +2283,16 @@ contains
     call GetValue(section,'smb_factor',         model%climate%smb_factor)
     call GetValue(section,'bmlt_float_factor',  model%basal_melt%bmlt_float_factor)
 
+    ! PDD parameters
+    call GetValue(section, 'ddf_snow',          model%pdd%ddf_snow)
+    call GetValue(section, 'ddf_ice',           model%pdd%ddf_ice)
+    call GetValue(section, 'melt_refreeze_frac', model%pdd%melt_refreeze_frac)
+    call GetValue(section, 'T_pdd_threshold',   model%pdd%T_threshold)
+    call GetValue(section, 'pdd_std',           model%pdd%std)
+    call GetValue(section, 'pdd_n_timestep',    model%pdd%n_series)
+    call GetValue(section, 'T_pdd_min',         model%pdd%T_min)
+    call GetValue(section, 'T_pdd_max',         model%pdd%T_max)
+
     ! calving parameters
     call GetValue(section,'marine_limit',       model%calving%marine_limit)
     call GetValue(section,'calving_fraction',   model%calving%calving_fraction)
