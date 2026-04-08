@@ -902,6 +902,7 @@ contains
          model%geometry%marine_connection_mask)
 
     ! TODO: Move calving-related initialization to a separate subroutine.
+    ! TODO: Do the initial calving solve after computing the calving_mask?
 
     ! initial calving, if desired
     ! Note: Do initial calving only for a cold start with evolving ice, not for a restart
@@ -1070,7 +1071,7 @@ contains
 
           call glissade_calving_mask_init(&
                model%numerics%dew,                model%numerics%dns,                &
-               parallel,                                                             &
+               itest,   jtest,    rtest,          parallel,                          &
                model%geometry%thck,               model%geometry%topg,               &  ! m
                model%climate%eus,                 model%numerics%thklim,             &  ! m
                model%velocity%usfc_obs*scyr,      model%velocity%vsfc_obs*scyr,      &  ! m/yr
@@ -1078,7 +1079,7 @@ contains
                model%calving%calving_mask)
 
           if (verbose_calving) then
-             call point_diag(model%calving%calving_mask, 'Initial calving mask:', itest, jtest, rtest, 7, 7)
+             call point_diag(model%calving%calving_mask, 'Created calving mask:', itest, jtest, rtest, 7, 7)
           endif
 
        else ! using a subgrid calving front parameterization
@@ -1099,7 +1100,7 @@ contains
 
           if (verbose_calving) then
              call point_diag(model%calving%subgrid_calving_mask, &
-                  'Initial subgrid calving mask:', itest, jtest, rtest, 7, 7, '(f10.6)')
+                  'Created subgrid calving mask:', itest, jtest, rtest, 7, 7, '(f10.6)')
           endif
 
        endif   ! which_ho_calving_front

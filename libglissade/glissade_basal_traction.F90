@@ -666,7 +666,7 @@ contains
    if (verbose_beta .and. present(rtest) .and. present(itest) .and. present(jtest)) then
       if (this_rank == rtest) then
          ew = itest; ns = jtest
-         write(iulog,'(a48,3i4,3f12.5)') 'End of calcbeta, r, i, j, speed, f_ground, beta:', &
+         write(iulog,'(a48,3i4,3f12.3)') 'End of calcbeta, r, i, j, speed, f_ground, beta:', &
               rtest, ew, ns, speed(ew,ns), f_ground(ew,ns), beta(ew,ns)
       endif
    endif

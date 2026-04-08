@@ -50,8 +50,8 @@ module glissade_calving
             glissade_calvingmip_diagnostics
   public :: verbose_calving
 
-  logical, parameter :: verbose_calving = .false.
-!!  logical, parameter :: verbose_calving = .true.
+!!  logical, parameter :: verbose_calving = .false.
+  logical, parameter :: verbose_calving = .true.
 
 contains
 
@@ -59,6 +59,7 @@ contains
 
   subroutine glissade_calving_mask_init(&
        dx,                dy,               &
+       itest, jtest, rtest,                 &
        parallel,                            &
        thck,              topg,             &
        eus,               thklim,           &
@@ -68,11 +69,12 @@ contains
 
     ! Compute an integer calving mask if needed for the CALVING_GRID_MASK option
 
-    use glissade_masks, only: glissade_get_masks
+    use glissade_masks, only: glissade_get_masks, glissade_ocean_connection_mask
 
     ! Input/output arguments
 
     real(dp), intent(in) :: dx, dy                 !> cell dimensions in x and y directions (m)
+    integer, intent(in) :: itest, jtest, rtest     !> coordinates of diagnostic cell
     type(parallel_type), intent(in) :: parallel    !> info for parallel communication
     real(dp), dimension(:,:), intent(in) :: thck   !> ice thickness (m)
     real(dp), dimension(:,:), intent(in) :: topg   !> present bedrock topography (m)
@@ -91,12 +93,23 @@ contains
     integer :: nx, ny            ! horizontal grid dimensions
     integer :: i, j              ! local cell indices
     integer :: iglobal, jglobal  ! global cell indices
+    integer :: count
 
     integer, dimension(:,:), allocatable :: &
          ice_mask,             & ! = 1 where ice is present
-         ocean_mask              ! = 1 for ice-free ocean
+         ocean_mask,           & ! = 1 for ice-free ocean
+         deep_ocean_mask,      & ! = 1 for deep ocean cells (identified by topg below threshold)
+         ocean_connection_mask   ! = 1 for cells that are either far-field ocean or are connected to the far-field ocean
+                                 ! through other ice-free cells
 
-    integer :: mask_maxval      ! maxval of calving_mask
+    integer :: mask_maxval       ! maxval of calving_mask
+
+    ! Could make this a config parameter, but generally it is safer if this is true
+    logical, parameter :: &
+         fill_holes_in_calving_mask = .true. ! if true, set calving_mask = 0 in regions not connected to the deep ocean
+
+    real(dp), parameter :: &
+         deep_ocean_threshold = -2500.d0     ! topg threshold (m) for deep ocean cells
 
     nx = size(calving_mask,1)
     ny = size(calving_mask,2)
@@ -180,7 +193,6 @@ contains
        allocate(ice_mask(nx,ny))
        allocate(ocean_mask(nx,ny))
 
-       !TODO: Modify glissade_get_masks so that 'parallel' is not needed
        call glissade_get_masks(&
             nx,            ny,             &
             parallel,                      &
@@ -222,20 +234,72 @@ contains
 
        call parallel_halo(calving_mask, parallel)
 
-       ! Set calving_mask = 0.0 in cells surrounded by non-masked cells,
-       !  to avoid creating holes in ice shelves.
-       !TODO: Could add logic to check for slightly larger holes.
+       if (fill_holes_in_calving_mask) then
 
-       do j = 2, ny-1
-          do i = 2, nx-1
-             if (calving_mask(i,j) == 1) then
-                if (calving_mask(i-1,j) == 0 .and. calving_mask(i+1,j) == 0 .and. &
-                    calving_mask(i,j-1) == 0 .and. calving_mask(i,j+1) == 0) then
-                   calving_mask(i,j) = 0
-                endif
-             endif
-          enddo
-       enddo
+          ! Set calving_mask = 0 in regions enclosed by non-masked cells,
+          !  to avoid creating holes in ice shelves.
+
+          if (verbose_calving) then
+             call point_diag(calving_mask, 'Fill holes, initial calving mask', itest, jtest, rtest, 7, 7)
+             call point_diag(thck, 'thck (m)', itest, jtest, rtest, 7, 7)
+             call point_diag(topg, 'topg (m)', itest, jtest, rtest, 7, 7)
+             call point_diag(ocean_mask, 'ocean_mask', itest, jtest, rtest, 7, 7)
+          endif
+
+          allocate(deep_ocean_mask(nx,ny))
+          allocate(ocean_connection_mask(nx,ny))
+
+          ! Identify deep ocean cells (topg below a give threshold).
+          ! The threshold should be deep enough to exclude ice shelf cavities.
+
+          where (topg < deep_ocean_threshold .and. ice_mask == 0)
+             deep_ocean_mask = 1
+          elsewhere
+             deep_ocean_mask = 0
+          endwhere
+
+          ! Identify ice-free ocean cells that are connected to deep ocean cells through other ice-free ocean cells.
+          ! This is a flood-fill algorithm. Start with cells that have deep_ocean_mask = 1; then spread the fill
+          !  to adjacent cells with ocean_mask = 1 to get ocean_connection_mask.
+
+          call glissade_ocean_connection_mask(&
+               nx,            ny,           &
+               parallel,                    &
+               itest, jtest,  rtest,        &
+               ocean_mask,                  &
+               deep_ocean_mask,             &
+               ocean_connection_mask)
+
+          if (verbose_calving) then
+             count = parallel_global_sum(ocean_mask, parallel)
+             if (main_task) write(iulog,*) 'ocean cells, count =', count
+             count = parallel_global_sum(deep_ocean_mask, parallel)
+             if (main_task) write(iulog,*) 'deep ocean cells, count =', count
+             count = parallel_global_sum(ocean_connection_mask, parallel)
+             if (main_task) write(iulog,*) 'connected ocean cells, count =', count
+             count = parallel_global_sum(calving_mask, parallel)
+             if (main_task) write(iulog,*) 'initial calving_mask cells, count =', count
+          endif
+
+          ! Set calving_mask = 0 in cells that are not ocean-connected.
+          where (ocean_connection_mask == 0 .and. calving_mask == 1)
+             calving_mask = 0
+          endwhere
+
+          if (verbose_calving) then
+             count = parallel_global_sum(calving_mask, parallel)
+             if (main_task) write(iulog,*) 'final calving_mask cells, count =', count
+          endif
+
+          if (verbose_calving) then
+             call point_diag(ocean_connection_mask, 'ocean_connection_mask', itest, jtest, rtest, 7, 7)
+             call point_diag(calving_mask, 'New calving mask', itest, jtest, rtest, 7, 7)
+          endif
+
+          deallocate(deep_ocean_mask)
+          deallocate(ocean_connection_mask)
+
+       endif  ! fill_holes_in_calving_mask
 
        deallocate(ice_mask)
        deallocate(ocean_mask)
@@ -262,7 +326,7 @@ contains
 
     ! Compute an integer calving mask if needed for the CALVING_GRID_MASK option
 
-    use glissade_masks, only: glissade_get_masks
+    use glissade_masks, only: glissade_get_masks, glissade_ocean_connection_mask
 
     ! Input/output arguments
 
@@ -290,10 +354,15 @@ contains
     integer :: nx, ny            ! horizontal grid dimensions
     integer :: i, j              ! local cell indices
     integer :: iglobal, jglobal  ! global cell indices
+    integer :: count
+    real(dp) :: real_count
 
     integer, dimension(:,:), allocatable :: &
          ice_mask,             & ! = 1 where ice is present
-         ocean_mask              ! = 1 for ice-free ocean
+         ocean_mask,           & ! = 1 for ice-free ocean
+         deep_ocean_mask,      & ! = 1 for deep ocean cells (identified by topg below threshold)
+         ocean_connection_mask   ! = 1 for cells that are either far-field ocean or are connected to the far-field ocean
+                                 ! through other ice-free cells
 
     real(dp) :: mask_maxval      ! maxval of calving_mask
 
@@ -306,6 +375,13 @@ contains
          theta                   ! angle between the ray from the origin and the nearest x- or y-axis
 
     character(len=100) :: message
+
+    ! Could make this a config parameter, but generally it is safer if this is true
+    logical, parameter :: &
+         fill_holes_in_calving_mask = .true. ! if true, set calving_mask = 0 in regions not connected to the deep ocean
+
+    real(dp), parameter :: &
+         deep_ocean_threshold = -2500.d0     ! topg threshold (m) for deep ocean cells
 
     nx = size(subgrid_calving_mask,1)
     ny = size(subgrid_calving_mask,2)
@@ -465,19 +541,72 @@ contains
 
        call parallel_halo(subgrid_calving_mask, parallel)
 
-       ! Set calving_mask = 0.0 in cells surrounded by non-masked cells,
-       !  to avoid creating holes in ice shelves.
+       if (fill_holes_in_calving_mask) then
 
-       do j = 2, ny-1
-          do i = 2, nx-1
-             if (subgrid_calving_mask(i,j) > 0.0d0) then
-                if (subgrid_calving_mask(i-1,j) == 0.0d0 .and. subgrid_calving_mask(i+1,j) == 0.0d0 .and. &
-                    subgrid_calving_mask(i,j-1) == 0.0d0 .and. subgrid_calving_mask(i,j+1) == 0.0d0) then
-                   subgrid_calving_mask(i,j) = 0.0d0
-                endif
-             endif
-          enddo
-       enddo
+          ! Set calving_mask = 0.0 in regions enclosed by non-masked cells,
+          !  to avoid creating holes in ice shelves.
+
+          if (verbose_calving) then
+             call point_diag(subgrid_calving_mask, 'Fill holes, initial calving mask', itest, jtest, rtest, 7, 7)
+             call point_diag(thck, 'thck (m)', itest, jtest, rtest, 7, 7)
+             call point_diag(topg, 'topg (m)', itest, jtest, rtest, 7, 7)
+             call point_diag(ocean_mask, 'ocean_mask', itest, jtest, rtest, 7, 7)
+          endif
+
+          allocate(deep_ocean_mask(nx,ny))
+          allocate(ocean_connection_mask(nx,ny))
+
+          ! Identify deep ocean cells (topg below a give threshold).
+          ! The threshold should be deep enough to exclude ice shelf cavities.
+
+          where (topg < deep_ocean_threshold .and. ice_mask == 0)
+             deep_ocean_mask = 1
+          elsewhere
+             deep_ocean_mask = 0
+          endwhere
+
+          ! Identify ice-free ocean cells that are connected to deep ocean cells through other ice-free ocean cells.
+          ! This is a flood-fill algorithm. Start with cells that have deep_ocean_mask = 1; then spread the fill
+          !  to adjacent cells with ocean_mask = 1 to get ocean_connection_mask.
+
+          call glissade_ocean_connection_mask(&
+               nx,            ny,           &
+               parallel,                    &
+               itest, jtest,  rtest,        &
+               ocean_mask,                  &
+               deep_ocean_mask,             &
+               ocean_connection_mask)
+
+          if (verbose_calving) then
+             count = parallel_global_sum(ocean_mask, parallel)
+             if (main_task) write(iulog,*) 'ocean cells, count =', count
+             count = parallel_global_sum(deep_ocean_mask, parallel)
+             if (main_task) write(iulog,*) 'deep ocean cells, count =', count
+             count = parallel_global_sum(ocean_connection_mask, parallel)
+             if (main_task) write(iulog,*) 'connected ocean cells, count =', count
+             real_count = parallel_global_sum(subgrid_calving_mask, parallel)
+             if (main_task) write(iulog,*) 'initial calving_mask count, count =', real_count
+          endif
+
+          ! Set calving_mask = 0.0 in cells that are not ocean-connected.
+          where (ocean_connection_mask == 0 .and. subgrid_calving_mask >= 0.0d0)
+             subgrid_calving_mask = 0.0d0
+          endwhere
+
+          if (verbose_calving) then
+             real_count = parallel_global_sum(subgrid_calving_mask, parallel)
+             if (main_task) write(iulog,*) 'final calving_mask cells, count =', real_count
+          endif
+
+          if (verbose_calving) then
+             call point_diag(ocean_connection_mask, 'ocean_connection_mask', itest, jtest, rtest, 7, 7)
+             call point_diag(subgrid_calving_mask, 'New calving mask', itest, jtest, rtest, 7, 7)
+          endif
+
+          deallocate(deep_ocean_mask)
+          deallocate(ocean_connection_mask)
+
+       endif  ! fill_holes_in_calving_mask
 
        deallocate(ice_mask)
        deallocate(ocean_mask)
@@ -3125,7 +3254,6 @@ contains
             nx,            ny,           &
             parallel,                    &
             itest, jtest,  rtest,        &
-            model%geometry%thck,         &
             retreat_mask,                &
             ocean_mask,                  &
             ocean_connection_mask)
