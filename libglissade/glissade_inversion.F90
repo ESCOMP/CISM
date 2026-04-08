@@ -1096,6 +1096,8 @@ contains
     !   d2x/dt2 = -1/tau * (x/tau - 2*dx/dt)
     ! If we identify (H - H_obs)/(H0*tau) with x/tau; (2/H0)*dH/dt with 2*dx/dt; and (1/C)*dC/dt with d2x/dt2,
     !  we obtain an equation similiar to the one solved here.
+    ! Note: There is no reason to compute term_thck and term_dHdt for floating cells,
+    !        where the ice thickness is unrelated to friction.
     
     do j = 1, ny-1
        do i = 1, nx-1
@@ -1114,19 +1116,10 @@ contains
              term_thck = -stag_dthck(i,j) / (babc_thck_scale*babc_timescale)
              term_dHdt = -stag_dthck_dt(i,j) * 2.0d0 / babc_thck_scale
 
-             ! Note: There is no Laplacian smoothing term for grounded cells.
-             !       I found that including this term in AIS spin-ups can impair nonlinear convergence
-             !       and significantly slow the code.
-
-          else
-
-             ! Note: There is no reason to compute term_thck and term_dHdt for floating cells,
-             !        since the ice thickness is unrelated to friction.
-             !       Adding a Laplacian term, however, gives a smoother transition at grounding lines.
-
-             term_laplacian = del2_logC(i,j) * babc_length_scale**2 / babc_timescale
-
           endif  ! f_ground > 0
+
+          ! At all locations, add a Laplacian smoothing term to avoid large spatial gradients
+          term_laplacian = del2_logC(i,j) * babc_length_scale**2 / babc_timescale
 
           ! At all locations, add a term to relax C toward a target value, friction_c_relax
           if (logC(i,j) > logmin) then
