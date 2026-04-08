@@ -50,8 +50,7 @@ module glissade_calving
             glissade_calvingmip_diagnostics
   public :: verbose_calving
 
-!!  logical, parameter :: verbose_calving = .false.
-  logical, parameter :: verbose_calving = .true.
+  logical, parameter :: verbose_calving = .false.
 
 contains
 

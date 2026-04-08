@@ -47,8 +47,7 @@ module glissade_inversion
   ! a target ice thickness field.
   !-----------------------------------------------------------------------------
 
-!!  logical, parameter :: verbose_inversion = .false.
-  logical, parameter :: verbose_inversion = .true.
+  logical, parameter :: verbose_inversion = .false.
 
 !***********************************************************************
 
@@ -528,6 +527,7 @@ contains
                model%inversion%babc_timescale,           &  ! s
                model%inversion%babc_length_scale,        &  ! m
                model%inversion%babc_relax_factor,        &
+               model%inversion%damping_factor,           &
                model%basal_physics%powerlaw_c_max,       &
                model%basal_physics%powerlaw_c_min,       &
                model%geometry%f_ground,                  &
@@ -563,6 +563,7 @@ contains
                model%inversion%babc_timescale,           &  ! s
                model%inversion%babc_length_scale,        &  ! m
                model%inversion%babc_relax_factor,        &
+               model%inversion%damping_factor,           &
                model%basal_physics%coulomb_c_max,        &
                model%basal_physics%coulomb_c_min,        &
                model%geometry%f_ground,                  &
@@ -821,6 +822,7 @@ contains
             model%inversion%deltaT_ocn_temp_scale, &  ! degC
             model%inversion%deltaT_ocn_length_scale,& ! m
             deltaT_ocn_relax,                      &  ! degC
+            model%inversion%damping_factor,        &
             model%geometry%f_ground_cell,          &
             model%geometry%thck,                   &  ! m
             thck_obs,                              &  ! m
@@ -961,6 +963,7 @@ contains
        babc_timescale,            &
        babc_length_scale,         &
        babc_relax_factor,         &
+       damping_factor,            &
        friction_c_max,            &
        friction_c_min,            &
        f_ground,                  &
@@ -1000,6 +1003,7 @@ contains
          babc_timescale,       & ! inversion timescale (s); must be > 0
          babc_length_scale,    & ! diffusive length scale (m) for inversion
          babc_relax_factor,    & ! controls strength of relaxation to default values
+         damping_factor,       & ! damping factor to reduce overshoots
          friction_c_max,       & ! upper bound for friction_c (units correspond to powerlaw_c or coulomb_c)
          friction_c_min,       & ! lower bound for friction_c
          friction_c_relax        ! friction_c value to which we (optionally) relax
@@ -1114,7 +1118,7 @@ contains
              !TODO: Try putting max(babc_thck_scale, stag_dthck_obs) in the denominator
              !      Alex Robinson says this might improve convergence
              term_thck = -stag_dthck(i,j) / (babc_thck_scale*babc_timescale)
-             term_dHdt = -stag_dthck_dt(i,j) * 2.0d0 / babc_thck_scale
+             term_dHdt = -damping_factor * stag_dthck_dt(i,j) / babc_thck_scale
 
           endif  ! f_ground > 0
 
@@ -1156,7 +1160,8 @@ contains
           if (verbose_inversion .and. this_rank == rtest .and. i==itest .and. j==jtest) then
              write(iulog,*) ' '
              write(iulog,*) 'Increment friction_c: rank, i, j =', rtest, itest, jtest
-             write(iulog,*) 'dx, dy, length_scale (m)=', dx, dy, babc_length_scale
+             write(iulog,*) 'dx, dy, length_scale (m), damping_factor=', &
+                  dx, dy, babc_length_scale, damping_factor
              write(iulog,*) 'thck (m), thck_obs, dthck, dthck_dt (m/yr):', &
                   stag_thck(i,j), stag_thck_obs(i,j), stag_dthck(i,j), stag_dthck_dt(i,j)*scyr
              write(iulog,*) 'dH term, dH/dt term, laplacian term, relax term, sum =', &
@@ -1532,6 +1537,7 @@ contains
        deltaT_ocn_temp_scale,    &
        deltaT_ocn_length_scale,  &
        deltaT_ocn_relax,         &
+       damping_factor,           &
        f_ground_cell,            &
        thck,                     &
        thck_obs,                 &
@@ -1561,7 +1567,8 @@ contains
          deltaT_ocn_thck_scale,&   ! inversion thickness scale (m); must be > 0
          deltaT_ocn_timescale, &   ! inversion timescale (s); must be > 0
          deltaT_ocn_temp_scale,&   ! inversion temperature scale (degC)
-         deltaT_ocn_length_scale   ! diffusive length scale (m) for inversion
+         deltaT_ocn_length_scale,& ! diffusive length scale (m) for inversion
+         damping_factor            ! damping factor for the dH/dt term
 
     real(dp), dimension(nx,ny), intent(in) ::  &
          deltaT_ocn_relax,     &   ! deltaT_ocn field toward which we relax     !TODO - Make this a scalar?
@@ -1651,7 +1658,7 @@ contains
           if (thck(i,j) > 0.0d0 .and. f_ground_cell(i,j) < 1.0d0) then  ! ice is present and at least partly floating
 
              term_thck = (dthck(i,j)/deltaT_ocn_thck_scale) * (deltaT_ocn_temp_scale/deltaT_ocn_timescale)
-             term_dHdt = deltaT_ocn_temp_scale * dthck_dt(i,j) * 2.0d0 / deltaT_ocn_thck_scale
+             term_dHdt = damping_factor * deltaT_ocn_temp_scale * dthck_dt(i,j) / deltaT_ocn_thck_scale
 
           endif
           
@@ -1679,8 +1686,8 @@ contains
           if (verbose_inversion .and. this_rank == rtest .and. i==itest .and. j==jtest) then
              write(iulog,*) ' '
              write(iulog,*) 'Increment deltaT_ocn: rank, i, j =', rtest, itest, jtest
-             write(iulog,*) 'thck scale (m), temp scale (degC), timescale (yr):', &
-                  deltaT_ocn_thck_scale, deltaT_ocn_temp_scale, deltaT_ocn_timescale/scyr
+             write(iulog,*) 'thck scale (m), temp scale (degC), timescale (yr), damping_factor:', &
+                  deltaT_ocn_thck_scale, deltaT_ocn_temp_scale, deltaT_ocn_timescale/scyr, damping_factor
              write(iulog,*) 'thck, thck_obs, err thck (m), dthck_dt (m/yr):', &
                   thck(i,j), thck_obs(i,j), dthck(i,j), dthck_dt(i,j)*scyr
              write(iulog,*) 'term_thck, term_dHdt, term_laplacian, term_relax:', &

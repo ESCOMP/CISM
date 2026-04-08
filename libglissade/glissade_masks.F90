@@ -367,7 +367,11 @@
     interior_mask = 0
 
     ! Identify calving front cells (floating cells that border ice-free ocean)
-    ! and floating interior cells (floating cells not at the calving front).
+    !  and floating interior cells (floating cells not at the calving front).
+    ! TODO - Try including marine-grounded interior cells in the mask,
+    !         with an effective thickness of thck_flotation.
+    !        This might be appropriate where there are CF cells bordering grounded cells.
+    !        This change would change calvingMIP answers.
     do j = 2, ny-1
        do i = 2, nx-1
           if (floating_mask(i,j) == 1) then
@@ -392,7 +396,6 @@
 
     call parallel_halo(calving_front_mask, parallel)
     call parallel_halo(interior_mask, parallel)
-
 
     if (which_ho_calving_front == HO_CALVING_FRONT_SUBGRID) then
 
@@ -455,7 +458,7 @@
        enddo   ! j
 
        ! Set a lower limit for thck_effective
-       ! This reflects that most CFs at least a few tens of meters thick.
+       ! This reflects that most CFs are at least a few tens of meters thick.
        where (floating_mask == 1)
           thck_effective = max(thck_effective, thck_effective_min)
        endwhere
@@ -747,7 +750,7 @@
   subroutine glissade_ocean_connection_mask(nx,            ny,          &
                                             parallel,                   &
                                             itest, jtest,  rtest,       &
-                                            thck,          input_mask,  &
+                                            input_mask,                 &
                                             ocean_mask,                 &
                                             ocean_connection_mask)
 
@@ -774,9 +777,6 @@
     type(parallel_type), intent(in) :: parallel    !> info for parallel communication
 
     integer, intent(in) :: itest, jtest, rtest     !> coordinates of diagnostic point
-
-    real(dp), dimension(nx,ny), intent(in) ::  &
-         thck                   !> ice thickness (m)
 
     integer, dimension(nx,ny), intent(in) ::  &
          input_mask,          & !> = 1 for cells that meet some criterion specified elsewhere

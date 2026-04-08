@@ -2391,6 +2391,7 @@ contains
     !TODO - Put inversion parameters in a separate section
     call GetValue(section, 'inversion_thck_flotation_buffer', model%inversion%thck_flotation_buffer)
     call GetValue(section, 'inversion_thck_threshold', model%inversion%thck_threshold)
+    call GetValue(section, 'inversion_damping_factor', model%inversion%damping_factor)
 
     call GetValue(section, 'inversion_babc_timescale', model%inversion%babc_timescale)
     call GetValue(section, 'inversion_babc_thck_scale', model%inversion%babc_thck_scale)
@@ -2896,13 +2897,24 @@ contains
     if (model%options%which_ho_powerlaw_c == HO_POWERLAW_C_INVERSION .or. &
         model%options%which_ho_powerlaw_c == HO_POWERLAW_C_INVERSION_BASIN .or. &
         model%options%which_ho_coulomb_c == HO_COULOMB_C_INVERSION .or. &
-        model%options%which_ho_coulomb_c == HO_COULOMB_C_INVERSION_BASIN) then
+        model%options%which_ho_coulomb_c == HO_COULOMB_C_INVERSION_BASIN .or. &
+        model%options%which_ho_deltaT_ocn == HO_DELTAT_OCN_INVERSION .or. &
+        model%options%which_ho_deltaT_ocn == HO_DELTAT_OCN_INVERSION_BASIN) then
        write(message,*) 'inversion flotation thickness buffer (m): ', &
             model%inversion%thck_flotation_buffer
        call write_log(message)
        write(message,*) 'inversion thickness threshold (m)       : ', &
             model%inversion%thck_threshold
        call write_log(message)
+       write(message,*) 'inversion damping factor                : ', &
+            model%inversion%damping_factor
+       call write_log(message)
+    endif
+
+    if (model%options%which_ho_powerlaw_c == HO_POWERLAW_C_INVERSION .or. &
+        model%options%which_ho_powerlaw_c == HO_POWERLAW_C_INVERSION_BASIN .or. &
+        model%options%which_ho_coulomb_c == HO_COULOMB_C_INVERSION .or. &
+        model%options%which_ho_coulomb_c == HO_COULOMB_C_INVERSION_BASIN) then
        write(message,*) 'thickness scale (m) for C inversion     : ', &
             model%inversion%babc_thck_scale
        call write_log(message)

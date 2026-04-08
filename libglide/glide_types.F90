@@ -1746,6 +1746,9 @@ module glide_types
           thck_threshold = 0.0d0,          & !> ice thinner than this threshold (m) is removed at initialization
           thck_flotation_buffer = 1.0d0      !> if usrf_obs implies thck near the flotation thickness,
                                              !> set to thck_flotation +/- thck_flotation_buffer (m)
+     ! general inversion parameters
+     real(dp) :: &
+          damping_factor = 2.0d0     !> factor that multiplies the dH/dt term in the inversion
 
      ! fields and parameters for powerlaw_c and coulomb_c inversion
      ! Note: powerlaw_c and coulomb_c are in the basal_physics type
@@ -1785,6 +1788,7 @@ module glide_types
           basin_number_mass_correction = 0       !> integer ID for the basin receiving the correction
 
      ! parameters for flow_enhancement_factor inversion
+     !TODO - Remove?
      real(dp) ::  &
           flow_enhancement_timescale = 200.d0,  & !> inversion timescale (yr)
           flow_enhancement_velo_scale = 100.d0, & !> inversion velocity scale (m/yr)
@@ -2299,14 +2303,13 @@ module glide_types
      real(dp) :: coulomb_c_max = 1.0d0           !> max value of coulomb_c, unitless
      real(dp) :: coulomb_c_min = 1.0d-3          !> min value of coulomb_c, unitless
 
-     ! parameter for Schoof basal friction law
-     ! This is the parameter n from Schoof (2005), Eq. 6.2.
-     ! Typically it has the same value as powerlaw_m, but this is not required.
+     ! parameters for Schoof basal friction law
+     ! Typically, schoof_n (from Eq. 2 in School 2005) has the same value as powerlaw_m, but this is not required.
      ! The parameters gamma and p are not in Schoof (2005) but can be used to relate Cc and Cp during inversion,
      !  with either the Schoof law or the Tsai law, if which_ho_powerlaw_c = HO_POWERLAW_C_FUNCTION_COULOMB_C.
+     !  The default values here are consistent with Cc_max = 1.0, Cp_max = 1.e5, Cc_const = 1.0, Cp_const ~ 2.e4
      real(dp) :: schoof_n = 3.0d0                !> exponent in the Schoof basal friction law;
                                                  !> modulates the transition between powerlaw and coulomb behavior
-     ! The following default values are consistent with Cc_max = 1.0, Cp_max = 1.e5, Cc_const = 1.0, Cp_const ~ 2.e4
      real(dp) :: schoof_gamma = 1.0d5            !> parameters in the relation Cp = gamma * Cc^p;
      real(dp) :: schoof_p = 0.7d0                !> only used if nonzero values are set in the config file
 

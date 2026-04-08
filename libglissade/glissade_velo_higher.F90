@@ -3579,7 +3579,7 @@
           call staggered_parallel_halo(uvel, parallel)
           call staggered_parallel_halo(vvel, parallel)
           call t_stopf('glissade_halo_xvel')
-          
+
           if ((verbose_velo .or. verbose_residual) .and. this_rank==rtest) then
              i = itest
              j = jtest
@@ -9568,11 +9568,12 @@
        if (this_rank==rtest) then
           i = itest
           j = jtest
-          call parallel_globalindex(i, j, iglobal, jglobal, parallel)
-          write(iulog,*) ' '
-          write(iulog,*) 'In compute_residual_vector_2d: test ig, jg =', iglobal, jglobal
-          write(iulog, '(a15, 2f12.5, 2e13.5)') &
-               '  u, v, ru, rv:', uvel(i,j), vvel(i,j), resid_u(i,j), resid_v(i,j)
+          !WHL - Commenting out to reduce output
+!          call parallel_globalindex(i, j, iglobal, jglobal, parallel)
+!          write(iulog,*) ' '
+!          write(iulog,*) 'In compute_residual_vector_2d: test ig, jg =', iglobal, jglobal
+!          write(iulog, '(a15, 2f12.5, 2e13.5)') &
+!               '  u, v, ru, rv:', uvel(i,j), vvel(i,j), resid_u(i,j), resid_v(i,j)
        endif
 
        ! Compute max value of (squared) residual on this task.
@@ -9588,7 +9589,6 @@
                    call parallel_globalindex(i, j, iglobal, jglobal, parallel)
                    write(iulog, '(a27, 2i6, 2e13.5, e16.8)') 'ig, jg, ru, rv, global rmax:', &
                         iglobal, jglobal, resid_u(i,j), resid_v(i,j), sqrt(global_max_resid)
-                   write(iulog,*) ' '
                 endif
              enddo
           enddo
