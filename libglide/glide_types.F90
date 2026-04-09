@@ -1624,6 +1624,7 @@ module glide_types
      ! Could be generalized for other problems with idealized geometry
 
      integer :: naxis = 8                        !> number of axes for calvingMIP diagnostics
+     !WHL - is this array needed?
      integer, dimension(:), pointer :: axis => null()   !> array holding axis numbers
 
      real(dp), dimension(:), pointer :: cf_locx => null()    !> CF location, x coordinate (m) along each axis
@@ -1878,7 +1879,8 @@ module glide_types
      !----------------------------------
 
      ! ocean grid and basin number
-     integer  :: nbasin = 0                         !> number of basins (= 16 for IMBIE2)
+     integer  :: nbasin = 1                         !> number of basins (= 18 for IMBIE, 27 for Zwally)
+     !WHL - Is this array needed?
      integer, dimension(:), pointer :: basin => null()   !> array holding basin numbers
 
      integer  :: nzocn = 1                          !> number of ocean levels
@@ -2029,6 +2031,7 @@ module glide_types
 
      ! 1D arrays with size nglacier
 
+     !WHL - Is this array needed?
      integer, dimension(:), pointer :: &
           glacierid => null()                 !> glacier ID dimension variable, used for I/O
 
@@ -3168,6 +3171,7 @@ contains
     call coordsystem_allocate(model%general%ice_grid,  model%basal_melt%bmlt_applied_diff)
 
     if (model%options%whichdycore == DYCORE_GLISSADE) then
+       call coordsystem_allocate(model%general%ice_grid, model%ocean_data%basin_number)
        call coordsystem_allocate(model%general%ice_grid, model%basal_melt%bmlt_float)
        call coordsystem_allocate(model%general%ice_grid, model%basal_melt%bmlt_float_anomaly)
        call coordsystem_allocate(model%general%ice_grid, model%basal_melt%warm_ocean_mask)
@@ -3183,7 +3187,6 @@ contains
           call coordsystem_allocate(model%general%ice_grid, model%ocean_data%nzocn, &
                                     model%ocean_data%thermal_forcing)
           call coordsystem_allocate(model%general%ice_grid, model%ocean_data%thermal_forcing_lsrf)
-          call coordsystem_allocate(model%general%ice_grid, model%ocean_data%basin_number)
           if (model%options%bmlt_float_thermal_forcing_param == BMLT_FLOAT_TF_ISMIP6_LOCAL .or. &
               model%options%bmlt_float_thermal_forcing_param == BMLT_FLOAT_TF_ISMIP6_NONLOCAL .or. &
               model%options%bmlt_float_thermal_forcing_param == BMLT_FLOAT_TF_ISMIP6_NONLOCAL_SLOPE) then
