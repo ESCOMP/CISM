@@ -141,6 +141,9 @@ module glide_types
   integer, parameter :: BASAL_MBAL_NO_CONTINUITY = 0
   integer, parameter :: BASAL_MBAL_CONTINUITY = 1
 
+  integer, parameter :: PDD_NONE = 0
+  integer, parameter :: PDD_COMPUTE = 1
+
   integer, parameter :: PDD_SMB_SCHEME_ICE_ONLY = 0
   integer, parameter :: PDD_SMB_SCHEME_SNOW_FIRN = 1
   integer, parameter :: PDD_SMB_SCHEME_FIRN_DENSE = 2
@@ -616,34 +619,6 @@ module glide_types
     !> \item[3] SMB computed with a positive-degree scheme
     !> \end{description}
 
-    integer :: pdd_smb_scheme = 0
-
-    !> the type of pdd smb schemes used:
-    !> \begin{description}
-    !> \item[0] pdd surface mass balance only considers ice; any snow deposited contributes to acab 
-    !> \item[1] pdd surface mass balance considers both snow and firn; but no firn compaction [NOT IMPLEMENTED]
-    !> \item[2] pdd surface mass balance considers both snow and firn; uses firn compaction [NOT IMPLEMENTED]
-    !> \end{description}
-
-    integer :: pdd_tseries_option = 0
-
-    !> method of pdd timeseries construction:
-    !> \begin{description}
-    !> \item[0] annual average fields are provided; generates a sinusoid timeseries for temperature based on location
-    !> \item[1] monthly fields are provided; uses the monhtly fields to compute pdd
-    !> \end{description}
-
-    integer :: pdd_domain = 0
-    !> choice of sinusoid generation method when only annual average fields are provided:
-    !> \begin{description}
-    !> \item[0] general domain; per-gridpoint phase adjustment (checks NH or SH); amplitude is based on pdd.std * sqrt(2)
-    !> \item[1] greenland domain; uses the July temperature parameterization from Fausto et al (2009); includes longitude variations
-    !> \item[2] antarctica domain; uses a latitude depenedent amplitude parameterization for sinusoid [NEEDS TESTING]
-    !> \end{description}
-
-    logical :: pdd_refreeze_ice_melt = .false.
-    !> Whether ice melt can also refreeze (in addition to snow/firn melt)
-
     integer :: artm_input_function = 0
 
     !> functional form of surface temperature (artm) input:
@@ -677,6 +652,9 @@ module glide_types
 
     logical :: enable_acab_dthck_dt_correction = .false.
     !> if true, then add (-dthck_dt_obs) to acab for floating ice
+
+    logical :: enable_pdd = .false.
+    !> if true, then compute SMB using a positive-degree-day scheme instead of using input SMB fields
 
     integer :: gthf = 0
 
@@ -1587,6 +1565,34 @@ module glide_types
   !++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 
   type glide_pdd
+    integer :: pdd_smb_scheme = 0
+
+    !> the type of pdd smb schemes used:
+    !> \begin{description}
+    !> \item[0] pdd surface mass balance only considers ice; any snow deposited contributes to acab 
+    !> \item[1] pdd surface mass balance considers both snow and firn; but no firn compaction [NOT IMPLEMENTED]
+    !> \item[2] pdd surface mass balance considers both snow and firn; uses firn compaction [NOT IMPLEMENTED]
+    !> \end{description}
+
+    integer :: pdd_tseries_option = 0
+
+    !> method of pdd timeseries construction:
+    !> \begin{description}
+    !> \item[0] monthly fields are provided; uses the monhtly fields to compute pdd
+    !> \item[1] annual average fields are provided; generates a sinusoid timeseries for temperature based on location
+    !> \end{description}
+
+    integer :: pdd_domain = 0
+    !> choice of sinusoid generation method when only annual average fields are provided:
+    !> \begin{description}
+    !> \item[0] general domain; per-gridpoint phase adjustment (checks NH or SH); amplitude is based on pdd.std * sqrt(2)
+    !> \item[1] greenland domain; uses the July temperature parameterization from Fausto et al (2009); includes longitude variations
+    !> \item[2] antarctica domain; uses a latitude depenedent amplitude parameterization for sinusoid [NEEDS TESTING]
+    !> \end{description}
+
+    logical :: pdd_refreeze_ice_melt = .false.
+
+    !> Whether ice melt can also refreeze (in addition to snow/firn melt)
     !> Holds fields used to drive the pdd model
     real(dp) :: ddf_snow = 3.d0 !> degree day factor for snow (mm w.e. /day /deg C)
     real(dp) :: ddf_ice = 8.d0 !> degree day factor for ice (mm w.e. /day /deg C)

@@ -106,6 +106,14 @@ contains
        call handle_parameters(section, model)
     end if
 
+    ! read pdd parameters
+    if (model%options%enable_pdd) then
+       call GetSection(config,section,'pdd')
+       if (associated(section)) then
+          call handle_pdd(section, model)
+       end if
+    endif
+
     ! read geothermal heat flux
     ! NOTE: The [GTHF] section is ignored unless model%options%gthf = GTHF_COMPUTE
     if (model%options%gthf == GTHF_COMPUTE) then
@@ -165,6 +173,7 @@ contains
     call print_time(model)
     call print_options(model)
     call print_parameters(model)
+    call print_pdd(model)
     call print_gthf(model)
     call print_isostasy(model)
     call print_basal_hydro(model)
@@ -826,6 +835,7 @@ contains
     call GetValue(section,'enable_precip_anomaly',model%options%enable_precip_anomaly)
     call GetValue(section,'overwrite_acab',model%options%overwrite_acab)
     call GetValue(section,'enable_acab_dthck_dt_correction',model%options%enable_acab_dthck_dt_correction)
+    call GetValue(section,'enable_pdd',model%options%enable_pdd)
     call GetValue(section,'gthf',model%options%gthf)
     call GetValue(section,'isostasy',model%options%isostasy)
     call GetValue(section,'marine_margin',model%options%whichcalving)
@@ -3192,8 +3202,70 @@ contains
     call write_log(trim(message))
     call write_log('')
     
-  end subroutine print_sigma
+  end subroutine 
+  
+!-------------------------------------------------------------------------------- 
+  subroutine handle_pdd(section, model)
+    use glimmer_config
+    use glide_types
+    implicit none
+    type(ConfigSection), pointer :: section
+    type(glide_global_type)  :: model
 
+    call GetValue(section, 'pdd_smb_scheme',    model%pdd%pdd_smb_scheme)
+    call GetValue(section, 'pdd_tseries_option', model%pdd%pdd_tseries_option)
+    call GetValue(section, 'pdd_domain',         model%pdd%pdd_domain)
+    call GetValue(section, 'pdd_refreeze_ice_melt', model%pdd%pdd_refreeze_ice_melt)
+
+    call GetValue(section, 'ddf_snow',          model%pdd%ddf_snow)
+    call GetValue(section, 'ddf_ice',           model%pdd%ddf_ice)
+    call GetValue(section, 'melt_refreeze_frac', model%pdd%melt_refreeze_frac)
+    call GetValue(section, 'T_pdd_threshold',   model%pdd%T_threshold)
+    call GetValue(section, 'pdd_std',           model%pdd%std)
+    call GetValue(section, 'pdd_n_timestep',    model%pdd%n_series)
+    call GetValue(section, 'T_pdd_min',         model%pdd%T_min)
+    call GetValue(section, 'T_pdd_max',         model%pdd%T_max)
+  end subroutine handle_pdd
+
+!--------------------------------------------------------------------------------
+
+  subroutine print_pdd(model)
+    use glide_types
+    use glimmer_log
+    implicit none
+    type(glide_global_type)  :: model
+    character(len=100) :: message
+
+   if (model%options%enable_pdd) then !TODO: Make the messages more informative about what the options mean and when they are used. Also include error messages for unsupported options.
+      call write_log('PDD parameters')
+      call write_log('------------------')
+      write(message,*) 'PDD SMB scheme: ', model%pdd%pdd_smb_scheme
+      call write_log(message)
+      write(message,*) 'PDD temperature series option: ', model%pdd%pdd_tseries_option
+      call write_log(message)
+      write(message,*) 'PDD domain: ', model%pdd%pdd_domain
+      call write_log(message)
+      write(message,*) 'Refreeze ice melt in PDD scheme: ', model%pdd%pdd_refreeze_ice_melt
+      call write_log(message)
+      write(message,*) 'DDF for snow (m/yr/degC): ', model%pdd%ddf_snow
+      call write_log(message)
+      write(message,*) 'DDF for ice (m/yr/degC): ', model%pdd%ddf_ice
+      call write_log(message)
+      write(message,*) 'Melt refreeze fraction: ', model%pdd%melt_refreeze_frac
+      call write_log(message)
+      write(message,*) 'Temperature threshold for PDD (degC): ', model%pdd%T_threshold
+      call write_log(message)
+      write(message,*) 'Standard deviation of temperature variations for PDD (degC): ', model%pdd%std
+      call write_log(message)
+      write(message,*) 'Number of time steps in temperature series for PDD: ', model%pdd%n_series
+      call write_log(message)
+      write(message,*) 'Minimum temperature for PDD calculations (degC): ', model%pdd%T_min
+      call write_log(message)
+      write(message,*) 'Maximum temperature for PDD calculations (degC): ', model%pdd%T_max
+      call write_log(message)
+   endif ! enable_pdd
+    
+  end subroutine print_pdd
 !--------------------------------------------------------------------------------
 
   ! geothermal heat flux calculations
