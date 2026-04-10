@@ -32,10 +32,10 @@
 !+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 module glissade_pdd
     use glimmer_global, only: dp
-	use glimmer_paramets, only: iulog
-	use glimmer_log
-	use glide_types
-	use cism_parallel, only: this_rank, main_task, nhalo, lhalo, uhalo, &
+    use glimmer_paramets, only: iulog
+    use glimmer_log
+    use glide_types
+    use cism_parallel, only: this_rank, main_task, nhalo, lhalo, uhalo, &
          parallel_halo, parallel_reduce_max, parallel_reduce_sum, parallel_globalindex
 
     implicit none
@@ -57,6 +57,14 @@ module glissade_pdd
 contains
 
 !=======================================================================
+	subroutine glissade_pdd_init(model)
+    !-------------------------------------------------------------------
+	! Initialize the PDD scheme
+	! Set parameters, allocate arrays, precomputes sinusoid amplitude/phase.
+	! Call once during model init, after geometry halo updates.
+	!--------------------------------------------------------------------
+		
+	end subroutine glissade_pdd_init
 
     !-----------------------------------------------------------------------
 	pure function calov_greve_integrand(sigma, TacC) result(val)
