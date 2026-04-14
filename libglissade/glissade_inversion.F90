@@ -1335,8 +1335,6 @@ contains
        call point_diag(stag_dthck, 'stag_thck - stag_thck_obs', itest, jtest, rtest, 7, 7)
        call point_diag(stag_dthck_dt*scyr, 'stag_dthck_dt (m/yr)', itest, jtest, rtest, 7, 7)
        call point_diag(f_ground, 'f_ground', itest, jtest, rtest, 7, 7)
-!!       call point_diag(del2_logc, 'del2(logC)', itest, jtest, rtest, 7, 7, '(e12.3)')
-!!       call point_diag(logC, 'logC', itest, jtest, rtest, 7, 7)
        call point_diag(dlogc, 'dlogC', itest, jtest, rtest, 7, 7, '(e12.3)')
     endif
 

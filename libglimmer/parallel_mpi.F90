@@ -2432,6 +2432,7 @@ contains
     type(parallel_type), intent(inout) :: parallel      ! info for parallel communication, computed here
     integer, intent(in), optional :: nhalo_in           ! number of rows of halo cells
     character(*), intent(in), optional :: global_bc_in  ! string indicating the global BC option
+                                                        !TODO - Make this an integer?
     logical, intent(in), optional :: reprosum_in        ! if true, compute reproducible global sums
 
     integer :: best,i,j,metric
@@ -2669,11 +2670,13 @@ contains
     endif
 
     ! If computing reproducible sums, then set some options
-    !TODO - Are these saved from one call to the next?
     ! Note: For standalone CISM, reprosum = F by default; can set = T in the config file
     !       For CESM coupled runs, reprosum = T by default
     if (reprosum) then
 
+    !WHL - Commented out the reprosum_setops calls.
+    !      For standalone CISM, the call to cism_reprosum_setops is not needed.
+    !      TBD whether this is true for coupled CESM runs.
 #ifdef CCSM_COUPLED
 !!       call shr_reprosum_setops()
 #else

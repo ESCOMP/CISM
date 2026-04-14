@@ -1966,7 +1966,7 @@ contains
             model%temper%bhydroflx,                           &  ! W/m2
             model%basal_hydro%head,                           &  ! m
             model%basal_hydro%grad_head,                      &  ! m/m
-            reprosum_in = model%options%reproducible_sums)
+            model%options%reproducible_sums)
 
        ! halo updates (not sure if all are needed)
        call parallel_halo(model%basal_hydro%bwatflx, parallel)

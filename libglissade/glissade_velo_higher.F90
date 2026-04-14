@@ -91,10 +91,7 @@
 
     use cism_parallel, only: this_rank, main_task, nhalo, tasks, &
          parallel_type, parallel_halo, staggered_parallel_halo, parallel_globalindex, &
-         parallel_reduce_max, parallel_reduce_sum, not_parallel
-    !WHL - debug
-    use cism_parallel, only: parallel_global_sum_stagger
-    use cism_reprosum_mod, only: verbose_reprosum
+         parallel_global_sum_stagger, parallel_reduce_max, parallel_reduce_sum, not_parallel
     implicit none
 
     private
@@ -247,6 +244,12 @@
 !    logical :: verbose_glp = .true.
     logical :: verbose_picard = .false.
 !    logical :: verbose_picard = .true.
+
+    ! Set the following to true to convert double-precision variables to binary form
+    !  and write them to output files. This can be useful for verifying that sums are exactly
+    !  reproducible with different processor counts. Writing out the dp variables
+    !  can give false negatives: two sums that look identical but are in fact different.
+    logical :: write_binary_diagnostics = .false.
 
     integer, parameter :: ktest = 1     ! vertical level of diagnostic point
     integer, parameter :: ptest = 1     ! diagnostic quadrature point
@@ -676,8 +679,6 @@
     use glissade_therm, only: glissade_pressure_melting_point
     use glide_thck, only: glide_calclsrf
     use profile, only: t_startf, t_stopf
-
-    !WHL - debug
     use glissade_utils, only: write_array_to_file
 
     !----------------------------------------------------------------
@@ -2354,35 +2355,37 @@
              usav_2d(:,:) = uvel_2d(:,:)
              vsav_2d(:,:) = vvel_2d(:,:)
 
-             !WHL - debug - BFB check
-             sum_uvel = parallel_global_sum_stagger(uvel_2d, parallel)
-             sum_vvel = parallel_global_sum_stagger(vvel_2d, parallel)
-             sum_flwa = parallel_global_sum_stagger(flwa, parallel)
-             sum_flwafact = parallel_global_sum_stagger(flwafact, parallel)
-             sum_btrx = parallel_global_sum_stagger(btractx, parallel)
-             sum_btry = parallel_global_sum_stagger(btracty, parallel)
-             sum_stagusrf = parallel_global_sum_stagger(stagusrf, parallel)
-             sum_stagthck = parallel_global_sum_stagger(stagthck, parallel)
-!!             if (this_rank == rtest) then
-             if (0 == 1) then
-                write(iulog,*) ' '
-                call double_to_binary(sum_uvel, binary_str)
-                write(iulog,*) 'Before assembly: sum_uvel, binary_str:', sum_uvel, binary_str
-                call double_to_binary(sum_vvel, binary_str)
-                write(iulog,*) 'Before assembly: sum_vvel, binary_str:', sum_vvel, binary_str
-                call double_to_binary(sum_flwa, binary_str)
-                write(iulog,*) 'Before assembly: sum_flwa, binary_str:', sum_flwa, binary_str
-                call double_to_binary(sum_flwafact, binary_str)
-                write(iulog,*) 'Before assembly: sum_flwafact, binary_str:', sum_flwafact, binary_str
-                call double_to_binary(sum_btrx, binary_str)
-                write(iulog,*) 'Before assembly: sum_btrx, binary_str:', sum_btrx, binary_str
-                call double_to_binary(sum_btry, binary_str)
-                write(iulog,*) 'Before assembly: sum_btry, binary_str:', sum_btry, binary_str
-                call double_to_binary(sum_stagusrf, binary_str)
-                write(iulog,*) 'Before assembly: sum_stagusrf, binary_str:', sum_stagusrf, binary_str
-                call double_to_binary(sum_stagthck, binary_str)
-                write(iulog,*) 'Before assembly: sum_stagthck, binary_str:', sum_stagthck, binary_str
-             endif
+             ! When developing the reprosum version of the code, the following code was useful
+             !  for verifying that two sums have exactly the same binary representation.
+             if (write_binary_diagnostics) then
+                sum_uvel = parallel_global_sum_stagger(uvel_2d, parallel)
+                sum_vvel = parallel_global_sum_stagger(vvel_2d, parallel)
+                sum_flwa = parallel_global_sum_stagger(flwa, parallel)
+                sum_flwafact = parallel_global_sum_stagger(flwafact, parallel)
+                sum_btrx = parallel_global_sum_stagger(btractx, parallel)
+                sum_btry = parallel_global_sum_stagger(btracty, parallel)
+                sum_stagusrf = parallel_global_sum_stagger(stagusrf, parallel)
+                sum_stagthck = parallel_global_sum_stagger(stagthck, parallel)
+                if (main_task) then
+                   write(iulog,*) ' '
+                   call double_to_binary(sum_uvel, binary_str)
+                   write(iulog,*) 'Before assembly: sum_uvel, binary_str:', sum_uvel, binary_str
+                   call double_to_binary(sum_vvel, binary_str)
+                   write(iulog,*) 'Before assembly: sum_vvel, binary_str:', sum_vvel, binary_str
+                   call double_to_binary(sum_flwa, binary_str)
+                   write(iulog,*) 'Before assembly: sum_flwa, binary_str:', sum_flwa, binary_str
+                   call double_to_binary(sum_flwafact, binary_str)
+                   write(iulog,*) 'Before assembly: sum_flwafact, binary_str:', sum_flwafact, binary_str
+                   call double_to_binary(sum_btrx, binary_str)
+                   write(iulog,*) 'Before assembly: sum_btrx, binary_str:', sum_btrx, binary_str
+                   call double_to_binary(sum_btry, binary_str)
+                   write(iulog,*) 'Before assembly: sum_btry, binary_str:', sum_btry, binary_str
+                   call double_to_binary(sum_stagusrf, binary_str)
+                   write(iulog,*) 'Before assembly: sum_stagusrf, binary_str:', sum_stagusrf, binary_str
+                   call double_to_binary(sum_stagthck, binary_str)
+                   write(iulog,*) 'Before assembly: sum_stagthck, binary_str:', sum_stagthck, binary_str
+                endif
+             endif  ! write_binary_diagnostics
 
              ! Assemble the matrix
 
@@ -2408,8 +2411,8 @@
                                                omega_k,          omega,   &
                                                efvs_qp_3d)
 
-             !WHL - debug - BFB check
-             if (verbose_reprosum .and. counter == 1) then
+             ! The following code was useful for reprosum debugging
+             if (write_binary_diagnostics .and. counter == 1) then
 !!                if (main_task) write(iulog,*) 'Write out matrices after assemble_stiffness_matrix'
 !!                call write_array_to_file(Auu_2d, 21, 'global_Auu1', parallel, write_binary = .true., cycle_indices = .true.)
 !!                call write_array_to_file(Auv_2d, 22, 'global_Auv1', parallel, write_binary = .true., cycle_indices = .true.)
@@ -2445,7 +2448,7 @@
                       write(iulog,*) n, sum_Avv(n), binary_str
                    enddo
                 endif
-             endif   ! verbose_reprosum
+             endif   ! write_binary_diagnostics
 
              if (whichapprox == HO_APPROX_DIVA) then
 
@@ -2662,16 +2665,16 @@
              call staggered_parallel_halo(bv_2d(:,:), parallel)
              call t_stopf('glissade_halo_bxxs')
 
-             !WHL - debug - Write all the matrix elements and rhs elements (in binary form) to files
-             if (verbose_reprosum .and. counter == 1) then
-!!                if (main_task) write(iulog,*) 'Write out matrices after adding BC'
-!!                call write_array_to_file(Auu_2d(:,:,5), 30, 'global_Auu2', parallel)  ! diagonal terms only
-!!                call write_array_to_file(Auu_2d, 31, 'global_Auu2', parallel, write_binary = .true., cycle_indices = .true.)
-!!                call write_array_to_file(Auv_2d, 32, 'global_Auv2', parallel, write_binary = .true., cycle_indices = .true.)
-!!                call write_array_to_file(Avu_2d, 33, 'global_Avu2', parallel, write_binary = .true., cycle_indices = .true.)
-!!                call write_array_to_file(Avv_2d, 34, 'global_Avv2', parallel, write_binary = .true., cycle_indices = .true.)
-!!                call write_array_to_file(bu_2d,  35, 'global_bu2',  parallel, write_binary = .true.)
-!!                call write_array_to_file(bv_2d,  36, 'global_bv2',  parallel, write_binary = .true.)
+             if (write_binary_diagnostics .and. counter == 1) then
+                ! Write all the matrix elements and rhs elements (in binary form) to files
+                if (main_task) write(iulog,*) 'Write out matrices after adding BC'
+                call write_array_to_file(Auu_2d(:,:,5), 30, 'global_Auu2', parallel)  ! diagonal terms only
+                call write_array_to_file(Auu_2d, 31, 'global_Auu2', parallel, write_binary = .true., cycle_indices = .true.)
+                call write_array_to_file(Auv_2d, 32, 'global_Auv2', parallel, write_binary = .true., cycle_indices = .true.)
+                call write_array_to_file(Avu_2d, 33, 'global_Avu2', parallel, write_binary = .true., cycle_indices = .true.)
+                call write_array_to_file(Avv_2d, 34, 'global_Avv2', parallel, write_binary = .true., cycle_indices = .true.)
+                call write_array_to_file(bu_2d,  35, 'global_bu2',  parallel, write_binary = .true.)
+                call write_array_to_file(bv_2d,  36, 'global_bv2',  parallel, write_binary = .true.)
              endif
 
              !---------------------------------------------------------------------------
@@ -2703,7 +2706,8 @@
                                     active_vertex,           &
                                     nNonzeros)
 
-             if (verbose_reprosum) then
+             ! The following code was useful for reprosum debugging
+             if (write_binary_diagnostics) then
                 sum_Auu(:) = parallel_global_sum_stagger(Auu_2d, nNodeNeighbors_2d, parallel)
                 sum_Auv(:) = parallel_global_sum_stagger(Auv_2d, nNodeNeighbors_2d, parallel)
                 sum_Avu(:) = parallel_global_sum_stagger(Avu_2d, nNodeNeighbors_2d, parallel)
@@ -2736,7 +2740,7 @@
                       write(iulog,*) n, sum_Avv(n), binary_str
                    enddo
                 endif
-             endif   ! verbose_reprosum
+             endif   ! write_binary_diagnostics
 
              if (write_matrix) then
                 if (counter == 1) then    ! first outer iteration only

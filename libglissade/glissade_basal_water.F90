@@ -35,9 +35,6 @@ module glissade_basal_water
    use cism_parallel, only: main_task, this_rank, nhalo, parallel_type, &
         parallel_halo, parallel_global_sum
 
-   !WHL - debug
-   use glimmer_utils, only: double_to_binary
-
    implicit none
 
    private
@@ -191,7 +188,7 @@ module glissade_basal_water
        bwatflx,       bwat_diag,     &
        bhydroflx,                    &
        head,          grad_head,     &
-       reprosum_in)
+       reprosum)
 
     ! Compute the subglacial water flux and water depth using a steady-state flux routing scheme.
     ! Water is routed down the hydropotential. For routing purposes, assume p_w = p_i (i.e., N = 0).
@@ -258,8 +255,8 @@ module glissade_basal_water
 
     ! Note: The reprosum option requires (1) D8 routing (each cell routes its flux to one downstream neighbor only)
     !       and (2) no temperature-weighted refreezing.
-    logical, intent(in), optional :: &
-         reprosum_in                ! if true, then do a computation independent of the number of tasks
+    logical, intent(in) :: &
+         reprosum                  ! if true, then do a computation independent of the number of tasks
 
     ! Local variables
 
@@ -301,20 +298,12 @@ module glissade_basal_water
     real(dp) :: c_flux_to_depth              ! proportionality coefficient in Sommers et al., Eq. 6
     real(dp) :: Reynolds                     ! Reynolds number (unitless), = 0 for pure laminar flow
 
-    logical :: reprosum                      ! local version of reprosum_in
-
     integer :: nx_test, ny_test
     real(dp), dimension(:,:), allocatable :: phi_test
     integer,  dimension(:,:), allocatable :: mask_test
 
     if (verbose_bwat .and. this_rank == rtest) then
        write(iulog,*) 'In glissade_bwat_flux_routing: rtest, itest, jtest =', rtest, itest, jtest
-    endif
-
-    if (present(reprosum_in)) then
-       reprosum = reprosum_in
-    else
-       reprosum = .false.
     endif
 
     ! Uncomment if the following fields are not already up to date in halo cells
@@ -484,7 +473,7 @@ module glissade_basal_water
          bwatflx,                &
          bwatflx_refreeze,       &
          lakes,                  &
-         reprosum_in)
+         reprosum)
 
     ! Route water from the basal melt field to its destination, recording the water flux along the way.
     ! Water flow direction is determined according to the gradient of the hydraulic head.
@@ -535,8 +524,8 @@ module glissade_basal_water
          bwatflx_refreeze,    &  ! water flux held for refreezing (m^3/s)
          lakes                   ! lakes field, difference between filled and original head
 
-    logical, intent(in), optional :: &
-         reprosum_in             ! if true, then do a computation independent of the number of tasks
+    logical, intent(in) :: &
+         reprosum                ! if true, then do a computation independent of the number of tasks
 
     ! Local variables
 
@@ -587,18 +576,10 @@ module glissade_basal_water
          factor_bwatflx = 1.d16       ! factor for converting between bwatflx and bwatflx_int;
                                       ! large value desired for water mass conservation
 
-    logical :: reprosum               ! local version of reprosum_in
-
     character(len=100) :: message
 
     !WHL - debug
     character(len=64) :: binary_str
-
-    if (present(reprosum_in)) then
-       reprosum = reprosum_in
-    else
-       reprosum = .false.
-    endif
 
     ! Allocate the sorted_ij array
 
@@ -738,8 +719,6 @@ module glissade_basal_water
     total_flux_in = parallel_global_sum(bwatflx, parallel)
     if (verbose_bwat .and. this_rank == rtest) then
        write(iulog,*) 'Total input basal melt flux (m^3/s):', total_flux_in
-!!       call double_to_binary(total_flux_in, binary_str)
-!!       write(iulog,*) '   Binary string', binary_str
     endif
 
     ! Route the water downstream, keeping track of the steady-state flux through each cell.
@@ -1295,7 +1274,7 @@ module glissade_basal_water
     integer, intent(in) ::  &
          nx, ny,               & ! number of grid cells in each direction
          nlocal,               & ! number of locally owned cells
-         itest, jtest, rtest     ! coordinates of diagnostic point  !! not currently used
+         itest, jtest, rtest     ! coordinates of diagnostic point  ! not currently used
 
     real(dp), dimension(nx,ny), intent(in) :: &
          phi                     ! input field, to be sorted from low to high

@@ -66,7 +66,7 @@ module cism_reprosum_mod
    use glimmer_global, only: r8 => dp
    use glimmer_global, only: i8
    use glimmer_paramets, only: iulog
-   use profile, only: t_startf, t_stopf  !WHL - replace with perf_mod?
+   use profile, only: t_startf, t_stopf
    ! end WHL mods
 
    ! Import MPI fcns/types
@@ -115,8 +115,6 @@ module cism_reprosum_mod
    !---------------------------------------------------------------------
    logical            :: repro_sum_use_ddpdd = .false.
 
-   !WHL - Should this code be declared?
-   !      Not sure what EAMXX_STANDALONE means
 #ifdef EAMXX_STANDALONE
    ! Declare the C function interface
    interface
