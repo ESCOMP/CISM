@@ -621,13 +621,13 @@ contains
     binary_number = transfer(x, binary_number)
 
     ! Get the sign bit (bit 64)
-    sign_bit = ishft(binary_number, -63) .and. 1
+    sign_bit = IAND(ishft(binary_number, -63), INT(1, 8))
 
     ! Get the exponent bits (bits 63–53)
-    exponent_bits = ishft(binary_number, -52) .and. Z'7FF'
+    exponent_bits = IAND(ishft(binary_number, -52), INT(Z'7FF', 8))
 
     ! Extract mantissa (fraction) bits (bits 52–1)
-    mantissa_bits = binary_number .and. Z'FFFFFFFFFFFFF'
+    mantissa_bits = IAND(binary_number, INT(Z'FFFFFFFFFFFFF', 8))
 
     if (present(binary_full)) binary_full = binary_number
     if (present(binary_sign)) binary_sign = sign_bit
@@ -655,7 +655,7 @@ contains
     binary_str = concat(bin)
     if (verbose_binary) then
        write(iulog,*) 'Full 64-bit binary:'
-       write(iulog,*), ' ', binary_str
+       write(iulog,*) ' ', binary_str
     endif
 
   end subroutine double_to_binary
