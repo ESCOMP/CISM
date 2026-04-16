@@ -1764,11 +1764,9 @@ contains
              write(iulog,*) 'Reduce bmlt_float in shallow cavities, bmlt_cavity_h0 (m) =', &
                   model%basal_melt%bmlt_cavity_h0
           endif
-          call point_diag(model%basal_melt%bmlt_float*scyr, 'original bmlt_float (m/yr)', &
+          call point_diag(model%basal_melt%bmlt_float*scyr, 'bmlt_float before adjustment (m/yr)', &
                itest, jtest, rtest, 7, 7)
           call point_diag(h_cavity, 'h_cavity (m)', itest, jtest, rtest, 7, 7)
-          call point_diag(min(h_cavity/model%basal_melt%bmlt_cavity_h0, 1.0d0), 'fractional reduction', &
-               itest, jtest, rtest, 7, 7)
        endif
 
        where (h_cavity > 0.0d0)

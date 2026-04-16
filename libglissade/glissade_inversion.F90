@@ -47,7 +47,8 @@ module glissade_inversion
   ! a target ice thickness field.
   !-----------------------------------------------------------------------------
 
-  logical, parameter :: verbose_inversion = .false.
+!!  logical, parameter :: verbose_inversion = .false.
+  logical, parameter :: verbose_inversion = .true.
 
 !***********************************************************************
 
@@ -662,6 +663,7 @@ contains
                model%inversion%babc_thck_scale,           &  ! m
                model%inversion%babc_timescale,            &  ! s
                model%inversion%babc_relax_factor,         &
+               model%inversion%damping_factor,            &
                model%basal_physics%powerlaw_c_max,        &
                model%basal_physics%powerlaw_c_min,        &
                model%basal_physics%powerlaw_c_const,      &  ! relax to this value
@@ -696,6 +698,7 @@ contains
                model%inversion%babc_thck_scale,           &  ! m
                model%inversion%babc_timescale,            &  ! s
                model%inversion%babc_relax_factor,         &
+               model%inversion%damping_factor,            &
                model%basal_physics%coulomb_c_max,         &
                model%basal_physics%coulomb_c_min,         &
                model%basal_physics%coulomb_c_const,       &  ! relax to this value
@@ -761,6 +764,7 @@ contains
             model%inversion%deltaT_ocn_timescale,      &  ! s
             model%inversion%deltaT_ocn_temp_scale,     &  ! degC
             model%inversion%deltaT_basin_relax,        &  ! degC
+            model%inversion%damping_factor,            &
             model%inversion%basin_mass_correction,     &
             model%inversion%basin_number_mass_correction, &
             model%ocean_data%deltaT_ocn)
@@ -814,8 +818,8 @@ contains
        call invert_deltaT_ocn(&
             model%numerics%dt,                     &  ! s
             ewn,           nsn,                    &
-            model%numerics%dew,                    &   ! m
-            model%numerics%dns,                    &   ! m
+            model%numerics%dew,                    &  ! m
+            model%numerics%dns,                    &  ! m
             itest, jtest,  rtest,                  &
             model%inversion%deltaT_ocn_thck_scale, &  ! m
             model%inversion%deltaT_ocn_timescale,  &  ! s
@@ -828,6 +832,23 @@ contains
             thck_obs,                              &  ! m
             model%geometry%dthck_dt,               &  ! m/s
             model%ocean_data%deltaT_ocn)              ! degC
+
+       ! When applying certain calving schemes, we do not want to invert locally for deltaT_ocn
+       !  beyond the observed calving front, because then the ocean will warm to melt ice that
+       !  advances beyond the original CF, overriding the effects of the calving scheme.
+       ! Instead, we compute a calving mask at initialization and set deltaT_ocn = 0 in masked cells.
+       !TODO - Apply the basin average TF in this region?
+       if (model%options%whichbmlt_float == BMLT_FLOAT_THERMAL_FORCING) then
+          if (model%options%which_ho_calving_front == HO_CALVING_FRONT_NO_SUBGRID .and. &
+               .not.parallel_is_zero(model%calving%calving_mask)) then
+             where (model%calving%calving_mask == 1) model%ocean_data%deltaT_ocn = 0.0d0
+          elseif (model%options%which_ho_calving_front == HO_CALVING_FRONT_SUBGRID .and. &
+               .not.parallel_is_zero(model%calving%subgrid_calving_mask)) then
+             where (model%calving%subgrid_calving_mask > eps11) model%ocean_data%deltaT_ocn = 0.0d0
+          endif
+          call point_diag(model%ocean_data%deltaT_ocn, 'deltaT_ocn after calving mask adjustment', &
+               itest, jtest, rtest, 7, 7)
+       endif
 
        call parallel_halo(model%ocean_data%deltaT_ocn, parallel)
 
@@ -864,23 +885,6 @@ contains
             dthck_dt_obs = model%geometry%dthck_dt_obs)   ! m/yr
 
     endif   ! which_ho_deltaT_ocn
-
-    ! When applying certain calving schemes: We usually do not want to invert for deltaT_ocn
-    !  beyond the observed calving front, because then the ocean will warm to melt ice that
-    !  advances beyond the original CF, overriding the effects of the calving scheme.
-    ! Instead, we compute a calving mask at initialization and set deltaT_ocn = 0 in masked cells.
-    !TODO - Apply the basin average TF in this region?
-    if (model%options%whichbmlt_float == BMLT_FLOAT_THERMAL_FORCING) then
-       if (model%options%which_ho_calving_front == HO_CALVING_FRONT_NO_SUBGRID .and. &
-            .not.parallel_is_zero(model%calving%calving_mask)) then
-          where (model%calving%calving_mask == 1) model%ocean_data%deltaT_ocn = 0.0d0
-       elseif (model%options%which_ho_calving_front == HO_CALVING_FRONT_SUBGRID .and. &
-            .not.parallel_is_zero(model%calving%subgrid_calving_mask)) then
-          where (model%calving%subgrid_calving_mask > eps11) model%ocean_data%deltaT_ocn = 0.0d0
-       endif
-       call point_diag(model%ocean_data%deltaT_ocn, 'deltaT_ocn after calving mask adjustment', &
-            itest, jtest, rtest, 7, 7)
-    endif
 
     ! If inverting for flow_enhancement_factor, then update it here
 
@@ -1095,11 +1099,8 @@ contains
     !     m * d2x/dt2 = -k*x - c*dx/dt
     ! where m is the mass, k is a spring constant, and c is a damping term.
     ! A harmonic oscillator is critically damped when c = 2*sqrt(m*k).
-    !  In this case the system reaches equilibrium as quickly as possible without oscillating.
-    ! Assuming unit mass (m = 1) and critical damping with k = 1/(tau^2), we obtain
-    !   d2x/dt2 = -1/tau * (x/tau - 2*dx/dt)
-    ! If we identify (H - H_obs)/(H0*tau) with x/tau; (2/H0)*dH/dt with 2*dx/dt; and (1/C)*dC/dt with d2x/dt2,
-    !  we obtain an equation similiar to the one solved here.
+    ! In this case the system reaches equilibrium as quickly as possible without oscillating.
+    ! Here we replace c with a user-prescribed damping factor. In practice, a value of 1.0 or 2.0 works well.
     ! Note: There is no reason to compute term_thck and term_dHdt for floating cells,
     !        where the ice thickness is unrelated to friction.
     
@@ -1202,6 +1203,7 @@ contains
        babc_thck_scale,             &
        babc_timescale,              &
        babc_relax_factor,           &
+       damping_factor,              &
        friction_c_max,              &
        friction_c_min,              &
        friction_c_relax,            &
@@ -1247,6 +1249,7 @@ contains
          babc_thck_scale,      & ! inversion thickness scale (m); must be > 0
          babc_timescale,       & ! inversion timescale (s); must be > 0
          babc_relax_factor,    & ! factor controlling strength of relaxation
+         damping_factor,       & ! damping factor to reduce overshoots
          friction_c_relax        ! value toward which friction_c is relaxed
 
     real(dp), dimension(nx-1,ny-1), intent(inout) ::  &
@@ -1309,7 +1312,7 @@ contains
        ! Compute and add the tendency terms
        dthck = thck_basin(nb) - thck_target_basin(nb)
        term_thck = -dthck / (babc_thck_scale * babc_timescale)
-       term_dHdt = -dthck_dt_basin(nb) * 2.0d0 / babc_thck_scale
+       term_dHdt = -damping_factor * dthck_dt_basin(nb) / babc_thck_scale
        term_relax = -babc_relax_factor * (logC - logC_relax) / babc_timescale
 
        dlogC = (term_thck + term_dHdt + term_relax) * dt
@@ -1362,6 +1365,7 @@ contains
        deltaT_ocn_timescale,        &
        deltaT_ocn_temp_scale,       &
        deltaT_basin_relax,          &
+       damping_factor,              &
        basin_mass_correction,       &
        basin_number_mass_correction,&
        deltaT_ocn)
@@ -1375,13 +1379,8 @@ contains
     !  and compare to a target thickness (usually based on observations).
     ! In basins where this ice is too thick, we increase deltaT_ocn uniformly across the basin.
     !  and where this ice is too thin, we decrease deltaT_ocn.
-    ! Note: Other possible targets include the total floating area or grounded area.
-    !       One reason not to use the total floating area is that the deltaT_ocn
-    !        correction can become entangled with the calving scheme.
-    !       One reason not to use the total grounded area is that the relative change
-    !        in grounded area associated with GL advance or retreat will be very small
-    !        in some basins compared to the total grounded area; also, we don't want
-    !        growth of ice on beds above sea level to influence the correction.
+    ! Note: Another possible target is the total floating area, but this could cause
+    !       the deltaT_ocn correction to become entangled with the calving scheme.
 
     real(dp), intent(in) ::  dt  ! time step (s)
 
@@ -1413,6 +1412,7 @@ contains
          deltaT_ocn_timescale, & ! inversion timescale (s); must be > 0
          deltaT_ocn_temp_scale,& ! inversion temperature scale (degC)
          deltaT_basin_relax,   & ! value toward which we relax each basin (degC)
+         damping_factor,       & ! damping factor for the dH/dt term
          basin_mass_correction   ! optional mass correction (Gt) for a selected basin
 
     integer, intent(in) :: &
@@ -1468,7 +1468,7 @@ contains
     !  it suffices to compute the average value of deltaT_ocn.
 
     mask = 1.0d0  ! do not mask out any points
-
+                  ! This assumes that deltaT_ocn is uniform in the basin, including ice-free ocean cells
     call glissade_basin_average(&
          nx,          ny,                   &
          parallel,                          &
@@ -1479,7 +1479,7 @@ contains
     ! header for optional diagnostics
     if (verbose_inversion .and. this_rank == rtest) then
        write(iulog,*) ' '
-       write(iulog,*) 'basin, term_thck*dt, term_dHdt*dt, term_relx*dt, new deltaT_basin:'
+       write(iulog,*) 'basin, term_thck*dt, term_dHdt*dt, term_relx*dt, sum, new deltaT_basin:'
     endif
 
     ! Warm the basin where the ice is too thick, and cool where the ice is too thin.
@@ -1491,7 +1491,7 @@ contains
        ! Compute d/dt(T_basin)
        dthck = floating_thck_basin(nb) - floating_thck_target_basin(nb)
        term_thck = (dthck/deltaT_ocn_thck_scale) * (deltaT_ocn_temp_scale/deltaT_ocn_timescale)
-       term_dHdt = deltaT_ocn_temp_scale * floating_dthck_dt_basin(nb) * 2.0d0 / deltaT_ocn_thck_scale
+       term_dHdt = damping_factor * deltaT_ocn_temp_scale * floating_dthck_dt_basin(nb) / deltaT_ocn_thck_scale
        term_relax = -(deltaT_basin(nb) - deltaT_basin_relax) / deltaT_ocn_timescale
        dT_basin_dt(nb) = term_thck + term_dHdt + term_relax
 
@@ -1501,13 +1501,14 @@ contains
        dT_basin_dt(nb) = max(dT_basin_dt(nb), -dT_basin_dt_maxval)
 
        ! Update deltaT_basin and limit to a prescribed range
-       deltaT_basin(nb) = deltaT_basin(nb) + dT_basin_dt(nb) * dt
+       deltaT_basin(nb) = deltaT_basin(nb) + dT_basin_dt(nb)*dt
        deltaT_basin(nb) = min(deltaT_basin(nb),  deltaT_basin_maxval)
        deltaT_basin(nb) = max(deltaT_basin(nb), -deltaT_basin_maxval)
 
        ! deltaT_basin diagnostics
        if (verbose_inversion .and. this_rank == rtest) then
-          write(iulog,'(i6,4f14.7)') nb, term_thck*dt, term_dHdt*dt, term_relax*dt, deltaT_basin(nb)
+          write(iulog,'(i6,5f14.7)') nb, term_thck*dt, term_dHdt*dt, term_relax*dt, &
+               (term_thck + term_dHdt + term_relax)*dt, deltaT_basin(nb)
        endif
 
     enddo
