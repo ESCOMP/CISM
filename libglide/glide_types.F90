@@ -3371,6 +3371,15 @@ contains
        endif
     endif
 
+    ! pdd arrays (glissade only)
+    if (model%pdd%pdd_tseries_option == PDD_TSERIES_SINUSOID) then
+        call coordsystem_allocate(model%general%ice_grid, model%pdd%amplitude)
+        call coordsystem_allocate(model%general%ice_grid, model%pdd%phase_offset)
+    endif
+
+    call coordsystem_allocate(model%general%ice_grid, model%pdd%snow_depth)
+    call coordsystem_allocate(model%general%ice_grid, model%pdd%sice_depth)
+
     ! calving arrays
     call coordsystem_allocate(model%general%ice_grid, model%calving%calving_thck)
     call coordsystem_allocate(model%general%ice_grid, model%calving%calving_rate)
@@ -4008,6 +4017,16 @@ contains
         deallocate(model%climate%smb_obs)
     if (associated(model%climate%ablation)) &
         deallocate(model%climate%ablation)
+
+    ! pdd arrays
+    if (associated(model%pdd%amplitude)) &
+        deallocate(model%pdd%amplitude)
+    if (associated(model%pdd%phase_offset)) &
+        deallocate(model%pdd%phase_offset)
+    if (associated(model%pdd%snow_depth)) &
+        deallocate(model%pdd%snow_depth)
+    if (associated(model%pdd%sice_depth)) &
+        deallocate(model%pdd%sice_depth)
 
     ! calving arrays
     if (associated(model%calving%calving_thck)) &
