@@ -1624,6 +1624,12 @@ module glide_types
                                                  !> period = 0 => constant amplitude
      real(dp) :: &
           frontal_melt_rate = 0.0d0              !> frontal submarine melt rate, like lateral retreat rate at MF (m/yr)
+     real(dp) :: &
+          frontal_melt_factor = 1.0d0            !> multiplier for Rignot frontal melt. A value of 1.6 was proposed for ISMIP7
+                                                 !> based on new obs. This may also be used for sampling uncertainty and 
+                                                 !> to correct for resolution depencence
+                                                 
+     
 
   end type glide_calving
 
