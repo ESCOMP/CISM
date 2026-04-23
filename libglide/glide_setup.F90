@@ -1460,8 +1460,16 @@ contains
     if (model%options%whichsmmelt < 0 .or. model%options%whichsmmelt >= size(submarine_melt)) then
        call write_log('Error, submarine_melt out of range',GM_FATAL)
     end if
-    write(message,*) 'submarine_melt           : ', model%options%whichsmmelt, submarine_melt(model%options%whichsmmelt)
+    write(message,*) 'submarine_melt          : ', model%options%whichsmmelt, submarine_melt(model%options%whichsmmelt)
     call write_log(message)
+    if (model%options%whichsmmelt == SMMELT_RATE) then
+       write(message,*) ' frontal_melt_rate =', model%calving%frontal_melt_rate
+       call write_log(message)
+    end if
+    if (model%options%whichsmmelt == SMMELT_ISMIP6) then
+       write(message,*) ' frontal_melt_factor =', model%calving%frontal_melt_factor
+       call write_log(message)
+    end if
 
     if (model%options%whichcalving < 0 .or. model%options%whichcalving >= size(marine_margin)) then
        call write_log('Error, marine_margin out of range',GM_FATAL)
@@ -1543,7 +1551,7 @@ contains
            (model%options%whichcalving /= CALVING_FLOAT_ZERO) )  then
           call write_log('Error, SMMELT options require calving option CALVING_FLOAT_ZERO',GM_FATAL)
        end if
-
+       
        if (model%options%adjust_input_thickness) then
           write(message,*) ' Input ice thickness will be adjusted based on surface and bed topography'
           call write_log(message)
@@ -2334,7 +2342,8 @@ contains
     call GetValue(section,'f_ground_threshold', model%calving%f_ground_threshold)
     call GetValue(section,'cf_advance_retreat_amplitude', model%calving%cf_advance_retreat_amplitude)
     call GetValue(section,'cf_advance_retreat_period',    model%calving%cf_advance_retreat_period)
-    call GetValue(section,'frontal_melt_rate', model%calving%frontal_melt_rate)
+    call GetValue(section,'frontal_melt_rate',  model%calving%frontal_melt_rate)
+    call GetValue(section,'frontal_melt_factor',  model%calving%frontal_melt_factor)
 
     ! NOTE: bpar is used only for BTRC_TANH_BWAT
     !       btrac_max and btrac_slope are used (with btrac_const) for BTRC_LINEAR_BMLT
