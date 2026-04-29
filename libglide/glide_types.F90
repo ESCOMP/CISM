@@ -1846,7 +1846,7 @@ module glide_types
      !----------------------------------
 
      ! ocean grid and basin number
-     integer  :: nbasin = 0                         !> number of basins (= 16 for IMBIE2)
+     integer  :: nbasin = 1                         !> number of basins (= 16 for IMBIE2)
      integer  :: nzocn = 1                          !> number of ocean levels
      real(dp) :: dzocn = 0.d0                       !> thickness of ocean levels; nonzero value set in config file
      real(dp), dimension(:), pointer :: &
@@ -2858,15 +2858,15 @@ contains
     
     ! horizontal coordinates
 
-    allocate(model%general%x0(ewn-1))!; model%general%x0 = 0.d0  ! velocity grid
-    allocate(model%general%y0(nsn-1))!; model%general%y0 = 0.d0
-    allocate(model%general%x1(ewn))!; model%general%x1 = 0.d0    ! ice grid (for scalars)
-    allocate(model%general%y1(nsn))!; model%general%y1 = 0.d0
+    allocate(model%general%x0(ewn-1)); model%general%x0 = 0.d0  ! velocity grid
+    allocate(model%general%y0(nsn-1)); model%general%y0 = 0.d0
+    allocate(model%general%x1(ewn)); model%general%x1 = 0.d0    ! ice grid (for scalars)
+    allocate(model%general%y1(nsn)); model%general%y1 = 0.d0
 
-    allocate(model%general%x0_global(global_ewn-1))!; model%general%x0_global = 0.d0  ! velocity grid
-    allocate(model%general%y0_global(global_nsn-1))!; model%general%y0_global = 0.d0
-    allocate(model%general%x1_global(global_ewn))!; model%general%x1_global = 0.d0    ! ice grid (for scalars)
-    allocate(model%general%y1_global(global_nsn))!; model%general%y1_global = 0.d0
+    allocate(model%general%x0_global(global_ewn-1)); model%general%x0_global = 0.d0  ! velocity grid
+    allocate(model%general%y0_global(global_nsn-1)); model%general%y0_global = 0.d0
+    allocate(model%general%x1_global(global_ewn)); model%general%x1_global = 0.d0    ! ice grid (for scalars)
+    allocate(model%general%y1_global(global_nsn)); model%general%y1_global = 0.d0
 
     ! vertical sigma coordinates
     ! If we already have sigma, don't reallocate

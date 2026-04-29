@@ -107,7 +107,7 @@ contains
     use glissade_basal_water, only: glissade_basal_water_init
     use glissade_masks, only: glissade_get_masks, glissade_marine_connection_mask
     use glimmer_scales
-    use glimmer_physcon, only: rhow, rhoi, scyr
+    use glimmer_physcon, only: scyr
     use glide_mask
     use isostasy, only: init_isostasy, isos_relaxed
     use glimmer_map_init
@@ -146,23 +146,13 @@ contains
          ocean_mask,        & ! = 1 if topg is below sea level and ice is absent, else = 0
          land_mask            ! = 1 if topg is at or above sea level, else = 0
 
-    real(dp), dimension(:,:), allocatable :: &
-         topg_smoothed,     & ! smoothed input topography
-         thck_flotation       ! flotation thickness
-
     integer, dimension(:,:), allocatable :: &
          ice_domain_mask      ! = 1 where ice is potentially present and active
 
     logical, parameter :: &
          make_ice_domain_mask = .false.   ! set to .true. to create mask at initialization
-!!         make_ice_domain_mask = .true.   ! set to .true. to create mask at initialization
-
-    real(dp) :: usrf_max    ! max value of usrf
-    real(dp) :: topg        ! model%geometry%topg - model%climate%eus
-    real(dp) :: thck_flot   ! flotation thickness
 
     integer :: itest, jtest, rtest
-    integer :: status, varid
 
     type(glimmer_nc_input), pointer :: infile
     type(parallel_type) :: parallel   ! info for parallel communication
@@ -376,13 +366,13 @@ contains
     if (parallel_is_zero(model%general%x1)) then
        call write_log('model%general%x1 = 0.0 everywhere', GM_FATAL)
     else  ! extrapolate x1 to halo cells
-       call parallel_halo_extrapolate(model%general%x1, parallel, model%numerics%dew)
+       call parallel_halo_extrapolate(model%general%x1, model%numerics%dew)
     endif
 
     if (parallel_is_zero(model%general%y1)) then
        call write_log('model%general%y1 = 0.0 everywhere', GM_FATAL)
     else  ! extrapolate y1 to halo cells
-       call parallel_halo_extrapolate(model%general%y1, parallel, model%numerics%dns)
+       call parallel_halo_extrapolate(model%general%y1, model%numerics%dns)
     endif
 
     ! Check whether x0 and y0 were read in. If not, then compute them from x1 and y1.
@@ -393,7 +383,7 @@ contains
        enddo
     else
        ! extrapolate x0 to halo cells
-       call parallel_halo_extrapolate(model%general%x0, parallel, model%numerics%dew)
+       call parallel_halo_extrapolate(model%general%x0, model%numerics%dew)
     endif
 
     if (parallel_is_zero(model%general%y0)) then
@@ -403,7 +393,7 @@ contains
        enddo
     else
        ! extrapolate y0 to halo cells
-       call parallel_halo_extrapolate(model%general%y0, parallel, model%numerics%dns)
+       call parallel_halo_extrapolate(model%general%y0, model%numerics%dns)
     endif
 
     ! Check that lat and lon fields were read in
@@ -672,7 +662,6 @@ contains
     !       (and also into the north and east rows of the global domain, which are not included 
     !       on the global staggered grid).
     call staggered_parallel_halo_extrapolate (model%velocity%kinbcmask, parallel)  ! = 1 for Dirichlet BCs
-
     if (model%options%enable_glaciers) then
 
        ! If running with glaciers, then process the input glacier data and initialize glacier arrays
@@ -1180,10 +1169,11 @@ contains
           dthck_dt_basin(:) = min(dthck_dt_basin(:), 0.0d0)
 
           ! Assign the basin average to a 2D array
+          model%geometry%dthck_dt_obs_basin = 0.0d0
           do j = 1, model%general%nsn
              do i = 1, model%general%ewn
                 nb = model%ocean_data%basin_number(i,j)
-                model%geometry%dthck_dt_obs_basin(i,j) = dthck_dt_basin(nb)
+                if (nb > 0) model%geometry%dthck_dt_obs_basin(i,j) = dthck_dt_basin(nb)
              enddo
           enddo
 
@@ -1453,6 +1443,8 @@ contains
 
     !TODO - Any halo updates needed at the end of glissade_tstep?
 
+!    if (main_task) write(iulog,*) 'Done in glissade_tstep'
+
   end subroutine glissade_tstep
 
 !=======================================================================
@@ -1484,18 +1476,12 @@ contains
     real(dp), dimension(model%general%ewn, model%general%nsn) ::   &
          h_cavity                 ! ocean cavity thickness, >= 0 (m)
 
-    ! melt rate field for ISMIP6
-    real(dp), dimension(model%general%ewn, model%general%nsn) ::   &
-         bmlt_float_transient     ! basal melt rate for ISMIP6 thermal forcing (m/s)
-
     real(dp) :: time_from_start   ! time (yr) since the start of applying the anomaly
     real(dp) :: anomaly_fraction  ! fraction of full anomaly to apply
     real(dp) :: tf_anomaly        ! uniform thermal forcing anomaly (deg C), applied everywhere
     integer  :: tf_anomaly_basin  ! basin number where anomaly is applied;
                                   ! for default value of 0, apply to all basins
 
-    real(dp) :: local_maxval, global_maxval   ! max values of a given variable
-    integer :: i, j
     integer :: ewn, nsn
     real(dp) :: dew, dns
     integer :: itest, jtest, rtest
@@ -1788,7 +1774,7 @@ contains
     ! and then update the basal water.
     use cism_parallel, only: parallel_type, parallel_halo
 
-    use glimmer_physcon, only: rhow, rhoi, scyr
+    use glimmer_physcon, only: rhow, scyr
     use glissade_therm, only: glissade_therm_driver
     use glissade_basal_water, only: glissade_calcbwat, glissade_bwat_flux_routing
     use glissade_masks, only: glissade_get_masks
@@ -1799,7 +1785,8 @@ contains
 
     real(dp), intent(in) :: dt   ! time step (s)
 
-    integer :: i, j, up
+!    integer :: i, j
+    integer :: up
     integer :: itest, jtest, rtest
 
     integer, dimension(model%general%ewn, model%general%nsn) ::   &
@@ -1807,9 +1794,6 @@ contains
          floating_mask,         & ! = 1 if ice is present (thck > thklim_temp) and floating, else = 0
          ocean_mask,            & ! = 1 if topg is below sea level and ice is absent, else = 0
          bwat_mask                ! = 1 for cells through which basal water is routed, else = 0
-
-    !WHL - debug
-    real(dp) :: head_max
 
     type(parallel_type) :: parallel   ! info for parallel communication
 
@@ -2022,7 +2006,7 @@ contains
 
     use cism_parallel, only: parallel_type, parallel_halo, parallel_halo_tracers,  &
          staggered_parallel_halo, parallel_reduce_max
-    use glimmer_physcon, only: rhow, rhoi, scyr
+    use glimmer_physcon, only: scyr
     use glissade_therm, only: glissade_temp2enth, glissade_enth2temp
     use glissade_transport, only: glissade_transport_driver, glissade_check_cfl,  &
          glissade_transport_setup_tracers, glissade_transport_finish_tracers
@@ -2030,7 +2014,6 @@ contains
     use glissade_masks, only: glissade_get_masks, glissade_extend_mask, &
          glissade_calving_front_mask
     use glissade_inversion, only: verbose_inversion
-    use glissade_bmlt_float, only: verbose_bmlt_float
     use glissade_calving, only: verbose_calving
     use glissade_glacier, only: verbose_glacier
     use glide_stop, only: glide_finalise
@@ -2060,9 +2043,7 @@ contains
     logical :: do_upwind_transport  ! logical for whether transport code should do upwind transport or incremental remapping
                                     ! set to true for EVOL_UPWIND, else = false
 
-    integer :: ntracers             ! number of tracers to be transported
-
-    integer :: i, j, k, ng
+    integer :: i, j, k
     integer :: ewn, nsn, upn
     integer :: itest, jtest, rtest
 
@@ -2072,11 +2053,6 @@ contains
     integer, dimension(model%general%ewn, model%general%nsn) :: &
          partial_cf_mask,         & ! = 1 for partially filled CF cells (thck < thck_effective), else = 0
          full_mask                  ! = 1 for ice-filled cells that are not partial_cf cells, else = 0
-
-    !WHL - debug
-    integer :: ig, jg
-    real(dp) :: local_maxval, global_maxval
-    character(len=100) :: message
 
     rtest = -999
     itest = 1
@@ -2492,9 +2468,6 @@ contains
 
     integer :: nx, ny               ! horizontal grid dimensions
     integer :: itest, jtest, rtest  ! coordinates of diagnostic point
-
-    real(dp), dimension(-1:1,-1:1,model%general%ewn,model%general%nsn) :: &
-         flux_in                    ! ice volume fluxes (m^3/s) into cell from each neighbor cell
 
     real(dp), parameter :: &
          retreat_mask_threshold = 0.01d0  ! threshold value for removing cells based on ice_fraction_retreat_mask;
@@ -3138,7 +3111,7 @@ contains
 
     ! Local variables
 
-    integer :: i, j, k, n, nb, ng
+    integer :: i, j, k
     integer :: iglobal, jglobal
     integer :: itest, jtest, rtest
 
@@ -3148,10 +3121,6 @@ contains
          ocean_mask,         & ! = 1 where topg is below sea level and ice is absent
          land_mask,          & ! = 1 where topg is at or above sea level
          calving_front_mask    ! = 1 where ice is floating and borders an ocean cell, else = 0
-
-    real(dp), dimension(model%general%ewn, model%general%nsn) ::  &
-         flow_enhancement_factor_float,  & ! flow enhancement factor for floating ice
-         thck_effective        ! effective thickness (m) for calving
 
     integer, dimension(model%general%ewn, model%general%nsn) :: &
          floating_mask_old, grounded_mask_old   ! masks from previous time steps
@@ -4007,6 +3976,9 @@ contains
     if (verbose_glissade .and. main_task) then
        write(iulog,*) 'Done in glissade_diagnostic_variable_solve'
     endif
+
+!    if (main_task) write(iulog,*) 'Done in diagnostic solve'
+
   end subroutine glissade_diagnostic_variable_solve
 
 !=======================================================================

@@ -70,14 +70,8 @@ contains
     ! local variables
 
     integer :: i, j
-    integer :: nb                   ! basin number
     integer :: itest, jtest, rtest  ! local diagnostic point
-
     real(dp) :: var_maxval          ! max value of a given real variable; = 0.0 if not yet read in
-    real(dp) :: var1_maxval, var2_maxval  ! like var_maxval
-    integer :: var_maxval_int       ! max value of a given integer variable; = 0 if not yet read in
-
-    character(len=100) :: message
 
     integer, dimension(model%general%ewn, model%general%nsn) ::  &
          ice_mask,             & ! = 1 where ice is present, else = 0
@@ -946,8 +940,6 @@ contains
        ! If running with ocean basins, we relax toward the basin-average value,
        !  computed over all floating cells in the basin.
 
-       deltaT_ocn_relax(:,:) = 0.0d0
-
        if (model%ocean_data%nbasin > 1) then
           call glissade_basin_average(&
                model%general%ewn, model%general%nsn,  &
@@ -959,10 +951,11 @@ contains
                deltaT_ocn_basin_avg)
        endif
 
+       deltaT_ocn_relax(:,:) = 0.0d0
        do j = nhalo+1, nsn-nhalo
           do i = nhalo+1, ewn-nhalo
              nb = model%ocean_data%basin_number(i,j)
-             deltaT_ocn_relax(i,j) = deltaT_ocn_basin_avg(nb)
+             if (nb > 0) deltaT_ocn_relax(i,j) = deltaT_ocn_basin_avg(nb)
           enddo
        enddo
 

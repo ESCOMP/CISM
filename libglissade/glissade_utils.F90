@@ -632,7 +632,7 @@ contains
        field,    field_ref,   &
        rmse)
 
-    use cism_parallel, only: parallel_global_sum
+    use cism_parallel, only: parallel_global_sum, parallel_global_sum_stagger
 
     ! Compute the root-mean-square error of an input field relative to a reference field.
     ! Typically, the input field would be computed by CISM, with the reference field
@@ -665,10 +665,17 @@ contains
          sum_sq_diff,       & ! global sum of sq_diff
          ncells               ! number of global cells with mask = 1
 
-    ncells = parallel_global_sum(mask, parallel)
-
-    sq_diff = (abs(field - field_ref))**2
-    sum_sq_diff = parallel_global_sum(sq_diff, parallel, mask)
+    if (nx == parallel%local_ewn .and. ny == parallel%local_nsn) then
+       ncells = parallel_global_sum(mask, parallel)
+       sq_diff = (abs(field - field_ref))**2
+       sum_sq_diff = parallel_global_sum(sq_diff, parallel, mask_2d = mask)
+    elseif (nx == parallel%local_ewn-1 .and. ny == parallel%local_nsn-1) then
+       ncells = parallel_global_sum_stagger(mask, parallel)
+       sq_diff = (abs(field - field_ref))**2
+       sum_sq_diff = parallel_global_sum_stagger(sq_diff, parallel, mask_2d = mask)
+    else
+       call write_log('Bad input array size in glissade_rms_error', GM_FATAL)
+    endif
 
     if (ncells > 0.0d0) then
        rmse = sqrt(sum_sq_diff/ncells)

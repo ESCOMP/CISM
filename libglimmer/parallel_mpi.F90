@@ -308,6 +308,7 @@ module cism_parallel
   end interface parallel_global_sum_patch
 
   interface parallel_global_sum_stagger
+     module procedure parallel_global_sum_stagger_integer_2d
      module procedure parallel_global_sum_stagger_real8_2d
      module procedure parallel_global_sum_stagger_real8_3d
      module procedure parallel_global_sum_stagger_real8_2d_nflds
@@ -6490,7 +6491,50 @@ contains
 !=======================================================================
   ! subroutines belonging to the parallel_global_sum_stagger interface
 
-  function parallel_global_sum_stagger_real8_2d(arr1, parallel, arr2)
+  function parallel_global_sum_stagger_integer_2d(a, parallel, mask_2d)
+
+    ! Calculates the global sum of a 2D integer field on the staggered grid
+    ! Similar to unstagged version, except it uses staggered_ilo/ihi/jlo/jhi
+
+    integer,dimension(:,:),intent(in) :: a
+    type(parallel_type) :: parallel
+    integer, dimension(:,:), intent(in), optional :: mask_2d
+
+    integer :: i, j
+    integer, dimension(parallel%local_ewn-1,parallel%local_nsn-1) :: mask
+    integer :: local_sum
+    integer :: parallel_global_sum_stagger_integer_2d
+    integer :: &
+         staggered_ilo, staggered_ihi, &  ! bounds of locally owned vertices on staggered grid
+         staggered_jlo, staggered_jhi
+
+    !TODO - associate
+    staggered_ilo = parallel%staggered_ilo
+    staggered_ihi = parallel%staggered_ihi
+    staggered_jlo = parallel%staggered_jlo
+    staggered_jhi = parallel%staggered_jhi
+
+    if (present(mask_2d)) then
+       mask = mask_2d
+    else
+       mask = 1
+    endif
+
+    local_sum = 0
+    do j = staggered_jlo, staggered_jhi
+       do i = staggered_ilo, staggered_ihi
+          if (mask(i,j) == 1) then
+             local_sum = local_sum + a(i,j)
+          endif
+       enddo
+    enddo
+    parallel_global_sum_stagger_integer_2d = parallel_reduce_sum(local_sum)
+
+  end function parallel_global_sum_stagger_integer_2d
+
+!=======================================================================
+
+  function parallel_global_sum_stagger_real8_2d(arr1, parallel, arr2, mask_2d)
 
     ! Calculate the global sum of a 2D double-precision field on the staggered grid
     ! Similar to unstagged version, except it uses staggered_ilo/ihi/jlo/jhi
@@ -6498,10 +6542,12 @@ contains
     real(dp), dimension(:,:), intent(in) :: arr1
     type(parallel_type) :: parallel
     real(dp), dimension(:,:), intent(in), optional :: arr2
+    integer, dimension(:,:), intent(in), optional :: mask_2d
 
     integer :: i, j
     real(dp) :: local_sum
     real(dp) :: parallel_global_sum_stagger_real8_2d
+    integer, dimension(parallel%local_ewn-1,parallel%local_nsn-1) :: mask
 
     integer :: &
          staggered_ilo, staggered_ihi, &  ! bounds of locally owned vertices on staggered grid
@@ -6519,6 +6565,12 @@ contains
     staggered_jlo = parallel%staggered_jlo
     staggered_jhi = parallel%staggered_jhi
 
+    if (present(mask_2d)) then
+       mask = mask_2d
+    else
+       mask = 1
+    endif
+
     if (parallel%reprosum) then   ! compute using cism_reprosum_calc
 
        ! Allocate and fill arrays to pass to parallel_reduce_reprosum
@@ -6535,7 +6587,9 @@ contains
           do j = staggered_jlo, staggered_jhi
              do i = staggered_ilo, staggered_ihi
                 count = count + 1
-                arr(count,1) = arr1(i,j) + arr2(i,j)
+                if (mask(i,j) == 1) then
+                   arr(count,1) = arr1(i,j) + arr2(i,j)
+                endif
              enddo
           enddo
 
@@ -6545,7 +6599,9 @@ contains
           do j = staggered_jlo, staggered_jhi
              do i = staggered_ilo, staggered_ihi
                 count = count + 1
-                arr(count,1) = arr1(i,j)
+                if (mask(i,j) == 1) then
+                   arr(count,1) = arr1(i,j)
+                endif
              enddo
           enddo
 
@@ -6577,7 +6633,9 @@ contains
 
           do j = staggered_jlo, staggered_jhi
              do i = staggered_ilo, staggered_ihi
-                local_sum = local_sum + arr1(i,j) + arr2(i,j)
+                if (mask(i,j) == 1) then
+                   local_sum = local_sum + arr1(i,j) + arr2(i,j)
+                endif
              enddo
           enddo
 
@@ -6585,7 +6643,9 @@ contains
 
           do j = staggered_jlo, staggered_jhi
              do i = staggered_ilo, staggered_ihi
-                local_sum = local_sum + arr1(i,j)
+                if (mask(i,j) == 1) then
+                   local_sum = local_sum + arr1(i,j)
+                endif
              enddo
           enddo
 
@@ -6599,7 +6659,8 @@ contains
 
 !=======================================================================
 
-  function parallel_global_sum_stagger_real8_3d(arr1, parallel, arr2)
+  !TODO - Add mask_2d here and below
+  function parallel_global_sum_stagger_real8_3d(arr1, parallel, arr2, mask_2d)
 
     ! Calculate the global sum of a 3D double-precision field on the staggered grid
     ! Assumes k is the first index, followed by i and j
@@ -6607,10 +6668,12 @@ contains
     real(dp), dimension(:,:,:), intent(in) :: arr1
     type(parallel_type) :: parallel
     real(dp), dimension(:,:,:), intent(in), optional :: arr2
+    integer, dimension(:,:), intent(in), optional :: mask_2d
 
     integer :: i, j, k, nz
     real(dp) :: local_sum
     real(dp) :: parallel_global_sum_stagger_real8_3d
+    integer, dimension(parallel%local_ewn-1,parallel%local_nsn-1) :: mask
 
     ! variables for computing reproductible sums
     integer :: nsummands, nflds      ! dimensions of array passed to parallel_reduce_reprosum
@@ -6627,6 +6690,12 @@ contains
     staggered_ihi = parallel%staggered_ihi
     staggered_jlo = parallel%staggered_jlo
     staggered_jhi = parallel%staggered_jhi
+
+    if (present(mask_2d)) then
+       mask = mask_2d
+    else
+       mask = 1
+    endif
 
     nz = size(arr1,1)
 
@@ -6645,10 +6714,12 @@ contains
           count = 0
           do j = staggered_jlo, staggered_jhi
              do i = staggered_ilo, staggered_ihi
-                do k = 1, nz
-                   count = count + 1
-                   arr(count,1) = arr1(k,i,j) + arr2(k,i,j)
-                enddo
+                if (mask(i,j) == 1) then
+                   do k = 1, nz
+                      count = count + 1
+                      arr(count,1) = arr1(k,i,j) + arr2(k,i,j)
+                   enddo
+                endif
              enddo
           enddo
 
@@ -6657,10 +6728,12 @@ contains
           count = 0
           do j = staggered_jlo, staggered_jhi
              do i = staggered_ilo, staggered_ihi
-                do k = 1, nz
-                   count = count + 1
-                   arr(count,1) = arr1(k,i,j)
-                enddo
+                if (mask(i,j) == 1) then
+                   do k = 1, nz
+                      count = count + 1
+                      arr(count,1) = arr1(k,i,j)
+                   enddo
+                endif
              enddo
           enddo
 
@@ -6692,9 +6765,11 @@ contains
 
           do j = staggered_jlo, staggered_jhi
              do i = staggered_ilo, staggered_ihi
-                do k = 1, nz
-                   local_sum = local_sum + arr1(k,i,j) + arr2(k,i,j)
-                enddo
+                if (mask(i,j) == 1) then
+                   do k = 1, nz
+                      local_sum = local_sum + arr1(k,i,j) + arr2(k,i,j)
+                   enddo
+                endif
              enddo
           enddo
 
@@ -6702,9 +6777,11 @@ contains
 
           do j = staggered_jlo, staggered_jhi
              do i = staggered_ilo, staggered_ihi
-                do k = 1, nz
-                   local_sum = local_sum + arr1(k,i,j)
-                enddo
+                if (mask(i,j) == 1) then
+                   do k = 1, nz
+                      local_sum = local_sum + arr1(k,i,j)
+                   enddo
+                endif
              enddo
           enddo
 
@@ -6718,22 +6795,21 @@ contains
 
 !=======================================================================
 
-  function parallel_global_sum_stagger_real8_2d_nflds(arr1, nflds, parallel, arr2)
+  function parallel_global_sum_stagger_real8_2d_nflds(arr1, nflds, parallel, arr2, mask_2d)
 
     ! Sum one or two local arrays on the staggered grid, then take the global sum.
     ! The final index is equal to the number of independent fields to be summed.
     !TODO - Don't have to pass in nflds, since it equals size(a,3)?
 
     real(dp), dimension(:,:,:), intent(in) :: arr1
-
     integer, intent(in) :: nflds
-
     type(parallel_type), intent(in) :: &
          parallel               ! info for parallel communication
-
     real(dp), dimension(:,:,:), intent(in), optional :: arr2
+    integer, dimension(:,:), intent(in), optional :: mask_2d
 
     real(dp), dimension(size(arr1,3)) :: parallel_global_sum_stagger_real8_2d_nflds
+    integer, dimension(parallel%local_ewn-1,parallel%local_nsn-1) :: mask
 
     integer :: i, j, n
 
@@ -6754,6 +6830,12 @@ contains
     staggered_jlo = parallel%staggered_jlo
     staggered_jhi = parallel%staggered_jhi
 
+    if (present(mask_2d)) then
+       mask = mask_2d
+    else
+       mask = 1
+    endif
+
     if (parallel%reprosum) then   ! compute using cism_reprosum_calc
 
        ! Allocate and fill arrays to pass to parallel_reduce_reprosum
@@ -6769,16 +6851,20 @@ contains
              count = 0
              do j = staggered_jlo, staggered_jhi
                 do i = staggered_ilo, staggered_ihi
-                   count = count + 1
-                   arr(count,n) = arr1(i,j,n) + arr2(i,j,n)
+                   if (mask(i,j) == 1) then
+                      count = count + 1
+                      arr(count,n) = arr1(i,j,n) + arr2(i,j,n)
+                   endif
                 enddo
              enddo
           else  ! compute global sum of arr1
              count = 0
              do j = staggered_jlo, staggered_jhi
                 do i = staggered_ilo, staggered_ihi
-                   count = count + 1
-                   arr(count,n) = arr1(i,j,n)
+                   if (mask(i,j) == 1) then
+                      count = count + 1
+                      arr(count,n) = arr1(i,j,n)
+                   endif
                 enddo
              enddo
           endif
@@ -6814,13 +6900,17 @@ contains
           if (present(arr2)) then
              do j = staggered_jlo, staggered_jhi
                 do i = staggered_ilo, staggered_ihi
-                   local_sum(n) = local_sum(n) + arr1(i,j,n) + arr2(i,j,n)
+                   if (mask(i,j) == 1) then
+                      local_sum(n) = local_sum(n) + arr1(i,j,n) + arr2(i,j,n)
+                   endif
                 enddo
              enddo
           else
              do j = staggered_jlo, staggered_jhi
                 do i = staggered_ilo, staggered_ihi
-                   local_sum(n) = local_sum(n) + arr1(i,j,n)
+                   if (mask(i,j) == 1) then
+                      local_sum(n) = local_sum(n) + arr1(i,j,n)
+                   endif
                 enddo
              enddo
           endif
@@ -6835,22 +6925,21 @@ contains
 
 !=======================================================================
 
-  function parallel_global_sum_stagger_real8_3d_nflds(arr1, nflds, parallel, arr2)
+  function parallel_global_sum_stagger_real8_3d_nflds(arr1, nflds, parallel, arr2, mask_2d)
 
     ! Sum one or two local arrays on the staggered grid, then take the global sum.
     ! Assumes k is the first index, followed by i and j.
     ! The final index is equal to the number of independent fields to be summed.
 
     real(dp), dimension(:,:,:,:), intent(in) :: arr1
-
     integer, intent(in) :: nflds   ! size of final index; number of global sums to be computed
-
     type(parallel_type), intent(in) :: &
          parallel               ! info for parallel communication
-
     real(dp), dimension(:,:,:,:), intent(in), optional :: arr2
+    integer, dimension(:,:), intent(in), optional :: mask_2d
 
     real(dp), dimension(size(arr1,4)) :: parallel_global_sum_stagger_real8_3d_nflds
+    integer, dimension(parallel%local_ewn-1,parallel%local_nsn-1) :: mask
 
     integer :: i, j, k, n, nz
 
@@ -6872,6 +6961,12 @@ contains
     staggered_jlo = parallel%staggered_jlo
     staggered_jhi = parallel%staggered_jhi
 
+    if (present(mask_2d)) then
+       mask = mask_2d
+    else
+       mask = 1
+    endif
+
     nz = size(arr1,1)
 
     if (parallel%reprosum) then   ! compute using cism_reprosum_calc
@@ -6889,20 +6984,24 @@ contains
              count = 0
              do j = staggered_jlo, staggered_jhi
                 do i = staggered_ilo, staggered_ihi
-                   do k = 1, nz
-                      count = count + 1
-                      arr(count,n) = arr1(k,i,j,n) + arr2(k,i,j,n)
-                   enddo
+                   if (mask(i,j) == 1) then
+                      do k = 1, nz
+                         count = count + 1
+                         arr(count,n) = arr1(k,i,j,n) + arr2(k,i,j,n)
+                      enddo
+                   endif
                 enddo
              enddo
           else  ! compute global sum of arr1
              count = 0
              do j = staggered_jlo, staggered_jhi
                 do i = staggered_ilo, staggered_ihi
-                   do k = 1, nz
-                      count = count + 1
-                      arr(count,n) = arr1(k,i,j,n)
-                   enddo
+                   if (mask(i,j) == 1) then
+                      do k = 1, nz
+                         count = count + 1
+                         arr(count,n) = arr1(k,i,j,n)
+                      enddo
+                   endif
                 enddo
              enddo
           endif
@@ -6938,17 +7037,21 @@ contains
           if (present(arr2)) then
              do j = staggered_jlo, staggered_jhi
                 do i = staggered_ilo, staggered_ihi
-                   do k = 1, nz
-                      local_sum(n) = local_sum(n) + arr1(k,i,j,n) + arr2(k,i,j,n)
-                   enddo
+                   if (mask(i,j) == 1) then
+                      do k = 1, nz
+                         local_sum(n) = local_sum(n) + arr1(k,i,j,n) + arr2(k,i,j,n)
+                      enddo
+                   endif
                 enddo
              enddo
           else
              do j = staggered_jlo, staggered_jhi
                 do i = staggered_ilo, staggered_ihi
-                   do k = 1, nz
-                      local_sum(n) = local_sum(n) + arr1(k,i,j,n)
-                   enddo
+                   if (mask(i,j) == 1) then
+                      do k = 1, nz
+                         local_sum(n) = local_sum(n) + arr1(k,i,j,n)
+                      enddo
+                   endif
                 enddo
              enddo
           endif
@@ -8184,7 +8287,7 @@ contains
 
   ! subroutines for 1D halo updates
 
-  subroutine parallel_halo_extrapolate_real8_1d(a, parallel, interval_in)
+  subroutine parallel_halo_extrapolate_real8_1d(a, interval_in)
 
     !Note: Extrapolate a 1D real8 variable into halo cells to the east and west.
     !      Currently used only to compute halo values for grid cell coordinates.
@@ -8362,7 +8465,7 @@ contains
     real(dp),dimension(:,:,:) :: a
     type(parallel_type) :: parallel
 
-    integer :: ierror, one, erequest, nrequest, srequest, wrequest
+    integer :: ierror, erequest, nrequest, srequest, wrequest
     real(dp),dimension(lhalo, parallel%local_nsn-lhalo-uhalo, size(a,3)) :: esend,wrecv
     real(dp),dimension(uhalo, parallel%local_nsn-lhalo-uhalo, size(a,3)) :: erecv,wsend
     real(dp),dimension(parallel%local_ewn, lhalo, size(a,3)) :: nsend,srecv
@@ -8488,7 +8591,7 @@ contains
     real(dp),dimension(:,:,:,:) :: a
     type(parallel_type) :: parallel
 
-    integer :: ierror, one, erequest, nrequest, srequest, wrequest
+    integer :: ierror, erequest, nrequest, srequest, wrequest
     real(dp),dimension(lhalo, parallel%local_nsn-lhalo-uhalo, size(a,3), size(a,4)) :: esend,wrecv
     real(dp),dimension(uhalo, parallel%local_nsn-lhalo-uhalo, size(a,3), size(a,4)) :: erecv,wsend
     real(dp),dimension(parallel%local_ewn, lhalo, size(a,3), size(a,4)) :: nsend,srecv
@@ -8774,7 +8877,7 @@ contains
     real(dp),dimension(:,:,:) :: a
     type(parallel_type) :: parallel
     
-    integer :: ierror, one, erequest, nrequest, srequest, wrequest
+    integer :: ierror, erequest, nrequest, srequest, wrequest
     real(dp),dimension(size(a,1), lhalo, parallel%local_nsn-lhalo-uhalo) :: esend,wrecv
     real(dp),dimension(size(a,1), uhalo, parallel%local_nsn-lhalo-uhalo) :: erecv,wsend
     real(dp),dimension(size(a,1), parallel%local_ewn, lhalo) :: nsend,srecv
@@ -9467,12 +9570,7 @@ contains
     integer :: ierror
     real(dp) :: recvbuf,sendbuf, parallel_reduce_sum_real8
 
-    ! Input and output arguments for subroutine cism_reprosum_calc
-    real(dp), dimension(:,:), allocatable :: arr       ! array to be summed over processors
-    real(dp), dimension(:), allocatable :: arr_gsum    ! global sum of arr
-
     ! begin
-
     sendbuf = x
     call mpi_allreduce(sendbuf,recvbuf,1,mpi_real8,mpi_sum,comm,ierror)
     parallel_reduce_sum_real8 = recvbuf
@@ -9507,13 +9605,8 @@ contains
     integer :: ierror, nvar
     real(dp), dimension(size(x)) :: recvbuf,sendbuf, parallel_reduce_sum_real8_nvar
 
-    ! Input and output arguments for subroutine cism_reprosum_calc
-    real(dp), dimension(:,:), allocatable :: arr       ! array to be summed over processors
-    real(dp), dimension(:), allocatable :: arr_gsum    ! global sum of arr
-
     ! begin
     nvar = size(x)
-
     sendbuf = x
     call mpi_allreduce(sendbuf,recvbuf,nvar,mpi_real8,mpi_sum,comm,ierror)
     parallel_reduce_sum_real8_nvar = recvbuf

@@ -2021,6 +2021,7 @@
                                 nz,               sigma,           &
                                 nhalo,                             &
                                 itest,   jtest,   rtest,           &
+                                parallel,                          &
                                 whichassemble_lateral,             &
                                 land_mask,        ocean_mask,      &
                                 active_cell,                       &
@@ -2072,7 +2073,7 @@
           enddo
        endif
     endif
-    
+
     ! Optional slope correction factor for DIVA
 
     ! Initialize to values appropriate for small slopes
@@ -2394,6 +2395,7 @@
                                                sigma,            stagsigma,       &
                                                nhalo,                             &
                                                itest,   jtest,   rtest,           &
+                                               parallel,                          &
                                                active_cell,                       &
                                                xVertex,          yVertex,         &
                                                uvel_2d,          vvel_2d,         &
@@ -2806,6 +2808,7 @@
              ! Assemble the stiffness matrix A
              !---------------------------------------------------------------------------
 
+             !TODO - pass in 'parallel'?
              call t_startf('glissade_assemble_3d')
              call assemble_stiffness_matrix_3d(nx,               ny,              &
                                                nz,               sigma,           &
@@ -3167,7 +3170,7 @@
           if (solve_2d) then
              call point_diag(uvel_2d, 'Mean uvel (m/yr)', itest, jtest, rtest, 7, 7)
              call point_diag(vvel_2d, 'Mean vvel (m/yr)', itest, jtest, rtest, 7, 7)
-          else	 ! 3D velocity solve
+          else   ! 3D velocity solve
              call point_diag(uvel(nz,:,:), 'Basal uvel (m/yr)', itest, jtest, rtest, 7, 7)
              call point_diag(vvel(nz,:,:), 'Basal vvel (m/yr)', itest, jtest, rtest, 7, 7)
              call point_diag(uvel(1,:,:), 'Sfc uvel (m/yr)', itest, jtest, rtest, 7, 7)
@@ -4437,6 +4440,7 @@
                                     nz,               sigma,           &
                                     nhalo,                             &
                                     itest,   jtest,   rtest,           &
+                                    parallel,                          &
                                     whichassemble_lateral,             &
                                     land_mask,                         &
                                     ocean_mask,                        &
@@ -4459,6 +4463,9 @@
 
     integer, intent(in) :: &
        itest, jtest, rtest           ! coordinates of diagnostic point
+
+    type(parallel_type), intent(in) :: &
+       parallel                      ! info for parallel communication
 
     logical, dimension(nx,ny), intent(in) ::  &
        active_cell                   ! true if cell contains ice, borders a locally owned vertex,
@@ -4493,24 +4500,30 @@
 
     ! Note: Lateral shelf BCs are applied to active cells (either floating or grounded) that border the ocean.
 
+    if (verbose_shelf .or. verbose_load) then
+       call point_diag(thck, 'Before lateral shelf loop, thck', itest, jtest, rtest, 7, 7)
+       call point_diag(usrf, 'usrf', itest, jtest, rtest, 7, 7)
+       call point_diag(stagthck, 'stagthck', itest, jtest, rtest, 7, 7)
+       call point_diag(stagusrf, 'stagusrf', itest, jtest, rtest, 7, 7)
+    endif
+
     do j = nhalo+1, ny-nhalo+1
     do i = nhalo+1, nx-nhalo+1
        
-       if ((verbose_shelf .or. verbose_load) .and. i==itest .and. j==jtest .and. this_rank==rtest) then
-          write(iulog,*) 'rank, i, j =', this_rank, i, j
-          write(iulog,*) 'ocean_mask (i-1:i,j)  =', ocean_mask(i-1:i, j)
-          write(iulog,*) 'ocean_mask (i-1:i,j-1)=', ocean_mask(i-1:i, j-1)
-       endif
-
        ! Compute the spreading term for all active cells that share an edge with an ice-free ocean cell.
 
        if (active_cell(i,j)) then
 
           if ( ocean_mask(i-1,j) == 1) then
 
+             if (verbose_shelf .and. this_rank==rtest .and. i==itest .and. j==jtest) then
+                write(iulog,*) 'call west, i, j, xv, yv =', i, j, xVertex(i,j), yVertex(i,j)
+             endif
+
              call lateral_shelf_bc(nx,              ny,              &
                                    nz,              sigma,           &
                                    itest,   jtest,  rtest,           &
+                                   parallel,                         &
                                    whichassemble_lateral,            &
                                    'west',                           &
                                    i,               j,               &
@@ -4522,9 +4535,14 @@
 
           if ( ocean_mask(i+1,j) == 1) then
 
+             if (verbose_shelf .and. this_rank==rtest .and. i==itest .and. j==jtest) then
+                write(iulog,*) 'call east, i, j, xv, yv =', i, j, xVertex(i,j), yVertex(i,j)
+             endif
+
              call lateral_shelf_bc(nx,              ny,              &
                                    nz,              sigma,           &
                                    itest,   jtest,  rtest,           &
+                                   parallel,                         &
                                    whichassemble_lateral,            &
                                    'east',                           &
                                    i,               j,               &
@@ -4536,9 +4554,14 @@
 
           if ( ocean_mask(i,j-1) == 1) then
 
+             if (verbose_shelf .and. this_rank==rtest .and. i==itest .and. j==jtest) then
+                write(iulog,*) 'call south, i, j, xv, xv =', i, j, xVertex(i,j), xVertex(i,j)
+             endif
+
              call lateral_shelf_bc(nx,              ny,              &
                                    nz,              sigma,           &
                                    itest,   jtest,  rtest,           &
+                                   parallel,                         &
                                    whichassemble_lateral,            &
                                    'south',                          &
                                    i,               j,               &
@@ -4550,9 +4573,14 @@
 
           if ( ocean_mask(i,j+1) == 1) then
 
+             if (verbose_shelf .and. this_rank==rtest .and. i==itest .and. j==jtest) then
+                write(iulog,*) 'call north, i, j, xv, yv =', i, j, xVertex(i,j), yVertex(i,j)
+             endif
+
              call lateral_shelf_bc(nx,              ny,              &
                                    nz,              sigma,           &
                                    itest,   jtest,  rtest,           &
+                                   parallel,                         &
                                    whichassemble_lateral,            &
                                    'north',                          &
                                    i,               j,               &
@@ -4574,6 +4602,7 @@
   subroutine lateral_shelf_bc(nx,                  ny,              &
                               nz,                  sigma,           &
                               itest,   jtest,      rtest,           &
+                              parallel,                             &
                               whichassemble_lateral,                &
                               face,                                 &
                               iCell,               jCell,           &
@@ -4633,6 +4662,9 @@
     integer, intent(in) :: &
        itest, jtest, rtest           ! coordinates of diagnostic point
 
+    type(parallel_type), intent(in) :: &
+       parallel                      ! info for parallel communication
+
     real(dp), dimension(nx-1,ny-1), intent(in) ::   &
        xVertex, yVertex              ! x and y coordinates of vertices
 
@@ -4671,13 +4703,13 @@
        detJ               ! determinant of Jacobian for the transformation
                           !  between the reference element and true element
 
-    integer :: k, n, p
+    integer :: k, n, p, ig, jg
 
     if ((verbose_shelf .or. verbose_load) .and. &
          iCell == itest .and. jCell == jtest .and. this_rank == rtest) then
        write(iulog,*) ' '
        write(iulog,*) 'In lateral_shelf_bc, rank, i, j =', this_rank, iCell, jCell
-       write(iulog,*) 'thck, usrf =', thck(iCell,jCell), usrf(iCell,jCell)
+       write(iulog,*) '   thck, usrf =', thck(iCell,jCell), usrf(iCell,jCell)
     endif
 
     ! Compute nodal geometry in a local xy reference system.
@@ -4809,11 +4841,11 @@
           !TODO - Modify this subroutine to return only detJ, and not the derivatives?
 
           if (verbose_shelf .and. this_rank==rtest .and. iCell==itest .and. jCell==jtest .and. k==ktest) then
-!             write(iulog,*) 'Get detJ, i, j, k, p =', iCell, jCell, k, p
-!             write(iulog,*) 'x =', x(:)
-!             write(iulog,*) 'y =', y(:)
-!             write(iulog,*) 'dphi_dxr_2d =', dphi_dxr_2d(:,p)
-!             write(iulog,*) 'dphi_dyr_2d =', dphi_dyr_2d(:,p)
+             write(iulog,*) 'Lat shelf, get detJ, rank, i, j, k, p =', this_rank, iCell, jCell, k, p
+             call parallel_globalindex(iCell, jCell, ig, jg, parallel)
+             write(iulog,*) '   ig, jg =', ig, jg
+!             write(iulog,*) '   x =', x(:)
+!             write(iulog,*) '   y =', y(:)
           endif
 
           call get_basis_function_derivatives_2d(x(:),              y(:),               &
@@ -4821,6 +4853,7 @@
                                                  dphi_dx_2d(:),     dphi_dy_2d(:),      &
                                                  detJ,                                  &
                                                  itest, jtest, rtest,                   &
+                                                 parallel,                              &
                                                  iCell, jCell, p)
 
           ! For some faces, detJ is computed to be a negative number because the face is
@@ -4916,6 +4949,7 @@
                                           sigma,            stagsigma,       &
                                           nhalo,                             &
                                           itest,   jtest,   rtest,           &
+                                          parallel,                          &
                                           active_cell,                       &
                                           xVertex,          yVertex,         &
                                           uvel_2d,          vvel_2d,         &
@@ -4961,6 +4995,9 @@
 
     integer, intent(in) :: &
        itest, jtest, rtest           ! coordinates of diagnostic point
+
+    type(parallel_type), intent(in) :: &
+       parallel                      ! info for parallel communication
 
     logical, dimension(nx,ny), intent(in) ::  &
        active_cell        ! true if cell contains ice and borders a locally owned vertex
@@ -5169,6 +5206,7 @@
                                                     dphi_dx_2d(:),    dphi_dy_2d(:),    &
                                                     detJ(p),                            &
                                                     itest, jtest, rtest,                &
+                                                    parallel,                           &
                                                     i, j, p)
 
              dphi_dz_2d(:) = 0.d0
@@ -6049,6 +6087,7 @@
                                                     dphi_dx_2d(:),      dphi_dy_2d(:),      &
                                                     detJ,                                   &
                                                     itest, jtest, rtest,                    &
+                                                    parallel,                               &
                                                     i, j, 1)
 
              ! Compute basal strain rate components at cell center
@@ -6268,6 +6307,7 @@
                                                dphi_dx_2d,  dphi_dy_2d,    &
                                                detJ,                       &
                                                itest, jtest, rtest,        &
+                                               parallel,                   &
                                                i, j, p)
 
     !------------------------------------------------------------------
@@ -6299,11 +6339,17 @@
     integer, intent(in) :: &
        itest, jtest, rtest              ! coordinates of diagnostic point
 
+    type(parallel_type), intent(in) :: &
+         parallel                       ! info for parallel communication
+
     integer, intent(in) :: i, j, p
 
     integer :: n, row, col
 
+    integer :: ig, jg
+
     logical, parameter :: Jac_bug_check = .false.   ! set to true for debugging
+
     real(dp), dimension(2,2) :: prod     ! Jac * Jinv (should be identity matrix)
 
     !------------------------------------------------------------------
@@ -6326,13 +6372,14 @@
     if ((verbose_Jac .or. verbose_diva) .and. this_rank==rtest .and. i==itest .and. j==jtest) then
        write(iulog,*) ' '
        write(iulog,*) 'In get_basis_function_derivatives_2d: i, j, p =', i, j, p
+       call parallel_globalindex(i, j, ig, jg, parallel)
+       write(iulog,*) '   ig, jg =', ig, jg
     endif
 
     do n = 1, nNodesPerElement_2d
        if (verbose_Jac .and. this_rank==rtest .and. i==itest .and. j==jtest) then
           write(iulog,*) ' '
-          write(iulog,*) 'n, x, y:', n, xNode(n), yNode(n)
-          write(iulog,*) 'dphi_dxr_2d, dphi_dyr_2d:', dphi_dxr_2d(n), dphi_dyr_2d(n)
+          write(iulog,*) '   n, x, y:', n, xNode(n), yNode(n)
        endif
        Jac(1,1) = Jac(1,1) + dphi_dxr_2d(n) * xNode(n)
        Jac(1,2) = Jac(1,2) + dphi_dxr_2d(n) * yNode(n)
@@ -6352,11 +6399,9 @@
        Jinv(2,1) = -Jac(2,1)/detJ
        Jinv(2,2) =  Jac(1,1)/detJ
     else
-       write(iulog,*) 'stopping, det J = 0'
-       write(iulog,*) 'i, j, p:', i, j, p
-       write(iulog,*) 'Jacobian matrix:'
-       write(iulog,*) Jac(1,:)
-       write(iulog,*) Jac(2,:)
+       call parallel_globalindex(i, j, ig, jg, parallel)
+       write(iulog,*) 'stopping, det J = 0, rank, i, j, p:', this_rank, i, j, p
+       write(iulog,*) '    ig, jg, Jacobian matrix:', ig, jg, Jac(1,:), Jac(2,:)
        call write_log('Jacobian matrix is singular', GM_FATAL)
     endif
 
@@ -8379,6 +8424,7 @@
                      dphi_dx_2d(:),    dphi_dy_2d(:),      &
                      detJ,                                 &
                      itest, jtest, rtest,                  &
+                     parallel,                             &
                      i, j, p)
 
                 ! Evaluate beta at this quadrature point, taking a phi-weighted sum over neighboring vertices.
@@ -8961,6 +9007,7 @@
                                                        dphi_dx_2d(:),    dphi_dy_2d(:),      &
                                                        detJ,                                 &
                                                        itest, jtest, rtest,                  &
+                                                       parallel,                             &
                                                        i, j, p)
                 endif
 
@@ -9562,7 +9609,7 @@
     enddo     ! j
 
     ! Take global sum, then take square root
-    L2_norm = parallel_global_sum_stagger(worku, parallel, workv)
+    L2_norm = parallel_global_sum_stagger(worku, parallel, arr2=workv)
     L2_norm = sqrt(L2_norm)
 
     if (verbose_residual) then
@@ -9614,7 +9661,7 @@
        enddo     ! j
 
        ! Take global sum, then take square root
-       L2_norm_rhs = parallel_global_sum_stagger(worku, parallel, workv)
+       L2_norm_rhs = parallel_global_sum_stagger(worku, parallel, arr2=workv)
        L2_norm_rhs = sqrt(L2_norm_rhs)
 
        if (L2_norm_rhs > 0.0d0) then
@@ -9766,7 +9813,7 @@
     enddo        ! j
 
     ! Take global sum, then take square root
-    L2_norm = parallel_global_sum_stagger(worku, parallel, workv)
+    L2_norm = parallel_global_sum_stagger(worku, parallel, arr2=workv)
     L2_norm = sqrt(L2_norm)
 
     if (verbose_residual) then
@@ -9819,7 +9866,7 @@
        enddo        ! j
 
        ! Take global sum, then take square root
-       L2_norm_rhs = parallel_global_sum_stagger(worku, parallel, workv)
+       L2_norm_rhs = parallel_global_sum_stagger(worku, parallel, arr2=workv)
        L2_norm_rhs = sqrt(L2_norm_rhs)
 
        if (L2_norm_rhs > 0.0d0) then
