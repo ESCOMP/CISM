@@ -50,7 +50,8 @@ module glissade_calving
             glissade_calvingmip_diagnostics
   public :: verbose_calving
 
-  logical, parameter :: verbose_calving = .false.
+!!  logical, parameter :: verbose_calving = .false.
+  logical, parameter :: verbose_calving = .true.
 
 contains
 
@@ -1194,6 +1195,7 @@ contains
 
        else
 
+          !TODO - Also pass melt_dthck, return lateral_melt%melt_thck
           call apply_calving_dthck(&
                nx,           ny,        &
                itest, jtest, rtest,     &
@@ -3948,6 +3950,7 @@ contains
 
 !---------------------------------------------------------------------------
 
+  !TODO - Move to a different module?
   subroutine glissade_stress_tensor_eigenvalues(&
        nx,    ny,   nz,   &
        sigma,             &
@@ -4197,6 +4200,7 @@ contains
 
   end subroutine extrapolate_to_calving_front
 
+  !TODO - Put these in a separate module, maybe glissade_diagnostics?
 !---------------------------------------------------------------------------
 ! The next three subroutines are diagnostic subroutines for CalvingMIP.
 ! They estimate the calving front location along 8 prescribed axes

@@ -204,6 +204,14 @@ module glide_types
   integer, parameter :: HO_CALVINGMIP_DOMAIN_CIRCULAR = 1
   integer, parameter :: HO_CALVINGMIP_DOMAIN_THULE = 2
 
+  integer, parameter :: LATERAL_MELT_NONE = 0
+  integer, parameter :: LATERAL_MELT_CONSTANT = 1
+  integer, parameter :: LATERAL_MELT_ISMIP6 = 2
+  integer, parameter :: LATERAL_MELT_COUPLED = 3
+
+  integer, parameter :: HO_MELT_FRONT_NO_SUBGRID = 0
+  integer, parameter :: HO_MELT_FRONT_SUBGRID = 1
+
   integer, parameter :: FORCE_RETREAT_NONE = 0
   integer, parameter :: FORCE_RETREAT_ALL_ICE = 1
   integer, parameter :: FORCE_RETREAT_FLOATING_ICE = 2
@@ -694,6 +702,7 @@ module glide_types
     logical :: apply_calving_mask = .false.
     !> if true, then apply a calving mask to prevent calving-front advance
 
+    !TODO - Make this a logical option in the calving derived type
     integer :: which_ho_calving_front = 0
     !> Flag that indicates whether to use a subgrid calving front parameterization
     !> \begin{description}
@@ -708,6 +717,14 @@ module glide_types
     !> \item[1] circular (radially symmetric)
     !> \item[1] Thule (complex topography)
     !> \end{description}
+
+    integer :: which_lateral_melt = 0
+    !> Lateral melt:
+    !> \begin{description}
+    !> \item[0] No lateral melt
+    !> \item[1] Constant lateral melt rate
+    !> \item[2] ISMIP6 lateral melt rate
+    !> \item[3] ISMIP6 lateral melt rate for coupled setup
 
     logical :: remove_icebergs = .true.
     !> if true, then identify and remove icebergs after calving
@@ -1580,7 +1597,7 @@ module glide_types
      real(dp) :: calving_fraction = 0.2d0        !> fractional thickness of floating ice that calves
                                                  !> (whichcalving = CALVING_FLOAT_FRACTION)
                                                  !> WHL - previously defined as the fraction of floating ice that does not calve
-     real(dp) :: timescale = 0.0d0               !> timescale (yr) for calving (Glissade only); calving_thck = thck*max(dt/calving_timescale,1)
+     real(dp) :: timescale = 0.0d0               !> timescale (yr) for calving (Glissade only); calving_thck = thck*min(dt/calving_timescale,1)
                                                  !> if calving_timescale = 0, then the full column calves at once
      real(dp) :: minthck = 0.d0                  !> minimum thickness (m) of floating ice at marine edge before it calves;
                                                  !> if used, must be set to a nonzero value in the config file
@@ -1633,6 +1650,38 @@ module glide_types
      real(dp), dimension(:), pointer :: cf_vvel => null()    !> ice speed at CF (m/s), v component along each axis
 
   end type glide_calving
+
+  !++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+
+  type glide_lateral_melt
+
+     ! holds parameters for lateral melting at marine-grounded cliff fronts
+     ! TODO - Could lateral melt also be applied to floating ice?
+
+     logical :: subgrid_melt_front = .false.   !> if true, then use a subgrid lateral melt parameterization
+
+     real(dp),dimension(:,:),  pointer :: melt_thck => null()      !> thickness loss in grid cell due to lateral melt
+     real(dp),dimension(:,:),  pointer :: melt_rate => null()      !> rate of ice loss due to lateral melt (m/yr ice)
+     real(dp),dimension(:,:),  pointer :: melt_rate_tavg => null() !> rate of ice loss due to lateral melt (m/yr ice, time average)
+     integer, dimension(:,:),  pointer :: melt_front_mask => null()!> mask of cells where lateral melting can take place
+!!     integer, dimension(:,:),  pointer :: calving_front_mask => null()   !> mask of calving front cells
+!!     integer, dimension(:,:),  pointer :: marine_cliff_mask => null()    !> mask of marine calving cliff cells
+     real(dp),dimension(:,:),  pointer :: subglacial_discharge => null()   !> subglacial meltwater discharge for lateral melting (kg/m2/s);
+                                                                           !> this is basin-wide integrated discharge (m3/s), divided by
+                                                                           !> the submerged area (m2) of the melt front, times rhow
+     real(dp),dimension(:,:),  pointer :: tforcing_2d => null()            !> 2d thermal forcing for lateral melt (deg K)
+
+     !TODO - Move the next two arrays to the geometry derived type?
+     real(dp),dimension(:,:),  pointer :: thck_effective => null()         !> effective thickness for lateral melt (m)
+     real(dp),dimension(:,:),  pointer :: effective_areafrac => null()     !> effective fractional area for lateral melt
+
+     real(dp) :: melt_rate_const = 0.0d0       !> constant lateral retreat rate at melt front (m/yr)
+     real(dp) :: melt_factor = 1.0d0           !> multiplier for Rignot frontal melt. A value of 1.6 was proposed for ISMIP7
+
+     real(dp) :: dusrf_dx_mf = 0.0d0           !> assumed max value of |ds/dx| at the melt front for full (not partial) cells (m/m)
+     real(dp) :: thck_effective_min = 50.0d0   !> minimum value of thck_effective (m) for melt-front cells
+
+  end type glide_lateral_melt
 
   !++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 
@@ -2715,6 +2764,7 @@ module glide_types
     type(glide_climate)  :: climate
     type(eismint_climate_type) :: eismint_climate
     type(glide_calving)  :: calving
+    type(glide_lateral_melt) :: lateral_melt
     type(glide_temper)   :: temper
     type(glide_basal_hydro)  :: basal_hydro
     type(glide_basal_physics):: basal_physics
@@ -3187,6 +3237,9 @@ contains
           call coordsystem_allocate(model%general%ice_grid, model%plume%S_ambient)
        elseif (model%options%whichbmlt_float == BMLT_FLOAT_THERMAL_FORCING) then
           ! Note: nzocn and nbasin should be set in the [grid_ocn] section of the config file
+          !TODO - Also do this if which_lateral_melt = LATERAL_MELT_COUPLED?
+          !       Not sure if we would use this option with other values of whichbmlt_float
+          !TODO - This logic probably not needed if nzocn = 1 is the default value
           if (model%ocean_data%nzocn < 1) then
              call write_log('Must set nzocn >= 1 for this bmlt_float option', GM_FATAL)
           endif
@@ -3197,6 +3250,7 @@ contains
               model%options%bmlt_float_thermal_forcing_param == BMLT_FLOAT_TF_ISMIP6_NONLOCAL .or. &
               model%options%bmlt_float_thermal_forcing_param == BMLT_FLOAT_TF_ISMIP6_NONLOCAL_SLOPE) then
              if (model%ocean_data%nbasin < 1) then
+                !TODO - This logic probably not needed if nbasin = 1 is the default value
                 call write_log ('Must set nbasin >= 1 for the ISMIP6 thermal forcing options', GM_FATAL)
              endif
              call coordsystem_allocate(model%general%ice_grid, model%ocean_data%deltaT_ocn)
@@ -3363,6 +3417,20 @@ contains
        allocate(model%calving%cf_thck(model%calving%naxis))
        allocate(model%calving%cf_uvel(model%calving%naxis))
        allocate(model%calving%cf_vvel(model%calving%naxis))
+    endif
+
+    ! lateral melt arrays
+    if (model%options%which_lateral_melt /= LATERAL_MELT_NONE) then
+       call coordsystem_allocate(model%general%ice_grid, model%lateral_melt%melt_thck)
+       call coordsystem_allocate(model%general%ice_grid, model%lateral_melt%melt_rate)
+       call coordsystem_allocate(model%general%ice_grid, model%lateral_melt%melt_rate_tavg)
+       call coordsystem_allocate(model%general%ice_grid, model%lateral_melt%melt_front_mask)
+!       call coordsystem_allocate(model%general%ice_grid, model%lateral_melt%calving_front_mask)
+!       call coordsystem_allocate(model%general%ice_grid, model%lateral_melt%marine_cliff_mask)
+       call coordsystem_allocate(model%general%ice_grid, model%lateral_melt%subglacial_discharge)
+       call coordsystem_allocate(model%general%ice_grid, model%lateral_melt%tforcing_2d)
+       call coordsystem_allocate(model%general%ice_grid, model%lateral_melt%thck_effective)
+       call coordsystem_allocate(model%general%ice_grid, model%lateral_melt%effective_areafrac)
     endif
 
     ! matrix solver arrays
@@ -4032,6 +4100,28 @@ contains
         deallocate(model%calving%cf_uvel)
     if (associated(model%calving%cf_vvel)) &
         deallocate(model%calving%cf_vvel)
+
+    ! lateral melt arrays
+    if (associated(model%lateral_melt%melt_thck)) &
+        deallocate(model%lateral_melt%melt_thck)
+    if (associated(model%lateral_melt%melt_rate)) &
+        deallocate(model%lateral_melt%melt_rate)
+    if (associated(model%lateral_melt%melt_rate_tavg)) &
+        deallocate(model%lateral_melt%melt_rate_tavg)
+    if (associated(model%lateral_melt%melt_front_mask)) &
+        deallocate(model%lateral_melt%melt_front_mask)
+!    if (associated(model%lateral_melt%calving_front_mask)) &
+!        deallocate(model%lateral_melt%calving_front_mask)
+!    if (associated(model%lateral_melt%marine_cliff_mask)) &
+!        deallocate(model%lateral_melt%marine_cliff_mask)
+    if (associated(model%lateral_melt%subglacial_discharge)) &
+        deallocate(model%lateral_melt%subglacial_discharge)
+    if (associated(model%lateral_melt%tforcing_2d)) &
+        deallocate(model%lateral_melt%tforcing_2d)
+    if (associated(model%lateral_melt%thck_effective)) &
+        deallocate(model%lateral_melt%thck_effective)
+    if (associated(model%lateral_melt%effective_areafrac)) &
+        deallocate(model%lateral_melt%effective_areafrac)
 
     ! matrix solver arrays
 

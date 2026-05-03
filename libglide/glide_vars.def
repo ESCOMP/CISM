@@ -571,6 +571,40 @@ long_name:     lateral calving rate
 data:          data%calving%lateral_rate
 factor:        scyr
 
+[melt_thck]
+dimensions:    time, y1, x1
+units:         meter
+long_name:     thickness of ice melting laterally
+data:          data%lateral_melt%melt_thck
+
+[melt_rate]
+dimensions:    time, y1, x1
+units:         meter/year
+long_name:     rate of ice loss by lateral melt
+data:          data%lateral_melt%melt_rate
+
+[melt_front_mask]
+dimensions:    time, y1, x1
+units:         1
+long_name:     marine melt front mask
+data:          data%lateral_melt%melt_front_mask
+load:          1
+type:          int
+
+[subglacial_discharge]
+dimensions:    time, y1, x1
+units:         kg/m2/s
+long_name:     subglacial liquid discharge
+data:          data%lateral_melt%subglacial_discharge
+load:          1
+
+[tforcing_2d]
+dimensions:    time, y1, x1
+units:         degrees K
+long_name:     applied thermal forcing in 2D
+data:          data%lateral_melt%tforcing_2d
+load:          1
+
 [effective_areafrac]
 dimensions:    time, y1, x1
 units:         1

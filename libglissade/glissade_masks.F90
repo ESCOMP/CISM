@@ -51,6 +51,7 @@
 
     private
     public :: glissade_get_masks, glissade_calving_front_mask,      &
+              glissade_melt_front_mask,                             &
               glissade_marine_cliff_mask, glissade_ice_sheet_mask,  &
               glissade_ocean_connection_mask,                       &
               glissade_marine_connection_mask, glissade_lake_mask,  &
@@ -342,7 +343,7 @@
     ! Local arguments
     !----------------------------------------------------------------
 
-    integer :: i, j, ii, jj, ig, jg
+    integer :: i, j
 
     real(dp), dimension(nx,ny) :: &
          thck_flotation,           & ! flotation thickness (m)
@@ -350,8 +351,6 @@
 
     real(dp) :: &
          max_neighbor_thck,        & ! max thickness (m) of the neighbor cells
-         max_edge_neighbor_thck,   & ! max thickness (m) of the four edge neighbors
-         max_corner_neighbor_thck, & ! max thickness (m) of the four corner neighbors
          distance,                 & ! distance between adjacent cell centers
          dthck_dx                    ! dH/dx between adjacent cells near the CF
 
@@ -505,6 +504,254 @@
     endif  ! which_ho_calving_front
 
   end subroutine glissade_calving_front_mask
+
+!****************************************************************************
+
+  subroutine glissade_melt_front_mask(&
+       nx,                     ny,                   &
+       subgrid_melt_front,                           &
+       parallel,                                     &
+       thck,                   topg,                 &
+       eus,                                          &
+       ice_mask,               floating_mask,        &
+       ocean_mask,             land_mask,            &
+       melt_front_mask,                              &
+       dusrf_dx_mf,                                  &
+       dx,                     dy,                   &
+       thck_effective,         thck_effective_min,   &
+       partial_mf_mask,        full_mask,            &
+       effective_areafrac,                           &
+       itest, jtest, rtest)
+
+    ! Compute a melt_front mask, effective melt front thickness, and related fields.
+    ! If using the subgrid calving front scheme, then compute the surface elevation gradient
+    ! between each MF cell and its thickest upstream neighbor.
+    ! If this gradient is less than a prescribed value, the MF cell is considered to be full.
+    ! Otherwise, it is marked as a partial MF cell.
+    !
+    ! The logic is similar to subroutine glissade_calving_front_mask above.
+    ! The main differences area:
+    ! (1) CF cells must be floating, whereas MG cells must be marine_grounded.
+    !     TODO - Relax this assumption and allow lateral melt of floating ice?
+    ! (2) The upstream cells supplying thck_effective are also grounded.
+    ! (3) thck_effective is computed by assuming that MF cells have nearly the same usrf
+    !     as their interior neighbors
+    ! These are enough differences that it's simpler to make this a separate subroutine
+    !  rather than combine with glissade_calving_front_mask.
+
+    use glide_thck, only : glide_calclsrf
+
+    integer, intent(in) ::   &
+         nx,  ny                  ! number of grid cells in each direction
+
+    logical, intent(in) :: &
+         subgrid_melt_front       ! is true, apply a subgrid melt front parameterization
+
+    type(parallel_type), intent(in) :: parallel    !> info for parallel communication
+
+    ! Default dimensions are meters, but this subroutine will work for any units
+    !  as long as thck, topg, and eus have the same units.
+
+    real(dp), dimension(nx,ny), intent(in) ::  &
+         thck,                  & ! ice thickness (m)
+         topg                     ! elevation of topography (m)
+
+    real(dp), intent(in) :: &
+         eus                      ! eustatic sea level (m), = 0. by default
+
+    integer, dimension(nx,ny), intent(in) ::  &
+         ice_mask,              & ! = 1 if thck > thklim, else = 0
+         floating_mask,         & ! = 1 if thck > thklim and ice is floating, else = 0
+         ocean_mask,            & ! = 1 if topg is below sea level and thk <= thklim, else = 0
+         land_mask                ! = 1 if topg is at or above sea level, else = 0
+
+    integer, dimension(nx,ny), intent(out) ::  &
+         melt_front_mask          ! = 1 if ice is marine_grounded and borders at least one ocean cell, else = 0
+
+    real(dp), intent(in) :: &
+         dusrf_dx_mf,           & ! assumed max value of |ds/dx| at the MF for full cells
+         dx, dy                   ! grid cell size (m)
+
+    real(dp), dimension(nx,ny), intent(out) :: &
+         thck_effective,        & ! effective ice thickness (m) for lateral melting
+                                  ! Generally, H_eff > H at the MF, with H_eff = H elsewhere
+         effective_areafrac       ! effective ice-covered fraction, in range [0,1]
+                                  ! 0 < f < 1 for partial MF cells
+
+    real(dp), intent(in) :: &
+         thck_effective_min       ! minimum effective thickness for MF cells
+
+    integer, dimension(nx,ny), intent(out) :: &
+         partial_mf_mask,       & ! = 1 for partially filled MF cells (thck < thck_effective), else = 0
+         full_mask                ! = 1 for ice-filled cells that are not partial_mf cells, else = 0
+
+    integer, intent(in), optional :: itest, jtest, rtest
+
+    !----------------------------------------------------------------
+    ! Local arguments
+    !----------------------------------------------------------------
+
+    integer :: i, j
+
+    real(dp), dimension(nx,ny) :: &
+         lsrf,                     & ! lower surface elevation (m)
+         usrf,                     & ! upper surface elevation (m)
+         thck_flotation              ! flotation thickness (m)
+
+    real(dp) :: &
+         max_neighbor_usrf,        & ! max upper surface elevation (m) of the neighbor cells
+         distance,                 & ! distance between adjacent cell centers
+         usrf_effective,           & ! effective usrf (m) for the melt front cell
+         dusrf_dx                    ! ds/dx between adjacent cells near the MF
+
+    integer, dimension(nx,ny) :: &
+         interior_mask               ! = 1 for marine-grounded cells that do not border the ocean
+
+    character(len=100) :: message
+
+    ! Compute a melt front mask, effective melt front thickness, and related fields.
+    ! MF cells are defined as marine-grounded cells that border ice-free ocean.
+
+    melt_front_mask = 0
+    interior_mask = 0
+
+    ! Identify melt front cells (marine-grounded cells that border ice-free ocean)
+    !  and interior cells (marine-grounded cells not at the calving front).
+
+    do j = 2, ny-1
+       do i = 2, nx-1
+          if (ice_mask(i,j) == 1 .and. land_mask(i,j) == 0 .and. floating_mask(i,j) == 0) then  ! marine-grounded
+             if (ocean_mask(i-1,j) == 1 .or. ocean_mask(i+1,j) == 1 .or. &
+                 ocean_mask(i,j-1) == 1 .or. ocean_mask(i,j+1) == 1) then
+                melt_front_mask(i,j) = 1
+             else
+                interior_mask(i,j) = 1
+             endif
+          endif
+       enddo
+    enddo
+
+    call parallel_halo(melt_front_mask, parallel)
+    call parallel_halo(interior_mask, parallel)
+
+    if (subgrid_melt_front) then
+
+    ! Initialize thck_effective and masks
+       where (ice_mask == 1)
+          thck_effective = thck
+       elsewhere
+          thck_effective = 0.0d0
+       endwhere
+       full_mask = 0
+       partial_mf_mask = 0
+
+       ! Identify full cells and partial MF cells.
+       ! All ice-covered cells not at the MF (i.e., without any edges bordering the ocean) are full cells.
+       ! For MF cells, compute the max usrf of interior neighbors.
+       ! Assume that cell(i,j) has approximately the same usrf and back out its effective thickness.
+       ! * Look at edge neighbors first, then corner neighbors.
+       ! * If the thickness of the MF cell is close to or greater than that of the interior cell,
+       !   mark the MF cell as a full cell. Otherwise, mark it as a partial MF cell.
+
+       ! compute the lower and upper surface elevation everywhere
+       call glide_calclsrf(thck, topg, eus, lsrf)
+       usrf = lsrf + thck
+
+       do j = 2, ny-1
+          do i = 2, nx-1
+             if (ice_mask(i,j) == 1) then
+                if (melt_front_mask(i,j) == 1) then
+                   ! compute thck_effective from an interior edge neighbor
+                   ! This thickness cannot be so large that it would give cell(i,j) a higher surface
+                   !  than the interior cell.
+                   max_neighbor_usrf = max(&
+                        interior_mask(i-1,j) * usrf(i-1,j), &
+                        interior_mask(i+1,j) * usrf(i+1,j), &
+                        interior_mask(i,j-1) * usrf(i,j-1), &
+                        interior_mask(i,j+1) * usrf(i,j+1))
+                   if (max_neighbor_usrf > 0.0d0) then
+                      distance = sqrt(dx*dy)
+                   else ! no interior edge neighbors; find an interior corner neighbor
+                      max_neighbor_usrf = max(&
+                        interior_mask(i-1,j+1) * usrf(i-1,j+1), &
+                        interior_mask(i+1,j+1) * usrf(i+1,j+1), &
+                        interior_mask(i-1,j-1) * usrf(i-1,j-1), &
+                        interior_mask(i+1,j-1) * usrf(i+1,j-1))
+                      if (max_neighbor_usrf > 0.0d0) distance = sqrt(2.0d0) * sqrt(dx*dy)
+                   endif
+                   if (max_neighbor_usrf > 0.0d0) then
+                      dusrf_dx = (max_neighbor_usrf - usrf(i,j)) / distance
+                      usrf_effective = max_neighbor_usrf - dusrf_dx_mf*distance
+                      thck_effective(i,j) = usrf_effective - lsrf(i,j)
+                      ! If the gradient exceeds a critical value, this is a partial MF cell; else it is full.
+                      if (dusrf_dx > dusrf_dx_mf) then
+                         partial_mf_mask(i,j) = 1
+                      else
+                         full_mask(i,j) = 1
+                      endif   ! dusrf_dx > dusrf_dx_mf
+                   else  ! no interior neighbors (should be rare); call it a partial MF cell
+                      partial_mf_mask(i,j) = 1
+                      !TODO - Look at cases with no interior neighbors
+                   endif   ! max_neighbor_thck > 0
+
+                else   ! ice-covered but not an MF cell; thck_effective = thck
+
+                   full_mask(i,j) = 1
+
+                endif   ! melt_front_mask
+             endif   ! ice_mask
+          enddo   ! i
+       enddo   ! j
+
+       ! Set a lower limit for thck_effective
+       ! This reflects that most MFs are at least a few tens of meters thick.
+       where (ice_mask == 1 .and. land_mask == 0 .and. floating_mask == 0)   ! marine-grounded
+          thck_effective = max(thck_effective, thck_effective_min)
+       endwhere
+
+       ! Make sure thck_effective at the MF is not less than the flotation thickness.
+       ! TODO - Is this necessary?
+       thck_flotation = max(-(rhoo/rhoi) * (topg - eus), 0.0d0)
+       where (melt_front_mask == 1)
+          thck_effective = max(thck_effective, thck_flotation)
+       endwhere
+
+       call parallel_halo(thck_effective, parallel)
+       call parallel_halo(full_mask, parallel)
+       call parallel_halo(partial_mf_mask, parallel)
+
+       ! Use the ratio thck/thck_effective to compute effective_areafrac.
+       do j = 1, ny
+          do i = 1, nx
+             if (melt_front_mask(i,j) == 1) then
+                effective_areafrac(i,j) = thck(i,j) / thck_effective(i,j)
+                effective_areafrac(i,j) = min(effective_areafrac(i,j), 1.0d0)
+             elseif (ice_mask(i,j) == 1 .or. land_mask(i,j) == 1) then
+                effective_areafrac(i,j) = 1.0d0
+             else  ! ice-free ocean
+                effective_areafrac(i,j) = 0.0d0
+             endif
+          enddo
+       enddo
+
+       ! not sure this update is needed
+       call parallel_halo(effective_areafrac, parallel)
+
+    else   ! no subgrid melt front scheme
+
+       thck_effective = thck
+       partial_mf_mask = 0
+       full_mask = ice_mask
+
+       where (ice_mask == 1 .or. land_mask == 1)
+          effective_areafrac = 1.0d0
+       elsewhere
+          effective_areafrac = 0.0d0
+       endwhere
+
+    endif  ! subgrid_melt_front
+
+  end subroutine glissade_melt_front_mask
 
 !****************************************************************************
 

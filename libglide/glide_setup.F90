@@ -124,6 +124,14 @@ contains
        end if
     endif
 
+    ! read lateral melt info
+    if (model%options%which_lateral_melt /= LATERAL_MELT_NONE) then
+       call GetSection(config,section,'lateral_melt')
+       if (associated(section)) then
+          call handle_lateral_melt(section, model)
+       end if
+    endif
+
     ! read basal hydrology info
     if (model%options%which_ho_bwat /= HO_BWAT_NONE) then
        call GetSection(config,section,'basal_hydro')
@@ -139,6 +147,8 @@ contains
           call handle_glaciers(section, model)
        end if
     endif
+
+    !TODO - Create handle_basal_physics, handle_calving, etc.?
 
     ! Construct the list of necessary restart variables based on the config options 
     ! selected by the user in the config file.
@@ -166,6 +176,7 @@ contains
     call print_options(model)
     call print_parameters(model)
     call print_gthf(model)
+    call print_lateral_melt(model)
     call print_isostasy(model)
     call print_basal_hydro(model)
     call print_glaciers(model)
@@ -895,6 +906,7 @@ contains
     !TODO - Move the next two options to the calving type
     call GetValue(section, 'which_ho_calving_front',      model%options%which_ho_calving_front)
     call GetValue(section, 'which_ho_calvingmip_domain',  model%options%which_ho_calvingmip_domain)
+    call GetValue(section, 'which_lateral_melt',          model%options%which_lateral_melt)
     call GetValue(section, 'which_ho_ground',             model%options%which_ho_ground)
     call GetValue(section, 'which_ho_fground_no_glp',     model%options%which_ho_fground_no_glp)
     call GetValue(section, 'which_ho_ground_bmlt',        model%options%which_ho_ground_bmlt)
@@ -3317,6 +3329,79 @@ contains
     endif   ! compute isostasy
 
   end subroutine print_isostasy
+
+!--------------------------------------------------------------------------------
+
+  subroutine handle_lateral_melt(section, model)
+
+    use glimmer_config
+    use glide_types
+    implicit none
+
+    type(ConfigSection), pointer :: section
+    type(glide_global_type)  :: model
+
+    call GetValue(section, 'subgrid_melt_front', model%lateral_melt%subgrid_melt_front)
+    call GetValue(section, 'melt_rate_const', model%lateral_melt%melt_rate_const)
+    call GetValue(section, 'melt_factor', model%lateral_melt%melt_factor)
+
+  end subroutine handle_lateral_melt
+
+  !--------------------------------------------------------------------------------
+
+  subroutine print_lateral_melt(model)
+
+    use glide_types
+    use glimmer_log
+
+    implicit none
+    type(glide_global_type)  :: model
+    character(len=100) :: message
+
+    character(len=*), dimension(0:3), parameter :: which_lateral_melt = (/ &
+         'no lateral melt at grounded cliff fronts       ', &
+         'constant lateral melt rate                     ', &
+         'ISMIP6 lateral melt, forced                    ', &
+         'ISMIP6 lateral melt, coupled                   ' /)
+
+    if (model%options%which_lateral_melt < 0 .or. model%options%which_lateral_melt >= size(which_lateral_melt)) then
+       call write_log('Error, lateral melt option out of range', GM_FATAL)
+    else
+       write(message,*) 'which_lateral_melt                 : ',model%options%which_lateral_melt,  &
+            which_lateral_melt(model%options%which_lateral_melt)
+       call write_log(message)
+    endif
+
+    if (model%options%which_lateral_melt /= LATERAL_MELT_NONE) then
+
+       !TODO - Relax the following assumption?
+       if (model%options%whichcalving /= CALVING_FLOAT_ZERO) then
+          call write_log('Error, lateral melt options require option CALVING_FLOAT_ZERO', GM_FATAL)
+       endif
+
+       if (model%options%which_lateral_melt == LATERAL_MELT_CONSTANT) then
+          write(message,*) 'constant lateral melt rate (m/yr)     : ', model%lateral_melt%melt_rate_const
+          call write_log(message)
+       elseif (model%options%which_lateral_melt == LATERAL_MELT_ISMIP6) then
+          write(message,*) 'lateral melt factor                   : ', model%lateral_melt%melt_factor
+          call write_log(message)
+       elseif (model%options%which_lateral_melt == LATERAL_MELT_COUPLED) then
+          !TODO - Anything to write?
+       endif
+
+       if (model%lateral_melt%subgrid_melt_front) then
+          write(iulog,*) 'Using a subgrid melt front parameterization'
+          write(message,*) 'subgrid dusrf_dx_mf           : ', model%lateral_melt%dusrf_dx_mf
+          call write_log(message)
+          write(message,*) 'thck_effective_min (m)        : ', model%lateral_melt%thck_effective_min
+          call write_log(message)
+       else
+          write(iulog,*) 'No subgrid melt front parameterization'
+       endif
+
+    endif  ! which_lateral_melt /= lateral_melt_none
+
+  end subroutine print_lateral_melt
 
 !--------------------------------------------------------------------------------
 
