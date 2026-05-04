@@ -31,7 +31,8 @@
 module glint_routing
 
   use glimmer_global,only: dp
-
+  use glimmer_paramets, only: iulog
+  
   implicit none
 
   private
@@ -247,7 +248,7 @@ contains
     allocate(vect(nn),ind(nn)) 
 
     if (nn/=nx*ny.or.size(sorted,2) /= 2) then
-      print*,'Wrong dimensions'
+      write(iulog,*)'Wrong dimensions'
       stop
     endif
 

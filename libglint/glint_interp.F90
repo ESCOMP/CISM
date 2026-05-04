@@ -33,9 +33,9 @@ module glint_interp
   !> Downscaling and upscaling routines for use in Glint
 
   use glimmer_global, only: dp, sp
+  use glimmer_paramets, only: iulog, GLC_DEBUG
   use glimmer_map_types
   use glint_mpinterp
-  use glimmer_paramets, only: stdout, GLC_DEBUG
 
   implicit none
 
@@ -321,7 +321,7 @@ contains
 
     !WHL - debug
 !    if (main_task) &
-!         print*, 'In interp_to_local, local nx, ny =', lgrid_fulldomain%size%pt(1), lgrid_fulldomain%size%pt(2)
+!         write(iulog,*) 'In interp_to_local, local nx, ny =', lgrid_fulldomain%size%pt(1), lgrid_fulldomain%size%pt(2)
 
     ! Do main interpolation work, just on main task
 
@@ -1029,10 +1029,10 @@ contains
        nxg = size(ggrid%mask,1)
        nyg = size(ggrid%mask,2)
 
-       write(stdout,*) ' '
-       write(stdout,*) 'nx,  ny =', nx, ny
-       write(stdout,*) 'nxg, nyg =', nxg, nyg
-       write(stdout,*) 'Indexing local boxes'
+       write(iulog,*) ' '
+       write(iulog,*) 'nx,  ny =', nx, ny
+       write(iulog,*) 'nxg, nyg =', nxg, nyg
+       write(iulog,*) 'Indexing local boxes'
     end if
 
     do i=1,lgrid%size%pt(1)

@@ -219,8 +219,6 @@ contains
 
   subroutine get_area_vol(thck, dew, dns, thklim, iarea, ivol, exec_serial)
 
-    use glimmer_paramets, only : len0, thk0
-
     implicit none
     real(dp), dimension(:,:) :: thck
     real(dp) :: dew, dns, thklim
@@ -249,15 +247,10 @@ contains
        ivol  = sum(2)
     endif
 
-    ! convert from model units to SI units
-    iarea = iarea*len0*len0
-    ivol = ivol*len0*len0*thk0
-
   end subroutine get_area_vol
  
   subroutine calc_iareaf_iareag(dew, dns, mask, iareaf, iareag, exec_serial)
     
-    use glimmer_paramets, only : len0 
     implicit none
     real(dp), intent(in) :: dew, dns
     real(dp), intent(out) :: iareaf, iareag
@@ -297,10 +290,6 @@ contains
        iareaf = sum(1)
        iareag = sum(2)
     endif
-
-    ! convert from model units to SI units (m^2)
-    iareag = iareag*len0*len0
-    iareaf = iareaf*len0*len0
 
   end subroutine calc_iareaf_iareag
 
@@ -450,17 +439,17 @@ contains
 
         !if( up == 3 )then ! temporary code for debugging
         !  do i = 3,1,-1
-        !  print *, 'thck = ', thck(:,i)
+        !  write(iulog,*) 'thck = ', thck(:,i)
         !  end do
-        !  print *, ' '
+        !  write(iulog,*) ' '
         !
         !  do i = 3,1,-1
-        !      print *, 'thckmask = ', thckmask(:,i)
+        !      write(iulog,*) 'thckmask = ', thckmask(:,i)
         !  end do
-        !  print *, ' '
+        !  write(iulog,*) ' '
         !
-        !  print *, 'testvect =  ', testvect
-        !  print *, ' '
+        !  write(iulog,*) 'testvect =  ', testvect
+        !  write(iulog,*) ' '
         !end if
 
         ! calculate the angle of the normal in cart. (x,y) system w/ 0 deg. at 12 O'clock, 90 deg. at 3 O'clock, etc.

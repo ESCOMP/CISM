@@ -27,9 +27,10 @@
 module glissade_basal_water
 
    use glimmer_global, only: dp
-   use glimmer_paramets, only: eps11, eps08
-   use glimmer_physcon, only: rhoi, rhow, grav, scyr
+   use glimmer_paramets, only: iulog, eps11, eps08
+   use glimmer_physcon, only: rhoi, rhow, lhci, grav, scyr
    use glimmer_log
+   use glimmer_utils, only: point_diag
    use glide_types
    use cism_parallel, only: main_task, this_rank, nhalo, parallel_type, parallel_halo
 
@@ -40,15 +41,11 @@ module glissade_basal_water
 
    logical, parameter :: verbose_bwat = .false.
 
-   integer, parameter :: pdiag = 3  ! range for diagnostic prints
-
-contains
+ contains
 
 !==============================================================
 
   subroutine glissade_basal_water_init(model)
-
-    use glimmer_paramets, only: thk0
 
     type(glide_global_type) :: model
 
@@ -63,7 +60,7 @@ contains
 
        ! Set a constant water thickness where ice is present
        where (model%geometry%thck > model%numerics%thklim)
-          model%basal_hydro%bwat(:,:) = model%basal_hydro%const_bwat / thk0
+          model%basal_hydro%bwat(:,:) = model%basal_hydro%const_bwat
        elsewhere
           model%basal_hydro%bwat(:,:) = 0.0d0
        endwhere
@@ -130,6 +127,7 @@ contains
     case(HO_BWAT_CONSTANT)
 
        ! Use a constant water thickness where ice is present, to force Tbed = Tpmp
+
        where (thck > thklim)
           bwat(:,:) = basal_hydro%const_bwat
        elsewhere
@@ -138,6 +136,9 @@ contains
 
      case(HO_BWAT_LOCAL_TILL)
 
+        ! Change bwat based on input bmlt, while also draining water at a constant rate.
+        ! Note: bmlt > 0 for ice melting, which increases bwat. Freeze-on (bmlt < 0) will reduce bwat.
+
         nx = size(bwat,1)
         ny = size(bwat,2)
 
@@ -145,7 +146,6 @@ contains
            do i = 1, nx
 
               ! compute new bwat, given source (bmlt) and sink (drainage)
-              ! Note: bmlt > 0 for ice melting. Freeze-on will reduce bwat.
               dbwat_dt = bmlt(i,j)*rhoi/rhow - basal_hydro%c_drainage/scyr  ! convert c_drainage from m/yr to m/s
               bwat(i,j) = bwat(i,j) + dbwat_dt*dt
 
@@ -171,18 +171,17 @@ contains
        thck,          topg,          &
        thklim,                       &
        bwat_mask,     floating_mask, &
-       bmlt,                         &
-       bwatflx,       head)
+       bmlt_hydro,                   &
+       delta_Tb,      btemp_scale,   &
+       bwatflx,       bwat_diag,     &
+       bhydroflx,                    &
+       head,          grad_head)
 
-    ! This subroutine is a recoding of Jesse Johnson's steady-state water routing scheme in Glide.
-    ! It has been parallelized for Glissade.
-    !
-    ! The subroutine returns the steady-state basal water flux, bwatflx,
-    !  which reduces effective pressure N when which_ho_effecpress = HO_EFFECPRESS_BWATFLX.
-    ! It should not be used with which_ho_effecpress = HO_EFFECPRESS_BWAT, since bwat is not returned.
-    ! (See the comments below on bwat.)
+    ! Compute the subglacial water flux and water depth using a steady-state flux routing scheme.
+    ! Water is routed down the hydropotential. For routing purposes, assume p_w = p_i (i.e., N = 0).
+    ! Elsewhere in the code, N can be computed as a function of the water depth diagnosed here.
 
-    !TODO - Pass in a potential for basal freezing (bfrz_pot).
+    !TODO - Pass in a potential for basal freezing (bfrz_pot)?
     !       Return the actual bfrz.
 
     use cism_parallel, only: tasks   ! while code is serial only
@@ -205,11 +204,13 @@ contains
     real(dp), dimension(nx,ny), intent(in) ::  &
          thck,                    & ! ice thickness (m)
          topg,                    & ! bed topography (m)
-         bmlt                       ! basal melt rate (m/s)
+         bmlt_hydro,              & ! meltwater input rate (m/s); can include an englacial or surface source
+         delta_Tb                   ! difference T_pmp - T_bed (degC)
 
     real(dp), intent(in) ::  &
-         thklim                     ! minimum ice thickness for basal melt and hydropotential calculations (m)
+         thklim,                  & ! minimum ice thickness for basal melt and hydropotential calculations (m)
                                     ! Note: This is typically model%geometry%thklim_temp
+         btemp_scale                ! temperature scale for transition from frozen to thawed bed (degC)
 
     integer, dimension(nx,ny), intent(in) ::  &
          bwat_mask,               & ! mask to identify cells through which basal water is routed;
@@ -217,23 +218,28 @@ contains
                                     !  and cells with thck = 0 and forced negative SMB
          floating_mask              ! = 1 if ice is present (thck > thklim) and floating, else = 0
 
+    ! Note: The field bwat_diag is the steady-state basal water depth, diagnosed as a function of bwatflx.
+    !       Outside this subroutine, bwat_diag can be used to compute effective pressure,
+    !        but it does not carry any enthalpy, so it is ignored in glissade_therm.
+    !       The bwat field, on the other hand, is prognosed in the local basal till model;
+    !        this water must be frozen in glissade_therm before the bed can cool below Tpmp.
+    ! Note: The hydropotential phi = rhow*grav*head.
+    !       We follow Sommers et al. (2018) in using 'head', which has convenient units of meters.
 
     real(dp), dimension(nx,ny), intent(out) ::  &
-         bwatflx,                 & ! basal water flux (m/yr)
-         head                       ! hydraulic head (m)
+         bwatflx,                 & ! basal water flux through each grid cell (m/s)
+         bwat_diag,               & ! diagnosed basal water depth (m)
+         bhydroflx,               & ! basal heat flux from refreezing meltwater (W/m2); enters thermal solve later
+         head,                    & ! hydraulic head (m)
+         grad_head                  ! gradient of hydraulic head (m/m), averaged to cell centers
 
     ! Local variables
 
     integer :: i, j, p
 
-    real(dp), dimension(nx, ny) ::  &
-         bwat,                    & ! diagnosed basal water depth (m), not used outside this module
-         effecpress,              & ! effective pressure
+    real(dp), dimension(nx,ny) :: &
+         bwatflx_refreeze,        & ! water flux held for refreezing (m^3/s)
          lakes                      ! difference between filled head and original head (m)
-
-    ! parameters related to effective pressure
-    real(dp), parameter :: &
-         c_effective_pressure = 0.0d0    ! parameter in N = c/bwat; not currently used
 
     ! parameters related to subglacial fluxes
     ! The water flux q is given by Sommers et al. (2018), Eq. 5:
@@ -243,188 +249,67 @@ contains
     ! where q = basal water flux per unit width (m^2/s) = bwatflx/dx
     !       b = water depth (m) = bwat
     !       g = gravitational constant (m/s^2) = grad
-    !      nu = kinematic viscosity of water (m^2/s)= visc_water
+    !      nu = kinematic viscosity of water (m^2/s) = visc_water
     !   omega = parameter controlling transition between laminar and turbulent flow
     !      Re = Reynolds number (large for turbulent flow)
     !       h = hydraulic head (m)
     !
     ! Note: In the equation above and the calculation below, bwatflx has units of m^3/s,
     !        i.e., volume per second entering and exiting a grid cell.
-    !       For output, bwatflx has units of m/yr, i.e. volume per unit area per year entering and exiting a grid cell.
-    !       With the latter convention, bwatflx is independent of grid resolution..
+    !       For output, bwatflx has units of m/s, i.e. volume per unit area per year entering and exiting a grid cell.
+    !       With the latter convention, bwatflx is independent of grid resolution.
     !
     ! By default, we set Re = 0, which means the flow is purely laminar, as in Sommers et al. (2018), Eq. 6.
-
-    ! Optionally, one or more of these parameters could be made a config parameter in the basal_hydro type
-    real(dp), parameter ::  &
-         visc_water = 1.787e-6,                       & ! kinematic viscosity of water (m^2/s); Sommers et al. (2018), Table 2
-         omega_hydro = 1.0d-3,                        & ! omega (unitless) in Sommers et al (2018), Eq. 6
-         Reynolds = 0.0d0                               ! Reynolds number (unitless), = 0 for pure laminar flow
+    !TODO - Compute Re based on the flux.
 
     real(dp), parameter ::  &
-         c_flux_to_depth = 1.0d0/((12.0d0*visc_water)*(1.0d0 + omega_hydro*Reynolds)), & ! proportionality coefficient in Eq. 6
-         p_flux_to_depth = 2.0d0,                     & ! exponent for water depth; = 2 if q is proportional to b^3
-         q_flux_to_depth = 1.0d0                        ! exponent for potential gradient; = 1 if q is linearly proportional to grad(h)
+         visc_water = 1.787e-6,            & ! kinematic viscosity of water (m^2/s); Sommers et al. (2018), Table 2
+         omega_hydro = 1.0d-3                ! omega (unitless) in Sommers et al (2018), Eq. 6
 
-    ! WHL - debug fix_flats subroutine
-    logical :: test_fix_flats = .false.
-!!    logical :: test_fix_flats = .true.
+    real(dp), parameter ::  &
+         p_flux_to_depth = 2.0d0,          & ! exponent for water depth; = 2 if q is proportional to b^3
+         q_flux_to_depth = 1.0d0             ! exponent for potential gradient; = 1 if q is linearly proportional to grad(h)
+
+    real(dp) :: c_flux_to_depth              ! proportionality coefficient in Sommers et al., Eq. 6
+    real(dp) :: Reynolds                     ! Reynolds number (unitless), = 0 for pure laminar flow
+
     integer :: nx_test, ny_test
     real(dp), dimension(:,:), allocatable :: phi_test
     integer,  dimension(:,:), allocatable :: mask_test
 
-    !WHL - debug
-    !Note: This test works in serial, but does not work with parallel updates.
-    !      To use it again, would need to comment out parallel calls in fix_flats.
-    if (test_fix_flats) then
-
-       ! Solve the example problem of Garbrecht & Martz (1997)
-       ! Their problem is 7x7, but easier to solve if padded with a row of low numbers.
-
-       nx_test = 9
-       ny_test = 9
-       allocate (phi_test(nx_test,ny_test))
-       allocate (mask_test(nx_test,ny_test))
-
-       mask_test = 1
-       do j = 1, ny_test
-          do i = 1, nx_test
-             if (i == 1 .or. i == nx_test .or. j == 1 .or. j == ny_test) then
-                mask_test(i,j) = 0
-             endif
-          enddo
-       enddo
-
-       phi_test(:,9) = (/ 1.d0, 1.d0,1.d0,1.d0,1.d0,1.d0,1.d0,1.d0, 1.d0 /)
-       phi_test(:,8) = (/ 1.d0, 9.d0,9.d0,9.d0,9.d0,9.d0,9.d0,9.d0, 1.d0 /)
-       phi_test(:,7) = (/ 1.d0, 9.d0,6.d0,6.d0,6.d0,6.d0,6.d0,9.d0, 1.d0 /)
-       phi_test(:,6) = (/ 1.d0, 8.d0,6.d0,6.d0,6.d0,6.d0,6.d0,9.d0, 1.d0 /)
-       phi_test(:,5) = (/ 1.d0, 8.d0,6.d0,6.d0,6.d0,6.d0,6.d0,9.d0, 1.d0 /)
-       phi_test(:,4) = (/ 1.d0, 7.d0,6.d0,6.d0,6.d0,6.d0,6.d0,8.d0, 1.d0 /)
-       phi_test(:,3) = (/ 1.d0, 7.d0,6.d0,6.d0,6.d0,6.d0,6.d0,8.d0, 1.d0 /)
-       phi_test(:,2) = (/ 1.d0, 7.d0,7.d0,5.d0,7.d0,7.d0,8.d0,8.d0, 1.d0 /)
-       phi_test(:,1) = (/ 1.d0, 1.d0,1.d0,1.d0,1.d0,1.d0,1.d0,1.d0, 1.d0 /)
-
-       call fix_flats(&
-            nx_test, ny_test,  &
-            parallel,          &
-            5,  5,   rtest,    &
-            phi_test,          &
-            mask_test)
-
-       deallocate(phi_test, mask_test)
-
-    endif
-
     if (verbose_bwat .and. this_rank == rtest) then
-       print*, 'In glissade_bwat_flux_routing: rtest, itest, jtest =', rtest, itest, jtest
+       write(iulog,*) 'In glissade_bwat_flux_routing: rtest, itest, jtest =', rtest, itest, jtest
     endif
 
     ! Uncomment if the following fields are not already up to date in halo cells
 !    call parallel_halo(thk,  parallel)
 !    call parallel_halo(topg, parallel)
-    call parallel_halo(bwat, parallel)
-    call parallel_halo(bmlt, parallel)
+    call parallel_halo(bmlt_hydro, parallel)
     !TODO - Add bfrz?
 
-    ! Compute effective pressure N.
-    ! In the old Glimmer code, N was computed as a function of water depth by subroutine effective_pressure.
-    ! Here, simply set N = 0 for the purpose of computing the hydraulic head.
-    ! This approximation implies head = z_b + (rhoi/rhow) * H
-
-!    call effective_pressure(&
-!         bwat,                 &
-!         c_effective_pressure, &
-!         effecpress)
-
-    effecpress(:,:) = 0.0d0
 
     ! Compute the hydraulic head
+    ! For purposes of flux routing, assume N = 0.
+    ! Then the head depends only on basal topography and ice thickness.
 
     call compute_head(&
          nx,     ny,    &
          thck,          &
          topg,          &
-         effecpress,    &
          thklim,        &
          floating_mask, &
          head)
 
-    p = pdiag
-
-    if (verbose_bwat .and. this_rank == rtest) then
-       print*, ' '
-       print*, 'thck (m):'
-       write(6,'(a3)',advance='no') '   '
-       do i = itest-p, itest+p
-          write(6,'(i10)',advance='no') i
-       enddo
-       write(6,*) ' '
-       do j = jtest+p, jtest-p, -1
-          write(6,'(i6)',advance='no') j
-          do i = itest-p, itest+p
-             write(6,'(f10.3)',advance='no') thck(i,j)
-          enddo
-          write(6,*) ' '
-       enddo
-       print*, ' '
-       print*, 'topg (m):'
-       write(6,'(a3)',advance='no') '   '
-       do i = itest-p, itest+p
-          write(6,'(i10)',advance='no') i
-       enddo
-       write(6,*) ' '
-       do j = jtest+p, jtest-p, -1
-          write(6,'(i6)',advance='no') j
-          do i = itest-p, itest+p
-             write(6,'(f10.3)',advance='no') topg(i,j)
-          enddo
-          write(6,*) ' '
-       enddo
-!       print*, ' '
-!       print*, 'effecpress (Pa):'
-!       write(6,*) ' '
-!       do j = jtest+p, jtest-p, -1
-!          write(6,'(i6)',advance='no') j
-!          do i = itest-p, itest+p
-!             write(6,'(f10.3)',advance='no') effecpress(i,j)
-!          enddo
-!          write(6,*) ' '
-!       enddo
-       print*, ' '
-       print*, 'bmlt (m/yr):'
-       write(6,*) ' '
-       do j = jtest+p, jtest-p, -1
-          write(6,'(i6)',advance='no') j
-          do i = itest-p, itest+p
-             write(6,'(f10.3)',advance='no') bmlt(i,j) * scyr
-          enddo
-          write(6,*) ' '
-       enddo
-       print*, ' '
-       print*, 'bwat_mask:'
-       write(6,*) ' '
-       do j = jtest+p, jtest-p, -1
-          write(6,'(i6)',advance='no') j
-          do i = itest-p, itest+p
-             write(6,'(i10)',advance='no') bwat_mask(i,j)
-          enddo
-          write(6,*) ' '
-       enddo
-       print*, ' '
-       print*, 'Before fill: head (m):'
-       write(6,*) ' '
-       do j = jtest+p, jtest-p, -1
-          write(6,'(i6)',advance='no') j
-          do i = itest-p, itest+p
-             write(6,'(f10.3)',advance='no') head(i,j)
-          enddo
-          write(6,*) ' '
-       enddo
+    if (verbose_bwat) then
+       call point_diag(thck,      'thck (m)',    itest, jtest, rtest, 7, 7)
+       call point_diag(topg,      'topg (m)',    itest, jtest, rtest, 7, 7)
+       call point_diag(bmlt_hydro*scyr, 'bmlt_hydro (m/yr)', itest, jtest, rtest, 7, 7)
+       call point_diag(bwat_mask, 'bwat_mask',   itest, jtest, rtest, 7, 7)
+       call point_diag(head,      'Before fill, head (m)', itest, jtest, rtest, 7, 7)
     endif
 
     ! Route basal water down the gradient of hydraulic head, giving a water flux
-    ! TODO - Pass in bfrz_pot, return bfrz.
+    ! TODO - Pass in bfrz_pot, return bfrz?
 
     call route_basal_water(&
          nx,      ny,            &
@@ -433,22 +318,29 @@ contains
          itest, jtest, rtest,    &
          flux_routing_scheme,    &
          head,                   &
-         bmlt,                   &
+         bmlt_hydro,             &
+         delta_Tb,               &
+         btemp_scale,            &
          bwat_mask,              &
          bwatflx,                &
+         bwatflx_refreeze,       &
          lakes)
 
     call parallel_halo(bwatflx, parallel)
 
     ! Convert the water flux to a basal water depth
-    ! Note: bwat is not passed out of this subroutine, for the following reason:
+    ! Note: bwat_diag is treated differently from bwat, for the following reason.
     ! In the thermal solve, the basal temperature is held at Tpmp wherever bwat > 0.
     ! This is appropriate when bwat is prognosed from local basal melting.
     ! For the flux-routing scheme, however, we can diagnose nonzero bwat beneath ice
-    !  that is frozen to the bed (due to basal melting upstream).
-    ! If passed to the thermal solver, this bwat can drive a sudden large increase in basal temperature.
-    ! For this reason, the effective pressure is reduced based on bwatflx instead of bwat.
-    ! If desired, we could pass out a diagnostic bwat field that would not affect basal temperature.
+    !  that is frozen to the bed with T < Tpmp (due to basal melting upstream).
+    ! If passed to the thermal solver, this bwat could drive a sudden large increase in basal temperature.
+
+    ! Set parameters in the flux-to-depth relationship
+    !TODO: Set Reynolds as a function of qflx and visc_water
+
+    Reynolds = 0.0d0
+    c_flux_to_depth = 1.0d0/((12.0d0*visc_water)*(1.0d0 + omega_hydro*Reynolds))
 
     call flux_to_depth(&
          nx,       ny,           &
@@ -460,64 +352,27 @@ contains
          p_flux_to_depth,        &
          q_flux_to_depth,        &
          bwat_mask,              &
-         bwat)
+         bwat_diag,              &
+         grad_head)
 
-    ! Convert bwatflx units to m/yr for output
-    bwatflx(:,:) = bwatflx(:,:) * scyr/(dx*dy)
+    call parallel_halo(bwat_diag, parallel)
+    call parallel_halo(grad_head, parallel)
 
-    if (verbose_bwat .and. this_rank == rtest) then
-       print*, ' '
-       write(6,*) 'Final bwatflx (m/yr):'
-       do i = itest-p, itest+p
-          write(6,'(i10)',advance='no') i
-       enddo
-       write(6,*) ' '
-       do j = jtest+p, jtest-p, -1
-          write(6,'(i6)',advance='no') j
-          do i = itest-p, itest+p
-             write(6,'(f10.5)',advance='no') bwatflx(i,j)
-          enddo
-          write(6,*) ' '
-       enddo
-       print*, ' '
-       print*, 'Diagnosed bwat (mm):'
-       write(6,*) ' '
-       do j = jtest+p, jtest-p, -1
-          write(6,'(i6)',advance='no') j
-          do i = itest-p, itest+p
-             write(6,'(f10.5)',advance='no') bwat(i,j) * 1000.d0
-          enddo
-          write(6,*) ' '
-       enddo
+    ! Convert bwatflx from m^3/s to m/s for output
+    bwatflx(:,:) = bwatflx(:,:) / (dx*dy)
+
+    ! Given bwatflx_refreeze in m^3/s, compute bhydroflx in W/m2.
+    ! This is the heat flux needed to refreeze the meltwater held in each cell
+    bhydroflx(:,:) = bwatflx_refreeze(:,:) * rhoi * lhci / (dx*dy)
+
+    if (verbose_bwat) then
+       call point_diag(bwatflx*scyr, 'Final bwatflx (m/yr)', itest, jtest, rtest, 7, 7)
+       call point_diag(bwatflx_refreeze*scyr/(dx*dy), 'bwatflx_refreeze (m/yr)', itest, jtest, rtest, 7, 7)
+       call point_diag(bhydroflx, 'bhydroflx (W/m2)', itest, jtest, rtest, 7, 7, '(f10.6)')
+       call point_diag(bwat_diag, 'Diagnosed bwat (m)',  itest, jtest, rtest, 7, 7, '(f10.6)')
     endif
 
   end subroutine glissade_bwat_flux_routing
-
-!==============================================================
-
-  subroutine effective_pressure(&
-       bwat,                    &
-       c_effective_pressure,    &
-       effecpress)
-
-    ! Compute the effective pressure: the part of ice overburden not balanced by water pressure
-    ! For now, this subroutine is not called; we just set effecpress = 0 for purposes of computing 'head'.
-    ! TODO: Call calc_effecpress instead?
-
-    real(dp),dimension(:,:),intent(in)  ::  bwat                  ! water depth
-    real(dp)               ,intent(in)  ::  c_effective_pressure  ! constant of proportionality
-    real(dp),dimension(:,:),intent(out) ::  effecpress            ! effective pressure
-
-    ! Note: By default, c_effective_pressure = 0
-    !       This implies N = 0; full support of the ice by water at the bed
-
-    where (bwat > 0.d0)
-        effecpress = c_effective_pressure / bwat
-    elsewhere
-        effecpress = 0.d0
-    endwhere
-
-  end subroutine effective_pressure
 
 !==============================================================
 
@@ -525,12 +380,11 @@ contains
        nx,      ny,   &
        thck,          &
        topg,          &
-       effecpress,    &
        thklim,        &
        floating_mask, &
        head)
 
-    !  Compute the hydraulic head as the bed elevation plus the scaled water pressure:
+    !  Approximate the hydraulic head as the bed elevation plus the scaled water pressure:
     !
     !     head = z_b + p_w / (rhow*g)
     !
@@ -540,9 +394,11 @@ contains
     !          N = effective pressure (Pa) = part of overburden not supported by water
     !          H = ice thickness (m)
     !
-    !  If we make the approximation p_w = p_i, then
+    !  If we make the approximation p_w = p_i = rhoi*g*H (i.e., N = 0), then
     !
     !     head = z_b + (rhoi/rhow) * H
+    !
+    !  Note: Elsewhere, in glissade_calc_effecpress, N is computed explicitly and is not equal to 0.
 
     implicit none
 
@@ -553,8 +409,7 @@ contains
 
     real(dp), dimension(nx,ny), intent(in) ::  &
          thck,                  & ! ice thickness (m)
-         topg,                  & ! bed elevation (m)
-         effecpress               ! effective pressure (Pa)
+         topg                     ! bed elevation (m)
 
     real(dp), intent(in) ::  &
          thklim                   ! minimum ice thickness for bmlt and head calculations
@@ -566,7 +421,7 @@ contains
          head                     ! hydraulic head (m)
 
     where (thck > thklim .and. floating_mask /= 1)
-       head = topg + (rhoi/rhow)*thck - effecpress/(rhow*grav)
+       head = topg + (rhoi/rhow)*thck
     elsewhere
        head = max(topg, 0.0d0)
     endwhere
@@ -582,9 +437,12 @@ contains
          itest, jtest, rtest,    &
          flux_routing_scheme,    &
          head,                   &
-         bmlt,                   &
+         bmlt_hydro,             &
+         delta_Tb,               &
+         btemp_scale,            &
          bwat_mask,              &
          bwatflx,                &
+         bwatflx_refreeze,       &
          lakes)
 
     ! Route water from the basal melt field to its destination, recording the water flux along the way.
@@ -619,7 +477,12 @@ contains
          flux_routing_scheme     ! flux routing scheme: D8, Dinf or FD8
 
     real(dp), dimension(nx,ny), intent(in)  ::  &
-         bmlt                    ! basal melt beneath grounded ice (m/s)
+         bmlt_hydro,           & ! meltwater input rate (m/s)
+         delta_Tb                ! difference T_pmp - T_bed (degC)
+
+    real(dp), intent(in) :: &
+         btemp_scale             ! temperature scale for transition from frozen to thawed bed (degC)
+                                 ! If btemp_scale = 0, assume no temperature dependence
 
     real(dp), dimension(nx,ny), intent(inout)  ::  &
          head                    ! hydraulic head (m)
@@ -631,6 +494,7 @@ contains
 
     real(dp), dimension(nx,ny), intent(out) ::  &
          bwatflx,             &  ! water flux through a grid cell (m^3/s)
+         bwatflx_refreeze,    &  ! water flux held for refreezing (m^3/s)
          lakes                   ! lakes field, difference between filled and original head
 
     ! Local variables
@@ -638,7 +502,7 @@ contains
     integer :: nlocal            ! number of locally owned cells
     integer :: count, count_max  ! iteration counters
     integer :: i, j, k, ii, jj, ip, jp, p
-    integer :: i1, j1, i2, j2, itmp, jtmp
+    integer :: i1, j1, i2, j2, itmp, jtmp, iglobal, jglobal
 
     logical :: finished    ! true when an iterative loop has finished
 
@@ -650,26 +514,27 @@ contains
          bwatflx_halo      ! water flux (m^3/s) routed to a neighboring halo cell; routed further in next iteration
 
     real(dp), dimension(nx,ny) ::  &
-         head_filled,   &  ! head after depressions are filled (m)
-         bwatflx_accum, &  ! water flux (m^3/s) accumulated over multiple iterations
-         sum_bwatflx_halo  ! bwatflx summed over the first 2 dimensions in each grid cell
+         head_filled,           & ! head after depressions are filled (m)
+         bwatflx_accum,         & ! water flux through the cell (m^3/s) accumulated over multiple iterations
+         bwatflx_refreeze_accum,& ! water flux (m^3/s) refreezing in place, accumulated over multiple iterations
+         sum_bwatflx_halo,      & ! bwatflx summed over the first 2 dimensions in each grid cell
+         btemp_weight             ! temperature-dependent weighting factor, favoring flow where the bed is thawed
 
     integer, dimension(nx,ny) ::  &
-         local_mask,     & ! = 1 for cells owned by the local processor, else = 0
-         halo_mask,      & ! = 1 for the layer of halo cells adjacent to locally owned cells, else = 0
-         margin_mask       ! = 1 for cells at the grounded ice margin, as defined by bwat_mask, else = 0
+         local_mask,            & ! = 1 for cells owned by the local processor, else = 0
+         halo_mask,             & ! = 1 for the layer of halo cells adjacent to locally owned cells, else = 0
+         margin_mask              ! = 1 for cells at the grounded ice margin, as defined by bwat_mask, else = 0
 
     real(dp) :: &
-         total_flux_in,  & ! total input flux (m^3/s), computed as sum of bmlt*dx*dy
-         total_flux_out, & ! total output flux (m^3/s), computed as sum of bwatflx at ice margin
-         err,            & ! water conservation error
-         global_flux_sum   ! flux sum over all cells in global domain
+         total_flux_in,         & ! total input flux (m^3/s), computed as sum of bmlt_hydro*dx*dy
+         total_flux_margin,     & ! total output flux (m^3/s) at the ice margin
+         total_flux_refreeze,   & ! total flux (m^3/s) to refreeze internally
+         total_flux_out,        & ! sum of total_bwatflx_margin and total_bwatflx_refreeze
+         err,                   & ! water conservation error
+         global_flux_sum          ! flux sum over all cells in global domain
 
     character(len=100) :: message
 
-    !WHL - debug
-    real(dp) :: bmlt_max, bmlt_max_global
-    integer :: imax, jmax, rmax, iglobal, jglobal
     ! Allocate the sorted_ij array
 
     nlocal = parallel%own_ewn * parallel%own_nsn
@@ -700,41 +565,15 @@ contains
          bwat_mask,            &
          head_filled)
 
- ! Note: In an earlier code version, fix_flats was called here.
- !       It is not needed, however, if the fill_depressions scheme is run with epsilon > 0.
-
     ! Compute the lake depth
     lakes = head_filled - head
 
     ! Update head with the filled values
     head = head_filled
 
-    p = pdiag
-    if (verbose_bwat .and. this_rank == rtest) then
-       print*, ' '
-       print*, 'After fill: head (m):'
-       write(6,'(a3)',advance='no') '   '
-       do i = itest-p, itest+p
-          write(6,'(i10)',advance='no') i
-       enddo
-       write(6,*) ' '
-       do j = jtest+p, jtest-p, -1
-          write(6,'(i6)',advance='no') j
-          do i = itest-p, itest+p
-             write(6,'(f10.3)',advance='no') head(i,j)
-          enddo
-          write(6,*) ' '
-       enddo
-       print*, ' '
-       print*, 'lakes (m):'
-       write(6,*) ' '
-       do j = jtest+p, jtest-p, -1
-          write(6,'(i6)',advance='no') j
-          do i = itest-p, itest+p
-             write(6,'(f10.3)',advance='no') lakes(i,j)
-          enddo
-          write(6,*) ' '
-       enddo
+    if (verbose_bwat) then
+       call point_diag(head,  'head (m)',  itest, jtest, rtest, 7, 7)
+       call point_diag(lakes, 'lakes (m)', itest, jtest, rtest, 7, 7)
     endif
 
     ! Sort heights.
@@ -746,14 +585,52 @@ contains
          head,  sorted_ij)
 
     if (verbose_bwat .and. this_rank == rtest) then
-       print*, ' '
-       print*, 'sorted, from the top:'
+       write(iulog,*) ' '
+       write(iulog,*) 'sorted, from the top:'
        do k = nlocal, nlocal-10, -1
           i = sorted_ij(k,1)
           j = sorted_ij(k,2)
-          print*, k, i, j, head(i,j)
+          write(iulog,*) k, i, j, head(i,j)
        enddo
     endif
+
+    ! Make sure bmlt_hydro >= 0 everywhere
+    do j = 1, ny
+       do i = 1, nx
+          if (bmlt_hydro(i,j) < 0.0d0) then
+             call parallel_globalindex(i, j, iglobal, jglobal, parallel)
+!             write(iulog,*) 'Hydrology error: bmlt_hydro < 0, iglobal, jglobal, bmlt_hydro =', &
+!                     iglobal, jglobal, bmlt_hydro(i,j)
+             write(message,*) 'Hydrology error: bmlt_hydro < 0, iglobal, jglobal, bmlt_hydro =', &
+                  iglobal, jglobal, bmlt_hydro(i,j)
+             call write_log(message, GM_FATAL)
+          endif
+       enddo
+    enddo
+
+    ! Compute a temperature-dependent weighting factor for flux routing.
+    ! This is used in two parts of the code:
+    ! (1) In subroutine get_flux_fraction, btemp_weight is used to weight potential downstream paths.
+    !     A small value of btemp_weight means that a cell is less likely to receive water from upstream.
+    ! (2) When water enters a frozen cell (delta_Tb > 0), btemp_weight is used to determine
+    !     how much of the flux is refrozen in place rather than passing through.
+    !     A low value of btemp_weight means that less water passes through.
+
+    btemp_weight = 1.0d0
+
+    if (btemp_scale > 0.0d0) then
+       where (bwat_mask == 1)
+          where (delta_Tb > 0.0d0)
+             btemp_weight = exp(-delta_Tb/btemp_scale)
+          endwhere
+       endwhere
+       if (verbose_bwat) then
+          call point_diag(delta_Tb, 'Tpmp - Tb', itest, jtest, rtest, 7, 7)
+          call point_diag(btemp_weight, 'btemp_weight', itest, jtest, rtest, 7, 7)
+       endif
+    endif
+
+    ! Compute the fraction of the incoming flux sent to each downstream neighbor.
 
     call get_flux_fraction(&
          nx,    ny,    nlocal,  &
@@ -762,44 +639,38 @@ contains
          flux_routing_scheme,   &
          sorted_ij,             &
          head,                  &
+         btemp_weight,          &
          bwat_mask,             &
          flux_fraction)
 
     ! Initialize bwatflx in locally owned cells with the basal melt, which will be routed downslope.
     ! Multiply by area, so units are m^3/s.
     ! The halo water flux, bwatflx_halo, holds water routed to halo cells;
-    !  it will be routed downhill on the next iteration.
+    !  it will be routed downhill during the next iteration.
     ! The accumulated flux, bwatflx_accum, holds the total flux over multiple iterations.
-    ! Note: This subroutine conserves water only if bmlt >= 0 everywhere.
-    !       One way to account for refreezing would be to do the thermal calculation after
-    !        computing bwat in this subroutine.  At that point, refreezing would take away
-    !        from the bwat computed here.  In the next time step, positive values of bmlt
-    !        would provide a new source for bwat.
-    ! In other words, the sequence would be:
-    ! (1) Ice transport and calving
-    ! (2) Basal water routing: apply bmlt and diagnose bwat
-    ! (3) Vertical heat flow:
-    !     (a) compute bmlt
-    !     (b) use bmlt < 0 to reduce bwat
-    !     (c) save bmlt > 0 for the next time step (and write to restart)
-    ! (4) Diagnose velocity
+    ! Some or all of the water entering a frozen cell can be refrozen in place.
+    !  The heat flux associated with refreezing is passed to the next thermal solve.
+    !  If this heat flux is enough to thaw the cell, some of the meltwater is returned later.
 
     bwatflx = 0.0d0
     do j = nhalo+1, ny-nhalo
        do i = nhalo+1, nx-nhalo
-          bwatflx(i,j) = bmlt(i,j) * dx * dy
-          bwatflx(i,j) = max(bwatflx(i,j), 0.0d0)   ! not conservative unless refreezing is handled elsewhere
+          bwatflx(i,j) = bmlt_hydro(i,j) * dx * dy
        enddo
     enddo
+
+    ! Initialize other fluxes
     bwatflx_halo = 0.0d0
+    bwatflx_refreeze = 0.0d0
     bwatflx_accum = 0.0d0
+    bwatflx_refreeze_accum = 0.0d0
 
     ! Compute total input of meltwater (m^3/s)
     total_flux_in = parallel_global_sum(bwatflx, parallel)
 
     if (verbose_bwat .and. this_rank == rtest) then
-       print*, ' '
-       print*, 'Total input basal melt flux (m^3/s):', total_flux_in
+       write(iulog,*) ' '
+       write(iulog,*) 'Total input basal melt flux (m^3/s):', total_flux_in
     endif
 
     ! Loop over locally owned cells, from highest to lowest.
@@ -822,49 +693,56 @@ contains
     do while (.not.finished)
 
        count = count + 1
+
        if (verbose_bwat .and. this_rank == rtest) then
-          print*, 'flux routing, count =', count
+          write(iulog,*) 'flux routing, count =', count
        endif
 
        do k = nlocal, 1, -1
 
-          ! Get i and j indices of current point
+          ! Get i and j indices of current cell
           i = sorted_ij(k,1)
           j = sorted_ij(k,2)
 
-          ! Apportion the flux among downslope neighbors
+          ! Route the flux
           if (bwat_mask(i,j) == 1 .and. bwatflx(i,j) > 0.0d0) then
+
+             ! Distribute the flux to downslope neighbors.
+             ! Where the bed is frozen, all or part of the flux is refrozen in place instead of being routed downstream.
              do jj = -1,1
                 do ii = -1,1
                    ip = i + ii
                    jp = j + jj
                    if (flux_fraction(ii,jj,i,j) > 0.0d0) then
                       if (halo_mask(ip,jp) == 1) then
-                         bwatflx_halo(ii,jj,i,j) = bwatflx(i,j)*flux_fraction(ii,jj,i,j)
+                         bwatflx_halo(ii,jj,i,j) = bwatflx(i,j)*flux_fraction(ii,jj,i,j)*btemp_weight(i,j)
+                         bwatflx_refreeze(i,j) = bwatflx_refreeze(i,j) &
+                              + bwatflx(i,j)*flux_fraction(ii,jj,i,j)*(1.0d0 - btemp_weight(i,j))
                          if (verbose_bwat .and. this_rank==rtest .and. i==itest .and. j==jtest .and. count <= 2) then
-                            print*, 'Flux to halo, i, j, ii, jj, flux:', &
+                            write(iulog,*) 'Flux to halo, i, j, ii, jj, flux:', &
                                  i, j, ii, jj, bwatflx(i,j)*flux_fraction(ii,jj,i,j)
                          endif
                       elseif (local_mask(ip,jp) == 1) then
-                         bwatflx(ip,jp) = bwatflx(ip,jp) + bwatflx(i,j)*flux_fraction(ii,jj,i,j)
+                         bwatflx(ip,jp) = bwatflx(ip,jp) + bwatflx(i,j)*flux_fraction(ii,jj,i,j)*btemp_weight(i,j)
+                         bwatflx_refreeze(i,j) = bwatflx_refreeze(i,j) &
+                              + bwatflx(i,j)*flux_fraction(ii,jj,i,j)*(1.0d0 - btemp_weight(i,j))
                       endif
                    endif   ! flux_fraction > 0
                 enddo
              enddo
-          endif
-
+          endif  ! bwat_mask = 1, bwatflx > 0
        enddo  ! loop from high to low
 
-       ! Accumulate bwatflx from the latest iteration.
-       ! Reset to zero for the next iteration, if needed.
-
+       ! Accumulate bwatflx from the latest iteration, then reset to zero for the next iteration.
        bwatflx_accum = bwatflx_accum + bwatflx
+       bwatflx_refreeze_accum = bwatflx_refreeze_accum + bwatflx_refreeze
        bwatflx = 0.0d0
+       bwatflx_refreeze = 0.0d0
 
        if (verbose_bwat .and. this_rank == rtest .and. count <= 2) then
           i = itest
           j = jtest
-          print*, 'i, j, bwatflx_accum:', i, j, bwatflx_accum(i,j)
+          write(iulog,*) 'i, j, bwatflx_accum:', i, j, bwatflx_accum(i,j)
        endif
 
        ! If bwatflx_halo = 0 everywhere, then we are done.
@@ -877,33 +755,20 @@ contains
           do i = 1, nx
              sum_bwatflx_halo(i,j) = sum(bwatflx_halo(:,:,i,j))
 !             if (verbose_bwat .and. sum_bwatflx_halo(i,j) > eps11 .and. count > 50) then
-!               print*, 'Nonzero bwatflx_halo, count, rank, i, j, sum_bwatflx_halo:', &
+!               write(iulog,*) 'Nonzero bwatflx_halo, count, rank, i, j, sum_bwatflx_halo:', &
 !                     count, this_rank, i, j, sum_bwatflx_halo(i,j)
 !               call parallel_globalindex(i, j, iglobal, jglobal, parallel)
-!               print*, '     iglobal, jglobal:', iglobal, jglobal
+!               write(iulog,*) '     iglobal, jglobal:', iglobal, jglobal
 !             endif
           enddo
        enddo
        global_flux_sum = parallel_global_sum(sum_bwatflx_halo, parallel)
 
-       if (verbose_bwat .and. this_rank == rtest .and. count <= 2) then
-          print*, ' '
-          print*, 'Before halo update, sum of bwatflx_halo:', global_flux_sum
-          print*, ' '
-          print*, 'sum_bwatflx_halo:'
-          write(6,*) ' '
-          do j = jtest+p, jtest-p, -1
-             write(6,'(i6)',advance='no') j
-             do i = itest-p, itest+p
-                write(6,'(e10.3)',advance='no') sum_bwatflx_halo(i,j)
-             enddo
-             write(6,*) ' '
-          enddo
-          print*, ' '
-          print*, 'rank, i, j, bwatflx_halo:'
-          i = itest
-          j = jtest
-          write(6, '(3i5,9e10.3)') this_rank, i, j, bwatflx_halo(:,:,i,j)
+       if (verbose_bwat .and. count <= 2) then
+          if (this_rank == rtest) then
+             write(iulog,*) 'Before halo update, sum of bwatflx_halo:', global_flux_sum
+          endif
+          call point_diag(sum_bwatflx_halo, 'sum_bwatflx_halo', itest, jtest, rtest, 7, 7)
        endif
 
        if (global_flux_sum > eps11) then
@@ -929,7 +794,7 @@ contains
                                bwatflx(ip,jp) = bwatflx(ip,jp) + bwatflx_halo(ii,jj,i,j)
                                if (verbose_bwat .and. ip==itest .and. jp==jtest .and. this_rank==rtest &
                                     .and. count <= 2) then
-                                  print*, 'Nonzero bwatflx from halo, rank, i, j:', &
+                                  write(iulog,*) 'Nonzero bwatflx from halo, rank, i, j:', &
                                        this_rank, ip, jp, bwatflx_halo(ii,jj,i,j)
                                endif
                             endif
@@ -946,14 +811,15 @@ contains
           global_flux_sum = parallel_global_sum(bwatflx, parallel)
           if (verbose_bwat .and. this_rank == rtest .and. count <= 2) then
              ! Should be equal to the global sum of bwatflx_halo computed above
-             print*, 'After halo update, sum(bwatflx from halo) =', global_flux_sum
-             print*, ' '
+             write(iulog,*) 'After halo update, sum(bwatflx from halo) =', global_flux_sum
+             write(iulog,*) ' '
           endif
 
        else   ! bwatflx_halo = 0 everywhere; no fluxes to route to adjacent processors
-          if (verbose_bwat .and. this_rank == rtest) print*, 'Done routing fluxes'
+          if (verbose_bwat .and. this_rank == rtest) write(iulog,*) 'Done routing fluxes'
           finished = .true.
           bwatflx = bwatflx_accum
+          bwatflx_refreeze = bwatflx_refreeze_accum
        endif
 
        if (count > count_max) then
@@ -970,13 +836,17 @@ contains
     endwhere
 
     ! Compute total output of meltwater (m^3/s) and check that input = output, within roundoff.
-
-    total_flux_out = parallel_global_sum(bwatflx*margin_mask, parallel)
+    total_flux_margin   = parallel_global_sum(bwatflx*margin_mask, parallel)
+    total_flux_refreeze = parallel_global_sum(bwatflx_refreeze*(1.0d0 - margin_mask), parallel)
+    total_flux_out = total_flux_margin + total_flux_refreeze
 
     if (verbose_bwat .and. this_rank == rtest) then
-       print*, 'Total output basal melt flux (m^3/s):', total_flux_out
-       print*, 'Difference between input and output =', total_flux_in - total_flux_out
+       write(iulog,*) 'Total bwatflx at margin (m^3/s):', total_flux_margin
+       write(iulog,*) 'Total bwatflx_refreeze (m^3/s)=', total_flux_refreeze
+       write(iulog,*) 'Total bwatflx (m^3/s)=', total_flux_out
+       write(iulog,*) 'Difference between output and input =', total_flux_out - total_flux_in
     endif
+
 
     ! Not sure if a threshold of eps11 is large enough.  Increase if needed.
     if (total_flux_in > 0.0d0) then
@@ -1006,7 +876,8 @@ contains
          p_flux_to_depth,        &
          q_flux_to_depth,        &
          bwat_mask,              &
-         bwat)
+         bwat_diag,              &
+         grad_head)
 
     !  Assuming that the flow is steady state, this function simply solves
     !               flux = depth * velocity
@@ -1014,6 +885,8 @@ contains
     !  and pressure potential. This amounts to assuming a Weertman film,
     !  or Manning flow, both of which take the form of a constant times water
     !  depth to a power, times grad(head) to a power.
+    !
+    !  The subroutine also returns grad(head), which enters the flux calculation
 
     use glissade_grid_operators, only: glissade_gradient_at_edges
 
@@ -1036,18 +909,16 @@ contains
          q_flux_to_depth          ! exponent for potential_gradient
 
     integer, dimension(nx,ny), intent(in)  ::  &
-         bwat_mask               ! mask to identify cells through which basal water is routed;
-                                 ! = 1 where ice is present and not floating
+         bwat_mask                ! mask to identify cells through which basal water is routed;
+                                  ! = 1 where ice is present and not floating
 
     real(dp), dimension(nx,ny), intent(out)::  &
-         bwat                     ! water depth
+         bwat_diag,             & ! water depth diagnosed from bwatflx
+         grad_head                ! gradient of hydraulic head (m/m), averaged to cell centers
 
     ! Local variables
 
     integer :: i, j, p
-
-    real(dp), dimension(nx,ny) ::  &
-         grad_head                ! gradient of hydraulic head (m/m), averaged to cell centers
 
     real(dp), dimension(nx-1,ny) ::  &
          dhead_dx                 ! gradient component on E edges
@@ -1068,11 +939,12 @@ contains
     ! HO_GRADIENT_MARGIN_LAND: Use all field values when computing the gradient, including values in ice-free cells.
 
     call glissade_gradient_at_edges(&
-         nx,       ny,       &
-         dx,       dy,       &
-         head,               &
-         dhead_dx, dhead_dy, &
-         ice_mask,           &
+         nx,       ny,        &
+         dx,       dy,        &
+         itest, jtest, rtest, &
+         head,                &
+         dhead_dx, dhead_dy,  &
+         ice_mask,            &
          gradient_margin_in = HO_GRADIENT_MARGIN_LAND)
 
     grad_head = 0.0d0  ! will remain 0 in outer row of halo cells
@@ -1087,23 +959,8 @@ contains
     !TODO - If a halo update is needed for grad_head, then pass in 'parallel'.  But may not be needed.
 !!    call parallel_halo(grad_head, parallel)
 
-    !WHL - debug
-    p = pdiag
-    if (verbose_bwat .and. this_rank == rtest) then
-       print*, ' '
-       print*, 'grad_head:'
-       write(6,'(a3)',advance='no') '   '
-       do i = itest-p, itest+p
-          write(6,'(i10)',advance='no') i
-       enddo
-       write(6,*) ' '
-       do j = jtest+p, jtest-p, -1
-          write(6,'(i6)',advance='no') j
-          do i = itest-p, itest+p
-             write(6,'(f10.5)',advance='no') grad_head(i,j)
-          enddo
-          write(6,*) ' '
-       enddo
+    if (verbose_bwat) then
+       call point_diag(grad_head, 'grad_head (m/m)', itest, jtest, rtest, 7, 7)
     endif
 
     p_exponent = 1.d0 / (p_flux_to_depth + 1.d0)
@@ -1122,18 +979,20 @@ contains
     ! In the context of a formulation with general exponents,
     ! we have q_flux_to_depth = 1 and p_flux_to_depth = 2 (so p_exponent = 1/3)
     !
-    ! Jesse's Glimmer code has this:
-    !       bwat = ( bwatflx / (c_flux_to_depth * scyr * dy * grad_wphi**q_flux_to_depth) ) ** exponent
+    ! Jesse's Glimmer code had this:
+    !       bwat_diag = ( bwatflx / (c_flux_to_depth * scyr * dy * grad_wphi**q_flux_to_depth) ) ** exponent
     ! which is missing the grav term and seems to have an extra scyr term.
     ! Also, c_flux_to_depth = 1 / (12 * 1.6d-3) in Jesse's code.  Note exponent of d-3 instead of d-6 for nu.
     !
     ! Note: Assuming dx = dy
     ! TODO: Modify for the case dx /= dy?
+    ! TODO: Compute c_flux_to_depth with a nonzero omega and Reynolds number
 
+    ! Rescale this equation if using grad_phi_hydro (insert factor of rhow)
     where (grad_head /= 0.d0 .and. bwat_mask == 1)
-       bwat = ( bwatflx / (c_flux_to_depth * grav * dy * grad_head**q_flux_to_depth) ) ** p_exponent
+       bwat_diag = ( bwatflx / (c_flux_to_depth * grav * dy * grad_head**q_flux_to_depth) ) ** p_exponent
     elsewhere
-       bwat = 0.d0
+       bwat_diag = 0.d0
     endwhere
 
   end subroutine flux_to_depth
@@ -1223,17 +1082,17 @@ contains
     ! According to Planchon & Darboux (2001), there should be one value of epsilon for edge neighbors
     !  and another value for corner neighbors.
     real(dp), parameter :: &
-         epsilon_edge = 1.d-4,          & ! small increment in phi to avoid flat regions, applied to edge neighbors
-         epsilon_diag = 1.d-4*sqrt(2.d0)  ! small increment in phi to avoid flat regions, applied to diagonal neighbors
+         epsilon_edge = 1.d-3,          & ! small increment in phi to avoid flat regions, applied to edge neighbors
+         epsilon_diag = 1.d-3*sqrt(2.d0)  ! small increment in phi to avoid flat regions, applied to diagonal neighbors
 
     !WHL - Typically, it takes ~10 iterations to fill all depressions on a large domain.
     integer, parameter :: count_max = 100
 
     logical, parameter :: verbose_depression = .false.
-!!    logical, parameter :: verbose_depression = .true.
 
-    ! Initial halo update, in case phi_in is not up to date in halo cells
+    ! Initial halo updates, in case phi_in and phi_mask are not up to date in halo cells
     call parallel_halo(phi_in, parallel)
+    call parallel_halo(phi_mask, parallel)
 
     ! Initialize phi to a large value
     where (phi_mask == 1)
@@ -1244,38 +1103,14 @@ contains
        known = .true.
     endwhere
 
-    ! Set phi = phi_in for boundary cells.
-    ! A boundary cell is a cell with phi_mask = 1, adjacent to one or more cells with phi_mask = 0.
-    do j = 2, ny-1
-       do i = 2, nx-1
-          if (phi_mask(i,j) == 1) then
-             if (phi_mask(i-1,j+1)==0 .or. phi_mask(i,j+1)==0 .or. phi_mask(i+1,j+1)==0 .or. &
-                 phi_mask(i-1,j)  ==0               .or.           phi_mask(i+1,j)  ==0 .or. &
-                 phi_mask(i-1,j-1)==0 .or. phi_mask(i,j-1)==0 .or. phi_mask(i+1,j-1)==0) then
-                phi(i,j) = phi_in(i,j)
-                known(i,j) = .true.
-             endif
-          endif
-       enddo
-    enddo
+    ! Set phi = phi_in for boundary cells (cells with phi_mask = 0).
+    where (phi_mask == 0)
+       phi = phi_in
+       known = .true.
+    endwhere
 
-    ! The resulting mask applies to locally owned cells and one layer of halo cells.
-    ! A halo update brings it up to date in all halo cells.
-
-    call parallel_halo(phi, parallel)
-
-    p = pdiag
-
-    if (verbose_depression .and. this_rank == rtest) then
-       print*, ' '
-       print*, 'Initial phi:'
-       do j = jtest+p, jtest-p, -1
-          write(6,'(i6)',advance='no') j
-          do i = itest-p, itest+p
-             write(6,'(e11.4)',advance='no') phi(i,j)
-          enddo
-          write(6,*) ' '
-       enddo
+    if (verbose_depression) then
+       call point_diag(phi, 'Initial phi', itest, jtest, rtest, 7, 7, '(es10.3)')
     endif
 
     count = 0
@@ -1287,8 +1122,8 @@ contains
        local_lowered = 0
 
        if (verbose_depression .and. this_rank == rtest) then
-          write(6,*) ' '
-          print*, 'fill_depressions, count =', count
+          write(iulog,*) ' '
+          write(iulog,*) 'fill_depressions, count =', count
        endif
 
        ! Loop through cells
@@ -1349,11 +1184,11 @@ contains
                    !WHL - debug
                    if (verbose_depression .and. count >= 20) then
                       call parallel_globalindex(i, j, iglobal, jglobal, parallel)
-                      print*, ' '
-                      print*, 'rank, i, j, ig, jg:', this_rank, i, j, iglobal, jglobal
-                      print*, '   phi_in, phi:', phi_in(i,j), phi(i,j)
-                      print*, '   phi_min8 =', phi_min8
-                      print*, '   new phi = phi_in'
+                      write(iulog,*) ' '
+                      write(iulog,*) 'rank, i, j, ig, jg:', this_rank, i, j, iglobal, jglobal
+                      write(iulog,*) '   phi_in, phi:', phi_in(i,j), phi(i,j)
+                      write(iulog,*) '   phi_min8 =', phi_min8
+                      write(iulog,*) '   new phi = phi_in'
                    endif
 
                    phi(i,j) = phi_in(i,j)
@@ -1365,11 +1200,11 @@ contains
                    !WHL - debug
                    if (verbose_depression .and. count >= 20) then
                       call parallel_globalindex(i, j, iglobal, jglobal, parallel)
-                      print*, ' '
-                      print*, 'rank, i, j, ig, jg:', this_rank, i, j, iglobal, jglobal
-                      print*, '   phi_in, phi:', phi_in(i,j), phi(i,j)
-                      print*, '   phi_min8 =', phi_min8
-                      print*, '   new phi = phi_min8'
+                      write(iulog,*) ' '
+                      write(iulog,*) 'rank, i, j, ig, jg:', this_rank, i, j, iglobal, jglobal
+                      write(iulog,*) '   phi_in, phi:', phi_in(i,j), phi(i,j)
+                      write(iulog,*) '   phi_min8 =', phi_min8
+                      write(iulog,*) '   new phi = phi_min8'
                    endif
 
                    phi(i,j) = phi_min8 + epsilon
@@ -1381,16 +1216,8 @@ contains
           end do   ! i
        end do   ! j
 
-       if (verbose_depression .and. this_rank == rtest) then
-          print*, ' '
-          print*, 'New phi:'
-          do j = jtest+p, jtest-p, -1
-             write(6,'(i6)',advance='no') j
-             do i = itest-p, itest+p
-                write(6,'(f11.4)',advance='no') phi(i,j)
-             enddo
-             write(6,*) ' '
-          enddo
+       if (verbose_depression) then
+          call point_diag(phi, 'New phi', itest, jtest, rtest, 7, 7)
        endif
 
        ! If one or more cells was lowered, then repeat; else exit the local loop.
@@ -1400,12 +1227,12 @@ contains
        if (global_lowered == 0) then
           finished = .true.
           if (verbose_depression .and. this_rank == rtest) then
-             print*, 'finished lowering'
+             write(iulog,*) 'finished lowering'
           endif
        else
           finished = .false.
           if (verbose_depression .and. this_rank == rtest) then
-             print*, 'cells lowered on this iteration:', global_lowered
+             write(iulog,*) 'cells lowered on this iteration:', global_lowered
           endif
           call parallel_halo(phi, parallel)
        endif
@@ -1417,570 +1244,10 @@ contains
     enddo  ! finished
 
     if (verbose_bwat .and. this_rank == rtest) then
-       print*, 'Filled depressions, count =', count
+       write(iulog,*) 'Filled depressions, count =', count
     endif
 
   end subroutine fill_depressions
-
-!==============================================================
-
-  subroutine fix_flats(&
-       nx,    ny,            &
-       parallel,             &
-       itest, jtest, rtest,  &
-       phi,                  &
-       phi_mask)
-
-    ! Add a small increment to flat regions in the input field phi,
-    !  so that all cells have a downhill outlet.
-    !
-    ! Use the algorithm of Garbrecht & Mertz:
-    ! Garbrecht, J., and L. W. Mertz (1997), The assignment of drainage direction
-    !    over flat surfaces in raster digital elevation models, J. Hydrol., 193,
-    !    204-213.
-    !
-    ! Note: This subroutine is not currently called, because the depression-filling algorithm
-    !        above is configured not to leave any flats.
-    !       I am leaving it here in case it is useful for debugging.
-
-    use cism_parallel, only: parallel_global_sum
-
-    implicit none
-
-    ! Input/output variables
-
-    integer, intent(in) ::  &
-         nx, ny,                & ! number of grid cells in each direction
-         itest, jtest, rtest      ! coordinates of diagnostic point
-
-    type(parallel_type), intent(in) ::  &
-         parallel                 ! info for parallel communication
-
-    real(dp), dimension(nx,ny), intent(inout) :: &
-         phi                      ! input field with flat regions to be fixed
-
-    integer, dimension(nx,ny), intent(in) ::  &
-         phi_mask                 ! = 1 where any flat regions of phi will need to be fixed, else = 0
-                                  ! corresponds to the grounded ice sheet (bmlt_mask) for the flux-routing problem
-
-    ! Local variables --------------------------------------
-
-    real(dp), dimension(nx,ny) ::  &
-         phi_input,             & ! input value of phi, before any corrections
-         phi_new,               & ! new value of phi, after incremental corrections
-         dphi1,                 & ! sum of increments applied in step 1
-         dphi2                    ! sum of increments applied in step 2
-
-    integer, dimension(nx,ny) :: &
-         flat_mask,             & ! = 1 for cells with phi_mask = 1 and without a downslope gradient, else = 0
-         flat_mask_input,       & ! flat_mask as computed from phi_input
-         n_uphill,              & ! number of uphill neighbors for each cell, as computed from input phi
-         n_downhill,            & ! number of downhill neighbors for each cell, as computed from input phi
-         incremented_mask,      & ! = 1 for cells that have already been incremented (in step 2)
-         unincremented_mask,    & ! = 1 for cells in input flat regions, not yet incremented
-         incremented_neighbor_mask  ! = 1 for cells that have not been incremented, but have an incremented neighbor
-
-    integer :: &
-         global_sum               ! global sum of cells meeting a mask criterion
-
-    logical :: finished           ! true when an iterative loop has finished
-
-    real(dp), parameter :: &
-         phi_increment = 2.0d-5   ! fractional increment in phi (Garbrecht & Martz use 2.0e-5)
-
-    integer :: i, j, ii, jj, ip, jp, p
-    integer :: count
-    integer, parameter :: count_max = 100
-
-    ! Uncomment if the input fields are not up to date in halos
-!    call parallel_halo(phi, parallel)
-!    call parallel_halo(phi_mask, parallel)
-
-    p = pdiag
-
-    if (verbose_bwat .and. this_rank == rtest) then
-       print*, ' '
-       print*, 'In fix_flats, rtest, itest, jtest =', rtest, itest, jtest
-       print*, ' '
-       print*, 'input phi:'
-       write(6,'(a3)',advance='no') '   '
-       do i = itest-p, itest+p
-          write(6,'(i10)',advance='no') i
-       enddo
-       write(6,*) ' '
-       do j = jtest+p, jtest-p, -1
-          write(6,'(i6)',advance='no') j
-          do i = itest-p, itest+p
-             write(6,'(f10.3)',advance='no') phi(i,j)
-          enddo
-          write(6,*) ' '
-       enddo
-       write(6,*) ' '
-       print*, 'phi_mask:'
-       do j = jtest+p, jtest-p, -1
-          write(6,'(i6)',advance='no') j
-          do i = itest-p, itest+p
-             write(6,'(i10)',advance='no') phi_mask(i,j)
-          enddo
-          write(6,*) ' '
-       enddo
-    endif
-
-    ! initialize
-
-    phi_input = phi
-
-    ! For use in Step 2, count the uphill and downhill neighbors of each cell.
-
-    n_uphill = 0
-    n_downhill = 0
-
-    do j = 2, ny-1
-       do i = 2, nx-1
-          if (phi_mask(i,j) == 1) then
-             do jj = -1,1
-                do ii = -1,1
-                   ! If this is the centre point, ignore
-                   if (ii == 0 .and. jj == 0) then
-                      continue
-                   else  ! check for nonzero elevation gradients
-                      ip = i + ii
-                      jp = j + jj
-                      if (phi(ip,jp) - phi(i,j) > eps11) then  ! uphill neighbor
-                         n_uphill(i,j) = n_uphill(i,j) + 1
-                      elseif (phi(i,j) - phi(ip,jp) > eps11) then  ! downhill neighbor
-                         n_downhill(i,j) = n_downhill(i,j) + 1
-                      endif
-                   endif
-                enddo   ! ii
-             enddo   ! jj
-          endif   ! phi_mask = 1
-       enddo   ! i
-    enddo   ! j
-
-    ! Identify the flat regions in the input field.
-    ! This includes all cells with phi_mask = 1 and without downslope neighbors.
-    ! The resulting flat_mask is valid in all cells except the outer halo.
-
-    call find_flats(&
-         nx,    ny,           &
-         itest, jtest, rtest, &
-         phi_input,           &
-         phi_mask,            &
-         flat_mask_input)
-
-    if (verbose_bwat .and. this_rank == rtest) then
-       print*, ' '
-       print*, 'n_uphill:'
-       do j = jtest+p, jtest-p, -1
-          write(6,'(i6)',advance='no') j
-          do i = itest-p, itest+p
-             write(6,'(i10)',advance='no') n_uphill(i,j)
-          enddo
-          write(6,*) ' '
-       enddo
-       print*, ' '
-       print*, 'n_downhill:'
-       do j = jtest+p, jtest-p, -1
-          write(6,'(i6)',advance='no') j
-          do i = itest-p, itest+p
-             write(6,'(i10)',advance='no') n_downhill(i,j)
-          enddo
-          write(6,*) ' '
-       enddo
-       print*, ' '
-       print*, 'input flat_mask:'
-       do j = jtest+p, jtest-p, -1
-          write(6,'(i6)',advance='no') j
-          do i = itest-p, itest+p
-             write(6,'(i10)',advance='no') flat_mask_input(i,j)
-          enddo
-          write(6,*) ' '
-       enddo
-    endif
-
-    ! Step 1: Gradient toward lower terrain
-
-    dphi1 = 0.0d0
-    flat_mask = flat_mask_input
-    finished = .false.
-    count = 0
-
-    ! Increment phi in all cells with flat_mask = 1 (no downslope gradient).
-    ! Repeat until all cells on the global grid have a downslope gradient.
-
-    do while(.not.finished)
-
-       count = count + 1
-       if (verbose_bwat .and. this_rank == rtest) then
-          print*, ' '
-          print*, 'step 1, count =', count
-       endif
-
-       where (flat_mask == 1)
-          dphi1 = dphi1 + phi_increment
-       endwhere
-
-       call parallel_halo(dphi1, parallel)
-
-       phi_new = phi_input + dphi1
-
-       ! From the original flat region, identify cells that still have no downslope gradient.
-       ! The resulting flat_mask is valid in all cells except the outer halo.
-
-       call find_flats(&
-            nx,    ny,             &
-            itest, jtest, rtest,   &
-            phi_new,               &
-            flat_mask_input,       &
-            flat_mask)
-
-       if (verbose_bwat .and. this_rank == rtest) then
-          print*, ' '
-          print*, 'Updated dphi1/phi_increment:'
-          do j = jtest+p, jtest-p, -1
-             write(6,'(i6)',advance='no') j
-             do i = itest-p, itest+p
-                write(6,'(f10.1)',advance='no') dphi1(i,j)/ phi_increment
-             enddo
-             write(6,*) ' '
-          enddo
-          print*, ' '
-          print*, 'Updated flat_mask:'
-          do j = jtest+p, jtest-p, -1
-             write(6,'(i6)',advance='no') j
-             do i = itest-p, itest+p
-                write(6,'(i10)',advance='no') flat_mask(i,j)
-             enddo
-             write(6,*) ' '
-          enddo
-       endif
-
-       ! Compute the number of cells in the remaining flat regions on the global grid.
-       ! If there are no such cells, then exit the loop.
-
-       global_sum = parallel_global_sum(flat_mask, parallel)
-
-       if (verbose_bwat .and. this_rank == rtest) then
-          print*, 'global sum of flat_mask =', global_sum
-       endif
-
-       if (global_sum > 0) then
-          finished = .false.
-       else
-          finished = .true.
-       endif
-
-       if (count > count_max) then
-          call write_log('Hydrology error: abort in step 1 of fix_flats', GM_FATAL)
-       endif
-
-    enddo   ! step 1 finished
-
-    ! Step 2: Gradient away from higher terrain
-
-    dphi2 = 0.0d0
-    incremented_mask = 0
-    finished = .false.
-    count = 0
-
-    ! In the first pass, increment the elevation in all cells of the input flat region that are
-    !  adjacent to higher terrain and have no adjacent downhill cell.
-    ! The resulting dphi2 and incremented_mask are valid in all cells except the outer halo.
-    ! Need a halo update for incremented_mask to compute incremented_neighbor_mask below.
-
-    do j = 2, ny-1
-       do i = 2, nx-1
-          if (flat_mask_input(i,j) == 1) then
-             if (n_uphill(i,j) >= 1 .and. n_downhill(i,j) == 0) then
-                dphi2(i,j) = dphi2(i,j) + phi_increment
-                incremented_mask(i,j) = 1
-             endif
-          endif
-       enddo
-    enddo
-
-    call parallel_halo(dphi2, parallel)
-    call parallel_halo(incremented_mask, parallel)
-
-    if (verbose_bwat .and. this_rank == rtest) then
-       print*, ' '
-       print*, 'step 2, input flat_mask:'
-       do j = jtest+p, jtest-p, -1
-          write(6,'(i6)',advance='no') j
-          do i = itest-p, itest+p
-             write(6,'(i10)',advance='no') flat_mask_input(i,j)
-          enddo
-          write(6,*) ' '
-       enddo
-       print*, ' '
-       print*, 'Updated dphi2/phi_increment'
-       do j = jtest+p, jtest-p, -1
-          write(6,'(i6)',advance='no') j
-          do i = itest-p, itest+p
-             write(6,'(f10.1)',advance='no') dphi2(i,j)/phi_increment
-          enddo
-          write(6,*) ' '
-       enddo
-    endif
-
-    ! Compute the number of cells incremented in the first pass.
-    ! If no cells are incremented, then skip step 2.
-    ! This will be the case if the flat region lies at the highest elevation in the domain.
-
-    global_sum = parallel_global_sum(incremented_mask, parallel)
-
-    if (global_sum == 0) then
-       if (verbose_bwat .and. this_rank == rtest) then
-          print*, ' '
-          print*, 'No cells to increment; skip step 2'
-       endif
-       finished = .true.
-    endif
-
-    ! In subsequent passes, increment the elevation in the following cells:
-    !  (1) all cells that have been previously incremented; and
-    !  (2) all cells in the input flat region that have not been previously incremented,
-    !      are adjacent to an incremented cell, and are not adjacent to a cell downhill
-    !      from the input flat region.
-    ! Repeat until no unincremented cells remain on the input flat region.
-    ! Note: This iterated loop uses flat_mask_input, which is not incremented.
-
-    do while(.not.finished)
-
-       count = count + 1
-       if (verbose_bwat .and. this_rank == rtest) then
-          print*, ' '
-          print*, 'step 2, count =', count
-       endif
-
-       ! Identify cells that have not been incremented, but are adjacent to incremented cells
-       ! The resulting incremented_neighbor mask is valid in all cells except the outer halo.
-
-       incremented_neighbor_mask = 0
-       do j = 2, ny-1
-          do i = 2, nx-1
-             if (flat_mask_input(i,j) == 1 .and. incremented_mask(i,j) == 0) then
-                do jj = -1,1
-                   do ii = -1,1
-                      ! If this is the centre point, ignore
-                      if (ii == 0 .and. jj == 0) then
-                         continue
-                      else  ! check for an incremented neighbor
-                         ip = i + ii
-                         jp = j + jj
-                         if (incremented_mask(ip,jp) == 1) then
-                            incremented_neighbor_mask(i,j) = 1
-                         endif
-                      endif
-                   enddo   ! ii
-                enddo   ! jj
-             endif   ! flat_mask = 1 and incremented = F
-          enddo   ! i
-       enddo   ! j
-
-       ! Increment cells of type (1) and (2)
-       ! Note: n_downhill was computed before step 1.
-
-       do j = 2, ny-1
-          do i = 2, nx-1
-             if (incremented_mask(i,j) == 1) then
-                dphi2(i,j) = dphi2(i,j) + phi_increment
-             elseif (n_downhill(i,j) == 0 .and. incremented_neighbor_mask(i,j) == 1) then
-                dphi2(i,j) = dphi2(i,j) + phi_increment
-                incremented_mask(i,j) = 1
-             endif
-          enddo
-       enddo
-
-       call parallel_halo(dphi2, parallel)
-       call parallel_halo(incremented_mask, parallel)
-
-       if (verbose_bwat .and. this_rank == rtest) then
-          print*, ' '
-          print*, 'incremented_neighbor_mask:'
-          do j = jtest+p, jtest-p, -1
-             write(6,'(i6)',advance='no') j
-             do i = itest-p, itest+p
-                write(6,'(i10)',advance='no') incremented_neighbor_mask(i,j)
-             enddo
-             write(6,*) ' '
-          enddo
-          print*, 'Updated dphi2/phi_increment'
-          do j = jtest+p, jtest-p, -1
-             write(6,'(i6)',advance='no') j
-             do i = itest-p, itest+p
-                write(6,'(f10.1)',advance='no') dphi2(i,j)/phi_increment
-             enddo
-             write(6,*) ' '
-          enddo
-       endif
-
-       ! Compute the number of cells in the input flat region that have not been incremented.
-       ! If all the flat cells have been incremented, then exit the loop.
-
-       where (flat_mask_input == 1 .and. incremented_mask == 0)
-          unincremented_mask = 1
-       elsewhere
-          unincremented_mask = 0
-       endwhere
-       global_sum = parallel_global_sum(unincremented_mask, parallel)
-
-
-       if (global_sum > 0) then
-          if (verbose_bwat .and. this_rank == rtest) then
-             print*, 'number of flat cells not yet incremented =', global_sum
-          endif
-          finished = .false.
-       else
-          finished = .true.
-       endif
-
-       if (count > count_max) then
-          call write_log('Hydrology error: abort in step 2 of fix_flats', GM_FATAL)
-       endif
-
-    enddo   ! step 2 finished
-
-
-    ! Step 3:
-
-    ! Add the increments from steps 1 and 2
-    ! The result is a surface with gradients both toward lower terrain and away from higher terrain.
-    ! No halo update is needed here, since dphi1 and dphi2 have been updated in halos.
-
-    phi = phi_input + dphi1 + dphi2
-
-    ! Check for cells with flat_mask = 1 (no downslope gradient).
-    ! Such cells are possible because of cancelling dphi1 and dphi2.
-
-    count = 0
-    finished = .false.
-
-    do while (.not.finished)
-
-       count = count + 1
-       if (verbose_bwat .and. this_rank == rtest) then
-          print*, ' '
-          print*, 'step 3, count =', count
-       endif
-
-       ! Identify cells without downslope neighbors.
-       ! The resulting flat_mask is valid in all cells except the outer halo.
-
-       call find_flats(&
-            nx,    ny,           &
-            itest, jtest, rtest, &
-            phi,                 &
-            phi_mask,            &
-            flat_mask)
-
-       ! Add a half increment to any cells without downslope neighbors
-       where (flat_mask == 1)
-          phi = phi + 0.5d0 * phi_increment
-       endwhere
-
-       call parallel_halo(phi, parallel)
-
-       ! Compute the number of cells without downslope neighbors.
-       ! If there are no such cells, then exit the loop.
-
-       global_sum = parallel_global_sum(flat_mask, parallel)
-
-       if (verbose_bwat .and. this_rank == rtest) then
-          print*, 'global sum of flat_mask =', global_sum
-       endif
-
-       if (global_sum > 0) then
-          finished = .false.
-       else
-          finished = .true.
-       endif
-
-       if (count > count_max) then
-          call write_log('Hydrology error: abort in step 3 of fix_flats', GM_FATAL)
-       endif
-
-    enddo   ! step 3 finished
-
-    if (verbose_bwat .and. this_rank == rtest) then
-       print*, ' '
-       print*, 'Final phi:'
-       do j = jtest+p, jtest-p, -1
-          write(6,'(i6)',advance='no') j
-          do i = itest-p, itest+p
-             write(6,'(f10.3)',advance='no') phi(i,j)
-          enddo
-          write(6,*) ' '
-       enddo
-    endif
-
-  end subroutine fix_flats
-
-!==============================================================
-
-  subroutine find_flats(&
-       nx,     ny,             &
-       itest,  jtest,  rtest,  &
-       phi,    phi_mask,       &
-       flat_mask)
-
-    ! Compute a mask that = 1 for cells in flat regions.
-    ! These are defined as cells with phi_mask = 1 and without a downslope gradient.
-    ! Note: This subroutine is not currently called.  See the comment in fix_flats.
-
-    ! Input/output arguments
-
-    integer, intent(in) ::  &
-         nx, ny,               & ! number of grid cells in each direction
-         itest, jtest, rtest     ! coordinates of diagnostic point
-
-    real(dp), dimension(nx,ny), intent(inout) :: &
-         phi                     ! elevation field with potential flat regions
-
-    integer, dimension(nx,ny), intent(in) :: &
-         phi_mask               ! = 1 for cells in the region where flats need to be identified
-
-    integer, dimension(nx,ny), intent(out) :: &
-         flat_mask               ! = 1 for cells with phi_mask = 1 and without a downslope gradient
-
-    ! Local variables
-
-    integer :: i, j, ii, jj, ip, jp
-
-    where (phi_mask == 1)
-       flat_mask = 1   ! assume flat until shown otherwise
-    elsewhere
-       flat_mask = 0
-    endwhere
-
-    ! Identify cells that have no downslope neighbors, and mark them as flat.
-
-    do j = 2, ny-1
-       do i = 2, nx-1
-          if (phi_mask(i,j) == 1) then
-             !TODO - Add an exit statement?
-             do jj = -1,1
-                do ii = -1,1
-                   ! If this is the centre point, ignore
-                   if (ii == 0 .and. jj == 0) then
-                      continue
-                   else  ! check for a downslope gradient
-                      ip = i + ii
-                      jp = j + jj
-                      if (phi(i,j) - phi(ip,jp) > eps11) then
-                         flat_mask(i,j) = 0
-                      endif
-                   endif
-                enddo   ! ii
-             enddo   ! jj
-          endif   ! phi_mask = 1
-       enddo   ! i
-    enddo   ! j
-
-!    call parallel_halo(flat_mask, parallel)
-
-  end subroutine find_flats
 
 !==============================================================
 
@@ -2041,13 +1308,13 @@ contains
     call indexx(vect, ind)
 
     if (verbose_bwat .and. this_rank == rtest) then
-       print*, ' '
-       print*, 'Sort from low to high, nlocal =', nlocal
-       print*, 'k, local i and j, ind(k), phi:'
+       write(iulog,*) ' '
+       write(iulog,*) 'Sort from low to high, nlocal =', nlocal
+       write(iulog,*) 'k, local i and j, ind(k), phi:'
        do k = nlocal, nlocal-10, -1
           i = floor(real(ind(k)-1)/real(ny_local)) + 1 + nhalo
           j = mod(ind(k)-1,ny_local) + 1 + nhalo
-          print*, k, i, j, ind(k), phi(i,j)
+          write(iulog,*) k, i, j, ind(k), phi(i,j)
        enddo
     endif
 
@@ -2072,11 +1339,13 @@ contains
        flux_routing_scheme,   &
        sorted_ij,             &
        head,                  &
+       btemp_weight,          &
        bwat_mask,             &
        flux_fraction)
 
     ! For each cell, compute the flux fraction sent to each of the 8 neighbors,
-    ! based on the chosen flux routing scheme (D8, Dinf or FD8).
+    !  based on the chosen flux routing scheme (D8, Dinf or FD8).
+    ! The flux fraction is proportional to grad(head).
 
     ! Input/output arguments
 
@@ -2099,7 +1368,8 @@ contains
          sorted_ij               ! i and j indices of each cell, sorted from from low phi to high phi
 
     real(dp), dimension(nx,ny), intent(in) :: &
-         head                    ! hydraulic head (m)
+         head,                 & ! hydraulic head (m)
+         btemp_weight            ! temperature-dependent weighting factor, favoring flow where the bed is thawed
 
     integer, dimension(nx,ny), intent(in) :: &
          bwat_mask               ! = 1 for cells in the region where basal water fluxes can be nonzero
@@ -2112,16 +1382,15 @@ contains
     integer :: i, j, k, ii, jj, ip, jp, i1, i2, j1, j2, itmp, jtmp
 
     real(dp), dimension(-1:1,-1:1) ::  &
-         dists,         &  ! distance (m) to adjacent grid cell
-         slope             ! slope of head between adjacent grid cells, positive downward
+         dists,              & ! distance (m) to adjacent grid cell
+         slope                 ! slope of head between adjacent grid cells, positive downward
 
     real(dp) ::  &
-         slope1,        &  ! largest value of slope array
-         slope2,        &  ! second largest value of slope array
-         sum_slope,     &  ! sum of positive downward slopes
-         slope_tmp         ! temporary slope value
+         slope1,             & ! largest value of slope array
+         slope2,             & ! second largest value of slope array
+         sum_slope,          & ! sum of positive downward slopes
+         slope_tmp             ! temporary slope value
 
-    !WHL - debug
     real(dp) :: sum_frac
 
     ! Compute distances to adjacent grid cells for slope determination
@@ -2146,7 +1415,6 @@ contains
 
           ! Compute the slope between this cell and each neighbor.
           ! Slopes are defined as positive for downhill neighbors, and zero otherwise.
-
           slope = 0.0d0
 
           ! Loop over adjacent points and calculate slope
@@ -2155,12 +1423,12 @@ contains
                 ! If this is the centre point, ignore
                 if (ii == 0 .and. jj == 0) then
                    continue
-                else  ! compute slope
+                else  ! compute the hydropotential slope, weighted based on downstream bed temperature
                    ip = i + ii
                    jp = j + jj
                    if (ip >= 1 .and. ip <= nx .and. jp > 1 .and. jp <= ny) then
                       if (head(ip,jp) < head(i,j)) then
-                         slope(ii,jj) = (head(i,j) - head(ip,jp)) / dists(ii,jj)
+                         slope(ii,jj) = btemp_weight(ip,jp) * (head(i,j) - head(ip,jp)) / dists(ii,jj)
                       endif
                    endif
                 endif
@@ -2170,12 +1438,12 @@ contains
           sum_slope = sum(slope)
 
           if (verbose_bwat .and. this_rank == rtest .and. i == itest .and. j == jtest) then
-             print*, ' '
-             print*, 'slope: task, i, j =', rtest, i, j
-             print*, slope(:,1)
-             print*, slope(:,0)
-             print*, slope(:,-1)
-             print*, 'sum(slope) =', sum(slope)
+             write(iulog,*) ' '
+             write(iulog,*) 'slope: task, i, j =', rtest, i, j
+             write(iulog,*) slope(:,1)
+             write(iulog,*) slope(:,0)
+             write(iulog,*) slope(:,-1)
+             write(iulog,*) 'sum(slope) =', sum(slope)
           endif
 
           ! Distribute the downslope flux according to the flux-routing scheme:
@@ -2187,7 +1455,7 @@ contains
 
           if (flux_routing_scheme == HO_FLUX_ROUTING_D8) then
 
-             ! route to the adjacent cell with the lowest elevation
+             ! route to the lowest-lying adjacent cell
              slope1 = 0.0d0
              if (sum_slope > 0.d0) then
                 i1 = 0; j1 = 0
@@ -2210,16 +1478,16 @@ contains
                 flux_fraction(ii,jj,i,j) = 1.0d0   ! route the entire flux to one downhill cell
              else
                 ! Do a fatal abort?
-                print*, 'Warning: Cell with no downhill neighbors, i, j =', i, j
+                write(iulog,*) 'Warning: Cell with no downhill neighbors, i, j =', i, j
              endif
 
              if (verbose_bwat .and. this_rank == rtest .and. i == itest .and. j == jtest) then
-                print*, 'i1, j1, slope1 =', i1, j1, slope1
+                write(iulog,*) 'i1, j1, slope1 =', i1, j1, slope1
              endif
 
           elseif (flux_routing_scheme == HO_FLUX_ROUTING_DINF) then
 
-             ! route to the two adjacent cells with the lowest elevation
+             ! route to the two lowest-lying adjacent cells
              i1 = 0; j1 = 0
              i2 = 0; j2 = 0
              slope1 = 0.0d0
@@ -2259,19 +1527,19 @@ contains
                    flux_fraction(ii,jj,i,j) = slope2/sum_slope
                 endif
              else
-                print*, 'Warning: Cell with no downhill neighbors, i, j =', i, j
+                write(iulog,*) 'Warning: Cell with no downhill neighbors, i, j =', i, j
              endif
 
              if (verbose_bwat .and. this_rank == rtest .and. i == itest .and. j == jtest) then
-                print*, 'i1, j1, slope1:', i1, j1, slope1
-                print*, 'i2, j2, slope2:', i2, j2, slope2
-                print*, 'sum_slope:', sum_slope
-                print*, 'slope(:, 1):', slope(:, 1)
-                print*, 'slope(:, 0):', slope(:, 0)
-                print*, 'slope(:,-1):', slope(:,-1)
-                print*, 'flux_fraction(:, 1,i,j):', flux_fraction(:, 1,i,j)
-                print*, 'flux_fraction(:, 0,i,j):', flux_fraction(:, 0,i,j)
-                print*, 'flux_fraction(:,-1,i,j):', flux_fraction(:,-1,i,j)
+                write(iulog,*) 'i1, j1, slope1:', i1, j1, slope1
+                write(iulog,*) 'i2, j2, slope2:', i2, j2, slope2
+                write(iulog,*) 'sum_slope:', sum_slope
+                write(iulog,*) 'slope(:, 1):', slope(:, 1)
+                write(iulog,*) 'slope(:, 0):', slope(:, 0)
+                write(iulog,*) 'slope(:,-1):', slope(:,-1)
+                write(iulog,*) 'flux_fraction(:, 1,i,j):', flux_fraction(:, 1,i,j)
+                write(iulog,*) 'flux_fraction(:, 0,i,j):', flux_fraction(:, 0,i,j)
+                write(iulog,*) 'flux_fraction(:,-1,i,j):', flux_fraction(:,-1,i,j)
              endif
 
              !WHL - bug check - make sure fractions add to 1
@@ -2282,12 +1550,12 @@ contains
                 enddo
              enddo
              if (abs(sum_frac - 1.0d0) > eps11) then
-!!                print*, 'sum_frac error: r, i, j, sum:', this_rank, i, j, sum_frac
+!!                write(iulog,*) 'sum_frac error: r, i, j, sum:', this_rank, i, j, sum_frac
              endif
 
           elseif (flux_routing_scheme == HO_FLUX_ROUTING_FD8) then
 
-             ! route to all adjacent downhill cells in proportion to grad(head)
+             ! route to all adjacent downhill cells in proportion to the slope
              if (sum_slope > 0.d0) then
                 do jj = -1,1
                    do ii = -1,1
@@ -2301,16 +1569,17 @@ contains
              endif  ! sum(slope) > 0
 
              if (verbose_bwat .and. this_rank == rtest .and. i == itest .and. j == jtest) then
-                print*, 'i1, j1, slope1:', i1, j1, slope1
-                print*, 'i2, j2, slope2:', i2, j2, slope2
-                print*, 'sum_slope:', sum_slope
-                print*, 'slope(:, 1):', slope(:, 1)
-                print*, 'slope(:, 0):', slope(:, 0)
-                print*, 'slope(:,-1):', slope(:,-1)
-                print*, 'flux_fraction(:, 1,i,j):', flux_fraction(:, 1,i,j)
-                print*, 'flux_fraction(:, 0,i,j):', flux_fraction(:, 0,i,j)
-                print*, 'flux_fraction(:,-1,i,j):', flux_fraction(:,-1,i,j)
+                write(iulog,*) 'i1, j1, slope1:', i1, j1, slope1
+                write(iulog,*) 'i2, j2, slope2:', i2, j2, slope2
+                write(iulog,*) 'sum_slope:', sum_slope
+                write(iulog,*) 'slope(:, 1):', slope(:, 1)
+                write(iulog,*) 'slope(:, 0):', slope(:, 0)
+                write(iulog,*) 'slope(:,-1):', slope(:,-1)
+                write(iulog,*) 'flux_fraction(:, 1,i,j):', flux_fraction(:, 1,i,j)
+                write(iulog,*) 'flux_fraction(:, 0,i,j):', flux_fraction(:, 0,i,j)
+                write(iulog,*) 'flux_fraction(:,-1,i,j):', flux_fraction(:,-1,i,j)
              endif
+
           endif   ! flux_routing_scheme: D8, Dinf, FD8
 
        endif  ! bwat_mask = 1

@@ -38,7 +38,9 @@
 module glissade_test
 
   use glimmer_global, only: dp
+  use glimmer_paramets, only: iulog
   use glimmer_log
+  use glimmer_utils, only: point_diag
   use glide_types
 
   implicit none
@@ -91,14 +93,17 @@ contains
     integer :: i, j, k, ig, jg
     integer :: nx, ny, nz
 
-    integer, parameter :: rdiag = 0         ! rank for diagnostic prints 
+    integer :: itest, jtest, rtest
 
-    print*, ' '
-    print*, 'In glissade_test_halo, this_rank =', this_rank
+    write(iulog,*) ' '
+    write(iulog,*) 'In glissade_test_halo, this_rank =', this_rank
 
     nx = model%general%ewn
     ny = model%general%nsn
     nz = model%general%upn
+    itest = model%numerics%idiag_local
+    jtest = model%numerics%jdiag_local
+    rtest = model%numerics%rdiag_local
     parallel = model%parallel
 
     allocate(logvar(nx,ny))
@@ -122,14 +127,14 @@ contains
     allocate(pgIDstagr3(nz,nx-1,ny-1))
 
     if (main_task) then
-       print*, ' '
-       print*, 'nx, ny, nz =', nx, ny, nz
-       print*, 'uhalo, lhalo =', uhalo, lhalo
-       print*, 'global_ewn, global_nsn =', parallel%global_ewn, parallel%global_nsn
-       print*, ' '
+       write(iulog,*) ' '
+       write(iulog,*) 'nx, ny, nz =', nx, ny, nz
+       write(iulog,*) 'uhalo, lhalo =', uhalo, lhalo
+       write(iulog,*) 'global_ewn, global_nsn =', parallel%global_ewn, parallel%global_nsn
+       write(iulog,*) ' '
     endif
 
-    print*, 'this_rank, global_row/col offset =', &
+    write(iulog,*) 'this_rank, global_row/col offset =', &
          this_rank, parallel%global_row_offset, parallel%global_col_offset
 
     ! Test some standard parallel_halo routines for scalars: logical_2d, integer_2d, real4_2d, real8_2d, real8_3d
@@ -144,24 +149,9 @@ contains
     enddo
     enddo
 
-    if (this_rank == rdiag) then
-       write(6,*) ' '
-       print*, 'logvar: this_rank =', this_rank
-       do j = ny, 1, -1
-          write(6,'(34l3)') logvar(:,j)
-       enddo
-    endif
-
+    call point_diag(logvar, 'Before halo update, logvar', itest, jtest, rtest, 7, 7)
     call parallel_halo(logvar, parallel)
-
-    if (this_rank == rdiag) then
-       write(6,*) ' '
-       write(6,*) 'After parallel_halo_update, this_rank =', this_rank
-       do j = ny, 1, -1
-          write(6,'(34l3)') logvar(:,j)
-       enddo
-    endif
-
+    call point_diag(logvar, 'After halo update, logvar', itest, jtest, rtest, 7, 7)
 
     ! staggered 2D int field
 
@@ -174,31 +164,9 @@ contains
        enddo
     enddo
 
-    if (this_rank == rdiag) then
-       write(6,*) ' '
-       print*, 'intvar_2d_stag: this_rank =', this_rank
-       do j = ny-1, 1, -1
-          write(6,'(i6)',advance='no') j
-          do i = 1, nx-1
-             write(6,'(i6)',advance='no') intvar_2d_stag(i,j)
-          enddo
-          write(6,*) ' '
-       enddo
-    endif
-
+    call point_diag(intvar_2d_stag, 'Before halo update, intvar_2d_stag', itest, jtest, rtest, 7, 7)
     call staggered_parallel_halo(intvar_2d_stag, parallel)
-
-    if (this_rank == rdiag) then
-       write(6,*) ' '
-       write(6,*) 'After parallel_halo_update, this_rank =', this_rank
-       do j = ny-1, 1, -1
-          write(6,'(i6)',advance='no') j
-          do i = 1, nx-1
-             write(6,'(i6)',advance='no') intvar_2d_stag(i,j)
-          enddo
-          write(6,*) ' '
-       enddo
-    endif
+    call point_diag(intvar_2d_stag, 'After halo update, intvar_2d_stag', itest, jtest, rtest, 7, 7)
 
     ! staggered 3D integer field
 
@@ -211,31 +179,11 @@ contains
        enddo
     enddo
 
-    if (this_rank == rdiag) then
-       write(6,*) ' '
-       print*, 'intvar_3d_stag: this_rank =', this_rank
-       do j = ny-1, 1, -1
-          write(6,'(i6)',advance='no') j
-          do i = 1, nx-1
-             write(6,'(i6)',advance='no') intvar_3d_stag(1,i,j)
-          enddo
-          write(6,*) ' '
-       enddo
-    endif
-
+    call point_diag(intvar_3d_stag(1,:,:), 'Before halo update, intvar_3d_stag, k = 1', &
+         itest, jtest, rtest, 7, 7)
     call staggered_parallel_halo(intvar_3d_stag, parallel)
-
-    if (this_rank == rdiag) then
-       write(6,*) ' '
-       write(6,*) 'After parallel_halo_update, this_rank =', this_rank
-       do j = ny-1, 1, -1
-          write(6,'(i6)',advance='no') j
-          do i = 1, nx-1
-             write(6,'(i6)',advance='no') intvar_3d_stag(1,i,j)
-          enddo
-          write(6,*) ' '
-       enddo
-    endif
+    call point_diag(intvar_3d_stag(1,:,:), 'After halo update, intvar_3d_stag, k = 1', &
+         itest, jtest, rtest, 7, 7)
 
     ! staggered 2D real field
 
@@ -248,33 +196,9 @@ contains
        enddo
     enddo
 
-    if (this_rank == rdiag) then
-       write(6,*) ' '
-       print*, 'r8var_2d_stag: this_rank =', this_rank
-       do j = ny-1, 1, -1
-          write(6,'(i6)',advance='no') j
-!!          do i = 1, nx/2 + 2
-          do i = 1, nx-1
-             write(6,'(f6.0)',advance='no') r8var_2d_stag(i,j)
-          enddo
-          write(6,*) ' '
-       enddo
-    endif
-
+    call point_diag(r8var_2d_stag, 'Before halo update, r8var_2d_stag', itest, jtest, rtest, 7, 7)
     call staggered_parallel_halo(r8var_2d_stag, parallel)
-
-    if (this_rank == rdiag) then
-       write(6,*) ' '
-       write(6,*) 'After parallel_halo_update, this_rank =', this_rank
-       do j = ny-1, 1, -1
-          write(6,'(i6)',advance='no') j
-!!          do i = 1, nx/2 + 2
-          do i = 1, nx-1
-             write(6,'(f6.0)',advance='no') r8var_2d_stag(i,j)
-          enddo
-          write(6,*) ' '
-       enddo
-    endif
+    call point_diag(r8var_2d_stag, 'After halo update, r8var_2d_stag', itest, jtest, rtest, 7, 7)
 
     ! staggered 3D real field
 
@@ -287,33 +211,11 @@ contains
        enddo
     enddo
 
-    if (this_rank == rdiag) then
-       write(6,*) ' '
-       print*, 'r8var_3d_stag: this_rank =', this_rank
-       do j = ny-1, 1, -1
-          write(6,'(i6)',advance='no') j
-!!          do i = 1, nx/2 + 2
-          do i = 1, nx-1
-             write(6,'(f6.0)',advance='no') r8var_3d_stag(1,i,j)
-          enddo
-          write(6,*) ' '
-       enddo
-    endif
-
+    call point_diag(r8var_3d_stag(1,:,:), 'Before halo update, r8var_3d_stag, k = 1', &
+         itest, jtest, rtest, 7, 7)
     call staggered_parallel_halo(r8var_3d_stag, parallel)
-
-    if (this_rank == rdiag) then
-       write(6,*) ' '
-       write(6,*) 'After parallel_halo_update, this_rank =', this_rank, parallel
-       do j = ny-1, 1, -1
-          write(6,'(i6)',advance='no') j
-!!          do i = 1, nx/2 + 2
-          do i = 1, nx-1
-             write(6,'(f6.0)',advance='no') r8var_3d_stag(1,i,j)
-          enddo
-          write(6,*) ' '
-       enddo
-    endif
+    call point_diag(r8var_3d_stag(1,:,:), 'After halo update, r8var_3d_stag, k = 1', &
+         itest, jtest, rtest, 7, 7)
 
     ! staggered 4D real field
 
@@ -326,33 +228,11 @@ contains
        enddo
     enddo
 
-    if (this_rank == rdiag) then
-       write(6,*) ' '
-       print*, 'r8var_4d_stag: this_rank =', this_rank
-       do j = ny-1, 1, -1
-          write(6,'(i6)',advance='no') j
-!!          do i = 1, nx/2 + 2
-          do i = 1, nx-1
-             write(6,'(f6.0)',advance='no') r8var_4d_stag(1,1,i,j)
-          enddo
-          write(6,*) ' '
-       enddo
-    endif
-
+    call point_diag(r8var_4d_stag(1,1,:,:), 'Before halo update, r4var_3d_stag, k = 1, l = 1', &
+         itest, jtest, rtest, 7, 7)
     call staggered_parallel_halo(r8var_4d_stag, parallel)
-
-    if (this_rank == rdiag) then
-       write(6,*) ' '
-       write(6,*) 'After parallel_halo_update, this_rank =', this_rank
-       do j = ny-1, 1, -1
-          write(6,'(i6)',advance='no') j
-!!          do i = 1, nx/2 + 2
-          do i = 1, nx-1
-             write(6,'(f6.0)',advance='no') r8var_4d_stag(1,1,i,j)
-          enddo
-          write(6,*) ' '
-       enddo
-    endif
+    call point_diag(r8var_4d_stag(1,1,:,:), 'After halo update, r4var_3d_stag, k = 1, l = 1', &
+         itest, jtest, rtest, 7, 7)
 
     ! The next part of the code concerns parallel global IDs
 
@@ -366,23 +246,9 @@ contains
     enddo
     enddo
 
-    if (this_rank == rdiag) then
-       write(6,*) ' '
-       print*, 'Parallel global ID (integer), this_rank =', this_rank
-       do j = ny, 1, -1
-          write(6,'(34i5)') pgID(:,j)
-       enddo
-    endif
-
+    call point_diag(pgID, 'Before halo update, pgID', itest, jtest, rtest, 7, 7)
     call parallel_halo(pgID, parallel)
-
-    if (this_rank == rdiag) then
-       write(6,*) ' '
-       write(6,*) 'After parallel_halo_update, this_rank =', this_rank
-       do j = ny, 1, -1
-          write(6,'(34i5)') pgID(:,j)
-       enddo
-    endif
+    call point_diag(pgID, 'After halo update, pgID', itest, jtest, rtest, 7, 7)
 
     ! real 2D
     
@@ -394,23 +260,9 @@ contains
     enddo
     enddo
 
-    if (this_rank == rdiag) then
-       write(6,*) ' '
-       print*, 'Parallel global ID (r4 2D), this_rank =', this_rank
-       do j = ny, 1, -1
-          write(6,'(34f6.0)') pgIDr4(:,j)
-       enddo
-    endif
-
+    call point_diag(pgIDr4, 'Before halo update, pgIDr4', itest, jtest, rtest, 7, 7)
     call parallel_halo(pgIDr4, parallel)
-
-    if (this_rank == rdiag) then
-       write(6,*) ' '
-       write(6,*) 'After parallel_halo_update, this_rank =', this_rank
-       do j = ny, 1, -1
-          write(6,'(34f6.0)') pgIDr4(:,j)
-       enddo
-    endif
+    call point_diag(pgIDr4, 'After halo update, pgIDr4', itest, jtest, rtest, 7, 7)
 
     ! double 2D
     
@@ -422,23 +274,9 @@ contains
     enddo
     enddo
 
-    if (this_rank == rdiag) then
-       write(6,*) ' '
-       print*, 'Parallel global ID (r8 2D), this_rank =', this_rank
-       do j = ny, 1, -1
-          write(6,'(34f6.0)') pgIDr8(:,j)
-       enddo
-    endif
-
+    call point_diag(pgIDr8, 'Before halo update, pgIDr8', itest, jtest, rtest, 7, 7)
     call parallel_halo(pgIDr8, parallel)
-
-    if (this_rank == rdiag) then
-       write(6,*) ' '
-       write(6,*) 'After parallel_halo_update, this_rank =', this_rank
-       do j = ny, 1, -1
-          write(6,'(34f6.0)') pgIDr8(:,j)
-       enddo
-    endif
+    call point_diag(pgIDr8, 'After halo update, pgIDr8', itest, jtest, rtest, 7, 7)
 
     ! double 3D
 
@@ -453,25 +291,9 @@ contains
     enddo
     enddo
 
-    k = 1
-
-    if (this_rank == rdiag) then
-       write(6,*) ' '
-       print*, 'Parallel global ID (real 3D), this_rank =', this_rank
-       do j = ny, 1, -1
-          write(6,'(34f6.0)') pgIDr8_3d(k,:,j)
-       enddo
-    endif
-
+    call point_diag(pgIDr8_3d(1,:,:), 'Before halo update, pgIDr8_3d, k = 1', itest, jtest, rtest, 7, 7)
     call parallel_halo(pgIDr8_3d, parallel)
-
-    if (this_rank == rdiag) then
-       write(6,*) ' '
-       write(6,*) 'After parallel_halo_update, this_rank =', this_rank
-       do j = ny, 1, -1
-          write(6,'(34f6.0)') pgIDr8_3d(k,:,j)
-       enddo
-    endif
+    call point_diag(pgIDr8_3d(1,:,:), 'After halo update, pgIDr8_3d, k = 1', itest, jtest, rtest, 7, 7)
 
     ! Repeat for staggered variables
 
@@ -485,24 +307,9 @@ contains
     enddo
     enddo
 
-    ! Print
-    if (this_rank == rdiag) then
-       write(6,*) ' '
-       write(6,*) 'Staggered parallel global ID (integer), this_rank =', this_rank
-       do j = ny-1, 1, -1
-          write(6,'(33i5)') pgIDstagi(:,j)
-       enddo
-    endif
-
+    call point_diag(pgIDstagi, 'Before halo update, pgIDstagi', itest, jtest, rtest, 7, 7)
     call staggered_parallel_halo(pgIDstagi, parallel)
-
-    if (this_rank == rdiag) then
-       write(6,*) ' '
-       write(6,*) 'After staggered_parallel_halo_update, this_rank =', this_rank
-       do j = ny-1, 1, -1
-          write(6,'(33i5)') pgIDstagi(:,j)
-       enddo
-    endif
+    call point_diag(pgIDstagi, 'After halo update, pgIDstagi', itest, jtest, rtest, 7, 7)
 
     ! Then for a real 2D field
 
@@ -514,24 +321,9 @@ contains
     enddo
     enddo
 
-    ! Print
-    if (this_rank == rdiag) then
-       write(6,*) ' '
-       write(6,*) 'Staggered parallel global ID (real 2D), this_rank =', this_rank
-       do j = ny-1, 1, -1
-          write(6,'(33f6.0)') pgIDstagr(:,j)
-       enddo
-    endif
-
+    call point_diag(pgIDstagr, 'Before halo update, pgIDstagr', itest, jtest, rtest, 7, 7)
     call staggered_parallel_halo(pgIDstagr, parallel)
-
-    if (this_rank == rdiag) then
-       write(6,*) ' '
-       write(6,*) 'After staggered_parallel_halo_update, this_rank =', this_rank
-       do j = ny-1, 1, -1
-          write(6,'(33f6.0)') pgIDstagr(:,j)
-       enddo
-    endif
+    call point_diag(pgIDstagr, 'After halo update, pgIDstagr', itest, jtest, rtest, 7, 7)
 
     ! Then for a real 3D field
 
@@ -546,25 +338,9 @@ contains
     enddo
     enddo
 
-    k = 1
-
-    if (this_rank == rdiag) then
-       write(6,*) ' '
-       write(6,*) 'Staggered parallel global ID (real 3D), k, this_rank =', k, this_rank
-       do j = ny-1, 1, -1
-          write(6,'(33f6.0)') pgIDstagr3(k,:,j)
-       enddo
-    endif
-
+    call point_diag(pgIDstagr3(1,:,:), 'Before halo update, pgIDstagr3, k = 1', itest, jtest, rtest, 7, 7)
     call staggered_parallel_halo(pgIDstagr3, parallel)
-
-    if (this_rank == rdiag) then
-       write(6,*) ' '
-       write(6,*) 'After staggered_parallel_halo_update, this_rank =', this_rank
-       do j = ny-1, 1, -1
-          write(6,'(33f6.0)') pgIDstagr3(k,:,j)
-       enddo
-    endif
+    call point_diag(pgIDstagr3(1,:,:), 'After halo update, pgIDstagr3, k = 1', itest, jtest, rtest, 7, 7)
 
     deallocate(logvar)
     deallocate(intvar)
@@ -593,25 +369,9 @@ contains
        enddo
     enddo
 
-    k = 1
-
-    if (this_rank == rdiag) then
-       write(6,*) ' '
-       write(6,*) 'Parallel global ID (real 3D), k, this_rank =', k, this_rank
-       do j = ny, 1, -1
-          write(6,'(29f6.0)') tracers(:,j,1,k)
-       enddo
-    endif
-
+    call point_diag(tracers(:,:,1,1), 'Before halo update, tracers, k = 1, l = 1)', itest, jtest, rtest, 7, 7)
     call parallel_halo_tracers(tracers, parallel)
-
-    if (this_rank == rdiag) then
-       write(6,*) ' '
-       write(6,*) 'After parallel_halo_tracer update, this_rank =', this_rank
-       do j = ny, 1, -1
-          write(6,'(29f6.0)') tracers(:,j,1,k)
-       enddo
-    endif
+    call point_diag(tracers(:,:,1,1), 'After halo update, tracers, k = 1, l = 1)', itest, jtest, rtest, 7, 7)
 
     deallocate(tracers)
 
@@ -625,7 +385,6 @@ contains
 
     use glissade_transport, only: glissade_transport_driver, &
          glissade_transport_setup_tracers, glissade_transport_finish_tracers
-    use glimmer_paramets, only: len0, thk0, tim0
     use glimmer_physcon, only: pi, scyr
 
     !-------------------------------------------------------------------
@@ -673,8 +432,6 @@ contains
     integer :: nx, ny, nz
     real(dp) :: dx, dy
 
-    integer, parameter :: rdiag = 0         ! rank for diagnostic prints 
-
     real(dp), parameter :: umag = 100.      ! uniform speed (m/yr)
 
     ! Set angle of motion
@@ -694,17 +451,20 @@ contains
     real(dp) :: len_path   ! length of path back to starting point
     real(dp) :: adv_cfl    ! advective CFL number
 
+    integer :: itest, jtest, rtest
+
     logical :: do_upwind_transport  ! if true, do upwind transport
 
     ! Initialize
 
-    dx = model%numerics%dew * len0
-    dy = model%numerics%dns * len0
-
+    dx = model%numerics%dew
+    dy = model%numerics%dns
     nx = model%general%ewn
     ny = model%general%nsn
     nz = model%general%upn
-
+    itest = model%numerics%idiag_local
+    jtest = model%numerics%jdiag_local
+    rtest = model%numerics%rdiag_local
     parallel = model%parallel
 
     allocate(uvel(nz,nx-1,ny-1))
@@ -739,30 +499,24 @@ contains
     adv_cfl = max (dt*umag*cos(theta)/dx, dt*umag*sin(theta)/dy)
     
     if (adv_cfl >= 1.d0) then
-       print*, 'dt is too big for advective CFL; increase ntstep to', ntstep * adv_cfl
+       write(iulog,*) 'dt is too big for advective CFL; increase ntstep to', ntstep * adv_cfl
        stop
     endif
 
     ! Print some diagnostics
 
     if (main_task) then
-       print*, ' '
-       print*, 'In glissade_test_transport'
-       print*, 'nx, ny, nz =', nx, ny, nz
-       print*, 'len_path =', len_path
-       print*, 'umag (m/yr) =', umag
-       print*, 'dt (yr) =', dt
-       print*, 'ntstep =', ntstep
-       print*, 'theta (deg) =', theta * 180.d0/pi
+       write(iulog,*) ' '
+       write(iulog,*) 'In glissade_test_transport'
+       write(iulog,*) 'nx, ny, nz =', nx, ny, nz
+       write(iulog,*) 'len_path =', len_path
+       write(iulog,*) 'umag (m/yr) =', umag
+       write(iulog,*) 'dt (yr) =', dt
+       write(iulog,*) 'ntstep =', ntstep
+       write(iulog,*) 'theta (deg) =', theta * 180.d0/pi
     endif
 
-    if (this_rank == rdiag) then
-       write(6,*) ' '
-       write(6,*) 'Initial thck'
-       do j = ny, 1, -1
-          write(6,'(19f7.2)') model%geometry%thck(1:19,j) * thk0
-       enddo
-    endif
+    call point_diag(model%geometry%thck, 'Initial thck', itest, jtest, rtest, 7, 7)
 
     ! Set uniform ice speed everywhere
 
@@ -797,6 +551,9 @@ contains
                                       nx,                        ny,                        &
                                       nz-1,                      model%numerics%sigma,      &
                                       parallel,                                             &
+                                      model%numerics%idiag_local,                           &
+                                      model%numerics%jdiag_local,                           &
+                                      model%numerics%rdiag_local,                           &
                                       uvel(:,:,:)/scyr,          vvel(:,:,:)/scyr,          &
                                       model%geometry%thck(:,:),                             &
                                       model%geometry%ntracers,                              &
@@ -808,17 +565,11 @@ contains
 
        call glissade_transport_finish_tracers(model)
 
-       if (this_rank == rdiag) then
-          write(6,*) ' '
-          write(6,*) 'New thck, n =', n
-          do j = ny, 1, -1
-             write(6,'(19f7.2)') model%geometry%thck(1:19,j) * thk0
-          enddo
-       endif
+       call point_diag(model%geometry%thck, 'New thck', itest, jtest, rtest, 7, 7)
 
     enddo  ! ntstep
 
-    if (main_task) print*, 'Done in glissade_test_transport'
+    if (main_task) write(iulog,*) 'Done in glissade_test_transport'
 
     deallocate(uvel)
     deallocate(vvel)

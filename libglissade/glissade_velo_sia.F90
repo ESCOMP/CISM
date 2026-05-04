@@ -55,10 +55,10 @@
   module glissade_velo_sia
 
     use glimmer_global, only: dp
+    use glimmer_paramets, only: iulog
     use glimmer_physcon, only: n_glen, rhoi, grav, scyr
-    use glimmer_paramets, only: thk0, len0, vel0, vis0, tau0
 !    use glimmer_log, only: write_log
-
+    use glimmer_utils, only: point_diag
     use glide_types
     use glissade_grid_operators, only: glissade_stagger, glissade_gradient, &
                                        glissade_gradient_at_edges
@@ -224,8 +224,8 @@
     endif
 
     if (verbose_sia .and. this_rank==rtest) then
-       print*, 'In glissade_velo_sia_solve'
-       print*, 'rank, itest, jtest =', rtest, itest, jtest
+       write(iulog,*) 'In glissade_velo_sia_solve'
+       write(iulog,*) 'rank, itest, jtest =', rtest, itest, jtest
     endif
 
     !--------------------------------------------------------
@@ -332,62 +332,23 @@
     !  on each side.  This is appropriate for problems with ice shelves, but is
     !  is less accurate than options 0 or 1 for land-based problems (e.g., Halfar SIA).
 
-    call glissade_gradient(nx,        ny,          &
-                           dx,        dy,          &
+    call glissade_gradient(nx,           ny,       &
+                           dx,           dy,       &
+                           itest, jtest, rtest,    &
                            usrf,                   &
-                           dusrf_dx,  dusrf_dy,    &
+                           dusrf_dx,     dusrf_dy, &
                            ice_mask,               &
                            gradient_margin_in = whichgradient_margin)
 
     if (verbose_sia .and. main_task) then
-       print*, ' '
-       print*, 'In glissade_velo_sia_solve'
+       write(iulog,*) ' '
+       write(iulog,*) 'In glissade_velo_sia_solve'
     endif
 
-    if (verbose_geom .and. main_task) then
-
-       print*, ' '
-       print*, 'stagthck (m):'
-       do i = 1, nx-1
-          write(6,'(i7)',advance='no') i
-       enddo
-       print*, ' '
-       do j = ny-1, 1, -1
-          write(6,'(i4)',advance='no') j
-          do i = 1, nx-1
-             write(6,'(f7.2)',advance='no') stagthck(i,j)
-          enddo
-          print*, ' '
-       enddo
-
-       print*, ' '
-       print*, 'dusrf_dx:'
-       do i = 1, nx-1
-          write(6,'(i7)',advance='no') i
-       enddo
-       print*, ' '
-       do j = ny-1, 1, -1
-          write(6,'(i4)',advance='no') j
-          do i = 1, nx-1
-             write(6,'(f7.4)',advance='no') dusrf_dx(i,j)
-          enddo
-          print*, ' '
-       enddo
-
-       print*, ' '
-       print*, 'dusrf_dy:'
-       do i = 1, nx-1
-          write(6,'(i7)',advance='no') i
-       enddo
-       print*, ' '
-       do j = ny-1, 1, -1
-          write(6,'(i4)',advance='no') j
-          do i = 1, nx-1
-             write(6,'(f7.4)',advance='no') dusrf_dy(i,j)
-          enddo
-          print*, ' '
-       enddo
-
+    if (verbose_geom) then
+       call point_diag(stagthck, 'stagthck (m)', itest, jtest, rtest, 7, 7)
+       call point_diag(dusrf_dx, 'dusrf_dx', itest, jtest, rtest, 7, 7)
+       call point_diag(dusrf_dy, 'dusrf_dy', itest, jtest, rtest, 7, 7)
     endif
 
     ! Compute velocity at the bed (ubas, vbas)
@@ -400,54 +361,11 @@
                                btrc,       btrc_const,     &
                                ubas,       vbas)
 
-    if (verbose_bed .and. main_task) then
-
-       print*, ' '
-       print*, 'whichbtrc, btrc_const =', whichbtrc, btrc_const
-
-       print*, ' '
-       print*, 'btrc:'
-       do i = 1, nx-1
-          write(6,'(i7)',advance='no') i
-       enddo
-       print*, ' '
-       do j = ny-1, 1, -1
-          write(6,'(i4)',advance='no') j
-          do i = 1, nx-1
-             write(6,'(f7.4)',advance='no') btrc(i,j)
-          enddo
-          print*, ' '
-       enddo
-
-       print*, ' '
-       print*, 'ubas:'
-       do i = 1, nx-1
-          write(6,'(i7)',advance='no') i
-       enddo
-       print*, ' '
-       do j = ny-1, 1, -1
-          write(6,'(i4)',advance='no') j
-          do i = 1, nx-1
-             write(6,'(f7.2)',advance='no') ubas(i,j)
-          enddo
-          print*, ' '
-       enddo
-
-       print*, ' '
-       print*, 'vbas:'
-       do i = 1, nx-1
-          write(6,'(i7)',advance='no') i
-       enddo
-       print*, ' '
-       do j = ny-1, 1, -1
-          write(6,'(i4)',advance='no') j
-          do i = 1, nx-1
-             write(6,'(f7.2)',advance='no') vbas(i,j)
-          enddo
-          print*, ' '
-       enddo
-
-    endif  ! verbose_bed
+    if (verbose_bed) then
+       call point_diag(btrc, 'btrc', itest, jtest, rtest, 7, 7)
+       call point_diag(ubas, 'ubas', itest, jtest, rtest, 7, 7)
+       call point_diag(vbas, 'vbas', itest, jtest, rtest, 7, 7)
+    endif
 
     ! Compute velocity in the ice interior
 
@@ -468,59 +386,22 @@
     call staggered_parallel_halo(uvel, parallel)
     call staggered_parallel_halo(vvel, parallel)
 
-    if (verbose_interior .and. main_task) then
-       print*, ' '
-       print*, 'stagthck:'
-       do i = 1, nx-1
-          write(6,'(i8)',advance='no') i
-       enddo
-       print*, ' '
-       do j = ny-1, 1, -1
-          write(6,'(i4)',advance='no') j
-          do i = 1, nx-1
-             write(6,'(f8.2)',advance='no') stagthck(i,j)
-          enddo
-          print*, ' '
-       enddo
-
+    if (verbose_interior) then
+       call point_diag(stagthck, 'stagthck (m)', itest, jtest, rtest, 7, 7)
        k = 1
-       print*, ' '
-       print*, 'uvel, k = 1:'
-       do i = 1, nx-1
-          write(6,'(i8)',advance='no') i
-       enddo
-       print*, ' '
-       do j = ny-1, 1, -1
-          write(6,'(i4)',advance='no') j
-          do i = 1, nx-1
-             write(6,'(f8.0)',advance='no') uvel(k,i,j)
-          enddo
-          print*, ' '
-       enddo
+       call point_diag(uvel(k,:,:), 'uvel (m/yr)', itest, jtest, rtest, 7, 7)
+       call point_diag(vvel(k,:,:), 'vvel (m/yr)', itest, jtest, rtest, 7, 7)
+    endif
 
-       print*, ' '
-       print*, 'vvel, k = 1:'
-       do i = 1, nx-1
-          write(6,'(i8)',advance='no') i
-       enddo
-       print*, ' '
-       do j = ny-1, 1, -1
-          write(6,'(i4)',advance='no') j
-          do i = 1, nx-1
-             write(6,'(f8.0)',advance='no') vvel(k,i,j)
-          enddo
-          print*, ' '
-       enddo
-
-       print*, 'Computed new velocity'
+    if (verbose_interior .and. this_rank == rtest) then
+       write(iulog,*) 'Computed new velocity'
        i = itest
        j = jtest
-       print*, 'i, j =', i, j
-       print*, 'k, uvel, vvel:'
+       write(iulog,*) 'rank, i, j =', rtest, i, j
+       write(iulog,*) 'k, uvel, vvel:'
        do k = 1, nz
-          print*, k, uvel(k,i,j), vvel(k,i,j)
+          write(iulog,*) k, uvel(k,i,j), vvel(k,i,j)
        enddo
-       
     endif   ! verbose_interior
 
     !------------------------------------------------------------------------------
@@ -538,8 +419,8 @@
     if (verbose_bfric .and. this_rank==rtest) then
        i = itest
        j = jtest
-       print*, ' '
-       print*, 'i, j, bfricflx:', i, j, bfricflx(i,j)
+       write(iulog,*) ' '
+       write(iulog,*) 'i, j, bfricflx:', i, j, bfricflx(i,j)
     endif
 
     ! Convert back to dimensionless units before returning
@@ -589,30 +470,19 @@
     real(dp), dimension(:,:,:), intent(inout) ::  &
        uvel, vvel              ! velocity components (m/yr)
 
-    ! grid cell dimensions: rescale from dimensionless to m
-    dx = dx * len0
-    dy = dy * len0
+    !TODO - Keep flwa in units of Pa^(-n) s^(-1)
+    !TODO - Keep btrc in units of (m/s)/Pa
+    !TODO - Keep uvel and vvel in units of (m/s)
 
-    ! ice geometry: rescale from dimensionless to m
-    thck = thck * thk0
-    usrf = usrf * thk0
-    topg = topg * thk0
-    eus  = eus  * thk0
-    thklim = thklim * thk0
+    ! rate factor: rescale to Pa^(-n) yr^(-1)
+    flwa = flwa * scyr
 
-    ! rate factor: rescale from dimensionless to Pa^(-n) yr^(-1)
-    flwa = flwa * (vis0*scyr)
-
-    ! bwat: rescale from dimensionless to m
-    bwat = bwat * thk0
-
-    ! btrc: rescale from dimensionless to (m/yr)/Pa
-!    btrc_const = btrc_const * (vel0*scyr) / tau0
-    btrc_const = btrc_const * (vel0*scyr) * len0 / thk0**2
+    ! btrc: rescale from (m/s)/Pa to (m/yr)/Pa
+    btrc_const = btrc_const * scyr
 
     ! ice velocity: rescale from dimensionless to m/yr
-    uvel = uvel * (vel0*scyr)
-    vvel = vvel * (vel0*scyr)
+    uvel = uvel * scyr
+    vvel = vvel * scyr
 
     end subroutine glissade_velo_sia_scale_input
 
@@ -643,23 +513,17 @@
     real(dp), dimension(:,:,:), intent(inout) ::  &
        uvel, vvel               ! velocity components (m/yr)
 
-    ! Convert geometry variables from m to dimensionless units
-    thck = thck / thk0
-    usrf = usrf / thk0
-    topg = topg / thk0
+    !TODO - Remove the input and output scaling of flwa, btrc, uvel, and vvel.
 
     ! Convert flow factor from Pa^(-n) yr^(-1) to dimensionless units
-    flwa = flwa / (vis0*scyr)
+    flwa = flwa / scyr
 
-    ! Convert bwat from m to dimensionless units
-    bwat = bwat / thk0
-
-    ! Convert btrc from (m/yr)/Pa to dimensionless units
-    btrc = btrc / ((vel0*scyr)/tau0)
+    ! Convert btrc from (m/yr)/Pa to (m/s)/Pa
+    btrc = btrc / scyr
 
     ! Convert velocity from m/yr to dimensionless units
-    uvel = uvel / (vel0*scyr)
-    vvel = vvel / (vel0*scyr)
+    uvel = uvel / scyr
+    vvel = vvel / scyr
 
   end subroutine glissade_velo_sia_scale_output
 
@@ -906,11 +770,11 @@
     if (verbose_interior .and. this_rank==rtest) then
        i = itest
        j = jtest
-       print*, ' '
-       print*, 'i, j =', itest, jtest
-       print*, 'k, vintfact, stagthck, dusrf_dx:'
+       write(iulog,*) ' '
+       write(iulog,*) 'i, j =', itest, jtest
+       write(iulog,*) 'k, vintfact, stagthck, dusrf_dx:'
        do k = nz-1, 1, -1
-          print*, k, vintfact(k,i,j), stagthck(i,j), dusrf_dx(i,j)
+          write(iulog,*) k, vintfact(k,i,j), stagthck(i,j), dusrf_dx(i,j)
        enddo
     endif
 
@@ -935,6 +799,7 @@
 
     call glissade_gradient_at_edges(nx,               ny,             &
                                     dx,               dy,             &
+                                    itest,  jtest,    rtest,          &
                                     usrf,                             &
                                     dusrf_dx_edge,    dusrf_dy_edge,  &
                                     ice_mask,                         &
@@ -982,20 +847,8 @@
        
     enddo           ! k
 
-    if (verbose_interior .and. main_task) then
-       print*, ' '
-       print*, 'diffu (m^2/yr):'
-       do i = 1, nx-1
-          write(6,'(i8)',advance='no') i
-       enddo
-       print*, ' '
-       do j = ny-1, 1, -1
-          write(6,'(i3)',advance='no') j
-          do i = 1, nx-1
-             write(6,'(f8.0)',advance='no') diffu(i,j)
-          enddo
-          print*, ' '
-       enddo
+    if (verbose_interior) then
+       call point_diag(diffu, 'diffu (m^2/yr)', itest, jtest, rtest, 7, 7, '(f8.0)')
     endif
 
   end subroutine glissade_velo_sia_interior
@@ -1069,15 +922,15 @@
     if (verbose_bfric .and. this_rank==rtest) then
        i = itest
        j = jtest
-       print*, 'i, j:', i, j
-       print*, ' '
-       print*, 'speed:'
+       write(iulog,*) 'i, j:', i, j
+       write(iulog,*) ' '
+       write(iulog,*) 'speed:'
        do j = jtest+1, jtest, -1
-          print*, j, sqrt(uvel(i:i+1,j)**2 + vvel(i:i+1,j)**2)
+          write(iulog,*) j, sqrt(uvel(i:i+1,j)**2 + vvel(i:i+1,j)**2)
        enddo
-       print*, 'stagbfricflx:'
+       write(iulog,*) 'stagbfricflx:'
        do j = jtest+1, jtest, -1
-          print*, j, stagbfricflx(i:i+1,j)
+          write(iulog,*) j, stagbfricflx(i:i+1,j)
        enddo
     endif
 

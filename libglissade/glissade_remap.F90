@@ -57,6 +57,7 @@
 module glissade_remap
 
   use glimmer_global, only: dp
+  use glimmer_paramets, only: iulog
   use glimmer_log
 
   use cism_parallel, only: this_rank, parallel_type, parallel_halo, parallel_globalindex, broadcast
@@ -1195,12 +1196,12 @@ module glissade_remap
              dpy(i,j) < -hte(i,j) .or. dpy(i,j) > hte(i,j+1)) then
 
             !WHL - debug
-!             print*, ' '
-!             print*, 'dt =', dt
-!             print*, 'i, j =', i, j
-!             print*, 'dpx, dpy =', dpx(i,j), dpy(i,j)
-!             print*, 'hte, htn =', hte(i,j), htn(i,j)
-!             print*, 'bad departure points'
+!             write(iulog,*) ' '
+!             write(iulog,*) 'dt =', dt
+!             write(iulog,*) 'i, j =', i, j
+!             write(iulog,*) 'dpx, dpy =', dpx(i,j), dpy(i,j)
+!             write(iulog,*) 'hte, htn =', hte(i,j), htn(i,j)
+!             write(iulog,*) 'bad departure points'
 
             l_stop = .true.
             istop = i
@@ -1230,13 +1231,13 @@ module glissade_remap
 !         call write_log(message)
 !         write (message,*) 'hte(i,j), hte(i,j+1) =', hte(i,j), hte(i,j+1)
 !         call write_log(message)
-         write (6,*) 'Process:', this_rank
-         write (6,*) 'Remap, departure points out of bounds:, local i, j =', i, j
-         write (6,*) 'Global i, j =', istop_global, jstop_global
-         write (6,*) 'dpx, dpy =', dpx(i,j), dpy(i,j)
-         write (6,*) 'uvel, vvel =', uvel(i,j), vvel(i,j)
-         write (6,*) 'htn(i,j), htn(i+1,j) =', htn(i,j), htn(i+1,j)
-         write (6,*) 'hte(i,j), hte(i,j+1) =', hte(i,j), hte(i,j+1)
+         write(iulog,*) 'Process:', this_rank
+         write(iulog,*) 'Remap, departure points out of bounds:, local i, j =', i, j
+         write(iulog,*) 'Global i, j =', istop_global, jstop_global
+         write(iulog,*) 'dpx, dpy =', dpx(i,j), dpy(i,j)
+         write(iulog,*) 'uvel, vvel =', uvel(i,j), vvel(i,j)
+         write(iulog,*) 'htn(i,j), htn(i+1,j) =', htn(i,j), htn(i+1,j)
+         write(iulog,*) 'hte(i,j), hte(i,j+1) =', hte(i,j), hte(i,j+1)
          return
       endif
 
@@ -2629,17 +2630,17 @@ module glissade_remap
             i = indxid(ij)
             j = indxjd(ij)
             if (abs(areasum(i,j) - edgearea(i,j)) > 1.e-13*areafac_c(i,j)) then
-               print*, ''
-               print*, 'Areas do not add up: i, j, edge =',   &
+               write(iulog,*) ''
+               write(iulog,*) 'Areas do not add up: i, j, edge =',   &
                         i, j, trim(edge)
-               print*, 'edgearea =', edgearea(i,j)
-               print*, 'areasum =', areasum(i,j)
-               print*, 'areafac_c =', areafac_c(i,j)
-               print*, ''
-               print*, 'Triangle areas:'
+               write(iulog,*) 'edgearea =', edgearea(i,j)
+               write(iulog,*) 'areasum =', areasum(i,j)
+               write(iulog,*) 'areafac_c =', areafac_c(i,j)
+               write(iulog,*) ''
+               write(iulog,*) 'Triangle areas:'
                do ng = 1, ngroups   
                   if (abs(triarea(i,j,ng)) > 1.e-16*abs(areafact(i,j,ng))) then
-                     print*, ng, triarea(i,j,ng)
+                     write(iulog,*) ng, triarea(i,j,ng)
                   endif
                enddo
             endif
@@ -2696,33 +2697,33 @@ module glissade_remap
             do i = ib, ie
                if (abs(triarea(i,j,ng)) > puny) then
                   if (abs(xp(i,j,nv,ng)) > 0.5d0+puny) then
-                     print*, ''
-                     print*, 'WARNING: xp =', xp(i,j,nv,ng)
-                     print*, 'i, j, ng, nv =', i, j, ng, nv
+                     write(iulog,*) ''
+                     write(iulog,*) 'WARNING: xp =', xp(i,j,nv,ng)
+                     write(iulog,*) 'i, j, ng, nv =', i, j, ng, nv
                      !debug
-!                     print*, 'edge =', trim(edge)
-!                     print*, 'yil, xdl, xcl, ydl=',yil, xdl, xcl, ydl
-!                     print*, 'yir, xdr, xcr, ydr=',yir, xdr, xcr, ydr
-!                     print*, 'Point 1:', xp(i,j,1,ng), yp(i,j,1,ng)
-!                     print*, 'Point 2:', xp(i,j,2,ng), yp(i,j,2,ng)
-!                     print*, 'Point 3:', xp(i,j,3,ng), yp(i,j,3,ng)
-!                     print*, 'DP(i,j):', dx(i,j), dy(i,j)
-!                     print*, 'DP(i-1,j):', dx(i-1,j), dy(i-1,j)
+!                     write(iulog,*) 'edge =', trim(edge)
+!                     write(iulog,*) 'yil, xdl, xcl, ydl=',yil, xdl, xcl, ydl
+!                     write(iulog,*) 'yir, xdr, xcr, ydr=',yir, xdr, xcr, ydr
+!                     write(iulog,*) 'Point 1:', xp(i,j,1,ng), yp(i,j,1,ng)
+!                     write(iulog,*) 'Point 2:', xp(i,j,2,ng), yp(i,j,2,ng)
+!                     write(iulog,*) 'Point 3:', xp(i,j,3,ng), yp(i,j,3,ng)
+!                     write(iulog,*) 'DP(i,j):', dx(i,j), dy(i,j)
+!                     write(iulog,*) 'DP(i-1,j):', dx(i-1,j), dy(i-1,j)
 !                     stop
                   endif
                   if (abs(yp(i,j,nv,ng)) > 0.5d0+puny) then
-                     print*, ''
-                     print*, 'WARNING: yp =', yp(i,j,nv,ng)
-                     print*, 'i, j, ng, nv =', i, j, ng, nv
+                     write(iulog,*) ''
+                     write(iulog,*) 'WARNING: yp =', yp(i,j,nv,ng)
+                     write(iulog,*) 'i, j, ng, nv =', i, j, ng, nv
                      !debug
-!                     print*, 'edge =', trim(edge)
-!                     print*, 'yil, xdl, xcl, ydl=',yil, xdl, xcl, ydl
-!                     print*, 'yir, xdr, xcr, ydr=',yir, xdr, xcr, ydr
-!                     print*, 'Point 1:', xp(i,j,1,ng), yp(i,j,1,ng)
-!                     print*, 'Point 2:', xp(i,j,2,ng), yp(i,j,2,ng)
-!                     print*, 'Point 3:', xp(i,j,3,ng), yp(i,j,3,ng)
-!                     print*, 'DP(i,j):', dx(i,j), dy(i,j)
-!                     print*, 'DP(i-1,j):', dx(i-1,j), dy(i-1,j)
+!                     write(iulog,*) 'edge =', trim(edge)
+!                     write(iulog,*) 'yil, xdl, xcl, ydl=',yil, xdl, xcl, ydl
+!                     write(iulog,*) 'yir, xdr, xcr, ydr=',yir, xdr, xcr, ydr
+!                     write(iulog,*) 'Point 1:', xp(i,j,1,ng), yp(i,j,1,ng)
+!                     write(iulog,*) 'Point 2:', xp(i,j,2,ng), yp(i,j,2,ng)
+!                     write(iulog,*) 'Point 3:', xp(i,j,3,ng), yp(i,j,3,ng)
+!                     write(iulog,*) 'DP(i,j):', dx(i,j), dy(i,j)
+!                     write(iulog,*) 'DP(i-1,j):', dx(i-1,j), dy(i-1,j)
 !                      stop
                   endif
                endif   ! triarea
@@ -3170,17 +3171,17 @@ module glissade_remap
 !         write (message,*) 'Net transport =', -w1*tarear
 !         call write_log(message)
          call parallel_globalindex(i, j, iglobal, jglobal, parallel)
-         write (6,*) ' '
-         write (6,*) 'Process:',this_rank
-         write (6,*) 'Remap, negative ice thickness, i, j =', i, j
-         write (6,*) 'Global i, j =', iglobal, jglobal
-         write (6,*) 'Old thickness =', mass(i,j) + w1*tarear
-         write (6,*) 'New thickness =', mass(i,j)
-         write (6,*) 'Net transport =', -w1*tarear
-         write(6,*) 'mflxe:', mflxe(i,j)
-         write(6,*) 'mflxw:', mflxe(i-1,j)
-         write(6,*) 'mflxn:', mflxn(i,j)
-         write(6,*) 'mflxs:', mflxn(i,j-1)
+         write(iulog,*) ' '
+         write(iulog,*) 'Process:',this_rank
+         write(iulog,*) 'Remap, negative ice thickness, i, j =', i, j
+         write(iulog,*) 'Global i, j =', iglobal, jglobal
+         write(iulog,*) 'Old thickness =', mass(i,j) + w1*tarear
+         write(iulog,*) 'New thickness =', mass(i,j)
+         write(iulog,*) 'Net transport =', -w1*tarear
+         write(iulog,*) 'mflxe:', mflxe(i,j)
+         write(iulog,*) 'mflxw:', mflxe(i-1,j)
+         write(iulog,*) 'mflxn:', mflxn(i,j)
+         write(iulog,*) 'mflxs:', mflxn(i,j-1)
          return
       endif
 
