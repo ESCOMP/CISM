@@ -41,11 +41,11 @@ module glad_main
   use glad_constants
   use glimmer_config
   use glimmer_filenames, only : process_path
-  use parallel, only: main_task
   use glad_input_averages, only : get_av_start_time, accumulate_averages, &
        calculate_averages, reset_glad_input_averages, averages_okay_to_restart
-  
-  use glimmer_paramets, only: stdout, GLC_DEBUG
+  use glide_model_registry, only : set_max_models, check_num_models
+  use glimmer_paramets, only: iulog, GLC_DEBUG, unphys_val
+  use cism_parallel, only: main_task, this_rank
 
   implicit none
   private
@@ -75,7 +75,6 @@ module glad_main
      ! Parameters that can be set by the GCM calling Glad
 
      logical  :: gcm_restart = .false. !> If true, restart the model from a GCM restart file
-     character(fname_length) :: gcm_restart_file   !> Name of restart file
      integer  :: gcm_fileunit = 99     !> Fileunit specified by GCM for reading config files
 
   end type glad_params
@@ -104,6 +103,7 @@ module glad_main
   public :: glad_initialize
   public :: glad_initialize_instance
   public :: glad_get_grid_size
+  public :: glad_get_nzocn
   public :: glad_get_initial_outputs
   public :: glad_initialization_wrapup
 
@@ -117,14 +117,19 @@ module glad_main
 
   public :: end_glad
   
+  logical, parameter :: verbose_glad = .false.
+
   !---------------------------------------------------------------------------------------
   ! Some notes on coupling to the Community Earth System Model (CESM).  These may be applicable
   ! for coupling to other GCMs:
   !
-  ! When coupled to CESM, Glad receives two fields from the coupler on the ice sheet grid:
+  ! When coupled to CESM, Glad receives several fields from the coupler on the ice sheet grid:
   !   qsmb = surface mass balance (kg/m^2/s)
   !   tsfc = surface ground temperature (deg C)
+  !   salinity = ocean salinity at one or more ocean levels (g/kg)
+  !   tocn = ocean temperature at one or more levels (deg K)
   ! Both qsmb and tsfc are computed in the CESM land model.
+  ! Both salinity and tocn are computed in the CESM ocean model.
   ! Seven fields are returned to CESM on the ice sheet grid:
   !   ice_covered = whether a grid cell is ice-covered [0,1]
   !   topo = surface elevation (m)
@@ -143,7 +148,7 @@ module glad_main
 contains
 
   subroutine glad_initialize(params, time_step, paramfile, daysinyear, start_time, &
-                             gcm_restart, gcm_restart_file, gcm_debug, gcm_fileunit)
+                             gcm_restart, gcm_debug, gcm_fileunit)
 
     ! Initialize the model for runs coupled to a GCM. This routine initializes variables
     ! shared between instances. See above for documentation of the full initialization
@@ -157,14 +162,8 @@ contains
     integer,                  optional,intent(in)  :: daysinyear  !> Number of days in the year
     integer,                  optional,intent(in)  :: start_time  !> Time of first call to glad (hours)
     logical,                  optional,intent(in)  :: gcm_restart ! logical flag to restart from a GCM restart file
-    character(*),             optional,intent(in)  :: gcm_restart_file ! restart filename for a GCM restart
-                                                                  ! (currently assumed to be CESM)
     logical,                  optional,intent(in)  :: gcm_debug   ! logical flag from GCM to output debug information
     integer,                  optional,intent(in)  :: gcm_fileunit! fileunit for reading config files
-    
-    ! Internal variables -----------------------------------------------------------------------
-
-    type(ConfigSection), pointer :: global_config
     
     ! Begin subroutine code --------------------------------------------------------------------
 
@@ -174,7 +173,7 @@ contains
     endif
 
     if (GLC_DEBUG .and. main_task) then
-       write(stdout,*) 'Initializing glad'
+       write(iulog,*) 'Initializing glad'
     end if
 
     ! Initialise start time and calling model time-step (time_step = integer number of hours)
@@ -196,19 +195,14 @@ contains
        params%gcm_restart = gcm_restart
     endif
 
-    params%gcm_restart_file = ''
-    if (present(gcm_restart_file)) then
-       params%gcm_restart_file = gcm_restart_file
-    endif
-
     params%gcm_fileunit = 99
     if (present(gcm_fileunit)) then
        params%gcm_fileunit = gcm_fileunit
     endif
 
     if (GLC_DEBUG .and. main_task) then
-       write(stdout,*) 'time_step     =', params%time_step
-       write(stdout,*) 'start_time    =', params%start_time
+       write(iulog,*) 'time_step     =', params%time_step
+       write(iulog,*) 'start_time    =', params%start_time
     end if
 
     ! Initialise year-length -------------------------------------------------------------------
@@ -223,33 +217,27 @@ contains
     ! ---------------------------------------------------------------
 
     if (GLC_DEBUG .and. main_task) then
-       write(stdout,*) 'Read paramfile'
-       write(stdout,*) 'paramfile =', paramfile
+       write(iulog,*) 'paramfile(s) =', paramfile
     end if
 
-    if (size(paramfile) == 1) then
-       ! Load the configuration file into the linked list
-       call ConfigRead(process_path(paramfile(1)), global_config, params%gcm_fileunit)    
-       ! Parse the list
-       call glad_readconfig(global_config, params%ninstances, params%config_fnames, paramfile)
-    else
-       params%ninstances = size(paramfile)
-       allocate(params%config_fnames(params%ninstances))
-       params%config_fnames(:) = paramfile(:)
-    end if
+    params%ninstances = size(paramfile)
+    allocate(params%config_fnames(params%ninstances))
+    params%config_fnames(:) = paramfile(:)
 
     allocate(params%instances(params%ninstances))
 
+    call set_max_models(params%ninstances)
+
     if (GLC_DEBUG .and. main_task) then
-       write(stdout,*) 'Number of instances =', params%ninstances
+       write(iulog,*) 'Number of instances =', params%ninstances
     end if
 
   end subroutine glad_initialize
 
   !===================================================================
 
-  subroutine glad_initialize_instance(params, instance_index, my_forcing_start_time, &
-       test_coupling)
+  subroutine glad_initialize_instance(params, instance_index, gcm_restart_file, &
+       my_forcing_start_time, test_coupling)
 
     ! Initialize one instance in the params structure. See above for documentation of
     ! the full initialization sequence.
@@ -260,6 +248,7 @@ contains
 
     type(glad_params) , intent(inout)        :: params          !> parameters to be set
     integer           , intent(in)           :: instance_index  !> index of current ice sheet instance
+    character(len=*)  , intent(in), optional :: gcm_restart_file ! restart filename for a GCM restart (ignored if not doing a restart)
     integer           , intent(in), optional :: my_forcing_start_time
     logical           , intent(in), optional :: test_coupling   !> if true, force frequent coupling for testing purposes
 
@@ -271,7 +260,7 @@ contains
     ! Begin subroutine code --------------------------------------------------------------------
 
     if (GLC_DEBUG .and. main_task) then
-       write(stdout,*) 'Read config file and initialize instance #', instance_index
+       write(iulog,*) 'Read config file and initialize instance #', instance_index
     end if
 
     call ConfigRead(process_path(params%config_fnames(instance_index)),&
@@ -284,8 +273,8 @@ contains
     end if
 
     call glad_i_initialise_gcm(instance_config,     params%instances(instance_index), &
-                               forcing_start_time,  params%time_step,        &
-                               params%gcm_restart,  params%gcm_restart_file, &
+                               forcing_start_time,  params%time_step, &
+                               params%gcm_restart,  gcm_restart_file, &
                                params%gcm_fileunit, test_coupling )
 
   end subroutine glad_initialize_instance
@@ -293,7 +282,7 @@ contains
   !===================================================================
 
   subroutine glad_get_grid_size(params, instance_index, &
-       ewn, nsn, npts, &
+       ewn,     nsn,     npts, &
        ewn_tot, nsn_tot, npts_tot)
 
     ! Get the size of a grid corresponding to this instance.
@@ -307,8 +296,6 @@ contains
     ! The caller can then allocate arrays (inputs to and outputs from glad) with size
     ! (ewn, nsn).
 
-    use parallel, only : own_ewn, own_nsn, global_ewn, global_nsn
-    
     type(glad_params), intent(in) :: params
     integer, intent(in) :: instance_index  ! index of current ice sheet instance
     integer, intent(out) :: ewn  ! number of east-west points owned by this proc (first dimension of arrays)
@@ -318,16 +305,39 @@ contains
     integer, intent(out) :: nsn_tot ! total number of north-south points in grid
     integer, intent(out) :: npts_tot ! total number of points in grid
     
-    ewn = own_ewn
-    nsn = own_nsn
+    type(parallel_type) :: parallel         ! info for parallel communication
+
+    ! Copy parallel info for this instance from the parallel derived type
+
+    parallel = params%instances(instance_index)%model%parallel
+
+    ewn = parallel%own_ewn
+    nsn = parallel%own_nsn
     npts = ewn * nsn
 
-    ewn_tot = global_ewn
-    nsn_tot = global_nsn
+    ewn_tot = parallel%global_ewn
+    nsn_tot = parallel%global_nsn
     npts_tot = ewn_tot * nsn_tot
 
   end subroutine glad_get_grid_size
-    
+
+  !===================================================================
+
+  subroutine glad_get_nzocn(params, instance_index, nzocn)
+
+    ! Get nzocn (the number of ocean levels, needed for ocean coupling fields)
+    ! corresponding to this instance.
+
+    use glide_types, only : get_nzocn
+
+    type(glad_params), intent(in) :: params
+    integer, intent(in) :: instance_index  ! index of current ice sheet index
+    integer, intent(out) :: nzocn  ! number of ocean levels, needed for ocean coupling fields
+
+    nzocn = get_nzocn(params%instances(instance_index)%model)
+
+  end subroutine glad_get_nzocn
+
   !===================================================================
   
   subroutine glad_get_initial_outputs(params,         instance_index,        &
@@ -375,6 +385,8 @@ contains
     ! Wrapup glad initialization - perform error checks, etc. See above for documentation
     ! of the full initialization sequence
 
+    call check_num_models()
+
     ! Check that all mass-balance time-steps are the same length and
     ! assign that value to the top-level variable
 
@@ -385,10 +397,10 @@ contains
     end if
 
     if (GLC_DEBUG .and. main_task) then
-       write(stdout,*) 'tstep_mbal =', params%tstep_mbal
-       write(stdout,*) 'start_time =', params%start_time
-       write(stdout,*) 'time_step =',  params%time_step
-       if (present(ice_dt)) write(stdout,*) 'ice_dt =', ice_dt
+       write(iulog,*) 'tstep_mbal =', params%tstep_mbal
+       write(iulog,*) 'start_time =', params%start_time
+       write(iulog,*) 'time_step =',  params%time_step
+       if (present(ice_dt)) write(iulog,*) 'ice_dt =', ice_dt
     end if
 
     ! Check time-steps divide into one another appropriately.
@@ -417,8 +429,6 @@ contains
     ! The global_indices and local_indices arrays should NOT include halo cells. The
     ! returned indices also ignore halo cells.
 
-    use parallel, only : own_ewn, own_nsn, global_row_offset, global_col_offset, global_ewn
-    
     ! Subroutine argument declarations --------------------------------------------------------
 
     type(glad_params), intent(in) :: params
@@ -435,8 +445,23 @@ contains
     integer :: local_index, global_index
     character(len=*), parameter :: subname = 'glad_get_grid_indices'
 
+    integer :: own_ewn, own_nsn
+    integer :: global_row_offset, global_col_offset
+    integer :: global_ewn
+
+    type(parallel_type) :: parallel         ! info for parallel communication
+
     ! Begin subroutine code --------------------------------------------------------------------
     
+    ! Copy parallel info for this instance from the parallel derived type
+
+    parallel = params%instances(instance_index)%model%parallel
+    own_ewn = parallel%own_ewn
+    own_nsn = parallel%own_nsn
+    global_row_offset = parallel%global_row_offset
+    global_col_offset = parallel%global_col_offset
+    global_ewn = parallel%global_ewn
+
     ! Perform error checking on inputs
     
     if (size(global_indices, 1) /= own_ewn .or. size(global_indices, 2) /= own_nsn) then
@@ -459,7 +484,7 @@ contains
        do local_col = 1, own_ewn
           local_index = (local_row - 1)*own_ewn + local_col
           if (local_index < 1 .or. local_index > own_points) then
-             write(stdout,*) subname//' ERROR: local_index out of bounds: ', &
+             write(iulog,*) subname//' ERROR: local_index out of bounds: ', &
                   local_index, own_points
              call write_log(subname // ' ERROR: local_index out of bounds', &
                   GM_FATAL, __FILE__, __LINE__)
@@ -491,20 +516,29 @@ contains
 
     ! Output arrays do NOT have halo cells
 
-    use parallel, only : own_ewn, own_nsn, parallel_convert_haloed_to_nonhaloed
+    use cism_parallel, only: parallel_type, parallel_convert_haloed_to_nonhaloed
     
     ! Subroutine argument declarations --------------------------------------------------------
 
     type(glad_params), intent(in) :: params
-    integer, intent(in) :: instance_index  ! index of current ice sheet index
+    integer, intent(in) :: instance_index   ! index of current ice sheet instance
     real(dp), intent(out) :: lats(:,:)      ! latitudes (degrees)
     real(dp), intent(out) :: lons(:,:)      ! longitudes (degrees)
 
     ! Internal variables -----------------------------------------------------------------------
     character(len=*), parameter :: subname = 'glad_get_lat_lon'
-    
+
+    type(parallel_type) :: parallel         ! info for parallel communication
+
+    integer :: own_ewn, own_nsn
+
     ! Begin subroutine code --------------------------------------------------------------------
-    
+
+    ! Copy parallel info for this instance from the parallel derived type
+    parallel = params%instances(instance_index)%model%parallel
+    own_ewn = parallel%own_ewn
+    own_nsn = parallel%own_nsn
+
     ! Perform error checking on inputs
 
     if (size(lats, 1) /= own_ewn .or. size(lats, 2) /= own_nsn) then
@@ -517,8 +551,10 @@ contains
             GM_FATAL, __FILE__, __LINE__)
     end if
 
-    call parallel_convert_haloed_to_nonhaloed(params%instances(instance_index)%lat, lats)
-    call parallel_convert_haloed_to_nonhaloed(params%instances(instance_index)%lon, lons)
+    ! Retrieve the parallel derived type for this instance
+
+    call parallel_convert_haloed_to_nonhaloed(params%instances(instance_index)%lat, lats, parallel)
+    call parallel_convert_haloed_to_nonhaloed(params%instances(instance_index)%lon, lons, parallel)
     
   end subroutine glad_get_lat_lon
 
@@ -542,66 +578,84 @@ contains
   
   !===================================================================
 
-  subroutine glad_gcm(params,         instance_index, time,  &
-                      qsmb,           tsfc,                  &
-                      ice_covered,    topo,                  &
-                      rofi,           rofl,           hflx,  &
-                      ice_sheet_grid_mask, valid_inputs,     &
+  subroutine glad_gcm(params,         instance_index, time,                 &
+                      qsmb,           tsfc,                                 &
+                      salinity,       tocn,                                 &
+                      ice_covered,    topo,                                 &
+                      rofi,           rofl,           hflx,                 &
+                      ice_sheet_grid_mask, valid_inputs,                    &
                       output_flag,    ice_tstep)
 
     ! Main Glad subroutine for GCM coupling.
     !
-    ! It does all necessary temporal averaging, 
-    ! and calls the dynamic ice sheet model when required. 
+    ! It does all temporal averaging and calls the dynamic ice sheet model when required.
     !
     ! Input fields should be taken as means over the period since the last call.
     ! See the user documentation for more information.
     !
-    ! Input fields are assumed to NOT have halo cells
+    ! Input fields are assumed to NOT have halo cells.
+    !
+    ! Glad accumulates and averages ocean thermal_forcing based on salinity and tocn,
+    ! but this thermal forcing is used by CISM only if model%options%ocean_data_domain = 2.
+    ! Otherwise, CISM will compute thermal_forcing internally (ocean_data_domain = 0)
+    ! or read it from an external file (ocean_data_domain = 1).
 
     use glimmer_utils
-    use glad_timestep, only: glad_i_tstep_gcm
+    use glad_timestep, only : glad_i_tstep_gcm
     use glimmer_log
-    use glimmer_paramets, only: scyr
-    use parallel, only : parallel_convert_nonhaloed_to_haloed
+    use glimmer_physcon, only : celsius_to_kelvin
     use glide_types, only : get_ewn, get_nsn
     use glad_output_fluxes, only : calculate_average_output_fluxes
-    
+    use cism_parallel, only : parallel_type, parallel_convert_nonhaloed_to_haloed
+
     implicit none
 
     ! Subroutine argument declarations -------------------------------------------------------------
 
-    type(glad_params),              intent(inout) :: params          !> parameters for this run
-    integer,                         intent(in)    :: instance_index  !> index of current ice sheet instance
-    integer,                         intent(in)    :: time            !> Current model time        (hours)
+    type(glad_params), intent(inout) :: params          !> parameters for this run
+    integer,           intent(in)    :: instance_index  !> index of current ice sheet instance
+    integer,           intent(in)    :: time            !> Current model time (hours)
 
-    real(dp),dimension(:,:),intent(in)    :: qsmb          ! input surface mass balance of glacier ice (kg/m^2/s)
-    real(dp),dimension(:,:),intent(in)    :: tsfc          ! input surface ground temperature (deg C)
-
+    real(dp),dimension(:,:),intent(in)    :: qsmb         ! input surface mass balance of glacier ice (kg/m^2/s)
+    real(dp),dimension(:,:),intent(in)    :: tsfc         ! input surface ground temperature (deg C)
+    real(dp),dimension(:,:,:),intent(in)  :: salinity     ! input ocean salinity (g/kg)
+    real(dp),dimension(:,:,:),intent(in)  :: tocn         ! input ocean temperature (deg K)
     real(dp),dimension(:,:),intent(inout) :: ice_covered  ! whether each grid cell is ice-covered [0,1]
     real(dp),dimension(:,:),intent(inout) :: topo         ! output surface elevation (m)
     real(dp),dimension(:,:),intent(inout) :: hflx         ! output heat flux (W/m^2, positive down)
     real(dp),dimension(:,:),intent(inout) :: rofi         ! output ice runoff (kg/m^2/s = mm H2O/s)
     real(dp),dimension(:,:),intent(inout) :: rofl         ! output liquid runoff (kg/m^2/s = mm H2O/s)
-    real(dp),dimension(:,:),intent(inout) :: ice_sheet_grid_mask !mask of ice sheet grid coverage
+    real(dp),dimension(:,:),intent(inout) :: ice_sheet_grid_mask ! mask of ice sheet grid coverage
     logical                ,intent(in)    :: valid_inputs ! glad inputs are valid
 
     logical,optional,intent(out)   :: output_flag     ! Set true if outputs are set
     logical,optional,intent(out)   :: ice_tstep       ! Set when an ice dynamic timestep has been done
                                                       !  and new output is available
 
-    ! Internal variables ----------------------------------------------------------------------------
+! Internal variables ----------------------------------------------------------------------------
 
     integer :: ewn,nsn    ! dimensions of local grid
+    integer :: nzocn      ! dimension of ocean layer
+    integer :: k
+
+    type(parallel_type) :: parallel   ! info for parallel communication
+
+!    real(dp),dimension(:,:,:),allocatable  :: thermal_forcing  ! sub-shelf thermal_forcing (deg K)
 
     ! version of input fields with halo cells
-    real(dp),dimension(:,:),allocatable :: qsmb_haloed
-    real(dp),dimension(:,:),allocatable :: tsfc_haloed
+    real(dp),dimension(:,:),allocatable   :: qsmb_haloed
+    real(dp),dimension(:,:),allocatable   :: tsfc_haloed
+    real(dp),dimension(:,:,:),allocatable :: salinity_haloed
+    real(dp),dimension(:,:,:),allocatable :: tocn_haloed
+    real(dp),dimension(:,:,:),allocatable :: thermal_forcing_haloed
 
     logical :: icets
     character(250) :: message
 
     integer :: av_start_time  ! value of time from the last occasion averaging was restarted (hours)
+
+    integer :: i, j, itest, jtest, rtest
+    real(dp), dimension(:), allocatable :: zocn
 
     ! Begin subroutine code --------------------------------------------------------------------
 
@@ -610,18 +664,84 @@ contains
     if (present(output_flag)) output_flag = .false.
     if (present(ice_tstep))   ice_tstep = .false.
 
-       ! Accumulate input fields for later averaging
+    parallel = params%instances(instance_index)%model%parallel
+    call glad_get_nzocn(params, instance_index, nzocn)
+    allocate(zocn(nzocn))
+    zocn(:) = params%instances(instance_index)%model%ocean_data%zocn(:)
+
+    if (verbose_glad) then
+
+       write(message,*) 'In glad_gcm, time (hr), valid_inputs =', time, valid_inputs
+       call write_log(trim(message))
+
+       rtest = params%instances(instance_index)%model%numerics%rdiag_local
+       itest = params%instances(instance_index)%model%numerics%idiag_local
+       jtest = params%instances(instance_index)%model%numerics%jdiag_local
+
+       write(message,*) 'itest, jtest, rtest =', itest, jtest, rtest
+       call write_log(trim(message))
+
+       if (this_rank == rtest) then
+          i = itest
+          j = jtest
+          write(iulog,*) 'r, i, j, nzocn =', this_rank, i, j, nzocn
+          write(iulog,*) 'k, zocn:'
+          do k = 1, nzocn
+             write(iulog,*) k, zocn(k)
+          enddo
+       endif
+
+    endif   ! verbose_glad
+
+    ! Accumulate input fields for later averaging
 
     if (valid_inputs) then
+
        ewn = get_ewn(params%instances(instance_index)%model)
        nsn = get_nsn(params%instances(instance_index)%model)
+
        allocate(qsmb_haloed(ewn,nsn))
        allocate(tsfc_haloed(ewn,nsn))
-       call parallel_convert_nonhaloed_to_haloed(qsmb, qsmb_haloed)
-       call parallel_convert_nonhaloed_to_haloed(tsfc, tsfc_haloed)
+       allocate(salinity_haloed(nzocn,ewn,nsn))
+       allocate(tocn_haloed(nzocn,ewn,nsn))
+       allocate(thermal_forcing_haloed(nzocn,ewn,nsn))       
+
+       call parallel_convert_nonhaloed_to_haloed(qsmb, qsmb_haloed, parallel)
+       call parallel_convert_nonhaloed_to_haloed(tsfc, tsfc_haloed, parallel)
+
+       do k = 1,nzocn
+          call parallel_convert_nonhaloed_to_haloed(salinity(k,:,:), salinity_haloed(k,:,:), parallel)
+          call parallel_convert_nonhaloed_to_haloed(tocn(k,:,:),     tocn_haloed(k,:,:),     parallel)
+          call compute_thermal_forcing_level(&
+               zocn(k),                                &    ! m
+               salinity_haloed(k,:,:),                 &    ! g/kg
+               tocn_haloed(k,:,:) - celsius_to_kelvin, &    ! convert K to C
+               thermal_forcing_haloed(k,:,:))
+       enddo
+
+
+       if (verbose_glad .and. this_rank == rtest) then
+          i = itest
+          j = jtest
+          write(iulog,*) 'r, i, j =', this_rank, i, j
+          write(iulog,*) 'k, zocn, temperature, salinity, thermal forcing:'
+          do k = 1, nzocn
+             write(iulog,'(i4, 4f11.3)') k, zocn(k), &
+                  tocn_haloed(k,i,j), salinity_haloed(k,i,j), thermal_forcing_haloed(k,i,j)
+          enddo
+       endif
 
        call accumulate_averages(params%instances(instance_index)%glad_inputs, &
-            qsmb = qsmb_haloed, tsfc = tsfc_haloed, time = time)
+            qsmb = qsmb_haloed, tsfc = tsfc_haloed,                           &
+            thermal_forcing = thermal_forcing_haloed,                         &
+            time = time)
+
+       deallocate(qsmb_haloed)
+       deallocate(tsfc_haloed)
+       deallocate(salinity_haloed)
+       deallocate(tocn_haloed)
+       deallocate(thermal_forcing_haloed)
+
     end if
 
     ! ---------------------------------------------------------
@@ -635,14 +755,14 @@ contains
        
        write(message,*) 'Unexpected calling of GLAD at time ', time
        call write_log(message,GM_FATAL,__FILE__,__LINE__)
-    
+
     else if (time - av_start_time + params%time_step > params%tstep_mbal) then
 
        write(message,*) &
             'Incomplete forcing of GLAD mass-balance time-step detected at time ', time
        call write_log(message,GM_FATAL,__FILE__,__LINE__)
-       
-    else if (time - av_start_time + params%time_step == params%tstep_mbal) then  
+
+    else if (time - av_start_time + params%time_step == params%tstep_mbal) then
 
        if  (.not. valid_inputs) then
           write(message,*) &
@@ -651,11 +771,11 @@ contains
        end if
 
        if (GLC_DEBUG .and. main_task) then
-          write(stdout,*)' Taking a glad time step'
-          write(stdout,*)'   time          = ',time
-          write(stdout,*)'   av_start_time = ',av_start_time
-          write(stdout,*)'   time_step     = ',params%time_step
-          write(stdout,*)'   tstep_mbal    = ',params%tstep_mbal
+          write(iulog,*)' Taking a glad time step'
+          write(iulog,*)'   time          = ',time
+          write(iulog,*)'   av_start_time = ',av_start_time
+          write(iulog,*)'   time_step     = ',params%time_step
+          write(iulog,*)'   tstep_mbal    = ',params%tstep_mbal
        end if
 
        ! Set output_flag
@@ -676,10 +796,21 @@ contains
 
           ! Calculate averages by dividing by number of steps elapsed
           ! since last model timestep.
+
           call calculate_averages(&
                params%instances(instance_index)%glad_inputs, &
                qsmb = params%instances(instance_index)%acab, &
-               tsfc = params%instances(instance_index)%artm)
+               tsfc = params%instances(instance_index)%artm, &
+               thermal_forcing = params%instances(instance_index)%thermal_forcing)
+
+          if (verbose_glad .and. this_rank == rtest) then
+             i = itest
+             j = jtest
+             write(iulog,*) 'Before calling glad_i_tstep_gcm, k, zocn, average thermal forcing:'
+             do k = 1, nzocn
+                write(iulog,'(i4, 2f11.3)') k, zocn(k), params%instances(instance_index)%thermal_forcing(k,i,j)
+             enddo
+          endif
 
           ! Calculate total surface mass balance - multiply by time since last model timestep
           ! Note on units: We want acab to have units of meters w.e. (accumulated over mass balance time step)
@@ -692,7 +823,7 @@ contains
                params%instances(instance_index)%acab(:,:) * &
                params%tstep_mbal * hours2seconds / 1000.d0
 
-          if (GLC_DEBUG .and. main_task) write(stdout,*) 'Take a glad time step, instance', instance_index
+          if (GLC_DEBUG .and. main_task) write(iulog,*) 'Take a glad time step, instance', instance_index
           call glad_i_tstep_gcm(time, params%instances(instance_index), icets)
 
           call calculate_average_output_fluxes( &
@@ -720,12 +851,54 @@ contains
             next_av_start = time + params%time_step)
        
        if (GLC_DEBUG .and. main_task) then
-          write(stdout,*) 'Done in glad_gcm'
+          write(iulog,*) 'Done in glad_gcm'
        endif
 
    endif    ! time - av_start_time + params%time_step > params%tstep_mbal
 
+   deallocate(zocn)
+
   end subroutine glad_gcm
+
+  !===================================================================
+
+  subroutine compute_thermal_forcing_level(zlevel, salinity, tocn, thermal_forcing)
+
+    ! returns the thermal forcing applied under ice shelf.
+    ! The forcing depends on the level of the POP ocean. At this point only 7 fixed level are considered.
+    ! Freezing temperature parameters based on Beckmann, A. and Goosse (2003), equation 2.
+
+    use glimmer_physcon, only: tocnfrz_const, dtocnfrz_dsal, dtocnfrz_dz
+
+    real(dp), intent(in)                  :: zlevel            ! ocean level depth (m, negative below sea level)
+    real(dp),dimension(:,:),intent(in)    :: salinity          ! input ocean salinity (g/kg)
+    real(dp),dimension(:,:),intent(in)    :: tocn              ! input ocean temperature (deg C)
+    real(dp),dimension(:,:),intent(out)   :: thermal_forcing   ! output thermal forcing  (deg C)
+
+    ! The following values delimit physically acceptable ranges of ocean temperature and salinity.
+    ! Values outside these ranges are assumed to be invalid.
+    ! Where valid ocean values do not exist (e.g., anywhere the ocean model treats as land),
+    !  we set tocn = salinity = unphys_val (a value CISM uses to recogize invalid data).
+    ! Valid values are later extrapolated into ice shelf cavites as needed.
+    ! Note: For bilinear mapping of ocean fields by the CESM coupler (as of Aug. 2019),
+    !       tocn and salinity in land regions are given a missing value of 9.96e31,
+    !       much greater than tocn_max and salinity_max.
+
+    real(dp), parameter :: salinity_max = 40.d0   ! (g/kg)
+    real(dp), parameter :: salinity_min = 1.0d0   ! (g/kg)
+    real(dp), parameter :: tocn_max =  30.d0      ! deg C
+    real(dp), parameter :: tocn_min = -10.d0      ! deg C
+
+    where (salinity <= salinity_min .or. salinity >= salinity_max .or. &
+               tocn <= tocn_min     .or.     tocn >= tocn_max)
+       thermal_forcing = unphys_val   ! defined in the glimmer_paramets module
+    elsewhere
+       ! Tf = 0.0939 - 0.057*S + 7.64e-4*z from Eq. 2, Beckmann & Goosse (2003)
+       ! Note: z < 0 below sea level, so Tf decreases with increasing depth
+       thermal_forcing = tocn - (tocnfrz_const + dtocnfrz_dsal * salinity + dtocnfrz_dz * zlevel)
+    endwhere
+
+  end subroutine compute_thermal_forcing_level
 
   !===================================================================
 
@@ -806,8 +979,8 @@ contains
     ! the halo cells.
 
     use glad_output_states, only : set_output_states
-    use parallel, only : parallel_convert_haloed_to_nonhaloed
     use glide_types, only : get_ewn, get_nsn
+    use cism_parallel, only : parallel_type, parallel_convert_haloed_to_nonhaloed
 
     ! Subroutine argument declarations --------------------------------------------------------
 
@@ -824,6 +997,8 @@ contains
 
     integer :: ewn,nsn    ! dimensions of local grid
     
+    type(parallel_type) :: parallel   ! info for parallel communication
+
     ! temporary versions of output fields with halo cells
     real(dp),dimension(:,:),allocatable :: ice_covered_haloed
     real(dp),dimension(:,:),allocatable :: topo_haloed
@@ -831,6 +1006,7 @@ contains
 
     ! Begin subroutine code --------------------------------------------------------------------
 
+    parallel = instance%model%parallel
     ewn = get_ewn(instance%model)
     nsn = get_nsn(instance%model)
 
@@ -841,70 +1017,14 @@ contains
     call set_output_states(instance, &
          ice_covered_haloed, topo_haloed, ice_sheet_grid_mask_haloed)
 
-    call parallel_convert_haloed_to_nonhaloed(ice_covered_haloed, ice_covered)
-    call parallel_convert_haloed_to_nonhaloed(topo_haloed, topo)
-    call parallel_convert_haloed_to_nonhaloed(instance%hflx_tavg, hflx)
-    call parallel_convert_haloed_to_nonhaloed(instance%rofi_tavg, rofi)
-    call parallel_convert_haloed_to_nonhaloed(instance%rofl_tavg, rofl)
-    call parallel_convert_haloed_to_nonhaloed(ice_sheet_grid_mask_haloed, ice_sheet_grid_mask)
+    call parallel_convert_haloed_to_nonhaloed(ice_covered_haloed, ice_covered, parallel)
+    call parallel_convert_haloed_to_nonhaloed(topo_haloed, topo, parallel)
+    call parallel_convert_haloed_to_nonhaloed(instance%hflx_tavg, hflx, parallel)
+    call parallel_convert_haloed_to_nonhaloed(instance%rofi_tavg, rofi, parallel)
+    call parallel_convert_haloed_to_nonhaloed(instance%rofl_tavg, rofl, parallel)
+    call parallel_convert_haloed_to_nonhaloed(ice_sheet_grid_mask_haloed, ice_sheet_grid_mask, parallel)
 
   end subroutine glad_set_output_fields
-  
-  !TODO - Move subroutine glad_readconfig to a glad_setup module, in analogy to glide_setup?
-
-  subroutine glad_readconfig(config, ninstances, fnames, infnames)
-
-    !> Determine whether a given config file is a
-    !> top-level glad config file, and return parameters
-    !> accordingly.
-
-    use glimmer_config
-    use glimmer_log
-    implicit none
-
-    ! Arguments -------------------------------------------
-
-    type(ConfigSection),      pointer :: config !> structure holding sections of configuration file
-    integer,              intent(out) :: ninstances !> Number of instances to create
-    character(fname_length),dimension(:),pointer :: fnames !> list of filenames (output)
-    character(fname_length),dimension(:) :: infnames !> list of filenames (input)
-
-    ! Internal variables ----------------------------------
-
-    type(ConfigSection), pointer :: section
-    character(len=100) :: message
-    integer :: i
-
-    if (associated(fnames)) nullify(fnames)
-
-    call GetSection(config,section,'GLAD')
-    if (associated(section)) then
-       call GetValue(section,'n_instance',ninstances)
-       allocate(fnames(ninstances))
-       do i=1,ninstances
-          call GetSection(section%next,section,'GLAD instance')
-          if (.not.associated(section)) then
-             write(message,*) 'Must specify ',ninstances,' instance config files'
-             call write_log(message,GM_FATAL,__FILE__,__LINE__)
-          end if
-          call GetValue(section,'name',fnames(i))
-       end do
-    else
-       ninstances=1
-       allocate(fnames(1))
-       fnames=infnames
-    end if
-
-    ! Print some configuration information
-
-!!$    call write_log('GLAD global')
-!!$    call write_log('------------')
-!!$    write(message,*) 'number of instances :',params%ninstances
-!!$    call write_log(message)
-!!$    call write_log('')
-
-  end subroutine glad_readconfig
-
 
   !========================================================
 

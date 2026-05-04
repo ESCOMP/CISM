@@ -42,7 +42,6 @@ contains
   subroutine init_lithot(model)
     use glide_types
     use glide_setup
-    use glimmer_paramets, only: tim0
     use glimmer_log
     use glide_lithot1d
     use glide_lithot3d
@@ -68,21 +67,21 @@ contains
 
     ! set up factors for vertical finite differences
     do k=2,model%lithot%nlayer-1
-       model%lithot%zfactors(1,k) =  model%lithot%diffu*tim0*model%numerics%dt / &
+       model%lithot%zfactors(1,k) =  model%lithot%diffu*model%numerics%dt / &
             ((model%lithot%deltaz(k)-model%lithot%deltaz(k-1)) * (model%lithot%deltaz(k+1)-model%lithot%deltaz(k-1)))
-       model%lithot%zfactors(2,k) = model%lithot%diffu*tim0*model%numerics%dt / &
+       model%lithot%zfactors(2,k) = model%lithot%diffu*model%numerics%dt / &
             ((model%lithot%deltaz(k+1)-model%lithot%deltaz(k)) * (model%lithot%deltaz(k)-model%lithot%deltaz(k-1)))
-       model%lithot%zfactors(3,k) = model%lithot%diffu*tim0*model%numerics%dt / &
+       model%lithot%zfactors(3,k) = model%lithot%diffu*model%numerics%dt / &
             ((model%lithot%deltaz(k+1)-model%lithot%deltaz(k)) * (model%lithot%deltaz(k+1)-model%lithot%deltaz(k-1)))
     end do
     k = model%lithot%nlayer
-    model%lithot%zfactors(:,k) = 0.5*model%lithot%diffu*tim0*model%numerics%dt / &
+    model%lithot%zfactors(:,k) = 0.5*model%lithot%diffu*model%numerics%dt / &
          (model%lithot%deltaz(k)-model%lithot%deltaz(k-1))**2
 
     !TODO - Make sure the sign is correct for the geothermal flux.
     !NOTE: CISM convention is that geot is positive down, so geot < 0 for upward geothermal flux
 
-    if (model%options%is_restart == RESTART_FALSE) then
+    if (model%options%is_restart == NO_RESTART) then
        ! set initial temp distribution to thermal gradient
        factor = model%paramets%geot / model%lithot%con_r
        do k=1,model%lithot%nlayer
@@ -101,16 +100,18 @@ contains
   end subroutine init_lithot    
 
   subroutine spinup_lithot(model)
-    use parallel
+
     use glide_types
     use glimmer_log
     use glide_mask
+    use cism_parallel, only: not_parallel
+
     implicit none
     type(glide_global_type),intent(inout) :: model       !> model instance
 
     integer t
 
-    if (model%options%is_restart == RESTART_FALSE .and. model%lithot%numt > 0) then
+    if (model%options%is_restart == NO_RESTART .and. model%lithot%numt > 0) then
        call write_log('Spinning up GTHF calculations',type=GM_INFO)
        call not_parallel(__FILE__,__LINE__)
        do t=1,model%lithot%numt

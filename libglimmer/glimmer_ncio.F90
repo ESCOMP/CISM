@@ -36,11 +36,21 @@ module glimmer_ncio
   !> written by Magnus Hagdorn, 2004
 
   use glimmer_ncdf
+  use cism_parallel, only: parallel_type, parallel_create, parallel_open, parallel_put_var, parallel_get_var, &
+       parallel_put_att, parallel_def_var, parallel_def_dim, parallel_inq_varid, parallel_inq_dimid,  &
+       parallel_inquire_dimension, parallel_redef, parallel_enddef, parallel_sync
 
   implicit none
 
+  ! All routines in this module are public
+
   integer,parameter,private :: msglen=512
   
+  interface glimmer_nc_get_var
+     module procedure glimmer_nc_get_var_integer_2d
+     module procedure glimmer_nc_get_var_real8_2d
+  end interface
+
 contains
 
   !*****************************************************************************
@@ -52,7 +62,6 @@ contains
     use glide_types
     use glimmer_ncdf
     use glimmer_filenames, only: process_path
-    use parallel, only: parallel_open
 
     implicit none
 
@@ -75,7 +84,7 @@ contains
 
           call glimmer_nc_openappend(oc,model)
 
-       elseif (model%options%is_restart == RESTART_TRUE) then   ! reopen the file if it exists
+       elseif (model%options%is_restart == STANDARD_RESTART) then   ! reopen the file if it exists
 
           status = parallel_open(process_path(oc%nc%filename),NF90_WRITE,oc%nc%id)
 
@@ -91,6 +100,7 @@ contains
           endif
 
        else  ! assume the file does not exist; create it
+             ! Note: For hybrid restarts, the file is created at initialization
 
           call glimmer_nc_createfile(oc, model)
 
@@ -135,12 +145,12 @@ contains
                                    already_open_in)
 
     !> open netCDF file for appending
-    use parallel
     use glimmer_log
     use glide_types
     use glimmer_map_CFproj
     use glimmer_map_types
     use glimmer_filenames
+
     implicit none
 
     type(glimmer_nc_output), pointer :: outfile       !> structure containing output netCDF descriptor
@@ -197,6 +207,15 @@ contains
     NCO%nstaglevel = model%general%upn-1
     NCO%nstagwbndlevel = model%general%upn ! MJH this is the max index, not the size
 
+    ! WHL - adding a vertical coordinate for ocean data
+    NCO%nzocn = model%ocean_data%nzocn
+
+    ! WHL - adding a vertical coordinate for atmosphere data
+    NCO%nzatm = model%climate%nzatm
+
+    ! WHL - adding a glacier ID coordinate for glacier data
+    NCO%nglacier = model%glacier%nglacier
+
   end subroutine glimmer_nc_openappend
 
   !------------------------------------------------------------------------------
@@ -204,7 +223,6 @@ contains
   subroutine glimmer_nc_createfile(outfile, model, baseline_year)
 
     !> create a new netCDF file
-    use parallel
     use glimmer_log
     use glide_types
     use glimmer_map_CFproj
@@ -330,6 +348,15 @@ contains
     NCO%nstaglevel = model%general%upn-1
     NCO%nstagwbndlevel = model%general%upn ! MJH this is the max index, not the size
 
+    ! WHL - adding a vertical coordinate for ocean data
+    NCO%nzocn = model%ocean_data%nzocn
+
+    ! WHL - adding a vertical coordinate for ocean data
+    NCO%nzatm = model%climate%nzatm
+
+    ! WHL - adding a glacier ID coordinate for glacier data
+    NCO%nglacier = model%glacier%nglacier
+
   end subroutine glimmer_nc_createfile
 
   !------------------------------------------------------------------------------
@@ -337,7 +364,6 @@ contains
   subroutine glimmer_nc_checkwrite(outfile,model,forcewrite,time,external_time)
 
     !> check if we should write to file
-    use parallel
     use glimmer_log
     use glide_types
     use glimmer_filenames
@@ -493,16 +519,16 @@ contains
 
   !------------------------------------------------------------------------------
 
-  subroutine glimmer_nc_openfile(infile,model)
+  subroutine glimmer_nc_openfile(infile, model)
 
     !> open an existing netCDF file
     use glide_types
     use glimmer_map_CFproj
     use glimmer_map_types
     use glimmer_log
-    use glimmer_paramets, only: len0
+!!    use glimmer_paramets, only: len0
     use glimmer_filenames
-    use parallel
+
     implicit none
 
     type(glimmer_nc_input), pointer :: infile    !> structure containg input netCDF descriptor
@@ -565,15 +591,24 @@ contains
     NCI%nstaglevel = model%general%upn-1
     NCI%nstagwbndlevel = model%general%upn !MJH This is the max index, not size
 
+    ! WHL - adding a vertical coordinate for ocean data
+    NCI%nzocn = model%ocean_data%nzocn
+
+    ! WHL - adding a vertical coordinate for ocean data
+    NCI%nzatm = model%climate%nzatm
+
+    ! WHL - adding a glacier ID coordinate for glacier data
+    NCI%nglacier = model%glacier%nglacier
+
     ! checking if dimensions and grid spacing are the same as in the configuration file
     ! x1
     status = parallel_inq_dimid(NCI%id,'x1',dimid)
     call nc_errorhandle(__FILE__,__LINE__,status)
     status = parallel_inquire_dimension(NCI%id,dimid,len=dimsize)
     call nc_errorhandle(__FILE__,__LINE__,status)
-    if (dimsize /= global_ewn) then
+    if (dimsize /= model%parallel%global_ewn) then
        write(message,*) 'Dimension x1 of file '//trim(process_path(NCI%filename))// &
-            ' does not match with config dimension: ', dimsize, global_ewn
+            ' does not match with config dimension: ', dimsize, model%parallel%global_ewn
        call write_log(message,type=GM_FATAL)
     end if
     status = parallel_inq_varid(NCI%id,'x1',varid)
@@ -583,9 +618,10 @@ contains
 
 !WHL - mod to prevent code from crashing due to small roundoff error
 !    if (abs(delta(2)-delta(1) - model%numerics%dew*len0) > small) then
-    if (abs( (delta(2)-delta(1) - model%numerics%dew*len0) / (model%numerics%dew*len0) ) > small) then
+    if (abs( (delta(2)-delta(1) - model%numerics%dew) / (model%numerics%dew) ) > small) then
        write(message,*) 'deltax1 of file '//trim(process_path(NCI%filename))// &
-            ' does not match with config deltax: ', delta(2)-delta(1),model%numerics%dew*len0
+!!            ' does not match with config deltax: ', delta(2)-delta(1),model%numerics%dew*len0
+            ' does not match with config deltax: ', delta(2)-delta(1),model%numerics%dew
        call write_log(message,type=GM_FATAL)
     end if
 
@@ -603,9 +639,9 @@ contains
     !call nc_errorhandle(__FILE__,__LINE__,status)
     !status = nf90_get_var(NCI%id,varid,delta)
     !call nc_errorhandle(__FILE__,__LINE__,status)
-    !if (abs(delta(2)-delta(1) - model%numerics%dew*len0) > small) then
+    !if (abs(delta(2)-delta(1) - model%numerics%dew) > small) then
     !   write(message,*) 'deltax0 of file '//trim(process_path(NCI%filename))//' does not match with config deltax: ', &
-    !        delta(2)-delta(1),model%numerics%dew*len0
+    !        delta(2)-delta(1),model%numerics%dew
     !   call write_log(message,type=GM_FATAL)
     !end if
 
@@ -614,9 +650,9 @@ contains
     call nc_errorhandle(__FILE__,__LINE__,status)
     status = parallel_inquire_dimension(NCI%id,dimid,len=dimsize)
     call nc_errorhandle(__FILE__,__LINE__,status)
-    if (dimsize /= global_nsn) then
+    if (dimsize /= model%parallel%global_nsn) then
        write(message,*) 'Dimension y1 of file '//trim(process_path(NCI%filename))// &
-            ' does not match with config dimension: ', dimsize, global_nsn
+            ' does not match with config dimension: ', dimsize, model%parallel%global_nsn
        call write_log(message,type=GM_FATAL)
     end if
     status = parallel_inq_varid(NCI%id,'y1',varid)
@@ -627,9 +663,10 @@ contains
 
 !WHL - mod to prevent code from crashing due to small roundoff error
 !    if (abs(delta(2)-delta(1) - model%numerics%dns*len0) > small) then
-    if (abs( (delta(2)-delta(1) - model%numerics%dns*len0) / (model%numerics%dns*len0) ) > small) then
+    if (abs( (delta(2)-delta(1) - model%numerics%dns) / (model%numerics%dns) ) > small) then
        write(message,*) 'deltay1 of file '//trim(process_path(NCI%filename))// &
-            ' does not match with config deltay: ', delta(2)-delta(1),model%numerics%dns*len0
+!!            ' does not match with config deltay: ', delta(2)-delta(1),model%numerics%dns*len0
+            ' does not match with config deltay: ', delta(2)-delta(1),model%numerics%dns
        call write_log(message,type=GM_FATAL)
     end if
     
@@ -647,9 +684,9 @@ contains
     !call nc_errorhandle(__FILE__,__LINE__,status)
     !status = nf90_get_var(NCI%id,varid,delta)
     !call nc_errorhandle(__FILE__,__LINE__,status)
-    !if (abs(delta(2)-delta(1) - model%numerics%dns*len0) > small) then
+    !if (abs(delta(2)-delta(1) - model%numerics%dns) > small) then
     !   write(message,*) 'deltay0 of file '//trim(process_path(NCI%filename))//' does not match with config deltay: ',&
-    !        delta(2)-delta(1),model%numerics%dns*len0
+    !        delta(2)-delta(1),model%numerics%dns
     !   call write_log(message,type=GM_FATAL)
     !end if
   
@@ -689,7 +726,7 @@ contains
 
     implicit none
 
-    type(glimmer_nc_input), pointer :: infile  !> structure containg output netCDF descriptor
+    type(glimmer_nc_input), pointer :: infile  !> structure containing output netCDF descriptor
     type(glide_global_type) :: model    !> the model instance
     real(dp),optional :: time           !> Optional alternative time
 
@@ -724,21 +761,36 @@ contains
 
           if (pos /= 0 .or. pos_cesm /= 0) then   ! get the start time based on the current time slice
 
-             restart_time = infile%times(infile%current_time)      ! years
-             model%numerics%tstart = restart_time
-             model%numerics%time = restart_time
+             if (model%options%is_restart == STANDARD_RESTART) then
 
-             if (infile%tstep_counts_read) then
-                model%numerics%tstep_count = infile%tstep_counts(infile%current_time)
-             else
-                ! BACKWARDS_COMPATIBILITY(wjs, 2017-05-17) Older files may not have
-                ! 'tstep_count', so compute it ourselves here. We don't want to use this
-                ! formulation in general because it is prone to roundoff errors.
-                model%numerics%tstep_count = nint(model%numerics%time/model%numerics%tinc)
-             end if
+                restart_time = infile%times(infile%current_time)      ! years
+                model%numerics%tstart = restart_time
+                model%numerics%time = restart_time
 
-             write(message,*) 'Restart: New tstart, tstep_count =', model%numerics%tstart, model%numerics%tstep_count
-             call write_log(message)
+                if (infile%tstep_counts_read) then
+                   model%numerics%tstep_count = infile%tstep_counts(infile%current_time)
+                else
+                   ! BACKWARDS_COMPATIBILITY(wjs, 2017-05-17) Older files may not have
+                   ! 'tstep_count', so compute it ourselves here. We don't want to use this
+                   ! formulation in general because it is prone to roundoff errors.
+                   model%numerics%tstep_count = nint(model%numerics%time/model%numerics%tinc)
+                end if
+
+                write(message,*) 'Standard restart: New tstart, tstep_count =', &
+                     model%numerics%tstart, model%numerics%tstep_count
+                call write_log(message)
+
+             elseif (model%options%is_restart == HYBRID_RESTART) then
+
+                ! Use tstart from the config file, not the time from the restart file
+                model%numerics%time = model%numerics%tstart  ! years
+                model%numerics%tstep_count = 0
+
+                write(message,*) 'Hybrid restart: New tstart, tstep_count =', &
+                     model%numerics%tstart, model%numerics%tstep_count
+                call write_log(message)
+
+             endif   ! is_restart
 
           endif  ! pos/=0 or pos_cesm/=0
 
@@ -758,6 +810,11 @@ contains
           NCI%just_processed = .FALSE.
        end if
     end if
+
+    ! For read_once files, suppress the call to glide_io_read by setting just_processed = false
+    if (infile%read_once) then
+       NCI%just_processed = .FALSE.
+    endif
 
   contains
 
@@ -814,7 +871,7 @@ contains
       ! the parser ignores duplicate entries in the varlist.  
       ! (The check for the existence of variables looks like:    pos = index(NCO%vars,' acab ')  )
 
-      !print *, "Original varstring:", varstring
+      !write(iulog,*) "Original varstring:", varstring
 
       if (whichdycore/=DYCORE_GLIDE) then 
           ! We want temp to become tempstag
@@ -873,6 +930,147 @@ contains
       nc%vars_copy = nc%vars
 
   end subroutine check_for_tempstag
+
+  !------------------------------------------------------------------------------
+
+  subroutine glimmer_nc_get_dimlength(infile, dimname, dimlength)
+
+    !WHL, Feb. 2022:
+    ! This is a custom subroutine that opens an input file, finds the length
+    ! of a specific dimension, and closes the file.
+    ! It is useful for getting an array dimension whose size is not known in advance.
+    ! Currently, it is called from glissade_initialise to get the length of the
+    ! glacierid dimension, without having to put 'nglacier' in the config file by hand.
+
+    use glimmer_ncdf
+    use glimmer_log
+    use glimmer_filenames, only: process_path
+
+    type(glimmer_nc_input), pointer :: infile  !> structure containg input netCDF descriptor
+    character(len=*), intent(in) :: dimname
+    integer, intent(out) :: dimlength
+
+    ! local variables
+    integer :: status, dimid
+
+    ! Open the file
+    status = parallel_open(process_path(infile%nc%filename), NF90_NOWRITE, infile%nc%id)
+    if (status /= NF90_NOERR) then
+       call write_log('Error opening file '//trim(process_path(infile%nc%filename))//': '//nf90_strerror(status),&
+            type=GM_FATAL, file=__FILE__,line=__LINE__)
+    end if
+    call write_log('Opening file '//trim(process_path(infile%nc%filename))//' for input')
+
+    ! get the dimension length
+    status = parallel_inq_dimid(infile%nc%id, trim(dimname), dimid)
+    if (status .eq. nf90_noerr) then
+       call write_log('Getting length of dimension '//trim(dimname)//' ')
+       status = parallel_inquire_dimension(infile%nc%id, dimid, len=dimlength)
+       if (status /= nf90_noerr) then
+          call write_log('Error getting dimlength '//trim(dimname)//':'//nf90_strerror(status),&
+               type=GM_FATAL, file=__FILE__,line=__LINE__)
+       endif
+    else
+       call write_log('Error getting dimension '//trim(dimname)//':'//nf90_strerror(status),&
+            type=GM_FATAL, file=__FILE__,line=__LINE__)
+    endif
+
+    ! close the file
+    status = nf90_close(infile%nc%id)
+    call write_log('Closing file '//trim(infile%nc%filename)//' ')
+
+  end subroutine glimmer_nc_get_dimlength
+
+  !------------------------------------------------------------------------------
+
+  subroutine glimmer_nc_get_var_integer_2d(infile, varname, field_2d)
+
+    !WHL, July 2019:
+    ! This is a custom subroutine that opens an input file, reads an integer array,
+    ! and closes the file.  It is useful for reading fields that are needed for
+    ! model initialization before the calls to openall_in and glide_io_readall.
+    ! Currently, it is called from glissade_initialise to read ice_domain_mask,
+    ! which is used to limit the computational domain to active blocks.
+
+    use glimmer_ncdf
+    use glimmer_log
+    use glimmer_filenames, only: process_path
+
+    type(glimmer_nc_input), pointer :: infile  !> structure containg input netCDF descriptor
+    character(len=*), intent(in) :: varname
+    integer, dimension(:,:), intent(inout) :: field_2d
+
+    ! local variables
+    integer :: status, varid
+
+    ! Open the file
+    status = parallel_open(process_path(infile%nc%filename), NF90_NOWRITE, infile%nc%id)
+    if (status /= NF90_NOERR) then
+       call write_log('Error opening file '//trim(process_path(infile%nc%filename))//': '//nf90_strerror(status),&
+            type=GM_FATAL, file=__FILE__,line=__LINE__)
+    end if
+    call write_log('Opening file '//trim(process_path(infile%nc%filename))//' for input')
+
+    ! read a 2D field
+    status = parallel_inq_varid(infile%nc%id, trim(varname), varid)
+    if (status .eq. nf90_noerr) then
+       call write_log('Loading '//trim(varname)//' ')
+       status = parallel_get_var(infile%nc%id, varid, field_2d)
+       call nc_errorhandle(__FILE__,__LINE__, status)
+    else
+       call write_log('Error: Unable to read '//trim(varname)//' from file '//trim(process_path(infile%nc%filename))//' ', &
+            type=GM_FATAL, file=__FILE__,line=__LINE__)
+    endif
+
+    ! close the file
+    status = nf90_close(infile%nc%id)
+    call write_log('Closing file '//trim(infile%nc%filename)//' ')
+
+  end subroutine glimmer_nc_get_var_integer_2d
+
+  !------------------------------------------------------------------------------
+
+  subroutine glimmer_nc_get_var_real8_2d(infile, varname, field_2d)
+
+    !WHL, July 2019:
+    ! This is the real8 version of the subroutine above.
+    ! It is not currently called, but is included for generality.
+
+    use glimmer_ncdf
+    use glimmer_log
+    use glimmer_filenames, only: process_path
+
+    type(glimmer_nc_input), pointer :: infile  !> structure containg input netCDF descriptor
+    character(len=*), intent(in) :: varname
+    real(dp), dimension(:,:), intent(inout) :: field_2d
+
+    ! local variables
+    integer :: status, varid
+
+    ! Open the file
+    status = parallel_open(process_path(infile%nc%filename), NF90_NOWRITE, infile%nc%id)
+    if (status /= NF90_NOERR) then
+       call write_log('Error opening file '//trim(process_path(infile%nc%filename))//': '//nf90_strerror(status),&
+            type=GM_FATAL, file=__FILE__,line=__LINE__)
+    end if
+    call write_log('Opening file '//trim(process_path(infile%nc%filename))//' for input')
+
+    ! read a 2D field
+    status = parallel_inq_varid(infile%nc%id, trim(varname), varid)
+    if (status .eq. nf90_noerr) then
+       call write_log('Loading '//trim(varname)//' ')
+       status = parallel_get_var(infile%nc%id, varid, field_2d)
+       call nc_errorhandle(__FILE__,__LINE__, status)
+    else
+       call write_log('Error: Unable to read '//trim(varname)//' from file '//trim(process_path(infile%nc%filename))//' ', &
+            type=GM_FATAL, file=__FILE__,line=__LINE__)
+    endif
+
+    ! close the file
+    status = nf90_close(infile%nc%id)
+    call write_log('Closing file '//trim(infile%nc%filename)//' ')
+
+  end subroutine glimmer_nc_get_var_real8_2d
 
 !------------------------------------------------------------------------------
 

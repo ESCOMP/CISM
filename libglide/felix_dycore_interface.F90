@@ -27,14 +27,14 @@
 
 module felix_dycore_interface
 
+   use glimmer_global, only : dp
+   use glimmer_paramets, only: iulog
    use glimmer_physcon,  only : scyr
-   use glimmer_paramets, only : vel0, tau0, vis0
    use glide_types
    use glimmer_log
-   use parallel
    use glissade_grid_operators, only: glissade_stagger 
    !use glimmer_to_dycore
-
+   use cism_parallel, only: this_rank, nhalo
    implicit none
    private
 
@@ -109,7 +109,7 @@ contains
       !-----------------------------------------------------------------
 
 
-      if (this_rank == 0) print *, 'DEBUG: Inside felix_velo_init.'
+      if (this_rank == 0) write(iulog,*) 'DEBUG: Inside felix_velo_init.'
 
       ! === First do any preparations needed on the CISM side (if any)
 
@@ -146,9 +146,6 @@ contains
 
    subroutine felix_velo_driver(model)
 
-      use glimmer_global, only : dp
-      use glimmer_physcon, only: gn, scyr
-      use glimmer_paramets, only: thk0, len0, vel0, vis0
       use glimmer_log
       use glide_types
       use glide_mask
@@ -177,15 +174,15 @@ contains
       call get_parallel_finite_element_mesh_data(model%general%ewn,      model%general%nsn ,&
                                                  model%general%upn, &
                                                  model%numerics%sigma, &
-                                                 nhalo, &
-                                                 len0 * model%numerics%dew, &
-                                                 len0 * model%numerics%dns, &
-                                                 thk0 * model%geometry%thck, &
-                                                 thk0 * model%geometry%usrf, &
-                                                 thk0 * model%geometry%topg,&
-                                                 thk0 * model%numerics%thklim, &
-                                                 (tau0 / vel0 / scyr) *model%velocity%beta, &
-                                                 (vis0*scyr) *model%temper%flwa)
+                                                 model%parallel,       &
+                                                 model%numerics%dew, &
+                                                 model%numerics%dns, &
+                                                 model%geometry%thck, &
+                                                 model%geometry%usrf, &
+                                                 model%geometry%topg,&
+                                                 model%numerics%thklim, &
+                                                 (1.0d0 / scyr) *model%velocity%beta, &
+                                                 (scyr) *model%temper%flwa)
 
 
       !IK, 10/24/13, notes to self:
@@ -207,7 +204,7 @@ contains
       !-----------------------------------------------------------------
 
 
-      if (this_rank == 0) print *, 'DEBUG: Inside felix_velo_driver.'
+      if (this_rank == 0) write(iulog,*) 'DEBUG: Inside felix_velo_driver.'
 
       ! === First do any preparations needed on the CISM side
 
@@ -315,7 +312,7 @@ contains
 
    subroutine get_parallel_finite_element_mesh_data(nx,         ny,           &
                                                     nz,         sigma,        &
-                                                    nhalo,                    &
+                                                    parallel,                 &
                                                     dx,         dy,           &
                                                     thck,       usrf,         &
                                                     topg,                     &
@@ -329,33 +326,33 @@ contains
       !-----------------------------------------------------------------
 
        integer, intent(in) ::   &
-       nx, ny,               &  ! number of grid cells in each direction
-       nz,                   &  ! number of vertical levels where velocity is computed
-                                ! (same as model%general%upn)
-       nhalo                    ! number of rows/columns of halo cells
+            nx, ny,               &  ! number of grid cells in each direction
+            nz                       ! number of vertical levels where velocity is computed
+                                     ! (same as model%general%upn)
 
        real(dp), dimension(:), intent(in) :: &
-       sigma
+            sigma
+
+       type(parallel_type), intent(in) :: &
+            parallel            ! info for parallel communication
 
        real(dp), intent(in) ::  &
-       dx,  dy                  ! grid cell length and width (m)
-                                ! assumed to have the same value for each grid
-                                ! cell
+            dx,  dy                  ! grid cell length and width (m)
+                                     ! assumed to have the same value for each grid cell
 
        real(dp), dimension(:,:), intent(in) ::  &
-       thck,                 &  ! ice thickness (m)
-       usrf,                 &  ! upper surface elevation (m)
-       topg                     ! elevation of topography (m)
-
+            thck,                 &  ! ice thickness (m)
+            usrf,                 &  ! upper surface elevation (m)
+            topg                     ! elevation of topography (m)
 
        real(dp), intent(in) ::   &
-       thklim                   ! minimum ice thickness for active cells (m)
+            thklim                   ! minimum ice thickness for active cells (m)
 
        real(dp), dimension(:,:), intent(in) ::  &
-       beta                     ! basal traction parameter
+            beta                     ! basal traction parameter
 
        real(dp), dimension(:,:,:), intent(in) ::  &
-       flwa                     ! flow factor parameter
+            flwa                     ! flow factor parameter
 
 
       !-----------------------------------------------------------------
@@ -506,7 +503,13 @@ contains
       integer :: nodes_x !total # nodes in x 
       integer :: x_GID, y_GID, z_GID, x_GIDplus1, y_GIDplus1, z_GIDplus1, elem_GID, xy_plane !for creating element numbering 
       integer :: nCellsActive !# active cells (with ice) in 2D  
+      integer :: ewlb, nslb
+      integer :: global_ewn, global_nsn
 
+      ewlb = parallel%ewlb
+      nslb = parallel%nslb
+      global_ewn = parallel%global_ewn
+      global_nsn = parallel%global_nsn
 
      !--------------------------------------------------------------------
      ! TO DO (IK, 9/18/13): 
@@ -515,18 +518,18 @@ contains
      !--------------------------------------------------------------------
 
      !IK, 9/9/13: printing for debug 
-     !print *, 'In glissade_velo_higher_data! IK'
-     !print *, 'Proc #: ', this_rank
-     !print *, 'nx: ', nx 
-     !print *, 'ny: ', ny
-     !print *, 'dx: ', dx 
-     !print *, 'dy: ', dy
-     !print *, 'ewlb: ', ewlb
-     !print *, 'nslb: ', nslb
-     !print *, 'global_ewn: ', global_ewn
-     !print *, 'global_nsn:', global_nsn
-     !print *, 'nhalo:', nhalo
-     !print *, 'nz:', nz
+     !write(iulog,*) 'In glissade_velo_higher_data! IK'
+     !write(iulog,*) 'Proc #: ', this_rank
+     !write(iulog,*) 'nx: ', nx
+     !write(iulog,*) 'ny: ', ny
+     !write(iulog,*) 'dx: ', dx
+     !write(iulog,*) 'dy: ', dy
+     !write(iulog,*) 'ewlb: ', ewlb
+     !write(iulog,*) 'nslb: ', nslb
+     !write(iulog,*) 'global_ewn:', global_ewn
+     !write(iulog,*) 'global_nsn:', global_nsn
+     !write(iulog,*) 'nhalo:', nhalo
+     !write(iulog,*) 'nz:', nz
 
      !---------------------------------------------------------------------------------------
      ! Creation of global node numbering of vertices/nodes (IK, 9/8/13)
@@ -608,10 +611,10 @@ contains
      !numbering/coordinates 
      if (this_rank == 0) then
        do l=1, (nx-2*nhalo+1)*(ny-2*nhalo+1)*nz
-         print *, 'x, y, z: ',  xyz_at_nodes(l,1), xyz_at_nodes(l,2), xyz_at_nodes(l,3)
-         print *, 'global node: ', global_node_id_owned_map(l)
-         print *, 'sh: ', surf_height_at_nodes(l)
-         print *, 'beta: ', beta_at_nodes(l)
+         write(iulog,*) 'x, y, z: ',  xyz_at_nodes(l,1), xyz_at_nodes(l,2), xyz_at_nodes(l,3)
+         write(iulog,*) 'global node: ', global_node_id_owned_map(l)
+         write(iulog,*) 'sh: ', surf_height_at_nodes(l)
+         write(iulog,*) 'beta: ', beta_at_nodes(l)
        enddo
       endif
 
@@ -735,17 +738,17 @@ contains
     !IK, 9/12/13: printing output for debugging/checking element numbering 
     if (this_rank == 0) then
      do l=1, nCellsActive*(nz-1)
-       print *, 'element connectivity active: ', global_element_conn_active(l,1:8)
-       print *, 'global element #: ', global_element_id_active_owned_map(l,1)
-       print *, 'flwa: ', flwa_at_active_cells(l,1)
+       write(iulog,*) 'element connectivity active: ', global_element_conn_active(l,1:8)
+       write(iulog,*) 'global element #: ', global_element_id_active_owned_map(l,1)
+       write(iulog,*) 'flwa: ', flwa_at_active_cells(l,1)
      enddo
      endif
 
     !IK, 9/12/13: printing output for debugging/checking basal face numbering 
     if (this_rank == 0) then
     do l=1, nCellsActive
-      print *, 'face connectivity active: ', global_basal_face_conn_active(l,1:5)
-      print *, 'global face #: ', global_basal_face_id_active_owned_map(l,1)
+      write(iulog,*) 'face connectivity active: ', global_basal_face_conn_active(l,1:5)
+      write(iulog,*) 'global face #: ', global_basal_face_id_active_owned_map(l,1)
     enddo
     endif
 

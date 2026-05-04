@@ -39,15 +39,25 @@ module NAME_io
   ! template for creating subsystem specific I/O routines
   ! written by Magnus Hagdorn, 2004
 
+  !WHL, Sept. 2023
+  ! Moved some 'use' statements to the top to avoid redundant statements that slow the build,
+  ! particularly on the Intel compiler
+
   use DATAMOD
   use glimmer_ncdf
+  use glimmer_paramets
+  use glimmer_physcon
+  use glimmer_scales
 
   implicit none
 
   private :: get_xtype, is_enabled, is_enabled_0dint, is_enabled_1dint, &
-       is_enabled_2dint, is_enabled_0dreal, is_enabled_1dreal, is_enabled_2dreal, is_enabled_3dreal
+       is_enabled_2dint, is_enabled_0dreal, is_enabled_1dreal, is_enabled_2dreal, is_enabled_3dreal, &
+       initialize_restart_variable_list
 
-  character(glimmer_nc_vars_len), save :: restart_variable_list=''    ! list of variables needed for a restart
+  ! List of variables needed for a restart; there is an array of restart variable lists,
+  ! one for each ice sheet instance.
+  character(glimmer_nc_vars_len), allocatable, save :: restart_variable_list(:)
 
   interface is_enabled  ! MJH 10/21/13: Interface needed for determining if arrays have been enabled.  See notes below in NAME_io_create.
     module procedure is_enabled_0dint
@@ -66,8 +76,6 @@ contains
   !*****************************************************************************
   subroutine NAME_io_createall(model,data,outfiles)
     ! open all netCDF files for output
-    use DATAMOD
-    use glide_types
     use glimmer_ncio
     implicit none
     type(glide_global_type) :: model
@@ -91,8 +99,6 @@ contains
 
   subroutine NAME_io_writeall(data,model,atend,outfiles,time)
     ! if necessary write to netCDF files
-    use DATAMOD
-    use glide_types
     use glimmer_ncio
     implicit none
     type(DATATYPE) :: data
@@ -136,21 +142,18 @@ contains
   end subroutine NAME_io_writeall
   
   subroutine NAME_io_create(outfile,model,data)
-    use parallel
-    use glide_types
-    use DATAMOD
+
+    use cism_parallel, only: parallel_type, &
+         parallel_def_dim, parallel_inq_dimid, parallel_def_var, parallel_inq_varid, parallel_put_att
     use glimmer_ncio
     use glimmer_map_types
-    use glimmer_log
-    use glimmer_paramets
-    use glimmer_scales
     use glimmer_log
     implicit none
     type(glimmer_nc_output), pointer :: outfile
     type(glide_global_type) :: model
     type(DATATYPE) :: data    ! MJH 10/21/13: Making 'data' mandatory.  See note below
 
-    integer status,varid,pos
+    integer status,varid,pos,model_id
 
     ! MJH 10/21/13: Local variables needed for checking if a variable is enabled.
     real(dp) :: tavgf
@@ -176,13 +179,17 @@ contains
     end if
     ! Now apply necessary changes if the file is a restart file.
     if (NCO%restartfile) then
-       if ((len_trim(NCO%vars) + len_trim(restart_variable_list) + 2) >= len(NCO%vars) ) then
+       model_id = model%model_id
+       if (model_id > size(restart_variable_list)) then
+          call write_log('model_id too large in call to NAME_io_create', GM_FATAL)
+       end if
+       if ((len_trim(NCO%vars) + len_trim(restart_variable_list(model_id)) + 2) >= len(NCO%vars) ) then
           call write_log('Adding restart variables has made the list of output variables too long for file ' // NCO%filename, &
                GM_FATAL)
        else
           ! Expand the restart variable list 
           ! Need to maintain a space at beginning and end of list
-          NCO%vars = trim(NCO%vars) // ' ' // trim(restart_variable_list) // ' ' ! (a module variable)  
+          NCO%vars = trim(NCO%vars) // ' ' // trim(restart_variable_list(model_id)) // ' ' ! (a module variable)
           ! Set the xtype to be double (required for an exact restart)
           outfile%default_xtype = NF90_DOUBLE   
        endif
@@ -227,10 +234,8 @@ contains
   end subroutine NAME_io_create
 
   subroutine NAME_io_write(outfile,data)
-    use parallel
-    use DATAMOD
-    use glimmer_paramets
-    use glimmer_scales
+
+    use cism_parallel, only: parallel_type, parallel_inq_varid, distributed_put_var, parallel_put_var
     implicit none
     type(glimmer_nc_output), pointer :: outfile
     ! structure containg output netCDF descriptor
@@ -241,6 +246,9 @@ contains
     real(dp) :: tavgf
     integer status, varid
     integer up
+    type(parallel_type) :: parallel
+
+    parallel = DATAPATH%parallel
      
     tavgf = outfile%total_time
     if (tavgf.ne.0.d0) then
@@ -249,12 +257,15 @@ contains
 
     ! write variables
     !GENVAR_WRITE!
+
   end subroutine NAME_io_write
 
 
-  subroutine NAME_add_to_restart_variable_list(vars_to_add)
-    ! This subroutine adds variables to the list of variables needed for a restart.
-    ! It is a public subroutine that allows other parts of the model to modify the list, 
+  subroutine NAME_add_to_restart_variable_list(vars_to_add, model_id)
+    ! This subroutine adds variables to the list of variables needed for a restart for the
+    ! given ice sheet instance.
+    !
+    ! This is a public subroutine that allows other parts of the model to modify the list,
     ! which is a module level variable.   MJH 1/17/2013
 
     use glimmer_log
@@ -264,7 +275,7 @@ contains
     ! Subroutine arguments
     !------------------------------------------------------------------------------------
     character(len=*), intent (in) :: vars_to_add  ! list of variable(s) to be added to the list of restart variables 
-    !character(*), intent (inout) :: restart_variable_list  ! list of variables needed to perform an exact restart - module variable
+    integer, intent(in) :: model_id  ! identifier of this ice sheet instance (1 - N, where N is the total number of ice sheet models in this run)
 
     !------------------------------------------------------------------------------------
     ! Internal variables
@@ -272,11 +283,20 @@ contains
 
     !------------------------------------------------------------------------------------
 
+    ! The first time this subroutine is called, allocate and initialize the restart_variable_list
+    if (.not. allocated(restart_variable_list)) then
+       call initialize_restart_variable_list()
+    end if
+
+    if (model_id > size(restart_variable_list)) then
+       call write_log('model_id too large in call to NAME_add_to_restart_variable_list', GM_FATAL)
+    end if
+
     ! Add the variables to the list so long as they don't make the list too long.
-    if ( (len_trim(restart_variable_list) + 1 + len_trim(vars_to_add)) > len(restart_variable_list)) then
+    if ( (len_trim(restart_variable_list(model_id)) + 1 + len_trim(vars_to_add)) > len(restart_variable_list(model_id))) then
        call write_log('Adding restart variables has made the restart variable list too long.',GM_FATAL)
     else
-       restart_variable_list = trim(adjustl(restart_variable_list)) // ' ' // trim(vars_to_add)
+       restart_variable_list(model_id) = trim(adjustl(restart_variable_list(model_id))) // ' ' // trim(vars_to_add)
        !call write_log('Adding to NAME restart variable list: ' // trim(vars_to_add) )
     endif
 
@@ -361,8 +381,6 @@ contains
   !*****************************************************************************  
   subroutine NAME_io_readall(data, model, filetype)
     ! read from netCDF file
-    use DATAMOD
-    use glide_types
     use glimmer_ncio
     implicit none
     type(DATATYPE) :: data
@@ -391,13 +409,15 @@ contains
        end if
        ic=>ic%next
     end do
+
   end subroutine NAME_io_readall
 
 
   subroutine NAME_read_forcing(data, model)
+
     ! Read data from forcing files
     use glimmer_log
-    use glide_types
+    use cism_parallel, only: main_task
 
     implicit none
     type(DATATYPE) :: data
@@ -405,35 +425,89 @@ contains
 
     ! Locals
     type(glimmer_nc_input), pointer :: ic
-    integer :: t
-    real(dp) :: eps ! a tolerance to use for stepwise constant forcing
+    integer :: t, t_prev
+    real(dp) :: current_forcing_time   ! current time with reference to the forcing file
+    real(dp) :: eps                    ! a tolerance to use for stepwise constant forcing
+    logical, parameter :: verbose_read_forcing = .false.
 
     ! Make eps a fraction of the time step.
-    eps = model%numerics%tinc * 1.0d-4
+    eps = model%numerics%tinc * 1.0d-3
 
     ! read forcing files
     ic=>model%funits%frc_first
     do while(associated(ic))
 
-       !print *, 'possible forcing times', ic%times
+!       if (main_task .and. verbose_read_forcing) write(6,*) 'possible forcing times', ic%times
 
-       ic%nc%just_processed = .true. ! until we find an acceptable time, set this to true which will prevent the file from being read.
-       ! Find the current time in the file
-       do t = ic%nt, 1, -1  ! look through the time array backwards
-          if ( ic%times(t) <= model%numerics%time + eps) then
-            ! use the largest time that is smaller or equal to the current time (stepwise forcing)
+       if (ic%read_once) then  ! read once at initialization; do not re-read at runtime
 
-            ! Set the desired time to be read
-            ic%current_time = t
-            ic%nc%just_processed = .false.  ! set this to false so file will be read.
-            !print *, 'time, forcing index, forcing time', model%numerics%time, ic%current_time, ic%times(ic%current_time)
-            exit  ! once we find the time, exit the loop
+          ic%nc%just_processed = .true.  ! prevent the file from being read
+          if (main_task .and. verbose_read_forcing) then
+             write(6,*) ' '
+             write(6,*) 'In NAME_read_forcing; will not re-read the read_once file ', trim(ic%nc%filename)
           endif
-          end do  ! if we get to end of loop without exiting, then this file will not be read at this time.
+
+       else  ! not a read_once file
+
+          ic%nc%just_processed = .true. ! until we find an acceptable time, set this to true which will prevent the file from being read.
+
+          ! Compute the current forcing time.
+          ! This is the current model time, plus any offset to be consistent with the time in the forcing file,
+          !  plus a small number to allow for roundoff error.
+          current_forcing_time = model%numerics%time + ic%time_offset + eps
+
+          ! If cycling repeatedly through a subset of the forcing data, make a further correction:
+          ! compute the current time relative to time_start_cycle.
+          if (ic%nyear_cycle > 0 .and. current_forcing_time > ic%time_start_cycle) then
+             current_forcing_time = ic%time_start_cycle &
+                  + mod(current_forcing_time - ic%time_start_cycle, real(ic%nyear_cycle,dp))
+          endif
+
+          if (main_task .and. verbose_read_forcing) then
+             write(6,*) ' '
+             write(6,*) 'In NAME_read_forcing, model time + eps =', model%numerics%time + eps
+             write(6,*) 'Forcing file nt, time_offset =', ic%nt, ic%time_offset
+             write(6,*) 'time_start_cycle, nyear_cycle:', ic%time_start_cycle, ic%nyear_cycle
+             write(6,*) 'current forcing time =', current_forcing_time
+          endif
+
+          ! Find the time index associated with the previous model time step
+          t_prev = 0
+          do t = ic%nt, 1, -1  ! look through the time array backwards
+             if (ic%times(t) <= current_forcing_time - model%numerics%tinc) then
+                t_prev = t
+                if (main_task .and. verbose_read_forcing) write(6,*) 'Previous time index =', t_prev
+                exit
+             end if
+          enddo
+
+          ! Find the current time in the file
+          do t = ic%nt, 1, -1  ! look through the time array backwards
+             if ( ic%times(t) <= current_forcing_time) then
+                ! use the largest time that is smaller or equal to the current time (stepwise forcing)
+                if (main_task .and. verbose_read_forcing) &
+                     write(6,*) 'Largest time less than current forcing time: t, times(t):', t, ic%times(t)
+
+                ! If this time index (t) is larger than the previous index (t_prev), then read a new time slice.
+                ! Otherwise, we already have the current slice, and there is nothing new to read.
+                if (t > t_prev) then
+                   ! Set the desired time to be read
+                   ic%current_time = t
+                   ic%nc%just_processed = .false.  ! set this to false so file will be read.
+                   if (main_task .and. verbose_read_forcing) write(6,*) 'Read new forcing slice: t, times(t) =', t, ic%times(t)
+                endif ! t > t_prev
+
+                exit  ! once we find the time, exit the loop
+             end if   ! ic%times(t) <= model%numerics%time + eps
+
+          end do  ! if we get to end of loop without exiting, then this file will not be read at this time
+
+       endif  ! read_once file
 
        ! move on to the next forcing file
        ic=>ic%next
-    end do
+
+    end do   ! while(associated)
 
     ! Now that we've updated metadata for each forcing file, actually perform the read.
     ! This call will only read forcing files where just_processed=.false.
@@ -442,16 +516,238 @@ contains
   end subroutine NAME_read_forcing
 
 
-!------------------------------------------------------------------------------
+  subroutine NAME_read_forcing_once(data, model)
+
+    ! Read data from forcing files with read_once = .true.
+    ! Read all time slices in a single call and write to arrays with a time index.
+
+    use glimmer_global, only: msg_length
+    use glimmer_log
+    use cism_parallel, only: main_task, parallel_reduce_sum
+
+    implicit none
+    type(DATATYPE) :: data
+    type(glide_global_type), intent(inout) :: model
+
+    ! Locals
+    type(glimmer_nc_input), pointer :: ic
+    integer :: t                         ! time index
+    integer :: nx, ny, nt                ! dimension sizes
+    real(dp) :: eps                      ! a tolerance to use for stepwise constant forcing
+    real(dp) :: global_sum               ! global sum of an input field
+    character(len=msg_length) :: message
+    logical, parameter :: verbose_read_forcing = .true.
+
+    ! Make eps a fraction of the time step.
+    eps = model%numerics%tinc * 1.0d-3
+
+    ! read forcing files
+    ic=>model%funits%frc_first
+    do while(associated(ic))
+
+       if (ic%read_once) then
+
+          if (main_task .and. verbose_read_forcing) then
+             write(6,*) ' '
+             write(6,*) 'In NAME_read_forcing_once'
+             write(6,*) 'Filename =', trim(ic%nc%filename)
+             write(6,*) 'Number of slices =', ic%nt
+          endif
+
+          write(message,*) 'Reading', ic%nt, 'slices of file ', trim(ic%nc%filename), ' just once at initialization'
+          call write_log(message)
+
+          nt = ic%nt
+          ic%nc%vars = ''
+
+          ! Allocate 3D arrays that contain all time slices for each 2D field
+          ! Note: Variables with the 'read_once' attribute must be 2D
+
+          !GENVAR_READ_ONCE_ALLOCATE!
+          ! Loop over all time slices in the file
+          do t = 1, ic%nt
+
+             if (main_task .and. verbose_read_forcing) then
+                write(6,*) 'Read new forcing slice: t index, times(t) =', t, ic%times(t)
+             endif
+
+             ! Set the desired time to be read
+             ic%current_time = t
+
+             ! Read one time slice into the data derived type
+             call NAME_io_read(ic,data)
+
+             ! Copy data from this time slice into the 3D array.
+             ! Once the fields have been copied, zero them out.
+             ! Also increment the string ic%nc%vars.
+             ! This string contains a list of field names with a space before and after each name.
+
+             !GENVAR_READ_ONCE_COPY!
+          enddo   ! ic%nt
+
+       endif  ! read_once
+
+       if (main_task .and. verbose_read_forcing) then
+          write(6,*) 'Final ic%nc%vars = ', trim(ic%nc%vars)
+       endif
+
+       ic=>ic%next
+
+    enddo   ! while(associated)
+
+  end subroutine NAME_read_forcing_once
+
+
+  subroutine NAME_retrieve_forcing(data, model)
+
+    ! Retrieve a single time slice of forcing from arrays that contain all the forcing.
+    ! Called repeatedly at runtime, after calling the read_forcing_once subroutine at initialization.
+
+    use glimmer_global, only: msg_length
+    use glimmer_log
+    use cism_parallel, only: main_task
+    implicit none
+    type(DATATYPE) :: data
+    type(glide_global_type), intent(inout) :: model
+
+    ! Locals
+    type(glimmer_nc_input), pointer :: ic
+    integer :: t, t_prev
+    real(dp) :: current_forcing_time   ! current time with reference to the forcing file
+    real(dp) :: eps                    ! a tolerance to use for stepwise constant forcing
+    logical :: retrieve_new_slice      ! if true, then retrieve data for this forcing time slice
+    integer :: forcing_year            ! year of data from the forcing file
+    integer :: this_year               ! current simulation year relative to tstart; starts at 0
+    integer :: year1, year2            ! years read from the shuffle file
+    real(dp) :: decimal_year           ! decimal part of the current year
+    character(len=msg_length) :: message
+    logical, parameter :: verbose_read_forcing = .false.
+
+    ! Make eps a fraction of the time step
+    eps = model%numerics%tinc * 1.0d-3
+
+    ! read forcing files
+
+    ic=>model%funits%frc_first
+    do while(associated(ic))
+
+       if (ic%read_once) then
+
+          retrieve_new_slice = .false.   ! default is to do nothing
+
+          ! Compute the current forcing time.
+          ! This is the current model time, plus any offset to be consistent with the time in the forcing file,
+          !  plus a small number to allow for roundoff error.
+          ! Code adapted from the read_forcing subroutine above
+
+          current_forcing_time = model%numerics%time + ic%time_offset + eps
+
+          ! If cycling repeatedly through a subset of the forcing data, make a further correction:
+          ! compute the current time relative to time_start_cycle.
+          if (ic%nyear_cycle > 0 .and. current_forcing_time > ic%time_start_cycle) then
+             current_forcing_time = ic%time_start_cycle &
+                  + mod(current_forcing_time - ic%time_start_cycle, real(ic%nyear_cycle,dp))
+          endif
+
+          if (main_task .and. verbose_read_forcing) then
+             write(6,*) ' '
+             write(6,*) 'In NAME_retrieve_forcing, model time + eps =', model%numerics%time + eps
+             write(6,*) 'Filename = ', trim(ic%nc%filename)
+             write(6,*) 'Forcing file nt, time_offset =', ic%nt, ic%time_offset
+             write(6,*) 'time_start_cycle, nyear_cycle:', ic%time_start_cycle, ic%nyear_cycle
+             write(6,*) 'current forcing time =', current_forcing_time
+             write(6,*) 'variable list:', trim(ic%nc%vars)
+          endif
+
+          ! Optionally, associate the current forcing time with a different date in the forcing file.
+          ! This is done by reading a file that associates each simulation year (relative to tstart)
+          !  with a year that is read from a 'shuffle file'. The shuffle file typically consists of
+          !  consecutive integers (in column 1), followed by years chosen at random from all the years
+          !  in the forcing file (in column 2).
+
+          if (trim(ic%shuffle_file) /= '') then  ! shuffle_file exists
+             open(unit=11, file=trim(ic%shuffle_file), status='old')
+             this_year = int(current_forcing_time - model%numerics%tstart)
+             if (main_task .and. verbose_read_forcing) then
+                write(6,*) 'shuffle_file = ', trim(ic%shuffle_file)
+                write(6,*) 'tstart, this_year =', model%numerics%tstart, this_year
+             endif
+             forcing_year = 0
+             do while (forcing_year == 0)
+                read(11,'(i6,i8)') year1, year2
+                if (this_year == year1) then
+                   forcing_year = year2
+                   exit
+                endif
+             enddo
+             close(11)
+             decimal_year = current_forcing_time - floor(current_forcing_time)
+             current_forcing_time = real(forcing_year,dp) + decimal_year
+             if (main_task .and. verbose_read_forcing) then
+                write(6,*) 'forcing_year, decimal =', forcing_year, decimal_year
+                write(6,*) 'shuffled forcing_time =', current_forcing_time
+             endif
+          else
+             if (main_task .and. verbose_read_forcing) write(6,*) 'no shuffle_file'
+          endif  ! shuffle_file exists
+
+          ! Find the time index associated with the previous model time step
+          t_prev = 0
+          do t = ic%nt, 1, -1  ! look through the time array backwards
+             if (ic%times(t) <= current_forcing_time - model%numerics%tinc) then
+                t_prev = t
+                if (main_task .and. verbose_read_forcing) write(6,*) 'Previous time index =', t_prev
+                exit
+             end if
+          enddo
+
+          ! Find the current time in the file
+          do t = ic%nt, 1, -1  ! look through the time array backwards
+             if ( ic%times(t) <= current_forcing_time) then
+                ! use the largest time that is smaller or equal to the current time (stepwise forcing)
+                if (main_task .and. verbose_read_forcing) &
+                     write(6,*) 'Largest time less than current forcing time: t, times(t):', t, ic%times(t)
+                ! If this time index (t) is larger than the previous index (t_prev), then retrieve a new time slice.
+                ! Otherwise, we already have the current slice, and there is nothing new to read.
+                if (t > t_prev) then
+                   ! Set the desired time to be read
+                   ic%current_time = t
+                   retrieve_new_slice = .true.
+                   if (main_task .and. verbose_read_forcing) write(6,*) 'Retrieve new forcing slice'
+                   write(message,*) &
+                        'Retrieve slice', t, 'at forcing time', ic%times(t), 'from file ', trim(ic%nc%filename)
+                   call write_log(message)
+                endif ! t > t_prev
+
+                exit  ! once we find the time, exit the loop
+             end if   ! ic%times(t) <= model%numerics%time + eps
+
+          end do  ! if we get to end of loop without exiting, then there is nothing to retrieve at this time
+
+          ! Check whether each potential read_once field is part of this forcing file.
+          ! If so, then copy the data for this time slice from the 3D array to the 2D array.
+
+          if (retrieve_new_slice) then
+
+             !GENVAR_READ_ONCE_RETRIEVE!
+          endif   ! retrieve_new_slice
+
+       endif   ! read_once
+
+       ! move on to the next forcing file
+       ic=>ic%next
+
+    enddo   ! while(associated)
+
+  end subroutine NAME_retrieve_forcing
 
 
   subroutine NAME_io_read(infile,data)
+
     ! read variables from a netCDF file
-    use parallel
+    use cism_parallel, only: parallel_type, &
+         parallel_inq_varid, parallel_get_att, distributed_get_var, parallel_get_var
     use glimmer_log
-    use DATAMOD
-    use glimmer_paramets
-    use glimmer_scales
     implicit none
     type(glimmer_nc_input), pointer :: infile
     ! structure containg output netCDF descriptor
@@ -462,17 +758,20 @@ contains
     integer status,varid
     integer up
     real(dp) :: scaling_factor
+    type(parallel_type) :: parallel
+
+    parallel = DATAPATH%parallel
 
     ! read variables
     !GENVAR_READ!
+
   end subroutine NAME_io_read
 
   subroutine NAME_io_checkdim(infile,model,data)
+
     ! check if dimension sizes in file match dims of model
-    use parallel
+    use cism_parallel, only: parallel_type, parallel_inq_dimid, parallel_inquire_dimension
     use glimmer_log
-    use glide_types
-    use DATAMOD
     implicit none
     type(glimmer_nc_input), pointer :: infile
     ! structure containg output netCDF descriptor
@@ -498,9 +797,7 @@ contains
     !        will be too large, because this subroutine will be called more than once per time step.
     ! TODO: Write code to check for doubly listed tavg variables and throw a fatal error.
 
-    use parallel
-    use glide_types
-    use DATAMOD
+    use cism_parallel, only: parallel_inq_varid
     implicit none
     type(glimmer_nc_output), pointer :: outfile
     ! structure containg output netCDF descriptor
@@ -519,8 +816,8 @@ contains
   end subroutine NAME_avg_accumulate
 
   subroutine NAME_avg_reset(outfile,data)
-    use parallel
-    use DATAMOD
+
+    use cism_parallel, only: parallel_inq_varid
     implicit none
     type(glimmer_nc_output), pointer :: outfile
     ! structure containg output netCDF descriptor
@@ -555,6 +852,14 @@ contains
        get_xtype = NF90_REAL
     end if
   end function get_xtype
+
+  !> allocate and initialize the restart_variable_list
+  subroutine initialize_restart_variable_list()
+    use glide_model_registry, only : get_max_models
+
+    allocate(restart_variable_list(get_max_models()))
+    restart_variable_list(:) = ''
+  end subroutine initialize_restart_variable_list
 
   !*********************************************************************
   ! lots of accessor subroutines follow

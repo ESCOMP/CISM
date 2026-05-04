@@ -39,64 +39,83 @@
   module glissade_grounding_line
 
     use glimmer_global, only: dp
+    use glimmer_paramets, only: iulog
     use glimmer_physcon, only: rhoi, rhoo
     use glide_types  ! grounding line options
-    use parallel
+    use cism_parallel, only: this_rank, nhalo, parallel_type, parallel_halo
+    !TODO - May be able to remove parallel halo updates from this module
 
     implicit none
 
     private
-    public :: glissade_grounded_fraction, glissade_grounding_line_flux
+    public :: glissade_grounded_fraction, glissade_grounding_line_flux, verbose_glp
 
-    logical, parameter :: verbose_gl = .false.
+    logical, parameter :: verbose_glp = .false.
 
   contains
 
 !****************************************************************************
 
-  subroutine glissade_grounded_fraction(nx,              ny,                       &
-                                        itest, jtest,    rtest,                       &
-                                        thck,            topg,                        &
-                                        eus,             ice_mask,                    &
-                                        floating_mask,   land_mask,                   &
-                                        which_ho_ground, which_ho_flotation_function, &
-                                        f_flotation,                                  &
-                                        f_ground,        f_ground_cell)
+  subroutine glissade_grounded_fraction(nx,              ny,               &
+                                        parallel,                          &
+                                        itest, jtest,    rtest,            &
+                                        thck,            topg,             &
+                                        eus,             ice_mask,         &
+                                        floating_mask,   land_mask,        &
+                                        which_ho_ground,                   &
+                                        which_ho_flotation_function,       &
+                                        which_ho_fground_no_glp,           &
+                                        f_flotation,                       &
+                                        f_ground,                          &
+                                        f_ground_cell,                     &
+                                        topg_raised)
 
-    use glissade_grid_operators, only : glissade_unstagger
+    use glissade_grid_operators, only : glissade_stagger, glissade_unstagger
+    use glimmer_log
+    use glimmer_utils, only: point_diag
 
     !----------------------------------------------------------------
-    ! Compute fraction of ice that is grounded.
+    ! Compute fraction of ice that is grounded, optionally using a grounding line parameterization (GLP).
     ! This fraction is computed at vertices based on the thickness and topography of the four neighboring cell centers.
     ! More generally, it can be computed at any point centered in a square or rectangle,
     !  given a flotation function (based on thickness and topography) at the corners of the square or rectangle.
     !
     ! There are three options for computing the grounded fraction, based on the value of which_ho_ground:
-    ! (0) HO_GROUND_NO_GLP: f_ground = 1 for vertices with grounded and/or land-based neighbor cells
-    !                       f_ground = 0 for vertices with floating neighbors only
-    ! (1) HO_GROUND_GLP: 0 <= f_ground <= 1 based on grounding-line parameterization
+    ! (0) HO_GROUND_NO_GLP: f_ground = 1 for grounded vertices
+    !                       f_ground = 0 for floating vertices
+    !     Vertices are identified as grounded or floating based on (a) presence of grounded neighbors
+    !      or (b) interpolation of the flotation function.
+    ! (1) HO_GROUND_GLP_BASAL_FRICTION: GLP for basal friction with 0 <= f_ground <= 1.
     !        A flotation function is interpolated over the staggered cell around each vertex
     !        and analytically integrated to compute the grounded and floating fractions.
-    !        The f_ground_cell is compute by averaging the values computed at vertices.
-    ! (2) HO_GROUND_GLP_QUADRANTS: similar to (2), but f_flotation is interpolated over cell quadrants,
-    !        and then f_ground is computed in unstaggered and staggered cells by summing over quadrants.
+    !        Then f_ground_cell is computed by averaging the values computed at vertices.
+    !        TODO: Is f_ground_cell ever used with this option?  If not, then might not need to compute here.
+    ! (2) HO_GROUND_GLP_DELUXE: similar to (1), but f_flotation is interpolated over cell quadrants,
+    !        and then both f_ground (at vertices) and f_ground_cell are computed by summing over quadrants.
+    !        A GLP is applied not only to basal friction but also to basal melting and other processes near the GL.
     !
-    ! For options (1) and (2), there are three options for the flotation function:
+    ! For options (1) and (2), there are four options for the flotation function:
     ! (0) HO_FLOTATION_FUNCTION_PATTYN: f_flotation = (-rhoo*b)/(rhoi*H) - 1 = f_pattyn - 1
     !     Here, f_pattyn = (-rhoo*b)/(rhoi*H) as in Pattyn et al. (2006).
     ! (1) HO_FLOTATION_FUNCTION_INVERSE_PATTYN: f_flotation = 1 - (rhoi*H)/(-rhoo*b) = 1 - 1/f_pattyn
     ! (2) HO_FLOTATION_FUNCTION_LINEAR: f_flotation = -b - (rhoi/rhoo)*H = ocean cavity thickness
     !     This function was suggested by Xylar Asay-Davis and is linear in both b and H.
-    ! All three functions are defined such that f <=0 for grounded ice and f > 0 for floating ice.
+    !     Unlike a previous version of this option, f_flotation is not extrapolated from
+    !     ice-covered cells to ice-free ocean.
+    ! (3) HO_FLOTATION_FUNCTION_RAISED_TOPG: This is like (2), except that the bed topography
+    !     is replaced with a corrected version, topg_raised, which aims to capture pinning points
+    !     on relatively coarse grids.
+    ! All flotation functions are defined such that f <= 0 for grounded ice and f > 0 for floating ice.
     ! For each option, land-based cells are assigned a large negative value, so that any vertices
     !  with land-based neighbors are strongly grounded.
     !
     ! We first compute f_flotation in all active ice-covered cells.
-    ! Then f_flotation is extrapolated to ice-free neighbors.  Thus, f_flotation has a physically
-    !   meaningful value (either computed directly, or extrapolated from a neighbor) in all four
-    !   cells surrounding each active vertex. (By definition, an active vertex is a vertex with
-    !   at least one active ice-covered neighbor.) Thus, we can interpolate f_flotation
-    !   within the staggered cell around each active vertex to compute f_ground at the vertex.
+    ! With options (0) and (1) only, f_flotation is then extrapolated to ice-free neighbors.
+    !   Thus, f_flotation has a physically meaningful value in all four cells
+    !   surrounding each active vertex.
+    !   (By definition, an active vertex has at least one active ice-covered neighbor.)
+    !   Thus, we can interpolate f_flotation within the staggered cell around each active vertex
+    !   to compute f_ground at the vertex.
     !
     ! The linear function (2) is the default.
     !
@@ -109,12 +128,15 @@
     integer, intent(in) ::   &
        nx,  ny                ! number of grid cells in each direction
 
+    type(parallel_type), intent(in) ::  &
+         parallel             ! info for parallel communication
+
     integer, intent(in) ::   &
        itest, jtest, rtest    ! coordinates of diagnostic point
 
     ! Default dimensions are meters.
-    ! The subroutine will work for other units as long as thck, topg and eus have the same units,
-    !  but f_flotation_land_linear will be scaled incorrectly.
+    ! Most parts of this subroutine will work for other units as long as thck, topg and eus have the same units.
+    ! However, f_flotation_land_linear and cavity_thck_scale (both in m) will give wrong answers if units are not in m.
 
     real(dp), dimension(nx,ny), intent(in) ::  &
        thck,                & ! ice thickness (m)
@@ -130,8 +152,9 @@
 
     ! see comments above for more information about these options
     integer, intent(in) ::  &
-       which_ho_ground,            &! option for computing f_ground
-       which_ho_flotation_function  ! option for computing f_flotation
+       which_ho_ground,             & ! option for computing f_ground
+       which_ho_flotation_function, & ! option for computing f_flotation
+       which_ho_fground_no_glp        ! option for computing f_ground with no GLP
 
     real(dp), dimension(nx,ny), intent(out) :: &
        f_flotation            ! flotation function; see comments above
@@ -140,22 +163,33 @@
        f_ground               ! grounded ice fraction at vertex, 0 <= f_ground <= 1
 
     real(dp), dimension(nx,ny), intent(out) ::  &
-       f_ground_cell          ! grounded ice fraction in cell, 0 <= f_ground <= 1
+       f_ground_cell          ! grounded ice fraction in cell, 0 <= f_ground_cell <= 1
+
+    real(dp), dimension(nx,ny), intent(in), optional ::  &
+       topg_raised            ! raised version of bed topography (m)
 
     !----------------------------------------------------------------
     ! Local variables
     !----------------------------------------------------------------
 
-    integer :: i, j, ii, jj
+    integer :: i, j, ii, jj, q
+
+    integer :: count
+    real(dp) :: sum_weight         ! running sum over a cell
+    real(dp) :: f_float_quadrant   ! floating fraction of a quadrant
 
     integer, dimension(nx-1,ny-1) ::   &
          vmask                     ! = 1 for vertices neighboring at least one cell where ice is present, else = 0
 
     real(dp), dimension(4,nx,ny) :: &
-         f_ground_quadrant         ! f_ground for the 4 cell quadrants around each vertex
+         f_ground_quadrant,      & ! f_ground for the 4 quadrants around each vertex
+         f_flotation_quadrant      ! f_flotation for the 4 quadrants in each cell
 
     real(dp), dimension(nx,ny) :: &
          f_flotation_extrap        ! f_flotation, extrapolated to cells without active ice
+
+    real(dp), dimension(nx-1,ny-1) :: &
+         stagf_flotation           ! f_flotation interpolated to the staggered grid
 
     real(dp), dimension(4) :: &
          f_flotation_vector        ! 1D array containing f_flotation for 4 corners of a quadrant
@@ -167,12 +201,14 @@
          cground            ! true if a cell is land and/or has grounded ice, else = false
 
     real(dp), parameter :: &
-         f_flotation_land_topg_min = 1.0d0   ! min value of (topg - eus) in f_flotation expression for land cells (m)
+         f_flotation_land_topg_min = 50.0d0    ! min value of (topg - eus) in f_flotation expression for land cells (m)
+
+    real(dp), parameter :: &
+         f_flotation_marine_min = 1.0d-4       ! min magnitude (m) of f_flotation for marine based cells (topg < 0)
 
     logical :: filled       ! true if f_flotation has been filled by extrapolation
 
-    !TODO - Test sensitivity to these values
-    ! These are set to large negative values, so vertices with land-based neighbors are strongly grounded.
+    ! Set to a large negative value, so vertices with land-based neighbors are strongly grounded.
     real(dp), parameter :: f_flotation_land_pattyn = -10.d0          ! unitless
 
     !----------------------------------------------------------------
@@ -237,6 +273,8 @@
 
        ! If > 0, f_flotation is the thickness of the ocean cavity beneath the ice shelf.
        ! This function (unlike PATTYN and INVERSE_PATTYN) is linear in both thck and topg.
+       ! Another difference is that f_flotation is not extrapolated from ice-covered cells to ice-free ocean.
+       ! Instead, f_flotation = -(topg - eus) for ice-free ocean.
 
        do j = 1, ny
           do i = 1, nx
@@ -244,61 +282,56 @@
                 ! Assign a minimum value to (topg - eus) so that f_flotation is nonzero on land
                 topg_eus_diff = max((topg(i,j) - eus), f_flotation_land_topg_min)
                 f_flotation(i,j) = -topg_eus_diff
-             elseif (ice_mask(i,j) == 1) then
+             else
+                ! Note: f_flotation reduces to -(topg - eus) for ice-free ocean
                 f_flotation(i,j) = -(topg(i,j) - eus) - (rhoi/rhoo)*thck(i,j)
-             else  ! ice-free ocean
-                f_flotation(i,j) = 0.0d0
+                ! Make sure f_flotation is not too close to 0, for numerical robustness.
+                if (abs(f_flotation(i,j)) < f_flotation_marine_min) then
+                   if (f_flotation(i,j) < 0.0d0) then
+                      f_flotation(i,j) = -f_flotation_marine_min
+                   else
+                      f_flotation(i,j) =  f_flotation_marine_min
+                   endif
+                endif
+             endif
+          enddo
+       enddo
+
+    elseif (which_ho_flotation_function == HO_FLOTATION_FUNCTION_LINEAR_RAISED_TOPG) then
+
+       if (.not.present(topg_raised)) then
+          call write_log('Error, must pass topg_raised to use this f_flotation option', GM_FATAL)
+       endif
+
+       ! like the previous option, but with topg -> topg_raised
+       do j = 1, ny
+          do i = 1, nx
+             if (land_mask(i,j) == 1) then
+                ! Assign a minimum value to (topg - eus) so that f_flotation is nonzero on land
+                topg_eus_diff = max(topg_raised(i,j) - eus, f_flotation_land_topg_min)
+                f_flotation(i,j) = -topg_eus_diff
+             else
+                ! Note: f_flotation reduces to -topg_raised for ice-free ocean
+                f_flotation(i,j) = -(topg_raised(i,j) - eus) - (rhoi/rhoo)*thck(i,j)
+                ! Make sure f_flotation is not too close to 0, for numerical robustness.
+                if (abs(f_flotation(i,j)) < f_flotation_marine_min) then
+                   if (f_flotation(i,j) < 0.0d0) then
+                      f_flotation(i,j) = -f_flotation_marine_min
+                   else
+                      f_flotation(i,j) =  f_flotation_marine_min
+                   endif
+                endif
              endif
           enddo
        enddo
 
     endif  ! which_ho_flotation_function
 
-    ! initialize f_ground arrays
-    f_ground(:,:) = 0.0d0
-    f_ground_cell(:,:) = 0.0d0
+    ! Extrapolate f_flotation to ice-free ocean cells for the first two options.
+    ! TODO - Remove extrapolation for these options too?
 
-    ! Compute f_ground according to the value of which_ho_ground
-
-    if (which_ho_ground == HO_GROUND_NO_GLP) then
-
-       ! default: no sub-grid grounding-line parameterization
-       ! f_ground = 1 at a vertex if any neighbor cell is land or has grounded ice
-
-       ! compute a mask that is true for cells that are land and/or have grounded ice
-       do j = 1, ny
-          do i = 1, nx
-             if ((ice_mask(i,j) == 1 .and. floating_mask(i,j) == 0) .or. land_mask(i,j) == 1) then
-                cground(i,j) = .true.
-             else
-                cground(i,j) = .false.
-             endif
-          enddo
-       enddo
-
-       ! f_ground_cell follows directly from this mask
-
-       where (cground)
-          f_ground_cell = 1.0d0
-       elsewhere
-          f_ground_cell = 0.0d0
-       endwhere
-
-       ! vertices are grounded if any neighbor cell is land and/or has grounded ice, else are floating
-
-       do j = 1, ny-1
-          do i = 1, nx-1
-             if (vmask(i,j) == 1) then
-                if (cground(i,j+1) .or. cground(i+1,j+1) .or. cground(i,j) .or. cground(i+1,j)) then
-                   f_ground(i,j) = 1.d0
-                else
-                   f_ground(i,j) = 0.d0
-                endif
-             endif
-          enddo
-       enddo
-
-    else   ! grounding-line parameterization (HO_GROUND_GLP, HO_GROUND_GLP_QUADRANTS)
+    if (which_ho_flotation_function == HO_FLOTATION_FUNCTION_PATTYN .or. &
+        which_ho_flotation_function == HO_FLOTATION_FUNCTION_INVERSE_PATTYN) then
 
        ! In ice-free ocean cells, fill in f_flotation by extrapolation.
        ! Take the minimum (i.e., most grounded) value from adjacent ice-filled neighbors, using
@@ -310,16 +343,32 @@
        f_flotation_extrap(:,:) = f_flotation(:,:)
 
        do j = 2, ny-1
-          do i = 2, nx-1
-             if (ice_mask(i,j) == 0 .and. land_mask(i,j) == 0) then
+       do i = 2, nx-1
+          if (ice_mask(i,j) == 0 .and. land_mask(i,j) == 0) then
 
-                filled = .false.
+             filled = .false.
 
-                ! loop over edge neighbors
+             ! loop over edge neighbors
+             do jj = j-1, j+1
+                do ii = i-1, i+1
+                   if ((ii == i .or. jj == j) .and. &
+                        (ice_mask(ii,jj) == 1 .or. land_mask(ii,jj) == 1)) then  ! edge neighbor with ice or land
+                      if (.not.filled) then
+                         filled = .true.
+                         f_flotation_extrap(i,j) = f_flotation(ii,jj)
+                      else
+                         f_flotation_extrap(i,j) = min(f_flotation_extrap(i,j), f_flotation(ii,jj))
+                      endif
+                   endif
+                enddo   ! ii
+             enddo   ! jj
+
+             ! loop over corner neighbors if necessary
+             if (.not.filled) then
                 do jj = j-1, j+1
                    do ii = i-1, i+1
-                      if ((ii == i .or. jj == j) .and. &
-                           (ice_mask(ii,jj) == 1 .or. land_mask(ii,jj) == 1)) then  ! edge neighbor with ice or land
+                      if ((abs(ii-i) == 1 .and. abs(jj-j) == 1) .and. &
+                           (ice_mask(ii,jj) == 1 .or. land_mask(ii,jj) == 1)) then ! corner neighbor with ice or land
                          if (.not.filled) then
                             filled = .true.
                             f_flotation_extrap(i,j) = f_flotation(ii,jj)
@@ -327,48 +376,44 @@
                             f_flotation_extrap(i,j) = min(f_flotation_extrap(i,j), f_flotation(ii,jj))
                          endif
                       endif
-                   enddo   ! ii
-                enddo   ! jj
-
-                ! loop over corner neighbors if necessary
-                if (.not.filled) then
-                   do jj = j-1, j+1
-                      do ii = i-1, i+1
-                         if ((abs(ii-i) == 1 .and. abs(jj-j) == 1) .and. &
-                             (ice_mask(ii,jj) == 1 .or. land_mask(ii,jj) == 1)) then ! corner neighbor with ice or land
-                            if (.not.filled) then
-                               filled = .true.
-                               f_flotation_extrap(i,j) = f_flotation(ii,jj)
-                            else
-                               f_flotation_extrap(i,j) = min(f_flotation_extrap(i,j), f_flotation(ii,jj))
-                            endif
-                         endif
-                      enddo
                    enddo
-                endif   ! not filled
+                enddo
+             endif   ! not filled
 
-             endif   ! ice_mask = 0
-          enddo   ! i
-       enddo  !j
+          endif   ! ice_mask = 0
+       enddo  ! i
+       enddo  ! j
 
        ! halo update
-       call parallel_halo(f_flotation_extrap)
+       call parallel_halo(f_flotation_extrap, parallel)
 
        ! copy the extrapolated array to the main f_flotation array
        f_flotation(:,:) = f_flotation_extrap(:,:)
 
-       if (verbose_gl .and. this_rank == rtest) then
-          i = itest; j = jtest
-          print*, ' '
-          print*, 'rank, i, j =', this_rank, i, j
-          print*, 'f_flotation(i:i+1,j+1):', f_flotation(i:i+1,j+1)
-          print*, 'f_flotation(i:i+1,j)  :', f_flotation(i:i+1,j)
-       endif
+    endif   ! which_ho_flotation_function
 
-    endif   ! which_ho_ground
+    if (verbose_glp) then
+       call point_diag(thck, 'thck (m)', itest, jtest, rtest, 7, 7)
+       if (which_ho_flotation_function == HO_FLOTATION_FUNCTION_LINEAR_RAISED_TOPG) then
+          call point_diag(topg_raised, 'topg_raised (m)', itest, jtest, rtest, 7, 7)
+       else
+          call point_diag(topg, 'topg (m)', itest, jtest, rtest, 7, 7)
+       endif
+       call point_diag(f_flotation, 'f_flotation (m)', itest, jtest, rtest, 7, 7)
+       write(iulog,*) 'f_flotation, rtest, itest, jtest:', rtest, itest, jtest
+    endif
+
+    ! initialize the arrays computed below
+    f_ground(:,:) = 0.0d0
+    f_ground_cell(:,:) = 0.0d0
+    f_ground_quadrant(:,:,:) = 0.0d0
+    f_flotation_quadrant(:,:,:) = 0.0d0
 
     ! Given f_flotation in all cells, we have the information needed to compute f_ground
-    !  by either of two methods:
+    !  at vertices by one of several methods:
+    ! For which_ho_ground = 0, we either
+    ! (a) set f_ground = 1 if any neighbor cell is land or has grounded ice
+    ! (b) set f_ground = 1 if the interpolated value of f_flotation at the vertex < 0
     ! For which_ho_ground = 1, we interpolate f_flotation over the staggered cell around each vertex,
     !  then analytically evaluate the grounded fraction in the staggered cell.
     !  To obtain f_ground_cell, we average from vertices using glissade_unstagger.
@@ -376,7 +421,70 @@
     !  then analytically evaluate the grounded fraction in the quadrant, and finally
     !  sum over quadrants to obtain f_ground at vertices (staggered grid) and in cells (unstaggered grid).
 
-    if (which_ho_ground == HO_GROUND_GLP) then
+    ! Compute f_ground according to the value of which_ho_ground
+
+    if (which_ho_ground == HO_GROUND_NO_GLP) then
+
+       ! default: no sub-grid grounding-line parameterization
+
+       ! Compute a mask that is true for cells that are land and/or have grounded ice.
+       ! Also set f_ground_cell = 1 for grounded cells.
+       ! Note: f_ground_cell currently is not used when we have no GLP, but is computed for diagnostics.
+
+       do j = 1, ny
+          do i = 1, nx
+             if ((ice_mask(i,j) == 1 .and. floating_mask(i,j) == 0) .or. land_mask(i,j) == 1) then
+                cground(i,j) = .true.
+                f_ground_cell(i,j) = 1.0d0
+             else
+                cground(i,j) = .false.
+                f_ground_cell(i,j) = 0.0d0
+             endif
+          enddo
+       enddo
+
+       ! Determine whether each vertex is grounded (f_ground = 1.0) or floating (f_ground = 0.0)
+
+       if (which_ho_fground_no_glp == HO_FGROUND_NO_GLP_FLOTATION_FUNCTION) then
+
+          ! Set f_ground = 0 or 1 based on interpolation of f_flotation to vertices.
+          ! For stagger_margin_in = 0, each neighboring value of f_flotation is included in the interpolation,
+          !  so the vertex value is the mean of the four neighboring cell values.
+          ! Will return stagf_flotation = 0 in ice-free regions (but this value is not used in any computations)
+
+          call glissade_stagger(nx,          ny,                &
+                                f_flotation, stagf_flotation,   &
+                                ice_mask,    stagger_margin_in = 0)
+
+          do j = 1, ny-1
+             do i = 1, nx-1
+                if (vmask(i,j) == 1) then
+                   if (stagf_flotation(i,j) <= 0.0d0) then  ! grounded
+                      f_ground(i,j) = 1.0d0
+                   else
+                      f_ground(i,j) = 0.0d0
+                   endif
+                endif
+             enddo
+          enddo
+
+       else   ! Set f_ground = 1 if any neighbor cell is land and/or has grounded ice
+
+          do j = 1, ny-1
+             do i = 1, nx-1
+                if (vmask(i,j) == 1) then
+                   if (cground(i,j+1) .or. cground(i+1,j+1) .or. cground(i,j) .or. cground(i+1,j)) then
+                      f_ground(i,j) = 1.d0
+                   else
+                      f_ground(i,j) = 0.d0
+                   endif
+                endif
+             enddo
+          enddo
+
+       endif  ! which_ho_no_glp_stagger
+
+    elseif (which_ho_ground == HO_GROUND_GLP_BASAL_FRICTION) then
 
        ! Loop over vertices, computing f_ground for each vertex with vmask = 1.
        ! Note: All vertices with vmask = 1 (i.e., all vertices with at least one ice-covered neighbor)
@@ -401,16 +509,16 @@
           enddo           ! i
        enddo              ! j
 
-       ! Average f_ground from vertices to cells (includes a halo update)
+       ! Average f_ground from vertices to cells
        call glissade_unstagger(nx,       ny,  &
                                f_ground, f_ground_cell)
 
        ! Set f_ground_cell = 1 on land
-       where (land_mask == 1)
-          f_ground_cell = 1.0d0
-       endwhere
+       where (land_mask == 1) f_ground_cell = 1.0d0
 
-    elseif (which_ho_ground == HO_GROUND_GLP_QUADRANTS) then
+       call parallel_halo(f_ground_cell, parallel)
+
+    elseif (which_ho_ground == HO_GROUND_GLP_DELUXE) then
 
        !----------------------------------------------------------------
        ! Compute f_ground_vertex by finding f_ground for 4 neighboring quadrants
@@ -426,21 +534,24 @@
              if (vmask(i,j) == 1) then  ! at least one neighboring cell is ice-covered or land-based
 
                 ! quadrant 1, southwest of the vertex
-                f_flotation_vector(1) =          f_flotation(i,j)
-                f_flotation_vector(2) = 0.5d0 * (f_flotation(i,j) + f_flotation(i+1,j))
+                f_flotation_vector(1) =           f_flotation(i,j)
+                f_flotation_vector(2) = 0.50d0 * (f_flotation(i,j) + f_flotation(i+1,j))
                 f_flotation_vector(3) = 0.25d0 * (f_flotation(i,j+1) + f_flotation(i+1,j+1)  &
                                                 + f_flotation(i,j)   + f_flotation(i+1,j))
-                f_flotation_vector(4) = 0.5d0 * (f_flotation(i,j) + f_flotation(i,j+1))
+                f_flotation_vector(4) = 0.50d0 * (f_flotation(i,j) + f_flotation(i,j+1))
 
                 call compute_grounded_fraction(i,     j,     1,      this_rank, &  ! '1' is the quadrant index
                                                itest, jtest, rtest,             &
                                                f_flotation_vector,              &
                                                f_ground_quadrant(1,i,j))
 
+                ! compute average value of f_flotation for later use
+                f_flotation_quadrant(1,i,j) = 0.25d0 * sum(f_flotation_vector)
+
                 ! quadrant 2, southeast of the vertex
-                f_flotation_vector(1) = 0.5d0 * (f_flotation(i+1,j) + f_flotation(i,j))
-                f_flotation_vector(2) =          f_flotation(i+1,j)
-                f_flotation_vector(3) = 0.5d0 * (f_flotation(i+1,j) + f_flotation(i+1,j+1))
+                f_flotation_vector(1) = 0.50d0 * (f_flotation(i+1,j) + f_flotation(i,j))
+                f_flotation_vector(2) =           f_flotation(i+1,j)
+                f_flotation_vector(3) = 0.50d0 * (f_flotation(i+1,j) + f_flotation(i+1,j+1))
                 f_flotation_vector(4) = 0.25d0 * (f_flotation(i,j+1) + f_flotation(i+1,j+1)  &
                                                 + f_flotation(i,j)   + f_flotation(i+1,j))
 
@@ -449,43 +560,52 @@
                                                f_flotation_vector,              &
                                                f_ground_quadrant(2,i,j))
 
+                ! compute average value of f_flotation for later use
+                f_flotation_quadrant(2,i,j) = 0.25d0 * sum(f_flotation_vector)
+
                 ! quadrant 3, northeast of the vertex
                 f_flotation_vector(1) = 0.25d0 * (f_flotation(i,j+1) + f_flotation(i+1,j+1)  &
                                                 + f_flotation(i,j)   + f_flotation(i+1,j))
-                f_flotation_vector(2) = 0.5d0 * (f_flotation(i+1,j+1) + f_flotation(i,j+1))
-                f_flotation_vector(3) =          f_flotation(i+1,j+1)
-                f_flotation_vector(4) = 0.5d0 * (f_flotation(i+1,j+1) + f_flotation(i+1,j))
+                f_flotation_vector(2) = 0.50d0 * (f_flotation(i+1,j+1) + f_flotation(i+1,j))
+                f_flotation_vector(3) =           f_flotation(i+1,j+1)
+                f_flotation_vector(4) = 0.50d0 * (f_flotation(i+1,j+1) + f_flotation(i,j+1))
 
                 call compute_grounded_fraction(i,     j,     1,      this_rank, &  ! '1' is the quadrant index
                                                itest, jtest, rtest,             &
                                                f_flotation_vector,              &
                                                f_ground_quadrant(3,i,j))
 
+                ! compute average value of f_flotation for later use
+                f_flotation_quadrant(3,i,j) = 0.25d0 * sum(f_flotation_vector)
+
                 ! quadrant 4, northwest of the vertex
-                f_flotation_vector(1) = 0.5d0 * (f_flotation(i,j+1) + f_flotation(i,j))
+                f_flotation_vector(1) = 0.50d0 * (f_flotation(i,j+1) + f_flotation(i,j))
                 f_flotation_vector(2) = 0.25d0 * (f_flotation(i,j+1) + f_flotation(i+1,j+1)  &
                                                 + f_flotation(i,j)   + f_flotation(i+1,j))
-                f_flotation_vector(3) = 0.5d0 * (f_flotation(i,j+1) + f_flotation(i+1,j+1))
-                f_flotation_vector(4) =          f_flotation(i,j+1)
+                f_flotation_vector(3) = 0.50d0 * (f_flotation(i,j+1) + f_flotation(i+1,j+1))
+                f_flotation_vector(4) =           f_flotation(i,j+1)
 
                 call compute_grounded_fraction(i,     j,     1,      this_rank, &  ! '1' is the quadrant index
                                                itest, jtest, rtest,             &
                                                f_flotation_vector,              &
                                                f_ground_quadrant(4,i,j))
 
+                ! compute average value of f_flotation for later use
+                f_flotation_quadrant(4,i,j) = 0.25d0 * sum(f_flotation_vector)
+
                 ! average values for the 4 quadrants surrounding the vertex
                 f_ground(i,j) = 0.25d0 * (f_ground_quadrant(1,i,j) + f_ground_quadrant(2,i,j)  &
                                         + f_ground_quadrant(3,i,j) + f_ground_quadrant(4,i,j))
 
                 !WHL - debug
-                if (verbose_gl .and. this_rank == rtest .and. i==itest .and. j==jtest) then
-                   print*, ' '
-                   print*, 'f_ground at vertex, r, i, j =', this_rank, i, j
-                   print*, 'Quadrant 1:', f_ground_quadrant(1,i,j)
-                   print*, 'Quadrant 2:', f_ground_quadrant(2,i,j)
-                   print*, 'Quadrant 3:', f_ground_quadrant(3,i,j)
-                   print*, 'Quadrant 4:', f_ground_quadrant(4,i,j)
-                   print*, 'Average   :', f_ground(i,j)
+                if (verbose_glp .and. this_rank == rtest .and. i==itest .and. j==jtest) then
+                   write(iulog,*) ' '
+                   write(iulog,*) 'f_ground at vertex, r, i, j =', this_rank, i, j
+                   write(iulog,*) 'Quadrant 1:', f_ground_quadrant(1,i,j)
+                   write(iulog,*) 'Quadrant 2:', f_ground_quadrant(2,i,j)
+                   write(iulog,*) 'Quadrant 3:', f_ground_quadrant(3,i,j)
+                   write(iulog,*) 'Quadrant 4:', f_ground_quadrant(4,i,j)
+                   write(iulog,*) 'Average   :', f_ground(i,j)
                 endif
 
              endif        ! vmask = 1
@@ -529,26 +649,25 @@
              ! divide by 4 to get average value of f_ground in the cell
              f_ground_cell(i,j) = 0.25d0 * f_ground_cell(i,j)
 
-             !WHL - debug
-             if (verbose_gl .and. this_rank == rtest .and. i==itest .and. j==jtest) then
-                print*, ' '
-                print*, 'f_ground_vertex, r, i, j =', this_rank, i, j
-                print*, 'Quadrant 1:', f_ground_quadrant(3,i-1,j-1)
-                print*, 'Quadrant 2:', f_ground_quadrant(4,i,j-1)
-                print*, 'Quadrant 3:', f_ground_quadrant(1,i,j)
-                print*, 'Quadrant 4:', f_ground_quadrant(2,i-1,j)
-                print*, 'Average   :', f_ground_cell(i,j)
+             if (verbose_glp .and. this_rank == rtest .and. i==itest .and. j==jtest) then
+                write(iulog,*) ' '
+                write(iulog,*) 'f_ground_cell, r, i, j =', this_rank, i, j
+                write(iulog,*) 'Quadrant 1:', f_ground_quadrant(3,i-1,j-1)
+                write(iulog,*) 'Quadrant 2:', f_ground_quadrant(4,i,j-1)
+                write(iulog,*) 'Quadrant 3:', f_ground_quadrant(1,i,j)
+                write(iulog,*) 'Quadrant 4:', f_ground_quadrant(2,i-1,j)
+                write(iulog,*) 'Average   :', f_ground_cell(i,j)
              endif
 
           enddo
        enddo
 
        ! Set f_ground_cell = 1 on land
-       where (land_mask == 1)
-          f_ground_cell = 1.0d0
-       endwhere
+       ! Note: Was commented out earlier 'to prevent weakly grounded land-based cells from becoming unstable',
+       !       but I'm not clear on why this would happen.
+       where (land_mask == 1) f_ground_cell = 1.0d0
 
-       call parallel_halo(f_ground_cell)
+       call parallel_halo(f_ground_cell, parallel)
 
     endif   ! which_ho_ground
 
@@ -636,22 +755,26 @@
     enddo
 
     !WHL - debug
-    if (verbose_gl .and. i == itest .and. j==jtest .and. rank == rtest) then
-       print*, ' '
-       print*, 'rank, i, j =', rank, i, j
-       print*, 'f_flotation(4:3):', f_flotation(4), f_flotation(3)
-       print*, 'f_flotation(1:2):', f_flotation(1), f_flotation(2)
-       print*, 'nfloat =', nfloat
+    if (verbose_glp .and. i == itest .and. j==jtest .and. rank == rtest) then
+       write(iulog,*) ' '
+       write(iulog,*) 'rank, i, j =', rank, i, j
+       write(iulog,*) 'f_flotation(4:3):', f_flotation(4), f_flotation(3)
+       write(iulog,*) 'f_flotation(1:2):', f_flotation(1), f_flotation(2)
+       write(iulog,*) 'nfloat =', nfloat
     endif
 
     ! Given nfloat, compute f_ground for each vertex
     ! First the easy cases...
+    ! Note: Cells with f_flotation = 0 are arbitrarily identified as grounded rather than floating.
+    !       This can be problematic if 1<= nfloat <= 3, but all the corners that are identified as grounded
+    !        have f_flotation = 0 (i.e., minval(f_flotation) = 0).  Then we should set f_ground = 0 (as if we had nfloat = 4).
 
     if (nfloat == 0) then
 
        f_ground = 1.0d0    ! fully grounded
 
-    elseif (nfloat == 4) then
+!!    elseif (nfloat == 4) then  ! need the extra logic in the line below
+    elseif (nfloat == 4 .or. minval(f_flotation) == 0.0d0) then
 
        f_ground = 0.0d0    ! fully floating
 
@@ -720,9 +843,9 @@
        d = f1 + f3 - f2 - f4
 
        !WHL - debug
-       if (verbose_gl .and. i==itest .and. j==jtest .and. rank == rtest) then
-          print*, 'f1, f2, f3, f4 =', f1, f2, f3, f4
-          print*, 'a, b, c, d =', a, b, c, d
+       if (verbose_glp .and. i==itest .and. j==jtest .and. rank == rtest) then
+          write(iulog,*) 'f1, f2, f3, f4 =', f1, f2, f3, f4
+          write(iulog,*) 'a, b, c, d =', a, b, c, d
        endif
 
        ! Compute the fractional area of the corner region
@@ -757,9 +880,9 @@
        endif
 
        !WHL - debug
-       if (verbose_gl .and. i==itest .and. j==jtest .and. rank == rtest) then
-          print*, 'f_corner =', f_corner
-          print*, 'f_ground =', f_ground
+       if (verbose_glp .and. i==itest .and. j==jtest .and. rank == rtest) then
+          write(iulog,*) 'f_corner =', f_corner
+          write(iulog,*) 'f_ground =', f_ground
        endif
 
     elseif (nfloat == 2) then
@@ -844,10 +967,10 @@
        ! Integrate the corner areas
 
        !WHL - debug
-       if (verbose_gl .and. i==itest .and. j==jtest .and. rank == rtest) then
-          print*, 'adjacent =', adjacent
-          print*, 'f1, f2, f3, f4 =', f1, f2, f3, f4
-          print*, 'a, b, c, d =', a, b, c, d
+       if (verbose_glp .and. i==itest .and. j==jtest .and. rank == rtest) then
+          write(iulog,*) 'adjacent =', adjacent
+          write(iulog,*) 'f1, f2, f3, f4 =', f1, f2, f3, f4
+          write(iulog,*) 'a, b, c, d =', a, b, c, d
        endif
 
        if (adjacent) then
@@ -876,21 +999,21 @@
           f_ground = 1.d0 - f_trapezoid
 
           !WHL - debug
-          if (verbose_gl .and. i==itest .and. j==jtest .and. rank == rtest) then
-             print*, 'f_trapezoid =', f_trapezoid
-             print*, 'f_ground =', f_ground
+          if (verbose_glp .and. i==itest .and. j==jtest .and. rank == rtest) then
+             write(iulog,*) 'f_trapezoid =', f_trapezoid
+             write(iulog,*) 'f_ground =', f_ground
           endif
 
        else   ! grounded corners are diagonally opposite
 
           ! bug check: make sure some signs are positive as required by the formulas
           if (b*c - a*d < 0.d0) then
-             print*, 'Grounding line error: bc - ad < 0'
-             print*, 'rank, i, j, q =', rank, i, j, q
+             write(iulog,*) 'Grounding line error: bc - ad < 0'
+             write(iulog,*) 'rank, i, j, q =', rank, i, j, q
              stop
           elseif ((b+d)*(c+d) < 0.d0) then
-             print*, 'Grounding line error: (b+d)(c+d) < 0'
-             print*, 'rank, i, j, q =', rank, i, j, q
+             write(iulog,*) 'Grounding line error: (b+d)(c+d) < 0'
+             write(iulog,*) 'rank, i, j, q =', rank, i, j, q
              stop
           endif
 
@@ -913,8 +1036,8 @@
           ! Note that this pattern is not possible with d = 0.
 
           !WHL - debug
-          if (verbose_gl .and. i==itest .and. j==jtest .and. rank == rtest) then
-             print*, 'Pattern 3: i, j, bc - ad =', i, j, b*c - a*d
+          if (verbose_glp .and. i==itest .and. j==jtest .and. rank == rtest) then
+             write(iulog,*) 'Pattern 3: i, j, bc - ad =', i, j, b*c - a*d
           endif
 
           if (abs(b*c - a*d) > eps06) then  ! the usual case
@@ -944,10 +1067,10 @@
           endif
 
           !WHL - debug
-          if (verbose_gl .and. i==itest .and. j==jtest .and. rank == rtest) then
-             print*, 'f_corner1 =', f_corner1
-             print*, 'f_corner2 =', f_corner2
-             print*, 'f_ground =', f_ground
+          if (verbose_glp .and. i==itest .and. j==jtest .and. rank == rtest) then
+             write(iulog,*) 'f_corner1 =', f_corner1
+             write(iulog,*) 'f_corner2 =', f_corner2
+             write(iulog,*) 'f_ground =', f_ground
           endif
 
        endif  ! adjacent or opposite
@@ -973,9 +1096,6 @@
     ! Note: Since the GL thicknesses are approximated, the GL fluxes will not exactly 
     !        match the fluxes computed by the transport scheme.
     !       Also, the GL fluxes do not include thinning/calving of grounded marine cliffs.
-
-    use parallel, only: nhalo
-    use glimmer_paramets, only: thk0, vel0, len0
 
     implicit none
 
@@ -1112,10 +1232,10 @@
         enddo   ! i
     enddo   ! j
 
-    ! Convert from model units to kg/m/s
-    gl_flux_east  = gl_flux_east  * rhoi*thk0*vel0
-    gl_flux_north = gl_flux_north * rhoi*thk0*vel0
-    gl_flux       = gl_flux       * rhoi*thk0*vel0
+    ! Convert from m^2/s to kg/m/s
+    gl_flux_east  = gl_flux_east  * rhoi
+    gl_flux_north = gl_flux_north * rhoi
+    gl_flux       = gl_flux       * rhoi
 
     deallocate(uavg, vavg)
 

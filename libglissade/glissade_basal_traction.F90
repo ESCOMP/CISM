@@ -45,18 +45,20 @@
   !
   !-----------------------------------------------------------------------------
 
-  use glimmer_paramets, only : dp
+  use glimmer_global, only: dp
+  use glimmer_paramets, only : iulog
   use glimmer_physcon,  only : scyr
-  use glimmer_paramets, only : vel0, tau0
   use glimmer_log
+  use glimmer_utils, only: point_diag
   use glide_types
-  use parallel,         only : staggered_parallel_halo  
-  use glissade_grid_operators
+  use cism_parallel, only : this_rank, main_task, parallel_type, &
+       parallel_halo, staggered_parallel_halo, parallel_globalindex, distributed_scatter_var
 
   implicit none
 
   private
-  public :: calcbeta, calc_effective_pressure
+  public :: glissade_calcbeta, glissade_init_effecpress, glissade_calc_effecpress, &
+       glissade_elevation_based_coulomb_c
 
 !***********************************************************************
 
@@ -64,22 +66,22 @@ contains
 
 !***********************************************************************
 
-  subroutine calcbeta (whichbabc,                    &
-                       dew,           dns,           &
-                       ewn,           nsn,           &
-                       thisvel,       othervel,      &
-                       basal_physics,                &
-                       flwa_basal,    thck,          &
-                       topg,          eus,           &
-                       ice_mask,                     &
-                       floating_mask,                &
-                       land_mask,                    &
-                       f_ground,                     &
-                       beta_external,                &
-                       beta,                         &
-                       which_ho_inversion,           &
-                       powerlaw_c_inversion,         &
-                       itest, jtest,  rtest)
+  subroutine glissade_calcbeta (&
+       whichbabc,                    &
+       parallel,                     &
+       dew,           dns,           &
+       ewn,           nsn,           &
+       thisvel,       othervel,      &
+       basal_physics,                &
+       flwa_basal,    thck,          &
+       topg,          eus,           &
+       ice_mask,                     &
+       land_mask,                    &
+       f_ground,                     &
+       beta_external,                &
+       beta,                         &
+       which_ho_beta_limit,          &
+       itest, jtest,  rtest)
 
   ! subroutine to calculate map of beta sliding parameter, based on 
   ! user input ("whichbabc" flag, from config file as "which_ho_babc").
@@ -88,18 +90,19 @@ contains
   ! and were rescaled in this routine.  Now the input arguments are
   ! assumed to have the units given below.
      
-  use glimmer_paramets, only: len0
   use glimmer_physcon, only: gn, pi
-  use parallel, only: nhalo, this_rank
-  use parallel, only: parallel_globalindex, global_ewn, global_nsn
-  use parallel, only: distributed_scatter_var, parallel_halo, main_task
+  use glissade_grid_operators, only: glissade_stagger
 
   implicit none
 
   ! Input/output arguments
 
-  integer, intent(in) :: whichbabc
-  integer, intent(in) :: ewn, nsn
+  integer, intent(in) :: whichbabc     ! option for basal friction parameterization
+
+  type(parallel_type), intent(in) :: &
+       parallel                        ! info for parallel communication
+
+  integer, intent(in) :: ewn, nsn      ! horizonal grid dimensions
 
   real(dp), intent(in)                    :: dew, dns           ! m
   real(dp), intent(in), dimension(:,:)    :: thisvel, othervel  ! basal velocity components (m/yr)
@@ -111,16 +114,15 @@ contains
 
   integer, intent(in), dimension(:,:) :: &
        ice_mask,        & ! = 1 where ice is present (thck > thklim), else = 0
-       floating_mask,   & ! = 1 where ice is present and floating, else = 0
        land_mask          ! = 1 where topg > eus
 
-  real(dp), intent(in), dimension(:,:)    :: f_ground           ! grounded ice fraction, 0 <= f_ground <= 1
+  real(dp), intent(in), dimension(:,:)    :: f_ground           ! grounded ice fraction at vertices, 0 <= f_ground <= 1
   real(dp), intent(in), dimension(:,:)    :: beta_external      ! fixed beta read from external file (Pa yr/m)
   real(dp), intent(inout), dimension(:,:) :: beta               ! basal traction coefficient (Pa yr/m)
 
-  integer, intent(in), optional :: which_ho_inversion            ! basal inversion option
-  real(dp), intent(in), dimension(:,:), optional :: powerlaw_c_inversion  ! Cp from inversion
-  integer, intent(in), optional :: itest, jtest, rtest           ! coordinates of diagnostic point
+  integer, intent(in) :: which_ho_beta_limit                    ! option to limit beta for grounded ice
+                                                                ! 0 = absolute based on beta_grounded_min; 1 = weighted by f_ground
+  integer, intent(in), optional :: itest, jtest, rtest          ! coordinates of diagnostic point
 
   ! Local variables
 
@@ -133,7 +135,7 @@ contains
   real(dp) :: Ldomain   ! size of full domain
   real(dp) :: omega     ! frequency of beta field
   real(dp) :: dx, dy
-  integer :: ew, ns
+  integer :: ew, ns, i, j
 
   real(dp), dimension(size(beta,1), size(beta,2)) :: speed      ! ice speed, sqrt(uvel^2 + vvel^2), m/yr
 
@@ -141,19 +143,19 @@ contains
   real(dp) :: powerlaw_p, powerlaw_q
 
   ! variables for Coulomb friction law
-  real(dp) :: coulomb_c   ! Coulomb law friction coefficient (unitless)
-  real(dp) :: powerlaw_c  ! power law friction coefficient (Pa m^{-1/3} yr^{1/3})
-  real(dp) :: lambda_max  ! wavelength of bedrock bumps at subgrid scale (m)
-  real(dp) :: m_max       ! maximum bed obstacle slope (unitless)
-  real(dp) :: m           ! exponent m in power law
+  real(dp) :: coulomb_c         ! Coulomb law friction coefficient (unitless)
+  real(dp) :: powerlaw_c_const  ! power law friction coefficient (Pa m^{-1/3} yr^{1/3})
+  real(dp) :: lambda_max        ! wavelength of bedrock bumps at subgrid scale (m)
+  real(dp) :: m_max             ! maximum bed obstacle slope (unitless)
+  real(dp) :: m                 ! exponent m in power law
+
   integer, dimension(size(thck,1), size(thck,2)) :: &
-       ice_or_land_mask, &! = 1 where ice_mask = 1 or land_mask = 1, else = 0       
-       imask              ! = 1 where thck > 0, else = 1
+       ice_or_land_mask,   & ! = 1 where ice_mask = 1 or land_mask = 1, else = 0       
+       imask                 ! = 1 where thck > 0, else = 1
 
   real(dp), dimension(size(beta,1), size(beta,2)) ::  &
-       big_lambda,                 &  ! bedrock characteristics
-       flwa_basal_stag,            &  ! basal flwa interpolated to the staggered grid (Pa^{-n} yr^{-1})
-       stag_powerlaw_c_inversion      ! powerlaw_c_inversion interpolated to the staggered grid
+       big_lambda,         & ! bedrock characteristics
+       flwa_basal_stag       ! basal flwa interpolated to the staggered grid (Pa^{-n} yr^{-1})
 
   ! variables for Tsai et al. parameterization
   real(dp) :: taub_powerlaw  ! basal shear stress given by a power law as in Tsai et al. (2015)
@@ -171,21 +173,13 @@ contains
   real(dp) :: tau_c          ! yield stress for pseudo-plastic law (unitless)
   real(dp) :: numerator, denominator
 
-  ! option to invert for basal parameters
-  integer :: which_inversion ! basal inversion option
-
   character(len=300) :: message
 
   integer :: iglobal, jglobal
 
-  logical, parameter :: verbose_beta = .false.
+  real(dp) :: effecpress_capped   ! capped effective pressure for Coulomb laws (ZI specifically)
 
-  !TODO - Make which_ho_inversion a non-optional argument?
-  if (present(which_ho_inversion)) then
-     which_inversion = which_ho_inversion
-  else
-     which_inversion = HO_INVERSION_NONE
-  endif
+  logical, parameter :: verbose_beta = .false.
 
   ! Compute the ice speed: used in power laws where beta = beta(u).
   ! Enforce a minimum speed to prevent beta from become very large when velocity is small.
@@ -215,27 +209,53 @@ contains
              beta(:,:) = basal_physics%ho_beta_large    ! Pa yr/m
           endwhere
 
-    case(HO_BABC_PSEUDO_PLASTIC)
+    case(HO_BABC_PSEUDO_PLASTIC)  ! pseudo-plastic sliding law using the new coulomb_c options
 
        ! Pseudo-plastic sliding law from PISM:
        !
        ! (tau_bx,tau_by) = -tau_c * (u,v) / (u_0^q * |u|^(1-q))
-       ! where the yield stress tau_c = tan(phi) * N
+       ! where the yield stress tau_c = N * tan(phi), or equivalently tau_c = N * coulomb_c
        ! N = effective pressure, computed in subroutine calc_effective_pressure
        ! q, u0 and phi are user-configurable parameters:
        !    q = exponent (q = 1 for linear sliding, q = 0 for a plastic bed, 0 < q < 1 for power-law behavior), default = 1/3
        !    u0 = threshold velocity (the velocity at which tau_b = tau_c), default = 100 m/yr
-       !    0 < tan(phi) < 1
-       ! As in PISM, phi is allowed to vary with bed elevation
+       !    0 < coulomb_c < 1
+       ! As in PISM, coulomb_c is allowed to vary with bed elevation.
        ! See Aschwanden et al. (2013), The Cryosphere, 7, 1083-1093, Supplement; see also the PISM Users Guide.
+
+       q  = basal_physics%pseudo_plastic_q
+       u0 = basal_physics%pseudo_plastic_u0
+
+       ! compute beta based on N, coulomb_c and u
+       do ns = 1, nsn-1
+          do ew = 1, ewn-1
+             tau_c = basal_physics%effecpress_stag(ew,ns) * basal_physics%coulomb_c(ew,ns)
+             beta(ew,ns) = tau_c / (u0**q * speed(ew,ns)**(1.0d0 - q))
+
+             !WHL - debug
+             if (verbose_beta .and. present(rtest) .and. present(itest) .and. present(jtest)) then
+                if (this_rank == rtest .and. ew == itest .and. ns == jtest) then
+                   write(iulog,*) 'i, j, bed, coulomb_c, tau_c, speed, beta:', &
+                        ew, ns, bed, phi, basal_physics%coulomb_c(ew,ns), tau_c, speed(ew,ns), beta(ew,ns)
+                endif
+             endif
+          enddo   ! ew
+       enddo   ! ns
+
+    case(HO_BABC_PSEUDO_PLASTIC_OLD)  ! older method, retained for backward compatibility
+                                      ! TODO: Remove the old method when no longer the CESM default
+
+       q  = basal_physics%pseudo_plastic_q
+       u0 = basal_physics%pseudo_plastic_u0
 
        phimin = basal_physics%pseudo_plastic_phimin
        phimax = basal_physics%pseudo_plastic_phimax
        bedmin = basal_physics%pseudo_plastic_bedmin
        bedmax = basal_physics%pseudo_plastic_bedmax
 
-       q = basal_physics%pseudo_plastic_q
-       u0 = basal_physics%pseudo_plastic_u0
+       ! Note: There is a minor bug in the loop below.
+       !       beta(ew,ns) is computed based on topg(ew,ns); should use stagtopg(ew,ns) instead.
+       !       Leaving the bug as is for back compatibility, given that this method will be deprecated.
 
        do ns = 1, nsn-1
           do ew = 1, ewn-1
@@ -258,13 +278,13 @@ contains
              !WHL - debug
              if (verbose_beta .and. present(rtest) .and. present(itest) .and. present(jtest)) then
                 if (this_rank == rtest .and. ew == itest .and. ns == jtest) then
-                   write(6,*) 'i, j, bed, phi, tanphi, tau_c, speed, beta:', &
-                        ew, ns, bed, phi, tanphi, tau_c, speed(ew,ns), beta(ew,ns)
+                   write(iulog,*) 'i, j, bed, tanphi, tau_c, speed, beta:', &
+                        ew, ns, bed, tanphi, tau_c, speed(ew,ns), beta(ew,ns)
                 endif
              endif
 
-          enddo
-       enddo
+          enddo   ! ew
+       enddo   ! ns
 
     case(HO_BABC_YIELD_PICARD)  ! take input value for till yield stress and force beta to be implemented such
                                 ! that plastic-till sliding behavior is enforced (see additional notes in documentation).
@@ -273,11 +293,11 @@ contains
       !!!       Currently, to enable sliding over plastic till, simply specify the value of "beta" as 
       !!!       if it were the till yield stress (in units of Pascals).
       
-      beta(:,:) = basal_physics%mintauf(:,:)*tau0 &                                      ! plastic yield stress (converted to Pa)
+       beta(:,:) = basal_physics%mintauf(:,:) &                                          ! plastic yield stress (Pa)
                          / dsqrt( thisvel(:,:)**2 + othervel(:,:)**2 + (smallnum)**2 )   ! velocity components (m/yr)
 
       !!! since beta is updated here, communicate that info to halos
-      call staggered_parallel_halo(beta)
+      call staggered_parallel_halo(beta, parallel)
 
     case(HO_BABC_BETA_LARGE)      ! frozen (u=v=0) ice-bed interface
 
@@ -286,8 +306,41 @@ contains
 
        beta(:,:) = basal_physics%ho_beta_large      ! Pa yr/m  (= 1.0d10 by default)
 
+    case(HO_BABC_ZOET_IVERSON)
+
+       ! Use the sliding law proposed by Zoet & Iverson (2020):
+       !     tau_b = N * C_c * [u_b/(u_b + u_t)]^(1/m), Eq. 3 in ZI(2020)
+       ! where N   = effective pressure
+       !       C_c = a constant in the range [0,1]
+       !       u_t = threshold speed controlling the transition between powerlaw and Coulomb behavior
+       !       m   = powerlaw exponent
+       !Note: We have added the option to cap N at a value of N_max.
+       !      By default, N_max is large enough that there will be no limiting,
+       !       but N_max can be set to a smaller value in the config file.
+
+       m = basal_physics%powerlaw_m
+
+       do ns = 1, nsn-1
+          do ew = 1, ewn-1
+             effecpress_capped = min(basal_physics%effecpress_stag(ew,ns), &
+                                     basal_physics%zoet_iverson_nmax)
+             tau_c = basal_physics%coulomb_c(ew,ns) * effecpress_capped
+             beta(ew,ns) = tau_c * speed(ew,ns)**(1.0d0/m - 1.0d0)  &
+                  / (speed(ew,ns) + basal_physics%zoet_iverson_ut)**(1.0d0/m)
+
+             !WHL - debug
+             if (verbose_beta .and. present(rtest) .and. present(itest) .and. present(jtest) .and. &
+                  this_rank == rtest .and. ew == itest .and. ns == jtest) then
+                write(iulog,*) 'Cc, N, speed, beta =', basal_physics%coulomb_c(ew,ns), &
+                     basal_physics%effecpress_stag(ew,ns), speed(ew,ns), beta(ew,ns)
+             endif
+
+          enddo
+       enddo
+
     case(HO_BABC_ISHOMC)          ! prescribe according to ISMIP-HOM test C
 
+       !TODO: Carry out this operation at initialization, before calling calcbeta?
        !Note: Ideally, beta would be read in from an external netCDF file.
        !      However, this is not possible given that the global velocity grid is smaller
        !       than the ice grid and hence not able to fit the full beta field.
@@ -296,7 +349,7 @@ contains
        ! Allocate a global array on the main task only.
        ! On other tasks, allocate a size 0 array, since distributed_scatter_var wants to deallocate on all tasks.
        if (main_task) then
-          allocate(beta_global(global_ewn, global_nsn))
+          allocate(beta_global(parallel%global_ewn, parallel%global_nsn))
        else
           allocate(beta_global(0,0))
        endif
@@ -306,12 +359,12 @@ contains
        !       They need a global array of size (ewn,nsn) to hold values on the global boundary.
        if (main_task) then
 
-          Ldomain = global_ewn * dew   ! size of full domain (must be square)
+          Ldomain = parallel%global_ewn * dew   ! size of full domain (must be square)
           omega = 2.d0*pi / Ldomain
 
           beta_global(:,:) = 0.0d0
-          do ns = 1, global_nsn
-             do ew = 1, global_ewn
+          do ns = 1, parallel%global_nsn
+             do ew = 1, parallel%global_ewn
                 dx = dew * ew
                 dy = dns * ns
                 beta_global(ew,ns) = 1000.d0 + 1000.d0 * sin(omega*dx) * sin(omega*dy)
@@ -324,10 +377,10 @@ contains
        ! Note: beta_extend has dimensions (ewn,nsn), so it can receive scattered data from beta_global.
        allocate(beta_extend(ewn, nsn))
        beta_extend(:,:) = 0.d0
-       call distributed_scatter_var(beta_extend, beta_global)
+       call distributed_scatter_var(beta_extend, beta_global, parallel)
 
        ! distributed_scatter_var does not update the halo, so do an update here
-       call parallel_halo(beta_extend)
+       call parallel_halo(beta_extend, parallel)
 
        ! Copy beta_extend to beta on the local processor.
        ! This is done since beta lives on the velocity grid and has dimensions (ewn-1,nsn-1).
@@ -362,58 +415,33 @@ contains
        ! implying beta = C * ub^(1/m - 1) 
        ! m should be a positive exponent
 
-       if (which_ho_inversion == HO_INVERSION_NONE) then
+       do ns = 1, nsn-1
+          do ew = 1, ewn-1
+             beta(ew,ns) = basal_physics%powerlaw_c(ew,ns) &
+                         * speed(ew,ns)**(1.0d0/basal_physics%powerlaw_m - 1.0d0)
 
-          ! Set beta assuming a spatially uniform value of powerlaw_c
-          beta(:,:) = basal_physics%powerlaw_c * speed(:,:)**(1.0d0/basal_physics%powerlaw_m - 1.0d0)
-
-       elseif (which_inversion == HO_INVERSION_COMPUTE .or. &
-               which_inversion == HO_INVERSION_PRESCRIBE) then   ! use powerlaw_c from inversion
-
-          m = basal_physics%powerlaw_m
-
-          ! Interpolate powerlaw_c to the velocity grid.
-
-          ! stagger_margin_in = 1: Interpolate using only the values in ice-covered cells.
-
-          call glissade_stagger(ewn,                         nsn,      &
-                                powerlaw_c_inversion,                  &
-                                stag_powerlaw_c_inversion,             &
-                                ice_mask,                              &
-                                stagger_margin_in = 1)
-
-          ! Replace zeroes with default values to avoid divzero issues
-          where (stag_powerlaw_c_inversion == 0.0d0)
-             stag_powerlaw_c_inversion = basal_physics%powerlaw_c
-          endwhere
-
-          do ns = 1, nsn-1
-             do ew = 1, ewn-1
-                beta(ew,ns) = stag_powerlaw_c_inversion(ew,ns) &
-                            * speed(ew,ns)**(1.0d0/basal_physics%powerlaw_m - 1.0d0)
-
-                !WHL - debug
-                if (verbose_beta .and. present(rtest) .and. present(itest) .and. present(jtest)) then
-                   if (this_rank == rtest .and. ew == itest .and. ns == jtest) then
-                      write(6,*) 'r, i, j, Cp, speed, beta:', &
-                           rtest, itest, jtest, stag_powerlaw_c_inversion(ew,ns), speed(ew,ns), beta(ew,ns)
-                   endif
+             !WHL - debug
+             if (verbose_beta .and. present(rtest) .and. present(itest) .and. present(jtest)) then
+                if (this_rank == rtest .and. ew == itest .and. ns == jtest) then
+                   write(iulog,*) 'r, i, j, Cp, speed, beta:', &
+                        rtest, itest, jtest, basal_physics%powerlaw_c(ew,ns), speed(ew,ns), beta(ew,ns)
                 endif
-             enddo
+             endif
           enddo
-
-       endif   ! which_ho_inversion
+       enddo
 
     case(HO_BABC_POWERLAW_EFFECPRESS)   ! a power law that uses effective pressure
        !TODO - Remove POWERLAW_EFFECPRESS option? Rarely if ever used.
        ! See Cuffey & Paterson, Physics of Glaciers, 4th Ed. (2010), p. 240, eq. 7.17
-       ! This is based on Weertman's classic sliding relation (1957) augmented by the bed-separation index described by Bindschadler (1983)
+       ! This is based on Weertman's classic sliding relation (1957),
+       ! augmented by the bed-separation index described by Bindschadler (1983):
        !   ub = k taub^p N^-q
-       ! rearranging for taub gives:
+       ! Rearranging for taub gives:
        !   taub = k^(-1/p) ub^(1/p) N^(q/p)
 
        ! p and q should be _positive_ exponents. If p/=1, this is nonlinear in velocity.
-       ! Cuffey & Paterson recommend p=3 and q=1, and k dependent on thermal & mechanical properties of ice and inversely on bed roughness.   
+       ! Cuffey & Paterson recommend p=3 and q=1, and k dependent on
+       ! thermal and mechanical properties of ice and inversely on bed roughness.
        !TODO - Change powerlaw_p to powerlaw_m, and make powerlaw_q a config parameter
 
        powerlaw_p = 3.0d0
@@ -425,13 +453,15 @@ contains
 
     case(HO_BABC_COULOMB_FRICTION)
 
-      ! Basal stress representation using Coulomb friction law
-      ! Coulomb sliding law: Schoof 2005 PRS, eqn. 6.2  (see also Pimentel, Flowers & Schoof 2010 JGR)
+      ! TODO: Remove this option; effectively the same as the Schoof option below
+      !       Might need to modify MISMIP test config files that use this option
+
+      ! Basal stress representation using Schoof sliding law with Coulomb friction
+      ! See Schoof 2005 PRS, eqn. 6.2  (see also Pimentel, Flowers & Schoof 2010 JGR)
 
        ! Set up parameters needed for the friction law
        m_max = basal_physics%coulomb_bump_max_slope       ! maximum bed obstacle slope(unitless)
        lambda_max = basal_physics%coulomb_bump_wavelength ! wavelength of bedrock bumps (m)
-       coulomb_c = basal_physics%coulomb_c                ! basal shear stress factor (Pa (m^-1 y)^1/3)
 
        ! Need flwa of the basal layer on the staggered grid
        !TODO - Pass in ice_mask instead of computing imask here?
@@ -449,15 +479,24 @@ contains
        ! Compute biglambda = wavelength of bedrock bumps [m] * flwa [Pa^-n yr^-1] / max bed obstacle slope [dimensionless]
        big_lambda(:,:) = (lambda_max / m_max) * flwa_basal_stag(:,:)
 
-       ! Note: For MISMIP3D, coulomb_c is multiplied by a spatial factor (C_space_factor) which is
+       ! Note: For MISMIP3D, coulomb_c is multiplied by a spatial factor (c_space_factor) which is
        !       read in during initialization. This factor is typically between 0 and 1.
        !       If this factor is not present in the input file, it is set to 1 everywhere.
 
        ! Compute beta
-       ! gn = Glen's n from physcon module
-       beta(:,:) = coulomb_c * basal_physics%C_space_factor_stag(:,:) * &
-            basal_physics%effecpress_stag(:,:) * speed(:,:)**(1.0d0/gn - 1.0d0) * &
-            (speed(:,:) + basal_physics%effecpress_stag(:,:)**gn * big_lambda)**(-1.0d0/gn)
+       ! Note: Where this equation has powerlaw_m, we used to have Glen's flow exponent n,
+       !       following the notation of Leguy et al. (2014).
+       !       Changed to powerlaw_m to be consistent with the Schoof and Tsai laws.
+       m = basal_physics%powerlaw_m
+       beta(:,:) = basal_physics%coulomb_c(:,:) * basal_physics%effecpress_stag(:,:) &
+            * speed(:,:)**(1.0d0/m - 1.0d0) * &
+            (speed(:,:) + basal_physics%effecpress_stag(:,:)**m * big_lambda)**(-1.0d0/m)
+
+       ! If c_space_factor /= 1.0 everywhere, then multiply beta by c_space_factor
+       ! TODO: Replace c_space_factor with a spatially varying coulomb_c field.
+       if (maxval(abs(basal_physics%c_space_factor_stag(:,:) - 1.0d0)) > tiny(0.0d0)) then
+          beta(:,:) = beta(:,:) * basal_physics%c_space_factor_stag(:,:)
+       endif
 
        ! Limit for numerical stability
        !TODO - Is limiting needed?
@@ -467,9 +506,10 @@ contains
 
     case(HO_BABC_COULOMB_POWERLAW_SCHOOF)
 
-       ! Use a constant value of basal flwa.
-       ! This allows several Coulomb parameters (lambda_max, m_max and flwa_basal)
-       !  to be combined into a single parameter powerlaw_c, as in the Tsai power law below.
+       ! Use the basal friction formulation of Schoof (2005), modified following Asay-Davis et al. (2016).
+       ! This formulation uses a constant value of basal flwa, which allows several Coulomb parameters
+       !  (lambda_max, m_max and flwa_basal) to be combined into a single parameter powerlaw_c, 
+       !  as in the Tsai power law below.
        !
        ! The equation for tau_b = beta * u_b is
        ! 
@@ -482,79 +522,45 @@ contains
        ! This is the second modified basal traction law in MISMIP+. See Eq. 11 of Asay-Davis et al. (2016).
        ! Note: powerlaw_c corresponds to beta^2 in their notation, and coulomb_c corresponds to alpha^2.
        !
-       ! Depending on the value of which_ho_inversion, there are different ways to apply this sliding law:
+       ! Depending on the value of which_ho_powerlaw_c and which_ho_coulomb_c, there are different ways
+       !  to apply this sliding law:
        ! (0) Set powerlaw_c and coulomb_c to a constant everywhere.
-       ! (1) Obtain spatially varying powerlaw_c and coulomb_c fields by inversion.
-       ! (2) Use spatially varying powerlaw_c and coulomb_c fields prescribed from a previous inversion.
-       ! For either (1) or (2), use the 2D fields.
+       ! (1) Obtain spatially varying powerlaw_c or coulomb_c fields by inversion.
+       ! (2) Use spatially varying powerlaw_c or coulomb_c fields prescribed from a previous inversion.
+       !
+       ! Note: This law and the Tsai law are often run with spatially varying powerlaw_c,
+       !  but have not yet been tested with spatially varying coulomb_c.
 
-       if (which_inversion == HO_INVERSION_NONE) then
+       m = basal_physics%powerlaw_m
 
-          ! use constant powerlaw_c and coulomb_c
-          powerlaw_c = basal_physics%powerlaw_c
-          coulomb_c = basal_physics%coulomb_c
-          m = basal_physics%powerlaw_m
+       do ns = 1, nsn-1
+          do ew = 1, ewn-1
 
-          do ns = 1, nsn-1
-             do ew = 1, ewn-1
+             numerator = basal_physics%powerlaw_c(ew,ns) * basal_physics%coulomb_c(ew,ns)  &
+                       * basal_physics%effecpress_stag(ew,ns)
+             denominator = (basal_physics%powerlaw_c(ew,ns)**m * speed(ew,ns) +  &
+                  (basal_physics%coulomb_c(ew,ns) * basal_physics%effecpress_stag(ew,ns))**m )**(1.d0/m)
+             beta(ew,ns) = (numerator/denominator) * speed(ew,ns)**(1.d0/m - 1.d0)
 
-                numerator = powerlaw_c * coulomb_c * basal_physics%effecpress_stag(ew,ns)
-                denominator = ( powerlaw_c**m * speed(ew,ns) +  &
-                               (coulomb_c * basal_physics%effecpress_stag(ew,ns))**m )**(1.d0/m)
-                beta(ew,ns) = (numerator/denominator) * speed(ew,ns)**(1.d0/m - 1.d0)
-             enddo
-          enddo
-
-       elseif (which_inversion == HO_INVERSION_COMPUTE .or. &
-               which_inversion == HO_INVERSION_PRESCRIBE) then   ! use powerlaw_c and coulomb_c from inversion
-
-          m = basal_physics%powerlaw_m
-
-          ! stagger_margin_in = 1: Interpolate using only the values in ice-covered and land-based cells.
-
-          where (ice_mask == 1 .or. land_mask == 1)
-             ice_or_land_mask = 1
-          elsewhere
-             ice_or_land_mask = 0
-          endwhere
-
-          call glissade_stagger(ewn,                         nsn,      &
-                                powerlaw_c_inversion,                  &
-                                stag_powerlaw_c_inversion,             &
-                                ice_or_land_mask,                      &
-                                stagger_margin_in = 1)
-
-          ! Replace zeroes with default values to avoid possible divzero
-          where (stag_powerlaw_c_inversion == 0.0d0)
-             stag_powerlaw_c_inversion = basal_physics%powerlaw_c
-          endwhere
-
-          do ns = 1, nsn-1
-             do ew = 1, ewn-1
-
-                numerator = stag_powerlaw_c_inversion(ew,ns) * basal_physics%coulomb_c  &
-                          * basal_physics%effecpress_stag(ew,ns)
-                denominator = ( stag_powerlaw_c_inversion(ew,ns)**m * speed(ew,ns) +  &
-                     (basal_physics%coulomb_c * basal_physics%effecpress_stag(ew,ns))**m )**(1.d0/m)
-                beta(ew,ns) = (numerator/denominator) * speed(ew,ns)**(1.d0/m - 1.d0)
-
-                !WHL - debug
-                if (verbose_beta .and. present(rtest) .and. present(itest) .and. present(jtest)) then
-                   if (this_rank == rtest .and. ew == itest .and. ns == jtest) then
-!!                   if (this_rank == rtest .and. ew == itest-1 .and. ns == jtest) then
-                      print*, ' '
-                      write(6,*) 'r, i, j, Cp, denom_u, denom_N, speed, beta, taub:', &
-                           rtest, ew, ns, stag_powerlaw_c_inversion(ew,ns), &
-                           (stag_powerlaw_c_inversion(ew,ns)**m * speed(ew,ns))**(1.d0/m), &
-                           (basal_physics%coulomb_c * basal_physics%effecpress_stag(ew,ns)), &
-                           speed(ew,ns), beta(ew,ns), beta(ew,ns)*speed(ew,ns)
-                   endif
+             !WHL - debug
+             if (verbose_beta .and. present(rtest) .and. present(itest) .and. present(jtest)) then
+                if (this_rank == rtest .and. ew == itest .and. ns == jtest) then
+                   write(iulog,*) ' '
+                   write(iulog,*) 'r, i, j, Cp, denom_u, denom_N, speed, beta, taub:', &
+                        rtest, ew, ns, basal_physics%powerlaw_c(ew,ns), &
+                        (basal_physics%powerlaw_c(ew,ns)**m * speed(ew,ns))**(1.d0/m), &
+                        (basal_physics%coulomb_c(ew,ns) * basal_physics%effecpress_stag(ew,ns)), &
+                        speed(ew,ns), beta(ew,ns), beta(ew,ns)*speed(ew,ns)
                 endif
+             endif
 
-             enddo
           enddo
+       enddo
 
-       endif   ! which_inversion
+       ! If c_space_factor /= 1.0 everywhere, then multiply beta by c_space_factor
+       if (maxval(abs(basal_physics%c_space_factor_stag(:,:) - 1.0d0)) > tiny(0.0d0)) then
+          beta(:,:) = beta(:,:) * basal_physics%c_space_factor_stag(:,:)
+       endif
 
        ! Limit for numerical stability
        !TODO - Is limiting needed?
@@ -563,11 +569,11 @@ contains
        end where
 
        !WHL - debug - Write values along a flowline
-!      write(6,*) ' '
-!      write(6,*) 'Apply Coulomb friction: i, j, speed, N_stag, beta, taub:'
+!      write(iulog,*) ' '
+!      write(iulog,*) 'Apply Coulomb friction: i, j, speed, N_stag, beta, taub:'
 !      ns = jtest
 !      do ew = itest, itest+15
-!         write(6,*) ew, ns, speed(ew,ns), basal_physics%effecpress_stag(ew,ns), beta(ew,ns), beta(ew,ns)*speed(ew,ns)
+!         write(iulog,*) ew, ns, speed(ew,ns), basal_physics%effecpress_stag(ew,ns), beta(ew,ns), beta(ew,ns)*speed(ew,ns)
 !      enddo
 
     case(HO_BABC_COULOMB_POWERLAW_TSAI)
@@ -578,23 +584,14 @@ contains
       ! (2) Coulomb friction:   tau_b = coulomb_c * N
       !                             N = effective pressure = rhoi*g*(H - H_f)
       !                           H_f = flotation thickness = (rhow/rhoi)*(eus-topg)
-      ! This value of N is obtained by setting basal_water = BWATER_OCEAN_PENETRATION = 4 
-      !  with p_ocean_penetration = 1.0 in the config file.
+      ! This value of N is obtained by setting p_ocean_penetration = 1.0 in the config file.
       ! The other parameters (powerlaw_c, powerlaw_m and coulomb_c) can also be set in the config file.
-
-       !WHL - debug - write out basal stresses
-!       write(6,*) ' '
-!       write(6,*) 'powerlaw_c, powerlaw_m, Coulomb_c =', &
-!           basal_physics%powerlaw_c, basal_physics%powerlaw_m, basal_physics%coulomb_c
-!       write(6,*) 'Apply Tsai parameterization: i, j, speed, beta, taub, taub_powerlaw, taub_coulomb, effecpress:'
-
-       !TODO - Add basal inversion option for Tsai, in addition to Schoof
 
        do ns = 1, nsn-1
           do ew = 1, ewn-1
              
-             taub_powerlaw = basal_physics%powerlaw_c * speed(ew,ns)**(1.d0/basal_physics%powerlaw_m)
-             taub_coulomb  = basal_physics%coulomb_c * basal_physics%effecpress_stag(ew,ns)
+             taub_powerlaw = basal_physics%powerlaw_c(ew,ns) * speed(ew,ns)**(1.d0/basal_physics%powerlaw_m)
+             taub_coulomb  = basal_physics%coulomb_c(ew,ns) * basal_physics%effecpress_stag(ew,ns)
 
              if (taub_coulomb <= taub_powerlaw) then   ! apply Coulomb stress, which is smaller
                 beta(ew,ns) = taub_coulomb / speed(ew,ns)
@@ -602,14 +599,13 @@ contains
                 beta(ew,ns) = taub_powerlaw / speed(ew,ns)
              endif
 
-!             !WHL - debug - Write values along a flowline
-!             if (ns == jtest .and. ew >= itest .and. ew <= itest+15) then
-!                write(6,*) ew, ns, speed(ew,ns), beta(ew,ns), speed(ew,ns)*beta(ew,ns), &
-!                     taub_powerlaw, taub_coulomb, basal_physics%effecpress_stag(ew,ns)
-!             endif
-
           enddo   ! ew
        enddo   ! ns
+
+       ! If c_space_factor /= 1.0 everywhere, then multiply beta by c_space_factor
+       if (maxval(abs(basal_physics%c_space_factor_stag(:,:) - 1.0d0)) > tiny(0.0d0)) then
+          beta(:,:) = beta(:,:) * basal_physics%c_space_factor_stag(:,:)
+       endif
 
     case(HO_BABC_SIMPLE)    ! simple pattern; also useful for debugging and test cases
                             ! (here, a strip of weak bed surrounded by stronger bed to simulate an ice stream)
@@ -628,25 +624,45 @@ contains
 
    end select
 
-   ! If f_ground is passed in (as for Glissade), then multiply beta by f_ground (0 <= f_ground <= 1) 
-   !  to reduce the basal traction in regions that are partially or totally floating.
+
+   ! Multiply beta by f_ground to reduce friction at partly grounded vertices.
    ! Note: With a GLP, f_ground will have values between 0 and 1 at vertices adjacent to the GL.
    !       Without a GLP, f_ground = 0 or 1 everywhere based on a flotation criterion.
-   !       By convention, f_ground = 0 where no ice is present.
+   !       By convention, f_ground = 1 for land, and f_ground = 0 for ice-free ocean.
+   !
+   ! For beta close to 0 beneath grounded ice, it is possible to generate unrealistically fast flow.
+   ! To prevent this, set beta to a minimum value beneath grounded ice.
+   ! The default value of beta_grounded_min = 0.0, but can be set to a nonzero value in the config file.
+
+   ! The limiting can be done either before or after multiplying by f_ground.
+   ! If done after, then beta >= beta_grounded_min at all vertices, including lightly grounded vertices.
+   !  This is the more stable option for settings where there can be large driving stresses near the GL.
+   ! If done before, then beta -> 0 as f_ground -> 0, even if beta_grounded_min > 0.
 
    do ns = 1, nsn-1
       do ew = 1, ewn-1
 
-         beta(ew,ns) = beta(ew,ns) * f_ground(ew,ns)
+         if (which_ho_beta_limit == HO_BETA_LIMIT_ABSOLUTE) then  ! absolute limit based on beta_grounded_min
 
-         ! For beta close to 0 beneath grounded ice, it is possible to generate unrealistically fast flow.
-         ! To prevent this, set beta to a minimum value beneath grounded ice.
-         ! The default value of beta_grounded_min = 0.0, but can be set to a nonzero value in the config file.
-         !TODO - Do the limiting before multiplying by f_ground? Or base the limiting on the driving stress?
+            ! multiplication by f_ground before limiting
 
-         if (f_ground(ew,ns) > 0.d0 .and. beta(ew,ns) < basal_physics%beta_grounded_min) then
-            beta(ew,ns) = basal_physics%beta_grounded_min
-         endif
+            beta(ew,ns) = beta(ew,ns) * f_ground(ew,ns)
+
+            if (f_ground(ew,ns) > 0.d0 .and. beta(ew,ns) < basal_physics%beta_grounded_min) then
+               beta(ew,ns) = basal_physics%beta_grounded_min
+            endif
+
+         elseif (which_ho_beta_limit == HO_BETA_LIMIT_FLOATING_FRAC) then  ! weighted by f_ground after limiting
+
+            ! multiplication by f_ground after limiting
+
+            if (f_ground(ew,ns) > 0.d0 .and. beta(ew,ns) < basal_physics%beta_grounded_min) then
+               beta(ew,ns) = basal_physics%beta_grounded_min
+            endif
+
+            beta(ew,ns) = beta(ew,ns) * f_ground(ew,ns)
+
+         endif   ! which_ho_beta_limit
 
       enddo
    enddo
@@ -658,7 +674,7 @@ contains
          if (beta(ew,ns) >= 0.d0) then
             ! do nothing
          else
-            call parallel_globalindex(ew, ns, iglobal, jglobal)
+            call parallel_globalindex(ew, ns, iglobal, jglobal, parallel)
             write(message,*) 'Invalid beta value in calcbeta: this_rank, i, j, iglobal, jglobal, beta, f_ground:', &
                  this_rank, ew, ns, iglobal, jglobal, beta(ew,ns), f_ground(ew,ns)
             call write_log(trim(message), GM_FATAL)
@@ -667,36 +683,97 @@ contains
    end do
    
    ! halo update
-   call staggered_parallel_halo(beta)
+   !TODO - Move this halo update to a higher level?
+   call staggered_parallel_halo(beta, parallel)
 
-                !WHL - debug
-                if (verbose_beta .and. present(rtest) .and. present(itest) .and. present(jtest)) then
-                   if (this_rank == rtest) then
-                      ew = itest; ns = jtest
-!!                      ew = itest-1; ns = jtest
-                      write(6,*) 'End of calcbeta, r, i, j, speed, beta:', &
-                           rtest, ew, ns, speed(ew,ns), beta(ew,ns)
-                   endif
-                endif
+   !WHL - debug
+   if (verbose_beta .and. present(rtest) .and. present(itest) .and. present(jtest)) then
+      if (this_rank == rtest) then
+         ew = itest; ns = jtest
+         write(iulog,*) 'End of calcbeta, r, i, j, speed, f_ground, beta:', &
+              rtest, ew, ns, speed(ew,ns), f_ground(ew,ns), beta(ew,ns)
+      endif
+   endif
 
-  end subroutine calcbeta
+  end subroutine glissade_calcbeta
 
 !***********************************************************************
 
-  subroutine calc_effective_pressure (which_effecpress,             &
-                                      ewn,           nsn,           &
-                                      basal_physics,                &
-                                      ice_mask,      floating_mask, &
-                                      thck,          topg,          &
-                                      eus,                          &
-                                      delta_bpmp,                   &
-                                      bmlt,          bwat)
+  subroutine glissade_init_effecpress(which_effecpress, basal_physics)
 
-    ! Calculate the effective pressure at the bed
+    ! Initialize calculations related to effective pressure.
+    ! Currently, the only thing to do is initialize two scalar arrays that represent
+    !  the fractional reduction of effective pressure due to basal water flux
+    !  or an ocean connection.
+    ! Note: f_effecpress_bwat and f_effecpress_ocean_p should not be reset if restarting.
+    !       This subroutine is called only when *not* restarting.
+    !       There is some additional logic here to make sure f_effecpress fields are not reset
+    !        if they are read from the input file in a run that is *not* a restart.
 
-    use glimmer_physcon, only: rhoi, grav, rhoo
+    use glimmer_paramets, only: eps11
+    use cism_parallel, only: parallel_reduce_max
 
-    use parallel
+    ! Input/output arguments
+
+    integer, intent(in) :: &
+         which_effecpress    ! input option for effective pressure
+
+    type(glide_basal_physics), intent(inout) :: &
+         basal_physics       ! basal physics object
+
+    ! local variables
+    real(dp) :: &
+         local_maxval, global_maxval
+
+    character(len=100) :: message
+
+    if (basal_physics%ocean_p_timescale > 0.0d0) then
+       ! Check to see if f_effecpress_ocean_p has been read from the input file.
+       local_maxval = maxval(basal_physics%f_effecpress_ocean_p)
+       global_maxval = parallel_reduce_max(local_maxval)
+       if (global_maxval >= eps11) then
+          ! Do nothing; keep the values read from the input or restart file
+          write(message,*) 'f_effecpress_ocean_p was read from the input/restart file'
+          call write_log(trim(message))
+       else
+          ! initialize to 1.0
+          ! This means that effecpress will initially not be reduced based on p.
+          write(message,*) 'Setting f_effecpress_ocean_p = 1.0 everywhere'
+          call write_log(trim(message))
+          basal_physics%f_effecpress_ocean_p(:,:) = 1.0d0
+       endif
+    endif
+
+  end subroutine glissade_init_effecpress
+
+!***********************************************************************
+
+  subroutine glissade_calc_effecpress (&
+       which_effecpress,             &
+       parallel,                     &
+       itest, jtest,  rtest,         &
+       ewn,   nsn,    upn,           &
+       dew,   dns,                   &  ! m
+       basal_physics, basal_hydro,   &
+       ice_mask,      floating_mask, &
+       thck,          topg,          &  ! m
+       eus,                          &  ! m
+       bmlt_ground,                  &  ! m/s
+       uvel,          vvel,          &  ! m/s
+       delta_bpmp,                   &  ! degC
+       dt)                              ! yr (TODO: change to s)
+
+    ! Calculate the effective pressure N at the bed.
+    ! By default, N is equal to the overburden pressure, rhoi*g*H.
+    ! Optionally, N can be reduced by the presence of water at the bed
+    !  (btemp near bpmp, or nonzero bwat_diag).
+    ! N can also be reduced where there is a hydrological connection to the ocean.
+    ! If there is water at the bed as well as a hydrology connection, we compute N
+    !  by both methods and take the minimum.
+
+    use glimmer_physcon, only: rhoi, rhow, rhoo, grav, lhci, n_glen
+    use glimmer_paramets, only: eps08
+    use glissade_grid_operators, only: glissade_stagger, glissade_unstagger
 
     implicit none
 
@@ -705,66 +782,100 @@ contains
     integer, intent(in) :: &
          which_effecpress    ! input option for effective pressure
 
+    type(parallel_type), intent(in) :: &
+         parallel            ! info for parallel communication
+
     integer, intent(in) :: &
-         ewn, nsn            ! grid dimensions
+         ewn, nsn, upn       ! grid dimensions
+
+    real(dp), intent(in) :: &
+         dew, dns            ! grid cell length (m)
+
+    integer, intent(in) :: itest, jtest, rtest     ! coordinates of diagnostic point
 
     type(glide_basal_physics), intent(inout) :: &
          basal_physics       ! basal physics object
                              ! includes effecpress, effecpress_stag and various parameters
 
+    type(glide_basal_hydro), intent(inout) :: &
+         basal_hydro         ! basal hydro object
+                             ! includes bwat, bwat_diag, and various parameters
+
     integer, dimension(:,:), intent(in) :: &
          ice_mask,         & ! = 1 where ice is present (thk > thklim), else = 0
          floating_mask       ! = 1 where ice is present and floating, else = 0
  
+    !NOTE: If used, the following 2D fields (delta_bpmp, bwat, thck and topg) need to be correct in halos.
     real(dp), dimension(:,:), intent(in) ::  &
          thck,             & ! ice thickness (m)
-         topg                ! bed topography (m)
+         topg,             & ! bed topography (m)
+         bmlt_ground         ! melt rate at the bed for grounded ice (m/s)
 
     real(dp), intent(in) ::  &
          eus                 ! eustatic sea level (m) relative to z = 0
 
-    !NOTE: If used, the following 2D fields (delta_bpmp, bmlt, bwat, thck and topg) need to be correct in halos.
+    real(dp), dimension(:,:,:), intent(in) ::  &
+         uvel, vvel          ! ice velocity (m/s)
 
     real(dp), dimension(:,:), intent(in), optional ::  &
-         delta_bpmp          ! Tpmp - T at the bed (deg C)
-                             ! used for HO_EFFECPRESS_BPMP option
+         delta_bpmp          ! Tpmp - T at the bed (K), used for HO_EFFECPRESS_BPMP option
 
-    real(dp), dimension(:,:), intent(in), optional ::  &
-         bmlt                ! basal melt rate at the bed (m/yr)
-                             ! used for HO_EFFECPRESS_BMLT option
-
-    real(dp), dimension(:,:), intent(in), optional ::  &
-         bwat                ! basal water thickness at the bed (m)
-                             ! used for HO_EFFECPRESS_BWAT option
+    real(dp), intent(in), optional :: dt                     ! time step (yr)
 
     ! Local variables
 
     real(dp) :: &
-         bpmp_factor,     &  ! factor between 0 and 1, used in linear ramp based on bpmp
-         bmlt_factor,     &  ! factor between 0 and 1, used in linear ramp based on bmlt
-         relative_bwat       ! ratio bwat/bwat_till_max, limited to range [0,1]
+         bpmp_factor,           & ! factor between 0 and 1, used in linear ramp based on bpmp
+         relative_bwat,         & ! ratio (bwat/bwat_threshold)^gamma, limited to range [0,1]
+         denom                    ! denominator in equation for N; based on the closing term (m/s)
+
+    real(dp), dimension(ewn-1,nsn-1) ::  &
+         stag_sliding_speed       ! basal sliding speed (m/s) at vertices
 
     real(dp), dimension(ewn,nsn) ::  &
-         overburden          ! overburden pressure, rhoi*g*H
+         sliding_speed,         & ! basal sliding speed (m/s) at cell centers
+         opening_slide,         & ! rate of cavity opening by sliding (m/s)
+         opening_melt,          & ! rate of cavity opening by melt (m/s)
+         closing                  ! rate of cavity opening by creep (m/s)
+
+    real(dp), dimension(ewn,nsn) ::  &
+         overburden,            & ! overburden pressure, rhoi*g*H
+         N_to_overburden,       & ! ratio N/(rhoi*g*H)
+         f_pattyn_2d,           & ! rhoo*(eus-topg)/(rhoi*thck)
+                                  ! = 1 at grounding line, < 1 for grounded ice, > 1 for floating ice
+         f_ocean_p_target         ! target value for (1 - Hf/H)^p
+                                  ! can either set f_effecpress_ocean_p to the target, or relax toward the target over time
 
     real(dp) :: ocean_p           ! exponent in effective pressure parameterization, 0 <= ocean_p <= 1
     real(dp) :: f_pattyn          ! rhoo*(eus-topg)/(rhoi*thck)
-                                  ! = 1 at grounding line, < 1 for grounded ice, > 1 for floating ice
     real(dp) :: f_pattyn_capped   ! f_pattyn capped to lie in range [0,1]
 
     integer :: i, j
 
-    ! Initialize the effective pressure N to the overburden pressure, rhoi*g*H
+    logical, parameter :: verbose_effecpress = .false.
+
+    ! Compute the overburden pressure, and initialize the effective pressure to overburden.
+
+!!    overburden(:,:) = 0.0d0
+
+!!    where (ice_mask == 1 .and. floating_mask == 0)
+!!       overburden = rhoi*grav*thck
+!!    endwhere
 
     overburden(:,:) = rhoi*grav*thck(:,:)
+    basal_physics%effecpress(:,:) = overburden(:,:)
+
+    ! Optionally, reduce N as a function of water or melt conditions at the bed
 
     select case(which_effecpress)
 
     case(HO_EFFECPRESS_OVERBURDEN)
 
-       basal_physics%effecpress(:,:) = overburden(:,:)
+       ! do nothing; already initialized to overburden
 
        ! Note: Here we assume (unrealistically) that N = rhoi*g*H even for floating ice.
+       !       However, the basal friction coefficient (beta) will equal zero for floating ice
+       !        since it is weighted by the grounded ice fraction.
 
     case(HO_EFFECPRESS_BPMP)
 
@@ -772,142 +883,287 @@ contains
 
           ! Reduce N where the basal temperature is near the pressure melting point,
           !  as defined by delta_bpmp = bpmp - Tbed.
+          ! N decreases from overburden for a frozen bed to a small value for a thawed bed.
           ! bpmp_factor = 0 where the bed is thawed (delta_bpmp <= 0)
           ! bpmp_factor = 1 where the bed is frozen (delta_bpmp >= effecpress_bpmp_threshold)
-          ! 0 < bpmp_factor < 1 where 0 < delta_bpmp < bpmp_threshold 
+          ! 0 < bpmp_factor < 1 where 0 < delta_bpmp < bpmp_threshold
 
           do j = 1, nsn
              do i = 1, ewn
 
-                bpmp_factor = max(0.0d0, min(1.0d0, delta_bpmp(i,j)/basal_physics%effecpress_bpmp_threshold))
+                bpmp_factor = max(0.0d0, min(1.0d0, delta_bpmp(i,j)/basal_hydro%bpmp_threshold))
                 basal_physics%effecpress(i,j) = overburden(i,j) * &
-                     (basal_physics%effecpress_delta + bpmp_factor * (1.0d0 - basal_physics%effecpress_delta))
-
-                ! set to zero for floating ice
-                if (floating_mask(i,j) == 1) basal_physics%effecpress(i,j) = 0.0d0
-
+                     (basal_hydro%effecpress_delta + bpmp_factor * (1.0d0 - basal_hydro%effecpress_delta))
              enddo
           enddo
 
        endif   ! present(delta_bpmp)
 
-    case(HO_EFFECPRESS_BMLT)
-
-       if (present(bmlt)) then
-
-          ! Reduce N where there is melting at the bed.
-          ! The effective pressure ramps down from full overburden for bmlt = 0
-          !  to a small value for bmlt >= effecpress_bmlt_threshold.
-          ! Both bmlt and effecpress_bmlt_threshold have units of m/yr.
-          ! bmlt_factor = 0 where there is no basal melting (bmlt = 0)
-          ! bmlt_factor = 1 where there is large basal melting (bmlt >= effecpress_bmlt_threshold)
-          ! 0 < bmlt_factor < 1 where 0 < bmlt < bmlt_threshold 
-
-          do j = 1, nsn
-             do i = 1, ewn
-
-                bmlt_factor = max(0.0d0, min(1.0d0, bmlt(i,j)/basal_physics%effecpress_bmlt_threshold))
-                basal_physics%effecpress(i,j) = overburden(i,j) * &
-                     (basal_physics%effecpress_delta + (1.0d0 - bmlt_factor) * (1.0d0 - basal_physics%effecpress_delta))
-
-                ! set to zero for floating ice
-                if (floating_mask(i,j) == 1) basal_physics%effecpress(i,j) = 0.0d0
-
-             enddo
-          enddo
-
-       endif   ! present(bmlt)
-
     case(HO_EFFECPRESS_BWAT)
 
-       ! Initialize for the case where bwat isn't present, and also for points with bwat == 0
+       ! Reduce N where basal water is present.
+       ! This option uses the field bwat_diag, computed in the steady-state flux-routing model.
+       ! N decreases from overburden for bwat_diag = 0 to a small value (possibly 0) for bwat_diag = bwat_threshold.
+       !
+       ! Note: This option supports a macroporous sheet formulation, defined by
+       !           p_w = overburden * min((bwat/bwat_threshold)**gamma, 1.0)
+       !             N = p_i - p_w
+       !               = overburden * [1 - min((bwat/bwat_threshold)**gamma, 1.0)]
+       !       Flowers & Clarke (2002) proposed this formulation with gamma = 7/2.
+       !       For this formulation we would set gamma > 1 and effecpress_delta = 0.
 
-       basal_physics%effecpress(:,:) = overburden(:,:)
+       do j = 1, nsn
+          do i = 1, ewn
+             if (basal_hydro%bwat_diag(i,j) > 0.0d0) then
 
-       if (present(bwat)) then
+                !WHL Aug. 2025: The following formulation seems to be unstable, even with gamma = 1.
+!                relative_bwat = &
+!                     min( (basal_hydro%bwat_diag(i,j)/basal_hydro%bwat_threshold)**basal_hydro%bwat_gamma, 1.0d0 )
 
-          ! Reduce N where basal water is present.
-          ! The effective pressure decreases from overburden P_0 for bwat = 0 to a small value for bwat = bwat_till_max.
-          ! Note: Instead of using a linear ramp for the variation between overburden and the small value
-          !       (as for the BPMP and BMLT options above), we use the published formulation of Bueler & van Pelt (2015).
-          !       This formulation has N = P_0 for bwat up to ~0.6*bwat_till_max; then N decreases as bwat => bwat_till_max.
-          !       See Fig. 1b of Bueler & van Pelt (2015).
+                ! Note: A negative exponential seems to work well because it allows N to be very low when
+                !        bwat is 3 or 4 times the e-folding scale.
+                !       At the same time, this function is stable because the decrease from overburden
+                !        to a small fraction of overburden is not too sudden.
 
-          do j = 1, nsn
-             do i = 1, ewn
+                basal_physics%effecpress(i,j) = overburden(i,j) * &
+                     max(basal_hydro%effecpress_delta, exp(-basal_hydro%bwat_diag(i,j)/basal_hydro%bwat_threshold))
 
-                if (bwat(i,j) > 0.0d0) then
-
-                   relative_bwat = max(0.0d0, min(bwat(i,j)/basal_physics%bwat_till_max, 1.0d0))
-
-                   ! Eq. 23 from Bueler & van Pelt (2015)
-                   basal_physics%effecpress(i,j) = basal_physics%N_0  &
-                        * (basal_physics%effecpress_delta * overburden(i,j) / basal_physics%N_0)**relative_bwat  &
-                        * 10.d0**((basal_physics%e_0/basal_physics%C_c) * (1.0d0 - relative_bwat))
-
-                   ! The following line (if uncommented) would implement Eq. 5 of Aschwanden et al. (2016).
-                   ! Results are similar to Bueler & van Pelt, but the dropoff in N from P_0 to delta*P_0 begins
-                   !  with a larger value of bwat (~0.7*bwat_till_max instead of 0.6*bwat_till_max).
-
-!!                 basal_physics%effecpress(i,j) = basal_physics%effecpress_delta * overburden(i,j)  &
-!!                      * 10.d0**((basal_physics%e_0/basal_physics%C_c) * (1.0d0 - relative_bwat))
-
-                   !WHL - Uncomment to try a linear ramp in place of the Bueler & van Pelt relationship.
-                   !      This might lead to smoother variations in N with spatial variation in bwat.
-!!                 basal_physics%effecpress(i,j) = overburden(i,j) * &
-!!                      (basal_physics%effecpress_delta + (1.0d0 - relative_bwat) * (1.0d0 - basal_physics%effecpress_delta))
-
-                   ! limit so as not to exceed overburden
-                   basal_physics%effecpress(i,j) = min(basal_physics%effecpress(i,j), overburden(i,j))
-                end if
-             enddo
+             endif
           enddo
+       enddo
 
-       endif   ! present(bwat)
+    case(HO_EFFECPRESS_CAVITY_SHEET)
 
+       ! Solve the steady-state equation v_o + V_o = v_c, i.e. opening = closing,
+       ! where v_o = u_b * max(bump_height - bwat, 0) / bump_wavelength is the term for opening due to sliding,
+       !       V_o = m = bmlt_ground + (qflx*grad(phi))/(rhoi*L) is the term for opening by melting,
+       !       v_c = C_close * A * bwat * N^n is the closing term,
+       !       u_b = sliding speed
+       !       bump_wavelength = distance between bumps
+       !       bmlt_ground = basal ice melting from glissade_therm
+       !       qflx = bwatflx*dx (since qflx has units of m^2/s, and bwatflx has units of m/s)
+       !       C_closing = unitless constant, typically taken as 2/(n^n)
+       !       A = flwa_basal
+       !       n = Glen's n
+       !
+       ! Since N appears only in the closing term, we can solve using
+       !       N = [(v_o + V_o) / (C_close * A * bwat)]^(1/n)
+
+       ! ice speed at the bed (m/s) for the opening-by-sliding term
+
+       ! initialize
+       sliding_speed = 0.0d0
+       opening_slide = 0.0d0
+       opening_melt = 0.0d0
+       closing = 0.0d0
+
+       ! set the sliding speed
+       if (basal_hydro%cavity_open_slide == CAVITY_OPEN_SLIDE_FIXED_UB) then
+          where (ice_mask == 1)
+             sliding_speed = basal_hydro%sliding_speed_fixed  ! m/s
+          endwhere
+       elseif (basal_hydro%cavity_open_slide == CAVITY_OPEN_SLIDE_DYNAMIC_UB) then
+          stag_sliding_speed(:,:) = dsqrt(uvel(upn,:,:)**2 + vvel(upn,:,:)**2)
+          call glissade_unstagger(&
+               nsn,                ewn,    &
+               stag_sliding_speed, sliding_speed)
+          where (ice_mask == 0)
+             sliding_speed = 0.0d0
+          endwhere
+       endif
+
+       ! opening-by-melting term (m/s)
+       ! Note: bwatflx has units of m/s
+
+       if (basal_hydro%cavity_open_melt == CAVITY_OPEN_MELT_BMLT) then
+          where (ice_mask == 1)
+             opening_melt(:,:) = bmlt_ground(:,:)
+          endwhere
+       elseif (basal_hydro%cavity_open_melt == CAVITY_OPEN_MELT_DISSIP) then
+          ! Note: bwatflx has units of m/s; qflx (which appears in this equation) has units of m^2/s
+          where (ice_mask == 1)
+             opening_melt(:,:) = basal_hydro%bwatflx(:,:)*sqrt(dew*dns) * rhow*grav*basal_hydro%grad_head(:,:)/(rhoi*lhci)
+          endwhere
+       elseif (basal_hydro%cavity_open_melt == CAVITY_OPEN_MELT_BMLT_DISSIP) then
+          where (ice_mask == 1)
+             opening_melt(:,:) = bmlt_ground(:,:) &
+                  + basal_hydro%bwatflx(:,:)*sqrt(dew*dns) * rhow*grav*basal_hydro%grad_head(:,:) / (rhoi*lhci)
+          endwhere
+       endif
+
+       ! Compute effective pressure by equating the opening rate to the closing rate
+       ! Note: flwa_basal has units of Pa^{-3} s^{-1}
+       !       c_close is unitless with a default value of 0.074
+
+       do j = 1, nsn
+          do i = 1, ewn
+             if (ice_mask(i,j) == 1 .and. basal_hydro%bwat_diag(i,j) > 0.0d0) then
+
+                ! Compute the rate of opening by sliding (m/s)
+                relative_bwat = max(basal_hydro%bump_height - basal_hydro%bwat_diag(i,j), 0.0d0) / &
+                     basal_hydro%bump_wavelength
+                opening_slide(i,j) = relative_bwat * sliding_speed(i,j)  ! m/s
+
+                denom = basal_hydro%c_close * basal_hydro%flwa_basal * basal_hydro%bwat_diag(i,j)
+
+                basal_physics%effecpress(i,j) = ((opening_slide(i,j) + opening_melt(i,j))/denom)**(1.d0/n_glen)
+
+                !TODO - Check whether N > overburden at this stage
+                ! limit so as not to exceed overburden
+                basal_physics%effecpress(i,j) = min(basal_physics%effecpress(i,j), overburden(i,j))
+
+                closing(i,j) = denom * basal_physics%effecpress(i,j)**n_glen  ! should equal opening_slide + opening_melt
+
+             endif   ! bwat > 0
+          enddo   ! i
+       enddo   ! j
+
+       ! Write diagnostics for the three terms
+       call point_diag(opening_slide*scyr, 'opening_slide (m/yr)', itest, jtest, rtest, 7, 7)
+       call point_diag(opening_melt*scyr, 'opening_melt (m/yr)', itest, jtest, rtest, 7, 7)
+       call point_diag(closing*scyr, 'closing (m/yr)', itest, jtest, rtest, 7, 7)
+
+    case(HO_EFFECPRESS_BWAT_BVP)
+
+       ! Reduce N where basal water is present, following Bueler % van Pelt (2015).
+       ! N decreases from overburden P_0 for bwat = 0 to a small value for bwat = bwat_till_max.
+       ! This scheme was used for Greenland simulations in Lipscomb et al. (2019, GMD)
+       !  and is retained for backward compatibility.
+       ! Note: Instead of using a linear ramp for the variation between overburden and the small value
+       !       (as for the BPMP and BWAT options above), we use the published formulation of Bueler & van Pelt (2015).
+       !       This formulation has N = P_0 for bwat up to ~0.6*bwat_till_max; then N decreases
+       !        as bwat => bwat_till_max.
+       !       See Fig. 1b of Bueler & van Pelt (2015).
+
+       do j = 1, nsn
+          do i = 1, ewn
+             if (basal_hydro%bwat(i,j) > 0.0d0) then
+
+                relative_bwat = max(0.0d0, min(basal_hydro%bwat(i,j)/basal_hydro%bwat_till_max, 1.0d0))
+
+                ! Eq. 23 from Bueler & van Pelt (2015)
+                basal_physics%effecpress(i,j) = basal_hydro%N_0  &
+                     * (basal_hydro%effecpress_delta * overburden(i,j) / basal_hydro%N_0)**relative_bwat  &
+                     * 10.d0**((basal_hydro%e_0/basal_hydro%C_c) * (1.0d0 - relative_bwat))
+
+                ! The following line (if uncommented) would implement Eq. 5 of Aschwanden et al. (2016).
+                ! Results are similar to Bueler & van Pelt, but the dropoff in N from P_0 to delta*P_0 begins
+                !  with a larger value of bwat (~0.7*bwat_till_max instead of 0.6*bwat_till_max).
+
+!!                basal_hydro%effecpress(i,j) = basal_hydro%effecpress_delta * overburden(i,j)  &
+!!                     * 10.d0**((basal_hydro%e_0/basal_hydro%C_c) * (1.0d0 - relative_bwat))
+
+                ! limit so as not to exceed overburden
+                basal_physics%effecpress(i,j) = min(basal_physics%effecpress(i,j), overburden(i,j))
+             end if
+          enddo
+       enddo
+
+       ! TODO - Not sure this is needed, because beta is later weighted by f_ground.
+       !        Removing these lines is answer-changing; need to understand better (9/2/24)
        where (floating_mask == 1)
           ! set to zero for floating ice
           basal_physics%effecpress = 0.0d0
        end where
 
-    case(HO_EFFECPRESS_OCEAN_PENETRATION)
+    end select   ! which_effecpress
 
-       ! Reduce N for ice grounded below sea level based on connectivity of subglacial water to the ocean
-       ! p = 1 => full connectivity
-       ! 0 < p < 1 => partial connectivity
-       ! p = 0 => no connectivity; p_w = 0
+    !TODO - Do this calculation in a separate subroutine.
 
-       ocean_p = basal_physics%p_ocean_penetration
+    ! Optionally, compute N for grounded marine ice based on the connectivity of subglacial water to the ocean.
+    ! N is weighted by the factor (1 - Hf/H)^p, where Hf is the flotation thickness, and 0 <= p <= 1.
+    ! p = 1 => full connectivity
+    ! 0 < p < 1 => partial connectivity
+    ! p = 0 => no connectivity; water pressure p_w = 0
 
-       if (ocean_p > 0.0d0) then
+    !TODO - Remove the timescale
+    ! The adjustment of N to N*(1 - Hf/H)^p can either be instantaneous, or else over a prescribed timescale.
+    ! A relaxation timescale may be appropriate for a spin-up in the following situation:
+    !  Marine-based ice is initialized to a transient state in which (1 - Hf/H)^p is small, and a result
+    !   the grounding line retreats unstably.  (Thwaites Glacier is a typical case.)
+    !  However, we want the GL to advance, which will happen only if N is *not* immmediately reduced,
+    !   and instead the ice is allowed to thicken, increasing (1 - Hf/H)^p and stabilizing the GL.
+    !
+    ! Note: This calculation is independent of the computation above based on which_ho_effecpress.
+    !       In general, we will compute two different values for N in each location, and we take the minimum.
+    !       If which_ho_effecpress = 0 (i.e., N = overburden), then the ocean_p calculation with p > 0
+    !        will reduce N wherever the topography is below sea level.
 
+    ocean_p = basal_physics%p_ocean_penetration
+
+    if (ocean_p > 0.0d0) then
+
+       ! Compute N as a function of f_pattyn = -rhoo*(tops-eus) / (rhoi*thck)
+       !   f_pattyn < 0 for land-based ice, < 1 for grounded ice, = 1 at grounding line, > 1 for floating ice
+       !TODO - Try averaging thck and topg to vertices, and computing f_pattyn based on these averages?
+       !       Might not be as dependent on whether neighbor cells are G or F.
+
+       do j = 1, nsn
+          do i = 1, ewn
+             if (thck(i,j) > 0.0d0) then
+                f_pattyn = rhoo*(eus-topg(i,j)) / (rhoi*thck(i,j))     ! > 1 for floating, < 1 for grounded
+                f_pattyn_capped = max( min(f_pattyn, 1.0d0), 0.0d0)    ! capped to lie in the range [0,1]
+                f_ocean_p_target(i,j) = (1.0d0 - f_pattyn_capped)**ocean_p  ! (1 - Hf/H)^p = target ratio of N / overburden
+             else
+                f_ocean_p_target(i,j) = 0.0d0
+             endif
+          enddo
+       enddo
+
+       !TODO - remove the timescale
+       if (basal_physics%ocean_p_timescale > 0.0d0) then
+          ! relax f_ocean_p toward the target value computed above
+          ! Note: dt and f_ocean_p_timescale have units of yr
+          basal_physics%f_effecpress_ocean_p(:,:) = basal_physics%f_effecpress_ocean_p(:,:) &
+               + (f_ocean_p_target(:,:) - basal_physics%f_effecpress_ocean_p(:,:)) &
+               * min(dt/basal_physics%ocean_p_timescale, 1.0d0)
+       else
+          basal_physics%f_effecpress_ocean_p(:,:) = f_ocean_p_target(:,:)
+       endif
+
+       ! The effective pressure based on ocean_p is given by f_effecpress_ocean_p * overburden.
+       ! Use the lesser of this value and the value computed earlier (under the which_ho_effecpress options).
+
+       basal_physics%effecpress(:,:) = &
+            min(basal_physics%effecpress(:,:), basal_physics%f_effecpress_ocean_p(:,:)*overburden(:,:))
+
+       if (verbose_effecpress) then
+
+          ! Compute f_pattyn as a 2D field for diagnostics
           do j = 1, nsn
              do i = 1, ewn
                 if (thck(i,j) > 0.0d0) then
-                   f_pattyn = rhoo*(eus-topg(i,j)) / (rhoi*thck(i,j))    ! > 1 for floating, < 1 for grounded
-                   f_pattyn_capped = max( min(f_pattyn,1.0d0), 0.0d0)    ! capped to lie in the range [0,1]
-                   basal_physics%effecpress(i,j) = overburden(i,j) * (1.0d0 - f_pattyn_capped)**ocean_p
-                else
-                   basal_physics%effecpress(i,j) = 0.0d0
+                   f_pattyn_2d(i,j) = rhoo*(eus-topg(i,j)) / (rhoi*thck(i,j))    ! > 1 for floating, < 1 for grounded
+                else  ! no ice
+                   if (topg(i,j) - eus >= 0.0d0) then  ! ice-free land
+                      f_pattyn_2d(i,j) = 0.0d0
+                   else  ! ice-free ocean
+                      f_pattyn_2d(i,j) = 1.0d0
+                   endif
                 endif
              enddo
           enddo
 
-       else
+          call point_diag(f_pattyn_2d, 'f_pattyn', itest, jtest, rtest, 7, 7)
+          call point_diag(basal_physics%f_effecpress_ocean_p, 'f_effecpress_ocean_p', &
+               itest, jtest, rtest, 7, 7)
 
-          basal_physics%effecpress(:,:) = overburden(:,:)
+       endif   ! verbose_effecpress
 
-       endif
+    else   ! ocean_p = 0
+
+       ! (1 - Hf/H)^p = 1; do not reduce N
 
        ! Note(WHL): If ocean_p = 0, then we have N = rhoi*grav*H for floating ice (f_pattyn_capped = 1).
        !            Equivalently, we are defining 0^0 = 1 for purposes of the Leguy et al. effective pressure parameterization.
        !            This is OK for the Schoof basal friction law provided that the resulting beta is multiplied by f_ground,
-       !             where f_ground is the fraction of floating ice at a vertex, with f_ground = 0 if all four neighbor cells are floating.
+       !             where f_ground is the fraction of floating ice at a vertex, with f_ground = 0
+       !             if all four neighbor cells are floating.
        !            If we were to set N = 0 where f_pattyn_capped = 1 (i.e., defining 0^0 = 0), then we would have a
        !             sudden sharp increase in N_stag (the effective pressure at the vertex) when f_pattyn_capped at a cell center
        !             falls from 1 to a value slightly below 1.  This sudden increase would occur despite the use of a GLP.
 
-    end select
+    endif
 
     ! Cap the effective pressure at 0x and 1x overburden pressure to avoid strange values going to the friction laws.
     ! This capping may not be necessary, but is included as a precaution.
@@ -918,6 +1174,9 @@ contains
        basal_physics%effecpress = overburden
     endwhere
 
+    ! Halo update before staggering
+    call parallel_halo(basal_physics%effecpress, parallel)
+
     ! Interpolate the effective pressure to the staggered grid.
     ! stagger_margin_in = 0: Interpolate using values in all cells, including ice-free cells
     ! (to give a smooth transition in N_stag as a cell switches from ice-free to ice-covered)
@@ -927,11 +1186,101 @@ contains
                           basal_physics%effecpress,  basal_physics%effecpress_stag,   &
                           ice_mask,                  stagger_margin_in = 0)
 
- end subroutine calc_effective_pressure
+    if (verbose_effecpress) then
+
+       where (overburden > 0.0d0)
+          N_to_overburden = basal_physics%effecpress / overburden
+       elsewhere
+          N_to_overburden = 0.0d0
+       endwhere
+
+       call point_diag(basal_physics%effecpress, 'Final effecpress', itest, jtest, rtest, 7, 7, '(f10.0)')
+       call point_diag(N_to_overburden, 'effecpress/overburden', itest, jtest, rtest, 7, 7, '(f10.3)')
+       call point_diag(basal_physics%effecpress_stag, 'staggered effecpress', itest, jtest, rtest, 7, 7, '(f10.0)')
+
+    endif
+
+  end subroutine glissade_calc_effecpress
+
+!***********************************************************************
+
+  subroutine glissade_elevation_based_coulomb_c(&
+       ewn,             nsn,            &
+       itest,  jtest,   rtest,          &
+       topg,            eus,            &
+       coulomb_c_lo,    coulomb_c_hi,   &
+       bed_lo,          bed_hi,         &
+       coulomb_c)
+
+    ! Compute coulomb_c as a function of bed elevation.
+
+    use glissade_grid_operators, only: glissade_stagger
+
+    ! Input/output arguments
+    integer, intent(in) :: &
+         ewn, nsn                 ! grid dimensions
+
+    integer, intent(in) :: &
+         itest, jtest, rtest      ! coordinates of diagnostic point
+
+    real(dp), dimension(ewn,nsn), intent(in) :: &
+         topg                     ! bed topography (m)
+
+    real(dp), dimension(ewn-1,nsn-1), intent(in) :: &
+         coulomb_c_lo,          & ! coulomb_c values at low bed elevation (topg <= bed_lo)
+         coulomb_c_hi             ! coulomb_c values at high bed elevation (topg >= bed_hi)
+
+    real(dp), intent(in) ::  &
+         eus,                   & ! eustatic sea level (m) relative to z = 0
+         bed_lo,                & ! bed elevation (m) below which coulomb_c = coulomb_c_lo
+         bed_hi                   ! bed elevation (m) above which coulomb_c = coulomb_c_hi
+
+    real(dp), dimension(ewn-1,nsn-1), intent(out) :: &
+         coulomb_c                ! 2D field of coulomb_c
+
+    ! Local variables
+
+    real(dp), dimension(ewn-1,nsn-1) :: &
+         stagtopg,              & ! topg (m) on the staggered grid
+         logC                     ! log(coulomb_c)
+
+    real(dp) :: bed               ! bed elevation (m)
+    integer :: i, j
+    logical, parameter :: verbose_cc = .false.
+
+    ! Interpolate topg to the staggered grid
+    ! stagger_margin_in = 0: Interpolate using values in all cells, including ice-free cells
+
+    call glissade_stagger(ewn,         nsn,         &
+                          topg,        stagtopg,    &
+                          stagger_margin_in = 0)
+
+    ! Compute log(coulomb_c) based on bed elevation
+    do j = 1, nsn-1
+       do i = 1, ewn-1
+          bed = stagtopg(i,j) - eus
+          if (bed <= bed_lo) then
+             logC(i,j) = log10(coulomb_c_lo(i,j))
+          elseif (bed >= bed_hi) then
+             logC(i,j) = log10(coulomb_c_hi(i,j))
+          else   ! linearly interpolate logC between bed_lo and bed_hi
+             logC(i,j) = log10(coulomb_c_lo(i,j)) + &
+                  ((bed - bed_lo)/(bed_hi - bed_lo)) * (log10(coulomb_c_hi(i,j)) - log10(coulomb_c_lo(i,j)))
+          endif
+          coulomb_c(i,j) = 10.d0**(logC(i,j))
+       enddo
+    enddo
+
+    if (verbose_cc) then
+       call point_diag(stagtopg, 'stagtopg', itest, jtest, rtest, 7, 7)
+       call point_diag(coulomb_c_lo, 'Cc_lo', itest, jtest, rtest, 7, 7)
+       call point_diag(coulomb_c, 'New Cc', itest, jtest, rtest, 7, 7)
+    endif
+
+  end subroutine glissade_elevation_based_coulomb_c
 
 !=======================================================================
 
 end module glissade_basal_traction
 
 !=======================================================================
-

@@ -12,8 +12,8 @@ import shutil
 import fileinput
 import numpy as np
 from netCDF4 import Dataset
-from ConfigParser import ConfigParser
-from optparse import OptionParser
+import configparser
+from argparse import ArgumentParser
 
 
 
@@ -21,9 +21,8 @@ from optparse import OptionParser
 # Constants #
 #############
 
-
-xDomain = 640000.0     # domain x-dimension (m)
-yDomain = 80000.0      # domain y-dimension (m)
+xDomain = 640000
+yDomain = 80000
 xCalve  = 640000.      # calving front location (m)
 initThickness = 100.   # initial uniform ice thikcness (m)
 accum = 0.3            # uniform accumulation rate (m/yr)
@@ -37,7 +36,7 @@ restartfreqSpinup = 1000.    # frequency at which restart file is written (yr)
 
 
 #This function computes the MISMIP+ bed according to Asay-Davis et al. (2016).
-def computeBed(x,y):
+def computeBed(x,y,Ly):
     x  = x/1.e3     # km
     y  = y/1.e3     # km
     X  = np.size(x)
@@ -53,7 +52,6 @@ def computeBed(x,y):
     dc = 500.      # m
     fc = 4.        # km
     wc = 24.       # km
-    Ly = 80.       # km
     
     Bmax = -720.   # m
     B_x  = B0 + B2*x_tilde**2 + B4*x_tilde**4 + B6*x_tilde**6
@@ -63,46 +61,48 @@ def computeBed(x,y):
     return B
 
 
-
 ########
 # Code #
 ########
 
 # Parse options.
-optparser = OptionParser()
+parser = ArgumentParser()
 
-optparser.add_option('-c', '--config', dest='configfile',    type='string', default='mismip+.config.template', help="config file template", metavar="FILE")
-optparser.add_option('-e', '--exec',   dest='executable',    type='string', default='cism_driver', help="path to the CISM executable")
-optparser.add_option('-x', '--expt',   dest='experiment',    type='string', default= 'all',   help="MISMIP+ experiment(s) to set up", metavar="EXPT")
-optparser.add_option('-t', '--tstep',  dest='timestep',      type='float',  default= 0.5,     help="time step (yr)",         metavar="TSTEP")
-optparser.add_option('-r', '--res',    dest='resolution',    type='int',    default= 2000,    help="grid resolution (m)",    metavar="RES")
-optparser.add_option('-v', '--vlevel', dest='vertlevels',    type='int',    default= 3,       help="no. of vertical levels", metavar="VLEVEL")
-optparser.add_option('-a', '--approx', dest='approximation', type='string', default= 'DIVA',  help="Stokes approximation (SSA, DIVA, BP)")
-optparser.add_option('-b', '--basal',  dest='basalFriction', type='string', default='Schoof', help="basal friction law (Schoof, Tsai, powerlaw)")
-optparser.add_option('-y', '--year',   dest='yearsSpinup',   type='int',    default= 20000,   help="length of spinup run (yr)")
+parser.add_argument('-c', '--config', dest='configfile',    type=str, default='mismip+.config.template', help="config file template", metavar="FILE")
+parser.add_argument('-e', '--exec',   dest='executable',    type=str, default='cism_driver', help="path to the CISM executable")
+parser.add_argument('-x', '--expt',   dest='experiment',    type=str, default= 'all',   help="MISMIP+ experiment(s) to set up", metavar="EXPT")
+parser.add_argument('-t', '--tstep',  dest='timestep',      type=float,  default= 0.5,     help="time step (yr)",         metavar="TSTEP")
+parser.add_argument('-r', '--res',    dest='resolution',    type=int,    default= 2000,    help="grid resolution (m)",    metavar="RES")
+parser.add_argument('-v', '--vlevel', dest='vertlevels',    type=int,    default= 3,       help="no. of vertical levels", metavar="VLEVEL")
+parser.add_argument('-a', '--approx', dest='approximation', type=str, default= 'DIVA',  help="Stokes approximation (SSA, DIVA, BP)")
+parser.add_argument('-b', '--basal',  dest='basalFriction', type=str, default='Schoof', help="basal friction law (Schoof, Tsai, powerlaw)")
+parser.add_argument('-y', '--year',   dest='yearsSpinup',   type=int,    default= 20000,   help="length of spinup run (yr)")
+parser.add_argument('-g', '--gbc',    dest='global_bc',     type=int, default=0, help="global boundary condition")
 
-optparser.add_option 
+options = parser.parse_args()
 
-for option in optparser.option_list:
+"""
+for option in parser.option_list:
     if option.default != ("NO", "DEFAULT"):
         option.help += (" " if option.help else "") + "[default: %default]"
-options, args = optparser.parse_args()
+options, args = parser.parse_args()
+"""
 
 if options.experiment == 'all':
     experiments = ['Spinup', 'Ice0', 'Ice1r', 'Ice1ra', 'Ice1rr', 'Ice1rax', 'Ice1rrx', 'Ice2r', 'Ice2ra', 'Ice2rr', 'Ice2rax', 'Ice2rrx']
-    print 'Setting up all the MISMIP+ experiments'
+    print( 'Setting up all the MISMIP+ experiments')
 elif options.experiment == 'allIce':
     experiments = ['Ice0', 'Ice1r', 'Ice1ra', 'Ice1rr', 'Ice2r', 'Ice2ra', 'Ice2rr', 'Ice1rax', 'Ice1rrx', 'Ice2rax', 'Ice2rrx']
-    print 'Run all the MISMIP+ experiments, excluding Spinup'
+    print( 'Run all the MISMIP+ experiments, excluding Spinup')
 elif options.experiment == 'Ice1':
     experiments = ['Ice1r', 'Ice1ra', 'Ice1rr', 'Ice1rax', 'Ice1rrx']
-    print 'Run the MISMIP+ Ice1 experiments'
+    print( 'Run the MISMIP+ Ice1 experiments')
 elif options.experiment == 'Ice2':
     experiments = ['Ice2r', 'Ice2ra', 'Ice2rr', 'Ice2rax', 'Ice2rrx']
-    print 'Run the MISMIP+ Ice2 experiments'
+    print( 'Run the MISMIP+ Ice2 experiments')
 elif options.experiment in ['Spinup', 'Ice0', 'Ice1r', 'Ice1ra', 'Ice1rr', 'Ice1rax', 'Ice1rrx', 'Ice2r', 'Ice2ra', 'Ice2rr', 'Ice2rax', 'Ice2rrx']:
     experiments = [options.experiment]
-    print 'Setting up experiment', options.experiment
+    print( 'Setting up experiment', options.experiment)
 else:
     sys.exit('Please specify experiment(s) from this list: all, Spinup, Ice0, Ice1r, Ice1ra, Ice1rr, Ice1rax, Ice1rrx, Ice2r, Ice2ra, Ice2rr, Ice2rax, Ice2rrx')
 
@@ -141,8 +141,8 @@ if options.vertlevels >= 2:
 else:
     sys.exit('Error: must have at least 2 vertical levels')
 
-print 'MISMIP+ grid resolution (m) =', options.resolution
-print 'Number of vertical levels =', nz
+print( 'MISMIP+ grid resolution (m) =', options.resolution)
+print( 'Number of vertical levels =', nz)
 
 # Set number of grid cells in each direction.
 # Include a few extra cells in the x direction to handle boundary conditions.
@@ -157,72 +157,79 @@ try:
 except:
     sys.exit('Could not copy', options.configfile)
 
-print 'Creating master config file', masterConfigFile
+print( 'Creating master config file', masterConfigFile)
 
 # Read the master config file.
-config = ConfigParser()
+config = configparser.ConfigParser(delimiters=('=', ':'),
+                            comment_prefixes=('#', ';'),
+                            inline_comment_prefixes=';',
+                            interpolation=None)
 config.read(masterConfigFile)
 
 # Set the grid variables in the master config file.
-config.set('grid', 'ewn', nx)
-config.set('grid', 'nsn', ny)
-config.set('grid', 'upn', nz)
-config.set('grid', 'dew', dx)
-config.set('grid', 'dns', dy)
+config.set('grid', 'ewn', str(nx))
+config.set('grid', 'nsn', str(ny))
+config.set('grid', 'upn', str(nz))
+config.set('grid', 'dew', str(dx))
+config.set('grid', 'dns', str(dy))
+config.set('grid', 'global_bc', str(options.global_bc))
 
 # Set Stokes approximation in config file.
 if options.approximation == 'SSA':
     which_ho_approx = 1 
-    print 'Using SSA velocity solver'
+    print( 'Using SSA velocity solver')
 elif options.approximation == 'DIVA':
     which_ho_approx = 4
-    print 'Using DIVA velocity solver'
+    print( 'Using DIVA velocity solver')
 elif options.approximation == 'BP':
     which_ho_approx = 2
-    print 'Using Blatter-Pattyn velocity solver'
+    print( 'Using Blatter-Pattyn velocity solver')
 else:
     which_ho_approx = 4
-    print 'Defaulting to DIVA velocity solver'
+    print( 'Defaulting to DIVA velocity solver')
 
-config.set('ho_options', 'which_ho_approx', which_ho_approx)
+config.set('ho_options', 'which_ho_approx', str(which_ho_approx))
 
 # Config settings related to basal friction law.
 # Note: Each of these friction laws is associate with certain basal parameters.
 #       The desired parameters should be set in the config template.
 if options.basalFriction == 'Schoof':
     which_ho_babc = 11
-    print 'Using Schoof basal friction law'
+    print( 'Using Schoof basal friction law')
 elif options.basalFriction == 'Tsai':
     which_ho_babc = 12
-    print 'Using Tsai basal friction law'
+    print( 'Using Tsai basal friction law')
 elif options.basalFriction == 'powerlaw':
     which_ho_babc = 9
-    print 'Using basal friction power law'
+    print( 'Using basal friction power law')
 else:
     which_ho_babc = 11   # Schoof is default
-    print 'Defaulting to Schoof basal friction law'
+    print( 'Defaulting to Schoof basal friction law')
 
-config.set('ho_options', 'which_ho_babc', which_ho_babc)
+config.set('ho_options', 'which_ho_babc', str(which_ho_babc))
 
 yearsSpinup = float(options.yearsSpinup)
-config.set('time', 'tend', yearsSpinup)
+config.set('time', 'tend', str(yearsSpinup))
 
 # Write to the master config file.
 with open(masterConfigFile, 'w') as configfile:
     config.write(configfile)
 
-print 'years of spinup =', yearsSpinup
-print 'spinup restart frequency =', restartfreqSpinup
+print( 'years of spinup =', yearsSpinup)
+print( 'spinup restart frequency =', restartfreqSpinup)
 
 # Create the netCDF input file.
 try:
-    parser = ConfigParser()
+    parser = configparser.ConfigParser(delimiters=('=', ':'),
+                            comment_prefixes=('#', ';'),
+                            inline_comment_prefixes=';',
+                            interpolation=None)
     parser.read(options.configfile)
     initfile = parser.get('CF input', 'name')
 except:
     sys.exit('Error parsing ' + options.configfile)
 
-print 'Creating input file', initfile
+print( 'Creating input file', initfile)
 ncfile = Dataset(initfile, 'w')
 
 # Create dimensions.
@@ -260,7 +267,7 @@ kinbcmask = ncfile.createVariable('kinbcmask', 'i4', ('time','y0','x0'))
 #           This assumes that kinbcmask = 1 at the first vertex from the left.
 #           Thus the left edge of the grid has x = -3*dx/2.
 #       (2) The y origin is placed at the bottom edge of the CISM grid.
-#           The line of central symmetry runs along cell edges at y = 40 km.
+#           The line of central symmetry is located at y = Ly/2.
 
 x = dx * np.arange(nx,dtype='float32')   # x = 0, dx, 2*dx, etc.
 y = dy * np.arange(ny,dtype='float32')   # y = 0, dy, 2*dy, etc.
@@ -279,51 +286,74 @@ for i in range(nx):
 
 
 # Set bed topography.
+Ly = yDomain / 1.e3  # m to km
 for i in range(nx):
     for j in range(ny):
-        topg[:,j,i] = computeBed(x1[i], y1[j])
+        topg[:,j,i] = computeBed(x1[i], y1[j], Ly)
 
 # Set the surface mass balance.
 # Uniform accumulation, but prescribe a large negative rate beyond the calving front.
-# WHL - The large negative rate may not be needed, but setting it just in case.
 acab[:,:,:] = accum
-for i in range(nx):
-    if x1[i] > xCalve:
-        acab[:,:,i] = -100.   # m/yr
 
 # Set initial velocity to zero.
-#WHL- Probably not necessary.
 uvel[:,:,:,:] = 0.
 vvel[:,:,:,:] = 0.
 
 # Set kinematic velocity mask.
 # Where kinbcmask = 1, the velocity is fixed at its initial value.
-# Note: Although there is no ice on the RHS of the domain, we need kinbcmask =1 there 
-#       to preserve symmetry with the LHS (since east-west BCs are formally periodic).
+# For all BCs, we set uvel = vvel = 0 for the left-most column.
 kinbcmask[:,:,:]  = 0   # initialize to 0 everywhere
 kinbcmask[:,:,0]  = 1   # mask out left-most column
-kinbcmask[:,:,-1] = 1   # mask out right-most column
+
+# For periodic BCs, set kinbcmask = 1 for the right-most column.
+#    Although there is no ice on the RHS of the domain, we need kinbcmask = 1 there
+#    to avoid flow into or out of the LHS.
+# For outflow BCs, set uvel = vvel = 0 along the top and bottow rows where topg > B0.
+#    B0 is hardwired to -150 m above in computeBed.
+#    Then the land cells will effectively have a no-slip BC at the N/S boundary,
+#    whereas ocean cells will have an outflow BC.
+# For outflow BC, also zero out accumulation in motionless cells,
+#    to prevent these cells from thickening indefinitely.
+
+if options.global_bc == 0:     # periodic
+    kinbcmask[:,:,-1] = 1      # mask out right-most column
+elif options.global_bc == 1:   # outflow
+    # Zero out the velocity at vertices one cell away from the global boundary.
+    B0 = -150.                     # same as the value in computeBed
+    j = 0                          # bottom row of vertices
+    for i in range(nx-1):
+        if topg[0,j,i] > B0:
+            kinbcmask[0,j,i] = 1   # bottom row of vertices
+            acab[0,j,i] = 0.       # bottom row of cells
+    j = ny-2                       # top row of vertices
+    for i in range(nx-1):
+        if topg[0,j+1,i] > B0:
+            kinbcmask[0,j,i] = 1   # top row of vertices
+            acab[0,j+1,i] = 0.     # top row of cells
 
 ncfile.close()
 
-print 'Experiments:', experiments
+print( 'Experiments:', experiments)
 
 # Loop through experiments.
 for expt in experiments:
 
     # For each experiment, make a suitable config file and set up a subdirectory.
-    print 'Creating config file for experiment', expt
+    print( 'Creating config file for experiment', expt)
 
     # Make a copy of the mismip+Init config file.
     # Below, this copy will be tailored for the chosen MISMIP+ experiment,
     #  without changing the settings used for spin-up.
 
     newConfigFile = 'mismip+' + expt + '.config'
-    print 'Config file for this experiment:', newConfigFile
+    print( 'Config file for this experiment:', newConfigFile)
     shutil.copy(masterConfigFile, newConfigFile)
 
     # Read the new config file.
-    config = ConfigParser()
+    config = configparser.ConfigParser(delimiters=('=', ':'),
+                            comment_prefixes=('#', ';'),
+                            inline_comment_prefixes=';',
+                            interpolation=None)
     config.read(newConfigFile)
 
     # Experiment-specific settings.
@@ -352,7 +382,7 @@ for expt in experiments:
         outputfreq  = 10.0
         restartfreq = 100.0
     elif expt == 'Ice1r':
-        config.set('options', 'bmlt_float', 1)
+        config.set('options', 'bmlt_float', '1')
         tstart      = 0.0
         tend        = 100.0
         inputdir    = '../Spinup/'
@@ -377,7 +407,7 @@ for expt in experiments:
         outputfreq  = 100.0
         restartfreq = 800.0
     elif expt == 'Ice1rr':
-        config.set('options', 'bmlt_float', 1)
+        config.set('options', 'bmlt_float', '1')
         tstart      = 100.0
         tend        = 200.0
         inputdir    = '../Ice1r/'
@@ -386,7 +416,7 @@ for expt in experiments:
         outputfreq  = 10.0
         restartfreq = 100.0
     elif expt == 'Ice1rrx':
-        config.set('options', 'bmlt_float', 1)
+        config.set('options', 'bmlt_float', '1')
         tstart      = 200.0
         tend        = 1000.0
         inputdir    = '../Ice1rr/'
@@ -395,7 +425,7 @@ for expt in experiments:
         outputfreq  = 100.0
         restartfreq = 800.0
     elif expt == 'Ice2r':
-        config.set('options', 'bmlt_float', 2)
+        config.set('options', 'bmlt_float', '2')
         tstart      = 0.0
         tend        = 100.0
         inputdir    = '../Spinup/'
@@ -420,7 +450,7 @@ for expt in experiments:
         outputfreq  = 100.0
         restartfreq = 800.0
     elif expt == 'Ice2rr':
-        config.set('options', 'bmlt_float', 2)
+        config.set('options', 'bmlt_float', '2')
         tstart      = 100.0
         tend        = 200.0
         inputdir    = '../Ice2r/'
@@ -429,7 +459,7 @@ for expt in experiments:
         outputfreq  = 10.0
         restartfreq = 100.0
     elif expt == 'Ice2rrx':
-        config.set('options', 'bmlt_float', 2)
+        config.set('options', 'bmlt_float', '2')
         tstart      = 200.0
         tend        = 1000.0
         inputdir    = '../Ice2rr/'
@@ -441,22 +471,22 @@ for expt in experiments:
     # The Spinup run is initialized to the surface air temperature (temp_init = 1).
     # For all other experiments, the initial temperature is read from the input/restart file.
     if expt != 'Spinup':
-       config.set('options', 'temp_init', 4)
+       config.set('options', 'temp_init', '4')
 
     # Set the time step in the master config file.
     # Set the diagnostic interval to the same value (not necessary, but helpful for debugging).
     # Note: this step is necessary when running at resolution coarser that 4 km as the output files
     #       needs to be written every 10 years to satisfy plotting criteria.
     if expt != 'Spinup':
-        config.set('time', 'dt',      min(options.timestep, 2.))
-        config.set('time', 'dt_diag', min(options.timestep, 2.))
+        config.set('time', 'dt',      str(min(options.timestep, 2.)))
+        config.set('time', 'dt_diag', str(min(options.timestep, 2.)))
     else:
-        config.set('time', 'dt',      options.timestep)
-        config.set('time', 'dt_diag', options.timestep)
+        config.set('time', 'dt',      str(options.timestep))
+        config.set('time', 'dt_diag', str(options.timestep))
 
     # Set the start and end times.
-    config.set('time', 'tstart', tstart)
-    config.set('time', 'tend',   tend)
+    config.set('time', 'tstart', str(tstart))
+    config.set('time', 'tend',   str(tend))
 
     # Change the default comment.
     comment = 'MISMIP+ experiment ' + expt
@@ -466,25 +496,25 @@ for expt in experiments:
     # Note: This method may not be robust for Spinup runs that start and restart.
     #       For this reason, the script mismip+Run.py makes sure the 'time' entry
     #       in [CF input] corresponds to the final time slice.
-    print 'Input file:', inputfile
+    print( 'Input file:', inputfile)
     config.set('CF input', 'name', inputfile)
-    config.set('CF input', 'time', inputslice)
+    config.set('CF input', 'time', str(inputslice))
 
     # Set the output filename in the section '[CF output]'.
     outputfile = 'mismip+' + expt + '.out.nc'
-    print 'Output file:', outputfile
+    print( 'Output file:', outputfile)
     config.set('CF output', 'name',      outputfile)
-    config.set('CF output', 'frequency', outputfreq)
+    config.set('CF output', 'frequency', str(outputfreq))
 
     # Set restart info in the section '[CF restart]'.
     # Note: Each experiment (except Spinup) writes only one time slice to a restart file.
     restartfile = 'mismip+' + expt + '.restart.nc'
-    print 'Restart file:', restartfile
+    print( 'Restart file:', restartfile)
     config.set('CF restart', 'name',       restartfile)
     config.set('CF restart', 'variables', 'restart')
-    config.set('CF restart', 'frequency',  restartfreq)
+    config.set('CF restart', 'frequency',  str(restartfreq))
     config.set('CF restart', 'xtype',     'double')
-    config.set('CF restart', 'write_init', False)
+    config.set('CF restart', 'write_init', 'False')
 
     # Write to the new config file.
     with open(newConfigFile, 'w') as configfile:
@@ -493,15 +523,15 @@ for expt in experiments:
     # Create a subdirectory named for the experiment, and stage the run there.
     try:
         os.mkdir(expt)
-        print 'Created subdirectory', expt
+        print( 'Created subdirectory', expt)
     except:
-        print 'Subdirectory', expt, 'already exists'
+        print( 'Subdirectory', expt, 'already exists')
 
     os.chdir(expt)
 
     # Move the config file from the parent directory to the subdirectory.
     shutil.move('../' + newConfigFile, newConfigFile)
-    print 'Created config file', newConfigFile
+    print( 'Created config file', newConfigFile)
 
     # Link to the cism_driver executable in the parent directory.
     try:

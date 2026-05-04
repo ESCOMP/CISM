@@ -39,6 +39,7 @@
   module glissade_velo_higher_slap
 
     use glimmer_global, only: dp
+    use glimmer_paramets, only: iulog
     use glimmer_sparse_type
     use glimmer_sparse, only: sparse_easy_solve
 
@@ -97,7 +98,7 @@
 
     real(dp), dimension(27,nz,nx-1,ny-1), intent(in) ::  &
        Auu, Auv,    &     ! assembled stiffness matrix, divided into 4 parts
-       Avu, Avv           ! 1st dimension = node and its nearest neighbors in x, y and z direction 
+       Avu, Avv           ! 1st dimension = node and its nearest neighbors in x, y and z direction
                           ! other dimensions = (k,i,j) indices
 
     real(dp), dimension(nz,nx-1,ny-1), intent(in) ::  &
@@ -299,10 +300,10 @@
        indxA                 ! maps relative (x,y,z) coordinates to an index between 1 and 9
                              ! index order is (i,j)
 
-    real(dp), dimension(9,nx-1,ny-1), intent(in) ::  &
+    real(dp), dimension(nx-1,ny-1,9), intent(in) ::  &
        Auu, Auv,       &     ! assembled stiffness matrix, divided into 4 parts
-       Avu, Avv              ! 1st dimension = vertex and its nearest neighbors in x and y direction 
-                             ! other dimensions = (i,j) indices
+       Avu, Avv              ! 3rd dimension = vertex and its nearest neighbors in x and y direction
+                             ! 1st and 2nd dimensions = (i,j) indices
 
     real(dp), dimension(nx-1,ny-1), intent(in) ::  &
        bu, bv                ! assembled load (rhs) vector, divided into 2 parts
@@ -354,7 +355,7 @@
              m = indxA(iA,jA)
 
              ! Auu
-             val = Auu(m,i,j)
+             val = Auu(i,j,m)
              if (val /= 0.d0) then
                 ct = ct + 1
                 matrix%row(ct) = 2*rowA - 1
@@ -363,7 +364,7 @@
              endif
 
              ! Auv 
-             val = Auv(m,i,j)
+             val = Auv(i,j,m)
              if (val /= 0.d0) then
                 ct = ct + 1
                 matrix%row(ct) = 2*rowA - 1
@@ -390,7 +391,7 @@
              m = indxA(iA, jA)
 
              ! Avu 
-             val = Avu(m,i,j)
+             val = Avu(i,j,m)
              if (val /= 0.d0) then
                 ct = ct + 1
                 matrix%row(ct) = 2*rowA
@@ -399,7 +400,7 @@
              endif
 
              ! Avv 
-             val = Avv(m,i,j)
+             val = Avv(i,j,m)
              if (val /= 0.d0) then
                 ct = ct + 1
                 matrix%row(ct) = 2*rowA
@@ -628,7 +629,7 @@
 
     integer :: i, j, n
 
-    print*, 'Solving test matrix, order =', matrix_order
+    write(iulog,*) 'Solving test matrix, order =', matrix_order
 
     nNonzero_max = matrix_order*matrix_order    ! not sure how big this must be
 
@@ -699,9 +700,9 @@
     endif
 
     if (verbose_test) then
-       print*, ' '
-       print*, 'Atest =', Atest
-       print*, 'rhs =', rhs
+       write(iulog,*) ' '
+       write(iulog,*) 'Atest =', Atest
+       write(iulog,*) 'rhs =', rhs
     endif
 
     ! Put in SLAP triad format (column ascending order)
@@ -722,12 +723,12 @@
     matrix%nonzeros = n
 
     if (verbose_test) then
-       print*, ' '
-       print*, 'row,       col,       val:'
+       write(iulog,*) ' '
+       write(iulog,*) 'row,       col,       val:'
        do n = 1, matrix%nonzeros
-          print*, matrix%row(n), matrix%col(n), matrix%val(n)
+          write(iulog,*) matrix%row(n), matrix%col(n), matrix%val(n)
        enddo
-       print*, 'Call sparse_easy_solve, whichsparse =', whichsparse
+       write(iulog,*) 'Call sparse_easy_solve, whichsparse =', whichsparse
     endif
     
     ! Solve the linear matrix problem
@@ -736,10 +737,10 @@
                            err,    niters, whichsparse)
 
     if (verbose_test) then
-       print*, ' '
-       print*, 'answer =', answer
-       print*, 'err =', err       
-       print*, 'niters =', niters
+       write(iulog,*) ' '
+       write(iulog,*) 'answer =', answer
+       write(iulog,*) 'err =', err       
+       write(iulog,*) 'niters =', niters
     endif
     
     stop

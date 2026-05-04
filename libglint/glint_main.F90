@@ -30,16 +30,15 @@
 
 module glint_main
 
-  !>  This is the main glimmer module, which contains the top-level 
-  !>  subroutines and derived types comprising the glimmer ice model.
+  !>  This is the main Glint module, with the top-level subroutines and derived types for running Glint.
 
   use glimmer_global, only: dp, fname_length
   use glint_type
   use glint_global_grid
   use glad_constants
   use glint_anomcouple
-
-  use glimmer_paramets, only: stdout, GLC_DEBUG
+  use glimmer_paramets, only: iulog, GLC_DEBUG
+  use cism_parallel, only: main_task, tasks
 
   implicit none
 
@@ -200,7 +199,6 @@ contains
     use glimmer_log
     use glimmer_filenames
     use glint_upscale, only: glint_upscaling
-    use parallel, only: main_task
     implicit none
 
     ! Subroutine argument declarations --------------------------------------------------------
@@ -261,7 +259,7 @@ contains
     endif
 
     if (GLC_DEBUG .and. main_task) then
-       write(stdout,*) 'Starting initialise_glint'
+       write(iulog,*) 'Starting initialise_glint'
     end if
 
     ! Initialise start time and calling model time-step ----------------------------------------
@@ -300,9 +298,9 @@ contains
 !    endif
 
     if (GLC_DEBUG .and. main_task) then
-       write(stdout,*) 'time_step =', params%time_step
-       write(stdout,*) 'start_time =', params%start_time
-       write(stdout,*) 'next_av_start =', params%next_av_start
+       write(iulog,*) 'time_step =', params%time_step
+       write(iulog,*) 'start_time =', params%start_time
+       write(iulog,*) 'next_av_start =', params%next_av_start
     end if
 
     ! Initialise year-length -------------------------------------------------------------------
@@ -312,8 +310,8 @@ contains
     end if
 
     if (GLC_DEBUG .and. main_task) then
-       write(stdout,*) 'Initialize global grid'
-       write(stdout,*) 'present =', present(gmask)
+       write(iulog,*) 'Initialize global grid'
+       write(iulog,*) 'present =', present(gmask)
     end if
 
     ! Initialise main global grid --------------------------------------------------------------
@@ -325,23 +323,23 @@ contains
     endif
 
     if (GLC_DEBUG .and. main_task) then
-       write (stdout,*) ' ' 
-       write (stdout,*) 'time_step (hr)  =', params%time_step
-       write (stdout,*) 'start_time (hr) =', params%start_time
-       write (stdout,*) 'Called new_global_grid '
-       write (stdout,*) 'g_grid%nx =', params%g_grid%nx
-       write (stdout,*) 'g_grid%ny =', params%g_grid%ny
-       write (stdout,*) ' '
-       write (stdout,*) 'g_grid%lons =', params%g_grid%lons
-       write (stdout,*) ' '
-       write (stdout,*) 'g_grid%lats =', params%g_grid%lats
-       write (stdout,*) ' '
-       write (stdout,*) 'g_grid%lon_bound =', params%g_grid%lon_bound
-       write (stdout,*) ' '
-       write (stdout,*) 'g_grid%lat_bound =', params%g_grid%lat_bound
+       write (iulog,*) ' ' 
+       write (iulog,*) 'time_step (hr)  =', params%time_step
+       write (iulog,*) 'start_time (hr) =', params%start_time
+       write (iulog,*) 'Called new_global_grid '
+       write (iulog,*) 'g_grid%nx =', params%g_grid%nx
+       write (iulog,*) 'g_grid%ny =', params%g_grid%ny
+       write (iulog,*) ' '
+       write (iulog,*) 'g_grid%lons =', params%g_grid%lons
+       write (iulog,*) ' '
+       write (iulog,*) 'g_grid%lats =', params%g_grid%lats
+       write (iulog,*) ' '
+       write (iulog,*) 'g_grid%lon_bound =', params%g_grid%lon_bound
+       write (iulog,*) ' '
+       write (iulog,*) 'g_grid%lat_bound =', params%g_grid%lat_bound
        do j = 5, 10
-          write (stdout,*)
-          write (stdout,*) 'j, g_grid%mask =', j, params%g_grid%mask(:,j)
+          write (iulog,*)
+          write (iulog,*) 'j, g_grid%mask =', j, params%g_grid%mask(:,j)
        enddo
     end if
 
@@ -383,8 +381,8 @@ contains
     params%total_cov_orog = 0.d0
 
     if (GLC_DEBUG .and. main_task) then
-       write(stdout,*) 'Read paramfile'
-       write(stdout,*) 'paramfile =', paramfile
+       write(iulog,*) 'Read paramfile'
+       write(iulog,*) 'paramfile =', paramfile
     end if
 
     ! ---------------------------------------------------------------
@@ -406,8 +404,8 @@ contains
     allocate(mbts(params%ninstances), idts(params%ninstances))
 
     if (GLC_DEBUG .and. main_task) then
-       write(stdout,*) 'Number of instances =', params%ninstances
-       write(stdout,*) 'Read config files and initialize each instance'
+       write(iulog,*) 'Number of instances =', params%ninstances
+       write(iulog,*) 'Read config files and initialize each instance'
     end if
 
     ! ---------------------------------------------------------------
@@ -462,16 +460,16 @@ contains
     end if
 
     if (GLC_DEBUG .and. main_task) then
-       write(stdout,*) 'tstep_mbal =', params%tstep_mbal
-       write(stdout,*) 'start_time =', params%start_time
-       write(stdout,*) 'time_step =',  params%time_step
-       if (present(ice_dt)) write(stdout,*) 'ice_dt =', ice_dt
+       write(iulog,*) 'tstep_mbal =', params%tstep_mbal
+       write(iulog,*) 'start_time =', params%start_time
+       write(iulog,*) 'time_step =',  params%time_step
+       if (present(ice_dt)) write(iulog,*) 'ice_dt =', ice_dt
     end if
 
     ! Check time-steps divide into one another appropriately.
 
     if (.not.(mod(params%tstep_mbal,params%time_step)==0)) then
-       print*,params%tstep_mbal,params%time_step
+       write(iulog,*)params%tstep_mbal,params%time_step
        call write_log('The mass-balance timestep must be an integer multiple of the forcing time-step', &
             GM_FATAL,__FILE__,__LINE__)
     end if
@@ -503,7 +501,7 @@ contains
     allocate(sd_temp  (params%g_grid%nx, params%g_grid%ny))
 
     if (GLC_DEBUG .and. main_task) then
-       write(stdout,*) 'Upscale and splice the initial fields'
+       write(iulog,*) 'Upscale and splice the initial fields'
     end if
 
     ! Get initial fields from instances, splice together and return
@@ -611,7 +609,6 @@ contains
     use glimmer_filenames
     use glimmer_physcon, only: rearth
     use glint_upscale, only: glint_upscaling_gcm
-    use parallel, only: main_task
 
     implicit none
 
@@ -667,7 +664,7 @@ contains
     endif
 
     if (GLC_DEBUG .and. main_task) then
-       write(stdout,*) 'Initializing glint'
+       write(iulog,*) 'Initializing glint'
     end if
 
     ! Initialise start time and calling model time-step (time_step = integer number of hours)
@@ -707,9 +704,9 @@ contains
     endif
 
     if (GLC_DEBUG .and. main_task) then
-       write(stdout,*) 'time_step     =', params%time_step
-       write(stdout,*) 'start_time    =', params%start_time
-       write(stdout,*) 'next_av_start =', params%next_av_start
+       write(iulog,*) 'time_step     =', params%time_step
+       write(iulog,*) 'start_time    =', params%start_time
+       write(iulog,*) 'next_av_start =', params%next_av_start
     end if
 
     ! Initialise year-length -------------------------------------------------------------------
@@ -719,7 +716,7 @@ contains
     end if
 
     if (GLC_DEBUG .and. main_task) then
-       write(stdout,*) 'Initialize global grid: present(gmask) =', present(gmask)
+       write(iulog,*) 'Initialize global grid: present(gmask) =', present(gmask)
     end if
 
     ! Initialise main global grid --------------------------------------------------------------
@@ -731,23 +728,23 @@ contains
     endif
 
     if (GLC_DEBUG .and. main_task) then
-       write (stdout,*) ' ' 
-       write (stdout,*) 'time_step (hr)  =', params%time_step
-       write (stdout,*) 'start_time (hr) =', params%start_time
-       write (stdout,*) 'Called new_global_grid '
-       write (stdout,*) 'g_grid%nx =', params%g_grid%nx
-       write (stdout,*) 'g_grid%ny =', params%g_grid%ny
-       write (stdout,*) ' '
-       write (stdout,*) 'g_grid%lons =', params%g_grid%lons
-       write (stdout,*) ' '
-       write (stdout,*) 'g_grid%lats =', params%g_grid%lats
-       write (stdout,*) ' '
-       write (stdout,*) 'g_grid%lon_bound =', params%g_grid%lon_bound
-       write (stdout,*) ' '
-       write (stdout,*) 'g_grid%lat_bound =', params%g_grid%lat_bound
+       write (iulog,*) ' ' 
+       write (iulog,*) 'time_step (hr)  =', params%time_step
+       write (iulog,*) 'start_time (hr) =', params%start_time
+       write (iulog,*) 'Called new_global_grid '
+       write (iulog,*) 'g_grid%nx =', params%g_grid%nx
+       write (iulog,*) 'g_grid%ny =', params%g_grid%ny
+       write (iulog,*) ' '
+       write (iulog,*) 'g_grid%lons =', params%g_grid%lons
+       write (iulog,*) ' '
+       write (iulog,*) 'g_grid%lats =', params%g_grid%lats
+       write (iulog,*) ' '
+       write (iulog,*) 'g_grid%lon_bound =', params%g_grid%lon_bound
+       write (iulog,*) ' '
+       write (iulog,*) 'g_grid%lat_bound =', params%g_grid%lat_bound
        do j = 5, 10
-          write (stdout,*)
-          write (stdout,*) 'j, g_grid%mask =', j, params%g_grid%mask(:,j)
+          write (iulog,*)
+          write (iulog,*) 'j, g_grid%mask =', j, params%g_grid%mask(:,j)
        enddo
     end if
 
@@ -773,8 +770,8 @@ contains
     params%total_coverage = 0.d0
 
     if (GLC_DEBUG .and. main_task) then
-       write(stdout,*) 'Read paramfile'
-       write(stdout,*) 'paramfile =', paramfile
+       write(iulog,*) 'Read paramfile'
+       write(iulog,*) 'paramfile =', paramfile
     end if
 
     ! ---------------------------------------------------------------
@@ -797,8 +794,8 @@ contains
     allocate(mbts(params%ninstances), idts(params%ninstances))
 
     if (GLC_DEBUG .and. main_task) then
-       write(stdout,*) 'Number of instances =', params%ninstances
-       write(stdout,*) 'Read config files and initialize each instance'
+       write(iulog,*) 'Number of instances =', params%ninstances
+       write(iulog,*) 'Read config files and initialize each instance'
     end if
 
     ! ---------------------------------------------------------------
@@ -840,10 +837,10 @@ contains
     end if
 
     if (GLC_DEBUG .and. main_task) then
-       write(stdout,*) 'tstep_mbal =', params%tstep_mbal
-       write(stdout,*) 'start_time =', params%start_time
-       write(stdout,*) 'time_step =',  params%time_step
-       if (present(ice_dt)) write(stdout,*) 'ice_dt =', ice_dt
+       write(iulog,*) 'tstep_mbal =', params%tstep_mbal
+       write(iulog,*) 'start_time =', params%start_time
+       write(iulog,*) 'time_step =',  params%time_step
+       if (present(ice_dt)) write(iulog,*) 'ice_dt =', ice_dt
     end if
 
     ! Check time-steps divide into one another appropriately.
@@ -879,7 +876,7 @@ contains
     allocate(icemask_coupled_fluxes_temp(params%g_grid%nx, params%g_grid%ny))
 
     if (GLC_DEBUG .and. main_task) then
-       write(stdout,*) 'Upscale and splice the initial fields'
+       write(iulog,*) 'Upscale and splice the initial fields'
     end if
 
     ! Get initial fields from instances, splice together and return
@@ -889,7 +886,7 @@ contains
        ! Upscale the output fields for this instance
 
        if (GLC_DEBUG .and. main_task) then
-          print*, 'Do initial upscaling, i =', i
+          write(iulog,*) 'Do initial upscaling, i =', i
        endif
 
        call glint_upscaling_gcm(params%instances(i), params%g_grid%nec, &
@@ -910,7 +907,7 @@ contains
        ! Splice together with the global output
 
        if (GLC_DEBUG .and. main_task) then
-          print*, 'Spliced, i =', i
+          write(iulog,*) 'Spliced, i =', i
        endif
 
        call splice_fields_gcm(gfrac_temp, gtopo_temp,    &
@@ -937,7 +934,7 @@ contains
     if (present(output_flag)) output_flag = .true.
 
     if (GLC_DEBUG .and. main_task) then
-       write(stdout,*) 'Done in initialise_glint_gcm'
+       write(iulog,*) 'Done in initialise_glint_gcm'
     endif
 
   end subroutine initialise_glint_gcm
@@ -986,7 +983,7 @@ contains
     use glint_upscale, only: glint_upscaling
     use glimmer_log
     use glimmer_paramets, only: scyr
-    use parallel, only: main_task, tasks
+
     implicit none
 
     ! Subroutine argument declarations -------------------------------------------------------------
@@ -1034,11 +1031,11 @@ contains
     real(dp) :: yearfrac
 
     if (GLC_DEBUG .and. main_task) then
-!       write (stdout,*) 'In subroutine glint, current time (hr) =', time
-!       write (stdout,*) 'av_start_time =', params%av_start_time
-!       write (stdout,*) 'next_av_start =', params%next_av_start
-!       write (stdout,*) 'new_av =', params%new_av
-!       write (stdout,*) 'tstep_mbal =', params%tstep_mbal
+!       write (iulog,*) 'In subroutine glint, current time (hr) =', time
+!       write (iulog,*) 'av_start_time =', params%av_start_time
+!       write (iulog,*) 'next_av_start =', params%next_av_start
+!       write (iulog,*) 'new_av =', params%new_av
+!       write (iulog,*) 'tstep_mbal =', params%tstep_mbal
     end if
 
     ! Check we're expecting a call now --------------------------------------------------------------
@@ -1168,9 +1165,9 @@ contains
 
        params%g_temp_range = (params%g_max_temp-params%g_min_temp)/2.0
 
-       write(stdout,*) 'Take a mass balance timestep, time (hr) =', time
-       write(stdout,*) 'av_steps =', real(params%av_steps,dp)
-       write(stdout,*) 'tstep_mbal (hr) =', params%tstep_mbal
+       write(iulog,*) 'Take a mass balance timestep, time (hr) =', time
+       write(iulog,*) 'av_steps =', real(params%av_steps,dp)
+       write(iulog,*) 'tstep_mbal (hr) =', params%tstep_mbal
 
        ! Do a timestep for each instance
 
@@ -1205,8 +1202,8 @@ contains
                                 icets)
 
              if (GLC_DEBUG .and. main_task) then
-                write(stdout,*) 'Finished glc_glint_ice tstep, instance =', i
-                write(stdout,*) 'Upscale fields to global grid'
+                write(iulog,*) 'Finished glc_glint_ice tstep, instance =', i
+                write(iulog,*) 'Upscale fields to global grid'
              end if
 
              ! Add this contribution to the global output
@@ -1372,7 +1369,6 @@ contains
     use glint_upscale, only: glint_upscaling_gcm
     use glimmer_log
     use glimmer_paramets, only: scyr
-    use parallel, only: main_task, tasks
 
     implicit none
 
@@ -1417,11 +1413,11 @@ contains
 
     if (GLC_DEBUG .and. main_task) then
        if (params%new_av) then
-          write (stdout,*) 'In subroutine glint_gcm, current time (hr) =', time
-          write (stdout,*) 'av_start_time =', params%av_start_time
-          write (stdout,*) 'next_av_start =', params%next_av_start
-          write (stdout,*) 'new_av =', params%new_av
-          write (stdout,*) 'tstep_mbal =', params%tstep_mbal
+          write (iulog,*) 'In subroutine glint_gcm, current time (hr) =', time
+          write (iulog,*) 'av_start_time =', params%av_start_time
+          write (iulog,*) 'next_av_start =', params%next_av_start
+          write (iulog,*) 'new_av =', params%new_av
+          write (iulog,*) 'tstep_mbal =', params%tstep_mbal
        endif
     end if
 
@@ -1525,18 +1521,17 @@ contains
              ! Downscale input fields from global to local grid
              ! This subroutine computes instance%acab and instance%artm, the key inputs to Glide.
 
-             if (GLC_DEBUG .and. main_task) write(stdout,*) 'Downscale fields to local grid, time (hr) =', time
+             if (GLC_DEBUG .and. main_task) write(iulog,*) 'Downscale fields to local grid, time (hr) =', time
              call glint_downscaling_gcm (params%instances(i),   &
                                          params%g_av_qsmb,      &
                                          params%g_av_tsfc,      &
                                          params%g_av_topo,      &
                                          params%g_grid%mask)
 
-             if (GLC_DEBUG .and. main_task) write(stdout,*) 'Take a glint time step, instance', i
+             if (GLC_DEBUG .and. main_task) write(iulog,*) 'Take a glint time step, instance', i
              call glint_i_tstep_gcm(time,                  &
                                     params%instances(i),   &
                                     icets)
-
 
              ! Set flag
              if (present(ice_tstep)) then
@@ -1545,7 +1540,7 @@ contains
 
              ! Upscale the output to elevation classes on the global grid
 
-             if (GLC_DEBUG .and. main_task) write(stdout,*) 'Upscale fields to global grid, time(hr) =', time
+             if (GLC_DEBUG .and. main_task) write(iulog,*) 'Upscale fields to global grid, time(hr) =', time
              call glint_upscaling_gcm(params%instances(i), params%g_grid%nec, &
                                       params%instances(i)%lgrid%size%pt(1),   &
                                       params%instances(i)%lgrid%size%pt(2),   &
@@ -1554,8 +1549,9 @@ contains
                                       gfrac_temp,          gtopo_temp,        &
                                       grofi_temp,          grofl_temp,        &
                                       ghflx_temp )
-             
+
              call compute_ice_sheet_grid_mask(ice_sheet_grid_mask_temp, gfrac_temp)
+
              call compute_icemask_coupled_fluxes(icemask_coupled_fluxes_temp, &
                                                  ice_sheet_grid_mask_temp, &
                                                  params%instances(i))
@@ -1595,7 +1591,7 @@ contains
        deallocate(ice_sheet_grid_mask_temp, icemask_coupled_fluxes_temp)
 
        if (GLC_DEBUG .and. main_task) then
-          write(stdout,*) 'Done in glint_gcm'
+          write(iulog,*) 'Done in glint_gcm'
        endif
 
    endif    ! time - params%av_start_time + params%time_step > params%tstep_mbal
@@ -1713,8 +1709,6 @@ contains
                                icemask_coupled_fluxes,    &
                                nec,                       &
                                frac_coverage)
-
-     use parallel, only: main_task
 
      ! Add the output for this instance to the global output
 

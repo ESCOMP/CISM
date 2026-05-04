@@ -35,7 +35,6 @@ module glide_ground
 
   use glide_types
   use glimmer_global, only: dp
-  use parallel
 
   implicit none
 
@@ -50,8 +49,6 @@ contains
 
     ! Calve ice according to one of several alternative methods
  
-    use glimmer_paramets, only: thk0
-
     implicit none
 
     !---------------------------------------------------------------------
@@ -123,26 +120,13 @@ contains
 
     case(CALVING_HUYBRECHTS)   ! used to be case(7)
 
-       !WHL - Previously, this code assumed that eus and relx have units of meters.
-       !      Changed to be consistent with dimensionless thickness units.  
-!       if(eus > -80.d0) then
-!          where (relx <= 2.d0*eus)
-!             calving_thck = thck
-!             thck = 0.0d0
-!          end where
-!       elseif (eus <= -80.d0) then
-!          where (relx <= (2.d0*eus - 0.25d0*(eus + 80.d0)**2.d0))
-!             calving_thck = thck
-!             thck = 0.0d0
-!          end where
-!       end if
-       if (eus*thk0 > -80.d0) then
-          where (relx*thk0 <= 2.d0*eus*thk0)
+       if (eus > -80.d0) then
+          where (relx <= 2.d0*eus)
              calving_thck = thck
              thck = 0.0d0
           end where
-       elseif (eus*thk0 <= -80.d0) then
-          where (relx*thk0 <= (2.d0*eus*thk0 - 0.25d0*(eus*thk0 + 80.d0)**2.d0))
+       elseif (eus <= -80.d0) then
+          where (relx <= (2.d0*eus - 0.25d0*(eus + 80.d0)**2.d0))
              calving_thck = thck
              thck = 0.0d0
           end where

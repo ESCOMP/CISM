@@ -40,6 +40,7 @@ module isostasy_elastic
   !>        for future development.
 
   use glimmer_global, only : dp
+  use glimmer_paramets, only: iulog
   use glide_types, only: isos_elastic
 
   implicit none
@@ -119,14 +120,13 @@ contains
     close(1)
 #endif
 
-    !rbel%w=rbel%w/len0
-
   end subroutine init_elastic
 
 !-------------------------------------------------------------------------
 
   subroutine calc_elastic(&
        rbel,  load_factors,  load,  &
+       parallel,                    &
        idiag, jdiag,                &
        idiag_local, jdiag_local, rdiag_local)
 
@@ -135,15 +135,16 @@ contains
     !> The main difference is that this subroutine uses a global gather and scatter to compute
     !>  the load for simulations on more than one task.
 
-    use parallel, only : global_ewn, global_nsn, this_rank, main_task, nhalo, &
-                         distributed_gather_var, distributed_scatter_var, parallel_halo
-    use parallel, only : parallel_reduce_sum  ! diagnostic only
+    use cism_parallel, only: this_rank, main_task, &
+         parallel_type, distributed_gather_var, distributed_scatter_var, parallel_halo
 
     implicit none
 
     type(isos_elastic) :: rbel                             !> structure holding elastic litho data
     real(dp), dimension(:,:), intent(in)  :: load_factors  !> load mass divided by mantle density
     real(dp), dimension(:,:), intent(out) :: load          !> loading effect due to load_factors
+
+    type(parallel_type), intent(in) :: parallel            !> info for parallel communication
 
     ! The following are needed only for diagnostic prints
     integer, intent(in) :: &
@@ -154,6 +155,8 @@ contains
     ! local variables
 
     integer :: ewn, nsn    !> grid dimensions on the local task; includes halo cells
+    integer :: global_ewn, global_nsn     !> global grid dimensions
+
     integer :: i, j, n, m
 
     real(dp), dimension(:,:), allocatable :: &
@@ -166,24 +169,27 @@ contains
 
     ewn = size(load,1)
     nsn = size(load,2)
+    global_ewn = parallel%global_ewn
+    global_nsn = parallel%global_nsn
+
     load(:,:) = 0.0d0
 
     if (verbose_isostasy .and. main_task) then
-       print*, 'ISOSTASY: calc_elastic'
-       print*, 'local ewn/nsn =', ewn, nsn
-       print*, 'global_ewn/nsn =', global_ewn, global_nsn
+       write(iulog,*) 'ISOSTASY: calc_elastic'
+       write(iulog,*) 'local ewn/nsn =', ewn, nsn
+       write(iulog,*) 'global_ewn/nsn =', global_ewn, global_nsn
     endif
 
     ! Gather the local arrays onto the main task
     ! Note: global arrays are allocated in the subroutine
-    call distributed_gather_var(load_factors, load_factors_global)
-    call distributed_gather_var(load, load_global)
+    call distributed_gather_var(load_factors, load_factors_global, parallel)
+    call distributed_gather_var(load, load_global, parallel)
 
     if (main_task) then
        do j = 1, global_nsn
 
           if (verbose_isostasy .and. main_task) then
-             if (mod(j,100) == 0) print*, 'j =', j   ! to see how fast the calculation is going
+             if (mod(j,100) == 0) write(iulog,*) 'j =', j   ! to see how fast the calculation is going
           endif
           
           do i = 1, global_ewn
@@ -201,10 +207,10 @@ contains
 
     ! Scatter the load values back to local arrays
     ! Note: The global array is deallocated in the subroutine
-    call distributed_scatter_var(load, load_global)
+    call distributed_scatter_var(load, load_global, parallel)
 
     ! distributed_scatter_var does not update the halo, so do an update here
-    call parallel_halo(load)
+    call parallel_halo(load, parallel)
 
     ! Deallocate the other global array (which is intent(in) and does not need to be scattered)
     deallocate(load_factors_global)
@@ -215,7 +221,7 @@ contains
        if (this_rank==rdiag_local) then
           i = idiag_local
           j = jdiag_local
-          print*, 'ISOSTASY: r, i, j, load:', rdiag_local, i, j, load(i,j)
+          write(iulog,*) 'ISOSTASY: r, i, j, load:', rdiag_local, i, j, load(i,j)
        endif
 
     endif  ! verbose_isostasy
@@ -241,7 +247,6 @@ contains
   subroutine init_rbel(rbel, a)
 
     !> initialise elastic lithosphere calculations
-    use glimmer_paramets, only: len0
     use glimmer_physcon, only: rhom,grav
     use isostasy_kelvin
     implicit none
@@ -252,7 +257,7 @@ contains
 
     call set_kelvin(1.d-10,40)
 
-    rbel%lr = ((rbel%d/(rhom*grav))**0.25d0)/len0
+    rbel%lr = (rbel%d/(rhom*grav))**0.25d0
     rbel%a  = a
 
     dummy_a = rbel%a/rbel%lr

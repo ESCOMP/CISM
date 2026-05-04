@@ -37,7 +37,6 @@ module glide_velo
   use glide_types
   use glimmer_global, only : dp
   use glimmer_physcon, only : rhoi, grav, gn
-  use glimmer_paramets, only : thk0, len0, vis0, vel0
 
   implicit none
 
@@ -95,27 +94,26 @@ contains
 
     model%velowk%depthw = (/ ((model%numerics%sigma(up+1)+model%numerics%sigma(up)) / 2.0d0, up=1,upn-1), 0.0d0 /)
 
-    model%velowk%fact = (/ model%paramets%flow_enhancement_factor* arrmlh / vis0, &   ! Value of a when T* is above -263K
-                           model%paramets%flow_enhancement_factor* arrmll / vis0, &   ! Value of a when T* is below -263K
-                          -actenh / gascon,        &                               ! Value of -Q/R when T* is above -263K
-                          -actenl / gascon/)                                       ! Value of -Q/R when T* is below -263K
+    model%velowk%fact = (/ model%paramets%flow_enhancement_factor_ground * arrmlh, &   ! Value of a when T* is above -263K
+                           model%paramets%flow_enhancement_factor_ground * arrmll, &   ! Value of a when T* is below -263K
+                          -actenh / gascon,        &                                   ! Value of -Q/R when T* is above -263K
+                          -actenl / gascon/)                                           ! Value of -Q/R when T* is below -263K
 
     model%velowk%watwd  = model%paramets%bpar(1)
     model%velowk%watct  = model%paramets%bpar(2)
     model%velowk%trcmin = model%paramets%bpar(3) / scyr
     model%velowk%trcmax = model%paramets%bpar(4) / scyr
     model%velowk%marine = model%paramets%bpar(5)
-    model%velowk%trcmax = model%velowk%trcmax / model%velowk%trc0
-    model%velowk%trcmin = model%velowk%trcmin / model%velowk%trc0  
     model%velowk%c(1)   = (model%velowk%trcmax + model%velowk%trcmin) / 2.0d0 
     model%velowk%c(2)   = (model%velowk%trcmax - model%velowk%trcmin) / 2.0d0
-    model%velowk%c(3)   = (thk0 * pi) / model%velowk%watwd  
+    model%velowk%c(3)   = pi / model%velowk%watwd  
     model%velowk%c(4)   = pi*(model%velowk%watct / model%velowk%watwd)
 
-    cflow = -2.0d0*vis0*(rhoi*grav)**gn*thk0**p3/(8.0d0*vel0*len0**gn)
+    ! Note: cflow < 0 is used in several equations below.
+    !       Signs in this module can be tricky, so comments are added to help keep track.
+    cflow = -2.0d0*(rhoi*grav)**gn / (8.0d0/scyr)
 
   end subroutine init_velo
-
 
   
   !*****************************************************************************
@@ -152,7 +150,8 @@ contains
              hrzflwa = flwa(:,ew,ns) + flwa(:,ew,ns+1) + flwa(:,ew+1,ns) + flwa(:,ew+1,ns+1)
              intflwa(upn) = 0.0d0
 
-             !Perform inner integration.
+             ! Perform inner integration.
+             ! Note: cflow < 0, so dintflwa < 0
              do up = upn-1, 1, -1
                 intflwa(up) = intflwa(up+1) + velowk%depth(up) * (hrzflwa(up)+hrzflwa(up+1))
              end do
@@ -185,8 +184,8 @@ contains
     real(dp),dimension(:,:),  intent(in)    :: dusrfdns
     real(dp),dimension(:,:),  intent(out)   :: diffu
 
-
     where (stagthck  /=  0.0d0)
+       ! Note: dintflwa < 0, so diffu < 0
        diffu = velowk%dintflwa * stagthck**p4 * sqrt(dusrfdew**2 + dusrfdns**2)**p2 
     elsewhere
        diffu = 0.0d0
@@ -241,6 +240,9 @@ contains
        do ew = 1,ewn
 
           if (stagthck(ew,ns) /= 0.0d0) then
+
+             ! Note: cflow < 0, dintflwa < 0, factor < 0, diffu < 0
+             !       So there are several cancelling minus signs here.
 
              vflx(ew,ns) = diffu(ew,ns) * dusrfdns(ew,ns) + vbas(ew,ns) * stagthck(ew,ns)
              uflx(ew,ns) = diffu(ew,ns) * dusrfdew(ew,ns) + ubas(ew,ns) * stagthck(ew,ns)
@@ -300,14 +302,13 @@ contains
     ! Subroutine arguments
     !------------------------------------------------------------------------------------
 
-    type(glide_global_type) :: model                  !> model instance
-    integer, intent(in)                 :: flag1      !> \texttt{flag1} sets the calculation
-                                                      !> method to use for the basal velocity
-                                                      !> (corresponded to \texttt{whichslip} in the
-                                                      !> old model. 
-    real(dp),dimension(:,:),intent(in)   :: btrc     !> The basal slip coefficient.
-    real(dp),dimension(:,:),intent(out)   :: ubas     !> The $x$ basal velocity (scaled)
-    real(dp),dimension(:,:),intent(out)   :: vbas     !> The $y$ basal velocity (scaled)
+    type(glide_global_type) :: model                !> model instance
+    integer, intent(in)                 :: flag1    !> \texttt{flag1} sets the calculation
+                                                    !> method to use for the basal velocity
+                                                    !> (corresponded to \texttt{whichslip} in the old model
+    real(dp),dimension(:,:),intent(in)  :: btrc     !> The basal slip coefficient
+    real(dp),dimension(:,:),intent(out) :: ubas     !> The $x$ basal velocity (scaled)
+    real(dp),dimension(:,:),intent(out) :: vbas     !> The $y$ basal velocity (scaled)
 
     !------------------------------------------------------------------------------------
     ! Internal variables
@@ -317,7 +318,7 @@ contains
 
     ! Get array sizes -------------------------------------------------------------------
 
-    ewn=size(btrc,1) ; nsn=size(btrc,2)    
+    ewn=size(btrc,1) ; nsn=size(btrc,2)
 
     !------------------------------------------------------------------------------------
     ! Main calculation starts here
@@ -328,9 +329,14 @@ contains
     
       ! Linear function of gravitational driving stress ---------------------------------
 
-      where (model%numerics%thklim < model%geomderv%stagthck)
-        ubas = btrc * rhoi * grav * model%geomderv%stagthck * model%geomderv%dusrfdew
-        vbas = btrc * rhoi * grav * model%geomderv%stagthck * model%geomderv%dusrfdns
+      !WHL - This logic might be problematic in some cases since it can trap ice in an upstream cell
+      !       with stagthck > thklim, instead of letting it flow downhill to a cell with stagthck < thklim.
+      !      Alternatively, we could compute ubas and vbas for all vertices of cells with stagthck > thklim.
+      !      To be tested at some point.
+
+      where (model%geomderv%stagthck >= model%numerics%thklim)
+        ubas = -btrc * rhoi * grav * model%geomderv%stagthck * model%geomderv%dusrfdew
+        vbas = -btrc * rhoi * grav * model%geomderv%stagthck * model%geomderv%dusrfdns
       elsewhere
         ubas = 0.0d0
         vbas = 0.0d0
@@ -340,17 +346,21 @@ contains
 
       ! *tp* option to be used in picard iteration for thck
       ! *tp* start by find constants which dont vary in iteration
+      !Note: fslip < 0
 
-      model%velowk%fslip = rhoi * grav * btrc
+      model%velowk%fslip = -rhoi * grav * btrc
 
     case(2)
 
       ! *tp* option to be used in picard iteration for thck
       ! *tp* called once per non-linear iteration, set uvel to ub * H /(ds/dx) which is
       ! *tp* a diffusivity for the slip term (note same in x and y)
+      !
+      !Note: Since fslip < 0, we have ubas < 0.
+      !      Need the minus sign to match the sign convention for the interior diffu0
 
-      where (model%numerics%thklim < model%geomderv%stagthck)
-        ubas = model%velowk%fslip * model%geomderv%stagthck**2  
+      where (model%geomderv%stagthck >= model%numerics%thklim)
+        ubas = model%velowk%fslip * model%geomderv%stagthck**2
       elsewhere
         ubas = 0.0d0
       end where
@@ -359,8 +369,12 @@ contains
 
       ! *tp* option to be used in picard iteration for thck
       ! *tp* finally calc ub and vb from diffusivities
+      !
+      !Note: On the rhs, ubas is the term computed above: fslip * stagthck^2
+      !      Since the rhs ubas < 0, the final (ubas, vbas) are directed
+      !       opposite the surface elevation gradient, as expected.
 
-      where (model%numerics%thklim < model%geomderv%stagthck)
+      where (model%geomderv%stagthck >= model%numerics%thklim)
         vbas = ubas *  model%geomderv%dusrfdns / model%geomderv%stagthck
         ubas = ubas *  model%geomderv%dusrfdew / model%geomderv%stagthck
       elsewhere
@@ -371,6 +385,7 @@ contains
     case default
       ubas = 0.0d0
       vbas = 0.0d0
+
     end select
 
   end subroutine slipvelo
@@ -417,7 +432,6 @@ contains
 
     upn=size(sigma) ; ewn=size(ubas,1) ; nsn=size(ubas,2)
 
-
     !------------------------------------------------------------------------------------
 
     select case(flag)
@@ -438,25 +452,30 @@ contains
             hrzflwa = flwa(:,ew,ns) + flwa(:,ew,ns+1) + flwa(:,ew+1,ns) + flwa(:,ew+1,ns+1)
 
             ! Calculate coefficient for integration
-
+            ! Note: cflow < 0, so const(1) < 0
             const(1) = cflow * stagthck(ew,ns)**p1 * sqrt(dusrfdew(ew,ns)**2 + dusrfdns(ew,ns)**2)**p2  
 
             ! Do first step of finding u according to (8) in Payne and Dongelmans 
+            ! Note: uvel here is a temporary variable, not the actual velocity.
+            !       const(1) < 0, so uvel < 0 and diffu < 0
 
             do up = upn-1, 1, -1
               uvel(up,ew,ns) = uvel(up+1,ew,ns) + const(1) * velowk%depth(up) * sum(hrzflwa(up:up+1)) 
             end do
 
-            ! Calculate u diffusivity (?)
+            ! Calculate diffusivity
 
             diffu(ew,ns) = vertintg(velowk,uvel(:,ew,ns)) * stagthck(ew,ns)
 
             ! Complete calculation of u and v
+            ! Note: temporary variable uvel < 0 on the rhs (since cflow and const(1) are negative),
+            !       so uvel and vvel are opposite the surface gradients as expected.
 
             vvel(:,ew,ns) = uvel(:,ew,ns) * dusrfdns(ew,ns) + vbas(ew,ns)
             uvel(:,ew,ns) = uvel(:,ew,ns) * dusrfdew(ew,ns) + ubas(ew,ns)
 
             ! Calculate ice fluxes
+            ! Note: diffu < 0, so fluxes are opposite the surface gradients as expected.
 
             uflx(ew,ns) = diffu(ew,ns) * dusrfdew(ew,ns) + ubas(ew,ns) * stagthck(ew,ns)
             vflx(ew,ns) = diffu(ew,ns) * dusrfdns(ew,ns) + vbas(ew,ns) * stagthck(ew,ns)
@@ -489,6 +508,7 @@ contains
                intflwa(up) = intflwa(up+1) + velowk%depth(up) * sum(hrzflwa(up:up+1)) 
             end do
 
+            ! Note: cflow < 0, so dintflwa < 0
             velowk%dintflwa(ew,ns) = cflow * vertintg(velowk,intflwa)
 
           else 
@@ -502,6 +522,8 @@ contains
     case(2)
 
       where (stagthck /= 0.0d0)
+
+         ! Note: dintflwa < 0, so diffu < 0
         diffu = velowk%dintflwa * stagthck**p4 * sqrt(dusrfdew**2 + dusrfdns**2)**p2 
       elsewhere
         diffu = 0.0d0
@@ -512,6 +534,9 @@ contains
       do ns = 1,nsn
         do ew = 1,ewn
           if (stagthck(ew,ns) /= 0.0d0) then
+
+             ! Note: cflow < 0, dintflwa < 0, diffu < 0
+             !       So there are several cancelling minus signs here.
 
             vflx(ew,ns) = diffu(ew,ns) * dusrfdns(ew,ns) + vbas(ew,ns) * stagthck(ew,ns)
             uflx(ew,ns) = diffu(ew,ns) * dusrfdew(ew,ns) + ubas(ew,ns) * stagthck(ew,ns)
@@ -645,7 +670,6 @@ contains
     !> Calculates the time-derivative of a field. This subroutine is used by 
     !> the Glimmer temperature solver only.
 
-    use glimmer_paramets, only : tim0
     use glimmer_physcon, only: scyr
 
     implicit none 
@@ -665,7 +689,7 @@ contains
     else
        factor = 1.d0/factor
        where (mask /= 0)
-          opvr = (tim0/scyr) * (ipvr - thckwk%olds(:,:,which)) * factor
+          opvr = (1.0d0/scyr) * (ipvr - thckwk%olds(:,:,which)) * factor
        elsewhere
           opvr = 0.0d0
        end where
@@ -694,7 +718,6 @@ contains
 
     !TODO Change the name of subroutine gridwvel?  It computes wgrd but not wvel.
 
-!!    use parallel
     implicit none 
 
     !------------------------------------------------------------------------------------
@@ -703,9 +726,8 @@ contains
 
     real(dp),dimension(:),    intent(in)  :: sigma     !> Array holding values of sigma
                                                        !> at each vertical level
-    real(dp),                 intent(in)  :: thklim    !> Minimum thickness to be considered
+    real(dp),                 intent(in)  :: thklim    !> Minimum thickness (m) to be considered
                                                        !> when calculating the grid velocity.
-                                                       !> This is in m, divided by \texttt{thk0}.
     real(dp),dimension(:,:,:),intent(in)  :: uvel      !> The $x$-velocity field (scaled). Velocity
                                                        !> is on the staggered grid
     real(dp),dimension(:,:,:),intent(in)  :: vvel      !> The $y$-velocity field (scaled). Velocity
@@ -714,8 +736,7 @@ contains
                                                        !> and horizontal derivatives of
                                                        !> ice-sheet thickness and upper
                                                        !> surface elevation
-    real(dp),dimension(:,:),  intent(in)  :: thck      !> Ice-sheet thickness (divided by 
-                                                       !> \texttt{thk0})
+    real(dp),dimension(:,:),  intent(in)  :: thck      !> Ice-sheet thickness (m) 
     real(dp),dimension(:,:,:),intent(out) :: wgrd      !> The grid velocity at each point. This
                                                        !> is the output.
 
@@ -764,7 +785,6 @@ contains
     !> (This is equation 13 in {\em Payne and Dongelmans}.) Note that this is only 
     !> done if the thickness is greater than the threshold given by \texttt{numerics\%thklim}.
 
-!!    use parallel
     implicit none
 
     !------------------------------------------------------------------------------------
@@ -775,9 +795,8 @@ contains
                                                           !> staggered grid (scaled)
     real(dp),dimension(:,:,:), intent(in)    :: vvel      !> The $y$-velocity on the
                                                           !> staggered grid (scaled)
-    real(dp),dimension(:,:),   intent(in)    :: thck      !> The ice thickness, divided
-                                                          !> by \texttt{thk0}
-    type(glide_geomderv),    intent(in)    :: geomderv  !> Derived type holding the
+    real(dp),dimension(:,:),   intent(in)    :: thck      !> The ice thickness (m)
+   type(glide_geomderv),    intent(in)    :: geomderv  !> Derived type holding the
                                                           !> horizontal and temporal derivatives
                                                           !> of the thickness and upper surface
                                                           !> elevation.
@@ -887,7 +906,6 @@ contains
     !> Constrain the vertical velocity field to obey a kinematic upper boundary 
     !> condition.
 
-!!    use parallel
     implicit none
 
     !------------------------------------------------------------------------------------
@@ -994,7 +1012,6 @@ contains
     !> Calculate the value of $B$ used for basal sliding calculations.
 
     use glimmer_physcon, only : rhoo, rhoi
-    use glimmer_paramets, only : len0, thk0, scyr, vel0
     implicit none
 
     type(glide_global_type) :: model        !> model instance
@@ -1013,7 +1030,7 @@ contains
     real(dp) :: tau  !basal shear stress
 
     !scaling
-    real(dp) :: tau_factor = 1.d-3*thk0*thk0/len0
+    real(dp) :: tau_factor = 1.d-3
     !real(dp) :: tau_factor = 1.0d0
     !------------------------------------------------------------------------------------
 
@@ -1036,7 +1053,7 @@ contains
 
        do ns = 1,nsn-1
           do ew = 1,ewn-1
-             if (0.0d0 < model%temper%stagbwat(ew,ns)) then
+             if (0.0d0 < model%basal_hydro%stagbwat(ew,ns)) then
                 btrc(ew,ns) = model%velocity%bed_softness(ew,ns)
              else
                 btrc(ew,ns) = 0.0d0
@@ -1081,10 +1098,10 @@ contains
 
        do ns = 1,nsn-1
           do ew = 1,ewn-1
-             if (0.0d0 < model%temper%stagbwat(ew,ns)) then
+             if (0.0d0 < model%basal_hydro%stagbwat(ew,ns)) then
                
                 btrc(ew,ns) = model%velowk%c(1) + model%velowk%c(2) * tanh(model%velowk%c(3) * &
-                     model%temper%stagbwat(ew,ns) - model%velowk%c(4))
+                     model%basal_hydro%stagbwat(ew,ns) - model%velowk%c(4))
                 
                 if (0.0d0 > sum(model%isostasy%relx(ew:ew+1,ns:ns+1))) then
                    btrc(ew,ns) = btrc(ew,ns) * model%velowk%marine  
@@ -1094,36 +1111,6 @@ contains
              end if
           end do
        end do
-
-!WHL - I'm not aware of anyone using this parameterization. Commented out for now.
-!!    case(6)
-!!       ! increases with the third power of the basal shear stress, from Huybrechts
-
-!!       Asl = model%climate%slidconst
-!!       do ns = 1, nsn-1
-!!         do ew = 1, ewn-1
-!NOTE - Scaling looks wrong here: stagthck and thklim should have the same scaling.
-!!           if ((model%geomderv%stagthck(ew,ns)*thk0) > model%numerics%thklim) then 
-!!             if((model%geomderv%stagtopg(ew,ns)*thk0) > (model%climate%eus*thk0)) then
-!!               Z = model%geomderv%stagthck(ew,ns)*thk0
-!!             else
-!!               Z = model%geomderv%stagthck(ew,ns)*thk0 + rhoi*((model%geomderv%stagtopg(ew,ns) *thk0 &
-!!                   - model%climate%eus*thk0)/ rhoo)   
-!!             end if 
-              
-!!            if(Z <= model%numerics%thklim) then !avoid division by zero
-!!                Z = model%numerics%thklim
-!!            end if 
-            
-!!             tau = ((tau_factor*model%stress%tau_x(ew,ns))**2 +&
-!!             (model%stress%tau_y(ew,ns)*tau_factor)**2)**(0.5d0)
-             
-!!             btrc(ew,ns) = (Asl*(tau)**2)/Z !assuming that that btrc is later
-!!                                             !multiplied again by the basal shear stress
-       
-!!           end if  
-!!          end do
-!!       end do
 
     case default   ! includes BTRC_ZERO
        ! zero everywhere

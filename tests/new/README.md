@@ -1,9 +1,12 @@
 How to create a new CISM test
 =============================
 
+Note: For setting up the experiments in an NCAR computing environment,
+follow the steps in the README.NCAR_HPC file in the tests directory.
+
 This directory contains a new test template called `runTest.py` which
-should be used to create a new test in CISM. This template is based off of the
-`tests/higher-order/dome` test, and you should start by playing around with that test
+should be used to create a new test in CISM. This template is based on the
+`tests/dome` test, and you should start by playing around with that test
 so that you understand how the options work, and how the tests are run. If you
 maintain the structure of this test template, your new test will work with the
 `tests/regression/build_and_test.py` structure (BATS). 

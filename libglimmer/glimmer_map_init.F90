@@ -252,6 +252,8 @@ contains
        write(message,*)'Scale factor: ',proj%stere%scale_factor_at_proj_origin
        call write_log(message)
        write(message,*)'compute_area_factor:',proj%stere%compute_area_factor
+       call write_log(message)
+
     end if
 
   end subroutine glimmap_printproj
@@ -465,25 +467,33 @@ contains
   !+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 
   !> compute local area scale factors for stereographic projection
-  subroutine glimmap_stere_area_factor(params, ewn, nsn, dx, dy)
+  subroutine glimmap_stere_area_factor(params, ewn, nsn, dx, dy, parallel)
 
     ! Compute area scale factors for each grid cell.
     ! These scale factors describe the distortion of areas in a stereographic projection.
     !
-    ! This code is adapted a Matlab script provided by Heiko Goelzer, based on this reference:
+    ! This code is adapted from a Matlab script provided by Heiko Goelzer, based on this reference:
     ! J. P. Snyder (1987): Map Projections--A Working Manual, US Geological Survey Professional Paper 1395.
+    !
+    ! Note: What's called area_factor here should probably be called scale_factor.
+    !       It corresponds to the factor 'k' in Snyder, which is a length distortion factor.
+    !       To adjust areas in CISM, one needs to divide by k^2.
     !
     ! Note: This subroutine should not be called until the input file has been read in,
     !       and we have the relevant grid info (ewn, nsn, dx, dy).
 
     use glimmer_log
     use glimmer_physcon, only: pi, rearth
-    use parallel, only: parallel_globalindex, parallel_reduce_max, parallel_reduce_min
+    use cism_parallel, only: parallel_type, parallel_globalindex, &
+         parallel_reduce_max, parallel_reduce_min
 
     type(proj_stere),intent(inout) :: params
 
     integer, intent(in) :: ewn, nsn  ! grid dimensions in x and y
     real(dp), intent(in) :: dx, dy   ! grid cell size in x and y (m)
+
+    !TODO: Test for the case that 'parallel' is not included?  I.e. when called from glide.F90
+    type(parallel_type), intent(in), optional :: parallel   ! info for parallel communication
 
     ! Local variables
 
@@ -540,7 +550,12 @@ contains
        do j = 1, nsn
           do i = 1, ewn
 
-             call parallel_globalindex(i, j, iglobal, jglobal)
+             if (present(parallel)) then
+                call parallel_globalindex(i, j, iglobal, jglobal, parallel)
+             else   !TODO - This alternative needs to be tested.
+                iglobal = i
+                jglobal = j
+             endif
 
              ! compute x and y at cell center, relative to the projection origin
              x = delta_x + (real(iglobal,dp)-0.5d0)*dx
@@ -586,7 +601,6 @@ contains
        call write_log ('Set area scale factor = 1 for polar stereographic projection')
 
     endif  ! compute_area_factor
-
 
   end subroutine glimmap_stere_area_factor
 

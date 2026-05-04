@@ -27,18 +27,19 @@ program cism_driver
 
 !  use glimmer_commandline
 !  use glide
+  use glimmer_paramets, only: iulog
   use gcm_cism_interface
-  use parallel
+  use cism_parallel, only: parallel_initialise, parallel_finalise
 
-  integer :: which_gcm = GCM_DATA_MODEL
+  integer :: which_gcm = GCM_GLINT_MODEL
   type(gcm_to_cism_type) :: g2c
 
   if (command_argument_count() == 0) then
-     print *,""
-     print *,"Call cism_driver with either 1 or 2 arguments. Examples:"
-     print *,"cism_driver ice_sheet.config"
-     print *,"cism_driver ice_sheet.config climate.config"
-     print *,""
+     write(iulog,*) ""
+     write(iulog,*) "Call cism_driver with either 1 or 2 arguments. Examples:"
+     write(iulog,*) "cism_driver ice_sheet.config"
+     write(iulog,*) "cism_driver ice_sheet.config climate.config"
+     write(iulog,*) ""
      stop
   end if
 
@@ -49,4 +50,5 @@ program cism_driver
   call gci_finalize_interface(g2c)
 
   call parallel_finalise
+
 end program cism_driver

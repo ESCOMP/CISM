@@ -38,6 +38,7 @@
 module glimmer_ncdf  
 
   use glimmer_global, only: fname_length, dp
+  use glimmer_paramets, only: iulog
   use netcdf
 
   implicit none
@@ -81,6 +82,13 @@ module glimmer_ncdf
      integer :: nlevel = 0
      integer :: nstaglevel = 0
      integer :: nstagwbndlevel = 0
+     !WHL - added to handle ocean vertical coordinate
+     integer :: nzocn = 0
+     !WHL - added to handle atmosphere vertical coordinate
+     integer :: nzatm = 0
+     !WHL - added to handle glacier coordinate
+     integer :: nglacier = 0
+
      !> size of vertical and stag vertical coordinate
 
      integer timedim
@@ -142,7 +150,7 @@ module glimmer_ncdf
      !> element of linked list describing netCDF output file
      !NO_RESTART previous
 
-     type(glimmer_nc_stat) :: nc                          !< structure containg file info
+     type(glimmer_nc_stat) :: nc                          !< structure containing file info
      real(dp) :: freq = 1000.d0                           !< frequency at which data is written to file
      logical  :: write_init = .true.                      !< if true, then write at the start of the run (tstep_count = 0)
      real(dp) :: end_write = glimmer_nc_max_time          !< stop writing after this year
@@ -180,6 +188,36 @@ module glimmer_ncdf
 
      type(glimmer_nc_input), pointer :: next=>NULL()       !> next element in list
      type(glimmer_nc_input), pointer :: previous=>NULL()   !> previous element in list
+
+     ! The following parameter is useful if the time variable in the input file is different from the CISM time.
+     ! For example, suppose a historical CISM run starts on 1 Jan. 1951.
+     ! This is CISM time 1950.0 (since CISM time 0.0 is 1 Jan. of year 1).
+     ! If a given time slice in the forcing file has t = 1961, corresponding to year 1961,
+     !  then we want this file to be read between CISM time 1960.0 and 1961.0.
+     ! Setting time_offset = 1 ensures that 1961 data is read when CISM time >= 1960.
+     ! Note: time_offset is defined to be positive when the time in the input file is greater than the CISM time.
+
+     integer                        :: time_offset = 0     !> Difference (yr) between time in file and CISM time
+
+     ! The following parameters can be set to nonzero values if we want to cycle repeatedly through part of the input forcing.
+     ! Suppose we have forcing data for years 2001 through 2100 and we want to continue beyond 2100,
+     !  cycling through the forcing for years 2081 through 2100.
+     ! Then we set time_start_cycle = 2081.0 and nyear_cycle = 20.
+     ! Once the forcing time (i.e., the CISM time plus any offset) exceeds time_start_cycle,
+     !  the model will cycle repeatedly through the forcing until the end of the run.
+     ! Note: If time_offset /= 0, the CISM time is offset from the time in the forcing file.
+     !       In this case, time_start_cycle refers to the time in the forcing file, not the CISM time.
+     real(dp)                       :: time_start_cycle = 0.0d0   !> Start cycling once the model time exceeds this time
+     integer                        :: nyear_cycle = 0            !> Cycle repeatedly through nyear_cycle years of forcing data
+                                                                  !> No cycling unless nyear_cycle > 0
+
+     ! if shuffle_file is present, then read an ASCII file with a shuffled list of forcing years
+     character(len=fname_length)    :: shuffle_file = ''
+
+     ! The following parameter can be set to .true. to read all forcing time slices at initialization.
+     ! This increases the required storage, but can reduce computational time if applying the same N years
+     ! of forcing repeatedly, either cycled or shuffled.
+     logical                        :: read_once = .false.
 
   end type glimmer_nc_input
 
@@ -322,13 +360,13 @@ contains
     type(glimmer_nc_output),pointer :: output
 
     if (.not.associated(output)) then
-       print*,'*** Output section not associated'
+       write(iulog,*) '*** Output section not associated'
        return
     end if
 
     call nc_print_stat(output%nc)
-    print*,'freq:       ', output%freq
-    print*,'timecounter:', output%timecounter
+    write(iulog,*) 'freq:       ', output%freq
+    write(iulog,*) 'timecounter:', output%timecounter
 
     if (associated(output%next)) call nc_print_output(output%next)
     
@@ -338,19 +376,22 @@ contains
 
     type(glimmer_nc_stat) :: stat
 
-    print*,'define_mode:     ',stat%define_mode
-    print*,'just_processed:  ',stat%just_processed
-    print*,'processsed_time: ',stat%processsed_time
-    print*,'filename:        ',stat%filename
-    print*,'id:              ',stat%id
-    print*,'nlevel:          ',stat%nlevel
-    print*,'nstaglevel:      ',stat%nstaglevel
-    print*,'nstagwbndlevel:  ',stat%nstagwbndlevel
-    print*,'timedim:         ',stat%timedim
-    print*,'internal_timevar:',stat%internal_timevar
-    print*,'timevar:         ',stat%timevar
-    print*,'tstep_count_var: ',stat%tstep_count_var
-    print*,'vars:            ',trim(stat%vars)
+    write(iulog,*) 'define_mode:     ',stat%define_mode
+    write(iulog,*) 'just_processed:  ',stat%just_processed
+    write(iulog,*) 'processsed_time: ',stat%processsed_time
+    write(iulog,*) 'filename:        ',stat%filename
+    write(iulog,*) 'id:              ',stat%id
+    write(iulog,*) 'nlevel:          ',stat%nlevel
+    write(iulog,*) 'nstaglevel:      ',stat%nstaglevel
+    write(iulog,*) 'nstagwbndlevel:  ',stat%nstagwbndlevel
+    write(iulog,*) 'nzocn:           ',stat%nzocn
+    write(iulog,*) 'nzatm:           ',stat%nzatm
+    write(iulog,*) 'nglacier:        ',stat%nglacier
+    write(iulog,*) 'timedim:         ',stat%timedim
+    write(iulog,*) 'internal_timevar:',stat%internal_timevar
+    write(iulog,*) 'timevar:         ',stat%timevar
+    write(iulog,*) 'tstep_count_var: ',stat%tstep_count_var
+    write(iulog,*) 'vars:            ',trim(stat%vars)
 
   end subroutine nc_print_stat
 

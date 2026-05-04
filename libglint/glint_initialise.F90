@@ -43,6 +43,8 @@ module glint_initialise
 
   use glint_type
   use glimmer_global, only: dp
+  use cism_parallel, only: main_task
+
   implicit none
 
   private
@@ -60,7 +62,7 @@ contains
 
     !> Initialise a GLINT ice model instance
 
-    use glimmer_paramets, only: GLC_DEBUG, thk0
+    use glimmer_paramets, only: GLC_DEBUG
     use glimmer_log
     use glimmer_config
     use glimmer_coordinates, only : coordsystem_new
@@ -70,12 +72,12 @@ contains
     use glint_mbal_io     , only: glint_mbal_io_createall, glint_mbal_io_writeall
     use glimmer_ncio
     use glide_nc_custom   , only: glide_nc_fillall
+    use glide_model_registry, only : register_model
     use glide
     use glissade
     use glad_constants
     use glad_restart_gcm
     use glide_diagnostics
-    use parallel, only: main_task
 
     implicit none
 
@@ -106,6 +108,7 @@ contains
 
     ! initialise model
 
+    call register_model(instance%model)
     call glide_config(instance%model, config, config_fileunit)
 
     ! if this is a continuation run, then set up to read restart
@@ -218,10 +221,10 @@ contains
     instance%next_time = force_start - force_dt + instance%mbal_tstep
 
     if (GLC_DEBUG .and. main_task) then
-       write (6,*) 'Called glint_mbc_init'
-       write (6,*) 'mbal tstep =', mbts
-       write (6,*) 'next_time =', instance%next_time
-       write (6,*) 'start_time =', instance%mbal_accum%start_time
+       write(iulog,*) 'Called glint_mbc_init'
+       write(iulog,*) 'mbal tstep =', mbts
+       write(iulog,*) 'next_time =', instance%next_time
+       write(iulog,*) 'start_time =', instance%mbal_accum%start_time
     end if
 
 
@@ -319,7 +322,7 @@ contains
 
     ! Initialise a GLINT ice model instance for GCM coupling
 
-    use glimmer_paramets, only: GLC_DEBUG, thk0
+    use glimmer_paramets, only: GLC_DEBUG
     use glimmer_log
     use glimmer_config
     use glimmer_coordinates, only : coordsystem_new
@@ -329,12 +332,12 @@ contains
     use glint_mbal_io     , only: glint_mbal_io_createall, glint_mbal_io_writeall
     use glimmer_ncio
     use glide_nc_custom   , only: glide_nc_fillall
+    use glide_model_registry, only : register_model
     use glide
     use glissade
     use glad_constants
     use glad_restart_gcm
     use glide_diagnostics
-    use parallel, only: main_task
 
     implicit none
 
@@ -364,6 +367,7 @@ contains
 
     ! initialise model
 
+    call register_model(instance%model)
     call glide_config(instance%model, config, config_fileunit)
 
     ! if this is a continuation run, then set up to read restart
@@ -491,10 +495,10 @@ contains
     instance%next_time = force_start - force_dt + instance%mbal_tstep
 
     if (GLC_DEBUG .and. main_task) then
-       write (6,*) 'Called glint_mbc_init'
-       write (6,*) 'mbal tstep =', mbts
-       write (6,*) 'next_time =', instance%next_time
-       write (6,*) 'start_time =', instance%mbal_accum%start_time
+       write(iulog,*) 'Called glint_mbc_init'
+       write(iulog,*) 'mbal tstep =', mbts
+       write(iulog,*) 'next_time =', instance%next_time
+       write(iulog,*) 'start_time =', instance%mbal_accum%start_time
     end if
 
     ! Mass-balance accumulation length
@@ -553,7 +557,9 @@ contains
     !> Tidy up 
 
     use glide
+    use glide_stop, only : glide_finalise
     use glimmer_ncio
+    use glide_stop, only : glide_finalise
     implicit none
     type(glint_instance),  intent(inout) :: instance    !> The instance being initialised.
 
@@ -599,9 +605,9 @@ contains
     
     use glint_type         , only : glint_instance
     use glint_global_grid  , only : global_grid
-    use parallel           , only : main_task, global_ewn, global_nsn, distributed_gather_var
     use glimmer_coordinates, only : coordsystem_new
     use glide_types        , only : get_dew, get_dns
+    use cism_parallel       , only : parallel_type, distributed_gather_var
 
     implicit none
 
@@ -615,9 +621,16 @@ contains
 
     integer, dimension(:,:), allocatable :: out_mask_fulldomain
 
+    type(parallel_type) :: parallel     ! info for parallel communication
+    integer :: global_ewn, global_nsn   ! global array dimensions
+
     ! Beginning of code
 
-    call distributed_gather_var(instance%out_mask, out_mask_fulldomain)
+    parallel = instance%model%parallel
+    global_ewn = instance%model%parallel%global_ewn
+    global_nsn = instance%model%parallel%global_nsn
+
+    call distributed_gather_var(instance%out_mask, out_mask_fulldomain, parallel)
 
     if (main_task) then
 
@@ -853,7 +866,7 @@ contains
     ! Variables needed for restart with glint.
     ! TODO I am inserting out_mask because it was the only variable with hot=1 in the old glint_vars.def
     !      Not sure outflux is needed
-    call glint_add_to_restart_variable_list('outmask')
+    call glint_add_to_restart_variable_list('outmask', instance%model%model_id)
 
     ! The variables rofi_tavg, rofl_tavg, and hflx_tavg are time-averaged fluxes on the local grid
     !  from the previous coupling interval. They are included here so that the coupler can be sent
@@ -862,12 +875,12 @@ contains
     !TODO - Add av_count_output so we can restart in the middle of a mass balance timestep?
    
     if (instance%whichacab == MASS_BALANCE_GCM) then
-       call glint_add_to_restart_variable_list('rofi_tavg rofl_tavg hflx_tavg')
+       call glint_add_to_restart_variable_list('rofi_tavg rofl_tavg hflx_tavg', instance%model%model_id)
     endif
 
     ! Variables needed for restart with glint_mbal
     ! No variables had hot=1 in glint_mbal_vars.def, so I am not adding any restart variables here.
-    ! call glint_mbal_add_to_restart_variable_list('')
+    ! call glint_mbal_add_to_restart_variable_list('', instance%model%model_id)
 
   end subroutine define_glint_restart_variables
 

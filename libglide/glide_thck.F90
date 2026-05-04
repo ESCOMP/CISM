@@ -39,6 +39,7 @@
 module glide_thck
 
   use glimmer_global, only : dp
+  use glimmer_paramets, only: iulog
   use glide_types
   use glimmer_sparse
   use glimmer_sparse_type
@@ -123,7 +124,7 @@ contains
 
        model%geometry%thck = dmax1(0.0d0, model%geometry%thck + model%climate%acab * model%numerics%dt)
        if (GLC_DEBUG) then
-          print *, "* thck empty - net accumulation added", model%numerics%time
+          write(iulog,*) "* thck empty - net accumulation added", model%numerics%time
        end if
     else
 
@@ -131,30 +132,29 @@ contains
        !      and the geometry has not changed, so stagthck and the geometry
        !      derivatives are still up to date.  A call might be needed here
        !      if glide_tstep_p2 were called out of order.
-
 !!       call glide_geometry_derivs(model)
 
        ! calculate basal velos
        if (newtemps) then
 
-          call slipvelo(model,                &
-                        1,                             &
-                        model%velocity% btrc,          &
-                        model%velocity% ubas,          &
-                        model%velocity% vbas)
+          call slipvelo(model,                     &
+                        1,                         &
+                        model%velocity%btrc,       &
+                        model%velocity%ubas,       &
+                        model%velocity%vbas)
 
           ! calculate Glen's A if necessary
           call velo_integrate_flwa(model%velowk,  &
                                    model%geomderv%stagthck,   &
                                    model%temper%flwa)
 
-       end if
+       end if   ! newtemps
 
-       call slipvelo(model,                &
-                     2,                             &
-                     model%velocity% btrc,          &
-                     model%velocity% ubas,          &
-                     model%velocity% vbas)
+       call slipvelo(model,                        &
+                     2,                            &
+                     model%velocity%btrc,          &
+                     model%velocity%ubas,          &
+                     model%velocity%vbas)
 
        ! calculate diffusivity
 
@@ -162,12 +162,12 @@ contains
                             model%geomderv%dusrfdew, model%geomderv%dusrfdns,  &
                             model%velocity%diffu)
 
-        ! get new thicknesses
+       ! get new thicknesses
 
-        call thck_evolve(model,    &
-                         model%velocity%diffu, model%velocity%diffu, &
-                         .true.,   &
-                         model%geometry%thck,  model%geometry%thck)
+       call thck_evolve(model,    &
+                        model%velocity%diffu, model%velocity%diffu, &
+                        .true.,   &
+                        model%geometry%thck,  model%geometry%thck)
 
 !--- MJH: Since the linear evolution uses a diffusivity based on the old geometry, the
 !    velocity calculated here will also be based on the old geometry.  If it is
@@ -204,7 +204,7 @@ contains
                            model%velocity%uflx,     model%velocity%vflx,&
                            model%velocity%velnorm)
 
-    end if
+    end if   ! model%geometry%empty
 
   end subroutine thck_lin_evolve
 
@@ -219,7 +219,7 @@ contains
     use glide_velo
     use glide_setup
     use glide_nonlin !For unstable manifold correction
-    use glimmer_paramets, only: thk0, thk_scale, GLC_DEBUG
+    use glimmer_paramets, only: thk_scale, GLC_DEBUG
     use glide_grid_operators, only: glide_geometry_derivs
 
     implicit none
@@ -252,7 +252,7 @@ contains
 
        model%geometry%thck = dmax1(0.0d0, model%geometry%thck + model%climate%acab * model%numerics%dt)
        if (GLC_DEBUG) then
-          print *, "* thck empty - net accumulation added", model%numerics%time
+          write(iulog,*) "* thck empty - net accumulation added", model%numerics%time
        end if
     else
 
@@ -269,9 +269,9 @@ contains
 
           call slipvelo(model,                         &
                         1,                             &
-                        model%velocity% btrc,          &
-                        model%velocity% ubas,          &
-                        model%velocity% vbas)
+                        model%velocity%btrc,           &
+                        model%velocity%ubas,           &
+                        model%velocity%vbas)
 
           ! calculate Glen's A if necessary
           call velo_integrate_flwa(model%velowk,             &
@@ -294,11 +294,12 @@ contains
           call glide_geometry_derivs(model)   
 
           ! flag = 2: compute basal contribution to diffusivity
-          call slipvelo(model,                         &
-                        2,                             &
-                        model%velocity% btrc,          &
-                        model%velocity% ubas,          &
-                        model%velocity% vbas)
+
+          call slipvelo(model,                        &
+                        2,                            &
+                        model%velocity%btrc,          &
+                        model%velocity%ubas,          &
+                        model%velocity%vbas)
 
           ! calculate diffusivity
           call velo_calc_diffu(model%velowk,            model%geomderv%stagthck,  &
@@ -328,12 +329,8 @@ contains
             exit
           end if
 #else
-!SCALING - Multiply thickness residual by thk0/thk_scale so we get the same result in these two cases:
-!           (1) Old Glimmer with scaling:         thk0 = thk_scale = 2000 m, and thck is non-dimensional
-!           (2) New CISM without scaling: thk0 = 1, thk_scale = 2000 m, and thck is in true meters.
-
-!!!          residual = maxval(abs(model%geometry%thck-model%thckwk%oldthck2))
-          residual = maxval( abs(model%geometry%thck-model%thckwk%oldthck2) * (thk0/thk_scale) )
+          ! thk_scale = 2000 m (= thk0 in old Glimmer); this term scales the residual
+          residual = maxval( abs(model%geometry%thck-model%thckwk%oldthck2) * (1.0d0/thk_scale) )
 
           if (residual <= tol) then
              exit
@@ -386,6 +383,7 @@ contains
        ! calculate horizontal velocity field
 
        ! flag = 3: Calculate the basal velocity from the diffusivities
+
        call slipvelo(model,                         &
                      3,                             &
                      model%velocity%btrc,           &
@@ -405,6 +403,7 @@ contains
   end subroutine thck_nonlin_evolve
 
 !---------------------------------------------------------------------------------
+  !TODO - Pass in just diffu?  The same field is passed to diffu_x and diffu_y.
 
   subroutine thck_evolve(model, diffu_x, diffu_y, calc_rhs, old_thck, new_thck)
 
@@ -412,7 +411,7 @@ contains
     !> this routine does not override the old thickness distribution
 
     use glimmer_log
-    use glimmer_paramets, only: vel0, thk0, GLC_DEBUG
+    use glimmer_paramets, only: GLC_DEBUG
 
     implicit none
 
@@ -576,9 +575,9 @@ contains
     new_thck = max(0.0d0, new_thck)
 
     if (GLC_DEBUG) then
-       print *, "* thck ", model%numerics%time, linit, model%geometry%totpts, &
-            real(thk0 * new_thck(model%general%ewn/2+1,model%general%nsn/2+1)), &
-            real(vel0 * maxval(abs(model%velocity%ubas))), real(vel0*maxval(abs(model%velocity%vbas))) 
+       write(iulog,*) "* thck ", model%numerics%time, linit, model%geometry%totpts, &
+            real(new_thck(model%general%ewn/2+1,model%general%nsn/2+1)), &
+            real(maxval(abs(model%velocity%ubas))), real(maxval(abs(model%velocity%vbas))) 
     end if
 
     !TODO Why are lsrf and usrf calculated here?  This is confusing because model%geometry%thck has only been updated 
@@ -661,7 +660,9 @@ contains
       integer, intent(in) :: ewm,ew  ! ew index to left, right
       integer, intent(in) :: nsm,ns  ! ns index to lower, upper
 
-      ! calculate sparse matrix elements
+      !Note: Here, ubas = rhoi*grav*stagthck^2, from calling slipvelo with flag = 2.
+      !      It's an addition to the diffusivity term, not an actual basal speed.
+
       sumd(1) = alpha_dt_ew * (&
                (diffu_x(ewm,nsm) + diffu_x(ewm,ns)) + &
                (model%velocity%ubas (ewm,nsm) + model%velocity%ubas (ewm,ns)))
@@ -854,7 +855,7 @@ contains
 
        model%geometry%thck = dmax1(0.0d0, model%geometry%thck + model%climate%acab * model%numerics%dt)
        if (GLC_DEBUG) then
-          print *, "* thck empty - net accumulation added", model%numerics%time
+          write(iulog,*) "* thck empty - net accumulation added", model%numerics%time
        end if
 
     else
@@ -1111,7 +1112,7 @@ contains
     end do
 
     thck(3:ewn-2,3:nsn-2) = smth(3:ewn-2,3:nsn-2)
-    print *, count
+    write(iulog,*) count
 
     deallocate(smth)            
 

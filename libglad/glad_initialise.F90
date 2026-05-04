@@ -57,7 +57,7 @@ contains
 
     ! Initialise a GLAD ice model instance for GCM coupling
 
-    use glimmer_paramets, only: GLC_DEBUG, thk0
+    use glimmer_paramets, only: GLC_DEBUG
     use glimmer_log
     use glimmer_config
     use glimmer_coordinates, only : coordsystem_new
@@ -66,12 +66,13 @@ contains
     use glad_mbal_io     , only: glad_mbal_io_createall, glad_mbal_io_writeall
     use glimmer_ncio
     use glide_nc_custom   , only: glide_nc_fillall
+    use glide_model_registry, only : register_model
     use glide
     use glissade
     use glad_constants
     use glad_restart_gcm
     use glide_diagnostics
-    use parallel, only: main_task
+    use cism_parallel, only: main_task
 
     implicit none
 
@@ -91,6 +92,7 @@ contains
 
     integer :: config_fileunit
     logical :: do_ice_evolution
+    integer :: nzocn
 
     config_fileunit = 99
     if (present(gcm_config_unit)) then
@@ -99,19 +101,28 @@ contains
 
     ! initialise model
 
+    call register_model(instance%model)
     call glide_config(instance%model, config, config_fileunit)
 
     ! if this is a continuation run, then set up to read restart
     ! (currently assumed to be a CESM restart file)
 
+    ! initialize to empty string in case it isn't set
+    instance%gcm_restart_file = ' '
     if (present(gcm_restart)) then
 
       if (gcm_restart) then
 
          if (present(gcm_restart_file)) then
 
+            if (gcm_restart_file == ' ') then
+               call write_log('gcm_restart is true, but gcm_restart_file is empty',&
+                    GM_FATAL,__FILE__,__LINE__)
+            end if
+
             ! read the restart file
             call glad_read_restart_gcm(instance%model, gcm_restart_file)
+            instance%gcm_restart_file = gcm_restart_file
             instance%model%options%is_restart = 1
  
          else
@@ -191,6 +202,7 @@ contains
                                      get_ewn(instance%model), &
                                      get_nsn(instance%model))
 
+
     ! Allocate arrays appropriately
 
     call glad_i_allocate_gcm(instance, force_start)
@@ -200,8 +212,9 @@ contains
     call glad_i_readdata(instance)
 
     ! initialise the mass-balance accumulation
+    nzocn = get_nzocn(instance%model) ! used for ocean related fields
 
-    call glad_mbc_init(instance%mbal_accum, instance%lgrid)
+    call glad_mbc_init(instance%mbal_accum, instance%lgrid, nzocn)
 
     ! If flag set to force frequent coupling (for testing purposes),
     ! then decrease all coupling timesteps to very short intervals
@@ -218,10 +231,10 @@ contains
     instance%next_time = force_start - force_dt + instance%mbal_tstep
 
     if (GLC_DEBUG .and. main_task) then
-       write (6,*) 'Called glad_mbc_init'
-       write (6,*) 'mbal tstep =', instance%mbal_tstep
-       write (6,*) 'next_time =', instance%next_time
-       write (6,*) 'start_time =', instance%mbal_accum%start_time
+       write(iulog,*) 'Called glad_mbc_init'
+       write(iulog,*) 'mbal tstep =', instance%mbal_tstep
+       write(iulog,*) 'next_time =', instance%next_time
+       write(iulog,*) 'start_time =', instance%mbal_accum%start_time
     end if
 
     ! Mass-balance accumulation length
@@ -281,6 +294,7 @@ contains
 
     use glide
     use glimmer_ncio
+    use glide_stop, only : glide_finalise
     implicit none
     type(glad_instance),  intent(inout) :: instance    !> The instance being initialised.
 
@@ -336,14 +350,14 @@ contains
     ! restart file (and not the original input file) we need to write lat and lon back to
     ! the restart file so they will be available for the following run segment.
     
-    call glad_add_to_restart_variable_list('lat lon')
+    call glad_add_to_restart_variable_list('lat lon', instance%model%model_id)
     
     ! The variables rofi_tavg, rofl_tavg, and hflx_tavg are time-averaged fluxes on the local grid
     !  from the previous coupling interval. They are included here so that the coupler can be sent
     !  the correct fluxes after restart; otherwise these fluxes would have values of zero.
     !TODO - Add av_count_output so we can restart in the middle of a mass balance timestep?
    
-    call glad_add_to_restart_variable_list('rofi_tavg rofl_tavg hflx_tavg')
+    call glad_add_to_restart_variable_list('rofi_tavg rofl_tavg hflx_tavg', instance%model%model_id)
 
   end subroutine define_glad_restart_variables
 

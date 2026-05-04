@@ -39,8 +39,8 @@
   module glissade_velo_higher_trilinos
 
     use glimmer_global, only: dp
-!    use glimmer_log, only: write_log
-    use parallel
+    use glimmer_paramets, only: iulog
+    use cism_parallel, only: this_rank, main_task, nhalo, staggered_parallel_halo
 
     implicit none
     private
@@ -59,6 +59,7 @@
 !****************************************************************************
 
   subroutine trilinos_global_id_3d(nx,         ny,         nz,   &
+                                   parallel,                     &
                                    nNodesSolve,                  &
                                    iNodeIndex, jNodeIndex, kNodeIndex,  &
                                    global_node_id,               &
@@ -75,6 +76,9 @@
     integer, intent(in) ::   &
        nx, ny,             &  ! number of grid cells in each direction
        nz                     ! number of vertical levels where velocity is computed
+
+    type(parallel_type), intent(in) :: &
+       parallel               ! info for parallel communication
 
     integer, intent(in) ::             &
        nNodesSolve            ! number of nodes where we solve for velocity
@@ -113,7 +117,7 @@
        enddo
     enddo
 
-    call staggered_parallel_halo(global_vertex_id)
+    call staggered_parallel_halo(global_vertex_id, parallel)
 
     do j = 1, ny-1         ! loop over all vertices, including halo
        do i = 1, nx-1
@@ -141,6 +145,7 @@
 !****************************************************************************
 
   subroutine trilinos_global_id_2d(nx,             ny,           &
+                                   parallel,                     &
                                    nVerticesSolve,               &
                                    iVertexIndex,   jVertexIndex, &
                                    global_vertex_id,             &
@@ -156,6 +161,9 @@
 
     integer, intent(in) ::   &
        nx, ny                  ! number of grid cells in each direction
+
+    type(parallel_type), intent(in) :: &
+       parallel                ! info for parallel communication
 
     integer, intent(in) ::             &
        nVerticesSolve          ! number of nodes where we solve for velocity
@@ -191,7 +199,7 @@
        enddo
     enddo
 
-    call staggered_parallel_halo(global_vertex_id)
+    call staggered_parallel_halo(global_vertex_id, parallel)
 
     !----------------------------------------------------------------
     ! Associate a unique global index with each unknown on the active vertices
@@ -331,7 +339,7 @@
        indxA             ! maps relative (x,y,z) coordinates to an index between 1 and 9  
                          ! index order is (i,j)
    
-    logical, dimension(9,nx-1,ny-1), intent(out) ::  &
+    logical, dimension(nx-1,ny-1,9), intent(out) ::  &
        Afill        ! true wherever the matrix value is potentially nonzero
                     ! and should be sent to Trilinos
 
@@ -362,7 +370,7 @@
                 if (active_vertex(i+iA,j+jA)) then
 
                    m = indxA(iA,jA)
-                   Afill(m,i,j) = .true.
+                   Afill(i,j,m) = .true.
                    
                 endif  ! active_vertex(i+iA,j+jA)
 
@@ -425,7 +433,7 @@
 
     real(dp), dimension(27,nz,nx-1,ny-1), intent(in) ::  &
        Auu, Auv,    &     ! assembled stiffness matrix, divided into 4 parts
-       Avu, Avv           ! 1st dimension = node and its nearest neighbors in x, y and z direction 
+       Avu, Avv           ! 1st dimension = node and its nearest neighbors in x, y and z direction
                           ! other dimensions = (k,i,j) indices
 
     real(dp), dimension(nz,nx-1,ny-1), intent(in) ::  &
@@ -464,9 +472,9 @@
        global_row = 2*global_node_id(k,i,j) - 1
 
 !WHL - debug
-!       print*, ' '
-!       print*, 'n, i, j, k', n, i, j, k
-!       print*, 'global_node_id, global_row:', global_node_id(k,i,j), global_row
+!       write(iulog,*) ' '
+!       write(iulog,*) 'n, i, j, k', n, i, j, k
+!       write(iulog,*) 'global_node_id, global_row:', global_node_id(k,i,j), global_row
       
        ncol = 0
        global_column(:) = 0
@@ -592,13 +600,13 @@
        indxA                 ! maps relative (x,y) coordinates to an index between 1 and 9
                              ! index order is (i,j)
 
-    logical, dimension(9,nx-1,ny-1), intent(in) ::  &
+    logical, dimension(nx-1,ny-1,9), intent(in) ::  &
        Afill              ! true for matrix values to be sent to Trilinos
 
-    real(dp), dimension(9,nx-1,ny-1), intent(in) ::  &
+    real(dp), dimension(nx-1,ny-1,9), intent(in) ::  &
        Auu, Auv,    &     ! assembled stiffness matrix, divided into 4 parts
-       Avu, Avv           ! 1st dimension = node and its nearest neighbors in x, y and z direction 
-                          ! other dimensions = (i,j) indices
+       Avu, Avv           ! 3rd dimension = node and its nearest neighbors in x, y and z direction
+                          ! 1st and 2nd dimensions = (i,j) indices
 
     real(dp), dimension(nx-1,ny-1), intent(in) ::  &
        bu, bv             ! assembled load (rhs) vector, divided into 2 parts
@@ -644,15 +652,15 @@
 
              m = indxA(iA,jA)
 
-             if (Afill(m,i,j)) then
+             if (Afill(i,j,m)) then
 
                 ncol = ncol + 1
                 global_column(ncol) = 2*global_vertex_id(i+iA,j+jA) - 1
-                matrix_value(ncol) = Auu(m,i,j)
+                matrix_value(ncol) = Auu(i,j,m)
 
                 ncol = ncol + 1
                 global_column(ncol) = 2*global_vertex_id(i+iA,j+jA)
-                matrix_value(ncol) = Auv(m,i,j)
+                matrix_value(ncol) = Auv(i,j,m)
 
              endif
 
@@ -681,15 +689,15 @@
 
              m = indxA(iA,jA)
 
-             if (Afill(m,i,j)) then
+             if (Afill(i,j,m)) then
 
                 ncol = ncol + 1
                 global_column(ncol) = 2*global_vertex_id(i+iA,j+jA) - 1
-                matrix_value(ncol) = Avu(m,i,j)
+                matrix_value(ncol) = Avu(i,j,m)
 
                 ncol = ncol + 1
                 global_column(ncol) = 2*global_vertex_id(i+iA,j+jA)
-                matrix_value(ncol) = Avv(m,i,j)
+                matrix_value(ncol) = Avv(i,j,m)
 
              endif
 
@@ -903,8 +911,6 @@
     ! Small test matrices for Trilinos solver
     !--------------------------------------------------------
     
-    use parallel
-      
     !--------------------------------------------------------
     ! Local variables
     !--------------------------------------------------------
@@ -923,8 +929,8 @@
        velocityResult     ! velocity solution vector from Trilinos
 
     if (main_task) then
-       print*, ' '
-       print*, 'Solve trilinos test matrix, tasks =', tasks
+       write(iulog,*) ' '
+       write(iulog,*) 'Solve trilinos test matrix, tasks =', tasks
     endif
 
     if (tasks == 1) then
@@ -938,7 +944,7 @@
        nNodesSolve = 1
        allocate(active_owned_unknown_map(2*nNodesSolve))
        active_owned_unknown_map(:) = (/ 1,2 /)
-       print*, 'initializetgs, rank =', this_rank
+       write(iulog,*) 'initializetgs, rank =', this_rank
        call initializetgs(2*nNodesSolve, active_owned_unknown_map, comm)
 
        ! insert rows
@@ -952,7 +958,7 @@
        global_column(:) = (/ 1,2 /)
        matrix_value(:)  = (/ 1,2 /)
        rhs_value = 3
-       print*, 'insertrowtgs, rank, row =', this_rank, global_row
+       write(iulog,*) 'insertrowtgs, rank, row =', this_rank, global_row
        call insertrowtgs(global_row, ncol, global_column, matrix_value, rhs_value)
 
        ! row 2 (global ID = 2)
@@ -961,16 +967,16 @@
        global_column(:) = (/ 1,2 /)
        matrix_value(:)  = (/ 3,4 /)
        rhs_value = 7
-       print*, 'insertrowtgs, rank, row =', this_rank, global_row
+       write(iulog,*) 'insertrowtgs, rank, row =', this_rank, global_row
        call insertrowtgs(global_row, ncol, global_column, matrix_value, rhs_value)
 
        ! solve
        allocate(velocityResult(2*nNodesSolve))
-       print*, 'solvevelocitytgs, rank =', this_rank
+       write(iulog,*) 'solvevelocitytgs, rank =', this_rank
        call solvevelocitytgs(velocityResult)
 
        ! print solution
-       print*, 'rank, solution:', this_rank, velocityResult(:)
+       write(iulog,*) 'rank, solution:', this_rank, velocityResult(:)
 
     elseif (tasks == 2) then
 
@@ -995,7 +1001,7 @@
        elseif (this_rank==1) then
           active_owned_unknown_map(:) = (/ 4,6 /)
        endif
-       print*, 'initializetgs, rank =', this_rank
+       write(iulog,*) 'initializetgs, rank =', this_rank
        call initializetgs(2*nNodesSolve, active_owned_unknown_map, comm)
 
        ! insert rows
@@ -1008,7 +1014,7 @@
           global_column(:) = (/ 1,3,6,0 /)
           matrix_value(:)  = (/ 1,2,3,0 /)
           rhs_value = 7
-          print*, 'insertrowtgs, rank, row =', this_rank, global_row
+          write(iulog,*) 'insertrowtgs, rank, row =', this_rank, global_row
           call insertrowtgs(global_row, ncol, global_column, matrix_value, rhs_value)
        
           ! row 2 (global ID = 3)
@@ -1017,7 +1023,7 @@
           global_column(:) = (/ 1,3,4,0 /)
           matrix_value(:)  = (/ 4,5,6,0 /)
           rhs_value = 10
-          print*, 'insertrowtgs, rank, row =', this_rank, global_row
+          write(iulog,*) 'insertrowtgs, rank, row =', this_rank, global_row
           call insertrowtgs(global_row, ncol, global_column, matrix_value, rhs_value)
 
        elseif (this_rank==1) then
@@ -1028,7 +1034,7 @@
           global_column(:) = (/ 1,3,4,6 /)
           matrix_value(:)  = (/ 7,8,9,10 /)
           rhs_value = 36
-          print*, 'insertrowtgs, rank, row =', this_rank, global_row
+          write(iulog,*) 'insertrowtgs, rank, row =', this_rank, global_row
           call insertrowtgs(global_row, ncol, global_column, matrix_value, rhs_value)
 
           ! row 2 (global ID = 6)
@@ -1037,18 +1043,18 @@
           global_column(:) = (/ 3,4,6,0 /)
           matrix_value(:)  = (/ 11,12,13,0 /)
           rhs_value = 38
-          print*, 'insertrowtgs, rank, row =', this_rank, global_row
+          write(iulog,*) 'insertrowtgs, rank, row =', this_rank, global_row
           call insertrowtgs(global_row, ncol, global_column, matrix_value, rhs_value)
 
        endif
 
        ! solve
        allocate(velocityResult(2*nNodesSolve))
-       print*, 'solvevelocitytgs, rank =', this_rank
+       write(iulog,*) 'solvevelocitytgs, rank =', this_rank
        call solvevelocitytgs(velocityResult)
 
        ! print solution
-       print*, 'rank, solution:', this_rank, velocityResult(:)
+       write(iulog,*) 'rank, solution:', this_rank, velocityResult(:)
 
        deallocate(active_owned_unknown_map)
        deallocate(velocityResult)
@@ -1071,7 +1077,7 @@
        elseif (this_rank==1) then
           active_owned_unknown_map(:) = (/ 4,6 /)
        endif
-       print*, 'initializetgs, rank =', this_rank
+       write(iulog,*) 'initializetgs, rank =', this_rank
        call initializetgs(2*nNodesSolve, active_owned_unknown_map, comm)
 
        ! insert rows
@@ -1084,7 +1090,7 @@
           global_column(:) = (/ 1,3,4,0 /)
           matrix_value(:)  = (/ 1,2,3,0 /)
           rhs_value = 4
-          print*, 'insertrowtgs, rank, row =', this_rank, global_row
+          write(iulog,*) 'insertrowtgs, rank, row =', this_rank, global_row
           call insertrowtgs(global_row, ncol, global_column, matrix_value, rhs_value)
        
           ! row 2 (global ID = 3)
@@ -1093,7 +1099,7 @@
           global_column(:) = (/ 3,4,6,0 /)
           matrix_value(:)  = (/ 4,5,6,0 /)
           rhs_value = 17
-          print*, 'insertrowtgs, rank, row =', this_rank, global_row
+          write(iulog,*) 'insertrowtgs, rank, row =', this_rank, global_row
           call insertrowtgs(global_row, ncol, global_column, matrix_value, rhs_value)
 
        elseif (this_rank==1) then
@@ -1104,7 +1110,7 @@
           global_column(:) = (/ 1,3,4,0 /)
           matrix_value(:)  = (/ 7,8,9,0 /)
           rhs_value = 16
-          print*, 'insertrowtgs, rank, row =', this_rank, global_row
+          write(iulog,*) 'insertrowtgs, rank, row =', this_rank, global_row
           call insertrowtgs(global_row, ncol, global_column, matrix_value, rhs_value)
 
           ! row 2 (global ID = 6)
@@ -1113,24 +1119,24 @@
           global_column(:) = (/ 3,4,6,0 /)
           matrix_value(:)  = (/ 10,11,12,0 /)
           rhs_value = 35
-          print*, 'insertrowtgs, rank, row =', this_rank, global_row
+          write(iulog,*) 'insertrowtgs, rank, row =', this_rank, global_row
           call insertrowtgs(global_row, ncol, global_column, matrix_value, rhs_value)
 
        endif
 
        ! solve
        allocate(velocityResult(2*nNodesSolve))
-       print*, 'solvevelocitytgs, rank =', this_rank
+       write(iulog,*) 'solvevelocitytgs, rank =', this_rank
        call solvevelocitytgs(velocityResult)
 
        ! print solution
-       print*, 'rank, solution:', this_rank, velocityResult(:)
+       write(iulog,*) 'rank, solution:', this_rank, velocityResult(:)
 
        deallocate(active_owned_unknown_map)
        deallocate(velocityResult)
 
     else
-       print*, 'Error: Trilinos test requires 1 or 2 processors'
+       write(iulog,*) 'Error: Trilinos test requires 1 or 2 processors'
        stop
     endif
 

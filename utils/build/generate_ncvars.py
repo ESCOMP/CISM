@@ -1,4 +1,4 @@
-#!/usr/bin/env python2
+#!/usr/bin/env python
 
 # Copyright (C) 2005-2018
 # Glimmer-CISM contributors - see AUTHORS file for list of contributors
@@ -34,6 +34,7 @@ dimensions = {}
 module = {}
 
 AVERAGE_SUFFIX = 'tavg'
+READ_ONCE_SUFFIX = 'read_once'
 
 def dimid(name):
     return '%s_dimid'%name
@@ -97,6 +98,17 @@ class Variables(dict):
                     vardef['average'] = False
             else:
                 vardef['average'] = False
+
+            #WHL - added option to read some forcing fields only once, at initialization
+            if 'read_once' in vardef:
+                if vardef['read_once'].lower() in ['1','true','t']:
+                    vardef['read_once'] = True
+                    self.__have_read_once = True
+                else:
+                    vardef['read_once'] = False
+            else:
+                vardef['read_once'] = False
+
             # handle dims
             for d in vardef['dimensions'].split(','):
                 d=d.strip()
@@ -123,7 +135,6 @@ class Variables(dict):
                 vardef_avg['avg_factor'] = 'tavgf'
                 # and add to dictionary
                 self.__setitem__('%s_%s'%(v,AVERAGE_SUFFIX),vardef_avg)
-                
 
     def keys(self):
         """Reorder standard keys alphabetically."""
@@ -236,6 +247,10 @@ class PrintNC_template(PrintVars):
         self.handletoken['!GENVAR_ACCESSORS!'] = self.print_var_accessor
         self.handletoken['!GENVAR_CALCAVG!'] = self.print_var_avg_accu
         self.handletoken['!GENVAR_RESETAVG!'] = self.print_var_avg_reset
+        #WHL - Added for read_once forcing capability
+        self.handletoken['!GENVAR_READ_ONCE_ALLOCATE!'] = self.print_var_read_once_allocate
+        self.handletoken['!GENVAR_READ_ONCE_COPY!'] = self.print_var_read_once_copy
+        self.handletoken['!GENVAR_READ_ONCE_RETRIEVE!'] = self.print_var_read_once_retrieve
 
     def write(self,vars):
         """Merge ncdf.F90.in with definitions."""
@@ -324,6 +339,20 @@ class PrintNC_template(PrintVars):
                                                                                             attrib))
                 self.stream.write("%s         '%s')\n"%(spaces*' ', var[attrib]))
         if not is_dimvar(var):
+           #WHL, 8/19: Adding _FillValue and missing_value as attributes. For now, assume 1.0e20 for floats, 1.0d20 for doubles.
+            #          For integers, set to the smallest (i.e., most negative) 4-byte integer.
+            #          I found that Ferret sometimes has trouble plotting values of 0.0 when _FillValue and missing_value are not set.
+            if var['type'] == 'float':
+                self.stream.write("%s    if (get_xtype(outfile,NF90_FLOAT) == NF90_DOUBLE) then\n"%(spaces*' '))
+                self.stream.write("%s       status = parallel_put_att(NCO%%id, %s, '_FillValue', 1.0d20)\n"%(spaces*' ',idstring))
+                self.stream.write("%s       status = parallel_put_att(NCO%%id, %s, 'missing_value', 1.0d20)\n"%(spaces*' ',idstring))
+                self.stream.write("%s    elseif (get_xtype(outfile,NF90_FLOAT) == NF90_FLOAT) then\n"%(spaces*' '))
+                self.stream.write("%s       status = parallel_put_att(NCO%%id, %s, '_FillValue', 1.0e20)\n"%(spaces*' ',idstring))
+                self.stream.write("%s       status = parallel_put_att(NCO%%id, %s, 'missing_value', 1.0e20)\n"%(spaces*' ',idstring))
+                self.stream.write("%s    endif\n"%(spaces*' '))
+            elif var['type'] == 'int':
+                self.stream.write("%s    status = parallel_put_att(NCO%%id, %s, '_FillValue', -2147483647)\n"%(spaces*' ',idstring))
+                self.stream.write("%s    status = parallel_put_att(NCO%%id, %s, 'missing_value', -2147483647)\n"%(spaces*' ',idstring))
             self.stream.write("%s    if (glimmap_allocated(model%%projection)) then\n"%(spaces*' '))
             self.stream.write("%s       status = parallel_put_att(NCO%%id, %s, 'grid_mapping',glimmer_nc_mapvarname)\n"%(spaces*' ',idstring))
             attrib='coordinates'
@@ -408,9 +437,14 @@ class PrintNC_template(PrintVars):
                 #*MJH* added to deal w/ writing of vars associated w/ stag vert coord w/bnd
                 elif dims[i] == 'stagwbndlevel':
                     dimstring = dimstring + 'up+1'  # goes to index up+1
+                #*WHL* added to deal w/ writing of vars associated w/ ocean vert coord
+                elif dims[i] == 'zocn':
+                    dimstring = dimstring + 'up'
+                elif dims[i] == 'zatm':
+                    dimstring = dimstring + 'up'
                 else:
                     dimstring = dimstring + '1'
-                
+
             if  'level' in dims:
                 # handle 3D fields
                 spaces = ' '*3
@@ -428,11 +462,30 @@ class PrintNC_template(PrintVars):
                 spaces = ' '*3
                 self.stream.write("       do up=0,NCO%nstagwbndlevel\n")  # starts with index 0
 
+            #*WHL* added to handle writing of vars associated w/ ocean vert coord
+            if  'zocn' in dims:
+                # handle 3D fields
+                spaces = ' '*3
+                self.stream.write("       do up=1,NCO%nzocn\n")
+
+            #*WHL* added to handle writing of vars associated w/ ocean vert coord
+            if  'zatm' in dims:
+                # handle 3D fields
+                spaces = ' '*3
+                self.stream.write("       do up=1,NCO%nzatm\n")
+
             data = var['data']
             if 'avg_factor' in var:
                 data = '(%s)*(%s)'%(var['avg_factor'],data)
-            self.stream.write("%s       status = distributed_put_var(NCO%%id, varid, &\n%s            %s, (/%s/))\n"%(spaces,
-                                                                                                               spaces,data, dimstring))
+
+            #WHL: Call parallel_put_var to write scalars and 1D arrays without horizontal dimensions
+            #     Otherwise, call distributed_put_var
+            if dimstring == 'outfile%timecounter' or dimstring == '1,outfile%timecounter':
+                self.stream.write("%s       status = parallel_put_var(NCO%%id, varid, &\n%s            %s, (/%s/))\n"%(spaces,
+                                                                                                               spaces,data,dimstring))
+            else:
+                self.stream.write("%s       status = distributed_put_var(NCO%%id, varid, &\n%s            %s, parallel, (/%s/))\n"%(spaces,
+                                                                                                               spaces,data,dimstring))
             self.stream.write("%s       call nc_errorhandle(__FILE__,__LINE__,status)\n"%(spaces))
 
             if  'level' in dims:
@@ -444,6 +497,14 @@ class PrintNC_template(PrintVars):
 
             #*MJH* added to handle writing of vars associated w/ stag vert coord w/ bnd
             if  'stagwbndlevel' in dims:
+                self.stream.write("       end do\n")
+
+            #*WHL* added to handle writing of vars associated w/ ocean vert coord
+            if  'zocn' in dims:
+                self.stream.write("       end do\n")
+
+            #*WHL* added to handle writing of vars associated w/ atm vert coord
+            if  'zatm' in dims:
                 self.stream.write("       end do\n")
 
             # remove self since it's not time dependent
@@ -480,6 +541,12 @@ class PrintNC_template(PrintVars):
                     #*MJH* added to deal w/ writing of vars associated w/ stag vert coord w/ bnd
                     elif dims[i] == 'stagwbndlevel':
                         dimstring = dimstring + 'up+1'   # goes to index up+1
+                    #*WHL* added to deal w/ writing of vars associated w/ ocean vert coord
+                    elif dims[i] == 'zocn':
+                        dimstring = dimstring + 'up'
+                    #*WHL* added to deal w/ writing of vars associated w/ atm vert coord
+                    elif dims[i] == 'zatm':
+                        dimstring = dimstring + 'up'
                     else:
                         dimstring = dimstring + '1'
 
@@ -500,8 +567,26 @@ class PrintNC_template(PrintVars):
                     spaces = ' '*3
                     self.stream.write("       do up=0,NCI%nstagwbndlevel\n")  # starts at index 0
 
-                self.stream.write("%s       status = distributed_get_var(NCI%%id, varid, &\n%s            %s, (/%s/))\n"%(spaces,
-                                                                                                               spaces,var['data'], dimstring))
+                #*WHL* added to handle writing of vars associated w/ ocean vert coord
+                if  'zocn' in dims:
+                    # handle 3D fields
+                    spaces = ' '*3
+                    self.stream.write("       do up=1,NCI%nzocn\n")
+
+                #*WHL* added to handle writing of vars associated w/ atm vert coord
+                if  'zatm' in dims:
+                    # handle 3D fields
+                    spaces = ' '*3
+                    self.stream.write("       do up=1,NCI%nzatm\n")
+
+                #WHL: Call parallel_get_var to read scalars and 1D arrays without horizontal dimensions
+                #     Otherwise, call distributed_get_var
+                if dimstring == 'infile%current_time' or dimstring == '1,infile%current_time':
+                    self.stream.write("%s       status = parallel_get_var(NCI%%id, varid, &\n%s            %s, (/%s/))\n"%(spaces,
+                                                                                                                   spaces,var['data'], dimstring))
+                else:
+                    self.stream.write("%s       status = distributed_get_var(NCI%%id, varid, &\n%s            %s, parallel, (/%s/))\n"%(spaces,
+                                                                                      spaces,var['data'], dimstring))
                 self.stream.write("%s       call nc_errorhandle(__FILE__,__LINE__,status)\n"%(spaces))
                 self.stream.write("%s       status = parallel_get_att(NCI%%id, varid,'scale_factor',scaling_factor)\n"%(spaces))
                 self.stream.write("%s       if (status.ne.NF90_NOERR) then\n"%(spaces))
@@ -519,6 +604,20 @@ class PrintNC_template(PrintVars):
                 self.stream.write("%s               %s*scaling_factor\n"%(spaces,var['data']))
                 self.stream.write("%s       end if\n"%(spaces))
 
+                #*WHL* added to read x1 and y1 into global arrays called x1_global and y1_global
+                if var['name'] == 'x1' or var['name'] == 'y1':
+                    self.stream.write("%s       ! Also read this variable into a global array\n"%(spaces))
+                    name_global = var['name']+'_global'
+                    data_global = var['data']+'_global'
+                    self.stream.write("%s       status = parallel_get_var(NCI%%id, varid, &\n%s            %s)\n"%(spaces,
+                                                                                                               spaces,data_global))
+                    self.stream.write("%s       call nc_errorhandle(__FILE__,__LINE__,status)\n"%(spaces))
+                    self.stream.write("%s       if (abs(scaling_factor-1.0d0).gt.1.d-17) then\n"%(spaces))
+                    self.stream.write("%s          call write_log(\"scaling %s\",GM_DIAGNOSTIC)\n"%(spaces,name_global))
+                    self.stream.write("%s          %s = &\n"%(spaces,data_global))
+                    self.stream.write("%s               %s*scaling_factor\n"%(spaces,data_global))
+                    self.stream.write("%s       end if\n"%(spaces))
+
                 if  'level' in dims:
                     self.stream.write("       end do\n")
 
@@ -528,6 +627,14 @@ class PrintNC_template(PrintVars):
 
                 #*MJH* added to handle writing of vars associated w/ stag vert coord w/ bnd
                 if  'stagwbndlevel' in dims:
+                    self.stream.write("       end do\n")
+
+                #*WHL* added to handle writing of vars associated w/ ocean vert coord
+                if  'zocn' in dims:
+                    self.stream.write("       end do\n")
+
+                #*WHL* added to handle writing of vars associated w/ atm vert coord
+                if  'zatm' in dims:
                     self.stream.write("       end do\n")
 
                 self.stream.write("    else\n") # MJH 10/21/13
@@ -549,9 +656,6 @@ class PrintNC_template(PrintVars):
         if not is_dimvar(var) and dimlen<3 and AVERAGE_SUFFIX not in var['name']:
             # get
             self.stream.write("  subroutine %s_get_%s(data,outarray)\n"%(module['name'],var['name']))
-            self.stream.write("    use glimmer_scales\n")
-            self.stream.write("    use glimmer_paramets\n")
-            self.stream.write("    use %s\n"%module['datamod'])
             self.stream.write("    implicit none\n")
             self.stream.write("    type(%s) :: data\n"%module['datatype'])
             if var['type'] == 'int':
@@ -573,9 +677,6 @@ class PrintNC_template(PrintVars):
             # only creating set routine if the variable is not derived
             if len(var['data'].split('data'))<3:
                 self.stream.write("  subroutine %s_set_%s(data,inarray)\n"%(module['name'],var['name']))
-                self.stream.write("    use glimmer_scales\n")
-                self.stream.write("    use glimmer_paramets\n")
-                self.stream.write("    use %s\n"%module['datamod'])
                 self.stream.write("    implicit none\n")
                 self.stream.write("    type(%s) :: data\n"%module['datatype'])
                 if var['type'] == 'int':
@@ -617,6 +718,41 @@ class PrintNC_template(PrintVars):
             self.stream.write("    if (status .eq. nf90_noerr) then\n")
             self.stream.write("       %s = 0.\n"%avgdata)
             self.stream.write("    end if\n\n")
+
+    #WHL - Added print_var defs for read_once capability
+    def print_var_read_once_allocate(self,var):
+        """Allocate read_once arrays"""
+
+        if var['read_once']:
+            read_once_data = '%s_%s'%(var['data'],READ_ONCE_SUFFIX)
+            self.stream.write("          if (.not.associated(%s)) then\n"%read_once_data)
+            self.stream.write("             nx = size(%s,1)\n"%var['data'])
+            self.stream.write("             ny = size(%s,2)\n"%var['data'])
+            self.stream.write("             allocate(%s(nx,ny,nt))\n"%read_once_data)
+            self.stream.write("             %s = 0.0d0\n"%read_once_data)
+            self.stream.write("          end if\n\n")
+
+    def print_var_read_once_copy(self,var):
+        """Copy data to read_once arrays"""
+
+        if var['read_once']:
+            read_once_data = '%s_%s'%(var['data'],READ_ONCE_SUFFIX)
+            self.stream.write("             global_sum = parallel_reduce_sum(sum(%s))\n"%var['data'])
+            self.stream.write("             if (global_sum /= 0.0d0) then\n")
+            self.stream.write("                %s(:,:,t) = %s(:,:)\n"%(read_once_data,var['data']))
+            self.stream.write("                %s = 0.0d0\n"%var['data'])
+            self.stream.write("                if (t==1) ic%%nc%%vars = trim(ic%%nc%%vars)//' %s '\n"%var['name'])
+            self.stream.write("             endif\n\n")
+
+    def print_var_read_once_retrieve(self,var):
+        """Retrieve data from read_once arrays"""
+
+        if var['read_once']:
+            read_once_data = '%s_%s'%(var['data'],READ_ONCE_SUFFIX)
+            self.stream.write("             if (index(ic%%nc%%vars,' %s ') /= 0) then\n"%var['name'])
+            self.stream.write("                %s(:,:) = %s(:,:,t)\n"%(var['data'],read_once_data))
+            self.stream.write("                if (main_task .and. verbose_read_forcing) print*, 'Retrieve %s'\n"%var['name'])
+            self.stream.write("             endif\n\n")
 
 def usage():
     """Short help message."""

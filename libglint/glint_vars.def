@@ -13,6 +13,8 @@ name:     glint
 datatype: glint_instance
 # module where type is defined
 datamod:  glint_type 
+# path to parallel derived type
+datapath: data%model
 
 #lipscomb mod: Changed mask to outmask
 [outmask]

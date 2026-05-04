@@ -5,7 +5,7 @@
 
 
 from netCDF4 import Dataset
-from optparse import OptionParser
+from argparse import ArgumentParser
 import numpy as np
 import matplotlib.pyplot as plt
 import sys, os
@@ -194,17 +194,14 @@ def xgSemianalytic(bedType):
 
 
 # Parse options.
-optparser = OptionParser()
+parser = ArgumentParser()
 
-optparser.add_option('-x', '--expt',     dest='experiment', type='string', default = 'all', help='MISMIP experiment set to run', metavar="EXPT")
-optparser.add_option('-s', '--stat',    dest='StatChoice',type='string',default='advance', help='MISMIP experiment set to run', metavar="EXPT")
-optparser.add_option('--bed', dest='bedtopo', type='string', default ='linear',help='bed topography, linear or poly', metavar='BEDTOPO')
+parser.add_argument('-x', '--expt',     dest='experiment', type=str, default = 'all', help='MISMIP experiment set to run', metavar="EXPT")
+parser.add_argument('-s', '--stat',    dest='StatChoice',type=str,default='advance', help='MISMIP experiment set to run', metavar="EXPT")
+parser.add_argument('--bed', dest='bedtopo', type=str, default ='linear',help='bed topography, linear or poly', metavar='BEDTOPO')
 
-for option in optparser.option_list:
-    if option.default != ("NO", "DEFAULT"):
-        option.help += (" " if option.help else "") + "[default: %default]"
-options, args = optparser.parse_args()
 
+options = parser.parse_args()
 
 if options.bedtopo == 'linear':
     As             = AsLinear

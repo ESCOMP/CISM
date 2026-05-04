@@ -50,6 +50,7 @@
 module glimmer_config
 
   use glimmer_global, only : sp, dp, msg_length
+  use glimmer_utils , only : strip_quotes
   use glimmer_log
 
   implicit none
@@ -103,8 +104,9 @@ contains
   !> read a configuration file
   subroutine ConfigRead(fname,config,fileunit)
     !> read configuration file
-    use parallel
+    use cism_parallel, only: main_task, broadcast
     use glimmer_log
+
     implicit none
 
     character(len=*), intent(in) :: fname    !< the name of the file to be read
@@ -446,7 +448,16 @@ contains
 
     found=>config
     do while(associated(found))
-       if (name == trim(found%name)) then
+       if (name == 'CF input' .or. name == 'CF output') then
+          !Note: The following code allows CISM to link multiple I/O files with similar but unique section names
+          !       like [CF output], [CF output1], [CF output2], etc.
+          !      Although the config file is allowed to have multiple sections called '[CF input]' and/or '[CF output]',
+          !       a config file created with a Python configparser may require unique section names.
+          if (index(trim(found%name),name) == 1) then  ! name (e.g., 'CF output') is a substring of found%name
+             found%used = .true.
+             return
+          end if
+       elseif (name == trim(found%name)) then
           found%used = .true.
           return
        end if
@@ -478,7 +489,7 @@ contains
     implicit none
     type(ConfigSection), pointer :: section     !< the section from which the value is loaded
     character(len=*),intent(in) :: name         !< the name of the key
-    real(dp), pointer, dimension(:) :: val !< on exit this will hold the values
+    real(dp), pointer, dimension(:) :: val      !< on exit this will hold the values
     integer,intent(in), optional :: numval      !< maximum number of values to be read
 
     ! local variables
@@ -652,6 +663,10 @@ contains
   end subroutine GetValueIntArray
 
   !> get character array value
+  !! If the list is surrounded by either single or double quotes, the quote characters are
+  !! stripped from the return value. The assumption is that the entire list of strings is
+  !! quoted (as in "list of values"); it does *not* work for the individual items to be
+  !! quoted (as in "list" "of" "values").
   subroutine GetValueCharArray(section,name,val,numval)
     use glimmer_log
     implicit none
@@ -787,6 +802,8 @@ contains
   end subroutine GetValueInt
 
   !> get character value
+  !! If the value is surrounded by either single or double quotes, the quote characters
+  !! are stripped from the returned value.
   subroutine GetValueChar(section,name,val)
     use glimmer_log
     implicit none
@@ -799,7 +816,7 @@ contains
     value=>section%values
     do while(associated(value))
        if (name == trim(value%name)) then
-          val = value%value
+          val = strip_quotes(value%value)
           if ((len_trim(val) + 1) >= len(val)) then 
             ! Assume that if we get within one space of the variable length (excluding spaces) then we may be truncating the intended value.
             call write_log('The value of config option   ' // trim(name) // '   is too long for the variable.' ,GM_FATAL)

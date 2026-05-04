@@ -55,28 +55,26 @@
   module glissade_velo_sia
 
     use glimmer_global, only: dp
-    use glimmer_physcon, only: gn, rhoi, grav, scyr
-    use glimmer_paramets, only: thk0, len0, vel0, vis0, tau0
+    use glimmer_paramets, only: iulog
+    use glimmer_physcon, only: n_glen, rhoi, grav, scyr
 !    use glimmer_log, only: write_log
-
+    use glimmer_utils, only: point_diag
     use glide_types
     use glissade_grid_operators, only: glissade_stagger, glissade_gradient, &
                                        glissade_gradient_at_edges
-    use parallel
+    use cism_parallel, only: this_rank, main_task, nhalo, &
+         parallel_halo, staggered_parallel_halo
 
     implicit none
 
     private
     public :: glissade_velo_sia_solve
 
-    logical, parameter :: verbose = .false.
+    logical, parameter :: verbose_sia = .false.
     logical, parameter :: verbose_geom = .false.
     logical, parameter :: verbose_bed = .false.
     logical, parameter :: verbose_interior = .false.
     logical, parameter :: verbose_bfric = .false.
-
-    integer :: itest, jtest    ! coordinates of diagnostic point                                                                                    
-    integer :: rtest           ! task number for processor containing diagnostic point
 
   contains
 
@@ -153,6 +151,9 @@
        temp,        &           ! temperature (deg C)
        flwa                     ! flow factor in units of Pa^(-n) yr^(-1)
 
+    type(parallel_type) :: &
+         parallel               ! info for parallel communication
+
     !----------------------------------------------------------------
     ! Local variables
     !----------------------------------------------------------------
@@ -175,6 +176,9 @@
        ice_mask,            & ! = 1 where ice is present, else = 0
        land_mask              ! = 1 for land cells, else = 0
 
+    integer :: itest, jtest   ! coordinates of diagnostic point
+    integer :: rtest          ! task number for processor containing diagnostic point
+
     integer :: i, j, k
 
     !--------------------------------------------------------
@@ -185,41 +189,43 @@
 !    ny = model%general%nsn
 !    nz = model%general%upn
 
-     dx = model%numerics%dew
-     dy = model%numerics%dns
+    parallel = model%parallel
 
-     thklim = model%numerics%thklim
-     eus    = model%climate%eus
-     btrc_const = model%velowk%btrac_const
-     whichbtrc = model%options%whichbtrc
-     whichgradient_margin = model%options%which_ho_gradient_margin
+    dx = model%numerics%dew
+    dy = model%numerics%dns
 
-     sigma    => model%numerics%sigma(:)
-     thck     => model%geometry%thck(:,:)
-     usrf     => model%geometry%usrf(:,:)
-     topg     => model%geometry%topg(:,:)
+    thklim = model%numerics%thklim
+    eus    = model%climate%eus
+    btrc_const = model%velowk%btrac_const
+    whichbtrc = model%options%whichbtrc
+    whichgradient_margin = model%options%which_ho_gradient_margin
 
-     bwat     => model%temper%bwat(:,:)
-     btrc     => model%velocity%btrc(:,:)
-     bfricflx => model%temper%bfricflx(:,:)
-     temp     => model%temper%temp(:,:,:)
-     flwa     => model%temper%flwa(:,:,:)
+    sigma    => model%numerics%sigma(:)
+    thck     => model%geometry%thck(:,:)
+    usrf     => model%geometry%usrf(:,:)
+    topg     => model%geometry%topg(:,:)
 
-     uvel     => model%velocity%uvel(:,:,:)
-     vvel     => model%velocity%vvel(:,:,:)
+    bwat     => model%basal_hydro%bwat(:,:)
+    btrc     => model%velocity%btrc(:,:)
+    bfricflx => model%temper%bfricflx(:,:)
+    temp     => model%temper%temp(:,:,:)
+    flwa     => model%temper%flwa(:,:,:)
 
-     rtest = -999
-     itest = 1
-     jtest = 1
-     if (this_rank == model%numerics%rdiag_local) then
-        rtest = model%numerics%rdiag_local
-        itest = model%numerics%idiag_local
-        jtest = model%numerics%jdiag_local
-     endif
+    uvel     => model%velocity%uvel(:,:,:)
+    vvel     => model%velocity%vvel(:,:,:)
 
-    if (verbose .and. this_rank==rtest) then
-       print*, 'In glissade_velo_sia_solve'
-       print*, 'rank, itest, jtest =', rtest, itest, jtest
+    rtest = -999
+    itest = 1
+    jtest = 1
+    if (this_rank == model%numerics%rdiag_local) then
+       rtest = model%numerics%rdiag_local
+       itest = model%numerics%idiag_local
+       jtest = model%numerics%jdiag_local
+    endif
+
+    if (verbose_sia .and. this_rank==rtest) then
+       write(iulog,*) 'In glissade_velo_sia_solve'
+       write(iulog,*) 'rank, itest, jtest =', rtest, itest, jtest
     endif
 
     !--------------------------------------------------------
@@ -242,7 +248,9 @@
     ! (2) land_mask = 1 in land cells
     !------------------------------------------------------------------------------
 
+    ! Modify glissade_get_masks so that 'parallel' is not needed
     call glissade_get_masks(nx,          ny,         &
+                            parallel,                &
                             thck,        topg,       &
                             eus,         thklim,     &
                             ice_mask,                &
@@ -324,62 +332,23 @@
     !  on each side.  This is appropriate for problems with ice shelves, but is
     !  is less accurate than options 0 or 1 for land-based problems (e.g., Halfar SIA).
 
-    call glissade_gradient(nx,        ny,          &
-                           dx,        dy,          &
+    call glissade_gradient(nx,           ny,       &
+                           dx,           dy,       &
+                           itest, jtest, rtest,    &
                            usrf,                   &
-                           dusrf_dx,  dusrf_dy,    &
+                           dusrf_dx,     dusrf_dy, &
                            ice_mask,               &
                            gradient_margin_in = whichgradient_margin)
 
-    if (verbose .and. main_task) then
-       print*, ' '
-       print*, 'In glissade_velo_sia_solve'
+    if (verbose_sia .and. main_task) then
+       write(iulog,*) ' '
+       write(iulog,*) 'In glissade_velo_sia_solve'
     endif
 
-    if (verbose_geom .and. main_task) then
-
-       print*, ' '
-       print*, 'stagthck (m):'
-       do i = 1, nx-1
-          write(6,'(i7)',advance='no') i
-       enddo
-       print*, ' '
-       do j = ny-1, 1, -1
-          write(6,'(i4)',advance='no') j
-          do i = 1, nx-1
-             write(6,'(f7.2)',advance='no') stagthck(i,j)
-          enddo
-          print*, ' '
-       enddo
-
-       print*, ' '
-       print*, 'dusrf_dx:'
-       do i = 1, nx-1
-          write(6,'(i7)',advance='no') i
-       enddo
-       print*, ' '
-       do j = ny-1, 1, -1
-          write(6,'(i4)',advance='no') j
-          do i = 1, nx-1
-             write(6,'(f7.4)',advance='no') dusrf_dx(i,j)
-          enddo
-          print*, ' '
-       enddo
-
-       print*, ' '
-       print*, 'dusrf_dy:'
-       do i = 1, nx-1
-          write(6,'(i7)',advance='no') i
-       enddo
-       print*, ' '
-       do j = ny-1, 1, -1
-          write(6,'(i4)',advance='no') j
-          do i = 1, nx-1
-             write(6,'(f7.4)',advance='no') dusrf_dy(i,j)
-          enddo
-          print*, ' '
-       enddo
-
+    if (verbose_geom) then
+       call point_diag(stagthck, 'stagthck (m)', itest, jtest, rtest, 7, 7)
+       call point_diag(dusrf_dx, 'dusrf_dx', itest, jtest, rtest, 7, 7)
+       call point_diag(dusrf_dy, 'dusrf_dy', itest, jtest, rtest, 7, 7)
     endif
 
     ! Compute velocity at the bed (ubas, vbas)
@@ -392,60 +361,18 @@
                                btrc,       btrc_const,     &
                                ubas,       vbas)
 
-    if (verbose_bed .and. main_task) then
-
-       print*, ' '
-       print*, 'whichbtrc, btrc_const =', whichbtrc, btrc_const
-
-       print*, ' '
-       print*, 'btrc:'
-       do i = 1, nx-1
-          write(6,'(i7)',advance='no') i
-       enddo
-       print*, ' '
-       do j = ny-1, 1, -1
-          write(6,'(i4)',advance='no') j
-          do i = 1, nx-1
-             write(6,'(f7.4)',advance='no') btrc(i,j)
-          enddo
-          print*, ' '
-       enddo
-
-       print*, ' '
-       print*, 'ubas:'
-       do i = 1, nx-1
-          write(6,'(i7)',advance='no') i
-       enddo
-       print*, ' '
-       do j = ny-1, 1, -1
-          write(6,'(i4)',advance='no') j
-          do i = 1, nx-1
-             write(6,'(f7.2)',advance='no') ubas(i,j)
-          enddo
-          print*, ' '
-       enddo
-
-       print*, ' '
-       print*, 'vbas:'
-       do i = 1, nx-1
-          write(6,'(i7)',advance='no') i
-       enddo
-       print*, ' '
-       do j = ny-1, 1, -1
-          write(6,'(i4)',advance='no') j
-          do i = 1, nx-1
-             write(6,'(f7.2)',advance='no') vbas(i,j)
-          enddo
-          print*, ' '
-       enddo
-
-    endif  ! verbose_bed
+    if (verbose_bed) then
+       call point_diag(btrc, 'btrc', itest, jtest, rtest, 7, 7)
+       call point_diag(ubas, 'ubas', itest, jtest, rtest, 7, 7)
+       call point_diag(vbas, 'vbas', itest, jtest, rtest, 7, 7)
+    endif
 
     ! Compute velocity in the ice interior
 
     call glissade_velo_sia_interior(nx,       ny,       nz,  &
                                     dx,       dy,            &
                                     sigma,    thklim,        &
+                                    itest, jtest, rtest,     &
                                     usrf,                    &
                                     thck,     stagthck,      &
                                     dusrf_dx, dusrf_dy,      &
@@ -456,60 +383,25 @@
                                     ubas,     vbas,          &
                                     uvel,     vvel)
 
-    if (verbose_interior .and. main_task) then
+    call staggered_parallel_halo(uvel, parallel)
+    call staggered_parallel_halo(vvel, parallel)
 
-       print*, ' '
-       print*, 'stagthck:'
-       do i = 1, nx-1
-          write(6,'(i8)',advance='no') i
-       enddo
-       print*, ' '
-       do j = ny-1, 1, -1
-          write(6,'(i4)',advance='no') j
-          do i = 1, nx-1
-             write(6,'(f8.2)',advance='no') stagthck(i,j)
-          enddo
-          print*, ' '
-       enddo
-
+    if (verbose_interior) then
+       call point_diag(stagthck, 'stagthck (m)', itest, jtest, rtest, 7, 7)
        k = 1
-       print*, ' '
-       print*, 'uvel, k = 1:'
-       do i = 1, nx-1
-          write(6,'(i8)',advance='no') i
-       enddo
-       print*, ' '
-       do j = ny-1, 1, -1
-          write(6,'(i4)',advance='no') j
-          do i = 1, nx-1
-             write(6,'(f8.0)',advance='no') uvel(k,i,j)
-          enddo
-          print*, ' '
-       enddo
+       call point_diag(uvel(k,:,:), 'uvel (m/yr)', itest, jtest, rtest, 7, 7)
+       call point_diag(vvel(k,:,:), 'vvel (m/yr)', itest, jtest, rtest, 7, 7)
+    endif
 
-       print*, ' '
-       print*, 'vvel, k = 1:'
-       do i = 1, nx-1
-          write(6,'(i8)',advance='no') i
-       enddo
-       print*, ' '
-       do j = ny-1, 1, -1
-          write(6,'(i4)',advance='no') j
-          do i = 1, nx-1
-             write(6,'(f8.0)',advance='no') vvel(k,i,j)
-          enddo
-          print*, ' '
-       enddo
-
-       print*, 'Computed new velocity'
+    if (verbose_interior .and. this_rank == rtest) then
+       write(iulog,*) 'Computed new velocity'
        i = itest
        j = jtest
-       print*, 'i, j =', i, j
-       print*, 'k, uvel, vvel:'
+       write(iulog,*) 'rank, i, j =', rtest, i, j
+       write(iulog,*) 'k, uvel, vvel:'
        do k = 1, nz
-          print*, k, uvel(k,i,j), vvel(k,i,j)
+          write(iulog,*) k, uvel(k,i,j), vvel(k,i,j)
        enddo
-       
     endif   ! verbose_interior
 
     !------------------------------------------------------------------------------
@@ -517,9 +409,19 @@
     !------------------------------------------------------------------------------
 
     call glissade_velo_sia_bfricflx(nx,           ny,            &
-                                    nhalo,        ice_mask,      &
+                                    itest,jtest,  rtest,         &
+                                    ice_mask,                    &
                                     uvel(nz,:,:), vvel(nz,:,:),  &
                                     btrc,         bfricflx)
+
+    call parallel_halo(bfricflx, parallel)
+
+    if (verbose_bfric .and. this_rank==rtest) then
+       i = itest
+       j = jtest
+       write(iulog,*) ' '
+       write(iulog,*) 'i, j, bfricflx:', i, j, bfricflx(i,j)
+    endif
 
     ! Convert back to dimensionless units before returning
     ! Note: bfricflx already has the desired units (W/m^2).
@@ -568,30 +470,19 @@
     real(dp), dimension(:,:,:), intent(inout) ::  &
        uvel, vvel              ! velocity components (m/yr)
 
-    ! grid cell dimensions: rescale from dimensionless to m
-    dx = dx * len0
-    dy = dy * len0
+    !TODO - Keep flwa in units of Pa^(-n) s^(-1)
+    !TODO - Keep btrc in units of (m/s)/Pa
+    !TODO - Keep uvel and vvel in units of (m/s)
 
-    ! ice geometry: rescale from dimensionless to m
-    thck = thck * thk0
-    usrf = usrf * thk0
-    topg = topg * thk0
-    eus  = eus  * thk0
-    thklim = thklim * thk0
+    ! rate factor: rescale to Pa^(-n) yr^(-1)
+    flwa = flwa * scyr
 
-    ! rate factor: rescale from dimensionless to Pa^(-n) yr^(-1)
-    flwa = flwa * (vis0*scyr)
-
-    ! bwat: rescale from dimensionless to m
-    bwat = bwat * thk0
-
-    ! btrc: rescale from dimensionless to (m/yr)/Pa
-!    btrc_const = btrc_const * (vel0*scyr) / tau0
-    btrc_const = btrc_const * (vel0*scyr) * len0 / thk0**2
+    ! btrc: rescale from (m/s)/Pa to (m/yr)/Pa
+    btrc_const = btrc_const * scyr
 
     ! ice velocity: rescale from dimensionless to m/yr
-    uvel = uvel * (vel0*scyr)
-    vvel = vvel * (vel0*scyr)
+    uvel = uvel * scyr
+    vvel = vvel * scyr
 
     end subroutine glissade_velo_sia_scale_input
 
@@ -622,23 +513,17 @@
     real(dp), dimension(:,:,:), intent(inout) ::  &
        uvel, vvel               ! velocity components (m/yr)
 
-    ! Convert geometry variables from m to dimensionless units
-    thck = thck / thk0
-    usrf = usrf / thk0
-    topg = topg / thk0
+    !TODO - Remove the input and output scaling of flwa, btrc, uvel, and vvel.
 
     ! Convert flow factor from Pa^(-n) yr^(-1) to dimensionless units
-    flwa = flwa / (vis0*scyr)
+    flwa = flwa / scyr
 
-    ! Convert bwat from m to dimensionless units
-    bwat = bwat / thk0
-
-    ! Convert btrc from (m/yr)/Pa to dimensionless units
-    btrc = btrc / ((vel0*scyr)/tau0)
+    ! Convert btrc from (m/yr)/Pa to (m/s)/Pa
+    btrc = btrc / scyr
 
     ! Convert velocity from m/yr to dimensionless units
-    uvel = uvel / (vel0*scyr)
-    vvel = vvel / (vel0*scyr)
+    uvel = uvel / scyr
+    vvel = vvel / scyr
 
   end subroutine glissade_velo_sia_scale_output
 
@@ -767,6 +652,7 @@
   subroutine glissade_velo_sia_interior(nx,       ny,      nz,  &
                                         dx,       dy,           &
                                         sigma,    thklim,       &
+                                        itest, jtest, rtest,    &
                                         usrf,                   &
                                         thck,     stagthck,     &
                                         dusrf_dx, dusrf_dy,     &
@@ -776,8 +662,6 @@
                                         whichgradient_margin,   &
                                         ubas,     vbas,         &
                                         uvel,     vvel)
-
-    use parallel
 
     !----------------------------------------------------------------
     ! Input-output arguments
@@ -793,6 +677,9 @@
 
     real(dp), dimension(nz) ::   &
        sigma                    ! vertical sigma coordinate, [0,1]
+
+    integer, intent(in) :: &
+       itest, jtest, rtest      ! coordinates of diagnostic point
 
     real(dp), dimension(nx,ny), intent(in) ::   &
        thck,                  & ! ice thickness (m)
@@ -858,16 +745,15 @@
           
           if (stagthck(i,j) > thklim) then
 
-             siafact = 2.d0 * (rhoi*grav)**gn * stagthck(i,j)**(gn+1)             &
-                             * (dusrf_dx(i,j)**2 + dusrf_dy(i,j)**2) ** ((gn-1)/2)
-
+             siafact = 2.d0 * (rhoi*grav)**n_glen * stagthck(i,j)**(n_glen+1)             &
+                             * (dusrf_dx(i,j)**2 + dusrf_dy(i,j)**2) ** ((n_glen-1)/2)
              vintfact(nz,i,j) = 0.d0
 
              do k = nz-1, 1, -1
 
-                vintfact(k,i,j) = vintfact(k+1,i,j) -                             &
-                                  siafact * stagflwa(k,i,j)                       &
-                                          * ((sigma(k) + sigma(k+1))/2.d0) ** gn  &
+                vintfact(k,i,j) = vintfact(k+1,i,j) -                                 &
+                                  siafact * stagflwa(k,i,j)                           &
+                                          * ((sigma(k) + sigma(k+1))/2.d0) ** n_glen  &
                                           * (sigma(k+1) - sigma(k))
 
              enddo   ! k
@@ -884,11 +770,11 @@
     if (verbose_interior .and. this_rank==rtest) then
        i = itest
        j = jtest
-       print*, ' '
-       print*, 'i, j =', itest, jtest
-       print*, 'k, vintfact, stagthck, dusrf_dx:'
+       write(iulog,*) ' '
+       write(iulog,*) 'i, j =', itest, jtest
+       write(iulog,*) 'k, vintfact, stagthck, dusrf_dx:'
        do k = nz-1, 1, -1
-          print*, k, vintfact(k,i,j), stagthck(i,j), dusrf_dx(i,j)
+          write(iulog,*) k, vintfact(k,i,j), stagthck(i,j), dusrf_dx(i,j)
        enddo
     endif
 
@@ -913,6 +799,7 @@
 
     call glissade_gradient_at_edges(nx,               ny,             &
                                     dx,               dy,             &
+                                    itest,  jtest,    rtest,          &
                                     usrf,                             &
                                     dusrf_dx_edge,    dusrf_dy_edge,  &
                                     ice_mask,                         &
@@ -960,31 +847,17 @@
        
     enddo           ! k
 
-    call staggered_parallel_halo(uvel)
-    call staggered_parallel_halo(vvel)
-
-    if (verbose_interior .and. main_task) then
-       print*, ' '
-       print*, 'diffu (m^2/yr):'
-       do i = 1, nx-1
-          write(6,'(i8)',advance='no') i
-       enddo
-       print*, ' '
-       do j = ny-1, 1, -1
-          write(6,'(i3)',advance='no') j
-          do i = 1, nx-1
-             write(6,'(f8.0)',advance='no') diffu(i,j)
-          enddo
-          print*, ' '
-       enddo
-    endif   ! verbose_interior
+    if (verbose_interior) then
+       call point_diag(diffu, 'diffu (m^2/yr)', itest, jtest, rtest, 7, 7, '(f8.0)')
+    endif
 
   end subroutine glissade_velo_sia_interior
 
 !****************************************************************************
 
   subroutine glissade_velo_sia_bfricflx(nx,            ny,            &
-                                        nhalo,         ice_mask,      &
+                                        itest, jtest,  rtest,         &
+                                        ice_mask,                     &
                                         uvel,          vvel,          &
                                         btrc,          bfricflx)
 
@@ -1007,8 +880,10 @@
     !----------------------------------------------------------------
 
     integer, intent(in) ::      &
-       nx, ny,                  &    ! horizontal grid dimensions
-       nhalo                         ! number of halo layers
+       nx, ny                   ! horizontal grid dimensions
+
+    integer, intent(in) :: &
+       itest, jtest, rtest      ! coordinates of diagnostic point
 
     integer, dimension(nx,ny), intent(in) ::     &
        ice_mask               ! = 1 where ice is present, else = 0
@@ -1047,15 +922,15 @@
     if (verbose_bfric .and. this_rank==rtest) then
        i = itest
        j = jtest
-       print*, 'i, j:', i, j
-       print*, ' '
-       print*, 'speed:'
+       write(iulog,*) 'i, j:', i, j
+       write(iulog,*) ' '
+       write(iulog,*) 'speed:'
        do j = jtest+1, jtest, -1
-          print*, j, sqrt(uvel(i:i+1,j)**2 + vvel(i:i+1,j)**2)
+          write(iulog,*) j, sqrt(uvel(i:i+1,j)**2 + vvel(i:i+1,j)**2)
        enddo
-       print*, 'stagbfricflx:'
+       write(iulog,*) 'stagbfricflx:'
        do j = jtest+1, jtest, -1
-          print*, j, stagbfricflx(i:i+1,j)
+          write(iulog,*) j, stagbfricflx(i:i+1,j)
        enddo
     endif
 
@@ -1069,14 +944,7 @@
        enddo
     enddo
 
-    call parallel_halo(bfricflx)
-
-    if (verbose_bfric .and. this_rank==rtest) then
-       i = itest
-       j = jtest
-       print*, ' '
-       print*, 'i, j, bfricflx:', i, j, bfricflx(i,j)
-    endif
+    ! Note: halo update of bfricflx is done in the calling subroutine
 
   end subroutine glissade_velo_sia_bfricflx
 

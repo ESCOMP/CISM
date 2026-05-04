@@ -34,6 +34,7 @@ module glint_global_interp
 
   use glint_global_grid
   use glimmer_global, only: dp
+  use glimmer_paramets, only: iulog
   use glimmer_physcon, only: pi
   implicit none
 
@@ -159,7 +160,7 @@ contains
          jl/=in_grid%ny.or. &
          idlo/=out_grid%nx.or. &
          jlo/=out_grid%ny) then
-       print*,'Array size mismatch in global_interp'
+       write(iulog,*)'Array size mismatch in global_interp'
        stop
     end if
 
