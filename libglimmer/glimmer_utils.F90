@@ -29,22 +29,29 @@
 #include "config.inc"
 #endif
 
-!> Module containing utility code for GLIMMER.
-  !TODO - Move check_conformal and fix_bcs2d to Glint?  Used by glint_interp only.
+!> Module containing utility code for Glimmer and CISM
+!TODO - Move check_conformal and fix_bcs2d to Glint?  Used by glint_interp only.
 
 module glimmer_utils
 
   use glimmer_global, only: dp
+  use glimmer_paramets, only: iulog
 
   implicit none
 
   interface array_bcs
-    module procedure array_bcs1d,array_bcs2d
+     module procedure array_bcs1d,array_bcs2d
   end interface
 
   interface check_conformal
-    module procedure check_conformal_2d_real
+     module procedure check_conformal_2d_real
   end interface
+
+  interface point_diag
+     module procedure point_diag_integer_2d
+     module procedure point_diag_logical_2d
+     module procedure point_diag_real8_2d
+  end interface point_diag
 
 contains
 
@@ -332,4 +339,258 @@ contains
     end if
   end function strip_quotes
 
+  !+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+
+  subroutine point_diag_integer_2d(&
+       field,  field_string,   &
+       ipt,    jpt,    rpt,    &
+       irange, jrange,         &
+       fmt_str)
+
+    use cism_parallel, only: this_rank
+
+    ! Write the value of a field in a small neighborhood around a central point
+
+    ! input/output arguments
+
+    integer, dimension(:,:), intent(in) :: &
+         field                        ! field to be written to stdout
+
+    character(*), intent(in) :: &
+         field_string                 ! field name or a similar string, e.g. 'ice_mask'
+
+    integer, intent(in) :: &
+         ipt, jpt, rpt                ! i and j coordinates and processor rank of central point
+
+    integer, intent(in) :: &
+         irange,                    & ! range of diagnostic output in i direction
+         jrange                       ! range of diagnostic output in j direction
+
+    character(len=*), intent(in), optional :: &
+         fmt_str                      ! string for fortran formatted output, default = '(f10.3)'
+
+    ! local variables
+
+    integer :: i, j
+    integer :: ilo, jlo, ihi, jhi
+    integer :: left_range, right_range
+    character(8) :: fmtstr               ! string for fortran formatted output
+
+    if (this_rank == rpt) then
+
+       if (present(fmt_str)) then
+          fmtstr = trim(fmt_str)
+!          write(iulog,*) 'In point_diag, fmtstr = ', trim(fmtstr)
+       else
+          fmtstr = '(i10)'
+!          write(iulog,*) 'In point_diag, fmtstr = ', trim(fmtstr)
+       endif
+
+       if (mod(irange,2) == 0) then  ! even number
+          ilo = ipt - irange/2
+          ihi = ipt + irange/2 - 1
+       else   ! odd number
+          ilo = ipt - (irange-1)/2
+          ihi = ipt + (irange-1)/2
+       endif
+
+       if (mod(jrange,2) == 0) then  ! even number
+          jlo = jpt - jrange/2
+          jhi = jpt + jrange/2 - 1
+       else   ! odd number
+          jlo = jpt - (jrange-1)/2
+          jhi = jpt + (jrange-1)/2
+       endif
+
+       ! Make sure all points are in bounds
+       ilo = max(ilo,1)
+       ihi = min(ihi,size(field,1))
+       jlo = max(jlo,1)
+       jhi = min(jhi,size(field,2))
+
+       ! Write to stdout
+
+       write(iulog,*) ' '
+       write(iulog,*) trim(field_string), ': i, j, rank =', ipt, jpt, rpt
+       do j = jhi, jlo, -1    ! top to bottom
+          do i = ilo, ihi     ! left to right
+             write(iulog,fmtstr,advance='no') field(i,j)
+          enddo
+          write(iulog,*) ' '
+       enddo
+
+    endif  ! this_rank = rtest
+
+  end subroutine point_diag_integer_2d
+
+!--------------------------------------------------------------------------
+
+  subroutine point_diag_logical_2d(&
+       field,  field_string,   &
+       ipt,    jpt,    rpt,    &
+       irange, jrange,         &
+       fmt_str)
+
+    use cism_parallel, only: this_rank
+
+    ! Write the value of a field in a small neighborhood around a central point
+
+    ! input/output arguments
+
+    logical, dimension(:,:), intent(in) :: &
+         field                        ! field to be written to stdout
+
+    character(*), intent(in) :: &
+         field_string                 ! field name or a similar string, e.g. 'ice_mask'
+
+    integer, intent(in) :: &
+         ipt, jpt, rpt                ! i and j coordinates and processor rank of central point
+
+    integer, intent(in) :: &
+         irange,                    & ! range of diagnostic output in i direction
+         jrange                       ! range of diagnostic output in j direction
+
+    character(len=*), intent(in), optional :: &
+         fmt_str                      ! string for fortran formatted output, default = '(f10.3)'
+
+    ! local variables
+
+    integer :: i, j
+    integer :: ilo, jlo, ihi, jhi
+    integer :: left_range, right_range
+    character(8) :: fmtstr               ! string for fortran formatted output
+
+    if (this_rank == rpt) then
+
+       if (present(fmt_str)) then
+          fmtstr = trim(fmt_str)
+!          write(iulog,*) 'In point_diag, fmtstr = ', trim(fmtstr)
+       else
+          fmtstr = '(L10)'
+!          write(iulog,*) 'In point_diag, fmtstr = ', trim(fmtstr)
+       endif
+
+       if (mod(irange,2) == 0) then  ! even number
+          ilo = ipt - irange/2
+          ihi = ipt + irange/2 - 1
+       else   ! odd number
+          ilo = ipt - (irange-1)/2
+          ihi = ipt + (irange-1)/2
+       endif
+
+       if (mod(jrange,2) == 0) then  ! even number
+          jlo = jpt - jrange/2
+          jhi = jpt + jrange/2 - 1
+       else   ! odd number
+          jlo = jpt - (jrange-1)/2
+          jhi = jpt + (jrange-1)/2
+       endif
+
+       ! Make sure all points are in bounds
+       ilo = max(ilo,1)
+       ihi = min(ihi,size(field,1))
+       jlo = max(jlo,1)
+       jhi = min(jhi,size(field,2))
+
+       ! Write to stdout
+
+       write(iulog,*) ' '
+       write(iulog,*) trim(field_string), ': i, j, rank =', ipt, jpt, rpt
+       do j = jhi, jlo, -1    ! top to bottom
+          do i = ilo, ihi     ! left to right
+             write(iulog,fmtstr,advance='no') field(i,j)
+          enddo
+          write(iulog,*) ' '
+       enddo
+
+    endif  ! this_rank = rtest
+
+  end subroutine point_diag_logical_2d
+
+!--------------------------------------------------------------------------
+
+  subroutine point_diag_real8_2d(&
+       field,  field_string,   &
+       ipt,    jpt,    rpt,    &
+       irange, jrange,         &
+       fmt_str)
+
+    use cism_parallel, only: this_rank
+
+    ! Write the value of a field in a small neighborhood around a central point
+
+    ! input/output arguments
+
+    real(dp), dimension(:,:), intent(in) :: &
+         field                        ! field to be written to stdout
+
+    character(*), intent(in) :: &
+         field_string                 ! field name or a similar string, e.g. 'thck' or 'thck (m)'
+
+    integer, intent(in) :: &
+         ipt, jpt, rpt                ! i and j coordinates and processor rank of central point
+
+    integer, intent(in) :: &
+         irange,                    & ! range of diagnostic output in i direction
+         jrange                       ! range of diagnostic output in j direction
+
+    character(len=*), intent(in), optional :: &
+         fmt_str                      ! string for fortran formatted output, default = '(f10.3)'
+
+    ! local variables
+
+    integer :: i, j
+    integer :: ilo, jlo, ihi, jhi
+    character(8) :: fmtstr               ! string for fortran formatted output
+
+    if (this_rank == rpt) then
+
+       if (present(fmt_str)) then
+          fmtstr = trim(fmt_str)
+       else
+          fmtstr = '(f10.3)'
+       endif
+
+!       write(iulog,*) 'In point_diag, fmtstr = ', trim(fmtstr)
+
+       if (mod(irange,2) == 0) then  ! even number
+          ilo = ipt - irange/2
+          ihi = ipt + irange/2 - 1
+       else   ! odd number
+          ilo = ipt - (irange-1)/2
+          ihi = ipt + (irange-1)/2
+       endif
+
+       if (mod(jrange,2) == 0) then  ! even number
+          jlo = jpt - jrange/2
+          jhi = jpt + jrange/2 - 1
+       else   ! odd number
+          jlo = jpt - (jrange-1)/2
+          jhi = jpt + (jrange-1)/2
+       endif
+
+       ! Make sure all points are in bounds
+       ilo = max(ilo,1)
+       ihi = min(ihi,size(field,1))
+       jlo = max(jlo,1)
+       jhi = min(jhi,size(field,2))
+
+       ! Write to stdout
+       write(iulog,*) ' '
+       write(iulog,*) trim(field_string), ': i, j, rank =', ipt, jpt, rpt
+       do j = jhi, jlo, -1    ! top to bottom
+          do i = ilo, ihi     ! left to right
+             write(iulog,fmtstr,advance='no') field(i,j)
+          enddo
+          write(iulog,*) ' '
+       enddo
+
+    endif  ! this_rank = rpt
+
+  end subroutine point_diag_real8_2d
+
+!****************************************************************************
+
 end module glimmer_utils
+
+!**************************************************************************** 

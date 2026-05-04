@@ -44,7 +44,15 @@ The run script is executed by a command like the following:
 In this case, the user runs on 4 processors with the DIVA solver, a slope angle of 0.0573 degrees,
 Glen's n = 1 (the default), slab thickness H = 1000 m, sliding coefficient beta = 1000 Pa (m/yr)^{-1},
 and viscosity coefficient 1.e5 Pa yr.
-These parameters correspond to the thick shearing test case described by Robinson et al. (2021).
+These parameters correspond to the thick shearing test case described by Robinson et al. (2022).
+
+This command runs the thin sliding test case in Robinson et al. (2022):
+> python runSlab.py -n 4 -a DIVA -theta 0.0573 -thk 500. -mu 4.e5 -beta 30.
+
+Alternatively, we can run with a steep-angled bed (say, 30 degrees):
+> python runSlab.py -n 4 -a DIVA -theta 30.0 -thk 1000. -mu 7.e7 -beta 500000. (thick shearing)
+> python runSlab.py -n 4 -a DIVA -theta 30.0 -thk  500. -mu 4.e8 -beta 20000. (thin sliding)
+where mu and beta are increased to give flow speeds similar to the small-angle cases.
 
 To see the full set of command-line options, type 'python runSlab.py -h'.
 

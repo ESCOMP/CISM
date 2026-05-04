@@ -33,6 +33,7 @@ module glint_example_clim
   ! Subroutines used to initialize and compute forcing for the glint_example climate driver
 
   use glimmer_global, only: dp, fname_length
+  use glimmer_paramets, only: iulog
   use glint_global_grid
 
   implicit none
@@ -99,7 +100,7 @@ contains
     type(global_grid) :: pgrid,sgrid,ogrid 
     character(20) :: sttu,prtu ! Units
 
-    if (verbose_glex_climate) print*, 'Read config file: ', filename
+    if (verbose_glex_climate) write(iulog,*) 'Read config file: ', filename
     call ConfigRead(filename,config)
     call glex_clim_readconfig(params,config)
     call glex_clim_printconfig(params)
@@ -107,11 +108,11 @@ contains
 
     ! Read in global grid data
 
-    if (verbose_glex_climate) print*, 'Read global precip: ', trim(params%precip_file)
+    if (verbose_glex_climate) write(iulog,*) 'Read global precip: ', trim(params%precip_file)
     call read_ncdf_ggrid(params%precip_file,pgrid)
-    if (verbose_glex_climate) print*, 'Read global surface temp: ', trim(params%stemp_file)
+    if (verbose_glex_climate) write(iulog,*) 'Read global surface temp: ', trim(params%stemp_file)
     call read_ncdf_ggrid(params%stemp_file, sgrid)
-    if (verbose_glex_climate) print*, 'Read global orography: ', trim(params%orog_file)
+    if (verbose_glex_climate) write(iulog,*) 'Read global orography: ', trim(params%orog_file)
     call read_ncdf_ggrid(params%orog_file,  ogrid)
 
     ! Check all grids are the same, and copy
@@ -131,7 +132,7 @@ contains
 
     ! Read in data
 
-    if (verbose_glex_climate) print*, 'Read netCDF climate data'
+    if (verbose_glex_climate) write(iulog,*) 'Read netCDF climate data'
     call read_ncdf(params%precip_file,params%precip_varname,params%precip_clim)
     call read_ncdf(params%stemp_file, params%stemp_varname, params%surftemp_clim)
     call read_ncdf(params%orog_file,  params%orog_varname,  params%orog_clim)
@@ -497,7 +498,7 @@ contains
     ! If not a 2d variable, flag and error and exit ----
 
     if (ndims /= 2) then
-       print*,'NetCDF: Requested variable only has ',ndims,' dimensions'
+       write(iulog,*)'NetCDF: Requested variable only has ',ndims,' dimensions'
        stop
     end if
 
@@ -544,7 +545,7 @@ contains
     ! If not a 3d variable, flag and error and exit ----
 
     if (ndims /= 3) then
-       print*,'NetCDF: Requested variable only has ',ndims,' dimensions'
+       write(iulog,*)'NetCDF: Requested variable only has ',ndims,' dimensions'
        stop
     end if
 
@@ -685,8 +686,8 @@ contains
     integer, intent (in) :: line
 
     if(status /= nf90_noerr) then
-       print *, trim(nf90_strerror(status))
-       print *, 'Line:',line
+       write(iulog,*) trim(nf90_strerror(status))
+       write(iulog,*) 'Line:',line
        stop "Stopped"
     end if
   end subroutine handle_err

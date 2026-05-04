@@ -29,6 +29,7 @@
 module glide_bwater
 
    use glimmer_global, only: dp
+   use glimmer_paramets, only: iulog
    use glide_types
 
    implicit none
@@ -37,7 +38,6 @@ contains
 
   subroutine bwater_init(model)
     ! Driver for initializing basal hydrology
-    use glimmer_paramets
     use glimmer_physcon, only : rhow, grav, scyr
 
     implicit none
@@ -51,7 +51,7 @@ contains
 
           allocate(model%tempwk%smth(model%general%ewn,model%general%nsn))
 
-          model%paramets%hydtim = tim0 / (model%paramets%hydtim * scyr)
+          model%paramets%hydtim = 1.0d0 / (model%paramets%hydtim * scyr)
           estimate = 0.2d0 / model%paramets%hydtim
           !EIB! following not in lanl glide_temp
           call find_dt_wat(model%numerics%dttem,estimate,model%tempwk%dt_wat,model%tempwk%nwat) 
@@ -65,11 +65,11 @@ contains
 
           allocate(model%tempwk%wphi(model%general%ewn,model%general%nsn))
 
-          model%tempwk%watvel = model%paramets%hydtim * tim0 / (scyr * len0)
+          model%tempwk%watvel = model%paramets%hydtim / scyr
           estimate = (0.2d0 * model%tempwk%watvel) / min(model%numerics%dew,model%numerics%dns)
           call find_dt_wat(model%numerics%dttem,estimate,model%tempwk%dt_wat,model%tempwk%nwat) 
 
-          !print *, model%numerics%dttem*tim0/scyr, model%tempwk%dt_wat*tim0/scyr, model%tempwk%nwat
+          !write(iulog,*) model%numerics%dttem/scyr, model%tempwk%dt_wat/scyr, model%tempwk%nwat
 
           model%tempwk%c = (/ rhow * grav, rhoi * grav, 2.0d0 * model%numerics%dew, 2.0d0 * model%numerics%dns, &
                0.25d0 * model%tempwk%dt_wat / model%numerics%dew, 0.25d0 * model%tempwk%dt_wat / model%numerics%dns, &
@@ -84,7 +84,6 @@ contains
     ! Driver for updating basal hydrology
     !TODO - Upgrade calcbwat for Glissade?  Currently this subroutine is a mix of old Glide and newer Glissade code.
 
-    use glimmer_paramets, only : thk0
     use glide_grid_operators, only: stagvarb
     use glissade_grid_operators, only: glissade_stagger
 
@@ -99,7 +98,7 @@ contains
     real(dp), dimension(:,:), intent(inout), pointer :: wphi
 
     real(dp), dimension(2), parameter :: &
-         blim = (/ 0.00001 / thk0, 0.001 / thk0 /)
+         blim = (/ 0.00001, 0.001 /)
 
     integer :: t_wat,ns,ew
 
@@ -171,6 +170,7 @@ contains
 
     ! Case added by Jesse Johnson 11/15/08
     ! Steady state routing of basal water using flux calculation
+    ! This code was a starting point for Glissade's steady-state flux-routing scheme
 
     case(BWATER_FLUX)
 
@@ -183,7 +183,7 @@ contains
 
        ! Use a constant water thickness where ice is present, to force Tbed = Tpmp
        where (thck > model%numerics%thklim)
-          bwat(:,:) = const_bwat / thk0
+          bwat(:,:) = const_bwat
        elsewhere
           bwat(:,:) = 0.0d0
        endwhere
@@ -547,7 +547,7 @@ contains
     allocate(vect(nn),ind(nn)) 
 
     if (nn/=nx*ny.or.size(sorted,2) /= 2) then
-      print*,'Wrong dimensions'
+      write(iulog,*) 'Wrong dimensions'
       stop
     endif
 

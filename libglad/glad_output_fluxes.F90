@@ -78,7 +78,6 @@ contains
     ! Given the calving, basal melting, and conductive heat flux fields from the dycore,
     ! accumulate contributions to the rofi, rofl, and hflx fields to be sent to the coupler.
 
-    use glimmer_paramets, only: thk0, tim0
     use glimmer_physcon, only : rhoi
     use glide_types, only : glide_global_type
 
@@ -91,14 +90,13 @@ contains
     ! Accumulate solid runoff (calving)
     !--------------------------------------------------------------------
                        
-    ! Note on units: model%calving%calving_thck has dimensionless ice thickness units
-    !                Multiply by thk0 to convert to meters of ice
+    ! Note on units: model%calving%calving_thck has dimensions of m of ice
     !                Multiply by rhoi to convert to kg/m^2 water equiv.
-    !                Divide by (dt*tim0) to convert to kg/m^2/s
+    !                Divide by dt to convert to kg/m^2/s
 
     ! Convert to kg/m^2/s
     output_fluxes%rofi_sum(:,:) = output_fluxes%rofi_sum(:,:)  &
-         + model%calving%calving_thck(:,:) * thk0 * rhoi / (model%numerics%dt * tim0)
+         + model%calving%calving_thck(:,:) * rhoi / model%numerics%dt
 
     !--------------------------------------------------------------------
     ! Accumulate liquid runoff (basal melting)
@@ -112,13 +110,11 @@ contains
     !       In these cases, we will need to be careful that heat and water are conserved.
     !--------------------------------------------------------------------
                        
-    ! Note on units: model%temper%bmlt has dimensionless units of ice thickness per unit time
-    !                Multiply by thk0/tim0 to convert to meters ice per second
+    ! Note on units: model%temper%bmlt has dimensionless units of m/s ice
     !                Multiply by rhoi to convert to kg/m^2/s water equiv.
 
     ! Convert to kg/m^2/s
-    output_fluxes%rofl_sum(:,:) = output_fluxes%rofl_sum(:,:)  &
-         + model%basal_melt%bmlt(:,:) * thk0/tim0 * rhoi
+    output_fluxes%rofl_sum(:,:) = output_fluxes%rofl_sum(:,:) + model%basal_melt%bmlt(:,:) * rhoi
 
     !--------------------------------------------------------------------
     ! Accumulate basal heat flux

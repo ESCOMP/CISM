@@ -37,6 +37,9 @@
 
 module glide_lithot3d
 
+  use glimmer_global, only: dp
+  use glimmer_paramets, only: iulog
+
   implicit none
 
   private
@@ -48,7 +51,6 @@ contains
   subroutine init_lithot3d(model)
 
     use glide_types
-    use glimmer_paramets, only: len0,tim0
     use glimmer_sparse_type, only: new_sparse_matrix, copy_sparse_matrix, sparse_insert_val
     implicit none
     type(glide_global_type),intent(inout) :: model       ! model instance
@@ -75,8 +77,8 @@ contains
     allocate(model%lithot%iwork(model%lithot%mxnelt))
 
     ! set up factors for horizontal finite differences
-    model%lithot%xfactor = 0.5*model%lithot%diffu*tim0*model%numerics%dt / (model%numerics%dew*len0)**2
-    model%lithot%yfactor = 0.5*model%lithot%diffu*tim0*model%numerics%dt / (model%numerics%dns*len0)**2
+    model%lithot%xfactor = 0.5*model%lithot%diffu*model%numerics%dt / (model%numerics%dew)**2
+    model%lithot%yfactor = 0.5*model%lithot%diffu*model%numerics%dt / (model%numerics%dns)**2
 
 
     ! calculate finite difference coefficient matrix
@@ -199,8 +201,8 @@ contains
          model%lithot%rwork, model%lithot%mxnelt, model%lithot%iwork, model%lithot%mxnelt)
 
     if (ierr /= 0) then
-      print *, 'pcg error ', ierr, itmax, iter
-      write(*,*) model%numerics%time
+      write(iulog,*) 'pcg error ', ierr, itmax, iter
+      write(iulog,*) model%numerics%time
       call glide_finalise(model,.true.)
       call close_log
       stop

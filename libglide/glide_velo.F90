@@ -37,7 +37,6 @@ module glide_velo
   use glide_types
   use glimmer_global, only : dp
   use glimmer_physcon, only : rhoi, grav, gn
-  use glimmer_paramets, only : thk0, len0, vis0, vel0
 
   implicit none
 
@@ -95,26 +94,24 @@ contains
 
     model%velowk%depthw = (/ ((model%numerics%sigma(up+1)+model%numerics%sigma(up)) / 2.0d0, up=1,upn-1), 0.0d0 /)
 
-    model%velowk%fact = (/ model%paramets%flow_enhancement_factor_ground * arrmlh / vis0, &   ! Value of a when T* is above -263K
-                           model%paramets%flow_enhancement_factor_ground * arrmll / vis0, &   ! Value of a when T* is below -263K
-                          -actenh / gascon,        &                                          ! Value of -Q/R when T* is above -263K
-                          -actenl / gascon/)                                                  ! Value of -Q/R when T* is below -263K
+    model%velowk%fact = (/ model%paramets%flow_enhancement_factor_ground * arrmlh, &   ! Value of a when T* is above -263K
+                           model%paramets%flow_enhancement_factor_ground * arrmll, &   ! Value of a when T* is below -263K
+                          -actenh / gascon,        &                                   ! Value of -Q/R when T* is above -263K
+                          -actenl / gascon/)                                           ! Value of -Q/R when T* is below -263K
 
     model%velowk%watwd  = model%paramets%bpar(1)
     model%velowk%watct  = model%paramets%bpar(2)
     model%velowk%trcmin = model%paramets%bpar(3) / scyr
     model%velowk%trcmax = model%paramets%bpar(4) / scyr
     model%velowk%marine = model%paramets%bpar(5)
-    model%velowk%trcmax = model%velowk%trcmax / model%velowk%trc0
-    model%velowk%trcmin = model%velowk%trcmin / model%velowk%trc0  
     model%velowk%c(1)   = (model%velowk%trcmax + model%velowk%trcmin) / 2.0d0 
     model%velowk%c(2)   = (model%velowk%trcmax - model%velowk%trcmin) / 2.0d0
-    model%velowk%c(3)   = (thk0 * pi) / model%velowk%watwd  
+    model%velowk%c(3)   = pi / model%velowk%watwd  
     model%velowk%c(4)   = pi*(model%velowk%watct / model%velowk%watwd)
 
     ! Note: cflow < 0 is used in several equations below.
     !       Signs in this module can be tricky, so comments are added to help keep track.
-    cflow = -2.0d0*vis0*(rhoi*grav)**gn*thk0**p3/(8.0d0*vel0*len0**gn)
+    cflow = -2.0d0*(rhoi*grav)**gn / (8.0d0/scyr)
 
   end subroutine init_velo
 
@@ -673,7 +670,6 @@ contains
     !> Calculates the time-derivative of a field. This subroutine is used by 
     !> the Glimmer temperature solver only.
 
-    use glimmer_paramets, only : tim0
     use glimmer_physcon, only: scyr
 
     implicit none 
@@ -693,7 +689,7 @@ contains
     else
        factor = 1.d0/factor
        where (mask /= 0)
-          opvr = (tim0/scyr) * (ipvr - thckwk%olds(:,:,which)) * factor
+          opvr = (1.0d0/scyr) * (ipvr - thckwk%olds(:,:,which)) * factor
        elsewhere
           opvr = 0.0d0
        end where
@@ -730,9 +726,8 @@ contains
 
     real(dp),dimension(:),    intent(in)  :: sigma     !> Array holding values of sigma
                                                        !> at each vertical level
-    real(dp),                 intent(in)  :: thklim    !> Minimum thickness to be considered
+    real(dp),                 intent(in)  :: thklim    !> Minimum thickness (m) to be considered
                                                        !> when calculating the grid velocity.
-                                                       !> This is in m, divided by \texttt{thk0}.
     real(dp),dimension(:,:,:),intent(in)  :: uvel      !> The $x$-velocity field (scaled). Velocity
                                                        !> is on the staggered grid
     real(dp),dimension(:,:,:),intent(in)  :: vvel      !> The $y$-velocity field (scaled). Velocity
@@ -741,8 +736,7 @@ contains
                                                        !> and horizontal derivatives of
                                                        !> ice-sheet thickness and upper
                                                        !> surface elevation
-    real(dp),dimension(:,:),  intent(in)  :: thck      !> Ice-sheet thickness (divided by 
-                                                       !> \texttt{thk0})
+    real(dp),dimension(:,:),  intent(in)  :: thck      !> Ice-sheet thickness (m) 
     real(dp),dimension(:,:,:),intent(out) :: wgrd      !> The grid velocity at each point. This
                                                        !> is the output.
 
@@ -801,9 +795,8 @@ contains
                                                           !> staggered grid (scaled)
     real(dp),dimension(:,:,:), intent(in)    :: vvel      !> The $y$-velocity on the
                                                           !> staggered grid (scaled)
-    real(dp),dimension(:,:),   intent(in)    :: thck      !> The ice thickness, divided
-                                                          !> by \texttt{thk0}
-    type(glide_geomderv),    intent(in)    :: geomderv  !> Derived type holding the
+    real(dp),dimension(:,:),   intent(in)    :: thck      !> The ice thickness (m)
+   type(glide_geomderv),    intent(in)    :: geomderv  !> Derived type holding the
                                                           !> horizontal and temporal derivatives
                                                           !> of the thickness and upper surface
                                                           !> elevation.
@@ -1019,7 +1012,6 @@ contains
     !> Calculate the value of $B$ used for basal sliding calculations.
 
     use glimmer_physcon, only : rhoo, rhoi
-    use glimmer_paramets, only : len0, thk0, scyr, vel0
     implicit none
 
     type(glide_global_type) :: model        !> model instance
@@ -1038,7 +1030,7 @@ contains
     real(dp) :: tau  !basal shear stress
 
     !scaling
-    real(dp) :: tau_factor = 1.d-3*thk0*thk0/len0
+    real(dp) :: tau_factor = 1.d-3
     !real(dp) :: tau_factor = 1.0d0
     !------------------------------------------------------------------------------------
 
@@ -1119,36 +1111,6 @@ contains
              end if
           end do
        end do
-
-!WHL - I'm not aware of anyone using this parameterization. Commented out for now.
-!!    case(6)
-!!       ! increases with the third power of the basal shear stress, from Huybrechts
-
-!!       Asl = model%climate%slidconst
-!!       do ns = 1, nsn-1
-!!         do ew = 1, ewn-1
-!NOTE - Scaling looks wrong here: stagthck and thklim should have the same scaling.
-!!           if ((model%geomderv%stagthck(ew,ns)*thk0) > model%numerics%thklim) then 
-!!             if((model%geomderv%stagtopg(ew,ns)*thk0) > (model%climate%eus*thk0)) then
-!!               Z = model%geomderv%stagthck(ew,ns)*thk0
-!!             else
-!!               Z = model%geomderv%stagthck(ew,ns)*thk0 + rhoi*((model%geomderv%stagtopg(ew,ns) *thk0 &
-!!                   - model%climate%eus*thk0)/ rhoo)   
-!!             end if 
-              
-!!            if(Z <= model%numerics%thklim) then !avoid division by zero
-!!                Z = model%numerics%thklim
-!!            end if 
-            
-!!             tau = ((tau_factor*model%stress%tau_x(ew,ns))**2 +&
-!!             (model%stress%tau_y(ew,ns)*tau_factor)**2)**(0.5d0)
-             
-!!             btrc(ew,ns) = (Asl*(tau)**2)/Z !assuming that that btrc is later
-!!                                             !multiplied again by the basal shear stress
-       
-!!           end if  
-!!          end do
-!!       end do
 
     case default   ! includes BTRC_ZERO
        ! zero everywhere

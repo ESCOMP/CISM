@@ -58,7 +58,6 @@ contains
     ! initialise eismint_climate model
 
     use glimmer_global, only: dp
-    use glimmer_paramets, only: thk0, scyr, tim0
     use glimmer_physcon, only: scyr
     use glimmer_config
     use glide_types
@@ -67,17 +66,7 @@ contains
     type(eismint_climate_type) :: eismint_climate         ! structure holding climate info
     type(ConfigSection), pointer :: config  ! structure holding sections of configuration file   
 
-!WHL - The old scaling looked like this: eismint_climate%nmsb(1) = eismint_climate%nmsb(1) / (acc0 * scyr)
-!       where acc0 = thk0*vel0/len0.
-!      I replaced (acc0 * scyr) with acab_scale = scyr*thk0/tim0, where tim0 = len0/vel0.  
-!      This is the scaling used in other parts of the code, including Glint.
-!      It can be shown (but is not immediately obvious) that acab_scale = acc0 * scyr.
-!      This scale factor assumes that the input mass balance has units of m/yr.
-!
-!      Note: We should not use the parameter scale_acab in glimmer_scales because
-!            it may not have been initialized yet.
-
-    real(dp), parameter :: acab_scale = scyr*thk0/tim0
+    real(dp), parameter :: acab_scale = scyr
 
     call eismint_readconfig(eismint_climate,config)
     call eismint_printconfig(eismint_climate)
@@ -91,7 +80,6 @@ contains
        eismint_climate%nmsb(1) = eismint_climate%nmsb(1) / acab_scale
 
     case(2)   ! EISMINT-1 moving margin
-       eismint_climate%airt(2) = eismint_climate%airt(2) * thk0
        eismint_climate%nmsb(1) = eismint_climate%nmsb(1) / acab_scale
        eismint_climate%nmsb(2) = eismint_climate%nmsb(2) / acab_scale
 
@@ -291,9 +279,8 @@ contains
 
     use glimmer_global, only : dp
     use glide_types
-    use glimmer_paramets, only : len0, acc0, scyr
+    use glimmer_paramets, only : scyr
     use glimmer_physcon, only : pi
-    use glimmer_scales, only : scale_acab
     use cism_parallel, only: parallel_globalindex
 
     implicit none
@@ -310,7 +297,7 @@ contains
     ewct = (model%parallel%global_ewn + 1.d0) / 2.d0
     nsct = (model%parallel%global_nsn + 1.d0) / 2.d0
 
-    grid = real(model%numerics%dew,dp) * len0
+    grid = real(model%numerics%dew,dp)
 
     if (model%options%periodic_ew) then
         periodic = 0.d0
@@ -325,7 +312,7 @@ contains
        model%climate%acab(:,:) = eismint_climate%nmsb(1)
        if (eismint_climate%period .ne. 0.d0) then
           model%climate%acab(:,:) = model%climate%acab(:,:) + eismint_climate%mb_amplitude * &
-               sin(2.d0*pi*time/eismint_climate%period)/ (acc0 * scyr)
+               sin(2.d0*pi*time/eismint_climate%period)/ scyr
        end if
 
     case(2)
@@ -370,7 +357,6 @@ contains
 
     use glide_types
     use glimmer_global, only: dp
-    use glimmer_paramets, only : len0
     use glimmer_physcon, only : pi
     use cism_parallel, only: parallel_globalindex
 
@@ -387,7 +373,7 @@ contains
 
     ewct = (model%parallel%global_ewn + 1.d0) / 2.d0
     nsct = (model%parallel%global_nsn + 1.d0) / 2.d0
-    grid = real(model%numerics%dew,dp) * len0
+    grid = real(model%numerics%dew,dp)
 
     if (model%options%periodic_ew) then
         periodic = 0.d0

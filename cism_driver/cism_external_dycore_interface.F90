@@ -30,7 +30,8 @@ contains
 
 subroutine cism_init_external_dycore(external_dycore_type,model)
  
-  use glimmer_global
+  use glimmer_global, only: dp
+  use glimmer_paramets, only: iulog
   use glide
   use glissade
   use eismint_forcing
@@ -64,16 +65,16 @@ subroutine cism_init_external_dycore(external_dycore_type,model)
 
 
 #ifdef CISM_HAS_EXTERNAL_DYCORE
-  ! print *,"Initializing external dycore interface."
+  ! write(iulog,*) "Initializing external dycore interface."
   call gtd_init_dycore_interface()
 
   call parallel_barrier()
-  ! print *,"Initializing external dycore."
+  ! write(iulog,*) "Initializing external dycore."
   call gtd_init_dycore(model,external_dycore_model_index)
   model%options%external_dycore_model_index = external_dycore_model_index
   call parallel_barrier()
 #else
-  print *,"ERROR: The program was not built with an external dynamic core."
+  write(iulog,*) "ERROR: The program was not built with an external dynamic core."
 #endif
 
 end subroutine cism_init_external_dycore
@@ -108,12 +109,12 @@ subroutine cism_run_external_dycore(external_dycore_model_index,cur_time,time_in
   external_dycore_model_index = 1
 
   call parallel_barrier()
-  ! print *,"Running external dycore."
+  ! write(iulog,*) "Running external dycore."
   call gtd_run_dycore(external_dycore_model_index,cur_time,time_inc)
-  ! print *,"Completed Dycore Run."
+  ! write(iulog,*) "Completed Dycore Run."
   call parallel_barrier()
 #else
-  print *,"ERROR: The program was not built with an external dynamic core."
+  write(iulog,*) "ERROR: The program was not built with an external dynamic core."
 #endif
 
 end subroutine cism_run_external_dycore
@@ -157,12 +158,12 @@ subroutine cism_finalize_external_dycore(external_dycore_type,model)
    external_dycore_model_index = 1
 
   call parallel_barrier()
-  ! print *,"Finalizing external dycore."
+  ! write(iulog,*) "Finalizing external dycore."
   call gtd_delete_dycore(external_dycore_model_index)
   model%options%external_dycore_model_index = external_dycore_model_index
   call parallel_barrier()
 #else
-  print *,"ERROR: The program was not built with an external dynamic core."
+  write(iulog,*) "ERROR: The program was not built with an external dynamic core."
 #endif
 
 end subroutine cism_finalize_external_dycore

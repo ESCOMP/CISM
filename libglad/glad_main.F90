@@ -44,7 +44,7 @@ module glad_main
   use glad_input_averages, only : get_av_start_time, accumulate_averages, &
        calculate_averages, reset_glad_input_averages, averages_okay_to_restart
   use glide_model_registry, only : set_max_models, check_num_models
-  use glimmer_paramets, only: stdout, GLC_DEBUG, unphys_val
+  use glimmer_paramets, only: iulog, GLC_DEBUG, unphys_val
   use cism_parallel, only: main_task, this_rank
 
   implicit none
@@ -173,7 +173,7 @@ contains
     endif
 
     if (GLC_DEBUG .and. main_task) then
-       write(stdout,*) 'Initializing glad'
+       write(iulog,*) 'Initializing glad'
     end if
 
     ! Initialise start time and calling model time-step (time_step = integer number of hours)
@@ -201,8 +201,8 @@ contains
     endif
 
     if (GLC_DEBUG .and. main_task) then
-       write(stdout,*) 'time_step     =', params%time_step
-       write(stdout,*) 'start_time    =', params%start_time
+       write(iulog,*) 'time_step     =', params%time_step
+       write(iulog,*) 'start_time    =', params%start_time
     end if
 
     ! Initialise year-length -------------------------------------------------------------------
@@ -217,7 +217,7 @@ contains
     ! ---------------------------------------------------------------
 
     if (GLC_DEBUG .and. main_task) then
-       write(stdout,*) 'paramfile(s) =', paramfile
+       write(iulog,*) 'paramfile(s) =', paramfile
     end if
 
     params%ninstances = size(paramfile)
@@ -229,7 +229,7 @@ contains
     call set_max_models(params%ninstances)
 
     if (GLC_DEBUG .and. main_task) then
-       write(stdout,*) 'Number of instances =', params%ninstances
+       write(iulog,*) 'Number of instances =', params%ninstances
     end if
 
   end subroutine glad_initialize
@@ -260,7 +260,7 @@ contains
     ! Begin subroutine code --------------------------------------------------------------------
 
     if (GLC_DEBUG .and. main_task) then
-       write(stdout,*) 'Read config file and initialize instance #', instance_index
+       write(iulog,*) 'Read config file and initialize instance #', instance_index
     end if
 
     call ConfigRead(process_path(params%config_fnames(instance_index)),&
@@ -397,10 +397,10 @@ contains
     end if
 
     if (GLC_DEBUG .and. main_task) then
-       write(stdout,*) 'tstep_mbal =', params%tstep_mbal
-       write(stdout,*) 'start_time =', params%start_time
-       write(stdout,*) 'time_step =',  params%time_step
-       if (present(ice_dt)) write(stdout,*) 'ice_dt =', ice_dt
+       write(iulog,*) 'tstep_mbal =', params%tstep_mbal
+       write(iulog,*) 'start_time =', params%start_time
+       write(iulog,*) 'time_step =',  params%time_step
+       if (present(ice_dt)) write(iulog,*) 'ice_dt =', ice_dt
     end if
 
     ! Check time-steps divide into one another appropriately.
@@ -484,7 +484,7 @@ contains
        do local_col = 1, own_ewn
           local_index = (local_row - 1)*own_ewn + local_col
           if (local_index < 1 .or. local_index > own_points) then
-             write(stdout,*) subname//' ERROR: local_index out of bounds: ', &
+             write(iulog,*) subname//' ERROR: local_index out of bounds: ', &
                   local_index, own_points
              call write_log(subname // ' ERROR: local_index out of bounds', &
                   GM_FATAL, __FILE__, __LINE__)
@@ -684,10 +684,10 @@ contains
        if (this_rank == rtest) then
           i = itest
           j = jtest
-          print*, 'r, i, j, nzocn =', this_rank, i, j, nzocn
-          print*, 'k, zocn:'
+          write(iulog,*) 'r, i, j, nzocn =', this_rank, i, j, nzocn
+          write(iulog,*) 'k, zocn:'
           do k = 1, nzocn
-             print*, k, zocn(k)
+             write(iulog,*) k, zocn(k)
           enddo
        endif
 
@@ -723,10 +723,10 @@ contains
        if (verbose_glad .and. this_rank == rtest) then
           i = itest
           j = jtest
-          print*, 'r, i, j =', this_rank, i, j
-          print*, 'k, zocn, temperature, salinity, thermal forcing:'
+          write(iulog,*) 'r, i, j =', this_rank, i, j
+          write(iulog,*) 'k, zocn, temperature, salinity, thermal forcing:'
           do k = 1, nzocn
-             write(6,'(i4, 4f11.3)') k, zocn(k), &
+             write(iulog,'(i4, 4f11.3)') k, zocn(k), &
                   tocn_haloed(k,i,j), salinity_haloed(k,i,j), thermal_forcing_haloed(k,i,j)
           enddo
        endif
@@ -771,11 +771,11 @@ contains
        end if
 
        if (GLC_DEBUG .and. main_task) then
-          write(stdout,*)' Taking a glad time step'
-          write(stdout,*)'   time          = ',time
-          write(stdout,*)'   av_start_time = ',av_start_time
-          write(stdout,*)'   time_step     = ',params%time_step
-          write(stdout,*)'   tstep_mbal    = ',params%tstep_mbal
+          write(iulog,*)' Taking a glad time step'
+          write(iulog,*)'   time          = ',time
+          write(iulog,*)'   av_start_time = ',av_start_time
+          write(iulog,*)'   time_step     = ',params%time_step
+          write(iulog,*)'   tstep_mbal    = ',params%tstep_mbal
        end if
 
        ! Set output_flag
@@ -806,9 +806,9 @@ contains
           if (verbose_glad .and. this_rank == rtest) then
              i = itest
              j = jtest
-             print*, 'Before calling glad_i_tstep_gcm, k, zocn, average thermal forcing:'
+             write(iulog,*) 'Before calling glad_i_tstep_gcm, k, zocn, average thermal forcing:'
              do k = 1, nzocn
-                write(6,'(i4, 2f11.3)') k, zocn(k), params%instances(instance_index)%thermal_forcing(k,i,j)
+                write(iulog,'(i4, 2f11.3)') k, zocn(k), params%instances(instance_index)%thermal_forcing(k,i,j)
              enddo
           endif
 
@@ -823,7 +823,7 @@ contains
                params%instances(instance_index)%acab(:,:) * &
                params%tstep_mbal * hours2seconds / 1000.d0
 
-          if (GLC_DEBUG .and. main_task) write(stdout,*) 'Take a glad time step, instance', instance_index
+          if (GLC_DEBUG .and. main_task) write(iulog,*) 'Take a glad time step, instance', instance_index
           call glad_i_tstep_gcm(time, params%instances(instance_index), icets)
 
           call calculate_average_output_fluxes( &
@@ -851,7 +851,7 @@ contains
             next_av_start = time + params%time_step)
        
        if (GLC_DEBUG .and. main_task) then
-          write(stdout,*) 'Done in glad_gcm'
+          write(iulog,*) 'Done in glad_gcm'
        endif
 
    endif    ! time - av_start_time + params%time_step > params%tstep_mbal

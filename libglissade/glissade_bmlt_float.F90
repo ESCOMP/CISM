@@ -37,26 +37,26 @@ module glissade_bmlt_float
 
   use glimmer_global, only: dp
   use glimmer_physcon, only: rhoo, rhow, grav, lhci, scyr, pi
-  use glimmer_paramets, only: unphys_val
+  use glimmer_paramets, only: iulog, unphys_val
   use glimmer_log
   use glide_types
-  use glide_diagnostics, only: point_diag
+  use glimmer_utils, only: point_diag
   use cism_parallel, only: this_rank, main_task, nhalo, &
        parallel_type, parallel_halo, parallel_globalindex, parallel_boundary_value, &
-       parallel_reduce_sum, parallel_reduce_min, parallel_reduce_max
+       parallel_reduce_sum, parallel_reduce_min, parallel_reduce_max, parallel_global_sum
 
   implicit none
   
   private
   public :: verbose_bmlt_float, glissade_basal_melting_float, &
-       glissade_bmlt_float_thermal_forcing_init, glissade_bmlt_float_thermal_forcing
+       glissade_bmlt_float_thermal_forcing_init, glissade_bmlt_float_thermal_forcing, &
+       glissade_thermal_forcing_extrapolate
 
     logical :: verbose_bmlt_float = .false.
-!!    logical :: verbose_bmlt_float = .true.
 
-    logical :: verbose_velo = .true.
-    logical :: verbose_continuity = .true.
-    logical :: verbose_melt = .true.
+    logical :: verbose_velo = .false.
+    logical :: verbose_continuity = .false.
+    logical :: verbose_melt = .false.
 
     !WHL - Should the MISOMIP parameters go elsewhere?
     !      Note: gammaS and gammaT are namelist parameters
@@ -80,16 +80,25 @@ module glissade_bmlt_float
          !WHL - Zero Coriolis to solve an easier problem
 !!        f_coriolis = 0.0d0            ! Coriolis parameter (s^-1) at 75 S = 2*omega*sin(75 deg) (prescribed in text)
 
-    ! loop limits for debug diagnostics
-    integer :: kmin_diag = 1
-    integer :: kmax_diag = 1
-
     ! prescribed ISMIP6 parameters
     real(dp), parameter ::  &
          rhoi_ismip6 = 918.0d0,      & ! ice density (kg/m^3)
          rhosw_ismip6 = 1028.0d0,    & ! seawater density (kg/m^3)
          Lf_ismip6 = 3.34d5,         & ! latent heat of fusion (J/kg)
          cpw_ismip6 = 3974.d0          ! specific heat of seawater (J/kg/K)
+
+    ! Max and min allowed values for thermal forcing
+    real(dp), parameter ::  &
+         thermal_forcing_max = 20.d0,  &  ! max allowed value of thermal forcing (K)
+         thermal_forcing_min = -5.d0      ! min allowed value of thermal forcing (K)
+
+    integer, parameter :: &
+         cavity_buffer = 0     ! distance from ice edge (measured in number of grid cells) over which ocean TF values
+                               ! are discarded before starting TF extrapolation; must be <= nhalo
+
+    ! loop limits for debug diagnostics
+    integer :: kmin_diag = 1
+    integer :: kmax_diag = 2
 
   contains
 
@@ -106,7 +115,6 @@ module glissade_bmlt_float
                                           basal_melt,  ocean_data)
 
     use glissade_masks, only: glissade_get_masks
-    use glimmer_paramets, only: tim0, thk0
 
     ! Compute the rate of basal melting for floating ice by one of several methods.
 
@@ -214,7 +222,7 @@ module glissade_bmlt_float
     ! Compute the basal melt rate for floating ice
     !-----------------------------------------------------------------
 
-    if (main_task .and. verbose_bmlt_float) print*, 'Computing bmlt_float, whichbmlt_float =', whichbmlt_float
+    if (main_task .and. verbose_bmlt_float) write(iulog,*) 'Computing bmlt_float, whichbmlt_float =', whichbmlt_float
 
     ! Set bmlt_float pointer and initialize
     bmlt_float  => basal_melt%bmlt_float
@@ -254,7 +262,7 @@ module glissade_bmlt_float
                 !WHL - debug
                 if (j==jtest .and. this_rank==rtest) then
 !!                if (i==itest .and. j==jtest .and. this_rank==rtest) then
-!!                   print*, 'rank, i, j, bmlt_float:', this_rank, i, j, bmlt_float(i,j)
+!!                   write(iulog,*) 'rank, i, j, bmlt_float:', this_rank, i, j, bmlt_float(i,j)
                 endif
                    
              endif   ! ice is present and floating
@@ -290,7 +298,7 @@ module glissade_bmlt_float
 
                 !debug
 !                if (j == jtest .and. verbose_bmlt_float) then
-!                   print*, 'cavity, tanh, thck, draft, melt rate (m/yr):', i, j, h_cavity, &
+!                   write(iulog,*) 'cavity, tanh, thck, draft, melt rate (m/yr):', i, j, h_cavity, &
 !                         tanh(h_cavity/basal_melt%bmlt_float_h0), thck(i,j), z_draft, bmlt_float(i,j)*scyr
 !                endif
 
@@ -299,25 +307,9 @@ module glissade_bmlt_float
           enddo
        enddo
 
-       !WHL - debug
-       if (verbose_bmlt_float .and. this_rank == rtest) then
-          print*, 'itest, jtest, rtest =', itest, jtest, rtest
-          print*, ' '
-          print*, 'thck (m):'
-          do j = jtest+3, jtest-3, -1
-             do i = itest-3, itest+3
-                write(6,'(f10.2)',advance='no') thck(i,j)
-             enddo
-             write(6,*) ' '
-          enddo
-          print*, ' '
-          print*, 'bmlt_float (m/yr), rank =', rtest
-          do j = jtest+3, jtest-3, -1
-             do i = itest-3, itest+3
-                write(6,'(f10.2)',advance='no') bmlt_float(i,j)*scyr
-             enddo
-             write(6,*) ' '
-          enddo
+       if (verbose_bmlt_float) then
+          call point_diag(thck, 'thck (m)', itest, jtest, rtest, 7, 7)
+          call point_diag(bmlt_float*scyr, 'bmlt_float (m/yr)', itest, jtest, rtest, 7, 7)
        endif
 
     elseif (whichbmlt_float == BMLT_FLOAT_DEPTH) then
@@ -398,49 +390,12 @@ module glissade_bmlt_float
           enddo
        enddo
 
-       !debug
-       if (verbose_bmlt_float .and. this_rank == rtest) then
-          print*, 'itest, jtest, rtest =', itest, jtest, rtest
-          print*, ' '
-          print*, 'topg (m):'
-          do j = jtest+3, jtest-3, -1
-             do i = itest-3, itest+3
-                write(6,'(f10.2)',advance='no') topg(i,j)
-             enddo
-             write(6,*) ' '
-          enddo
-          print*, ' '
-          print*, 'thck (m):'
-          do j = jtest+3, jtest-3, -1
-             do i = itest-3, itest+3
-                write(6,'(f10.2)',advance='no') thck(i,j)
-             enddo
-             write(6,*) ' '
-          enddo
-          print*, ' '
-          print*, 'z_draft (m):'
-          do j = jtest+3, jtest-3, -1
-             do i = itest-3, itest+3
-                write(6,'(f10.2)',advance='no') min(lsrf(i,j) - eus, 0.0d0)
-             enddo
-             write(6,*) ' '
-          enddo
-          print*, ' '
-          print*, 'h_cavity (m):'
-          do j = jtest+3, jtest-3, -1
-             do i = itest-3, itest+3
-                write(6,'(f10.2)',advance='no') max(lsrf(i,j) - topg(i,j), 0.0d0)
-             enddo
-             write(6,*) ' '
-          enddo
-          print*, ' '
-          print*, 'bmlt_float (m/yr), rank =', rtest
-          do j = jtest+3, jtest-3, -1
-             do i = itest-3, itest+3
-                write(6,'(f10.2)',advance='no') bmlt_float(i,j)*scyr
-             enddo
-             write(6,*) ' '
-          enddo
+       if (verbose_bmlt_float) then
+          call point_diag(topg, 'topg (m)', itest, jtest, rtest, 7, 7)
+          call point_diag(thck, 'thck (m)', itest, jtest, rtest, 7, 7)
+          call point_diag(min(lsrf-eus, 0.0d0), 'z_draft (m)', itest, jtest, rtest, 7, 7)
+          call point_diag(max(lsrf-topg, 0.0d0), 'h_cavity (m)', itest, jtest, rtest, 7, 7)
+          call point_diag(bmlt_float*scyr, 'bmlt_float (m/yr)', itest, jtest, rtest, 7, 7)
        endif
 
     elseif (whichbmlt_float == BMLT_FLOAT_MISOMIP) then
@@ -498,7 +453,7 @@ module glissade_bmlt_float
 
   subroutine glissade_bmlt_float_thermal_forcing_init(model, ocean_data)
 
-    use glimmer_paramets, only: thk0, len0, tim0, unphys_val
+    use glimmer_paramets, only: unphys_val
     use glissade_masks, only : glissade_get_masks
 
     ! Initialization for basal melting based on ocean thermal forcing
@@ -510,8 +465,7 @@ module glissade_bmlt_float
     
     integer, dimension(model%general%ewn, model%general%nsn) ::  &
          ice_mask,                   &  ! = 1 if ice is present (thck > 0)
-         ocean_mask,                 &  ! = 1 if topg < 0 and ice is absent
-         land_mask                      ! = 1 if topg >= 0
+         ocean_mask                     ! = 1 if topg < 0 and ice is absent
 
     real(dp), dimension(:), allocatable :: &
          deltaT_basin_ismip6            ! prescribed deltaT_basin values for each of 18 basins
@@ -519,6 +473,8 @@ module glissade_bmlt_float
     integer :: itest, jtest, rtest      ! coordinates of diagnostic point
     integer :: i, j, k, nb
     integer :: ewn, nsn
+    integer :: imin, imax, jmin, jmax
+    integer :: buffer
 
     integer :: basin_number_min         ! global minval of the basin_number field
 
@@ -539,8 +495,8 @@ module glissade_bmlt_float
     allocate(deltaT_basin_ismip6(ocean_data%nbasin))
 
     if (verbose_bmlt_float .and. main_task) then
-       print*, 'In glissade_bmlt_float_thermal_forcing_init'
-       print*, 'bmlt_float_thermal_forcing_param =', model%options%bmlt_float_thermal_forcing_param
+       write(iulog,*) 'In glissade_bmlt_float_thermal_forcing_init'
+       write(iulog,*) 'bmlt_float_thermal_forcing_param =', model%options%bmlt_float_thermal_forcing_param
     endif
 
     !WHL - debug - some simple initializations for testing
@@ -568,77 +524,13 @@ module glissade_bmlt_float
 
     endif  ! simple_init
 
-    !Michele attempt for ERS test mismatch
     if (model%options%is_restart == NO_RESTART) then
 
        if (model%options%bmlt_float_thermal_forcing_param == BMLT_FLOAT_TF_ISMIP6_LOCAL .or.  &
            model%options%bmlt_float_thermal_forcing_param == BMLT_FLOAT_TF_ISMIP6_NONLOCAL .or. &
            model%options%bmlt_float_thermal_forcing_param == BMLT_FLOAT_TF_ISMIP6_NONLOCAL_SLOPE) then
 
-          ! Initialize deltaT_ocn based on deltaT_basin_ismip6, if needed for the ISMIP6 option
-          ! For other options, deltaT_ocn(:,:) = 0 initially or has already been read in
-
-          if (model%options%which_ho_bmlt_basin == HO_BMLT_BASIN_ISMIP6) then
-
-             if (main_task) then
-                print*, 'Assign deltaT_basin from ismip6'
-             endif
-
-             ! Note: For now, these values are hardwired for the standard 16 ISMIP6 basins
-             if (ocean_data%nbasin /= 16) then
-                call write_log('Error, ISMIP6 deltaT_basin values are set for exactly 16 Antarctic basins', GM_FATAL)
-             endif
-
-             ! Set values computed by Nico Jourdain to match observed basin-scale mean melt.
-             ! See Jourdain et al. (2019) and Lipscomb et al. (2021).
-             ! Note: Uncommented values are for the MeanAnt calibration; commented values are for PIGL.
-             !       It would be possible to make MeanAnt v. PIGL a config option,
-             !        but for now a new compile is needed to use the PIGL numbers.
-             if (model%options%bmlt_float_thermal_forcing_param == BMLT_FLOAT_TF_ISMIP6_LOCAL) then
-
-                !MeanAnt
-                deltaT_basin_ismip6 = (/ 0.68,  0.15,  0.62,  0.87,  0.36,  0.05, -0.11,  0.51,  &
-                                         1.28, -0.13, -0.95, -0.13, -0.17, -0.05,  0.12, -0.34 /)
-
-                ! PIGL
-!                deltaT_basin_ismip6 = (/-0.04, -0.24,  0.06, -0.13, -0.17, -0.56, -0.27, -0.34, &
-!                                        -0.14, -1.17, -2.01, -0.74, -0.38, -0.27, -0.11, -1.04 /)
-
-             elseif (model%options%bmlt_float_thermal_forcing_param== BMLT_FLOAT_TF_ISMIP6_NONLOCAL) then
-
-                ! MeanAnt
-                deltaT_basin_ismip6 = (/ 0.57,  0.13,  0.51,  0.70,  0.27,  0.08, -0.12,  0.43,  &
-                                         1.07, -0.01, -0.66, -0.06, -0.12, -0.06,  0.10, -0.16 /)
-
-                ! PIGL
-!                deltaT_basin_ismip6 = (/-0.19, -0.22, -0.10, -0.39, -0.30, -0.39, -0.28, -0.39,  &
-!                                        -0.43, -0.70, -1.43, -0.37, -0.27, -0.27, -0.12, -0.46 /)
-
-             elseif (model%options%bmlt_float_thermal_forcing_param== BMLT_FLOAT_TF_ISMIP6_NONLOCAL_SLOPE) then
-
-                if (main_task) print*, '   Assign nonlocal-slope values'
-
-                ! MeanAnt ;Michele slightly changing this over Ross?
-                deltaT_basin_ismip6 = (/ 0.36, -0.03,  0.45,  0.05,  0.02, -0.22, -0.01,  0.37,  &
-                                         0.64, -0.03, -0.58, -0.10, -0.11, -0.01,  0.14, -0.15 /)
-
-                ! PIGL
-!                deltaT_basin_ismip6 = (/ 0.03, -0.18,  0.13, -0.31, -0.21, -0.37, -0.14, -0.05,  &
-!                                        -0.03, -0.42, -1.02, -0.27, -0.19, -0.15,  0.00, -0.32 /)
-
-             endif
-
-             ! Assign the numbers above to each grid cell, given its basin number
-             do j = 1, nsn
-                do i = 1, ewn
-                   nb = ocean_data%basin_number(i,j)
-                   if (nb >= 1) then
-                      ocean_data%deltaT_ocn(i,j) = deltaT_basin_ismip6(nb)
-                   endif
-                enddo
-             enddo
-
-          endif   ! ho_bmlt_basin_ismip6
+          !WHL - Removed the HO_DELTAT_BASIN_ISMIP6 option that used to be here
 
           !WHL - In earlier code, nonzero values of gamma0 could either be set in the config file,
           !       read from the input file, or assigned here based on the ISMIP6 parameterization.
@@ -647,22 +539,22 @@ module glissade_bmlt_float
           !      Now, nonzero values of gamma0 must be set in the config file.
 
           if (verbose_bmlt_float .and. this_rank==rtest) then
-             print*, ' '
-             print*, 'Initialize ISMIP6 sub-shelf melting'
-             print*, ' '
-             print*, 'k, zocn:'
+             write(iulog,*) ' '
+             write(iulog,*) 'Initialize ISMIP6 sub-shelf melting'
+             write(iulog,*) ' '
+             write(iulog,*) 'k, zocn:'
              do k = 1, ocean_data%nzocn
-                print*, k, ocean_data%zocn(k)
+                write(iulog,*) k, ocean_data%zocn(k)
              enddo
-             print*, ' '
-             print*, 'gamma0 =', ocean_data%gamma0
-             print*, ' '
+             write(iulog,*) ' '
+             write(iulog,*) 'gamma0 =', ocean_data%gamma0
+             write(iulog,*) ' '
              call point_diag(ocean_data%basin_number(:,:), 'basin_number', itest, jtest, rtest, 7, 7)
              call point_diag(ocean_data%deltaT_ocn(:,:), 'deltaT_ocn', itest, jtest, rtest, 7, 7)
-             print*, 'associated(thermal_forcing) =', associated(ocean_data%thermal_forcing)
+             write(iulog,*) 'associated(thermal_forcing) =', associated(ocean_data%thermal_forcing)
              do k = kmin_diag, kmax_diag
-                print*, ' '
-                print*, 'thermal_forcing, k =', k
+                write(iulog,*) ' '
+                write(iulog,*) 'thermal_forcing, k =', k
                 call point_diag(ocean_data%thermal_forcing(k,:,:), 'thermal_forcing', itest, jtest, rtest, 7, 7)
              enddo
           endif  ! verbose_bmlt_float
@@ -683,7 +575,7 @@ module glissade_bmlt_float
           if (basin_number_min < 1) then
 
              if (verbose_bmlt_float .and. main_task) then
-                print*, 'Extrapolate basin numbers'
+                write(iulog,*) 'Extrapolate basin numbers'
              endif
 
              call basin_number_extrapolate(&
@@ -694,7 +586,67 @@ module glissade_bmlt_float
           endif
 
        endif   ! ISMIP6 thermal forcing option
- 
+
+       !-----------------------------------------------
+       ! Optionally, prepare the the ocean thermal forcing for extrapolation to ice shelf cavities.
+       ! For standalone CISM runs, this is done at initialization (but not at restart) in 2 steps:
+       ! (1) Set thermal_forcing = unphys_val in cavities. I.e., remove any values that are already present
+       !     and would otherwise be interpreted as valid values.
+       ! (2) Apply the extrapolation algorithm. Thermal forcing values beyond the calving front
+       !     are extrapolated into the cavity, as far as the grounding line.
+       ! We do (1) now. Then during the first timestep, we do (2). On subsequent timesteps we repeat (2),
+       !  but starting from existing values in the cavity, so as not to repeat the computationally
+       !  intensive extrapolation from scratch.
+       ! This assumes that the far-field ocean values do not change during the run.
+       ! If applying ocean anomalies in the far field and extrapolating the new thermal forcing into cavities,
+       !  we would need some new logic to go back to step (1).
+       !
+       ! For coupled ESM runs with ocean_data_domain = OCEAN_DATA_GLAD), thermal forcing is received
+       !  once per mass balance time step. In this case, we would want to apply step (1) before (2)
+       !  each time CISM gets new ocean data. This will take some additional logic.
+       !-----------------------------------------------
+
+       if (model%options%ocean_data_extrapolate == OCEAN_DATA_EXTRAPOLATE_TRUE) then
+
+          call glissade_get_masks(&
+               ewn,           nsn,            &
+               parallel,                      &
+               model%geometry%thck,           &
+               model%geometry%topg,           &
+               model%climate%eus,             &
+               0.0d0,                         &   ! thklim = 0
+               ice_mask,                      &
+               ocean_mask = ocean_mask)
+
+          ! Set TF = unphys_val everywhere except open ocean.
+          ! Optionally, use a buffer to set TF = unphys_val for ocean cells
+          !        within 1 or 2 cells of the ice edge.
+          !       As the code is written now, the buffer cannot be larger than nhalo.
+
+          buffer = min(cavity_buffer, nhalo)
+
+          do j = 1+nhalo, nsn-nhalo
+             do i = 1+nhalo, ewn-nhalo
+                imin = i-buffer; imax = i+buffer
+                jmin = j-buffer; jmax = j+buffer
+                if (any(ice_mask(imin:imax,jmin:jmax) == 1) .or. any(ocean_mask(imin:imax,jmin:jmax) == 0)) then
+                   ocean_data%thermal_forcing(:,i,j) = unphys_val
+                end if
+             end do
+          end do
+
+          call parallel_halo(ocean_data%thermal_forcing, parallel)
+
+          if (verbose_bmlt_float) then
+             if (this_rank ==rtest) write(iulog,*) 'Set TF = unphys_val in cavities, buffer =', buffer
+             do k = kmin_diag, kmax_diag
+                if (this_rank == rtest) write(iulog,*) 'k =', k
+                call point_diag(ocean_data%thermal_forcing(k,:,:), 'TF before extrapolating', itest, jtest, rtest, 7, 7)
+             enddo
+          endif
+
+       endif  ! ocean_data_extrapolate
+
     endif  ! restart_false
 
   end subroutine glissade_bmlt_float_thermal_forcing_init
@@ -704,7 +656,6 @@ module glissade_bmlt_float
   subroutine glissade_bmlt_float_thermal_forcing(&
        bmlt_float_thermal_forcing_param, &
        ocean_data_extrapolate,    &
-       deltaT_ocn_extrapolate,    &
        parallel, model,           &
        nx,        ny,             &
        dew,       dns,            &
@@ -723,7 +674,7 @@ module glissade_bmlt_float
        which_ho_deltaT_ocn,       &
        dthck_dt_obs)
 
-    use glimmer_paramets, only: thk0, unphys_val
+    use glimmer_paramets, only: unphys_val
     use glissade_grid_operators, only: glissade_slope_angle
     use glissade_utils, only: glissade_basin_average
 
@@ -735,12 +686,11 @@ module glissade_bmlt_float
                                              !> current options are quadratic and ISMIP6 local, nonlocal and nonlocal_slope
          ocean_data_extrapolate              !> = 1 if TF is to be extrapolated to sub-shelf cavities, else = 0
 
-    logical, intent(in) :: &
-         deltaT_ocn_extrapolate              !> T if deltaT_ocn is to be extrapolated to non-floating cells, else = F
-
     type(parallel_type), intent(in) :: &
          parallel                            !> info for parallel communication
  
+    type(glide_global_type), intent(inout) :: model  
+    
     integer, intent(in) :: &
          nx, ny                              !> number of grid cells in each direction
 
@@ -777,7 +727,6 @@ module glissade_bmlt_float
                             !> basin_number = integer assigned to each basin
                             !> gamma0 = basal melt rate coefficient for ISMIP6 melt parameterization
                             !> deltaT_ocn = ocean temperature corrections for ISMIP6 melt parameterization
-    type(glide_global_type), intent(inout) :: model
 
     real(dp), dimension(:,:), intent(out) :: &
          bmlt_float         !> basal melt rate for floating ice (m/s)
@@ -830,20 +779,22 @@ module glissade_bmlt_float
     integer ::  &
          tf_anomaly_basin                 ! local version of tf_anomaly_basin_in
 
-    ! Note: This range ought to cover all regions where ice is present, but could be modified if desired.
-    real(dp), parameter ::  &
-         thermal_forcing_max = 20.d0,  &  ! max allowed value of thermal forcing (K)
-         thermal_forcing_min = -5.d0      ! min allowed value of thermal forcing (K)
-
     real(dp), parameter ::  &
          H0_float = 50.d0                 ! thickness scale (m) for floating ice; used to reduce weights when H < H0_float
-   
+
+    integer, parameter :: &
+         cavity_buffer = 0     ! distance from ice edge (measured in number of grid cells) over which ocean TF values
+                               ! are discarded before starting TF extrapolation; must be <= nhalo
+    real(dp) :: buffer
+    integer :: imin, imax, jmin, jmax
+    logical, save :: first_call = .true.
+
     if (verbose_bmlt_float .and. main_task) then
-       print*, ' '
-       print*, 'In subroutine glissade_bmlt_float_thermal_forcing'
-       print*, '   bmlt_float_thermal_forcing_param =', bmlt_float_thermal_forcing_param
-       print*, '   ocean_data_extrapolate =', ocean_data_extrapolate
-       print*, '   nbasin =', ocean_data%nbasin
+       write(iulog,*) ' '
+       write(iulog,*) 'In subroutine glissade_bmlt_float_thermal_forcing'
+       write(iulog,*) '   bmlt_float_thermal_forcing_param =', bmlt_float_thermal_forcing_param
+       write(iulog,*) '   ocean_data_extrapolate =', ocean_data_extrapolate
+       write(iulog,*) '   nbasin =', ocean_data%nbasin
     endif
 
     if (present(tf_anomaly_in)) then
@@ -861,9 +812,14 @@ module glissade_bmlt_float
     ! initialize the output
     bmlt_float = 0.0d0
 
-    ! Make sure thermal_forcing is up to date in halo cells.
+    ! Make sure the key input fields are up to date in halos
+    call parallel_halo(ice_mask, parallel)
+    call parallel_halo(ocean_mask, parallel)
+    call parallel_halo(marine_connection_mask, parallel)
+    call parallel_halo(f_ground_cell, parallel)
     call parallel_halo(ocean_data%thermal_forcing, parallel)
 
+    !TODO - Remove this line?
     ! Insert an unphysical value at the global boundary.
     ! This is done to handle the case that global_bc = no_ice,
     !  which puts zeroes in global boundary cells.
@@ -872,7 +828,6 @@ module glissade_bmlt_float
 
     ! Set thermal_forcing_mask
     ! This mask identifies cells where we could have basal melting and need valid TF data.
-    !where (ice_mask == 1 .and. f_ground_cell < 1.0d0 .and. marine_connection_mask == 1)
     where (ice_mask == 1 .and. f_ground_cell < 1.0d0 .and. marine_connection_mask == 1)
        thermal_forcing_mask = 1
     elsewhere
@@ -910,70 +865,25 @@ module glissade_bmlt_float
 
     if (ocean_data_extrapolate == OCEAN_DATA_EXTRAPOLATE_TRUE) then
 
-       if (verbose_bmlt_float .and. this_rank == rtest) then
-          print*, ' '
-          print*, 'Extrapolating TF data beneath ice shelves: rank, i, j =', rtest, itest, jtest
-          print*, ' '
-          print*, 'thermal_forcing_mask:'
-          do j = jtest+3, jtest-3, -1
-             do i = itest-3, itest+3
-                write(6,'(i10)',advance='no') thermal_forcing_mask(i,j)
-             enddo
-             write(6,*) ' '
-          enddo
-          print*, ' '
-          print*, 'marine_connection_mask:'
-          do j = jtest+3, jtest-3, -1
-             do i = itest-3, itest+3
-                write(6,'(i10)',advance='no') marine_connection_mask(i,j)
-             enddo
-             write(6,*) ' '
-          enddo
-          print*, ' '
-          print*, 'ocean mask:'
-          do j = jtest+3, jtest-3, -1
-             do i = itest-3, itest+3
-                write(6,'(i10)',advance='no') ocean_mask(i,j)
-             enddo
-             write(6,*) ' '
-          enddo
-          print*, ' '
-          print*, 'lsrf:'
-          do j = jtest+3, jtest-3, -1
-             do i = itest-3, itest+3
-                write(6,'(f10.3)',advance='no') lsrf(i,j)
-             enddo
-             write(6,*) ' '
-          enddo
-          print*, ' '
-          print*, 'topg:'
-          do j = jtest+3, jtest-3, -1
-             do i = itest-3, itest+3
-                write(6,'(f10.3)',advance='no') topg(i,j)
-             enddo
-             write(6,*) ' '
-          enddo
-          print*, ' '
-          print*, 'TF before extrapolating:'
+       if (verbose_bmlt_float) then
+          if (this_rank == rtest) write(iulog,*) 'Extrapolating TF data beneath ice shelves'
+          call point_diag(thermal_forcing_mask, 'thermal_forcing_mask', itest, jtest, rtest, 7, 7)
+          call point_diag(marine_connection_mask, 'marine_connection_mask', itest, jtest, rtest, 7, 7)
+          call point_diag(ocean_mask, 'ocean_mask', itest, jtest, rtest, 7, 7)
+          call point_diag(lsrf, 'lsrf (m)', itest, jtest, rtest, 7, 7)
+          call point_diag(topg, 'topg (m)', itest, jtest, rtest, 7, 7)
           do k = kmin_diag, kmax_diag
-             print*, ' '
-             print*, 'kocn =', k
-             do j = jtest+3, jtest-3, -1
-                do i = itest-3, itest+3
-                   write(6,'(f10.3)',advance='no') ocean_data%thermal_forcing(k,i,j)
-                enddo
-                write(6,*) ' '
-             enddo
+             if (this_rank == rtest) write(iulog,*) 'k =', k
+             call point_diag(ocean_data%thermal_forcing(k,:,:), 'TF before extrapolating', itest, jtest, rtest, 7, 7)
           enddo
-       endif  ! verbose_bmlt_float
+       endif
 
        ! Extrapolate the 3D thermal forcing field to sub-shelf cavities.
-       ! Note: For now, unfilled cells retain values of unphys_val.
-       ! TODO: Replace unphys_val with an integer mask?
- 
+       ! Note: For now, unfilled cells retain values of unphys_val on output.
+
        call glissade_thermal_forcing_extrapolate(&
             nx,        ny,                     &
-            parallel,  model,                  &
+            parallel, model,                   &
             itest,     jtest,     rtest,       &
             ocean_data%nzocn,                  &
             ocean_data%zocn,                   &  ! m
@@ -981,40 +891,25 @@ module glissade_bmlt_float
             topg,                              &  ! m
             thermal_forcing_mask,              &
             marine_connection_mask,            &
-            ice_mask, ocean_mask, f_ground_cell, & !
             unphys_val,                        &  ! identifies unfilled cells on input
-            unphys_val,                       &  ! default value given to unfilled cells on output
+            unphys_val,                        &  ! default value given to unfilled cells on output
             ocean_data%thermal_forcing)
 
-       if (verbose_bmlt_float .and. this_rank == rtest) then
-          print*, ' '
-          print*, 'TF after extrapolating, rank, i, j =', rtest, itest, jtest
+       if (verbose_bmlt_float) then
           do k = kmin_diag, kmax_diag
-             print*, ' '
-             print*, 'kocn =', k
-             do j = jtest+3, jtest-3, -1
-                do i = itest-3, itest+3
-                   write(6,'(f10.3)',advance='no') ocean_data%thermal_forcing(k,i,j)
-                enddo
-                write(6,*) ' '
-             enddo
+             if (this_rank == rtest) write(iulog,*) 'k =', k
+             call point_diag(ocean_data%thermal_forcing(k,:,:), 'TF after extrapolating', &
+                  itest, jtest, rtest, 7, 7)
           enddo
        endif
 
     else    ! ocean data are already given everywhere; do not extrapolate
 
-       if (verbose_bmlt_float .and. this_rank == rtest) then
-          print*, ' '
-          print*, 'TF to interpolate to lsrf, rank, i, j =', rtest, itest, jtest
+       if (verbose_bmlt_float) then
           do k = kmin_diag, kmax_diag
-             print*, ' '
-             print*, 'kocn =', k
-             do j = jtest+3, jtest-3, -1
-                do i = itest-3, itest+3
-                   write(6,'(f10.3)',advance='no') ocean_data%thermal_forcing(k,i,j)
-                enddo
-                write(6,*) ' '
-             enddo
+             if (this_rank == rtest) write(iulog,*) 'k =', k
+             call point_diag(ocean_data%thermal_forcing(k,:,:), 'TF to interpolate to lsrf', &
+                  itest, jtest, rtest, 7, 7)
           enddo
        endif
 
@@ -1071,49 +966,17 @@ module glissade_bmlt_float
        enddo
     enddo
 
-    if (verbose_bmlt_float .and. this_rank==rtest) then
-       print*, ' '
-       print*, 'basin number =', ocean_data%basin_number(itest,jtest)
-       print*, ' '
-       print*, 'lsrf (m)'
-       do j = jtest+3, jtest-3, -1
-          write(6,'(i6)',advance='no') j
-          do i = itest-3, itest+3
-             write(6,'(f10.3)',advance='no') lsrf(i,j)
-          enddo
-          write(6,*) ' '
-       enddo
-       print*, ' '
-       print*, 'thermal_forcing_lsrf (deg C)'
-       do j = jtest+3, jtest-3, -1
-          write(6,'(i6)',advance='no') j
-          do i = itest-3, itest+3
-             write(6,'(f10.3)',advance='no') ocean_data%thermal_forcing_lsrf(i,j)
-          enddo
-          write(6,*) ' '
-       enddo
+    if (verbose_bmlt_float) then
+       if (this_rank == rtest) write(iulog,*) 'basin number =', ocean_data%basin_number(itest,jtest)
+       call point_diag(lsrf, 'lsrf (m)', itest, jtest, rtest, 7, 7)
+       call point_diag(ocean_data%thermal_forcing_lsrf, 'thermal_forcing_lsrf (degC)', itest, jtest, rtest, 7, 7)
+
        if (bmlt_float_thermal_forcing_param == BMLT_FLOAT_TF_ISMIP6_LOCAL .or.  &
            bmlt_float_thermal_forcing_param == BMLT_FLOAT_TF_ISMIP6_NONLOCAL .or.  &
            bmlt_float_thermal_forcing_param == BMLT_FLOAT_TF_ISMIP6_NONLOCAL_SLOPE) then
-          print*, ' '
-          print*, 'deltaT_ocn (deg C)'
-          do j = jtest+3, jtest-3, -1
-             write(6,'(i6)',advance='no') j
-             do i = itest-3, itest+3
-                write(6,'(f10.3)',advance='no') ocean_data%deltaT_ocn(i,j)
-             enddo
-             write(6,*) ' '
-          enddo
-          print*, ' '
-          print*, 'corrected TF (deg C)'
-          do j = jtest+3, jtest-3, -1
-             write(6,'(i6)',advance='no') j
-             do i = itest-3, itest+3
-                write(6,'(f10.3)',advance='no') &
-                     ocean_data%thermal_forcing_lsrf(i,j) + ocean_data%deltaT_ocn(i,j)
-             enddo
-             write(6,*) ' '
-          enddo
+          call point_diag(ocean_data%deltaT_ocn, 'deltaT_ocn (degC)', itest, jtest, rtest, 7, 7)
+          call point_diag(ocean_data%thermal_forcing_lsrf + ocean_data%deltaT_ocn, 'corrected TF (degC)', &
+               itest, jtest, rtest, 7, 7)
        endif
     endif
 
@@ -1121,14 +984,15 @@ module glissade_bmlt_float
     ! Note: For the ISMIP6 local scheme, the basin-scale thermal forcing is not used,
     !       but is computed for diagnostics.
 
-     if (bmlt_float_thermal_forcing_param == BMLT_FLOAT_TF_ISMIP6_LOCAL .or.  &
-         bmlt_float_thermal_forcing_param == BMLT_FLOAT_TF_ISMIP6_NONLOCAL .or.  &
-         bmlt_float_thermal_forcing_param == BMLT_FLOAT_TF_ISMIP6_NONLOCAL_SLOPE) then
+    if (bmlt_float_thermal_forcing_param == BMLT_FLOAT_TF_ISMIP6_LOCAL .or.  &
+        bmlt_float_thermal_forcing_param == BMLT_FLOAT_TF_ISMIP6_NONLOCAL .or.  &
+        bmlt_float_thermal_forcing_param == BMLT_FLOAT_TF_ISMIP6_NONLOCAL_SLOPE) then
 
        ! Compute a weighting function that is proportional to the floating fraction of ice-filled cells,
        !  and also tapers linearly to zero for thin floating ice.
        ! This function is used to ensure smooth changes in the basin averages as cells
        !  transition between grounded and floating, or between ice-free and thick.
+       !TODO: Modify for partial CF cells?
 
        f_float = 1.0d0 - f_ground_cell
 
@@ -1140,32 +1004,10 @@ module glissade_bmlt_float
           endwhere
        endif
 
-       if (verbose_bmlt_float .and. this_rank == rtest) then
-          print*, ' '
-          print*, 'thermal_forcing_mask:'
-          do j = jtest+3, jtest-3, -1
-             do i = itest-3, itest+3
-                write(6,'(i10)',advance='no') thermal_forcing_mask(i,j)
-             enddo
-             write(6,*) ' '
-          enddo
-          print*, ' '
-          print*, 'f_float'
-          do j = jtest+3, jtest-3, -1
-             write(6,'(i6)',advance='no') j
-             do i = itest-3, itest+3
-                write(6,'(f10.3)',advance='no') f_float(i,j)
-             enddo
-             write(6,*) ' '
-          enddo
-          print*, ' '
-          print*, 'thermal_forcing_mask * f_float:'
-          do j = jtest+3, jtest-3, -1
-             do i = itest-3, itest+3
-                write(6,'(f10.3)',advance='no') thermal_forcing_mask(i,j) * f_float(i,j)
-             enddo
-             write(6,*) ' '
-          enddo
+       if (verbose_bmlt_float) then
+          call point_diag(thermal_forcing_mask, 'thermal_forcing_mask', itest, jtest, rtest, 7, 7)
+          call point_diag(f_float, 'f_float', itest, jtest, rtest, 7, 7)
+          call point_diag(thermal_forcing_mask*f_float, 'TF mask*f_float', itest, jtest, rtest, 7, 7)
        endif
 
        ! Compute the average thermal forcing for each basin.
@@ -1192,50 +1034,17 @@ module glissade_bmlt_float
             deltaT_basin_avg)
 
        if (verbose_bmlt_float .and. this_rank==rtest) then
-          print*, ' '
-          print*, 'thermal_forcing_basin (including deltaT_ocn corrections):'
+          write(iulog,*) ' '
+          write(iulog,*) 'thermal_forcing_basin (including deltaT_ocn corrections):'
           do nb = 1, ocean_data%nbasin
-             print*, nb, thermal_forcing_basin(nb)
+             write(iulog,*) nb, thermal_forcing_basin(nb)
           enddo
-          print*, ' '
-          print*, 'deltaT_basin_avg:'
+          write(iulog,*) ' '
+          write(iulog,*) 'deltaT_basin_avg:'
           do nb = 1, ocean_data%nbasin
-             print*, nb, deltaT_basin_avg(nb)
+             write(iulog,*) nb, deltaT_basin_avg(nb)
           enddo
        endif
-
-       ! Optionally, set deltaT_ocn = deltaT_basin_avg in cells where thermal_forcing_mask = 0.
-       ! Note: During the inversion, the value of deltaT_ocn in non-floating cells does not matter much;
-       !        this simply becomes the initial value if/when the cell becomes afloat.
-       !       During a forward run with GL retreat, however, it matters a lot.  The basin-average values
-       !        written to non-floating cells during the inversion are applied to any cells
-       !        that become afloat during GL retreat.
-       ! Note: This should be done during the inversion only.
-       !       During the forward run, deltaT_ocn_extrapolate = F.  This is set automatically if the user forgets.
-
-       if (deltaT_ocn_extrapolate) then
-
-          do j = 1, ny
-             do i = 1, nx
-                nb = ocean_data%basin_number(i,j)
-                if (thermal_forcing_mask(i,j) == 0) then
-                   ocean_data%deltaT_ocn(i,j) = deltaT_basin_avg(nb)
-                endif
-             enddo
-          enddo
-
-          if (verbose_bmlt_float .and. this_rank==rtest) then
-             print*, ' '
-             print*, 'deltaT_ocn (degC) after extrapolation:'
-             do j = jtest+3, jtest-3, -1
-                do i = itest-3, itest+3
-                   write(6,'(f10.3)',advance='no') ocean_data%deltaT_ocn(i,j)
-                enddo
-                write(6,*) ' '
-             enddo
-          endif
-
-       endif   ! deltaT_ocn_extrapolate
 
        ! Compute the angle between the lower ice shelf surface and the horizontal.
        ! This option can be used to concentrate basal melting near the grounding line,
@@ -1244,24 +1053,17 @@ module glissade_bmlt_float
        ! Note: The slope is currently used only for the nonlocal-slope scheme.
 
        call glissade_slope_angle(&
-            nx,       ny,     &
-            dew,      dns,    &  ! m
-            lsrf,             &  ! m
-            theta_slope,      &  ! radians
+            nx,           ny,    &
+            dew,          dns,   &  ! m
+            itest, jtest, rtest, &
+            lsrf,                &  ! m
+            theta_slope,         &  ! radians
             slope_mask_in = ice_mask)
 
        call parallel_halo(theta_slope, parallel)
 
-       if (verbose_bmlt_float .and. this_rank==rtest) then
-          print*, ' '
-          print*, 'sin(theta_slope)'
-          do j = jtest+3, jtest-3, -1
-             write(6,'(i6)',advance='no') j
-             do i = itest-3, itest+3
-                write(6,'(f10.5)',advance='no') sin(theta_slope(i,j))
-             enddo
-             write(6,*) ' '
-          enddo
+       if (verbose_bmlt_float) then
+          call point_diag(sin(theta_slope), 'sin(theta_slope)', itest, jtest, rtest, 7, 7, '(f10.5)')
        endif
 
     endif   ! ISMIP6 melt schemes
@@ -1353,8 +1155,8 @@ module glissade_bmlt_float
     if (bmlt_float_thermal_forcing_param == BMLT_FLOAT_TF_QUADRATIC) then
 
        if (verbose_bmlt_float .and. main_task) then
-          print*, 'Compute basal melt rate from quadratic parameterization'
-          print*, 'rank, i, j:', rtest, itest, jtest
+          write(iulog,*) 'Compute basal melt rate from quadratic parameterization'
+          write(iulog,*) 'rank, i, j:', rtest, itest, jtest
        endif
 
        call quadratic_bmlt_float(&
@@ -1368,39 +1170,33 @@ module glissade_bmlt_float
             bmlt_float_thermal_forcing_param == BMLT_FLOAT_TF_ISMIP6_NONLOCAL_SLOPE) then
 
        if (verbose_bmlt_float .and. this_rank == rtest) then
-          print*, 'Compute basal melt rate from ISMIP6 thermal forcing'
-          print*, 'rank, i, j, basin number:', rtest, itest, jtest, ocean_data%basin_number(itest,jtest)
+          write(iulog,*) 'Compute basal melt rate from ISMIP6 thermal forcing'
+          write(iulog,*) 'rank, i, j, basin number:', rtest, itest, jtest, ocean_data%basin_number(itest,jtest)
        endif
 
        ! Compute the basal melt rate based on an ISMIP6 thermal forcing parameterization.
        ! Note: bmlt_float is nonzero only for cells with thermal_forcing_mask = 1.
 
        call ismip6_bmlt_float(&
-            bmlt_float_thermal_forcing_param, &
-            nx,                ny,            &
-            itest,   jtest,    rtest,         &
-            ocean_data%nbasin,                &
-            ocean_data%basin_number,          &
-            ocean_data%gamma0,                &
-            ocean_data%thermal_forcing_lsrf,  &
-            ocean_data%deltaT_ocn,            &
-            theta_slope,                      &
-            thermal_forcing_basin,            &
-            thermal_forcing_mask,             &
+            bmlt_float_thermal_forcing_param,     &
+            nx,                ny,                &
+            itest,   jtest,    rtest,             &
+            ocean_data%nbasin,                    &
+            ocean_data%basin_number,              &
+            ocean_data%gamma0,                    &
+            ocean_data%thermal_forcing_lsrf,      &
+            ocean_data%deltaT_ocn,                &
+            ocean_data%thermal_forcing_basin_min, &
+            theta_slope,                          &
+            thermal_forcing_basin,                &
+            thermal_forcing_mask,                 &
             bmlt_float)
 
     endif   ! bmlt_float_thermal_forcing_param
 
-    if (verbose_bmlt_float .and. this_rank==rtest) then
-       print*, ' '
-       print*, 'bmlt_float (m/yr), before thin ice adjustment'
-       do j = jtest+3, jtest-3, -1
-          write(6,'(i6)',advance='no') j
-          do i = itest-3, itest+3
-             write(6,'(f10.3)',advance='no') bmlt_float(i,j)
-          enddo
-          write(6,*) ' '
-       enddo
+    if (verbose_bmlt_float) then
+       call point_diag(bmlt_float, 'bmlt_float (m/yr), before thin ice adjustment', &
+            itest, jtest, rtest, 7, 7)
     endif
 
     ! Reduce the melt rate in cells with thin floating ice,
@@ -1415,16 +1211,9 @@ module glissade_bmlt_float
        endwhere
     endif
 
-    if (verbose_bmlt_float .and. this_rank==rtest) then
-       print*, ' '
-       print*, 'bmlt_float (m/yr), end of glissade_bmlt_float_thermal_forcing:'
-       do j = jtest+3, jtest-3, -1
-          write(6,'(i6)',advance='no') j
-          do i = itest-3, itest+3
-             write(6,'(f10.3)',advance='no') bmlt_float(i,j)
-          enddo
-          write(6,*) ' '
-       enddo
+    if (verbose_bmlt_float) then
+       call point_diag(bmlt_float, 'bmlt_float (m/yr), end of glissade_bmlt_float_thermal_forcing', &
+            itest, jtest, rtest, 7, 7)
     endif
 
     ! Convert from m/yr to m/s for output.
@@ -1442,11 +1231,10 @@ module glissade_bmlt_float
        lsrf,            topg,                  &
        thermal_forcing_mask,                   &
        marine_connection_mask,                 &
-       ice_mask, ocean_mask, f_ground_cell,    &
        unphys_val,      default_val,           &
        thermal_forcing)
 
-    use glimmer_physcon, only : dtocnfrz_dz  ! value from Beckmann & Goosse (2003), eq. 2
+    use glimmer_physcon, only: dtocnfrz_dz  ! value from Beckmann & Goosse (2003), eq. 2
 
     ! Extrapolate ocean thermal forcing from an ocean domain that typically excludes
     !  ice shelf cavities, to an expanded domain that includes cavities.
@@ -1455,26 +1243,27 @@ module glissade_bmlt_float
     ! - In ice-free ocean cells, this includes the sea surface down to the bed topography.
     ! - In sub-shelf cavities, this includes the levels ktop:kbot that extend from just above lsrf
     !   to just below topg.
-    ! Then loop through each grid cell.  When we get to a cell with levels that are unfilled
-    !  and are targeted for filling, we take the average value from filled neighbor cells at the same level.
-    !  In this way we extend the domain of filled cells by one set of neighbors per iteration.
-    !  We then extrapolate vertically to fill levels in the range ktop:kbot that are not yet filled.
-    ! The iteration ends when there are no more cells and levels to fill.
+    ! Then iteratively fill the unfilled values.
+    ! (1) Horizontal iteration: Loop through each level in each grid cell. For levels that are unfilled
+    !      and are targeted for filling, take the average value from filled neighbor cells at the same level.
+    !     Continue this horizontal averaging and filling until no  more cells can be filled.
+    ! (2) In columns with at least one filled value, but other values that are not filled,
+    !     fill all the unfilled values in the range ktop:kbot.
+    ! Repeat (1) and (2) until no more cells and levels can be filled.
+    ! (3) Final iteration: In each level that is still unfilled, average the values from adjacent cells
+    !     at all levels.
     ! Note: The input thermal_forcing should be set to unphys_val for cells and levels without valid data.
-    ! Note: Cells are filled only if they have a connection to the ocean through floating cells.
+    ! Note: Cells are filled only if they have a connection to the ocean through marine-based cells.
     !       Interior lakes are not filled.
-    ! The algorithm is similar to that of subroutine glissade_scalar_extrapolate but more complex;
-    !  there are multiple levels, and data can be extrapolated from a given level to levels above or below.
-
     integer, intent(in) ::  &
          nx, ny,               & ! grid dimensions
          itest, jtest, rtest,  & ! coordinates of diagnostic point
-         nzocn                   ! number of ocean levels, number of iteration in smoothing
-              
+         nzocn                   ! number of ocean levels
+
     type(parallel_type), intent(in) :: &
          parallel                ! info for parallel communication
 
-    type(glide_global_type), intent(inout) ::  model
+    type(glide_global_type), intent(inout) :: model  
     
     real(dp), dimension(nzocn), intent(in) :: &
          zocn                    ! ocean levels (m, negative below sea level)
@@ -1482,38 +1271,28 @@ module glissade_bmlt_float
     !TODO - Pass in eus as well as topg?
     real(dp), dimension(nx,ny), intent(in) ::  &
          lsrf,                 & ! lower ice surface elevation (m)
-         topg,                 &    ! bed elevation (m)
-         f_ground_cell
+         topg                    ! bed elevation (m)
 
     integer, dimension(nx,ny), intent(in) ::  &
          thermal_forcing_mask, & ! = 1 where thermal forcing and bmlt_float are potentially nonzero, else = 0
-         marine_connection_mask, &  ! = 1 for cells with marine connection to the ocean, else = 0
-         ice_mask, ocean_mask       ! Note: marine_connection_mask includes paths through grounded marine-based cells
+         marine_connection_mask  ! = 1 for cells with marine connection to the ocean, else = 0
+                                 ! Note: marine_connection_mask includes paths through grounded marine-based cells
 
-   real(dp), intent(in) :: &
+    real(dp), intent(in) :: &
          unphys_val,           & ! unphysical value given to cells/levels not yet filled
          default_val             ! default value given to unfilled cells on output;
                                  ! might be different from unphys_val
 
-    ! The thermal forcing field should be indexed with k = 1 at the top, and k = nzocn at the bottom
-
+    ! The thermal forcing field should be indexed with k = 1 at the top and k = nzocn at the bottom
     real(dp), dimension(nzocn,nx,ny), intent(inout) :: &
          thermal_forcing         ! 3D ocean thermal forcing to be extrapolated
 
     ! local variables
 
-    real(dp), dimension(nzocn,nx,ny) :: &
-         phi, &                     ! temporary copy of thermal_forcing
-         phi1                       ! another copy
-
     integer, dimension(nzocn,nx,ny) :: &
-         mask, mask_local, &                    ! = 1 for filled cells/levels, = 0 for unfilled cells/levels
-         unphys_mask                ! To select neighbour gridcells to smooth over, Michele
- 
-    ! Note: This range ought to cover all regions where ice is present, but could be modified if desired.
-    real(dp), parameter ::  &
-         thermal_forcing_max = 20.d0,  &  ! max allowed value of thermal forcing (K)
-         thermal_forcing_min = -5.d0      ! min allowed value of thermal forcing (K)
+         marine_connection_mask_3d, & ! = 1 where marine_conection_mask = 1 and k in range ktop:kbot, else = 0
+         filled_mask,               & ! = 1 for filled cells/levels, = 0 for unfilled cells/levels
+         count_smoothing            ! counts the number of times each cell or level has been smoothed
 
     integer, dimension(nx,ny) ::  &
          ktop,                 & ! top ocean layer in a cell to be filled, if possible
@@ -1523,79 +1302,45 @@ module glissade_bmlt_float
          sum_mask                ! sum of mask over neighbor cells at a given level
 
     real(dp) ::  &
-         sum_phi                 ! sum of mask*thermal_forcing over neighbor cells at a given level
-       
+         sum_thermal_forcing     ! sum of mask*thermal_forcing over neighbor cells at a given level
+
+    real(dp), dimension(-1:1,-1:1) ::  &
+         thermal_forcing_kmin, & ! TF in a 3x3 group of cells in the layer above
+         thermal_forcing_kmax    ! TF in a 3x3 group of cells in the layer below
+
     integer :: &
          max_iter,             & ! max(nx,ny) * max(ewtasks, nxtasks)
-         min_iter,             & ! used to start extrapolation in points far from grounded ice or land
-         local_count,          & ! local counter for filled values
          global_count,         & ! global counter for filled values
-         global_count_save       ! global counter for filled values from previous iteration
-  
-    integer :: i, j, k, iter, imin, imax, jmin, jmax, zmin, zmax, ii, jj, kk
-    integer :: iter_horiz, iter_up, iter_down, global_count_horiz, global_count_up, global_count_down
-    integer :: global_count_horiz_save, global_count_up_save, global_count_down_save
+         global_count_save,    & ! global counter for filled values from previous iteration
+         global_count_horiz,   & ! global counter for filled values during horizontal iteration
+         global_count_horiz_save ! global counter for filled values from previous horizontal iteration
+
+    integer :: i, j, k, ii, jj, kk
     integer :: iglobal, jglobal
-    integer :: kw, ke, ks, kn           ! ocean level in neighbor cells
-    real(dp) :: phiw, phie, phin, phis  ! field value in neighbor cells
+    integer :: iter, iter_horiz
+    integer :: imin, imax, jmin, jmax, kmin, kmax
+
     character(len=128) :: message
-    logical :: filled                   ! true if filled with a valid value
-    logical, parameter :: verbose_extrapolate = .false.  ! set to T to follow progress of each iteration
 
     ! Note: If thermal forcing is close to but not quite equal to unphys_val (e.g., because of roundoff error),
     !       it is interpreted as equal to unphys_val.
     real(dp), parameter :: tf_roundoff_threshold = 1.0d0  ! roundoff error threshold for thermal_forcing (deg K)
-   
-  
-    !Michele: I have realised that the remapped ocean is taking values where it shouldn't - points that are ice 
-   !shelves in CISM and should not have ocean values - this could be the reason for weird patterns of remapped
-   !ocean fields. So the idea could be, before starting to counting unphys_val, to set to unphys val all points 
-   !that are ice covered. 
-   
-   do j = 1+nhalo, ny-nhalo
-       do i = 1+nhalo,  nx-nhalo
-             if (ice_mask(i,j) == 1 .or. ocean_mask(i,j) == 0) then
-                thermal_forcing(:,i,j) = unphys_val
-             end if
-       end do
-   end do
 
-   !Count the number of filled levels/cells with valid values in the input thermal_forcing.
+    ! Note: A stencil size of 27 (3 vertical levels, each 3 x 3) seems to give the best results with the fewest iterations
+    ! MP: including stencil_size as model option
 
-   !Michele: I have realised that the remapped ocean is taking values where it shouldn't - points that are ice 
-   !shelves in CISM and should not have ocean values - this could be the reason for weird patterns of remapped
-   !ocean fields. So the idea could be, before starting to counting unphys_val, to set to unphys val all points 
-   !that are ice covered. 
-   
-   do j = 1+nhalo, ny-nhalo
-       do i = 1+nhalo,  nx-nhalo
-       imin = max(i-5,1+nhalo)
-       imax = min(i+5,nx-nhalo)
-       jmin = max(j-5,1+nhalo)
-       jmax = min(j+5,ny-nhalo)   !Taking some margin
-             if( any(ice_mask(imin:imax,jmin:jmax) == 1) .or. any(ocean_mask(imin:imax,jmin:jmax) == 0)) then
-                thermal_forcing(:,i,j) = unphys_val
-             end if
-       end do
-   end do
+    !    integer, parameter :: stencil_size = 9
+    !    integer, parameter :: stencil_size = 25
+    !    integer, parameter :: stencil_size = 27
 
-    local_count = 0
-    do j = 1+nhalo, ny-nhalo
-       do i = 1+nhalo,  nx-nhalo
-          do k = 1, nzocn
-             if (abs(thermal_forcing(k,i,j) - unphys_val) < tf_roundoff_threshold) then
-                thermal_forcing(k,i,j) = unphys_val
-             else  ! real physical value
-                local_count = local_count + 1
-             endif
-          enddo
-       enddo
-    enddo
+    integer, parameter :: max_count_smoothing = 2    ! how many times to apply the Laplacian smoother at a given cell and level
+                                                     ! 1 => initial fill only
+                                                     ! 2 => initial fill and one additional smoothing
 
-    global_count_save = parallel_reduce_sum(local_count)
-    global_count_horiz_save = parallel_reduce_sum(local_count)
-    global_count_down_save = parallel_reduce_sum(local_count)
-    global_count_up_save = parallel_reduce_sum(local_count)
+    integer, parameter :: &
+         max_iter_finish = 10    ! max iterations for the short finishing stage
+
+    logical, parameter :: verbose_extrapolate = .false.  ! set to T to follow progress of each iteration
 
     ! For each marine-connected cell, compute the top and bottom layers where we need ocean data
     ! (either in the original input field, or extrapolated).
@@ -1603,12 +1348,13 @@ module glissade_bmlt_float
     !       grounded marine-based cells with lsrf = topg
     !       (which might have an ocean connection via a thin water layer near the bed).
 
-    ktop(:,:) = 0
-    kbot(:,:) = 0
+    ktop = 0
+    kbot = 0
+    marine_connection_mask_3d = 0
 
     do j = 1+nhalo, ny-nhalo
-       do i = 1+nhalo,  nx-nhalo    
-          if (marine_connection_mask(i,j) == 1 ) then   ! there is a marine path to the ocean
+       do i = 1+nhalo,  nx-nhalo
+          if (marine_connection_mask(i,j) == 1) then   ! there is a marine path to the ocean
 
              ! ktop is the layer just above lsrf
              if (lsrf(i,j) <= zocn(nzocn)) then ! lsrf lies at or below the bottom ocean layer
@@ -1634,33 +1380,72 @@ module glissade_bmlt_float
                 enddo
              endif
 
+             marine_connection_mask_3d(ktop(i,j):kbot(i,j),i,j) = 1
+
           endif
        enddo   ! i
     enddo   ! j
 
-    !TODO - Are these halo updates needed?
     call parallel_halo(ktop, parallel)
     call parallel_halo(kbot, parallel)
+    call parallel_halo(marine_connection_mask_3d, parallel)
 
-    if (verbose_bmlt_float .and. this_rank == rtest) then
-       print*, ' ' 
-       print*, 'ktop: itest, jtest, rtest =', itest, jtest, rtest
-       do j = jtest+3, jtest-3, -1
-          do i = itest-3, itest+3
-             write(6,'(i10)',advance='no') ktop(i,j)
-          enddo
-          write(6,*) ' '
-       enddo
-       print*, ' ' 
-       print*, 'kbot: itest, jtest, rtest =', itest, jtest, rtest
-       do j = jtest+3, jtest-3, -1
-          do i = itest-3, itest+3
-             write(6,'(i10)',advance='no') kbot(i,j)
-          enddo
-          write(6,*) ' '
-       enddo
+    if (verbose_extrapolate) then
+       call point_diag(ktop, 'ktop', itest, jtest, rtest, 7, 7)
+       call point_diag(kbot, 'kbot', itest, jtest, rtest, 7, 7)
     endif
-    
+
+    !Michele: I have realised that the remapped ocean is taking values where it shouldn't - points that are ice
+    !shelves in CISM and should not have ocean values - this could be the reason for weird patterns of remapped
+    !ocean fields. So the idea could be, before starting to counting unphys_val, to set to unphys val all points
+    !that are ice covered.
+    !
+    !WHL: For standalone CISM, I think we should do this only at startup.
+    !     For coupled CISM, we should do this only at the start of a coupling time step,
+    !       when there is new ocean data to extrapolate.
+    !     Otherwise, we will have to do many iterations on every time step, instead of just filling a few values
+    !       in newly floating cells.
+    !     For this reason, I moved the code below to the higher level, before this subroutine is called.
+
+!       do j = 1+nhalo, ny-nhalo
+!          do i = 1+nhalo,  nx-nhalo
+!             if (ice_mask(i,j) == 1 .or. ocean_mask(i,j) == 0) then
+!                thermal_forcing(:,i,j) = unphys_val
+!             end if
+!          end do
+!       end do
+
+    ! Check that the stencil size is supported
+    if (.not. (model%options%stencil_size==9 .or. model%options%stencil_size==25 .or. model%options%stencil_size==27)) then
+       call write_log('Error: Choose a supported stencil size for ocean data smoothing (9, 25, 27)', GM_FATAL)
+    endif
+
+    ! Set TF = unphys_val outside the vertical range (ktop:kbot)
+    ! This is to prevent values below the sea floor from being extrapolated into the cavity.
+    do j = 1+nhalo, ny-nhalo
+       do i = 1+nhalo,  nx-nhalo
+          do k = 1, nzocn
+             if (k < ktop(i,j) .or. k > kbot(i,j)) thermal_forcing(k,i,j) = unphys_val
+          enddo
+       enddo
+    enddo
+
+    ! Correct thermal_forcing for roundoff-level diffs
+    where (abs(thermal_forcing - unphys_val) < tf_roundoff_threshold)
+       thermal_forcing = unphys_val
+    endwhere
+
+    ! Create a mask, = 1 for filled cells/levels and = 0 for unfilled cells/levels
+    where (thermal_forcing == unphys_val)
+       filled_mask = 0
+    elsewhere
+       filled_mask = 1
+    endwhere
+
+    ! Count the number of filled cells and levels
+    global_count_save = parallel_global_sum(filled_mask, parallel, marine_connection_mask_3d)
+    global_count_horiz_save = global_count_save
+
     ! Compute the maximum number of iterations.
     ! In the worst case, the initial field is filled only at one corner of the global domain and
     !  must be extrapolated to the opposite corner, one cell at a time.
@@ -1670,333 +1455,457 @@ module glissade_bmlt_float
     !  counts doubling for each halving of grid size.
 
     max_iter = max(parallel%ewtasks, parallel%nstasks) * max(nx-2*nhalo, ny-2*nhalo)
+    if (verbose_extrapolate .and. this_rank == rtest) then
+       write(iulog,*) 'Max number of iterations =', max_iter
+       write(iulog,*) 'Stencil size =', model%options%stencil_size
+    endif
 
-    write(message,*) 'Max number of iteration is', max_iter
-    call write_log(message)
+    ! Extrapolate the data into ice-shelf cavities
+    ! Loop through all locally owned cells, filling levels ktop:kbot in unfilled cells
+    !  that have one or more filled neighbors at the corresponding levels.
+    ! Repeat the process until the number of filled cells and levels has converged.
+    ! In the end, all cells connected to the ocean should have all levels filled between lsrf and topg.
+    ! Disconnected inland lakes will not be filled.
+    ! Can think of the extrapolation as a crude version of ocean circulation.
 
-    ! Extrapolate the data horizontally.
+    ! Note: Typically, there are several ice sheet dynamics time steps per mass balance time step.
+    !       The thermal forcing field from the ocean model (for OCEAN_DATA_GLAD) is updated
+    !        at the start of the mass balance time step.  Just after this update, the extrapolation
+    !        requires many iterations to converge, but subsequent updates within this
+    !        mass balance time step may require < 5 iterations.
 
-    do iter = 1, max_iter
-   
-    write(message,*) 'Iteration number ', iter
-    call write_log(message)
+    ! Initialize the smoothing counter. Any values already filled will receive no further smoothing.
+    where (filled_mask == 0)
+       count_smoothing = 0
+    elsewhere
+       count_smoothing = max_count_smoothing
+    endwhere
 
-    write(message,*) 'Iteration number ', iter
-    call write_log(message)
+    ! Note: With a 1-layer stencil, many outer iterations may be required, since the horizontal fill gets stuck repeatedly.
+    !       With a 3-layer stencil, only one horizontal fill is needed, so we do not need multiple outer iterations.
+    !       TODO: Use a 3-layer stencil only?
+    ! Note: In principle we could call glissade_laplacian_smoother.
+    !       However, it's more efficient to do this inline because of the position of the k index and the detailed logic.
 
-       ! Create a mask, = 1 for filled cells/levels and = 0 for unfilled cells/levels
+    do iter = 1, max_iter  ! outer loop
 
-       where (thermal_forcing == unphys_val)
-          unphys_mask = 0
-          mask = 0
-       elsewhere
-          unphys_mask = 1
-          mask = 1
-       endwhere
-      
-       if (verbose_extrapolate .and. this_rank == rtest) then
-          print*, ' ' 
-          print*, 'Iteration =', iter
-          do k = kmin_diag, kmax_diag
-             print*, ' '
-             print*, 'thermal_forcing: k, zocn =', k, zocn(k)
-             do j = jtest+3, jtest-3, -1
-                do i = itest-3, itest+3
-                   write(6,'(f10.2)',advance='no') thermal_forcing(k,i,j)
-                enddo
-                write(6,*) ' '
-             enddo
-          enddo
-       endif
- 
-       ! Loop through all locally owned cells, filling levels ktop:kbot in unfilled cells
-       !  that have one or more filled neighbors at the corresponding levels.
-       ! In the end, all cells connected to the ocean via a path through cell edges should
-       !  have levels filled between lsrf and topg.  Disconnected inland lakes will not be filled.
-       ! Can think of the extrapolation as a crude version of circulation in a C-grid ocean model. 
-       do iter_horiz = 1, max_iter
- 
-        where (thermal_forcing == unphys_val)
-          unphys_mask = 0
-          mask = 0
-        elsewhere
-          unphys_mask = 1
-          mask = 1
-        endwhere
-  
-         do j = 1+nhalo, ny-nhalo
-          do i = 1+nhalo,  nx-nhalo
+       if (verbose_extrapolate .and. this_rank == rtest) write(iulog,*) 'Iteration =', iter
 
-          if (marine_connection_mask(i,j) == 1) then   ! there is a marine path to the ocean
-                      
-                do k = ktop(i,j), kbot(i,j)
-                   if (unphys_mask(k,i,j) == 0) then   ! not yet filled
-       
-                      filled = .false.
-    
-                      sum_mask = &
-                        1*unphys_mask(k,i-2,j-2) + 1*unphys_mask(k,i-2,j+2) + 1*unphys_mask(k,i+2,j-2) + 1*unphys_mask(k,i+2,j+2) + &
-                        4*unphys_mask(k,i-1,j-2) + 4*unphys_mask(k,i-2,j-1) + &
-                        4*unphys_mask(k,i+1,j-2) + 4*unphys_mask(k,i+2,j-1) + &
-                        4*unphys_mask(k,i+1,j+2) + 4*unphys_mask(k,i+2,j+1) + &
-                        4*unphys_mask(k,i-1,j+2) + 4*unphys_mask(k,i-2,j+1) + &
-                        7*unphys_mask(k,i-2,j) + 7*unphys_mask(k,i+2,j) + 7*unphys_mask(k,i,j-2) + 7*unphys_mask(k,i,j-2) + &
-                       16*unphys_mask(k,i-1,j-1) + 16*unphys_mask(k,i-1,j+1) + 16*unphys_mask(k,i+1,j-1) + 16*unphys_mask(k,i+1,j+1) + &
-                       26*unphys_mask(k,i-1,j) + 26*unphys_mask(k,i+1,j) + 26*unphys_mask(k,i,j-1) + 26*unphys_mask(k,i,j+1) + &  
-                       41*unphys_mask(k,i,j)       
-        
-                   if (sum_mask > 0) then         
-                   
-                     sum_phi = 1*unphys_mask(k,i-2,j-2)*thermal_forcing(k,i-2,j-2)  +&
-                               1*unphys_mask(k,i-2,j+2)*thermal_forcing(k,i-2,j+2)  +&
-                               1*unphys_mask(k,i+2,j-2)*thermal_forcing(k,i+2,j-2)  +&
-                               1*unphys_mask(k,i+2,j+2)*thermal_forcing(k,i+2,j+2)  +&
-                               4*unphys_mask(k,i-1,j-2)*thermal_forcing(k,i-1,j-2)  +&
-                               4*unphys_mask(k,i-2,j-1)*thermal_forcing(k,i-2,j-1)  +&
-                               4*unphys_mask(k,i+1,j-2)*thermal_forcing(k,i+1,j-2)  +&
-                               4*unphys_mask(k,i+2,j-1)*thermal_forcing(k,i+2,j-1)  +&
-                               4*unphys_mask(k,i+1,j+2)*thermal_forcing(k,i+1,j+2)  +&
-                               4*unphys_mask(k,i+2,j+1)*thermal_forcing(k,i+2,j+1)  +&
-                               4*unphys_mask(k,i-1,j+2)*thermal_forcing(k,i-1,j+2)  +&
-                               4*unphys_mask(k,i-2,j+1)*thermal_forcing(k,i-2,j+1)  +&
-                               7*unphys_mask(k,i-2,j)*thermal_forcing(k,i-2,j)      +&
-                               7*unphys_mask(k,i+2,j)*thermal_forcing(k,i+2,j)      +&
-                               7*unphys_mask(k,i,j-2)*thermal_forcing(k,i,j-2)      +&
-                               7*unphys_mask(k,i,j-2)*thermal_forcing(k,i,j-2)      +&
-                               16*unphys_mask(k,i-1,j-1)*thermal_forcing(k,i-1,j-1) +&  
-                               16*unphys_mask(k,i-1,j+1)*thermal_forcing(k,i-1,j+1) +&
-                               16*unphys_mask(k,i+1,j-1)*thermal_forcing(k,i+1,j-1) +&
-                               16*unphys_mask(k,i+1,j+1)*thermal_forcing(k,i+1,j+1) +&
-                               26*unphys_mask(k,i-1,j)*thermal_forcing(k,i-1,j)     +&
-                               26*unphys_mask(k,i+1,j)*thermal_forcing(k,i+1,j)     +&
-                               26*unphys_mask(k,i,j-1)*thermal_forcing(k,i,j-1)     +&
-                               26*unphys_mask(k,i,j+1)*thermal_forcing(k,i,j+1)     +&
-                               41*unphys_mask(k,i,j)*thermal_forcing(k,i,j)                         
+       do iter_horiz = 1, max_iter   ! inner loop
 
-                      thermal_forcing(k,i,j) = sum_phi / real(sum_mask,dp)
-                      filled = .true.
-
-                      end if !sum_mask
-                   endif   ! mask(k,i,j) = 0
-                 enddo   ! k 
-
-           endif   ! marine_conn mask
-          enddo   ! i
-         enddo  ! j
-
-       call parallel_halo(thermal_forcing, parallel)
-
-       call parallel_boundary_value(thermal_forcing, unphys_val, parallel)
-
-       ! Check after iterations 1, 2, and 5, then after 10, 20, etc.
-       if (iter_horiz == 1 .or. iter_horiz == 2 .or. iter_horiz == 5 .or. mod(iter_horiz, 10) == 0) then
-          local_count = 0
           do j = 1+nhalo, ny-nhalo
-          do i = 1+nhalo,  nx-nhalo !Michele try to do extrapolation on floating cells only
+             do i = 1+nhalo,  nx-nhalo
                 if (marine_connection_mask(i,j) == 1) then   ! there is a marine path to the ocean
                    do k = ktop(i,j), kbot(i,j)
-                      if (thermal_forcing(k,i,j) /= unphys_val) local_count = local_count + 1
-                   enddo
+                      if (filled_mask(k,i,j) == 0 .or. count_smoothing(k,i,j) < max_count_smoothing) then
+
+                         if (model%options%stencil_size == 9) then  ! 9-point horizontal stencil, 1 vertical level
+                            ! Apply 9-point Laplacian smoother
+                            imin = i-1; imax = i+1
+                            jmin = j-1; jmax = j+1
+                            if (any(filled_mask(k,imin:imax,jmin:jmax) == 1)) then
+
+                               sum_mask = &
+                                    1*(filled_mask(k,i-1,j-1) + filled_mask(k,i-1,j+1)  + &
+                                       filled_mask(k,i+1,j-1) + filled_mask(k,i+1,j+1)) + &
+                                    2*(filled_mask(k,i-1,j)   + filled_mask(k,i,j-1)    + &
+                                       filled_mask(k,i+1,j)   + filled_mask(k,i,j+1))   + &
+                                    4*(filled_mask(k,i,j))
+
+                               if (sum_mask > 0) then
+                                  sum_thermal_forcing = &
+                                       1.d0*(filled_mask(k,i-1,j-1)*thermal_forcing(k,i-1,j-1)  + &
+                                             filled_mask(k,i-1,j+1)*thermal_forcing(k,i-1,j+1)  + &
+                                             filled_mask(k,i+1,j-1)*thermal_forcing(k,i+1,j-1)  + &
+                                             filled_mask(k,i+1,j+1)*thermal_forcing(k,i+1,j+1)) + &
+                                       2.d0*(filled_mask(k,i-1,j)*thermal_forcing(k,i-1,j)  + &
+                                             filled_mask(k,i,j-1)*thermal_forcing(k,i,j-1)  + &
+                                             filled_mask(k,i+1,j)*thermal_forcing(k,i+1,j)  + &
+                                             filled_mask(k,i,j+1)*thermal_forcing(k,i,j+1)) + &
+                                       4.d0*(filled_mask(k,i,j)*thermal_forcing(k,i,j))
+                                  thermal_forcing(k,i,j) = sum_thermal_forcing / real(sum_mask,dp)
+                                  count_smoothing(k,i,j) = count_smoothing(k,i,j) + 1
+                               endif   ! sum_mask
+
+                            endif   ! any are filled
+
+                         elseif (model%options%stencil_size == 25) then  ! 5 x 5, single level
+                            ! Apply 25-point Laplacian smoother
+                            ! Generated the stencil by starting with a 1D 5 point stencil, row1 = (1 4 6 4 1),
+                            !  and building it into a 2x2 matrix, with row5 = row1, row2 = row4 = 4*row1, and row3 = 6*row1
+                            ! Note: This requires two rows of halo cells.
+                            imin = i-2; imax = i+2
+                            jmin = j-2; jmax = j+2
+                            if (any(filled_mask(k,imin:imax,jmin:jmax) == 1)) then
+
+                               sum_mask = &
+                                    1*(filled_mask(k,i-2,j-2) + filled_mask(k,i-2,j+2)  + &
+                                       filled_mask(k,i+2,j-2) + filled_mask(k,i+2,j+2)) + &
+                                    4*(filled_mask(k,i-1,j-2) + filled_mask(k,i-2,j-1)  + &
+                                       filled_mask(k,i-1,j+2) + filled_mask(k,i-2,j+1)  + &
+                                       filled_mask(k,i+1,j-2) + filled_mask(k,i+2,j-1)  + &
+                                       filled_mask(k,i+1,j+2) + filled_mask(k,i+2,j+1)) + &
+                                    6*(filled_mask(k,i-2,j)   + filled_mask(k,i+2,j)    + &
+                                       filled_mask(k,i,j-2)   + filled_mask(k,i,j+2))   + &
+                                   16*(filled_mask(k,i-1,j-1) + filled_mask(k,i-1,j+1)  + &
+                                       filled_mask(k,i+1,j-1) + filled_mask(k,i+1,j+1)) + &
+                                   24*(filled_mask(k,i-1,j)   + filled_mask(k,i+1,j)    + &
+                                       filled_mask(k,i,j-1)   + filled_mask(k,i,j+1))   + &
+                                   36*(filled_mask(k,i,j))
+
+                               if (sum_mask > 0) then
+                                  sum_thermal_forcing = &
+                                       1.d0*(filled_mask(k,i-2,j-2)*thermal_forcing(k,i-2,j-2)  + &
+                                             filled_mask(k,i-2,j+2)*thermal_forcing(k,i-2,j+2)  + &
+                                             filled_mask(k,i+2,j-2)*thermal_forcing(k,i+2,j-2)  + &
+                                             filled_mask(k,i+2,j+2)*thermal_forcing(k,i+2,j+2)) + &
+                                       4.d0*(filled_mask(k,i-1,j-2)*thermal_forcing(k,i-1,j-2)  + &
+                                             filled_mask(k,i-2,j-1)*thermal_forcing(k,i-2,j-1)  + &
+                                             filled_mask(k,i-1,j+2)*thermal_forcing(k,i-1,j+2)  + &
+                                             filled_mask(k,i-2,j+1)*thermal_forcing(k,i-2,j+1)  + &
+                                             filled_mask(k,i+1,j-2)*thermal_forcing(k,i+1,j-2)  + &
+                                             filled_mask(k,i+2,j-1)*thermal_forcing(k,i+2,j-1)  + &
+                                             filled_mask(k,i+1,j+2)*thermal_forcing(k,i+1,j+2)  + &
+                                             filled_mask(k,i+2,j+1)*thermal_forcing(k,i+2,j+1)) + &
+                                       6.d0*(filled_mask(k,i-2,j)*thermal_forcing(k,i-2,j)      + &
+                                             filled_mask(k,i+2,j)*thermal_forcing(k,i+2,j)      + &
+                                             filled_mask(k,i,j-2)*thermal_forcing(k,i,j-2)      + &
+                                             filled_mask(k,i,j+2)*thermal_forcing(k,i,j+2))     + &
+                                      16.d0*(filled_mask(k,i-1,j-1)*thermal_forcing(k,i-1,j-1)  + &
+                                             filled_mask(k,i-1,j+1)*thermal_forcing(k,i-1,j+1)  + &
+                                             filled_mask(k,i+1,j-1)*thermal_forcing(k,i+1,j-1)  + &
+                                             filled_mask(k,i+1,j+1)*thermal_forcing(k,i+1,j+1)) + &
+                                      24.d0*(filled_mask(k,i-1,j)*thermal_forcing(k,i-1,j)      + &
+                                             filled_mask(k,i+1,j)*thermal_forcing(k,i+1,j)      + &
+                                             filled_mask(k,i,j-1)*thermal_forcing(k,i,j-1)      + &
+                                             filled_mask(k,i,j+1)*thermal_forcing(k,i,j+1))     + &
+                                      36.d0*(filled_mask(k,i,j)*thermal_forcing(k,i,j))
+                                  thermal_forcing(k,i,j) = sum_thermal_forcing / real(sum_mask,dp)
+                                  count_smoothing(k,i,j) = count_smoothing(k,i,j) + 1
+                               endif   ! sum_mask
+
+                            endif   ! any are filled
+
+                         elseif (model%options%stencil_size == 27) then  ! 9-point horizontal stencil, 3 vertical levels
+                            ! Apply 27-point Laplacian smoother
+                            ! Layers above and below use the 9-point stencil above
+                            ! Central layer uses the same stencil, multiplied by 2
+                            imin = i-1; imax = i+1
+                            jmin = j-1; jmax = j+1
+                            kmin = max(k-1,ktop(i,j))  ! layer above, if potentially filled
+                            kmax = min(k+1,kbot(i,j))  ! layer below, if potentially filled
+                            if (any(filled_mask(kmin:kmax,imin:imax,jmin:jmax) == 1)) then
+
+                               sum_mask = &
+                                    2*(filled_mask(k,i-1,j-1) + filled_mask(k,i-1,j+1)  + &
+                                       filled_mask(k,i+1,j-1) + filled_mask(k,i+1,j+1)) + &
+                                    4*(filled_mask(k,i-1,j)   + filled_mask(k,i,j-1)    + &
+                                       filled_mask(k,i+1,j)   + filled_mask(k,i,j+1))   + &
+                                    8*(filled_mask(k,i,j))
+                               if (kmin < k) then
+                                  sum_mask = sum_mask + &
+                                       1*(filled_mask(kmin,i-1,j-1) + filled_mask(kmin,i-1,j+1)  + &
+                                          filled_mask(kmin,i+1,j-1) + filled_mask(kmin,i+1,j+1)) + &
+                                       2*(filled_mask(kmin,i-1,j)   + filled_mask(kmin,i,j-1)    + &
+                                          filled_mask(kmin,i+1,j)   + filled_mask(kmin,i,j+1))   + &
+                                       4*(filled_mask(kmin,i,j))
+                               endif
+                               if (kmax > k) then
+                                  sum_mask = sum_mask + &
+                                       1*(filled_mask(kmax,i-1,j-1) + filled_mask(kmax,i-1,j+1)  + &
+                                          filled_mask(kmax,i+1,j-1) + filled_mask(kmax,i+1,j+1)) + &
+                                       2*(filled_mask(kmax,i-1,j)   + filled_mask(kmax,i,j-1)    + &
+                                          filled_mask(kmax,i+1,j)   + filled_mask(kmax,i,j+1))   + &
+                                       4*(filled_mask(kmax,i,j))
+                               endif
+
+                               if (sum_mask > 0) then
+                                  sum_thermal_forcing = &
+                                       2.d0*(filled_mask(k,i-1,j-1)*thermal_forcing(k,i-1,j-1)  + &
+                                             filled_mask(k,i-1,j+1)*thermal_forcing(k,i-1,j+1)  + &
+                                             filled_mask(k,i+1,j-1)*thermal_forcing(k,i+1,j-1)  + &
+                                             filled_mask(k,i+1,j+1)*thermal_forcing(k,i+1,j+1)) + &
+                                       4.d0*(filled_mask(k,i-1,j)*thermal_forcing(k,i-1,j)  + &
+                                             filled_mask(k,i,j-1)*thermal_forcing(k,i,j-1)  + &
+                                             filled_mask(k,i+1,j)*thermal_forcing(k,i+1,j)  + &
+                                             filled_mask(k,i,j+1)*thermal_forcing(k,i,j+1)) + &
+                                       8.d0*(filled_mask(k,i,j)*thermal_forcing(k,i,j))
+                                  if (kmin < k) then
+                                     ! Compute TF of water in the layer above, if that water were moved down to this layer
+                                     thermal_forcing_kmin(:,:) = thermal_forcing(kmin,i-1:i+1,j-1:j+1) &
+                                          - dtocnfrz_dz * (zocn(k) - zocn(kmin))
+                                     sum_thermal_forcing = sum_thermal_forcing + &
+                                          1.d0*(filled_mask(kmin,i-1,j-1)*thermal_forcing_kmin(-1,-1)  + &
+                                                filled_mask(kmin,i-1,j+1)*thermal_forcing_kmin(-1, 1)  + &
+                                                filled_mask(kmin,i+1,j-1)*thermal_forcing_kmin( 1,-1)  + &
+                                                filled_mask(kmin,i+1,j+1)*thermal_forcing_kmin( 1, 1)) + &
+                                          2.d0*(filled_mask(kmin,i-1,j)*thermal_forcing_kmin(-1, 0)  + &
+                                                filled_mask(kmin,i,j-1)*thermal_forcing_kmin( 0,-1)  + &
+                                                filled_mask(kmin,i+1,j)*thermal_forcing_kmin( 1, 0)  + &
+                                                filled_mask(kmin,i,j+1)*thermal_forcing_kmin( 0, 1)) + &
+                                          4.d0*(filled_mask(kmin,i,j)*thermal_forcing_kmin(0,0))
+                                  endif
+                                  if (kmax > k) then
+                                     ! Compute TF of water in the layer below, if that water were moved up to this layer
+                                     thermal_forcing_kmax(:,:) = thermal_forcing(kmax,i-1:i+1,j-1:j+1) &
+                                          - dtocnfrz_dz * (zocn(k) - zocn(kmax))
+                                     sum_thermal_forcing = sum_thermal_forcing + &
+                                          1.d0*(filled_mask(kmax,i-1,j-1)*thermal_forcing_kmax(-1,-1)  + &
+                                                filled_mask(kmax,i-1,j+1)*thermal_forcing_kmax(-1, 1)  + &
+                                                filled_mask(kmax,i+1,j-1)*thermal_forcing_kmax( 1,-1)  + &
+                                                filled_mask(kmax,i+1,j+1)*thermal_forcing_kmax( 1, 1)) + &
+                                          2.d0*(filled_mask(kmax,i-1,j)*thermal_forcing_kmax(-1, 0)  + &
+                                                filled_mask(kmax,i,j-1)*thermal_forcing_kmax( 0,-1)  + &
+                                                filled_mask(kmax,i+1,j)*thermal_forcing_kmax( 1, 0)  + &
+                                                filled_mask(kmax,i,j+1)*thermal_forcing_kmax( 0, 1)) + &
+                                          4.d0*(filled_mask(kmax,i,j)*thermal_forcing_kmax(0,0))
+                                  endif
+                                  thermal_forcing(k,i,j) = sum_thermal_forcing / real(sum_mask,dp)
+                                  count_smoothing(k,i,j) = count_smoothing(k,i,j) + 1
+                               endif   ! sum_mask
+
+                            endif   ! any are filled
+
+                         endif   ! stencil_size
+                      endif   ! not filled or fully smoothed
+                   enddo   ! k
+                endif   ! marine_connection mask
+             enddo   ! i
+          enddo  ! j
+
+          call parallel_halo(thermal_forcing, parallel)
+
+          ! update the mask
+          where (thermal_forcing == unphys_val)
+             filled_mask = 0
+          elsewhere
+             filled_mask = 1
+          endwhere
+
+          ! Every few iterations, check for convergence of the horizontal iteration loop.
+          ! Check after iterations 1, 2, and 5, then after 10, 20, etc.
+          if (iter_horiz == 1 .or. iter_horiz == 2 .or. iter_horiz == 5 .or. mod(iter_horiz, 10) == 0) then
+
+             if (verbose_extrapolate) then
+                do k = kmin_diag, kmax_diag
+                   if (this_rank == rtest) write(iulog,*) 'k, zocn =', k, zocn(k)
+                   call point_diag(filled_mask(k,:,:), 'filled_mask', itest, jtest, rtest, 7, 7)
+                   call point_diag(thermal_forcing(k,:,:), 'thermal_forcing', itest, jtest, rtest, 7, 7)
+                enddo
+             endif
+
+             global_count_horiz = parallel_global_sum(filled_mask, parallel, marine_connection_mask_3d)
+
+             if (global_count_horiz == global_count_horiz_save) then
+                if (verbose_extrapolate) then
+                   if (this_rank == rtest) then
+                      write(iulog,*) 'Horizontal extrapolation converged: iter, global_count =', &
+                        iter_horiz, global_count_horiz
+                   endif
+                   write(message,*) 'Horizontal extrapolation converged: iter, global_count =', &
+                        iter_horiz, global_count_horiz
+                   call write_log(message)
                 endif
-             enddo
-          enddo
+                exit
+             else   ! not converged
+                if (verbose_extrapolate) then
+                   if (this_rank == rtest) then
+                      write(iulog,*) 'Horizontal extrapolation convergence check: iter, global_count =', &
+                           iter_horiz, global_count_horiz
+                   endif
+                   write(message,*) 'Horizontal extrapolation convergence check: iter, global_count =', &
+                        iter_horiz, global_count_horiz
+                   call write_log(message)
+                endif
+                global_count_horiz_save = global_count_horiz
+             endif
 
-          global_count_horiz = parallel_reduce_sum(local_count)
+          endif   ! time for a convergence check
 
-          if (global_count_horiz == global_count_horiz_save) then
-             !if (verbose_bmlt_float .and. this_rank == rtest) &
-                  write(message,*) 'Horizontal extrapolation converged: iter, global_count =', &
-                  iter_horiz, global_count_horiz
-                  call write_log(message)
-             exit
-          else
-             !if (verbose_bmlt_float .and. this_rank == rtest) &
-                  write(message,*) 'Horizontal extrapolation convergence check: iter, global_count =', &
-                  iter_horiz, global_count_horiz
-                  call write_log(message)
-             global_count_horiz_save = global_count_horiz
+          if (iter_horiz == max_iter) then
+             if (this_rank == rtest) write(iulog,*) 'iter_horiz = max_iter:', max_iter
+             write(message,*) 'Ocean TF extrapolation error, too many iterations: max_iter =', max_iter
+             call write_log(message, GM_FATAL)
           endif
 
-       endif   ! time for a convergence check
+       enddo ! do iter_horiz
 
-       end do !do iter_horiz
+       ! Note: If using a 3-level Laplacian stencil, the following downward and upward fills are unnecessary,
+       !       and the outer iteration loop is not needed.
 
-       
        ! Extend TF downward in columns that contain unfilled cells below filled cells.
-       
-       do iter_down = 1, max_iter
-
        do j = 1+nhalo, ny-nhalo
-       do i = 1+nhalo,  nx-nhalo  !Michele try to do the extrapolation on floating cells only
-             if (marine_connection_mask(i,j) == 1) then   ! there is a marine path to the ocean
+          do i = 1+nhalo,  nx-nhalo
+             if (marine_connection_mask(i,j) == 1) then
                 do k = ktop(i,j)+1, kbot(i,j)
                    if (thermal_forcing(k,i,j) == unphys_val .and. thermal_forcing(k-1,i,j) /= unphys_val) then
                       thermal_forcing(k,i,j) = thermal_forcing(k-1,i,j) - dtocnfrz_dz * (zocn(k) - zocn(k-1))
                    endif
                 enddo   ! k
-             endif   ! ktop >=1, kbot >= 1
+             endif   ! marine_connection_mask
           enddo   ! i
        enddo  ! j
-  
-       call parallel_halo(thermal_forcing, parallel)
 
-       call parallel_boundary_value(thermal_forcing, unphys_val, parallel)
-
-       if (iter_down == 1 .or. iter_down == 2 .or. iter_down == 5 .or. mod(iter_down, 10) == 0) then
-          local_count = 0
-          do j = 1+nhalo, ny-nhalo
-          do i = 1+nhalo,  nx-nhalo !Michele try to do extrapolation on floating cells only
-                if (marine_connection_mask(i,j) == 1) then   ! there is a marine path to the ocean
-                   do k = ktop(i,j), kbot(i,j)
-                      if (thermal_forcing(k,i,j) /= unphys_val) local_count = local_count + 1
-                   enddo
-                endif
-             enddo
-          enddo
-
-          global_count_down = parallel_reduce_sum(local_count)
-
-          if (global_count_down == global_count_down_save) then
-             !if (verbose_bmlt_float .and. this_rank == rtest) &
-             write(message,*) 'Downward extrapolation converged: iter, global_count =', &
-                  iter_down, global_count_down
-                  call write_log(message)
-             exit
-          else
-             !if (verbose_bmlt_float .and. this_rank == rtest) &
-             write(message,*) 'Downward extrapolation convergence check: iter, global_count =', &
-                  iter_down, global_count_down
-                  call write_log(message)
-             global_count_down_save = global_count_down
-          endif
-
-       endif   ! time for a convergence check
-
-       end do !Downward extrapolation iteration
-       
        ! Extend TF upward in columns that contain unfilled cells above filled cells.
-       ! This is less common than having unfilled cells below filled cells, but it happens occasionally.
 
        do j = 1+nhalo, ny-nhalo
-       do i = 1+nhalo,  nx-nhalo !Michele try to do the extrapolation on floating cells only
-             if (marine_connection_mask(i,j) == 1) then   ! there is a marine path to the ocean
+          do i = 1+nhalo,  nx-nhalo
+             if (marine_connection_mask(i,j) == 1) then
                 do k = kbot(i,j)-1, ktop(i,j), -1
                    if (thermal_forcing(k,i,j) == unphys_val .and. thermal_forcing(k+1,i,j) /= unphys_val) then
                       thermal_forcing(k,i,j) = thermal_forcing(k+1,i,j) - dtocnfrz_dz * (zocn(k) - zocn(k+1))
                    endif
                 enddo   ! k
-             endif   ! ktop >=1, kbot >= 1
+             endif   ! marine_connection_mask
           enddo   ! i
        enddo  ! j
 
        call parallel_halo(thermal_forcing, parallel)
 
-       ! Insert an unphysical value at the global boundary.
-       ! This is done to handle the case that global_bc = no_ice,
-       !  which puts zeroes in global boundary cells.
-       ! We do not want these zeroes to be interpreted as realistic thermal_forcing values.
-       call parallel_boundary_value(thermal_forcing, unphys_val, parallel)
-
-       ! Every several iterations, count the total number of filled cells/levels in the global domain.
-       ! If this number has not increased since the previous iteration, then exit the loop.
-       ! Note: Typically there are several ice sheet dynamics time steps per mass balance time step.
-       !       The thermal forcing field from the ocean model (for OCEAN_DATA_GLAD) is updated
-       !        at the start of the mass balance time step.  Just after this update, the extrapolation
-       !        typically requires 100 or more iterations to converge.  But subsequent updates within this
-       !        mass balance time step may require < 5 iterations.  For this reason, we check frequently
-       !        for convergence in the first few steps, and then less frequently as the number of iterations grows.
-
-       ! Check after iterations 1, 2, and 5, then after 10, 20, etc.
-       if (iter == 1 .or. iter == 2 .or. iter == 5 .or. mod(iter, 10) == 0) then
-          local_count = 0
-          do j = 1+nhalo, ny-nhalo
-          do i = 1+nhalo,  nx-nhalo !Michele try to do extrapolation on floating cells only
-                if (marine_connection_mask(i,j) == 1) then   ! there is a marine path to the ocean
-                   do k = ktop(i,j), kbot(i,j)
-                      if (thermal_forcing(k,i,j) /= unphys_val) local_count = local_count + 1
-                   enddo
-                endif
-             enddo
+       if (verbose_extrapolate) then
+          if (this_rank == rtest) write(iulog,*) 'After vertical fill:'
+          do k = kmin_diag, kmax_diag
+             if (this_rank == rtest) write(iulog,*) 'k, zocn =', k, zocn(k)
+             call point_diag(filled_mask(k,:,:), 'filled_mask', itest, jtest, rtest, 7, 7)
+             call point_diag(thermal_forcing(k,:,:), 'thermal_forcing', itest, jtest, rtest, 7, 7)
           enddo
+       endif
 
-          global_count = parallel_reduce_sum(local_count)
+       ! update the mask
+       where (thermal_forcing == unphys_val)
+          filled_mask = 0
+       elsewhere
+          filled_mask = 1
+       endwhere
+
+       ! Every few iterations, check for convergence of the outer iteration loop.
+       ! Check after iterations 1, 2, and 5, then after 10, 15, etc.
+       if (iter == 1 .or. iter == 2 .or. mod(iter, 5) == 0) then
+
+          global_count = parallel_global_sum(filled_mask, parallel, marine_connection_mask_3d)
 
           if (global_count == global_count_save) then
-             !if (verbose_bmlt_float .and. this_rank == rtest) &
-             !     print*, 'Extrapolation converged: iter, global_count =', iter, global_count
-             write(message,*) 'Extrapolation converged: iter, global_count =', &
-             iter, global_count
-             call write_log(message)
+             if (verbose_extrapolate) then
+                if (this_rank == rtest) &
+                  write(iulog,*) 'Extrapolation converged: iter, global_count =', iter, global_count
+                write(message,*) 'Extrapolation converged: iter, global_count =', iter, global_count
+                call write_log(message)
+             endif
              exit
           else
-             !if (verbose_bmlt_float .and. this_rank == rtest) &
-             !     print*, 'Extrapolation convergence check: iter, global_count =', iter, global_count
-             write(message,*) 'Extrapolation convergence check: iter, global_count =', &
-             iter, global_count
-             call write_log(message)
+             if (verbose_extrapolate) then
+                if (this_rank == rtest) &
+                  write(iulog,*) 'Extrapolation convergence check: iter, global_count =', iter, global_count
+                write(message,*) 'Extrapolation convergence check: iter, global_count =', iter, global_count
+                call write_log(message)
+             endif
              global_count_save = global_count
           endif
           
        endif   ! time for a convergence check
 
        if (iter == max_iter) then
-          print*, 'iter = max_iter:', max_iter
-          call write_log('Ocean extrapolation error; number of filled cells has not plateaued', GM_FATAL)
+          if (this_rank == rtest) write(iulog,*) 'iter = max_iter:', max_iter
+          write(message,*) 'Ocean TF extrapolation error, too many iterations: max_iter =', max_iter
+          call write_log(message, GM_FATAL)
        endif
 
     enddo   ! max_iter
 
-    ! Bug check:
     ! Make sure all levels from ktop to kbot are filled in cells with thermal_forcing_mask = 1.
+    ! If not yet filled, then check for a value in a nearby cell.
+    ! If there is no such value, then there should be in a subsequent iteration.
 
-    do j = 1+nhalo, ny-nhalo
-    do i = 1+nhalo, nx-nhalo !Michele try to do the extrapolation on floating cells only
-          if (thermal_forcing_mask(i,j) == 1) then
-             call parallel_globalindex(i, j, iglobal, jglobal, parallel)
-             do k = ktop(i,j), kbot(i,j)
-                if (thermal_forcing(k,i,j) == unphys_val) then
-                print*, 'Extrapolation issue at level, i, j', k, iglobal, jglobal
-                  jmin=min(j-1,1+nhalo)
-                  jmax=max(j+1,ny-nhalo)
-                  imin=min(i-1,1+nhalo)
-                  imax=max(i+1,nx-nhalo)
-                  if(any(thermal_forcing(1:nzocn,imin:imax,jmin:jmax) < thermal_forcing_max) .and. &
-                  any(thermal_forcing(1:nzocn,imin:imax,jmin:jmax) > thermal_forcing_min)) then
-                    print*, 'At least one neighbour has valid value'
-                    sum_mask = 0
-                    sum_phi = 0.
-                    do jj = jmin,jmax
-                     do ii = imin,imax
-                      do kk = 1,nzocn
-                        if(thermal_forcing(kk,ii,jj) < thermal_forcing_max & 
-                           .and. thermal_forcing(kk,ii,jj) > thermal_forcing_min) then
-                           sum_mask = sum_mask + 1
-                           sum_phi = sum_phi + thermal_forcing(kk,ii,jj)
-                        end if
-                      end do
-                     end do
-                    end do
-                    if(sum_mask .gt. 0.) thermal_forcing(k,i,j) = sum_phi / sum_mask
-                    print*, 'Assigned value is ', thermal_forcing(k,i,j)
-                  else
-                    write(message,*) 'No neighbours with valid values: something wrong'
-                    call write_log(message, GM_FATAL)
-                    exit
-                  end if
-                endif
-             enddo   ! k
-          endif   ! thermal_forcing_mask
-       enddo   ! i
-    enddo   ! j
- 
+    if (verbose_extrapolate .and. this_rank == rtest) write(iulog,*) 'Final extrapolation to outlier cells'
+
+    do iter = 1, max_iter_finish
+
+       do j = 1+nhalo, ny-nhalo
+          do i = 1+nhalo, nx-nhalo
+             if (thermal_forcing_mask(i,j) == 1) then
+                do k = ktop(i,j), kbot(i,j)
+                   if (thermal_forcing(k,i,j) == unphys_val) then
+                      call parallel_globalindex(i, j, iglobal, jglobal, parallel)
+                      if (verbose_extrapolate) then
+                         write(iulog,*) 'Ocean data extrapolation issue: unphys value in level k, i, j:', &
+                              k, iglobal, jglobal, thermal_forcing(k,i,j)
+                      endif
+                      !Note: no risk of i or j out of bounds, since the loop above is limited to locally owned cells
+                      ! Average valid values from all levels of adjacent columns
+                      ! Include a depth adjustment for values from different levels
+                      sum_mask = 0
+                      sum_thermal_forcing = 0.0d0
+                      do jj = j-1, j+1
+                         do ii = i-1, i+1
+                            do kk = 1,nzocn
+                               if (filled_mask(kk,ii,jj) == 1) then
+                                  sum_mask = sum_mask + 1
+                                  sum_thermal_forcing = sum_thermal_forcing &
+                                       + thermal_forcing(kk,ii,jj) - dtocnfrz_dz*(zocn(k) - zocn(kk))
+                               endif
+                            enddo
+                         enddo
+                      enddo
+                      if(sum_mask > 0) then
+                         thermal_forcing(k,i,j) = sum_thermal_forcing / real(sum_mask,dp)
+                         if (verbose_extrapolate) write(iulog,*) '   Assigned value is ', thermal_forcing(k,i,j)
+                      endif
+                   endif   ! unphys_val
+                enddo   ! k
+             endif   ! thermal_forcing_mask
+          enddo   ! i
+       enddo   ! j
+
        call parallel_halo(thermal_forcing, parallel)
 
-       ! Insert an unphysical value at the global boundary.
-       ! This is done to handle the case that global_bc = no_ice,
-       !  which puts zeroes in global boundary cells.
-       ! We do not want these zeroes to be interpreted as realistic thermal_forcing values.
-       call parallel_boundary_value(thermal_forcing, unphys_val, parallel)
+       where (thermal_forcing == unphys_val)
+          filled_mask = 0
+       elsewhere
+          filled_mask = 1
+       endwhere
 
+       ! check for convergence
+
+       global_count = parallel_global_sum(filled_mask, parallel, marine_connection_mask_3d)
+
+       if (global_count == global_count_save) then
+          if (verbose_extrapolate) then
+             if (this_rank == rtest) &
+                  write(iulog,*) 'Final extrapolation converged: iter, global_count =', iter, global_count
+             write(message,*) 'Final extrapolation converged: iter, global_count =', iter, global_count
+             call write_log(message)
+          endif
+          exit
+       else
+          if (verbose_extrapolate) then
+             if (this_rank == rtest) &
+                  write(iulog,*) 'Final extrapolation convergence check: iter, global_count =', iter, global_count
+             write(message,*) 'Final extrapolation convergence check: iter, global_count =', iter, global_count
+             call write_log(message)
+          endif
+          global_count_save = global_count
+       endif
+
+    enddo   ! max_iter_finish
+
+    ! Bug check - Make sure there are valid values wherever thermal_forcing_mask = 1
+
+    do j = 1+nhalo, ny-nhalo
+       do i = 1+nhalo, nx-nhalo
+          if (thermal_forcing_mask(i,j) == 1) then
+             do k = ktop(i,j), kbot(i,j)
+                if (thermal_forcing(k,i,j) == unphys_val) then
+                   call parallel_globalindex(i, j, iglobal, jglobal, parallel)
+                   write(iulog,*) 'TF extrapolation error, no neighbours with valid values, k, i, j =',  &
+                        k, iglobal, jglobal
+                   write(message,*) 'TF extrapolation error, no neighbours with valid values, k, i, j =',  &
+                        k, iglobal, jglobal
+                   call write_log(message, GM_FATAL)
+                endif
+             enddo
+          endif
+       enddo
+    enddo
 
     ! Set the thermal forcing to a default value in the remaining unfilled cell/levels.
     ! For example, we might set thermal_forcing = 0 to get cleaner diagnostics.
@@ -2091,6 +2000,7 @@ module glissade_bmlt_float
        gamma0,                    &
        thermal_forcing_lsrf,      &
        deltaT_ocn,                &
+       thermal_forcing_basin_min, &
        theta_slope,               &
        thermal_forcing_basin,     &
        thermal_forcing_mask,      &
@@ -2124,8 +2034,14 @@ module glissade_bmlt_float
          thermal_forcing_lsrf,  & !> thermal forcing (K) at lower ice surface
          theta_slope              !> sub-shelf slope angle (radians)
 
-    real(dp), dimension(nx,ny), intent(inout) :: &
+    real(dp), dimension(nx,ny), intent(in) :: &
          deltaT_ocn               !> thermal forcing correction factor (deg C)
+
+    ! Note: If thermal_forcing_basin_min > 0, there will always be some thermal forcing in the basin
+    !        even if the basin is too cold to melt ice. This will promote basal freezing in cells with local TF < 0.
+    !       In the ISMIP6 dataset, the Ronne cavity has TF ~ 0.5 C near the GL; Filchner has TF ~0.3 C.
+    real(dp), intent(in) :: &
+         thermal_forcing_basin_min  !> min basin-scale TF; can be applied to nonlocal and nonlocal-slope schemes
 
     real(dp), dimension(nbasin), intent(in) :: &
          thermal_forcing_basin    !> thermal forcing averaged over each basin (deg C)
@@ -2146,19 +2062,11 @@ module glissade_bmlt_float
          eff_thermal_forcing,      & ! effective local thermal forcing, after deltaT correction
          eff_thermal_forcing_basin   ! effective basin thermal forcing, after deltaT correction
 
+
     ! initialize
     bmlt_float(:,:) = 0.0d0
 
     coeff = gamma0 * ( (rhosw_ismip6*cpw_ismip6)/(rhoi_ismip6*Lf_ismip6) )**2
-
-    ! Limit deltaT_ocn such that thermal_forcing_lsrf + deltaT_ocn >= 0
-    ! This prevents grid cells from reaching an unresponsive state in which an increase
-    !  in deltaT_ocn does not generate any melt, since eff_thermal_forcing remains < 0.
-
-    where (thermal_forcing_mask == 1 .and. &
-           thermal_forcing_lsrf + deltaT_ocn < 0.0d0)
-       deltaT_ocn = -thermal_forcing_lsrf
-    endwhere
 
     if (bmlt_float_thermal_forcing_param == BMLT_FLOAT_TF_ISMIP6_LOCAL) then
 
@@ -2168,13 +2076,6 @@ module glissade_bmlt_float
        do j = 1, ny
           do i = 1, nx
              if (thermal_forcing_mask(i,j) == 1) then
-
-                !WHL - debug
-!                if (thermal_forcing_lsrf(i,j) + deltaT_ocn(i,j) < 0.0d0) then
-!                   print*, 'Negative eff_thermal forcing: task, i, j, nb, TF, dT:', &
-!                        this_rank, i, j, basin_number(i,j), thermal_forcing_lsrf(i,j), deltaT_ocn(i,j)
-!                endif
-
                 eff_thermal_forcing = max(0.0d0, thermal_forcing_lsrf(i,j) + deltaT_ocn(i,j))
                 bmlt_float(i,j) = coeff * eff_thermal_forcing**2
              endif
@@ -2190,21 +2091,9 @@ module glissade_bmlt_float
           do i = 1, nx
              nb = basin_number(i,j)
              if (thermal_forcing_mask(i,j) == 1) then
-                ! Note: Can have bmlt_float < 0 where thermal_forcing_lsrf + deltaT_ocn < 0
                 eff_thermal_forcing = thermal_forcing_lsrf(i,j) + deltaT_ocn(i,j)
-                eff_thermal_forcing_basin = max(0.0d0, thermal_forcing_basin(nb))
+                eff_thermal_forcing_basin = max(thermal_forcing_basin_min, thermal_forcing_basin(nb))
                 bmlt_float(i,j) = coeff * eff_thermal_forcing * eff_thermal_forcing_basin
-
-                !WHL - debug
-                if (verbose_bmlt_float .and. this_rank == rtest .and. i==itest .and. j==jtest) then
-                   print*, ' '
-                   print*, 'In ismip6_bmlt_float, r, i, j, nb =', rtest, itest, jtest, nb
-                   print*, 'thermal_forcing_lsrf =', thermal_forcing_lsrf(i,j)
-                   print*, 'deltaT_ocn =', deltaT_ocn(i,j)
-                   print*, 'thermal_forcing_basin =', thermal_forcing_basin(nb)
-                   print*, 'eff_TF, eff_TF_basin =', eff_thermal_forcing, eff_thermal_forcing_basin
-                endif
-
              endif
           enddo
        enddo
@@ -2217,9 +2106,8 @@ module glissade_bmlt_float
           do i = 1, nx
              nb = basin_number(i,j)
              if (thermal_forcing_mask(i,j) == 1) then
-                ! Note: Can have bmlt_float < 0 where thermal_forcing_lsrf + deltaT_ocn < 0
                 eff_thermal_forcing = thermal_forcing_lsrf(i,j) + deltaT_ocn(i,j)
-                eff_thermal_forcing_basin = max(0.0d0, thermal_forcing_basin(nb))
+                eff_thermal_forcing_basin = max(thermal_forcing_basin_min, thermal_forcing_basin(nb))
                 bmlt_float(i,j) = coeff * sin(theta_slope(i,j)) * eff_thermal_forcing * eff_thermal_forcing_basin
              endif
           enddo
@@ -2252,8 +2140,6 @@ module glissade_bmlt_float
     !
     ! The adjustment is made for all cells that can have melting driven by thermal forcing (thermal_forcing_mask = 1).
     ! This includes cells that are currently grounded, but might be floating in a forward run.
-
-    use glissade_inversion, only : deltaT_ocn_maxval
 
     integer, intent(in) :: &
          bmlt_float_thermal_forcing_param  !> kind of melting parameterization, local or nonlocal
@@ -2340,13 +2226,13 @@ module glissade_bmlt_float
              endif
 
              if (verbose_bmlt_float .and. this_rank == rtest .and. i==itest .and. j==jtest) then
-                print*, ' '
-                print*, 'In ismip6_set_deltaT_ocn, r, i, j =', rtest, itest, jtest
-                print*, 'dthck_dt_target =', dthck_dt_target(i,j)
-                print*, 'thermal_forcing_lsrf =', thermal_forcing_lsrf(i,j)
-                print*, 'deltaT_ocn_init =', deltaT_ocn_init(i,j)
-                print*, 'dTocn adjustment =', dTocn(i,j)
-                print*, 'deltaT_ocn_new =', deltaT_ocn_init(i,j) + dTocn(i,j)
+                write(iulog,*) ' '
+                write(iulog,*) 'In ismip6_set_deltaT_ocn, r, i, j =', rtest, itest, jtest
+                write(iulog,*) 'dthck_dt_target =', dthck_dt_target(i,j)
+                write(iulog,*) 'thermal_forcing_lsrf =', thermal_forcing_lsrf(i,j)
+                write(iulog,*) 'deltaT_ocn_init =', deltaT_ocn_init(i,j)
+                write(iulog,*) 'dTocn adjustment =', dTocn(i,j)
+                write(iulog,*) 'deltaT_ocn_new =', deltaT_ocn_init(i,j) + dTocn(i,j)
              endif
 
           enddo
@@ -2381,14 +2267,14 @@ module glissade_bmlt_float
              endif
 
              if (verbose_bmlt_float .and. this_rank == rtest .and. i==itest .and. j==jtest) then
-                print*, ' '
-                print*, 'In ismip6_set_deltaT_ocn, r, i, j, nb =', rtest, itest, jtest, nb
-                print*, 'thermal_forcing_lsrf =', thermal_forcing_lsrf(i,j)
-                print*, 'thermal_forcing_basin =', thermal_forcing_basin(nb)
-                print*, 'dthck_dt_target =', dthck_dt_target(i,j)
-                print*, 'deltaT_ocn_init =', deltaT_ocn_init(i,j)
-                print*, 'dTocn adjustment =', dTocn(i,j)
-                print*, 'deltaT_ocn_new =', deltaT_ocn_init(i,j) + dTocn(i,j)
+                write(iulog,*) ' '
+                write(iulog,*) 'In ismip6_set_deltaT_ocn, r, i, j, nb =', rtest, itest, jtest, nb
+                write(iulog,*) 'thermal_forcing_lsrf =', thermal_forcing_lsrf(i,j)
+                write(iulog,*) 'thermal_forcing_basin =', thermal_forcing_basin(nb)
+                write(iulog,*) 'dthck_dt_target =', dthck_dt_target(i,j)
+                write(iulog,*) 'deltaT_ocn_init =', deltaT_ocn_init(i,j)
+                write(iulog,*) 'dTocn adjustment =', dTocn(i,j)
+                write(iulog,*) 'deltaT_ocn_new =', deltaT_ocn_init(i,j) + dTocn(i,j)
              endif
 
           enddo
@@ -2423,9 +2309,6 @@ module glissade_bmlt_float
 
     ! Adjust deltaT_ocn
     deltaT_ocn_new = deltaT_ocn_init + dTocn
-
-    ! Cap at max allowed value
-    deltaT_ocn_new = min(deltaT_ocn_new, deltaT_ocn_maxval)
 
     ! For diagnostics, compute the new melt rate
 
@@ -2469,87 +2352,17 @@ module glissade_bmlt_float
        enddo
     endif
 
-    if (verbose_bmlt_float .and. this_rank == rtest) then
-       print*, ' '
-       print*, 'thermal_forcing_lsrf (degC):'
-       do j = jtest+3, jtest-3, -1
-          do i = itest-3, itest+3
-             write(6,'(f10.3)',advance='no') thermal_forcing_lsrf(i,j)
-          enddo
-          write(6,*) ' '
-       enddo
-       print*, ' '
-       print*, 'Initial deltaT_ocn (degC):'
-       do j = jtest+3, jtest-3, -1
-          do i = itest-3, itest+3
-             write(6,'(f10.3)',advance='no') deltaT_ocn_init(i,j)
-          enddo
-          write(6,*) ' '
-       enddo
-       print*, ' '
-       print*, 'Initial effective TF (degC):'
-       do j = jtest+3, jtest-3, -1
-          do i = itest-3, itest+3
-             write(6,'(f10.3)',advance='no') thermal_forcing_lsrf(i,j) + deltaT_ocn_init(i,j)
-          enddo
-          write(6,*) ' '
-       enddo
-       print*, ' '
-       print*, 'Initial melt rate (m/yr):'
-       do j = jtest+3, jtest-3, -1
-          do i = itest-3, itest+3
-             write(6,'(f10.3)',advance='no') bmlt_float_init(i,j)
-          enddo
-          write(6,*) ' '
-       enddo
-       print*, ' '
-       print*, 'deltaT_ocn adjustment (degC):'
-       do j = jtest+3, jtest-3, -1
-          do i = itest-3, itest+3
-             write(6,'(f10.3)',advance='no') dTocn(i,j)
-          enddo
-          write(6,*) ' '
-       enddo
-       print*, ' '
-       print*, 'New deltaT_ocn (degC):'
-       do j = jtest+3, jtest-3, -1
-          do i = itest-3, itest+3
-             write(6,'(f10.3)',advance='no') deltaT_ocn_new(i,j)
-          enddo
-          write(6,*) ' '
-       enddo
-       print*, ' '
-       print*, 'New effective TF (degC):'
-       do j = jtest+3, jtest-3, -1
-          do i = itest-3, itest+3
-             write(6,'(f10.3)',advance='no') thermal_forcing_lsrf(i,j) + deltaT_ocn_new(i,j)
-          enddo
-          write(6,*) ' '
-       enddo
-       print*, ' '
-       print*, 'New melt rate (m/yr):'
-       do j = jtest+3, jtest-3, -1
-          do i = itest-3, itest+3
-             write(6,'(f10.3)',advance='no') bmlt_float_new(i,j)
-          enddo
-          write(6,*) ' '
-       enddo
-       print*, ' '
-       print*, 'Melt difference (m/yr):'
-       do j = jtest+3, jtest-3, -1
-          do i = itest-3, itest+3
-             write(6,'(f10.3)',advance='no') bmlt_float_new(i,j) - bmlt_float_init(i,j)
-          enddo
-          write(6,*) ' '
-       enddo
-       print*, ' '
-       print*, 'dthck_dt_target (m/yr):'
-       do j = jtest+3, jtest-3, -1
-          do i = itest-3, itest+3
-             write(6,'(f10.3)',advance='no') dthck_dt_target(i,j)
-          enddo
-          write(6,*) ' '
-       enddo
+    if (verbose_bmlt_float) then
+       call point_diag(thermal_forcing_lsrf, 'thermal_forcing_lsrf (degC)', itest, jtest, rtest, 7, 7)
+       call point_diag(deltaT_ocn_init, 'Initial deltaT_ocn', itest, jtest, rtest, 7, 7)
+       call point_diag(thermal_forcing_lsrf + deltaT_ocn_init, 'Initial effective TF', itest, jtest, rtest, 7, 7)
+       call point_diag(bmlt_float_init, 'Initial melt rate (m/yr)', itest, jtest, rtest, 7, 7)
+       call point_diag(dTocn, 'deltaT_ocn adjustment', itest, jtest, rtest, 7, 7)
+       call point_diag(deltaT_ocn_new, 'New deltaT_ocn', itest, jtest, rtest, 7, 7)
+       call point_diag(thermal_forcing_lsrf + deltaT_ocn_new, 'New effective TF', itest, jtest, rtest, 7, 7)
+       call point_diag(bmlt_float_new, 'New melt rate (m/yr)', itest, jtest, rtest, 7, 7)
+       call point_diag(bmlt_float_new - bmlt_float_init, 'Melt difference (m/yr)', itest, jtest, rtest, 7, 7)
+       call point_diag(dthck_dt_target, 'dthck_dt_target (m/yr)', itest, jtest, rtest, 7, 7)
     endif
 
   end subroutine ismip6_set_deltaT_ocn
@@ -2636,7 +2449,7 @@ module glissade_bmlt_float
     integer :: basin_number_min     ! global minval for basin_number
 
     ! local variables
-
+    !TODO - Replace local_count with calls to parallel_global_sum?
     integer :: local_count          ! number of cells with valid values
     integer :: global_count         ! number of global cells with valid values
     integer :: global_count_save    ! number of global cells with valid values in previous iteration
@@ -2651,8 +2464,7 @@ module glissade_bmlt_float
     real(dp), dimension(nx,ny) :: &
          basin_number_new           ! work array for basin number
 
-    logical, parameter ::  &
-         verbose_basin_number = .true.
+    logical, parameter :: verbose_basin_number = .false.
 
     ! Count the number of cells with valid basin numbers
 
@@ -2681,9 +2493,9 @@ module glissade_bmlt_float
     max_iter = max(parallel%ewtasks, parallel%nstasks) * max(nx-2*nhalo, ny-2*nhalo)
 
     if (verbose_basin_number .and. main_task) then
-       print*, 'Extrapolating basin numbers to cells with invalid values'
-       print*, 'Initial count of valid values:', global_count_save
-       print*, 'max_iter =', max_iter
+       write(iulog,*) 'Extrapolating basin numbers to cells with invalid values'
+       write(iulog,*) 'Initial count of valid values:', global_count_save
+       write(iulog,*) 'max_iter =', max_iter
     endif
 
     ! Extrapolate the data horizontally
@@ -2730,12 +2542,12 @@ module glissade_bmlt_float
        call parallel_halo(valid_mask, parallel)
 
        if (verbose_basin_number .and. main_task) then
-!!          print*, iter, 'Basin number count =', global_count
+!!          write(iulog,*) iter, 'Basin number count =', global_count
        endif
 
        if (global_count == global_count_save) then
           if (verbose_basin_number .and. main_task) then
-             print*, 'Exiting basin_number_extrapolate, iter =', iter
+             write(iulog,*) 'Exiting basin_number_extrapolate, iter =', iter
           endif
           exit
        else
@@ -2743,7 +2555,7 @@ module glissade_bmlt_float
        endif
 
        if (iter == max_iter) then
-          if (main_task) print*, 'Error: Exiting basin_number_extrapolate, max_iter =', max_iter
+          if (main_task) write(iulog,*) 'Error: Exiting basin_number_extrapolate, max_iter =', max_iter
           call write_log('Error: Exiting basin_number_extrapolate without converging', GM_FATAL)
        endif
 
@@ -3067,8 +2879,8 @@ module glissade_bmlt_float
 
                 ! diagnostic print
                 if (this_rank == rtest .and. i==itest .and. j==jtest) then
-                   print*, ' '
-                   print*, 'Velocity converged: u/v_plume (m/s):', u_plume(i,j), v_plume(i,j)
+                   write(iulog,*) ' '
+                   write(iulog,*) 'Velocity converged: u/v_plume (m/s):', u_plume(i,j), v_plume(i,j)
                 endif
 
              endif
@@ -3095,8 +2907,8 @@ module glissade_bmlt_float
                       v_plume(i,j) = v_plume(i,j) + dv
                       
                    else  ! denom = 0.0
-                      write(6,*) 'Error, glissade_plume: ill-posed Newton solve for velocity, rank, i, j:', this_rank, i, j
-                      write(6,*) 'a_uu, a_vv, a_uv, a_vu =', a_uu, a_vv, a_uv, a_vu
+                      write(iulog,*) 'Error, glissade_plume: ill-posed Newton solve for velocity, rank, i, j:', this_rank, i, j
+                      write(iulog,*) 'a_uu, a_vv, a_uv, a_vu =', a_uu, a_vv, a_uv, a_vu
                       write(message,*) 'Error, glissade_plume: ill-posed Newton solve for velocity, rank, i, j:', this_rank, i, j
                       call write_log(message, GM_FATAL)
                    endif
@@ -3112,16 +2924,16 @@ module glissade_bmlt_float
              endif  ! .not.converged_velo
 
              if (verbose_velo .and. this_rank == rtest .and. i==itest .and. j==jtest) then
-                print*, ' '
-                print*, 'plume_speed (m/s) =', plume_speed
-                print*, 'pgf_x, pgf_y:', pgf_x(i,j), pgf_y(i,j)
-                print*, 'latdrag_x, latdrag_y:', latdrag_x(i,j), latdrag_y(i,j)
-                print*, 'Dfv, -Dfu:', D_plume(i,j) * f_coriolis * v_plume(i,j), &
+                write(iulog,*) ' '
+                write(iulog,*) 'plume_speed (m/s) =', plume_speed
+                write(iulog,*) 'pgf_x, pgf_y:', pgf_x(i,j), pgf_y(i,j)
+                write(iulog,*) 'latdrag_x, latdrag_y:', latdrag_x(i,j), latdrag_y(i,j)
+                write(iulog,*) 'Dfv, -Dfu:', D_plume(i,j) * f_coriolis * v_plume(i,j), &
                                      -D_plume(i,j) * f_coriolis * u_plume(i,j)
-                print*, 'dragu, dragv:', c_drag * plume_speed * u_plume(i,j), &
+                write(iulog,*) 'dragu, dragv:', c_drag * plume_speed * u_plume(i,j), &
                                          c_drag * plume_speed * v_plume(i,j)
-                print*, 'x/y residual:', x_resid, y_resid
-                print*, 'new u/v_plume:', u_plume(i,j), v_plume(i,j)
+                write(iulog,*) 'x/y residual:', x_resid, y_resid
+                write(iulog,*) 'new u/v_plume:', u_plume(i,j), v_plume(i,j)
              endif
 
           endif  ! edge_mask
@@ -3258,8 +3070,8 @@ module glissade_bmlt_float
 !       mc =  162.d0
 !       md = -350.d0
 !       call cubic_solver(ma, mb, mc, md, solution)
-!       print*, 'Trial cubic solution =', solution
-!       print*, 'True solution =', (10.d0 + sqrt(108.d0))**(1.d0/3.d0) - (-10.d0 + sqrt(108.d0))**(1.d0/3.d0) + 5.d0
+!       write(iulog,*) 'Trial cubic solution =', solution
+!       write(iulog,*) 'True solution =', (10.d0 + sqrt(108.d0))**(1.d0/3.d0) - (-10.d0 + sqrt(108.d0))**(1.d0/3.d0) + 5.d0
 
 
     ! Loop over locally owned cells
@@ -3293,16 +3105,16 @@ module glissade_bmlt_float
                   bmlt_float(i,j))
 
              if (verbose_melt .and. this_rank == rtest .and. i==itest .and. j==jtest) then
-                print*, ' '
-                print*, 'Melt rate calc: rank, i, j =', rtest, i, j
-                print*, 'pressure (Pa) =', pressure(i,j)
-                print*, 'T_factor (m/s/deg), S_factor (m/s)=', T_factor, S_factor
-                print*, 'entrainment (m/s) =', entrainment(i,j)
-                print*, 'm1 (m/s/psu) =', m1
-                print*, 'm2 (m/s) =', m2
-                print*, 'denom =', denom
-                print*, 'a, b, c, d =', ma, mb, mc, md
-                print*, 'residual of cubic solve =', ma*bmlt_float(i,j)**3 + mb*bmlt_float(i,j)**2 + mc*bmlt_float(i,j) + md
+                write(iulog,*) ' '
+                write(iulog,*) 'Melt rate calc: rank, i, j =', rtest, i, j
+                write(iulog,*) 'pressure (Pa) =', pressure(i,j)
+                write(iulog,*) 'T_factor (m/s/deg), S_factor (m/s)=', T_factor, S_factor
+                write(iulog,*) 'entrainment (m/s) =', entrainment(i,j)
+                write(iulog,*) 'm1 (m/s/psu) =', m1
+                write(iulog,*) 'm2 (m/s) =', m2
+                write(iulog,*) 'denom =', denom
+                write(iulog,*) 'a, b, c, d =', ma, mb, mc, md
+                write(iulog,*) 'residual of cubic solve =', ma*bmlt_float(i,j)**3 + mb*bmlt_float(i,j)**2 + mc*bmlt_float(i,j) + md
              endif
              
              ! Given the melt rate, compute Sb and Tb
@@ -3319,10 +3131,10 @@ module glissade_bmlt_float
              if (T_plume(i,j) /= T_plume(i,j) .or. S_plume(i,j) /= S_plume(i,j) .or. &
                  T_basal(i,j) /= T_basal(i,j) .or. S_basal(i,j) /= S_basal(i,j) .or. &
                  bmlt_float(i,j) /= bmlt_float(i,j)) then
-                print*, 'Bad values, i, j =', i, j
-                print*, 'T_plume, S_plume:', T_plume(i,j), S_plume(i,j)
-                print*, 'T_basal, S_basal:', T_basal(i,j), S_basal(i,j)
-                print*, 'bmlt_float:', bmlt_float(i,j)
+                write(iulog,*) 'Bad values, i, j =', i, j
+                write(iulog,*) 'T_plume, S_plume:', T_plume(i,j), S_plume(i,j)
+                write(iulog,*) 'T_basal, S_basal:', T_basal(i,j), S_basal(i,j)
+                write(iulog,*) 'bmlt_float:', bmlt_float(i,j)
                 stop
              endif
 
@@ -3412,13 +3224,13 @@ module glissade_bmlt_float
     Delta = (p/3.d0)**3 + (q/2.d0)**2
 
     if (verbose) then
-       print*, 'Delta =', Delta
+       write(iulog,*) 'Delta =', Delta
        if (Delta > 0.d0) then
-          print*, 'One real root, 2 complex conjugate'
+          write(iulog,*) 'One real root, 2 complex conjugate'
        elseif (Delta == 0.d0) then
-          print*, 'Three real roots of which at least two are equal'
+          write(iulog,*) 'Three real roots of which at least two are equal'
        elseif (Delta < 0.d0) then
-          print*, 'Three distinct real roots'
+          write(iulog,*) 'Three distinct real roots'
        endif
     endif
 
@@ -3453,10 +3265,10 @@ module glissade_bmlt_float
        y3_r = -(u-v)*sqrt(3.d0)/2.d0
 
        if (verbose) then
-          print*, 'a, b, c, d:', a, b, c, d
-          print*, 'p, q:', p, q
-          print*, 'y1 =', y1
-          print*, 'x1 =', x1
+          write(iulog,*) 'a, b, c, d:', a, b, c, d
+          write(iulog,*) 'p, q:', p, q
+          write(iulog,*) 'y1 =', y1
+          write(iulog,*) 'x1 =', x1
        endif
 
     else  ! Delta < 0; three distinct real roots
@@ -3471,13 +3283,13 @@ module glissade_bmlt_float
        y3_i =  0.d0
 
        if (verbose) then
-          print*, 'a, b, c, d:', a, b, c, d
-          print*, 'p, q:', p, q
-          print*, 'y1, y2, y3 =', y1, y2_r, y3_r
-          print*, 'b/3a =', b/(3.d0*a)
-          print*, 'x1 =', y1 - b/(3.d0*a)
-          print*, 'x2 =', y2_r - b/(3.d0*a)
-          print*, 'x3 =', y3_r - b/(3.d0*a)
+          write(iulog,*) 'a, b, c, d:', a, b, c, d
+          write(iulog,*) 'p, q:', p, q
+          write(iulog,*) 'y1, y2, y3 =', y1, y2_r, y3_r
+          write(iulog,*) 'b/3a =', b/(3.d0*a)
+          write(iulog,*) 'x1 =', y1 - b/(3.d0*a)
+          write(iulog,*) 'x2 =', y2_r - b/(3.d0*a)
+          write(iulog,*) 'x3 =', y3_r - b/(3.d0*a)
        endif
 
     endif
