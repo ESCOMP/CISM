@@ -1069,8 +1069,8 @@ contains
     character(len=*), dimension(0:3), parameter :: submarine_melt = (/ &
          'no submarine melt                 ', &
          'constant horizontal meltrate      ', &
-         'ISMIP6 submarine melt forced     ', &
-         'ISMIP6 submarine melt coupled    '/)
+         'ISMIP6 submarine melt forced      ', &
+         'ISMIP6 submarine melt coupled     '/)
 
     !TODO - Change 'marine_margin' to 'calving'?  Would have to modify many config files
     character(len=*), dimension(0:12), parameter :: marine_margin = (/ &
