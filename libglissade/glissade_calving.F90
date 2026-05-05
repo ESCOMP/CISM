@@ -43,14 +43,18 @@ module glissade_calving
   implicit none
 
   private
+!  public :: glissade_calving_mask_init, glissade_subgrid_calving_mask_init, &
+!            glissade_calve_ice, glissade_apply_calving_mask,  &
+!            glissade_remove_icebergs, glissade_remove_isthmuses, glissade_limit_cliffs,  &
+!            glissade_stress_tensor_eigenvalues, glissade_strain_rate_tensor_eigenvalues
   public :: glissade_calving_mask_init, glissade_subgrid_calving_mask_init, &
-            glissade_calve_ice, glissade_apply_calving_mask,  &
-            glissade_remove_icebergs, glissade_remove_isthmuses, glissade_limit_cliffs,  &
-            glissade_stress_tensor_eigenvalues, glissade_strain_rate_tensor_eigenvalues
-  public :: verbose_calving
+       glissade_calving_solve
+
+  public :: verbose_calving, verbose_retreat
 
 !!  logical, parameter :: verbose_calving = .false.
   logical, parameter :: verbose_calving = .true.
+  logical, parameter :: verbose_retreat = .false.
 
 contains
 
@@ -619,6 +623,333 @@ contains
 
 !-------------------------------------------------------------------------------
 
+  subroutine glissade_calving_solve(model, init_calving)
+
+    ! ------------------------------------------------------------------------
+    ! This is the driver subroutine for calving and related processes at the marine margin.
+    ! It includes calls to subroutines for
+    ! (1) mask-based or location-based calving,
+    ! (2) physically-based calving with a subgrid calving-front scheme,
+    ! (3) lateral melt (with the lateral melt term added to the calving term),
+    ! (4) removal of icebergs and isthmuses to ensure code stability, and
+    ! (5) limiting cliff heights.
+    ! ------------------------------------------------------------------------
+
+    use cism_parallel, only: parallel_type, parallel_halo
+
+    use glimmer_physcon, only: scyr
+    use glissade_diagnostics, only: glissade_calvingmip_diag
+    use glissade_masks, only: glissade_get_masks, glissade_calving_front_mask
+    use glissade_grounding_line, only: glissade_grounded_fraction
+    use glide_thck, only: glide_calclsrf
+
+    implicit none
+
+    type(glide_global_type), intent(inout) :: model   ! model instance
+
+    logical, intent(in) :: init_calving  ! true when this subroutine is called at initialization
+
+    ! --- Local variables ---
+
+    integer, dimension(model%general%ewn, model%general%nsn) :: &
+         ice_mask,                & ! = 1 if ice is present
+         floating_mask,           & ! = 1 if ice is present and floating
+         land_mask,               & ! = 1 if topg - eus >= 0
+         ocean_mask                 ! = 1 if ice is absent and topg - eus < 0
+
+    real(dp) :: &
+         maxthck,                 & ! max thickness of retreating ice
+         dthck                      ! thickness loss (m)
+
+    integer :: nx, ny               ! horizontal grid dimensions
+    integer :: itest, jtest, rtest  ! coordinates of diagnostic point
+    integer :: i, j
+
+    type(parallel_type) :: parallel   ! info for parallel communication
+
+    nx = model%general%ewn
+    ny = model%general%nsn
+
+    rtest = -999
+    itest = 1
+    jtest = 1
+    if (this_rank == model%numerics%rdiag_local) then
+       rtest = model%numerics%rdiag_local
+       itest = model%numerics%idiag_local
+       jtest = model%numerics%jdiag_local
+    endif
+
+    parallel = model%parallel
+
+    ! Initialize the ice thickness removed by calving
+    model%calving%calving_thck = 0.0d0
+
+    ! Thin or remove ice where retreat is forced.
+    ! Note: This option is similar to apply_calving_mask.  It is different in that ice_fraction_retreat_mask
+    !       is a real number in the range [0,1], allowing thinning instead of complete removal.
+    !       Do not thin or remove ice if this is the initial calving call; force retreat only during runtime.
+    ! There are two forced retreat options:
+    ! Option 1: Thin or remove ice wherever ice_fraction_retreat_mask > 0 (or a small threshold)
+    ! Option 2: Remove floating ice and weakly grounded ice where ice_fraction_retreat_mask > 0 (or a small threshold).
+    !
+    ! Option 1 is done before calling glissade_calve_ice, so that ice thinned by the retreat mask
+    !        can undergo further thinning or removal by the calving scheme.
+    ! Option 2 is done after the main calving solve, after thin ice at the calving front has been removed
+    !  by other mechanisms.
+    ! An earlier version of option 2 removed only floating cells, but this can create
+    !  isolated, weakly grounded cells that are prone to instability.
+    ! In the current version, weakly grounded cells (i.e., cells with f_ground < f_ground_threshold)
+    !  are alse removed.
+    !
+    ! Note: Option 2 is now part of subroutine apply_calving_mask.
+    !       Consider whether the following logic could go in the same subroutine, or if it is still needed.
+
+    if (model%options%force_retreat == FORCE_RETREAT_ALL_ICE .and. .not.init_calving) then
+       if (this_rank == rtest) then
+          write(iulog,*) 'Forcing retreat using ice_fraction_retreat_mask, time =', model%numerics%time
+       endif
+
+       if (verbose_retreat) then
+          call point_diag(model%geometry%thck, 'Before forced retreat, thck (m)', itest, jtest, rtest, 7, 7)
+          call point_diag(model%geometry%ice_fraction_retreat_mask, 'ice_fraction_retreat_mask', &
+               itest, jtest, rtest, 7, 7)
+          call point_diag(model%geometry%reference_thck * (1.0d0 - model%geometry%ice_fraction_retreat_mask), &
+               'maxthck (m)', itest, jtest, rtest, 7, 7)
+       endif
+
+       do j = 1, model%general%nsn
+          do i = 1, model%general%ewn
+             if (model%geometry%ice_fraction_retreat_mask(i,j) > 0.0d0) then
+                maxthck = model%geometry%reference_thck(i,j) &
+                     * (1.0d0 - model%geometry%ice_fraction_retreat_mask(i,j))
+                dthck = model%geometry%thck(i,j) - min(maxthck, model%geometry%thck(i,j))
+                model%geometry%thck(i,j) = model%geometry%thck(i,j) - dthck
+                model%calving%calving_thck(i,j) = model%calving%calving_thck(i,j) + dthck
+             endif
+          enddo
+       enddo
+
+       if (verbose_retreat) then
+          call point_diag(model%geometry%thck, 'After forced retreat, thck (m)', &
+               itest, jtest, rtest, 7, 7)
+       endif
+
+    endif   ! force_retreat_all_ice
+
+    !TODO - Make sure no additional halo updates are needed before glissade_calve_ice
+
+    ! Note: We set model%calving%calving_thck = 0 at the start of the time step.
+    !       Thus, calving_thck can be nonzero at the start of the calving solve,
+    !       if incremented during the transport solve (when using a subgrid CF).
+
+
+    ! ------------------------------------------------------------------------
+    ! Calve ice based on the value of whichcalving.
+    ! Pass in thck, topg, etc. with units of meters.
+    ! TODO: Pass in individual fields with SI units, instead of the calving derived type?
+    !       Replace with calls to multiple subroutines based on whichcalving?
+    ! ------------------------------------------------------------------------
+
+    if (model%options%whichcalving /= CALVING_GRID_MASK) then
+
+       if (main_task .and. verbose_calving) write(iulog,*) 'Call glissade_calve_ice'
+
+       call glissade_calve_ice(&
+            nx,           ny,                  &
+            model%options%whichcalving,        &
+            model%options%calving_domain,      &
+            model%options%which_ho_calving_front,     &
+            model%options%which_ho_calvingmip_domain, &
+            parallel,                          &
+            model%calving,                     &        ! calving object; includes calving_thck (m)
+            itest, jtest, rtest,               &
+            model%numerics%dt,                 &        ! s
+            model%numerics%time*scyr,          &        ! s
+            model%numerics%dew,                &        ! m
+            model%numerics%dns,                &        ! m
+            model%general%x0,                  &        ! m
+            model%general%y0,                  &        ! m
+            model%general%x1,                  &        ! m
+            model%general%y1,                  &        ! m
+            model%numerics%sigma,              &
+            model%numerics%thklim,             &        ! m
+            model%velocity%uvel_2d,            &        ! m/s
+            model%velocity%vvel_2d,            &        ! m/s
+            model%geometry%thck_old,           &        ! m
+            model%geometry%thck,               &        ! m
+            model%isostasy%relx,               &        ! m
+            model%geometry%topg,               &        ! m
+            model%climate%eus)                          ! m
+
+    endif
+
+    ! Optionally, apply one of several kinds of calving mask
+
+    if (model%options%force_retreat == FORCE_RETREAT_FLOATING_ICE .or. &
+        model%options%whichcalving == CALVING_GRID_MASK .or. model%options%apply_calving_mask) then
+
+       ! Thin or remove ice based on other masks (model%calving%calving_mask, model%calving%subgrid_calving_mask)
+       call apply_calving_mask(model)
+
+    endif
+
+    ! If running a CalvingMIP experiment, then compute some diagnostics
+
+    if (model%options%which_ho_calvingmip_domain /= HO_CALVINGMIP_DOMAIN_NONE) then
+       call glissade_calvingmip_diag(model)
+    endif
+
+    if (model%options%remove_isthmuses) then
+
+       ! Optionally, remove isthmuses.
+       ! An isthmus is defined as a floating or weakly grounded grid cell with ice-free ocean
+       !  or thin floating ice on both sides.
+       ! When using a calving or retreat mask derived from an ESM or other model,
+       !  isthmuses may need to be removed to prevent unstable ice configurations,
+       !  e.g. a shelf split into two parts connected by a bridge one cell wide.
+       ! Isthmus removal should always be followed by iceberg removal.
+
+       ! Update the masks
+       call glissade_get_masks(&
+            nx,                     ny,                         &
+            parallel,                                           &
+            model%geometry%thck,    model%geometry%topg,        &
+            model%climate%eus,      model%numerics%thklim,      &
+            ice_mask,                                           &
+            floating_mask = floating_mask,                      &
+            ocean_mask = ocean_mask,                            &
+            land_mask = land_mask)
+
+       ! Compute f_ground_cell for isthmus removal
+
+       call glissade_grounded_fraction(&
+            nx,          ny,               &
+            parallel,                      &
+            itest, jtest, rtest,           &
+            model%geometry%thck,           &
+            model%geometry%topg,           &
+            model%climate%eus,             &
+            ice_mask,                      &
+            floating_mask,                 &
+            land_mask,                     &
+            model%options%which_ho_ground, &
+            model%options%which_ho_flotation_function, &
+            model%options%which_ho_fground_no_glp,     &
+            model%geometry%f_flotation,    &
+            model%geometry%f_ground,       &
+            model%geometry%f_ground_cell,  &
+            model%geometry%topg_raised)
+
+       call remove_isthmuses(&
+            nx,           ny,              &
+            itest, jtest, rtest,           &
+            model%calving%f_ground_threshold, &
+            model%geometry%thck,           &
+            model%geometry%f_ground_cell,  &
+            floating_mask,                 &
+            ocean_mask,                    &
+            model%calving%calving_thck)
+
+    endif  ! remove isthmuses
+
+    ! ------------------------------------------------------------------------
+    ! Remove any icebergs.
+    ! For the velocity solver to be robust, we require that any floating cell
+    !  is connected to grounded ice along a path consisting only of active cells.
+    ! Floating cells without such a connection are calved as icebergs.
+    ! Note: ice_mask is computed with a lower limit of thklim (not 0.0),
+    !       since we don't want very thin floating ice to spread the fill.
+    ! ------------------------------------------------------------------------
+
+    if (model%options%remove_icebergs) then
+
+       ! Update the basic masks
+
+       call glissade_get_masks(&
+            nx,                     ny,                            &
+            parallel,                                              &
+            model%geometry%thck,    model%geometry%topg,           &
+            model%climate%eus,      model%numerics%thklim,         &
+            ice_mask,               floating_mask = floating_mask, &
+            land_mask = land_mask,  ocean_mask = ocean_mask)
+
+       ! Compute the grounded ice fraction in each grid cell
+       !TODO - See if we can spread the fill with a grounded_mask (i.e., without f_ground_cell)
+       call glissade_grounded_fraction(&
+            nx,          ny,               &
+            parallel,                      &
+            itest, jtest, rtest,           &
+            model%geometry%thck,           &
+            model%geometry%topg,           &
+            model%climate%eus,             &
+            ice_mask,                      &
+            floating_mask,                 &
+            land_mask,                     &
+            model%options%which_ho_ground, &
+            model%options%which_ho_flotation_function, &
+            model%options%which_ho_fground_no_glp,     &
+            model%geometry%f_flotation,    &
+            model%geometry%f_ground,       &
+            model%geometry%f_ground_cell,  &
+            model%geometry%topg_raised)
+
+       ! Remove icebergs.
+       ! Icebergs are defined as floating cells that do not have a path through active cells
+       !  to grounded cells (i.e., cells where f_ground_cell exceeds a threshold value).
+
+       call remove_icebergs(&
+            nx,           ny,                     &
+            parallel,                             &
+            itest, jtest, rtest,                  &
+            model%calving%f_ground_threshold,     &
+            model%geometry%thck,                  &  ! m
+            model%geometry%f_ground_cell,         &
+            ice_mask,                             &
+            floating_mask,                        &
+            land_mask,                            &
+            model%calving%calving_thck)              ! m
+
+    endif   ! remove icebergs
+
+    ! Optionally, impose a thickness limit on marine ice cliffs.
+    ! These are defined as grounded marine-based cells adjacent to inactive calving_front cells or ice-free ocean.
+
+    if (model%options%limit_marine_cliffs) then   ! Impose a thickness limit on marine ice cliffs
+
+       call limit_cliffs(&
+            nx,             ny,            &
+            parallel,                      &
+            itest,  jtest,  rtest,         &
+            model%numerics%dt,             &     ! s
+            model%calving%taumax_cliff,    &     ! Pa
+            model%calving%cliff_timescale, &     ! s
+            model%geometry%thck,           &     ! m
+            model%geometry%topg,           &     ! m
+            model%climate%eus,             &     ! m
+            model%numerics%thklim,         &     ! m
+            model%calving%calving_thck)          ! m
+
+    endif
+
+    !TODO: Are any other halo updates needed after calving?
+    ! halo updates
+    call parallel_halo(model%geometry%thck, parallel)   ! Updated halo values of thck are needed below in calclsrf
+
+    ! update the upper and lower surfaces
+
+    call glide_calclsrf(model%geometry%thck, model%geometry%topg,       &
+                        model%climate%eus,   model%geometry%lsrf)
+    model%geometry%usrf(:,:) = max(0.d0, model%geometry%thck(:,:) + model%geometry%lsrf(:,:))
+
+    if (verbose_calving) then
+       call point_diag(model%calving%calving_thck, 'Final calving thck (m)', itest, jtest, rtest, 7, 7)
+       call point_diag(model%geometry%thck, 'Final thck (m)', itest, jtest, rtest, 7, 7)
+    endif  ! verbose_calving
+
+  end subroutine glissade_calving_solve
+
+!-------------------------------------------------------------------------------
+
   !TODO: Consider dividing into two subroutines, with one subroutine for subgrid calving schemes only.
   subroutine glissade_calve_ice(nx,             ny,      &
                                 which_calving,           &
@@ -643,7 +974,7 @@ contains
     ! Note: This subroutine uses SI units.
 
     use glissade_masks, only: glissade_get_masks, glissade_calving_front_mask
-    use glissade_utils, only: glissade_input_fluxes, glissade_quadrant_sum
+    use glissade_utils, only: glissade_input_fluxes
     use glissade_grid_operators, only: glissade_unstagger
 
     implicit none
@@ -3119,7 +3450,7 @@ contains
 
 !---------------------------------------------------------------------------
 
-  subroutine glissade_apply_calving_mask(model)
+  subroutine apply_calving_mask(model)
 
     ! Remove ice where forced by a calving mask.
     ! The mask can be an integer mask with binary values (0 or 1) values,
@@ -3516,11 +3847,11 @@ contains
 
     endif   ! subgrid CF
 
-  end subroutine glissade_apply_calving_mask
+  end subroutine apply_calving_mask
 
 !---------------------------------------------------------------------------
 
-  subroutine glissade_remove_icebergs(&
+  subroutine remove_icebergs(&
        nx,           ny,            &
        parallel,                    &
        itest, jtest, rtest,         &
@@ -3734,11 +4065,11 @@ contains
        call point_diag(thck, 'After iceberg removal, thck', itest, jtest, rtest, 7, 7)
     endif
 
-  end subroutine glissade_remove_icebergs
+  end subroutine remove_icebergs
 
 !---------------------------------------------------------------------------
 
-  subroutine glissade_remove_isthmuses(&
+  subroutine remove_isthmuses(&
        nx,           ny,            &
        itest, jtest, rtest,         &
        f_ground_threshold,          &
@@ -3831,11 +4162,11 @@ contains
        call point_diag(thck, 'After isthmus removal, thck', itest, jtest, rtest, 7, 7)
     endif
 
-  end subroutine glissade_remove_isthmuses
+  end subroutine remove_isthmuses
 
 !---------------------------------------------------------------------------
 
-  subroutine glissade_limit_cliffs(&
+  subroutine limit_cliffs(&
        nx,             ny,              &
        parallel,                        &
        itest,  jtest,  rtest,           &
@@ -3945,201 +4276,7 @@ contains
        call point_diag(calving_thck, 'calving_thck (m)', itest, jtest, rtest, 7, 7)
     endif
 
-  end subroutine glissade_limit_cliffs
-
-!---------------------------------------------------------------------------
-
-  !TODO - Move to a different module?
-  subroutine glissade_stress_tensor_eigenvalues(&
-       nx,    ny,   nz,   &
-       sigma,             &
-       tau,               &
-       tau_eigen1,        &
-       tau_eigen2)
-
-    ! Compute the eigenvalues of the 2D horizontal stress tensor.
-    ! These are used for eigencalving and damage-based calving.
-
-    ! input/output arguments
-
-    integer, intent(in) :: &
-         nx, ny, nz                ! grid dimensions
-
-    real(dp), dimension(nz), intent(in) :: &
-         sigma                     ! vertical sigma coordinate
-
-    type(glide_tensor), intent(in) :: &
-         tau                       ! 3D stress tensor (Pa)
-
-    real(dp), dimension(nx,ny), intent(out) :: &
-         tau_eigen1, tau_eigen2    ! eigenvalues of 2D horizontal stress tensor (Pa)
-
-    ! local variables
-
-    integer :: i, j, k
-    real(dp) :: a, b, c, dsigma, root, lambda1, lambda2
-    real(dp) :: tau_xx, tau_yy, tau_xy   ! vertically averaged stress tensor components
-
-    tau_eigen1 = 0.0d0
-    tau_eigen2 = 0.0d0
-
-    do j = 1, ny
-       do i = 1, nx
-
-          ! compute vertically averaged stress components
-          tau_xx = 0.0d0
-          tau_yy = 0.0d0
-          tau_xy = 0.0d0
-
-          do k = 1, nz-1
-             dsigma = sigma(k+1) - sigma(k)
-             tau_xx = tau_xx + tau%xx(k,i,j) * dsigma
-             tau_yy = tau_yy + tau%yy(k,i,j) * dsigma
-             tau_xy = tau_xy + tau%xy(k,i,j) * dsigma
-          enddo
-
-          ! compute the eigenvalues of the vertically integrated stress tensor
-          a = 1.0d0
-          b = -(tau_xx + tau_yy)
-          c = tau_xx*tau_yy - tau_xy*tau_xy
-          if (b*b - 4.0d0*a*c > 0.0d0) then   ! two real eigenvalues
-             root = sqrt(b*b - 4.0d0*a*c)
-             lambda1 = (-b + root) / (2.0d0*a)
-             lambda2 = (-b - root) / (2.0d0*a)
-             if (lambda1 > lambda2) then
-                tau_eigen1(i,j) = lambda1
-                tau_eigen2(i,j) = lambda2
-             else
-                tau_eigen1(i,j) = lambda2
-                tau_eigen2(i,j) = lambda1
-             endif
-          endif  ! b^2 - 4ac > 0
-
-       enddo   ! i
-    enddo   ! j
-
-  end subroutine glissade_stress_tensor_eigenvalues
-
-!---------------------------------------------------------------------------
-
-  subroutine glissade_strain_rate_tensor_eigenvalues(&
-       nx,    ny,   nz,          &
-       sigma,                    &
-       strain_rate,              &
-       eps_eigen1,  eps_eigen2,  &
-       tau,         efvs,  &
-       divu,        shear)
-
-    ! Compute the eigenvalues of the 2D horizontal strain rate tensor.
-    ! These can be used for eigencalving and damage-based calving, or for diagnostics.
-    ! There are two ways to call the subroutine:
-    ! (1) Pass in the strain rate tensor and compute the eigenvalues directly.
-    ! (2) Pass in the stress tensor as an optional argument, compute the strain rate tensor
-    !     from the stress tensor and effective viscosity, and then compute the eigenvalues.
-
-    ! input/output arguments
-
-    integer, intent(in) :: &
-         nx, ny, nz                ! grid dimensions
-
-    real(dp), dimension(nz), intent(in) :: &
-         sigma                     ! vertical sigma coordinate
-
-    type(glide_tensor), intent(inout) :: &
-         strain_rate               ! 3D strain rate tensor
-                                   ! intent(out) if computed from tau and efvs
-
-    real(dp), dimension(nx,ny), intent(out) :: &
-         eps_eigen1, eps_eigen2    ! eigenvalues of 2D horizontal stress tensor (1/s)
-
-    type(glide_tensor), intent(in), optional :: &
-         tau                       ! 3D stress tensor (Pa)
-
-    real(dp), dimension(nz-1,nx,ny), intent(in), optional :: &
-         efvs                      ! effective viscosity (Pa s)
-
-    real(dp), dimension(nx,ny), intent(out), optional :: &
-         divu,                   & ! divergence of horizontal flow (1/s)
-         shear                     ! shear-related invariant of horizontal flow (1/s)
-                                   ! not strictly shear since it includes a tensile term
-    ! local variables
-
-    integer :: i, j, k
-    real(dp) :: a, b, c, dsigma, root, lambda1, lambda2
-    real(dp) :: eps_xx, eps_yy, eps_xy   ! vertically averaged strain rate tensor components
-
-    ! Optionally, compute the strain rate tensor from the stress tensor and effective viscosity
-
-    if (present(tau) .and. present(efvs)) then
-
-       where (efvs > 0.0d0)
-          strain_rate%scalar = tau%scalar / (2.d0 * efvs)
-          strain_rate%xz = tau%xz / (2.d0 * efvs)
-          strain_rate%yz = tau%yz / (2.d0 * efvs)
-          strain_rate%xx = tau%xx / (2.d0 * efvs)
-          strain_rate%yy = tau%yy / (2.d0 * efvs)
-          strain_rate%xy = tau%xy / (2.d0 * efvs)
-       elsewhere
-          strain_rate%scalar = 0.0d0
-          strain_rate%xz = 0.0d0
-          strain_rate%yz = 0.0d0
-          strain_rate%xx = 0.0d0
-          strain_rate%yy = 0.0d0
-          strain_rate%xy = 0.0d0
-       endwhere
-    endif
-
-    ! Compute the eigenvalues of the 2D horizontal strain rate tensor
-
-    eps_eigen1 = 0.0d0
-    eps_eigen2 = 0.0d0
-
-    do j = 1, ny
-       do i = 1, nx
-
-          ! compute vertically averaged strain rate components
-          eps_xx = 0.0d0
-          eps_yy = 0.0d0
-          eps_xy = 0.0d0
-
-          do k = 1, nz-1
-             dsigma = sigma(k+1) - sigma(k)
-             eps_xx = eps_xx + strain_rate%xx(k,i,j) * dsigma
-             eps_yy = eps_yy + strain_rate%yy(k,i,j) * dsigma
-             eps_xy = eps_xy + strain_rate%xy(k,i,j) * dsigma
-          enddo
-
-          ! compute the eigenvalues of the vertically integrated strain rate tensor
-          a = 1.0d0
-          b = -(eps_xx + eps_yy)
-          c = eps_xx*eps_yy - eps_xy*eps_xy
-          if (b*b - 4.0d0*a*c > 0.0d0) then   ! two real eigenvalues
-             root = sqrt(b*b - 4.0d0*a*c)
-             lambda1 = (-b + root) / (2.0d0*a)
-             lambda2 = (-b - root) / (2.0d0*a)
-             if (lambda1 > lambda2) then
-                eps_eigen1(i,j) = lambda1
-                eps_eigen2(i,j) = lambda2
-             else
-                eps_eigen1(i,j) = lambda2
-                eps_eigen2(i,j) = lambda1
-             endif
-          endif  ! b^2 - 4ac > 0
-
-          ! Optionally, compute two other invariants of the horizontal flow:
-          !    divu = eps_xx + eps_yy
-          !    shear = sqrt{[(eps_xx - eps_yy)/2]^2 + eps_xy^2}
-          ! These are related to the eigenvalues as:
-          !    eps1 = divu + shear
-          !    eps2 = divu - shear
-          if (present(divu)) divu(i,j)  = (eps_xx + eps_yy)/2.0d0
-          if (present(shear)) &
-               shear(i,j) = sqrt(((eps_xx - eps_yy)/2.0d0)**2 + eps_xy**2)
-
-       enddo   ! i
-    enddo   ! j
-
-  end subroutine glissade_strain_rate_tensor_eigenvalues
+  end subroutine limit_cliffs
 
 !---------------------------------------------------------------------------
 

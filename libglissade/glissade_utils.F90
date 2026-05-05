@@ -44,7 +44,7 @@ module glissade_utils
        glissade_basin_sum, glissade_basin_average, &
        glissade_usrf_to_thck, glissade_thck_to_usrf, &
        glissade_edge_fluxes, glissade_input_fluxes, &
-       glissade_quadrant_sum, glissade_rms_error, write_array_to_file, &
+       glissade_rms_error, write_array_to_file, &
        glissade_cleanup_tiny_thickness, glissade_cleanup_icefree_cells
 
   interface write_array_to_file
@@ -54,6 +54,12 @@ module glissade_utils
 
 contains
 
+  !TODO - Move some of these subroutines to glissade_diagnostics.
+  !       It's a bit arbitrary whether to call something a diagnostic subroutine
+  !        or a utility subroutine, but in general, the utility subroutines
+  !        carry out operations that affects the ice state, while the
+  !        diagnostic subroutines compute useful quantities desired
+  !        for physics parameterizations or I/O.
 !****************************************************************************
 
   subroutine glissade_adjust_thickness(model)
@@ -976,141 +982,6 @@ contains
     enddo
 
   end subroutine glissade_input_fluxes
-
-!***********************************************************************
-
-  subroutine glissade_quadrant_sum(&
-       nx,        ny,            &
-       parallel,                 &
-       field,     quadrant_sum)
-
-    ! Integrate a field over each of 4 quadrants.
-    ! This can be useful in idealized experiments like CalvingMIP to check for
-    !  violations of reflectional or rotational symmetry.
-    ! Note: These sums are not independent of processor count
-    ! TODO: Make them reproducible, using quadrant masks?
-
-    use cism_parallel, only: nhalo, parallel_global_sum_patch, parallel_globalindex, gather_var
-
-    ! Input/output arguments
-
-    integer, intent(in) :: &
-         nx, ny                   ! number of local cells in x and y direction on input grid
-
-    type(parallel_type), intent(in) :: parallel   ! info for parallel communication
-
-    real(dp), dimension(nx,ny), intent(in) :: &
-         field                    ! 2D input field
-
-    real(dp), dimension(4), intent(out) :: &
-         quadrant_sum             ! global sum over each of 4 quadrants
-
-    logical, parameter :: check_asymmetry = .true.
-
-    ! Local variables
-
-    integer :: i, j
-    integer :: ig, jg             ! i and j indices on the global grid
-    integer :: nxg, nyg           ! dimensions of global domain
-    integer :: nx2, ny2           ! nx/2 and ny/2 (if nx and ny are even)
-                                  ! (nx-1)/2 and (ny-1)/2 (if nx and ny are odd)
-
-    integer, dimension(nx,ny) :: &
-         quadrant_mask            ! mask assigning each cell to a quadrent (1, 2, 3 or 4)
-
-    real(dp), dimension(:,:), allocatable :: field_global
-
-    real(dp) :: meanval, diff
-    real(dp), parameter :: symmetry_tol = 1.0d-5    ! tolerance level for asymmetry
-
-
-    ! Compute a mask that assigns each cell to one of 4 quadrants.
-    ! Note: If nx or ny is odd, the middle row or column is excluded from the quadrant sums.
-
-    nxg = parallel%global_ewn
-    nyg = parallel%global_nsn
-
-    if (mod(nxg,2) == 0) then   ! global_ewn is even
-       nx2 = nxg/2
-    else   ! nx is odd
-       nx2 = (nxg-1)/2
-    endif
-
-    if (mod(nyg,2) == 0) then   ! global_nsn is even
-       ny2 = nyg/2
-    else   ! ny is odd
-       ny2 = (nyg-1)/2
-    endif
-
-    quadrant_mask(:,:) = 0
-
-    do j = nhalo+1, ny-nhalo
-       do i = nhalo+1, nx-nhalo
-          call parallel_globalindex(i, j, ig, jg, parallel)
-          if (ig > nx2) then
-             if (jg > ny2) then   ! NE quadrant
-                quadrant_mask(i,j) = 1
-             else   ! jg <= ny2; SE quadrant
-                quadrant_mask(i,j) = 4
-             endif
-          else   ! ig <= nx2
-             if (jg > ny2) then   ! NW quadrant
-                quadrant_mask(i,j) = 2
-             else   ! jg <= ny2; SW quadrant
-                quadrant_mask(i,j) = 3
-             endif
-          endif
-       enddo
-    enddo
-
-    ! Compute the global sums
-    ! Note: These sums are reproducible if reproducible_sums = .true.
-    quadrant_sum(:) = parallel_global_sum_patch(field, 4, quadrant_mask, parallel)
-
-    if (check_asymmetry) then
-
-       call gather_var(field, field_global, parallel)
-
-       if (main_task) then
-
-          ! Identify asymmetries in reflection across the y-axis
-          if (abs(quadrant_sum(1) + quadrant_sum(4) - quadrant_sum(2) - quadrant_sum(3)) > symmetry_tol) then
-             do j = 1, nyg
-                do i = 1, nx2
-                   if (abs(field_global(i,j)) > eps11 .or. abs(field_global(nxg-i+1,j)) > eps11) then
-                      meanval = 0.5d0 * (field_global(i,j) + field_global(nxg-i+1,j))
-                      diff = abs(field_global(i,j) - field_global(nxg-i+1,j))
-                      if (diff > meanval*symmetry_tol) then
-                         write(iulog,*) 'Warning, y-reflection asymmetry: i, j, val(i,j), val(nxg-i+1,j), diff/mean:', &
-                              i, j, field_global(i,j), field_global(nxg-i+1,j), diff/meanval
-                      endif
-                   endif
-                enddo
-             enddo
-          endif
-
-          ! Identify asymmetries in reflection across the x-axis
-          if (abs(quadrant_sum(1) + quadrant_sum(2) - quadrant_sum(3) - quadrant_sum(4)) > symmetry_tol) then
-             do j = 1, nyg
-                do i = 1, nx2
-                   if (abs(field_global(i,j)) > eps11 .or. abs(field_global(i,nyg-j+1)) > eps11) then
-                      meanval = 0.5d0 * (field_global(i,j) + field_global(i,nyg-j+1))
-                      diff = abs(field_global(i,j) - field_global(i,nyg-j+1))
-                      if (diff > meanval*symmetry_tol) then
-                         write(iulog,*) 'Warning, x-reflection asymmetry: i, j, val(i,j), val(i,nyg-j+1), diff/mean:', &
-                              i, j, field_global(i,j), field_global(i,nyg-j+1), diff/meanval
-                      endif
-                   endif
-                enddo
-             enddo
-          endif
-
-          if (allocated(field_global)) deallocate(field_global)
-
-       endif   ! main_task
-    endif   ! check_asymmetry
-
-  end subroutine glissade_quadrant_sum
 
 !***********************************************************************
 

@@ -53,14 +53,206 @@
     implicit none
 
     private
-    public :: glissade_calvingmip_diag
+    public :: glissade_stress_tensor_eigenvalues, glissade_strain_rate_tensor_eigenvalues, &
+         glissade_calvingmip_diag
 
     logical, parameter :: verbose_calvingmip = .true.
 
   contains
 
 !****************************************************************************
-    
+
+  subroutine glissade_stress_tensor_eigenvalues(&
+       nx,    ny,   nz,   &
+       sigma,             &
+       tau,               &
+       tau_eigen1,        &
+       tau_eigen2)
+
+    ! Diagnose the eigenvalues of the 2D horizontal stress tensor.
+    ! These are used for eigencalving and damage-based calving.
+
+    ! input/output arguments
+
+    integer, intent(in) :: &
+         nx, ny, nz                ! grid dimensions
+
+    real(dp), dimension(nz), intent(in) :: &
+         sigma                     ! vertical sigma coordinate
+
+    type(glide_tensor), intent(in) :: &
+         tau                       ! 3D stress tensor (Pa)
+
+    real(dp), dimension(nx,ny), intent(out) :: &
+         tau_eigen1, tau_eigen2    ! eigenvalues of 2D horizontal stress tensor (Pa)
+
+    ! local variables
+
+    integer :: i, j, k
+    real(dp) :: a, b, c, dsigma, root, lambda1, lambda2
+    real(dp) :: tau_xx, tau_yy, tau_xy   ! vertically averaged stress tensor components
+
+    tau_eigen1 = 0.0d0
+    tau_eigen2 = 0.0d0
+
+    do j = 1, ny
+       do i = 1, nx
+
+          ! compute vertically averaged stress components
+          tau_xx = 0.0d0
+          tau_yy = 0.0d0
+          tau_xy = 0.0d0
+
+          do k = 1, nz-1
+             dsigma = sigma(k+1) - sigma(k)
+             tau_xx = tau_xx + tau%xx(k,i,j) * dsigma
+             tau_yy = tau_yy + tau%yy(k,i,j) * dsigma
+             tau_xy = tau_xy + tau%xy(k,i,j) * dsigma
+          enddo
+
+          ! compute the eigenvalues of the vertically integrated stress tensor
+          a = 1.0d0
+          b = -(tau_xx + tau_yy)
+          c = tau_xx*tau_yy - tau_xy*tau_xy
+          if (b*b - 4.0d0*a*c > 0.0d0) then   ! two real eigenvalues
+             root = sqrt(b*b - 4.0d0*a*c)
+             lambda1 = (-b + root) / (2.0d0*a)
+             lambda2 = (-b - root) / (2.0d0*a)
+             if (lambda1 > lambda2) then
+                tau_eigen1(i,j) = lambda1
+                tau_eigen2(i,j) = lambda2
+             else
+                tau_eigen1(i,j) = lambda2
+                tau_eigen2(i,j) = lambda1
+             endif
+          endif  ! b^2 - 4ac > 0
+
+       enddo   ! i
+    enddo   ! j
+
+  end subroutine glissade_stress_tensor_eigenvalues
+
+!---------------------------------------------------------------------------
+
+  subroutine glissade_strain_rate_tensor_eigenvalues(&
+       nx,    ny,   nz,          &
+       sigma,                    &
+       strain_rate,              &
+       eps_eigen1,  eps_eigen2,  &
+       tau,         efvs,  &
+       divu,        shear)
+
+    ! Diagnose the eigenvalues of the 2D horizontal strain rate tensor.
+    ! These can be used for eigencalving and damage-based calving, or for diagnostics.
+    ! There are two ways to call the subroutine:
+    ! (1) Pass in the strain rate tensor and compute the eigenvalues directly.
+    ! (2) Pass in the stress tensor as an optional argument, compute the strain rate tensor
+    !     from the stress tensor and effective viscosity, and then compute the eigenvalues.
+
+    ! input/output arguments
+
+    integer, intent(in) :: &
+         nx, ny, nz                ! grid dimensions
+
+    real(dp), dimension(nz), intent(in) :: &
+         sigma                     ! vertical sigma coordinate
+
+    type(glide_tensor), intent(inout) :: &
+         strain_rate               ! 3D strain rate tensor
+                                   ! intent(out) if computed from tau and efvs
+
+    real(dp), dimension(nx,ny), intent(out) :: &
+         eps_eigen1, eps_eigen2    ! eigenvalues of 2D horizontal stress tensor (1/s)
+
+    type(glide_tensor), intent(in), optional :: &
+         tau                       ! 3D stress tensor (Pa)
+
+    real(dp), dimension(nz-1,nx,ny), intent(in), optional :: &
+         efvs                      ! effective viscosity (Pa s)
+
+    real(dp), dimension(nx,ny), intent(out), optional :: &
+         divu,                   & ! divergence of horizontal flow (1/s)
+         shear                     ! shear-related invariant of horizontal flow (1/s)
+                                   ! not strictly shear since it includes a tensile term
+    ! local variables
+
+    integer :: i, j, k
+    real(dp) :: a, b, c, dsigma, root, lambda1, lambda2
+    real(dp) :: eps_xx, eps_yy, eps_xy   ! vertically averaged strain rate tensor components
+
+    ! Optionally, compute the strain rate tensor from the stress tensor and effective viscosity
+
+    if (present(tau) .and. present(efvs)) then
+
+       where (efvs > 0.0d0)
+          strain_rate%scalar = tau%scalar / (2.d0 * efvs)
+          strain_rate%xz = tau%xz / (2.d0 * efvs)
+          strain_rate%yz = tau%yz / (2.d0 * efvs)
+          strain_rate%xx = tau%xx / (2.d0 * efvs)
+          strain_rate%yy = tau%yy / (2.d0 * efvs)
+          strain_rate%xy = tau%xy / (2.d0 * efvs)
+       elsewhere
+          strain_rate%scalar = 0.0d0
+          strain_rate%xz = 0.0d0
+          strain_rate%yz = 0.0d0
+          strain_rate%xx = 0.0d0
+          strain_rate%yy = 0.0d0
+          strain_rate%xy = 0.0d0
+       endwhere
+    endif
+
+    ! Compute the eigenvalues of the 2D horizontal strain rate tensor
+
+    eps_eigen1 = 0.0d0
+    eps_eigen2 = 0.0d0
+
+    do j = 1, ny
+       do i = 1, nx
+
+          ! compute vertically averaged strain rate components
+          eps_xx = 0.0d0
+          eps_yy = 0.0d0
+          eps_xy = 0.0d0
+
+          do k = 1, nz-1
+             dsigma = sigma(k+1) - sigma(k)
+             eps_xx = eps_xx + strain_rate%xx(k,i,j) * dsigma
+             eps_yy = eps_yy + strain_rate%yy(k,i,j) * dsigma
+             eps_xy = eps_xy + strain_rate%xy(k,i,j) * dsigma
+          enddo
+
+          ! compute the eigenvalues of the vertically integrated strain rate tensor
+          a = 1.0d0
+          b = -(eps_xx + eps_yy)
+          c = eps_xx*eps_yy - eps_xy*eps_xy
+          if (b*b - 4.0d0*a*c > 0.0d0) then   ! two real eigenvalues
+             root = sqrt(b*b - 4.0d0*a*c)
+             lambda1 = (-b + root) / (2.0d0*a)
+             lambda2 = (-b - root) / (2.0d0*a)
+             if (lambda1 > lambda2) then
+                eps_eigen1(i,j) = lambda1
+                eps_eigen2(i,j) = lambda2
+             else
+                eps_eigen1(i,j) = lambda2
+                eps_eigen2(i,j) = lambda1
+             endif
+          endif  ! b^2 - 4ac > 0
+
+          ! Optionally, compute two other invariants of the horizontal flow:
+          !    divu = eps_xx + eps_yy
+          !    shear = sqrt{[(eps_xx - eps_yy)/2]^2 + eps_xy^2}
+          ! These are related to the eigenvalues as:
+          !    eps1 = divu + shear
+          !    eps2 = divu - shear
+          if (present(divu)) divu(i,j)  = (eps_xx + eps_yy)/2.0d0
+          if (present(shear)) &
+               shear(i,j) = sqrt(((eps_xx - eps_yy)/2.0d0)**2 + eps_xy**2)
+
+       enddo   ! i
+    enddo   ! j
+
+  end subroutine glissade_strain_rate_tensor_eigenvalues
+
 !---------------------------------------------------------------------------
 ! The next three subroutines are diagnostic subroutines for CalvingMIP.
 ! They estimate the calving front location along 8 prescribed axes
@@ -78,7 +270,6 @@
     !  along 8 axes for the circular and Thule domains.
 
     use glissade_masks, only: glissade_get_masks, glissade_calving_front_mask
-    use glissade_utils, only: glissade_quadrant_sum
     use glissade_grid_operators, only: glissade_unstagger
     use cism_parallel, only: parallel_halo, parallel_global_sum
 
@@ -118,7 +309,6 @@
          total_ice_area         ! total effective ice area (with weighting by effective_areafrac)
 
     real(dp), dimension(4) :: quadrant_sum   ! sum over each of the 4 quadrants for calvingMIP
-
 
     nx = model%general%ewn
     ny = model%general%nsn
@@ -248,7 +438,7 @@
        ! Compute the total ice area and the area of each quadrant
        total_ice_area = parallel_global_sum(dx*dy*model%calving%effective_areafrac, parallel)
 
-       call glissade_quadrant_sum(&
+       call sum_over_quadrants(&
             nx,                  ny,                &
             parallel,                               &
             model%calving%effective_areafrac, &  ! m^2
@@ -1699,6 +1889,141 @@
     endif
 
   end subroutine locate_calving_front_thule
+
+!---------------------------------------------------------------------------
+
+  subroutine sum_over_quadrants(&
+       nx,        ny,            &
+       parallel,                 &
+       field,     quadrant_sum)
+
+    ! Integrate a field over each of 4 quadrants.
+    ! This can be useful in idealized experiments like CalvingMIP to check for
+    !  violations of reflectional or rotational symmetry.
+    ! Note: These sums are not independent of processor count
+    ! TODO: Make them reproducible, using quadrant masks?
+
+    use cism_parallel, only: nhalo, parallel_global_sum_patch, parallel_globalindex, gather_var
+
+    ! Input/output arguments
+
+    integer, intent(in) :: &
+         nx, ny                   ! number of local cells in x and y direction on input grid
+
+    type(parallel_type), intent(in) :: parallel   ! info for parallel communication
+
+    real(dp), dimension(nx,ny), intent(in) :: &
+         field                    ! 2D input field
+
+    real(dp), dimension(4), intent(out) :: &
+         quadrant_sum             ! global sum over each of 4 quadrants
+
+    logical, parameter :: check_asymmetry = .true.
+
+    ! Local variables
+
+    integer :: i, j
+    integer :: ig, jg             ! i and j indices on the global grid
+    integer :: nxg, nyg           ! dimensions of global domain
+    integer :: nx2, ny2           ! nx/2 and ny/2 (if nx and ny are even)
+                                  ! (nx-1)/2 and (ny-1)/2 (if nx and ny are odd)
+
+    integer, dimension(nx,ny) :: &
+         quadrant_mask            ! mask assigning each cell to a quadrent (1, 2, 3 or 4)
+
+    real(dp), dimension(:,:), allocatable :: field_global
+
+    real(dp) :: meanval, diff
+    real(dp), parameter :: symmetry_tol = 1.0d-5    ! tolerance level for asymmetry
+
+
+    ! Compute a mask that assigns each cell to one of 4 quadrants.
+    ! Note: If nx or ny is odd, the middle row or column is excluded from the quadrant sums.
+
+    nxg = parallel%global_ewn
+    nyg = parallel%global_nsn
+
+    if (mod(nxg,2) == 0) then   ! global_ewn is even
+       nx2 = nxg/2
+    else   ! nx is odd
+       nx2 = (nxg-1)/2
+    endif
+
+    if (mod(nyg,2) == 0) then   ! global_nsn is even
+       ny2 = nyg/2
+    else   ! ny is odd
+       ny2 = (nyg-1)/2
+    endif
+
+    quadrant_mask(:,:) = 0
+
+    do j = nhalo+1, ny-nhalo
+       do i = nhalo+1, nx-nhalo
+          call parallel_globalindex(i, j, ig, jg, parallel)
+          if (ig > nx2) then
+             if (jg > ny2) then   ! NE quadrant
+                quadrant_mask(i,j) = 1
+             else   ! jg <= ny2; SE quadrant
+                quadrant_mask(i,j) = 4
+             endif
+          else   ! ig <= nx2
+             if (jg > ny2) then   ! NW quadrant
+                quadrant_mask(i,j) = 2
+             else   ! jg <= ny2; SW quadrant
+                quadrant_mask(i,j) = 3
+             endif
+          endif
+       enddo
+    enddo
+
+    ! Compute the global sums
+    ! Note: These sums are reproducible if reproducible_sums = .true.
+    quadrant_sum(:) = parallel_global_sum_patch(field, 4, quadrant_mask, parallel)
+
+    if (check_asymmetry) then
+
+       call gather_var(field, field_global, parallel)
+
+       if (main_task) then
+
+          ! Identify asymmetries in reflection across the y-axis
+          if (abs(quadrant_sum(1) + quadrant_sum(4) - quadrant_sum(2) - quadrant_sum(3)) > symmetry_tol) then
+             do j = 1, nyg
+                do i = 1, nx2
+                   if (abs(field_global(i,j)) > eps11 .or. abs(field_global(nxg-i+1,j)) > eps11) then
+                      meanval = 0.5d0 * (field_global(i,j) + field_global(nxg-i+1,j))
+                      diff = abs(field_global(i,j) - field_global(nxg-i+1,j))
+                      if (diff > meanval*symmetry_tol) then
+                         write(iulog,*) 'Warning, y-reflection asymmetry: i, j, val(i,j), val(nxg-i+1,j), diff/mean:', &
+                              i, j, field_global(i,j), field_global(nxg-i+1,j), diff/meanval
+                      endif
+                   endif
+                enddo
+             enddo
+          endif
+
+          ! Identify asymmetries in reflection across the x-axis
+          if (abs(quadrant_sum(1) + quadrant_sum(2) - quadrant_sum(3) - quadrant_sum(4)) > symmetry_tol) then
+             do j = 1, nyg
+                do i = 1, nx2
+                   if (abs(field_global(i,j)) > eps11 .or. abs(field_global(i,nyg-j+1)) > eps11) then
+                      meanval = 0.5d0 * (field_global(i,j) + field_global(i,nyg-j+1))
+                      diff = abs(field_global(i,j) - field_global(i,nyg-j+1))
+                      if (diff > meanval*symmetry_tol) then
+                         write(iulog,*) 'Warning, x-reflection asymmetry: i, j, val(i,j), val(i,nyg-j+1), diff/mean:', &
+                              i, j, field_global(i,j), field_global(i,nyg-j+1), diff/meanval
+                      endif
+                   endif
+                enddo
+             enddo
+          endif
+
+          if (allocated(field_global)) deallocate(field_global)
+
+       endif   ! main_task
+    endif   ! check_asymmetry
+
+  end subroutine sum_over_quadrants
 
 !---------------------------------------------------------------------------
 
