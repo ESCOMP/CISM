@@ -2505,7 +2505,8 @@ contains
     use glimmer_physcon, only: scyr
     use glissade_calving, only: glissade_calve_ice, verbose_calving, &
          glissade_remove_icebergs, glissade_remove_isthmuses, glissade_limit_cliffs, &
-         glissade_apply_calving_mask, glissade_calvingmip_diagnostics
+         glissade_apply_calving_mask
+    use glissade_diagnostics, only: glissade_calvingmip_diag
     use glissade_masks, only: glissade_get_masks, glissade_calving_front_mask
     use glissade_grounding_line, only: glissade_grounded_fraction
 
@@ -2662,7 +2663,7 @@ contains
     ! If running a CalvingMIP experiment, then compute some diagnostics
 
     if (model%options%which_ho_calvingmip_domain /= HO_CALVINGMIP_DOMAIN_NONE) then
-       call glissade_calvingmip_diagnostics(model)
+       call glissade_calvingmip_diag(model)
     endif
 
     if (model%options%remove_isthmuses) then
