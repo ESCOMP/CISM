@@ -9633,12 +9633,13 @@ contains
     ! We do not allow Inf or NaN values in the input array.
     ! Typically, the algorithm calls mpi_allreduce twice. By passing in both arr_gbl_max and arr_max_levels,
     !  it may be possible to call mpi_allreduce just once, improving performance.
-    !  If we don't pass these arguments, then arr_gbl_max and arr_max_levels are computed internally..
+    !  If we don't pass these arguments, then arr_gbl_max and arr_max_levels are computed internally.
     !  By passing arr_glb_max_out and arr_max_levels_out, we can see the calculated values.
     ! By passing rel_diff, we can verify that the computed reproducible sum is close
     !  to the (nonreproducible) floating-point value.
-    !
-!!    !    commid                    ! MPI communicator
+    ! Note: In cism_reprosum_mod, the default communicator ID is MPI_COMM_WORLD.
+    !       We need to pass in the CISM communicator ID ('comm') in case comm /= MPI_COMM_WORLD.
+    !       CESM coupled runs fail if comm is not passed in.
     ! See comments in cism_reprosum_calc for more info
 
     ! Required arguments
@@ -9705,7 +9706,8 @@ contains
          gbl_max_nsummands_out = gbl_max_nsummands_out, &
          repro_sum_validate = repro_sum_validate,       &
          repro_sum_stats = repro_sum_stats,             &
-         rel_diff = rel_diff)
+         rel_diff = rel_diff,                           &
+         commid = comm)
 
     if (verbose_reprosum .and. main_task) then
 !       write(iulog,*) 'arr_gbl_max_out =', arr_gbl_max_out
