@@ -1896,11 +1896,12 @@ module glissade_bmlt_float
              do k = ktop(i,j), kbot(i,j)
                 if (thermal_forcing(k,i,j) == unphys_val) then
                    call parallel_globalindex(i, j, iglobal, jglobal, parallel)
-                   write(iulog,*) 'TF extrapolation error, no neighbours with valid values, k, i, j =',  &
+                   write(iulog,*) 'Warning: no neighbours with valid values, k, i, j =',  &
                         k, iglobal, jglobal
-                   write(message,*) 'TF extrapolation error, no neighbours with valid values, k, i, j =',  &
+                   write(message,*) 'Warning: no neighbours with valid values, k, i, j =',  &
                         k, iglobal, jglobal
-                   call write_log(message, GM_FATAL)
+                   !call write_log(message, GM_FATAL)
+                   thermal_forcing(k,i,j) = 0.d0
                 endif
              enddo
           endif
@@ -1912,7 +1913,7 @@ module glissade_bmlt_float
 
     if (default_val /= unphys_val) then
        where (thermal_forcing == unphys_val)
-          thermal_forcing = default_val
+          thermal_forcing = 0.d0
        endwhere
     endif
 
