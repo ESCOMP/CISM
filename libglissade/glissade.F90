@@ -2207,7 +2207,7 @@ contains
                'effective_areafrac', itest, jtest, rtest, 7, 7, '(f10.6)')
        endif
 
-       ! If using the subgrid CF scheme, then compute a mask that identifies cell beyond the CF.
+       ! If using the subgrid CF scheme, then compute a mask that identifies cells beyond the CF.
        ! Partial CF cells with the potential to fill are within the CF.
        ! Ice that is transported beyond the CF will be returned upstream during the calving solve.
        ! Note: It would be cleaner to modify the transport scheme such that ice is forbidden
@@ -2216,6 +2216,7 @@ contains
 
        if (model%options%which_ho_calving_front == HO_CALVING_FRONT_SUBGRID) then
 
+          !TODO - Move the following to a subroutine in the calving module?
           ! First assume all cells are beyond the CF, then identify exceptions.
           model%calving%beyond_cf_mask = 1
 
