@@ -631,7 +631,7 @@ contains
     use cism_parallel, only: parallel_type, parallel_halo
 
     use glissade_diagnostics, only: glissade_calvingmip_diag
-    use glissade_masks, only: glissade_get_masks, glissade_calving_front_mask
+    use glissade_masks, only: glissade_get_masks
     use glissade_grounding_line, only: glissade_grounded_fraction
     use glide_thck, only: glide_calclsrf
 
@@ -739,11 +739,31 @@ contains
 
     if (model%options%whichcalving /= CALVING_GRID_MASK) then
 
-       !TODO - Change to /= NONE
-       if (model%options%which_ho_calving_front == HO_CALVING_FRONT_SUBGRID) then
+       if (model%options%which_ho_calving_front == HO_CALVING_FRONT_NO_SUBGRID) then
+
+          ! Apply a basic position-based calving scheme without a subgrid CF
+          if (main_task .and. verbose_calving) write(iulog,*) 'Call calve_ice_basic'
+
+          call calve_ice_basic(&
+               nx,           ny,                  &
+               model%options%whichcalving,        &
+               model%options%calving_domain,      &
+               parallel,                          &
+               model%calving,                     &        ! calving object; includes calving_thck (m)
+               itest, jtest, rtest,               &
+               model%numerics%dt,                 &        ! s
+               model%numerics%thklim,             &        ! m
+               model%geometry%thck,               &        ! m
+               model%isostasy%relx,               &        ! m
+               model%geometry%topg,               &        ! m
+               model%climate%eus)                          ! m
+
+       else
 
           ! Apply a calving scheme with a subgrid calving front
-          if (main_task .and. verbose_calving) write(iulog,*) 'Call glissade_calve_ice_subgrid'
+          ! Note: which_ho_calving_front determines whether marine-grounded cells
+          !       (in addition to floating cells) can be marked as CF cells
+          if (main_task .and. verbose_calving) write(iulog,*) 'Call calve_ice_subgrid'
 
           call calve_ice_subgrid(&
                nx,           ny,                  &
@@ -768,31 +788,7 @@ contains
                model%geometry%topg,               &        ! m
                model%climate%eus)                          ! m
 
-       else
-
-          ! Apply a basic position-based calving scheme without a subgrid CF
-          if (main_task .and. verbose_calving) write(iulog,*) 'Call glissade_calve_ice_basic'
-
-          call calve_ice_basic(&
-               nx,           ny,                  &
-               model%options%whichcalving,        &
-               model%options%calving_domain,      &
-               parallel,                          &
-               model%calving,                     &        ! calving object; includes calving_thck (m)
-               itest, jtest, rtest,               &
-               model%numerics%dt,                 &        ! s
-               model%numerics%thklim,             &        ! m
-               model%geometry%thck,               &        ! m
-               model%isostasy%relx,               &        ! m
-               model%geometry%topg,               &        ! m
-               model%climate%eus)                          ! m
-
        endif   ! which_ho_calving_front
-
-       if (verbose_calving) then
-          call point_diag(model%geometry%thck, 'thck (m) after glissade_calve_ice', itest, jtest, rtest, 7, 7)
-          call point_diag(model%calving%calving_thck, 'calving_thck (m)', itest, jtest, rtest, 7, 7)
-       endif
 
     endif   ! calving_grid_mask
 
@@ -3733,7 +3729,7 @@ contains
     !--------------------------------------------------------------------
 
     if ((model%options%whichcalving == CALVING_GRID_MASK .or. model%options%apply_calving_mask) .and. &
-         model%options%which_ho_calving_front == HO_CALVING_FRONT_SUBGRID) then
+         model%options%which_ho_calving_front /= HO_CALVING_FRONT_NO_SUBGRID) then
 
        ! Remove ice based on a subgrid calving mask.
        ! This is a real mask in the range [0,1], which thins and removes ice beyond a prescribed radius.

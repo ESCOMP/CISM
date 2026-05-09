@@ -2154,12 +2154,12 @@ contains
        !       This prevents a positive SMB in ocean cells that have H = 0 before transport.
        ! ------------------------------------------------------------------------
 
-       if (model%options%which_ho_calving_front == HO_CALVING_FRONT_SUBGRID) then
-          ! Pass thklim = eps11 so thin cells near the margin can be identified as partial CF
-          this_thklim = eps11
-       else
+       if (model%options%which_ho_calving_front == HO_CALVING_FRONT_NO_SUBGRID) then
           ! Pass the default value
           this_thklim = model%numerics%thklim
+       else
+          ! Pass thklim = eps11 so thin cells near the margin can be identified as partial CF
+          this_thklim = eps11
        endif
 
        call glissade_get_masks(&
@@ -2214,7 +2214,7 @@ contains
        !       from flowing beyond the CF in the first place. However, this will require
        !       some major changes in the incremental remapping transport scheme.
 
-       if (model%options%which_ho_calving_front == HO_CALVING_FRONT_SUBGRID) then
+       if (model%options%which_ho_calving_front /= HO_CALVING_FRONT_NO_SUBGRID) then
 
           !TODO - Move the following to a subroutine in the calving module?
           ! First assume all cells are beyond the CF, then identify exceptions.
@@ -2761,10 +2761,10 @@ contains
     ! Update some masks that are used for subsequent calculations
     ! ------------------------------------------------------------------------
 
-    if (model%options%which_ho_calving_front == HO_CALVING_FRONT_SUBGRID) then
-       this_thklim = eps11
-    else
+    if (model%options%which_ho_calving_front == HO_CALVING_FRONT_NO_SUBGRID) then
        this_thklim = model%numerics%thklim
+    else
+       this_thklim = eps11
     endif
 
     call glissade_get_masks(ewn,                 nsn,                   &

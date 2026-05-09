@@ -51,14 +51,15 @@ module glissade_lateral_melt
 contains
 
 !-------------------------------------------------------------------------------
-
+!TODO - Remove this subroutine, if lateral melt will be subsumed under the calving solve
+  
   subroutine glissade_lateral_melt_solve(model)
 
     !HG: adding a fullgrid submarine melt parameterisation for Greenland marine-terminated margins.
     !  It operates similar to the calving process.
     !  The cases implemented below (exept for LATERAL_MELT_NONE) should be used with CALVING_FLOAT_ZERO.
 
-    use glissade_masks, only : glissade_get_masks, glissade_melt_front_mask
+    use glissade_masks, only : glissade_get_masks
 
     type(glide_global_type), intent(inout) :: model   ! model instance
 
@@ -111,7 +112,6 @@ contains
 
     ! Prep for other lateral melt cases
 
-    !HG - Not sure if this update is needed
     call parallel_halo(model%geometry%thck, parallel)
 
     ! Get masks.
@@ -131,81 +131,13 @@ contains
 
     call parallel_halo(ocean_mask, parallel)
 
-    ! define a mask of melt front cells
-    !TODO - Rename to marine_front?
-    !       Compute calving%thck_effective? (no separate lateral melt array)
-    call glissade_melt_front_mask(&
-         nx,                     ny,                   &
-         model%lateral_melt%subgrid_melt_front,        &
-         parallel,                                     &
-         model%geometry%thck,                          &
-         model%geometry%topg,                          &
-         model%climate%eus,                            &
-         ice_mask,               floating_mask,        &
-         ocean_mask,             land_mask,            &
-         lateral_melt%melt_front_mask,                 &
-         lateral_melt%dusrf_dx_mf,                     &
-         dx,                     dy,                   &
-         lateral_melt%thck_effective,                  &
-         lateral_melt%thck_effective_min,              &
-         partial_mf_mask,        full_mask,            &
-         lateral_melt%effective_areafrac,              &
-         itest, jtest, rtest)
-
-    call parallel_halo(lateral_melt%melt_front_mask, parallel)
-
-    ! estimate the length of the melt front
-    !TODO - Move subroutine to a utility module?
-!    call compute_calving_front_length(&
-!         nx,           ny,                &
-!         dx,           dy,                &
-!         itest, jtest, rtest,             &
-!         lateral_melt%melt_front_mask,    &
-!         ocean_mask,                      &
-!         mf_length)
-
-    call parallel_halo(mf_length, parallel)
-
     select case(model%options%which_lateral_melt)
 
     case(LATERAL_MELT_CONSTANT)
 
-       ! Apply lateral melt with spatially constant rate
-       !TODO - fullgrid and subgrid versions?
-       call constant_lateral_melt(&
-            nx,                 ny,                    &
-            dx,                 dy,                    &
-            dt,                                        &  ! s
-            time*scyr,                                 &  ! yr -> s
-            itest,   jtest,     rtest,                 &
-            lateral_melt%melt_front_mask,              &
-            lateral_melt%melt_rate_const/scyr,         &  ! m/s  !TODO - scale in glide_setup?
-            model%geometry%thck,                       &  ! m
-            model%geometry%topg,                       &  ! m
-            model%climate%eus,                         &  ! m
-            mf_length,                                 &  ! m
-            lateral_melt%melt_thck)                       ! m
-
     case(LATERAL_MELT_ISMIP6)
 
-       call ismip6_lateral_melt(&
-            nx,                 ny,              &
-            dx,                 dy,              &
-            dt,                                  &  ! s
-            time*scyr,                           &  ! yr -> s
-            itest,   jtest,     rtest,           &
-            lateral_melt%melt_factor,            &
-            lateral_melt%melt_front_mask,        &
-            lateral_melt%subglacial_discharge,   &  ! m/s
-            lateral_melt%tforcing_2d,            &  ! K
-            model%geometry%thck,                 &  ! m
-            model%geometry%topg,                 &  ! m
-            model%climate%eus,                   &  ! m
-            mf_length,                           &  ! m
-            lateral_melt%melt_thck)                 ! m
-
     case(LATERAL_MELT_COUPLED)
-    
 
     end select
 
@@ -213,7 +145,7 @@ contains
 
 !-------------------------------------------------------------------------------
 
-  !TODO - Replace with a subroutine in glissade_calving
+  !TODO - Call this subroutine from glissade_calving
   !       Pass in cf_length and return melt_thck
 
   subroutine constant_lateral_melt(&

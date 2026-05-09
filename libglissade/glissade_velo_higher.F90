@@ -1136,10 +1136,10 @@
      !      Instead of pointing to model%geometry%usrf, compute a local value of usrf
      !       that is consistent with the local value of thck.
 
-     if (model%options%which_ho_calving_front == HO_CALVING_FRONT_SUBGRID) then
-        thck  => model%calving%thck_effective(:,:)
-     else
+     if (model%options%which_ho_calving_front == HO_CALVING_FRONT_NO_SUBGRID) then
         thck  => model%geometry%thck(:,:)
+     else
+        thck  => model%calving%thck_effective(:,:)
      endif
      topg     => model%geometry%topg(:,:)
      sigma    => model%numerics%sigma(:)

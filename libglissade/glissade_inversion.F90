@@ -839,12 +839,14 @@ contains
        ! Instead, we compute a calving mask at initialization and set deltaT_ocn = 0 in masked cells.
        !TODO - Apply the basin average TF in this region?
        if (model%options%whichbmlt_float == BMLT_FLOAT_THERMAL_FORCING) then
-          if (model%options%which_ho_calving_front == HO_CALVING_FRONT_NO_SUBGRID .and. &
-               .not.parallel_is_zero(model%calving%calving_mask)) then
-             where (model%calving%calving_mask == 1) model%ocean_data%deltaT_ocn = 0.0d0
-          elseif (model%options%which_ho_calving_front == HO_CALVING_FRONT_SUBGRID .and. &
-               .not.parallel_is_zero(model%calving%subgrid_calving_mask)) then
-             where (model%calving%subgrid_calving_mask > eps11) model%ocean_data%deltaT_ocn = 0.0d0
+          if (model%options%which_ho_calving_front == HO_CALVING_FRONT_NO_SUBGRID) then
+             if (.not.parallel_is_zero(model%calving%calving_mask)) then
+                where (model%calving%calving_mask == 1) model%ocean_data%deltaT_ocn = 0.0d0
+             endif
+          else  ! subgrid CF scheme
+             if (.not.parallel_is_zero(model%calving%subgrid_calving_mask)) then
+                where (model%calving%subgrid_calving_mask > eps11) model%ocean_data%deltaT_ocn = 0.0d0
+             endif
           endif
           call point_diag(model%ocean_data%deltaT_ocn, 'deltaT_ocn after calving mask adjustment', &
                itest, jtest, rtest, 7, 7)

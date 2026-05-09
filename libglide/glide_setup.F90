@@ -1260,9 +1260,10 @@ contains
          'standard finite-element assembly (glissade dycore)         ', &
          'use local thck and usrf on each cell face (glissade dycore)'  /)
 
-    character(len=*), dimension(0:1), parameter :: ho_whichcalving_front = (/ &
-         'no subgrid calving front parameterization ', &
-         'subgrid calving front parameterization    ' /)
+    character(len=*), dimension(0:2), parameter :: ho_whichcalving_front = (/ &
+         'no subgrid calving front parameterization       ', &
+         'subgrid calving front, floating ice only        ', &
+         'subgrid calving front, floating and grounded ice'  /)
 
     character(len=*), dimension(0:2), parameter :: ho_calvingmip_domain = (/ &
          'none       ', &
@@ -2606,15 +2607,14 @@ contains
 
     endif   ! calving options: thck_threshold, eigencalving, stress-based, etc.
 
-    if (model%options%which_ho_calving_front == HO_CALVING_FRONT_SUBGRID) then
+    if (model%options%which_ho_calving_front /= HO_CALVING_FRONT_NO_SUBGRID) then
        write(message,*) 'subgrid dthck_dx_cf           : ', model%calving%dthck_dx_cf
        call write_log(message)
        write(message,*) 'thck_effective_min (m)        : ', model%calving%thck_effective_min
        call write_log(message)
        if (.not.model%options%remove_icebergs) then
-          model%options%remove_icebergs = .true.
-          write(message,*) 'Setting remove_icebergs = T for stability when using subgrid calving_front scheme'
-          call write_log(message)
+          write(message,*) 'Set remove_icebergs = T for stability when using subgrid calving_front scheme'
+          call write_log(message, GM_FATAL)
        endif
     endif
 
@@ -3341,7 +3341,6 @@ contains
     type(ConfigSection), pointer :: section
     type(glide_global_type)  :: model
 
-    call GetValue(section, 'subgrid_melt_front', model%lateral_melt%subgrid_melt_front)
     call GetValue(section, 'melt_rate_const', model%lateral_melt%melt_rate_const)
     call GetValue(section, 'melt_factor', model%lateral_melt%melt_factor)
 
@@ -3374,11 +3373,6 @@ contains
 
     if (model%options%which_lateral_melt /= LATERAL_MELT_NONE) then
 
-       !TODO - Relax the following assumption?
-       if (model%options%whichcalving /= CALVING_FLOAT_ZERO) then
-          call write_log('Error, lateral melt options require option CALVING_FLOAT_ZERO', GM_FATAL)
-       endif
-
        if (model%options%which_lateral_melt == LATERAL_MELT_CONSTANT) then
           write(message,*) 'constant lateral melt rate (m/yr)     : ', model%lateral_melt%melt_rate_const
           call write_log(message)
@@ -3389,14 +3383,10 @@ contains
           !TODO - Anything to write?
        endif
 
-       if (model%lateral_melt%subgrid_melt_front) then
-          write(iulog,*) 'Using a subgrid melt front parameterization'
-          write(message,*) 'subgrid dusrf_dx_mf           : ', model%lateral_melt%dusrf_dx_mf
-          call write_log(message)
-          write(message,*) 'thck_effective_min (m)        : ', model%lateral_melt%thck_effective_min
-          call write_log(message)
-       else
-          write(iulog,*) 'No subgrid melt front parameterization'
+       if (model%options%which_ho_calving_front /= HO_CALVING_FRONT_SUBGRID_FLOAT_GROUND) then
+          write(message,*) 'For lateral melt, must set which_ho_calving_front = ', &
+               HO_CALVING_FRONT_SUBGRID_FLOAT_GROUND
+          call write_log(message, GM_FATAL)
        endif
 
     endif  ! which_lateral_melt /= lateral_melt_none
@@ -4080,7 +4070,7 @@ contains
              options%which_ho_deltaT_ocn == HO_DELTAT_OCN_INVERSION) then
            if (options%which_ho_calving_front == HO_CALVING_FRONT_NO_SUBGRID) then
               call glide_add_to_restart_variable_list('calving_mask', model_id)
-           elseif (options%which_ho_calving_front == HO_CALVING_FRONT_SUBGRID) then
+           else   ! using a subgrid CF scheme
               call glide_add_to_restart_variable_list('subgrid_calving_mask', model_id)
            endif
         endif

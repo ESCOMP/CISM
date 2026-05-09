@@ -198,7 +198,8 @@ module glide_types
   integer, parameter :: CALVING_DOMAIN_EVERYWHERE = 1
 
   integer, parameter :: HO_CALVING_FRONT_NO_SUBGRID = 0
-  integer, parameter :: HO_CALVING_FRONT_SUBGRID = 1
+  integer, parameter :: HO_CALVING_FRONT_SUBGRID_FLOAT = 1
+  integer, parameter :: HO_CALVING_FRONT_SUBGRID_FLOAT_GROUND = 2
 
   integer, parameter :: HO_CALVINGMIP_DOMAIN_NONE = 0
   integer, parameter :: HO_CALVINGMIP_DOMAIN_CIRCULAR = 1
@@ -208,9 +209,6 @@ module glide_types
   integer, parameter :: LATERAL_MELT_CONSTANT = 1
   integer, parameter :: LATERAL_MELT_ISMIP6 = 2
   integer, parameter :: LATERAL_MELT_COUPLED = 3
-
-  integer, parameter :: HO_MELT_FRONT_NO_SUBGRID = 0
-  integer, parameter :: HO_MELT_FRONT_SUBGRID = 1
 
   integer, parameter :: FORCE_RETREAT_NONE = 0
   integer, parameter :: FORCE_RETREAT_ALL_ICE = 1
@@ -707,7 +705,8 @@ module glide_types
     !> Flag that indicates whether to use a subgrid calving front parameterization
     !> \begin{description}
     !> \item[0] no subgrid calving front parameterization
-    !> \item[1] subgrid parameterization with partially filled cells at the calving front
+    !> \item[1] subgrid parameterization with partial cells (floating only) at the CF
+    !> \item[2] subgrid parameterization with partial cells (floating and grounded) at the CF
     !> \end{description}
 
     integer :: which_ho_calvingmip_domain = 0
@@ -1655,15 +1654,12 @@ module glide_types
 
   type glide_lateral_melt
 
-     ! holds parameters for lateral melting at marine-grounded cliff fronts
-     ! TODO - Could lateral melt also be applied to floating ice?
-
-     logical :: subgrid_melt_front = .false.   !> if true, then use a subgrid lateral melt parameterization
+     ! holds parameters for lateral melting at floating or marine-grounded ice fronts
 
      real(dp),dimension(:,:),  pointer :: melt_thck => null()      !> thickness loss in grid cell due to lateral melt
      real(dp),dimension(:,:),  pointer :: melt_rate => null()      !> rate of ice loss due to lateral melt (m/yr ice)
      real(dp),dimension(:,:),  pointer :: melt_rate_tavg => null() !> rate of ice loss due to lateral melt (m/yr ice, time average)
-     integer, dimension(:,:),  pointer :: melt_front_mask => null()!> mask of cells where lateral melting can take place
+!!     integer, dimension(:,:),  pointer :: melt_front_mask => null()!> mask of cells where lateral melting can take place
 !!     integer, dimension(:,:),  pointer :: calving_front_mask => null()   !> mask of calving front cells
 !!     integer, dimension(:,:),  pointer :: marine_cliff_mask => null()    !> mask of marine calving cliff cells
      real(dp),dimension(:,:),  pointer :: subglacial_discharge => null()   !> subglacial meltwater discharge for lateral melting (kg/m2/s);
@@ -1671,15 +1667,8 @@ module glide_types
                                                                            !> the submerged area (m2) of the melt front, times rhow
      real(dp),dimension(:,:),  pointer :: tforcing_2d => null()            !> 2d thermal forcing for lateral melt (deg K)
 
-     !TODO - Move the next two arrays to the geometry derived type?
-     real(dp),dimension(:,:),  pointer :: thck_effective => null()         !> effective thickness for lateral melt (m)
-     real(dp),dimension(:,:),  pointer :: effective_areafrac => null()     !> effective fractional area for lateral melt
-
      real(dp) :: melt_rate_const = 0.0d0       !> constant lateral retreat rate at melt front (m/yr)
      real(dp) :: melt_factor = 1.0d0           !> multiplier for Rignot frontal melt. A value of 1.6 was proposed for ISMIP7
-
-     real(dp) :: dusrf_dx_mf = 0.0d0           !> assumed max value of |ds/dx| at the melt front for full (not partial) cells (m/m)
-     real(dp) :: thck_effective_min = 50.0d0   !> minimum value of thck_effective (m) for melt-front cells
 
   end type glide_lateral_melt
 
@@ -3391,10 +3380,10 @@ contains
     call coordsystem_allocate(model%general%ice_grid, model%calving%calving_thck)
     call coordsystem_allocate(model%general%ice_grid, model%calving%calving_rate)
     call coordsystem_allocate(model%general%ice_grid, model%calving%calving_rate_tavg)
-    if (model%options%which_ho_calving_front == HO_CALVING_FRONT_SUBGRID) then
-       call coordsystem_allocate(model%general%ice_grid, model%calving%subgrid_calving_mask)
-    else
+    if (model%options%which_ho_calving_front == HO_CALVING_FRONT_NO_SUBGRID) then
        call coordsystem_allocate(model%general%ice_grid, model%calving%calving_mask)
+    else
+       call coordsystem_allocate(model%general%ice_grid, model%calving%subgrid_calving_mask)
     endif
     call coordsystem_allocate(model%general%ice_grid, model%calving%beyond_cf_mask)
     call coordsystem_allocate(model%general%ice_grid, model%calving%thck_effective)
@@ -3424,13 +3413,8 @@ contains
        call coordsystem_allocate(model%general%ice_grid, model%lateral_melt%melt_thck)
        call coordsystem_allocate(model%general%ice_grid, model%lateral_melt%melt_rate)
        call coordsystem_allocate(model%general%ice_grid, model%lateral_melt%melt_rate_tavg)
-       call coordsystem_allocate(model%general%ice_grid, model%lateral_melt%melt_front_mask)
-!       call coordsystem_allocate(model%general%ice_grid, model%lateral_melt%calving_front_mask)
-!       call coordsystem_allocate(model%general%ice_grid, model%lateral_melt%marine_cliff_mask)
        call coordsystem_allocate(model%general%ice_grid, model%lateral_melt%subglacial_discharge)
        call coordsystem_allocate(model%general%ice_grid, model%lateral_melt%tforcing_2d)
-       call coordsystem_allocate(model%general%ice_grid, model%lateral_melt%thck_effective)
-       call coordsystem_allocate(model%general%ice_grid, model%lateral_melt%effective_areafrac)
     endif
 
     ! matrix solver arrays
@@ -4108,20 +4092,10 @@ contains
         deallocate(model%lateral_melt%melt_rate)
     if (associated(model%lateral_melt%melt_rate_tavg)) &
         deallocate(model%lateral_melt%melt_rate_tavg)
-    if (associated(model%lateral_melt%melt_front_mask)) &
-        deallocate(model%lateral_melt%melt_front_mask)
-!    if (associated(model%lateral_melt%calving_front_mask)) &
-!        deallocate(model%lateral_melt%calving_front_mask)
-!    if (associated(model%lateral_melt%marine_cliff_mask)) &
-!        deallocate(model%lateral_melt%marine_cliff_mask)
     if (associated(model%lateral_melt%subglacial_discharge)) &
         deallocate(model%lateral_melt%subglacial_discharge)
     if (associated(model%lateral_melt%tforcing_2d)) &
         deallocate(model%lateral_melt%tforcing_2d)
-    if (associated(model%lateral_melt%thck_effective)) &
-        deallocate(model%lateral_melt%thck_effective)
-    if (associated(model%lateral_melt%effective_areafrac)) &
-        deallocate(model%lateral_melt%effective_areafrac)
 
     ! matrix solver arrays
 
