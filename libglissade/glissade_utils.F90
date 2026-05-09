@@ -42,7 +42,7 @@ module glissade_utils
   public :: glissade_adjust_thickness, glissade_smooth_usrf, &
        glissade_smooth_topography, glissade_adjust_topography, &
        glissade_basin_sum, glissade_basin_average, &
-       glissade_usrf_to_thck, glissade_thck_to_usrf, &
+       glissade_calc_lsrf_usrf, glissade_usrf_to_thck, glissade_thck_to_usrf, &
        glissade_edge_fluxes, glissade_input_fluxes, &
        glissade_rms_error, write_array_to_file, &
        glissade_cleanup_tiny_thickness, glissade_cleanup_icefree_cells
@@ -57,9 +57,9 @@ contains
   !TODO - Move some of these subroutines to glissade_diagnostics.
   !       It's a bit arbitrary whether to call something a diagnostic subroutine
   !        or a utility subroutine, but in general, the utility subroutines
-  !        carry out operations that affects the ice state, while the
-  !        diagnostic subroutines compute useful quantities desired
-  !        for physics parameterizations or I/O.
+  !        carry out operations that affect the ice state or update state variables,
+  !        while the diagnostic subroutines compute other quantities desired for I/O.
+
 !****************************************************************************
 
   subroutine glissade_adjust_thickness(model)
@@ -159,7 +159,6 @@ contains
     ! This can be useful if the input thickness and topography are inconsistent,
     !  such that their sum has large gradients.
 
-    use glide_thck, only: glide_calclsrf
     use glissade_masks, only: glissade_get_masks
     use glissade_grid_operators, only: glissade_laplacian_smoother
     use cism_parallel, only: parallel_halo
@@ -215,9 +214,13 @@ contains
        jtest = model%numerics%jdiag_local
     endif
 
-    ! compute the initial upper surface elevation
-    call glide_calclsrf(model%geometry%thck, model%geometry%topg, model%climate%eus, model%geometry%lsrf)
-    model%geometry%usrf = max(0.d0, model%geometry%thck + model%geometry%lsrf)
+    ! compute the initial surface elevation
+    call glissade_calc_lsrf_usrf(&
+         model%geometry%thck,  &
+         model%geometry%topg,  &
+         model%climate%eus,    &
+         model%geometry%lsrf,  &
+         model%geometry%usrf)
 
     ! Save input fields
     topg = (model%geometry%topg - model%climate%eus)
@@ -286,7 +289,6 @@ contains
     !        when the topography is smoothed. Is it better to preserve thickness, or to
     !        increase thickness to keep the ice grounded?
 
-    use glide_thck, only: glide_calclsrf
     use glissade_masks, only: glissade_get_masks
     use glissade_grid_operators, only: glissade_laplacian_smoother
 
@@ -334,8 +336,12 @@ contains
     endif
 
     ! compute the initial upper surface elevation (to be held fixed under smoothing of bed topography)
-    call glide_calclsrf(model%geometry%thck, model%geometry%topg, model%climate%eus, model%geometry%lsrf)
-    model%geometry%usrf = max(0.d0, model%geometry%thck + model%geometry%lsrf)
+    call glissade_calc_lsrf_usrf(&
+         model%geometry%thck,  &
+         model%geometry%topg,  &
+         model%climate%eus,    &
+         model%geometry%lsrf,  &
+         model%geometry%usrf)
 
     ! compute initial mask
     ! Modify glissade_get_masks so that 'parallel' is not needed
@@ -369,10 +375,6 @@ contains
        model%geometry%thck = model%geometry%usrf - model%geometry%topg
     endwhere
 
-    !WHL - usrf for debugging only
-    call glide_calclsrf(model%geometry%thck, model%geometry%topg, model%climate%eus, model%geometry%lsrf)
-    model%geometry%usrf = max(0.d0, model%geometry%thck + model%geometry%lsrf)
-
   end subroutine glissade_smooth_topography
 
 !****************************************************************************
@@ -384,8 +386,6 @@ contains
     !  where the ice is not sufficiently grounded, and the data are not well constrained.
     ! Note: So far, this subroutine has been used to raise eastern Thwaites topography.
     !       It has not been used to lower topography.
-
-    use glide_thck, only: glide_calclsrf  ! TODO - Make this a glissade subroutine (e.g., in this module)
 
     !----------------------------------------------------------------
     ! Input-output arguments
@@ -465,8 +465,12 @@ contains
     endif
 
     ! Compute the lower and upper ice surface before the adjustment
-    call glide_calclsrf(model%geometry%thck, model%geometry%topg, model%climate%eus, model%geometry%lsrf)
-    model%geometry%usrf = max(0.d0, model%geometry%thck + model%geometry%lsrf)
+    call glissade_calc_lsrf_usrf(&
+         model%geometry%thck,  &
+         model%geometry%topg,  &
+         model%climate%eus,    &
+         model%geometry%lsrf,  &
+         model%geometry%usrf)
 
     !TODO - Use model%geometry%topg - model%climate%eus?
     allocate(topg(model%general%ewn, model%general%nsn))
@@ -684,6 +688,44 @@ contains
     endif
 
   end subroutine glissade_rms_error
+
+!***********************************************************************
+
+  subroutine glissade_calc_lsrf_usrf(thck, topg, eus, lsrf, usrf)
+
+    ! Calculate the elevation of the lower and upper surface of the ice,
+    ! given the thickness and bed topography.
+
+    ! Note: This subroutine computes over all grid cells, not just locally owned.
+    !       Output will be correct in halos only if the input is correct.
+    !       Generally the units will be meters, but the output will be correct
+    !        as long as the units are mutually consistent.
+
+    use glimmer_physcon, only : rhoi, rhoo
+
+    implicit none
+
+    real(dp), intent(in),  dimension(:,:) :: thck   !> ice thickness
+    real(dp), intent(in),  dimension(:,:) :: topg   !> bedrock topography elevation
+    real(dp), intent(in)                  :: eus    !> global sea level
+
+    real(dp), intent(out), dimension(:,:) :: lsrf   !> lower ice surface elevation
+    real(dp), intent(out), dimension(:,:) :: usrf   !> upper ice surface elevation
+
+    ! Compute lsrf by considering whether the ice is floating or not
+    ! For ice-free land, lsrf = topg
+    ! For ice-free ocean, lsrf = 0
+
+    where (topg - eus < (-rhoi/rhoo) * thck)
+       lsrf = (-rhoi/rhoo) * thck
+    elsewhere
+       lsrf = topg
+    end where
+
+    ! Compute usrf
+    usrf = lsrf + thck
+
+  end subroutine glissade_calc_lsrf_usrf
 
 !***********************************************************************
 
@@ -1221,11 +1263,6 @@ contains
     enddo
 
   end subroutine glissade_cleanup_icefree_cells
-
-!****************************************************************************
-
-!TODO - Other utility subroutines to add here?
-!       E.g., calclsrf; subroutines to zero out tracers
 
 !****************************************************************************
 

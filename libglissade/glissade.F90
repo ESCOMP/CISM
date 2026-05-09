@@ -63,7 +63,7 @@ module glissade
   use glimmer_config
   use glissade_test, only: &
        glissade_test_halo, glissade_test_transport
-  use glide_thck, only: glide_calclsrf  ! TODO - Make this a glissade subroutine, or inline
+  use glissade_utils, only: glissade_calc_lsrf_usrf
   use profile, only: t_startf, t_stopf
   use cism_parallel, only: this_rank, main_task, comm, nhalo, parallel_test_comm_row_col
 
@@ -665,8 +665,12 @@ contains
     endif
 
     ! calculate the lower and upper ice surface (will be correct in halos following the halo updates above)
-    call glide_calclsrf(model%geometry%thck, model%geometry%topg, model%climate%eus, model%geometry%lsrf)
-    model%geometry%usrf = max(0.d0, model%geometry%thck + model%geometry%lsrf)
+    call glissade_calc_lsrf_usrf(&
+         model%geometry%thck,   &
+         model%geometry%topg,   &
+         model%climate%eus,     &
+         model%geometry%lsrf,   &
+         model%geometry%usrf)
 
     ! halo update for kinbcmask (= 1 where uvel and vvel are prescribed, elsewhere = 0)
     ! Note: Instead of assuming that kinbcmask is periodic, we extrapolate it into the global halo
@@ -1116,8 +1120,12 @@ contains
     call parallel_halo(model%stress%efvs, parallel)
 
     ! recalculate the lower and upper ice surface
-    call glide_calclsrf(model%geometry%thck, model%geometry%topg, model%climate%eus, model%geometry%lsrf)
-    model%geometry%usrf = max(0.d0, model%geometry%thck + model%geometry%lsrf)
+    call glissade_calc_lsrf_usrf(&
+         model%geometry%thck,   &
+         model%geometry%topg,   &
+         model%climate%eus,     &
+         model%geometry%lsrf,   &
+         model%geometry%usrf)
 
     ! save the initial ice thickness
     model%geometry%thck_old(:,:) = model%geometry%thck(:,:)
@@ -2473,16 +2481,18 @@ contains
 
     !------------------------------------------------------------------------
     ! Update the upper and lower ice surface
-    ! Note that glide_calclsrf loops over all cells, including halos,
-    !  so halo updates are not needed for lsrf and usrf.
-    !TODO - Not sure this update is needed here.  It is done at the start
-    !       of the diagnostic solve, but may not be needed for calving.
+    ! Note: glissade_calc_lsrf_usrf loops over all cells, including halos,
+    !  so halo updates are not needed for lsrf and usrf (if thck is correct in halos).
+    !TODO - Not sure this update is needed here.  It should be done before
+    !       the diagnostic solve, but may not be needed before calving.
     !------------------------------------------------------------------------
     
-    call glide_calclsrf(model%geometry%thck, model%geometry%topg,       &
-                        model%climate%eus,   model%geometry%lsrf)
-
-    model%geometry%usrf(:,:) = max(0.d0, model%geometry%thck(:,:) + model%geometry%lsrf(:,:))
+    call glissade_calc_lsrf_usrf(&
+         model%geometry%thck,   &
+         model%geometry%topg,   &
+         model%climate%eus,     &
+         model%geometry%lsrf,   &
+         model%geometry%usrf)
 
     if (verbose_inversion) then
        call point_diag(model%geometry%thck, 'After mass balance, thck (m)', itest, jtest, rtest, 7, 7)
@@ -2603,7 +2613,7 @@ contains
 
     use glimmer_paramets, only: eps11
     use glimmer_physcon, only: rhow, rhoi, scyr
-    use glide_thck, only: glide_calclsrf
+    use glissade_utils, only: glissade_calc_lsrf_usrf
     use glissade_velo, only: glissade_velo_driver
     use glide_velo, only: wvelintg
     use glissade_masks, only: glissade_get_masks, glissade_ice_sheet_mask, glissade_calving_front_mask
@@ -2690,15 +2700,16 @@ contains
 
     ! ------------------------------------------------------------------------
     ! Update the upper and lower ice surface
-    ! Note that glide_calclsrf loops over all cells, including halos,
+    ! Note: glissade_calc_lsrf_usrf loops over all cells, including halos,
     !  so halo updates are not needed for lsrf and usrf.
+    !TODO - Update at the end of glissade_tstep? Then an update would not be needed here.
     ! ------------------------------------------------------------------------
-    !TODO - These are currently updated after transport. Needed for calving/isostasy, or not until here?
-
-    call glide_calclsrf(model%geometry%thck, model%geometry%topg,       & 
-                        model%climate%eus,   model%geometry%lsrf)
-
-    model%geometry%usrf(:,:) = max(0.d0, model%geometry%thck(:,:) + model%geometry%lsrf(:,:))
+    call glissade_calc_lsrf_usrf(&
+         model%geometry%thck,   &
+         model%geometry%topg,   &
+         model%climate%eus,     &
+         model%geometry%lsrf,   &
+         model%geometry%usrf)
 
     ! ------------------------------------------------------------------------
     ! Compute some quantities on the staggered grid.
@@ -3472,41 +3483,21 @@ contains
                                       model%geometry%gl_flux_north,              &
                                       model%geometry%gl_flux                      )
 
-    !------------------------------------------------------------------------
-    ! Update the upper and lower ice surface
-    ! Note that glide_calclsrf loops over all cells, including halos,
-    !  so halo updates are not needed for lsrf and usrf.
-    !
-    !
-    ! TODO(wjs, 2017-05-21) I don't think we should need to update lsrf and usrf
-    ! here. However, glissade_velo_higher_solve and glissade_velo_sia_solve (called from
-    ! glissade_velo_driver) multiply/divide topg (and other variables) by their scale
-    ! factors on entry to / exit from the routine. This can lead to roundoff-level changes
-    ! in topg and other variables.
-    !
-    ! If we don't update usrf here, then we can get roundoff-level changes in exact
-    ! restart tests when running inside a climate model: In the straight-through run
-    ! (without an intervening restart), the value of usrf sent to the coupler is the one
-    ! set earlier in this routine, which doesn't incorporate these roundoff-level changes
-    ! to topg. The restarted run, in contrast, reads the slightly-modified topg from the
-    ! restart file and recomputes usrf in initialization; thus, the values of usrf that
-    ! the coupler sees in the first year differ slightly from those in the
-    ! straight-through run.
-    !
-    ! A cleaner solution could be to avoid applying these rescalings to the fundamental
-    ! model variables in glissade_velo_higher_solve and glissade_velo_sia_solve - instead,
-    ! introducing temporary variables in those routines to hold the scaled
-    ! quantities. Then I think it would be safe to remove the following code that updates
-    ! lsrf and usrf. Or, if we completely removed these scale factors from CISM, then
-    ! again I think it would be safe to remove the following code.
-    ! ------------------------------------------------------------------------
-    call glide_calclsrf(model%geometry%thck, model%geometry%topg,       &
-                        model%climate%eus,   model%geometry%lsrf)
-    model%geometry%usrf(:,:) = max(0.d0, model%geometry%thck(:,:) + model%geometry%lsrf(:,:))
+    !WHL - Update not needed?
+    !      This subroutine should not change state variables.
+    !      However, remove_ice_caps does change state variables;
+    !       it should be moved.
+    call glissade_calc_lsrf_usrf(&
+         model%geometry%thck,   &
+         model%geometry%topg,   &
+         model%climate%eus,     &
+         model%geometry%lsrf,   &
+         model%geometry%usrf)
 
     if (verbose_glissade .and. main_task) then
        write(iulog,*) 'Done in glissade_diagnostic_variable_solve'
     endif
+
   end subroutine glissade_diagnostic_variable_solve
 
 !=======================================================================

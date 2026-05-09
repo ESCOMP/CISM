@@ -633,7 +633,7 @@ contains
     use glissade_diagnostics, only: glissade_calvingmip_diag
     use glissade_masks, only: glissade_get_masks
     use glissade_grounding_line, only: glissade_grounded_fraction
-    use glide_thck, only: glide_calclsrf
+    use glissade_utils, only: glissade_calc_lsrf_usrf
 
     implicit none
 
@@ -942,13 +942,16 @@ contains
 
     !TODO: Are any other halo updates needed after calving?
     ! halo updates
-    call parallel_halo(model%geometry%thck, parallel)   ! Updated halo values of thck are needed below in calclsrf
+    call parallel_halo(model%geometry%thck, parallel)
 
-    ! update the upper and lower surfaces
-
-    call glide_calclsrf(model%geometry%thck, model%geometry%topg,       &
-                        model%climate%eus,   model%geometry%lsrf)
-    model%geometry%usrf(:,:) = max(0.d0, model%geometry%thck(:,:) + model%geometry%lsrf(:,:))
+    ! update the upper and lower surfaces;
+    ! will be correct in halos after the halo update for thck
+    call glissade_calc_lsrf_usrf(&
+         model%geometry%thck,   &
+         model%geometry%topg,   &
+         model%climate%eus,     &
+         model%geometry%lsrf,   &
+         model%geometry%usrf)
 
     if (verbose_calving) then
        call point_diag(model%calving%calving_thck, 'Final calving thck (m)', itest, jtest, rtest, 7, 7)

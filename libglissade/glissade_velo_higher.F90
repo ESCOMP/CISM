@@ -674,11 +674,8 @@
 
     use glissade_basal_traction, only: glissade_calcbeta
     use glissade_therm, only: glissade_pressure_melting_point
-    use glide_thck, only: glide_calclsrf
     use profile, only: t_startf, t_stopf
-
-    !WHL - debug
-    use glissade_utils, only: write_array_to_file
+    use glissade_utils, only: glissade_calc_lsrf_usrf, write_array_to_file
 
     !----------------------------------------------------------------
     ! Input-output arguments
@@ -1220,29 +1217,17 @@
     !  and beta are years instead of seconds)
     !--------------------------------------------------------
 
-    !TODO: Do not scale topg and eus, since we would like these fields
-    !       to remain unchanged (BFB) throughout the simulation,
-    !       unless isostasy is turned on.
-    !      In the long run, remove the scale factors.
+     call glissade_velo_higher_scale_input(&
+          flwa,    efvs,          &
+          uvel,    vvel,          &
+          uvel_2d, vvel_2d)
 
-!pw call t_startf('glissade_velo_higher_scale_input')
-    call glissade_velo_higher_scale_input(dx,      dy,            &
-                                          whichcalving_front,     &
-                                          thck,                   &
-                                          topg,    eus,           &
-                                          thklim,                 &
-                                          thck_gradient_ramp,     &
-                                          flwa,    efvs,          &
-                                          btractx, btracty,       &
-                                          uvel,    vvel,          &
-                                          uvel_2d, vvel_2d)
-!pw call t_stopf('glissade_velo_higher_scale_input')
-
-    ! Now that thck and topg have the desired scaling (m), compute lsrf and usrf.
+    ! Compute lsrf and usrf.
     ! Note: If using a subgrid calving scheme, these will be based on effective thickness.
     !       Will be recomputed based on the true thickness later in the diagnostic solve.
-    call glide_calclsrf(thck, topg, eus, lsrf)
-    usrf = max(0.d0, thck + lsrf)
+     call glissade_calc_lsrf_usrf(&
+          thck, topg, eus, &
+          lsrf, usrf)
 
     ! Set volume scale
     ! This is not strictly necessary, but dividing by this scale gives matrix coefficients 
@@ -2991,21 +2976,11 @@
              uvel(:,:,:) = 0.d0
              vvel(:,:,:) = 0.d0
 
-             call t_startf('glissade_velo_higher_scale_output')
-             call glissade_velo_higher_scale_output(whichcalving_front,     &
-                                                    thck,    topg,          &
-                                                    flwa,    efvs,          &
-                                                    beta_internal,          &
-                                                    resid_u, resid_v,       &
-                                                    bu,      bv,            &
-                                                    uvel,    vvel,          &
-                                                    uvel_2d, vvel_2d,       &
-                                                    btractx, btracty,       &
-                                                    taudx,   taudy,         &
-                                                    tau_xz,  tau_yz,        &
-                                                    tau_xx,  tau_yy,        &
-                                                    tau_xy,  tau_eff)
-             call t_stopf('glissade_velo_higher_scale_output')
+             call glissade_velo_higher_scale_output(&
+                  flwa,    efvs,          &
+                  beta_internal,          &
+                  uvel,    vvel,          &
+                  uvel_2d, vvel_2d)
           
              if (main_task) write(iulog,*) 'No nonzeros in matrix; exit glissade_velo_higher_solve'
              return
@@ -3875,74 +3850,42 @@
     endif
 
     !------------------------------------------------------------------------------
-    ! Convert output variables to appropriate CISM units (generally dimensionless).
-    ! Note: bfricflx already has the desired units (W/m^2).
+    ! Convert output variables to appropriate CISM units.
+    ! These are time unit conversions between s and yr.
     !------------------------------------------------------------------------------
 
-!pw call t_startf('glissade_velo_higher_scale_output')
-    call glissade_velo_higher_scale_output(whichcalving_front,     &
-                                           thck,    topg,          &
-                                           flwa,    efvs,          &
-                                           beta_internal,          &
-                                           resid_u, resid_v,       &
-                                           bu,      bv,            &
-                                           uvel,    vvel,          &
-                                           uvel_2d, vvel_2d,       &
-                                           btractx, btracty,       &
-                                           taudx,   taudy,         &
-                                           tau_xz,  tau_yz,        &
-                                           tau_xx,  tau_yy,        &
-                                           tau_xy,  tau_eff)
-!pw call t_stopf('glissade_velo_higher_scale_output')
+    call glissade_velo_higher_scale_output(&
+         flwa,    efvs,          &
+         beta_internal,          &
+         uvel,    vvel,          &
+         uvel_2d, vvel_2d)
+
     call t_stopf('glissade_vhs_cleanup')
 
   end subroutine glissade_velo_higher_solve
 
 !****************************************************************************
 
-  subroutine glissade_velo_higher_scale_input(dx,      dy,            &
-                                              whichcalving_front,     &
-                                              thck,                   &
-                                              topg,    eus,           &
-                                              thklim,                 &
-                                              thck_gradient_ramp,     &
-                                              flwa,    efvs,          &
-                                              btractx, btracty,       &
-                                              uvel,    vvel,          &
-                                              uvel_2d, vvel_2d)
+  subroutine glissade_velo_higher_scale_input(&
+       flwa,    efvs,          &
+       uvel,    vvel,          &
+       uvel_2d, vvel_2d)
 
     !--------------------------------------------------------
-    ! Convert input variables (generally dimensionless)
-    ! to appropriate units for the Glissade solver.
+    ! Convert input variables to appropriate units for the solver.
+    !TODO - Remove this rescaling; use SI units (s instead of yr) in the solver.
     !--------------------------------------------------------
-
-    real(dp), intent(inout) ::   &
-       dx, dy                  ! grid cell length and width 
-
-    integer, intent(in) :: &
-         whichcalving_front    ! = 1 for subgrid CF, else = 0
-
-    real(dp), dimension(:,:), intent(inout) ::   &
-       thck,                &  ! ice thickness
-       topg                    ! elevation of topography
-
-    real(dp), intent(inout) ::   &
-       eus,                 &  ! eustatic sea level (= 0 by default)
-       thklim,              &  ! minimum ice thickness for active grounded cells
-       thck_gradient_ramp      ! thickness scale over which gradients are ramped up from zero to full value
 
     real(dp), dimension(:,:,:), intent(inout) ::  &
        flwa,   &               ! flow factor in units of Pa^(-n) yr^(-1)
        efvs                    ! effective viscosity (Pa yr)
 
     real(dp), dimension(:,:), intent(inout)  ::  &
-       btractx, btracty,  &    ! components of basal traction (Pa)
        uvel_2d, vvel_2d        ! components of 2D velocity (m/yr)
 
     real(dp), dimension(:,:,:), intent(inout) ::  &
        uvel, vvel              ! components of 3D velocity (m/yr)
 
-    !TODO - Remove this rescaling; use SI units (s instead of yr) in the code.
 
     ! rate factor: rescale from Pa^(-n) s^(-1) to Pa^(-n) yr^(-1)
     flwa = flwa * scyr
@@ -3960,31 +3903,16 @@
 
 !****************************************************************************
 
-  subroutine glissade_velo_higher_scale_output(whichcalving_front,      &
-                                               thck,    topg,           &
+  subroutine glissade_velo_higher_scale_output(&
                                                flwa,    efvs,           &                                       
                                                beta_internal,           &
-                                               resid_u, resid_v,        &
-                                               bu,      bv,             &
                                                uvel,    vvel,           &
-                                               uvel_2d, vvel_2d,        &
-                                               btractx, btracty,        &
-                                               taudx,   taudy,          &
-                                               tau_xz,  tau_yz,         &
-                                               tau_xx,  tau_yy,         &
-                                               tau_xy,  tau_eff)
+                                               uvel_2d, vvel_2d)
 
     !--------------------------------------------------------
-    ! Convert output variables to appropriate CISM units
-    ! (generally dimensionless)
+    ! Convert output variables to appropriate CISM units.
+    !TODO - Remove this rescaling; use SI units (s instead of yr) in the solver.
     !--------------------------------------------------------
-
-    integer, intent(in) :: &
-         whichcalving_front    ! = 1 for subgrid CF, else = 0
-
-    real(dp), dimension(:,:), intent(inout) ::  &
-       thck,                 &  ! ice thickness
-       topg                     ! elevation of topography
 
     real(dp), dimension(:,:,:), intent(inout) ::  &
        flwa,   &                ! flow factor in units of Pa^(-n) yr^(-1)
@@ -3994,22 +3922,10 @@
        beta_internal            ! basal traction parameter (Pa/(m/yr))
 
     real(dp), dimension(:,:,:), intent(inout) ::  &
-       uvel, vvel,    &         ! components of 3D velocity (m/yr)
-       resid_u, resid_v,  &     ! components of residual Ax - b (Pa/m)
-       bu, bv                   ! components of b in Ax = b (Pa/m)
+       uvel, vvel               ! components of 3D velocity (m/yr)
 
     real(dp), dimension(:,:), intent(inout) ::  &
-       uvel_2d, vvel_2d,       &! components of 2D velocity (m/yr)
-       btractx, btracty,       &! components of basal traction (Pa)
-       taudx,   taudy           ! components of driving stress (Pa)
-
-    real(dp), dimension(:,:,:), intent(inout) ::  &
-       tau_xz, tau_yz,         &! vertical components of stress tensor (Pa)
-       tau_xx, tau_yy, tau_xy, &! horizontal components of stress tensor (Pa)
-       tau_eff                  ! effective stress (Pa)
-
-    !TODO - Remove the rescaling of input and output fields, using SI units
-    !       (s instead of yr) in the code
+       uvel_2d, vvel_2d         ! components of 2D velocity (m/yr)
 
     ! Convert flow factor from Pa^(-n) yr^(-1) to Pa^(-n) s^(-1)
     flwa = flwa / scyr
