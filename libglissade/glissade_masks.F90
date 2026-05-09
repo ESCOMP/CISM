@@ -642,7 +642,7 @@
     ! An ice cap is defined as a patch of ice separate from the main ice sheet.
 
     ! The algorithm is as follows:
-    ! (1) Mark all cells with ice (ice_mask = 1) with the initial color.
+    ! (1) Mark all ice-covered cells (ice_mask = 1) with the initial color.
     !     Mark other cells with the boundary color.
     ! (2) Seed the fill by giving the fill color to some cells that are definitely
     !     part of the ice sheet (based on thck > minthck_ice_sheet).

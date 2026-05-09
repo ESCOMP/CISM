@@ -624,14 +624,15 @@ contains
     ! (1) mask-based or location-based calving,
     ! (2) physically-based calving with a subgrid calving-front scheme,
     ! (3) lateral melt (with the lateral melt term added to the calving term),
-    ! (4) removal of icebergs and isthmuses to ensure code stability, and
-    ! (5) limiting cliff heights.
+    ! (4) removing icebergs and isthmuses to ensure code stability,
+    ! (5) limiting cliff heights, and
+    ! (6) removing ice caps.
     ! ------------------------------------------------------------------------
 
     use cism_parallel, only: parallel_type, parallel_halo
 
     use glissade_diagnostics, only: glissade_calvingmip_diag
-    use glissade_masks, only: glissade_get_masks
+    use glissade_masks, only: glissade_get_masks, glissade_ice_sheet_mask
     use glissade_grounding_line, only: glissade_grounded_fraction
     use glissade_utils, only: glissade_calc_lsrf_usrf
 
@@ -940,7 +941,13 @@ contains
 
     endif
 
+    if (verbose_calving) then
+       call point_diag(model%calving%calving_thck, 'Final calving thck (m)', itest, jtest, rtest, 7, 7)
+       call point_diag(model%geometry%thck, 'Final thck (m)', itest, jtest, rtest, 7, 7)
+    endif  ! verbose_calving
+
     !TODO: Are any other halo updates needed after calving?
+    !      Should these go back in the main glissade subroutines?
     ! halo updates
     call parallel_halo(model%geometry%thck, parallel)
 
@@ -952,11 +959,6 @@ contains
          model%climate%eus,     &
          model%geometry%lsrf,   &
          model%geometry%usrf)
-
-    if (verbose_calving) then
-       call point_diag(model%calving%calving_thck, 'Final calving thck (m)', itest, jtest, rtest, 7, 7)
-       call point_diag(model%geometry%thck, 'Final thck (m)', itest, jtest, rtest, 7, 7)
-    endif  ! verbose_calving
 
   end subroutine glissade_calving_solve
 

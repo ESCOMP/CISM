@@ -45,6 +45,7 @@ module glissade_utils
        glissade_calc_lsrf_usrf, glissade_usrf_to_thck, glissade_thck_to_usrf, &
        glissade_edge_fluxes, glissade_input_fluxes, &
        glissade_rms_error, write_array_to_file, &
+       glissade_remove_ice_caps,  &
        glissade_cleanup_tiny_thickness, glissade_cleanup_icefree_cells
 
   interface write_array_to_file
@@ -1169,6 +1170,87 @@ contains
     endif
 
   end subroutine write_array_to_file_real8_3d
+
+!=======================================================================
+
+  subroutine glissade_remove_ice_caps(model)
+
+    ! Remove ice caps.
+    ! Ice caps are defined as cells disconnected from the main ice sheet.
+
+    use glissade_masks, only: glissade_get_masks, glissade_ice_sheet_mask
+    use cism_parallel, only: parallel_halo
+
+    !----------------------------------------------------------------
+    ! Input-output arguments
+    !----------------------------------------------------------------
+
+    type(glide_global_type), intent(inout) :: model   ! derived type holding ice-sheet info
+
+    ! local variables
+
+    integer, dimension(model%general%ewn, model%general%nsn) :: &
+         ice_mask           ! = 1 where ice is present, else = 0
+
+    integer :: nx, ny
+    integer :: itest, jtest, rtest
+    type(parallel_type) :: parallel
+
+    ! Copy some model variables to local variables
+
+    nx = model%general%ewn
+    ny = model%general%nsn
+
+    rtest = -999
+    itest = 1
+    jtest = 1
+    if (this_rank == model%numerics%rdiag_local) then
+       rtest = model%numerics%rdiag_local
+       itest = model%numerics%idiag_local
+       jtest = model%numerics%jdiag_local
+    endif
+
+    parallel = model%parallel
+
+    call parallel_halo(model%geometry%thck, parallel)
+
+    call glissade_get_masks(&
+         nx,                  ny,                    &
+         parallel,                                   &
+         model%geometry%thck, model%geometry%topg,   &
+         model%climate%eus,   model%numerics%thklim, &
+         ice_mask)
+
+    call glissade_ice_sheet_mask(&
+         nx,                ny,         &
+         parallel,                      &
+         itest,    jtest,   rtest,      &
+         ice_mask,                      &
+         model%geometry%thck,           &
+         model%geometry%ice_sheet_mask, &
+         model%geometry%ice_cap_mask)
+
+    !TODO - skip the first update?
+    call parallel_halo(model%geometry%ice_sheet_mask, parallel)
+    call parallel_halo(model%geometry%ice_cap_mask, parallel)
+
+
+    !TODO - Add to the removal flux instead
+    ! Remove ice caps and add them to the calving flux.
+    ! If ice caps are absent in the input file, and SMB = 0 over all cells
+    !  separated from the main sheet, then ice caps may never form.
+    ! However, it is possible that the main ice sheet will advance under a positive SMB,
+    !  and then part of that ice will melt under a negative SMB, leaving a remnant ice cap.
+    ! Such remnant ice caps could flow, possibly joining the main ice sheet.
+    ! Note: The ice cap mask is not updated after removal.  So if this mask is written to output,
+    !       it will show where ice caps existed before they were removed.
+
+    where (model%geometry%ice_cap_mask == 1)
+       model%calving%calving_thck = model%calving%calving_thck + model%geometry%thck
+       model%geometry%thck = 0.0d0
+    endwhere
+
+  end subroutine glissade_remove_ice_caps
 
 !=======================================================================
 

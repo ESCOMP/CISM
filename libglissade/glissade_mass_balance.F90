@@ -166,7 +166,7 @@
 
     use glimmer_physcon, only: rhow, rhoi, scyr
     use glissade_grid_operators, only: glissade_vertical_interpolate
-    use glissade_masks, only: glissade_extend_mask
+    use glissade_masks, only: glissade_get_masks, glissade_ice_sheet_mask, glissade_extend_mask
     use cism_parallel, only: parallel_is_zero
 
     ! input/output arguments
@@ -176,7 +176,8 @@
     ! local variables
 
     integer, dimension(model%general%ewn, model%general%nsn) ::   &
-       extended_ice_sheet_mask   ! extension of ice_sheet_mask to include neighbor cells
+         ice_mask,                & ! = 1 where ice is present, else = 0
+         extended_ice_sheet_mask    ! extension of ice_sheet_mask to include neighbor cells
 
     integer :: itest, jtest, rtest      ! coordinates of diagnostic cell
     integer :: i, j, k
@@ -387,33 +388,54 @@
             model%climate%acab)
     endif
 
-    !TODO - Compute ice_sheet_mask here?
     ! Optionally, block ice sheet inception by allowing SMB to be nonzero
     !  only in the main ice sheet and in cells adjacent to the ice sheet.
-    ! Note: The ice sheet mask is computed in the diagnostic solve at the end of the previous time step
-    !       (and at initialization).  Since it includes all cells that were part of the ice sheet
-    !       before transport, an extended version of the mask will include all cells that potentially
-    !       are part of the ice sheet after transport.
 
     if (model%options%block_inception) then
 
-       ! Extend the ice sheet mask to include nearest neighbors (both edge and corner neighbors).
+       ! update masks
+
+       call parallel_halo(model%geometry%thck, parallel)
+
+       call glissade_get_masks(&
+            ewn,                 nsn,     &
+            parallel,                                   &
+            model%geometry%thck, model%geometry%topg,   &
+            model%climate%eus,   model%numerics%thklim, &
+            ice_mask)
+
+       call glissade_ice_sheet_mask(&
+            ewn,      nsn, &
+            parallel,                      &
+            itest,    jtest,   rtest,      &
+            ice_mask,                      &
+            model%geometry%thck,           &
+            model%geometry%ice_sheet_mask, &
+            model%geometry%ice_cap_mask)
+
+       call parallel_halo(model%geometry%ice_sheet_mask, parallel)
+
+       ! Extend ice_sheet_mask to include nearest neighbors (both edge and corner neighbors).
+       ! Note: The mask just computed includes all cells that are part of the ice sheet
+       !        before transport (assuming this subroutine is called before transport).
+       !       Thus the extended mask includes cells that could be part of the ice sheet after transport.
+       ! TODO: Try without the extended mask.
 
        call glissade_extend_mask(&
             model%general%ewn,   model%general%nsn,     &
             model%geometry%ice_sheet_mask,              &
             extended_mask = extended_ice_sheet_mask)
 
-       call parallel_halo(model%geometry%ice_sheet_mask, parallel)
+       call parallel_halo(extended_ice_sheet_mask, parallel)
 
-       ! SMB is allowed to be positive only where ice_mask_smb = 1.
-       ! Note: This code allows cells outside the ice sheet to melt.
+       ! The SMB is allowed to be positive only where extended_ice_sheet_mask = 1,
+       !  but the SMB can be negative outside the ice sheet.
 
        where (extended_ice_sheet_mask == 0)
           model%climate%acab = min(model%climate%acab, 0.0d0)
        endwhere
 
-    endif
+    endif  ! block_inception
 
     ! Optionally, correct acab by adding (-dthck_dt_obs_basin) where ice is floating.
     ! (Note: model%climate%acab does not change.)

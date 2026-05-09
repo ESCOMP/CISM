@@ -123,7 +123,7 @@ contains
     use glissade_glacier, only: glissade_glacier_init
     use glissade_utils, only: glissade_adjust_thickness, glissade_smooth_usrf, &
          glissade_smooth_topography, glissade_adjust_topography
-    use glissade_utils, only: glissade_basin_average
+    use glissade_utils, only: glissade_basin_average, glissade_remove_ice_caps
     use felix_dycore_interface, only: felix_velo_init
 
     implicit none
@@ -910,6 +910,8 @@ contains
 
     ! initial calving, if desired
     ! Note: Do initial calving only for a cold start with evolving ice, not for a restart
+    !       Note: The calving solve includes removal of icebergs and isthmuses.
+
     if (l_evolve_ice .and. &
          model%options%calving_init == CALVING_INIT_ON .and. &
          model%options%is_restart == NO_RESTART) then
@@ -1119,16 +1121,15 @@ contains
     !       An update is done here regardless of code options, just to be on the safe side.
     call parallel_halo(model%stress%efvs, parallel)
 
-    ! recalculate the lower and upper ice surface
-    call glissade_calc_lsrf_usrf(&
-         model%geometry%thck,   &
-         model%geometry%topg,   &
-         model%climate%eus,     &
-         model%geometry%lsrf,   &
-         model%geometry%usrf)
-
     ! save the initial ice thickness
+    !TODO - This should be either before calving, if we want to compute a thickness change during initialization,
+    !       or after ice caps, if we want that change to be zero during initialization.
     model%geometry%thck_old(:,:) = model%geometry%thck(:,:)
+
+    !WHL - Move this to right after calving? This is answer-changing, since we would compute thck_old with ice caps removed
+    if (model%options%remove_ice_caps .and. model%options%is_restart == NO_RESTART ) then
+       call glissade_remove_ice_caps(model)
+    endif
 
     ! initialize ocean forcing data, if desired
     ! Currently, this is done only when using the ISMIP6 basal melting parameterization
@@ -1219,6 +1220,16 @@ contains
 
     endif   ! whichbmlt_float
 
+    !TODO - halo update for thck?
+
+    ! recalculate the lower and upper ice surface
+    call glissade_calc_lsrf_usrf(&
+         model%geometry%thck,   &
+         model%geometry%topg,   &
+         model%climate%eus,     &
+         model%geometry%lsrf,   &
+         model%geometry%usrf)
+
     ! clean up
     deallocate(ice_mask)
     deallocate(floating_mask)
@@ -1242,7 +1253,8 @@ contains
     use glide_mask, only: glide_set_mask
     use glissade_mass_balance, only: glissade_prepare_climate_forcing
     use glissade_calving, only: glissade_calving_solve
-    use glissade_utils, only: glissade_cleanup_tiny_thickness, glissade_cleanup_icefree_cells
+    use glissade_utils, only: glissade_remove_ice_caps, &
+         glissade_cleanup_tiny_thickness, glissade_cleanup_icefree_cells
 
     implicit none
 
@@ -1421,6 +1433,15 @@ contains
     call glissade_calving_solve(model, .false.)   ! init_calving = .false.
 
     ! ------------------------------------------------------------------------
+    ! Optionally, remove ice caps.
+    ! These are defined as patches of ice separate from the main ice sheet.
+    ! ------------------------------------------------------------------------
+
+    if (model%options%remove_ice_caps) then
+       call glissade_remove_ice_caps(model)
+    endif
+
+    ! ------------------------------------------------------------------------
     ! Remove stray bits of ice with tiny thicknesses.
     ! Second argument is the thickness threshold (m).
     ! ------------------------------------------------------------------------
@@ -1450,6 +1471,7 @@ contains
                         model%climate%eus,    model%geometry%thkmask)
 
     ! ------------------------------------------------------------------------
+    !TODO - Remove the thermal solve here; always do it near the start of the time step.
     ! Do the vertical thermal solve if it is time to do so.
     ! Note: A thermal solve should be done here (using option HO_THERMAL_AFTER_TRANSPORT 
     !       or HO_THERMAL_SPLIT_TIMESTEP) if it is desired to update the bed temperature 
@@ -2704,6 +2726,7 @@ contains
     !  so halo updates are not needed for lsrf and usrf.
     !TODO - Update at the end of glissade_tstep? Then an update would not be needed here.
     ! ------------------------------------------------------------------------
+
     call glissade_calc_lsrf_usrf(&
          model%geometry%thck,   &
          model%geometry%topg,   &
@@ -2725,48 +2748,6 @@ contains
                            itest, jtest, rtest,                              &
                            model%geometry%usrf,                              &
                            model%geomderv%dusrfdew, model%geomderv%dusrfdns)
-
-    ! ------------------------------------------------------------------------
-    !TODO - Move this calculation to the calving solver?  Apply to a different flux, instead of calving?
-    ! Compute masks for the ice sheet and ice caps.
-    ! Ice caps are defined as ice-covered cells disconnected from the main ice sheet.
-    ! Optionally, the ice sheet mask can be used to block inception outside the existing ice sheet.
-    ! ------------------------------------------------------------------------
-
-    call glissade_get_masks(ewn,                 nsn,     &
-                            parallel,                                   &
-                            model%geometry%thck, model%geometry%topg,   &
-                            model%climate%eus,   model%numerics%thklim, &
-                            ice_mask)
-
-    call glissade_ice_sheet_mask(ewn,      nsn, &
-                                 parallel,                      &
-                                 itest,    jtest,   rtest,      &
-                                 ice_mask,                      &
-                                 model%geometry%thck,           &
-                                 model%geometry%ice_sheet_mask, &
-                                 model%geometry%ice_cap_mask)
-
-    call parallel_halo(model%geometry%ice_sheet_mask, parallel)
-    call parallel_halo(model%geometry%ice_cap_mask, parallel)
-
-    if (model%options%remove_ice_caps) then
-
-       ! Remove ice caps and add them to the calving flux.
-       ! If ice caps are absent in the input file, and SMB = 0 over all cells
-       !  separated from the main sheet, then ice caps may never form.
-       ! However, it is possible that the main ice sheet will advance under a positive SMB,
-       !  and then part of that ice will melt under a negative SMB, leaving a remnant ice cap.
-       ! Such remnant ice caps could flow, possibly joining the main ice sheet.
-       ! Note: The ice cap mask is not updated after removal.  So if this mask is written to output,
-       !       it will show where ice caps existed before they were removed.
-
-       where (model%geometry%ice_cap_mask == 1)
-          model%calving%calving_thck = model%calving%calving_thck + model%geometry%thck
-          model%geometry%thck = 0.0d0
-       endwhere
-
-    endif   ! remove_ice_caps
 
     ! ------------------------------------------------------------------------
     ! Update some masks that are used for subsequent calculations
@@ -2867,6 +2848,8 @@ contains
                                      / model%numerics%dt
     endif
 
+    !TODO - Move up to glissade_tstep? Just remember not to invert on the first step after a restart.
+    !       Not needed in the initialise calc?
     ! If inverting for powerlaw_c, coulomb_c, deltaT_ocn, or flow_enhancement_factor,
     !  do the inversion now.
     !TODO - Move the inversion to the end of glissade_tstep? Doesn't need to be done during initialization.
@@ -2879,6 +2862,7 @@ contains
        call glissade_inversion_solve(model)
     endif   ! not a restart
 
+    !TODO - Move up to glissade_tstep?
     ! If glaciers are enabled, then do various updates:
     ! (1) If inverting for mu_star, alpha_snow, or powerlaw_c, then
     !     (a) Accumulate the fields needed for the inversion.
