@@ -2964,8 +2964,10 @@ contains
 
              tf_sr = thermal_forcing_applied(i,j) ! 2d thermal forcing [degC]
              q_sr = runoff_applied(i,j) * 86400.  ! runoff_applied passed in m/s; for Rignot equation convert to [m/d] 
-
-             m_sr = (3.0 * 1.0e-4 * thck_effective(i,j) * q_sr**0.39 + 0.15) * tf_sr**1.18 * 365./scyr ! Rignot et al. 2016; formulted in m/d, converted to m/s
+              
+             ! Adding frontal melt factor in line with suggested ISMIP7 retuning: * a factor 1.64 for calibration to new data; * a factor 2.0 for resolution dependence for 4 km; 
+             ! * a factor 0.8 for annual vs monthly forcing data.
+             m_sr = (1.64 * 2.0 * 0.8) * (3.0 * 1.0e-4 * thck_effective(i,j) * q_sr**0.39 + 0.15) * tf_sr**1.18 * 365./scyr ! retuned Rignot et al. 2016; formulted in m/d, converted to m/s
 
              ! calculate applied thickness change and limit by local thickness
              melt_thck(i,j) = min((m_sr*dt * thck_effective(i,j) * cf_length(i,j)) / (dx*dy), thck(i,j))
