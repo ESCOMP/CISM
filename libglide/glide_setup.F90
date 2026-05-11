@@ -2166,7 +2166,7 @@ contains
           endif
 
           if (model%options%remove_ice_caps) then
-             write(message,*) 'Ice caps will be removed and added to the calving flux'
+             write(message,*) 'Ice caps will be removed and added to the removal flux'
              call write_log(message)
           endif
 

@@ -45,7 +45,7 @@ module glissade_utils
        glissade_calc_lsrf_usrf, glissade_usrf_to_thck, glissade_thck_to_usrf, &
        glissade_edge_fluxes, glissade_input_fluxes, &
        glissade_rms_error, write_array_to_file, &
-       glissade_remove_ice_caps,  &
+       glissade_handle_ice_caps,  &
        glissade_cleanup_tiny_thickness, glissade_cleanup_icefree_cells
 
   interface write_array_to_file
@@ -1173,10 +1173,10 @@ contains
 
 !=======================================================================
 
-  subroutine glissade_remove_ice_caps(model)
+  subroutine glissade_handle_ice_caps(model)
 
-    ! Remove ice caps.
-    ! Ice caps are defined as cells disconnected from the main ice sheet.
+    ! Identify ice caps, defined as cells disconnected from the main ice sheet.
+    ! If model%options%remove_ice_caps = T, then this subroutine removes them.
 
     use glissade_masks, only: glissade_get_masks, glissade_ice_sheet_mask
     use cism_parallel, only: nhalo, parallel_halo, parallel_global_sum, parallel_globalindex, parallel_reduce_max
@@ -1235,8 +1235,6 @@ contains
          model%geometry%ice_sheet_mask, &
          model%geometry%ice_cap_mask)
 
-    !TODO - skip the first update?
-!    call parallel_halo(model%geometry%ice_sheet_mask, parallel)
     call parallel_halo(model%geometry%ice_cap_mask, parallel)
 
     ! optional ice cap diagnostics
@@ -1258,16 +1256,18 @@ contains
        endif
     endif
 
-    ! Remove ice caps and add them to the removal flux.
-    ! Note: The ice cap mask is not updated after removal.  So if this mask is written to output,
-    !       it will show where ice caps existed before they were removed.
+    ! Optionally, remove ice caps and add them to the removal flux.
+    ! Note: The ice cap mask is not updated after removal.  So if the mask is written to output,
+    !       it will show where ice caps existed before removal.
 
-    where (model%geometry%ice_cap_mask == 1)
-       model%geometry%removal_thck = model%geometry%removal_thck + model%geometry%thck
-       model%geometry%thck = 0.0d0
-    endwhere
+    if (model%options%remove_ice_caps) then
+       where (model%geometry%ice_cap_mask == 1)
+          model%geometry%removal_thck = model%geometry%removal_thck + model%geometry%thck
+          model%geometry%thck = 0.0d0
+       endwhere
+    endif
 
-  end subroutine glissade_remove_ice_caps
+  end subroutine glissade_handle_ice_caps
 
 !=======================================================================
 

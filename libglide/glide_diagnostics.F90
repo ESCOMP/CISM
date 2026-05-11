@@ -190,6 +190,8 @@ contains
          tot_volume_above_flotation,    &    ! total ice volume above flotation (kg)
          tot_mass,                      &    ! total ice mass (kg)
          tot_mass_above_flotation,      &    ! total ice mass above flotation (kg)
+         tot_area_ice_caps,             &    ! total area of disconnected ice caps (m^2)
+         tot_vol_ice_caps,              &    ! total volume of disconnected ice caps (m^3)
          thck_floating,                 &    ! thickness of floating ice
          thck_above_flotation,          &    ! thickness above flotation
          tot_energy,                    &    ! total ice energy (J)
@@ -239,6 +241,7 @@ contains
          ice_mask,                 & ! = 1 where ice is present with thck > minthck, else = 0
          floating_mask,            & ! = 1 where ice is present and floating, else = 0
          grounded_mask,            & ! = 1 where ice is present and grounded, else = 0
+         ice_cap_mask,             & ! = 1 where an ice cap is present, else = 0
          glacier_ice_mask            ! = 1 where glacier ice is present, initially and/or currently
 
     integer, dimension(model%general%ewn-1,model%general%nsn-1) ::  &
@@ -378,6 +381,8 @@ contains
        enddo
     enddo
 
+    ice_cap_mask = model%geometry%ice_cap_mask
+
     !-----------------------------------------------------------------
     ! Compute and write global diagnostics
     !-----------------------------------------------------------------
@@ -417,6 +422,10 @@ contains
 
     ! total ice mass above flotation (kg)
     tot_mass_above_flotation = tot_volume_above_flotation * rhoi
+
+    ! ice cap area and volume
+    tot_area_ice_caps = parallel_global_sum(cell_area, parallel, ice_cap_mask)
+    tot_vol_ice_caps = parallel_global_sum(model%geometry%thck*cell_area, parallel, ice_cap_mask)
 
     ! total ice energy relative to T = 0 deg C (J)
     local_energy = 0.0d0
@@ -483,6 +492,8 @@ contains
     model%geometry%ivol_above_flotation = tot_volume_above_flotation
     model%geometry%imass  = tot_mass
     model%geometry%imass_above_flotation = tot_mass_above_flotation
+    model%geometry%icap_area  = tot_area_ice_caps
+    model%geometry%icap_vol  = tot_vol_ice_caps
 
     ! Optionally, compute some basin-scale scalars, also written to the geometry derived type
 
@@ -499,9 +510,16 @@ contains
             parallel_global_sum_patch(volume_above_flotation, model%ocean_data%nbasin, model%ocean_data%basin_number, parallel)
        model%geometry%imass_basin(:) = model%geometry%ivol_basin(:)*rhoi
        model%geometry%imass_above_flotation_basin(:) = model%geometry%ivol_above_flotation_basin(:)*rhoi
+       model%geometry%icap_area_basin(:)  = &
+            parallel_global_sum_patch(cell_area*ice_cap_mask, model%ocean_data%nbasin, model%ocean_data%basin_number, parallel)
+       model%geometry%icap_vol_basin(:)  = &
+            parallel_global_sum_patch(cell_area*ice_cap_mask*model%geometry%thck, &
+            model%ocean_data%nbasin, model%ocean_data%basin_number, parallel)
+
+       ! Optionally, write output to a specific basin with an applied thermal forcing anomaly
        if (main_task) then
           nb = model%ocean_data%thermal_forcing_anomaly_basin
-          if (nb > 1) then
+          if (nb >= 1) then
              write(iulog,*) 'Diagnostics for basin', nb
              write(iulog,*) 'iarea, iareag, iareaf (km^2):', &
                   model%geometry%iarea_basin(nb)/1.0d6, model%geometry%iareag_basin(nb)/1.0d6, model%geometry%iareaf_basin(nb)/1.0d6
@@ -509,8 +527,13 @@ contains
                   model%geometry%ivol_basin(nb)/1.0d9, model%geometry%ivol_above_flotation_basin(nb)/1.0d9
              write(iulog,*) 'imass, imass_above_flotation (Gt):', &
                   model%geometry%imass_basin(nb)/1.0d12, model%geometry%imass_above_flotation_basin(nb)/1.0d12
+             if (.not.model%options%remove_ice_caps)  then
+                write(iulog,*) '   ice cap area (km^2):', model%geometry%icap_area_basin(nb)/1.0d6
+                write(iulog,*) '   ice cap vol  (km^3):', model%geometry%icap_vol_basin(nb)/1.0d9
+             endif
           endif
        endif
+
     endif   ! nbasin > 1
 
     ! For Glissade only, compute a global mass budget and check mass conservation
@@ -682,6 +705,15 @@ contains
        call write_log(trim(message), type = GM_DIAGNOSTIC)
 
     endif  ! dm_dt_diag
+
+    if (.not.model%options%remove_ice_caps .and. .not.model%options%enable_glaciers) then
+       write(message,'(a25,e24.16)') 'Ice cap area (km^2)       ',   &
+                                      tot_area_ice_caps*1.0d-6  ! convert to km^2
+       call write_log(trim(message), type = GM_DIAGNOSTIC)
+       write(message,'(a25,e24.16)') 'Ice cap volume (km^3)     ',   &
+                                      tot_vol_ice_caps*1.0d-9   ! convert to km^3
+       call write_log(trim(message), type = GM_DIAGNOSTIC)
+    endif
 
     if (model%options%whichdycore == DYCORE_GLISSADE) then
 

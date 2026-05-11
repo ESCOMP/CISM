@@ -880,14 +880,14 @@ type:          int
 [ice_sheet_mask]
 dimensions:    time, y1, x1
 units:         1
-long_name:     mask for ice sheet
+long_name:     mask for connected ice sheet
 data:          data%geometry%ice_sheet_mask
 type:          int
 
 [ice_cap_mask]
 dimensions:    time, y1, x1
 units:         1
-long_name:     mask for ice caps
+long_name:     mask for disconnected ice caps
 data:          data%geometry%ice_cap_mask
 type:          int
 

@@ -123,7 +123,7 @@ contains
     use glissade_glacier, only: glissade_glacier_init
     use glissade_utils, only: glissade_adjust_thickness, glissade_smooth_usrf, &
          glissade_smooth_topography, glissade_adjust_topography
-    use glissade_utils, only: glissade_basin_average, glissade_remove_ice_caps
+    use glissade_utils, only: glissade_basin_average, glissade_handle_ice_caps
     use felix_dycore_interface, only: felix_velo_init
 
     implicit none
@@ -1126,9 +1126,12 @@ contains
     !       or after ice caps, if we want that change to be zero during initialization.
     model%geometry%thck_old(:,:) = model%geometry%thck(:,:)
 
+    ! Identify ice caps, defined as cells disconnected from the main ice sheet.
+    ! If model%options%remove_ice_caps = T, then this subroutine removes them.
+
     !WHL - Move this to right after calving? This is answer-changing, since we would compute thck_old with ice caps removed
-    if (model%options%remove_ice_caps .and. model%options%is_restart == NO_RESTART ) then
-       call glissade_remove_ice_caps(model)
+    if (model%options%is_restart == NO_RESTART ) then
+       call glissade_handle_ice_caps(model)
     endif
 
     ! initialize ocean forcing data, if desired
@@ -1253,7 +1256,7 @@ contains
     use glide_mask, only: glide_set_mask
     use glissade_mass_balance, only: glissade_prepare_climate_forcing
     use glissade_calving, only: glissade_calving_solve
-    use glissade_utils, only: glissade_remove_ice_caps, &
+    use glissade_utils, only: glissade_handle_ice_caps, &
          glissade_cleanup_tiny_thickness, glissade_cleanup_icefree_cells
 
     implicit none
@@ -1437,13 +1440,11 @@ contains
     model%geometry%removal_thck = 0.0d0
 
     ! ------------------------------------------------------------------------
-    ! Optionally, remove ice caps.
-    ! These are defined as patches of ice separate from the main ice sheet.
+    ! Identify ice caps, defined as cells disconnected from the main ice sheet.
+    ! If model%options%remove_ice_caps = T, then this subroutine removes them.
     ! ------------------------------------------------------------------------
 
-    if (model%options%remove_ice_caps) then
-       call glissade_remove_ice_caps(model)
-    endif
+    call glissade_handle_ice_caps(model)
 
     ! ------------------------------------------------------------------------
     ! Remove stray bits of ice with tiny thicknesses.

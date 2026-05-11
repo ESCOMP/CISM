@@ -1296,6 +1296,8 @@ module glide_types
     real(dp) :: ivol_above_flotation   ! total ice volume above flotation (m^3)
     real(dp) :: imass                  ! total ice mass (kg)
     real(dp) :: imass_above_flotation  ! total ice mass above flotation (kg)
+    real(dp) :: icap_area              ! total ice cap area (m^2) (included within iarea)
+    real(dp) :: icap_vol               ! total ice cap volume (m^3) (included within ivol)
 
     ! basin-scale scalars
     real(dp), dimension(:), pointer :: iarea_basin    ! total ice area per basin (m^2)
@@ -1305,6 +1307,8 @@ module glide_types
     real(dp), dimension(:), pointer :: ivol_above_flotation_basin   ! total ice volume above flotation per basin (m^3)
     real(dp), dimension(:), pointer :: imass_basin    ! total ice mass per basin (kg)
     real(dp), dimension(:), pointer :: imass_above_flotation_basin   ! total ice mass above flotation per basin (kg)
+    real(dp), dimension(:), pointer :: icap_area_basin   ! total ice cap area per basin (m^2)
+    real(dp), dimension(:), pointer :: icap_vol_basin   ! total ice cap volume per basin (m^3)
 
   end type glide_geometry
 
@@ -3356,6 +3360,8 @@ contains
        allocate(model%geometry%ivol_above_flotation_basin(model%ocean_data%nbasin))
        allocate(model%geometry%imass_basin(model%ocean_data%nbasin))
        allocate(model%geometry%imass_above_flotation_basin(model%ocean_data%nbasin))
+       allocate(model%geometry%icap_area_basin(model%ocean_data%nbasin))
+       allocate(model%geometry%icap_vol_basin(model%ocean_data%nbasin))
     endif
 
     ! climate arrays
@@ -3995,6 +4001,10 @@ contains
          deallocate(model%geometry%imass_basin)
     if (associated(model%geometry%imass_above_flotation_basin)) &
          deallocate(model%geometry%imass_above_flotation_basin)
+    if (associated(model%geometry%icap_area_basin)) &
+         deallocate(model%geometry%icap_area_basin)
+    if (associated(model%geometry%icap_vol_basin)) &
+         deallocate(model%geometry%icap_vol_basin)
 
     if (associated(model%geometry%thck_index)) &
         deallocate(model%geometry%thck_index)
