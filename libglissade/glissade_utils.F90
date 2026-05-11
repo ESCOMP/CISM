@@ -1179,7 +1179,7 @@ contains
     ! Ice caps are defined as cells disconnected from the main ice sheet.
 
     use glissade_masks, only: glissade_get_masks, glissade_ice_sheet_mask
-    use cism_parallel, only: parallel_halo
+    use cism_parallel, only: nhalo, parallel_halo, parallel_global_sum, parallel_globalindex, parallel_reduce_max
 
     !----------------------------------------------------------------
     ! Input-output arguments
@@ -1192,9 +1192,14 @@ contains
     integer, dimension(model%general%ewn, model%general%nsn) :: &
          ice_mask           ! = 1 where ice is present, else = 0
 
+    integer :: i, j, ig, jg
     integer :: nx, ny
     integer :: itest, jtest, rtest
     type(parallel_type) :: parallel
+    integer :: ice_cap_count
+    real(dp) :: max_ice_cap_thck
+
+    logical, parameter :: verbose_ice_caps = .true.
 
     ! Copy some model variables to local variables
 
@@ -1231,22 +1236,34 @@ contains
          model%geometry%ice_cap_mask)
 
     !TODO - skip the first update?
-    call parallel_halo(model%geometry%ice_sheet_mask, parallel)
+!    call parallel_halo(model%geometry%ice_sheet_mask, parallel)
     call parallel_halo(model%geometry%ice_cap_mask, parallel)
 
+    ! optional ice cap diagnostics
 
-    !TODO - Add to the removal flux instead
-    ! Remove ice caps and add them to the calving flux.
-    ! If ice caps are absent in the input file, and SMB = 0 over all cells
-    !  separated from the main sheet, then ice caps may never form.
-    ! However, it is possible that the main ice sheet will advance under a positive SMB,
-    !  and then part of that ice will melt under a negative SMB, leaving a remnant ice cap.
-    ! Such remnant ice caps could flow, possibly joining the main ice sheet.
+    if (verbose_ice_caps) then
+       ice_cap_count = parallel_global_sum(model%geometry%ice_cap_mask, parallel)
+       if (main_task) write(iulog,*) 'Ice cap removal: no. of cells =', ice_cap_count
+       max_ice_cap_thck = maxval(model%geometry%thck * model%geometry%ice_cap_mask)
+       max_ice_cap_thck = parallel_reduce_max(max_ice_cap_thck)
+       if (max_ice_cap_thck > 0.0d0) then
+          do j = nhalo+1, ny - nhalo
+             do i = nhalo+1, nx - nhalo
+                if (abs(model%geometry%thck(i,j) - max_ice_cap_thck) < eps11) then
+                   call parallel_globalindex(i, j, ig, jg, parallel)
+                   write(iulog,*) 'ig, jg, max ice cap H:', ig, jg, max_ice_cap_thck
+                endif
+             enddo
+          enddo
+       endif
+    endif
+
+    ! Remove ice caps and add them to the removal flux.
     ! Note: The ice cap mask is not updated after removal.  So if this mask is written to output,
     !       it will show where ice caps existed before they were removed.
 
     where (model%geometry%ice_cap_mask == 1)
-       model%calving%calving_thck = model%calving%calving_thck + model%geometry%thck
+       model%geometry%removal_thck = model%geometry%removal_thck + model%geometry%thck
        model%geometry%thck = 0.0d0
     endwhere
 
@@ -1277,8 +1294,11 @@ contains
     ! Make sure the ice thickness is updated in halo cells
     call parallel_halo(model%geometry%thck, parallel)
 
+    ! Remove very thin ice and add to the removal flux
+    ! Note: This flux also includes ice caps which are removed
+
     where (model%geometry%thck > 0.0d0 .and. model%geometry%thck < tiny_thck)
-       model%calving%calving_thck = model%calving%calving_thck + model%geometry%thck
+       model%geometry%removal_thck = model%geometry%removal_thck + model%geometry%thck
        model%geometry%thck = 0.0d0
     endwhere
 

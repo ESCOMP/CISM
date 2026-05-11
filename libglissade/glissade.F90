@@ -1432,6 +1432,10 @@ contains
 
     call glissade_calving_solve(model, .false.)   ! init_calving = .false.
 
+    ! Initialize the ice removal flux
+    ! This flux is computed in the next two subroutines.
+    model%geometry%removal_thck = 0.0d0
+
     ! ------------------------------------------------------------------------
     ! Optionally, remove ice caps.
     ! These are defined as patches of ice separate from the main ice sheet.
@@ -2097,8 +2101,7 @@ contains
        ice_mask,             & ! = 1 if thck > 0, else = 0
        floating_mask,        & ! = 1 where ice is present and floating, else = 0
        ocean_mask,           & ! = 1 if topg is below sea level and thck = 0, else = 0
-       land_mask,            & ! = 1 if topg is at or above sea level, else = 0
-       calving_front_mask      ! = 1 where ice is floating and borders an ocean cell, else = 0
+       land_mask               ! = 1 if topg is at or above sea level, else = 0
 
     real(dp) :: advective_cfl       ! advective CFL number
                                     ! If advective_cfl > 1, the model is unstable without subcycling
@@ -2216,7 +2219,7 @@ contains
             model%climate%eus,                        &   ! m
             ice_mask,               floating_mask,    &
             ocean_mask,             land_mask,        &
-            calving_front_mask,                       &
+            model%calving%calving_front_mask,         &
             model%calving%dthck_dx_cf,                &
             model%numerics%dew,                       &
             model%numerics%dns,                       &
@@ -2228,7 +2231,7 @@ contains
             itest, jtest, rtest)
 
        if (verbose_calving) then
-          call point_diag(calving_front_mask, 'calving_front_mask', itest, jtest, rtest, 7, 7)
+          call point_diag(model%calving%calving_front_mask, 'calving_front_mask', itest, jtest, rtest, 7, 7)
           call point_diag(partial_cf_mask, 'partial_cf_mask', itest, jtest, rtest, 7, 7)
           call point_diag(full_mask, 'full_mask', itest, jtest, rtest, 7, 7)
 !          call point_diag(ocean_mask, 'ocean_mask', itest, jtest, rtest, 7, 7)
@@ -2640,13 +2643,14 @@ contains
     use glide_velo, only: wvelintg
     use glissade_masks, only: glissade_get_masks, glissade_ice_sheet_mask, glissade_calving_front_mask
     use glissade_grid_operators, only: glissade_stagger, glissade_gradient, glissade_laplacian_smoother
-    use glissade_grounding_line, only: glissade_grounded_fraction, glissade_grounding_line_flux, verbose_glp
+    use glissade_grounding_line, only: glissade_grounded_fraction, verbose_glp
     use glissade_therm, only: glissade_interior_dissipation_sia,  &
                               glissade_interior_dissipation_first_order, &
                               glissade_flow_factor,  &
                               glissade_pressure_melting_point
     use glissade_calving, only: verbose_calving
-    use glissade_diagnostics, only: glissade_stress_tensor_eigenvalues, glissade_strain_rate_tensor_eigenvalues
+    use glissade_diagnostics, only: glissade_stress_tensor_eigenvalues, glissade_strain_rate_tensor_eigenvalues, &
+         glissade_mass_balance_diagnostics, glissade_grounding_line_flux
     use felix_dycore_interface, only: felix_velo_driver
     use glissade_inversion, only: verbose_inversion, glissade_inversion_solve
     use glissade_basal_traction, only: glissade_calc_effecpress, glissade_elevation_based_coulomb_c
@@ -2666,8 +2670,7 @@ contains
          ice_mask,           & ! = 1 where thck > thklim, else = 0
          floating_mask,      & ! = 1 where ice is present and floating, else = 0
          ocean_mask,         & ! = 1 where topg is below sea level and ice is absent
-         land_mask,          & ! = 1 where topg is at or above sea level
-         calving_front_mask    ! = 1 where ice is floating and borders an ocean cell, else = 0
+         land_mask             ! = 1 where topg is at or above sea level
 
     real(dp), dimension(model%general%ewn, model%general%nsn) ::  &
          flow_enhancement_factor_float,  & ! flow enhancement factor for floating ice
@@ -2781,7 +2784,7 @@ contains
          model%climate%eus,                     &
          ice_mask,            floating_mask,    &
          ocean_mask,          land_mask,        &
-         calving_front_mask,                    &
+         model%calving%calving_front_mask,      &
          model%calving%dthck_dx_cf,             &
          model%numerics%dew,                    &
          model%numerics%dns,                    &
@@ -3356,34 +3359,24 @@ contains
        enddo
     enddo
 
-    ! surface mass balance in units of mm/yr w.e.
-    ! (model%climate%acab has units of m/s of ice
-    ! Note: This is not necessary (and can destroy exact restart) if the SMB was already input in units of mm/yr
-    if (model%options%smb_input /= SMB_INPUT_MMYR_WE) then
-       model%climate%smb(:,:) = (model%climate%acab(:,:) * scyr) * (1000.d0 * rhoi/rhow)
-    endif
+    ! Compute various diagnostics related to mass balance and mass fluxes
 
-    ! Corrections for basal melt at the calving front; convert basal melt to calving in CF cells.
-    ! Computed melt rates can be large in CF cells when applying a calving mask and adjusting deltaT_ocn
-    !  based on a thickness target.  In this case, it is better to think of the melt as part of the calving.
-    ! Note: Both calving_thck and bmlt_applied have dimensionless model units;
-    !       calving_thck = calving thickness per timestep, while bmlt_applied = melt per unit time
+    call glissade_mass_balance_diagnostics(model)
 
-    if (model%options%whichcalving == CALVING_GRID_MASK .or. model%options%apply_calving_mask) then
-       where (calving_front_mask == 1)
-          model%calving%calving_thck = model%calving%calving_thck + model%basal_melt%bmlt_applied * model%numerics%dt
-          model%basal_melt%bmlt_applied = 0.0d0
-       endwhere
-    endif
+    ! Compute grounding line fluxes
+    ! Note: gl_flux_east and gl_flux_north are signed fluxes computed at cell edges;
+    !       gl_flux is cell-based and is found by summing magnitudes of edge fluxes.
 
-    ! surface, basal and calving mass fluxes (kg/m^2/s)
-    ! positive for mass gain, negative for mass loss
-    model%geometry%sfc_mbal_flux(:,:) = rhoi * model%climate%acab_applied(:,:)
-    model%geometry%basal_mbal_flux(:,:) = rhoi * (-model%basal_melt%bmlt_applied(:,:))
-    model%geometry%calving_flux(:,:) = rhoi * (-model%calving%calving_thck(:,:)) / model%numerics%dt
-
-    ! calving rate (m/yr ice; positive for calving)
-    model%calving%calving_rate(:,:) = model%calving%calving_thck(:,:) / (model%numerics%dt/scyr)
+    call glissade_grounding_line_flux(ewn,                  nsn,                 &
+                                      model%numerics%dew,   model%numerics%dns,  &
+                                      model%numerics%sigma,                      &
+                                      model%geometry%thck,                       &
+                                      model%velocity%uvel,  model%velocity%vvel, &
+                                      ice_mask,             floating_mask,       &
+                                      ocean_mask,                                &
+                                      model%mass_flux%gl_flux_east,              &
+                                      model%mass_flux%gl_flux_north,             &
+                                      model%mass_flux%gl_flux)
 
     ! save old masks for diagnostics
     floating_mask_old = model%geometry%floating_mask
@@ -3424,53 +3417,8 @@ contains
        enddo
     enddo
 
-    !WHL - inversion debug
-    ! The goal is to spin up in a way that minimizes flipping between grounded and floating.
-!!    if (verbose_inversion .and. model%numerics%time > model%numerics%tstart .and. &
-    if (0 == 1 .and. model%numerics%time > model%numerics%tstart .and. &
-        (model%options%which_ho_powerlaw_c == HO_POWERLAW_C_INVERSION .or.  &
-         model%options%which_ho_coulomb_c  == HO_COULOMB_C_INVERSION) ) then
-       do j = nhalo+1, nsn-nhalo
-          do i = nhalo+1, ewn-nhalo
-             if (model%geometry%floating_mask(i,j) /= floating_mask_old(i,j)) then
-                call parallel_globalindex(i, j, iglobal, jglobal, parallel)
-                if (model%geometry%floating_mask(i,j) == 1) then
-                   if (grounded_mask_old(i,j) == 1) then
-                      write(iulog,*) 'Floating_mask flip, G to F: i, j =', iglobal, jglobal
-                   else
-                      write(iulog,*) 'Floating_mask flip, O to F: i, j =', iglobal, jglobal
-                   endif
-                elseif (floating_mask_old(i,j) == 1) then
-                   if (model%geometry%grounded_mask(i,j) == 1) then
-                      write(iulog,*) 'Floating_mask flip, F to G: i, j =', iglobal, jglobal
-                   else
-                      write(iulog,*) 'Floating_mask flip, F to O: i, j =', iglobal, jglobal
-                   endif
-                endif
-             endif
-          enddo
-       enddo
-    endif
-
-    ! Compute grounding line fluxes
-    ! Note: gl_flux_east and gl_flux_north are signed fluxes computed at cell edges;
-    !       gl_flux is cell-based and is found by summing magnitudes of edge fluxes.
-
-    call glissade_grounding_line_flux(ewn,                  nsn,                 &
-                                      model%numerics%dew,   model%numerics%dns,  &
-                                      model%numerics%sigma,                      &
-                                      model%geometry%thck,                       &
-                                      model%velocity%uvel,  model%velocity%vvel, &
-                                      ice_mask,             floating_mask,       &
-                                      ocean_mask,                                &
-                                      model%geometry%gl_flux_east,               &
-                                      model%geometry%gl_flux_north,              &
-                                      model%geometry%gl_flux                      )
-
     !WHL - Update not needed?
     !      This subroutine should not change state variables.
-    !      However, remove_ice_caps does change state variables;
-    !       it should be moved.
     call glissade_calc_lsrf_usrf(&
          model%geometry%thck,   &
          model%geometry%topg,   &

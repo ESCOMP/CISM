@@ -1277,8 +1277,7 @@ contains
          ice_mask,               & ! = 1 where ice is present (thck > thklim), else = 0
          floating_mask,          & ! = 1 where ice is present (thck > thklim) and floating, else = 0
          ocean_mask,             & ! = 1 where topg is below sea level and ice is absent, else = 0
-         land_mask,              & ! = 1 where topg is at or above sea level, else = 0
-         calving_front_mask        ! = 1 where ice is floating with at least one ocean edge neighbor, else = 0
+         land_mask                 ! = 1 where topg is at or above sea level, else = 0
 
     real(dp), dimension(nx,ny) :: &
          calving_dthck,        & ! thickness increment (m) to be added to calving%thck
@@ -1419,7 +1418,7 @@ contains
          eus,                           &
          ice_mask,      floating_mask,  &
          ocean_mask,    land_mask,      &
-         calving_front_mask,            &
+         calving%calving_front_mask,    &
          calving%dthck_dx_cf,           &
          dx,            dy,             &
          calving%thck_effective,        &
@@ -1446,7 +1445,7 @@ contains
             dx,           dy,             &
             x1,           y1,             &
             itest, jtest, rtest,          &
-            calving_front_mask,           &
+            calving%calving_front_mask,   &
             ocean_mask,                   &
             cf_length)
 
@@ -1459,7 +1458,7 @@ contains
             nx,           ny,             &
             dx,           dy,             &
             itest, jtest, rtest,          &
-            calving_front_mask,           &
+            calving%calving_front_mask,   &
             ocean_mask,                   &
             cf_length)
 
@@ -1470,7 +1469,7 @@ contains
     if (verbose_calving) then
        call point_diag(cf_length, 'cf_length (m)', itest, jtest, rtest, 7, 7)
        ! Diagnose the total CF length
-       total_cf_length = parallel_global_sum(cf_length, parallel, calving_front_mask)
+       total_cf_length = parallel_global_sum(cf_length, parallel, calving%calving_front_mask)
        if (this_rank == rtest) then
           write(iulog,*) 'Total CF length (km)', total_cf_length/1000.d0
        endif
@@ -1486,7 +1485,7 @@ contains
             dx,                 dy,                    &
             dt,                 time,                  &  ! s
             itest,   jtest,     rtest,                 &
-            calving_front_mask,                        &
+            calving%calving_front_mask,                   &
             thck_pre_transport,                        &  ! m
             thck,                                      &  ! m
             cf_length,                                 &  ! m
@@ -1509,7 +1508,7 @@ contains
             dx,                 dy,                    &  ! m
             dt,                                        &  ! s
             itest,   jtest,     rtest,                 &
-            calving_front_mask,                        &
+            calving%calving_front_mask,                &
             speed,                                     &  ! m/s
             cf_length,                                 &  ! m
             calving%thck_effective,                    &  ! m
@@ -1538,7 +1537,7 @@ contains
             dx,                 dy,            &  ! m
             dt,                                &  ! s
             itest,   jtest,     rtest,         &
-            calving_front_mask,                &
+            calving%calving_front_mask,        &
             speed,                             &  ! m/s
             cf_length,                         &  ! m
             calving%thck_effective,            &  ! m
@@ -1560,7 +1559,7 @@ contains
                dx,                 dy,                    &  ! m
                dt,                                        &  ! s
                itest,   jtest,     rtest,                 &
-               calving_front_mask,                        &
+               calving%calving_front_mask,                &
                speed,                                     &  ! m/s
                cf_length,                                 &  ! m
                calving%thck_effective,                    &  ! m
@@ -1595,7 +1594,7 @@ contains
             dt,                                &  ! s
             itest,   jtest,     rtest,         &
             parallel,                          &
-            calving_front_mask,                &
+            calving%calving_front_mask,        &
             thck,                              &  ! m
             calving%thck_effective,            &  ! m
             calving%effective_areafrac,        &
@@ -1625,7 +1624,7 @@ contains
             dx,                 dy,            &  ! m
             dt,                                &  ! s
             itest,   jtest,     rtest,         &
-            calving_front_mask,                &
+            calving%calving_front_mask,        &
             cf_length,                         &  ! m
             calving%thck_effective,            &  ! m
             calving%eps_eigen1,                &  ! 1/s
@@ -1662,7 +1661,7 @@ contains
             itest,   jtest,     rtest,              &
             parallel,                               &
             floating_mask,                          &
-            calving_front_mask,                     &
+            calving%calving_front_mask,             &
             thck,                                   &  ! m
             topg,                                   &  ! m
             calving%tau_eigen1, calving%tau_eigen2, &  ! Pa
@@ -1695,14 +1694,14 @@ contains
 
        !TODO - Also pass melt_dthck, return lateral_melt%melt_thck
        call apply_calving_dthck(&
-            nx,           ny,        &
-            itest, jtest, rtest,     &
-            parallel,                &
-            calving_front_mask,      &
-            floating_mask,           &
-            flux_in,                 &
-            calving_dthck,           &
-            thck,                    &
+            nx,           ny,           &
+            itest, jtest, rtest,        &
+            parallel,                   &
+            calving%calving_front_mask, &
+            floating_mask,              &
+            flux_in,                    &
+            calving_dthck,              &
+            thck,                       &
             calving%calving_thck)
 
     endif
@@ -1733,7 +1732,7 @@ contains
          eus,                           &
          ice_mask,      floating_mask,  &
          ocean_mask,    land_mask,      &
-         calving_front_mask,            &
+         calving%calving_front_mask,    &
          calving%dthck_dx_cf,           &
          dx,            dy,             &
          calving%thck_effective,        &
@@ -1753,13 +1752,13 @@ contains
     endif
 
     call advance_calving_front(&
-         nx,           ny,        &
-         itest, jtest, rtest,     &
-         parallel,                &
-         ocean_mask,              &
-         calving_front_mask,      &
-         flux_in,                 &
-         calving%thck_effective,  &
+         nx,           ny,           &
+         itest, jtest, rtest,        &
+         parallel,                   &
+         ocean_mask,                 &
+         calving%calving_front_mask, &
+         flux_in,                    &
+         calving%thck_effective,     &
          thck)
 
     if (verbose_calving) then
@@ -1785,7 +1784,7 @@ contains
             eus,                           &
             ice_mask,      floating_mask,  &
             ocean_mask,    land_mask,      &
-            calving_front_mask,            &
+            calving%calving_front_mask,    &
             calving%dthck_dx_cf,           &
             dx,            dy,             &
             calving%thck_effective,        &
@@ -3525,7 +3524,6 @@ contains
          ocean_connection_mask,   & ! = 1 for cells that are masked for retreat and are connected to the ocean
                                     ! through other cells that are masked for retreat
          retreat_mask,            & ! local version of ice_fraction_retreat_mask; excludes grounded cells
-         calving_front_mask,      & !
          partial_cf_mask,         & ! = 1 for partially filled CF cells (thck < thck_effective), else = 0
          full_mask                  ! = 1 for ice-filled cells that are not partial_cf cells, else = 0
 
@@ -3817,7 +3815,7 @@ contains
                model%climate%eus,                    &
                ice_mask,      floating_mask,         &
                ocean_mask,    land_mask,             &
-               calving_front_mask,                   &
+               model%calving%calving_front_mask,     &
                model%calving%dthck_dx_cf,            &
                model%numerics%dew,                   &
                model%numerics%dns,                   &
@@ -3829,7 +3827,7 @@ contains
 
           if (verbose_calving) then
              if (this_rank == rtest) write(iulog,*) 'Computed CF masks, iter =', iter
-             call point_diag(calving_front_mask, 'calving_front_mask', itest, jtest, rtest, 7, 7)
+             call point_diag(model%calving%calving_front_mask, 'calving_front_mask', itest, jtest, rtest, 7, 7)
           endif
 
           ! Expand the CF mask to include floating interior cells that border the ocean at a single point.
@@ -3840,16 +3838,16 @@ contains
                 if (floating_mask(i,j) == 1) then
                    if (ocean_mask(i-1,j+1) == 1 .or. ocean_mask(i+1,j+1) == 1 .or. &
                        ocean_mask(i-1,j-1) == 1 .or. ocean_mask(i+1,j-1) == 1) then
-                      calving_front_mask(i,j) = 1
+                      model%calving%calving_front_mask(i,j) = 1
                    endif
                 endif
              enddo
           enddo
 
-          call parallel_halo(calving_front_mask, parallel)
+          call parallel_halo(model%calving%calving_front_mask, parallel)
 
           if (verbose_calving) then
-             call point_diag(calving_front_mask, 'Adjusted calving_front_mask', itest, jtest, rtest, 7, 7)
+             call point_diag(model%calving%calving_front_mask, 'Adjusted calving_front_mask', itest, jtest, rtest, 7, 7)
           endif
 
           ! Apply the subgrid mask to partly masked cells
@@ -3857,7 +3855,7 @@ contains
           do j = 1, ny
              do i = 1, nx
                 if (model%calving%subgrid_calving_mask(i,j) > 0.0d0) then
-                   if (calving_front_mask(i,j) == 1 .and. .not.already_calved(i,j)) then
+                   if (model%calving%calving_front_mask(i,j) == 1 .and. .not.already_calved(i,j)) then
                       ! thin the ice as needed so that H/H_eff = 1 - mask
                       new_thck = model%calving%thck_effective(i,j) * (1.0d0 - model%calving%subgrid_calving_mask(i,j))
                       if (new_thck < model%geometry%thck(i,j)) then

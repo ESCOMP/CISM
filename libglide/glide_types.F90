@@ -1192,8 +1192,7 @@ module glide_types
 
   type glide_geometry
 
-    !> Holds fields and other information relating to the
-    !> geometry of the ice sheet and bedrock.
+    !> Holds fields and other information relating to the geometry of the ice sheet and bedrock.
 
     real(dp),dimension(:,:),pointer :: thck => null()
     !> ice thickness (m)
@@ -1251,21 +1250,6 @@ module glide_types
     integer, dimension(:,:),pointer :: stagmask => null()
     !> see glide_mask.f90 for possible values
 
-    ! mass fluxes at upper, lower and lateral boundaries
-    ! TODO: Move to a flux derived type?
-    ! Note: sfc_mbal_flux and basal_mbal_flux are not strictly needed, since they are equal to acab_applied and bmlt_applied
-    !       multipled by a constant. For some applications, however, it may be useful to output the mass balance in SI units.
-    real(dp),dimension(:,:),  pointer :: sfc_mbal_flux =>null()        !> surface mass balance (kg m^-2 s^-1), diagnosed from acab
-    real(dp),dimension(:,:),  pointer :: sfc_mbal_flux_tavg =>null()   !> surface mass balance (kg m^-2 s^-1, time average)
-    real(dp),dimension(:,:),  pointer :: basal_mbal_flux =>null()      !> basal mass balance (kg m^-2 s^-1), diagnosed from bmlt
-    real(dp),dimension(:,:),  pointer :: basal_mbal_flux_tavg =>null() !> basal mass balance (kg m^-2 s^-1, time average)
-    real(dp),dimension(:,:),  pointer :: calving_flux =>null()         !> calving flux (kg m^-2 s^-1), diagnosed from calving_thck
-    real(dp),dimension(:,:),  pointer :: calving_flux_tavg =>null()    !> calving flux (kg m^-2 s^-1, time average)
-    real(dp),dimension(:,:),  pointer :: gl_flux_east =>null()         !> mass flux eastward at grounding line, edge-based (kg m^-1 s^-1)
-    real(dp),dimension(:,:),  pointer :: gl_flux_north =>null()        !> mass flux northward at grounding line, edge_based (kg m^-1 s^-1)
-    real(dp),dimension(:,:),  pointer :: gl_flux =>null()              !> mass flux at grounding line, cell-based (kg m^-1 s^-1)
-    real(dp),dimension(:,:),  pointer :: gl_flux_tavg =>null()         !> mass flux at grounding line, cell-based (kg m^-1 s^-1, time average)
-
     !TODO - Move masks to a mask derived type?
     !* (DFM ----------------- The following fields were added for BISICLES interface --------------)
     !*SFP: These fields need to be passed to POP for ice ocean coupling
@@ -1290,6 +1274,11 @@ module glide_types
                                                                  !> values between 0 and 1
     real(dp),dimension(:,:),pointer :: reference_thck => null()  !> reference thickness giving upper limit for retreating ice
 
+    ! fields for ice removal, e.g., removal of ice caps
+    real(dp),dimension(:,:),pointer :: removal_thck => null()        !> thickness loss of ice removed in grid cell
+    real(dp),dimension(:,:),pointer :: removal_rate => null()        !> rate of ice removal (m/yr ice)
+    real(dp),dimension(:,:),pointer :: removal_rate_tavg => null()   !> rate of ice removal (m/yr ice, time average)
+
     integer, dimension(:,:),pointer :: thck_index => null()
     ! Set to nonzero integer for ice-covered cells (thck > 0), cells adjacent to ice-covered cells,
     !  and cells with acab > 0.  The non-zero points are numbered in sequence from the bottom left 
@@ -1307,14 +1296,6 @@ module glide_types
     real(dp) :: ivol_above_flotation   ! total ice volume above flotation (m^3)
     real(dp) :: imass                  ! total ice mass (kg)
     real(dp) :: imass_above_flotation  ! total ice mass above flotation (kg)
-    real(dp) :: total_smb_flux         ! total surface mass balance flux (kg/s)
-    real(dp) :: total_bmb_flux         ! total basal mass balance flux (kg/s)
-    real(dp) :: total_calving_flux     ! total calving mass flux (kg/s)
-    real(dp) :: total_gl_flux          ! total grounding line mass flux (kg/s)
-    real(dp) :: total_smb_flux_tavg    ! total surface mass balance flux (kg/s), time average
-    real(dp) :: total_bmb_flux_tavg    ! total basal mass balance flux (kg/s), time average
-    real(dp) :: total_calving_flux_tavg! total calving mass flux (kg/s), time average
-    real(dp) :: total_gl_flux_tavg     ! total grounding line mass flux (kg/s), time average
 
     ! basin-scale scalars
     real(dp), dimension(:), pointer :: iarea_basin    ! total ice area per basin (m^2)
@@ -1326,6 +1307,48 @@ module glide_types
     real(dp), dimension(:), pointer :: imass_above_flotation_basin   ! total ice mass above flotation per basin (kg)
 
   end type glide_geometry
+
+  !++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+
+  type glide_mass_flux
+
+    !> Holds various mass flux diagnostics
+
+    ! mass fluxes at upper, lower and lateral boundaries
+    ! Note: sfc_mbal_flux and basal_mbal_flux are equal to acab_applied and bmlt_applied multipled by a constant.
+    ! Icebergs and isthmuses are included in the calving flux.
+    ! The removal flux accounts for cells removed as ice caps without explicitly calving.
+
+    real(dp),dimension(:,:),  pointer :: sfc_mbal_flux =>null()        !> surface mass balance (kg m^-2 s^-1), diagnosed from climate%acab_applied
+    real(dp),dimension(:,:),  pointer :: sfc_mbal_flux_tavg =>null()   !> surface mass balance (kg m^-2 s^-1, time average)
+    real(dp),dimension(:,:),  pointer :: basal_mbal_flux =>null()      !> basal mass balance (kg m^-2 s^-1), diagnosed from climate%bmlt_applied
+    real(dp),dimension(:,:),  pointer :: basal_mbal_flux_tavg =>null() !> basal mass balance (kg m^-2 s^-1, time average)
+    real(dp),dimension(:,:),  pointer :: calving_flux =>null()         !> calving flux (kg m^-2 s^-1), diagnosed from calving%calving_thck
+    real(dp),dimension(:,:),  pointer :: calving_flux_tavg =>null()    !> calving flux (kg m^-2 s^-1, time average)
+    real(dp),dimension(:,:),  pointer :: latmelt_flux =>null()         !> lateral melt flux (kg m^-2 s^-1), diagnosed from lateral_melt%melt_thck
+    real(dp),dimension(:,:),  pointer :: latmelt_flux_tavg =>null()    !> lateral melt flux (kg m^-2 s^-1, time average)
+    real(dp),dimension(:,:),  pointer :: removal_flux =>null()         !> removal flux (kg m^-2 s^-1), diagnosed from calving%%removal_thck
+    real(dp),dimension(:,:),  pointer :: removal_flux_tavg =>null()    !> removal flux (kg m^-2 s^-1, time average)
+    real(dp),dimension(:,:),  pointer :: gl_flux_east =>null()         !> mass flux eastward at grounding line, edge-based (kg m^-1 s^-1)
+    real(dp),dimension(:,:),  pointer :: gl_flux_north =>null()        !> mass flux northward at grounding line, edge_based (kg m^-1 s^-1)
+    real(dp),dimension(:,:),  pointer :: gl_flux =>null()              !> mass flux at grounding line, cell-based (kg m^-1 s^-1)
+    real(dp),dimension(:,:),  pointer :: gl_flux_tavg =>null()         !> mass flux at grounding line, cell-based (kg m^-1 s^-1, time average)
+
+    ! global scalars
+    real(dp) :: total_smb_flux         ! total surface mass balance flux (kg/s)
+    real(dp) :: total_smb_flux_tavg    ! total surface mass balance flux (kg/s), time average
+    real(dp) :: total_bmb_flux         ! total basal mass balance flux (kg/s)
+    real(dp) :: total_bmb_flux_tavg    ! total basal mass balance flux (kg/s), time average
+    real(dp) :: total_calving_flux     ! total calving mass flux (kg/s)
+    real(dp) :: total_calving_flux_tavg! total calving mass flux (kg/s), time average
+    real(dp) :: total_latmelt_flux     ! total latmelt mass flux (kg/s)
+    real(dp) :: total_latmelt_flux_tavg! total latmelt mass flux (kg/s), time average
+    real(dp) :: total_removal_flux     ! total removal mass flux (kg/s)
+    real(dp) :: total_removal_flux_tavg! total removal mass flux (kg/s), time average
+    real(dp) :: total_gl_flux          ! total grounding line mass flux (kg/s)
+    real(dp) :: total_gl_flux_tavg     ! total grounding line mass flux (kg/s), time average
+
+ end type glide_mass_flux
 
   !++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 
@@ -1580,6 +1603,7 @@ module glide_types
      integer, dimension(:,:),  pointer :: calving_mask => null()         !> calve floating ice where the mask = 1 (whichcalving = CALVING_GRID_MASK)
      real(dp),dimension(:,:),  pointer :: subgrid_calving_mask => null() !> calve floating ice where the mask < 1.0 (whichcalving = CALVING_GRID_MASK);
                                                                          !> real instead of integer for use with subgrid calving parameterization
+     integer, dimension(:,:),  pointer :: calving_front_mask => null()   !> = 1 for cells on the calving front, else = 0
      integer, dimension(:,:),  pointer :: beyond_cf_mask => null() !> = 1 for cells beyond the CF when using the subgrid CF scheme;
                                                                    !> these cells not allowed to fill until upstream neighbors are full
      real(dp),dimension(:,:),  pointer :: thck_effective => null() !> effective thickness for calving (m)
@@ -2749,6 +2773,7 @@ module glide_types
     type(glide_geometry) :: geometry
     type(glide_geomderv) :: geomderv
     type(glide_velocity) :: velocity
+    type(glide_mass_flux):: mass_flux
     type(glide_stress_t) :: stress   
     type(glide_climate)  :: climate
     type(eismint_climate_type) :: eismint_climate
@@ -3142,17 +3167,6 @@ contains
     call coordsystem_allocate(model%general%velo_grid, model%geomderv%dusrfdew)
     call coordsystem_allocate(model%general%velo_grid, model%geomderv%dusrfdns)
 
-    call coordsystem_allocate(model%general%ice_grid, model%geometry%sfc_mbal_flux)
-    call coordsystem_allocate(model%general%ice_grid, model%geometry%sfc_mbal_flux_tavg)
-    call coordsystem_allocate(model%general%ice_grid, model%geometry%basal_mbal_flux)
-    call coordsystem_allocate(model%general%ice_grid, model%geometry%basal_mbal_flux_tavg)
-    call coordsystem_allocate(model%general%ice_grid, model%geometry%calving_flux)
-    call coordsystem_allocate(model%general%ice_grid, model%geometry%calving_flux_tavg)
-    call coordsystem_allocate(model%general%ice_grid, model%geometry%gl_flux_east)
-    call coordsystem_allocate(model%general%ice_grid, model%geometry%gl_flux_north)
-    call coordsystem_allocate(model%general%ice_grid, model%geometry%gl_flux)
-    call coordsystem_allocate(model%general%ice_grid, model%geometry%gl_flux_tavg)
-
     call coordsystem_allocate(model%general%ice_grid, model%geometry%ice_mask)
     call coordsystem_allocate(model%general%velo_grid, model%geometry%ice_mask_stag)
     call coordsystem_allocate(model%general%ice_grid, model%geometry%floating_mask)
@@ -3161,9 +3175,28 @@ contains
     call coordsystem_allocate(model%general%ice_grid, model%geometry%ice_sheet_mask)
     call coordsystem_allocate(model%general%ice_grid, model%geometry%ice_cap_mask)
     call coordsystem_allocate(model%general%ice_grid, model%geometry%ice_fraction_retreat_mask)
+    call coordsystem_allocate(model%general%ice_grid, model%geometry%removal_thck)
+    call coordsystem_allocate(model%general%ice_grid, model%geometry%removal_rate)
+    call coordsystem_allocate(model%general%ice_grid, model%geometry%removal_rate_tavg)
     call coordsystem_allocate(model%general%ice_grid, model%geometry%reference_thck)
     call coordsystem_allocate(model%general%ice_grid, model%geometry%lower_cell_loc)
     call coordsystem_allocate(model%general%ice_grid, model%geometry%lower_cell_temp)
+
+    ! mass flux arrays
+    call coordsystem_allocate(model%general%ice_grid, model%mass_flux%sfc_mbal_flux)
+    call coordsystem_allocate(model%general%ice_grid, model%mass_flux%sfc_mbal_flux_tavg)
+    call coordsystem_allocate(model%general%ice_grid, model%mass_flux%basal_mbal_flux)
+    call coordsystem_allocate(model%general%ice_grid, model%mass_flux%basal_mbal_flux_tavg)
+    call coordsystem_allocate(model%general%ice_grid, model%mass_flux%calving_flux)
+    call coordsystem_allocate(model%general%ice_grid, model%mass_flux%calving_flux_tavg)
+    call coordsystem_allocate(model%general%ice_grid, model%mass_flux%latmelt_flux)
+    call coordsystem_allocate(model%general%ice_grid, model%mass_flux%latmelt_flux_tavg)
+    call coordsystem_allocate(model%general%ice_grid, model%mass_flux%removal_flux)
+    call coordsystem_allocate(model%general%ice_grid, model%mass_flux%removal_flux_tavg)
+    call coordsystem_allocate(model%general%ice_grid, model%mass_flux%gl_flux_east)
+    call coordsystem_allocate(model%general%ice_grid, model%mass_flux%gl_flux_north)
+    call coordsystem_allocate(model%general%ice_grid, model%mass_flux%gl_flux)
+    call coordsystem_allocate(model%general%ice_grid, model%mass_flux%gl_flux_tavg)
 
     if (model%options%whichdycore == DYCORE_GLIDE) then
        call coordsystem_allocate(model%general%ice_grid, model%geometry%thck_index)
@@ -3385,6 +3418,7 @@ contains
     else
        call coordsystem_allocate(model%general%ice_grid, model%calving%subgrid_calving_mask)
     endif
+    call coordsystem_allocate(model%general%ice_grid, model%calving%calving_front_mask)
     call coordsystem_allocate(model%general%ice_grid, model%calving%beyond_cf_mask)
     call coordsystem_allocate(model%general%ice_grid, model%calving%thck_effective)
     call coordsystem_allocate(model%general%ice_grid, model%calving%effective_areafrac)
@@ -3409,13 +3443,11 @@ contains
     endif
 
     ! lateral melt arrays
-    if (model%options%which_lateral_melt /= LATERAL_MELT_NONE) then
-       call coordsystem_allocate(model%general%ice_grid, model%lateral_melt%melt_thck)
-       call coordsystem_allocate(model%general%ice_grid, model%lateral_melt%melt_rate)
-       call coordsystem_allocate(model%general%ice_grid, model%lateral_melt%melt_rate_tavg)
-       call coordsystem_allocate(model%general%ice_grid, model%lateral_melt%subglacial_discharge)
-       call coordsystem_allocate(model%general%ice_grid, model%lateral_melt%tforcing_2d)
-    endif
+    call coordsystem_allocate(model%general%ice_grid, model%lateral_melt%melt_thck)
+    call coordsystem_allocate(model%general%ice_grid, model%lateral_melt%melt_rate)
+    call coordsystem_allocate(model%general%ice_grid, model%lateral_melt%melt_rate_tavg)
+    call coordsystem_allocate(model%general%ice_grid, model%lateral_melt%subglacial_discharge)
+    call coordsystem_allocate(model%general%ice_grid, model%lateral_melt%tforcing_2d)
 
     ! matrix solver arrays
     allocate (model%solver_data%rhsd(ewn*nsn))
@@ -3891,26 +3923,34 @@ contains
     if (associated(model%geometry%tracers_lsrf)) &
         deallocate(model%geometry%tracers_lsrf)
 
-    if (associated(model%geometry%sfc_mbal_flux)) &
-        deallocate(model%geometry%sfc_mbal_flux)
-    if (associated(model%geometry%sfc_mbal_flux_tavg)) &
-        deallocate(model%geometry%sfc_mbal_flux_tavg)
-    if (associated(model%geometry%basal_mbal_flux)) &
-        deallocate(model%geometry%basal_mbal_flux)
-    if (associated(model%geometry%basal_mbal_flux_tavg)) &
-        deallocate(model%geometry%basal_mbal_flux_tavg)
-    if (associated(model%geometry%calving_flux)) &
-        deallocate(model%geometry%calving_flux)
-    if (associated(model%geometry%calving_flux_tavg)) &
-        deallocate(model%geometry%calving_flux_tavg)
-    if (associated(model%geometry%gl_flux_east)) &
-        deallocate(model%geometry%gl_flux_east)
-    if (associated(model%geometry%gl_flux_north)) &
-        deallocate(model%geometry%gl_flux_north)
-    if (associated(model%geometry%gl_flux)) &
-        deallocate(model%geometry%gl_flux)
-    if (associated(model%geometry%gl_flux_tavg)) &
-        deallocate(model%geometry%gl_flux_tavg)
+    if (associated(model%mass_flux%sfc_mbal_flux)) &
+        deallocate(model%mass_flux%sfc_mbal_flux)
+    if (associated(model%mass_flux%sfc_mbal_flux_tavg)) &
+        deallocate(model%mass_flux%sfc_mbal_flux_tavg)
+    if (associated(model%mass_flux%basal_mbal_flux)) &
+        deallocate(model%mass_flux%basal_mbal_flux)
+    if (associated(model%mass_flux%basal_mbal_flux_tavg)) &
+        deallocate(model%mass_flux%basal_mbal_flux_tavg)
+    if (associated(model%mass_flux%calving_flux)) &
+        deallocate(model%mass_flux%calving_flux)
+    if (associated(model%mass_flux%calving_flux_tavg)) &
+        deallocate(model%mass_flux%calving_flux_tavg)
+    if (associated(model%mass_flux%latmelt_flux)) &
+        deallocate(model%mass_flux%latmelt_flux)
+    if (associated(model%mass_flux%latmelt_flux_tavg)) &
+        deallocate(model%mass_flux%latmelt_flux_tavg)
+    if (associated(model%mass_flux%removal_flux)) &
+        deallocate(model%mass_flux%removal_flux)
+    if (associated(model%mass_flux%removal_flux_tavg)) &
+        deallocate(model%mass_flux%removal_flux_tavg)
+    if (associated(model%mass_flux%gl_flux_east)) &
+        deallocate(model%mass_flux%gl_flux_east)
+    if (associated(model%mass_flux%gl_flux_north)) &
+        deallocate(model%mass_flux%gl_flux_north)
+    if (associated(model%mass_flux%gl_flux)) &
+        deallocate(model%mass_flux%gl_flux)
+    if (associated(model%mass_flux%gl_flux_tavg)) &
+        deallocate(model%mass_flux%gl_flux_tavg)
 
     if (associated(model%geometry%ice_mask)) &
        deallocate(model%geometry%ice_mask)
@@ -3928,6 +3968,12 @@ contains
        deallocate(model%geometry%ice_cap_mask)
     if (associated(model%geometry%ice_fraction_retreat_mask)) &
        deallocate(model%geometry%ice_fraction_retreat_mask)
+    if (associated(model%geometry%removal_thck)) &
+       deallocate(model%geometry%removal_thck)
+    if (associated(model%geometry%removal_rate)) &
+       deallocate(model%geometry%removal_rate)
+    if (associated(model%geometry%removal_rate_tavg)) &
+       deallocate(model%geometry%removal_rate_tavg)
     if (associated(model%geometry%reference_thck)) &
        deallocate(model%geometry%reference_thck)
     if (associated(model%geometry%lower_cell_loc)) &
@@ -4052,6 +4098,8 @@ contains
         deallocate(model%calving%calving_mask)
     if (associated(model%calving%subgrid_calving_mask)) &
         deallocate(model%calving%subgrid_calving_mask)
+    if (associated(model%calving%calving_front_mask)) &
+        deallocate(model%calving%calving_front_mask)
     if (associated(model%calving%beyond_cf_mask)) &
         deallocate(model%calving%beyond_cf_mask)
     if (associated(model%calving%thck_effective)) &

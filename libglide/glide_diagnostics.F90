@@ -196,10 +196,14 @@ contains
          tot_smb_flux,                  &    ! total surface mass balance flux (kg/s)
          tot_bmb_flux,                  &    ! total basal mass balance flux (kg/s)
          tot_calving_flux,              &    ! total calving flux (kg/s)
+         tot_latmelt_flux,              &    ! total latmelt flux (kg/s)
+         tot_removal_flux,              &    ! total removal flux (kg/s)
          tot_gl_flux,                   &    ! total grounding line flux (kg/s)
          tot_acab,                      &    ! total surface accumulation/ablation rate (m^3/yr)
          tot_bmlt,                      &    ! total basal melt rate (m^3/yr)
          tot_calving,                   &    ! total calving rate (m^3/yr)
+         tot_latmelt,                   &    ! total lateral melt rate (m^3/yr)
+         tot_removal,                   &    ! total removal rate (m^3/yr)
          tot_dmass_dt,                  &    ! rate of change of total mass (kg/s)
          err_dmass_dt,                  &    ! mass conservation error (kg/s)
                                              ! given by dmass_dt - (tot_acab - tot_bmlt - tot_calving)
@@ -208,6 +212,8 @@ contains
          mean_acab,                     &    ! mean surface accumulation/ablation rate (m/yr)
          mean_bmlt,                     &    ! mean basal melt (m/yr)
          mean_calving,                  &    ! mean calving (m/yr)
+         mean_latmelt,                  &    ! mean latmelt (m/yr)
+         mean_removal,                  &    ! mean removal (m/yr)
          max_thck, max_thck_global,     &    ! max ice thickness (m)
          max_temp, max_temp_global,     &    ! max ice temperature (deg C)
          min_temp, min_temp_global,     &    ! min ice temperature (deg C)
@@ -549,18 +555,47 @@ contains
        tot_calving_flux = -tot_calving * rhoi / scyr   ! convert m^3/yr to kg/s
 
        ! mean calving rate (m/yr)
-       ! Note: This will be only approximate if some ice has melted completely during the time step
+       ! Note: This will be only approximate if some ice has calved completely during the time step
        if (tot_area > eps) then
           mean_calving = tot_calving/tot_area    ! divide by total area to get m/yr
        else
           mean_calving = 0.d0
        endif
 
+       ! total lateral melt rate (m^3/yr ice)
+       ! Note: lateral_melt%melt_rate has units of m/yr ice
+       tot_latmelt = parallel_global_sum(model%lateral_melt%melt_rate*cell_area, parallel)
+
+       ! total lateral melt mass balance flux (kg/s, negative for ice loss by melting)
+       tot_latmelt_flux = -tot_latmelt * rhoi / scyr   ! convert m^3/yr to kg/s
+
+       ! mean lateral melt rate (m/yr)
+       ! Note: This will be only approximate if some ice has melted completely during the time step
+       if (tot_area > eps) then
+          mean_latmelt = tot_latmelt/tot_area    ! divide by total area to get m/yr
+       else
+          mean_latmelt = 0.d0
+       endif
+
+       ! total ice removal rate (m^3/yr ice)
+       ! Note: geometry%removal_rate has units of m/yr ice
+       tot_removal = parallel_global_sum(model%geometry%removal_rate*cell_area, parallel)
+
+       ! total removal mass balance flux (kg/s, negative for ice removed)
+       tot_removal_flux = -tot_removal * rhoi / scyr   ! convert m^3/yr to kg/s
+
+       ! mean removal rate (m/yr)
+       if (tot_area > eps) then
+          mean_removal = tot_removal/tot_area    ! divide by total area to get m/yr
+       else
+          mean_removal = 0.d0
+       endif
+
        ! total grounding line mass balance flux (< 0 by definition)
        ! Note: At this point, gl_flux_east and gl_flux_north are already dimensionalized in kg/m/s,
        !       so tot_gl_flux will have units of kg/s
-       tot_gl_flux = parallel_global_sum(abs(model%geometry%gl_flux_east)  * model%numerics%dns  &
-                                       + abs(model%geometry%gl_flux_north) * model%numerics%dew, &
+       tot_gl_flux = parallel_global_sum(abs(model%mass_flux%gl_flux_east)  * model%numerics%dns  &
+                                       + abs(model%mass_flux%gl_flux_north) * model%numerics%dew, &
                                        parallel)
        tot_gl_flux = -tot_gl_flux   ! negative by definition
 
@@ -576,22 +611,27 @@ contains
        ! mass conservation error
        ! Note: For most runs, this should be close to zero.
 
-       err_dmass_dt = tot_dmass_dt - (tot_smb_flux + tot_bmb_flux + tot_calving_flux)
+       err_dmass_dt = tot_dmass_dt - &
+            (tot_smb_flux + tot_bmb_flux + tot_calving_flux + tot_latmelt_flux + tot_removal_flux)
 
        ! uncomment to convert total fluxes from kg/s to Gt/yr
 !!!    tot_smb_flux = tot_smb_flux * scyr/1.0d12
 !!!    tot_bmb_flux = tot_bmb_flux * scyr/1.0d12
 !!!    tot_calving_flux = tot_calving_flux * scyr/1.0d12
+!!!    tot_latmelt_flux = tot_latmelt_flux * scyr/1.0d12
+!!!    tot_removal_flux = tot_removal_flux * scyr/1.0d12
 !!!    tot_gl_flux = tot_gl_flux * scyr/1.0d12
 !!!    tot_dmass_dt = tot_dmass_dt * scyr/1.0d12
 !!!    err_dmass_dt = err_dmass_dt * scyr/1.0d12
 
-       ! copy some global scalars to the geometry derived type
+       ! copy some global scalars to the mass_flux derived type
        ! Note: These have SI units (e.g, m^2 for area, m^3 for volume)
-       model%geometry%total_smb_flux = tot_smb_flux
-       model%geometry%total_bmb_flux = tot_bmb_flux
-       model%geometry%total_calving_flux = tot_calving_flux
-       model%geometry%total_gl_flux = tot_gl_flux
+       model%mass_flux%total_smb_flux = tot_smb_flux
+       model%mass_flux%total_bmb_flux = tot_bmb_flux
+       model%mass_flux%total_calving_flux = tot_calving_flux
+       model%mass_flux%total_latmelt_flux = tot_latmelt_flux
+       model%mass_flux%total_removal_flux = tot_removal_flux
+       model%mass_flux%total_gl_flux = tot_gl_flux
 
     endif  ! Glissade dycore
 
@@ -656,6 +696,16 @@ contains
           write(message,'(a25,e24.16)') 'Total calving flux (kg/s)', tot_calving_flux
           call write_log(trim(message), type = GM_DIAGNOSTIC)
 
+          if (abs(tot_latmelt_flux) > eps11) then
+             write(message,'(a25,e24.16)') 'Total latmelt flux (kg/s)', tot_latmelt_flux
+             call write_log(trim(message), type = GM_DIAGNOSTIC)
+          endif
+
+          if (abs(tot_removal_flux) > eps11) then
+             write(message,'(a25,e24.16)') 'Total removal flux (kg/s)', tot_removal_flux
+             call write_log(trim(message), type = GM_DIAGNOSTIC)
+          endif
+
           write(message,'(a25,e24.16)') 'Total dmass/dt (kg/s)    ', tot_dmass_dt
           call write_log(trim(message), type = GM_DIAGNOSTIC)
 
@@ -678,6 +728,16 @@ contains
           write(message,'(a25,e24.16)') 'Total calving flux (Gt/y)', tot_calving_flux * factor
           call write_log(trim(message), type = GM_DIAGNOSTIC)
 
+          if (abs(tot_latmelt_flux) > eps11) then
+             write(message,'(a25,e24.16)') 'Total latmelt flux (Gt/y)', tot_latmelt_flux * factor
+             call write_log(trim(message), type = GM_DIAGNOSTIC)
+          endif
+
+          if (abs(tot_removal_flux) > eps11) then
+             write(message,'(a25,e24.16)') 'Total removal flux (Gt/y)', tot_removal_flux * factor
+             call write_log(trim(message), type = GM_DIAGNOSTIC)
+          endif
+
           write(message,'(a25,e24.16)') 'Total dmass/dt (Gt/y)    ', tot_dmass_dt * factor
           call write_log(trim(message), type = GM_DIAGNOSTIC)
 
@@ -696,6 +756,12 @@ contains
 !       call write_log(trim(message), type = GM_DIAGNOSTIC)
 
 !       write(message,'(a25,e24.16)') 'Mean calving (m/yr)      ', mean_calving
+!       call write_log(trim(message), type = GM_DIAGNOSTIC)
+
+!       write(message,'(a25,e24.16)') 'Mean latmelt (m/yr)      ', mean_latmelt
+!       call write_log(trim(message), type = GM_DIAGNOSTIC)
+
+!       write(message,'(a25,e24.16)') 'Mean removal (m/yr)      ', mean_removal
 !       call write_log(trim(message), type = GM_DIAGNOSTIC)
 
     endif  ! Glissade dycore

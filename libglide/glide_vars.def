@@ -564,6 +564,13 @@ long_name:     subgrid calving mask
 data:          data%calving%subgrid_calving_mask
 load:          1
 
+[calving_front_mask]
+dimensions:    time, y1, x1
+units:         1
+long_name:     calving front mask
+data:          data%calving%calving_front_mask
+type:          int
+
 [calving_lateral]
 dimensions:    time, y1, x1
 units:         meter/year
@@ -571,17 +578,23 @@ long_name:     lateral calving rate
 data:          data%calving%lateral_rate
 factor:        scyr
 
-[melt_thck]
+[latmelt_thck]
 dimensions:    time, y1, x1
 units:         meter
 long_name:     thickness of ice melting laterally
 data:          data%lateral_melt%melt_thck
 
-[melt_rate]
+[latmelt_rate]
 dimensions:    time, y1, x1
 units:         meter/year
 long_name:     rate of ice loss by lateral melt
 data:          data%lateral_melt%melt_rate
+
+[removal_rate]
+dimensions:    time, y1, x1
+units:         meter/year
+long_name:     rate of ice removal
+data:          data%geometry%removal_rate
 
 [subglacial_discharge]
 dimensions:    time, y1, x1
@@ -704,21 +717,35 @@ data:          data%geometry%imass_above_flotation_basin
 dimensions:    time
 units:         kg/s
 long_name:     total surface mass balance flux
-data:          data%geometry%total_smb_flux
+data:          data%mass_flux%total_smb_flux
 average:       1
 
 [total_bmb_flux]
 dimensions:    time
 units:         kg/s
 long_name:     total basal mass balance flux
-data:          data%geometry%total_bmb_flux
+data:          data%mass_flux%total_bmb_flux
 average:       1
 
 [total_calving_flux]
 dimensions:    time
 units:         kg/s
-long_name:     total calving mass balance flux
-data:          data%geometry%total_calving_flux
+long_name:     total calving mass flux
+data:          data%mass_flux%total_calving_flux
+average:       1
+
+[total_latmelt_flux]
+dimensions:    time
+units:         kg/s
+long_name:     total lateral melt mass flux
+data:          data%mass_flux%total_latmelt_flux
+average:       1
+
+[total_removal_flux]
+dimensions:    time
+units:         kg/s
+long_name:     total ice removal mass flux
+data:          data%mass_flux%total_removal_flux
 average:       1
 
 #calvingMIP output
@@ -1582,7 +1609,7 @@ load:          0
 dimensions:    time, y1, x1
 units:         kg/m2/s
 long_name:     surface mass balance flux
-data:          data%geometry%sfc_mbal_flux
+data:          data%mass_flux%sfc_mbal_flux
 standard_name: land_ice_surface_specific_mass_balance_flux
 average:       1
 
@@ -1590,7 +1617,7 @@ average:       1
 dimensions:    time, y1, x1
 units:         kg/m2/s
 long_name:     basal mass balance flux
-data:          data%geometry%basal_mbal_flux
+data:          data%mass_flux%basal_mbal_flux
 standard_name: land_ice_basal_specific_mass_balance_flux
 average:       1
 
@@ -1598,15 +1625,31 @@ average:       1
 dimensions:    time, y1, x1
 units:         kg/m2/s
 long_name:     calving flux
-data:          data%geometry%calving_flux
+data:          data%mass_flux%calving_flux
 standard_name: land_ice_specific_mass_flux_due_to_calving
+average:       1
+
+[latmelt_flux]
+dimensions:    time, y1, x1
+units:         kg/m2/s
+long_name:     lateral melt flux
+data:          data%mass_flux%latmelt_flux
+standard_name: land_ice_specific_mass_flux_due_to_lateral_melt
+average:       1
+
+[removal_flux]
+dimensions:    time, y1, x1
+units:         kg/m2/s
+long_name:     ice removal flux
+data:          data%mass_flux%removal_flux
+standard_name: land_ice_specific_mass_flux_due_to_removal
 average:       1
 
 [gl_flux]
 dimensions:    time, y1, x1
 units:         kg/m/s
 long_name:     grounding line flux
-data:          data%geometry%gl_flux
+data:          data%mass_flux%gl_flux
 standard_name: land_ice_mass_flux_at_grounding_line
 coordinate:    lon lat
 average:       1
@@ -1615,7 +1658,7 @@ average:       1
 dimensions:    time, y1, x1
 units:         kg/m/s
 long_name:     grounding line flux eastward
-data:          data%geometry%gl_flux_east
+data:          data%mass_flux%gl_flux_east
 standard_name: land_ice_mass_flux_at_grounding_line_eastward
 coordinate:    lon lat
 
@@ -1623,7 +1666,7 @@ coordinate:    lon lat
 dimensions:    time, y1, x1
 units:         kg/m/s
 long_name:     grounding line flux northward
-data:          data%geometry%gl_flux_north
+data:          data%mass_flux%gl_flux_north
 standard_name: land_ice_mass_flux_at_grounding_line_northward
 coordinate:    lon lat
 
@@ -1631,7 +1674,7 @@ coordinate:    lon lat
 dimensions:    time
 units:         kg/s
 long_name:     total grounding line flux
-data:          data%geometry%total_gl_flux
+data:          data%mass_flux%total_gl_flux
 average:       1
 
 [rho_ice]

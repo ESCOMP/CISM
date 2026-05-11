@@ -3358,15 +3358,15 @@ contains
     character(len=100) :: message
 
     character(len=*), dimension(0:3), parameter :: which_lateral_melt = (/ &
-         'no lateral melt at grounded cliff fronts       ', &
-         'constant lateral melt rate                     ', &
-         'ISMIP6 lateral melt, forced                    ', &
-         'ISMIP6 lateral melt, coupled                   ' /)
+         'no lateral melt at marine margin   ', &
+         'constant lateral melt rate         ', &
+         'ISMIP6 lateral melt, forced        ', &
+         'ISMIP6 lateral melt, coupled       ' /)
 
     if (model%options%which_lateral_melt < 0 .or. model%options%which_lateral_melt >= size(which_lateral_melt)) then
        call write_log('Error, lateral melt option out of range', GM_FATAL)
     else
-       write(message,*) 'which_lateral_melt                 : ',model%options%which_lateral_melt,  &
+       write(message,*) 'which_lateral_melt            : ',model%options%which_lateral_melt,  &
             which_lateral_melt(model%options%which_lateral_melt)
        call write_log(message)
     endif
