@@ -6737,20 +6737,20 @@ contains
     endif
 
     ! unstaggered grid
-    call mpi_irecv(wrecv,size(wrecv),mpi_real8,west,west,&
+    call mpi_irecv(wrecv,size(wrecv),mpi_integer,west,west,&
          comm,wrequest,ierror)
-    call mpi_irecv(erecv,size(erecv),mpi_real8,east,east,&
+    call mpi_irecv(erecv,size(erecv),mpi_integer,east,east,&
          comm,erequest,ierror)
-    call mpi_irecv(srecv,size(srecv),mpi_real8,south,south,&
+    call mpi_irecv(srecv,size(srecv),mpi_integer,south,south,&
          comm,srequest,ierror)
-    call mpi_irecv(nrecv,size(nrecv),mpi_real8,north,north,&
+    call mpi_irecv(nrecv,size(nrecv),mpi_integer,north,north,&
          comm,nrequest,ierror)
 
     esend(:,:,:) = &
          a(:,local_ewn-uhalo-lhalo+1:local_ewn-uhalo,1+lhalo:local_nsn-uhalo)
-    call mpi_send(esend,size(esend),mpi_real8,east,this_rank,comm,ierror)
+    call mpi_send(esend,size(esend),mpi_integer,east,this_rank,comm,ierror)
     wsend(:,:,:) = a(:,1+lhalo:1+lhalo+uhalo-1,1+lhalo:local_nsn-uhalo)
-    call mpi_send(wsend,size(wsend),mpi_real8,west,this_rank,comm,ierror)
+    call mpi_send(wsend,size(wsend),mpi_integer,west,this_rank,comm,ierror)
 
     call mpi_wait(wrequest,mpi_status_ignore,ierror)
     a(:,:lhalo,1+lhalo:local_nsn-uhalo) = wrecv(:,:,:)
@@ -6758,9 +6758,9 @@ contains
     a(:,local_ewn-uhalo+1:,1+lhalo:local_nsn-uhalo) = erecv(:,:,:)
 
     nsend(:,:,:) = a(:,:,local_nsn-uhalo-lhalo+1:local_nsn-uhalo)
-    call mpi_send(nsend,size(nsend),mpi_real8,north,this_rank,comm,ierror)
+    call mpi_send(nsend,size(nsend),mpi_integer,north,this_rank,comm,ierror)
     ssend(:,:,:) = a(:,:,1+lhalo:1+lhalo+uhalo-1)
-    call mpi_send(ssend,size(ssend),mpi_real8,south,this_rank,comm,ierror)
+    call mpi_send(ssend,size(ssend),mpi_integer,south,this_rank,comm,ierror)
 
     call mpi_wait(srequest,mpi_status_ignore,ierror)
     a(:,:,:lhalo) = srecv(:,:,:)
