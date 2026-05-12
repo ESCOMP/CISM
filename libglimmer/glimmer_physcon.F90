@@ -88,6 +88,7 @@ module glimmer_physcon
   integer, parameter :: gn = 3                   !< Exponent in Glen's flow law; fixed integer parameter in Glide
   real(dp),parameter :: celsius_to_kelvin = 273.15d0  !< Note: Not quite equal to trpt
   real(dp),parameter :: scyr = 31536000.d0       !< Number of seconds in a year of exactly 365 days
+  real(dp),parameter :: scday = 86400.d0         !< Number of seconds in a day
   real(dp),parameter :: rhom = 3300.0d0          !< The density of magma(?) (kg m<SUP>-3</SUP>) 
   real(dp),parameter :: rhos = 2600.0d0          !< The density of solid till (kg m$^{-3}$) 
   real(dp),parameter :: actenh = 139.0d3         !< Activation energy in Glen's flow law for \f$T^{*}\geq263\f$K. (J mol<SUP>-1</SUP>)

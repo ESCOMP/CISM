@@ -3343,6 +3343,8 @@ contains
 
     call GetValue(section, 'melt_rate_const', model%lateral_melt%melt_rate_const)
     call GetValue(section, 'melt_factor', model%lateral_melt%melt_factor)
+    call GetValue(section, 'ztop_tfavg', model%lateral_melt%ztop_tfavg)
+    call GetValue(section, 'zbot_tfavg', model%lateral_melt%zbot_tfavg)
 
   end subroutine handle_lateral_melt
 
@@ -3378,6 +3380,10 @@ contains
           call write_log(message)
        elseif (model%options%which_lateral_melt == LATERAL_MELT_ISMIP6) then
           write(message,*) 'lateral melt factor                   : ', model%lateral_melt%melt_factor
+          call write_log(message)
+          write(message,*) 'depth range for TF averaging, top     : ', model%lateral_melt%ztop_tfavg
+          call write_log(message)
+          write(message,*) 'depth range for TF averaging, bottom  : ', model%lateral_melt%zbot_tfavg
           call write_log(message)
        elseif (model%options%which_lateral_melt == LATERAL_MELT_COUPLED) then
           !TODO - Anything to write?

@@ -29,20 +29,16 @@ module glissade_lateral_melt
   use glide_types
   use glimmer_global, only: dp
   use glimmer_paramets, only: iulog, eps11
-  use glimmer_physcon, only: rhoi, rhoo, grav, scyr
   use glimmer_log
   use glimmer_utils, only: point_diag
 
-  use cism_parallel, only: this_rank, main_task, nhalo, &
-       parallel_halo, parallel_globalindex
-!  use cism_parallel, only:, parallel_global_sum, &
-!       parallel_reduce_sum, parallel_reduce_max, parallel_reduce_log_or
+  use cism_parallel, only: this_rank, main_task, nhalo
 
   implicit none
 
   private
-  public :: glissade_lateral_melt_solve
-!  public :: average_thermal_forcing
+  public :: glissade_lateral_melt_constant, glissade_lateral_melt_ismip6, &
+       glissade_lateral_thermal_forcing_avg
 
   public :: verbose_latmelt
 
@@ -51,104 +47,8 @@ module glissade_lateral_melt
 contains
 
 !-------------------------------------------------------------------------------
-!TODO - Remove this subroutine, if lateral melt will be subsumed under the calving solve
-  
-  subroutine glissade_lateral_melt_solve(model)
 
-    !HG: adding a fullgrid submarine melt parameterisation for Greenland marine-terminated margins.
-    !  It operates similar to the calving process.
-    !  The cases implemented below (exept for LATERAL_MELT_NONE) should be used with CALVING_FLOAT_ZERO.
-
-    use glissade_masks, only : glissade_get_masks
-
-    type(glide_global_type), intent(inout) :: model   ! model instance
-
-    ! local variables
-
-    integer :: nx, ny               ! horizontal grid dimensions 
-    integer :: itest, jtest, rtest  ! coordinates of diagnostic point 
-    real(dp) :: dx, dy              ! cell dimensions in x and y directions (m)
-    real(dp) :: dt                  ! timestep (s)
-    real(dp) :: time                ! current time (yr)
-
-    type(parallel_type) :: parallel   ! info for parallel communication
-
-    type(glide_lateral_melt) :: lateral_melt
-    
-    ! basic masks
-    integer, dimension(model%general%ewn, model%general%nsn)  ::  &
-         ice_mask,               & ! = 1 where ice is present (thck > thklim), else = 0
-         floating_mask,          & ! = 1 where ice is present (thck > thklim) and floating, else = 0
-         ocean_mask,             & ! = 1 where topg is below sea level and ice is absent, else = 0
-         land_mask                 ! = 1 where topg is at or above sea level, else = 0
-
-    ! subgrid masks
-    integer, dimension(model%general%ewn, model%general%nsn)  ::  &
-         partial_mf_mask,      & ! = 1 for partially filled MF cells (thck < thck_effective), else = 0
-         full_mask               ! = 1 for ice-filled cells that are not partial_mf cells, else = 0 
-
-    real(dp), dimension(model%general%ewn, model%general%nsn)  :: &
-         mf_length               ! length of melt front within a cell
-
-    ! Initialize
-    nx = model%general%ewn
-    ny = model%general%nsn
-    dx = model%numerics%dew
-    dy = model%numerics%dns
-    dt = model%numerics%dt
-    time = model%numerics%time
-    rtest = model%numerics%rdiag_local
-    itest = model%numerics%idiag_local
-    jtest = model%numerics%jdiag_local
-
-    parallel = model%parallel
-    lateral_melt = model%lateral_melt
-
-    if (model%options%which_lateral_melt == LATERAL_MELT_NONE) then
-       model%lateral_melt%melt_thck = 0.0d0
-       if (verbose_latmelt .and. main_task) write(iulog,*) 'No lateral melt at cliff fronts'
-       return
-    endif
-
-    ! Prep for other lateral melt cases
-
-    call parallel_halo(model%geometry%thck, parallel)
-
-    ! Get masks.
-    ! Use thickness limit of 0.0 instead of thklim so as to apply to ice from any cell
-    !   not just dynamically active ice.       
-    call glissade_get_masks(&
-         nx,            ny,             &
-         parallel,                      &
-         model%geometry%thck,           &
-         model%geometry%topg,           &
-         model%climate%eus,             &
-         0.0d0,                         &   ! thklim = 0.0  !TODO - eps11?
-         ice_mask,                      &
-         floating_mask = floating_mask, &
-         ocean_mask = ocean_mask,       &
-         land_mask = land_mask)
-
-    call parallel_halo(ocean_mask, parallel)
-
-    select case(model%options%which_lateral_melt)
-
-    case(LATERAL_MELT_CONSTANT)
-
-    case(LATERAL_MELT_ISMIP6)
-
-    case(LATERAL_MELT_COUPLED)
-
-    end select
-
-  end subroutine glissade_lateral_melt_solve
-
-!-------------------------------------------------------------------------------
-
-  !TODO - Call this subroutine from glissade_calving
-  !       Pass in cf_length and return melt_thck
-
-  subroutine constant_lateral_melt(&
+  subroutine glissade_lateral_melt_constant(&
        nx,                 ny,           &
        dx,                 dy,           &
        dt,                 time,         &  ! s
@@ -159,9 +59,11 @@ contains
        topg,                             &  ! m
        eus,                              &  ! m
        mf_length,                        &  ! m
-       melt_thck)                           ! m
+       latmelt_dthck)                       ! m
 
-    ! Apply lateral melt "horizontally" based on a prescribed constant melt rate
+    ! Apply lateral melt horizontally based on a prescribed constant melt rate
+
+    use glimmer_physcon, only: rhoi, rhoo, scyr
 
     ! input/output arguments
     
@@ -182,45 +84,39 @@ contains
     real(dp), intent(in) :: &
          melt_rate_const           ! prescribed constant melt rate (m/yr)
 
+    !Note: Typically, this is the same as the calving front length
     real(dp), dimension(nx,ny), intent(in) :: & 
          topg,                   & ! bedrock elevation (m)
          mf_length                 ! length of melt front in each grid cell (m)
 
     real(dp), dimension(nx,ny), intent(inout) :: &
-         thck                      ! ice thickness (m)
+         thck                      ! ice thickness (m); typically = thck_effective from subgrid CF scheme
 
     real(dp), intent(in) :: eus    ! eustatic sea level (m)
 
     real(dp), dimension(nx,ny), intent(out) :: &
-         melt_thck                 ! thickness reduction (m) due to lateral melt
+         latmelt_dthck             ! thickness reduction (m) due to lateral melt
 
     ! local variables
 
     integer :: i, j
 
-    !WHL - Is m_sr needed?
-    real(dp) :: &
-         m_sr                      ! horizontal melting rate in m/yr calculated from Slater ISMIP6 melt approach
+!!    real(dp) :: &
+!!         m_sr                      ! horizontal melting rate in m/yr calculated from Slater ISMIP6 melt approach
 
-    !TODO - Pass this in?
     real(dp), dimension(nx,ny) :: &
-         thck_effective            ! thickness (m) of submerged ice
+         thck_submerged            ! effective thickness (m) of submerged ice
 
     ! Initialize
 
-    melt_thck = 0.0d0
-
-    !WHL - commented out the following, since assuming the melt front is grounded for now. 
-    !TODO - Modify to allow floating ice at the melt front?
-    !WHL - Need to check this with Heiko
-!!    ! submerged thickness: flotation thickness capped by ground below water
-!!    thck_effective = min(thck*(rhoi/rhoo), max(eus-topg,0.))
+    latmelt_dthck = 0.0d0
 
     ! Compute the submerged ice thickness
     ! Set to the negative of the topography for marine-grounded ice.
     ! Set to zero for land-grounded ice.
 
-    thck_effective = max(eus-topg, 0.0d0)
+    thck_submerged = thck*(rhoi/rhoo)
+    thck_submerged = min(thck_submerged, max(eus-topg,0.0d0))
 
     ! Loop over locally owned cells
     ! Melt occurs only in MF cells: marine ice-filled cells with one or more ocean neighbors.
@@ -232,50 +128,53 @@ contains
              ! Apply an absolute “horizontal” melt rate - i.e., the melt rate perpendicular
              ! to the face of an approximately vertical calving front
 !!             m_sr = frontal_melt_rate ! m/s
-!!             melt_thck(i,j) = min((m_sr*dt * thck_effective(i,j) * cf_length(i,j)) / (dx*dy), thck(i,j))
+!!             latmelt_dthck(i,j) = min((m_sr*dt * thck_effective(i,j) * mf_length(i,j)) / (dx*dy), thck(i,j))
 
              !WHL - commented out m_sr; just using the prescribed melt rate with thck_submerged
              !TODO - Question: What happens to the ice above sea level? Should it collapse?
-             melt_thck(i,j) = melt_rate_const*dt * thck_effective(i,j) * mf_length(i,j) / (dx*dy)
+             latmelt_dthck(i,j) = melt_rate_const * dt * thck_submerged(i,j) * mf_length(i,j) / (dx*dy)
 
              !TODO - Modify to extend upstream if all the ice melts
-             melt_thck(i,j) = min(melt_thck(i,j), thck(i,j))
-             thck(i,j) = thck(i,j) - melt_thck(i,j)
+!             latmelt_dthck(i,j) = min(latmelt_dthck(i,j), thck(i,j))
+!             thck(i,j) = thck(i,j) - latmelt_dthck(i,j)
              
              if (verbose_latmelt) then
                 if (this_rank == rtest .and. i == itest .and. j == jtest) then
                    write(iulog,*) 'Constant lateral melting, rank, i, j:', this_rank, i, j
-                   write(iulog,*) 'H, H_eff, topg:', thck(i,j), thck_effective(i,j), topg(i,j)-eus
-                   write(iulog,*) 'rate (m/yr), mf_length, melt_thck:', melt_rate_const*scyr, mf_length(i,j), melt_thck(i,j)
+                   write(iulog,*) 'H, H_eff, topg:', thck(i,j), thck_submerged(i,j), topg(i,j)-eus
+                   write(iulog,*) 'rate (m/yr), mf_length, latmelt_dthck:', &
+                        melt_rate_const*scyr, mf_length(i,j), latmelt_dthck(i,j)
                 endif
-                call point_diag(melt_thck, 'lateral melt_thck', itest, jtest, rtest, 7, 7)
+                call point_diag(latmelt_dthck, 'lateral melt dthck', itest, jtest, rtest, 7, 7)
              endif
 
           endif   ! melt_front_mask = 1
        enddo   ! i
     enddo   ! j
 
-  end subroutine constant_lateral_melt
+  end subroutine glissade_lateral_melt_constant
 
 !-------------------------------------------------------------------------------
 
-  subroutine ismip6_lateral_melt(&
+  subroutine glissade_lateral_melt_ismip6(&
        nx,                 ny,           &
        dx,                 dy,           &
        dt,                 time,         &  ! s
        itest,   jtest,     rtest,        &
-       melt_factor,                      &
        melt_front_mask,                  &
+       melt_factor,                      &
        subglacial_discharge,             &  ! m/s
        tforcing_2d,                      &  ! K
        thck,                             &  ! m
        topg,                             &  ! m
        eus,                              &  ! m
        mf_length,                        &  ! m
-       melt_thck)                           ! m
+       latmelt_dthck)                       ! m
 
-    ! Apply lateral melt horizontally as a function of subglacial disharge and thermal forcing.
+    ! Apply lateral melt horizontally as a function of subglacial discharge and thermal forcing.
     ! Based on the parameterization of X.
+
+    use glimmer_physcon, only: rhoi, rhoo, scday, scyr
 
     ! input/output arguments
     
@@ -288,52 +187,50 @@ contains
          dt,                     & ! time step (s)
          time                      ! elapsed time (s) of model run
 
+    integer, dimension(nx,ny), intent(in)  ::  &
+         melt_front_mask           ! = 1 where floating or marine-grounded ice borders the ocean
+
     real(dp), intent(in) :: &
          melt_factor               ! multiplier for Rignot melt parameterisation
-
-    integer, dimension(nx,ny), intent(in)  ::  &
-!!         melt_front_mask           ! = 1 where ice is grounded below sea level or floating  !HG version
-         melt_front_mask           ! = 1 where ice is grounded below sea level
-                                   ! and borders at least one ocean cell, else = 0
 
     !WHL - How is discharge computed with units of m/s?
     real(dp), dimension(nx,ny), intent(in) :: & 
          subglacial_discharge,   & ! subglacial meltwater discharge (m/s)
-         tforcing_2d,            & ! average thermal forcing over some depth range
+         tforcing_2d,            & ! average thermal forcing over some depth range (K)
          topg,                   & ! bedrock elevation (m)
          mf_length                 ! length of melt front in each grid cell (m)
 
-    real(dp), dimension(nx,ny), intent(inout) :: &
-         thck                      ! ice thickness (m)
+    real(dp), dimension(nx,ny), intent(in) :: &
+         thck                      ! ice thickness (m); typically = thck_effective from subgrid CF scheme
 
     real(dp), intent(in) :: eus    ! eustatic sea level (m)
 
     real(dp), dimension(nx,ny), intent(out) :: &
-         melt_thck                 ! thickness reduction (m) due to lateral melt
+         latmelt_dthck             ! thickness reduction (m) due to lateral melt
 
     ! local variables
 
     integer :: i, j
 
     real(dp) :: &
-         q_sr,                   & ! runoff in Rignot calculation in m/d.  
+         q_sr,                   & ! runoff in Rignot calculation in m/d
          tf_sr,                  & ! thermal forcing in deg C
          m_sr                      ! melting rate in m/yr calculated from Slater ISMIP6 melt approach
 
     !TODO - Pass this in?
     real(dp), dimension(nx,ny) :: &
-         thck_effective            ! effective thickness (m) of submerged ice
+         thck_submerged            ! effective thickness (m) of submerged ice
 
         ! Initialize
 
-    melt_thck = 0.0d0
+    latmelt_dthck = 0.0d0
 
     ! Compute the submerged ice thickness
     ! Set to the negative of the topography for marine-grounded ice.
     ! Set to zero for land-grounded ice.
-    !TODO - Allow a floating margin
 
-    thck_effective = max(eus-topg, 0.0d0)
+    thck_submerged = thck*(rhoi/rhoo)
+    thck_submerged = min(thck_submerged, max(eus-topg,0.0d0))
 
     ! Loop over locally owned cells
     ! Melt occurs only in MF cells: marine ice-filled cells with one or more ocean neighbors.
@@ -348,42 +245,156 @@ contains
              ! See Rignot et al. 2016 or ISMIP6 melt forcing approach.
 
              tf_sr = tforcing_2d(i,j) ! 2d thermal forcing [degC]
-             q_sr = subglacial_discharge(i,j) * 86400. ! runoff_applied passed in m/s; for Rignot equation convert to [m/d]
+             q_sr = subglacial_discharge(i,j) * scday ! runoff_applied passed in m/s; for Rignot equation convert to [m/d]
 
-             ! Rignot et al. 2016; formulted in m/d, converted to m/s. Mulitplier frontal_melt_factor as proposed for ISMIP7
-             m_sr = melt_factor * (3.0d-4 * thck_effective(i,j) * q_sr**0.39 + 0.15) * tf_sr**1.18 * 365./scyr 
+             ! Rignot et al. 2016; formulated in m/d, converted to m/s. Mulitplier frontal_melt_factor as proposed for ISMIP7
+             m_sr = melt_factor * (3.0d-4 * thck_submerged(i,j) * q_sr**0.39d0 + 0.15d0) * tf_sr**1.18d0 * 365.d0/scyr
 
              ! calculate applied thickness change
-             melt_thck(i,j) = m_sr*dt * thck_effective(i,j) * mf_length(i,j) / (dx*dy)
+             latmelt_dthck(i,j) = m_sr * dt * thck_submerged(i,j) * mf_length(i,j) / (dx*dy)
 
              ! limit by local thickness
-             !TODO - Do not limit; allow melting to continue upstream
-             melt_thck(i,j) = min(melt_thck(i,j), thck(i,j))
+             !TODO - Do not limit; allow melting to continue upstream in the calving calculation
+!!             latmelt_dthck(i,j) = min(latmelt_dthck(i,j), thck(i,j))
 
              ! Update thickness 
-             !TODO - Change the thickness later, in the calving calculation
-             thck(i,j) = thck(i,j) - melt_thck(i,j)
+             !WHL - Change the thickness later, in the calving calculation
+!             thck(i,j) = thck(i,j) - latmelt_dthck(i,j)
 
              if (verbose_latmelt) then
                 if (this_rank == rtest .and. i == itest .and. j == jtest) then
                    write(iulog,*) 'ISMIP6 lateral melting, rank, i, j:', this_rank, i, j
-                   write(iulog,*) 'H, H_eff, topg:', thck(i,j), thck_effective(i,j), topg(i,j)-eus
-                   write(iulog,*) 'mf_length, melt_thck:', mf_length(i,j), melt_thck(i,j)
+                   write(iulog,*) 'H, H_sub, topg:', thck(i,j), thck_submerged(i,j), topg(i,j)-eus
+                   write(iulog,*) 'mf_length, latmelt_dthck:', mf_length(i,j), latmelt_dthck(i,j)
                 endif
-                call point_diag(melt_thck, 'lateral melt_thck', itest, jtest, rtest, 7, 7)
+                call point_diag(latmelt_dthck, 'lateral melt dthck', itest, jtest, rtest, 7, 7)
              endif
 
           endif
        enddo
     enddo
 
-  end subroutine ismip6_lateral_melt
+  end subroutine glissade_lateral_melt_ismip6
 
 !-------------------------------------------------------------------------------
 
-  subroutine average_thermal_forcing
+  subroutine glissade_lateral_thermal_forcing_avg(&
+       nx,              ny,      &
+       nzocn,                    &
+       zocn,                     &
+       thermal_forcing,          &
+       tforcing_2d,              &
+       ztop_in,         zbot_in)
 
-  end subroutine average_thermal_forcing
+    ! Average the thermal forcing over a prescribed depth range.
+    ! The default range is -200 m to -500 m.
+
+    ! input/output arguments
+
+    integer, intent(in) :: &
+         nx, ny                    !> number of grid cells in each dimension
+
+    integer, intent(in) :: &
+         nzocn                     !> number of ocean levels
+
+    real(dp), dimension(nzocn), intent(in) :: &
+         zocn                      !> ocean levels (m) where forcing is provided, negative below sea level
+
+    real(dp), dimension(nzocn,nx,ny), intent(in) :: &
+         thermal_forcing           !> thermal forcing field at ocean levels
+
+    real(dp), dimension(nx,ny), intent(out) :: &
+         tforcing_2d               !> average thermal forcing
+
+    real(dp), intent(in), optional :: &
+         ztop_in, zbot_in          !> top and bottom of depth range (m), negative below sea level
+
+    ! local variables
+
+    integer :: i, j, k
+    real(dp) :: ztop, zbot         ! local versions of ztop_in, zbot_in
+    real(dp) :: &
+         layer_frac,             & ! fraction of layer within the depth range
+         dlayer,                 & ! layer thickness
+         tforcing_layer            ! thermal forcing in the layer
+
+    integer, dimension(0:nzocn) :: zbnd   ! depths of layer boundaries
+
+    ! ISMIP values for the depth range
+    real(dp), parameter :: ztop_ismip = -200.d0    ! top of depth range (m), ISMIP6 parameterization
+    real(dp), parameter :: zbot_ismip = -500.d0    ! bottom of depth range (m), ISMIP6 parameterization
+
+    if (present(ztop_in)) then
+       ztop = ztop_in
+    else
+       ztop = ztop_ismip
+    endif
+
+    if (present(zbot_in)) then
+       zbot = zbot_in
+    else
+       zbot = zbot_ismip
+    endif
+
+    if (ztop >= 0.0d0 .or. zbot >= 0.0d0) then
+       call write_log('Error, average_thermal_forcing, zbot and ztop must be < 0', GM_FATAL)
+    endif
+
+    ! initialize
+    tforcing_2d = 0.0d0
+
+    ! Estimate the boundaries between ocean layers
+    ! Note: k = 1 is the top level, and zocn becomes more negative with increasing k.
+    ! zocn(k) is the depth and the middle of layer k, and zbnd(k) is the depth at the bottom of layer k.
+    ! For uniform layers, the spacing between boundaries is the same as the spacing between layers.
+
+    zbnd(0) = 0.0d0
+    do k = 1, nzocn-1
+       zbnd(k) = 0.5d0 * (zocn(k) + zocn(k+1))
+    enddo
+    zbnd(nzocn) = zocn(k) - 0.5d0*(zocn(nzocn-1) - zocn(nzocn))
+
+    if (verbose_latmelt .and. main_task) then
+       write(iulog,*) 'ocean layers, k, zocn, zbnd:'
+       do k = 1, nzocn
+          write(iulog,*) k, zocn(k), zbnd(k)
+       enddo
+    endif
+
+    ! Average the thermal forcing over the specified depth range
+
+    tforcing_2d(i,j) = 0.0d0
+
+    do k = 1, nzocn
+       if (zbnd(k) < ztop .and. zbnd(k-1) > zbot) then   ! include this layer in the average
+          if (zbnd(k-1) > ztop) then  ! part of the layer is above the range
+             layer_frac = (ztop - zbnd(k)) / (zbnd(k-1) - zbnd(k))
+          elseif (zbnd(k) < zbot) then  ! part of the layer is below the range
+             layer_frac = (zbnd(k-1) - zbot) / (zbnd(k-1) - zbnd(k))
+          else
+             layer_frac = 1.0d0  ! the entire layer is within the range
+          endif
+          dlayer = zbnd(k-1) - zbnd(k)
+          if (main_task .and. verbose_latmelt) write(iulog,*) 'k, dlayer, layer_frac:', k, dlayer, layer_frac
+
+          do j = 1, ny
+             do i = 1, nx
+                if (thermal_forcing(k,i,j) > -99998) then    !TODO - Rewrite
+                   !WHL - Limit TF to be non-negative; is that correct?
+                   tforcing_layer = max(thermal_forcing(k,i,j), 0.0d0)
+                   tforcing_2d(i,j) = tforcing_2d(i,j) + tforcing_layer*dlayer*layer_frac
+                endif
+             enddo
+          enddo
+       endif
+    enddo
+
+    ! Divide by the depth range
+    where (tforcing_2d > 0.0d0)
+       tforcing_2d = tforcing_2d / (ztop - zbot)
+    endwhere
+
+  end subroutine glissade_lateral_thermal_forcing_avg
 
 !-------------------------------------------------------------------------------
 

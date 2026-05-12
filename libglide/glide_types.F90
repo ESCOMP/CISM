@@ -1697,6 +1697,8 @@ module glide_types
 
      real(dp) :: melt_rate_const = 0.0d0       !> constant lateral retreat rate at melt front (m/yr)
      real(dp) :: melt_factor = 1.0d0           !> multiplier for Rignot frontal melt. A value of 1.6 was proposed for ISMIP7
+     real(dp) :: ztop_tfavg = -200.d0          !> top end of depth range (m) for average thermal forcing
+     real(dp) :: zbot_tfavg = -500.d0          !> bottom end of depth range (m) for average thermal forcing
 
   end type glide_lateral_melt
 

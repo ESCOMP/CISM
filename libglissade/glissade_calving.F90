@@ -770,8 +770,11 @@ contains
                nx,           ny,                  &
                model%options%whichcalving,        &
                model%options%which_ho_calving_front,  &
+               model%options%which_lateral_melt,  &
                parallel,                          &
                model%calving,                     &        ! calving object; includes calving_thck (m)
+               model%lateral_melt,                &        ! lateral melt object; includes melt_thck (m)
+               model%ocean_data,                  &        ! ocean data object, for lateral forcing
                itest, jtest, rtest,               &
                model%numerics%dt,                 &        ! s
                model%numerics%time*scyr,          &        ! s
@@ -1195,8 +1198,11 @@ contains
        nx,             ny,      &
        which_calving,           &
        which_ho_calving_front,  &
+       which_lateral_melt,      &
        parallel,                &
        calving,                 &  ! calving derived type
+       lateral_melt,            &  ! lateral melt derived type
+       ocean_data,              &  ! ocean data derived type
        itest,  jtest,  rtest,   &
        dt,             time,    &  ! s
        dx,             dy,      &  ! m
@@ -1214,7 +1220,8 @@ contains
     use glissade_masks, only: glissade_get_masks, glissade_calving_front_mask
     use glissade_utils, only: glissade_input_fluxes
     use glissade_grid_operators, only: glissade_unstagger
-
+    use glissade_lateral_melt, only: glissade_lateral_melt_constant, glissade_lateral_melt_ismip6, &
+         glissade_lateral_thermal_forcing_avg
     implicit none
 
     !---------------------------------------------------------------------
@@ -1223,12 +1230,16 @@ contains
 
     integer, intent(in) :: nx, ny                  !> horizontal grid dimensions
 
-    !TODO: Move these options to the calving derived type
+    !TODO: Move these options to the calving derived type?
     integer, intent(in) :: which_calving           !> option for calving law
     integer, intent(in) :: which_ho_calving_front  !> option for subgrid CF scheme
 
+    integer, intent(in) :: which_lateral_melt      !> option for lateral melt
+
     type(parallel_type), intent(in) :: parallel    !> info for parallel communication
     type(glide_calving), intent(inout) :: calving  !> calving object
+    type(glide_lateral_melt), intent(inout) :: lateral_melt  !> lateral melt object
+    type(glide_ocean_data), intent(in) :: ocean_data         !> ocean data object
 
 !    Note: The calving object includes the following fields and parameters used in this subroutine:
 !    real(dp), intent(in)                     :: minthck             !> min thickness for ice at the calving front (m)
@@ -1280,10 +1291,13 @@ contains
          land_mask                 ! = 1 where topg is at or above sea level, else = 0
 
     real(dp), dimension(nx,ny) :: &
-         calving_dthck,        & ! thickness increment (m) to be added to calving%thck
+         calving_dthck,        & ! thickness reduction (m) to be added to calving
          alt_calving_dthck,    & ! calving_dthck (m) from an alterate calculation
                                  ! (used if we want the max value from two different methods)
          cf_length               ! length of calving front within a cell
+
+    real(dp), dimension(nx,ny) :: &
+         latmelt_dthck           ! thickness reduction (m) due to lateral melting
 
     integer, dimension(nx,ny) :: &
          partial_cf_mask,      & ! = 1 for partially filled CF cells (thck < thck_effective), else = 0
@@ -1678,27 +1692,24 @@ contains
 
     call parallel_halo(calving_dthck, parallel)
 
-    !TODO - Compute an additional lateral melt term for thinning at the margin
-
     ! Apply calving_dthck as computed above.
 
     if (which_calving == CALVING_DAMAGE) then
 
-       ! different treatment because we can calve cells not on the CF
+       ! different treatment of calving_dthck because we can calve cells not on the CF
        where (calving_dthck == thck)
           calving%calving_thck = calving_dthck
           thck = 0.0d0
+          calving_dthck = 0.0d0
        endwhere
 
     else
 
-       !TODO - Also pass melt_dthck, return lateral_melt%melt_thck
        call apply_calving_dthck(&
             nx,           ny,           &
             itest, jtest, rtest,        &
             parallel,                   &
             calving%calving_front_mask, &
-            floating_mask,              &
             flux_in,                    &
             calving_dthck,              &
             thck,                       &
@@ -1740,6 +1751,104 @@ contains
          partial_cf_mask,               &
          full_mask,                     &
          calving%effective_areafrac)
+
+    ! Optionally, compute lateral melting at the margin
+
+    if (which_lateral_melt /= LATERAL_MELT_NONE) then
+
+       if (which_lateral_melt == LATERAL_MELT_CONSTANT) then
+
+          call glissade_lateral_melt_constant(&
+               nx,                 ny,             &
+               dx,                 dy,             &
+               dt,                 time,           &  ! s
+               itest,   jtest,     rtest,          &
+               calving%calving_front_mask,         &
+               lateral_melt%melt_rate_const,       &  ! m/s
+               thck,                               &  ! m
+               topg,                               &  ! m
+               eus,                                &  ! m
+               cf_length,                          &  ! m
+               latmelt_dthck)                         ! m
+
+       elseif (which_lateral_melt == LATERAL_MELT_ISMIP6) then
+
+          call glissade_lateral_thermal_forcing_avg(&
+               nx,                  ny,            &
+               ocean_data%nzocn,                   &
+               ocean_data%zocn,                    &
+               ocean_data%thermal_forcing,         &  ! K
+               lateral_melt%tforcing_2d,           &  ! K
+               ztop_in = lateral_melt%ztop_tfavg,  &  ! m
+               zbot_in = lateral_melt%zbot_tfavg)     ! m
+
+          call glissade_lateral_melt_ismip6(&
+               nx,                 ny,             &
+               dx,                 dy,             &
+               dt,                 time,           &  ! s
+               itest,   jtest,     rtest,          &
+               calving%calving_front_mask,         &
+               lateral_melt%melt_factor,           &
+               lateral_melt%subglacial_discharge,  &  ! m/s
+               lateral_melt%tforcing_2d,           &  ! K
+               thck,                               &  ! m
+               topg,                               &  ! m
+               eus,                                &  ! m
+               cf_length,                          &  ! m
+               latmelt_dthck)                         ! m
+
+       elseif (which_lateral_melt == LATERAL_MELT_COUPLED) then
+
+          !WHL - What to do here? What is passed in?
+
+       endif
+
+       ! Apply lateral melting
+       ! Note: This is the same logic as for calving but with different input and output arguments
+
+       call apply_calving_dthck(&
+            nx,           ny,           &
+            itest, jtest, rtest,        &
+            parallel,                   &
+            calving%calving_front_mask, &
+            flux_in,                    &
+            latmelt_dthck,              &
+            thck,                       &
+            lateral_melt%melt_thck)
+
+       call parallel_halo(thck, parallel)
+       call parallel_halo(lateral_melt%melt_thck, parallel)
+
+       ! Recompute the calving masks
+
+       call glissade_get_masks(&
+            nx,            ny,             &
+            parallel,                      &
+            thck,          topg,           &
+            eus,           eps11,          &
+            ice_mask,                      &
+            floating_mask = floating_mask, &
+            ocean_mask = ocean_mask,       &
+            land_mask = land_mask)
+
+       call glissade_calving_front_mask(&
+            nx,            ny,             &
+            which_ho_calving_front,        &
+            parallel,                      &
+            thck,          topg,           &
+            eus,                           &
+            ice_mask,      floating_mask,  &
+            ocean_mask,    land_mask,      &
+            calving%calving_front_mask,    &
+            calving%dthck_dx_cf,           &
+            dx,            dy,             &
+            calving%thck_effective,        &
+            calving%thck_effective_min,    &
+            partial_cf_mask,               &
+            full_mask,                     &
+            calving%effective_areafrac)
+
+    endif  ! which_lateral_melt
 
     ! Where thck > thck_effective, allow the CF to advance by distributing ice downstream.
 
@@ -3266,7 +3375,6 @@ contains
        itest, jtest, rtest,    &
        parallel,               &
        calving_front_mask,     &
-       floating_mask,          &
        flux_in,                &
        calving_dthck,          &
        thck,                   &
@@ -3274,6 +3382,7 @@ contains
 
     ! Apply calving_dthck as computed from a given calving law.
     ! This is the thinning rate that will give the desired lateral calving rate.
+    ! Optionally, also apply latmelt_dthck, to get added thinning due to lateral melt.
 
     ! input/output arguments
 
@@ -3285,8 +3394,7 @@ contains
          parallel                  ! info for parallel communication
 
     integer, dimension(nx,ny), intent(in)  ::  &
-         calving_front_mask,     & ! = 1 where ice is floating and borders at least one ocean cell, else = 0
-         floating_mask             ! = 1 where ice is present and floating, else = 0
+         calving_front_mask        ! = 1 where ice is floating and borders at least one ocean cell, else = 0
 
     real(dp), dimension(-1:1,-1:1,nx,ny), intent(in) :: &
          flux_in                   ! ice volume fluxes (m^3/s) into cell from each neighbor cell
