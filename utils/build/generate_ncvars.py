@@ -604,8 +604,8 @@ class PrintNC_template(PrintVars):
                 self.stream.write("%s               %s*scaling_factor\n"%(spaces,var['data']))
                 self.stream.write("%s       end if\n"%(spaces))
 
-                #*WHL* added to read x1 and y1 into global arrays called x1_global and y1_global
-                if var['name'] == 'x1' or var['name'] == 'y1':
+                #*WHL* added to read x1, y1, x0, y0 into global arrays with suffix '_global'
+                if var['name'] == 'x1' or var['name'] == 'y1' or var['name'] == 'x0' or var['name'] == 'y0':
                     self.stream.write("%s       ! Also read this variable into a global array\n"%(spaces))
                     name_global = var['name']+'_global'
                     data_global = var['data']+'_global'

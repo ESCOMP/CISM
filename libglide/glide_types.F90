@@ -429,6 +429,7 @@ module glide_types
     real(dp), dimension(:),pointer :: y1 => null() !original y1 grid
 
     ! global versions of horizontal dimension arrays
+    ! These contain all values in the global domain, not just those on the local block
     real(dp), dimension(:),pointer :: x0_global => null()
     real(dp), dimension(:),pointer :: y0_global => null()
     real(dp), dimension(:),pointer :: x1_global => null()

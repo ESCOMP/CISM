@@ -357,6 +357,7 @@ contains
     jtest = model%numerics%jdiag_local
 
     ! Make sure the grid coordinates (x1,y1) and (x0,y0) have been read in.
+    ! Also check for their global counterparts: (x1_global,y1_global) and (x0_global,y0_global).
     ! If (x1,y1) have not been read in, then abort the run.
     ! If (x0,y0) have not been read in, then compute them from (x1,y1).
     ! Extrapolate these coordinates to halo cells as needed.
@@ -373,6 +374,14 @@ contains
        call write_log('model%general%y1 = 0.0 everywhere', GM_FATAL)
     else  ! extrapolate y1 to halo cells
        call parallel_halo_extrapolate(model%general%y1, model%numerics%dns)
+    endif
+
+    if (parallel_is_zero(model%general%x1_global)) then
+       call write_log('model%general%x1_global = 0.0 everywhere', GM_FATAL)
+    endif
+
+    if (parallel_is_zero(model%general%y1_global)) then
+       call write_log('model%general%y1_global = 0.0 everywhere', GM_FATAL)
     endif
 
     ! Check whether x0 and y0 were read in. If not, then compute them from x1 and y1.
@@ -394,6 +403,20 @@ contains
     else
        ! extrapolate y0 to halo cells
        call parallel_halo_extrapolate(model%general%y0, model%numerics%dns)
+    endif
+
+    if (parallel_is_zero(model%general%x0_global)) then
+       if (main_task) write(iulog,*) 'x0_global not read in; initialize from x1_global'
+       do i = 1, model%parallel%global_ewn-1
+          model%general%x0_global(i) = 0.5d0 * (model%general%x1_global(i) + model%general%x1_global(i+1))
+       enddo
+    endif
+
+    if (parallel_is_zero(model%general%y0_global)) then
+       if (main_task) write(iulog,*) 'y0_global not read in; initialize from y1_global'
+       do i = 1, model%parallel%global_nsn-1
+          model%general%y0_global(i) = 0.5d0 * (model%general%y1_global(i) + model%general%y1_global(i+1))
+       enddo
     endif
 
     ! Check that lat and lon fields were read in

@@ -91,7 +91,8 @@
 
     use cism_parallel, only: this_rank, main_task, nhalo, tasks, &
          parallel_type, parallel_halo, staggered_parallel_halo, parallel_globalindex, &
-         parallel_global_sum_stagger, parallel_reduce_max, parallel_reduce_sum, not_parallel
+         parallel_global_sum, parallel_global_sum_stagger, &
+         parallel_reduce_max, parallel_reduce_sum, not_parallel
     implicit none
 
     private
@@ -1083,10 +1084,11 @@
     !WHL - debug
     real(dp), dimension(nNodeNeighbors_2d) :: &
          sum_Auu, sum_Auv, sum_Avu, sum_Avv
+    real(dp) :: sum_xVertex, sum_yVertex
+    real(dp) :: sum_slopex, sum_slopey
     real(dp) :: sum_uvel, sum_vvel
     real(dp) :: sum_bu, sum_bv
     real(dp) :: sum_flwa, sum_flwafact, sum_btrx, sum_btry, sum_stagusrf, sum_stagthck
-    real(dp) :: sum_betax, sum_betay, sum_omega, sum_stag_omega
     real(dp), dimension(:,:), allocatable :: arr_global  ! temporary global array
 
     call t_startf('glissade_vhs_init')
@@ -2358,7 +2360,11 @@
 
              ! When developing the reprosum version of the code, the following code was useful
              !  for verifying that two sums have exactly the same binary representation.
-             if (write_binary_diagnostics) then
+             if (write_binary_diagnostics .and. counter == 1) then
+                sum_xVertex = parallel_global_sum_stagger(xVertex, parallel)
+                sum_yVertex = parallel_global_sum_stagger(yVertex, parallel)
+                sum_slopex = parallel_global_sum(diva_slope_factor_x, parallel)
+                sum_slopey = parallel_global_sum(diva_slope_factor_y, parallel)
                 sum_uvel = parallel_global_sum_stagger(uvel_2d, parallel)
                 sum_vvel = parallel_global_sum_stagger(vvel_2d, parallel)
                 sum_flwa = parallel_global_sum_stagger(flwa, parallel)
@@ -2369,6 +2375,14 @@
                 sum_stagthck = parallel_global_sum_stagger(stagthck, parallel)
                 if (main_task) then
                    write(iulog,*) ' '
+                   call double_to_binary(sum_xVertex, binary_str)
+                   write(iulog,*) 'Before assembly: sum_xVertex, binary_str:', sum_xVertex, binary_str
+                   call double_to_binary(sum_yVertex, binary_str)
+                   write(iulog,*) 'Before assembly: sum_yVertex, binary_str:', sum_yVertex, binary_str
+                   call double_to_binary(sum_slopey, binary_str)
+                   write(iulog,*) 'Before assembly: sum_slopex, binary_str:', sum_slopey, binary_str
+                   call double_to_binary(sum_slopey, binary_str)
+                   write(iulog,*) 'Before assembly: sum_slopex, binary_str:', sum_slopey, binary_str
                    call double_to_binary(sum_uvel, binary_str)
                    write(iulog,*) 'Before assembly: sum_uvel, binary_str:', sum_uvel, binary_str
                    call double_to_binary(sum_vvel, binary_str)
