@@ -34,7 +34,7 @@ module glissade_calving
   use glimmer_physcon, only: scyr
   use glimmer_paramets, only: iulog, eps11
   use glimmer_log
-  use glimmer_utils, only: point_diag
+  use glimmer_utils, only: point_diag, calc_lsrf_usrf
 
   use cism_parallel, only: this_rank, main_task, nhalo, &
        parallel_halo, parallel_globalindex, parallel_global_sum, &
@@ -634,7 +634,6 @@ contains
     use glissade_diagnostics, only: glissade_calvingmip_diag
     use glissade_masks, only: glissade_get_masks, glissade_ice_sheet_mask
     use glissade_grounding_line, only: glissade_grounded_fraction
-    use glissade_utils, only: glissade_calc_lsrf_usrf
 
     implicit none
 
@@ -956,7 +955,7 @@ contains
 
     ! update the upper and lower surfaces;
     ! will be correct in halos after the halo update for thck
-    call glissade_calc_lsrf_usrf(&
+    call calc_lsrf_usrf(&
          model%geometry%thck,   &
          model%geometry%topg,   &
          model%climate%eus,     &

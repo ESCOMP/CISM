@@ -298,7 +298,7 @@
     ! If this gradient is less than a prescribed value, the CF cell is considered to be full.
     ! Otherwise, it is marked as a partial CF cell.
 
-    use glissade_utils, only: glissade_calc_lsrf_usrf
+    use glimmer_utils, only: calc_lsrf_usrf
 
     integer, intent(in) ::   &
          nx,  ny,              &  ! number of grid cells in each direction
@@ -484,7 +484,7 @@
           dusrf_dx_cf = dthck_dx_cf * (1.0d0 - rhoi/rhoo)
 
           ! compute the lower and upper surface elevation
-          call glissade_calc_lsrf_usrf(thck, topg, eus, lsrf, usrf)
+          call calc_lsrf_usrf(thck, topg, eus, lsrf, usrf)
 
           do j = 2, ny-1
              do i = 2, nx-1

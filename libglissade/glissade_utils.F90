@@ -42,7 +42,7 @@ module glissade_utils
   public :: glissade_adjust_thickness, glissade_smooth_usrf, &
        glissade_smooth_topography, glissade_adjust_topography, &
        glissade_basin_sum, glissade_basin_average, &
-       glissade_calc_lsrf_usrf, glissade_usrf_to_thck, glissade_thck_to_usrf, &
+       glissade_usrf_to_thck, glissade_thck_to_usrf, &
        glissade_edge_fluxes, glissade_input_fluxes, &
        glissade_rms_error, write_array_to_file, &
        glissade_handle_ice_caps,  &
@@ -162,6 +162,7 @@ contains
 
     use glissade_masks, only: glissade_get_masks
     use glissade_grid_operators, only: glissade_laplacian_smoother
+    use glimmer_utils, only: calc_lsrf_usrf
     use cism_parallel, only: parallel_halo
 
     !----------------------------------------------------------------
@@ -216,7 +217,7 @@ contains
     endif
 
     ! compute the initial surface elevation
-    call glissade_calc_lsrf_usrf(&
+    call calc_lsrf_usrf(&
          model%geometry%thck,  &
          model%geometry%topg,  &
          model%climate%eus,    &
@@ -292,6 +293,7 @@ contains
 
     use glissade_masks, only: glissade_get_masks
     use glissade_grid_operators, only: glissade_laplacian_smoother
+    use glimmer_utils, only: calc_lsrf_usrf
 
     !----------------------------------------------------------------
     ! Input-output arguments
@@ -337,7 +339,7 @@ contains
     endif
 
     ! compute the initial upper surface elevation (to be held fixed under smoothing of bed topography)
-    call glissade_calc_lsrf_usrf(&
+    call calc_lsrf_usrf(&
          model%geometry%thck,  &
          model%geometry%topg,  &
          model%climate%eus,    &
@@ -387,6 +389,8 @@ contains
     !  where the ice is not sufficiently grounded, and the data are not well constrained.
     ! Note: So far, this subroutine has been used to raise eastern Thwaites topography.
     !       It has not been used to lower topography.
+
+    use glimmer_utils, only: calc_lsrf_usrf
 
     !----------------------------------------------------------------
     ! Input-output arguments
@@ -466,7 +470,7 @@ contains
     endif
 
     ! Compute the lower and upper ice surface before the adjustment
-    call glissade_calc_lsrf_usrf(&
+    call calc_lsrf_usrf(&
          model%geometry%thck,  &
          model%geometry%topg,  &
          model%climate%eus,    &
@@ -689,44 +693,6 @@ contains
     endif
 
   end subroutine glissade_rms_error
-
-!***********************************************************************
-
-  subroutine glissade_calc_lsrf_usrf(thck, topg, eus, lsrf, usrf)
-
-    ! Calculate the elevation of the lower and upper surface of the ice,
-    ! given the thickness and bed topography.
-
-    ! Note: This subroutine computes over all grid cells, not just locally owned.
-    !       Output will be correct in halos only if the input is correct.
-    !       Generally the units will be meters, but the output will be correct
-    !        as long as the units are mutually consistent.
-
-    use glimmer_physcon, only : rhoi, rhoo
-
-    implicit none
-
-    real(dp), intent(in),  dimension(:,:) :: thck   !> ice thickness
-    real(dp), intent(in),  dimension(:,:) :: topg   !> bedrock topography elevation
-    real(dp), intent(in)                  :: eus    !> global sea level
-
-    real(dp), intent(out), dimension(:,:) :: lsrf   !> lower ice surface elevation
-    real(dp), intent(out), dimension(:,:) :: usrf   !> upper ice surface elevation
-
-    ! Compute lsrf by considering whether the ice is floating or not
-    ! For ice-free land, lsrf = topg
-    ! For ice-free ocean, lsrf = 0
-
-    where (topg - eus < (-rhoi/rhoo) * thck)
-       lsrf = (-rhoi/rhoo) * thck
-    elsewhere
-       lsrf = topg
-    end where
-
-    ! Compute usrf
-    usrf = lsrf + thck
-
-  end subroutine glissade_calc_lsrf_usrf
 
 !***********************************************************************
 

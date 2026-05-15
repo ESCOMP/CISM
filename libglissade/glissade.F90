@@ -57,13 +57,12 @@ module glissade
   use glimmer_paramets, only: iulog
   use glimmer_log
   use glide_types
-  use glimmer_utils, only: point_diag
+  use glimmer_utils, only: point_diag, calc_lsrf_usrf
   use glide_io
   use glide_lithot
   use glimmer_config
   use glissade_test, only: &
        glissade_test_halo, glissade_test_transport
-  use glissade_utils, only: glissade_calc_lsrf_usrf
   use profile, only: t_startf, t_stopf
   use cism_parallel, only: this_rank, main_task, comm, nhalo, parallel_test_comm_row_col
 
@@ -665,7 +664,7 @@ contains
     endif
 
     ! calculate the lower and upper ice surface (will be correct in halos following the halo updates above)
-    call glissade_calc_lsrf_usrf(&
+    call calc_lsrf_usrf(&
          model%geometry%thck,   &
          model%geometry%topg,   &
          model%climate%eus,     &
@@ -1226,7 +1225,7 @@ contains
     !TODO - halo update for thck?
 
     ! recalculate the lower and upper ice surface
-    call glissade_calc_lsrf_usrf(&
+    call calc_lsrf_usrf(&
          model%geometry%thck,   &
          model%geometry%topg,   &
          model%climate%eus,     &
@@ -2507,13 +2506,13 @@ contains
 
     !------------------------------------------------------------------------
     ! Update the upper and lower ice surface
-    ! Note: glissade_calc_lsrf_usrf loops over all cells, including halos,
+    ! Note: calc_lsrf_usrf loops over all cells, including halos,
     !  so halo updates are not needed for lsrf and usrf (if thck is correct in halos).
     !TODO - Not sure this update is needed here.  It should be done before
     !       the diagnostic solve, but may not be needed before calving.
     !------------------------------------------------------------------------
     
-    call glissade_calc_lsrf_usrf(&
+    call calc_lsrf_usrf(&
          model%geometry%thck,   &
          model%geometry%topg,   &
          model%climate%eus,     &
@@ -2639,7 +2638,6 @@ contains
 
     use glimmer_paramets, only: eps11
     use glimmer_physcon, only: rhow, rhoi, scyr
-    use glissade_utils, only: glissade_calc_lsrf_usrf
     use glissade_velo, only: glissade_velo_driver
     use glide_velo, only: wvelintg
     use glissade_masks, only: glissade_get_masks, glissade_ice_sheet_mask, glissade_calving_front_mask
@@ -2726,12 +2724,12 @@ contains
 
     ! ------------------------------------------------------------------------
     ! Update the upper and lower ice surface
-    ! Note: glissade_calc_lsrf_usrf loops over all cells, including halos,
+    ! Note: calc_lsrf_usrf loops over all cells, including halos,
     !  so halo updates are not needed for lsrf and usrf.
     !TODO - Update at the end of glissade_tstep? Then an update would not be needed here.
     ! ------------------------------------------------------------------------
 
-    call glissade_calc_lsrf_usrf(&
+    call calc_lsrf_usrf(&
          model%geometry%thck,   &
          model%geometry%topg,   &
          model%climate%eus,     &
@@ -3418,9 +3416,8 @@ contains
        enddo
     enddo
 
-    !WHL - Update not needed?
-    !      This subroutine should not change state variables.
-    call glissade_calc_lsrf_usrf(&
+    !WHL - Update should not be needed if this subroutine has left the geometry unchanged.
+    call calc_lsrf_usrf(&
          model%geometry%thck,   &
          model%geometry%topg,   &
          model%climate%eus,     &

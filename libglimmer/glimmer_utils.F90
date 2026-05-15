@@ -341,6 +341,44 @@ contains
 
   !+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 
+  subroutine calc_lsrf_usrf(thck, topg, eus, lsrf, usrf)
+
+    ! Calculate the elevation of the lower and upper surface of the ice,
+    ! given the thickness and bed topography.
+
+    ! Note: This subroutine computes over all grid cells, not just locally owned.
+    !       Output will be correct in halos only if the input is correct.
+    !       Generally the units will be meters, but the output will be correct
+    !        as long as the units are mutually consistent.
+
+    use glimmer_physcon, only : rhoi, rhoo
+
+    implicit none
+
+    real(dp), intent(in),  dimension(:,:) :: thck   !> ice thickness
+    real(dp), intent(in),  dimension(:,:) :: topg   !> bedrock topography elevation
+    real(dp), intent(in)                  :: eus    !> global sea level
+
+    real(dp), intent(out), dimension(:,:) :: lsrf   !> lower ice surface elevation
+    real(dp), intent(out), dimension(:,:) :: usrf   !> upper ice surface elevation
+
+    ! Compute lsrf by considering whether the ice is floating or not
+    ! For ice-free land, lsrf = topg
+    ! For ice-free ocean, lsrf = 0
+
+    where (topg - eus < (-rhoi/rhoo) * thck)
+       lsrf = (-rhoi/rhoo) * thck
+    elsewhere
+       lsrf = topg
+    end where
+
+    ! Compute usrf
+    usrf = lsrf + thck
+
+  end subroutine calc_lsrf_usrf
+
+  !+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+
   subroutine point_diag_integer_2d(&
        field,  field_string,   &
        ipt,    jpt,    rpt,    &
