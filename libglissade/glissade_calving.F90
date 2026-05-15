@@ -716,7 +716,7 @@ contains
                      * (1.0d0 - model%geometry%ice_fraction_retreat_mask(i,j))
                 dthck = model%geometry%thck(i,j) - min(maxthck, model%geometry%thck(i,j))
                 model%geometry%thck(i,j) = model%geometry%thck(i,j) - dthck
-                model%calving%calving_thck(i,j) = model%calving%calving_thck(i,j) + dthck
+                model%geometry%removal_thck(i,j) = model%geometry%removal_thck(i,j) + dthck
              endif
           enddo
        enddo
@@ -3756,7 +3756,7 @@ contains
 
        ! Remove ice from ocean-connected cells with retreat_mask = 1
        where (ocean_connection_mask == 1)
-          model%calving%calving_thck = model%calving%calving_thck + model%geometry%thck
+          model%geometry%removal_thck = model%geometry%removal_thck + model%geometry%thck
           model%geometry%thck = 0.0d0
           !TODO - Reset temperature and other tracers in cells where the ice calved?
        endwhere
