@@ -2538,7 +2538,7 @@ contains
                 model%geometry%thck(i,j) = model%geometry%thck(i,j) - dthck
                 ! record changes due to retreat forcing to separate field
                 !model%calving%calving_thck(i,j) = model%calving%calving_thck(i,j) + dthck
-                model%calving%forceretreat_thck(i,j) = dthck
+                model%calving%forceretreat_thck(i,j) = model%calving%forceretreat_thck(i,j) + dthck
              endif
           enddo
        enddo
