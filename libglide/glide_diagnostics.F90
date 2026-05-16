@@ -195,6 +195,8 @@ contains
          tot_smb_flux,                  &    ! total surface mass balance flux (kg/s)
          tot_bmb_flux,                  &    ! total basal mass balance flux (kg/s)
          tot_calving_flux,              &    ! total calving flux (kg/s)
+         tot_forceretreat_flux,         &    ! total force retreat flux (kg/s)
+         tot_rmicecap_flux,             &    ! total ice cap removal flux (kg/s)
          tot_gl_flux,                   &    ! total grounding line flux (kg/s)
          tot_acab,                      &    ! total surface accumulation/ablation rate (m^3/yr)
          tot_bmlt,                      &    ! total basal melt rate (m^3/yr)
@@ -548,6 +550,19 @@ contains
        ! total calving mass balance flux (kg/s, negative for ice loss by calving)
        tot_calving_flux = -tot_calving * rhoi / scyr   ! convert m^3/yr to kg/s
 
+       ! total force retreat and ice cap removal fluxes (kg/s, negative for ice loss)
+       ! Note: forceretreat_flux and rmicecap_flux are in kg/m^2/s; multiply by cell_area to get kg/s
+       tot_forceretreat_flux = 0.d0
+       tot_rmicecap_flux = 0.d0
+       do j = lhalo+1, nsn-uhalo
+          do i = lhalo+1, ewn-uhalo
+             tot_forceretreat_flux = tot_forceretreat_flux + model%geometry%forceretreat_flux(i,j) * cell_area(i,j)
+             tot_rmicecap_flux     = tot_rmicecap_flux     + model%geometry%rmicecap_flux(i,j)     * cell_area(i,j)
+          enddo
+       enddo
+       tot_forceretreat_flux = parallel_reduce_sum(tot_forceretreat_flux)
+       tot_rmicecap_flux     = parallel_reduce_sum(tot_rmicecap_flux)
+
        ! mean calving rate (m/yr)
        ! Note: This will be only approximate if some ice has melted completely during the time step
        if (tot_area > eps) then
@@ -602,6 +617,8 @@ contains
        model%geometry%total_smb_flux = tot_smb_flux
        model%geometry%total_bmb_flux = tot_bmb_flux
        model%geometry%total_calving_flux = tot_calving_flux
+       model%geometry%total_forceretreat_flux = tot_forceretreat_flux
+       model%geometry%total_rmicecap_flux = tot_rmicecap_flux
        model%geometry%total_gl_flux = tot_gl_flux
 
     endif  ! Glissade dycore
