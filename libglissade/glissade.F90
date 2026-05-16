@@ -2516,7 +2516,7 @@ contains
     ! In the current version, weakly grounded cells (i.e., cells with f_ground < f_ground_threshold)
     !  are alse removed.
 
-    if (model%options%force_retreat == FORCE_RETREAT_ALL_ICE .and. model%options%calving_init == CALVING_INIT_OFF) then
+    if (model%options%force_retreat == FORCE_RETREAT_ALL_ICE .and. .not.init_calving) then
        if (this_rank == rtest) then
           write(iulog,*) 'Forcing retreat using ice_fraction_retreat_mask, time =', model%numerics%time
        endif
