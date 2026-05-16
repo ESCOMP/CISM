@@ -602,7 +602,8 @@ contains
        ! mass conservation error
        ! Note: For most runs, this should be close to zero.
 
-       err_dmass_dt = tot_dmass_dt - (tot_smb_flux + tot_bmb_flux + tot_calving_flux)
+       err_dmass_dt = tot_dmass_dt - (tot_smb_flux + tot_bmb_flux + tot_calving_flux &
+                                      + tot_forceretreat_flux + tot_rmicecap_flux)
 
        ! uncomment to convert total fluxes from kg/s to Gt/yr
 !!!    tot_smb_flux = tot_smb_flux * scyr/1.0d12
