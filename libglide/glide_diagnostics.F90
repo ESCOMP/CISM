@@ -719,7 +719,7 @@ contains
           write(message,'(a31,e24.16)') 'Total ice cap removal (Gt/y)   ', tot_rmicecap_flux * factor
           call write_log(trim(message), type = GM_DIAGNOSTIC)
 
-          write(message,'(31,e24.16)') 'Total dmass/dt (Gt/y)           ', tot_dmass_dt * factor
+          write(message,'(a31,e24.16)') 'Total dmass/dt (Gt/y)          ', tot_dmass_dt * factor
           call write_log(trim(message), type = GM_DIAGNOSTIC)
 
           write(message,'(a31,e24.16)') 'dmass/dt error (Gt/y)          ', err_dmass_dt * factor
