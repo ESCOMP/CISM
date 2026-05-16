@@ -693,6 +693,12 @@ contains
           write(message,'(a25,e24.16)') 'Total gr line flux (kg/s)', tot_gl_flux
           call write_log(trim(message), type = GM_DIAGNOSTIC)
 
+          write(message,'(a31,e24.16)') 'Total retreat mask flux (kg/s) ', tot_forceretreat_flux
+          call write_log(trim(message), type = GM_DIAGNOSTIC)
+
+          write(message,'(a31,e24.16)') 'Total ice cap removal (kg/s)   ', tot_rmicecap_flux
+          call write_log(trim(message), type = GM_DIAGNOSTIC)
+
        elseif (model%options%dm_dt_diag == DM_DT_DIAG_GT_Y) then
 
           factor = scyr / 1.0d12
@@ -713,6 +719,12 @@ contains
           call write_log(trim(message), type = GM_DIAGNOSTIC)
 
           write(message,'(a25,e24.16)') 'Total gr line flux (Gt/y)', tot_gl_flux * factor
+          call write_log(trim(message), type = GM_DIAGNOSTIC)
+
+          write(message,'(a31,e24.16)') 'Total retreat mask flux (Gt/y) ', tot_forceretreat_flux * factor
+          call write_log(trim(message), type = GM_DIAGNOSTIC)
+
+          write(message,'(a31,e24.16)') 'Total ice cap removal (Gt/y)   ', tot_rmicecap_flux * factor
           call write_log(trim(message), type = GM_DIAGNOSTIC)
 
        endif   ! dm_dt_diag
