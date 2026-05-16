@@ -3258,7 +3258,7 @@ contains
        where (model%geometry%ice_cap_mask == 1)
           ! record changes due to ice cap removal to separate field
           !model%calving%calving_thck = model%calving%calving_thck + model%geometry%thck
-          model%calving%rmicecap_thck = model%geometry%thck
+          model%calving%rmicecap_thck = model%calving%rmicecap_thck + model%geometry%thck
           model%geometry%thck = 0.0d0
        endwhere
 
