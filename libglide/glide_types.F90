@@ -130,6 +130,8 @@ module glide_types
   integer, parameter :: BMLT_FLOAT_TF_ISMIP6_LOCAL = 1
   integer, parameter :: BMLT_FLOAT_TF_ISMIP6_NONLOCAL = 2
   integer, parameter :: BMLT_FLOAT_TF_ISMIP6_NONLOCAL_SLOPE = 3
+  integer, parameter :: BMLT_FLOAT_TF_ISMIP7_LOCAL = 4 !ISMIP7 default is with the slope, and can be local or nonlocal
+  integer ,parameter :: BMLT_FLOAT_TF_ISMIP7_NONLOCAL = 5 
 
   integer, parameter :: OCEAN_DATA_INTERNAL = 0
   integer, parameter :: OCEAN_DATA_EXTERNAL = 1
@@ -1962,7 +1964,13 @@ module glide_types
      ! fields read from input or forcing files
 
      real(dp), dimension(:,:,:), pointer :: &
-          thermal_forcing => null()                 !> 3D thermal forcing forcing (deg C) input to CISM
+          thermal_forcing => null()                !> 3D thermal forcing forcing (deg C) input to CISM
+ 
+     real(dp), dimension(:,:,:), pointer :: &
+          salinity => null()                       !> 3D ocean salinity (PSU) input to CISM
+  
+     real(dp), dimension(:,:), pointer :: &
+          salinity_lsrf => null()                  !> 3D ocean salinity at the lower surface of the ice
 
      real(dp), dimension(:,:), pointer :: &
           thermal_forcing_lsrf => null()            !> 2D thermal forcing forcing (deg C) applied at lower ice surface
@@ -3273,7 +3281,11 @@ contains
           endif
           call coordsystem_allocate(model%general%ice_grid, model%ocean_data%nzocn, &
                                     model%ocean_data%thermal_forcing)
+          call coordsystem_allocate(model%general%ice_grid, model%ocean_data%nzocn, &
+                                    model%ocean_data%salinity)
           call coordsystem_allocate(model%general%ice_grid, model%ocean_data%thermal_forcing_lsrf)
+          call coordsystem_allocate(model%general%ice_grid, model%ocean_data%salinity_lsrf)
+          call coordsystem_allocate(model%general%ice_grid, model%ocean_data%basin_number)
           if (model%options%bmlt_float_thermal_forcing_param == BMLT_FLOAT_TF_ISMIP6_LOCAL .or. &
               model%options%bmlt_float_thermal_forcing_param == BMLT_FLOAT_TF_ISMIP6_NONLOCAL .or. &
               model%options%bmlt_float_thermal_forcing_param == BMLT_FLOAT_TF_ISMIP6_NONLOCAL_SLOPE) then

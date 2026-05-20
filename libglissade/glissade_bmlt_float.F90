@@ -51,7 +51,7 @@ module glissade_bmlt_float
   public :: verbose_bmlt_float, glissade_basal_melting_float, &
        glissade_bmlt_float_thermal_forcing_init, glissade_bmlt_float_thermal_forcing
 
-    logical :: verbose_bmlt_float = .false.
+    logical :: verbose_bmlt_float = .true.
 
     logical :: verbose_velo = .false.
     logical :: verbose_continuity = .false.
@@ -86,6 +86,19 @@ module glissade_bmlt_float
          Lf_ismip6 = 3.34d5,         & ! latent heat of fusion (J/kg)
          cpw_ismip6 = 3974.d0          ! specific heat of seawater (J/kg/K)
 
+    !TvdA: ISMIP7 parameters, for now taken from Burgard et al (2022), equation 18 in the cryosphere paper
+    real(dp), parameter :: &
+         rhoi_ismip7 = 917.0d0,      & ! ice density (kg/m^3)
+         rhosw_ismip7 = 1028.0d0,    & ! seawater density (kg/m^3)
+         Lf_ismip7 = 3.34d5,         & ! latent heat of fusion (J/kg)
+         cpw_ismip7 = 3974.d0,       & ! specific heat of seawater (J/kg/K)
+         cpi_ismip7 = 2.0d3,         & ! specific heat of ice (J/kg/K)
+         betas_ismip7 = 7.7d-4,      & ! salt contraction coefficient 
+         lambda1_ismip7 = -5.75d-2 , & ! lambda1 in Burgard et al (2022)
+         lambda2_ismip7 = 8.32d-2 ,  & ! lambda2 in Burgard et al (2022)
+         lambda3_ismip7 = 7.59d-4 ,  & ! lambda3 in Burgard et al (2022)
+         grav_g         = 9.81         ! gravitational constant from Burgard et al (2022)
+  
     ! Max and min allowed values for thermal forcing
     real(dp), parameter ::  &
          thermal_forcing_max = 20.d0,  &  ! max allowed value of thermal forcing (K)
@@ -527,7 +540,9 @@ module glissade_bmlt_float
 
        if (model%options%bmlt_float_thermal_forcing_param == BMLT_FLOAT_TF_ISMIP6_LOCAL .or.  &
            model%options%bmlt_float_thermal_forcing_param == BMLT_FLOAT_TF_ISMIP6_NONLOCAL .or. &
-           model%options%bmlt_float_thermal_forcing_param == BMLT_FLOAT_TF_ISMIP6_NONLOCAL_SLOPE) then
+           model%options%bmlt_float_thermal_forcing_param == BMLT_FLOAT_TF_ISMIP6_NONLOCAL_SLOPE .or. &
+           model%options%bmlt_float_thermal_forcing_param == BMLT_FLOAT_TF_ISMIP7_LOCAL .or. &
+           model%options%bmlt_float_thermal_forcing_param == BMLT_FLOAT_TF_ISMIP7_NONLOCAL) then
 
           !WHL - Removed the HO_DELTAT_BASIN_ISMIP6 option that used to be here
 
@@ -768,7 +783,8 @@ module glissade_bmlt_float
     real(dp), dimension(ocean_data%nbasin) :: &
          thermal_forcing_basin,        &  ! basin average thermal forcing (K) at current time
          thermal_forcing_basin_old,    &  ! old value of thermal_forcing_basin
-         deltaT_basin_avg                 ! basin average value of deltaT_ocn
+         deltaT_basin_avg,             &  ! basin average value of deltaT_ocn
+         salinity_basin                   ! basin average salinity
 
     real(dp) :: &
          tf_anomaly                       ! local version of tf_anomaly_in
@@ -945,6 +961,21 @@ module glissade_bmlt_float
     !            This could happen, for example, if the input thermal forcing has special values
     !             that are not overwritten with realistic values via extrapolation.
 
+   ! For ISMIP7, we also need the salinity in formula 1 in the ISMIP7 AIS ocean protocol or formula 18 in Burgard et al (2022)
+   ! I need to double check with Bill if this is possible with the same interpolating scheme but without the to the surface and below the lowest layer interpolation
+   
+   !no anomalies, for now
+
+    call interpolate_salinity_to_lsrf(&
+         nx,                ny,              &
+         ocean_data%nzocn,                   &
+         ocean_data%zocn,                    &
+         thermal_forcing_mask,               &
+         lsrf,                               &
+         ocean_data%salinity,                        &
+         ocean_data%salinity_lsrf)
+
+
     do j = 1, ny
        do i = 1, nx
           if (ocean_data%thermal_forcing_lsrf(i,j) > thermal_forcing_max) then
@@ -980,10 +1011,13 @@ module glissade_bmlt_float
     ! For ISMIP6 parameterizations, compute the average thermal forcing for the basin.
     ! Note: For the ISMIP6 local scheme, the basin-scale thermal forcing is not used,
     !       but is computed for diagnostics.
+    ! ISMIP7 - we do the same because we need the same basin average thermal forcing 
 
     if (bmlt_float_thermal_forcing_param == BMLT_FLOAT_TF_ISMIP6_LOCAL .or.  &
         bmlt_float_thermal_forcing_param == BMLT_FLOAT_TF_ISMIP6_NONLOCAL .or.  &
-        bmlt_float_thermal_forcing_param == BMLT_FLOAT_TF_ISMIP6_NONLOCAL_SLOPE) then
+        bmlt_float_thermal_forcing_param == BMLT_FLOAT_TF_ISMIP6_NONLOCAL_SLOPE .or. &
+        bmlt_float_thermal_forcing_param == BMLT_FLOAT_TF_ISMIP7_LOCAL .or. &
+        bmlt_float_thermal_forcing_param == BMLT_FLOAT_TF_ISMIP7_NONLOCAL) then
 
        ! Compute a weighting function that is proportional to the floating fraction of ice-filled cells,
        !  and also tapers linearly to zero for thin floating ice.
@@ -1020,6 +1054,16 @@ module glissade_bmlt_float
             thermal_forcing_mask * f_float,  &
             ocean_data%thermal_forcing_lsrf + ocean_data%deltaT_ocn, &
             thermal_forcing_basin)
+     
+       call glissade_basin_average(&
+            nx,        ny,                   &
+            parallel,                        &
+            ocean_data%nbasin,               &
+            ocean_data%basin_number,         &
+            thermal_forcing_mask * f_float,  &
+            ocean_data%salinity_lsrf, &
+            salinity_basin)           
+
 
        ! For diagnostics, compute the average value of deltaT_ocn in each basin.
 
@@ -1065,7 +1109,7 @@ module glissade_bmlt_float
           call point_diag(sin(theta_slope), 'sin(theta_slope)', itest, jtest, rtest, 7, 7, '(f10.5)')
        endif
 
-    endif   ! ISMIP6 melt schemes
+    endif   ! ISMIP6 and ISMIP7  melt schemes
 
     !-----------------------------------------------
     ! Optionally, compute deltaT_ocn to fit dthck_dt_obs.
@@ -1191,6 +1235,26 @@ module glissade_bmlt_float
             thermal_forcing_basin,                &
             thermal_forcing_mask,                 &
             bmlt_float)
+    
+    elseif (bmlt_float_thermal_forcing_param == BMLT_FLOAT_TF_ISMIP7_LOCAL .or. &
+            bmlt_float_thermal_forcing_param == BMLT_FLOAT_TF_ISMIP7_NONLOCAL) then
+
+       call ismip7_bmlt_float(&
+            bmlt_float_thermal_forcing_param,     &
+            nx,                ny,                &
+            itest,   jtest,    rtest,             &
+            ocean_data%nbasin,                    &
+            ocean_data%basin_number,              &
+            ocean_data%gamma0,                    &
+            ocean_data%thermal_forcing_lsrf,      &
+            ocean_data%deltaT_ocn,                &
+            ocean_data%thermal_forcing_basin_min, &
+            theta_slope,                          &
+            thermal_forcing_basin,                &
+            salinity_basin,                       &
+            thermal_forcing_mask,                 &
+            bmlt_float)
+
 
     endif   ! bmlt_float_thermal_forcing_param
 
@@ -1988,6 +2052,78 @@ module glissade_bmlt_float
 
 !****************************************************
 
+  subroutine interpolate_salinity_to_lsrf(&
+       nx,          ny,          &
+       nzocn,       zocn,        &
+       thermal_forcing_mask,     &
+       lsrf,                     &
+       salinity,                 &
+       salinity_lsrf)
+
+    ! Interpolate the salinity forcing field to the lower ice surface.
+
+    integer, intent(in) :: &
+         nx, ny                    !> number of grid cells in each dimension
+
+    integer, intent(in) :: &
+         nzocn                     !> number of ocean levels
+
+    real(dp), dimension(nzocn), intent(in) :: &
+         zocn                      !> ocean levels (m) where forcing is provided, negative below sea level
+
+    integer, dimension(nx,ny), intent(in) :: &
+         thermal_forcing_mask      !> = 1 if ice is present and floating, else = 0
+
+    real(dp), dimension(nx,ny), intent(in) ::  &
+         lsrf                      !> ice lower surface elevation (m), negative below sea level
+
+    real(dp), dimension(nzocn,nx,ny), intent(in) :: &
+         salinity                  !> salinity field at ocean levels
+
+    real(dp), dimension(nx,ny), intent(out) :: &
+         salinity_lsrf      !> salinity at the lower ice surface
+
+    ! local veriables
+
+    integer :: i, j, k
+    integer :: iglobal, jglobal
+    real(dp) :: dS, dzocn, dzice  ! terms used in linear interpolation
+
+    ! Compute the salinity at the lower ice surface.
+    ! Above the top ocean level, use the S value at the top level.
+    ! Below the bottom ocean level, use the S value at the bottom level.
+    ! Use linear interpolation in between.
+
+    do j = 1, ny
+       do i = 1, nx
+          if (thermal_forcing_mask(i,j) == 1) then
+             if (lsrf(i,j) >= zocn(1)) then
+                salinity_lsrf(i,j) = salinity(1,i,j)
+             elseif (lsrf(i,j) < zocn(nzocn)) then
+                salinity_lsrf(i,j) = salinity(nzocn,i,j)
+             else
+                do k = 1, nzocn-1
+                   if (lsrf(i,j) < zocn(k) .and. lsrf(i,j) >= zocn(k+1)) then
+                      dS = salinity(k+1,i,j) - salinity(k,i,j)
+                      dzocn = zocn(k+1) - zocn(k)
+                      dzice = lsrf(i,j) - zocn(k)
+                      salinity_lsrf(i,j) = salinity(k,i,j) + (dzice/dzocn) * dS
+                      exit
+                   endif
+                enddo
+             endif
+          else  ! not a floating cell connected to the ocean
+             salinity_lsrf(i,j) = 0.0d0
+          endif
+
+       enddo
+    enddo
+
+  end subroutine interpolate_salinity_to_lsrf
+
+
+!****************************************************
+
   subroutine ismip6_bmlt_float(&
        bmlt_float_thermal_forcing_param, &
        nx,         ny,            &
@@ -2113,6 +2249,115 @@ module glissade_bmlt_float
     endif  ! local or nonlocal
 
   end subroutine ismip6_bmlt_float
+
+!****************************************************
+
+
+
+  subroutine ismip7_bmlt_float(&
+       bmlt_float_thermal_forcing_param, &
+       nx,         ny,            &
+       itest,   jtest,    rtest,  &
+       nbasin,                    &
+       basin_number,              &
+       gamma0,                    &
+       thermal_forcing_lsrf,      &
+       deltaT_ocn,                &
+       thermal_forcing_basin_min, &
+       theta_slope,               &
+       thermal_forcing_basin,     &
+       salinity_basin,            &
+       thermal_forcing_mask,      &
+       bmlt_float)
+
+    ! Compute the basal melt rate as a quadratic function of thermal forcing, using either
+    !  a local or nonlocal parameterization as specified for ISMIP6.
+    ! Note: The input thermal forcing fields are nonnegative, but the deltaT correction can be negative
+    !       giving negative effective TF, which is nonphysical with a quadratic paramterization.
+    !       In this case, we set effective TF = 0.
+
+    integer, intent(in) :: &
+         bmlt_float_thermal_forcing_param  !> kind of melting parameterization, local or nonlocal
+
+    integer, intent(in) :: &
+         nx, ny                   !> number of grid cells in each dimension
+
+    integer, intent(in) :: &
+         itest, jtest, rtest      !> coordinates of diagnostic point
+
+    integer, intent(in) :: &
+         nbasin                   !> number of basins
+
+    integer, dimension(nx,ny), intent(in) :: &
+         basin_number             !> integer ID for each basin
+
+    real(dp), intent(in) :: &
+         gamma0                   !> basal melt rate coefficient (m/yr)
+
+    real(dp), dimension(nx,ny), intent(in) :: &
+         thermal_forcing_lsrf,  & !> thermal forcing (K) at lower ice surface
+         theta_slope              !> sub-shelf slope angle (radians)
+
+    real(dp), dimension(nx,ny), intent(in) :: &
+         deltaT_ocn               !> thermal forcing correction factor (deg C)
+
+    ! Note: If thermal_forcing_basin_min > 0, there will always be some thermal forcing in the basin
+    !        even if the basin is too cold to melt ice. This will promote basal freezing in cells with local TF < 0.
+    !       In the ISMIP6 dataset, the Ronne cavity has TF ~ 0.5 C near the GL; Filchner has TF ~0.3 C.
+    real(dp), intent(in) :: &
+         thermal_forcing_basin_min  !> min basin-scale TF; can be applied to nonlocal and nonlocal-slope schemes
+
+    real(dp), dimension(nbasin), intent(in) :: &
+         thermal_forcing_basin    !> thermal forcing averaged over each basin (deg C)
+
+    real(dp), dimension(nbasin), intent(in) :: &
+         salinity_basin           !> average salinity per basin
+
+    integer, dimension(nx,ny), intent(in) :: &
+         thermal_forcing_mask     !> = 1 where TF-driven bmlt_float can be > 0
+
+    real(dp), dimension(nx,ny), intent(out) :: &
+         bmlt_float               !> basal melt rate (m/yr) at lower ice surface
+
+    ! local variables
+
+    integer :: i, j, nb
+
+    real(dp) :: coeff         ! constant coefficient = [(rhow*cp)/(rhoi*Lf)]^2*beta_S*g/2f, with units deg^(-2) PSU^-1 to account for added salinity
+
+    real(dp) :: &
+         eff_thermal_forcing,      & ! effective local thermal forcing, after deltaT correction
+         eff_thermal_forcing_basin   ! effective basin thermal forcing, after deltaT correction
+
+
+    ! initialize
+    bmlt_float(:,:) = 0.0d0
+
+    coeff = gamma0 *(((rhosw_ismip7*cpw_ismip7)/(rhoi_ismip7*Lf_ismip7))**2)*betas_ismip7*grav_g/(2*f_coriolis) 
+
+    !the recommended option to use for ISMIP7 is similar to nonlocal_slope of the ISMIP6 parameterization, with the addition of salinity and they refer to this as 
+    !semi local because of the basin averages combined with the local thermal forcing at the base of the ice shelves. Therefore, I removed the local and nonlocal options and just retained the 
+    !nonlocal slope option, but they can easily be added if needed
+
+
+    if (bmlt_float_thermal_forcing_param == BMLT_FLOAT_TF_ISMIP7_NONLOCAL) then
+
+       ! the advised option, still with a deltaT 
+
+       do j = 1, ny
+          do i = 1, nx
+             nb = basin_number(i,j)
+             if (thermal_forcing_mask(i,j) == 1) then
+                eff_thermal_forcing = thermal_forcing_lsrf(i,j) + deltaT_ocn(i,j)
+                eff_thermal_forcing_basin = max(thermal_forcing_basin_min, thermal_forcing_basin(nb))
+                bmlt_float(i,j) = coeff * sin(theta_slope(i,j)) * salinity_basin(nb) * eff_thermal_forcing * eff_thermal_forcing_basin
+             endif
+          enddo
+       enddo
+
+    endif  ! local or nonlocal
+
+  end subroutine ismip7_bmlt_float
 
 !****************************************************
 
