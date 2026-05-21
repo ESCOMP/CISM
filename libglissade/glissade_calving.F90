@@ -37,9 +37,8 @@ module glissade_calving
   use glimmer_utils, only: point_diag
 
   use cism_parallel, only: this_rank, main_task, nhalo, &
-       parallel_halo, parallel_globalindex, &
+       parallel_halo, parallel_globalindex, parallel_global_sum, &
        parallel_reduce_sum, parallel_reduce_max, parallel_reduce_log_or
-
 
   implicit none
 
@@ -50,7 +49,6 @@ module glissade_calving
   public :: verbose_calving
 
   logical, parameter :: verbose_calving = .false.
-!!  logical, parameter :: verbose_calving = .true.
 
 contains
 
@@ -582,15 +580,7 @@ contains
        if (verbose_calving) then
           call point_diag(cf_length, 'cf_length (m)', itest, jtest, rtest, 7, 7)
           ! Diagnose the total CF length
-          total_cf_length = 0.0d0
-          do j = nhalo+1, ny-nhalo
-             do i = nhalo+1, nx-nhalo
-                if (calving_front_mask(i,j) == 1) then
-                   total_cf_length = total_cf_length + cf_length(i,j)
-                endif
-             enddo
-          enddo
-          total_cf_length =  parallel_reduce_sum(total_cf_length)
+          total_cf_length = parallel_global_sum(cf_length, parallel, calving_front_mask)
           if (this_rank == rtest) then
              write(iulog,*) 'Total CF length (km)', total_cf_length/1000.d0
           endif
@@ -871,13 +861,7 @@ contains
           endif
 
           ! Compute the total ice area and the area of each quadrant
-          total_ice_area = 0.0d0
-          do j = nhalo+1, ny-nhalo
-             do i = nhalo+1, nx-nhalo
-                total_ice_area = total_ice_area + dx*dy*calving%effective_areafrac(i,j)
-             enddo
-          enddo
-          total_ice_area = parallel_reduce_sum(total_ice_area)
+          total_ice_area = parallel_global_sum(dx*dy*calving%effective_areafrac, parallel)
 
           if (verbose_calving) then
              if (this_rank == rtest) then

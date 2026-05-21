@@ -27,8 +27,10 @@
 module cism_parallel
 
   use netcdf
-  use glimmer_global, only : dp, sp
+  use glimmer_global, only : dp, sp, i8
   use glimmer_paramets, only: iulog
+
+  use cism_reprosum_mod, only: cism_reprosum_calc, verbose_reprosum
 
   implicit none
 
@@ -144,6 +146,10 @@ module cism_parallel
      integer :: main_rank_col  ! integer ID for the master task on the column
      logical :: main_task_col  ! true if this_rank_col = main_rank_col
 
+     ! option to compute reproducible sums
+     logical :: reprosum       ! if true, compute reproducible global sums
+                               ! (interface parallel_reduce_sum)
+
   end type parallel_type
 
   ! Information on the local & global bounds of an array
@@ -182,29 +188,29 @@ module cism_parallel
      module procedure broadcast_real8_1d
   end interface
 
-  interface distributed_gather_var
-     module procedure distributed_gather_var_integer_2d
-     module procedure distributed_gather_var_logical_2d
-     module procedure distributed_gather_var_real4_2d
-     module procedure distributed_gather_var_real4_3d
-     module procedure distributed_gather_var_real8_2d
-     module procedure distributed_gather_var_real8_3d
+  interface gather_var
+     module procedure gather_var_integer_2d
+     module procedure gather_var_logical_2d
+     module procedure gather_var_real4_2d
+     module procedure gather_var_real4_3d
+     module procedure gather_var_real8_2d
+     module procedure gather_var_real8_3d
   end interface
 
-  interface distributed_gather_var_row
-     module procedure distributed_gather_var_row_real8_2d
+  interface gather_var_row
+     module procedure gather_var_row_real8_2d
   end interface
 
-  interface distributed_gather_all_var_row
-     module procedure distributed_gather_all_var_row_real8_2d
+  interface gather_all_var_row
+     module procedure gather_all_var_row_real8_2d
   end interface
 
-  interface distributed_gather_var_col
-     module procedure distributed_gather_var_col_real8_2d
+  interface gather_var_col
+     module procedure gather_var_col_real8_2d
   end interface
 
-  interface distributed_gather_all_var_col
-     module procedure distributed_gather_all_var_col_real8_2d
+  interface gather_all_var_col
+     module procedure gather_all_var_col_real8_2d
   end interface
 
   interface distributed_get_var
@@ -232,21 +238,21 @@ module cism_parallel
      module procedure distributed_put_var_real8_3d
   end interface
 
-  interface distributed_scatter_var
-     module procedure distributed_scatter_var_integer_2d
-     module procedure distributed_scatter_var_logical_2d
-     module procedure distributed_scatter_var_real4_2d
-     module procedure distributed_scatter_var_real4_3d
-     module procedure distributed_scatter_var_real8_2d
-     module procedure distributed_scatter_var_real8_3d
+  interface scatter_var
+     module procedure scatter_var_integer_2d
+     module procedure scatter_var_logical_2d
+     module procedure scatter_var_real4_2d
+     module procedure scatter_var_real4_3d
+     module procedure scatter_var_real8_2d
+     module procedure scatter_var_real8_3d
   end interface
 
-  interface distributed_scatter_var_row
-     module procedure distributed_scatter_var_row_real8_2d
+  interface scatter_var_row
+     module procedure scatter_var_row_real8_2d
   end interface
 
-  interface distributed_scatter_var_col
-     module procedure distributed_scatter_var_col_real8_2d
+  interface scatter_var_col
+     module procedure scatter_var_col_real8_2d
   end interface
 
   interface parallel_boundary_value
@@ -291,17 +297,23 @@ module cism_parallel
   interface parallel_global_sum
      module procedure parallel_global_sum_integer_2d
      module procedure parallel_global_sum_integer_3d
-     module procedure parallel_global_sum_real4_2d
+     module procedure parallel_global_sum_integer8_2d
      module procedure parallel_global_sum_real8_2d
      module procedure parallel_global_sum_real8_3d
   end interface
 
-  interface parallel_global_sum_staggered
-     module procedure parallel_global_sum_staggered_3d_real8
-     module procedure parallel_global_sum_staggered_3d_real8_nvar
-     module procedure parallel_global_sum_staggered_2d_real8
-     module procedure parallel_global_sum_staggered_2d_real8_nvar
-  end interface parallel_global_sum_staggered
+  interface parallel_global_sum_patch
+     module procedure parallel_global_sum_patch_integer_2d
+     module procedure parallel_global_sum_patch_real8_2d
+  end interface parallel_global_sum_patch
+
+  interface parallel_global_sum_stagger
+     module procedure parallel_global_sum_stagger_integer_2d
+     module procedure parallel_global_sum_stagger_real8_2d
+     module procedure parallel_global_sum_stagger_real8_3d
+     module procedure parallel_global_sum_stagger_real8_2d_nflds
+     module procedure parallel_global_sum_stagger_real8_3d_nflds
+  end interface parallel_global_sum_stagger
 
   interface parallel_halo
      module procedure parallel_halo_integer_2d
@@ -311,9 +323,11 @@ module cism_parallel
      module procedure parallel_halo_real8_2d
      module procedure parallel_halo_real8_3d
      module procedure parallel_halo_real8_4d
+     module procedure parallel_halo_integer8_4d
   end interface
 
   interface parallel_halo_extrapolate
+     module procedure parallel_halo_extrapolate_real8_1d
      module procedure parallel_halo_extrapolate_integer_2d
      module procedure parallel_halo_extrapolate_real8_2d
   end interface
@@ -330,6 +344,8 @@ module cism_parallel
   end interface
 
   interface parallel_is_zero
+     module procedure parallel_is_zero_integer_1d
+     module procedure parallel_is_zero_real8_1d
      module procedure parallel_is_zero_integer_2d
      module procedure parallel_is_zero_real8_2d
      module procedure parallel_is_zero_real8_3d
@@ -388,6 +404,7 @@ module cism_parallel
 
   interface parallel_reduce_sum
      module procedure parallel_reduce_sum_integer
+     module procedure parallel_reduce_sum_integer8
      module procedure parallel_reduce_sum_real4
      module procedure parallel_reduce_sum_real8
      module procedure parallel_reduce_sum_integer_nvar
@@ -613,10 +630,10 @@ contains
 
 !=======================================================================
 
-  ! subroutines belonging to the distributed_gather_var interface
+  ! subroutines belonging to the gather_var interface
 
   ! WHL, July 2019:
-  ! There is an issue with allocating the global_values array in the distributed_gather_var_*,
+  ! There is an issue with allocating the global_values array in the gather_var_*,
   !  distributed_get_var_*, distributed_print_*, and distributed_put_var_* functions and subroutines
   !  when computing only on active blocks (compute_blocks = 1).
   ! This array is allocated based on the max and min of ewlb, ewub, nslb, and nsub over the global domain.
@@ -628,7 +645,7 @@ contains
   !  global_minval_nslb, and global_maxval_nsub, which are now computed at initialization
   !  based on the bounds in all blocks (including inactive blocks), not just active blocks.
 
-  subroutine distributed_gather_var_integer_2d(values, global_values, parallel)
+  subroutine gather_var_integer_2d(values, global_values, parallel)
 
     ! Gather a distributed variable back to main_task node
     ! values = local portion of distributed variable
@@ -661,7 +678,7 @@ contains
 
     if (uhalo==0 .and. size(values,1)==local_ewn-1) then
        ! Fixing this would require some generalization as is done for distributed_put_var
-       write(*,*) "distributed_gather does not currently work for"
+       write(*,*) "gather does not currently work for"
        write(*,*) "variables on the staggered grid when uhalo=0"
        call parallel_stop(__FILE__, __LINE__)
     end if
@@ -685,9 +702,7 @@ contains
          mpi_integer,main_rank,comm)
 
     if (main_task) then
-       if (allocated(global_values)) then
-          deallocate(global_values)
-       endif
+       if (allocated(global_values)) deallocate(global_values)
        !WHL - See comments above on allocating the global_values array
 !!       allocate(global_values(&
 !!                 minval(d_gs_bounds(1,:)):maxval(d_gs_bounds(2,:)),&
@@ -706,9 +721,7 @@ contains
        end do
        allocate(recvbuf(displs(tasks+1)))
     else
-       if (allocated(global_values)) then
-          deallocate(global_values)
-       endif
+       if (allocated(global_values)) deallocate(global_values)
        allocate(global_values(1,1))  ! This prevents a problem with NULL pointers later.
        allocate(displs(1))
        allocate(recvcounts(1))
@@ -733,10 +746,10 @@ contains
     end associate
     ! automatic deallocation
 
-  end subroutine distributed_gather_var_integer_2d
+  end subroutine gather_var_integer_2d
 
 
-  subroutine distributed_gather_var_logical_2d(values, global_values, parallel)
+  subroutine gather_var_logical_2d(values, global_values, parallel)
 
     ! Gather a distributed variable back to main_task node
     ! values = local portion of distributed variable
@@ -769,7 +782,7 @@ contains
 
     if (uhalo==0 .and. size(values,1)==local_ewn-1) then
        ! Fixing this would require some generalization as is done for distributed_put_var
-       write(*,*) "distributed_gather does not currently work for"
+       write(*,*) "gather does not currently work for"
        write(*,*) "variables on the staggered grid when uhalo=0"
        call parallel_stop(__FILE__, __LINE__)
     end if
@@ -793,9 +806,7 @@ contains
          mpi_integer,main_rank,comm)
 
     if (main_task) then
-       if (allocated(global_values)) then
-          deallocate(global_values)
-       endif
+       if (allocated(global_values)) deallocate(global_values)
        !WHL - See comments above on allocating the global_values array
 !!       allocate(global_values(&
 !!                 minval(d_gs_bounds(1,:)):maxval(d_gs_bounds(2,:)),&
@@ -814,9 +825,7 @@ contains
        end do
        allocate(recvbuf(displs(tasks+1)))
     else
-       if (allocated(global_values)) then
-          deallocate(global_values)
-       endif
+       if (allocated(global_values)) deallocate(global_values)
        allocate(global_values(1,1))  ! This prevents a problem with NULL pointers later.
        allocate(displs(1))
        allocate(recvcounts(1))
@@ -840,10 +849,10 @@ contains
     end associate
     ! automatic deallocation
 
-  end subroutine distributed_gather_var_logical_2d
+  end subroutine gather_var_logical_2d
 
 
-  subroutine distributed_gather_var_real4_2d(values, global_values, parallel)
+  subroutine gather_var_real4_2d(values, global_values, parallel)
 
     ! Gather a distributed variable back to main_task node
     ! values = local portion of distributed variable
@@ -876,7 +885,7 @@ contains
 
     if (uhalo==0 .and. size(values,1)==local_ewn-1) then
        ! Fixing this would require some generalization as is done for distributed_put_var
-       write(*,*) "distributed_gather does not currently work for"
+       write(*,*) "gather does not currently work for"
        write(*,*) "variables on the staggered grid when uhalo=0"
        call parallel_stop(__FILE__, __LINE__)
     end if
@@ -900,9 +909,7 @@ contains
          mpi_integer,main_rank,comm)
 
     if (main_task) then
-       if (allocated(global_values)) then
-          deallocate(global_values)
-       endif
+       if (allocated(global_values)) deallocate(global_values)
        !WHL - See comments above on allocating the global_values array
 !!       allocate(global_values(&
 !!                 minval(d_gs_bounds(1,:)):maxval(d_gs_bounds(2,:)),&
@@ -921,9 +928,7 @@ contains
        end do
        allocate(recvbuf(displs(tasks+1)))
     else
-       if (allocated(global_values)) then
-          deallocate(global_values)
-       endif
+       if (allocated(global_values)) deallocate(global_values)
        allocate(global_values(1,1))  ! This prevents a problem with NULL pointers later.
        allocate(displs(1))
        allocate(recvcounts(1))
@@ -947,10 +952,10 @@ contains
     end associate
     ! automatic deallocation
 
-  end subroutine distributed_gather_var_real4_2d
+  end subroutine gather_var_real4_2d
 
 
-  subroutine distributed_gather_var_real4_3d(values, global_values, parallel, ld1, ud1)
+  subroutine gather_var_real4_3d(values, global_values, parallel, ld1, ud1)
 
     ! Gather a distributed variable back to main_task node
     ! values = local portion of distributed variable
@@ -984,7 +989,7 @@ contains
 
     if (uhalo==0 .and. size(values,1)==local_ewn-1) then
        ! Fixing this would require some generalization as is done for distributed_put_var
-       write(*,*) "distributed_gather does not currently work for"
+       write(*,*) "gather does not currently work for"
        write(*,*) "variables on the staggered grid when uhalo=0"
        call parallel_stop(__FILE__, __LINE__)
     end if
@@ -1008,9 +1013,7 @@ contains
          mpi_integer,main_rank,comm)
 
     if (main_task) then
-       if (allocated(global_values)) then
-          deallocate(global_values)
-       endif
+       if (allocated(global_values)) deallocate(global_values)
        if (present(ld1)) then
          d1l = ld1
        else
@@ -1044,9 +1047,7 @@ contains
        end do
        allocate(recvbuf(displs(tasks+1)))
     else
-       if (allocated(global_values)) then
-          deallocate(global_values)
-       endif
+       if (allocated(global_values)) deallocate(global_values)
        allocate(global_values(1,1,1))  ! This prevents a problem with NULL pointers later.
        allocate(displs(1))
        allocate(recvcounts(1))
@@ -1073,10 +1074,10 @@ contains
     end associate
     ! automatic deallocation
 
-  end subroutine distributed_gather_var_real4_3d
+  end subroutine gather_var_real4_3d
 
 
-  subroutine distributed_gather_var_real8_2d(values, global_values, parallel)
+  subroutine gather_var_real8_2d(values, global_values, parallel)
 
     ! Gather a distributed variable back to main_task node
     ! values = local portion of distributed variable
@@ -1109,7 +1110,7 @@ contains
 
     if (uhalo==0 .and. size(values,1)==local_ewn-1) then
        ! Fixing this would require some generalization as is done for distributed_put_var
-       write(*,*) "distributed_gather does not currently work for"
+       write(*,*) "gather does not currently work for"
        write(*,*) "variables on the staggered grid when uhalo=0"
        call parallel_stop(__FILE__, __LINE__)
     end if
@@ -1133,9 +1134,7 @@ contains
          mpi_integer,main_rank,comm)
 
     if (main_task) then
-       if (allocated(global_values)) then
-          deallocate(global_values)
-       endif
+       if (allocated(global_values)) deallocate(global_values)
        !WHL - See comments above on allocating the global_values array
 !!       allocate(global_values(&
 !!                 minval(d_gs_bounds(1,:)):maxval(d_gs_bounds(2,:)),&
@@ -1154,9 +1153,7 @@ contains
        end do
        allocate(recvbuf(displs(tasks+1)))
     else
-       if (allocated(global_values)) then
-          deallocate(global_values)
-       endif
+       if (allocated(global_values)) deallocate(global_values)
        allocate(global_values(1,1))  ! This prevents a problem with NULL pointers later.
        allocate(displs(1))
        allocate(recvcounts(1))
@@ -1181,10 +1178,10 @@ contains
     end associate
     ! automatic deallocation
 
-  end subroutine distributed_gather_var_real8_2d
+  end subroutine gather_var_real8_2d
 
 
-  subroutine distributed_gather_var_real8_3d(values, global_values, parallel, ld1, ud1)
+  subroutine gather_var_real8_3d(values, global_values, parallel, ld1, ud1)
 
     ! Gather a distributed variable back to main_task node
     ! values = local portion of distributed variable
@@ -1193,7 +1190,7 @@ contains
 
     use mpi_mod
     implicit none
-    real(dp),dimension(:,:,:),intent(in) :: values
+    real(dp),dimension(:,:,:),intent(in) :: values    ! i and j are indices 2 and 3
     real(dp),dimension(:,:,:),allocatable,intent(inout) :: global_values
     integer,optional,intent(in) :: ld1, ud1
     type(parallel_type) :: parallel
@@ -1216,9 +1213,9 @@ contains
          global_maxval_nsub => parallel%global_maxval_nsub   &
     )
 
-    if (uhalo==0 .and. size(values,1)==local_ewn-1) then
+    if (uhalo==0 .and. size(values,2)==local_ewn-1) then
        ! Fixing this would require some generalization as is done for distributed_put_var
-       write(*,*) "distributed_gather does not currently work for"
+       write(*,*) "gather does not currently work for"
        write(*,*) "variables on the staggered grid when uhalo=0"
        call parallel_stop(__FILE__, __LINE__)
     end if
@@ -1242,9 +1239,7 @@ contains
          mpi_integer,main_rank,comm)
 
     if (main_task) then
-       if (allocated(global_values)) then
-          deallocate(global_values)
-       endif
+       if (allocated(global_values)) deallocate(global_values)
        if (present(ld1)) then
          d1l = ld1
        else
@@ -1278,9 +1273,7 @@ contains
        end do
        allocate(recvbuf(displs(tasks+1)))
     else
-       if (allocated(global_values)) then
-          deallocate(global_values)
-       endif
+       if (allocated(global_values)) deallocate(global_values)
        allocate(global_values(1,1,1))  ! This prevents a problem with NULL pointers later.
        allocate(displs(1))
        allocate(recvcounts(1))
@@ -1307,16 +1300,16 @@ contains
     end associate
     ! automatic deallocation
 
-  end subroutine distributed_gather_var_real8_3d
+  end subroutine gather_var_real8_3d
 
 !=======================================================================
 
-  ! subroutines belonging to the distributed_gather_var_row interface
+  ! subroutines belonging to the gather_var_row interface
 
-  subroutine distributed_gather_var_row_real8_2d(values, global_values, parallel)
+  subroutine gather_var_row_real8_2d(values, global_values, parallel)
 
     ! Gather data along a row of tasks onto the main task for that row.
-    ! Based on distributed_gather_var_real8_2d.
+    ! Based on gather_var_real8_2d.
     ! Note: The first index represents a data dimension that is the same on each task,
     !        whose size generally is less than own_ewn.
     !       The second index represents the north-south dimension, and is assumed
@@ -1351,7 +1344,7 @@ contains
 
     if (size(values,2) /= own_nsn) then
        ! Note: Removing this restriction would require some recoding below.
-       write(*,*) "ERROR: distributed_gather_var_row requires N-S array size of own_nsn"
+       write(*,*) "ERROR: gather_var_row requires N-S array size of own_nsn"
        write(*,*) 'rank, own_nsn, size(values,2) =', this_rank, own_nsn, size(values,2)
        call parallel_stop(__FILE__, __LINE__)
     end if
@@ -1446,16 +1439,16 @@ contains
     end associate
     ! automatic deallocation
 
-  end subroutine distributed_gather_var_row_real8_2d
+  end subroutine gather_var_row_real8_2d
 
 !=======================================================================
 
-  ! subroutines belonging to the distributed_gather_all_var_row interface
+  ! subroutines belonging to the gather_all_var_row interface
 
-  subroutine distributed_gather_all_var_row_real8_2d(values, global_values, parallel)
+  subroutine gather_all_var_row_real8_2d(values, global_values, parallel)
 
     ! Gather global data along a row of tasks onto each task for that row.
-    ! Based on distributed_gather_var_real8_2d.
+    ! Based on gather_var_real8_2d.
     ! Note: The first index represents a data dimension that is the same on each task,
     !        whose size generally is less than own_ewn.
     !       The second index represents the north-south dimension, and is assumed
@@ -1493,7 +1486,7 @@ contains
        ! TODO: Do this recoding.  This subroutine currently fails with outflow BC, because
        !       the southern and western rows of tasks have an extra locally owned vertex,
        !       giving size(values,2) = own_nsn + 1
-       write(*,*) "ERROR: distributed_gather_var_row requires N-S array size of own_nsn"
+       write(*,*) "ERROR: gather_var_row requires N-S array size of own_nsn"
        write(*,*) 'rank, own_nsn, size(values,2) =', this_rank, own_nsn, size(values,2)
        call parallel_stop(__FILE__, __LINE__)
     end if
@@ -1568,16 +1561,16 @@ contains
     end associate
     ! automatic deallocation
 
-  end subroutine distributed_gather_all_var_row_real8_2d
+  end subroutine gather_all_var_row_real8_2d
 
 !=======================================================================
 
-  ! subroutines belonging to the distributed_gather_var_col interface
+  ! subroutines belonging to the gather_var_col interface
 
-  subroutine distributed_gather_var_col_real8_2d(values, global_values, parallel)
+  subroutine gather_var_col_real8_2d(values, global_values, parallel)
 
     ! Gather data along a column of tasks onto the main task for that column.
-    ! Based on distributed_gather_var_real8_2d.
+    ! Based on gather_var_real8_2d.
     ! Note: The first index represents a data dimension that is the same on each task,
     !        whose size generally is less than own_nsn.
     !       The second index represents the east-west dimension, and is assumed
@@ -1612,7 +1605,7 @@ contains
 
     if (size(values,2) /= own_ewn) then
        ! Note: Removing this restriction would require some recoding below.
-       write(*,*) "ERROR: distributed_gather_var_row requires E-W array size of own_ewn"
+       write(*,*) "ERROR: gather_var_row requires E-W array size of own_ewn"
        write(*,*) 'rank, own_ewn, size(values,2) =', this_rank, own_ewn, size(values,2)
        call parallel_stop(__FILE__, __LINE__)
     end if
@@ -1708,16 +1701,16 @@ contains
     end associate
     ! automatic deallocation
 
-  end subroutine distributed_gather_var_col_real8_2d
+  end subroutine gather_var_col_real8_2d
 
 !=======================================================================
 
-  ! subroutines belonging to the distributed_gather_all_var_col interface
+  ! subroutines belonging to the gather_all_var_col interface
 
-  subroutine distributed_gather_all_var_col_real8_2d(values, global_values, parallel)
+  subroutine gather_all_var_col_real8_2d(values, global_values, parallel)
 
     ! Gather global data along a column of tasks onto each task for that column.
-    ! Based on distributed_gather_var_real8_2d.
+    ! Based on gather_var_real8_2d.
     ! Note: The first index represents a data dimension that is the same on each task,
     !        whose size generally is less than own_nsn.
     !       The second index represents the east-west dimension, and is assumed
@@ -1752,7 +1745,7 @@ contains
 
     if (size(values,2) /= own_ewn) then
        ! Note: Removing this restriction would require some recoding below.
-       write(*,*) "ERROR: distributed_gather_var_row requires E-W array size of own_ewn"
+       write(*,*) "ERROR: gather_var_row requires E-W array size of own_ewn"
        write(*,*) 'rank, own_ewn, size(values,2) =', this_rank, own_ewn, size(values,2)
        call parallel_stop(__FILE__, __LINE__)
     end if
@@ -1827,7 +1820,7 @@ contains
     end associate
     ! automatic deallocation
 
-  end subroutine distributed_gather_all_var_col_real8_2d
+  end subroutine gather_all_var_col_real8_2d
 
 !=======================================================================
 
@@ -2210,6 +2203,7 @@ contains
        global_values(:) = 0.0d0
        distributed_get_var_real8_1d = &
             nf90_get_var(ncid,varid,global_values(1:myn),start)
+
        allocate(displs(tasks+1))
        allocate(sendcounts(tasks))
        sendcounts(:) = bounds(2,:)-bounds(1,:)+1
@@ -2427,7 +2421,9 @@ contains
 
   subroutine distributed_grid(ewn,      nsn,        &
                               parallel,             &
-                              nhalo_in, global_bc_in)
+                              nhalo_in,             &
+                              global_bc_in,         &
+                              reprosum_in)
 
     ! Divide the global domain into blocks, with one task per block.
     ! Set various grid and domain variables for the local task.
@@ -2437,6 +2433,8 @@ contains
     type(parallel_type), intent(inout) :: parallel      ! info for parallel communication, computed here
     integer, intent(in), optional :: nhalo_in           ! number of rows of halo cells
     character(*), intent(in), optional :: global_bc_in  ! string indicating the global BC option
+                                                        !TODO - Make this an integer?
+    logical, intent(in), optional :: reprosum_in        ! if true, compute reproducible global sums
 
     integer :: best,i,j,metric
     real(dp) :: rewtasks,rnstasks
@@ -2479,7 +2477,8 @@ contains
          staggered_ilo      => parallel%staggered_ilo,      &
          staggered_ihi      => parallel%staggered_ihi,      &
          staggered_jlo      => parallel%staggered_jlo,      &
-         staggered_jhi      => parallel%staggered_jhi       &
+         staggered_jhi      => parallel%staggered_jhi,      &
+         reprosum           => parallel%reprosum            &
          )
 
     ! set the boundary conditions (periodic by default)
@@ -2665,6 +2664,27 @@ contains
         call parallel_stop(__FILE__, __LINE__)
     endif
 
+    if (present(reprosum_in)) then
+       reprosum = reprosum_in
+    else
+       reprosum = .false.
+    endif
+
+    ! If computing reproducible sums, then set some options
+    ! Note: For standalone CISM, reprosum = F by default; can set = T in the config file
+    !       For CESM coupled runs, reprosum = T by default
+    if (reprosum) then
+
+    !WHL - Commented out the reprosum_setops calls.
+    !      For standalone CISM, the call to cism_reprosum_setops is not needed.
+    !      TBD whether this is true for coupled CESM runs.
+#ifdef CCSM_COUPLED
+!!       call shr_reprosum_setops()
+#else
+!!       call cism_reprosum_setops()
+#endif
+    endif  ! reprosum
+
 !    call parallel_barrier
 !    write(iulog,*) 'task, west, east, south, north:', this_rank, west, east, south, north
 
@@ -2693,6 +2713,7 @@ contains
                                             nx_block, ny_block,   &
                                             ice_domain_mask,      &
                                             parallel,             &
+                                            reprosum_in,          &
                                             inquire_only)
 
     ! Divide the global domain into blocks, setting various grid and domain variables
@@ -2731,6 +2752,7 @@ contains
     integer, intent(in), dimension(:,:) :: &
          ice_domain_mask                            ! = 1 where ice is potentially present and active, else = 0
     type(parallel_type), intent(inout) :: parallel  ! info for parallel communication, computed here
+    logical, intent(in), optional :: reprosum_in    ! if true, compute reproducible global sums
     logical, intent(in), optional :: inquire_only   ! if true, then report the number of active blocks and abort
 
     integer :: i, j, nb, nt
@@ -2809,7 +2831,8 @@ contains
          staggered_ilo      => parallel%staggered_ilo,      &
          staggered_ihi      => parallel%staggered_ihi,      &
          staggered_jlo      => parallel%staggered_jlo,      &
-         staggered_jhi      => parallel%staggered_jhi       &
+         staggered_jhi      => parallel%staggered_jhi,      &
+         reprosum           => parallel%reprosum            &
          )
 
     if (present(inquire_only)) then
@@ -3283,7 +3306,28 @@ contains
 !            southwest_corner, southeast_corner, northwest_corner, northeast_corner
     endif
 
-    ! Uncomment to print grid geometry
+    if (present(reprosum_in)) then
+       reprosum = reprosum_in
+    else
+       reprosum = .false.
+    endif
+
+    ! If computing reproducible sums, then set some options
+    !TODO - Are these saved from one call to the next?
+    ! Note: For standalone CISM, reprosum = F by default; can set = T in the config file
+    !       For CESM coupled runs, reprosum = T by default
+
+    if (reprosum) then
+
+#ifdef CCSM_COUPLED
+!!       call shr_reprosum_setops()
+#else
+!!       call cism_reprosum_setops()
+#endif
+
+    endif  ! reprosum
+
+! Uncomment to print grid geometry
 !    write(iulog,*) " "
 !    write(iulog,*) "Process ", this_rank, " Total = ", tasks, " ewtasks = ", ewtasks, " nstasks = ", nstasks
 !    write(iulog,*) "Process ", this_rank, " ewrank = ", ewrank, " nsrank = ", nsrank
@@ -4269,9 +4313,9 @@ contains
 
 !=======================================================================
 
-  ! subroutines belonging to the distributed_scatter_var interface
+  ! subroutines belonging to the scatter_var interface
 
-  subroutine distributed_scatter_var_integer_2d(values, global_values, parallel)
+  subroutine scatter_var_integer_2d(values, global_values, parallel)
 
     ! Scatter a variable on the main_task node back to the distributed
     ! values = local portion of distributed variable
@@ -4301,7 +4345,7 @@ contains
 
     if (uhalo==0 .and. size(values,1)==local_ewn-1) then
        ! Fixing this would require some generalization as is done for distributed_put_var
-       write(iulog,*) "distributed_scatter does not currently work for"
+       write(iulog,*) "scatter does not currently work for"
        write(iulog,*) "variables on the staggered grid when uhalo=0"
        call parallel_stop(__FILE__, __LINE__)
     end if
@@ -4356,10 +4400,10 @@ contains
     deallocate(global_values)   ! TODO - Is this deallocation necessary, here and below?
     ! automatic deallocation
 
-  end subroutine distributed_scatter_var_integer_2d
+  end subroutine scatter_var_integer_2d
 
 
-  subroutine distributed_scatter_var_logical_2d(values, global_values, parallel)
+  subroutine scatter_var_logical_2d(values, global_values, parallel)
 
     ! Scatter a variable on the main_task node back to the distributed
     ! values = local portion of distributed variable
@@ -4389,7 +4433,7 @@ contains
 
     if (uhalo==0 .and. size(values,1)==local_ewn-1) then
        ! Fixing this would require some generalization as is done for distributed_put_var
-       write(iulog,*) "distributed_scatter does not currently work for"
+       write(iulog,*) "scatter does not currently work for"
        write(iulog,*) "variables on the staggered grid when uhalo=0"
        call parallel_stop(__FILE__, __LINE__)
     end if
@@ -4444,10 +4488,10 @@ contains
     deallocate(global_values)
     ! automatic deallocation
 
-  end subroutine distributed_scatter_var_logical_2d
+  end subroutine scatter_var_logical_2d
 
 
-  subroutine distributed_scatter_var_real4_2d(values, global_values, parallel)
+  subroutine scatter_var_real4_2d(values, global_values, parallel)
 
     ! Scatter a variable on the main_task node back to the distributed
     ! values = local portion of distributed variable
@@ -4477,7 +4521,7 @@ contains
 
     if (uhalo==0 .and. size(values,1)==local_ewn-1) then
        ! Fixing this would require some generalization as is done for distributed_put_var
-       write(iulog,*) "distributed_scatter does not currently work for"
+       write(iulog,*) "scatter does not currently work for"
        write(iulog,*) "variables on the staggered grid when uhalo=0"
        call parallel_stop(__FILE__, __LINE__)
     end if
@@ -4532,10 +4576,10 @@ contains
     deallocate(global_values)
     ! automatic deallocation
 
-  end subroutine distributed_scatter_var_real4_2d
+  end subroutine scatter_var_real4_2d
 
 
-  subroutine distributed_scatter_var_real4_3d(values, global_values, parallel)
+  subroutine scatter_var_real4_3d(values, global_values, parallel)
 
     ! Scatter a variable on the main_task node back to the distributed
     ! values = local portion of distributed variable
@@ -4565,7 +4609,7 @@ contains
 
     if (uhalo==0 .and. size(values,1)==local_ewn-1) then
        ! Fixing this would require some generalization as is done for distributed_put_var
-       write(iulog,*) "distributed_scatter does not currently work for"
+       write(iulog,*) "scatter does not currently work for"
        write(iulog,*) "variables on the staggered grid when uhalo=0"
        call parallel_stop(__FILE__, __LINE__)
     end if
@@ -4622,10 +4666,10 @@ contains
     deallocate(global_values)
     ! automatic deallocation
 
-  end subroutine distributed_scatter_var_real4_3d
+  end subroutine scatter_var_real4_3d
 
 
-  subroutine distributed_scatter_var_real8_2d(values, global_values, parallel)
+  subroutine scatter_var_real8_2d(values, global_values, parallel)
 
     ! Scatter a variable on the main_task node back to the distributed
     ! values = local portion of distributed variable
@@ -4655,7 +4699,7 @@ contains
 
     if (uhalo==0 .and. size(values,1)==local_ewn-1) then
        ! Fixing this would require some generalization as is done for distributed_put_var
-       write(iulog,*) "distributed_scatter does not currently work for"
+       write(iulog,*) "scatter does not currently work for"
        write(iulog,*) "variables on the staggered grid when uhalo=0"
        call parallel_stop(__FILE__, __LINE__)
     end if
@@ -4710,10 +4754,10 @@ contains
     deallocate(global_values)
     ! automatic deallocation
 
-  end subroutine distributed_scatter_var_real8_2d
+  end subroutine scatter_var_real8_2d
 
 
-  subroutine distributed_scatter_var_real8_3d(values, global_values, parallel, deallocflag)
+  subroutine scatter_var_real8_3d(values, global_values, parallel, deallocflag)
 
     ! Scatter a variable on the main_task node back to the distributed
     ! values = local portion of distributed variable
@@ -4745,7 +4789,7 @@ contains
 
     if (uhalo==0 .and. size(values,1)==local_ewn-1) then
        ! Fixing this would require some generalization as is done for distributed_put_var
-       write(iulog,*) "distributed_scatter does not currently work for"
+       write(iulog,*) "scatter does not currently work for"
        write(iulog,*) "variables on the staggered grid when uhalo=0"
        call parallel_stop(__FILE__, __LINE__)
     end if
@@ -4809,16 +4853,16 @@ contains
     if (deallocmem) deallocate(global_values)
     ! automatic deallocation
 
-  end subroutine distributed_scatter_var_real8_3d
+  end subroutine scatter_var_real8_3d
 
 !=======================================================================
 
-  ! subroutines belonging to the distributed_scatter_var_row interface
+  ! subroutines belonging to the scatter_var_row interface
 
-  subroutine distributed_scatter_var_row_real8_2d(values, global_values, parallel)
+  subroutine scatter_var_row_real8_2d(values, global_values, parallel)
 
     ! Scatter data to a row of tasks from the main task for that row.
-    ! Based on distributed_scatter_var_real8_2d.
+    ! Based on scatter_var_real8_2d.
     ! Note: The first index represents a data dimension that is the same on each task,
     !        whose size generally is less than own_ewn.
     !       The second index represents the north-south dimension, and is assumed
@@ -4852,7 +4896,7 @@ contains
 
     if (size(values,2) /= own_nsn) then
        ! Note: Removing this restriction would require some recoding below.
-       write(iulog,*) "ERROR: distributed_scatter_var_row requires N-S array size of own_nsn"
+       write(iulog,*) "ERROR: scatter_var_row requires N-S array size of own_nsn"
        call parallel_stop(__FILE__, __LINE__)
     end if
 
@@ -4909,16 +4953,16 @@ contains
     end associate
     ! automatic deallocation
 
-  end subroutine distributed_scatter_var_row_real8_2d
+  end subroutine scatter_var_row_real8_2d
 
 !=======================================================================
 
-  ! subroutines belonging to the distributed_scatter_var_col interface
+  ! subroutines belonging to the scatter_var_col interface
 
-  subroutine distributed_scatter_var_col_real8_2d(values, global_values, parallel)
+  subroutine scatter_var_col_real8_2d(values, global_values, parallel)
 
     ! Scatter data to a column of tasks from the main task for that column
-    ! Based on distributed_scatter_var_real8_2d.
+    ! Based on scatter_var_real8_2d.
     ! Note: The first index represents a data dimension that is the same on each task,
     !        whose size generally is less than own_nsn.
     !       The second index represents the east-west dimension, and is assumed
@@ -4951,7 +4995,7 @@ contains
 
     if (size(values,2) /= own_ewn) then
        ! Note: Removing this restriction would require some recoding below.
-       write(iulog,*) "ERROR: distributed_scatter_var_col requires E-W array size of own_nsn"
+       write(iulog,*) "ERROR: scatter_var_col requires E-W array size of own_nsn"
        call parallel_stop(__FILE__, __LINE__)
     end if
 
@@ -5008,7 +5052,7 @@ contains
     end associate
     ! automatic deallocation
 
-  end subroutine distributed_scatter_var_col_real8_2d
+  end subroutine scatter_var_col_real8_2d
 
 !=======================================================================
 
@@ -6047,7 +6091,7 @@ contains
     integer, dimension(:,:,:), intent(in), optional :: mask_3d
 
     integer :: i, j, k
-    integer :: kmax
+    integer :: nz
     integer, dimension(size(a,1),parallel%local_ewn,parallel%local_nsn) :: mask
     integer :: local_sum
     integer :: parallel_global_sum_integer_3d
@@ -6056,7 +6100,7 @@ contains
          local_ewn   => parallel%local_ewn,    &
          local_nsn   => parallel%local_nsn)
 
-    kmax = size(a,1)
+    nz = size(a,1)
 
     if (present(mask_3d)) then
        mask = mask_3d
@@ -6067,7 +6111,7 @@ contains
     local_sum = 0
     do j = nhalo+1, local_nsn-nhalo
        do i = nhalo+1, local_ewn-nhalo
-          do k = 1, kmax
+          do k = 1, nz
              if (mask(k,i,j) == 1) then
                 local_sum = local_sum + a(k,i,j)
              endif
@@ -6082,30 +6126,30 @@ contains
 
 !=======================================================================
 
-  function parallel_global_sum_real4_2d(a, parallel, mask_2d)
+  function parallel_global_sum_integer8_2d(a, parallel, mask_2d)
 
-    ! Calculates the global sum of a 2D single-precision field
+    ! Calculates the global sum of a 2D integer(i8) field
 
-    real(sp),dimension(:,:),intent(in) :: a
+    integer(i8), dimension(:,:),intent(in) :: a
     type(parallel_type) :: parallel
     integer, dimension(:,:), intent(in), optional :: mask_2d
 
     integer :: i, j
     integer, dimension(parallel%local_ewn,parallel%local_nsn) :: mask
-    real(sp) :: local_sum
-    real(sp) :: parallel_global_sum_real4_2d
+    integer(i8) :: local_sum
+    integer(i8) :: parallel_global_sum_integer8_2d
 
     associate(  &
          local_ewn   => parallel%local_ewn,    &
          local_nsn   => parallel%local_nsn)
 
-    if (present(mask_2d)) then
+   if (present(mask_2d)) then
        mask = mask_2d
     else
        mask = 1
     endif
 
-    local_sum = 0.0
+    local_sum = 0
     do j = nhalo+1, local_nsn-nhalo
        do i = nhalo+1, local_ewn-nhalo
           if (mask(i,j) == 1) then
@@ -6113,11 +6157,11 @@ contains
           endif
        enddo
     enddo
-    parallel_global_sum_real4_2d = parallel_reduce_sum(local_sum)
+    parallel_global_sum_integer8_2d = parallel_reduce_sum(local_sum)
 
     end associate
 
-  end function parallel_global_sum_real4_2d
+  end function parallel_global_sum_integer8_2d
 
 !=======================================================================
 
@@ -6134,9 +6178,17 @@ contains
     real(dp) :: local_sum
     real(dp) :: parallel_global_sum_real8_2d
 
+    ! variables for computing reproductible sums
+    integer :: nsummands, nflds      ! dimensions of array passed to parallel_reduce_reprosum
+    integer :: count
+    real(dp), dimension(:,:), allocatable :: arr
+    real(dp), dimension(:), allocatable :: arr_gsum
+
     associate(  &
          local_ewn   => parallel%local_ewn,    &
-         local_nsn   => parallel%local_nsn)
+         local_nsn   => parallel%local_nsn,    &
+         own_ewn     => parallel%own_ewn,      &
+         own_nsn     => parallel%own_nsn)
 
     if (present(mask_2d)) then
        mask = mask_2d
@@ -6144,15 +6196,59 @@ contains
        mask = 1
     endif
 
-    local_sum = 0.0d0
-    do j = nhalo+1, local_nsn-nhalo
-       do i = nhalo+1, local_ewn-nhalo
-          if (mask(i,j) == 1) then
-             local_sum = local_sum + a(i,j)
-          endif
+    if (parallel%reprosum) then   ! compute using parallel_reduce_reprosum
+
+       ! Allocate and fill arrays to pass to parallel_reduce_reprosum
+       nsummands = own_ewn*own_nsn
+       nflds = 1
+       allocate(arr(nsummands,nflds))
+       allocate(arr_gsum(nflds))
+
+       count = 0
+       do j = nhalo+1, local_nsn-nhalo
+          do i = nhalo+1, local_ewn-nhalo
+             count = count + 1
+             if (mask(i,j) == 1) then
+                arr(count,1) = a(i,j)
+             else
+                arr(count,1) = 0.0d0
+             endif
+          enddo
        enddo
-    enddo
-    parallel_global_sum_real8_2d = parallel_reduce_sum(local_sum)
+
+       ! bug check
+       if (count /= nsummands) then
+          if (main_task) write(iulog,*) 'Error: count, nsummands =', count, nsummands
+          call parallel_stop(__FILE__,__LINE__)
+       endif
+
+       ! Call parallel_reduce_reprosum
+       call parallel_reduce_reprosum(arr, arr_gsum)
+
+       parallel_global_sum_real8_2d = arr_gsum(1)
+
+       if (verbose_reprosum .and. main_task) then
+!          write(iulog,*) 'arr_gsum =', arr_gsum
+       endif
+
+       deallocate(arr)
+       deallocate(arr_gsum)
+
+    else  ! compute using parallel_reduce_sum (not reproducible)
+
+       local_sum = 0.0d0
+       do j = nhalo+1, local_nsn-nhalo
+          do i = nhalo+1, local_ewn-nhalo
+             if (mask(i,j) == 1) then
+                local_sum = local_sum + a(i,j)
+             endif
+          enddo
+       enddo
+
+       ! Compute the global sum
+       parallel_global_sum_real8_2d = parallel_reduce_sum(local_sum)
+
+    endif   ! reprosum
 
     end associate
 
@@ -6160,306 +6256,858 @@ contains
 
 !=======================================================================
 
-  function parallel_global_sum_real8_3d(a, parallel, mask_3d)
+  function parallel_global_sum_real8_3d(a, parallel, mask_2d)
 
     ! Calculates the global sum of a 3D double-precision field
     ! Note: The vertical dimension should be the first dimension of the input field.
 
     real(dp), dimension(:,:,:),intent(in) :: a
     type(parallel_type) :: parallel
-    integer, dimension(:,:,:), intent(in), optional :: mask_3d
+    integer, dimension(:,:), intent(in), optional :: mask_2d
 
     integer :: i, j, k
-    integer :: kmax
-    integer, dimension(size(a,1),parallel%local_ewn,parallel%local_nsn) :: mask
+    integer :: nz
+    integer, dimension(parallel%local_ewn,parallel%local_nsn) :: mask
     real(dp) :: local_sum
     real(dp) :: parallel_global_sum_real8_3d
 
+    ! variables for computing reproductible sums
+    integer :: nsummands, nflds      ! dimensions of array passed to parallel_reduce_reprosum
+    integer :: count
+    real(dp), dimension(:,:), allocatable :: arr
+    real(dp), dimension(:), allocatable :: arr_gsum
+
     associate(  &
          local_ewn   => parallel%local_ewn,    &
-         local_nsn   => parallel%local_nsn)
+         local_nsn   => parallel%local_nsn,    &
+         own_ewn     => parallel%own_ewn,      &
+         own_nsn     => parallel%own_nsn)
 
-    kmax = size(a,1)
+    nz = size(a,1)
 
-    if (present(mask_3d)) then
-       mask = mask_3d
+    ! Note: The mask is 2D, since typically all layers in a column are either masked in or masked out
+    if (present(mask_2d)) then
+       mask = mask_2d
     else
        mask = 1
     endif
 
-    local_sum = 0
-    do j = nhalo+1, local_nsn-nhalo
-       do i = nhalo+1, local_ewn-nhalo
-          do k = 1, kmax
-             if (mask(k,i,j) == 1) then
-                local_sum = local_sum + a(k,i,j)
+    if (parallel%reprosum) then   ! compute using cism_reprosum_calc
+
+       ! Allocate and fill arrays to pass to parallel_reduce_reprosum
+       nsummands = own_ewn*own_nsn*nz
+       nflds = 1
+       allocate(arr(nsummands,nflds))
+       allocate(arr_gsum(nflds))
+
+       count = 0
+       do j = nhalo+1, local_nsn-nhalo
+          do i = nhalo+1, local_ewn-nhalo
+             if (mask(i,j) == 1) then
+                do k = 1, nz
+                   count = count + 1
+                   arr(count,1) = a(k,i,j)
+                enddo
+             else
+                do k = 1, nz
+                   count = count + 1
+                   arr(count,1) = 0.0d0
+                enddo
              endif
           enddo
        enddo
-    enddo
-    parallel_global_sum_real8_3d = parallel_reduce_sum(local_sum)
+
+       ! bug check
+       if (count /= nsummands) then
+          if (main_task) write(iulog,*) 'Error: count, nsummands =', count, nsummands
+          call parallel_stop(__FILE__,__LINE__)
+       endif
+
+       ! Call parallel_reduce_reprosum
+       call parallel_reduce_reprosum(arr, arr_gsum)
+
+       parallel_global_sum_real8_3d = arr_gsum(1)
+
+       if (verbose_reprosum .and. main_task) then
+!          write(iulog,*) 'arr_gsum =', arr_gsum
+       endif
+
+       deallocate(arr)
+       deallocate(arr_gsum)
+
+    else  ! compute using parallel_reduce_sum (not reproducible)
+
+       local_sum = 0
+       do j = nhalo+1, local_nsn-nhalo
+          do i = nhalo+1, local_ewn-nhalo
+             if (mask(i,j) == 1) then
+                do k = 1, nz
+                   local_sum = local_sum + a(k,i,j)
+                enddo
+             endif
+          enddo
+       enddo
+       parallel_global_sum_real8_3d = parallel_reduce_sum(local_sum)
+
+    endif   ! reprosum
 
     end associate
 
   end function parallel_global_sum_real8_3d
 
 !=======================================================================
+  ! subroutines belonging to the parallel_global_sum_patch interface
 
-  ! subroutines belonging to the parallel_global_sum_staggered interface
-  !TODO - Turn these into functions, analogous to the parallel_global_sum functions above.
+  function parallel_global_sum_patch_integer_2d(a, npatch, patch_id, parallel)
 
-  subroutine parallel_global_sum_staggered_3d_real8(&
-       nx,            ny,         &
-       nz,            parallel,   &
-       global_sum,                &
-       work1,  work2)
+    ! Calculates the global sum of a 2D double-precision field over each
+    !  user-defined patch of the domain.
+    ! The number of patches = npatch.
+    ! Each cell has an integer ID assigning it to at most one patch.
+    ! If a cell has patch_id = 0, it belongs to no patches.
 
-    ! Sum one or two local arrays on the staggered grid, then take the global sum.
+    integer, dimension(:,:), intent(in) :: a
+    integer, intent(in) :: npatch
+    integer, dimension(:,:), intent(in) :: patch_id
+    type(parallel_type) :: parallel
 
-    integer, intent(in) :: &
-         nx, ny,             &  ! horizontal grid dimensions (for scalars)
-         nz                     ! number of vertical layers at which velocity is computed
+    integer :: i, j, np
+    integer, dimension(npatch) :: local_patch_sum
+    integer, dimension(npatch) :: parallel_global_sum_patch_integer_2d
 
-    type(parallel_type), intent(in) :: &
-         parallel               ! info for parallel communication
+    associate(  &
+         local_ewn   => parallel%local_ewn,    &
+         local_nsn   => parallel%local_nsn)
 
-    real(dp), intent(out) :: global_sum   ! global sum
-    real(dp), intent(in), dimension(nz,nx-1,ny-1) :: work1            ! local array
-    real(dp), intent(in), dimension(nz,nx-1,ny-1), optional :: work2  ! local array
+    local_patch_sum = 0
 
-    integer :: i, j, k
-    real(dp) :: local_sum
-
-    integer :: &
-         staggered_ilo, staggered_ihi, &  ! bounds of locally owned vertices on staggered grid
-         staggered_jlo, staggered_jhi
-
-    staggered_ilo = parallel%staggered_ilo
-    staggered_ihi = parallel%staggered_ihi
-    staggered_jlo = parallel%staggered_jlo
-    staggered_jhi = parallel%staggered_jhi
-
-    local_sum = 0.d0
-
-    ! sum over locally owned velocity points
-
-    if (present(work2)) then
-       do j = staggered_jlo, staggered_jhi
-          do i = staggered_ilo, staggered_ihi
-             do k = 1, nz
-                local_sum = local_sum + work1(k,i,j) + work2(k,i,j)
-             enddo
-          enddo
+    do j = nhalo+1, local_nsn-nhalo
+       do i = nhalo+1, local_ewn-nhalo
+          np = patch_id(i,j)
+          if (np > 0) then
+             local_patch_sum(np) = local_patch_sum(np) + a(i,j)
+          endif
        enddo
-    else
-       do j = staggered_jlo, staggered_jhi
-          do i = staggered_ilo, staggered_ihi
-             do k = 1, nz
-                local_sum = local_sum + work1(k,i,j)
-             enddo
-          enddo
-       enddo
-    endif
+    enddo
 
-    ! take the global sum
+    parallel_global_sum_patch_integer_2d = parallel_reduce_sum(local_patch_sum)
 
-    global_sum = parallel_reduce_sum(local_sum)
+    end associate
 
-  end subroutine parallel_global_sum_staggered_3d_real8
+  end function parallel_global_sum_patch_integer_2d
 
 !=======================================================================
 
-  subroutine parallel_global_sum_staggered_3d_real8_nvar(&
-       nx,            ny,         &
-       nz,            parallel,   &
-       global_sum,                &
-       work1,  work2)
+  function parallel_global_sum_patch_real8_2d(a, npatch, patch_id, parallel)
 
-    ! Sum one or two local arrays on the staggered grid, then take the global sum.
+    ! Calculates the global sum of a 2D double-precision field over each
+    !  user-defined patch of the domain.
+    ! The number of patches = npatch.
+    ! Each cell has an integer ID assigning it to at most one patch.
+    ! If a cell has patch_id = 0, it belongs to no patches.
+    !TODO - Add a reprosum option with npatch = nflds
 
-    integer, intent(in) :: &
-         nx, ny,                &  ! horizontal grid dimensions (for scalars)
-         nz                        ! number of vertical layers at which velocity is computed
+    real(dp), dimension(:,:), intent(in) :: a
+    integer, intent(in) :: npatch
+    integer, dimension(:,:), intent(in) :: patch_id
+    type(parallel_type) :: parallel
 
-    type(parallel_type), intent(in) :: &
-         parallel               ! info for parallel communication
+    integer :: i, j, np
+    real(dp), dimension(npatch) :: local_patch_sum
+    real(dp), dimension(npatch) :: parallel_global_sum_patch_real8_2d
 
-    real(dp), intent(out), dimension(:) :: global_sum   ! global sum
+    ! variables for computing reproductible sums
+    integer :: nsummands, nflds      ! dimensions of array passed to parallel_reduce_reprosum
+    integer :: count
+    real(dp), dimension(:,:), allocatable :: arr
+    real(dp), dimension(:), allocatable :: arr_gsum
 
-    real(dp), intent(in), dimension(nz,nx-1,ny-1,size(global_sum)) :: work1            ! local array
-    real(dp), intent(in), dimension(nz,nx-1,ny-1,size(global_sum)), optional :: work2  ! local array
+    associate(  &
+         local_ewn   => parallel%local_ewn,    &
+         local_nsn   => parallel%local_nsn,    &
+         own_ewn     => parallel%own_ewn,      &
+         own_nsn     => parallel%own_nsn)
 
-    integer :: i, j, k, n, nvar
-    real(dp), dimension(size(global_sum)) :: local_sum
+    if (parallel%reprosum) then   ! compute using cism_reprosum_calc
 
-    integer :: &
-         staggered_ilo, staggered_ihi, &  ! bounds of locally owned vertices on staggered grid
-         staggered_jlo, staggered_jhi
+       ! Allocate and fill arrays to pass to parallel_reduce_reprosum
+       nsummands = own_ewn*own_nsn
+       nflds = npatch
+       allocate(arr(nsummands,nflds))
+       allocate(arr_gsum(nflds))
 
-    staggered_ilo = parallel%staggered_ilo
-    staggered_ihi = parallel%staggered_ihi
-    staggered_jlo = parallel%staggered_jlo
-    staggered_jhi = parallel%staggered_jhi
+       count = 0
+       arr(:,:) = 0.0d0
 
-    nvar = size(global_sum)
-
-    local_sum(:) = 0.d0
-
-    do n = 1, nvar
-
-       ! sum over locally owned velocity points
-
-       if (present(work2)) then
-          do j = staggered_jlo, staggered_jhi
-             do i = staggered_ilo, staggered_ihi
-                do k = 1, nz
-                   local_sum(n) = local_sum(n) + work1(k,i,j,n) + work2(k,i,j,n)
-                enddo
-             enddo
+       do j = nhalo+1, local_nsn-nhalo
+          do i = nhalo+1, local_ewn-nhalo
+             count = count + 1
+             np = patch_id(i,j)
+             if (np > 0) then
+                arr(count,np) = a(i,j)
+             endif
           enddo
-       else
-          do j = staggered_jlo, staggered_jhi
-             do i = staggered_ilo, staggered_ihi
-                do k = 1, nz
-                   local_sum(n) = local_sum(n) + work1(k,i,j,n)
-                enddo
-             enddo
-          enddo
+       enddo
+
+       ! bug check
+       if (count /= nsummands) then
+          if (main_task) write(iulog,*) 'Error: count, nsummands =', count, nsummands
+          call parallel_stop(__FILE__,__LINE__)
        endif
 
-    enddo   ! nvar
+       ! Call parallel_reduce_reprosum
+       call parallel_reduce_reprosum(arr, arr_gsum)
 
-    ! take the global sum
+       parallel_global_sum_patch_real8_2d(:) = arr_gsum(:)
 
-    global_sum(:) = parallel_reduce_sum(local_sum(:))
+       if (verbose_reprosum .and. main_task) then
+!          write(iulog,*) 'arr_gsum =', arr_gsum
+       endif
 
-  end subroutine parallel_global_sum_staggered_3d_real8_nvar
+       deallocate(arr)
+       deallocate(arr_gsum)
+
+    else   ! compute using parallel_reduce_sum (not reproducible)
+
+       local_patch_sum = 0.0d0
+
+       do j = nhalo+1, local_nsn-nhalo
+          do i = nhalo+1, local_ewn-nhalo
+             np = patch_id(i,j)
+             if (np > 0) then
+                local_patch_sum(np) = local_patch_sum(np) + a(i,j)
+             endif
+          enddo
+       enddo
+
+       parallel_global_sum_patch_real8_2d = parallel_reduce_sum(local_patch_sum)
+
+    endif  ! reprosum
+
+    end associate
+
+  end function parallel_global_sum_patch_real8_2d
+
+!=======================================================================
+  ! subroutines belonging to the parallel_global_sum_stagger interface
+
+  function parallel_global_sum_stagger_integer_2d(a, parallel, mask_2d)
+
+    ! Calculates the global sum of a 2D integer field on the staggered grid
+    ! Similar to unstagged version, except it uses staggered_ilo/ihi/jlo/jhi
+
+    integer,dimension(:,:),intent(in) :: a
+    type(parallel_type) :: parallel
+    integer, dimension(:,:), intent(in), optional :: mask_2d
+
+    integer :: i, j
+    integer, dimension(parallel%local_ewn-1,parallel%local_nsn-1) :: mask
+    integer :: local_sum
+    integer :: parallel_global_sum_stagger_integer_2d
+    integer :: &
+         staggered_ilo, staggered_ihi, &  ! bounds of locally owned vertices on staggered grid
+         staggered_jlo, staggered_jhi
+
+    !TODO - associate
+    staggered_ilo = parallel%staggered_ilo
+    staggered_ihi = parallel%staggered_ihi
+    staggered_jlo = parallel%staggered_jlo
+    staggered_jhi = parallel%staggered_jhi
+
+    if (present(mask_2d)) then
+       mask = mask_2d
+    else
+       mask = 1
+    endif
+
+    local_sum = 0
+    do j = staggered_jlo, staggered_jhi
+       do i = staggered_ilo, staggered_ihi
+          if (mask(i,j) == 1) then
+             local_sum = local_sum + a(i,j)
+          endif
+       enddo
+    enddo
+    parallel_global_sum_stagger_integer_2d = parallel_reduce_sum(local_sum)
+
+  end function parallel_global_sum_stagger_integer_2d
 
 !=======================================================================
 
-  subroutine parallel_global_sum_staggered_2d_real8(&
-       nx,            ny,    &
-       parallel,             &
-       global_sum,           &
-       work1,  work2)
+  function parallel_global_sum_stagger_real8_2d(arr1, parallel, arr2, mask_2d)
 
-    ! Sum one or two local arrays on the staggered grid, then take the global sum.
+    ! Calculate the global sum of a 2D double-precision field on the staggered grid
+    ! Similar to unstagged version, except it uses staggered_ilo/ihi/jlo/jhi
 
-    integer, intent(in) :: &
-         nx, ny                     ! horizontal grid dimensions (for scalars)
-
-    type(parallel_type), intent(in) :: &
-         parallel               ! info for parallel communication
-
-    real(dp), intent(out) :: global_sum   ! global sum
-
-    real(dp), intent(in), dimension(nx-1,ny-1) :: work1            ! local array
-    real(dp), intent(in), dimension(nx-1,ny-1), optional :: work2  ! local array
+    real(dp), dimension(:,:), intent(in) :: arr1
+    type(parallel_type) :: parallel
+    real(dp), dimension(:,:), intent(in), optional :: arr2
+    integer, dimension(:,:), intent(in), optional :: mask_2d
 
     integer :: i, j
     real(dp) :: local_sum
+    real(dp) :: parallel_global_sum_stagger_real8_2d
+    integer, dimension(parallel%local_ewn-1,parallel%local_nsn-1) :: mask
 
     integer :: &
          staggered_ilo, staggered_ihi, &  ! bounds of locally owned vertices on staggered grid
          staggered_jlo, staggered_jhi
 
+    ! variables for computing reproductible sums
+    integer :: nsummands, nflds      ! dimensions of array passed to parallel_reduce_reprosum
+    integer :: count
+    real(dp), dimension(:,:), allocatable :: arr
+    real(dp), dimension(:), allocatable :: arr_gsum
+
+    !TODO - associate
     staggered_ilo = parallel%staggered_ilo
     staggered_ihi = parallel%staggered_ihi
     staggered_jlo = parallel%staggered_jlo
     staggered_jhi = parallel%staggered_jhi
 
-    local_sum = 0.d0
-
-    ! sum over locally owned velocity points
-
-    if (present(work2)) then
-       do j = staggered_jlo, staggered_jhi
-          do i = staggered_ilo, staggered_ihi
-             local_sum = local_sum + work1(i,j) + work2(i,j)
-          enddo
-       enddo
+    if (present(mask_2d)) then
+       mask = mask_2d
     else
-       do j = staggered_jlo, staggered_jhi
-          do i = staggered_ilo, staggered_ihi
-             local_sum = local_sum + work1(i,j)
-          enddo
-       enddo
+       mask = 1
     endif
 
-    ! take the global sum
+    if (parallel%reprosum) then   ! compute using cism_reprosum_calc
 
-    global_sum = parallel_reduce_sum(local_sum)
+       ! Allocate and fill arrays to pass to parallel_reduce_reprosum
+       nsummands = (staggered_ihi-staggered_ilo+1) * (staggered_jhi-staggered_jlo+1)
+       nflds = 1
+       allocate(arr(nsummands,nflds))
+       allocate(arr_gsum(nflds))
 
-  end subroutine parallel_global_sum_staggered_2d_real8
+       arr(:,:) = 0.0d0
+
+       if (present(arr2)) then  ! compute global sum of arr1 + arr2
+
+          count = 0
+          do j = staggered_jlo, staggered_jhi
+             do i = staggered_ilo, staggered_ihi
+                count = count + 1
+                if (mask(i,j) == 1) then
+                   arr(count,1) = arr1(i,j) + arr2(i,j)
+                endif
+             enddo
+          enddo
+
+       else  ! compute global sum of arr1
+
+          count = 0
+          do j = staggered_jlo, staggered_jhi
+             do i = staggered_ilo, staggered_ihi
+                count = count + 1
+                if (mask(i,j) == 1) then
+                   arr(count,1) = arr1(i,j)
+                endif
+             enddo
+          enddo
+
+       endif
+
+       ! bug check
+       if (count /= nsummands) then
+          if (main_task) write(iulog,*) 'Error: count, nsummands =', count, nsummands
+          call parallel_stop(__FILE__,__LINE__)
+       endif
+
+       ! Call parallel_reduce_reprosum
+       call parallel_reduce_reprosum(arr, arr_gsum)
+
+       parallel_global_sum_stagger_real8_2d = arr_gsum(1)
+
+       if (verbose_reprosum .and. main_task) then
+!          write(iulog,*) 'arr_gsum =', arr_gsum
+       endif
+
+       deallocate(arr)
+       deallocate(arr_gsum)
+
+    else  ! compute using parallel_reduce_sum (not reproducible)
+
+       local_sum = 0.0d0
+
+       if (present(arr2)) then  ! compute global sum of arr1 + arr2
+
+          do j = staggered_jlo, staggered_jhi
+             do i = staggered_ilo, staggered_ihi
+                if (mask(i,j) == 1) then
+                   local_sum = local_sum + arr1(i,j) + arr2(i,j)
+                endif
+             enddo
+          enddo
+
+       else  ! compute global sum of arr1
+
+          do j = staggered_jlo, staggered_jhi
+             do i = staggered_ilo, staggered_ihi
+                if (mask(i,j) == 1) then
+                   local_sum = local_sum + arr1(i,j)
+                endif
+             enddo
+          enddo
+
+       endif
+
+       parallel_global_sum_stagger_real8_2d = parallel_reduce_sum(local_sum)
+
+    endif   ! reprosum
+
+  end function parallel_global_sum_stagger_real8_2d
 
 !=======================================================================
 
-  subroutine parallel_global_sum_staggered_2d_real8_nvar(&
-       nx,            ny,            &
-       parallel,                     &
-       global_sum,                   &
-       work1,  work2)
+  !TODO - Add mask_2d here and below
+  function parallel_global_sum_stagger_real8_3d(arr1, parallel, arr2, mask_2d)
 
-    ! Sum one or two local arrays on the staggered grid, then take the global sum.
+    ! Calculate the global sum of a 3D double-precision field on the staggered grid
+    ! Assumes k is the first index, followed by i and j
 
-    integer, intent(in) :: &
-         nx, ny              ! horizontal grid dimensions (for scalars)
+    real(dp), dimension(:,:,:), intent(in) :: arr1
+    type(parallel_type) :: parallel
+    real(dp), dimension(:,:,:), intent(in), optional :: arr2
+    integer, dimension(:,:), intent(in), optional :: mask_2d
 
-    type(parallel_type), intent(in) :: &
-         parallel               ! info for parallel communication
+    integer :: i, j, k, nz
+    real(dp) :: local_sum
+    real(dp) :: parallel_global_sum_stagger_real8_3d
+    integer, dimension(parallel%local_ewn-1,parallel%local_nsn-1) :: mask
 
-    real(dp), intent(out), dimension(:) :: &
-         global_sum          ! global sum
-
-    real(dp), intent(in), dimension(nx-1,ny-1,size(global_sum)) :: work1            ! local array
-    real(dp), intent(in), dimension(nx-1,ny-1,size(global_sum)), optional :: work2  ! local array
-
-    integer :: i, j, n, nvar
-
-    real(dp), dimension(size(global_sum)) :: local_sum
+    ! variables for computing reproductible sums
+    integer :: nsummands, nflds      ! dimensions of array passed to parallel_reduce_reprosum
+    integer :: count
+    real(dp), dimension(:,:), allocatable :: arr
+    real(dp), dimension(:), allocatable :: arr_gsum
 
     integer :: &
          staggered_ilo, staggered_ihi, &  ! bounds of locally owned vertices on staggered grid
          staggered_jlo, staggered_jhi
+
+    !TODO - Associate these variables (and not the ones above)
+    staggered_ilo = parallel%staggered_ilo
+    staggered_ihi = parallel%staggered_ihi
+    staggered_jlo = parallel%staggered_jlo
+    staggered_jhi = parallel%staggered_jhi
+
+    if (present(mask_2d)) then
+       mask = mask_2d
+    else
+       mask = 1
+    endif
+
+    nz = size(arr1,1)
+
+    if (parallel%reprosum) then   ! compute using cism_reprosum_calc
+
+       ! Allocate and fill arrays to pass to parallel_reduce_reprosum
+       nsummands = (staggered_ihi-staggered_ilo+1) * (staggered_jhi-staggered_jlo+1) * nz
+       nflds = 1
+       allocate(arr(nsummands,nflds))
+       allocate(arr_gsum(nflds))
+
+       arr(:,:) = 0.0d0
+
+       if (present(arr2)) then  ! compute global sum of arr1 + arr2
+
+          count = 0
+          do j = staggered_jlo, staggered_jhi
+             do i = staggered_ilo, staggered_ihi
+                if (mask(i,j) == 1) then
+                   do k = 1, nz
+                      count = count + 1
+                      arr(count,1) = arr1(k,i,j) + arr2(k,i,j)
+                   enddo
+                endif
+             enddo
+          enddo
+
+       else  ! compute global sum of arr1
+
+          count = 0
+          do j = staggered_jlo, staggered_jhi
+             do i = staggered_ilo, staggered_ihi
+                if (mask(i,j) == 1) then
+                   do k = 1, nz
+                      count = count + 1
+                      arr(count,1) = arr1(k,i,j)
+                   enddo
+                endif
+             enddo
+          enddo
+
+       endif
+
+       ! bug check
+       if (count /= nsummands) then
+          if (main_task) write(iulog,*) 'Error: count, nsummands =', count, nsummands
+          call parallel_stop(__FILE__,__LINE__)
+       endif
+
+       ! Call parallel_reduce_reprosum
+       call parallel_reduce_reprosum(arr, arr_gsum)
+
+       parallel_global_sum_stagger_real8_3d = arr_gsum(1)
+
+       if (verbose_reprosum .and. main_task) then
+!          write(iulog,*) 'arr_gsum =', arr_gsum
+       endif
+
+       deallocate(arr)
+       deallocate(arr_gsum)
+
+    else  ! compute using parallel_reduce_sum (not reproducible)
+
+       local_sum = 0.0d0
+
+       if (present(arr2)) then  ! compute global sum of arr1 + arr2
+
+          do j = staggered_jlo, staggered_jhi
+             do i = staggered_ilo, staggered_ihi
+                if (mask(i,j) == 1) then
+                   do k = 1, nz
+                      local_sum = local_sum + arr1(k,i,j) + arr2(k,i,j)
+                   enddo
+                endif
+             enddo
+          enddo
+
+       else  ! compute global sum of arr1
+
+          do j = staggered_jlo, staggered_jhi
+             do i = staggered_ilo, staggered_ihi
+                if (mask(i,j) == 1) then
+                   do k = 1, nz
+                      local_sum = local_sum + arr1(k,i,j)
+                   enddo
+                endif
+             enddo
+          enddo
+
+       endif
+
+       parallel_global_sum_stagger_real8_3d = parallel_reduce_sum(local_sum)
+
+    endif   ! reprosum
+
+  end function parallel_global_sum_stagger_real8_3d
+
+!=======================================================================
+
+  function parallel_global_sum_stagger_real8_2d_nflds(arr1, nflds, parallel, arr2, mask_2d)
+
+    ! Sum one or two local arrays on the staggered grid, then take the global sum.
+    ! The final index is equal to the number of independent fields to be summed.
+    !TODO - Don't have to pass in nflds, since it equals size(a,3)?
+
+    real(dp), dimension(:,:,:), intent(in) :: arr1
+    integer, intent(in) :: nflds
+    type(parallel_type), intent(in) :: &
+         parallel               ! info for parallel communication
+    real(dp), dimension(:,:,:), intent(in), optional :: arr2
+    integer, dimension(:,:), intent(in), optional :: mask_2d
+
+    real(dp), dimension(size(arr1,3)) :: parallel_global_sum_stagger_real8_2d_nflds
+    integer, dimension(parallel%local_ewn-1,parallel%local_nsn-1) :: mask
+
+    integer :: i, j, n
+
+    real(dp), dimension(size(arr1,3)) :: local_sum
+
+    integer :: &
+         staggered_ilo, staggered_ihi, &  ! bounds of locally owned vertices on staggered grid
+         staggered_jlo, staggered_jhi
+
+    ! variables for computing reproductible sums
+    integer :: nsummands               ! dimensions of array passed to parallel_reduce_reprosum
+    integer :: count
+    real(dp), dimension(:,:), allocatable :: arr
+    real(dp), dimension(:), allocatable :: arr_gsum
 
     staggered_ilo = parallel%staggered_ilo
     staggered_ihi = parallel%staggered_ihi
     staggered_jlo = parallel%staggered_jlo
     staggered_jhi = parallel%staggered_jhi
 
-    nvar = size(global_sum)
+    if (present(mask_2d)) then
+       mask = mask_2d
+    else
+       mask = 1
+    endif
 
-    local_sum(:) = 0.d0
+    if (parallel%reprosum) then   ! compute using cism_reprosum_calc
 
-    do n = 1, nvar
+       ! Allocate and fill arrays to pass to parallel_reduce_reprosum
+       nsummands = (staggered_ihi-staggered_ilo+1) * (staggered_jhi-staggered_jlo+1)
+       allocate(arr(nsummands,nflds))
+       allocate(arr_gsum(nflds))
 
-       ! sum over locally owned velocity points
+       arr(:,:) = 0.0d0
 
-       if (present(work2)) then
-          do j = staggered_jlo, staggered_jhi
-             do i = staggered_ilo, staggered_ihi
-                local_sum(n) = local_sum(n) + work1(i,j,n) + work2(i,j,n)
+       do n = 1, nflds
+
+          if (present(arr2)) then  ! compute global sum of arr1 + arr2
+             count = 0
+             do j = staggered_jlo, staggered_jhi
+                do i = staggered_ilo, staggered_ihi
+                   if (mask(i,j) == 1) then
+                      count = count + 1
+                      arr(count,n) = arr1(i,j,n) + arr2(i,j,n)
+                   endif
+                enddo
              enddo
-          enddo
-       else
-          do j = staggered_jlo, staggered_jhi
-             do i = staggered_ilo, staggered_ihi
-                local_sum(n) = local_sum(n) + work1(i,j,n)
+          else  ! compute global sum of arr1
+             count = 0
+             do j = staggered_jlo, staggered_jhi
+                do i = staggered_ilo, staggered_ihi
+                   if (mask(i,j) == 1) then
+                      count = count + 1
+                      arr(count,n) = arr1(i,j,n)
+                   endif
+                enddo
              enddo
-          enddo
+          endif
+
+       enddo   ! nflds
+
+       ! bug check
+       if (count /= nsummands) then
+          if (main_task) write(iulog,*) 'Error: count, nsummands =', count, nsummands
+          call parallel_stop(__FILE__,__LINE__)
        endif
 
-    enddo   ! nvar
+       ! Call parallel_reduce_reprosum
+       call parallel_reduce_reprosum(arr, arr_gsum)
 
-    ! take the global sum
+       parallel_global_sum_stagger_real8_2d_nflds = arr_gsum(:)
 
-    global_sum(:) = parallel_reduce_sum(local_sum(:))
+       if (verbose_reprosum .and. main_task) then
+!          write(iulog,*) 'arr_gsum =', arr_gsum
+       endif
 
-  end subroutine parallel_global_sum_staggered_2d_real8_nvar
+       deallocate(arr)
+       deallocate(arr_gsum)
+
+    else  ! compute using parallel_reduce_sum (not reproducible)
+
+       local_sum(:) = 0.d0
+
+       do n = 1, nflds
+
+          ! sum over locally owned velocity points
+
+          if (present(arr2)) then
+             do j = staggered_jlo, staggered_jhi
+                do i = staggered_ilo, staggered_ihi
+                   if (mask(i,j) == 1) then
+                      local_sum(n) = local_sum(n) + arr1(i,j,n) + arr2(i,j,n)
+                   endif
+                enddo
+             enddo
+          else
+             do j = staggered_jlo, staggered_jhi
+                do i = staggered_ilo, staggered_ihi
+                   if (mask(i,j) == 1) then
+                      local_sum(n) = local_sum(n) + arr1(i,j,n)
+                   endif
+                enddo
+             enddo
+          endif
+
+       enddo   ! nflds
+
+       parallel_global_sum_stagger_real8_2d_nflds = parallel_reduce_sum(local_sum(:))
+
+    endif   ! reprosum
+
+  end function parallel_global_sum_stagger_real8_2d_nflds
 
 !=======================================================================
 
+  function parallel_global_sum_stagger_real8_3d_nflds(arr1, nflds, parallel, arr2, mask_2d)
+
+    ! Sum one or two local arrays on the staggered grid, then take the global sum.
+    ! Assumes k is the first index, followed by i and j.
+    ! The final index is equal to the number of independent fields to be summed.
+
+    real(dp), dimension(:,:,:,:), intent(in) :: arr1
+    integer, intent(in) :: nflds   ! size of final index; number of global sums to be computed
+    type(parallel_type), intent(in) :: &
+         parallel               ! info for parallel communication
+    real(dp), dimension(:,:,:,:), intent(in), optional :: arr2
+    integer, dimension(:,:), intent(in), optional :: mask_2d
+
+    real(dp), dimension(size(arr1,4)) :: parallel_global_sum_stagger_real8_3d_nflds
+    integer, dimension(parallel%local_ewn-1,parallel%local_nsn-1) :: mask
+
+    integer :: i, j, k, n, nz
+
+    real(dp), dimension(size(arr1,4)) :: local_sum
+
+    integer :: &
+         staggered_ilo, staggered_ihi, &  ! bounds of locally owned vertices on staggered grid
+         staggered_jlo, staggered_jhi
+
+    ! variables for computing reproductible sums
+    integer :: nsummands               ! dimensions of array passed to parallel_reduce_reprosum
+    integer :: count
+    real(dp), dimension(:,:), allocatable :: arr
+    real(dp), dimension(:), allocatable :: arr_gsum
+
+    !TODO - Associate these variables
+    staggered_ilo = parallel%staggered_ilo
+    staggered_ihi = parallel%staggered_ihi
+    staggered_jlo = parallel%staggered_jlo
+    staggered_jhi = parallel%staggered_jhi
+
+    if (present(mask_2d)) then
+       mask = mask_2d
+    else
+       mask = 1
+    endif
+
+    nz = size(arr1,1)
+
+    if (parallel%reprosum) then   ! compute using cism_reprosum_calc
+
+       ! Allocate and fill arrays to pass to parallel_reduce_reprosum
+       nsummands = (staggered_ihi-staggered_ilo+1) * (staggered_jhi-staggered_jlo+1) * nz
+       allocate(arr(nsummands,nflds))
+       allocate(arr_gsum(nflds))
+
+       arr(:,:) = 0.0d0
+
+       do n = 1, nflds
+
+          if (present(arr2)) then  ! compute global sum of arr1 + arr2
+             count = 0
+             do j = staggered_jlo, staggered_jhi
+                do i = staggered_ilo, staggered_ihi
+                   if (mask(i,j) == 1) then
+                      do k = 1, nz
+                         count = count + 1
+                         arr(count,n) = arr1(k,i,j,n) + arr2(k,i,j,n)
+                      enddo
+                   endif
+                enddo
+             enddo
+          else  ! compute global sum of arr1
+             count = 0
+             do j = staggered_jlo, staggered_jhi
+                do i = staggered_ilo, staggered_ihi
+                   if (mask(i,j) == 1) then
+                      do k = 1, nz
+                         count = count + 1
+                         arr(count,n) = arr1(k,i,j,n)
+                      enddo
+                   endif
+                enddo
+             enddo
+          endif
+
+       enddo   ! nflds
+
+       ! bug check
+       if (count /= nsummands) then
+          if (main_task) write(iulog,*) 'Error: count, nsummands =', count, nsummands
+          call parallel_stop(__FILE__,__LINE__)
+       endif
+
+       ! Call parallel_reduce_reprosum
+       call parallel_reduce_reprosum(arr, arr_gsum)
+
+       parallel_global_sum_stagger_real8_3d_nflds = arr_gsum(:)
+
+       if (verbose_reprosum .and. main_task) then
+!          write(iulog,*) 'arr_gsum =', arr_gsum
+       endif
+
+       deallocate(arr)
+       deallocate(arr_gsum)
+
+    else  ! compute using parallel_reduce_sum (not reproducible)
+
+       local_sum(:) = 0.d0
+
+       do n = 1, nflds
+
+          ! sum over locally owned velocity points
+
+          if (present(arr2)) then
+             do j = staggered_jlo, staggered_jhi
+                do i = staggered_ilo, staggered_ihi
+                   if (mask(i,j) == 1) then
+                      do k = 1, nz
+                         local_sum(n) = local_sum(n) + arr1(k,i,j,n) + arr2(k,i,j,n)
+                      enddo
+                   endif
+                enddo
+             enddo
+          else
+             do j = staggered_jlo, staggered_jhi
+                do i = staggered_ilo, staggered_ihi
+                   if (mask(i,j) == 1) then
+                      do k = 1, nz
+                         local_sum(n) = local_sum(n) + arr1(k,i,j,n)
+                      enddo
+                   endif
+                enddo
+             enddo
+          endif
+
+       enddo   ! nflds
+
+       parallel_global_sum_stagger_real8_3d_nflds = parallel_reduce_sum(local_sum(:))
+
+    endif   ! reprosum
+
+  end function parallel_global_sum_stagger_real8_3d_nflds
+
+!=======================================================================
   ! functions belonging to the parallel_is_zero interface
+
+  function parallel_is_zero_integer_1d(a)
+
+    ! returns .true. if the field has all zero values, else returns .false.
+
+    integer, dimension(:), intent(in) :: a
+    logical :: parallel_is_zero_integer_1d
+
+    integer :: maxval_a
+
+    maxval_a = maxval(abs(a))
+    maxval_a = parallel_reduce_max(maxval_a)
+    if (maxval_a > 0) then
+       parallel_is_zero_integer_1d = .false.
+    else
+       parallel_is_zero_integer_1d = .true.
+    endif
+
+  end function parallel_is_zero_integer_1d
+
+!=======================================================================
+
+  function parallel_is_zero_real8_1d(a)
+
+    ! returns .true. if the field has all zero values, else returns .false.
+
+    real(dp), dimension(:), intent(in) :: a
+    logical :: parallel_is_zero_real8_1d
+
+    real(dp) :: maxval_a
+
+    maxval_a = maxval(abs(a))
+    maxval_a = parallel_reduce_max(maxval_a)
+    if (maxval_a > 0.0d0) then
+       parallel_is_zero_real8_1d = .false.
+    else
+       parallel_is_zero_real8_1d = .true.
+    endif
+
+  end function parallel_is_zero_real8_1d
+
+!=======================================================================
 
   function parallel_is_zero_integer_2d(a)
 
@@ -6468,7 +7116,7 @@ contains
     integer, dimension(:,:), intent(in) :: a
     logical :: parallel_is_zero_integer_2d
 
-    real(dp) :: maxval_a
+    integer :: maxval_a
 
     maxval_a = maxval(abs(a))
     maxval_a = parallel_reduce_max(maxval_a)
@@ -7069,25 +7717,34 @@ contains
   end subroutine parallel_halo_real4_2d
 
 
-  subroutine parallel_halo_real8_2d(a, parallel, periodic_offset_ew, periodic_offset_ns)
+  subroutine parallel_halo_real8_2d(a, parallel, &
+                                    periodic_offset_ew, periodic_offset_ns, zero_global_boundary_no_ice_bc)
 
-    !WHL - added optional arguments for periodic offsets, to support ismip-hom test cases
+    ! Added optional arguments for periodic offsets, to support ismip-hom test cases
+    ! Also added an optional argument related to the no_ice BCs
 
     use mpi_mod
     implicit none
     real(dp),dimension(:,:) :: a
     type(parallel_type) :: parallel
+
     real(dp), intent(in), optional :: &
-       periodic_offset_ew,  &! offset halo values by this amount
-                             ! if positive, the offset is positive for W halo, negative for E halo
-       periodic_offset_ns    ! offset halo values by this amount
-                             ! if positive, the offset is positive for S halo, negative for N halo
+         periodic_offset_ew,     &! offset halo values by this amount
+                                  ! if positive, the offset is positive for W halo, negative for E halo
+         periodic_offset_ns       ! offset halo values by this amount
+                                  ! if positive, the offset is positive for S halo, negative for N halo
     
+    logical, intent(in), optional :: &
+         zero_global_boundary_no_ice_bc  ! if true, then zero out values in grid cells adjacent
+                                         ! to the global boundary when using no_ice BCs
+
     integer :: erequest,ierror,nrequest,srequest,wrequest
     real(dp),dimension(lhalo, parallel%local_nsn-lhalo-uhalo) :: esend,wrecv
     real(dp),dimension(uhalo, parallel%local_nsn-lhalo-uhalo) :: erecv,wsend
     real(dp),dimension(parallel%local_ewn, lhalo) :: nsend,srecv
     real(dp),dimension(parallel%local_ewn, uhalo) :: nrecv,ssend
+
+    logical :: zero_global_boundary_no_ice  ! local version of zero_global_boundary_no_ice_bc
 
     ! begin
     associate(  &
@@ -7104,6 +7761,12 @@ contains
          northeast_corner  => parallel%northeast_corner,   &
          northwest_corner  => parallel%northwest_corner    &
          )
+
+    if (present(zero_global_boundary_no_ice_bc)) then
+       zero_global_boundary_no_ice = zero_global_boundary_no_ice_bc
+    else
+       zero_global_boundary_no_ice = .true.
+    endif
 
     ! staggered grid
     if (size(a,1)==local_ewn-1.and.size(a,2)==local_nsn-1) return
@@ -7194,31 +7857,53 @@ contains
 
     elseif (no_ice_bc) then
 
-       ! Set values to zero in cells adjacent to the global boundary;
-       ! includes halo cells and one row of locally owned cells
+       if (zero_global_boundary_no_ice) then
 
-       if (this_rank >= east) then  ! at east edge of global domain
-          a(local_ewn-uhalo:,:) = 0.d0
-       endif
+          ! Set values to zero in cells adjacent to the global boundary;
+          ! includes halo cells and one row of locally owned cells.
 
-       if (this_rank <= west) then  ! at west edge of global domain
-          a(:lhalo+1,:) = 0.d0
-       endif
+          if (this_rank >= east) then  ! at east edge of global domain
+             a(local_ewn-uhalo:,:) = 0.d0
+          endif
 
-       if (this_rank >= north) then  ! at north edge of global domain
-          a(:,local_nsn-uhalo:) = 0.d0
-       endif
+          if (this_rank <= west) then  ! at west edge of global domain
+             a(:lhalo+1,:) = 0.d0
+          endif
 
-       if (this_rank <= south) then  ! at south edge of global domain
-          a(:,:lhalo+1) = 0.d0
-       endif
+          if (this_rank >= north) then  ! at north edge of global domain
+             a(:,local_nsn-uhalo:) = 0.d0
+          endif
 
-       ! Some interior blocks have a single cell at a corner of the global boundary.
-       ! Set values in corner cells to zero, along with adjacent halo cells.
-       if (southwest_corner) a(:lhalo+1,:lhalo+1) = 0.d0
-       if (southeast_corner) a(local_ewn-lhalo:,:lhalo+1) = 0.d0
-       if (northeast_corner) a(local_ewn-lhalo:,local_nsn-lhalo:) = 0.d0
-       if (northwest_corner) a(:lhalo+1,local_nsn-lhalo:) = 0.d0
+          if (this_rank <= south) then  ! at south edge of global domain
+             a(:,:lhalo+1) = 0.d0
+          endif
+
+          ! Some interior blocks have a single cell at a corner of the global boundary.
+          ! Set values in corner cells to zero, along with adjacent halo cells.
+          if (southwest_corner) a(:lhalo+1,:lhalo+1) = 0.d0
+          if (southeast_corner) a(local_ewn-lhalo:,:lhalo+1) = 0.d0
+          if (northeast_corner) a(local_ewn-lhalo:,local_nsn-lhalo:) = 0.d0
+          if (northwest_corner) a(:lhalo+1,local_nsn-lhalo:) = 0.d0
+
+       else  ! set values to zero in halo cells but not in locally owned cells
+
+          if (this_rank >= east) then  ! at east edge of global domain
+             a(local_ewn-uhalo+1:,:) = 0.d0
+          endif
+
+          if (this_rank <= west) then  ! at west edge of global domain
+             a(:lhalo,:) = 0.d0
+          endif
+
+          if (this_rank >= north) then  ! at north edge of global domain
+             a(:,local_nsn-uhalo+1:) = 0.d0
+          endif
+
+          if (this_rank <= south) then  ! at south edge of global domain
+             a(:,:lhalo) = 0.d0
+          endif
+
+       endif   ! zero_global_boundary_no_ice
 
     endif   ! outflow or no_ice bc
 
@@ -7474,6 +8159,165 @@ contains
 
   end subroutine parallel_halo_real8_4d
 
+
+  subroutine parallel_halo_integer8_4d(a, parallel)
+
+    use mpi_mod
+    implicit none
+    integer(i8),dimension(:,:,:,:) :: a
+    type(parallel_type) :: parallel
+
+    integer :: erequest,ierror,one,nrequest,srequest,wrequest
+    integer(i8),dimension(size(a,1), size(a,2), lhalo, parallel%local_nsn-lhalo-uhalo) :: esend,wrecv
+    integer(i8),dimension(size(a,1), size(a,2), uhalo, parallel%local_nsn-lhalo-uhalo) :: erecv,wsend
+    integer(i8),dimension(size(a,1), size(a,2), parallel%local_ewn, lhalo) :: nsend,srecv
+    integer(i8),dimension(size(a,1), size(a,2), parallel%local_ewn, uhalo) :: nrecv,ssend
+
+    ! begin
+    associate(  &
+         outflow_bc  => parallel%outflow_bc,   &
+         no_ice_bc   => parallel%no_ice_bc,    &
+         local_ewn   => parallel%local_ewn,    &
+         local_nsn   => parallel%local_nsn,    &
+         east        => parallel%east,         &
+         west        => parallel%west,         &
+         north       => parallel%north,        &
+         south       => parallel%south,        &
+         southwest_corner  => parallel%southwest_corner,   &
+         southeast_corner  => parallel%southeast_corner,   &
+         northeast_corner  => parallel%northeast_corner,   &
+         northwest_corner  => parallel%northwest_corner    &
+         )
+
+    ! staggered grid
+    if (size(a,3)==local_ewn-1.and.size(a,4)==local_nsn-1) return
+
+    ! unknown grid
+    if (size(a,3)/=local_ewn.or.size(a,4)/=local_nsn) then
+         write(iulog,*) "Unknown Grid: Size a=(", size(a,1), ",", size(a,2), ",", size(a,3), ",", size(a,4), ") &
+                 &and local_ewn and local_nsn = ", local_ewn, ",", local_nsn
+         call parallel_stop(__FILE__,__LINE__)
+    endif
+
+    ! unstaggered grid
+    call mpi_irecv(wrecv,size(wrecv),mpi_real8,west,west,&
+         comm,wrequest,ierror)
+    call mpi_irecv(erecv,size(erecv),mpi_real8,east,east,&
+         comm,erequest,ierror)
+    call mpi_irecv(srecv,size(srecv),mpi_real8,south,south,&
+         comm,srequest,ierror)
+    call mpi_irecv(nrecv,size(nrecv),mpi_real8,north,north,&
+         comm,nrequest,ierror)
+
+    esend(:,:,:,:) = &
+         a(:,:,local_ewn-uhalo-lhalo+1:local_ewn-uhalo,1+lhalo:local_nsn-uhalo)
+    call mpi_send(esend,size(esend),mpi_real8,east,this_rank,comm,ierror)
+    wsend(:,:,:,:) = a(:,:,1+lhalo:1+lhalo+uhalo-1,1+lhalo:local_nsn-uhalo)
+    call mpi_send(wsend,size(wsend),mpi_real8,west,this_rank,comm,ierror)
+
+    call mpi_wait(wrequest,mpi_status_ignore,ierror)
+    a(:,:,:lhalo,1+lhalo:local_nsn-uhalo) = wrecv(:,:,:,:)
+    call mpi_wait(erequest,mpi_status_ignore,ierror)
+    a(:,:,local_ewn-uhalo+1:,1+lhalo:local_nsn-uhalo) = erecv(:,:,:,:)
+
+    nsend(:,:,:,:) = a(:,:,:,local_nsn-uhalo-lhalo+1:local_nsn-uhalo)
+    call mpi_send(nsend,size(nsend),mpi_real8,north,this_rank,comm,ierror)
+    ssend(:,:,:,:) = a(:,:,:,1+lhalo:1+lhalo+uhalo-1)
+    call mpi_send(ssend,size(ssend),mpi_real8,south,this_rank,comm,ierror)
+
+    call mpi_wait(srequest,mpi_status_ignore,ierror)
+    a(:,:,:,:lhalo) = srecv(:,:,:,:)
+    call mpi_wait(nrequest,mpi_status_ignore,ierror)
+    a(:,:,:,local_nsn-uhalo+1:) = nrecv(:,:,:,:)
+
+    if (outflow_bc) then   ! set values in global halo to zero
+                           ! interior halo cells should not be affected
+
+       if (this_rank >= east) then  ! at east edge of global domain
+          a(:,:,local_ewn-uhalo+1:,:) = 0
+       endif
+
+       if (this_rank <= west) then  ! at west edge of global domain
+          a(:,:,:lhalo,:) = 0
+       endif
+
+       if (this_rank >= north) then  ! at north edge of global domain
+          a(:,:,:,local_nsn-uhalo+1:) = 0
+       endif
+
+       if (this_rank <= south) then  ! at south edge of global domain
+          a(:,:,:,:lhalo) = 0
+       endif
+
+    elseif (no_ice_bc) then
+
+       ! Set values to zero in cells adjacent to the global boundary;
+       ! includes halo cells and one row of locally owned cells
+
+       if (this_rank >= east) then  ! at east edge of global domain
+          a(:,:,local_ewn-uhalo:,:) = 0
+       endif
+
+       if (this_rank <= west) then  ! at west edge of global domain
+          a(:,:,:lhalo+1,:) = 0
+       endif
+
+       if (this_rank >= north) then  ! at north edge of global domain
+          a(:,:,:,local_nsn-uhalo:) = 0
+       endif
+
+       if (this_rank <= south) then  ! at south edge of global domain
+          a(:,:,:,:lhalo+1) = 0
+       endif
+
+       ! Some interior blocks have a single cell at a corner of the global boundary.
+       ! Set values in corner cells to zero, along with adjacent halo cells.
+       if (southwest_corner) a(:,:,:lhalo+1,:lhalo+1) = 0
+       if (southeast_corner) a(:,:,local_ewn-lhalo:,:lhalo+1) = 0
+       if (northeast_corner) a(:,:,local_ewn-lhalo:,local_nsn-lhalo:) = 0
+       if (northwest_corner) a(:,:,:lhalo+1,local_nsn-lhalo:) = 0
+
+    endif   ! outflow or no_ice bc
+
+    end associate
+
+  end subroutine parallel_halo_integer8_4d
+
+!=======================================================================
+
+  ! subroutines for 1D halo updates
+
+  subroutine parallel_halo_extrapolate_real8_1d(a, interval_in)
+
+    !Note: Extrapolate a 1D real8 variable into halo cells to the east and west.
+    !      Currently used only to compute halo values for grid cell coordinates.
+
+    use mpi_mod
+    implicit none
+    real(dp),dimension(:) :: a
+    type(parallel_type) :: parallel
+    real(dp),intent(in), optional :: &
+         interval_in  ! uniform difference between adjacent values, e.g. grid cell size dew or dns
+
+    integer :: i
+    real(dp) :: interval  ! local version of interval_in
+
+    if (present(interval_in)) then
+       interval = interval_in
+    else
+       interval = 0.0d0
+    endif
+
+    do i = 1, lhalo
+       a(i) = a(lhalo+1) - interval*(lhalo+1-i)
+    enddo
+
+    do i = size(a)-uhalo+1, size(a)
+       a(i) = a(size(a)-uhalo) + interval*(uhalo+i-size(a))
+    enddo
+
+  end subroutine parallel_halo_extrapolate_real8_1d
+
 !=======================================================================
 
   ! subroutines belonging to the parallel_halo_extrapolate interface
@@ -7621,7 +8465,7 @@ contains
     real(dp),dimension(:,:,:) :: a
     type(parallel_type) :: parallel
 
-    integer :: ierror, one, erequest, nrequest, srequest, wrequest
+    integer :: ierror, erequest, nrequest, srequest, wrequest
     real(dp),dimension(lhalo, parallel%local_nsn-lhalo-uhalo, size(a,3)) :: esend,wrecv
     real(dp),dimension(uhalo, parallel%local_nsn-lhalo-uhalo, size(a,3)) :: erecv,wsend
     real(dp),dimension(parallel%local_ewn, lhalo, size(a,3)) :: nsend,srecv
@@ -7747,7 +8591,7 @@ contains
     real(dp),dimension(:,:,:,:) :: a
     type(parallel_type) :: parallel
 
-    integer :: ierror, one, erequest, nrequest, srequest, wrequest
+    integer :: ierror, erequest, nrequest, srequest, wrequest
     real(dp),dimension(lhalo, parallel%local_nsn-lhalo-uhalo, size(a,3), size(a,4)) :: esend,wrecv
     real(dp),dimension(uhalo, parallel%local_nsn-lhalo-uhalo, size(a,3), size(a,4)) :: erecv,wsend
     real(dp),dimension(parallel%local_ewn, lhalo, size(a,3), size(a,4)) :: nsend,srecv
@@ -8033,7 +8877,7 @@ contains
     real(dp),dimension(:,:,:) :: a
     type(parallel_type) :: parallel
     
-    integer :: ierror, one, erequest, nrequest, srequest, wrequest
+    integer :: ierror, erequest, nrequest, srequest, wrequest
     real(dp),dimension(size(a,1), lhalo, parallel%local_nsn-lhalo-uhalo) :: esend,wrecv
     real(dp),dimension(size(a,1), uhalo, parallel%local_nsn-lhalo-uhalo) :: erecv,wsend
     real(dp),dimension(size(a,1), parallel%local_ewn, lhalo) :: nsend,srecv
@@ -8681,6 +9525,23 @@ contains
   end function parallel_reduce_sum_integer
 
 
+  function parallel_reduce_sum_integer8(x)
+
+    use mpi_mod
+    implicit none
+    integer(i8) :: x
+
+    integer :: ierror
+    integer(i8) :: recvbuf,sendbuf, parallel_reduce_sum_integer8
+
+    ! begin
+    sendbuf = x
+    call mpi_allreduce(sendbuf,recvbuf,1,mpi_integer8,mpi_sum,comm,ierror)
+    parallel_reduce_sum_integer8 = recvbuf
+
+  end function parallel_reduce_sum_integer8
+
+
   function parallel_reduce_sum_real4(x)
 
     use mpi_mod
@@ -8701,7 +9562,9 @@ contains
   function parallel_reduce_sum_real8(x)
 
     use mpi_mod
+
     implicit none
+
     real(dp) :: x
 
     integer :: ierror
@@ -8749,6 +9612,117 @@ contains
     parallel_reduce_sum_real8_nvar = recvbuf
 
   end function parallel_reduce_sum_real8_nvar
+
+!=======================================================================
+
+  subroutine parallel_reduce_reprosum(arr, arr_gsum)
+
+    ! Compute a reproducible global sum for a floating-point variable or array.
+    ! Can be called from parallel_global_sum, parallel_global_sum_patch, or
+    ! parallel_global_sum_stagger.
+
+    implicit none
+
+    real(dp), dimension(:,:), intent(in) :: arr
+    real(dp), dimension(:), intent(out) :: arr_gsum
+
+    ! Notes on subroutine cism_reprosum_calc:
+    ! The first five arguments are required: arr(dsummands,nflds), arr_gsum(dsummands),
+    !  dsummands, dflds and nsummands. Typically, nsummands = dsummands = number of local values.
+    ! We use the default fixed-precision algorithm (instead of ddpdd, which apparently is less robust).
+    ! We do not allow Inf or NaN values in the input array.
+    ! Typically, the algorithm calls mpi_allreduce twice. By passing in both arr_gbl_max and arr_max_levels,
+    !  it may be possible to call mpi_allreduce just once, improving performance.
+    !  If we don't pass these arguments, then arr_gbl_max and arr_max_levels are computed internally.
+    !  By passing arr_glb_max_out and arr_max_levels_out, we can see the calculated values.
+    ! By passing rel_diff, we can verify that the computed reproducible sum is close
+    !  to the (nonreproducible) floating-point value.
+    ! Note: In cism_reprosum_mod, the default communicator ID is MPI_COMM_WORLD.
+    !       We need to pass in the CISM communicator ID ('comm') in case comm /= MPI_COMM_WORLD.
+    !       CESM coupled runs fail if comm is not passed in.
+    ! See comments in cism_reprosum_calc for more info
+
+    ! Required arguments
+
+    integer :: dsummands, nflds                      ! dimensions of arr
+    integer :: nsummands                             ! number of processors
+
+    ! Optional arguments
+
+    real(dp), dimension(:), allocatable :: &
+         arr_gbl_max,         & ! upper bound on max(abs(arr))
+         arr_gbl_max_out        ! calculated upper bound on max(abs(arr))
+
+    real(dp), dimension(:,:), allocatable :: &
+         rel_diff               ! relative and absolute differences between fixed and floating point sums
+
+    integer, dimension(:), allocatable :: &
+         arr_max_levels,      & ! maximum number of levels of integer expansion to use
+         arr_max_levels_out     ! output of number of levels of integer expansion to use
+
+    integer :: &
+         gbl_max_nsummands,   & ! maximum of nsummand over all processes
+         gbl_max_nsummands_out  ! calculated maximum nsummands over all processes
+
+    integer, dimension(6) :: &
+         repro_sum_stats(6)     ! increment running totals for
+                                !  (1) one-reduction repro_sum
+                                !  (2) two-reduction repro_sum
+                                !  (3) both types in one call
+                                !  (4) nonrepro_sum
+                                !  (5) global max nsummands reduction
+                                !  (6) global lor 3*nflds reduction
+
+    logical :: &
+         ddpdd_sum,           & ! use ddpdd algorithm instead of fixed-precision algorithm
+         repro_sum_validate     ! flag enabling/disabling testing that gmax and max_levels
+                                ! are accurate/sufficient. Default is enabled.
+
+    ! Set parameters and allocate arrays
+    dsummands = size(arr,1)
+    nflds = size(arr,2)
+    nsummands = dsummands
+
+    allocate (arr_gbl_max(nflds))
+    allocate (arr_gbl_max_out(nflds))
+    allocate (arr_max_levels(nflds))
+    allocate (arr_max_levels_out(nflds))
+    allocate (rel_diff(2,nflds))
+
+    ddpdd_sum = .false.
+    repro_sum_validate = .true.
+
+    ! The following subroutine is adapted from shr_reprosum_calc in CESM shared code.
+
+    call cism_reprosum_calc(&
+         arr,        arr_gsum,                          &
+         nsummands,  dsummands,  nflds,                 &
+         ddpdd_sum = ddpdd_sum,                         &
+!            arr_gbl_max = arr_gbl_max,                     &
+         arr_gbl_max_out = arr_gbl_max_out,             &
+!            arr_max_levels = arr_max_levels,               &
+         arr_max_levels_out = arr_max_levels_out,       &
+!            gbl_max_nsummands = gbl_max_nsummands,         &
+         gbl_max_nsummands_out = gbl_max_nsummands_out, &
+         repro_sum_validate = repro_sum_validate,       &
+         repro_sum_stats = repro_sum_stats,             &
+         rel_diff = rel_diff,                           &
+         commid = comm)
+
+    if (verbose_reprosum .and. main_task) then
+!       write(iulog,*) 'arr_gbl_max_out =', arr_gbl_max_out
+!       write(iulog,*) 'arr_max_levels_out =', arr_max_levels_out
+!       write(iulog,*) 'gbl_max_nsummands_out =', gbl_max_nsummands_out
+!       write(iulog,*) 'rel diff =', rel_diff(1,:)
+!       write(iulog,*) 'abs diff =', rel_diff(2,:)
+!       write(iulog,*) 'stats =', repro_sum_stats(:)
+    endif
+
+    deallocate(arr_gbl_max, arr_gbl_max_out)
+    deallocate(arr_max_levels, arr_max_levels_out)
+    deallocate(rel_diff)
+
+  end subroutine parallel_reduce_reprosum
 
 !=======================================================================
 
@@ -9122,7 +10096,7 @@ contains
        enddo
     endif   ! this_rank
 
-    call distributed_gather_var_row(test_array, global_test_array, parallel)
+    call gather_var_row(test_array, global_test_array, parallel)
 
 !!    if (parallel%main_task_row) then
     if (parallel%main_task_row .and. this_rank == 0) then
@@ -9136,7 +10110,7 @@ contains
        write(iulog,*) ' '
     endif
 
-    call distributed_scatter_var_row(test_array, global_test_array, parallel)
+    call scatter_var_row(test_array, global_test_array, parallel)
 
     if (this_rank == 0) then
        write(iulog,*) ' '
@@ -9176,7 +10150,7 @@ contains
        enddo
     endif   ! this_rank
 
-    call distributed_gather_var_col(test_array, global_test_array, parallel)
+    call gather_var_col(test_array, global_test_array, parallel)
 
 !!    if (parallel%main_task_col) then
     if (parallel%main_task_col .and. this_rank == 0) then
@@ -9190,7 +10164,7 @@ contains
        write(iulog,*) ' '
     endif
 
-    call distributed_scatter_var_col(test_array, global_test_array, parallel)
+    call scatter_var_col(test_array, global_test_array, parallel)
 
     if (this_rank == 0) then
        write(iulog,*) ' '

@@ -47,7 +47,7 @@ module glissade_inversion
   ! a target ice thickness field.
   !-----------------------------------------------------------------------------
 
-    logical, parameter :: verbose_inversion = .false.
+  logical, parameter :: verbose_inversion = .false.
 
 !***********************************************************************
 
@@ -70,14 +70,8 @@ contains
     ! local variables
 
     integer :: i, j
-    integer :: nb                   ! basin number
     integer :: itest, jtest, rtest  ! local diagnostic point
-
     real(dp) :: var_maxval          ! max value of a given real variable; = 0.0 if not yet read in
-    real(dp) :: var1_maxval, var2_maxval  ! like var_maxval
-    integer :: var_maxval_int       ! max value of a given integer variable; = 0 if not yet read in
-
-    character(len=100) :: message
 
     integer, dimension(model%general%ewn, model%general%nsn) ::  &
          ice_mask,             & ! = 1 where ice is present, else = 0
@@ -88,9 +82,6 @@ contains
     real(dp), dimension(model%general%ewn, model%general%nsn) ::  &
          f_flotation,          & ! flotation function (m)
          thck_obs                ! observed ice thickness, derived from usrf_obs and topg
-
-    real(dp), dimension(model%general%ewn, model%general%nsn) ::  &
-         coulomb_c_icegrid      ! initial coulomb_c at cell centers based on masks
 
     real(dp) :: h_obs, h_flotation, h_buff   ! thck_obs, flotation thickness, and thck_flotation_buffer scaled to m
     real(dp) :: dh                           ! h_obs - h_flotation
@@ -226,7 +217,6 @@ contains
        endif
     endif  ! inversion for Cp, Cc or deltaT_ocn
 
-
     !----------------------------------------------------------------------
     ! If inverting for E, then make sure there is a target surface speed, velo_sfc_obs.
     !----------------------------------------------------------------------
@@ -254,6 +244,9 @@ contains
 
     !----------------------------------------------------------------------
     ! computations specific to powerlaw_c (Cp) and coulomb_c (Cc) inversion
+    ! Note: Most sliding laws have inversion for Cp or Cc, but not both.
+    !       The modified Schoof law, however, supports inversion for both.
+    !       (This could be extended to the School and Tsai laws.)
     !----------------------------------------------------------------------
 
     if (model%options%which_ho_powerlaw_c == HO_POWERLAW_C_INVERSION .or.  &
@@ -268,7 +261,11 @@ contains
           call point_diag(model%basal_physics%powerlaw_c, 'init_inversion for powerlaw_c', itest, jtest, rtest, 7, 7)
        endif
 
-    elseif (model%options%which_ho_coulomb_c == HO_COULOMB_C_INVERSION) then
+    endif   ! invert for powerlaw_c
+
+    !TODO - Add distinct logic for powerlaw_c_inversion_basin?
+
+    if (model%options%which_ho_coulomb_c == HO_COULOMB_C_INVERSION) then
 
        if (parallel_is_zero(model%basal_physics%coulomb_c)) then
           ! initialize coulomb_c (for which we will invert)
@@ -280,7 +277,9 @@ contains
                'init_inversion for coulomb_c', itest, jtest, rtest, 7, 7)
        endif
 
-    elseif (model%options%which_ho_coulomb_c == HO_COULOMB_C_INVERSION_BASIN) then
+    endif   ! invert for coulomb_c
+
+    if (model%options%which_ho_coulomb_c == HO_COULOMB_C_INVERSION_BASIN) then
 
        !TODO - Should this calculation be done in glissade_initialise?
        if (parallel_is_zero(model%basal_physics%coulomb_c_lo)) then
@@ -311,10 +310,11 @@ contains
                'init_inversion for basin-scale coulomb_c', itest, jtest, rtest, 7, 7)
        endif
 
-    endif
+    endif   ! invert for coulomb_c_basin
 
     !----------------------------------------------------------------------
     ! computations specific to flow_enhancement_factor inversion
+    ! TODO: Remove this inversion option?
     !----------------------------------------------------------------------
 
     if (model%options%which_ho_flow_enhancement_factor == HO_FLOW_ENHANCEMENT_FACTOR_INVERSION) then
@@ -557,7 +557,7 @@ contains
        call staggered_parallel_halo(stag_thck, parallel)
        call staggered_parallel_halo(stag_dthck_dt, parallel)
 
-       ! Invert for powerlaw_c or coulomb_c
+       ! Invert for powerlaw_c and/or coulomb_c
        ! The logic is the same for each; only the max and min values and the in/out field are different.
 
        if ( model%options%which_ho_powerlaw_c == HO_POWERLAW_C_INVERSION) then
@@ -593,7 +593,9 @@ contains
              call point_diag(model%basal_physics%powerlaw_c, 'New powerlaw_c', itest, jtest, rtest, 7, 7)
           endif
 
-       elseif ( model%options%which_ho_coulomb_c == HO_COULOMB_C_INVERSION) then
+       endif   ! invert for powerlaw_c
+
+       if (model%options%which_ho_coulomb_c == HO_COULOMB_C_INVERSION) then
 
           if (verbose_inversion .and. this_rank == rtest) then
              write(iulog,*) ' '
@@ -624,23 +626,18 @@ contains
 
           if (verbose_inversion) then
              call point_diag(model%basal_physics%effecpress_stag, 'effecpress_stag', itest, jtest, rtest, 7, 7, '(f10.1)')
-             call point_diag(rhoi*grav*stag_thck, 'overburden', itest, jtest, rtest, 7, 7, '(f10.1)')
-             call point_diag((model%geometry%thck - thck_obs), 'thck - thck_obs (m)', itest, jtest, rtest, 7, 7)
              call point_diag(model%basal_physics%coulomb_c, 'New coulomb_c', itest, jtest, rtest, 7, 7, '(f10.5)')
           endif   ! verbose_inversion
 
-       endif  ! invert for powerlaw_c or coulomb_c
+       endif   ! invert for coulomb_c
 
-    else   ! do not invert for powerlaw_c or coulomb_c; just print optional diagnostics
+    elseif (verbose_inversion) then   ! not inverting, but print some diagnostic values
 
-       if (verbose_inversion) then
-          call point_diag(model%geometry%f_ground, 'f_ground at vertices', itest, jtest, rtest, 7, 7, '(f10.4)')
-          call point_diag(model%basal_physics%powerlaw_c, 'powerlaw_c', itest, jtest, rtest, 7, 7, '(f10.2)')
-          call point_diag(model%basal_physics%coulomb_c, 'coulomb_c', itest, jtest, rtest, 7, 7, '(f10.4)')
-       endif
+       call point_diag(model%geometry%f_ground, 'f_ground at vertices', itest, jtest, rtest, 7, 7, '(f10.4)')
+       call point_diag(model%basal_physics%powerlaw_c, 'powerlaw_c', itest, jtest, rtest, 7, 7, '(f10.2)')
+       call point_diag(model%basal_physics%coulomb_c, 'coulomb_c', itest, jtest, rtest, 7, 7, '(f10.4)')
 
-    endif   ! invert for powerlaw_c or coulomb_c
-
+    endif
 
     ! If inverting for powerlaw_c or coulomb_c at the basin scale, then update it here
 
@@ -699,6 +696,7 @@ contains
             ewn, nsn,                                  &
             model%numerics%dew,                        &  ! m
             model%numerics%dns,                        &  ! m
+            parallel,                                  &
             itest, jtest, rtest,                       &
             model%ocean_data%nbasin,                   &
             model%ocean_data%basin_number,             &
@@ -780,6 +778,7 @@ contains
             ewn, nsn,                                  &
             model%numerics%dew,                        &  ! m
             model%numerics%dns,                        &  ! m
+            parallel,                                  &
             itest, jtest, rtest,                       &
             model%ocean_data%nbasin,                   &
             model%ocean_data%basin_number,             &
@@ -853,6 +852,7 @@ contains
             ewn, nsn,                                  &
             model%numerics%dew,                        &  ! m
             model%numerics%dns,                        &  ! m
+            parallel,                                  &
             itest, jtest, rtest,                       &
             model%ocean_data%nbasin,                   &
             model%ocean_data%basin_number,             &
@@ -906,6 +906,7 @@ contains
             ewn, nsn,                                  &
             model%numerics%dew,                        &  ! m
             model%numerics%dns,                        &  ! m
+            parallel,                                  &
             itest, jtest, rtest,                       &
             model%ocean_data%nbasin,                   &
             model%ocean_data%basin_number,             &
@@ -939,11 +940,10 @@ contains
        ! If running with ocean basins, we relax toward the basin-average value,
        !  computed over all floating cells in the basin.
 
-       deltaT_ocn_relax(:,:) = 0.0d0
-
        if (model%ocean_data%nbasin > 1) then
           call glissade_basin_average(&
                model%general%ewn, model%general%nsn,  &
+               model%parallel,                        &
                model%ocean_data%nbasin,               &
                model%ocean_data%basin_number,         &
                floating_mask * 1.0d0,                 &   ! real mask
@@ -951,10 +951,11 @@ contains
                deltaT_ocn_basin_avg)
        endif
 
+       deltaT_ocn_relax(:,:) = 0.0d0
        do j = nhalo+1, nsn-nhalo
           do i = nhalo+1, ewn-nhalo
              nb = model%ocean_data%basin_number(i,j)
-             deltaT_ocn_relax(i,j) = deltaT_ocn_basin_avg(nb)
+             if (nb > 0) deltaT_ocn_relax(i,j) = deltaT_ocn_basin_avg(nb)
           enddo
        enddo
 
@@ -1256,6 +1257,8 @@ contains
           if (f_ground(i,j) > 0.0d0) then  ! ice is at least partly grounded
 
              ! Compute tendency terms based on the thickness target
+             !TODO: Try putting max(babc_thck_scale, stag_dthck_obs) in the denominator
+             !      Alex Robinson says this might improve convergence
              term_thck = -stag_dthck(i,j) / (babc_thck_scale*babc_timescale)
              term_dHdt = -stag_dthck_dt(i,j) * 2.0d0 / babc_thck_scale
 
@@ -1325,8 +1328,6 @@ contains
        call point_diag(stag_dthck, 'stag_thck - stag_thck_obs', itest, jtest, rtest, 7, 7)
        call point_diag(stag_dthck_dt*scyr, 'stag_dthck_dt (m/yr)', itest, jtest, rtest, 7, 7)
        call point_diag(f_ground, 'f_ground', itest, jtest, rtest, 7, 7)
-       call point_diag(del2_logc, 'del2(logC)', itest, jtest, rtest, 7, 7, '(e12.3)')
-       call point_diag(logC, 'logC', itest, jtest, rtest, 7, 7)
        call point_diag(dlogc, 'dlogC', itest, jtest, rtest, 7, 7, '(e12.3)')
     endif
 
@@ -1338,6 +1339,7 @@ contains
        dt,                          &
        nx,            ny,           &
        dx,            dy,           &
+       parallel,                    &
        itest, jtest,  rtest,        &
        nbasin,                      &
        basin_number,                &
@@ -1371,6 +1373,9 @@ contains
 
     real(dp), intent(in) :: &
          dx, dy                  ! grid cell size in each direction (m)
+
+    type(parallel_type), intent(in) :: &
+         parallel                ! info for parallel communication
 
     integer, intent(in) :: &
          itest, jtest, rtest     ! coordinates of diagnostic point
@@ -1418,6 +1423,7 @@ contains
     call get_basin_targets(&
          nx,           ny,                  &
          dx,           dy,                  &
+         parallel,                          &
          nbasin,       basin_number,        &
          itest, jtest, rtest,               &
          stag_thck,    stag_dthck_dt,       &
@@ -1430,6 +1436,7 @@ contains
 
     call glissade_basin_average(&
          nx,          ny,                   &
+         parallel,                          &
          nbasin,      basin_number,         &
          stag_rmask,                        &
          friction_c,  friction_c_basin)
@@ -1495,6 +1502,7 @@ contains
        dt,                          &
        nx,            ny,           &
        dx,            dy,           &
+       parallel,                    &
        itest, jtest,  rtest,        &
        nbasin,                      &
        basin_number,                &
@@ -1533,6 +1541,9 @@ contains
 
     real(dp), intent(in) :: &
          dx, dy                  ! grid cell size in each direction (m)
+
+    type(parallel_type), intent(in) :: &
+         parallel                ! info for parallel communication
 
     integer, intent(in) :: &
          itest, jtest, rtest     ! coordinates of diagnostic point
@@ -1592,6 +1603,7 @@ contains
     call get_basin_targets(&
          nx,           ny,                  &
          dx,           dy,                  &
+         parallel,                          &
          nbasin,       basin_number,        &
          itest, jtest, rtest,               &
          thck,         dthck_dt,            &
@@ -1610,6 +1622,7 @@ contains
 
     call glissade_basin_average(&
          nx,          ny,                   &
+         parallel,                          &
          nbasin,      basin_number,         &
          mask,                              &
          deltaT_ocn,  deltaT_basin)
@@ -2142,6 +2155,7 @@ contains
   subroutine get_basin_targets(&
        nx,           ny,                &
        dx,           dy,                &
+       parallel,                        &
        nbasin,       basin_number,      &
        itest, jtest, rtest,             &
        thck,         dthck_dt,          &
@@ -2166,6 +2180,9 @@ contains
 
     real(dp), intent(in) :: &
          dx, dy                  ! grid cell size in each direction (m)
+
+    type(parallel_type), intent(in) :: &
+         parallel                ! info for parallel communication
 
     integer, intent(in) :: &
          nbasin                  ! number of basins
@@ -2221,6 +2238,7 @@ contains
 
     call glissade_basin_sum(&
          nx,         ny,                &
+         parallel,                      &
          nbasin,     basin_number,      &
          target_rmask,                  &
          cell_area,                     &
@@ -2232,6 +2250,7 @@ contains
 
     call glissade_basin_sum(&
          nx,         ny,                &
+         parallel,                      &
          nbasin,     basin_number,      &
          target_rmask,                  &
          thck_target*dx*dy,             &
@@ -2241,6 +2260,7 @@ contains
 
     call glissade_basin_sum(&
          nx,         ny,                &
+         parallel,                      &
          nbasin,     basin_number,      &
          target_rmask,                  &
          thck*dx*dy,                    &
@@ -2250,6 +2270,7 @@ contains
 
     call glissade_basin_sum(&
          nx,         ny,                &
+         parallel,                      &
          nbasin,     basin_number,      &
          target_rmask,                  &
          dthck_dt*dx*dy,                &

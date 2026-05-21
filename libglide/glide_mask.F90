@@ -41,14 +41,11 @@ module glide_mask
 
 contains
 
-!TODO - Remove iarea and ivol calculations?  They are now computed in glide_write_diag..
-
 !TODO - Write a new subroutine (in addition to glide_set_mask) to compute mask for staggered grid?
 !       This subroutine is now called from glissade_velo_driver with stagthck and stagtopg
 !       as input arguments.
 
-  subroutine glide_set_mask(numerics, thck, topg, ewn, nsn, eus, mask, iarea, ivol, &
-                            exec_serial, parallel)
+  subroutine glide_set_mask(numerics, thck, topg, ewn, nsn, eus, mask)
 
     use glide_types
     use glimmer_physcon, only : rhoi, rhoo
@@ -60,14 +57,9 @@ contains
     integer, intent(in) :: ewn, nsn              ! Grid size
     real(dp), intent(in) :: eus                  ! Sea level
     integer, dimension(:,:), intent(inout) :: mask   ! Output mask
-    real(dp), intent(inout), optional :: ivol, iarea ! Area and volume of ice
-
-    logical, optional :: exec_serial             !JEFF If executing in serial in MPI program.
-    type(parallel_type), optional :: parallel    ! info for parallel communication
 
     ! local variables
     integer ew,ns
-    logical :: exec_serial_flag
 
     !Note - This array may not be needed, at least in parallel.
 
@@ -76,20 +68,7 @@ contains
 
     integer, dimension(0:ewn+1,0:nsn+1) :: maskWithBounds;
 
-    !TODO - What is the exec_serial option?  Is it still needed?
-
-    !JEFF Handle exec_serial optional parameter
-    if ( present(exec_serial) ) then
-       exec_serial_flag = exec_serial
-    else
-       ! Default to off
-       exec_serial_flag = .FALSE.
-    endif
-
     mask = 0
-
-    if (present(iarea)) iarea = 0.d0
-    if (present(ivol)) ivol = 0.d0
 
 !Note - This mask is confusing.  Wondering if we should replace it by a series of logical masks.
 
@@ -138,10 +117,6 @@ contains
         mask = ior(mask, GLIDE_MASK_LAND)    ! GLIDE_MASK_LAND = 4
     endwhere
 
-    if (present(iarea) .and. present(ivol)) then
-        call get_area_vol(thck, numerics%dew, numerics%dns, numerics%thklim, iarea, ivol, exec_serial_flag)
-    end if
-
     !TODO - Replace the following with a halo call for 'mask', with appropriate global BC?
     
     maskWithBounds = 0
@@ -185,13 +160,8 @@ contains
        end do
     end do
 
-    !JEFF Don't call halo update if running in serial mode
-    !WHL - I think the halo update will now work in serial mode.
-    if (.NOT. exec_serial_flag .and. present(parallel)) then
-       call parallel_halo(mask, parallel)
-    endif
-
   end subroutine glide_set_mask
+
 
   subroutine augment_kinbc_mask(mask, kinbcmask)
 
@@ -217,83 +187,8 @@ contains
     endwhere
   end subroutine augment_kinbc_mask
 
-  subroutine get_area_vol(thck, dew, dns, thklim, iarea, ivol, exec_serial)
 
-    implicit none
-    real(dp), dimension(:,:) :: thck
-    real(dp) :: dew, dns, thklim
-    real(dp) :: iarea, ivol, sum(2)
-    logical :: exec_serial
-
-    integer :: i,j
-
-    do i = 1+lhalo, size(thck,1)-uhalo
-        do j = 1+lhalo, size(thck,2)-uhalo
-            if (thck(i,j) > thklim ) then
-                iarea = iarea + 1
-                ivol = ivol + thck(i,j)
-            end if
-        end do
-    end do
-
-    iarea = iarea  * dew * dns
-    ivol = ivol * dew * dns
-    
-    if (.NOT. exec_serial) then
-       sum(1) = iarea
-       sum(2) = ivol
-       sum = parallel_reduce_sum(sum)
-       iarea = sum(1)
-       ivol  = sum(2)
-    endif
-
-  end subroutine get_area_vol
- 
-  subroutine calc_iareaf_iareag(dew, dns, mask, iareaf, iareag, exec_serial)
-    
-    implicit none
-    real(dp), intent(in) :: dew, dns
-    real(dp), intent(out) :: iareaf, iareag
-    integer, dimension(:,:), intent(in) :: mask 
-    logical, optional :: exec_serial  ! If executing in serial in MPI program.
-
-    integer :: i,j
-    logical :: exec_serial_flag
-    real(dp) :: sum(2)
- 
-    !TODO - exec_serial option may not be needed
-    if ( present(exec_serial) ) then
-      exec_serial_flag = exec_serial
-    else
-      ! Default to off
-      exec_serial_flag = .FALSE.
-    endif
-
-    iareaf = 0.d0
-    iareag = 0.d0 
-
-    !loop over locally owned scalars
-    do j = 1+lhalo, size(mask,2)-uhalo
-      do i = 1+lhalo, size(mask,1)-uhalo
-        if (GLIDE_IS_FLOAT(mask(i,j))) then
-          iareaf = iareaf + dew * dns
-        else if(GLIDE_IS_GROUND_OR_GNDLINE(mask(i,j))) then
-          iareag = iareag + dew * dns
-        end if
-      end do
-    end do
-
-    if (.NOT. exec_serial_flag) then
-       sum(1) = iareaf
-       sum(2) = iareag
-       sum = parallel_reduce_sum(sum)
-       iareaf = sum(1)
-       iareag = sum(2)
-    endif
-
-  end subroutine calc_iareaf_iareag
-
-    subroutine glide_marine_margin_normal(thck, mask, marine_bc_normal, &
+  subroutine glide_marine_margin_normal(thck, mask, marine_bc_normal, &
                                           exec_serial, parallel)
 
       !TODO - Remove subroutine glide_marine_margin_normal?  Old PBJ routine.

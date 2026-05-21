@@ -44,7 +44,12 @@ module glissade_utils
        glissade_basin_sum, glissade_basin_average, &
        glissade_usrf_to_thck, glissade_thck_to_usrf, &
        glissade_edge_fluxes, glissade_input_fluxes, &
-       glissade_rms_error
+       glissade_rms_error, write_array_to_file
+
+  interface write_array_to_file
+     module procedure write_array_to_file_real8_2d
+     module procedure write_array_to_file_real8_3d
+  end interface
 
 contains
 
@@ -516,8 +521,10 @@ contains
 
 !****************************************************
 
+  !TODO - Calls to this subroutine could be replaced by inline calls to parallel_global_sum_patch
   subroutine glissade_basin_sum(&
        nx,           ny,            &
+       parallel,                    &
        nbasin,       basin_number,  &
        rmask,                       &
        field_2d,                    &
@@ -527,10 +534,13 @@ contains
     ! The sum is taken over grid cells with mask = 1.
     ! All cells are weighted equally.
 
-    use cism_parallel, only: parallel_reduce_sum, nhalo
+    use cism_parallel, only: parallel_global_sum_patch
 
     integer, intent(in) :: &
          nx, ny                    !> number of grid cells in each dimension
+
+    type(parallel_type), intent(in) :: &
+         parallel                  !> info for parallel communication
 
     integer, intent(in) :: &
          nbasin                    !> number of basins
@@ -546,29 +556,10 @@ contains
     real(dp), dimension(nbasin), intent(out) :: &
          field_basin_sum           !> basin-sum output field
 
-    ! local variables
-
-    integer :: i, j, nb
-
     !TODO - Replace sumcell with sumarea, and pass in cell area.
     !       Current algorithm assumes all cells with mask = 1 have equal weight.
 
-    real(dp), dimension(nbasin) ::  &
-         sumfield_local     ! sum of field on local task
-
-    sumfield_local(:) = 0.0d0
-
-    ! loop over locally owned cells
-    do j = nhalo+1, ny-nhalo
-       do i = nhalo+1, nx-nhalo
-          nb = basin_number(i,j)
-          if (nb >= 1) then
-             sumfield_local(nb) = sumfield_local(nb) + rmask(i,j)*field_2d(i,j)
-          endif
-       enddo
-    enddo
-
-    field_basin_sum(:) =  parallel_reduce_sum(sumfield_local(:))
+    field_basin_sum = parallel_global_sum_patch(rmask*field_2d, nbasin, basin_number, parallel)
 
   end subroutine glissade_basin_sum
 
@@ -576,6 +567,7 @@ contains
 
   subroutine glissade_basin_average(&
        nx,           ny,            &
+       parallel,                    &
        nbasin,       basin_number,  &
        rmask,                       &
        field_2d,                    &
@@ -586,10 +578,13 @@ contains
     ! All cells are weighted equally.
     ! Note: This subroutine assumes an input field located at cell centers
 
-    use cism_parallel, only: parallel_reduce_sum, nhalo
+    use cism_parallel, only: parallel_global_sum_patch
 
     integer, intent(in) :: &
          nx, ny                    !> number of grid cells in each dimension
+
+    type(parallel_type), intent(in) :: &
+         parallel                  !> info for parallel communication
 
     integer, intent(in) :: &
          nbasin                    !> number of basins
@@ -607,33 +602,17 @@ contains
 
     ! local variables
 
-    integer :: i, j, nb
+    integer :: nb
 
     !TODO - Replace sumcell with sumarea, and pass in cell area.
     !       Current algorithm assumes all cells with mask = 1 have equal weight.
 
     real(dp), dimension(nbasin) ::  &
-         summask_local,          & ! sum of mask in each basin on local task
          summask_global,         & ! sum of mask in each basin on full domain
-         sumfield_local,         & ! sum of field on local task
          sumfield_global           ! sum of field over full domain
 
-    summask_local(:) = 0.0d0
-    sumfield_local(:) = 0.0d0
-
-    ! loop over locally owned cells only
-    do j = nhalo+1, ny-nhalo
-       do i = nhalo+1, nx-nhalo
-          nb = basin_number(i,j)
-          if (nb >= 1) then
-             summask_local(nb) = summask_local(nb) + rmask(i,j)
-             sumfield_local(nb) = sumfield_local(nb) + rmask(i,j)*field_2d(i,j)
-          endif
-       enddo
-    enddo
-
-    summask_global(:)  =  parallel_reduce_sum(summask_local(:))
-    sumfield_global(:) =  parallel_reduce_sum(sumfield_local(:))
+    summask_global = parallel_global_sum_patch(rmask, nbasin, basin_number, parallel)
+    sumfield_global = parallel_global_sum_patch(rmask*field_2d, nbasin, basin_number, parallel)
 
     do nb = 1, nbasin
        if (summask_global(nb) > tiny(0.0d0)) then
@@ -653,7 +632,7 @@ contains
        field,    field_ref,   &
        rmse)
 
-    use cism_parallel, only: parallel_global_sum
+    use cism_parallel, only: parallel_global_sum, parallel_global_sum_stagger
 
     ! Compute the root-mean-square error of an input field relative to a reference field.
     ! Typically, the input field would be computed by CISM, with the reference field
@@ -686,10 +665,17 @@ contains
          sum_sq_diff,       & ! global sum of sq_diff
          ncells               ! number of global cells with mask = 1
 
-    ncells = parallel_global_sum(mask, parallel)
-
-    sq_diff = (abs(field - field_ref))**2
-    sum_sq_diff = parallel_global_sum(sq_diff, parallel, mask)
+    if (nx == parallel%local_ewn .and. ny == parallel%local_nsn) then
+       ncells = parallel_global_sum(mask, parallel)
+       sq_diff = (abs(field - field_ref))**2
+       sum_sq_diff = parallel_global_sum(sq_diff, parallel, mask_2d = mask)
+    elseif (nx == parallel%local_ewn-1 .and. ny == parallel%local_nsn-1) then
+       ncells = parallel_global_sum_stagger(mask, parallel)
+       sq_diff = (abs(field - field_ref))**2
+       sum_sq_diff = parallel_global_sum_stagger(sq_diff, parallel, mask_2d = mask)
+    else
+       call write_log('Bad input array size in glissade_rms_error', GM_FATAL)
+    endif
 
     if (ncells > 0.0d0) then
        rmse = sqrt(sum_sq_diff/ncells)
@@ -708,7 +694,7 @@ contains
     ! That is, if topg - eus < 0 (marine-based ice), and if the upper surface is too close
     !  to sea level to ground the ice, then the ice thickness is chosen to satisfy
     !  rhoi*H = -rhoo*(topg-eus).
-    ! Note: usrf, topg, eus and thck must all have the same units (often but not necessarily meters).
+    ! Note: usrf, topg, eus and thck must all have the same units (usually but not necessarily meters).
 
     use glimmer_physcon, only : rhoo, rhoi
 
@@ -971,10 +957,154 @@ contains
 
   end subroutine glissade_input_fluxes
 
+
+  ! subroutines belonging to the write_array_to_file interface
+  subroutine write_array_to_file_real8_2d(arr, fileunit, filename, parallel, write_binary)
+
+    ! Copy the input array into a global array and write all values to an output file.
+    ! This can be useful for debugging, if we want to find differences between two fields
+    ! (e.g., in two different runs).
+    ! This version writes out 64-bit character strings corresponding to the binary representation
+    ! of each floating-point variable. This can be useful for BFB comparisons.
+    ! Sometimes, two floating-point variables appear to have the same values in base 10,
+    ! when the last few bits actually vary.
+    !TODO - Allow either float or binary output
+
+    use glimmer_utils, only: double_to_binary
+    use cism_parallel, only: gather_var
+
+    real(dp), dimension(:,:), intent(in) :: arr
+    integer, intent(in) :: fileunit
+    character(len=*), intent(in) :: filename
+    type(parallel_type), intent(in) :: parallel
+    logical, intent(in), optional :: write_binary
+
+    integer :: i, j
+    character(len=64) :: binary_str
+    real(dp), dimension(:,:), allocatable :: arr_global
+    logical :: binary_output
+
+    if (present(write_binary)) then
+       binary_output = write_binary
+    else
+       binary_output = .false.
+    endif
+
+    call gather_var(arr, arr_global, parallel)
+    if (main_task) then
+       open(unit=fileunit, file=trim(filename), status='replace', position='append')
+
+       if (binary_output) then
+          do j = 1, parallel%global_nsn
+             do i = 1, parallel%global_ewn
+                call double_to_binary(arr_global(i,j), binary_str)
+                write (fileunit, '(2i6,a4,a64)') i, j, '    ', binary_str
+             enddo
+          enddo
+       else
+          do j = 1, parallel%global_nsn
+             do i = 1, parallel%global_ewn
+                write (fileunit, '(2i6,a4,f24.16)') i, j, '    ', arr_global(i,j)
+             enddo
+          enddo
+       endif
+
+       close(unit=fileunit)
+       deallocate(arr_global)
+    endif
+
+  end subroutine write_array_to_file_real8_2d
+
+
+  subroutine write_array_to_file_real8_3d(arr, fileunit, filename, parallel, write_binary, cycle_indices)
+
+    ! Copy the input array into a global array and write all values to an output file.
+    ! This can be useful for debugging, if we want to find differences between two fields
+    ! (e.g., in two different runs).
+    ! This version writes out 64-bit character strings corresponding to the binary representation
+    ! of each floating-point variable. This can be useful for BFB comparisons.
+    ! Sometimes, two floating-point variables appear to have the same values in base 10,
+    ! when the last few bits actually vary.
+    !TODO - Allow either float or binary output
+
+    use glimmer_utils, only: double_to_binary
+    use cism_parallel, only: gather_var
+
+    real(dp), dimension(:,:,:), intent(in) :: arr    ! first two indices are i and j
+    integer, intent(in) :: fileunit
+    character(len=*), intent(in) :: filename
+    type(parallel_type), intent(in) :: parallel
+    logical, intent(in), optional :: write_binary
+    logical, intent(in), optional :: cycle_indices   ! if true, then index 3->1, 1->2, 2->3
+
+    integer :: i, j, k, kmax
+    character(len=64) :: binary_str
+    real(dp), dimension(:,:,:), allocatable :: arr_global
+    real(dp), dimension(:,:,:), allocatable :: arr_cycle
+    logical :: binary_output
+    logical :: cycle_ind
+
+    if (present(write_binary)) then
+       binary_output = write_binary
+    else
+       binary_output = .false.
+    endif
+
+    if (present(cycle_indices)) then
+       cycle_ind = cycle_indices
+    else
+       cycle_ind = .false.
+    endif
+
+    if (cycle_ind) then
+       allocate(arr_cycle(size(arr,3), size(arr,1), size(arr,2)))
+       kmax = size(arr,3)
+       do j = 1, size(arr,2)
+          do i = 1, size(arr,1)
+             do k = 1, kmax
+                arr_cycle(k,i,j) = arr(i,j,k)
+             enddo
+          enddo
+       enddo
+       call gather_var(arr_cycle, arr_global, parallel)
+       deallocate(arr_cycle)
+    else
+       kmax = size(arr,1)
+       call gather_var(arr, arr_global, parallel)
+    endif
+
+    if (main_task) then
+       open(unit=fileunit, file=trim(filename), status='unknown')
+
+       if (binary_output) then
+          do j = 1, parallel%global_nsn
+             do i = 1, parallel%global_ewn
+                do k = 1, kmax
+                   call double_to_binary(arr_global(k,i,j), binary_str)
+                   write (fileunit, '(3i6,a4,a64)') i, j, k, '    ', binary_str
+                enddo
+             enddo
+          enddo
+       else
+          do j = 1, parallel%global_nsn
+             do i = 1, parallel%global_ewn
+                do k = 1, kmax
+                   write (fileunit, '(3i6,a4,f24.16)') i, j, k, '    ', arr_global(k,i,j)
+                enddo
+             enddo
+          enddo
+       endif
+
+       close(unit=fileunit)
+       deallocate(arr_global)
+    endif
+
+  end subroutine write_array_to_file_real8_3d
+
 !****************************************************************************
 
 !TODO - Other utility subroutines to add here?
-!       E.g., tridiag; calclsrf; subroutines to zero out tracers
+!       E.g., calclsrf; subroutines to zero out tracers
 
 !****************************************************************************
 

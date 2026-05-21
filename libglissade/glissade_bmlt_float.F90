@@ -1014,6 +1014,7 @@ module glissade_bmlt_float
 
        call glissade_basin_average(&
             nx,        ny,                   &
+            parallel,                        &
             ocean_data%nbasin,               &
             ocean_data%basin_number,         &
             thermal_forcing_mask * f_float,  &
@@ -1024,6 +1025,7 @@ module glissade_bmlt_float
 
        call glissade_basin_average(&
             nx,        ny,                   &
+            parallel,                        &
             ocean_data%nbasin,               &
             ocean_data%basin_number,         &
             thermal_forcing_mask * f_float,  &
@@ -1126,6 +1128,7 @@ module glissade_bmlt_float
 
                 call glissade_basin_average(&
                      nx,        ny,                   &
+                     parallel,                        &
                      ocean_data%nbasin,               &
                      ocean_data%basin_number,         &
                      thermal_forcing_mask * f_float,  &

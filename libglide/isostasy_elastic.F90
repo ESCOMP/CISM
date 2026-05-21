@@ -136,7 +136,7 @@ contains
     !>  the load for simulations on more than one task.
 
     use cism_parallel, only: this_rank, main_task, &
-         parallel_type, distributed_gather_var, distributed_scatter_var, parallel_halo
+         parallel_type, gather_var, scatter_var, parallel_halo
 
     implicit none
 
@@ -182,8 +182,8 @@ contains
 
     ! Gather the local arrays onto the main task
     ! Note: global arrays are allocated in the subroutine
-    call distributed_gather_var(load_factors, load_factors_global, parallel)
-    call distributed_gather_var(load, load_global, parallel)
+    call gather_var(load_factors, load_factors_global, parallel)
+    call gather_var(load, load_global, parallel)
 
     if (main_task) then
        do j = 1, global_nsn
@@ -207,9 +207,9 @@ contains
 
     ! Scatter the load values back to local arrays
     ! Note: The global array is deallocated in the subroutine
-    call distributed_scatter_var(load, load_global, parallel)
+    call scatter_var(load, load_global, parallel)
 
-    ! distributed_scatter_var does not update the halo, so do an update here
+    ! scatter_var does not update the halo, so do an update here
     call parallel_halo(load, parallel)
 
     ! Deallocate the other global array (which is intent(in) and does not need to be scattered)
@@ -251,7 +251,7 @@ contains
     use isostasy_kelvin
     implicit none
     type(isos_elastic) :: rbel        !> structure holding elastic litho data
-    real(dp), intent(in) :: a             !> radius of disk
+    real(dp), intent(in) :: a         !> radius of disk
 
     real(dp) :: dummy_a
 

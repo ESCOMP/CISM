@@ -56,11 +56,11 @@
 
   module glissade_velo_higher
 
-    use glimmer_global, only: dp
+    use glimmer_global, only: dp, i8
     use glimmer_physcon, only: n_glen, rhoi, rhoo, grav, scyr, pi
-    use glimmer_paramets, only: iulog, eps08, eps10, eps11
+    use glimmer_paramets, only: iulog, eps11, eps10
     use glimmer_paramets, only: velo_scale, len_scale   ! used for whichefvs = HO_EFVS_FLOWFACT
-    use glimmer_utils, only: point_diag
+    use glimmer_utils, only: point_diag, double_to_binary
     use glimmer_log
     use glimmer_sparse_type
     use glimmer_sparse
@@ -91,8 +91,8 @@
 
     use cism_parallel, only: this_rank, main_task, nhalo, tasks, &
          parallel_type, parallel_halo, staggered_parallel_halo, parallel_globalindex, &
+         parallel_global_sum, parallel_global_sum_stagger, &
          parallel_reduce_max, parallel_reduce_sum, not_parallel
-
     implicit none
 
     private
@@ -225,8 +225,8 @@
 !    logical :: verbose_bfric = .true.
     logical :: verbose_trilinos = .false.
 !    logical :: verbose_trilinos = .true.
-    logical :: verbose_beta = .false.
-!    logical :: verbose_beta = .true.
+!    logical :: verbose_beta = .false.
+    logical :: verbose_beta = .true.
     logical :: verbose_efvs = .false.
 !    logical :: verbose_efvs = .true.
     logical :: verbose_tau = .false.
@@ -239,10 +239,18 @@
 !    logical :: verbose_L1L2 = .true.
     logical :: verbose_diva = .false.
 !    logical :: verbose_diva = .true.
+    logical :: verbose_bp = .false.
+!    logical :: verbose_bp = .true.
     logical :: verbose_glp = .false.
 !    logical :: verbose_glp = .true.
     logical :: verbose_picard = .false.
 !    logical :: verbose_picard = .true.
+
+    ! Set the following to true to convert double-precision variables to binary form
+    !  and write them to output files. This can be useful for verifying that sums are exactly
+    !  reproducible with different processor counts. Writing out the dp variables
+    !  can give false negatives: two sums that look identical but are in fact different.
+    logical :: write_binary_diagnostics = .false.
 
     integer, parameter :: ktest = 1     ! vertical level of diagnostic point
     integer, parameter :: ptest = 1     ! diagnostic quadrature point
@@ -258,6 +266,10 @@
        dphi_dxr_3d_vav,    &! vertical avg of dphi_dxr_3d
        dphi_dyr_3d_vav,    &! vertical avg of dphi_dyr_3d
        dphi_dzr_3d_vav      ! vertical avg of dphi_dzr_3d
+
+    !WHL - debug for reprosum
+    character(len=64) :: binary_str   ! string representation of binary number (chain of 0's and 1's)
+    character(len=64) :: binary_str1, binary_str2
 
   contains
 
@@ -668,6 +680,7 @@
     use glissade_therm, only: glissade_pressure_melting_point
     use glide_thck, only: glide_calclsrf
     use profile, only: t_startf, t_stopf
+    use glissade_utils, only: write_array_to_file
 
     !----------------------------------------------------------------
     ! Input-output arguments
@@ -1047,11 +1060,13 @@
          uvel_2d_old, vvel_2d_old,  & ! velocity solution from previous nonlinear iteration
          duvel_2d, dvvel_2d,        & ! difference between current and previous velocity solutions
          uvel_2d_sav, vvel_2d_sav,  & ! current best value for velocity solution (smallest residual)
-         beta_internal_sav            ! beta_internal associated with saved velocity
+         beta_internal_sav,         & ! beta_internal associated with saved velocity
+         beta_eff_x_sav, beta_eff_y_sav
 
     real(dp), dimension(:,:,:), allocatable :: &
          Auu_2d_sav, Auv_2d_sav,    & ! assembled matrices associated with (uvel_2d_sav, vvel_2d_sav)
-         Avu_2d_sav, Avv_2d_sav
+         Avu_2d_sav, Avv_2d_sav,    &
+         omega_k_sav
 
     ! for an accelerated 3D solve:
     real(dp), dimension(:,:,:), allocatable :: &
@@ -1065,6 +1080,16 @@
 
     integer :: itest, jtest    ! coordinates of diagnostic point
     integer :: rtest           ! task number for processor containing diagnostic point
+
+    !WHL - debug
+    real(dp), dimension(nNodeNeighbors_2d) :: &
+         sum_Auu, sum_Auv, sum_Avu, sum_Avv
+    real(dp) :: sum_xVertex, sum_yVertex
+    real(dp) :: sum_slopex, sum_slopey
+    real(dp) :: sum_uvel, sum_vvel
+    real(dp) :: sum_bu, sum_bv
+    real(dp) :: sum_flwa, sum_flwafact, sum_btrx, sum_btry, sum_stagusrf, sum_stagthck
+    real(dp), dimension(:,:), allocatable :: arr_global  ! temporary global array
 
     call t_startf('glissade_vhs_init')
     rtest = -999
@@ -1268,7 +1293,15 @@
        allocate(vsav_2d(nx-1,ny-1))
        allocate(resid_u_2d(nx-1,ny-1))
        allocate(resid_v_2d(nx-1,ny-1))
-       if (accel_picard) then
+    else   ! 3d
+       allocate(Auu(nNodeNeighbors_3d,nz,nx-1,ny-1))
+       allocate(Auv(nNodeNeighbors_3d,nz,nx-1,ny-1))
+       allocate(Avu(nNodeNeighbors_3d,nz,nx-1,ny-1))
+       allocate(Avv(nNodeNeighbors_3d,nz,nx-1,ny-1))
+    endif
+
+    if (accel_picard) then
+       if (solve_2d) then
           allocate(uvel_2d_old(nx-1,ny-1))
           allocate(vvel_2d_old(nx-1,ny-1))
           allocate(duvel_2d(nx-1,ny-1))
@@ -1279,14 +1312,7 @@
           allocate(Auv_2d_sav(nx-1,ny-1,nNodeNeighbors_2d))
           allocate(Avu_2d_sav(nx-1,ny-1,nNodeNeighbors_2d))
           allocate(Avv_2d_sav(nx-1,ny-1,nNodeNeighbors_2d))
-          allocate(beta_internal_sav(nx-1,ny-1))
-       endif
-    else
-       allocate(Auu(nNodeNeighbors_3d,nz,nx-1,ny-1))
-       allocate(Auv(nNodeNeighbors_3d,nz,nx-1,ny-1))
-       allocate(Avu(nNodeNeighbors_3d,nz,nx-1,ny-1))
-       allocate(Avv(nNodeNeighbors_3d,nz,nx-1,ny-1))
-       if (accel_picard) then
+       else   ! 3d
           allocate(uvel_old(nz,nx-1,ny-1))
           allocate(vvel_old(nz,nx-1,ny-1))
           allocate(duvel(nz,nx-1,ny-1))
@@ -1297,9 +1323,13 @@
           allocate(Auv_sav(nNodeNeighbors_3d,nz,nx-1,ny-1))
           allocate(Avu_sav(nNodeNeighbors_3d,nz,nx-1,ny-1))
           allocate(Avv_sav(nNodeNeighbors_3d,nz,nx-1,ny-1))
-          allocate(beta_internal_sav(nx-1,ny-1))
        endif
-    endif
+       allocate(beta_internal_sav(nx-1,ny-1))
+       !Note: The next three are used only for DIVA, but it's simpler to allocate them regardless
+       allocate(beta_eff_x_sav(nx-1,ny-1))
+       allocate(beta_eff_y_sav(nx-1,ny-1))
+       allocate(omega_k_sav(nz,nx,ny))
+    endif   ! accel_picard
 
     if (whichapprox == HO_APPROX_DIVA) then
 !!       call parallel_halo(efvs, parallel)   ! efvs halo update is in glissade_diagnostic_variable_solve
@@ -1585,19 +1615,21 @@
     !  unique local ID to each such node.
     !------------------------------------------------------------------------------
 
-!pw call t_startf('glissade_get_vertex_geom')
-    call get_vertex_geometry(nx,             ny,                   &
-                             nz,             nhalo,                &
-                             parallel,                             &
-                             dx,             dy,                   &
-                             itest,  jtest,  rtest,                &
-                             ice_mask,                      &
-                             xVertex,        yVertex,              &
-                             active_cell,    active_vertex,        &
-                             nNodesSolve,    nVerticesSolve,       &
-                             nodeID,         vertexID,             &
-                             iNodeIndex,     jNodeIndex,  kNodeIndex, &
-                             iVertexIndex,   jVertexIndex)
+    !pw call t_startf('glissade_get_vertex_geom')
+    call get_vertex_geometry(&
+         nx,               ny,                 &
+         nz,               nhalo,              &
+         parallel,                             &
+         model%general%x0, model%general%y0,   &
+         dx,               dy,                 &
+         itest,  jtest,    rtest,              &
+         ice_mask,                             &
+         xVertex,          yVertex,            &
+         active_cell,      active_vertex,      &
+         nNodesSolve,      nVerticesSolve,     &
+         nodeID,           vertexID,           &
+         iNodeIndex,       jNodeIndex,   kNodeIndex, &
+         iVertexIndex,     jVertexIndex)
 !pw call t_stopf('glissade_get_vertex_geom')
 
     ! Zero out the velocity for inactive vertices
@@ -1991,6 +2023,7 @@
                                 nz,               sigma,           &
                                 nhalo,                             &
                                 itest,   jtest,   rtest,           &
+                                parallel,                          &
                                 whichassemble_lateral,             &
                                 land_mask,        ocean_mask,      &
                                 active_cell,                       &
@@ -2042,7 +2075,7 @@
           enddo
        endif
     endif
-    
+
     ! Optional slope correction factor for DIVA
 
     ! Initialize to values appropriate for small slopes
@@ -2181,8 +2214,7 @@
                         itest,   jtest,     rtest,                &
                         active_vertex,      diva_level_index,     &
                         ice_plus_land_mask,                       &
-                        stag_omega,         omega_k,              &
-                        beta_internal,                            &
+                        omega_k,            beta_internal,        &
                         beta_eff_x,         beta_eff_y,           &
                         stag_theta_slope_x, stag_theta_slope_y,   &
                         stag_diva_slope_factor_x,                 &
@@ -2263,7 +2295,6 @@
              vbas(:,:) = vvel(nz,:,:)
           endif
 
-!!       if (verbose_beta) then
           if (verbose_beta .and. counter==1) then
              if (this_rank == rtest) write(iulog,*) 'Before calcbeta, counter =', counter
              call point_diag(usrf, 'usrf (m)', itest, jtest, rtest, 7, 7)
@@ -2327,6 +2358,50 @@
              usav_2d(:,:) = uvel_2d(:,:)
              vsav_2d(:,:) = vvel_2d(:,:)
 
+             ! When developing the reprosum version of the code, the following code was useful
+             !  for verifying that two sums have exactly the same binary representation.
+             if (write_binary_diagnostics .and. counter == 1) then
+                sum_xVertex = parallel_global_sum_stagger(xVertex, parallel)
+                sum_yVertex = parallel_global_sum_stagger(yVertex, parallel)
+                sum_slopex = parallel_global_sum(diva_slope_factor_x, parallel)
+                sum_slopey = parallel_global_sum(diva_slope_factor_y, parallel)
+                sum_uvel = parallel_global_sum_stagger(uvel_2d, parallel)
+                sum_vvel = parallel_global_sum_stagger(vvel_2d, parallel)
+                sum_flwa = parallel_global_sum_stagger(flwa, parallel)
+                sum_flwafact = parallel_global_sum_stagger(flwafact, parallel)
+                sum_btrx = parallel_global_sum_stagger(btractx, parallel)
+                sum_btry = parallel_global_sum_stagger(btracty, parallel)
+                sum_stagusrf = parallel_global_sum_stagger(stagusrf, parallel)
+                sum_stagthck = parallel_global_sum_stagger(stagthck, parallel)
+                if (main_task) then
+                   write(iulog,*) ' '
+                   call double_to_binary(sum_xVertex, binary_str)
+                   write(iulog,*) 'Before assembly: sum_xVertex, binary_str:', sum_xVertex, binary_str
+                   call double_to_binary(sum_yVertex, binary_str)
+                   write(iulog,*) 'Before assembly: sum_yVertex, binary_str:', sum_yVertex, binary_str
+                   call double_to_binary(sum_slopey, binary_str)
+                   write(iulog,*) 'Before assembly: sum_slopex, binary_str:', sum_slopey, binary_str
+                   call double_to_binary(sum_slopey, binary_str)
+                   write(iulog,*) 'Before assembly: sum_slopex, binary_str:', sum_slopey, binary_str
+                   call double_to_binary(sum_uvel, binary_str)
+                   write(iulog,*) 'Before assembly: sum_uvel, binary_str:', sum_uvel, binary_str
+                   call double_to_binary(sum_vvel, binary_str)
+                   write(iulog,*) 'Before assembly: sum_vvel, binary_str:', sum_vvel, binary_str
+                   call double_to_binary(sum_flwa, binary_str)
+                   write(iulog,*) 'Before assembly: sum_flwa, binary_str:', sum_flwa, binary_str
+                   call double_to_binary(sum_flwafact, binary_str)
+                   write(iulog,*) 'Before assembly: sum_flwafact, binary_str:', sum_flwafact, binary_str
+                   call double_to_binary(sum_btrx, binary_str)
+                   write(iulog,*) 'Before assembly: sum_btrx, binary_str:', sum_btrx, binary_str
+                   call double_to_binary(sum_btry, binary_str)
+                   write(iulog,*) 'Before assembly: sum_btry, binary_str:', sum_btry, binary_str
+                   call double_to_binary(sum_stagusrf, binary_str)
+                   write(iulog,*) 'Before assembly: sum_stagusrf, binary_str:', sum_stagusrf, binary_str
+                   call double_to_binary(sum_stagthck, binary_str)
+                   write(iulog,*) 'Before assembly: sum_stagthck, binary_str:', sum_stagthck, binary_str
+                endif
+             endif  ! write_binary_diagnostics
+
              ! Assemble the matrix
 
              call assemble_stiffness_matrix_2d(nx,               ny,              &
@@ -2334,6 +2409,7 @@
                                                sigma,            stagsigma,       &
                                                nhalo,                             &
                                                itest,   jtest,   rtest,           &
+                                               parallel,                          &
                                                active_cell,                       &
                                                xVertex,          yVertex,         &
                                                uvel_2d,          vvel_2d,         &
@@ -2350,6 +2426,45 @@
                                                btractx,          btracty,         &
                                                omega_k,          omega,   &
                                                efvs_qp_3d)
+
+             ! The following code was useful for reprosum debugging
+             if (write_binary_diagnostics .and. counter == 1) then
+!!                if (main_task) write(iulog,*) 'Write out matrices after assemble_stiffness_matrix'
+!!                call write_array_to_file(Auu_2d, 21, 'global_Auu1', parallel, write_binary = .true., cycle_indices = .true.)
+!!                call write_array_to_file(Auv_2d, 22, 'global_Auv1', parallel, write_binary = .true., cycle_indices = .true.)
+!!                call write_array_to_file(Avu_2d, 23, 'global_Avu1', parallel, write_binary = .true., cycle_indices = .true.)
+!!                call write_array_to_file(Avv_2d, 24, 'global_Avv1', parallel, write_binary = .true., cycle_indices = .true.)
+                sum_Auu(:) = parallel_global_sum_stagger(Auu_2d, nNodeNeighbors_2d, parallel)
+                sum_Auv(:) = parallel_global_sum_stagger(Auv_2d, nNodeNeighbors_2d, parallel)
+                sum_Avu(:) = parallel_global_sum_stagger(Avu_2d, nNodeNeighbors_2d, parallel)
+                sum_Avv(:) = parallel_global_sum_stagger(Avv_2d, nNodeNeighbors_2d, parallel)
+                if (main_task) then
+                   write(iulog,*) ' '
+                   write(iulog,*) 'After assembly: n, sum_Auu(n), binary_str:'
+                   do n = 1, nNodeNeighbors_2d
+                      call double_to_binary(sum_Auu(n), binary_str)
+                      write(iulog,*) n, sum_Auu(n), binary_str
+                   enddo
+                   write(iulog,*) ' '
+                   write(iulog,*) 'After assembly: n, sum_Auv(n), binary_str:'
+                   do n = 1, nNodeNeighbors_2d
+                      call double_to_binary(sum_Auv(n), binary_str)
+                      write(iulog,*) n, sum_Auv(n), binary_str
+                   enddo
+                   write(iulog,*) ' '
+                   write(iulog,*) 'After assembly: n, sum_Avu(n), binary_str:'
+                   do n = 1, nNodeNeighbors_2d
+                      call double_to_binary(sum_Avu(n), binary_str)
+                      write(iulog,*) n, sum_Avu(n), binary_str
+                   enddo
+                   write(iulog,*) ' '
+                   write(iulog,*) 'After assembly: n, sum_Avv(n), binary_str:'
+                   do n = 1, nNodeNeighbors_2d
+                      call double_to_binary(sum_Avv(n), binary_str)
+                      write(iulog,*) n, sum_Avv(n), binary_str
+                   enddo
+                endif
+             endif   ! write_binary_diagnostics
 
              if (whichapprox == HO_APPROX_DIVA) then
 
@@ -2409,8 +2524,8 @@
                 beta_eff_x(:,:) = 0.d0
                 beta_eff_y(:,:) = 0.d0
 
-                !Note: The 'if' is not strictly needed, since the corrected beta_eff is equal
-                !      to the uncorrected beta_eff whe slope_factor = 1.0 and theta_slope = 0.0
+                !Note: The 'if diva_slope_correction' is not strictly needed, since the more complicated
+                !      equations reduce to the simpler ones when slope_factor = 1.0 and theta_slope = 0.0.
                 if (diva_slope_correction) then  ! compute a larger beta_eff at each vertex based on the slope
 
                    if (whichbabc == HO_BABC_NO_SLIP) then
@@ -2433,8 +2548,8 @@
                          beta_eff_y = 1.d0 / stag_omega
                       endwhere
                    else   ! slip allowed at bed
-                      beta_eff_x = beta_internal(:,:) / (1.d0 + beta_internal*stag_omega)
-                      beta_eff_y = beta_internal(:,:) / (1.d0 + beta_internal*stag_omega)
+                      beta_eff_x = beta_internal / (1.d0 + beta_internal*stag_omega)
+                      beta_eff_y = beta_internal / (1.d0 + beta_internal*stag_omega)
                    endif
 
                 endif
@@ -2566,6 +2681,18 @@
              call staggered_parallel_halo(bv_2d(:,:), parallel)
              call t_stopf('glissade_halo_bxxs')
 
+             if (write_binary_diagnostics .and. counter == 1) then
+                ! Write all the matrix elements and rhs elements (in binary form) to files
+                if (main_task) write(iulog,*) 'Write out matrices after adding BC'
+                call write_array_to_file(Auu_2d(:,:,5), 30, 'global_Auu2', parallel)  ! diagonal terms only
+                call write_array_to_file(Auu_2d, 31, 'global_Auu2', parallel, write_binary = .true., cycle_indices = .true.)
+                call write_array_to_file(Auv_2d, 32, 'global_Auv2', parallel, write_binary = .true., cycle_indices = .true.)
+                call write_array_to_file(Avu_2d, 33, 'global_Avu2', parallel, write_binary = .true., cycle_indices = .true.)
+                call write_array_to_file(Avv_2d, 34, 'global_Avv2', parallel, write_binary = .true., cycle_indices = .true.)
+                call write_array_to_file(bu_2d,  35, 'global_bu2',  parallel, write_binary = .true.)
+                call write_array_to_file(bv_2d,  36, 'global_bv2',  parallel, write_binary = .true.)
+             endif
+
              !---------------------------------------------------------------------------
              ! Check symmetry of assembled matrix
              !
@@ -2595,6 +2722,42 @@
                                     active_vertex,           &
                                     nNonzeros)
 
+             ! The following code was useful for reprosum debugging
+             if (write_binary_diagnostics) then
+                sum_Auu(:) = parallel_global_sum_stagger(Auu_2d, nNodeNeighbors_2d, parallel)
+                sum_Auv(:) = parallel_global_sum_stagger(Auv_2d, nNodeNeighbors_2d, parallel)
+                sum_Avu(:) = parallel_global_sum_stagger(Avu_2d, nNodeNeighbors_2d, parallel)
+                sum_Avv(:) = parallel_global_sum_stagger(Avv_2d, nNodeNeighbors_2d, parallel)
+                sum_bu = parallel_global_sum_stagger(bu_2d, parallel)
+                sum_bv = parallel_global_sum_stagger(bv_2d, parallel)
+                if (main_task) then
+                   write(iulog,*) ' '
+                   write(iulog,*) 'After assembly: n, sum_Auu(n), binary_str:'
+                   do n = 1, nNodeNeighbors_2d
+                      call double_to_binary(sum_Auu(n), binary_str)
+                      write(iulog,*) n, sum_Auu(n), binary_str
+                   enddo
+                   write(iulog,*) ' '
+                   write(iulog,*) 'After assembly: n, sum_Auv(n), binary_str:'
+                   do n = 1, nNodeNeighbors_2d
+                      call double_to_binary(sum_Auv(n), binary_str)
+                      write(iulog,*) n, sum_Auv(n), binary_str
+                   enddo
+                   write(iulog,*) ' '
+                   write(iulog,*) 'After assembly: n, sum_Avu(n), binary_str:'
+                   do n = 1, nNodeNeighbors_2d
+                      call double_to_binary(sum_Avu(n), binary_str)
+                      write(iulog,*) n, sum_Avu(n), binary_str
+                   enddo
+                   write(iulog,*) ' '
+                   write(iulog,*) 'After assembly: n, sum_Avv(n), binary_str:'
+                   do n = 1, nNodeNeighbors_2d
+                      call double_to_binary(sum_Avv(n), binary_str)
+                      write(iulog,*) n, sum_Avv(n), binary_str
+                   enddo
+                endif
+             endif   ! write_binary_diagnostics
+
              if (write_matrix) then
                 if (counter == 1) then    ! first outer iteration only
                    call t_startf('glissade_wrt_mat')
@@ -2608,7 +2771,7 @@
                 endif
              endif   ! write_matrix
 
-             if (verbose_matrix .and. this_rank==rtest) then
+             if (verbose_matrix .and. main_task) then
                 i = itest
                 j = jtest
                 write(iulog,*) ' '
@@ -2659,6 +2822,7 @@
              ! Assemble the stiffness matrix A
              !---------------------------------------------------------------------------
 
+             !TODO - pass in 'parallel'?
              call t_startf('glissade_assemble_3d')
              call assemble_stiffness_matrix_3d(nx,               ny,              &
                                                nz,               sigma,           &
@@ -2879,6 +3043,7 @@
 
           if (solve_2d) then
 
+
              call t_startf('glissade_resid_vec')
              call compute_residual_vector_2d(nx,            ny,            &
                                              parallel,                     &
@@ -2895,41 +3060,40 @@
              call t_startf('glissade_accel_picard')
              if (accel_picard) then
 
-                if (verbose_picard) then
-                   if (this_rank == rtest) then
-                      write(iulog,*) ' '
-                      write(iulog,*) 'Saved L2 norm, new L2 norm:', L2_norm_alpha_sav, L2_norm
-                   endif
-                   call point_diag(resid_u_2d, 'resid_u_2d', itest, jtest, rtest, 7, 7, '(e10.3)')
-                   call point_diag(uvel_2d, 'uvel_2d', itest, jtest, rtest, 7, 7, '(f10.3)')
+                if (verbose_picard .and. this_rank == rtest) then
+                   write(iulog,*) ' '
+                   write(iulog,*) 'Saved L2 norm, new L2 norm:', L2_norm_alpha_sav, L2_norm
                 endif
 
                 if (counter >= 2) then
 
-                   call evaluate_accelerated_picard_2d(nx,            ny,                   &
-                                                       L2_norm,       L2_norm_large,        &
-                                                       L2_norm_alpha_sav,                   &
-                                                       alpha_accel,   alpha_accel_max,      &
-                                                       gamma_accel,   resid_reduction_threshold,  &
-                                                       uvel_2d,       vvel_2d,              &
-                                                       Auu_2d,        Auv_2d,               &
-                                                       Avu_2d,        Avv_2d,               &
-                                                       uvel_2d_old,   vvel_2d_old,          &
-                                                       duvel_2d,      dvvel_2d,             &
-                                                       uvel_2d_sav,   vvel_2d_sav,          &
-                                                       Auu_2d_sav,    Auv_2d_sav,           &
-                                                       Avu_2d_sav,    Avv_2d_sav,           &
-                                                       beta_internal, beta_internal_sav,    &
-                                                       assembly_is_done)
+                   call evaluate_accelerated_picard_2d(&
+                        whichapprox,   rtest,                &
+                        L2_norm,       L2_norm_large,        &
+                        L2_norm_alpha_sav,                   &
+                        alpha_accel,   alpha_accel_max,      &
+                        gamma_accel,   resid_reduction_threshold,  &
+                        uvel_2d,       vvel_2d,              &
+                        Auu_2d,        Auv_2d,               &
+                        Avu_2d,        Avv_2d,               &
+                        uvel_2d_old,   vvel_2d_old,          &
+                        duvel_2d,      dvvel_2d,             &
+                        uvel_2d_sav,   vvel_2d_sav,          &
+                        Auu_2d_sav,    Auv_2d_sav,           &
+                        Avu_2d_sav,    Avv_2d_sav,           &
+                        beta_internal, beta_internal_sav,    &
+                        beta_eff_x,    beta_eff_x_sav,       &
+                        beta_eff_y,    beta_eff_y_sav,       &
+                        omega_k,       omega_k_sav,          &
+                        assembly_is_done)
 
                 else   ! counter = 1
 
                    ! proceed to the matrix solution
                    assembly_is_done = .true.
 
-                   if (verbose_picard .and. main_task) then
-                      write(iulog,*) 'nonlinear counter = 1; continue to matrix solver'
-                   endif
+                   if (verbose_picard .and. this_rank == rtest) &
+                        write(iulog,*) 'nonlinear counter = 1; continue to matrix solver'
 
                 endif  ! counter >= 2
 
@@ -2970,20 +3134,22 @@
 
                 if (counter >= 2) then
 
-                   call evaluate_accelerated_picard_3d(L2_norm,       L2_norm_large,        &
-                                                       L2_norm_alpha_sav,                   &
-                                                       alpha_accel,   alpha_accel_max,      &
-                                                       gamma_accel,   resid_reduction_threshold,  &
-                                                       uvel,          vvel,                 &
-                                                       Auu,           Auv,                  &
-                                                       Avu,           Avv,                  &
-                                                       uvel_old,      vvel_old,             &
-                                                       duvel,         dvvel,                &
-                                                       uvel_sav,      vvel_sav,             &
-                                                       Auu_sav,       Auv_sav,              &
-                                                       Avu_sav,       Avv_sav,              &
-                                                       beta_internal, beta_internal_sav,    &
-                                                       assembly_is_done)
+                   call evaluate_accelerated_picard_3d(&
+                        rtest,                               &
+                        L2_norm,       L2_norm_large,        &
+                        L2_norm_alpha_sav,                   &
+                        alpha_accel,   alpha_accel_max,      &
+                        gamma_accel,   resid_reduction_threshold,  &
+                        uvel,          vvel,                 &
+                        Auu,           Auv,                  &
+                        Avu,           Avv,                  &
+                        uvel_old,      vvel_old,             &
+                        duvel,         dvvel,                &
+                        uvel_sav,      vvel_sav,             &
+                        Auu_sav,       Auv_sav,              &
+                        Avu_sav,       Avv_sav,              &
+                        beta_internal, beta_internal_sav,    &
+                        assembly_is_done)
 
                 else   ! counter = 1
 
@@ -3012,13 +3178,13 @@
        ! Optional diagnostics
 
        if (verbose_beta .and. counter > 1 .and. mod(counter-1,12)==0) then
-!!       if (verbose_beta) then
 
-          call point_diag(log10(max(beta_internal,1.d-99)), 'log_beta', itest, jtest, rtest, 7, 7, '(f10.5)')
+          if (this_rank == rtest) write(iulog,*) 'Counter =', counter
+          call point_diag(log10(max(beta_internal,1.d-99)), 'log_beta', itest, jtest, rtest, 7, 7)
           if (solve_2d) then
              call point_diag(uvel_2d, 'Mean uvel (m/yr)', itest, jtest, rtest, 7, 7)
              call point_diag(vvel_2d, 'Mean vvel (m/yr)', itest, jtest, rtest, 7, 7)
-          else	 ! 3D velocity solve
+          else   ! 3D velocity solve
              call point_diag(uvel(nz,:,:), 'Basal uvel (m/yr)', itest, jtest, rtest, 7, 7)
              call point_diag(vvel(nz,:,:), 'Basal vvel (m/yr)', itest, jtest, rtest, 7, 7)
              call point_diag(uvel(1,:,:), 'Sfc uvel (m/yr)', itest, jtest, rtest, 7, 7)
@@ -3137,7 +3303,8 @@
              
                 call pcg_solver_standard_3d(nx,           ny,            &
                                             nz,           parallel,      &
-                                            indxA_3d,     active_vertex, &
+                                            indxA_2d,     indxA_3d,      &
+                                            active_vertex,               &
                                             Auu,          Auv,           &
                                             Avu,          Avv,           &
                                             bu,           bv,            &
@@ -3407,8 +3574,7 @@
                   itest,   jtest,     rtest,                &
                   active_vertex,      diva_level_index,     &
                   ice_plus_land_mask,                       &
-                  stag_omega,         omega_k,              &
-                  beta_internal,                            &
+                  omega_k,            beta_internal,        &
                   beta_eff_x,         beta_eff_y,           &
                   stag_theta_slope_x, stag_theta_slope_y,   &
                   stag_diva_slope_factor_x,                 &
@@ -3591,7 +3757,7 @@
 
     !WHL - debug
     !TODO - One diagnostic to write out column velocities for any approximation
-    if (whichapprox == HO_APPROX_BP .and. this_rank==rtest) then
+    if (verbose_bp .and. whichapprox == HO_APPROX_BP .and. this_rank==rtest) then
        write(iulog,*) ' '
        i = itest
        j = jtest
@@ -3702,6 +3868,8 @@
           deallocate(uvel_2d_sav, vvel_2d_sav)
           deallocate(Auu_2d_sav, Auv_2d_sav, Avu_2d_sav, Avv_2d_sav)
           deallocate(beta_internal_sav)
+          deallocate(beta_eff_x_sav, beta_eff_y_sav)
+          deallocate(omega_k_sav)
        endif
     else
        deallocate(Auu, Auv, Avu, Avv)
@@ -3884,6 +4052,7 @@
   subroutine get_vertex_geometry(nx,             ny,                   &
                                  nz,             nhalo,                &
                                  parallel,                             &
+                                 x0,             y0,                   &
                                  dx,             dy,                   &
                                  itest,  jtest,  rtest,                &
                                  ice_mask,                             &
@@ -3914,11 +4083,17 @@
        nhalo                      ! number of halo layers
 
     type(parallel_type), intent(in) :: &
-         parallel                  ! info for parallel communication
+         parallel                 ! info for parallel communication
+
+    real(dp), dimension(nx-1), intent(in) ::  &
+         x0                       ! x coordinates of vertices
+
+    real(dp), dimension(ny-1), intent(in) ::  &
+         y0                       ! y coordinates of vertices
 
     real(dp), intent(in) ::  &
-       dx,  dy                ! grid cell length and width (m)
-                              ! assumed to have the same value for each grid cell
+         dx,  dy                  ! grid cell length and width (m)
+                                  ! assumed to have the same value for each grid cell
 
     integer, intent(in) :: &
        itest, jtest, rtest    ! coordinates of diagnostic point
@@ -3970,17 +4145,15 @@
     staggered_jhi = parallel%staggered_jhi
 
     !----------------------------------------------------------------
-    ! Compute the x and y coordinates of each vertex.
+    ! Copy the x and y coordinates of each vertex from x0 and y0.
     ! By convention, vertex (i,j) lies at the NE corner of cell(i,j).
     !----------------------------------------------------------------
 
-    xVertex(:,:) = 0.d0
-    yVertex(:,:) = 0.d0
     do j = 1, ny-1
-    do i = 1, nx-1
-       xVertex(i,j) = dx * i
-       yVertex(i,j) = dy * j
-    enddo
+       do i = 1, nx-1
+          xVertex(i,j) = x0(i)
+          yVertex(i,j) = y0(j)
+       enddo
     enddo
 
     ! Identify the active cells.
@@ -4252,7 +4425,8 @@
                       loadv(kNode,iNode,jNode) = loadv(kNode,iNode,jNode) - &
                            rhoi*grav * wqp_3d(p) * detJ/vol0 * dsdy_qp * phi_3d(n,p)
 
-                      if (verbose_load .and. this_rank==rtest .and. i==itest .and. j==jtest .and. k==ktest .and. p==ptest) then
+                      if (verbose_load .and. this_rank==rtest .and. &
+                           i==itest .and. j==jtest .and. k==ktest .and. p==ptest) then
                          write(iulog,*) ' '
                          write(iulog,*) 'n, phi_3d(n), delta(loadu), delta(loadv):', n, phi_3d(n,p), &
                                   rhoi*grav*wqp_3d(p)*detJ/vol0 * dsdx_qp * phi_3d(n,p), &
@@ -4280,6 +4454,7 @@
                                     nz,               sigma,           &
                                     nhalo,                             &
                                     itest,   jtest,   rtest,           &
+                                    parallel,                          &
                                     whichassemble_lateral,             &
                                     land_mask,                         &
                                     ocean_mask,                        &
@@ -4302,6 +4477,9 @@
 
     integer, intent(in) :: &
        itest, jtest, rtest           ! coordinates of diagnostic point
+
+    type(parallel_type), intent(in) :: &
+       parallel                      ! info for parallel communication
 
     logical, dimension(nx,ny), intent(in) ::  &
        active_cell                   ! true if cell contains ice, borders a locally owned vertex,
@@ -4336,24 +4514,30 @@
 
     ! Note: Lateral shelf BCs are applied to active cells (either floating or grounded) that border the ocean.
 
+    if (verbose_shelf .or. verbose_load) then
+       call point_diag(thck, 'Before lateral shelf loop, thck', itest, jtest, rtest, 7, 7)
+       call point_diag(usrf, 'usrf', itest, jtest, rtest, 7, 7)
+       call point_diag(stagthck, 'stagthck', itest, jtest, rtest, 7, 7)
+       call point_diag(stagusrf, 'stagusrf', itest, jtest, rtest, 7, 7)
+    endif
+
     do j = nhalo+1, ny-nhalo+1
     do i = nhalo+1, nx-nhalo+1
        
-       if ((verbose_shelf .or. verbose_load) .and. i==itest .and. j==jtest .and. this_rank==rtest) then
-          write(iulog,*) 'rank, i, j =', this_rank, i, j
-          write(iulog,*) 'ocean_mask (i-1:i,j)  =', ocean_mask(i-1:i, j)
-          write(iulog,*) 'ocean_mask (i-1:i,j-1)=', ocean_mask(i-1:i, j-1)
-       endif
-
        ! Compute the spreading term for all active cells that share an edge with an ice-free ocean cell.
 
        if (active_cell(i,j)) then
 
           if ( ocean_mask(i-1,j) == 1) then
 
+             if (verbose_shelf .and. this_rank==rtest .and. i==itest .and. j==jtest) then
+                write(iulog,*) 'call west, i, j, xv, yv =', i, j, xVertex(i,j), yVertex(i,j)
+             endif
+
              call lateral_shelf_bc(nx,              ny,              &
                                    nz,              sigma,           &
                                    itest,   jtest,  rtest,           &
+                                   parallel,                         &
                                    whichassemble_lateral,            &
                                    'west',                           &
                                    i,               j,               &
@@ -4365,9 +4549,14 @@
 
           if ( ocean_mask(i+1,j) == 1) then
 
+             if (verbose_shelf .and. this_rank==rtest .and. i==itest .and. j==jtest) then
+                write(iulog,*) 'call east, i, j, xv, yv =', i, j, xVertex(i,j), yVertex(i,j)
+             endif
+
              call lateral_shelf_bc(nx,              ny,              &
                                    nz,              sigma,           &
                                    itest,   jtest,  rtest,           &
+                                   parallel,                         &
                                    whichassemble_lateral,            &
                                    'east',                           &
                                    i,               j,               &
@@ -4379,9 +4568,14 @@
 
           if ( ocean_mask(i,j-1) == 1) then
 
+             if (verbose_shelf .and. this_rank==rtest .and. i==itest .and. j==jtest) then
+                write(iulog,*) 'call south, i, j, xv, xv =', i, j, xVertex(i,j), xVertex(i,j)
+             endif
+
              call lateral_shelf_bc(nx,              ny,              &
                                    nz,              sigma,           &
                                    itest,   jtest,  rtest,           &
+                                   parallel,                         &
                                    whichassemble_lateral,            &
                                    'south',                          &
                                    i,               j,               &
@@ -4393,9 +4587,14 @@
 
           if ( ocean_mask(i,j+1) == 1) then
 
+             if (verbose_shelf .and. this_rank==rtest .and. i==itest .and. j==jtest) then
+                write(iulog,*) 'call north, i, j, xv, yv =', i, j, xVertex(i,j), yVertex(i,j)
+             endif
+
              call lateral_shelf_bc(nx,              ny,              &
                                    nz,              sigma,           &
                                    itest,   jtest,  rtest,           &
+                                   parallel,                         &
                                    whichassemble_lateral,            &
                                    'north',                          &
                                    i,               j,               &
@@ -4417,6 +4616,7 @@
   subroutine lateral_shelf_bc(nx,                  ny,              &
                               nz,                  sigma,           &
                               itest,   jtest,      rtest,           &
+                              parallel,                             &
                               whichassemble_lateral,                &
                               face,                                 &
                               iCell,               jCell,           &
@@ -4476,6 +4676,9 @@
     integer, intent(in) :: &
        itest, jtest, rtest           ! coordinates of diagnostic point
 
+    type(parallel_type), intent(in) :: &
+       parallel                      ! info for parallel communication
+
     real(dp), dimension(nx-1,ny-1), intent(in) ::   &
        xVertex, yVertex              ! x and y coordinates of vertices
 
@@ -4514,13 +4717,13 @@
        detJ               ! determinant of Jacobian for the transformation
                           !  between the reference element and true element
 
-    integer :: k, n, p
+    integer :: k, n, p, ig, jg
 
     if ((verbose_shelf .or. verbose_load) .and. &
          iCell == itest .and. jCell == jtest .and. this_rank == rtest) then
        write(iulog,*) ' '
        write(iulog,*) 'In lateral_shelf_bc, rank, i, j =', this_rank, iCell, jCell
-       write(iulog,*) 'thck, usrf =', thck(iCell,jCell), usrf(iCell,jCell)
+       write(iulog,*) '   thck, usrf =', thck(iCell,jCell), usrf(iCell,jCell)
     endif
 
     ! Compute nodal geometry in a local xy reference system.
@@ -4652,11 +4855,11 @@
           !TODO - Modify this subroutine to return only detJ, and not the derivatives?
 
           if (verbose_shelf .and. this_rank==rtest .and. iCell==itest .and. jCell==jtest .and. k==ktest) then
-!             write(iulog,*) 'Get detJ, i, j, k, p =', iCell, jCell, k, p
-!             write(iulog,*) 'x =', x(:)
-!             write(iulog,*) 'y =', y(:)
-!             write(iulog,*) 'dphi_dxr_2d =', dphi_dxr_2d(:,p)
-!             write(iulog,*) 'dphi_dyr_2d =', dphi_dyr_2d(:,p)
+             write(iulog,*) 'Lat shelf, get detJ, rank, i, j, k, p =', this_rank, iCell, jCell, k, p
+             call parallel_globalindex(iCell, jCell, ig, jg, parallel)
+             write(iulog,*) '   ig, jg =', ig, jg
+!             write(iulog,*) '   x =', x(:)
+!             write(iulog,*) '   y =', y(:)
           endif
 
           call get_basis_function_derivatives_2d(x(:),              y(:),               &
@@ -4664,6 +4867,7 @@
                                                  dphi_dx_2d(:),     dphi_dy_2d(:),      &
                                                  detJ,                                  &
                                                  itest, jtest, rtest,                   &
+                                                 parallel,                              &
                                                  iCell, jCell, p)
 
           ! For some faces, detJ is computed to be a negative number because the face is
@@ -4754,276 +4958,12 @@
 
 !****************************************************************************
 
-  subroutine assemble_stiffness_matrix_3d(nx,               ny,              &
-                                          nz,               sigma,           &
-                                          nhalo,                             &
-                                          itest,   jtest,   rtest,           &
-                                          active_cell,                       &
-                                          xVertex,          yVertex,         &
-                                          uvel,             vvel,            &
-                                          stagusrf,         stagthck,        &
-                                          flwafact,         whichapprox,     &
-                                          whichefvs,        efvs,            &
-                                          efvs_constant,    effstrain_min,   &
-                                          Auu,              Auv,             &
-                                          Avu,              Avv)
-
-    !----------------------------------------------------------------
-    ! Assemble the stiffness matrix A in the linear system Ax = b.
-    ! This subroutine is called for each nonlinear iteration if
-    !  we are iterating on the effective viscosity.
-    !----------------------------------------------------------------
-
-    !----------------------------------------------------------------
-    ! Input-output arguments
-    !----------------------------------------------------------------
-
-    integer, intent(in) ::      &
-       nx, ny,                  &    ! horizontal grid dimensions
-       nz,                      &    ! number of vertical levels at which velocity is computed
-                                     ! Note: the number of elements per column is nz-1
-       nhalo                         ! number of halo layers
-
-    real(dp), dimension(nz), intent(in) ::    &
-       sigma                         ! sigma vertical coordinate
-
-    integer, intent(in) :: &
-       itest, jtest, rtest           ! coordinates of diagnostic point
-
-    logical, dimension(nx,ny), intent(in) ::  &
-       active_cell                   ! true if cell contains ice and borders a locally owned vertex
-
-    real(dp), dimension(nx-1,ny-1), intent(in) ::   &
-       xVertex, yVertex     ! x and y coordinates of vertices
-
-    real(dp), dimension(nz,nx-1,ny-1), intent(in) ::  &
-       uvel, vvel         ! velocity components (m/yr)
-
-    real(dp), dimension(nx-1,ny-1), intent(in) ::  &
-       stagusrf,       &  ! upper surface elevation on staggered grid (m)
-       stagthck           ! ice thickness on staggered grid (m)
-
-    real(dp), dimension(nz-1,nx,ny), intent(in) ::  &
-       flwafact           ! temperature-based flow factor, 0.5 * A^(-1/n), 
-                          ! used to compute the effective viscosity
-                          ! units: Pa yr^(1/n)
-
-    integer, intent(in) ::   &
-       whichapprox,     & ! option for Stokes approximation (BP, SSA, SIA)
-       whichefvs          ! option for effective viscosity calculation 
-
-    real(dp), dimension(nz-1,nx,ny), intent(out) ::  &
-       efvs               ! effective viscosity (Pa yr)
-
-    real(dp), intent(in) :: &
-       efvs_constant,   & ! constant value of effective viscosity (Pa yr)
-       effstrain_min      ! minimum value of effective strain rate (yr^-1) for computing viscosity
-
-    real(dp), dimension(nNodeNeighbors_3d,nz,nx-1,ny-1), intent(out) ::  &
-       Auu, Auv,    &     ! assembled stiffness matrix, divided into 4 parts
-       Avu, Avv
-
-    !---------------------------------------------------------
-    ! Local variables
-    !---------------------------------------------------------
-
-    real(dp), dimension(nQuadPoints_3d) ::   &
-       detJ               ! determinant of J
-
-    real(dp), dimension(nNodesPerElement_3d) ::   &
-       dphi_dx_3d, dphi_dy_3d, dphi_dz_3d  ! derivatives of basis function, evaluated at quad pt
-
-    !----------------------------------------------------------------
-    ! Note: Kuu, Kuv, Kvu, and Kvv are 8x8 components of the stiffness matrix
-    !       for the local element.  (The combined stiffness matrix is 16x16.)
-    !
-    ! Once these matrices are formed, their coefficients are summed into the assembled
-    !  matrices Auu, Auv, Avu, Avv.  The A matrices each have as many rows as there are
-    !  active nodes, but only 27 columns, corresponding to the 27 vertices that belong to
-    !  the 8 elements sharing a given node.
-    !
-    ! The native structured PCG solver works with the dense A matrices in the form
-    ! computed here.  For the SLAP solver, the terms of the A matrices are put
-    ! in a sparse matrix during preprocessing.  For the Trilinos solver, the terms
-    ! of the A matrices are passed to Trilinos one row at a time. 
-    !----------------------------------------------------------------
-
-    real(dp), dimension(nNodesPerElement_3d, nNodesPerElement_3d) ::   &   !
-       Kuu,          &    ! element stiffness matrix, divided into 4 parts as shown below
-       Kuv,          &    !  
-       Kvu,          &    !
-       Kvv                !    Kuu  | Kuv
-                          !    _____|____          
-                          !         |
-                          !    Kvu  | Kvv
-                          !         
-                          ! Kvu may not be needed if matrix is symmetric, but is included for now
-
-    real(dp), dimension(nNodesPerElement_3d) ::     &
-       x, y, z,         & ! Cartesian coordinates of nodes
-       u, v,            & ! u and v at nodes
-       s                  ! upper surface elevation at nodes
-
-    real(dp), dimension(nQuadPoints_3d) ::    &
-       efvs_qp            ! effective viscosity at a quad pt
-
-    logical, parameter ::   &
-       check_symmetry_element = .true.  ! if true, then check symmetry of element matrix
-                                        !Note: Can speed up assembly a bit by setting to false for production
-
-    integer :: i, j, k, n, p
-    integer :: iNode, jNode, kNode
-
-    if (verbose_matrix .and. main_task) then
-       write(iulog,*) ' '
-       write(iulog,*) 'In assemble_stiffness_matrix_3d'
-       write(iulog,*) 'itest, jtest, ktest, rtest =', itest, jtest, ktest, rtest
-    endif
-
-    ! Initialize effective viscosity
-    efvs(:,:,:) = 0.d0
-
-    ! Initialize global stiffness matrix
-
-    Auu(:,:,:,:) = 0.d0
-    Auv(:,:,:,:) = 0.d0
-    Avu(:,:,:,:) = 0.d0
-    Avv(:,:,:,:) = 0.d0
-
-    ! Sum over elements in active cells 
-    ! Loop over all cells that border locally owned vertices.
-
-    do j = nhalo+1, ny-nhalo+1
-    do i = nhalo+1, nx-nhalo+1
-
-       if (active_cell(i,j)) then
-
-          do k = 1, nz-1    ! loop over elements in this column 
-                            ! assume k increases from upper surface to bed
-
-             ! Initialize element stiffness matrix
-             Kuu(:,:) = 0.d0
-             Kuv(:,:) = 0.d0
-             Kvu(:,:) = 0.d0
-             Kvv(:,:) = 0.d0
-  
-             ! compute spatial coordinates, velocity, and upper surface elevation for each node
-
-             do n = 1, nNodesPerElement_3d
-
-                ! Determine (k,i,j) for this node
-                ! The reason for the '7' is that node 7, in the NE corner of the upper layer, has index (k,i,j).
-                ! Indices for other nodes are computed relative to this node.
-                iNode = i + ishift(7,n)
-                jNode = j + jshift(7,n)
-                kNode = k + kshift(7,n)
-
-                x(n) = xVertex(iNode,jNode)
-                y(n) = yVertex(iNode,jNode)
-                z(n) = stagusrf(iNode,jNode) - sigma(kNode)*stagthck(iNode,jNode)
-                u(n) = uvel(kNode,iNode,jNode)
-                v(n) = vvel(kNode,iNode,jNode)
-                s(n) = stagusrf(iNode,jNode)
-
-                if (verbose_matrix .and. this_rank==rtest .and. i==itest .and. j==jtest .and. k==ktest) then
-                   write(iulog,*) ' '
-                   write(iulog,*) 'i, j, k, n, x, y, z:', i, j, k, n, x(n), y(n), z(n)
-                   write(iulog,*) 's, u, v:', s(n), u(n), v(n)
-                endif
-
-             enddo   ! nodes per element
-
-             ! Loop over quadrature points for this element
-   
-             do p = 1, nQuadPoints_3d
-
-                ! Evaluate the derivatives of the element basis functions at this quadrature point.
-                !WHL - Pass in i, j, k, and p to the following subroutines for debugging.
-
-                call get_basis_function_derivatives_3d(x(:),             y(:),             z(:),              &          
-                                                       dphi_dxr_3d(:,p), dphi_dyr_3d(:,p), dphi_dzr_3d(:,p),  &
-                                                       dphi_dx_3d(:),    dphi_dy_3d(:),    dphi_dz_3d(:),     &
-                                                       detJ(p),                                               &
-                                                       itest, jtest, rtest,                                   &
-                                                       i, j, k, p)
-
-!          call t_startf('glissade_effective_viscosity')
-                call compute_effective_viscosity(whichefvs,        whichapprox,                       &
-                                                 efvs_constant,    effstrain_min,                     &
-                                                 nNodesPerElement_3d,                                 &
-                                                 dphi_dx_3d(:),    dphi_dy_3d(:),    dphi_dz_3d(:),   &
-                                                 u(:),             v(:),                              & 
-                                                 flwafact(k,i,j),  efvs_qp(p),                        &
-                                                 itest, jtest, rtest,                                 &
-                                                 i, j, k, p )
-!          call t_stopf('glissade_effective_viscosity')
-
-                if (verbose_efvs .and. this_rank==rtest .and. i==itest .and. j==jtest .and. p==ptest) then
-                   write(iulog,*) 'i, j, k, p, efvs (Pa yr):', i, j, k, p, efvs_qp(p)
-                endif
-
-                ! Increment the element stiffness matrix with the contribution from each quadrature point.
-
-!          call t_startf('glissade_compute_element_matrix')
-                call compute_element_matrix(whichapprox,     nNodesPerElement_3d,               & 
-                                            wqp_3d(p),       detJ(p),          efvs_qp(p),      &
-                                            dphi_dx_3d(:),   dphi_dy_3d(:),    dphi_dz_3d(:),   &
-                                            Kuu(:,:),        Kuv(:,:),                          &
-                                            Kvu(:,:),        Kvv(:,:),                          &
-                                            itest, jtest, rtest,                                &
-                                            i, j, k, p )
-!          call t_stopf('glissade_compute_element_matrix')
-
-             enddo   ! nQuadPoints_3d
-
-             ! Compute average of effective viscosity over quad pts
-             efvs(k,i,j) = 0.d0
-
-             do p = 1, nQuadPoints_3d
-                efvs(k,i,j) = efvs(k,i,j) + efvs_qp(p)
-             enddo
-             efvs(k,i,j) = efvs(k,i,j) / nQuadPoints_3d
-             
-             if (check_symmetry_element) then
-                call check_symmetry_element_matrix(nNodesPerElement_3d,  &
-                                                   Kuu, Kuv, Kvu, Kvv)
-             endif
-
-             ! Sum terms of element matrix K into dense assembled matrix A
-
-             call element_to_global_matrix_3d(nx,           ny,          nz,    &
-                                              i,            j,           k,     &
-                                              itest,        jtest,       rtest, &
-                                              Kuu,          Kuv,                &
-                                              Kvu,          Kvv,                &
-                                              Auu,          Auv,                &
-                                              Avu,          Avv)
-
-          enddo   ! nz  (loop over elements in this column)
-
-          if (verbose_efvs .and. this_rank==rtest .and. i==itest .and. j==jtest) then
-             write(iulog,*) ' '
-             write(iulog,*) 'Assembled 3D matrix, i, j =', i, j
-             write(iulog,*) 'k, flwafact, efvs:'
-             do k = 1, nz-1
-                write(iulog,*) k, flwafact(k,i,j), efvs(k,i,j)
-             enddo
-          endif
-
-       endif   ! active_cell
-
-    enddo      ! i
-    enddo      ! j
-
-  end subroutine assemble_stiffness_matrix_3d
-
-!****************************************************************************
-
   subroutine assemble_stiffness_matrix_2d(nx,               ny,              &
                                           nz,                                &
                                           sigma,            stagsigma,       &
                                           nhalo,                             &
                                           itest,   jtest,   rtest,           &
+                                          parallel,                          &
                                           active_cell,                       &
                                           xVertex,          yVertex,         &
                                           uvel_2d,          vvel_2d,         &
@@ -5040,12 +4980,12 @@
                                           btractx,          btracty,         &
                                           omega_k,          omega,           &
                                           efvs_qp_3d)
-  
+
     !----------------------------------------------------------------
     ! Assemble the stiffness matrix A in the linear system Ax = b.
     ! This subroutine is called for each nonlinear iteration if
     !  we are iterating on the effective viscosity.
-    ! The matrix A can be based on the shallow-shelf approximation or 
+    ! The matrix A can be based on the shallow-shelf approximation or
     !  the depth-integrated L1L2 approximation (Schoof and Hindmarsh, 2010).
     !----------------------------------------------------------------
 
@@ -5069,6 +5009,9 @@
 
     integer, intent(in) :: &
        itest, jtest, rtest           ! coordinates of diagnostic point
+
+    type(parallel_type), intent(in) :: &
+       parallel                      ! info for parallel communication
 
     logical, dimension(nx,ny), intent(in) ::  &
        active_cell        ! true if cell contains ice and borders a locally owned vertex
@@ -5106,7 +5049,7 @@
 
     real(dp), dimension(nx-1,ny-1,nNodeNeighbors_2d), intent(out) ::  &
        Auu, Auv,    &     ! assembled stiffness matrix, divided into 4 parts
-       Avu, Avv                                    
+       Avu, Avv
 
     ! The following optional arguments are used for the L1L2 approximation only
 
@@ -5120,7 +5063,7 @@
        thck               ! ice thickness (m)
 
     real(dp), dimension(nx-1,ny-1), intent(in), optional ::   &
-       btractx, btracty         ! components of basal traction (Pa)
+       btractx, btracty   ! components of basal traction (Pa)
 
     real(dp), dimension(nz,nx,ny), intent(out), optional :: &
        omega_k            ! single integral, defined by Goldberg (2011) eq. 32
@@ -5148,14 +5091,14 @@
     !       for the local element.  (The combined stiffness matrix is 8x8.)
     !
     ! Once these matrices are formed, their coefficients are summed into the global
-    !  matrices Auu_2d, Auv_2d, Avu_2d, Avv_2d.  The global matrices each have as 
-    !  many rows as there are active vertices, but only 9 columns, corresponding to 
+    !  matrices Auu_2d, Auv_2d, Avu_2d, Avv_2d.  The global matrices each have as
+    !  many rows as there are active vertices, but only 9 columns, corresponding to
     !  the 9 vertices of the 4 elements sharing a given node.
     !
     ! The native structured PCG solver works with the dense A matrices in the form
     ! computed here.  For the SLAP solver, the terms of the A matrices are put
-    ! in a sparse matrix format during preprocessing.  For the Trilinos solver, 
-    ! the terms of the A matrices are passed to Trilinos one row at a time. 
+    ! in a sparse matrix format during preprocessing.  For the Trilinos solver,
+    ! the terms of the A matrices are passed to Trilinos one row at a time.
     !----------------------------------------------------------------
 
     real(dp), dimension(nNodesPerElement_2d, nNodesPerElement_2d) ::   &   !
@@ -5223,7 +5166,7 @@
 
     do j = nhalo+1, ny-nhalo+1
     do i = nhalo+1, nx-nhalo+1
-       
+
        if (active_cell(i,j)) then
 
           ! Initialize element stiffness matrix
@@ -5277,6 +5220,7 @@
                                                     dphi_dx_2d(:),    dphi_dy_2d(:),    &
                                                     detJ(p),                            &
                                                     itest, jtest, rtest,                &
+                                                    parallel,                           &
                                                     i, j, p)
 
              dphi_dz_2d(:) = 0.d0
@@ -5290,7 +5234,7 @@
                                                       nz,                   sigma,             &
                                                       nNodesPerElement_2d,  phi_2d(:,p),       &
                                                       dphi_dx_2d(:),        dphi_dy_2d(:),     &
-                                                      u(:),                 v(:),              & 
+                                                      u(:),                 v(:),              &
                                                       h(:),                                    &
                                                       dsdx(:),              dsdy(:),           &
                                                       flwa(:,i,j),          flwafact(:,i,j),   &
@@ -5316,7 +5260,7 @@
                                                       nz,                   stagsigma,         &
                                                       nNodesPerElement_2d,  phi_2d(:,p),       &
                                                       dphi_dx_2d(:),        dphi_dy_2d(:),     &
-                                                      u(:),                 v(:),              & 
+                                                      u(:),                 v(:),              &
                                                       bx(:),                by(:),             &
                                                       diva_slope_factor_x(i,j),                &
                                                       diva_slope_factor_y(i,j),                &
@@ -5347,7 +5291,7 @@
                                                  efvs_constant,    effstrain_min,                     &
                                                  nNodesPerElement_2d,                                 &
                                                  dphi_dx_2d(:),    dphi_dy_2d(:),    dphi_dz_2d(:),   &
-                                                 u(:),             v(:),                              & 
+                                                 u(:),             v(:),                              &
                                                  flwafact_2d(i,j), efvs_qp_vertavg(p),                &
                                                  itest, jtest, rtest,                                 &
                                                  i, j, 1, p)
@@ -5368,7 +5312,7 @@
              ! Note: The effective viscosity is multiplied by thickness since the equation to be solved
              !       is vertically integrated.
 
-             call compute_element_matrix(whichapprox,     nNodesPerElement_2d,               & 
+             call compute_element_matrix(whichapprox,     nNodesPerElement_2d,               &
                                          wqp_2d(p),       detJ(p),                           &
                                          h_qp*efvs_qp_vertavg(p),                            &
                                          dphi_dx_2d(:),   dphi_dy_2d(:),    dphi_dz_2d(:),   &
@@ -5432,6 +5376,271 @@
     enddo      ! j
 
   end subroutine assemble_stiffness_matrix_2d
+
+!****************************************************************************
+
+  subroutine assemble_stiffness_matrix_3d(nx,               ny,              &
+                                          nz,               sigma,           &
+                                          nhalo,                             &
+                                          itest,   jtest,   rtest,           &
+                                          active_cell,                       &
+                                          xVertex,          yVertex,         &
+                                          uvel,             vvel,            &
+                                          stagusrf,         stagthck,        &
+                                          flwafact,         whichapprox,     &
+                                          whichefvs,        efvs,            &
+                                          efvs_constant,    effstrain_min,   &
+                                          Auu,              Auv,             &
+                                          Avu,              Avv)
+
+    !----------------------------------------------------------------
+    ! Assemble the stiffness matrix A in the linear system Ax = b.
+    ! This subroutine is called for each nonlinear iteration if
+    !  we are iterating on the effective viscosity.
+    !----------------------------------------------------------------
+
+    !----------------------------------------------------------------
+    ! Input-output arguments
+    !----------------------------------------------------------------
+
+    integer, intent(in) ::      &
+       nx, ny,                  &    ! horizontal grid dimensions
+       nz,                      &    ! number of vertical levels at which velocity is computed
+                                     ! Note: the number of elements per column is nz-1
+       nhalo                         ! number of halo layers
+
+    real(dp), dimension(nz), intent(in) ::    &
+       sigma                         ! sigma vertical coordinate
+
+    integer, intent(in) :: &
+       itest, jtest, rtest           ! coordinates of diagnostic point
+
+    logical, dimension(nx,ny), intent(in) ::  &
+       active_cell                   ! true if cell contains ice and borders a locally owned vertex
+
+    real(dp), dimension(nx-1,ny-1), intent(in) ::   &
+       xVertex, yVertex     ! x and y coordinates of vertices
+
+    real(dp), dimension(nz,nx-1,ny-1), intent(in) ::  &
+       uvel, vvel         ! velocity components (m/yr)
+
+    real(dp), dimension(nx-1,ny-1), intent(in) ::  &
+       stagusrf,       &  ! upper surface elevation on staggered grid (m)
+       stagthck           ! ice thickness on staggered grid (m)
+
+    real(dp), dimension(nz-1,nx,ny), intent(in) ::  &
+       flwafact           ! temperature-based flow factor, 0.5 * A^(-1/n),
+                          ! used to compute the effective viscosity
+                          ! units: Pa yr^(1/n)
+
+    integer, intent(in) ::   &
+       whichapprox,     & ! option for Stokes approximation (BP, SSA, SIA)
+       whichefvs          ! option for effective viscosity calculation 
+
+    real(dp), dimension(nz-1,nx,ny), intent(out) ::  &
+       efvs               ! effective viscosity (Pa yr)
+
+    real(dp), intent(in) :: &
+       efvs_constant,   & ! constant value of effective viscosity (Pa yr)
+       effstrain_min      ! minimum value of effective strain rate (yr^-1) for computing viscosity
+
+    real(dp), dimension(nNodeNeighbors_3d,nz,nx-1,ny-1), intent(out) ::  &
+       Auu, Auv,    &     ! assembled stiffness matrix, divided into 4 parts
+       Avu, Avv
+
+    !---------------------------------------------------------
+    ! Local variables
+    !---------------------------------------------------------
+
+    real(dp), dimension(nQuadPoints_3d) ::   &
+       detJ               ! determinant of J
+
+    real(dp), dimension(nNodesPerElement_3d) ::   &
+       dphi_dx_3d, dphi_dy_3d, dphi_dz_3d  ! derivatives of basis function, evaluated at quad pt
+
+    !----------------------------------------------------------------
+    ! Note: Kuu, Kuv, Kvu, and Kvv are 8x8 components of the stiffness matrix
+    !       for the local element.  (The combined stiffness matrix is 16x16.)
+    !
+    ! Once these matrices are formed, their coefficients are summed into the assembled
+    !  matrices Auu, Auv, Avu, Avv.  The A matrices each have as many rows as there are
+    !  active nodes, but only 27 columns, corresponding to the 27 vertices that belong to
+    !  the 8 elements sharing a given node.
+    !
+    ! The native structured PCG solver works with the dense A matrices in the form
+    ! computed here.  For the SLAP solver, the terms of the A matrices are put
+    ! in a sparse matrix during preprocessing.  For the Trilinos solver, the terms
+    ! of the A matrices are passed to Trilinos one row at a time.
+    !----------------------------------------------------------------
+
+    real(dp), dimension(nNodesPerElement_3d, nNodesPerElement_3d) ::   &   !
+       Kuu,          &    ! element stiffness matrix, divided into 4 parts as shown below
+       Kuv,          &    !  
+       Kvu,          &    !
+       Kvv                !    Kuu  | Kuv
+                          !    _____|____          
+                          !         |
+                          !    Kvu  | Kvv
+                          !         
+                          ! Kvu may not be needed if matrix is symmetric, but is included for now
+
+    real(dp), dimension(nNodesPerElement_3d) ::     &
+       x, y, z,         & ! Cartesian coordinates of nodes
+       u, v,            & ! u and v at nodes
+       s                  ! upper surface elevation at nodes
+
+    real(dp), dimension(nQuadPoints_3d) ::    &
+       efvs_qp            ! effective viscosity at a quad pt
+
+    logical, parameter ::   &
+       check_symmetry_element = .true.  ! if true, then check symmetry of element matrix
+                                        !Note: Can speed up assembly a bit by setting to false for production
+
+    integer :: i, j, k, n, p
+    integer :: iNode, jNode, kNode
+
+    if (verbose_matrix .and. main_task) then
+       write(iulog,*) ' '
+       write(iulog,*) 'In assemble_stiffness_matrix_3d'
+       write(iulog,*) 'itest, jtest, ktest, rtest =', itest, jtest, ktest, rtest
+    endif
+
+    ! Initialize effective viscosity
+    efvs(:,:,:) = 0.d0
+
+    ! Initialize global stiffness matrix
+
+    Auu(:,:,:,:) = 0.d0
+    Auv(:,:,:,:) = 0.d0
+    Avu(:,:,:,:) = 0.d0
+    Avv(:,:,:,:) = 0.d0
+
+    ! Sum over elements in active cells 
+    ! Loop over all cells that border locally owned vertices.
+
+    do j = nhalo+1, ny-nhalo+1
+    do i = nhalo+1, nx-nhalo+1
+
+       if (active_cell(i,j)) then
+
+          do k = 1, nz-1    ! loop over elements in this column
+                            ! assume k increases from upper surface to bed
+
+             ! Initialize element stiffness matrix
+             Kuu(:,:) = 0.d0
+             Kuv(:,:) = 0.d0
+             Kvu(:,:) = 0.d0
+             Kvv(:,:) = 0.d0
+
+             ! compute spatial coordinates, velocity, and upper surface elevation for each node
+
+             do n = 1, nNodesPerElement_3d
+
+                ! Determine (k,i,j) for this node
+                ! The reason for the '7' is that node 7, in the NE corner of the upper layer, has index (k,i,j).
+                ! Indices for other nodes are computed relative to this node.
+                iNode = i + ishift(7,n)
+                jNode = j + jshift(7,n)
+                kNode = k + kshift(7,n)
+
+                x(n) = xVertex(iNode,jNode)
+                y(n) = yVertex(iNode,jNode)
+                z(n) = stagusrf(iNode,jNode) - sigma(kNode)*stagthck(iNode,jNode)
+                u(n) = uvel(kNode,iNode,jNode)
+                v(n) = vvel(kNode,iNode,jNode)
+                s(n) = stagusrf(iNode,jNode)
+
+                if (verbose_matrix .and. this_rank==rtest .and. i==itest .and. j==jtest .and. k==ktest) then
+                   write(iulog,*) ' '
+                   write(iulog,*) 'i, j, k, n, x, y, z:', i, j, k, n, x(n), y(n), z(n)
+                   write(iulog,*) 's, u, v:', s(n), u(n), v(n)
+                endif
+
+             enddo   ! nodes per element
+
+             ! Loop over quadrature points for this element
+
+             do p = 1, nQuadPoints_3d
+
+                ! Evaluate the derivatives of the element basis functions at this quadrature point.
+                !WHL - Pass in i, j, k, and p to the following subroutines for debugging.
+
+                call get_basis_function_derivatives_3d(x(:),             y(:),             z(:),              &
+                                                       dphi_dxr_3d(:,p), dphi_dyr_3d(:,p), dphi_dzr_3d(:,p),  &
+                                                       dphi_dx_3d(:),    dphi_dy_3d(:),    dphi_dz_3d(:),     &
+                                                       detJ(p),                                               &
+                                                       itest, jtest, rtest,                                   &
+                                                       i, j, k, p)
+
+!          call t_startf('glissade_effective_viscosity')
+                call compute_effective_viscosity(whichefvs,        whichapprox,                       &
+                                                 efvs_constant,    effstrain_min,                     &
+                                                 nNodesPerElement_3d,                                 &
+                                                 dphi_dx_3d(:),    dphi_dy_3d(:),    dphi_dz_3d(:),   &
+                                                 u(:),             v(:),                              & 
+                                                 flwafact(k,i,j),  efvs_qp(p),                        &
+                                                 itest, jtest, rtest,                                 &
+                                                 i, j, k, p )
+!          call t_stopf('glissade_effective_viscosity')
+
+                if (verbose_efvs .and. this_rank==rtest .and. i==itest .and. j==jtest .and. p==ptest) then
+                   write(iulog,*) 'i, j, k, p, efvs (Pa yr):', i, j, k, p, efvs_qp(p)
+                endif
+
+                ! Increment the element stiffness matrix with the contribution from each quadrature point.
+
+!          call t_startf('glissade_compute_element_matrix')
+                call compute_element_matrix(whichapprox,     nNodesPerElement_3d,               &
+                                            wqp_3d(p),       detJ(p),          efvs_qp(p),      &
+                                            dphi_dx_3d(:),   dphi_dy_3d(:),    dphi_dz_3d(:),   &
+                                            Kuu(:,:),        Kuv(:,:),                          &
+                                            Kvu(:,:),        Kvv(:,:),                          &
+                                            itest, jtest, rtest,                                &
+                                            i, j, k, p )
+!          call t_stopf('glissade_compute_element_matrix')
+
+             enddo   ! nQuadPoints_3d
+
+             ! Compute average of effective viscosity over quad pts
+             efvs(k,i,j) = 0.d0
+
+             do p = 1, nQuadPoints_3d
+                efvs(k,i,j) = efvs(k,i,j) + efvs_qp(p)
+             enddo
+             efvs(k,i,j) = efvs(k,i,j) / nQuadPoints_3d
+
+             if (check_symmetry_element) then
+                call check_symmetry_element_matrix(nNodesPerElement_3d,  &
+                                                   Kuu, Kuv, Kvu, Kvv)
+             endif
+
+             ! Sum terms of element matrix K into dense assembled matrix A
+
+             call element_to_global_matrix_3d(nx,           ny,          nz,    &
+                                              i,            j,           k,     &
+                                              itest,        jtest,       rtest, &
+                                              Kuu,          Kuv,                &
+                                              Kvu,          Kvv,                &
+                                              Auu,          Auv,                &
+                                              Avu,          Avv)
+
+          enddo   ! nz  (loop over elements in this column)
+
+          if (verbose_efvs .and. this_rank==rtest .and. i==itest .and. j==jtest) then
+             write(iulog,*) ' '
+             write(iulog,*) 'Assembled 3D matrix, i, j =', i, j
+             write(iulog,*) 'k, flwafact, efvs:'
+             do k = 1, nz-1
+                write(iulog,*) k, flwafact(k,i,j), efvs(k,i,j)
+             enddo
+          endif
+
+       endif   ! active_cell
+
+    enddo      ! i
+    enddo      ! j
+
+  end subroutine assemble_stiffness_matrix_3d
 
 !****************************************************************************
 
@@ -5573,8 +5782,7 @@
        itest,    jtest,     rtest,              &
        active_vertex,       diva_level_index,   &
        ice_plus_land_mask,                      &
-       stag_omega,          omega_k,            &
-       beta,                                    &
+       omega_k,             beta,               &
        beta_eff_x,          beta_eff_y,         &
        stag_theta_slope_x,  stag_theta_slope_y, &
        stag_diva_slope_factor_x,                &
@@ -5624,9 +5832,6 @@
        stag_theta_slope_y, & ! slope angle (radians) in y direction at vertices
        stag_diva_slope_factor_x, & ! slope correction factor in x direction
        stag_diva_slope_factor_y, & ! slope correction factor in y direction
-       stag_omega,      & ! double integral, defined by Goldberg eq. 35 (m^2/(Pa yr))
-                          ! already interpolated to staggered grid
-                          ! Note: omega here = Goldberg's omega/H
        uvel_2d, vvel_2d   ! depth-integrated mean velocity; solution of 2D velocity solve (m/yr)
 
     real(dp), dimension(nx-1,ny-1), intent(out) ::  &
@@ -5642,12 +5847,6 @@
     real(dp), dimension(nz,nx-1,ny-1) ::  &
          stag_omega_k       ! single integral, defined by Goldberg eq. 32 (m^2/(Pa yr))
                             ! interpolated to staggered grid
-
-    real(dp), dimension(nx-1,ny-1) ::  &
-         stag_integral      ! integral that relates bed velocity to uvel_2d and vvel_2d
-                            ! = stag_omega for diva_level_index = 0
-                            ! = stag_omega_k(k,:,:) for other values of diva_level_index
-
 
     real(dp) ::  &
          slope_correction_x, & ! slope-based correction for vertical shear in x direction
@@ -5667,15 +5866,6 @@
                              ice_plus_land_mask,                    &
                              stagger_margin_in = 1)
     enddo
-
-    ! Identify the appropriate integral for relating uvel_2d/vvel_2d to the bed velocity
-
-    if (diva_level_index == 0) then  ! solved for mean velocity
-       stag_integral(:,:) = stag_omega(:,:)
-    else
-       k = diva_level_index
-       stag_integral(:,:) = stag_omega_k(k,:,:)
-    endif
 
     !----------------------------------------------------------------
     ! Compute the 3D velocity field
@@ -5911,6 +6101,7 @@
                                                     dphi_dx_2d(:),      dphi_dy_2d(:),      &
                                                     detJ,                                   &
                                                     itest, jtest, rtest,                    &
+                                                    parallel,                               &
                                                     i, j, 1)
 
              ! Compute basal strain rate components at cell center
@@ -6125,6 +6316,195 @@
 
 !****************************************************************************
 
+  subroutine get_basis_function_derivatives_2d(xNode,       yNode,         &
+                                               dphi_dxr_2d, dphi_dyr_2d,   &
+                                               dphi_dx_2d,  dphi_dy_2d,    &
+                                               detJ,                       &
+                                               itest, jtest, rtest,        &
+                                               parallel,                   &
+                                               i, j, p)
+
+    !------------------------------------------------------------------
+    ! Evaluate the x and y derivatives of 2D element basis functions
+    ! at a particular quadrature point.
+    !
+    ! Also determine the Jacobian of the transformation between the
+    ! reference element and the true element.
+    ! 
+    ! This subroutine should work for any 2D element with any number of nodes.
+    !------------------------------------------------------------------
+
+    real(dp), dimension(nNodesPerElement_2d), intent(in) :: &
+       xNode, yNode,                   &! nodal coordinates
+       dphi_dxr_2d, dphi_dyr_2d         ! derivatives of basis functions at quad pt
+                                        !  wrt x and y in reference element
+
+    real(dp), dimension(nNodesPerElement_2d), intent(out) :: &
+       dphi_dx_2d, dphi_dy_2d           ! derivatives of basis functions at quad pt
+                                        !  wrt x and y in true Cartesian coordinates
+
+    real(dp), intent(out) :: &
+                detJ      ! determinant of Jacobian matrix
+
+    real(dp), dimension(2,2) ::  &
+                Jac,      &! Jacobian matrix
+                Jinv       ! inverse Jacobian matrix
+
+    integer, intent(in) :: &
+       itest, jtest, rtest              ! coordinates of diagnostic point
+
+    type(parallel_type), intent(in) :: &
+         parallel                       ! info for parallel communication
+
+    integer, intent(in) :: i, j, p
+
+    integer :: n, row, col
+
+    integer :: ig, jg
+
+    logical, parameter :: Jac_bug_check = .false.   ! set to true for debugging
+
+    real(dp), dimension(2,2) :: prod     ! Jac * Jinv (should be identity matrix)
+
+    !------------------------------------------------------------------
+    ! Compute the Jacobian for the transformation from the reference
+    ! coordinates to the true coordinates:
+    !
+    !              |                                                  |
+    !              | sum_n{dphi_n/dxr * xn}   sum_n{dphi_n/dxr * yn}  |
+    !   J(xr,yr) = |                                                  |
+    !              | sum_n{dphi_n/dyr * xn}   sum_n{dphi_n/dyr * yn}  |
+    !              |                                                  |
+    !
+    ! where (xn,yn) are the true Cartesian nodal coordinates,
+    !       (xr,yr) are the coordinates of the quad point in the reference element,
+    !       and sum_n denotes a sum over nodes.
+    !------------------------------------------------------------------
+
+    Jac(:,:) = 0.d0
+
+    if ((verbose_Jac .or. verbose_diva) .and. this_rank==rtest .and. i==itest .and. j==jtest) then
+       write(iulog,*) ' '
+       write(iulog,*) 'In get_basis_function_derivatives_2d: i, j, p =', i, j, p
+       call parallel_globalindex(i, j, ig, jg, parallel)
+       write(iulog,*) '   ig, jg =', ig, jg
+    endif
+
+    do n = 1, nNodesPerElement_2d
+       if (verbose_Jac .and. this_rank==rtest .and. i==itest .and. j==jtest) then
+          write(iulog,*) ' '
+          write(iulog,*) '   n, x, y:', n, xNode(n), yNode(n)
+       endif
+       Jac(1,1) = Jac(1,1) + dphi_dxr_2d(n) * xNode(n)
+       Jac(1,2) = Jac(1,2) + dphi_dxr_2d(n) * yNode(n)
+       Jac(2,1) = Jac(2,1) + dphi_dyr_2d(n) * xNode(n)
+       Jac(2,2) = Jac(2,2) + dphi_dyr_2d(n) * yNode(n)
+    enddo
+
+    !------------------------------------------------------------------
+    ! Compute the determinant and inverse of J
+    !------------------------------------------------------------------
+
+    detJ = Jac(1,1)*Jac(2,2) - Jac(1,2)*Jac(2,1)
+
+    if (abs(detJ) > 0.d0) then
+       Jinv(1,1) =  Jac(2,2)/detJ
+       Jinv(1,2) = -Jac(1,2)/detJ
+       Jinv(2,1) = -Jac(2,1)/detJ
+       Jinv(2,2) =  Jac(1,1)/detJ
+    else
+       call parallel_globalindex(i, j, ig, jg, parallel)
+       write(iulog,*) 'stopping, det J = 0, rank, i, j, p:', this_rank, i, j, p
+       write(iulog,*) '    ig, jg, Jacobian matrix:', ig, jg, Jac(1,:), Jac(2,:)
+       call write_log('Jacobian matrix is singular', GM_FATAL)
+    endif
+
+    if (verbose_Jac .and. this_rank==rtest .and. i==itest .and. j==jtest) then
+       write(iulog,*) ' '
+       write(iulog,*) 'Jacobian calc, p =', p
+       write(iulog,*) 'det J =', detJ
+       write(iulog,*) ' '
+       write(iulog,*) 'Jacobian matrix:'
+       write(iulog,*) Jac(1,:)
+       write(iulog,*) Jac(2,:)
+       write(iulog,*) ' '
+       write(iulog,*) 'Inverse matrix:'
+       write(iulog,*) Jinv(1,:)
+       write(iulog,*) Jinv(2,:)
+       write(iulog,*) ' '
+       prod = matmul(Jac, Jinv)
+       write(iulog,*) 'Jac*Jinv:'
+       write(iulog,*) prod(1,:)
+       write(iulog,*) prod(2,:)
+    endif
+
+    ! Optional bug check - Verify that J * Jinv = I
+
+    if (Jac_bug_check) then
+       prod = matmul(Jac,Jinv)
+       do col = 1, 2
+          do row = 1, 2
+             if (abs(prod(row,col) - identity3(row,col)) > 1.d-12) then
+                write(iulog,*) '2d Jacobian, stopping, Jac * Jinv /= identity'
+                write(iulog,*) 'rank, i, j, p:', this_rank, i, j, p
+                write(iulog,*) 'Jac*Jinv:'
+                write(iulog,*) prod(1,:)
+                write(iulog,*) prod(2,:)
+                call write_log('Jacobian matrix was not correctly inverted', GM_FATAL)
+             endif
+          enddo
+       enddo
+    endif
+
+    !------------------------------------------------------------------
+    ! Compute the contribution of this quadrature point to dphi/dx and dphi/dy
+    ! for each basis function.
+    !
+    !   | dphi_n/dx |          | dphi_n/dxr |
+    !   |           | = Jinv * |            |
+    !   | dphi_n/dy |          | dphi_n/dyr |
+    !
+    !------------------------------------------------------------------
+
+    dphi_dx_2d(:) = 0.d0
+    dphi_dy_2d(:) = 0.d0
+
+    do n = 1, nNodesPerElement_2d
+       dphi_dx_2d(n) = dphi_dx_2d(n) + Jinv(1,1)*dphi_dxr_2d(n)  &
+                                     + Jinv(1,2)*dphi_dyr_2d(n)
+       dphi_dy_2d(n) = dphi_dy_2d(n) + Jinv(2,1)*dphi_dxr_2d(n)  &
+                                     + Jinv(2,2)*dphi_dyr_2d(n)
+    enddo
+
+    if (verbose_Jac .and. this_rank==rtest .and. i==itest .and. j==jtest) then
+       write(iulog,*) ' '
+       write(iulog,*) 'dphi_dx_2d:', dphi_dx_2d(:)
+       write(iulog,*) 'dphi_dy_2d:', dphi_dy_2d(:)
+    endif
+
+    if (Jac_bug_check) then
+
+       ! Check that the sum of dphi_dx, etc. is close to zero  
+       if (abs( sum(dphi_dx_2d)/maxval(dphi_dx_2d) ) > 1.d-11) then
+          write(iulog,*) 'stopping, sum over basis functions of dphi_dx > 0'
+          write(iulog,*) 'dphi_dx_2d =', dphi_dx_2d(:)
+          write(iulog,*) 'i, j, p =', i, j, p
+          call write_log('Sum over basis functions of dphi_dx /= 0', GM_FATAL)
+       endif
+
+       if (abs( sum(dphi_dy_2d)/maxval(dphi_dy_2d) ) > 1.d-11) then
+          write(iulog,*) 'stopping, sum over basis functions of dphi_dy > 0'
+          write(iulog,*) 'dphi_dy =', dphi_dy_2d(:)
+          write(iulog,*) 'i, j, p =', i, j, p
+          call write_log('Sum over basis functions of dphi_dy /= 0', GM_FATAL)
+       endif
+
+    endif
+
+  end subroutine get_basis_function_derivatives_2d
+  
+!****************************************************************************
+
   subroutine get_basis_function_derivatives_3d(xNode,       yNode,       zNode,       &
                                                dphi_dxr_3d, dphi_dyr_3d, dphi_dzr_3d, &
                                                dphi_dx_3d,  dphi_dy_3d,  dphi_dz_3d,  &
@@ -6149,7 +6529,7 @@
 
     real(dp), dimension(nNodesPerElement_3d), intent(out) :: &
        dphi_dx_3d, dphi_dy_3d, dphi_dz_3d      ! derivatives of basis functions at quad pt
-                                               !  wrt x, y and z in true Cartesian coordinates  
+                                               !  wrt x, y and z in true Cartesian coordinates
 
     real(dp), intent(out) :: &
          detJ      ! determinant of Jacobian matrix
@@ -6278,9 +6658,9 @@
        prod = matmul(Jac,Jinv)
        do col = 1, 3
           do row = 1, 3
-             if (abs(prod(row,col) - identity3(row,col)) > 1.d-11) then
-                write(iulog,*) 'stopping, Jac * Jinv /= identity'
-                write(iulog,*) 'i, j, k, p:', i, j, k, p
+             if (abs(prod(row,col) - identity3(row,col)) > eps10) then
+                write(iulog,*) '3d Jacobian, stopping, Jac * Jinv /= identity'
+                write(iulog,*) 'rank, i, j, k, p:', this_rank, i, j, k, p
                 write(iulog,*) 'Jac*Jinv:'
                 write(iulog,*) prod(1,:)
                 write(iulog,*) prod(2,:)
@@ -6350,189 +6730,6 @@
     endif  ! Jac_bug_check
 
   end subroutine get_basis_function_derivatives_3d
-
-!****************************************************************************
-
-  subroutine get_basis_function_derivatives_2d(xNode,       yNode,         &
-                                               dphi_dxr_2d, dphi_dyr_2d,   &
-                                               dphi_dx_2d,  dphi_dy_2d,    &
-                                               detJ,                       &
-                                               itest, jtest, rtest,        &
-                                               i, j, p)
-
-    !------------------------------------------------------------------
-    ! Evaluate the x and y derivatives of 2D element basis functions
-    ! at a particular quadrature point.
-    !
-    ! Also determine the Jacobian of the transformation between the
-    ! reference element and the true element.
-    ! 
-    ! This subroutine should work for any 2D element with any number of nodes.
-    !------------------------------------------------------------------
-
-    real(dp), dimension(nNodesPerElement_2d), intent(in) :: &
-       xNode, yNode,                   &! nodal coordinates
-       dphi_dxr_2d, dphi_dyr_2d         ! derivatives of basis functions at quad pt
-                                        !  wrt x and y in reference element
-
-    real(dp), dimension(nNodesPerElement_2d), intent(out) :: &
-       dphi_dx_2d, dphi_dy_2d           ! derivatives of basis functions at quad pt
-                                        !  wrt x and y in true Cartesian coordinates  
-
-    real(dp), intent(out) :: &
-                detJ      ! determinant of Jacobian matrix
-
-    real(dp), dimension(2,2) ::  &
-                Jac,      &! Jacobian matrix
-                Jinv       ! inverse Jacobian matrix
-
-    integer, intent(in) :: &
-       itest, jtest, rtest              ! coordinates of diagnostic point
-
-    integer, intent(in) :: i, j, p
-
-    integer :: n, row, col
-
-    logical, parameter :: Jac_bug_check = .false.   ! set to true for debugging
-    real(dp), dimension(2,2) :: prod     ! Jac * Jinv (should be identity matrix)
-
-    !------------------------------------------------------------------
-    ! Compute the Jacobian for the transformation from the reference
-    ! coordinates to the true coordinates:
-    !
-    !              |                                                  |
-    !              | sum_n{dphi_n/dxr * xn}   sum_n{dphi_n/dxr * yn}  |
-    !   J(xr,yr) = |                                                  |
-    !              | sum_n{dphi_n/dyr * xn}   sum_n{dphi_n/dyr * yn}  |
-    !              |                                                  |
-    !
-    ! where (xn,yn) are the true Cartesian nodal coordinates,
-    !       (xr,yr) are the coordinates of the quad point in the reference element,
-    !       and sum_n denotes a sum over nodes.
-    !------------------------------------------------------------------
-
-    Jac(:,:) = 0.d0
-
-    if ((verbose_Jac .or. verbose_diva) .and. this_rank==rtest .and. i==itest .and. j==jtest) then
-       write(iulog,*) ' '
-       write(iulog,*) 'In get_basis_function_derivatives_2d: i, j, p =', i, j, p
-    endif
-
-    do n = 1, nNodesPerElement_2d
-       if (verbose_Jac .and. this_rank==rtest .and. i==itest .and. j==jtest) then
-          write(iulog,*) ' '
-          write(iulog,*) 'n, x, y:', n, xNode(n), yNode(n)
-          write(iulog,*) 'dphi_dxr_2d, dphi_dyr_2d:', dphi_dxr_2d(n), dphi_dyr_2d(n)
-       endif
-       Jac(1,1) = Jac(1,1) + dphi_dxr_2d(n) * xNode(n)
-       Jac(1,2) = Jac(1,2) + dphi_dxr_2d(n) * yNode(n)
-       Jac(2,1) = Jac(2,1) + dphi_dyr_2d(n) * xNode(n)
-       Jac(2,2) = Jac(2,2) + dphi_dyr_2d(n) * yNode(n)
-    enddo
-
-    !------------------------------------------------------------------
-    ! Compute the determinant and inverse of J
-    !------------------------------------------------------------------
-
-    detJ = Jac(1,1)*Jac(2,2) - Jac(1,2)*Jac(2,1)
-
-    if (abs(detJ) > 0.d0) then
-       Jinv(1,1) =  Jac(2,2)/detJ
-       Jinv(1,2) = -Jac(1,2)/detJ
-       Jinv(2,1) = -Jac(2,1)/detJ
-       Jinv(2,2) =  Jac(1,1)/detJ
-    else
-       write(iulog,*) 'stopping, det J = 0'
-       write(iulog,*) 'i, j, p:', i, j, p
-       write(iulog,*) 'Jacobian matrix:'
-       write(iulog,*) Jac(1,:)
-       write(iulog,*) Jac(2,:)
-       call write_log('Jacobian matrix is singular', GM_FATAL)
-    endif
-
-    if (verbose_Jac .and. this_rank==rtest .and. i==itest .and. j==jtest) then
-       write(iulog,*) ' '
-       write(iulog,*) 'Jacobian calc, p =', p
-       write(iulog,*) 'det J =', detJ
-       write(iulog,*) ' '
-       write(iulog,*) 'Jacobian matrix:'
-       write(iulog,*) Jac(1,:)
-       write(iulog,*) Jac(2,:)
-       write(iulog,*) ' '
-       write(iulog,*) 'Inverse matrix:'
-       write(iulog,*) Jinv(1,:)
-       write(iulog,*) Jinv(2,:)
-       write(iulog,*) ' '
-       prod = matmul(Jac, Jinv)
-       write(iulog,*) 'Jac*Jinv:'
-       write(iulog,*) prod(1,:)
-       write(iulog,*) prod(2,:)
-    endif
-
-    ! Optional bug check - Verify that J * Jinv = I
-
-    if (Jac_bug_check) then
-       prod = matmul(Jac,Jinv)
-       do col = 1, 2
-          do row = 1, 2
-             if (abs(prod(row,col) - identity3(row,col)) > 1.d-12) then
-                write(iulog,*) 'stopping, Jac * Jinv /= identity'
-                write(iulog,*) 'i, j, p:', i, j, p
-                write(iulog,*) 'Jac*Jinv:'
-                write(iulog,*) prod(1,:)
-                write(iulog,*) prod(2,:)
-                call write_log('Jacobian matrix was not correctly inverted', GM_FATAL)
-             endif
-          enddo
-       enddo
-    endif
-
-    !------------------------------------------------------------------
-    ! Compute the contribution of this quadrature point to dphi/dx and dphi/dy
-    ! for each basis function.
-    !
-    !   | dphi_n/dx |          | dphi_n/dxr |
-    !   |           | = Jinv * |            |
-    !   | dphi_n/dy |          | dphi_n/dyr |
-    !
-    !------------------------------------------------------------------
-
-    dphi_dx_2d(:) = 0.d0
-    dphi_dy_2d(:) = 0.d0
-
-    do n = 1, nNodesPerElement_2d
-       dphi_dx_2d(n) = dphi_dx_2d(n) + Jinv(1,1)*dphi_dxr_2d(n)  &
-                                     + Jinv(1,2)*dphi_dyr_2d(n)
-       dphi_dy_2d(n) = dphi_dy_2d(n) + Jinv(2,1)*dphi_dxr_2d(n)  &
-                                     + Jinv(2,2)*dphi_dyr_2d(n)
-    enddo
-
-    if (verbose_Jac .and. this_rank==rtest .and. i==itest .and. j==jtest) then
-       write(iulog,*) ' '
-       write(iulog,*) 'dphi_dx_2d:', dphi_dx_2d(:)
-       write(iulog,*) 'dphi_dy_2d:', dphi_dy_2d(:)
-    endif
-
-    if (Jac_bug_check) then
-
-       ! Check that the sum of dphi_dx, etc. is close to zero  
-       if (abs( sum(dphi_dx_2d)/maxval(dphi_dx_2d) ) > 1.d-11) then
-          write(iulog,*) 'stopping, sum over basis functions of dphi_dx > 0'
-          write(iulog,*) 'dphi_dx_2d =', dphi_dx_2d(:)
-          write(iulog,*) 'i, j, p =', i, j, p
-          call write_log('Sum over basis functions of dphi_dx /= 0', GM_FATAL)
-       endif
-
-       if (abs( sum(dphi_dy_2d)/maxval(dphi_dy_2d) ) > 1.d-11) then
-          write(iulog,*) 'stopping, sum over basis functions of dphi_dy > 0'
-          write(iulog,*) 'dphi_dy =', dphi_dy_2d(:)
-          write(iulog,*) 'i, j, p =', i, j, p
-          call write_log('Sum over basis functions of dphi_dy /= 0', GM_FATAL)
-       endif
-
-    endif
-
-  end subroutine get_basis_function_derivatives_2d
 
 !****************************************************************************
 
@@ -6934,7 +7131,7 @@
 
     integer :: i, j, k, n, p
     integer :: iNode, jNode, kNode
-   
+
     ! initialize stresses
     tau_xz (:,:,:) = 0.d0
     tau_yz (:,:,:) = 0.d0
@@ -7543,7 +7740,7 @@
                                               efvs,                                 &
                                               itest,  jtest,    rtest,              &
                                               i, j, p )
-    
+
     ! Compute the effective viscosity at each layer of an ice column corresponding
     !  to a particular quadrature point, based on the depth-integrated formulation.
     ! See Goldberg(2011) for details.
@@ -7823,7 +8020,7 @@
     !----------------------------------------------------------------
 
     integer, intent(in) :: &
-         whichapprox     ! which Stokes approximation to use (BP, SIA, SSA)
+         whichapprox     ! which Stokes approximation to use (SIA, SSA, DIVA, L1L2, BP)
 
     integer, intent(in) :: nNodesPerElement  ! number of nodes per element
 
@@ -7915,7 +8112,7 @@
                                      (2.d0*dphi_dy(nr)*dphi_dx(nc) + dphi_dx(nr)*dphi_dy(nc))
 
              Kvv(nr,nc) = Kvv(nr,nc) + efvs_factor *                                             &
-                                    ( 4.d0*dphi_dy(nr)*dphi_dy(nc) + dphi_dx(nr)*dphi_dx(nc)        &
+                                    ( 4.d0*dphi_dy(nr)*dphi_dy(nc) + dphi_dx(nr)*dphi_dx(nc)     &
                                     + dphi_dz(nr)*dphi_dz(nc) )
 
           enddo  ! nr (rows)
@@ -7924,78 +8121,6 @@
     endif  ! whichapprox
 
   end subroutine compute_element_matrix
-
-!****************************************************************************
-
-  subroutine element_to_global_matrix_3d(nx,           ny,          nz,          &
-                                         iElement,     jElement,    kElement,    &
-                                         itest,        jtest,       rtest,       &
-                                         Kuu,          Kuv,                      &
-                                         Kvu,          Kvv,                      &
-                                         Auu,          Auv,                      &
-                                         Avu,          Avv)
-             
-    ! Sum terms of element matrix K into dense assembled matrix A
-    ! K is partitioned into Kuu, Kuv, Kvu, and Kvv, and similarly for A.
-
-    integer, intent(in) ::   &
-       nx, ny,               &  ! horizontal grid dimensions
-       nz                       ! number of vertical levels where velocity is computed
-
-    integer, intent(in) ::   &
-       iElement, jElement, kElement     ! i, j and k indices for this element
-
-    integer, intent(in) :: &
-       itest, jtest, rtest         ! coordinates of diagnostic point
-
-    real(dp), dimension(nNodesPerElement_3d,nNodesPerElement_3d), intent(in) ::  &
-       Kuu, Kuv, Kvu, Kvv       ! element matrix
-
-    real(dp), dimension(nNodeNeighbors_3d,nz,nx-1,ny-1), intent(inout) ::    &
-       Auu, Auv, Avu, Avv       ! assembled matrix
-
-    integer :: i, j, k, m
-    integer :: iA, jA, kA
-    integer :: n, nr, nc
-
-    if (verbose_matrix .and. this_rank==rtest .and. iElement==itest .and. jElement==jtest .and. kElement==ktest) then
-       write(iulog,*) 'Element i, j, k:', iElement, jElement, kElement 
-       write(iulog,*) 'Rows of Kuu:'
-       do n = 1, nNodesPerElement_3d
-          write(iulog, '(8e12.4)') Kuu(n,:)
-       enddo
-    endif
-
-    !WHL - On a Mac I tried switching the loops to put nc on the outside, but 
-    !      the one with nr on the outside is faster.
-    do nr = 1, nNodesPerElement_3d       ! rows of K
-
-       ! Determine row of A to be incremented by finding (k,i,j) for this node
-       ! The reason for the '7' is that node 7, in the NE corner of the upper layer, has index (k,i,j).
-       ! Indices for other nodes are computed relative to this node.
-       i = iElement + ishift(7,nr)
-       j = jElement + jshift(7,nr)
-       k = kElement + kshift(7,nr)
-      
-       do nc = 1, nNodesPerElement_3d    ! columns of K
-
-          ! Determine column of A to be incremented
-          kA = kshift(nr,nc)           ! k index of A into which K(m,n) is summed
-          iA = ishift(nr,nc)           ! similarly for i and j indices 
-          jA = jshift(nr,nc)           ! these indices can take values -1, 0 and 1
-          m = indxA_3d(iA,jA,kA)
-
-          ! Increment A
-          Auu(m,k,i,j) = Auu(m,k,i,j) + Kuu(nr,nc)
-          Auv(m,k,i,j) = Auv(m,k,i,j) + Kuv(nr,nc)
-          Avu(m,k,i,j) = Avu(m,k,i,j) + Kvu(nr,nc)
-          Avv(m,k,i,j) = Avv(m,k,i,j) + Kvv(nr,nc)
-
-       enddo     ! nc
-
-    enddo        ! nr
-
-  end subroutine element_to_global_matrix_3d
 
 !****************************************************************************
 
@@ -8048,7 +8173,7 @@
        do nc = 1, nNodesPerElement_2d    ! columns of K
 
           ! Determine column of A to be incremented
-          iA = ishift(nr,nc)           ! similarly for i and j indices 
+          iA = ishift(nr,nc)           ! similarly for i and j indices
           jA = jshift(nr,nc)           ! these indices can take values -1, 0 and 1
           m = indxA_2d(iA,jA)
 
@@ -8061,12 +8186,86 @@
           if (verbose_matrix .and. this_rank==rtest .and. iElement==itest .and. jElement==jtest) then
              write(iulog,*) 'Increment Auu, element i, j, nr, nc =', iElement, jElement, nr, nc
              write(iulog,*) '     i, j, m, Kuu, new Auu:', i, j, m, Kuu(nr,nc), Auu(i,j,m)
+!!             write(iulog,*) 'Increment Avv, element i, j, nr, nc =', iElement, jElement, nr, nc
+!!             write(iulog,*) '     i, j, m, Kvv, new Avv:', i, j, m, Kvv(nr,nc), Avv(i,j,m)
           endif
 
        enddo     ! nc
     enddo        ! nr
 
   end subroutine element_to_global_matrix_2d
+  
+!****************************************************************************
+
+  subroutine element_to_global_matrix_3d(nx,           ny,          nz,          &
+                                         iElement,     jElement,    kElement,    &
+                                         itest,        jtest,       rtest,       &
+                                         Kuu,          Kuv,                      &
+                                         Kvu,          Kvv,                      &
+                                         Auu,          Auv,                      &
+                                         Avu,          Avv)
+             
+    ! Sum terms of element matrix K into dense assembled matrix A
+    ! K is partitioned into Kuu, Kuv, Kvu, and Kvv, and similarly for A.
+
+    integer, intent(in) ::   &
+       nx, ny,               &  ! horizontal grid dimensions
+       nz                       ! number of vertical levels where velocity is computed
+
+    integer, intent(in) ::   &
+       iElement, jElement, kElement     ! i, j and k indices for this element
+
+    integer, intent(in) :: &
+       itest, jtest, rtest         ! coordinates of diagnostic point
+
+    real(dp), dimension(nNodesPerElement_3d,nNodesPerElement_3d), intent(in) ::  &
+       Kuu, Kuv, Kvu, Kvv       ! element matrix
+
+    real(dp), dimension(nNodeNeighbors_3d,nz,nx-1,ny-1), intent(inout) ::    &
+       Auu, Auv, Avu, Avv       ! assembled matrix
+
+    integer :: i, j, k, m
+    integer :: iA, jA, kA
+    integer :: n, nr, nc
+
+    if (verbose_matrix .and. this_rank==rtest .and. iElement==itest .and. jElement==jtest .and. kElement==ktest) then
+       write(iulog,*) 'Element i, j, k:', iElement, jElement, kElement 
+       write(iulog,*) 'Rows of Kuu:'
+       do n = 1, nNodesPerElement_3d
+          write(iulog, '(8e12.4)') Kuu(n,:)
+       enddo
+    endif
+
+    !WHL - On a Mac I tried switching the loops to put nc on the outside, but
+    !      the one with nr on the outside is faster.
+    do nr = 1, nNodesPerElement_3d       ! rows of K
+
+       ! Determine row of A to be incremented by finding (k,i,j) for this node
+       ! The reason for the '7' is that node 7, in the NE corner of the upper layer, has index (k,i,j).
+       ! Indices for other nodes are computed relative to this node.
+       i = iElement + ishift(7,nr)
+       j = jElement + jshift(7,nr)
+       k = kElement + kshift(7,nr)
+      
+       do nc = 1, nNodesPerElement_3d    ! columns of K
+
+          ! Determine column of A to be incremented
+          kA = kshift(nr,nc)           ! k index of A into which K(m,n) is summed
+          iA = ishift(nr,nc)           ! similarly for i and j indices 
+          jA = jshift(nr,nc)           ! these indices can take values -1, 0 and 1
+          m = indxA_3d(iA,jA,kA)
+
+          ! Increment A
+          Auu(m,k,i,j) = Auu(m,k,i,j) + Kuu(nr,nc)
+          Auv(m,k,i,j) = Auv(m,k,i,j) + Kuv(nr,nc)
+          Avu(m,k,i,j) = Avu(m,k,i,j) + Kvu(nr,nc)
+          Avv(m,k,i,j) = Avv(m,k,i,j) + Kvv(nr,nc)
+
+       enddo     ! nc
+
+    enddo        ! nr
+
+  end subroutine element_to_global_matrix_3d
 
 !****************************************************************************
     !WHL, May 2025:
@@ -8078,7 +8277,7 @@
     !       Set diva_slope_correction = F to reproduce older results.
 
   !TODO - Call this subroutine for both 2D and 3D solvers.
-  !       First need to switch the index order for 3D matrices.
+  !       First would need to switch the index order for 3D matrices.
   subroutine basal_sliding_bc_2d(nx,               ny,              &
                                  nNeighbors,       nhalo,           &
                                  parallel,                          &
@@ -8090,7 +8289,6 @@
                                  xVertex,          yVertex,         &
                                  whichassemble_beta,                &
                                  Auu,              Avv)
-
 
     !------------------------------------------------------------------------
     ! Increment the Auu and Avv matrices with basal traction terms.
@@ -8164,6 +8362,7 @@
        dphi_dx_2d, dphi_dy_2d, dphi_dz_2d  ! derivatives of basis functions, evaluated at quad pts
 
     real(dp) ::   &
+       increment,   & ! incremental change in matrix element
        beta_qp,     & ! beta evaluated at quadrature point
        detJ           ! determinant of Jacobian for the transformation
                       !  between the reference element and true element
@@ -8171,24 +8370,23 @@
     real(dp), dimension(nNodesPerElement_2d, nNodesPerElement_2d) ::   &
        Kuu, Kvv       ! components of element matrix associated with basal sliding
 
-    if (verbose_basal) then
-       call point_diag(beta, 'beta', itest, jtest, rtest, 7, 7, '(f10.0)')
-    endif
-
     if (whichassemble_beta == HO_ASSEMBLE_BETA_LOCAL) then
 
-       if (nNeighbors == nNodeNeighbors_3d) then  ! 3D problem
-          m = indxA_3d(0,0,0)
-       else  ! 2D problem
-          m = indxA_2d(0,0)
-       endif
-
+       m = indxA_2d(0,0)
        ! Sum over active vertices
+       !WHL, 12/13/25: The following minor change makes the results independent of processor count.
+       !               Without the commented code, the 1-core result differs from the 4-core result
+       !                for some cells near the 4-core processor boundary (i = 211 in a GrIS run).
+       !               The difference is in the last of 64 bits.
+       !               I don't know why the original results differ or why the change fixes it.
        do j = 1, ny-1
           do i = 1, nx-1
              if (active_vertex(i,j)) then
-                Auu(i,j,m) = Auu(i,j,m) + dx*dy/vol0 * beta(i,j)
-                Avv(i,j,m) = Avv(i,j,m) + dx*dy/vol0 * beta(i,j)
+!                Auu(i,j,m) = Auu(i,j,m) + (dx*dy/vol0) * beta(i,j)
+!                Avv(i,j,m) = Avv(i,j,m) + (dx*dy/vol0) * beta(i,j)
+                increment = (dx*dy/vol0) * beta(i,j)
+                Auu(i,j,m) = Auu(i,j,m) + increment
+                Avv(i,j,m) = Avv(i,j,m) + increment
              endif   ! active_vertex
           enddo   ! i
        enddo   ! j
@@ -8240,6 +8438,7 @@
                      dphi_dx_2d(:),    dphi_dy_2d(:),      &
                      detJ,                                 &
                      itest, jtest, rtest,                  &
+                     parallel,                             &
                      i, j, p)
 
                 ! Evaluate beta at this quadrature point, taking a phi-weighted sum over neighboring vertices.
@@ -8328,20 +8527,6 @@
        enddo         ! j
 
     endif   ! whichassemble_beta
-
-    if (verbose_basal .and. this_rank==rtest) then
-       i = itest
-       j = jtest
-       if (nNeighbors == nNodeNeighbors_3d) then  ! 3D problem
-          m = indxA_3d(0,0,0)
-       else
-          m = indxA_2d(0,0)
-       endif
-       write(iulog,*) ' '
-       write(iulog,*) 'Basal BC: i, j, diagonal index =', i, j, m
-       write(iulog,*) 'New Auu diagonal:', Auu(i,j,m)
-       write(iulog,*) 'New Avv diagonal:', Avv(i,j,m)
-    endif
 
   end subroutine basal_sliding_bc_2d
 
@@ -8455,11 +8640,7 @@
 
     if (whichassemble_beta == HO_ASSEMBLE_BETA_LOCAL) then
 
-       if (nNeighbors == nNodeNeighbors_3d) then  ! 3D problem
-          m = indxA_3d(0,0,0)
-       else  ! 2D problem
-          m = indxA_2d(0,0)
-       endif
+       m = indxA_2d(0,0)
 
        ! Average the lower ice surface elevation to vertices
        call glissade_stagger(&
@@ -8481,16 +8662,16 @@
        call parallel_halo(theta_basal_slope_y, parallel)
 
        if (verbose_basal) then
-          call point_diag(theta_basal_slope_x*180.d0/pi, 'theta_basal_slope_x (deg)', itest, jtest, rtest, 7, 7, '(f10.0)')
-          call point_diag(theta_basal_slope_y*180.d0/pi, 'theta_basal_slope_y (deg)', itest, jtest, rtest, 7, 7, '(f10.0)')
+          call point_diag(theta_basal_slope_x*180.d0/pi, 'theta_basal_slope_x (deg)', itest, jtest, rtest, 7, 7)
+          call point_diag(theta_basal_slope_y*180.d0/pi, 'theta_basal_slope_y (deg)', itest, jtest, rtest, 7, 7)
        endif
 
        ! Sum over active vertices
        do j = 1, ny-1
           do i = 1, nx-1
              if (active_vertex(i,j)) then
-                Auu(i,j,m) = Auu(i,j,m) + dx*dy/vol0 * beta_eff_x(i,j) / cos(theta_basal_slope_x(i,j))
-                Avv(i,j,m) = Avv(i,j,m) + dx*dy/vol0 * beta_eff_y(i,j) / cos(theta_basal_slope_y(i,j))
+                Auu(i,j,m) = Auu(i,j,m) + (dx*dy/vol0) * beta_eff_x(i,j) / cos(theta_basal_slope_x(i,j))
+                Avv(i,j,m) = Avv(i,j,m) + (dx*dy/vol0) * beta_eff_y(i,j) / cos(theta_basal_slope_y(i,j))
              endif   ! active_vertex
           enddo   ! i
        enddo   ! j
@@ -8626,20 +8807,6 @@
        enddo         ! j
 
     endif   ! whichassemble_beta
-
-    if (verbose_basal .and. this_rank==rtest) then
-       i = itest
-       j = jtest
-       if (nNeighbors == nNodeNeighbors_3d) then  ! 3D problem
-          m = indxA_3d(0,0,0)
-       else
-          m = indxA_2d(0,0)
-       endif
-       write(iulog,*) ' '
-       write(iulog,*) 'Basal BC: i, j, diagonal index =', i, j, m
-       write(iulog,*) 'New Auu diagonal:', Auu(i,j,m)
-       write(iulog,*) 'New Avv diagonal:', Avv(i,j,m)
-    endif
 
   end subroutine basal_sliding_bc_2d_diva
 
@@ -8854,6 +9021,7 @@
                                                        dphi_dx_2d(:),    dphi_dy_2d(:),      &
                                                        detJ,                                 &
                                                        itest, jtest, rtest,                  &
+                                                       parallel,                             &
                                                        i, j, p)
                 endif
 
@@ -8959,6 +9127,178 @@
     endif
 
   end subroutine basal_sliding_bc_3d
+
+!****************************************************************************
+
+  subroutine dirichlet_boundary_conditions_2d(nx,              ny,               &
+                                              nhalo,                             &
+                                              active_vertex,                     &
+                                              umask_dirichlet, vmask_dirichlet,  &
+                                              uvel,            vvel,             &
+                                              Auu,             Auv,              &
+                                              Avu,             Avv,              &
+                                              bu,              bv)
+
+    !----------------------------------------------------------------
+    ! Modify the global matrix and RHS for Dirichlet boundary conditions,
+    !  where uvel and vvel are prescribed at certain nodes.
+    ! For each such node, we zero out the row, except for setting the diagonal term to 1.
+    ! We also zero out the column, moving terms containing uvel/vvel to the rhs.
+    !----------------------------------------------------------------
+
+    !----------------------------------------------------------------
+    ! Input-output arguments
+    !----------------------------------------------------------------
+
+    integer, intent(in) ::   &
+       nx, ny,               &  ! horizontal grid dimensions
+       nhalo                    ! number of halo layers
+
+    logical, dimension(nx-1,ny-1), intent(in) ::  &
+       active_vertex       ! true for active vertices (vertices of active cells)
+
+    integer, dimension(nx-1,ny-1), intent(in) ::  &
+       umask_dirichlet,   &! Dirichlet mask for velocity (if true, u is prescribed)
+       vmask_dirichlet     ! Dirichlet mask for velocity (if true, v is prescribed)
+
+    real(dp), dimension(nx-1,ny-1), intent(in) ::  &
+       uvel, vvel          ! velocity components
+
+    real(dp), dimension(nx-1,ny-1,nNodeNeighbors_2d), intent(inout) ::   &
+       Auu, Auv,    &      ! assembled stiffness matrix, divided into 4 parts
+       Avu, Avv                                    
+
+    real(dp), dimension(nx-1,ny-1), intent(inout) ::   &
+       bu, bv              ! assembled load vector, divided into 2 parts
+
+    !----------------------------------------------------------------
+    ! Local variables
+    !----------------------------------------------------------------
+    
+    integer :: i, j     ! Cartesian indices of nodes
+    integer :: iA, jA   ! i and j offsets of neighboring nodes 
+    integer :: m, mm
+
+    ! Loop over all vertices that border locally owned vertices.
+    ! Locally owned vertices are (staggered_ilo:staggered_ihi, staggered_jlo_staggered_jhi).
+    ! OK to skip vertices outside the global domain (i < nhalo or j < nhalo).
+    ! Note: Need nhalo >= 2 so as not to step out of bounds.
+
+    do jA = -1,1
+    do iA = -1,1
+       m  = indxA_2d(iA,jA)
+       mm = indxA_2d(-iA,-jA)
+
+       do j = nhalo, ny-nhalo+1
+          do i = nhalo, nx-nhalo+1
+             if (active_vertex(i,j)) then
+
+                if (umask_dirichlet(i,j) == 1) then
+
+                   ! set the rhs to the prescribed velocity
+                   bu(i,j) = uvel(i,j)
+
+                   ! loop through matrix values in the rows associated with this vertex
+                   ! (Auu contains one row, Avu contains a second row)
+
+                   if ( (i+iA >= 1 .and. i+iA <= nx-1)       &
+                                   .and.                     &
+                        (j+jA >= 1 .and. j+jA <= ny-1) ) then
+
+                      if (iA==0 .and. jA==0) then  ! main diagonal
+
+                         ! Set Auu = 1 on the main diagonal
+                         ! Set Auv term = 0; this term is off-diagonal for the fully assembled matrix
+                         ! Set Avu term = 0 to preserve matrix symmetry (given that Auv term = 0)
+                         Auu(i,j,indxA_2d(0,0)) = 1.d0
+                         Auv(i,j,indxA_2d(0,0)) = 1.d0
+                         Avu(i,j,indxA_2d(0,0)) = 1.d0
+
+                      else     ! not on the diagonal
+
+                         ! Zero out non-diagonal matrix terms in the row associated with this vertex
+                         Auu(i,j,m) = 0.d0
+                         Auv(i,j,m) = 0.d0
+
+                         ! Shift terms associated with this velocity to the rhs.
+                         ! Note: The remaining operations do not change the answer, but do restore symmetry to the matrix.
+                         ! Recall mm = indxA_2d(-iA,-jA)
+
+                         if (umask_dirichlet(i+iA, j+jA) /= 1) then
+                            ! Move (Auu term) * uvel to rhs
+                            bu(i+iA, j+jA) = bu(i+iA, j+jA) - Auu(i+iA, j+jA, mm) * uvel(i,j)
+                            Auu(i+iA, j+jA, mm) = 0.d0
+                         endif
+
+                         if (vmask_dirichlet(i+iA, j+jA) /= 1) then
+                            ! Move (Avu term) * uvel to rhs
+                            bv(i+iA, j+jA) = bv(i+iA, j+jA) - Avu(i+iA, j+jA, mm) * uvel(i,j)
+                            Avu(i+iA, j+jA, mm) = 0.d0
+                         endif
+
+                      endif  ! on the diagonal
+
+                   endif     ! i+iA and j+jA in bounds
+
+                endif       ! umask_dirichlet
+
+                if (vmask_dirichlet(i,j) == 1) then
+
+                   ! set the rhs to the prescribed velocity
+                   bv(i,j) = vvel(i,j)
+
+                   ! loop through matrix values in the rows associated with this vertex
+                   ! (Auv contains one row, Avv contains a second row)
+
+                   if ( (i+iA >= 1 .and. i+iA <= nx-1)       &
+                                   .and.                     &
+                        (j+jA >= 1 .and. j+jA <= ny-1) ) then
+
+                      if (iA==0 .and. jA==0) then  ! main diagonal
+
+                         ! Set Avv = 1 on the main diagonal
+                         ! Set Avu term = 0; this term is off-diagonal for the fully assembled matrix
+                         ! Set Auv term = 0 to preserve matrix symmetry (given that Avu term = 0)
+                         Auv(i,j,indxA_2d(0,0)) = 0.d0
+                         Avu(i,j,indxA_2d(0,0)) = 0.d0
+                         Avv(i,j,indxA_2d(0,0)) = 1.d0
+
+                      else     ! not on the diagonal
+
+                         ! Zero out non-diagonal matrix terms in the rows associated with this vertex
+                         Avu(i,j,m) = 0.d0
+                         Avv(i,j,m) = 0.d0
+
+                         ! Shift terms associated with this velocity to the rhs.
+                         ! Note: The remaining operations do not change the answer, but do restore symmetry to the matrix.
+                         ! Recall mm = indxA_2d(-iA,-jA)
+
+                         if (umask_dirichlet(i+iA, j+jA) /= 1) then
+                            ! Move (Auv term) * vvel to rhs
+                            bu(i+iA, j+jA) = bu(i+iA, j+jA) - Auv(i+iA, j+jA, mm) * vvel(i,j)
+                            Auv(i+iA, j+jA, mm) = 0.d0
+                         endif
+
+                         if (vmask_dirichlet(i+iA, j+jA) /= 1) then
+                            ! Move (Avv term) * vvel to rhs
+                            bv(i+iA, j+jA) = bv(i+iA, j+jA) - Avv(i+iA, j+jA, mm) * vvel(i,j)
+                            Avv(i+iA, j+jA, mm) = 0.d0
+                         endif
+
+                      endif  ! on the diagonal
+
+                   endif     ! i+iA and j+jA in bounds
+
+                endif       ! vmask_dirichlet
+
+             endif          ! active_vertex
+          enddo             ! i
+       enddo                ! j
+
+    enddo    ! iA
+    enddo    ! jA
+
+  end subroutine dirichlet_boundary_conditions_2d
 
 !****************************************************************************
 
@@ -9159,385 +9499,6 @@
 
 !****************************************************************************
 
-  subroutine dirichlet_boundary_conditions_2d(nx,              ny,               &
-                                              nhalo,                             &
-                                              active_vertex,                     &
-                                              umask_dirichlet, vmask_dirichlet,  &
-                                              uvel,            vvel,             &
-                                              Auu,             Auv,              &
-                                              Avu,             Avv,              &
-                                              bu,              bv)
-
-    !----------------------------------------------------------------
-    ! Modify the global matrix and RHS for Dirichlet boundary conditions,
-    !  where uvel and vvel are prescribed at certain nodes.
-    ! For each such node, we zero out the row, except for setting the diagonal term to 1.
-    ! We also zero out the column, moving terms containing uvel/vvel to the rhs.
-    !----------------------------------------------------------------
-
-    !----------------------------------------------------------------
-    ! Input-output arguments
-    !----------------------------------------------------------------
-
-    integer, intent(in) ::   &
-       nx, ny,               &  ! horizontal grid dimensions
-       nhalo                    ! number of halo layers
-
-    logical, dimension(nx-1,ny-1), intent(in) ::  &
-       active_vertex       ! true for active vertices (vertices of active cells)
-
-    integer, dimension(nx-1,ny-1), intent(in) ::  &
-       umask_dirichlet,   &! Dirichlet mask for velocity (if true, u is prescribed)
-       vmask_dirichlet     ! Dirichlet mask for velocity (if true, v is prescribed)
-
-    real(dp), dimension(nx-1,ny-1), intent(in) ::  &
-       uvel, vvel          ! velocity components
-
-    real(dp), dimension(nx-1,ny-1,nNodeNeighbors_2d), intent(inout) ::   &
-       Auu, Auv,    &      ! assembled stiffness matrix, divided into 4 parts
-       Avu, Avv                                    
-
-    real(dp), dimension(nx-1,ny-1), intent(inout) ::   &
-       bu, bv              ! assembled load vector, divided into 2 parts
-
-    !----------------------------------------------------------------
-    ! Local variables
-    !----------------------------------------------------------------
-    
-    integer :: i, j     ! Cartesian indices of nodes
-    integer :: iA, jA   ! i and j offsets of neighboring nodes 
-    integer :: m, mm
-
-    ! Loop over all vertices that border locally owned vertices.
-    ! Locally owned vertices are (staggered_ilo:staggered_ihi, staggered_jlo_staggered_jhi).
-    ! OK to skip vertices outside the global domain (i < nhalo or j < nhalo).
-    ! Note: Need nhalo >= 2 so as not to step out of bounds.
-
-    do jA = -1,1
-    do iA = -1,1
-       m  = indxA_2d(iA,jA)
-       mm = indxA_2d(-iA,-jA)
-
-       do j = nhalo, ny-nhalo+1
-          do i = nhalo, nx-nhalo+1
-             if (active_vertex(i,j)) then
-
-                if (umask_dirichlet(i,j) == 1) then
-
-                   ! set the rhs to the prescribed velocity
-                   bu(i,j) = uvel(i,j)
-
-                   ! loop through matrix values in the rows associated with this vertex
-                   ! (Auu contains one row, Avu contains a second row)
-
-                   if ( (i+iA >= 1 .and. i+iA <= nx-1)       &
-                                   .and.                     &
-                        (j+jA >= 1 .and. j+jA <= ny-1) ) then
-
-                      if (iA==0 .and. jA==0) then  ! main diagonal
-
-                         ! Set Auu = 1 on the main diagonal
-                         ! Set Auv term = 0; this term is off-diagonal for the fully assembled matrix
-                         ! Set Avu term = 0 to preserve matrix symmetry (given that Auv term = 0)
-                         Auu(i,j,indxA_2d(0,0)) = 1.d0
-                         Auv(i,j,indxA_2d(0,0)) = 1.d0
-                         Avu(i,j,indxA_2d(0,0)) = 1.d0
-
-                      else     ! not on the diagonal
-
-                         ! Zero out non-diagonal matrix terms in the row associated with this vertex
-                         Auu(i,j,m) = 0.d0
-                         Auv(i,j,m) = 0.d0
-
-                         ! Shift terms associated with this velocity to the rhs.
-                         ! Note: The remaining operations do not change the answer, but do restore symmetry to the matrix.
-                         ! Recall mm = indxA_2d(-iA,-jA)
-
-                         if (umask_dirichlet(i+iA, j+jA) /= 1) then
-                            ! Move (Auu term) * uvel to rhs
-                            bu(i+iA, j+jA) = bu(i+iA, j+jA) - Auu(i+iA, j+jA, mm) * uvel(i,j)
-                            Auu(i+iA, j+jA, mm) = 0.d0
-                         endif
-
-                         if (vmask_dirichlet(i+iA, j+jA) /= 1) then
-                            ! Move (Avu term) * uvel to rhs
-                            bv(i+iA, j+jA) = bv(i+iA, j+jA) - Avu(i+iA, j+jA, mm) * uvel(i,j)
-                            Avu(i+iA, j+jA, mm) = 0.d0
-                         endif
-
-                      endif  ! on the diagonal
-
-                   endif     ! i+iA and j+jA in bounds
-
-                endif       ! umask_dirichlet
-
-                if (vmask_dirichlet(i,j) == 1) then
-
-                   ! set the rhs to the prescribed velocity
-                   bv(i,j) = vvel(i,j)
-
-                   ! loop through matrix values in the rows associated with this vertex
-                   ! (Auv contains one row, Avv contains a second row)
-
-                   if ( (i+iA >= 1 .and. i+iA <= nx-1)       &
-                                   .and.                     &
-                        (j+jA >= 1 .and. j+jA <= ny-1) ) then
-
-                      if (iA==0 .and. jA==0) then  ! main diagonal
-
-                         ! Set Avv = 1 on the main diagonal
-                         ! Set Avu term = 0; this term is off-diagonal for the fully assembled matrix
-                         ! Set Auv term = 0 to preserve matrix symmetry (given that Avu term = 0)
-                         Auv(i,j,indxA_2d(0,0)) = 0.d0
-                         Avu(i,j,indxA_2d(0,0)) = 0.d0
-                         Avv(i,j,indxA_2d(0,0)) = 1.d0
-
-                      else     ! not on the diagonal
-
-                         ! Zero out non-diagonal matrix terms in the rows associated with this vertex
-                         Avu(i,j,m) = 0.d0
-                         Avv(i,j,m) = 0.d0
-
-                         ! Shift terms associated with this velocity to the rhs.
-                         ! Note: The remaining operations do not change the answer, but do restore symmetry to the matrix.
-                         ! Recall mm = indxA_2d(-iA,-jA)
-
-                         if (umask_dirichlet(i+iA, j+jA) /= 1) then
-                            ! Move (Auv term) * vvel to rhs
-                            bu(i+iA, j+jA) = bu(i+iA, j+jA) - Auv(i+iA, j+jA, mm) * vvel(i,j)
-                            Auv(i+iA, j+jA, mm) = 0.d0
-                         endif
-
-                         if (vmask_dirichlet(i+iA, j+jA) /= 1) then
-                            ! Move (Avv term) * vvel to rhs
-                            bv(i+iA, j+jA) = bv(i+iA, j+jA) - Avv(i+iA, j+jA, mm) * vvel(i,j)
-                            Avv(i+iA, j+jA, mm) = 0.d0
-                         endif
-
-                      endif  ! on the diagonal
-
-                   endif     ! i+iA and j+jA in bounds
-
-                endif       ! vmask_dirichlet
-
-             endif          ! active_vertex
-          enddo             ! i
-       enddo                ! j
-
-    enddo    ! iA
-    enddo    ! jA
-
-  end subroutine dirichlet_boundary_conditions_2d
-
-!****************************************************************************
-
-  subroutine compute_residual_vector_3d(nx,    ny,     nz,            &
-                                        parallel,                     &
-                                        itest,  jtest, rtest,         &
-                                        active_vertex,                &
-                                        Auu,           Auv,           &
-                                        Avu,           Avv,           &
-                                        bu,            bv,            &
-                                        uvel,          vvel,          &
-                                        resid_u,       resid_v,       &
-                                        L2_norm,       L2_norm_relative)
-
-    ! Compute the residual vector Ax - b and its L2 norm.
-    ! This subroutine assumes that the matrix is stored in structured (x/y/z) format.
-
-    integer, intent(in) ::   &
-       nx, ny,             &  ! horizontal grid dimensions (for scalars)
-       nz                     ! number of vertical levels where velocity is computed
-
-    type(parallel_type), intent(in) :: &
-       parallel               ! info for parallel communication
-
-    integer, intent(in) :: &
-       itest, jtest, rtest         ! coordinates of diagnostic point
-
-    logical, dimension(nx-1,ny-1), intent(in) ::   &
-       active_vertex          ! T for columns (i,j) where velocity is computed, else F
-
-    real(dp), dimension(nNodeNeighbors_3d,nz,nx-1,ny-1), intent(in) ::   &
-       Auu, Auv, Avu, Avv     ! four components of assembled matrix
-                              ! 1st dimension = 3 (node and its nearest neighbors in x, y and z direction)
-                              ! other dimensions = (z,x,y) indices
-                              !
-                              !    Auu  | Auv
-                              !    _____|____
-                              !    Avu  | Avv
-                              !         |
-
-    real(dp), dimension(nz,nx-1,ny-1), intent(in) ::  &
-       bu, bv              ! assembled load (rhs) vector, divided into 2 parts
-
-   real(dp), dimension(nz,nx-1,ny-1), intent(in) ::   &
-       uvel, vvel          ! u and v components of velocity (m/yr)
-
-    real(dp), dimension(nz,nx-1,ny-1), intent(out) ::   &
-       resid_u,      & ! residual vector, divided into 2 parts
-       resid_v         !
-
-    real(dp), intent(out) ::    &
-       L2_norm             ! L2 norm of residual vector, |Ax - b|
-
-    real(dp), intent(out), optional ::    &
-       L2_norm_relative    ! L2 norm of residual vector relative to rhs, |Ax - b| / |b|
-
-    real(dp), dimension(nz,nx-1,ny-1) ::   &
-       resid_sq        ! resid_u^2 + resid_v^2
-
-    real(dp) :: my_max_resid, global_max_resid
-
-    integer :: i, j, k, iA, jA, kA, m, iglobal, jglobal
-
-    real(dp) :: L2_norm_rhs   ! L2 norm of rhs vector, |b|
-
-    integer :: &
-         staggered_ilo, staggered_ihi, &  ! bounds of locally owned vertices on staggered grid
-         staggered_jlo, staggered_jhi
-
-    staggered_ilo = parallel%staggered_ilo
-    staggered_ihi = parallel%staggered_ihi
-    staggered_jlo = parallel%staggered_jlo
-    staggered_jhi = parallel%staggered_jhi
-
-    ! Compute u and v components of A*x
-
-    resid_u(:,:,:) = 0.d0
-    resid_v(:,:,:) = 0.d0
-
-    !TODO - Replace the following by a call to matvec_multiply_structured_3d
-    ! Loop over locally owned vertices
-
-    do j = staggered_jlo, staggered_jhi
-    do i = staggered_ilo, staggered_ihi
-
-       if (active_vertex(i,j)) then
-
-          do k = 1, nz
-
-             do kA = -1,1
-             do jA = -1,1
-             do iA = -1,1
-
-                if ( (k+kA >= 1 .and. k+kA <= nz)      &
-                                .and.                  &
-                     (i+iA >= 1 .and. i+iA <= nx-1)    &
-                             .and.                     &
-                     (j+jA >= 1 .and. j+jA <= ny-1) ) then
-
-                   m = indxA_3d(iA,jA,kA)
-
-                   resid_u(k,i,j) = resid_u(k,i,j)                     & 
-                                  + Auu(m,k,i,j)*uvel(k+kA,i+iA,j+jA)  &
-                                  + Auv(m,k,i,j)*vvel(k+kA,i+iA,j+jA)
-
-                   resid_v(k,i,j) = resid_v(k,i,j)                     &
-                                  + Avu(m,k,i,j)*uvel(k+kA,i+iA,j+jA)  &
-                                  + Avv(m,k,i,j)*vvel(k+kA,i+iA,j+jA)
-
-                endif   ! in bounds
-
-             enddo   ! kA
-             enddo   ! iA
-             enddo   ! jA
-
-          enddo   ! k
-
-       endif   ! active_vertex
-
-    enddo   ! i
-    enddo   ! j
-
-    ! Subtract b to get A*x - b
-    ! Sum up squared L2 norm as we go
-
-    L2_norm = 0.d0
-    resid_sq(:,:,:) = 0.0d0
-
-    ! Loop over locally owned vertices
-
-    do j = staggered_jlo, staggered_jhi
-    do i = staggered_ilo, staggered_ihi
-       if (active_vertex(i,j)) then
-          do k = 1, nz
-             resid_u(k,i,j) = resid_u(k,i,j) - bu(k,i,j)
-             resid_v(k,i,j) = resid_v(k,i,j) - bv(k,i,j)
-             resid_sq(k,i,j) = resid_u(k,i,j)*resid_u(k,i,j) + resid_v(k,i,j)*resid_v(k,i,j)
-             L2_norm = L2_norm + resid_sq(k,i,j)
-          enddo  ! k
-       endif     ! active vertex
-    enddo        ! i
-    enddo        ! j
-
-    ! Take global sum, then take square root
-    L2_norm = parallel_reduce_sum(L2_norm)
-    L2_norm = sqrt(L2_norm)
-
-    if (verbose_residual) then
-
-       if (this_rank==rtest) then
-          i = itest
-          j = jtest
-          k = ktest
-          write(iulog,*) 'In compute_residual_vector_3d: task, i, j, k =', this_rank, i, j, k
-          write(iulog, '(a16, 2f13.7, 2e13.5)') &
-               '  u, v, ru, rv: ', uvel(k,i,j), vvel(k,i,j), resid_u(k,i,j), resid_v(k,i,j)
-       endif
-
-       ! Compute max value of (squared) residual on this task.
-       ! If this task owns the vertex with the global max residual, then print a diagnostic message.
-       my_max_resid = maxval(resid_sq)
-       global_max_resid = parallel_reduce_max(my_max_resid)
-
-       if (abs((my_max_resid - global_max_resid)/global_max_resid) < 1.0d-6) then
-          do j = staggered_jlo, staggered_jhi
-             do i = staggered_ilo, staggered_ihi
-                do k = 1, nz
-                   if (abs((resid_sq(k,i,j) - global_max_resid)/global_max_resid) < 1.0d-6) then
-                      call parallel_globalindex(i, j, iglobal, jglobal, parallel)
-                      write(iulog, '(a24, 2i6, i4, 2e13.5, e16.8)') 'ig, jg, k, ru, rv, rmax:', &
-                           iglobal, jglobal, k, resid_u(k,i,j), resid_v(k,i,j), sqrt(global_max_resid)
-                      write(iulog,*) ' '
-                   endif
-                enddo
-             enddo
-          enddo
-       endif
-
-    endif  ! verbose_residual
-
-    if (present(L2_norm_relative)) then   ! compute L2_norm relative to rhs
-
-       L2_norm_rhs = 0.d0
-
-       do j = staggered_jlo, staggered_jhi
-       do i = staggered_ilo, staggered_ihi
-          if (active_vertex(i,j)) then
-             do k = 1, nz
-                L2_norm_rhs = L2_norm_rhs + bu(k,i,j)*bu(k,i,j) + bv(k,i,j)*bv(k,i,j)
-             enddo  ! k
-          endif     ! active vertex
-       enddo        ! i
-       enddo        ! j
-
-       ! Take global sum, then take square root
-       L2_norm_rhs = parallel_reduce_sum(L2_norm_rhs)
-       L2_norm_rhs = sqrt(L2_norm_rhs)
-
-       if (L2_norm_rhs > 0.d0) then
-          L2_norm_relative = L2_norm / L2_norm_rhs
-       else
-          L2_norm_relative = 0.d0
-       endif
-
-    endif
-
-  end subroutine compute_residual_vector_3d
-
-!****************************************************************************
-
   subroutine compute_residual_vector_2d(nx,            ny,            &
                                         parallel,                     &
                                         itest,  jtest, rtest,         &
@@ -9551,6 +9512,10 @@
 
     ! Compute the residual vector Ax - b and its L2 norm.
     ! This subroutine assumes that the matrix is stored in structured (x/y/z) format.
+
+    !----------------------------------------------------------------
+    ! Input/output arguments
+    !----------------------------------------------------------------
 
     integer, intent(in) ::   &
        nx, ny                 ! horizontal grid dimensions (for scalars)
@@ -9590,8 +9555,13 @@
     real(dp), intent(out), optional ::    &
        L2_norm_relative    ! L2 norm of residual vector relative to rhs, |Ax - b| / |b|
 
+    !----------------------------------------------------------------
+    ! Local variables
+    !----------------------------------------------------------------
+
     real(dp), dimension(nx-1,ny-1) ::  &
-       resid_sq            ! resid_u^2 + resid_v^2
+         worku, workv,     & ! work arrays for global sums
+         resid_sq            ! resid_u^2 + resid_v^2
 
     real(dp) :: my_max_resid, global_max_resid
 
@@ -9637,27 +9607,23 @@
     enddo      ! jA
 
     ! Subtract b to get A*x - b
-    ! Sum up squared L2 norm as we go
-
-    L2_norm = 0.d0
-    resid_sq(:,:) = 0.0d0
+    worku(:,:) = 0.0d0
+    workv(:,:) = 0.0d0
 
     ! Loop over locally owned vertices
-
     do j = staggered_jlo, staggered_jhi
-    do i = staggered_ilo, staggered_ihi
-       if (active_vertex(i,j)) then
-          resid_u(i,j) = resid_u(i,j) - bu(i,j)
-          resid_v(i,j) = resid_v(i,j) - bv(i,j)
-          resid_sq(i,j) = resid_u(i,j)*resid_u(i,j) + resid_v(i,j)*resid_v(i,j)
-          L2_norm = L2_norm + resid_sq(i,j)
-       endif     ! active vertex
-    enddo        ! i
-    enddo        ! j
+       do i = staggered_ilo, staggered_ihi
+          if (active_vertex(i,j)) then
+             resid_u(i,j) = resid_u(i,j) - bu(i,j)
+             resid_v(i,j) = resid_v(i,j) - bv(i,j)
+             worku(i,j) = resid_u(i,j)*resid_u(i,j)
+             workv(i,j) = resid_v(i,j)*resid_v(i,j)
+          endif     ! active vertex
+       enddo     ! i
+    enddo     ! j
 
     ! Take global sum, then take square root
-
-    L2_norm = parallel_reduce_sum(L2_norm)
+    L2_norm = parallel_global_sum_stagger(worku, parallel, arr2=workv)
     L2_norm = sqrt(L2_norm)
 
     if (verbose_residual) then
@@ -9665,13 +9631,16 @@
        if (this_rank==rtest) then
           i = itest
           j = jtest
-          write(iulog,*) 'In compute_residual_vector_2d: task, i, j =', this_rank, i, j
-          write(iulog, '(a16, 2f13.7, 2e13.5)') &
-               '  u, v, ru, rv: ', uvel(i,j), vvel(i,j), resid_u(i,j), resid_v(i,j)
+          call parallel_globalindex(i, j, iglobal, jglobal, parallel)
+          write(iulog,*) ' '
+          write(iulog,*) 'In compute_residual_vector_2d: test ig, jg =', i, j
+          write(iulog, '(a15, 2f12.5, 2e13.5)') &
+               '  u, v, ru, rv:', uvel(i,j), vvel(i,j), resid_u(i,j), resid_v(i,j)
        endif
 
        ! Compute max value of (squared) residual on this task.
        ! If this task owns the vertex with the global max residual, then print a diagnostic message.
+       resid_sq(:,:) = worku(:,:) + workv(:,:)
        my_max_resid = maxval(resid_sq)
        global_max_resid = parallel_reduce_max(my_max_resid)
 
@@ -9680,7 +9649,7 @@
              do i = staggered_ilo, staggered_ihi
                 if (abs((resid_sq(i,j) - global_max_resid)/global_max_resid) < 1.0d-6) then
                    call parallel_globalindex(i, j, iglobal, jglobal, parallel)
-                   write(iulog, '(a24, 2i6, 2e13.5, e16.8)') 'ig, jg, ru, rv, rmax:', &
+                   write(iulog, '(a24, 2i6, 2e13.5, e16.8)') 'ig, jg, ru, rv, global rmax:', &
                         iglobal, jglobal, resid_u(i,j), resid_v(i,j), sqrt(global_max_resid)
                    write(iulog,*) ' '
                 endif
@@ -9692,24 +9661,27 @@
 
     if (present(L2_norm_relative)) then   ! compute L2_norm relative to rhs
 
-       L2_norm_rhs = 0.d0
+       worku(:,:) = 0.0d0
+       workv(:,:) = 0.0d0
 
+       ! Loop over locally owned vertices
        do j = staggered_jlo, staggered_jhi
-       do i = staggered_ilo, staggered_ihi
-          if (active_vertex(i,j)) then
-             L2_norm_rhs = L2_norm_rhs + bu(i,j)*bu(i,j) + bv(i,j)*bv(i,j)
-          endif     ! active vertex
-       enddo        ! i
-       enddo        ! j
+          do i = staggered_ilo, staggered_ihi
+             if (active_vertex(i,j)) then
+                worku(i,j) = bu(i,j)*bu(i,j)
+                workv(i,j) = bv(i,j)*bv(i,j)
+             endif     ! active vertex
+          enddo     ! i
+       enddo     ! j
 
        ! Take global sum, then take square root
-       L2_norm_rhs = parallel_reduce_sum(L2_norm_rhs)
+       L2_norm_rhs = parallel_global_sum_stagger(worku, parallel, arr2=workv)
        L2_norm_rhs = sqrt(L2_norm_rhs)
 
-       if (L2_norm_rhs > 0.d0) then
+       if (L2_norm_rhs > 0.0d0) then
           L2_norm_relative = L2_norm / L2_norm_rhs
        else
-          L2_norm_relative = 0.d0
+          L2_norm_relative = 0.0d0
        endif
 
     endif
@@ -9718,7 +9690,367 @@
 
 !****************************************************************************
 
+  subroutine compute_residual_vector_3d(nx,    ny,     nz,            &
+                                        parallel,                     &
+                                        itest,  jtest, rtest,         &
+                                        active_vertex,                &
+                                        Auu,           Auv,           &
+                                        Avu,           Avv,           &
+                                        bu,            bv,            &
+                                        uvel,          vvel,          &
+                                        resid_u,       resid_v,       &
+                                        L2_norm,       L2_norm_relative)
+
+    ! Compute the residual vector Ax - b and its L2 norm.
+    ! This subroutine assumes that the matrix is stored in structured (x/y/z) format.
+
+    !----------------------------------------------------------------
+    ! Input/output variables
+    !----------------------------------------------------------------
+
+    integer, intent(in) ::   &
+       nx, ny,             &  ! horizontal grid dimensions (for scalars)
+       nz                     ! number of vertical levels where velocity is computed
+
+    type(parallel_type), intent(in) :: &
+       parallel               ! info for parallel communication
+
+    integer, intent(in) :: &
+       itest, jtest, rtest         ! coordinates of diagnostic point
+
+    logical, dimension(nx-1,ny-1), intent(in) ::   &
+       active_vertex          ! T for columns (i,j) where velocity is computed, else F
+
+    real(dp), dimension(nNodeNeighbors_3d,nz,nx-1,ny-1), intent(in) ::   &
+       Auu, Auv, Avu, Avv     ! four components of assembled matrix
+                              ! 1st dimension = 3 (node and its nearest neighbors in x, y and z direction)
+                              ! other dimensions = (z,x,y) indices
+                              !
+                              !    Auu  | Auv
+                              !    _____|____
+                              !    Avu  | Avv
+                              !         |
+
+    real(dp), dimension(nz,nx-1,ny-1), intent(in) ::  &
+       bu, bv              ! assembled load (rhs) vector, divided into 2 parts
+
+   real(dp), dimension(nz,nx-1,ny-1), intent(in) ::   &
+       uvel, vvel          ! u and v components of velocity (m/yr)
+
+    real(dp), dimension(nz,nx-1,ny-1), intent(out) ::   &
+       resid_u,      & ! residual vector, divided into 2 parts
+       resid_v         !
+
+    real(dp), intent(out) ::    &
+       L2_norm             ! L2 norm of residual vector, |Ax - b|
+
+    real(dp), intent(out), optional ::    &
+       L2_norm_relative    ! L2 norm of residual vector relative to rhs, |Ax - b| / |b|
+
+    !----------------------------------------------------------------
+    ! Local variables
+    !----------------------------------------------------------------
+
+    real(dp), dimension(nz,nx-1,ny-1) ::   &
+       worku, workv,     & ! work arrays for global sums
+       resid_sq            ! resid_u^2 + resid_v^2
+
+    real(dp) :: my_max_resid, global_max_resid
+
+    integer :: i, j, k, iA, jA, kA, m, iglobal, jglobal
+
+    real(dp) :: L2_norm_rhs   ! L2 norm of rhs vector, |b|
+
+    integer :: &
+         staggered_ilo, staggered_ihi, &  ! bounds of locally owned vertices on staggered grid
+         staggered_jlo, staggered_jhi
+
+    staggered_ilo = parallel%staggered_ilo
+    staggered_ihi = parallel%staggered_ihi
+    staggered_jlo = parallel%staggered_jlo
+    staggered_jhi = parallel%staggered_jhi
+
+    ! Compute u and v components of A*x
+
+    resid_u(:,:,:) = 0.d0
+    resid_v(:,:,:) = 0.d0
+
+    ! Loop over locally owned vertices
+    do j = staggered_jlo, staggered_jhi
+       do i = staggered_ilo, staggered_ihi
+          if (active_vertex(i,j)) then
+             do k = 1, nz
+                do kA = -1,1
+                   do jA = -1,1
+                      do iA = -1,1
+                         if ( (k+kA >= 1 .and. k+kA <= nz)      &
+                                         .and.                  &
+                              (i+iA >= 1 .and. i+iA <= nx-1)    &
+                                         .and.                  &
+                              (j+jA >= 1 .and. j+jA <= ny-1) ) then
+
+                            m = indxA_3d(iA,jA,kA)
+
+                            resid_u(k,i,j) = resid_u(k,i,j)                     &
+                                           + Auu(m,k,i,j)*uvel(k+kA,i+iA,j+jA)  &
+                                           + Auv(m,k,i,j)*vvel(k+kA,i+iA,j+jA)
+
+                            resid_v(k,i,j) = resid_v(k,i,j)                     &
+                                           + Avu(m,k,i,j)*uvel(k+kA,i+iA,j+jA)  &
+                                           + Avv(m,k,i,j)*vvel(k+kA,i+iA,j+jA)
+                         endif   ! in bounds
+                      enddo   ! kA
+                   enddo   ! iA
+                enddo   ! jA
+             enddo   ! k
+          endif   ! active_vertex
+       enddo   ! i
+    enddo   ! j
+
+    ! Subtract b to get A*x - b
+
+    worku(:,:,:) = 0.0d0
+    workv(:,:,:) = 0.0d0
+
+    ! Loop over locally owned vertices
+    do j = staggered_jlo, staggered_jhi
+       do i = staggered_ilo, staggered_ihi
+          if (active_vertex(i,j)) then
+             do k = 1, nz
+                resid_u(k,i,j) = resid_u(k,i,j) - bu(k,i,j)
+                resid_v(k,i,j) = resid_v(k,i,j) - bv(k,i,j)
+                worku(k,i,j) = resid_u(k,i,j)*resid_u(k,i,j)
+                workv(k,i,j) = resid_v(k,i,j)*resid_v(k,i,j)
+             enddo  ! k
+          endif     ! active vertex
+       enddo        ! i
+    enddo        ! j
+
+    ! Take global sum, then take square root
+    L2_norm = parallel_global_sum_stagger(worku, parallel, arr2=workv)
+    L2_norm = sqrt(L2_norm)
+
+    if (verbose_residual) then
+
+       if (this_rank==rtest) then
+          i = itest
+          j = jtest
+          k = ktest
+          write(iulog,*) 'In compute_residual_vector_3d: task, i, j, k =', this_rank, i, j, k
+          write(iulog, '(a16, 2f13.7, 2e13.5)') &
+               '  u, v, ru, rv: ', uvel(k,i,j), vvel(k,i,j), resid_u(k,i,j), resid_v(k,i,j)
+       endif
+
+       ! Compute max value of (squared) residual on this task.
+       ! If this task owns the vertex with the global max residual, then print a diagnostic message.
+       my_max_resid = maxval(resid_sq)
+       global_max_resid = parallel_reduce_max(my_max_resid)
+
+       if (abs((my_max_resid - global_max_resid)/global_max_resid) < 1.0d-6) then
+          do j = staggered_jlo, staggered_jhi
+             do i = staggered_ilo, staggered_ihi
+                do k = 1, nz
+                   if (abs((resid_sq(k,i,j) - global_max_resid)/global_max_resid) < 1.0d-6) then
+                      call parallel_globalindex(i, j, iglobal, jglobal, parallel)
+                      write(iulog, '(a24, 2i6, i4, 2e13.5, e16.8)') 'ig, jg, k, ru, rv, rmax:', &
+                           iglobal, jglobal, k, resid_u(k,i,j), resid_v(k,i,j), sqrt(global_max_resid)
+                      write(iulog,*) ' '
+                   endif
+                enddo
+             enddo
+          enddo
+       endif
+
+    endif  ! verbose_residual
+
+    if (present(L2_norm_relative)) then   ! compute L2_norm relative to rhs
+
+       worku(:,:,:) = 0.0d0
+       workv(:,:,:) = 0.0d0
+
+       do j = staggered_jlo, staggered_jhi
+          do i = staggered_ilo, staggered_ihi
+             if (active_vertex(i,j)) then
+                do k = 1, nz
+                   worku(k,i,j) = bu(k,i,j)*bu(k,i,j)
+                   workv(k,i,j) = bv(k,i,j)*bv(k,i,j)
+                enddo  ! k
+             endif     ! active vertex
+          enddo        ! i
+       enddo        ! j
+
+       ! Take global sum, then take square root
+       L2_norm_rhs = parallel_global_sum_stagger(worku, parallel, arr2=workv)
+       L2_norm_rhs = sqrt(L2_norm_rhs)
+
+       if (L2_norm_rhs > 0.0d0) then
+          L2_norm_relative = L2_norm / L2_norm_rhs
+       else
+          L2_norm_relative = 0.0d0
+       endif
+
+    endif
+
+  end subroutine compute_residual_vector_3d
+
+!****************************************************************************
+
+  subroutine evaluate_accelerated_picard_2d(&
+       whichapprox,   rtest,                &
+       L2_norm,       L2_norm_large,        &
+       L2_norm_alpha_sav,                   &
+       alpha_accel,   alpha_accel_max,      &
+       gamma_accel,   resid_reduction_threshold,  &
+       uvel_2d,       vvel_2d,              &
+       Auu_2d,        Auv_2d,               &
+       Avu_2d,        Avv_2d,               &
+       uvel_2d_old,   vvel_2d_old,          &
+       duvel_2d,      dvvel_2d,             &
+       uvel_2d_sav,   vvel_2d_sav,          &
+       Auu_2d_sav,    Auv_2d_sav,           &
+       Avu_2d_sav,    Avv_2d_sav,           &
+       beta_internal, beta_internal_sav,    &
+       beta_eff_x,    beta_eff_x_sav,       &
+       beta_eff_y,    beta_eff_y_sav,       &
+       omega_k,       omega_k_sav,          &
+       assembly_is_done)
+
+    integer, intent(in) :: &
+         rtest,                  &  ! rank for diagnostic point
+         whichapprox                ! which Stokes approximation to use (SIA, SSA, DIVA, L1L2, BP)
+
+    real(dp), intent(in) :: &
+         L2_norm,                &  ! latest value of L2 norm of residual
+         L2_norm_large,          &  ! large value for re-initializing the L2 norm
+         gamma_accel,            &  ! how much to increase alpha_accel for each attempt to extend the solution vector
+         alpha_accel_max,        &  ! max allowed value of alpha_accel
+         resid_reduction_threshold  ! threshold for deciding whether to increase alpha_accel again
+
+    real(dp), intent(inout) :: &
+         alpha_accel,            &  ! factor for extending the vector (duvel, dvvel) to reduce the residual
+         L2_norm_alpha_sav          ! value of L2 norm of residual, given the previous alpha_accel
+
+    real(dp), dimension(:,:), intent(inout) ::  &
+         uvel_2d,     vvel_2d,         & ! latest guess for the velocity solution
+         uvel_2d_old, vvel_2d_old,     & ! velocity solution from previous nonlinear iteration
+         duvel_2d,    dvvel_2d,        & ! difference between old velocity solution and latest solution
+         uvel_2d_sav, vvel_2d_sav,     & ! best velocity solution so far, based on the residual norm
+         beta_internal,                & ! beta_internal as a function of uvel_2d and vvel_2d
+         beta_internal_sav               ! beta_internal as a function of uvel_2d_sav and vvel_2d_sav
+
+    real(dp), dimension(:,:), intent(inout) ::  &
+         beta_eff_x, beta_eff_x_sav, &
+         beta_eff_y, beta_eff_y_sav
+
+    real(dp), dimension(:,:,:), intent(inout) ::  &
+         omega_k, omega_k_sav
+
+    real(dp), dimension(:,:,:), intent(inout) ::  &
+         Auu_2d,      Auv_2d,          & ! latest assembled matrices as a function of uvel_2d and vvel_2d
+         Avu_2d,      Avv_2d,          &
+         Auu_2d_sav,  Auv_2d_sav,      & ! assembled matrices as a function of uvel_2d_sav and vvel_2d_sav
+         Avu_2d_sav,  Avv_2d_sav
+
+    logical, intent(inout) :: &
+         assembly_is_done                ! if true, then accept the current assembled matrices and proceed to solution
+
+    if (verbose_picard .and. this_rank == rtest) then
+       write(iulog,*) 'Evaluate Picard acceleration: L2_norm_sav, L2_norm:', L2_norm_alpha_sav, L2_norm
+    endif
+
+    if (L2_norm < resid_reduction_threshold*L2_norm_alpha_sav .and. &
+         alpha_accel + gamma_accel <= alpha_accel_max) then
+
+       ! The residual norm decreased substantially, relative to the previous value.
+       ! ("Substantially" is defined by the factor resid_reduction_threshold < 1.)
+
+       ! Save the latest values of the solver inputs
+       uvel_2d_sav = uvel_2d
+       vvel_2d_sav = vvel_2d
+       Auu_2d_sav = Auu_2d
+       Auv_2d_sav = Auv_2d
+       Avu_2d_sav = Avu_2d
+       Avv_2d_sav = Avv_2d
+       beta_internal_sav = beta_internal
+       if (whichapprox == HO_APPROX_DIVA) then
+          beta_eff_x_sav = beta_eff_x
+          beta_eff_y_sav = beta_eff_y
+          omega_k_sav = omega_k
+       endif
+
+       ! Increase alpha_accel and see if the residual keeps getting smaller.
+       ! If not, we will back off to the saved values above.
+       alpha_accel = alpha_accel + gamma_accel
+       L2_norm_alpha_sav = L2_norm
+
+       if (verbose_picard .and. this_rank == rtest) then
+          write(iulog,*) 'Increase alpha to', alpha_accel
+       endif
+
+       ! Since assembly_is_done = F, we now return to the start of the loop:
+       !    do while (.not.assembly_is_done)
+
+    elseif (L2_norm < L2_norm_alpha_sav) then
+
+       ! The residual norm decreased only a little (or we have reached alpha_accel_max).
+       ! Call it good and move on to the solver.
+
+       ! Save this velocity as the starting point for the next nonlinear iteration
+       uvel_2d_old = uvel_2d
+       vvel_2d_old = vvel_2d
+
+       ! Reset alpha_accel and L2_norm_alpha_sav for the next nonlinear iteration
+       alpha_accel = 1.0d0
+       L2_norm_alpha_sav = L2_norm_large
+
+       ! proceed to the matrix solution
+       assembly_is_done = .true.
+
+       if (verbose_picard .and. this_rank == rtest) then
+          write(iulog,*) 'Hold alpha at', alpha_accel
+          write(iulog,*) ' Continue to matrix solver'
+       endif
+
+    else
+       ! The residual is larger than the previous value.
+       ! Switch back to the previously saved velocity and matrix with the lower residual.
+       uvel_2d = uvel_2d_sav
+       vvel_2d = vvel_2d_sav
+       Auu_2d = Auu_2d_sav
+       Auv_2d = Auv_2d_sav
+       Avu_2d = Avu_2d_sav
+       Avv_2d = Avv_2d_sav
+       beta_internal = beta_internal_sav
+       if (whichapprox == HO_APPROX_DIVA) then
+          beta_eff_x = beta_eff_x_sav
+          beta_eff_y = beta_eff_y_sav
+          omega_k = omega_k_sav
+       endif
+
+       ! Save this velocity as the starting point for the next nonlinear iteration
+       uvel_2d_old = uvel_2d
+       vvel_2d_old = vvel_2d
+
+       ! Reset alpha_accel and L2_norm_alpha_sav for the next nonlinear iteration
+       alpha_accel = 1.0d0
+       L2_norm_alpha_sav = L2_norm_large
+
+       ! proceed to the matrix solution
+       assembly_is_done = .true.
+
+       if (verbose_picard .and. this_rank == rtest) then
+          write(iulog,*) 'Reduce alpha to', alpha_accel - gamma_accel
+          write(iulog,*) 'Continue to matrix solver'
+       endif
+
+    endif  ! L2_norm of residual has reduced
+
+  end subroutine evaluate_accelerated_picard_2d
+  
+!****************************************************************************
+
   subroutine evaluate_accelerated_picard_3d(&
+       rtest,                               &
        L2_norm,       L2_norm_large,        &
        L2_norm_alpha_sav,                   &
        alpha_accel,   alpha_accel_max,      &
@@ -9733,6 +10065,8 @@
        Avu_sav,       Avv_sav,              &
        beta_internal, beta_internal_sav,    &
        assembly_is_done)
+
+    integer, intent(in) :: rtest    ! rank for diagnostic point
 
     real(dp), intent(in) :: &
          L2_norm,                &  ! latest value of L2 norm of residual
@@ -9785,8 +10119,8 @@
        alpha_accel = alpha_accel + gamma_accel
        L2_norm_alpha_sav = L2_norm
 
-       if (verbose_picard .and. main_task) then
-          write(iulog,*) 'Keep going, alpha =', alpha_accel
+       if (verbose_picard .and. this_rank == rtest) then
+          write(iulog,*) 'Increase alpha to', alpha_accel
        endif
 
        ! Since assembly_is_done = F, we now return to the start of the loop:
@@ -9811,6 +10145,11 @@
 
        ! proceed to the matrix solution
        assembly_is_done = .true.
+
+       if (verbose_picard .and. this_rank == rtest) then
+          write(iulog,*) 'Hold alpha at', alpha_accel
+          write(iulog,*) ' Continue to matrix solver'
+       endif
 
     else
 
@@ -9828,17 +10167,17 @@
        uvel_old = uvel
        vvel_old = vvel
 
-       if (verbose_picard .and. main_task) then
-          write(iulog,*) 'Back up to alpha =', alpha_accel - gamma_accel
-          write(iulog,*) 'Continue to matrix solver'
-       endif
-
        ! Reset alpha_accel and L2_norm_alpha_sav for the next nonlinear iteration
        alpha_accel = 1.0d0
        L2_norm_alpha_sav = L2_norm_large
 
        ! proceed to the matrix solution
        assembly_is_done = .true.
+
+       if (verbose_picard .and. main_task) then
+          write(iulog,*) 'Back up to alpha =', alpha_accel - gamma_accel
+          write(iulog,*) 'Continue to matrix solver'
+       endif
 
     endif  ! L2_norm of residual has reduced
 
@@ -9846,133 +10185,129 @@
 
 !****************************************************************************
 
-  subroutine evaluate_accelerated_picard_2d(&
-       nx,            ny,                   &
-       L2_norm,       L2_norm_large,        &
-       L2_norm_alpha_sav,                   &
-       alpha_accel,   alpha_accel_max,      &
-       gamma_accel,   resid_reduction_threshold,  &
-       uvel_2d,       vvel_2d,              &
-       Auu_2d,        Auv_2d,               &
-       Avu_2d,        Avv_2d,               &
-       uvel_2d_old,   vvel_2d_old,          &
-       duvel_2d,      dvvel_2d,             &
-       uvel_2d_sav,   vvel_2d_sav,          &
-       Auu_2d_sav,    Auv_2d_sav,           &
-       Avu_2d_sav,    Avv_2d_sav,           &
-       beta_internal, beta_internal_sav,    &
-       assembly_is_done)
+  subroutine compute_residual_velocity_2d(whichresid,    parallel,    &
+                                          uvel,          vvel,        &
+                                          usav,          vsav,        &
+                                          resid_velo)
 
-    integer, intent(in) :: &
-         nx,  ny                    ! number of grid cells in each direction
+    integer, intent(in) ::   &
+         whichresid         ! option for method to use when calculating residual
 
-    real(dp), intent(in) :: &
-         L2_norm,                &  ! latest value of L2 norm of residual
-         L2_norm_large,          &  ! large value for re-initializing the L2 norm
-         gamma_accel,            &  ! how much to increase alpha_accel for each attempt to extend the solution vector
-         alpha_accel_max,        &  ! max allowed value of alpha_accel
-         resid_reduction_threshold  ! threshold for deciding whether to increase alpha_accel again
+    type(parallel_type), intent(in) :: &
+         parallel             ! info for parallel communication
 
-    real(dp), intent(inout) :: &
-         alpha_accel,            &  ! factor for extending the vector (duvel, dvvel) to reduce the residual
-         L2_norm_alpha_sav          ! value of L2 norm of residual, given the previous alpha_accel
+    real(dp), dimension(:,:), intent(in) ::  &
+         uvel, vvel,      & ! current guess for velocity
+         usav, vsav         ! previous guess for velocity
 
-    real(dp), dimension(nx-1,ny-1), intent(inout) ::  &
-         uvel_2d,     vvel_2d,         & ! latest guess for the velocity solution
-         uvel_2d_old, vvel_2d_old,     & ! velocity solution from previous nonlinear iteration
-         duvel_2d,    dvvel_2d,        & ! difference between old velocity solution and latest solution
-         uvel_2d_sav, vvel_2d_sav,     & ! best velocity solution so far, based on the residual norm
-         beta_internal,                & ! beta_internal as a function of uvel_2d and vvel_2d
-         beta_internal_sav               ! beta_internal as a function of uvel_2d_sav and vvel_2d_sav
+    real(dp), intent(out) ::    &
+         resid_velo         ! quantity related to velocity convergence
 
-    real(dp), dimension(nx-1,ny-1,nNodeNeighbors_2d), intent(inout) ::  &
-         Auu_2d,      Auv_2d,          & ! latest assembled matrices as a function of uvel_2d and vvel_2d
-         Avu_2d,      Avv_2d,          &
-         Auu_2d_sav,  Auv_2d_sav,      & ! assembled matrices as a function of uvel_2d_sav and vvel_2d_sav
-         Avu_2d_sav,  Avv_2d_sav
+    integer ::   &
+         imaxdiff, jmaxdiff   ! location of maximum speed difference
+                              ! currently computed but not used
+ 
+    integer :: i, j, count
 
-    logical, intent(inout) :: &
-         assembly_is_done                ! if true, then accept the current assembled matrices and proceed to solution
+    real(dp) ::   &
+         speed,      &   ! current guess for ice speed
+         oldspeed,   &   ! previous guess for ice speed
+         diffspeed       ! abs(speed-oldspeed)
 
-    if (L2_norm < resid_reduction_threshold*L2_norm_alpha_sav .and. &
-         alpha_accel + gamma_accel <= alpha_accel_max) then
+    integer :: &
+         staggered_ilo, staggered_ihi, &  ! bounds of locally owned vertices on staggered grid
+         staggered_jlo, staggered_jhi
 
-       ! The residual norm decreased substantially, relative to the previous value.
-       ! ("Substantially" is defined by the factor resid_reduction_threshold < 1.)
+    staggered_ilo = parallel%staggered_ilo
+    staggered_ihi = parallel%staggered_ihi
+    staggered_jlo = parallel%staggered_jlo
+    staggered_jhi = parallel%staggered_jhi
 
-       ! Save the latest values of the solver inputs
+    ! Compute a residual quantity based on convergence of the velocity field.
 
-       uvel_2d_sav = uvel_2d
-       vvel_2d_sav = vvel_2d
-       Auu_2d_sav = Auu_2d
-       Auv_2d_sav = Auv_2d
-       Avu_2d_sav = Avu_2d
-       Avv_2d_sav = Avv_2d
-       beta_internal_sav = beta_internal
+    ! options for residual calculation method, as specified in configuration file
+    ! case(0): use max of abs( vel_old - vel ) / vel )
+    ! case(1): use max of abs( vel_old - vel ) / vel ) but ignore basal vels
+    ! case(2): use mean of abs( vel_old - vel ) / vel )
+    ! case(3): use max of abs( vel_old - vel ) / vel ) (in addition to L2 norm)
+    
+    resid_velo = 0.d0
+    imaxdiff = 0
+    jmaxdiff = 0
 
-       ! Increase alpha_accel and see if the residual keeps getting smaller.
-       ! If not, we will back off to the saved values above.
-       alpha_accel = alpha_accel + gamma_accel
-       L2_norm_alpha_sav = L2_norm
+    select case (whichresid)
 
-       if (verbose_picard .and. main_task) then
-          write(iulog,*) 'Keep going, alpha =', alpha_accel
-       endif
+    case(HO_RESID_MAXU_NO_UBAS)   ! max speed difference, excluding the bed
 
-       ! Since assembly_is_done = F, we now return to the start of the loop:
-       ! do while (.not.assembly_is_done)
+       ! Loop over locally owned vertices
 
-    elseif (L2_norm < L2_norm_alpha_sav) then
+       do j = staggered_jlo, staggered_jhi
+          do i = staggered_ilo, staggered_ihi
+             speed = sqrt(uvel(i,j)**2 + vvel(i,j)**2)
+             if (speed /= 0.d0) then
+                oldspeed = sqrt(usav(i,j)**2 + vsav(i,j)**2)
+                diffspeed = abs((oldspeed - speed)/speed)
+                if (diffspeed > resid_velo) then
+                   resid_velo = diffspeed
+                   imaxdiff = i
+                   jmaxdiff = j
+                endif
+             endif
+          enddo
+       enddo
+       
+       ! take global max
+       resid_velo = parallel_reduce_max(resid_velo)
 
-       ! The residual norm decreased only a little (or we have reached alpha_accel_max).
-       ! Call it good and move on to the solver.
+    case(HO_RESID_MEANU)   ! mean relative speed difference
 
-       if (verbose_picard .and. main_task) then
-          write(iulog,*) 'Hold, alpha =', alpha_accel
-       endif
+       count = 0
 
-       ! Save this velocity as the starting point for the next nonlinear iteration
-       uvel_2d_old = uvel_2d
-       vvel_2d_old = vvel_2d
+       ! Loop over locally owned vertices
 
-       ! Reset alpha_accel and L2_norm_alpha_sav for the next nonlinear iteration
-       alpha_accel = 1.0d0
-       L2_norm_alpha_sav = L2_norm_large
+       do j = staggered_jlo, staggered_jhi
+          do i = staggered_ilo, staggered_ihi
+             speed = sqrt(uvel(i,j)**2 + vvel(i,j)**2)
+             if (speed /= 0.d0) then
+                count = count+1
+                oldspeed = sqrt(usav(i,j)**2 + vsav(i,j)**2)
+                diffspeed = abs((oldspeed - speed)/speed)
+                resid_velo = resid_velo + diffspeed
+             endif
+          enddo
+       enddo
 
-       ! proceed to the matrix solution
-       assembly_is_done = .true.
+       if (count > 0) resid_velo = resid_velo / count
 
-    else
+       !TODO - Need to convert the mean residual to a global value.
+       !       (Or simply remove this case, which is rarely if ever used)
+       call not_parallel(__FILE__, __LINE__)
 
-       ! The residual is larger than the previous value.
-       ! Switch back to the previously saved velocity and matrix with the lower residual.
-       uvel_2d = uvel_2d_sav
-       vvel_2d = vvel_2d_sav
-       Auu_2d = Auu_2d_sav
-       Auv_2d = Auv_2d_sav
-       Avu_2d = Avu_2d_sav
-       Avv_2d = Avv_2d_sav
-       beta_internal = beta_internal_sav
+   case default    ! max speed difference, including basal speeds
+                   ! (case HO_RESID_MAXU or HO_RESID_L2NORM)
 
-       ! Save this velocity as the starting point for the next nonlinear iteration
-       uvel_2d_old = uvel_2d
-       vvel_2d_old = vvel_2d
+       ! Loop over locally owned vertices
 
-       if (verbose_picard .and. main_task) then
-          write(iulog,*) 'Back up to alpha =', alpha_accel - gamma_accel
-          write(iulog,*) 'Continue to matrix solver'
-       endif
+       do j = staggered_jlo, staggered_jhi
+          do i = staggered_ilo, staggered_ihi
+             speed = sqrt(uvel(i,j)**2 + vvel(i,j)**2)
+             if (speed /= 0.d0) then
+                oldspeed = sqrt(usav(i,j)**2 + vsav(i,j)**2)
+                diffspeed = abs((oldspeed - speed)/speed)
+                if (diffspeed > resid_velo) then
+                   resid_velo = diffspeed
+                   imaxdiff = i
+                   jmaxdiff = j
+                endif
+             endif
+          enddo
+       enddo
 
-       ! Reset alpha_accel and L2_norm_alpha_sav for the next nonlinear iteration
-       alpha_accel = 1.0d0
-       L2_norm_alpha_sav = L2_norm_large
+       resid_velo = parallel_reduce_max(resid_velo)
+       
+    end select
 
-       ! proceed to the matrix solution
-       assembly_is_done = .true.
-
-    endif  ! L2_norm of residual has reduced
-
-  end subroutine evaluate_accelerated_picard_2d
+  end subroutine compute_residual_velocity_2d
 
 !****************************************************************************
 
@@ -10068,7 +10403,7 @@
                 if (speed /= 0.d0) then
                    count = count+1
                    oldspeed = sqrt(usav(k,i,j)**2 + vsav(k,i,j)**2)
-                   diffspeed = abs((oldspeed - speed)/speed)                
+                   diffspeed = abs((oldspeed - speed)/speed)
                    resid_velo = resid_velo + diffspeed
                 endif
              enddo
@@ -10112,34 +10447,38 @@
 
 !****************************************************************************
 
-  subroutine compute_residual_velocity_2d(whichresid,    parallel,    &
-                                          uvel,          vvel,        &
-                                          usav,          vsav,        &
-                                          resid_velo)
+  subroutine count_nonzeros_2d(nx,            ny,     &
+                               parallel,              &
+                               Auu,           Auv,    &
+                               Avu,           Avv,    &
+                               active_vertex,         &
+                               nNonzeros)
+
+    !----------------------------------------------------------------
+    ! Input-output arguments
+    !----------------------------------------------------------------
 
     integer, intent(in) ::   &
-         whichresid         ! option for method to use when calculating residual
+       nx, ny             ! number of grid cells in each direction
 
     type(parallel_type), intent(in) :: &
          parallel             ! info for parallel communication
 
-    real(dp), dimension(:,:), intent(in) ::  &
-         uvel, vvel,      & ! current guess for velocity
-         usav, vsav         ! previous guess for velocity
+    real(dp), dimension(nx-1,ny-1,nNodeNeighbors_2d), intent(in) ::  &
+       Auu, Auv,    &     ! assembled stiffness matrix, divided into 4 parts
+       Avu, Avv
 
-    real(dp), intent(out) ::    &
-         resid_velo         ! quantity related to velocity convergence
+    logical, dimension(nx-1,ny-1), intent(in) :: &
+       active_vertex      ! true for vertices of active cells
 
-    integer ::   &
-         imaxdiff, jmaxdiff   ! location of maximum speed difference
-                              ! currently computed but not used
- 
-    integer :: i, j, count
+    integer, intent(out) ::   &
+       nNonzeros          ! number of nonzero matrix elements
 
-    real(dp) ::   &
-         speed,      &   ! current guess for ice speed
-         oldspeed,   &   ! previous guess for ice speed
-         diffspeed       ! abs(speed-oldspeed)
+    !----------------------------------------------------------------
+    ! Local variables
+    !----------------------------------------------------------------
+
+    integer :: i, j, m
 
     integer :: &
          staggered_ilo, staggered_ihi, &  ! bounds of locally owned vertices on staggered grid
@@ -10150,91 +10489,24 @@
     staggered_jlo = parallel%staggered_jlo
     staggered_jhi = parallel%staggered_jhi
 
-    ! Compute a residual quantity based on convergence of the velocity field.
+    nNonzeros = 0
 
-    ! options for residual calculation method, as specified in configuration file
-    ! case(0): use max of abs( vel_old - vel ) / vel )
-    ! case(1): use max of abs( vel_old - vel ) / vel ) but ignore basal vels
-    ! case(2): use mean of abs( vel_old - vel ) / vel )
-    ! case(3): use max of abs( vel_old - vel ) / vel ) (in addition to L2 norm)
-    
-    resid_velo = 0.d0
-    imaxdiff = 0
-    jmaxdiff = 0
-
-    select case (whichresid)
-
-    case(HO_RESID_MAXU_NO_UBAS)   ! max speed difference, excluding the bed
-
-       ! Loop over locally owned vertices
-
+    do m = 1, nNodeNeighbors_2d
        do j = staggered_jlo, staggered_jhi
           do i = staggered_ilo, staggered_ihi
-             speed = sqrt(uvel(i,j)**2 + vvel(i,j)**2)
-             if (speed /= 0.d0) then
-                oldspeed = sqrt(usav(i,j)**2 + vsav(i,j)**2)
-                diffspeed = abs((oldspeed - speed)/speed)
-                if (diffspeed > resid_velo) then
-                   resid_velo = diffspeed
-                   imaxdiff = i
-                   jmaxdiff = j
-                endif
-             endif
-          enddo
-       enddo
-       
-       ! take global max
-       resid_velo = parallel_reduce_max(resid_velo)
+             if (active_vertex(i,j)) then
+                if (Auu(i,j,m) /= 0.d0) nNonzeros = nNonzeros + 1
+                if (Auv(i,j,m) /= 0.d0) nNonzeros = nNonzeros + 1
+                if (Avu(i,j,m) /= 0.d0) nNonzeros = nNonzeros + 1
+                if (Avv(i,j,m) /= 0.d0) nNonzeros = nNonzeros + 1
+             endif     ! active_vertex
+          enddo        ! i
+       enddo           ! j
+    enddo              ! m
 
-    case(HO_RESID_MEANU)   ! mean relative speed difference
+    nNonzeros = parallel_reduce_sum(nNonzeros)
 
-       count = 0
-
-       ! Loop over locally owned vertices
-
-       do j = staggered_jlo, staggered_jhi
-          do i = staggered_ilo, staggered_ihi
-             speed = sqrt(uvel(i,j)**2 + vvel(i,j)**2)
-             if (speed /= 0.d0) then
-                count = count+1
-                oldspeed = sqrt(usav(i,j)**2 + vsav(i,j)**2)
-                diffspeed = abs((oldspeed - speed)/speed)                
-                resid_velo = resid_velo + diffspeed
-             endif
-          enddo
-       enddo
-
-       if (count > 0) resid_velo = resid_velo / count
-
-       !TODO - Need to convert the mean residual to a global value.
-       !       (Or simply remove this case, which is rarely if ever used)
-       call not_parallel(__FILE__, __LINE__)
-
-   case default    ! max speed difference, including basal speeds
-                   ! (case HO_RESID_MAXU or HO_RESID_L2NORM)
-
-       ! Loop over locally owned vertices
-
-       do j = staggered_jlo, staggered_jhi
-          do i = staggered_ilo, staggered_ihi
-             speed = sqrt(uvel(i,j)**2 + vvel(i,j)**2)
-             if (speed /= 0.d0) then
-                oldspeed = sqrt(usav(i,j)**2 + vsav(i,j)**2)
-                diffspeed = abs((oldspeed - speed)/speed)
-                if (diffspeed > resid_velo) then
-                   resid_velo = diffspeed
-                   imaxdiff = i
-                   jmaxdiff = j
-                endif
-             endif
-          enddo
-       enddo
-
-       resid_velo = parallel_reduce_max(resid_velo)
-       
-    end select
-
-  end subroutine compute_residual_velocity_2d
+  end subroutine count_nonzeros_2d
 
 !****************************************************************************
 
@@ -10308,69 +10580,6 @@
 
 !****************************************************************************
 
-  subroutine count_nonzeros_2d(nx,            ny,     &
-                               parallel,              &
-                               Auu,           Auv,    &
-                               Avu,           Avv,    &
-                               active_vertex,         &
-                               nNonzeros)
-
-    !----------------------------------------------------------------
-    ! Input-output arguments
-    !----------------------------------------------------------------
-
-    integer, intent(in) ::   &
-       nx, ny             ! number of grid cells in each direction
-
-    type(parallel_type), intent(in) :: &
-         parallel             ! info for parallel communication
-
-    real(dp), dimension(nx-1,ny-1,nNodeNeighbors_2d), intent(in) ::  &
-       Auu, Auv,    &     ! assembled stiffness matrix, divided into 4 parts
-       Avu, Avv                                    
-
-    logical, dimension(nx-1,ny-1), intent(in) :: &
-       active_vertex      ! true for vertices of active cells
-
-    integer, intent(out) ::   &
-       nNonzeros          ! number of nonzero matrix elements
-
-    !----------------------------------------------------------------
-    ! Local variables
-    !----------------------------------------------------------------
-
-    integer :: i, j, m
-
-    integer :: &
-         staggered_ilo, staggered_ihi, &  ! bounds of locally owned vertices on staggered grid
-         staggered_jlo, staggered_jhi
-
-    staggered_ilo = parallel%staggered_ilo
-    staggered_ihi = parallel%staggered_ihi
-    staggered_jlo = parallel%staggered_jlo
-    staggered_jhi = parallel%staggered_jhi
-
-    nNonzeros = 0
-
-    do m = 1, nNodeNeighbors_2d
-       do j = staggered_jlo, staggered_jhi
-          do i = staggered_ilo, staggered_ihi
-             if (active_vertex(i,j)) then
-                if (Auu(i,j,m) /= 0.d0) nNonzeros = nNonzeros + 1
-                if (Auv(i,j,m) /= 0.d0) nNonzeros = nNonzeros + 1
-                if (Avu(i,j,m) /= 0.d0) nNonzeros = nNonzeros + 1
-                if (Avv(i,j,m) /= 0.d0) nNonzeros = nNonzeros + 1
-             endif     ! active_vertex
-          enddo        ! i
-       enddo           ! j
-    enddo              ! m
-
-    nNonzeros = parallel_reduce_sum(nNonzeros)
-
-  end subroutine count_nonzeros_2d
-
-!****************************************************************************
-
   subroutine check_symmetry_element_matrix(nNodesPerElement,  &
                                            Kuu, Kuv, Kvu, Kvv)
 
@@ -10400,7 +10609,7 @@
 
     do j = 1, nNodesPerElement
        do i = j, nNodesPerElement
-          if (abs(Kuu(i,j) - Kuu(j,i)) > eps10) then
+          if (abs(Kuu(i,j) - Kuu(j,i)) > eps11) then
              write(iulog,*) 'Kuu is not symmetric'
              write(iulog,*) 'i, j, Kuu(i,j), Kuu(j,i):', i, j, Kuu(i,j), Kuu(j,i)
              stop
@@ -10412,7 +10621,7 @@
 
     do j = 1, nNodesPerElement
        do i = j, nNodesPerElement
-          if (abs(Kvv(i,j) - Kvv(j,i)) > eps10) then
+          if (abs(Kvv(i,j) - Kvv(j,i)) > eps11) then
              write(iulog,*) 'Kvv is not symmetric'
              write(iulog,*) 'i, j, Kvv(i,j), Kvv(j,i):', i, j, Kvv(i,j), Kvv(j,i)
              stop
@@ -10424,7 +10633,7 @@
 
     do j = 1, nNodesPerElement
        do i = 1, nNodesPerElement
-          if (abs(Kuv(i,j) - Kvu(j,i)) > eps10) then
+          if (abs(Kuv(i,j) - Kvu(j,i)) > eps11) then
              write(iulog,*) 'Kuv /= (Kvu)^T'
              write(iulog,*) 'i, j, Kuv(i,j), Kvu(j,i):', i, j, Kuv(i,j), Kvu(j,i)
              stop
@@ -10433,6 +10642,212 @@
     enddo
 
   end subroutine check_symmetry_element_matrix
+
+!****************************************************************************
+
+  subroutine check_symmetry_assembled_matrix_2d(nx,            ny,       &
+                                                parallel,                &
+                                                active_vertex,           &
+                                                Auu, Auv, Avu, Avv)
+
+    !------------------------------------------------------------------
+    ! Check that the assembled stiffness matrix is symmetric.
+    ! This is true provided that (1) Auu = (Auu)^T
+    !                            (2) Avv = (Avv)^T
+    !                            (3) Auv = (Avu)^T
+    ! The A matrices are assembled in a dense fashion to save storage
+    !  and preserve the i/j/k structure of the grid.
+    !
+    ! There can be small differences from perfect symmetry due to roundoff error.
+    ! These differences are fixed provided they are small enough.
+    !------------------------------------------------------------------    
+
+    integer, intent(in) ::   &
+       nx, ny                   ! horizontal grid dimensions
+
+    type(parallel_type), intent(in) :: &
+         parallel             ! info for parallel communication
+
+    logical, dimension(nx-1,ny-1), intent(in) ::   &
+       active_vertex            ! T for columns (i,j) where velocity is computed, else F
+
+    real(dp), dimension(nx-1,ny-1,nNodeNeighbors_2d), intent(inout) ::   &
+       Auu, Auv, Avu, Avv       ! components of assembled stiffness matrix
+                                !
+                                !    Auu  | Auv
+                                !    _____|____          
+                                !         |
+                                !    Avu  | Avv                                    
+
+    integer :: i, j, iA, jA, m, mm, iglobal, jglobal
+
+    real(dp) :: val1, val2          ! values of matrix coefficients
+
+    real(dp) :: maxdiff, global_maxdiff, diag_entry, avg_val
+
+    integer :: rmax, imax, jmax, mmax
+
+    integer :: &
+         staggered_ilo, staggered_ihi, &  ! bounds of locally owned vertices on staggered grid
+         staggered_jlo, staggered_jhi
+
+    staggered_ilo = parallel%staggered_ilo
+    staggered_ihi = parallel%staggered_ihi
+    staggered_jlo = parallel%staggered_jlo
+    staggered_jhi = parallel%staggered_jhi
+
+    ! Check matrix for symmetry
+
+    ! Here we correct for small differences from symmetry due to roundoff error.
+    ! The maximum departure from symmetry is set to be a small fraction
+    !  of the diagonal entry for the row.
+    ! If the departure from symmetry is larger than this, then the model prints a warning 
+    !  and/or aborts.
+
+    maxdiff = 0.d0
+    rmax = 0; imax = 0; jmax = 0; mmax = 0
+
+    ! Loop over locally owned vertices.
+    ! Each active vertex is associate with 2*nz matrix rows belonging to this processor.
+
+    do jA = -1, 1
+    do iA = -1, 1
+       m =  indxA_2d( iA, jA)
+       mm = indxA_2d(-iA,-jA)
+
+       do j = staggered_jlo, staggered_jhi
+          do i = staggered_ilo, staggered_ihi
+             if (active_vertex(i,j)) then
+
+                ! Check Auu and Auv for symmetry
+                diag_entry = Auu(i,j,indxA_2d(0,0))
+
+                !WHL - debug
+                if (diag_entry /= diag_entry) then
+                   write(iulog,*) 'WARNING: Diagonal NaN: i, j =', i, j
+                   call parallel_globalindex(i, j, iglobal, jglobal, parallel)
+                   write(iulog,*) '   iglobal, jglobal:', iglobal, jglobal
+!!                   stop
+                endif
+
+                ! Check that Auu = Auu^T
+                val1 = Auu(i,    j,    m )   ! value of Auu(row,col)
+                val2 = Auu(i+iA, j+jA, mm)   ! value of Auu(col,row)
+                if (val2 /= val1) then
+                   if (abs(val2 - val1) > maxdiff) then
+                      maxdiff = abs(val2 - val1)
+                      rmax = this_rank; imax = i; jmax = j; mmax = m
+                   endif
+                   ! if difference is small, then fix the asymmetry by averaging values
+                   !WHL - Here and below, I commented out the code to average asymmetric values.
+                   !      The hope is that the asymmetries are too small to matter.
+                   ! else print a warning and abort
+                   if ( abs(val2-val1) < eps11*abs(diag_entry) ) then
+!                      avg_val = 0.5d0 * (val1 + val2)
+!                      Auu(i,    j,    m ) = avg_val
+!                      Auu(i+iA, j+jA, mm) = avg_val
+                   else
+                      write(iulog,*) 'WARNING: Auu is not symmetric: this_rank, i, j, iA, jA =', this_rank, i, j, iA, jA
+                      write(iulog,*) 'Auu(row,col), Auu(col,row), diff/diag:', val1, val2, (val2 - val1)/diag_entry
+                      call parallel_globalindex(i, j, iglobal, jglobal, parallel)
+                      write(iulog,*) '   iglobal, jglobal:', iglobal, jglobal
+!!                      stop
+                   endif
+                endif   ! val2 /= val1
+
+                ! Check that Auv = (Avu)^T
+                val1 = Auv(i,    j,    m )   ! value of Auv(row,col)
+                val2 = Avu(i+iA, j+jA, mm)   ! value of Avu(col,row)
+                if (val2 /= val1) then
+                   if (abs(val2 - val1) > maxdiff) then
+                      maxdiff = abs(val2 - val1)
+                      rmax = this_rank; imax = i; jmax = j; mmax = m
+                   endif
+                   ! if difference is small, then fix the asymmetry by averaging values
+                   ! else print a warning and abort
+                   if ( abs(val2-val1) < eps11*abs(diag_entry) ) then
+!                      avg_val = 0.5d0 * (val1 + val2)
+!                      Auv(i,    j,    m ) = avg_val
+!                      Avu(i+iA, j+jA, mm) = avg_val
+                   else
+                      write(iulog,*) 'WARNING: Auv is not equal to (Avu)^T, this_rank, i, j, iA, jA =', this_rank, i, j, iA, jA
+                      write(iulog,*) 'Auv(row,col), Avu(col,row), diff/diag:', val1, val2, (val2 - val1)/diag_entry
+                      call parallel_globalindex(i, j, iglobal, jglobal, parallel)
+                      write(iulog,*) '   iglobal, jglobal:', iglobal, jglobal
+!!                      stop
+                   endif
+                endif  ! val2 /= val1
+
+                ! Now check Avu and Avv
+                diag_entry = Avv(i,j,indxA_2d(0,0))
+
+                ! check that Avv = (Avv)^T
+                val1 = Avv(i,    j,    m )   ! value of Avv(row,col)
+                val2 = Avv(i+iA, j+jA, mm)   ! value of Avv(col,row)
+
+                if (val2 /= val1) then
+                   if (abs(val2 - val1) > maxdiff) then
+                      maxdiff = abs(val2 - val1)
+                      rmax = this_rank; imax = i; jmax = j; mmax = m
+                   endif
+                   ! if difference is small, then fix the asymmetry by averaging values
+                   ! else print a warning and abort
+                   if ( abs(val2-val1) < eps11*abs(diag_entry) ) then
+!                      avg_val = 0.5d0 * (val1 + val2)
+!                      Avv(i,    j,    m ) = avg_val
+!                      Avv(i+iA, j+jA, mm) = avg_val
+                   else
+                      write(iulog,*) 'WARNING: Avv is not symmetric: this_rank, i, j, iA, jA =', this_rank, i, j, iA, jA
+                      write(iulog,*) 'Avv(row,col), Avv(col,row), diff/diag:', val1, val2, (val2 - val1)/diag_entry
+                      call parallel_globalindex(i, j, iglobal, jglobal, parallel)
+                      write(iulog,*) '   iglobal, jglobal:', iglobal, jglobal
+!!                      stop
+                   endif
+
+                endif   ! val2 /= val1
+
+                ! Check that Avu = (Auv)^T
+                val1 = Avu(i,    j,    m )   ! value of Avu(row,col)
+                val2 = Auv(i+iA, j+jA, mm)   ! value of Auv(col,row)
+
+                if (val2 /= val1) then
+                   if (abs(val2 - val1) > maxdiff) then
+                      maxdiff = abs(val2 - val1)
+                      rmax = this_rank; imax = i; jmax = j; mmax = m
+                   endif
+                   ! if difference is small, then fix the asymmetry by averaging values
+                   ! else print a warning and abort
+                   if ( abs(val2-val1) < eps11*abs(diag_entry) ) then
+!                      avg_val = 0.5d0 * (val1 + val2)
+!                      Avu(i,    j,    m ) = avg_val
+!                      Auv(i+iA, j+jA, mm) = avg_val
+                   else
+                      write(iulog,*) 'WARNING: Avu is not equal to (Auv)^T, this_rank, i, j, iA, jA =', this_rank, i, j, iA, jA
+                      write(iulog,*) 'Avu(row,col), Auv(col,row), diff/diag:', val1, val2, (val2 - val1)/diag_entry
+                      call parallel_globalindex(i, j, iglobal, jglobal, parallel)
+                      write(iulog,*) '   iglobal, jglobal:', iglobal, jglobal
+!!                      stop
+                   endif
+
+                endif  ! val2 /= val1
+
+             endif        ! active_vertex
+          enddo           ! i
+       enddo              ! j
+    enddo     ! iA
+    enddo     ! jA
+
+    if (verbose_matrix) then
+       global_maxdiff = parallel_reduce_max(maxdiff)
+       if (global_maxdiff > 0.0d0 .and. maxdiff == global_maxdiff) then
+          ! maxdiff is on this processor; compute and broadcast the global index
+          call parallel_globalindex(imax, jmax, iglobal, jglobal, parallel)
+          write(iulog,*) 'Max asymmetry =', global_maxdiff
+          write(iulog,*) '   ig, jg, m =', iglobal, jglobal, mmax
+       endif
+    endif
+
+  end subroutine check_symmetry_assembled_matrix_2d
 
 !****************************************************************************
 
@@ -10476,11 +10891,13 @@
 
     real(dp) :: val1, val2          ! values of matrix coefficients
 
-    real(dp) :: maxdiff, diag_entry, avg_val
+    real(dp) :: maxdiff, global_maxdiff, diag_entry, avg_val
 
     integer :: &
          staggered_ilo, staggered_ihi, &  ! bounds of locally owned vertices on staggered grid
          staggered_jlo, staggered_jhi
+
+    integer :: rmax, imax, jmax, kmax, mmax
 
     staggered_ilo = parallel%staggered_ilo
     staggered_ihi = parallel%staggered_ihi
@@ -10496,6 +10913,7 @@
     !  and/or aborts.
 
     maxdiff = 0.d0
+    rmax = 0; imax = 0; jmax = 0; kmax = 0; mmax = 0
 
     ! Loop over locally owned vertices.
     ! Each active vertex is associate with 2*nz matrix rows belonging to this processor.
@@ -10534,12 +10952,15 @@
 
                       if (val2 /= val1) then
                           
-                         if (abs(val2 - val1) > maxdiff) maxdiff = abs(val2 - val1)
+                         if (abs(val2 - val1) > maxdiff) then
+                            maxdiff = abs(val2 - val1)
+                            rmax = this_rank; imax = i; jmax = j; kmax = k; mmax = m
+                         endif
 
                          ! if difference is small, then fix the asymmetry by averaging values
                          ! else print a warning and abort
 
-                         if ( abs(val2-val1) < eps08*abs(diag_entry) ) then
+                         if ( abs(val2-val1) < eps11*abs(diag_entry) ) then
                             avg_val = 0.5d0 * (val1 + val2)
                             Auu( m, k,   i,   j   ) = avg_val
                             Auu(mm, k+kA,i+iA,j+jA) = avg_val
@@ -10561,12 +10982,15 @@
 
                       if (val2 /= val1) then
 
-                         if (abs(val2 - val1) > maxdiff) maxdiff = abs(val2 - val1)
+                         if (abs(val2 - val1) > maxdiff) then
+                            maxdiff = abs(val2 - val1)
+                            rmax = this_rank; imax = i; jmax = j; kmax = k; mmax = m
+                         endif
 
                          ! if difference is small, then fix the asymmetry by averaging values
                          ! else print a warning and abort
 
-                         if ( abs(val2-val1) < eps08*abs(diag_entry) ) then
+                         if ( abs(val2-val1) < eps11*abs(diag_entry) ) then
                             avg_val = 0.5d0 * (val1 + val2)
                             Auv( m, k,   i,   j   ) = avg_val
                             Avu(mm, k+kA,i+iA,j+jA) = avg_val
@@ -10616,12 +11040,15 @@
 
                       if (val2 /= val1) then
                           
-                         if (abs(val2 - val1) > maxdiff) maxdiff = abs(val2 - val1)
+                         if (abs(val2 - val1) > maxdiff) then
+                            maxdiff = abs(val2 - val1)
+                            rmax = this_rank; imax = i; jmax = j; kmax = k; mmax = m
+                         endif
 
                          ! if difference is small, then fix the asymmetry by averaging values
                          ! else print a warning and abort
 
-                         if ( abs(val2-val1) < eps08*abs(diag_entry) ) then
+                         if ( abs(val2-val1) < eps11*abs(diag_entry) ) then
                             avg_val = 0.5d0 * (val1 + val2)
                             Avv( m, k,   i,   j   ) = avg_val
                             Avv(mm, k+kA,i+iA,j+jA) = avg_val
@@ -10641,14 +11068,17 @@
                       val1 = Avu( m, k,    i,    j)      ! value of Avu(row,col)
                       val2 = Auv(mm, k+kA, i+iA, j+jA)   ! value of Auv(col,row)
 
-                      if (abs(val2 - val1) > maxdiff) maxdiff = abs(val2 - val1)
+                      if (abs(val2 - val1) > maxdiff) then
+                         maxdiff = abs(val2 - val1)
+                         rmax = this_rank; imax = i; jmax = j; kmax = k; mmax = m
+                      endif
 
                       if (val2 /= val1) then
 
                          ! if difference is small, then fix the asymmetry by averaging values
                          ! else print a warning and abort
 
-                         if ( abs(val2-val1) < eps08*abs(diag_entry) ) then
+                         if ( abs(val2-val1) < eps11*abs(diag_entry) ) then
                             avg_val = 0.5d0 * (val1 + val2)
                             Avu( m, k,   i,   j   ) = avg_val
                             Auv(mm, k+kA,i+iA,j+jA) = avg_val
@@ -10674,203 +11104,154 @@
        enddo           ! i
     enddo              ! j
 
-    if (verbose_matrix) maxdiff = parallel_reduce_max(maxdiff)
-
-    if (verbose_matrix .and. main_task) then
-       write(iulog,*) ' '
-       write(iulog,*) 'Max difference from symmetry =', maxdiff
+    if (verbose_matrix) then
+       global_maxdiff = parallel_reduce_max(maxdiff)
+       if (global_maxdiff > 0.0d0 .and. maxdiff == global_maxdiff) then
+          ! maxdiff is on this processor; compute and broadcast the global index
+          call parallel_globalindex(imax, jmax, iglobal, jglobal, parallel)
+          write(iulog,*) 'Max asymmetry =', global_maxdiff
+          write(iulog,*) '   i, j, ig, jg, k, m =', imax, jmax, iglobal, jglobal, kmax, mmax
+       endif
     endif
 
   end subroutine check_symmetry_assembled_matrix_3d
 
 !****************************************************************************
 
-  subroutine check_symmetry_assembled_matrix_2d(nx,            ny,       &
-                                                parallel,                &
-                                                active_vertex,           &
-                                                Auu, Auv, Avu, Avv)
+  subroutine write_matrix_elements_2d(nx,             ny,            &
+                                      nVerticesSolve, vertexID,      &
+                                      iVertexIndex,   jVertexIndex,  &
+                                      Auu,            Auv,           &
+                                      Avu,            Avv,           &
+                                      bu,             bv)
 
-    !------------------------------------------------------------------
-    ! Check that the assembled stiffness matrix is symmetric.
-    ! This is true provided that (1) Auu = (Auu)^T
-    !                            (2) Avv = (Avv)^T
-    !                            (3) Auv = (Avu)^T
-    ! The A matrices are assembled in a dense fashion to save storage
-    !  and preserve the i/j/k structure of the grid.
-    !
-    ! There can be small differences from perfect symmetry due to roundoff error.
-    ! These differences are fixed provided they are small enough.
-    !------------------------------------------------------------------    
+    ! Write matrix elements to text files.
+    ! Note: Does not work when running on more than one task.
 
     integer, intent(in) ::   &
-       nx, ny                   ! horizontal grid dimensions
+       nx, ny,               &  ! horizontal grid dimensions
+       nVerticesSolve           ! number of vertices where we solve for velocity
 
-    type(parallel_type), intent(in) :: &
-         parallel             ! info for parallel communication
+    integer, dimension(nx-1,ny-1), intent(in) ::  &
+       vertexID             ! ID for each vertex
 
-    logical, dimension(nx-1,ny-1), intent(in) ::   &
-       active_vertex            ! T for columns (i,j) where velocity is computed, else F
+    integer, dimension(:), intent(in) ::   &
+       iVertexIndex, jVertexIndex   ! i and j indices of active vertices
 
-    real(dp), dimension(nx-1,ny-1,nNodeNeighbors_2d), intent(inout) ::   &
-       Auu, Auv, Avu, Avv       ! components of assembled stiffness matrix
-                                !
-                                !    Auu  | Auv
-                                !    _____|____          
-                                !         |
-                                !    Avu  | Avv                                    
+    real(dp), dimension(nx-1,ny-1,nNodeNeighbors_2d), intent(in) ::  &
+       Auu, Auv,    &     ! assembled stiffness matrix, divided into 4 parts
+       Avu, Avv           ! 1st dimension = vertex and its nearest neighbors in x and y direction 
+                          ! other dimensions = (i,j) indices
 
-    integer :: i, j, iA, jA, m, mm, iglobal, jglobal
+    real(dp), dimension(nx-1,ny-1), intent(in) ::  &
+       bu, bv             ! assembled load (rhs) vector, divided into 2 parts
 
-    real(dp) :: val1, val2          ! values of matrix coefficients
+    ! Local variables
 
-    real(dp) :: maxdiff, diag_entry, avg_val
+    integer :: rowA, colA
+    integer :: i, j, m, iA, jA
 
-    integer :: &
-         staggered_ilo, staggered_ihi, &  ! bounds of locally owned vertices on staggered grid
-         staggered_jlo, staggered_jhi
+    real(dp), dimension(nVerticesSolve, nVerticesSolve) ::   &
+       Auu_val, Auv_val, Avu_val, Avv_val   ! dense matrices
 
-    staggered_ilo = parallel%staggered_ilo
-    staggered_ihi = parallel%staggered_ihi
-    staggered_jlo = parallel%staggered_jlo
-    staggered_jhi = parallel%staggered_jhi
+    real(dp), dimension(nVerticesSolve) :: nonzeros
 
-    ! Check matrix for symmetry
-
-    ! Here we correct for small differences from symmetry due to roundoff error.
-    ! The maximum departure from symmetry is set to be a small fraction
-    !  of the diagonal entry for the row.
-    ! If the departure from symmetry is larger than this, then the model prints a warning 
-    !  and/or aborts.
-
-    maxdiff = 0.d0
-
-    ! Loop over locally owned vertices.
-    ! Each active vertex is associate with 2*nz matrix rows belonging to this processor.
-
-    do jA = -1, 1
-    do iA = -1, 1
-       m =  indxA_2d( iA, jA)
-       mm = indxA_2d(-iA,-jA)
-
-       do j = staggered_jlo, staggered_jhi
-          do i = staggered_ilo, staggered_ihi
-             if (active_vertex(i,j)) then
-
-                ! Check Auu and Auv for symmetry
-                diag_entry = Auu(i,j,indxA_2d(0,0))
-
-                !WHL - debug
-                if (diag_entry /= diag_entry) then
-                   write(iulog,*) 'WARNING: Diagonal NaN: i, j =', i, j
-                   call parallel_globalindex(i, j, iglobal, jglobal, parallel)
-                   write(iulog,*) '   iglobal, jglobal:', iglobal, jglobal
-!!                   stop
-                endif
-
-                ! Check that Auu = Auu^T
-                val1 = Auu(i,    j,    m )   ! value of Auu(row,col)
-                val2 = Auu(i+iA, j+jA, mm)   ! value of Auu(col,row)
-                if (val2 /= val1) then
-                   if (abs(val2 - val1) > maxdiff) maxdiff = abs(val2 - val1)
-                   ! if difference is small, then fix the asymmetry by averaging values
-                   ! else print a warning and abort
-                   if ( abs(val2-val1) < eps08*abs(diag_entry) ) then
-                      avg_val = 0.5d0 * (val1 + val2)
-                      Auu(i,    j,    m ) = avg_val
-                      Auu(i+iA, j+jA, mm) = avg_val
-                   else
-                      write(iulog,*) 'WARNING: Auu is not symmetric: this_rank, i, j, iA, jA =', this_rank, i, j, iA, jA
-                      write(iulog,*) 'Auu(row,col), Auu(col,row), diff/diag:', val1, val2, (val2 - val1)/diag_entry
-                      call parallel_globalindex(i, j, iglobal, jglobal, parallel)
-                      write(iulog,*) '   iglobal, jglobal:', iglobal, jglobal
-!!                      stop
-                   endif
-                endif   ! val2 /= val1
-
-                ! Check that Auv = (Avu)^T
-                val1 = Auv(i,    j,    m )   ! value of Auv(row,col)
-                val2 = Avu(i+iA, j+jA, mm)   ! value of Avu(col,row)
-                if (val2 /= val1) then
-                   if (abs(val2 - val1) > maxdiff) maxdiff = abs(val2 - val1)
-                   ! if difference is small, then fix the asymmetry by averaging values
-                   ! else print a warning and abort
-                   if ( abs(val2-val1) < eps08*abs(diag_entry) ) then
-                      avg_val = 0.5d0 * (val1 + val2)
-                      Auv(i,    j,    m ) = avg_val
-                      Avu(i+iA, j+jA, mm) = avg_val
-                   else
-                      write(iulog,*) 'WARNING: Auv is not equal to (Avu)^T, this_rank, i, j, iA, jA =', this_rank, i, j, iA, jA
-                      write(iulog,*) 'Auv(row,col), Avu(col,row), diff/diag:', val1, val2, (val2 - val1)/diag_entry
-                      call parallel_globalindex(i, j, iglobal, jglobal, parallel)
-                      write(iulog,*) '   iglobal, jglobal:', iglobal, jglobal
-!!                      stop
-                   endif
-                endif  ! val2 /= val1
-
-                ! Now check Avu and Avv
-                diag_entry = Avv(i,j,indxA_2d(0,0))
-
-                ! check that Avv = (Avv)^T
-                val1 = Avv(i,    j,    m )   ! value of Avv(row,col)
-                val2 = Avv(i+iA, j+jA, mm)   ! value of Avv(col,row)
-
-                if (val2 /= val1) then
-                   if (abs(val2 - val1) > maxdiff) maxdiff = abs(val2 - val1)
-
-                   ! if difference is small, then fix the asymmetry by averaging values
-                   ! else print a warning and abort
-                   if ( abs(val2-val1) < eps08*abs(diag_entry) ) then
-                      avg_val = 0.5d0 * (val1 + val2)
-                      Avv(i,    j,    m ) = avg_val
-                      Avv(i+iA, j+jA, mm) = avg_val
-                   else
-                      write(iulog,*) 'WARNING: Avv is not symmetric: this_rank, i, j, iA, jA =', this_rank, i, j, iA, jA
-                      write(iulog,*) 'Avv(row,col), Avv(col,row), diff/diag:', val1, val2, (val2 - val1)/diag_entry
-                      call parallel_globalindex(i, j, iglobal, jglobal, parallel)
-                      write(iulog,*) '   iglobal, jglobal:', iglobal, jglobal
-!!                      stop
-                   endif
-
-                endif   ! val2 /= val1
-
-                ! Check that Avu = (Auv)^T
-                val1 = Avu(i,    j,    m )   ! value of Avu(row,col)
-                val2 = Auv(i+iA, j+jA, mm)   ! value of Auv(col,row)
-
-                if (abs(val2 - val1) > maxdiff) maxdiff = abs(val2 - val1)
-
-                if (val2 /= val1) then
-
-                   ! if difference is small, then fix the asymmetry by averaging values
-                   ! else print a warning and abort
-                   if ( abs(val2-val1) < eps08*abs(diag_entry) ) then
-                      avg_val = 0.5d0 * (val1 + val2)
-                      Avu(i,    j,    m ) = avg_val
-                      Auv(i+iA, j+jA, mm) = avg_val
-                   else
-                      write(iulog,*) 'WARNING: Avu is not equal to (Auv)^T, this_rank, i, j, iA, jA =', this_rank, i, j, iA, jA
-                      write(iulog,*) 'Avu(row,col), Auv(col,row), diff/diag:', val1, val2, (val2 - val1)/diag_entry
-                      call parallel_globalindex(i, j, iglobal, jglobal, parallel)
-                      write(iulog,*) '   iglobal, jglobal:', iglobal, jglobal
-!!                      stop
-                   endif
-
-                endif  ! val2 /= val1
-
-             endif        ! active_vertex
-          enddo           ! i
-       enddo              ! j
-    enddo     ! iA
-    enddo     ! jA
-
-    if (verbose_matrix) maxdiff = parallel_reduce_max(maxdiff)
-
-    if (verbose_matrix .and. main_task) then
-       write(iulog,*) ' '
-       write(iulog,*) 'Max difference from symmetry =', maxdiff
+    if (tasks > 1) then
+       call write_log('Error: Cannot write matrix elements to files when tasks > 1', GM_FATAL)
     endif
 
-  end subroutine check_symmetry_assembled_matrix_2d
+    Auu_val(:,:) = 0.d0
+    Auv_val(:,:) = 0.d0
+    Avu_val(:,:) = 0.d0
+    Avv_val(:,:) = 0.d0
+
+    do rowA = 1, nVerticesSolve
+
+       i = iVertexIndex(rowA)
+       j = jVertexIndex(rowA)
+       do jA = -1, 1
+       do iA = -1, 1
+
+          if ( (i+iA >= 1 .and. i+iA <= nx-1)       &
+                          .and.                     &
+               (j+jA >= 1 .and. j+jA <= ny-1) ) then
+
+             colA = vertexID(i+iA, j+jA)   ! ID for neighboring vertex
+             m = indxA_2d(iA,jA)
+
+             if (colA > 0) then 
+                Auu_val(rowA, colA) = Auu(i,j,m)
+                Auv_val(rowA, colA) = Auv(i,j,m)
+                Avu_val(rowA, colA) = Avu(i,j,m)
+                Avv_val(rowA, colA) = Avv(i,j,m)
+             endif
+
+          endif     ! i+iA and j+jA in bounds
+
+       enddo        ! iA
+       enddo        ! jA
+
+    enddo           ! rowA 
+
+    !WHL - bug check
+    write(iulog,*) ' '
+    write(iulog,*) 'nonzeros per row:'
+    do rowA = 1, nVerticesSolve
+       nonzeros(rowA) = 0
+       do colA = 1, nVerticesSolve
+          if (abs(Auu_val(rowA,colA)) > 1.d-11) then
+             nonzeros(rowA) = nonzeros(rowA) + 1
+          endif
+       enddo
+!       write(iulog,*) rowA, nonzeros(rowA)
+    enddo
+
+    write(iulog,*) 'Write matrix elements to file, label =', matrix_label
+
+    ! Write matrices to file (one line of file corresponding to each row of matrix)
+
+    open(unit=10, file='Auu.'//matrix_label, status='unknown')
+    open(unit=11, file='Auv.'//matrix_label, status='unknown')
+    open(unit=12, file='Avu.'//matrix_label, status='unknown')
+    open(unit=13, file='Avv.'//matrix_label, status='unknown')
+
+    do rowA = 1, nVerticesSolve
+       write(10,'(i6)',advance='no') rowA
+       write(11,'(i6)',advance='no') rowA
+       write(12,'(i6)',advance='no') rowA
+       write(13,'(i6)',advance='no') rowA
+       do colA = 1, nVerticesSolve
+          write(10,'(e16.8)',advance='no') Auu_val(rowA,colA)
+          write(11,'(e16.8)',advance='no') Auv_val(rowA,colA)
+          write(12,'(e16.8)',advance='no') Avu_val(rowA,colA)
+          write(13,'(e16.8)',advance='no') Avv_val(rowA,colA)
+       enddo
+       write(10,*) ' '
+       write(11,*) ' '
+       write(12,*) ' '
+       write(13,*) ' '
+    enddo
+
+    close(10)
+    close(11)
+    close(12)
+    close(13)
+
+    write(iulog,*) 'Done writing matrix elements'
+
+    ! write load vectors to file
+    open(unit=14, file='bu.'//matrix_label, status='unknown')
+    open(unit=15, file='bv.'//matrix_label, status='unknown')
+    do rowA = 1, nVerticesSolve
+       i = iVertexIndex(rowA)
+       j = jVertexIndex(rowA)
+       write(14,'(i6, e16.8)') rowA, bu(i,j)
+       write(15,'(i6, e16.8)') rowA, bv(i,j)
+    enddo
+    close(14)
+    close(15)
+
+  end subroutine write_matrix_elements_2d
 
 !****************************************************************************
 
@@ -11018,226 +11399,6 @@
 
   end subroutine write_matrix_elements_3d
   
-!****************************************************************************
-
-  subroutine write_matrix_elements_2d(nx,             ny,            &
-                                      nVerticesSolve, vertexID,      &
-                                      iVertexIndex,   jVertexIndex,  &
-                                      Auu,            Auv,           &
-                                      Avu,            Avv,           &
-                                      bu,             bv)
-
-    ! Write matrix elements to text files.
-    ! Note: Does not work when running on more than one task.
-
-    integer, intent(in) ::   &
-       nx, ny,               &  ! horizontal grid dimensions
-       nVerticesSolve           ! number of vertices where we solve for velocity
-
-    integer, dimension(nx-1,ny-1), intent(in) ::  &
-       vertexID             ! ID for each vertex
-
-    integer, dimension(:), intent(in) ::   &
-       iVertexIndex, jVertexIndex   ! i and j indices of active vertices
-
-    real(dp), dimension(nx-1,ny-1,nNodeNeighbors_2d), intent(in) ::  &
-       Auu, Auv,    &     ! assembled stiffness matrix, divided into 4 parts
-       Avu, Avv           ! 1st dimension = vertex and its nearest neighbors in x and y direction 
-                          ! other dimensions = (i,j) indices
-
-    real(dp), dimension(nx-1,ny-1), intent(in) ::  &
-       bu, bv             ! assembled load (rhs) vector, divided into 2 parts
-
-    ! Local variables
-
-    integer :: rowA, colA
-    integer :: i, j, m, iA, jA
-
-    real(dp), dimension(nVerticesSolve, nVerticesSolve) ::   &
-       Auu_val, Auv_val, Avu_val, Avv_val   ! dense matrices
-
-    real(dp), dimension(nVerticesSolve) :: nonzeros
-
-    if (tasks > 1) then
-       call write_log('Error: Cannot write matrix elements to files when tasks > 1', GM_FATAL)
-    endif
-
-    Auu_val(:,:) = 0.d0
-    Auv_val(:,:) = 0.d0
-    Avu_val(:,:) = 0.d0
-    Avv_val(:,:) = 0.d0
-
-    do rowA = 1, nVerticesSolve
-
-       i = iVertexIndex(rowA)
-       j = jVertexIndex(rowA)
-       do jA = -1, 1
-       do iA = -1, 1
-
-          if ( (i+iA >= 1 .and. i+iA <= nx-1)       &
-                          .and.                     &
-               (j+jA >= 1 .and. j+jA <= ny-1) ) then
-
-             colA = vertexID(i+iA, j+jA)   ! ID for neighboring vertex
-             m = indxA_2d(iA,jA)
-
-             if (colA > 0) then 
-                Auu_val(rowA, colA) = Auu(i,j,m)
-                Auv_val(rowA, colA) = Auv(i,j,m)
-                Avu_val(rowA, colA) = Avu(i,j,m)
-                Avv_val(rowA, colA) = Avv(i,j,m)
-             endif
-
-          endif     ! i+iA and j+jA in bounds
-
-       enddo        ! iA
-       enddo        ! jA
-
-    enddo           ! rowA 
-
-    !WHL - bug check
-    write(iulog,*) ' '
-    write(iulog,*) 'nonzeros per row:'
-    do rowA = 1, nVerticesSolve
-       nonzeros(rowA) = 0
-       do colA = 1, nVerticesSolve
-          if (abs(Auu_val(rowA,colA)) > 1.d-11) then
-             nonzeros(rowA) = nonzeros(rowA) + 1
-          endif
-       enddo
-!       write(iulog,*) rowA, nonzeros(rowA)
-    enddo
-
-    write(iulog,*) 'Write matrix elements to file, label =', matrix_label
-
-    ! Write matrices to file (one line of file corresponding to each row of matrix)
-
-    open(unit=10, file='Auu.'//matrix_label, status='unknown')
-    open(unit=11, file='Auv.'//matrix_label, status='unknown')
-    open(unit=12, file='Avu.'//matrix_label, status='unknown')
-    open(unit=13, file='Avv.'//matrix_label, status='unknown')
-
-    do rowA = 1, nVerticesSolve
-       write(10,'(i6)',advance='no') rowA
-       write(11,'(i6)',advance='no') rowA
-       write(12,'(i6)',advance='no') rowA
-       write(13,'(i6)',advance='no') rowA
-       do colA = 1, nVerticesSolve
-          write(10,'(e16.8)',advance='no') Auu_val(rowA,colA)
-          write(11,'(e16.8)',advance='no') Auv_val(rowA,colA)
-          write(12,'(e16.8)',advance='no') Avu_val(rowA,colA)
-          write(13,'(e16.8)',advance='no') Avv_val(rowA,colA)
-       enddo
-       write(10,*) ' '
-       write(11,*) ' '
-       write(12,*) ' '
-       write(13,*) ' '
-    enddo
-
-    close(10)
-    close(11)
-    close(12)
-    close(13)
-
-    write(iulog,*) 'Done writing matrix elements'
-
-    ! write load vectors to file
-    open(unit=14, file='bu.'//matrix_label, status='unknown')
-    open(unit=15, file='bv.'//matrix_label, status='unknown')
-    do rowA = 1, nVerticesSolve
-       i = iVertexIndex(rowA)
-       j = jVertexIndex(rowA)
-       write(14,'(i6, e16.8)') rowA, bu(i,j)
-       write(15,'(i6, e16.8)') rowA, bv(i,j)
-    enddo
-    close(14)
-    close(15)
-
-  end subroutine write_matrix_elements_2d
-
-!****************************************************************************
-  !TODO - Either delete this subroutine, or switch the indices.  Not currently used.
-  subroutine compress_3d_to_2d(nx,        ny,      nz,  &
-                               Auu,       Auv,          &
-                               Avu,       Avv,          &
-                               bu,        bv,           &
-                               Auu_2d,    Auv_2d,       &
-                               Avu_2d,    Avv_2d,       &
-                               bu_2d,     bv_2d)
-
-    !----------------------------------------------------------------
-    ! Form the 2D matrix and rhs by combining terms from the 3D matrix and rhs.
-    ! This combination is based on the assumption of no vertical shear;
-    !  i.e., uvel and vvel have the same value at each level in a given column.
-    !----------------------------------------------------------------
-
-    !----------------------------------------------------------------
-    ! Input-output arguments
-    !----------------------------------------------------------------
-
-    integer, intent(in) ::   &
-       nx, ny,               &  ! horizontal grid dimensions
-       nz                       ! number of vertical levels where velocity is computed
-
-    real(dp), dimension(nNodeNeighbors_3d,nz,nx-1,ny-1), intent(in) ::  &
-       Auu, Auv,    &     ! assembled 3D stiffness matrix, divided into 4 parts
-       Avu, Avv           
-                          
-    real(dp), dimension(nz,nx-1,ny-1), intent(in) ::  &
-       bu, bv             ! assembled 3D rhs vector, divided into 2 parts
-                          
-    real(dp), dimension(nNodeNeighbors_2d,nx-1,ny-1), intent(out) ::  &
-       Auu_2d, Auv_2d,   &! assembled 2D (SSA) stiffness matrix, divided into 4 parts
-       Avu_2d, Avv_2d           
-                          
-    real(dp), dimension(nx-1,ny-1), intent(out) ::  &
-       bu_2d, bv_2d       ! assembled 2D (SSA) rhs vector, divided into 2 parts
-                          
-    !----------------------------------------------------------------
-    ! Local variables
-    !----------------------------------------------------------------
-
-    integer :: i, j, k, iA, jA, kA, m, m2
-
-    ! Initialize 2D matrix and rhs
-
-    Auu_2d(:,:,:) = 0.d0
-    Auv_2d(:,:,:) = 0.d0
-    Avu_2d(:,:,:) = 0.d0
-    Avv_2d(:,:,:) = 0.d0
-    bu_2d(:,:) = 0.d0
-    bv_2d(:,:) = 0.d0
-
-    ! Form 2D matrix and rhs
-
-    do j = 1, ny-1
-       do i = 1, nx-1
-          do k = 1, nz
-
-             ! matrix
-             do kA = -1,1
-                do jA = -1,1
-                   do iA = -1,1
-                      m = indxA_3d(iA,jA,kA)
-                      m2 = indxA_2d(iA,jA)
-                      Auu_2d(m2,i,j) = Auu_2d(m2,i,j) + Auu(m,k,i,j)
-                      Auv_2d(m2,i,j) = Auv_2d(m2,i,j) + Auv(m,k,i,j)
-                      Avu_2d(m2,i,j) = Avu_2d(m2,i,j) + Avu(m,k,i,j)
-                      Avv_2d(m2,i,j) = Avv_2d(m2,i,j) + Avv(m,k,i,j)
-                   enddo   ! iA
-                enddo      ! jA
-             enddo         ! kA
-
-             ! rhs
-             bu_2d(i,j) = bu_2d(i,j) + bu(k,i,j)
-             bv_2d(i,j) = bv_2d(i,j) + bv(k,i,j)
-
-          enddo            ! k
-       enddo               ! i
-    enddo                  ! j
-
-  end subroutine compress_3d_to_2d
-
 !****************************************************************************
 
   end module glissade_velo_higher

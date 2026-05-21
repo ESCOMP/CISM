@@ -45,7 +45,7 @@
     use glimmer_log
     use glissade_remap, only: glissade_horizontal_remap, make_remap_mask, puny
     use cism_parallel, only: this_rank, main_task, nhalo, lhalo, uhalo, staggered_lhalo, staggered_uhalo, &
-         parallel_type, parallel_reduce_max, parallel_reduce_sum, parallel_reduce_minloc, &
+         parallel_type, parallel_global_sum, parallel_reduce_max, parallel_reduce_minloc, &
          parallel_globalindex, broadcast
 
     implicit none
@@ -445,6 +445,7 @@
          call glissade_sum_mass_and_tracers(&
               nx,                ny,              &
               nlyr,              ntracers,        &
+              parallel,                           &
               thck_layer(:,:,:), msum_init,       &
               tracers(:,:,:,:),  mtsum_init(:))
       endif
@@ -603,6 +604,7 @@
          call glissade_sum_mass_and_tracers(&
               nx,                ny,              &
               nlyr,              ntracers,        &
+              parallel,                           &
               thck_layer(:,:,:), msum_final,      &
               tracers(:,:,:,:),  mtsum_final(:))
 
@@ -661,6 +663,7 @@
          call glissade_sum_mass_and_tracers(&
               nx,                ny,              &
               nlyr,              ntracers,        &
+              parallel,                           &
               thck_layer(:,:,:), msum_final,      &
               tracers(:,:,:,:),  mtsum_final(:))
 
@@ -950,6 +953,7 @@
     subroutine glissade_sum_mass_and_tracers(&
          nx,         ny,        &
          nlyr,       ntracer,   &
+         parallel,              &
          thck_layer, msum,      &
          tracer,     mtsum)
 
@@ -962,6 +966,9 @@
          nx, ny,               &! horizontal array size
          nlyr,                 &! number of vertical layers
          ntracer                ! number of tracers
+
+      type(parallel_type), intent(in) :: &
+         parallel               ! info for parallel communication
 
       real(dp), dimension (nx,ny,nlyr), intent(in) ::     &
          thck_layer             ! ice layer thickness
@@ -977,30 +984,21 @@
 
       ! Local arguments
 
-      integer :: i, j, nt
+      integer :: nt, k
 
-      msum  = 0.d0
-      if (present(mtsum)) mtsum(:) = 0.d0
+      msum  = 0.0d0
+      do k = 1, nlyr
+           msum = msum + parallel_global_sum(thck_layer(:,:,k), parallel)
+      enddo
 
-      do j = 1+nhalo, ny-nhalo
-         do i = 1+nhalo, nx-nhalo
-               
-            ! accumulate ice mass and mass*tracers
-            ! (actually, accumulate thickness, assuming rhoi*dx*dy is the same for each cell)
-
-            msum = msum + sum(thck_layer(i,j,:))
-
-            if (present(mtsum)) then
-               do nt = 1, ntracer
-                  mtsum(nt) =  mtsum(nt) + sum(tracer(i,j,nt,:)*thck_layer(i,j,:))
-               enddo
-            endif
-
-         enddo    ! i
-      enddo       ! j
-
-      msum = parallel_reduce_sum(msum)
-      if (present(mtsum)) mtsum = parallel_reduce_sum(mtsum)
+      if (present(mtsum)) then
+         mtsum(:) = 0.0d0
+         do k = 1, nlyr
+            do nt = 1, ntracer
+               mtsum(nt) = mtsum(nt) + parallel_global_sum(tracer(:,:,nt,k)*thck_layer(:,:,k), parallel)
+            enddo
+         enddo
+      endif
 
     end subroutine glissade_sum_mass_and_tracers
 

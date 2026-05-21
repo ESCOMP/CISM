@@ -39,11 +39,13 @@ module glide_diagnostics
   use cism_parallel, only: this_rank, main_task, lhalo, uhalo, nhalo, &
        parallel_type, broadcast, &
        parallel_localindex, parallel_globalindex, &
-       parallel_reduce_sum, parallel_reduce_max, &
+       parallel_global_sum, parallel_reduce_max, &
        parallel_reduce_maxloc, parallel_reduce_minloc, &
        parallel_is_zero
 
   implicit none
+
+  logical, parameter :: verbose_diagnostics = .false.
 
 contains
 
@@ -63,8 +65,6 @@ contains
     integer,  intent(in) :: tstep_count   ! current timestep
 
     ! local arguments
-
-    logical, parameter :: verbose_diagnostics = .false.
 
     ! debug
     if (main_task .and. verbose_diagnostics) then
@@ -231,7 +231,11 @@ contains
     integer, dimension(model%general%ewn,model%general%nsn) ::  &
          ice_mask,                 & ! = 1 where ice is present with thck > minthck, else = 0
          floating_mask,            & ! = 1 where ice is present and floating, else = 0
+         grounded_mask,            & ! = 1 where ice is present and grounded, else = 0
          glacier_ice_mask            ! = 1 where glacier ice is present, initially and/or currently
+
+    integer, dimension(model%general%ewn-1,model%general%nsn-1) ::  &
+         stag_ice_mask               ! staggered mask; = 1 if ice_mask = 1 for any of the four neighbors
 
     real(dp), dimension(model%general%upn) ::  &
          temp_diag,                     &    ! Note: sfc temp not included if temps are staggered
@@ -273,8 +277,14 @@ contains
          velo_ew_ubound, velo_ns_ubound          ! upper bounds for velocity variables
 
     real(dp), dimension(model%general%ewn, model%general%nsn) ::  &
-         velo_sfc,            & ! surface ice speed
-         thck_obs               ! observed ice thickness, derived from usrf_obs and topg
+         mass_above_flotation,& ! ice mass above flotation (kg)
+         thck_obs               ! observed ice thickness (m), derived from usrf_obs and topg
+
+    real(dp), dimension(model%general%ewn-1, model%general%nsn-1) ::  &
+         velo_sfc               ! surface ice speed (m/s)
+
+    real(dp), dimension(model%general%upn, model%general%ewn, model%general%nsn) ::  &
+         local_energy           ! internal energy (J) per layer in a column
 
     character(len=100) :: message
     
@@ -337,12 +347,26 @@ contains
              ice_mask(i,j) = 1
              if (model%geometry%topg(i,j) - model%climate%eus < (-rhoi/rhoo)*model%geometry%thck(i,j)) then
                 floating_mask(i,j) = 1
+                grounded_mask(i,j) = 0
              else
                 floating_mask(i,j) = 0
+                grounded_mask(i,j) = 1
              endif
           else
              ice_mask(i,j) = 0
              floating_mask(i,j) = 0
+             grounded_mask(i,j) = 0
+          endif
+       enddo
+    enddo
+
+    do j = 1, nsn-1
+       do i = 1, ewn-1
+          if (ice_mask(i,j+1) == 1 .or. ice_mask(i+1,j+1) == 1 .or.  &
+              ice_mask(i,j)   == 1 .or. ice_mask(i+1,j)   == 1) then
+             stag_ice_mask(i,j) = 1
+          else
+             stag_ice_mask(i,j) = 0
           endif
        enddo
     enddo
@@ -358,109 +382,73 @@ contains
     call write_log(' ')
 
     ! total ice area (m^2)
-
-    tot_area = 0.d0
-    tot_area_ground = 0.d0
-    tot_area_float = 0.d0
-    do j = lhalo+1, nsn-uhalo
-       do i = lhalo+1, ewn-uhalo
-          if (ice_mask(i,j) == 1) then
-             tot_area = tot_area + cell_area(i,j)
-             if (floating_mask(i,j) == 1) then
-                tot_area_float = tot_area_float + cell_area(i,j)
-             else
-                tot_area_ground = tot_area_ground + cell_area(i,j)
-             endif
-          endif
-       enddo
-    enddo
-
-    tot_area = parallel_reduce_sum(tot_area)
-    tot_area_ground = parallel_reduce_sum(tot_area_ground)
-    tot_area_float = parallel_reduce_sum(tot_area_float)
+    tot_area = parallel_global_sum(cell_area, parallel, ice_mask)
+    tot_area_float = parallel_global_sum(cell_area, parallel, floating_mask)
+    tot_area_ground = parallel_global_sum(cell_area, parallel, grounded_mask)
 
     ! total ice volume (m^3)
- 
-    tot_volume = 0.d0
-    do j = lhalo+1, nsn-uhalo
-       do i = lhalo+1, ewn-uhalo
-          if (ice_mask(i,j) == 1) then
-             tot_volume = tot_volume + model%geometry%thck(i,j) * cell_area(i,j)
-          endif
-       enddo
-    enddo
-    tot_volume = parallel_reduce_sum(tot_volume)
+    tot_volume = parallel_global_sum(model%geometry%thck*cell_area, parallel, ice_mask)
 
     ! total ice mass (kg)
     tot_mass = tot_volume * rhoi
 
     ! total ice mass above flotation (kg)
-    tot_mass_above_flotation = 0.d0
-
-    do j = lhalo+1, nsn-uhalo
-       do i = lhalo+1, ewn-uhalo
-          if (ice_mask(i,j) == 1) then
-             if (floating_mask(i,j) == 0) then  ! grounded ice
-                if (model%geometry%topg(i,j) - model%climate%eus < 0.0d0) then  ! grounded below sea level
-                   thck_floating = (-rhoo/rhoi) * (model%geometry%topg(i,j) - model%climate%eus)  ! exactly floating
-                   thck_above_flotation = model%geometry%thck(i,j) - thck_floating
-                   tot_mass_above_flotation = tot_mass_above_flotation    &
-                                            + thck_above_flotation * cell_area(i,j)
-                else   ! grounded above sea level
-                   tot_mass_above_flotation = tot_mass_above_flotation    &
-                                            + model%geometry%thck(i,j) * cell_area(i,j)
-                endif
+    mass_above_flotation = 0.0d0
+    do j = 1, nsn
+       do i = 1, ewn
+          if (ice_mask(i,j) == 1 .and. floating_mask(i,j) == 0) then
+             if (model%geometry%topg(i,j) - model%climate%eus < 0.0d0) then  ! grounded below sea level
+                thck_floating = (-rhoo/rhoi) * (model%geometry%topg(i,j) - model%climate%eus)  ! exactly floating
+                mass_above_flotation(i,j) = (model%geometry%thck(i,j) - thck_floating) * cell_area(i,j)
+             else   ! grounded above sea level
+                mass_above_flotation(i,j) = model%geometry%thck(i,j) * cell_area(i,j)
              endif
           endif
        enddo
     enddo
-
-    tot_mass_above_flotation = tot_mass_above_flotation * rhoi            ! convert from m^3 to kg
-    tot_mass_above_flotation = parallel_reduce_sum(tot_mass_above_flotation)
+    mass_above_flotation = mass_above_flotation * rhoi   ! convert from m^3 to kg
+    tot_mass_above_flotation = parallel_global_sum(mass_above_flotation, parallel)
 
     ! total ice energy relative to T = 0 deg C (J)
- 
-    tot_energy = 0.d0
-    if (size(model%temper%temp,1) == upn+1) then  ! temps are staggered in vertical
-       do j = lhalo+1, nsn-uhalo
-          do i = lhalo+1, ewn-uhalo
+    local_energy = 0.0d0
+    if (size(model%temper%temp,1) == upn+1) then  ! temps are staggered in vertical, located at layer centers
+       ! in this case, the data in the upn layer remains = 0
+       do j = 1, nsn
+          do i = 1, ewn
              if (ice_mask(i,j) == 1) then
-                do k = 1, upn-1
-                   tot_energy = tot_energy +   &
-                                model%geometry%thck(i,j) * model%temper%temp(k,i,j) * cell_area(i,j)   &
-                                *(model%numerics%sigma(k+1) - model%numerics%sigma(k))
+                do k = 1, upn-1   ! (upn-1) layers
+                   local_energy(k,i,j) = &
+                        model%geometry%thck(i,j) * model%temper%temp(k,i,j) * cell_area(i,j)   &
+                        * (model%numerics%sigma(k+1) - model%numerics%sigma(k))
                 enddo
              endif
           enddo
        enddo
-    
-    else   ! temps are unstaggered in vertical
-       do j = lhalo+1, nsn-uhalo
-          do i = lhalo+1, ewn-uhalo
+    else   ! temps are unstaggered in vertical, located at layer interfaces
+       do j = 1, nsn
+          do i = 1, ewn
              if (ice_mask(i,j) == 1) then
-                ! upper half-layer, T = upper sfc temp
-                tot_energy = tot_energy +   &
-                             model%geometry%thck(i,j) * model%temper%temp(1,i,j) * cell_area(i,j)    &
-                             * 0.5d0 * model%numerics%sigma(2)
-                do k = 2, upn-1
-                   tot_energy = tot_energy +   &
-                             model%geometry%thck(i,j) * model%temper%temp(k,i,j) * cell_area(i,j)  &
-                             * 0.5d0*(model%numerics%sigma(k+1) - model%numerics%sigma(k-1))
+                k = 1   ! top interface; assign this temperature to the top half layer
+                local_energy(k,i,j) = &
+                     model%geometry%thck(i,j) * model%temper%temp(k,i,j) * cell_area(i,j)    &
+                     * 0.5d0 * model%numerics%sigma(k+1)
+                do k = 2, upn-1   ! interior layers
+                   local_energy(k,i,j) = &
+                        model%geometry%thck(i,j) * model%temper%temp(k,i,j) * cell_area(i,j)  &
+                        * 0.5d0*(model%numerics%sigma(k+1) - model%numerics%sigma(k-1))
                 enddo
-                ! lower half-layer, T = lower sfc temp
-                tot_energy = tot_energy +   &
-                             model%geometry%thck(i,j) * model%temper%temp(upn,i,j) * cell_area(i,j)  &
-                             * 0.5d0 * (1.0d0 - model%numerics%sigma(upn-1))
+                k = upn   ! bottom interface; assign this temperature to the bottom half layer
+                local_energy(k,i,j) = &
+                     model%geometry%thck(i,j) * model%temper%temp(k,i,j) * cell_area(i,j)  &
+                     * 0.5d0 * (1.0d0 - model%numerics%sigma(k-1))
              endif
           enddo
        enddo
     endif
-
-    tot_energy = tot_energy * rhoi * shci
-    tot_energy = parallel_reduce_sum(tot_energy)
+    local_energy = local_energy * rhoi * shci
+    tot_energy = parallel_global_sum(local_energy, parallel, ice_mask)
 
     ! mean thickness
-
     if (tot_area > eps) then
        mean_thck = tot_volume/tot_area
     else
@@ -468,7 +456,6 @@ contains
     endif
 
     ! mean temperature
- 
     if (tot_volume > eps) then
        mean_temp = tot_energy/ (rhoi*shci*tot_volume)
     else
@@ -490,19 +477,11 @@ contains
     if (model%options%whichdycore == DYCORE_GLISSADE) then
 
        ! total surface accumulation/ablation rate (m^3/yr ice)
- 
-       tot_acab = 0.d0
-       do j = lhalo+1, nsn-uhalo
-          do i = lhalo+1, ewn-uhalo
-             tot_acab = tot_acab + model%climate%acab_applied(i,j) * cell_area(i,j)
-          enddo
-       enddo
-
-       tot_acab = tot_acab * scyr               ! convert to m^3/yr
-       tot_acab = parallel_reduce_sum(tot_acab)
+       tot_acab = parallel_global_sum(model%climate%acab_applied*cell_area, parallel)
+       tot_acab = tot_acab * scyr                ! convert from m^3/s to m^3/yr
 
        ! total surface mass balance flux (kg/s)
-       tot_smb_flux = tot_acab * rhoi / scyr   ! convert m^3/yr to kg/s
+       tot_smb_flux = tot_acab * rhoi / scyr     ! convert m^3/yr to kg/s
 
        ! mean accumulation/ablation rate (m/yr)
        ! Note: This will be only approximate if some ice has melted completely during the time step
@@ -513,15 +492,8 @@ contains
        endif
 
        ! total basal melting rate (positive for ice loss)
-       tot_bmlt = 0.d0
-       do j = lhalo+1, nsn-uhalo
-          do i = lhalo+1, ewn-uhalo
-             tot_bmlt = tot_bmlt + model%basal_melt%bmlt_applied(i,j) * cell_area(i,j)
-          enddo
-       enddo
-
-       tot_bmlt = tot_bmlt * scyr               ! convert to m^3/yr
-       tot_bmlt = parallel_reduce_sum(tot_bmlt)
+       tot_bmlt = parallel_global_sum(model%basal_melt%bmlt_applied*cell_area, parallel)
+       tot_bmlt = tot_bmlt * scyr                ! convert from m^3/s to m^3/yr
 
        ! total basal mass balance (kg/s, positive for freeze-on, negative for melt)
        tot_bmb_flux = -tot_bmlt * rhoi / scyr   ! convert m^3/yr to kg/s
@@ -536,14 +508,7 @@ contains
 
        ! total calving rate (m^3/yr ice)
        ! Note: calving%calving_rate has units of m/yr ice
-
-       tot_calving = 0.d0
-       do j = lhalo+1, nsn-uhalo
-          do i = lhalo+1, ewn-uhalo
-             tot_calving = tot_calving + model%calving%calving_rate(i,j) * cell_area(i,j)  ! m^3/yr ice
-          enddo
-       enddo
-       tot_calving = parallel_reduce_sum(tot_calving)
+       tot_calving = parallel_global_sum(model%calving%calving_rate*cell_area, parallel)
 
        ! total calving mass balance flux (kg/s, negative for ice loss by calving)
        tot_calving_flux = -tot_calving * rhoi / scyr   ! convert m^3/yr to kg/s
@@ -559,15 +524,10 @@ contains
        ! total grounding line mass balance flux (< 0 by definition)
        ! Note: At this point, gl_flux_east and gl_flux_north are already dimensionalized in kg/m/s,
        !       so tot_gl_flux will have units of kg/s
-
-       tot_gl_flux = 0.d0
-       do j = lhalo+1, nsn-uhalo
-          do i = lhalo+1, ewn-uhalo
-             tot_gl_flux = tot_gl_flux - abs(model%geometry%gl_flux_east(i,j))  * model%numerics%dns &
-                                       - abs(model%geometry%gl_flux_north(i,j)) * model%numerics%dew
-          enddo
-       enddo
-       tot_gl_flux = parallel_reduce_sum(tot_gl_flux)
+       tot_gl_flux = parallel_global_sum(abs(model%geometry%gl_flux_east)  * model%numerics%dns  &
+                                       + abs(model%geometry%gl_flux_north) * model%numerics%dew, &
+                                       parallel)
+       tot_gl_flux = (-1.0d0)*tot_gl_flux   ! negative by definition
 
        ! total rate of change of ice mass (kg/s)
        ! Note: dthck_dt has units of m/s
@@ -575,14 +535,8 @@ contains
        !       in successive time steps, instead of summing over dthck_dt.
        !      Note that dthck_dt does not account for global outflow fluxes (i.e., removal of ice
        !       near the global boundary in halo updates).
-       tot_dmass_dt = 0.d0
-       do j = lhalo+1, nsn-uhalo
-          do i = lhalo+1, ewn-uhalo
-             tot_dmass_dt = tot_dmass_dt + model%geometry%dthck_dt(i,j) * cell_area(i,j)
-          enddo
-       enddo
+       tot_dmass_dt = parallel_global_sum(model%geometry%dthck_dt*cell_area, parallel)
        tot_dmass_dt = tot_dmass_dt * rhoi              ! convert to kg/s
-       tot_dmass_dt = parallel_reduce_sum(tot_dmass_dt)
 
        ! mass conservation error
        ! Note: For most runs, this should be close to zero.
@@ -957,8 +911,8 @@ contains
                      + model%velocity%vvel(1,:,:)**2)
 
        call glissade_rms_error(&
-            ewn,            nsn,                &
-            ice_mask,                           &
+            ewn-1,          nsn-1,              &
+            stag_ice_mask,                      &
             parallel,                           &
             velo_sfc * scyr,                    &  ! m/yr
             model%velocity%velo_sfc_obs * scyr, &  ! m/yr
@@ -1310,48 +1264,57 @@ contains
 
        ng = model%glacier%ngdiag
 
-       write(message,'(a35,i14)') 'Diagnostic glacier index (RGI)     ', &
-            model%glacier%cism_to_rgi_glacier_id(ng)
-       call write_log(trim(message), type = GM_DIAGNOSTIC)
+       if (ng > 0) then
 
-       write(message,'(a35,i14)') 'Diagnostic glacier index (CISM)    ', ng
-       call write_log(trim(message), type = GM_DIAGNOSTIC)
+          write(message,'(a35,i14)') 'Diagnostic glacier index (RGI)     ', &
+               model%glacier%cism_to_rgi_glacier_id(ng)
+          call write_log(trim(message), type = GM_DIAGNOSTIC)
 
-       write(message,'(a35,f14.6)') 'Glacier area_init (km^2)           ', &
-            model%glacier%area_init(ng) / 1.0d6
-       call write_log(trim(message), type = GM_DIAGNOSTIC)
+          write(message,'(a35,i14)') 'Diagnostic glacier index (CISM)    ', ng
+          call write_log(trim(message), type = GM_DIAGNOSTIC)
 
-       write(message,'(a35,f14.6)') 'Glacier area (km^2)                ', &
-            model%glacier%area(ng) / 1.0d6
-       call write_log(trim(message), type = GM_DIAGNOSTIC)
+          write(message,'(a35,f14.6)') 'Glacier area_init (km^2)           ', &
+               model%glacier%area_init(ng) / 1.0d6
+          call write_log(trim(message), type = GM_DIAGNOSTIC)
 
-       write(message,'(a35,f14.6)') 'Glacier area_init_extent (km^2)    ', &
-            model%glacier%area_init_extent(ng) / 1.0d6
-       call write_log(trim(message), type = GM_DIAGNOSTIC)
+          write(message,'(a35,f14.6)') 'Glacier area (km^2)                ', &
+               model%glacier%area(ng) / 1.0d6
+          call write_log(trim(message), type = GM_DIAGNOSTIC)
 
-       write(message,'(a35,f14.6)') 'Glacier volume (km^3)              ', &
-            model%glacier%volume(ng) / 1.0d9
-       call write_log(trim(message), type = GM_DIAGNOSTIC)
+          write(message,'(a35,f14.6)') 'Glacier area_init_extent (km^2)    ', &
+               model%glacier%area_init_extent(ng) / 1.0d6
+          call write_log(trim(message), type = GM_DIAGNOSTIC)
 
-       write(message,'(a35,f14.6)') 'Glacier volume_init (km^3)         ', &
-            model%glacier%volume_init(ng) / 1.0d9
-       call write_log(trim(message), type = GM_DIAGNOSTIC)
+          write(message,'(a35,f14.6)') 'Glacier volume (km^3)              ', &
+               model%glacier%volume(ng) / 1.0d9
+          call write_log(trim(message), type = GM_DIAGNOSTIC)
 
-       write(message,'(a35,f14.6)') 'Glacier volume_init_extent (km^3)  ', &
-            model%glacier%volume_init_extent(ng) / 1.0d9
-       call write_log(trim(message), type = GM_DIAGNOSTIC)
+          write(message,'(a35,f14.6)') 'Glacier volume_init (km^3)         ', &
+               model%glacier%volume_init(ng) / 1.0d9
+          call write_log(trim(message), type = GM_DIAGNOSTIC)
 
-       write(message,'(a35,f14.6)') 'mu_star (mm/yr w.e./deg C)         ', &
-            model%glacier%mu_star(ng)
-       call write_log(trim(message), type = GM_DIAGNOSTIC)
+          write(message,'(a35,f14.6)') 'Glacier volume_init_extent (km^3)  ', &
+               model%glacier%volume_init_extent(ng) / 1.0d9
+          call write_log(trim(message), type = GM_DIAGNOSTIC)
 
-       write(message,'(a35,f14.6)') 'alpha_snow                         ', &
-            model%glacier%alpha_snow(ng)
-       call write_log(trim(message), type = GM_DIAGNOSTIC)
+          write(message,'(a35,f14.6)') 'mu_star (mm/yr w.e./deg C)         ', &
+               model%glacier%mu_star(ng)
+          call write_log(trim(message), type = GM_DIAGNOSTIC)
 
-       write(message,'(a35,f14.6)') 'beta_artm (deg C)                  ', &
-            model%glacier%beta_artm(ng)
-       call write_log(trim(message), type = GM_DIAGNOSTIC)
+          write(message,'(a35,f14.6)') 'alpha_snow                         ', &
+               model%glacier%alpha_snow(ng)
+          call write_log(trim(message), type = GM_DIAGNOSTIC)
+
+          write(message,'(a35,f14.6)') 'beta_artm (deg C)                  ', &
+               model%glacier%beta_artm(ng)
+          call write_log(trim(message), type = GM_DIAGNOSTIC)
+
+       else   ! glacier ID = 0
+
+          write(message,'(a35,i14)') 'Diagnostic glacier index (CISM)    ', ng
+          call write_log(trim(message), type = GM_DIAGNOSTIC)
+
+       endif
 
        call write_log(' ')
 

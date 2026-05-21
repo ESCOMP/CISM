@@ -52,7 +52,7 @@
   use glimmer_utils, only: point_diag
   use glide_types
   use cism_parallel, only : this_rank, main_task, parallel_type, &
-       parallel_halo, staggered_parallel_halo, parallel_globalindex, distributed_scatter_var
+       parallel_halo, staggered_parallel_halo, parallel_globalindex, scatter_var
 
   implicit none
 
@@ -157,9 +157,10 @@ contains
        big_lambda,         & ! bedrock characteristics
        flwa_basal_stag       ! basal flwa interpolated to the staggered grid (Pa^{-n} yr^{-1})
 
-  ! variables for Tsai et al. parameterization
-  real(dp) :: taub_powerlaw  ! basal shear stress given by a power law as in Tsai et al. (2015)
-  real(dp) :: taub_coulomb   ! basal shear stress given by Coulomb friction as in Tsai et al. (2015)
+  ! variables for mixed power/Coulomb laws
+  real(dp) :: taub           ! basal shear stress
+  real(dp) :: taub_powerlaw  ! basal shear stress given by a power law
+  real(dp) :: taub_coulomb   ! basal shear stress given by Coulomb friction
 
   ! variables for pseudo-plastic law
   real(dp) :: q              ! exponent for pseudo-plastic law (unitless)
@@ -185,6 +186,7 @@ contains
   ! Enforce a minimum speed to prevent beta from become very large when velocity is small.
   speed(:,:) = dsqrt(thisvel(:,:)**2 + othervel(:,:)**2 + smallnum**2)
 
+  !TODO - Should this be done only for powerlaw sliding, and not for ZI or PP?
   ! If beta_powerlaw_umax is set to a nonzero value, then limit the speed to this value.
   ! Note: The actual ice speed can be greater than umax.  This is just a way of shutting off the feedback
   !        between beta and ice speed (beta down as speed up) when the ice speed is large.
@@ -347,7 +349,7 @@ contains
        !      The following code sets beta on the full grid as prescribed by Pattyn et al. (2008).
 
        ! Allocate a global array on the main task only.
-       ! On other tasks, allocate a size 0 array, since distributed_scatter_var wants to deallocate on all tasks.
+       ! On other tasks, allocate a size 0 array, since scatter_var wants to deallocate on all tasks.
        if (main_task) then
           allocate(beta_global(parallel%global_ewn, parallel%global_nsn))
        else
@@ -377,9 +379,9 @@ contains
        ! Note: beta_extend has dimensions (ewn,nsn), so it can receive scattered data from beta_global.
        allocate(beta_extend(ewn, nsn))
        beta_extend(:,:) = 0.d0
-       call distributed_scatter_var(beta_extend, beta_global, parallel)
+       call scatter_var(beta_extend, beta_global, parallel)
 
-       ! distributed_scatter_var does not update the halo, so do an update here
+       ! scatter_var does not update the halo, so do an update here
        call parallel_halo(beta_extend, parallel)
 
        ! Copy beta_extend to beta on the local processor.
@@ -391,7 +393,7 @@ contains
           enddo
        enddo
 
-      ! beta_extend is no longer needed (beta_global is deallocated in distributed_scatter_var)
+      ! beta_extend is no longer needed (beta_global is deallocated in scatter_var)
       deallocate(beta_extend)
 
     case(HO_BABC_BETA_EXTERNAL)   ! use beta value from external file
@@ -504,9 +506,9 @@ contains
           beta = 1.0d8
        end where
 
-    case(HO_BABC_COULOMB_POWERLAW_SCHOOF)
+    case(HO_BABC_SCHOOF)
 
-       ! Use the basal friction formulation of Schoof (2005), modified following Asay-Davis et al. (2016).
+       ! Use the basal friction formulation of Schoof (2005), formluated following Asay-Davis et al. (2016).
        ! This formulation uses a constant value of basal flwa, which allows several Coulomb parameters
        !  (lambda_max, m_max and flwa_basal) to be combined into a single parameter powerlaw_c, 
        !  as in the Tsai power law below.
@@ -576,16 +578,48 @@ contains
 !         write(iulog,*) ew, ns, speed(ew,ns), basal_physics%effecpress_stag(ew,ns), beta(ew,ns), beta(ew,ns)*speed(ew,ns)
 !      enddo
 
-    case(HO_BABC_COULOMB_POWERLAW_TSAI)
+    case(HO_BABC_MODIFIED_SCHOOF)
 
-      ! Basal stress representation based on Tsai et al. (2015)
-      ! The basal stress is the minimum of two values:
-      ! (1) power law:          tau_b = powerlaw_c * |u_b|^(1/powerlaw_m)
-      ! (2) Coulomb friction:   tau_b = coulomb_c * N
-      !                             N = effective pressure = rhoi*g*(H - H_f)
-      !                           H_f = flotation thickness = (rhow/rhoi)*(eus-topg)
-      ! This value of N is obtained by setting p_ocean_penetration = 1.0 in the config file.
-      ! The other parameters (powerlaw_c, powerlaw_m and coulomb_c) can also be set in the config file.
+       ! Modified version of the Schoof law, with a simpler albebraic form
+       ! The basal stress is given by
+       ! 1/tau_b = 1/tau_p + 1/tau_c
+       ! where tau_p = powerlaw_c * |u_b|^(1/powerlaw_m)
+       !       tau_c = coulomb_c * N
+       !           N = effective pressure
+       ! Note: taub = 1/2 of the harmonic mean of tau_p and tau_c
+
+       do ns = 1, nsn-1
+          do ew = 1, ewn-1
+
+             taub_powerlaw = basal_physics%powerlaw_c(ew,ns) * speed(ew,ns)**(1.d0/basal_physics%powerlaw_m)
+             taub_coulomb  = basal_physics%coulomb_c(ew,ns) * basal_physics%effecpress_stag(ew,ns)
+
+             if (taub_coulomb > 0.0d0 .and. taub_powerlaw > 0.0d0) then
+                taub = 1.0d0 / (1.0d0/taub_powerlaw + 1.0d0/taub_coulomb)
+             elseif (taub_powerlaw > 0.0d0) then
+                taub = taub_powerlaw
+             elseif (taub_coulomb > 0.0d0) then
+                taub = taub_coulomb
+             endif
+             beta(ew,ns) = taub / speed(ew,ns)
+
+             if (verbose_beta .and. present(rtest) .and. present(itest) .and. present(jtest)) then
+                if (this_rank == rtest .and. ew == itest .and. ns == jtest) then
+                   write(iulog,*) ' '
+                   write(iulog,'(a38,3i4,4f12.3)') 'rank, i, j, tau_p, tau_c, tau_b, beta:', &
+                        this_rank, ew, ns, taub_powerlaw, taub_coulomb, taub, beta(ew,ns)
+                endif
+             endif
+          enddo   ! ew
+       enddo   ! ns
+
+    case(HO_BABC_TSAI)
+
+       ! Basal stress representation based on Tsai et al. (2015)
+       ! The basal stress is the minimum of two values:
+       ! (1) power law:          tau_p = powerlaw_c * |u_b|^(1/powerlaw_m)
+       ! (2) Coulomb friction:   tau_c = coulomb_c * N
+       !                             N = effective pressure
 
        do ns = 1, nsn-1
           do ew = 1, ewn-1
@@ -606,18 +640,6 @@ contains
        if (maxval(abs(basal_physics%c_space_factor_stag(:,:) - 1.0d0)) > tiny(0.0d0)) then
           beta(:,:) = beta(:,:) * basal_physics%c_space_factor_stag(:,:)
        endif
-
-    case(HO_BABC_SIMPLE)    ! simple pattern; also useful for debugging and test cases
-                            ! (here, a strip of weak bed surrounded by stronger bed to simulate an ice stream)
-
-      beta(:,:) = 1.d4        ! Pa yr/m
-
-      !TODO - Change this loop to work in parallel (set beta on the global grid and scatter to local)
-      do ns = 5, nsn-5
-         do ew = 1, ewn-1
-            beta(ew,ns) = 100.d0      ! Pa yr/m
-         end do
-      end do
 
     case default
        ! do nothing
@@ -686,11 +708,10 @@ contains
    !TODO - Move this halo update to a higher level?
    call staggered_parallel_halo(beta, parallel)
 
-   !WHL - debug
    if (verbose_beta .and. present(rtest) .and. present(itest) .and. present(jtest)) then
       if (this_rank == rtest) then
          ew = itest; ns = jtest
-         write(iulog,*) 'End of calcbeta, r, i, j, speed, f_ground, beta:', &
+         write(iulog,'(a48,3i4,3f12.5)') 'End of calcbeta, r, i, j, speed, f_ground, beta:', &
               rtest, ew, ns, speed(ew,ns), f_ground(ew,ns), beta(ew,ns)
       endif
    endif

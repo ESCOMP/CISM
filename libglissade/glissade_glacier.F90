@@ -74,8 +74,8 @@ contains
     ! Another array, cism_to_rgi_glacier_id, identifies the RGI ID associated with each CISM ID.
     ! The CISM input file contains the RGI IDs.
 
-    use cism_parallel, only: distributed_gather_var, distributed_scatter_var, &
-         parallel_reduce_sum, parallel_reduce_max, parallel_reduce_min, parallel_is_zero, &
+    use cism_parallel, only: gather_var, scatter_var, &
+         parallel_global_sum, parallel_reduce_max, parallel_reduce_min, parallel_is_zero, &
          broadcast, parallel_halo, staggered_parallel_halo, parallel_globalindex
 
     type(glide_global_type),intent(inout) :: model
@@ -91,7 +91,7 @@ contains
 
     integer :: i, j, nc, ng, count
     integer :: iglobal, jglobal
-    integer :: ng_west, ng_east, ng_south, ng_north
+    integer :: ng_ne, ng_nw, ng_se, ng_sw
     integer :: min_id, max_id
     real(dp) :: max_glcval
     real(dp) :: theta_rad             ! latitude in radians
@@ -112,6 +112,9 @@ contains
          ncells_glacier,            & ! number of global grid cells occupied by glaciers at initialization
          current_id,                & ! current glacier_id from list
          gid_minval, gid_maxval       ! min and max values of glacier_id
+
+    integer, dimension(model%general%ewn,model%general%nsn) :: &
+         glacier_mask                 ! = 1 for cells with glaciers (glacier_id > 0), else = 0
 
     type(parallel_type) :: parallel   ! info for parallel communication
 
@@ -152,9 +155,15 @@ contains
 
     if (glacier%scale_area) then
 
-       ! Optionally, rescale the grid cell dimensions dew and dns
+       ! Optionally, rescale the grid cell dimensions and coordinates
        ! This is answer-changing throughout the code.
+       ! Note: The global arrays model%general%x1_global, etc., which are written to output files, are not rescaled.
+       !       These arrays are computed from the input file, which typically ignores the scale factor.
        if (glacier%length_scale_factor /= 1.0d0) then
+          model%general%x0 = model%general%x0 * glacier%length_scale_factor
+          model%general%y0 = model%general%y0 * glacier%length_scale_factor
+          model%general%x1 = model%general%x1 * glacier%length_scale_factor
+          model%general%y1 = model%general%y1 * glacier%length_scale_factor
           model%numerics%dew = model%numerics%dew * glacier%length_scale_factor
           model%numerics%dns = model%numerics%dns * glacier%length_scale_factor
           dew = model%numerics%dew
@@ -194,8 +203,7 @@ contains
        !  and these arrays should already have the correct dimensions.
 
        if (associated(glacier%glacierid)) deallocate(glacier%glacierid)
-       if (associated(glacier%cism_to_rgi_glacier_id)) &
-            deallocate(glacier%cism_to_rgi_glacier_id)
+       if (associated(glacier%cism_to_rgi_glacier_id)) deallocate(glacier%cism_to_rgi_glacier_id)
        if (associated(glacier%area)) deallocate(glacier%area)
        if (associated(glacier%volume)) deallocate(glacier%volume)
        if (associated(glacier%area_init)) deallocate(glacier%area_init)
@@ -220,28 +228,16 @@ contains
        ! Count the number of cells with glaciers
        ! Loop over locally owned cells
 
-       count = 0
-       do j = nhalo+1, nsn-nhalo
-          do i = nhalo+1, ewn-nhalo
-             if (glacier%rgi_glacier_id(i,j) > 0) then
-                count = count + 1
-             elseif (glacier%rgi_glacier_id(i,j) < 0) then  ! should not happen
-                call parallel_globalindex(i, j, iglobal, jglobal, parallel)
-                write(message,*) 'RGI glacier_id < 0: i, j, value =', &
-                     iglobal, jglobal, glacier%rgi_glacier_id(i,j)
-                call write_log(message, GM_FATAL)
-             endif
-          enddo
-       enddo
-
-       ncells_glacier = parallel_reduce_sum(count)
+       glacier_mask = 0
+       where (glacier%rgi_glacier_id > 0) glacier_mask = 1
+       ncells_glacier = parallel_global_sum(glacier_mask, parallel)
 
        ! Gather the RGI glacier IDs to the main task
        if (main_task) allocate(rgi_glacier_id_global(global_ewn, global_nsn))
-       call distributed_gather_var(glacier%rgi_glacier_id, rgi_glacier_id_global, parallel)
+       call gather_var(glacier%rgi_glacier_id, rgi_glacier_id_global, parallel)
 
        ! Allocate a global array for the CISM glacier IDs on the main task.
-       ! Allocate a size 0 array on other tasks; distributed_scatter_var wants arrays allocated on all tasks.
+       ! Allocate a size 0 array on other tasks; scatter_var wants arrays allocated on all tasks.
        if (main_task) then
           allocate(cism_glacier_id_global(global_ewn,global_nsn))
        else
@@ -387,8 +383,8 @@ contains
        endif   ! main_task
 
        ! Scatter cism_glacier_id_global to all processors
-       ! Note: This global array is deallocated in the distributed_scatter_var subroutine
-       call distributed_scatter_var(glacier%cism_glacier_id, cism_glacier_id_global, parallel)
+       ! Note: This global array is deallocated in the scatter_var subroutine
+       call scatter_var(glacier%cism_glacier_id, cism_glacier_id_global, parallel)
 
        call parallel_halo(glacier%cism_glacier_id, parallel)
 
@@ -434,6 +430,7 @@ contains
 
        call glacier_area_volume(&
             ewn,           nsn,               &
+            parallel,                         &
             nglacier,                         &
             glacier%cism_glacier_id_init,     &
             model%geometry%cell_area,         &  ! m^2
@@ -543,6 +540,7 @@ contains
 
        call glacier_2d_to_1d(&
             ewn,                   nsn,                           &
+            parallel,                                             &
             nglacier,              glacier%cism_glacier_id_init,  &
             model%climate%smb_obs, glacier%smb_obs)
 
@@ -614,6 +612,7 @@ contains
 
        call glacier_area_volume(&
             ewn,           nsn,               &
+            parallel,                         &
             nglacier,                         &
             glacier%cism_glacier_id,          &
             model%geometry%cell_area,         &  ! m^2
@@ -626,6 +625,7 @@ contains
 
        call glacier_area_volume(&
             ewn,           nsn,               &
+            parallel,                         &
             nglacier,                         &
             glacier%cism_glacier_id_init,     &
             model%geometry%cell_area,         &  ! m^2
@@ -667,35 +667,25 @@ contains
     endif
     call broadcast(glacier%ngdiag, rtest)
 
-    ! Define a mask whose value is 1 at vertices along the boundary between two glaciers.
-    ! At runtime, Cp is set to a large value at masked vertices to reduce flow between glaciers.
+    ! Define a mask whose value is 1 at vertices that border two different glaciers.
+    ! At runtime, Cp is set to a large value at these vertices to reduce mass exchange between glaciers.
+    !TODO: Consider removing the mask. This would allow CISM to reduce basal friction to thin the ice if needed.
     glacier%boundary_mask(:,:) = 0
 
-    ! Loop over locally owned cells
-    do j = nhalo, nsn-nhalo
-       do i = nhalo, ewn-nhalo
-          ng = glacier%cism_glacier_id_init(i,j)
-          if (ng > 0) then
-             ng_west  = glacier%cism_glacier_id_init(i-1,j)
-             ng_east  = glacier%cism_glacier_id_init(i+1,j)
-             ng_south = glacier%cism_glacier_id_init(i,j-1)
-             ng_north = glacier%cism_glacier_id_init(i,j+1)
-             if (ng_west > 0 .and. ng_west /= ng) then
-                glacier%boundary_mask(i-1,j-1) = 1
-                glacier%boundary_mask(i-1,j)   = 1
-             endif
-             if (ng_east > 0 .and. ng_east /= ng) then
-                glacier%boundary_mask(i,j-1) = 1
-                glacier%boundary_mask(i,j)   = 1
-             endif
-             if (ng_south > 0 .and. ng_south /= ng) then
-                glacier%boundary_mask(i-1,j-1) = 1
-                glacier%boundary_mask(i,j-1)   = 1
-             endif
-             if (ng_north > 0 .and. ng_north /= ng) then
-                glacier%boundary_mask(i-1,j) = 1
-                glacier%boundary_mask(i,j)   = 1
-             endif
+    ! Loop over locally owned vertices
+    do j = nhalo+1, nsn-nhalo
+       do i = nhalo+1, ewn-nhalo
+          ng_ne = glacier%cism_glacier_id_init(i+1,j+1)
+          ng_nw = glacier%cism_glacier_id_init(i,j+1)
+          ng_se = glacier%cism_glacier_id_init(i+1,j)
+          ng_sw = glacier%cism_glacier_id_init(i,j)
+          if ( (ng_ne > 0 .and. ng_nw > 0 .and. ng_ne /= ng_nw) .or. &
+               (ng_ne > 0 .and. ng_se > 0 .and. ng_ne /= ng_se) .or. &
+               (ng_ne > 0 .and. ng_sw > 0 .and. ng_ne /= ng_sw) .or. &
+               (ng_nw > 0 .and. ng_se > 0 .and. ng_nw /= ng_se) .or. &
+               (ng_nw > 0 .and. ng_sw > 0 .and. ng_nw /= ng_sw) .or. &
+               (ng_se > 0 .and. ng_sw > 0 .and. ng_se /= ng_sw) ) then
+             glacier%boundary_mask(i,j) = 1
           endif
        enddo
     enddo
@@ -703,6 +693,7 @@ contains
     call staggered_parallel_halo(glacier%boundary_mask, parallel)
 
     if (verbose_glacier) then
+       call point_diag(glacier%cism_glacier_id_init, 'cism_glacier_id_init', itest, jtest, rtest, 7, 7)
        call point_diag(glacier%boundary_mask, 'Glacier boundary mask', itest, jtest, rtest, 7, 7)
     endif
 
@@ -730,7 +721,7 @@ contains
 
     use glissade_grid_operators, only: glissade_stagger
     use glissade_utils, only: glissade_usrf_to_thck
-    use cism_parallel, only: parallel_reduce_sum, parallel_global_sum, &
+    use cism_parallel, only: parallel_global_sum, &
          parallel_halo, staggered_parallel_halo
 
     ! Do glacier inversion (if applicable), update glacier masks, and compute glacier diagnostics.
@@ -767,12 +758,13 @@ contains
     integer :: i, j, ng
 
     integer, dimension(model%general%ewn, model%general%nsn) ::  &
-         ice_mask                   ! = 1 where ice is present (thck > thklim), else = 0
+         ice_mask,                & ! = 1 where ice is present (thck > thklim), else = 0
+         glacier_mask               ! temporary mask
 
     real(dp), dimension(model%general%ewn, model%general%nsn) ::  &
          thck,                    & ! ice thickness (m)
          dthck_dt,                & ! rate of change of thickness (m/yr)
-         cell_area,               & ! grid cell area (m^2)
+         cell_area_uniform,       & ! grid cell area defined as dew*dns(m^2)
          thck_old,                & ! saved value of ice thickness (m)
          artm,                    & ! artm, baseline or current date
          snow,                    & ! snowfall, baseline or current date
@@ -872,14 +864,12 @@ contains
 
     nglacier = glacier%nglacier
     ngdiag = glacier%ngdiag
+    cell_area_uniform = dew*dns
 
     ! some unit conversions
-    !TODO - Use model%geometry%thck without a copy.
     !       Skip these conversion and use SI units (s instead of yr) in the code.
-    dt = model%numerics%dt /scyr                      ! s to yr
-    thck = model%geometry%thck
+    dt = model%numerics%dt /scyr                    ! s to yr
     dthck_dt = model%geometry%dthck_dt * scyr       ! m/s to m/yr
-    cell_area = model%geometry%cell_area            ! model units to m^2
 
     ! Accumulate the 2D fields used for mu_star and alpha_snow inversion: snow and Tpos.
     ! Also accumulate dthck_dt, which is used for powerlaw_c inversion.
@@ -1189,23 +1179,23 @@ contains
 
        if (glacier%redistribute_advanced_ice) then
 
-          thck_old = thck
+          thck_old = model%geometry%thck
 
           call glacier_redistribute_advanced_ice(&
             ewn,             nsn,               &
+            parallel,                           &
             itest,   jtest,  rtest,             &
             nglacier,        ngdiag,            &
             real(glacier_update_interval,dp),   &  ! yr
-            dew*dns,                            &  ! m^2
+            cell_area_uniform,                  &  ! m^2
             glacier%thinning_rate_advanced_ice, &  ! m/yr
             glacier%cism_glacier_id_init,       &
             glacier%smb_glacier_id,             &
             model%climate%smb,                  &  ! m/yr
-            thck,                               &  ! m
-            parallel)
+            model%geometry%thck)                   ! m
 
           glacier%dthck_dt_annmean = glacier%dthck_dt_annmean + &
-               (thck - thck_old) / real(glacier_update_interval,dp)
+               (model%geometry%thck - thck_old) / real(glacier_update_interval,dp)
 
        endif   ! redistribute advanced ice
 
@@ -1230,6 +1220,7 @@ contains
 
        call glacier_2d_to_1d_weighted(&
             ewn,                  nsn,       &
+            parallel,                        &
             nglacier,                        &
             glacier%smb_glacier_id_init,     &
             smb_weight_init,                 &
@@ -1249,6 +1240,7 @@ contains
 
        call glacier_2d_to_1d_weighted(&
             ewn,                  nsn,       &
+            parallel,                        &
             nglacier,                        &
             glacier%smb_glacier_id,          &
             smb_weight_current,              &
@@ -1276,6 +1268,7 @@ contains
 
              call glacier_invert_mu_star_alpha_snow(&
                   ewn,                         nsn,                   &
+                  parallel,                                           &
                   itest,       jtest,          rtest,                 &
                   nglacier,                    ngdiag,                &
                   glacier%smb_glacier_id_init,                        &
@@ -1300,6 +1293,7 @@ contains
 
              call glacier_invert_mu_star(&
                   ewn,                   nsn,                  &
+                  parallel,                                    &
                   itest,     jtest,      rtest,                &
                   nglacier,              ngdiag,               &
                   glacier%smb_glacier_id_init,                 &
@@ -1318,13 +1312,13 @@ contains
        endif   ! set_mu_star
 
        ! advance/retreat diagnostics
-       ! Note: This subroutine assumes cell_area = dew*dns for all cells
        call glacier_area_advance_retreat(&
             ewn,           nsn,           &
+            parallel,                     &
             nglacier,                     &
             glacier%cism_glacier_id_init, &
             glacier%cism_glacier_id,      &
-            dew*dns,                      &
+            cell_area_uniform,            &
             area_initial,                 &
             area_current,                 &
             area_advance,                 &
@@ -1383,7 +1377,8 @@ contains
           ! Interpolate thck to the staggered grid
           call glissade_stagger(&
                ewn,         nsn,              &
-               thck,        stag_thck)
+               model%geometry%thck,           &
+               stag_thck)
 
           ! Interpolate dthck_dt to the staggered grid
           call glissade_stagger(&
@@ -1433,8 +1428,7 @@ contains
        !-------------------------------------------------------------------------
 
        if (verbose_glacier) then
-          call point_diag(model%geometry%topg, 'topg', itest, jtest, rtest, 7, 7)
-          call point_diag(thck, 'Before advance_retreat, thck', itest, jtest, rtest, 7, 7)
+          call point_diag(model%geometry%thck, 'Before advance_retreat, thck', itest, jtest, rtest, 7, 7)
        endif
 
        ! Assign nonzero IDs in grid cells where ice has reached the minimum glacier thickness.
@@ -1443,17 +1437,17 @@ contains
 
        call glacier_advance_retreat(&
             ewn,             nsn,           &
+            parallel,                       &
             itest,   jtest,  rtest,         &
             nglacier,                       &
             glacier%minthck,                &  ! m
-            thck,                           &  ! m
+            model%geometry%thck,            &  ! m
             glacier%snow_annmean,           &  ! mm/yr w.e.
             glacier%Tpos_annmean,           &  ! deg C
             glacier%mu_star,                &  ! mm/yr/deg
             glacier%alpha_snow,             &  ! unitless
             glacier%cism_glacier_id_init,   &
-            glacier%cism_glacier_id,        &
-            parallel)
+            glacier%cism_glacier_id)
 
        ! Compute smb_glacier_id, which determines where the SMB is computed. It is the union of
        !       (1) cism_glacier_id > 0
@@ -1559,7 +1553,7 @@ contains
        endif   ! set_mu_star
 
        if (verbose_glacier) then
-          call point_diag(thck, 'After advance_retreat, thck', itest, jtest, rtest, 7, 7)
+          call point_diag(model%geometry%thck, 'After advance_retreat, thck', itest, jtest, rtest, 7, 7)
           call point_diag(glacier%cism_glacier_id_init, 'cism_glacier_id_init', itest, jtest, rtest, 7, 7)
           call point_diag(glacier%smb_glacier_id_init, 'smb_glacier_id_init', itest, jtest, rtest, 7, 7)
           call point_diag(glacier%cism_glacier_id, 'New cism_glacier_id', itest, jtest, rtest, 7, 7)
@@ -1591,16 +1585,20 @@ contains
        ! (1) Include only cells that are part of the initial glacier extent
        call glacier_accumulation_area_ratio(&
             ewn,           nsn,               &
+            parallel,                         &
             nglacier,                         &
             glacier%cism_glacier_id_init,     &
+            cell_area_uniform,                &
             model%climate%smb,                &
             aar_init)
 
        ! (2) Include all cells in the glacier
        call glacier_accumulation_area_ratio(&
             ewn,           nsn,               &
+            parallel,                         &
             nglacier,                         &
             glacier%cism_glacier_id,          &
+            cell_area_uniform,                &
             model%climate%smb,                &
             aar)
 
@@ -1630,16 +1628,20 @@ contains
           ! (1) Include only cells that are part of the initial glacier extent
           call glacier_accumulation_area_ratio(&
                ewn,           nsn,               &
+               parallel,                         &
                nglacier,                         &
                glacier%cism_glacier_id_init,     &
+               cell_area_uniform,                &
                glacier%smb_recent,               &
                aar_init_recent)
 
           ! (2) Include all cells in the glacier
           call glacier_accumulation_area_ratio(&
                ewn,           nsn,               &
+               parallel,                         &
                nglacier,                         &
                glacier%cism_glacier_id,          &
+               cell_area_uniform,                &
                glacier%smb_recent,               &
                aar_recent)
 
@@ -1661,10 +1663,11 @@ contains
 
        call glacier_area_volume(&
             ewn,           nsn,               &
+            parallel,                         &
             nglacier,                         &
             glacier%cism_glacier_id,          &
-            cell_area,                        &  ! m^2
-            thck,                             &  ! m
+            model%geometry%cell_area,         &  ! m^2
+            model%geometry%thck,              &  ! m
             glacier%diagnostic_minthck,       &  ! m
             glacier%area,                     &  ! m^2
             glacier%volume)                      ! m^3
@@ -1674,10 +1677,11 @@ contains
 
        call glacier_area_volume(&
             ewn,           nsn,               &
+            parallel,                         &
             nglacier,                         &
             glacier%cism_glacier_id_init,     &
-            cell_area,                        &  ! m^2
-            thck,                             &  ! m
+            model%geometry%cell_area,         &  ! m^2
+            model%geometry%thck,              &  ! m
             glacier%diagnostic_minthck,       &  ! m
             glacier%area_init_extent,         &  ! m^2
             glacier%volume_init_extent)          ! m^3
@@ -1701,6 +1705,7 @@ contains
 
           call glacier_area_volume(&
                ewn,           nsn,               &
+               parallel,                         &
                nglacier,                         &
                glacier%cism_glacier_id_init,     &
                model%geometry%cell_area,         &  ! m^2
@@ -1718,28 +1723,21 @@ contains
 
        if (verbose_glacier) then
 
-          ! debug - count cells in masks
-          count_cgii = 0
-          count_cgi = 0
-          count_sgii = 0
-          count_sgi = 0
-          do j = nhalo+1, nsn-nhalo
-             do i = nhalo+1, ewn-nhalo
-                ng = glacier%cism_glacier_id_init(i,j)
-                if (ng == ngdiag) count_cgii = count_cgii + 1
-                ng = glacier%cism_glacier_id(i,j)
-                if (ng == ngdiag) count_cgi  = count_cgi  + 1
-                ng = glacier%smb_glacier_id_init(i,j)
-                if (ng == ngdiag) count_sgii = count_sgii + 1
-                ng = glacier%smb_glacier_id(i,j)
-                if (ng == ngdiag) count_sgi  = count_sgi  + 1
-             enddo
-          enddo
+          glacier_mask = 0
+          where (glacier%cism_glacier_id_init == ngdiag) glacier_mask = 1
+          count_cgii = parallel_global_sum(glacier_mask, parallel)
 
-          count_cgii = parallel_reduce_sum(count_cgii)
-          count_cgi  = parallel_reduce_sum(count_cgi)
-          count_sgii = parallel_reduce_sum(count_sgii)
-          count_sgi  = parallel_reduce_sum(count_sgi)
+          glacier_mask = 0
+          where (glacier%cism_glacier_id == ngdiag) glacier_mask = 1
+          count_cgi = parallel_global_sum(glacier_mask, parallel)
+
+          glacier_mask = 0
+          where (glacier%smb_glacier_id_init == ngdiag) glacier_mask = 1
+          count_sgii = parallel_global_sum(glacier_mask, parallel)
+
+          glacier_mask = 0
+          where (glacier%smb_glacier_id == ngdiag) glacier_mask = 1
+          count_sgi = parallel_global_sum(glacier_mask, parallel)
 
           if (this_rank == rtest) then
              write(iulog,*) ' '
@@ -1752,15 +1750,13 @@ contains
 
     endif   ! glacier_update_inverval
 
-    ! Copy fields back to model derived type
-    model%geometry%thck = thck
-
   end subroutine glissade_glacier_update
 
 !****************************************************
 
   subroutine glacier_invert_mu_star(&
        ewn,              nsn,           &
+       parallel,                        &
        itest,   jtest,   rtest,         &
        nglacier,         ngdiag,        &
        smb_glacier_id_init,             &
@@ -1784,6 +1780,9 @@ contains
          itest, jtest, rtest,         & ! coordinates of diagnostic cell
          nglacier,                    & ! total number of glaciers in the domain
          ngdiag                         ! CISM ID of diagnostic glacier
+
+    type(parallel_type), intent(in) :: &
+         parallel                       ! info for parallel communication
 
     integer, dimension(ewn,nsn), intent(in) :: &
          smb_glacier_id_init            ! smb_glacier_id based on the initial glacier extent
@@ -1862,6 +1861,7 @@ contains
 
     call glacier_2d_to_1d_weighted(&
          ewn,           nsn,                   &
+         parallel,                             &
          nglacier,                             &
          smb_glacier_id_init,                  &
          smb_weight,                           &
@@ -1869,6 +1869,7 @@ contains
 
     call glacier_2d_to_1d_weighted(&
          ewn,           nsn,                   &
+         parallel,                             &
          nglacier,                             &
          smb_glacier_id_init,                  &
          smb_weight,                           &
@@ -1993,6 +1994,7 @@ contains
 
   subroutine glacier_invert_mu_star_alpha_snow(&
        ewn,              nsn,            &
+       parallel,                         &
        itest,   jtest,   rtest,          &
        nglacier,         ngdiag,         &
        smb_glacier_id_init,              &
@@ -2022,6 +2024,9 @@ contains
          itest, jtest, rtest,         & ! coordinates of diagnostic cell
          nglacier,                    & ! total number of glaciers in the domain
          ngdiag                         ! CISM ID of diagnostic glacier
+
+    type(parallel_type), intent(in) :: &
+         parallel                       ! info for parallel communication
 
     integer, dimension(ewn,nsn), intent(in) :: &
          smb_glacier_id_init            ! smb_glacier_id based on the initial glacier extent
@@ -2114,6 +2119,7 @@ contains
 
     call glacier_2d_to_1d_weighted(&
          ewn,                  nsn,       &
+         parallel,                        &
          nglacier,                        &
          smb_glacier_id_init,             &
          smb_weight,                      &
@@ -2121,6 +2127,7 @@ contains
 
     call glacier_2d_to_1d_weighted(&
          ewn,                  nsn,       &
+         parallel,                        &
          nglacier,                        &
          smb_glacier_id_init,             &
          smb_weight,                      &
@@ -2128,6 +2135,7 @@ contains
 
     call glacier_2d_to_1d_weighted(&
          ewn,                  nsn,       &
+         parallel,                        &
          nglacier,                        &
          smb_glacier_id_init,             &
          smb_weight,                      &
@@ -2135,6 +2143,7 @@ contains
 
     call glacier_2d_to_1d_weighted(&
          ewn,                  nsn,       &
+         parallel,                        &
          nglacier,                        &
          smb_glacier_id_init,             &
          smb_weight,                      &
@@ -2482,6 +2491,7 @@ contains
 
     if (verbose_glacier) then
        call point_diag(stag_thck, 'stag_thck (m)', itest, jtest, rtest, 7, 7)
+       call point_diag(stag_thck_target, 'stag_thck_target (m)', itest, jtest, rtest, 7, 7)
        call point_diag(stag_dthck, 'stag_thck - stag_thck_target (m)', itest, jtest, rtest, 7, 7)
        call point_diag(stag_dthck_dt, 'stag_dthck_dt (m/yr)', itest, jtest, rtest, 7, 7)
        call point_diag(powerlaw_c, 'new powerlaw_c', itest, jtest, rtest, 7, 7)
@@ -2533,6 +2543,7 @@ contains
 
   subroutine glacier_redistribute_advanced_ice(&
        ewn,             nsn,          &
+       parallel,                      &
        itest,   jtest,  rtest,        &
        nglacier,        ngdiag,       &
        glacier_update_interval,       & ! yr
@@ -2541,15 +2552,14 @@ contains
        cism_glacier_id_init,          &
        smb_glacier_id,                &
        smb,                           & ! m/yr
-       thck,                          & ! m
-       parallel)
+       thck)                            ! m
 
     ! Limit glacier advance in the accumulation zone.
     ! This applies to grid cells that are initially ice-free, into which ice is advected.
     ! The fix here is to thin the ice in these cells at a prescribed rate and
     !  redistribute the mass conservatively across the glacier.
 
-    use cism_parallel, only: parallel_reduce_sum, parallel_halo
+    use cism_parallel, only: parallel_halo, parallel_global_sum_patch
 
     ! input/output arguments
 
@@ -2559,10 +2569,15 @@ contains
          nglacier,                    & ! number of glaciers
          ngdiag                         ! CISM ID of diagnostic glacier
 
+    type(parallel_type), intent(in) :: &
+         parallel                       ! info for parallel communication
+
     real(dp), intent(in) :: &
          glacier_update_interval,     & ! time interval (yr) of the glacier update, typically 1 yr
-         cell_area,                   & ! grid cell area (m^2), assumed to be the same for each cell
          thinning_rate_advanced_ice     ! thinning rate (m/yr) where glaciers advance in the accumulation zone
+
+    real(dp), dimension(ewn,nsn), intent(in) :: &
+         cell_area                      ! grid cell area (m^2)
 
     integer, dimension(ewn,nsn), intent(in) :: &
          cism_glacier_id_init,        & ! integer glacier ID at the start of the run
@@ -2574,13 +2589,9 @@ contains
     real(dp), dimension(ewn,nsn), intent(inout) ::  &
          thck                           ! ice thickness (m)
 
-    type(parallel_type), intent(in) :: parallel   ! info for parallel communication
-
     ! local variables
 
     integer :: i, j, ng
-
-    real(dp) :: dthck                   ! thickness change (m)
 
     real(dp), dimension(nglacier) :: &
          glacier_area_init,           & ! glacier area based on cism_glacier_id_init
@@ -2589,53 +2600,37 @@ contains
          glacier_vol_1,               & ! volume (m^3) of each glacier before thinning and restribution
          glacier_vol_2                  ! volume (m^3) of each glacier after thinning and restribution
 
+    real(dp), dimension(ewn,nsn) ::  &
+         dthck                          ! thickness removed (m)
+
+    integer, dimension(ewn,nsn) :: &
+         glacier_id                     ! temporary glacier ID
+
+    glacier_id = max(cism_glacier_id_init, smb_glacier_id)
+
     ! Compute the total volume of each glacier before limiting advance.
     ! Note: This includes adjacent glacier-free cells that might have a small nonzero thickness
     !       (i.e., cism_glacier_id = 0 but smb_glacier_id > 0).
-    !TODO: Write a sum-over-glaciers subroutine
 
-    glacier_vol_1(:) = 0.0d0
-    do j = nhalo+1, nsn-nhalo
-       do i = nhalo+1, ewn-nhalo
-          ng = smb_glacier_id(i,j)
-          if (ng > 0) then
-             glacier_vol_1(ng) = glacier_vol_1(ng) + cell_area*thck(i,j)
-          endif
-       enddo
-    enddo
-    glacier_vol_1 = parallel_reduce_sum(glacier_vol_1)
+    glacier_vol_1 = parallel_global_sum_patch(cell_area*thck, nglacier, glacier_id, parallel)
 
     ! compute the area of each glacier over its initial extent
-    glacier_area_init(:) = 0.0d0
-    do j = nhalo+1, nsn-nhalo
-       do i = nhalo+1, ewn-nhalo
-          ng = cism_glacier_id_init(i,j)
-          if (ng > 0) then
-             glacier_area_init(ng) = glacier_area_init(ng) + cell_area
-          endif
-       enddo
-    enddo
-    glacier_area_init = parallel_reduce_sum(glacier_area_init)
+
+    glacier_area_init = parallel_global_sum_patch(cell_area, nglacier, cism_glacier_id_init, parallel)
 
     ! Compute thinning in advanced grid cells
     ! This includes potential advanced cells adjacent to current glacier cells.
     ! Note: Currently, SMB is set to 0 in advanced cells where SMB would be > 0 otherwise.
     !       The logic below (smb >= 0) ensures that ice in these cells is thinned.
 
-    glacier_vol_removed(:) = 0.0d0
-    do j = nhalo+1, nsn-nhalo
-       do i = nhalo+1, ewn-nhalo
-          if (cism_glacier_id_init(i,j) == 0 .and. smb_glacier_id(i,j) > 0) then ! advanced cell
-             if (smb(i,j) >= 0.d0) then   ! accumulation zone
-                ng = smb_glacier_id(i,j)
-                dthck = min(thinning_rate_advanced_ice*glacier_update_interval, thck(i,j))
-                thck(i,j) = thck(i,j) - dthck
-                glacier_vol_removed(ng) = glacier_vol_removed(ng) + cell_area*dthck
-             endif
-          endif
-       enddo
-    enddo
-    glacier_vol_removed = parallel_reduce_sum(glacier_vol_removed)
+    dthck = 0.0d0
+    where (cism_glacier_id_init == 0 .and. smb_glacier_id > 0)   ! advanced cell
+       where (smb >= 0.0d0)   ! accumulation zone
+          dthck = min(thinning_rate_advanced_ice*glacier_update_interval, thck)
+          thck = thck - dthck
+       endwhere
+    endwhere
+    glacier_vol_removed = parallel_global_sum_patch(cell_area*dthck, nglacier, smb_glacier_id, parallel)
 
     ! Assuming conservation of volume, compute the thickness to be added to each glacier.
     ! Only cells within the initial glacier extent can thicken.
@@ -2659,16 +2654,8 @@ contains
     call parallel_halo(thck, parallel)
 
     ! Compute the volume of each glacier after limiting advance
-    glacier_vol_2(:) = 0.0d0
-    do j = nhalo+1, nsn-nhalo
-       do i = nhalo+1, ewn-nhalo
-          ng = max(cism_glacier_id_init(i,j), smb_glacier_id(i,j))
-          if (ng > 0) then
-             glacier_vol_2(ng) = glacier_vol_2(ng) + cell_area*thck(i,j)
-          endif
-       enddo
-    enddo
-    glacier_vol_2 = parallel_reduce_sum(glacier_vol_2)
+
+    glacier_vol_2 = parallel_global_sum_patch(cell_area*thck, nglacier, glacier_id, parallel)
 
     ! conservation check
     do ng = 1, nglacier
@@ -2685,6 +2672,7 @@ contains
 
   subroutine glacier_advance_retreat(&
        ewn,             nsn,         &
+       parallel,                     &
        itest,   jtest,  rtest,       &
        nglacier,                     &
        glacier_minthck,              &
@@ -2694,8 +2682,7 @@ contains
        mu_star,                      &
        alpha_snow,                   &
        cism_glacier_id_init,         &
-       cism_glacier_id,              &
-       parallel)
+       cism_glacier_id)
 
     ! Allow glaciers to advance and retreat.
     !
@@ -2727,6 +2714,9 @@ contains
          itest, jtest, rtest,         & ! coordinates of diagnostic cell
          nglacier                       ! number of glaciers
 
+    type(parallel_type), intent(in) :: &
+         parallel                       ! info for diagnostic only
+
     real(dp), intent(in) :: &
          glacier_minthck                ! min ice thickness (m) counted as part of a glacier
 
@@ -2746,8 +2736,6 @@ contains
 
     integer, dimension(ewn,nsn), intent(inout) :: &
          cism_glacier_id                ! current cism glacier_id, > 0 for glaciated cells
-
-    type(parallel_type), intent(in) :: parallel  ! diagnostic only
 
     ! local variables
 
@@ -2859,7 +2847,7 @@ contains
     call parallel_halo(cism_glacier_id, parallel)
 
     ! Check advanced cells (beyond the initial extent) for problematic glacier IDs.
-    ! This code protects against glacier 'pirating', which ccan occur when an advanced cell
+    ! This code protects against glacier 'pirating', which can occur when an advanced cell
     !  is adjacent to two different glaciers, call them A and B.
     ! Suppose the cell is fed primarily by glacier A but has the same ID as glacier B,
     !  and has a more positive SMB as a result of belonging to B rather than A.
@@ -3038,19 +3026,23 @@ contains
 
   subroutine glacier_2d_to_1d(&
        ewn,           nsn,              &
+       parallel,                        &
        nglacier,      cism_glacier_id,  &
        field_2d,      glacier_field)
 
     ! Given a 2D field, compute the average of the field over each glacier
     !TODO - Pass in cellarea to compute an area average.
 
-    use cism_parallel, only: parallel_reduce_sum
+    use cism_parallel, only: parallel_global_sum_patch
 
     ! input/output arguments
 
     integer, intent(in) ::  &
          ewn, nsn,                    & ! number of cells in each horizontal direction
          nglacier                       ! total number of glaciers in the domain
+
+    type(parallel_type), intent(in) :: &
+         parallel                       ! info for parallel communication
 
     integer, dimension(ewn,nsn), intent(in) ::  &
          cism_glacier_id                ! integer glacier ID in the range (1, nglacier)
@@ -3067,22 +3059,12 @@ contains
 
     integer, dimension(nglacier) :: ncells_glacier
 
-    ncells_glacier(:) = 0
-    glacier_field(:) = 0.0d0
+    integer, dimension(ewn,nsn) :: ones   ! matrix = 1 everywhere
 
-    ! Loop over locally owned cells
-    do j = nhalo+1, nsn-nhalo
-       do i = nhalo+1, ewn-nhalo
-          ng = cism_glacier_id(i,j)
-          if (ng > 0) then
-             ncells_glacier(ng) = ncells_glacier(ng) + 1
-             glacier_field(ng) = glacier_field(ng) + field_2d(i,j)
-          endif
-       enddo
-    enddo
+    ones(:,:) = 1
 
-    ncells_glacier = parallel_reduce_sum(ncells_glacier)
-    glacier_field  = parallel_reduce_sum(glacier_field)
+    ncells_glacier = parallel_global_sum_patch(ones, nglacier, cism_glacier_id, parallel)
+    glacier_field = parallel_global_sum_patch(field_2d, nglacier, cism_glacier_id, parallel)
 
     where (ncells_glacier > 0)
        glacier_field = glacier_field/ncells_glacier
@@ -3094,6 +3076,7 @@ contains
 
   subroutine glacier_2d_to_1d_weighted(&
        ewn,           nsn,              &
+       parallel,                        &
        nglacier,                        &
        glacier_id,    weight,           &
        field_2d,      glacier_field)
@@ -3101,13 +3084,16 @@ contains
     ! Given a 2D field, compute the average of the field over each glacier
     ! Certain grid cells (e.g., at the glacier periphery) can be given weights between 0 and 1.
 
-    use cism_parallel, only: parallel_reduce_sum
+    use cism_parallel, only: parallel_global_sum_patch
 
     ! input/output arguments
 
     integer, intent(in) ::  &
          ewn, nsn,                    & ! number of cells in each horizontal direction
          nglacier                       ! total number of glaciers in the domain
+
+    type(parallel_type), intent(in) :: &
+         parallel                       ! info for parallel communication
 
     integer, dimension(ewn,nsn), intent(in) ::  &
          glacier_id                     ! integer glacier ID
@@ -3123,26 +3109,11 @@ contains
 
     ! local variables
 
-    integer :: i, j, ng
-
     real(dp), dimension(nglacier) :: sum_weights
 
-    sum_weights(:) = 0.0d0
-    glacier_field(:) = 0.0d0
+    sum_weights = parallel_global_sum_patch(weight, nglacier, glacier_id, parallel)
+    glacier_field = parallel_global_sum_patch(weight*field_2d, nglacier, glacier_id, parallel)
 
-    ! Loop over locally owned cells
-    do j = nhalo+1, nsn-nhalo
-       do i = nhalo+1, ewn-nhalo
-          ng = glacier_id(i,j)
-          if (ng > 0) then
-             sum_weights(ng) = sum_weights(ng) + weight(i,j)
-             glacier_field(ng) = glacier_field(ng) + weight(i,j) * field_2d(i,j)
-          endif
-       enddo
-    enddo
-
-    sum_weights = parallel_reduce_sum(sum_weights)
-    glacier_field  = parallel_reduce_sum(glacier_field)
     where (sum_weights > 0.0d0)
        glacier_field = glacier_field/sum_weights
     endwhere
@@ -3196,18 +3167,22 @@ contains
 
   subroutine glacier_area_volume(&
        ewn,           nsn,               &
+       parallel,                         &
        nglacier,      cism_glacier_id,   &
        cell_area,     thck,              &
        diagnostic_minthck,               &
        area,          volume)
 
-    use cism_parallel, only: parallel_reduce_sum
+    use cism_parallel, only: parallel_global_sum_patch
 
     ! input/output arguments
 
     integer, intent(in) ::  &
          ewn, nsn,                    & ! number of cells in each horizontal direction
          nglacier                       ! total number of glaciers in the domain
+
+    type(parallel_type), intent(in) :: &
+         parallel                       ! info for parallel communication
 
     integer, dimension(ewn,nsn), intent(in) ::  &
          cism_glacier_id                ! integer glacier ID in the range (1, nglacier)
@@ -3226,36 +3201,22 @@ contains
 
     ! local variables
 
-    real(dp), dimension(nglacier) ::  &
-         local_area, local_volume       ! area and volume on each processor, before global sum
-
-    integer :: i, j, ng
-
-    ! Initialize the output arrays
-    area(:) = 0.0d0
-    volume(:) = 0.0d0
-
-    ! Initialize local arrays
-    local_area(:) = 0.0d0
-    local_volume(:) = 0.0d0
+    real(dp), dimension(ewn,nsn) ::  &
+         diag_area, diag_volume       ! area and volume where thck >= diagnostic_minthck
 
     ! Compute the area and volume of each glacier.
-    ! We need parallel sums, since a glacier can lie on two or more processors.
+    ! Need parallel sums, since a glacier can lie on two or more processors.
 
-    do j = nhalo+1, nsn-nhalo
-       do i = nhalo+1, ewn-nhalo
-          ng = cism_glacier_id(i,j)
-          if (ng > 0) then
-             if (thck(i,j) >= diagnostic_minthck) then
-                local_area(ng) = local_area(ng) + cell_area(i,j)
-                local_volume(ng) = local_volume(ng) + cell_area(i,j) * thck(i,j)
-             endif
-          endif
-       enddo
-    enddo
+    where(thck >= diagnostic_minthck)
+       diag_area = cell_area
+       diag_volume = cell_area*thck
+    elsewhere
+       diag_area = 0.0d0
+       diag_volume = 0.0d0
+    endwhere
 
-    area   = parallel_reduce_sum(local_area)
-    volume = parallel_reduce_sum(local_volume)
+    area = parallel_global_sum_patch(diag_area, nglacier, cism_glacier_id, parallel)
+    volume = parallel_global_sum_patch(diag_volume, nglacier, cism_glacier_id, parallel)
 
   end subroutine glacier_area_volume
 
@@ -3263,6 +3224,7 @@ contains
 
   subroutine glacier_area_advance_retreat(&
        ewn,           nsn,     &
+       parallel,               &
        nglacier,               &
        cism_glacier_id_init,   &
        cism_glacier_id,        &
@@ -3272,7 +3234,7 @@ contains
        area_advance,           &
        area_retreat)
 
-    use cism_parallel, only: parallel_reduce_sum
+    use cism_parallel, only: parallel_global_sum_patch
 
     ! For each glacier, compare the current glacier area (as given by cism_glacier_id)
     ! to the initial area (given by cism_glacier_id_init).
@@ -3287,12 +3249,15 @@ contains
          ewn, nsn,                    & ! number of cells in each horizontal direction
          nglacier                       ! total number of glaciers in the domain
 
+    type(parallel_type), intent(in) :: &
+         parallel                       ! info for parallel communication
+
     integer, dimension(ewn,nsn), intent(in) ::  &
          cism_glacier_id_init,        & ! integer glacier ID in the range (1, nglacier), initial value
          cism_glacier_id                ! integer glacier ID in the range (1, nglacier), current value
 
-    real(dp), intent(in) ::  &
-         cell_area                      ! grid cell area = dew*dns (m^2); same for all cells
+    real(dp), dimension(ewn,nsn), intent(in) ::  &
+         cell_area                      ! grid cell area (m^2)
 
     real(dp), dimension(nglacier), intent(out) ::  &
          area_initial,                & ! initial glacier area
@@ -3302,69 +3267,38 @@ contains
 
     ! local variables
 
-    real(dp), dimension(nglacier) :: &
-         local_area                     ! area on each processor, before global sum
+    integer, dimension(ewn,nsn) :: glacier_id    ! temporary glacier ID
 
-    integer :: i, j, ng, ngi
-
-    ! Initialize the output arrays
-    area_initial(:) = 0.0d0
-    area_current(:) = 0.0d0
-    area_advance(:) = 0.0d0
-    area_retreat(:) = 0.0d0
+    integer :: ng
 
     ! Compute the area of each glacier over the initial and current masks.
     ! We need parallel sums, since a glacier can lie on two or more processors.
 
-    ! init area
-    local_area(:) = 0.0d0
-    do j = nhalo+1, nsn-nhalo
-       do i = nhalo+1, ewn-nhalo
-          ngi = cism_glacier_id_init(i,j)
-          if (ngi > 0) then
-             local_area(ngi) = local_area(ngi) + cell_area
-          endif
-       enddo
-    enddo
-    area_initial = parallel_reduce_sum(local_area)
+    area_initial = parallel_global_sum_patch(cell_area, nglacier, cism_glacier_id_init, parallel)
 
     ! current area
-    local_area(:) = 0.0d0
-    do j = nhalo+1, nsn-nhalo
-       do i = nhalo+1, ewn-nhalo
-          ng = cism_glacier_id(i,j)
-          if (ng > 0) then
-             local_area(ng) = local_area(ng) + cell_area
-          endif
-       enddo
-    enddo
-    area_current = parallel_reduce_sum(local_area)
+
+    area_current = parallel_global_sum_patch(cell_area, nglacier, cism_glacier_id, parallel)
 
     ! area where the glacier has advanced
-    local_area(:) = 0.0d0
-    do j = nhalo+1, nsn-nhalo
-       do i = nhalo+1, ewn-nhalo
-          ngi = cism_glacier_id_init(i,j)
-          ng  = cism_glacier_id(i,j)
-          if (ngi == 0 .and. ng > 0) then
-             local_area(ng) = local_area(ng) + cell_area
-          endif
-       enddo
-    enddo
-    area_advance = parallel_reduce_sum(local_area)
+
+    where (cism_glacier_id_init == 0 .and. cism_glacier_id > 0)
+       glacier_id = cism_glacier_id
+    elsewhere
+       glacier_id = 0
+    endwhere
+
+    area_advance = parallel_global_sum_patch(cell_area, nglacier, glacier_id, parallel)
 
     ! area where the glacier has retreated
-    local_area(:) = 0.0d0
-    do j = nhalo+1, nsn-nhalo
-       do i = nhalo+1, ewn-nhalo
-          ngi = cism_glacier_id_init(i,j)
-          ng  = cism_glacier_id(i,j)
-          if (ngi > 0 .and. ng == 0) then
-             local_area(ngi) = local_area(ngi) + cell_area
-          endif
-       enddo
-    enddo
-    area_retreat = parallel_reduce_sum(local_area)
+
+    where (cism_glacier_id_init > 0 .and. cism_glacier_id == 0)
+       glacier_id = cism_glacier_id_init
+    elsewhere
+       glacier_id = 0
+    endwhere
+
+    area_retreat = parallel_global_sum_patch(cell_area, nglacier, glacier_id, parallel)
 
     ! bug check
     do ng = 1, nglacier
@@ -3382,15 +3316,16 @@ contains
 
   subroutine glacier_accumulation_area_ratio(&
        ewn,           nsn,     &
+       parallel,               &
        nglacier,               &
        cism_glacier_id,        &
+       cell_area,              &
        smb,                    &
        aar)
 
     ! Compute the accumulation area ratio (AAR) for each glacier.
-    ! Note: In this subroutine the grid cell area is assumed equal for all cells.
 
-    use cism_parallel, only: parallel_reduce_sum
+    use cism_parallel, only: parallel_global_sum_patch
 
     ! input/output arguments
 
@@ -3398,8 +3333,14 @@ contains
          ewn, nsn,                    & ! number of cells in each horizontal direction
          nglacier                       ! total number of glaciers in the domain
 
+    type(parallel_type), intent(in) :: &
+         parallel                       ! info for parallel communication
+
     integer, dimension(ewn,nsn), intent(in) ::  &
          cism_glacier_id                ! integer glacier ID in the range (1, nglacier)
+
+    real(dp), dimension(ewn,nsn), intent(in) ::  &
+         cell_area                      ! grid cell area = dew*dns (m^2); same for all cells
 
     real(dp), dimension(ewn,nsn), intent(in) ::  &
          smb                            ! surface mass balance (mm/yr w.e.)
@@ -3409,34 +3350,32 @@ contains
 
     ! local variables
 
-    integer :: i, j, ng
+!    integer :: i, j, ng
 
     real(dp), dimension(nglacier) :: &
          ablat_area,                  & ! area of accumulation zone (SMB < 0)
          accum_area                     ! area of accumulation zone (SMB > 0)
 
-    ! initialize
-    ablat_area(:) = 0.0d0
-    accum_area(:) = 0.0d0
+    integer, dimension(ewn,nsn) :: glacier_id   ! temporary glacier ID
 
     ! Compute the accumulation and ablation area for each glacier
     ! Note: Grid cells with SMB = 0 are not counted in either zone.
 
-    do j = nhalo+1, nsn-nhalo
-       do i = nhalo+1, ewn-nhalo
-          ng = cism_glacier_id(i,j)
-          if (ng > 0) then
-             if (smb(i,j) > 0.0d0) then
-                accum_area(ng) = accum_area(ng) + 1.0d0
-             elseif (smb(i,j) < 0.0d0) then
-                ablat_area(ng) = ablat_area(ng) + 1.0d0
-             endif
-          endif
-       enddo   ! i
-    enddo   ! j
+    where (cism_glacier_id > 0 .and. smb > 0.0d0)
+       glacier_id = cism_glacier_id
+    elsewhere
+       glacier_id = 0
+    endwhere
 
-    accum_area = parallel_reduce_sum(accum_area)
-    ablat_area = parallel_reduce_sum(ablat_area)
+    accum_area = parallel_global_sum_patch(cell_area, nglacier, glacier_id, parallel)
+
+    where (cism_glacier_id > 0 .and. smb < 0.0d0)
+       glacier_id = cism_glacier_id
+    elsewhere
+       glacier_id = 0
+    endwhere
+
+    ablat_area = parallel_global_sum_patch(cell_area, nglacier, glacier_id, parallel)
 
     ! Compute the AAR for each glacier
 

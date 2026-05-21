@@ -384,8 +384,7 @@ contains
     call glide_set_mask(model%numerics,                                   &
                         model%geometry%thck,  model%geometry%topg,     &
                         model%general%ewn,    model%general%nsn,       &
-                        model%climate%eus,    model%geometry%thkmask,  &
-                        model%geometry%iarea, model%geometry%ivol)
+                        model%climate%eus,    model%geometry%thkmask)
  
     ! calculate lower and upper ice surface
     call glide_calclsrf(model%geometry%thck, model%geometry%topg, model%climate%eus,model%geometry%lsrf)
@@ -503,15 +502,9 @@ contains
           call glide_set_mask(model%numerics,                                &
                               model%geometry%thck,  model%geometry%topg,     &
                               model%general%ewn,    model%general%nsn,       &
-                              model%climate%eus,    model%geometry%thkmask,  &
-                              model%geometry%iarea, model%geometry%ivol)
+                              model%climate%eus,    model%geometry%thkmask)
           
        endif  ! calving_init
-
-       ! Compute total areas of grounded and floating ice
-       call calc_iareaf_iareag(model%numerics%dew,    model%numerics%dns,     &
-                               model%geometry%thkmask,                        &
-                               model%geometry%iareaf, model%geometry%iareag)
 
     ! ------------------------------------------------------------------------ 
     ! ***Part 2: Calculate geometry related fields
@@ -874,13 +867,10 @@ contains
 
     call glide_prof_start(model,model%glide_prof%ice_mask2)
 
-    !TODO - Calculate area and vol separately from glide_set_mask?
-
     call glide_set_mask(model%numerics,                                &
                         model%geometry%thck,  model%geometry%topg,     &
                         model%general%ewn,    model%general%nsn,       &
-                        model%climate%eus,    model%geometry%thkmask,  &
-                        model%geometry%iarea, model%geometry%ivol)
+                        model%climate%eus,    model%geometry%thkmask)
 
     call glide_prof_stop(model,model%glide_prof%ice_mask2)
 
@@ -909,14 +899,7 @@ contains
     call glide_set_mask(model%numerics,                                &
                         model%geometry%thck,  model%geometry%topg,     &
                         model%general%ewn,    model%general%nsn,       &
-                        model%climate%eus,    model%geometry%thkmask,  &
-                        model%geometry%iarea, model%geometry%ivol)
- endif   ! oldglide = F
-
- if (.not. oldglide) then   ! calculate area of floating and grounded ice
-    call calc_iareaf_iareag(model%numerics%dew,    model%numerics%dns,     &
-                            model%geometry%thkmask,                        &
-                            model%geometry%iareaf, model%geometry%iareag)
+                        model%climate%eus,    model%geometry%thkmask)
  endif   ! oldglide = F
 
     ! ------------------------------------------------------------------------

@@ -193,9 +193,9 @@ class PrintVars:
         self.print_warning()
         for l in self.infile.readlines():
             for token in self.handletoken:
-                if l.find(token) is not -1:
+                if l.find(token) != -1:
                     break
-            if l.find(token) is not -1:
+            if l.find(token) != -1:
                 for v in vars.keys():
                     self.handletoken[token](vars[v])
             else:
@@ -267,9 +267,9 @@ class PrintNC_template(PrintVars):
             for k in module.keys():
                 l = l.replace(k.upper(),module[k])
             for token in self.handletoken:
-                if l.find(token) is not -1:
+                if l.find(token) != -1:
                     break
-            if l.find(token) is not -1:
+            if l.find(token) != -1:
                 for v in vars.keys():
                     self.handletoken[token](vars[v])
             elif '!GENVAR_DIMS!' in l:
@@ -604,8 +604,8 @@ class PrintNC_template(PrintVars):
                 self.stream.write("%s               %s*scaling_factor\n"%(spaces,var['data']))
                 self.stream.write("%s       end if\n"%(spaces))
 
-                #*WHL* added to read x1 and y1 into global arrays called x1_global and y1_global
-                if var['name'] == 'x1' or var['name'] == 'y1':
+                #*WHL* added to read x1, y1, x0, y0 into global arrays with suffix '_global'
+                if var['name'] == 'x1' or var['name'] == 'y1' or var['name'] == 'x0' or var['name'] == 'y0':
                     self.stream.write("%s       ! Also read this variable into a global array\n"%(spaces))
                     name_global = var['name']+'_global'
                     data_global = var['data']+'_global'

@@ -607,7 +607,7 @@ contains
     use glint_global_grid  , only : global_grid
     use glimmer_coordinates, only : coordsystem_new
     use glide_types        , only : get_dew, get_dns
-    use cism_parallel       , only : parallel_type, distributed_gather_var
+    use cism_parallel       , only : parallel_type, gather_var
 
     implicit none
 
@@ -630,7 +630,7 @@ contains
     global_ewn = instance%model%parallel%global_ewn
     global_nsn = instance%model%parallel%global_nsn
 
-    call distributed_gather_var(instance%out_mask, out_mask_fulldomain, parallel)
+    call gather_var(instance%out_mask, out_mask_fulldomain, parallel)
 
     if (main_task) then
 
