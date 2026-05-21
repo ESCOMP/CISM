@@ -71,7 +71,7 @@ module glissade
 
   integer, private, parameter :: dummyunit=99
   logical, parameter :: verbose_glissade = .false.
-  logical, parameter :: verbose_retreat = .false.
+  logical, parameter :: verbose_retreat = .true.
 
   ! Change any of the following logical parameters to true to carry out simple tests
   logical, parameter :: test_transport = .false.    ! if true, call test_transport subroutine
@@ -1216,6 +1216,8 @@ contains
     ! can remove unprotected ice that counts toward the calving flux.
     !TODO - Move this calculation?
     model%calving%calving_thck = 0.0d0
+    model%calving%forceretreat_thck = 0.0d0
+    model%calving%rmicecap_thck = 0.0d0
 
     ! ------------------------------------------------------------------------
     ! Calculate isostatic adjustment
@@ -2514,7 +2516,7 @@ contains
     ! In the current version, weakly grounded cells (i.e., cells with f_ground < f_ground_threshold)
     !  are alse removed.
 
-    if (model%options%force_retreat == FORCE_RETREAT_ALL_ICE .and. model%options%calving_init == CALVING_INIT_OFF) then
+    if (model%options%force_retreat == FORCE_RETREAT_ALL_ICE .and. .not.init_calving) then
        if (this_rank == rtest) then
           write(iulog,*) 'Forcing retreat using ice_fraction_retreat_mask, time =', model%numerics%time
        endif
@@ -2534,7 +2536,9 @@ contains
                      * (1.0d0 - model%geometry%ice_fraction_retreat_mask(i,j))
                 dthck = model%geometry%thck(i,j) - min(maxthck, model%geometry%thck(i,j))
                 model%geometry%thck(i,j) = model%geometry%thck(i,j) - dthck
-                model%calving%calving_thck(i,j) = model%calving%calving_thck(i,j) + dthck
+                ! record changes due to retreat forcing to separate field
+                !model%calving%calving_thck(i,j) = model%calving%calving_thck(i,j) + dthck
+                model%calving%forceretreat_thck(i,j) = model%calving%forceretreat_thck(i,j) + dthck
              endif
           enddo
        enddo
@@ -3252,7 +3256,9 @@ contains
        !       it will show where ice caps existed before they were removed.
 
        where (model%geometry%ice_cap_mask == 1)
-          model%calving%calving_thck = model%calving%calving_thck + model%geometry%thck
+          ! record changes due to ice cap removal to separate field
+          !model%calving%calving_thck = model%calving%calving_thck + model%geometry%thck
+          model%calving%rmicecap_thck = model%calving%rmicecap_thck + model%geometry%thck
           model%geometry%thck = 0.0d0
        endwhere
 
@@ -3876,6 +3882,8 @@ contains
     model%geometry%sfc_mbal_flux(:,:) = rhoi * model%climate%acab_applied(:,:)
     model%geometry%basal_mbal_flux(:,:) = rhoi * (-model%basal_melt%bmlt_applied(:,:))
     model%geometry%calving_flux(:,:) = rhoi * (-model%calving%calving_thck(:,:)) / model%numerics%dt
+    model%geometry%forceretreat_flux(:,:) = rhoi * (-model%calving%forceretreat_thck(:,:)) / model%numerics%dt
+    model%geometry%rmicecap_flux(:,:) = rhoi * (-model%calving%rmicecap_thck(:,:)) / model%numerics%dt
 
     ! calving rate (m/yr ice; positive for calving)
     model%calving%calving_rate(:,:) = model%calving%calving_thck(:,:) / (model%numerics%dt/scyr)

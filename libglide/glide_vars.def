@@ -544,6 +544,18 @@ units:         meter
 long_name:     thickness of calving ice
 data:          data%calving%calving_thck
 
+[forceretreat_thck]
+dimensions:    time, y1, x1
+units:         meter
+long_name:     ice removed with force_retreat method
+data:          data%calving%forceretreat_thck
+
+[rmicecap_thck]
+dimensions:    time, y1, x1
+units:         meter
+long_name:     ice removed with remove ice cap method
+data:          data%calving%rmicecap_thck
+
 [calving_rate]
 dimensions:    time, y1, x1
 units:         meter/year
@@ -691,6 +703,20 @@ dimensions:    time
 units:         kg/s
 long_name:     total calving mass balance flux
 data:          data%geometry%total_calving_flux
+average:       1
+
+[total_forceretreat_flux]
+dimensions:    time
+units:         kg/s
+long_name:     mass flux removed by force_retreat method
+data:          data%geometry%total_forceretreat_flux
+average:       1
+
+[total_rmicecap_flux]
+dimensions:    time
+units:         kg/s
+long_name:     mass flux removed by remove icecaps method
+data:          data%geometry%total_rmicecap_flux
 average:       1
 
 [thkmask]
@@ -1569,6 +1595,20 @@ units:         kg/m2/s
 long_name:     calving flux
 data:          data%geometry%calving_flux
 standard_name: land_ice_specific_mass_flux_due_to_calving
+average:       1
+
+[forceretreat_flux]
+dimensions:    time, y1, x1
+units:         kg/m2/s
+long_name:     forceretreat flux
+data:          data%geometry%forceretreat_flux
+average:       1
+
+[rmicecap_flux]
+dimensions:    time, y1, x1
+units:         kg/m2/s
+long_name:     remove_icecaps flux
+data:          data%geometry%rmicecap_flux
 average:       1
 
 [gl_flux]
