@@ -1,0 +1,9 @@
+# olivia since December 2025
+module purge
+source /opt/cray/pe/lmod/lmod/init/profile
+export MODULEPATH=/cluster/software/modules/Core/
+module load NRIS/CPU
+module load CMake/3.26.3-GCCcore-12.3.0
+module load netCDF-Fortran/4.6.1-gompi-2023a
+module load OpenBLAS/0.3.23-GCC-12.3.0
+
