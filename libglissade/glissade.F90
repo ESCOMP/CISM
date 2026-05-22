@@ -2214,6 +2214,7 @@ contains
             ewn,                    nsn,              &
             model%options%which_ho_calving_front,     &
             parallel,                                 &
+            itest, jtest, rtest,                      &
             model%geometry%thck,                      &   ! m
             model%geometry%topg,                      &   ! m
             model%climate%eus,                        &   ! m
@@ -2227,8 +2228,7 @@ contains
             model%calving%thck_effective_min,         &
             partial_cf_mask,                          &
             full_mask,                                &
-            model%calving%effective_areafrac,         &
-            itest, jtest, rtest)
+            model%calving%effective_areafrac)
 
        if (verbose_calving) then
           call point_diag(model%calving%calving_front_mask, 'calving_front_mask', itest, jtest, rtest, 7, 7)
@@ -2778,6 +2778,7 @@ contains
          ewn,                 nsn,              &
          model%options%which_ho_calving_front,  &
          parallel,                              &
+         itest, jtest, rtest,                   &
          model%geometry%thck,                   &
          model%geometry%topg,                   &
          model%climate%eus,                     &

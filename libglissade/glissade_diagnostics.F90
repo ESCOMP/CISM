@@ -74,9 +74,6 @@
 
     type(glide_global_type), intent(inout) :: model   ! model instance
 
-    !WHL - debug
-    if (main_task) write(iulog,*) 'Here 1'
-
     ! Compute diagnostics
 
     ! surface mass balance in units of mm/yr w.e.
@@ -587,6 +584,7 @@
          nx,            ny,                &
          model%options%which_ho_calving_front,   &
          parallel,                         &
+         itest,  jtest, rtest,             &
          model%geometry%thck,              &
          model%geometry%topg,              &
          model%climate%eus,                &

@@ -547,7 +547,7 @@ contains
        field_basin_sum)
 
     ! For a given 2D input field, compute the sum over a basin.
-    ! The sum is taken over grid cells with mask = 1.
+    ! The sum is taken over grid cells with nonzero values of rmask.
     ! All cells are weighted equally.
 
     use cism_parallel, only: parallel_global_sum_patch
@@ -564,16 +564,15 @@ contains
     integer, dimension(nx,ny), intent(in) :: &
          basin_number              !> basin ID for each grid cell
 
-    ! Note: For the next two fields, the dimension can be either (nx,ny) or (nx-1,ny-1)
-    real(dp), dimension(:,:), intent(in) :: &
+    real(dp), dimension(nx,ny), intent(in) :: &
          rmask,                 &  !> real mask for weighting the input field
          field_2d                  !> input field to be averaged over basins
 
     real(dp), dimension(nbasin), intent(out) :: &
          field_basin_sum           !> basin-sum output field
 
-    !TODO - Replace sumcell with sumarea, and pass in cell area.
-    !       Current algorithm assumes all cells with mask = 1 have equal weight.
+    !TODO - Weight rmask by cell area?
+    !       Current algorithm gives equal weight to all cells.
 
     field_basin_sum = parallel_global_sum_patch(rmask*field_2d, nbasin, basin_number, parallel)
 
@@ -590,7 +589,7 @@ contains
        field_basin_avg)
 
     ! For a given 2D input field, compute the average over a basin.
-    ! The average is taken over grid cells with mask = 1.
+    ! The average is taken over grid cells with nonzero values of rmask.
     ! All cells are weighted equally.
     ! Note: This subroutine assumes an input field located at cell centers
 
@@ -608,8 +607,7 @@ contains
     integer, dimension(nx,ny), intent(in) :: &
          basin_number              !> basin ID for each grid cell
 
-    ! Note: For the next two fields, the dimension can be either (nx,ny) or (nx-1,ny-1)
-    real(dp), dimension(:,:), intent(in) :: &
+    real(dp), dimension(nx,ny), intent(in) :: &
          rmask,                  & !> real mask for weighting the value in each cell
          field_2d                  !> input field to be averaged over basins
 
@@ -619,9 +617,6 @@ contains
     ! local variables
 
     integer :: nb
-
-    !TODO - Replace sumcell with sumarea, and pass in cell area.
-    !       Current algorithm assumes all cells with mask = 1 have equal weight.
 
     real(dp), dimension(nbasin) ::  &
          summask_global,         & ! sum of mask in each basin on full domain

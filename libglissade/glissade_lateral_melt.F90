@@ -38,7 +38,7 @@ module glissade_lateral_melt
 
   private
   public :: glissade_lateral_melt_constant, glissade_lateral_melt_ismip6, &
-       glissade_lateral_thermal_forcing_avg
+       glissade_lateral_thermal_forcing_avg, glissade_subglacial_discharge
 
   public :: verbose_latmelt
 
@@ -55,9 +55,7 @@ contains
        itest,   jtest,     rtest,        &
        melt_front_mask,                  &
        melt_rate_const,                  &  ! m/s
-       thck,                             &  ! m
-       topg,                             &  ! m
-       eus,                              &  ! m
+       thck_submerged,                   &  ! m
        mf_length,                        &  ! m
        latmelt_dthck)                       ! m
 
@@ -77,22 +75,15 @@ contains
          time                      ! elapsed time (s) of model run
 
     integer, dimension(nx,ny), intent(in)  ::  &
-!!         melt_front_mask           ! = 1 where ice is grounded below sea level or floating  !HG version
-         melt_front_mask           ! = 1 where ice is grounded below sea level
+         melt_front_mask           ! = 1 where ice is marine-grounded or floating
                                    ! and borders at least one ocean cell, else = 0
 
     real(dp), intent(in) :: &
          melt_rate_const           ! prescribed constant melt rate (m/yr)
 
-    !Note: Typically, this is the same as the calving front length
     real(dp), dimension(nx,ny), intent(in) :: & 
-         topg,                   & ! bedrock elevation (m)
+         thck_submerged,         & ! effective thickness (m) of submerged ice
          mf_length                 ! length of melt front in each grid cell (m)
-
-    real(dp), dimension(nx,ny), intent(inout) :: &
-         thck                      ! ice thickness (m); typically = thck_effective from subgrid CF scheme
-
-    real(dp), intent(in) :: eus    ! eustatic sea level (m)
 
     real(dp), dimension(nx,ny), intent(out) :: &
          latmelt_dthck             ! thickness reduction (m) due to lateral melt
@@ -104,19 +95,9 @@ contains
 !!    real(dp) :: &
 !!         m_sr                      ! horizontal melting rate in m/yr calculated from Slater ISMIP6 melt approach
 
-    real(dp), dimension(nx,ny) :: &
-         thck_submerged            ! effective thickness (m) of submerged ice
-
     ! Initialize
 
     latmelt_dthck = 0.0d0
-
-    ! Compute the submerged ice thickness
-    ! Set to the negative of the topography for marine-grounded ice.
-    ! Set to zero for land-grounded ice.
-
-    thck_submerged = thck*(rhoi/rhoo)
-    thck_submerged = min(thck_submerged, max(eus-topg,0.0d0))
 
     ! Loop over locally owned cells
     ! Melt occurs only in MF cells: marine ice-filled cells with one or more ocean neighbors.
@@ -134,16 +115,11 @@ contains
              !TODO - Question: What happens to the ice above sea level? Should it collapse?
              latmelt_dthck(i,j) = melt_rate_const * dt * thck_submerged(i,j) * mf_length(i,j) / (dx*dy)
 
-             !TODO - Modify to extend upstream if all the ice melts
-!             latmelt_dthck(i,j) = min(latmelt_dthck(i,j), thck(i,j))
-!             thck(i,j) = thck(i,j) - latmelt_dthck(i,j)
-             
              if (verbose_latmelt) then
                 if (this_rank == rtest .and. i == itest .and. j == jtest) then
                    write(iulog,*) 'Constant lateral melting, rank, i, j:', this_rank, i, j
-                   write(iulog,*) 'H, H_eff, topg:', thck(i,j), thck_submerged(i,j), topg(i,j)-eus
-                   write(iulog,*) 'rate (m/yr), mf_length, latmelt_dthck:', &
-                        melt_rate_const*scyr, mf_length(i,j), latmelt_dthck(i,j)
+                   write(iulog,*) 'melt rate (m/yr), Hsub, mf_length, latmelt_dthck:', &
+                        melt_rate_const*scyr, thck_submerged(i,j), mf_length(i,j), latmelt_dthck(i,j)
                 endif
                 call point_diag(latmelt_dthck, 'lateral melt dthck', itest, jtest, rtest, 7, 7)
              endif
@@ -165,9 +141,7 @@ contains
        melt_factor,                      &
        subglacial_discharge,             &  ! m/s
        tforcing_2d,                      &  ! K
-       thck,                             &  ! m
-       topg,                             &  ! m
-       eus,                              &  ! m
+       thck_submerged,                   &  ! m
        mf_length,                        &  ! m
        latmelt_dthck)                       ! m
 
@@ -193,17 +167,11 @@ contains
     real(dp), intent(in) :: &
          melt_factor               ! multiplier for Rignot melt parameterisation
 
-    !WHL - How is discharge computed with units of m/s?
     real(dp), dimension(nx,ny), intent(in) :: & 
          subglacial_discharge,   & ! subglacial meltwater discharge (m/s)
          tforcing_2d,            & ! average thermal forcing over some depth range (K)
-         topg,                   & ! bedrock elevation (m)
+         thck_submerged,         & ! effective thickness (m) of submerged ice
          mf_length                 ! length of melt front in each grid cell (m)
-
-    real(dp), dimension(nx,ny), intent(in) :: &
-         thck                      ! ice thickness (m); typically = thck_effective from subgrid CF scheme
-
-    real(dp), intent(in) :: eus    ! eustatic sea level (m)
 
     real(dp), dimension(nx,ny), intent(out) :: &
          latmelt_dthck             ! thickness reduction (m) due to lateral melt
@@ -217,20 +185,9 @@ contains
          tf_sr,                  & ! thermal forcing in deg C
          m_sr                      ! melting rate in m/yr calculated from Slater ISMIP6 melt approach
 
-    !TODO - Pass this in?
-    real(dp), dimension(nx,ny) :: &
-         thck_submerged            ! effective thickness (m) of submerged ice
-
-        ! Initialize
+    ! Initialize
 
     latmelt_dthck = 0.0d0
-
-    ! Compute the submerged ice thickness
-    ! Set to the negative of the topography for marine-grounded ice.
-    ! Set to zero for land-grounded ice.
-
-    thck_submerged = thck*(rhoi/rhoo)
-    thck_submerged = min(thck_submerged, max(eus-topg,0.0d0))
 
     ! Loop over locally owned cells
     ! Melt occurs only in MF cells: marine ice-filled cells with one or more ocean neighbors.
@@ -245,7 +202,7 @@ contains
              ! See Rignot et al. 2016 or ISMIP6 melt forcing approach.
 
              tf_sr = tforcing_2d(i,j) ! 2d thermal forcing [degC]
-             q_sr = subglacial_discharge(i,j) * scday ! runoff_applied passed in m/s; for Rignot equation convert to [m/d]
+             q_sr = subglacial_discharge(i,j) * scday ! subglacial_discharge passed in m/s; for Rignot equation convert to [m/d]
 
              ! Rignot et al. 2016; formulated in m/d, converted to m/s. Mulitplier frontal_melt_factor as proposed for ISMIP7
              m_sr = melt_factor * (3.0d-4 * thck_submerged(i,j) * q_sr**0.39d0 + 0.15d0) * tf_sr**1.18d0 * 365.d0/scyr
@@ -253,19 +210,11 @@ contains
              ! calculate applied thickness change
              latmelt_dthck(i,j) = m_sr * dt * thck_submerged(i,j) * mf_length(i,j) / (dx*dy)
 
-             ! limit by local thickness
-             !TODO - Do not limit; allow melting to continue upstream in the calving calculation
-!!             latmelt_dthck(i,j) = min(latmelt_dthck(i,j), thck(i,j))
-
-             ! Update thickness 
-             !WHL - Change the thickness later, in the calving calculation
-!             thck(i,j) = thck(i,j) - latmelt_dthck(i,j)
-
              if (verbose_latmelt) then
                 if (this_rank == rtest .and. i == itest .and. j == jtest) then
                    write(iulog,*) 'ISMIP6 lateral melting, rank, i, j:', this_rank, i, j
-                   write(iulog,*) 'H, H_sub, topg:', thck(i,j), thck_submerged(i,j), topg(i,j)-eus
-                   write(iulog,*) 'mf_length, latmelt_dthck:', mf_length(i,j), latmelt_dthck(i,j)
+                   write(iulog,*) 'Hsub, mf_length, latmelt_dthck:', &
+                        thck_submerged(i,j), mf_length(i,j), latmelt_dthck(i,j)
                 endif
                 call point_diag(latmelt_dthck, 'lateral melt dthck', itest, jtest, rtest, 7, 7)
              endif
@@ -275,6 +224,110 @@ contains
     enddo
 
   end subroutine glissade_lateral_melt_ismip6
+
+!-------------------------------------------------------------------------------
+
+  subroutine glissade_subglacial_discharge(&
+       nx,             ny,                &
+       dx,             dy,                &
+       parallel,                          &
+       nbasin,         basin_number,      &
+       ice_mask,                          &
+       acab,                              &
+       thck_submerged,                    &
+       mf_length,                         &
+       subglacial_discharge)
+
+    ! Compute basin-scale subglacial discharge.
+    ! This as an input to the lateral melt parameterization.
+
+    use glimmer_physcon, only: rhoi, rhow, rhoo
+    use glissade_utils, only: glissade_basin_sum
+
+    ! input/output arguments
+
+    integer, intent(in) :: &
+         nx, ny                        !> number of grid cells in each dimension
+
+    real(dp), intent(in) :: &
+         dx, dy                        !> grid cell size (m)
+
+    type(parallel_type), intent(in) :: &
+         parallel                      !> info for parallel communication
+
+    integer, intent(in) :: nbasin      !> number of basins
+
+    integer, dimension(nx,ny), intent(in) :: &
+         basin_number,               & !> basin number for each grid cell
+         ice_mask                      !> = 1 where ice is present, else = 0
+
+    real(dp), dimension(nx,ny), intent(in) :: &
+         acab,                       & !> applied accumulation/ablation (m/s)
+         thck_submerged,             & !> effective thickness (m) of submerged ice
+         mf_length                     ! length of melt front in each grid cell (m)
+
+    ! Note: To match the ISMIP6 input file units (kg/m^2/s), multiply by rhow = 1000 kg/m^3
+    real(dp), dimension(nx,ny), intent(out) :: &
+         subglacial_discharge          !> subglacial meltwater discharge for lateral melting (m/s)
+
+    ! local variables
+
+    integer :: i, j, nb
+
+    real(dp), dimension(nx,ny) :: &
+         runoff,                     & ! subglacial runoff, estimated as a function of surface ablation (m^3/s)
+         rmask                         ! real mask for basin sums
+
+    real(dp), dimension(nbasin) :: &
+         runoff_sum_basin,           & ! runoff summed over each basin (m^3/s)
+         area_submerged_sum_basin      ! submerged area summed over each basin (m^2)
+
+    ! Estimate the surface runoff reaching the bed of the ice sheet.
+    ! Assume that all the surface ablation (acab, wherever acab < 0) reaches the bed.
+
+    runoff = max(-1.0d0*acab*(rhoi/rhow), 0.0d0) * (dx*dy)   ! m^3/s
+
+    ! Sum the runoff over each basin
+
+    rmask = 1.0d0 * ice_mask
+
+    call glissade_basin_sum(&
+         nx,         ny,                &
+         parallel,                      &
+         nbasin,     basin_number,      &
+         rmask,                         &
+         runoff,                        & ! m^3/s
+         runoff_sum_basin)                ! m^3/s
+
+    ! Sum the submerged ice area over each basin
+
+    call glissade_basin_sum(&
+         nx,         ny,                &
+         parallel,                      &
+         nbasin,     basin_number,      &
+         rmask,                         &
+         mf_length*thck_submerged,      & ! m^2
+         area_submerged_sum_basin)        ! m^2
+
+    ! Compute the subglacial discharge as the runoff per unit submerged melt front area.
+    ! This discharge is uniform across each basin.
+    ! The result is similar to what ISMIP6 provided as forcing files
+
+    subglacial_discharge = 0.0d0
+
+    do j = 1, ny
+       do i = 1, nx
+          nb = basin_number(i,j)
+          if (nb >= 1) then
+             if (area_submerged_sum_basin(nb) > 0.0d0) then
+                ! Divide basin runoff (m^3/s) by basin-wide submerged area (m^2)
+                subglacial_discharge(i,j) = runoff_sum_basin(nb) / area_submerged_sum_basin(nb)  ! m/s
+             endif
+          endif
+       enddo   ! i
+    enddo   ! j
+
+  end subroutine glissade_subglacial_discharge
 
 !-------------------------------------------------------------------------------
 

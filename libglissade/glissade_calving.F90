@@ -774,6 +774,7 @@ contains
                model%calving,                     &        ! calving object; includes calving_thck (m)
                model%lateral_melt,                &        ! lateral melt object; includes melt_thck (m)
                model%ocean_data,                  &        ! ocean data object, for lateral forcing
+               model%climate%acab_applied,        &        ! m/s
                itest, jtest, rtest,               &
                model%numerics%dt,                 &        ! s
                model%numerics%time*scyr,          &        ! s
@@ -1202,6 +1203,7 @@ contains
        calving,                 &  ! calving derived type
        lateral_melt,            &  ! lateral melt derived type
        ocean_data,              &  ! ocean data derived type
+       acab_applied,            &  ! m/s
        itest,  jtest,  rtest,   &
        dt,             time,    &  ! s
        dx,             dy,      &  ! m
@@ -1220,7 +1222,7 @@ contains
     use glissade_utils, only: glissade_input_fluxes
     use glissade_grid_operators, only: glissade_unstagger
     use glissade_lateral_melt, only: glissade_lateral_melt_constant, glissade_lateral_melt_ismip6, &
-         glissade_lateral_thermal_forcing_avg
+         glissade_lateral_thermal_forcing_avg, glissade_subglacial_discharge
     implicit none
 
     !---------------------------------------------------------------------
@@ -1236,10 +1238,8 @@ contains
     integer, intent(in) :: which_lateral_melt      !> option for lateral melt
 
     type(parallel_type), intent(in) :: parallel    !> info for parallel communication
-    type(glide_calving), intent(inout) :: calving  !> calving object
-    type(glide_lateral_melt), intent(inout) :: lateral_melt  !> lateral melt object
-    type(glide_ocean_data), intent(in) :: ocean_data         !> ocean data object
 
+    type(glide_calving), intent(inout) :: calving  !> calving object
 !    Note: The calving object includes the following fields and parameters used in this subroutine:
 !    real(dp), intent(in)                     :: minthck             !> min thickness for ice at the calving front (m)
 !    real(dp), intent(in)                     :: dthck_dx_cf         !> assumed max thickness gradient (m/m) at the subgrid CF
@@ -1261,6 +1261,24 @@ contains
 !    integer,  dimension(:,:), intent(in)     :: calving_mask        !> integer mask: calve ice where calving_mask = 1
 !    real(dp), dimension(:,:), intent(out)    :: calving_thck        !> thickness lost due to calving in each grid cell (m)
 
+    type(glide_lateral_melt), intent(inout) :: lateral_melt  !> lateral melt object
+!    Note: The lateral_melt object includes the following fields and parameters used in this subroutine:
+!    real(dp),dimension(:,:),  pointer :: subglacial_discharge       !> subglacial meltwater discharge for lateral melting (kg/m2/s)
+!    real(dp),dimension(:,:),  pointer :: tforcing_2d                !> 2d thermal forcing for lateral melt (deg K)
+!    real(dp) :: melt_rate_const               !> constant lateral retreat rate at melt front (m/yr)
+!    real(dp) :: melt_factor                   !> multiplier for Rignot frontal melt. A value of 1.6 was proposed for ISMIP7
+!    real(dp) :: ztop_tfavg                    !> top end of depth range (m) for average thermal forcing
+!    real(dp) :: zbot_tfavg                    !> bottom end of depth range (m) for average thermal forcing
+
+    type(glide_ocean_data), intent(in) :: ocean_data         !> ocean data object
+!   Note: The ocean_data object includes the following fields and parameters used in this subroutine:
+!    integer  :: nbasin                         !> number of basins
+!    integer  :: nzocn                          !> number of ocean levels
+!    real(dp) :: dzocn                          !> thickness of ocean levels; nonzero value set in config file
+!    real(dp), dimension(:), pointer :: zocn          !> ocean levels (m) where forcing is provided, negative below sea level
+!    integer, dimension(:,:), pointer :: basin_number !> basin number for each grid cell
+
+    real(dp), dimension(:,:), intent(in)      :: acab_applied      !> applied accumulation/ablation (m/yr)
     integer, intent(in) :: itest, jtest, rtest                     !> coordinates of diagnostic point
     real(dp), intent(in)                      :: dt                !> model timestep (s)
     real(dp), intent(in)                      :: time              !> model time (s)
@@ -1289,6 +1307,10 @@ contains
          ocean_mask,             & ! = 1 where topg is below sea level and ice is absent, else = 0
          land_mask                 ! = 1 where topg is at or above sea level, else = 0
 
+    integer, dimension(nx,ny) :: &
+         partial_cf_mask,      & ! = 1 for partially filled CF cells (thck < thck_effective), else = 0
+         full_mask               ! = 1 for ice-filled cells that are not partial_cf cells, else = 0
+
     real(dp), dimension(nx,ny) :: &
          calving_dthck,        & ! thickness reduction (m) to be added to calving
          alt_calving_dthck,    & ! calving_dthck (m) from an alterate calculation
@@ -1296,11 +1318,8 @@ contains
          cf_length               ! length of calving front within a cell
 
     real(dp), dimension(nx,ny) :: &
+         thck_submerged,       & ! submerged ice thickness (m)
          latmelt_dthck           ! thickness reduction (m) due to lateral melting
-
-    integer, dimension(nx,ny) :: &
-         partial_cf_mask,      & ! = 1 for partially filled CF cells (thck < thck_effective), else = 0
-         full_mask               ! = 1 for ice-filled cells that are not partial_cf cells, else = 0
 
     real(dp), dimension(-1:1,-1:1,nx,ny) :: &
          flux_in                 ! ice volume fluxes (m^3/s) into cell from each neighbor cell
@@ -1427,6 +1446,7 @@ contains
          nx,            ny,             &
          which_ho_calving_front,        &
          parallel,                      &
+         itest, jtest,  rtest,          &
          thck,          topg,           &
          eus,                           &
          ice_mask,      floating_mask,  &
@@ -1738,6 +1758,7 @@ contains
          nx,            ny,             &
          which_ho_calving_front,        &
          parallel,                      &
+         itest, jtest,  rtest,          &
          thck,          topg,           &
          eus,                           &
          ice_mask,      floating_mask,  &
@@ -1755,6 +1776,13 @@ contains
 
     if (which_lateral_melt /= LATERAL_MELT_NONE) then
 
+       ! Compute the submerged ice thickness
+       ! Set to the negative of the topography for marine-grounded ice.
+       ! Set to zero for land-grounded ice.
+
+       thck_submerged = calving%thck_effective*(rhoi/rhoo)
+       thck_submerged = min(thck_submerged, max(eus-topg,0.0d0))
+
        if (which_lateral_melt == LATERAL_MELT_CONSTANT) then
 
           call glissade_lateral_melt_constant(&
@@ -1764,13 +1792,22 @@ contains
                itest,   jtest,     rtest,          &
                calving%calving_front_mask,         &
                lateral_melt%melt_rate_const,       &  ! m/s
-               thck,                               &  ! m
-               topg,                               &  ! m
-               eus,                                &  ! m
+               thck_submerged,                     &  ! m
                cf_length,                          &  ! m
                latmelt_dthck)                         ! m
 
        elseif (which_lateral_melt == LATERAL_MELT_ISMIP6) then
+
+          call glissade_subglacial_discharge(&
+               nx,                  ny,                      &
+               dx,                  dy,                      &  ! m
+               parallel,                                     &
+               ocean_data%nbasin,   ocean_data%basin_number, &
+               ice_mask,                                     &
+               acab_applied,                                 &  ! m^3/s
+               thck_submerged,                               &  ! m
+               cf_length,                                    &  ! m
+               lateral_melt%subglacial_discharge)               ! kg/m^2/s??
 
           call glissade_lateral_thermal_forcing_avg(&
                nx,                  ny,            &
@@ -1790,15 +1827,14 @@ contains
                lateral_melt%melt_factor,           &
                lateral_melt%subglacial_discharge,  &  ! m/s
                lateral_melt%tforcing_2d,           &  ! K
-               thck,                               &  ! m
-               topg,                               &  ! m
-               eus,                                &  ! m
+               thck_submerged,                     &  ! m
                cf_length,                          &  ! m
                latmelt_dthck)                         ! m
 
        elseif (which_lateral_melt == LATERAL_MELT_COUPLED) then
 
           !WHL - What to do here? What is passed in?
+          ! Convert units of subglacial discharge and call lateral_melt_ismip6 subroutine?
 
        endif
 
@@ -1834,6 +1870,7 @@ contains
             nx,            ny,             &
             which_ho_calving_front,        &
             parallel,                      &
+            itest, jtest,  rtest,          &
             thck,          topg,           &
             eus,                           &
             ice_mask,      floating_mask,  &
@@ -1888,6 +1925,7 @@ contains
             nx,            ny,             &
             which_ho_calving_front,        &
             parallel,                      &
+            itest, jtest,  rtest,          &
             thck,          topg,           &
             eus,                           &
             ice_mask,      floating_mask,  &
@@ -3917,6 +3955,7 @@ contains
                nx,            ny,                    &
                model%options%which_ho_calving_front, &
                parallel,                             &
+               itest, jtest,  rtest,                 &
                model%geometry%thck,                  &
                model%geometry%topg,                  &
                model%climate%eus,                    &
