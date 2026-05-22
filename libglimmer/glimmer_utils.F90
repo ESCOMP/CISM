@@ -367,7 +367,7 @@ contains
     ! For ice-free ocean, lsrf = 0
 
     where (topg - eus < (-rhoi/rhoo) * thck)
-       lsrf = (-rhoi/rhoo) * thck
+       lsrf = eus - (rhoi/rhoo) * thck
     elsewhere
        lsrf = topg
     end where
