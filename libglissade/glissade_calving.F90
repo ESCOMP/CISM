@@ -1171,6 +1171,7 @@ contains
                dx,                 dy,                    &
                dt,                 time,                  &  ! s
                itest,   jtest,     rtest,                 &
+               calving%frontal_melt_factor,               & ! 1; multiplier
                calving%melt_front_mask,                   &
                calving%thermal_forcing_applied,           &  ! degC
                calving%runoff_applied/1000.,              &  ! m/s; (read from file in kg/m2/s)
@@ -1306,6 +1307,7 @@ contains
                dx,                 dy,                    &
                dt,                 time,                  &  ! s
                itest,   jtest,     rtest,                 &
+               calving%frontal_melt_factor,                       & ! 1; multiplier
                calving%melt_front_mask,                   &
                calving%thermal_forcing_applied,           &  ! degC
                calving%runoff_applied/1000.,              &  ! m/s; (read from file in kg/m2/s)
@@ -2881,6 +2883,7 @@ contains
        dx,                 dy,             &
        dt,                 time,           &  ! s
        itest,   jtest,     rtest,          &
+       frontal_melt_factor,                & ! 1; multiplier
        melt_front_mask,                    &
        thermal_forcing_applied,            &  ! degC
        runoff_applied,                     &  ! m/s
@@ -2906,6 +2909,9 @@ contains
          dx, dy,                 & ! grid cell size (m)
          dt,                     & ! time step (s)
          time                      ! elapsed time (s) of model run
+
+    real(dp), intent(in) :: &
+         frontal_melt_factor       ! multiplier for Rignot melt parameterisation
 
     integer, dimension(nx,ny), intent(in)  ::  &
          melt_front_mask           ! = 1 where ice is grounded below sealevel or floating and borders at least one ocean cell, else = 0
@@ -2964,10 +2970,9 @@ contains
 
              tf_sr = thermal_forcing_applied(i,j) ! 2d thermal forcing [degC]
              q_sr = runoff_applied(i,j) * 86400.  ! runoff_applied passed in m/s; for Rignot equation convert to [m/d] 
-              
-             ! Adding frontal melt factor in line with suggested ISMIP7 retuning: * a factor 1.64 for calibration to new data; * a factor 2.0 for resolution dependence for 4 km; 
-             ! * a factor 0.8 for annual vs monthly forcing data.
-             m_sr = (1.64 * 2.0 * 0.8) * (3.0 * 1.0e-4 * thck_effective(i,j) * q_sr**0.39 + 0.15) * tf_sr**1.18 * 365./scyr ! retuned Rignot et al. 2016; formulted in m/d, converted to m/s
+
+             ! Rignot et al. 2016; formulted in m/d, converted to m/s. Mulitplier frontal_melt_factor as proposed for ISMIP7
+             m_sr = frontal_melt_factor * (3.0 * 1.0e-4 * thck_effective(i,j) * q_sr**0.39 + 0.15) * tf_sr**1.18 * 365./scyr 
 
              ! calculate applied thickness change and limit by local thickness
              melt_thck(i,j) = min((m_sr*dt * thck_effective(i,j) * cf_length(i,j)) / (dx*dy), thck(i,j))
