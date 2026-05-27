@@ -207,10 +207,6 @@ contains
        call nc_errorhandle(__FILE__,__LINE__,status)
     end if
 
-    ! clean up
-    deallocate(x0_global, y0_global)
-    deallocate(x1_global, y1_global)
-
   end subroutine glide_nc_filldvars
 
 end module glide_nc_custom
