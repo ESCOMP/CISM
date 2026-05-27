@@ -3423,15 +3423,12 @@ contains
        end if
        if (model%options%reproducible_sums) then
           if (model%basal_hydro%ho_flux_routing_scheme /= HO_FLUX_ROUTING_D8) then
-             write(message,*) 'With reproducible sums, only D8 flux-routing is supported; switching to D8'
-             model%basal_hydro%ho_flux_routing_scheme = HO_FLUX_ROUTING_D8
-             call write_log(message)
+             call write_log('Error, this flux_routing scheme is not supported with reproducible sums')
+             call write_log('Please use D8 flux-routing or turn off reproducible sums', GM_FATAL)
           endif
           if (model%basal_hydro%btemp_freeze_scale > 0.0d0) then
-             write(message,*) 'With reproducible sums, the flux-routing does not support refreezing;' // &
-                  ' setting btemp_freeze_scale = 0'
-             call write_log(message)
-             model%basal_hydro%btemp_freeze_scale = 0.0d0
+             call write_log('Error, flux-routing does not support refreezing with reproducible sums')
+             call write_log('Please set btemp_freeze_scale = 0 or turn off reproducible sums', GM_FATAL)
           endif
        endif  ! reproducible sums
        write(message,*) 'ho_flux_routing_scheme        : ',model%basal_hydro%ho_flux_routing_scheme,  &

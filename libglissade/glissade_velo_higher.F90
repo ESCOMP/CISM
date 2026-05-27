@@ -91,10 +91,8 @@
 
     use cism_parallel, only: this_rank, main_task, nhalo, tasks, &
          parallel_type, parallel_halo, staggered_parallel_halo, parallel_globalindex, &
+         parallel_global_sum, parallel_global_sum_stagger, &
          parallel_reduce_max, parallel_reduce_sum, not_parallel
-    !WHL - debug
-    use cism_parallel, only: parallel_global_sum_stagger
-    use cism_reprosum_mod, only: verbose_reprosum
     implicit none
 
     private
@@ -247,6 +245,12 @@
 !    logical :: verbose_glp = .true.
     logical :: verbose_picard = .false.
 !    logical :: verbose_picard = .true.
+
+    ! Set the following to true to convert double-precision variables to binary form
+    !  and write them to output files. This can be useful for verifying that sums are exactly
+    !  reproducible with different processor counts. Writing out the dp variables
+    !  can give false negatives: two sums that look identical but are in fact different.
+    logical :: write_binary_diagnostics = .false.
 
     integer, parameter :: ktest = 1     ! vertical level of diagnostic point
     integer, parameter :: ptest = 1     ! diagnostic quadrature point
@@ -676,8 +680,6 @@
     use glissade_therm, only: glissade_pressure_melting_point
     use glide_thck, only: glide_calclsrf
     use profile, only: t_startf, t_stopf
-
-    !WHL - debug
     use glissade_utils, only: write_array_to_file
 
     !----------------------------------------------------------------
@@ -1082,10 +1084,11 @@
     !WHL - debug
     real(dp), dimension(nNodeNeighbors_2d) :: &
          sum_Auu, sum_Auv, sum_Avu, sum_Avv
+    real(dp) :: sum_xVertex, sum_yVertex
+    real(dp) :: sum_slopex, sum_slopey
     real(dp) :: sum_uvel, sum_vvel
     real(dp) :: sum_bu, sum_bv
     real(dp) :: sum_flwa, sum_flwafact, sum_btrx, sum_btry, sum_stagusrf, sum_stagthck
-    real(dp) :: sum_betax, sum_betay, sum_omega, sum_stag_omega
     real(dp), dimension(:,:), allocatable :: arr_global  ! temporary global array
 
     call t_startf('glissade_vhs_init')
@@ -2020,6 +2023,7 @@
                                 nz,               sigma,           &
                                 nhalo,                             &
                                 itest,   jtest,   rtest,           &
+                                parallel,                          &
                                 whichassemble_lateral,             &
                                 land_mask,        ocean_mask,      &
                                 active_cell,                       &
@@ -2071,7 +2075,7 @@
           enddo
        endif
     endif
-    
+
     ! Optional slope correction factor for DIVA
 
     ! Initialize to values appropriate for small slopes
@@ -2352,35 +2356,49 @@
              usav_2d(:,:) = uvel_2d(:,:)
              vsav_2d(:,:) = vvel_2d(:,:)
 
-             !WHL - debug - BFB check
-             sum_uvel = parallel_global_sum_stagger(uvel_2d, parallel)
-             sum_vvel = parallel_global_sum_stagger(vvel_2d, parallel)
-             sum_flwa = parallel_global_sum_stagger(flwa, parallel)
-             sum_flwafact = parallel_global_sum_stagger(flwafact, parallel)
-             sum_btrx = parallel_global_sum_stagger(btractx, parallel)
-             sum_btry = parallel_global_sum_stagger(btracty, parallel)
-             sum_stagusrf = parallel_global_sum_stagger(stagusrf, parallel)
-             sum_stagthck = parallel_global_sum_stagger(stagthck, parallel)
-!!             if (this_rank == rtest) then
-             if (0 == 1) then
-                write(iulog,*) ' '
-                call double_to_binary(sum_uvel, binary_str)
-                write(iulog,*) 'Before assembly: sum_uvel, binary_str:', sum_uvel, binary_str
-                call double_to_binary(sum_vvel, binary_str)
-                write(iulog,*) 'Before assembly: sum_vvel, binary_str:', sum_vvel, binary_str
-                call double_to_binary(sum_flwa, binary_str)
-                write(iulog,*) 'Before assembly: sum_flwa, binary_str:', sum_flwa, binary_str
-                call double_to_binary(sum_flwafact, binary_str)
-                write(iulog,*) 'Before assembly: sum_flwafact, binary_str:', sum_flwafact, binary_str
-                call double_to_binary(sum_btrx, binary_str)
-                write(iulog,*) 'Before assembly: sum_btrx, binary_str:', sum_btrx, binary_str
-                call double_to_binary(sum_btry, binary_str)
-                write(iulog,*) 'Before assembly: sum_btry, binary_str:', sum_btry, binary_str
-                call double_to_binary(sum_stagusrf, binary_str)
-                write(iulog,*) 'Before assembly: sum_stagusrf, binary_str:', sum_stagusrf, binary_str
-                call double_to_binary(sum_stagthck, binary_str)
-                write(iulog,*) 'Before assembly: sum_stagthck, binary_str:', sum_stagthck, binary_str
-             endif
+             ! When developing the reprosum version of the code, the following code was useful
+             !  for verifying that two sums have exactly the same binary representation.
+             if (write_binary_diagnostics .and. counter == 1) then
+                sum_xVertex = parallel_global_sum_stagger(xVertex, parallel)
+                sum_yVertex = parallel_global_sum_stagger(yVertex, parallel)
+                sum_slopex = parallel_global_sum(diva_slope_factor_x, parallel)
+                sum_slopey = parallel_global_sum(diva_slope_factor_y, parallel)
+                sum_uvel = parallel_global_sum_stagger(uvel_2d, parallel)
+                sum_vvel = parallel_global_sum_stagger(vvel_2d, parallel)
+                sum_flwa = parallel_global_sum_stagger(flwa, parallel)
+                sum_flwafact = parallel_global_sum_stagger(flwafact, parallel)
+                sum_btrx = parallel_global_sum_stagger(btractx, parallel)
+                sum_btry = parallel_global_sum_stagger(btracty, parallel)
+                sum_stagusrf = parallel_global_sum_stagger(stagusrf, parallel)
+                sum_stagthck = parallel_global_sum_stagger(stagthck, parallel)
+                if (main_task) then
+                   write(iulog,*) ' '
+                   call double_to_binary(sum_xVertex, binary_str)
+                   write(iulog,*) 'Before assembly: sum_xVertex, binary_str:', sum_xVertex, binary_str
+                   call double_to_binary(sum_yVertex, binary_str)
+                   write(iulog,*) 'Before assembly: sum_yVertex, binary_str:', sum_yVertex, binary_str
+                   call double_to_binary(sum_slopey, binary_str)
+                   write(iulog,*) 'Before assembly: sum_slopex, binary_str:', sum_slopey, binary_str
+                   call double_to_binary(sum_slopey, binary_str)
+                   write(iulog,*) 'Before assembly: sum_slopex, binary_str:', sum_slopey, binary_str
+                   call double_to_binary(sum_uvel, binary_str)
+                   write(iulog,*) 'Before assembly: sum_uvel, binary_str:', sum_uvel, binary_str
+                   call double_to_binary(sum_vvel, binary_str)
+                   write(iulog,*) 'Before assembly: sum_vvel, binary_str:', sum_vvel, binary_str
+                   call double_to_binary(sum_flwa, binary_str)
+                   write(iulog,*) 'Before assembly: sum_flwa, binary_str:', sum_flwa, binary_str
+                   call double_to_binary(sum_flwafact, binary_str)
+                   write(iulog,*) 'Before assembly: sum_flwafact, binary_str:', sum_flwafact, binary_str
+                   call double_to_binary(sum_btrx, binary_str)
+                   write(iulog,*) 'Before assembly: sum_btrx, binary_str:', sum_btrx, binary_str
+                   call double_to_binary(sum_btry, binary_str)
+                   write(iulog,*) 'Before assembly: sum_btry, binary_str:', sum_btry, binary_str
+                   call double_to_binary(sum_stagusrf, binary_str)
+                   write(iulog,*) 'Before assembly: sum_stagusrf, binary_str:', sum_stagusrf, binary_str
+                   call double_to_binary(sum_stagthck, binary_str)
+                   write(iulog,*) 'Before assembly: sum_stagthck, binary_str:', sum_stagthck, binary_str
+                endif
+             endif  ! write_binary_diagnostics
 
              ! Assemble the matrix
 
@@ -2389,6 +2407,7 @@
                                                sigma,            stagsigma,       &
                                                nhalo,                             &
                                                itest,   jtest,   rtest,           &
+                                               parallel,                          &
                                                active_cell,                       &
                                                xVertex,          yVertex,         &
                                                uvel_2d,          vvel_2d,         &
@@ -2406,8 +2425,8 @@
                                                omega_k,          omega,   &
                                                efvs_qp_3d)
 
-             !WHL - debug - BFB check
-             if (verbose_reprosum .and. counter == 1) then
+             ! The following code was useful for reprosum debugging
+             if (write_binary_diagnostics .and. counter == 1) then
 !!                if (main_task) write(iulog,*) 'Write out matrices after assemble_stiffness_matrix'
 !!                call write_array_to_file(Auu_2d, 21, 'global_Auu1', parallel, write_binary = .true., cycle_indices = .true.)
 !!                call write_array_to_file(Auv_2d, 22, 'global_Auv1', parallel, write_binary = .true., cycle_indices = .true.)
@@ -2443,7 +2462,7 @@
                       write(iulog,*) n, sum_Avv(n), binary_str
                    enddo
                 endif
-             endif   ! verbose_reprosum
+             endif   ! write_binary_diagnostics
 
              if (whichapprox == HO_APPROX_DIVA) then
 
@@ -2661,16 +2680,16 @@
              call staggered_parallel_halo(bv_2d(:,:), parallel)
              call t_stopf('glissade_halo_bxxs')
 
-             !WHL - debug - Write all the matrix elements and rhs elements (in binary form) to files
-             if (verbose_reprosum .and. counter == 1) then
-!!                if (main_task) write(iulog,*) 'Write out matrices after adding BC'
-!!                call write_array_to_file(Auu_2d(:,:,5), 30, 'global_Auu2', parallel)  ! diagonal terms only
-!!                call write_array_to_file(Auu_2d, 31, 'global_Auu2', parallel, write_binary = .true., cycle_indices = .true.)
-!!                call write_array_to_file(Auv_2d, 32, 'global_Auv2', parallel, write_binary = .true., cycle_indices = .true.)
-!!                call write_array_to_file(Avu_2d, 33, 'global_Avu2', parallel, write_binary = .true., cycle_indices = .true.)
-!!                call write_array_to_file(Avv_2d, 34, 'global_Avv2', parallel, write_binary = .true., cycle_indices = .true.)
-!!                call write_array_to_file(bu_2d,  35, 'global_bu2',  parallel, write_binary = .true.)
-!!                call write_array_to_file(bv_2d,  36, 'global_bv2',  parallel, write_binary = .true.)
+             if (write_binary_diagnostics .and. counter == 1) then
+                ! Write all the matrix elements and rhs elements (in binary form) to files
+                if (main_task) write(iulog,*) 'Write out matrices after adding BC'
+                call write_array_to_file(Auu_2d(:,:,5), 30, 'global_Auu2', parallel)  ! diagonal terms only
+                call write_array_to_file(Auu_2d, 31, 'global_Auu2', parallel, write_binary = .true., cycle_indices = .true.)
+                call write_array_to_file(Auv_2d, 32, 'global_Auv2', parallel, write_binary = .true., cycle_indices = .true.)
+                call write_array_to_file(Avu_2d, 33, 'global_Avu2', parallel, write_binary = .true., cycle_indices = .true.)
+                call write_array_to_file(Avv_2d, 34, 'global_Avv2', parallel, write_binary = .true., cycle_indices = .true.)
+                call write_array_to_file(bu_2d,  35, 'global_bu2',  parallel, write_binary = .true.)
+                call write_array_to_file(bv_2d,  36, 'global_bv2',  parallel, write_binary = .true.)
              endif
 
              !---------------------------------------------------------------------------
@@ -2702,7 +2721,8 @@
                                     active_vertex,           &
                                     nNonzeros)
 
-             if (verbose_reprosum) then
+             ! The following code was useful for reprosum debugging
+             if (write_binary_diagnostics) then
                 sum_Auu(:) = parallel_global_sum_stagger(Auu_2d, nNodeNeighbors_2d, parallel)
                 sum_Auv(:) = parallel_global_sum_stagger(Auv_2d, nNodeNeighbors_2d, parallel)
                 sum_Avu(:) = parallel_global_sum_stagger(Avu_2d, nNodeNeighbors_2d, parallel)
@@ -2735,7 +2755,7 @@
                       write(iulog,*) n, sum_Avv(n), binary_str
                    enddo
                 endif
-             endif   ! verbose_reprosum
+             endif   ! write_binary_diagnostics
 
              if (write_matrix) then
                 if (counter == 1) then    ! first outer iteration only
@@ -2801,6 +2821,7 @@
              ! Assemble the stiffness matrix A
              !---------------------------------------------------------------------------
 
+             !TODO - pass in 'parallel'?
              call t_startf('glissade_assemble_3d')
              call assemble_stiffness_matrix_3d(nx,               ny,              &
                                                nz,               sigma,           &
@@ -3162,7 +3183,7 @@
           if (solve_2d) then
              call point_diag(uvel_2d, 'Mean uvel (m/yr)', itest, jtest, rtest, 7, 7)
              call point_diag(vvel_2d, 'Mean vvel (m/yr)', itest, jtest, rtest, 7, 7)
-          else	 ! 3D velocity solve
+          else   ! 3D velocity solve
              call point_diag(uvel(nz,:,:), 'Basal uvel (m/yr)', itest, jtest, rtest, 7, 7)
              call point_diag(vvel(nz,:,:), 'Basal vvel (m/yr)', itest, jtest, rtest, 7, 7)
              call point_diag(uvel(1,:,:), 'Sfc uvel (m/yr)', itest, jtest, rtest, 7, 7)
@@ -4432,6 +4453,7 @@
                                     nz,               sigma,           &
                                     nhalo,                             &
                                     itest,   jtest,   rtest,           &
+                                    parallel,                          &
                                     whichassemble_lateral,             &
                                     land_mask,                         &
                                     ocean_mask,                        &
@@ -4454,6 +4476,9 @@
 
     integer, intent(in) :: &
        itest, jtest, rtest           ! coordinates of diagnostic point
+
+    type(parallel_type), intent(in) :: &
+       parallel                      ! info for parallel communication
 
     logical, dimension(nx,ny), intent(in) ::  &
        active_cell                   ! true if cell contains ice, borders a locally owned vertex,
@@ -4488,24 +4513,30 @@
 
     ! Note: Lateral shelf BCs are applied to active cells (either floating or grounded) that border the ocean.
 
+    if (verbose_shelf .or. verbose_load) then
+       call point_diag(thck, 'Before lateral shelf loop, thck', itest, jtest, rtest, 7, 7)
+       call point_diag(usrf, 'usrf', itest, jtest, rtest, 7, 7)
+       call point_diag(stagthck, 'stagthck', itest, jtest, rtest, 7, 7)
+       call point_diag(stagusrf, 'stagusrf', itest, jtest, rtest, 7, 7)
+    endif
+
     do j = nhalo+1, ny-nhalo+1
     do i = nhalo+1, nx-nhalo+1
        
-       if ((verbose_shelf .or. verbose_load) .and. i==itest .and. j==jtest .and. this_rank==rtest) then
-          write(iulog,*) 'rank, i, j =', this_rank, i, j
-          write(iulog,*) 'ocean_mask (i-1:i,j)  =', ocean_mask(i-1:i, j)
-          write(iulog,*) 'ocean_mask (i-1:i,j-1)=', ocean_mask(i-1:i, j-1)
-       endif
-
        ! Compute the spreading term for all active cells that share an edge with an ice-free ocean cell.
 
        if (active_cell(i,j)) then
 
           if ( ocean_mask(i-1,j) == 1) then
 
+             if (verbose_shelf .and. this_rank==rtest .and. i==itest .and. j==jtest) then
+                write(iulog,*) 'call west, i, j, xv, yv =', i, j, xVertex(i,j), yVertex(i,j)
+             endif
+
              call lateral_shelf_bc(nx,              ny,              &
                                    nz,              sigma,           &
                                    itest,   jtest,  rtest,           &
+                                   parallel,                         &
                                    whichassemble_lateral,            &
                                    'west',                           &
                                    i,               j,               &
@@ -4517,9 +4548,14 @@
 
           if ( ocean_mask(i+1,j) == 1) then
 
+             if (verbose_shelf .and. this_rank==rtest .and. i==itest .and. j==jtest) then
+                write(iulog,*) 'call east, i, j, xv, yv =', i, j, xVertex(i,j), yVertex(i,j)
+             endif
+
              call lateral_shelf_bc(nx,              ny,              &
                                    nz,              sigma,           &
                                    itest,   jtest,  rtest,           &
+                                   parallel,                         &
                                    whichassemble_lateral,            &
                                    'east',                           &
                                    i,               j,               &
@@ -4531,9 +4567,14 @@
 
           if ( ocean_mask(i,j-1) == 1) then
 
+             if (verbose_shelf .and. this_rank==rtest .and. i==itest .and. j==jtest) then
+                write(iulog,*) 'call south, i, j, xv, xv =', i, j, xVertex(i,j), xVertex(i,j)
+             endif
+
              call lateral_shelf_bc(nx,              ny,              &
                                    nz,              sigma,           &
                                    itest,   jtest,  rtest,           &
+                                   parallel,                         &
                                    whichassemble_lateral,            &
                                    'south',                          &
                                    i,               j,               &
@@ -4545,9 +4586,14 @@
 
           if ( ocean_mask(i,j+1) == 1) then
 
+             if (verbose_shelf .and. this_rank==rtest .and. i==itest .and. j==jtest) then
+                write(iulog,*) 'call north, i, j, xv, yv =', i, j, xVertex(i,j), yVertex(i,j)
+             endif
+
              call lateral_shelf_bc(nx,              ny,              &
                                    nz,              sigma,           &
                                    itest,   jtest,  rtest,           &
+                                   parallel,                         &
                                    whichassemble_lateral,            &
                                    'north',                          &
                                    i,               j,               &
@@ -4569,6 +4615,7 @@
   subroutine lateral_shelf_bc(nx,                  ny,              &
                               nz,                  sigma,           &
                               itest,   jtest,      rtest,           &
+                              parallel,                             &
                               whichassemble_lateral,                &
                               face,                                 &
                               iCell,               jCell,           &
@@ -4628,6 +4675,9 @@
     integer, intent(in) :: &
        itest, jtest, rtest           ! coordinates of diagnostic point
 
+    type(parallel_type), intent(in) :: &
+       parallel                      ! info for parallel communication
+
     real(dp), dimension(nx-1,ny-1), intent(in) ::   &
        xVertex, yVertex              ! x and y coordinates of vertices
 
@@ -4666,13 +4716,13 @@
        detJ               ! determinant of Jacobian for the transformation
                           !  between the reference element and true element
 
-    integer :: k, n, p
+    integer :: k, n, p, ig, jg
 
     if ((verbose_shelf .or. verbose_load) .and. &
          iCell == itest .and. jCell == jtest .and. this_rank == rtest) then
        write(iulog,*) ' '
        write(iulog,*) 'In lateral_shelf_bc, rank, i, j =', this_rank, iCell, jCell
-       write(iulog,*) 'thck, usrf =', thck(iCell,jCell), usrf(iCell,jCell)
+       write(iulog,*) '   thck, usrf =', thck(iCell,jCell), usrf(iCell,jCell)
     endif
 
     ! Compute nodal geometry in a local xy reference system.
@@ -4804,11 +4854,11 @@
           !TODO - Modify this subroutine to return only detJ, and not the derivatives?
 
           if (verbose_shelf .and. this_rank==rtest .and. iCell==itest .and. jCell==jtest .and. k==ktest) then
-!             write(iulog,*) 'Get detJ, i, j, k, p =', iCell, jCell, k, p
-!             write(iulog,*) 'x =', x(:)
-!             write(iulog,*) 'y =', y(:)
-!             write(iulog,*) 'dphi_dxr_2d =', dphi_dxr_2d(:,p)
-!             write(iulog,*) 'dphi_dyr_2d =', dphi_dyr_2d(:,p)
+             write(iulog,*) 'Lat shelf, get detJ, rank, i, j, k, p =', this_rank, iCell, jCell, k, p
+             call parallel_globalindex(iCell, jCell, ig, jg, parallel)
+             write(iulog,*) '   ig, jg =', ig, jg
+!             write(iulog,*) '   x =', x(:)
+!             write(iulog,*) '   y =', y(:)
           endif
 
           call get_basis_function_derivatives_2d(x(:),              y(:),               &
@@ -4816,6 +4866,7 @@
                                                  dphi_dx_2d(:),     dphi_dy_2d(:),      &
                                                  detJ,                                  &
                                                  itest, jtest, rtest,                   &
+                                                 parallel,                              &
                                                  iCell, jCell, p)
 
           ! For some faces, detJ is computed to be a negative number because the face is
@@ -4911,6 +4962,7 @@
                                           sigma,            stagsigma,       &
                                           nhalo,                             &
                                           itest,   jtest,   rtest,           &
+                                          parallel,                          &
                                           active_cell,                       &
                                           xVertex,          yVertex,         &
                                           uvel_2d,          vvel_2d,         &
@@ -4956,6 +5008,9 @@
 
     integer, intent(in) :: &
        itest, jtest, rtest           ! coordinates of diagnostic point
+
+    type(parallel_type), intent(in) :: &
+       parallel                      ! info for parallel communication
 
     logical, dimension(nx,ny), intent(in) ::  &
        active_cell        ! true if cell contains ice and borders a locally owned vertex
@@ -5164,6 +5219,7 @@
                                                     dphi_dx_2d(:),    dphi_dy_2d(:),    &
                                                     detJ(p),                            &
                                                     itest, jtest, rtest,                &
+                                                    parallel,                           &
                                                     i, j, p)
 
              dphi_dz_2d(:) = 0.d0
@@ -6044,6 +6100,7 @@
                                                     dphi_dx_2d(:),      dphi_dy_2d(:),      &
                                                     detJ,                                   &
                                                     itest, jtest, rtest,                    &
+                                                    parallel,                               &
                                                     i, j, 1)
 
              ! Compute basal strain rate components at cell center
@@ -6263,6 +6320,7 @@
                                                dphi_dx_2d,  dphi_dy_2d,    &
                                                detJ,                       &
                                                itest, jtest, rtest,        &
+                                               parallel,                   &
                                                i, j, p)
 
     !------------------------------------------------------------------
@@ -6294,11 +6352,17 @@
     integer, intent(in) :: &
        itest, jtest, rtest              ! coordinates of diagnostic point
 
+    type(parallel_type), intent(in) :: &
+         parallel                       ! info for parallel communication
+
     integer, intent(in) :: i, j, p
 
     integer :: n, row, col
 
+    integer :: ig, jg
+
     logical, parameter :: Jac_bug_check = .false.   ! set to true for debugging
+
     real(dp), dimension(2,2) :: prod     ! Jac * Jinv (should be identity matrix)
 
     !------------------------------------------------------------------
@@ -6321,13 +6385,14 @@
     if (verbose_Jac .and. this_rank==rtest .and. i==itest .and. j==jtest) then
        write(iulog,*) ' '
        write(iulog,*) 'In get_basis_function_derivatives_2d: i, j, p =', i, j, p
+       call parallel_globalindex(i, j, ig, jg, parallel)
+       write(iulog,*) '   ig, jg =', ig, jg
     endif
 
     do n = 1, nNodesPerElement_2d
        if (verbose_Jac .and. this_rank==rtest .and. i==itest .and. j==jtest) then
           write(iulog,*) ' '
-          write(iulog,*) 'n, x, y:', n, xNode(n), yNode(n)
-          write(iulog,*) 'dphi_dxr_2d, dphi_dyr_2d:', dphi_dxr_2d(n), dphi_dyr_2d(n)
+          write(iulog,*) '   n, x, y:', n, xNode(n), yNode(n)
        endif
        Jac(1,1) = Jac(1,1) + dphi_dxr_2d(n) * xNode(n)
        Jac(1,2) = Jac(1,2) + dphi_dxr_2d(n) * yNode(n)
@@ -6347,11 +6412,9 @@
        Jinv(2,1) = -Jac(2,1)/detJ
        Jinv(2,2) =  Jac(1,1)/detJ
     else
-       write(iulog,*) 'stopping, det J = 0'
-       write(iulog,*) 'i, j, p:', i, j, p
-       write(iulog,*) 'Jacobian matrix:'
-       write(iulog,*) Jac(1,:)
-       write(iulog,*) Jac(2,:)
+       call parallel_globalindex(i, j, ig, jg, parallel)
+       write(iulog,*) 'stopping, det J = 0, rank, i, j, p:', this_rank, i, j, p
+       write(iulog,*) '    ig, jg, Jacobian matrix:', ig, jg, Jac(1,:), Jac(2,:)
        call write_log('Jacobian matrix is singular', GM_FATAL)
     endif
 
@@ -8374,6 +8437,7 @@
                      dphi_dx_2d(:),    dphi_dy_2d(:),      &
                      detJ,                                 &
                      itest, jtest, rtest,                  &
+                     parallel,                             &
                      i, j, p)
 
                 ! Evaluate beta at this quadrature point, taking a phi-weighted sum over neighboring vertices.
@@ -8956,6 +9020,7 @@
                                                        dphi_dx_2d(:),    dphi_dy_2d(:),      &
                                                        detJ,                                 &
                                                        itest, jtest, rtest,                  &
+                                                       parallel,                             &
                                                        i, j, p)
                 endif
 
@@ -9557,7 +9622,7 @@
     enddo     ! j
 
     ! Take global sum, then take square root
-    L2_norm = parallel_global_sum_stagger(worku, parallel, workv)
+    L2_norm = parallel_global_sum_stagger(worku, parallel, arr2=workv)
     L2_norm = sqrt(L2_norm)
 
     if (verbose_residual) then
@@ -9609,7 +9674,7 @@
        enddo     ! j
 
        ! Take global sum, then take square root
-       L2_norm_rhs = parallel_global_sum_stagger(worku, parallel, workv)
+       L2_norm_rhs = parallel_global_sum_stagger(worku, parallel, arr2=workv)
        L2_norm_rhs = sqrt(L2_norm_rhs)
 
        if (L2_norm_rhs > 0.0d0) then
@@ -9761,7 +9826,7 @@
     enddo        ! j
 
     ! Take global sum, then take square root
-    L2_norm = parallel_global_sum_stagger(worku, parallel, workv)
+    L2_norm = parallel_global_sum_stagger(worku, parallel, arr2=workv)
     L2_norm = sqrt(L2_norm)
 
     if (verbose_residual) then
@@ -9814,7 +9879,7 @@
        enddo        ! j
 
        ! Take global sum, then take square root
-       L2_norm_rhs = parallel_global_sum_stagger(worku, parallel, workv)
+       L2_norm_rhs = parallel_global_sum_stagger(worku, parallel, arr2=workv)
        L2_norm_rhs = sqrt(L2_norm_rhs)
 
        if (L2_norm_rhs > 0.0d0) then
