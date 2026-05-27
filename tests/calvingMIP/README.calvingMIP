@@ -27,7 +27,7 @@ This directory contains two files needed to set up the experiments:
 * calvingMIP.Setup.py
 * calvingMIP.config.template
 
-The python script creates a directory for each of the seven experiments: SpinupCircular, SpinupThule,
+The Python script creates a directory for each of the seven experiments: SpinupCircular, SpinupThule,
 and Experiments 1 to 5. Optionally, the user can create directories for the spin-ups alone,
 or the five experiments alone, or any single experiment. Each directory will contain a config file
 appropriate for the experiment. The file 'calvingMIP.config.template' serves as a template
@@ -69,7 +69,7 @@ This script has the following optional arguments:
 '-v', '--vertlevels',   type=int,   default= 5,       help="no. of vertical levels"
 '-a', '--approximation',type=str,   default= 'DIVA',  help="Stokes approximation (SSA, DIVA, BP)"
 '-y', '--yearsSpinup',  type=float, default= 10000.,  help="length of spinup run (yr)"
-'-fh','--outputfreqhi', type=float, default= 10.,     help="high output frequency (yr)"
+'-fh','--outputfreqhi', type=float, default= 1.,      help="high output frequency (yr)"
 '-fm','--outputfreqmd', type=float, default= 100.,    help="medium output frequency (yr)"
 '-fl','--outputfreqlo', type=float, default= 1000.,   help="low output frequency (yr)"
 
@@ -133,7 +133,19 @@ For each of the five experiments, the output should include several files, e.g.
 * calvingMIP.Experiment1.out.scalars.nc
 
 The first file includes 'standard' CISM output. The other three files include the fields needed
-to obtain the fields and scalars specified on the calvingMIP wiki. Gunter Leguy has written scripts
-to parse the CISM output and assemble the files requested by CalvingMIP with appropriate variable names.
+to obtain the fields and scalars specified on the calvingMIP wiki.
+
+CISM contains code to compute and output any or all of these fields on each of 8 axes for each experiment:
+* cf_radius = distance (km) of the calving front from the origin at (0,0)
+* cf_locx = x coordinate of the calving front relative to the origin
+* cf_locy = y coordinate of the calving front relative to the origin
+* cf_thck = ice thickness (m) at the CF
+* cf_uvel = u component of ice velocity (m/yr) at the CF
+* cf_vvel = v component of ice velocity (m/yr) at the CF
+
+These are strictly diagnostic quantities that are derived from prognostic variables.
+The diagnostics assume that along a given axis, the CF lies at a point where the effective area fraction = 0.5.
+This point is found by interpolating between neighboring points with an area fraction above and below 0.5.
+Other diagnostic values are also found by linear interpolation.
 
 For questions, please contact Gunter Leguy (gunterl@ucar.edu) or William Lipscomb (lipscomb@ucar.edu).

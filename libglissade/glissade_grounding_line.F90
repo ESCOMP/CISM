@@ -393,14 +393,13 @@
     endif   ! which_ho_flotation_function
 
     if (verbose_glp) then
-       call point_diag(thck, 'thck (m)', itest, jtest, rtest, 7, 7)
+       call point_diag(thck, 'GLP calculation, thck (m)', itest, jtest, rtest, 7, 7)
        if (which_ho_flotation_function == HO_FLOTATION_FUNCTION_LINEAR_RAISED_TOPG) then
           call point_diag(topg_raised, 'topg_raised (m)', itest, jtest, rtest, 7, 7)
        else
           call point_diag(topg, 'topg (m)', itest, jtest, rtest, 7, 7)
        endif
        call point_diag(f_flotation, 'f_flotation (m)', itest, jtest, rtest, 7, 7)
-       write(iulog,*) 'f_flotation, rtest, itest, jtest:', rtest, itest, jtest
     endif
 
     ! initialize the arrays computed below
@@ -728,8 +727,14 @@
 
     logical :: rotated           ! true if a pattern is rotated (used when 2 non-adjacent cells are G, and the other 2 are F)
 
+    ! Note: The original threshold was eps06 = 1.0d-6.
+    !       But when d is small (slightly > 1.e-6), several of the integral expressions below have a small numerator
+    !        and large denominator, leading to a large roundoff error. The resulting error in f_ground
+    !        can be in the 4th or 5th significant digit. I discovered this in March 2026 when looking into
+    !        reflectional asymmetries on the Thule domain for CalvingMIP.
+    !       The higher threshold reduces the roundoff error and resulting asymmetries.
     real(dp), parameter :: &
-         eps06 = 1.d-06          ! small number
+         eps05 = 1.d-05          ! small number; threshold for switching between integral formulas
 
     ! Note: By convention, corners are numbered from 1 to 4 proceeding CCW from the southwest corner.
     !       The algorithm will work, however, for any CCW ordering of the input f_flotation array.
@@ -867,7 +872,7 @@
        !       The above rotations ensure that we always take the log of a positive number.
        ! Note: This expression will give a NaN if f_flotation = 0 for land cells.
        !       Thus, f_flotation must be < 0 for land, even if topg - eus = 0.
-       if (abs((a*d)/(b*c)) > eps06) then
+       if (abs((a*d)/(b*c)) > eps05) then
           f_corner = ((b*c - a*d) * log(abs(1.d0 - (a*d)/(b*c))) + a*d) / (d*d)
        else
           f_corner = (a*a) / (2.0d0*b*c)
@@ -990,7 +995,7 @@
           !       through the region from left to right implies variation in y.
           !       The above rotations ensure that we always take the log of a positive number
 
-          if (abs(d/c) > eps06) then   ! the usual case
+          if (abs(d/c) > eps05) then   ! the usual case
              f_trapezoid = ((b*c - a*d) * log(1.d0 + d/c) - b*d) / (d*d)
           else
              f_trapezoid = -(2.d0*a + b) / (2.d0*c)
@@ -1040,7 +1045,7 @@
              write(iulog,*) 'Pattern 3: i, j, bc - ad =', i, j, b*c - a*d
           endif
 
-          if (abs(b*c - a*d) > eps06) then  ! the usual case
+          if (abs(b*c - a*d) > eps05) then  ! the usual case
              f_corner1 = ((b*c - a*d) * log(1.d0 - (a*d)/(b*c)) + a*d) / (d*d)
              f_corner2 = ((b*c - a*d) * log((b*c - a*d)/((b+d)*(c+d)))  &
                   + d*(a + b + c + d)) / (d*d)

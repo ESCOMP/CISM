@@ -2,8 +2,8 @@
 upn = 5
 ewn = 320
 nsn = 320
-dew = 5000
-dns = 5000
+dew = 5000.
+dns = 5000.
 global_bc = 1     # 1 = outflow BCs
 
 [time]
@@ -12,8 +12,8 @@ tend = 1000.0
 dt = 1.0
 dt_diag = 1.0
 adaptive_cfl_threshold = 0.5
-idiag = 161
-jdiag = 310
+idiag = 162
+jdiag = 311
 
 [options]
 dycore = 2              # 0 = glide, 2 = glissade
@@ -24,6 +24,7 @@ temp_init = 4           # 4 = read from external file
 basal_mass_balance = 0  # 1 = include basal mass balance in continuity eqn
 bmlt_float = 0          # 0 = no melting of floating ice
 marine_margin = 6       # 5 = calving mask, 6 = prescribed advance/retreat rate
+apply_calving_mask = False  # if true, apply a calving mask at the margin
 dm_dt_diag = 1          # 0 = kg/s, 1 = Gt/yr
 smb_input = 0           # 0 = m/yr ice, 1 = mm/yr w.e.
 restart_extend_velo = 1 # 1 = write uvel/vvel on extended grid
@@ -46,7 +47,7 @@ which_ho_assemble_lateral = 1     # 1 = local assembly applied at the marine bou
 which_ho_ground = 1               # 0 = no GLP, 1 = GLP
 which_ho_ground_bmlt = 0          # 0 = no bmlt GLP, 1 = bmlt GLP
 which_ho_resid = 4                # 3 = absolute, 4 = relative
-which_ho_flotation_function = 3   # 0 = f_pattyn, 2 = linear, 3 = modified linear
+which_ho_flotation_function = 2   # 0 = f_pattyn, 2 = linear
 which_ho_powerlaw_c = 0           # 0 = spatially uniform constant
 which_ho_calving_front = 1        # 0 = no subgrid calving front, 1 = subgrid calving front
 glissade_maxiter = 50
@@ -62,7 +63,7 @@ powerlaw_m = 3.                 # exponent for the power law stress
 geothermal = 0.
 beta_grounded_min = 1.
 thck_effective_min = 50.
-dthck_dx_cf = 0.0005            # surface slope at the CF
+dthck_dx_cf = 0.0001            # surface slope at the CF
 cf_advance_retreat_amplitude = 0.
 cf_advance_retreat_period = 0.
 
@@ -75,7 +76,7 @@ name = calvingMIP.input.nc
 time = 1
 
 [CF output]
-variables = thk topg usurf uvel vvel beta_internal effecpress f_ground f_flotation floating_mask grounded_mask usfc vsfc ubas vbas uvel_mean vvel_mean stagthk ivol imass_above_flotation iareag calving_thck calving_mask
+variables = thk topg usurf uvel vvel beta_internal effecpress f_ground f_flotation floating_mask grounded_mask usfc vsfc ubas vbas uvel_mean vvel_mean stagthk ivol imass_above_flotation iareag calving_thck subgrid_calving_mask
 frequency = 1000.0
 name = calvingMIP.out.nc
 

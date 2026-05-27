@@ -31,7 +31,7 @@
 module glissade_utils
 
   use glimmer_global, only: dp
-  use glimmer_paramets, only: iulog
+  use glimmer_paramets, only: iulog, eps11, eps08
   use glimmer_log
   use glide_types
   use cism_parallel, only: this_rank, main_task
@@ -44,7 +44,8 @@ module glissade_utils
        glissade_basin_sum, glissade_basin_average, &
        glissade_usrf_to_thck, glissade_thck_to_usrf, &
        glissade_edge_fluxes, glissade_input_fluxes, &
-       glissade_rms_error, write_array_to_file
+       glissade_quadrant_sum, glissade_rms_error, write_array_to_file, &
+       glissade_cleanup_tiny_thickness, glissade_cleanup_icefree_cells
 
   interface write_array_to_file
      module procedure write_array_to_file_real8_2d
@@ -825,6 +826,7 @@ contains
   subroutine glissade_input_fluxes(&
         nx,      ny,            &
         dew,     dns,           &
+        dt,                     &
         itest,   jtest,  rtest, &
         thck,                   &
         uvel,    vvel,          &
@@ -843,7 +845,8 @@ contains
          itest, jtest, rtest
 
     real(dp), intent(in) :: &
-         dew, dns                 ! cell edge lengths in EW and NS directions (m)
+         dew, dns,              & ! cell edge lengths in EW and NS directions (m)
+         dt                       ! timestep (s)
 
     real(dp), dimension(nx,ny), intent(in) :: &
          thck                     ! ice thickness (m) at cell centers
@@ -852,7 +855,7 @@ contains
          uvel, vvel               ! vertical mean velocity (m/s) at cell corners
 
     real(dp), dimension(-1:1,-1:1,nx,ny), intent(out) :: &
-         flux_in                  ! ice volume fluxes (m^3/yr) into cell from each neighbor cell
+         flux_in                  ! ice volume fluxes (m^3/s) into cell from each neighbor cell
 
     type(parallel_type), intent(in) :: parallel   ! info for parallel communication
 
@@ -887,28 +890,39 @@ contains
        do i = nhalo+1, nx-nhalo
 
           ! Compute the upwind velocity components at each vertex
-          ! Convert from m/s to m/yr for diagnostics
-          u_sw = max( uvel(i-1,j-1), 0.0d0)*scyr
-          v_sw = max( vvel(i-1,j-1), 0.0d0)*scyr
-          u_se = max(-uvel(i,j-1),   0.0d0)*scyr
-          v_se = max( vvel(i,j-1),   0.0d0)*scyr
-          u_ne = max(-uvel(i,j),     0.0d0)*scyr
-          v_ne = max(-vvel(i,j),     0.0d0)*scyr
-          u_nw = max( uvel(i-1,j),   0.0d0)*scyr
-          v_nw = max(-vvel(i-1,j),   0.0d0)*scyr
+          u_sw = uvel(i-1,j-1)
+          v_sw = vvel(i-1,j-1)
+          u_se = uvel(i,j-1)
+          v_se = vvel(i,j-1)
+          u_ne = uvel(i,j)
+          v_ne = vvel(i,j)
+          u_nw = uvel(i-1,j)
+          v_nw = vvel(i-1,j)
 
-          ! Estimate the area fluxes from each edge neighbor
-          area_w = 0.5d0*(u_nw + u_sw)*dns - 0.5d0*(u_nw*v_nw + u_sw*v_sw)
-          area_s = 0.5d0*(v_sw + v_se)*dew - 0.5d0*(u_sw*v_sw + u_se*v_se)
-          area_e = 0.5d0*(u_se + u_ne)*dns - 0.5d0*(u_se*v_se + u_ne*v_ne)
-          area_n = 0.5d0*(v_ne + v_nw)*dew - 0.5d0*(u_ne*v_ne + u_nw*v_nw)
+          ! Estimate the area fluxes (m^2/s) into this cells from each edge neighbor
+          ! Note: The first line on the RHS accounts for the velocity component
+          !        perpendicular to the edge; this is a rectangle area.
+          !       The next two lines are corrections proportional to the velocity
+          !        component parallel to the edge; these are triangle areas.
+          area_w = 0.5d0*(max( u_nw,0.0d0) + max( u_sw,0.0d0))*dns   &
+                 - 0.5d0* max( u_nw,0.0d0) * max( v_nw,0.0d0)*dt     &
+                 - 0.5d0* max( u_sw,0.0d0) * max(-v_sw,0.0d0)*dt
+          area_s = 0.5d0*(max( v_sw,0.0d0) + max( v_se,0.0d0))*dew   &
+                 - 0.5d0* max(-u_sw,0.0d0) * max( v_sw,0.0d0)*dt     &
+                 - 0.5d0* max( u_se,0.0d0) * max( v_se,0.0d0)*dt
+          area_e = 0.5d0*(max(-u_se,0.0d0) + max(-u_ne,0.0d0))*dns   &
+                 - 0.5d0* max(-u_se,0.0d0) * max(-v_se,0.0d0)*dt     &
+                 - 0.5d0* max(-u_ne,0.0d0) * max( v_ne,0.0d0)*dt
+          area_n = 0.5d0*(max(-v_ne,0.0d0) + max(-v_nw,0.0d0))*dew   &
+                 - 0.5d0* max( u_ne,0.0d0) * max(-v_ne,0.0d0)*dt     &
+                 - 0.5d0* max(-u_nw,0.0d0) * max(-v_nw,0.0d0)*dt
 
-          ! Estimate the area fluxes from each diagonal neighbor
-          ! Note: The sum is equal to the sum of the terms subtracted from the edge areas above
-          area_sw = u_sw*v_sw
-          area_se = u_se*v_se
-          area_ne = u_ne*v_ne
-          area_nw = u_nw*v_nw
+          ! Estimate the area fluxes (m^2/s) from each diagonal neighbor.
+          ! These are rectangle areas.
+          area_sw = max( u_sw,0.0d0)*max( v_sw,0.0d0)*dt
+          area_se = max(-u_se,0.0d0)*max( v_se,0.0d0)*dt
+          area_ne = max(-u_ne,0.0d0)*max(-v_ne,0.0d0)*dt
+          area_nw = max( u_nw,0.0d0)*max(-v_nw,0.0d0)*dt
 
           ! Estimate the volume fluxes from each edge neighbor
           flux_in(-1, 0,i,j) = area_w * thck(i-1,j)
@@ -925,22 +939,35 @@ contains
           if (verbose_input_fluxes .and. this_rank == rtest .and. i==itest .and. j==jtest) then
              write(iulog,*) ' '
              write(iulog,*) 'upstream u (m/yr), this_rank, i, j:'
-             write(iulog,'(3e12.4)') u_nw, u_ne
-             write(iulog,'(3e12.4)') u_sw, u_se
+             write(iulog,'(3f18.12)') u_nw*scyr, u_ne*scyr
+             write(iulog,'(3f18.12)') u_sw*scyr, u_se*scyr
              write(iulog,*) ' '
              write(iulog,*) 'upstream v (m/yr):'
-             write(iulog,'(3e12.4)') v_nw, v_ne
-             write(iulog,'(3e12.4)') v_sw, v_se
+             write(iulog,'(3f18.12)') v_nw*scyr, v_ne*scyr
+             write(iulog,'(3f18.12)') v_sw*scyr, v_se*scyr
              write(iulog,*) ' '
-             write(iulog,*) 'Input area fluxes (m^2/yr):'
-             write(iulog,'(3e12.4)') area_nw, area_n, area_ne
-             write(iulog,'(3e12.4)') area_w,  0.0d0, area_e
-             write(iulog,'(3e12.4)') area_sw, area_s, area_se
+             write(iulog,*) 'Input area fluxes (km^2/yr):'
+             write(iulog,'(3f18.12)') area_nw*scyr/1.0d6, area_n*scyr/1.0d6, area_ne*scyr/1.0d6
+             write(iulog,'(3f18.12)') area_w *scyr/1.0d6,       0.0d0,       area_e *scyr/1.0d6
+             write(iulog,'(3f18.12)') area_sw*scyr/1.0d6, area_s*scyr/1.0d6, area_se*scyr/1.0d6
+             write(iulog,*) 'Total =', &
+                  (area_w + area_s + area_e + area_n + area_sw + area_se + area_ne + area_nw)*scyr/1.0d6
              write(iulog,*) ' '
-             write(iulog,*) 'Input ice volume fluxes (m^3/yr):'
+             write(iulog,*) 'Estimated edge area fluxes:'
+             area_w = 0.5d0*(max( u_nw,0.0d0) + max( u_sw,0.0d0))*dns
+             area_s = 0.5d0*(max( v_sw,0.0d0) + max( v_se,0.0d0))*dew
+             area_e = 0.5d0*(max(-u_se,0.0d0) + max(-u_ne,0.0d0))*dns
+             area_n = 0.5d0*(max(-v_ne,0.0d0) + max(-v_nw,0.0d0))*dew
+             write(iulog,*) 'area_w =', area_w*scyr/1.0e6
+             write(iulog,*) 'area_s =', area_s*scyr/1.0e6
+             write(iulog,*) 'area_e =', area_e*scyr/1.0e6
+             write(iulog,*) 'area_n =', area_n*scyr/1.0e6
+             write(iulog,*) 'Total =', (area_w + area_s + area_e + area_n)*scyr/1.0d6
+             write(iulog,*) ' '
+             write(iulog,*) 'Input ice volume fluxes (km^3/yr):'
              do jj = 1,-1,-1
                 do ii = -1,1
-                   write(iulog,'(e12.4)',advance='no') flux_in(ii,jj,i,j)
+                   write(iulog,'(f15.8)',advance='no') flux_in(ii,jj,i,j)*scyr/1.0d9
                 enddo
                 write(iulog,*) ' '
              enddo
@@ -949,14 +976,150 @@ contains
        enddo   ! i
     enddo   ! j
 
-    do j = -1, 1
-       do i = -1, 1
-          call parallel_halo(flux_in, parallel)
+    do jj = -1, 1
+       do ii = -1, 1
+          call parallel_halo(flux_in(ii,jj,:,:), parallel)
        enddo
     enddo
 
   end subroutine glissade_input_fluxes
 
+!***********************************************************************
+
+  subroutine glissade_quadrant_sum(&
+       nx,        ny,            &
+       parallel,                 &
+       field,     quadrant_sum)
+
+    ! Integrate a field over each of 4 quadrants.
+    ! This can be useful in idealized experiments like CalvingMIP to check for
+    !  violations of reflectional or rotational symmetry.
+    ! Note: These sums are not independent of processor count
+    ! TODO: Make them reproducible, using quadrant masks?
+
+    use cism_parallel, only: nhalo, parallel_global_sum_patch, parallel_globalindex, gather_var
+
+    ! Input/output arguments
+
+    integer, intent(in) :: &
+         nx, ny                   ! number of local cells in x and y direction on input grid
+
+    type(parallel_type), intent(in) :: parallel   ! info for parallel communication
+
+    real(dp), dimension(nx,ny), intent(in) :: &
+         field                    ! 2D input field
+
+    real(dp), dimension(4), intent(out) :: &
+         quadrant_sum             ! global sum over each of 4 quadrants
+
+    logical, parameter :: check_asymmetry = .true.
+
+    ! Local variables
+
+    integer :: i, j
+    integer :: ig, jg             ! i and j indices on the global grid
+    integer :: nxg, nyg           ! dimensions of global domain
+    integer :: nx2, ny2           ! nx/2 and ny/2 (if nx and ny are even)
+                                  ! (nx-1)/2 and (ny-1)/2 (if nx and ny are odd)
+
+    integer, dimension(nx,ny) :: &
+         quadrant_mask            ! mask assigning each cell to a quadrent (1, 2, 3 or 4)
+
+    real(dp), dimension(:,:), allocatable :: field_global
+
+    real(dp) :: meanval, diff
+    real(dp), parameter :: symmetry_tol = 1.0d-5    ! tolerance level for asymmetry
+
+
+    ! Compute a mask that assigns each cell to one of 4 quadrants.
+    ! Note: If nx or ny is odd, the middle row or column is excluded from the quadrant sums.
+
+    nxg = parallel%global_ewn
+    nyg = parallel%global_nsn
+
+    if (mod(nxg,2) == 0) then   ! global_ewn is even
+       nx2 = nxg/2
+    else   ! nx is odd
+       nx2 = (nxg-1)/2
+    endif
+
+    if (mod(nyg,2) == 0) then   ! global_nsn is even
+       ny2 = nyg/2
+    else   ! ny is odd
+       ny2 = (nyg-1)/2
+    endif
+
+    quadrant_mask(:,:) = 0
+
+    do j = nhalo+1, ny-nhalo
+       do i = nhalo+1, nx-nhalo
+          call parallel_globalindex(i, j, ig, jg, parallel)
+          if (ig > nx2) then
+             if (jg > ny2) then   ! NE quadrant
+                quadrant_mask(i,j) = 1
+             else   ! jg <= ny2; SE quadrant
+                quadrant_mask(i,j) = 4
+             endif
+          else   ! ig <= nx2
+             if (jg > ny2) then   ! NW quadrant
+                quadrant_mask(i,j) = 2
+             else   ! jg <= ny2; SW quadrant
+                quadrant_mask(i,j) = 3
+             endif
+          endif
+       enddo
+    enddo
+
+    ! Compute the global sums
+    ! Note: These sums are reproducible if reproducible_sums = .true.
+    quadrant_sum(:) = parallel_global_sum_patch(field, 4, quadrant_mask, parallel)
+
+    if (check_asymmetry) then
+
+       call gather_var(field, field_global, parallel)
+
+       if (main_task) then
+
+          ! Identify asymmetries in reflection across the y-axis
+          if (abs(quadrant_sum(1) + quadrant_sum(4) - quadrant_sum(2) - quadrant_sum(3)) > symmetry_tol) then
+             do j = 1, nyg
+                do i = 1, nx2
+                   if (abs(field_global(i,j)) > eps11 .or. abs(field_global(nxg-i+1,j)) > eps11) then
+                      meanval = 0.5d0 * (field_global(i,j) + field_global(nxg-i+1,j))
+                      diff = abs(field_global(i,j) - field_global(nxg-i+1,j))
+                      if (diff > meanval*symmetry_tol) then
+                         write(iulog,*) 'Warning, y-reflection asymmetry: i, j, val(i,j), val(nxg-i+1,j), diff/mean:', &
+                              i, j, field_global(i,j), field_global(nxg-i+1,j), diff/meanval
+                      endif
+                   endif
+                enddo
+             enddo
+          endif
+
+          ! Identify asymmetries in reflection across the x-axis
+          if (abs(quadrant_sum(1) + quadrant_sum(2) - quadrant_sum(3) - quadrant_sum(4)) > symmetry_tol) then
+             do j = 1, nyg
+                do i = 1, nx2
+                   if (abs(field_global(i,j)) > eps11 .or. abs(field_global(i,nyg-j+1)) > eps11) then
+                      meanval = 0.5d0 * (field_global(i,j) + field_global(i,nyg-j+1))
+                      diff = abs(field_global(i,j) - field_global(i,nyg-j+1))
+                      if (diff > meanval*symmetry_tol) then
+                         write(iulog,*) 'Warning, x-reflection asymmetry: i, j, val(i,j), val(i,nyg-j+1), diff/mean:', &
+                              i, j, field_global(i,j), field_global(i,nyg-j+1), diff/meanval
+                      endif
+                   endif
+                enddo
+             enddo
+          endif
+
+          if (allocated(field_global)) deallocate(field_global)
+
+       endif   ! main_task
+    endif   ! check_asymmetry
+
+  end subroutine glissade_quadrant_sum
+
+!***********************************************************************
 
   ! subroutines belonging to the write_array_to_file interface
   subroutine write_array_to_file_real8_2d(arr, fileunit, filename, parallel, write_binary)
@@ -1100,6 +1263,100 @@ contains
     endif
 
   end subroutine write_array_to_file_real8_3d
+
+!=======================================================================
+
+  subroutine glissade_cleanup_tiny_thickness(model, tiny_thck)
+
+    ! Remove ice from cells with very small thicknesses.
+    ! Add to the calving flux for now, but later put in the cleanup category
+
+    use cism_parallel, only: parallel_halo
+
+    type(glide_global_type), intent(inout) :: model   ! model instance
+    real(dp), intent(in) :: tiny_thck    ! zero out where thck < tiny_thck
+
+    integer :: nx, ny
+    integer :: i, j
+
+    type(parallel_type) :: parallel   ! info for parallel communication
+
+    nx = model%general%ewn
+    ny = model%general%nsn
+
+    parallel = model%parallel
+
+    ! Make sure the ice thickness is updated in halo cells
+    call parallel_halo(model%geometry%thck, parallel)
+
+    where (model%geometry%thck > 0.0d0 .and. model%geometry%thck < tiny_thck)
+       model%calving%calving_thck = model%calving%calving_thck + model%geometry%thck
+       model%geometry%thck = 0.0d0
+    endwhere
+
+  end subroutine glissade_cleanup_tiny_thickness
+
+!=======================================================================
+
+  subroutine glissade_cleanup_icefree_cells(model)
+
+    ! Clean up prognostic variables in ice-free cells.
+    ! This means seting most tracers to zero (or min(artm,0) for the case of temperature).
+
+    use cism_parallel, only: parallel_halo
+
+    type(glide_global_type), intent(inout) :: model   ! model instance
+
+    integer :: nx, ny
+    integer :: i, j
+
+    type(parallel_type) :: parallel   ! info for parallel communication
+
+    nx = model%general%ewn
+    ny = model%general%nsn
+
+    parallel = model%parallel
+
+    ! Make sure the ice thickness is updated in halo cells
+    call parallel_halo(model%geometry%thck, parallel)
+
+    ! Set prognostic variables in ice-free columns to default values (usually zero).
+    do j = 1, ny
+       do i = 1, nx
+
+          if (model%geometry%thck_old(i,j) > 0.0d0 .and. model%geometry%thck(i,j) == 0.0d0) then
+
+             ! basal water
+             model%basal_hydro%bwat(i,j) = 0.0d0
+
+             ! thermal variables
+             if (model%options%whichtemp == TEMP_INIT_ZERO) then
+                model%temper%temp(:,i,j) = 0.0d0
+             else
+                model%temper%temp(:,i,j) = min(model%climate%artm(i,j), 0.0d0)
+             endif
+
+             if (model%options%whichtemp == TEMP_ENTHALPY) then
+                model%temper%waterfrac(:,i,j) = 0.0d0
+             endif
+
+             ! other tracers
+             ! Note: Tracers should be added here as they are added to the model
+
+             if (model%options%whichcalving == CALVING_DAMAGE) then
+                model%calving%damage(:,i,j) = 0.0d0
+             endif
+
+             if (model%options%which_ho_ice_age == HO_ICE_AGE_COMPUTE) then
+                model%geometry%ice_age(:,i,j) = 0.0d0
+             endif
+
+          endif    ! thck = 0
+
+       enddo
+    enddo
+
+  end subroutine glissade_cleanup_icefree_cells
 
 !****************************************************************************
 
