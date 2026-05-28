@@ -1322,12 +1322,14 @@ module glide_types
     real(dp) :: total_smb_flux         ! total surface mass balance flux (kg/s)
     real(dp) :: total_bmb_flux         ! total basal mass balance flux (kg/s)
     real(dp) :: total_calving_flux     ! total calving mass flux (kg/s)
+    real(dp) :: total_frontal_melt_flux     ! total frontal melt flux (kg/s)
     real(dp) :: total_forceretreat_flux! total flux due to force retreat (kg/s) 
     real(dp) :: total_rmicecap_flux    ! total flux due to ice cap removal (kg/s) 
     real(dp) :: total_gl_flux          ! total grounding line mass flux (kg/s)
     real(dp) :: total_smb_flux_tavg    ! total surface mass balance flux (kg/s), time average
     real(dp) :: total_bmb_flux_tavg    ! total basal mass balance flux (kg/s), time average
     real(dp) :: total_calving_flux_tavg! total calving mass flux (kg/s), time average
+    real(dp) :: total_frontal_melt_flux_tavg     ! total frontal melt flux (kg/s), time average
     real(dp) :: total_forceretreat_flux_tavg ! total flux due to force retreat (kg/s), time average
     real(dp) :: total_rmicecap_flux_tavg     ! total flux due to ice cap removal (kg/s), time average
     real(dp) :: total_gl_flux_tavg     ! total grounding line mass flux (kg/s), time average
@@ -1587,6 +1589,10 @@ module glide_types
      real(dp),dimension(:,:),  pointer :: calving_rate => null()   !> rate of ice loss due to calving (m/yr ice)
      real(dp),dimension(:,:),  pointer :: calving_rate_tavg => null()  !> rate of ice loss due to calving (m/yr ice, time average)
      integer, dimension(:,:),  pointer :: calving_mask => null()   !> calve floating ice where the mask = 1 (whichcalving = CALVING_GRID_MASK)
+     real(dp),dimension(:,:),  pointer :: forceretreat_rate => null()   !> rate of ice loss due to force retreat (m/yr ice)
+     real(dp),dimension(:,:),  pointer :: forceretreat_rate_tavg => null()  !> rate of ice loss due to force retreat (m/yr ice, time average)
+     real(dp),dimension(:,:),  pointer :: rmicecap_rate => null()   !> rate of ice loss due to ice cap removal (m/yr ice)
+     real(dp),dimension(:,:),  pointer :: rmicecap_rate_tavg => null()  !> rate of ice loss due to ice cap removal (m/yr ice, time average)
      integer, dimension(:,:),  pointer :: protected_mask => null() !> mask of cells protected from calving when using the subgrid CF scheme
      real(dp),dimension(:,:),  pointer :: melt_thck => null()      !> thickness loss in grid cell due to frontal melt
                                                                    !> scaled by thk0 like mass balance, thickness, etc.
@@ -3343,6 +3349,10 @@ contains
     call coordsystem_allocate(model%general%ice_grid, model%calving%calving_rate_tavg)
     call coordsystem_allocate(model%general%ice_grid, model%calving%calving_mask)
     call coordsystem_allocate(model%general%ice_grid, model%calving%calving_front_mask)
+    call coordsystem_allocate(model%general%ice_grid, model%calving%forceretreat_rate)
+    call coordsystem_allocate(model%general%ice_grid, model%calving%forceretreat_rate_tavg)
+    call coordsystem_allocate(model%general%ice_grid, model%calving%rmicecap_rate)
+    call coordsystem_allocate(model%general%ice_grid, model%calving%rmicecap_rate_tavg)
     call coordsystem_allocate(model%general%ice_grid, model%calving%melt_thck)
     call coordsystem_allocate(model%general%ice_grid, model%calving%melt_rate)
     call coordsystem_allocate(model%general%ice_grid, model%calving%melt_rate_tavg)
@@ -4023,6 +4033,14 @@ contains
         deallocate(model%calving%calving_mask)
     if (associated(model%calving%calving_front_mask)) &
         deallocate(model%calving%calving_front_mask)
+    if (associated(model%calving%forceretreat_rate)) &
+        deallocate(model%calving%forceretreat_rate)
+    if (associated(model%calving%forceretreat_rate_tavg)) &
+        deallocate(model%calving%forceretreat_rate_tavg)
+    if (associated(model%calving%rmicecap_rate)) &
+        deallocate(model%calving%rmicecap_rate)
+    if (associated(model%calving%rmicecap_rate_tavg)) &
+        deallocate(model%calving%rmicecap_rate_tavg)
     if (associated(model%calving%melt_thck)) &
         deallocate(model%calving%melt_thck)
     if (associated(model%calving%melt_rate)) &

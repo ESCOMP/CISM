@@ -3888,6 +3888,12 @@ contains
     ! calving rate (m/yr ice; positive for calving)
     model%calving%calving_rate(:,:) = model%calving%calving_thck(:,:) / (model%numerics%dt/scyr)
  
+    ! forceretreat rate (m/yr ice; positive for retreat)
+    model%calving%forceretreat_rate(:,:) = model%calving%forceretreat_thck(:,:) / (model%numerics%dt/scyr)
+ 
+    ! rmicecap rate (m/yr ice; positive for removal)
+    model%calving%rmicecap_rate(:,:) = model%calving%rmicecap_thck(:,:) / (model%numerics%dt/scyr)
+ 
     ! melt rate (m/yr ice; positive for melt)
     model%calving%melt_rate(:,:) = model%calving%melt_thck(:,:) / (model%numerics%dt/scyr)
 
