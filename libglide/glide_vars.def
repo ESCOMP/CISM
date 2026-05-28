@@ -405,6 +405,13 @@ long_name:     thermal_forcing
 data:          data%ocean_data%thermal_forcing(up,:,:)
 load:          1
 
+[thermal_forcing_2d]
+dimensions:    time, y1, x1
+units:         degrees K
+long_name:     applied thermal forcing in 2D
+data:          data%ocean_data%thermal_forcing_2d
+load:          1
+
 [thermal_forcing_lsrf]
 dimensions:    time, y1, x1
 units:         degrees K
@@ -601,13 +608,6 @@ dimensions:    time, y1, x1
 units:         kg/m2/s
 long_name:     subglacial liquid discharge
 data:          data%lateral_melt%subglacial_discharge
-load:          1
-
-[tforcing_2d]
-dimensions:    time, y1, x1
-units:         degrees K
-long_name:     applied thermal forcing in 2D
-data:          data%lateral_melt%tforcing_2d
 load:          1
 
 [effective_areafrac]

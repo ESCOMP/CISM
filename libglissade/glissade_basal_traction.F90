@@ -1018,7 +1018,7 @@ contains
        !TODO - Try averaging thck and topg to vertices, and computing f_pattyn based on these averages?
        !       Might not be as dependent on whether neighbor cells are G or F.
 
-       h_above_flotation(i,j) = 0.0d0
+       h_above_flotation = 0.0d0
 
        do j = 1, nsn
           do i = 1, ewn

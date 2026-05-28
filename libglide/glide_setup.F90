@@ -3343,6 +3343,8 @@ contains
 
     call GetValue(section, 'melt_rate_const', model%lateral_melt%melt_rate_const)
     call GetValue(section, 'melt_factor', model%lateral_melt%melt_factor)
+    call GetValue(section, 'subglacial_discharge_from_ablation', model%lateral_melt%subglacial_discharge_from_ablation)
+    call GetValue(section, 'thermal_forcing_avg_3d_to_2d', model%lateral_melt%thermal_forcing_avg_3d_to_2d)
     call GetValue(section, 'ztop_tfavg', model%lateral_melt%ztop_tfavg)
     call GetValue(section, 'zbot_tfavg', model%lateral_melt%zbot_tfavg)
 
@@ -3359,11 +3361,10 @@ contains
     type(glide_global_type)  :: model
     character(len=100) :: message
 
-    character(len=*), dimension(0:3), parameter :: which_lateral_melt = (/ &
-         'no lateral melt at marine margin   ', &
-         'constant lateral melt rate         ', &
-         'ISMIP6 lateral melt, forced        ', &
-         'ISMIP6 lateral melt, coupled       ' /)
+    character(len=*), dimension(0:2), parameter :: which_lateral_melt = (/ &
+         'no lateral melt at marine margin         ', &
+         'constant lateral melt rate               ', &
+         'ISMIP lateral melt from TF and discharge ' /)
 
     if (model%options%which_lateral_melt < 0 .or. model%options%which_lateral_melt >= size(which_lateral_melt)) then
        call write_log('Error, lateral melt option out of range', GM_FATAL)
@@ -3378,15 +3379,23 @@ contains
        if (model%options%which_lateral_melt == LATERAL_MELT_CONSTANT) then
           write(message,*) 'constant lateral melt rate (m/yr)     : ', model%lateral_melt%melt_rate_const
           call write_log(message)
-       elseif (model%options%which_lateral_melt == LATERAL_MELT_ISMIP6) then
+       elseif (model%options%which_lateral_melt == LATERAL_MELT_ISMIP) then
           write(message,*) 'lateral melt factor                   : ', model%lateral_melt%melt_factor
           call write_log(message)
-          write(message,*) 'depth range for TF averaging, top     : ', model%lateral_melt%ztop_tfavg
-          call write_log(message)
-          write(message,*) 'depth range for TF averaging, bottom  : ', model%lateral_melt%zbot_tfavg
-          call write_log(message)
-       elseif (model%options%which_lateral_melt == LATERAL_MELT_COUPLED) then
-          !TODO - Anything to write?
+          if (model%lateral_melt%subglacial_discharge_from_ablation) then
+             call write_log('subglacial discharge will be computed from surface ablation')
+          else
+             call write_log('subglacial discharge will be read in directly')
+          endif
+          if (model%lateral_melt%thermal_forcing_avg_3d_to_2d) then
+             call write_log('2d thermal_forcing will be averaged from 3d')
+             write(message,*) 'depth range for TF averaging, top     : ', model%lateral_melt%ztop_tfavg
+             call write_log(message)
+             write(message,*) 'depth range for TF averaging, bottom  : ', model%lateral_melt%zbot_tfavg
+             call write_log(message)
+          else
+             call write_log('2d thermal forcing will be read in directly')
+          endif
        endif
 
        if (model%options%which_ho_calving_front /= HO_CALVING_FRONT_SUBGRID_FLOAT_GROUND) then

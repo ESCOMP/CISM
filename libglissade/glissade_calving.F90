@@ -1221,8 +1221,10 @@ contains
     use glissade_masks, only: glissade_get_masks, glissade_calving_front_mask
     use glissade_utils, only: glissade_input_fluxes
     use glissade_grid_operators, only: glissade_unstagger
-    use glissade_lateral_melt, only: glissade_lateral_melt_constant, glissade_lateral_melt_ismip6, &
-         glissade_lateral_thermal_forcing_avg, glissade_subglacial_discharge
+    use glissade_lateral_melt, only: glissade_lateral_melt_constant, glissade_lateral_melt_ismip, &
+         glissade_thermal_forcing_avg_3d_to_2d, glissade_subglacial_discharge
+    use cism_parallel, only: parallel_is_zero
+
     implicit none
 
     !---------------------------------------------------------------------
@@ -1264,19 +1266,21 @@ contains
     type(glide_lateral_melt), intent(inout) :: lateral_melt  !> lateral melt object
 !    Note: The lateral_melt object includes the following fields and parameters used in this subroutine:
 !    real(dp),dimension(:,:),  pointer :: subglacial_discharge       !> subglacial meltwater discharge for lateral melting (kg/m2/s)
-!    real(dp),dimension(:,:),  pointer :: tforcing_2d                !> 2d thermal forcing for lateral melt (deg K)
 !    real(dp) :: melt_rate_const               !> constant lateral retreat rate at melt front (m/yr)
 !    real(dp) :: melt_factor                   !> multiplier for Rignot frontal melt. A value of 1.6 was proposed for ISMIP7
 !    real(dp) :: ztop_tfavg                    !> top end of depth range (m) for average thermal forcing
 !    real(dp) :: zbot_tfavg                    !> bottom end of depth range (m) for average thermal forcing
+!    logical :: thermal_forcing_avg_3d_to_2d       !> if true, then get 2D thermal forcing by averaging from 3D
+!    logical :: submarine_discharge_from_ablation  !> if true, then estimate submarine discharge from ablation
 
     type(glide_ocean_data), intent(in) :: ocean_data         !> ocean data object
 !   Note: The ocean_data object includes the following fields and parameters used in this subroutine:
 !    integer  :: nbasin                         !> number of basins
 !    integer  :: nzocn                          !> number of ocean levels
 !    real(dp) :: dzocn                          !> thickness of ocean levels; nonzero value set in config file
-!    real(dp), dimension(:), pointer :: zocn          !> ocean levels (m) where forcing is provided, negative below sea level
-!    integer, dimension(:,:), pointer :: basin_number !> basin number for each grid cell
+!    real(dp), dimension(:), pointer :: zocn    !> ocean levels (m) where forcing is provided, negative below sea level
+!    integer, dimension(:,:), pointer :: basin_number              !> basin number for each grid cell
+!    real(dp),dimension(:,:), pointer :: thermal_forcing_2d        !> 2d thermal forcing for lateral melt (deg K)
 
     real(dp), dimension(:,:), intent(in)      :: acab_applied      !> applied accumulation/ablation (m/yr)
     integer, intent(in) :: itest, jtest, rtest                     !> coordinates of diagnostic point
@@ -1796,29 +1800,53 @@ contains
                cf_length,                          &  ! m
                latmelt_dthck)                         ! m
 
-       elseif (which_lateral_melt == LATERAL_MELT_ISMIP6) then
+       elseif (which_lateral_melt == LATERAL_MELT_ISMIP) then
 
-          call glissade_subglacial_discharge(&
-               nx,                  ny,                      &
-               dx,                  dy,                      &  ! m
-               parallel,                                     &
-               ocean_data%nbasin,   ocean_data%basin_number, &
-               ice_mask,                                     &
-               acab_applied,                                 &  ! m^3/s
-               thck_submerged,                               &  ! m
-               cf_length,                                    &  ! m
-               lateral_melt%subglacial_discharge)               ! kg/m^2/s??
+          if (lateral_melt%subglacial_discharge_from_ablation) then
 
-          call glissade_lateral_thermal_forcing_avg(&
-               nx,                  ny,            &
-               ocean_data%nzocn,                   &
-               ocean_data%zocn,                    &
-               ocean_data%thermal_forcing,         &  ! K
-               lateral_melt%tforcing_2d,           &  ! K
-               ztop_in = lateral_melt%ztop_tfavg,  &  ! m
-               zbot_in = lateral_melt%zbot_tfavg)     ! m
+             call glissade_subglacial_discharge(&
+                  nx,                  ny,                      &
+                  dx,                  dy,                      &  ! m
+                  parallel,                                     &
+                  ocean_data%nbasin,   ocean_data%basin_number, &
+                  ice_mask,                                     &
+                  acab_applied,                                 &  ! m^3/s
+                  thck_submerged,                               &  ! m
+                  cf_length,                                    &  ! m
+                  lateral_melt%subglacial_discharge)               ! kg/m^2/s??
 
-          call glissade_lateral_melt_ismip6(&
+          else   ! should have received the submarine discharge directly (from input file or coupler)
+
+             if (parallel_is_zero(lateral_melt%subglacial_discharge)) then
+                call write_log('Missing submarine_discharge for lateral melt', GM_FATAL)
+             endif
+
+          endif
+
+          if (lateral_melt%thermal_forcing_avg_3d_to_2d) then
+
+             if (parallel_is_zero(ocean_data%thermal_forcing)) then
+                call write_log('Missing 3D thermal forcing for lateral melt', GM_FATAL)
+             endif
+
+             call glissade_thermal_forcing_avg_3d_to_2d(&
+                  nx,                  ny,            &
+                  ocean_data%nzocn,                   &
+                  ocean_data%zocn,                    &
+                  ocean_data%thermal_forcing,         &  ! K
+                  lateral_melt%ztop_tfavg,            &  ! m
+                  lateral_melt%zbot_tfavg,            &  ! m
+                  ocean_data%thermal_forcing_2d)         ! K
+
+          else   ! should have received the 2D thermal forcing directly (from input file or coupler)
+
+             if (parallel_is_zero(ocean_data%thermal_forcing_2d)) then
+                call write_log('Missing 2D thermal forcing for lateral melt', GM_FATAL)
+             endif
+
+          endif
+
+          call glissade_lateral_melt_ismip(&
                nx,                 ny,             &
                dx,                 dy,             &
                dt,                 time,           &  ! s
@@ -1826,17 +1854,12 @@ contains
                calving%calving_front_mask,         &
                lateral_melt%melt_factor,           &
                lateral_melt%subglacial_discharge,  &  ! m/s
-               lateral_melt%tforcing_2d,           &  ! K
+               ocean_data%thermal_forcing_2d,      &  ! K
                thck_submerged,                     &  ! m
                cf_length,                          &  ! m
                latmelt_dthck)                         ! m
 
-       elseif (which_lateral_melt == LATERAL_MELT_COUPLED) then
-
-          !WHL - What to do here? What is passed in?
-          ! Convert units of subglacial discharge and call lateral_melt_ismip6 subroutine?
-
-       endif
+       endif  ! which_lateral_melt
 
        ! Apply lateral melting
        ! Note: This is the same logic as for calving but with different input and output arguments

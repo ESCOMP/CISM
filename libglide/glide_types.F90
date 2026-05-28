@@ -207,8 +207,7 @@ module glide_types
 
   integer, parameter :: LATERAL_MELT_NONE = 0
   integer, parameter :: LATERAL_MELT_CONSTANT = 1
-  integer, parameter :: LATERAL_MELT_ISMIP6 = 2
-  integer, parameter :: LATERAL_MELT_COUPLED = 3
+  integer, parameter :: LATERAL_MELT_ISMIP = 2
 
   integer, parameter :: FORCE_RETREAT_NONE = 0
   integer, parameter :: FORCE_RETREAT_ALL_ICE = 1
@@ -722,8 +721,7 @@ module glide_types
     !> \begin{description}
     !> \item[0] No lateral melt
     !> \item[1] Constant lateral melt rate
-    !> \item[2] ISMIP6 lateral melt rate
-    !> \item[3] ISMIP6 lateral melt rate for coupled setup
+    !> \item[2] ISMIP lateral melt rate based on thermal forcing and subglacial discharge
 
     logical :: remove_icebergs = .true.
     !> if true, then identify and remove icebergs after calving
@@ -1690,15 +1688,22 @@ module glide_types
 !!     integer, dimension(:,:),  pointer :: melt_front_mask => null()!> mask of cells where lateral melting can take place
 !!     integer, dimension(:,:),  pointer :: calving_front_mask => null()   !> mask of calving front cells
 !!     integer, dimension(:,:),  pointer :: marine_cliff_mask => null()    !> mask of marine calving cliff cells
-     real(dp),dimension(:,:),  pointer :: subglacial_discharge => null()   !> subglacial meltwater discharge for lateral melting (kg/m2/s);
-                                                                           !> this is basin-wide integrated discharge (m3/s), divided by
-                                                                           !> the submerged area (m2) of the melt front, times rhow
-     real(dp),dimension(:,:),  pointer :: tforcing_2d => null()            !> 2d thermal forcing for lateral melt (deg K)
 
-     real(dp) :: melt_rate_const = 0.0d0       !> constant lateral retreat rate at melt front (m/yr)
-     real(dp) :: melt_factor = 1.0d0           !> multiplier for Rignot frontal melt. A value of 1.6 was proposed for ISMIP7
-     real(dp) :: ztop_tfavg = -200.d0          !> top end of depth range (m) for average thermal forcing
-     real(dp) :: zbot_tfavg = -500.d0          !> bottom end of depth range (m) for average thermal forcing
+     real(dp) :: melt_rate_const = 0.0d0   !> constant lateral retreat rate at melt front (m/yr)
+     real(dp) :: melt_factor = 1.0d0       !> multiplier for Rignot frontal melt. A value of 1.6 was proposed for ISMIP7
+
+     real(dp),dimension(:,:),  pointer :: &
+          subglacial_discharge => null()   !> subglacial meltwater discharge for lateral melting (kg/m2/s);
+                                           !> basin-wide integrated discharge (m3/s) divided by submerged area (m2) of melt front, times rhow
+
+     logical :: subglacial_discharge_from_ablation = .false. !> if false, then read subroutine_discharge directly from file;
+                                                             !> if true, then compute submarine discharge from surface ablation
+
+     logical :: thermal_forcing_avg_3d_to_2d = .false. !> if false, then read 2d thermal forcing directly from file;
+                                                       !> if true, then read 3d thermal forcing from file and average to 2d
+
+     real(dp) :: ztop_tfavg = -200.d0                  !> top end of depth range (m) for average thermal forcing
+     real(dp) :: zbot_tfavg = -500.d0                  !> bottom end of depth range (m) for average thermal forcing
 
   end type glide_lateral_melt
 
@@ -1957,24 +1962,27 @@ module glide_types
           zocn => null()                            !> ocean levels (m) where forcing is provided, negative below sea level
  
      real(dp) :: gamma0 = 0.d0                      !> coefficient relating sub-shelf melt rates to thermal forcing (m/yr)
-     real(dp) :: thermal_forcing_basin_min = 0.0d0  !> min value of thermal_forcing_basin (deg C) applied to nonlocal and nonlocal-slope schemes
+     real(dp) :: thermal_forcing_basin_min = 0.0d0  !> min value of thermal_forcing_basin (deg K) applied to nonlocal and nonlocal-slope schemes
 
      ! fields read from input or forcing files
 
      real(dp), dimension(:,:,:), pointer :: &
-          thermal_forcing => null()                 !> 3D thermal forcing forcing (deg C) input to CISM
+          thermal_forcing => null()                 !> 3D thermal forcing forcing (deg K) input to CISM
 
      real(dp), dimension(:,:), pointer :: &
-          thermal_forcing_lsrf => null()            !> 2D thermal forcing forcing (deg C) applied at lower ice surface
+          thermal_forcing_2d => null()              !> 2d thermal forcing, typically averaged over some depth range (deg K)
+
+     real(dp), dimension(:,:), pointer :: &
+          thermal_forcing_lsrf => null()            !> 2D thermal forcing forcing (deg K) applied at lower ice surface
 
      integer, dimension(:,:), pointer :: &
           basin_number => null()                    !> basin number for each grid cell
 
      real(dp), dimension(:,:), pointer :: &
-          deltaT_ocn => null()                      !> deltaT_ocn in each grid cell (deg C)
+          deltaT_ocn => null()                      !> deltaT_ocn in each grid cell (deg K)
 
      real(dp) :: &
-          thermal_forcing_anomaly = 0.0d0,  &       !> thermal forcing anomaly (deg C), applied everywhere
+          thermal_forcing_anomaly = 0.0d0,  &       !> thermal forcing anomaly (deg K), applied everywhere
           thermal_forcing_anomaly_tstart = 0.0d0, & !> starting time (yr) for applying or phasing in the anomaly
           thermal_forcing_anomaly_timescale = 0.0d0 !> number of years over which the anomaly is phased in linearly;
                                                     !> if timescale = 0, the full anomaly is applied immediately
@@ -3455,7 +3463,9 @@ contains
     call coordsystem_allocate(model%general%ice_grid, model%lateral_melt%melt_rate)
     call coordsystem_allocate(model%general%ice_grid, model%lateral_melt%melt_rate_tavg)
     call coordsystem_allocate(model%general%ice_grid, model%lateral_melt%subglacial_discharge)
-    call coordsystem_allocate(model%general%ice_grid, model%lateral_melt%tforcing_2d)
+    ! Note: Could allocate thermal_forcing_2d with the other ocean_data arrays,
+    !       but currently is used only with lateral melting
+    call coordsystem_allocate(model%general%ice_grid, model%ocean_data%thermal_forcing_2d)
 
     ! matrix solver arrays
     allocate (model%solver_data%rhsd(ewn*nsn))
@@ -4154,8 +4164,8 @@ contains
         deallocate(model%lateral_melt%melt_rate_tavg)
     if (associated(model%lateral_melt%subglacial_discharge)) &
         deallocate(model%lateral_melt%subglacial_discharge)
-    if (associated(model%lateral_melt%tforcing_2d)) &
-        deallocate(model%lateral_melt%tforcing_2d)
+    if (associated(model%ocean_data%thermal_forcing_2d)) &
+        deallocate(model%ocean_data%thermal_forcing_2d)
 
     ! matrix solver arrays
 

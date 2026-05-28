@@ -37,8 +37,8 @@ module glissade_lateral_melt
   implicit none
 
   private
-  public :: glissade_lateral_melt_constant, glissade_lateral_melt_ismip6, &
-       glissade_lateral_thermal_forcing_avg, glissade_subglacial_discharge
+  public :: glissade_lateral_melt_constant, glissade_lateral_melt_ismip, &
+       glissade_thermal_forcing_avg_3d_to_2d, glissade_subglacial_discharge
 
   public :: verbose_latmelt
 
@@ -93,7 +93,7 @@ contains
     integer :: i, j
 
 !!    real(dp) :: &
-!!         m_sr                      ! horizontal melting rate in m/yr calculated from Slater ISMIP6 melt approach
+!!         m_sr                    ! horizontal melting rate in m/yr calculated from Slater ISMIP6 melt approach
 
     ! Initialize
 
@@ -132,7 +132,7 @@ contains
 
 !-------------------------------------------------------------------------------
 
-  subroutine glissade_lateral_melt_ismip6(&
+  subroutine glissade_lateral_melt_ismip(&
        nx,                 ny,           &
        dx,                 dy,           &
        dt,                 time,         &  ! s
@@ -140,7 +140,7 @@ contains
        melt_front_mask,                  &
        melt_factor,                      &
        subglacial_discharge,             &  ! m/s
-       tforcing_2d,                      &  ! K
+       thermal_forcing_2d,               &  ! K
        thck_submerged,                   &  ! m
        mf_length,                        &  ! m
        latmelt_dthck)                       ! m
@@ -169,7 +169,7 @@ contains
 
     real(dp), dimension(nx,ny), intent(in) :: & 
          subglacial_discharge,   & ! subglacial meltwater discharge (m/s)
-         tforcing_2d,            & ! average thermal forcing over some depth range (K)
+         thermal_forcing_2d,     & ! average thermal forcing over some depth range (K)
          thck_submerged,         & ! effective thickness (m) of submerged ice
          mf_length                 ! length of melt front in each grid cell (m)
 
@@ -201,7 +201,7 @@ contains
              ! Parameterize melt as a function of subglacial discharge, thermal forcing and effective thickness
              ! See Rignot et al. 2016 or ISMIP6 melt forcing approach.
 
-             tf_sr = tforcing_2d(i,j) ! 2d thermal forcing [degC]
+             tf_sr = thermal_forcing_2d(i,j) ! 2d thermal forcing [degC]
              q_sr = subglacial_discharge(i,j) * scday ! subglacial_discharge passed in m/s; for Rignot equation convert to [m/d]
 
              ! Rignot et al. 2016; formulated in m/d, converted to m/s. Mulitplier frontal_melt_factor as proposed for ISMIP7
@@ -223,7 +223,7 @@ contains
        enddo
     enddo
 
-  end subroutine glissade_lateral_melt_ismip6
+  end subroutine glissade_lateral_melt_ismip
 
 !-------------------------------------------------------------------------------
 
@@ -331,16 +331,18 @@ contains
 
 !-------------------------------------------------------------------------------
 
-  subroutine glissade_lateral_thermal_forcing_avg(&
+  subroutine glissade_thermal_forcing_avg_3d_to_2d(&
        nx,              ny,      &
        nzocn,                    &
        zocn,                     &
        thermal_forcing,          &
-       tforcing_2d,              &
-       ztop_in,         zbot_in)
+       ztop,            zbot,    &
+       thermal_forcing_2d)
 
-    ! Average the thermal forcing over a prescribed depth range.
+    ! Average the 3D thermal forcing over a prescribed depth range.
     ! The default range is -200 m to -500 m.
+    ! Note: This could be converted to a utility model with an arbitrary 3d field as input.
+    !       In the lateral melt module for now since not yet used for fields other than TF.
 
     ! input/output arguments
 
@@ -356,45 +358,27 @@ contains
     real(dp), dimension(nzocn,nx,ny), intent(in) :: &
          thermal_forcing           !> thermal forcing field at ocean levels
 
-    real(dp), dimension(nx,ny), intent(out) :: &
-         tforcing_2d               !> average thermal forcing
+    real(dp), intent(in)  :: &
+         ztop, zbot                !> top and bottom of depth range (m), negative below sea level
+                                   !> default values are -200 m and -500 m
 
-    real(dp), intent(in), optional :: &
-         ztop_in, zbot_in          !> top and bottom of depth range (m), negative below sea level
+    real(dp), dimension(nx,ny), intent(out) :: &
+         thermal_forcing_2d        !> average thermal forcing over some depth range
 
     ! local variables
 
     integer :: i, j, k
-    real(dp) :: ztop, zbot         ! local versions of ztop_in, zbot_in
+
     real(dp) :: &
          layer_frac,             & ! fraction of layer within the depth range
          dlayer,                 & ! layer thickness
-         tforcing_layer            ! thermal forcing in the layer
+         thermal_forcing_layer     ! thermal forcing in the layer
 
     integer, dimension(0:nzocn) :: zbnd   ! depths of layer boundaries
 
-    ! ISMIP values for the depth range
-    real(dp), parameter :: ztop_ismip = -200.d0    ! top of depth range (m), ISMIP6 parameterization
-    real(dp), parameter :: zbot_ismip = -500.d0    ! bottom of depth range (m), ISMIP6 parameterization
-
-    if (present(ztop_in)) then
-       ztop = ztop_in
-    else
-       ztop = ztop_ismip
-    endif
-
-    if (present(zbot_in)) then
-       zbot = zbot_in
-    else
-       zbot = zbot_ismip
-    endif
-
     if (ztop >= 0.0d0 .or. zbot >= 0.0d0) then
-       call write_log('Error, average_thermal_forcing, zbot and ztop must be < 0', GM_FATAL)
+       call write_log('Error, average_thermal_forcing, ztop and zbot must be < 0', GM_FATAL)
     endif
-
-    ! initialize
-    tforcing_2d = 0.0d0
 
     ! Estimate the boundaries between ocean layers
     ! Note: k = 1 is the top level, and zocn becomes more negative with increasing k.
@@ -416,7 +400,7 @@ contains
 
     ! Average the thermal forcing over the specified depth range
 
-    tforcing_2d(i,j) = 0.0d0
+    thermal_forcing_2d(i,j) = 0.0d0
 
     do k = 1, nzocn
        if (zbnd(k) < ztop .and. zbnd(k-1) > zbot) then   ! include this layer in the average
@@ -434,8 +418,8 @@ contains
              do i = 1, nx
                 if (thermal_forcing(k,i,j) > -99998) then    !TODO - Rewrite
                    !WHL - Limit TF to be non-negative; is that correct?
-                   tforcing_layer = max(thermal_forcing(k,i,j), 0.0d0)
-                   tforcing_2d(i,j) = tforcing_2d(i,j) + tforcing_layer*dlayer*layer_frac
+                   thermal_forcing_layer = max(thermal_forcing(k,i,j), 0.0d0)
+                   thermal_forcing_2d(i,j) = thermal_forcing_2d(i,j) + thermal_forcing_layer*dlayer*layer_frac
                 endif
              enddo
           enddo
@@ -443,11 +427,11 @@ contains
     enddo
 
     ! Divide by the depth range
-    where (tforcing_2d > 0.0d0)
-       tforcing_2d = tforcing_2d / (ztop - zbot)
+    where (thermal_forcing_2d > 0.0d0)
+       thermal_forcing_2d = thermal_forcing_2d / (ztop - zbot)
     endwhere
 
-  end subroutine glissade_lateral_thermal_forcing_avg
+  end subroutine glissade_thermal_forcing_avg_3d_to_2d
 
 !-------------------------------------------------------------------------------
 
