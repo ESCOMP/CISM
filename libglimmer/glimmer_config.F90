@@ -138,7 +138,7 @@ contains
     config=>NULL()
     this_section=>NULL()
     do while(ios == 0)
-       if (main_task) read(unit,fmt='(a450)',iostat=ios) line
+       if (main_task) read(unit,fmt='(a1050)',iostat=ios) line
        call broadcast(line)
        call broadcast(ios)
        line = adjustl(line)
