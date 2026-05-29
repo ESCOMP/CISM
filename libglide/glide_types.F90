@@ -1270,6 +1270,10 @@ module glide_types
     real(dp),dimension(:,:),  pointer :: basal_mbal_flux_tavg =>null() !> basal mass balance (kg m^-2 s^-1, time average)
     real(dp),dimension(:,:),  pointer :: calving_flux =>null()         !> calving flux (kg m^-2 s^-1), diagnosed from calving_thck
     real(dp),dimension(:,:),  pointer :: calving_flux_tavg =>null()    !> calving flux (kg m^-2 s^-1, time average)
+    real(dp),dimension(:,:),  pointer :: forceretreat_flux =>null()      !> flux due to force retreat (kg m^-2 s^-1)
+    real(dp),dimension(:,:),  pointer :: forceretreat_flux_tavg =>null() !>    time average
+    real(dp),dimension(:,:),  pointer :: rmicecap_flux =>null()          !> flux due to ice cap removal (kg m^-2 s^-1)
+    real(dp),dimension(:,:),  pointer :: rmicecap_flux_tavg =>null()     !>    time average
     real(dp),dimension(:,:),  pointer :: gl_flux_east =>null()         !> mass flux eastward at grounding line, edge-based (kg m^-1 s^-1)
     real(dp),dimension(:,:),  pointer :: gl_flux_north =>null()        !> mass flux northward at grounding line, edge_based (kg m^-1 s^-1)
     real(dp),dimension(:,:),  pointer :: gl_flux =>null()              !> mass flux at grounding line, cell-based (kg m^-1 s^-1)
@@ -1318,10 +1322,14 @@ module glide_types
     real(dp) :: total_smb_flux         ! total surface mass balance flux (kg/s)
     real(dp) :: total_bmb_flux         ! total basal mass balance flux (kg/s)
     real(dp) :: total_calving_flux     ! total calving mass flux (kg/s)
+    real(dp) :: total_forceretreat_flux! total flux due to force retreat (kg/s) 
+    real(dp) :: total_rmicecap_flux    ! total flux due to ice cap removal (kg/s) 
     real(dp) :: total_gl_flux          ! total grounding line mass flux (kg/s)
     real(dp) :: total_smb_flux_tavg    ! total surface mass balance flux (kg/s), time average
     real(dp) :: total_bmb_flux_tavg    ! total basal mass balance flux (kg/s), time average
     real(dp) :: total_calving_flux_tavg! total calving mass flux (kg/s), time average
+    real(dp) :: total_forceretreat_flux_tavg ! total flux due to force retreat (kg/s), time average
+    real(dp) :: total_rmicecap_flux_tavg     ! total flux due to ice cap removal (kg/s), time average
     real(dp) :: total_gl_flux_tavg     ! total grounding line mass flux (kg/s), time average
 
   end type glide_geometry
@@ -1574,6 +1582,8 @@ module glide_types
   type glide_calving
      !> holds fields and parameters related to calving
      real(dp),dimension(:,:),  pointer :: calving_thck => null()   !> thickness loss in grid cell due to calving during one time step (m)
+     real(dp),dimension(:,:),  pointer :: forceretreat_thck => null() !> thickness loss in grid cell due to force retreat during one time step (m)
+     real(dp),dimension(:,:),  pointer :: rmicecap_thck => null()     !> thickness loss in grid cell due to ice cap removal during one time step (m)
      real(dp),dimension(:,:),  pointer :: calving_rate => null()   !> rate of ice loss due to calving (m/yr ice)
      real(dp),dimension(:,:),  pointer :: calving_rate_tavg => null()  !> rate of ice loss due to calving (m/yr ice, time average)
      integer, dimension(:,:),  pointer :: calving_mask => null()   !> calve floating ice where the mask = 1 (whichcalving = CALVING_GRID_MASK)
@@ -1636,7 +1646,11 @@ module glide_types
           cf_advance_retreat_period = 0.0d0      !> period (yr) for an advance/retreat cycle
                                                  !> period = 0 => constant amplitude
      real(dp) :: &
-          frontal_melt_rate = 0.0d0              !> frontal submarine melt rate, like lateral retreat rate at MF (m/yr) 
+          frontal_melt_rate = 0.0d0              !> frontal submarine melt rate, like lateral retreat rate at MF (m/yr)
+     real(dp) :: &
+          frontal_melt_factor = 1.0d0            !> multiplier for Rignot frontal melt. A value of 1.6 was proposed for ISMIP7
+                                                 !> based on new obs. This may also be used for sampling uncertainty and 
+                                                 !> to correct for resolution depencence
 
   end type glide_calving
 
@@ -3100,6 +3114,10 @@ contains
     call coordsystem_allocate(model%general%ice_grid, model%geometry%basal_mbal_flux_tavg)
     call coordsystem_allocate(model%general%ice_grid, model%geometry%calving_flux)
     call coordsystem_allocate(model%general%ice_grid, model%geometry%calving_flux_tavg)
+    call coordsystem_allocate(model%general%ice_grid, model%geometry%forceretreat_flux)
+    call coordsystem_allocate(model%general%ice_grid, model%geometry%forceretreat_flux_tavg)
+    call coordsystem_allocate(model%general%ice_grid, model%geometry%rmicecap_flux)
+    call coordsystem_allocate(model%general%ice_grid, model%geometry%rmicecap_flux_tavg)
     call coordsystem_allocate(model%general%ice_grid, model%geometry%gl_flux_east)
     call coordsystem_allocate(model%general%ice_grid, model%geometry%gl_flux_north)
     call coordsystem_allocate(model%general%ice_grid, model%geometry%gl_flux)
@@ -3319,6 +3337,8 @@ contains
 
     ! calving arrays
     call coordsystem_allocate(model%general%ice_grid, model%calving%calving_thck)
+    call coordsystem_allocate(model%general%ice_grid, model%calving%forceretreat_thck)
+    call coordsystem_allocate(model%general%ice_grid, model%calving%rmicecap_thck)
     call coordsystem_allocate(model%general%ice_grid, model%calving%calving_rate)
     call coordsystem_allocate(model%general%ice_grid, model%calving%calving_rate_tavg)
     call coordsystem_allocate(model%general%ice_grid, model%calving%calving_mask)
@@ -3857,6 +3877,14 @@ contains
         deallocate(model%geometry%calving_flux)
     if (associated(model%geometry%calving_flux_tavg)) &
         deallocate(model%geometry%calving_flux_tavg)
+    if (associated(model%geometry%forceretreat_flux)) &
+        deallocate(model%geometry%forceretreat_flux)
+    if (associated(model%geometry%forceretreat_flux_tavg)) &
+        deallocate(model%geometry%forceretreat_flux_tavg)
+    if (associated(model%geometry%rmicecap_flux)) &
+        deallocate(model%geometry%rmicecap_flux)
+    if (associated(model%geometry%rmicecap_flux_tavg)) &
+        deallocate(model%geometry%rmicecap_flux_tavg)
     if (associated(model%geometry%gl_flux_east)) &
         deallocate(model%geometry%gl_flux_east)
     if (associated(model%geometry%gl_flux_north)) &
@@ -3983,6 +4011,10 @@ contains
     ! calving arrays
     if (associated(model%calving%calving_thck)) &
         deallocate(model%calving%calving_thck)
+    if (associated(model%calving%forceretreat_thck)) &
+        deallocate(model%calving%forceretreat_thck)
+    if (associated(model%calving%rmicecap_thck)) &
+        deallocate(model%calving%rmicecap_thck)
     if (associated(model%calving%calving_rate)) &
         deallocate(model%calving%calving_rate)
     if (associated(model%calving%calving_rate_tavg)) &

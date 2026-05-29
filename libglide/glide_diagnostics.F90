@@ -195,6 +195,8 @@ contains
          tot_smb_flux,                  &    ! total surface mass balance flux (kg/s)
          tot_bmb_flux,                  &    ! total basal mass balance flux (kg/s)
          tot_calving_flux,              &    ! total calving flux (kg/s)
+         tot_forceretreat_flux,         &    ! total force retreat flux (kg/s)
+         tot_rmicecap_flux,             &    ! total ice cap removal flux (kg/s)
          tot_gl_flux,                   &    ! total grounding line flux (kg/s)
          tot_acab,                      &    ! total surface accumulation/ablation rate (m^3/yr)
          tot_bmlt,                      &    ! total basal melt rate (m^3/yr)
@@ -548,6 +550,19 @@ contains
        ! total calving mass balance flux (kg/s, negative for ice loss by calving)
        tot_calving_flux = -tot_calving * rhoi / scyr   ! convert m^3/yr to kg/s
 
+       ! total force retreat and ice cap removal fluxes (kg/s, negative for ice loss)
+       ! Note: forceretreat_flux and rmicecap_flux are in kg/m^2/s; multiply by cell_area to get kg/s
+       tot_forceretreat_flux = 0.d0
+       tot_rmicecap_flux = 0.d0
+       do j = lhalo+1, nsn-uhalo
+          do i = lhalo+1, ewn-uhalo
+             tot_forceretreat_flux = tot_forceretreat_flux + model%geometry%forceretreat_flux(i,j) * cell_area(i,j)
+             tot_rmicecap_flux     = tot_rmicecap_flux     + model%geometry%rmicecap_flux(i,j)     * cell_area(i,j)
+          enddo
+       enddo
+       tot_forceretreat_flux = parallel_reduce_sum(tot_forceretreat_flux)
+       tot_rmicecap_flux     = parallel_reduce_sum(tot_rmicecap_flux)
+
        ! mean calving rate (m/yr)
        ! Note: This will be only approximate if some ice has melted completely during the time step
        if (tot_area > eps) then
@@ -587,7 +602,8 @@ contains
        ! mass conservation error
        ! Note: For most runs, this should be close to zero.
 
-       err_dmass_dt = tot_dmass_dt - (tot_smb_flux + tot_bmb_flux + tot_calving_flux)
+       err_dmass_dt = tot_dmass_dt - (tot_smb_flux + tot_bmb_flux + tot_calving_flux &
+                                      + tot_forceretreat_flux + tot_rmicecap_flux)
 
        ! uncomment to convert total fluxes from kg/s to Gt/yr
 !!!    tot_smb_flux = tot_smb_flux * scyr/1.0d12
@@ -602,6 +618,8 @@ contains
        model%geometry%total_smb_flux = tot_smb_flux
        model%geometry%total_bmb_flux = tot_bmb_flux
        model%geometry%total_calving_flux = tot_calving_flux
+       model%geometry%total_forceretreat_flux = tot_forceretreat_flux
+       model%geometry%total_rmicecap_flux = tot_rmicecap_flux
        model%geometry%total_gl_flux = tot_gl_flux
 
     endif  ! Glissade dycore
@@ -658,19 +676,25 @@ contains
 
        if (model%options%dm_dt_diag == DM_DT_DIAG_KG_S) then
 
-          write(message,'(a25,e24.16)') 'Total SMB flux (kg/s)    ', tot_smb_flux
+          write(message,'(a31,e24.16)') 'Total SMB flux (kg/s)          ', tot_smb_flux
           call write_log(trim(message), type = GM_DIAGNOSTIC)
 
-          write(message,'(a25,e24.16)') 'Total BMB flux (kg/s)    ', tot_bmb_flux
+          write(message,'(a31,e24.16)') 'Total BMB flux (kg/s)          ', tot_bmb_flux
           call write_log(trim(message), type = GM_DIAGNOSTIC)
 
-          write(message,'(a25,e24.16)') 'Total calving flux (kg/s)', tot_calving_flux
+          write(message,'(a31,e24.16)') 'Total calving flux (kg/s)      ', tot_calving_flux
           call write_log(trim(message), type = GM_DIAGNOSTIC)
 
-          write(message,'(a25,e24.16)') 'Total dmass/dt (kg/s)    ', tot_dmass_dt
+          write(message,'(a31,e24.16)') 'Total retreat mask flux (kg/s) ', tot_forceretreat_flux
           call write_log(trim(message), type = GM_DIAGNOSTIC)
 
-          write(message,'(a25,e24.16)') 'dmass/dt error (kg/s)    ', err_dmass_dt
+          write(message,'(a31,e24.16)') 'Total ice cap removal (kg/s)   ', tot_rmicecap_flux
+          call write_log(trim(message), type = GM_DIAGNOSTIC)
+
+          write(message,'(a31,e24.16)') 'Total dmass/dt (kg/s)          ', tot_dmass_dt
+          call write_log(trim(message), type = GM_DIAGNOSTIC)
+
+          write(message,'(a31,e24.16)') 'dmass/dt error (kg/s)          ', err_dmass_dt
           call write_log(trim(message), type = GM_DIAGNOSTIC)
 
           write(message,'(a25,e24.16)') 'Total gr line flux (kg/s)', tot_gl_flux
@@ -680,19 +704,25 @@ contains
 
           factor = scyr / 1.0d12
 
-          write(message,'(a25,e24.16)') 'Total SMB flux (Gt/y)    ', tot_smb_flux * factor
+          write(message,'(a31,e24.16)') 'Total SMB flux (Gt/y)          ', tot_smb_flux * factor
           call write_log(trim(message), type = GM_DIAGNOSTIC)
 
-          write(message,'(a25,e24.16)') 'Total BMB flux (Gt/y)    ', tot_bmb_flux * factor
+          write(message,'(a31,e24.16)') 'Total BMB flux (Gt/y)          ', tot_bmb_flux * factor
           call write_log(trim(message), type = GM_DIAGNOSTIC)
 
-          write(message,'(a25,e24.16)') 'Total calving flux (Gt/y)', tot_calving_flux * factor
+          write(message,'(a31,e24.16)') 'Total calving flux (Gt/y)      ', tot_calving_flux * factor
           call write_log(trim(message), type = GM_DIAGNOSTIC)
 
-          write(message,'(a25,e24.16)') 'Total dmass/dt (Gt/y)    ', tot_dmass_dt * factor
+          write(message,'(a31,e24.16)') 'Total retreat mask flux (Gt/y) ', tot_forceretreat_flux * factor
           call write_log(trim(message), type = GM_DIAGNOSTIC)
 
-          write(message,'(a25,e24.16)') 'dmass/dt error (Gt/y)    ', err_dmass_dt * factor
+          write(message,'(a31,e24.16)') 'Total ice cap removal (Gt/y)   ', tot_rmicecap_flux * factor
+          call write_log(trim(message), type = GM_DIAGNOSTIC)
+
+          write(message,'(a31,e24.16)') 'Total dmass/dt (Gt/y)          ', tot_dmass_dt * factor
+          call write_log(trim(message), type = GM_DIAGNOSTIC)
+
+          write(message,'(a31,e24.16)') 'dmass/dt error (Gt/y)          ', err_dmass_dt * factor
           call write_log(trim(message), type = GM_DIAGNOSTIC)
 
           write(message,'(a25,e24.16)') 'Total gr line flux (Gt/y)', tot_gl_flux * factor
