@@ -56,6 +56,7 @@
 module glimmer_log
 
   use glimmer_global, only : fname_length,dirsep
+  use glimmer_paramets, only : iulog
   use cism_parallel, only: this_rank, main_task, parallel_stop
 
   implicit none
@@ -113,6 +114,7 @@ contains
 
     if (present(unit)) then
        glimmer_unit = unit
+       iulog = glimmer_unit
     end if
     if (present(fname)) then
        glimmer_logname = adjustl(trim(fname))
@@ -251,6 +253,7 @@ contains
 
     if (present(unit)) then
        glimmer_unit = unit
+       iulog = glimmer_unit
     end if
 
     call date_and_time(date,time)
