@@ -56,6 +56,7 @@
 module glimmer_log
 
   use glimmer_global, only : fname_length,dirsep
+  use glimmer_paramets, only : iulog
   use cism_parallel, only: this_rank, main_task, parallel_stop
 
   implicit none
@@ -113,6 +114,7 @@ contains
 
     if (present(unit)) then
        glimmer_unit = unit
+       iulog = glimmer_unit
     end if
     if (present(fname)) then
        glimmer_logname = adjustl(trim(fname))
@@ -170,9 +172,15 @@ contains
     ! and maybe to std out
     ! Note: Messages are written only from the main task, unless the error is fatal.
     !       For fatal errors, a message is also written from the task where the error occurred.
+#ifdef CCSMCOUPLED
+    ! In CESM coupled mode, suppress non-fatal writes to * (which would appear in cesm.log).
+    ! All output already goes to glimmer_unit (glc.log). Fatal errors still write to * for visibility.
+    if (local_type == GM_FATAL) write(*,*) trim(msg)
+#else
     if (local_type /= 0) then
        if ( (main_task .and. gm_show(local_type)) .or. local_type == GM_FATAL) write(*,*) trim(msg)
     end if
+#endif
 
     ! stop logging if we encountered a fatal error
     if (local_type == GM_FATAL) then
@@ -251,6 +259,7 @@ contains
 
     if (present(unit)) then
        glimmer_unit = unit
+       iulog = glimmer_unit
     end if
 
     call date_and_time(date,time)
