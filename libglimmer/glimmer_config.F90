@@ -58,7 +58,7 @@ module glimmer_config
   private :: handle_section, handle_value, InsertSection, InsertValue, dp
 
   integer, parameter :: namelen=50                 !< the maximum length of key or section
-  integer, parameter :: valuelen=400               !< the maximum length of a value
+  integer, parameter :: valuelen=1000               !< the maximum length of a value
   integer, parameter :: linelen=valuelen+namelen+1 !< the maximum length of a line
   
   !> derived type defining a key-value pair
@@ -138,7 +138,7 @@ contains
     config=>NULL()
     this_section=>NULL()
     do while(ios == 0)
-       if (main_task) read(unit,fmt='(a450)',iostat=ios) line
+       if (main_task) read(unit,fmt='(a1050)',iostat=ios) line
        call broadcast(line)
        call broadcast(ios)
        line = adjustl(line)

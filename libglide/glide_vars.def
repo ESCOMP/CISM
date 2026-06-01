@@ -608,6 +608,20 @@ data:          data%calving%calving_front_mask
 load:          1
 type:          int
 
+[forceretreat_rate]
+dimensions:    time, y1, x1
+units:         meter/year
+long_name:     rate of mass loss by forced retreat
+data:          data%calving%forceretreat_rate
+average:       1
+
+[rmicecap_rate]
+dimensions:    time, y1, x1
+units:         meter/year
+long_name:     rate of mass loss by ice cap removal 
+data:          data%calving%rmicecap_rate
+average:       1
+
 [thck_effective]
 dimensions:    time, y1, x1
 units:         meter
@@ -710,6 +724,13 @@ dimensions:    time
 units:         kg/s
 long_name:     mass flux removed by force_retreat method
 data:          data%geometry%total_forceretreat_flux
+average:       1
+
+[total_frontal_melt_flux]
+dimensions:    time
+units:         kg/s
+long_name:     total frontal melt flux
+data:          data%geometry%total_frontal_melt_flux
 average:       1
 
 [total_rmicecap_flux]

@@ -195,12 +195,14 @@ contains
          tot_smb_flux,                  &    ! total surface mass balance flux (kg/s)
          tot_bmb_flux,                  &    ! total basal mass balance flux (kg/s)
          tot_calving_flux,              &    ! total calving flux (kg/s)
+         tot_frontal_melt_flux,         &    ! total frontal melt flux (kg/s)
          tot_forceretreat_flux,         &    ! total force retreat flux (kg/s)
          tot_rmicecap_flux,             &    ! total ice cap removal flux (kg/s)
          tot_gl_flux,                   &    ! total grounding line flux (kg/s)
          tot_acab,                      &    ! total surface accumulation/ablation rate (m^3/yr)
          tot_bmlt,                      &    ! total basal melt rate (m^3/yr)
          tot_calving,                   &    ! total calving rate (m^3/yr)
+         tot_frontal_melt,              &    ! total frontal melt rate (m^3/yr)
          tot_dmass_dt,                  &    ! rate of change of total mass (kg/s)
          err_dmass_dt,                  &    ! mass conservation error (kg/s)
                                              ! given by dmass_dt - (tot_acab - tot_bmlt - tot_calving)
@@ -549,6 +551,20 @@ contains
 
        ! total calving mass balance flux (kg/s, negative for ice loss by calving)
        tot_calving_flux = -tot_calving * rhoi / scyr   ! convert m^3/yr to kg/s
+
+       ! total frontal melt rate (m^3/yr ice)
+       ! Note: calving%melt_rate has units of m/yr ice
+
+       tot_frontal_melt = 0.d0
+       do j = lhalo+1, nsn-uhalo
+          do i = lhalo+1, ewn-uhalo
+             tot_frontal_melt = tot_frontal_melt + model%calving%melt_rate(i,j) * cell_area(i,j)  ! m^3/yr ice
+          enddo
+       enddo
+       tot_frontal_melt = parallel_reduce_sum(tot_frontal_melt)
+
+       ! total calving mass balance flux (kg/s, negative for ice loss by frontal melt)
+       tot_frontal_melt_flux = -tot_frontal_melt * rhoi / scyr   ! convert m^3/yr to kg/s
 
        ! total force retreat and ice cap removal fluxes (kg/s, negative for ice loss)
        ! Note: forceretreat_flux and rmicecap_flux are in kg/m^2/s; multiply by cell_area to get kg/s
