@@ -1271,7 +1271,7 @@ contains
 !    real(dp) :: ztop_tfavg                    !> top end of depth range (m) for average thermal forcing
 !    real(dp) :: zbot_tfavg                    !> bottom end of depth range (m) for average thermal forcing
 !    logical :: thermal_forcing_avg_3d_to_2d       !> if true, then get 2D thermal forcing by averaging from 3D
-!    logical :: submarine_discharge_from_ablation  !> if true, then estimate submarine discharge from ablation
+!    logical :: subglacial_discharge_from_ablation  !> if true, then estimate subglacial discharge from ablation
 
     type(glide_ocean_data), intent(in) :: ocean_data         !> ocean data object
 !   Note: The ocean_data object includes the following fields and parameters used in this subroutine:
@@ -1815,10 +1815,10 @@ contains
                   cf_length,                                    &  ! m
                   lateral_melt%subglacial_discharge)               ! kg/m^2/s??
 
-          else   ! should have received the submarine discharge directly (from input file or coupler)
+          else   ! should have received the subglacial discharge directly (from input file or coupler)
 
              if (parallel_is_zero(lateral_melt%subglacial_discharge)) then
-                call write_log('Missing submarine_discharge for lateral melt', GM_FATAL)
+                call write_log('Missing subglacial_discharge for lateral melt', GM_FATAL)
              endif
 
           endif
