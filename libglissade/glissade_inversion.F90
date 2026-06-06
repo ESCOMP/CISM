@@ -406,7 +406,6 @@ contains
     ! (beneath grounded ice), deltaT_ocn (beneath floating ice), and flow_enhancement_factor.
 
     use glissade_masks, only: glissade_get_masks
-    use glissade_bmlt_float, only: glissade_bmlt_float_thermal_forcing
     use glissade_grounding_line, only: glissade_grounded_fraction
     use glissade_utils, only: glissade_usrf_to_thck, glissade_basin_average
     use glissade_grid_operators, only: glissade_stagger, glissade_stagger_real_mask, glissade_unstagger
@@ -852,38 +851,6 @@ contains
        endif
 
        call parallel_halo(model%ocean_data%deltaT_ocn, parallel)
-
-    endif   ! which_ho_deltaT_ocn
-
-    ! If setting deltaT_ocn based on observed dthck_dt, then do so here.
-    if (model%options%which_ho_deltat_ocn == HO_DELTAT_OCN_DTHCK_DT) then
-
-       ! Set deltaT_ocn based on dthck_dt_obs.
-       ! This is done within the subroutine used to compute bmlt_float from thermal forcing.
-       ! But instead of computing bmlt_float from TF, we find the value of deltaT_ocn
-       !  that will increase TF as needed to match negative values of dthck_dt_obs.
-       ! Note: This subroutine would usually be called during the initial diagnostic solve
-       !       of the restart following a spin-up, without taking any prognostic timesteps.
-
-       call glissade_bmlt_float_thermal_forcing(&
-            model%options%bmlt_float_thermal_forcing_param, &
-            model%options%ocean_data_extrapolate,     &
-            parallel,                                 &
-            ewn,       nsn,                           &
-            model%numerics%dew,                       &   ! m
-            model%numerics%dns,                       &   ! m
-            itest,     jtest,   rtest,                &
-            ice_mask,                                 &
-            ocean_mask,                               &
-            model%geometry%marine_connection_mask,    &
-            model%geometry%f_ground_cell,             &
-            model%geometry%thck,                      &   ! m
-            model%geometry%lsrf,                      &   ! m
-            model%geometry%topg,                      &   ! m
-            model%ocean_data,                         &
-            model%basal_melt%bmlt_float,              &
-            which_ho_deltaT_ocn = model%options%which_ho_deltaT_ocn,  &
-            dthck_dt_obs = model%geometry%dthck_dt_obs)   ! m/yr
 
     endif   ! which_ho_deltaT_ocn
 

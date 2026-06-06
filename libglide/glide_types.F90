@@ -126,6 +126,7 @@ module glide_types
   integer, parameter :: BMLT_FLOAT_MISOMIP = 5   ! not supported
   integer, parameter :: BMLT_FLOAT_THERMAL_FORCING = 6
 
+  !TODO - Deprecate the quadratic option?
   integer, parameter :: BMLT_FLOAT_TF_QUADRATIC = 0
   integer, parameter :: BMLT_FLOAT_TF_ISMIP6_LOCAL = 1
   integer, parameter :: BMLT_FLOAT_TF_ISMIP6_NONLOCAL = 2
@@ -296,7 +297,8 @@ module glide_types
   integer, parameter :: HO_DELTAT_OCN_INVERSION = 1
   integer, parameter :: HO_DELTAT_OCN_EXTERNAL = 2
   integer, parameter :: HO_DELTAT_OCN_INVERSION_BASIN = 3
-  integer, parameter :: HO_DELTAT_OCN_DTHCK_DT = 4
+  integer, parameter :: HO_DELTAT_OCN_CALIBRATE_BASIN = 4
+  integer, parameter :: HO_DELTAT_OCN_DTHCK_DT = 5
 
   integer, parameter :: HO_FLOW_ENHANCEMENT_FACTOR_CONSTANT = 0
   integer, parameter :: HO_FLOW_ENHANCEMENT_FACTOR_INVERSION = 1
@@ -393,7 +395,6 @@ module glide_types
   integer, parameter :: HO_FLOTATION_FUNCTION_PATTYN = 0
   integer, parameter :: HO_FLOTATION_FUNCTION_INVERSE_PATTYN = 1
   integer, parameter :: HO_FLOTATION_FUNCTION_LINEAR = 2
-  integer, parameter :: HO_FLOTATION_FUNCTION_LINEAR_RAISED_TOPG = 3
 
   integer, parameter :: HO_ICE_AGE_NONE = 0
   integer, parameter :: HO_ICE_AGE_COMPUTE = 1 
@@ -919,13 +920,14 @@ module glide_types
     !> Flag that indicates whether coulomb_c depends on elevation
 
     integer :: which_ho_deltaT_ocn = 0
-    !> Flag for local ocean temperature corrections
+    !> Flag for ocean temperature corrections
     !> \begin{description}
     !> \item[0] deltaT_ocn = 0
     !> \item[1] invert for 2D deltaT_ocn to match thickness target
     !> \item[2] read deltaT_ocn from external file
     !> \item[3] invert for basin-scale deltaT_ocn
-    !> \item[4] set deltaT_ocn to match dH/dt target
+    !> \item[4] calibrate deltaT_ocean to match a basin-scale melt target
+    !> \item[5] set deltaT_ocn to match a local dH/dt target
     !> \end{description}
 
     integer :: which_ho_flow_enhancement_factor = 0
@@ -1204,10 +1206,6 @@ module glide_types
     real(dp),dimension(:,:),pointer :: topg => null() 
     !> elevation of the bed topography (m)
 
-    real(dp),dimension(:,:),pointer :: topg_raised => null()
-    !> raised version of the topography (m)
-    !> Used to resolve pinning points for one of the GLP options
-
     real(dp),dimension(:,:),pointer :: usrf_obs => null()
     !> observed upper surface elevation (m)
 
@@ -1285,8 +1283,15 @@ module glide_types
     integer :: totpts = 0       ! total number of points with nonzero thck_index
     logical :: empty = .true.   ! true if totpts = 0
 
-    ! global scalars
+  end type glide_geometry
 
+  !++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+
+  type glide_scalars
+
+    !> Holds various global and basin-scale diagnostic scalars that can be written to output
+
+    ! global scalars
     real(dp) :: iarea                  ! total ice area (m^2)
     real(dp) :: iareag                 ! total grounded ice area (m^2)
     real(dp) :: iareaf                 ! total floating ice area (m^2)
@@ -1296,6 +1301,8 @@ module glide_types
     real(dp) :: imass_above_flotation  ! total ice mass above flotation (kg)
     real(dp) :: icap_area              ! total ice cap area (m^2) (included within iarea)
     real(dp) :: icap_vol               ! total ice cap volume (m^3) (included within ivol)
+    real(dp) :: total_bmlt_float          ! global sum of bmlt_float (kg s^-1)
+    real(dp) :: total_bmlt_float_target   ! global sum of bmlt_float_target (kg s^-1)
 
     ! basin-scale scalars
     real(dp), dimension(:), pointer :: iarea_basin    ! total ice area per basin (m^2)
@@ -1306,9 +1313,11 @@ module glide_types
     real(dp), dimension(:), pointer :: imass_basin    ! total ice mass per basin (kg)
     real(dp), dimension(:), pointer :: imass_above_flotation_basin   ! total ice mass above flotation per basin (kg)
     real(dp), dimension(:), pointer :: icap_area_basin   ! total ice cap area per basin (m^2)
-    real(dp), dimension(:), pointer :: icap_vol_basin   ! total ice cap volume per basin (m^3)
+    real(dp), dimension(:), pointer :: icap_vol_basin    ! total ice cap volume per basin (m^3)
+    real(dp), dimension(:), pointer :: bmlt_float_basin         ! total bmlt_float per basin (kg s^-1)
+    real(dp), dimension(:), pointer :: bmlt_float_target_basin  ! total bmlt_float_target per basin (kg s^-1)
 
-  end type glide_geometry
+ end type glide_scalars
 
   !++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 
@@ -1880,11 +1889,6 @@ module glide_types
      !Note: In the Glide dycore, the only active field in this type is bmlt.
      !      The other fields are used in Glissade only.
 
-     !WHL - debug
-     real(dp), dimension(:,:), pointer :: &
-          bmlt_applied_old => null(),  &
-          bmlt_applied_diff => null()
-
      ! bmlt fields for grounded and floating ice
 
      real(dp), dimension(:,:), pointer :: &
@@ -1894,9 +1898,15 @@ module glide_types
                                                     !>    = 0 for ice-free cells with bmlt > 0
           bmlt_applied_tavg => null(),            & !> basal melt rate applied to ice (m/s, time average)
           bmlt_ground => null(),                  & !> basal melt rate for grounded ice
-          bmlt_float => null(),                   & !> basal melt rate for floating ice
+          bmlt_float => null(),                   & !> basal melt rate for floating ice (m/s)
+          bmlt_float_target => null(),            & !> target basal melt rate for floating ice (m/s)
           bmlt_float_external => null(),          & !> external basal melt rate field
           bmlt_float_anomaly => null()              !> basal melt rate anomaly field
+
+     ! masks
+     integer, dimension(:,:), pointer :: &
+          thermal_forcing_mask => null()            !> = 1 where ice is present, marine-connected and partly floating;
+                                                    !> this is where bmlt_float can be nonzero
 
      real(dp) :: bmlt_float_factor = 1.0d0          !> adjustment factor for external bmlt_float field
 
@@ -1967,19 +1977,27 @@ module glide_types
      ! fields read from input or forcing files
 
      real(dp), dimension(:,:,:), pointer :: &
-          thermal_forcing => null()                 !> 3D thermal forcing forcing (deg K) input to CISM
+          thermal_forcing => null()                 !> 3D thermal forcing (deg K) input to CISM
 
      real(dp), dimension(:,:), pointer :: &
           thermal_forcing_2d => null()              !> 2d thermal forcing, typically averaged over some depth range (deg K)
 
      real(dp), dimension(:,:), pointer :: &
-          thermal_forcing_lsrf => null()            !> 2D thermal forcing forcing (deg K) applied at lower ice surface
+          thermal_forcing_lsrf => null()            !> 2D thermal forcing (deg K) applied at lower ice surface
+
+     !Note: ocean_data%bmb_obs has the same units as climate%smb_obs: kg/m2/yr = mm/yr w.e.
+     !      Defined to be positive for melting, since observational melt-rate datasets usually follow this convention
+     real(dp), dimension(:,:), pointer :: &
+          bmb_obs => null()                         !> 2D basal mass balance (kg/m2/yr) from observations
 
      integer, dimension(:,:), pointer :: &
           basin_number => null()                    !> basin number for each grid cell
 
      real(dp), dimension(:,:), pointer :: &
           deltaT_ocn => null()                      !> deltaT_ocn in each grid cell (deg K)
+
+     real(dp), dimension(:), pointer :: &
+          deltaT_ocn_basin => null()                !> deltaT_ocn applied to each basin (deg K)
 
      real(dp) :: &
           thermal_forcing_anomaly = 0.0d0,  &       !> thermal forcing anomaly (deg K), applied everywhere
@@ -2787,6 +2805,7 @@ module glide_types
     type(glide_geometry) :: geometry
     type(glide_geomderv) :: geomderv
     type(glide_velocity) :: velocity
+    type(glide_scalars)  :: scalars
     type(glide_mass_flux):: mass_flux
     type(glide_stress_t) :: stress   
     type(glide_climate)  :: climate
@@ -2849,8 +2868,10 @@ contains
     !> \item \texttt{bmlt_ground(ewn,nsn)}
     !> \item \texttt{bmlt_applied(ewn,nsn)}
     !> \item \texttt{bmlt_float(ewn,nsn)}
+    !> \item \texttt{bmlt_float_target(ewn,nsn)}
     !> \item \texttt{bmlt_float_external(ewn,nsn)}
     !> \item \texttt{bmlt_float_anomaly(ewn,nsn)}
+    !> \item \texttt{thermal_forcing_mask(ewn,nsn)}
     !> \end{itemize}
 
     !> In \texttt{model\%ocean_data}:
@@ -2858,7 +2879,9 @@ contains
     !> \item \texttt{deltaT_ocn(ewn,nsn)}
     !> \item \texttt{basin_number(ewn,nsn)}
     !> \item \texttt{thermal_forcing(nzocn,ewn,nsn)}
+    !> \item \texttt{thermal_forcing_2d(ewn,nsn)}
     !> \item \texttt{thermal_forcing_lsrf(ewn,nsn)}
+    !> \item \texttt{bmb_obs(ewn,nsn)}
     !> \end{itemize}
 
     !> In \texttt{model\%glacier}:
@@ -2919,7 +2942,6 @@ contains
     !> \item \texttt{usrf(ewn,nsn))}
     !> \item \texttt{lsrf(ewn,nsn))}
     !> \item \texttt{topg(ewn,nsn))}
-    !> \item \texttt{topg_raised(ewn,nsn))}
     !> \item \texttt{usrf_obs(ewn,nsn))}
     !> \item \texttt{thck_old(ewn,nsn))}
     !> \item \texttt{dthck_dt(ewn,nsn))}
@@ -3163,7 +3185,6 @@ contains
     call coordsystem_allocate(model%general%ice_grid, model%geometry%usrf)
     call coordsystem_allocate(model%general%ice_grid, model%geometry%lsrf)
     call coordsystem_allocate(model%general%ice_grid, model%geometry%topg)
-    call coordsystem_allocate(model%general%ice_grid, model%geometry%topg_raised)
     call coordsystem_allocate(model%general%ice_grid, model%geometry%usrf_obs)
     call coordsystem_allocate(model%general%ice_grid, model%geometry%dthck_dt)
     call coordsystem_allocate(model%general%ice_grid, model%geometry%dthck_dt_obs)
@@ -3258,16 +3279,14 @@ contains
     call coordsystem_allocate(model%general%ice_grid,  model%basal_melt%bmlt_applied_tavg)
     call coordsystem_allocate(model%general%ice_grid,  model%basal_melt%bmlt_ground)
 
-    !WHL - debug
-    call coordsystem_allocate(model%general%ice_grid,  model%basal_melt%bmlt_applied_old)
-    call coordsystem_allocate(model%general%ice_grid,  model%basal_melt%bmlt_applied_diff)
-
     if (model%options%whichdycore == DYCORE_GLISSADE) then
        call coordsystem_allocate(model%general%ice_grid, model%ocean_data%basin_number)
        call coordsystem_allocate(model%general%ice_grid, model%basal_melt%bmlt_float)
        call coordsystem_allocate(model%general%ice_grid, model%basal_melt%bmlt_float_anomaly)
        call coordsystem_allocate(model%general%ice_grid, model%basal_melt%warm_ocean_mask)
+       call coordsystem_allocate(model%general%ice_grid, model%basal_melt%bmlt_float_target)
        call coordsystem_allocate(model%general%ice_grid, model%basal_melt%bmlt_float_external)
+       call coordsystem_allocate(model%general%ice_grid, model%basal_melt%thermal_forcing_mask)
        if (model%options%whichbmlt_float == BMLT_FLOAT_MISOMIP) then
           call coordsystem_allocate(model%general%ice_grid, model%plume%T_ambient)
           call coordsystem_allocate(model%general%ice_grid, model%plume%S_ambient)
@@ -3282,6 +3301,7 @@ contains
           call coordsystem_allocate(model%general%ice_grid, model%ocean_data%nzocn, &
                                     model%ocean_data%thermal_forcing)
           call coordsystem_allocate(model%general%ice_grid, model%ocean_data%thermal_forcing_lsrf)
+          call coordsystem_allocate(model%general%ice_grid, model%ocean_data%bmb_obs)
           if (model%options%bmlt_float_thermal_forcing_param == BMLT_FLOAT_TF_ISMIP6_LOCAL .or. &
               model%options%bmlt_float_thermal_forcing_param == BMLT_FLOAT_TF_ISMIP6_NONLOCAL .or. &
               model%options%bmlt_float_thermal_forcing_param == BMLT_FLOAT_TF_ISMIP6_NONLOCAL_SLOPE) then
@@ -3290,6 +3310,7 @@ contains
                 call write_log ('Must set nbasin >= 1 for the ISMIP6 thermal forcing options', GM_FATAL)
              endif
              call coordsystem_allocate(model%general%ice_grid, model%ocean_data%deltaT_ocn)
+             allocate(model%ocean_data%deltaT_ocn_basin(model%ocean_data%nbasin))
           endif
        endif
     endif  ! Glissade
@@ -3363,15 +3384,17 @@ contains
 
     ! basin diagnostic arrays
     if (model%ocean_data%nbasin >= 1) then
-       allocate(model%geometry%iarea_basin(model%ocean_data%nbasin))
-       allocate(model%geometry%iareag_basin(model%ocean_data%nbasin))
-       allocate(model%geometry%iareaf_basin(model%ocean_data%nbasin))
-       allocate(model%geometry%ivol_basin(model%ocean_data%nbasin))
-       allocate(model%geometry%ivol_above_flotation_basin(model%ocean_data%nbasin))
-       allocate(model%geometry%imass_basin(model%ocean_data%nbasin))
-       allocate(model%geometry%imass_above_flotation_basin(model%ocean_data%nbasin))
-       allocate(model%geometry%icap_area_basin(model%ocean_data%nbasin))
-       allocate(model%geometry%icap_vol_basin(model%ocean_data%nbasin))
+       allocate(model%scalars%iarea_basin(model%ocean_data%nbasin))
+       allocate(model%scalars%iareag_basin(model%ocean_data%nbasin))
+       allocate(model%scalars%iareaf_basin(model%ocean_data%nbasin))
+       allocate(model%scalars%ivol_basin(model%ocean_data%nbasin))
+       allocate(model%scalars%ivol_above_flotation_basin(model%ocean_data%nbasin))
+       allocate(model%scalars%imass_basin(model%ocean_data%nbasin))
+       allocate(model%scalars%imass_above_flotation_basin(model%ocean_data%nbasin))
+       allocate(model%scalars%icap_area_basin(model%ocean_data%nbasin))
+       allocate(model%scalars%icap_vol_basin(model%ocean_data%nbasin))
+       allocate(model%scalars%bmlt_float_basin(model%ocean_data%nbasin))
+       allocate(model%scalars%bmlt_float_target_basin(model%ocean_data%nbasin))
     endif
 
     ! climate arrays
@@ -3786,16 +3809,16 @@ contains
         deallocate(model%basal_melt%bmlt_ground)
     if (associated(model%basal_melt%bmlt_float)) &
         deallocate(model%basal_melt%bmlt_float)
+    if (associated(model%basal_melt%bmlt_float_target)) &
+        deallocate(model%basal_melt%bmlt_float_target)
     if (associated(model%basal_melt%bmlt_float_external)) &
         deallocate(model%basal_melt%bmlt_float_external)
     if (associated(model%basal_melt%bmlt_float_anomaly)) &
         deallocate(model%basal_melt%bmlt_float_anomaly)
     if (associated(model%basal_melt%warm_ocean_mask)) &
         deallocate(model%basal_melt%warm_ocean_mask)
-    if (associated(model%basal_melt%bmlt_applied_old)) &
-        deallocate(model%basal_melt%bmlt_applied_old)
-    if (associated(model%basal_melt%bmlt_applied_diff)) &
-        deallocate(model%basal_melt%bmlt_applied_diff)
+    if (associated(model%basal_melt%thermal_forcing_mask)) &
+        deallocate(model%basal_melt%thermal_forcing_mask)
 
     ! ocean data arrays
     if (associated(model%ocean_data%basin_number)) &
@@ -3806,6 +3829,8 @@ contains
         deallocate(model%ocean_data%thermal_forcing)
     if (associated(model%ocean_data%thermal_forcing_lsrf)) &
         deallocate(model%ocean_data%thermal_forcing_lsrf)
+    if (associated(model%ocean_data%bmb_obs)) &
+        deallocate(model%ocean_data%bmb_obs)
 
     ! glacier arrays
     if (associated(model%glacier%glacierid)) &
@@ -3907,8 +3932,6 @@ contains
         deallocate(model%geometry%lsrf)
     if (associated(model%geometry%topg)) &
         deallocate(model%geometry%topg)
-    if (associated(model%geometry%topg_raised)) &
-        deallocate(model%geometry%topg_raised)
     if (associated(model%geometry%usrf_obs)) &
         deallocate(model%geometry%usrf_obs)
     if (associated(model%geometry%dthck_dt)) &
@@ -3999,24 +4022,28 @@ contains
     if (associated(model%geometry%lower_cell_temp)) &
        deallocate(model%geometry%lower_cell_temp)
 
-    if (associated(model%geometry%iarea_basin)) &
-         deallocate(model%geometry%iarea_basin)
-    if (associated(model%geometry%iareag_basin)) &
-         deallocate(model%geometry%iareag_basin)
-    if (associated(model%geometry%iareaf_basin)) &
-         deallocate(model%geometry%iareaf_basin)
-    if (associated(model%geometry%ivol_basin)) &
-         deallocate(model%geometry%ivol_basin)
-    if (associated(model%geometry%ivol_above_flotation_basin)) &
-         deallocate(model%geometry%ivol_above_flotation_basin)
-    if (associated(model%geometry%imass_basin)) &
-         deallocate(model%geometry%imass_basin)
-    if (associated(model%geometry%imass_above_flotation_basin)) &
-         deallocate(model%geometry%imass_above_flotation_basin)
-    if (associated(model%geometry%icap_area_basin)) &
-         deallocate(model%geometry%icap_area_basin)
-    if (associated(model%geometry%icap_vol_basin)) &
-         deallocate(model%geometry%icap_vol_basin)
+    if (associated(model%scalars%iarea_basin)) &
+         deallocate(model%scalars%iarea_basin)
+    if (associated(model%scalars%iareag_basin)) &
+         deallocate(model%scalars%iareag_basin)
+    if (associated(model%scalars%iareaf_basin)) &
+         deallocate(model%scalars%iareaf_basin)
+    if (associated(model%scalars%ivol_basin)) &
+         deallocate(model%scalars%ivol_basin)
+    if (associated(model%scalars%ivol_above_flotation_basin)) &
+         deallocate(model%scalars%ivol_above_flotation_basin)
+    if (associated(model%scalars%imass_basin)) &
+         deallocate(model%scalars%imass_basin)
+    if (associated(model%scalars%imass_above_flotation_basin)) &
+         deallocate(model%scalars%imass_above_flotation_basin)
+    if (associated(model%scalars%icap_area_basin)) &
+         deallocate(model%scalars%icap_area_basin)
+    if (associated(model%scalars%icap_vol_basin)) &
+         deallocate(model%scalars%icap_vol_basin)
+    if (associated(model%scalars%bmlt_float_basin)) &
+         deallocate(model%scalars%bmlt_float_basin)
+    if (associated(model%scalars%bmlt_float_target_basin)) &
+         deallocate(model%scalars%bmlt_float_target_basin)
 
     if (associated(model%geometry%thck_index)) &
         deallocate(model%geometry%thck_index)

@@ -25,7 +25,7 @@
 !+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 
 !TODO - Calculations of iarea, iareaf and areag in calc_iareaf_iareag() and glide_set_mask() could be replaced by values computed here.  
-!       These could be saved to the model derived type (model%geometry%iarea, etc.) for output.
+!       These could be saved to the scalars derived type (model%scalars%iarea, etc.) for output.
 
 module glide_diagnostics
 
@@ -192,6 +192,8 @@ contains
          tot_mass_above_flotation,      &    ! total ice mass above flotation (kg)
          tot_area_ice_caps,             &    ! total area of disconnected ice caps (m^2)
          tot_vol_ice_caps,              &    ! total volume of disconnected ice caps (m^3)
+         tot_bmlt_float,                &    ! total basal melt rate for floating ice (kg/s)
+         tot_bmlt_float_target,         &    ! total target basal melt rate for floating ice (kg/s)
          thck_floating,                 &    ! thickness of floating ice
          thck_above_flotation,          &    ! thickness above flotation
          tot_energy,                    &    ! total ice energy (J)
@@ -427,6 +429,12 @@ contains
     tot_area_ice_caps = parallel_global_sum(cell_area, parallel, ice_cap_mask)
     tot_vol_ice_caps = parallel_global_sum(model%geometry%thck*cell_area, parallel, ice_cap_mask)
 
+    ! basal melting for floating ice (kg/s)
+    tot_bmlt_float = &
+         parallel_global_sum(model%basal_melt%bmlt_float*rhoi*cell_area, parallel)
+    tot_bmlt_float_target = &
+         parallel_global_sum(model%basal_melt%bmlt_float_target*rhoi*cell_area, parallel)
+
     ! total ice energy relative to T = 0 deg C (J)
     local_energy = 0.0d0
     if (size(model%temper%temp,1) == upn+1) then  ! temps are staggered in vertical, located at layer centers
@@ -482,38 +490,46 @@ contains
        mean_temp = 0.d0
     endif
  
-    ! copy some global scalars to the geometry derived type
-    ! Note: These have SI units (e.g, m^2 for area, m^3 for volume)
+    ! copy some global scalars to the scalars derived type
+    ! Note: These have SI units (e.g, m^2 for area, m^3 for volume, kg/s for melt rates)
 
-    model%geometry%iarea  = tot_area
-    model%geometry%iareag = tot_area_ground
-    model%geometry%iareaf = tot_area_float
-    model%geometry%ivol   = tot_volume
-    model%geometry%ivol_above_flotation = tot_volume_above_flotation
-    model%geometry%imass  = tot_mass
-    model%geometry%imass_above_flotation = tot_mass_above_flotation
-    model%geometry%icap_area  = tot_area_ice_caps
-    model%geometry%icap_vol  = tot_vol_ice_caps
+    model%scalars%iarea  = tot_area
+    model%scalars%iareag = tot_area_ground
+    model%scalars%iareaf = tot_area_float
+    model%scalars%ivol   = tot_volume
+    model%scalars%ivol_above_flotation = tot_volume_above_flotation
+    model%scalars%imass  = tot_mass
+    model%scalars%imass_above_flotation = tot_mass_above_flotation
+    model%scalars%icap_area  = tot_area_ice_caps
+    model%scalars%icap_vol  = tot_vol_ice_caps
+    model%scalars%total_bmlt_float = tot_bmlt_float
+    model%scalars%total_bmlt_float_target = tot_bmlt_float_target
 
-    ! Optionally, compute some basin-scale scalars, also written to the geometry derived type
+    ! Optionally, compute some basin-scale scalars, also written to the scalars derived type
 
     if (model%ocean_data%nbasin > 1) then
-       model%geometry%iarea_basin(:)  = &
+       model%scalars%iarea_basin(:)  = &
             parallel_global_sum_patch(cell_area*ice_mask, model%ocean_data%nbasin, model%ocean_data%basin_number, parallel)
-       model%geometry%iareag_basin(:) = &
+       model%scalars%iareag_basin(:) = &
             parallel_global_sum_patch(cell_area*grounded_mask, model%ocean_data%nbasin, model%ocean_data%basin_number, parallel)
-       model%geometry%iareaf_basin(:) = &
+       model%scalars%iareaf_basin(:) = &
             parallel_global_sum_patch(cell_area*floating_mask, model%ocean_data%nbasin, model%ocean_data%basin_number, parallel)
-       model%geometry%ivol_basin(:)   = &
+       model%scalars%ivol_basin(:)   = &
             parallel_global_sum_patch(cell_area*ice_mask*model%geometry%thck, model%ocean_data%nbasin, model%ocean_data%basin_number, parallel)
-       model%geometry%ivol_above_flotation_basin(:) = &
+       model%scalars%ivol_above_flotation_basin(:) = &
             parallel_global_sum_patch(volume_above_flotation, model%ocean_data%nbasin, model%ocean_data%basin_number, parallel)
-       model%geometry%imass_basin(:) = model%geometry%ivol_basin(:)*rhoi
-       model%geometry%imass_above_flotation_basin(:) = model%geometry%ivol_above_flotation_basin(:)*rhoi
-       model%geometry%icap_area_basin(:)  = &
+       model%scalars%imass_basin(:) = model%scalars%ivol_basin(:)*rhoi
+       model%scalars%imass_above_flotation_basin(:) = model%scalars%ivol_above_flotation_basin(:)*rhoi
+       model%scalars%icap_area_basin(:)  = &
             parallel_global_sum_patch(cell_area*ice_cap_mask, model%ocean_data%nbasin, model%ocean_data%basin_number, parallel)
-       model%geometry%icap_vol_basin(:)  = &
+       model%scalars%icap_vol_basin(:)  = &
             parallel_global_sum_patch(cell_area*ice_cap_mask*model%geometry%thck, &
+            model%ocean_data%nbasin, model%ocean_data%basin_number, parallel)
+       model%scalars%bmlt_float_basin(:)  = &
+            parallel_global_sum_patch(model%basal_melt%bmlt_float*rhoi*cell_area, &
+            model%ocean_data%nbasin, model%ocean_data%basin_number, parallel)
+       model%scalars%bmlt_float_target_basin(:)  = &
+            parallel_global_sum_patch(model%basal_melt%bmlt_float_target*rhoi*cell_area, &
             model%ocean_data%nbasin, model%ocean_data%basin_number, parallel)
 
        ! Optionally, write output to a specific basin with an applied thermal forcing anomaly
@@ -522,14 +538,14 @@ contains
           if (nb >= 1) then
              write(iulog,*) 'Diagnostics for basin', nb
              write(iulog,*) 'iarea, iareag, iareaf (km^2):', &
-                  model%geometry%iarea_basin(nb)/1.0d6, model%geometry%iareag_basin(nb)/1.0d6, model%geometry%iareaf_basin(nb)/1.0d6
+                  model%scalars%iarea_basin(nb)/1.0d6, model%scalars%iareag_basin(nb)/1.0d6, model%scalars%iareaf_basin(nb)/1.0d6
              write(iulog,*) 'ivol, ivol_above_flotation (km^3):', &
-                  model%geometry%ivol_basin(nb)/1.0d9, model%geometry%ivol_above_flotation_basin(nb)/1.0d9
+                  model%scalars%ivol_basin(nb)/1.0d9, model%scalars%ivol_above_flotation_basin(nb)/1.0d9
              write(iulog,*) 'imass, imass_above_flotation (Gt):', &
-                  model%geometry%imass_basin(nb)/1.0d12, model%geometry%imass_above_flotation_basin(nb)/1.0d12
+                  model%scalars%imass_basin(nb)/1.0d12, model%scalars%imass_above_flotation_basin(nb)/1.0d12
              if (.not.model%options%remove_ice_caps)  then
-                write(iulog,*) '   ice cap area (km^2):', model%geometry%icap_area_basin(nb)/1.0d6
-                write(iulog,*) '   ice cap vol  (km^3):', model%geometry%icap_vol_basin(nb)/1.0d9
+                write(iulog,*) '   ice cap area (km^2):', model%scalars%icap_area_basin(nb)/1.0d6
+                write(iulog,*) '   ice cap vol  (km^3):', model%scalars%icap_vol_basin(nb)/1.0d9
              endif
           endif
        endif
@@ -738,6 +754,16 @@ contains
              call write_log(trim(message), type = GM_DIAGNOSTIC)
           endif
 
+          if (tot_bmlt_float > eps11) then
+             write(message,'(a25,e24.16)') 'Total bmlt_float (kg/s)  ', tot_bmlt_float
+             call write_log(trim(message), type = GM_DIAGNOSTIC)
+          endif
+
+          if (tot_bmlt_float_target > eps11) then
+             write(message,'(a25,e24.16)') 'Target bmelt_float (kg/s)', tot_bmlt_float_target
+             call write_log(trim(message), type = GM_DIAGNOSTIC)
+          endif
+
           write(message,'(a25,e24.16)') 'Total dmass/dt (kg/s)    ', tot_dmass_dt
           call write_log(trim(message), type = GM_DIAGNOSTIC)
 
@@ -767,6 +793,16 @@ contains
 
           if (abs(tot_removal_flux) > eps11) then
              write(message,'(a25,e24.16)') 'Total removal flux (Gt/y)', tot_removal_flux * factor
+             call write_log(trim(message), type = GM_DIAGNOSTIC)
+          endif
+
+          if (tot_bmlt_float > eps11) then
+             write(message,'(a25,e24.16)') 'Total bmlt_float (Gt/y)  ', tot_bmlt_float * factor
+             call write_log(trim(message), type = GM_DIAGNOSTIC)
+          endif
+
+          if (tot_bmlt_float_target > eps11) then
+             write(message,'(a25,e24.16)') 'Target bmlt_float (Gt/y) ', tot_bmlt_float_target * factor
              call write_log(trim(message), type = GM_DIAGNOSTIC)
           endif
 

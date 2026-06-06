@@ -67,8 +67,7 @@
                                         which_ho_fground_no_glp,           &
                                         f_flotation,                       &
                                         f_ground,                          &
-                                        f_ground_cell,                     &
-                                        topg_raised)
+                                        f_ground_cell)
 
     use glissade_grid_operators, only : glissade_stagger, glissade_unstagger
     use glimmer_log
@@ -102,9 +101,6 @@
     !     This function was suggested by Xylar Asay-Davis and is linear in both b and H.
     !     Unlike a previous version of this option, f_flotation is not extrapolated from
     !     ice-covered cells to ice-free ocean.
-    ! (3) HO_FLOTATION_FUNCTION_RAISED_TOPG: This is like (2), except that the bed topography
-    !     is replaced with a corrected version, topg_raised, which aims to capture pinning points
-    !     on relatively coarse grids.
     ! All flotation functions are defined such that f <= 0 for grounded ice and f > 0 for floating ice.
     ! For each option, land-based cells are assigned a large negative value, so that any vertices
     !  with land-based neighbors are strongly grounded.
@@ -164,9 +160,6 @@
 
     real(dp), dimension(nx,ny), intent(out) ::  &
        f_ground_cell          ! grounded ice fraction in cell, 0 <= f_ground_cell <= 1
-
-    real(dp), dimension(nx,ny), intent(in), optional ::  &
-       topg_raised            ! raised version of bed topography (m)
 
     !----------------------------------------------------------------
     ! Local variables
@@ -297,34 +290,6 @@
           enddo
        enddo
 
-    elseif (which_ho_flotation_function == HO_FLOTATION_FUNCTION_LINEAR_RAISED_TOPG) then
-
-       if (.not.present(topg_raised)) then
-          call write_log('Error, must pass topg_raised to use this f_flotation option', GM_FATAL)
-       endif
-
-       ! like the previous option, but with topg -> topg_raised
-       do j = 1, ny
-          do i = 1, nx
-             if (land_mask(i,j) == 1) then
-                ! Assign a minimum value to (topg - eus) so that f_flotation is nonzero on land
-                topg_eus_diff = max(topg_raised(i,j) - eus, f_flotation_land_topg_min)
-                f_flotation(i,j) = -topg_eus_diff
-             else
-                ! Note: f_flotation reduces to -topg_raised for ice-free ocean
-                f_flotation(i,j) = -(topg_raised(i,j) - eus) - (rhoi/rhoo)*thck(i,j)
-                ! Make sure f_flotation is not too close to 0, for numerical robustness.
-                if (abs(f_flotation(i,j)) < f_flotation_marine_min) then
-                   if (f_flotation(i,j) < 0.0d0) then
-                      f_flotation(i,j) = -f_flotation_marine_min
-                   else
-                      f_flotation(i,j) =  f_flotation_marine_min
-                   endif
-                endif
-             endif
-          enddo
-       enddo
-
     endif  ! which_ho_flotation_function
 
     ! Extrapolate f_flotation to ice-free ocean cells for the first two options.
@@ -394,11 +359,7 @@
 
     if (verbose_glp) then
        call point_diag(thck, 'GLP calculation, thck (m)', itest, jtest, rtest, 7, 7)
-       if (which_ho_flotation_function == HO_FLOTATION_FUNCTION_LINEAR_RAISED_TOPG) then
-          call point_diag(topg_raised, 'topg_raised (m)', itest, jtest, rtest, 7, 7)
-       else
-          call point_diag(topg, 'topg (m)', itest, jtest, rtest, 7, 7)
-       endif
+       call point_diag(topg, 'topg (m)', itest, jtest, rtest, 7, 7)
        call point_diag(f_flotation, 'f_flotation (m)', itest, jtest, rtest, 7, 7)
     endif
 

@@ -588,7 +588,7 @@ contains
        field_2d,                    &
        field_basin_avg)
 
-    ! For a given 2D input field, compute the average over a basin.
+    ! For a given 2D input field, compute the average over each basin.
     ! The average is taken over grid cells with nonzero values of rmask.
     ! All cells are weighted equally.
     ! Note: This subroutine assumes an input field located at cell centers

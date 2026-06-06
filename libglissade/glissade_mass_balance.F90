@@ -457,7 +457,7 @@
 
        where (model%geometry%f_ground_cell < 1.0d0 .and. model%geometry%dthck_dt_obs_basin < 0.0d0)
           ! floating ice is thinning in obs; apply a positive correction to acab
-          ! Note: Both acab anddthck_dt_obs_basin have units of m/s
+          ! Note: Both acab and dthck_dt_obs_basin have units of m/s
           model%climate%acab = model%climate%acab &
                - (1.0d0 - model%geometry%f_ground_cell) * (model%geometry%dthck_dt_obs_basin)
        endwhere
@@ -1697,6 +1697,7 @@
   end subroutine overwrite_acab
 
 !=======================================================================
+  !TODO - Move the next two subroutines to glissade_utils?
 
   subroutine glissade_add_2d_anomaly(&
        var2d,                    &
@@ -1705,7 +1706,7 @@
        anomaly_timescale,        &
        time)
 
-    ! Apply a 2D anomaly field, usually to the surface mass balance, surface temperature,
+    ! Apply a 2D anomaly field such as the surface mass balance, surface temperature,
     ! or similar climate forcing field.
 
     use glimmer_paramets, only: eps08
@@ -1784,7 +1785,7 @@
                                      anomaly_timescale,     &
                                      time)
 
-    ! Apply a 3D anomaly field, usually to the surface mass balance, surface temperature,
+    ! Apply a 3D anomaly field such as the surface mass balance, surface temperature,
     ! or similar climate forcing field. Not currently called.
 
     use glimmer_paramets, only : eps08

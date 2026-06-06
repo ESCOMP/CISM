@@ -1163,12 +1163,13 @@ contains
          'read friction parameter Cc from file        ', &
          'invert for basin-scale friction parameter Cc' /)
 
-    character(len=*), dimension(0:4), parameter :: ho_deltaT_ocn = (/ &
-         'deltaT_ocn = 0                          ', &
-         'invert for 2D deltaT_ocn based on thck  ', &
-         'read deltaT_ocn from external file      ', &
-         'invert for basin-scale deltaT_ocn       ', &
-         'invert for deltaT_ocn based on dthck_dt ' /)
+    character(len=*), dimension(0:5), parameter :: ho_deltaT_ocn = (/ &
+         'deltaT_ocn = 0                              ', &
+         'invert for 2D deltaT_ocn based on thck      ', &
+         'read deltaT_ocn from external file          ', &
+         'invert for basin-scale deltaT_ocn           ', &
+         'calibrate deltaT_basin to match melt target ', &
+         'set deltaT_ocn based on observed dthck_dt   ' /)
 
     character(len=*), dimension(0:2), parameter :: ho_flow_enhancement_factor = (/ &
          'uniform flow enhancement factors               ', &
@@ -1284,11 +1285,10 @@ contains
          'weigh bmlt_float by floating fraction of cell', &
          'set bmlt_float = 0 in partly grounded cells  ' /)
 
-    character(len=*), dimension(0:3), parameter :: ho_whichflotation_function = (/ &
+    character(len=*), dimension(0:2), parameter :: ho_whichflotation_function = (/ &
          'f_pattyn = (-rhoo*b)/(rhoi*H)     ', &
          '1/fpattyn = (rhoi*H)/(-rhoo*b)    ', &
-         'linear = -b - (rhoi/rhoo)*H       ', &
-         'modified linear, with topg_raised '/)
+         'linear = -b - (rhoi/rhoo)*H       ' /)
 
     character(len=*), dimension(0:1), parameter :: ho_whichice_age = (/ &
          'ice age computation off', &
@@ -4070,12 +4070,6 @@ contains
            ! restart needs to know bwat value
            call glide_add_to_restart_variable_list('bwat', model_id)
         end select
-
-        ! grounding-line option for Glissade
-        if (options%which_ho_flotation_function == HO_FLOTATION_FUNCTION_LINEAR_RAISED_TOPG) then
-           ! uses corrected bed topography, topg_raised, to compute the flotation function
-           call glide_add_to_restart_variable_list('topg_raised', model_id)
-        endif
 
         ! calving options for Glissade
 

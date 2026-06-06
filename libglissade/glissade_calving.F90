@@ -45,8 +45,7 @@ module glissade_calving
   public :: glissade_calving_mask_init, glissade_subgrid_calving_mask_init, &
        glissade_calving_solve, verbose_calving, verbose_retreat
 
-!!  logical, parameter :: verbose_calving = .false.
-  logical, parameter :: verbose_calving = .true.
+  logical, parameter :: verbose_calving = .false.
   logical, parameter :: verbose_retreat = .false.
 
 contains
@@ -850,8 +849,7 @@ contains
             model%options%which_ho_fground_no_glp,     &
             model%geometry%f_flotation,    &
             model%geometry%f_ground,       &
-            model%geometry%f_ground_cell,  &
-            model%geometry%topg_raised)
+            model%geometry%f_ground_cell)
 
        call remove_isthmuses(&
             nx,           ny,              &
@@ -903,8 +901,7 @@ contains
             model%options%which_ho_fground_no_glp,     &
             model%geometry%f_flotation,    &
             model%geometry%f_ground,       &
-            model%geometry%f_ground_cell,  &
-            model%geometry%topg_raised)
+            model%geometry%f_ground_cell)
 
        ! Remove icebergs.
        ! Icebergs are defined as floating cells that do not have a path through active cells
@@ -3781,8 +3778,7 @@ contains
                                        model%options%which_ho_fground_no_glp,     &
                                        model%geometry%f_flotation,    &
                                        model%geometry%f_ground,       &
-                                       model%geometry%f_ground_cell,  &
-                                       model%geometry%topg_raised)
+                                       model%geometry%f_ground_cell)
 
        ! Identify floating or weakly grounded cells with ice_fraction_retreat_mask exceeding a prescribed threshold.
        ! Note: f_ground_threshold is also used to identify weakly grounded cells in the algorithms
