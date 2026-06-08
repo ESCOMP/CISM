@@ -824,6 +824,7 @@ contains
     call GetValue(section,'basal_water',model%options%whichbwat)
     call GetValue(section,'bmlt_float',model%options%whichbmlt_float)
     call GetValue(section,'bmlt_float_thermal_forcing_param',model%options%bmlt_float_thermal_forcing_param)
+    call GetValue(section,'bmlt_float_init',model%options%bmlt_float_init)
     call GetValue(section,'ocean_data_domain',model%options%ocean_data_domain)
     call GetValue(section,'ocean_data_extrapolate',model%options%ocean_data_extrapolate)
     call GetValue(section,'enable_bmlt_anomaly',model%options%enable_bmlt_anomaly)
@@ -3134,6 +3135,9 @@ contains
     elseif (model%options%whichbmlt_float == BMLT_FLOAT_THERMAL_FORCING) then
        write(message,*) 'gamma0 (m/yr)                 :  ', model%ocean_data%gamma0
        call write_log(message)
+       if (model%options%bmlt_float_init) then
+          call write_log('bmlt_float will be computed at initialization')
+       endif
        if (model%ocean_data%thermal_forcing_anomaly /= 0.0d0) then
           write(message,*) 'thermal forcing anomaly (C) :', model%ocean_data%thermal_forcing_anomaly
           call write_log(message)

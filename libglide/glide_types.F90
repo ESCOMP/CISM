@@ -566,6 +566,9 @@ module glide_types
     !> \item[3] ISMIP6 nonlocal quadratic parameterization with slope dependence
     !> \end{description}
 
+    logical :: bmlt_float_init = .false.
+    !> if true, then compute bmlt_float at initialization (so it can be written to initial output files)
+
     integer :: ocean_data_domain = 1
 
     !> \begin{description}
@@ -1985,10 +1988,10 @@ module glide_types
      real(dp), dimension(:,:), pointer :: &
           thermal_forcing_lsrf => null()            !> 2D thermal forcing (deg K) applied at lower ice surface
 
-     !Note: ocean_data%bmb_obs has the same units as climate%smb_obs: kg/m2/yr = mm/yr w.e.
-     !      Defined to be positive for melting, since observational melt-rate datasets usually follow this convention
+     !Note: ocean_data%bmb_float has the same units as climate%smb: kg/m2/yr = mm/yr w.e.
+     !      Defined to be positive for melting, since the ISMIP input datasets follow this convention
      real(dp), dimension(:,:), pointer :: &
-          bmb_obs => null()                         !> 2D basal mass balance (kg/m2/yr) from observations
+          bmb_float => null()                       !> 2D basal mass balance (kg/m2/yr) for floating ice
 
      integer, dimension(:,:), pointer :: &
           basin_number => null()                    !> basin number for each grid cell
@@ -2881,7 +2884,7 @@ contains
     !> \item \texttt{thermal_forcing(nzocn,ewn,nsn)}
     !> \item \texttt{thermal_forcing_2d(ewn,nsn)}
     !> \item \texttt{thermal_forcing_lsrf(ewn,nsn)}
-    !> \item \texttt{bmb_obs(ewn,nsn)}
+    !> \item \texttt{bmb_float(ewn,nsn)}
     !> \end{itemize}
 
     !> In \texttt{model\%glacier}:
@@ -3301,7 +3304,7 @@ contains
           call coordsystem_allocate(model%general%ice_grid, model%ocean_data%nzocn, &
                                     model%ocean_data%thermal_forcing)
           call coordsystem_allocate(model%general%ice_grid, model%ocean_data%thermal_forcing_lsrf)
-          call coordsystem_allocate(model%general%ice_grid, model%ocean_data%bmb_obs)
+          call coordsystem_allocate(model%general%ice_grid, model%ocean_data%bmb_float)
           if (model%options%bmlt_float_thermal_forcing_param == BMLT_FLOAT_TF_ISMIP6_LOCAL .or. &
               model%options%bmlt_float_thermal_forcing_param == BMLT_FLOAT_TF_ISMIP6_NONLOCAL .or. &
               model%options%bmlt_float_thermal_forcing_param == BMLT_FLOAT_TF_ISMIP6_NONLOCAL_SLOPE) then
@@ -3829,8 +3832,8 @@ contains
         deallocate(model%ocean_data%thermal_forcing)
     if (associated(model%ocean_data%thermal_forcing_lsrf)) &
         deallocate(model%ocean_data%thermal_forcing_lsrf)
-    if (associated(model%ocean_data%bmb_obs)) &
-        deallocate(model%ocean_data%bmb_obs)
+    if (associated(model%ocean_data%bmb_float)) &
+        deallocate(model%ocean_data%bmb_float)
 
     ! glacier arrays
     if (associated(model%glacier%glacierid)) &

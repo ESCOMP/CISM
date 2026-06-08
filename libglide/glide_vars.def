@@ -428,12 +428,12 @@ units:         degrees K
 long_name:     thermal_forcing at lower ice surface
 data:          data%ocean_data%thermal_forcing_lsrf(:,:)
 
-#Note: bmb_obs has the same units as smb_obs: kg/m2/yr = mm/yr w.e.
-[bmb_obs]
+#Note: bmb_float has the same units as smb: kg/m2/yr = mm/yr w.e.
+[bmb_float]
 dimensions:    time, y1, x1
 units:         kg/m2/yr
-long_name:     observed basal mass balance, positive for melt
-data:          data%ocean_data%bmb_obs
+long_name:     basal mass balance for floating ice, positive for melt
+data:          data%ocean_data%bmb_float
 load:          1
 
 [flow_enhancement_factor]

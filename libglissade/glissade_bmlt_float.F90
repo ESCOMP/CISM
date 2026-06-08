@@ -481,6 +481,7 @@ module glissade_bmlt_float
          land_mask                      ! = 1 if topg is at or above sea level, else = 0
 
     real(dp), dimension(model%ocean_data%nbasin) :: &
+         thermal_forcing_basin,      &  ! basin average thermal forcing (K)
          dthck_dt_basin                 ! basin average of dthck_dt_obs (m/s)
 
     real(dp) :: tot_bmlt_float_target   ! target for total global bmlt_float (Gt/yr)
@@ -543,7 +544,9 @@ module glissade_bmlt_float
          model%geometry%f_ground,       &
          model%geometry%f_ground_cell)
 
-    if (model%options%is_restart == NO_RESTART) then
+    ! Note: Most of the following code is ignored on a standard restart but applied with a hybrid restart.
+
+    if (model%options%is_restart == NO_RESTART .or. model%options%is_restart == HYBRID_RESTART) then
 
        !----------------------------------------------------------------------
        ! Optionally, prepare the ocean thermal forcing for extrapolation to ice shelf cavities.
@@ -647,14 +650,14 @@ module glissade_bmlt_float
 
           endif
 
-          ! If bmb_obs was read in, then set a melt-rate target and write some diagnostics.
-          ! Note: Both bmb_obs and bmlt_float_target are defined as positive for melting
+          ! If bmb_float was read in, then set a melt-rate target and write some diagnostics.
+          ! Note: Both bmb_float and bmlt_float_target are defined as positive for melting
 
-          if (.not.parallel_is_zero(model%ocean_data%bmb_obs)) then
+          if (.not.parallel_is_zero(model%ocean_data%bmb_float)) then
              ! convert kg/m2/yr w.e. to m/s of ice melt
-             model%basal_melt%bmlt_float_target = model%ocean_data%bmb_obs / (rhoi*scyr)
+             model%basal_melt%bmlt_float_target = model%ocean_data%bmb_float / (rhoi*scyr)
              if (verbose_bmlt_float) then
-                call point_diag(model%ocean_data%bmb_obs, 'bmb_obs (kg/m2/yr)', itest, jtest, rtest, 7, 7)
+                call point_diag(model%ocean_data%bmb_float, 'bmb_float (kg/m2/yr)', itest, jtest, rtest, 7, 7)
                 call point_diag(model%basal_melt%bmlt_float_target*scyr, 'bmlt_float_target (m/yr ice)', itest, jtest, rtest, 7, 7)
                 tot_bmlt_float_target = parallel_global_sum(model%basal_melt%bmlt_float_target, parallel)
                 bmlt_float_target_basin = parallel_global_sum_patch(model%basal_melt%bmlt_float_target, &
@@ -694,7 +697,58 @@ module glissade_bmlt_float
                 call point_diag(model%basal_melt%bmlt_float*scyr, 'bmlt_float after calibration', itest, jtest, rtest, 7, 7)
              endif
 
-          endif   ! HO_DELTAT_OCN_CALIBRATE_BASIN
+          endif   ! calibrate basins
+
+          if (model%options%bmlt_float_init) then
+             ! Compute bmlt_float now; then it can be written to output files at t = 0
+             call glissade_bmlt_float_solve(model, calibrate_in = .false.)
+
+             if (verbose_bmlt_float) then
+                call point_diag(model%ocean_data%deltaT_ocn, 'deltaT_ocn at initialization', itest, jtest, rtest, 7, 7)
+                call point_diag(model%basal_melt%bmlt_float*scyr, 'bmlt_float at initialization', itest, jtest, rtest, 7, 7)
+
+                ! Compute the average deltaT_ocn in each basin
+                call glissade_basin_average(&
+                     ewn,             nsn,                        &
+                     parallel,                                    &
+                     model%ocean_data%nbasin,                     &
+                     model%ocean_data%basin_number,               &
+                     model%basal_melt%thermal_forcing_mask*1.0d0, &
+                     model%ocean_data%deltaT_ocn,                 &
+                     model%ocean_data%deltaT_ocn_basin)
+
+                ! Compute the average thermal forcing in each basin (including deltaT_ocn)
+                call glissade_basin_average(&
+                     ewn,             nsn,                        &
+                     parallel,                                    &
+                     model%ocean_data%nbasin,                     &
+                     model%ocean_data%basin_number,               &
+                     model%basal_melt%thermal_forcing_mask*1.0d0, &
+                     model%ocean_data%thermal_forcing_lsrf + model%ocean_data%deltaT_ocn, &
+                     thermal_forcing_basin)
+
+                ! Compute the average basal melt rate in each basin
+                call glissade_basin_average(&
+                     ewn,             nsn,                        &
+                     parallel,                                    &
+                     model%ocean_data%nbasin,                     &
+                     model%ocean_data%basin_number,               &
+                     model%basal_melt%thermal_forcing_mask*1.0d0, &
+                     model%basal_melt%bmlt_float,                 &
+                     model%scalars%bmlt_float_basin)
+
+                if (this_rank == rtest) then
+                   write(iulog,*) ' '
+                   write(iulog,*) 'basin #, deltaT_ocn, thermal_forcing, bmlt_float (m/yr):'
+                   do nb = 1, model%ocean_data%nbasin
+                      write(iulog,'(i6,3f14.6)') nb, model%ocean_data%deltaT_ocn_basin(nb), &
+                           thermal_forcing_basin(nb), model%scalars%bmlt_float_basin(nb)*scyr
+                   enddo
+                endif
+
+             endif   ! verbose
+
+          endif   ! compute initial bmlt_float
 
        endif   ! ISMIP6 melt scheme
 
@@ -743,7 +797,7 @@ module glissade_bmlt_float
 
        endif   ! enable_acab_dthck_dt_correction
 
-    endif  ! no restart
+    endif  ! no restart or hybrid restart
 
     if (model%options%which_ho_deltat_ocn == HO_DELTAT_OCN_DTHCK_DT) then
 
@@ -904,7 +958,7 @@ module glissade_bmlt_float
 
        if (this_rank == rtest .and. verbose_bmlt_float) then
           write(iulog,*) ' '
-          write(iulog,*) 'Compute bmlt_float at runtime from current thermal forcing'
+          write(iulog,*) 'Compute bmlt_float from current thermal forcing'
        endif
 
        !Note: Currently, there is no difference between ocean_data_domain = 0

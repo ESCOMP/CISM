@@ -438,7 +438,7 @@ contains
 
     if (associated(model%ocean_data%thermal_forcing)) then
        call check_fill_values(model%ocean_data%thermal_forcing)
-       call check_fill_values(model%ocean_data%bmb_obs)
+       call check_fill_values(model%ocean_data%bmb_float)
     endif
 
     ! Note: The following variables have a scale value of scyr (m/yr in the netcdf file, m/s in the code).
