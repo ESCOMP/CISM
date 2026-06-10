@@ -136,7 +136,7 @@ contains
     character(len=100) :: message
 
     real(dp) :: local_maxval, global_maxval   ! max values of a given variable; = 0 if not yet read in
-    integer :: i, j, k, nb
+    integer :: i, j, k, nb, ig, jg
     logical :: l_evolve_ice  ! local version of evolve_ice
 
     integer, dimension(:,:), allocatable :: &
@@ -668,6 +668,19 @@ contains
          model%climate%eus,     &
          model%geometry%lsrf,   &
          model%geometry%usrf)
+
+    !WHL - debug - Check for negative ice thickness
+    !TODO - call glissade_cleanup_tiny_thickness instead. This will abort for large negative thickness.
+    do j = nhalo+1, model%general%nsn-nhalo
+       do i = nhalo+1, model%general%ewn-nhalo
+          if (model%geometry%thck(i,j) < 0.0d0) then
+             model%geometry%thck(i,j) = 0.0d0
+!             call parallel_globalindex(i, j, ig, jg, parallel)
+!             write(message,*) 'Negative ice thickness: i, j, thck:', ig, jg, model%geometry%thck(i,j)
+!             call write_log(trim(message), GM_FATAL)
+          endif
+       enddo
+    enddo
 
     ! halo update for kinbcmask (= 1 where uvel and vvel are prescribed, elsewhere = 0)
     ! Note: Instead of assuming that kinbcmask is periodic, we extrapolate it into the global halo
@@ -1367,7 +1380,9 @@ contains
 
     ! ------------------------------------------------------------------------
     ! Remove stray bits of ice with tiny thicknesses.
-    ! Second argument is the thickness threshold (m).
+    ! This includes tiny negative thicknesses which can arise due to roundoff errors.
+    ! The second argument is the thickness threshold (m).
+    ! The model will abort if the magnitude of any negative thicknesses exceeds the threshold.
     ! ------------------------------------------------------------------------
 
     call glissade_cleanup_tiny_thickness(model, eps11)

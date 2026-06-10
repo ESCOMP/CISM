@@ -34,7 +34,7 @@ module glissade_utils
   use glimmer_paramets, only: iulog, eps11, eps08
   use glimmer_log
   use glide_types
-  use cism_parallel, only: this_rank, main_task
+  use cism_parallel, only: this_rank, main_task, nhalo
 
   implicit none
 
@@ -770,8 +770,6 @@ contains
         uvel,      vvel,      &
         flux_e,    flux_n)
 
-    use cism_parallel, only: nhalo
-
     ! Compute ice volume fluxes across each cell edge
 
     ! input/output arguments
@@ -837,7 +835,7 @@ contains
         parallel)
 
     use glimmer_physcon, only: scyr
-    use cism_parallel, only: nhalo, parallel_halo, staggered_parallel_halo
+    use cism_parallel, only: parallel_halo, staggered_parallel_halo
 
     ! Compute ice volume fluxes into a cell from each neighboring cell
 
@@ -1140,7 +1138,7 @@ contains
     ! If model%options%remove_ice_caps = T, then this subroutine removes them.
 
     use glissade_masks, only: glissade_get_masks, glissade_ice_sheet_mask
-    use cism_parallel, only: nhalo, parallel_halo, parallel_global_sum, parallel_globalindex, parallel_reduce_max
+    use cism_parallel, only: parallel_halo, parallel_global_sum, parallel_globalindex, parallel_reduce_max
 
     !----------------------------------------------------------------
     ! Input-output arguments
@@ -1234,34 +1232,61 @@ contains
 
   subroutine glissade_cleanup_tiny_thickness(model, tiny_thck)
 
-    ! Remove ice from cells with very small thicknesses.
-    ! Add to the calving flux for now, but later put in the cleanup category
+    ! Remove ice from cells with very small thickness, including small negative thickness.
+    ! This ice goes into the removal_thck flux.
 
-    use cism_parallel, only: parallel_halo
+    use cism_parallel, only: parallel_halo, parallel_globalindex
 
     type(glide_global_type), intent(inout) :: model   ! model instance
     real(dp), intent(in) :: tiny_thck    ! zero out where thck < tiny_thck
 
     integer :: nx, ny
-    integer :: i, j
+    integer :: i, j, ig, jg
 
     type(parallel_type) :: parallel   ! info for parallel communication
+
+    character(len=100) :: message
+
+    logical, parameter :: verbose_cleanup = .false.
 
     nx = model%general%ewn
     ny = model%general%nsn
 
     parallel = model%parallel
 
-    ! Make sure the ice thickness is updated in halo cells
+    ! Remove very thin ice and add to the removal flux.
+    ! This includes tiny negative thicknesses, which can arise due to calving roundoff errors.
+    !  As a result, the removal flux can be slightly negative.
+
+    if (verbose_cleanup) then  ! write out negative thicknesses before cleanup
+       do j = nhalo+1, ny-nhalo
+          do i = nhalo+1, nx-nhalo
+             if (model%geometry%thck(i,j) < 0.0d0) then
+                call parallel_globalindex(i, j, ig, jg, parallel)
+                write(iulog,*) 'Negative thickness: i, j, thck =', ig, jg, model%geometry%thck(i,j)
+             endif
+          enddo
+       enddo
+    endif
+
+    do j = nhalo+1, ny-nhalo
+       do i = nhalo+1, nx-nhalo
+          ! Discard tiny thicknesses, positive or negative
+          if (model%geometry%thck(i,j) /= 0.0d0 .and. abs(model%geometry%thck(i,j)) < tiny_thck) then
+             model%geometry%removal_thck(i,j) = model%geometry%removal_thck(i,j) + model%geometry%thck(i,j)
+             model%geometry%thck(i,j) = 0.0d0
+          endif
+          ! Abort if there are any remaining negative thicknesses
+          if (model%geometry%thck(i,j) <= (-1.0d0)*tiny_thck) then
+             call parallel_globalindex(i, j, ig, jg, parallel)
+             write(message,*) 'Negative thickness: i, j, thck =', ig, jg, model%geometry%thck(i,j)
+             call write_log(message, GM_FATAL)
+          endif
+       enddo
+    enddo
+
+    ! Update the ice thickness in halo cells
     call parallel_halo(model%geometry%thck, parallel)
-
-    ! Remove very thin ice and add to the removal flux
-    ! Note: This flux also includes ice caps which are removed
-
-    where (model%geometry%thck > 0.0d0 .and. model%geometry%thck < tiny_thck)
-       model%geometry%removal_thck = model%geometry%removal_thck + model%geometry%thck
-       model%geometry%thck = 0.0d0
-    endwhere
 
   end subroutine glissade_cleanup_tiny_thickness
 

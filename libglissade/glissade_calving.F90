@@ -45,7 +45,8 @@ module glissade_calving
   public :: glissade_calving_mask_init, glissade_subgrid_calving_mask_init, &
        glissade_calving_solve, verbose_calving, verbose_retreat
 
-  logical, parameter :: verbose_calving = .false.
+!!  logical, parameter :: verbose_calving = .false.
+  logical, parameter :: verbose_calving = .true.
   logical, parameter :: verbose_retreat = .false.
 
 contains
@@ -1233,6 +1234,7 @@ contains
     !TODO: Move these options to the calving derived type?
     integer, intent(in) :: which_calving           !> option for calving law
     integer, intent(in) :: which_ho_calving_front  !> option for subgrid CF scheme
+                                                   !> 1 = floating ice only; 2 = both floating and marine-grounded ice
 
     integer, intent(in) :: which_lateral_melt      !> option for lateral melt
 
@@ -1310,7 +1312,8 @@ contains
 
     integer, dimension(nx,ny) :: &
          partial_cf_mask,      & ! = 1 for partially filled CF cells (thck < thck_effective), else = 0
-         full_mask               ! = 1 for ice-filled cells that are not partial_cf cells, else = 0
+         full_mask,            & ! = 1 for ice-filled cells that are not partial_cf cells, else = 0
+         upstream_calving_mask   ! = 1 for upstream interior cells that are allowed to calve, else = 0
 
     real(dp), dimension(nx,ny) :: &
          calving_dthck,        & ! thickness reduction (m) to be added to calving
@@ -1411,7 +1414,7 @@ contains
     ! Gather ice that has flowed beyond the CF and move it back upstream
 
     if (verbose_calving) then
-       call point_diag(thck, 'Before redistribution, thck (m)', itest, jtest, rtest, 7, 7)
+       call point_diag(thck, 'Before handle_ice_beyond_cf, thck (m)', itest, jtest, rtest, 7, 7)
     endif
 
     call handle_ice_beyond_cf(&
@@ -1426,6 +1429,7 @@ contains
 
     ! Cleanup: There can be tiny amounts of ice (<< eps11) in cells beyond the CF due to rounding errors.
     !          Remove and add to the calving flux.
+
     where (calving%beyond_cf_mask == 1 .and. thck > 0.0d0)
        calving%calving_thck = calving%calving_thck + thck
        thck = 0.0d0
@@ -1462,7 +1466,7 @@ contains
          calving%effective_areafrac)
 
     if (verbose_calving) then
-       call point_diag(thck, 'After redistribution, thck (m)', itest, jtest, rtest, 7, 7)
+       call point_diag(thck, 'After handle_ice_beyond_cf, thck (m)', itest, jtest, rtest, 7, 7)
        call point_diag(calving%thck_effective, 'thck_effective', itest, jtest, rtest, 7, 7)
     endif
 
@@ -1725,11 +1729,26 @@ contains
 
     else
 
+       ! Compute a mask of upstream cells that can calve after a downstream CF cell calves entirely.
+
+       upstream_calving_mask = 0
+
+       if (which_ho_calving_front == HO_CALVING_FRONT_SUBGRID_FLOAT) then
+          where (floating_mask == 1)
+             upstream_calving_mask = 1
+          endwhere
+       elseif (which_ho_calving_front == HO_CALVING_FRONT_SUBGRID_FLOAT_GROUND) then
+          where (ice_mask == 1 .and. land_mask == 0)
+             upstream_calving_mask = 1
+          endwhere
+       endif
+
        call apply_calving_dthck(&
             nx,           ny,           &
             itest, jtest, rtest,        &
             parallel,                   &
             calving%calving_front_mask, &
+            upstream_calving_mask,      &
             flux_in,                    &
             calving_dthck,              &
             thck,                       &
@@ -1738,7 +1757,8 @@ contains
     endif
 
     !TODO - Add a bug check for negative thicknesses?
-    thck = max(thck, 0.0d0)
+    ! May not be needed, since the code will abort after the calving solve
+    !  if there are any substantial negative thicknesses.
 
     call parallel_halo(thck, parallel)
     call parallel_halo(calving%calving_thck, parallel)
@@ -1858,6 +1878,20 @@ contains
 
        endif  ! which_lateral_melt
 
+       ! Compute a mask of upstream cells that can melt after a downstream CF cell melts entirely.
+
+       upstream_calving_mask = 0
+
+       if (which_ho_calving_front == HO_CALVING_FRONT_SUBGRID_FLOAT) then
+          where (floating_mask == 1)
+             upstream_calving_mask = 1
+          endwhere
+       elseif (which_ho_calving_front == HO_CALVING_FRONT_SUBGRID_FLOAT_GROUND) then
+          where (ice_mask == 1 .and. land_mask == 0)
+             upstream_calving_mask = 1
+          endwhere
+       endif
+
        ! Apply lateral melting
        ! Note: This is the same logic as for calving but with different input and output arguments
 
@@ -1866,6 +1900,7 @@ contains
             itest, jtest, rtest,        &
             parallel,                   &
             calving%calving_front_mask, &
+            upstream_calving_mask,      &
             flux_in,                    &
             latmelt_dthck,              &
             thck,                       &
@@ -3432,6 +3467,7 @@ contains
        itest, jtest, rtest,    &
        parallel,               &
        calving_front_mask,     &
+       upstream_calving_mask,  &
        flux_in,                &
        calving_dthck,          &
        thck,                   &
@@ -3439,7 +3475,7 @@ contains
 
     ! Apply calving_dthck as computed from a given calving law.
     ! This is the thinning rate that will give the desired lateral calving rate.
-    ! Optionally, also apply latmelt_dthck, to get added thinning due to lateral melt.
+    ! Can pass in latmelt_dthck in place of calving_dthck to compute thinning due to lateral melt.
 
     ! input/output arguments
 
@@ -3451,7 +3487,9 @@ contains
          parallel                  ! info for parallel communication
 
     integer, dimension(nx,ny), intent(in)  ::  &
-         calving_front_mask        ! = 1 where ice is floating and borders at least one ocean cell, else = 0
+         calving_front_mask,     & ! = 1 where ice is floating and borders at least one ocean cell, else = 0
+                                   ! can include marine-grounded cells for the which_ho_calving_front option 2
+         upstream_calving_mask     ! = 1 for upstream interior cells that are allowed to calve, else = 0
 
     real(dp), dimension(-1:1,-1:1,nx,ny), intent(in) :: &
          flux_in                   ! ice volume fluxes (m^3/s) into cell from each neighbor cell
@@ -3503,11 +3541,13 @@ contains
 
              ! Given flux_in (ice flux in m^3/s entering the cell from each upstream neighbor),
              ! compute the fraction of the thinning to be applied to each upstream neighbor.
+             ! This is limited to calving-eligible neighbors (upstream_calving_mask = 1).
              count = 0
              total_flux = 0.0d0
              do jj = -1, 1
                 do ii = -1, 1
-                   if (flux_in(ii,jj,i,j) > 0.0d0) then
+                   iup = i + ii; jup = j + jj
+                   if (flux_in(ii,jj,i,j) > 0.0d0 .and. upstream_calving_mask(iup,jup) == 1) then
                       count = count + 1
                       total_flux = total_flux + flux_in(ii,jj,i,j)
                    endif
@@ -3521,14 +3561,18 @@ contains
              endif
 
              ! Calve ice in the upstream neighbors
-             !TODO - Make sure this doesn't empty the upstream neighbors.
+             ! Note: For simplicity, this is limited to upstream cells adjacent to CF cells;
+             !        neighbors farther upstream do not calve.
+             !       This means that in rare cases, we can finish with calving_dthck > 0.
+
              if (total_flux > 0.0d0) then
                 total_dthck = calving_dthck(i,j)
                 do jj = -1, 1
                    do ii = -1, 1
                       iup = i + ii; jup = j + jj
-                      if (flux_in(ii,jj,i,j) > 0.0d0) then
+                      if (flux_in(ii,jj,i,j) > 0.0d0 .and. upstream_calving_mask(iup,jup) == 1) then
                          my_dthck = total_dthck * flux_in(ii,jj,i,j)/total_flux
+                         my_dthck = min(my_dthck, thck(iup,jup))  ! do not calve more than the total thickness
                          thck(iup,jup) = thck(iup,jup) - my_dthck
                          calving_thck(iup,jup) = calving_thck(iup,jup) + my_dthck
                          calving_dthck(i,j) = calving_dthck(i,j) - my_dthck
