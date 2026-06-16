@@ -63,9 +63,52 @@ contains
 	! Set parameters, allocate arrays, precomputes sinusoid amplitude/phase.
 	! Call once during model init, after geometry halo updates.
 	!--------------------------------------------------------------------
-		
+
+		! input/output arguments
+		type(glide_global_type), intent(inout) :: model   ! model instance
+
+		character(len=100) :: message
+
+		if (model%pdd%pdd_tseries_option == PDD_TSERIES_SINUSOID) then
+			call init_sinusoid_params(model)
+		endif
+
 	end subroutine glissade_pdd_init
 
+!=======================================================================
+	subroutine init_sinusoid_params(model)
+	!-------------------------------------------------------------------
+	! Precompute the amplitude and phase offset of the sinusoidal temperature series.
+	!-------------------------------------------------------------------
+
+		! input/output arguments
+		type(glide_global_type), intent(inout) :: model   ! model instance
+
+		select case (model%pdd%pdd_domain)
+		case (PDD_DOMAIN_GENERAL)
+			call init_sinusoid_params_general(model)
+		case (PDD_DOMAIN_ANTARCTICA)
+			call init_sinusoid_params_antarctica(model)
+		case (PDD_DOMAIN_GREENLAND)
+			call init_sinusoid_params_greenland(model)
+		case default
+			call write_log('init_sinusoid_params: unrecognized pdd_domain option', GM_FATAL)
+		end select
+
+	end subroutine init_sinusoid_params
+
+	subroutine init_sinusoid_params_general(model)
+	!-------------------------------------------------------------------
+	! For the general domain, we set the amplitude to be either sigma based or
+	! a user-specified value, and we calculated the per-point phase offset based
+	! on the latitude of a point.
+	! This should handle domains straddling the equator correctly.
+	!-------------------------------------------------------------------
+		
+
+	end subroutine init_sinusoid_params_general
+
+!=======================================================================
     !-----------------------------------------------------------------------
 	pure function calov_greve_integrand(sigma, TacC) result(val)
 	!-----------------------------------------------------------------------
