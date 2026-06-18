@@ -1,5 +1,5 @@
 $$$$$$$$$$$$$$$$$$$
-This instance of doc-builder was copied from https://github.com/samsrabin/doc-builder/tree/54fdbed830f0d47a816ea1ff122c3d77885a0187
+This instance of doc-builder was copied from https://github.com/ESMCI/doc-builder/tree/v3.4
 $$$$$$$$$$$$$$$$$$$
 
 This tool wraps the build command to build sphinx-based documentation.
