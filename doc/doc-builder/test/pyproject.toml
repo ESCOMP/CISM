@@ -1,0 +1,2 @@
+[tool.black]
+line-length = 100  # Coordinate with max-line-length in .pylint.rc

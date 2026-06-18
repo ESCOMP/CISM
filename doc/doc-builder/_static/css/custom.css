@@ -1,0 +1,32 @@
+/* Make equation numbers float to the right */
+.eqno {
+    margin-left: 5px;
+    float: right;
+}
+/* Hide the link... */
+.math .headerlink {
+    display: none;
+    visibility: hidden;
+}
+/* ...unless the equation is hovered */
+.math:hover .headerlink {
+    display: inline-block;
+    visibility: visible;
+    /* Place link in margin and keep equation number aligned with boundary */
+    margin-right: -0.7em;
+}
+.table-caption-external {
+    text-align: left;
+    font-style: italic;
+    margin-bottom: 0.5em;
+    /* ordinary block — caps at content width, never enters the scroll region */
+}
+.table-caption-external .headerlink {
+    visibility: hidden;
+    margin-left: 0.3em;
+    text-decoration: none;
+    font-family: FontAwesome;
+}
+.table-caption-external:hover .headerlink {
+    visibility: visible;
+}

@@ -1,0 +1,11 @@
+name: doc-builder-testing
+channels:
+  - conda-forge
+  - defaults
+dependencies:
+  - python=3.7.12
+  - pip=24.0
+
+  # For building docs
+  - pip:
+    - -r python_test_pip.txt
