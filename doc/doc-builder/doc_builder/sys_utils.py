@@ -104,9 +104,13 @@ def get_toplevel_git_dir(file_or_dir):
 
 
 def get_toplevel_of_doc_builder_parent():
-    """Get the top level of the repo of which doc-builder is a submodule"""
+    """Get the top level of the repo of which doc-builder is a part"""
     topdir_doc_builder = get_toplevel_git_dir(__file__)
     topdir_parent = get_toplevel_git_dir(os.path.join(topdir_doc_builder, os.pardir))
+
+    # Necessary if doc-builder isn't a submodule
+    if topdir_parent is None:
+        topdir_parent = topdir_doc_builder
     return topdir_parent
 
 
