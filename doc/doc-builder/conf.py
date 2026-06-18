@@ -22,7 +22,7 @@ import sphinx_rtd_theme
 dir2add = os.path.join(os.path.dirname(__file__), os.pardir)
 sys.path.insert(0, dir2add)
 import substitutions as subs  # pylint: disable=import-error
-# from version_list import VERSION_LIST   # pylint: disable=import-error
+from version_list import VERSION_LIST   # pylint: disable=import-error
 
 
 # -- General configuration ------------------------------------------------
@@ -232,13 +232,13 @@ html_context["display_lower_left"] = True
 # is Python-falsey, do not show it.
 version_dropdown = os.environ.get("version_dropdown")
 
-# if version_dropdown:
-#     html_context["current_version"] = os.environ["version_display_name"]
+if version_dropdown:
+    html_context["current_version"] = os.environ["version_display_name"]
 
-#     html_context["versions"] = []
-#     pages_root = os.environ["pages_root"]
-#     for this_version in VERSION_LIST:
-#         html_context["versions"].append([
-#             this_version.display_name,
-#             os.path.join(pages_root, this_version.subdir()),
-#         ])
+    html_context["versions"] = []
+    pages_root = os.environ["pages_root"]
+    for this_version in VERSION_LIST:
+        html_context["versions"].append([
+            this_version.display_name,
+            os.path.join(pages_root, this_version.subdir()),
+        ])
