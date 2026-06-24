@@ -11,6 +11,7 @@
 CMakeCache.txt
 CMakeFiles
 Makefile
+!doc/Makefile
 autocopy.log
 Makefile.am
 build
