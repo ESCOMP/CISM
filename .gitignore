@@ -11,6 +11,7 @@
 CMakeCache.txt
 CMakeFiles
 Makefile
+!doc/Makefile
 autocopy.log
 Makefile.am
 build
@@ -68,3 +69,4 @@ cube_to_target/smooth_topo_cube_sph.mod
 
 # Ignore docs files
 _build/
+_publish/

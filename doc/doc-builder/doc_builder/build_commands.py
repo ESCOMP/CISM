@@ -7,7 +7,7 @@ import pathlib
 import shutil
 from doc_builder import sys_utils  # pylint: disable=import-error
 
-DEFAULT_IMAGE = "ghcr.io/esmci/doc-builder/doc-build-container:v2.0.1"
+DEFAULT_IMAGE = "ghcr.io/esmci/doc-builder/doc-build-container:v2.0.1a"
 
 # The path in the container's filesystem where doc-builder's parent repo checkout is mounted
 _CONTAINER_HOME = "/home/user/mounted_home"
