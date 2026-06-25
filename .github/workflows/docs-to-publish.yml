@@ -1,18 +1,18 @@
-name: Test building docs when they're updated
+name: Test building docs "to publish"
 
 on:
   push:
     # Run when a change to these files is pushed to any branch. Without the "branches:" line, for some reason this will be run whenever a tag is pushed, even if the listed files aren't changed.
     branches: ['*']
     paths:
-      - 'doc/**'
-    # And also make sure to add any files that you "include" in your docs that live outside doc/
+      - 'doc/doc-builder/**'
+      - 'doc/build_docs_to_publish'
 
   pull_request:
     # Run on pull requests that change the listed files
     paths:
-      - 'doc/**'
-    # And also make sure to add any files that you "include" in your docs that live outside doc/
+      - 'doc/doc-builder/**'
+      - 'doc/build_docs_to_publish'
 
   workflow_dispatch:
 
@@ -20,7 +20,7 @@ permissions:
   contents: read
 jobs:
 
-  test-build-docs-container:
+  test-build-docs-to-publish-container:
     if: ${{ always() }}
     name: With container from registry
     runs-on: ubuntu-latest
@@ -37,7 +37,8 @@ jobs:
           set -o pipefail
           mkdir -p build-logs
           [[ -e doc ]] && cd doc
-          PYTHONUNBUFFERED=1 ./build_docs -b ${PWD}/_build -c -d 2>&1 | tee >(sed -E $'s/\x1b\\[[0-9;]*[a-zA-Z]//g' > "${GITHUB_WORKSPACE}/build-logs/build.log")
+          git fetch
+          PYTHONUNBUFFERED=1 ./build_docs_to_publish -r ${PWD}/_build -d --verbose --site-root "$PWD/_publish" 2>&1 | tee >(sed -E $'s/\x1b\\[[0-9;]*[a-zA-Z]//g' > "${GITHUB_WORKSPACE}/build-logs/build.log")
         # The tee writes build.log for the PR comment (posted by docs-pr-failure-post-comment.yml); the inner sed strips ANSI color codes that would otherwise render as garbage in the comment.
         # PYTHONUNBUFFERED=1 because otherwise the teed log will be out of order
 
@@ -54,5 +55,5 @@ jobs:
         if: failure() && steps.build-docs.outcome == 'failure'
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a  # v7.0.1
         with:
-          name: test-build-docs-container_failed
+          name: test-build-docs-to-publish-container_failed
           path: build-logs/
