@@ -760,7 +760,7 @@ contains
           endif
 
           if (tot_bmlt_float_target > eps11) then
-             write(message,'(a25,e24.16)') 'Target bmelt_float (kg/s)', tot_bmlt_float_target
+             write(message,'(a25,e24.16)') 'Target bmlt_float (kg/s)', tot_bmlt_float_target
              call write_log(trim(message), type = GM_DIAGNOSTIC)
           endif
 

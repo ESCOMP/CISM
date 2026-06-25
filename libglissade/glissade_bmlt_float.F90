@@ -52,6 +52,7 @@ module glissade_bmlt_float
   public :: verbose_bmlt_float, glissade_basal_melting_float, &
        glissade_bmlt_float_init, glissade_bmlt_float_solve
 
+!!    logical :: verbose_bmlt_float = .false.
     logical :: verbose_bmlt_float = .true.
 
     logical :: verbose_velo = .false.
@@ -700,12 +701,16 @@ module glissade_bmlt_float
           endif   ! calibrate basins
 
           if (model%options%bmlt_float_init) then
+
              ! Compute bmlt_float now; then it can be written to output files at t = 0
              call glissade_bmlt_float_solve(model, calibrate_in = .false.)
 
              if (verbose_bmlt_float) then
                 call point_diag(model%ocean_data%deltaT_ocn, 'deltaT_ocn at initialization', itest, jtest, rtest, 7, 7)
                 call point_diag(model%basal_melt%bmlt_float*scyr, 'bmlt_float at initialization', itest, jtest, rtest, 7, 7)
+             endif
+
+             if (verbose_bmlt_float) then
 
                 ! Compute the average deltaT_ocn in each basin
                 call glissade_basin_average(&
@@ -739,7 +744,7 @@ module glissade_bmlt_float
 
                 if (this_rank == rtest) then
                    write(iulog,*) ' '
-                   write(iulog,*) 'basin #, deltaT_ocn, thermal_forcing, bmlt_float (m/yr):'
+                   write(iulog,*) 'basin #, deltaT_ocn, TF (w/dT_ocn), bmlt_float (m/yr):'
                    do nb = 1, model%ocean_data%nbasin
                       write(iulog,'(i6,3f14.6)') nb, model%ocean_data%deltaT_ocn_basin(nb), &
                            thermal_forcing_basin(nb), model%scalars%bmlt_float_basin(nb)*scyr
@@ -853,6 +858,7 @@ module glissade_bmlt_float
     use glimmer_physcon, only: scyr
     use glissade_mass_balance, only: glissade_add_2d_anomaly
     use glissade_masks, only: glissade_get_masks
+    use glissade_utils, only: glissade_basin_average
     use cism_parallel, only:  parallel_reduce_max, parallel_is_zero, &
          parallel_global_sum, parallel_global_sum_patch
 
@@ -880,17 +886,24 @@ module glissade_bmlt_float
     real(dp), dimension(model%general%ewn, model%general%nsn) ::   &
          bmlt_float_transient     ! basal melt rate for ISMIP6 thermal forcing (m/s)
 
+    real(dp), dimension(model%ocean_data%nbasin) :: &
+         tf_basin_sum,          & ! sum of thermal_forcing over all layers in each basin
+         thermal_forcing_basin, & ! basin average thermal forcing (K)
+         total_bmlt_float_basin   ! sum of bmlt_float in each basin (Gt/yr)
+
     real(dp) :: time_from_start   ! time (yr) since the start of applying the anomaly
     real(dp) :: anomaly_fraction  ! fraction of full anomaly to apply
     real(dp) :: tf_anomaly        ! uniform thermal forcing anomaly (deg C), applied everywhere
     integer  :: tf_anomaly_basin  ! basin number where anomaly is applied;
                                   ! for default value of 0, apply to all basins
+    real(dp) :: total_bmlt_float  ! global sum of bmlt_float (Gt/yr)
 
     real(dp) :: local_maxval, global_maxval   ! max values of a given variable
-    integer :: i, j, nb
+    integer :: i, j, k, nb
     integer :: ewn, nsn
     real(dp) :: dew, dns
     integer :: itest, jtest, rtest
+    real(dp) :: factor
 
     type(parallel_type) :: parallel   ! info for parallel communication
 
@@ -977,6 +990,29 @@ module glissade_bmlt_float
        if (parallel_is_zero(model%ocean_data%thermal_forcing)) then
           call write_log('thermal forcing = 0 everywhere, GM_WARNING')
        endif
+
+       ! Repeat for individual basins. If a basin has TF = 0 everywhere, then assume it has no valid values.
+       ! Set deltaT_ocn = 0 in the basin so that we will compute bmlt_float = 0 everywhere in the basin.
+
+       ! Sum the thermal forcing in each basin
+       tf_basin_sum = 0.0d0   ! TF sum per basin
+       do k = 1, model%ocean_data%nzocn
+          tf_basin_sum = tf_basin_sum +  parallel_global_sum_patch(model%ocean_data%thermal_forcing(k,:,:), &
+               model%ocean_data%nbasin, model%ocean_data%basin_number, parallel)
+       enddo
+
+       do nb = 1, model%ocean_data%nbasin
+!          if (verbose_bmlt_float .and. main_task) then
+!             write(iulog,*) 'nb, TF basin sum =', nb, tf_basin_sum(nb)
+!          endif
+!!          if (abs(tf_basin_sum(nb)) < eps11) then
+          if (abs(tf_basin_sum(nb)) < 30000.d0) then   ! temporary value to exclude basins 9, 11 and 15
+             where (model%ocean_data%basin_number == nb)
+                model%ocean_data%deltaT_ocn = 0.0d0
+             endwhere
+             model%ocean_data%deltaT_ocn_basin(nb) = 0.0d0
+          endif
+       enddo
 
        !-----------------------------------------------
        ! Optionally, apply a uniform thermal forcing anomaly everywhere.
@@ -1152,6 +1188,11 @@ module glissade_bmlt_float
 
     endif
 
+    if (verbose_bmlt_float) then
+       call point_diag(model%basal_melt%bmlt_float*scyr, 'bmlt_float after f_ground adjustment (m/yr)', &
+            itest, jtest, rtest, 7, 7)
+    endif
+
     ! Reduce basal melting in shallow cavities if bmlt_cavity_h0 > 0.
     ! The tanh function follows Asay-Davis et al. (2016), Eqs. 14 and 17.
     ! Note: model%basal_melt%bmlt_cavity_h0 has units of m.
@@ -1170,8 +1211,6 @@ module glissade_bmlt_float
              write(iulog,*) 'Reduce bmlt_float in shallow cavities, bmlt_cavity_h0 (m) =', &
                   model%basal_melt%bmlt_cavity_h0
           endif
-          call point_diag(model%basal_melt%bmlt_float*scyr, 'bmlt_float before adjustment (m/yr)', &
-               itest, jtest, rtest, 7, 7)
           call point_diag(h_cavity, 'h_cavity (m)', itest, jtest, rtest, 7, 7)
        endif
 
@@ -1187,6 +1226,8 @@ module glissade_bmlt_float
 
     endif   ! bmlt_cavity_h0 > 0
 
+    ! local diagnostics
+
     if (verbose_bmlt_float) then
        if (this_rank == rtest) then
           write(iulog,*) ' '
@@ -1200,6 +1241,67 @@ module glissade_bmlt_float
        call point_diag(model%basal_melt%bmlt_float*scyr, 'Final bmlt_float (m/yr)', &
             itest, jtest, rtest, 7, 7)
     endif  ! verbose_bmlt_float
+
+    ! basin-scale diagnostics
+
+    if (verbose_bmlt_float .and. model%ocean_data%nbasin > 1) then
+
+       !TODO - Adjust mask to exclude ocean cells? Or does not matter?
+       ! Compute the average deltaT_ocn in each basin
+       call glissade_basin_average(&
+            ewn,             nsn,                        &
+            parallel,                                    &
+            model%ocean_data%nbasin,                     &
+            model%ocean_data%basin_number,               &
+            model%basal_melt%thermal_forcing_mask*1.0d0, &
+            model%ocean_data%deltaT_ocn,                 &
+            model%ocean_data%deltaT_ocn_basin)
+
+       !TODO - Adjust mask to exclude ocean cells? Or does not matter?
+       ! Compute the average thermal forcing in each basin (including deltaT_ocn)
+       call glissade_basin_average(&
+            ewn,             nsn,                        &
+            parallel,                                    &
+            model%ocean_data%nbasin,                     &
+            model%ocean_data%basin_number,               &
+            model%basal_melt%thermal_forcing_mask*1.0d0, &
+            model%ocean_data%thermal_forcing_lsrf + model%ocean_data%deltaT_ocn, &
+            thermal_forcing_basin)
+
+       ! Compute the average basal melt rate in each basin
+       call glissade_basin_average(&
+            ewn,             nsn,                        &
+            parallel,                                    &
+            model%ocean_data%nbasin,                     &
+            model%ocean_data%basin_number,               &
+            model%basal_melt%thermal_forcing_mask*1.0d0, &
+            model%basal_melt%bmlt_float,                 &
+            model%scalars%bmlt_float_basin)
+
+       if (this_rank == rtest) then
+          write(iulog,*) ' '
+          write(iulog,*) 'basin #, deltaT_ocn, TF (w/dT_ocn), bmlt_float (m/yr):'
+          do nb = 1, model%ocean_data%nbasin
+             write(iulog,'(i6,3f14.6)') nb, model%ocean_data%deltaT_ocn_basin(nb), &
+                  thermal_forcing_basin(nb), model%scalars%bmlt_float_basin(nb)*scyr
+          enddo
+       endif
+
+       total_bmlt_float = parallel_global_sum(model%basal_melt%bmlt_float*rhoi*dew*dns, parallel)
+       total_bmlt_float_basin = parallel_global_sum_patch(model%basal_melt%bmlt_float*rhoi*dew*dns, &
+                 model%ocean_data%nbasin, model%ocean_data%basin_number, parallel)
+       factor = (scyr/1.0d12)  ! convert kg/s to Gt/yr
+       if (this_rank == rtest) then
+          write(iulog,*) ' '
+          write(iulog,*) 'total_bmlt_float (Gt/yr) =', total_bmlt_float*factor
+          write(iulog,*) ' '
+          write(iulog,*) 'basin #, basin sum:'
+          do nb = 1, model%ocean_data%nbasin
+             write(iulog,'(i6,2f12.6)') nb, total_bmlt_float_basin(nb)*factor
+          enddo
+       endif
+
+    endif   ! verbose and nbasin > 1
 
   end subroutine glissade_bmlt_float_solve
 
@@ -1335,7 +1437,8 @@ module glissade_bmlt_float
          tf_anomaly_basin                 ! local version of tf_anomaly_basin_in
 
     real(dp), parameter ::  &
-         H0_float = 50.d0                 ! thickness scale (m) for floating ice; used to reduce weights when H < H0_float
+!!         H0_float = 50.d0                 ! thickness scale (m) for floating ice; used to reduce weights when H < H0_float
+         H0_float = 0.0d0                 ! thickness scale (m) for floating ice; used to reduce weights when H < H0_float
 
     integer, parameter :: &
          cavity_buffer = 0     ! distance from ice edge (measured in number of grid cells) over which ocean TF values
@@ -1542,26 +1645,33 @@ module glissade_bmlt_float
         bmlt_float_thermal_forcing_param == BMLT_FLOAT_TF_ISMIP6_NONLOCAL .or.  &
         bmlt_float_thermal_forcing_param == BMLT_FLOAT_TF_ISMIP6_NONLOCAL_SLOPE) then
 
-       ! Compute a weighting function that is proportional to the floating fraction of ice-filled cells,
-       !  and also tapers linearly to zero for thin floating ice.
-       ! This function is used to ensure smooth changes in the basin averages as cells
-       !  transition between grounded and floating, or between ice-free and thick.
-       !TODO: Modify for partial CF cells?
+       !TODO - Remove the H0_float logic, which predates the subgrid CF parameterization.
+       !       For now it's simply commented out.
+!       ! Compute a weighting function that is proportional to the floating fraction of ice-filled cells,
+!       !  and also tapers linearly to zero for thin floating ice.
+!       ! This function is used to ensure smooth changes in the basin averages as cells
+!       !  transition between grounded and floating, or between ice-free and thick.
+!       f_float = 1.0d0 - f_ground_cell
+!       if (H0_float > 0.0d0) then
+!          where (thck > 0.0d0)
+!             f_float = f_float * min(thck/H0_float, 1.0d0)
+!          elsewhere
+!             f_float = 0.0d0
+!          endwhere
+!       endif
 
-       f_float = 1.0d0 - f_ground_cell
-
-       if (H0_float > 0.0d0) then
-          where (thck > 0.0d0)
-             f_float = f_float * min(thck/H0_float, 1.0d0)
-          elsewhere
-             f_float = 0.0d0
-          endwhere
-       endif
+       ! Compute a weighting function that is proportional to the floating fraction of ice-filled cells
+       !  and is zero for ice-free cells.
+       !TODO - Does it matter if this isn't smooth? Should this be weighted by effective_areafrac?
+       where (thermal_forcing_mask == 1 .and. ice_mask == 1)
+          f_float = 1.0d0 - f_ground_cell
+       elsewhere
+          f_float = 0.0d0
+       endwhere
 
        if (verbose_bmlt_float) then
           call point_diag(thermal_forcing_mask, 'thermal_forcing_mask', itest, jtest, rtest, 7, 7)
           call point_diag(f_float, 'f_float', itest, jtest, rtest, 7, 7)
-          call point_diag(thermal_forcing_mask*f_float, 'TF mask*f_float', itest, jtest, rtest, 7, 7)
        endif
 
        ! Compute the average thermal forcing for each basin.
@@ -1574,7 +1684,7 @@ module glissade_bmlt_float
             parallel,                        &
             ocean_data%nbasin,               &
             ocean_data%basin_number,         &
-            thermal_forcing_mask * f_float,  &
+            thermal_forcing_mask * f_float,  &   !TODO - f_float only?
             ocean_data%thermal_forcing_lsrf + ocean_data%deltaT_ocn, &
             thermal_forcing_basin)
 
@@ -1585,7 +1695,7 @@ module glissade_bmlt_float
             parallel,                        &
             ocean_data%nbasin,               &
             ocean_data%basin_number,         &
-            thermal_forcing_mask * f_float,  &
+            thermal_forcing_mask * f_float,  &   ! TODO - f_float only?
             ocean_data%deltaT_ocn,           &
             deltaT_basin_avg)
 
@@ -1775,8 +1885,7 @@ module glissade_bmlt_float
     endif   ! bmlt_float_thermal_forcing_param
 
     if (verbose_bmlt_float) then
-       call point_diag(bmlt_float*scyr, 'bmlt_float (m/yr), before thin ice adjustment', &
-            itest, jtest, rtest, 7, 7)
+       call point_diag(bmlt_float*scyr, 'bmlt_float (m/yr)', itest, jtest, rtest, 7, 7)
     endif
 
     ! Reduce the melt rate in cells with thin floating ice,
@@ -2755,7 +2864,7 @@ module glissade_bmlt_float
 
     real(dp), dimension(nx,ny), intent(in) :: &
          f_float,               & ! weighting function for computing basin averages, in range [0,1];
-                                  ! includes a factor (1 - f_ground_cell)
+                                  ! = (1 - f_ground_cell) for ice-filled cells, else = 0
          thermal_forcing_lsrf,  & !> thermal forcing (K) at lower ice surface
          theta_slope,           & !> sub-shelf slope angle (radians)
          bmlt_float_target        !> target value of basal melt rate (m/s)
@@ -2809,14 +2918,14 @@ module glissade_bmlt_float
     bmlt_float = 0.0d0
 
     ! Compute a real-valued mask of cells with valid values of bmlt_float and bmlt_float_target:
-    ! * bmlt_float is valid where thermal_forcing_mask = 1
-    ! * bmlt_float_target is valid where its value is nonzero
+    ! bmlt_float_mask = f_float (the floating fraction in cells where ice is present)
+    !  provided bmlt_float_target /= 0, else bmlt_float_mask = 0.
     ! The goal of the calculation below is to compute deltaT_ocn such that
     !  the basin-average values of bmlt_float and bmlt_float_target are equal,
     !  where the average is taken over this mask.
 
-    where (thermal_forcing_mask == 1 .and. bmlt_float_target /= 0.0d0)
-       bmlt_float_mask = 1.0d0
+    where (bmlt_float_target /= 0.0d0)
+       bmlt_float_mask = f_float
     elsewhere
        bmlt_float_mask = 0.0d0
     endwhere
@@ -2838,15 +2947,13 @@ module glissade_bmlt_float
     do iter = 1, max_iter
 
        ! Compute the average thermal forcing for each basin, given the latest deltaT_ocn.
-       ! Note: The mask includes all cells with thermal_forcing_mask = 1,
-       !       not just those with valid values of bmlt_float_target.
 
        call glissade_basin_average(&
             nx,             ny,                 &
             parallel,                           &
             nbasin,                             &
             basin_number,                       &
-            thermal_forcing_mask*f_float,       &
+            bmlt_float_mask,                    &
             thermal_forcing_lsrf + deltaT_ocn,  &
             thermal_forcing_basin)
 
@@ -2942,16 +3049,15 @@ module glissade_bmlt_float
           enddo
        endif
 
-       total_bmlt_float = parallel_global_sum(bmlt_float*thermal_forcing_mask*f_float*rhoi*dew*dns, parallel)
-       total_bmlt_float_target = parallel_global_sum(bmlt_float_target*rhoi*dew*dns, parallel)
-       bmlt_float_basin = parallel_global_sum_patch(bmlt_float*thermal_forcing_mask*f_float*rhoi*dew*dns, &
+       total_bmlt_float = parallel_global_sum(bmlt_float*f_float*rhoi*dew*dns, parallel)
+       total_bmlt_float_target = parallel_global_sum(bmlt_float_target*f_float*rhoi*dew*dns, parallel)
+       bmlt_float_basin = parallel_global_sum_patch(bmlt_float*f_float*rhoi*dew*dns, &
                  nbasin, basin_number, parallel)
-       bmlt_float_target_basin = parallel_global_sum_patch(bmlt_float_target*rhoi*dew*dns, &
+       bmlt_float_target_basin = parallel_global_sum_patch(bmlt_float_target*f_float*rhoi*dew*dns, &
                  nbasin, basin_number, parallel)
        factor = (scyr/1.0d12)  ! convert kg/s to Gt/yr
        ! Note: bmlt_float_basin and bmlt_float_target_basin will generally not agree.
-       !       This is because the bmlt_float sums are weighted by thermal_forcign_mask*float
-       !        and include regions where bmlt_float_target = 0.
+       !       This is because the bmlt_float sums include regions where bmlt_float_target = 0.
        if (this_rank == rtest) then
           write(iulog,*) ' '
           write(iulog,*) 'total_bmlt_float (Gt/yr) =', total_bmlt_float*factor

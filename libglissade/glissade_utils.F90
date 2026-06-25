@@ -1158,7 +1158,7 @@ contains
     integer :: ice_cap_count
     real(dp) :: max_ice_cap_thck
 
-    logical, parameter :: verbose_ice_caps = .true.
+    logical, parameter :: verbose_ice_caps = .false.
 
     ! Copy some model variables to local variables
 
