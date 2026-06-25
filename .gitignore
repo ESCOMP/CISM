@@ -69,3 +69,4 @@ cube_to_target/smooth_topo_cube_sph.mod
 
 # Ignore docs files
 _build/
+_publish/
