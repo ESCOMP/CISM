@@ -101,8 +101,8 @@ def checkout_and_build(version, permanent_files, args):
             continue
 
         # Check out file
-        filename = os.path.basename(filepath)
-        subprocess.check_output(f"git checkout {LATEST_REF} -- {filename}", shell=True)
+        relpath = os.path.relpath(filepath)
+        subprocess.check_output(["git", "checkout", LATEST_REF, "--", relpath])
 
     # Build the docs for this version
     build_args = [
@@ -192,6 +192,7 @@ def main():
     args = parser.parse_args()
     if args.container_cli_tool is None:
         args.container_cli_tool = get_container_cli_tool()
+    args.conf_py_path = os.path.relpath(os.path.abspath(args.conf_py_path))
 
     # Check version list for problems
     check_version_list()
