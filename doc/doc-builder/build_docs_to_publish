@@ -1,4 +1,6 @@
 #!/usr/bin/env bash
 set -e
 
-. ./build_docs build_docs_to_publish
+scriptname=build_docs_to_publish
+
+. ./build_docs
