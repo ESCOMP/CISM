@@ -125,7 +125,7 @@ contains
     endif
 
     ! read plume info
-    if (model%options%whichbmlt_float /= BMLT_FLOAT_PLUME) then
+    if (model%options%whichbmlt_float == BMLT_FLOAT_PLUME) then
        call GetSection(config,section,'plume')
        if (associated(section)) then
           call handle_plume(section, model)
@@ -3355,12 +3355,17 @@ contains
 
     ! plume parameters
 
-    call GetValue(section,'T0',        model%plume%T0)
-    call GetValue(section,'Tbot',      model%plume%Tbot)
-    call GetValue(section,'S0',        model%plume%S0)
-    call GetValue(section,'Sbot',      model%plume%Sbot)
-    call GetValue(section,'gammaT',    model%plume%gammaT)
-    call GetValue(section,'gammaS',    model%plume%gammaS)
+    call GetValue(section,'misomip_domain', model%plume%misomip_domain)
+
+    !TODO - Which of these are independent of MISOMIP?
+    if (model%plume%misomip_domain) then
+       call GetValue(section,'T0',        model%plume%T0)
+       call GetValue(section,'Tbot',      model%plume%Tbot)
+       call GetValue(section,'S0',        model%plume%S0)
+       call GetValue(section,'Sbot',      model%plume%Sbot)
+       call GetValue(section,'gammaT',    model%plume%gammaT)
+       call GetValue(section,'gammaS',    model%plume%gammaS)
+    endif
 
   end subroutine handle_plume
 
@@ -3375,23 +3380,23 @@ contains
     type(glide_global_type)  :: model
     character(len=100) :: message
 
-
-    !TODO - Some of these apply only to MISOMIP.
-    !       Create a MISOMIP option distinct from more realistic AIS options?
+    !TODO - Sort out which plume parameters are MISOMIP-specific and which are more general
 
     if (model%options%whichbmlt_float == BMLT_FLOAT_PLUME) then
-       write(message,*) 'T0 (deg C)               :  ', model%plume%T0
-       call write_log(message)
-       write(message,*) 'Tbot (deg C)             :  ', model%plume%Tbot
-       call write_log(message)
-       write(message,*) 'S0 (psu)                 :  ', model%plume%S0
-       call write_log(message)
-       write(message,*) 'Sbot (deg C)             :  ', model%plume%Sbot
-       call write_log(message)
-       write(message,*) 'gammaT (nondimensional)  :  ', model%plume%gammaT
-       call write_log(message)
-       write(message,*) 'gammaS (nondimensional)  :  ', model%plume%gammaS
-       call write_log(message)
+       if (model%plume%misomip_domain) then
+          write(message,*) 'T0 (deg C)               :  ', model%plume%T0
+          call write_log(message)
+          write(message,*) 'Tbot (deg C)             :  ', model%plume%Tbot
+          call write_log(message)
+          write(message,*) 'S0 (psu)                 :  ', model%plume%S0
+          call write_log(message)
+          write(message,*) 'Sbot (deg C)             :  ', model%plume%Sbot
+          call write_log(message)
+          write(message,*) 'gammaT (nondimensional)  :  ', model%plume%gammaT
+          call write_log(message)
+          write(message,*) 'gammaS (nondimensional)  :  ', model%plume%gammaS
+          call write_log(message)
+       endif
     endif
 
   end subroutine print_plume

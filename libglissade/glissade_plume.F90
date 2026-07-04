@@ -78,14 +78,256 @@
 
 !=======================================================================
 
-  subroutine glissade_plume_driver(model)
+  subroutine glissade_plume_driver(model, plume)
 
-    type(glide_global_type)  :: model
+    ! Compute melt rates using a plume model, given vertical profiles of T and S in the ambient ocean
+    !
+    ! The benchmark application is to the MISOMIP domain, described here:
+    ! See this paper for details:
+    ! X. S. Asay-Davis et al. (2016), Experimental design for three interrelated
+    !    marine ice sheet and ocean model intercomparison projects:
+    !    MISMIP v. 3 (MISMIP+), ISOMIP v. 2 (ISOMIP+) and MISOMIP v. 1 (MISOMIP1),
+    !    Geosci. Model Devel., 9, 2471-2497, doi: 10.5194/gmd-9-2471-2016.
+
+    use glissade_masks, only: glissade_get_masks
+
+    type(glide_global_type), intent(inout) :: model   !> derived type holding ice-sheet info
+    type(glide_plume), intent(inout) :: plume    !> derived type holding plume info
 
     ! local variables
 
+    integer, dimension(model%general%ewn, model%general%nsn) ::  &
+         ice_mask,                    & ! = 1 if ice is present (thck > 0)
+         floating_mask,               & ! = 1 where ice is present and floating, else = 0
+         ocean_mask,                  & ! = 1 if topg is below sea level and ice is absent, else = 0
+         land_mask                      ! = 1 if topg is at or above sea level, else = 0
+
+    integer :: i, j, k
+
+    ! MISOMIP parameters
+    real(dp) ::  &
+         T0,                & ! sea surface temperature (deg C)
+         Tbot,              & ! temperature at the sea floor (deg C)
+         S0,                & ! sea surface salinity (psu)
+         Sbot,              & ! salinity at the sea floor  (psu)
+         zbed_deep,         & ! min sea floor elevation (m)
+         gammaT,            & ! nondimensional heat transfer coefficient
+         gammaS               ! nondimensional salt transfer coefficient
+
+    integer :: ewn, nsn
+    real(dp) :: dew, dns
+    integer :: itest, jtest, rtest      ! coordinates of diagnostic point
+    type(parallel_type) :: parallel     ! info for parallel communication
+
+    !TODO - Make first_call depend on whether we are restarting
+    !       Write an init subroutine that spins up the plume model to steady state if not restarting
+    logical :: first_call = .true.
+
+    ewn = model%general%ewn
+    nsn = model%general%nsn
+
+    dew = model%numerics%dew
+    dns = model%numerics%dns
+
+    rtest = model%numerics%rdiag_local
+    itest = model%numerics%idiag_local
+    jtest = model%numerics%jdiag_local
+
+    parallel = model%parallel
+
+    if (verbose_plume .and. main_task) then
+       write(iulog,*) 'In glissade_plume_driver'
+    endif
+
+    ! update some masks
+    call glissade_get_masks(&
+         ewn,                 nsn,                   &
+         parallel,                                   &
+         model%geometry%thck, model%geometry%topg,   &
+         model%climate%eus,   0.0d0,                 &  ! thklim = 0
+         ice_mask,                                   &
+         floating_mask = floating_mask,              &
+         land_mask = land_mask,                      &
+         ocean_mask = ocean_mask)
+
+    call parallel_halo(floating_mask, parallel)
+
+    ! optional diagnostics
+    if (verbose_plume) then
+       call point_diag(model%geometry%thck, 'thck (m)', itest, jtest, rtest, 7, 7)
+       call point_diag(model%geometry%lsrf, 'lsrf (m)', itest, jtest, rtest, 7, 7)
+       call point_diag(model%geometry%topg, 'topg (m)', itest, jtest, rtest, 7, 7)
+       call point_diag(model%geometry%lsrf - model%geometry%topg, 'lsrf - topg (m)', itest, jtest, rtest, 7, 7)
+       call point_diag(floating_mask, 'floating_mask', itest, jtest, rtest, 7, 7)
+    endif
+
+    if (plume%misomip_domain) then
+       ! Assign local pointers and variables to components of the plume derived type
+       T0 = plume%T0
+       Tbot = plume%Tbot
+       S0 = plume%S0
+       Sbot = plume%Sbot
+       zbed_deep = plume%zbed_deep
+       gammaT = plume%gammaT
+       gammaS = plume%gammaS
+
+       where (floating_mask == 1)
+          ! MISOMIP+ profiles, Eqs. 21 and 22
+          plume%T_ambient = T0 + (Tbot - T0) * (model%geometry%lsrf / zbed_deep)
+          plume%S_ambient = S0 + (Sbot - S0) * (model%geometry%lsrf / zbed_deep)
+       elsewhere
+          plume%T_ambient = T0
+          plume%S_ambient = S0
+       endwhere
+
+    endif
+
+    !----------------------------------------------------------------
+    ! Call the plume model to compute basal melt rates for floating ice
+    !----------------------------------------------------------------
+
+    call compute_plume(&
+         first_call,                              &
+         ewn,                 nsn,                &
+         dew,                 dns,                &
+         itest, jtest,        rtest,              &
+         model%general%x1,                        &
+         model%geometry%thck,                     &  ! temporary, for calving
+         model%geometry%lsrf,                     &
+         model%geometry%topg,                     &
+         floating_mask,                           &
+         plume%T_ambient,     plume%S_ambient,    &
+         plume%gammaT,        plume%gammaS,       &
+         plume%S0,                                &
+         plume%T_basal,       plume%S_basal,      &
+         plume%u_plume,       plume%v_plume,      &
+         plume%u_plume_Cgrid, plume%v_plume_Cgrid,&
+         plume%D_plume,                           &
+         plume%ustar_plume,                       &
+         plume%drho_plume,                        &
+         plume%T_plume,       plume%S_plume,      &
+         plume%entrainment,   plume%detrainment,  &
+         plume%divDu_plume,                       &
+         model%basal_melt%bmlt_float)
+
+    ! optional diagnostics
+
+
+    ! Set first_call to false.
+    ! Next time, the plume variables just computed (T_plume, S_plume, D_plume)
+    !  will be taken as initial conditions.
+
+    first_call = .false.
 
   end subroutine glissade_plume_driver
+
+!****************************************************
+
+  subroutine compute_plume(&
+       first_call,                         &
+       nx,               ny,               &
+       dx,               dy,               &
+       itest,  jtest,    rtest,            &
+       x1,                                 &
+       thck,                               &  ! temporary, for calving
+       lsrf,                               &
+       topg,                               &
+       floating_mask,                      &
+       T_ambient,        S_ambient,        &
+       gammaT,           gammaS,           &
+       S0,                                 &
+       T_basal,          S_basal,          &
+       u_plume,          v_plume,          &
+       u_plume_Cgrid,    v_plume_Cgrid,    &
+       D_plume,                            &
+       ustar_plume,                        &
+       drho_plume,                         &
+       T_plume,          S_plume,          &
+       entrainment,      detrainment,      &
+       divDu_plume,                        &
+       bmlt_float)
+
+    ! Compute the melt rate at the ice-ocean interface based on a steady-state plume model
+    !
+    ! References:
+    !
+    ! P.R. Holland and D.L. Feltham, 2006: The effects of rotation and ice shelf topography
+    !    on frazil-laden ice shelf water plumes. J. Phys. Oceanog., 36, 2312-2327.
+    ! P.R. Holland, A. Jenkins and D.M. Holland, 2008: The response of ice shelf
+    !    basal melting to variations in ocean temperature. J. Climate, 21, 2558-2572.
+    !
+    ! TODO - Add Lambert (2023) and other references
+
+!    use glissade_grid_operators, only: glissade_centered_gradient
+
+    ! Input/output arguments
+
+    logical, intent (in) :: &
+         first_call             ! if true, then use simple initial conditions to start the plume calculation
+                                ! if false, then start from the input values of T_plume, S_plume and D_plume
+
+    integer, intent(in) ::  &
+         nx,     ny             ! number of grid cells in each dimension
+
+    real(dp), intent(in) ::  &
+         dx,     dy             ! grid cell size (m)
+
+    real(dp), dimension(:), intent(in) :: &
+         x1                     ! x1 grid coordinates (m), ice grid
+
+    real(dp), dimension(nx,ny), intent(in) ::  &
+         thck                   ! ice thickness (m); intent(inout) to allow calving
+
+    real(dp), dimension(nx,ny), intent(in) ::  &
+         lsrf                   ! ice lower surface elevation (m, negative below sea level)
+                                ! intent(inout) to allow calving
+
+    real(dp), dimension(nx,ny), intent(in) ::  &
+         topg                   ! bedrock elevation (m, negative below sea level)
+
+    integer, dimension(nx,ny), intent(in) :: &
+         floating_mask          ! = 1 where ice is present and floating, else = 0
+
+    integer, intent(in) :: &
+         itest, jtest, rtest
+
+    real(dp), dimension(nx,ny), intent(in) ::  &
+         T_ambient,           & ! ambient ocean potential temperature at depth of ice-ocean interface (deg C)
+         S_ambient              ! ambient ocean salinity at depth of ice-ocean interface (psu)
+
+    real(dp), intent(in) :: &
+         gammaT,              & ! nondimensional heat transfer coefficient
+         gammaS,              & ! nondimensional salt transfer coefficient
+         S0                     ! sea surface salinity (psu)
+
+    ! Note: T_plume, S_plume and D_plume can either be initialized below (if first_call = F)
+    !       or passed in (if first_call = T).
+    real(dp), dimension(nx,ny), intent(inout) :: &
+         T_plume,             & ! plume temperature (deg C)
+         S_plume,             & ! plume salinity (psu)
+         D_plume                ! plume thickness (m)
+
+    ! Note: Plume velocities are computed at cell edges, and then are interpolated
+    !       to cell centers as a diagnostic.
+    !TODO - Is this a C grid or a CD grid?
+
+    real(dp), dimension(nx,ny), intent(out) :: &
+         u_plume,             & ! x component of plume velocity (m/s) at cell centers
+         v_plume,             & ! y component of plume velocity (m/s) at cell centers
+         u_plume_Cgrid,       & ! x component of plume velocity (m/s) on C grid (east edges)
+         v_plume_Cgrid,       & ! y component of plume velocity (m/s) on C grid (north edges)
+         ustar_plume,         & ! plume friction velocity (m/s) on ice grid
+         drho_plume,          & ! density difference between plume and ambient ocean (kg/m^3)
+         T_basal,             & ! basal ice temperature (deg C)
+         S_basal,             & ! basal ice salinity (psu)
+         entrainment,         & ! entrainment rate of ambient water into plume (m/s)
+         detrainment,         & ! detrainment rate of plume into ambient water (m/s)
+         divDu_plume,         & ! div(Du) for plume
+         bmlt_float             ! melt rate at base of floating ice (m/s)
+
+    ! Local variables
+
+  end subroutine compute_plume
 
 !****************************************************
 

@@ -939,7 +939,7 @@ module glissade_bmlt_float
           write(iulog,*) 'Compute bmlt_float from a sub-shelf plume model'
        endif
 
-       call glissade_plume_driver(model)
+       call glissade_plume_driver(model, model%plume)
 
        ! optional diagnostics
 
