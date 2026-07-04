@@ -123,7 +123,7 @@ module glide_types
   integer, parameter :: BMLT_FLOAT_CONSTANT = 2
   integer, parameter :: BMLT_FLOAT_DEPTH = 3
   integer, parameter :: BMLT_FLOAT_EXTERNAL = 4
-  integer, parameter :: BMLT_FLOAT_MISOMIP = 5   ! not supported
+  integer, parameter :: BMLT_FLOAT_PLUME = 5
   integer, parameter :: BMLT_FLOAT_THERMAL_FORCING = 6
 
   !TODO - Deprecate the quadratic option?
@@ -553,7 +553,7 @@ module glide_types
     !> \item[2] Basal melt rate = constant for floating ice (with option to selectively mask out melting)
     !> \item[3] Depth-dependent basal melt rate for floating ice
     !> \item[4] External basal melt rate field (from input file or coupler)
-    !> \item[5] Basal melt rate for floating ice from MISOMIP ocean forcing with plume model (not supported)
+    !> \item[5] Basal melt rate for floating ice from a plume model (under construction)
     !> \item[6] Basal melt rate for floating ice derived from ocean thermal forcing
     !> \end{description}
 
@@ -2201,7 +2201,7 @@ module glide_types
   type glide_plume
 
      !> Holds fields and parameters relating to a sub-shelf plume model
-     !> Used to hold more fields, but most were removed when the plume model was abandoned
+     !> Under construction as of July 2026
 
      real(dp),dimension(:,:), pointer :: T_ambient => null()     !> ambient ocean temperature below ice and plume (deg C)
      real(dp),dimension(:,:), pointer :: S_ambient => null()     !> ambient ocean salinity below ice and plume (psu)
@@ -3290,7 +3290,7 @@ contains
        call coordsystem_allocate(model%general%ice_grid, model%basal_melt%bmlt_float_target)
        call coordsystem_allocate(model%general%ice_grid, model%basal_melt%bmlt_float_external)
        call coordsystem_allocate(model%general%ice_grid, model%basal_melt%thermal_forcing_mask)
-       if (model%options%whichbmlt_float == BMLT_FLOAT_MISOMIP) then
+       if (model%options%whichbmlt_float == BMLT_FLOAT_PLUME) then
           call coordsystem_allocate(model%general%ice_grid, model%plume%T_ambient)
           call coordsystem_allocate(model%general%ice_grid, model%plume%S_ambient)
        elseif (model%options%whichbmlt_float == BMLT_FLOAT_THERMAL_FORCING) then
@@ -3919,7 +3919,7 @@ contains
     if (associated(model%inversion%grounded_thck_target)) &
         deallocate(model%inversion%grounded_thck_target)
 
-    ! MISOMIP arrays
+    ! plume arrays
     if (associated(model%plume%T_ambient)) &
         deallocate(model%plume%T_ambient)
     if (associated(model%plume%S_ambient)) &

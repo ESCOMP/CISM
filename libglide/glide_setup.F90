@@ -124,6 +124,14 @@ contains
        end if
     endif
 
+    ! read plume info
+    if (model%options%whichbmlt_float /= BMLT_FLOAT_PLUME) then
+       call GetSection(config,section,'plume')
+       if (associated(section)) then
+          call handle_plume(section, model)
+       end if
+    endif
+
     ! read lateral melt info
     if (model%options%which_lateral_melt /= LATERAL_MELT_NONE) then
        call GetSection(config,section,'lateral_melt')
@@ -176,6 +184,7 @@ contains
     call print_options(model)
     call print_parameters(model)
     call print_gthf(model)
+    call print_plume(model)
     call print_lateral_melt(model)
     call print_isostasy(model)
     call print_basal_hydro(model)
@@ -1019,13 +1028,13 @@ contains
          'in continuity eqn    ' /)
 
     character(len=*), dimension(0:6), parameter :: which_bmlt_float = (/ &
-         'none                                  ', &
-         'MISMIP+ melt rate profile             ', &
-         'constant melt rate                    ', &
-         'depth-dependent melt rate             ', &
-         'melt rate from external file          ', &
-         'melt rate from MISOMIP T/S profile    ', &   ! not supported
-         'melt rate from thermal forcing        ' /)
+         'none                               ', &
+         'MISMIP+ melt rate profile          ', &
+         'constant melt rate                 ', &
+         'depth-dependent melt rate          ', &
+         'melt rate from external file       ', &
+         'melt rate from plume model         ', &   ! under construction
+         'melt rate from thermal forcing     ' /)
 
     character(len=*), dimension(0:3), parameter :: bmlt_float_thermal_forcing_param = (/ &
          'quadratic function of thermal forcing     ', &
@@ -1641,8 +1650,8 @@ contains
     write(message,*) 'basal melt, floating ice: ',model%options%whichbmlt_float, which_bmlt_float(model%options%whichbmlt_float)
     call write_log(message)
 
-    if (model%options%whichbmlt_float == BMLT_FLOAT_MISOMIP) then
-       call write_log('Error, BMLT_FLOAT_MISOMIP option is not supported', GM_FATAL)
+    if (model%options%whichbmlt_float == BMLT_FLOAT_PLUME) then
+       call write_log('Warning, BMLT_FLOAT_PLUME option is still under construction', GM_FATAL)
     elseif (model%options%whichbmlt_float == BMLT_FLOAT_THERMAL_FORCING) then
        write(message,*) 'melt parameterization   : ', model%options%bmlt_float_thermal_forcing_param, &
             bmlt_float_thermal_forcing_param(model%options%bmlt_float_thermal_forcing_param)
@@ -2470,12 +2479,12 @@ contains
     call GetValue(section,'bmlt_float_depth_meltmin', model%basal_melt%bmlt_float_depth_meltmin)
     call GetValue(section,'bmlt_float_depth_zmeltmin', model%basal_melt%bmlt_float_depth_zmeltmin)
 
-    ! MISOMIP plume parameters
-    !TODO - Put MISMIP+ and MISOMIP parameters in their own section
-    call GetValue(section,'T0',   model%plume%T0)
-    call GetValue(section,'Tbot', model%plume%Tbot)
-    call GetValue(section,'S0',   model%plume%S0)
-    call GetValue(section,'Sbot', model%plume%Sbot)
+    !TODO - Put plume parameters in their own section
+    ! plume parameters
+    call GetValue(section,'T0',        model%plume%T0)
+    call GetValue(section,'Tbot',      model%plume%Tbot)
+    call GetValue(section,'S0',        model%plume%S0)
+    call GetValue(section,'Sbot',      model%plume%Sbot)
     call GetValue(section,'gammaT',    model%plume%gammaT)
     call GetValue(section,'gammaS',    model%plume%gammaS)
 
@@ -3081,8 +3090,7 @@ contains
 
     ! parameters for basal melting of floating ice (including MISMIP+ and MISOMIP)
 
-    if (model%basal_melt%bmlt_cavity_h0 > 0.0d0 .and. &
-        model%options%whichbmlt_float /= BMLT_FLOAT_MISMIP) then
+    if (model%basal_melt%bmlt_cavity_h0 > 0.0d0) then
        write(message,*) 'bmlt_cavity_h0 (m)       :  ', model%basal_melt%bmlt_cavity_h0
        call write_log(message)
     endif
@@ -3119,7 +3127,7 @@ contains
        call write_log(message)
        write(message,*) 'warm ocean zmeltmin (m)        :  ', model%basal_melt%bmlt_float_depth_zmeltmin
        call write_log(message)
-    elseif (model%options%whichbmlt_float == BMLT_FLOAT_MISOMIP) then
+    elseif (model%options%whichbmlt_float == BMLT_FLOAT_PLUME) then
        write(message,*) 'T0 (deg C)               :  ', model%plume%T0
        call write_log(message)
        write(message,*) 'Tbot (deg C)             :  ', model%plume%Tbot
@@ -3335,6 +3343,60 @@ contains
   end subroutine print_isostasy
 
 !--------------------------------------------------------------------------------
+
+  subroutine handle_plume(section, model)
+
+    use glimmer_config
+    use glide_types
+    implicit none
+
+    type(ConfigSection), pointer :: section
+    type(glide_global_type)  :: model
+
+    ! plume parameters
+
+    call GetValue(section,'T0',        model%plume%T0)
+    call GetValue(section,'Tbot',      model%plume%Tbot)
+    call GetValue(section,'S0',        model%plume%S0)
+    call GetValue(section,'Sbot',      model%plume%Sbot)
+    call GetValue(section,'gammaT',    model%plume%gammaT)
+    call GetValue(section,'gammaS',    model%plume%gammaS)
+
+  end subroutine handle_plume
+
+!--------------------------------------------------------------------------------
+
+  subroutine print_plume(model)
+
+    use glide_types
+    use glimmer_log
+
+    implicit none
+    type(glide_global_type)  :: model
+    character(len=100) :: message
+
+
+    !TODO - Some of these apply only to MISOMIP.
+    !       Create a MISOMIP option distinct from more realistic AIS options?
+
+    if (model%options%whichbmlt_float == BMLT_FLOAT_PLUME) then
+       write(message,*) 'T0 (deg C)               :  ', model%plume%T0
+       call write_log(message)
+       write(message,*) 'Tbot (deg C)             :  ', model%plume%Tbot
+       call write_log(message)
+       write(message,*) 'S0 (psu)                 :  ', model%plume%S0
+       call write_log(message)
+       write(message,*) 'Sbot (deg C)             :  ', model%plume%Sbot
+       call write_log(message)
+       write(message,*) 'gammaT (nondimensional)  :  ', model%plume%gammaT
+       call write_log(message)
+       write(message,*) 'gammaS (nondimensional)  :  ', model%plume%gammaS
+       call write_log(message)
+    endif
+
+  end subroutine print_plume
+
+  !--------------------------------------------------------------------------------
 
   subroutine handle_lateral_melt(section, model)
 
