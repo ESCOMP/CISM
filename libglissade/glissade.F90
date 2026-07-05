@@ -118,6 +118,7 @@ contains
     use glissade_inversion, only: glissade_inversion_init, verbose_inversion
     use glissade_basal_traction, only: glissade_elevation_based_coulomb_c
     use glissade_bmlt_float, only: glissade_bmlt_float_init, verbose_bmlt_float
+    use glissade_plume, only: glissade_plume_init
     use glissade_grounding_line, only: glissade_grounded_fraction
     use glissade_glacier, only: glissade_glacier_init
     use glissade_utils, only: glissade_adjust_thickness, glissade_smooth_usrf, &
@@ -1144,13 +1145,18 @@ contains
        call glissade_handle_ice_caps(model)
     endif
 
-    ! initialize the bmlt_float thermal forcing options
+    ! If computing bmlt_float based on a thermal forcing or plume model,
+    !  then do some initialization.
     ! Optionally, set deltaT_ocn (either local or basin scale) to optimize agreement with observed melt rates
     ! Note: Need the current value of lsrf when calling this subroutine
 
     if (model%options%whichbmlt_float == BMLT_FLOAT_THERMAL_FORCING) then
 
        call glissade_bmlt_float_init(model, model%ocean_data)
+
+    elseif (model%options%whichbmlt_float == BMLT_FLOAT_PLUME) then
+
+       call glissade_plume_init(model, model%plume)
 
     endif   ! whichbmlt_float
 

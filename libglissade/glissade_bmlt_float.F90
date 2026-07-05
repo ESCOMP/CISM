@@ -424,6 +424,9 @@ module glissade_bmlt_float
 
 !****************************************************
 
+  !TODO - Maybe change to glissade_thermal_forcing_init, since it is called only when
+  !       whichbmlt_float = BMLT_FLOAT_THERMAL_FORCING
+
   subroutine glissade_bmlt_float_init(model, ocean_data)
 
     use glimmer_paramets, only: unphys_val
@@ -649,7 +652,7 @@ module glissade_bmlt_float
                 call write_log('This value of which_ho_deltaT_ocn requires an input bmlt_float_target', GM_FATAL)
              endif
 
-             ! Call the driver subruotine to calibrate deltaT_ocn and compute the resulting bmlt_float.
+             ! Call the driver subroutine to calibrate deltaT_ocn and compute the resulting bmlt_float.
              ! With calibrate = T, the driver subroutine will call compute_bmlt_float_thermal_forcing
              !  with which_ho_deltaT_ocn == HO_DELTAT_OCN_CALIBRATE_BASIN.
              ! This is the signal to calibrate deltaT_ocn in the process of computing bmlt_float.
