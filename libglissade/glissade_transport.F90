@@ -55,7 +55,8 @@
     public :: glissade_transport_driver, glissade_check_cfl, &
               glissade_transport_setup_tracers, glissade_transport_finish_tracers
 
-    public :: glissade_global_conservation, glissade_sum_mass_and_tracers, glissade_vertical_remap
+    public :: glissade_global_conservation, glissade_sum_mass_and_tracers,  &
+         glissade_vertical_remap, glissade_upwind_field
 
     logical, parameter ::  &
          prescribed_area = .false.  ! if true, prescribe the area fluxed across each edge
@@ -493,11 +494,12 @@
             !-----------------------------------------------------------------
  
             do nt = 0, ntracers
-               call upwind_field (nx,             ny,                  &
-                                  ilo, ihi,       jlo, jhi,            &
-                                  dx,             dy,                  &
-                                  dt,             worku(:,:,nt),       &
-                                  uee(:,:),       vnn    (:,:))
+               call glissade_upwind_field (&
+                    nx,             ny,                  &
+                    ilo, ihi,       jlo, jhi,            &
+                    dx,             dy,                  &
+                    dt,             worku(:,:,nt),       &
+                    uee(:,:),       vnn    (:,:))
             enddo   ! ntracers
 
             ! Recompute tracers
@@ -1443,19 +1445,20 @@
 !=======================================================================
 
 
-    subroutine upwind_field (nx,       ny,         &
-                             ilo, ihi, jlo, jhi,   &
-                             dx,       dy,         &
-                             dt,       phi,        &
-                             uee,      vnn)
+    subroutine glissade_upwind_field(&
+         nx,       ny,         &
+         ilo, ihi, jlo, jhi,   &
+         dx,       dy,         &
+         dt,       phi,        &
+         uee,      vnn)
       !
       ! first-order upwind transport algorithm
-      !
       !
       ! Authors: Elizabeth Hunke and William Lipscomb, LANL
       !
       ! input/output arguments
 
+      !TODO - Modify so that ilo, ihi, jlo and jhi are not needed as inputs
       integer, intent (in) ::     &
          nx, ny             ,&! block dimensions
          ilo,ihi,jlo,jhi      ! beginning and end of physical domain
@@ -1464,12 +1467,10 @@
          dx, dy             ,&! x and y gridcell dimensions
          dt                   ! time step
 
-      real(dp), dimension(nx,ny), &
-         intent(inout) ::                       &
+      real(dp), dimension(nx,ny), intent(inout) ::    &
          phi                  ! scalar field
 
-      real(dp), dimension(nx,ny),         &
-         intent(in)::     &
+      real(dp), dimension(nx,ny), intent(in)::     &
          uee, vnn             ! cell edge velocities
 
       ! local variables
@@ -1508,7 +1509,7 @@
       enddo
       enddo
 
-    end subroutine upwind_field
+    end subroutine glissade_upwind_field
 
 !=======================================================================
 

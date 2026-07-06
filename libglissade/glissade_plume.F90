@@ -39,7 +39,7 @@
 
     use glimmer_global, only: dp
     use glimmer_physcon, only: rhoi, rhow, rhoo, grav, lhci, cpw, pi, scyr
-    use glimmer_paramets, only: iulog
+    use glimmer_paramets, only: iulog, eps11
     use glimmer_log
     use glimmer_utils, only: point_diag
     use glide_types
@@ -75,7 +75,9 @@
     ! plume parameters
     !TODO - Add to the derived type?
     real(dp), parameter :: &
-         D_plume0 = 5.d0               ! initial plume thickness (m)
+         D_plume0 = 5.d0,            & ! initial plume thickness (m)
+         D_plume_min = 1.0d0,        & ! min plume thickness (m) where the plume exists
+         D_plume_max = 50.0d0          ! max plume thickness (m)
 
 !=======================================================================
 
@@ -884,19 +886,19 @@
             v_plume_north,       &
             entrainment)
 
-       ! Compute the detrainment rate, given D_plume
+       ! Compute the detrainment rate where D_plume exceeds its max value
 
        call compute_detrainment(&
             nx,           ny,     &
             itest, jtest, rtest,  &
+            H_cavity,             &
             D_plume,              &
             detrainment)
 
-
        ! Compute the basal melt rate, temperature and salinity at the plume-ice interface,
        ! given the plume velocity and entrainment rate.
-       !Note: This subroutine also computes T_plume and S_plume, assuming no advection
-       !TODO: Add plume advection somehow
+       !Note: This subroutine currently updates T_plume and S_plume without any time lag.
+       !TODO: Make T_plume and S_plume evolve incrementally.
 
        call compute_melt_rate(&
             nx,         ny,      &
@@ -969,27 +971,30 @@
 !             print*, 'Limited dt_plume =', dt_plume
 !          endif
 
-       ! Solve the continuity equation for D_plume, given u_plume, v_plume, entrainment, detrainment and bmlt_float.
+       ! Solve transport equations for D_plume, T_plume and S_plume,
+       !  given u_plume, v_plume, entrainment, detrainment and bmlt_float.
+       ! Note: Entrained water has ambient properties (T_ambient, S_ambient).
+       !       Meltwater has basal properties (T basal, S basal).
 
-       !TODO - Write this subroutine
-!       call advance_plume_thickness(&
-!            nx,           ny,     &
-!            dx,           dy,     &
-!            itest, jtest, rtest,  &
-!            dt_plume,             &
-!            plume_mask,           &
-!            u_plume_east,         &
-!            v_plume_east,         &
-!            u_plume_north,        &
-!            v_plume_north,        &
-!            edge_mask_east,       &
-!            edge_mask_north,      &
-!            entrainment,          &
-!            detrainment,          &
-!            bmlt_float,           &
-!            D_plume)
-
-       !TODO - Advect T_plume and S_plume
+       call compute_plume_transport(&
+            nx,           ny,     &
+            dx,           dy,     &
+            itest, jtest, rtest,  &
+            parallel,             &
+            dt_plume,             &
+            plume_mask,           &
+            u_plume_east,         &
+            v_plume_north,        &
+            entrainment,          &
+            detrainment,          &
+            bmlt_float,           &
+            T_ambient,            &
+            S_ambient,            &
+            T_basal,              &
+            S_basal,              &
+            D_plume,              &
+            T_plume,              &
+            S_plume)
 
        ! halo updates
        call parallel_halo(D_plume, parallel)
@@ -1752,8 +1757,7 @@
   subroutine compute_detrainment(&
        nx,       ny,   &
        itest, jtest, rtest, &
-!!       dt_plume,       &
-!!       H_cavity,       &
+       H_cavity,       &
        D_plume,        &
        detrainment)
 
@@ -1767,11 +1771,8 @@
     integer, intent(in) ::  &
          itest, jtest, rtest  ! test cell coordinates (diagnostic only)
 
-!!    real(dp), intent(in) :: &
-!!         dt_plume             ! time step (s)
-
     real(dp), dimension(nx,ny), intent(in) ::  &
-!!         H_cavity,          & ! cavity thickness (m), lsrf - topg
+         H_cavity,          & ! cavity thickness (m), lsrf - topg
          D_plume              ! plume thickess (m)
 
     real(dp), dimension(nx,ny), intent(out) ::  &
@@ -1783,26 +1784,18 @@
 
     ! detrainment parameters
     real(dp), parameter ::  &
-         D_plume_max = 50.d0,         & ! plume thickness threshold (m) where detrainment begins
          tau_detrainment = 3600.d0      ! detrainment time scale (s)
 
     detrainment = 0.0d0
 
-    !TODO - Enforce detrainment if D_plume > H_cavity
-
     do j = 1, ny
        do i = 1, nx
-                !WHL - Testing different options here.  Set detrainment to 0 if trying to converge the matrix.
-!!             if (D_plume(i,j) > H_cavity(i,j)) then
-!!                detrainment(i,j) = (D_plume(i,j) - H_cavity(i,j)) / dt_plume
-!!                detrainment(i,j) = 0.0d0
-!!             endif
-          if (D_plume(i,j) > D_plume_max) then
+          !TODO - Strictly limit D_plume <= H_cavity?
+          if (D_plume(i,j) > H_cavity(i,j)) then
+             detrainment(i,j) = (D_plume(i,j) - H_cavity(i,j)) / tau_detrainment
+          elseif (D_plume(i,j) > D_plume_max) then
              detrainment(i,j) = (D_plume(i,j) - D_plume_max) / tau_detrainment
-          else
-             detrainment(i,j) = 0.0d0
           endif
-
        enddo
     enddo
 
@@ -2183,138 +2176,233 @@
 
 !****************************************************
 
-  !TODO - Move this subroutine to glissade_grid_operations?
-  !       Remove global_bndy variables
+  subroutine compute_plume_transport(&
+       nx,           ny,     &
+       dx,           dy,     &
+       itest, jtest, rtest,  &
+       parallel,             &
+       dt,                   &
+       plume_mask,           &
+       u_plume_east,         &
+       v_plume_north,        &
+       entrainment,          &
+       detrainment,          &
+       bmlt_float,           &
+       T_ambient,            &
+       S_ambient,            &
+       T_basal,              &
+       S_basal,              &
+       D_plume,              &
+       T_plume,              &
+       S_plume)
 
-  subroutine compute_edge_gradients(&
-       nx,              ny,          &
-       dx,              dy,          &
-       global_bndy_east,             &
-       global_bndy_west,             &
-       global_bndy_north,            &
-       global_bndy_south,            &
-       plume_mask_cell,              &
-       floating_mask,                &
-       lsrf,                         &
-       field,                        &
-       df_dx_east,      df_dy_east,  &
-       df_dx_north,     df_dy_north)
-   
-    ! Compute the gradients of a scalar field on east and north cell edges.
-    ! The procedure for east edges as follows:
-    ! (1) Initialize all gradients to zero.
-    ! (2) If the plume exists on both sides of an east edge, compute df/dx in the standard way.
-    !     Similarly, if the plume exists on both sides of a north edge, compute df/dy in the standard way.
-    ! (3) If the edge has a plume cell on one side and floating ice or open water on the other,
-    !     and it is not a global boundary edge, then extrapolate the gradient from an adjacent edge.
-    ! (4) Compute df/dy on east edges by averaging from adjacent north edges, and compute
-    !     df/dx on north edges by extrapolating from adjacent east edges.
-    
+    ! Solve transport equations for the plume thickness, temperature and salinity.
+    ! Includes upwind-weighted horizontal transport as well as local entrainment,
+    !  detrainment and melting.
+    ! TODO: Replace upwind with remapping transport?
+
+    use glissade_transport, only: glissade_upwind_field
+
+    ! input/output arguments
+
     integer, intent(in) ::  &
          nx,     ny             ! number of grid cells in each dimension
 
     real(dp), intent(in) ::  &
          dx,     dy             ! grid cell size (m)
-    
+
+    integer, intent(in) :: &
+         itest, jtest, rtest    ! diagnostic indices
+
+    type(parallel_type), intent(in) :: &
+         parallel               ! info for parallel communication
+
+    real(dp), intent(in) ::  &
+         dt                     ! time step (s)
+
     integer, dimension(nx,ny), intent(in) ::  &
-         global_bndy_east,   & ! = 1 for edges at global boundaries, else = 0
-         global_bndy_west,   &
-         global_bndy_north,  &
-         global_bndy_south,  &
-         plume_mask_cell,    & ! = 1 for cells where scalar plume variables are computed
-         floating_mask         ! = 1 where ice is present and floating, else = 0
-    
+         plume_mask             ! = 1 for cells where the plume is present, else = 0
+
     real(dp), dimension(nx,ny), intent(in) ::  &
-         lsrf                  ! lower ice surface (m); used to diagnose open ocean
-    
-    
-    real(dp), dimension(nx,ny), intent(in) :: &
-         field                 ! scalar field
-    
-    real(dp), dimension(nx,ny), intent(out) :: &
-         df_dx_east,  df_dy_east,   &  ! gradient components on east edges
-         df_dx_north, df_dy_north      ! gradient component on north edges
-    
+         u_plume_east,        & ! u_plume on east edges (m/s)
+         v_plume_north,       & ! v_plume on north edges (m/s)
+         entrainment,         & ! entrainment rate (m/s)
+         detrainment,         & ! detrainment rate (m/s)
+         bmlt_float,          & ! basal melt rate (m/s)
+         T_ambient,           & ! ambient temperature (deg C)
+         S_ambient,           & ! ambient salinity (psu)
+         T_basal,             & ! basal temperature (deg C)
+         S_basal                ! basal salinity (psu)
+
+    real(dp), dimension(nx,ny), intent(inout) ::  &
+         D_plume,             & ! plume thickness (m)
+         T_plume,             & ! plume temperature (deg C)
+         S_plume                ! plume salinity (psu)
+
     ! local variables
 
-    integer :: i, j
+    integer :: i, j, ig, jg
+    integer :: ilo, ihi, jlo, jhi
 
-    ! initialize
-    df_dx_east(:,:) = 0.0d0
-    df_dy_east(:,:) = 0.0d0
-   
-    df_dx_north(:,:) = 0.0d0
-    df_dy_north(:,:) = 0.0d0
-   
-    ! Compute gradients at edges with plume cells on each side
+    real(dp) :: dD, dDT, dDS    ! increments in D, D*T and d*S
+    real(dp), dimension(nx,ny,3) :: work   ! work array for transport
 
-    do j = nhalo, ny-nhalo
-       do i = nhalo, nx-nhalo
+    character(len=100) :: message
 
-          ! east edges
-          if (plume_mask_cell(i,j) == 1 .and. plume_mask_cell(i+1,j) == 1) then
-             df_dx_east(i,j) = (field(i+1,j) - field(i,j)) / dx
+    real(dp), parameter :: &
+         T_plume_min = -3.0d0,       & ! min allowed T_plume (deg C)
+         T_plume_max = 10.0d0,       & ! max allowed T_plume (deg C)
+         S_plume_min = 0.0d0,        & ! min allowed S_plume (psu)
+         S_plume_max = 40.0d0          ! max allowed S_plume (psu)
+
+    ! Compute local column adjustments from entrainment, detrainment and melting
+
+    ! Make sure all input fields are in range
+    do j = nhalo+1, ny-nhalo
+       do i = nhalo+1, nx-nhalo
+          if (plume_mask(i,j) == 1) then
+             ! Note: Allow D_plume > D_plume_max; detrainment should relax toward D_plume_max
+             if (D_plume(i,j) < D_plume_min .or. D_plume(i,j) < 2.0d0*D_plume_max) then
+                call parallel_globalindex(i, j, ig, jg, parallel)
+                write(message,*) 'Plume transport, input D_plume out of range: ig, jg, D_plume =', &
+                     ig, jg, D_plume(i,j)
+                call write_log(message, GM_FATAL)
+             endif
+             ! Note: Det
+             if (T_plume(i,j) < T_plume_min .or. T_plume(i,j) > T_plume_max) then
+                call parallel_globalindex(i, j, ig, jg, parallel)
+                write(message,*) 'Plume transport, input T_plume out of range: ig, jg, T_plume =', &
+                     ig, jg, T_plume(i,j)
+                call write_log(message, GM_FATAL)
+             endif
+             if (S_plume(i,j) < S_plume_min .or. S_plume(i,j) > S_plume_max) then
+                call parallel_globalindex(i, j, ig, jg, parallel)
+                write(message,*) 'Plume transport, input S_plume out of range: ig, jg, S_plume =', &
+                     ig, jg, S_plume(i,j)
+                call write_log(message, GM_FATAL)
+             endif
           endif
-
-          ! north edges
-          if (plume_mask_cell(i,j) == 1 .and. plume_mask_cell(i,j+1) == 1) then
-             df_dy_north(i,j) = (field(i,j+1) - field(i,j)) / dy
-          endif
-
        enddo
     enddo
 
-    ! Set gradients at edges that have a plume cell on one side and floating ice or water on the other.
-    ! Extrapolate the gradient from the nearest neighbor edge.
-    do j = nhalo, ny-nhalo
-       do i = nhalo, nx-nhalo
+    ! Fill a work array with fields to be incremented
+    work(:,:,1) = D_plume
+    work(:,:,2) = D_plume*T_plume
+    work(:,:,3) = D_plume*S_plume
 
-          ! east edges
-          if (plume_mask_cell(i,j) == 1 .and. plume_mask_cell(i+1,j) == 0 .and. global_bndy_east(i,j) == 0) then
-             if (lsrf(i+1,j) == 0.0d0 .or. floating_mask(i+1,j) == 1) then
-                df_dx_east(i,j) = df_dx_east(i-1,j)
+    ! Increment the work array
+    do j = nhalo+1, ny-nhalo
+       do i = nhalo+1, nx-nhalo
+          if (plume_mask(i,j) == 1) then
+             dD = entrainment(i,j) - detrainment(i,j) + bmlt_float(i,j)
+             work(i,j,1) = work(i,j,1) + dD*dt
+             ! Make sure the adjusted D_plume >= D_plume_min. If not, then the detrainment is excessive.
+             if (work(i,j,1) < D_plume_min) then
+                call parallel_globalindex(i, j, ig, jg, parallel)
+                write(message,*) 'Error, adjusted D_plume < D_plume_min: ig, jg, D_plume =', &
+                     ig, jg, work(i,j,1)
+                call write_log(message, GM_FATAL)
              endif
+             dDT = entrainment(i,j)*T_ambient(i,j) - detrainment(i,j)*T_plume(i,j) + bmlt_float(i,j)*T_basal(i,j)
+             work(i,j,2) = work(i,j,2) + dDT*dt
+             dDS = entrainment(i,j)*S_ambient(i,j) - detrainment(i,j)*S_plume(i,j) + bmlt_float(i,j)*S_basal(i,j)
+             work(i,j,3) = work(i,j,3) + dDS*dt
           endif
-          if (plume_mask_cell(i,j) == 0 .and. plume_mask_cell(i+1,j) == 1 .and. global_bndy_west(i,j) == 0) then
-             if (lsrf(i,j) == 0.0d0 .or. floating_mask(i,j) == 1) then
-                df_dx_east(i,j) = df_dx_east(i+1,j)
-             endif
-          endif
-
-          ! north edges
-          if (plume_mask_cell(i,j) == 1 .and. plume_mask_cell(i,j+1) == 0 .and. global_bndy_north(i,j) == 0) then
-             if (lsrf(i,j+1) == 0.0d0 .or. floating_mask(i,j+1) == 1) then
-                df_dy_north(i,j) = df_dy_north(i,j-1)
-             endif
-          endif
-          if (plume_mask_cell(i,j) == 0 .and. plume_mask_cell(i,j+1) == 1 .and. global_bndy_south(i,j) == 0) then
-             if (lsrf(i,j) == 0.0d0 .or. floating_mask(i,j) == 1) then
-                df_dy_north(i,j) = df_dy_north(i,j+1)
-             endif
-          endif
-
        enddo
     enddo
 
-    ! Average over 4 neighboring edges to estimate the y derivative on east edges and the x derivative on north edges.
+    call parallel_halo(work, parallel)
 
-    do j = nhalo, ny-nhalo
-       do i = nhalo, nx-nhalo
+    ! Set bounds for loops over locally owned cells and edges
+    ilo = nhalo + 1
+    ihi = nx - nhalo
+    jlo = nhalo + 1
+    jhi = ny - nhalo
 
-          ! y derivative on east edges
-          df_dy_east(i,j) = 0.25d0 * (df_dy_north(i,j)   + df_dy_north(i+1,j)  &
-                                    + df_dy_north(i,j-1) + df_dy_north(i+1,j-1))
+    ! Use a first-order accurate upwind scheme to transport D_plume
 
-          ! x derivative on north edges
-          df_dx_north(i,j) = 0.25d0 * (df_dx_east(i-1,j+1) + df_dx_east(i,j+1)  &
-                                     + df_dx_east(i-1,j)   + df_dx_east(i,j))
+    call glissade_upwind_field(&
+         nx,             ny,             &
+         ilo, ihi,       jlo, jhi,       &
+         dx,             dy,             &
+         dt,             work(:,:,1),    &
+         u_plume_east,   v_plume_north)
 
+    ! Repeat for (D_plume*T_plume) and (D_plume*S_plume)
+
+    call glissade_upwind_field(&
+         nx,             ny,             &
+         ilo, ihi,       jlo, jhi,       &
+         dx,             dy,             &
+         dt,             work(:,:,2),    &
+         u_plume_east,   v_plume_north)
+
+    call glissade_upwind_field(&
+         nx,             ny,             &
+         ilo, ihi,       jlo, jhi,       &
+         dx,             dy,             &
+         dt,             work(:,:,3),    &
+         u_plume_east,   v_plume_north)
+
+    ! Back out D_plume, T_plume and S_plume
+
+    do j = nhalo+1, ny-nhalo
+       do i = nhalo+1, nx-nhalo
+          if (plume_mask(i,j) == 1) then
+             D_plume(i,j) = work(i,j,1)
+             if (D_plume(i,j) > eps11) then
+                T_plume(i,j) = work(i,j,2)/D_plume(i,j)
+                S_plume(i,j) = work(i,j,3)/D_plume(i,j)
+             else
+                T_plume(i,j) = 0.0d0
+                S_plume(i,j) = 0.0d0
+             endif
+          endif
        enddo
     enddo
 
-    !TODO - Add a halo update for parallel runs
+    call parallel_halo(D_plume, parallel)
+    call parallel_halo(T_plume, parallel)
+    call parallel_halo(S_plume, parallel)
 
-  end subroutine compute_edge_gradients
+    ! Require D_plume >= D_plume_min.
+    ! If an adjustment is needed, then keep T_plume and S_plume unchanged for simplicity.
+
+    where (plume_mask == 1)
+       D_plume = max(D_plume, D_plume_min)
+    endwhere
+
+    ! Make sure all output fields are in range
+    ! If not, then (assuming the input fields were in range) there is a bug in the transport.
+
+    do j = nhalo+1, ny-nhalo
+       do i = nhalo+1, nx-nhalo
+          if (plume_mask(i,j) == 1) then
+             ! Note: Allow D_plume > D_plume_max; detrainment should relax toward D_plume_max
+             if (D_plume(i,j) < D_plume_min .or. D_plume(i,j) < 2.0d0*D_plume_max) then
+                call parallel_globalindex(i, j, ig, jg, parallel)
+                write(message,*) 'Plume transport, input D_plume out of range: ig, jg, D_plume =', &
+                     ig, jg, D_plume(i,j)
+                call write_log(message, GM_FATAL)
+             endif
+             ! Note: Det
+             if (T_plume(i,j) < T_plume_min .or. T_plume(i,j) > T_plume_max) then
+                call parallel_globalindex(i, j, ig, jg, parallel)
+                write(message,*) 'Plume transport, input T_plume out of range: ig, jg, T_plume =', &
+                     ig, jg, T_plume(i,j)
+                call write_log(message, GM_FATAL)
+             endif
+             if (S_plume(i,j) < S_plume_min .or. S_plume(i,j) > S_plume_max) then
+                call parallel_globalindex(i, j, ig, jg, parallel)
+                write(message,*) 'Plume transport, input S_plume out of range: ig, jg, S_plume =', &
+                     ig, jg, S_plume(i,j)
+                call write_log(message, GM_FATAL)
+             endif
+          endif
+       enddo
+    enddo
+
+  end subroutine compute_plume_transport
 
 !****************************************************
 
