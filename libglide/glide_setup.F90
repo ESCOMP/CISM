@@ -892,6 +892,7 @@ contains
     call GetValue(section, 'which_ho_assemble_taud',      model%options%which_ho_assemble_taud)
     call GetValue(section, 'which_ho_assemble_bfric',     model%options%which_ho_assemble_bfric)
     call GetValue(section, 'which_ho_assemble_lateral',   model%options%which_ho_assemble_lateral)
+    !TODO - Move the next two options to the calving type
     call GetValue(section, 'which_ho_calving_front',      model%options%which_ho_calving_front)
     call GetValue(section, 'which_ho_calvingmip_domain',  model%options%which_ho_calvingmip_domain)
     call GetValue(section, 'which_ho_ground',             model%options%which_ho_ground)
@@ -2303,9 +2304,10 @@ contains
     call GetValue(section,'cliff_timescale',    model%calving%cliff_timescale)
     call GetValue(section,'calving_front_x',    model%calving%calving_front_x)
     call GetValue(section,'calving_front_y',    model%calving%calving_front_y)
-    call GetValue(section,'f_ground_threshold', model%calving%f_ground_threshold)
+    call GetValue(section,'calving_front_radius',         model%calving%calving_front_radius)
     call GetValue(section,'cf_advance_retreat_amplitude', model%calving%cf_advance_retreat_amplitude)
     call GetValue(section,'cf_advance_retreat_period',    model%calving%cf_advance_retreat_period)
+    call GetValue(section,'f_ground_threshold', model%calving%f_ground_threshold)
 
     ! NOTE: bpar is used only for BTRC_TANH_BWAT
     !       btrac_max and btrac_slope are used (with btrac_const) for BTRC_LINEAR_BMLT
@@ -2612,6 +2614,10 @@ contains
        endif
        if (model%calving%calving_front_y > 0.0d0) then
           write(message,*) 'y calving front (m)           : ', model%calving%calving_front_y
+          call write_log(message)
+       endif
+       if (model%calving%calving_front_radius > 0.0d0) then
+          write(message,*) 'calving front radius (m)      : ', model%calving%calving_front_radius
           call write_log(message)
        endif
     endif
@@ -3984,15 +3990,14 @@ contains
 
         ! calving options for Glissade
 
-        !TODO: CALVING_GRID_MASK and apply_calving_mask are redundant; remove one option
+        !TODO: CALVING_GRID_MASK and apply_calving_mask are redundant; remove one option?
+        !      The advantage of apply_calving_mask is that it can be combined with other whichcalving options.
         if (options%whichcalving == CALVING_GRID_MASK .or. options%apply_calving_mask) then
-           call glide_add_to_restart_variable_list('calving_mask', model_id)
-        endif
-
-        !WHL - debug - Can be useful to compute a calving mask for testing subgrid CF schemes
-        !TODO - Remove if not needed permanently
-        if (options%which_ho_calving_front == HO_CALVING_FRONT_SUBGRID) then
-           call glide_add_to_restart_variable_list('calving_mask', model_id)
+           if (options%which_ho_calving_front == HO_CALVING_FRONT_NO_SUBGRID) then
+              call glide_add_to_restart_variable_list('calving_mask', model_id)
+           elseif (options%which_ho_calving_front == HO_CALVING_FRONT_SUBGRID) then
+              call glide_add_to_restart_variable_list('subgrid_calving_mask', model_id)
+           endif
         endif
 
         ! The eigencalving calculation requires the product of eigenvalues of the horizontal strain rate tensor,
@@ -4006,13 +4011,6 @@ contains
                 options%whichcalving == CALVING_DAMAGE) then
            call glide_add_to_restart_variable_list('tau_eigen1', model_id)
            call glide_add_to_restart_variable_list('tau_eigen2', model_id)
-        endif
-
-        if (options%whichcalving == CF_ADVANCE_RETREAT_RATE) then
-           ! Note: The calving mask is not strictly needed for this option.
-           ! But some CalvingMIP experiments start with prescribed retreat and then switch to masked advance,
-           ! in which case it is useful to have calving_mask in the restart file.
-           call glide_add_to_restart_variable_list('calving_mask', model_id)
         endif
 
         ! If forcing ice retreat, then we need ice_fraction_retreat_mask (which specifies the cells where retreat is forced)

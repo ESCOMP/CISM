@@ -110,6 +110,12 @@ units:         meter
 long_name:     vertical coordinate of lithosphere layer
 dimlen:        model%lithot%nlayer
 
+[axis]
+dimensions:    axis
+units:         1
+long_name:     axis coordinate for calvingMIP output
+dimlen:        model%calving%naxis
+
 [lat]
 dimensions:    time, y1, x1
 units:         degreeN
@@ -559,6 +565,13 @@ data:          data%calving%calving_mask
 load:          1
 type:          int
 
+[subgrid_calving_mask]
+dimensions:    time, y1, x1
+units:         1
+long_name:     subgrid calving mask
+data:          data%calving%subgrid_calving_mask
+load:          1
+
 [calving_lateral]
 dimensions:    time, y1, x1
 units:         meter/year
@@ -641,6 +654,55 @@ units:         kg/s
 long_name:     total calving mass balance flux
 data:          data%geometry%total_calving_flux
 average:       1
+
+#calvingMIP output
+
+[cf_locx]
+dimensions:    time, axis
+long_name:     calving-front x location
+units:         km
+data:          data%calving%cf_locx
+type:          real
+factor:        0.001
+
+[cf_locy]
+dimensions:    time, axis
+long_name:     calving-front x location
+units:         km
+data:          data%calving%cf_locy
+type:          real
+factor:        0.001
+
+[cf_radius]
+dimensions:    time, axis
+long_name:     calving-front radius
+units:         km
+data:          data%calving%cf_radius
+type:          real
+factor:        0.001
+
+[cf_thck]
+dimensions:    time, axis
+long_name:     calving-front thickness
+units:         m
+data:          data%calving%cf_thck
+type:          real
+
+[cf_uvel]
+dimensions:    time, axis
+long_name:     calving-front velocity, u component
+units:         m/year
+data:          data%calving%cf_uvel
+type:          real
+factor:        scyr
+
+[cf_vvel]
+dimensions:    time, axis
+long_name:     calving-front velocity, v component
+units:         m/year
+data:          data%calving%cf_vvel
+type:          real
+factor:        scyr
 
 [thkmask]
 dimensions:    time, y1, x1

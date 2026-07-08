@@ -44,6 +44,7 @@
     use glide_types
     use cism_parallel, only: this_rank, main_task, nhalo, lhalo, uhalo, &
          parallel_halo, parallel_reduce_max, parallel_global_sum, parallel_globalindex
+    use glissade_calving, only: verbose_calving
 
     implicit none
     save
@@ -711,6 +712,7 @@
        ! TODO: Put the glacier values of snow_threshold_min and snow_threshold_max in the climate derived type.
 
        ! compute snow accumulation (mm/yr w.e.)
+       !TODO - Replace model%climate%artm with model%climate%artm_corrected?
        where (model%climate%artm > model%climate%snow_threshold_max)
           model%climate%snow = 0.0d0   ! all precip falls as rain
        elsewhere (model%climate%artm < model%climate%snow_threshold_min)
@@ -792,17 +794,21 @@
 
 !=======================================================================
 
-  subroutine glissade_apply_smb(model)
+  subroutine glissade_apply_smb(model, ocean_mask)
 
     ! Apply the SMB at the upper and lower surfaces, and recompute tracer values.
 
     use glimmer_physcon, only: rhow, rhoi, scyr
     use glissade_masks, only: glissade_get_masks
-    use glissade_calving, only: verbose_calving
 
     ! input/output arguments
 
     type(glide_global_type), intent(inout) :: model   ! model instance
+
+    !TODO: Put the masks in a derived type so ocean_mask doesn't have to be passed through
+    !      the various interfaces.
+    integer, dimension(model%general%ewn, model%general%nsn), intent(inout) :: &
+         ocean_mask      ! = 1 if topg is below sea level and thck = 0, else = 0
 
     ! local variables
 
@@ -813,12 +819,9 @@
     integer, dimension(model%general%ewn, model%general%nsn) ::   &
          ice_mask,               & ! = 1 if thck > 0, else = 0
          floating_mask,          & ! = 1 where ice is present and floating, else = 0
-         ocean_mask,             & ! = 1 if topg is below sea level and thck = 0, else = 0
-         land_mask,              & ! = 1 if topg is at or above sea level, else = 0
-         calving_front_mask        ! = 1 where ice is floating and borders an ocean cell, else = 0
+         land_mask                 ! = 1 if topg is at or above sea level, else = 0
 
     character(len=100) :: message
-
     integer :: itest, jtest, rtest      ! coordinates of diagnostic cell
     integer :: i, j, k
     integer :: ewn, nsn, upn
@@ -853,21 +856,19 @@
        bmlt = 0.0d0
     endif
 
-    ! ------------------------------------------------------------------------
-    ! Get masks used for the mass balance calculation.
-    ! Pass thklim = 0 to identify cells with thck > 0 (not thck > thklim).
-    ! Use ocean_mask to identify ocean cells where positive acab should not be applied.
-    ! Use thck_effective to compute a fractional area for calving_front cells.
-    ! TODO - Is it correct to use the old value of f_ground_cell from the start of the time step?
-    !        Note that this value is used to identify CF cells where the mass balance is corrected.
-    ! TODO - Would it be better not to recompute the masks here, but to use the pre-transport masks?
-    ! ------------------------------------------------------------------------
-
     !Note: If not using the subgrid CF, then we should recompute effective_areafrac before
     !       the call to mass_balance_driver. This allows us to remove small thin ice
     !       from marine cells with negative acab or positive bmlt.
     !      If using the subgrid CF, use the pre-transport masks. Thin ice in ocean cells
     !       will be removed with different logic based on protected_mask.
+    ! ------------------------------------------------------------------------
+    ! Get masks used for the mass balance calculation.
+    ! Pass thklim = 0 to identify cells with thck > 0 (not thck > thklim).
+    ! This allows ice removal from cells with very thin ice and a negative mass balance;
+    !  it also allows accumulation in cells with very thin ice and a positive mass balance.
+    ! Use ocean_mask to identify ocean cells where positive acab should not be applied.
+    ! Use thck_effective to compute a fractional area for calving_front cells.
+    ! ------------------------------------------------------------------------
 
     if (model%options%which_ho_calving_front == HO_CALVING_FRONT_NO_SUBGRID) then
 
@@ -892,11 +893,6 @@
           model%calving%effective_areafrac = 0.0d0
        endwhere
 
-       if (verbose_calving) then
-          call point_diag(model%calving%effective_areafrac, &
-               'Before mass driver: effective_areafrac', itest, jtest, rtest, 7, 7, '(f10.6)')
-       endif
-
     endif  ! which_ho_calving_front
 
     ! TODO: Zero out acab and bmlt in cells that are ice-free ocean after transport?
@@ -918,8 +914,11 @@
     !       * acab, bmlt (m/s)
     ! ------------------------------------------------------------------------
 
-    !TODO - Inline some of the code in this subroutine?
-    !       As it is, this subroutine does very little other than call mass_balance_driver.
+    if (verbose_calving) then
+       call point_diag(model%geometry%thck, 'Before mass balance driver, thck (m)', itest, jtest, rtest, 7, 7)
+       call point_diag(model%calving%thck_effective, 'thck_effective', itest, jtest, rtest, 7, 7)
+       call point_diag(model%calving%effective_areafrac, 'effective area', itest, jtest, rtest, 7, 7)
+    endif
 
     call mass_balance_driver(&
          model%numerics%dt,                                    &  ! s
@@ -941,7 +940,9 @@
          model%geometry%tracers_lsrf(:,:,:),               &
          model%options%which_ho_vertical_remap)
 
-    !       End of mass balance code
+    if (verbose_calving) then
+       call point_diag(model%geometry%thck, 'After mass balance driver, thck (m)', itest, jtest, rtest, 7, 7)
+    endif
 
   end subroutine glissade_apply_smb
 
@@ -1130,6 +1131,7 @@
             nx,       ny,          &
             nlyr,     ntracers,    &
             dt,       parallel,    &
+            itest, jtest, rtest,   &
             ocean_mask,            &
             effective_areafrac,    &
             thck_layer(:,:,:),     &
@@ -1232,6 +1234,7 @@
        nx,           ny,          &
        nlyr,         ntracer,     &
        dt,           parallel,    &
+       itest, jtest, rtest,       &
        ocean_mask,                &
        effective_areafrac,        &
        thck_layer,   tracer,      &
@@ -1255,12 +1258,16 @@
     type(parallel_type), intent(in) :: &
          parallel               ! info for parallel communication
 
+    integer, intent(in) ::  &
+         itest, jtest, rtest    ! coordinates of diagnostic point
+
     !TODO - Could remove ocean_mask argument, if acab and bmlt have already been set to 0 for ice-free ocean cells.
     integer, dimension(nx,ny), intent(in) :: &
          ocean_mask             ! = 1 if topg is below sea level and thk <= thklim, else = 0
 
     real(dp), dimension (nx,ny), intent(in) ::     &
          effective_areafrac     ! effective fractional area for calving_front cells, in range [0,1]
+                                ! = 1 for interior cells and land, = 0 for ocean
 
     real(dp), dimension (nx,ny,nlyr), intent(inout) ::     &
          thck_layer             ! ice layer thickness
@@ -1336,168 +1343,172 @@
              thck_layer(i,j,:) = thck_layer(i,j,:) / effective_areafrac(i,j)
           endif
 
-          ! initialize accumulation/ablation terms
-          sfc_accum = 0.d0
-          sfc_ablat = 0.d0
-          bed_accum = 0.d0
-          bed_ablat = 0.d0
+          if (effective_areafrac(i,j) > 0.0d0) then
 
-          ! Add surface accumulation/ablation to ice thickness
-          ! Also modify tracers conservatively.
+             ! initialize accumulation/ablation terms
+             sfc_accum = 0.d0
+             sfc_ablat = 0.d0
+             bed_accum = 0.d0
+             bed_ablat = 0.d0
 
-          if (acab(i,j) > 0.d0) then       ! accumulation, added to layer 1
+             ! Add surface accumulation/ablation to ice thickness
+             ! Also modify tracers conservatively.
 
-             sfc_accum = acab(i,j)*dt
+             if (acab(i,j) > 0.d0) then       ! accumulation, added to layer 1
 
-             if (ocean_mask(i,j) == 1) then     ! no accumulation in open ocean
+                sfc_accum = acab(i,j)*dt
 
-                ! do nothing
+                if (ocean_mask(i,j) == 1) then     ! no accumulation in open ocean
 
-             else  ! not ocean; accumulate ice
+                   ! do nothing
 
-                acab_applied(i,j) = acab_applied(i,j) + sfc_accum*effective_areafrac(i,j)
+                else  ! not ocean; accumulate ice
 
-                ! adjust mass-tracer product for the top layer
+                   acab_applied(i,j) = acab_applied(i,j) + sfc_accum*effective_areafrac(i,j)
 
-                do nt = 1, ntracer  !TODO - Put this loop on the outside for speedup?
+                   ! adjust mass-tracer product for the top layer
 
-                   thck_tracer(i,j,nt,1) = thck_layer(i,j,1) * tracer(i,j,nt,1)  &
-                                                 + sfc_accum * tracer_usrf(i,j,nt)
+                   do nt = 1, ntracer  !TODO - Put this loop on the outside for speedup?
 
-                enddo  ! ntracer
+                      thck_tracer(i,j,nt,1) = thck_layer(i,j,1) * tracer(i,j,nt,1)  &
+                                                    + sfc_accum * tracer_usrf(i,j,nt)
 
-                ! new top layer thickess
-                thck_layer(i,j,1) = thck_layer(i,j,1) + sfc_accum
+                   enddo  ! ntracer
 
-                ! new tracer values in top layer
-                tracer(i,j,:,1) = thck_tracer(i,j,:,1) / thck_layer(i,j,1)
+                   ! new top layer thickess
+                   thck_layer(i,j,1) = thck_layer(i,j,1) + sfc_accum
 
-             endif   ! ocean_mask = 1
+                   ! new tracer values in top layer
+                   tracer(i,j,:,1) = thck_tracer(i,j,:,1) / thck_layer(i,j,1)
 
-          elseif (acab(i,j) < 0.d0) then   ! ablation in one or more layers
+                endif   ! ocean_mask = 1
 
-             ! reduce ice thickness (tracer values will not change)
+             elseif (acab(i,j) < 0.d0) then   ! ablation in one or more layers
 
-             sfc_ablat = -acab(i,j)*dt   ! positive by definition
+                ! reduce ice thickness (tracer values will not change)
 
-             if (ocean_mask(i,j) == 1) then     ! no accumulation in open ocean
+                sfc_ablat = -acab(i,j)*dt   ! non-negative by definition
 
-                ! do nothing
+                if (ocean_mask(i,j) == 1) then     ! no ablation in open ocean
 
-             else  ! not ocean; melt ice
+                   ! do nothing
 
-                acab_applied(i,j) = acab_applied(i,j) - sfc_ablat*effective_areafrac(i,j)
+                else  ! not ocean; melt ice
 
-                do k = 1, nlyr
-                   if (sfc_ablat > thck_layer(i,j,k)) then
-                      sfc_ablat = sfc_ablat - thck_layer(i,j,k)
-                      thck_layer(i,j,k) = 0.d0
-                      tracer(i,j,:,k) = 0.d0
-                   else
-                      thck_layer(i,j,k) = thck_layer(i,j,k) - sfc_ablat
-                      sfc_ablat = 0.d0
-                      exit
-                   endif
-                enddo
+                   acab_applied(i,j) = acab_applied(i,j) - sfc_ablat*effective_areafrac(i,j)
 
-             endif   ! ocean_mask = 1
+                   do k = 1, nlyr
+                      if (sfc_ablat > thck_layer(i,j,k)) then
+                         sfc_ablat = sfc_ablat - thck_layer(i,j,k)
+                         thck_layer(i,j,k) = 0.d0
+                         tracer(i,j,:,k) = 0.d0
+                      else
+                         thck_layer(i,j,k) = thck_layer(i,j,k) - sfc_ablat
+                         sfc_ablat = 0.d0
+                         exit
+                      endif
+                   enddo
 
-             ! Adjust acab_applied if energy is still available for melting
-             ! Also accumulate the remaining melt energy
+                endif   ! ocean_mask = 1
 
-             if (sfc_ablat > 0.d0) then
-                acab_applied(i,j) = acab_applied(i,j) + sfc_ablat*effective_areafrac(i,j)  ! make a negative value less negative
-                melt_potential(i,j) = melt_potential(i,j) + sfc_ablat
-             endif
+                ! Adjust acab_applied if energy is still available for melting
+                ! Also accumulate the remaining melt energy
 
-             !TODO - Figure out how to handle excess energy given by melt_potential.
-             !       Include in the heat flux passed back to CLM?
+                if (sfc_ablat > 0.d0) then
+                   acab_applied(i,j) = acab_applied(i,j) + sfc_ablat*effective_areafrac(i,j)  ! make a negative value less negative
+                   melt_potential(i,j) = melt_potential(i,j) + sfc_ablat
+                endif
 
-          endif  ! acab > 0
+                !TODO - Figure out how to handle excess energy given by melt_potential.
+                !       Include in the heat flux passed back to CLM?
 
-          ! Note: It is possible that we could have residual energy remaining for surface ablation
-          !       while ice is freezing on at the bed, in which case the surface ablation should
-          !       be subtracted from the bed accumulation.  We ignore this possibility for now.
+             endif  ! acab > 0
 
-          ! Note: Freeze-on (bmlt < 0) is allowed only in ice-covered cells, not ice-free ocean.
-          !       Allowing freeze-on in ice-free ocean would introduce mass conservation errors,
-          !        given the current logic with effective_areafrac.
-          !       If it is desired to implement a field of frazil ice formation that could grow ice
-          !        in open ocean as well as sub-shelf cavities and open ocean, this field could be passed
-          !        into glissade_mass_balance_driver in a separate call (i.e., independent of the standard
-          !        acab and bmlt fields) with ocean_mask = 0 and effective_areafrac = 1 everywhere.
-          !        Then the following code would allow frazil growth, as desired.
+             ! Note: It is possible that we could have residual energy remaining for surface ablation
+             !       while ice is freezing on at the bed, in which case the surface ablation should
+             !       be subtracted from the bed accumulation.  We ignore this possibility for now.
 
-          if (bmlt(i,j) < 0.d0) then       ! freeze-on, added to lowest layer
+             ! Note: Freeze-on (bmlt < 0) is allowed only in ice-covered cells, not ice-free ocean.
+             !       Allowing freeze-on in ice-free ocean would introduce mass conservation errors,
+             !        given the current logic with effective_areafrac.
+             !       If it is desired to implement a field of frazil ice formation that could grow ice
+             !        in open ocean as well as sub-shelf cavities and open ocean, this field could be passed
+             !        into glissade_mass_balance_driver in a separate call (i.e., independent of the standard
+             !        acab and bmlt fields) with ocean_mask = 0 and effective_areafrac = 1 everywhere.
+             !        Then the following code would allow frazil growth, as desired.
 
-             bed_accum = -bmlt(i,j)*dt
+             if (bmlt(i,j) < 0.d0) then       ! freeze-on, added to lowest layer
 
-             if (ocean_mask(i,j) == 1) then     ! no accumulation in open ocean
+                bed_accum = -bmlt(i,j)*dt
 
-                ! do nothing
+                if (ocean_mask(i,j) == 1) then     ! no freeze-on in open ocean
 
-             else  ! not ocean; accumulate ice
+                   ! do nothing
 
-                bmlt_applied(i,j) = bmlt_applied(i,j) - bed_accum*effective_areafrac(i,j)  ! bmlt_applied < 0 for freeze-on
+                else  ! not ocean; accumulate ice
 
-                ! adjust mass-tracer product for the bottom layer
+                   bmlt_applied(i,j) = bmlt_applied(i,j) - bed_accum*effective_areafrac(i,j)  ! bmlt_applied < 0 for freeze-on
 
-                do nt = 1, ntracer  !TODO - Put this loop on the outside for speedup?
+                   ! adjust mass-tracer product for the bottom layer
 
-                   thck_tracer(i,j,nt,nlyr) = thck_layer(i,j,nlyr) * tracer(i,j,nt,nlyr)  &
-                                                       + bed_accum * tracer_lsrf(i,j,nt)
+                   do nt = 1, ntracer  !TODO - Put this loop on the outside for speedup?
 
-                enddo  ! ntracer
+                      thck_tracer(i,j,nt,nlyr) = thck_layer(i,j,nlyr) * tracer(i,j,nt,nlyr)  &
+                                                          + bed_accum * tracer_lsrf(i,j,nt)
 
-                ! new bottom layer thickess
-                thck_layer(i,j,nlyr) = thck_layer(i,j,nlyr) + bed_accum
+                   enddo  ! ntracer
 
-                ! new tracer values in bottom layer
-                tracer(i,j,:,nlyr) = thck_tracer(i,j,:,nlyr) / thck_layer(i,j,nlyr)
+                   ! new bottom layer thickess
+                   thck_layer(i,j,nlyr) = thck_layer(i,j,nlyr) + bed_accum
 
-             endif   ! ocean_mask = 1
+                   ! new tracer values in bottom layer
+                   tracer(i,j,:,nlyr) = thck_tracer(i,j,:,nlyr) / thck_layer(i,j,nlyr)
 
-          elseif (bmlt(i,j) > 0.d0) then   ! basal melting in one or more layers
+                endif   ! ocean_mask = 1
 
-             ! reduce ice thickness (tracer values will not change)
+             elseif (bmlt(i,j) > 0.d0) then   ! basal melting in one or more layers
 
-             bed_ablat = bmlt(i,j)*dt   ! positive by definition
+                ! reduce ice thickness (tracer values will not change)
 
-             if (ocean_mask(i,j) == 1) then     ! no accumulation in open ocean
+                bed_ablat = bmlt(i,j)*dt   ! positive by definition
 
-                ! do nothing
+                if (ocean_mask(i,j) == 1) then     ! no melting in open ocean
 
-             else  ! not ocean; melt ice
+                   ! do nothing
 
-                bmlt_applied(i,j) = bmlt_applied(i,j) + bed_ablat*effective_areafrac(i,j)
+                else  ! not ocean; melt ice
 
-                do k = nlyr, 1, -1
-                   if (bed_ablat > thck_layer(i,j,k)) then
-                      bed_ablat = bed_ablat - thck_layer(i,j,k)
-                      thck_layer(i,j,k) = 0.d0
-                      tracer(i,j,:,k) = 0.d0
-                   else
-                      thck_layer(i,j,k) = thck_layer(i,j,k) - bed_ablat
-                      bed_ablat = 0.d0
-                      exit
-                   endif
-                enddo
+                   bmlt_applied(i,j) = bmlt_applied(i,j) + bed_ablat*effective_areafrac(i,j)
 
-             endif   ! ocean_mask = 1
+                   do k = nlyr, 1, -1
+                      if (bed_ablat > thck_layer(i,j,k)) then
+                         bed_ablat = bed_ablat - thck_layer(i,j,k)
+                         thck_layer(i,j,k) = 0.d0
+                         tracer(i,j,:,k) = 0.d0
+                      else
+                         thck_layer(i,j,k) = thck_layer(i,j,k) - bed_ablat
+                         bed_ablat = 0.d0
+                         exit
+                      endif
+                   enddo
 
-             ! Adjust bmlt_applied if energy is still available for melting
-             ! Also accumulate the remaining melt energy
+                endif   ! ocean_mask = 1
 
-             if (bed_ablat > 0.d0) then
-                ! bmlt_applied is less than input bmlt
-                bmlt_applied(i,j) = bmlt_applied(i,j) - bed_ablat*effective_areafrac(i,j)
-                melt_potential(i,j) = melt_potential(i,j) + bed_ablat
-             endif
+                ! Adjust bmlt_applied if energy is still available for melting
+                ! Also accumulate the remaining melt energy
 
-          endif  ! bmlt < 0
+                if (bed_ablat > 0.d0) then
+                   ! bmlt_applied is less than input bmlt
+                   bmlt_applied(i,j) = bmlt_applied(i,j) - bed_ablat*effective_areafrac(i,j)
+                   melt_potential(i,j) = melt_potential(i,j) + bed_ablat
+                endif
 
-          ! Weight the melt potential by the effective area fraction
-          melt_potential(i,j) = melt_potential(i,j) * effective_areafrac(i,j)
+             endif  ! bmlt < 0
+
+             ! Weight the melt potential by the effective area fraction
+             melt_potential(i,j) = melt_potential(i,j) * effective_areafrac(i,j)
+
+          endif   ! effective_areafrac > 0
 
           ! Convert thck_layer back to the mean volume per unit area in partly covered cells
           if (effective_areafrac(i,j) > 0.0d0 .and. effective_areafrac(i,j) < 1.0d0) then
