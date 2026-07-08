@@ -698,6 +698,164 @@ contains
 
   end subroutine double_to_binary
 
+!--------------------------------------------------------------------------
+
+  subroutine cubic_solver(&
+       a, b, c, d, &
+       x1,         &
+       x2_r, x2_i, &
+       x3_r, x3_i)
+
+    !------------------------------------------------
+    !Note: This subroutine is not currently called, but is here in case
+    !      it turns out to be useful.
+    !TODO - Pass 3 complex roots in and out?
+    !------------------------------------------------
+    ! Find the real root of a cubic equation:
+    !
+    !    ax^3 + bx^2 + cx = d = 0
+    !
+    ! Do this by making the substitution
+    !
+    !    x = y - b/(3a)
+    !
+    ! to convert to a depressed cubic:
+    !
+    !    y^3 + py + q = 0
+    !
+    ! where p = (1/a) * (c - b^2/(3a))
+    !       q = (1/a) * (d + 2b^3/(27a^2) - bc/(3a))
+    !
+    !------------------------------------------------
+
+    use glimmer_physcon, only: pi
+
+    real(dp), intent(in) ::  &
+         a, b, c, d       ! coefficients of cubic equation
+                          ! assumed to be real
+
+    real(dp), intent(out) ::  &
+         x1               ! real solution of cubic equation
+
+    real(dp), intent(out), optional ::  &
+         x2_r, x2_i,    & ! other solutions of cubic equation
+         x3_r, x3_i       ! could be either real or complex
+
+    real(dp) :: &
+         p, q             ! coefficients of depressed cubic
+
+    real(dp) :: &
+         Delta            ! discriminant
+
+    real(dp) :: &
+         y1,            & ! solutions of depressed cubic
+         y2_r, y2_i,    & !
+         y3_r, y3_i
+
+    real(dp) :: &
+         u, v,          & ! some intermediate factors
+         fu, fv,        &
+         phi
+
+    real(dp), parameter :: &
+         p333 = 1.d0/3.d0
+
+    logical, parameter :: verbose_cubic = .false.
+
+    ! compute coefficients of depressed cubic, y^3 + py + q = 0
+
+    p = (3.d0*c/a - (b/a)**2) / 3.d0
+    q = (2.d0*(b/a)**3 - 9.d0*b*c/(a*a) + 27.d0*d/a) / 27.d0
+
+    ! compute the discriminant
+    Delta = (p/3.d0)**3 + (q/2.d0)**2
+
+    if (verbose_cubic) then
+       write(iulog,*) 'Delta =', Delta
+       if (Delta > 0.d0) then
+          write(iulog,*) 'One real root, 2 complex conjugate'
+       elseif (Delta == 0.d0) then
+          write(iulog,*) 'Three real roots of which at least two are equal'
+       elseif (Delta < 0.d0) then
+          write(iulog,*) 'Three distinct real roots'
+       endif
+    endif
+
+    if (Delta >= 0.d0) then
+
+       if (Delta > 0.d0) then    ! one real root, two complex roots
+          fu = -q/2.d0 + sqrt(Delta)
+          fv = -q/2.d0 - sqrt(Delta)
+       else  ! Delta = 0; three real roots of which at least two are equal
+          fu = -q/2.d0
+          fv = fu
+       endif
+
+       ! some logic to avoid taking cube roots of negative numbers
+       if (fu >= 0.d0) then
+          u = fu**p333
+       else
+          u = -(-fu)**p333
+       endif
+
+       if (fv >= 0.d0) then
+          v = fv**p333
+       else
+          v = -(-fv)**p333
+       endif
+
+       ! form solutions of depressed cubic
+       y1 = u + v       ! real
+       y2_r = -(u+v)/2.d0
+       y2_i =  (u-v)*sqrt(3.d0)/2.d0
+       y3_r = -(u+v)/2.d0
+       y3_r = -(u-v)*sqrt(3.d0)/2.d0
+
+       if (verbose_cubic) then
+          write(iulog,*) 'a, b, c, d:', a, b, c, d
+          write(iulog,*) 'p, q:', p, q
+          write(iulog,*) 'y1 =', y1
+          write(iulog,*) 'x1 =', x1
+       endif
+
+    else  ! Delta < 0; three distinct real roots
+          ! use a trigonometric formulation
+
+       phi = acos(-q/(2.d0*sqrt(abs(p)**3/27.d0)))
+
+       y1 =    2.d0 * sqrt(abs(p)/3.d0) * cos(phi/3.d0)
+       y2_r = -2.d0 * sqrt(abs(p)/3.d0) * cos((phi+pi)/3.d0)
+       y2_i =  0.d0
+       y3_r = -2.d0 * sqrt(abs(p)/3.d0) * cos((phi-pi)/3.d0)
+       y3_i =  0.d0
+
+       if (verbose_cubic) then
+          write(iulog,*) 'a, b, c, d:', a, b, c, d
+          write(iulog,*) 'p, q:', p, q
+          write(iulog,*) 'y1, y2, y3 =', y1, y2_r, y3_r
+          write(iulog,*) 'b/3a =', b/(3.d0*a)
+          write(iulog,*) 'x1 =', y1 - b/(3.d0*a)
+          write(iulog,*) 'x2 =', y2_r - b/(3.d0*a)
+          write(iulog,*) 'x3 =', y3_r - b/(3.d0*a)
+       endif
+
+    endif
+
+    ! Recover the solutions
+    ! Mostly likely we are only interested in x1, but compute the others if requested
+
+    x1 = y1 - b/(3.d0*a)
+
+    if (present(x2_r) .and. present(x2_i) .and. present(x3_r) .and. present(x3_i)) then
+       x2_r = y2_r - b/(3.d0*a)
+       x2_i = y2_i
+       x3_r = y3_r - b/(3.d0*a)
+       x3_i = y3_i
+    endif
+
+  end subroutine cubic_solver
+
+!--------------------------------------------------------------------------
 
   pure function concat(arr) result(str)
     ! Turn a character array into a string
