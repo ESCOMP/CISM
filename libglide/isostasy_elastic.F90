@@ -42,6 +42,7 @@ module isostasy_elastic
   use glimmer_global, only : dp
   use glimmer_paramets, only: iulog
   use glide_types, only: isos_elastic
+  use glimmer_utils, only: point_diag
 
   implicit none
 
@@ -49,7 +50,7 @@ module isostasy_elastic
 
   private :: init_rbel, rbel_ow, rbel_iw
 
-  logical, parameter :: verbose_isostasy = .false.  ! if true, print diagnostic messages
+  logical, parameter :: verbose_elastic = .true.
 
 !-------------------------------------------------------------------------
 
@@ -174,21 +175,23 @@ contains
 
     load(:,:) = 0.0d0
 
-    if (verbose_isostasy .and. main_task) then
+    if (verbose_elastic .and. main_task) then
        write(iulog,*) 'ISOSTASY: calc_elastic'
        write(iulog,*) 'local ewn/nsn =', ewn, nsn
        write(iulog,*) 'global_ewn/nsn =', global_ewn, global_nsn
     endif
 
-    ! Gather the local arrays onto the main task
+    ! Gather the local load_factors arrays onto the main task
     ! Note: global arrays are allocated in the subroutine
     call gather_var(load_factors, load_factors_global, parallel)
-    call gather_var(load, load_global, parallel)
+
+    allocate(load_global(global_ewn,global_nsn))
+    load_global(:,:) = 0.0d0
 
     if (main_task) then
        do j = 1, global_nsn
 
-          if (verbose_isostasy .and. main_task) then
+          if (verbose_elastic .and. main_task) then
              if (mod(j,100) == 0) write(iulog,*) 'j =', j   ! to see how fast the calculation is going
           endif
           
@@ -215,7 +218,7 @@ contains
     ! Deallocate the other global array (which is intent(in) and does not need to be scattered)
     deallocate(load_factors_global)
 
-    if (verbose_isostasy .and. main_task) then
+    if (verbose_elastic .and. main_task) then
 
        ! print value at diagnostic point
        if (this_rank==rdiag_local) then
@@ -224,7 +227,7 @@ contains
           write(iulog,*) 'ISOSTASY: r, i, j, load:', rdiag_local, i, j, load(i,j)
        endif
 
-    endif  ! verbose_isostasy
+    endif  ! verbose_elastic
 
   end subroutine calc_elastic
 

@@ -3268,8 +3268,8 @@ contains
 
     call GetValue(section,'lithosphere',model%isostasy%lithosphere)
     call GetValue(section,'asthenosphere',model%isostasy%asthenosphere)
-    call GetValue(section,'whichrelaxed',model%isostasy%whichrelaxed)
-    call GetValue(section,'relaxed_tau',model%isostasy%relaxed_tau)
+    call GetValue(section,'which_relaxed',model%isostasy%which_relaxed)
+    call GetValue(section,'tau_relax_const',model%isostasy%tau_relax_const)
     call GetValue(section,'lithosphere_period',model%isostasy%period)
 
     !NOTE: This value used to be in a separate section ('elastic lithosphere')
@@ -3310,22 +3310,22 @@ contains
 
        if (model%isostasy%asthenosphere==ASTHENOSPHERE_FLUID) then
           call write_log('using fluid mantle')
-       else if (model%isostasy%asthenosphere==ASTHENOSPHERE_RELAXING) then
+       else if (model%isostasy%asthenosphere==ASTHENOSPHERE_RELAXING_CONST) then
           call write_log('using relaxing mantle')
-          write(message,*) ' characteristic time constant (yr): ', model%isostasy%relaxed_tau
+          write(message,*) ' characteristic time constant (yr): ', model%isostasy%tau_relax_const
           call write_log(message)
        else
           call write_log('Error, unknown asthenosphere option',GM_FATAL)
        end if
 
-       if (model%isostasy%whichrelaxed==RELAXED_TOPO_DEFAULT) then
+       if (model%isostasy%which_relaxed==RELAXED_TOPO_DEFAULT) then
           call write_log('reading topg and relx as separate input fields')
-       elseif (model%isostasy%whichrelaxed==RELAXED_TOPO_INPUT) then
+       elseif (model%isostasy%which_relaxed==RELAXED_TOPO_INPUT) then
           call write_log('setting relx to first slice of input topg')
-       elseif (model%isostasy%whichrelaxed==RELAXED_TOPO_COMPUTE) then
+       elseif (model%isostasy%which_relaxed==RELAXED_TOPO_COMPUTE) then
           call write_log('computing relx, given that input topg is in equilibrium')
        else
-          call write_log('Error, unknown whichrelaxed option',GM_FATAL)
+          call write_log('Error, unknown which_relaxed option',GM_FATAL)
        end if
 
        call write_log('')

@@ -176,7 +176,7 @@ module glide_types
   integer, parameter :: LITHOSPHERE_ELASTIC = 1
 
   integer, parameter :: ASTHENOSPHERE_FLUID = 0
-  integer, parameter :: ASTHENOSPHERE_RELAXING = 1
+  integer, parameter :: ASTHENOSPHERE_RELAXING_CONST = 1
 
   integer, parameter :: CALVING_NONE = 0
   integer, parameter :: CALVING_FLOAT_ZERO = 1
@@ -2518,7 +2518,7 @@ module glide_types
      !> \item[1] relaxing mantle, exponential adjustment toward (relx - load)
      !> \end{description}
 
-    integer :: whichrelaxed = 0
+    integer :: which_relaxed = 0
 
     !> relaxed topography:
     !> \begin{description}
@@ -2527,7 +2527,7 @@ module glide_types
     !> \item[2] first time slice of input topo is in isostatic equilibrium
     !> \end{description}
 
-     real(dp) :: relaxed_tau = 4000.d0        ! characteristic time constant of relaxing mantle (yr)
+     real(dp) :: tau_relax_const = 3000.d0    ! characteristic time constant of relaxing mantle (yr)
      real(dp) :: period = 100.d0              ! lithosphere update period (yr)
      integer :: nlith                         ! update lithosphere every nlith time steps; tinc * nlith = lithosphere_period
      logical :: new_load = .false.            ! set to true if there is a new surface load

@@ -59,32 +59,32 @@ module isostasy
   !     calculation should have minimal cost compared to the whole simulation
   !     (at least on grids of moderate resolution, ~4 km).
   ! (6) The adjustment time scale in the relaxing asthenosphere calculation is controlled
-  !     by the parameter relaxed_tau, which can be set in the [isostasy] section.
-  !     The default is 4000 yr.
+  !     by the parameter tau_relax_const, which can be set in the [isostasy] section.
+  !     The default is 3000 yr.
   !
-  ! Finally, a few words on the 'whichrelaxed' parameter.  This used to be called 'topo_is_relaxed'
-  ! and was in the [options] section; now it is called 'whichrelaxed' and is in the [isostasy] section.
+  ! Finally, a few words on the 'which_relaxed' parameter.  This used to be called 'topo_is_relaxed'
+  ! and was in the [options] section; now it is called 'which_relaxed' and is in the [isostasy] section.
   ! There are three possible values:
   !
-  ! - whichrelaxed = 0, the default setting. In this case, both topg and relx, if present, are read
+  ! - which_relaxed = 0, the default setting. In this case, both topg and relx, if present, are read
   !   from the input file. The model topography is initialized as topg.  The relx field is interpreted
   !   as the topography we would have eventually (after the asthenosphere fully relaxes) with zero load.
   !   The asthenosphere calculation continually adjusts the topography toward a state with topg = relx - load.
   !   NOTE: If relx is not present in the input file, the model will be initialized with relx = 0
   !         everywhere, which may be OK for idealized problems but will be wrong for real ice sheets.
   !
-  ! - whichrelaxed = 1. In this case, the input 'topg' field is interpreted as the relaxed field.
+  ! - which_relaxed = 1. In this case, the input 'topg' field is interpreted as the relaxed field.
   !   That is, the model sets relx = topg at initialization.  Then topg will be correct if there is no load
   !   (e.g., prior to ice sheet inception), but in general will be wrong. If relx is different from
-  !   the initial topography, it is better to input each field separately with whichrelaxed = 0.
+  !   the initial topography, it is better to input each field separately with which_relaxed = 0.
   !
-  ! - whichrelaxed = 2. In this case, the input 'topg' field is interpreted as the equilibrium topography.
+  ! - which_relaxed = 2. In this case, the input 'topg' field is interpreted as the equilibrium topography.
   !   The field 'relx' (i.e., the steady-state topography with zero load) is computed at initialization
   !   as relx = topg + load. This setting could be useful if we happen to know the equilibrium value
   !   of topg and want to compute relx. But if the model is stopping and restarting, the interpretation
   !   of topg as the equilibrium topography will usually be wrong on restart.
   !
-  ! In general, the preferred setting is whichrelaxed = 0, with topg and relx read in separately
+  ! In general, the preferred setting is which_relaxed = 0, with topg and relx read in separately
   ! from the input file. The other settings have specialized uses but may be inappropriate for production.
   !-------------------------------------------------------------------------
 
@@ -92,10 +92,16 @@ module isostasy
   !> calculate isostatic adjustment due to changing surface loads
 
   use glimmer_global, only : dp
+  use glimmer_paramets, only: iulog
+  use glimmer_physcon, only: scyr
+  use glimmer_utils, only: point_diag
+  use cism_parallel, only: main_task, this_rank
 
   implicit none
 
   private :: relaxing_mantle
+
+  logical, parameter :: verbose_isostasy = .true.
 
 !-------------------------------------------------------------------------
 
@@ -134,9 +140,9 @@ contains
        model%isostasy%nlith = 0  ! never update
     endif
 
-    model%isostasy%relaxed_tau = model%isostasy%relaxed_tau * scyr
+    model%isostasy%tau_relax_const = model%isostasy%tau_relax_const * scyr
 
-  end subroutine init_isostasy
+   end subroutine init_isostasy
 
 !-------------------------------------------------------------------------
   
@@ -207,7 +213,7 @@ contains
     end if
 
     ! update bedrock if the mantle is relaxing
-    if (model%isostasy%asthenosphere == ASTHENOSPHERE_RELAXING) then
+    if (model%isostasy%asthenosphere == ASTHENOSPHERE_RELAXING_CONST) then
        call relaxing_mantle(model)
     end if
 
@@ -225,11 +231,24 @@ contains
     real(dp), dimension(:,:), intent(out) :: load !> loading effect due to load_factors
     real(dp), dimension(:,:), intent(in)  :: load_factors !> load mass divided by mantle density
 
+    integer :: itest, jtest, rtest
+    itest = model%numerics%idiag_local
+    jtest = model%numerics%jdiag_local
+    rtest = model%numerics%rdiag_local
+
     if (model%isostasy%lithosphere == LITHOSPHERE_LOCAL) then
 
        load = load_factors
 
     else if (model%isostasy%lithosphere == LITHOSPHERE_ELASTIC) then
+
+       if (verbose_isostasy) then
+             if (main_task) then
+                write(iulog,*) 'Update lithospheric load: time, tstep_count, nlith =', &
+                     model%numerics%time, model%numerics%tstep_count, model%isostasy%nlith
+             endif
+          call point_diag(load_factors, 'input load_factors', itest, jtest, rtest, 7, 7)
+       endif
 
        call calc_elastic(&
             model%isostasy%rbel,  &
@@ -238,9 +257,11 @@ contains
             model%parallel,       &
             model%numerics%idiag, &
             model%numerics%jdiag, &
-            model%numerics%idiag_local, &
-            model%numerics%jdiag_local, &
-            model%numerics%rdiag_local)
+            itest, jtest, rtest)
+
+       if (verbose_isostasy) then
+          call point_diag(load, 'load after calc_elastic', itest, jtest, rtest, 7, 7)
+       endif
 
     end if
 
@@ -282,8 +303,25 @@ contains
     integer :: ew,ns
     real(dp) :: ft1, ft2
 
-    ft1 = exp(-model%numerics%dt/model%isostasy%relaxed_tau)
+    integer :: itest, jtest, rtest
+    itest = model%numerics%idiag_local
+    jtest = model%numerics%jdiag_local
+    rtest = model%numerics%rdiag_local
+
+    ft1 = exp(-model%numerics%dt/model%isostasy%tau_relax_const)
     ft2 = 1.d0 - ft1
+
+    if (verbose_isostasy) then
+       if (this_rank == rtest) then
+          write(iulog,*) 'relaxing_mantle, time (yr) =', model%numerics%time
+          write(iulog,*) 'tau, dt/tau, relative change =', &
+               model%isostasy%tau_relax_const, model%numerics%dt/model%isostasy%tau_relax_const, ft2
+       endif
+       call point_diag(model%isostasy%relx, 'relx', itest, jtest, rtest, 7, 7)
+       call point_diag(model%isostasy%relx - model%isostasy%load, 'relx - load', itest, jtest, rtest, 7, 7)
+       call point_diag(model%geometry%topg, 'topg before relaxation', itest, jtest, rtest, 7, 7)
+    endif
+
 
     do ns=1,model%general%nsn
        do ew=1,model%general%ewn
@@ -291,6 +329,10 @@ contains
                                      + ft1 *  model%geometry%topg(ew,ns)
        end do
     end do
+
+    if (verbose_isostasy) then
+       call point_diag(model%geometry%topg, 'topg after relaxation', itest, jtest, rtest, 7, 7)
+    endif
 
   end subroutine relaxing_mantle
 

@@ -569,24 +569,39 @@ contains
     endif
 
     ! handle relaxed/equilibrium topo
-    ! Initialise isostasy first
 
     if (model%options%isostasy == ISOSTASY_COMPUTE) then
 
+       ! Initialise the isostasy
        call init_isostasy(model)
 
     endif
 
-    select case(model%isostasy%whichrelaxed)
+    select case(model%isostasy%which_relaxed)
 
     case(RELAXED_TOPO_INPUT)   ! supplied input topography is relaxed
 
        model%isostasy%relx = model%geometry%topg
 
     case(RELAXED_TOPO_COMPUTE) ! supplied topography is in equilibrium
-                               !TODO - Test the case RELAXED_TOPO_COMPUTE
 
-       call isos_relaxed(model)
+       if (model%options%is_restart == STANDARD_RESTART) then
+          ! relx should have been read from the restart file
+          if (parallel_is_zero(model%isostasy%relx)) then
+             call write_log ('Failed to read relx on restart with which_relaxed = RELAXED_TOPO_COMPUTE', &
+                  GM_FATAL)
+          endif
+       else
+          ! relx will be computed as topg + load; it should not be present in the input file
+          ! Note: For a hybrid restart with 'relx' present in the input restart file,
+          !       the user should set which_relaxed = RELAXED_TOPO_STANDARD instead.
+          if (.not.parallel_is_zero(model%isostasy%relx)) then
+             call write_log ('Do not set which_relaxed = RELAXED_TOPO_COMPUTE if relx is in the input file')
+             call write_log ('Either remove relx or set which_relaxed = RELAXED_TOPO_STANDARD', GM_FATAL)
+          endif
+          ! Compute the load, then comput relx = topg + load
+          call isos_relaxed(model)
+       endif
 
     end select
 
@@ -2163,28 +2178,29 @@ contains
 
     type(parallel_type) :: parallel   ! info for parallel communication
 
+    !WHL - debug
+!    integer :: itest, jtest, rtest
+!    itest = model%numerics%idiag_local
+!    jtest = model%numerics%jdiag_local
+!    rtest = model%numerics%rdiag_local
+
     parallel = model%parallel
 
     ! ------------------------------------------------------------------------
-    ! update ice/water load if necessary
-    ! Note: Suppose the update period is 100 years, and the time step is 1 year.
-    !       Then the update will be done on the first time step of the simulation,
-    !        (model%numerics%tstep_count = 1) and again on step 101, 201, etc.
-    !       The update will not be done before writing output at t = 100, when
-    !        model%numerics%tstep_count = 100.
-    !       Thus the output file will contain the load that was applied during the
-    !        preceding years, not the new load.
-    !       In older code versions, the new load would have been computed on step 100.
+    ! update the ice/water load at the prescribed interval
     ! ------------------------------------------------------------------------
 
     if (model%options%isostasy == ISOSTASY_COMPUTE) then
 
        if (model%isostasy%nlith > 0) then
-          if (mod(model%numerics%tstep_count-1, model%isostasy%nlith) == 0) then
-             if (main_task) then
-                write(iulog,*) 'Update lithospheric load: tstep_count, nlith =', &
-                     model%numerics%tstep_count, model%isostasy%nlith
-             endif
+          if (mod(model%numerics%tstep_count, model%isostasy%nlith) == 0) then
+
+!             !WHL - debug
+!             if (this_rank == rtest) write(iulog,*) 'Isostasy hack: Reduce thck by 20 m'
+!             model%geometry%thck = model%geometry%thck - 20.0d0
+!             model%geometry%thck = max(model%geometry%thck, 0.0d0)
+!             call point_diag(model%geometry%thck, 'adjusted thck', itest, jtest, rtest, 7, 7)
+
              call isos_icewaterload(model)
              model%isostasy%new_load = .true.
           end if
