@@ -3271,8 +3271,6 @@ contains
     call GetValue(section,'which_relaxed',model%isostasy%which_relaxed)
     call GetValue(section,'tau_relax_const',model%isostasy%tau_relax_const)
     call GetValue(section,'lithosphere_period',model%isostasy%period)
-
-    !NOTE: This value used to be in a separate section ('elastic lithosphere')
     call GetValue(section,'flexural_rigidity',model%isostasy%rbel%d)
 
   end subroutine handle_isostasy
@@ -3283,52 +3281,68 @@ contains
 
     use glide_types
     use glimmer_log
-    use cism_parallel, only: tasks
 
     implicit none
     type(glide_global_type)  :: model
     character(len=100) :: message
+
+    character(len=*), dimension(0:1), parameter :: lithosphere = (/ &
+         'local lithosphere         ', &
+         'elastic lithosphere       ' /)
+
+    character(len=*), dimension(0:2), parameter :: asthenosphere = (/ &
+         'fluid asthenosphere                                ', &
+         'relaxing asthenosphere, constant timescale         ', &
+         'relaxing asthenosphere, spatially varying timescale' /)
+
+    character(len=*), dimension(0:2), parameter :: which_relaxed = (/ &
+         'read topg and relx as separate input fields    ', &
+         'set relx to input topg                         ', &
+         'compute relx assuming input topg in equilibrium' /)
     
     if (model%options%isostasy == ISOSTASY_COMPUTE) then
        call write_log('Isostasy')
        call write_log('--------')
 
-       if (model%isostasy%lithosphere==LITHOSPHERE_LOCAL) then
-          call write_log('using local lithosphere approximation')
-       else if (model%isostasy%lithosphere==LITHOSPHERE_ELASTIC) then
-          call write_log('using elastic lithosphere approximation')
-          if (tasks > 1) then
-             call write_log('Warning, load calculation will be gathered to one processor; does not scale well',GM_WARNING)
-          endif
-          write(message,*) ' flexural rigidity : ', model%isostasy%rbel%d
+       if (model%isostasy%lithosphere < 0 .or. model%isostasy%lithosphere >= size(lithosphere)) then
+          call write_log('Error, lithosphere option out of range', GM_FATAL)
+       else
+          write(message,*) 'lithosphere                    : ',model%isostasy%lithosphere,  &
+               lithosphere(model%isostasy%lithosphere)
+          call write_log(message)
+       endif
+
+       if (model%isostasy%asthenosphere < 0 .or. model%isostasy%asthenosphere >= size(asthenosphere)) then
+          call write_log('Error, asthenosphere option out of range', GM_FATAL)
+       else
+          write(message,*) 'asthenosphere                  : ',model%isostasy%asthenosphere,  &
+               asthenosphere(model%isostasy%asthenosphere)
+          call write_log(message)
+       endif
+
+       if (model%isostasy%which_relaxed < 0 .or. model%isostasy%which_relaxed >= size(which_relaxed)) then
+          call write_log('Error, which_relaxed option out of range', GM_FATAL)
+       else
+          write(message,*) 'which_relaxed                  : ',model%isostasy%which_relaxed,  &
+               which_relaxed(model%isostasy%which_relaxed)
+          call write_log(message)
+       endif
+
+       if (model%isostasy%lithosphere==LITHOSPHERE_ELASTIC) then
+          write(message,*) ' flexural rigidity             : ', model%isostasy%rbel%d
           call write_log(message)
           write(message,*) ' lithosphere update period (yr): ', model%isostasy%period
           call write_log(message)
-       else
-          call write_log('Error, unknown lithosphere option',GM_FATAL)
        end if
 
-       if (model%isostasy%asthenosphere==ASTHENOSPHERE_FLUID) then
-          call write_log('using fluid mantle')
-       else if (model%isostasy%asthenosphere==ASTHENOSPHERE_RELAXING_CONST) then
-          call write_log('using relaxing mantle')
-          write(message,*) ' characteristic time constant (yr): ', model%isostasy%tau_relax_const
+       if (model%isostasy%asthenosphere==ASTHENOSPHERE_RELAXING_CONST) then
+          write(message,*) 'relaxation constant (yr) : ', model%isostasy%tau_relax_const
           call write_log(message)
-       else
-          call write_log('Error, unknown asthenosphere option',GM_FATAL)
-       end if
-
-       if (model%isostasy%which_relaxed==RELAXED_TOPO_DEFAULT) then
-          call write_log('reading topg and relx as separate input fields')
-       elseif (model%isostasy%which_relaxed==RELAXED_TOPO_INPUT) then
-          call write_log('setting relx to first slice of input topg')
-       elseif (model%isostasy%which_relaxed==RELAXED_TOPO_COMPUTE) then
-          call write_log('computing relx, given that input topg is in equilibrium')
-       else
-          call write_log('Error, unknown which_relaxed option',GM_FATAL)
-       end if
-
-       call write_log('')
+       else if (model%isostasy%asthenosphere==ASTHENOSPHERE_RELAXING_LATVAR) then
+          if (model%options%whichdycore == DYCORE_GLIDE) then
+             call write_log('laterally varying relaxation time is supported for Glissade only', GM_FATAL)
+          end if
+       endif
 
     endif   ! compute isostasy
 
@@ -4224,7 +4238,11 @@ contains
          !      at a period set by isostasy%period. If we restart between two updates, we need to use the most
          !      recently computed load. If we recompute the load right after restarting, the restart may not be exact.
          call glide_add_to_restart_variable_list('load', model_id)
-      case default
+         if (model%isostasy%asthenosphere == ASTHENOSPHERE_RELAXING_LATVAR) then
+            ! The relaxation timescale is a 2d field read at initialization and again on restart
+            call glide_add_to_restart_variable_list('tau_relax', model_id)
+         endif
+         case default
          ! no new restart variables needed
     end select
 

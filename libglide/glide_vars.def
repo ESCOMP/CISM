@@ -159,6 +159,14 @@ long_name:     bedrock deflection from applied load
 data:          data%isostasy%load
 load:          1
 
+[tau_relax]
+dimensions:    time, y1, x1
+units:         yr
+long_name:     mantle relaxation timescale (yr)
+data:          data%isostasy%tau_relax
+factor:        1.0/scyr
+load:          1
+
 [eus]
 dimensions:    time
 units:         meter

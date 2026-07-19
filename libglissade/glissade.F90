@@ -107,7 +107,7 @@ contains
     use glimmer_scales
     use glimmer_physcon, only: rhow, rhoi, scyr
     use glide_mask
-    use isostasy, only: init_isostasy, isos_relaxed
+    use glissade_isostasy, only: glissade_isostasy_init
     use glimmer_map_init
     use glimmer_coordinates, only: coordsystem_new
     use glissade_grid_operators, only: glissade_stagger, glissade_laplacian_smoother
@@ -568,42 +568,8 @@ contains
        call glissade_adjust_topography(model)
     endif
 
-    ! handle relaxed/equilibrium topo
-
-    if (model%options%isostasy == ISOSTASY_COMPUTE) then
-
-       ! Initialise the isostasy
-       call init_isostasy(model)
-
-    endif
-
-    select case(model%isostasy%which_relaxed)
-
-    case(RELAXED_TOPO_INPUT)   ! supplied input topography is relaxed
-
-       model%isostasy%relx = model%geometry%topg
-
-    case(RELAXED_TOPO_COMPUTE) ! supplied topography is in equilibrium
-
-       if (model%options%is_restart == STANDARD_RESTART) then
-          ! relx should have been read from the restart file
-          if (parallel_is_zero(model%isostasy%relx)) then
-             call write_log ('Failed to read relx on restart with which_relaxed = RELAXED_TOPO_COMPUTE', &
-                  GM_FATAL)
-          endif
-       else
-          ! relx will be computed as topg + load; it should not be present in the input file
-          ! Note: For a hybrid restart with 'relx' present in the input restart file,
-          !       the user should set which_relaxed = RELAXED_TOPO_STANDARD instead.
-          if (.not.parallel_is_zero(model%isostasy%relx)) then
-             call write_log ('Do not set which_relaxed = RELAXED_TOPO_COMPUTE if relx is in the input file')
-             call write_log ('Either remove relx or set which_relaxed = RELAXED_TOPO_STANDARD', GM_FATAL)
-          endif
-          ! Compute the load, then comput relx = topg + load
-          call isos_relaxed(model)
-       endif
-
-    end select
+    ! Initialise isostasy and handle relaxed/equilibrium topo
+    call glissade_isostasy_init(model)
 
     ! If a 2D bheatflx field is present in the input file, it will have been written
     !  to model%temper%bheatflx.  For the case model%options%gthf = 0, we want to use
@@ -1203,6 +1169,7 @@ contains
     use glissade_mass_balance, only: glissade_prepare_climate_forcing
     use glissade_bmlt_float, only: glissade_bmlt_float_solve
     use glissade_calving, only: glissade_calving_solve
+    use glissade_isostasy, only: glissade_isostasy_solve
     use glissade_utils, only: glissade_handle_ice_caps, &
          glissade_cleanup_tiny_thickness, glissade_cleanup_icefree_cells
 
@@ -1261,42 +1228,14 @@ contains
 
     ! ------------------------------------------------------------------------
     ! Calculate isostatic adjustment
-    ! ------------------------------------------------------------------------
-    !
-    ! Note: This call used to be near the end of the glissade time step, between
-    !       calving and the velocity solve. But this can be problematic, because
-    !       a cell identified as grounded for calving purposes can become floating
-    !       as a result of isostatic adjustment, or vice versa.
-    !       It is better to compute isostasy just after the velocity solve,
-    !       at the start of the next time step.
-    !
-    ! Matt Hoffman writes:
-    ! Is this isostasy call in the right place?
-    ! Consider for a forward Euler time step:
-    ! With a relaxing mantle model, topg is a prognostic (time-evolving) variable:
-    !      topg1 = f(topg0, thk0, ...)
-    ! However, for a fluid mantle where the adjustment is instantaneous, topg is a diagnostic variable
-    !(comparable to calculating floatation height of ice in the ocean):
-    !      topg1 = f(thk1)
-    ! In either case, the topg update should be separate from the thickness evolution (because thk1 = f(thk0, vel0=g(topg0,...)).
-    ! However, if the isostasy calculation needs topg0, the icewaterload call should be made BEFORE thck is updated.
-    ! If the isostasy calculation needs topg1, the icewaterload call should be made AFTER thck is updated.
-    ! Also, we should think about when marinlim, usrf, lsrf, derivatives should be calculated relative to the topg update via isostasy.
-    !
-    ! WHL writes (May 2017):
-    ! When isostasy is turned on, it is usually run with a relaxing mantle.
-    ! With the call moved to the start of the time step, both the icewaterload call (if needed) and
-    !  the relaxation are done before the ice thickness update. So we have
-    !       topg1 = f(topg0, thk0, ...)
-    !  followed by
-    !       thk1  = f(thk0, vel0=g(topg0,...)
-    ! I think this is what is desired.
+    ! See comments in glissade_isostasy_solve on why isostasy is called here
+    !  and not later in the timestep.
     ! ------------------------------------------------------------------------
 
     call glissade_isostasy_solve(model)
 
     ! ------------------------------------------------------------------------ 
-    ! calculate geothermal heat flux
+    ! Calculate geothermal heat flux
     ! ------------------------------------------------------------------------ 
     !TODO Not sure if this is in the right place.  G1=f(G0,T0) and T1=g(G0,T0)  
     !     If we update G1 now, then we will be doing T1=g(G1,T0).
@@ -1418,6 +1357,7 @@ contains
     !       This subroutine is called at the beginning of glissade_velo_driver,
     !        so a call here is not needed for the velo diagnostic solve.
     !       The question is whether it is needed for the isostasy.
+    !TODO - Remove the call to glide_set_mask after checking isostasy
 
     call glide_set_mask(model%numerics,                                &
                         model%geometry%thck,  model%geometry%topg,     &
@@ -2156,102 +2096,6 @@ contains
     !TODO - End of glissade_transport_finish
 
   end subroutine glissade_thickness_tracer_solve
-
-!=======================================================================
-
-  subroutine glissade_isostasy_solve(model)
-
-    ! ------------------------------------------------------------------------ 
-    ! Calculate isostatic adjustment
-    ! ------------------------------------------------------------------------ 
-
-    use cism_parallel, only: parallel_type, parallel_halo, parallel_halo_extrapolate
-
-    use isostasy, only: isos_compute, isos_icewaterload
-    use glissade_masks, only: glissade_marine_connection_mask
-
-    implicit none
-
-    type(glide_global_type), intent(inout) :: model   ! model instance
-
-    ! --- Local variables ---
-
-    type(parallel_type) :: parallel   ! info for parallel communication
-
-    !WHL - debug
-!    integer :: itest, jtest, rtest
-!    itest = model%numerics%idiag_local
-!    jtest = model%numerics%jdiag_local
-!    rtest = model%numerics%rdiag_local
-
-    parallel = model%parallel
-
-    ! ------------------------------------------------------------------------
-    ! update the ice/water load at the prescribed interval
-    ! ------------------------------------------------------------------------
-
-    if (model%options%isostasy == ISOSTASY_COMPUTE) then
-
-       if (model%isostasy%nlith > 0) then
-          if (mod(model%numerics%tstep_count, model%isostasy%nlith) == 0) then
-
-!             !WHL - debug
-!             if (this_rank == rtest) write(iulog,*) 'Isostasy hack: Reduce thck by 20 m'
-!             model%geometry%thck = model%geometry%thck - 20.0d0
-!             model%geometry%thck = max(model%geometry%thck, 0.0d0)
-!             call point_diag(model%geometry%thck, 'adjusted thck', itest, jtest, rtest, 7, 7)
-
-             call isos_icewaterload(model)
-             model%isostasy%new_load = .true.
-          end if
-       endif  ! nlith > 0
-
-    end if
-   
-    ! ------------------------------------------------------------------------ 
-    ! Calculate isostatic adjustment
-    ! ------------------------------------------------------------------------ 
-
-    if (model%options%isostasy == ISOSTASY_COMPUTE) then
-
-       call isos_compute(model)
-
-       ! update topography in halo cells
-       ! Note: For outflow BCs, most fields (thck, usrf, temp, etc.) are set to zero in the global halo,
-       !        to create ice-free conditions. However, we might not want to set topg = 0 in the global halo,
-       !        because then the global halo will be interpreted as ice-free land, whereas we may prefer to
-       !        treat it as ice-free ocean. For this reason, topg is extrapolated from adjacent cells.
-       !       Similarly, for no_ice BCs, we want to zero out ice state variables adjacent to the global boundary,
-       !        but we do not want to zero out the topography.
-       ! Note: The topg halo update at initialization has an optional argument periodic_ew,
-       !        which is needed for ismip-hom. I doubt ismip-hom will be run with active isostasy,
-       !        but the argument is included to be on the safe side.
-       ! TODO: Do we need similar logic for halo updates of relx?
-
-       if (model%general%global_bc == GLOBAL_BC_OUTFLOW) then
-          call parallel_halo_extrapolate(model%geometry%topg, parallel)
-       elseif (model%general%global_bc == GLOBAL_BC_NO_ICE) then
-          call parallel_halo(model%geometry%topg, parallel, zero_global_boundary_no_ice_bc = .false.)
-       else  ! other global BCs, including periodic
-          call parallel_halo(model%geometry%topg, parallel, &
-                          periodic_offset_ew = model%numerics%periodic_offset_ew, &
-                          periodic_offset_ns = model%numerics%periodic_offset_ns)
-       endif
-
-       ! update the marine connection mask, which depends on topg
-
-       call glissade_marine_connection_mask(&
-            model%general%ewn,          model%general%nsn,          &
-            parallel,                                               &
-            model%numerics%idiag_local, model%numerics%jdiag_local, &
-            model%numerics%rdiag_local,                             &
-            model%geometry%thck,        model%geometry%topg,        &
-            model%climate%eus,          0.0d0,                      &  ! thklim = 0
-            model%geometry%marine_connection_mask)
-
-    end if
-
-  end subroutine glissade_isostasy_solve
 
 !=======================================================================
 

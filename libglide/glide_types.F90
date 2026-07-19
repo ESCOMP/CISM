@@ -177,6 +177,7 @@ module glide_types
 
   integer, parameter :: ASTHENOSPHERE_FLUID = 0
   integer, parameter :: ASTHENOSPHERE_RELAXING_CONST = 1
+  integer, parameter :: ASTHENOSPHERE_RELAXING_LATVAR = 2
 
   integer, parameter :: CALVING_NONE = 0
   integer, parameter :: CALVING_FLOAT_ZERO = 1
@@ -656,7 +657,6 @@ module glide_types
     !> \item[2] calculate geothermal flux using 3d diffusion
     !> \end{description}
 
-    ! This replaces model%isos%do_isos
     integer :: isostasy = 0
 
     !> isostasy:
@@ -2515,7 +2515,8 @@ module glide_types
      !> method for approximating the mantle
      !> \begin{description}
      !> \item[0] fluid mantle, isostatic adjustment happens instantaneously
-     !> \item[1] relaxing mantle, exponential adjustment toward (relx - load)
+     !> \item[1] relaxing mantle, exp adjust toward (relx - load), constant timescale
+     !> \item[2] relaxing mantle, exp adjust toward (relx - load), laterally varying timescale
      !> \end{description}
 
     integer :: which_relaxed = 0
@@ -2537,6 +2538,7 @@ module glide_types
      real(dp),dimension(:,:),pointer :: load => null()  ! deflection due to applied load on lithosphere (m)
                                                         ! defined as positive for downward deflection
      real(dp),dimension(:,:),pointer :: load_factors => null() ! temporary used for load calculation
+     real(dp),dimension(:,:),pointer :: tau_relax => null()    ! 2D mantle relaxation timescale (yr)
 
   end type isostasy_type
 
@@ -3515,6 +3517,7 @@ contains
     if (model%options%isostasy == ISOSTASY_COMPUTE) then
        call coordsystem_allocate(model%general%ice_grid, model%isostasy%load)
        call coordsystem_allocate(model%general%ice_grid, model%isostasy%load_factors)
+       call coordsystem_allocate(model%general%ice_grid, model%isostasy%tau_relax)
     endif
 
     ! The remaining arrays are not currently used
@@ -4219,6 +4222,8 @@ contains
         deallocate(model%isostasy%load)
     if (associated(model%isostasy%load_factors)) &
         deallocate(model%isostasy%load_factors)
+    if (associated(model%isostasy%tau_relax)) &
+        deallocate(model%isostasy%tau_relax)
 
     ! projection arrays
     if (associated(model%projection%stere)) then
