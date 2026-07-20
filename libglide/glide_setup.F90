@@ -3270,7 +3270,7 @@ contains
     call GetValue(section,'asthenosphere',model%isostasy%asthenosphere)
     call GetValue(section,'which_relaxed',model%isostasy%which_relaxed)
     call GetValue(section,'tau_relax_const',model%isostasy%tau_relax_const)
-    call GetValue(section,'lithosphere_period',model%isostasy%period)
+    call GetValue(section,'load_update_interval',model%isostasy%load_update_interval)
     call GetValue(section,'flexural_rigidity',model%isostasy%rbel%d)
 
   end subroutine handle_isostasy
@@ -3291,31 +3291,39 @@ contains
          'elastic lithosphere       ' /)
 
     character(len=*), dimension(0:2), parameter :: asthenosphere = (/ &
-         'fluid asthenosphere                                ', &
-         'relaxing asthenosphere, constant timescale         ', &
-         'relaxing asthenosphere, spatially varying timescale' /)
+         'fluid asthenosphere                ', &
+         'relaxing with constant timescale   ', &
+         'relaxing with lat varying timescale' /)
 
     character(len=*), dimension(0:2), parameter :: which_relaxed = (/ &
-         'read topg and relx as separate input fields    ', &
-         'set relx to input topg                         ', &
-         'compute relx assuming input topg in equilibrium' /)
+         'read both topg and relx from input file', &
+         'set relx to input topg                 ', &
+         'compute relx = input topg + load       ' /)
     
     if (model%options%isostasy == ISOSTASY_COMPUTE) then
+       call write_log(' ')
        call write_log('Isostasy')
        call write_log('--------')
 
        if (model%isostasy%lithosphere < 0 .or. model%isostasy%lithosphere >= size(lithosphere)) then
           call write_log('Error, lithosphere option out of range', GM_FATAL)
        else
-          write(message,*) 'lithosphere                    : ',model%isostasy%lithosphere,  &
+          write(message,*) 'lithosphere                 : ',model%isostasy%lithosphere,  &
                lithosphere(model%isostasy%lithosphere)
           call write_log(message)
        endif
 
+       if (model%isostasy%lithosphere==LITHOSPHERE_ELASTIC) then
+          write(message,*) 'flexural rigidity (N m)     : ', model%isostasy%rbel%d
+          call write_log(message)
+          write(message,*) 'load update interval (yr)   : ', model%isostasy%load_update_interval
+          call write_log(message)
+       end if
+
        if (model%isostasy%asthenosphere < 0 .or. model%isostasy%asthenosphere >= size(asthenosphere)) then
           call write_log('Error, asthenosphere option out of range', GM_FATAL)
        else
-          write(message,*) 'asthenosphere                  : ',model%isostasy%asthenosphere,  &
+          write(message,*) 'asthenosphere               : ',model%isostasy%asthenosphere,  &
                asthenosphere(model%isostasy%asthenosphere)
           call write_log(message)
        endif
@@ -3323,20 +3331,13 @@ contains
        if (model%isostasy%which_relaxed < 0 .or. model%isostasy%which_relaxed >= size(which_relaxed)) then
           call write_log('Error, which_relaxed option out of range', GM_FATAL)
        else
-          write(message,*) 'which_relaxed                  : ',model%isostasy%which_relaxed,  &
+          write(message,*) 'which_relaxed               : ',model%isostasy%which_relaxed,  &
                which_relaxed(model%isostasy%which_relaxed)
           call write_log(message)
        endif
 
-       if (model%isostasy%lithosphere==LITHOSPHERE_ELASTIC) then
-          write(message,*) ' flexural rigidity             : ', model%isostasy%rbel%d
-          call write_log(message)
-          write(message,*) ' lithosphere update period (yr): ', model%isostasy%period
-          call write_log(message)
-       end if
-
        if (model%isostasy%asthenosphere==ASTHENOSPHERE_RELAXING_CONST) then
-          write(message,*) 'relaxation constant (yr) : ', model%isostasy%tau_relax_const
+          write(message,*) 'relaxation constant (yr)    : ', model%isostasy%tau_relax_const
           call write_log(message)
        else if (model%isostasy%asthenosphere==ASTHENOSPHERE_RELAXING_LATVAR) then
           if (model%options%whichdycore == DYCORE_GLIDE) then
@@ -3497,6 +3498,10 @@ contains
          'opening by melting based on bmlt_ground         ', &
          'opening by melting based on cavity dissipation  ', &
          'opening based on bmlt_ground plus dissipation   ' /)
+
+    call write_log(' ')
+    call write_log('Basal hydrology')
+    call write_log('--------')
 
     write(message,*) 'ho_whichbwat                  : ',model%options%which_ho_bwat,  &
                       ho_whichbwat(model%options%which_ho_bwat)

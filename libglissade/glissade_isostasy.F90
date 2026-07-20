@@ -41,63 +41,42 @@ module glissade_isostasy
   !   have been move to glissade_isostasy_elra.
 
   !-------------------------------------------------------------------------
-  ! Some notes on the isostasy calculation (WHL, May 2017):
+  ! Some notes on the isostasy calculation (WHL, May 2017; updated July 2026):
   !
-  ! For the most part, the isostasy has not changed since the original Glimmer release.
-  ! The major change in CISM2.1 is to enable the elastic lithosphere calculation
-  !  in simulations with more than one task. This is done in a simple way, by gathering
-  !  load factors to the main task, doing a serial calculation, and then scattering the
-  !  resulting load back to the local tasks.
+  ! The isostasy calculation has been parallelized since the original Glimmer release,
+  !  but otherwise the physical is similar. The most common configuration is ELRA =
+  !  elastic lithosphere, relaxing asthenosphere.
   !
-  ! The following config settings are relevant to the isostasy:
+  ! The following config settings are relevant to the isostasy.
+  ! All of these are set in the [isostasy] section unless otherwise specified.
   ! (1) To run with isostasy, set isostasy = 1 in the [options] section.
   !     The default is 0 (no isostasy).
-  ! (2) To run with an elastic lithosphere, set lithosphere = 1 in the [isostasy] section.
-  !     This is now the default value, so it no longer needs to be set explicitly in the config file.
-  !     Note that on multiple tasks, this calculation requires a gather/scatter that
-  !     does not scale well.  It seems sufficiently fast, though, on a 4-km mesh.
-  !     The alternative is a local lithosphere (lithosphere = 0) that is less realistic.
-  ! (3) To run with a relaxing asthenosphere, set asthenosphere = 1 in the [isostasy] section.
-  !     This is now the default and does not need to be set explicitly.
-  !     The alternative is a fluid asthenosphere (asthenosphere = 0) with instantaneous
-  !     isostatic adjustment, which is less realistic.
-  ! (4) The flexural rigidity of the elastic lithosphere is controlled by the parameter 'flexural_rigidity',
-  !     which can be set in the [isostasy] section. The default is 0.24e25 N m.
-  ! (5) The period for recomputing the load in the elastic lithosphere calculation is controlled
-  !     by the parameter 'lithosphere_period', which can be set in the [isostasy] section.
-  !     The default is 500 yr.  As long as the load is not recomputed too often, the isostasy
-  !     calculation should have minimal cost compared to the whole simulation
-  !     (at least on grids of moderate resolution, ~4 km).
-  ! (6) The adjustment time scale in the relaxing asthenosphere calculation is controlled
-  !     by the parameter tau_relax_const, which can be set in the [isostasy] section.
-  !     The default is 3000 yr.
-  !
-  ! New option (July 2026): set asthenosphere = 2 to read in a spatially varying 2D field, tau_relax.
-  ! If asthenosphere = 1, then tau_relax is set everywhere to tau_relax_const.
-  ! Finally, a few words on the 'which_relaxed' parameter.  This used to be called 'topo_is_relaxed'
-  ! and was in the [options] section; now it is called 'which_relaxed' and is in the [isostasy] section.
-  ! There are three possible values:
-  !
-  ! - which_relaxed = 0, the default setting. In this case, both topg and relx, if present, are read
-  !   from the input file. The model topography is initialized as topg.  The relx field is interpreted
-  !   as the topography we would have eventually (after the asthenosphere fully relaxes) with zero load.
-  !   The asthenosphere calculation continually adjusts the topography toward a state with topg = relx - load.
-  !   NOTE: If relx is not present in the input file, the model will be initialized with relx = 0
-  !         everywhere, which may be OK for idealized problems but will be wrong for real ice sheets.
-  !
-  ! - which_relaxed = 1. In this case, the input 'topg' field is interpreted as the relaxed field.
-  !   That is, the model sets relx = topg at initialization.  Then topg will be correct if there is no load
-  !   (e.g., prior to ice sheet inception), but in general will be wrong. If relx is different from
-  !   the initial topography, it is better to input each field separately with which_relaxed = 0.
-  !
-  ! - which_relaxed = 2. In this case, the input 'topg' field is interpreted as the equilibrium topography.
-  !   The field 'relx' (i.e., the steady-state topography with zero load) is computed at initialization
-  !   as relx = topg + load. This setting could be useful if we happen to know the equilibrium value
-  !   of topg and want to compute relx. But if the model is stopping and restarting, the interpretation
-  !   of topg as the equilibrium topography will usually be wrong on restart.
-  !
-  ! In general, the preferred setting is which_relaxed = 0, with topg and relx read in separately
-  ! from the input file. The other settings have specialized uses but may be inappropriate for production.
+  ! (2) There are two lithosphere options:
+  !     * Local lithosphere: lithosphere = 0
+  !     * Elastic lithosphere: lithosphere = 1; this is the default
+  !     The parameter load_update_interval determines how often the elastic load is updated.
+  !     The default is 10 yr.  As long as the load is not recomputed too often, the cost of isostasy
+  !     should be minimal compared to the whole simulation.
+  !     The parameter flexural_rigidity controls the elastic rigidity; the default is 0.24e25 N m.
+  ! (3) There are three asthenosphere options:
+  !     * Fluid asthenosphere: asthenosphere = 0
+  !     * Relaxing asthenosphere with a constant relaxation factor: asthenosphere = 1; this is the default.
+  !     * Relaxing asthenosphere with a laterally varying relaxation factor: asthenosphere = 2.
+  !     The parameter tau_relax_const is the relaxation time scale for asthenosphere = 1; the default is 3000 yr.
+  !     The 2D field tau_relax sets the relaxation time scale for asthenosphere = 2; it is read from an input file.
+  ! (4) The which_relaxed parameter determines how the relaxed topography (relx) is computed.
+  !     This is the topography we would have eventually (after the asthenosphere fully relaxes) with zero load.
+  !     The asthenosphere calculation continually adjusts the topography toward topg = relx - load.
+  !     There are three options:
+  !     * which_relaxed = 0, the default. Both topg and relx, if present, are read from an input file.
+  !       If relx is missing from the input file, the model sets relx = 0.
+  !     * which_relaxed = 1. The model sets relx to the input topg. This is appropriate if the model
+  !       is initializaed with no ice load, but for an existing ice sheet will be incorrect.
+  !     * which_relaxed = 2. The input 'topg' field is interpreted as the equilibrium topography,
+  !       given the input load. The relaxed topography is computed at initialization as relx = topg + load;
+  !       it retains this value on restart. This setting is appropriate if the topography has had time
+  !       to adjust fully since the last major change in load, or if ongoing isostatic adjustment is small
+  !       compared to the adjustment to be simulated.
   !-------------------------------------------------------------------------
 
   ! Calculate isostatic adjustment due to changing surface loads
@@ -150,8 +129,8 @@ contains
        !       Use numerics%tinc because it has units of years (like isostasy%period), whereas numerics%dt has model timeunits.
        !-----------------------------------------------------------------
 
-       if (model%isostasy%period > 0.0d0) then
-          model%isostasy%nlith = nint(model%isostasy%period / model%numerics%tinc)
+       if (model%isostasy%load_update_interval > 0.0d0) then
+          model%isostasy%nlith = nint(model%isostasy%load_update_interval / model%numerics%tinc)
        else
           model%isostasy%nlith = 0  ! never update
        endif
@@ -166,7 +145,6 @@ contains
           if (parallel_is_zero(model%isostasy%tau_relax)) then
              call write_log('tau_relax must be nonzero with this asthenosphere option', GM_FATAL)
           endif
-          model%isostasy%tau_relax = model%isostasy%tau_relax * scyr
        endif
 
     endif   ! isostasy_compute
@@ -470,7 +448,6 @@ contains
              write(iulog,*) 'Update lithospheric load: time, tstep_count, nlith =', &
                   model%numerics%time, model%numerics%tstep_count, model%isostasy%nlith
           endif
-          call point_diag(load_factors, 'input load_factors', itest, jtest, rtest, 7, 7)
        endif
        
        call glissade_calc_elastic(&
@@ -479,7 +456,10 @@ contains
             load,                 &
             model%parallel)
 
-       call point_diag(load, 'load after calc_elastic', itest, jtest, rtest, 7, 7)
+       if (verbose_isostasy) then
+          call point_diag(load_factors, 'input load_factors', itest, jtest, rtest, 7, 7)
+          call point_diag(load, 'load after calc_elastic', itest, jtest, rtest, 7, 7)
+       endif
 
     end if
 
@@ -508,12 +488,8 @@ contains
     rtest = model%numerics%rdiag_local
 
     if (verbose_isostasy) then
-       call point_diag(model%isostasy%relx, 'relx', itest, jtest, rtest, 7, 7)
-       call point_diag(model%geometry%topg, 'topg before relaxation', itest, jtest, rtest, 7, 7)
-    endif
-
-    if (verbose_isostasy) then
        if (this_rank == rtest) then
+          write(iulog,*) ' '
           write(iulog,*) 'relaxing_mantle, time (yr) =', model%numerics%time
        endif
        call point_diag(model%isostasy%relx, 'relx', itest, jtest, rtest, 7, 7)
@@ -533,8 +509,7 @@ contains
        end do
 
        if (verbose_isostasy .and. this_rank == rtest) then
-          write(iulog,*) 'tau_relax_const (yr)', &
-               model%isostasy%tau_relax_const/scyr
+          write(iulog,*) 'tau_relax_const (yr)', model%isostasy%tau_relax_const/scyr
        endif
 
     elseif (model%isostasy%asthenosphere == ASTHENOSPHERE_RELAXING_LATVAR) then
