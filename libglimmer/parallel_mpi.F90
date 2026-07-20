@@ -180,12 +180,14 @@ module cism_parallel
      module procedure broadcast_character
      module procedure broadcast_integer
      module procedure broadcast_integer_1d
+     module procedure broadcast_integer_2d
      module procedure broadcast_logical
      module procedure broadcast_logical_1d
      module procedure broadcast_real4
      module procedure broadcast_real4_1d
      module procedure broadcast_real8     
      module procedure broadcast_real8_1d
+     module procedure broadcast_real8_2d
   end interface
 
   interface gather_var
@@ -617,6 +619,50 @@ contains
     call mpi_bcast(a,size(a),mpi_real8,source,comm,ierror)
 
   end subroutine broadcast_real8_1d
+
+
+  subroutine broadcast_integer_2d(a, proc)
+
+    use mpi_mod
+    implicit none
+    integer,dimension(:,:) :: a
+    integer, intent(in), optional :: proc  ! optional argument indicating which processor to broadcast from
+
+    integer :: ierror
+    integer :: source ! local variable indicating which processor to broadcast from
+
+    ! begin
+    if (present(proc)) then
+       source = proc
+    else
+       source = main_rank
+    endif
+    !    call mpi_bcast(a,size(a),mpi_real8,source,comm,ierror)
+    call mpi_bcast(a,size(a),mpi_integer,source,comm,ierror)
+
+  end subroutine broadcast_integer_2d
+
+
+  subroutine broadcast_real8_2d(a, proc)
+
+    use mpi_mod
+    implicit none
+    real(dp),dimension(:,:) :: a
+    integer, intent(in), optional :: proc  ! optional argument indicating which processor to broadcast from
+
+    integer :: ierror
+    integer :: source ! local variable indicating which processor to broadcast from
+
+    ! begin
+    if (present(proc)) then
+       source = proc
+    else
+       source = main_rank
+    endif
+    !    call mpi_bcast(a,size(a),mpi_real8,source,comm,ierror)
+    call mpi_bcast(a,size(a),mpi_real8,source,comm,ierror)
+
+  end subroutine broadcast_real8_2d
 
 !=======================================================================
 
