@@ -240,6 +240,10 @@ contains
     model%basal_hydro%sliding_speed_fixed = model%basal_hydro%sliding_speed_fixed / scyr  ! m/yr to m/s
     model%basal_hydro%flwa_basal = model%basal_hydro%flwa_basal / scyr  ! Pa^{-3} yr^{-1} to Pa^{-3} s^{-1}
 
+    ! convert plume parameters from yr to s
+    model%plume%tplume_spinup = model%plume%tplume_spinup * scyr
+    model%plume%tplume_runtime = model%plume%tplume_runtime * scyr
+
   end subroutine glide_scale_params
 
 !-------------------------------------------------------------------------
@@ -2400,6 +2404,14 @@ contains
     call GetValue(section, 'thermal_forcing_anomaly_tstart', model%ocean_data%thermal_forcing_anomaly_tstart)
     call GetValue(section, 'thermal_forcing_anomaly_timescale', model%ocean_data%thermal_forcing_anomaly_timescale)
     call GetValue(section, 'thermal_forcing_anomaly_basin', model%ocean_data%thermal_forcing_anomaly_basin)
+    call GetValue(section, 'misomip_profile', model%ocean_data%misomip_profile)
+    if (model%ocean_data%misomip_profile) then
+       call GetValue(section,'T0',      model%ocean_data%T0)
+       call GetValue(section,'Tbot',    model%ocean_data%Tbot)
+       call GetValue(section,'S0',      model%ocean_data%S0)
+       call GetValue(section,'Sbot',    model%ocean_data%Sbot)
+       call GetValue(section,'zb_deep', model%ocean_data%zb_deep)
+    endif
 
     ! parameters to adjust input topography
     call GetValue(section, 'adjust_topg_xmin', model%paramets%adjust_topg_xmin)
@@ -2481,10 +2493,6 @@ contains
 
     !TODO - Put plume parameters in their own section
     ! plume parameters
-    call GetValue(section,'T0',        model%plume%T0)
-    call GetValue(section,'Tbot',      model%plume%Tbot)
-    call GetValue(section,'S0',        model%plume%S0)
-    call GetValue(section,'Sbot',      model%plume%Sbot)
     call GetValue(section,'gammaT',    model%plume%gammaT)
     call GetValue(section,'gammaS',    model%plume%gammaS)
 
@@ -3128,14 +3136,6 @@ contains
        write(message,*) 'warm ocean zmeltmin (m)        :  ', model%basal_melt%bmlt_float_depth_zmeltmin
        call write_log(message)
     elseif (model%options%whichbmlt_float == BMLT_FLOAT_PLUME) then
-       write(message,*) 'T0 (deg C)               :  ', model%plume%T0
-       call write_log(message)
-       write(message,*) 'Tbot (deg C)             :  ', model%plume%Tbot
-       call write_log(message)
-       write(message,*) 'S0 (psu)                 :  ', model%plume%S0
-       call write_log(message)
-       write(message,*) 'Sbot (deg C)             :  ', model%plume%Sbot
-       call write_log(message)
        write(message,*) 'gammaT (nondimensional)  :  ', model%plume%gammaT
        call write_log(message)
        write(message,*) 'gammaS (nondimensional)  :  ', model%plume%gammaS
@@ -3161,6 +3161,20 @@ contains
              call write_log(message)
           endif
        endif
+    endif
+
+    !TODO - Move to a print_ocean_data subroutine
+    if (model%ocean_data%misomip_profile) then  ! using a MISOMIP profile for ocean T and S
+       write(message,*) 'T0 (deg C)               :  ', model%ocean_data%T0
+       call write_log(message)
+       write(message,*) 'Tbot (deg C)             :  ', model%ocean_data%Tbot
+       call write_log(message)
+       write(message,*) 'S0 (psu)                 :  ', model%ocean_data%S0
+       call write_log(message)
+       write(message,*) 'Sbot (deg C)             :  ', model%ocean_data%Sbot
+       call write_log(message)
+       write(message,*) 'zb_deep (m)              :  ', model%ocean_data%zb_deep
+       call write_log(message)
     endif
 
   end subroutine print_parameters
@@ -3355,17 +3369,11 @@ contains
 
     ! plume parameters
 
-    call GetValue(section,'misomip_domain', model%plume%misomip_domain)
-
-    !TODO - Which of these are independent of MISOMIP?
-    if (model%plume%misomip_domain) then
-       call GetValue(section,'T0',        model%plume%T0)
-       call GetValue(section,'Tbot',      model%plume%Tbot)
-       call GetValue(section,'S0',        model%plume%S0)
-       call GetValue(section,'Sbot',      model%plume%Sbot)
-       call GetValue(section,'gammaT',    model%plume%gammaT)
-       call GetValue(section,'gammaS',    model%plume%gammaS)
-    endif
+    call GetValue(section,'dt_plume',       model%plume%dt_plume)
+    call GetValue(section,'tplume_spinup',  model%plume%tplume_spinup)
+    call GetValue(section,'tplume_runtime', model%plume%tplume_runtime)
+    call GetValue(section,'gammaT',         model%plume%gammaT)
+    call GetValue(section,'gammaS',         model%plume%gammaS)
 
   end subroutine handle_plume
 
@@ -3383,20 +3391,21 @@ contains
     !TODO - Sort out which plume parameters are MISOMIP-specific and which are more general
 
     if (model%options%whichbmlt_float == BMLT_FLOAT_PLUME) then
-       if (model%plume%misomip_domain) then
-          write(message,*) 'T0 (deg C)               :  ', model%plume%T0
-          call write_log(message)
-          write(message,*) 'Tbot (deg C)             :  ', model%plume%Tbot
-          call write_log(message)
-          write(message,*) 'S0 (psu)                 :  ', model%plume%S0
-          call write_log(message)
-          write(message,*) 'Sbot (deg C)             :  ', model%plume%Sbot
-          call write_log(message)
-          write(message,*) 'gammaT (nondimensional)  :  ', model%plume%gammaT
-          call write_log(message)
-          write(message,*) 'gammaS (nondimensional)  :  ', model%plume%gammaS
-          call write_log(message)
-       endif
+
+       call write_log('Plume')
+       call write_log('--------')
+
+       write(message,*) 'dt_plume (s)             :  ', model%plume%dt_plume
+       call write_log(message)
+       write(message,*) 'tplume_spinup (yr)       :  ', model%plume%tplume_spinup
+       call write_log(message)
+       write(message,*) 'tplume_runtime (yr)      :  ', model%plume%tplume_runtime
+
+       write(message,*) 'gammaT (nondimensional)  :  ', model%plume%gammaT
+       call write_log(message)
+       write(message,*) 'gammaS (nondimensional)  :  ', model%plume%gammaS
+       call write_log(message)
+
     endif
 
   end subroutine print_plume

@@ -42,6 +42,7 @@ module glissade_utils
   public :: glissade_adjust_thickness, glissade_smooth_usrf, &
        glissade_smooth_topography, glissade_adjust_topography, &
        glissade_basin_sum, glissade_basin_average, &
+       glissade_interpolate_3d_ocean_field_to_lsrf, &
        glissade_usrf_to_thck, glissade_thck_to_usrf, &
        glissade_edge_fluxes, glissade_input_fluxes, &
        glissade_rms_error, write_array_to_file, &
@@ -688,6 +689,78 @@ contains
     endif
 
   end subroutine glissade_rms_error
+
+!****************************************************
+
+  subroutine glissade_interpolate_3d_ocean_field_to_lsrf(&
+       nx,          ny,          &
+       nzocn,       zocn,        &
+       field_mask,               &
+       lsrf,                     &
+       field_3d,                 &
+       field_lsrf)
+
+    ! Interpolate a 3d ocean forcing field (e.g., thermal_forcing or salinity) to a surface,
+    ! typically the lower ice surface.
+
+    integer, intent(in) :: &
+         nx, ny                    !> number of grid cells in each dimension
+
+    integer, intent(in) :: &
+         nzocn                     !> number of ocean levels
+
+    real(dp), dimension(nzocn), intent(in) :: &
+         zocn                      !> ocean levels (m) where forcing is provided, negative below sea level
+
+    integer, dimension(nx,ny), intent(in) :: &
+         field_mask                !> = 1 for cells that require interpolation, else = 0
+
+    real(dp), dimension(nx,ny), intent(in) ::  &
+         lsrf                      !> surface elevation (m) to which we interpolate, negative below sea level
+
+    real(dp), dimension(nzocn,nx,ny), intent(in) :: &
+         field_3d                  !> 3d forcing field for each ocean level
+
+    real(dp), dimension(nx,ny), intent(out) :: &
+         field_lsrf                !> field value at lsrf
+
+    ! local veriables
+
+    integer :: i, j, k
+    integer :: iglobal, jglobal
+    real(dp) :: dtf, dzocn, dzice  ! terms used in linear interpolation
+
+    ! Compute the field at the lower ice surface.
+    ! Above the top ocean level, use the value at the top level.
+    ! Below the bottom ocean level, use the TF value at the bottom level.
+    ! Use linear interpolation in between.
+
+    do j = 1, ny
+       do i = 1, nx
+          if (field_mask(i,j) == 1) then
+             if (lsrf(i,j) >= zocn(1)) then
+                field_lsrf(i,j) = field_3d(1,i,j)
+             elseif (lsrf(i,j) < zocn(nzocn)) then
+                field_lsrf(i,j) = field_3d(nzocn,i,j)
+             else
+                do k = 1, nzocn-1
+                   if (lsrf(i,j) < zocn(k) .and. lsrf(i,j) >= zocn(k+1)) then
+                      dtf = field_3d(k+1,i,j) - field_3d(k,i,j)
+                      dzocn = zocn(k+1) - zocn(k)
+                      dzice = lsrf(i,j) - zocn(k)
+                      field_lsrf(i,j) = field_3d(k,i,j) + (dzice/dzocn) * dtf
+                      exit
+                   endif
+                enddo
+             endif
+          else  ! mask = 0
+             field_lsrf(i,j) = 0.0d0
+          endif
+
+       enddo
+    enddo
+
+  end subroutine glissade_interpolate_3d_ocean_field_to_lsrf
 
 !***********************************************************************
 

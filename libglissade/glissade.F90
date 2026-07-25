@@ -1156,7 +1156,7 @@ contains
 
     elseif (model%options%whichbmlt_float == BMLT_FLOAT_PLUME) then
 
-       call glissade_plume_init(model, model%plume)
+       call glissade_plume_init(model, model%ocean_data, model%plume)
 
     endif   ! whichbmlt_float
 

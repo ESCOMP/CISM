@@ -44,7 +44,8 @@
     use glimmer_utils, only: point_diag
     use glide_types
     use cism_parallel, only: this_rank, main_task, nhalo, lhalo, uhalo, &
-         parallel_halo, parallel_reduce_max, parallel_global_sum, parallel_globalindex
+         parallel_halo, parallel_reduce_max, parallel_global_sum, &
+         parallel_is_zero, parallel_globalindex
 
     implicit none
     save
@@ -85,16 +86,23 @@
 
 !=======================================================================
 
-  subroutine glissade_plume_init(model, plume)
+  subroutine glissade_plume_init(model, ocean_data, plume)
 
     ! Initialize the plume properties
 
+    use glissade_utils, only: glissade_interpolate_3d_ocean_field_to_lsrf
+
     ! input/ouput arguments
 
-    type(glide_global_type), intent(inout) :: model   !> derived type holding ice-sheet info
-    type(glide_plume), intent(inout) :: plume    !> derived type holding plume info
+    type(glide_global_type), intent(inout) :: model     !> derived type holding ice-sheet info
+    type(glide_ocean_data), intent(in) :: ocean_data    !> derived type holding input ocean data
+    type(glide_plume), intent(inout) :: plume           !> derived type holding plume info
 
     ! local variables
+
+    integer, dimension(model%general%ewn,model%general%nsn) :: mask
+    real(dp), dimension(model%general%ewn,model%general%nsn) :: &
+         depth                          ! depth (m) at base of plume, negative below sea level
 
     integer :: ewn, nsn
     real(dp) :: dew, dns
@@ -116,40 +124,75 @@
 
        if (verbose_plume .and. main_task) write(iulog,*) 'Initialize the plume'
 
-       if (plume%misomip_domain) then
+       ! Compute the ocean depth at the base of the plume
+       depth = model%geometry%lsrf - model%plume%D_plume
 
-          ! MISOMIP+ profiles, Eqs. 21 and 22
-          plume%T_ambient = plume%T0 + (plume%Tbot - plume%T0) * (model%geometry%lsrf / plume%zbed_deep)
-          plume%S_ambient = plume%S0 + (plume%Sbot - plume%S0) * (model%geometry%lsrf / plume%zbed_deep)
+       ! Compute T_ambient and S_ambient at the base of the plume
+
+       if (ocean_data%misomip_profile) then
+
+          ! use the MISOMIP profiles, Eqs. 21 and 22 in Asay-Davis et al. (2016)
+          plume%T_ambient = ocean_data%T0 + (ocean_data%Tbot - ocean_data%T0)*depth/ocean_data%zb_deep
+          plume%S_ambient = ocean_data%S0 + (ocean_data%Sbot - ocean_data%S0)*depth/ocean_data%zb_deep
 
        else
-          !TODO - Work out how to initialize T_ambient and S_ambient
-       endif   ! misomip_domain
+
+          ! interpolate from 3D ocean fields; these should have been read from an input file
+
+          if (parallel_is_zero(model%ocean_data%thetao) .or. &
+              parallel_is_zero(model%ocean_data%salinity)) then
+             call write_log('Need input thetao and salinity to compute T_ambient and S_ambient', GM_FATAL)
+          endif
+
+          ! Set the mask to do the computation everywhere
+          !TODO - Does this create any issues where there is no plume? Should we use plume_mask = floating_mask?
+          mask = 1
+
+          call glissade_interpolate_3d_ocean_field_to_lsrf(&
+               ewn,           nsn,    &
+               ocean_data%nzocn,      &
+               ocean_data%zocn,       &
+               mask,                  &
+               depth,                 &
+               ocean_data%thetao,     &
+               plume%T_ambient)
+
+          call glissade_interpolate_3d_ocean_field_to_lsrf(&
+               ewn,           nsn,    &
+               ocean_data%nzocn,      &
+               ocean_data%zocn,       &
+               mask,                  &
+               depth,                 &
+               ocean_data%salinity,   &
+               plume%S_ambient)
+
+       endif
 
        ! Spin up the plume to steady state
        ! Note: Typically, the initial spin-up takes longer than the runtime update.
        !       For an ISOMIP+ experiment with a fixed ice cavity, this is all we need to do.
 
        call compute_plume(&
-            ewn,                 nsn,                &
-            dew,                 dns,                &
-            itest,   jtest,      rtest,              &
-            parallel,                                &
-            model%geometry%thck,                     &
-            model%geometry%lsrf,                     &
-            model%geometry%topg,                     &
-            model%climate%eus,                       &
-            plume%T_ambient,     plume%S_ambient,    &
-            plume%gammaT,        plume%gammaS,       &
-            plume%S0,                                &
-            plume%T_plume,       plume%S_plume,      &
-            plume%D_plume,                           &
-            plume%T_basal,       plume%S_basal,      &
-            plume%u_plume,       plume%v_plume,      &
-            plume%u_plume_Cgrid, plume%v_plume_Cgrid,&
-            plume%ustar_plume,   plume%drho_plume,   &
-            plume%entrainment,   plume%detrainment,  &
-            plume%divDu_plume,                       &
+            ewn,                 nsn,                  &
+            dew,                 dns,                  &
+            plume%dt_plume,      plume%tplume_spinup,  &
+            itest,   jtest,      rtest,                &
+            parallel,                                  &
+            model%geometry%thck,                       &
+            model%geometry%lsrf,                       &
+            model%geometry%topg,                       &
+            model%climate%eus,                         &
+            plume%T_ambient,     plume%S_ambient,      &
+            plume%gammaT,        plume%gammaS,         &
+            ocean_data%S0,                             &   ! is this needed?
+            plume%T_plume,       plume%S_plume,        &
+            plume%D_plume,                             &
+            plume%T_basal,       plume%S_basal,        &
+            plume%u_plume,       plume%v_plume,        &
+            plume%u_plume_Cgrid, plume%v_plume_Cgrid,  &   ! is this needed?
+            plume%ustar_plume,   plume%drho_plume,     &
+            plume%entrainment,   plume%detrainment,    &
+            plume%divDu_plume,                         &
             model%basal_melt%bmlt_float)
 
     endif  ! not a restart
@@ -160,7 +203,7 @@
 
 !****************************************************
 
-  subroutine glissade_plume_driver(model, plume)
+  subroutine glissade_plume_driver(model, ocean_data, plume)
 
     ! Compute melt rates using a plume model, given vertical profiles of T and S in the ambient ocean
     !
@@ -171,10 +214,17 @@
     !    MISMIP v. 3 (MISMIP+), ISOMIP v. 2 (ISOMIP+) and MISOMIP v. 1 (MISOMIP1),
     !    Geosci. Model Devel., 9, 2471-2497, doi: 10.5194/gmd-9-2471-2016.
 
-    type(glide_global_type), intent(inout) :: model   !> derived type holding ice-sheet info
-    type(glide_plume), intent(inout) :: plume    !> derived type holding plume info
+    use glissade_utils, only: glissade_interpolate_3d_ocean_field_to_lsrf
+
+    type(glide_global_type), intent(inout) :: model     !> derived type holding ice-sheet info
+    type(glide_ocean_data), intent(in) :: ocean_data    !> derived type holding input ocean data
+    type(glide_plume), intent(inout) :: plume           !> derived type holding plume info
 
     ! local variables
+
+    integer, dimension(model%general%ewn,model%general%nsn) :: mask
+    real(dp), dimension(model%general%ewn,model%general%nsn) :: &
+         depth                          ! depth (m) at base of plume, negative below sea level
 
     integer :: ewn, nsn
     real(dp) :: dew, dns
@@ -192,43 +242,76 @@
 
     if (verbose_plume .and. main_task) write(iulog,*) 'In glissade_plume_driver'
 
-    ! Update the ambient T and S
+    ! Compute the ocean depth at the base of the plume
+    depth = model%geometry%lsrf - model%plume%D_plume
 
-    if (plume%misomip_domain) then
+    ! Compute T_ambient and S_ambient at the base of the plume
 
-       ! MISOMIP+ profiles, Eqs. 21 and 22
-       plume%T_ambient = plume%T0 + (plume%Tbot - plume%T0) * (model%geometry%lsrf / plume%zbed_deep)
-       plume%S_ambient = plume%S0 + (plume%Sbot - plume%S0) * (model%geometry%lsrf / plume%zbed_deep)
+    if (ocean_data%misomip_profile) then
+
+       ! use the MISOMIP profiles, Eqs. 21 and 22 in Asay-Davis et al. (2016)
+       plume%T_ambient = ocean_data%T0 + (ocean_data%Tbot - ocean_data%T0)*depth/ocean_data%zb_deep
+       plume%S_ambient = ocean_data%S0 + (ocean_data%Sbot - ocean_data%S0)*depth/ocean_data%zb_deep
 
     else
-       !TODO - Figure out how to do this for other domains
+
+       ! interpolate from 3D ocean fields; these should have been read from an input file
+
+       if (parallel_is_zero(model%ocean_data%thetao) .or. &
+            parallel_is_zero(model%ocean_data%salinity)) then
+          call write_log('Need input thetao and salinity to compute T_ambient and S_ambient', GM_FATAL)
+       endif
+
+       ! Set the mask to do the computation everywhere
+       !TODO - Does this create any issues where there is no plume? Should we use plume_mask = floating_mask?
+       mask = 1
+
+       call glissade_interpolate_3d_ocean_field_to_lsrf(&
+            ewn,           nsn,    &
+            ocean_data%nzocn,      &
+            ocean_data%zocn,       &
+            mask,                  &
+            depth,                 &
+            ocean_data%thetao,     &
+            plume%T_ambient)
+
+       call glissade_interpolate_3d_ocean_field_to_lsrf(&
+            ewn,           nsn,    &
+            ocean_data%nzocn,      &
+            ocean_data%zocn,       &
+            mask,                  &
+            depth,                 &
+            ocean_data%salinity,   &
+            plume%S_ambient)
+
     endif
 
     !----------------------------------------------------------------
     ! Call the plume model to compute basal melt rates for floating ice
     !----------------------------------------------------------------
 
-    call compute_plume(&
-         ewn,                 nsn,                &
-         dew,                 dns,                &
-         itest,   jtest,      rtest,              &
-         parallel,                                &
-         model%geometry%thck,                     &
-         model%geometry%lsrf,                     &
-         model%geometry%topg,                     &
-         model%climate%eus,                       &
-         plume%T_ambient,     plume%S_ambient,    &
-         plume%gammaT,        plume%gammaS,       &
-         plume%S0,                                &  ! is this needed?
-         plume%T_plume,       plume%S_plume,      &
-         plume%D_plume,                           &
-         plume%T_basal,       plume%S_basal,      &
-         plume%u_plume,       plume%v_plume,      &
-         plume%u_plume_Cgrid, plume%v_plume_Cgrid,&  ! is this needed?
-         plume%ustar_plume,   plume%drho_plume,   &
-         plume%entrainment,   plume%detrainment,  &
-         plume%divDu_plume,                       &
-         model%basal_melt%bmlt_float)
+       call compute_plume(&
+            ewn,                 nsn,                  &
+            dew,                 dns,                  &
+            plume%dt_plume,      plume%tplume_runtime, &
+            itest,   jtest,      rtest,                &
+            parallel,                                  &
+            model%geometry%thck,                       &
+            model%geometry%lsrf,                       &
+            model%geometry%topg,                       &
+            model%climate%eus,                         &
+            plume%T_ambient,     plume%S_ambient,      &
+            plume%gammaT,        plume%gammaS,         &
+            ocean_data%S0,                             &   ! is this needed?
+            plume%T_plume,       plume%S_plume,        &
+            plume%D_plume,                             &
+            plume%T_basal,       plume%S_basal,        &
+            plume%u_plume,       plume%v_plume,        &
+            plume%u_plume_Cgrid, plume%v_plume_Cgrid,  &   ! is this needed?
+            plume%ustar_plume,   plume%drho_plume,     &
+            plume%entrainment,   plume%detrainment,    &
+            plume%divDu_plume,                         &
+            model%basal_melt%bmlt_float)
 
     if (verbose_plume .and. main_task) write(iulog,*) 'Updated the plume'
 
@@ -239,6 +322,7 @@
   subroutine compute_plume(&
        nx,               ny,               &
        dx,               dy,               &
+       dt_plume,         total_time,       &
        itest,  jtest,    rtest,            &
        parallel,                           &
        thck,             lsrf,             &
@@ -256,7 +340,8 @@
        divDu_plume,                        &
        bmlt_float)
 
-    ! Compute the melt rate at the ice-ocean interface from a steady-state plume model
+    !----------------------------------------------------------------------------
+    ! Compute the melt rate at the ice-ocean interface from a plume model of the ocean mixed layer.
     !
     ! References:
     !
@@ -264,8 +349,25 @@
     !    on frazil-laden ice shelf water plumes. J. Phys. Oceanog., 36, 2312-2327.
     ! P.R. Holland, A. Jenkins and D.M. Holland, 2008: The response of ice shelf
     !    basal melting to variations in ocean temperature. J. Climate, 21, 2558-2572.
+    ! E. Lambert, A. Juling, R.S.W. van der Wal and P.R. Holland, 2023: Modelling Antarctic
+    !    ice shelf basal melt patterns using the one-layer Antarctic model for dynamical downscaling
+    !    of ice–ocean exchanges (LADDIE v1.0). The Cryosphere, 17, 3203-3228.
+    ! E. Lambert, F. Jesse and T. Berends, 2026: The one-Layer Antarctic model for Dynamical Downscaling
+    !    of Ice–ocean Exchanges (LADDIE) version 2.0. EGUsphere, 2026 (preprint).
     !
-    ! TODO - Add Lambert (2023) and other references
+    ! The plume model is similar to LADDIE as described in the two Lambert references.
+    ! Like LADDIE, it is a 2D model of the mixed layers beneath an ice shelf, which
+    !  computes sub-shelf melt rates given the ambient ocean forcing.
+    ! The main differences from LADDIE are:
+    ! - The model runs on a regular square mesh instead of an unstructured triangular mesh.
+    ! - Plume velocity components u_plume and v_plume are computed at cell edges instead of corners.
+    ! - The velocity components are diagnosed from the current geometry and forcing instead
+    !   of being prognosed using a momentum advection equation.
+    !
+    ! The model can be applied to either idealized settings (like ISOMIP+ and MISOMIP;
+    ! see Asay-Davis et al. 2016) or realistic settings (like Antarctic ice-shelf cavities).
+    !----------------------------------------------------------------------------
+
 
     use glissade_masks, only: glissade_get_masks
 !    use glissade_grid_operators, only: glissade_centered_gradient
@@ -277,6 +379,11 @@
 
     real(dp), intent(in) ::  &
          dx,     dy             ! grid cell size (m)
+
+    !TODO - Add logic to stop when we reach total_time
+    real(dp), intent(in) :: &
+         dt_plume,            & ! plume timestep (s) for advection
+         total_time             ! how long to run the plume model (s)
 
     integer, intent(in) :: &
          itest, jtest, rtest    ! coordinates of diagnostic point
@@ -386,11 +493,6 @@
     integer :: iglobal, jglobal        ! global i and j indices
     integer :: iter_Dplume             ! iteration counter
 
-    ! plume model parameters
-    ! Stable explicit time step TBD: try 10 minutes for now
-    real(dp), parameter :: &
-         dt_plume = 600.d0             ! time step (s) for continuity equation
-
     ! parameters determining convergence of iterations
     !TODO - determine L2_target
     integer, parameter :: &
@@ -419,7 +521,7 @@
     call parallel_halo(floating_mask, parallel)
 
     ! Compute a mask that identifies where the plume is located
-    !TODO - Refine this mask?
+    !TODO - Refine this mask? Or cite Lambert 2026 as justification
 
     plume_mask = floating_mask
 
@@ -750,7 +852,7 @@
 
     do iter_Dplume = 1, maxiter_Dplume   ! plume_thickness iteration
 
-       ! advance the time
+       ! advance the time (units of s)
        !TODO - Do we need to keep track of this, or just iter_Dplume?
        time = time + dt_plume
 

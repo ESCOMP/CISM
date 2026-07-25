@@ -942,15 +942,13 @@ module glissade_bmlt_float
           write(iulog,*) 'Compute bmlt_float from a sub-shelf plume model'
        endif
 
-       call glissade_plume_driver(model, model%plume)
-
-       ! optional diagnostics
+       call glissade_plume_driver(model, model%ocean_data, model%plume)
 
     elseif (model%options%whichbmlt_float == BMLT_FLOAT_THERMAL_FORCING) then
 
        if (this_rank == rtest .and. verbose_bmlt_float) then
           write(iulog,*) ' '
-          write(iulog,*) 'Compute bmlt_float from current thermal forcing'
+          write(iulog,*) 'Compute bmlt_float from ocean thermal forcing'
        endif
 
        !Note: Currently, there is no difference between ocean_data_domain = 0
@@ -1311,7 +1309,7 @@ module glissade_bmlt_float
 
     use glimmer_paramets, only: unphys_val
     use glissade_grid_operators, only: glissade_slope_angle
-    use glissade_utils, only: glissade_basin_average
+    use glissade_utils, only: glissade_basin_average, glissade_interpolate_3d_ocean_field_to_lsrf
 
     ! Compute a 2D field of sub-ice-shelf melting given a 3D thermal forcing field
     !  and the current lower ice surface, using either a local or nonlocal melt parameterization.
@@ -1571,7 +1569,7 @@ module glissade_bmlt_float
        endif
     endif
 
-    call interpolate_3d_forcing_to_lsrf(&
+    call glissade_interpolate_3d_ocean_field_to_lsrf(&
          nx,                ny,              &
          ocean_data%nzocn,                   &
          ocean_data%zocn,                    &
@@ -2574,77 +2572,6 @@ module glissade_bmlt_float
     endif
 
   end subroutine thermal_forcing_extrapolate
-
-!****************************************************
-
-  subroutine interpolate_3d_forcing_to_lsrf(&
-       nx,          ny,          &
-       nzocn,       zocn,        &
-       forcing_mask,             &
-       lsrf,                     &
-       forcing_3d,               &
-       forcing_lsrf)
-
-    ! Interpolate a 3d ocean forcing field (e.g., thermal_forcing or salinity) to the lower ice surface.
-
-    integer, intent(in) :: &
-         nx, ny                    !> number of grid cells in each dimension
-
-    integer, intent(in) :: &
-         nzocn                     !> number of ocean levels
-
-    real(dp), dimension(nzocn), intent(in) :: &
-         zocn                      !> ocean levels (m) where forcing is provided, negative below sea level
-
-    integer, dimension(nx,ny), intent(in) :: &
-         forcing_mask              !> = 1 for cells that require interpolation, else = 0
-
-    real(dp), dimension(nx,ny), intent(in) ::  &
-         lsrf                      !> ice lower surface elevation (m), negative below sea level
-
-    real(dp), dimension(nzocn,nx,ny), intent(in) :: &
-         forcing_3d                !> 3d forcing field for each ocean level
-
-    real(dp), dimension(nx,ny), intent(out) :: &
-         forcing_lsrf              !> forcing at the lower ice surface
-
-    ! local veriables
-
-    integer :: i, j, k
-    integer :: iglobal, jglobal
-    real(dp) :: dtf, dzocn, dzice  ! terms used in linear interpolation
-
-    ! Compute the forcing at the lower ice surface.
-    ! Above the top ocean level, use the value at the top level.
-    ! Below the bottom ocean level, use the TF value at the bottom level.
-    ! Use linear interpolation in between.
-
-    do j = 1, ny
-       do i = 1, nx
-          if (forcing_mask(i,j) == 1) then
-             if (lsrf(i,j) >= zocn(1)) then
-                forcing_lsrf(i,j) = forcing_3d(1,i,j)
-             elseif (lsrf(i,j) < zocn(nzocn)) then
-                forcing_lsrf(i,j) = forcing_3d(nzocn,i,j)
-             else
-                do k = 1, nzocn-1
-                   if (lsrf(i,j) < zocn(k) .and. lsrf(i,j) >= zocn(k+1)) then
-                      dtf = forcing_3d(k+1,i,j) - forcing_3d(k,i,j)
-                      dzocn = zocn(k+1) - zocn(k)
-                      dzice = lsrf(i,j) - zocn(k)
-                      forcing_lsrf(i,j) = forcing_3d(k,i,j) + (dzice/dzocn) * dtf
-                      exit
-                   endif
-                enddo
-             endif
-          else  ! mask = 0
-             forcing_lsrf(i,j) = 0.0d0
-          endif
-
-       enddo
-    enddo
-
-  end subroutine interpolate_3d_forcing_to_lsrf
 
 !****************************************************
 

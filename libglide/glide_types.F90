@@ -1988,6 +1988,12 @@ module glide_types
      real(dp), dimension(:,:), pointer :: &
           thermal_forcing_lsrf => null()            !> 2D thermal forcing (deg K) applied at lower ice surface
 
+     real(dp), dimension(:,:,:), pointer :: &
+          thetao => null()                          !> 3D ocean potential temperature (deg C) input to CISM
+
+     real(dp), dimension(:,:,:), pointer :: &
+          salinity => null()                        !> 3D ocean salinity (psu) input to CISM
+
      !Note: ocean_data%bmb_float has the same units as climate%smb: kg/m2/yr = mm/yr w.e.
      !      Defined to be positive for melting, since the ISMIP input datasets follow this convention
      real(dp), dimension(:,:), pointer :: &
@@ -2010,6 +2016,16 @@ module glide_types
      integer :: &
           thermal_forcing_anomaly_basin = 0         !> basin where anomaly is applied;
                                                     !> for default value of 0, apply to all basins
+
+     ! parameters for MISOMIP ocean profiles
+     logical :: misomip_profile = .false.       !> if true, then construct vertical T and S profiles as in MISOMIP
+     real(dp) :: T0 = -1.9d0                    !> sea surface temperature (deg C)
+     real(dp) :: Tbot =  1.0d0                  !> temperature at the sea floor, warm profile (deg C)
+!     real(dp) :: Tbot = -1.9d0                 !> temperature at the sea floor, cold profile (deg C)
+     real(dp) :: S0 = 33.8d0                    !> sea surface salinity (psu)
+     real(dp) :: Sbot = 34.7d0                  !> salinity at the sea floor, warm profile (psu)
+!     real(dp) :: Sbot = 34.55d0                !> salinity at the sea floor, cold profile (psu)
+     real(dp) :: zb_deep = -720.d0              !> min sea floor elevation (m)
 
   end type glide_ocean_data
 
@@ -2203,7 +2219,12 @@ module glide_types
      !> Holds fields and parameters relating to a sub-shelf plume model
      !> Under construction as of July 2026
 
-     logical :: misomip_domain                                 !> if true, then use MISOMIP parameter settings
+     ! plume numerics
+     real(dp) :: dt_plume = 600.d0                        !> plume timestep (s)
+     real(dp) :: tplume_spinup = 1.0d0                    !> time to spin up the plume at initialization (yr)
+                                                          !> converted from yr to s at startup
+     real(dp) :: tplume_runtime = 0.01d0                  !> time to run the plume when called at runtime (yr)
+                                                          !> converted from yr to s at startup
 
      ! plume properties
      !> Note: Entrainment/detrainment rates are computed with units of m/s but output with m/yr
@@ -2230,22 +2251,14 @@ module glide_types
      real(dp),dimension(:,:), pointer :: T_ambient => null()     !> ambient ocean temperature below ice and plume (deg C)
      real(dp),dimension(:,:), pointer :: S_ambient => null()     !> ambient ocean salinity below ice and plume (psu)
 
-     ! MISOMIP parameters
-     ! Note: T0, Tbot, S0, Sbot, gammaT and gammaS can be set in the config file.
-     !     - T0, Tbot, S0 and Sbot are prescribed for cold and warm profiles.
-     !     - gammaT is to be tuned to give a bmlt_float of the desired mean value.
-     !     - gammaS should equal gammaS/35.
-     real(dp) :: T0 = -1.9d0             !> sea surface temperature (deg C)
-     real(dp) :: Tbot =  1.0d0           !> temperature at the sea floor, warm profile (deg C)
-!     real(dp) :: Tbot = -1.9d0          !> temperature at the sea floor, cold profile (deg C)
-     real(dp) :: S0 = 33.8d0             !> sea surface salinity (psu)
-     real(dp) :: Sbot = 34.7d0           !> salinity at the sea floor, warm profile (psu)
-!     real(dp) :: Sbot = 34.55d0         !> salinity at the sea floor, cold profile (psu)
+     ! heat transfer coefficients
+     ! Note: The defaults are from Asay-Davis et al. (2016)
+     !       For ISOMIP+, gammaT is tuned to give a bmlt_float of the desired mean value,
+     !        and gammaS should equal gammaT/35.
      real(dp) :: gammaT = 2.2d-2         !> nondimensional heat transfer coefficient
                                          !> value of 2.2e-2 suggested by Asay-Davis et al. as an initial guess
      real(dp) :: gammaS = 2.2d-2/35.d0   !> nondimensional salt transfer coefficient
                                          !> for MISOMIP, should be set to gammaT/35 
-     real(dp) :: zbed_deep = -720.d0     !> min sea floor elevation (m)
 
   end type glide_plume
 
@@ -3315,6 +3328,8 @@ contains
        call coordsystem_allocate(model%general%ice_grid, model%basal_melt%bmlt_float_external)
        call coordsystem_allocate(model%general%ice_grid, model%basal_melt%thermal_forcing_mask)
        if (model%options%whichbmlt_float == BMLT_FLOAT_PLUME) then
+          call coordsystem_allocate(model%general%ice_grid, model%ocean_data%nzocn, model%ocean_data%thetao)
+          call coordsystem_allocate(model%general%ice_grid, model%ocean_data%nzocn, model%ocean_data%salinity)
           call coordsystem_allocate(model%general%ice_grid, model%plume%T_basal)
           call coordsystem_allocate(model%general%ice_grid, model%plume%S_basal)
           call coordsystem_allocate(model%general%ice_grid, model%plume%u_plume)
@@ -3870,6 +3885,10 @@ contains
         deallocate(model%ocean_data%thermal_forcing)
     if (associated(model%ocean_data%thermal_forcing_lsrf)) &
         deallocate(model%ocean_data%thermal_forcing_lsrf)
+    if (associated(model%ocean_data%thetao)) &
+        deallocate(model%ocean_data%thetao)
+    if (associated(model%ocean_data%salinity)) &
+        deallocate(model%ocean_data%salinity)
     if (associated(model%ocean_data%bmb_float)) &
         deallocate(model%ocean_data%bmb_float)
 
