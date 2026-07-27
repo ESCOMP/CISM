@@ -2227,29 +2227,28 @@ module glide_types
                                                           !> converted from yr to s at startup
 
      ! plume properties
-     !> Note: Entrainment/detrainment rates are computed with units of m/s but output with m/yr
-     real(dp),dimension(:,:), pointer :: T_basal => null()       !> basal ice temperature; at freezing point (deg C)
-     real(dp),dimension(:,:), pointer :: S_basal => null()       !> basal salinity; at freezing point (psu)
-
-     !TODO - cell centers or cell corners?
-     real(dp),dimension(:,:), pointer :: u_plume => null()       !> x component of plume velocity at cell centers (m/s)
-     real(dp),dimension(:,:), pointer :: v_plume => null()       !> y component of plume velocity at cell centers (m/s)
-                                                                 !> Note: Plume velocities are prognosed on edges, then interpolated
-                                                                 !>       to cell centers for diagnostics
-     real(dp),dimension(:,:), pointer :: u_plume_Cgrid => null() !> x component of plume velocity on cell edges (m/s)
-     real(dp),dimension(:,:), pointer :: v_plume_Cgrid => null() !> y component of plume velocity on cell edges (m/s)
+     !> Notes:
+     !> (1) D_plume, T_plume and S_plume are the prognostic state variables, saved from one step to the next.
+     !      The other variables are recomputed at each timestep based on the saved state variables.
+     !  (2) T_ambient and S_ambient are ocean properties, computed from the external ocean forcing.
+     !  (3) Plume velocities are first computed on edges, then are interpolated to cell centers.
+     !  (4) Entrainment/detrainment rates are computed with units of m/s but output with units of m/yr
      real(dp),dimension(:,:), pointer :: D_plume => null()       !> plume thickness (m)
-     real(dp),dimension(:,:), pointer :: ustar_plume => null()   !> plume friction velocity (m/s) on ice grid
-     real(dp),dimension(:,:), pointer :: drho_plume => null()    !> density difference between plume and ambient ocean (kg/m3)
      real(dp),dimension(:,:), pointer :: T_plume => null()       !> plume temperature (deg C)
      real(dp),dimension(:,:), pointer :: S_plume => null()       !> plume salinity (psu)
+     real(dp),dimension(:,:), pointer :: T_basal => null()       !> basal ice temperature; at freezing point (deg C)
+     real(dp),dimension(:,:), pointer :: S_basal => null()       !> basal salinity; at freezing point (psu)
+     real(dp),dimension(:,:), pointer :: T_ambient => null()     !> ambient ocean temperature below ice and plume (deg C)
+     real(dp),dimension(:,:), pointer :: S_ambient => null()     !> ambient ocean salinity below ice and plume (psu)
+     real(dp),dimension(:,:), pointer :: u_plume => null()       !> x component of plume velocity, approximated at cell centers (m/s)
+     real(dp),dimension(:,:), pointer :: v_plume => null()       !> y component of plume velocity, approximated at cell centers (m/s)
+     real(dp),dimension(:,:), pointer :: u_plume_east => null()  !> x component of plume velocity on east edges (m/s)
+     real(dp),dimension(:,:), pointer :: v_plume_north => null() !> y component of plume velocity on north edges (m/s)
+     real(dp),dimension(:,:), pointer :: ustar_plume => null()   !> plume friction velocity (m/s) on ice grid
+     real(dp),dimension(:,:), pointer :: drho_plume => null()    !> density difference between plume and ambient ocean (kg/m3)
      real(dp),dimension(:,:), pointer :: entrainment => null()   !> entrainment rate from ambient ocean to plume (positive up)
      real(dp),dimension(:,:), pointer :: detrainment => null()   !> detrainment rate from plume to ambient ocean (positive down)
      real(dp),dimension(:,:), pointer :: divDu_plume => null()   !> divergence of D_plume*u_plume
-
-     ! ambient ocean properties
-     real(dp),dimension(:,:), pointer :: T_ambient => null()     !> ambient ocean temperature below ice and plume (deg C)
-     real(dp),dimension(:,:), pointer :: S_ambient => null()     !> ambient ocean salinity below ice and plume (psu)
 
      ! heat transfer coefficients
      ! Note: The defaults are from Asay-Davis et al. (2016)
@@ -3334,8 +3333,8 @@ contains
           call coordsystem_allocate(model%general%ice_grid, model%plume%S_basal)
           call coordsystem_allocate(model%general%ice_grid, model%plume%u_plume)
           call coordsystem_allocate(model%general%ice_grid, model%plume%v_plume)
-          call coordsystem_allocate(model%general%ice_grid, model%plume%u_plume_Cgrid)
-          call coordsystem_allocate(model%general%ice_grid, model%plume%v_plume_Cgrid)
+          call coordsystem_allocate(model%general%ice_grid, model%plume%u_plume_east)
+          call coordsystem_allocate(model%general%ice_grid, model%plume%v_plume_north)
           call coordsystem_allocate(model%general%ice_grid, model%plume%D_plume)
           call coordsystem_allocate(model%general%ice_grid, model%plume%ustar_plume)
           call coordsystem_allocate(model%general%ice_grid, model%plume%drho_plume)
@@ -3986,10 +3985,10 @@ contains
         deallocate(model%plume%u_plume)
     if (associated(model%plume%v_plume)) &
         deallocate(model%plume%v_plume)
-    if (associated(model%plume%u_plume_Cgrid)) &
-        deallocate(model%plume%u_plume_Cgrid)
-    if (associated(model%plume%v_plume_Cgrid)) &
-        deallocate(model%plume%v_plume_Cgrid)
+    if (associated(model%plume%u_plume_east)) &
+        deallocate(model%plume%u_plume_east)
+    if (associated(model%plume%v_plume_north)) &
+        deallocate(model%plume%v_plume_north)
     if (associated(model%plume%D_plume)) &
         deallocate(model%plume%D_plume)
     if (associated(model%plume%ustar_plume)) &

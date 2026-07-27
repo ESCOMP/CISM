@@ -458,19 +458,13 @@ data:          data%temper%flow_enhancement_factor
 load:          1
 
 # Fields for plume model (through T_ambient, S_ambient)
-[T_basal]
+[D_plume]
 dimensions:    time, y1, x1
-units:         degree_Celsius
-long_name:     basal ice temperature
-data:          data%plume%T_basal
-standard_name: basal_ice_temperature
-
-[S_basal]
-dimensions:    time, y1, x1
-units:         psu
-long_name:     basal ice salinity
-data:          data%plume%S_basal
-standard_name: basal_ice_salinity
+units:         meter
+long_name:     plume thickness
+data:          data%plume%D_plume
+standard_name: plume_thickness
+load:          1
 
 [T_plume]
 dimensions:    time, y1, x1
@@ -488,55 +482,58 @@ data:          data%plume%S_plume
 standard_name: plume_salinity
 load:          1
 
-[D_plume]
+[T_basal]
 dimensions:    time, y1, x1
-units:         meter
-long_name:     plume thickness
-data:          data%plume%D_plume
-standard_name: plume_thickness
-load:          1
+units:         degree_Celsius
+long_name:     basal ice temperature
+data:          data%plume%T_basal
+standard_name: basal_ice_temperature
+
+[S_basal]
+dimensions:    time, y1, x1
+units:         psu
+long_name:     basal ice salinity
+data:          data%plume%S_basal
+standard_name: basal_ice_salinity
 
 [u_plume]
-dimensions:    time, y0, x0
+dimensions:    time, y1, x1
 units:         meter/second
-long_name:     plume velocity in x direction at cell corners
+long_name:     plume velocity in x direction at cell centers
 data:          data%plume%u_plume
 standard_name: plume_x_velocity
 
 [v_plume]
-dimensions:    time, y0, x0
+dimensions:    time, y1, x1
 units:         meter/second
-long_name:     plume velocity in y direction at cell corners
+long_name:     plume velocity in y direction at cell centers
 data:          data%plume%v_plume
 standard_name: plume_y_velocity
 
-[u_plume_Cgrid]
+[u_plume_east]
 dimensions:    time, y1, x1
 units:         meter/second
-long_name:     plume velocity in x direction at cell edges
-data:          data%plume%u_plume_Cgrid
-standard_name: plume_x_velocity_Cgrid
+long_name:     plume velocity in x direction at east edges
+data:          data%plume%u_plume_east
+standard_name: plume_x_velocity_east
 
-[v_plume_Cgrid]
+[v_plume_north]
 dimensions:    time, y1, x1
 units:         meter/second
-long_name:     plume velocity in y direction at cell edges
-data:          data%plume%v_plume_Cgrid
-standard_name: plume_y_velocity_Cgrid
+long_name:     plume velocity in y direction at north edges
+data:          data%plume%v_plume_north
 
 [ustar_plume]
 dimensions:    time, y1, x1
 units:         meter/second
 long_name:     plume friction velocity
 data:          data%plume%ustar_plume
-standard_name: plume_friction_velocity
 
 [drho_plume]
 dimensions:    time, y1, x1
 units:         kg/m3
 long_name:     plume density diffrence with ambient ocean
 data:          data%plume%drho_plume
-standard_name: plume_density_difference
 
 [entrainment]
 dimensions:    time, y1, x1
@@ -544,7 +541,6 @@ units:         meter/year
 long_name:     entrainment rate
 data:          data%plume%entrainment
 factor:        scyr
-standard_name: entrainment_rate
 
 [detrainment]
 dimensions:    time, y1, x1
@@ -552,7 +548,6 @@ units:         meter/year
 long_name:     detrainment rate
 data:          data%plume%detrainment
 factor:        scyr
-standard_name: detrainment_rate
 
 [divDu_plume]
 dimensions:    time, y1, x1
@@ -560,21 +555,18 @@ units:         meter/year
 long_name:     divergence of D_plume*u_plume
 data:          data%plume%divDu_plume
 factor:        scyr
-standard_name: plume divergence rate
 
 [T_ambient]
 dimensions:    time, y1, x1
 units:         degree_Celsius
 long_name:     ambient ocean temperature
 data:          data%plume%T_ambient
-standard_name: ambient_ocean_temperature
 
 [S_ambient]
 dimensions:    time, y1, x1
 units:         psu
 long_name:     ambient ocean salinity
 data:          data%plume%S_ambient
-standard_name: ambient ocean salinity
 
 [taudx]
 dimensions:    time, y0, x0
