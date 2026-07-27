@@ -416,6 +416,7 @@ contains
 
 !-------------------------------------------------------------------------
 
+  !TODO - Change to handle_ocean?
   subroutine glide_get_zocn(model,config)
 
     ! Read ocean grid information, if present, from the config file.
@@ -437,6 +438,7 @@ contains
     character(len=16) :: message_tmp
     integer :: k
 
+    !TODO - Change to [ocean_data]?
     ! Check for section [grid_ocn]
     call GetSection(config,section,'grid_ocn')
 
@@ -1654,12 +1656,11 @@ contains
     write(message,*) 'basal melt, floating ice: ',model%options%whichbmlt_float, which_bmlt_float(model%options%whichbmlt_float)
     call write_log(message)
 
-    if (model%options%whichbmlt_float == BMLT_FLOAT_PLUME) then
-       call write_log('Warning, BMLT_FLOAT_PLUME option is still under construction', GM_FATAL)
-    elseif (model%options%whichbmlt_float == BMLT_FLOAT_THERMAL_FORCING) then
-       write(message,*) 'melt parameterization   : ', model%options%bmlt_float_thermal_forcing_param, &
+    if (model%options%whichbmlt_float == BMLT_FLOAT_THERMAL_FORCING) then
+       write(message,*) 'TF parameterization   : ', model%options%bmlt_float_thermal_forcing_param, &
             bmlt_float_thermal_forcing_param(model%options%bmlt_float_thermal_forcing_param)
        call write_log(message)
+       !TODO - Output the following for the plume model as well?
        write(message,*) 'ocean data domain       : ', model%options%ocean_data_domain, &
             ocean_data_domain(model%options%ocean_data_domain)
        call write_log(message)
@@ -2405,13 +2406,11 @@ contains
     call GetValue(section, 'thermal_forcing_anomaly_timescale', model%ocean_data%thermal_forcing_anomaly_timescale)
     call GetValue(section, 'thermal_forcing_anomaly_basin', model%ocean_data%thermal_forcing_anomaly_basin)
     call GetValue(section, 'misomip_profile', model%ocean_data%misomip_profile)
-    if (model%ocean_data%misomip_profile) then
-       call GetValue(section,'T0',      model%ocean_data%T0)
-       call GetValue(section,'Tbot',    model%ocean_data%Tbot)
-       call GetValue(section,'S0',      model%ocean_data%S0)
-       call GetValue(section,'Sbot',    model%ocean_data%Sbot)
-       call GetValue(section,'zb_deep', model%ocean_data%zb_deep)
-    endif
+    call GetValue(section, 'T0',      model%ocean_data%T0)
+    call GetValue(section, 'Tbot',    model%ocean_data%Tbot)
+    call GetValue(section, 'S0',      model%ocean_data%S0)
+    call GetValue(section, 'Sbot',    model%ocean_data%Sbot)
+    call GetValue(section, 'zb_deep', model%ocean_data%zb_deep)
 
     ! parameters to adjust input topography
     call GetValue(section, 'adjust_topg_xmin', model%paramets%adjust_topg_xmin)
@@ -2490,11 +2489,6 @@ contains
     call GetValue(section,'bmlt_float_depth_zfrzmax', model%basal_melt%bmlt_float_depth_zfrzmax)
     call GetValue(section,'bmlt_float_depth_meltmin', model%basal_melt%bmlt_float_depth_meltmin)
     call GetValue(section,'bmlt_float_depth_zmeltmin', model%basal_melt%bmlt_float_depth_zmeltmin)
-
-    !TODO - Put plume parameters in their own section
-    ! plume parameters
-    call GetValue(section,'gammaT',    model%plume%gammaT)
-    call GetValue(section,'gammaS',    model%plume%gammaS)
 
   end subroutine handle_parameters
 
@@ -3140,6 +3134,7 @@ contains
        call write_log(message)
        write(message,*) 'gammaS (nondimensional)  :  ', model%plume%gammaS
        call write_log(message)
+       !TODO - Introduce anomaly forcing for the plume? Based on thetao?
     elseif (model%options%whichbmlt_float == BMLT_FLOAT_THERMAL_FORCING) then
        write(message,*) 'gamma0 (m/yr)                 :  ', model%ocean_data%gamma0
        call write_log(message)

@@ -1444,7 +1444,6 @@
 
 !=======================================================================
 
-
     subroutine glissade_upwind_field(&
          nx,       ny,         &
          ilo, ihi, jlo, jhi,   &
@@ -1460,11 +1459,11 @@
 
       !TODO - Modify so that ilo, ihi, jlo and jhi are not needed as inputs
       integer, intent (in) ::     &
-         nx, ny             ,&! block dimensions
+         nx, ny,             &! block dimensions
          ilo,ihi,jlo,jhi      ! beginning and end of physical domain
 
       real(dp), intent(in) ::         &
-         dx, dy             ,&! x and y gridcell dimensions
+         dx, dy,             &! x and y gridcell dimensions
          dt                   ! time step
 
       real(dp), dimension(nx,ny), intent(inout) ::    &
