@@ -56,6 +56,8 @@
 
     ! prescribed MISOMIP parameters from Table 4 of Asay-Davis et al. (2016)
     ! Note: cpw and lhci are defined in glimmer_physcon
+    ! Kh is from LADDIE: https://github.com/erwinlambert/laddie (accessed 7/27/26).
+
     !TODO - Add these to a derived type or a constants module?
     real(dp), parameter :: &
          lambda1 = -0.0573d0,        & ! liquidus slope (deg/psu)
@@ -64,6 +66,7 @@
                                        ! Tb = lambda1*Sb + lambda2 + lambda3*pb
          c_drag = 2.5d-3,            & ! ocean drag coefficient (unitless)
          u_tidal = 0.01d0,           & ! tidal velocity (m/s)
+         Kh = 25.d0,                 & ! horizontal diffusivity of heat and salt (m^2/s)
          eos_rho_ref = 1027.51d0,    & ! reference density for linear EOS (kg/m^3)
          eos_Tref = -1.0d0,          & ! reference temperature for linear EOS (deg C)
          eos_Sref = 34.2d0,          & ! reference salinity for linear EOS (deg C)
@@ -76,7 +79,7 @@
     real(dp), parameter :: &
          D_plume0 = 10.d0,            & ! initial plume thickness (m)
          D_plume_min = 1.0d0,        & ! min plume thickness (m) where the plume exists
-         D_plume_max = 50.0d0          ! max plume thickness (m)
+         D_plume_max = 200.0d0          ! max plume thickness (m)
 
     integer, parameter :: wx = 7, wy = 8   ! block size passed to point_diag
 
@@ -913,7 +916,7 @@
        ! Then find the density difference between the plume and the ice base..
 
        rho_basal = eos_rho_ref * (1.d0 - eos_alpha * (T_basal - eos_Tref)  &
-                 + eos_beta  * (S_basal - eos_Sref) )
+                                       + eos_beta  * (S_basal - eos_Sref) )
 
        where (plume_mask == 1)
           drho_basal = rho_plume - rho_basal
@@ -1152,6 +1155,8 @@
             parallel,             &
             dt_plume,             &
             plume_mask,           &
+            edge_mask_east,       &
+            edge_mask_north,      &
             u_plume_east,         &
             v_plume_north,        &
             entrainment,          &
@@ -2110,7 +2115,9 @@
              endif
 
              ! Increase detrainment if D_plume > D_plume_max or H_cavity
-             Dmax = min(H_cavity(i,j), D_plume_max)
+             !WHL - Don't use the H_cavity limit, just use D_plume_max
+!!             Dmax = min(H_cavity(i,j), D_plume_max)
+             Dmax = D_plume_max
              if (D_plume(i,j) > Dmax) then
                 call parallel_globalindex(i, j, ig, jg, parallel)
                 write(iulog,*) 'Force detrainment: ig, jg, D_plume:', ig, jg, D_plume(i,j)
@@ -2433,8 +2440,13 @@
                 write(iulog,*) 'C1 (m/s/deg), C2 (m/s), C3(deg C):', C1, C2, C3
                 write(iulog,*) 'aa, bb, cc:=', aa, bb, cc
                 write(iulog,*) 'T_basal, S_basal, bmlt_float:', T_basal(i,j), S_basal(i,j), bmlt_float(i,j)
+                write(iulog,*) 'Eq. 1 LHS:', rhoi*lhci*bmlt_float(i,j)
+                write(iulog,*) 'Eq. 1 RHS:', rhoo*cpw*ustar_plume(i,j)*gammaT*(T_plume(i,j) - T_basal(i,j))
+                write(iulog,*) 'Eq. 2 LHS:', rhoi*bmlt_float(i,j)*S_basal(i,j)
+                write(iulog,*) 'Eq. 2 RHS:', rhoo*ustar_plume(i,j)*gammaS*(S_plume(i,j) - S_basal(i,j))
+                write(iulog,*) 'Eq. 3 LHS:', T_basal(i,j)
+                write(iulog,*) 'Eq. 3 RHS:', lambda1*S_basal(i,j) + lambda2 + lambda3*pressure(i,j)
              endif
-             
           endif   ! plume_mask = 1
           
        enddo   ! i
@@ -2451,6 +2463,8 @@
        parallel,             &
        dt,                   &
        plume_mask,           &
+       edge_mask_east,       &
+       edge_mask_north,      &
        u_plume_east,         &
        v_plume_north,        &
        entrainment,          &
@@ -2465,10 +2479,44 @@
        T_plume,              &
        S_plume)
 
+    !----------------------------------------------------------------------------
     ! Solve transport equations for the plume thickness, temperature and salinity.
-    ! Includes upwind-weighted horizontal transport as well as local entrainment,
-    !  detrainment and melting.
-    ! TODO: Replace upwind with remapping transport?
+    ! These include horizontal transport of mass, heat and salt; horizontal diffusion
+    !  of heat and salt; and vertical entrainment, detrainment and melting.
+    !
+    ! See Eqs. 1, 2 and 4 in Lambert et al. (2023):. These describe the conservation
+    !
+    ! (1) dD/dt + del*(DU) = e - d + m
+    !
+    ! (2) d/dt(DT) + del*(DUT) = e*Ta -d*T + m*Tb - gammaT*(T - Tb) + del*(Kh*D*gradT)
+    !
+    ! (3) d/dt(DS) + del*(DUS) = e*Sa -d*S - del*(Kh*D*gradT)
+    !
+    ! where (T,S), (Tb,Sb) and (Ta,Sa) are the temperature and salinity of the plume,
+    ! the ice base and the ambient ocean, respectively; D is the plume thickness;
+    ! e, d and m are the rates of entraintment, detrainment and melting;
+    ! gammaT is a heat transfer term, set here to (rhoi*Li*m)/(rhow*cpw);
+    ! and Kh is the diffusivity of heat and salt.
+    !
+    ! Lambert (2023) does not specify Kh, but the LADDIE code has Kh = 25 m2/s:
+    !  https://github.com/erwinlambert/laddie (7/27/26).
+    ! At 8km resolution with dt_plume = 600 s, Kh = 50 is stable, but Kh = 100 is not.
+    ! Explicit diffusion has a CFL limit proportional to dx^2, so the maximum
+    !  stable step drops sharply with increasing resolution.
+    ! To turn off diffusion, simply set Kh = 0.
+    !
+    ! Entrainment and detrainment are treated separately since e is linked to (Ta,Sa)
+    !  and d to (Tp,Sp).
+    !
+    ! Salt transfer between the plume and the ice base is assumed to be negligible,
+    !  so there are no terms m*Sb or gammaS*(S - Sb) in Eq. 3.
+    !
+    ! The horizontal transport equations are solved with a first-order upwind scheme,
+    !  to reduce the cost compared to incremental remapping.
+    !
+    ! The diffusive terms are handled with a finite-difference scheme in flux form,
+    !  using the up-gradient value of D.
+    !----------------------------------------------------------------------------
 
     use glissade_transport, only: glissade_upwind_field
 
@@ -2490,7 +2538,9 @@
          dt                     ! time step (s)
 
     integer, dimension(nx,ny), intent(in) ::  &
-         plume_mask             ! = 1 for cells where the plume is present, else = 0
+         plume_mask,          & ! = 1 for cells where the plume is present, else = 0
+         edge_mask_east,      & ! = 1 for east edges with plume cells on each side
+         edge_mask_north        ! = 1 for north edges with plume cells on each side
 
     real(dp), dimension(nx,ny), intent(in) ::  &
          u_plume_east,        & ! u_plume on east edges (m/s)
@@ -2514,11 +2564,18 @@
     integer :: i, j, ig, jg, n
     integer :: ilo, ihi, jlo, jhi
 
-    real(dp) :: dD, dDT, dDS               ! increments in D, D*T and d*S
-    real(dp), dimension(nx,ny,3) :: work   ! work array for transport
+    real(dp) :: dD, dDT, dDS           ! increments in D, D*T and D*S
+    real(dp) :: gradT, gradS           ! gradients of heat and salt
+
+    real(dp), dimension(nx,ny,3) :: &
+         work                          ! work array for transport
 
     real(dp), dimension(nx,ny) ::  &
-         D_temp, T_temp, S_temp            ! temporary arrays
+         diffT_east, diffT_north,    & ! diffusive fluxes of heat at cell edges (m^3*deg/s)
+         diffS_east, diffS_north       ! diffusive fluxes of salt at cell edges (m^3*psu/s)
+
+    real(dp), dimension(nx,ny) ::  &
+         D_temp, T_temp, S_temp        ! temporary arrays
 
     character(len=100) :: message
 
@@ -2533,6 +2590,7 @@
     call point_diag(S_plume, 'S_plume (psu)', itest, jtest, rtest, wx, wy)
 
     ! Make sure the input fields are in range
+    !TODO - Leave this out, and only test the output?
     do j = nhalo+1, ny-nhalo
        do i = nhalo+1, nx-nhalo
           if (plume_mask(i,j) == 1) then
@@ -2567,22 +2625,30 @@
        enddo
     enddo
 
-    ! Fill a work array with fields to be incremented
+    ! Fill a work array with the fields to be transported
     work(:,:,:) = 0.0d0
-    where (plume_mask == 1)
-       work(:,:,1) = D_plume
-       work(:,:,2) = D_plume*T_plume
-       work(:,:,3) = D_plume*S_plume
-    endwhere
 
-    ! Increment the work array to account for entrainment, detrainment, heat transfer and melting
+    do j = nhalo+1, ny-nhalo
+       do i = nhalo+1, nx-nhalo
+          if (plume_mask(i,j) == 1) then
+             work(i,j,1) = D_plume(i,j)
+             work(i,j,2) = D_plume(i,j)*T_plume(i,j)
+             work(i,j,3) = D_plume(i,j)*S_plume(i,j)
+          endif
+       enddo
+    enddo
+
+    ! Increment the work array based on vertical entrainment, detrainment, heat transfer and melting
+    ! loop over locally owned cells
     do j = nhalo+1, ny-nhalo
        do i = nhalo+1, nx-nhalo
           if (plume_mask(i,j) == 1) then
              dD = entrainment(i,j) - detrainment(i,j) + bmlt_float(i,j)
              work(i,j,1) = work(i,j,1) + dD*dt
-             ! Note: heat_transfer has units J/m^2/s, and rhow*cpw has units of (kg/m3)*J/(deg*kg) = J/(deg*m3),
+             ! Note: heat_transfer = rhoi*lhci*bmlt_float has units J/m^2/s, and
+             !       rhow*cpw has units of (kg/m3)*J/(deg*kg) = J/(deg*m3),
              !       so heat_transfer/(rhow*cpw) has units of m*deg/s, as desired
+             !TODO - Pass in bmlt_float and compute locally? Or compute in terms of (Tp - Tb)?
              dDT = entrainment(i,j)*T_ambient(i,j) - detrainment(i,j)*T_plume(i,j) + bmlt_float(i,j)*T_basal(i,j) &
                   - heat_transfer(i,j)/(rhow*cpw)
              work(i,j,2) = work(i,j,2) + dDT*dt
@@ -2591,10 +2657,6 @@
              work(i,j,3) = work(i,j,3) + dDS*dt
           endif
        enddo
-    enddo
-
-    do n = 1, 3
-       call parallel_halo(work(:,:,n), parallel)
     enddo
 
     !WHL - debug
@@ -2617,13 +2679,18 @@
 !    call point_diag(T_temp, 'T_plume (degC)', itest, jtest, rtest, wx, wy)
 !    call point_diag(S_temp, 'S_plume (psu)', itest, jtest, rtest, wx, wy)
 
+    ! halo update before horizontal transport
+    do n = 1, 3
+       call parallel_halo(work(:,:,n), parallel)
+    enddo
+
     ! Set bounds for loops over locally owned cells and edges (inputs to glissade_upwind_field)
     ilo = nhalo + 1
     ihi = nx - nhalo
     jlo = nhalo +1
     jhi = ny - nhalo
 
-    ! Use a first-order accurate upwind scheme to transport D_plume
+    ! Use a first-order upwind scheme to transport D_plume
 
     call glissade_upwind_field(&
          nx,             ny,             &
@@ -2650,6 +2717,89 @@
 
     ! Solve for D_plume, T_plume and S_plume
 
+!    do j = nhalo+1, ny-nhalo
+!       do i = nhalo+1, nx-nhalo
+!          if (plume_mask(i,j) == 1) then
+!             D_plume(i,j) = work(i,j,1)
+!             if (D_plume(i,j) > eps11) then
+!                T_plume(i,j) = work(i,j,2)/D_plume(i,j)
+!                S_plume(i,j) = work(i,j,3)/D_plume(i,j)
+!             else
+!                T_plume(i,j) = 0.0d0
+!                S_plume(i,j) = 0.0d0
+!             endif
+!          endif
+!       enddo
+!    enddo
+
+    ! halo update after horizontal transport
+    do n = 1, 3
+       call parallel_halo(work(:,:,n), parallel)
+    enddo
+
+    ! Compute diffusive fluxes of heat and salt at each plume edge.
+    ! Note: There are no diffusive fluxes at open boundaries (edge_mask = 2),
+    !       since we assume gradT = gradS = 0 at open boundaries.
+
+    diffT_east = 0.0d0
+    diffS_east = 0.0d0
+    diffT_north = 0.0d0
+    diffS_north = 0.0d0
+
+    do j = nhalo+1, ny-nhalo
+       do i = nhalo+1, nx-nhalo
+          if (edge_mask_east(i,j) == 1) then
+             gradT = (T_plume(i+1,j) - T_plume(i,j))/dx
+             if (gradT > 0.0d0) then  ! heat flows from (i+1,j) to (i,j)
+                diffT_east(i,j) = -1.0d0 * Kh * D_plume(i+1,j) * gradT * dy
+             else  ! heat flows from (i,j) to (i+1,j)
+                diffT_east(i,j) = -1.0d0 * Kh * D_plume(i,j) * gradT * dy
+             endif
+             gradS = (S_plume(i+1,j) - S_plume(i,j))/dx
+             if (gradS > 0.0d0) then  ! salt flows from (i+1,j) to (i,j)
+                diffS_east(i,j) = -1.0d0 * Kh * D_plume(i+1,j) * gradS * dy
+             else  ! heat flows from (i,j) to (i+1,j)
+                diffS_east(i,j) = -1.0d0 * Kh * D_plume(i,j) * gradS * dy
+             endif
+          endif
+          if (edge_mask_north(i,j) == 1) then
+             gradT = (T_plume(i,j+1) - T_plume(i,j))/dy
+             if (gradT > 0.0d0) then  ! heat flows from (i,j+1) to (i,j)
+                diffT_north(i,j) = -1.0d0 * Kh * D_plume(i,j+1) * gradT * dx
+             else  ! heat flows from (i,j) to (i,j+1)
+                diffT_north(i,j) = -1.0d0 * Kh * D_plume(i,j) * gradT * dx
+             endif
+             gradS = (S_plume(i+1,j) - S_plume(i,j))/dx
+             if (gradS > 0.0d0) then  ! salt flows from (i,j+1) to (i,j)
+                diffS_north(i,j) = -1.0d0 * Kh * D_plume(i,j+1) * gradS * dx
+             else  ! heat flows from (i,j) to (i,j+1)
+                diffS_north(i,j) = -1.0d0 * Kh * D_plume(i,j) * gradS * dx
+             endif
+          endif
+       enddo
+    enddo
+
+    if (verbose_plume) then
+       call point_diag(diffT_east *scyr/(dx*dy), 'T diffusion, east edges (m*deg/yr)',  itest, jtest, rtest, wx, wy)
+       call point_diag(diffT_north*scyr/(dx*dy), 'T diffusion, north edges (m*deg/yr)', itest, jtest, rtest, wx, wy)
+       call point_diag(diffS_east *scyr/(dx*dy), 'S diffusion, east edges (m*deg/yr)',  itest, jtest, rtest, wx, wy)
+       call point_diag(diffS_north*scyr/(dx*dy), 'S_diffusion, north edges (m*deg/yr)', itest, jtest, rtest, wx, wy)
+    endif
+
+    ! Increment the work arrays for DT and DS based on the incoming and outgoing diffusive fluxes
+    do j = nhalo+1, ny-nhalo
+       do i = nhalo+1, nx-nhalo
+          if (plume_mask(i,j) == 1) then
+             work(i,j,2) = work(i,j,2) + (diffT_east(i-1,j)  - diffT_east(i,j)  &
+                                       +  diffT_north(i,j-1) - diffT_north(i,j)) * dt/(dx*dy)
+             work(i,j,3) = work(i,j,3) + (diffS_east(i-1,j)  - diffS_east(i,j)  &
+                                       +  diffS_north(i,j-1) - diffS_north(i,j)) * dt/(dx*dy)
+          endif
+       enddo
+    enddo
+
+    ! Solve for D_plume, T_plume and S_plume
+
     do j = nhalo+1, ny-nhalo
        do i = nhalo+1, nx-nhalo
           if (plume_mask(i,j) == 1) then
@@ -2665,13 +2815,16 @@
        enddo
     enddo
 
+    ! final halo updates
     call parallel_halo(D_plume, parallel)
     call parallel_halo(T_plume, parallel)
     call parallel_halo(S_plume, parallel)
 
-    call point_diag(D_plume, 'New D_plume (m)', itest, jtest, rtest, wx, wy)
-    call point_diag(T_plume, 'T_plume (degC)', itest, jtest, rtest, wx, wy)
-    call point_diag(S_plume, 'S_plume (psu)', itest, jtest, rtest, wx, wy)
+    if (verbose_plume) then
+       call point_diag(D_plume, 'New D_plume (m)', itest, jtest, rtest, wx, wy)
+       call point_diag(T_plume, 'T_plume (degC)', itest, jtest, rtest, wx, wy)
+       call point_diag(S_plume, 'S_plume (psu)', itest, jtest, rtest, wx, wy)
+    endif
 
     ! Make sure all output fields are in range
     ! If D_plume is out of range, the entrainment or detrainment should work
