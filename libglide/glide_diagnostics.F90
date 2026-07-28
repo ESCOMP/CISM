@@ -34,6 +34,7 @@ module glide_diagnostics
  
   use glimmer_global, only: dp
   use glimmer_paramets, only: iulog, eps11
+  use glimmer_physcon, only: scyr, rhoi, shci
   use glimmer_log
   use glide_types
   use cism_parallel, only: this_rank, main_task, lhalo, uhalo, nhalo, &
@@ -44,6 +45,10 @@ module glide_diagnostics
        parallel_is_zero
 
   implicit none
+
+  real(dp), parameter ::   &
+       eps = eps11             ! small threshold for diagnostics
+
 
   logical, parameter :: verbose_diagnostics = .false.
 
@@ -160,13 +165,13 @@ contains
 
 !--------------------------------------------------------------------------
 
-  subroutine glide_write_diag (model,       time)
+  subroutine glide_write_diag (model, time)
 
     ! Write global diagnostics
     ! Also write local diagnostics for a selected grid cell
- 
+    !TODO - Break this long subroutine into several shorter subroutines
+
     use glimmer_paramets, only: unphys_val
-    use glimmer_physcon, only: scyr, rhoi, shci
     use glissade_utils, only: glissade_usrf_to_thck, glissade_rms_error
 
     implicit none
@@ -243,8 +248,7 @@ contains
          ice_mask,                 & ! = 1 where ice is present with thck > minthck, else = 0
          floating_mask,            & ! = 1 where ice is present and floating, else = 0
          grounded_mask,            & ! = 1 where ice is present and grounded, else = 0
-         ice_cap_mask,             & ! = 1 where an ice cap is present, else = 0
-         glacier_ice_mask            ! = 1 where glacier ice is present, initially and/or currently
+         ice_cap_mask                ! = 1 where an ice cap is present, else = 0
 
     integer, dimension(model%general%ewn-1,model%general%nsn-1) ::  &
          stag_ice_mask               ! staggered mask; = 1 if ice_mask = 1 for any of the four neighbors
@@ -259,20 +263,6 @@ contains
 
     real(dp), dimension(model%lithot%nlayer) ::  &
          lithtemp_diag                       ! lithosphere column diagnostics
-
-    ! glacier diagnostics
-    real(dp) :: &
-         tot_glc_area_init, tot_glc_area,     & ! total glacier area, initial and current (km^2)
-         tot_glc_volume_init, tot_glc_volume, & ! total glacier volume, initial and current (km^3)
-         tot_glc_area_init_extent,            & ! glacier area summed over the initial extent (km^2)
-         tot_glc_volume_init_extent,          & ! glacier volume summed over the initial extent (km^3)
-         tot_glc_area_target,                 & ! target glacier area for inversion (km^2)
-         tot_glc_volume_target,               & ! target glacier volume for inversion (km^3)
-         glc_rmse_thck,                       & ! root mean square value of thck - thck_target
-         glc_rmse_thck_init_extent              ! as above, but within initial extent
-
-    integer :: &
-         count_area, count_volume               ! number of glaciers with nonzero area and volume
 
     integer :: &
          i, j, k, nb, ng,                   &
@@ -304,9 +294,6 @@ contains
     ! cell_area = dew*dns by default; optionally scaled to account for grid distortion
     real(dp), dimension(model%general%ewn,model%general%nsn) :: &
          cell_area     ! grid cell areas (scaled model units); diagnostic only
-
-    real(dp), parameter ::   &
-         eps = eps11             ! small threshold for diagnostics
 
     type(parallel_type) :: parallel       ! info for parallel communication
 
@@ -1150,6 +1137,7 @@ contains
                lithtemp_diag(:) = model%lithot%temp(i,j,:)
        endif
 
+       !TODO - Replace the parallel_reduce calls with broadcasts?
        usrf_diag = parallel_reduce_max(usrf_diag)
        thck_diag = parallel_reduce_max(thck_diag)
        topg_diag = parallel_reduce_max(topg_diag)
@@ -1290,207 +1278,428 @@ contains
 
     call write_log(' ')
 
-    ! glacier diagnostics
+    ! optional glacier diagnostics
 
     if (model%options%enable_glaciers) then
+       call write_glacier_diag(model)
+    endif
 
-       tot_glc_area = 0.0d0
-       tot_glc_volume = 0.0d0
-       tot_glc_area_init = 0.0d0
-       tot_glc_volume_init = 0.0d0
-       tot_glc_area_init_extent = 0.0d0
-       tot_glc_volume_init_extent = 0.0d0
-       count_area = 0
-       count_volume = 0
+    ! optional plume diagnostics
 
-       do ng = 1, model%glacier%nglacier
-          tot_glc_area = tot_glc_area + model%glacier%area(ng)
-          tot_glc_volume = tot_glc_volume + model%glacier%volume(ng)
-          tot_glc_area_init = tot_glc_area_init + model%glacier%area_init(ng)
-          tot_glc_volume_init = tot_glc_volume_init + model%glacier%volume_init(ng)
-          tot_glc_area_init_extent = tot_glc_area_init_extent + model%glacier%area_init_extent(ng)
-          tot_glc_volume_init_extent = tot_glc_volume_init_extent + model%glacier%volume_init_extent(ng)
-          if (model%glacier%area(ng) > eps) then
-             count_area = count_area + 1
-          endif
-          if (model%glacier%volume(ng) > eps) then
-             count_volume = count_volume + 1
-          endif
-       enddo
-
-       ! Copy selected scalars into the derived type
-       model%glacier%total_area = tot_glc_area
-       model%glacier%total_volume = tot_glc_volume
-       model%glacier%nglacier_active = count_area
-
-       ! Write some total glacier diagnostics
-
-       write(message,'(a25)') 'Glacier diagnostics: '
-       call write_log(trim(message), type = GM_DIAGNOSTIC)
-
-       call write_log(' ')
-
-       write(message,'(a35,i14)')   'Number of glaciers                 ', &
-            model%glacier%nglacier
-       call write_log(trim(message), type = GM_DIAGNOSTIC)
-
-       write(message,'(a35,i14)')   'Glaciers with nonzero area         ', &
-            count_area
-       call write_log(trim(message), type = GM_DIAGNOSTIC)
-
-       write(message,'(a35,i14)')   'Glaciers with nonzero volume       ', &
-            count_volume
-       call write_log(trim(message), type = GM_DIAGNOSTIC)
-
-       write(message,'(a35,f14.6)') 'Total glacier area_init (km^2)     ', &
-            tot_glc_area_init / 1.0d6
-       call write_log(trim(message), type = GM_DIAGNOSTIC)
-
-       write(message,'(a35,f14.6)') 'Total glacier area (km^2)          ', &
-            tot_glc_area / 1.0d6
-       call write_log(trim(message), type = GM_DIAGNOSTIC)
-
-       write(message,'(a35,f14.6)') 'Total area_init_extent (km^2)      ', &
-            tot_glc_area_init_extent / 1.0d6
-       call write_log(trim(message), type = GM_DIAGNOSTIC)
-
-       write(message,'(a35,f14.6)') 'Total glacier volume_init (km^3)   ', &
-            tot_glc_volume_init / 1.0d9
-       call write_log(trim(message), type = GM_DIAGNOSTIC)
-
-       write(message,'(a35,f14.6)') 'Total glacier volume (km^3)        ', &
-            tot_glc_volume / 1.0d9
-       call write_log(trim(message), type = GM_DIAGNOSTIC)
-
-       write(message,'(a35,f14.6)') 'Total volume_init_extent (km^3)    ', &
-            tot_glc_volume_init_extent / 1.0d9
-       call write_log(trim(message), type = GM_DIAGNOSTIC)
-
-       if (model%glacier%set_powerlaw_c == GLACIER_POWERLAW_C_INVERSION) then
-
-          ! diagnostics related to thickness inversion
-
-          tot_glc_area_target = 0.0d0
-          tot_glc_volume_target = 0.0d0
-          do ng = 1, model%glacier%nglacier
-             tot_glc_area_target = tot_glc_area_target + model%glacier%area_target(ng)
-             tot_glc_volume_target = tot_glc_volume_target + model%glacier%volume_target(ng)
-          enddo
-
-          ! Compute the root-mean-square error of (thck - thck_target), including cells
-          !  with cism_glacier_id > 0 or cism_glacier_id_init > 0
-          where (model%glacier%cism_glacier_id_init > 0 .or. model%glacier%cism_glacier_id > 0)
-             glacier_ice_mask = 1
-          elsewhere
-             glacier_ice_mask = 0
-          endwhere
-
-          call glissade_rms_error(&
-               ewn,            nsn,          &
-               glacier_ice_mask,             &
-               parallel,                     &
-               model%geometry%thck,          &
-               model%glacier%thck_target,    &
-               glc_rmse_thck)
-
-          ! Repeat, including only cells within the initial glacier extent
-
-          where (model%glacier%cism_glacier_id_init > 0)
-             glacier_ice_mask = 1.0d0
-          elsewhere
-             glacier_ice_mask = 0.0d0
-          endwhere
-
-          call glissade_rms_error(&
-               ewn,            nsn,          &
-               glacier_ice_mask,             &
-               parallel,                     &
-               model%geometry%thck,          &
-               model%glacier%thck_target,    &
-               glc_rmse_thck_init_extent)
-
-          write(message,'(a35,f14.6)') 'Total area target (km^2)           ', &
-               tot_glc_area_target / 1.0d6
-          call write_log(trim(message), type = GM_DIAGNOSTIC)
-
-          write(message,'(a35,f14.6)') 'Total volume target (km^2)         ', &
-               tot_glc_volume_target / 1.0d9
-          call write_log(trim(message), type = GM_DIAGNOSTIC)
-
-          write(message,'(a35,f14.6)') 'rms error, thck - thck_target (m)  ', &
-               glc_rmse_thck
-          call write_log(trim(message), type = GM_DIAGNOSTIC)
-
-          write(message,'(a35,f14.6)') 'rms error over init extent (m)     ', &
-               glc_rmse_thck_init_extent
-          call write_log(trim(message), type = GM_DIAGNOSTIC)
-
-       endif  ! set_powerlaw_c
-
-       call write_log(' ')
-
-       ! Write output related to the diagnostic glacier
-
-       ng = model%glacier%ngdiag
-
-       if (ng > 0) then
-
-          write(message,'(a35,i14)') 'Diagnostic glacier index (RGI)     ', &
-               model%glacier%cism_to_rgi_glacier_id(ng)
-          call write_log(trim(message), type = GM_DIAGNOSTIC)
-
-          write(message,'(a35,i14)') 'Diagnostic glacier index (CISM)    ', ng
-          call write_log(trim(message), type = GM_DIAGNOSTIC)
-
-          write(message,'(a35,f14.6)') 'Glacier area_init (km^2)           ', &
-               model%glacier%area_init(ng) / 1.0d6
-          call write_log(trim(message), type = GM_DIAGNOSTIC)
-
-          write(message,'(a35,f14.6)') 'Glacier area (km^2)                ', &
-               model%glacier%area(ng) / 1.0d6
-          call write_log(trim(message), type = GM_DIAGNOSTIC)
-
-          write(message,'(a35,f14.6)') 'Glacier area_init_extent (km^2)    ', &
-               model%glacier%area_init_extent(ng) / 1.0d6
-          call write_log(trim(message), type = GM_DIAGNOSTIC)
-
-          write(message,'(a35,f14.6)') 'Glacier volume (km^3)              ', &
-               model%glacier%volume(ng) / 1.0d9
-          call write_log(trim(message), type = GM_DIAGNOSTIC)
-
-          write(message,'(a35,f14.6)') 'Glacier volume_init (km^3)         ', &
-               model%glacier%volume_init(ng) / 1.0d9
-          call write_log(trim(message), type = GM_DIAGNOSTIC)
-
-          write(message,'(a35,f14.6)') 'Glacier volume_init_extent (km^3)  ', &
-               model%glacier%volume_init_extent(ng) / 1.0d9
-          call write_log(trim(message), type = GM_DIAGNOSTIC)
-
-          write(message,'(a35,f14.6)') 'mu_star (mm/yr w.e./deg C)         ', &
-               model%glacier%mu_star(ng)
-          call write_log(trim(message), type = GM_DIAGNOSTIC)
-
-          write(message,'(a35,f14.6)') 'alpha_snow                         ', &
-               model%glacier%alpha_snow(ng)
-          call write_log(trim(message), type = GM_DIAGNOSTIC)
-
-          write(message,'(a35,f14.6)') 'beta_artm (deg C)                  ', &
-               model%glacier%beta_artm(ng)
-          call write_log(trim(message), type = GM_DIAGNOSTIC)
-
-       else   ! glacier ID = 0
-
-          write(message,'(a35,i14)') 'Diagnostic glacier index (CISM)    ', ng
-          call write_log(trim(message), type = GM_DIAGNOSTIC)
-
-       endif
-
-       call write_log(' ')
-
-    endif  ! enable_glaciers
+    if (model%options%whichbmlt_float == BMLT_FLOAT_PLUME) then
+       call write_plume_diag(model)
+    endif
 
   end subroutine glide_write_diag
-     
+
+!==============================================================
+
+  subroutine write_glacier_diag(model)
+
+    ! Write some global (or regional) glacier diagnostics,
+    ! followed by diagnostics for a particular glacier.
+
+    use glissade_utils, only: glissade_rms_error
+
+    ! input/output arguments
+
+    type(glide_global_type), intent(inout) :: model ! model instance
+
+    ! local variables
+
+    real(dp) :: &
+         tot_glc_area_init, tot_glc_area,     & ! total glacier area, initial and current (km^2)
+         tot_glc_volume_init, tot_glc_volume, & ! total glacier volume, initial and current (km^3)
+         tot_glc_area_init_extent,            & ! glacier area summed over the initial extent (km^2)
+         tot_glc_volume_init_extent,          & ! glacier volume summed over the initial extent (km^3)
+         tot_glc_area_target,                 & ! target glacier area for inversion (km^2)
+         tot_glc_volume_target,               & ! target glacier volume for inversion (km^3)
+         glc_rmse_thck,                       & ! root mean square value of thck - thck_target
+         glc_rmse_thck_init_extent              ! as above, but within initial extent
+
+    integer, dimension(model%general%ewn,model%general%nsn) ::  &
+         glacier_ice_mask                       ! = 1 where glacier ice is present, initially and/or currently
+
+    integer :: &
+         count_area, count_volume               ! number of glaciers with nonzero area and volume
+
+    integer :: ng
+
+    character(len=100) :: message
+
+    integer :: ewn, nsn
+    type(parallel_type) :: parallel       ! info for parallel communication
+
+    parallel = model%parallel
+    ewn = model%general%ewn
+    nsn = model%general%nsn
+
+    ! global glacier diagnostics
+
+    tot_glc_area = 0.0d0
+    tot_glc_volume = 0.0d0
+    tot_glc_area_init = 0.0d0
+    tot_glc_volume_init = 0.0d0
+    tot_glc_area_init_extent = 0.0d0
+    tot_glc_volume_init_extent = 0.0d0
+    count_area = 0
+    count_volume = 0
+
+    do ng = 1, model%glacier%nglacier
+       tot_glc_area = tot_glc_area + model%glacier%area(ng)
+       tot_glc_volume = tot_glc_volume + model%glacier%volume(ng)
+       tot_glc_area_init = tot_glc_area_init + model%glacier%area_init(ng)
+       tot_glc_volume_init = tot_glc_volume_init + model%glacier%volume_init(ng)
+       tot_glc_area_init_extent = tot_glc_area_init_extent + model%glacier%area_init_extent(ng)
+       tot_glc_volume_init_extent = tot_glc_volume_init_extent + model%glacier%volume_init_extent(ng)
+       if (model%glacier%area(ng) > eps) then
+          count_area = count_area + 1
+       endif
+       if (model%glacier%volume(ng) > eps) then
+          count_volume = count_volume + 1
+       endif
+    enddo
+
+    ! Copy selected scalars into the derived type
+    model%glacier%total_area = tot_glc_area
+    model%glacier%total_volume = tot_glc_volume
+    model%glacier%nglacier_active = count_area
+
+    ! Write some global glacier diagnostics
+
+    write(message,'(a25)') 'Glacier diagnostics: '
+    call write_log(trim(message), type = GM_DIAGNOSTIC)
+
+    call write_log(' ')
+
+    write(message,'(a35,i14)')   'Number of glaciers                 ', &
+         model%glacier%nglacier
+    call write_log(trim(message), type = GM_DIAGNOSTIC)
+
+    write(message,'(a35,i14)')   'Glaciers with nonzero area         ', &
+         count_area
+    call write_log(trim(message), type = GM_DIAGNOSTIC)
+
+    write(message,'(a35,i14)')   'Glaciers with nonzero volume       ', &
+         count_volume
+    call write_log(trim(message), type = GM_DIAGNOSTIC)
+
+    write(message,'(a35,f14.6)') 'Total glacier area_init (km^2)     ', &
+         tot_glc_area_init / 1.0d6
+    call write_log(trim(message), type = GM_DIAGNOSTIC)
+
+    write(message,'(a35,f14.6)') 'Total glacier area (km^2)          ', &
+         tot_glc_area / 1.0d6
+    call write_log(trim(message), type = GM_DIAGNOSTIC)
+
+    write(message,'(a35,f14.6)') 'Total area_init_extent (km^2)      ', &
+         tot_glc_area_init_extent / 1.0d6
+    call write_log(trim(message), type = GM_DIAGNOSTIC)
+
+    write(message,'(a35,f14.6)') 'Total glacier volume_init (km^3)   ', &
+         tot_glc_volume_init / 1.0d9
+    call write_log(trim(message), type = GM_DIAGNOSTIC)
+
+    write(message,'(a35,f14.6)') 'Total glacier volume (km^3)        ', &
+         tot_glc_volume / 1.0d9
+    call write_log(trim(message), type = GM_DIAGNOSTIC)
+
+    write(message,'(a35,f14.6)') 'Total volume_init_extent (km^3)    ', &
+         tot_glc_volume_init_extent / 1.0d9
+    call write_log(trim(message), type = GM_DIAGNOSTIC)
+
+    if (model%glacier%set_powerlaw_c == GLACIER_POWERLAW_C_INVERSION) then
+
+       ! diagnostics related to thickness inversion
+
+       tot_glc_area_target = 0.0d0
+       tot_glc_volume_target = 0.0d0
+       do ng = 1, model%glacier%nglacier
+          tot_glc_area_target = tot_glc_area_target + model%glacier%area_target(ng)
+          tot_glc_volume_target = tot_glc_volume_target + model%glacier%volume_target(ng)
+       enddo
+
+       ! Compute the root-mean-square error of (thck - thck_target), including cells
+       !  with cism_glacier_id > 0 or cism_glacier_id_init > 0
+       where (model%glacier%cism_glacier_id_init > 0 .or. model%glacier%cism_glacier_id > 0)
+          glacier_ice_mask = 1
+       elsewhere
+          glacier_ice_mask = 0
+       endwhere
+
+       call glissade_rms_error(&
+            ewn,            nsn,          &
+            glacier_ice_mask,             &
+            parallel,                     &
+            model%geometry%thck,          &
+            model%glacier%thck_target,    &
+            glc_rmse_thck)
+
+       ! Repeat, including only cells within the initial glacier extent
+
+       where (model%glacier%cism_glacier_id_init > 0)
+          glacier_ice_mask = 1.0d0
+       elsewhere
+          glacier_ice_mask = 0.0d0
+       endwhere
+
+       call glissade_rms_error(&
+            ewn,            nsn,          &
+            glacier_ice_mask,             &
+            parallel,                     &
+            model%geometry%thck,          &
+            model%glacier%thck_target,    &
+            glc_rmse_thck_init_extent)
+
+       write(message,'(a35,f14.6)') 'Total area target (km^2)           ', &
+            tot_glc_area_target / 1.0d6
+       call write_log(trim(message), type = GM_DIAGNOSTIC)
+
+       write(message,'(a35,f14.6)') 'Total volume target (km^2)         ', &
+            tot_glc_volume_target / 1.0d9
+       call write_log(trim(message), type = GM_DIAGNOSTIC)
+
+       write(message,'(a35,f14.6)') 'rms error, thck - thck_target (m)  ', &
+            glc_rmse_thck
+       call write_log(trim(message), type = GM_DIAGNOSTIC)
+
+       write(message,'(a35,f14.6)') 'rms error over init extent (m)     ', &
+            glc_rmse_thck_init_extent
+       call write_log(trim(message), type = GM_DIAGNOSTIC)
+
+    endif  ! set_powerlaw_c
+
+    call write_log(' ')
+
+    ! Write output related to the diagnostic glacier
+
+    ng = model%glacier%ngdiag
+
+    if (ng > 0) then
+
+       write(message,'(a35,i14)') 'Diagnostic glacier index (RGI)     ', &
+            model%glacier%cism_to_rgi_glacier_id(ng)
+       call write_log(trim(message), type = GM_DIAGNOSTIC)
+
+       write(message,'(a35,i14)') 'Diagnostic glacier index (CISM)    ', ng
+       call write_log(trim(message), type = GM_DIAGNOSTIC)
+
+       write(message,'(a35,f14.6)') 'Glacier area_init (km^2)           ', &
+            model%glacier%area_init(ng) / 1.0d6
+       call write_log(trim(message), type = GM_DIAGNOSTIC)
+
+       write(message,'(a35,f14.6)') 'Glacier area (km^2)                ', &
+            model%glacier%area(ng) / 1.0d6
+       call write_log(trim(message), type = GM_DIAGNOSTIC)
+
+       write(message,'(a35,f14.6)') 'Glacier area_init_extent (km^2)    ', &
+            model%glacier%area_init_extent(ng) / 1.0d6
+       call write_log(trim(message), type = GM_DIAGNOSTIC)
+
+       write(message,'(a35,f14.6)') 'Glacier volume (km^3)              ', &
+            model%glacier%volume(ng) / 1.0d9
+       call write_log(trim(message), type = GM_DIAGNOSTIC)
+
+       write(message,'(a35,f14.6)') 'Glacier volume_init (km^3)         ', &
+            model%glacier%volume_init(ng) / 1.0d9
+       call write_log(trim(message), type = GM_DIAGNOSTIC)
+
+       write(message,'(a35,f14.6)') 'Glacier volume_init_extent (km^3)  ', &
+            model%glacier%volume_init_extent(ng) / 1.0d9
+       call write_log(trim(message), type = GM_DIAGNOSTIC)
+
+       write(message,'(a35,f14.6)') 'mu_star (mm/yr w.e./deg C)         ', &
+            model%glacier%mu_star(ng)
+       call write_log(trim(message), type = GM_DIAGNOSTIC)
+
+       write(message,'(a35,f14.6)') 'alpha_snow                         ', &
+            model%glacier%alpha_snow(ng)
+       call write_log(trim(message), type = GM_DIAGNOSTIC)
+
+       write(message,'(a35,f14.6)') 'beta_artm (deg C)                  ', &
+            model%glacier%beta_artm(ng)
+       call write_log(trim(message), type = GM_DIAGNOSTIC)
+
+    else   ! glacier ID = 0
+
+       write(message,'(a35,i14)') 'Diagnostic glacier index (CISM)    ', ng
+       call write_log(trim(message), type = GM_DIAGNOSTIC)
+
+    endif
+
+    call write_log(' ')
+
+  end subroutine write_glacier_diag
+
+!==============================================================
+
+  subroutine write_plume_diag(model)
+
+    ! Write some global plume diagnostics,
+    ! followed by diagnostics for a local plume cell.
+
+    ! input/output arguments
+
+    type(glide_global_type), intent(inout) :: model ! model instance
+
+    ! local variables
+
+    integer, dimension(model%general%ewn,model%general%nsn) ::  &
+         plume_mask                    ! = 1 where a plume with nonzero thickness is present
+
+    real(dp), dimension(model%general%ewn,model%general%nsn) ::  &
+         cell_area                     ! grid cell area (m^2)
+
+    ! global diagnostics
+    ! Note: Several variables are converted to different units for output
+    real(dp) :: &
+         tot_plume_area,             & ! total area of plume cells (m^2)
+         tot_plume_volume,           & ! total plume volume (m^3)
+         tot_plume_bmlt,             & ! total plume basal melt rate (m^3/yr)
+         mean_plume_thickness,       & ! mean plume thickness (m)
+         mean_plume_bmlt               ! mean plume basal melt rate (m/yr)
+
+    ! local diagnostics
+    real(dp) :: &
+         Dp_diag, Tp_diag, Sp_diag, &               ! local plume quantities
+         Tb_diag, Sb_diag, Ta_diag, Sa_diag, &
+         speed_diag, ent_diag, det_diag, bmlt_diag
+
+    integer :: i, j, ig, jg
+    integer :: rdiag
+
+    character(len=100) :: message
+
+    type(parallel_type) :: parallel       ! info for parallel communication
+
+    parallel = model%parallel
+
+    ! Write some global plume diagnostics
+
+    write(message,'(a25)') 'Plume diagnostics: '
+    call write_log(trim(message), type = GM_DIAGNOSTIC)
+
+    call write_log(' ')
+
+    where (model%plume%D_plume > 0.0d0)
+       plume_mask = 1
+    elsewhere
+       plume_mask = 0
+    endwhere
+
+    ! compute and write some global diagnostics
+
+    cell_area = model%geometry%cell_area
+    tot_plume_area = parallel_global_sum(cell_area*plume_mask, parallel)
+    tot_plume_volume = parallel_global_sum(cell_area*model%plume%D_plume, parallel)
+    tot_plume_bmlt = parallel_global_sum(cell_area*plume_mask*model%basal_melt%bmlt_float, parallel)
+    if (tot_plume_area > 0.0d0) then
+       mean_plume_thickness = tot_plume_volume/tot_plume_area
+       mean_plume_bmlt = tot_plume_bmlt / tot_plume_area
+    endif
+
+    write(message,'(a25,f24.16)') 'Total plume area (km^2)  ', tot_plume_area*1.0d-6           ! m^2 to km^2
+    call write_log(trim(message), type = GM_DIAGNOSTIC)
+
+    write(message,'(a25,f24.16)') 'Mean plume thickness (m) ', mean_plume_thickness
+    call write_log(trim(message), type = GM_DIAGNOSTIC)
+
+    write(message,'(a25,f24.16)') 'Mean plume bmlt (m/yr)   ', mean_plume_bmlt*scyr
+    call write_log(trim(message), type = GM_DIAGNOSTIC)
+
+    write(message,'(a25,e24.16)') 'Total plume bmlt (Gt/yr) ', tot_plume_bmlt*scyr*rhoi/1.0d9  ! m^3/s to kg/yr
+    call write_log(trim(message), type = GM_DIAGNOSTIC)
+
+    call write_log(' ')
+
+    ! if the diagnostic cell is a plume cell, then also write some local diagnostics
+
+    rdiag = model%numerics%rdiag_local
+    if (this_rank == rdiag) then
+       i = model%numerics%idiag_local
+       j = model%numerics%jdiag_local
+       Dp_diag = model%plume%D_plume(i,j)
+       Tp_diag = model%plume%T_plume(i,j)
+       Sp_diag = model%plume%S_plume(i,j)
+       Tb_diag = model%plume%T_basal(i,j)
+       Sb_diag = model%plume%S_basal(i,j)
+       Ta_diag = model%plume%T_ambient(i,j)
+       Sa_diag = model%plume%S_ambient(i,j)
+       speed_diag = model%plume%plume_speed(i,j)
+       ent_diag = model%plume%entrainment(i,j)
+       det_diag = model%plume%detrainment(i,j)
+       bmlt_diag = model%basal_melt%bmlt_float(i,j)
+    endif
+
+    call broadcast(Dp_diag, proc = rdiag)
+    call broadcast(Tp_diag, proc = rdiag)
+    call broadcast(Sp_diag, proc = rdiag)
+    call broadcast(Tb_diag, proc = rdiag)
+    call broadcast(Sb_diag, proc = rdiag)
+    call broadcast(Ta_diag, proc = rdiag)
+    call broadcast(Sa_diag, proc = rdiag)
+    call broadcast(speed_diag, proc = rdiag)
+    call broadcast(ent_diag, proc = rdiag)
+    call broadcast(det_diag, proc = rdiag)
+    call broadcast(bmlt_diag, proc = rdiag)
+
+    ig = model%numerics%idiag
+    jg = model%numerics%idiag
+
+    if (Dp_diag > 0.0d0) then   ! the diagnostic cell is a plume cell
+
+       write(message,'(a39,2i6)')  &
+            'Grid point diagnostics: (i,j) =', model%numerics%idiag, &
+                                                  model%numerics%jdiag
+       call write_log(trim(message), type = GM_DIAGNOSTIC)
+
+       write(message,'(a39,3i6)')  &
+            'Local (i,j,rank) =             ', model%numerics%idiag_local, &
+                                               model%numerics%jdiag_local, &
+                                               model%numerics%rdiag_local
+       call write_log(trim(message), type = GM_DIAGNOSTIC)
+
+       call write_log(' ')
+
+       write(message,'(a25,f24.16)') 'Plume thickness (m)      ', Dp_diag
+       call write_log(trim(message), type = GM_DIAGNOSTIC)
+
+       write(message,'(a25,f24.16)') 'Plume temperature (C)    ', Tp_diag
+       call write_log(trim(message), type = GM_DIAGNOSTIC)
+
+       write(message,'(a25,f24.16)') 'Plume salinity (psu)     ', Sp_diag
+       call write_log(trim(message), type = GM_DIAGNOSTIC)
+
+       write(message,'(a25,f24.16)') 'Basal temperature (C)    ', Tb_diag
+       call write_log(trim(message), type = GM_DIAGNOSTIC)
+
+       write(message,'(a25,f24.16)') 'Basal salinity (psu)     ', Sb_diag
+       call write_log(trim(message), type = GM_DIAGNOSTIC)
+
+       write(message,'(a25,f24.16)') 'Ambient temperature (C)  ', Ta_diag
+       call write_log(trim(message), type = GM_DIAGNOSTIC)
+
+       write(message,'(a25,f24.16)') 'Plume salinity (psu)     ', Sa_diag
+       call write_log(trim(message), type = GM_DIAGNOSTIC)
+
+       write(message,'(a25,f24.16)') 'Plume speed (m/s)        ', speed_diag
+       call write_log(trim(message), type = GM_DIAGNOSTIC)
+
+       write(message,'(a25,f24.16)') 'Entrainment (m/yr)       ', ent_diag*scyr
+       call write_log(trim(message), type = GM_DIAGNOSTIC)
+
+       write(message,'(a25,f24.16)') 'Detrainment (m/yr)       ', det_diag*scyr
+       call write_log(trim(message), type = GM_DIAGNOSTIC)
+
+       write(message,'(a25,f24.16)') 'Basal melt (m/yr)        ', bmlt_diag*scyr
+       call write_log(trim(message), type = GM_DIAGNOSTIC)
+
+       call write_log(' ')
+
+    endif   ! Dp > 0
+
+  end subroutine write_plume_diag
+
 !==============================================================
 
 end module glide_diagnostics

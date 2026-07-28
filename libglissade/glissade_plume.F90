@@ -194,12 +194,12 @@
             plume%T_ambient,     plume%S_ambient,      &
             plume%gammaT,        plume%gammaS,         &
             ocean_data%S0,                             &   ! is this needed?
-            plume%T_plume,       plume%S_plume,        &
             plume%D_plume,                             &
+            plume%T_plume,       plume%S_plume,        &
             plume%T_basal,       plume%S_basal,        &
             plume%u_plume_east,  plume%v_plume_north,  &
             plume%u_plume,       plume%v_plume,        &
-            plume%ustar_plume,   plume%drho_plume,     &
+            plume%plume_speed,   plume%drho_plume,     &
             plume%entrainment,   plume%detrainment,    &
             plume%divDu_plume,                         &
             model%basal_melt%bmlt_float)
@@ -310,12 +310,12 @@
             plume%T_ambient,     plume%S_ambient,      &
             plume%gammaT,        plume%gammaS,         &
             ocean_data%S0,                             &   ! is this needed?
-            plume%T_plume,       plume%S_plume,        &
             plume%D_plume,                             &
+            plume%T_plume,       plume%S_plume,        &
             plume%T_basal,       plume%S_basal,        &
             plume%u_plume_east,  plume%v_plume_north,  &
             plume%u_plume,       plume%v_plume,        &
-            plume%ustar_plume,   plume%drho_plume,     &
+            plume%plume_speed,   plume%drho_plume,     &
             plume%entrainment,   plume%detrainment,    &
             plume%divDu_plume,                         &
             model%basal_melt%bmlt_float)
@@ -337,12 +337,12 @@
        T_ambient,        S_ambient,        &
        gammaT,           gammaS,           &
        S0,                                 &
-       T_plume,          S_plume,          &
        D_plume,                            &
+       T_plume,          S_plume,          &
        T_basal,          S_basal,          &
        u_plume_east,     v_plume_north,    &
        u_plume,          v_plume,          &
-       ustar_plume,      drho_plume,       &
+       plume_speed,      drho_plume,       &
        entrainment,      detrainment,      &
        divDu_plume,                        &
        bmlt_float)
@@ -414,14 +414,17 @@
          gammaS,              & ! nondimensional salt transfer coefficient
          S0                     ! sea surface salinity (psu)
 
+    ! Note: The following are intent(inout).
+    ! D_plume, T_plume and S_plume are prognosed variables that satisfy continuity equations.
+    ! T_basal and S_basal are diagnosed from scratch in plume_melt rate,
+    !  but the previous values are needed to compute drho_basal.
+    ! All other plume variables are diagnosed here and are intent(out).
     real(dp), dimension(nx,ny), intent(inout) :: &
+         D_plume,             & ! plume thickness (m)
          T_plume,             & ! plume temperature (deg C)
          S_plume,             & ! plume salinity (psu)
-         D_plume                ! plume thickness (m)
-
-    ! Note: Plume velocities are computed at cell edges, and then are interpolated
-    !       to cell centers as a diagnostic.
-    !TODO - Is this a C grid or a CD grid?
+         T_basal,             & ! basal ice temperature (deg C)
+         S_basal                ! basal ice salinity (psu)
 
     !TODO - Compute divDu_plume? Not currently output
     real(dp), dimension(nx,ny), intent(out) :: &
@@ -429,10 +432,9 @@
          v_plume_north,       & ! y component of plume velocity (m/s) on north edges
          u_plume,             & ! x component of plume velocity (m/s) averaged to cell centers
          v_plume,             & ! y component of plume velocity (m/s) averaged to cell centers
-         ustar_plume,         & ! plume friction velocity (m/s) at cell centers
+         plume_speed,         & ! plume speed averaged to cell centers (m/s);
+                                ! includes a tidal component so speed >= u_tidal
          drho_plume,          & ! density difference between ambient ocean and plume (kg/m^3)
-         T_basal,             & ! basal ice temperature (deg C)
-         S_basal,             & ! basal ice salinity (psu)
          entrainment,         & ! entrainment rate of ambient water into plume (m/s)
          detrainment,         & ! detrainment rate of plume into ambient water (m/s)
          divDu_plume,         & ! div(Du) for plume
@@ -440,13 +442,21 @@
 
     ! Local variables
 
+    real(dp) :: &
+         time                   ! elapsed time on the way to time_total
+
     integer, dimension(nx,ny) :: &
          plume_mask,          & ! = 1 for cells where scalar plume variables are computed
+         edge_mask_east,      & ! = 1 on east edges where plume velocity is computed;
+                                ! = 0 at closed boundaries and = 2 at open boundaries
+         edge_mask_north,     & ! = 1 on north edges where plume velocity is computed;
+                                ! = 0 at closed boundaries and = 2 at open boundaries
          ice_mask,            & ! = 1 if ice is present (thck > 0)
          floating_mask,       & ! = 1 where ice is present and floating, else = 0
          ocean_mask,          & ! = 1 if topg is below sea level and ice is absent, else = 0
          land_mask              ! = 1 if topg is at or above sea level, else = 0
 
+    !TODO - Remove grav_reduced and heat transfer?
     real(dp), dimension(nx,ny) :: &
          pressure,            & ! ocean pressure at base of ice (N/m^2)
          lsrf_plume,          & ! elevation of plume-ambient interface (m, negative below sea level)
@@ -457,7 +467,9 @@
          grav_reduced,        & ! reduced gravity = grav * drho_plume/rhoo (m/s^2)
          H_cavity,            & ! thickness of ocean cavity beneath the plume (m)
          heat_transfer,       & ! rate of heat transfer from plume to ice (J/m2/s)
-         D_plume_old           ! D_plume from previous time step
+         theta_slope,         & ! basal slope angle (rad), used for entrainment
+         ustar_plume,         & ! plume friction velocity (m/s) at cell centers
+         D_plume_old            ! D_plume from previous time step
 
     ! plume speed on cell edges
     ! Note: u plume_east and v_plume_north (the C grid velocity components) are primary
@@ -470,10 +482,6 @@
          u_plume_north            ! u_plume on north edges
 !         v_plume_north            ! v_plume on north edges
 
-    ! Note: edge_mask = 0 for closed boundaries, = 2 for open boundaries (at least for now)
-    integer, dimension(nx,ny) :: &
-         edge_mask_east,        & ! = 1 on east edges where plume velocity is computed
-         edge_mask_north          ! = 1 on north edges where plume velocity is computed
 
     real(dp), dimension(nx,ny) ::  &
          ddrho_plume_dx_east,   & ! horizontal gradient of drho_plume on east edges
@@ -486,30 +494,19 @@
          dlsrf_plume_dy_north
 
     real(dp) :: &
-!         u_plume_ctr,           & ! u_plume at cell center (m/s)
-!         v_plume_ctr,           & ! v_plume at cell center (m/s)
          dlsrf_plume_dx,        & ! lsrf gradient components at cell centers
          dlsrf_plume_dy,        &
          slope                    ! magnitude of the gradient (dlsrf_dx, dlsrf_dy)
 
-    real(dp), dimension(nx,ny) ::  &
-         theta_slope            ! basal slope angle (rad), used for entrainment
-
-    real(dp), dimension(nx,ny) :: &
-         plume_speed            ! plume speed averaged to cell centers (m/s)
-                                ! includes a tidal component so speed >= u_tidal
-    real(dp) :: &
-         time,                & ! elapsed time during the relaxation of the plume thickness (s)
-         my_max_dt              ! CFL-limited time step for a given cell (s)
-
     real(dp) ::  &
+!         my_max_dt,          & ! CFL-limited time step for a given cell (s)
          L2_norm,             & ! L2 norm of residual vector from continuity equation
          L2_previous            ! L2 norm from the previous convergence check
 
-    integer :: i, j
-    integer :: ig, jg           ! global i and j indices
-    integer :: iter_Dplume      ! iteration counter
+    integer :: i, j, ig, jg
+!!    integer :: iter_Dplume      ! iteration counter
 
+    ! some variables for diagnostics
     integer :: plume_count      ! no. of plume cells
 
     real(dp) :: &
@@ -521,17 +518,16 @@
          entrainment_mean,    & ! mean entrainment in plume cells
          detrainment_mean       ! mean detrainment in plume cells
 
-    integer, dimension(nx,ny) :: &
-         melt_mask                   ! = 1 for plume cells with lsrf < -300 m
-    integer :: melt_count            ! no. of plume cells with lsrf < -300 m
-    real(dp) :: melt_sum, melt_mean  ! mean melt in cells with lsrf > -300 m
+    integer, dimension(nx,ny) :: melt_mask  ! = 1 for plume cells with lsrf < -300 m
+    integer :: melt_count                   ! no. of plume cells with lsrf < -300 m
+    real(dp) :: melt_sum, melt_mean         ! mean melt in cells with lsrf > -300 m
 
     ! parameters determining convergence of iterations
     !TODO - determine L2_target
     integer, parameter :: &
-         n_check_convergence = 1,    & ! interval between convergence checks for D_plume
-         L2_target = 0.0d0,          & ! convergence target for dD/dt
-         maxiter_Dplume = 999999       ! max number of iterations of outer plume-thickness loop
+         L2_target = 0.0d0           ! convergence target for dD/dt
+!!         n_check_convergence = 1,    & ! interval between convergence checks for D_plume
+!!         maxiter_Dplume = 999999     ! max number of iterations of outer plume-thickness loop
                                        ! terminates when plume thickness reaches virtual steady state
 
     if (verbose_plume .and. this_rank == rtest) then
@@ -539,7 +535,19 @@
        write(iulog,*) 'In glissade_compute_plume'
     endif
 
+    ! make sure state variables are up to date in halos
+    call parallel_halo(thck, parallel)
+    call parallel_halo(topg, parallel)
+    call parallel_halo(lsrf, parallel)
+    call parallel_halo(D_plume, parallel)
+    call parallel_halo(T_plume, parallel)
+    call parallel_halo(S_plume, parallel)
+    call parallel_halo(T_ambient, parallel)
+    call parallel_halo(S_ambient, parallel)
+
+    !----------------------------------------------------------------
     ! compute some masks
+    !----------------------------------------------------------------
 
     call glissade_get_masks(&
          nx,                  ny,           &
@@ -551,7 +559,7 @@
          land_mask = land_mask,             &
          ocean_mask = ocean_mask)
 
-    call parallel_halo(floating_mask, parallel)
+!!    call parallel_halo(floating_mask, parallel)
 
     if (verbose_plume) then
        if (this_rank == rtest) write(iulog,*) 'Input ice geometry:'
@@ -597,45 +605,38 @@
     ! Compute the cavity thickness
     H_cavity = max(lsrf - topg, 0.0d0)
 
-    ! Set T_plume, S_plume and D_plume as needed
+    !----------------------------------------------------------------------------
+    ! Initialize D_plume, T_plume, S_plume, T_basal and S_basal as needed
     ! On the first call, the input values are zero and these fields must be initialized everywhere.
     ! On subsequent calls, these fields are initialized only if the input values are zero.
+    !
+    ! Note: Setting S_plume = S0 means that drho_plume = rho_ambient - rho_plume will decrease in the upslope direction,
+    !        giving an upslope PGF.
+    !       Setting both T_plume and S_plume to ambient values would give zero PGF, velocities, and drho_plume.
+    !       The entrainment can be infinite when drho_plume = 0.
+    !
+    ! Note: T_basal and S_basal are diagnosed in plume_melt_rate without regard to their initial values.
+    !       However, T_basal and S_basal from the previous step may be needed to compute drho_basal
+    !        for entrainment.
+    !
+    !----------------------------------------------------------------------------
 
-    !Note: Setting S_plume = means that drho_plume = rho_ambient - rho_plume will decrease in the upslope direction,
-    !       giving an upslope PGF.
-    !      Setting both T_plume and S_plume to ambient values would give zero PGF, velocities, and drho_plume.
-    !      The entrainment parameterization blows up when drho_plume = 0.
-
-    ! loop over locally owned cells
-    do j = nhalo+1, ny-nhalo
-       do i = nhalo+1, nx-nhalo
+    ! loop over all cells (fields on the rhs are up to date in halos)
+    do j = 1, ny
+       do i = 1, nx
           if (plume_mask(i,j) == 1) then
-             ! set to ambient temperature but with low salinity to create a density difference
+             ! set plume to ambient temperature but with low salinity to create a positive drho_plume
+             if (D_plume(i,j) == 0.0d0) D_plume(i,j) = min(D_plume0, H_cavity(i,j))
              if (T_plume(i,j) == 0.0d0) T_plume(i,j) = T_ambient(i,j)
              if (S_plume(i,j) == 0.0d0) S_plume(i,j) = S0
-             if (D_plume(i,j) == 0.0d0) D_plume(i,j) = min(D_plume0, H_cavity(i,j))
-          else   ! plume_mask = 0
-             ! Zero out T, S and D
-             T_plume(i,j) = 0.0d0
-             S_plume(i,j) = 0.0d0
-             D_plume(i,j) = 0.0d0
-          endif
-       enddo
-    enddo
-
-    ! Set T_basal and S_basal as needed
-    ! On the first call, the input values are zero and these fields must be initialized everywhere.
-    ! On subsequent calls, these fields are initialized only if the input values are zero.
-
-    ! loop over locally owned cells
-    do j = nhalo+1, ny-nhalo
-       do i = nhalo+1, nx-nhalo
-          if (plume_mask(i,j) == 1) then
-             ! set to freezing temperature with zero salinity, to create a strong density difference
+             ! set ice base to freezing temperature with zero salinity to create a positive drho_basal
              if (S_basal(i,j) == 0.0d0) S_basal(i,j) = 0.0d0
              if (T_basal(i,j) == 0.0d0) T_basal(i,j) = lambda1*S_basal(i,j) + lambda2 + lambda3*pressure(i,j)
           else   ! plume_mask = 0
-             ! OK to zero out?
+             ! OK to zero out all of these?
+             T_plume(i,j) = 0.0d0
+             S_plume(i,j) = 0.0d0
+             D_plume(i,j) = 0.0d0
              T_basal(i,j) = 0.0d0
              S_basal(i,j) = 0.0d0
           endif
@@ -671,11 +672,13 @@
 !       enddo
 !    enddo
 
-    ! Compute masks on cell edges, where plume velocities are computed.
-    ! The mask = 1 if both adjacent cells have plume_mask_cell = 1.
-    ! At closed boundaries (adjecent cell is grounded), set mask = 0.
-    ! At open boundaries (adjecent cell is floating or open ocean), set mask = 2.
+    !----------------------------------------------------------------------------
+    ! Compute a mask to identify cell edges where plume velocities are computed.
+    ! If both adjacent cells have plume_mask_cell = 1, then edge_mask = 1.
+    ! At closed boundaries (one adjecent cell is grounded), edge_mask = 0.
+    ! At open boundaries (one adjacent cell is open ocean), edge_mask = 2.
     !TODO - Free slip for flow parallel to edges?
+    !----------------------------------------------------------------------------
 
     edge_mask_east = 0
     edge_mask_north = 0
@@ -839,11 +842,9 @@
 !         dlsrf_dx_east,      dlsrf_dy_east,  &
 !         dlsrf_dx_north,     dlsrf_dy_north)
 
-    !----------------------------------------------------------------
+    !----------------------------------------------------------------------------
     ! Initialize some fields related to plume dynamics and melting.
-    ! Note: The prognosed fields are D_plume, T_plume and S_plume, which are intent (inout).
-    !       The other fields are diagnosed and are intent(out); they are initialized here.
-    !----------------------------------------------------------------
+    !----------------------------------------------------------------------------
 
     u_plume = 0.0d0
     v_plume = 0.0d0
@@ -881,29 +882,28 @@
 
     do while(time < total_time)
 
-       !--------------------------------------------------------------------
-       ! Iterate the plume to steady state. The solution method is:
-       ! (1) Given the current ice geometry and D_plume, compute the plume velocity,
-       !     entrainment, detrainment and melt rate.
-       ! (2) Using the continuity equation, advance D_plume in time.
-       ! (3) Repeat until the plume reaches a steady state.
-       !--------------------------------------------------------------------
+       !----------------------------------------------------------------------------
+       ! Iterate the plume with timestep dt_plume until we reach total_time,
+       !  which ideally is long enough for the plume to reach steady state.
+       ! Each timestep consists of (1) a velocity solve, (2) entrainment, detrainment,
+       !  and melt rate computations, and (3) solutions of the transport equations.
+       !----------------------------------------------------------------------------
 
        ! advance the time (units of s)
-       !TODO - Do we need to keep track of this, or just iter_Dplume?
        time = time + dt_plume
-
-       ! initialize the L2 norm to an arbitrary big number
-       L2_previous = huge(0.0d0)
 
        if (verbose_plume .and. this_rank == rtest) then
           write(iulog,*)
           write(iulog,*) 'Iterate plume, time (s) =', time
        endif
 
+       !TODO - not currently computing this
+       ! initialize the L2 norm to an arbitrary big number
+       L2_previous = huge(0.0d0)
+
        ! Compute the plume density, given the current values of T_plume and S_plume.
        ! Then find the density difference between the ambient ocean and the plume.
-       ! Compute the reduced gravity as function of the density difference.
+       ! Compute the reduced gravity as a function of the density difference.
 
        rho_plume = eos_rho_ref * (1.d0 - eos_alpha * (T_plume - eos_Tref)  &
                                        + eos_beta  * (S_plume - eos_Sref) )
@@ -914,7 +914,8 @@
        endwhere
 
        ! Compute the density at the ice base, given the current values of T_basal and S_basal.
-       ! Then find the density difference between the plume and the ice base..
+       ! Then find the density difference between the plume and the ice base.
+       ! Note: This calculation is the reason T_basal and S_basal are written to the restart file.
 
        rho_basal = eos_rho_ref * (1.d0 - eos_alpha * (T_basal - eos_Tref)  &
                                        + eos_beta  * (S_basal - eos_Sref) )
@@ -927,11 +928,12 @@
 
        lsrf_plume = lsrf - D_plume
 
-       !--------------------------------------------------------------------
+       !----------------------------------------------------------------------------
        ! Compute horizontal gradients of lsrf_plume and drho_plume at each edge.
+       ! Note: The subroutine includes halo updates.
        !TODO - Currently, only computes where edge_mask = 1, not edge_mask = 2
-       !TODO - Put these in the velocity subroutine
-       !--------------------------------------------------------------------
+       !TODO - Put these in the velocity subroutine?
+       !----------------------------------------------------------------------------
 
        call compute_edge_gradients(&
             nx,                   ny,                    &
@@ -951,13 +953,13 @@
             ddrho_plume_dx_east,  ddrho_plume_dy_east,   &
             ddrho_plume_dx_north, ddrho_plume_dy_north)
 
-       !--------------------------------------------------------------------
+       !----------------------------------------------------------------------------
        ! Compute u_plume and v_plume at each edge
        ! Note: u_plume_east and v_plume_north are perpendicular to edges,
        !        whereas v_plume_north and u_plume_east are parallel to edges.
        !       Computing both u and v at each edge leads to a more graceful treatment
        !        of the Coriolis terms than computing the perpendicular components alone.
-       !--------------------------------------------------------------------
+       !----------------------------------------------------------------------------
 
        if (verbose_plume) then
           call point_diag(rho_plume, 'rho_plume (kg/m3)', itest, jtest, rtest, wx, wy)
@@ -995,6 +997,12 @@
             u_plume_north,         &
             v_plume_north)
 
+       !TODO - Not needed, because the update is done in the velocity solver
+       ! halo updates for the velocity components used below
+       ! (u_plume_north and v_plume_east are not used below)
+       call parallel_halo(u_plume_east, parallel)
+       call parallel_halo(v_plume_north, parallel)
+
        !--------------------------------------------------------------------
        ! Compute the plume speed and friction velocity at cell centers
        !--------------------------------------------------------------------
@@ -1004,15 +1012,24 @@
              if (plume_mask(i,j) == 1) then
                 u_plume(i,j) = (u_plume_east(i-1,j) + u_plume_east(i,j)) / 2.0d0
                 v_plume(i,j) = (v_plume_north(i,j-1) + v_plume_north(i,j)) / 2.0d0
-                plume_speed(i,j) = sqrt(u_plume(i,j)**2 + v_plume(i,j)**2 + u_tidal**2)
-                ustar_plume(i,j) = sqrt(c_drag) * plume_speed(i,j)
              endif
+          enddo
+       enddo
+
+       call parallel_halo(u_plume, parallel)
+       call parallel_halo(v_plume, parallel)
+
+       do j = 1, ny
+          do i = 1, nx
+             plume_speed(i,j) = sqrt(u_plume(i,j)**2 + v_plume(i,j)**2 + u_tidal**2)
+             ustar_plume(i,j) = sqrt(c_drag) * plume_speed(i,j)
           enddo
        enddo
 
        !--------------------------------------------------------------------
        ! Compute the entrainment rate
        ! TODO - Make this a plume config option: 0 and 1
+       ! Note: All relevant quantities for entrainment are up to date in halos.
        !--------------------------------------------------------------------
 
        if (entrainment_gaspar) then
@@ -1021,6 +1038,8 @@
           ! Following Gaspar (1988), Gladish et al.(2012) and Lambert et al. (2023):
           ! Compute entrainment by relating TKE sources (friction velocity)
           !  to TKE sinks (entrainment and melt).
+          ! Note: Can remove T_basal and S_basal from the restart file if
+          !       not needed to compute rho_basalfor entrainment
           !-----------------------------------------------------------------
 
           call plume_entrainment_gaspar(&
@@ -1043,10 +1062,10 @@
 
           !-----------------------------------------------------------------
           ! Following Bo Pederson (1980) and Jenkins (1991):
-          ! Entrainment is proportional to the plume speed and theta_slope.
+          ! Entrainment is a function of the plume speed and the basal slope angle.
           !-----------------------------------------------------------------
 
-          ! Compute the slope angle at cell centers; used to compute entrainment
+          ! Compute the slope angle at cell centers
 
           theta_slope = 0.0d0
 
@@ -1090,7 +1109,7 @@
 
        !--------------------------------------------------------------------
        ! Compute the basal melt rate, temperature and salinity at the plume-ice interface,
-       ! given the plume properties.
+       ! Note: All relevant quantities for the melt rate are up to date in halos.
        !--------------------------------------------------------------------
 
        call plume_melt_rate(&
@@ -1111,6 +1130,7 @@
 
        ! Compute the rate of heat transfer (J/m^2/s = W/m2) from the plume to the ice base.
        ! This is equal to the melt rate (m/s) times the latent heat (J/m3) of the ice.
+       !TODO - Pass bmlt_float to the transport scheme instead; save a separate array
        where (plume_mask == 1)
           heat_transfer = rhoi*lhci*bmlt_float
        elsewhere
@@ -1123,10 +1143,6 @@
           call point_diag(S_basal, 'S_basal (psu)', itest, jtest, rtest, wx, wy)
           call point_diag(bmlt_float*scyr, 'bmlt_float (m/yr)', itest, jtest, rtest, wx, wy)
           call point_diag(heat_transfer, 'heat transfer (W/m2)', itest, jtest, rtest, wx, wy)
-       endif
-
-       if (verbose_plume) then
-          if (this_rank == rtest) write(iulog,*) 'Advance the plume, time (s) =', time
        endif
 
        !TODO - Not sure if the following is needed.
@@ -2079,8 +2095,9 @@
     entrainment = 0.0d0
     detrainment = 0.0d0
 
-    do j = nhalo+1, ny-nhalo
-       do i = nhalo+1, nx-nhalo
+    ! loop over all cells
+    do j = 1, ny
+       do i = 1, nx
           if (plume_mask(i,j) == 1) then
 
              numer = mu_e * ustar_plume(i,j)**3 - 0.5d0*D_plume(i,j)*(grav/rhoo)*drho_basal(i,j)*bmlt_float(i,j)
@@ -2195,8 +2212,9 @@
     entrainment = 0.0d0
     detrainment = 0.0d0
 
-    do j = nhalo+1, ny-nhalo
-       do i = nhalo+1, nx-nhalo
+    ! loop over all cells
+    do j = 1, ny
+       do i = 1, nx
           if (plume_mask(i,j) == 1) then
 
              entrainment(i,j) = E0 * plume_speed(i,j) * sin(theta_slope(i,j))
@@ -2344,9 +2362,9 @@
     S_basal = 0.0d0
     bmlt_float = 0.0d0
 
-    ! Loop over locally owned cells
-    do j = nhalo+1, ny-nhalo
-       do i = nhalo+1, nx-nhalo
+    ! Loop over all cells
+    do j = 1, ny
+       do i = 1, nx
           
           if (plume_mask(i,j) == 1) then
 
@@ -2544,6 +2562,8 @@
 
     ! Make sure the input fields are in range
     !TODO - Leave this out, and only test the output?
+
+    ! loop over locally owned cells
     do j = nhalo+1, ny-nhalo
        do i = nhalo+1, nx-nhalo
           if (plume_mask(i,j) == 1) then
@@ -2581,8 +2601,8 @@
     ! Fill a work array with the fields to be transported
     work(:,:,:) = 0.0d0
 
-    do j = nhalo+1, ny-nhalo
-       do i = nhalo+1, nx-nhalo
+    do j = 1, ny
+       do i = 1, nx
           if (plume_mask(i,j) == 1) then
              work(i,j,1) = D_plume(i,j)
              work(i,j,2) = D_plume(i,j)*T_plume(i,j)
@@ -2593,8 +2613,8 @@
 
     ! Increment the work array based on vertical entrainment, detrainment, heat transfer and melting
     ! loop over locally owned cells
-    do j = nhalo+1, ny-nhalo
-       do i = nhalo+1, nx-nhalo
+    do j = 1, ny
+       do i = 1, nx
           if (plume_mask(i,j) == 1) then
              dD = entrainment(i,j) - detrainment(i,j) + bmlt_float(i,j)
              work(i,j,1) = work(i,j,1) + dD*dt
@@ -2633,6 +2653,7 @@
 !    call point_diag(S_temp, 'S_plume (psu)', itest, jtest, rtest, wx, wy)
 
     ! halo update before horizontal transport
+    !TODO - May not be needed; I think all relevant fields are up to date
     do n = 1, 3
        call parallel_halo(work(:,:,n), parallel)
     enddo
@@ -2699,8 +2720,9 @@
     diffT_north = 0.0d0
     diffS_north = 0.0d0
 
-    do j = nhalo+1, ny-nhalo
-       do i = nhalo+1, nx-nhalo
+    ! loop over all edges of locally owned plumes
+    do j = nhalo, ny-nhalo
+       do i = nhalo, nx-nhalo
           if (edge_mask_east(i,j) == 1) then
              gradT = (T_plume(i+1,j) - T_plume(i,j))/dx
              if (gradT > 0.0d0) then  ! heat flows from (i+1,j) to (i,j)
@@ -2739,7 +2761,9 @@
        call point_diag(diffS_north*scyr/(dx*dy), 'S_diffusion, north edges (m*deg/yr)', itest, jtest, rtest, wx, wy)
     endif
 
-    ! Increment the work arrays for DT and DS based on the incoming and outgoing diffusive fluxes
+    ! Increment the work arrays for D*T and D*S based on the incoming and outgoing diffusive fluxes
+
+    ! loop over locally owned cells
     do j = nhalo+1, ny-nhalo
        do i = nhalo+1, nx-nhalo
           if (plume_mask(i,j) == 1) then
@@ -2768,7 +2792,7 @@
        enddo
     enddo
 
-    ! final halo updates
+    ! final halo update
     call parallel_halo(D_plume, parallel)
     call parallel_halo(T_plume, parallel)
     call parallel_halo(S_plume, parallel)
@@ -2784,6 +2808,7 @@
     !  to bring it back in range.
     ! If T_plume or S_plume is out of range, there may be a bug.
 
+    ! loop over locally owned cells
     do j = nhalo+1, ny-nhalo
        do i = nhalo+1, nx-nhalo
           if (plume_mask(i,j) == 1) then

@@ -2244,7 +2244,7 @@ module glide_types
      real(dp),dimension(:,:), pointer :: v_plume => null()       !> y component of plume velocity, approximated at cell centers (m/s)
      real(dp),dimension(:,:), pointer :: u_plume_east => null()  !> x component of plume velocity on east edges (m/s)
      real(dp),dimension(:,:), pointer :: v_plume_north => null() !> y component of plume velocity on north edges (m/s)
-     real(dp),dimension(:,:), pointer :: ustar_plume => null()   !> plume friction velocity (m/s) on ice grid
+     real(dp),dimension(:,:), pointer :: plume_speed => null()   !> plume speed (m/s) on ice grid, = sqrt(c_drag)*u_friction
      real(dp),dimension(:,:), pointer :: drho_plume => null()    !> density difference between plume and ambient ocean (kg/m3)
      real(dp),dimension(:,:), pointer :: entrainment => null()   !> entrainment rate from ambient ocean to plume (positive up)
      real(dp),dimension(:,:), pointer :: detrainment => null()   !> detrainment rate from plume to ambient ocean (positive down)
@@ -3336,7 +3336,7 @@ contains
           call coordsystem_allocate(model%general%ice_grid, model%plume%u_plume_east)
           call coordsystem_allocate(model%general%ice_grid, model%plume%v_plume_north)
           call coordsystem_allocate(model%general%ice_grid, model%plume%D_plume)
-          call coordsystem_allocate(model%general%ice_grid, model%plume%ustar_plume)
+          call coordsystem_allocate(model%general%ice_grid, model%plume%plume_speed)
           call coordsystem_allocate(model%general%ice_grid, model%plume%drho_plume)
           call coordsystem_allocate(model%general%ice_grid, model%plume%T_plume)
           call coordsystem_allocate(model%general%ice_grid, model%plume%S_plume)
@@ -3991,8 +3991,8 @@ contains
         deallocate(model%plume%v_plume_north)
     if (associated(model%plume%D_plume)) &
         deallocate(model%plume%D_plume)
-    if (associated(model%plume%ustar_plume)) &
-        deallocate(model%plume%ustar_plume)
+    if (associated(model%plume%plume_speed)) &
+        deallocate(model%plume%plume_speed)
     if (associated(model%plume%drho_plume)) &
         deallocate(model%plume%drho_plume)
     if (associated(model%plume%T_plume)) &

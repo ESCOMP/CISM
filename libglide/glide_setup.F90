@@ -4014,6 +4014,15 @@ contains
           !  is not read at restart.
           call glide_add_to_restart_variable_list('thermal_forcing', model_id)
 
+       case (BMLT_FLOAT_PLUME)
+          ! Need the plume variables that carry over from one timestep to the next
+          call glide_add_to_restart_variable_list('D_plume', model_id)
+          call glide_add_to_restart_variable_list('T_plume', model_id)
+          call glide_add_to_restart_variable_list('S_plume', model_id)
+          ! old values of T_basal and S_basal are currently used to compute entrainment
+          call glide_add_to_restart_variable_list('T_basal', model_id)
+          call glide_add_to_restart_variable_list('S_basal', model_id)
+
     end select  ! whichbmlt_float
 
     ! If using an ISMIP6 basin-based melt parameterization, and/or inverting for

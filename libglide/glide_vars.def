@@ -523,11 +523,11 @@ units:         meter/second
 long_name:     plume velocity in y direction at north edges
 data:          data%plume%v_plume_north
 
-[ustar_plume]
+[plume_speed]
 dimensions:    time, y1, x1
 units:         meter/second
-long_name:     plume friction velocity
-data:          data%plume%ustar_plume
+long_name:     plume speed
+data:          data%plume%plume_speed
 
 [drho_plume]
 dimensions:    time, y1, x1
