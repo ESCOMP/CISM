@@ -3129,12 +3129,6 @@ contains
        call write_log(message)
        write(message,*) 'warm ocean zmeltmin (m)        :  ', model%basal_melt%bmlt_float_depth_zmeltmin
        call write_log(message)
-    elseif (model%options%whichbmlt_float == BMLT_FLOAT_PLUME) then
-       write(message,*) 'gammaT (nondimensional)  :  ', model%plume%gammaT
-       call write_log(message)
-       write(message,*) 'gammaS (nondimensional)  :  ', model%plume%gammaS
-       call write_log(message)
-       !TODO - Introduce anomaly forcing for the plume? Based on thetao?
     elseif (model%options%whichbmlt_float == BMLT_FLOAT_THERMAL_FORCING) then
        write(message,*) 'gamma0 (m/yr)                 :  ', model%ocean_data%gamma0
        call write_log(message)
@@ -3362,13 +3356,16 @@ contains
     type(ConfigSection), pointer :: section
     type(glide_global_type)  :: model
 
-    ! plume parameters
+    ! plume physics options
+    call GetValue(section,'which_entrainment', model%plume%which_entrainment)
 
+    ! plume parameters
     call GetValue(section,'dt_plume',       model%plume%dt_plume)
     call GetValue(section,'tplume_spinup',  model%plume%tplume_spinup)
     call GetValue(section,'tplume_runtime', model%plume%tplume_runtime)
     call GetValue(section,'gammaT',         model%plume%gammaT)
     call GetValue(section,'gammaS',         model%plume%gammaS)
+    call GetValue(section,'Kh',             model%plume%Kh)
 
   end subroutine handle_plume
 
@@ -3383,22 +3380,38 @@ contains
     type(glide_global_type)  :: model
     character(len=100) :: message
 
-    !TODO - Sort out which plume parameters are MISOMIP-specific and which are more general
+    character(len=*), dimension(0:2), parameter :: which_entrainment = (/ &
+         'Jenkins (1991): based on slope and speed ', &
+         'Gaspar (1988): based on TKE balance      ', &
+         'based on reduced grav and friction speed ' /)
 
     if (model%options%whichbmlt_float == BMLT_FLOAT_PLUME) then
 
+       call write_log(' ')
        call write_log('Plume')
        call write_log('--------')
 
+       ! physics options
+       if (model%plume%which_entrainment < 0 .or. model%plume%which_entrainment >= size(which_entrainment)) then
+          call write_log('Error, entrainment option out of range', GM_FATAL)
+       else
+          write(message,*) 'which_entrainment        : ',model%plume%which_entrainment,  &
+               which_entrainment(model%plume%which_entrainment)
+          call write_log(message)
+       endif
+
+       ! parameters
        write(message,*) 'dt_plume (s)             :  ', model%plume%dt_plume
        call write_log(message)
        write(message,*) 'tplume_spinup (yr)       :  ', model%plume%tplume_spinup
        call write_log(message)
        write(message,*) 'tplume_runtime (yr)      :  ', model%plume%tplume_runtime
-
+       call write_log(message)
        write(message,*) 'gammaT (nondimensional)  :  ', model%plume%gammaT
        call write_log(message)
        write(message,*) 'gammaS (nondimensional)  :  ', model%plume%gammaS
+       call write_log(message)
+       write(message,*) 'diffusivity Kh (m^2/s)   :  ', model%plume%Kh
        call write_log(message)
 
     endif
@@ -3441,10 +3454,12 @@ contains
          'constant lateral melt rate               ', &
          'ISMIP lateral melt from TF and discharge ' /)
 
+    call write_log(' ')
+
     if (model%options%which_lateral_melt < 0 .or. model%options%which_lateral_melt >= size(which_lateral_melt)) then
        call write_log('Error, lateral melt option out of range', GM_FATAL)
     else
-       write(message,*) 'which_lateral_melt            : ',model%options%which_lateral_melt,  &
+       write(message,*) 'which_lateral_melt       : ',model%options%which_lateral_melt,  &
             which_lateral_melt(model%options%which_lateral_melt)
        call write_log(message)
     endif
@@ -3555,7 +3570,7 @@ contains
          'opening by melting based on cavity dissipation  ', &
          'opening based on bmlt_ground plus dissipation   ' /)
 
-    write(message,*) 'ho_whichbwat                  : ',model%options%which_ho_bwat,  &
+    write(message,*) 'ho_whichbwat             : ',model%options%which_ho_bwat,  &
                       ho_whichbwat(model%options%which_ho_bwat)
     call write_log(message)
     if (model%options%which_ho_bwat < 0 .or. model%options%which_ho_bwat >= size(ho_whichbwat)) then
@@ -4015,13 +4030,16 @@ contains
           call glide_add_to_restart_variable_list('thermal_forcing', model_id)
 
        case (BMLT_FLOAT_PLUME)
-          ! Need the plume variables that carry over from one timestep to the next
+          ! plume variables that carry over from one timestep to the next
           call glide_add_to_restart_variable_list('D_plume', model_id)
           call glide_add_to_restart_variable_list('T_plume', model_id)
           call glide_add_to_restart_variable_list('S_plume', model_id)
-          ! old values of T_basal and S_basal are currently used to compute entrainment
-          call glide_add_to_restart_variable_list('T_basal', model_id)
-          call glide_add_to_restart_variable_list('S_basal', model_id)
+          if (model%plume%which_entrainment == PLUME_ENTRAINMENT_GASPAR) then
+             ! old values of T_basal, S_basal and bmlt_float used to compute entrainment
+             call glide_add_to_restart_variable_list('T_basal', model_id)
+             call glide_add_to_restart_variable_list('S_basal', model_id)
+             call glide_add_to_restart_variable_list('bmlt_float', model_id)
+          endif
 
     end select  ! whichbmlt_float
 

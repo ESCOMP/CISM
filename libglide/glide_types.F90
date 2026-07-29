@@ -126,11 +126,18 @@ module glide_types
   integer, parameter :: BMLT_FLOAT_PLUME = 5
   integer, parameter :: BMLT_FLOAT_THERMAL_FORCING = 6
 
+  ! ismip6 thermal forcing options
   !TODO - Deprecate the quadratic option?
   integer, parameter :: BMLT_FLOAT_TF_QUADRATIC = 0
   integer, parameter :: BMLT_FLOAT_TF_ISMIP6_LOCAL = 1
   integer, parameter :: BMLT_FLOAT_TF_ISMIP6_NONLOCAL = 2
   integer, parameter :: BMLT_FLOAT_TF_ISMIP6_NONLOCAL_SLOPE = 3
+
+  ! plume options
+  !TODO - need a better name for option 2
+  integer, parameter :: PLUME_ENTRAINMENT_JENKINS = 0
+  integer, parameter :: PLUME_ENTRAINMENT_GASPAR = 1
+  integer, parameter :: PLUME_ENTRAINMENT_NEW = 2
 
   integer, parameter :: OCEAN_DATA_INTERNAL = 0
   integer, parameter :: OCEAN_DATA_EXTERNAL = 1
@@ -2219,12 +2226,15 @@ module glide_types
      !> Holds fields and parameters relating to a sub-shelf plume model
      !> Under construction as of July 2026
 
-     ! plume numerics
+     ! numerics
      real(dp) :: dt_plume = 600.d0                        !> plume timestep (s)
      real(dp) :: tplume_spinup = 1.0d0                    !> time to spin up the plume at initialization (yr)
                                                           !> converted from yr to s at startup
      real(dp) :: tplume_runtime = 0.01d0                  !> time to run the plume when called at runtime (yr)
                                                           !> converted from yr to s at startup
+     ! physics options
+     integer :: which_entrainment = 0                     !> 0 = Jenkins (1991) scheme; 1 = Gaspar (1998) scheme;
+                                                          !> 2 = new scheme
 
      ! plume properties
      !> Notes:
@@ -2250,14 +2260,17 @@ module glide_types
      real(dp),dimension(:,:), pointer :: detrainment => null()   !> detrainment rate from plume to ambient ocean (positive down)
      real(dp),dimension(:,:), pointer :: divDu_plume => null()   !> divergence of D_plume*u_plume
 
-     ! heat transfer coefficients
-     ! Note: The defaults are from Asay-Davis et al. (2016)
-     !       For ISOMIP+, gammaT is tuned to give a bmlt_float of the desired mean value,
-     !        and gammaS should equal gammaT/35.
+     ! plume parameters
+     ! Note: The default heat transfer coefficients are from Asay-Davis et al. (2016)
+     !       For ISOMIP+, gammaT is tuned to give a bmlt_float of 30 m/yr below a depth of 300 m,
+     !        and gammaS = gammaT/35.
+     !       The default Kh = 25 m^2/s is from LADDIE: https://github.com/erwinlambert/laddie (accessed 7/27/26).
+
      real(dp) :: gammaT = 2.2d-2         !> nondimensional heat transfer coefficient
                                          !> value of 2.2e-2 suggested by Asay-Davis et al. as an initial guess
      real(dp) :: gammaS = 2.2d-2/35.d0   !> nondimensional salt transfer coefficient
                                          !> for MISOMIP, should be set to gammaT/35 
+     real(dp) :: Kh = 25.d0              !> horizontal diffusivity (m^2/s), assumed equal for heat and salt
 
   end type glide_plume
 
