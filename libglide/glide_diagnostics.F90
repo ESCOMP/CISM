@@ -1607,7 +1607,7 @@ contains
     write(message,'(a25,f24.16)') 'Mean plume bmlt (m/yr)   ', mean_plume_bmlt*scyr
     call write_log(trim(message), type = GM_DIAGNOSTIC)
 
-    write(message,'(a25,e24.16)') 'Total plume bmlt (Gt/yr) ', tot_plume_bmlt*scyr*rhoi/1.0d9  ! m^3/s to kg/yr
+    write(message,'(a25,f24.16)') 'Total plume bmlt (Gt/yr) ', tot_plume_bmlt*scyr*rhoi/1.0d12  ! m^3/s to Gt/yr
     call write_log(trim(message), type = GM_DIAGNOSTIC)
 
     call write_log(' ')
@@ -1679,7 +1679,7 @@ contains
        write(message,'(a25,f24.16)') 'Ambient temperature (C)  ', Ta_diag
        call write_log(trim(message), type = GM_DIAGNOSTIC)
 
-       write(message,'(a25,f24.16)') 'Plume salinity (psu)     ', Sa_diag
+       write(message,'(a25,f24.16)') 'Ambient salinity (psu)   ', Sa_diag
        call write_log(trim(message), type = GM_DIAGNOSTIC)
 
        write(message,'(a25,f24.16)') 'Plume speed (m/s)        ', speed_diag

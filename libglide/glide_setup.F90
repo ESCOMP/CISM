@@ -3366,6 +3366,7 @@ contains
     call GetValue(section,'gammaT',         model%plume%gammaT)
     call GetValue(section,'gammaS',         model%plume%gammaS)
     call GetValue(section,'Kh',             model%plume%Kh)
+    call GetValue(section,'Ah',             model%plume%Ah)
 
   end subroutine handle_plume
 
@@ -3412,6 +3413,8 @@ contains
        write(message,*) 'gammaS (nondimensional)  :  ', model%plume%gammaS
        call write_log(message)
        write(message,*) 'diffusivity Kh (m^2/s)   :  ', model%plume%Kh
+       call write_log(message)
+       write(message,*) 'viscosity Ah (m^2/s)     :  ', model%plume%Ah
        call write_log(message)
 
     endif

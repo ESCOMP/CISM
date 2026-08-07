@@ -2264,13 +2264,15 @@ module glide_types
      ! Note: The default heat transfer coefficients are from Asay-Davis et al. (2016)
      !       For ISOMIP+, gammaT is tuned to give a bmlt_float of 30 m/yr below a depth of 300 m,
      !        and gammaS = gammaT/35.
-     !       The default Kh = 25 m^2/s is from LADDIE: https://github.com/erwinlambert/laddie (accessed 7/27/26).
+     !       The default valuses Kh = Ah = 25 m^2/s are from LADDIE:
+     !        https://github.com/erwinlambert/laddie (accessed 7/27/26),
 
      real(dp) :: gammaT = 2.2d-2         !> nondimensional heat transfer coefficient
                                          !> value of 2.2e-2 suggested by Asay-Davis et al. as an initial guess
      real(dp) :: gammaS = 2.2d-2/35.d0   !> nondimensional salt transfer coefficient
                                          !> for MISOMIP, should be set to gammaT/35 
      real(dp) :: Kh = 25.d0              !> horizontal diffusivity (m^2/s), assumed equal for heat and salt
+     real(dp) :: Ah = 25.d0              !> horizontal Laplacian viscosity (m^2/s)
 
   end type glide_plume
 
