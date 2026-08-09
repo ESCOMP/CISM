@@ -1,0 +1,11 @@
+rm -rf autocopy.log
+rm -rf cism_driver
+rm -rf CMakeCache.txt
+rm -rf CMakeFiles
+rm -rf cmake_install.cmake
+rm -rf fortran_autocopy_includes
+rm -rf fortran_autogen_srcs
+rm -rf fortran_mod_files
+rm -rf include
+rm -rf lib
+rm -rf Makefile
