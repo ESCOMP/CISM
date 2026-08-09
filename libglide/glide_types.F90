@@ -134,10 +134,8 @@ module glide_types
   integer, parameter :: BMLT_FLOAT_TF_ISMIP6_NONLOCAL_SLOPE = 3
 
   ! plume options
-  !TODO - need a better name for option 2
   integer, parameter :: PLUME_ENTRAINMENT_JENKINS = 0
   integer, parameter :: PLUME_ENTRAINMENT_GASPAR = 1
-  integer, parameter :: PLUME_ENTRAINMENT_NEW = 2
 
   integer, parameter :: OCEAN_DATA_INTERNAL = 0
   integer, parameter :: OCEAN_DATA_EXTERNAL = 1
@@ -2271,7 +2269,8 @@ module glide_types
                                          !> value of 2.2e-2 suggested by Asay-Davis et al. as an initial guess
      real(dp) :: gammaS = 2.2d-2/35.d0   !> nondimensional salt transfer coefficient
                                          !> for MISOMIP, should be set to gammaT/35 
-     real(dp) :: Kh = 25.d0              !> horizontal diffusivity (m^2/s), assumed equal for heat and salt
+     real(dp) :: Kh = 0.d0               !> horizontal diffusivity (m^2/s), equal for heat and salt;
+                                         !> set to 0 by default since it can lead to numerical instability
      real(dp) :: Ah = 25.d0              !> horizontal Laplacian viscosity (m^2/s)
 
   end type glide_plume

@@ -76,15 +76,17 @@
     !TODO - Add to the derived type?
     real(dp), parameter :: &
          D_plume0 = 10.d0,           & ! initial plume thickness (m)
-         D_plume_min = 1.0d0,        & ! min plume thickness (m) where the plume exists
-         D_plume_max = 200.0d0,      & ! max plume thickness (m)
+         D_plume_min = 2.0d0,        & ! min plume thickness (m) where the plume exists
+         D_plume_max = 50.0d0,       & ! max plume thickness (m)
+         plume_cavity_h0 = 75.d0,    & ! cavity thickness (m) below which entrainment is phased out
          tau_relax_entrainment = 3600. ! timescale (s) for relaxing toward D_plume_min or D_plume_max
                                        ! by imposing entrainment or detrainment
 
-    integer, parameter :: wx = 7, wy = 8   ! block size passed to point_diag
+    integer, parameter :: wx = 7, wy = 10   ! block size passed to point_diag
 
     !WHL - debug
-    logical, parameter :: verbose_velo = .true.
+!!    logical, parameter :: verbose_velo = .true.
+    logical, parameter :: verbose_velo = .false.
 
 !=======================================================================
 
@@ -827,6 +829,9 @@
        lsrf_plume = lsrf - D_plume
 
        if (verbose_plume) then
+          call point_diag(lsrf_plume, 'lsrf_plume (m)', itest, jtest, rtest, wx, wy)
+          call point_diag(lsrf_plume - topg, 'lsrf_plume - topg (m)', itest, jtest, rtest, wx, wy)
+          call point_diag(rho_ambient, 'rho_ambient (kg/m3)', itest, jtest, rtest, wx, wy)
           call point_diag(rho_plume, 'rho_plume (kg/m3)', itest, jtest, rtest, wx, wy)
           call point_diag(drho_plume, 'drho_plume (kg/m3)', itest, jtest, rtest, wx, wy)
           call point_diag(rho_basal, 'rho_basal (kg/m3)', itest, jtest, rtest, wx, wy)
@@ -868,8 +873,10 @@
        do j = nhalo+1, ny-nhalo
           do i = nhalo+1, nx-nhalo
              if (plume_mask(i,j) == 1) then
-                u_plume(i,j) = (u_plume_east(i-1,j) + u_plume_east(i,j)) / 2.0d0
-                v_plume(i,j) = (v_plume_north(i,j-1) + v_plume_north(i,j)) / 2.0d0
+                u_plume(i,j) = 0.25d0*(u_plume_east(i-1,j) + u_plume_east(i,j) &
+                                     + u_plume_north(i,j-1) + u_plume_north(i,j))
+                v_plume(i,j) = 0.25d0*(v_plume_east(i-1,j) + v_plume_east(i,j) &
+                                     + v_plume_north(i,j-1) + v_plume_north(i,j))
              endif
           enddo
        enddo
@@ -885,12 +892,12 @@
        enddo
 
        !--------------------------------------------------------------------
-       ! Compute the entrainment rate by one of several methods:
+       ! Compute the entrainment rate by one of two methods:
        ! - Jenkins(1991): Entrainment is a function of slope and plume speed.
        ! - Gaspar (1998): Entrainment is a function of sources and sinks of
        !                  turbulent kinetic energy.
-       ! - New method
-       ! Note: At this point, all relevant quantities for entrainment are up to date in halos.
+       ! Note: At this point in the code, all relevant quantities for entrainment
+       !       are up to date in halos.
        !--------------------------------------------------------------------
 
        if (this_rank == rtest) then
@@ -918,10 +925,6 @@
             detrainment)
 
        if (verbose_plume) then
-          call point_diag(ufric_plume, 'ufric_plume (m/s)', itest, jtest, rtest, wx, wy, '(f10.5)')
-          call point_diag(plume_speed, 'plume_speed (m/s)', itest, jtest, rtest, wx, wy)
-          call point_diag(entrainment*scyr, 'entrainment (m/yr)', itest, jtest, rtest, wx, wy)
-          call point_diag(detrainment*scyr, 'detrainment (m/yr)', itest, jtest, rtest, wx, wy)
           if (this_rank == rtest) write(iulog,*) 'Compute melt rate'
        endif
 
@@ -1218,6 +1221,12 @@
          pgf_y_north              ! y component of pressure gradient force on north edges (m^2/s^2)
 
     real(dp), dimension(nx,ny) :: &
+         wall_factor_east,      & ! factor to reduce northward or southward flow on east edges (unitless)
+         wall_factor_north        ! factor to reduce eastward or westward flow on north edges (unitless)
+
+    real(dp), dimension(nx,ny) :: &
+         uctr, vctr,            & ! u_plume and v_plume averaged to cell centers
+         stagu, stagv,          & ! u_plume and v_plume averaged to cell corners
          Avisc_east_lhs,        & ! LHS lateral viscosity coefficents on east edges (m/s)
          Avisc_east_rhsu,       & ! RHS lateral viscosity coefficents on east edges, u equation (m^2/s^2)
          Avisc_east_rhsv,       & ! RHS lateral viscosity coefficents on east edges, v equation (m^2/s^2)
@@ -1251,8 +1260,7 @@
          count_east, count_north  ! number of cells not converged on each face
 
     integer, parameter ::  &
-!!         maxiter_velo = 50        ! max number of iterations of velocity loop
-         maxiter_velo = 2000        ! max number of iterations of velocity loop
+         maxiter_velo = 50        ! max number of iterations of velocity loop
 
     !----------------------------------------------------------------------------
     ! Compute horizontal gradients of lsrf_plume and drho_plume at each edge.
@@ -1312,10 +1320,6 @@
              ! terms proportional to gradients of drho_plume
              drhox(i,j) = -0.5d0*(grav/rhoo) * D_plume_east(i,j)**2 * ddrho_plume_dx_east(i,j)
              drhoy(i,j) = -0.5d0*(grav/rhoo) * D_plume_east(i,j)**2 * ddrho_plume_dy_east(i,j)
-             !WHL - check sign
-!             drhox(i,j) = 0.5d0*(grav/rhoo) * D_plume_east(i,j)**2 * ddrho_plume_dx_east(i,j)
-!             drhoy(i,j) = 0.5d0*(grav/rhoo) * D_plume_east(i,j)**2 * ddrho_plume_dy_east(i,j)
-             ! terms proportional to gradients of lsrf_plume
              grav_reduced = (grav/rhoo) * (drho_plume(i,j) + drho_plume(i+1,j)) / 2.0d0
              dsrfx(i,j) = grav_reduced * D_plume_east(i,j) * dlsrf_plume_dx_east(i,j)
              dsrfy(i,j) = grav_reduced * D_plume_east(i,j) * dlsrf_plume_dy_east(i,j)
@@ -1342,12 +1346,18 @@
           write(iulog,*) 'PGF components on east edges:'
        endif
        call point_diag(1.d3*drhox, '10^3*density gradient x term', itest, jtest, rtest, wx, wy, '(f10.5)')
-       call point_diag(1.d3*dsrfx, '10^3*surface gradient x term', itest, jtest, rtest, wx, wy, '(f10.5)')
        call point_diag(1.d3*drhoy, '10^3*density gradient y term', itest, jtest, rtest, wx, wy, '(f10.5)')
+       call point_diag(1.d3*dsrfx, '10^3*surface gradient x term', itest, jtest, rtest, wx, wy, '(f10.5)')
        call point_diag(1.d3*dsrfy, '10^3*surface gradient y term', itest, jtest, rtest, wx, wy, '(f10.5)')
        call point_diag(1.d3*pgf_x_east, '10^3*pgf_x_east (m2/s2)', itest, jtest, rtest, wx, wy, '(f10.5)')
        call point_diag(1.d3*pgf_y_east, '10^3*pgf_y_east (m2/s2)', itest, jtest, rtest, wx, wy, '(f10.5)')
     endif
+
+    ! Reset the PGF components
+    drhox = 0.0d0
+    drhoy = 0.0d0
+    dsrfx = 0.0d0
+    dsrfy = 0.0d0
 
     ! PGF on north edges
     ! Loop over all edges of locally owned cells (includes south halo cells)
@@ -1358,10 +1368,6 @@
              ! terms proportional to gradients of drho_plume
              drhox(i,j) = -0.5d0*(grav/rhoo) * D_plume_north(i,j)**2 * ddrho_plume_dx_north(i,j)
              drhoy(i,j) = -0.5d0*(grav/rhoo) * D_plume_north(i,j)**2 * ddrho_plume_dy_north(i,j)
-             !WHL - check sign
-!             drhox(i,j) = 0.5d0*(grav/rhoo) * D_plume_north(i,j)**2 * ddrho_plume_dx_north(i,j)
-!             drhoy(i,j) = 0.5d0*(grav/rhoo) * D_plume_north(i,j)**2 * ddrho_plume_dy_north(i,j)
-             ! terms proportional to gradients of lsrf_plume
              grav_reduced = (grav/rhoo) * (drho_plume(i,j) + drho_plume(i,j+1)) / 2.0d0
              dsrfx(i,j) = grav_reduced * D_plume_north(i,j) * dlsrf_plume_dx_north(i,j)
              dsrfy(i,j) = grav_reduced * D_plume_north(i,j) * dlsrf_plume_dy_north(i,j)
@@ -1388,18 +1394,72 @@
           write(iulog,*) 'PGF components on north edges:'
        endif
        call point_diag(1.d3*drhox, '10^3*density gradient x term', itest, jtest, rtest, wx, wy, '(f10.5)')
-       call point_diag(1.d3*dsrfx, '10^3*surface gradient x term', itest, jtest, rtest, wx, wy, '(f10.5)')
        call point_diag(1.d3*drhoy, '10^3*density gradient y term', itest, jtest, rtest, wx, wy, '(f10.5)')
+       call point_diag(1.d3*dsrfx, '10^3*surface gradient x term', itest, jtest, rtest, wx, wy, '(f10.5)')
        call point_diag(1.d3*dsrfy, '10^3*surface gradient y term', itest, jtest, rtest, wx, wy, '(f10.5)')
        call point_diag(1.d3*pgf_x_north, '10^3*pgf_x_north (m2/s2)', itest, jtest, rtest, wx, wy, '(f10.5)')
        call point_diag(1.d3*pgf_y_north, '10^3*pgf_y_north (m2/s2)', itest, jtest, rtest, wx, wy, '(f10.5)')
     endif
 
     !--------------------------------------------------------------------
+    ! Compute a field that will reduce or eliminate the Coriolis term on edges
+    !  adjacent to closed boundaries.
+    ! This allows a jet of strong flow along the boundary, instead of trapping
+    !  and thickening the plume in cells next to the boundary.
+    !--------------------------------------------------------------------
+
+    !TODO - Count it as closed if edge_mask_north or edge_mask_east = 0 also
+    wall_factor_east = 1.0d0
+    wall_factor_north = 1.0d0
+
+    do j = nhalo+1, ny-nhalo
+       do i = nhalo, nx-nhalo
+          if (plume_mask(i,j) == 1) then
+             ! check for a closed boundary to the north
+             ! if present, compute a factor that will reduce the Coriolos force on east edges
+             if (edge_mask_north(i,j) == 3 .and. edge_mask_north(i+1,j) == 3) then
+                wall_factor_east(i,j) = 0.0d0
+             elseif (edge_mask_north(i,j) == 3 .or. edge_mask_north(i+1,j) == 3) then
+                wall_factor_east(i,j) = 0.5d0
+             endif
+             ! check for a closed boundary to the south
+             ! if present, compute a factor that will reduce the Coriolis force on east edges
+             if (edge_mask_north(i,j-1) == 3 .and. edge_mask_north(i+1,j-1) == 3) then
+                wall_factor_east(i,j) = 0.0d0
+             elseif (edge_mask_north(i,j-1) == 3 .or. edge_mask_north(i+1,j-1) == 3) then
+                wall_factor_east(i,j) = 0.5d0
+             endif
+             ! check for a closed boundary to the west
+             ! if present, compute a factor that will reducethe Coriolis force on north edges
+             if (edge_mask_east(i-1,j-1) == 3 .and. edge_mask_east(i-1,j) == 3) then
+                wall_factor_north(i,j) = 0.0d0
+             elseif (edge_mask_east(i-1,j) == 3 .or. edge_mask_east(i-1,j) == 3) then
+                wall_factor_north(i,j) = 0.5d0
+             endif
+             ! check for a closed boundary to the east
+             ! if present, compute a factor that will reducethe Coriolis force on north edges
+             if (edge_mask_east(i,j-1) == 3 .and. edge_mask_east(i,j) == 3) then
+                wall_factor_north(i,j) = 0.0d0
+             elseif (edge_mask_east(i,j-1) == 3 .or. edge_mask_east(i,j) == 3) then
+                wall_factor_north(i,j) = 0.5d0
+             endif
+          endif   ! plume_mask
+       enddo   ! i
+    enddo   ! j
+
+    call parallel_halo(wall_factor_east, parallel)
+    call parallel_halo(wall_factor_north, parallel)
+
+    if (verbose_plume) then
+       call point_diag(wall_factor_east, 'wall_factor_east', itest, jtest, rtest, wx, wy, '(f10.1)')
+       call point_diag(wall_factor_north, 'wall_factor_north', itest, jtest, rtest, wx, wy, '(f10.1)')
+    endif
+
+    !--------------------------------------------------------------------
     ! Compute the LHS lateral viscosity terms on each edge, excluding boundaries.
     ! These coefficients multiply the current velocity components on the edge
     !  and do not change during the velocity iteration below.
-    ! For details, see the comments below in the plume_velocity subroutine.
+    ! For details, see the comments below in subroutine plume_velocity.
     !--------------------------------------------------------------------
 
     ! Interpolate D_plume to the staggered grid; these values appear in some viscosity terms.
@@ -1418,13 +1478,13 @@
        do j = nhalo, ny-nhalo
           do i = nhalo, nx-nhalo
              if (edge_mask_east(i,j) == 1) then   ! plume cell on each side
-                xterm = (Ah/dx**2) * (D_plume(i,j) + D_plume(i+1,j))
-                yterm = (Ah/dy**2) * (stagD_plume(i,j-1) + stagD_plume(i,j))
+                xterm = (2.0d0*Ah/dx**2) * (D_plume(i,j) + D_plume(i+1,j))
+                yterm = (2.0d0*Ah/dy**2) * (stagD_plume(i,j-1) + stagD_plume(i,j))
                 Avisc_east_lhs(i,j) = xterm + yterm
              endif
              if (edge_mask_north(i,j) == 1) then
-                xterm = (Ah/dx**2) * (stagD_plume(i-1,j) + stagD_plume(i,j))
-                yterm = (Ah/dy**2) * (D_plume(i,j) + D_plume(i,j+1))
+                xterm = (2.0d0*Ah/dx**2) * (stagD_plume(i-1,j) + stagD_plume(i,j))
+                yterm = (2.0d0*Ah/dy**2) * (D_plume(i,j) + D_plume(i,j+1))
                 Avisc_north_lhs(i,j) = xterm + yterm
              endif
           enddo
@@ -1445,59 +1505,138 @@
        !--------------------------------------------------------------------
        ! Update the RHS viscosity terms using the four neighboring velocities
        !  from the previous iteration.
-       ! For details, see the comments below in the plume_velocity subroutine.
+       ! For details, see the comments below in subroutine plume_velocity.
        !--------------------------------------------------------------------
 
-       !TODO - Compute viscosity for (1) open boundaries and (2) parallel component for closed boundaries?
-       !       Maybe not (2) if free slip?
        Avisc_east_rhsu = 0.0d0
        Avisc_east_rhsv = 0.0d0
        Avisc_north_rhsu = 0.0d0
        Avisc_north_rhsv = 0.0d0
 
        if (Ah > 0.0d0) then
+
+          !--------------------------------------------------------------------
+          ! Compute RHS terms on east edges, based on u_plume_north and v_plume_north.
+          !--------------------------------------------------------------------
+
+          ! Average uvel_north and vvel_north to cell centers and corners
+          uctr = 0.0d0
+          vctr = 0.0d0
+          stagu = 0.0d0
+          stagv = 0.0d0
+
+          do j = nhalo+1, ny-nhalo
+             do i = nhalo+1, nx-nhalo
+                if (plume_mask(i,j) == 1) then
+                   uctr(i,j) = 0.5d0*(u_plume_north(i,j-1) + u_plume_north(i,j))
+                   vctr(i,j) = 0.5d0*(v_plume_north(i,j-1) + v_plume_north(i,j))
+                   stagu(i,j) = 0.5d0*(u_plume_north(i,j) + u_plume_north(i+1,j))
+                   stagv(i,j) = 0.5d0*(v_plume_north(i,j) + v_plume_north(i+1,j))
+                endif
+             enddo
+          enddo
+
+          call parallel_halo(uctr, parallel)
+          call parallel_halo(vctr, parallel)
+          call parallel_halo(stagu, parallel)
+          call parallel_halo(stagv, parallel)
+
           ! Loop over all edges of locally owned cells (including south and west halo cells).
           do j = nhalo, ny-nhalo
              do i = nhalo, nx-nhalo
                 if (edge_mask_east(i,j) == 1) then   ! exclude edges on boundaries
-                   xterm = (Ah/dx**2) * (D_plume(i,j)*u_plume_east(i-1,j) + D_plume(i+1,j)*u_plume_east(i+1,j))
-                   yterm = (Ah/dy**2) * (stagD_plume(i,j-1)*u_plume_east(i,j-1) + stagD_plume(i,j)*u_plume_east(i,j+1))
+                   xterm = (2.0d0*Ah/dx**2) * (D_plume(i,j)*uctr(i,j) + D_plume(i+1,j)*uctr(i+1,j))
+                   yterm = (2.0d0*Ah/dy**2) * (stagD_plume(i,j-1)*stagu(i,j-1) + stagD_plume(i,j)*stagu(i,j))
                    Avisc_east_rhsu(i,j) = xterm + yterm
-                   xterm = (Ah/dx**2) * (D_plume(i,j)*v_plume_east(i-1,j) + D_plume(i+1,j)*v_plume_east(i+1,j))
-                   yterm = (Ah/dy**2) * (stagD_plume(i,j-1)*v_plume_east(i,j-1) + stagD_plume(i,j)*v_plume_east(i,j+1))
+                   xterm = (2.0d0*Ah/dx**2) * (D_plume(i,j)*vctr(i,j) + D_plume(i+1,j)*vctr(i+1,j))
+                   yterm = (2.0d0*Ah/dy**2) * (stagD_plume(i,j-1)*stagv(i,j-1) + stagD_plume(i,j)*stagv(i,j))
                    Avisc_east_rhsv(i,j) = xterm + yterm
-                endif
-                !WHL - debug
-                if (verbose_velo .and. this_rank == rtest .and. i==itest .and. j==jtest) then
-                   write(iulog,*) ' '
-                   write(iulog,*) 'updating viscosity terms, east edge, iter =', iter_velo
-                   write(iulog,*) '-Avisc_east_lhs:', -Avisc_east_lhs(i,j)
-                   write(iulog,*) '   -Avisc_east_lhs*u:', -Avisc_east_lhs(i,j)*u_plume_east(i,j)
-                   write(iulog,*) '   -Avisc_east_lhs*v:', -Avisc_east_lhs(i,j)*v_plume_east(i,j)
-                   write(iulog,*) 'Avisc_east_rhsu:', Avisc_east_rhsu(i,j)
-                   write(iulog,*) '   W term:', (Ah/dx**2)*D_plume(i,j)*u_plume_east(i,j)
-                   write(iulog,*) '   E term:', (Ah/dx**2)*D_plume(i+1,j)*u_plume_east(i+1,j)
-                   write(iulog,*) '   S term:', (Ah/dy**2)*stagD_plume(i,j-1)*u_plume_east(i,j-1)
-                   write(iulog,*) '   N term:', (Ah/dy**2)*stagD_plume(i,j)*u_plume_east(i,j+1)
-                   write(iulog,*) 'Avisc_east_rhsv:', Avisc_east_rhsv(i,j)
-                   write(iulog,*) '   E term:', (Ah/dx**2)*D_plume(i+1,j)*v_plume_east(i+1,j)
-                   write(iulog,*) '   W term:', (Ah/dx**2)*D_plume(i,j)*v_plume_east(i,j)
-                   write(iulog,*) '   S term:', (Ah/dy**2)*stagD_plume(i,j-1)*v_plume_east(i,j-1)
-                   write(iulog,*) '   N term:', (Ah/dy**2)*stagD_plume(i,j)*v_plume_east(i,j+1)
-                endif
-                if (edge_mask_north(i,j) == 1) then   ! exclude edges on boundaries
-                   xterm = (Ah/dx**2) * (stagD_plume(i-1,j)*u_plume_north(i-1,j) + stagD_plume(i,j)*u_plume_north(i+1,j))
-                   yterm = (Ah/dy**2) * (D_plume(i,j)*u_plume_north(i,j-1) + D_plume(i,j+1)*u_plume_north(i,j+1))
-                   Avisc_north_rhsu(i,j) = xterm + yterm
-                   xterm = (Ah/dx**2) * (stagD_plume(i-1,j)*v_plume_north(i-1,j) + stagD_plume(i,j)*v_plume_north(i+1,j))
-                   yterm = (Ah/dy**2) * (D_plume(i,j)*v_plume_north(i,j-1) + D_plume(i,j+1)*v_plume_north(i,j+1))
-                   Avisc_north_rhsv(i,j) = xterm + yterm
+
+                   !WHL - debug
+                   if (verbose_velo .and. this_rank == rtest .and. i==itest .and. j==jtest) then
+                      write(iulog,*) ' '
+                      write(iulog,*) 'updating viscosity terms, east edge, iter =', iter_velo
+                      write(iulog,*) '-Avisc_east_lhs:', -Avisc_east_lhs(i,j)
+                      write(iulog,*) '   -Avisc_east_lhs*u:', -Avisc_east_lhs(i,j)*u_plume_east(i,j)
+                      write(iulog,*) '   -Avisc_east_lhs*v:', -Avisc_east_lhs(i,j)*v_plume_east(i,j)
+                      write(iulog,*) 'Avisc_east_rhsu:', Avisc_east_rhsu(i,j)
+                      write(iulog,*) '   W term:', (2.0d0*Ah/dx**2)*D_plume(i,j)*uctr(i,j)
+                      write(iulog,*) '   E term:', (2.0d0*Ah/dx**2)*D_plume(i+1,j)*uctr(i+1,j)
+                      write(iulog,*) '   S term:', (2.0d0*Ah/dy**2)*stagD_plume(i,j-1)*stagu(i,j-1)
+                      write(iulog,*) '   N term:', (2.0d0*Ah/dy**2)*stagD_plume(i,j)*stagu(i,j)
+                      write(iulog,*) 'Avisc_east_rhsv:', Avisc_east_rhsv(i,j)
+                      write(iulog,*) '   W term:', (2.0d0*Ah/dx**2)*D_plume(i,j)*vctr(i,j)
+                      write(iulog,*) '   E term:', (2.0d0*Ah/dx**2)*D_plume(i+1,j)*vctr(i+1,j)
+                      write(iulog,*) '   S term:', (2.0d0*Ah/dy**2)*stagD_plume(i,j-1)*stagv(i,j-1)
+                      write(iulog,*) '   N term:', (2.0d0*Ah/dy**2)*stagD_plume(i,j)*stagv(i,j)
+                   endif
+
                 endif
              enddo
           enddo
 
           call parallel_halo(Avisc_east_rhsu, parallel)
           call parallel_halo(Avisc_east_rhsv, parallel)
+
+          !--------------------------------------------------------------------
+          ! Compute RHS terms on north edges, based on u_plume_east and v_plume_east.
+          !--------------------------------------------------------------------
+
+          ! Average uvel_east and vvel_east to cell centers and corners
+          uctr = 0.0d0
+          vctr = 0.0d0
+          stagu = 0.0d0
+          stagv = 0.0d0
+
+          do j = nhalo+1, ny-nhalo
+             do i = nhalo+1, nx-nhalo
+                if (plume_mask(i,j) == 1) then
+                   uctr(i,j) = 0.5d0*(u_plume_east(i-1,j) + u_plume_east(i,j))
+                   vctr(i,j) = 0.5d0*(v_plume_east(i-1,j) + v_plume_east(i,j))
+                   stagu(i,j) = 0.5d0*(u_plume_east(i,j) + u_plume_east(i,j+1))
+                   stagv(i,j) = 0.5d0*(v_plume_east(i,j) + v_plume_east(i,j+1))
+                endif
+             enddo
+          enddo
+
+          call parallel_halo(uctr, parallel)
+          call parallel_halo(vctr, parallel)
+          call parallel_halo(stagu, parallel)
+          call parallel_halo(stagv, parallel)
+
+          ! Loop over all edges of locally owned cells (including south and west halo cells).
+          do j = nhalo, ny-nhalo
+             do i = nhalo, nx-nhalo
+                if (edge_mask_north(i,j) == 1) then   ! exclude edges on boundaries
+                   xterm = (2.0d0*Ah/dx**2) * (stagD_plume(i-1,j)*stagu(i-1,j) + stagD_plume(i,j)*stagu(i,j))
+                   yterm = (2.0d0*Ah/dy**2) * (D_plume(i,j)*uctr(i,j) + D_plume(i,j+1)*uctr(i,j+1))
+                   Avisc_north_rhsu(i,j) = xterm + yterm
+                   xterm = (2.0d0*Ah/dx**2) * (stagD_plume(i-1,j)*stagv(i-1,j) + stagD_plume(i,j)*stagv(i,j))
+                   yterm = (2.0d0*Ah/dy**2) * (D_plume(i,j)*vctr(i,j) + D_plume(i,j+1)*vctr(i,j+1))
+                   Avisc_north_rhsv(i,j) = xterm + yterm
+
+                   !WHL - debug
+                   if (verbose_velo .and. this_rank == rtest .and. i==itest .and. j==jtest) then
+                      write(iulog,*) ' '
+                      write(iulog,*) 'updating viscosity terms, north edge, iter =', iter_velo
+                      write(iulog,*) '-Avisc_north_lhs:', -Avisc_north_lhs(i,j)
+                      write(iulog,*) '   -Avisc_north_lhs*u:', -Avisc_north_lhs(i,j)*u_plume_north(i,j)
+                      write(iulog,*) '   -Avisc_north_lhs*v:', -Avisc_north_lhs(i,j)*v_plume_north(i,j)
+                      write(iulog,*) 'Avisc_north_rhsu:', Avisc_north_rhsu(i,j)
+                      write(iulog,*) '   W term:', (2.0d0*Ah/dx**2)*stagD_plume(i-1,j)*stagu(i-1,j)
+                      write(iulog,*) '   E term:', (2.0d0*Ah/dx**2)*stagD_plume(i,j)*stagu(i,j)
+                      write(iulog,*) '   S term:', (2.0d0*Ah/dy**2)*D_plume(i,j)*uctr(i,j)
+                      write(iulog,*) '   N term:', (2.0d0*Ah/dy**2)*D_plume(i,j+1)*uctr(i,j+1)
+                      write(iulog,*) 'Avisc_north_rhsv:', Avisc_north_rhsv(i,j)
+                      write(iulog,*) '   W term:', (2.0d0*Ah/dx**2)*stagD_plume(i-1,j)*stagv(i-1,j)
+                      write(iulog,*) '   E term:', (2.0d0*Ah/dx**2)*stagD_plume(i,j)*stagv(i,j)
+                      write(iulog,*) '   S term:', (2.0d0*Ah/dy**2)*D_plume(i,j)*vctr(i,j)
+                      write(iulog,*) '   N term:', (2.0d0*Ah/dy**2)*D_plume(i,j+1)*vctr(i,j+1)
+                   endif
+                endif
+             enddo
+          enddo
+
           call parallel_halo(Avisc_north_rhsu, parallel)
           call parallel_halo(Avisc_north_rhsv, parallel)
 
@@ -1516,8 +1655,9 @@
        call plume_velocity(&
             nx,    ny,               &
             itest, jtest, rtest,     &
-            edge_mask_east,          &
             'east',                  &
+            edge_mask_east,          &
+            wall_factor_east,        &
             D_plume_east,            &
             pgf_x_east,              &
             pgf_y_east,              &
@@ -1540,8 +1680,9 @@
        call plume_velocity(&
             nx,    ny,               &
             itest, jtest, rtest,     &
-            edge_mask_north,         &
             'north',                 &
+            edge_mask_north,         &
+            wall_factor_north,       &
             D_plume_north,           &
             pgf_x_north,             &
             pgf_y_north,             &
@@ -1766,8 +1907,9 @@
   subroutine plume_velocity(&
        nx,    ny,               &
        itest, jtest, rtest,     &
-       edge_mask,               &
        edge,                    &
+       edge_mask,               &
+       wall_factor,             &
        D_plume_edge,            &
        pgf_x,                   &
        pgf_y,                   &
@@ -1792,13 +1934,14 @@
          nx,  ny,           & ! number of grid cells in each dimension
          itest, jtest, rtest  ! test cell coordinates (diagnostic only)
 
-    integer, dimension(nx,ny), intent(in) ::   &
-         edge_mask            ! = 1 at edges where velocity is computed
-
     character(len=*), intent(in) ::   &
          edge                 ! 'east' or 'north'
 
+    integer, dimension(nx,ny), intent(in) ::   &
+         edge_mask            ! = 1 at edges where velocity is computed
+
     real(dp), dimension(nx,ny), intent(in) ::   &
+         wall_factor,       & ! factor to reduce flow toward the boundary on edges (unitless)
          D_plume_edge,      & ! plume thickness at edges (m)
          pgf_x,             & ! x component of pressure gradient force, at edges (m^2/s^2)
          pgf_y,             & ! y component of pressure gradient force, at edges (m^2/s^2)
@@ -1820,6 +1963,7 @@
     real(dp) :: &
          speed,             & ! plume speed (m/s), updated at each iteration until convergence
          f_x, f_y,          & ! combined PGF and viscosity terms (m^2/s^2)
+         f_cor,             & ! product of f_coriolis and wall_factor; goes to 0 along closed boundaries
          cUA,               & ! c_drag*speed + Avisc_lhs (m/s); multiplies the local velocity
          x_resid, y_resid,  & ! residuals of momentum balance equations (m^2/s^2)
          resid,             &
@@ -1856,18 +2000,23 @@
     !            f = Coriolis coefficient (1/s)
     !           Ah = uniform horizontal viscosity coefficient (m^2/s)
     !
+    ! On edges adjacent to boundaries, the Coriolis terms are multiplied by a factor of 0.0 or 0.5
+    ! (depending on whether there are two adjacent closed boundaries or just one).
+    ! This reduces the Coriolis-driven flow toward the boundary, allowing a PGF-driven jet to form
+    !  along the boundary.
+    !
     ! The viscosity is small in much of the domain but can be large near closed boundaries.
     ! The viscosity terms at east edges are discretized as
     !
     ! del*(Ah*D*grad(u)) = Ah*[d/dx(D du/dx) + d/dy(D du/dy)]
-    !                    = (Ah/dx^2) * [D(i+1,j)*(u(i+1,j) - u(i,j))/dx - D(i,j)*(u(i,j) - u(i-1,j))/dx]
-    !                    + (Ah/dy^2) * [stagD(i,j)*(u(i,j+1) - u(i,j))/dy - stagD(i,j-1)*(u(i,j) - u(i,j-1))/dy]
+    !                    = (Ah/dx^2) * [D(i+1,j)*(uctr(i+1,j) - ueast(i,j))/(dx/2) - D(i,j)*(ueast(i,j) - uctr(i-1,j))/(dx/2)]
+    !                    + (Ah/dy^2) * [stagD(i,j)*(stagu(i,j) - ueast(i,j))/(dy/2) - stagD(i,j-1)*(ueast(i,j) - stagu(i,j-1))/(dy/2)]
     ! where stagD denotes D on the staggered grid.
     ! The v expressions are analogous.
     !
     ! The viscosity terms at north edges are discretized as
-    ! del*(Ah*D*grad(u)) = (Ah/dx^2) * [stagD(i,j)*(u(i+1,j) - u(i,j))/dx - stagD(i-1,j)*(u(i,j) - u(i-1,j))/dx]
-    !                    + (Ah/dy^2) * [D(i,j+1)*(u(i,j+1) - u(i,j))/dy - D(i,j)*(u(i,j) - u(i,j-1))/dy]
+    ! del*(Ah*D*grad(u)) = (Ah/dx^2) * [stagD(i,j)*(stagu(i,j) - unorth(i,j))/(dx/2) - stagD(i-1,j)*(unorth(i,j) - stagu(i-1,j))/(dx/2)]
+    !                    + (Ah/dy^2) * [D(i,j+1)*(uctr(i,j+1) - unorth(i,j))/(dy/2) - D(i,j)*(unorth(i,j) - uctr(i,j))/(dy/2)]
     !
     ! We can rewrite (1) and (2) as
     !
@@ -1941,7 +2090,6 @@
     !         m_vv = c*(U0 + v0^2/U0) + A_lhs
     !--------------------------------------------------------------------
 
-
     ! Compute the u and v velocity components at each edge,
     ! with the plume speed and the RHS viscosity terms lagged by one iteration.
 
@@ -1955,6 +2103,9 @@
 
           ! Compute the plume speed based on the input u and v
           speed = sqrt(u_plume(i,j)**2 + v_plume(i,j)**2 + u_tidal**2)
+
+          ! Set the Coriolis term, reduced as needed near closed boundaries
+          f_cor = f_coriolis * wall_factor(i,j)
 
           ! Combine the PGF and RHS viscosity terms
           f_x = pgf_x(i,j) + Avisc_rhsu(i,j)
@@ -1994,8 +2145,8 @@
           elseif (edge_mask(i,j) > 0) then  ! regular or open boundary; solve for both components
 
              ! Compute the residual of the u and v equations and check convergence
-             x_resid = f_x - cUa*u_plume(i,j) + f_coriolis*D_plume_edge(i,j)*v_plume(i,j)
-             y_resid = f_y - cUa*v_plume(i,j) - f_coriolis*D_plume_edge(i,j)*u_plume(i,j)
+             x_resid = f_x - cUa*u_plume(i,j) + f_cor*D_plume_edge(i,j)*v_plume(i,j)
+             y_resid = f_y - cUa*v_plume(i,j) - f_cor*D_plume_edge(i,j)*u_plume(i,j)
              resid = sqrt(x_resid**2 + y_resid**2)
              if (resid < maxresid_force_balance) converged_velo(i,j) = .true.
 
@@ -2004,9 +2155,8 @@
                 ! compute some coefficients for the Newton solve
                 a_uu = c_drag*(speed + u_plume(i,j)**2/speed) + Avisc_lhs(i,j)
                 a_vv = c_drag*(speed + v_plume(i,j)**2/speed) + Avisc_lhs(i,j)
-
-                a_uv = c_drag*(u_plume(i,j)*v_plume(i,j))/speed - f_coriolis*D_plume_edge(i,j)
-                a_vu = c_drag*(u_plume(i,j)*v_plume(i,j))/speed + f_coriolis*D_plume_edge(i,j)
+                a_uv = c_drag*(u_plume(i,j)*v_plume(i,j))/speed - f_cor*D_plume_edge(i,j)
+                a_vu = c_drag*(u_plume(i,j)*v_plume(i,j))/speed + f_cor*D_plume_edge(i,j)
 
                 ! compute du and dv
                 denom = a_uu*a_vv - a_uv*a_vu
@@ -2025,9 +2175,9 @@
 
              else  ! Picard solve
 
-                denom = (f_coriolis*D_plume_edge(i,j))**2 + cUA**2
-                u_plume(i,j) = (cUA*f_x + f_coriolis*D_plume_edge(i,j)*f_y) / denom
-                v_plume(i,j) = (cUA*f_y - f_coriolis*D_plume_edge(i,j)*f_x) / denom
+                denom = (f_cor*D_plume_edge(i,j))**2 + cUA**2
+                u_plume(i,j) = (cUA*f_x + f_cor*D_plume_edge(i,j)*f_y) / denom
+                v_plume(i,j) = (cUA*f_y - f_cor*D_plume_edge(i,j)*f_x) / denom
 
              endif  ! Newton or Picard
 
@@ -2038,9 +2188,9 @@
              write(iulog,*) 'speed (m/s) =', speed
              write(iulog,*) 'edgeD:', D_plume_edge(i,j)
              write(iulog,*) 'pgf_x, pgf_y(m2/s2):', pgf_x(i,j), pgf_y(i,j)
-             write(iulog,*) 'f*D (m/s):', f_coriolis*D_plume_edge(i,j)
-             write(iulog,*) 'fDv, fDu (m2/s2):', f_coriolis*D_plume_edge(i,j)*v_plume(i,j), &
-                  f_coriolis*D_plume_edge(i,j)*u_plume(i,j)
+             write(iulog,*) 'f*D (m/s):', f_cor*D_plume_edge(i,j)
+             write(iulog,*) 'fDv, fDu (m2/s2):', f_cor*D_plume_edge(i,j)*v_plume(i,j), &
+                  f_cor*D_plume_edge(i,j)*u_plume(i,j)
              write(iulog,*) 'c|U| (m/s):', c_drag*speed
              write(iulog,*) 'Fdu, Fdv (m2/s2):', -c_drag*speed*u_plume(i,j), -c_drag*speed*v_plume(i,j)
              write(iulog,*) 'Avisc_lhs (m/s):', Avisc_lhs(i,j)
@@ -2150,13 +2300,13 @@
                                   ! Gaspar (1988) and Lambert et al. (2023) set mu = 0.5;
                                   ! Gladish et al. (2012) and Lambert et al. (2026) set mu = 2.5
 
-    real(dp), parameter :: &
-         L0 = 5.d0               ! empirical length scale (m)
-
     logical, parameter :: verbose_entrainment = .true.
 
     entrainment = 0.0d0
     detrainment = 0.0d0
+
+    ! Given plume_speed, compute ufric_plume
+    ufric_plume = sqrt(c_drag)*plume_speed
 
     if (which_entrainment == PLUME_ENTRAINMENT_JENKINS) then
 
@@ -2233,14 +2383,10 @@
        ! Can have e < 0 for small u* and/or large m. If so, then classify as detrainment.
        !--------------------------------------------------------------------
 
-       ! Given plume_speed, compute ufric_plume
-       ufric_plume = sqrt(c_drag)*plume_speed
-
        ! loop over all cells
        do j = 1, ny
           do i = 1, nx
              if (plume_mask(i,j) == 1) then
-
                 numer = mu_e * ufric_plume(i,j)**3 - 0.5d0*D_plume(i,j)*(grav/rhoo)*drho_basal(i,j)*bmlt_float(i,j)
                 denom = 0.5d0*D_plume(i,j)*(grav/rhoo)*drho_plume(i,j)
                 if (denom > 0.0d0) then
@@ -2248,7 +2394,6 @@
                 else   ! likely have drho_plume = 0
                    entrainment(i,j) = 0.0d0
                 endif
-
                 if (entrainment(i,j) < 0.0d0) then
                    detrainment(i,j) = -1.0d0*entrainment(i,j)
                    entrainment(i,j) = 0.0d0
@@ -2258,7 +2403,8 @@
                    write(iulog,*) ' '
                    write(iulog,*) 'Gaspar entrainment, rank, i, j =', this_rank, i, j
                    write(iulog,*) 'D (m), u_fric (m/s):', D_plume(i,j), ufric_plume(i,j)
-                   write(iulog,*) 'drho_plume (kg/m3), drho_basal, bmlt (m/yr):', drho_plume(i,j), drho_basal(i,j), bmlt_float(i,j)
+                   write(iulog,*) 'drho_plume (kg/m3), drho_basal, bmlt (m/yr):', &
+                        drho_plume(i,j), drho_basal(i,j), bmlt_float(i,j)
                    write(iulog,*) 'ufric term (m3^s3):', mu_e * ufric_plume(i,j)**3
                    write(iulog,*) 'bmlt term  (m3/s3):', 0.5d0*D_plume(i,j)*(grav/rhoo)*drho_basal(i,j)*bmlt_float(i,j)
                    if (entrainment(i,j) > 0.0d0) then
@@ -2272,48 +2418,32 @@
           enddo   ! i
        enddo   ! j
 
-    elseif (which_entrainment == PLUME_ENTRAINMENT_NEW) then
-
-       !--------------------------------------------------------------------
-       ! Compute entrainment as a function of the friction velocity
-       !  and an empirical length scale
-       !--------------------------------------------------------------------
-
-       ! Given plume_speed, compute ufric_plume
-       ufric_plume = sqrt(c_drag)*plume_speed
-
-       ! loop over all cells
-       do j = 1, ny
-          do i = 1, nx
-             if (plume_mask(i,j) == 1) then
-
-                numer = ufric_plume(i,j)**3
-                denom = L0*(grav/rhoo)*drho_plume(i,j)
-                if (denom > 0.0d0) then
-                   entrainment(i,j) = numer/denom
-                else   ! likely have drho_plume = 0
-                   entrainment(i,j) = 0.0d0
-                endif
-
-                if (verbose_entrainment .and. this_rank == rtest .and. i == itest .and. j == jtest) then
-                   write(iulog,*) ' '
-                   write(iulog,*) 'New entrainment, rank, i, j =', this_rank, i, j
-                   write(iulog,*) 'u_fric (m/s):', ufric_plume(i,j)
-                   write(iulog,*) 'drho_plume (kg/m3):', drho_plume(i,j)
-                   write(iulog,*) 'numer (m3^s3):', numer
-                   write(iulog,*) 'denom  (m2/s2):', denom
-                   write(iulog,*) 'entrainment =', entrainment(i,j)
-                endif
-
-             endif
-          enddo   ! i
-       enddo   ! j
-
-
     endif  ! which_entrainment
 
+    if (verbose_plume) then
+       call point_diag(ufric_plume, 'ufric_plume (m/s)', itest, jtest, rtest, wx, wy, '(f10.5)')
+       call point_diag(plume_speed, 'plume_speed (m/s)', itest, jtest, rtest, wx, wy)
+       call point_diag(entrainment*scyr, 'Before adjusting, entrainment (m/yr)', itest, jtest, rtest, wx, wy)
+       call point_diag(detrainment*scyr, 'Before adjusting, detrainment (m/yr)', itest, jtest, rtest, wx, wy)
+    endif
+
     !--------------------------------------------------------------------
-    ! Adjust entrainment and detrainment as needed to keep D_plume within a desired range.
+    ! Reduce entrainment in thin cavities.
+    ! Entrainment = 0 for D_plume >= H_cavity
+    !--------------------------------------------------------------------
+
+    if (plume_cavity_h0 > 0.0d0) then
+       do j = 1, ny
+          do i = 1, nx
+             if (plume_mask(i,j) == 1 .and. H_cavity(i,j) - D_plume(i,j) < plume_cavity_h0) then
+                entrainment(i,j) = entrainment (i,j) * max(0.0d0, (H_cavity(i,j) - D_plume(i,j))/plume_cavity_h0)
+             endif
+          enddo
+       enddo
+    endif
+
+    !--------------------------------------------------------------------
+    ! Adjust entrainment or detrainment if D_plume is outside a desired range.
     !--------------------------------------------------------------------
 
     do j = 1, ny
@@ -2327,6 +2457,10 @@
                    write(iulog,*) 'Force entrainment: ig, jg, D_plume:', ig, jg, D_plume(i,j)
                 endif
                 entrainment_min = (D_plume_min - D_plume(i,j)) / tau_relax_entrainment
+                if (detrainment(i,j) > 0.0d0) then
+                   entrainment_min = entrainment_min - detrainment(i,j)
+                   detrainment(i,j) = 0.0d0
+                endif
                 entrainment(i,j) = max(entrainment(i,j), entrainment_min)
              endif
 
@@ -2343,6 +2477,12 @@
           endif
        enddo   ! i
     enddo   ! j
+
+    if (verbose_plume) then
+       call point_diag(H_cavity - D_plume, 'H_cavity - D_plume (m)', itest, jtest, rtest, wx, wy)
+       call point_diag(entrainment*scyr, 'After adjusting, entrainment (m/yr)', itest, jtest, rtest, wx, wy)
+       call point_diag(detrainment*scyr, 'After adjusting, detrainment (m/yr)', itest, jtest, rtest, wx, wy)
+    endif
 
   end subroutine plume_entrainment
 
@@ -2895,8 +3035,8 @@
              dDT = entrainment(i,j)*T_ambient(i,j) - detrainment(i,j)*T_plume(i,j) + bmlt_float(i,j)*T_basal(i,j) &
                   - heat_loss
              work(i,j,2) = work(i,j,2) + dDT*dt_plume
-             ! Note: salt_transfer = 0 by assumption
-             dDS = entrainment(i,j)*S_ambient(i,j) - detrainment(i,j)*S_plume(i,j) + bmlt_float(i,j)*S_basal(i,j)
+             ! Note: salt_transfer from the ice = 0
+             dDS = entrainment(i,j)*S_ambient(i,j) - detrainment(i,j)*S_plume(i,j)
              work(i,j,3) = work(i,j,3) + dDS*dt_plume
           endif
        enddo

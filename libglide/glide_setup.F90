@@ -3381,10 +3381,9 @@ contains
     type(glide_global_type)  :: model
     character(len=100) :: message
 
-    character(len=*), dimension(0:2), parameter :: which_entrainment = (/ &
+    character(len=*), dimension(0:1), parameter :: which_entrainment = (/ &
          'Jenkins (1991): based on slope and speed ', &
-         'Gaspar (1988): based on TKE balance      ', &
-         'based on reduced grav and friction speed ' /)
+         'Gaspar (1988): based on TKE balance      ' /)
 
     if (model%options%whichbmlt_float == BMLT_FLOAT_PLUME) then
 
