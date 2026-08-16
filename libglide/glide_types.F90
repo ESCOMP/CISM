@@ -125,6 +125,7 @@ module glide_types
   integer, parameter :: BMLT_FLOAT_EXTERNAL = 4
   integer, parameter :: BMLT_FLOAT_PLUME = 5
   integer, parameter :: BMLT_FLOAT_THERMAL_FORCING = 6
+  integer, parameter :: BMLT_FLOAT_PICO = 7
 
   ! ismip6 thermal forcing options
   !TODO - Deprecate the quadratic option?
@@ -2277,6 +2278,51 @@ module glide_types
 
   !++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 
+  type glide_pico
+    !> Fields and parameters for the PICO sub-shelf melt parameterization box model
+    !> (Reese et al. 2018)
+    !> Ocean input comes from ocean_data%thetao and ocean_data%salinity
+    !> PICO does not use ocean_data%thermal_forcing
+
+    ! parameters
+    integer :: n_boxes_max = 5           !> max boxes in any shelf
+    real(dp) :: gamma_T = 2.0d-5         !> effective heat exchange velocity (m/s)
+    real(dp) :: overturning_C = 1.0d6    !> overturning strength (m^6/kg/s)
+    real(dp) :: continentatl_shelf_depth = -800.0d0 !> cut-off for B0 averaging (m) !TODO: check if this works
+    real(dp) :: max_ice_rise_area = 1.0d5   !> grounded components smaller than this
+                                            !> are ice rises, not continent (km^2)
+    logical :: exclude_ice_rises = .true.   !> if true, rises bridge shelves but are not
+                                            !> shelf cells (similar to PISM) 
+
+    integer :: label_method = 0             !> connected-component algorithm:
+                                            !> 0 = min-propagation (simple, slow)
+                                            !> 1 = graph-based (PISM-style, fast)
+                                            !> both should give identical labels
+
+    ! continental-shelf reservoir per basin
+    real(dp), dimension(:), pointer :: T0_basin => null() !> near-bottom potential temperature (deg C)
+    real(dp), dimension(:), pointer :: S0_basin => null() !> near-bottom practical salinity (psu)
+
+    ! 2D diagnostics
+    !> Per-shelf quantities are mapped back onto the grid because n_shelf changes
+    !> every timestep as the shelves calve and/or grow, so unlike nbasin it cannot
+    !> be a netCDF dimension
+
+    integer, dimension(:,:), pointer :: shelf_id => null() !> connected ice-shelf ID, 0 = none
+    integer, dimension(:,:), pointer :: box_mask => null() !> PICO box index, 0 = unassigned
+    integer, dimension(:,:), pointer :: rise_mask => null() !> 1 = grounded ice rise
+    integer, dimension(:,:), pointer :: hole_mask => null() !> 1 = enclosed water inside a shelf
+
+    real(dp), dimension(:,:), pointer :: dist_gl => null() !> distance to grounding line (cells)
+    real(dp), dimension(:,:), pointer :: dist_if => null() !> distance to ice front (cells)
+    real(dp), dimension(:,:), pointer :: temperature => null() !> box temperature (deg C)
+    real(dp), dimension(:,:), pointer :: salinity => null() !> box salinity (psu)
+    real(dp), dimension(:,:), pointer :: overturning => null() !> overturning flux q (m^3/s)
+
+  end type glide_pico
+
+  !++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+
   type glide_basal_hydro
 
      !> Holds variables related to basal hydrology
@@ -2873,6 +2919,7 @@ module glide_types
     type(glide_glacier)  :: glacier
     type(glide_inversion):: inversion
     type(glide_plume)    :: plume
+    type(glide_pico)     :: pico
     type(glide_lithot_type)  :: lithot
     type(glide_funits)   :: funits
     type(glide_numerics) :: numerics
@@ -3381,6 +3428,34 @@ contains
              call coordsystem_allocate(model%general%ice_grid, model%ocean_data%deltaT_ocn)
              allocate(model%ocean_data%deltaT_ocn_basin(model%ocean_data%nbasin))
           endif
+       endif
+       elseif (model%options%whichbmlt_float == BMLT_FLOAT_PICO) then
+          
+          if (model%ocean_data%nzocn < 1) then
+              call write_log('Must set nzocn >= 1 for PICO', GM_FATAL)
+          endif
+
+          if (model%ocn_data%nbasin < 1) then
+              call write_log('Must set nbasin >=1 for PICO', GM_FATAL)
+          endif
+             
+          call coordsystem_allocate(model%general%ice_grid, model%ocean_data%nzocn, model%ocean_data%thetao)
+          call coordsystem_allocate(model%general%ice_grid, model%ocean_data%nzocn, model%ocean_data%salinity)
+
+          call coordsystem_allocate(model%general%ice_grid, model%pico%shelf_id)
+          call coordsystem_allocate(model%general%ice_grid, model%pico%box_mask)
+          call coordsystem_allocate(model%general%ice_grid, model%pico%rise_mask)
+          call coordsystem_allocate(model%general%ice_grid, model%pico%hole_mask)
+          call coordsystem_allocate(model%general%ice_grid, model%pico%dist_gl)
+          call coordsystem_allocate(model%general%ice_grid, model%pico%dist_if)
+          call coordsystem_allocate(model%general%ice_grid, model%pico%temperature)
+          call coordsystem_allocate(model%general%ice_grid, model%pico%salinity)
+          call coordsystem_allocate(model%general%ice_grid, model%pico%overturning)
+
+          allocate(model%pico%T0_basin(model%ocean_data%nbasin))
+          allocate(model%pico%S0_basin(model%ocean_data%nbasin))
+          model%pico%T0_basin(:) = 0.0d0
+          model%pico%S0_basin(:) = 34.5d0
        endif
     endif  ! Glissade
 
@@ -3990,7 +4065,6 @@ contains
         deallocate(model%inversion%grounded_thck_target)
 
     ! plume arrays
-
     if (associated(model%plume%T_basal)) &
         deallocate(model%plume%T_basal)
     if (associated(model%plume%S_basal)) &
@@ -4023,6 +4097,30 @@ contains
         deallocate(model%plume%T_ambient)
     if (associated(model%plume%S_ambient)) &
         deallocate(model%plume%S_ambient)
+
+    ! pico aarrays
+    if (associated(model%pico%shelf_id)) &
+        deallocate(model%pico%shelf_id)
+    if (associated(model%pico%box_mask)) &
+        deallocate(model%pico%box_mask)
+    if (associated(model%pico%rise_mask)) &
+        deallocate(model%pico%rise_mask)
+    if (associated(model%pico%hole_mask)) &
+        deallocate(model%pico%hole_mask)
+    if (associated(model%pico%dist_gl)) &
+        deallocate(model%pico%dist_gl)
+    if (associated(model%pico%dist_if)) &
+        deallocate(model%pico%dist_if)
+    if (associated(model%pico%temperature)) &
+        deallocate(model%pico%temperature)
+    if (associated(model%pico%salinity)) &
+        deallocate(model%pico%salinity)
+    if (associated(model%pico%overturning)) &
+        deallocate(model%pico%overturning)
+    if (associated(model%pico%T0_basin)) &
+        deallocate(model%pico%T0_basin)
+    if (associated(model%pico%S0_basin)) &
+        deallocate(model%pico%S0_basin)
 
     ! geometry arrays
 
