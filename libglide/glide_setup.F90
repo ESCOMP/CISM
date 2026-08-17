@@ -132,6 +132,14 @@ contains
        end if
     endif
 
+    ! read PICO info
+    if (model%options%whichbmlt_float == BMLT_FLOAT_PICO) then
+       call GetSection(config, section, 'pico')
+       if (associated(section)) then
+          call handle_pico(section, model)
+       end if
+    endif
+
     ! read lateral melt info
     if (model%options%which_lateral_melt /= LATERAL_MELT_NONE) then
        call GetSection(config,section,'lateral_melt')
@@ -185,6 +193,7 @@ contains
     call print_parameters(model)
     call print_gthf(model)
     call print_plume(model)
+    call print_pico(model)
     call print_lateral_melt(model)
     call print_isostasy(model)
     call print_basal_hydro(model)
@@ -1033,14 +1042,15 @@ contains
          'not in continuity eqn', &
          'in continuity eqn    ' /)
 
-    character(len=*), dimension(0:6), parameter :: which_bmlt_float = (/ &
+    character(len=*), dimension(0:7), parameter :: which_bmlt_float = (/ &
          'none                               ', &
          'MISMIP+ melt rate profile          ', &
          'constant melt rate                 ', &
          'depth-dependent melt rate          ', &
          'melt rate from external file       ', &
          'melt rate from plume model         ', &   ! under construction
-         'melt rate from thermal forcing     ' /)
+         'melt rate from thermal forcing     ', &  
+         'melt rate from PICO box model      '  /)  ! under construction
 
     character(len=*), dimension(0:3), parameter :: bmlt_float_thermal_forcing_param = (/ &
          'quadratic function of thermal forcing     ', &
@@ -3421,6 +3431,65 @@ contains
   end subroutine print_plume
 
   !--------------------------------------------------------------------------------
+  subroutine handle_pico(section, model)
+    
+    use glimmer_config
+    use glide_types
+    implicit none
+
+    type(ConfigSection), pointer :: section
+    type(glide_global_type) :: model
+
+    call GetValue(section, 'n_boxes_max', model%pico%n_boxes_max)
+    call GetValue(section, 'gamma_T', model%pico%gamma_T)
+    call GetValue(section, 'overturning_C', model%pico%overturning_C)
+    call GetValue(section, 'continental_sehlf-depth', model%pico%continental_shelf_depth)
+    call GetValue(section, 'max_ice_rise_area', model%pico%max_ice_rise_area)
+    call GetValue(section, 'exclude_ice_areas', model%pico%exclude_ice_rises)
+    call GetValue(section, 'label_method', model%pico%label_method)
+  end subroutine handle_pico
+
+  !--------------------------------------------------------------------------------
+  subroutine print_pico(model)
+    use glide_types
+    use glimmer_log
+    
+    implicit none
+    type(glide_global_type) :: model
+    character(len=100) :: message
+
+    character(len=*), dimension(0:1), parameter :: label_method = (/ &
+         'min-propagation: simple, slower ', &
+         'graph-based: PISM-style, 3 collectives' /)
+    if (model%options%whichbmlt_float == BMLT_FLOAT_PICO) then
+       
+       call write_log(' ')
+       call write_log('PICO')
+       call write_log('--------')
+
+       write(message. *) 'n_boxes_max                   :  ', model%pico%n_boxes_max
+       call write_log(message)
+       write(message. *) 'gamma_T (m/s)                 :  ', model%pico%gamma_T
+       call write_log(message)
+       write(message. *) 'overturning_C (m6/kg/s)       :  ', model%pico%overturning_C
+       call write_log(message)
+       write(message. *) 'continental shelf depth       :  ', model%pico%continental_shelf_depth
+       call write_log(message)
+       write(message. *) 'max ice rise area             :  ', model%pico%max_ice_rise_area
+       call write_log(message)
+       write(message. *) 'exclude ice rises             :  ', model%pico%exclude_ice_rises
+       call write_log(message)
+
+       if (model%pico%label_method < 0 .or. model%pico%label_method >= size(label_method)) then
+          call write_log('Error, PICO label_method out of range', GM_FATAL)
+       else
+          write(message, *) 'PICO box label method.     :  ', model%pico%label_method, &
+          label_method(model%pico%label_method)
+          call write_log(message) 
+       endif      
+    endif
+  end subroutine print_pico
+  !--------------------------------------------------------------------------------
 
   subroutine handle_lateral_melt(section, model)
 
@@ -4042,7 +4111,20 @@ contains
              call glide_add_to_restart_variable_list('S_basal', model_id)
              call glide_add_to_restart_variable_list('bmlt_float', model_id)
           endif
-
+       case (BMLT_FLOAT_PICO)
+          ! Nothing to add. PICO is entirely diagnostic: shelf_id, box_mask,
+          ! dist_gl, dist_if, T0_basin and the box properties are all rebuilt
+          ! from geometry and forcing on every call, so no PICO state carries
+          ! from one timestep to the next. Contrast the plume case above, which
+          ! exists because D_plume, T_plume and S_plume are prognostic.
+          !
+          ! basin_number IS restarted, but via the condition below this select
+          ! block rather than here, so that it is added exactly once.
+          !
+          !TODO - If geometry caching is ever added (skipping recomputation of
+          !       the distance fields and shelf labels while the floating mask
+          !       is unchanged), that cache becomes genuine prognostic state
+          !       and must be listed here. 
     end select  ! whichbmlt_float
 
     ! If using an ISMIP6 basin-based melt parameterization, and/or inverting for
@@ -4051,6 +4133,7 @@ contains
     if (options%bmlt_float_thermal_forcing_param == BMLT_FLOAT_TF_ISMIP6_LOCAL .or.  &
         options%bmlt_float_thermal_forcing_param == BMLT_FLOAT_TF_ISMIP6_NONLOCAL .or. &
         options%bmlt_float_thermal_forcing_param == BMLT_FLOAT_TF_ISMIP6_NONLOCAL_SLOPE .or. &
+        options%whichbmlt_float == BMLT_FLOAT_PICO .or. &
         options%which_ho_deltaT_ocn == HO_DELTAT_OCN_INVERSION_BASIN) then
        call glide_add_to_restart_variable_list('basin_number', model_id)
     endif
