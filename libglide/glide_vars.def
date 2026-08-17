@@ -430,7 +430,7 @@ data:          data%ocean_data%thermal_forcing_lsrf(:,:)
 
 [thetao]
 dimensions:    time, zocn, y1, x1
-units:         degrees K
+units:         degrees C
 long_name:     ocean_potential_temperature
 data:          data%ocean_data%thetao(up,:,:)
 load:          1
@@ -441,6 +441,65 @@ units:         psu
 long_name:     ocean_salinity
 data:          data%ocean_data%salinity(up,:,:)
 load:          1
+
+[pico_shelf_id]
+dimensions:    time, y1, x1
+units:         1
+long_name:     PICO ice shelf ID
+data:          data%pico%pico_shelf_id
+type:          int
+
+[pico_box_mask]
+dimensions:    time, y1, x1
+units:         1
+long_name:     PICO box index
+data:          data%pico%box_mask
+type:          int
+
+[pico_rise_mask]
+dimensions:    time, y1, x1
+units:         1
+long_name:     PICO ice rise mask
+data:          data%pico%rise_mask
+type:          int
+
+[pico_hole_mask]
+dimensions:    time, y1, x1
+units:         1
+long_name:     PICO shelf hole mask
+data:          data%pico%hole_mask
+type:          int
+
+[pico_dist_gl]
+dimensions:    time, y1, x1
+units:         1
+long_name:     PICO distance to grounding line in cells
+data:          data%pico%dist_gl
+
+[pico_dist_if]
+dimensions:    time, y1, x1
+units:         1
+long_name:     PICO distance to ice front in cells
+data:          data%pico%dist_if
+
+[pico_temperature]
+dimensions:    time, y1, x1
+units:         degrees C
+long_name:     PICO box temperature
+data:          data%pico%temperature
+
+[pico_salinity]
+dimensions:    time, y1, x1
+units:         psu
+long_name:     PICO box salinity
+data:          data%pico%salinity
+
+[pico_overturning]
+dimensions:    time, y1, x1
+units:         m3/s
+long_name:     pico overturning flux
+data:          data%pico%overturning
+
 
 #Note: bmb_float has the same units as smb: kg/m2/yr = mm/yr w.e.
 [bmb_float]
