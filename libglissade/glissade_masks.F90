@@ -54,9 +54,16 @@
               glissade_marine_cliff_mask, glissade_ice_sheet_mask,  &
               glissade_ocean_connection_mask,                       &
               glissade_marine_connection_mask, glissade_lake_mask,  &
-              glissade_extend_mask, glissade_fill, glissade_fill_with_buffer
+              glissade_extend_mask, glissade_fill, glissade_fill_with_buffer, &
+              glissade_label_components
 
     public :: initial_color, fill_color, boundary_color
+
+    ! Methods for glissade_label_components. Both give identical labels
+    ! only the communication cost differes. Selected by pico%label_method
+
+    integer, parameter, public :: LABEL_METHOD_MINPROP = 0
+    integer, parameter, public :: LABEL_METHOD_GRAPH = 0
 
     ! colors for fill subroutines
     integer, parameter :: initial_color = 0   ! initial color, represented by integer
@@ -1686,6 +1693,132 @@
     endif   ! not fill color or boundary color
 
   end subroutine glissade_fill_with_buffer
+
+!****************************************************************************
+
+  subroutine glissade_label_components(&
+      nx, ny, &
+      parallel, &
+      input_mask, &
+      labels, &
+      ncomponents, &
+      method)
+    integer, intent(in) :: nx, ny
+    type(parallel_type), intent(in) :: parallel
+    integer, dimension(nx,ny), intent(in) :: input_mask
+    integer, dimension(nx, ny), intent(out) :: labels
+    integer, intent(out) :: ncomponents
+    integer, intent(in), optional :: method
+
+    integer :: m
+
+    m = LABEL_METHOD_MINPROP
+    if (present(method)) m = method
+
+    select case (m)
+
+    case(LABEL_METHOD_GRAPH)
+      call label_components_graph(nx, ny, parallel, input_mask, labels, ncomponents)
+
+    case default
+      call label_components_minprop(nx, ny, parallel, input_mask, labels, ncomponents)
+
+    end select
+  end subroutine glissade_label_components
+
+
+!****************************************************************************
+
+  subroutine label_components_minprop(&
+      nx, ny, &
+      parallel, &
+      input_mask, &
+      labels, &
+      ncomponents)
+
+    use cism_parallel, only: parallel_globalindex, parallel_reduce_max
+
+    integer, intent(in) :: nx, ny
+    type(parallel_type), intent(in) :: parallel
+    integer, dimension(nx,ny), intent(in) :: input_mask
+    integer, dimension(nx, ny), intent(out) :: labels
+    integer, intent(out) :: ncomponents
+
+    integer :: i, j, iter, max_iter, iglobal, jglobal
+    integer :: change_local, change_global, lmin, n
+    integer :: nall
+    integer, dimension(:), allocatable :: all_labels
+
+    !--- (1) provisional label --> own global cell index ---
+    
+    labels = 0
+    do j = nhalo+1, ny-nhalo
+      do i = nhalo+1, nx-nhalo
+         if (input_mask(i,j) == 1) then
+            call parallel_globalindex(i, j, iglobal, jglobal, parallel)
+            labels(i,j) = (jglobal - 1) * parallel%global_ewn + iglobal
+         endif
+      enddo
+    enddo
+    call parallel_halo(labels, parallel)
+
+    !--- (2) min-propagation to a global fixed point ---
+    max_iter = 4 * max(parallel%ewtasks, parallel%ntasks) * max(nx, ny) + 16
+
+    do iter = 1, max_iter
+      changed_local = 0
+      do j = nhalo+1, ny-nhalo
+        do i = nhalo+1, nx-nhalo
+          if (input_mask(i,j) /= 1) cycle
+          lmin = labels(i,j)
+          if (labels(i+1,j) > 0) lmin = min(lmin, labels(i+1,j))
+          if (labels(i-1,j) > 0) lmin = min(lmin, labels(i-1,j))
+          if (labels(i,j+1) > 0) lmin = min(lmin, labels(i,j+1))
+          if (labels(i,j-1) > 0) lmin = min(lmin, labels(i,j-1))
+          if (lmin < labels(i,j)) then
+            labels(i,j) = lmin
+            changed_local = 1
+          endif
+        enddo
+      enddo
+
+      call parallel_halo(labels, parallel)
+
+      changed_global = parallel_reduce_max(changed_local)
+
+      if (changed_global == 0) exit
+
+      if (iter == max_iter) then
+        call write_log('Error: label_components_minprop did not converge', GM_FATAL)
+      endif
+    enddo
+
+    !--- (3) compaction: sparse global indices -> dense 1..N ---
+
+    ! Required because parallel_global_sum_patch indexes an array of length npatch,
+    ! while raw labels run to global_ewn*global_nsn. The distinct set is small (O(100)
+    ! for Antarctica), but note this runs every melt step, unlike glissade_glacier which
+    ! compacts once at init on a static field
+    
+    call glissade_gather_distinct_labels(nx, ny, labels, parallel, all_labels, nall)
+
+    ncomponents = nall
+    
+    do j = 1, ny
+      do i = 1, nx
+        if (labels(i,j) > 0) then
+          do n = 1, nall
+            if (all_labels(n) == labels(i,j)) then
+              labels(i,j) = N
+              exit
+            endif
+          enddo
+        endif
+      enddo
+    enddo
+
+    if (allocated(all_labels)) deallocate(all_labels)
+  end subroutine label_components_minprop
 
 !****************************************************************************
 

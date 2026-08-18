@@ -4023,6 +4023,23 @@ contains
   end function parallel_reduce_sum_real8_nvar
 
 !=======================================================================
+  subroutine parallel_allgatherv_integer(sendbuf, nsend, recvbuf, nrecv)
+
+    ! Serial version. With one task the gathered array is just a copy of the
+    ! local one
+
+    integer, dimension(:), intent(in) :: sendbuf
+    integer, intent(in) :: nsend
+    integer, dimension(:), allocatable, intent(out) ::recvbuf
+    integer, intent(out) :: nrecv
+
+    nrecv = nsend
+    allocate(recvbuf(max(recv,1)))
+    if (nrecv > 0) recvbuf(1:nrecv) = sendbuf(1:nsend)
+
+  end subroutine parallel_allgatherv_integer
+
+!=======================================================================
 
   subroutine parallel_show_minmax(label,values)
 

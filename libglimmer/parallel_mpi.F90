@@ -9519,6 +9519,55 @@ contains
 
 !=======================================================================
 
+  subroutine parallel_allgatherv_integer(sendbuf, nsend, recvbuf, nrecv)
+
+    ! Gather variable-length integer arrays from all tasks, so that every task
+    ! ends up holding the concatenation, in rank order.
+    !
+    ! recvbuf is allocated here; the caller deallocates it.
+    !
+    ! used by glissade_label_components (graph method) to assemble the cross-
+    ! boundary contact graph, and by glissade_gather_distinct_labes to collect
+    ! distinct component labels. Both send a handful of integers per task, so the cost
+    ! is two collectives of latency and not bandwidth
+
+    use mpi_mod
+
+    integer, dimension(:), intent(in) :: sendbuf
+    integer, intent(in) :: nsend
+    integer, dimension(:), allocatable, intent(out) :: recvbuf
+    integer, intent(out) :: nrecv
+
+    integer :: n, ierror
+    integer, dimension(:), allocatable :: counts, displs
+
+    allocate(counts(tasks), displs(tasks))
+
+    ! how many does each task contribute?
+    call mpi_allgather(nsend, 1, mpi_integer, &
+                       counts, 1, mpi_integer, comm, ierror)
+
+    displs(1) = 0
+    do n = 2, tasks
+      displs(n) = displs(n-1) + counts(n-1)
+    enddo
+    nrecv = displs(tasks) + counts(tasks)
+
+    allocate(recvbuf(max(nrecv,1)))
+
+    ! Tasks contributing nothing send a zero-lenght message, which
+    ! MPI Allgatherv handles, thus no special case for ice-free domain
+
+    call mpi_allgatherv(sendbuf, nsend, mpi_integer, &
+                        recvbuf, counts, displs, mpi_integer, &
+                        comm, ierror)
+
+    deallocate(counts, displs)
+
+  end subroutine parallel_allgatherv_integer
+
+!=======================================================================
+
   subroutine parallel_reduce_reprosum(arr, arr_gsum)
 
     ! Compute a reproducible global sum for a floating-point variable or array.
