@@ -659,13 +659,16 @@ contains
     binary_number = transfer(x, binary_number)
 
     ! Get the sign bit (bit 64)
-    sign_bit = ishft(binary_number, -63) .and. 1
+    !sign_bit = ishft(binary_number, -63) .and. 1
+    sign_bit = IAND(ishft(binary_number, -63), 1_8)
 
     ! Get the exponent bits (bits 63–53)
-    exponent_bits = ishft(binary_number, -52) .and. Z'7FF'
+    !exponent_bits = ishft(binary_number, -52) .and. Z'7FF'
+    exponent_bits = IAND(ishft(binary_number, -52), Z'7FF')
 
     ! Extract mantissa (fraction) bits (bits 52–1)
-    mantissa_bits = binary_number .and. Z'FFFFFFFFFFFFF'
+    !mantissa_bits = binary_number .and. Z'FFFFFFFFFFFFF'
+    mantissa_bits = IAND(binary_number, Z'FFFFFFFFFFFFF')
 
     if (present(binary_full)) binary_full = binary_number
     if (present(binary_sign)) binary_sign = sign_bit
