@@ -2996,6 +2996,7 @@ contains
 
     integer :: ewn,nsn,upn               !> local array dimensions
     integer :: global_ewn, global_nsn    !> global array dimensions
+    integer :: nb                        !> loop index for ocean basin array
 
     ! for simplicity, copy these values...
     ewn = model%general%ewn
@@ -3389,6 +3390,13 @@ contains
 
     ! basin diagnostic arrays
     if (model%ocean_data%nbasin >= 1) then
+       ! basin coordinate variable (written by glide_nc_filldvars whenever nbasin >= 1,
+       ! but never otherwise allocated/populated - do it here to avoid writing an
+       ! unassociated pointer)
+       allocate(model%ocean_data%basin(model%ocean_data%nbasin))
+       do nb = 1, model%ocean_data%nbasin
+          model%ocean_data%basin(nb) = nb
+       end do
        allocate(model%scalars%iarea_basin(model%ocean_data%nbasin))
        allocate(model%scalars%iareag_basin(model%ocean_data%nbasin))
        allocate(model%scalars%iareaf_basin(model%ocean_data%nbasin))
