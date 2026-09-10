@@ -88,7 +88,7 @@ contains
   !> register a new series of meassurements
   function profile_register(prof,msg)
     use glimmer_paramets, only: iulog
-    use mpi
+    use mpi, only: mpi_abort, MPI_COMM_WORLD
     implicit none
     type(profile_type) :: prof !< structure storing profile definitions
     character(len=*), intent(in) :: msg !< the message to be associated

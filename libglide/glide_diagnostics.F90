@@ -295,7 +295,7 @@ contains
     real(dp), dimension(model%general%ewn-1, model%general%nsn-1) ::  &
          velo_sfc               ! surface ice speed (m/s)
 
-    real(dp), dimension(:,:,:), allocatable :: &
+    real(dp), dimension(model%general%upn, model%general%ewn, model%general%nsn) ::  &
          local_energy           ! internal energy (J) per layer in a column
 
     character(len=100) :: message
@@ -420,6 +420,7 @@ contains
           endif
        enddo
     enddo
+
     tot_volume_above_flotation = parallel_global_sum(volume_above_flotation, parallel)
 
     ! total ice mass above flotation (kg)
@@ -438,7 +439,7 @@ contains
     ! total ice energy relative to T = 0 deg C (J)
     local_energy = 0.0d0
     if (size(model%temper%temp,1) == upn+1) then  ! temps are staggered in vertical, located at layer centers
-       allocate(local_energy(model%general%upn-1, model%general%ewn, model%general%nsn))
+       ! in this case, the data in the upn layer remains = 0
        do j = 1, nsn
           do i = 1, ewn
              if (ice_mask(i,j) == 1) then
@@ -451,7 +452,6 @@ contains
           enddo
        enddo
     else   ! temps are unstaggered in vertical, located at layer interfaces
-       allocate(local_energy(model%general%upn, model%general%ewn, model%general%nsn))
        do j = 1, nsn
           do i = 1, ewn
              if (ice_mask(i,j) == 1) then
@@ -474,7 +474,6 @@ contains
     endif
     local_energy = local_energy * rhoi * shci
     tot_energy = parallel_global_sum(local_energy, parallel, ice_mask)
-    deallocate(local_energy)
 
     ! mean thickness
     if (tot_area > eps) then
@@ -636,7 +635,7 @@ contains
        tot_gl_flux = parallel_global_sum(abs(model%mass_flux%gl_flux_east)  * model%numerics%dns  &
                                        + abs(model%mass_flux%gl_flux_north) * model%numerics%dew, &
                                        parallel)
-       tot_gl_flux = -tot_gl_flux   ! negative by definition
+       tot_gl_flux = (-1.0d0)*tot_gl_flux   ! negative by definition
 
        ! total rate of change of ice mass (kg/s)
        ! Note: dthck_dt has units of m/s
