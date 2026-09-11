@@ -207,17 +207,6 @@ contains
        call nc_errorhandle(__FILE__,__LINE__,status)
     end if
 
-    ! basin dimension (used for basin-scale output)
-    if (model%ocean_data%nbasin >= 1) then
-       status = parallel_inq_varid(NCO%id,'basin',varid)
-       status= parallel_put_var(NCO%id,varid,model%ocean_data%basin)
-       call nc_errorhandle(__FILE__,__LINE__,status)
-    end if
-
-    ! clean up
-    deallocate(x0_global, y0_global)
-    deallocate(x1_global, y1_global)
-
   end subroutine glide_nc_filldvars
 
 end module glide_nc_custom
