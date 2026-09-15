@@ -46,7 +46,7 @@ module glissade_isostasy_elastic
   private
   public :: glissade_init_elastic, glissade_calc_elastic
 
-  logical, parameter :: verbose_elastic = .true.  ! if true, print diagnostic messages
+  logical :: verbose_elastic = .false.  ! if true, print diagnostic messages
 
 !-------------------------------------------------------------------------
 

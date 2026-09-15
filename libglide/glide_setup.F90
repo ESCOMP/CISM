@@ -2907,6 +2907,18 @@ contains
 
     ! inversion parameters
 
+    ! Make sure the user isn't trying to invert for powerlaw_c and coulomb_c independently.
+    ! We can invert for both at once only if the two coefficients have a specified functional relationship.
+    if ( (model%options%which_ho_powerlaw_c == HO_POWERLAW_C_INVERSION .and. &
+          model%options%which_ho_coulomb_c == HO_COULOMB_C_INVERSION) &
+                                        .or. &
+         (model%options%which_ho_powerlaw_c == HO_POWERLAW_C_INVERSION_BASIN .and. &
+          model%options%which_ho_coulomb_c == HO_COULOMB_C_INVERSION_BASIN) ) then
+       call write_log('Cannot invert for powerlaw_c and coulomb_c independently')
+       write(message,*) 'Please set which_ho_powerlaw_c =', HO_POWERLAW_C_FUNCTION_COULOMB_C
+       call write_log(message, GM_FATAL)
+    endif
+
     if (model%options%which_ho_powerlaw_c == HO_POWERLAW_C_INVERSION .or. &
         model%options%which_ho_powerlaw_c == HO_POWERLAW_C_INVERSION_BASIN .or. &
         model%options%which_ho_coulomb_c == HO_COULOMB_C_INVERSION .or. &

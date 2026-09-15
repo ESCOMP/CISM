@@ -70,11 +70,11 @@
     private
     public :: glissade_velo_sia_solve
 
-    logical, parameter :: verbose_sia = .false.
-    logical, parameter :: verbose_geom = .false.
-    logical, parameter :: verbose_bed = .false.
-    logical, parameter :: verbose_interior = .false.
-    logical, parameter :: verbose_bfric = .false.
+    logical :: verbose_sia = .false.
+    logical :: verbose_geom = .false.
+    logical :: verbose_bed = .false.
+    logical :: verbose_interior = .false.
+    logical :: verbose_bfric = .false.
 
   contains
 

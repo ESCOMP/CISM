@@ -45,8 +45,8 @@ module glissade_calving
   public :: glissade_calving_mask_init, glissade_subgrid_calving_mask_init, &
        glissade_calving_solve, verbose_calving, verbose_retreat
 
-  logical, parameter :: verbose_calving = .false.
-  logical, parameter :: verbose_retreat = .false.
+  logical :: verbose_calving = .false.
+  logical :: verbose_retreat = .false.
 
 contains
 

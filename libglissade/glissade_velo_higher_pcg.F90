@@ -57,8 +57,8 @@
               pcg_solver_chrongear_2d, pcg_solver_chrongear_3d, &
               matvec_multiply_structured_3d
 
-    logical, parameter :: verbose_pcg = .false.
-    logical, parameter :: verbose_tridiag = .false.
+    logical :: verbose_pcg = .false.
+    logical :: verbose_tridiag = .false.
 
   contains
 

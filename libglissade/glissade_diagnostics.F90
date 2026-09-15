@@ -57,7 +57,7 @@
          glissade_stress_tensor_eigenvalues, glissade_strain_rate_tensor_eigenvalues, &
          glissade_calvingmip_diag
 
-    logical, parameter :: verbose_calvingmip = .true.
+    logical :: verbose_calvingmip = .false.
 
   contains
 

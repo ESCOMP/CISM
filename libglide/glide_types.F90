@@ -2399,7 +2399,7 @@ module glide_types
      real(dp) :: coulomb_c_min = 1.0d-3          !> min value of coulomb_c, unitless
 
      ! parameters for Schoof basal friction law
-     ! Typically, schoof_n (from Eq. 2 in School 2005) has the same value as powerlaw_m, but this is not required.
+     ! Typically, schoof_n (from Eq. 2 in Schoof 2005) has the same value as powerlaw_m, but this is not required.
      ! The parameters gamma and p are not in Schoof (2005) but can be used to relate Cc and Cp during inversion,
      !  with either the Schoof law or the Tsai law, if which_ho_powerlaw_c = HO_POWERLAW_C_FUNCTION_COULOMB_C.
      !  The default values here are consistent with Cc_max = 1.0, Cp_max = 1.e5, Cc_const = 1.0, Cp_const ~ 2.e4
@@ -2436,7 +2436,6 @@ module glide_types
      ! fields related to the effective pressure
      real(dp), dimension(:,:), pointer :: effecpress => null()          !> effective pressure (Pa)
      real(dp), dimension(:,:), pointer :: effecpress_stag => null()     !> effective pressure on staggered grid (Pa)
-     real(dp), dimension(:,:), pointer :: effecpress_ocean_p => null()  !> effecpress due to ocean_p > 0; capped at overburden
 
      ! parameters for reducing the effective pressure where the bed is connected to the ocean
      !TODO - Remove ocean_p_timescale
@@ -3268,7 +3267,6 @@ contains
        call coordsystem_allocate(model%general%velo_grid, model%basal_physics%bpmp_mask)
        call coordsystem_allocate(model%general%ice_grid, model%basal_physics%effecpress)
        call coordsystem_allocate(model%general%velo_grid, model%basal_physics%effecpress_stag)
-       call coordsystem_allocate(model%general%ice_grid, model%basal_physics%effecpress_ocean_p)
        call coordsystem_allocate(model%general%velo_grid, model%basal_physics%tau_c)
        call coordsystem_allocate(model%general%ice_grid, model%basal_physics%c_space_factor)
        call coordsystem_allocate(model%general%velo_grid, model%basal_physics%c_space_factor_stag)
@@ -3790,8 +3788,6 @@ contains
         deallocate(model%basal_physics%effecpress)
     if (associated(model%basal_physics%effecpress_stag)) &
         deallocate(model%basal_physics%effecpress_stag)
-    if (associated(model%basal_physics%effecpress_ocean_p)) &
-        deallocate(model%basal_physics%effecpress_ocean_p)
     if (associated(model%basal_physics%tau_c)) &
         deallocate(model%basal_physics%tau_c)
     if (associated(model%basal_physics%c_space_factor)) &

@@ -50,7 +50,7 @@
     private
     public :: glissade_grounded_fraction, verbose_glp
 
-    logical, parameter :: verbose_glp = .false.
+    logical :: verbose_glp = .false.
 
   contains
 

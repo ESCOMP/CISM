@@ -180,7 +180,7 @@ contains
 
   real(dp) :: effecpress_capped   ! capped effective pressure for Coulomb laws (ZI specifically)
 
-  logical, parameter :: verbose_beta = .false.
+  logical :: verbose_beta = .false.
 
   ! Compute the ice speed: used in power laws where beta = beta(u).
   ! Enforce a minimum speed to prevent beta from become very large when velocity is small.
@@ -769,8 +769,9 @@ contains
          overburden,            & ! overburden pressure, rhoi*g*H
          h_above_flotation,     & ! thickness above flotation (m)
          N_to_overburden,       & ! ratio N/(rhoi*g*H)
-         f_pattyn_2d              ! rhoo*(eus-topg)/(rhoi*thck)
+         f_pattyn_2d,           & ! rhoo*(eus-topg)/(rhoi*thck)
                                   ! = 1 at grounding line, < 1 for grounded ice, > 1 for floating ice
+         effecpress_ocean_p       ! effecpress due to ocean_p > 0; capped at overburden
 
     real(dp) :: ocean_p           ! exponent in effective pressure parameterization, 0 <= ocean_p <= 1
     real(dp) :: f_ocean_p         ! ratio N/overburden
@@ -779,7 +780,7 @@ contains
 
     integer :: i, j
 
-    logical, parameter :: verbose_effecpress = .false.
+    logical :: verbose_effecpress = .false.
 
     ! Compute the overburden pressure, and initialize the effective pressure to overburden.
 
@@ -1037,17 +1038,17 @@ contains
           enddo
        enddo
 
-       basal_physics%effecpress_ocean_p(:,:) = rhoi*grav*h_above_flotation(:,:)
+       effecpress_ocean_p(:,:) = rhoi*grav*h_above_flotation(:,:)
 
        if (verbose_effecpress) then
           call point_diag(thck, 'thck', itest, jtest, rtest, 7, 7)
           call point_diag(h_above_flotation, 'h_above_flotation', itest, jtest, rtest, 7, 7)
-          call point_diag(basal_physics%effecpress_ocean_p, 'N_ocean_p', itest, jtest, rtest, 7, 7, '(f10.0)')
+          call point_diag(effecpress_ocean_p, 'N_ocean_p', itest, jtest, rtest, 7, 7, '(f10.0)')
        endif
 
        ! Use the lesser of this value and the value computed earlier (under the which_ho_effecpress options).
        basal_physics%effecpress(:,:) = &
-            min(basal_physics%effecpress(:,:), basal_physics%effecpress_ocean_p(:,:))
+            min(basal_physics%effecpress(:,:), effecpress_ocean_p(:,:))
 
        if (verbose_effecpress) then
 
@@ -1166,7 +1167,7 @@ contains
 
     real(dp) :: bed               ! bed elevation (m)
     integer :: i, j
-    logical, parameter :: verbose_cc = .false.
+    logical :: verbose_cc = .false.
 
     ! Interpolate topg to the staggered grid
     ! stagger_margin_in = 0: Interpolate using values in all cells, including ice-free cells

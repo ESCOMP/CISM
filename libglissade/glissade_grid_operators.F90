@@ -60,7 +60,7 @@ module glissade_grid_operators
               glissade_vertical_interpolate,        &
               glissade_scalar_extrapolate
 
-    logical, parameter :: verbose_gradient = .false.
+    logical :: verbose_gradient = .false.
 
 contains
 
@@ -2112,8 +2112,7 @@ contains
 
     character(len=200) :: message
 
-!    logical, parameter :: verbose_extrapolate = .false.
-    logical, parameter :: verbose_extrapolate = .true.
+    logical :: verbose_extrapolate = .false.
 
     ! Initialize
     if (present(npoints_stencil)) then

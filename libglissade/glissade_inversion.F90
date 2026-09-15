@@ -46,7 +46,7 @@ module glissade_inversion
   ! a target ice thickness field.
   !-----------------------------------------------------------------------------
 
-  logical, parameter :: verbose_inversion = .false.
+  logical :: verbose_inversion = .false.
 
 !***********************************************************************
 
@@ -246,8 +246,6 @@ contains
     ! Note: Some sliding laws support local inversion for either Cp or Cc, but not both independently.
     !       The Schoof law supports inverting for Cc while assuming a fixed relationship to Cp:
     !        Cp = gamma*Cc^p
-    !       Some sliding laws support inversion for both Cp and Cc at basin scale,
-    !        with two distinct thickness targets.
     !----------------------------------------------------------------------
 
     if (model%options%which_ho_powerlaw_c == HO_POWERLAW_C_INVERSION .or.  &
@@ -794,7 +792,7 @@ contains
        do j = nhalo+1, nsn-nhalo
           do i = nhalo+1, ewn-nhalo
              nb = model%ocean_data%basin_number(i,j)
-             if (nb > 0) deltaT_ocn_relax(i,j) = deltaT_ocn_basin_avg(nb)
+             if (nb >= 1 .and. nb <= model%ocean_data%nbasin) deltaT_ocn_relax(i,j) = deltaT_ocn_basin_avg(nb)
           enddo
        enddo
 

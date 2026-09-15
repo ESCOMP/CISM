@@ -187,7 +187,7 @@ contains
          tot_area_float,                &    ! total area of floating ice (m^2)
          area_cell,                     &    ! cell area
          tot_volume,                    &    ! total ice volume (m^3)
-         tot_volume_above_flotation,    &    ! total ice volume above flotation (kg)
+         tot_volume_above_flotation,    &    ! total ice volume above flotation (m^3)
          tot_mass,                      &    ! total ice mass (kg)
          tot_mass_above_flotation,      &    ! total ice mass above flotation (kg)
          tot_area_ice_caps,             &    ! total area of disconnected ice caps (m^2)
@@ -534,7 +534,7 @@ contains
        ! Optionally, write output to a specific basin with an applied thermal forcing anomaly
        if (main_task) then
           nb = model%ocean_data%thermal_forcing_anomaly_basin
-          if (nb >= 1) then
+          if (nb >= 1 .and. nb <= model%ocean_data%nbasin) then
              write(iulog,*) 'Diagnostics for basin', nb
              write(iulog,*) 'iarea, iareag, iareaf (km^2):', &
                   model%scalars%iarea_basin(nb)/1.0d6, model%scalars%iareag_basin(nb)/1.0d6, model%scalars%iareaf_basin(nb)/1.0d6
@@ -652,16 +652,6 @@ contains
        err_dmass_dt = tot_dmass_dt - &
             (tot_smb_flux + tot_bmb_flux + tot_calving_flux + tot_latmelt_flux + tot_removal_flux)
 
-       ! uncomment to convert total fluxes from kg/s to Gt/yr
-!!!    tot_smb_flux = tot_smb_flux * scyr/1.0d12
-!!!    tot_bmb_flux = tot_bmb_flux * scyr/1.0d12
-!!!    tot_calving_flux = tot_calving_flux * scyr/1.0d12
-!!!    tot_latmelt_flux = tot_latmelt_flux * scyr/1.0d12
-!!!    tot_removal_flux = tot_removal_flux * scyr/1.0d12
-!!!    tot_gl_flux = tot_gl_flux * scyr/1.0d12
-!!!    tot_dmass_dt = tot_dmass_dt * scyr/1.0d12
-!!!    err_dmass_dt = err_dmass_dt * scyr/1.0d12
-
        ! copy some global scalars to the mass_flux derived type
        ! Note: These have SI units (e.g, m^2 for area, m^3 for volume)
        model%mass_flux%total_smb_flux = tot_smb_flux
@@ -669,6 +659,10 @@ contains
        model%mass_flux%total_calving_flux = tot_calving_flux
        model%mass_flux%total_latmelt_flux = tot_latmelt_flux
        model%mass_flux%total_removal_flux = tot_removal_flux
+
+       ! Note: The total mass budget consists of the five terms above.
+       !       The GL flux is not part of the mass budget, since any ice fluxed across the GL
+       !        is not added or lost, but simply changes from grounded to floating.
        model%mass_flux%total_gl_flux = tot_gl_flux
 
     endif  ! Glissade dycore

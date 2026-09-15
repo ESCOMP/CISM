@@ -40,8 +40,7 @@ module glissade_basal_water
    private
    public :: glissade_basal_water_init, glissade_calcbwat, glissade_bwat_flux_routing
 
-!!   logical, parameter :: verbose_bwat = .false.
-   logical, parameter :: verbose_bwat = .true.
+   logical :: verbose_bwat = .false.
 
    character(len=64) :: binary_str
 
@@ -1098,7 +1097,7 @@ module glissade_basal_water
     !WHL - Typically, it takes ~10 iterations to fill all depressions on a large domain.
     integer, parameter :: count_max = 100
 
-    logical, parameter :: verbose_depression = .false.
+    logical :: verbose_depression = .false.
 
     ! Initial halo updates, in case phi_in and phi_mask are not up to date in halo cells
     call parallel_halo(phi_in, parallel)

@@ -97,7 +97,7 @@ contains
     ! owned by rdiag_local
     integer :: itest_m3, itest_p3, jtest_m3, jtest_p3
 
-    logical, parameter :: verbose_adjust_thickness = .true.
+    logical :: verbose_adjust_thickness = .true.
 
     ! Copy some model variables to local variables
 
@@ -191,8 +191,7 @@ contains
     integer :: nx, ny
     integer :: itest, jtest, rtest
 
-!    logical, parameter :: verbose_smooth_usrf = .false.
-    logical, parameter :: verbose_smooth_usrf = .true.
+    logical :: verbose_smooth_usrf = .false.
 
     ! Initialize
 
@@ -318,7 +317,7 @@ contains
     ! owned by rdiag_local
     integer :: itest_m3, itest_p3, jtest_m3, jtest_p3
 
-    logical, parameter :: verbose_smooth_topg = .false.
+    logical :: verbose_smooth_topg = .false.
 
     ! Copy some model variables to local variables
 
@@ -428,7 +427,7 @@ contains
          topg_max_adjust, &   ! elevation (m) beyond which there is full adjustment (by topg_delta)
          topg_delta           ! max change in topography (m); can be either sign
 
-    logical, parameter :: verbose_adjust_topg = .true.
+    logical :: verbose_adjust_topg = .false.
 
     ! Copy some model variables to local variables
 
@@ -801,7 +800,7 @@ contains
 
     integer :: i, j
     real(dp) :: thck_edge, u_edge, v_edge
-    logical, parameter :: verbose_edge_fluxes = .false.
+    logical :: verbose_edge_fluxes = .false.
 
     ! loop over locally owned edges
     do j = nhalo+1, ny-nhalo
@@ -879,7 +878,7 @@ contains
          area_w, area_s, area_e, area_n,   & ! area flux from each neighbor cell
          area_sw, area_se, area_ne, area_nw
 
-    logical, parameter :: verbose_input_fluxes = .false.
+    logical :: verbose_input_fluxes = .false.
 
     ! halo updates for thickness and velocity
 
@@ -1165,7 +1164,7 @@ contains
     integer :: ice_cap_count
     real(dp) :: max_ice_cap_thck
 
-    logical, parameter :: verbose_ice_caps = .false.
+    logical :: verbose_ice_caps = .false.
 
     ! Copy some model variables to local variables
 
@@ -1254,7 +1253,7 @@ contains
 
     character(len=100) :: message
 
-    logical, parameter :: verbose_cleanup = .false.
+    logical :: verbose_cleanup = .false.
 
     nx = model%general%ewn
     ny = model%general%nsn

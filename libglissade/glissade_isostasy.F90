@@ -95,7 +95,7 @@ module glissade_isostasy
   private
   public :: glissade_isostasy_init, glissade_isostasy_solve, verbose_isostasy
 
-  logical, parameter :: verbose_isostasy = .true.
+  logical :: verbose_isostasy = .false.
 
 !-------------------------------------------------------------------------
 
@@ -175,10 +175,10 @@ contains
         else
            ! Since relx will be computed as topg + load, it should not be present in the input file
            ! Note: For a hybrid restart with 'relx' present in the input restart file,
-           !       the user should set which_relaxed = RELAXED_TOPO_STANDARD instead.
+           !       the user should set which_relaxed = RELAXED_TOPO_DEFAULT instead.
            if (.not.parallel_is_zero(model%isostasy%relx)) then
               call write_log ('Do not set which_relaxed = RELAXED_TOPO_COMPUTE if relx is in the input file')
-              call write_log ('Either remove relx or set which_relaxed = RELAXED_TOPO_STANDARD', GM_FATAL)
+              call write_log ('Either remove relx or set which_relaxed = RELAXED_TOPO_DEFAULT', GM_FATAL)
            endif
            ! Compute the load, then compute relx = topg + load
            call isostasy_relaxed(model)

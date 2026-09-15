@@ -52,8 +52,7 @@ module glissade_bmlt_float
   public :: verbose_bmlt_float, glissade_basal_melting_float, &
        glissade_bmlt_float_init, glissade_bmlt_float_solve
 
-!!    logical :: verbose_bmlt_float = .false.
-    logical :: verbose_bmlt_float = .true.
+    logical :: verbose_bmlt_float = .false.
 
     logical :: verbose_velo = .false.
     logical :: verbose_continuity = .false.
@@ -2019,7 +2018,7 @@ module glissade_bmlt_float
     integer, parameter :: &
          max_iter_finish = 10    ! max iterations for the short finishing stage
 
-    logical, parameter :: verbose_extrapolate = .false.  ! set to T to follow progress of each iteration
+    logical :: verbose_extrapolate = .false.  ! set to T to follow progress of each iteration
 
     ! For each marine-connected cell, compute the top and bottom layers where we need ocean data
     ! (either in the original input field, or extrapolated).
@@ -3423,7 +3422,7 @@ module glissade_bmlt_float
     real(dp), dimension(nx,ny) :: &
          basin_number_new           ! work array for basin number
 
-    logical, parameter :: verbose_basin_number = .false.
+    logical :: verbose_basin_number = .false.
 
     ! Count the number of cells with valid basin numbers
 
@@ -4173,7 +4172,7 @@ module glissade_bmlt_float
          p333 = 1.d0/3.d0
 
     !WHL - debug
-    logical, parameter :: verbose = .false.
+    logical :: verbose = .false.
 
     ! compute coefficients of depressed cubic, y^3 + py + q = 0
 

@@ -41,7 +41,7 @@ module glissade_glacier
     private
     public :: verbose_glacier, glissade_glacier_init, glissade_glacier_update
 
-    logical, parameter :: verbose_glacier = .true.
+    logical :: verbose_glacier = .false.
 
     ! derived type that holds info for each glaciated grid cell
     type glacier_info

@@ -42,7 +42,7 @@ module glissade_lateral_melt
 
   public :: verbose_latmelt
 
-  logical, parameter :: verbose_latmelt = .true.
+  logical :: verbose_latmelt = .true.
 
 contains
 
@@ -318,7 +318,7 @@ contains
     do j = 1, ny
        do i = 1, nx
           nb = basin_number(i,j)
-          if (nb >= 1) then
+          if (nb >= 1 .and. nb <= nbasin) then
              if (area_submerged_sum_basin(nb) > 0.0d0) then
                 ! Divide basin runoff (m^3/s) by basin-wide submerged area (m^2)
                 subglacial_discharge(i,j) = runoff_sum_basin(nb) / area_submerged_sum_basin(nb)  ! m/s

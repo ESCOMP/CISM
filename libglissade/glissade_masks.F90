@@ -381,7 +381,7 @@
          max_dusrf = 25.d0,        & ! max value of usrf_effective - usrf (m) for CF cells
          max_dusrf_dx = 0.001d0      ! max upward-sloping surface elevation gradient (m/m) at the CF
 
-    logical, parameter :: verbose_calving_mask = .false.
+    logical :: verbose_calving_mask = .false.
 
     ! Initialize
     calving_front_mask = 0
@@ -765,7 +765,7 @@
     integer, dimension(nx,ny) ::  &
          color                  !> color variable for the fill
 
-    logical, parameter :: verbose_ice_sheet_mask = .false.
+    logical :: verbose_ice_sheet_mask = .false.
 
     ! initialize
     ! Note: Ice-covered cells receive the initial color, and ice-free cells receive the boundary color.
@@ -950,7 +950,7 @@
     integer, dimension(nx,ny) ::  &
          color                   ! color variable for the fill
 
-    logical, parameter :: verbose_ocean_connection_mask = .false.
+    logical :: verbose_ocean_connection_mask = .false.
 
     ! initialize
     ! Note: Cells with input_mask = 1 receive the initial color, and other cells receive the boundary color.
@@ -1125,7 +1125,7 @@
     real(dp), parameter :: &
          ocean_topg_threshold = -500.d0   !> ocean threshold elevation (m) to seed the fill; negative below sea level
 
-    logical, parameter :: verbose_marine_connection = .false.
+    logical :: verbose_marine_connection = .false.
 
     ! Compute ocean_mask, which is used to seed the fill.
     ! If ocean_topg_threshold was passed in, then ocean_mask includes only cells
@@ -1354,7 +1354,7 @@
          global_count,         & ! global counter for filled values
          global_count_save       ! globalcounter for filled values from previous iteration
 
-    logical, parameter :: verbose_lake = .false.
+    logical :: verbose_lake = .false.
 
     integer :: ig, jg
 

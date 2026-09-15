@@ -69,7 +69,7 @@ module glissade
   implicit none
 
   integer, private, parameter :: dummyunit=99
-  logical, parameter :: verbose_glissade = .false.
+  logical :: verbose_glissade = .false.
 
   ! Change any of the following logical parameters to true to carry out simple tests
   logical, parameter :: test_transport = .false.    ! if true, call test_transport subroutine
