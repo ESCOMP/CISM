@@ -179,12 +179,11 @@ contains
     ! Note: global arrays are allocated in the subroutine
     call gather_var(load_factors, load_factors_global, parallel)
 
-    if (verbose_elastic) then
+    if (verbose_elastic .and. main_task) then
        if (sum(load_factors_global) > 0.0d0) then
-          write(iulog,*) 'my_task, sum(load_factors_global) =', &
-               this_rank, sum(load_factors_global)
+          write(iulog,*) 'my_task, sum(load_factors_global) =', this_rank, sum(load_factors_global)
        endif
-       if (main_task) write(iulog,*) 'Allocate load_factors_global'
+       write(iulog,*) 'Allocate load_factors_global'
     endif
 
     ! allocate load_factors_global on tasks other than main
@@ -202,7 +201,7 @@ contains
 
     if (sum(load_factors_global) == 0.0d0) then
        write(message,*) 'Error, calc_elastic, sum(load_factors_global) = 0, my_task =', this_rank
-       call write_log(message)
+       call write_log(message, GM_FATAL)
     endif
 
     if (verbose_elastic .and. main_task) then

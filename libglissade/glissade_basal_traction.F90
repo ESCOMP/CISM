@@ -85,11 +85,14 @@ contains
 
   ! subroutine to calculate map of beta sliding parameter, based on 
   ! user input ("whichbabc" flag, from config file as "which_ho_babc").
-   
+
   ! NOTE: Previously, the input arguments were assumed to be dimensionless
   ! and were rescaled in this routine.  Now the input arguments are
   ! assumed to have the units given below.
-     
+
+  !TODO: Determine whether beta should be limited to a max value, e.g. 1.d8.
+  !      Earlier comments suggested that very high values might be numerically unstable.
+
   use glimmer_physcon, only: gn, pi
   use glissade_grid_operators, only: glissade_stagger
 
@@ -148,7 +151,7 @@ contains
   real(dp) :: lambda_max        ! wavelength of bedrock bumps at subgrid scale (m)
   real(dp) :: m_max             ! maximum bed obstacle slope (unitless)
   real(dp) :: m                 ! exponent m in power law
-  real(dp) :: n                 ! exponent n in School law
+  real(dp) :: n                 ! exponent n in Schoof law
 
   integer, dimension(size(thck,1), size(thck,2)) :: &
        ice_or_land_mask,   & ! = 1 where ice_mask = 1 or land_mask = 1, else = 0       
@@ -159,7 +162,6 @@ contains
        flwa_basal_stag       ! basal flwa interpolated to the staggered grid (Pa^{-n} yr^{-1})
 
   ! stress variables for power laws and Coulomb laws
-  real(dp) :: taub           ! basal shear stress
   real(dp) :: tau_p          ! basal stress for power law (Pa)
   real(dp) :: tau_c          ! yield stress for pseudo-plastic law (Pa)
 
@@ -500,12 +502,6 @@ contains
           beta(:,:) = beta(:,:) * basal_physics%c_space_factor_stag(:,:)
        endif
 
-       ! Limit for numerical stability
-       !TODO - Is limiting needed? Commenting out for now
-!!       where (beta > 1.0d8)
-!!          beta = 1.0d8
-!!       end where
-
     case(HO_BABC_SCHOOF)
 
        ! Use the basal friction formulation of Schoof (2005), formulated following Asay-Davis et al. (2016).
@@ -564,12 +560,6 @@ contains
        if (maxval(abs(basal_physics%c_space_factor_stag(:,:) - 1.0d0)) > tiny(0.0d0)) then
           beta(:,:) = beta(:,:) * basal_physics%c_space_factor_stag(:,:)
        endif
-
-       ! Limit for numerical stability
-       !TODO - Is limiting needed? Commenting out for now
-!!       where (beta > 1.0d8)
-!!          beta = 1.0d8
-!!       end where
 
     case(HO_BABC_TSAI)
 

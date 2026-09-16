@@ -9549,17 +9549,6 @@
 
     if (verbose_residual) then
 
-       if (this_rank==rtest) then
-          i = itest
-          j = jtest
-          !WHL - Commenting out to reduce output
-!          call parallel_globalindex(i, j, iglobal, jglobal, parallel)
-!          write(iulog,*) ' '
-!          write(iulog,*) 'In compute_residual_vector_2d: test ig, jg =', iglobal, jglobal
-!          write(iulog, '(a15, 2f12.5, 2e13.5)') &
-!               '  u, v, ru, rv:', uvel(i,j), vvel(i,j), resid_u(i,j), resid_v(i,j)
-       endif
-
        ! Compute max value of (squared) residual on this task.
        ! If this task owns the vertex with the global max residual, then print a diagnostic message.
        resid_sq(:,:) = worku(:,:) + workv(:,:)

@@ -63,7 +63,6 @@ module glissade_bmlt_float
 
     ! prescribed MISOMIP parameters (from Table 4 of Asay-Davis et al.)
     real(dp), parameter :: &
-!         spec_heat_water = 3974.d0,  & ! specific heat of seawater (J/kg/deg)
          cpw = 3974.d0,              & ! specific heat of seawater (J/kg/deg)
          lambda1 = -0.0573d0,        & ! liquidus slope (deg/psu)
          lambda2 =  0.0832d0,        & ! liquidus intercept (deg C)
@@ -80,14 +79,6 @@ module glissade_bmlt_float
          f_coriolis = -1.405d-4        ! Coriolis parameter (s^-1) at 75 S = 2*omega*sin(75 deg) (prescribed in text)
          !WHL - Zero Coriolis to solve an easier problem
 !!        f_coriolis = 0.0d0            ! Coriolis parameter (s^-1) at 75 S = 2*omega*sin(75 deg) (prescribed in text)
-
-    ! prescribed ISMIP6 parameters
-    !TODO - use rhoi, rhoo and lhci from glimmer_physcon
-!    real(dp), parameter ::  &
-!         rhoi_ismip6 = 918.0d0,      & ! ice density (kg/m^3)
-!         rhosw_ismip6 = 1028.0d0,    & ! seawater density (kg/m^3)
-!         Lf_ismip6 = 3.34d5,         & ! latent heat of fusion (J/kg)
-!         cpw = 3974.d0                    ! specific heat of seawater (J/kg/K)
 
     ! Max and min allowed values for thermal forcing
     real(dp), parameter ::  &
@@ -904,6 +895,12 @@ module glissade_bmlt_float
     integer :: itest, jtest, rtest
     real(dp) :: factor
 
+    !TODO - Remove this factor.
+    !       It is here temporarily so that CISM will ignore some stray values
+    !        in ISMIP7 datasets used for model calibration.
+    real(dp), parameter :: &
+         temporary_ismip7_basin_factor = 30000.d0
+
     type(parallel_type) :: parallel   ! info for parallel communication
 
     ! set grid dimensions
@@ -987,7 +984,7 @@ module glissade_bmlt_float
        !  something is probably wrong.
 
        if (parallel_is_zero(model%ocean_data%thermal_forcing)) then
-          call write_log('thermal forcing = 0 everywhere, GM_WARNING')
+          call write_log('thermal forcing = 0 everywhere', GM_WARNING)
        endif
 
        ! Repeat for individual basins. If a basin has TF = 0 everywhere, then assume it has no valid values.
@@ -1005,7 +1002,7 @@ module glissade_bmlt_float
 !             write(iulog,*) 'nb, TF basin sum =', nb, tf_basin_sum(nb)
 !          endif
 !!          if (abs(tf_basin_sum(nb)) < eps11) then
-          if (abs(tf_basin_sum(nb)) < 30000.d0) then   ! temporary value to exclude basins 9, 11 and 15
+          if (abs(tf_basin_sum(nb)) < temporary_ismip7_basin_factor) then   ! temporary value to exclude basins 9, 11 and 15
              where (model%ocean_data%basin_number == nb)
                 model%ocean_data%deltaT_ocn = 0.0d0
              endwhere
@@ -1435,10 +1432,6 @@ module glissade_bmlt_float
     integer ::  &
          tf_anomaly_basin                 ! local version of tf_anomaly_basin_in
 
-    real(dp), parameter ::  &
-!!         H0_float = 50.d0                 ! thickness scale (m) for floating ice; used to reduce weights when H < H0_float
-         H0_float = 0.0d0                 ! thickness scale (m) for floating ice; used to reduce weights when H < H0_float
-
     integer, parameter :: &
          cavity_buffer = 0     ! distance from ice edge (measured in number of grid cells) over which ocean TF values
                                ! are discarded before starting TF extrapolation; must be <= nhalo
@@ -1643,21 +1636,6 @@ module glissade_bmlt_float
     if (bmlt_float_thermal_forcing_param == BMLT_FLOAT_TF_ISMIP6_LOCAL .or.  &
         bmlt_float_thermal_forcing_param == BMLT_FLOAT_TF_ISMIP6_NONLOCAL .or.  &
         bmlt_float_thermal_forcing_param == BMLT_FLOAT_TF_ISMIP6_NONLOCAL_SLOPE) then
-
-       !TODO - Remove the H0_float logic, which predates the subgrid CF parameterization.
-       !       For now it's simply commented out.
-!       ! Compute a weighting function that is proportional to the floating fraction of ice-filled cells,
-!       !  and also tapers linearly to zero for thin floating ice.
-!       ! This function is used to ensure smooth changes in the basin averages as cells
-!       !  transition between grounded and floating, or between ice-free and thick.
-!       f_float = 1.0d0 - f_ground_cell
-!       if (H0_float > 0.0d0) then
-!          where (thck > 0.0d0)
-!             f_float = f_float * min(thck/H0_float, 1.0d0)
-!          elsewhere
-!             f_float = 0.0d0
-!          endwhere
-!       endif
 
        ! Compute a weighting function that is proportional to the floating fraction of ice-filled cells
        !  and is zero for ice-free cells.
@@ -1885,19 +1863,6 @@ module glissade_bmlt_float
 
     if (verbose_bmlt_float) then
        call point_diag(bmlt_float*scyr, 'bmlt_float (m/yr)', itest, jtest, rtest, 7, 7)
-    endif
-
-    ! Reduce the melt rate in cells with thin floating ice,
-    !  to reflect that these cells are only partly ice-filled.
-    ! Note: This code gives bmlt_float = 0 in ice-free ocean cells,
-    !       giving ice a chance to accumulate.
-    !TODO - Is this needed?
-    if (H0_float > 0.0d0) then
-       where (f_ground_cell < 1.0d0)
-          bmlt_float = bmlt_float * min(thck/H0_float, 1.0d0)
-       elsewhere
-          bmlt_float = 0.0d0
-       endwhere
     endif
 
   end subroutine compute_bmlt_float_thermal_forcing
@@ -3360,7 +3325,6 @@ module glissade_bmlt_float
     ! prescribed parameters
 
     real(dp), parameter ::    &
-         cpo     = 3974.d0,   & ! specific heat of seawater (J/kg/K)
          gamma_t = 1.0d-4,    & ! thermal exchange velocity of ocean water (m/s)
          Fm      = 5.0d-3       ! dimensionless parameter for tuning purposes
 
@@ -3376,7 +3340,7 @@ module glissade_bmlt_float
        do i = 1, nx
           if (thermal_forcing_mask(i,j) == 1) then
              thermal_forcing = max(thermal_forcing_lsrf(i,j), 0.0d0)
-             bmlt_float(i,j) = rhoo * cpo * gamma_t * Fm * thermal_forcing**2 / (lhci * rhoi)
+             bmlt_float(i,j) = rhoo * cpw * gamma_t * Fm * thermal_forcing**2 / (lhci * rhoi)
           endif
        enddo
     enddo
@@ -4076,13 +4040,10 @@ module glissade_bmlt_float
              endif
              
              ! Given the melt rate, compute Sb and Tb
-!               S_basal(i,j) = (S_factor * entrainment(i,j) * S_ambient(i,j)) /  &
-!                               ( (bmlt_float(i,j) + S_factor) * (bmlt_float(i,j) + entrainment(i,j)) )
              S_basal(i,j) = (bmlt_float(i,j) - m2) / m1
              T_basal(i,j) = lambda1*S_basal(i,j) + lambda2 + lambda3*pressure(i,j)
 
              ! Given m, compute S and T for plume
-!             T_plume(i,j) = T_ambient(i,j) - (lhci/(spec_heat_water*entrainment(i,j))) * bmlt_float(i,j)
              T_plume(i,j) = T_ambient(i,j) - (lhci/(cpw*entrainment(i,j))) * bmlt_float(i,j)
              S_plume(i,j) = S_ambient(i,j) * entrainment(i,j) / (bmlt_float(i,j) + entrainment(i,j))
 

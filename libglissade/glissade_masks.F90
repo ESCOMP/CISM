@@ -366,7 +366,7 @@
          dusrf_dx,                   & ! ds/dx between adjacent cells near the MF
          dusrf_dx_cf,                & ! assumed max value of |ds/dx| at the CF for full cells
          usrf_effective,             & ! effective upper surface elevation
-         lsrf_effective,             & ! effective upper surface elevation
+         lsrf_effective,             & ! effective lower surface elevation
          usrf_max                      ! max allowed value of usrf_effective
 
     integer, dimension(nx,ny) :: &
@@ -558,14 +558,6 @@
                             usrf_neighbor = usrf(i,j+1)
                          endif
                          usrf_max = usrf_neighbor + max_dusrf_dx*distance
-
-                         ! compute usrf_effective implied by the current thck_effective
-                         if (topg(i,j) - eus < (-rhoi/rhoo) * thck_effective(i,j)) then  ! floating
-                            lsrf_effective = eus - (rhoi/rhoo)*thck_effective(i,j)
-                         else   ! grounded
-                            lsrf_effective = topg(i,j)
-                         endif
-                         usrf_effective = lsrf_effective + thck_effective(i,j)
 
                          ! if usrf_effective >  usrf_max, then reduce thck_effective and call the cell full
                          if (usrf_effective > usrf_max) then

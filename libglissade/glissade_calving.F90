@@ -696,11 +696,11 @@ contains
     !       Consider whether the following logic could go in the same subroutine, or if it is still needed.
 
     if (model%options%force_retreat == FORCE_RETREAT_ALL_ICE .and. .not.init_calving) then
-       if (this_rank == rtest) then
-          write(iulog,*) 'Forcing retreat using ice_fraction_retreat_mask, time =', model%numerics%time
-       endif
 
        if (verbose_retreat) then
+          if (this_rank == rtest) then
+             write(iulog,*) 'Forcing retreat using ice_fraction_retreat_mask, time =', model%numerics%time
+          endif
           call point_diag(model%geometry%thck, 'Before forced retreat, thck (m)', itest, jtest, rtest, 7, 7)
           call point_diag(model%geometry%ice_fraction_retreat_mask, 'ice_fraction_retreat_mask', &
                itest, jtest, rtest, 7, 7)
@@ -4069,7 +4069,7 @@ contains
                       if (new_thck < model%geometry%thck(i,j)) then
                          count = count + 1
                          dthck = model%geometry%thck(i,j) - new_thck
-                         if (iter > 1) then
+                         if (verbose_calving .and. iter > 1) then
                             write(iulog,*) ' iter 2: r, i, j, mask, thck, thck_eff, new_thck, dthck:', this_rank, i, j, &
                                  model%calving%subgrid_calving_mask(i,j), model%geometry%thck(i,j), &
                                  model%calving%thck_effective(i,j), new_thck, dthck

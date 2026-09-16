@@ -42,7 +42,7 @@ module glissade_lateral_melt
 
   public :: verbose_latmelt
 
-  logical :: verbose_latmelt = .true.
+  logical :: verbose_latmelt = .false.
 
 contains
 
@@ -374,7 +374,7 @@ contains
          dlayer,                 & ! layer thickness
          thermal_forcing_layer     ! thermal forcing in the layer
 
-    integer, dimension(0:nzocn) :: zbnd   ! depths of layer boundaries
+    real(dp), dimension(0:nzocn) :: zbnd   ! depths of layer boundaries
 
     if (ztop >= 0.0d0 .or. zbot >= 0.0d0) then
        call write_log('Error, average_thermal_forcing, ztop and zbot must be < 0', GM_FATAL)
@@ -400,7 +400,7 @@ contains
 
     ! Average the thermal forcing over the specified depth range
 
-    thermal_forcing_2d(i,j) = 0.0d0
+    thermal_forcing_2d = 0.0d0
 
     do k = 1, nzocn
        if (zbnd(k) < ztop .and. zbnd(k-1) > zbot) then   ! include this layer in the average
