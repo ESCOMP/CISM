@@ -836,8 +836,10 @@ contains
                 where (model%calving%subgrid_calving_mask > eps11) model%ocean_data%deltaT_ocn = 0.0d0
              endif
           endif
-          call point_diag(model%ocean_data%deltaT_ocn, 'deltaT_ocn after calving mask adjustment', &
-               itest, jtest, rtest, 7, 7)
+          if (verbose_inversion) then
+             call point_diag(model%ocean_data%deltaT_ocn, 'deltaT_ocn after calving mask adjustment', &
+                  itest, jtest, rtest, 7, 7)
+          endif
        endif
 
        call parallel_halo(model%ocean_data%deltaT_ocn, parallel)

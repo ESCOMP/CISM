@@ -548,13 +548,13 @@
 
                          ! (1) Limit the surface elevation gradient at the CF
                          ! First determine usrf for the thickest upstream neighbor
-                         if (max_neighbor_thck == thck(i-1,j)) then
+                         if (max_neighbor_thck == interior_mask(i-1,j)*thck(i-1,j)) then
                             usrf_neighbor = usrf(i-1,j)
-                         elseif (max_neighbor_thck == thck(i+1,j)) then
+                         elseif (max_neighbor_thck == interior_mask(i+1,j)*thck(i+1,j)) then
                             usrf_neighbor = usrf(i+1,j)
-                         elseif (max_neighbor_thck == thck(i,j-1)) then
+                         elseif (max_neighbor_thck == interior_mask(i,j-1)*thck(i,j-1)) then
                             usrf_neighbor = usrf(i,j-1)
-                         elseif (max_neighbor_thck == thck(i,j+1)) then
+                         elseif (max_neighbor_thck == interior_mask(i,j+1)*thck(i,j+1)) then
                             usrf_neighbor = usrf(i,j+1)
                          endif
                          usrf_max = usrf_neighbor + max_dusrf_dx*distance
@@ -563,7 +563,7 @@
                          if (usrf_effective > usrf_max) then
                             limit_count1 = limit_count1 + 1
                             usrf_effective = usrf_max
-                            thck_effective(i,j) = usrf_effective * rhoo/(rhoo-rhoi)  ! floating
+                            thck_effective(i,j) = (usrf_effective - eus)*rhoo/(rhoo-rhoi)  ! floating
                             thck_effective(i,j) = min(thck_effective(i,j), usrf_effective - topg(i,j))  ! ground if needed
                             partial_cf_mask(i,j) = 0
                             full_mask(i,j) = 1
@@ -576,7 +576,7 @@
                          if (usrf_effective > usrf(i,j) + max_dusrf) then
                             limit_count2 = limit_count2 + 1
                             usrf_effective = usrf(i,j) + max_dusrf
-                            thck_effective(i,j) = usrf_effective * rhoo/(rhoo-rhoi)  ! floating
+                            thck_effective(i,j) = (usrf_effective - eus)*rhoo/(rhoo-rhoi)  ! floating
                             thck_effective(i,j) = min(thck_effective(i,j), usrf_effective - topg(i,j))  ! ground if needed
                             partial_cf_mask(i,j) = 0
                             full_mask(i,j) = 1
