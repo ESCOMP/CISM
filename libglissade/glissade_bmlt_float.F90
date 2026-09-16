@@ -52,7 +52,8 @@ module glissade_bmlt_float
   public :: verbose_bmlt_float, glissade_basal_melting_float, &
        glissade_bmlt_float_init, glissade_bmlt_float_solve
 
-    logical :: verbose_bmlt_float = .false.
+!!    logical :: verbose_bmlt_float = .false.
+    logical :: verbose_bmlt_float = .true.
 
     logical :: verbose_velo = .false.
     logical :: verbose_continuity = .false.
@@ -1736,6 +1737,7 @@ module glissade_bmlt_float
                ocean_data%basin_number,              &
                ocean_data%gamma0,                    &
                ocean_data%thermal_forcing_basin_min, &
+               ocean_data%thermal_forcing_basin_max, &
                ocean_data%thermal_forcing_lsrf,      &
                theta_slope,                          &
                thermal_forcing_mask,                 &
@@ -1854,6 +1856,7 @@ module glissade_bmlt_float
             ocean_data%thermal_forcing_lsrf,      &
             ocean_data%deltaT_ocn,                &
             ocean_data%thermal_forcing_basin_min, &
+            ocean_data%thermal_forcing_basin_max, &
             theta_slope,                          &
             thermal_forcing_basin,                &
             thermal_forcing_mask,                 &
@@ -2644,6 +2647,7 @@ module glissade_bmlt_float
        thermal_forcing_lsrf,      &
        deltaT_ocn,                &
        thermal_forcing_basin_min, &
+       thermal_forcing_basin_max, &
        theta_slope,               &
        thermal_forcing_basin,     &
        thermal_forcing_mask,      &
@@ -2687,6 +2691,10 @@ module glissade_bmlt_float
     !       In the ISMIP6 dataset, the Ronne cavity has TF ~ 0.5 C near the GL; Filchner has TF ~0.3 C.
     real(dp), intent(in) :: &
          thermal_forcing_basin_min  !> min basin-scale TF; can be applied to nonlocal and nonlocal-slope schemes
+
+    !Note: thermal_forcing_basin_max is applied only if > 0. For the default value of 0, no limiting is applied.
+    real(dp), intent(in) :: &
+         thermal_forcing_basin_max  !> max basin-scale TF; can be applied to nonlocal and nonlocal-slope schemes
 
     real(dp), dimension(nbasin), intent(in) :: &
          thermal_forcing_basin    !> thermal forcing averaged over each basin (deg C)
@@ -2737,23 +2745,58 @@ module glissade_bmlt_float
           do i = 1, nx
              nb = basin_number(i,j)
              if (thermal_forcing_mask(i,j) == 1) then
+                ! compute the local thermal forcing
                 eff_thermal_forcing = thermal_forcing_lsrf(i,j) + deltaT_ocn(i,j)
-                eff_thermal_forcing_basin = max(thermal_forcing_basin_min, thermal_forcing_basin(nb))
+
+                ! compute the basin-scale thermal forcing. This is a proxy for the friction velocity,
+                ! which will be larger in warm basins. This includes the deltaT_ocn corrections.
+                eff_thermal_forcing_basin = thermal_forcing_basin(nb)
+
+                ! optionally, force the basin-scale thermal forcing to be nonzero in cold basins
+                if (thermal_forcing_basin_min > 0.0d0) then
+                   eff_thermal_forcing_basin = max(thermal_forcing_basin_min, eff_thermal_forcing_basin)
+                endif
+
+                ! optionally, limit the basin-scale thermal forcing in warm basins
+                if (thermal_forcing_basin_max > 0.0d0) then
+                   ! Apply a function which is approximately equal to thermal_forcing_basin(nb) for low
+                   !  to moderate thermal forcing, but smoothly asymptotes to thermal_forcing_basin_max
+                   !  for very warm basins.
+                   ! This reflects the fact that the friction velocity will not increase without limit
+                   !  as the basin warms, but will be limited by drag and other factors.
+                   eff_thermal_forcing_basin = thermal_forcing_basin_max *  &
+                        (1.0d0 - exp(-1.d0*eff_thermal_forcing_basin/thermal_forcing_basin_max))
+                endif
+
+                ! compute a  melt rate proportional to the product of the local and basin-scale forcing
                 bmlt_float(i,j) = coeff * eff_thermal_forcing * eff_thermal_forcing_basin
-             endif
-          enddo
-       enddo
+
+             endif   ! thermal_forcing_mask
+          enddo   ! i
+       enddo   ! j
 
     elseif (bmlt_float_thermal_forcing_param == BMLT_FLOAT_TF_ISMIP6_NONLOCAL_SLOPE) then
 
        ! same as nonlocal, but with larger gamma0, and multiplied by sin(theta_slope)
-
+       ! see comments above regarding thermal_forcing_basin_min and thermal_forcing_basin_max
        do j = 1, ny
           do i = 1, nx
              nb = basin_number(i,j)
              if (thermal_forcing_mask(i,j) == 1) then
+                ! local thermal forcing
                 eff_thermal_forcing = thermal_forcing_lsrf(i,j) + deltaT_ocn(i,j)
-                eff_thermal_forcing_basin = max(thermal_forcing_basin_min, thermal_forcing_basin(nb))
+
+                ! basin scale thermal forcing; this includes the deltaT_ocn corrections
+                eff_thermal_forcing_basin = thermal_forcing_basin(nb)
+                if (thermal_forcing_basin_min > 0.0d0) then
+                   eff_thermal_forcing_basin = max(thermal_forcing_basin_min, eff_thermal_forcing_basin)
+                endif
+                if (thermal_forcing_basin_max > 0.0d0) then
+                   eff_thermal_forcing_basin = thermal_forcing_basin_max *  &
+                        (1.0d0 - exp(-1.d0*eff_thermal_forcing_basin/thermal_forcing_basin_max))
+                endif
+
+                ! resulting melt
                 bmlt_float(i,j) = coeff * sin(theta_slope(i,j)) * eff_thermal_forcing * eff_thermal_forcing_basin
              endif
           enddo
@@ -2775,6 +2818,7 @@ module glissade_bmlt_float
        basin_number,              &
        gamma0,                    &
        thermal_forcing_basin_min, &
+       thermal_forcing_basin_max, &
        thermal_forcing_lsrf,      &
        theta_slope,               &
        thermal_forcing_mask,      &
@@ -2819,8 +2863,10 @@ module glissade_bmlt_float
          gamma0                   !> basal melt rate coefficient (m/yr)
 
     real(dp), intent(in) :: &
-         thermal_forcing_basin_min  !> min basin-scale TF; can be applied to nonlocal and nonlocal-slope schemes
-                                    !> default = 0.; this means the basin-scale thermal forcing can vanish in cold basins
+         thermal_forcing_basin_min, &!> min basin-scale TF; can be applied to nonlocal and nonlocal-slope schemes
+                                     !> default = 0.; this means the basin-scale thermal forcing can vanish in cold basins
+         thermal_forcing_basin_max   !> min basin-scale TF; can be applied to nonlocal and nonlocal-slope schemes
+                                     !> limiting is applied only if > 0; no limiting for the default value of 0.
 
     integer, dimension(nx,ny), intent(in) :: &
          thermal_forcing_mask     !> = 1 where TF-driven bmlt_float can be > 0
@@ -2933,6 +2979,7 @@ module glissade_bmlt_float
             thermal_forcing_lsrf,      &
             deltaT_ocn,                &
             thermal_forcing_basin_min, &
+            thermal_forcing_basin_max, &
             theta_slope,               &
             thermal_forcing_basin,     &
             thermal_forcing_mask,      &

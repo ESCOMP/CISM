@@ -1973,7 +1973,9 @@ module glide_types
           zocn => null()                            !> ocean levels (m) where forcing is provided, negative below sea level
  
      real(dp) :: gamma0 = 0.d0                      !> coefficient relating sub-shelf melt rates to thermal forcing (m/yr)
-     real(dp) :: thermal_forcing_basin_min = 0.0d0  !> min value of thermal_forcing_basin (deg K) applied to nonlocal and nonlocal-slope schemes
+     real(dp) :: thermal_forcing_basin_min = 0.0d0  !> min value of thermal_forcing_basin (deg K) for nonlocal and nonlocal-slope schemes
+     real(dp) :: thermal_forcing_basin_max = 0.0d0  !> max value of thermal_forcing_basin (deg K) for nonlocal and nonlocal-slope schemes
+                                                    !> for the default value of 0.0, no upper limit is applied
 
      ! fields read from input or forcing files
 

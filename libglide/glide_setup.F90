@@ -2387,6 +2387,7 @@ contains
     ! ocean data parameters
     call GetValue(section, 'gamma0', model%ocean_data%gamma0)
     call GetValue(section, 'thermal_forcing_basin_min', model%ocean_data%thermal_forcing_basin_min)
+    call GetValue(section, 'thermal_forcing_basin_max', model%ocean_data%thermal_forcing_basin_max)
     call GetValue(section, 'thermal_forcing_anomaly', model%ocean_data%thermal_forcing_anomaly)
     call GetValue(section, 'thermal_forcing_anomaly_tstart', model%ocean_data%thermal_forcing_anomaly_tstart)
     call GetValue(section, 'thermal_forcing_anomaly_timescale', model%ocean_data%thermal_forcing_anomaly_timescale)
@@ -2995,6 +2996,10 @@ contains
         model%options%bmlt_float_thermal_forcing_param == BMLT_FLOAT_TF_ISMIP6_NONLOCAL_SLOPE) then
        if (model%ocean_data%thermal_forcing_basin_min > 0.0d0) then
           write(message,*) 'TF_basin_min for nonlocal basal melt (deg C) : ', model%ocean_data%thermal_forcing_basin_min
+          call write_log(message)
+       endif
+       if (model%ocean_data%thermal_forcing_basin_max > 0.0d0) then
+          write(message,*) 'TF_basin_max for nonlocal basal melt (deg C) : ', model%ocean_data%thermal_forcing_basin_max
           call write_log(message)
        endif
     endif   ! nonlocal melt schemes
