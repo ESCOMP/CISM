@@ -1,6 +1,6 @@
 !+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 !                                                             
-!   isostasy_elastic.F90 - part of the Community Ice Sheet Model (CISM)  
+!   glissade_isostasy_elastic.F90 - part of the Community Ice Sheet Model (CISM)  
 !                                                              
 !+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 !
@@ -24,43 +24,39 @@
 !
 !+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 
-#ifdef HAVE_CONFIG_H
-#include "config.inc"
-#endif
+module glissade_isostasy_elastic
 
-module isostasy_elastic
-
-  !> handle elastic lithosphere
-
-  !> NOTE: The elastic lithosphere calculation is done on a single task.
-  !>       For parallel runs, data are gathered onto the main task for the computation,
-  !>        then scattered back to local processors.
-  !>       This procedure is manageable on a 4 km mesh, but may be too expensive and/or
-  !>        memory-intensive at higher resolutions. A more scalable approach is a priority
-  !>        for future development.
+  ! Code for an elastic lithosphere; typically combined with a relaxing asthenosphere
+  !  Notes:
+  !  * This module is based on the isostasy_elastic module from the old Glide code.
+  !    It was copied to libglissade, renamed and restructured in July 2026.
+  !  * The elastic lithosphere calculation is done on a single task.
+  !    When running in parallel runs, data are gathered onto the main task for the computation,
+  !    then scattered back to local processors.
+  !    This procedure does not scale well, although is is manageable on a 4 km mesh as long as
+  !    the update is done at a frequency of once every few decades or less.
 
   use glimmer_global, only : dp
   use glimmer_paramets, only: iulog
   use glide_types, only: isos_elastic
-  use glimmer_utils, only: point_diag
+  use glimmer_log
 
   implicit none
 
-  real(dp), private, parameter :: r_lr = 6.d0   ! influence of disk load at (0,0) is felt within a radius of r_lr*rbel_r
+  private
+  public :: glissade_init_elastic, glissade_calc_elastic
 
-  private :: init_rbel, rbel_ow, rbel_iw
-
-  logical, parameter :: verbose_elastic = .true.
+  logical :: verbose_elastic = .false.  ! if true, print diagnostic messages
 
 !-------------------------------------------------------------------------
 
 contains
 
 !-------------------------------------------------------------------------
-  
-  subroutine init_elastic(rbel, deltax)
 
-    !> initialise elastic lithosphere calculations
+  subroutine glissade_init_elastic(rbel, deltax)
+
+    !> initialize elastic lithosphere calculations
 
     use glimmer_physcon, only : pi
     implicit none
@@ -72,6 +68,8 @@ contains
     real(dp) :: a     ! radius of disk
     real(dp) :: r     ! distance from centre
     integer :: i,j
+
+    real(dp), parameter :: r_lr = 6.0d0   ! influence of disk load at (0,0) is felt within a radius of r_lr*rbel_r
 
     ! calculate a so that a circle of radius a is equivalent to a square with size deltax
     a = deltax/sqrt(pi)
@@ -121,50 +119,46 @@ contains
     close(1)
 #endif
 
-  end subroutine init_elastic
+  end subroutine glissade_init_elastic
 
 !-------------------------------------------------------------------------
 
-  subroutine calc_elastic(&
-       rbel,  load_factors,  load,  &
-       parallel,                    &
-       idiag, jdiag,                &
-       idiag_local, jdiag_local, rdiag_local)
+  subroutine glissade_calc_elastic(&
+       rbel,                 &
+       load_factors,         &
+       load,                 &
+       parallel)
 
-    !> Calculate surface loading effect using elastic lithosphere approximation.
-    !> Functionally equivalent to subroutine calc_elastic from Glimmer's original isostasy model.
-    !> The main difference is that this subroutine uses a global gather and scatter to compute
-    !>  the load for simulations on more than one task.
+    !> Calculate surface loading using an elastic lithosphere approximation.
+    !> The results match those of subroutine calc_elastic in the older Glide isostasy model.
+    !> The main difference is that this subroutine uses a global gather and broadcast
+    !  to enable each task to compute the load for locally owned cells only.
 
-    use cism_parallel, only: this_rank, main_task, &
-         parallel_type, gather_var, scatter_var, parallel_halo
+    use cism_parallel, only: this_rank, main_task, nhalo, parallel_type, &
+         gather_var, broadcast, parallel_halo, parallel_globalindex
 
     implicit none
 
+    ! input-output arguments
     type(isos_elastic) :: rbel                             !> structure holding elastic litho data
     real(dp), dimension(:,:), intent(in)  :: load_factors  !> load mass divided by mantle density
     real(dp), dimension(:,:), intent(out) :: load          !> loading effect due to load_factors
 
     type(parallel_type), intent(in) :: parallel            !> info for parallel communication
 
-    ! The following are needed only for diagnostic prints
-    integer, intent(in) :: &
-         idiag, jdiag                              !> global coordinates of diagnostic point
-    integer, intent(in) :: &
-         idiag_local, jdiag_local, rdiag_local     !> local coordinates of diagnostic point
-
     ! local variables
 
-    integer :: ewn, nsn    !> grid dimensions on the local task; includes halo cells
-    integer :: global_ewn, global_nsn     !> global grid dimensions
+    integer :: ewn, nsn                   ! grid dimensions on the local task; includes halo cells
+    integer :: global_ewn, global_nsn     ! global grid dimensions
 
     integer :: i, j, n, m
+    integer :: ig, jg                     ! global indices
 
     real(dp), dimension(:,:), allocatable :: &
          load_global,             & !> global version of the output 'load' array
          load_factors_global        !> global version of the input 'load_factors' array
 
-    real(dp) :: local_sum_load, global_sum_load   !> diagnostic sums
+    character(len=100) :: message
 
     ! initialize
 
@@ -173,10 +167,10 @@ contains
     global_ewn = parallel%global_ewn
     global_nsn = parallel%global_nsn
 
-    load(:,:) = 0.0d0
+    load = 0.0d0
 
     if (verbose_elastic .and. main_task) then
-       write(iulog,*) 'ISOSTASY: calc_elastic'
+       write(iulog,*) 'In glissade_calc_elastic'
        write(iulog,*) 'local ewn/nsn =', ewn, nsn
        write(iulog,*) 'global_ewn/nsn =', global_ewn, global_nsn
     endif
@@ -185,74 +179,68 @@ contains
     ! Note: global arrays are allocated in the subroutine
     call gather_var(load_factors, load_factors_global, parallel)
 
-    allocate(load_global(global_ewn,global_nsn))
-    load_global(:,:) = 0.0d0
+    if (verbose_elastic .and. main_task) then
+       if (sum(load_factors_global) > 0.0d0) then
+          write(iulog,*) 'my_task, sum(load_factors_global) =', this_rank, sum(load_factors_global)
+       endif
+       write(iulog,*) 'Allocate load_factors_global'
+    endif
 
-    if (main_task) then
-       do j = 1, global_nsn
-
-          if (verbose_elastic .and. main_task) then
-             if (mod(j,100) == 0) write(iulog,*) 'j =', j   ! to see how fast the calculation is going
-          endif
-          
-          do i = 1, global_ewn
-
-             ! Compute load terms by summing over cells in the radius of influence
-             do n = max(1,j-rbel%wsize), min(global_nsn,j+rbel%wsize)
-                do m = max(1,i-rbel%wsize), min(global_ewn,i+rbel%wsize)
-                   load_global(i,j) = load_global(i,j) + load_factors_global(m,n) * rbel%w(abs(m-i),abs(n-j))
-                end do
-             end do
-
-          end do  ! i
-       end do  ! j
-    endif  ! main_task
-
-    ! Scatter the load values back to local arrays
-    ! Note: The global array is deallocated in the subroutine
-    call scatter_var(load, load_global, parallel)
-
-    ! scatter_var does not update the halo, so do an update here
-    call parallel_halo(load, parallel)
-
-    ! Deallocate the other global array (which is intent(in) and does not need to be scattered)
-    deallocate(load_factors_global)
+    ! allocate load_factors_global on tasks other than main
+    if (.not.main_task) then
+       if (allocated(load_factors_global)) deallocate(load_factors_global)
+       allocate(load_factors_global(global_ewn,global_nsn))
+    endif
 
     if (verbose_elastic .and. main_task) then
+       write(iulog,*) 'Broadcast load_factors_global to each task'
+    endif
 
-       ! print value at diagnostic point
-       if (this_rank==rdiag_local) then
-          i = idiag_local
-          j = jdiag_local
-          write(iulog,*) 'ISOSTASY: r, i, j, load:', rdiag_local, i, j, load(i,j)
-       endif
+    ! broadcast load_factors_global from main_task to all processors
+    call broadcast(load_factors_global)
 
-    endif  ! verbose_elastic
+    if (sum(load_factors_global) == 0.0d0) then
+       write(message,*) 'Error, calc_elastic, sum(load_factors_global) = 0, my_task =', this_rank
+       call write_log(message, GM_FATAL)
+    endif
 
-  end subroutine calc_elastic
+    if (verbose_elastic .and. main_task) then
+       write(iulog,*) 'Compute load locally on each task'
+    endif
+
+    ! loop over locally owned cells
+    do j = nhalo+1, nsn-nhalo
+       do i = nhalo+1, ewn-nhalo
+          call parallel_globalindex(i, j, ig, jg, parallel)
+
+          ! Compute load terms by summing over cells in the radius of influence
+          do n = max(1,jg-rbel%wsize), min(global_nsn,jg+rbel%wsize)
+             do m = max(1,ig-rbel%wsize), min(global_ewn,ig+rbel%wsize)
+                load(i,j) = load(i,j) + load_factors_global(m,n) * rbel%w(abs(m-ig),abs(n-jg))
+             end do   ! m
+          end do   ! n
+
+       enddo   ! i
+    enddo   ! j
+
+    ! update halo cells
+    call parallel_halo(load, parallel)
+
+    ! deallocate global arrays
+    deallocate(load_factors_global)
+
+  end subroutine glissade_calc_elastic
 
 !-------------------------------------------------------------------------
-
-  subroutine finalise_elastic(rbel)
-    !> clean-up data structure
-    implicit none
-    type(isos_elastic) :: rbel     !> structure holding elastic litho data    
-
-    deallocate(rbel%w)
-  end subroutine finalise_elastic
-
-!-------------------------------------------------------------------------
-
-  !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-  ! private subroutines
-  !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 
   subroutine init_rbel(rbel, a)
 
-    !> initialise elastic lithosphere calculations
-    use glimmer_physcon, only: rhom,grav
-    use isostasy_kelvin
+    !> initialize elastic lithosphere calculations
+
+    use glimmer_physcon, only: rhom, grav
+    use glissade_isostasy_kelvin, only: set_kelvin, dker, dkei, dber, dbei
     implicit none
+
     type(isos_elastic) :: rbel        !> structure holding elastic litho data
     real(dp), intent(in) :: a         !> radius of disk
 
@@ -275,31 +263,38 @@ contains
 !-------------------------------------------------------------------------
 
   function rbel_ow(rbel,r)
-    use isostasy_kelvin
-    !> calculating deflection outside disk
+
+    use glissade_isostasy_kelvin, only: ker, kei
+
+    !> calculate deflection outside disk
+
     implicit none
     real(dp) :: rbel_ow
     real(dp), intent(in) :: r          !> radius, r should be scaled with lr
     type(isos_elastic) :: rbel     !> structure holding elastic litho data
     
     rbel_ow = rbel%cd3*ker(r) + rbel%cd4*kei(r)
+
   end function rbel_ow
 
 !-------------------------------------------------------------------------
 
   function rbel_iw(rbel,r)
-    use isostasy_kelvin
-    !> calculating deflection inside disk
+
+    use glissade_isostasy_kelvin, only: ber, bei
+
+    !> calculate deflection inside disk
     implicit none
     real(dp) :: rbel_iw
     real(dp), intent(in) :: r          !> radius, r should be scaled with lr
     type(isos_elastic) :: rbel         !> structure holding elastic litho data
     
     rbel_iw = 1.d0 + rbel%c1*ber(r) + rbel%c2*bei(r)
+
   end function rbel_iw
 
 !-------------------------------------------------------------------------
 
-end module isostasy_elastic
+end module glissade_isostasy_elastic
 
 !-------------------------------------------------------------------------

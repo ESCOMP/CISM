@@ -31,10 +31,10 @@
 module glissade_utils
 
   use glimmer_global, only: dp
-  use glimmer_paramets, only: iulog
+  use glimmer_paramets, only: iulog, eps11, eps08
   use glimmer_log
   use glide_types
-  use cism_parallel, only: this_rank, main_task
+  use cism_parallel, only: this_rank, main_task, nhalo
 
   implicit none
 
@@ -44,7 +44,9 @@ module glissade_utils
        glissade_basin_sum, glissade_basin_average, &
        glissade_usrf_to_thck, glissade_thck_to_usrf, &
        glissade_edge_fluxes, glissade_input_fluxes, &
-       glissade_rms_error, write_array_to_file
+       glissade_rms_error, write_array_to_file, &
+       glissade_handle_ice_caps,  &
+       glissade_cleanup_tiny_thickness, glissade_cleanup_icefree_cells
 
   interface write_array_to_file
      module procedure write_array_to_file_real8_2d
@@ -52,6 +54,12 @@ module glissade_utils
   end interface
 
 contains
+
+  !TODO - Move some of these subroutines to glissade_diagnostics.
+  !       It's a bit arbitrary whether to call something a diagnostic subroutine
+  !        or a utility subroutine, but in general, the utility subroutines
+  !        carry out operations that affect the ice state or update state variables,
+  !        while the diagnostic subroutines compute other quantities desired for I/O.
 
 !****************************************************************************
 
@@ -89,7 +97,7 @@ contains
     ! owned by rdiag_local
     integer :: itest_m3, itest_p3, jtest_m3, jtest_p3
 
-    logical, parameter :: verbose_adjust_thickness = .true.
+    logical :: verbose_adjust_thickness = .true.
 
     ! Copy some model variables to local variables
 
@@ -152,9 +160,9 @@ contains
     ! This can be useful if the input thickness and topography are inconsistent,
     !  such that their sum has large gradients.
 
-    use glide_thck, only: glide_calclsrf
     use glissade_masks, only: glissade_get_masks
     use glissade_grid_operators, only: glissade_laplacian_smoother
+    use glimmer_utils, only: calc_lsrf_usrf
     use cism_parallel, only: parallel_halo
 
     !----------------------------------------------------------------
@@ -183,8 +191,7 @@ contains
     integer :: nx, ny
     integer :: itest, jtest, rtest
 
-!    logical, parameter :: verbose_smooth_usrf = .false.
-    logical, parameter :: verbose_smooth_usrf = .true.
+    logical :: verbose_smooth_usrf = .false.
 
     ! Initialize
 
@@ -208,9 +215,13 @@ contains
        jtest = model%numerics%jdiag_local
     endif
 
-    ! compute the initial upper surface elevation
-    call glide_calclsrf(model%geometry%thck, model%geometry%topg, model%climate%eus, model%geometry%lsrf)
-    model%geometry%usrf = max(0.d0, model%geometry%thck + model%geometry%lsrf)
+    ! compute the initial surface elevation
+    call calc_lsrf_usrf(&
+         model%geometry%thck,  &
+         model%geometry%topg,  &
+         model%climate%eus,    &
+         model%geometry%lsrf,  &
+         model%geometry%usrf)
 
     ! Save input fields
     topg = (model%geometry%topg - model%climate%eus)
@@ -279,9 +290,9 @@ contains
     !        when the topography is smoothed. Is it better to preserve thickness, or to
     !        increase thickness to keep the ice grounded?
 
-    use glide_thck, only: glide_calclsrf
     use glissade_masks, only: glissade_get_masks
     use glissade_grid_operators, only: glissade_laplacian_smoother
+    use glimmer_utils, only: calc_lsrf_usrf
 
     !----------------------------------------------------------------
     ! Input-output arguments
@@ -306,7 +317,7 @@ contains
     ! owned by rdiag_local
     integer :: itest_m3, itest_p3, jtest_m3, jtest_p3
 
-    logical, parameter :: verbose_smooth_topg = .false.
+    logical :: verbose_smooth_topg = .false.
 
     ! Copy some model variables to local variables
 
@@ -327,8 +338,12 @@ contains
     endif
 
     ! compute the initial upper surface elevation (to be held fixed under smoothing of bed topography)
-    call glide_calclsrf(model%geometry%thck, model%geometry%topg, model%climate%eus, model%geometry%lsrf)
-    model%geometry%usrf = max(0.d0, model%geometry%thck + model%geometry%lsrf)
+    call calc_lsrf_usrf(&
+         model%geometry%thck,  &
+         model%geometry%topg,  &
+         model%climate%eus,    &
+         model%geometry%lsrf,  &
+         model%geometry%usrf)
 
     ! compute initial mask
     ! Modify glissade_get_masks so that 'parallel' is not needed
@@ -362,10 +377,6 @@ contains
        model%geometry%thck = model%geometry%usrf - model%geometry%topg
     endwhere
 
-    !WHL - usrf for debugging only
-    call glide_calclsrf(model%geometry%thck, model%geometry%topg, model%climate%eus, model%geometry%lsrf)
-    model%geometry%usrf = max(0.d0, model%geometry%thck + model%geometry%lsrf)
-
   end subroutine glissade_smooth_topography
 
 !****************************************************************************
@@ -378,7 +389,7 @@ contains
     ! Note: So far, this subroutine has been used to raise eastern Thwaites topography.
     !       It has not been used to lower topography.
 
-    use glide_thck, only: glide_calclsrf  ! TODO - Make this a glissade subroutine (e.g., in this module)
+    use glimmer_utils, only: calc_lsrf_usrf
 
     !----------------------------------------------------------------
     ! Input-output arguments
@@ -416,7 +427,7 @@ contains
          topg_max_adjust, &   ! elevation (m) beyond which there is full adjustment (by topg_delta)
          topg_delta           ! max change in topography (m); can be either sign
 
-    logical, parameter :: verbose_adjust_topg = .true.
+    logical :: verbose_adjust_topg = .false.
 
     ! Copy some model variables to local variables
 
@@ -458,8 +469,12 @@ contains
     endif
 
     ! Compute the lower and upper ice surface before the adjustment
-    call glide_calclsrf(model%geometry%thck, model%geometry%topg, model%climate%eus, model%geometry%lsrf)
-    model%geometry%usrf = max(0.d0, model%geometry%thck + model%geometry%lsrf)
+    call calc_lsrf_usrf(&
+         model%geometry%thck,  &
+         model%geometry%topg,  &
+         model%climate%eus,    &
+         model%geometry%lsrf,  &
+         model%geometry%usrf)
 
     !TODO - Use model%geometry%topg - model%climate%eus?
     allocate(topg(model%general%ewn, model%general%nsn))
@@ -531,7 +546,7 @@ contains
        field_basin_sum)
 
     ! For a given 2D input field, compute the sum over a basin.
-    ! The sum is taken over grid cells with mask = 1.
+    ! The sum is taken over grid cells with nonzero values of rmask.
     ! All cells are weighted equally.
 
     use cism_parallel, only: parallel_global_sum_patch
@@ -548,16 +563,15 @@ contains
     integer, dimension(nx,ny), intent(in) :: &
          basin_number              !> basin ID for each grid cell
 
-    ! Note: For the next two fields, the dimension can be either (nx,ny) or (nx-1,ny-1)
-    real(dp), dimension(:,:), intent(in) :: &
+    real(dp), dimension(nx,ny), intent(in) :: &
          rmask,                 &  !> real mask for weighting the input field
          field_2d                  !> input field to be averaged over basins
 
     real(dp), dimension(nbasin), intent(out) :: &
          field_basin_sum           !> basin-sum output field
 
-    !TODO - Replace sumcell with sumarea, and pass in cell area.
-    !       Current algorithm assumes all cells with mask = 1 have equal weight.
+    !TODO - Weight rmask by cell area?
+    !       Current algorithm gives equal weight to all cells.
 
     field_basin_sum = parallel_global_sum_patch(rmask*field_2d, nbasin, basin_number, parallel)
 
@@ -573,8 +587,8 @@ contains
        field_2d,                    &
        field_basin_avg)
 
-    ! For a given 2D input field, compute the average over a basin.
-    ! The average is taken over grid cells with mask = 1.
+    ! For a given 2D input field, compute the average over each basin.
+    ! The average is taken over grid cells with nonzero values of rmask.
     ! All cells are weighted equally.
     ! Note: This subroutine assumes an input field located at cell centers
 
@@ -592,8 +606,7 @@ contains
     integer, dimension(nx,ny), intent(in) :: &
          basin_number              !> basin ID for each grid cell
 
-    ! Note: For the next two fields, the dimension can be either (nx,ny) or (nx-1,ny-1)
-    real(dp), dimension(:,:), intent(in) :: &
+    real(dp), dimension(nx,ny), intent(in) :: &
          rmask,                  & !> real mask for weighting the value in each cell
          field_2d                  !> input field to be averaged over basins
 
@@ -603,9 +616,6 @@ contains
     ! local variables
 
     integer :: nb
-
-    !TODO - Replace sumcell with sumarea, and pass in cell area.
-    !       Current algorithm assumes all cells with mask = 1 have equal weight.
 
     real(dp), dimension(nbasin) ::  &
          summask_global,         & ! sum of mask in each basin on full domain
@@ -766,8 +776,6 @@ contains
         uvel,      vvel,      &
         flux_e,    flux_n)
 
-    use cism_parallel, only: nhalo
-
     ! Compute ice volume fluxes across each cell edge
 
     ! input/output arguments
@@ -792,7 +800,7 @@ contains
 
     integer :: i, j
     real(dp) :: thck_edge, u_edge, v_edge
-    logical, parameter :: verbose_edge_fluxes = .false.
+    logical :: verbose_edge_fluxes = .false.
 
     ! loop over locally owned edges
     do j = nhalo+1, ny-nhalo
@@ -825,6 +833,7 @@ contains
   subroutine glissade_input_fluxes(&
         nx,      ny,            &
         dew,     dns,           &
+        dt,                     &
         itest,   jtest,  rtest, &
         thck,                   &
         uvel,    vvel,          &
@@ -832,7 +841,7 @@ contains
         parallel)
 
     use glimmer_physcon, only: scyr
-    use cism_parallel, only: nhalo, parallel_halo, staggered_parallel_halo
+    use cism_parallel, only: parallel_halo, staggered_parallel_halo
 
     ! Compute ice volume fluxes into a cell from each neighboring cell
 
@@ -843,7 +852,8 @@ contains
          itest, jtest, rtest
 
     real(dp), intent(in) :: &
-         dew, dns                 ! cell edge lengths in EW and NS directions (m)
+         dew, dns,              & ! cell edge lengths in EW and NS directions (m)
+         dt                       ! timestep (s)
 
     real(dp), dimension(nx,ny), intent(in) :: &
          thck                     ! ice thickness (m) at cell centers
@@ -852,7 +862,7 @@ contains
          uvel, vvel               ! vertical mean velocity (m/s) at cell corners
 
     real(dp), dimension(-1:1,-1:1,nx,ny), intent(out) :: &
-         flux_in                  ! ice volume fluxes (m^3/yr) into cell from each neighbor cell
+         flux_in                  ! ice volume fluxes (m^3/s) into cell from each neighbor cell
 
     type(parallel_type), intent(in) :: parallel   ! info for parallel communication
 
@@ -868,7 +878,7 @@ contains
          area_w, area_s, area_e, area_n,   & ! area flux from each neighbor cell
          area_sw, area_se, area_ne, area_nw
 
-    logical, parameter :: verbose_input_fluxes = .false.
+    logical :: verbose_input_fluxes = .false.
 
     ! halo updates for thickness and velocity
 
@@ -887,28 +897,39 @@ contains
        do i = nhalo+1, nx-nhalo
 
           ! Compute the upwind velocity components at each vertex
-          ! Convert from m/s to m/yr for diagnostics
-          u_sw = max( uvel(i-1,j-1), 0.0d0)*scyr
-          v_sw = max( vvel(i-1,j-1), 0.0d0)*scyr
-          u_se = max(-uvel(i,j-1),   0.0d0)*scyr
-          v_se = max( vvel(i,j-1),   0.0d0)*scyr
-          u_ne = max(-uvel(i,j),     0.0d0)*scyr
-          v_ne = max(-vvel(i,j),     0.0d0)*scyr
-          u_nw = max( uvel(i-1,j),   0.0d0)*scyr
-          v_nw = max(-vvel(i-1,j),   0.0d0)*scyr
+          u_sw = uvel(i-1,j-1)
+          v_sw = vvel(i-1,j-1)
+          u_se = uvel(i,j-1)
+          v_se = vvel(i,j-1)
+          u_ne = uvel(i,j)
+          v_ne = vvel(i,j)
+          u_nw = uvel(i-1,j)
+          v_nw = vvel(i-1,j)
 
-          ! Estimate the area fluxes from each edge neighbor
-          area_w = 0.5d0*(u_nw + u_sw)*dns - 0.5d0*(u_nw*v_nw + u_sw*v_sw)
-          area_s = 0.5d0*(v_sw + v_se)*dew - 0.5d0*(u_sw*v_sw + u_se*v_se)
-          area_e = 0.5d0*(u_se + u_ne)*dns - 0.5d0*(u_se*v_se + u_ne*v_ne)
-          area_n = 0.5d0*(v_ne + v_nw)*dew - 0.5d0*(u_ne*v_ne + u_nw*v_nw)
+          ! Estimate the area fluxes (m^2/s) into this cells from each edge neighbor
+          ! Note: The first line on the RHS accounts for the velocity component
+          !        perpendicular to the edge; this is a rectangle area.
+          !       The next two lines are corrections proportional to the velocity
+          !        component parallel to the edge; these are triangle areas.
+          area_w = 0.5d0*(max( u_nw,0.0d0) + max( u_sw,0.0d0))*dns   &
+                 - 0.5d0* max( u_nw,0.0d0) * max( v_nw,0.0d0)*dt     &
+                 - 0.5d0* max( u_sw,0.0d0) * max(-v_sw,0.0d0)*dt
+          area_s = 0.5d0*(max( v_sw,0.0d0) + max( v_se,0.0d0))*dew   &
+                 - 0.5d0* max(-u_sw,0.0d0) * max( v_sw,0.0d0)*dt     &
+                 - 0.5d0* max( u_se,0.0d0) * max( v_se,0.0d0)*dt
+          area_e = 0.5d0*(max(-u_se,0.0d0) + max(-u_ne,0.0d0))*dns   &
+                 - 0.5d0* max(-u_se,0.0d0) * max(-v_se,0.0d0)*dt     &
+                 - 0.5d0* max(-u_ne,0.0d0) * max( v_ne,0.0d0)*dt
+          area_n = 0.5d0*(max(-v_ne,0.0d0) + max(-v_nw,0.0d0))*dew   &
+                 - 0.5d0* max( u_ne,0.0d0) * max(-v_ne,0.0d0)*dt     &
+                 - 0.5d0* max(-u_nw,0.0d0) * max(-v_nw,0.0d0)*dt
 
-          ! Estimate the area fluxes from each diagonal neighbor
-          ! Note: The sum is equal to the sum of the terms subtracted from the edge areas above
-          area_sw = u_sw*v_sw
-          area_se = u_se*v_se
-          area_ne = u_ne*v_ne
-          area_nw = u_nw*v_nw
+          ! Estimate the area fluxes (m^2/s) from each diagonal neighbor.
+          ! These are rectangle areas.
+          area_sw = max( u_sw,0.0d0)*max( v_sw,0.0d0)*dt
+          area_se = max(-u_se,0.0d0)*max( v_se,0.0d0)*dt
+          area_ne = max(-u_ne,0.0d0)*max(-v_ne,0.0d0)*dt
+          area_nw = max( u_nw,0.0d0)*max(-v_nw,0.0d0)*dt
 
           ! Estimate the volume fluxes from each edge neighbor
           flux_in(-1, 0,i,j) = area_w * thck(i-1,j)
@@ -925,22 +946,35 @@ contains
           if (verbose_input_fluxes .and. this_rank == rtest .and. i==itest .and. j==jtest) then
              write(iulog,*) ' '
              write(iulog,*) 'upstream u (m/yr), this_rank, i, j:'
-             write(iulog,'(3e12.4)') u_nw, u_ne
-             write(iulog,'(3e12.4)') u_sw, u_se
+             write(iulog,'(3f18.12)') u_nw*scyr, u_ne*scyr
+             write(iulog,'(3f18.12)') u_sw*scyr, u_se*scyr
              write(iulog,*) ' '
              write(iulog,*) 'upstream v (m/yr):'
-             write(iulog,'(3e12.4)') v_nw, v_ne
-             write(iulog,'(3e12.4)') v_sw, v_se
+             write(iulog,'(3f18.12)') v_nw*scyr, v_ne*scyr
+             write(iulog,'(3f18.12)') v_sw*scyr, v_se*scyr
              write(iulog,*) ' '
-             write(iulog,*) 'Input area fluxes (m^2/yr):'
-             write(iulog,'(3e12.4)') area_nw, area_n, area_ne
-             write(iulog,'(3e12.4)') area_w,  0.0d0, area_e
-             write(iulog,'(3e12.4)') area_sw, area_s, area_se
+             write(iulog,*) 'Input area fluxes (km^2/yr):'
+             write(iulog,'(3f18.12)') area_nw*scyr/1.0d6, area_n*scyr/1.0d6, area_ne*scyr/1.0d6
+             write(iulog,'(3f18.12)') area_w *scyr/1.0d6,       0.0d0,       area_e *scyr/1.0d6
+             write(iulog,'(3f18.12)') area_sw*scyr/1.0d6, area_s*scyr/1.0d6, area_se*scyr/1.0d6
+             write(iulog,*) 'Total =', &
+                  (area_w + area_s + area_e + area_n + area_sw + area_se + area_ne + area_nw)*scyr/1.0d6
              write(iulog,*) ' '
-             write(iulog,*) 'Input ice volume fluxes (m^3/yr):'
+             write(iulog,*) 'Estimated edge area fluxes:'
+             area_w = 0.5d0*(max( u_nw,0.0d0) + max( u_sw,0.0d0))*dns
+             area_s = 0.5d0*(max( v_sw,0.0d0) + max( v_se,0.0d0))*dew
+             area_e = 0.5d0*(max(-u_se,0.0d0) + max(-u_ne,0.0d0))*dns
+             area_n = 0.5d0*(max(-v_ne,0.0d0) + max(-v_nw,0.0d0))*dew
+             write(iulog,*) 'area_w =', area_w*scyr/1.0e6
+             write(iulog,*) 'area_s =', area_s*scyr/1.0e6
+             write(iulog,*) 'area_e =', area_e*scyr/1.0e6
+             write(iulog,*) 'area_n =', area_n*scyr/1.0e6
+             write(iulog,*) 'Total =', (area_w + area_s + area_e + area_n)*scyr/1.0d6
+             write(iulog,*) ' '
+             write(iulog,*) 'Input ice volume fluxes (km^3/yr):'
              do jj = 1,-1,-1
                 do ii = -1,1
-                   write(iulog,'(e12.4)',advance='no') flux_in(ii,jj,i,j)
+                   write(iulog,'(f15.8)',advance='no') flux_in(ii,jj,i,j)*scyr/1.0d9
                 enddo
                 write(iulog,*) ' '
              enddo
@@ -949,14 +983,15 @@ contains
        enddo   ! i
     enddo   ! j
 
-    do j = -1, 1
-       do i = -1, 1
-          call parallel_halo(flux_in, parallel)
+    do jj = -1, 1
+       do ii = -1, 1
+          call parallel_halo(flux_in(ii,jj,:,:), parallel)
        enddo
     enddo
 
   end subroutine glissade_input_fluxes
 
+!***********************************************************************
 
   ! subroutines belonging to the write_array_to_file interface
   subroutine write_array_to_file_real8_2d(arr, fileunit, filename, parallel, write_binary)
@@ -1101,10 +1136,227 @@ contains
 
   end subroutine write_array_to_file_real8_3d
 
-!****************************************************************************
+!=======================================================================
 
-!TODO - Other utility subroutines to add here?
-!       E.g., calclsrf; subroutines to zero out tracers
+  subroutine glissade_handle_ice_caps(model)
+
+    ! Identify ice caps, defined as cells disconnected from the main ice sheet.
+    ! If model%options%remove_ice_caps = T, then this subroutine removes them.
+
+    use glissade_masks, only: glissade_get_masks, glissade_ice_sheet_mask
+    use cism_parallel, only: parallel_halo, parallel_global_sum, parallel_globalindex, parallel_reduce_max
+
+    !----------------------------------------------------------------
+    ! Input-output arguments
+    !----------------------------------------------------------------
+
+    type(glide_global_type), intent(inout) :: model   ! derived type holding ice-sheet info
+
+    ! local variables
+
+    integer, dimension(model%general%ewn, model%general%nsn) :: &
+         ice_mask           ! = 1 where ice is present, else = 0
+
+    integer :: i, j, ig, jg
+    integer :: nx, ny
+    integer :: itest, jtest, rtest
+    type(parallel_type) :: parallel
+    integer :: ice_cap_count
+    real(dp) :: max_ice_cap_thck
+
+    logical :: verbose_ice_caps = .false.
+
+    ! Copy some model variables to local variables
+
+    nx = model%general%ewn
+    ny = model%general%nsn
+
+    rtest = -999
+    itest = 1
+    jtest = 1
+    if (this_rank == model%numerics%rdiag_local) then
+       rtest = model%numerics%rdiag_local
+       itest = model%numerics%idiag_local
+       jtest = model%numerics%jdiag_local
+    endif
+
+    parallel = model%parallel
+
+    call parallel_halo(model%geometry%thck, parallel)
+
+    call glissade_get_masks(&
+         nx,                  ny,                    &
+         parallel,                                   &
+         model%geometry%thck, model%geometry%topg,   &
+         model%climate%eus,   model%numerics%thklim, &
+         ice_mask)
+
+    call glissade_ice_sheet_mask(&
+         nx,                ny,         &
+         parallel,                      &
+         itest,    jtest,   rtest,      &
+         ice_mask,                      &
+         model%geometry%thck,           &
+         model%geometry%ice_sheet_mask, &
+         model%geometry%ice_cap_mask)
+
+    call parallel_halo(model%geometry%ice_cap_mask, parallel)
+
+    ! optional ice cap diagnostics
+
+    if (verbose_ice_caps) then
+       ice_cap_count = parallel_global_sum(model%geometry%ice_cap_mask, parallel)
+       if (main_task) write(iulog,*) 'Ice cap removal: no. of cells =', ice_cap_count
+       max_ice_cap_thck = maxval(model%geometry%thck * model%geometry%ice_cap_mask)
+       max_ice_cap_thck = parallel_reduce_max(max_ice_cap_thck)
+       if (max_ice_cap_thck > 0.0d0) then
+          do j = nhalo+1, ny - nhalo
+             do i = nhalo+1, nx - nhalo
+                if (abs(model%geometry%thck(i,j) - max_ice_cap_thck) < eps11) then
+                   call parallel_globalindex(i, j, ig, jg, parallel)
+                   write(iulog,*) 'ig, jg, max ice cap H:', ig, jg, max_ice_cap_thck
+                endif
+             enddo
+          enddo
+       endif
+    endif
+
+    ! Optionally, remove ice caps and add them to the removal flux.
+    ! Note: The ice cap mask is not updated after removal.  So if the mask is written to output,
+    !       it will show where ice caps existed before removal.
+
+    if (model%options%remove_ice_caps) then
+       where (model%geometry%ice_cap_mask == 1)
+          model%geometry%removal_thck = model%geometry%removal_thck + model%geometry%thck
+          model%geometry%thck = 0.0d0
+       endwhere
+    endif
+
+  end subroutine glissade_handle_ice_caps
+
+!=======================================================================
+
+  subroutine glissade_cleanup_tiny_thickness(model, tiny_thck)
+
+    ! Remove ice from cells with very small thickness, including small negative thickness.
+    ! This ice goes into the removal_thck flux.
+
+    use cism_parallel, only: parallel_halo, parallel_globalindex
+
+    type(glide_global_type), intent(inout) :: model   ! model instance
+    real(dp), intent(in) :: tiny_thck    ! zero out where thck < tiny_thck
+
+    integer :: nx, ny
+    integer :: i, j, ig, jg
+
+    type(parallel_type) :: parallel   ! info for parallel communication
+
+    character(len=100) :: message
+
+    logical :: verbose_cleanup = .false.
+
+    nx = model%general%ewn
+    ny = model%general%nsn
+
+    parallel = model%parallel
+
+    ! Remove very thin ice and add to the removal flux.
+    ! This includes tiny negative thicknesses, which can arise due to calving roundoff errors.
+    !  As a result, the removal flux can be slightly negative.
+
+    if (verbose_cleanup) then  ! write out negative thicknesses before cleanup
+       do j = nhalo+1, ny-nhalo
+          do i = nhalo+1, nx-nhalo
+             if (model%geometry%thck(i,j) < 0.0d0) then
+                call parallel_globalindex(i, j, ig, jg, parallel)
+                write(iulog,*) 'Negative thickness: i, j, thck =', ig, jg, model%geometry%thck(i,j)
+             endif
+          enddo
+       enddo
+    endif
+
+    do j = nhalo+1, ny-nhalo
+       do i = nhalo+1, nx-nhalo
+          ! Discard tiny thicknesses, positive or negative
+          if (model%geometry%thck(i,j) /= 0.0d0 .and. abs(model%geometry%thck(i,j)) < tiny_thck) then
+             model%geometry%removal_thck(i,j) = model%geometry%removal_thck(i,j) + model%geometry%thck(i,j)
+             model%geometry%thck(i,j) = 0.0d0
+          endif
+          ! Abort if there are any remaining negative thicknesses
+          if (model%geometry%thck(i,j) <= (-1.0d0)*tiny_thck) then
+             call parallel_globalindex(i, j, ig, jg, parallel)
+             write(message,*) 'Negative thickness: i, j, thck =', ig, jg, model%geometry%thck(i,j)
+             call write_log(message, GM_FATAL)
+          endif
+       enddo
+    enddo
+
+    ! Update the ice thickness in halo cells
+    call parallel_halo(model%geometry%thck, parallel)
+
+  end subroutine glissade_cleanup_tiny_thickness
+
+!=======================================================================
+
+  subroutine glissade_cleanup_icefree_cells(model)
+
+    ! Clean up prognostic variables in ice-free cells.
+    ! This means seting most tracers to zero (or min(artm,0) for the case of temperature).
+
+    use cism_parallel, only: parallel_halo
+
+    type(glide_global_type), intent(inout) :: model   ! model instance
+
+    integer :: nx, ny
+    integer :: i, j
+
+    type(parallel_type) :: parallel   ! info for parallel communication
+
+    nx = model%general%ewn
+    ny = model%general%nsn
+
+    parallel = model%parallel
+
+    ! Make sure the ice thickness is updated in halo cells
+    call parallel_halo(model%geometry%thck, parallel)
+
+    ! Set prognostic variables in ice-free columns to default values (usually zero).
+    do j = 1, ny
+       do i = 1, nx
+
+          if (model%geometry%thck_old(i,j) > 0.0d0 .and. model%geometry%thck(i,j) == 0.0d0) then
+
+             ! basal water
+             model%basal_hydro%bwat(i,j) = 0.0d0
+
+             ! thermal variables
+             if (model%options%whichtemp == TEMP_INIT_ZERO) then
+                model%temper%temp(:,i,j) = 0.0d0
+             else
+                model%temper%temp(:,i,j) = min(model%climate%artm(i,j), 0.0d0)
+             endif
+
+             if (model%options%whichtemp == TEMP_ENTHALPY) then
+                model%temper%waterfrac(:,i,j) = 0.0d0
+             endif
+
+             ! other tracers
+             ! Note: Tracers should be added here as they are added to the model
+
+             if (model%options%whichcalving == CALVING_DAMAGE) then
+                model%calving%damage(:,i,j) = 0.0d0
+             endif
+
+             if (model%options%which_ho_ice_age == HO_ICE_AGE_COMPUTE) then
+                model%geometry%ice_age(:,i,j) = 0.0d0
+             endif
+
+          endif    ! thck = 0
+
+       enddo
+    enddo
+
+  end subroutine glissade_cleanup_icefree_cells
 
 !****************************************************************************
 

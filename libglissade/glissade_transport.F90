@@ -63,7 +63,7 @@
     logical, parameter ::     &
          conservation_check = .true. ! if true, check global conservation
 
-    logical, parameter :: verbose_ice_age = .false.
+    logical :: verbose_ice_age = .false.
 
 !=======================================================================
 

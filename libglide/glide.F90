@@ -281,7 +281,7 @@ contains
     ! Initialise isostasy first
     call init_isostasy(model)
 
-    select case(model%isostasy%whichrelaxed)
+    select case(model%isostasy%which_relaxed)
 
     case(RELAXED_TOPO_INPUT)   ! Supplied input topography is relaxed
 

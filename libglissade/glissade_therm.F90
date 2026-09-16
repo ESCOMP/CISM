@@ -73,7 +73,7 @@ module glissade_therm
          mintemp_threshold = -100.d0
 
     ! local parameter for debugging
-    logical, parameter:: verbose_therm = .false.  ! set to true for diagnostic column output
+    logical :: verbose_therm = .false.  ! set to true for diagnostic column output
 
   contains
 

@@ -25,7 +25,7 @@
 !+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 
 !TODO - Calculations of iarea, iareaf and areag in calc_iareaf_iareag() and glide_set_mask() could be replaced by values computed here.  
-!       These could be saved to the model derived type (model%geometry%iarea, etc.) for output.
+!       These could be saved to the scalars derived type (model%scalars%iarea, etc.) for output.
 
 module glide_diagnostics
 
@@ -39,8 +39,8 @@ module glide_diagnostics
   use cism_parallel, only: this_rank, main_task, lhalo, uhalo, nhalo, &
        parallel_type, broadcast, &
        parallel_localindex, parallel_globalindex, &
-       parallel_global_sum, parallel_reduce_max, &
-       parallel_reduce_maxloc, parallel_reduce_minloc, &
+       parallel_global_sum, parallel_global_sum_patch, &
+       parallel_reduce_max, parallel_reduce_maxloc, parallel_reduce_minloc, &
        parallel_is_zero
 
   implicit none
@@ -187,18 +187,27 @@ contains
          tot_area_float,                &    ! total area of floating ice (m^2)
          area_cell,                     &    ! cell area
          tot_volume,                    &    ! total ice volume (m^3)
+         tot_volume_above_flotation,    &    ! total ice volume above flotation (m^3)
          tot_mass,                      &    ! total ice mass (kg)
          tot_mass_above_flotation,      &    ! total ice mass above flotation (kg)
+         tot_area_ice_caps,             &    ! total area of disconnected ice caps (m^2)
+         tot_vol_ice_caps,              &    ! total volume of disconnected ice caps (m^3)
+         tot_bmlt_float,                &    ! total basal melt rate for floating ice (kg/s)
+         tot_bmlt_float_target,         &    ! total target basal melt rate for floating ice (kg/s)
          thck_floating,                 &    ! thickness of floating ice
          thck_above_flotation,          &    ! thickness above flotation
          tot_energy,                    &    ! total ice energy (J)
          tot_smb_flux,                  &    ! total surface mass balance flux (kg/s)
          tot_bmb_flux,                  &    ! total basal mass balance flux (kg/s)
          tot_calving_flux,              &    ! total calving flux (kg/s)
+         tot_latmelt_flux,              &    ! total latmelt flux (kg/s)
+         tot_removal_flux,              &    ! total removal flux (kg/s)
          tot_gl_flux,                   &    ! total grounding line flux (kg/s)
          tot_acab,                      &    ! total surface accumulation/ablation rate (m^3/yr)
          tot_bmlt,                      &    ! total basal melt rate (m^3/yr)
          tot_calving,                   &    ! total calving rate (m^3/yr)
+         tot_latmelt,                   &    ! total lateral melt rate (m^3/yr)
+         tot_removal,                   &    ! total removal rate (m^3/yr)
          tot_dmass_dt,                  &    ! rate of change of total mass (kg/s)
          err_dmass_dt,                  &    ! mass conservation error (kg/s)
                                              ! given by dmass_dt - (tot_acab - tot_bmlt - tot_calving)
@@ -207,6 +216,8 @@ contains
          mean_acab,                     &    ! mean surface accumulation/ablation rate (m/yr)
          mean_bmlt,                     &    ! mean basal melt (m/yr)
          mean_calving,                  &    ! mean calving (m/yr)
+         mean_latmelt,                  &    ! mean latmelt (m/yr)
+         mean_removal,                  &    ! mean removal (m/yr)
          max_thck, max_thck_global,     &    ! max ice thickness (m)
          max_temp, max_temp_global,     &    ! max ice temperature (deg C)
          min_temp, min_temp_global,     &    ! min ice temperature (deg C)
@@ -232,6 +243,7 @@ contains
          ice_mask,                 & ! = 1 where ice is present with thck > minthck, else = 0
          floating_mask,            & ! = 1 where ice is present and floating, else = 0
          grounded_mask,            & ! = 1 where ice is present and grounded, else = 0
+         ice_cap_mask,             & ! = 1 where an ice cap is present, else = 0
          glacier_ice_mask            ! = 1 where glacier ice is present, initially and/or currently
 
     integer, dimension(model%general%ewn-1,model%general%nsn-1) ::  &
@@ -263,7 +275,7 @@ contains
          count_area, count_volume               ! number of glaciers with nonzero area and volume
 
     integer :: &
-         i, j, k, ng,                       &
+         i, j, k, nb, ng,                   &
          ktop, kbed,                        &
          imax, imin,                        &
          jmax, jmin,                        &
@@ -277,8 +289,8 @@ contains
          velo_ew_ubound, velo_ns_ubound          ! upper bounds for velocity variables
 
     real(dp), dimension(model%general%ewn, model%general%nsn) ::  &
-         mass_above_flotation,& ! ice mass above flotation (kg)
-         thck_obs               ! observed ice thickness (m), derived from usrf_obs and topg
+         volume_above_flotation,& ! ice volue above flotation (m^3)
+         thck_obs                 ! observed ice thickness (m), derived from usrf_obs and topg
 
     real(dp), dimension(model%general%ewn-1, model%general%nsn-1) ::  &
          velo_sfc               ! surface ice speed (m/s)
@@ -371,6 +383,8 @@ contains
        enddo
     enddo
 
+    ice_cap_mask = model%geometry%ice_cap_mask
+
     !-----------------------------------------------------------------
     ! Compute and write global diagnostics
     !-----------------------------------------------------------------
@@ -392,22 +406,35 @@ contains
     ! total ice mass (kg)
     tot_mass = tot_volume * rhoi
 
-    ! total ice mass above flotation (kg)
-    mass_above_flotation = 0.0d0
+    ! total ice volume above flotation (m^3)
+    volume_above_flotation = 0.0d0
     do j = 1, nsn
        do i = 1, ewn
           if (ice_mask(i,j) == 1 .and. floating_mask(i,j) == 0) then
              if (model%geometry%topg(i,j) - model%climate%eus < 0.0d0) then  ! grounded below sea level
                 thck_floating = (-rhoo/rhoi) * (model%geometry%topg(i,j) - model%climate%eus)  ! exactly floating
-                mass_above_flotation(i,j) = (model%geometry%thck(i,j) - thck_floating) * cell_area(i,j)
+                volume_above_flotation(i,j) = (model%geometry%thck(i,j) - thck_floating) * cell_area(i,j)
              else   ! grounded above sea level
-                mass_above_flotation(i,j) = model%geometry%thck(i,j) * cell_area(i,j)
+                volume_above_flotation(i,j) = model%geometry%thck(i,j) * cell_area(i,j)
              endif
           endif
        enddo
     enddo
-    mass_above_flotation = mass_above_flotation * rhoi   ! convert from m^3 to kg
-    tot_mass_above_flotation = parallel_global_sum(mass_above_flotation, parallel)
+
+    tot_volume_above_flotation = parallel_global_sum(volume_above_flotation, parallel)
+
+    ! total ice mass above flotation (kg)
+    tot_mass_above_flotation = tot_volume_above_flotation * rhoi
+
+    ! ice cap area and volume
+    tot_area_ice_caps = parallel_global_sum(cell_area, parallel, ice_cap_mask)
+    tot_vol_ice_caps = parallel_global_sum(model%geometry%thck*cell_area, parallel, ice_cap_mask)
+
+    ! basal melting for floating ice (kg/s)
+    tot_bmlt_float = &
+         parallel_global_sum(model%basal_melt%bmlt_float*rhoi*cell_area, parallel)
+    tot_bmlt_float_target = &
+         parallel_global_sum(model%basal_melt%bmlt_float_target*rhoi*cell_area, parallel)
 
     ! total ice energy relative to T = 0 deg C (J)
     local_energy = 0.0d0
@@ -462,15 +489,67 @@ contains
        mean_temp = 0.d0
     endif
  
-    ! copy some global scalars to the geometry derived type
-    ! Note: These have SI units (e.g, m^2 for area, m^3 for volume)
+    ! copy some global scalars to the scalars derived type
+    ! Note: These have SI units (e.g, m^2 for area, m^3 for volume, kg/s for melt rates)
 
-    model%geometry%iarea  = tot_area
-    model%geometry%iareag = tot_area_ground
-    model%geometry%iareaf = tot_area_float
-    model%geometry%ivol   = tot_volume
-    model%geometry%imass  = tot_mass
-    model%geometry%imass_above_flotation  = tot_mass_above_flotation
+    model%scalars%iarea  = tot_area
+    model%scalars%iareag = tot_area_ground
+    model%scalars%iareaf = tot_area_float
+    model%scalars%ivol   = tot_volume
+    model%scalars%ivol_above_flotation = tot_volume_above_flotation
+    model%scalars%imass  = tot_mass
+    model%scalars%imass_above_flotation = tot_mass_above_flotation
+    model%scalars%icap_area  = tot_area_ice_caps
+    model%scalars%icap_vol  = tot_vol_ice_caps
+    model%scalars%total_bmlt_float = tot_bmlt_float
+    model%scalars%total_bmlt_float_target = tot_bmlt_float_target
+
+    ! Optionally, compute some basin-scale scalars, also written to the scalars derived type
+
+    if (model%ocean_data%nbasin > 1) then
+       model%scalars%iarea_basin(:)  = &
+            parallel_global_sum_patch(cell_area*ice_mask, model%ocean_data%nbasin, model%ocean_data%basin_number, parallel)
+       model%scalars%iareag_basin(:) = &
+            parallel_global_sum_patch(cell_area*grounded_mask, model%ocean_data%nbasin, model%ocean_data%basin_number, parallel)
+       model%scalars%iareaf_basin(:) = &
+            parallel_global_sum_patch(cell_area*floating_mask, model%ocean_data%nbasin, model%ocean_data%basin_number, parallel)
+       model%scalars%ivol_basin(:)   = &
+            parallel_global_sum_patch(cell_area*ice_mask*model%geometry%thck, model%ocean_data%nbasin, model%ocean_data%basin_number, parallel)
+       model%scalars%ivol_above_flotation_basin(:) = &
+            parallel_global_sum_patch(volume_above_flotation, model%ocean_data%nbasin, model%ocean_data%basin_number, parallel)
+       model%scalars%imass_basin(:) = model%scalars%ivol_basin(:)*rhoi
+       model%scalars%imass_above_flotation_basin(:) = model%scalars%ivol_above_flotation_basin(:)*rhoi
+       model%scalars%icap_area_basin(:)  = &
+            parallel_global_sum_patch(cell_area*ice_cap_mask, model%ocean_data%nbasin, model%ocean_data%basin_number, parallel)
+       model%scalars%icap_vol_basin(:)  = &
+            parallel_global_sum_patch(cell_area*ice_cap_mask*model%geometry%thck, &
+            model%ocean_data%nbasin, model%ocean_data%basin_number, parallel)
+       model%scalars%bmlt_float_basin(:)  = &
+            parallel_global_sum_patch(model%basal_melt%bmlt_float*rhoi*cell_area, &
+            model%ocean_data%nbasin, model%ocean_data%basin_number, parallel)
+       model%scalars%bmlt_float_target_basin(:)  = &
+            parallel_global_sum_patch(model%basal_melt%bmlt_float_target*rhoi*cell_area, &
+            model%ocean_data%nbasin, model%ocean_data%basin_number, parallel)
+
+       ! Optionally, write output to a specific basin with an applied thermal forcing anomaly
+       if (main_task) then
+          nb = model%ocean_data%thermal_forcing_anomaly_basin
+          if (nb >= 1 .and. nb <= model%ocean_data%nbasin) then
+             write(iulog,*) 'Diagnostics for basin', nb
+             write(iulog,*) 'iarea, iareag, iareaf (km^2):', &
+                  model%scalars%iarea_basin(nb)/1.0d6, model%scalars%iareag_basin(nb)/1.0d6, model%scalars%iareaf_basin(nb)/1.0d6
+             write(iulog,*) 'ivol, ivol_above_flotation (km^3):', &
+                  model%scalars%ivol_basin(nb)/1.0d9, model%scalars%ivol_above_flotation_basin(nb)/1.0d9
+             write(iulog,*) 'imass, imass_above_flotation (Gt):', &
+                  model%scalars%imass_basin(nb)/1.0d12, model%scalars%imass_above_flotation_basin(nb)/1.0d12
+             if (.not.model%options%remove_ice_caps)  then
+                write(iulog,*) '   ice cap area (km^2):', model%scalars%icap_area_basin(nb)/1.0d6
+                write(iulog,*) '   ice cap vol  (km^3):', model%scalars%icap_vol_basin(nb)/1.0d9
+             endif
+          endif
+       endif
+
+    endif   ! nbasin > 1
 
     ! For Glissade only, compute a global mass budget and check mass conservation
 
@@ -514,18 +593,47 @@ contains
        tot_calving_flux = -tot_calving * rhoi / scyr   ! convert m^3/yr to kg/s
 
        ! mean calving rate (m/yr)
-       ! Note: This will be only approximate if some ice has melted completely during the time step
+       ! Note: This will be only approximate if some ice has calved completely during the time step
        if (tot_area > eps) then
           mean_calving = tot_calving/tot_area    ! divide by total area to get m/yr
        else
           mean_calving = 0.d0
        endif
 
+       ! total lateral melt rate (m^3/yr ice)
+       ! Note: lateral_melt%melt_rate has units of m/yr ice
+       tot_latmelt = parallel_global_sum(model%lateral_melt%melt_rate*cell_area, parallel)
+
+       ! total lateral melt mass balance flux (kg/s, negative for ice loss by melting)
+       tot_latmelt_flux = -tot_latmelt * rhoi / scyr   ! convert m^3/yr to kg/s
+
+       ! mean lateral melt rate (m/yr)
+       ! Note: This will be only approximate if some ice has melted completely during the time step
+       if (tot_area > eps) then
+          mean_latmelt = tot_latmelt/tot_area    ! divide by total area to get m/yr
+       else
+          mean_latmelt = 0.d0
+       endif
+
+       ! total ice removal rate (m^3/yr ice)
+       ! Note: geometry%removal_rate has units of m/yr ice
+       tot_removal = parallel_global_sum(model%geometry%removal_rate*cell_area, parallel)
+
+       ! total removal mass balance flux (kg/s, negative for ice removed)
+       tot_removal_flux = -tot_removal * rhoi / scyr   ! convert m^3/yr to kg/s
+
+       ! mean removal rate (m/yr)
+       if (tot_area > eps) then
+          mean_removal = tot_removal/tot_area    ! divide by total area to get m/yr
+       else
+          mean_removal = 0.d0
+       endif
+
        ! total grounding line mass balance flux (< 0 by definition)
        ! Note: At this point, gl_flux_east and gl_flux_north are already dimensionalized in kg/m/s,
        !       so tot_gl_flux will have units of kg/s
-       tot_gl_flux = parallel_global_sum(abs(model%geometry%gl_flux_east)  * model%numerics%dns  &
-                                       + abs(model%geometry%gl_flux_north) * model%numerics%dew, &
+       tot_gl_flux = parallel_global_sum(abs(model%mass_flux%gl_flux_east)  * model%numerics%dns  &
+                                       + abs(model%mass_flux%gl_flux_north) * model%numerics%dew, &
                                        parallel)
        tot_gl_flux = (-1.0d0)*tot_gl_flux   ! negative by definition
 
@@ -541,22 +649,21 @@ contains
        ! mass conservation error
        ! Note: For most runs, this should be close to zero.
 
-       err_dmass_dt = tot_dmass_dt - (tot_smb_flux + tot_bmb_flux + tot_calving_flux)
+       err_dmass_dt = tot_dmass_dt - &
+            (tot_smb_flux + tot_bmb_flux + tot_calving_flux + tot_latmelt_flux + tot_removal_flux)
 
-       ! uncomment to convert total fluxes from kg/s to Gt/yr
-!!!    tot_smb_flux = tot_smb_flux * scyr/1.0d12
-!!!    tot_bmb_flux = tot_bmb_flux * scyr/1.0d12
-!!!    tot_calving_flux = tot_calving_flux * scyr/1.0d12
-!!!    tot_gl_flux = tot_gl_flux * scyr/1.0d12
-!!!    tot_dmass_dt = tot_dmass_dt * scyr/1.0d12
-!!!    err_dmass_dt = err_dmass_dt * scyr/1.0d12
-
-       ! copy some global scalars to the geometry derived type
+       ! copy some global scalars to the mass_flux derived type
        ! Note: These have SI units (e.g, m^2 for area, m^3 for volume)
-       model%geometry%total_smb_flux = tot_smb_flux
-       model%geometry%total_bmb_flux = tot_bmb_flux
-       model%geometry%total_calving_flux = tot_calving_flux
-       model%geometry%total_gl_flux = tot_gl_flux
+       model%mass_flux%total_smb_flux = tot_smb_flux
+       model%mass_flux%total_bmb_flux = tot_bmb_flux
+       model%mass_flux%total_calving_flux = tot_calving_flux
+       model%mass_flux%total_latmelt_flux = tot_latmelt_flux
+       model%mass_flux%total_removal_flux = tot_removal_flux
+
+       ! Note: The total mass budget consists of the five terms above.
+       !       The GL flux is not part of the mass budget, since any ice fluxed across the GL
+       !        is not added or lost, but simply changes from grounded to floating.
+       model%mass_flux%total_gl_flux = tot_gl_flux
 
     endif  ! Glissade dycore
 
@@ -608,6 +715,15 @@ contains
 
     endif  ! dm_dt_diag
 
+    if (.not.model%options%remove_ice_caps .and. .not.model%options%enable_glaciers) then
+       write(message,'(a25,e24.16)') 'Ice cap area (km^2)       ',   &
+                                      tot_area_ice_caps*1.0d-6  ! convert to km^2
+       call write_log(trim(message), type = GM_DIAGNOSTIC)
+       write(message,'(a25,e24.16)') 'Ice cap volume (km^3)     ',   &
+                                      tot_vol_ice_caps*1.0d-9   ! convert to km^3
+       call write_log(trim(message), type = GM_DIAGNOSTIC)
+    endif
+
     if (model%options%whichdycore == DYCORE_GLISSADE) then
 
        if (model%options%dm_dt_diag == DM_DT_DIAG_KG_S) then
@@ -620,6 +736,26 @@ contains
 
           write(message,'(a25,e24.16)') 'Total calving flux (kg/s)', tot_calving_flux
           call write_log(trim(message), type = GM_DIAGNOSTIC)
+
+          if (abs(tot_latmelt_flux) > eps11) then
+             write(message,'(a25,e24.16)') 'Total latmelt flux (kg/s)', tot_latmelt_flux
+             call write_log(trim(message), type = GM_DIAGNOSTIC)
+          endif
+
+          if (abs(tot_removal_flux) > eps11) then
+             write(message,'(a25,e24.16)') 'Total removal flux (kg/s)', tot_removal_flux
+             call write_log(trim(message), type = GM_DIAGNOSTIC)
+          endif
+
+          if (tot_bmlt_float > eps11) then
+             write(message,'(a25,e24.16)') 'Total bmlt_float (kg/s)  ', tot_bmlt_float
+             call write_log(trim(message), type = GM_DIAGNOSTIC)
+          endif
+
+          if (tot_bmlt_float_target > eps11) then
+             write(message,'(a25,e24.16)') 'Target bmlt_float (kg/s)', tot_bmlt_float_target
+             call write_log(trim(message), type = GM_DIAGNOSTIC)
+          endif
 
           write(message,'(a25,e24.16)') 'Total dmass/dt (kg/s)    ', tot_dmass_dt
           call write_log(trim(message), type = GM_DIAGNOSTIC)
@@ -643,6 +779,26 @@ contains
           write(message,'(a25,e24.16)') 'Total calving flux (Gt/y)', tot_calving_flux * factor
           call write_log(trim(message), type = GM_DIAGNOSTIC)
 
+          if (abs(tot_latmelt_flux) > eps11) then
+             write(message,'(a25,e24.16)') 'Total latmelt flux (Gt/y)', tot_latmelt_flux * factor
+             call write_log(trim(message), type = GM_DIAGNOSTIC)
+          endif
+
+          if (abs(tot_removal_flux) > eps11) then
+             write(message,'(a25,e24.16)') 'Total removal flux (Gt/y)', tot_removal_flux * factor
+             call write_log(trim(message), type = GM_DIAGNOSTIC)
+          endif
+
+          if (tot_bmlt_float > eps11) then
+             write(message,'(a25,e24.16)') 'Total bmlt_float (Gt/y)  ', tot_bmlt_float * factor
+             call write_log(trim(message), type = GM_DIAGNOSTIC)
+          endif
+
+          if (tot_bmlt_float_target > eps11) then
+             write(message,'(a25,e24.16)') 'Target bmlt_float (Gt/y) ', tot_bmlt_float_target * factor
+             call write_log(trim(message), type = GM_DIAGNOSTIC)
+          endif
+
           write(message,'(a25,e24.16)') 'Total dmass/dt (Gt/y)    ', tot_dmass_dt * factor
           call write_log(trim(message), type = GM_DIAGNOSTIC)
 
@@ -661,6 +817,12 @@ contains
 !       call write_log(trim(message), type = GM_DIAGNOSTIC)
 
 !       write(message,'(a25,e24.16)') 'Mean calving (m/yr)      ', mean_calving
+!       call write_log(trim(message), type = GM_DIAGNOSTIC)
+
+!       write(message,'(a25,e24.16)') 'Mean latmelt (m/yr)      ', mean_latmelt
+!       call write_log(trim(message), type = GM_DIAGNOSTIC)
+
+!       write(message,'(a25,e24.16)') 'Mean removal (m/yr)      ', mean_removal
 !       call write_log(trim(message), type = GM_DIAGNOSTIC)
 
     endif  ! Glissade dycore

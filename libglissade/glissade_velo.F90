@@ -62,7 +62,7 @@ contains
       integer :: itest, jtest, rtest
       integer :: whichbtrc_sav
 
-      logical, parameter :: verbose_velo = .false.
+      logical :: verbose_velo = .false.
 
       ewn = model%general%ewn
       nsn = model%general%nsn

@@ -48,9 +48,9 @@
     implicit none
 
     private
-    public :: glissade_grounded_fraction, glissade_grounding_line_flux, verbose_glp
+    public :: glissade_grounded_fraction, verbose_glp
 
-    logical, parameter :: verbose_glp = .false.
+    logical :: verbose_glp = .false.
 
   contains
 
@@ -67,8 +67,7 @@
                                         which_ho_fground_no_glp,           &
                                         f_flotation,                       &
                                         f_ground,                          &
-                                        f_ground_cell,                     &
-                                        topg_raised)
+                                        f_ground_cell)
 
     use glissade_grid_operators, only : glissade_stagger, glissade_unstagger
     use glimmer_log
@@ -102,9 +101,6 @@
     !     This function was suggested by Xylar Asay-Davis and is linear in both b and H.
     !     Unlike a previous version of this option, f_flotation is not extrapolated from
     !     ice-covered cells to ice-free ocean.
-    ! (3) HO_FLOTATION_FUNCTION_RAISED_TOPG: This is like (2), except that the bed topography
-    !     is replaced with a corrected version, topg_raised, which aims to capture pinning points
-    !     on relatively coarse grids.
     ! All flotation functions are defined such that f <= 0 for grounded ice and f > 0 for floating ice.
     ! For each option, land-based cells are assigned a large negative value, so that any vertices
     !  with land-based neighbors are strongly grounded.
@@ -164,9 +160,6 @@
 
     real(dp), dimension(nx,ny), intent(out) ::  &
        f_ground_cell          ! grounded ice fraction in cell, 0 <= f_ground_cell <= 1
-
-    real(dp), dimension(nx,ny), intent(in), optional ::  &
-       topg_raised            ! raised version of bed topography (m)
 
     !----------------------------------------------------------------
     ! Local variables
@@ -297,34 +290,6 @@
           enddo
        enddo
 
-    elseif (which_ho_flotation_function == HO_FLOTATION_FUNCTION_LINEAR_RAISED_TOPG) then
-
-       if (.not.present(topg_raised)) then
-          call write_log('Error, must pass topg_raised to use this f_flotation option', GM_FATAL)
-       endif
-
-       ! like the previous option, but with topg -> topg_raised
-       do j = 1, ny
-          do i = 1, nx
-             if (land_mask(i,j) == 1) then
-                ! Assign a minimum value to (topg - eus) so that f_flotation is nonzero on land
-                topg_eus_diff = max(topg_raised(i,j) - eus, f_flotation_land_topg_min)
-                f_flotation(i,j) = -topg_eus_diff
-             else
-                ! Note: f_flotation reduces to -topg_raised for ice-free ocean
-                f_flotation(i,j) = -(topg_raised(i,j) - eus) - (rhoi/rhoo)*thck(i,j)
-                ! Make sure f_flotation is not too close to 0, for numerical robustness.
-                if (abs(f_flotation(i,j)) < f_flotation_marine_min) then
-                   if (f_flotation(i,j) < 0.0d0) then
-                      f_flotation(i,j) = -f_flotation_marine_min
-                   else
-                      f_flotation(i,j) =  f_flotation_marine_min
-                   endif
-                endif
-             endif
-          enddo
-       enddo
-
     endif  ! which_ho_flotation_function
 
     ! Extrapolate f_flotation to ice-free ocean cells for the first two options.
@@ -393,14 +358,9 @@
     endif   ! which_ho_flotation_function
 
     if (verbose_glp) then
-       call point_diag(thck, 'thck (m)', itest, jtest, rtest, 7, 7)
-       if (which_ho_flotation_function == HO_FLOTATION_FUNCTION_LINEAR_RAISED_TOPG) then
-          call point_diag(topg_raised, 'topg_raised (m)', itest, jtest, rtest, 7, 7)
-       else
-          call point_diag(topg, 'topg (m)', itest, jtest, rtest, 7, 7)
-       endif
+       call point_diag(thck, 'GLP calculation, thck (m)', itest, jtest, rtest, 7, 7)
+       call point_diag(topg, 'topg (m)', itest, jtest, rtest, 7, 7)
        call point_diag(f_flotation, 'f_flotation (m)', itest, jtest, rtest, 7, 7)
-       write(iulog,*) 'f_flotation, rtest, itest, jtest:', rtest, itest, jtest
     endif
 
     ! initialize the arrays computed below
@@ -728,8 +688,14 @@
 
     logical :: rotated           ! true if a pattern is rotated (used when 2 non-adjacent cells are G, and the other 2 are F)
 
+    ! Note: The original threshold was eps06 = 1.0d-6.
+    !       But when d is small (slightly > 1.e-6), several of the integral expressions below have a small numerator
+    !        and large denominator, leading to a large roundoff error. The resulting error in f_ground
+    !        can be in the 4th or 5th significant digit. I discovered this in March 2026 when looking into
+    !        reflectional asymmetries on the Thule domain for CalvingMIP.
+    !       The higher threshold reduces the roundoff error and resulting asymmetries.
     real(dp), parameter :: &
-         eps06 = 1.d-06          ! small number
+         eps05 = 1.d-05          ! small number; threshold for switching between integral formulas
 
     ! Note: By convention, corners are numbered from 1 to 4 proceeding CCW from the southwest corner.
     !       The algorithm will work, however, for any CCW ordering of the input f_flotation array.
@@ -867,7 +833,7 @@
        !       The above rotations ensure that we always take the log of a positive number.
        ! Note: This expression will give a NaN if f_flotation = 0 for land cells.
        !       Thus, f_flotation must be < 0 for land, even if topg - eus = 0.
-       if (abs((a*d)/(b*c)) > eps06) then
+       if (abs((a*d)/(b*c)) > eps05) then
           f_corner = ((b*c - a*d) * log(abs(1.d0 - (a*d)/(b*c))) + a*d) / (d*d)
        else
           f_corner = (a*a) / (2.0d0*b*c)
@@ -990,7 +956,7 @@
           !       through the region from left to right implies variation in y.
           !       The above rotations ensure that we always take the log of a positive number
 
-          if (abs(d/c) > eps06) then   ! the usual case
+          if (abs(d/c) > eps05) then   ! the usual case
              f_trapezoid = ((b*c - a*d) * log(1.d0 + d/c) - b*d) / (d*d)
           else
              f_trapezoid = -(2.d0*a + b) / (2.d0*c)
@@ -1040,7 +1006,7 @@
              write(iulog,*) 'Pattern 3: i, j, bc - ad =', i, j, b*c - a*d
           endif
 
-          if (abs(b*c - a*d) > eps06) then  ! the usual case
+          if (abs(b*c - a*d) > eps05) then  ! the usual case
              f_corner1 = ((b*c - a*d) * log(1.d0 - (a*d)/(b*c)) + a*d) / (d*d)
              f_corner2 = ((b*c - a*d) * log((b*c - a*d)/((b+d)*(c+d)))  &
                   + d*(a + b + c + d)) / (d*d)
@@ -1078,168 +1044,6 @@
     endif     ! nfloat
 
   end subroutine compute_grounded_fraction
-
-!=======================================================================
-
-  subroutine glissade_grounding_line_flux(nx,                       ny,            &
-                                          dx,                       dy,            &
-                                          sigma,                                   &
-                                          thck,                                    &
-                                          uvel,                     vvel,          &
-                                          ice_mask,                 floating_mask, &
-                                          ocean_mask,                              &
-                                          gl_flux_east,             gl_flux_north, &
-                                          gl_flux                                   )
-
-    ! Computes northward and eastward land ice fluxes at grounding lines,
-    !  and a cell-based grounding-line flux field.
-    ! Note: Since the GL thicknesses are approximated, the GL fluxes will not exactly 
-    !        match the fluxes computed by the transport scheme.
-    !       Also, the GL fluxes do not include thinning/calving of grounded marine cliffs.
-
-    implicit none
-
-    !----------------------------------------------------------------
-    ! Input-output arguments
-    !----------------------------------------------------------------
-
-    integer, intent(in) ::                     &
-        nx, ny                                   !> horizontal grid dimensions
-
-    real(dp), intent(in) ::                    &
-        dx, dy                                   !> horizontal grid spacing
-
-    real(dp), dimension(:), intent(in) ::      &
-        sigma                                    !> vertical sigma coordinate
-
-    real(dp), dimension(nx,ny), intent(in) ::  &
-        thck                                     !> ice thickness
-
-    real(dp), dimension(:,:,:), intent(in) ::  &
-        uvel, vvel                               !> ice velocity in x and y directions
-
-    integer, dimension(nx,ny), intent(in) ::  &
-        ice_mask,                              & !> = 1 where ice is present, else = 0
-        floating_mask,                         & !> = 1 where ice is present and floating, else = 0
-        ocean_mask                               !> = 1 for ice-free ocean, else = 0
-
-    ! Note: gl_flux_east and gl_flux_north are directional 
-    !       (positive for eastward/northward, negative for westward/southward)
-    !       gl_flux is a cell-based quantity based on flux magnitudes on each edge
-    !       (so gl_flux >= 0)
-
-    real(dp), dimension(:,:), intent(out) ::   &
-        gl_flux_east,                          & !> grounding line flux on east edges
-        gl_flux_north,                         & !> grounding line flux on north edges
-        gl_flux                                  !> grounding line flux per grid cell
-
-
-    !----------------------------------------------------------------
-    ! Local variables
-    !----------------------------------------------------------------
-
-    integer  :: i,j,k                                     !> local cell indices
-    integer  :: upn                                       !> vertical grid dimension
-    real(dp), dimension(:), allocatable :: uavg, vavg     !> local horizontal velocity averages
-    real(dp) :: thck_gl                                   !> GL thickness derived from topg_gl
-
-    upn = size(sigma)
-
-    allocate(uavg(upn), vavg(upn))
-
-    ! Initialize
-    gl_flux_east(:,:)  = 0.d0
-    gl_flux_north(:,:) = 0.d0
-    gl_flux(:,:)       = 0.d0
-
-    ! Compute grounding line fluxes on east and north edges.
-    ! Look for edges with a grounded cell on one side and a floating cell on the other.
-
-    do j = nhalo+1, ny-nhalo
-        do i = nhalo+1, nx-nhalo
-
-            ! check east edge
-           if ( (   (ice_mask(i,j) == 1 .and. floating_mask(i,j) == 0) .and.   &  ! (i,j) grounded
-                (ocean_mask(i+1,j) == 1 .or.  floating_mask(i+1,j) == 1) )     &  ! (i+1,j) floating or ocean
-                                        .or.                                   &
-                ( (ice_mask(i+1,j) == 1 .and. floating_mask(i+1,j) == 0) .and. &  ! (i+1,j) grounded
-                  (ocean_mask(i,j) == 1  .or. floating_mask(i,j) == 1) ) ) then   ! (i,j) floating or ocean
-
-                uavg(:) = (uvel(:,i,j) + uvel(:,i,j-1)) / 2.d0
-                if (ice_mask(i,j) == 1 .and. ice_mask(i+1,j) == 1) then
-                   ! set GL thickness to the average thickness of the two cells
-                   thck_gl = (thck(i,j) + thck(i+1,j)) / 2.d0
-                else
-                   ! set GL thickness to the thickness of the ice-filled cell
-                   thck_gl = max(thck(i,j), thck(i+1,j))
-                endif
-
-                do k = 1, upn-1
-                    gl_flux_east(i,j) = gl_flux_east(i,j) &
-                                        + thck_gl * (sigma(k+1) - sigma(k)) * (uavg(k) + uavg(k+1))/2.d0
-                enddo
-            endif
-
-            ! check north edge
-           if ( (   (ice_mask(i,j) == 1 .and. floating_mask(i,j) == 0) .and.   &  ! (i,j) grounded
-                (ocean_mask(i,j+1) == 1 .or.  floating_mask(i,j+1) == 1) )     &  ! (i,j+1) floating or ocean
-                                        .or.                                   &
-                ( (ice_mask(i,j+1) == 1 .and. floating_mask(i,j+1) == 0) .and. &  ! (i,j+1) grounded
-                  (ocean_mask(i,j) == 1  .or. floating_mask(i,j) == 1) ) ) then   ! (i,j) floating or ocean
-
-                vavg(:) = (vvel(:,i-1,j) + vvel(:,i,j)) / 2.d0
-                if (ice_mask(i,j) == 1 .and. ice_mask(i,j+1) == 1) then
-                   ! set GL thickness to the average thickness of the two cells
-                   thck_gl = (thck(i,j) + thck(i,j+1)) / 2.d0
-                else
-                   ! set GL thickness to the thickness of the ice-filled cell
-                   thck_gl = max(thck(i,j), thck(i,j+1))
-                endif
-
-                do k = 1, upn-1
-                    gl_flux_north(i,j) = gl_flux_north(i,j) &
-                                        + thck_gl * (sigma(k+1) - sigma(k)) * (vavg(k) + vavg(k+1))/2.d0
-                enddo
-             endif
-
-        enddo   ! i
-    enddo   ! j
-
-    ! Compute mass flux through grounding line in each cell.
-    ! Only a grounded cell can lose mass. We need to check the direction of the fluxes.
-
-    do j = nhalo+1,ny-nhalo
-        do i = nhalo+1,nx-nhalo
-
-            ! Check the sign for east-west flow and assign the flux accordingly
-            if (gl_flux_east(i,j) < 0.d0) then
-                ! The ice is flowing westward and the flux belongs to the right adjacent cell
-                gl_flux(i+1,j) = gl_flux(i+1,j) - gl_flux_east(i,j)
-            else
-                ! The ice is flowing eastward and the flux belongs to this cell
-                gl_flux(i,j) = gl_flux(i,j) + gl_flux_east(i,j)
-            endif
-
-            ! Check the sign for north-south flow and assign the flux accordingly
-            if (gl_flux_north(i,j) < 0.d0) then
-                ! The ice is flowing southward and the flux belongs to the top adjacent cell
-                gl_flux(i,j+1) = gl_flux(i,j+1) - gl_flux_north(i,j)
-            else
-                ! The ice is flowing northward and the flux belongs to this cell
-                gl_flux(i,j) = gl_flux(i,j) + gl_flux_north(i,j)
-            endif
-
-        enddo   ! i
-    enddo   ! j
-
-    ! Convert from m^2/s to kg/m/s
-    gl_flux_east  = gl_flux_east  * rhoi
-    gl_flux_north = gl_flux_north * rhoi
-    gl_flux       = gl_flux       * rhoi
-
-    deallocate(uavg, vavg)
-
-  end subroutine glissade_grounding_line_flux
 
 !****************************************************************************
 
