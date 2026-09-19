@@ -47,6 +47,7 @@ module glimmer_ncparams
   type(glimmer_nc_meta),save :: default_metadata
   character(10000) :: configstring
 
+  logical :: verbose_ncparams = .false.
 
 contains
 
@@ -72,15 +73,20 @@ contains
 
     integer :: pos
     integer :: ierr
+    integer :: i, n
     character(len=fname_length) :: restart_filename
     character(len=256) :: message
+    character(len=:), allocatable :: vars
+    logical :: abort
 
     ! Notes on restart files:
+    ! (These notes apply to standalone CISM runs; restart files are treated differently in coupled CESM runs.)
+    !
     ! If a file is listed in the 'CF restart' section, then it is added to the glimmer_nc_output data structure
     !  and written at the specified frequency.
     !
     ! There should be at most one 'CF restart' section in the config file.
-    ! The filename should contain the string 'restart' or '.r.'
+    ! The filename should contain the string 'restart' or '.r.'. (Coupled CESM runs use '.r.')
     !
     ! If model%options%is_restart = STANDARD_RESTART, then the file listed in 'CF restart' (provided it exists)
     !  is added to the glimmer_nc_input data structure, overriding any file listed in the 'CF input' section.
@@ -88,10 +94,9 @@ contains
     ! Thus when restarting the model, it is only necessary to set restart = 1 (i.e., STANDARD_RESTART)
     !  in the config file; it is not necesssary to change the filenames in 'CF input' or 'CF restart'.
     !
-    ! If model%options%is_restart = STANDARD_RESTART and there is no 'CF restart' section, then the model will restart
-    !  from the file and time slice specified in the 'CF input' section. (This is the old Glimmer behavior.)
+    ! If model%options%is_restart = STANDARD_RESTART and there is no 'CF restart' section, the model will abort.
     !
-    ! If model%options%is_restart = HYBRID_RESTART, then the file listed in 'CF input' is used to initialize the model.
+    ! If model%options%is_restart = HYBRID_RESTART, the file listed in 'CF input' is used to initialize the model.
     ! This file should be a restart file from a previous run (e.g., a long ice-sheet spin-up),
     !  which provides the initial ice state for the hybrid run.
     ! The differences from STANDARD_RESTART (besides the config section where the filename is given) are
@@ -114,6 +119,43 @@ contains
        if (.not.associated(model%funits%out_first)) then
           model%funits%out_first => output
        end if
+
+       ! Check the variable list for the string '_tavg', which indicates a time-average field.
+       ! If any variables have this string, then all variables must have it, else the code aborts.
+       ! In other words, instantaneous and time-average fields cannot be mixed in a single file.
+
+       abort = .false.
+       pos = index(output%nc%vars,'_tavg')
+       if (pos /= 0) then   ! at least one tavg variable is present
+
+          ! The variables in output%nc%vars are separated by spaces. First remove any extra spaces.
+          call remove_extra_spaces(output%nc%vars, vars)
+          n = len(vars)
+
+          ! Check that each space is preceded by the string '_tavg'.
+          do i = 1, n
+             if (vars(i:i) == ' ') then
+                if (vars(i-5:i-1) /= '_tavg') then  ! the preceding variable is not a tavg variable
+                   abort = .true.
+                endif
+             endif
+          enddo
+
+          ! Check that the final variable in the list has the '_tavg' suffix
+          if (vars(n-4:n) /= '_tavg') abort = .true.
+
+          if (abort) then
+             write(message,*) 'tavg and instantaneous variables are mixed in ', trim(output%nc%filename)
+             call write_log(message, GM_FATAL)
+          endif
+
+          ! Check that write_init = F, since we can't write meaningful averages at t = 0
+          if (output%write_init) then
+             call write_log('Please set write_init = false for the tavg output file', GM_FATAL)
+          endif
+
+       endif   ! output%nc%vars includes at least one tavg variable
+
        call GetSection(section%next,section,'CF output')
     end do
 
@@ -128,6 +170,8 @@ contains
        end if
 
        ! Make sure the filename contains 'restart'
+       ! Note: CESM restart files contain '.r.' instead of 'restart'.
+       !       But since they don't have a 'CF restart' section, we don't need to check here for '.r.'
        pos = index(output%nc%filename,'restart')
        if (pos == 0) then
           call write_log ('Error, filename in CF restart section should include "restart"', GM_FATAL)
@@ -148,7 +192,7 @@ contains
     if (model%options%is_restart == STANDARD_RESTART) then
 
        ! If there is a 'CF restart' section, the model will restart from the file listed there (if it exists).
-       ! Else the model will start from the input file in the 'CF input' section.
+       ! Else the model will abort.
 
        call GetSection(config,section,'CF restart')
 
@@ -181,10 +225,8 @@ contains
 
           else   ! file does not exist; do not reset input pointers
 
-             write(message,*) 'Cannot find restart file:', trim(restart_filename)
-             call write_log(message)
-             write(message,*) 'Starting from input file:', trim(input%nc%filename)
-             call write_log(message)
+             write(message,*) 'Error, cannot find restart file: ', trim(restart_filename)
+             call write_log(message, GM_FATAL)
 
           endif  ! ierr = 0 (restart file exists)
 
@@ -405,6 +447,52 @@ contains
     handle_forcing%nc%filename = trim(filenames_inputname(handle_forcing%nc%filename))
 
   end function handle_forcing
+
+  !------------------------------------------------------------------------------
+
+  subroutine remove_extra_spaces(string, new_string)
+
+    ! Given a string, return a string without leading or trailing spaces
+    ! and without any extra (2 or more together) intermediate spaces
+    ! Could move this subroutine to glimmer_utils if it were called from other modules.
+
+    use cism_parallel, only: main_task
+
+    ! arguments
+    character(len=*), intent(in) :: string
+    character(len=:), allocatable, intent(out) :: new_string
+
+    ! local variables
+    integer :: i, imax
+
+    if (verbose_ncparams .and. main_task) write(6,*) 'Input string:', len(string), string
+
+    ! Remove any leading or trailing spaces
+    new_string = trim(adjustl(string))   ! adjustl moves leading spaces to the end
+    if (main_task) write(6,*) 'After removing leading and trailing spaces: ', new_string, len(new_string)
+
+    ! Remove any extra spaces in the remaining string.
+    ! The final string will have only one space between any two substrings without spaces.
+    i = 1
+    imax = len(new_string)
+    do while (i < imax)
+       if (new_string(i:i) == ' ') then
+          if (new_string(i+1:i+1) == ' ') then  ! remove the extra space
+             new_string = new_string(1:i) // new_string(i+2:len(new_string))
+             if (verbose_ncparams .and. main_task) write(6,*) 'After space removal: ', new_string, len(new_string)
+             imax = imax - 1
+          else   ! increment i
+             i = i+1
+          endif
+       else   ! increment i
+          i = i+1
+       endif
+    enddo
+    if (verbose_ncparams .and. main_task) then
+       write(6,*) 'Output string: ', new_string, len(new_string)
+    endif
+
+  end subroutine remove_extra_spaces
 
   !------------------------------------------------------------------------------
 
